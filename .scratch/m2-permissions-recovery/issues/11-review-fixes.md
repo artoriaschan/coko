@@ -29,3 +29,31 @@
 - [x] 两份评审文件末尾追加"处理结果"；ADR 0005 / 0006、permissions.md、recovery.md、README 同步
 
 ## Comments
+
+- 2026-10-29 implementer（分支 m2/11-review-fixes）：
+
+  **覆盖的验收**：上列各项，逐项的处理与测试位置见 [Standards 评审](../review-standards.md#处理结果) 与 [Spec 评审](../review-spec.md#处理结果) 末尾的"处理结果"。
+
+  **选择与说明**
+  - F3 选过滤而不是询问：搜索根下有拒绝规则是常态（例如 `Read(.env)`），每次搜索都询问会让规则失去意义。过滤按结果路径与按搜索根真实路径换算后的路径判定（目录遍历不跟随符号链接）。
+  - F1：Carry-over 中原定 M6 的"发布构建关闭测试钩子、产物 smoke 改用测试构建"在本票完成（Lead 可在地图勾除）。构建期标志为 `COKO_TEST_BUILD=1`，E2E globalSetup 打包时设置；手工 `pnpm run package` 不设时为发布构建。打包的发布构建中剥离与忽略的行为由单元测试与 `sidecar-boot.test.ts`（`--packaged`）覆盖，没有为发布构建另打一次包做 E2E。
+  - J2 按评审方案 (a) 让代码向 ADR 0005 与 GLOSSARY 看齐，ADR 只追加了实施说明，没有改决定句。模型第一次就带提权参数会得到参数错误，需要先不带参数运行一次。
+  - F5：复核在调度器新增的执行前准备（取得执行槽之后、`tool_exec` 之前）中进行，J5 的 Secrets 预检、沙箱档位与读取过滤也移到这里。残留：复核之后放行的写入，Checkpoint 的备份仍是判定时的路径。
+  - F6：Workspace 外与受保护路径在对话框中单独列出，并以 alert 警告，没有加勾选确认。
+  - H4：fork 移到 `agents/`，并新增 `agents/index.ts`，因此改了 `packages/agent/src/index.ts` 的一行 re-export（原为票 01 独占的装配点；本票串行，没有并行票冲突）。
+  - H5：dialog 改为按 key 重新挂载后，StrictMode 会在挂载时同时发出两次预览，旧的 `#exclusively` 让第二次以 session-busy 失败（全量运行中 rewind E2E 两例因此失败）。现在 dry-run 检查同样的前置条件但不登记独占，补了并发预览用例（先确认该用例在修复前失败）。
+  - P2：运行时的 continue 不能从 assistant 消息开始，横幅的"继续"在这种情况下提交一条本地化的"继续"用户消息。
+
+  **越界的最小改动**：本票写范围按评审涉及的文件确定；另改了 `apps/desktop/src/renderer/main.tsx`（forkTitle 接线）、`apps/desktop/build/build.ts` 与 `e2e/global-setup.ts`（构建期标志）、`docs/tech-stack/observability.md`（登记 approvalId）。
+
+  **实际运行的命令与结果**（worktree，main ba5a21a 已合入，`git merge main` 为 Already up to date）
+  - `pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run check:docs && pnpm run test`：退出 0。lint 0 警告 0 错误；check:docs 86 个文件 0 问题；test 107 个文件，822 通过、1 跳过（真实模型，无密钥），含 desktop E2E 与 package-smoke 产物 smoke。
+  - 先红：F1 sidecar-env 与 config、F2 decide 与 sidecar-permissions、F3 read-filter、execution-checks 中的 6 例（F3、F5、J5、J2、J3、F10）、F4 seatbelt、J1/F6 rewind、F7 与 F8、P2、H2、S1 message 样例、并发预览，都在实现前确认失败。P1 是对已有行为的补测，没有红阶段。S1 编译期断言以临时改动 protocol 确认 tsc 失败后撤销。
+
+  **未验证项**
+  - 打包的发布构建（不设 COKO_TEST_BUILD）没有跑产物 E2E，只有单元测试与 `--packaged` 的 Sidecar 集成测试。
+  - Seatbelt 的受保护路径 deny 只在本机 darwin 上验证；非 darwin 平台受限档位本就 fail-closed。
+  - 真实模型对话未验证（无密钥）。
+  - J4、S2–S5、S7、S10、S11 未做，S6、S8、S9 部分完成，理由见评审文件的"处理结果"。
+
+  **文档影响**：ADR 0005、0006（实施与评审修复说明，决定句未改）、docs/subsystems/permissions.md、recovery.md、docs/tech-stack/agent-runtime.md（目录图）、observability.md、apps/server 与 packages/agent 的 README。
