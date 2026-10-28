@@ -23,12 +23,12 @@ repo/
 │   │   │       ├── app/            # 路由、依赖装配、主题与 locale
 │   │   │       ├── features/       # 聊天、会话、文档和设置功能
 │   │   │       ├── stores/         # Zustand vanilla store
-│   │   │       └── client/         # HTTP / WebSocket 客户端
+│   │   │       ├── client/         # HTTP / WebSocket 客户端
+│   │   │       └── vite.config.ts  # renderer 构建与开发服务器（唯一的 Vite 配置）
 │   │   ├── build/                  # Forge hooks、watch 与资源准备
 │   │   ├── resources/              # 图标与打包静态资源
 │   │   ├── forge.config.ts
-│   │   ├── tsdown.config.ts        # main / preload 构建
-│   │   └── vite.config.ts          # renderer 构建
+│   │   └── tsdown.config.ts        # main / preload 构建
 │   └── server/                     # sidecar（Electron 内置 Node）与服务装配入口
 │       ├── src/
 │       │   ├── http/               # Hono 路由、访问认证、中间件、错误映射

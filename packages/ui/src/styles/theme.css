@@ -1,0 +1,451 @@
+/*
+ * Coko 主题样式表：颜色、圆角、阴影、字体与动效数值的唯一来源。
+ * 规则见 docs/tech-stack/ui-design-system.md。字面量颜色只允许出现在 --palette-* 原始色板中，
+ * 业务组件只通过 Tailwind 语义类消费 token。
+ */
+@import 'tailwindcss' source(none);
+@import 'tw-animate-css';
+
+/* 类名来源：本包组件，以及 Streamdown 分发文件（其内置组件使用 Tailwind 类）。renderer 在自己的样式入口追加 @source。 */
+@source '../';
+@source '../../../../node_modules/streamdown/dist/*.js';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- 原始色板：只供下方语义 token 引用 ---------- */
+:root {
+  --palette-white: #ffffff;
+  --palette-gray-25: rgb(250 250 250);
+  --palette-gray-50: rgb(249 250 251);
+  --palette-gray-100: rgb(235 238 242);
+  --palette-gray-300: rgb(207 211 214);
+  --palette-gray-400: rgb(173 178 184);
+  --palette-gray-500: rgb(129 133 140);
+  --palette-gray-600: rgb(97 102 107);
+  --palette-gray-700: rgb(67 69 74);
+  --palette-gray-750: rgb(53 54 56);
+  --palette-gray-800: rgb(44 44 46);
+  --palette-gray-830: rgb(41 41 41);
+  --palette-gray-850: rgb(35 35 36);
+  --palette-gray-900: rgb(27 27 28);
+  --palette-gray-950: rgb(21 21 23);
+  --palette-ink: rgb(15 17 21);
+  --palette-blue-50: rgb(237 243 254);
+  --palette-blue-500: rgb(65 118 230);
+  --palette-blue-300: rgb(122 170 255);
+  --palette-red-500: rgb(236 19 19);
+  --palette-red-300: rgb(242 90 90);
+  --palette-green-500: rgb(34 197 94);
+  --palette-amber-500: rgb(245 158 11);
+  --palette-green-bg-light: rgb(230 244 231);
+  --palette-green-bg-dark: rgb(31 49 36);
+  --palette-red-bg-light: rgb(252 230 226);
+  --palette-red-bg-dark: rgb(60 31 27);
+  --palette-ink-a04: rgb(0 0 0 / 0.04);
+  --palette-ink-a10: rgb(0 0 0 / 0.1);
+  --palette-ink-a12: rgb(0 0 0 / 0.12);
+  --palette-ink-a16: rgb(0 0 0 / 0.16);
+  --palette-ink-a24: rgb(0 0 0 / 0.24);
+  --palette-ink-a50: rgb(0 0 0 / 0.5);
+  --palette-slate-a06: rgb(38 49 72 / 0.06);
+  --palette-slate-a10: rgb(38 49 72 / 0.1);
+  --palette-white-a06: rgb(255 255 255 / 0.06);
+  --palette-white-a08: rgb(255 255 255 / 0.08);
+  --palette-white-a12: rgb(255 255 255 / 0.12);
+  --palette-white-a14: rgb(255 255 255 / 0.14);
+  --palette-white-a16: rgb(255 255 255 / 0.16);
+  --palette-white-a20: rgb(255 255 255 / 0.2);
+  --palette-menu-light: rgb(248 249 250 / 0.94);
+  --palette-menu-dark: rgb(48 49 54 / 0.94);
+  --palette-shadow-a02: rgb(0 0 0 / 0.02);
+  --palette-shadow-a03: rgb(0 0 0 / 0.03);
+  --palette-shadow-a04: rgb(0 0 0 / 0.04);
+  --palette-shadow-a05: rgb(0 0 0 / 0.05);
+}
+
+/* ---------- 语义 token：亮色 ---------- */
+:root {
+  color-scheme: light;
+  --background: var(--palette-white);
+  --foreground: var(--palette-ink);
+  --card: var(--palette-white);
+  --card-foreground: var(--palette-ink);
+  --card-fill: var(--palette-white);
+  --card-stroke: var(--palette-ink-a16);
+  --popover: var(--palette-white);
+  --popover-foreground: var(--palette-ink);
+  --primary: var(--palette-ink);
+  --primary-hover: var(--palette-gray-700);
+  --primary-foreground: var(--palette-white);
+  --secondary: var(--palette-slate-a06);
+  --secondary-foreground: var(--palette-ink);
+  --muted: var(--palette-gray-50);
+  --muted-foreground: var(--palette-gray-600);
+  --accent: var(--palette-slate-a06);
+  --accent-active: var(--palette-slate-a10);
+  --accent-foreground: var(--palette-ink);
+  --destructive: var(--palette-red-500);
+  --destructive-foreground: var(--palette-white);
+  --success: var(--palette-green-500);
+  --warning: var(--palette-amber-500);
+  --border: var(--palette-ink-a10);
+  --border-subtle: var(--palette-ink-a04);
+  --input: var(--palette-ink-a12);
+  --ring: var(--palette-blue-500);
+  --link: var(--palette-blue-500);
+  --overlay: var(--palette-ink-a24);
+  --menu-fill: var(--palette-menu-light);
+  --elevation-stroke-color: var(--palette-ink-a16);
+  --sidebar: var(--palette-gray-50);
+  --sidebar-foreground: var(--palette-ink);
+  --sidebar-accent: var(--palette-gray-100);
+  --sidebar-accent-foreground: var(--palette-ink);
+  --sidebar-border: var(--palette-ink-a10);
+  --bubble: var(--palette-blue-50);
+  --tooltip: var(--palette-gray-800);
+  --tooltip-foreground: var(--palette-gray-50);
+  --toast: var(--palette-gray-750);
+  --toast-foreground: var(--palette-gray-50);
+  --code-block: var(--palette-gray-50);
+  --inline-code: var(--palette-gray-25);
+  --diff-added: var(--palette-green-bg-light);
+  --diff-deleted: var(--palette-red-bg-light);
+  --skeleton: var(--palette-ink-a04);
+  --scrollbar-thumb: var(--palette-ink-a16);
+  --shadow-color-1: var(--palette-shadow-a03);
+  --shadow-color-2: var(--palette-shadow-a02);
+  --shadow-color-3: var(--palette-shadow-a04);
+  --shadow-color-4: var(--palette-shadow-a05);
+}
+
+/* ---------- 语义 token：暗色 ---------- */
+.dark {
+  color-scheme: dark;
+  --background: var(--palette-gray-950);
+  --foreground: var(--palette-gray-50);
+  --card: var(--palette-gray-800);
+  --card-foreground: var(--palette-gray-50);
+  --card-fill: var(--palette-gray-800);
+  --card-stroke: var(--palette-white-a20);
+  --popover: var(--palette-gray-850);
+  --popover-foreground: var(--palette-gray-50);
+  --primary: var(--palette-gray-50);
+  --primary-hover: var(--palette-gray-100);
+  --primary-foreground: var(--palette-ink);
+  --secondary: var(--palette-white-a08);
+  --secondary-foreground: var(--palette-gray-50);
+  --muted: var(--palette-gray-900);
+  --muted-foreground: var(--palette-gray-300);
+  --accent: var(--palette-white-a08);
+  --accent-active: var(--palette-white-a14);
+  --accent-foreground: var(--palette-gray-50);
+  --destructive: var(--palette-red-300);
+  --destructive-foreground: var(--palette-ink);
+  --border: var(--palette-white-a12);
+  --border-subtle: var(--palette-white-a06);
+  --input: var(--palette-white-a16);
+  --ring: var(--palette-blue-300);
+  --link: var(--palette-blue-300);
+  --overlay: var(--palette-ink-a50);
+  --menu-fill: var(--palette-menu-dark);
+  --elevation-stroke-color: var(--palette-white-a16);
+  --sidebar: var(--palette-gray-900);
+  --sidebar-foreground: var(--palette-gray-50);
+  --sidebar-accent: var(--palette-gray-700);
+  --sidebar-accent-foreground: var(--palette-gray-50);
+  --sidebar-border: var(--palette-white-a12);
+  --bubble: var(--palette-gray-800);
+  --tooltip: var(--palette-gray-700);
+  --tooltip-foreground: var(--palette-gray-50);
+  --toast: var(--palette-gray-700);
+  --toast-foreground: var(--palette-gray-50);
+  --code-block: var(--palette-gray-900);
+  --inline-code: var(--palette-gray-830);
+  --diff-added: var(--palette-green-bg-dark);
+  --diff-deleted: var(--palette-red-bg-dark);
+  --skeleton: var(--palette-white-a08);
+  --scrollbar-thumb: var(--palette-white-a20);
+}
+
+/* ---------- 非颜色 token ---------- */
+:root {
+  --hairline: 0.5px;
+  --frame-top-clearance: 48px;
+  --frame-leading-clearance: 0px;
+  --focus-ring-width: 2px;
+  --menu-backdrop-filter: blur(40px) saturate(150%);
+  --elevation-stroke: 0 0 0 var(--hairline) var(--elevation-stroke-color);
+}
+
+/* macOS 红绿灯占用标题栏左侧；收起为 rail 时中栏标题需避让。数值待 Electron 实机核对。 */
+[data-platform='darwin'] {
+  --frame-leading-clearance: 72px;
+}
+
+/* ---------- Tailwind theme：只登记项目 token ---------- */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-panel: 28px;
+
+  --text-ui-caption: 11px;
+  --text-ui-caption--line-height: 14px;
+  --text-ui-small: 12px;
+  --text-ui-small--line-height: 18px;
+  --text-ui-body: 13px;
+  --text-ui-body--line-height: 20px;
+  --text-ui-body-lg: 14px;
+  --text-ui-body-lg--line-height: 22px;
+  --text-ui-title: 16px;
+  --text-ui-title--line-height: 24px;
+  --text-ui-heading: 20px;
+  --text-ui-heading--line-height: 28px;
+  --text-ui-display: 24px;
+  --text-ui-display--line-height: 32px;
+
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* 代码栈以 CJK 字体收尾，避免回退到宋体。 */
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei';
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration: 0.2s;
+  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 引用运行时变量的 token 必须 inline，组件才能局部重绑（例如 --elevation-stroke-color）。 */
+@theme inline {
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-fill: var(--card-fill);
+  --color-card-stroke: var(--card-stroke);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-active: var(--accent-active);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-link: var(--link);
+  --color-overlay: var(--overlay);
+  --color-menu-fill: var(--menu-fill);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-bubble: var(--bubble);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-foreground: var(--tooltip-foreground);
+  --color-toast: var(--toast);
+  --color-toast-foreground: var(--toast-foreground);
+  --color-code-block: var(--code-block);
+  --color-inline-code: var(--inline-code);
+  --color-diff-added: var(--diff-added);
+  --color-diff-deleted: var(--diff-deleted);
+  --color-skeleton: var(--skeleton);
+
+  --shadow-panel: var(--elevation-stroke), 0 3px 8px 0 var(--shadow-color-1), 0 0 16px 0 var(--shadow-color-2);
+  --shadow-prominent: var(--elevation-stroke), 0 3px 8px 0 var(--shadow-color-3), 0 0 20px 0 var(--shadow-color-4);
+  --shadow-soft: var(--elevation-stroke), 0 4px 16px 0 var(--shadow-color-1), 0 0 24px 0 var(--shadow-color-1);
+}
+
+/* ---------- 工具类 ---------- */
+
+/* 全圆：圆形头像、状态点、胶囊。同时恢复圆弧曲线。 */
+@utility rounded-round {
+  border-radius: calc(infinity * 1px);
+  corner-shape: round;
+}
+
+/* 0.5px 中性发丝线。Tailwind 默认的 border 为 1px，中性线统一用这些类。 */
+@utility border-hairline {
+  border-style: solid;
+  border-width: var(--hairline);
+}
+@utility border-t-hairline {
+  border-top-style: solid;
+  border-top-width: var(--hairline);
+}
+@utility border-b-hairline {
+  border-bottom-style: solid;
+  border-bottom-width: var(--hairline);
+}
+@utility border-l-hairline {
+  border-left-style: solid;
+  border-left-width: var(--hairline);
+}
+@utility border-r-hairline {
+  border-right-style: solid;
+  border-right-width: var(--hairline);
+}
+@utility h-hairline {
+  height: var(--hairline);
+}
+@utility w-hairline {
+  width: var(--hairline);
+}
+
+/* 菜单材质的模糊层；只由共享 Menu 组件使用。 */
+@utility menu-backdrop {
+  backdrop-filter: var(--menu-backdrop-filter);
+}
+
+/* ---------- 基础样式 ---------- */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+    corner-shape: superellipse(1.5);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-ui-body);
+    line-height: var(--text-ui-body--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--ring);
+    outline-offset: -1px;
+  }
+
+  /* 滚动条只在这里定义；细滚动条与容器边缘留出间距。 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  /* 窗口拖拽区：带 data-window-drag 的 chrome 行可拖，其中的交互控件始终可点。 */
+  [data-window-drag] {
+    -webkit-app-region: drag;
+  }
+  [data-window-drag] :is(button, a, input, textarea, select, [role='button'], [role='separator'], [tabindex]) {
+    -webkit-app-region: no-drag;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---------- Markdown 排版：由 MarkdownRenderer 独立管理（字重例外仅限于此） ---------- */
+/* 不放入 layer，使其覆盖 Streamdown 内置组件的 utility 类。 */
+.coko-markdown {
+  font-size: 14px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.coko-markdown [data-streamdown='heading-1'] {
+  font-size: 21px;
+  line-height: 30px;
+  font-weight: 700;
+}
+.coko-markdown [data-streamdown='heading-2'] {
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.coko-markdown [data-streamdown='heading-3'] {
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 700;
+}
+.coko-markdown :is([data-streamdown='heading-4'], [data-streamdown='heading-5'], [data-streamdown='heading-6']) {
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.coko-markdown [data-streamdown='table-wrapper'] {
+  border-radius: var(--radius-lg);
+}
+.coko-markdown [data-streamdown='table-wrapper'] table,
+.coko-markdown :is([data-streamdown='table-cell'], [data-streamdown='table-header-cell'], [data-streamdown='table-row']) {
+  border-width: var(--hairline);
+}
+.coko-markdown :is([data-streamdown='table-cell'], [data-streamdown='table-header-cell']) {
+  font-size: 13px;
+  line-height: 22px;
+}
+/* 代码块：外框 R16、内边距 8px，内嵌代码区同心 R8；中性线为发丝线。 */
+.coko-markdown [data-streamdown='code-block'] {
+  border-width: var(--hairline);
+  border-radius: var(--radius-lg);
+  background-color: var(--code-block);
+}
+.coko-markdown [data-streamdown='code-block-body'] {
+  border-width: var(--hairline);
+  border-radius: var(--radius-sm);
+}
+.coko-markdown [data-streamdown='code-block-actions'] {
+  border-width: 0;
+  border-radius: var(--radius-sm);
+}
+.coko-markdown [data-streamdown='code-block'] pre {
+  font-size: 12px;
+  line-height: 19px;
+}
+.coko-markdown [data-streamdown='inline-code'] {
+  border-radius: var(--radius-xs);
+  background-color: var(--inline-code);
+  font-size: 12px;
+  line-height: 19px;
+}
+.coko-markdown [data-streamdown='horizontal-rule'] {
+  border: 0;
+  height: var(--hairline);
+  background-color: var(--border);
+}
+.coko-markdown [data-streamdown='link'] {
+  color: var(--link);
+  font-weight: 500;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .coko-markdown [data-streamdown='link']:hover {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+  }
+}
+.coko-markdown [data-streamdown='link']:focus-visible {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}

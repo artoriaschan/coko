@@ -8,5 +8,6 @@
     "jsx": "react-jsx"
   },
   "include": ["src", "tests", "e2e", "build", "*.config.ts"],
+  "exclude": ["src/renderer"],
   "references": [{ "path": "../../packages/protocol" }]
 }

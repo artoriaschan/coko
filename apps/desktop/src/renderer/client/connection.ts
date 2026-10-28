@@ -1,12 +1,15 @@
 import { API_ROUTES, HealthResponse } from '@coko/protocol'
 import { Value } from 'typebox/value'
-import type { CokoBridge } from '../shared/bridge.ts'
+import type { CokoBridge } from '../../shared/bridge.ts'
 
+// 界面语言由 appearance store 决定；连接状态只描述阶段，失败时附带协议错误码与技术详情（保持原文）。
 export type ConnectionState =
-  | { readonly phase: 'connecting'; readonly locale: string }
-  | { readonly phase: 'connected'; readonly locale: string }
-  | { readonly phase: 'disconnected'; readonly locale: string }
-  | { readonly phase: 'failed'; readonly locale: string; readonly code: string; readonly message: string }
+  | { readonly phase: 'connecting' }
+  | { readonly phase: 'connected' }
+  | { readonly phase: 'disconnected' }
+  | { readonly phase: 'failed'; readonly code: string; readonly message: string }
+
+export type ConnectionPhase = ConnectionState['phase']
 
 const WS_OPEN_TIMEOUT_MS = 10_000
 
@@ -14,21 +17,19 @@ const WS_OPEN_TIMEOUT_MS = 10_000
  * boot → 经 coko-app:// 代理请求 health → 建立 WebSocket。连接保持打开，关闭时报告 disconnected。
  * @returns 停止并关闭 WebSocket
  */
-export function connect(bridge: CokoBridge | undefined, fallbackLocale: string, onState: (state: ConnectionState) => void): () => void {
+export function connect(bridge: CokoBridge | undefined, onState: (state: ConnectionState) => void): () => void {
   let disposed = false
   let socket: WebSocket | undefined
-  let locale = fallbackLocale
   const emit = (state: ConnectionState) => {
     if (!disposed) onState(state)
   }
-  const fail = (code: string, message: string) => emit({ phase: 'failed', locale, code, message })
+  const fail = (code: string, message: string) => emit({ phase: 'failed', code, message })
 
   void (async () => {
     if (bridge === undefined) return fail('no-bridge', 'Desktop bridge is unavailable')
     const boot = await bridge.boot()
     if (!boot.ok) return fail(boot.error.code, boot.error.message)
-    locale = boot.info.locale
-    emit({ phase: 'connecting', locale })
+    emit({ phase: 'connecting' })
     const response = await fetch(API_ROUTES.health)
     const body: unknown = response.ok ? await response.json() : undefined
     if (!Value.Check(HealthResponse, body)) return fail('health', `Health check failed with status ${response.status}`)
@@ -41,11 +42,11 @@ export function connect(bridge: CokoBridge | undefined, fallbackLocale: string, 
     }, WS_OPEN_TIMEOUT_MS)
     ws.addEventListener('open', () => {
       clearTimeout(timer)
-      emit({ phase: 'connected', locale })
+      emit({ phase: 'connected' })
     })
     ws.addEventListener('close', () => {
       clearTimeout(timer)
-      emit({ phase: 'disconnected', locale })
+      emit({ phase: 'disconnected' })
     })
   })().catch((error: unknown) => fail('renderer', error instanceof Error ? error.message : String(error)))
 

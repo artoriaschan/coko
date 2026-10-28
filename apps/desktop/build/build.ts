@@ -6,7 +6,8 @@ import { build as tsdown, type InlineConfig } from 'tsdown'
 import { build as viteBuild, createServer as createViteServer } from 'vite'
 
 export const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
-const viteConfigFile = fileURLToPath(new URL('../vite.config.ts', import.meta.url))
+// renderer 唯一的 Vite 配置：base './'，输出 dist/renderer；生产构建与开发服务器共用。
+const viteConfigFile = fileURLToPath(new URL('../src/renderer/vite.config.ts', import.meta.url))
 
 const electronBase: InlineConfig = {
   config: false,

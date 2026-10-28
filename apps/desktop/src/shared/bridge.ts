@@ -27,3 +27,11 @@ export interface CokoBridge {
   /** 打开目录选择对话框；取消时为 null。 */
   pickDirectory(): Promise<string | null>
 }
+
+// 声明放在契约旁：renderer 与 E2E（经 page.evaluate 访问 window.coko）分属不同 tsconfig 项目，都导入本文件。
+declare global {
+  interface Window {
+    /** preload 暴露的受控 API；只在 coko-app://app 主窗口中存在。 */
+    readonly coko?: CokoBridge
+  }
+}
