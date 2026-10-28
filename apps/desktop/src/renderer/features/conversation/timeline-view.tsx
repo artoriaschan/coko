@@ -57,6 +57,27 @@ export function TimelineView({ items, theme, onRetry }: TimelineViewProps) {
                 {item.retry ? t('conversation.retrying', { attempt: item.retry.attempt, max: item.retry.maxRetries }) : t('conversation.generating')}
               </p>
             )
+          case 'steering':
+            // 待送达的追加指令：与用户气泡同形，弱化显示并标注状态。
+            return (
+              <article
+                key={item.key}
+                aria-label={t('conversation.you')}
+                data-steering="pending"
+                className="ms-auto flex w-fit max-w-[85%] flex-col items-end gap-1"
+              >
+                <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap opacity-60">
+                  {item.text}
+                </p>
+                <span className="text-ui-small text-muted-foreground">{t('conversation.steeringPending')}</span>
+              </article>
+            )
+          case 'paused':
+            return (
+              <p key={item.key} data-run-status="paused" className="text-ui-body text-muted-foreground">
+                {t('conversation.paused')}
+              </p>
+            )
           case 'stopped':
             return (
               <p key={item.key} data-run-status="aborted" className="text-ui-body text-muted-foreground">

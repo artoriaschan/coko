@@ -58,9 +58,27 @@ export interface Conversation {
   unrecordedEnd?: UnrecordedRunEnd
   /** 已发出、尚未由 permission_mode 条目确认的模式（乐观显示）。 */
   pendingMode?: PermissionMode
+  /** 本窗口发出、尚未送达的追加指令（按发送顺序）；送达后由 user 条目替代。 */
+  steering?: string[]
+  /** 已请求暂停，等待本 Run 结束。 */
+  pausing?: boolean
+  /** Run 结束时退回输入区的未送达追加指令；输入区取走后清除。 */
+  returnedDraft?: string
 }
 
-export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions'; error: ApiError }
+export type ChatFailure = {
+  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue'
+  error: ApiError
+}
+
+/** 最后一个已结束 Run 的状态；没有时为 undefined。 */
+export function lastRunStatus(entries: readonly SessionEntry[]): RunStatus | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!
+    if (entry.kind === 'run_end') return entry.payload.status
+  }
+  return undefined
+}
 
 /** Session 的当前模式：最后一条 permission_mode 条目；没有时为 default（旧 Session）。 */
 export function sessionPermissionMode(entries: readonly SessionEntry[]): PermissionMode {
@@ -103,7 +121,10 @@ export function pendingApprovals(entries: readonly SessionEntry[]): SessionEntry
 
 /** 已打开会话的运行状态（由条目与订阅状态派生）。 */
 export function conversationActivity(conversation: Pick<Conversation, 'entries' | 'running'>): SessionActivity {
-  if (!conversation.running) return 'idle'
+  if (!conversation.running) {
+    const last = lastRunStatus(conversation.entries)
+    return last === 'paused' || last === 'interrupted' ? last : 'idle'
+  }
   return pendingApprovals(conversation.entries).length > 0 ? 'awaiting-approval' : 'running'
 }
 
@@ -134,6 +155,14 @@ export interface ChatActions {
   stop(): Promise<void>
   /** 重新执行当前会话出错的上一轮（不追加用户消息）。 */
   retry(): Promise<boolean>
+  /** Run 进行中发送追加指令；先显示为待送达。返回是否被接受（失败时保留输入）。 */
+  steer(text: string): Promise<boolean>
+  /** 暂停当前会话的 Run（当前步骤完成后停下）。 */
+  pause(): Promise<void>
+  /** 接着暂停或中断的上一 Run。 */
+  continueRun(): Promise<boolean>
+  /** 输入区取走退回的未送达追加指令。 */
+  takeReturnedDraft(sessionId: string): void
   /** 当前会话经协议切换模型；草稿中只记下选择。 */
   selectModel(model: SessionModel): Promise<void>
   /**
@@ -159,6 +188,25 @@ export interface ChatStoreOptions {
 }
 
 const emptyLive = (runId: string | null, accepting: boolean): LiveRun => ({ runId, accepting, blocks: [], tools: {} })
+
+/** 消息内容的文本（字符串或 text 块）。 */
+const contentText = (content: unknown): string =>
+  typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.map((block: { type?: unknown; text?: unknown }) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : '')).join('\n')
+      : ''
+
+/**
+ * Run 结束：本窗口仍待送达的追加指令退回输入区（与 run_end.undeliveredSteering 一致；只退回本窗口发出的，
+ * 其他窗口或历史记录中的不退回），暂停请求结束。
+ */
+function endRun(c: Conversation): Conversation {
+  const { steering, pausing: _pausing, ...rest } = c
+  if (!steering?.length) return { ...rest, pausing: false }
+  const returned = steering.join('\n')
+  return { ...rest, pausing: false, returnedDraft: c.returnedDraft ? c.returnedDraft + '\n' + returned : returned }
+}
 
 const toApiError = (error: unknown) => (error instanceof ApiError ? error : new ApiError('network', error instanceof Error ? error.message : String(error), 0))
 
@@ -332,6 +380,48 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         return submit(sessionId, () => api.retryRun(sessionId), 'retry')
       },
 
+      async steer(text) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return false
+        updateConversation(sessionId, (c) => ({ ...c, steering: [...(c.steering ?? []), text] }))
+        try {
+          await api.steerRun(sessionId, text)
+          return true
+        } catch (error) {
+          // 只撤回本次的一条（同文本的其他追加指令保留）。
+          updateConversation(sessionId, (c) => {
+            const steering = [...(c.steering ?? [])]
+            const at = steering.lastIndexOf(text)
+            if (at >= 0) steering.splice(at, 1)
+            return { ...c, steering }
+          })
+          onFailure?.({ kind: 'steer', error: toApiError(error) })
+          return false
+        }
+      },
+
+      async pause() {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return
+        updateConversation(sessionId, (c) => (c.running ? { ...c, pausing: true } : c))
+        try {
+          await api.pauseRun(sessionId)
+        } catch (error) {
+          updateConversation(sessionId, (c) => ({ ...c, pausing: false }))
+          onFailure?.({ kind: 'pause', error: toApiError(error) })
+        }
+      },
+
+      async continueRun() {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return false
+        return submit(sessionId, () => api.continueRun(sessionId), 'continue')
+      },
+
+      takeReturnedDraft(sessionId) {
+        updateConversation(sessionId, (c) => (c.returnedDraft === undefined ? c : { ...c, returnedDraft: undefined }))
+      },
+
       async answerApproval(requestId, answer) {
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
@@ -436,7 +526,13 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           if (!entry) return { ...c, lastSeq: record.seq }
           const entries = [...c.entries, entry]
           if (entry.kind === 'permission_mode' && c.pendingMode === entry.payload.mode) return { ...c, entries, lastSeq: entry.seq, pendingMode: undefined }
-          if (entry.kind === 'run_end') return { ...c, entries, lastSeq: entry.seq, running: false, live: null, unrecordedEnd: undefined }
+          if (entry.kind === 'run_end') return { ...endRun(c), entries, lastSeq: entry.seq, running: false, live: null, unrecordedEnd: undefined }
+          // 追加指令送达：同文本的待送达项由这条 user 条目替代。
+          if (entry.kind === 'message' && entry.payload.role === 'user' && c.steering?.length) {
+            const text = contentText(entry.payload.content)
+            const at = c.steering.indexOf(text)
+            if (at >= 0) return { ...c, entries, lastSeq: entry.seq, steering: c.steering.filter((_, i) => i !== at) }
+          }
           // assistant 消息已提交：其增量不再需要，下一条消息的增量从空开始接收。
           const committedAssistant = entry.kind === 'message' && entry.payload.role === 'assistant'
           const live = committedAssistant && c.live ? { ...c.live, accepting: true, blocks: [], retry: undefined } : c.live
@@ -458,9 +554,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           patchConversation(message.sessionId, (c) => {
             const recorded = c.entries.some((e) => e.kind === 'run_end' && e.runId === message.runId)
             const unrecordedEnd: UnrecordedRunEnd = { runId: message.runId, status: event.status, ...(event.error ? { error: event.error } : {}) }
-            return { ...c, running: false, live: null, unrecordedEnd: recorded ? undefined : unrecordedEnd }
+            return { ...endRun(c), running: false, live: null, unrecordedEnd: recorded ? undefined : unrecordedEnd }
           })
-          patchSession(message.sessionId, { running: false, activity: 'idle' })
+          const ended = store.getState().conversations[message.sessionId]
+          patchSession(message.sessionId, { running: false, activity: ended ? conversationActivity(ended) : 'idle' })
           return
         }
         patchConversation(message.sessionId, (c) => ({

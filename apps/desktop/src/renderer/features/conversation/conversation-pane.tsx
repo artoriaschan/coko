@@ -1,4 +1,4 @@
-import { PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon } from 'lucide-react'
+import { PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon, PlayIcon } from 'lucide-react'
 import { Button } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
@@ -7,7 +7,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
-import { pendingApprovals, sessionPermissionMode } from '../../stores/chat-store.ts'
+import { conversationActivity, pendingApprovals, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
 import { ApprovalPanel } from './approval-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
@@ -41,7 +41,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
-  const { send, stop, retry, openSession, selectModel, answerApproval, setPermissionMode } = useChatActions()
+  const { send, stop, retry, openSession, selectModel, answerApproval, setPermissionMode, steer, pause, continueRun, takeReturnedDraft } = useChatActions()
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -74,6 +74,26 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     if (requestId === undefined) return
     setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
   }, [requestId])
+
+  // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
+  const composer = React.useRef<ComposerHandle | null>(null)
+  const setComposer = React.useCallback(
+    (handle: ComposerHandle | null) => {
+      composer.current = handle
+      if (typeof composerRef === 'function') composerRef(handle)
+      else if (composerRef) (composerRef as React.RefObject<ComposerHandle | null>).current = handle
+    },
+    [composerRef],
+  )
+  // 停止或暂停后未送达的追加指令回到输入区。
+  const returnedDraft = conversation?.returnedDraft
+  React.useEffect(() => {
+    if (returnedDraft === undefined || activeSessionId === null) return
+    composer.current?.restore(returnedDraft)
+    takeReturnedDraft(activeSessionId)
+  }, [returnedDraft, activeSessionId, takeReturnedDraft])
+  // 上一 Run 以暂停结束：输入区上方显示横幅，带"继续"。
+  const paused = conversation !== undefined && !running && conversation.status === 'ready' && conversationActivity(conversation) === 'paused'
 
   const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
 
@@ -164,17 +184,34 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
             />
           )}
+          {paused && !pending && (
+            <div
+              role="status"
+              data-slot="run-banner"
+              data-activity="paused"
+              className={`${composerColumn} mb-2 flex items-center gap-3 rounded-panel border-hairline border-border bg-background px-3 py-2 text-ui-body`}
+            >
+              <p className="min-w-0 flex-1 text-muted-foreground">{t('conversation.pausedBanner')}</p>
+              <Button size="sm" data-action="continue" onClick={() => void continueRun()}>
+                <PlayIcon />
+                {t('conversation.continue')}
+              </Button>
+            </div>
+          )}
           {/* 被审批卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
           <div ref={composerArea} hidden={pending !== undefined}>
             <Composer
-              ref={composerRef}
+              ref={setComposer}
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
               className={`${composerColumn} flex flex-wrap items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
               running={running}
               disabled={activeSessionId === null && draftWorkspaceId === null}
               needsSetup={needsSetup}
               onSend={send}
+              onSteer={steer}
               onStop={() => void stop()}
+              onPause={() => void pause()}
+              pausing={conversation?.pausing ?? false}
               onSetup={() => settingsDialog.show('models')}
               onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
               accessory={

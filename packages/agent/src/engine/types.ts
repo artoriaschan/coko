@@ -28,6 +28,8 @@ export interface RunResult {
   runId: string
   status: RunStatus
   error?: RunError
+  /** Steering messages that were sent but not delivered before the Run ended (also in the run_end entry). */
+  undeliveredSteering?: string[]
 }
 
 /** Temporary display state. Never persisted; a client that reconnects rebuilds from entries. */

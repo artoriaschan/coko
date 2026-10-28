@@ -35,6 +35,23 @@ export class NothingToRetryError extends Error {
   }
 }
 
+export class NoActiveRunError extends Error {
+  override readonly name = 'NoActiveRunError'
+  constructor() {
+    super('There is no Run in progress')
+  }
+}
+
+export class NothingToContinueError extends Error {
+  override readonly name = 'NothingToContinueError'
+  constructor() {
+    super('The last Run was not paused or interrupted; there is nothing to continue')
+  }
+}
+
+/** 等待审批时被暂停的调用交给模型的文本（未执行）。 */
+export const PAUSED_BEFORE_APPROVAL_TEXT = 'Not run: the user paused the run before this call was approved.'
+
 export interface AgentRuntimeOptions {
   /** pi-ai collection that owns the model's Provider (see createModelRegistry). */
   models: Models
@@ -71,6 +88,11 @@ export interface AgentRuntimeOptions {
   permissions?: RuntimePermissions
   /** Resolves the secrets a tool declares (`CokoTool.secrets`), once per call. Omitted: tools declaring secrets fail. */
   secrets?: SecretProvider
+  /**
+   * Status of the Session's last ended Run (its run_end entry), for a runtime restored from committed entries.
+   * continue() is allowed only after `paused` or `interrupted`. Omitted: no earlier Run.
+   */
+  lastRunStatus?: RunStatus
 }
 
 export interface RuntimePermissions {
@@ -88,7 +110,26 @@ export interface AgentRuntime {
    * did not end with a model error.
    */
   retry(): Promise<RunResult>
-  /** Cancel the current Run; pending approvals end as cancelled, and the Run ends with status `aborted` after tools have stopped. */
+  /**
+   * Continue the last Run after it was paused or interrupted, as a new Run (`run_start { trigger: continue }`) without a
+   * new user message. Throws NothingToContinueError when the last Run ended otherwise, RuntimeBusyError while a Run is in progress.
+   */
+  continue(): Promise<RunResult>
+  /**
+   * Send a message into the current Run (Steering). It is delivered after the current tool batch finishes, before the
+   * next model request, and committed then as a user message. Messages not delivered when the Run ends are returned in
+   * `run_end.undeliveredSteering`. Throws NoActiveRunError when no Run is in progress.
+   */
+  steer(text: string): void
+  /**
+   * Pause the current Run: the current tool batch completes, no new model request starts, pending approvals end as
+   * cancelled (those calls do not run), and the Run ends with status `paused`. Throws NoActiveRunError when no Run is in progress.
+   */
+  pause(): void
+  /**
+   * Cancel the current Run; pending approvals end as cancelled, undelivered steering is returned in run_end, and the Run
+   * ends with status `aborted` after tools have stopped.
+   */
   abort(): void
   /**
    * Answer a pending approval request. Resolves after the approval_decision entry was committed. Throws
@@ -110,7 +151,19 @@ interface RunState {
   aborted: boolean
   /** A tool call was rejected without feedback: the Run ends after the current batch. */
   rejected: boolean
+  /** pause() was called: the Run ends after the current batch with status paused. */
+  paused: boolean
+  /** Aborted by pause(): cancels approvals that are waiting (not running tools). */
+  pauseSignal: AbortController
+  /** Steering messages sent and not yet committed, in send order. */
+  steering: AgentMessage[]
   commitError?: Error
+}
+
+const textOfUser = (message: AgentMessage): string => {
+  const content = (message as { content?: unknown }).content
+  if (typeof content === 'string') return content
+  return Array.isArray(content) ? content.map((block: { type?: string; text?: string }) => (block.type === 'text' ? (block.text ?? '') : '')).join('') : ''
 }
 
 export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
@@ -120,6 +173,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const retryPolicy: RetryPolicy = { ...DEFAULT_RETRY_POLICY, ...options.retry }
 
   let current = undefined as RunState | undefined
+  let lastStatus: RunStatus | undefined = options.lastRunStatus
 
   const notify = (event: RuntimeEvent) => {
     for (const listener of listeners) {
@@ -208,8 +262,20 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       })
     : undefined
 
+  // 暂停只取消等待中的审批（不中断执行中的工具）：权限 gate 收到的 signal 另加上本 Run 的暂停信号。
+  const pausableGate = gate
+    ? async (context: Parameters<typeof gate>[0], signal?: AbortSignal) => {
+        const run = current
+        const paused = run?.pauseSignal.signal
+        const combined = paused ? (signal ? AbortSignal.any([signal, paused]) : paused) : signal
+        const result = await gate(context, combined)
+        if (result?.block && run?.paused && !signal?.aborted) return { block: true, reason: PAUSED_BEFORE_APPROVAL_TEXT }
+        return result
+      }
+    : undefined
+
   // 权限判定位于 hook 链首：被拒绝或等待中的调用不经过其后的 hook（例如 checkpoint 备份）。
-  const before = composeBeforeToolCall(gate ? [{ beforeToolCall: gate }, ...hooks] : hooks)
+  const before = composeBeforeToolCall(pausableGate ? [{ beforeToolCall: pausableGate }, ...hooks] : hooks)
   const after = composeAfterToolCall(hooks)
 
   const agent = new Agent({
@@ -234,7 +300,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       return before(context, signal)
     },
     afterToolCall: (context, signal) => after(context, signal),
-    finishTurn: () => (current?.rejected ? { action: 'end' } : undefined),
+    // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
+    finishTurn: () => (current?.aborted || current?.rejected || current?.paused ? { action: 'end' } : undefined),
+    // 一次送达全部已发送的追加指令（按发送顺序）。
+    steeringMode: 'all',
   })
 
   agent.subscribe(async (event: AgentEvent) => {
@@ -252,6 +321,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       case 'message_end':
         try {
           await commit({ kind: 'message', runId: run.runId, payload: event.message })
+          // 追加指令送达：提交成功后才不算未送达。
+          const delivered = run.steering.indexOf(event.message)
+          if (delivered >= 0) run.steering.splice(delivered, 1)
         } catch (error) {
           run.commitError = error instanceof Error ? error : new Error(String(error))
           agent.abort()
@@ -286,6 +358,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     if (last?.role === 'assistant' && last.stopReason === 'error') {
       return { status: 'error', error: { code: 'model_error', message: last.errorMessage ?? 'Model request failed' } }
     }
+    // 暂停在只有文本的最后一轮：工作已经完成，没有可继续的内容。
+    if (run.paused && !(last?.role === 'assistant' && last.stopReason === 'stop')) return { status: 'paused' }
     return { status: 'completed' }
   }
 
@@ -301,7 +375,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    */
   const execute = async (trigger: RunTrigger, drive: () => Promise<void>): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
-    const run: RunState = { runId: randomUUID(), aborted: false, rejected: false }
+    const run: RunState = { runId: randomUUID(), aborted: false, rejected: false, paused: false, pauseSignal: new AbortController(), steering: [] }
     current = run
     let result: RunResult
     try {
@@ -318,7 +392,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       } catch (error) {
         internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
       }
-      const ended = internal ? { status: 'error' as const, error: internal } : outcome(run)
+      // 未送达的追加指令退回宿主，不留到下一个 Run。
+      agent.clearSteeringQueue()
+      const undelivered = run.steering.map(textOfUser)
+      const ended: { status: RunStatus; error?: RunError; undeliveredSteering?: string[] } = internal ? { status: 'error', error: internal } : outcome(run)
+      if (undelivered.length > 0) ended.undeliveredSteering = undelivered
       result = { runId: run.runId, ...ended }
       if (!run.commitError) {
         try {
@@ -327,6 +405,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           result = { runId: run.runId, status: 'error', error: { code: 'commit_failed', message: error instanceof Error ? error.message : String(error) } }
         }
       }
+      lastStatus = result.status
     } finally {
       current = undefined
       // 批准后未执行（被后续 hook 拦下或 Run 停止）的提权不延续到下一个 Run。
@@ -350,6 +429,28 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         agent.state.messages = messages.slice(0, end)
         await agent.continue()
       })
+    },
+    continue() {
+      if (current || agent.state.isStreaming) return Promise.reject(new RuntimeBusyError())
+      const last = agent.state.messages.at(-1)
+      // 上一 Run 须为 paused / interrupted；模型请求要从用户消息或工具结果继续。
+      if ((lastStatus !== 'paused' && lastStatus !== 'interrupted') || !last || last.role === 'assistant' || last.role === 'system')
+        return Promise.reject(new NothingToContinueError())
+      return execute('continue', () => agent.continue())
+    },
+    steer(text) {
+      const run = current
+      if (!run) throw new NoActiveRunError()
+      const message: AgentMessage = { role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() }
+      run.steering.push(message)
+      agent.steer(message)
+    },
+    pause() {
+      const run = current
+      if (!run) throw new NoActiveRunError()
+      if (run.paused) return
+      run.paused = true
+      run.pauseSignal.abort()
     },
     abort() {
       if (!current) return

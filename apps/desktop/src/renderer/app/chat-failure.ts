@@ -10,6 +10,9 @@ const KIND_KEYS = {
   model: 'errors.modelSwitchFailed',
   approval: 'errors.approvalFailed',
   permissions: 'errors.permissionsFailed',
+  steer: 'errors.steerFailed',
+  pause: 'errors.pauseFailed',
+  continue: 'errors.continueFailed',
 } as const satisfies Record<ChatFailure['kind'], MessageKey>
 
 /** 操作失败的提示文案：协议错误码有专门说明时用它，否则按操作类型。 */
@@ -18,6 +21,9 @@ export function failureMessage(locale: Locale, failure: ChatFailure): string {
   if (failure.error.code === 'model-not-configured') return t('errors.modelNotConfigured')
   if (failure.error.code === 'run-in-progress') return t('errors.runInProgress')
   if (failure.error.code === 'approval-not-pending') return t('errors.approvalNotPending')
+  if (failure.error.code === 'no-active-run') return t('errors.noActiveRun')
+  if (failure.error.code === 'nothing-to-continue') return t('errors.nothingToContinue')
+  if (failure.error.code === 'confirmation-pending') return t('errors.confirmationPending')
   return t(KIND_KEYS[failure.kind])
 }
 

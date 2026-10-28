@@ -71,6 +71,22 @@ export const ConfirmationAnswerPayload = Type.Object(
 )
 export type ConfirmationAnswerPayload = Static<typeof ConfirmationAnswerPayload>
 
+// ---- 运行控制（Steering、暂停、继续） ----
+
+/** 追加指令：当前工具批次结束后送达，送达时提交为 user message。 */
+export const SteerRequest = Type.Object({ text: Type.String({ minLength: 1 }) }, strict)
+export type SteerRequest = Static<typeof SteerRequest>
+
+/** 运行控制路由。 */
+export const runPaths = {
+  /** POST SteerRequest，204；没有进行中的 Run 时 409 no-active-run。 */
+  sessionSteer: (id: string) => `/api/sessions/${encodeURIComponent(id)}/steer`,
+  /** POST，204：当前批次完成后停下，Run 以 paused 结束；没有进行中的 Run 时 409 no-active-run。 */
+  sessionPause: (id: string) => `/api/sessions/${encodeURIComponent(id)}/pause`,
+  /** POST，202 { runId }：接着 paused / interrupted 的上一 Run；否则 409 nothing-to-continue（有待确认结果时 confirmation-pending）。 */
+  sessionContinue: (id: string) => `/api/sessions/${encodeURIComponent(id)}/continue`,
+} as const
+
 /** 本领域的 kind → payload schema；entries.ts 据此组成 SessionEntry。 */
 export const runEntryPayloadSchemas = {
   run_start: RunStartPayload,

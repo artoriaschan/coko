@@ -18,6 +18,7 @@ import {
   SetPermissionModeRequest,
   UpdatePermissionsRequest,
   RegisterWorkspaceRequest,
+  SteerRequest,
   SetSessionModelRequest,
   SubmitMessageRequest,
   UpdateProviderRequest,
@@ -141,6 +142,16 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   })
   http.post(`${API_ROUTES.sessions}/:id/retry`, async (c) => c.json(await app.sessions.retry(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/abort`, async (c) => c.json({ aborted: await app.sessions.abort(c.req.param('id')) }))
+  http.post(`${API_ROUTES.sessions}/:id/steer`, async (c) => {
+    const { text } = await body(c, SteerRequest)
+    await app.sessions.steer(c.req.param('id'), text)
+    return c.body(null, 204)
+  })
+  http.post(`${API_ROUTES.sessions}/:id/pause`, async (c) => {
+    await app.sessions.pause(c.req.param('id'))
+    return c.body(null, 204)
+  })
+  http.post(`${API_ROUTES.sessions}/:id/continue`, async (c) => c.json(await app.sessions.continue(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/approvals/:requestId`, async (c) => {
     await app.sessions.answerApproval(c.req.param('id'), c.req.param('requestId'), await body(c, AnswerApprovalRequest))
     return c.body(null, 204)
