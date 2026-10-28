@@ -104,3 +104,41 @@ packages/agent 自带、只依赖纯 JS 的工具实现。
 **Host Tool**：
 宿主在装配时注册或以相同契约覆盖内置工具的实现。
 _Avoid_: native tool、plugin tool
+
+## 上下文与指令
+
+**Instruction File**：
+给 Agent 的长期工作指令文件（AGENTS.md，缺失时为 CLAUDE.md），按用户级与 Workspace 目录链加载。
+_Avoid_: rules file、memory file、system prompt
+
+**Skill**：
+一个含 SKILL.md 的目录，按 Agent Skills 规范提供某类任务的做法与资源，按需加载。
+_Avoid_: plugin、tool
+
+**Command**：
+用户在输入区以 / 调用、展开为一段提示或触发一个内置动作的条目，来源可以是内置、用户与项目模板、Skill 或 MCP 提示模板。
+_Avoid_: slash command（泛指时）、macro
+
+**MCP Server**：
+经 MCP 协议向 Agent 提供工具、资源与提示模板的外部进程或 HTTP 服务。
+_Avoid_: plugin、connector
+
+**Secret**：
+用户在设置中登记、加密保存、按名字注入给工具或 MCP Server 的值。
+_Avoid_: env var、token、Credential（Credential 专指 Provider 的密钥）
+
+**Memory Entry**：
+跨 Session 保留、属于用户或某个 Workspace 的一条记忆，由模型或用户增删。
+_Avoid_: note、fact
+
+**File Reference**：
+用户消息中以 @ 指向 Workspace 内文件或目录、提交时附上其内容的引用。
+_Avoid_: attachment（泛指时）、mention
+
+**Compaction**：
+把 Session 较早的对话替换为结构化摘要以腾出模型上下文的操作，原条目保留。
+_Avoid_: summarize、truncation
+
+**Project Settings**：
+Workspace 内只能收紧全局设置的覆盖文件。
+_Avoid_: workspace config、local settings

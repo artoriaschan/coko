@@ -1,0 +1,25 @@
+# 01: 基础：SessionService 拆分、条目派生收敛、迁移 v3 与 M3 扩展点
+
+**What to build:** 不改变 M2 行为的前提下，(1) 把 `apps/server/src/application/sessions.ts` 按职责拆为 `session-runtimes.ts`、`session-permissions.ts`、`recovery.ts`、`checkpoints.ts`，sessions.ts 只留 DTO 与 Run 控制（评审 S3）；(2) 条目派生收敛到浏览器安全子路径 `@coko/agent/entries`（`effectiveEntries` 含 rewind 与 compaction、`lastRunStatus`、`unansweredConfirmations`、`modelContext`），server、renderer 与 agent 内部都从它导入，renderer 的副本删除（评审 S2）；(3) packages/session 迁移 v3：`memories`、`secrets` 表与 MemoryRepository、SecretRepository；(4) 预先声明 [规格](../spec.md#session-entry-与事件票-01-预先声明) 中 M3 全部条目 kind、progress 事件与 RunTrigger `compact`；(5) 建立后续票的扩展点：protocol 领域文件、agent 子目录 barrel（instructions/shared 含文件端口、mtime 缓存、诊断与 `yaml` frontmatter 解析；config/ 的 schema 与默认值）、运行时 seam（`context.systemSections`、`transformMessages`、`beforeRequest`；`run` / `steer` 接受 `RunInput`；每条 assistant 后发 `context_usage`）、权限类与额外读取根、server `application/context/` 各领域空贡献与组合、`http/routes/<domain>.ts` 空 router、`application/config.ts` 默认值桩、i18n 分域字典、设置分区注册表（skills、mcp、memory 占位且不显示）、`COKO_HOME`（`src/config.ts`，缺省 `~/.coko`）与测试 harness 的临时 `COKO_HOME`、秘密总闸拆为共享 harness + 原用例文件；(6) 写入依赖 `@earendil-works/pi-mcp` 1.4.0、`yaml` 2.9.0 并登记 TECH_STACK。
+
+**User stories:** 29；为 1–27 建立扩展点
+
+**Blocked by:** None - can start immediately
+
+**Status:** ready-for-agent
+
+**Write scope:** `apps/server/src/application/sessions.ts`、`apps/server/src/application/session-runtimes.ts`（新）、`session-permissions.ts`（新）、`recovery.ts`（新）、`checkpoints.ts`（新）、`apps/server/src/application/config.ts`（新，桩）、`apps/server/src/application/context/`（新：`index.ts`、`types.ts` 与 instructions、commands、skills、references、mcp、memory、usage、compaction 各一个空贡献文件）、`apps/server/src/application/index.ts`、`apps/server/src/http/app.ts`、`apps/server/src/http/routes/`（新：config、commands、skills、files、mcp、secrets、memories、context 空 router）、`apps/server/src/runtime/layers.ts`、`apps/server/src/config.ts`、`packages/agent/package.json`、`packages/agent/src/index.ts`、`packages/agent/src/entries/`（新）、`packages/agent/src/checkpoints/rewind.ts`、`packages/agent/src/agents/fork.ts`、`packages/agent/src/recovery/plan.ts`、`packages/agent/src/engine/`、`packages/agent/src/session-entries/`（含新 `context.ts`）、`packages/agent/src/policy/decide.ts`、`packages/agent/src/policy/gate.ts`、`packages/agent/src/tools/registry.ts`、`packages/agent/src/instructions/`（新：`index.ts`、`shared/`、`rules/index.ts`、`commands/index.ts`、`skills/index.ts` 空 barrel）、`packages/agent/src/context/`（新：`index.ts` 与 references、memory、usage、compaction 空 barrel）、`packages/agent/src/extensions/mcp/index.ts`（新，空）、`packages/agent/src/config/`（新）、`packages/session/src/`、`packages/protocol/src/`、`packages/i18n/src/`、`apps/desktop/src/renderer/stores/chat-store.ts`、`apps/desktop/src/renderer/features/conversation/timeline.ts`、`apps/desktop/src/renderer/features/settings/sections.ts`（新）、`settings-dialog.tsx`、`skills-section.tsx`、`mcp-section.tsx`、`memory-section.tsx`（新，占位）、`apps/desktop/src/renderer/app/settings-dialog-store.ts`、`pnpm-lock.yaml`、`tests/integration/sidecar-harness.ts`、`tests/integration/secrets-gate-harness.ts`（新）、`tests/integration/secrets-gate.test.ts`、`tests/integration/sidecar-context-seam.test.ts`（新）、`apps/desktop/e2e/harness.ts`、`docs/TECH_STACK.md`（接入状态行）、`docs/tech-stack/architecture.md`、`docs/subsystems/permissions.md`、`docs/adr/0003-settings-and-sessions-in-sqlite.md`、`packages/agent/README.md`、`packages/session/README.md`、`apps/server/README.md`
+
+- [ ] M2 的全部 agent、session、server、集成、Browser Mode 与 Electron E2E 测试不改断言地通过（只允许改导入路径；如有断言改动，在 Comments 逐条说明）
+- [ ] sessions.ts 不再包含权限回放与锁、恢复与结果确认、回退与分叉的实现；拆出的四个文件各有单元或现有集成测试覆盖
+- [ ] `@coko/agent/entries`：表驱动测试覆盖 rewind 区间、compaction（最后一个 compaction 的合成摘要消息 + firstKeptSeq 及之后；compaction 落在被回退区间时原历史生效）、lastRunStatus、unansweredConfirmations；守卫测试断言该子路径（含传递导入）不导入 `node:*` 与 `@earendil-works/*` 运行时代码；renderer 与 server 中不再有这些函数的副本（grep 证据写入 Comments）
+- [ ] 迁移 v3：v2 库升级到 3（备份、表与索引、原数据可读）；MemoryRepository 与 SecretRepository 契约测试在 SQLite 与内存实现上通过；SecretRepository.list 不返回密文
+- [ ] protocol 与 agent 的 `command`、`compaction` payload schema、RunTrigger `compact`、四个新 progress 事件已声明并注册；renderer 遇到这两种 kind 时不报错（暂不渲染）
+- [ ] agent 运行时测试：`context.systemSections` 组成 `SystemMessage.sections`（`DEFAULT_SYSTEM_PROMPT` 为第一段）、`RunInput.before` 的条目位于 run_start 之后、user message 之前、`transformMessages` 只改请求不改条目、每条 assistant 提交后发 `context_usage`
+- [ ] `sidecar-context-seam.test.ts`：默认（全部空贡献）时 faux requestLog 中的系统提示与 M2 相同；临时 `COKO_HOME` 经 harness 传入且 bash `env` 中不出现 `COKO_HOME`
+- [ ] 权限类：`decide.test.ts` 增加 context-read（四种模式都放行、deny 规则仍生效）、memory-write（accept-edits、full-access 放行）、external（仅 full-access 放行）、规则 `mcp__srv` 匹配 `mcp__srv__x` 而不匹配 `mcp__srv2__x`、未注册的 `mcp__` 名字被接受；`readRoots` 下的读取与 Workspace 内读取同样处理；工具对象自身不能指定权限类
+- [ ] i18n：分域字典组合后类型检查通过，zh 与 en 键集合相同（测试）；设置分区注册表中占位分区不出现在导航（Browser Mode 或 E2E 断言）
+- [ ] 秘密总闸拆分后原用例全部通过；按 M2 方式做一次负向确认（临时去掉一处脱敏使其失败，再撤销）
+- [ ] `pnpm install --frozen-lockfile` 通过；TECH_STACK 接入状态登记 pi-mcp 与 yaml；architecture.md 写明 renderer 可导入 `@coko/agent/entries` 的理由与守卫；session / agent / server README 与 ADR 0003（Memory 表已建、工具与界面待票 09）同步；`pnpm run check:docs` 通过
+
+## Comments

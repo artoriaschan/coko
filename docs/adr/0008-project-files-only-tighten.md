@@ -1,0 +1,39 @@
+---
+kind: decision
+description: "Workspace 内的项目文件（.coko/settings.json、.mcp.json、指令、Skills、命令）只能收紧或补充上下文，不能授予权限或开启全局已关闭的能力；项目 MCP Server 须按配置摘要逐个批准。修改项目级配置的合并、MCP 项目 Server 的加载或 Skills 的 allowed-tools 处理时回看。"
+status: accepted
+implementation: not-started
+lifecycle: active
+category: architecture
+---
+
+# 项目文件只能收紧，不能授予
+
+## 上下文
+
+M3 读取 Workspace 内的多类文件：项目设置覆盖、MCP Server 配置、AGENTS.md 等指令文件、Skills 与自定义命令。Workspace 常是克隆来的仓库，内容不一定由用户本人编写。参考项目的做法不同：claude-code 的项目 `settings.json` 可以写 allow 规则，项目 `.mcp.json` 中的 Server 须经用户批准；skill 与命令的 `allowed-tools` 在调用期间临时放行。pi 只在项目受信任时读取项目级 MCP 配置。
+
+[ADR 0003](0003-settings-and-sessions-in-sqlite.md) 已规定项目级配置从仓库文件读取、作为只读覆盖；[ADR 0005](0005-permission-mode-and-sandbox.md) 规定指令和扩展文件的声明不能提升宿主授予的权限。用户于 2026-10-28 的常设指示要求讨论问题采用推荐方案；本决定于 2026-10-29 规划 M3 时按该指示采纳，未经用户逐条确认。
+
+## 决定
+
+- **项目设置只收紧。** `<Workspace>/.coko/settings.json` 可以关闭全局已开启的能力（有效值为全局与项目的"与"），可以追加拒绝与询问规则（作为 project 作用域参与判定），可以追加要禁用的 Skill 名。其中的允许规则、默认模式以及开启能力的值被忽略，并给出 `project-cannot-grant` 诊断。
+- **项目 MCP Server 逐个批准。** `<Workspace>/.mcp.json` 中的 Server 在用户批准前不启动。批准按 Workspace 与 Server 名保存配置摘要；命令、参数、地址、环境或请求头改变后摘要不同，须重新批准。与全局同名的项目 Server 被忽略并给出诊断，全局定义优先。
+- **指令、Skills 与命令只提供上下文。** 它们的内容进入模型上下文，不改变权限判定；Skill 与命令 frontmatter 中的 `allowed-tools` 只在界面中展示，不放行任何调用。
+- **注册 Workspace 即同意读取。** 指令、Skills 与命令文件无需额外信任确认即可加载；会启动进程或连接网络的配置（MCP Server）另须批准。
+
+## 理由与备选方案
+
+- **项目设置可以写允许规则（claude-code）。** 团队可以共享免审批配置；但克隆一个仓库就可能让 `Bash(*)` 免审批，与"审批是用户的决定"相冲突。团队需要的放行由用户在 Workspace 作用域保存。
+- **整个项目先做信任确认（pi）。** 一次确认后项目文件可以做任何事，粒度太粗，也不能发现之后被修改的 MCP 命令。
+- **临时授予 `allowed-tools`。** agentskills.io 规范把它标为实验字段，各实现语义不一；授予后 Skill 的作者实际上决定了权限。
+
+## 后果与验证
+
+- 依赖项目级 allow 规则的团队配置在 Coko 中不生效，须由每个用户保存到 Workspace 作用域；设置界面要显示被忽略的项及原因。
+- implementation 变为 implemented 前需要：经协议的集成测试覆盖项目设置中的 allow 规则与开启能力不生效且有诊断、项目 deny 规则在 full-access 下生效、项目关闭的能力不被全局值打开；未批准的项目 MCP Server 不启动、批准后改动命令须重新批准、同名项目 Server 被忽略；Skill 的 `allowed-tools` 不放行调用。
+
+## 来源与后继
+
+- 参考实现：claude-code 社区还原版 `src/services/mcp/utils.ts`（项目 Server 批准）、`src/tools/SkillTool`（allowed-tools）；pi v1.4.0 `packages/coding-agent/src/extensions/mcp/config.ts`。本页已提炼所需结论。
+- 判定顺序见 [ADR 0005](0005-permission-mode-and-sandbox.md)；存储边界见 [ADR 0003](0003-settings-and-sessions-in-sqlite.md)。
