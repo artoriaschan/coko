@@ -54,7 +54,7 @@ const CJK = /[\u3400-\u9fff]/
 function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {}) {
   const store = createAppearanceStore({ theme: 'light', locale })
   const connection = createConnectionStore()
-  const { chat, settings, backend } = createFixtureChat(options)
+  const { chat, settings, backend, api } = createFixtureChat(options)
   const settingsDialog = createSettingsDialogStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
   return {
@@ -63,6 +63,7 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {})
     chat,
     settings,
     backend,
+    api,
     screen: render(
       <div style={{ width: '100vw', height: '100vh' }}>
         <App
@@ -261,6 +262,51 @@ describe('设置弹窗', () => {
       .element(page.elementLocator(dialog.element().querySelector('[data-credential-status="configured"]')!))
       .toHaveTextContent('Configured · ends in 9876')
     expect(dialog.element().textContent).not.toContain('sk-browser-test')
+  })
+})
+
+describe('键盘', () => {
+  it('⌘N 在任意焦点下新建会话草稿并聚焦输入区', async () => {
+    await page.viewport(1280, 800)
+    const { chat, screen } = renderApp('en')
+    await screen
+    await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await userEvent.keyboard('{Meta>}n{/Meta}')
+    await expect.element(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()
+    expect(chat.getState().activeSessionId).toBeNull()
+    await expect.poll(() => document.activeElement === page.getByRole('textbox', { name: 'Give Coko a task' }).element()).toBe(true)
+  })
+
+  it('Run 进行中时 Escape 在输入区之外也能停止', async () => {
+    await page.viewport(1280, 800)
+    const { chat, api, screen } = renderApp('en')
+    await screen
+    const abort = vi.spyOn(api, 'abortRun')
+    chat.getState().openSession('s-2')
+    await expect.element(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await page.getByRole('heading', { level: 1 }).click()
+    expect(document.activeElement?.getAttribute('role')).not.toBe('textbox')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(abort).toHaveBeenCalledWith('s-2'))
+    expect(abort).toHaveBeenCalledTimes(1)
+  })
+
+  it('对话框打开时 Escape 只关闭对话框，不停止 Run', async () => {
+    await page.viewport(1280, 800)
+    const { chat, api, screen } = renderApp('en')
+    await screen
+    const abort = vi.spyOn(api, 'abortRun')
+    chat.getState().openSession('s-2')
+    await expect.element(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await userEvent.keyboard('{Meta>},{/Meta}')
+    await expect.element(page.getByRole('dialog')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    expect(abort).not.toHaveBeenCalled()
+    // 对话框关闭后，下一次 Escape 才停止。
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(abort).toHaveBeenCalledTimes(1))
   })
 })
 

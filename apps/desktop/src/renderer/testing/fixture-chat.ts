@@ -137,5 +137,5 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   void chat.getState().load()
   const settings = createSettingsStore({ api, setCredential: backend.setCredential })
   void settings.getState().load()
-  return { chat, sent, sendServer, settings, backend }
+  return { chat, sent, sendServer, settings, backend, api }
 }

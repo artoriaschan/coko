@@ -126,6 +126,24 @@ describe('对话闭环', () => {
     expect(await app.window.locator('[data-session-id] [role="img"]').count()).toBe(0)
   })
 
+  it('键盘：Escape 在输入区之外停止 Run，⌘N / Ctrl+N 新建会话并聚焦输入区', async () => {
+    const { root, workspace, env } = await setup({
+      responses: [{ content: [{ type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'sleep 30' } }] }, { content: 'should not be used' }],
+    })
+    const app = await launch(env, root)
+    await addWorkspace(app, workspace)
+    await sendMessage(app, 'wait for a while')
+    await expect.poll(() => toolCard(app, 'bash').getAttribute('data-status'), { timeout: 30_000 }).toBe('running')
+    // 焦点移到标题，离开输入区。
+    await app.window.getByRole('heading', { level: 1 }).click()
+    await app.window.keyboard.press('Escape')
+    await app.window.locator('[data-run-status="aborted"]').waitFor({ timeout: 15_000 })
+
+    await app.window.keyboard.press(process.platform === 'darwin' ? 'Meta+N' : 'Control+N')
+    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await expect.poll(() => app.window.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '')).toMatch(/Give Coko a task|向 Coko 布置任务/)
+  })
+
   it('重启应用后会话列表、消息与工具卡仍在', async () => {
     const { root, workspace, env } = await setup(WRITE_SCRIPT)
     const first = await launch(env, root)

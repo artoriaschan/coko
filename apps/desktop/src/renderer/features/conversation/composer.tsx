@@ -15,12 +15,19 @@ export interface ComposerProps {
   /** 编辑区与发送按钮之间的控件（模型选择）。 */
   accessory?: React.ReactNode
   className?: string
+  /** 外部聚焦编辑区（⌘N 新建会话后）。 */
+  ref?: React.Ref<ComposerHandle>
+}
+
+export interface ComposerHandle {
+  focus(): void
 }
 
 /** 基础 composer：Lexical 编辑区与发送 / 停止按钮。运行中按钮变为停止，Escape 也可停止。 */
-export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetup, accessory, className }: ComposerProps) {
+export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetup, accessory, className, ref }: ComposerProps) {
   const { t } = useI18n()
   const editor = React.useRef<ComposerEditorHandle>(null)
+  React.useImperativeHandle(ref, () => ({ focus: () => editor.current?.focus() }), [])
   const [empty, setEmpty] = React.useState(true)
   const setup = needsSetup && !running
   const action = running ? t('conversation.stop') : setup ? t('models.configure') : t('conversation.send')

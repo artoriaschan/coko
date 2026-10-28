@@ -6,6 +6,7 @@ import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
 import { ChatStoreProvider } from './chat.tsx'
 import type { ConnectionStore } from './connection-store.ts'
+import type { ComposerHandle } from '../features/conversation/composer.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { SettingsDialog } from '../features/settings/settings-dialog.tsx'
@@ -39,16 +40,36 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
   }, [theme, locale])
 
-  // ⌘, / Ctrl+, 打开设置（输入法组合期间不响应）。
+  const composer = React.useRef<ComposerHandle>(null)
+
+  // 全局快捷键（输入法组合期间不响应）：⌘, / Ctrl+, 打开设置；⌘N / Ctrl+N 新建会话；Run 进行中 Escape 停止。
+  // Escape 已被对话框、菜单或 composer 处理（defaultPrevented）或有弹层打开时不停止：对话框打开时 Escape 只关闭对话框。
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.key !== ',' || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-      event.preventDefault()
-      settingsDialog.show()
+      if (event.isComposing) return
+      const command = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey
+      if (command && event.key === ',') {
+        event.preventDefault()
+        settingsDialog.show()
+      } else if (command && event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        if (chat.getState().workspaces.length === 0) {
+          void chat.getState().addWorkspace(pickDirectory)
+          return
+        }
+        settingsDialog.close()
+        chat.getState().startDraft()
+        // 草稿渲染后再聚焦。
+        requestAnimationFrame(() => composer.current?.focus())
+      } else if (event.key === 'Escape' && !command && !event.defaultPrevented) {
+        if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
+        const { activeSessionId, conversations } = chat.getState()
+        if (activeSessionId !== null && conversations[activeSessionId]?.running) void chat.getState().stop()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsDialog])
+  }, [settingsDialog, chat, pickDirectory])
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
@@ -78,6 +99,7 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
                 connection={connectionState}
                 onAddWorkspace={onAddWorkspace}
                 onOpenLogs={openLogs}
+                composerRef={composer}
               />
             </Frame>
             <SettingsDialog theme={theme} />
