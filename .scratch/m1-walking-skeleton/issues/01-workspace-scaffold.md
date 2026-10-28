@@ -25,3 +25,6 @@
 - 未验证：Electron GUI 启动、tsdown/Forge 构建与产物（不在本票）；CI 未接入。Browser Mode 依赖本机已缓存的 chromium_headless_shell-1248，新机器需 `pnpm exec playwright install chromium`。
 - 文档影响：architecture.md（共享包源码导出、workspace:* + references、.tsbuild、浏览器测试命名与 Vitest 项目发现）、desktop-delivery.md（共享模块不单独构建）、TECH_STACK（接入状态表、根脚本、allowBuilds/permissions 依据）。oxfmt 首次格式化了 scripts/check-docs*.ts 与 tsconfig.base.json，仅换行变化。
 - 注意：husky 在共享的 .git/config 写入 `core.hooksPath=.husky/_`（各 worktree 共用，相对路径），main 在合入前该目录不存在，Git 跳过钩子，无影响。
+- 2026-10-28 lead：评审 diff 后以 --no-ff 合入 main（591cba4）。main 上复核：`pnpm install --frozen-lockfile`、typecheck、lint 退出 0；test 10 文件 27 用例通过；check:docs 58 文件 0 问题。worktree 已清理。
+
+Closed: true

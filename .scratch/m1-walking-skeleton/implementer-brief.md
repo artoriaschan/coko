@@ -24,6 +24,13 @@
 - 依赖精确版本，见 TECH_STACK；新增依赖须同步 TECH_STACK（技术栈未列出的，在票 Comments 说明理由并登记）。
 - 无真实模型密钥：测试用 pi-ai 的 faux provider。
 
+## 仓库约定（来自票 01）
+
+- 共享包 exports 指向 `./src/index.ts`；消费方加 `"@coko/<pkg>": "workspace:*"` 并在 tsconfig references 引用该包。
+- 每个 workspace 有自己的 vitest 配置，根配置按 glob 发现；ui 的 Browser Mode 文件名为 `*.browser.test.ts(x)`。根 `tests/` 需要时在根 vitest.config.ts 加一条项目。
+- oxfmt：无分号、单引号、printWidth 160。commitlint body 行长 ≤100。
+- TECH_STACK 的"接入状态"表是并行票的共同编辑点：只增加自己的行，冲突由 Lead 合并时处理。
+
 ## 做法
 
 - 调用 `tdd` skill，在规格"Testing Decisions"列出的接口上先写失败测试。
