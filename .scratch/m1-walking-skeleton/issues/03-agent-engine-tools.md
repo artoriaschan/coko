@@ -47,3 +47,6 @@
 未验证：真实模型 API（无密钥）；在 Electron 内置 Node（`ELECTRON_RUN_AS_NODE`）下运行 agent 测试；按子路径导入后的打包体积。
 
 文档影响：TECH_STACK“接入状态”新增 packages/agent 一行；无其他正式文档改动。
+- 2026-10-28 lead：评审后合入 main（ac3246a）。main 上复核：install、typecheck、lint 退出 0；test 21 文件 123 用例通过；check:docs 59 文件 0 问题。偏离（read 图片不缩放、bash 不受统一 10 分钟超时）接受，随 M2/M3 再评估。worktree 已清理。
+
+Closed: true
