@@ -1,5 +1,5 @@
 import type { ApprovalDecisionPayload, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
-import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
+import { rewoundRanges, type Conversation, type LiveTool } from '../../stores/chat-store.ts'
 
 export interface ToolCallBlock {
   id: string
@@ -24,7 +24,10 @@ export interface ToolApproval {
 export type ToolItemStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
 
 export type TimelineItem =
-  | { kind: 'user'; key: string; text: string }
+  /** seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。 */
+  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean }
+  /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
+  | { kind: 'rewound'; key: string; items: TimelineItem[] }
   | { kind: 'text'; key: string; text: string; streaming: boolean }
   | { kind: 'thinking'; key: string; text: string; streaming: boolean }
   | {
@@ -85,8 +88,41 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   let lastRunId: string | null = null
+  const ranges = rewoundRanges(conversation.entries)
 
-  for (const entry of conversation.entries) {
+  /**
+   * 一层条目：被该层最外层回退区间覆盖的条目收进一个 rewound 项（在其中递归，内层回退照样折叠），其余逐条转换。
+   * 工具与审批的配对跨层共享（同一 Run 不会跨越区间边界）。
+   */
+  const pushLevel = (entries: readonly SessionEntry[], out: TimelineItem[], hidden: boolean) => {
+    const seqs = new Set(entries.map((e) => e.seq))
+    const outer = ranges.filter((r) => seqs.has(r.to) && !ranges.some((o) => o !== r && seqs.has(o.to) && o.from <= r.from && r.to < o.to))
+    let group: { range: { from: number; to: number }; entries: SessionEntry[] } | undefined
+    const flush = () => {
+      if (!group) return
+      const inner: TimelineItem[] = []
+      pushLevel(group.entries, inner, true)
+      out.push({ kind: 'rewound', key: `rewound:${group.range.to}`, items: inner })
+      group = undefined
+    }
+    for (const entry of entries) {
+      const range = outer.find((r) => entry.seq >= r.from && entry.seq < r.to)
+      if (range) {
+        if (group?.range !== range) {
+          flush()
+          group = { range, entries: [] }
+        }
+        group.entries.push(entry)
+        continue
+      }
+      flush()
+      if (entry.kind === 'rewind') continue
+      pushEntry(entry, out, hidden)
+    }
+    flush()
+  }
+
+  const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
     if (entry.runId) lastRunId = entry.runId
     if (entry.kind === 'run_end') {
       const payload = entry.payload
@@ -95,8 +131,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
       else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
       else if (payload.status === 'interrupted') items.push({ kind: 'interrupted', key: `${entry.seq}` })
-      else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: true })
-      continue
+      // 被回退区间内的错误不可重试。
+      else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: !hidden })
+      return
     }
     if (entry.kind === 'approval_request') {
       const tool = tools.get(entry.payload.toolCallId)
@@ -105,7 +142,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         if (tool.result === null) tool.status = 'awaiting'
         requests.set(entry.payload.requestId, tool)
       }
-      continue
+      return
     }
     if (entry.kind === 'approval_decision') {
       const tool = requests.get(entry.payload.requestId)
@@ -113,12 +150,12 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         tool.approval = { ...tool.approval, decision: entry.payload }
         if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
       }
-      continue
+      return
     }
-    if (entry.kind !== 'message') continue
+    if (entry.kind !== 'message') return
     const message = entry.payload
     if (message.role === 'user') {
-      items.push({ kind: 'user', key: `${entry.seq}`, text: contentText(message.content) })
+      items.push({ kind: 'user', key: `${entry.seq}`, text: contentText(message.content), seq: entry.seq, checkpoint: !hidden })
     } else if (message.role === 'assistant') {
       blocksOf(message.content).forEach((block, index) => {
         const key = `${entry.seq}:${index}`
@@ -149,6 +186,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       }
     }
   }
+
+  pushLevel(conversation.entries, items, false)
 
   const live = conversation.live
   if (live) {

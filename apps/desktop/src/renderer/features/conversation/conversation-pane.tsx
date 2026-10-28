@@ -14,6 +14,7 @@ import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
+import { RewindDialog } from './rewind-dialog.tsx'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 
@@ -42,8 +43,24 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
-  const { send, stop, retry, openSession, selectModel, answerApproval, answerConfirmation, setPermissionMode, steer, pause, continueRun, takeReturnedDraft } =
-    useChatActions()
+  const {
+    send,
+    stop,
+    retry,
+    openSession,
+    selectModel,
+    answerApproval,
+    answerConfirmation,
+    setPermissionMode,
+    steer,
+    pause,
+    continueRun,
+    takeReturnedDraft,
+    previewRewind,
+    rewind,
+    fork,
+  } = useChatActions()
+  const workspacePath = useChat((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -79,6 +96,11 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
   }, [cardKey])
   const takenOver = pending !== undefined || confirmation !== undefined
+  // 回退与分叉：Run 进行中、等待审批或等待结果确认时不可用（Sidecar 同样以 409 拒绝）。
+  const [rewindTarget, setRewindTarget] = React.useState<{ seq: number; text: string } | null>(null)
+  const rewound = React.useRef(false)
+  React.useEffect(() => setRewindTarget(null), [activeSessionId])
+  const actionsDisabled = running || takenOver
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
   const composer = React.useRef<ComposerHandle | null>(null)
@@ -147,7 +169,14 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   } else {
     body = (
       <div className={`${chatColumn} flex flex-col gap-4 py-4`}>
-        <TimelineView items={items} theme={theme} onRetry={() => void retry()} />
+        <TimelineView
+          items={items}
+          theme={theme}
+          onRetry={() => void retry()}
+          onRewind={(seq, text) => setRewindTarget({ seq, text })}
+          onFork={(seq) => void fork(seq)}
+          actionsDisabled={actionsDisabled}
+        />
       </div>
     )
   }
@@ -248,6 +277,24 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             />
           </div>
         </div>
+        <RewindDialog
+          target={rewindTarget}
+          workspacePath={workspacePath}
+          onPreview={previewRewind}
+          onConfirm={async (seq, mode) => {
+            const result = await rewind(seq, mode)
+            rewound.current = result !== undefined
+            return result !== undefined
+          }}
+          onClose={() => setRewindTarget(null)}
+          onCloseAutoFocus={(event) => {
+            // 回退成功：目标消息已回到输入区，焦点交给输入区；取消时回到触发按钮。
+            if (!rewound.current) return
+            rewound.current = false
+            event.preventDefault()
+            composer.current?.focus()
+          }}
+        />
         {connection.phase === 'failed' && (
           <ConnectionFailure code={connection.code} message={connection.message} crashed={connection.crashed === true} onOpenLogs={onOpenLogs} />
         )}

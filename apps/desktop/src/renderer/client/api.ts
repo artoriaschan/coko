@@ -2,6 +2,10 @@ import {
   AbortRunResponse,
   API_ROUTES,
   apiPaths,
+  checkpointPaths,
+  CheckpointListResponse,
+  ForkResponse,
+  RewindResponse,
   ErrorResponse,
   ModelListResponse,
   permissionPaths,
@@ -26,6 +30,7 @@ import {
   type ErrorCode,
   type PermissionMode,
   type PermissionRule,
+  type RewindRequest,
   type SessionModel,
   type UpdatePermissionsRequest,
   type UpdateProviderRequest,
@@ -95,6 +100,12 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 回答恢复时结果不明的调用；没有待回答的确认时以 not-found 拒绝。 */
     answerConfirmation: (id: string, toolCallId: string, answer: ConfirmationAnswer) =>
       call(NoContent, 'POST', runPaths.sessionConfirmation(id, toolCallId), { answer }),
+    /** 有效上下文中的用户消息（Checkpoint）与回退代码到该处时涉及的路径。 */
+    listCheckpoints: async (id: string) => (await call(CheckpointListResponse, 'GET', checkpointPaths.sessionCheckpoints(id))).checkpoints,
+    /** 回退（dryRun 只返回将发生的变化）；Run 进行中或等待审批时以 session-busy 拒绝。 */
+    rewind: (id: string, request: RewindRequest) => call(RewindResponse, 'POST', checkpointPaths.sessionRewind(id), request),
+    /** 从某条用户消息分叉：返回新 Session 的 id 与目标文本。 */
+    fork: (id: string, targetSeq: number) => call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq }),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
     /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
     setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
