@@ -1,0 +1,180 @@
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { StoreError } from '@coko/session'
+import { openSqliteStore, SQLITE_SCHEMA_VERSION, type SqliteStore, type SqliteStoreOptions } from '@coko/session/sqlite'
+import { describeRepositoryContract } from '../repository-contract.ts'
+
+async function tempDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'coko-session-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  return dir
+}
+
+async function openIn(dir: string, options: Partial<SqliteStoreOptions> = {}): Promise<SqliteStore> {
+  const store = await openSqliteStore({ path: join(dir, 'coko.db'), ...options })
+  onTestFinished(() => store.close())
+  return store
+}
+
+async function openError(promise: Promise<unknown>): Promise<StoreError> {
+  const error = await promise.then(
+    (store) => {
+      void (store as SqliteStore).close()
+      return undefined
+    },
+    (e: unknown) => e,
+  )
+  expect(error).toBeInstanceOf(StoreError)
+  return error as StoreError
+}
+
+function userVersion(path: string): number {
+  const db = new DatabaseSync(path)
+  try {
+    return (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
+  } finally {
+    db.close()
+  }
+}
+
+describeRepositoryContract('SQLite 实现', async (options) => {
+  const dir = await mkdtemp(join(tmpdir(), 'coko-session-'))
+  const store = await openSqliteStore({ path: join(dir, 'coko.db'), ...options })
+  onTestFinished(async () => {
+    await store.close()
+    await rm(dir, { recursive: true, force: true })
+  })
+  return store
+})
+
+describe('SQLite 打开与持久化', () => {
+  it('新库以 0600 创建并迁移到当前版本，无需备份', async () => {
+    const dir = await tempDir()
+    const store = await openIn(dir)
+    expect(store.migration).toEqual({ from: 0, to: SQLITE_SCHEMA_VERSION, backupPath: null })
+    expect((await stat(join(dir, 'coko.db'))).mode & 0o777).toBe(0o600)
+  })
+
+  it('关闭后重新打开，Workspace、Session、条目、设置与 Credential 密文读回一致，seq 继续递增', async () => {
+    const dir = await tempDir()
+    const first = await openSqliteStore({ path: join(dir, 'coko.db') })
+    const workspace = await first.sessions.registerWorkspace({ path: '/work/coko' })
+    const session = await first.sessions.createSession({ workspaceId: workspace.id, title: '重启读回', model: { providerId: 'p', modelId: 'm' } })
+    const committed = await first.sessions.appendEntries(session.id, [
+      { kind: 'user-message', payload: { text: '写一个文件' }, runId: 'r1' },
+      { kind: 'tool-call', payload: { name: 'write', args: { path: 'a.txt' } }, runId: 'r1' },
+    ])
+    await first.sessions.appendEntries(session.id, [{ kind: 'tool-result', payload: { ok: true }, runId: 'r1' }])
+    await first.settings.set('theme', 'dark', 0)
+    const provider = await first.providers.create({ name: 'P', kind: 'openai', api: 'openai-responses', baseUrl: 'https://x', models: ['m'] })
+    await first.providers.setCredential(provider.id, { ciphertext: new Uint8Array([9, 8, 7]), hint: '7777' })
+    const savedSession = await first.sessions.getSession(session.id)
+    await first.close()
+
+    const second = await openIn(dir)
+    expect(second.migration).toEqual({ from: SQLITE_SCHEMA_VERSION, to: SQLITE_SCHEMA_VERSION, backupPath: null })
+    expect(await second.sessions.listWorkspaces()).toEqual([workspace])
+    expect(await second.sessions.listSessions()).toEqual([savedSession])
+    const entries = await second.sessions.listEntries(session.id)
+    expect(entries.map((e) => [e.seq, e.kind])).toEqual([
+      [1, 'user-message'],
+      [2, 'tool-call'],
+      [3, 'tool-result'],
+    ])
+    expect(entries.slice(0, 2)).toEqual(committed)
+    expect((await second.sessions.appendEntries(session.id, [{ kind: 'assistant-message', payload: 'done' }]))[0]?.seq).toBe(4)
+    expect(await second.settings.get('theme')).toMatchObject({ value: 'dark', revision: 1 })
+    expect((await second.providers.get(provider.id))?.credential).toEqual({ hint: '7777' })
+    expect(Array.from((await second.providers.getCredentialCiphertext(provider.id)) ?? [])).toEqual([9, 8, 7])
+  })
+})
+
+describe('SQLite 宿主租约', () => {
+  it('第二个实例获取租约失败并得到 lease-held，第一个实例不受影响；关闭后可再次打开', async () => {
+    const dir = await tempDir()
+    const first = await openIn(dir)
+    const error = await openError(openSqliteStore({ path: join(dir, 'coko.db') }))
+    expect(error).toMatchObject({ code: 'lease-held', fatal: true })
+    expect(error.details).toMatchObject({ pid: process.pid, instanceId: first.instanceId })
+
+    await first.settings.set('k', 1, 0)
+    await first.close()
+    const second = await openIn(dir)
+    expect(await second.settings.get('k')).toMatchObject({ value: 1 })
+  })
+
+  it('持有者心跳超过 TTL 时被接管，原实例之后的写入以 lease-lost 拒绝', async () => {
+    const dir = await tempDir()
+    const ttl = 30_000
+    const holder = await openIn(dir, { now: () => 1_000, leaseTtlMs: ttl, heartbeatMs: 3_600_000 })
+
+    await expect(openError(openSqliteStore({ path: join(dir, 'coko.db'), now: () => 1_000 + ttl - 1, leaseTtlMs: ttl }))).resolves.toMatchObject({
+      code: 'lease-held',
+    })
+    const taker = await openIn(dir, { now: () => 1_000 + ttl + 1, leaseTtlMs: ttl })
+
+    const lost = await openError(holder.settings.set('k', 'old', 0))
+    expect(lost).toMatchObject({ code: 'lease-lost', fatal: true })
+    await expect(holder.sessions.listWorkspaces()).rejects.toMatchObject({ code: 'lease-lost' })
+    expect(await taker.settings.get('k')).toBeUndefined()
+    await taker.settings.set('k', 'new', 0)
+  })
+})
+
+describe('SQLite 损坏隔离与版本检查', () => {
+  it('非数据库文件被改名隔离并返回 fatal corrupt，不重建', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const garbage = Buffer.from('not a sqlite database '.repeat(300))
+    await writeFile(path, garbage)
+
+    const error = await openError(openSqliteStore({ path }))
+    expect(error).toMatchObject({ code: 'corrupt', fatal: true })
+    const quarantined = error.details.quarantinedTo as string
+    expect(quarantined.startsWith(join(dir, 'coko.db.corrupt-'))).toBe(true)
+    expect(await readFile(quarantined)).toEqual(garbage)
+    expect(existsSync(path)).toBe(false)
+  })
+
+  it('页面损坏的库在快速检查失败后被隔离', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const store = await openSqliteStore({ path })
+    const workspace = await store.sessions.registerWorkspace({ path: '/w' })
+    const session = await store.sessions.createSession({ workspaceId: workspace.id })
+    await store.sessions.appendEntries(
+      session.id,
+      Array.from({ length: 500 }, (_, i) => ({ kind: 'note', payload: `entry ${i} `.repeat(20) })),
+    )
+    await store.close()
+    expect(existsSync(`${path}-wal`)).toBe(false)
+
+    const bytes = await readFile(path)
+    // 保留第 1 页（库头与 schema），之后的页全部写坏。
+    bytes.fill(0xab, 4096)
+    await writeFile(path, bytes)
+
+    const error = await openError(openSqliteStore({ path }))
+    expect(error).toMatchObject({ code: 'corrupt', fatal: true })
+    expect(await readFile(error.details.quarantinedTo as string)).toEqual(bytes)
+    expect(existsSync(path)).toBe(false)
+  })
+
+  it('库版本高于程序支持版本时拒绝打开，文件保持原样', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    await (await openSqliteStore({ path })).close()
+    const db = new DatabaseSync(path)
+    db.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION + 1}`)
+    db.close()
+
+    const error = await openError(openSqliteStore({ path }))
+    expect(error).toMatchObject({ code: 'version-too-new', fatal: true })
+    expect(error.details).toMatchObject({ version: SQLITE_SCHEMA_VERSION + 1, supported: SQLITE_SCHEMA_VERSION })
+    expect(userVersion(path)).toBe(SQLITE_SCHEMA_VERSION + 1)
+  })
+})
