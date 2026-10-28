@@ -41,8 +41,7 @@ function base(extra: Record<string, string> = {}, extraLinks: string[] = []): Re
   }
 }
 
-const findings = (root: string): Pick<Finding, 'file' | 'line' | 'rule'>[] =>
-  checkDocs(root).findings.map(({ file, line, rule }) => ({ file, line, rule }))
+const findings = (root: string): Pick<Finding, 'file' | 'line' | 'rule'>[] => checkDocs(root).findings.map(({ file, line, rule }) => ({ file, line, rule }))
 const rules = (root: string): RuleId[] => checkDocs(root).findings.map((finding) => finding.rule)
 
 describe('slugify', () => {
@@ -86,7 +85,9 @@ describe('checkDocs', () => {
     expect(findings(linked)).toEqual([{ file: 'docs/b.md', line: 9, rule: 'scratch-reference' }])
     const inlineCode = repo(base({ ...scratch, 'docs/b.md': doc(meta(), '# B', '', '见 ' + tick + '.scratch/f/map.md' + tick) }, ['b.md']))
     expect(findings(inlineCode)).toEqual([{ file: 'docs/b.md', line: 9, rule: 'scratch-reference' }])
-    const patterns = repo(base({ ...scratch, 'docs/b.md': doc(meta(), '# B', '', tick + '.scratch/<feature>/spec.md' + tick + ' 与 ' + tick + '.scratch/' + tick) }, ['b.md']))
+    const patterns = repo(
+      base({ ...scratch, 'docs/b.md': doc(meta(), '# B', '', tick + '.scratch/<feature>/spec.md' + tick + ' 与 ' + tick + '.scratch/' + tick) }, ['b.md']),
+    )
     expect(findings(patterns)).toEqual([])
   })
 

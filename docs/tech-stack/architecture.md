@@ -100,11 +100,13 @@ sidecar 的服务即使只监听 loopback 也强制认证，没有关闭开关�
 
 ### 构建与测试归属
 
-非 UI 共享包通过 tsdown 输出到各自的 dist；ui 作为仓库内部源码包由 renderer 的 Vite 构建消费，React 保持 peer 依赖。TypeScript 类型检查统一使用 tsc -b，各 workspace 按依赖声明 project references。
+共享包以 TypeScript 源码为导出入口：`package.json` 的 `exports` 指向 `src/index.ts`，由消费方的 tsdown、Vite 或 Vitest 直接编译，不单独输出 dist；apps/server 与 apps/desktop 的 tsdown 构建把所用 workspace 包打进各自产物。ui 由 renderer 的 Vite 构建消费，React 保持 peer 依赖。这是对各共享包独立输出 dist 的简化，于 2026-10-28 随 M1 规格批准；需要独立发布 SDK 时（M6）再为 agent 增加 dist 构建。
 
-apps/server 构建自身的 sidecar 产物。apps/desktop 的 Forge hooks 按依赖顺序调用共享包、server、main / preload 和 renderer 构建，并将应用产物收集到桌面 workspace 的 dist/electron、dist/renderer、dist/sidecar。sidecar 的运行依赖与原生资源按桌面打包章节的 extraResource 规则准备，不携带独立运行时。
+消费方以 `"@coko/<pkg>": "workspace:*"` 声明依赖，并在自身 tsconfig 的 `references` 中引用该包。TypeScript 类型检查统一使用 tsc -b：各 workspace 是 composite 项目，只输出声明文件到被忽略的根 `.tsbuild/` 供增量检查，根 tsconfig 引用全部 workspace。
 
-单元测试与模块内集成测试就近放置，沿用 src 下的 *.test.ts / *.test.tsx；跨应用集成测试和桌面验收放在根 tests。所有测试由 Vitest 编排，Browser Mode 覆盖组件与交互，Playwright 驱动真实 Electron；涉及进程启动、访问认证、`node:sqlite` 或恢复的集成测试以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar。
+apps/server 构建自身的 sidecar 产物。apps/desktop 的 Forge hooks 按依赖顺序调用 server、main / preload 和 renderer 构建，并将应用产物收集到桌面 workspace 的 dist/electron、dist/renderer、dist/sidecar。sidecar 的运行依赖与原生资源按桌面打包章节的 extraResource 规则准备，不携带独立运行时。
+
+单元测试与模块内集成测试就近放置，沿用 src 下的 *.test.ts / *.test.tsx，浏览器测试命名为 *.browser.test.ts / *.browser.test.tsx；跨应用集成测试和桌面验收放在根 tests。每个 workspace 用自己的 `vitest.config.ts`（及 `vitest.<name>.config.ts`，如 ui 的 `vitest.browser.config.ts`）声明 Vitest 项目，根 `vitest.config.ts` 按 glob 发现，新增项目不改根配置。所有测试由 Vitest 编排，Browser Mode 覆盖组件与交互，Playwright 驱动真实 Electron；涉及进程启动、访问认证、`node:sqlite` 或恢复的集成测试以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar。
 
 ## 服务装配与存储边界
 

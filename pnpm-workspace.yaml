@@ -6,6 +6,18 @@ nodeLinker: hoisted
 autoInstallPeers: false
 saveExact: true
 
+# strictDepBuilds 默认开启：未裁决的安装脚本会让安装失败。逐个放行或拒绝。
+allowBuilds:
+  electron: true
+  koffi: false
+  protobufjs: false
+  '@google/genai': false
+
+# 不把第三方包附带的 Agent skills 链接进仓库。
+permissions:
+  '@logtape/logtape':
+    skills: false
+
 overrides:
   '@earendil-works/pi-agent-core': 1.4.0
   '@earendil-works/pi-ai': 1.4.0

@@ -2,17 +2,34 @@
   "name": "coko",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.15.0",
   "scripts": {
     "check:docs": "node scripts/check-docs.ts",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "prepare": "husky",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
     "@types/node": "24.19.2",
+    "husky": "9.1.7",
+    "lint-staged": "17.5.1",
     "mdast-util-from-markdown": "2.1.0",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
     "typescript": "6.0.3",
     "vite": "8.3.1",
     "vitest": "5.0.3"
-  }
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,mts,cts,tsx,jsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint"
+    ],
+    "*.{json,jsonc,yaml,yml}": "oxfmt --no-error-on-unmatched-pattern"
+  },
+  "packageManager": "pnpm@12.15.0"
 }
