@@ -31,3 +31,6 @@
   - **命令与结果**（worktree，已 `git merge main`（含票 07、10），`unset ELECTRON_RUN_AS_NODE`）：`pnpm install --frozen-lockfile`、`pnpm run typecheck`、`pnpm run lint`（0 / 0）、`pnpm run format:check`、`pnpm run check:docs`（82 文件 0 问题）均退出 0；`pnpm run test`：89 个文件，717 通过、1 跳过（真实模型），含 desktop E2E 9 个文件与产物 smoke。合并后第一次全量运行有 29 例失败（ui dialog / app.browser 的 Invalid hook call 与 agent index 导入超时），单独重跑这些文件 30 例全过，第二次全量只剩本票 E2E 一处断言竞态（待送达气泡乐观显示后编辑区稍后才清空），改为等待后连续 3 次通过，第三次全量全绿。负向确认：agent 测试在实现前 10 例失败；实现中 abort 用例抓到"停止后 pi 仍注入追加指令"并修复。视觉：临时 E2E 截取 Run 中（待送达气泡、发送 / 暂停 / 停止三按钮）与暂停横幅（退回文本接在草稿之前），截图未入库。
   - **未验证。** 真实模型（无密钥）；CI；非 darwin。Sidecar 重启后未打开 Session 的 paused activity（见上）。多窗口同时追加指令时的退回只做了"不退回别处文本"的单测。
   - **文档影响。** `packages/agent/README.md` 新增"运行控制"一节与验证条目；`apps/server/README.md` 路由、条目与 activity 取值；GLOSSARY 已有 Steering，未改；docs/subsystems/permissions.md 未改（暂停取消审批的行为写在 agent README）。TECH_STACK 无新依赖。
+- 2026-10-29 lead：评审后合入 main（963dac9）。接受越界：protocol 与 server 的错误码 no-active-run、nothing-to-continue、confirmation-pending；agent index.ts engine 导出行；renderer client/api.ts、chat-failure.ts、fixture；faux 脚本可选 requestLog。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 89 文件 717 通过、1 跳过（真实模型），无页面重载；check:docs 0 问题。实施者报告的首轮 29 例环境性失败未在 main 复现。worktree 已清理。
+
+Closed: true

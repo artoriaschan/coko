@@ -21,4 +21,5 @@
 
 ## Comments
 - 2026-10-29 lead：来自票 07——pi 先对整批调用做完调用前检查再执行，同批中后一个调用的 file_backup 可能排在前一个调用的 tool_exec 之前。恢复逻辑按 toolCallId 关联 tool_exec、file_backup、file_change 与 toolResult，不依赖相邻顺序。
+- 2026-10-29 lead：来自票 06——server continue() 已在未回答的 confirmation_request 存在时返回 409 confirmation-pending；运行时接受 lastRunStatus（interrupted 时可 continue）；不在运行中的 activity 由内存记录派生，重启后未打开的 Session 读条目前显示 idle，本票的未完成 Run 查询需补齐 Session 列表的 activity。
 
