@@ -22,3 +22,5 @@
 - [ ] ADR 0005 的 partial 说明与 permissions.md 同步
 
 ## Comments
+- 2026-10-29 lead：规划风险"workspace-write 拒绝写 ~/.npm、~/.cache 导致频繁提权"——参考 DSH sandbox-local 的 Seatbelt profile 处理方式（临时目录与常见包管理缓存是否默认可写），沿用 DSH 的默认可写集合并在票 Comments 列出；不要静默放开整个 HOME。
+
