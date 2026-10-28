@@ -36,19 +36,19 @@ Status: open
 
 ## Carry-overs
 
-- M3：composer 草稿以 Lexical EditorState JSON 持久化，Markdown 导入导出用 @lexical/markdown（M1 票 07 裁决）。
+- M3：composer 草稿以 Lexical EditorState JSON 持久化，Markdown 导入导出用 @lexical/markdown（M1 票 07 裁决）。→ 已分配 M3 票 06；composer 保持纯文本，不引入 @lexical/markdown（M3 规划按常设指示改判后半句）。
 
 - ~~M6：发布构建关闭 COKO_FAUX_SCRIPT 等测试钩子（构建期标志开启），产物 smoke 改用测试构建（M1 票 09 裁决）。~~ 已由 M2 票 11 提前解决；发布构建（不带 COKO_TEST_BUILD）的产物 E2E 留给 M6。
-- M3：rg 读取全局 gitignore 与 .git/info/exclude，内置 grep 不读；在 Context Management 中决定是否对齐（M1 票 09）。
+- M3：rg 读取全局 gitignore 与 .git/info/exclude，内置 grep 不读；在 Context Management 中决定是否对齐（M1 票 09）。→ 已分配 M3 票 10。
 
 - ~~M2：模态对话框打开时 Toast 动作无法用键盘到达（M1 票 08）。~~ 已由 M2 票 10 解决。
 
 - ~~M2：Sidecar 崩溃或重启时进行中的 Run 不留 run_end，启动恢复须把它们判定为中断并按幂等规则处理（M1 票 10）。~~ 已由 M2 票 08 解决。
-- M4：Sidecar 被强杀时 bash 的 detached 子进程会继续运行到结束；Background Jobs 与 Execution Runtime 需负责孤儿进程的登记与清理（M2 票 08）。
+- M4：Sidecar 被强杀时 bash 的 detached 子进程会继续运行到结束；stdio MCP 服务器子进程同理（M3 规划）。Background Jobs 与 Execution Runtime 需负责孤儿进程的登记与清理（M2 票 08）。
 - ~~M2：B1 Provider kind 映射散落 6 处、B3 挂起请求加超时重复 4 处，随 M2 涉及的模块收敛（M1 Standards 评审）。~~ 已由 M2 票 10 解决。
 
-- M3：J4 Secrets 对 bash 的隐藏只靠环境变量名模式；接入 MCP 凭据时改为显式白名单或按来源隔离（M2 Standards 评审）。
-- M3：S2 条目派生逻辑在 server/agent 与 renderer 各一份、S3 SessionService 768 行，随 M3 改动 Session 时收敛（M2 Standards 评审）。
+- M3：J4 Secrets 对 bash 的隐藏只靠环境变量名模式；接入 MCP 凭据时改为显式白名单或按来源隔离（M2 Standards 评审）。→ 已分配 M3 票 07，按来源隔离，见 ADR 0007。
+- M3：S2 条目派生逻辑在 server/agent 与 renderer 各一份、S3 SessionService 768 行，随 M3 改动 Session 时收敛（M2 Standards 评审）。→ 已分配 M3 票 01。
 
 ## Route status
 
@@ -56,7 +56,7 @@ Status: open
 | --- | --- | --- |
 | M1 行走骨架 | `.scratch/m1-walking-skeleton/` | delivered（[复盘](../m1-walking-skeleton/retro.md)） |
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
-| M3 上下文与指令 | `.scratch/m3-context-instructions/` | next |
+| M3 上下文与指令 | `.scratch/m3-context-instructions/` | in progress |
 | M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | pending |
 | M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
