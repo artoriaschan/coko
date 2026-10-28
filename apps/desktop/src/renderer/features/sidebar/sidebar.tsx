@@ -28,10 +28,23 @@ export function filterGroups(groups: ReturnType<typeof groupSessions>, query: st
 const rowClass =
   'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
 
-/** 组内排序的优先级：等待审批的会话在组首，其次运行中的会话。 */
-const rank = (session: Session) => (session.activity === 'awaiting-approval' ? 2 : session.running ? 1 : 0)
+/** 组内排序的优先级：等待用户处理（审批、结果确认）的会话在组首，其次被中断的，再次运行中的。 */
+const rank = (session: Session) =>
+  session.activity === 'awaiting-approval' || session.activity === 'awaiting-confirmation'
+    ? 3
+    : session.activity === 'interrupted'
+      ? 2
+      : session.running
+        ? 1
+        : 0
 
-/** 等待审批的会话位于组首，运行中的其次，其余按最近更新排序。 */
+/** 需要用户处理的会话位于组首，被中断的与运行中的其次，其余按最近更新排序。 */
+const BADGES = {
+  'awaiting-approval': { label: 'sidebar.awaitingApproval', tone: 'bg-warning' },
+  'awaiting-confirmation': { label: 'sidebar.awaitingConfirmation', tone: 'bg-warning' },
+  interrupted: { label: 'sidebar.interrupted', tone: 'bg-muted-foreground' },
+} as const
+
 export function groupSessions(workspaces: readonly Workspace[], sessions: readonly Session[]) {
   return workspaces.map((workspace) => ({
     workspace,
@@ -199,12 +212,12 @@ function WorkspaceGroup({
                 <span data-user-content={session.title ? '' : undefined} className={cn('min-w-0 flex-1 truncate', !session.title && 'text-muted-foreground')}>
                   {title}
                 </span>
-                {session.activity === 'awaiting-approval' ? (
+                {session.activity in BADGES ? (
                   <span
                     role="img"
-                    data-activity="awaiting-approval"
-                    aria-label={t('sidebar.awaitingApproval')}
-                    className="size-2 shrink-0 rounded-round bg-warning"
+                    data-activity={session.activity}
+                    aria-label={t(BADGES[session.activity as keyof typeof BADGES].label)}
+                    className={cn('size-2 shrink-0 rounded-round', BADGES[session.activity as keyof typeof BADGES].tone)}
                   />
                 ) : (
                   session.running && <span role="img" aria-label={t('sidebar.running')} className="size-2 shrink-0 rounded-round bg-success" />

@@ -78,6 +78,12 @@ export function TimelineView({ items, theme, onRetry }: TimelineViewProps) {
                 {t('conversation.paused')}
               </p>
             )
+          case 'interrupted':
+            return (
+              <p key={item.key} data-run-status="interrupted" className="text-ui-body text-muted-foreground">
+                {t('conversation.interrupted')}
+              </p>
+            )
           case 'stopped':
             return (
               <p key={item.key} data-run-status="aborted" className="text-ui-body text-muted-foreground">

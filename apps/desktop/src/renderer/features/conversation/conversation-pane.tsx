@@ -7,9 +7,10 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
-import { conversationActivity, pendingApprovals, sessionPermissionMode } from '../../stores/chat-store.ts'
+import { canContinue, conversationActivity, pendingApprovals, pendingConfirmations, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
 import { ApprovalPanel } from './approval-panel.tsx'
+import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
@@ -41,7 +42,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
-  const { send, stop, retry, openSession, selectModel, answerApproval, setPermissionMode, steer, pause, continueRun, takeReturnedDraft } = useChatActions()
+  const { send, stop, retry, openSession, selectModel, answerApproval, answerConfirmation, setPermissionMode, steer, pause, continueRun, takeReturnedDraft } =
+    useChatActions()
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -66,14 +68,17 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     const item = items.find((i) => i.kind === 'tool' && i.call.id === pending.payload.toolCallId)
     return item?.kind === 'tool' ? item.call : undefined
   }, [items, pending])
-  // 输入区被接管时焦点若在其中，移到审批卡上；回答后回到输入区。
+  // 恢复时结果不明的调用：没有 Run 时由确认卡接管输入区，同一时刻一张（最早的）。
+  const confirmation = React.useMemo(() => (conversation && !conversation.running ? pendingConfirmations(conversation.entries)[0] : undefined), [conversation])
+  // 输入区被接管时焦点若在其中，移到卡片上；回答后回到输入区。
   const composerArea = React.useRef<HTMLDivElement>(null)
   const [focusCard, setFocusCard] = React.useState(false)
-  const requestId = pending?.payload.requestId
+  const cardKey = pending?.payload.requestId ?? confirmation?.toolCallId
   React.useLayoutEffect(() => {
-    if (requestId === undefined) return
+    if (cardKey === undefined) return
     setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
-  }, [requestId])
+  }, [cardKey])
+  const takenOver = pending !== undefined || confirmation !== undefined
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
   const composer = React.useRef<ComposerHandle | null>(null)
@@ -92,8 +97,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     composer.current?.restore(returnedDraft)
     takeReturnedDraft(activeSessionId)
   }, [returnedDraft, activeSessionId, takeReturnedDraft])
-  // 上一 Run 以暂停结束：输入区上方显示横幅，带"继续"。
-  const paused = conversation !== undefined && !running && conversation.status === 'ready' && conversationActivity(conversation) === 'paused'
+  // 上一 Run 以暂停或中断结束：输入区上方显示横幅，模型能接着做时带"继续"。待确认时由确认卡接管，不显示横幅。
+  const activity = conversation !== undefined && !running && conversation.status === 'ready' ? conversationActivity(conversation) : undefined
+  const banner = activity === 'paused' || activity === 'interrupted' ? activity : undefined
+  const continuable = conversation !== undefined && banner !== undefined && canContinue(conversation)
 
   const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
 
@@ -184,22 +191,32 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
             />
           )}
-          {paused && !pending && (
+          {confirmation && !pending && (
+            <ConfirmationPanel
+              className={composerColumn}
+              confirmation={confirmation}
+              autoFocus={focusCard}
+              onAnswer={(answer) => answerConfirmation(confirmation.toolCallId, answer)}
+            />
+          )}
+          {banner && !takenOver && (
             <div
               role="status"
               data-slot="run-banner"
-              data-activity="paused"
+              data-activity={banner}
               className={`${composerColumn} mb-2 flex items-center gap-3 rounded-panel border-hairline border-border bg-background px-3 py-2 text-ui-body`}
             >
-              <p className="min-w-0 flex-1 text-muted-foreground">{t('conversation.pausedBanner')}</p>
-              <Button size="sm" data-action="continue" onClick={() => void continueRun()}>
-                <PlayIcon />
-                {t('conversation.continue')}
-              </Button>
+              <p className="min-w-0 flex-1 text-muted-foreground">{t(banner === 'paused' ? 'conversation.pausedBanner' : 'conversation.interruptedBanner')}</p>
+              {continuable && (
+                <Button size="sm" data-action="continue" onClick={() => void continueRun()}>
+                  <PlayIcon />
+                  {t('conversation.continue')}
+                </Button>
+              )}
             </div>
           )}
-          {/* 被审批卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
-          <div ref={composerArea} hidden={pending !== undefined}>
+          {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
+          <div ref={composerArea} hidden={takenOver}>
             <Composer
               ref={setComposer}
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
