@@ -7,6 +7,7 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
     boot: () => ipcRenderer.invoke(IPC.boot) as Promise<BootResult>,
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
     setCredential: (providerId, secret) => ipcRenderer.invoke(IPC.setCredential, providerId, secret) as Promise<SetCredentialResult>,
+    log: (record) => ipcRenderer.send(IPC.log, record),
   }
   contextBridge.exposeInMainWorld('coko', bridge)
 }

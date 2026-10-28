@@ -1,7 +1,10 @@
-// 桌面构建编排：tsdown 构建 main / preload 与 sidecar，Vite 构建或服务 renderer。
+// 桌面构建编排：tsdown 构建 main / preload 与 sidecar，Vite 构建或服务 renderer，复制随包 ripgrep。
 // Forge hooks、E2E globalSetup 与 `pnpm run build` 共用这里的函数；各任务只清理自己的输出目录。
+import { chmod, copyFile, mkdir, rm } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
+import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { rgPath } from '@vscode/ripgrep'
 import { build as tsdown, type InlineConfig } from 'tsdown'
 import { build as viteBuild, createServer as createViteServer } from 'vite'
 
@@ -57,6 +60,20 @@ export async function buildSidecar(): Promise<void> {
   await tsdown(sidecarConfig)
 }
 
+/**
+ * 把 @vscode/ripgrep 为当前平台解析的 rg 复制到 dist/ripgrep：开发时 main 从这里取，打包时经 extraResource
+ * 放到 Resources/ripgrep。@vscode/ripgrep 是 ESM 且按自身位置解析平台包，不能打进 CommonJS main。
+ */
+export async function prepareRipgrep(): Promise<string> {
+  const outDir = join(desktopRoot, 'dist', 'ripgrep')
+  await rm(outDir, { recursive: true, force: true })
+  await mkdir(outDir, { recursive: true })
+  const target = join(outDir, basename(rgPath))
+  await copyFile(rgPath, target)
+  await chmod(target, 0o755)
+  return target
+}
+
 export async function buildRenderer(): Promise<void> {
   await viteBuild({ configFile: viteConfigFile, logLevel: 'warn' })
 }
@@ -90,6 +107,7 @@ export async function startRendererDevServer(): Promise<RendererDevServer> {
 }
 
 if (import.meta.main) {
+  await prepareRipgrep()
   await buildSidecar()
   await buildElectron()
   await buildRenderer()

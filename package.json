@@ -17,6 +17,7 @@
     "@commitlint/config-conventional": "21.2.3",
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
+    "@vscode/ripgrep": "1.18.0",
     "electron": "41.0.3",
     "husky": "9.1.7",
     "lint-staged": "17.5.1",

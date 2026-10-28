@@ -4,6 +4,7 @@ export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
   setCredential: 'coko:set-credential',
+  log: 'coko:log',
 } as const
 
 /** boot 信息：不含启动令牌或 cookie。 */
@@ -32,6 +33,15 @@ export type SetCredentialResult =
   | { readonly ok: true; readonly hint: string }
   | { readonly ok: false; readonly code: CredentialErrorCode; readonly message: string }
 
+/** renderer 转发给 main 的一条日志；main 校验级别、字段与大小（上限 16 KiB）并标记来源。 */
+export interface RendererLogInput {
+  readonly level: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
+  readonly message: string
+  /** 追加在 coko.renderer 之后的分类，最多 4 段。 */
+  readonly category?: readonly string[]
+  readonly properties?: Readonly<Record<string, unknown>>
+}
+
 /** preload 经 contextBridge 暴露为 window.coko。 */
 export interface CokoBridge {
   /** 等待 sidecar 就绪并完成令牌交换。 */
@@ -40,6 +50,8 @@ export interface CokoBridge {
   pickDirectory(): Promise<string | null>
   /** 把密钥交给 main 用 safeStorage 加密，密文经控制 IPC 存入 Sidecar（ADR 0004）；明文不经 HTTP。 */
   setCredential(providerId: string, secret: string): Promise<SetCredentialResult>
+  /** 把一条日志转发到 main 的 desktop.jsonl；不等待、不回报结果。 */
+  log(record: RendererLogInput): void
 }
 
 // 声明放在契约旁：renderer 与 E2E（经 page.evaluate 访问 window.coko）分属不同 tsconfig 项目，都导入本文件。

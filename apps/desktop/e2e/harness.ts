@@ -32,7 +32,8 @@ export interface LaunchedApp {
 }
 
 /** 宿主可能带有的真实模型凭据；测试只用 faux provider，不向应用传递它们。 */
-const CREDENTIAL_ENV = /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_FAUX_SCRIPT$|ELECTRON_RUN_AS_NODE$)/
+const CREDENTIAL_ENV =
+  /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_RIPGREP_PATH$|COKO_FAUX_SCRIPT$|ELECTRON_RUN_AS_NODE$)/
 
 /** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData。 */
 function testEnv(extra: Record<string, string>, dir: string, eventsPath: string, sidecar: 'real' | 'placeholder'): Record<string, string> {

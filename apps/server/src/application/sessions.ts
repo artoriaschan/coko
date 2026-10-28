@@ -8,6 +8,7 @@ import {
   type ModelRegistry,
   type ProgressEvent as AgentProgress,
   type RunEntry,
+  type ToolRegistry,
 } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import {
@@ -38,6 +39,8 @@ export interface SessionServiceOptions {
   runs: RunLauncher
   /** 没有设置默认模型时优先使用（faux provider 开启时）。 */
   fallbackModel?: SessionModel
+  /** Workspace 的工具集；默认内置工具。桌面端以此覆盖 grep。 */
+  tools?: (cwd: string) => ToolRegistry
 }
 
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
@@ -216,6 +219,7 @@ export class SessionService {
       models: registry.models,
       model,
       cwd: workspace.path,
+      ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
       sessionId: session.id,
       messages,
       commit: async (entry) => {

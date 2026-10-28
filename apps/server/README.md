@@ -6,18 +6,19 @@ lifecycle: active
 
 # apps/server（Sidecar）
 
-Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动，也能脱离桌面独立运行。本文说明当前实现的入口与契约；消息与 DTO 的精确定义在 `@coko/protocol`（`packages/protocol/src`）。尚未实现：ripgrep 版 grep 覆盖（`--ripgrep` 参数）、权限审批、恢复中断的 Run。
+Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动，也能脱离桌面独立运行。本文说明当前实现的入口与契约；消息与 DTO 的精确定义在 `@coko/protocol`（`packages/protocol/src`）。尚未实现：权限审批、恢复中断的 Run。
 
 ## 使用或结构入口
 
 ```text
-<electron> apps/server/src/index.ts --data-dir <dir> --log-dir <dir>
+<electron> apps/server/src/index.ts --data-dir <dir> --log-dir <dir> [--ripgrep <rg>]
 ```
 
 | 输入 | 含义 |
 | --- | --- |
 | `--data-dir` | 必填，绝对路径；库文件为 `<dir>/coko.db` |
 | `--log-dir` | 必填，绝对路径；日志为 `<dir>/sidecar.jsonl`（JSONL，10 MiB × 5 份轮转） |
+| `--ripgrep` | 可选，绝对路径；给定时启动先运行 `<rg> --version`，失败按 `ripgrep-unavailable` fatal（不回退内置 grep），成功则以 ripgrep 版 grep 覆盖内置 grep（`src/adapters/ripgrep.ts`）。未给定时使用内置纯 JS grep。生效实现记入日志 `grep implementation selected { implementation, path?, version? }` |
 | `COKO_FAUX_SCRIPT` | 仅测试：faux provider 脚本的绝对路径，格式见 `src/adapters/faux.ts`；开启后新建 Session 默认使用 `faux/faux-1` |
 | `COKO_LOG_LEVEL` | `trace`…`fatal`，默认 `info` |
 | `COKO_CREDENTIAL_<PROVIDER_ID>`、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY` | 仅独立运行模式读取的 Credential，见下文 |
@@ -26,7 +27,7 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 
 ## 契约与生命周期
 
-- **控制通道。** 有 Node IPC 父进程时经 IPC 收发 `SidecarToMainMessage` / `MainToSidecarMessage`；否则为独立运行，消息逐行写到 stdout，不接收 main 消息。启动依次发 `starting`、`ready { port, token }`；失败发 `fatal { code, message }` 并以 1 退出，`code` 取值：`invalid-arguments`、`storage-<StoreError code>`（如 `storage-lease-held`）、`faux-script-invalid`、`listen-failed`、`startup-failed`。不合 schema 的 main 消息被忽略并记录警告。
+- **控制通道。** 有 Node IPC 父进程时经 IPC 收发 `SidecarToMainMessage` / `MainToSidecarMessage`；否则为独立运行，消息逐行写到 stdout，不接收 main 消息。启动依次发 `starting`、`ready { port, token }`；失败发 `fatal { code, message }` 并以 1 退出，`code` 取值：`invalid-arguments`、`ripgrep-unavailable`、`storage-<StoreError code>`（如 `storage-lease-held`）、`faux-script-invalid`、`listen-failed`、`startup-failed`。不合 schema 的 main 消息被忽略并记录警告。
 - **访问认证**（[ADR 0002](../../docs/adr/0002-local-service-access-auth.md)）。只监听 `127.0.0.1` 端口 0。所有请求先过信任围栏：`Host` 必须等于监听 authority，带 `Origin` 时必须是 `http://<authority>`，`sec-fetch-site: cross-site` 拒绝，失败 403。`POST /api/auth/exchange { token }` 只能成功一次，返回 204 与 `coko-session` cookie（`HttpOnly; SameSite=Strict; Path=/`，HMAC 绑定 authority，签名密钥只在进程内存）；其余路由与 WebSocket 升级缺少有效 cookie 返回 401。令牌不接受作为 Authorization 头。
 - **HTTP。** 路径常量为 `API_ROUTES` / `apiPaths`：workspaces（列表、登记已存在的绝对目录）、sessions（列表、创建、详情含条目、`POST …/messages` 返回 202 与 `runId`、`POST …/abort`、`PUT …/model`）、settings（`PUT /api/settings/:key` 带 `expectedRevision`，冲突 409）、providers（增改删，响应只含 `credential: { hint } | null`）、`GET /api/provider-presets`（deepseek / openai / anthropic 的默认地址与目录中的模型 id，供设置界面选择）、`GET /api/models`（已注册 Provider 的可用模型，测试时含 faux，以及新建 Session 的默认模型，没有时为 null）。错误体为 `{ error: { code, message, details? } }`。
 - **Session 模型。** 新建时未指定模型，依次取设置 `defaultModel`、faux（测试）、第一个 Provider 的第一个模型；都不可用时为 null，提交消息返回 409 `model-not-configured`。同一 Session 同时只有一个 Run（409 `run-in-progress`）。
@@ -39,11 +40,13 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 - 工具不经审批直接执行（M1 已知安全缺口），只应在用户信任的 Workspace 中使用。
 - faux 脚本的回复队列由所有 Session 共用，按模型调用顺序消费。
 - 进程首次加载 `node:sqlite` 时向 stderr 输出一次 ExperimentalWarning。
-- 集成测试从源码入口运行；桌面构建由 apps/desktop 的 tsdown 配置打出 `dist/sidecar/index.mjs`，其启动与对话由 apps/desktop 的 Electron E2E 验证（未打包的开发路径）；`electron-forge package` 产物上的启动尚未验证。
+- 集成测试从源码入口运行；桌面构建由 apps/desktop 的 tsdown 配置打出 `dist/sidecar/index.mjs`，其启动与对话由 apps/desktop 的 Electron E2E 验证，未打包路径与 `electron-forge package` 产物（`e2e/package-smoke.e2e.test.ts`）各有覆盖。
+- ripgrep 版 grep 的参数：`--json --no-config --hidden --no-require-git --sort path --glob !.git`，目录搜索以搜索目录为 cwd、路径参数为 `.`。rg 默认还读取全局 gitignore（`core.excludesFile`）与 `.git/info/exclude`，内置 grep 不读，两者在这类文件存在时结果可能不同。
 
 ## 验证与相关设计
 
 - `tests/integration/sidecar-*.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动真实 Sidecar，覆盖 ready、ADR 0002 的 401 / 403 场景（含 WebSocket 与重启后旧 cookie）、对话与工具写文件、停止、运行中关闭、重启读回、afterSeq 补齐、设置与 Provider、Credential 的 IPC 往返与环境变量模式、日志与库脱敏、启动失败。运行：`pnpm exec vitest run tests/integration`。
+- `src/adapters/ripgrep.test.ts`：ripgrep 版 grep 运行 `@coko/agent/testing` 的 grep 契约套件。`tests/integration/sidecar-ripgrep.test.ts`：`--ripgrep` 不存在或不可执行时 fatal、给定时 grep 实际经该路径执行、日志记录生效实现。
 - `src/http/auth.test.ts`、`src/config.test.ts`：同一 authority 下其他实例签发的 cookie 被拒绝、参数解析。
 - 进程模型见 [ADR 0001](../../docs/adr/0001-sidecar-on-electron-node.md)。
 

@@ -1,10 +1,12 @@
 import { join, resolve } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import { getLogger } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult } from '../shared/bridge.ts'
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource, type SidecarEndpoint } from './app-protocol.ts'
 import { createCredentialBridge } from './credentials.ts'
 import { messagesFor } from './messages.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
+import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
 import { SidecarProcess, SidecarStartError } from './sidecar-process.ts'
 import { decideWebSocketHeaders } from './websocket-headers.ts'
@@ -30,6 +32,8 @@ if (!app.requestSingleInstanceLock()) {
 
 function run(): void {
   const development = !app.isPackaged
+  const log = getLogger(['main'])
+  const logging = startDesktopLogging({ logPath: join(app.getPath('logs'), DESKTOP_LOG_FILE), appVersion: app.getVersion(), console: development })
   const appRoot = app.getAppPath()
   const preload = join(appRoot, 'dist', 'electron', 'preload.cjs')
   // 开发时允许用环境变量替换 sidecar 入口（测试用占位 sidecar）；安装包始终使用随包 sidecar。
@@ -39,6 +43,15 @@ function run(): void {
       : development
         ? join(appRoot, 'dist', 'sidecar', 'index.mjs')
         : join(process.resourcesPath, 'sidecar', 'index.mjs')
+  // 随包 ripgrep：开发时由 build 复制到 dist/ripgrep，打包后经 extraResource 位于 Resources/ripgrep。
+  // COKO_RIPGREP_PATH 仅在未打包时生效（测试注入不可执行路径）。
+  const rgName = process.platform === 'win32' ? 'rg.exe' : 'rg'
+  const ripgrepPath =
+    development && process.env.COKO_RIPGREP_PATH
+      ? resolve(process.env.COKO_RIPGREP_PATH)
+      : development
+        ? join(appRoot, 'dist', 'ripgrep', rgName)
+        : join(process.resourcesPath, 'ripgrep', rgName)
   const devServerUrl = development ? process.env.COKO_RENDERER_DEV_URL : undefined
   const renderer: RendererSource = devServerUrl ? { kind: 'dev-server', url: devServerUrl } : { kind: 'directory', root: join(appRoot, 'dist', 'renderer') }
 
@@ -72,19 +85,24 @@ function run(): void {
   const sidecar = new SidecarProcess({
     execPath: process.execPath,
     entry: sidecarEntry,
-    args: ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs')],
+    args: ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath],
     env: process.env,
     onStdout: (chunk) => process.stdout.write(chunk),
   })
   sidecar.onUnexpectedExit((info) => {
     endpoint = undefined
+    log.error('sidecar exited unexpectedly', { code: info.code, signal: info.signal })
     if (quitApproved) return
     void showSidecarError(messages().crashedMessage, { code: 'sidecar-exited', message: `code ${String(info.code)}, signal ${String(info.signal)}` })
   })
 
   const startup: Promise<BootResult> = (async (): Promise<BootResult> => {
     try {
+      await logging
+      log.info('app starting', { packaged: !development, electron: process.versions.electron, platform: process.platform, ripgrep: ripgrepPath })
       const ready = await sidecar.start()
+      // 只记录端口；启动令牌只交给令牌交换。
+      log.info('sidecar ready', { port: ready.port, pid: sidecar.pid ?? null })
       const origin = `http://127.0.0.1:${ready.port}`
       endpoint = { origin, cookie: await exchangeLaunchToken(origin, ready.token) }
       // getLocale 需在 ready 之后调用。
@@ -94,13 +112,14 @@ function run(): void {
       const failure: BootFailure =
         error instanceof SidecarStartError ? { code: error.code, message: error.message } : { code: 'sidecar-auth', message: (error as Error).message }
       if (error instanceof SidecarStartError && error.diagnostic !== '') console.error('[coko] sidecar diagnostic:\n' + error.diagnostic)
+      log.error('sidecar failed to start', { code: failure.code, message: failure.message })
       await sidecar.stop().catch(() => undefined)
       return { ok: false, error: failure }
     }
   })()
 
   // 只接受主窗口主框架、coko-app://app 文档发出的 IPC。
-  const assertMainFrame = (event: IpcMainInvokeEvent): BrowserWindow => {
+  const assertMainFrame = (event: Pick<IpcMainInvokeEvent, 'sender' | 'senderFrame'>): BrowserWindow => {
     const window = mainWindow
     const frame = event.senderFrame
     if (window === undefined || window.isDestroyed() || event.sender !== window.webContents || frame === null || frame !== window.webContents.mainFrame) {
@@ -114,6 +133,17 @@ function run(): void {
   ipcMain.handle(IPC.boot, async (event) => {
     assertMainFrame(event)
     return startup
+  })
+
+  // renderer 日志：fire-and-forget；只收主窗口主框架的消息，校验后由 main 标记来源写入 desktop.jsonl。
+  ipcMain.on(IPC.log, (event, raw: unknown) => {
+    try {
+      assertMainFrame(event)
+    } catch {
+      return
+    }
+    const record = parseRendererLog(raw)
+    if (record) writeRendererLog(record)
   })
 
   let picking: Promise<string | null> | undefined
@@ -163,7 +193,12 @@ function run(): void {
     quitApproved = true
     for (const window of BrowserWindow.getAllWindows()) window.hide()
     endpoint = undefined
-    await sidecar.stop().catch((error: unknown) => console.error('[coko] sidecar stop failed', error))
+    const stopped = await sidecar.stop().catch((error: unknown) => {
+      console.error('[coko] sidecar stop failed', error)
+      return undefined
+    })
+    log.info('app quitting', { sidecar: stopped?.outcome ?? 'failed' })
+    await logging.then((handle) => handle.dispose()).catch(() => undefined)
     readyToExit = true
     app.quit()
   }

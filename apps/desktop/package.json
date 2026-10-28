@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@coko/i18n": "workspace:*",
+    "@coko/logging": "workspace:*",
     "@coko/protocol": "workspace:*",
     "@coko/ui": "workspace:*",
     "@electron-forge/cli": "8.0.1",
@@ -26,6 +27,7 @@
     "@types/ws": "8.18.2",
     "@vitejs/plugin-react": "6.1.2",
     "@vitest/browser-playwright": "5.0.3",
+    "@vscode/ripgrep": "1.18.0",
     "electron": "41.0.3",
     "lucide-react": "1.55.0",
     "playwright": "1.64.0",
