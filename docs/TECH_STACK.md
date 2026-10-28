@@ -31,7 +31,9 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 位置 | 已声明依赖 |
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
-| apps/desktop | electron、vitest；renderer：react、react-dom、lucide-react、@coko/ui、@coko/i18n，开发依赖 vite、@vitejs/plugin-react、@tailwindcss/vite、@types/react、@types/react-dom、vitest-browser-react、@vitest/browser-playwright、playwright |
+| apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol |
+| apps/desktop renderer | 界面基础切片（同为 devDependencies，由 Vite 打入 renderer 产物）：react、react-dom、lucide-react、@coko/ui、@coko/i18n、@tailwindcss/vite；Browser Mode 测试：vitest-browser-react、@vitest/browser-playwright、playwright |
+| packages/protocol | typebox、vitest |
 | packages/ui | radix-ui、class-variance-authority、clsx、tailwind-merge、tailwindcss、tw-animate-css、lucide-react、streamdown、@streamdown/code、@streamdown/math、@streamdown/mermaid、@streamdown/cjk、katex、sonner；peer react、react-dom；开发依赖 react、react-dom、@types/react、@types/react-dom、vite、@vitejs/plugin-react、@tailwindcss/vite、typescript（样式守卫解析 TSX）、vitest、vitest-browser-react、@vitest/browser-playwright、playwright |
 | packages/i18n | vitest |
 | packages/session | vitest、electron（devDependency，仅用于以 `ELECTRON_RUN_AS_NODE=1` 运行存储测试） |

@@ -2,6 +2,7 @@ import { createTranslator, type Locale } from '@coko/i18n'
 import { AppFrame, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider, toast } from '@coko/ui'
 import * as React from 'react'
 import type { AppearanceStore } from './appearance-store.ts'
+import type { ConnectionStore } from './connection-store.ts'
 import { AppearanceMenu } from '../features/appearance/appearance-menu.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
@@ -12,8 +13,9 @@ import { I18nProvider, useI18n } from './i18n.tsx'
 
 const allSessions = workspaces.flatMap((w) => w.sessions)
 
-export function App({ store }: { store: AppearanceStore }) {
+export function App({ store, connection }: { store: AppearanceStore; connection: ConnectionStore }) {
   const { theme, locale } = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const connectionState = React.useSyncExternalStore(connection.subscribe, connection.getSnapshot)
 
   // 主题类与文档语言属于 document 级外部状态，在绘制前同步。
   React.useLayoutEffect(() => {
@@ -54,6 +56,7 @@ export function App({ store }: { store: AppearanceStore }) {
             theme={theme}
             rightOpen={rightOpen}
             onToggleRight={() => setRightOpen((open) => !open)}
+            connection={connectionState}
           />
         </Frame>
         <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />

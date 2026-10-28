@@ -43,6 +43,12 @@ export const zh = {
     composerPlaceholder: '向 Coko 布置任务',
     send: '发送',
   },
+  connection: {
+    connecting: '正在连接 Sidecar',
+    connected: 'Sidecar 已连接',
+    disconnected: 'Sidecar 连接已断开',
+    failed: 'Sidecar 启动失败',
+  },
   rightPanel: {
     title: '文件预览',
     empty: '选择文件或改动后在这里预览',

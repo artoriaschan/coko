@@ -44,6 +44,12 @@ export const en: Dictionary = {
     composerPlaceholder: 'Give Coko a task',
     send: 'Send',
   },
+  connection: {
+    connecting: 'Connecting to Sidecar',
+    connected: 'Sidecar connected',
+    disconnected: 'Sidecar disconnected',
+    failed: 'Sidecar failed to start',
+  },
   rightPanel: {
     title: 'File preview',
     empty: 'Select a file or change to preview it here',

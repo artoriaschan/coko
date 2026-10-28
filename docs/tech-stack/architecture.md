@@ -23,12 +23,12 @@ repo/
 │   │   │       ├── app/            # 路由、依赖装配、主题与 locale
 │   │   │       ├── features/       # 聊天、会话、文档和设置功能
 │   │   │       ├── stores/         # Zustand vanilla store
-│   │   │       └── client/         # HTTP / WebSocket 客户端
+│   │   │       ├── client/         # HTTP / WebSocket 客户端
+│   │   │       └── vite.config.ts  # renderer 构建与开发服务器（唯一的 Vite 配置）
 │   │   ├── build/                  # Forge hooks、watch 与资源准备
 │   │   ├── resources/              # 图标与打包静态资源
 │   │   ├── forge.config.ts
-│   │   ├── tsdown.config.ts        # main / preload 构建
-│   │   └── vite.config.ts          # renderer 构建
+│   │   └── tsdown.config.ts        # main / preload 构建
 │   └── server/                     # sidecar（Electron 内置 Node）与服务装配入口
 │       ├── src/
 │       │   ├── http/               # Hono 路由、访问认证、中间件、错误映射
@@ -87,6 +87,8 @@ logging 的文件 sink 通过独立导出入口由 main / server 引入。render
 renderer 通过 HTTP 提交命令、通过 WebSocket 订阅业务事件。server 校验 protocol schema，通过 application 入口调用 agent 框架及 session 查询接口，再输出可序列化的业务结果。执行、权限、Goal 和恢复策略集中在 agent；server 提供生命周期、唤醒和资源适配。协议事件携带关联标识和顺序信息，重连时由 server 根据持久化状态重新同步。
 
 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动自身可执行文件运行 sidecar，经 Node IPC 等待就绪。renderer 通过 `coko-app://` 协议加载，HTTP 与 WebSocket 由 main 代为附加认证凭据，preload 不暴露令牌或 cookie。窗口、原生对话框、更新和日志转发使用受控 IPC；业务会话与 Agent 执行通过服务协议处理。
+
+sidecar 的 HTTP 路由都在 `/api` 下，renderer 以同源相对路径请求，由 `coko-app://app` 转发；令牌交换入口只供 main 调用，代理对 renderer 返回 404。renderer 经 preload 的 boot IPC 取得 WebSocket 基址（`ws://127.0.0.1:<port>`）、平台与 locale，boot 在 sidecar 就绪并完成令牌交换后返回。退出前 main 经控制 IPC 的 inspect-quit 询问活动 Run 数，2 秒内未回答按"可能有活动 Run"弹确认框，确认后再进入分级退出。
 
 ### 本地服务访问认证
 

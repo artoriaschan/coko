@@ -6,6 +6,7 @@ import { render } from 'vitest-browser-react'
 import { toast } from '@coko/ui'
 import { App } from './app.tsx'
 import { createAppearanceStore } from './appearance-store.ts'
+import { createConnectionStore } from './connection-store.ts'
 
 function leaves(value: unknown): string[] {
   return Object.values(value as Record<string, unknown>).flatMap((child) => (typeof child === 'string' ? [child] : leaves(child)))
@@ -49,11 +50,13 @@ const CJK = /[\u3400-\u9fff]/
 
 function renderApp(locale: Locale = 'zh') {
   const store = createAppearanceStore({ theme: 'light', locale })
+  const connection = createConnectionStore()
   return {
     store,
+    connection,
     screen: render(
       <div style={{ width: '100vw', height: '100vh' }}>
-        <App store={store} />
+        <App store={store} connection={connection} />
       </div>,
     ),
   }
@@ -112,6 +115,47 @@ describe('界面语言', () => {
     store.setLocale('en')
     await page.viewport(800, 800)
     await expect.element(page.getByRole('textbox', { name: 'Give Coko a task' })).toHaveValue('保留这段草稿')
+  })
+})
+
+describe('Sidecar 连接状态', () => {
+  it('骨架中显示连接阶段，文案随界面语言切换', async () => {
+    await page.viewport(1280, 800)
+    const { store, connection, screen } = renderApp('zh')
+    await screen
+    const status = page.getByRole('status')
+    await expect.element(status).toHaveAttribute('data-connection', 'connecting')
+    await expect.element(status).toHaveTextContent('正在连接 Sidecar')
+
+    connection.set({ phase: 'connected' })
+    await expect.element(status).toHaveAttribute('data-connection', 'connected')
+    await expect.element(status).toHaveTextContent('Sidecar 已连接')
+    store.setLocale('en')
+    await expect.element(status).toHaveTextContent('Sidecar connected')
+    await expect.element(page.getByRole('button', { name: 'New session' })).toBeVisible()
+  })
+
+  it('启动失败时覆盖对话区，显示失败说明与原样的错误详情', async () => {
+    await page.viewport(1280, 800)
+    const { connection, screen } = renderApp('en')
+    await screen
+    connection.set({ phase: 'failed', code: 'fixture-fatal', message: 'boom' })
+    await expect.element(page.getByRole('status')).toHaveAttribute('data-connection', 'failed')
+    await expect.element(page.getByRole('status')).toHaveTextContent('Sidecar failed to start')
+    const detail = document.querySelector('[data-error-code]')
+    expect(detail?.getAttribute('data-error-code')).toBe('fixture-fatal')
+    expect(detail?.textContent).toBe('boom (fixture-fatal)')
+    // 失败覆盖层盖住消息与输入区，标题行的连接指示与侧栏仍可见。
+    const hit = (el: Element) => {
+      const rect = el.getBoundingClientRect()
+      return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    }
+    const composer = page.getByRole('textbox', { name: 'Give Coko a task' }).element()
+    expect(composer.contains(hit(composer))).toBe(false)
+    const statusEl = page.getByRole('status').element()
+    expect(statusEl.contains(hit(statusEl))).toBe(true)
+    const newSession = page.getByRole('button', { name: 'New session' }).element()
+    expect(newSession.contains(hit(newSession))).toBe(true)
   })
 })
 
