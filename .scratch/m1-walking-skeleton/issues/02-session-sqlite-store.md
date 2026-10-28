@@ -28,3 +28,6 @@
 - 未验证：经 sidecar 协议的集成测试（票 04）；Memory、业务 payload 注册接口、FTS5 索引不在本票；只在 macOS arm64 本机运行。
 - 依赖：packages/session 新增 devDependency electron 41.0.3（已在 TECH_STACK 接入状态表登记一行），lockfile +3 行。
 - 文档影响：新增 packages/session/README.md（当前行为参考）；ADR 0003 implementation not-started → partial，并写明剩余项；docs/adr/README.md 索引同步；TECH_STACK 接入状态表加 packages/session 行，服务端章节记录 FTS5 实测。.scratch 研究中"FTS5 未验证"的历史记录保留未改。
+- 2026-10-28 lead：评审后合入 main（848fd94）。main 上复核：install、typecheck、lint 退出 0；test 14 文件 56 用例通过；check:docs 59 文件 0 问题。worktree 已清理。
+
+Closed: true

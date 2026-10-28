@@ -28,6 +28,7 @@
 
 - 共享包 exports 指向 `./src/index.ts`；消费方加 `"@coko/<pkg>": "workspace:*"` 并在 tsconfig references 引用该包。
 - 每个 workspace 有自己的 vitest 配置，根配置按 glob 发现；ui 的 Browser Mode 文件名为 `*.browser.test.ts(x)`。根 `tests/` 需要时在根 vitest.config.ts 加一条项目。
+- 合并提交信息也要符合 commitlint（如 `chore(merge): <branch>`），`merge:` 会被拒。
 - oxfmt：无分号、单引号、printWidth 160。commitlint body 行长 ≤100。
 - TECH_STACK 的"接入状态"表是并行票的共同编辑点：只增加自己的行，冲突由 Lead 合并时处理。
 
