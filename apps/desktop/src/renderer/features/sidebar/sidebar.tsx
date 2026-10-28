@@ -14,7 +14,7 @@ export interface SidebarProps {
 }
 
 const rowClass =
-  'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body outline-none hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
+  'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
 
 /** 运行中的会话上浮，其余按最近更新排序。 */
 export function groupSessions(workspaces: readonly Workspace[], sessions: readonly Session[]) {
