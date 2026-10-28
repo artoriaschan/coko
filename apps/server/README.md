@@ -39,7 +39,7 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 - 工具不经审批直接执行（M1 已知安全缺口），只应在用户信任的 Workspace 中使用。
 - faux 脚本的回复队列由所有 Session 共用，按模型调用顺序消费。
 - 进程首次加载 `node:sqlite` 时向 stderr 输出一次 ExperimentalWarning。
-- 当前只从源码入口运行；桌面产物的构建由 apps/desktop 的 tsdown 配置负责，构建产物上的启动未在本包验证。
+- 集成测试从源码入口运行；桌面构建由 apps/desktop 的 tsdown 配置打出 `dist/sidecar/index.mjs`，其启动与对话由 apps/desktop 的 Electron E2E 验证（未打包的开发路径）；`electron-forge package` 产物上的启动尚未验证。
 
 ## 验证与相关设计
 

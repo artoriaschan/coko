@@ -1,34 +1,97 @@
-import { Button, MarkdownRenderer } from '@coko/ui'
-import { ArrowUpIcon, PanelRightCloseIcon, PanelRightOpenIcon } from 'lucide-react'
+import { PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon } from 'lucide-react'
+import { Button } from '@coko/ui'
+import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
-import type { FixtureMessage } from '../../app/fixtures.ts'
+import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
+import { Composer } from './composer.tsx'
+import { buildTimeline } from './timeline.ts'
+import { TimelineView } from './timeline-view.tsx'
 
 export interface ConversationPaneProps {
-  title: string
-  messages: FixtureMessage[]
   theme: Theme
   rightOpen: boolean
   onToggleRight: () => void
   connection: ConnectionState
+  onAddWorkspace: () => void
 }
 
 // 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
 const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
 
-export function ConversationPane({ title, messages, theme, rightOpen, onToggleRight, connection }: ConversationPaneProps) {
-  const { t, dictionary } = useI18n()
+export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace }: ConversationPaneProps) {
+  const { t } = useI18n()
+  const activeSessionId = useChat((s) => s.activeSessionId)
+  const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
+  const session = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId))
+  const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
+  const hasWorkspace = useChat((s) => s.workspaces.length > 0)
+  const listStatus = useChat((s) => s.listStatus)
+  const { send, stop, retry, openSession } = useChatActions()
+  const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
+  const running = conversation?.running ?? false
+
+  const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
+
+  // 贴底时跟随新内容；用户上翻阅读时不打断。
+  const scroller = React.useRef<HTMLDivElement>(null)
+  const pinned = React.useRef(true)
+  React.useLayoutEffect(() => {
+    const el = scroller.current
+    if (el && pinned.current) el.scrollTop = el.scrollHeight
+  }, [items])
+  React.useLayoutEffect(() => {
+    pinned.current = true
+  }, [activeSessionId])
+
+  let body: React.ReactNode
+  if (listStatus === 'ready' && !hasWorkspace) {
+    body = (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-ui-title font-medium">{t('conversation.noWorkspaceTitle')}</p>
+        <p className="max-w-100 text-ui-body text-muted-foreground">{t('conversation.noWorkspaceBody')}</p>
+        <Button onClick={onAddWorkspace}>
+          <FolderPlusIcon />
+          {t('sidebar.addWorkspace')}
+        </Button>
+      </div>
+    )
+  } else if (conversation?.status === 'error') {
+    body = (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-ui-body">{t('conversation.loadFailed')}</p>
+        <Button variant="outline" size="sm" onClick={() => activeSessionId && openSession(activeSessionId)}>
+          {t('conversation.retry')}
+        </Button>
+      </div>
+    )
+  } else if (conversation?.status === 'loading' && conversation.entries.length === 0) {
+    body = (
+      <div className="flex flex-1 items-center justify-center" aria-label={t('conversation.loading')}>
+        <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+      </div>
+    )
+  } else if (items.length === 0 && (draftWorkspaceId !== null || conversation)) {
+    body = <div className="flex flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('conversation.emptySession')}</div>
+  } else {
+    body = (
+      <div className={`${chatColumn} flex flex-col gap-4 py-4`}>
+        <TimelineView items={items} theme={theme} onRetry={(text) => void retry(text)} />
+      </div>
+    )
+  }
+
   return (
     <>
       <header
         data-window-drag
         className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-[calc(16px_+_max(0px,_var(--frame-leading-clearance)_-_var(--local-sidebar-column)))] pe-2"
       >
-        <h1 data-user-content className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
+        <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
           {title}
         </h1>
         <ConnectionStatus state={connection} />
@@ -38,38 +101,25 @@ export function ConversationPane({ title, messages, theme, rightOpen, onToggleRi
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4">
-          <div className={`${chatColumn} flex flex-col gap-6 py-4`}>
-            {messages.map((message) =>
-              message.role === 'user' ? (
-                <article key={message.id} aria-label={t('conversation.you')} className="ms-auto w-fit max-w-[85%]">
-                  <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg whitespace-pre-wrap">
-                    {message.text}
-                  </p>
-                </article>
-              ) : (
-                <article key={message.id} aria-label={t('conversation.assistant')} data-user-content className="min-w-0">
-                  <MarkdownRenderer mode="static" colorScheme={theme} translations={dictionary.markdown}>
-                    {message.text}
-                  </MarkdownRenderer>
-                </article>
-              ),
-            )}
-          </div>
+        <div
+          ref={scroller}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
+          onScroll={(event) => {
+            const el = event.currentTarget
+            pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
+          }}
+        >
+          {body}
         </div>
 
         <div className="shrink-0 px-4 pb-4">
-          <form className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`} onSubmit={(event) => event.preventDefault()}>
-            <textarea
-              rows={1}
-              aria-label={t('conversation.composerPlaceholder')}
-              placeholder={t('conversation.composerPlaceholder')}
-              className="min-h-10 min-w-0 flex-1 resize-none rounded-lg bg-transparent px-3 py-2 text-ui-body-lg placeholder:text-muted-foreground pointer-coarse:text-ui-title"
-            />
-            <Button type="submit" size="icon" aria-label={t('conversation.send')} disabled>
-              <ArrowUpIcon />
-            </Button>
-          </form>
+          <Composer
+            className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
+            running={running}
+            disabled={activeSessionId === null && draftWorkspaceId === null}
+            onSend={send}
+            onStop={() => void stop()}
+          />
         </div>
         {connection.phase === 'failed' && <ConnectionFailure code={connection.code} message={connection.message} />}
       </div>

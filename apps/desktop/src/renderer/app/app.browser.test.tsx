@@ -7,6 +7,7 @@ import { toast } from '@coko/ui'
 import { App } from './app.tsx'
 import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
+import { createFixtureChat } from '../testing/fixture-chat.ts'
 
 function leaves(value: unknown): string[] {
   return Object.values(value as Record<string, unknown>).flatMap((child) => (typeof child === 'string' ? [child] : leaves(child)))
@@ -51,12 +52,14 @@ const CJK = /[\u3400-\u9fff]/
 function renderApp(locale: Locale = 'zh') {
   const store = createAppearanceStore({ theme: 'light', locale })
   const connection = createConnectionStore()
+  const { chat } = createFixtureChat()
   return {
     store,
     connection,
+    chat,
     screen: render(
       <div style={{ width: '100vw', height: '100vh' }}>
-        <App store={store} connection={connection} />
+        <App store={store} connection={connection} chat={chat} pickDirectory={async () => null} />
       </div>,
     ),
   }
@@ -114,7 +117,7 @@ describe('界面语言', () => {
     await composer.fill('保留这段草稿')
     store.setLocale('en')
     await page.viewport(800, 800)
-    await expect.element(page.getByRole('textbox', { name: 'Give Coko a task' })).toHaveValue('保留这段草稿')
+    await expect.element(page.getByRole('textbox', { name: 'Give Coko a task' })).toHaveTextContent('保留这段草稿')
   })
 })
 
@@ -207,7 +210,8 @@ describe('窄窗口', () => {
     await renderApp('en').screen
     await page.getByRole('button', { name: 'Expand sidebar' }).click()
     const drawer = page.getByRole('dialog', { name: 'Sidebar' })
-    await drawer.getByRole('button', { name: 'Sidecar startup handshake' }).click()
+    // 运行中的会话：按钮名称包含运行状态。
+    await drawer.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
     await expect.element(drawer).not.toBeInTheDocument()
     await expect.element(page.getByRole('heading', { level: 1, name: 'Sidecar startup handshake' })).toBeVisible()
   })

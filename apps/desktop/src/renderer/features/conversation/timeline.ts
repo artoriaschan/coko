@@ -1,0 +1,166 @@
+import type { RunEndPayload, SessionEntry } from '@coko/protocol'
+import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
+
+export interface ToolCallBlock {
+  id: string
+  name: string
+  arguments: unknown
+}
+
+/** 工具结果（来自已提交的 toolResult 条目，或进行中的 progress）。 */
+export interface ToolResultView {
+  isError: boolean
+  /** 结果的文本内容。 */
+  text: string
+  details: unknown
+}
+
+export type TimelineItem =
+  | { kind: 'user'; key: string; text: string }
+  | { kind: 'text'; key: string; text: string; streaming: boolean }
+  | { kind: 'thinking'; key: string; text: string; streaming: boolean }
+  | { kind: 'tool'; key: string; call: ToolCallBlock; result: ToolResultView | null; status: 'running' | 'done' | 'error' | 'pending'; live: LiveTool | null }
+  | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
+  | { kind: 'stopped'; key: string }
+  /** retryText：可重试时为该 Run 的用户文本（只在最后一个 Run 且未在运行时提供）。 */
+  | { kind: 'error'; key: string; message: string; retryText: string | null }
+
+interface Block {
+  type?: unknown
+  text?: unknown
+  thinking?: unknown
+  id?: unknown
+  name?: unknown
+  arguments?: unknown
+}
+
+const blocksOf = (content: unknown): Block[] => (Array.isArray(content) ? (content.filter((b) => b && typeof b === 'object') as Block[]) : [])
+
+/** 用户与工具结果消息的文本内容。 */
+export function contentText(content: unknown): string {
+  if (typeof content === 'string') return content
+  return blocksOf(content)
+    .flatMap((b) => (b.type === 'text' && typeof b.text === 'string' ? [b.text] : []))
+    .join('\n')
+}
+
+/** 工具结果的文本：AgentToolResult 或 toolResult 条目的 content。 */
+export function resultText(result: unknown): string {
+  if (result && typeof result === 'object' && 'content' in result) return contentText((result as { content: unknown }).content)
+  return typeof result === 'string' ? result : ''
+}
+
+const resultDetails = (result: unknown) => (result && typeof result === 'object' && 'details' in result ? (result as { details: unknown }).details : undefined)
+
+/**
+ * 由已提交条目与当前 Run 的临时状态派生显示项（纯函数）。工具卡把 assistant 消息中的 toolCall 与对应的
+ * toolResult 条目按 toolCallId 配对；尚无结果的工具使用 progress 中的实时状态。
+ */
+export function buildTimeline(conversation: Conversation): TimelineItem[] {
+  const items: TimelineItem[] = []
+  const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
+  const userTextByRun = new Map<string, string>()
+  let lastRunId: string | null = null
+
+  for (const entry of conversation.entries) {
+    if (entry.runId) lastRunId = entry.runId
+    if (entry.kind === 'run_end') {
+      const payload = entry.payload as RunEndPayload
+      // 未结束的工具在 Run 结束后不会再有结果。
+      for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
+      if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
+      else if (payload.status === 'error')
+        items.push({
+          kind: 'error',
+          key: `${entry.seq}`,
+          message: payload.error?.message ?? '',
+          retryText: entry.runId ? (userTextByRun.get(entry.runId) ?? null) : null,
+        })
+      continue
+    }
+    if (entry.kind !== 'message') continue
+    const message = entry.payload as { role?: string; content?: unknown; toolCallId?: string; toolName?: string; isError?: boolean; details?: unknown }
+    if (message.role === 'user') {
+      const text = contentText(message.content)
+      if (entry.runId && !userTextByRun.has(entry.runId)) userTextByRun.set(entry.runId, text)
+      items.push({ kind: 'user', key: `${entry.seq}`, text })
+    } else if (message.role === 'assistant') {
+      blocksOf(message.content).forEach((block, index) => {
+        const key = `${entry.seq}:${index}`
+        if (block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')
+          items.push({ kind: 'text', key, text: block.text, streaming: false })
+        else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '')
+          items.push({ kind: 'thinking', key, text: block.thinking, streaming: false })
+        else if (block.type === 'toolCall' && typeof block.id === 'string') {
+          const item: Extract<TimelineItem, { kind: 'tool' }> = {
+            kind: 'tool',
+            key: `tool:${block.id}`,
+            call: { id: block.id, name: typeof block.name === 'string' ? block.name : '', arguments: block.arguments },
+            result: null,
+            status: 'running',
+            live: null,
+          }
+          tools.set(block.id, item)
+          items.push(item)
+        }
+      })
+    } else if (message.role === 'toolResult' && message.toolCallId) {
+      const tool = tools.get(message.toolCallId)
+      const result: ToolResultView = { isError: message.isError === true, text: contentText(message.content), details: message.details }
+      if (tool) {
+        tool.result = result
+        tool.status = result.isError ? 'error' : 'done'
+      }
+    }
+  }
+
+  const live = conversation.live
+  if (live) {
+    for (const liveTool of Object.values(live.tools)) {
+      const tool = tools.get(liveTool.toolCallId)
+      if (tool) {
+        if (tool.result === null) {
+          tool.live = liveTool
+          tool.status = liveTool.status
+          if (liveTool.status !== 'running')
+            tool.result = { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) }
+        }
+      } else {
+        // 中途订阅时可能先看到工具进度、后补到调用条目。
+        items.push({
+          kind: 'tool',
+          key: `tool:${liveTool.toolCallId}`,
+          call: { id: liveTool.toolCallId, name: liveTool.toolName, arguments: liveTool.args },
+          result:
+            liveTool.status === 'running'
+              ? null
+              : { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) },
+          status: liveTool.status,
+          live: liveTool,
+        })
+      }
+    }
+    let visible = false
+    live.blocks.forEach((block, index) => {
+      if (!block || block.text === '') return
+      visible = true
+      items.push({ kind: block.kind, key: `live:${index}`, text: block.text, streaming: true })
+    })
+    // 以合并后的工具项判断：断线期间错过的 tool_end 由已提交的 toolResult 补上。
+    const toolRunning = items.some((i) => i.kind === 'tool' && i.status === 'running')
+    if (!visible && !toolRunning) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
+  }
+
+  // 只有最后一个 Run 的错误可以重试，且当前没有 Run。
+  for (const item of items) {
+    if (item.kind !== 'error') continue
+    const isLast = item === items.findLast((i) => i.kind === 'error') && lastRunIsError(conversation.entries, lastRunId)
+    if (!isLast || conversation.running) item.retryText = null
+  }
+  return items
+}
+
+function lastRunIsError(entries: SessionEntry[], lastRunId: string | null): boolean {
+  const last = entries.at(-1)
+  return last?.kind === 'run_end' && last.runId === lastRunId && (last.payload as RunEndPayload).status === 'error'
+}
