@@ -31,8 +31,9 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 位置 | 已声明依赖 |
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
-| apps/desktop | electron、vitest |
-| packages/ui | vitest、@vitest/browser-playwright、playwright |
+| apps/desktop | electron、vitest；renderer：react、react-dom、lucide-react、@coko/ui、@coko/i18n，开发依赖 vite、@vitejs/plugin-react、@tailwindcss/vite、@types/react、@types/react-dom、vitest-browser-react、@vitest/browser-playwright、playwright |
+| packages/ui | radix-ui、class-variance-authority、clsx、tailwind-merge、tailwindcss、tw-animate-css、lucide-react、streamdown、@streamdown/code、@streamdown/math、@streamdown/mermaid、@streamdown/cjk、katex、sonner；peer react、react-dom；开发依赖 react、react-dom、@types/react、@types/react-dom、vite、@vitejs/plugin-react、@tailwindcss/vite、typescript（样式守卫解析 TSX）、vitest、vitest-browser-react、@vitest/browser-playwright、playwright |
+| packages/i18n | vitest |
 | apps/server 与其余 packages | vitest |
 
 根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
@@ -127,6 +128,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 类型 | @types/react 19.3.0 + @types/react-dom 19.2.3 |
 | 样式 | Tailwind CSS 4.3.3 + @tailwindcss/vite 4.3.3 |
 | 组件库 | shadcn/ui；通过 shadcn CLI 4.21.4 安装并维护组件源码 |
+| Toast | sonner 2.0.8，经 shadcn/ui 的 Sonner 组件接入 |
 | 消息输入编辑器 | lexical 0.52.0 |
 | 编辑器 React 集成 | @lexical/react 0.52.0 |
 | 输入内容 Markdown 转换 | @lexical/markdown 0.52.0 |
@@ -148,6 +150,8 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 状态管理 | Zustand 5.0.15，使用 vanilla store |
 | 可选状态辅助 | Immer 10.2.0，实际需要时再引入 |
 | 国际化 | 自有运行时无关 i18n 模块：zh / en locale、字典组合、插值和时长格式化 |
+
+shadcn CLI 4.21.4 的 new-york-v4 registry 组件从 `cn` 包导入类名工具并依赖 next-themes；Coko 不引入这两个包：生成后改为导入 `packages/ui` 自己的 `cn()`（clsx + tailwind-merge），Toast 主题由应用层传入。
 
 Streamdown 及其插件分别使用上表的精确版本号。@streamdown/math 1.0.3 的 KaTeX 依赖范围为 0.16.x，@streamdown/mermaid 1.0.3 的 Mermaid 依赖范围为 11.x，因此将原选型的 KaTeX 0.19.1、Mermaid 12.2.0 分别调整为 0.16.47、11.17.2。根 `pnpm-workspace.yaml` 的 overrides 将 shiki、katex、mermaid 分别对齐到 4.5.0、0.16.47、11.17.2，其余传递依赖由 pnpm-lock.yaml 固定。[Streamdown 包元数据](https://registry.npmjs.org/streamdown/2.7.1)、[数学插件包元数据](https://registry.npmjs.org/@streamdown/math/1.0.3)、[Mermaid 插件包元数据](https://registry.npmjs.org/@streamdown/mermaid/1.0.3)
 

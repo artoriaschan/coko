@@ -6,6 +6,9 @@
       "path": "./apps/desktop"
     },
     {
+      "path": "./apps/desktop/src/renderer"
+    },
+    {
       "path": "./apps/server"
     },
     {

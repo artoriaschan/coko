@@ -1,6 +1,6 @@
 ---
 kind: technical-spec
-description: "设计 token 分层与命名、颜色与主题、字体、圆角档位与嵌套几何、材质与边框、状态样式，以及计划接入的样式守卫。"
+description: "设计 token 分层与命名、颜色与主题、字体、圆角档位与嵌套几何、材质与边框、状态样式，以及样式守卫。"
 lifecycle: active
 ---
 
@@ -8,7 +8,7 @@ lifecycle: active
 
 项目级技术约定，不代表已有实现或已验证结果；适用范围与变更规则见 [专项导航](README.md)。本页规定 [界面约定](ui.md#设计系统) 中设计原则的具体档位、命名与 Tailwind 写法；交互、反馈、布局和验收仍以界面约定为准。
 
-数值与规则参照 DeepSeek Harness 的 Web 设计系统（圆角档位、发丝线、superellipse 圆角、elevation 材质与菜单几何），由用户于 2026-10-28 确认采用，并改写为 Coko 已选的 Tailwind CSS 4 + shadcn/ui 写法。`packages/ui` 及其主题样式表尚未建立，下文的文件与类名是建立时应遵守的目标结构。
+数值与规则参照 DeepSeek Harness 的 Web 设计系统（圆角档位、发丝线、superellipse 圆角、elevation 材质与菜单几何），由用户于 2026-10-28 确认采用，并改写为 Coko 已选的 Tailwind CSS 4 + shadcn/ui 写法。主题样式表位于 `packages/ui/src/styles/theme.css`，消费方以 `@coko/ui/styles/theme.css` 导入。
 
 ## Token 分层
 
@@ -33,7 +33,7 @@ lifecycle: active
 
 ## 字体与链接
 
-- 字号与行高成对登记为 `text-ui-*`，例如 `--text-ui-body` 与 `--text-ui-body--line-height`。业务组件在已有角色匹配时选用对应档位，不为单个元素新造字号；同一页面的字号种类保持少量。行与明细的常用档位为 13px，完整档位在建立 `packages/ui` 时登记于主题样式表。
+- 字号与行高成对登记为 `text-ui-*`，例如 `--text-ui-body` 与 `--text-ui-body--line-height`。业务组件在已有角色匹配时选用对应档位，不为单个元素新造字号；同一页面的字号种类保持少量。行与明细的常用档位为 13px（`text-ui-body`）；完整档位为 `caption` 11/14、`small` 12/18、`body` 13/20、`body-lg` 14/22、`title` 16/24、`heading` 20/28、`display` 24/32，登记于主题样式表。
 - 业务界面字重上限为 500，使用 `font-normal` 与 `font-medium`。Markdown 正文的排版字重由 `MarkdownRenderer` 管理，是唯一例外。
 - 可点击的产物链接（Markdown 链接、文件提及、来源链接、产物文件标签）使用 `text-link` 与 `font-medium`，静止时无下划线；hover 与键盘焦点时显示点状下划线，偏移 3px。
 - 代码、终端和 diff 中需要保持列对齐的内容不换行，在所属区域内横向滚动，滚动条使用共享样式。
@@ -92,7 +92,7 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 ## 材质、边框与浮层
 
 - **抬升表面用阴影，不用边框。** 菜单、Popover、HoverCard、对话框、浮动面板、浮动按钮和输入区使用 `border-0`，配合 `shadow-panel`、`shadow-prominent`，输入区使用模糊更大、透明度更低的 `shadow-soft`。这些阴影的第一层是 0.5px 发丝描边，颜色取 `--elevation-stroke`，可按表面或状态重新绑定或取消。中性边框与 elevation 阴影不叠加；shadcn/ui 中 `border` 配 `shadow-md`/`shadow-lg` 的浮层组件引入时按此改写。
-- **平面中性线统一为 0.5px。** 按钮、输入框、卡片、行分隔线，以及以填充块绘制的分隔线（菜单分隔线、标题栏接缝、Markdown `hr`、竖向分隔）使用主题登记的 0.5px 发丝线宽，在 Retina 屏上绘制为一个设备像素。虚线提示与警告、错误等状态色边框保持 1px；加载圈的轨道宽度作为显式例外登记。
+- **平面中性线统一为 0.5px。** 按钮、输入框、卡片、行分隔线，以及以填充块绘制的分隔线（菜单分隔线、标题栏接缝、Markdown `hr`、竖向分隔）使用主题登记的 0.5px 发丝线宽（`--hairline`；工具类 `border-hairline`、`border-{t,b,l,r}-hairline`、`h-hairline`、`w-hairline`），在 Retina 屏上绘制为一个设备像素。Tailwind 默认的 `border` 为 1px，中性线不使用。虚线提示与警告、错误等状态色边框保持 1px；加载圈的轨道宽度作为显式例外登记。
 - **设置卡材质。** 设置类卡片使用 `rounded-xl`、0.5px 的 `--card-stroke` 描边与 `--card-fill` 背景；selected、warning、error 和 expanded 状态改用已有语义色并保持几何。卡内的嵌套编辑区使用 R16。普通平面卡片不为区分标签页而加阴影。
 - **菜单材质。** 下拉、右键、子菜单和选择菜单都通过共享的 Menu 组件渲染，或用共享的菜单表面包裹自定义内容。背景取 `--menu-fill`，模糊取主题的菜单 backdrop-filter；业务与平台样式不覆盖这两项，也不重新定义它们。backdrop-filter 放在独立的伪元素层上，因为直接加在菜单元素上会使其成为 fixed 定位后代的包含块，嵌套菜单与固定覆盖层会错位。
 - **模态遮罩。** 对话框遮罩使用 `bg-overlay`（统一半透明暗色），不模糊、不滤镜父页面；替换 shadcn/ui 默认的 `bg-black/50`。
@@ -108,7 +108,7 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 
 ## 样式守卫
 
-计划接入，尚未实现：`packages/ui` 建立时以 Vitest 静态检查同批接入。检查范围为 `packages/ui` 与 `apps/desktop/src/renderer` 中的 CSS 文件和 TSX 类名字符串；例外按文件与选择器或类名记录在守卫的期望文件中，修改例外需在评审中说明原因。
+已接入：`packages/ui/src/guards/style-guard.ts` 以 Vitest 静态检查 `packages/ui/src` 与 `apps/desktop/src/renderer` 中的 CSS 文件和 TSX（测试文件除外；TSX 经 TypeScript 语法树解析，忽略注释）。例外按文件、规则与匹配文本登记在同目录的 `style-guard-exceptions.ts`，失效的例外同样使测试失败；修改例外需在评审中说明原因。
 
 | 守卫 | 拒绝的写法 |
 | --- | --- |
