@@ -4,7 +4,9 @@
     "composite": true,
     "noEmit": false,
     "emitDeclarationOnly": true,
-    "outDir": "../../.tsbuild/apps/desktop"
+    "outDir": "../../.tsbuild/apps/desktop",
+    "jsx": "react-jsx"
   },
-  "include": ["src", "*.config.ts"]
+  "include": ["src", "tests", "e2e", "build", "*.config.ts"],
+  "references": [{ "path": "../../packages/protocol" }]
 }

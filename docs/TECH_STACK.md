@@ -31,7 +31,8 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 位置 | 已声明依赖 |
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
-| apps/desktop | electron、vitest |
+| apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol |
+| packages/protocol | typebox、vitest |
 | packages/ui | vitest、@vitest/browser-playwright、playwright |
 | packages/session | vitest、electron（devDependency，仅用于以 `ELECTRON_RUN_AS_NODE=1` 运行存储测试） |
 | packages/agent | @earendil-works/pi-agent-core、@earendil-works/pi-ai、typebox、diff、ignore、vitest；pi-ai 只经子路径导入 Chat Completions、Responses、Anthropic Messages 三个协议及 DeepSeek、OpenAI、Anthropic 模型目录 |
