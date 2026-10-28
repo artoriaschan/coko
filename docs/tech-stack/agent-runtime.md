@@ -89,11 +89,13 @@ packages/agent/src/
 ├── goals/           # 目标、预算、继续与完成判定
 ├── planning/        # Plan Mode
 ├── tasks/           # Task、Job、调度定义
-├── agents/          # Subagents、Teams、Fork、Handoff
+├── agents/          # Subagents、Teams、Fork、Handoff（当前：从此分叉 fork.ts）
 ├── context/         # 上下文、压缩、Memory
 ├── policy/          # 权限、授权、执行限制
 ├── recovery/        # 恢复、重试、幂等
-├── ports/           # 执行、工作区、凭据等宿主接口
+├── checkpoints/     # Checkpoint tracker、有效上下文与回退（ADR 0006）
+├── session-entries/ # 各 kind 的 Session Entry payload schema、版本与迁移
+├── ports/           # 执行、工作区、凭据、Secrets、Checkpoint 快照等宿主接口
 ├── config/          # 配置模型与合并
 └── index.ts         # 对外 SDK
 ```

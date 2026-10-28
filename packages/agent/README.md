@@ -6,7 +6,7 @@ lifecycle: active
 
 # @coko/agent
 
-Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖运行控制（追加指令、暂停与继续）、工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）；启动恢复的判定（`planRecovery`）见 [启动恢复与结果确认](../../docs/subsystems/recovery.md)。回退与分叉的纯函数（`effectiveEntries`、`planRewind`、`restoreFiles`、`forkEntries`，`src/checkpoints/rewind.ts`）的决定见 [ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)。
+Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖运行控制（追加指令、暂停与继续）、工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）；启动恢复的判定（`planRecovery`）见 [启动恢复与结果确认](../../docs/subsystems/recovery.md)。回退与分叉的纯函数（`effectiveEntries`、`planRewind`、`restoreFiles` 在 `src/checkpoints/rewind.ts`，`forkEntries` 在 `src/agents/fork.ts`；宿主端口 `SnapshotPort`、`RewindFiles` 在 `src/ports/checkpoints.ts`）的决定见 [ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)。
 
 ## 使用或结构入口
 
@@ -37,10 +37,10 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 | `effect` | `read`：没有副作用；`side-effect`：可能改变文件、进程或外部状态。缺省按 `side-effect`。内置 read、grep、find、ls 为 read，write、edit、bash 为 side-effect |
 | `permissionSubject(args)` | 权限判定看的对象：文件工具返回路径，bash 返回命令；缺省只按工具名判定 |
 | `sandboxRequest(args)` | 该次调用请求的提权 `{ mode?, justification? }`（bash 的 `sandbox_permissions` / `justification`），由权限 gate 校验；缺省表示工具不能提权 |
-| `secrets` | 工具需要的密钥名；运行时每次调用经 `options.secrets`（`SecretProvider`）解析，只放进该次调用的执行上下文。缺失时调用失败（`Missing secret <NAME> declared by tool <name>`）且不执行 |
+| `secrets` | 工具需要的密钥名；运行时每次调用经 `options.secrets`（`SecretProvider`）解析，只放进该次调用的执行上下文。缺失时调用失败（`Missing secret <NAME> declared by tool <name>`），不执行，也不提交 `tool_exec` |
 | `probeOutcome(args, cwd)` | 恢复时判断一个已开始（有 `tool_exec`）的 side-effect 调用是否已生效：`applied` / `not-applied` / `unknown`，只读当前状态。内置 write 比对内容、edit 检查新旧文本，bash 没有；缺省时交给用户确认，见 [启动恢复与结果确认](../../docs/subsystems/recovery.md#判定分类) |
 | `timeoutMs` | 单次调用的时限；`0` 关闭统一超时（工具自己管理，如 bash 的 `timeout` 参数）；缺省用运行时默认（10 分钟） |
-| `execute(toolCallId, params, signal, onUpdate, context)` | 第五个参数是执行上下文 `ToolExecutionContext`：`{ idempotencyKey, sandbox?, secrets? }`。`sandbox` 是该次调用的命令沙箱策略（有权限判定时总会给出）；`secrets` 只含该工具声明的密钥，工具只应交给自己的子进程。运行时总会传入；直接调用工具（测试）时可缺省 |
+| `execute(toolCallId, params, signal, onUpdate, context)` | 第五个参数是执行上下文 `ToolExecutionContext`：`{ idempotencyKey, sandbox?, secrets?, readDenied? }`。`sandbox` 是该次调用的命令沙箱策略（有权限判定时总会给出）；`secrets` 只含该工具声明的密钥，工具只应交给自己的子进程；`readDenied(path)` 在有带内容的 Read 拒绝规则时给出，grep、find、ls 不列出它命中的路径。运行时总会传入；直接调用工具（测试）时可缺省 |
 
 ### 调度
 
@@ -48,13 +48,14 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 - **并发上限。** 同时执行的调用至多 `toolConcurrency` 个（默认 10，须为正整数，否则创建运行时抛 `RangeError`）。
 - **effect 分区。** read 调用共享执行槽；side-effect 调用是独占屏障：等排在它前面的调用全部完成才开始，排在后面的调用等它完成。排队按调用顺序，后面的 read 不越过等待中的 side-effect。同一文件的写入另由 file-mutation-queue 串行。
-- **时限。** 超时在调度之内计时：排队等待不计入。忽略取消信号的调用在宽限期后被放弃，并释放执行槽。
+- **执行前的准备。** 取得执行槽之后、执行记录之前：write / edit 按执行时的真实路径复核目标（与判定时不同则重新判定，见 [权限判定与审批](../../docs/subsystems/permissions.md#命令沙箱与提权)）；按执行时的模式现算沙箱档位；解析声明的密钥；给出读取过滤。任一步失败时调用不执行、不提交 `tool_exec`。
+- **时限。** 超时在调度之内计时：排队等待与执行前的准备不计入。忽略取消信号的调用在宽限期后被放弃，并释放执行槽。
 - **取消。** `abort()` 时，执行中的调用收到 signal；排队中的调用不执行，结果为 `Operation aborted` 错误，也不提交执行记录。
 - **顺序。** `tool_start` / `tool_end` progress 按实际开始与完成顺序；toolResult 条目按模型的调用顺序提交。
 
 ### 执行记录与幂等键
 
-side-effect 调用取得执行槽之后、execute 之前，运行时提交一条 `tool_exec` 条目（payload `{ toolCallId, toolName, idempotencyKey }`，schema 在 `src/session-entries/tools.ts`），read 调用不提交。一个经审批的调用在 Session 中的条目顺序是：
+side-effect 调用取得执行槽、完成执行前的准备之后、execute 之前，运行时提交一条 `tool_exec` 条目（payload `{ toolCallId, toolName, idempotencyKey }`，schema 在 `src/session-entries/tools.ts`），read 调用不提交。一个经审批的调用在 Session 中的条目顺序是：
 
 ```text
 assistant（含 toolCall） → approval_request → approval_decision → tool_exec → toolResult
@@ -66,7 +67,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 
 ### 命令沙箱接缝
 
-- **档位。** 有 `permissions` 时，运行时在执行记录之后、execute 之前按当时的模式现算 `sandbox = { mode, writableRoots }`（`policy/sandbox.ts`，与文件工具的可写根同一推导）；已批准的提权取目标档位与执行时模式档位中较宽者，只用于该调用。没有 `permissions` 时不设沙箱，命令不受限。
+- **档位。** 有 `permissions` 时，运行时在执行记录之前按当时的模式现算 `sandbox = { mode, writableRoots, protectedNames? }`（`policy/sandbox.ts`，与文件工具的可写根同一推导；workspace-write 下 `protectedNames` 为受保护路径段，宿主沙箱在可写根之下也拒绝写入它们）；已批准的提权取目标档位与执行时模式档位中较宽者，只用于该调用。没有 `permissions` 时不设沙箱，命令不受限。
 - **执行端口。** `ExecRequest.sandbox` 为受限档位（read-only、workspace-write）时，端口必须实施限制，做不到就以 `SandboxUnavailableError`（`code: 'sandbox-unavailable'`）拒绝且不运行命令；`danger-full-access` 或省略为不受限。`ExecOutcome` 的 `sandboxDenied` 表示受限命令非零退出且输出含拒绝签名。
 - **本地执行。** `createLocalExecPort({ sandbox?: LocalSandbox })`：`LocalSandbox.wrap(policy)` 返回包裹 `<shell> -c <command>` 的 argv 前缀（可抛 SandboxUnavailableError），`denialSignature` 为拒绝签名。本包不带沙箱实现（没有系统二进制依赖），不传时受限档位一律 fail-closed；Sidecar 传入 Seatbelt（`apps/server/src/adapters/seatbelt.ts`）。
 - **bash。** 被拒绝时在退出码之前追加拒绝标记与提权提示，`details.sandbox = { mode, denied: true }`；端口报告不可用时以 `sandbox-unavailable: …` 错误结束。提权的判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md#命令沙箱与提权)。
@@ -93,6 +94,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 - `tests/integration/sidecar-concurrency.test.ts`：真实 Sidecar 中 bash 的 `tool_exec` 位于 assistant 之后、toolResult 之前，幂等键为 `<sessionId>:<toolCallId>`，同批 ls 没有 `tool_exec`，重启后读回一致。
 - `tests/integration/secrets-gate.test.ts`：`tool_exec` 条目在秘密不外泄总闸的扫描范围内。
 - `src/recovery/plan.test.ts`：`planRecovery` 的分类与 write / edit 的结果探测（真实内置工具、临时 Workspace）。
+- `src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、判定后目标被替换时重新询问且不提交 `tool_exec`、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后原因变化时重新询问；`src/tools/builtin/read-filter.test.ts`：grep / find / ls 的过滤。
 - `src/policy/escalation.test.ts`：四种模式下交给执行端口的沙箱策略与可写根、提权与 Secrets 注入（只给声明的工具、缺失时不执行、值不进条目）；`src/ports/local-exec.test.ts`：包裹接缝与 fail-closed；`src/tools/builtin/bash.test.ts`：拒绝标记与 sandbox-unavailable。真实 Seatbelt 由 `apps/server` 的 `seatbelt.test.ts` 与 `tests/integration/sidecar-sandbox.test.ts` 覆盖。
 
 运行：`pnpm exec vitest run packages/agent`。

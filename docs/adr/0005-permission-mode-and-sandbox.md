@@ -44,7 +44,8 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 - workspace-write 下写用户目录缓存（例如 `~/.npm`、`~/.cache`）的命令会被拒绝，需要提权或切换模式。可写根沿用 deepseek-harness 的默认集合（Workspace、`/tmp`、系统临时目录），不放开主目录。
 - Plan 模式（M4）作为新的模式取值加入，沿用同一判定顺序。
 - 实施（2026-10-29）：本决定已全部落地。四种模式的判定与选择界面、判定顺序、受保护路径、越出可写根的写入询问、规则作用域及其持久化、重新判定、审批条目与审批卡；命令经 macOS `sandbox-exec` 在模式对应的档位内运行（`apps/server/src/adapters/seatbelt.ts`，档位与可写根推导在 `packages/agent/src/policy/sandbox.ts`），被拒后以 kind=escalation 的审批单次提权，sandbox-exec 不可用时受限档位不运行。当前机制见 [权限判定与审批](../subsystems/permissions.md#命令沙箱与提权)。
-- 验证证据：`tests/integration/sidecar-sandbox.test.ts` 以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，覆盖 Seatbelt 拒绝（default 越界写入、read-only 写 Workspace）、单次提权与拒绝提权、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、越出可写根的文件写入只能允许一次；`apps/desktop/e2e/package-smoke.e2e.test.ts` 中打包产物里受限命令无法写 Workspace 之外；完整清单见 [权限判定与审批](../subsystems/permissions.md#验证)。Seatbelt 用例只在 darwin 运行。
+- 评审修复（2026-10-29，M2 两轴评审）：提权只用于重试本 Run 中被沙箱拒绝过的同一命令，未被拒绝过的命令带提权参数为参数错误，与上文"被沙箱拒绝的命令只能以更宽档位重试一次"一致；受限档位的命令在可写根之下不能写受保护路径（`.git`、`.coko` 等，与文件写入的受保护路径同一集合），Seatbelt profile 在可写根之后追加 deny；write / edit 在执行前按真实路径复核目标，判定之后被替换为指向别处的链接时重新判定；规则的工具名在写入时归一为规范名、未知工具拒绝，避免拒绝规则因写法静默失效；grep、find、ls 不列出被 Read 拒绝规则覆盖的路径；打包的发布构建不接受替换 sandbox-exec 等测试钩子变量（只有以构建期标志打出的测试构建接受）。机制见 [权限判定与审批](../subsystems/permissions.md)。
+- 验证证据：`tests/integration/sidecar-sandbox.test.ts` 以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，覆盖 Seatbelt 拒绝（default 越界写入、read-only 写 Workspace、可写根内的 `.git` 与 `.coko`）、未被拒绝过的命令不能提权、单次提权与拒绝提权、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、越出可写根的文件写入只能允许一次；`apps/desktop/e2e/package-smoke.e2e.test.ts` 中打包产物里受限命令无法写 Workspace 之外；完整清单见 [权限判定与审批](../subsystems/permissions.md#验证)。Seatbelt 用例只在 darwin 运行。
 
 ## 来源与后继
 
