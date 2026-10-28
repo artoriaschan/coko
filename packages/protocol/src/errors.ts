@@ -20,6 +20,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('session-busy'),
   /** 有未回答的结果确认（恢复时结果不明的调用）。 */
   Type.Literal('confirmation-pending'),
+  /** 启动恢复没能处理该 Session 中被中断的 Run：在恢复成功之前不能开始 Run、回退或分叉。 */
+  Type.Literal('recovery-failed'),
   /** 审批请求不在等待中（已回答、已取消或不存在）。 */
   Type.Literal('approval-not-pending'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */

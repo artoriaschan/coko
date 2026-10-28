@@ -129,6 +129,7 @@ export const zh = {
     rewindFailed: '回退失败',
     forkFailed: '无法分叉会话',
     sessionBusy: '先停止运行或回答待处理的请求',
+    recoveryFailed: 'Coko 停止后未能恢复这个会话。请重启 Coko，或打开日志查看原因。',
   },
   settings: {
     open: '打开设置',

@@ -130,6 +130,7 @@ export const en: Dictionary = {
     rewindFailed: 'Could not rewind',
     forkFailed: 'Could not fork the session',
     sessionBusy: 'Stop the run or answer the pending request first',
+    recoveryFailed: 'Coko could not recover this session after it stopped. Restart Coko, or open the logs to see why.',
   },
   settings: {
     open: 'Open settings',
