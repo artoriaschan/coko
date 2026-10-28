@@ -7,6 +7,10 @@ export const API_ROUTES = {
   health: '/api/health',
   /** WebSocket 升级入口。 */
   stream: '/api/ws',
+  workspaces: '/api/workspaces',
+  sessions: '/api/sessions',
+  settings: '/api/settings',
+  providers: '/api/providers',
 } as const
 
 export const AuthExchangeRequest = Type.Object({ token: Type.String() }, { additionalProperties: false })
@@ -14,3 +18,16 @@ export type AuthExchangeRequest = Static<typeof AuthExchangeRequest>
 
 export const HealthResponse = Type.Object({ status: Type.Literal('ok') }, { additionalProperties: false })
 export type HealthResponse = Static<typeof HealthResponse>
+
+/** 带参数的业务路径。 */
+export const apiPaths = {
+  session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
+  /** POST：提交用户消息并开始 Run。 */
+  sessionMessages: (id: string) => `${apiPaths.session(id)}/messages`,
+  /** POST：停止当前 Run。 */
+  sessionAbort: (id: string) => `${apiPaths.session(id)}/abort`,
+  /** PUT：切换 Session 的模型。 */
+  sessionModel: (id: string) => `${apiPaths.session(id)}/model`,
+  setting: (key: string) => `${API_ROUTES.settings}/${encodeURIComponent(key)}`,
+  provider: (id: string) => `${API_ROUTES.providers}/${encodeURIComponent(id)}`,
+} as const

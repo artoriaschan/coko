@@ -2,7 +2,7 @@
 kind: decision
 description: "模型凭据以 Electron safeStorage 在 main 加解密，密文存 SQLite，sidecar 经控制 IPC 按需取明文。修改凭据输入、存储、注入或脱敏时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -32,6 +32,7 @@ category: architecture
 - 凭据可用性依赖 main 在线；sidecar 重启后需重新取得明文。
 - `safeStorage` 不可用时（加密不可用）拒绝保存并提示，不回退明文。
 - implementation 变为 implemented 前需要：集成测试确认库中不含明文、设置接口不回传密钥、日志脱敏，以及 Electron E2E 中配置密钥后可调用模型。
+- 当前为 partial：sidecar 一侧的 credential.store / credential.decrypt 控制消息、只存密文、明文内存缓存、环境变量模式与日志及模型错误文本脱敏已实现，集成测试确认库与日志不含明文、设置接口不回传密钥，见 [apps/server](../../apps/server/README.md)；main 的 safeStorage 加解密、preload 输入通道与 Electron E2E 尚未完成。
 
 ## 来源与后继
 

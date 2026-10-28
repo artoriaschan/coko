@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./file": "./src/file.ts"
+  },
+  "dependencies": {
+    "@logtape/file": "2.4.2",
+    "@logtape/logtape": "2.4.2",
+    "@logtape/redaction": "2.4.2"
   },
   "devDependencies": {
     "vitest": "5.0.3"

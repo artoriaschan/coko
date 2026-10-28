@@ -176,6 +176,9 @@ importers:
 
   .:
     devDependencies:
+      '@coko/protocol':
+        specifier: workspace:*
+        version: link:packages/protocol
       '@commitlint/cli':
         specifier: 21.2.3
         version: 21.2.3(conventional-commits-parser@7.1.3)(typescript@6.0.3)
@@ -185,6 +188,12 @@ importers:
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
+      electron:
+        specifier: 41.0.3
+        version: 41.0.3
       husky:
         specifier: 9.1.7
         version: 9.1.7
@@ -200,6 +209,9 @@ importers:
       oxlint:
         specifier: 1.86.0
         version: 1.86.0
+      typebox:
+        specifier: 1.3.27
+        version: 1.3.27
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -209,6 +221,9 @@ importers:
       vitest:
         specifier: 5.0.3
         version: 5.0.3(@types/node@24.19.2)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.1(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+      ws:
+        specifier: 8.22.0
+        version: 8.22.0
 
   apps/desktop:
     devDependencies:
@@ -289,7 +304,44 @@ importers:
         version: 8.22.0
 
   apps/server:
+    dependencies:
+      '@coko/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@coko/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@coko/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@coko/session':
+        specifier: workspace:*
+        version: link:../../packages/session
+      '@earendil-works/pi-agent-core':
+        specifier: 1.4.0
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.22.0)
+      '@earendil-works/pi-ai':
+        specifier: 1.4.0
+        version: 1.4.0(@aws-sdk/credential-provider-node@3.972.89)(@smithy/signature-v4@5.7.4)(undici@7.30.1)(ws@8.22.0)
+      '@hono/node-server':
+        specifier: 2.1.5
+        version: 2.1.5(hono@4.13.12)
+      effect:
+        specifier: 4.0.2
+        version: 4.0.2
+      hono:
+        specifier: 4.13.12
+        version: 4.13.12
+      typebox:
+        specifier: 1.3.27
+        version: 1.3.27
+      ws:
+        specifier: 8.22.0
+        version: 8.22.0
     devDependencies:
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
       vitest:
         specifier: 5.0.3
         version: 5.0.3(@types/node@24.19.2)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.1(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -323,6 +375,16 @@ importers:
         version: 5.0.3(@types/node@24.19.2)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.1(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
 
   packages/logging:
+    dependencies:
+      '@logtape/file':
+        specifier: 2.4.2
+        version: 2.4.2(@logtape/logtape@2.4.2)
+      '@logtape/logtape':
+        specifier: 2.4.2
+        version: 2.4.2
+      '@logtape/redaction':
+        specifier: 2.4.2
+        version: 2.4.2(@logtape/logtape@2.4.2)
     devDependencies:
       vitest:
         specifier: 5.0.3
@@ -802,6 +864,12 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
+  '@hono/node-server@2.1.5':
+    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4 || ^5.0.0-0
+
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
@@ -827,6 +895,19 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@logtape/file@2.4.2':
+    resolution: {integrity: sha512-Wit1GrwBQ1mCERREsBX5C4TKe3SWoAZ2bFBh7e4sbAnh1w2rOjD46puW+/f/A3G7HFIsAYlL03/r1/9CeKZ0XQ==}
+    peerDependencies:
+      '@logtape/logtape': ^2.4.2
+
+  '@logtape/logtape@2.4.2':
+    resolution: {integrity: sha512-YJyC1gEMgWmTqJTRtKkjgasEbi8/0gP7Dj8n6bL46gQIAhpTY8uXJ+1QYMOgF5asotlGMvy3G7ejXUe45Yd1MQ==}
+
+  '@logtape/redaction@2.4.2':
+    resolution: {integrity: sha512-QERsPJYr+ZaHj+pPoGGMlDcpE+V27j05ImDyGRi6vxuAQ3uIBCJtUUrcs6jNwXWG90SEZw9C0dS0jeLFOayjrg==}
+    peerDependencies:
+      '@logtape/logtape': ^2.4.2
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -2896,6 +2977,9 @@ packages:
   ecdsa-sig-formatter@1.0.11:
     resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
 
+  effect@4.0.2:
+    resolution: {integrity: sha512-YeYnLqSFrL4+tCOXRrfNP03w8FILoF/wDl+ukraJAGzXrjcS383W7LAAvGBbLatEyktmLxRq+9xJinx7QzXW5A==}
+
   electron@41.0.3:
     resolution: {integrity: sha512-IDjx8liW1q+r7+MOip5W1Eo1eMwJzVObmYrd9yz2dPCkS7XlgLq3qPVMR80TpiROFp73iY30kTzMdpA6fEVs3A==}
     engines: {node: '>= 12.20.55'}
@@ -3161,6 +3245,10 @@ packages:
 
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
+
+  hono@4.13.12:
+    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
+    engines: {node: '>=16.9.0'}
 
   hookable@6.1.2:
     resolution: {integrity: sha512-+abwxtiEA52GCVIsQqut3S/uKTbUwYIp4Pe/vv+6py5XiXBCqMZHg6pA6Y5qhgLSEys0/cYuPbO0z1QFj5ZCmg==}
@@ -5385,6 +5473,10 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@hono/node-server@2.1.5(hono@4.13.12)':
+    dependencies:
+      hono: 4.13.12
+
   '@iconify/types@2.0.0': {}
 
   '@iconify/utils@3.1.7':
@@ -5415,6 +5507,16 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@logtape/file@2.4.2(@logtape/logtape@2.4.2)':
+    dependencies:
+      '@logtape/logtape': 2.4.2
+
+  '@logtape/logtape@2.4.2': {}
+
+  '@logtape/redaction@2.4.2(@logtape/logtape@2.4.2)':
+    dependencies:
+      '@logtape/logtape': 2.4.2
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
@@ -7326,6 +7428,8 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
+  effect@4.0.2: {}
+
   electron@41.0.3:
     dependencies:
       '@electron/get': 2.0.3
@@ -7677,6 +7781,8 @@ snapshots:
       hast-util-parse-selector: 4.0.0
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
+
+  hono@4.13.12: {}
 
   hookable@6.1.2: {}
 

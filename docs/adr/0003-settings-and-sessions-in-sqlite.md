@@ -37,7 +37,7 @@ category: architecture
 - 提交屏障由 SQLite 事务提供，不再需要应用自行实现 fsync 顺序、尾行修复和锁文件；代价是会话导出、调试需要经查询接口，大块内容要控制行大小。
 - 单库单写者意味着所有写入经 sidecar；main 在 sidecar 就绪前只使用内置默认值。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar 的集成测试覆盖打开、迁移、提交后重启读回、租约冲突、损坏隔离与版本过高拒绝。
-- 当前为 partial：packages/session 已实现打开序列、迁移、租约、损坏隔离与 Repository，并在 Electron 内置 Node 中验证打开与租约，见 [@coko/session](../../packages/session/README.md)；sidecar 装配与经协议的集成测试、业务 payload 注册接口、Memory 及 FTS5 索引尚未实现。
+- 当前为 partial：packages/session 已实现打开序列、迁移、租约、损坏隔离与 Repository，并在 Electron 内置 Node 中验证打开与租约，见 [@coko/session](../../packages/session/README.md)；apps/server 已装配 SQLite 存储，经协议的集成测试覆盖提交后重启读回与租约冲突（见 [apps/server](../../apps/server/README.md)）；经协议的迁移、损坏隔离与版本过高拒绝测试，业务 payload 注册接口、Memory 及 FTS5 索引尚未实现。
 
 ## 来源与后继
 

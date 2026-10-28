@@ -1,2 +1,5 @@
 export * from './api.ts'
 export * from './control.ts'
+export * from './errors.ts'
+export * from './http.ts'
+export * from './ws.ts'
