@@ -62,7 +62,7 @@ export type EscalationCheck =
   | { kind: 'invalid'; message: string }
 
 /**
- * 校验提权参数（grilling B2）：档位与理由成对；等于当前档位视为不提权；只能严格更宽，更窄或未知档位报错。
+ * 校验提权参数（ADR 0005）：档位与理由成对；等于当前档位视为不提权；只能严格更宽，更窄或未知档位报错。
  * 只有空白的理由视为未提供。
  */
 export function checkEscalation(args: EscalationArgs, current: SandboxMode): EscalationCheck {

@@ -69,7 +69,8 @@ export const RewindResponse = Type.Object(
 )
 export type RewindResponse = Static<typeof RewindResponse>
 
-export const ForkRequest = Type.Object({ targetSeq: Seq }, strict)
+/** title：新 Session 的标题，由界面按当前语言生成（例如"<原标题>（分叉）"）；省略时沿用原标题。 */
+export const ForkRequest = Type.Object({ targetSeq: Seq, title: Type.Optional(Type.String({ maxLength: 200 })) }, strict)
 export type ForkRequest = Static<typeof ForkRequest>
 
 /** 新 Session 的 id（首条 fork_origin；Session 本身经列表读取）与目标消息的文本（放入新 Session 的输入区）。 */

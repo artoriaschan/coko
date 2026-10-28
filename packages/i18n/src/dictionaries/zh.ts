@@ -12,6 +12,7 @@ export const zh = {
     noMatches: '没有匹配的会话',
     sessions: '会话',
     untitled: '未命名',
+    forkTitle: '{title}（分叉）',
     showMore: '再显示 {count} 个',
     running: '运行中',
     awaitingApproval: '等待审批',

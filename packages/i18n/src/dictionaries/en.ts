@@ -13,6 +13,7 @@ export const en: Dictionary = {
     noMatches: 'No matching sessions',
     sessions: 'Sessions',
     untitled: 'Untitled',
+    forkTitle: '{title} (fork)',
     showMore: 'Show {count} more',
     running: 'Running',
     awaitingApproval: 'Waiting for approval',

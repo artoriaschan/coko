@@ -1,4 +1,4 @@
-// 工具调度与执行记录（票 04）：真实 Sidecar（faux 模型）中 side-effect 调用的 tool_exec 条目位置、幂等键与持久化。
+// 工具调度与执行记录：真实 Sidecar（faux 模型）中 side-effect 调用的 tool_exec 条目位置、幂等键与持久化。
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'

@@ -1,4 +1,4 @@
-// 权限模式与规则（票 03）：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
+// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
 // 审批卡的"总是允许"下拉（越界写入不显示）。
 import { randomBytes } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'

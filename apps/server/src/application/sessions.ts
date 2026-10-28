@@ -219,7 +219,7 @@ export class SessionService {
   }
 
   /**
-   * 启动扫描（打开存储之后、开始监听之前；grilling E3）：每个有 run_start 而无 run_end 的 Run 按 planRecovery 补齐条目
+   * 启动扫描（打开存储之后、开始监听之前；recovery.md）：每个有 run_start 而无 run_end 的 Run 按 planRecovery 补齐条目
    * （过期的审批、补齐的工具结果、confirmation_request、run_end interrupted），同一 Run 的条目一次事务提交。之后从各 Session
    * 最后一条 run_end 建立 activity，使未打开的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
    * 单个 Session 失败不阻止启动：记错误，该 Session 在恢复成功之前拒绝 Run、回退与分叉（recovery-failed），下次操作时重试。
@@ -466,7 +466,7 @@ export class SessionService {
         work.push(
           runtime.answerApproval(request.requestId, { decision: 'reevaluate' }).catch((error: unknown) => {
             if (!(error instanceof ApprovalNotPendingError))
-              log.error('approval re-decision failed', { sessionId, requestId: request.requestId, error: String(error) })
+              log.error('approval re-decision failed', { sessionId, approvalId: request.requestId, error: String(error) })
           }),
         )
       }
@@ -636,7 +636,7 @@ export class SessionService {
       const state = await this.#permissionState(session)
       if (scope === 'session') await this.#locked(sessionId, () => this.#applySessionRules(session, 'add', request.suggestions))
       else await this.permissions.addRules(scope === 'global' ? { kind: 'global' } : { kind: 'workspace', workspaceId: state.workspaceId }, request.suggestions)
-      log.info('permission rules saved', { sessionId, requestId, scope, count: request.suggestions.length })
+      log.info('permission rules saved', { sessionId, approvalId: requestId, scope, count: request.suggestions.length })
     }
     try {
       await runtime.answerApproval(requestId, answer)
@@ -644,7 +644,7 @@ export class SessionService {
       if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
       throw error
     }
-    log.info('approval answered', { sessionId, requestId, decision: answer.decision, scope })
+    log.info('approval answered', { sessionId, approvalId: requestId, decision: answer.decision, scope })
     if (scope === 'session') await this.#reevaluate((id) => id === sessionId)
     else if (scope === 'workspace') await this.#reevaluate((_id, workspaceId) => workspaceId === session.workspaceId)
     else if (scope === 'global') await this.#reevaluate(() => true)
@@ -686,7 +686,7 @@ export class SessionService {
   }
 
   /**
-   * 回退到某条用户消息（grilling G3）。code / both 先恢复文件（目标锚点及之后追踪过的路径回到最早的备份，原先不存在的删除），
+   * 回退到某条用户消息（ADR 0006）。code / both 先恢复文件（目标锚点及之后追踪过的路径回到最早的备份，原先不存在的删除），
    * conversation / both 再提交 rewind 条目并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
    */
   async rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
@@ -723,16 +723,17 @@ export class SessionService {
   }
 
   /**
-   * 从某条用户消息分叉（grilling G4）：新 Session（同一 Workspace 与模型，标题加后缀）的条目为 fork_origin 与目标之前的有效消息、
-   * 权限条目；原 Session 不变，Workspace 文件不复制。返回新 Session 的 id 与目标文本。
+   * 从某条用户消息分叉（ADR 0006）：新 Session（同一 Workspace 与模型）的条目为 fork_origin 与目标之前的有效消息、权限条目；
+   * 原 Session 不变，Workspace 文件不复制。标题由界面按当前语言生成后传入（Sidecar 不写本地化文案），省略时沿用原标题。
+   * 返回新 Session 的 id 与目标文本。
    */
-  async fork(sessionId: string, targetSeq: number): Promise<{ sessionId: string; text: string }> {
+  async fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
     return this.#exclusively(sessionId, async (entries) => {
       const source = await this.#get(sessionId)
       const forked = this.#plan(() => forkEntries(entries, sessionId, targetSeq))
       const session = await this.#options.store.sessions.createSession({
         workspaceId: source.workspaceId,
-        title: `${source.title.trim() || 'Untitled'} (fork)`,
+        title: title?.trim() || source.title,
         model: source.model,
       })
       await this.#commitBatch(session.id, forked.entries)

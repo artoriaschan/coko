@@ -1,4 +1,4 @@
-// 回退与分叉（票 09）：真实 Electron + 真实 Sidecar（faux）。悬停用户消息出现回退动作，确认对话框列出将恢复与删除的文件和
+// 回退与分叉：真实 Electron + 真实 Sidecar（faux）。悬停用户消息出现回退动作，确认对话框列出将恢复与删除的文件和
 // bash 不追踪说明；执行后输入区为原消息文本、时间线折叠、文件回到之前的内容。分叉后侧栏出现新会话并打开。键盘可达。
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -136,7 +136,8 @@ describe('回退与分叉', () => {
     await expect.poll(() => sessions.count(), { timeout: 15_000 }).toBe(2)
     const active = app.window.locator('[data-session-id][aria-current="page"]')
     await expect.poll(() => active.getAttribute('data-session-id')).not.toBe(original)
-    expect(await active.textContent()).toContain('(fork)')
+    // 标题由界面按当前语言生成。
+    expect(await active.textContent()).toMatch(/\(fork\)|（分叉）/)
     await expect.poll(() => composer(app).textContent(), { timeout: 15_000 }).toBe('second change')
     // 新会话只有分叉前的消息。
     await expect.poll(() => app.window.locator('article[data-seq]').allTextContents()).toEqual(['first change'])

@@ -1,4 +1,4 @@
-// 权限模式、规则作用域与重新判定（票 03）：真实 Sidecar（faux 模型）经协议驱动，重启后读回规则与模式。
+// 权限模式、规则作用域与重新判定：真实 Sidecar（faux 模型）经协议驱动，重启后读回规则与模式。
 import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'

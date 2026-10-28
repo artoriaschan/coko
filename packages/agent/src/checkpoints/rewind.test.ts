@@ -1,4 +1,4 @@
-// 回退与有效上下文（ADR 0006，grilling G3）：纯函数 effectiveEntries / planRewind 由已提交的条目断言；restoreFiles 在临时
+// 回退与有效上下文（ADR 0006）：纯函数 effectiveEntries / planRewind 由已提交的条目断言；restoreFiles 在临时
 // Workspace 上断言文件内容（逐字节）与报告。真实快照目录与模型请求见集成测试 sidecar-rewind。
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'

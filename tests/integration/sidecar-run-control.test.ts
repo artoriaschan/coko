@@ -1,4 +1,4 @@
-// 运行控制（票 06）：真实 Sidecar（faux 模型）经协议驱动追加指令、暂停与继续。
+// 运行控制：真实 Sidecar（faux 模型）经协议驱动追加指令、暂停与继续。
 // bash 在 full-access 下运行（不经审批与沙箱）；以标记文件与 tool_start 进度确定命令已在执行。
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

@@ -1,4 +1,4 @@
-// 模式或规则变更后重新判定待审批请求（grilling A10）：faux 模型 + 临时 Workspace，经运行时公开接口观察条目与文件。
+// 模式或规则变更后重新判定待审批请求（permissions.md 的重新判定）：faux 模型 + 临时 Workspace，经运行时公开接口观察条目与文件。
 import { access, readFile } from 'node:fs/promises'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'

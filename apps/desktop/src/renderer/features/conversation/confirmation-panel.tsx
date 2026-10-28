@@ -24,7 +24,7 @@ function subjectOf(confirmation: PendingConfirmation): string {
   }
 }
 
-/** 结果确认卡（grilling E4）：恢复时结果不明的调用接管输入区，用户回答它是否已生效。 */
+/** 结果确认卡（recovery.md）：恢复时结果不明的调用接管输入区，用户回答它是否已生效。 */
 export function ConfirmationPanel({ confirmation, onAnswer, autoFocus, className }: ConfirmationPanelProps) {
   const { t } = useI18n()
   const accepted = async (sent: Promise<boolean>) => {

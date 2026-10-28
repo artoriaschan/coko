@@ -1,4 +1,4 @@
-// 回退与分叉（票 09，ADR 0006）：真实 Sidecar（faux 模型）经协议驱动。断言 Workspace 文件内容（逐字节）、读回的条目、
+// 回退与分叉（ADR 0006）：真实 Sidecar（faux 模型）经协议驱动。断言 Workspace 文件内容（逐字节）、读回的条目、
 // faux 记录的模型请求上下文与 409 前置条件；SIGKILL 前以已提交条目或文件内容同步，不用固定 sleep。
 import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, realpath, rename, stat, symlink, writeFile } from 'node:fs/promises'
@@ -201,13 +201,16 @@ describe('回退与分叉', () => {
     // 目标不是用户消息：400。
     expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: second! + 1 })).status).toBe(400)
 
-    const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: second })
+    // 标题由界面按当前语言生成后传入；不传时沿用原标题（Sidecar 不写本地化文案）。
+    const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: second, title: 'Plan（分叉）' })
     expect(forked.status).toBe(201)
     expect(forked.body.text).toBe('second')
     const forkId = forked.body.sessionId as string
     expect(forkId).not.toBe(sessionId)
+    const untitled = (await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: second })).body.sessionId as string
     const sessions = (await api.get(API_ROUTES.sessions)).body.sessions as { id: string; title: string; activity: string }[]
-    expect(sessions.find((s) => s.id === forkId)).toMatchObject({ title: 'Plan (fork)', activity: 'idle' })
+    expect(sessions.find((s) => s.id === forkId)).toMatchObject({ title: 'Plan（分叉）', activity: 'idle' })
+    expect(sessions.find((s) => s.id === untitled)).toMatchObject({ title: 'Plan' })
 
     const copy = await entriesOf(api, forkId)
     expect(copy[0]).toMatchObject({ seq: 1, kind: 'fork_origin', runId: null, payload: { sessionId, seq: second } })

@@ -1,14 +1,14 @@
-// 秘密不外泄总闸（M1 retro 第 3 条，M2 规格 B4）：唯一标记的 Credential（环境变量模式）与同形态的宿主环境变量
+// 秘密不外泄总闸（ADR 0004）：唯一标记的 Credential（环境变量模式）与同形态的宿主环境变量
 // 经各种输出通道驱动后，WebSocket 帧、HTTP 响应体、coko.db（含 -wal / -shm）与 sidecar.jsonl 中都不得出现明文。
-// 后续票引入新的输出通道（审批卡、沙箱、快照、确认）时，在本文件追加驱动步骤并把新的落盘位置加入扫描。
-// 票 02：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
-// 票 03：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
-// 票 05：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
+// 引入新的输出通道（审批卡、沙箱、快照、确认）的改动在本文件追加驱动步骤，并把新的落盘位置加入扫描。已覆盖的通道：
+// 审批：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
+// 规则：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
+// 沙箱：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
 // 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记）。Seatbelt 部分只在 darwin 运行。
-// 票 07：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
-// 票 08：结果确认通道。bash 执行中 SIGKILL，重启后的启动扫描（confirmation_request、run_end interrupted、恢复日志）、确认回答
+// Checkpoint：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
+// 恢复：结果确认通道。bash 执行中 SIGKILL，重启后的启动扫描（confirmation_request、run_end interrupted、恢复日志）、确认回答
 // （confirmation_answer 与补齐的 toolResult）与之后的继续；两个 Sidecar 进程的帧、响应体与落盘文件都纳入扫描。
-// 票 09：回退与分叉通道。Checkpoint 列表、回退 dry-run 与 both（rewind 条目、恢复的文件）、分叉（fork_origin 与复制的条目）及其读回。
+// 回退与分叉通道。Checkpoint 列表、回退 dry-run 与 both（rewind 条目、恢复的文件）、分叉（fork_origin 与复制的条目）及其读回。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile, writeFile } from 'node:fs/promises'

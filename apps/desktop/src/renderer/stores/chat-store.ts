@@ -262,6 +262,8 @@ export interface ChatStoreOptions {
   onFailure?: (failure: ChatFailure) => void
   /** 等待订阅确认的上限；超时后照常继续，条目会在补齐时到达。 */
   subscribeTimeoutMs?: number
+  /** 分叉出的新会话的标题（界面按当前语言生成，原标题为空时由它决定显示）；省略时 Sidecar 沿用原标题。 */
+  forkTitle?: (sourceTitle: string) => string
 }
 
 const emptyLive = (runId: string | null, accepting: boolean): LiveRun => ({ runId, accepting, blocks: [], tools: {} })
@@ -297,7 +299,7 @@ export function titleFromText(text: string): string {
  * 对话状态（Zustand vanilla store，无 React 依赖）。HTTP 提交命令，WebSocket 订阅条目与进度；
  * 打开过的会话保持订阅，重连后以各自的 lastSeq 补齐。
  */
-export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000 }: ChatStoreOptions): ChatStore {
+export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000, forkTitle }: ChatStoreOptions): ChatStore {
   const subscribed = new Map<string, Set<() => void>>()
   /** 已发出或已被接受的审批回答（requestId 唯一）。 */
   const answering = new Set<string>()
@@ -610,7 +612,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         if (sessionId === null) return false
         let forked: { sessionId: string; text: string }
         try {
-          forked = await api.fork(sessionId, targetSeq)
+          const source =
+            get()
+              .sessions.find((s) => s.id === sessionId)
+              ?.title.trim() ?? ''
+          forked = forkTitle ? await api.fork(sessionId, targetSeq, forkTitle(source)) : await api.fork(sessionId, targetSeq)
         } catch (error) {
           onFailure?.({ kind: 'fork', error: toApiError(error) })
           return false

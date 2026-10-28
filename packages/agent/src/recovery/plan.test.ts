@@ -1,4 +1,4 @@
-// planRecovery：从已提交的条目判定被中断的 Run（grilling E3）。真实内置工具 + 临时 Workspace，断言要提交的条目。
+// planRecovery：从已提交的条目判定被中断的 Run（recovery.md）。真实内置工具 + 临时 Workspace，断言要提交的条目。
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Type } from 'typebox'
 import { createLocalExecPort } from '../ports/local-exec.ts'

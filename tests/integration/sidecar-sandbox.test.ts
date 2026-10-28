@@ -1,4 +1,4 @@
-// 命令沙箱、单次提权与 Secrets（票 05）：真实 Sidecar（faux 模型）经协议驱动 Seatbelt 拒绝、escalation 审批、
+// 命令沙箱、单次提权与 Secrets：真实 Sidecar（faux 模型）经协议驱动 Seatbelt 拒绝、escalation 审批、
 // sandbox-exec 不可用时 fail-closed、越出可写根的文件写入与 Secrets 注入。
 // Seatbelt 用例只在 darwin 运行：其他平台没有 sandbox-exec，受限档位的命令在那里一律 fail-closed（ADR 0005）。
 // Sidecar 进程未设 TMPDIR，系统临时目录为 /tmp；"Workspace 外"的目录建在测试进程的临时目录下，并先断言它不在可写根内。

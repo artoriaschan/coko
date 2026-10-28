@@ -21,7 +21,7 @@ async function newSession(api: ReturnType<typeof client>, workspacePath: string)
 
 const role = (entry: SessionEntryRecord) => (entry.payload as { role?: string }).role
 
-/** write 与 bash 需要审批（票 02）：等第 n 条请求并允许一次，再等它的决定条目提交（之后调用才执行）。 */
+/** write 与 bash 需要审批：等第 n 条请求并允许一次，再等它的决定条目提交（之后调用才执行）。 */
 async function allowNext(api: ReturnType<typeof client>, stream: Stream, sessionId: string, n = 1) {
   const request = await waitApproval(stream, sessionId, n)
   expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'allow', scope: 'once' })).status).toBe(204)
@@ -72,7 +72,7 @@ describe('Session 协议', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1))
-    // 新 Session 的第一条是初始模式（票 03），不属于任何 Run；write 前后有 Checkpoint 条目（票 07）。
+    // 新 Session 的第一条是初始模式，不属于任何 Run；write 前后有 Checkpoint 条目。
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
       'permission_mode',
       'run_start',
@@ -257,7 +257,7 @@ describe('Session 协议', () => {
     })
     const { sidecar, cookie, api } = await boot(dirs, script)
     const { sessionId } = await newSession(api, root)
-    // 命令要写 Workspace 外的库文件：Seatbelt 在受限档位会拦下它（票 05），这里用 full-access（不包裹、不询问）。
+    // 命令要写 Workspace 外的库文件：Seatbelt 在受限档位会拦下它，这里用 full-access（不包裹、不询问）。
     expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })).status).toBe(200)
     const stream = await connect(sidecar, cookie)
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })

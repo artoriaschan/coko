@@ -39,6 +39,8 @@ const chat = createChatStore({
   api,
   stream,
   onFailure: (failure) => notifyFailure(appearance.getSnapshot().locale, failure, () => settingsDialog.show('models')),
+  // 分叉的标题按当前语言生成，Sidecar 原样保存。
+  forkTitle: (title) => t()('sidebar.forkTitle', { title: title || t()('sidebar.untitled') }),
 })
 const bridge = window.coko
 const settings = createSettingsStore({

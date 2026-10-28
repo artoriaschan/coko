@@ -1,4 +1,4 @@
-// 启动恢复（grilling E3 / E4）：从已提交的条目判定一个被中断的 Run（有 run_start 而无 run_end），给出要补提交的条目。
+// 启动恢复（recovery.md）：从已提交的条目判定一个被中断的 Run（有 run_start 而无 run_end），给出要补提交的条目。
 // 只看已提交的记录与当前文件状态，不重跑任何调用。条目按 toolCallId 关联（tool_exec、file_backup 与 toolResult 可以不相邻）。
 import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import { Value } from 'typebox/value'

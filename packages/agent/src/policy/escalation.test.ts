@@ -1,4 +1,4 @@
-// 运行时上的沙箱与提权（ADR 0005、grilling B2）与 Secrets 注入（B3）：faux 模型 + 临时 Workspace + 记录请求的执行端口，
+// 运行时上的沙箱与提权（ADR 0005）与 Secrets 注入：faux 模型 + 临时 Workspace + 记录请求的执行端口，
 // 经 createAgentRuntime 的公开接口观察条目、交给执行端口的沙箱策略与工具收到的执行上下文。
 import { realpath } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
