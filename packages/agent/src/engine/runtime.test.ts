@@ -169,6 +169,9 @@ describe('Agent 运行时：顺序与提交屏障', () => {
 
   it('message_end 的提交完成后工具才开始执行', async () => {
     const log: string[] = []
+    // gate 控制提交何时完成；committing 标记提交已开始，确定交叠位置。
+    const gate = deferred()
+    const committing = deferred()
     const tools = createToolRegistry()
     tools.register(
       hostTool('probe', async () => {
@@ -181,12 +184,21 @@ describe('Agent 运行时：顺序与提交屏障', () => {
       commit: async (entry) => {
         if (entry.kind !== 'message' || entry.message.role !== 'assistant' || log.includes('commit-end:assistant')) return
         log.push('commit-start:assistant')
-        await new Promise((resolve) => setTimeout(resolve, 30))
+        committing.resolve()
+        await gate.promise
         log.push('commit-end:assistant')
       },
     })
     h.faux.setResponses([fauxAssistantMessage(fauxToolCall('probe', {}, { id: 'p1' }), { stopReason: 'toolUse' }), fauxAssistantMessage('end')])
-    await h.runtime.run('go')
+    const running = h.runtime.run('go')
+    await committing.promise
+    // 让已排队的微任务与 I/O 回调跑完（一轮事件循环，不是按时长等待）；若工具不等提交，它此时已经开始。
+    await new Promise((resolve) => setImmediate(resolve))
+    // 提交挂起期间工具不得开始。
+    expect(log).toEqual(['commit-start:assistant'])
+    expect(h.progress.some((event) => event.type === 'tool_start')).toBe(false)
+    gate.resolve()
+    await running
     expect(log).toEqual(['commit-start:assistant', 'commit-end:assistant', 'tool-start'])
   })
 

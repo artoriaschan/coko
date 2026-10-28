@@ -1,5 +1,5 @@
 import { Type } from 'typebox'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { withTimeout } from './timeout.ts'
 import type { CokoTool } from './types.ts'
 
@@ -47,13 +47,26 @@ describe('统一超时与取消', () => {
   })
 
   it('工具声明 timeoutMs: 0 时不施加统一超时，契约字段保持', async () => {
+    let finish!: () => void
+    const done = new Promise<void>((resolve) => (finish = resolve))
     const original = tool(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 30))
+      await done
       return { content: [{ type: 'text', text: 'done' }], details: undefined }
     }, 0)
     const wrapped = withTimeout(original, { defaultTimeoutMs: 5, graceMs: 5 })
     expect(wrapped.name).toBe(original.name)
     expect(wrapped.parameters).toBe(original.parameters)
-    await expect(wrapped.execute('c', {})).resolves.toMatchObject({ content: [{ text: 'done' }] })
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const pending = wrapped.execute('c', {}).finally(() => (settled = true))
+      // 远超统一超时与宽限期：工具仍在运行，没有被超时结束。
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(settled).toBe(false)
+      finish()
+      await expect(pending).resolves.toMatchObject({ content: [{ text: 'done' }] })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
