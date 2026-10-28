@@ -49,3 +49,6 @@
 
 - `docs/TECH_STACK.md` 接入状态：apps/desktop 行补充本切片的 devDependencies，新增 packages/protocol 行（typebox）。
 - `docs/tech-stack/architecture.md` 运行链路：补充 `/api` 路由前缀与代理边界、boot IPC 返回的 WebSocket 基址，以及 inspect-quit 的 2 秒确认规则。
+- 2026-10-28 lead：评审后合入 main（1f93d07）。main 上复核：install、typecheck、lint 退出 0；test 27 文件 177 用例通过（含 desktop-e2e）；check:docs 0 问题。接受新增的 inspect-quit.result 与 /api 路由约定，票 04 按 packages/protocol 的 api.ts / control.ts 实现。watch 重启与打包 GUI 启动留给票 09 验证。worktree 已清理。
+
+Closed: true
