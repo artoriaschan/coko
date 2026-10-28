@@ -51,3 +51,6 @@
 **未验证**：真实模型（无密钥）；CI；非 darwin 平台。
 
 **文档影响**：新建 `packages/agent/README.md`（工具契约、调度、执行记录、幂等键）；`docs/README.md` 加导航行。GLOSSARY、ADR 未改。
+- 2026-10-29 lead：评审后合入 main（41ab97e）。接受越界改动：tools/types.ts 的可选第五参数 ToolExecutionContext（票 08 继续沿用）、新增 scheduler.test.ts、runtime.test.ts 宿主工具声明 effect、三处序列断言加入 tool_exec、secrets-gate 追加、docs/README 导航。lead 在 agent index.ts 补导出 ToolEffect、ToolExecutionContext、DEFAULT_TOOL_CONCURRENCY。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 67 文件 519 通过、1 跳过（真实模型）；check:docs 82 文件 0 问题。worktree 已清理。
+
+Closed: true
