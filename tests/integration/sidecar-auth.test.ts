@@ -26,6 +26,24 @@ describe('本地服务访问认证', () => {
     expect((await request(sidecar.port, 'POST', API_ROUTES.authExchange, { body: '{not json' })).status).toBe(400)
   })
 
+  it.each(['/api/auth/%65xchange', '/api/%61uth/exchange', '/api/auth/exchange/', '/api//auth/exchange', '/API/auth/exchange'])(
+    '交换入口只接受原样路径：%s 返回 404 且不消耗令牌',
+    async (path) => {
+      const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+      const res = await request(sidecar.port, 'POST', path, { body: { token: sidecar.token } })
+      expect(res.status).toBe(404)
+      expect(res.headers['set-cookie']).toBeUndefined()
+      expect((await request(sidecar.port, 'POST', API_ROUTES.authExchange, { body: { token: sidecar.token } })).status).toBe(204)
+    },
+  )
+
+  it('带 cookie 的交换请求（经 renderer 代理的形态）返回 404 且不消耗令牌', async () => {
+    const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+    const res = await request(sidecar.port, 'POST', API_ROUTES.authExchange, { headers: { cookie: 'coko-session=v1.x.y' }, body: { token: sidecar.token } })
+    expect(res.status).toBe(404)
+    expect((await request(sidecar.port, 'POST', API_ROUTES.authExchange, { body: { token: sidecar.token } })).status).toBe(204)
+  })
+
   it('没有 cookie、cookie 被篡改或令牌放在 Authorization 头时返回 401', async () => {
     const sidecar = await startSidecar({ dirs: await sidecarDirs() })
     const token = sidecar.token

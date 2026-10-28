@@ -12,6 +12,7 @@ import {
   type GrepSearchRequest,
   type ToolRegistry,
 } from '@coko/agent'
+import { HOST_ENV_EXCLUSIONS } from './credentials.ts'
 
 const abortError = () => new Error('Operation aborted')
 
@@ -121,10 +122,13 @@ export function probeRipgrep(rgPath: string, timeoutMs = 5_000): Promise<string>
     })
   })
 }
-/** 每个 Workspace 的工具集：内置工具，给定 rg 时以 ripgrep grep 覆盖内置 grep（契约不变）。 */
+/**
+ * 每个 Workspace 的工具集：内置工具，给定 rg 时以 ripgrep grep 覆盖内置 grep（契约不变）。
+ * bash 的环境剔除 sidecar 配置与凭据变量（HOST_ENV_EXCLUSIONS）。
+ */
 export function createWorkspaceTools(rgPath: string | undefined): (cwd: string) => ToolRegistry {
   return (cwd) => {
-    const registry = createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() })
+    const registry = createBuiltinToolRegistry({ cwd, exec: createLocalExecPort({ excludeEnv: HOST_ENV_EXCLUSIONS }) })
     if (rgPath) registry.register(createGrepTool({ cwd, searcher: createRipgrepSearcher(rgPath) }), { override: true })
     return registry
   }

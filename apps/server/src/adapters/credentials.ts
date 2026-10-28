@@ -1,4 +1,4 @@
-import type { Credential, CredentialInfo, CredentialStore } from '@coko/agent'
+import type { Credential, CredentialInfo, CredentialStore, EnvExclusion } from '@coko/agent'
 import type { ProviderRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
@@ -82,6 +82,22 @@ const KIND_ENV: Record<string, string> = {
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
 }
+
+/**
+ * 不传给 bash 等用户命令的 sidecar 环境变量：sidecar 自身配置（COKO_*，含 COKO_CREDENTIAL_*）、
+ * 各 Provider kind 的密钥变量，以及名字带凭据形态的变量（*_API_KEY、*TOKEN*、*SECRET*、*PASSWORD* 等）。
+ * PATH、HOME 等普通变量保留。
+ */
+export const HOST_ENV_EXCLUSIONS: readonly EnvExclusion[] = [
+  /^COKO_/,
+  ...Object.values(KIND_ENV),
+  /(^|_)API_?KEY($|_)/i,
+  /TOKEN/i,
+  /SECRET/i,
+  /PASSW(OR)?D/i,
+  /(^|_)CREDENTIALS?($|_)/i,
+  /(^|_)AUTH($|_)/i,
+]
 
 /** COKO_CREDENTIAL_<ID> 中 id 的写法：大写，非字母数字换成下划线。 */
 export const credentialEnvName = (providerId: string) => `COKO_CREDENTIAL_${providerId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`

@@ -1,5 +1,5 @@
-// 打开序列（ADR 0003）：0600 文件 → quick_check（失败隔离）→ 版本检查 → WAL / synchronous=FULL / 外键
-// → 宿主租约 → 迁移前 VACUUM INTO 备份 → 逐步迁移 → FTS5 探测 → 心跳。
+// 打开序列（ADR 0003）：0600 文件 → 宿主租约（被存活的其他实例持有时立即报告，不碰文件）→ quick_check
+// （失败隔离）→ 版本检查 → WAL / synchronous=FULL / 外键 → 迁移前 VACUUM INTO 备份 → 逐步迁移 → FTS5 探测 → 心跳。
 import { randomUUID } from 'node:crypto'
 import { chmod, mkdir, open, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -52,22 +52,28 @@ export async function openDatabase(options: OpenDatabaseOptions): Promise<Opened
 
   let connection: Connection | undefined
   try {
+    // 隔离会改名文件，必须先确认本实例是写者：租约被其他存活实例持有时报告 lease-held，不做快速检查与隔离。
+    // 文件已无法读出租约（不是数据库或页面损坏）时，不可能有实例在正常使用它，继续由快速检查判定并隔离。
+    const candidate = new Connection(db, randomUUID(), options.now)
+    const leased = acquireLease(candidate, path, options.leaseTtlMs)
     await checkIntegrity(db, path)
 
     const version = userVersion(db)
     if (version > latest) {
+      if (leased) releaseLease(candidate)
       throw new StoreError('version-too-new', `database schema version ${version} is newer than supported version ${latest}`, {
         path,
         version,
         supported: latest,
       })
     }
+    // 快速检查通过却拿不到租约：不是损坏导致的读取失败，按原错误报告。
+    if (!leased) throw openFailed(path, new Error('host lease could not be acquired'))
 
     db.exec('PRAGMA journal_mode = WAL')
     db.exec('PRAGMA synchronous = FULL')
     db.exec('PRAGMA foreign_keys = ON')
-    connection = new Connection(db, randomUUID(), options.now)
-    acquireLease(connection, path, options.leaseTtlMs)
+    connection = candidate
   } catch (error) {
     if (db.isOpen) db.close()
     throw error instanceof StoreError ? error : openFailed(path, error)
@@ -172,9 +178,9 @@ function isPidAlive(pid: number): boolean {
 
 /**
  * 在 BEGIN IMMEDIATE 事务内获取租约。现有租约属于其他实例，且其进程存活、心跳未超过 TTL 时，报告 lease-held。
- * 进程已退出或心跳超时（含 pid 被复用的情况）则接管。
+ * 进程已退出或心跳超时（含 pid 被复用的情况）则接管。文件不是数据库或已损坏、读不出租约时返回 false，交给快速检查。
  */
-function acquireLease(conn: Connection, path: string, ttlMs: number): void {
+function acquireLease(conn: Connection, path: string, ttlMs: number): boolean {
   try {
     conn.write(
       () => {
@@ -198,10 +204,13 @@ function acquireLease(conn: Connection, path: string, ttlMs: number): void {
       },
       { checkLease: false },
     )
+    return true
   } catch (error) {
     if (error instanceof StoreError && error.code === 'lease-held') throw error
     // 等满 busy timeout 仍拿不到写锁：另一实例正在写，按租约冲突报告。
     if (error instanceof StoreError && sqliteCode(error.cause) === SQLITE_BUSY) throw leaseHeld(path, undefined, error.cause)
+    const code = error instanceof StoreError ? sqliteCode(error.cause) : sqliteCode(error)
+    if (code === SQLITE_CORRUPT || code === SQLITE_NOTADB) return false
     throw error
   }
 }

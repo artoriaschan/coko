@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
-import { API_ROUTES } from '@coko/protocol'
+import { isMainOnlyPath, normalizeRoutePath } from '@coko/protocol'
 
 export const APP_SCHEME = 'coko-app'
 export const APP_HOST = 'app'
@@ -64,15 +64,18 @@ const WITHHELD_RESPONSE_HEADERS = [
   'trailer',
   'upgrade',
 ]
-/** renderer 不能触达的 sidecar 路由。 */
-const MAIN_ONLY_ROUTES = new Set<string>([API_ROUTES.authExchange])
 
 /** coko-app:// 协议处理：/api/* 转发给 sidecar 并注入 cookie，其余为 renderer 静态资源。 */
 export function createAppProtocolHandler(options: AppProtocolOptions): (request: Request) => Promise<Response> {
   return async (request) => {
     const url = new URL(request.url)
     if (url.host !== APP_HOST) return new Response(null, { status: 404 })
-    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return forwardToSidecar(request, url, options.endpoint())
+    // 分流与 main-only 判断都按规范化后的路径：sidecar 的路由在匹配前会解码路径，原样比较可被
+    // %65xchange、末尾斜杠、大小写等变体绕过。
+    const route = normalizeRoutePath(url.pathname)
+    if (route === undefined) return new Response(null, { status: 400 })
+    if (isMainOnlyPath(url.pathname)) return new Response(null, { status: 404 })
+    if (route === '/api' || route.startsWith('/api/')) return forwardToSidecar(request, url, options.endpoint())
     if (options.renderer.kind === 'dev-server') return forwardToDevServer(request, url, options.renderer.url)
     return serveDirectory(request, url, options.renderer.root)
   }
@@ -81,7 +84,6 @@ export function createAppProtocolHandler(options: AppProtocolOptions): (request:
 async function forwardToSidecar(request: Request, url: URL, endpoint: SidecarEndpoint | undefined): Promise<Response> {
   const origin = request.headers.get('origin')
   if (origin !== null && origin !== APP_ORIGIN) return new Response(null, { status: 403 })
-  if (MAIN_ONLY_ROUTES.has(url.pathname)) return new Response(null, { status: 404 })
   if (endpoint === undefined) return new Response(null, { status: 503 })
   const target = new URL(url.pathname + url.search, endpoint.origin)
   const headers = new Headers(request.headers)

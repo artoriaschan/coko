@@ -84,6 +84,30 @@ describe('coko-app:// 协议代理', () => {
     expect(response.status).toBe(404)
   })
 
+  it.each([
+    '/api/auth/%65xchange',
+    '/api/%61uth/exchange',
+    '/api/auth/%2565xchange',
+    '/api/auth%2Fexchange',
+    '/api/auth/exchange/',
+    '/api//auth/exchange',
+    '/API/Auth/Exchange',
+    '/api/auth/exchange;x',
+    '/api/auth',
+    '/api/auth/other',
+  ])('令牌交换入口的编码变体 %s 被拒绝且不到达 sidecar', async (path) => {
+    const before = (await readFixtureEvents(fixture.eventsPath)).length
+    const response = await handler()(appRequest(path, { method: 'POST', body: JSON.stringify({ token: 'x' }) }))
+    expect(response.status).toBe(404)
+    expect((await readFixtureEvents(fixture.eventsPath)).length).toBe(before)
+  })
+
+  it('路径无法解码时返回 400 且不到达 sidecar', async () => {
+    const before = (await readFixtureEvents(fixture.eventsPath)).length
+    expect((await handler()(appRequest('/api/%E0%A4%A'))).status).toBe(400)
+    expect((await readFixtureEvents(fixture.eventsPath)).length).toBe(before)
+  })
+
   it('sidecar 未就绪时 API 返回 503', async () => {
     const pending = createAppProtocolHandler({ renderer: { kind: 'directory', root: rendererRoot }, endpoint: () => undefined })
     expect((await pending(appRequest(API_ROUTES.health))).status).toBe(503)

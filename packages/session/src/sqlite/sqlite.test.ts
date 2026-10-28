@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
@@ -162,6 +162,47 @@ describe('SQLite 损坏隔离与版本检查', () => {
     expect(error).toMatchObject({ code: 'corrupt', fatal: true })
     expect(await readFile(error.details.quarantinedTo as string)).toEqual(bytes)
     expect(existsSync(path)).toBe(false)
+  })
+
+  it('租约由存活的其他实例持有时，即使快速检查会失败也报告 lease-held，不隔离、不改动文件', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const store = await openSqliteStore({ path })
+    const workspace = await store.sessions.registerWorkspace({ path: '/w' })
+    const session = await store.sessions.createSession({ workspaceId: workspace.id })
+    await store.sessions.appendEntries(
+      session.id,
+      Array.from({ length: 500 }, (_, i) => ({ kind: 'note', payload: `entry ${i} `.repeat(20) })),
+    )
+    await store.close()
+    // 模拟仍在运行的另一实例：本进程 pid、刚刚的心跳。
+    const raw = new DatabaseSync(path)
+    raw
+      .prepare('INSERT INTO host_lease (id, instance_id, pid, acquired_at, heartbeat_at) VALUES (1, ?, ?, ?, ?)')
+      .run('other', process.pid, Date.now(), Date.now())
+    raw.close()
+    expect(existsSync(`${path}-wal`)).toBe(false)
+
+    const bytes = await readFile(path)
+    // 只写坏条目数据所在的末尾页；库头、schema 与租约表所在的前部页保持完好。
+    bytes.fill(0xab, bytes.length - 4096 * 8)
+    await writeFile(path, bytes)
+    // 前置：快速检查确实失败（报告问题或直接报 malformed）。
+    const check = new DatabaseSync(path, { readOnly: true })
+    let healthy: boolean
+    try {
+      healthy = (check.prepare('PRAGMA quick_check').all() as { quick_check: string }[]).every((r) => r.quick_check === 'ok')
+    } catch {
+      healthy = false
+    } finally {
+      check.close()
+    }
+    expect(healthy).toBe(false)
+
+    const error = await openError(openSqliteStore({ path }))
+    expect(error).toMatchObject({ code: 'lease-held', fatal: true, details: { instanceId: 'other', pid: process.pid } })
+    expect(await readFile(path)).toEqual(bytes)
+    expect((await readdir(dir)).filter((name) => name.includes('.corrupt-'))).toEqual([])
   })
 
   it('库版本高于程序支持版本时拒绝打开，文件保持原样', async () => {

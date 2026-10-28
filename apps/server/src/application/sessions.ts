@@ -46,21 +46,24 @@ export interface SessionServiceOptions {
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
 
 /**
- * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库前脱敏（ADR 0004）。
- * 用户输入与工具输出保持原样。
+ * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
+ * （ADR 0004）。用户输入与工具输出保持原样。
  */
+const redactModelError = redactText
+
 function toNewEntry(entry: RunEntry): NewSessionEntry {
   if (entry.kind === 'message') {
     const message = entry.message
-    const safe = message.role === 'assistant' && message.errorMessage ? { ...message, errorMessage: redactText(message.errorMessage) } : message
+    const safe = message.role === 'assistant' && message.errorMessage ? { ...message, errorMessage: redactModelError(message.errorMessage) } : message
     return { kind: 'message', runId: entry.runId, payload: toJson(safe) }
   }
-  const error = entry.error ? { ...entry.error, message: redactText(entry.error.message) } : undefined
+  const error = entry.error ? { ...entry.error, message: redactModelError(entry.error.message) } : undefined
   return { kind: 'run_end', runId: entry.runId, payload: toJson({ status: entry.status, ...(error ? { error } : {}) }) }
 }
 
 function toProgress(event: AgentProgress): ProgressEvent {
   const { runId: _runId, ...rest } = event
+  if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
   return toJson(rest) as ProgressEvent
 }
 

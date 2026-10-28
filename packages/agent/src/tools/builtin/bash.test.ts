@@ -45,6 +45,19 @@ describe('内置 bash', () => {
     await expect(tool().execute('c', { command: 'sleep 5', timeout: 0.2 })).rejects.toThrow('Command timed out after 0.2 seconds')
   })
 
+  it('命令环境去掉宿主专用变量与宿主声明剔除的变量，其余保留', async () => {
+    const exec = createLocalExecPort({
+      env: { PATH: process.env.PATH, HOME: '/home/u', ELECTRON_RUN_AS_NODE: '1', HOST_SECRET: 's', HOST_CONFIG: 'c', KEEP: 'k' },
+      excludeEnv: ['HOST_CONFIG', /SECRET/],
+    })
+    const result = await createBashTool({ cwd: ws.dir, exec, tempDir: ws.dir }).execute('c', { command: 'env | sort' })
+    const names = textOf(result)
+      .split('\n')
+      .map((line) => line.split('=')[0])
+      .filter((name) => name && !['PWD', 'SHLVL', '_', '__CF_USER_TEXT_ENCODING', 'OLDPWD'].includes(name))
+    expect(names).toEqual(['HOME', 'KEEP', 'PATH'])
+  })
+
   it('取消后命令及其子进程都已退出', async () => {
     const pidFile = ws.path('pids')
     const controller = new AbortController()

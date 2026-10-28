@@ -24,10 +24,10 @@ lifecycle: active
 - **读取。** `listEntries(sessionId, { afterSeq, limit })` 返回 `seq > afterSeq` 的条目，供断线重连补齐。`listSessions` 按 `updatedAt` 倒序。
 - **设置。** 键值 JSON，每个键单独计 revision；不存在的键为 0。`set(key, value, expectedRevision)` 不匹配时以 `revision-conflict` 拒绝，`details` 带 `expected` 与 `actual`，值保持不变。
 - **Provider 与 Credential。** Provider 只返回 `credential: { hint } | null`。密文由 main 加密后经 `setCredential` 存入单独的表，只能用 `getCredentialCiphertext` 取回；删除 Provider 时同时删除密文。
-- **打开序列。** 创建目录（0700）与库文件（0600）→ `PRAGMA quick_check` → 版本检查 → WAL、`synchronous=FULL`、外键、busy timeout → 获取宿主租约 → 迁移 → FTS5 探测 → 启动心跳。
+- **打开序列。** 创建目录（0700）与库文件（0600）→ 获取宿主租约 → `PRAGMA quick_check` → 版本检查 → WAL、`synchronous=FULL`、外键、busy timeout → 迁移 → FTS5 探测 → 启动心跳。租约先于快速检查：隔离会改名文件，只有确认本实例是写者后才执行；文件已读不出租约（不是数据库或页面损坏）时直接进入快速检查。
 - **迁移。** 迁移按编号前向执行，每一步与 `user_version` 在同一事务提交。库里已有数据时，迁移前先 `VACUUM INTO <path>.backup-v<N>-<时间>`（0600）。某一步失败时只回滚该步，已提交的步骤保留，并报告 `migration-failed`（`details` 带 `version`、`failedVersion` 与 `backupPath`）。
-- **宿主租约。** `host_lease` 单行表，在迁移前于事务中获取。其他实例的进程存活且心跳未超过 TTL 时，打开以 `lease-held` 拒绝（`details` 带 `pid`、`instanceId`）。持有者进程已退出或心跳超时则接管。每次写入都在事务内校验租约，被接管后本实例的所有操作以 `lease-lost` 拒绝。`close()` 释放租约。
-- **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时报告 `version-too-new`，文件不做改动。
+- **宿主租约。** `host_lease` 单行表，打开时最先于事务中获取。其他实例的进程存活且心跳未超过 TTL 时，打开以 `lease-held` 拒绝（`details` 带 `pid`、`instanceId`），不做快速检查与隔离，文件保持原样。持有者进程已退出或心跳超时则接管。每次写入都在事务内校验租约，被接管后本实例的所有操作以 `lease-lost` 拒绝。`close()` 释放租约。
+- **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时报告 `version-too-new`，释放刚获取的租约，不迁移、不改动 schema。
 - **错误。** 所有失败都是 `StoreError`（`code`、`fatal`、`details`）。`fatal` 为 true 的错误（`lease-held`、`lease-lost`、`corrupt`、`version-too-new`、`migration-failed`、`open-failed`、`unknown-state`）表示存储不可继续使用，应由宿主提示用户。回滚本身失败时进入 `unknown-state`，必须关闭后重开。
 
 ## 配置与限制
@@ -47,7 +47,7 @@ lifecycle: active
 ## 验证与相关设计
 
 - `src/repository-contract.ts`：仓库契约测试套件，由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行。
-- `src/sqlite/sqlite.test.ts`：重新打开后读回、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、版本过高拒绝。
+- `src/sqlite/sqlite.test.ts`：重新打开后读回、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、租约被存活实例持有时损坏库不被隔离、版本过高拒绝。
 - `src/sqlite/migrate.test.ts`：用合成迁移验证备份、逐步提交、失败回滚与租约释放。
 - `src/sqlite/electron-runtime.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动 Electron 子进程（`src/sqlite/electron-fixture.ts`），验证跨进程提交读回、租约冲突、持有者被 SIGKILL 后接管，并断言运行时版本与 FTS5 可用。
 

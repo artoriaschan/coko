@@ -17,6 +17,34 @@ export const API_ROUTES = {
   models: '/api/models',
 } as const
 
+/** 只供 main 调用的路由前缀：renderer 经 coko-app:// 代理的任何请求都不得到达。 */
+export const MAIN_ONLY_PREFIX = '/api/auth'
+
+/**
+ * 判定路由用的规范路径：反复百分号解码（至多 3 次，覆盖双重编码）、合并重复斜杠、去掉末尾斜杠、转小写。
+ * 解码失败返回 undefined，调用方应拒绝请求。
+ */
+export function normalizeRoutePath(pathname: string): string | undefined {
+  let path = pathname
+  for (let i = 0; i < 3 && path.includes('%'); i++) {
+    try {
+      path = decodeURIComponent(path)
+    } catch {
+      return undefined
+    }
+  }
+  if (path.includes('%')) return undefined
+  path = path.replace(/\/+/g, '/').toLowerCase()
+  return path.length > 1 ? path.replace(/\/$/, '') : path
+}
+
+/** 规范化后位于 /api/auth 之下（含其本身）的路径；无法解码的路径也视为命中。 */
+export function isMainOnlyPath(pathname: string): boolean {
+  const path = normalizeRoutePath(pathname)
+  if (path === undefined) return true
+  return path === MAIN_ONLY_PREFIX || path.startsWith(`${MAIN_ONLY_PREFIX}/`) || path.startsWith(`${MAIN_ONLY_PREFIX};`)
+}
+
 export const AuthExchangeRequest = Type.Object({ token: Type.String() }, { additionalProperties: false })
 export type AuthExchangeRequest = Static<typeof AuthExchangeRequest>
 
