@@ -1,4 +1,4 @@
-import type { SessionEntry } from '@coko/protocol'
+import type { ApprovalDecisionPayload, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 export interface ToolCallBlock {
@@ -15,11 +15,29 @@ export interface ToolResultView {
   details: unknown
 }
 
+/** 工具调用的审批：请求，以及（已结束时）决定。 */
+export interface ToolApproval {
+  request: ApprovalRequestPayload
+  decision: ApprovalDecisionPayload | null
+}
+
+export type ToolItemStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
+
 export type TimelineItem =
   | { kind: 'user'; key: string; text: string }
   | { kind: 'text'; key: string; text: string; streaming: boolean }
   | { kind: 'thinking'; key: string; text: string; streaming: boolean }
-  | { kind: 'tool'; key: string; call: ToolCallBlock; result: ToolResultView | null; status: 'running' | 'done' | 'error' | 'pending'; live: LiveTool | null }
+  | {
+      kind: 'tool'
+      key: string
+      call: ToolCallBlock
+      result: ToolResultView | null
+      /** awaiting：审批请求尚未回答，调用未执行。 */
+      status: ToolItemStatus
+      live: LiveTool | null
+      /** 没有审批（免审批或旧记录）时省略或为 null。 */
+      approval?: ToolApproval | null
+    }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
   /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
@@ -59,6 +77,7 @@ const resultDetails = (result: unknown) => (result && typeof result === 'object'
 export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const items: TimelineItem[] = []
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
+  const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   let lastRunId: string | null = null
 
   for (const entry of conversation.entries) {
@@ -66,9 +85,26 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (entry.kind === 'run_end') {
       const payload = entry.payload
       // 未结束的工具在 Run 结束后不会再有结果。
-      for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
+      for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
       else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: true })
+      continue
+    }
+    if (entry.kind === 'approval_request') {
+      const tool = tools.get(entry.payload.toolCallId)
+      if (tool) {
+        tool.approval = { request: entry.payload, decision: null }
+        if (tool.result === null) tool.status = 'awaiting'
+        requests.set(entry.payload.requestId, tool)
+      }
+      continue
+    }
+    if (entry.kind === 'approval_decision') {
+      const tool = requests.get(entry.payload.requestId)
+      if (tool?.approval) {
+        tool.approval = { ...tool.approval, decision: entry.payload }
+        if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
+      }
       continue
     }
     if (entry.kind !== 'message') continue
@@ -90,6 +126,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             result: null,
             status: 'running',
             live: null,
+            approval: null,
           }
           tools.set(block.id, item)
           items.push(item)
@@ -112,7 +149,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       if (tool) {
         if (tool.result === null) {
           tool.live = liveTool
-          tool.status = liveTool.status
+          // 等待审批时进度仍报告 running（pi 在审批前发出 tool_start）；以条目中的审批状态为准。
+          if (!(tool.status === 'awaiting' && liveTool.status === 'running')) tool.status = liveTool.status
           if (liveTool.status !== 'running')
             tool.result = { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) }
         }
@@ -128,6 +166,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
               : { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) },
           status: liveTool.status,
           live: liveTool,
+          approval: null,
         })
       }
     }
@@ -138,14 +177,14 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       items.push({ kind: block.kind, key: `live:${index}`, text: block.text, streaming: true })
     })
     // 以合并后的工具项判断：断线期间错过的 tool_end 由已提交的 toolResult 补上。
-    const toolRunning = items.some((i) => i.kind === 'tool' && i.status === 'running')
+    const toolRunning = items.some((i) => i.kind === 'tool' && (i.status === 'running' || i.status === 'awaiting'))
     if (!visible && !toolRunning) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
   }
 
   // run_end 条目没能提交：只由进度得知结束。记录不完整，不提供重试。
   const unrecorded = conversation.unrecordedEnd
   if (unrecorded && !conversation.running) {
-    for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
+    for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
     if (unrecorded.status === 'aborted') items.push({ kind: 'stopped', key: `unrecorded:${unrecorded.runId}` })
     else if (unrecorded.status === 'error')
       items.push({ kind: 'error', key: `unrecorded:${unrecorded.runId}`, message: unrecorded.error?.message ?? '', retryable: false })

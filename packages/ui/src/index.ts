@@ -1,3 +1,4 @@
+export { ApprovalCard, type ApprovalCardLabels, type ApprovalCardProps } from './approval/approval-card.tsx'
 export { AppFrame, useAppFrame, type AppFrameContextValue, type AppFrameLabels, type AppFrameProps } from './app-frame/app-frame.tsx'
 export {
   AUTO_COLLAPSE_BELOW,

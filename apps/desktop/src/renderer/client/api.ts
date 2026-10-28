@@ -15,6 +15,7 @@ import {
   SubmitMessageResponse,
   Workspace,
   WorkspaceListResponse,
+  type AnswerApprovalRequest,
   type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
@@ -75,6 +76,8 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 重新执行出错的上一轮，不追加用户消息。 */
     retryRun: (id: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionRetry(id), {}),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),
+    /** 回答待审批请求；请求不在等待中时以 approval-not-pending 拒绝。 */
+    answerApproval: (id: string, requestId: string, answer: AnswerApprovalRequest) => call(NoContent, 'POST', apiPaths.sessionApproval(id, requestId), answer),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
     listSettings: async () => (await call(SettingsResponse, 'GET', API_ROUTES.settings)).settings,
     /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */

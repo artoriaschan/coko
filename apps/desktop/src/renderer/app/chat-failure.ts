@@ -8,6 +8,7 @@ const KIND_KEYS = {
   retry: 'errors.retryFailed',
   workspace: 'errors.workspaceFailed',
   model: 'errors.modelSwitchFailed',
+  approval: 'errors.approvalFailed',
 } as const satisfies Record<ChatFailure['kind'], MessageKey>
 
 /** 操作失败的提示文案：协议错误码有专门说明时用它，否则按操作类型。 */
@@ -15,6 +16,7 @@ export function failureMessage(locale: Locale, failure: ChatFailure): string {
   const t = createTranslator(locale)
   if (failure.error.code === 'model-not-configured') return t('errors.modelNotConfigured')
   if (failure.error.code === 'run-in-progress') return t('errors.runInProgress')
+  if (failure.error.code === 'approval-not-pending') return t('errors.approvalNotPending')
   return t(KIND_KEYS[failure.kind])
 }
 
