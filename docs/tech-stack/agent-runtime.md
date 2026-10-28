@@ -106,11 +106,11 @@ packages/agent/src/
 
 工具执行意图、授权决定、结果和任务状态通过 SessionRepository 提交。文本增量采用独立的展示与检查点策略；向客户端发送的事件明确区分临时进度与已提交事实。
 
-Plan Mode、Skills、Rules、Hooks、MCP 工具、子代理和后台任务统一经过执行前权限判断。指令和扩展文件提供执行方法与上下文，其声明不能提升宿主授予的权限。授权与具体调用、参数、工作区、作用域和有效期关联，恢复后重新校验。权限模式、审批与沙箱的叠加规则见 [ADR 0005](../adr/0005-session-permission-mode.md)。Skills 的规范定义格式、元数据和可选资源组织，自动匹配与运行授权由产品实现。[Skills 规范](https://agentskills.io/specification)
+Plan Mode、Skills、Rules、Hooks、MCP 工具、子代理和后台任务统一经过执行前权限判断。指令和扩展文件提供执行方法与上下文，其声明不能提升宿主授予的权限。授权与具体调用、参数、工作区、作用域和有效期关联，恢复后重新校验。权限模式、审批与沙箱的叠加规则见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)。Skills 的规范定义格式、元数据和可选资源组织，自动匹配与运行授权由产品实现。[Skills 规范](https://agentskills.io/specification)
 
 暂停与恢复保存显式状态。进程重启后由 agent 重建目标、任务、消息和待处理授权，由宿主重新建立连接和进程。取消按 Goal、Run、子代理、Job 的归属传播，宿主负责实际进程树终止及资源释放。
 
-会话回退、文件快照恢复和外部动作分别记录与处理；Checkpoint 的追踪范围与回退方式见 [ADR 0006](../adr/0006-checkpoint-and-rewind.md)。已产生外部副作用的调用通过幂等键、执行记录和外部状态查询判定，结果不明确时保存待确认状态，避免恢复时重复执行。
+会话回退、文件快照恢复和外部动作分别记录与处理；Checkpoint 的追踪范围与回退方式见 [ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)。已产生外部副作用的调用通过幂等键、执行记录和外部状态查询判定，结果不明确时保存待确认状态，避免恢复时重复执行。
 
 ### Goal 机制
 
