@@ -7,11 +7,12 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
-import { pendingApprovals } from '../../stores/chat-store.ts'
+import { pendingApprovals, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
 import { ApprovalPanel } from './approval-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { ModelPicker } from './model-picker.tsx'
+import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 
@@ -39,7 +40,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
-  const { send, stop, retry, openSession, selectModel, answerApproval } = useChatActions()
+  const draftPermissionMode = useChat((s) => s.draftPermissionMode)
+  const { send, stop, retry, openSession, selectModel, answerApproval, setPermissionMode } = useChatActions()
+  const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
   const defaultModel = useSettings((s) => s.defaultModel)
@@ -47,6 +50,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
   const model = session ? (session.model ?? defaultModel) : (draftModel ?? defaultModel)
   const needsSetup = settingsStatus === 'ready' && models.length === 0
+  // 会话：乐观的待确认模式，否则最后一条 permission_mode 条目；草稿：已选的或设置中的默认模式。
+  const permissionMode = conversation
+    ? (conversation.pendingMode ?? sessionPermissionMode(conversation.entries))
+    : session
+      ? 'default'
+      : (draftPermissionMode ?? defaultPermissionMode)
+  const canChangeMode = activeSessionId !== null || draftWorkspaceId !== null
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
   const running = conversation?.running ?? false
   // 同一时刻只有一张审批卡：最早的待审批请求接管输入区。
@@ -150,6 +160,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               call={pendingCall}
               autoFocus={focusCard}
               onAllow={() => answerApproval(pending.payload.requestId, { decision: 'allow', scope: 'once' })}
+              onAllowAlways={(scope) => answerApproval(pending.payload.requestId, { decision: 'allow', scope })}
               onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
             />
           )}
@@ -164,15 +175,20 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               onSend={send}
               onStop={() => void stop()}
               onSetup={() => settingsDialog.show('models')}
+              onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
               accessory={
-                models.length > 0 && (
-                  <ModelPicker
-                    models={models}
-                    value={model}
-                    disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                    onChange={(m) => void selectModel(m)}
-                  />
-                )
+                <>
+                  {/* 模式在 Run 中也可切换：立即作用于下一次调用，等待中的审批按新模式重新判定。 */}
+                  <ModePicker value={permissionMode} disabled={!canChangeMode} onChange={(m) => void setPermissionMode(m)} />
+                  {models.length > 0 && (
+                    <ModelPicker
+                      models={models}
+                      value={model}
+                      disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
+                      onChange={(m) => void selectModel(m)}
+                    />
+                  )}
+                </>
               }
             />
           </div>

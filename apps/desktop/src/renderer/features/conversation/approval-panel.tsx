@@ -1,4 +1,4 @@
-import type { ApprovalRequestPayload } from '@coko/protocol'
+import { formatPermissionRule, type ApprovalRequestPayload } from '@coko/protocol'
 import { ApprovalCard, DiffBlock, ToolOutput } from '@coko/ui'
 import { useI18n } from '../../app/i18n.tsx'
 import type { ToolCallBlock } from './timeline.ts'
@@ -8,10 +8,14 @@ export interface ApprovalPanelProps {
   /** 对应的工具调用（参数来自 assistant 消息）；中途订阅时可能尚未到达。 */
   call: ToolCallBlock | undefined
   onAllow: () => Promise<boolean>
+  /** 保存建议规则并允许。请求没有建议规则（越界写入、受保护路径、提权等）时不显示。 */
+  onAllowAlways?: (scope: AllowScope) => Promise<boolean>
   onReject: (feedback?: string) => Promise<boolean>
   autoFocus?: boolean
   className?: string
 }
+
+export type AllowScope = 'session' | 'workspace' | 'global'
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined)
 
@@ -80,16 +84,31 @@ const TITLE = {
 } as const
 
 /** 接管输入区的审批卡：一次只显示一个待审批请求（最早的）。 */
-export function ApprovalPanel({ request, call, onAllow, onReject, autoFocus, className }: ApprovalPanelProps) {
+export function ApprovalPanel({ request, call, onAllow, onAllowAlways, onReject, autoFocus, className }: ApprovalPanelProps) {
   const { t } = useI18n()
   const key = TITLE[request.toolName as keyof typeof TITLE]
   const accepted = async (sent: Promise<boolean>) => {
     if (!(await sent)) throw new Error('approval answer was not accepted')
   }
+  const canSave = onAllowAlways !== undefined && request.kind === 'tool' && request.suggestions.length > 0
+  const allowAlways = canSave
+    ? {
+        label: t('approval.allowAlways'),
+        menuLabel: t('approval.allowAlwaysMenu'),
+        description: t('approval.allowAlwaysRule', { rule: request.suggestions.map(formatPermissionRule).join(', ') }),
+        options: [
+          { scope: 'session' as const, label: t('approval.scopeSession') },
+          { scope: 'workspace' as const, label: t('approval.scopeWorkspace') },
+          { scope: 'global' as const, label: t('approval.scopeGlobal') },
+        ],
+        onSelect: (scope: string) => accepted(onAllowAlways(scope as AllowScope)),
+      }
+    : undefined
   return (
     <ApprovalCard
       className={className}
       {...(autoFocus ? { autoFocus } : {})}
+      {...(allowAlways ? { allowAlways } : {})}
       requestKey={request.requestId}
       title={key ? t(key) : t('approval.titleTool', { name: request.toolName })}
       labels={{

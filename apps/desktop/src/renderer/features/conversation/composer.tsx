@@ -14,6 +14,8 @@ export interface ComposerProps {
   onSetup: () => void
   /** 编辑区与发送按钮之间的控件（模型选择）。 */
   accessory?: React.ReactNode
+  /** 焦点在编辑区时 Shift+Tab：切换到下一档 Permission Mode（不移动焦点）。 */
+  onCycleMode?: () => void
   className?: string
   /** 外部聚焦编辑区（⌘N 新建会话后）。 */
   ref?: React.Ref<ComposerHandle>
@@ -24,7 +26,7 @@ export interface ComposerHandle {
 }
 
 /** 基础 composer：Lexical 编辑区与发送 / 停止按钮。运行中按钮变为停止，Escape 也可停止。 */
-export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetup, accessory, className, ref }: ComposerProps) {
+export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetup, accessory, onCycleMode, className, ref }: ComposerProps) {
   const { t } = useI18n()
   const editor = React.useRef<ComposerEditorHandle>(null)
   React.useImperativeHandle(ref, () => ({ focus: () => editor.current?.focus() }), [])
@@ -34,6 +36,13 @@ export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetu
   return (
     <form
       className={className}
+      // 只在编辑区内拦截 Shift+Tab；按钮等其他控件上的 Shift+Tab 仍按常规移动焦点。
+      onKeyDownCapture={(event) => {
+        if (!onCycleMode || event.key !== 'Tab' || !event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
+        if (event.nativeEvent.isComposing || !(event.target as Element).closest('[contenteditable="true"]')) return
+        event.preventDefault()
+        onCycleMode()
+      }}
       onSubmit={(event) => {
         event.preventDefault()
         if (running) onStop()
