@@ -1,5 +1,6 @@
-import { Button } from '@coko/ui'
-import { LoaderCircleIcon, RotateCcwIcon } from 'lucide-react'
+import type * as React from 'react'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
+import { ChevronRightIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
@@ -10,22 +11,101 @@ export interface TimelineViewProps {
   items: TimelineItem[]
   theme: Theme
   onRetry: () => void
+  /** 用户消息的"回退到此处"；省略时不显示消息动作。 */
+  onRewind?: (seq: number, text: string) => void
+  /** 用户消息的"从这里分叉"。 */
+  onFork?: (seq: number) => void
+  /** Run 进行中或有待处理的请求：消息动作不可用。 */
+  actionsDisabled?: boolean
+}
+
+/** 消息动作按钮：仅图标，Tooltip 与可访问名称同一文案。 */
+function MessageAction({
+  label,
+  action,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  action: string
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="toolbar" size="icon-sm" aria-label={label} data-action={action} disabled={disabled} onClick={onClick}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
-export function TimelineView({ items, theme, onRetry }: TimelineViewProps) {
+export function TimelineView(props: TimelineViewProps) {
+  const { items, theme, onRetry, onRewind, onFork, actionsDisabled = false } = props
   const { t } = useI18n()
   return (
     <>
       {items.map((item) => {
         switch (item.kind) {
-          case 'user':
+          case 'user': {
+            const actions = item.checkpoint && (onRewind || onFork)
             return (
-              <article key={item.key} aria-label={t('conversation.you')} className="ms-auto w-fit max-w-[85%]">
+              // 动作在悬停（支持 hover 的设备）或焦点进入消息时出现；不支持 hover 时一直可见。Tab 到消息即可到达。
+              <article
+                key={item.key}
+                aria-label={t('conversation.you')}
+                data-seq={item.seq}
+                tabIndex={actions ? 0 : undefined}
+                className="group ms-auto flex w-fit max-w-[85%] flex-col items-end gap-1 rounded-xl focus-ring"
+              >
                 <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
                   {item.text}
                 </p>
+                {actions && (
+                  <div
+                    role="group"
+                    aria-label={t('conversation.messageActions')}
+                    data-slot="message-actions"
+                    className="flex gap-0.5 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                  >
+                    {onRewind && (
+                      <MessageAction
+                        label={t('conversation.rewindHere')}
+                        action="rewind"
+                        disabled={actionsDisabled}
+                        onClick={() => onRewind(item.seq, item.text)}
+                      >
+                        <Undo2Icon />
+                      </MessageAction>
+                    )}
+                    {onFork && (
+                      <MessageAction label={t('conversation.forkHere')} action="fork" disabled={actionsDisabled} onClick={() => onFork(item.seq)}>
+                        <GitBranchIcon />
+                      </MessageAction>
+                    )}
+                  </div>
+                )}
               </article>
+            )
+          }
+          case 'rewound':
+            // 被回退的区间：折叠保留，可展开查看；其中的消息不提供动作。
+            return (
+              <details key={item.key} data-slot="rewound" className="group/rewound min-w-0 text-ui-body text-muted-foreground">
+                <summary className="flex cursor-pointer items-center gap-1.5 rounded-md select-none focus-ring [&::-webkit-details-marker]:hidden">
+                  <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
+                  {t('conversation.rewound', { count: item.items.length })}
+                </summary>
+                <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
+                  <TimelineView items={item.items} theme={theme} onRetry={onRetry} />
+                </div>
+              </details>
             )
           case 'text':
             return (

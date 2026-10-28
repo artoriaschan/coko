@@ -14,6 +14,8 @@ const KIND_KEYS = {
   pause: 'errors.pauseFailed',
   continue: 'errors.continueFailed',
   confirmation: 'errors.confirmationFailed',
+  rewind: 'errors.rewindFailed',
+  fork: 'errors.forkFailed',
 } as const satisfies Record<ChatFailure['kind'], MessageKey>
 
 /** 操作失败的提示文案：协议错误码有专门说明时用它，否则按操作类型。 */
@@ -25,6 +27,7 @@ export function failureMessage(locale: Locale, failure: ChatFailure): string {
   if (failure.error.code === 'no-active-run') return t('errors.noActiveRun')
   if (failure.error.code === 'nothing-to-continue') return t('errors.nothingToContinue')
   if (failure.error.code === 'confirmation-pending') return t('errors.confirmationPending')
+  if (failure.error.code === 'session-busy') return t('errors.sessionBusy')
   return t(KIND_KEYS[failure.kind])
 }
 

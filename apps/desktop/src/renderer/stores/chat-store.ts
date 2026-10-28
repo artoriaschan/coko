@@ -5,6 +5,8 @@ import {
   type PermissionMode,
   type PermissionRule,
   type ProgressEvent,
+  type RewindMode,
+  type RewindResponse,
   type RunStatus,
   type ServerMessage,
   type Session,
@@ -68,12 +70,25 @@ export interface Conversation {
 }
 
 export type ChatFailure = {
-  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue' | 'confirmation'
+  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue' | 'confirmation' | 'rewind' | 'fork'
   error: ApiError
 }
 
-/** 最后一个已结束 Run 的状态；没有时为 undefined。 */
-export function lastRunStatus(entries: readonly SessionEntry[]): RunStatus | undefined {
+/** 被回退的区间 [targetSeq, rewind 条目)（ADR 0006）；按 rewind 条目顺序。 */
+export function rewoundRanges(entries: readonly SessionEntry[]): { from: number; to: number }[] {
+  return entries.flatMap((entry) => (entry.kind === 'rewind' ? [{ from: entry.payload.targetSeq, to: entry.seq }] : []))
+}
+
+/** 有效条目：不在任何被回退区间内、且不是 rewind 条目本身（与 Sidecar 的模型上下文一致）。 */
+export function visibleEntries(entries: readonly SessionEntry[]): SessionEntry[] {
+  const ranges = rewoundRanges(entries)
+  if (ranges.length === 0) return entries as SessionEntry[]
+  return entries.filter((entry) => entry.kind !== 'rewind' && !ranges.some((r) => entry.seq >= r.from && entry.seq < r.to))
+}
+
+/** 有效条目中最后一个已结束 Run 的状态（被回退的 Run 不算）；没有时为 undefined。 */
+export function lastRunStatus(all: readonly SessionEntry[]): RunStatus | undefined {
+  const entries = visibleEntries(all)
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!
     if (entry.kind === 'run_end') return entry.payload.status
@@ -159,8 +174,9 @@ export function conversationActivity(conversation: Pick<Conversation, 'entries' 
 export function canContinue(conversation: Pick<Conversation, 'entries' | 'running'>): boolean {
   const activity = conversationActivity(conversation)
   if (activity !== 'paused' && activity !== 'interrupted') return false
-  for (let i = conversation.entries.length - 1; i >= 0; i--) {
-    const entry = conversation.entries[i]!
+  const entries = visibleEntries(conversation.entries)
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!
     if (entry.kind === 'message') return entry.payload.role === 'user' || entry.payload.role === 'toolResult'
   }
   return false
@@ -217,6 +233,12 @@ export interface ChatActions {
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** 删除当前会话的一条 Session 规则。 */
   removeSessionRule(rule: PermissionRule): Promise<boolean>
+  /** 回退当前会话的预览（dryRun）：将恢复、删除、Agent 之外改过与未追踪的文件。失败时报告并返回 undefined。 */
+  previewRewind(targetSeq: number, mode: RewindMode): Promise<RewindResponse | undefined>
+  /** 回退当前会话；回退对话（或两者）时目标消息的文本回到输入区。失败时报告并返回 undefined。 */
+  rewind(targetSeq: number, mode: RewindMode): Promise<RewindResponse | undefined>
+  /** 从当前会话的某条用户消息分叉：打开新会话，目标文本放入其输入区。返回是否成功。 */
+  fork(targetSeq: number): Promise<boolean>
 }
 
 export type ChatStore = StoreApi<ChatState & ChatActions>
@@ -539,6 +561,50 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           onFailure?.({ kind: 'permissions', error: toApiError(error) })
           return false
         }
+      },
+
+      async previewRewind(targetSeq, mode) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return undefined
+        try {
+          return await api.rewind(sessionId, { targetSeq, mode, dryRun: true })
+        } catch (error) {
+          onFailure?.({ kind: 'rewind', error: toApiError(error) })
+          return undefined
+        }
+      },
+
+      async rewind(targetSeq, mode) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return undefined
+        let result: RewindResponse
+        try {
+          result = await api.rewind(sessionId, { targetSeq, mode })
+        } catch (error) {
+          onFailure?.({ kind: 'rewind', error: toApiError(error) })
+          return undefined
+        }
+        // rewind 条目经订阅到达（时间线折叠）；目标消息回到输入区，接在已有草稿之前。
+        if (mode !== 'code')
+          updateConversation(sessionId, (c) => ({ ...c, returnedDraft: c.returnedDraft ? result.text + '\n' + c.returnedDraft : result.text }))
+        return result
+      },
+
+      async fork(targetSeq) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return false
+        let forked: { sessionId: string; text: string }
+        try {
+          forked = await api.fork(sessionId, targetSeq)
+        } catch (error) {
+          onFailure?.({ kind: 'fork', error: toApiError(error) })
+          return false
+        }
+        // 新会话由列表读回（标题与模型以 Sidecar 为准），之后打开并订阅。
+        await get().load()
+        get().openSession(forked.sessionId)
+        updateConversation(forked.sessionId, (c) => ({ ...c, returnedDraft: forked.text }))
+        return true
       },
 
       async selectModel(model) {
