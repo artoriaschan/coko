@@ -3,7 +3,7 @@ import type { ClientMessage, ServerMessage, Session, SessionEntryRecord } from '
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
-import { canContinue, conversationActivity, createChatStore, pendingConfirmations, type ChatFailure } from './chat-store.ts'
+import { canContinue, continueMode, conversationActivity, createChatStore, pendingConfirmations, type ChatFailure } from './chat-store.ts'
 
 function fakeStream() {
   const listeners = new Set<(message: ServerMessage) => void>()
@@ -141,5 +141,30 @@ describe('chat store：恢复与结果确认', () => {
       canContinue(ended('interrupted', [entry('message', { role: 'assistant', content: [{ type: 'text', text: 'done' }], stopReason: 'stop', timestamp: 0 })])),
     ).toBe(false)
     expect(canContinue(ended('completed'))).toBe(false)
+  })
+
+  it('最后一条是 assistant 文本时横幅仍可继续：以一条新的用户消息继续（prompt），否则沿用 continue（resume）', () => {
+    seq = 0
+    const base = [entry('run_start', { trigger: 'submit' }), entry('message', { role: 'user', content: 'hi', timestamp: 0 })]
+    const ended = (status: string, extra: SessionEntryRecord[] = []) =>
+      ({ entries: [...base, ...extra, entry('run_end', { status })], running: false }) as never
+    const text = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'half way' }], stopReason: 'stop', timestamp: 0 })
+    expect(continueMode(ended('interrupted'))).toBe('resume')
+    expect(continueMode(ended('interrupted', [text]))).toBe('prompt')
+    expect(continueMode(ended('paused', [text]))).toBe('prompt')
+    expect(continueMode(ended('completed', [text]))).toBeUndefined()
+  })
+
+  it('prompt 方式的继续提交给定的文本（界面传入本地化的"继续"），不调用 continue', async () => {
+    seq = 0
+    const submitMessage = vi.fn<ApiClient['submitMessage']>(async () => ({ runId: 'r2' }))
+    const h = await setup({ submitMessage })
+    h.send('confirmation_answer', { toolCallId: 'b1', answer: 'applied' })
+    h.send('message', toolResult('Applied (confirmed by the user): …'))
+    h.send('message', { role: 'assistant', content: [{ type: 'text', text: 'half way' }], stopReason: 'stop', timestamp: 0 })
+    expect(continueMode(h.conversation())).toBe('prompt')
+    expect(await h.store.getState().continueRun('Continue')).toBe(true)
+    expect(submitMessage).toHaveBeenCalledWith('s1', 'Continue')
+    expect(h.api.continueRun).not.toHaveBeenCalled()
   })
 })

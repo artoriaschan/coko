@@ -7,7 +7,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
-import { canContinue, conversationActivity, pendingApprovals, pendingConfirmations, sessionPermissionMode } from '../../stores/chat-store.ts'
+import { continueMode, conversationActivity, pendingApprovals, pendingConfirmations, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
 import { ApprovalPanel } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
@@ -128,10 +128,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     deliver()
     return chatStore.subscribe(deliver)
   }, [chatStore, activeSessionId, takeReturnedDraft])
-  // 上一 Run 以暂停或中断结束：输入区上方显示横幅，模型能接着做时带"继续"。待确认时由确认卡接管，不显示横幅。
+  // 上一 Run 以暂停或中断结束：输入区上方显示横幅并带"继续"。最后一条是 assistant 文本时"继续"提交一条"继续"消息（prompt）。
+  // 待确认时由确认卡接管，不显示横幅。
   const activity = conversation !== undefined && !running && conversation.status === 'ready' ? conversationActivity(conversation) : undefined
   const banner = activity === 'paused' || activity === 'interrupted' ? activity : undefined
-  const continuable = conversation !== undefined && banner !== undefined && canContinue(conversation)
+  const resumeMode = conversation !== undefined && banner !== undefined ? continueMode(conversation) : undefined
+  const continuable = resumeMode !== undefined
 
   const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
 
@@ -248,7 +250,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             >
               <p className="min-w-0 flex-1 text-muted-foreground">{t(banner === 'paused' ? 'conversation.pausedBanner' : 'conversation.interruptedBanner')}</p>
               {continuable && (
-                <Button size="sm" data-action="continue" onClick={() => void continueRun()}>
+                <Button size="sm" data-action="continue" data-continue-mode={resumeMode} onClick={() => void continueRun(t('conversation.continuePrompt'))}>
                   <PlayIcon />
                   {t('conversation.continue')}
                 </Button>

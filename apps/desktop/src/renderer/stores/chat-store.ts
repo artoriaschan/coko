@@ -182,6 +182,16 @@ export function canContinue(conversation: Pick<Conversation, 'entries' | 'runnin
   return false
 }
 
+/**
+ * 横幅"继续"的方式：resume 调用 continue（模型从用户消息或工具结果接着做）；prompt 在最后一条是 assistant 文本时提交一条新的
+ * 用户消息（运行时的 continue 不能从 assistant 消息开始）。不能继续时为 undefined（不是 paused / interrupted，或有待确认）。
+ */
+export function continueMode(conversation: Pick<Conversation, 'entries' | 'running'>): 'resume' | 'prompt' | undefined {
+  const activity = conversationActivity(conversation)
+  if (activity !== 'paused' && activity !== 'interrupted') return undefined
+  return canContinue(conversation) ? 'resume' : 'prompt'
+}
+
 export interface ChatState {
   workspaces: Workspace[]
   sessions: Session[]
@@ -213,8 +223,10 @@ export interface ChatActions {
   steer(text: string): Promise<boolean>
   /** 暂停当前会话的 Run（当前步骤完成后停下）。 */
   pause(): Promise<void>
-  /** 接着暂停或中断的上一 Run。 */
-  continueRun(): Promise<boolean>
+  /**
+   * 接着暂停或中断的上一 Run。continueMode 为 prompt 时提交 promptText（界面传入本地化的"继续"）作为新的用户消息。
+   */
+  continueRun(promptText?: string): Promise<boolean>
   /** 输入区取走退回的未送达追加指令。 */
   takeReturnedDraft(sessionId: string): void
   /** 当前会话经协议切换模型；草稿中只记下选择。 */
@@ -479,9 +491,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      async continueRun() {
+      async continueRun(promptText) {
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
+        const conversation = get().conversations[sessionId]
+        if (conversation && continueMode(conversation) === 'prompt' && promptText !== undefined)
+          return submit(sessionId, () => api.submitMessage(sessionId, promptText), 'continue')
         return submit(sessionId, () => api.continueRun(sessionId), 'continue')
       },
 

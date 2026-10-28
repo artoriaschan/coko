@@ -70,6 +70,7 @@ export const en: Dictionary = {
     interrupted: 'Interrupted',
     interruptedBanner: 'The last run was interrupted (the app or its service quit unexpectedly)',
     continue: 'Continue',
+    continuePrompt: 'Continue',
     steeringPending: 'Not delivered yet',
     steeringHint: 'Delivered after the current step',
     runError: 'Run failed',

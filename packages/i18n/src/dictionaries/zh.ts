@@ -69,6 +69,7 @@ export const zh = {
     interrupted: '已中断',
     interruptedBanner: '上次运行已中断（应用或服务意外退出）',
     continue: '继续',
+    continuePrompt: '继续',
     steeringPending: '待送达',
     steeringHint: '当前步骤结束后送达',
     runError: '运行出错',
