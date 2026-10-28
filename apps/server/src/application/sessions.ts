@@ -2,7 +2,13 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
   ApprovalNotPendingError,
+  confirmationResult,
   createAgentRuntime,
+  createBuiltinToolRegistry,
+  createLocalExecPort,
+  planRecovery,
+  toolNameOf,
+  unansweredConfirmations,
   ModelConfigError,
   NoActiveRunError,
   NothingToContinueError,
@@ -22,6 +28,7 @@ import {
 } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import {
+  type ConfirmationAnswer,
   DEFAULT_MODEL_SETTING,
   SessionModel as SessionModelSchema,
   type ProgressEvent,
@@ -98,16 +105,17 @@ function lastRunStatus(entries: readonly StoredEntry[]): RunStatus | undefined {
   return undefined
 }
 
-/** 有 confirmation_request 而没有对应 confirmation_answer 的调用。 */
-function hasPendingConfirmation(entries: readonly StoredEntry[]): boolean {
-  const asked = new Set<string>()
-  for (const entry of entries) {
-    const toolCallId = (entry.payload as { toolCallId?: string }).toolCallId
-    if (toolCallId === undefined) continue
-    if (entry.kind === 'confirmation_request') asked.add(toolCallId)
-    else if (entry.kind === 'confirmation_answer') asked.delete(toolCallId)
-  }
-  return asked.size > 0
+/** 启动恢复读取的跨 Session 查询（SQLite 存储提供，见 @coko/session/sqlite 的 recovery）。 */
+export interface RecoverySource {
+  listUnfinishedRuns(): Promise<{ sessionId: string; runId: string }[]>
+  listLatestEntries(kind: string): Promise<StoredEntry[]>
+}
+
+/** 一次启动扫描的结果（计数用于日志与测试观察）。 */
+export interface RecoveryReport {
+  interruptedRuns: number
+  pendingConfirmations: number
+  failedSessions: number
 }
 
 /**
@@ -147,6 +155,8 @@ export class SessionService {
   readonly #publishers = new Map<string, (entry: RunEntry) => Promise<StoredEntry>>()
   /** 已知的上一 Run 结束状态（读过条目或本进程内结束的 Run）；用于 Session 不在运行时的 activity。 */
   readonly #lastStatus = new Map<string, RunStatus>()
+  /** 有未回答结果确认的 Session（启动扫描建立，回答后移除）。 */
+  readonly #awaitingConfirmation = new Set<string>()
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
@@ -168,8 +178,87 @@ export class SessionService {
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
     if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
+    if (this.#awaitingConfirmation.has(session.id)) return { ...session, running, activity: 'awaiting-confirmation' }
     const last = this.#lastStatus.get(session.id)
     return { ...session, running, activity: last === 'paused' || last === 'interrupted' ? last : 'idle' }
+  }
+
+  /**
+   * 启动扫描（打开存储之后、开始监听之前；grilling E3）：每个有 run_start 而无 run_end 的 Run 按 planRecovery 补齐条目
+   * （过期的审批、补齐的工具结果、confirmation_request、run_end interrupted），同一 Run 的条目一次事务提交。之后从各 Session
+   * 最后一条 run_end 建立 activity，使未打开的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
+   * 单个 Session 失败只记错误，不阻止启动；该 Run 留待下次启动再判定。
+   */
+  async recover(source: RecoverySource): Promise<RecoveryReport> {
+    const report: RecoveryReport = { interruptedRuns: 0, pendingConfirmations: 0, failedSessions: 0 }
+    const bySession = new Map<string, string[]>()
+    for (const run of await source.listUnfinishedRuns()) bySession.set(run.sessionId, [...(bySession.get(run.sessionId) ?? []), run.runId])
+    for (const [sessionId, runIds] of bySession) {
+      try {
+        const session = await this.#get(sessionId)
+        const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
+        if (!workspace) throw new Error(`workspace ${session.workspaceId} not found`)
+        const tools = this.#options.tools?.(workspace.path) ?? createBuiltinToolRegistry({ cwd: workspace.path, exec: createLocalExecPort() })
+        for (const runId of runIds) {
+          const entries = await this.#options.store.sessions.listEntries(sessionId)
+          const planned = await planRecovery(entries, { runId, tool: (name) => tools.get(name), cwd: workspace.path })
+          await this.#commitBatch(sessionId, planned)
+          const confirmations = planned.filter((e) => e.kind === 'confirmation_request').length
+          report.interruptedRuns++
+          report.pendingConfirmations += confirmations
+          log.warn('interrupted run recovered', { sessionId, runId, entries: planned.length, confirmations })
+        }
+      } catch (error) {
+        report.failedSessions++
+        log.error('run recovery failed', { sessionId, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    for (const end of await source.listLatestEntries('run_end')) {
+      const status = (end.payload as { status: RunStatus }).status
+      this.#lastStatus.set(end.sessionId, status)
+      // 待确认只出现在被中断的 Run 之后（之前的确认未回答时不能开始新 Run）。
+      if (status === 'interrupted' && unansweredConfirmations(await this.#options.store.sessions.listEntries(end.sessionId)).length > 0)
+        this.#awaitingConfirmation.add(end.sessionId)
+    }
+    return report
+  }
+
+  /**
+   * 回答恢复时结果不明的调用：confirmation_answer 与补齐的 toolResult 一次事务提交（之后"继续"的模型上下文含该结果）。
+   * 该调用没有待回答的确认时 not-found。
+   */
+  async answerConfirmation(sessionId: string, toolCallId: string, answer: ConfirmationAnswer): Promise<void> {
+    await this.#get(sessionId)
+    await this.#locked(sessionId, async () => {
+      const entries = await this.#options.store.sessions.listEntries(sessionId)
+      const pending = unansweredConfirmations(entries)
+      const target = pending.find((p) => p.toolCallId === toolCallId)
+      if (!target) throw new AppError('not-found', `No outcome confirmation is waiting for tool call ${toolCallId}`)
+      const runId = target.runId ?? undefined
+      const toolName = toolNameOf(entries, toolCallId) ?? 'unknown'
+      await this.#commitBatch(sessionId, [
+        { kind: 'confirmation_answer', ...(runId ? { runId } : {}), payload: { toolCallId, answer } },
+        { kind: 'message', ...(runId ? { runId } : {}), payload: confirmationResult({ toolCallId, toolName, answer }) },
+      ])
+      if (pending.length === 1) this.#awaitingConfirmation.delete(sessionId)
+      // 已建立的运行时的对话记录不含补齐的结果：丢弃它，下次开始 Run 时从条目重建。
+      const runtime = this.#runtimes.get(sessionId)
+      if (runtime && !runtime.isRunning) {
+        this.#runtimes.delete(sessionId)
+        this.#pending.delete(sessionId)
+        this.#publishers.delete(sessionId)
+      }
+      log.info('outcome confirmed', { sessionId, toolCallId, answer })
+    })
+  }
+
+  /** 一次事务提交一批条目，之后逐条发布（没有运行时扩展的场景：启动扫描与结果确认）。 */
+  async #commitBatch(sessionId: string, entries: readonly RunEntry[]): Promise<void> {
+    const committed = await this.#options.store.sessions.appendEntries(sessionId, entries.map(toNewEntry))
+    for (const entry of committed) {
+      if (entry.kind === 'run_end') this.#lastStatus.set(sessionId, (entry.payload as { status: RunStatus }).status)
+      this.#options.hub.publishEntry(entry)
+    }
   }
 
   async list(workspaceId?: string): Promise<Session[]> {
@@ -359,9 +448,7 @@ export class SessionService {
    * 接着暂停或中断的上一 Run 开始新 Run（trigger continue）。上一 Run 不是 paused / interrupted 时 nothing-to-continue；
    * 有未回答的结果确认时 confirmation-pending（未配对的调用会破坏模型请求）。
    */
-  async continue(sessionId: string): Promise<{ runId: string }> {
-    const entries = await this.#options.store.sessions.listEntries(sessionId)
-    if (hasPendingConfirmation(entries)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
+  continue(sessionId: string): Promise<{ runId: string }> {
     return this.#start(sessionId, (runtime) => runtime.continue())
   }
 
@@ -395,6 +482,8 @@ export class SessionService {
 
   async #start(sessionId: string, start: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }> {
     let session = await this.#get(sessionId)
+    // 未回答的结果确认之后不能开始任何 Run（submit、retry、continue）：未配对的调用会破坏模型请求（grilling E4）。
+    if (this.#awaitingConfirmation.has(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
     if (!session.model) {
       const model = await this.defaultModel()
       if (!model) throw new AppError('model-not-configured', 'No model is configured; add a Provider in settings')

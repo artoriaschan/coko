@@ -1,5 +1,5 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolRegistry } from '@coko/agent'
+import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolHooks, type ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
@@ -160,6 +160,36 @@ function checkpointExtensions(dataDir: string, store: SqliteStore): (context: Se
   }
 }
 
+/**
+ * 仅测试（COKO_TEST_TOOLS=1 且 COKO_TEST_HOLD_AFTER_TOOL=<工具名>）：该工具执行完、afterToolCall 的其他 hook（checkpoint 的
+ * file_change）之后挂起，toolResult 不提交，直到 Run 被中止。集成测试借此在"已执行、未记录结果"处强杀 Sidecar。
+ */
+function holdAfterTool(toolName: string): ToolHooks {
+  return {
+    async afterToolCall({ toolCall }, signal) {
+      if (toolCall.name !== toolName) return undefined
+      getLogger(['runtime']).warn('test hold after tool', { toolCallId: toolCall.id, toolName })
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve()
+        signal?.addEventListener('abort', () => resolve(), { once: true })
+      })
+      return undefined
+    },
+  }
+}
+
+function withTestHold(
+  extensions: (context: SessionExtensionContext) => SessionExtension,
+  toolName: string | undefined,
+): (context: SessionExtensionContext) => SessionExtension {
+  if (!toolName) return extensions
+  const hold = holdAfterTool(toolName)
+  return (context) => {
+    const extension = extensions(context)
+    return { ...extension, hooks: [...(extension.hooks ?? []), hold] }
+  }
+}
+
 const AppLive = Layer.effect(
   App,
   Effect.gen(function* () {
@@ -190,9 +220,15 @@ const AppLive = Layer.effect(
       runs,
       tools: workspaceTools,
       secrets: createEnvSecretProvider(env),
-      extensions: checkpointExtensions(config.dataDir, store),
+      extensions: withTestHold(checkpointExtensions(config.dataDir, store), config.testTools ? env.COKO_TEST_HOLD_AFTER_TOOL : undefined),
       ...(fallbackModel ? { fallbackModel } : {}),
     })
+    // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
+    const recovery = yield* Effect.tryPromise({
+      try: () => sessions.recover(store.recovery),
+      catch: (error) => new StartupError('recovery-failed', message(error), { cause: error }),
+    })
+    if (recovery.interruptedRuns > 0) log.warn('startup recovery finished', { ...recovery })
 
     control.onMessage((msg) => {
       if (msg.type !== 'credential.store') return

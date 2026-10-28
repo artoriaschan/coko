@@ -65,11 +65,16 @@ export type ToolExecPayload = Static<typeof ToolExecPayload>
 export const ConfirmationRequestPayload = Type.Object({ toolCallId: Id }, strict)
 export type ConfirmationRequestPayload = Static<typeof ConfirmationRequestPayload>
 
-export const ConfirmationAnswerPayload = Type.Object(
-  { toolCallId: Id, answer: Type.Union([Type.Literal('applied'), Type.Literal('not-applied'), Type.Literal('unknown')]) },
-  strict,
-)
+/** 用户对结果不明的调用的回答：已生效 / 未生效 / 不确定（让 Agent 自行核实）。 */
+export const ConfirmationAnswer = Type.Union([Type.Literal('applied'), Type.Literal('not-applied'), Type.Literal('unknown')])
+export type ConfirmationAnswer = Static<typeof ConfirmationAnswer>
+
+export const ConfirmationAnswerPayload = Type.Object({ toolCallId: Id, answer: ConfirmationAnswer }, strict)
 export type ConfirmationAnswerPayload = Static<typeof ConfirmationAnswerPayload>
+
+/** POST …/confirmations/:toolCallId 的请求体。 */
+export const AnswerConfirmationRequest = Type.Object({ answer: ConfirmationAnswer }, strict)
+export type AnswerConfirmationRequest = Static<typeof AnswerConfirmationRequest>
 
 // ---- 运行控制（Steering、暂停、继续） ----
 
@@ -85,6 +90,11 @@ export const runPaths = {
   sessionPause: (id: string) => `/api/sessions/${encodeURIComponent(id)}/pause`,
   /** POST，202 { runId }：接着 paused / interrupted 的上一 Run；否则 409 nothing-to-continue（有待确认结果时 confirmation-pending）。 */
   sessionContinue: (id: string) => `/api/sessions/${encodeURIComponent(id)}/continue`,
+  /**
+   * POST AnswerConfirmationRequest，204：回答恢复时结果不明的调用，提交 confirmation_answer 与补齐的 toolResult。
+   * 该调用没有待回答的确认（不存在或已回答）时 404 not-found。
+   */
+  sessionConfirmation: (id: string, toolCallId: string) => `/api/sessions/${encodeURIComponent(id)}/confirmations/${encodeURIComponent(toolCallId)}`,
 } as const
 
 /** 本领域的 kind → payload schema；entries.ts 据此组成 SessionEntry。 */

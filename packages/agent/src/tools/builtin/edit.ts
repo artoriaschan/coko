@@ -69,6 +69,42 @@ function prepareEditArguments(input: unknown): EditParams {
   return { ...rest, edits } as EditParams
 }
 
+/** edits 能否作用于 text（与 execute 相同的匹配规则：唯一、不重叠、有变化）。 */
+function applies(text: string, edits: Edit[]): boolean {
+  try {
+    applyEditsToNormalizedContent(text, edits, '')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 恢复：文件只能按"旧 → 新"套用时尚未生效；只能按"新 → 旧"反向套用时已生效；两个方向都成立（新文本包含旧文本等）、
+ * 都不成立或文件不可读时无法判定。含删除（新文本为空）的调用不做反向套用：只有正向成立（旧文本仍在）能下结论。
+ */
+async function probeEdit({ path, edits }: EditParams, cwd: string): Promise<'applied' | 'not-applied' | 'unknown'> {
+  if (!Array.isArray(edits) || edits.length === 0) return 'unknown'
+  let raw: string
+  try {
+    raw = (await readFile(resolveToCwd(path, cwd))).toString('utf-8')
+  } catch {
+    return 'unknown'
+  }
+  const text = normalizeToLF(splitBom(raw).text)
+  const forward = applies(text, edits)
+  const reversible = edits.every((e) => e.newText !== '')
+  const backward =
+    reversible &&
+    applies(
+      text,
+      edits.map((e) => ({ oldText: e.newText, newText: e.oldText })),
+    )
+  if (forward && !backward) return 'not-applied'
+  if (backward && !forward) return 'applied'
+  return 'unknown'
+}
+
 export function createEditTool({ cwd }: { cwd: string }): CokoTool<typeof editParameters, EditToolDetails | undefined> {
   return {
     name: 'edit',
@@ -79,6 +115,7 @@ export function createEditTool({ cwd }: { cwd: string }): CokoTool<typeof editPa
     effect: 'side-effect',
     permissionSubject: (args) => args.path,
     prepareArguments: prepareEditArguments,
+    probeOutcome: probeEdit,
     async execute(_toolCallId, { path, edits }, signal) {
       if (!Array.isArray(edits) || edits.length === 0) throw new Error('Edit tool input is invalid. edits must contain at least one replacement.')
       const absolutePath = resolveToCwd(path, cwd)
