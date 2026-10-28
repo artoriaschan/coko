@@ -51,7 +51,9 @@ describe('本地服务访问认证', () => {
     expect((await request(sidecar.port, 'GET', API_ROUTES.health)).status).toBe(401)
     expect((await request(sidecar.port, 'GET', API_ROUTES.workspaces)).status).toBe(401)
     expect((await request(sidecar.port, 'GET', API_ROUTES.health, { headers: { authorization: `Bearer ${token}` } })).status).toBe(401)
-    const tampered = cookie.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))
+    // 改签名段的首字符：它的 6 位全是数据位。末字符含 base64url 填充位，改动可能解码出相同字节。
+    const tampered = cookie.replace(/\.([A-Za-z0-9_-])([A-Za-z0-9_-]*)$/, (_, first: string, rest: string) => `.${first === 'A' ? 'Q' : 'A'}${rest}`)
+    expect(tampered).not.toBe(cookie)
     expect((await request(sidecar.port, 'GET', API_ROUTES.health, { headers: { cookie: tampered } })).status).toBe(401)
     expect((await request(sidecar.port, 'GET', API_ROUTES.health, { headers: { cookie } })).status).toBe(200)
   })
