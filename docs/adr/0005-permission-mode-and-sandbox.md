@@ -2,7 +2,7 @@
 kind: decision
 description: "每个 Session 只有一个权限模式，同时决定免审批范围与命令的 Seatbelt 沙箱档位；审批与沙箱叠加，越出沙箱只能单次提权。修改权限模式、规则判定、沙箱或审批卡时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -41,10 +41,10 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 ## 后果与验证
 
 - 已批准的命令仍可能因沙箱失败，模型要读懂拒绝标记再请求提权；拒绝标记与提权提示的文本属于模型可见契约。
-- workspace-write 下写用户目录缓存（例如 `~/.npm`）的命令会被拒绝，需要提权或切换模式。
+- workspace-write 下写用户目录缓存（例如 `~/.npm`、`~/.cache`）的命令会被拒绝，需要提权或切换模式。可写根沿用 deepseek-harness 的默认集合（Workspace、`/tmp`、系统临时目录），不放开主目录。
 - Plan 模式（M4）作为新的模式取值加入，沿用同一判定顺序。
-- 实施进度（2026-10-29）：四种模式的判定与选择界面、判定顺序、受保护路径、越出可写根的写入询问、规则语法与 Session / Workspace / 全局作用域及其持久化、模式或规则变更后的重新判定（superseded）、审批请求与决定条目、回答路由与审批卡已实现，当前契约见 [权限判定与审批](../subsystems/permissions.md)。剩余：Seatbelt 沙箱、单次提权与 sandbox-exec 不可用时拒绝执行（模式目前只决定审批范围，命令尚未按档位受限）。
-- implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar 的集成测试，覆盖 Seatbelt 拒绝与单次提权、sandbox-exec 不可用时拒绝执行；产物 smoke 中受限档位的命令无法写 Workspace 之外。四种模式的判定、规则作用域及重启后保留、重新判定的集成测试与模式选择的 Electron E2E 已具备（见 [权限判定与审批](../subsystems/permissions.md#验证)）。
+- 实施（2026-10-29）：本决定已全部落地。四种模式的判定与选择界面、判定顺序、受保护路径、越出可写根的写入询问、规则作用域及其持久化、重新判定、审批条目与审批卡；命令经 macOS `sandbox-exec` 在模式对应的档位内运行（`apps/server/src/adapters/seatbelt.ts`，档位与可写根推导在 `packages/agent/src/policy/sandbox.ts`），被拒后以 kind=escalation 的审批单次提权，sandbox-exec 不可用时受限档位不运行。当前机制见 [权限判定与审批](../subsystems/permissions.md#命令沙箱与提权)。
+- 验证证据：`tests/integration/sidecar-sandbox.test.ts` 以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，覆盖 Seatbelt 拒绝（default 越界写入、read-only 写 Workspace）、单次提权与拒绝提权、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、越出可写根的文件写入只能允许一次；`apps/desktop/e2e/package-smoke.e2e.test.ts` 中打包产物里受限命令无法写 Workspace 之外；完整清单见 [权限判定与审批](../subsystems/permissions.md#验证)。Seatbelt 用例只在 darwin 运行。
 
 ## 来源与后继
 
