@@ -30,3 +30,6 @@
   - 越出 Write scope 的最小改动（请裁决）：`packages/protocol/src/errors.ts`（新增 ErrorCode session-busy；规格要求的 409 码不存在）；`apps/server/src/application/errors.ts` 在 scope 内；`apps/server/src/adapters/checkpoints.ts`（openCheckpointStore 同时给出读快照正文的端口）与 `apps/server/src/runtime/layers.ts`（把它注入 SessionService.checkpoints；新增仅测试 COKO_TEST_HOLD_BEFORE_CHECKPOINT）；`apps/desktop/src/renderer/client/api.ts`（listCheckpoints / rewind / fork）；`apps/desktop/src/renderer/app/chat-failure.ts`（rewind / fork 失败文案与 session-busy）；`apps/desktop/src/renderer/testing/fixture-chat.ts`（ApiClient satisfies 需要新方法）；文档 `packages/agent/README.md`（删去"尚未实现：回退与分叉"）、`docs/subsystems/recovery.md`（第 72 行的限制已解决，改写并加 409 一句）。
   - 未验证：真实模型（无凭据）；Windows / Linux；暗色主题与窄窗口下的对话框只做了亮色 1280 宽截图目视检查。
   - 文档影响：ADR 0006 implementation → implemented（证据列出测试位置），docs/adr/README.md 行同步；apps/server/README.md 增加路由、条目、测试开关与测试文件；以上两处越界文档同上。GLOSSARY 的 Rewind / Fork 定义无需改动。
+- 2026-10-29 lead：评审后合入 main（558a4c7）。接受越界：protocol errors.ts 的 session-busy、server checkpoints.ts 与 layers.ts 的快照读取端口与测试开关、renderer client/api.ts、chat-failure.ts、fixture，以及 agent README 与 recovery.md 两处过时陈述。分叉标题固定英文后缀 " (fork)" 交 M2 评审判断是否需要本地化。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 100 文件 775 通过、1 跳过（真实模型），无页面重载；check:docs 83 文件 0 问题。worktree 已清理。
+
+Closed: true
