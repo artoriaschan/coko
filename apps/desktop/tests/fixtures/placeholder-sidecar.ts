@@ -4,11 +4,13 @@
 //
 // 环境变量（仅测试使用）：
 //   COKO_FIXTURE_MODE   normal | fatal | exit | hang | invalid | ignore-shutdown | ignore-sigterm | slow-inspect
+//                       | fatal-after-first（事件文件中已有 spawned 记录时 fatal，用于模拟重启后一直失败）
+//   COKO_FIXTURE_STDERR 启动时写到 stderr 的文本（验证诊断尾部的脱敏）
 //   COKO_FIXTURE_GATE   文件路径；存在后才继续启动（测试用它确定交叠位置）
 //   COKO_FIXTURE_EVENTS 文件路径；逐行追加 JSON 事件（listening、request、upgrade、shutdown）
 //   COKO_FIXTURE_ACTIVE_RUNS  inspect-quit 回答的活动 Run 数，默认 0
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { appendFileSync, existsSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { Value } from 'typebox/value'
 import { WebSocketServer } from 'ws'
@@ -39,11 +41,13 @@ async function waitForGate(): Promise<void> {
 }
 
 process.stderr.write(`placeholder sidecar mode=${mode}\n`)
+if (process.env.COKO_FIXTURE_STDERR) process.stderr.write(process.env.COKO_FIXTURE_STDERR + '\n')
+const spawnedBefore = eventsPath !== undefined && existsSync(eventsPath) && readFileSync(eventsPath, 'utf8').includes('"event":"spawned"')
 record({ event: 'spawned', mode, argv: process.argv.slice(2) })
 send({ type: 'starting' })
 await waitForGate()
 
-if (mode === 'fatal') {
+if (mode === 'fatal' || (mode === 'fatal-after-first' && spawnedBefore)) {
   send({ type: 'fatal', code: 'fixture-fatal', message: '占位 Sidecar 按要求启动失败' }, () => process.exit(1))
 } else if (mode === 'exit') {
   process.stderr.write('fixture exiting before ready\n')

@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type BootResult, type CokoBridge, type SetCredentialResult } from '../shared/bridge.ts'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { IPC, type BootResult, type CokoBridge, type SetCredentialResult, type SidecarStateEvent } from '../shared/bridge.ts'
 
 // 只在 coko-app://app 文档中暴露；不暴露令牌、cookie 或任意 IPC。setCredential 只把密钥交给 main，不返回密钥。
 if (location.protocol === 'coko-app:' && location.host === 'app') {
@@ -8,6 +8,13 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
     setCredential: (providerId, secret) => ipcRenderer.invoke(IPC.setCredential, providerId, secret) as Promise<SetCredentialResult>,
     log: (record) => ipcRenderer.send(IPC.log, record),
+    openLogs: () => ipcRenderer.invoke(IPC.openLogs) as Promise<boolean>,
+    onSidecarState: (listener) => {
+      // 不把 IpcRendererEvent 交给 renderer。
+      const handler = (_event: IpcRendererEvent, state: SidecarStateEvent) => listener(state)
+      ipcRenderer.on(IPC.sidecarState, handler)
+      return () => void ipcRenderer.removeListener(IPC.sidecarState, handler)
+    },
   }
   contextBridge.exposeInMainWorld('coko', bridge)
 }

@@ -19,13 +19,15 @@ export interface ConversationPaneProps {
   onToggleRight: () => void
   connection: ConnectionState
   onAddWorkspace: () => void
+  /** 打开日志文件夹（诊断入口）；桥接不可用时为 undefined。 */
+  onOpenLogs?: (() => void) | undefined
 }
 
 // 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
 const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
 
-export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace }: ConversationPaneProps) {
+export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace, onOpenLogs }: ConversationPaneProps) {
   const { t } = useI18n()
   const activeSessionId = useChat((s) => s.activeSessionId)
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
@@ -143,7 +145,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             }
           />
         </div>
-        {connection.phase === 'failed' && <ConnectionFailure code={connection.code} message={connection.message} />}
+        {connection.phase === 'failed' && (
+          <ConnectionFailure code={connection.code} message={connection.message} crashed={connection.crashed === true} onOpenLogs={onOpenLogs} />
+        )}
       </div>
     </>
   )

@@ -1,14 +1,15 @@
 import { join, resolve } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
-import { getLogger } from '@coko/logging'
-import { IPC, type BootFailure, type BootResult } from '../shared/bridge.ts'
-import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource, type SidecarEndpoint } from './app-protocol.ts'
+import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import { createTranslator, resolveLocale } from '@coko/i18n'
+import { getLogger, redactText } from '@coko/logging'
+import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '../shared/bridge.ts'
+import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } from './app-protocol.ts'
 import { createCredentialBridge } from './credentials.ts'
-import { messagesFor } from './messages.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
-import { SidecarProcess, SidecarStartError } from './sidecar-process.ts'
+import { SidecarProcess } from './sidecar-process.ts'
+import { SidecarSupervisor } from './sidecar-supervisor.ts'
 import { decideWebSocketHeaders } from './websocket-headers.ts'
 import { createMainWindow, hardenWebContents } from './window.ts'
 
@@ -56,67 +57,110 @@ function run(): void {
   const renderer: RendererSource = devServerUrl ? { kind: 'dev-server', url: devServerUrl } : { kind: 'directory', root: join(appRoot, 'dist', 'renderer') }
 
   let mainWindow: BrowserWindow | undefined
-  let endpoint: SidecarEndpoint | undefined
   let quitApproved = false
   let readyToExit = false
 
-  const messages = () => messagesFor(app.getLocale())
+  // 原生对话框文案来自 @coko/i18n 的 main.* 字典；getLocale 只在 app ready 之后调用。
+  const t = () => createTranslator(resolveLocale(app.getLocale()))
+  const wsBaseUrl = (port: number) => `ws://127.0.0.1:${port}`
 
   const showMessageBox = (options: MessageBoxOptions) => {
     const owner = mainWindow !== undefined && !mainWindow.isDestroyed() ? mainWindow : undefined
     return owner === undefined ? dialog.showMessageBox(options) : dialog.showMessageBox(owner, options)
   }
 
-  const showSidecarError = async (message: string, failure: BootFailure): Promise<void> => {
-    const text = messages()
+  /** 诊断入口：在系统文件管理器中打开日志文件夹（desktop.jsonl 与 sidecar.jsonl 所在目录）。 */
+  const openLogsFolder = async (): Promise<boolean> => {
+    const error = await shell.openPath(app.getPath('logs'))
+    if (error !== '') log.warn('open logs folder failed', { error })
+    return error === ''
+  }
+
+  const showSidecarError = async (kind: 'startup' | 'crashed', failure: BootFailure): Promise<void> => {
+    const text = t()
     const { response } = await showMessageBox({
       type: 'error',
-      title: text.startupFailedTitle,
-      message,
-      detail: `${failure.message} (${failure.code})`,
-      buttons: [text.quit, text.close],
+      title: text('main.dialogTitle'),
+      message: text(kind === 'startup' ? 'main.startupFailedMessage' : 'main.crashedMessage'),
+      // 先给一句可理解的说明，技术信息在后。
+      detail: `${text(kind === 'startup' ? 'main.startupFailedDetail' : 'main.crashedDetail')}\n\n${text('main.technicalDetail', { detail: `${failure.message} (${failure.code})` })}`,
+      buttons: [text('main.quit'), text('main.openLogs'), text('main.close')],
       defaultId: 0,
-      cancelId: 1,
+      cancelId: 2,
       noLink: true,
     })
     if (response === 0) app.quit()
+    else if (response === 1) await openLogsFolder()
   }
 
-  const sidecar = new SidecarProcess({
-    execPath: process.execPath,
-    entry: sidecarEntry,
-    args: ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath],
-    env: process.env,
-    onStdout: (chunk) => process.stdout.write(chunk),
+  /** sidecar 的 stderr 尾部脱敏后写入 desktop.jsonl（打包后用户看不到 console）。 */
+  const logDiagnostic = (diagnostic: string) => {
+    if (diagnostic === '') return
+    const stderrTail = redactText(diagnostic)
+    log.error('sidecar diagnostic', { stderrTail })
+    if (development) console.error('[coko] sidecar diagnostic:\n' + stderrTail)
+  }
+
+  const supervisor = new SidecarSupervisor({
+    create: () =>
+      new SidecarProcess({
+        execPath: process.execPath,
+        entry: sidecarEntry,
+        args: ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath],
+        env: process.env,
+        onStdout: (chunk) => process.stdout.write(chunk),
+      }),
+    exchange: exchangeLaunchToken,
   })
-  sidecar.onUnexpectedExit((info) => {
-    endpoint = undefined
+  supervisor.onUnexpectedExit((info) => {
     log.error('sidecar exited unexpectedly', { code: info.code, signal: info.signal })
-    if (quitApproved) return
-    void showSidecarError(messages().crashedMessage, { code: 'sidecar-exited', message: `code ${String(info.code)}, signal ${String(info.signal)}` })
+    logDiagnostic(info.diagnostic)
   })
 
   const startup: Promise<BootResult> = (async (): Promise<BootResult> => {
     try {
       await logging
       log.info('app starting', { packaged: !development, electron: process.versions.electron, platform: process.platform, ripgrep: ripgrepPath })
-      const ready = await sidecar.start()
-      // 只记录端口；启动令牌只交给令牌交换。
-      log.info('sidecar ready', { port: ready.port, pid: sidecar.pid ?? null })
-      const origin = `http://127.0.0.1:${ready.port}`
-      endpoint = { origin, cookie: await exchangeLaunchToken(origin, ready.token) }
-      // getLocale 需在 ready 之后调用。
+      const state = await supervisor.start()
       await app.whenReady()
-      return { ok: true, info: { wsBaseUrl: `ws://127.0.0.1:${ready.port}`, platform: process.platform, locale: app.getLocale() } }
+      if (state.phase !== 'ready') {
+        const failure: BootFailure = state.phase === 'failed' ? state.error : { code: 'sidecar-stopped', message: 'Sidecar was stopped during start' }
+        log.error('sidecar failed to start', { code: failure.code, message: failure.message })
+        if (state.phase === 'failed') logDiagnostic(state.diagnostic)
+        return { ok: false, error: failure }
+      }
+      // 只记录端口；启动令牌只交给令牌交换。
+      log.info('sidecar ready', { port: state.port, pid: supervisor.pid ?? null })
+      return { ok: true, info: { wsBaseUrl: wsBaseUrl(state.port), platform: process.platform, locale: app.getLocale() } }
     } catch (error) {
-      const failure: BootFailure =
-        error instanceof SidecarStartError ? { code: error.code, message: error.message } : { code: 'sidecar-auth', message: (error as Error).message }
-      if (error instanceof SidecarStartError && error.diagnostic !== '') console.error('[coko] sidecar diagnostic:\n' + error.diagnostic)
+      const failure: BootFailure = { code: 'sidecar-auth', message: (error as Error).message }
       log.error('sidecar failed to start', { code: failure.code, message: failure.message })
-      await sidecar.stop().catch(() => undefined)
+      await supervisor.stop()
       return { ok: false, error: failure }
     }
   })()
+
+  /** boot 之后的状态变化通知 renderer；连续重启失败时弹出错误对话框。 */
+  const notify = (event: SidecarStateEvent) => {
+    if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.sidecarState, event)
+  }
+  void startup.then(() =>
+    supervisor.onState((state) => {
+      if (quitApproved) return
+      if (state.phase === 'restarting') {
+        log.warn('sidecar restarting', { attempt: state.attempt })
+        notify({ phase: 'restarting', attempt: state.attempt })
+      } else if (state.phase === 'ready') {
+        log.info('sidecar restarted', { port: state.port, pid: supervisor.pid ?? null })
+        notify({ phase: 'ready', wsBaseUrl: wsBaseUrl(state.port) })
+      } else if (state.phase === 'failed') {
+        log.error('sidecar restart failed', { code: state.error.code, message: state.error.message })
+        logDiagnostic(state.diagnostic)
+        notify({ phase: 'failed', error: state.error })
+        void showSidecarError('crashed', state.error)
+      }
+    }),
+  )
 
   // 只接受主窗口主框架、coko-app://app 文档发出的 IPC。
   const assertMainFrame = (event: Pick<IpcMainInvokeEvent, 'sender' | 'senderFrame'>): BrowserWindow => {
@@ -130,9 +174,20 @@ function run(): void {
     return window
   }
 
-  ipcMain.handle(IPC.boot, async (event) => {
+  // 重启之后 renderer 重新加载时，boot 给出当前的端口或终态失败。
+  ipcMain.handle(IPC.boot, async (event): Promise<BootResult> => {
     assertMainFrame(event)
-    return startup
+    const result = await startup
+    if (!result.ok) return result
+    const state = supervisor.state
+    if (state.phase === 'ready') return { ok: true, info: { ...result.info, wsBaseUrl: wsBaseUrl(state.port) } }
+    if (state.phase === 'failed') return { ok: false, error: state.error }
+    return result
+  })
+
+  ipcMain.handle(IPC.openLogs, async (event) => {
+    assertMainFrame(event)
+    return openLogsFolder()
   })
 
   // renderer 日志：fire-and-forget；只收主窗口主框架的消息，校验后由 main 标记来源写入 desktop.jsonl。
@@ -165,7 +220,7 @@ function run(): void {
       encrypt: (plaintext) => safeStorage.encryptString(plaintext),
       decrypt: (ciphertext) => safeStorage.decryptString(Buffer.from(ciphertext)),
     },
-    channel: { isReady: () => sidecar.isReady, send: (message) => sidecar.send(message), onMessage: (listener) => sidecar.onControlMessage(listener) },
+    channel: { isReady: () => supervisor.isReady, send: (message) => supervisor.send(message), onMessage: (listener) => supervisor.onControlMessage(listener) },
   })
   ipcMain.handle(IPC.setCredential, async (event, providerId: unknown, secret: unknown) => {
     assertMainFrame(event)
@@ -173,14 +228,19 @@ function run(): void {
   })
 
   const quitCoordinator = new QuitCoordinator(() => ({
-    inspect: sidecar.isReady ? () => sidecar.inspectQuit() : undefined,
+    inspect: supervisor.isReady ? () => supervisor.inspectQuit() : undefined,
     confirm: async ({ activeRuns }) => {
-      const text = messages()
+      const text = t()
       const { response } = await showMessageBox({
         type: 'warning',
-        message: text.confirmQuitMessage,
-        detail: text.confirmQuitDetail(activeRuns),
-        buttons: [text.quit, text.cancel],
+        message: text('main.confirmQuitMessage'),
+        detail:
+          activeRuns === 'unknown'
+            ? text('main.confirmQuitUnknown')
+            : activeRuns === 1
+              ? text('main.confirmQuitOne')
+              : text('main.confirmQuitMany', { count: activeRuns }),
+        buttons: [text('main.quit'), text('main.cancel')],
         defaultId: 0,
         cancelId: 1,
         noLink: true,
@@ -192,12 +252,8 @@ function run(): void {
   const finishQuit = async (): Promise<void> => {
     quitApproved = true
     for (const window of BrowserWindow.getAllWindows()) window.hide()
-    endpoint = undefined
-    const stopped = await sidecar.stop().catch((error: unknown) => {
-      console.error('[coko] sidecar stop failed', error)
-      return undefined
-    })
-    log.info('app quitting', { sidecar: stopped?.outcome ?? 'failed' })
+    await supervisor.stop().catch((error: unknown) => console.error('[coko] sidecar stop failed', error))
+    log.info('app quitting', { sidecar: supervisor.state.phase })
     await logging.then((handle) => handle.dispose()).catch(() => undefined)
     readyToExit = true
     app.quit()
@@ -226,7 +282,7 @@ function run(): void {
   })
 
   void app.whenReady().then(() => {
-    const handler = createAppProtocolHandler({ renderer, endpoint: () => endpoint })
+    const handler = createAppProtocolHandler({ renderer, endpoint: () => supervisor.endpoint })
     protocol.handle(APP_SCHEME, handler)
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*'] }, (details, callback) => {
@@ -236,7 +292,7 @@ function run(): void {
           webContentsId: details.webContentsId,
           url: details.url,
           requestHeaders: details.requestHeaders,
-          endpoint,
+          endpoint: supervisor.endpoint,
         }),
       )
     })
@@ -253,7 +309,7 @@ function run(): void {
     })
 
     void startup.then((result) => {
-      if (!result.ok && !quitApproved) return showSidecarError(messages().startupFailedMessage, result.error)
+      if (!result.ok && !quitApproved) return showSidecarError('startup', result.error)
     })
   })
 }

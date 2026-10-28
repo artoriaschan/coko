@@ -3,14 +3,16 @@ import { Value } from 'typebox/value'
 import type { CokoBridge } from '../../shared/bridge.ts'
 
 /**
- * 连接阶段。failed 的 code 为 sidecar / main 给出的错误码，或 renderer 自身的
- * no-bridge、health、ws-timeout、renderer；detail 是技术详情原文（不翻译）。
+ * 连接阶段。restarting：Sidecar 意外退出，main 正在重启并重新交换 cookie。failed 的 code 为 sidecar / main 给出的
+ * 错误码，或 renderer 自身的 no-bridge、health、ws-timeout、renderer；message 是技术详情原文（不翻译）。
+ * crashed 表示 Sidecar 在运行后退出且重启用尽（终态）。
  */
 export type ConnectionState =
   | { readonly phase: 'connecting' }
   | { readonly phase: 'connected' }
   | { readonly phase: 'disconnected' }
-  | { readonly phase: 'failed'; readonly code: string; readonly message: string }
+  | { readonly phase: 'restarting' }
+  | { readonly phase: 'failed'; readonly code: string; readonly message: string; readonly crashed?: boolean }
 
 export type ConnectionPhase = ConnectionState['phase']
 
@@ -38,9 +40,12 @@ const DEFAULT_BACKOFF = [500, 1000, 2000, 5000] as const
 /**
  * boot → 经 coko-app:// 代理请求 health → 建立 WebSocket。连接意外关闭后按退避重连，重新打开时通知订阅方
  * 以 afterSeq 补齐。boot 完成后把平台写到 document 的 data-platform（标题栏安全区按平台生效）。
+ * main 报告 Sidecar 重启时暂停重连；重启完成后连向新的 WebSocket 基址；终态失败后不再重连。
  */
 export function connect({ bridge, onState, openTimeoutMs = 10_000, backoffMs = DEFAULT_BACKOFF }: ConnectOptions): StreamClient & { dispose(): void } {
   let disposed = false
+  /** Sidecar 重启中或已终态失败：不按退避重连旧地址。 */
+  let paused = false
   let socket: WebSocket | undefined
   let everOpened = false
   let attempt = 0
@@ -84,7 +89,7 @@ export function connect({ bridge, onState, openTimeoutMs = 10_000, backoffMs = D
     })
     ws.addEventListener('close', () => {
       clearTimeout(timer)
-      if (disposed || socket !== ws) return
+      if (disposed || paused || socket !== ws) return
       socket = undefined
       // 从未打开过：首次连接失败，保持 failed（已由超时报告）或报告断开后重试。
       if (!everOpened && !opened) return
@@ -95,11 +100,38 @@ export function connect({ bridge, onState, openTimeoutMs = 10_000, backoffMs = D
     })
   }
 
+  const closeSocket = () => {
+    clearTimeout(retryTimer)
+    const current = socket
+    socket = undefined
+    current?.close()
+  }
+  let booted = false
+  bridge?.onSidecarState((event) => {
+    if (disposed || !booted) return
+    if (event.phase === 'restarting') {
+      paused = true
+      closeSocket()
+      emit({ phase: 'restarting' })
+    } else if (event.phase === 'ready') {
+      paused = false
+      closeSocket()
+      emit({ phase: 'connecting' })
+      // 新 Sidecar 不认识旧连接；重新打开后订阅方以 afterSeq 补齐（reconnected 为 true）。
+      open(event.wsBaseUrl + API_ROUTES.stream)
+    } else {
+      paused = true
+      closeSocket()
+      emit({ phase: 'failed', code: event.error.code, message: event.error.message, crashed: true })
+    }
+  })
+
   void (async () => {
     if (bridge === undefined) return fail('no-bridge', 'Desktop bridge is unavailable')
     const boot = await bridge.boot()
     if (boot.ok) document.documentElement.dataset.platform = boot.info.platform
     if (!boot.ok) return fail(boot.error.code, boot.error.message)
+    booted = true
     emit({ phase: 'connecting' })
     const response = await fetch(API_ROUTES.health)
     const body: unknown = response.ok ? await response.json() : undefined

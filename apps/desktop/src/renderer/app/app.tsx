@@ -25,9 +25,11 @@ export interface AppProps {
   settingsDialog: SettingsDialogStore
   /** 目录选择（preload 提供）；取消时为 null。 */
   pickDirectory: () => Promise<string | null>
+  /** 打开日志文件夹（preload 提供）；桥接不可用时为 undefined。 */
+  openLogs?: (() => void) | undefined
 }
 
-export function App({ store, connection, chat, settings, preferences, settingsDialog, pickDirectory }: AppProps) {
+export function App({ store, connection, chat, settings, preferences, settingsDialog, pickDirectory, openLogs }: AppProps) {
   const { theme, locale } = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
   const connectionState = React.useSyncExternalStore(connection.subscribe, connection.getSnapshot)
 
@@ -75,6 +77,7 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
                 onToggleRight={() => setRightOpen((open) => !open)}
                 connection={connectionState}
                 onAddWorkspace={onAddWorkspace}
+                onOpenLogs={openLogs}
               />
             </Frame>
             <SettingsDialog theme={theme} />
