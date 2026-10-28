@@ -265,6 +265,40 @@ describe('设置弹窗', () => {
   })
 })
 
+describe('侧栏搜索', () => {
+  const visibleTitles = () => [...document.querySelectorAll('[data-session-id]')].map((el) => el.textContent?.trim())
+
+  it('搜索按钮打开输入框，按标题过滤会话（不区分大小写），无结果时说明；Escape 清除并关闭', async () => {
+    await page.viewport(1280, 800)
+    const { screen } = renderApp('en')
+    await screen
+    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
+    await page.getByRole('button', { name: 'Search', exact: true }).click()
+    const input = page.getByRole('searchbox', { name: 'Search sessions' })
+    await expect.element(input).toHaveFocus()
+    await userEvent.keyboard('SIDECAR')
+    await expect.poll(visibleTitles).toEqual(['Sidecar startup handshake'])
+    // 没有命中会话的工作区不显示。
+    expect(document.querySelector('[aria-labelledby="workspace-w-pi"]')).toBeNull()
+    await input.fill('no such session')
+    await expect.poll(visibleTitles).toEqual([])
+    await expect.element(page.getByText('No matching sessions')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(input).not.toBeInTheDocument()
+    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
+  })
+
+  it('rail 中的搜索按钮展开侧栏并聚焦搜索框', async () => {
+    await page.viewport(800, 700)
+    await renderApp('en').screen
+    await page.getByRole('button', { name: 'Search', exact: true }).click()
+    const drawer = page.getByRole('dialog', { name: 'Sidebar' })
+    await expect.element(drawer.getByRole('searchbox', { name: 'Search sessions' })).toHaveFocus()
+    await userEvent.keyboard('ripgrep')
+    await expect.poll(visibleTitles).toEqual(['ripgrep contract tests'])
+  })
+})
+
 describe('Models 分区', () => {
   it('类别标签只在名称不等于预设名时显示：按 kind 与协议预设比较，不比较翻译文本', async () => {
     await page.viewport(1280, 800)

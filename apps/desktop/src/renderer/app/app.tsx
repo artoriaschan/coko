@@ -74,6 +74,7 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
   const [rightOpen, setRightOpen] = React.useState(false)
+  const [search, setSearch] = React.useState<string | null>(null)
 
   const onAddWorkspace = () => void chat.getState().addWorkspace(pickDirectory)
 
@@ -88,8 +89,8 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
               sidebarCollapsed={sidebarCollapsed}
               onSidebarCollapsedChange={setSidebarCollapsed}
               rightOpen={rightOpen}
-              sidebar={<Sidebar onAddWorkspace={onAddWorkspace} />}
-              rail={<SidebarRail onAddWorkspace={onAddWorkspace} />}
+              sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
+              rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
               rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
             >
               <ConversationPane
