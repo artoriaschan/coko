@@ -119,3 +119,22 @@
 - session：`memory/`、`repository-contract.ts`、`internal.ts`、`types.ts`、README 没有读。
 - 全部测试文件（包括 `tests/integration/*.test.ts` 和 E2E）只看了文件名和票内记录，没有逐条核对断言。
 - 文档：`docs/subsystems/permissions.md` 只用 grep 查了几处，`docs/subsystems/recovery.md`、各 README 没有读。
+
+## 处理结果
+
+2026-10-29，票 11（分支 `m2/11-review-fixes`）。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| F1 | main 在打包的发布构建中剥离 `COKO_SANDBOX_EXEC`、`COKO_TEST_*`、`COKO_FAUX_SCRIPT`（`src/main/sidecar-env.ts`）并追加 `--packaged`；Sidecar 在 `--packaged` 且不是测试构建时不读它们，记 warn `test hooks ignored in a packaged build`。构建期标志 `COKO_TEST_BUILD=1`（tsdown define `__COKO_TEST_BUILD__`）打出测试构建，E2E globalSetup 这样打包，产物 smoke 照常使用 faux。`COKO_TEST_HOLD_*` 改由 config 读取，layers.ts 不再直接读环境 | `sidecar-env.test.ts`、`config.test.ts`、`sidecar-boot.test.ts`（`--packaged` 时忽略）、`package-smoke.e2e.test.ts`（断言 `--packaged` 与 `testBuild: true`） |
+| F2 | 写入时归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名，宿主工具按注册名；未知工具 400 `details.reason = unknown-tool`，设置分区行内提示；读入时归一库中的旧写法；`decide` 也按组名、不区分大小写比较 | `decide.test.ts`、`sidecar-permissions.test.ts`、`permissions.e2e.test.ts` |
+| F3 | 选择过滤：执行上下文带 `readDenied`，grep 跳过被覆盖的文件、find 不进入被覆盖的目录、ls 不列出，末尾注明排除了几个路径；按结果路径与按搜索根真实路径换算后的路径判定。不选"询问"：搜索根下有拒绝规则是常态（例如 `Read(.env)`），每次搜索都询问会让规则失去意义 | `read-filter.test.ts`、`execution-checks.test.ts` |
+| F4 | workspace-write 的 profile 在可写根之后对每个根下任意深度的受保护路径段（`PROTECTED_PATH_NAMES`，与判定同一集合，不区分大小写）追加 `(deny file-write* (regex …))`；ADR 0005 与 permissions.md 同步 | `seatbelt.test.ts`（profile 文本、真实 sandbox-exec）、`sidecar-sandbox.test.ts` |
+| F5 | 调度器新增执行前准备（取得执行槽之后、`tool_exec` 之前）：write / edit 按执行时的真实路径复核，不同则重新判定，deny 拒绝、ask 再询问，不通过时不执行也不提交 `tool_exec`。残留：复核之后放行的写入，tracker 的备份仍是判定时的路径 | `execution-checks.test.ts`（同批先建指向受保护文件的链接再 write） |
+| F6 | `restoreFiles` 写入与删除前逐个复核真实路径，不一致列入 `skipped` 且不处理；Workspace 外或受保护的列入 `outside`，照常处理，对话框单独列出并以 alert 警告（未加勾选确认）；写入经 `RewindFiles.writeFile` 以临时文件 + rename 原子替换，保留权限，替换末尾的链接本身 | `rewind.test.ts`、`checkpoints.test.ts`、`sidecar-rewind.test.ts` |
+| F7 | 恢复失败的 Session 记入 `#recoveryFailed`；messages、retry、continue、rewind、fork 先重试恢复，仍失败时 409 `recovery-failed`（新错误码）；activity 为 interrupted；renderer 提示"未能恢复这个会话" | `sessions-recovery.test.ts` |
+| F8 | `createEnvSecretProvider` 对 `COKO_CREDENTIAL_*` 与各 kind 的 `*_API_KEY`（不区分大小写）返回 undefined | `credentials.test.ts` |
+| F9 | 同 Standards 评审 H2 | 同上 |
+| F10 | broker 的重新判定增加 `reask`：仍需询问但原因或建议规则变了时旧请求 superseded，gate 按新判定重新询问（新请求的建议为新值） | `execution-checks.test.ts` |
+| P1 | 新增 Sidecar 级用例：同批 `[read, read, bash mv, read, read]`，屏障之前的 read 看到旧文件、之后的看到新文件，`tool_end` 进度不交叠。并行上限仍只在 agent 层验证 | `sidecar-concurrency.test.ts` |
+| P2 | 横幅总带"继续"：对话末尾为 assistant 文本时（`continueMode = prompt`）提交本地化的"继续"用户消息，开始普通的新 Run；否则调用 continue | `chat-store-recovery.test.ts` |

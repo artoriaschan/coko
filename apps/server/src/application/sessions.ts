@@ -655,20 +655,23 @@ export class SessionService {
   /**
    * 回退与分叉的前置条件，并在其间排斥新 Run：恢复失败 recovery-failed，Run 进行中（含等待审批）session-busy，有未回答的结果确认
    * confirmation-pending（与 #start 同一判断：#awaitsConfirmation）。检查与登记在同一同步段内，之后开始的 Run 在 #start 中被拒绝。
+   * 只读的预览（dry-run）检查同样的前置条件但不登记，并发的预览互不排斥（对话框的预览可能同时发出两次）。
    */
-  async #exclusively<T>(sessionId: string, task: (entries: StoredEntry[]) => Promise<T>): Promise<T> {
+  async #exclusively<T>(sessionId: string, task: (entries: StoredEntry[]) => Promise<T>, options: { readOnly?: boolean } = {}): Promise<T> {
     await this.#get(sessionId)
-    await this.#ensureRecovered(sessionId)
     if (this.#runtimes.get(sessionId)?.isRunning || this.#exclusive.has(sessionId))
       throw new AppError('session-busy', 'A Run is in progress or waiting for approval; rewind and fork are not available')
-    this.#exclusive.add(sessionId)
+    const register = !options.readOnly
+    if (register) this.#exclusive.add(sessionId)
     try {
+      // 恢复失败的重试在登记之后：检查与登记之间没有 await，并发的回退预览不会同时通过。
+      await this.#ensureRecovered(sessionId)
       const entries = await this.#options.store.sessions.listEntries(sessionId)
       if (this.#runtimes.get(sessionId)?.isRunning) throw new AppError('session-busy', 'A Run is in progress or waiting for approval')
       if (this.#awaitsConfirmation(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
       return await task(entries)
     } finally {
-      this.#exclusive.delete(sessionId)
+      if (register) this.#exclusive.delete(sessionId)
     }
   }
 
@@ -690,36 +693,40 @@ export class SessionService {
    * conversation / both 再提交 rewind 条目并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
    */
   async rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
-    return this.#exclusively(sessionId, async (entries) => {
-      const plan = this.#plan(() => planRewind(entries, input.targetSeq, input.mode))
-      const dryRun = input.dryRun ?? false
-      let files = emptyRewindReport()
-      if (plan.files.length > 0) {
-        if (!this.#options.checkpoints) throw new AppError('internal', 'File checkpoints are not available')
-        const session = await this.#get(sessionId)
-        const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
-        if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
-        files = await restoreFiles(plan.files, this.#options.checkpoints, { workspace: await realLocation(workspace.path), dryRun })
-      }
-      if (!dryRun && plan.entry) {
-        await this.#commit(sessionId, plan.entry)
-        this.#discardRuntime(sessionId)
-        this.#rememberStatus(sessionId, await this.#options.store.sessions.listEntries(sessionId))
-      }
-      if (!dryRun)
-        log.info('session rewound', {
-          sessionId,
-          targetSeq: plan.targetSeq,
-          mode: plan.mode,
-          restored: files.restored.length,
-          deleted: files.deleted.length,
-          diverged: files.diverged.length,
-          untracked: files.untracked.length,
-          outside: files.outside.length,
-          skipped: files.skipped.length,
-        })
-      return { targetSeq: plan.targetSeq, mode: plan.mode, dryRun, text: plan.text, ...files }
-    })
+    return this.#exclusively(
+      sessionId,
+      async (entries) => {
+        const plan = this.#plan(() => planRewind(entries, input.targetSeq, input.mode))
+        const dryRun = input.dryRun ?? false
+        let files = emptyRewindReport()
+        if (plan.files.length > 0) {
+          if (!this.#options.checkpoints) throw new AppError('internal', 'File checkpoints are not available')
+          const session = await this.#get(sessionId)
+          const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
+          if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+          files = await restoreFiles(plan.files, this.#options.checkpoints, { workspace: await realLocation(workspace.path), dryRun })
+        }
+        if (!dryRun && plan.entry) {
+          await this.#commit(sessionId, plan.entry)
+          this.#discardRuntime(sessionId)
+          this.#rememberStatus(sessionId, await this.#options.store.sessions.listEntries(sessionId))
+        }
+        if (!dryRun)
+          log.info('session rewound', {
+            sessionId,
+            targetSeq: plan.targetSeq,
+            mode: plan.mode,
+            restored: files.restored.length,
+            deleted: files.deleted.length,
+            diverged: files.diverged.length,
+            untracked: files.untracked.length,
+            outside: files.outside.length,
+            skipped: files.skipped.length,
+          })
+        return { targetSeq: plan.targetSeq, mode: plan.mode, dryRun, text: plan.text, ...files }
+      },
+      { readOnly: input.dryRun === true },
+    )
   }
 
   /**

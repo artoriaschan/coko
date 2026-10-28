@@ -32,6 +32,17 @@ async function setup() {
   return { store, service, session, source, heal: () => (failing = false) }
 }
 
+describe('回退预览的并发', () => {
+  it('同时发出的两次 dry-run 都成功（只读预览不互相排斥）', async () => {
+    const { service, session, source, heal } = await setup()
+    heal()
+    await service.recover(source)
+    const preview = () => service.rewind(session.id, { targetSeq: 2, mode: 'both', dryRun: true })
+    const results = await Promise.allSettled([preview(), preview()])
+    expect(results.map((r) => r.status)).toEqual(['fulfilled', 'fulfilled'])
+  })
+})
+
 describe('启动恢复失败的 Session', () => {
   it('开始 Run、继续、回退与分叉以 recovery-failed 拒绝；Session DTO 标出 interrupted', async () => {
     const { service, session, source } = await setup()

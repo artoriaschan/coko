@@ -198,3 +198,32 @@
 - **只用 grep 抽样（检查 i18n 字面量、sleep、跨测试导入、临时目录）**：packages/ui 的 approval-card、confirmation-card、dialog、sonner、composer-editor，desktop 的 permissions-section、tool-cards、timeline-view、composer、sidebar、settings-store，以及新增的测试文件。
 - **没有读**：所有 `*.test.ts(x)` 与 e2e 的用例主体（只做了上述 grep），tests/integration/* 与 sidecar-harness.ts，tests/fixtures/v1-database.ts，packages/i18n 的字典（由 tsc 的 MessageKey 检查一致性），packages/session 的 sqlite/{open,repositories,schema}.ts、internal.ts、memory/index.ts、repository-contract.ts，apps/server 的 adapters/{faux,ripgrep}.ts、application/{hub,providers,settings,errors}.ts，agent 的 models/registry.ts，以及 vitest 配置。
 - **没有执行**：本评审没有运行任何测试或检查命令，结论均来自源码阅读。
+
+## 处理结果
+
+2026-10-29，票 11（分支 `m2/11-review-fixes`）。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| H1 | 源码与测试注释中的票号、grilling 编号与"后续票只改本目录"之类过程信息删除，必要依据改写为 ADR 0004–0006、permissions.md、recovery.md。未加 lint 守卫（可选项，check:docs 只查 Markdown，留给 Lead 决定） | 全仓 `grilling|票 ?[0-9]|（票|US [0-9]` 检索为空（`.scratch` 除外） |
+| H2 | 分叉标题由 renderer 按当前语言生成（`sidebar.forkTitle`），经 `ForkRequest.title` 传入；省略时 Sidecar 沿用原标题，不再写英文后缀 | `sidecar-rewind.test.ts`（给定 title 与省略）、`chat-store-rewind.test.ts`、`rewind.e2e.test.ts` |
+| H3 | 审批日志改用 `approvalId`；observability.md 登记：`requestId` 只表示 HTTP 请求 | 代码检索 |
+| H4 | `forkEntries` 移到 `agents/fork.ts`；`SnapshotPort`、`RewindFiles` 移到 `ports/checkpoints.ts`；agent-runtime.md 目录图登记 `checkpoints/`、`session-entries/` | typecheck、agent 全部测试 |
+| H5 | rewind 目标与 sessionId 绑定，切换会话视为关闭；RewindDialog 每次打开以 key 重新挂载，去掉重置用的 effect；退回草稿改为订阅 store 的退回槽交给命令式编辑器，注释说明这是必要桥接 | renderer 单元测试、`rewind.e2e.test.ts`、`run-control.e2e.test.ts` |
+| J1 | 写入侧见 Spec 评审 F5，回退侧见 F6 | 同上 |
+| J2 | 采用 (a)：gate 记录本 Run 中被沙箱拒绝的命令（合并空白后），没有被拒绝过的命令带提权参数为参数错误，不询问 | `execution-checks.test.ts`、`escalation.test.ts`（改为先被拒绝再提权）、`sidecar-sandbox.test.ts` |
+| J3 | 只有被暂停取消的审批（gate 返回 `OPERATION_ABORTED_TEXT`）改写为"暂停前未批准"；复核审批同样处理 | `execution-checks.test.ts` |
+| J4 | 不做。当前唯一的 Secret 使用者是测试工具，真实使用者（M3 的 MCP）接入时要重新决定密钥来源与映射；F8 已堵住读取 Provider Credential 的口子 | — |
+| J5 | Secrets 在调度器新增的执行前准备中解析，早于 `tool_exec` | `execution-checks.test.ts` |
+| J6 | `#awaitingConfirmation` 是条目派生的缓存，`#commitBatch` 提交 `confirmation_*` 时重算；`#start`、`#exclusively`、toDto 都经 `#awaitsConfirmation` 读取；注释修正 | `sidecar-recovery.test.ts`、`sidecar-rewind.test.ts`（confirmation-pending） |
+| S1 | 做。`apps/server/src/application/entry-payloads.ts` 编译期断言 kind 集合相等、message 以外各 kind 的 payload 类型相等（临时改动 protocol 的 RunEndPayload 确认 tsc 失败后撤销）；message 用共享样例比较两侧判定，发现并对齐了差异（agent 的 assistant 缺 `errorMessage`、toolResult 缺 `details`） | `entry-payloads.test.ts` |
+| S2 | 不做。把派生函数移入 protocol 会改动 renderer、server、agent 三处共享装配点，属于重构；S1 的等价断言先挡住 schema 漂移 | — |
+| S3 | 不做。拆分 SessionService 是独立的结构重构，适合放在 M3 改动 sessions.ts 之前单独一票 | — |
+| S4 | 不做。类型守卫要随 S3 一起设计，本票只在新代码中避免新增 `as` | — |
+| S5 | 不做。工具分组表移入 protocol 会改变 agent 不依赖 protocol 的方向，需要先决定归属 | — |
+| S6 | 部分：sessions.ts 改用 agent 的 `emptyRewindReport()`；protocol 侧字段复用未做 | — |
+| S7 | 不做。判别联合是 payload v2，需要迁移，超出评审修复范围 | — |
+| S8 | 部分：gate 的 `Operation aborted` 与记录失败文本改为导出常量，cancelled 与 superseded 分支合并；timeout.ts、paths.ts 中的字面量未动 | — |
+| S9 | 部分：`RewindFiles` 增加 `writeFile`、`remove`，回退写入经端口完成（见 F6）；`listCheckpoints` 未做 | — |
+| S10 | 不做。错误码映射多了一行 `recovery-failed`，表驱动改写留给下次整理 | — |
+| S11 | 不做（小项） | — |
