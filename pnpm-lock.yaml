@@ -239,6 +239,9 @@ importers:
       '@coko/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@coko/server':
+        specifier: workspace:*
+        version: link:../server
       '@coko/ui':
         specifier: workspace:*
         version: link:../../packages/ui

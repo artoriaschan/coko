@@ -35,7 +35,10 @@ export const electronConfigs: InlineConfig[] = [
   { ...electronBase, entry: { preload: 'src/preload/index.ts' }, clean: false },
 ]
 
-/** Sidecar：apps/server 的进程入口，ESM，以 ELECTRON_RUN_AS_NODE 运行，不得导入 electron。 */
+/**
+ * Sidecar：apps/server 的进程入口，ESM，以 ELECTRON_RUN_AS_NODE 运行，不得导入 electron。构建归属在 apps/desktop
+ * （@coko/server 是本包的 workspace 依赖），apps/server 自身不输出产物，见 architecture.md 的构建与测试归属。
+ */
 export const sidecarConfig: InlineConfig = {
   config: false,
   cwd: desktopRoot,

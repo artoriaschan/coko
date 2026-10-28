@@ -2,7 +2,7 @@
 kind: decision
 description: "本地 sidecar 服务强制认证：启动令牌一次性交换为 HMAC 签名 cookie，cookie 只由 main 持有，所有请求先过 Host/Origin 信任围栏。修改服务入口、协议代理或凭据处理时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -37,7 +37,7 @@ sidecar 在 loopback 上提供 HTTP 与 WebSocket，能驱动有 shell 和文件
 - sidecar 重启后旧 cookie 失效；main 必须在重新交换完成后再恢复转发，期间请求按处理中状态呈现，不提前报告失败。
 - 启动令牌与 cookie 属于日志脱敏字段。
 - implementation 变为 implemented 前需要集成测试覆盖：无 cookie 返回 401；令牌错误或重复交换被拒绝；非 loopback Host、跨站 Origin 和 `sec-fetch-site: cross-site` 返回 403；WebSocket 升级执行同样的校验；sidecar 重启后旧 cookie 被拒绝。
-- 当前为 partial：sidecar 一侧的令牌交换、cookie 签发与校验、信任围栏已实现，上述场景均由以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar 的集成测试覆盖，见 [apps/server](../../apps/server/README.md)；main 的协议转发与 WebSocket 头注入及其与 sidecar 的联合测试尚未完成。
+- 当前为 implemented：sidecar 一侧的令牌交换、cookie 签发与校验、信任围栏，上述场景均由以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar 的集成测试覆盖，见 [apps/server](../../apps/server/README.md)。交换入口按规范化后的路径只供 main 调用：代理对 `/api/auth` 下任何编码变体返回 404，sidecar 只接受原样路径、不带 cookie 的 POST。main 的协议转发、WebSocket 头注入、非主窗口升级被取消，以及 sidecar 意外退出后的重启与重新交换（重新交换完成前代理返回 503，renderer 显示重启中，完成后重连），由 apps/desktop 的单元测试与 Electron E2E 与真实 sidecar 联合覆盖。
 
 ## 来源与后继
 

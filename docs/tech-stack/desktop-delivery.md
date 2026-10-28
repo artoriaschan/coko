@@ -16,7 +16,7 @@ lifecycle: active
 | --- | --- |
 | Electron main | tsdown，输出 `dist/electron/main.cjs`，由 Electron 执行 |
 | Electron preload | tsdown，输出 `dist/electron/preload.cjs`，由 Electron 加载 |
-| sidecar 与 Agent | tsdown，target 为 Electron 内置 Node.js 24.14.0，输出到 `dist/sidecar/`，包含 ESM 服务入口及所需 chunks，以 `ELECTRON_RUN_AS_NODE=1` 执行 |
+| sidecar 与 Agent | tsdown，target 为 Electron 内置 Node.js 24.14.0，输出到 `dist/sidecar/`，包含 ESM 服务入口及所需 chunks，以 `ELECTRON_RUN_AS_NODE=1` 执行；由 apps/desktop 的构建编排把 apps/server 的入口打出 |
 | 共享模块 | 不单独构建；以源码导出，由 sidecar、main / preload 的 tsdown 构建与 renderer 的 Vite 构建打入各自产物，见 [构建与测试归属](architecture.md#构建与测试归属) |
 | React renderer | Vite + React / Tailwind 插件，输出 HTML、JS、CSS 与静态资源到 `dist/renderer/` |
 | 应用与安装包 | Electron Forge + DMG / ZIP Makers |
@@ -44,7 +44,7 @@ main / preload 与 sidecar 都按 Electron 内置 Node.js 设置 target；sideca
 
 开发接线负责在 main / preload 重建后重启 Electron、在 sidecar 重建后重启服务，并在开发会话退出时清理 watcher 和子进程。该逻辑接入 Forge 的开发生命周期，Electron 启动与安装包流程继续由 Forge 管理。
 
-Agent 与 Hono 服务运行在独立的 sidecar 进程中。Electron main 用 `child_process.spawn` 以 `ELECTRON_RUN_AS_NODE=1` 启动 `process.execPath`，stdio 含 `ipc` 通道；sidecar 经 IPC 报告 starting、ready（携带端口与启动令牌）、fatal 和 shutdown-complete。main 负责就绪检测和分级退出：先发 IPC 关闭请求，宽限期后依次 SIGTERM、SIGKILL，并等待进程实际退出。`node:sqlite` 等宿主模块仅在 sidecar 的运行时适配层中导入。访问认证见 [项目架构约定](architecture.md#本地服务访问认证)。
+Agent 与 Hono 服务运行在独立的 sidecar 进程中。Electron main 用 `child_process.spawn` 以 `ELECTRON_RUN_AS_NODE=1` 启动 `process.execPath`，stdio 含 `ipc` 通道；sidecar 经 IPC 报告 starting、ready（携带端口与启动令牌）、fatal 和 shutdown-complete。main 负责就绪检测和分级退出：先发 IPC 关闭请求，宽限期后依次 SIGTERM、SIGKILL，并等待进程实际退出。默认时限（apps/desktop 的 `DEFAULT_SIDECAR_TIMEOUTS`）：ready 30 秒，关闭请求宽限 10 秒，SIGTERM 后 5 秒，SIGKILL 后 5 秒，inspect-quit 回答 2 秒。sidecar 在 ready 之后意外退出时，main 重启它并重新交换 cookie，期间协议代理返回 503、renderer 显示重启中，完成后 renderer 连向新地址并以 afterSeq 补齐；一次故障最多连续重启 3 次（间隔 250 毫秒、1 秒、3 秒），用尽后进入终态失败，弹出错误对话框，renderer 停止重连。稳定运行 60 秒后再退出算作新的一次故障。首次启动失败不自动重启。错误对话框与 renderer 的失败提示提供"打开日志文件夹"；sidecar 的 stderr 尾部脱敏后写入 desktop.jsonl。`node:sqlite` 等宿主模块仅在 sidecar 的运行时适配层中导入。访问认证见 [项目架构约定](architecture.md#本地服务访问认证)。
 
 这种启动方式要求 Forge Fuses 配置保持 `RunAsNode` 开启；风险与重新评估条件见 [ADR 0001](../adr/0001-sidecar-on-electron-node.md)。
 

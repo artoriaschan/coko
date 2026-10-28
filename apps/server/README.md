@@ -22,26 +22,27 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 | `--app-version` | 可选，版本号形态（如 `1.2.3`、`1.2.3-beta.1`）；写入 sidecar.jsonl 每条记录的 `appVersion` 统一字段。desktop main 传入 `app.getVersion()` |
 | `COKO_FAUX_SCRIPT` | 仅测试：faux provider 脚本的绝对路径，格式见 `src/adapters/faux.ts`；开启后新建 Session 默认使用 `faux/faux-1` |
 | `COKO_LOG_LEVEL` | `trace`…`fatal`，默认 `info` |
-| `COKO_CREDENTIAL_<PROVIDER_ID>`、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY` | 仅独立运行模式读取的 Credential，见下文 |
+| `COKO_CREDENTIAL_<PROVIDER_ID>`、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY` | 仅独立运行模式读取的 Credential，见下文。`<PROVIDER_ID>` 为 Provider id 大写、非字母数字换成 `_`，优先于按 kind 读取的 `*_API_KEY` |
 
 未知参数、缺失、相对路径或不合形态的版本号都按 `invalid-arguments` fatal。源码目录按 [项目架构约定](../../docs/tech-stack/architecture.md#仓库架构) 划分：`http/`（Hono 路由、信任围栏与 cookie）、`ws/`（订阅与补发）、`application/`（协议到 agent / session 的映射）、`runtime/`（Effect 装配与关闭）、`adapters/`（Credential、faux）、`control/`（控制通道）。
 
 ## 契约与生命周期
 
 - **控制通道。** 有 Node IPC 父进程时经 IPC 收发 `SidecarToMainMessage` / `MainToSidecarMessage`；否则为独立运行，消息逐行写到 stdout，不接收 main 消息。启动依次发 `starting`、`ready { port, token }`；失败发 `fatal { code, message }` 并以 1 退出，`code` 取值：`invalid-arguments`、`ripgrep-unavailable`、`storage-<StoreError code>`（如 `storage-lease-held`）、`faux-script-invalid`、`listen-failed`、`startup-failed`。不合 schema 的 main 消息被忽略并记录警告。
-- **访问认证**（[ADR 0002](../../docs/adr/0002-local-service-access-auth.md)）。只监听 `127.0.0.1` 端口 0。所有请求先过信任围栏：`Host` 必须等于监听 authority，带 `Origin` 时必须是 `http://<authority>`，`sec-fetch-site: cross-site` 拒绝，失败 403。`POST /api/auth/exchange { token }` 只能成功一次，返回 204 与 `coko-session` cookie（`HttpOnly; SameSite=Strict; Path=/`，HMAC 绑定 authority，签名密钥只在进程内存）；其余路由与 WebSocket 升级缺少有效 cookie 返回 401。令牌不接受作为 Authorization 头。
-- **HTTP。** 路径常量为 `API_ROUTES` / `apiPaths`：workspaces（列表、登记已存在的绝对目录）、sessions（列表、创建、详情含条目、`POST …/messages` 返回 202 与 `runId`、`POST …/abort`、`PUT …/model`）、settings（`PUT /api/settings/:key` 带 `expectedRevision`，冲突 409）、providers（增改删，响应只含 `credential: { hint } | null`）、`GET /api/provider-presets`（deepseek / openai / anthropic 的默认地址与目录中的模型 id，供设置界面选择）、`GET /api/models`（已注册 Provider 的可用模型，测试时含 faux，以及新建 Session 的默认模型，没有时为 null）。错误体为 `{ error: { code, message, details? } }`。
+- **访问认证**（[ADR 0002](../../docs/adr/0002-local-service-access-auth.md)）。只监听 `127.0.0.1` 端口 0。所有请求先过信任围栏：`Host` 必须等于监听 authority，带 `Origin` 时必须是 `http://<authority>`，`sec-fetch-site: cross-site` 拒绝，失败 403。`POST /api/auth/exchange { token }` 只能成功一次，返回 204 与 `coko-session` cookie（`HttpOnly; SameSite=Strict; Path=/`，HMAC 绑定 authority，签名密钥只在进程内存）。`/api/auth` 下的路由只供 main 调用：按规范化后的路径（百分号解码、合并重复斜杠、去掉末尾斜杠、不区分大小写）判断，只接受原样路径、不带 cookie 的 POST，其余形态（含 `%65xchange` 等编码变体和经 renderer 代理、带 cookie 的请求）返回 404 且不消耗令牌；其余路由与 WebSocket 升级缺少有效 cookie 返回 401。令牌不接受作为 Authorization 头。
+- **HTTP。** 路径常量为 `API_ROUTES` / `apiPaths`：workspaces（列表、登记已存在的绝对目录）、sessions（列表、创建、详情含条目、`POST …/messages` 返回 202 与 `runId`、`POST …/retry` 重新执行出错的上一轮并返回 202 与新 `runId`（不追加用户消息；上一轮没有以模型错误结束时 409 `nothing-to-retry`）、`POST …/abort`、`PUT …/model`）、settings（`PUT /api/settings/:key` 带 `expectedRevision`，冲突 409）、providers（增改删，响应只含 `credential: { hint } | null`）、`GET /api/provider-presets`（deepseek / openai / anthropic 的默认地址与目录中的模型 id，供设置界面选择）、`GET /api/models`（已注册 Provider 的可用模型，测试时含 faux，以及新建 Session 的默认模型，没有时为 null）。错误体为 `{ error: { code, message, details? } }`。
 - **Session 模型。** 新建时未指定模型，依次取设置 `defaultModel`、faux（测试）、第一个 Provider 的第一个模型；都不可用时为 null，提交消息返回 409 `model-not-configured`。同一 Session 同时只有一个 Run（409 `run-in-progress`）。
-- **WebSocket**（`/api/ws`）。客户端 `subscribe { sessionId, afterSeq }`；服务端先补发 `seq > afterSeq` 的 `entry`，再发 `subscribed { lastSeq, running }`，之后推送实时 `entry` 与 `progress`，不重复也不遗漏。`entry` 在 SQLite 提交后才发布；`progress` 不持久化。条目 kind 为 `message`（payload 是模型可见消息，role 为 user / assistant / toolResult）与 `run_end`（`{ status, error? }`）。模型错误文本入库前脱敏。
+- **WebSocket**（`/api/ws`）。客户端 `subscribe { sessionId, afterSeq }`，`unsubscribe { sessionId }` 停止接收该 Session 的推送（renderer 当前不发送，打开过的会话保持订阅）；服务端先补发 `seq > afterSeq` 的 `entry`，再发 `subscribed { lastSeq, running }`，之后推送实时 `entry` 与 `progress`，不重复也不遗漏。`entry` 在 SQLite 提交后才发布；`progress` 不持久化。条目 kind 为 `message`（payload 是模型可见消息，role 为 user / assistant / toolResult）与 `run_end`（`{ status, error? }`）。`progress` 依次为 `run_start`、`assistant_delta`、`tool_start` / `tool_update` / `tool_end`、`retry`，每个 Run 以 `run_end { status, error? }` 结束：它在 run_end 条目提交之后发出，条目提交失败（例如租约被夺走）时也发出，客户端据此结束运行中状态。模型错误文本在入库与推送（`retry.errorMessage`、`run_end.error.message`）前经同一函数脱敏。
 - **Credential**（[ADR 0004](../../docs/adr/0004-model-credentials-safe-storage.md)）。IPC 模式：main 发 `credential.store { providerId, ciphertext(base64), hint }`，Sidecar 只存密文并回 `credential.store.result`；调用模型时发 `credential.decrypt { ciphertext }`，等待 `credential.decrypt.result`（10 秒超时），明文只缓存在内存，换密钥或删 Provider 时清除。独立运行：`COKO_CREDENTIAL_<ID>`（id 大写、非字母数字换成 `_`）优先，否则按 kind 读对应的 `*_API_KEY`。
 - **关闭。** `shutdown` 消息、IPC 断开、SIGTERM、SIGINT 触发同一次有序关闭：停止 HTTP 并以 1001 关闭 WebSocket → 中断进行中的 Run 并等待其 `run_end`（status `aborted`）提交 → 关闭存储并释放租约 → 刷新日志 → 发 `shutdown-complete`，以 0 退出。`inspect-quit` 回答 `activeRuns`。
 
 ## 配置与限制
 
 - 工具不经审批直接执行（M1 已知安全缺口），只应在用户信任的 Workspace 中使用。
+- bash 的命令环境去掉 sidecar 自身的配置与凭据变量（`src/adapters/credentials.ts` 的 `HOST_ENV_EXCLUSIONS`）：`COKO_*`（含 `COKO_CREDENTIAL_*`、`COKO_FAUX_SCRIPT`、`COKO_LOG_LEVEL`）、各 kind 的 `*_API_KEY`，以及名字含 `API_KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`CREDENTIAL(S)`、`AUTH` 的变量；`PATH`、`HOME` 等其余变量保留。工具输出本身不脱敏。
 - faux 脚本的回复队列由所有 Session 共用，按模型调用顺序消费。
 - 进程首次加载 `node:sqlite` 时向 stderr 输出一次 ExperimentalWarning。
-- 集成测试从源码入口运行；桌面构建由 apps/desktop 的 tsdown 配置打出 `dist/sidecar/index.mjs`，其启动与对话由 apps/desktop 的 Electron E2E 验证，未打包路径与 `electron-forge package` 产物（`e2e/package-smoke.e2e.test.ts`）各有覆盖。
+- 集成测试从源码入口运行。本包不单独输出产物：桌面构建由 apps/desktop 的 `build/build.ts` 用 tsdown 打出 `dist/sidecar/index.mjs`（apps/desktop 以 workspace 依赖声明本包），其启动与对话由 apps/desktop 的 Electron E2E 验证，未打包路径与 `electron-forge package` 产物（`e2e/package-smoke.e2e.test.ts`）各有覆盖。
 - ripgrep 版 grep 的参数：`--json --no-config --hidden --no-require-git --sort path --glob !.git`，目录搜索以搜索目录为 cwd、路径参数为 `.`。rg 默认还读取全局 gitignore（`core.excludesFile`）与 `.git/info/exclude`，内置 grep 不读，两者在这类文件存在时结果可能不同。
 
 ## 验证与相关设计
