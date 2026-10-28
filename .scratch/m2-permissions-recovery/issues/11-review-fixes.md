@@ -57,3 +57,6 @@
   - J4、S2–S5、S7、S10、S11 未做，S6、S8、S9 部分完成，理由见评审文件的"处理结果"。
 
   **文档影响**：ADR 0005、0006（实施与评审修复说明，决定句未改）、docs/subsystems/permissions.md、recovery.md、docs/tech-stack/agent-runtime.md（目录图）、observability.md、apps/server 与 packages/agent 的 README。
+- 2026-10-29 lead：评审后合入 main（09f5193）。接受越界：renderer main.tsx 的 forkTitle 接线、desktop build.ts 与 e2e global-setup 的构建期标志、observability.md 的 approvalId、agent index.ts 一行 agents/ 导出。接受行为变更：首次请求提权且未被沙箱拒绝时返回 invalid escalation。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 107 文件 822 通过、1 跳过（真实模型），无页面重载；check:docs 86 文件 0 问题；源码中无 .scratch 引用。未验证：不带 COKO_TEST_BUILD 的发布构建产物 E2E。worktree 已清理。
+
+Closed: true

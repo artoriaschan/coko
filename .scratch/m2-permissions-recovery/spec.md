@@ -1,7 +1,7 @@
 # M2 安全与恢复：规格
 
 Status: ready-for-agent
-Spec status: approved（2026-10-29，按用户常设指示采纳，非用户逐条确认）
+Spec status: delivered（2026-10-29，main 09f5193；真实模型与发布构建产物 E2E 未验证，遗留项见地图 Carry-overs）
 Map: [Coko 桌面应用](../desktop-app/map.md) · [里程碑划分](../desktop-app/issues/06-grill-milestone-route.md) · 讨论：[grilling.md](grilling.md)
 
 ## Problem Statement
