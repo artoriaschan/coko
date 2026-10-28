@@ -6,7 +6,7 @@ lifecycle: active
 
 # apps/server（Sidecar）
 
-Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动，也能脱离桌面独立运行。本文说明当前实现的入口与契约；消息与 DTO 的精确定义在 `@coko/protocol`（`packages/protocol/src`）。工具调用经权限判定与审批，契约见 [权限判定与审批](../../docs/subsystems/permissions.md)。尚未实现：命令沙箱与提权、恢复中断的 Run。
+Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动，也能脱离桌面独立运行。本文说明当前实现的入口与契约；消息与 DTO 的精确定义在 `@coko/protocol`（`packages/protocol/src`）。工具调用经权限判定与审批，命令在模式对应的 Seatbelt 档位内运行，契约见 [权限判定与审批](../../docs/subsystems/permissions.md)。尚未实现：恢复中断的 Run。
 
 ## 使用或结构入口
 
@@ -22,9 +22,11 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 | `--app-version` | 可选，版本号形态（如 `1.2.3`、`1.2.3-beta.1`）；写入 sidecar.jsonl 每条记录的 `appVersion` 统一字段。desktop main 传入 `app.getVersion()` |
 | `COKO_FAUX_SCRIPT` | 仅测试：faux provider 脚本的绝对路径，格式见 `src/adapters/faux.ts`；开启后新建 Session 默认使用 `faux/faux-1` |
 | `COKO_LOG_LEVEL` | `trace`…`fatal`，默认 `info` |
+| `COKO_SANDBOX_EXEC` | 仅测试：覆盖 sandbox-exec 的绝对路径（默认 `/usr/bin/sandbox-exec`），用于验证不可用时的 fail-closed |
+| `COKO_TEST_TOOLS` | 仅测试：为 `1` 时注册测试宿主工具 `secret_probe`（`src/adapters/test-tools.ts`，声明 Secret `COKO_TEST_SECRET`） |
 | `COKO_CREDENTIAL_<PROVIDER_ID>`、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY` | 仅独立运行模式读取的 Credential，见下文。`<PROVIDER_ID>` 为 Provider id 大写、非字母数字换成 `_`，优先于按 kind 读取的 `*_API_KEY` |
 
-未知参数、缺失、相对路径或不合形态的版本号都按 `invalid-arguments` fatal。源码目录按 [项目架构约定](../../docs/tech-stack/architecture.md#仓库架构) 划分：`http/`（Hono 路由、信任围栏与 cookie）、`ws/`（订阅与补发）、`application/`（协议到 agent / session 的映射）、`runtime/`（Effect 装配与关闭）、`adapters/`（Credential、faux）、`control/`（控制通道）。
+未知参数、缺失、相对路径或不合形态的版本号都按 `invalid-arguments` fatal。源码目录按 [项目架构约定](../../docs/tech-stack/architecture.md#仓库架构) 划分：`http/`（Hono 路由、信任围栏与 cookie）、`ws/`（订阅与补发）、`application/`（协议到 agent / session 的映射）、`runtime/`（Effect 装配与关闭）、`adapters/`（Credential 与 Secrets、faux、ripgrep、Seatbelt、测试工具）、`control/`（控制通道）。
 
 ## 契约与生命周期
 
@@ -38,7 +40,9 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 
 ## 配置与限制
 
-- 每个 Session 有一个 Permission Mode（read-only / default / accept-edits / full-access），模式与 Session 规则由条目回放，全局与 Workspace 规则由 `PermissionService`（`application/permissions.ts`）从设置读入并缓存；判定与规则语法见 [权限判定与审批](../../docs/subsystems/permissions.md)。命令尚未在沙箱中运行，只应在用户信任的 Workspace 中使用。
+- 每个 Session 有一个 Permission Mode（read-only / default / accept-edits / full-access），模式与 Session 规则由条目回放，全局与 Workspace 规则由 `PermissionService`（`application/permissions.ts`）从设置读入并缓存；判定与规则语法见 [权限判定与审批](../../docs/subsystems/permissions.md)。
+- 命令沙箱：启动时（打开存储之前）探测一次 sandbox-exec，日志记 `command sandbox selected { sandbox: 'seatbelt', executable }` 或 warn `command sandbox unavailable { executable, reason }`；不可用不阻止启动，受限档位的命令以 `sandbox-unavailable` 结束，full-access 不受影响。沙箱只约束文件写入，不限制网络与读取。
+- Secrets：`SessionService` 的 `secrets`（`SecretProvider`）由 `createEnvSecretProvider(env)` 提供，按工具声明的变量名读 Sidecar 自身的环境，只注入声明它们的那次调用；当前只有测试工具声明 Secrets（真实使用者为 M3 的 MCP）。
 - `SessionService` 的 `extensions(ctx) => { hooks?, onEntry? }` 供 `runtime/layers.ts` 为每个 Session 运行时注册扩展（hooks 排在权限判定之后，onEntry 在每条条目提交并发布后调用）；当前没有注册任何扩展。
 - bash 的命令环境去掉 sidecar 自身的配置与凭据变量（`src/adapters/credentials.ts` 的 `HOST_ENV_EXCLUSIONS`）：`COKO_*`（含 `COKO_CREDENTIAL_*`、`COKO_FAUX_SCRIPT`、`COKO_LOG_LEVEL`）、各 kind 的 `*_API_KEY`，以及名字含 `API_KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`CREDENTIAL(S)`、`AUTH` 的变量；`PATH`、`HOME` 等其余变量保留。工具输出本身不脱敏。
 - faux 脚本的回复队列由所有 Session 共用，按模型调用顺序消费。
@@ -48,9 +52,9 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 
 ## 验证与相关设计
 
-- `tests/integration/sidecar-*.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动真实 Sidecar，覆盖 ready、ADR 0002 的 401 / 403 场景（含 WebSocket 与重启后旧 cookie）、对话与工具写文件、审批闭环（`sidecar-approvals.test.ts`）、模式与规则作用域、重启后保留与重新判定（`sidecar-permissions.test.ts`）、停止、运行中关闭、重启读回、afterSeq 补齐、设置与 Provider、Credential 的 IPC 往返与环境变量模式、日志与库脱敏、启动失败；`sidecar-storage.test.ts` 覆盖损坏库隔离（fatal `storage-corrupt`）、版本过高拒绝（fatal `storage-version-too-new`，库文件逐字节不变）与读取时跳过不合格条目；`secrets-gate.test.ts` 是秘密不外泄总闸，扫描 WebSocket 帧、HTTP 响应体、`coko.db`（含 `-wal`）与 `sidecar.jsonl`，引入新输出通道的功能在该文件追加驱动步骤。运行：`pnpm exec vitest run tests/integration`。
+- `tests/integration/sidecar-*.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动真实 Sidecar，覆盖 ready、ADR 0002 的 401 / 403 场景（含 WebSocket 与重启后旧 cookie）、对话与工具写文件、审批闭环（`sidecar-approvals.test.ts`）、模式与规则作用域、重启后保留与重新判定（`sidecar-permissions.test.ts`）、Seatbelt 拒绝与单次提权、sandbox-exec 不可用、越界文件写入与 Secrets 注入（`sidecar-sandbox.test.ts`，Seatbelt 部分只在 darwin 运行）、停止、运行中关闭、重启读回、afterSeq 补齐、设置与 Provider、Credential 的 IPC 往返与环境变量模式、日志与库脱敏、启动失败；`sidecar-storage.test.ts` 覆盖损坏库隔离（fatal `storage-corrupt`）、版本过高拒绝（fatal `storage-version-too-new`，库文件逐字节不变）与读取时跳过不合格条目；`secrets-gate.test.ts` 是秘密不外泄总闸，扫描 WebSocket 帧、HTTP 响应体、`coko.db`（含 `-wal`）与 `sidecar.jsonl`，引入新输出通道的功能在该文件追加驱动步骤。运行：`pnpm exec vitest run tests/integration`。
 - `src/adapters/ripgrep.test.ts`：ripgrep 版 grep 运行 `@coko/agent/testing` 的 grep 契约套件。`tests/integration/sidecar-ripgrep.test.ts`：`--ripgrep` 不存在或不可执行时 fatal、给定时 grep 实际经该路径执行、日志记录生效实现。
-- `src/http/auth.test.ts`、`src/config.test.ts`：同一 authority 下其他实例签发的 cookie 被拒绝、参数解析。
+- `src/http/auth.test.ts`、`src/config.test.ts`：同一 authority 下其他实例签发的 cookie 被拒绝、参数解析。`src/adapters/seatbelt.test.ts`：profile、探测与 darwin 上真实 sandbox-exec 的放行与拒绝。
 - 进程模型见 [ADR 0001](../../docs/adr/0001-sidecar-on-electron-node.md)。
 
 ## 延伸阅读

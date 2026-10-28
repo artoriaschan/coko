@@ -1,7 +1,16 @@
 // Adapted from pi coding-agent 1.4.0 (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 
 import { Type, type Static } from 'typebox'
-import type { ExecPort } from '../../ports/exec.ts'
+import { SandboxUnavailableError, type ExecPort } from '../../ports/exec.ts'
+import {
+  escalationHintMarker,
+  JUSTIFICATION_DESCRIPTION,
+  SANDBOX_PERMISSIONS_DESCRIPTION,
+  SANDBOX_TOOL_NOTE,
+  sandboxDenialMarker,
+  sandboxUnavailableText,
+} from '../../policy/sandbox.ts'
+import type { SandboxMode } from '../../session-entries/permissions.ts'
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from '../truncate.ts'
 import type { CokoTool } from '../types.ts'
 import { OutputAccumulator, type OutputSnapshot } from './output-accumulator.ts'
@@ -13,6 +22,10 @@ const UPDATE_THROTTLE_MS = 100
 export const bashParameters = Type.Object({
   command: Type.String({ description: 'Shell command to execute' }),
   timeout: Type.Optional(Type.Number({ description: 'Timeout in seconds (optional, no default timeout)' })),
+  sandbox_permissions: Type.Optional(
+    Type.Union([Type.Literal('workspace-write'), Type.Literal('danger-full-access')], { description: SANDBOX_PERMISSIONS_DESCRIPTION }),
+  ),
+  justification: Type.Optional(Type.String({ description: JUSTIFICATION_DESCRIPTION })),
 })
 
 export const bashOutputSchema = Type.Object({
@@ -28,6 +41,8 @@ export type BashOutput = Static<typeof bashOutputSchema>
 export interface BashToolDetails {
   truncation?: TruncationResult
   fullOutputPath?: string
+  /** Present when the sandbox denied a file effect of the command. */
+  sandbox?: { mode: SandboxMode; denied: true }
 }
 
 export interface BashToolOptions {
@@ -51,14 +66,19 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
   return {
     name: 'bash',
     label: 'bash',
-    description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+    description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds. ${SANDBOX_TOOL_NOTE}`,
     parameters: bashParameters,
     effect: 'side-effect',
     permissionSubject: (args) => args.command,
+    sandboxRequest: ({ sandbox_permissions, justification }) =>
+      sandbox_permissions === undefined && justification === undefined
+        ? undefined
+        : { ...(sandbox_permissions === undefined ? {} : { mode: sandbox_permissions }), ...(justification === undefined ? {} : { justification }) },
     outputSchema: bashOutputSchema,
     // bash has its own `timeout` argument; the unified default would cut long builds short.
     timeoutMs: 0,
-    async execute(_toolCallId, { command, timeout }, signal, onUpdate) {
+    async execute(_toolCallId, { command, timeout }, signal, onUpdate, context) {
+      const sandbox = context?.sandbox
       const timeoutMs = resolveTimeoutMs(timeout)
       const output = new OutputAccumulator(tempDir)
       let accepting = true
@@ -124,22 +144,31 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
 
       const startedAt = performance.now()
       try {
-        const outcome = await exec.exec({
-          command,
-          cwd,
-          onData: (chunk) => {
-            if (!accepting) return
-            output.append(chunk)
-            scheduleUpdate()
-          },
-          ...(signal ? { signal } : {}),
-          ...(timeoutMs === undefined ? {} : { timeoutMs }),
-        })
+        let outcome
+        try {
+          outcome = await exec.exec({
+            command,
+            cwd,
+            onData: (chunk) => {
+              if (!accepting) return
+              output.append(chunk)
+              scheduleUpdate()
+            },
+            ...(signal ? { signal } : {}),
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
+            ...(sandbox ? { sandbox } : {}),
+          })
+        } catch (error) {
+          if (error instanceof SandboxUnavailableError) throw new Error(sandboxUnavailableText(error.mode, error.message), { cause: error })
+          throw error
+        }
         const snapshot = await finishOutput()
         if (outcome.kind === 'aborted') throw new Error(appendStatus(format(snapshot, '').text, 'Command aborted'))
         if (outcome.kind === 'timeout') throw new Error(appendStatus(format(snapshot, '').text, `Command timed out after ${timeout} seconds`))
 
-        const { text, details } = format(snapshot, '(no output)')
+        const formatted = format(snapshot, '(no output)')
+        const text = formatted.text
+        let details = formatted.details
         const full = await output.readFullOutput(STRUCTURED_OUTPUT_MAX_BYTES)
         const structuredContent: BashOutput = {
           output: full.content,
@@ -149,8 +178,14 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
           wall_time_seconds: Math.round((performance.now() - startedAt) / 100) / 10,
         }
         if (outcome.exitCode !== 0) {
+          const status = [`Command exited with code ${outcome.exitCode}`]
+          if (outcome.sandboxDenied && sandbox) {
+            // 拒绝标记与提权提示在退出码之前（DSH 的顺序）。
+            status.unshift(sandboxDenialMarker(sandbox.mode), ...(sandbox.mode === 'danger-full-access' ? [] : [escalationHintMarker()]))
+            details = { ...details, sandbox: { mode: sandbox.mode, denied: true } }
+          }
           return {
-            content: [{ type: 'text', text: appendStatus(text, `Command exited with code ${outcome.exitCode}`) }],
+            content: [{ type: 'text', text: appendStatus(text, status.join('\n')) }],
             details,
             structuredContent,
             isError: true,

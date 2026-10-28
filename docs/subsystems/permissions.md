@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的权限判定与审批契约：四种模式、判定顺序、规则语法与作用域、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、审批卡与模式选择。修改判定、规则、审批流程或权限界面前查阅。"
+description: "当前的权限判定与审批契约：四种模式、判定顺序、规则语法与作用域、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
 lifecycle: active
 ---
 
 # 权限判定与审批
 
-本文说明当前代码中工具调用如何被判定、需要审批时如何等待与回答、规则与模式如何保存。长期取舍（模式与沙箱叠加、提权不可保存）见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)；本文只描述已实现的部分。当前限制：命令不在沙箱中运行，模式只决定审批范围（见文末"尚未实现"）。
+本文说明当前代码中工具调用如何被判定、需要审批时如何等待与回答、规则与模式如何保存，以及命令如何在模式对应的 Seatbelt 沙箱档位内运行、被拒后如何单次提权。长期取舍（模式与沙箱叠加、提权不可保存）见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)；本文只描述已实现的部分。
 
 ## 结构入口
 
@@ -14,7 +14,10 @@ lifecycle: active
 | --- | --- |
 | `packages/agent/src/policy/decide.ts` | 纯函数 `decide(call, { mode, rules, workspace, writableRoots, home? })` → allow / deny / ask（附建议规则） |
 | `packages/agent/src/policy/rules.ts` | 规则内容的匹配：bash 拆分、env 前缀剥离、精确 / 前缀；gitignore 风格路径 |
-| `packages/agent/src/policy/paths.ts` | 把工具参数解析为绝对路径与真实路径（经符号链接，含悬空链接）；模式对应的可写根 |
+| `packages/agent/src/policy/paths.ts` | 把工具参数解析为绝对路径与真实路径（经符号链接，含悬空链接）；模式对应的可写根（委托 sandbox.ts） |
+| `packages/agent/src/policy/sandbox.ts` | 模式 → Sandbox Mode、可写根的唯一推导、提权参数校验 `checkEscalation`、模型可见的拒绝标记与提示文本 |
+| `packages/agent/src/ports/exec.ts`、`local-exec.ts` | `ExecRequest.sandbox`、`SandboxUnavailableError`；本地执行经宿主给出的 `LocalSandbox` 包裹受限命令，没有时 fail-closed |
+| `apps/server/src/adapters/seatbelt.ts` | Seatbelt profile、启动探测、`sandbox-exec -p <profile> --` 包裹 |
 | `packages/agent/src/policy/broker.ts` | `ApprovalBroker`：每个运行时一个，提交请求与决定条目，等待回答或重新判定 |
 | `packages/agent/src/policy/gate.ts` | 权限 hook，位于 `ToolHooks.beforeToolCall` 链首；模型可见的拒绝文本 |
 | `packages/agent/src/engine/runtime.ts` | `AgentRuntimeOptions.permissions`（每次调用读取模式与规则）、`answerApproval()`、`pendingApprovals` |
@@ -22,22 +25,24 @@ lifecycle: active
 | `apps/server/src/application/permissions.ts` | `PermissionService`：默认模式、全局与 Workspace 规则的读入、缓存与写入 |
 | `apps/server/src/application/sessions.ts` | Session 模式与规则的回放、保存"总是允许"、触发重新判定、Session `activity` |
 | `packages/ui/src/approval/approval-card.tsx` | 共享审批卡（键盘、单次回答、"总是允许"菜单） |
-| `apps/desktop/src/renderer/features/conversation/approval-panel.tsx` | 审批卡的业务组合：标题、命令 / 路径 / diff 摘要、建议规则 |
+| `apps/desktop/src/renderer/features/conversation/approval-panel.tsx` | 审批卡的业务组合：标题、命令 / 路径 / diff 摘要、建议规则；提权卡（目标档位与理由） |
 | `apps/desktop/src/renderer/features/conversation/mode-picker.tsx` | 输入区的模式选择与 Shift+Tab 循环顺序 |
 | `apps/desktop/src/renderer/features/settings/permissions-section.tsx` | 设置弹窗的 Permissions 分区 |
 
-工具契约（`packages/agent/src/tools/types.ts`）有 `effect: 'read' | 'side-effect'`（缺省 side-effect）与 `permissionSubject(args)`。内置工具：read、grep、find、ls 为 read，subject 是路径（缺省 `.`）；write、edit 为 side-effect，subject 是路径；bash 为 side-effect，subject 是命令。
+工具契约（`packages/agent/src/tools/types.ts`）有 `effect: 'read' | 'side-effect'`（缺省 side-effect）、`permissionSubject(args)` 与 `sandboxRequest(args)`（提权参数，只有 bash 声明）。内置工具：read、grep、find、ls 为 read，subject 是路径（缺省 `.`）；write、edit 为 side-effect，subject 是路径；bash 为 side-effect，subject 是命令。
 
 ## 模式
 
-每个 Session 有一个 Permission Mode。模式只决定"模式放行"一步；其余各步在所有模式下相同。
+每个 Session 有一个 Permission Mode。模式决定判定中的"模式放行"一步（其余各步在所有模式下相同），也决定命令的沙箱档位；write / edit 的写入边界与 Seatbelt 使用同一组可写根。
 
-| 模式 | 模式放行 | 可写根（write / edit 的边界） |
-| --- | --- | --- |
-| read-only | Workspace 内的 read 组调用 | 无：任何写入都按越出可写根询问 |
-| default | Workspace 内的 read 组调用 | Workspace、`os.tmpdir()`、`/tmp` 的真实路径 |
-| accept-edits | 另加可写根内的 write / edit | 同 default |
-| full-access | 全部调用 | `/` |
+| 模式 | 模式放行 | 命令的沙箱档位 | 可写根（write / edit 与命令共用） |
+| --- | --- | --- | --- |
+| read-only | Workspace 内的 read 组调用 | read-only | 无：文件写入都按越出可写根询问，命令不能写任何位置 |
+| default | Workspace 内的 read 组调用 | workspace-write | Workspace、`/tmp`、`os.tmpdir()` 的真实路径 |
+| accept-edits | 另加可写根内的 write / edit | workspace-write | 同 default |
+| full-access | 全部调用 | danger-full-access（不包裹） | `/` |
+
+workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
 
 新 Session 创建时提交一条 `permission_mode` 条目，取设置 `permissions.defaultMode`（缺省 default）；之后改默认模式不影响已有 Session。没有 `permission_mode` 条目的旧 Session 按 default。切换模式提交新的 `permission_mode` 条目（与当前相同时不提交），立即作用于下一次调用。
 
@@ -58,6 +63,34 @@ lifecycle: active
 路径按真实路径判定：Workspace 内指向外部的符号链接按外部位置处理；Workspace 与可写根也是真实路径。
 
 **受保护路径**：任意深度的 `.git`、`.coko`、`.vscode`、`.idea` 目录，以及任意位置的 `.bashrc`、`.zshrc`、`.profile`、`.bash_profile`、`.zprofile`、`.gitconfig`、`.ssh`、`.mcp.json`。比较前转小写；解析前或解析后的路径任一命中即受保护。只约束 edit 组；bash 的写入目标无法预知，不受此检查。
+
+## 命令沙箱与提权
+
+**档位与执行。** bash 每次执行时按当时的模式现算沙箱策略 `{ mode, writableRoots }`，经执行上下文（`ToolExecutionContext.sandbox`）交给执行端口。Sidecar 的 bash 由 `adapters/seatbelt.ts` 包裹为 `/usr/bin/sandbox-exec -p <profile> -- /bin/bash -c <command>`：
+
+```text
+(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "<root>") …)
+```
+
+read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件写入，不限制网络与读取。经审批或允许规则放行的命令同样在本档位内运行。
+
+**拒绝。** 受限命令非零退出且输出含 `operation not permitted`（大小写不敏感）时视为被沙箱拒绝：结果在退出码之前追加拒绝标记 `[sandbox: file access denied under <mode> mode]` 与提权提示（文本沿用 DSH，属于模型可见契约），`details.sandbox = { mode, denied: true }`；工具卡标题行显示"被沙箱拦截（档位）"。
+
+**不可用（fail-closed）。** 启动时以 read-only profile 运行一次 `sandbox-exec … -- /usr/bin/true`；失败或可执行文件不存在（非 macOS）时记 warn `command sandbox unavailable`，Sidecar 照常启动。此后受限档位的命令不运行，结果为 `sandbox-unavailable: the command was not run because the <mode> sandbox is not available …`；full-access 不受影响。运行时包裹的可执行文件消失（spawn 报 ENOENT / EACCES）按同样方式处理。`@coko/agent` 的内置本地执行没有沙箱：宿主不提供 `LocalSandbox` 时受限档位一律 fail-closed。
+
+**提权参数。** bash 有可选参数 `sandbox_permissions`（`workspace-write` / `danger-full-access`）与 `justification`。判定在拒绝规则之后：
+
+| 参数 | 结果 |
+| --- | --- |
+| 都不给，或只有空白理由 | 不提权，按普通判定 |
+| 档位等于当前档位 | 不提权（理由可缺），按普通判定 |
+| 只给理由；只给档位或理由为空白；档位更窄 | 参数错误，调用不执行，不询问，Run 继续 |
+| 档位不在取值内（如 `read-only`） | pi 的参数校验错误，不询问 |
+| 严格更宽 | kind=escalation 的审批请求，替代该次调用的普通审批 |
+
+**提权请求。** `approval_request { kind: 'escalation', subject: 命令, targetMode, justification, suggestions: [] }`。拒绝规则仍然先生效；允许规则与模式放行不能免掉提权审批。只能允许一次（scope 非 once 时 400）或拒绝；不随模式或规则变更重新判定。允许后该调用以目标档位（执行时模式档位更宽则取后者）运行，只对这一次调用有效，Run 结束时未用掉的授权作废。无反馈拒绝：调用得到 `The user rejected escalating this command to "<mode>"; it stays denied, so stop and explain instead of working around it.`，与普通无反馈拒绝一样 Run 在本批结束后以 aborted 结束；带反馈的拒绝把反馈交给模型，Run 继续。
+
+**write / edit 的提权。** 它们在 Sidecar 进程内执行，没有 Seatbelt；越出可写根的写入按判定第 4 步询问（kind=tool，没有建议规则，只能允许一次），这次批准即这次提权。
 
 ## 规则
 
@@ -98,7 +131,7 @@ lifecycle: active
 | allowed | 用户允许 | `{ outcome: 'allowed', scope }`（once / session / workspace / global） |
 | denied | 用户拒绝 | `{ outcome: 'denied', feedback? }`（反馈去掉首尾空白，最长 4000 字符） |
 | cancelled | Run 被停止（abort signal） | `{ outcome: 'cancelled' }` |
-| superseded | 模式或规则变更后重新判定为 allow 或 deny | `{ outcome: 'superseded' }` |
+| superseded | 模式或规则变更后重新判定为 allow 或 deny（只对 kind=tool） | `{ outcome: 'superseded' }` |
 
 决定条目提交完成后调用才继续；条目在 SQLite 提交后才推送。没有超时，没有订阅客户端时请求保持等待。同一批的多个调用由 pi 逐个准备，因此请求按调用顺序一个接一个出现。条目提交失败时 Run 以 `commit_failed` 结束。
 
@@ -123,14 +156,15 @@ lifecycle: active
 ## 界面
 
 - **模式选择**：输入区底栏、模型选择旁，显示当前模式；菜单列出四种模式及说明。full-access 只能在菜单中选择，选中时按钮与图标为 destructive 色，菜单中显示警示。焦点在编辑区时 Shift+Tab 在 read-only → default → accept-edits 之间循环（从 full-access 回到 read-only），焦点不离开编辑区；焦点在其他控件上时 Shift+Tab 照常移动焦点。会话中切换立即显示，经协议提交，失败时撤回并提示；草稿中选的模式在创建 Session 后、提交第一条消息前切换。Run 中也可切换。
+- **提权卡**：审批卡的变体，标题"允许以更宽的权限运行这条命令？"，明细为命令、目标档位与理由；没有"总是允许"。
 - **审批卡**：最早的待审批请求接管输入区；输入区保持挂载（隐藏），草稿不丢。卡片出现时若焦点在输入区，焦点移到卡片本身。焦点在详情区时 Enter 允许一次、Esc 拒绝；Esc 被卡片处理后不再触发全局"停止 Run"。"拒绝并说明原因"展开输入框，其中 Enter 提交带反馈的拒绝，Esc 收起。有建议规则的工具请求另有"总是允许"菜单：显示将保存的规则，选本会话 / 本工作区 / 所有工作区；菜单内的 Enter 与 Esc 不触发卡片的允许与拒绝。键盘与指针共用一把锁，同一请求只回答一次。
-- **工具卡**：等待时为 `awaiting` 状态，结束后标题行显示决定（已允许一次、本会话 / 本工作区总是允许、总是允许、已拒绝及原因、已取消、已按新设置自动处理）。
+- **工具卡**：等待时为 `awaiting` 状态，结束后标题行显示决定（已允许一次、以某档位允许一次（提权）、本会话 / 本工作区总是允许、总是允许、已拒绝及原因、已取消、已按新设置自动处理）；被沙箱拒绝的 bash 另显示"被沙箱拦截（档位）"。
 - **侧栏**：`awaiting-approval` 的会话带徽标并排在所在 Workspace 组首。只有打开过（已订阅）的会话会随条目实时更新 activity。
 - **Permissions 分区**（设置弹窗）：新会话的默认模式；全局规则与当前会话所在 Workspace 的规则（按允许、询问、拒绝分组，可增删；输入框按 `parsePermissionRule` 校验）；当前会话的 Session 规则（只读，可删除）。保存冲突时读回最新值并提示重试。
 
 ## 尚未实现
 
-Seatbelt 沙箱与提权（escalation）、sandbox-exec 不可用时拒绝执行、Sidecar 退出后请求过期（expired）。这些在 ADR 0005 的剩余项中跟踪。
+Sidecar 退出后请求过期（expired，由启动恢复提交）；网络与读取的沙箱限制、Windows / Linux 沙箱不在 M2 范围。
 
 ## 验证
 
@@ -138,7 +172,9 @@ Seatbelt 沙箱与提权（escalation）、sandbox-exec 不可用时拒绝执行
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
 - `tests/integration/sidecar-approvals.test.ts`、`sidecar-permissions.test.ts`：真实 Sidecar 上的回答路由与 409；作用域保存、重启后规则与模式仍生效、Session 规则只影响该 Session；等待时切到 full-access 或新增拒绝规则后 superseded；默认模式、非法设置值 400、通用设置接口拒绝 `permissions.*`。`secrets-gate.test.ts` 驱动审批卡与"本 Workspace 总是允许"通道。
-- `packages/ui/src/approval/approval-card.browser.test.tsx`；`apps/desktop/src/renderer/stores/chat-store-approvals.test.ts`、`chat-store-permissions.test.ts`；`apps/desktop/e2e/approvals.e2e.test.ts`、`permissions.e2e.test.ts`（Shift+Tab 循环、full-access 警示、Permissions 分区增删规则、"总是允许"下拉），以及 `package-smoke.e2e.test.ts` 中打包产物里的一次允许。
+- `packages/agent/src/policy/sandbox.test.ts`（档位映射、提权参数、标记文本）、`escalation.test.ts`（运行时上四种模式的沙箱策略与可写根、提权请求替代普通审批且允许规则不能免掉、参数错误不询问、拒绝规则优先、拒绝提权；Secrets 注入）；`ports/local-exec.test.ts`（包裹接缝、拒绝签名、fail-closed）；`tools/builtin/bash.test.ts`（拒绝标记顺序、sandbox-unavailable）。
+- `apps/server/src/adapters/seatbelt.test.ts`：profile 文本、探测；darwin 上真实 sandbox-exec 的写入放行与拒绝。`tests/integration/sidecar-sandbox.test.ts`：真实 Sidecar 上 default 越界写入被拒而 Workspace 与 `/tmp` 成功、read-only 不能写 Workspace、提权卡与单次有效、拒绝提权、参数错误、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、accept-edits 越界写入只能允许一次、Secrets 注入（Seatbelt 用例只在 darwin 运行，其他平台显式跳过）。`secrets-gate.test.ts` 另驱动沙箱拒绝输出、提权流程与 secret_probe。
+- `packages/ui/src/approval/approval-card.browser.test.tsx`；`apps/desktop/src/renderer/features/conversation/approval-panel.browser.test.tsx`（提权卡）、`tool-cards.browser.test.tsx`（沙箱拦截标记）；`apps/desktop/src/renderer/stores/chat-store-approvals.test.ts`、`chat-store-permissions.test.ts`；`apps/desktop/e2e/approvals.e2e.test.ts`、`permissions.e2e.test.ts`（Shift+Tab 循环、full-access 警示、Permissions 分区增删规则、"总是允许"下拉）、`sandbox.e2e.test.ts`（darwin：沙箱拦截标记、提权卡、允许一次后写入），以及 `package-smoke.e2e.test.ts` 中打包产物里的一次允许与受限命令无法写 Workspace 之外。
 
 ## 延伸阅读
 

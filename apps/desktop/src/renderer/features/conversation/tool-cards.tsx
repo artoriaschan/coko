@@ -83,16 +83,42 @@ function GenericBody({ item }: { item: ToolItem }) {
   )
 }
 
+type SandboxModeKey = 'read-only' | 'workspace-write' | 'danger-full-access'
+
+/** bash 结果 details 中的沙箱拒绝（BashToolDetails.sandbox）。 */
+function sandboxDenial(item: ToolItem): SandboxModeKey | undefined {
+  const sandbox = (item.result?.details as { sandbox?: { mode?: unknown; denied?: unknown } } | undefined)?.sandbox
+  return sandbox?.denied === true && typeof sandbox.mode === 'string' ? (sandbox.mode as SandboxModeKey) : undefined
+}
+
+/** 标题行的元信息：沙箱拒绝与已结束审批的决定。 */
+function ToolMeta({ item }: { item: ToolItem }) {
+  const { t } = useI18n()
+  const denied = sandboxDenial(item)
+  return (
+    <>
+      {denied && (
+        <span data-sandbox-denied={denied} className="max-w-60 shrink truncate text-ui-small text-destructive">
+          {t('sandbox.denied', { mode: t(`sandbox.shortModes.${denied}`) })}
+        </span>
+      )}
+      <ApprovalMeta item={item} />
+    </>
+  )
+}
+
 /** 已结束审批的决定，显示在工具卡标题行。 */
 function ApprovalMeta({ item }: { item: ToolItem }) {
   const { t } = useI18n()
   const decision = item.approval?.decision
   if (!decision) return null
+  const target = item.approval?.request.kind === 'escalation' ? item.approval.request.targetMode : undefined
   let label: string
   switch (decision.outcome) {
     case 'allowed':
-      label =
-        decision.scope === 'session'
+      label = target
+        ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
+        : decision.scope === 'session'
           ? t('approval.allowedSession')
           : decision.scope === 'workspace'
             ? t('approval.allowedWorkspace')
@@ -127,7 +153,7 @@ export function ToolCardView({ item }: { item: ToolItem }) {
         summary={item.call.name}
         status={item.status}
         statusLabel={statusLabel}
-        meta={<ApprovalMeta item={item} />}
+        meta={<ToolMeta item={item} />}
         defaultExpanded={item.status === 'error'}
       >
         <GenericBody item={item} />
@@ -143,7 +169,7 @@ export function ToolCardView({ item }: { item: ToolItem }) {
       summary={view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
-      meta={<ApprovalMeta item={item} />}
+      meta={<ToolMeta item={item} />}
       defaultExpanded={view.expanded === true || item.status === 'error'}
     >
       {hasBody ? view.body(item, args) : undefined}

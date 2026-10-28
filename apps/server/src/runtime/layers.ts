@@ -5,9 +5,11 @@ import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
 import { createPayloadRegistry, isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
-import { createEnvCredentialStore, createIpcCredentialStore } from '../adapters/credentials.ts'
+import { createEnvCredentialStore, createEnvSecretProvider, createIpcCredentialStore } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
+import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
+import { createSecretProbeTool } from '../adapters/test-tools.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { ProviderService } from '../application/providers.ts'
@@ -65,6 +67,7 @@ const LoggingLive = Layer.effect(
 
 /**
  * 工具集：给定 --ripgrep 时先探测可执行性，失败是 fatal（不回退内置 grep，以免掩盖打包缺陷）。
+ * 命令沙箱（Seatbelt）探测一次：不可用不阻止启动，受限档位的命令 fail-closed（ADR 0005），full-access 不受影响。
  * 在打开存储之前执行，失败时不占用租约。
  */
 const ToolsLive = Layer.effect(
@@ -72,17 +75,24 @@ const ToolsLive = Layer.effect(
   Effect.gen(function* () {
     const { config } = yield* Host
     const log = getLogger(['runtime'])
+    const executable = config.sandboxExec ?? DEFAULT_SANDBOX_EXEC
+    const probe = yield* Effect.promise(() => probeSeatbelt(executable))
+    if (probe.available) log.info('command sandbox selected', { sandbox: 'seatbelt', executable })
+    else log.warn('command sandbox unavailable; confined commands will not run', { sandbox: 'seatbelt', executable, reason: probe.reason })
+    const sandbox = createSeatbeltSandbox(probe)
+    const extraTools = config.testTools ? () => [createSecretProbeTool()] : undefined
+    if (extraTools) log.warn('test tools enabled', { tools: ['secret_probe'] })
     const path = config.ripgrepPath
     if (path === undefined) {
       log.info('grep implementation selected', { implementation: 'builtin' })
-      return createWorkspaceTools(undefined)
+      return createWorkspaceTools({ sandbox, ...(extraTools ? { extraTools } : {}) })
     }
     const version = yield* Effect.tryPromise({
       try: () => probeRipgrep(path),
       catch: (error) => new StartupError('ripgrep-unavailable', message(error), { cause: error }),
     })
     log.info('grep implementation selected', { implementation: 'ripgrep', path, version })
-    return createWorkspaceTools(path)
+    return createWorkspaceTools({ rgPath: path, sandbox, ...(extraTools ? { extraTools } : {}) })
   }),
 )
 
@@ -153,7 +163,15 @@ const AppLive = Layer.effect(
     const hub = new SessionHub()
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
-    const sessions = new SessionService({ store, registry, hub, runs, tools: workspaceTools, ...(fallbackModel ? { fallbackModel } : {}) })
+    const sessions = new SessionService({
+      store,
+      registry,
+      hub,
+      runs,
+      tools: workspaceTools,
+      secrets: createEnvSecretProvider(env),
+      ...(fallbackModel ? { fallbackModel } : {}),
+    })
 
     control.onMessage((msg) => {
       if (msg.type !== 'credential.store') return

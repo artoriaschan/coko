@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval, type Stream } from './sidecar-harness.ts'
 
 async function boot(dirs: Awaited<ReturnType<typeof sidecarDirs>>, script?: string) {
@@ -255,11 +255,12 @@ describe('Session 协议', () => {
     })
     const { sidecar, cookie, api } = await boot(dirs, script)
     const { sessionId } = await newSession(api, root)
+    // 命令要写 Workspace 外的库文件：Seatbelt 在受限档位会拦下它（票 05），这里用 full-access（不包裹、不询问）。
+    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })).status).toBe(200)
     const stream = await connect(sidecar, cookie)
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed')
     const { runId } = (await api.post(apiPaths.sessionMessages(sessionId), { text: 'steal the lease' })).body as { runId: string }
-    await allowNext(api, stream, sessionId)
     const end = await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'run_end')
     expect(end).toMatchObject({ runId, event: { type: 'run_end', status: 'error', error: { code: 'commit_failed' } } })
     expect(stream.entries(sessionId).some((e) => e.kind === 'run_end')).toBe(false)

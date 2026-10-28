@@ -29,6 +29,15 @@ describe('Sidecar 启动参数', () => {
     expect(() => parseConfig(['--data-dir', '/d', '--log-dir', '/l'], { COKO_FAUX_SCRIPT: 's.json' })).toThrow(ConfigError)
   })
 
+  it('COKO_SANDBOX_EXEC 与 COKO_TEST_TOOLS 只用于测试：前者必须是绝对路径，后者只能为 1', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l']
+    expect(parseConfig(argv, { COKO_SANDBOX_EXEC: '/x/sandbox-exec', COKO_TEST_TOOLS: '1' })).toMatchObject({ sandboxExec: '/x/sandbox-exec', testTools: true })
+    expect(parseConfig(argv, {})).not.toHaveProperty('sandboxExec')
+    expect(parseConfig(argv, {})).not.toHaveProperty('testTools')
+    expect(() => parseConfig(argv, { COKO_SANDBOX_EXEC: 'sandbox-exec' })).toThrow(ConfigError)
+    expect(() => parseConfig(argv, { COKO_TEST_TOOLS: 'yes' })).toThrow(ConfigError)
+  })
+
   it.each([[[]], [['--data-dir', '/d']], [['--data-dir', 'd', '--log-dir', '/l']], [['--data-dir', '/d', '--log-dir', '/l', '--port', '1']], [['--data-dir']]])(
     '拒绝 %j',
     (argv) => {

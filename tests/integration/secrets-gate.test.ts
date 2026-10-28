@@ -3,6 +3,8 @@
 // 后续票引入新的输出通道（审批卡、沙箱、快照、确认）时，在本文件追加驱动步骤并把新的落盘位置加入扫描。
 // 票 02：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
 // 票 03：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
+// 票 05：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
+// 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记）。Seatbelt 部分只在 darwin 运行。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
@@ -56,6 +58,15 @@ function recordingClient(sidecar: Pick<Sidecar, 'port'>, cookie: string, bodies:
   return { get: (path: string) => call('GET', path), post: (path: string, body?: unknown) => call('POST', path, body ?? {}) }
 }
 
+/** 扫描全部通道，返回含明文的位置。 */
+function leaksIn(channels: [string, string | Buffer][], secrets: Record<string, string>): string[] {
+  return channels.flatMap(([where, content]) =>
+    Object.entries(secrets)
+      .filter(([, secret]) => content.includes(secret))
+      .map(([label]) => `${where} contains ${label}`),
+  )
+}
+
 async function readDir(dir: string): Promise<{ name: string; bytes: Buffer }[]> {
   const names = await readdir(dir).catch(() => [] as string[])
   return Promise.all(names.map(async (name) => ({ name, bytes: await readFile(join(dir, name)) })))
@@ -73,7 +84,6 @@ describe('秘密不外泄总闸', () => {
   it('Credential 与同形态宿主环境变量不出现在 WebSocket 帧、HTTP 响应体、库文件与日志中', { timeout: 120_000 }, async () => {
     const credential = marker('cred')
     const hostSecret = marker('host')
-    const secrets = [credential, hostSecret]
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const baseUrl = await echoingModelServer()
@@ -173,9 +183,81 @@ describe('秘密不外泄总闸', () => {
       ...running.map((f): [string, Buffer] => [`running ${f.name}`, f.bytes]),
       ...stopped.map((f): [string, Buffer] => [`stopped ${f.name}`, f.bytes]),
     ]
-    const leaks = channels.flatMap(([where, content]) =>
-      secrets.filter((secret) => content.includes(secret)).map((secret) => `${where} contains ${secret === credential ? 'credential' : 'host secret'}`),
-    )
-    expect(leaks).toEqual([])
+    expect(leaksIn(channels, { credential, 'host secret': hostSecret })).toEqual([])
+  })
+
+  it.skipIf(process.platform !== 'darwin')('沙箱拒绝输出、提权流程与 Secrets 注入之后仍无明文（Seatbelt 只在 darwin 运行）', { timeout: 120_000 }, async () => {
+    const credential = marker('cred')
+    const hostSecret = marker('host')
+    const toolSecret = marker('tool')
+    const root = await tempDir()
+    const outside = await tempDir('coko-gate-outside-')
+    const dirs = await sidecarDirs()
+    const escalated = { sandbox_permissions: 'danger-full-access', justification: 'Write the environment listing outside the workspace.' }
+    const script = await fauxScript(root, {
+      responses: [
+        // 被沙箱拒绝的 env 转储（workspace-write）：输出含拒绝标记与提权提示。
+        { content: [{ type: 'toolCall', name: 'bash', id: 'd1', arguments: { command: `env; env > ${outside}/env.txt` } }] },
+        // 提权重试：escalation 审批后在 danger-full-access 下运行。
+        { content: [{ type: 'toolCall', name: 'bash', id: 'e1', arguments: { command: `env; env > ${outside}/env.txt`, ...escalated } }] },
+        // 声明 Secrets 的测试工具：值只进入其子进程，结果只有散列。
+        { content: [{ type: 'toolCall', name: 'secret_probe', id: 's1', arguments: {} }] },
+        { content: 'done' },
+      ],
+    })
+    const sidecar = await startSidecar({
+      dirs,
+      ipc: false,
+      env: { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential, MY_SERVICE_API_KEY: hostSecret, COKO_TEST_TOOLS: '1', COKO_TEST_SECRET: toolSecret },
+    })
+    const cookie = await exchange(sidecar)
+    const bodies: string[] = []
+    const api = recordingClient(sidecar, cookie, bodies)
+    const stream = await connect(sidecar, cookie)
+    const workspace = await api.post(API_ROUTES.workspaces, { path: root })
+    const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id })).body.id as string
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'dump env' })
+
+    const answer = async (n: number, kind: string) => {
+      const request = await waitApproval(stream, sessionId, n)
+      expect(request.kind).toBe(kind)
+      await api.get(apiPaths.session(sessionId))
+      expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'allow' })).status).toBe(204)
+    }
+    await answer(1, 'tool')
+    await answer(2, 'escalation')
+    await answer(3, 'tool')
+    await stream.waitFor((m) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'run_end')
+    await api.get(apiPaths.session(sessionId))
+
+    // 前置：各通道确实被驱动。
+    const results = stream
+      .entries(sessionId)
+      .filter((e) => (e.payload as { role?: string }).role === 'toolResult')
+      .map((e) => JSON.stringify(e.payload))
+    expect(results).toHaveLength(3)
+    expect(results[0]).toContain('[sandbox: file access denied under workspace-write mode]')
+    expect(results[0]).toContain('PATH=')
+    expect(results[1]).toContain('PATH=')
+    expect(results[2]).toContain('sha256')
+    expect(stream.invalidEntries).toEqual([])
+
+    const running = await persisted(dirs)
+    sidecar.child.kill('SIGTERM')
+    expect(await sidecar.exited).toEqual({ code: 0, signal: null })
+    const stopped = await persisted(dirs)
+    const written = await readDir(outside)
+    expect(written.map((f) => f.name)).toEqual(['env.txt'])
+    const channels: [string, string | Buffer][] = [
+      ...stream.frames.map((frame, i): [string, string] => [`ws frame ${i}`, frame]),
+      ...bodies.map((body, i): [string, string] => [`http body ${i}`, body]),
+      ...running.map((f): [string, Buffer] => [`running ${f.name}`, f.bytes]),
+      ...stopped.map((f): [string, Buffer] => [`stopped ${f.name}`, f.bytes]),
+      // 提权后命令写出的文件同样经过宿主环境剔除。
+      ...written.map((f): [string, Buffer] => [`escalated output ${f.name}`, f.bytes]),
+    ]
+    expect(leaksIn(channels, { credential, 'host secret': hostSecret, 'tool secret': toolSecret })).toEqual([])
   })
 })
