@@ -17,7 +17,7 @@ lifecycle: active
 | Electron main | tsdown，输出 `dist/electron/main.cjs`，由 Electron 执行 |
 | Electron preload | tsdown，输出 `dist/electron/preload.cjs`，由 Electron 加载 |
 | sidecar 与 Agent | tsdown，target 为 Electron 内置 Node.js 24.14.0，输出到 `dist/sidecar/`，包含 ESM 服务入口及所需 chunks，以 `ELECTRON_RUN_AS_NODE=1` 执行 |
-| 非 UI 共享模块 | tsdown，按 workspace 输出到各自的 `dist/`；ui 源码由 renderer 的 Vite 构建消费 |
+| 共享模块 | 不单独构建；以源码导出，由 sidecar、main / preload 的 tsdown 构建与 renderer 的 Vite 构建打入各自产物，见 [构建与测试归属](architecture.md#构建与测试归属) |
 | React renderer | Vite + React / Tailwind 插件，输出 HTML、JS、CSS 与静态资源到 `dist/renderer/` |
 | 应用与安装包 | Electron Forge + DMG / ZIP Makers |
 
@@ -48,7 +48,7 @@ Agent 与 Hono 服务运行在独立的 sidecar 进程中。Electron main 用 `c
 
 这种启动方式要求 Forge Fuses 配置保持 `RunAsNode` 开启；风险与重新评估条件见 [ADR 0001](../adr/0001-sidecar-on-electron-node.md)。
 
-打包时通过 Forge 的 `prePackage` hook 调用 tsdown，按依赖顺序构建共享模块、sidecar / Agent 和 main / preload，并通过 Vite API 构建 renderer；所有构建成功后进入应用打包阶段。应用文件包含 `dist/electron/`、`dist/renderer/` 和所需生产依赖。`packagerConfig.extraResource` 携带 sidecar 入口及 chunks、所需运行依赖和 ripgrep 等资源。
+打包时通过 Forge 的 `prePackage` hook 调用 tsdown，按依赖顺序构建 sidecar / Agent 和 main / preload，并通过 Vite API 构建 renderer；所有构建成功后进入应用打包阶段。应用文件包含 `dist/electron/`、`dist/renderer/` 和所需生产依赖。`packagerConfig.extraResource` 携带 sidecar 入口及 chunks、所需运行依赖和 ripgrep 等资源。
 
 打包时保留实际的生产依赖。pnpm 使用 `nodeLinker: hoisted` 安装布局，避免 Forge 在收集依赖时遗漏链接包；仍须通过安装包运行验收确认 workspace 代码、原生模块与资源已完整收集。`electron`、Node 内置模块（含 `node:sqlite`）和 koffi 等原生模块在对应 tsdown 构建中保留为 external。sidecar 与 main 共用 Electron 的 Node ABI，原生模块统一由 Forge 的原生模块处理和 ASAR 解包配置处理。[Forge 依赖收集说明](https://www.electronforge.io/cli)
 

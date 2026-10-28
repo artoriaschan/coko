@@ -128,7 +128,10 @@ function parseFrontmatter(lines: string[]): { frontmatter: Frontmatter | null; e
 
 /** 近似 GitHub 标题锚点：转小写，删除字母、数字、连接符、连字符和空格以外的字符，空格变连字符。 */
 export function slugify(heading: string): string {
-  return heading.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '').replace(/ /g, '-')
+  return heading
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+    .replace(/ /g, '-')
 }
 
 function textOf(node: MdNode): string {
@@ -199,7 +202,8 @@ function checkFrontmatter(rel: string, doc: ParsedDoc, report: Report): void {
   const implementation = get('implementation')
   const category = get('category')
   if (kind && !KINDS.has(kind)) report(rel, at('kind'), 'frontmatter-value', 'kind 不在文档体系登记的类型中：' + kind)
-  if (lifecycle && !LIFECYCLES.has(lifecycle)) report(rel, at('lifecycle'), 'frontmatter-value', 'lifecycle 只能是 active、deprecated 或 archived：' + lifecycle)
+  if (lifecycle && !LIFECYCLES.has(lifecycle))
+    report(rel, at('lifecycle'), 'frontmatter-value', 'lifecycle 只能是 active、deprecated 或 archived：' + lifecycle)
   if (kind === 'design' || kind === 'spec') {
     if (!status) report(rel, 1, 'frontmatter', kind + ' 缺少 status')
     else if (!DESIGN_STATUS.has(status)) report(rel, at('status'), 'frontmatter-value', kind + ' 的 status 无效：' + status)

@@ -1,0 +1,14 @@
+{
+  "name": "@coko/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@vitest/browser-playwright": "5.0.3",
+    "playwright": "1.64.0",
+    "vitest": "5.0.3"
+  }
+}

@@ -24,6 +24,19 @@ lifecycle: active
 
 pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main / preload 与 sidecar（Hono 服务和 Agent）都使用 Electron 41.0.3 内置的 Node.js 24.14.0，sidecar 以 `ELECTRON_RUN_AS_NODE=1` 运行；renderer 使用 Chromium。开发机的 Node.js 24.15.0 只运行工具链，与 Electron 内置版本分别管理。选择依据见 [ADR 0001](adr/0001-sidecar-on-electron-node.md)。
 
+### 接入状态
+
+下表之外的选型在对应切片实际使用时才写入 manifest，未写入前只是已选技术，不代表已安装或验证。截至 M1 仓库脚手架，manifest 与 `pnpm-lock.yaml` 已声明：
+
+| 位置 | 已声明依赖 |
+| --- | --- |
+| 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
+| apps/desktop | electron、vitest |
+| packages/ui | vitest、@vitest/browser-playwright、playwright |
+| apps/server 与其余 packages | vitest |
+
+根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
+
 ## 仓库架构
 
 仓库结构、模块职责与依赖、运行链路及构建与测试归属见 [项目架构约定](tech-stack/architecture.md)。
@@ -170,6 +183,6 @@ Streamdown 及其插件分别使用上表的精确版本号。@streamdown/math 1
 | 浏览器与桌面自动化驱动 | playwright 1.64.0，由 Vitest 编排 |
 | 构建侧 Node 类型 | @types/node 24.19.2 |
 
-所有 workspace 显式声明实际使用的运行依赖。根 `pnpm-workspace.yaml` 设置 `autoInstallPeers: false`，必须显式安装所需 peer，包括 React、React DOM 和 @electron/fuses；避免因图标库未使用的 peer 自动引入 antd 与 @lobehub/ui。同一文件设置 `nodeLinker: hoisted` 和 `saveExact: true`；需要运行安装脚本的依赖（如 electron）在 `allowBuilds` 中逐个放行。
+所有 workspace 显式声明实际使用的运行依赖。根 `pnpm-workspace.yaml` 设置 `autoInstallPeers: false`，必须显式安装所需 peer，包括 React、React DOM 和 @electron/fuses；避免因图标库未使用的 peer 自动引入 antd 与 @lobehub/ui。同一文件设置 `nodeLinker: hoisted` 和 `saveExact: true`；pnpm 12 默认 `strictDepBuilds`，未裁决的安装脚本会使安装失败，因此 `allowBuilds` 逐个裁决：放行 electron（postinstall 下载二进制），拒绝 koffi（预编译二进制由 optional 依赖提供）、protobufjs 与 @google/genai（脚本不影响运行）。`permissions` 对 @logtape/logtape 设置 `skills: false`，不把其附带的 Agent skills 链接进仓库。依据为 2026-10-28 的本机安装实测。
 
 测试运行与编排、用例设计、隔离和执行报告见 [测试约定](tech-stack/testing.md)。

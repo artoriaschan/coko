@@ -1,0 +1,10 @@
+{
+  "name": "@coko/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "electron": "41.0.3",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,7 +1,30 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": [
-    "scripts/**/*.ts",
-    "vitest.config.ts"
+  "include": ["scripts/**/*.ts", "vitest.config.ts"],
+  "references": [
+    {
+      "path": "./apps/desktop"
+    },
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./packages/protocol"
+    },
+    {
+      "path": "./packages/agent"
+    },
+    {
+      "path": "./packages/session"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./packages/logging"
+    },
+    {
+      "path": "./packages/i18n"
+    }
   ]
 }
