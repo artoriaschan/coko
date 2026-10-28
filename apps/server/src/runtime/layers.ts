@@ -1,10 +1,11 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolRegistry } from '@coko/agent'
+import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
 import { createPayloadRegistry, isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
+import { openCheckpointSnapshots } from '../adapters/checkpoints.ts'
 import { createEnvCredentialStore, createEnvSecretProvider, createIpcCredentialStore } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
@@ -13,7 +14,7 @@ import { createSecretProbeTool } from '../adapters/test-tools.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { ProviderService } from '../application/providers.ts'
-import { SessionService, type RunLauncher } from '../application/sessions.ts'
+import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
 import type { SidecarConfig } from '../config.ts'
@@ -140,6 +141,25 @@ const RunsLive = Layer.effect(
   }),
 )
 
+/**
+ * 每个 Session 运行时的扩展：Checkpoint tracker（ADR 0006）。快照写到 <dataDir>/blobs；锚点与已备份路径从该 Session
+ * 已提交的条目恢复。hooks 排在权限判定之后，被拒绝的调用不备份。诊断只记 toolCallId 与错误，不含文件内容。
+ */
+function checkpointExtensions(dataDir: string, store: SqliteStore): (context: SessionExtensionContext) => SessionExtension {
+  const snapshots = openCheckpointSnapshots(dataDir)
+  const log = getLogger(['checkpoints'])
+  return ({ sessionId, cwd, commit }) => {
+    const tracker = createCheckpointTracker({
+      cwd,
+      snapshots,
+      commit,
+      history: () => store.sessions.listEntries(sessionId),
+      onError: (error, context) => log.warn('checkpoint record failed', { sessionId, ...context, error: message(error) }),
+    })
+    return { hooks: [tracker.hooks], onEntry: (entry) => tracker.observe(entry) }
+  }
+}
+
 const AppLive = Layer.effect(
   App,
   Effect.gen(function* () {
@@ -170,6 +190,7 @@ const AppLive = Layer.effect(
       runs,
       tools: workspaceTools,
       secrets: createEnvSecretProvider(env),
+      extensions: checkpointExtensions(config.dataDir, store),
       ...(fallbackModel ? { fallbackModel } : {}),
     })
 
