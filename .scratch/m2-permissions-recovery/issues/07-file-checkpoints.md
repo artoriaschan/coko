@@ -29,3 +29,6 @@
 - 文档影响：`packages/session/README.md`（新入口与"快照存储"一节）、ADR 0006 与 `docs/adr/README.md`。`packages/agent/README.md` 第 9 行仍写"尚未实现：…Checkpoint"，不在本票写范围（agent README 归 04/05/06/08），建议更新时改为"Checkpoint 的备份已实现（`src/checkpoints/`），回退与分叉尚未实现"。未新增依赖，TECH_STACK 不变。
 - 运行的命令：`pnpm run typecheck`（通过）、`pnpm run lint`（0 warnings / 0 errors）、`pnpm exec oxfmt --check`（通过）、`pnpm run check:docs`（82 个文件 0 问题）、`git merge main`（已是最新，main 3879bf9）后 `pnpm run test`：83 个文件、673 通过、1 跳过（settings E2E 的真实 DeepSeek 用例，无凭据）、0 失败；含 desktop-e2e 全部文件与 package-smoke。
 - 未验证：真实模型（无凭据）；非 darwin 平台（本机 darwin，本票用例不依赖 Seatbelt）。
+- 2026-10-29 lead：评审后合入 main（50067c0）。接受越界：secrets-gate 追加快照步骤并递归扫描、sidecar-session 序列断言加入 file_backup / file_change。接受同批调用中 file_backup 可能排在前一调用 tool_exec 之前（备份内容仍为执行前版本），票 08 恢复时按 toolCallId 关联而非依赖相邻顺序。lead 更新 agent README 的"尚未实现"一句。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 83 文件 673 通过、1 跳过（真实模型）；check:docs 0 问题。worktree 已清理。
+
+Closed: true

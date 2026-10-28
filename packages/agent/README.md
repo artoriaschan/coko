@@ -6,7 +6,7 @@ lifecycle: active
 
 # @coko/agent
 
-Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。尚未实现：steering 与暂停/继续、启动恢复（执行记录已经提交，但还没有读取它的恢复流程）、Checkpoint。
+Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）。尚未实现：steering 与暂停/继续、启动恢复（执行记录已经提交，但还没有读取它的恢复流程）、回退与分叉。
 
 ## 使用或结构入口
 

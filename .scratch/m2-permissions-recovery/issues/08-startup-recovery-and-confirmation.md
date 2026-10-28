@@ -20,3 +20,5 @@
 - [ ] ADR 0003 的迁移证据写入 partial 说明；`docs/subsystems/recovery.md` 描述恢复分类并从导航可达；地图 Carry-over 对应条目可在里程碑末勾除
 
 ## Comments
+- 2026-10-29 lead：来自票 07——pi 先对整批调用做完调用前检查再执行，同批中后一个调用的 file_backup 可能排在前一个调用的 tool_exec 之前。恢复逻辑按 toolCallId 关联 tool_exec、file_backup、file_change 与 toolResult，不依赖相邻顺序。
+
