@@ -8,6 +8,9 @@ const Id = Type.String({ minLength: 1 })
 export const toolExecPayloadSchema = Type.Object({ toolCallId: Id, toolName: Type.String(), idempotencyKey: Id }, { additionalProperties: false })
 export type ToolExecPayload = Static<typeof toolExecPayloadSchema>
 
+/** 幂等键：同一 Session 内的 toolCallId 唯一，恢复后重新计算得到同一个键。 */
+export const idempotencyKeyFor = (sessionId: string, toolCallId: string) => `${sessionId}:${toolCallId}`
+
 export interface ToolEntryPayloads {
   tool_exec: ToolExecPayload
 }

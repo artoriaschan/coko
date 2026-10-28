@@ -60,8 +60,8 @@ function deferred<T = void>() {
   return { promise, resolve }
 }
 
-function hostTool(name: string, execute: CokoTool['execute']): CokoTool {
-  return { name, label: name, description: `host tool ${name}`, parameters: Type.Object({}), execute }
+function hostTool(name: string, execute: CokoTool['execute'], extra: Partial<CokoTool> = {}): CokoTool {
+  return { name, label: name, description: `host tool ${name}`, parameters: Type.Object({}), execute, ...extra }
 }
 
 describe('Agent 运行时：内置工具闭环', () => {
@@ -148,17 +148,26 @@ describe('Agent 运行时：顺序与提交屏障', () => {
   it('并行工具调用的持久化顺序等于模型调用顺序，progress 按完成顺序', async () => {
     const fastDone = deferred()
     const tools = createToolRegistry()
+    // 只有 read 调用并行（side-effect 调用独占执行，见 tools/scheduler.test.ts）。
     tools.register(
-      hostTool('slow', async () => {
-        await fastDone.promise
-        return { content: [{ type: 'text', text: 'slow result' }], details: undefined }
-      }),
+      hostTool(
+        'slow',
+        async () => {
+          await fastDone.promise
+          return { content: [{ type: 'text', text: 'slow result' }], details: undefined }
+        },
+        { effect: 'read' },
+      ),
     )
     tools.register(
-      hostTool('fast', async () => {
-        fastDone.resolve()
-        return { content: [{ type: 'text', text: 'fast result' }], details: undefined }
-      }),
+      hostTool(
+        'fast',
+        async () => {
+          fastDone.resolve()
+          return { content: [{ type: 'text', text: 'fast result' }], details: undefined }
+        },
+        { effect: 'read' },
+      ),
     )
     const h = harness({ tools })
     h.faux.setResponses([
