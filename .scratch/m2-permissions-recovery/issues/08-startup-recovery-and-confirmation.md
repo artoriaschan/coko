@@ -31,3 +31,6 @@
   - **运行的命令与结果**（worktree，已 `git merge main`，main 在 e498340 未变）：`pnpm run typecheck`、`pnpm run lint`、`pnpm run format:check`、`pnpm run check:docs`（83 文件 0 问题）均 exit 0；`pnpm run test` exit 0：95 个文件，746 通过、1 跳过（`settings.e2e.test.ts` 的真实 DeepSeek 用例，无 `DEEPSEEK_API_KEY`），含 desktop E2E（含 `recovery.e2e.test.ts`）与 `package-smoke.e2e.test.ts` 产物 smoke。分项：session 45、agent recovery 11、integration recovery 5、secrets-gate 3、renderer/ui/i18n 235（含新 store 4、ConfirmationCard browser 4）。
   - **未验证**：真实模型（无凭据）；非 darwin 平台。被 SIGKILL 的 bash 子进程是 detached 进程组，Sidecar 被强杀后它会继续运行到 sleep 结束（测试临时目录删除后其 touch 失败，无影响）；产品中这类孤儿进程的清理不在本票。
   - **文档影响**：新增 `docs/subsystems/recovery.md`（导航 `docs/README.md` 可达）；ADR 0003 partial 说明写入迁移 v2 的协议证据（implementation 仍为 partial：Memory、FTS5 未实现，`docs/adr/README.md` 无需改）；更新 `packages/agent/README.md`、`apps/server/README.md`、`packages/session/README.md`、`docs/subsystems/permissions.md`。无新增依赖，TECH_STACK 未改。地图 Carry-over"崩溃时进行中的 Run 不留 run_end"可在里程碑末勾除。
+- 2026-10-29 lead：评审后合入 main（fd387e5）。接受越界：renderer client/api.ts 的 answerConfirmation、chat-failure.ts 的 confirmation kind、permissions.md 两句过时说明。接受：恢复查询放在 SqliteStore.recovery；无待回答确认时 404 not-found；M1 库中无 run_start 的 Run 不可识别。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 95 文件 746 通过、1 跳过（真实模型），无页面重载；check:docs 83 文件 0 问题。worktree 已清理。
+
+Closed: true

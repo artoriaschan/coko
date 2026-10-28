@@ -21,3 +21,5 @@
 - [ ] ADR 0006 implementation 改为 implemented（附测试位置）或写明剩余项
 
 ## Comments
+- 2026-10-29 lead：来自票 08——(1) 存在未回答的 confirmation_request 时 rewind 与 fork 返回 409 confirmation-pending，复用 SessionService 的同一判断（unansweredConfirmations(entries)）；(2) 恢复补齐的 write / edit 结果不提交 file_change，代码回退时这些路径不要误报为"在 Agent 之外被改动"，按 file_backup 与 toolResult 关联判断，并加用例。
+
