@@ -1,0 +1,25 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../../../.tsbuild/apps/desktop-renderer",
+    "rootDir": "..",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"]
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../shared/bridge.ts"],
+  "references": [
+    {
+      "path": "../../../../packages/ui"
+    },
+    {
+      "path": "../../../../packages/i18n"
+    },
+    {
+      "path": "../../../../packages/protocol"
+    }
+  ]
+}

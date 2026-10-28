@@ -6,7 +6,10 @@
     "emitDeclarationOnly": true,
     "outDir": "../../.tsbuild/packages/ui",
     "lib": ["es2024", "dom", "dom.iterable"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@coko/ui/*": ["./src/*"]
+    }
   },
   "include": ["src", "*.config.ts"]
 }

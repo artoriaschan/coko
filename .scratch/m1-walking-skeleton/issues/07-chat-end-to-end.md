@@ -12,3 +12,5 @@
 - [ ] Browser Mode：IME 组合期间 Enter 不提交；未知工具数据通用展示
 
 ## Comments
+- 2026-10-28 lead：票 05 / 06 合并后的遗留项并入本票：(1) 把 boot.platform 写到 document 的 `data-platform`，使 macOS 红绿灯 72px 避让生效，并在 Electron 中核对；(2) renderer 自行生成的连接失败说明（no-bridge、health、ws-timeout、renderer）进入 i18n 字典，技术详情保持原文；(3) renderer 主 chunk 约 1.5MB（mermaid、shiki），按需拆分为懒加载。
+

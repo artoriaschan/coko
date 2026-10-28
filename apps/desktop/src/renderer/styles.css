@@ -1,0 +1,6 @@
+@import '@coko/ui/styles/theme.css';
+@source './';
+
+#root {
+  height: 100%;
+}
