@@ -59,6 +59,8 @@ export type { EditToolDetails } from './tools/builtin/edit.ts'
 // Session Entry payloads（按领域分文件）与领域 barrel。
 export * from './session-entries/index.ts'
 export * from './policy/index.ts'
+export { MCP_TOOL_PREFIX } from './policy/decide.ts'
+export type { PermissionClass } from './policy/decide.ts'
 export * from './recovery/index.ts'
 export * from './checkpoints/index.ts'
 // 条目派生的唯一实现；renderer 经浏览器安全子路径 @coko/agent/entries 导入同一模块。

@@ -104,6 +104,8 @@ export interface AgentRuntimeOptions {
 export interface RuntimePermissions {
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
+  /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */
+  readRoots?: () => readonly string[]
 }
 
 export interface AgentRuntime {
@@ -286,6 +288,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ? createPermissionGate({
         cwd: options.cwd,
         tool: (name) => registry.get(name),
+        permissionClass: (name) => registry.permissionClass(name),
+        ...(permissions.readRoots ? { readRoots: permissions.readRoots } : {}),
         broker,
         mode: permissions.mode,
         rules: permissions.rules,

@@ -4,8 +4,8 @@ import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-work
 import type { PermissionMode, PermissionRule, SandboxMode } from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
-import { decide, toolCategory, type PermissionCall, type PermissionDecision, type PermissionTarget } from './decide.ts'
-import { resolveTarget, writableRootsFor } from './paths.ts'
+import { decide, toolCategory, type PermissionCall, type PermissionClass, type PermissionDecision, type PermissionTarget } from './decide.ts'
+import { realLocation, resolveTarget, writableRootsFor } from './paths.ts'
 import { checkEscalation, escalationRejectedText, sandboxModeFor } from './sandbox.ts'
 
 /** 模型可见的拒绝文本（契约）。 */
@@ -25,6 +25,10 @@ export interface PermissionGateOptions {
   /** Workspace 目录（按调用时的真实路径判定）。 */
   cwd: string
   tool: (name: string) => CokoTool | undefined
+  /** 宿主注册时给出的权限类（ToolRegistry.permissionClass）；工具对象自身不能声明。 */
+  permissionClass?: (name: string) => PermissionClass | undefined
+  /** 额外读取根（例如 Skill 目录）；按调用时的真实路径判定。 */
+  readRoots?: () => readonly string[]
   broker: ApprovalBroker
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
@@ -68,15 +72,25 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
   const sandboxDenied = new Set<string>()
 
   const subjectOf = (name: string, args: unknown) => options.tool(name)?.permissionSubject?.(args as never)
+  const classOf = (name: string) => options.permissionClass?.(name)
+  const categoryOf = (name: string) => toolCategory(name, classOf(name))
 
   /** 按调用时的模式与规则判定；等待审批期间模式或规则变更后再次调用。 */
   const evaluate = async (name: string, subject: string | undefined): Promise<{ decision: PermissionDecision; target?: PermissionTarget }> => {
     const mode = options.mode()
     const root = await realWorkspace()
-    const call: PermissionCall = { toolName: name, ...(subject === undefined ? {} : { subject }) }
-    const category = toolCategory(name)
+    const permissionClass = classOf(name)
+    const call: PermissionCall = { toolName: name, ...(permissionClass ? { permissionClass } : {}), ...(subject === undefined ? {} : { subject }) }
+    const category = categoryOf(name)
     if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
-    const decision = decide(call, { mode, rules: options.rules(), workspace: root, writableRoots: await writableRootsFor(mode, root) })
+    const readRoots = await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path)))
+    const decision = decide(call, {
+      mode,
+      rules: options.rules(),
+      workspace: root,
+      writableRoots: await writableRootsFor(mode, root),
+      ...(readRoots.length > 0 ? { readRoots } : {}),
+    })
     return { decision, ...(call.target ? { target: call.target } : {}) }
   }
 
@@ -181,7 +195,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
-        if (real !== undefined && toolCategory(name) === 'write') prepared.set(context.toolCall.id, real)
+        if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)
       }
 
       // 提权在拒绝规则之后检查；严格更宽的档位总要用户批准一次（允许规则与模式放行都不能免掉它），替代该次调用的普通审批，

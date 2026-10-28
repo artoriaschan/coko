@@ -186,3 +186,69 @@ describe('规则工具名的大小写与别名（拒绝规则不能因写法而�
     expect(canonicalRuleTool('deploy', ['secret_probe'])).toBeUndefined()
   })
 })
+
+describe('权限类（M3）', () => {
+  const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
+  const allIn = (mode: (typeof MODES)[number]) => ctx({ mode, writableRoots: mode === 'read-only' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
+  const call = (toolName: string, permissionClass: PermissionCall['permissionClass']): PermissionCall => ({
+    toolName,
+    ...(permissionClass ? { permissionClass } : {}),
+  })
+
+  it('context-read：四种模式都放行；deny 规则仍生效', () => {
+    for (const name of ['skill', 'memory_list', 'list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'])
+      expect(MODES.map((mode) => decide(call(name, 'context-read'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
+    expect(decide(call('skill', 'context-read'), ctx({ mode: 'full-access', rules: [rule('deny', 'skill')] })).behavior).toBe('deny')
+  })
+
+  it('memory-write：只在 accept-edits 与 full-access 放行；规则组名 Memory', () => {
+    expect(MODES.map((mode) => decide(call('memory_write', 'memory-write'), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'allow', 'allow'])
+    expect(decide(call('memory_delete', 'memory-write'), ctx())).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Memory' }] })
+    expect(decide(call('memory_delete', 'memory-write'), ctx({ rules: [rule('allow', 'memory')] })).behavior).toBe('allow')
+    expect(decide(call('memory_write', 'memory-write'), ctx({ mode: 'full-access', rules: [rule('deny', 'Memory')] })).behavior).toBe('deny')
+    expect(canonicalRuleTool('memory')).toBe('Memory')
+  })
+
+  it('external（mcp__*）：只在 full-access 放行；未注册时按名字也是 external', () => {
+    expect(MODES.map((mode) => decide(call('mcp__srv__x', 'external'), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'allow'])
+    expect(MODES.map((mode) => decide(call('mcp__srv__x', undefined), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'allow'])
+    expect(decide(call('mcp__srv__x', 'external'), ctx())).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'mcp__srv__x' }] })
+  })
+
+  it('规则 mcp__srv 匹配 mcp__srv__x，不匹配 mcp__srv2__x', () => {
+    const allowServer = ctx({ rules: [rule('allow', 'mcp__srv')] })
+    expect(decide(call('mcp__srv__x', 'external'), allowServer).behavior).toBe('allow')
+    expect(decide(call('mcp__srv2__x', 'external'), allowServer).behavior).toBe('ask')
+    const denyServer = ctx({ mode: 'full-access', writableRoots: ['/'], rules: [rule('deny', 'MCP__SRV')] })
+    expect(decide(call('mcp__srv__x', 'external'), denyServer).behavior).toBe('deny')
+    expect(decide(call('mcp__srv2__x', 'external'), denyServer).behavior).toBe('allow')
+    // 精确到工具的规则只匹配该工具。
+    expect(decide(call('mcp__srv__y', 'external'), ctx({ rules: [rule('allow', 'mcp__srv__x')] })).behavior).toBe('ask')
+  })
+
+  it('未注册的 mcp__ 名字作为规则工具名被接受（不报 unknown-tool）；裸前缀不接受', () => {
+    expect(canonicalRuleTool('mcp__srv')).toBe('mcp__srv')
+    expect(canonicalRuleTool('mcp__srv__tool', [])).toBe('mcp__srv__tool')
+    expect(canonicalRuleTool('mcp__')).toBeUndefined()
+  })
+
+  it('readRoots 下的读取与 Workspace 内读取同样处理', () => {
+    // ~/.agents/skills 下的 Skill（~/.coko 下的路径另受 .coko 受保护段约束）。
+    const SKILL = '/Users/me/.agents/skills/review'
+    const withRoots = (mode: (typeof MODES)[number]) => ({ ...allIn(mode), readRoots: [SKILL] })
+    const readSkill = file('read', `${SKILL}/notes.md`, `${SKILL}/notes.md`)
+    expect(MODES.map((mode) => decide(readSkill, withRoots(mode)).behavior)).toEqual(
+      MODES.map((mode) => decide(file('read', 'a', `${WS}/a`), allIn(mode)).behavior),
+    )
+    expect(decide(file('grep', SKILL, SKILL), withRoots('default')).behavior).toBe('allow')
+    // 没有登记为读取根时照旧询问；Read 拒绝规则仍生效；不放开写入与命令。
+    expect(decide(readSkill, ctx())).toMatchObject({ behavior: 'ask', reason: 'outside-workspace' })
+    expect(decide(readSkill, { ...withRoots('default'), rules: [rule('deny', 'Read', `${SKILL}/**`)] }).behavior).toBe('deny')
+    expect(decide(file('write', `${SKILL}/x`, `${SKILL}/x`), withRoots('accept-edits'))).toMatchObject({ behavior: 'ask', reason: 'outside-writable-roots' })
+  })
+
+  it('内置工具名不受宿主给出的权限类影响', () => {
+    expect(decide(call('bash', 'context-read'), ctx()).behavior).toBe('ask')
+    expect(decide({ ...file('write', 'a', `${WS}/a`), permissionClass: 'context-read' }, ctx()).behavior).toBe('ask')
+  })
+})

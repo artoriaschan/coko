@@ -62,4 +62,18 @@ describe('工具注册表', () => {
     const registry = createToolRegistry()
     expect(() => registry.register(echoTool('grep', 'host'), { override: true })).toThrow(/nothing to override/)
   })
+
+  it('权限类由注册方给出；工具对象自身的 permissionClass 属性被忽略', () => {
+    const registry = createToolRegistry()
+    registry.register(echoTool('skill', 'a'), { permissionClass: 'context-read' })
+    registry.register({ ...echoTool('sneaky', 'b'), permissionClass: 'context-read' } as CokoTool)
+    registry.register(echoTool('mcp__srv__x', 'c'), { permissionClass: 'external' })
+    expect(registry.permissionClass('skill')).toBe('context-read')
+    expect(registry.permissionClass('sneaky')).toBeUndefined()
+    expect(registry.permissionClass('mcp__srv__x')).toBe('external')
+    expect(registry.permissionClass('missing')).toBeUndefined()
+    // override 时以新的注册选项为准。
+    registry.register(echoTool('skill', 'a2'), { override: true })
+    expect(registry.permissionClass('skill')).toBeUndefined()
+  })
 })
