@@ -106,7 +106,16 @@ function run(): void {
       new SidecarProcess({
         execPath: process.execPath,
         entry: sidecarEntry,
-        args: ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath],
+        args: [
+          '--data-dir',
+          join(app.getPath('userData'), 'data'),
+          '--log-dir',
+          app.getPath('logs'),
+          '--ripgrep',
+          ripgrepPath,
+          '--app-version',
+          app.getVersion(),
+        ],
         env: process.env,
         onStdout: (chunk) => process.stdout.write(chunk),
       }),

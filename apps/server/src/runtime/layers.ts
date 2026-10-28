@@ -50,7 +50,14 @@ const LoggingLive = Layer.effect(
   Effect.gen(function* () {
     const { config } = yield* Host
     return yield* Effect.acquireRelease(
-      Effect.promise(() => configureFileLogging({ path: config.logPath, process: 'sidecar', level: config.logLevel })),
+      Effect.promise(() =>
+        configureFileLogging({
+          path: config.logPath,
+          process: 'sidecar',
+          level: config.logLevel,
+          ...(config.appVersion ? { properties: { appVersion: config.appVersion } } : {}),
+        }),
+      ),
       (logging) => Effect.promise(() => logging.dispose()),
     )
   }),

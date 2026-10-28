@@ -117,6 +117,12 @@ export const en: Dictionary = {
     baseUrlRequired: 'A custom Provider needs a base URL',
     modelsRequired: 'Choose at least one model',
     loadFailed: 'Could not load Providers',
+    errors: {
+      invalid: 'Some fields are not valid. Check the base URL and model names.',
+      notFound: 'This Provider no longer exists. Close and reopen settings.',
+      unavailable: 'The Sidecar is unavailable right now. Try again shortly.',
+    },
+    errorDetail: 'Technical details',
     credentialErrors: {
       'invalid-input': 'The Credential cannot be empty or contain spaces',
       'encryption-unavailable': 'System encryption is unavailable. The Credential was not saved.',

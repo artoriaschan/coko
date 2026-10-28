@@ -265,6 +265,47 @@ describe('设置弹窗', () => {
   })
 })
 
+describe('Models 分区', () => {
+  it('类别标签只在名称不等于预设名时显示：按 kind 与协议预设比较，不比较翻译文本', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend, settings } = renderApp('zh', { providers: false })
+    await screen
+    // 自定义 Provider 没有预设：名称恰好等于其类别的中文文案时，类别仍要显示。
+    await backend.api.createProvider({ name: 'OpenAI 兼容', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['m'] })
+    await backend.api.createProvider({ name: 'DeepSeek', kind: 'deepseek', models: ['deepseek-flash'] })
+    await settings.getState().load()
+    const dialog = await openSettings('设置')
+    await dialog.getByRole('button', { name: '模型', exact: true }).click()
+    const compatible = page.elementLocator(dialog.element().querySelector('[data-kind="openai-compatible"][data-provider-id]')!)
+    await expect.element(compatible).toBeVisible()
+    expect(compatible.element().textContent).toContain('OpenAI 兼容OpenAI 兼容')
+    const deepseek = dialog.element().querySelector('[data-kind="deepseek"][data-provider-id]')!
+    expect(deepseek.textContent?.match(/DeepSeek/g)).toHaveLength(1)
+  })
+
+  it('保存失败时显示可行动的本地化说明，技术原文只在详情中', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend } = renderApp('en', { providers: false })
+    await screen
+    const { ApiError } = await import('../client/api.ts')
+    vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
+    const dialog = await openSettings('Settings')
+    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Add Provider' }).click()
+    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
+    await dialog.getByLabelText('Name', { exact: true }).fill('Local')
+    await dialog.getByLabelText('Base URL', { exact: true }).fill('not a url')
+    await dialog.getByLabelText('Models', { exact: true }).fill('m1')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    const alert = dialog.getByRole('alert')
+    await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
+    expect(alert.element().textContent).not.toContain('Invalid request')
+    // 技术原文放在可展开的详情中，可选中复制。
+    const details = dialog.element().querySelector('[data-error-detail]')
+    expect(details?.textContent).toContain('Invalid request: /baseUrl must match format "uri"')
+  })
+})
+
 describe('键盘', () => {
   it('⌘N 在任意焦点下新建会话草稿并聚焦输入区', async () => {
     await page.viewport(1280, 800)

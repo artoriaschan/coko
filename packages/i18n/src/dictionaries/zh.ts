@@ -116,6 +116,12 @@ export const zh = {
     baseUrlRequired: '自定义 Provider 需要填写地址',
     modelsRequired: '至少选择一个模型',
     loadFailed: 'Provider 加载失败',
+    errors: {
+      invalid: '有字段不符合要求，请检查地址与模型名称',
+      notFound: '这个 Provider 已不存在，请关闭设置后重新打开',
+      unavailable: 'Sidecar 暂时不可用，请稍后重试',
+    },
+    errorDetail: '技术详情',
     credentialErrors: {
       'invalid-input': 'Credential 不能为空，也不能包含空白字符',
       'encryption-unavailable': '系统加密不可用，Credential 未保存',

@@ -11,7 +11,7 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 ## 使用或结构入口
 
 ```text
-<electron> apps/server/src/index.ts --data-dir <dir> --log-dir <dir> [--ripgrep <rg>]
+<electron> apps/server/src/index.ts --data-dir <dir> --log-dir <dir> [--ripgrep <rg>] [--app-version <version>]
 ```
 
 | 输入 | 含义 |
@@ -19,11 +19,12 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 | `--data-dir` | 必填，绝对路径；库文件为 `<dir>/coko.db` |
 | `--log-dir` | 必填，绝对路径；日志为 `<dir>/sidecar.jsonl`（JSONL，10 MiB × 5 份轮转） |
 | `--ripgrep` | 可选，绝对路径；给定时启动先运行 `<rg> --version`，失败按 `ripgrep-unavailable` fatal（不回退内置 grep），成功则以 ripgrep 版 grep 覆盖内置 grep（`src/adapters/ripgrep.ts`）。未给定时使用内置纯 JS grep。生效实现记入日志 `grep implementation selected { implementation, path?, version? }` |
+| `--app-version` | 可选，版本号形态（如 `1.2.3`、`1.2.3-beta.1`）；写入 sidecar.jsonl 每条记录的 `appVersion` 统一字段。desktop main 传入 `app.getVersion()` |
 | `COKO_FAUX_SCRIPT` | 仅测试：faux provider 脚本的绝对路径，格式见 `src/adapters/faux.ts`；开启后新建 Session 默认使用 `faux/faux-1` |
 | `COKO_LOG_LEVEL` | `trace`…`fatal`，默认 `info` |
 | `COKO_CREDENTIAL_<PROVIDER_ID>`、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY` | 仅独立运行模式读取的 Credential，见下文 |
 
-未知参数、缺失或相对路径都按 `invalid-arguments` fatal。源码目录按 [项目架构约定](../../docs/tech-stack/architecture.md#仓库架构) 划分：`http/`（Hono 路由、信任围栏与 cookie）、`ws/`（订阅与补发）、`application/`（协议到 agent / session 的映射）、`runtime/`（Effect 装配与关闭）、`adapters/`（Credential、faux）、`control/`（控制通道）。
+未知参数、缺失、相对路径或不合形态的版本号都按 `invalid-arguments` fatal。源码目录按 [项目架构约定](../../docs/tech-stack/architecture.md#仓库架构) 划分：`http/`（Hono 路由、信任围栏与 cookie）、`ws/`（订阅与补发）、`application/`（协议到 agent / session 的映射）、`runtime/`（Effect 装配与关闭）、`adapters/`（Credential、faux）、`control/`（控制通道）。
 
 ## 契约与生命周期
 
