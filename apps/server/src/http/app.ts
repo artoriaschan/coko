@@ -134,6 +134,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     const { text } = await body(c, SubmitMessageRequest)
     return c.json(await app.sessions.submit(c.req.param('id'), text), 202)
   })
+  http.post(`${API_ROUTES.sessions}/:id/retry`, async (c) => c.json(await app.sessions.retry(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/abort`, async (c) => c.json({ aborted: await app.sessions.abort(c.req.param('id')) }))
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
     const { model } = await body(c, SetSessionModelRequest)

@@ -56,6 +56,8 @@ export const apiPaths = {
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
   /** POST：提交用户消息并开始 Run。 */
   sessionMessages: (id: string) => `${apiPaths.session(id)}/messages`,
+  /** POST：重新执行出错的上一轮（不追加用户消息），202 返回新 runId。 */
+  sessionRetry: (id: string) => `${apiPaths.session(id)}/retry`,
   /** POST：停止当前 Run。 */
   sessionAbort: (id: string) => `${apiPaths.session(id)}/abort`,
   /** PUT：切换 Session 的模型。 */

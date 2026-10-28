@@ -90,7 +90,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   } else {
     body = (
       <div className={`${chatColumn} flex flex-col gap-4 py-4`}>
-        <TimelineView items={items} theme={theme} onRetry={(text) => void retry(text)} />
+        <TimelineView items={items} theme={theme} onRetry={() => void retry()} />
       </div>
     )
   }

@@ -20,6 +20,13 @@ export class RuntimeBusyError extends Error {
   }
 }
 
+export class NothingToRetryError extends Error {
+  override readonly name = 'NothingToRetryError'
+  constructor() {
+    super('The last turn did not fail; there is nothing to retry')
+  }
+}
+
 export interface AgentRuntimeOptions {
   /** pi-ai collection that owns the model's Provider (see createModelRegistry). */
   models: Models
@@ -48,6 +55,13 @@ export interface AgentRuntimeOptions {
 export interface AgentRuntime {
   /** Submit a user message and resolve when the Run ended and its run_end entry was committed. */
   run(text: string): Promise<RunResult>
+  /**
+   * Run the failed last turn again as a new Run, without a new user message: the trailing failed assistant
+   * message is dropped from the model context and the model continues from the user message or tool results
+   * before it. The failed message stays in the committed record. Throws NothingToRetryError when the last turn
+   * did not end with a model error.
+   */
+  retry(): Promise<RunResult>
   /** Cancel the current Run; it ends with status `aborted` after tools have stopped. */
   abort(): void
   subscribe(listener: (event: RuntimeEvent) => void): () => void
@@ -170,32 +184,57 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     return { status: 'completed' }
   }
 
-  return {
-    async run(text) {
-      if (current || agent.state.isStreaming) throw new RuntimeBusyError()
-      const run: RunState = { runId: randomUUID(), aborted: false }
-      current = run
+  /** The trailing assistant message ended with a model error: it is what retry() runs again. */
+  const failedTurn = () => {
+    const last = agent.state.messages.at(-1)
+    return last?.role === 'assistant' && last.stopReason === 'error'
+  }
+
+  /** One Run around `drive`: run_start, the agent loop, the run_end entry, then the run_end progress. */
+  const execute = async (drive: () => Promise<void>): Promise<RunResult> => {
+    if (current || agent.state.isStreaming) throw new RuntimeBusyError()
+    const run: RunState = { runId: randomUUID(), aborted: false }
+    current = run
+    let result: RunResult
+    try {
+      agent.state.tools = effectiveTools()
+      progress({ type: 'run_start', runId: run.runId })
+      let internal: RunError | undefined
       try {
-        agent.state.tools = effectiveTools()
-        progress({ type: 'run_start', runId: run.runId })
-        let internal: RunError | undefined
-        try {
-          await agent.prompt(text)
-        } catch (error) {
-          internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
-        }
-        const result = internal ? { status: 'error' as const, error: internal } : outcome(run)
-        if (!run.commitError) {
-          try {
-            await commit({ kind: 'run_end', runId: run.runId, ...result })
-          } catch (error) {
-            return { runId: run.runId, status: 'error', error: { code: 'commit_failed', message: error instanceof Error ? error.message : String(error) } }
-          }
-        }
-        return { runId: run.runId, ...result }
-      } finally {
-        current = undefined
+        await drive()
+      } catch (error) {
+        internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
       }
+      const ended = internal ? { status: 'error' as const, error: internal } : outcome(run)
+      result = { runId: run.runId, ...ended }
+      if (!run.commitError) {
+        try {
+          await commit({ kind: 'run_end', runId: run.runId, ...ended })
+        } catch (error) {
+          result = { runId: run.runId, status: 'error', error: { code: 'commit_failed', message: error instanceof Error ? error.message : String(error) } }
+        }
+      }
+    } finally {
+      current = undefined
+    }
+    progress({ type: 'run_end', runId: result.runId, status: result.status, ...(result.error ? { error: result.error } : {}) })
+    return result
+  }
+
+  return {
+    run(text) {
+      return execute(() => agent.prompt(text))
+    },
+    async retry() {
+      if (current || agent.state.isStreaming) throw new RuntimeBusyError()
+      if (!failedTurn()) throw new NothingToRetryError()
+      return execute(async () => {
+        const messages = agent.state.messages
+        let end = messages.length
+        while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--
+        agent.state.messages = messages.slice(0, end)
+        await agent.continue()
+      })
     },
     abort() {
       if (!current) return

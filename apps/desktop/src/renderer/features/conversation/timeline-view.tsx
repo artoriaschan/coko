@@ -9,7 +9,7 @@ import { ToolCardView } from './tool-cards.tsx'
 export interface TimelineViewProps {
   items: TimelineItem[]
   theme: Theme
-  onRetry: (text: string) => void
+  onRetry: () => void
 }
 
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
@@ -77,8 +77,8 @@ export function TimelineView({ items, theme, onRetry }: TimelineViewProps) {
                     {item.message}
                   </p>
                 )}
-                {item.retryText !== null && (
-                  <Button variant="outline" size="sm" className="self-start" onClick={() => onRetry(item.retryText!)}>
+                {item.retryable && (
+                  <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
                     <RotateCcwIcon />
                     {t('conversation.retry')}
                   </Button>

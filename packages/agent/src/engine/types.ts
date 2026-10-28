@@ -37,6 +37,11 @@ export type ProgressEvent =
   /** In tool completion order; the committed toolResult entries keep the model's call order. */
   | { type: 'tool_end'; runId: string; toolCallId: string; toolName: string; isError: boolean; result: AgentToolResult<unknown>; durationMs?: number }
   | { type: 'retry'; runId: string; attempt: number; maxRetries: number; delayMs: number; errorMessage: string }
+  /**
+   * Last event of every Run, after its run_end entry was committed or the commit failed. A client that missed the
+   * run_end entry (the commit failed) still learns that the Run is over.
+   */
+  | { type: 'run_end'; runId: string; status: RunStatus; error?: RunError }
 
 /** `entry` is emitted after the host's commit resolved; `progress` is fire-and-forget. */
 export type RuntimeEvent = { kind: 'entry'; entry: RunEntry } | { kind: 'progress'; event: ProgressEvent }

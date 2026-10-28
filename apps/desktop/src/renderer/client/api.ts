@@ -72,6 +72,8 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     createSession: (input: CreateSessionRequest) => call(Session, 'POST', API_ROUTES.sessions, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     submitMessage: (id: string, text: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionMessages(id), { text }),
+    /** 重新执行出错的上一轮，不追加用户消息。 */
+    retryRun: (id: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionRetry(id), {}),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
     listSettings: async () => (await call(SettingsResponse, 'GET', API_ROUTES.settings)).settings,

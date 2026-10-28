@@ -207,6 +207,61 @@ describe('Session 协议', () => {
     expect(output).not.toContain('ELECTRON_RUN_AS_NODE')
   })
 
+  it('条目提交失败（租约被夺走）时客户端仍收到 run_end progress，带 commit_failed', async () => {
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const db = join(dirs.dataDir, 'coko.db')
+    const script = await fauxScript(root, {
+      responses: [
+        {
+          content: [
+            {
+              type: 'toolCall',
+              name: 'bash',
+              id: 'steal',
+              arguments: { command: `sqlite3 '${db}' "UPDATE host_lease SET instance_id = 'thief' WHERE id = 1"` },
+            },
+          ],
+        },
+        { content: 'never committed' },
+      ],
+    })
+    const { sidecar, cookie, api } = await boot(dirs, script)
+    const { sessionId } = await newSession(api, root)
+    const stream = await connect(sidecar, cookie)
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed')
+    const { runId } = (await api.post(apiPaths.sessionMessages(sessionId), { text: 'steal the lease' })).body as { runId: string }
+    const end = await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'run_end')
+    expect(end).toMatchObject({ runId, event: { type: 'run_end', status: 'error', error: { code: 'commit_failed' } } })
+    expect(stream.entries(sessionId).some((e) => e.kind === 'run_end')).toBe(false)
+  })
+
+  it('重试重新执行出错的上一轮：不追加用户条目，模型上下文中用户请求只出现一次', async () => {
+    const root = await tempDir()
+    const script = await fauxScript(root, {
+      responses: [{ content: [], stopReason: 'error', errorMessage: 'invalid request' }, { content: 'Recovered.' }],
+    })
+    const { sidecar, cookie, api } = await boot(await sidecarDirs(), script)
+    const { sessionId } = await newSession(api, root)
+    const stream = await connect(sidecar, cookie)
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed')
+    expect((await api.post(apiPaths.sessionRetry(sessionId))).body).toMatchObject({ error: { code: 'nothing-to-retry' } })
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'only once' })
+    await stream.waitFor(isRunEnd(sessionId))
+
+    const retried = await api.post(apiPaths.sessionRetry(sessionId))
+    expect(retried.status).toBe(202)
+    const { runId } = retried.body as { runId: string }
+    await stream.waitFor((m) => m.type === 'entry' && m.entry.kind === 'run_end' && m.entry.runId === runId)
+    const entries = stream.entries(sessionId)
+    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual(['user', 'assistant', 'run_end', 'assistant', 'run_end'])
+    expect(entries.filter((e) => e.runId === runId).map((e) => e.kind)).toEqual(['message', 'run_end'])
+    expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
+    expect((await api.post(apiPaths.sessionRetry(sessionId))).body).toMatchObject({ error: { code: 'nothing-to-retry' } })
+  })
+
   it('没有模型时提交返回 model-not-configured；未知 Session 与非法订阅返回错误', async () => {
     const root = await tempDir()
     const { sidecar, cookie, api } = await boot(await sidecarDirs())

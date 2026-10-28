@@ -163,7 +163,8 @@ describe('对话闭环', () => {
     await app.window.locator('[data-action="send"]').waitFor()
     // 只有最后一个 Run 的错误提供重试。
     expect(await app.window.getByRole('button', { name: /^(Retry|重试)$/ }).count()).toBe(0)
-    expect(await app.window.getByRole('article', { name: /^(You|你)$/ }).count()).toBe(2)
+    // 重试重新执行出错的一轮，不追加用户消息：对话中只有一条"你"。
+    expect(await app.window.getByRole('article', { name: /^(You|你)$/ }).count()).toBe(1)
   })
 
   it('document 带有平台标记；macOS 收起为 rail 时标题避开红绿灯', async () => {

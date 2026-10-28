@@ -8,6 +8,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('not-found'),
   /** Session 已有 Run 在进行。 */
   Type.Literal('run-in-progress'),
+  /** 上一轮没有以模型错误结束，没有可重试的内容。 */
+  Type.Literal('nothing-to-retry'),
   /** Session 没有可用模型（未配置 Provider 或模型不存在）。 */
   Type.Literal('model-not-configured'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */

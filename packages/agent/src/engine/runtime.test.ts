@@ -14,7 +14,7 @@ import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import { readOutputSchema } from '../tools/builtin/read.ts'
 import { createToolRegistry } from '../tools/registry.ts'
 import type { CokoTool } from '../tools/types.ts'
-import { createAgentRuntime, RuntimeBusyError, type AgentRuntimeOptions } from './runtime.ts'
+import { createAgentRuntime, NothingToRetryError, RuntimeBusyError, type AgentRuntimeOptions } from './runtime.ts'
 import type { ProgressEvent, RunEntry } from './types.ts'
 
 let ws: TempWorkspace
@@ -205,6 +205,27 @@ describe('Agent 运行时：顺序与提交屏障', () => {
     expect(result.error).toEqual({ code: 'commit_failed', message: 'disk full' })
     await expect(access(ws.path('ran'))).rejects.toThrow(/ENOENT/)
     expect(h.entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))).toEqual(['user'])
+    expect(h.progress.at(-1)).toEqual({ type: 'run_end', runId: result.runId, status: 'error', error: { code: 'commit_failed', message: 'disk full' } })
+  })
+
+  it('每个 Run 以 run_end progress 结束；run_end 条目提交失败时 progress 仍报告结束', async () => {
+    const ok = harness()
+    ok.faux.setResponses([fauxAssistantMessage('fine')])
+    const done = await ok.runtime.run('hi')
+    expect(ok.progress.at(-1)).toEqual({ type: 'run_end', runId: done.runId, status: 'completed' })
+    expect(ok.progress.filter((event) => event.type === 'run_end')).toHaveLength(1)
+
+    const h = harness({
+      commit: async (entry) => {
+        if (entry.kind === 'run_end') throw new Error('lease lost')
+      },
+    })
+    h.faux.setResponses([fauxAssistantMessage('fine')])
+    const result = await h.runtime.run('hi')
+    expect(result).toMatchObject({ status: 'error', error: { code: 'commit_failed', message: 'lease lost' } })
+    expect(h.entries.some((entry) => entry.kind === 'run_end')).toBe(false)
+    expect(h.progress.at(-1)).toEqual({ type: 'run_end', runId: result.runId, status: 'error', error: { code: 'commit_failed', message: 'lease lost' } })
+    expect(h.runtime.isRunning).toBe(false)
   })
 })
 
@@ -290,6 +311,39 @@ describe('Agent 运行时：模型错误与重试', () => {
     expect(h.faux.state.callCount).toBe(1)
     expect(result.error).toEqual({ code: 'model_error', message: 'Invalid API key' })
     expect(assistantsOf(h.entries).at(-1)).toMatchObject({ stopReason: 'error', errorMessage: 'Invalid API key' })
+  })
+
+  it('retry 重新执行出错的上一轮：不追加用户消息，模型看到的上下文中用户请求只出现一次', async () => {
+    const h = harness()
+    const contexts: string[] = []
+    h.faux.setResponses([
+      fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Invalid API key' }),
+      (context) => {
+        contexts.push(JSON.stringify(context.messages))
+        return fauxAssistantMessage('recovered')
+      },
+    ])
+    const failed = await h.runtime.run('do the thing')
+    expect(failed.status).toBe('error')
+    const retried = await h.runtime.retry()
+    expect(retried.status).toBe('completed')
+    expect(retried.runId).not.toBe(failed.runId)
+    const retriedEntries = h.entries.filter((entry) => entry.runId === retried.runId)
+    expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))).toEqual(['assistant', 'run_end'])
+    expect(contexts[0]?.split('do the thing')).toHaveLength(2)
+    expect(h.runtime.messages.filter((message) => message.role === 'user')).toHaveLength(1)
+    expect(h.progress.filter((event) => event.runId === retried.runId).map((event) => event.type)).toContain('run_start')
+  })
+
+  it('从已提交条目恢复后也能重试；上一轮没有出错时 retry 拒绝', async () => {
+    const first = harness()
+    first.faux.setResponses([fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Invalid API key' })])
+    await first.runtime.run('restore me')
+    const second = harness({ messages: messagesOf(first.entries) })
+    second.faux.setResponses([fauxAssistantMessage('back')])
+    expect((await second.runtime.retry()).status).toBe('completed')
+    await expect(second.runtime.retry()).rejects.toThrow(NothingToRetryError)
+    await expect(harness().runtime.retry()).rejects.toThrow(NothingToRetryError)
   })
 
   it('已输出内容后出错不重试，避免重复展示', async () => {
