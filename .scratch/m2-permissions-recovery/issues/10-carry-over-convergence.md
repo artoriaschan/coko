@@ -49,3 +49,6 @@
 
   **文档影响**
   - 无正文变化：apps/server README 中 decrypt 的 10 秒超时与 `*_API_KEY` 的说明仍然准确；main 侧 credential.store 的超时与退出语义在正式文档中没有描述。可选：ui.md 的"Toast 宿主比弹层活得更久"可补一句"弹层打开时 Toast 动作仍可用键盘到达"，不在本票写范围内，未改。
+- 2026-10-29 lead：合入 main（2dbfd8b）。合入后首次全量 test 有 27 个 Browser Mode 用例失败：新增的 radix-ui/internal 深层导入在旧的 Vite 预构建缓存上被运行中发现，触发页面重载。重跑通过；lead 在两个 browser 配置加 optimizeDeps.include（radix-ui/internal、sonner）并合入（9d88f91）。注：清空缓存后未能复现旧缓存场景，修复依据是 Vitest 的提示与重载日志。接受越界：main/index.ts 的 onUnavailable 接线、4 个测试文件追加用例、新增 dialog.browser.test.tsx。main 上复核：typecheck、lint、format:check 退出 0；全量 test 84 文件 686 通过、1 跳过（真实模型），无页面重载；check:docs 0 问题。worktree 已清理。
+
+Closed: true

@@ -41,10 +41,10 @@ Status: open
 - M6：发布构建关闭 COKO_FAUX_SCRIPT 等测试钩子（构建期标志开启），产物 smoke 改用测试构建（M1 票 09 裁决）。
 - M3：rg 读取全局 gitignore 与 .git/info/exclude，内置 grep 不读；在 Context Management 中决定是否对齐（M1 票 09）。
 
-- M2：模态对话框打开时 Toast 动作无法用键盘到达（M1 票 08）。
+- ~~M2：模态对话框打开时 Toast 动作无法用键盘到达（M1 票 08）。~~ 已由 M2 票 10 解决。
 
 - M2：Sidecar 崩溃或重启时进行中的 Run 不留 run_end，启动恢复须把它们判定为中断并按幂等规则处理（M1 票 10）。
-- M2：B1 Provider kind 映射散落 6 处、B3 挂起请求加超时重复 4 处，随 M2 涉及的模块收敛（M1 Standards 评审）。
+- ~~M2：B1 Provider kind 映射散落 6 处、B3 挂起请求加超时重复 4 处，随 M2 涉及的模块收敛（M1 Standards 评审）。~~ 已由 M2 票 10 解决。
 
 ## Route status
 
