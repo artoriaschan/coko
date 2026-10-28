@@ -1,5 +1,5 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createModelRegistry } from '@coko/agent'
+import { createModelRegistry, type ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
@@ -7,6 +7,7 @@ import { isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
 import { createEnvCredentialStore, createIpcCredentialStore } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
+import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { ProviderService } from '../application/providers.ts'
@@ -35,6 +36,7 @@ export interface HostShape {
 
 export class Host extends Context.Service<Host, HostShape>()('coko/Host') {}
 export class Logging extends Context.Service<Logging, FileLogging>()('coko/Logging') {}
+export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
@@ -51,6 +53,29 @@ const LoggingLive = Layer.effect(
       Effect.promise(() => configureFileLogging({ path: config.logPath, process: 'sidecar', level: config.logLevel })),
       (logging) => Effect.promise(() => logging.dispose()),
     )
+  }),
+)
+
+/**
+ * 工具集：给定 --ripgrep 时先探测可执行性，失败是 fatal（不回退内置 grep，以免掩盖打包缺陷）。
+ * 在打开存储之前执行，失败时不占用租约。
+ */
+const ToolsLive = Layer.effect(
+  Tools,
+  Effect.gen(function* () {
+    const { config } = yield* Host
+    const log = getLogger(['runtime'])
+    const path = config.ripgrepPath
+    if (path === undefined) {
+      log.info('grep implementation selected', { implementation: 'builtin' })
+      return createWorkspaceTools(undefined)
+    }
+    const version = yield* Effect.tryPromise({
+      try: () => probeRipgrep(path),
+      catch: (error) => new StartupError('ripgrep-unavailable', message(error), { cause: error }),
+    })
+    log.info('grep implementation selected', { implementation: 'ripgrep', path, version })
+    return createWorkspaceTools(path)
   }),
 )
 
@@ -99,6 +124,7 @@ const AppLive = Layer.effect(
     const { config, control, env } = yield* Host
     const store = yield* Store
     const runs = yield* Runs
+    const workspaceTools = yield* Tools
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -115,7 +141,7 @@ const AppLive = Layer.effect(
     const hub = new SessionHub()
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
-    const sessions = new SessionService({ store, registry, hub, runs, ...(fallbackModel ? { fallbackModel } : {}) })
+    const sessions = new SessionService({ store, registry, hub, runs, tools: workspaceTools, ...(fallbackModel ? { fallbackModel } : {}) })
 
     control.onMessage((msg) => {
       if (msg.type !== 'credential.store') return
@@ -148,7 +174,7 @@ const HttpLive = Layer.effect(
 )
 
 /**
- * 装配顺序：Host → Logging → Store → Runs → App → Http；释放顺序相反，
+ * 装配顺序：Host → Logging → Tools → Store → Runs → App → Http；释放顺序相反，
  * 即先停止接受请求，再中断并等待 Run，然后关闭存储，最后刷新日志。
  */
 export function sidecarLayer(host: HostShape) {
@@ -156,6 +182,7 @@ export function sidecarLayer(host: HostShape) {
     Layer.provideMerge(AppLive),
     Layer.provideMerge(RunsLive),
     Layer.provideMerge(StoreLive),
+    Layer.provideMerge(ToolsLive),
     Layer.provideMerge(LoggingLive),
     Layer.provideMerge(Layer.succeed(Host, host)),
   )

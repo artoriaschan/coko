@@ -65,6 +65,13 @@ export function describeGrepContract({ name, createTool }: GrepContractOptions):
       expect(await run({ pattern: 'needle' })).toBe('.hidden/config:1: needle\nsub/keep.txt:1: needle')
     })
 
+    it('目录不是 git 仓库时 .gitignore 仍生效', async () => {
+      await ws.write('.gitignore', 'ignored.txt\n')
+      await ws.write('ignored.txt', 'needle\n')
+      await ws.write('kept.txt', 'needle\n')
+      expect(await run({ pattern: 'needle' })).toBe('kept.txt:1: needle')
+    })
+
     it('glob 过滤：无斜杠匹配任意深度的文件名，有斜杠相对搜索目录锚定', async () => {
       await ws.write('a.ts', 'needle\n')
       await ws.write('deep/x/b.ts', 'needle\n')

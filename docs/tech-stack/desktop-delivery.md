@@ -54,7 +54,7 @@ Agent 与 Hono 服务运行在独立的 sidecar 进程中。Electron main 用 `c
 
 ### 内置 ripgrep
 
-ripgrep 只由桌面应用分发，packages/agent 不依赖它。apps/desktop 依赖 @vscode/ripgrep：开发时使用该包解析的可执行路径，打包时经 `extraResource` 携带对应平台的二进制，main 启动 sidecar 时把实际路径作为启动参数传入。apps/server 不导入 ripgrep 包，收到路径后在 adapters 中构造基于 ripgrep 的 grep 实现，并在装配时覆盖内置 grep，遵守 [工具扩展与覆盖](agent-runtime.md#工具扩展与覆盖) 的契约。
+ripgrep 只由桌面应用分发，packages/agent 不依赖它。apps/desktop 依赖 @vscode/ripgrep：构建时把该包为当前平台解析的可执行文件复制到 `dist/ripgrep/`，开发时使用这份副本，打包时经 `extraResource` 携带到资源目录的 `ripgrep/`；main 启动 sidecar 时把实际路径作为启动参数传入。该包是 ESM 且按自身位置解析平台包，不打进 CommonJS 的 main。apps/server 不导入 ripgrep 包，收到路径后在 adapters 中构造基于 ripgrep 的 grep 实现，并在装配时覆盖内置 grep，遵守 [工具扩展与覆盖](agent-runtime.md#工具扩展与覆盖) 的契约。
 
 传入的路径缺失或不可执行时，sidecar 报告 fatal 并退出，不静默回退到内置实现，以免掩盖打包缺陷；未传入路径（例如脱离桌面单独运行 sidecar）时使用内置 grep。安装包 smoke 需确认 sidecar 实际使用的是随包 ripgrep。
 
