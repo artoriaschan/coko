@@ -1,0 +1,42 @@
+/* 连接状态页的临时样式：只用系统颜色关键字，不引入字面量颜色；三栏骨架由 UI 基础切片替换。 */
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans SC', 'PingFang SC', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  /* 透明背景让窗口的 sidebar 材质透出。 */
+  background: transparent;
+  color: CanvasText;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  -webkit-app-region: drag;
+}
+
+.status-label {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.status-detail {
+  margin: 0;
+  max-width: 480px;
+  font-size: 12px;
+  line-height: 18px;
+  color: GrayText;
+  text-align: center;
+  -webkit-app-region: no-drag;
+  user-select: text;
+}

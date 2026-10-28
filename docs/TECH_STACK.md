@@ -31,7 +31,8 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 位置 | 已声明依赖 |
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
-| apps/desktop | electron、vitest |
+| apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol |
+| packages/protocol | typebox、vitest |
 | packages/ui | vitest、@vitest/browser-playwright、playwright |
 | apps/server 与其余 packages | vitest |
 
