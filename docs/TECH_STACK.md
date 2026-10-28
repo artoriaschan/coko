@@ -34,6 +34,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | apps/desktop | electron、vitest |
 | packages/ui | vitest、@vitest/browser-playwright、playwright |
 | packages/session | vitest、electron（devDependency，仅用于以 `ELECTRON_RUN_AS_NODE=1` 运行存储测试） |
+| packages/agent | @earendil-works/pi-agent-core、@earendil-works/pi-ai、typebox、diff、ignore、vitest；pi-ai 只经子路径导入 Chat Completions、Responses、Anthropic Messages 三个协议及 DeepSeek、OpenAI、Anthropic 模型目录 |
 | apps/server 与其余 packages | vitest |
 
 根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
