@@ -73,6 +73,11 @@ export interface ToolExecutionContext {
   sandbox?: SandboxPolicy
   /** The declared secrets of this call, by name. Absent when the tool declares none. Pass them only to the call's own child process. */
   secrets?: Readonly<Record<string, string>>
+  /**
+   * Whether a path (absolute) is covered by a Read deny rule. Directory tools (grep, find, ls) leave such paths out of
+   * their results. Absent when the runtime has no permission decision or no Read deny rule applies.
+   */
+  readDenied?: (path: string) => boolean
 }
 
 export type { AgentToolResult, AgentToolUpdateCallback }

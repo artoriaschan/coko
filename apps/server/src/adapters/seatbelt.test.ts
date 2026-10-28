@@ -1,9 +1,9 @@
 // Seatbelt 适配器：profile 文本（与规格一致）、启动探测、真实 sandbox-exec 下的拒绝判定。
 // 真实 sandbox-exec 的用例只在 darwin 运行；其他平台没有 sandbox-exec，显式跳过（探测失败的路径另有平台无关用例）。
-import { access, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createLocalExecPort } from '@coko/agent'
+import { createLocalExecPort, PROTECTED_PATH_NAMES } from '@coko/agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { probeSeatbelt, seatbeltProfile, createSeatbeltSandbox } from './seatbelt.ts'
 
@@ -22,6 +22,19 @@ describe('Seatbelt profile', () => {
     expect(seatbeltProfile({ mode: 'workspace-write', writableRoots: ['/w/a "b"', '/private/tmp'] })).toBe(
       '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "/w/a \\"b\\"") (subpath "/private/tmp"))',
     )
+  })
+})
+
+describe('受保护路径', () => {
+  it('可写根之后对每个根下任意深度的受保护名字追加 deny（不区分大小写，根中的正则字符按字面匹配）', () => {
+    const profile = seatbeltProfile({ mode: 'workspace-write', writableRoots: ['/w/a.b'], protectedNames: ['.git'] })
+    expect(profile).toBe(
+      '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "/w/a.b")) (deny file-write* (regex #"^/w/a[.]b/(.*/)?([.][gG][iI][tT])(/|$)"))',
+    )
+  })
+
+  it('受保护名字的集合与权限判定相同（含 .git、.coko、.ssh）', () => {
+    expect(PROTECTED_PATH_NAMES).toEqual(expect.arrayContaining(['.git', '.coko', '.vscode', '.idea', '.ssh', '.bashrc', '.zshrc', '.mcp.json']))
   })
 })
 
@@ -58,7 +71,7 @@ describe.skipIf(!darwin)('真实 sandbox-exec（只在 darwin 运行：其他平
       command,
       cwd: workspace,
       onData: (c) => (output += c.toString()),
-      sandbox: { mode, writableRoots: mode === 'read-only' ? [] : [workspace] },
+      sandbox: { mode, writableRoots: mode === 'read-only' ? [] : [workspace], protectedNames: PROTECTED_PATH_NAMES },
     })
     return { outcome, output }
   }
@@ -70,6 +83,20 @@ describe.skipIf(!darwin)('真实 sandbox-exec（只在 darwin 运行：其他平
     expect(denied.outcome).toEqual({ kind: 'exited', exitCode: 1, sandboxDenied: true })
     expect(denied.output).toMatch(/operation not permitted/i)
     expect(await exists(join(outside, 'f'))).toBe(false)
+  })
+
+  it('workspace-write：可写根内的 .git、.coko（含大小写变体与子目录中的）被拒绝，普通文件照常写入', async () => {
+    await mkdir(join(workspace, '.git', 'hooks'), { recursive: true })
+    await mkdir(join(workspace, 'sub', '.GIT'), { recursive: true })
+    for (const command of ['echo x > .git/hooks/pre-commit', 'echo x > sub/.GIT/config', 'mkdir .coko', 'echo x > .zshrc']) {
+      expect({ command, outcome: (await run(command, 'workspace-write')).outcome }).toEqual({
+        command,
+        outcome: { kind: 'exited', exitCode: 1, sandboxDenied: true },
+      })
+    }
+    expect(await exists(join(workspace, '.git', 'hooks', 'pre-commit'))).toBe(false)
+    expect(await exists(join(workspace, '.coko'))).toBe(false)
+    expect((await run('echo ok > .gitignore && mkdir -p src/git && echo ok > src/git/x', 'workspace-write')).outcome).toEqual({ kind: 'exited', exitCode: 0 })
   })
 
   it('read-only：Workspace 内也不能写；/dev/null 可写', async () => {

@@ -101,10 +101,15 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
   }
 }
 
+/** Provider Credential 的环境变量（COKO_CREDENTIAL_* 与各 kind 的密钥变量）：只供模型请求，不交给工具。 */
+const isProviderCredential = (name: string) =>
+  /^COKO_CREDENTIAL_/i.test(name) || PROVIDER_KINDS.some((kind) => apiKeyEnvOf(kind)?.toUpperCase() === name.toUpperCase())
+
 /**
- * 工具 Secrets（grilling B3）：按工具声明的变量名读 Sidecar 自身的环境。只有声明了该名字的工具在该次调用中拿到值；
- * bash 等用户命令的环境仍按 HOST_ENV_EXCLUSIONS 剔除。M3 的 MCP 接入真实使用者时再决定密钥来源与映射。
+ * 工具 Secrets（Secrets 端口，见 @coko/agent 的 ports/secrets.ts）：按工具声明的变量名读 Sidecar 自身的环境，只有声明了该名字的工具
+ * 在该次调用中拿到值。Provider Credential 的变量永远不返回（工具声明了也拿不到）。bash 等用户命令的环境仍按 HOST_ENV_EXCLUSIONS 剔除。
+ * M3 的 MCP 接入真实使用者时再决定密钥来源与映射。
  */
 export function createEnvSecretProvider(env: Readonly<Record<string, string | undefined>>): SecretProvider {
-  return { get: (name) => env[name] || undefined }
+  return { get: (name) => (isProviderCredential(name) ? undefined : env[name] || undefined) }
 }

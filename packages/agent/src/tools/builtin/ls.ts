@@ -6,6 +6,7 @@ import { Type } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead, type TruncationResult } from '../truncate.ts'
 import type { CokoTool } from '../types.ts'
+import { createReadFilter } from './read-filter.ts'
 
 export const lsParameters = Type.Object({
   path: Type.Optional(Type.String({ description: 'Directory to list (default: current directory)' })),
@@ -27,7 +28,7 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
     parameters: lsParameters,
     effect: 'read',
     permissionSubject: (args) => args.path ?? '.',
-    async execute(_toolCallId, { path, limit }, signal) {
+    async execute(_toolCallId, { path, limit }, signal, _onUpdate, context) {
       throwIfAborted(signal)
       const dirPath = resolveToCwd(path || '.', cwd)
       const effectiveLimit = limit ?? DEFAULT_LIMIT
@@ -45,6 +46,8 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
         throw new Error(`Cannot read directory: ${(error as Error).message}`)
       }
       entries.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      const filter = await createReadFilter(context, dirPath)
+      entries = entries.filter((entry) => !filter.denied(join(dirPath, entry)))
       const results: string[] = []
       let entryLimitReached = false
       for (const entry of entries) {
@@ -59,7 +62,9 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
         }
       }
       throwIfAborted(signal)
-      if (results.length === 0) return { content: [{ type: 'text', text: '(empty directory)' }], details: undefined }
+      const omitted = filter.notice()
+      if (results.length === 0)
+        return { content: [{ type: 'text', text: omitted ? `(empty directory)\n\n[${omitted}]` : '(empty directory)' }], details: undefined }
 
       const truncation = truncateHead(results.join('\n'), { maxLines: Number.MAX_SAFE_INTEGER })
       let text = truncation.content
@@ -73,6 +78,7 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
         notices.push(`${formatSize(DEFAULT_MAX_BYTES)} limit reached`)
         details.truncation = truncation
       }
+      if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
       return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
     },

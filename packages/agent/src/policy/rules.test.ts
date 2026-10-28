@@ -1,4 +1,4 @@
-// 规则语法与匹配（grilling A4），经 decide() 观察：bash 精确 / 前缀、复合命令拆分、命令替换与子命令上限、env 前缀剥离，
+// 规则语法与匹配（permissions.md 的规则语法），经 decide() 观察：bash 精确 / 前缀、复合命令拆分、命令替换与子命令上限、env 前缀剥离，
 // read / edit 组的 gitignore 风格路径（Workspace 相对、绝对、~/）。
 import { describe, expect, it } from 'vitest'
 import type { PermissionRule } from '../session-entries/index.ts'

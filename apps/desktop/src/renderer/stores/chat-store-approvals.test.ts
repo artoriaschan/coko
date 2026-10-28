@@ -93,7 +93,7 @@ describe('chat store：审批', () => {
     const h = await setup()
     h.send('approval_request', request('q1', 'b1'))
     h.send('run_end', { status: 'interrupted' })
-    // activity 按上一 Run 的结束状态派生（interrupted / paused 不是 idle，票 06）。
+    // activity 按上一 Run 的结束状态派生（interrupted / paused 不是 idle）。
     expect(h.activity()).toBe('interrupted')
     expect(h.tool()).toMatchObject({ status: 'pending' })
   })

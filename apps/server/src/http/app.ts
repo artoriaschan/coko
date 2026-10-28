@@ -163,8 +163,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(`${API_ROUTES.sessions}/:id/checkpoints`, async (c) => c.json({ checkpoints: await app.sessions.checkpoints(c.req.param('id')) }))
   http.post(`${API_ROUTES.sessions}/:id/rewind`, async (c) => c.json(await app.sessions.rewind(c.req.param('id'), await body(c, RewindRequest))))
   http.post(`${API_ROUTES.sessions}/:id/fork`, async (c) => {
-    const { targetSeq } = await body(c, ForkRequest)
-    return c.json(await app.sessions.fork(c.req.param('id'), targetSeq), 201)
+    const { targetSeq, title } = await body(c, ForkRequest)
+    return c.json(await app.sessions.fork(c.req.param('id'), targetSeq, title), 201)
   })
   http.post(`${API_ROUTES.sessions}/:id/approvals/:requestId`, async (c) => {
     await app.sessions.answerApproval(c.req.param('id'), c.req.param('requestId'), await body(c, AnswerApprovalRequest))

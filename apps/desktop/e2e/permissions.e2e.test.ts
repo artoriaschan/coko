@@ -1,4 +1,4 @@
-// 权限模式与规则（票 03）：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
+// 权限模式与规则：真实 Electron + 真实 Sidecar（faux）。Shift+Tab 循环三档、full-access 警示、Permissions 分区增删规则、
 // 审批卡的"总是允许"下拉（越界写入不显示）。
 import { randomBytes } from 'node:crypto'
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -103,7 +103,13 @@ describe('Permissions 设置与总是允许', () => {
     await global.getByRole('textbox', { name: /^(Rule|规则)$/ }).fill('Bash(printf hi')
     await global.getByRole('button', { name: /^(Add|添加)$/ }).click()
     await global.getByRole('alert').waitFor()
-    await global.getByRole('textbox', { name: /^(Rule|规则)$/ }).fill('Bash(printf hi > out.txt)')
+    // 未知工具名：行内提示，不保存。
+    await global.getByRole('textbox', { name: /^(Rule|规则)$/ }).fill('deploy')
+    await global.getByRole('button', { name: /^(Add|添加)$/ }).click()
+    await expect.poll(() => global.getByRole('alert').textContent()).toMatch(/deploy/)
+    expect(await global.locator('[data-rule]').count()).toBe(0)
+    // 小写的内置工具名保存后显示为规范名。
+    await global.getByRole('textbox', { name: /^(Rule|规则)$/ }).fill('bash(printf hi > out.txt)')
     await global.getByRole('button', { name: /^(Add|添加)$/ }).click()
     await global.locator('[data-rule="Bash(printf hi > out.txt)"][data-behavior="allow"]').waitFor()
     await app.window.keyboard.press('Escape')

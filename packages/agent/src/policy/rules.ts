@@ -1,4 +1,4 @@
-// 规则内容的匹配（grilling A4）：bash 命令的拆分、env 前缀剥离与精确 / 前缀匹配；read 与 edit 组的 gitignore 风格路径。
+// 规则内容的匹配（permissions.md 的规则语法）：bash 命令的拆分、env 前缀剥离与精确 / 前缀匹配；read 与 edit 组的 gitignore 风格路径。
 import { isAbsolute, relative, sep } from 'node:path'
 import ignore, { type Ignore } from 'ignore'
 

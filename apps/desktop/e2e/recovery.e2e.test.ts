@@ -1,4 +1,4 @@
-// 启动恢复（票 08）：真实 Electron + 真实 Sidecar（faux）。Run 中 SIGKILL Sidecar，supervisor 重启后会话显示确认卡，
+// 启动恢复：真实 Electron + 真实 Sidecar（faux）。Run 中 SIGKILL Sidecar，supervisor 重启后会话显示确认卡，
 // 回答后中断横幅带"继续"，继续后 Run 完成。以标记文件（命令已在执行）与进程号变化同步，不用固定 sleep。
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

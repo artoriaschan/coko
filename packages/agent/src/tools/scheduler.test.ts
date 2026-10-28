@@ -1,4 +1,4 @@
-// 工具调度（票 04）：并发上限、effect 分区与执行记录。faux 模型 + 测试工具，经 createAgentRuntime 的公开接口观察；
+// 工具调度：并发上限、effect 分区与执行记录。faux 模型 + 测试工具，经 createAgentRuntime 的公开接口观察；
 // 每个调用何时完成由 deferred 控制，不用 sleep。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'

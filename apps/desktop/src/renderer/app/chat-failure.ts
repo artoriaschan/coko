@@ -28,6 +28,7 @@ export function failureMessage(locale: Locale, failure: ChatFailure): string {
   if (failure.error.code === 'nothing-to-continue') return t('errors.nothingToContinue')
   if (failure.error.code === 'confirmation-pending') return t('errors.confirmationPending')
   if (failure.error.code === 'session-busy') return t('errors.sessionBusy')
+  if (failure.error.code === 'recovery-failed') return t('errors.recoveryFailed')
   return t(KIND_KEYS[failure.kind])
 }
 

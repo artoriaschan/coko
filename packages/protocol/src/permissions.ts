@@ -73,7 +73,7 @@ export const permissionEntryPayloadSchemas = {
   approval_decision: ApprovalDecisionPayload,
 }
 
-// ---- 规则与模式的管理（票 03） ----
+// ---- 规则与模式的管理 ----
 
 /** 设置键：新 Session 的默认模式（PermissionMode）、全局规则与 Workspace 规则（PermissionRule[]）。只能经 /api/permissions 修改。 */
 export const PERMISSIONS_DEFAULT_MODE_SETTING = 'permissions.defaultMode'

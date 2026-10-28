@@ -54,7 +54,7 @@ async function sendMessage(app: LaunchedApp, text: string) {
 }
 
 const toolCard = (app: LaunchedApp, tool: string) => app.window.locator(`[data-slot="tool-card"][data-tool="${tool}"]`)
-/** write 与 bash 需要审批（票 02）：等审批卡出现并允许一次。 */
+/** write 与 bash 需要审批：等审批卡出现并允许一次。 */
 async function allowOnce(app: LaunchedApp) {
   await app.window
     .locator('[data-slot="approval-card"]')

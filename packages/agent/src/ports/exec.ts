@@ -26,6 +26,11 @@ export interface ExecRequest {
 export interface SandboxPolicy {
   mode: SandboxMode
   writableRoots: readonly string[]
+  /**
+   * Path segments (lowercase) that stay read-only at any depth under the writable roots, matched case-insensitively
+   * (`.git`, `.coko`, shell and credential files). Omitted: none.
+   */
+  protectedNames?: readonly string[]
 }
 
 export type ExecOutcome =

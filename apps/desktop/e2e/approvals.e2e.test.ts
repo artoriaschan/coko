@@ -1,4 +1,4 @@
-// 审批闭环（票 02）：真实 Electron + 真实 Sidecar（faux），审批卡接管输入区、允许一次、带反馈拒绝、侧栏徽标与上浮。
+// 审批闭环：真实 Electron + 真实 Sidecar（faux），审批卡接管输入区、允许一次、带反馈拒绝、侧栏徽标与上浮。
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

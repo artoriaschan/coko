@@ -3,6 +3,7 @@
 import { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import type { SandboxPolicy } from '../ports/exec.ts'
+import { PROTECTED_PATH_NAMES } from './decide.ts'
 import type { PermissionMode, SandboxMode } from '../session-entries/index.ts'
 
 const SANDBOX_MODE: Record<PermissionMode, SandboxMode> = {
@@ -41,9 +42,10 @@ export async function writableRootsForSandbox(mode: SandboxMode, workspace: stri
   return [...new Set([workspace, ...(await tempRoots())])]
 }
 
-/** 一次命令执行的沙箱策略。 */
+/** 一次命令执行的沙箱策略：workspace-write 下可写根中的受保护路径（.git、.coko 等）仍不可写。 */
 export async function sandboxPolicyFor(mode: SandboxMode, workspace: string): Promise<SandboxPolicy> {
-  return { mode, writableRoots: await writableRootsForSandbox(mode, workspace) }
+  const writableRoots = await writableRootsForSandbox(mode, workspace)
+  return mode === 'workspace-write' ? { mode, writableRoots, protectedNames: PROTECTED_PATH_NAMES } : { mode, writableRoots }
 }
 
 /** 工具参数中的提权请求（bash 的 sandbox_permissions 与 justification）。 */
@@ -60,7 +62,7 @@ export type EscalationCheck =
   | { kind: 'invalid'; message: string }
 
 /**
- * 校验提权参数（grilling B2）：档位与理由成对；等于当前档位视为不提权；只能严格更宽，更窄或未知档位报错。
+ * 校验提权参数（ADR 0005）：档位与理由成对；等于当前档位视为不提权；只能严格更宽，更窄或未知档位报错。
  * 只有空白的理由视为未提供。
  */
 export function checkEscalation(args: EscalationArgs, current: SandboxMode): EscalationCheck {

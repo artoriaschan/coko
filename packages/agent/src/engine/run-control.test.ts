@@ -1,4 +1,4 @@
-// 运行控制（票 06）：追加指令（steer）、暂停（pause）与继续（continue）。faux 模型 + 临时 Workspace，
+// 运行控制：追加指令（steer）、暂停（pause）与继续（continue）。faux 模型 + 临时 Workspace，
 // 工具执行的交叠位置由 deferred 控制，不用 sleep。
 import { access } from 'node:fs/promises'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'

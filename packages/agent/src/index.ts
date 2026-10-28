@@ -43,17 +43,19 @@ export { bashOutputSchema } from './tools/builtin/bash.ts'
 export type { BashOutput, BashToolDetails } from './tools/builtin/bash.ts'
 export type { EditToolDetails } from './tools/builtin/edit.ts'
 
-// Session Entry payloads（按领域分文件）与领域 barrel：后续票只改各自目录，不改本文件。
+// Session Entry payloads（按领域分文件）与领域 barrel。
 export * from './session-entries/index.ts'
 export * from './policy/index.ts'
 export * from './recovery/index.ts'
 export * from './checkpoints/index.ts'
+export * from './agents/index.ts'
 
 // Hooks
 export type { ToolHooks } from './extensions/hooks.ts'
 
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'
+export type { RewindFiles, SnapshotPort } from './ports/checkpoints.ts'
 export { createLocalExecPort, filterEnv } from './ports/local-exec.ts'
 export type { EnvExclusion, LocalExecOptions } from './ports/local-exec.ts'
 export { InMemoryCredentialStore } from './ports/credentials.ts'

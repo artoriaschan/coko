@@ -1,4 +1,4 @@
-// 启动恢复与结果确认（票 08）：真实 Sidecar（faux）。SIGKILL 前以已提交条目（经 WebSocket 推送）与 Workspace 文件同步，
+// 启动恢复与结果确认：真实 Sidecar（faux）。SIGKILL 前以已提交条目（经 WebSocket 推送）与 Workspace 文件同步，
 // 不用固定 sleep；重启复用同一数据目录。另验证迁移 v2（v1 库启动）与正常关闭不进入恢复。
 import { existsSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'

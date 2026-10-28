@@ -24,7 +24,7 @@ lifecycle: active
 
 Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始监听之前运行一次启动扫描，因此第一个请求看到的已是恢复后的状态。正常关闭（`shutdown` 消息、IPC 断开、SIGTERM、SIGINT）会中断 Run 并等它提交 `run_end { status: 'aborted' }`，这些 Run 不进入恢复。只有进程在 Run 进行中退出（崩溃、SIGKILL、断电）时才留下没有 `run_end` 的 Run。
 
-扫描对每个这样的 Run 调用 `planRecovery`，把结果在一个事务内提交，并记 warn `interrupted run recovered { sessionId, runId, entries, confirmations }`。单个 Session 失败只记 error `run recovery failed`，不阻止启动，该 Run 在下次启动时重新判定；查询本身失败时按 `recovery-failed` fatal。扫描结束后，从每个 Session 最后一条 `run_end` 建立 activity，未打开过的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
+扫描对每个这样的 Run 调用 `planRecovery`，把结果在一个事务内提交，并记 warn `interrupted run recovered { sessionId, runId, entries, confirmations }`。单个 Session 失败记 error `run recovery failed`，不阻止启动；该 Session 在恢复成功之前，`POST …/messages`、`…/retry`、`…/continue`、`…/rewind`、`…/fork` 返回 409 `recovery-failed`（未配对的调用会破坏模型请求，补齐的条目也会排在新 Run 之后），activity 显示 interrupted，界面提示"未能恢复这个会话"；每次这些操作先重试恢复，成功后照常处理；查询本身失败时按 `recovery-failed` fatal。扫描结束后，从每个 Session 最后一条 `run_end` 建立 activity，未打开过的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
 
 ## 判定分类
 
@@ -57,13 +57,13 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 | not-applied | 错误：`Not applied (confirmed by the user): …` |
 | unknown | 错误：`Outcome unknown: … Before relying on it or running it again, check the current state.` |
 
-存在未回答的确认时，`POST …/messages`、`…/retry`、`…/continue` 返回 409 `confirmation-pending`：未配对的调用会使模型请求不合法。全部回答后，上一 Run 仍为 interrupted，`continue` 开始 `run_start { trigger: 'continue' }` 的新 Run，模型上下文含补齐的结果。回答时若该 Session 已有空闲的运行时，它被丢弃并在下次开始 Run 时从条目重建。等待中的审批不复活：继续后模型重新发起的调用按当时的模式与规则重新判定。
+存在未回答的确认时，`POST …/messages`、`…/retry`、`…/continue` 返回 409 `confirmation-pending`（待确认状态只有一个来源：`SessionService` 中由条目派生的集合，启动扫描建立，提交 `confirmation_*` 条目时更新）：未配对的调用会使模型请求不合法。全部回答后，上一 Run 仍为 interrupted，`continue` 开始 `run_start { trigger: 'continue' }` 的新 Run，模型上下文含补齐的结果。回答时若该 Session 已有空闲的运行时，它被丢弃并在下次开始 Run 时从条目重建。等待中的审批不复活：继续后模型重新发起的调用按当时的模式与规则重新判定。
 
 ## activity 与界面
 
 - **activity**：没有 Run 时，有未回答的确认为 `awaiting-confirmation`，否则按最后一条 `run_end`（`interrupted` / `paused` / `idle`）。renderer 对已打开的会话按条目派生同样的值。
 - **确认卡**：没有 Run 且有待确认时，最早的一项接管输入区（输入区保持挂载并隐藏，草稿不丢），显示中断的命令或路径与三个回答（已生效 / 未生效 / 不确定，让 Coko 核实）。三个回答没有默认项，Enter 与 Esc 不代替用户作答；同一调用只回答一次，失败后可重答，404 后不再重发。
-- **中断横幅**：上一 Run 为 interrupted 且没有待确认时，输入区上方显示"上次运行已中断"；对话末尾是用户消息或工具结果时带"继续"（以 assistant 文本结束时没有可继续的内容，不显示按钮）。时间线在该 Run 末尾显示"已中断"，补齐结果的工具卡按结果显示完成或失败。
+- **中断横幅**：上一 Run 为 interrupted 且没有待确认时，输入区上方显示"上次运行已中断"；带"继续"：对话末尾是用户消息或工具结果时调用 `continue`；以 assistant 文本结束时（运行时的 continue 不能从 assistant 消息开始）"继续"提交一条本地化的"继续"用户消息，开始普通的新 Run。时间线在该 Run 末尾显示"已中断"，补齐结果的工具卡按结果显示完成或失败。
 - **侧栏**：`awaiting-approval`、`awaiting-confirmation` 的会话带警示色徽标并排在所在 Workspace 组首，`interrupted` 的会话带中性徽标排在其后。
 
 ## 配置与限制
@@ -71,14 +71,15 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 - 迁移 v2 之前（M1 库）的 Run 没有 `run_start`，崩溃留下的旧 Run 不会被识别。
 - 恢复补的 write / edit 结果不提交 `file_change`；回退代码时这些路径的当前内容无从比对，不标为在 Agent 之外改动过（[ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)）。
 - 有未回答的确认时，回退与分叉同样返回 409 `confirmation-pending`。
-- 仅测试：`COKO_TEST_TOOLS=1` 且 `COKO_TEST_HOLD_AFTER_TOOL=<工具名>` 时，该工具执行完、其后的 afterToolCall hook（checkpoint 的 `file_change`）之后挂起，toolResult 不提交，供集成测试在"已执行、未记录结果"处强杀 Sidecar。
+- 仅测试（打包的发布构建不读取，见 [apps/server README](../../apps/server/README.md)）：`COKO_TEST_TOOLS=1` 且 `COKO_TEST_HOLD_AFTER_TOOL=<工具名>` 时，该工具执行完、其后的 afterToolCall hook（checkpoint 的 `file_change`）之后挂起，toolResult 不提交，供集成测试在"已执行、未记录结果"处强杀 Sidecar。
 
 ## 验证与相关设计
 
 - `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到 2（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
 - `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
 - `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到 2。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
-- `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
+- `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
+- `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
 - 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。
 
 ## 延伸阅读

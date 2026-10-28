@@ -1,4 +1,4 @@
-// 文件 Checkpoint（票 07，ADR 0006）：真实 Sidecar（faux 模型）经协议驱动 write / edit，读回 file_backup / file_change 条目，
+// 文件 Checkpoint（ADR 0006）：真实 Sidecar（faux 模型）经协议驱动 write / edit，读回 file_backup / file_change 条目，
 // 并直接检查 <dataDir>/blobs 下的快照文件（内容逐字节、权限）。
 import { createHash } from 'node:crypto'
 import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'

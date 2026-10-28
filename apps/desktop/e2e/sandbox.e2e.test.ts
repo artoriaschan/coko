@@ -1,4 +1,4 @@
-// 命令沙箱与提权卡（票 05）：真实 Electron + 真实 Sidecar（faux）+ 真实 Seatbelt。只在 darwin 运行：其他平台没有 sandbox-exec。
+// 命令沙箱与提权卡：真实 Electron + 真实 Sidecar（faux）+ 真实 Seatbelt。只在 darwin 运行：其他平台没有 sandbox-exec。
 // Sidecar 的 TMPDIR 指向测试目录下的 tmp，使"Workspace 外"的同级目录不在可写根内。
 import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

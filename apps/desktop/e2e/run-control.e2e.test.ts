@@ -1,4 +1,4 @@
-// 运行控制（票 06）：真实 Electron + 真实 Sidecar（faux）。Run 中追加指令、暂停与继续、停止后未送达文本回到输入区。
+// 运行控制：真实 Electron + 真实 Sidecar（faux）。Run 中追加指令、暂停与继续、停止后未送达文本回到输入区。
 // bash 在 full-access 下运行（不经审批）；命令先写标记文件，标记出现即表示命令正在执行。
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

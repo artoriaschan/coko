@@ -1,6 +1,6 @@
 // ApprovalBroker：每个运行时一个。判定为 ask 的调用在这里等待回答；请求与决定各提交一条 Session Entry。
 // 状态：pending → allowed（scope）/ denied（可带反馈）/ cancelled（停止）/ superseded（模式或规则变更后重新判定为
-// allow 或 deny）。只能回答一次；没有超时。
+// allow、deny，或仍需询问但原因变了而重新询问）。只能回答一次；没有超时。
 import { randomUUID } from 'node:crypto'
 import type { ApprovalDecisionPayload, ApprovalRequestPayload, ApprovalScope } from '../session-entries/index.ts'
 
@@ -19,8 +19,11 @@ export class ApprovalNotPendingError extends Error {
  */
 export type ApprovalAnswer = { decision: 'allow'; scope?: ApprovalScope } | { decision: 'deny'; feedback?: string } | { decision: 'reevaluate' }
 
-/** 重新判定的结论：allow / deny 结束请求，undefined 表示仍需询问。 */
-export type ReevaluateVerdict = { behavior: 'allow' } | { behavior: 'deny'; reason: string } | undefined
+/**
+ * 重新判定的结论：allow / deny 结束请求；reask 结束请求并由等待方按新判定重新询问（原因或可保存的规则变了）；undefined 表示
+ * 仍需询问且请求不变。
+ */
+export type ReevaluateVerdict = { behavior: 'allow' } | { behavior: 'deny'; reason: string } | { behavior: 'reask' } | undefined
 
 /** 请求的结局（等待方据此继续或停止）。 */
 export type ApprovalResolution =

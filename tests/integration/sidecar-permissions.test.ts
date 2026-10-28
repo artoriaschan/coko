@@ -1,4 +1,4 @@
-// 权限模式、规则作用域与重新判定（票 03）：真实 Sidecar（faux 模型）经协议驱动，重启后读回规则与模式。
+// 权限模式、规则作用域与重新判定：真实 Sidecar（faux 模型）经协议驱动，重启后读回规则与模式。
 import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -286,5 +286,51 @@ describe('默认模式与设置校验', () => {
     expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'yolo' })).status).toBe(400)
     expect((await api.put(permissionPaths.sessionPermissionMode('missing'), { mode: 'default' })).status).toBe(404)
     expect((await api.post(permissionPaths.sessionPermissionRules(sessionId), { rule: { behavior: 'allow', tool: 'Bash', content: '' } })).status).toBe(400)
+  })
+})
+
+describe('规则工具名（大小写与别名）', () => {
+  it('写入时归一为规范名，未知工具名 400 unknown-tool；deny bash(rm *) 与 Write(secret.txt) 在 full-access 下生效', async () => {
+    const root = await tempDir()
+    const { api, stream } = await boot(root, await sidecarDirs(), [{ content: [bash('b1', 'rm -rf victim'), write('w1', 'secret.txt')] }, { content: 'done' }])
+    await import('node:fs/promises').then((fs) => fs.mkdir(join(root, 'victim')))
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+
+    const unknown = await api.put(permissionPaths.permissions, {
+      target: 'global',
+      rules: [{ behavior: 'deny', tool: 'deploy' }],
+      expectedRevision: 0,
+    })
+    expect(unknown.status).toBe(400)
+    expect(unknown.body).toMatchObject({ error: { code: 'bad-request', details: { reason: 'unknown-tool', tool: 'deploy' } } })
+
+    const saved = await api.put(permissionPaths.permissions, {
+      target: 'global',
+      rules: [
+        { behavior: 'deny', tool: 'bash', content: 'rm *' },
+        { behavior: 'deny', tool: 'Write', content: 'secret.txt' },
+      ],
+      expectedRevision: 0,
+    })
+    expect(saved.status).toBe(200)
+    expect(saved.body.global.rules).toEqual([
+      { behavior: 'deny', tool: 'Bash', content: 'rm *' },
+      { behavior: 'deny', tool: 'Edit', content: 'secret.txt' },
+    ])
+
+    const sessionId = await newSession(api, stream, workspaceId)
+    const sessionRule = await api.post(permissionPaths.sessionPermissionRules(sessionId), { rule: { behavior: 'deny', tool: 'GREP', content: 'x' } })
+    expect(sessionRule.body.rules).toEqual([{ behavior: 'deny', tool: 'Read', content: 'x' }])
+    expect((await api.post(permissionPaths.sessionPermissionRules(sessionId), { rule: { behavior: 'allow', tool: 'nope' } })).status).toBe(400)
+
+    await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })
+    expect(await runToEnd(api, stream, sessionId)).toBe(0)
+    const results = toolResults(stream.entries(sessionId))
+    expect(results.map((r) => [r.toolCallId, r.isError, text(r)])).toEqual([
+      ['b1', true, 'Permission denied by rule Bash(rm *).'],
+      ['w1', true, 'Permission denied by rule Edit(secret.txt).'],
+    ])
+    expect(await exists(join(root, 'victim'))).toBe(true)
+    expect(await exists(join(root, 'secret.txt'))).toBe(false)
   })
 })

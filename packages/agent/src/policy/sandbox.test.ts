@@ -1,4 +1,4 @@
-// 沙箱档位与提权阶梯（ADR 0005、grilling B2）：模式 → Sandbox Mode、提权参数校验、模型可见的拒绝标记与提示文本。
+// 沙箱档位与提权阶梯（ADR 0005）：模式 → Sandbox Mode、提权参数校验、模型可见的拒绝标记与提示文本。
 import { describe, expect, it } from 'vitest'
 import { checkEscalation, escalationHintMarker, sandboxDenialMarker, sandboxModeFor } from './sandbox.ts'
 

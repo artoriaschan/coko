@@ -1,10 +1,10 @@
-// 领域 barrel：Checkpoint tracker 与 planRewind（票 07、09 在此导出）。packages/agent/src/index.ts 已 re-export 本文件，后续票只改本目录。
+// 领域 barrel：Checkpoint tracker、有效上下文与回退（ADR 0006）。
 export { CHECKPOINT_TOOLS, createCheckpointTracker } from './tracker.ts'
 export type { CheckpointEntry, CheckpointTracker, CheckpointTrackerOptions, SnapshotPort } from './tracker.ts'
 export {
   effectiveEntries,
   effectiveMessages,
-  forkEntries,
+  emptyRewindReport,
   planRewind,
   restoreFiles,
   rewindTarget,
@@ -13,6 +13,7 @@ export {
   userMessageText,
 } from './rewind.ts'
 export type {
+  RestoreOptions,
   RewindFilePlan,
   RewindFiles,
   RewindMode,

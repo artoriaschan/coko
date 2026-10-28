@@ -68,6 +68,8 @@ const response = (patch: Partial<RewindResponse> = {}): RewindResponse => ({
   deleted: [],
   diverged: [],
   untracked: [],
+  outside: [],
+  skipped: [],
   ...patch,
 })
 
@@ -85,7 +87,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
     }),
     ...overrides,
   } as unknown as ApiClient
-  const store = createChatStore({ api, stream, onFailure: (f) => failures.push(f) })
+  const store = createChatStore({ api, stream, onFailure: (f) => failures.push(f), forkTitle: (title) => `${title || 'Untitled'} (fork)` })
   await store.getState().load()
   for (const e of history()) deliver({ type: 'entry', sessionId: 's1', entry: e })
   deliver({ type: 'subscribed', sessionId: 's1', lastSeq: seq, running: false })
@@ -132,7 +134,7 @@ describe('chat store：回退与分叉', () => {
     const h = await setup()
     const before = h.conversation().entries.length
     expect(await h.store.getState().fork(6)).toBe(true)
-    expect(h.api.fork).toHaveBeenCalledWith('s1', 6)
+    expect(h.api.fork).toHaveBeenCalledWith('s1', 6, 's1 (fork)')
     expect(h.store.getState().activeSessionId).toBe('s2')
     expect(h.store.getState().sessions.map((s) => s.id)).toEqual(['s2', 's1'])
     expect(h.conversation('s2').returnedDraft).toBe('two')

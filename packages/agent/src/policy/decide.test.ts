@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PermissionRule } from '../session-entries/index.ts'
-import { decide, type PermissionCall, type PermissionContext } from './decide.ts'
+import { canonicalRuleTool, decide, type PermissionCall, type PermissionContext } from './decide.ts'
 
 const WS = '/ws/project'
 const TMP = '/private/tmp'
@@ -163,5 +163,26 @@ describe('四种模式 × 工具类型（ADR 0005）', () => {
   it('越出可写根的写入不提供可保存的建议（read-only 的 Workspace 内写入也是）', () => {
     const decision = decide(file('write', 'a.ts', `${WS}/a.ts`), at('read-only'))
     expect(decision).toEqual({ behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] })
+  })
+})
+
+describe('规则工具名的大小写与别名（拒绝规则不能因写法而失效）', () => {
+  it.each<[string, PermissionRule, PermissionCall]>([
+    ['deny bash(rm *) 拦下 rm -rf x', rule('deny', 'bash', 'rm *'), bash('rm -rf x')],
+    ['deny BASH(rm *)', rule('deny', 'BASH', 'rm *'), bash('rm -rf x')],
+    ['deny Write(secret.txt) 拦下 write', rule('deny', 'Write', 'secret.txt'), file('write', 'secret.txt', `${WS}/secret.txt`)],
+    ['deny edit(secret.txt) 拦下 write（同属 Edit 组）', rule('deny', 'edit', 'secret.txt'), file('write', 'secret.txt', `${WS}/secret.txt`)],
+    ['deny grep(secret.txt) 拦下 read（同属 Read 组）', rule('deny', 'grep', 'secret.txt'), file('read', 'secret.txt', `${WS}/secret.txt`)],
+    ['deny read 拦下 ls', rule('deny', 'read'), file('ls', '.', WS)],
+  ])('%s（full-access 下）', (_name, denyRule, call) => {
+    expect(decide(call, ctx({ mode: 'full-access', rules: [denyRule], writableRoots: ['/'] })).behavior).toBe('deny')
+  })
+
+  it('canonicalRuleTool：内置工具与组名归一为组名；其余按已知工具名不区分大小写归一，未知时返回 undefined', () => {
+    expect(['bash', 'Bash', 'BASH'].map((n) => canonicalRuleTool(n))).toEqual(['Bash', 'Bash', 'Bash'])
+    expect(['write', 'Edit', 'EDIT', 'edit'].map((n) => canonicalRuleTool(n))).toEqual(['Edit', 'Edit', 'Edit', 'Edit'])
+    expect(['read', 'grep', 'Find', 'LS', 'Read'].map((n) => canonicalRuleTool(n))).toEqual(['Read', 'Read', 'Read', 'Read', 'Read'])
+    expect(canonicalRuleTool('Secret_Probe', ['secret_probe'])).toBe('secret_probe')
+    expect(canonicalRuleTool('deploy', ['secret_probe'])).toBeUndefined()
   })
 })

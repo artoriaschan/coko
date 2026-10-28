@@ -6,6 +6,7 @@ import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead, type TruncationResult } from '../truncate.ts'
 import type { CokoTool } from '../types.ts'
 import { createFindMatcher } from './glob.ts'
+import { createReadFilter } from './read-filter.ts'
 import { walkTree } from './walk.ts'
 
 export const findParameters = Type.Object({
@@ -29,7 +30,7 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
     parameters: findParameters,
     effect: 'read',
     permissionSubject: (args) => args.path ?? '.',
-    async execute(_toolCallId, { pattern, path, limit }, signal) {
+    async execute(_toolCallId, { pattern, path, limit }, signal, _onUpdate, context) {
       throwIfAborted(signal)
       const searchPath = resolveToCwd(path || '.', cwd)
       try {
@@ -40,13 +41,26 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
       const effectiveLimit = limit ?? DEFAULT_LIMIT
       const matches = createFindMatcher(pattern)
       const results: string[] = []
-      for await (const entry of walkTree(searchPath, signal ? { signal } : {})) {
+      const filter = await createReadFilter(context, searchPath)
+      // 被读取拒绝规则覆盖的目录不进入，文件不列出。
+      const denied = new Set<string>()
+      const descend = (entry: { absolutePath: string }) => !denied.has(entry.absolutePath)
+      for await (const entry of walkTree(searchPath, { ...(signal ? { signal } : {}), descend })) {
+        if (filter.denied(entry.absolutePath)) {
+          denied.add(entry.absolutePath)
+          continue
+        }
         if (!matches(entry.relativePath)) continue
         results.push(entry.isDirectory ? `${entry.relativePath}/` : entry.relativePath)
         if (results.length >= effectiveLimit) break
       }
       throwIfAborted(signal)
-      if (results.length === 0) return { content: [{ type: 'text', text: 'No files found matching pattern' }], details: undefined }
+      const omitted = filter.notice()
+      if (results.length === 0)
+        return {
+          content: [{ type: 'text', text: omitted ? `No files found matching pattern\n\n[${omitted}]` : 'No files found matching pattern' }],
+          details: undefined,
+        }
 
       const truncation = truncateHead(results.join('\n'), { maxLines: Number.MAX_SAFE_INTEGER })
       let text = truncation.content
@@ -60,6 +74,7 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
         notices.push(`${formatSize(DEFAULT_MAX_BYTES)} limit reached`)
         details.truncation = truncation
       }
+      if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
       return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
     },

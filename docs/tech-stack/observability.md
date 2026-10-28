@@ -17,7 +17,7 @@ lifecycle: active
 - sidecar 独立记录 Hono 请求、Agent 执行、模型调用和工具执行，写入服务日志。
 - Effect 日志与 pi 事件由应用层适配为统一日志记录，业务代码共用同一组关联字段。
 
-统一字段包含时间、级别、模块、事件名、消息、进程来源、应用版本和错误摘要；关联字段按场景携带 `requestId`、`sessionId`、`runId` 和 `toolCallId`。跨 IPC、HTTP 和 WebSocket 显式传递关联标识，并由接收端校验、绑定到日志上下文。
+统一字段包含时间、级别、模块、事件名、消息、进程来源、应用版本和错误摘要；关联字段按场景携带 `requestId`、`sessionId`、`runId` 和 `toolCallId`；`requestId` 只表示一次 HTTP 请求，审批事件用 `approvalId` 记录 Approval Request 的 id。跨 IPC、HTTP 和 WebSocket 显式传递关联标识，并由接收端校验、绑定到日志上下文。
 
 ### 文件、轮转与脱敏
 

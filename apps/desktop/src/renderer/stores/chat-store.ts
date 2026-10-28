@@ -182,6 +182,16 @@ export function canContinue(conversation: Pick<Conversation, 'entries' | 'runnin
   return false
 }
 
+/**
+ * 横幅"继续"的方式：resume 调用 continue（模型从用户消息或工具结果接着做）；prompt 在最后一条是 assistant 文本时提交一条新的
+ * 用户消息（运行时的 continue 不能从 assistant 消息开始）。不能继续时为 undefined（不是 paused / interrupted，或有待确认）。
+ */
+export function continueMode(conversation: Pick<Conversation, 'entries' | 'running'>): 'resume' | 'prompt' | undefined {
+  const activity = conversationActivity(conversation)
+  if (activity !== 'paused' && activity !== 'interrupted') return undefined
+  return canContinue(conversation) ? 'resume' : 'prompt'
+}
+
 export interface ChatState {
   workspaces: Workspace[]
   sessions: Session[]
@@ -213,8 +223,10 @@ export interface ChatActions {
   steer(text: string): Promise<boolean>
   /** 暂停当前会话的 Run（当前步骤完成后停下）。 */
   pause(): Promise<void>
-  /** 接着暂停或中断的上一 Run。 */
-  continueRun(): Promise<boolean>
+  /**
+   * 接着暂停或中断的上一 Run。continueMode 为 prompt 时提交 promptText（界面传入本地化的"继续"）作为新的用户消息。
+   */
+  continueRun(promptText?: string): Promise<boolean>
   /** 输入区取走退回的未送达追加指令。 */
   takeReturnedDraft(sessionId: string): void
   /** 当前会话经协议切换模型；草稿中只记下选择。 */
@@ -250,6 +262,8 @@ export interface ChatStoreOptions {
   onFailure?: (failure: ChatFailure) => void
   /** 等待订阅确认的上限；超时后照常继续，条目会在补齐时到达。 */
   subscribeTimeoutMs?: number
+  /** 分叉出的新会话的标题（界面按当前语言生成，原标题为空时由它决定显示）；省略时 Sidecar 沿用原标题。 */
+  forkTitle?: (sourceTitle: string) => string
 }
 
 const emptyLive = (runId: string | null, accepting: boolean): LiveRun => ({ runId, accepting, blocks: [], tools: {} })
@@ -285,7 +299,7 @@ export function titleFromText(text: string): string {
  * 对话状态（Zustand vanilla store，无 React 依赖）。HTTP 提交命令，WebSocket 订阅条目与进度；
  * 打开过的会话保持订阅，重连后以各自的 lastSeq 补齐。
  */
-export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000 }: ChatStoreOptions): ChatStore {
+export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000, forkTitle }: ChatStoreOptions): ChatStore {
   const subscribed = new Map<string, Set<() => void>>()
   /** 已发出或已被接受的审批回答（requestId 唯一）。 */
   const answering = new Set<string>()
@@ -479,9 +493,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      async continueRun() {
+      async continueRun(promptText) {
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
+        const conversation = get().conversations[sessionId]
+        if (conversation && continueMode(conversation) === 'prompt' && promptText !== undefined)
+          return submit(sessionId, () => api.submitMessage(sessionId, promptText), 'continue')
         return submit(sessionId, () => api.continueRun(sessionId), 'continue')
       },
 
@@ -595,7 +612,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         if (sessionId === null) return false
         let forked: { sessionId: string; text: string }
         try {
-          forked = await api.fork(sessionId, targetSeq)
+          const source =
+            get()
+              .sessions.find((s) => s.id === sessionId)
+              ?.title.trim() ?? ''
+          forked = forkTitle ? await api.fork(sessionId, targetSeq, forkTitle(source)) : await api.fork(sessionId, targetSeq)
         } catch (error) {
           onFailure?.({ kind: 'fork', error: toApiError(error) })
           return false

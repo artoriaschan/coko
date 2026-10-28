@@ -24,6 +24,8 @@ import { MODE_ICONS, PERMISSION_MODES } from '../conversation/mode-picker.tsx'
 import { SettingsCard, SettingsRow } from './settings-dialog.tsx'
 
 const BEHAVIORS: PermissionRule['behavior'][] = ['allow', 'ask', 'deny']
+/** 保存规则的结果：Sidecar 拒绝未知工具名时带该名字。 */
+type RuleSaveOutcome = { saved: boolean; unknownTool?: string }
 const ruleKey = (rule: PermissionRule) => `${rule.behavior}:${formatPermissionRule(rule)}`
 const sameRule = (a: PermissionRule, b: PermissionRule) => ruleKey(a) === ruleKey(b)
 
@@ -44,12 +46,14 @@ export function PermissionsSection() {
     void loadPermissions(workspaceId)
   }, [loadPermissions, workspaceId])
 
-  const save = async (change: PermissionsChange) => {
+  /** 保存一项；未知工具名交给规则编辑器行内提示（返回该工具名），其余失败以 Toast 提示。 */
+  const save = async (change: PermissionsChange): Promise<RuleSaveOutcome> => {
     const result: SaveSettingResult = await savePermissions(change)
     if (result.status === 'saved') toast.success(t('permissions.saved'))
     else if (result.status === 'conflict') toast.error(t('permissions.conflict'))
+    else if (result.error.details?.reason === 'unknown-tool') return { saved: false, unknownTool: String(result.error.details.tool) }
     else toast.error(t('errors.permissionsFailed'))
-    return result.status === 'saved'
+    return { saved: result.status === 'saved' }
   }
 
   const defaultMode = permissions?.defaultMode.value ?? 'default'
@@ -207,7 +211,7 @@ function RuleEditor({
   id: string
   title: string
   rules: readonly PermissionRule[]
-  onChange: (rules: PermissionRule[]) => Promise<boolean>
+  onChange: (rules: PermissionRule[]) => Promise<RuleSaveOutcome>
 }) {
   const { t } = useI18n()
   const [behavior, setBehavior] = React.useState<PermissionRule['behavior']>('allow')
@@ -229,7 +233,10 @@ function RuleEditor({
     if (!parsed) return setError(t('permissions.invalidRule'))
     const rule: PermissionRule = { behavior, ...parsed }
     if (rules.some((r) => sameRule(r, rule))) return setError(t('permissions.duplicateRule'))
-    if (await change([...rules, rule])) setText('')
+    // Sidecar 把工具名归一为规范名（bash → Bash），未知工具名拒绝。
+    const outcome = await change([...rules, rule])
+    if (outcome.saved) setText('')
+    else if (outcome.unknownTool !== undefined) setError(t('permissions.unknownTool', { tool: outcome.unknownTool }))
   }
 
   return (

@@ -105,7 +105,8 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 回退（dryRun 只返回将发生的变化）；Run 进行中或等待审批时以 session-busy 拒绝。 */
     rewind: (id: string, request: RewindRequest) => call(RewindResponse, 'POST', checkpointPaths.sessionRewind(id), request),
     /** 从某条用户消息分叉：返回新 Session 的 id 与目标文本。 */
-    fork: (id: string, targetSeq: number) => call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq }),
+    fork: (id: string, targetSeq: number, title?: string) =>
+      call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq, ...(title === undefined ? {} : { title }) }),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
     /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
     setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),

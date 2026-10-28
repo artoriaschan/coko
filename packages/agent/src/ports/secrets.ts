@@ -1,5 +1,5 @@
 /**
- * Secrets port (grilling B3): a tool declares the names it needs (`CokoTool.secrets`); the host resolves them for
+ * Secrets port: a tool declares the names it needs (`CokoTool.secrets`); the host resolves them for
  * each call and the runtime passes only those to that call (`ToolExecutionContext.secrets`). Values never enter
  * Session Entries, progress events or logs; other calls, including bash, do not see them.
  */

@@ -23,6 +23,24 @@ export function ruleToolName(toolName: string): string {
   return RULE_TOOL[toolCategory(toolName)] ?? toolName
 }
 
+/** 组名与内置工具名（小写）→ 规则工具名。 */
+const RULE_ALIASES: Record<string, string> = Object.fromEntries([
+  ...Object.keys(CATEGORY).map((name) => [name, ruleToolName(name)]),
+  ...Object.values(RULE_TOOL).flatMap((group) => (group ? [[group.toLowerCase(), group]] : [])),
+])
+
+/**
+ * 规则工具名的规范写法：内置工具名与组名（不区分大小写）归一为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，
+ * `grep` → `Read`）；其余名字按 `known`（宿主注册的其他工具名）不区分大小写匹配。都不是时返回 undefined（未知工具）。
+ */
+export function canonicalRuleTool(tool: string, known: readonly string[] = []): string | undefined {
+  const lower = tool.toLowerCase()
+  return RULE_ALIASES[lower] ?? known.find((name) => name.toLowerCase() === lower)
+}
+
+/** 判定时比较的工具名：内置工具与组名按组名，其余不区分大小写（库中可能有旧的非规范写法）。 */
+const matchesTool = (rule: PermissionRule, tool: string) => (RULE_ALIASES[rule.tool.toLowerCase()] ?? rule.tool).toLowerCase() === tool.toLowerCase()
+
 /** 文件工具的目标：resolved 为按 Workspace 解析的绝对路径，real 为经符号链接解析后的真实路径。 */
 export interface PermissionTarget {
   resolved: string
@@ -70,6 +88,10 @@ export type PermissionDecision =
 const PROTECTED_DIRS = new Set(['.git', '.coko', '.vscode', '.idea'])
 /** 任意位置的 shell、git 与凭据配置。 */
 const PROTECTED_NAMES = new Set(['.bashrc', '.zshrc', '.profile', '.bash_profile', '.zprofile', '.gitconfig', '.ssh', '.mcp.json'])
+/**
+ * 受保护的路径段（小写）：文件写入总要审批；受限档位的命令沙箱在可写根之下也拒绝写入它们（ADR 0005）。
+ */
+export const PROTECTED_PATH_NAMES: readonly string[] = [...PROTECTED_DIRS, ...PROTECTED_NAMES]
 
 /** 比较前转小写（大小写不敏感的文件系统上 .GIT 即 .git）；解析前后的路径任一命中即受保护。 */
 export function isProtectedPath(target: PermissionTarget): boolean {
@@ -158,6 +180,16 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
   return [{ behavior: 'allow', tool, content: literalPathPattern(rel.includes('/') ? rel : `./${rel}`) }]
 }
 
+/**
+ * 目录工具（grep、find、ls）的结果过滤：路径是否被某条 Read 拒绝规则覆盖。没有带内容的 Read 拒绝规则时为 undefined
+ * （不带内容的 Read 拒绝规则在判定时已拒绝整个调用）。
+ */
+export function readDenial(rules: readonly PermissionRule[], workspace: string, home: string = homedir()): ((path: string) => boolean) | undefined {
+  const denies = rules.filter((rule) => rule.behavior === 'deny' && rule.content !== undefined && matchesTool(rule, 'Read'))
+  if (denies.length === 0) return undefined
+  return (path) => denies.some((rule) => pathMatches(rule.content!, path, workspace, home))
+}
+
 export function decide(call: PermissionCall, context: PermissionContext): PermissionDecision {
   const category = toolCategory(call.toolName)
   const facts: Facts = {
@@ -168,7 +200,7 @@ export function decide(call: PermissionCall, context: PermissionContext): Permis
     command: category === 'command' && call.subject !== undefined ? analyzeCommand(call.subject) : undefined,
   }
   const tool = ruleToolName(call.toolName)
-  const own = context.rules.filter((rule) => rule.tool === tool)
+  const own = context.rules.filter((rule) => matchesTool(rule, tool))
   const restrictive = (behavior: 'deny' | 'ask') =>
     own.find((rule) => rule.behavior === behavior && (rule.content === undefined || restrictiveMatch(rule.content, facts)))
 

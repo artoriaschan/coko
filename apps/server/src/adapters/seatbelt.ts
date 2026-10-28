@@ -12,11 +12,29 @@ export const SEATBELT_DENIAL_SIGNATURE = 'operation not permitted'
 
 const sbplString = (path: string) => `"${path.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
 
-/** 一次执行的 SBPL profile。 */
+/**
+ * 正则中按字面匹配的文本：SBPL 的 #"…" 不处理反斜杠转义，所以每个特殊字符写成单字符的字符类，字母写成大小写两种
+ * （受保护名字不区分大小写；macOS 默认文件系统也不区分）。双引号与反斜杠不会出现在受保护名字里，根路径中出现时跳过 deny。
+ */
+const regexLiteral = (text: string, foldCase: boolean) =>
+  [...text].map((c) => (/[a-z]/i.test(c) && foldCase ? `[${c.toLowerCase()}${c.toUpperCase()}]` : /[A-Za-z0-9/_-]/.test(c) ? c : `[${c}]`)).join('')
+
+/**
+ * 一次执行的 SBPL profile。后出现的规则优先：先拒绝全部写入，放行 /dev/null 与可写根，再拒绝可写根下任意深度的受保护路径段
+ * （ADR 0005：受限档位的命令不能改写 .git/hooks、.coko 等）。
+ */
 export function seatbeltProfile(policy: SandboxPolicy): string {
   const forms = ['(version 1)', '(allow default)', '(deny file-write*)', `(allow file-write* (literal ${sbplString('/dev/null')}))`]
   const roots = policy.mode === 'workspace-write' ? policy.writableRoots : []
-  if (roots.length > 0) forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(' ')})`)
+  if (roots.length === 0) return forms.join(' ')
+  forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(' ')})`)
+  const names = policy.protectedNames ?? []
+  const literalRoots = roots.filter((root) => !/["\\\]^]/.test(root))
+  if (names.length > 0 && literalRoots.length > 0) {
+    const group = names.map((name) => regexLiteral(name, true)).join('|')
+    const patterns = literalRoots.map((root) => `(regex #"^${regexLiteral(root.replace(/\/+$/, ''), false)}/(.*/)?(${group})(/|$)")`)
+    forms.push(`(deny file-write* ${patterns.join(' ')})`)
+  }
   return forms.join(' ')
 }
 

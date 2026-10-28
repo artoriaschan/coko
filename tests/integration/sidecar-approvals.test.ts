@@ -1,4 +1,4 @@
-// 审批闭环（票 02）：真实 Sidecar（faux 模型）经协议驱动 approval_request / approval_decision、回答路由、activity 与 inspect-quit。
+// 审批闭环：真实 Sidecar（faux 模型）经协议驱动 approval_request / approval_decision、回答路由、activity 与 inspect-quit。
 import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'

@@ -76,6 +76,7 @@ const ToolsLive = Layer.effect(
   Effect.gen(function* () {
     const { config } = yield* Host
     const log = getLogger(['runtime'])
+    if (config.ignoredTestHooks) log.warn('test hooks ignored in a packaged build', { variables: config.ignoredTestHooks })
     const executable = config.sandboxExec ?? DEFAULT_SANDBOX_EXEC
     const probe = yield* Effect.promise(() => probeSeatbelt(executable))
     if (probe.available) log.info('command sandbox selected', { sandbox: 'seatbelt', executable })
@@ -160,7 +161,7 @@ function checkpointExtensions(snapshots: SnapshotPort, store: SqliteStore): (con
 }
 
 /**
- * 仅测试（COKO_TEST_TOOLS=1 且 COKO_TEST_HOLD_AFTER_TOOL=<工具名>）：该工具执行完、afterToolCall 的其他 hook（checkpoint 的
+ * 仅测试（config.testHold：COKO_TEST_TOOLS=1 且 COKO_TEST_HOLD_AFTER_TOOL=<工具名>）：该工具执行完、afterToolCall 的其他 hook（checkpoint 的
  * file_change）之后挂起，toolResult 不提交，直到 Run 被中止。集成测试借此在"已执行、未记录结果"处强杀 Sidecar。
  * COKO_TEST_HOLD_BEFORE_CHECKPOINT=1 时挂起点移到 checkpoint 的 afterToolCall 之前（file_change 也不提交）。
  */
@@ -180,11 +181,11 @@ function holdAfterTool(toolName: string): ToolHooks {
 
 function withTestHold(
   extensions: (context: SessionExtensionContext) => SessionExtension,
-  toolName: string | undefined,
-  beforeCheckpoint: boolean,
+  testHold: SidecarConfig['testHold'],
 ): (context: SessionExtensionContext) => SessionExtension {
-  if (!toolName) return extensions
-  const hold = holdAfterTool(toolName)
+  if (!testHold) return extensions
+  const { beforeCheckpoint } = testHold
+  const hold = holdAfterTool(testHold.tool)
   return (context) => {
     const extension = extensions(context)
     const hooks = extension.hooks ?? []
@@ -223,11 +224,7 @@ const AppLive = Layer.effect(
       runs,
       tools: workspaceTools,
       secrets: createEnvSecretProvider(env),
-      extensions: withTestHold(
-        checkpointExtensions(checkpoints.snapshots, store),
-        config.testTools ? env.COKO_TEST_HOLD_AFTER_TOOL : undefined,
-        env.COKO_TEST_HOLD_BEFORE_CHECKPOINT === '1',
-      ),
+      extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
       ...(fallbackModel ? { fallbackModel } : {}),
     })
