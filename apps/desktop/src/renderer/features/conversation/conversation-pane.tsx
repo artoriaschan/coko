@@ -5,9 +5,11 @@ import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
+import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
 import { Composer } from './composer.tsx'
+import { ModelPicker } from './model-picker.tsx'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 
@@ -31,7 +33,15 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
   const listStatus = useChat((s) => s.listStatus)
-  const { send, stop, retry, openSession } = useChatActions()
+  const draftModel = useChat((s) => s.draftModel)
+  const { send, stop, retry, openSession, selectModel } = useChatActions()
+  const settingsStatus = useSettings((s) => s.status)
+  const models = useSettings((s) => s.models)
+  const defaultModel = useSettings((s) => s.defaultModel)
+  const settingsDialog = useSettingsDialog()
+  // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
+  const model = session ? (session.model ?? defaultModel) : (draftModel ?? defaultModel)
+  const needsSetup = settingsStatus === 'ready' && models.length === 0
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
   const running = conversation?.running ?? false
 
@@ -117,8 +127,20 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
             running={running}
             disabled={activeSessionId === null && draftWorkspaceId === null}
+            needsSetup={needsSetup}
             onSend={send}
             onStop={() => void stop()}
+            onSetup={() => settingsDialog.show('models')}
+            accessory={
+              models.length > 0 && (
+                <ModelPicker
+                  models={models}
+                  value={model}
+                  disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
+                  onChange={(m) => void selectModel(m)}
+                />
+              )
+            }
           />
         </div>
         {connection.phase === 'failed' && <ConnectionFailure code={connection.code} message={connection.message} />}

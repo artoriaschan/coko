@@ -204,4 +204,40 @@ describe('chat store', () => {
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'error', error: { code: 'model_error', message: 'boom' } }, 'run_end') })
     expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toEqual({ kind: 'error', key: '2', message: 'boom', retryText: 'try this' })
   })
+
+  it('草稿中选择的模型用于创建会话；打开的会话切换模型经协议写入并更新列表', async () => {
+    const stream = new FakeStream()
+    const deepseek = { providerId: 'p1', modelId: 'deepseek-flash' }
+    const api = fakeApi({
+      listSessions: vi.fn<Api['listSessions']>(async () => []),
+      setSessionModel: vi.fn<Api['setSessionModel']>(async (id, model) => session(id, { model })),
+    })
+    const store = createChatStore({ api, stream })
+    await store.getState().load()
+    expect(store.getState().draftWorkspaceId).toBe('w1')
+    await store.getState().selectModel(deepseek)
+    expect(store.getState().draftModel).toEqual(deepseek)
+    expect(api.setSessionModel).not.toHaveBeenCalled()
+
+    const sending = store.getState().send('hello')
+    await flush()
+    expect(api.createSession).toHaveBeenCalledWith({ workspaceId: 'w1', title: 'hello', model: deepseek })
+    stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: false })
+    await sending
+
+    const other = { providerId: 'p1', modelId: 'deepseek-v4-pro' }
+    await store.getState().selectModel(other)
+    expect(api.setSessionModel).toHaveBeenCalledWith('s-new', other)
+    expect(store.getState().sessions.find((s) => s.id === 's-new')?.model).toEqual(other)
+  })
+
+  it('切换模型失败时报告 model 失败，会话模型不变', async () => {
+    const failures: ChatFailure[] = []
+    const api = fakeApi({ setSessionModel: vi.fn<Api['setSessionModel']>(async () => Promise.reject(new ApiError('run-in-progress', 'busy', 409))) })
+    const store = createChatStore({ api, stream: new FakeStream(), onFailure: (f) => failures.push(f) })
+    await store.getState().load()
+    await store.getState().selectModel({ providerId: 'p1', modelId: 'm' })
+    expect(failures.map((f) => [f.kind, f.error.code])).toEqual([['model', 'run-in-progress']])
+    expect(store.getState().sessions[0]?.model).toEqual({ providerId: 'faux', modelId: 'faux-1' })
+  })
 })

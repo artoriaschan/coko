@@ -1,6 +1,14 @@
-import { createModelRegistry, InMemoryCredentialStore, ModelConfigError, type ModelRegistry, type ProviderConfig, type ProviderKind } from '@coko/agent'
+import {
+  createModelRegistry,
+  InMemoryCredentialStore,
+  ModelConfigError,
+  providerPresets,
+  type ModelRegistry,
+  type ProviderConfig,
+  type ProviderKind,
+} from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { CreateProviderRequest, ModelProtocol, Provider, UpdateProviderRequest } from '@coko/protocol'
+import type { AvailableModel, CreateProviderRequest, ModelProtocol, Provider, ProviderPreset, UpdateProviderRequest } from '@coko/protocol'
 import type { Provider as StoredProvider, ProviderInput, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
@@ -66,6 +74,20 @@ export class ProviderService {
 
   async list(): Promise<Provider[]> {
     return (await this.#options.store.providers.list()).map(toProviderDto)
+  }
+
+  presets(): ProviderPreset[] {
+    return providerPresets().map(({ kind, name, baseUrl, models }) => ({ kind, name, baseUrl, models }))
+  }
+
+  /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序。 */
+  models(): AvailableModel[] {
+    const { models } = this.#options.registry
+    return models
+      .getProviders()
+      .flatMap((provider) =>
+        models.getModels(provider.id).map((model) => ({ providerId: provider.id, providerName: provider.name, modelId: model.id, name: model.name })),
+      )
   }
 
   async create(input: CreateProviderRequest): Promise<Provider> {

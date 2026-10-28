@@ -1,4 +1,4 @@
-import type { ProgressEvent, ServerMessage, Session, SessionEntry, Workspace } from '@coko/protocol'
+import type { ProgressEvent, ServerMessage, Session, SessionEntry, SessionModel, Workspace } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
@@ -35,7 +35,7 @@ export interface Conversation {
   live: LiveRun | null
 }
 
-export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace'; error: ApiError }
+export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model'; error: ApiError }
 
 export interface ChatState {
   workspaces: Workspace[]
@@ -45,6 +45,8 @@ export interface ChatState {
   activeSessionId: string | null
   /** 新会话草稿所在的 Workspace：首条消息提交时才创建 Session。 */
   draftWorkspaceId: string | null
+  /** 草稿中选择的模型；创建 Session 时使用，null 表示用默认模型。 */
+  draftModel: SessionModel | null
   conversations: Record<string, Conversation>
 }
 
@@ -60,6 +62,8 @@ export interface ChatActions {
   stop(): Promise<void>
   /** 以出错 Run 的用户文本重新提交。 */
   retry(text: string): Promise<boolean>
+  /** 当前会话经协议切换模型；草稿中只记下选择。 */
+  selectModel(model: SessionModel): Promise<void>
 }
 
 export type ChatStore = StoreApi<ChatState & ChatActions>
@@ -146,6 +150,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       listStatus: 'idle',
       activeSessionId: null,
       draftWorkspaceId: null,
+      draftModel: null,
       conversations: {},
 
       async load() {
@@ -194,12 +199,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       },
 
       async send(text) {
-        const { activeSessionId, draftWorkspaceId } = get()
+        const { activeSessionId, draftWorkspaceId, draftModel } = get()
         if (activeSessionId !== null) return submit(activeSessionId, text, 'send')
         if (draftWorkspaceId === null) return false
         let session: Session
         try {
-          session = await api.createSession({ workspaceId: draftWorkspaceId, title: titleFromText(text) })
+          session = await api.createSession({ workspaceId: draftWorkspaceId, title: titleFromText(text), ...(draftModel ? { model: draftModel } : {}) })
         } catch (error) {
           onFailure?.({ kind: 'send', error: toApiError(error) })
           return false
@@ -229,6 +234,20 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
         return submit(sessionId, text, 'retry')
+      },
+
+      async selectModel(model) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) {
+          set({ draftModel: model })
+          return
+        }
+        try {
+          const updated = await api.setSessionModel(sessionId, model)
+          set((state) => ({ sessions: state.sessions.map((s) => (s.id === updated.id ? { ...s, model: updated.model } : s)) }))
+        } catch (error) {
+          onFailure?.({ kind: 'model', error: toApiError(error) })
+        }
       },
     }
   })

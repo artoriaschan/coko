@@ -160,3 +160,23 @@ export const UpdateProviderRequest = Type.Object(
   strict,
 )
 export type UpdateProviderRequest = Static<typeof UpdateProviderRequest>
+
+/** 预设 kind 的默认地址与目录中的模型 id；openai-compatible 没有目录，不在其中。 */
+export const ProviderPreset = Type.Object(
+  { kind: ProviderKind, name: Type.String(), baseUrl: Type.String(), models: Type.Array(Type.String({ minLength: 1 })) },
+  strict,
+)
+export type ProviderPreset = Static<typeof ProviderPreset>
+
+export const ProviderPresetsResponse = Type.Object({ presets: Type.Array(ProviderPreset) }, strict)
+export type ProviderPresetsResponse = Static<typeof ProviderPresetsResponse>
+
+// ---- Models ----
+
+/** 一个可选的模型：Session 可以切换到它。 */
+export const AvailableModel = Type.Object({ providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String() }, strict)
+export type AvailableModel = Static<typeof AvailableModel>
+
+/** 已注册 Provider 的模型（按 Provider 登记顺序）与新建 Session 的默认模型；没有可用模型时 defaultModel 为 null。 */
+export const ModelListResponse = Type.Object({ models: Type.Array(AvailableModel), defaultModel: Type.Union([SessionModel, Type.Null()]) }, strict)
+export type ModelListResponse = Static<typeof ModelListResponse>

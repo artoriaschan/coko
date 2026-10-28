@@ -85,6 +85,7 @@ export class SidecarProcess {
   #nextRequestId = 1
   readonly #pending = new Map<number, { resolve: (activeRuns: number) => void; reject: (error: Error) => void }>()
   readonly #exitListeners = new Set<(info: SidecarExitInfo) => void>()
+  readonly #controlListeners = new Set<(message: SidecarToMainMessage) => void>()
   #exitInfo: SidecarExitInfo | undefined
   #resolveExited!: () => void
   /** 子进程实际退出（或从未启动成功）时完成。 */
@@ -109,6 +110,17 @@ export class SidecarProcess {
   onUnexpectedExit(listener: (info: SidecarExitInfo) => void): () => void {
     this.#exitListeners.add(listener)
     return () => this.#exitListeners.delete(listener)
+  }
+
+  /** ready 之后由其他模块处理的控制消息（credential.*）。 */
+  onControlMessage(listener: (message: SidecarToMainMessage) => void): () => void {
+    this.#controlListeners.add(listener)
+    return () => this.#controlListeners.delete(listener)
+  }
+
+  /** 向就绪的 Sidecar 发送控制消息；通道断开时丢弃（由 close 统一处理）。 */
+  send(message: MainToSidecarMessage): void {
+    if (this.isReady) this.#send(message)
   }
 
   start(): Promise<SidecarReady> {
@@ -185,6 +197,10 @@ export class SidecarProcess {
             pending?.resolve(message.activeRuns)
             return
           }
+          case 'credential.decrypt':
+          case 'credential.store.result':
+            if (this.#ready) for (const listener of this.#controlListeners) listener(message)
+            return
         }
       })
 

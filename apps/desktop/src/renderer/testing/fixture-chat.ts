@@ -3,6 +3,8 @@ import type { ClientMessage, ServerMessage, Session, SessionEntry, Workspace } f
 import type { ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { createChatStore, type ChatStore } from '../stores/chat-store.ts'
+import { createSettingsStore } from '../stores/settings-store.ts'
+import { fakeSettingsBackend } from './fake-settings.ts'
 
 const ws = (id: string, name: string): Workspace => ({ id, path: `/Users/me/${name}`, name, createdAt: 1 })
 const session = (id: string, workspaceId: string, title: string, updatedAt: number, running = false): Session => ({
@@ -86,8 +88,11 @@ function s1Entries(): SessionEntry[] {
   ]
 }
 
-/** 订阅时异步补发 afterSeq 之后的条目再确认；sendServer 可推送任意服务端消息。 */
-export function createFixtureChat(options: { entries?: Record<string, SessionEntry[]> } = {}) {
+/**
+ * 订阅时异步补发 afterSeq 之后的条目再确认；sendServer 可推送任意服务端消息。
+ * 设置后端默认有一个 faux Provider（providers: false 时为空，用于未配置模型的场景）。
+ */
+export function createFixtureChat(options: { entries?: Record<string, SessionEntry[]>; providers?: boolean } = {}) {
   const entries: Record<string, SessionEntry[]> = { 's-1': s1Entries(), ...options.entries }
   const messageListeners = new Set<(message: ServerMessage) => void>()
   const sent: ClientMessage[] = []
@@ -112,7 +117,12 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       return () => messageListeners.delete(listener)
     },
   }
+  const backend = fakeSettingsBackend()
+  if (options.providers !== false)
+    void backend.api.createProvider({ name: 'Fixture', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['faux-1'] })
   const api = {
+    ...backend.api,
+    setSessionModel: async (id: string, model) => ({ ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!), model }),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => fixtureSessions,
     registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),
@@ -125,5 +135,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   } satisfies ApiClient
   const chat: ChatStore = createChatStore({ api, stream })
   void chat.getState().load()
-  return { chat, sent, sendServer }
+  const settings = createSettingsStore({ api, setCredential: backend.setCredential })
+  void settings.getState().load()
+  return { chat, sent, sendServer, settings, backend }
 }

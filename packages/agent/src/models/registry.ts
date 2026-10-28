@@ -58,6 +58,26 @@ const PRESETS: Record<Exclude<ProviderKind, 'openai-compatible'>, Preset> = {
   anthropic: { name: 'Anthropic', protocol: 'anthropic-messages', baseUrl: 'https://api.anthropic.com', catalog: ANTHROPIC_MODELS },
 }
 
+export interface ProviderPresetInfo {
+  kind: Exclude<ProviderKind, 'openai-compatible'>
+  name: string
+  protocol: ModelProtocol
+  baseUrl: string
+  /** Chat model ids in the preset catalog; any of them can be configured without extra limits. */
+  models: string[]
+}
+
+/** The preset kinds with their default address and catalog, for settings UIs. */
+export function providerPresets(): ProviderPresetInfo[] {
+  return (Object.entries(PRESETS) as [ProviderPresetInfo['kind'], Preset][]).map(([kind, preset]) => ({
+    kind,
+    name: preset.name,
+    protocol: preset.protocol,
+    baseUrl: preset.baseUrl,
+    models: Object.keys(preset.catalog),
+  }))
+}
+
 const PROTOCOL_STREAMS: Record<ModelProtocol, () => ProviderStreams> = {
   'openai-completions': openAICompletionsApi,
   'openai-responses': openAIResponsesApi,

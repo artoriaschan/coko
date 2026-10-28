@@ -1,12 +1,12 @@
 import { useAppFrame } from '@coko/ui'
 import { FolderPlusIcon, PanelLeftOpenIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
-import type * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
+import { SettingsButton } from '../settings/settings-button.tsx'
 
 /** 收起后的 56px rail：主要操作保持可达。 */
-export function SidebarRail({ footer, onAddWorkspace }: { footer: React.ReactNode; onAddWorkspace: () => void }) {
+export function SidebarRail({ onAddWorkspace }: { onAddWorkspace: () => void }) {
   const { t } = useI18n()
   const { toggleSidebar, sidebarVisible } = useAppFrame()
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
@@ -28,7 +28,9 @@ export function SidebarRail({ footer, onAddWorkspace }: { footer: React.ReactNod
           <FolderPlusIcon />
         </IconButton>
       </div>
-      <div className="mt-auto flex flex-col items-center gap-1 py-2">{footer}</div>
+      <div className="mt-auto flex flex-col items-center gap-1 py-2">
+        <SettingsButton compact />
+      </div>
     </div>
   )
 }

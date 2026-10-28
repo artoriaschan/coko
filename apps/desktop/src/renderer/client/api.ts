@@ -3,32 +3,46 @@ import {
   API_ROUTES,
   apiPaths,
   ErrorResponse,
+  ModelListResponse,
+  Provider,
+  ProviderListResponse,
+  ProviderPresetsResponse,
   Session,
   SessionDetailResponse,
   SessionListResponse,
+  Setting,
+  SettingsResponse,
   SubmitMessageResponse,
   Workspace,
   WorkspaceListResponse,
+  type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
+  type SessionModel,
+  type UpdateProviderRequest,
 } from '@coko/protocol'
-import type { TSchema, Static } from 'typebox'
+import { Type, type TSchema, type Static } from 'typebox'
 import { Value } from 'typebox/value'
 
 /** 协议错误；code 为协议错误码，或 renderer 自身的 network / bad-response。 */
 export class ApiError extends Error {
   readonly code: ErrorCode | 'network' | 'bad-response'
   readonly status: number
+  readonly details: Record<string, unknown> | undefined
 
-  constructor(code: ApiError['code'], message: string, status: number) {
+  constructor(code: ApiError['code'], message: string, status: number, details?: Record<string, unknown>) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.details = details
   }
 }
 
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>
+
+/** 204 无响应体。 */
+const NoContent = Type.Undefined()
 
 /** Sidecar HTTP 客户端：同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。 */
 export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input, init)) {
@@ -42,9 +56,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     } catch (error) {
       throw new ApiError('network', error instanceof Error ? error.message : String(error), 0)
     }
-    const value: unknown = await response.json().catch(() => undefined)
+    const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
     if (!response.ok) {
-      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status)
+      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
       throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
     }
     if (!Value.Check(schema, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
@@ -59,6 +73,16 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     submitMessage: (id: string, text: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionMessages(id), { text }),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),
+    setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
+    listSettings: async () => (await call(SettingsResponse, 'GET', API_ROUTES.settings)).settings,
+    /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */
+    putSetting: (key: string, value: unknown, expectedRevision: number) => call(Setting, 'PUT', apiPaths.setting(key), { value, expectedRevision }),
+    listProviders: async () => (await call(ProviderListResponse, 'GET', API_ROUTES.providers)).providers,
+    listProviderPresets: async () => (await call(ProviderPresetsResponse, 'GET', API_ROUTES.providerPresets)).presets,
+    createProvider: (input: CreateProviderRequest) => call(Provider, 'POST', API_ROUTES.providers, input),
+    updateProvider: (id: string, patch: UpdateProviderRequest) => call(Provider, 'PATCH', apiPaths.provider(id), patch),
+    deleteProvider: (id: string) => call(NoContent, 'DELETE', apiPaths.provider(id)),
+    listModels: () => call(ModelListResponse, 'GET', API_ROUTES.models),
   }
 }
 

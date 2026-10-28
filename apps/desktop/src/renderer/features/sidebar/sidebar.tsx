@@ -5,12 +5,12 @@ import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
+import { SettingsButton } from '../settings/settings-button.tsx'
 
 const GROUP_PAGE = 5
 
 export interface SidebarProps {
   onAddWorkspace: () => void
-  footer: React.ReactNode
 }
 
 const rowClass =
@@ -26,7 +26,7 @@ export function groupSessions(workspaces: readonly Workspace[], sessions: readon
   }))
 }
 
-export function Sidebar({ onAddWorkspace, footer }: SidebarProps) {
+export function Sidebar({ onAddWorkspace }: SidebarProps) {
   const { t } = useI18n()
   const { toggleSidebar, closeSidebarDrawer } = useAppFrame()
   const workspaces = useChat((s) => s.workspaces)
@@ -90,7 +90,9 @@ export function Sidebar({ onAddWorkspace, footer }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="flex shrink-0 items-center gap-1 border-t-hairline border-sidebar-border px-2 py-2">{footer}</div>
+      <div className="flex shrink-0 items-center gap-1 border-t-hairline border-sidebar-border px-2 py-2">
+        <SettingsButton />
+      </div>
     </div>
   )
 }

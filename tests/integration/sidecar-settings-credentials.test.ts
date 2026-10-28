@@ -92,6 +92,52 @@ describe('设置与 Provider', () => {
     expect((await api.get(API_ROUTES.providers)).body).toEqual({ providers: [] })
     expect((await api.delete(apiPaths.provider(id))).status).toBe(404)
   })
+
+  it('预设目录：三个预设 kind 给出默认地址与目录中的模型；自定义兼容 Provider 无目录', async () => {
+    const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+    const api = client(sidecar, await exchange(sidecar))
+    const res = await api.get(API_ROUTES.providerPresets)
+    expect(res.status).toBe(200)
+    const presets = res.body.presets as { kind: string; name: string; baseUrl: string; models: string[] }[]
+    expect(presets.map((p) => p.kind)).toEqual(['deepseek', 'openai', 'anthropic'])
+    expect(presets[0]).toMatchObject({ name: 'DeepSeek', baseUrl: 'https://api.deepseek.com' })
+    expect(presets[0]!.models).toContain('deepseek-flash')
+    // 目录中的模型都能用于创建该 kind 的 Provider。
+    for (const preset of presets) {
+      expect(preset.models.length).toBeGreaterThan(0)
+      expect((await api.post(API_ROUTES.providers, { name: preset.name, kind: preset.kind, models: [preset.models.at(-1)] })).status).toBe(201)
+    }
+  })
+
+  it('可用模型：列出已注册 Provider 的模型与默认模型；增删 Provider 后随之变化', async () => {
+    const root = await tempDir()
+    const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+    const api = client(sidecar, await exchange(sidecar))
+    expect((await api.get(API_ROUTES.models)).body).toEqual({ models: [], defaultModel: null })
+
+    const created = (await api.post(API_ROUTES.providers, { name: 'Local', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['m1', 'm2'] }))
+      .body
+    const listed = (await api.get(API_ROUTES.models)).body
+    expect(listed).toEqual({
+      models: [
+        { providerId: created.id, providerName: 'Local', modelId: 'm1', name: 'm1' },
+        { providerId: created.id, providerName: 'Local', modelId: 'm2', name: 'm2' },
+      ],
+      defaultModel: { providerId: created.id, modelId: 'm1' },
+    })
+    await api.patch(apiPaths.provider(created.id), { models: ['m2'] })
+    expect((await api.get(API_ROUTES.models)).body.models.map((m: { modelId: string }) => m.modelId)).toEqual(['m2'])
+    await api.delete(apiPaths.provider(created.id))
+    expect((await api.get(API_ROUTES.models)).body).toEqual({ models: [], defaultModel: null })
+
+    // faux 开启时（测试），faux 模型也在列表中并作为默认。
+    const faux = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: await fauxScript(root, { responses: [] }) } })
+    const fauxApi = client(faux, await exchange(faux))
+    expect((await fauxApi.get(API_ROUTES.models)).body).toEqual({
+      models: [{ providerId: 'faux', providerName: 'faux', modelId: 'faux-1', name: 'Faux' }],
+      defaultModel: { providerId: 'faux', modelId: 'faux-1' },
+    })
+  })
 })
 
 describe('Credential', () => {
