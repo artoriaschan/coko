@@ -6,28 +6,30 @@ lifecycle: active
 
 # @coko/session
 
-提供 Session、设置与 Provider 的 Repository 接口，以及 SQLite 实现和内存实现。决定依据见 [ADR 0003](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)；Credential 的加解密边界见 [ADR 0004](../../docs/adr/0004-model-credentials-safe-storage.md)。尚未提供 Memory、Goal / Task 等业务状态、payload 注册接口与 FTS5 搜索索引。
+提供 Session、设置与 Provider 的 Repository 接口，以及 SQLite 实现和内存实现。决定依据见 [ADR 0003](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)；Credential 的加解密边界见 [ADR 0004](../../docs/adr/0004-model-credentials-safe-storage.md)。尚未提供 Memory、Goal / Task 等业务状态与 FTS5 搜索索引。
 
 ## 使用或结构入口
 
 | 入口 | 内容 |
 | --- | --- |
-| `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`SessionStore`、`StoreError`；不导入 `node:sqlite` |
-| `@coko/session/sqlite` | `openSqliteStore({ path, ... })`、`SQLITE_SCHEMA_VERSION`；只在此入口导入 `node:sqlite` |
-| `@coko/session/memory` | `createMemoryStore()`，不持久化，供单元测试装配 |
+| `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`SessionStore`、`createPayloadRegistry` 与 `PayloadRegistry`、`StoreError`；不导入 `node:sqlite` |
+| `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`；只在此入口导入 `node:sqlite` |
+| `@coko/session/memory` | `createMemoryStore({ payloads })`，不持久化，供单元测试装配 |
 
 两种实现返回同一个 `SessionStore`：`sessions`（Workspace、Session、append-only Session Entry）、`settings`、`providers` 与 `close()`。SQLite 实现另有 `instanceId`、`migration`（`{ from, to, backupPath }`）和 `capabilities.fts5`。
 
 ## 契约与生命周期
 
-- **提交。** 每个写方法是一个 `BEGIN IMMEDIATE` 事务，Promise 兑现即已提交。`appendEntries` 一次提交一批条目，在 Session 内分配从 1 开始连续的 `seq`，并刷新 Session 的 `updatedAt`。条目不可修改（表上有拒绝 UPDATE 的触发器）。payload 按 JSON 保存，含义与版本迁移由调用方负责。
-- **读取。** `listEntries(sessionId, { afterSeq, limit })` 返回 `seq > afterSeq` 的条目，供断线重连补齐。`listSessions` 按 `updatedAt` 倒序。
+- **提交。** 每个写方法是一个 `BEGIN IMMEDIATE` 事务，Promise 兑现即已提交。`appendEntries` 一次提交一批条目，在 Session 内分配从 1 开始连续的 `seq`，并刷新 Session 的 `updatedAt`。条目不可修改（表上有拒绝 UPDATE 的触发器）。payload 按 JSON 保存，返回值是写入时的原样记录。
+- **Payload 注册。** 打开存储时必须给出 `payloads`（`createPayloadRegistry(definitions)`）：每个 kind 一组按顺序编号的版本，每个版本有校验函数 `check(payload)`（合格返回 undefined，否则返回只描述 schema、不含值的原因），第 2 版起另有从上一版迁移的 `migrate`。session 不导入 agent：各 kind 的定义由 agent 提供（`SESSION_ENTRY_PAYLOADS`），由宿主装配。`payloadVersion` 缺省为当前版本，也可写入已登记的旧版本。
+- **写入校验。** `appendEntries` 先校验整批：kind 未注册、版本未登记或 payload 不合该版本的 schema 时，以 `invalid-payload`（非 fatal，`details` 带 `index`、`kind`、`payloadVersion`、`reason`，不含 payload）拒绝，整批不提交。
+- **读取。** `listEntries(sessionId, { afterSeq, limit })` 返回 `seq > afterSeq` 的条目，供断线重连补齐；payload 逐版迁移到当前版本。迁移后仍不合格（或 JSON 已损坏）的条目不返回、交给 `onInvalidEntry({ sessionId, seq, kind, payloadVersion, reason })`，库中保留，因此读回的 seq 可能有空缺；`limit` 按库中条目计数。`listSessions` 按 `updatedAt` 倒序。
 - **设置。** 键值 JSON，每个键单独计 revision；不存在的键为 0。`set(key, value, expectedRevision)` 不匹配时以 `revision-conflict` 拒绝，`details` 带 `expected` 与 `actual`，值保持不变。
 - **Provider 与 Credential。** Provider 只返回 `credential: { hint } | null`。密文由 main 加密后经 `setCredential` 存入单独的表，只能用 `getCredentialCiphertext` 取回；删除 Provider 时同时删除密文。
-- **打开序列。** 创建目录（0700）与库文件（0600）→ 获取宿主租约 → `PRAGMA quick_check` → 版本检查 → WAL、`synchronous=FULL`、外键、busy timeout → 迁移 → FTS5 探测 → 启动心跳。租约先于快速检查：隔离会改名文件，只有确认本实例是写者后才执行；文件已读不出租约（不是数据库或页面损坏）时直接进入快速检查。
+- **打开序列。** 创建目录（0700）与库文件（0600）→ 读库头版本，高于 `SQLITE_SCHEMA_VERSION` 时立即报告 `version-too-new` → 获取宿主租约 → `PRAGMA quick_check` → 版本检查 → WAL、`synchronous=FULL`、外键、busy timeout → 迁移 → FTS5 探测 → 启动心跳。租约先于快速检查：隔离会改名文件，只有确认本实例是写者后才执行；文件已读不出租约（不是数据库或页面损坏）时直接进入快速检查。
 - **迁移。** 迁移按编号前向执行，每一步与 `user_version` 在同一事务提交。库里已有数据时，迁移前先 `VACUUM INTO <path>.backup-v<N>-<时间>`（0600）。某一步失败时只回滚该步，已提交的步骤保留，并报告 `migration-failed`（`details` 带 `version`、`failedVersion` 与 `backupPath`）。
 - **宿主租约。** `host_lease` 单行表，打开时最先于事务中获取。其他实例的进程存活且心跳未超过 TTL 时，打开以 `lease-held` 拒绝（`details` 带 `pid`、`instanceId`），不做快速检查与隔离，文件保持原样。持有者进程已退出或心跳超时则接管。每次写入都在事务内校验租约，被接管后本实例的所有操作以 `lease-lost` 拒绝。`close()` 释放租约。
-- **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时报告 `version-too-new`，释放刚获取的租约，不迁移、不改动 schema。
+- **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时在获取租约之前报告 `version-too-new`，不写入任何内容，库文件逐字节不变。
 - **错误。** 所有失败都是 `StoreError`（`code`、`fatal`、`details`）。`fatal` 为 true 的错误（`lease-held`、`lease-lost`、`corrupt`、`version-too-new`、`migration-failed`、`open-failed`、`unknown-state`）表示存储不可继续使用，应由宿主提示用户。回滚本身失败时进入 `unknown-state`，必须关闭后重开。
 
 ## 配置与限制
@@ -38,6 +40,8 @@ lifecycle: active
 | `leaseTtlMs` | 30000 | 心跳超过该时长的租约可被接管 |
 | `heartbeatMs` | 10000 | 心跳间隔；定时器不阻止进程退出 |
 | `busyTimeoutMs` | 5000 | 等待写锁的上限；打开时等满仍拿不到写锁，按 `lease-held` 报告 |
+| `payloads` | 必填 | Session Entry 的 payload 注册表 |
+| `onInvalidEntry` | 不报告 | 读取时跳过不合格条目的回调；宿主记 warn |
 | `now` | `Date.now` | 记录时间戳与租约心跳使用的时钟 |
 
 - `DatabaseSync` 是同步 API，等待写锁时会阻塞事件循环，前提是单写者。
@@ -46,8 +50,8 @@ lifecycle: active
 
 ## 验证与相关设计
 
-- `src/repository-contract.ts`：仓库契约测试套件，由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行。
-- `src/sqlite/sqlite.test.ts`：重新打开后读回、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、租约被存活实例持有时损坏库不被隔离、版本过高拒绝。
+- `src/repository-contract.ts`：仓库契约测试套件（含 payload 写入拒绝与读取迁移、跳过），由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行；测试用注册表在 `src/test-payloads.ts`。
+- `src/sqlite/sqlite.test.ts`：重新打开后读回、升级注册表后重新打开时旧版本 payload 迁移且不合格行保留在库中、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、租约被存活实例持有时损坏库不被隔离、版本过高拒绝且库文件逐字节不变。
 - `src/sqlite/migrate.test.ts`：用合成迁移验证备份、逐步提交、失败回滚与租约释放。
 - `src/sqlite/electron-runtime.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动 Electron 子进程（`src/sqlite/electron-fixture.ts`），验证跨进程提交读回、租约冲突、持有者被 SIGKILL 后接管，并断言运行时版本与 FTS5 可用。
 

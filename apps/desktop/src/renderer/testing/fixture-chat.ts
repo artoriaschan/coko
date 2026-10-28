@@ -1,5 +1,5 @@
 // Browser Mode 测试用的内存协议后端：按协议形状提供 Workspace、Session 与条目，订阅时补发并确认。
-import type { ClientMessage, ServerMessage, Session, SessionEntry, Workspace } from '@coko/protocol'
+import type { ClientMessage, ServerMessage, Session, SessionEntryRecord, Workspace } from '@coko/protocol'
 import type { ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { createChatStore, type ChatStore } from '../stores/chat-store.ts'
@@ -13,6 +13,7 @@ const session = (id: string, workspaceId: string, title: string, updatedAt: numb
   title,
   model: { providerId: 'faux', modelId: 'faux-1' },
   running,
+  activity: running ? 'running' : 'idle',
   createdAt: 1,
   updatedAt,
 })
@@ -51,7 +52,7 @@ const markdown = [
 ].join('\n')
 
 let seq = 0
-const entry = (sessionId: string, payload: unknown, kind = 'message'): SessionEntry => ({
+const entry = (sessionId: string, payload: unknown, kind = 'message'): SessionEntryRecord => ({
   sessionId,
   seq: ++seq,
   kind,
@@ -61,7 +62,7 @@ const entry = (sessionId: string, payload: unknown, kind = 'message'): SessionEn
   createdAt: seq,
 })
 
-function s1Entries(): SessionEntry[] {
+function s1Entries(): SessionEntryRecord[] {
   seq = 0
   return [
     entry('s-1', { role: 'user', content: '给侧栏加上按工作区分组的会话列表，并说明三栏宽度规则。', timestamp: 0 }),
@@ -92,8 +93,8 @@ function s1Entries(): SessionEntry[] {
  * 订阅时异步补发 afterSeq 之后的条目再确认；sendServer 可推送任意服务端消息。
  * 设置后端默认有一个 faux Provider（providers: false 时为空，用于未配置模型的场景）。
  */
-export function createFixtureChat(options: { entries?: Record<string, SessionEntry[]>; providers?: boolean } = {}) {
-  const entries: Record<string, SessionEntry[]> = { 's-1': s1Entries(), ...options.entries }
+export function createFixtureChat(options: { entries?: Record<string, SessionEntryRecord[]>; providers?: boolean } = {}) {
+  const entries: Record<string, SessionEntryRecord[]> = { 's-1': s1Entries(), ...options.entries }
   const messageListeners = new Set<(message: ServerMessage) => void>()
   const sent: ClientMessage[] = []
   const sendServer = (message: ServerMessage) => {

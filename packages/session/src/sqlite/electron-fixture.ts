@@ -1,6 +1,7 @@
 // 由 electron-runtime.test.ts 以 ELECTRON_RUN_AS_NODE=1 启动的子进程脚本，在 Electron 内置 Node 中运行 SQLite 入口。
 // 用法：<electron> electron-fixture.ts <write|read|hold> <dbPath>；每行 stdout 是一个 JSON 对象。
 import { isStoreError } from '../errors.ts'
+import { TEST_PAYLOADS } from '../test-payloads.ts'
 import { openSqliteStore } from './index.ts'
 
 const [mode, path] = process.argv.slice(2)
@@ -8,7 +9,7 @@ const print = (value: unknown) => process.stdout.write(`${JSON.stringify(value)}
 
 try {
   if (!path) throw new Error('missing db path')
-  const store = await openSqliteStore({ path })
+  const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
   const info = {
     versions: { electron: process.versions.electron, node: process.versions.node, sqlite: process.versions.sqlite },
     fts5: store.capabilities.fts5,

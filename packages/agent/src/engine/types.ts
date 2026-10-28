@@ -1,6 +1,7 @@
-import type { AgentMessage, AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { RunStatus, SessionEntryKind, SessionEntryPayloads } from '../session-entries/index.ts'
 
-export type RunStatus = 'completed' | 'aborted' | 'error'
+export type { RunStatus } from '../session-entries/index.ts'
 
 export type RunErrorCode =
   /** The model stream ended with an error (after retries, if retryable). */
@@ -16,11 +17,12 @@ export interface RunError {
 }
 
 /**
- * Committed fact of a Run, in commit order. The host persists each one as a Session Entry
- * before the Run proceeds. Message entries mirror the transcript the model sees, so restoring a
- * Session means passing their messages back as `messages`.
+ * Committed fact of a Run, in commit order: one Session Entry whose payload is registered for its kind
+ * (see session-entries). The host persists each one before the Run proceeds; new kinds need no host mapping.
+ * Every Run starts with `run_start` and ends with `run_end`. Message entries mirror the transcript the model
+ * sees, so restoring a Session means passing their payloads back as `messages`.
  */
-export type RunEntry = { kind: 'message'; runId: string; message: AgentMessage } | { kind: 'run_end'; runId: string; status: RunStatus; error?: RunError }
+export type RunEntry = { [K in SessionEntryKind]: { kind: K; runId?: string; payload: SessionEntryPayloads[K] } }[SessionEntryKind]
 
 export interface RunResult {
   runId: string

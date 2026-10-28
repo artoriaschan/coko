@@ -1,4 +1,4 @@
-import type { RunEndPayload, SessionEntry } from '@coko/protocol'
+import type { SessionEntry } from '@coko/protocol'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 export interface ToolCallBlock {
@@ -64,7 +64,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   for (const entry of conversation.entries) {
     if (entry.runId) lastRunId = entry.runId
     if (entry.kind === 'run_end') {
-      const payload = entry.payload as RunEndPayload
+      const payload = entry.payload
       // 未结束的工具在 Run 结束后不会再有结果。
       for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
@@ -72,7 +72,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       continue
     }
     if (entry.kind !== 'message') continue
-    const message = entry.payload as { role?: string; content?: unknown; toolCallId?: string; toolName?: string; isError?: boolean; details?: unknown }
+    const message = entry.payload
     if (message.role === 'user') {
       items.push({ kind: 'user', key: `${entry.seq}`, text: contentText(message.content) })
     } else if (message.role === 'assistant') {
@@ -95,9 +95,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           items.push(item)
         }
       })
-    } else if (message.role === 'toolResult' && message.toolCallId) {
+    } else if (message.role === 'toolResult') {
       const tool = tools.get(message.toolCallId)
-      const result: ToolResultView = { isError: message.isError === true, text: contentText(message.content), details: message.details }
+      const result: ToolResultView = { isError: message.isError, text: contentText(message.content), details: message.details }
       if (tool) {
         tool.result = result
         tool.status = result.isError ? 'error' : 'done'
@@ -162,5 +162,5 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
 
 function lastRunIsError(entries: SessionEntry[], lastRunId: string | null): boolean {
   const last = entries.at(-1)
-  return last?.kind === 'run_end' && last.runId === lastRunId && (last.payload as RunEndPayload).status === 'error'
+  return last?.kind === 'run_end' && last.runId === lastRunId && last.payload.status === 'error'
 }

@@ -1,4 +1,5 @@
-import type { ProgressEvent, ServerMessage, Session, SessionEntry, SessionModel, Workspace } from '@coko/protocol'
+import { SessionEntry, type ProgressEvent, type RunStatus, type ServerMessage, type Session, type SessionModel, type Workspace } from '@coko/protocol'
+import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
@@ -30,12 +31,13 @@ export interface LiveRun {
 /** 只由 run_end progress 得知的 Run 结束（run_end 条目提交失败）；之后到达的条目会覆盖它。 */
 export interface UnrecordedRunEnd {
   runId: string
-  status: 'completed' | 'aborted' | 'error'
+  status: RunStatus
   error?: { code: string; message: string }
 }
 
 export interface Conversation {
   status: 'loading' | 'ready' | 'error'
+  /** 已通过 SessionEntry schema 校验的条目；不合格的条目在接收时跳过（lastSeq 仍越过它）。 */
   entries: SessionEntry[]
   lastSeq: number
   running: boolean
@@ -282,19 +284,22 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         return
       }
       case 'entry': {
-        const { entry } = message
+        const record = message.entry
+        // 信任边界：payload 按 kind 的 schema 校验；不合格的条目不渲染，但 lastSeq 越过它，重连时不再补发。
+        const entry = Value.Check(SessionEntry, record) ? record : undefined
         patchConversation(message.sessionId, (c) => {
-          if (entry.seq <= c.lastSeq) return c
+          if (record.seq <= c.lastSeq) return c
+          if (!entry) return { ...c, lastSeq: record.seq }
           const entries = [...c.entries, entry]
           if (entry.kind === 'run_end') return { ...c, entries, lastSeq: entry.seq, running: false, live: null, unrecordedEnd: undefined }
-          const role = (entry.payload as { role?: unknown } | null)?.role
           // assistant 消息已提交：其增量不再需要，下一条消息的增量从空开始接收。
-          const live = role === 'assistant' && c.live ? { ...c.live, accepting: true, blocks: [], retry: undefined } : c.live
+          const committedAssistant = entry.kind === 'message' && entry.payload.role === 'assistant'
+          const live = committedAssistant && c.live ? { ...c.live, accepting: true, blocks: [], retry: undefined } : c.live
           return { ...c, entries, lastSeq: entry.seq, live }
         })
         patchSession(message.sessionId, {
-          updatedAt: entry.createdAt,
-          ...(entry.kind === 'run_end' ? { running: false } : {}),
+          updatedAt: record.createdAt,
+          ...(entry?.kind === 'run_end' ? { running: false } : {}),
         })
         return
       }

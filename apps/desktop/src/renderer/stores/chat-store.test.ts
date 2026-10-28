@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage, Session, SessionEntry, Workspace } from '@coko/protocol'
+import type { ClientMessage, ServerMessage, Session, SessionEntryRecord, Workspace } from '@coko/protocol'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
@@ -39,11 +39,12 @@ const session = (id: string, patch: Partial<Session> = {}): Session => ({
   title: id,
   model: { providerId: 'faux', modelId: 'faux-1' },
   running: false,
+  activity: 'idle',
   createdAt: 1,
   updatedAt: 1,
   ...patch,
 })
-const entry = (sessionId: string, seq: number, payload: unknown, kind = 'message', runId = 'r1'): SessionEntry => ({
+const entry = (sessionId: string, seq: number, payload: unknown, kind = 'message', runId = 'r1'): SessionEntryRecord => ({
   sessionId,
   seq,
   kind,
@@ -91,6 +92,31 @@ describe('chat store', () => {
       ['user', 'hi'],
       ['text', 'hello'],
     ])
+  })
+
+  it('不合 schema 的条目在信任边界被跳过，其余条目照常渲染，lastSeq 越过被跳过的条目', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream })
+    await store.getState().load()
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, { trigger: 'submit' }, 'run_start') })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, user('hi')) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 3, null) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 4, { role: 'assistant', content: 'not blocks', stopReason: 'stop' }) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 5, { future: true }, 'kind_from_the_future') })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 6, assistant([{ type: 'text', text: 'hello' }])) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 7, { status: 'finished' }, 'run_end') })
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 7, running: true })
+    const conversation = store.getState().conversations.s1!
+    expect(conversation.entries.map((e) => e.seq)).toEqual([1, 2, 6])
+    expect(conversation.lastSeq).toBe(7)
+    expect(buildTimeline(conversation).map((i) => [i.kind, 'text' in i ? i.text : null])).toEqual([
+      ['user', 'hi'],
+      ['text', 'hello'],
+      ['generating', null],
+    ])
+    // 重连时从越过的位置补齐，不再请求被跳过的条目。
+    stream.reopen()
+    expect(stream.sent.at(-1)).toEqual({ type: 'subscribe', sessionId: 's1', afterSeq: 7 })
   })
 
   it('重连后按 lastSeq 重新订阅；中断期间缺头的文本增量不显示，下一条 assistant 条目后恢复接收', async () => {

@@ -29,7 +29,7 @@ export interface SqliteStore extends SessionStore {
 }
 
 /**
- * 打开序列见 ADR 0003。失败以 fatal StoreError 拒绝：corrupt（原文件已隔离）、version-too-new、lease-held、
+ * 打开序列见 ADR 0003。失败以 fatal StoreError 拒绝：corrupt（原文件已隔离）、version-too-new（不写库）、lease-held、
  * migration-failed、open-failed。
  */
 export async function openSqliteStore(options: SqliteStoreOptions): Promise<SqliteStore> {
@@ -46,7 +46,7 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     instanceId: conn.instanceId,
     migration: opened.migration,
     capabilities: { fts5: opened.fts5 },
-    sessions: createSessionRepository(conn),
+    sessions: createSessionRepository(conn, options),
     settings: createSettingsRepository(conn),
     providers: createProviderRepository(conn),
     close() {

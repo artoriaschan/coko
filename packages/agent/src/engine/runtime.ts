@@ -8,6 +8,7 @@ import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
 import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
+import type { RunTrigger } from '../session-entries/index.ts'
 import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -146,7 +147,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       }
       case 'message_end':
         try {
-          await commit({ kind: 'message', runId: run.runId, message: event.message })
+          await commit({ kind: 'message', runId: run.runId, payload: event.message })
         } catch (error) {
           run.commitError = error instanceof Error ? error : new Error(String(error))
           agent.abort()
@@ -190,8 +191,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     return last?.role === 'assistant' && last.stopReason === 'error'
   }
 
-  /** One Run around `drive`: run_start, the agent loop, the run_end entry, then the run_end progress. */
-  const execute = async (drive: () => Promise<void>): Promise<RunResult> => {
+  /**
+   * One Run around `drive`: run_start progress (synchronously, so the host learns the runId), the run_start entry
+   * before the first model request, the agent loop, the run_end entry, then the run_end progress.
+   */
+  const execute = async (trigger: RunTrigger, drive: () => Promise<void>): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
     const run: RunState = { runId: randomUUID(), aborted: false }
     current = run
@@ -201,7 +205,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       progress({ type: 'run_start', runId: run.runId })
       let internal: RunError | undefined
       try {
-        await drive()
+        await commit({ kind: 'run_start', runId: run.runId, payload: { trigger } })
+      } catch (error) {
+        run.commitError = error instanceof Error ? error : new Error(String(error))
+      }
+      try {
+        if (!run.commitError) await drive()
       } catch (error) {
         internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
       }
@@ -209,7 +218,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       result = { runId: run.runId, ...ended }
       if (!run.commitError) {
         try {
-          await commit({ kind: 'run_end', runId: run.runId, ...ended })
+          await commit({ kind: 'run_end', runId: run.runId, payload: ended })
         } catch (error) {
           result = { runId: run.runId, status: 'error', error: { code: 'commit_failed', message: error instanceof Error ? error.message : String(error) } }
         }
@@ -223,12 +232,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 
   return {
     run(text) {
-      return execute(() => agent.prompt(text))
+      return execute('submit', () => agent.prompt(text))
     },
     async retry() {
       if (current || agent.state.isStreaming) throw new RuntimeBusyError()
       if (!failedTurn()) throw new NothingToRetryError()
-      return execute(async () => {
+      return execute('retry', async () => {
         const messages = agent.state.messages
         let end = messages.length
         while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--

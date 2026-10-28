@@ -6,7 +6,9 @@ import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { StoreError } from '@coko/session'
 import { openSqliteStore, SQLITE_SCHEMA_VERSION, type SqliteStore, type SqliteStoreOptions } from '@coko/session/sqlite'
+import { createPayloadRegistry } from '@coko/session'
 import { describeRepositoryContract } from '../repository-contract.ts'
+import { docPayload, docPayloadV1, permissiveDefinitions, TEST_PAYLOADS } from '../test-payloads.ts'
 
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'coko-session-'))
@@ -15,7 +17,7 @@ async function tempDir(): Promise<string> {
 }
 
 async function openIn(dir: string, options: Partial<SqliteStoreOptions> = {}): Promise<SqliteStore> {
-  const store = await openSqliteStore({ path: join(dir, 'coko.db'), ...options })
+  const store = await openSqliteStore({ payloads: TEST_PAYLOADS, path: join(dir, 'coko.db'), ...options })
   onTestFinished(() => store.close())
   return store
 }
@@ -59,9 +61,37 @@ describe('SQLite 打开与持久化', () => {
     expect((await stat(join(dir, 'coko.db'))).mode & 0o777).toBe(0o600)
   })
 
+  it('升级程序后重新打开：旧版本写入的 payload 读回为迁移后的当前版本，迁移后不合格的行跳过但保留在库中', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const old = await openSqliteStore({ path, payloads: createPayloadRegistry([...permissiveDefinitions, docPayloadV1]) })
+    const workspace = await old.sessions.registerWorkspace({ path: '/w' })
+    const session = await old.sessions.createSession({ workspaceId: workspace.id })
+    await old.sessions.appendEntries(session.id, [
+      { kind: 'doc', payload: { text: 'written by v1' } },
+      { kind: 'doc', payload: { text: '' } },
+    ])
+    await old.close()
+
+    const skipped: number[] = []
+    const upgraded = await openIn(dir, { payloads: createPayloadRegistry([...permissiveDefinitions, docPayload]), onInvalidEntry: (e) => skipped.push(e.seq) })
+    expect((await upgraded.sessions.listEntries(session.id)).map((e) => [e.seq, e.payloadVersion, e.payload])).toEqual([[1, 2, { body: 'written by v1' }]])
+    expect(skipped).toEqual([2])
+    await upgraded.close()
+    const raw = new DatabaseSync(path, { readOnly: true })
+    try {
+      expect(raw.prepare('SELECT seq, payload_version, payload FROM session_entries ORDER BY seq').all()).toEqual([
+        { seq: 1, payload_version: 1, payload: '{"text":"written by v1"}' },
+        { seq: 2, payload_version: 1, payload: '{"text":""}' },
+      ])
+    } finally {
+      raw.close()
+    }
+  })
+
   it('关闭后重新打开，Workspace、Session、条目、设置与 Credential 密文读回一致，seq 继续递增', async () => {
     const dir = await tempDir()
-    const first = await openSqliteStore({ path: join(dir, 'coko.db') })
+    const first = await openSqliteStore({ payloads: TEST_PAYLOADS, path: join(dir, 'coko.db') })
     const workspace = await first.sessions.registerWorkspace({ path: '/work/coko' })
     const session = await first.sessions.createSession({ workspaceId: workspace.id, title: '重启读回', model: { providerId: 'p', modelId: 'm' } })
     const committed = await first.sessions.appendEntries(session.id, [
@@ -97,7 +127,7 @@ describe('SQLite 宿主租约', () => {
   it('第二个实例获取租约失败并得到 lease-held，第一个实例不受影响；关闭后可再次打开', async () => {
     const dir = await tempDir()
     const first = await openIn(dir)
-    const error = await openError(openSqliteStore({ path: join(dir, 'coko.db') }))
+    const error = await openError(openSqliteStore({ payloads: TEST_PAYLOADS, path: join(dir, 'coko.db') }))
     expect(error).toMatchObject({ code: 'lease-held', fatal: true })
     expect(error.details).toMatchObject({ pid: process.pid, instanceId: first.instanceId })
 
@@ -112,7 +142,9 @@ describe('SQLite 宿主租约', () => {
     const ttl = 30_000
     const holder = await openIn(dir, { now: () => 1_000, leaseTtlMs: ttl, heartbeatMs: 3_600_000 })
 
-    await expect(openError(openSqliteStore({ path: join(dir, 'coko.db'), now: () => 1_000 + ttl - 1, leaseTtlMs: ttl }))).resolves.toMatchObject({
+    await expect(
+      openError(openSqliteStore({ payloads: TEST_PAYLOADS, path: join(dir, 'coko.db'), now: () => 1_000 + ttl - 1, leaseTtlMs: ttl })),
+    ).resolves.toMatchObject({
       code: 'lease-held',
     })
     const taker = await openIn(dir, { now: () => 1_000 + ttl + 1, leaseTtlMs: ttl })
@@ -132,7 +164,7 @@ describe('SQLite 损坏隔离与版本检查', () => {
     const garbage = Buffer.from('not a sqlite database '.repeat(300))
     await writeFile(path, garbage)
 
-    const error = await openError(openSqliteStore({ path }))
+    const error = await openError(openSqliteStore({ payloads: TEST_PAYLOADS, path }))
     expect(error).toMatchObject({ code: 'corrupt', fatal: true })
     const quarantined = error.details.quarantinedTo as string
     expect(quarantined.startsWith(join(dir, 'coko.db.corrupt-'))).toBe(true)
@@ -143,7 +175,7 @@ describe('SQLite 损坏隔离与版本检查', () => {
   it('页面损坏的库在快速检查失败后被隔离', async () => {
     const dir = await tempDir()
     const path = join(dir, 'coko.db')
-    const store = await openSqliteStore({ path })
+    const store = await openSqliteStore({ payloads: TEST_PAYLOADS, path })
     const workspace = await store.sessions.registerWorkspace({ path: '/w' })
     const session = await store.sessions.createSession({ workspaceId: workspace.id })
     await store.sessions.appendEntries(
@@ -158,7 +190,7 @@ describe('SQLite 损坏隔离与版本检查', () => {
     bytes.fill(0xab, 4096)
     await writeFile(path, bytes)
 
-    const error = await openError(openSqliteStore({ path }))
+    const error = await openError(openSqliteStore({ payloads: TEST_PAYLOADS, path }))
     expect(error).toMatchObject({ code: 'corrupt', fatal: true })
     expect(await readFile(error.details.quarantinedTo as string)).toEqual(bytes)
     expect(existsSync(path)).toBe(false)
@@ -167,7 +199,7 @@ describe('SQLite 损坏隔离与版本检查', () => {
   it('租约由存活的其他实例持有时，即使快速检查会失败也报告 lease-held，不隔离、不改动文件', async () => {
     const dir = await tempDir()
     const path = join(dir, 'coko.db')
-    const store = await openSqliteStore({ path })
+    const store = await openSqliteStore({ payloads: TEST_PAYLOADS, path })
     const workspace = await store.sessions.registerWorkspace({ path: '/w' })
     const session = await store.sessions.createSession({ workspaceId: workspace.id })
     await store.sessions.appendEntries(
@@ -199,23 +231,25 @@ describe('SQLite 损坏隔离与版本检查', () => {
     }
     expect(healthy).toBe(false)
 
-    const error = await openError(openSqliteStore({ path }))
+    const error = await openError(openSqliteStore({ payloads: TEST_PAYLOADS, path }))
     expect(error).toMatchObject({ code: 'lease-held', fatal: true, details: { instanceId: 'other', pid: process.pid } })
     expect(await readFile(path)).toEqual(bytes)
     expect((await readdir(dir)).filter((name) => name.includes('.corrupt-'))).toEqual([])
   })
 
-  it('库版本高于程序支持版本时拒绝打开，文件保持原样', async () => {
+  it('库版本高于程序支持版本时拒绝打开，库文件逐字节不变', async () => {
     const dir = await tempDir()
     const path = join(dir, 'coko.db')
-    await (await openSqliteStore({ path })).close()
+    await (await openSqliteStore({ payloads: TEST_PAYLOADS, path })).close()
     const db = new DatabaseSync(path)
     db.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION + 1}`)
     db.close()
+    const before = await readFile(path)
 
-    const error = await openError(openSqliteStore({ path }))
+    const error = await openError(openSqliteStore({ payloads: TEST_PAYLOADS, path }))
     expect(error).toMatchObject({ code: 'version-too-new', fatal: true })
     expect(error.details).toMatchObject({ version: SQLITE_SCHEMA_VERSION + 1, supported: SQLITE_SCHEMA_VERSION })
+    expect((await readFile(path)).equals(before)).toBe(true)
     expect(userVersion(path)).toBe(SQLITE_SCHEMA_VERSION + 1)
   })
 })

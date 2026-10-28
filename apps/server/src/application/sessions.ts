@@ -53,14 +53,15 @@ const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) 
  */
 const redactModelError = redactText
 
+/** 运行时条目按注册的 kind 原样提交（session 校验 payload）；只有回显模型错误的字段先脱敏。 */
 function toNewEntry(entry: RunEntry): NewSessionEntry {
-  if (entry.kind === 'message') {
-    const message = entry.message
-    const safe = message.role === 'assistant' && message.errorMessage ? { ...message, errorMessage: redactModelError(message.errorMessage) } : message
-    return { kind: 'message', runId: entry.runId, payload: toJson(safe) }
+  let payload: unknown = entry.payload
+  if (entry.kind === 'message' && entry.payload.role === 'assistant' && entry.payload.errorMessage) {
+    payload = { ...entry.payload, errorMessage: redactModelError(entry.payload.errorMessage) }
+  } else if (entry.kind === 'run_end' && entry.payload.error) {
+    payload = { ...entry.payload, error: { ...entry.payload.error, message: redactModelError(entry.payload.error.message) } }
   }
-  const error = entry.error ? { ...entry.error, message: redactModelError(entry.error.message) } : undefined
-  return { kind: 'run_end', runId: entry.runId, payload: toJson({ status: entry.status, ...(error ? { error } : {}) }) }
+  return { kind: entry.kind, ...(entry.runId === undefined ? {} : { runId: entry.runId }), payload: toJson(payload) }
 }
 
 function toProgress(event: AgentProgress): ProgressEvent {
@@ -92,7 +93,8 @@ export class SessionService {
   }
 
   toDto(session: StoredSession): Session {
-    return { ...session, running: this.isRunning(session.id) }
+    const running = this.isRunning(session.id)
+    return { ...session, running, activity: running ? 'running' : 'idle' }
   }
 
   async list(workspaceId?: string): Promise<Session[]> {

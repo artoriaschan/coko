@@ -47,7 +47,7 @@ function harness(options: HarnessOptions = {}) {
   return { faux, runtime, entries, progress }
 }
 
-const messagesOf = (entries: RunEntry[]): AgentMessage[] => entries.flatMap((entry) => (entry.kind === 'message' ? [entry.message] : []))
+const messagesOf = (entries: RunEntry[]): AgentMessage[] => entries.flatMap((entry) => (entry.kind === 'message' ? [entry.payload] : []))
 const toolResultsOf = (entries: RunEntry[]) => messagesOf(entries).flatMap((message) => (message.role === 'toolResult' ? [message] : []))
 const assistantsOf = (entries: RunEntry[]) => messagesOf(entries).flatMap((message) => (message.role === 'assistant' ? [message] : []))
 const textOf = (content: readonly { type: string; text?: string }[]) => content.map((block) => (block.type === 'text' ? (block.text ?? '') : '')).join('')
@@ -106,8 +106,11 @@ describe('Agent 运行时：内置工具闭环', () => {
     expect(Value.Check(bashOutputSchema, toolEnds.get('b1')?.result.structuredContent)).toBe(true)
     expect(toolEnds.get('e1')?.result.details).toMatchObject({ patch: expect.stringContaining('+gamma') })
 
-    expect(h.entries[0]).toMatchObject({ kind: 'message', runId: result.runId, message: { role: 'user' } })
-    expect(h.entries.at(-1)).toEqual({ kind: 'run_end', runId: result.runId, status: 'completed' })
+    expect(h.entries.slice(0, 2)).toMatchObject([
+      { kind: 'run_start', runId: result.runId, payload: { trigger: 'submit' } },
+      { kind: 'message', runId: result.runId, payload: { role: 'user' } },
+    ])
+    expect(h.entries.at(-1)).toEqual({ kind: 'run_end', runId: result.runId, payload: { status: 'completed' } })
     expect(textOf(assistantsOf(h.entries).at(-1)?.content ?? [])).toBe('done')
   })
 
@@ -118,7 +121,7 @@ describe('Agent 运行时：内置工具闭环', () => {
     const deltas = h.progress.flatMap((event) => (event.type === 'assistant_delta' && event.kind === 'text' ? [event.delta] : []))
     expect(deltas.join('')).toBe('hello streaming world')
     expect(deltas.length).toBeGreaterThan(1)
-    expect(h.entries.map((entry) => entry.kind)).toEqual(['message', 'message', 'run_end'])
+    expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'message', 'run_end'])
   })
 
   it('以已提交条目恢复上下文后继续对话', async () => {
@@ -182,7 +185,7 @@ describe('Agent 运行时：顺序与提交屏障', () => {
     const h = harness({
       tools,
       commit: async (entry) => {
-        if (entry.kind !== 'message' || entry.message.role !== 'assistant' || log.includes('commit-end:assistant')) return
+        if (entry.kind !== 'message' || entry.payload.role !== 'assistant' || log.includes('commit-end:assistant')) return
         log.push('commit-start:assistant')
         committing.resolve()
         await gate.promise
@@ -205,7 +208,7 @@ describe('Agent 运行时：顺序与提交屏障', () => {
   it('提交失败时 Run 以 commit_failed 结束且不再执行工具', async () => {
     const h = harness({
       commit: async (entry) => {
-        if (entry.kind === 'message' && entry.message.role === 'assistant') throw new Error('disk full')
+        if (entry.kind === 'message' && entry.payload.role === 'assistant') throw new Error('disk full')
       },
     })
     h.faux.setResponses([
@@ -216,8 +219,31 @@ describe('Agent 运行时：顺序与提交屏障', () => {
     expect(result.status).toBe('error')
     expect(result.error).toEqual({ code: 'commit_failed', message: 'disk full' })
     await expect(access(ws.path('ran'))).rejects.toThrow(/ENOENT/)
-    expect(h.entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))).toEqual(['user'])
+    expect(h.entries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual(['run_start', 'user'])
     expect(h.progress.at(-1)).toEqual({ type: 'run_end', runId: result.runId, status: 'error', error: { code: 'commit_failed', message: 'disk full' } })
+  })
+
+  it('run_start 在第一次模型请求前提交；提交失败时不发请求、不提交其他条目，Run 以 commit_failed 结束', async () => {
+    const order: string[] = []
+    const h = harness({
+      commit: async (entry) => {
+        order.push(entry.kind)
+        if (entry.kind === 'run_start') throw new Error('disk full')
+      },
+    })
+    h.faux.setResponses([
+      (context) => {
+        order.push('model-request')
+        void context
+        return fauxAssistantMessage('never')
+      },
+    ])
+    const result = await h.runtime.run('go')
+    expect(result).toMatchObject({ status: 'error', error: { code: 'commit_failed', message: 'disk full' } })
+    expect(order).toEqual(['run_start'])
+    expect(h.faux.state.callCount).toBe(0)
+    expect(h.entries).toEqual([])
+    expect(h.progress.at(-1)).toMatchObject({ type: 'run_end', status: 'error', error: { code: 'commit_failed' } })
   })
 
   it('每个 Run 以 run_end progress 结束；run_end 条目提交失败时 progress 仍报告结束', async () => {
@@ -257,7 +283,7 @@ describe('Agent 运行时：取消', () => {
     const result = await running
 
     expect(result.status).toBe('aborted')
-    expect(h.entries.at(-1)).toEqual({ kind: 'run_end', runId: result.runId, status: 'aborted' })
+    expect(h.entries.at(-1)).toEqual({ kind: 'run_end', runId: result.runId, payload: { status: 'aborted' } })
     expect(isProcessAlive(shellPid as number)).toBe(false)
     expect(await waitFor(() => !isProcessAlive(childPid as number), 2_000)).toBe(true)
     const [bashResult] = toolResultsOf(h.entries)
@@ -311,8 +337,7 @@ describe('Agent 运行时：模型错误与重试', () => {
     expect(h.entries.at(-1)).toEqual({
       kind: 'run_end',
       runId: result.runId,
-      status: 'error',
-      error: { code: 'model_error', message: '503 Service Unavailable' },
+      payload: { status: 'error', error: { code: 'model_error', message: '503 Service Unavailable' } },
     })
   })
 
@@ -341,7 +366,8 @@ describe('Agent 运行时：模型错误与重试', () => {
     expect(retried.status).toBe('completed')
     expect(retried.runId).not.toBe(failed.runId)
     const retriedEntries = h.entries.filter((entry) => entry.runId === retried.runId)
-    expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))).toEqual(['assistant', 'run_end'])
+    expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual(['run_start', 'assistant', 'run_end'])
+    expect(retriedEntries[0]).toEqual({ kind: 'run_start', runId: retried.runId, payload: { trigger: 'retry' } })
     expect(contexts[0]?.split('do the thing')).toHaveLength(2)
     expect(h.runtime.messages.filter((message) => message.role === 'user')).toHaveLength(1)
     expect(h.progress.filter((event) => event.runId === retried.runId).map((event) => event.type)).toContain('run_start')
