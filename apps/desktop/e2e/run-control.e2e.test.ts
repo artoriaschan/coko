@@ -66,7 +66,8 @@ describe('运行控制', () => {
     await type(app, 'also check the README')
     await pendingSteering(app).waitFor({ timeout: 10_000 })
     expect(await pendingSteering(app).textContent()).toContain('also check the README')
-    expect(await composer(app).textContent()).toBe('')
+    // 待送达气泡先乐观显示；请求被接受后编辑区才清空。
+    await expect.poll(() => composer(app).textContent(), { timeout: 10_000 }).toBe('')
 
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Noted the README request.')
     await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
