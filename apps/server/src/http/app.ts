@@ -7,6 +7,7 @@ import type { TSchema, Static } from 'typebox'
 import { Value } from 'typebox/value'
 import { getLogger } from '@coko/logging'
 import {
+  AnswerApprovalRequest,
   API_ROUTES,
   AuthExchangeRequest,
   CreateProviderRequest,
@@ -136,6 +137,10 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   })
   http.post(`${API_ROUTES.sessions}/:id/retry`, async (c) => c.json(await app.sessions.retry(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/abort`, async (c) => c.json({ aborted: await app.sessions.abort(c.req.param('id')) }))
+  http.post(`${API_ROUTES.sessions}/:id/approvals/:requestId`, async (c) => {
+    await app.sessions.answerApproval(c.req.param('id'), c.req.param('requestId'), await body(c, AnswerApprovalRequest))
+    return c.body(null, 204)
+  })
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
     const { model } = await body(c, SetSessionModelRequest)
     return c.json(await app.sessions.setModel(c.req.param('id'), model))

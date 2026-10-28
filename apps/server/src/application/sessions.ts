@@ -1,6 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
+  ApprovalNotPendingError,
   createAgentRuntime,
   ModelConfigError,
   NothingToRetryError,
@@ -10,6 +11,7 @@ import {
   type ProgressEvent as AgentProgress,
   type RunEntry,
   type RunResult,
+  type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
@@ -17,11 +19,12 @@ import {
   DEFAULT_MODEL_SETTING,
   SessionModel as SessionModelSchema,
   type ProgressEvent,
+  type AnswerApprovalRequest,
   type Session,
   type SessionDetailResponse,
   type SessionModel,
 } from '@coko/protocol'
-import type { JsonValue, NewSessionEntry, Session as StoredSession, SessionStore } from '@coko/session'
+import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { Value } from 'typebox/value'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
@@ -43,6 +46,24 @@ export interface SessionServiceOptions {
   fallbackModel?: SessionModel
   /** Workspace 的工具集；默认内置工具。桌面端以此覆盖 grep。 */
   tools?: (cwd: string) => ToolRegistry
+  /**
+   * 每个 Session 运行时的扩展（checkpoint 等经 runtime/layers.ts 注册，不改本文件）。hooks 排在权限判定之后；
+   * onEntry 在每条条目提交并发布之后调用。
+   */
+  extensions?: (context: SessionExtensionContext) => SessionExtension
+}
+
+export interface SessionExtensionContext {
+  sessionId: string
+  /** Workspace 目录。 */
+  cwd: string
+  /** 提交并发布一条条目（payload 按注册表校验）。 */
+  commit: (entry: RunEntry) => Promise<StoredEntry>
+}
+
+export interface SessionExtension {
+  hooks?: ToolHooks[]
+  onEntry?: (entry: StoredEntry) => void
 }
 
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
@@ -93,8 +114,10 @@ export class SessionService {
   }
 
   toDto(session: StoredSession): Session {
-    const running = this.isRunning(session.id)
-    return { ...session, running, activity: running ? 'running' : 'idle' }
+    const runtime = this.#runtimes.get(session.id)
+    const running = runtime?.isRunning ?? false
+    const activity = !running ? 'idle' : runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running'
+    return { ...session, running, activity }
   }
 
   async list(workspaceId?: string): Promise<Session[]> {
@@ -202,6 +225,25 @@ export class SessionService {
     return true
   }
 
+  /**
+   * 回答待审批请求；决定条目提交后返回。请求不在等待中时 approval-not-pending。M2 票 02 只支持仅本次；
+   * 保存规则的作用域（session / workspace / global）由票 03 交付，此前以 bad-request 拒绝。
+   */
+  async answerApproval(sessionId: string, requestId: string, answer: AnswerApprovalRequest): Promise<void> {
+    await this.#get(sessionId)
+    if (answer.decision === 'allow' && answer.scope !== undefined && answer.scope !== 'once')
+      throw new AppError('bad-request', `Approval scope ${answer.scope} is not supported yet`)
+    const runtime = this.#runtimes.get(sessionId)
+    if (!runtime) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
+    try {
+      await runtime.answerApproval(requestId, answer)
+    } catch (error) {
+      if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
+      throw error
+    }
+    log.info('approval answered', { sessionId, requestId, decision: answer.decision })
+  }
+
   async #get(sessionId: string): Promise<StoredSession> {
     const session = await this.#options.store.sessions.getSession(sessionId)
     if (!session) throw new AppError('not-found', `Session ${sessionId} not found`)
@@ -236,6 +278,14 @@ export class SessionService {
     // 恢复 Session：已提交的 message 条目就是模型可见的对话记录。
     const entries = await store.sessions.listEntries(session.id)
     const messages = entries.filter((entry) => entry.kind === 'message').map((entry) => entry.payload as unknown as AgentMessage)
+    let extension: SessionExtension = {}
+    const publish = async (entry: RunEntry): Promise<StoredEntry> => {
+      const [committed] = await store.sessions.appendEntries(session.id, [toNewEntry(entry)])
+      hub.publishEntry(committed!)
+      extension.onEntry?.(committed!)
+      return committed!
+    }
+    if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
@@ -243,9 +293,11 @@ export class SessionService {
       ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
       sessionId: session.id,
       messages,
+      // 票 02：模式固定为 default、没有规则；模式与规则的回放与持久化由票 03 接入。
+      permissions: { mode: () => 'default', rules: () => [] },
+      ...(extension.hooks ? { hooks: extension.hooks } : {}),
       commit: async (entry) => {
-        const stored = await store.sessions.appendEntries(session.id, [toNewEntry(entry)])
-        for (const committed of stored) hub.publishEntry(committed)
+        await publish(entry)
       },
     })
     runtime.subscribe((event) => {

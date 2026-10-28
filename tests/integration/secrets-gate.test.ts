@@ -1,6 +1,7 @@
 // 秘密不外泄总闸（M1 retro 第 3 条，M2 规格 B4）：唯一标记的 Credential（环境变量模式）与同形态的宿主环境变量
 // 经各种输出通道驱动后，WebSocket 帧、HTTP 响应体、coko.db（含 -wal / -shm）与 sidecar.jsonl 中都不得出现明文。
 // 后续票引入新的输出通道（审批卡、沙箱、快照、确认）时，在本文件追加驱动步骤并把新的落盘位置加入扫描。
+// 票 02：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
@@ -15,6 +16,7 @@ import {
   sidecarDirs,
   startSidecar,
   tempDir,
+  waitApproval,
   type HttpResult,
   type Sidecar,
   type SidecarDirs,
@@ -115,6 +117,12 @@ describe('秘密不外泄总闸', () => {
     await api.post(apiPaths.sessionMessages(faux), { text: 'hello' })
     await ended(faux, 1)
     expect((await api.post(apiPaths.sessionRetry(faux))).status).toBe(202)
+    // 审批卡通道：bash env 等待审批（read 在 Workspace 内，不询问），经协议允许一次；等待时读回详情与列表。
+    const approval = await waitApproval(stream, faux)
+    expect(approval).toMatchObject({ toolCallId: 'env1', toolName: 'bash', subject: 'env' })
+    await api.get(apiPaths.session(faux))
+    await api.get(API_ROUTES.sessions)
+    expect((await api.post(apiPaths.sessionApproval(faux, approval.requestId), { decision: 'allow', scope: 'once' })).status).toBe(204)
     await ended(faux, 2)
     const fauxEntries = stream.entries(faux)
     // 前置：各通道确实被驱动（否则"没有明文"不能证明什么）。
@@ -124,6 +132,7 @@ describe('秘密不外泄总闸', () => {
     expect(results).toHaveLength(2)
     expect(results[0]).toContain('PATH=')
     expect(results[1]).toMatch(/ENOENT|not found|no such file/i)
+    expect(fauxEntries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')).toHaveLength(2)
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
     const provider = (await api.post(API_ROUTES.providers, { name: 'DS', kind: 'deepseek', baseUrl, models: ['deepseek-flash'] })).body
