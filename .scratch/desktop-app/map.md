@@ -25,15 +25,27 @@ Status: open
 - [deepseek-harness 桌面端的进程、存储与 UI 结构](issues/02-research-dsh-desktop-architecture.md)：sidecar 进程与分级退出可直接移植，认证保持 ADR 0002；DSH 会话非 SQLite，需自行设计；三栏 IA 与设计 token 精确值可沿用。
 - [技术栈依赖在本机的安装与运行可行性](issues/04-research-dependency-install-feasibility.md)：全部可装；需配 allowBuilds；Electron-as-Node 下 node:sqlite 与 BEGIN IMMEDIATE 互斥实测可用；E2E 前须 unset ELECTRON_RUN_AS_NODE。
 - [设置与会话改存 SQLite 的存储边界](issues/05-grill-sqlite-persistence.md)：sidecar 独占单个 SQLite 库，packages/session 拥有 schema/迁移/事务，会话条目 append-only；见 ADR 0003（按常设指示采纳）。
+- [从空仓库到完整应用的里程碑划分](issues/06-grill-milestone-route.md)：六个里程碑 M1 行走骨架 → M2 安全与恢复 → M3 上下文与指令 → M4 目标与任务 → M5 多代理与调度 → M6 扩展与交付，能力表逐行有归属。
+- [首发模型提供方与凭据存储](issues/07-grill-model-providers-credentials.md)：pi-ai 三协议，四类 provider 预设；safeStorage 在 main 加密、密文存 SQLite（ADR 0004）。
+- [桌面端信息架构与关键交互](issues/08-grill-desktop-information-architecture.md)：沿用 DSH 三栏几何与 composer dock，设置为 modal，Toast 用 Sonner；各界面按里程碑归属。
+- [各能力的首发深度与验收口径](issues/09-grill-capability-depth.md)：Seatbelt 沙箱、node-pty、LSP stdio、浏览器经 MCP、本地插件、会话内团队；签名公证不交付。
 
 ## Not yet specified
 
-- 各里程碑内部的功能切片与验收场景：等里程碑划分确定后，在各自的 `.scratch/<milestone>/` 中经 grill-with-docs 细化。
-- Browser / Computer Use、Code Intelligence（LSP）的具体适配器选择：依赖参考项目研究结论。
-- Plugins 的分发来源与安装格式、Agent Teams 的工作区隔离方式。
-- 自动更新 feed 与签名/公证：取决于是否有 Apple 开发者证书与发布目的地。
-- Evals 的回放数据来源与评测指标。
+路线已清晰，地图票全部解决。各里程碑内部的切片与验收场景在各自 `.scratch/<slug>/` 经 grill-with-docs 细化。
+
+## Route status
+
+| 里程碑 | 目录 | 状态 |
+| --- | --- | --- |
+| M1 行走骨架 | `.scratch/m1-walking-skeleton/` | next |
+| M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | pending |
+| M3 上下文与指令 | `.scratch/m3-context-instructions/` | pending |
+| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | pending |
+| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
+| M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
 
 ## Out of scope
 
 - Windows / Linux 构建与发布（TECH_STACK 首发范围仅 macOS arm64）。
+- 代码签名、公证与发布更新 feed：需要 Apple 开发者证书与发布目的地，见 [各能力的首发深度](issues/09-grill-capability-depth.md)；自动更新只做接线。
