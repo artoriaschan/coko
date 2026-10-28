@@ -34,6 +34,10 @@ Status: open
 
 路线已清晰，地图票全部解决。各里程碑内部的切片与验收场景在各自 `.scratch/<slug>/` 经 grill-with-docs 细化。
 
+## Carry-overs
+
+- M3：composer 草稿以 Lexical EditorState JSON 持久化，Markdown 导入导出用 @lexical/markdown（M1 票 07 裁决）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |
