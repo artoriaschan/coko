@@ -38,6 +38,9 @@ Status: open
 
 - M3：composer 草稿以 Lexical EditorState JSON 持久化，Markdown 导入导出用 @lexical/markdown（M1 票 07 裁决）。
 
+- M6：发布构建关闭 COKO_FAUX_SCRIPT 等测试钩子（构建期标志开启），产物 smoke 改用测试构建（M1 票 09 裁决）。
+- M3：rg 读取全局 gitignore 与 .git/info/exclude，内置 grep 不读；在 Context Management 中决定是否对齐（M1 票 09）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |

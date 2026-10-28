@@ -55,3 +55,6 @@
 - `docs/tech-stack/desktop-delivery.md` 的"内置 ripgrep"：开发与打包都使用复制到 `dist/ripgrep/` 的副本。
 - `apps/server/README.md`：`--ripgrep` 参数、`ripgrep-unavailable`、生效实现日志、rg 参数与全局 gitignore 的限制、测试入口；删除"尚未实现 ripgrep"和"产物启动尚未验证"两句。
 - ADR 0001 维持 partial：其 implemented 条件要求已签名安装包的 smoke。
+- 2026-10-28 lead：评审后合入 main（6b5634b）。main 上复核：install、typecheck、lint、format:check 退出 0；test 48 文件 365 用例通过；check:docs 0 问题。裁决：COKO_FAUX_SCRIPT / COKO_USER_DATA_DIR 在 M1 产物中保留（smoke 依赖）；发布构建中关闭测试钩子的工作记入 M6。接受每次 test 打包一次的耗时。worktree 已清理。
+
+Closed: true
