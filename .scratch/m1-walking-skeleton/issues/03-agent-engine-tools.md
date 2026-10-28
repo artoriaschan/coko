@@ -42,6 +42,8 @@
 - `pnpm run test`：17 个文件、94 个用例通过；`packages/agent` 内 `vitest run` 再连续运行 3 次，每次 68 个通过。
 - `pnpm run check:docs`：58 个文件、0 个问题。
 
+合入 main（d089d17，含 ticket 02）后在 ec19025 上重跑：`pnpm install --frozen-lockfile`、typecheck、lint、format:check 通过；`pnpm run check:docs` 59 个文件 0 个问题；`pnpm run test` 21 个文件、123 个用例通过。TECH_STACK 接入状态表的冲突按 session、agent 两行并存解决。
+
 未验证：真实模型 API（无密钥）；在 Electron 内置 Node（`ELECTRON_RUN_AS_NODE`）下运行 agent 测试；按子路径导入后的打包体积。
 
 文档影响：TECH_STACK“接入状态”新增 packages/agent 一行；无其他正式文档改动。
