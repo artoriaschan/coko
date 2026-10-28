@@ -14,6 +14,10 @@ export interface SidecarConfig {
   appVersion?: string
   /** COKO_FAUX_SCRIPT：faux provider 的脚本文件，仅测试使用。 */
   fauxScript?: string
+  /** COKO_SANDBOX_EXEC：覆盖 sandbox-exec 的路径（绝对路径），仅测试使用；默认 /usr/bin/sandbox-exec。 */
+  sandboxExec?: string
+  /** COKO_TEST_TOOLS=1：注册测试用宿主工具（secret_probe），仅测试使用。 */
+  testTools?: boolean
   /** COKO_LOG_LEVEL，默认 info。 */
   logLevel: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
 }
@@ -48,6 +52,10 @@ export function parseConfig(argv: readonly string[], env: Readonly<Record<string
   const appVersion = values.get('--app-version')
   const fauxScript = env.COKO_FAUX_SCRIPT
   if (fauxScript !== undefined && !isAbsolute(fauxScript)) throw new ConfigError('COKO_FAUX_SCRIPT must be an absolute path')
+  const sandboxExec = env.COKO_SANDBOX_EXEC
+  if (sandboxExec !== undefined && !isAbsolute(sandboxExec)) throw new ConfigError('COKO_SANDBOX_EXEC must be an absolute path')
+  const testTools = env.COKO_TEST_TOOLS
+  if (testTools !== undefined && testTools !== '1') throw new ConfigError('COKO_TEST_TOOLS must be 1 when set')
   const level = env.COKO_LOG_LEVEL ?? 'info'
   if (!LEVELS.has(level)) throw new ConfigError(`Unknown COKO_LOG_LEVEL: ${level}`)
   return {
@@ -58,6 +66,8 @@ export function parseConfig(argv: readonly string[], env: Readonly<Record<string
     ...(ripgrepPath ? { ripgrepPath } : {}),
     ...(appVersion ? { appVersion } : {}),
     ...(fauxScript ? { fauxScript } : {}),
+    ...(sandboxExec ? { sandboxExec } : {}),
+    ...(testTools ? { testTools: true } : {}),
     logLevel: level as SidecarConfig['logLevel'],
   }
 }

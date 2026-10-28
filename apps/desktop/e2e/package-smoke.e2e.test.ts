@@ -1,5 +1,5 @@
 // 产物 smoke：对 electron-forge package 的输出（out/）运行真实应用，完成一次 faux 对话，确认 grep 使用随包 ripgrep，
-// 并在审批卡中允许一次 bash 写入（票 02）。
+// 并在审批卡中允许一次 bash 写入（票 02）；批准的 Workspace 外写入被产物中的 Seatbelt 拦截（票 05，只在 darwin 断言）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -89,7 +89,10 @@ describe('打包产物 smoke', () => {
     const root = await mkdtemp(join(tmpdir(), 'coko-packaged-'))
     onTestFinished(() => rm(root, { recursive: true, force: true }))
     const workspace = join(root, 'workspace')
-    await mkdir(workspace)
+    // Sidecar 的 TMPDIR 指向 root/tmp：同级的 outside 不在 workspace-write 的可写根内。
+    const outside = join(root, 'outside')
+    const temp = join(root, 'tmp')
+    await Promise.all([mkdir(workspace), mkdir(outside), mkdir(temp)])
     await writeFile(join(workspace, 'notes.txt'), 'alpha\nneedle in the haystack\n')
     const script = join(root, 'faux.json')
     await writeFile(
@@ -99,12 +102,13 @@ describe('打包产物 smoke', () => {
         responses: [
           { content: [{ type: 'toolCall', name: 'grep', id: 'g1', arguments: { pattern: 'needle' } }] },
           { content: [{ type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'printf found > found.txt' } }] },
+          { content: [{ type: 'toolCall', name: 'bash', id: 'b2', arguments: { command: `printf leak > ${join(outside, 'leak.txt')}` } }] },
           { content: 'Found the needle in **notes.txt**.' },
         ],
       }),
     )
     const userData = join(root, 'user-data')
-    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script })
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, TMPDIR: temp })
     const { page } = app
     await waitConnected(page)
 
@@ -135,8 +139,15 @@ describe('打包产物 smoke', () => {
     await approval.waitFor({ timeout: 30_000 })
     expect(await readFile(join(workspace, 'found.txt'), 'utf8').catch(() => null)).toBeNull()
     await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
-    await expect.poll(() => page.locator('[data-slot="tool-card"][data-tool="bash"]').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
+    const bashCards = page.locator('[data-slot="tool-card"][data-tool="bash"]')
+    await expect.poll(() => bashCards.first().getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     expect(await readFile(join(workspace, 'found.txt'), 'utf8')).toBe('found')
+    // 沙箱：批准的 Workspace 外写入在产物中仍被 Seatbelt 拦截（其他平台受限档位 fail-closed，同样不写入）。
+    await expect.poll(() => approval.getAttribute('data-approval-key'), { timeout: 30_000 }).not.toBeNull()
+    await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
+    await expect.poll(() => bashCards.nth(1).getAttribute('data-status'), { timeout: 30_000 }).toBe('error')
+    expect(await bashCards.nth(1).locator('[data-sandbox-denied]').count()).toBe(process.platform === 'darwin' ? 1 : 0)
+    expect(await readFile(join(outside, 'leak.txt'), 'utf8').catch(() => null)).toBeNull()
     await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     expect(await page.getByRole('article', { name: 'Coko' }).last().textContent()).toBe('Found the needle in notes.txt.')
 

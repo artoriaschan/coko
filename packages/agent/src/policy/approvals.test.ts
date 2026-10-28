@@ -3,6 +3,7 @@ import { access, readFile, symlink } from 'node:fs/promises'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAgentRuntime, type AgentRuntime } from '../engine/runtime.ts'
+import { createLocalExecPort } from '../ports/local-exec.ts'
 import type { RunEntry } from '../engine/types.ts'
 import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
@@ -28,6 +29,8 @@ function harness() {
     model,
     cwd: ws.dir,
     sessionId: 's1',
+    // 受限档位没有沙箱时 fail-closed；这里观察审批，用不做限制的替身沙箱（真实 Seatbelt 见 apps/server 与集成测试）。
+    exec: createLocalExecPort({ sandbox: { wrap: () => [], denialSignature: 'operation not permitted' } }),
     commit: async () => {},
     permissions: { mode: () => 'default', rules: () => [] },
   })

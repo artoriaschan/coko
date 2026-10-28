@@ -1,5 +1,6 @@
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from '@earendil-works/pi-agent-core'
 import type { Static, TSchema } from 'typebox'
+import type { SandboxPolicy } from '../ports/exec.ts'
 
 /**
  * Tool contract used by Coko: pi's AgentTool plus an optional unified timeout.
@@ -24,6 +25,16 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
    */
   permissionSubject?: (args: Static<TParameters>) => string | undefined
   /**
+   * The escalation the call asks for (bash's `sandbox_permissions` and `justification`), read by the permission gate
+   * (ADR 0005). Undefined when the call asks for none. Omitted: the tool cannot escalate.
+   */
+  sandboxRequest?: (args: Static<TParameters>) => { mode?: string; justification?: string } | undefined
+  /**
+   * Names of the secrets the tool needs (for example `['GITHUB_TOKEN']`). The runtime resolves them through its
+   * SecretProvider for each call and passes only these in `context.secrets`; nothing else sees them.
+   */
+  secrets?: readonly string[]
+  /**
    * pi's execute plus the execution context the runtime passes as a fifth argument. Tools that ignore it
    * keep pi's four-argument form.
    */
@@ -45,6 +56,13 @@ export interface ToolExecutionContext {
    * capability can use it to deduplicate a repeated request.
    */
   idempotencyKey: string
+  /**
+   * The call's command sandbox, decided at execution from the Session's Permission Mode or a granted escalation. Absent
+   * when the runtime has no permission decision (library callers): commands run unconfined.
+   */
+  sandbox?: SandboxPolicy
+  /** The declared secrets of this call, by name. Absent when the tool declares none. Pass them only to the call's own child process. */
+  secrets?: Readonly<Record<string, string>>
 }
 
 export type { AgentToolResult, AgentToolUpdateCallback }

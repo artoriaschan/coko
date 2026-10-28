@@ -4,6 +4,9 @@ import type { Model, Models } from '@earendil-works/pi-ai'
 import { composeAfterToolCall, composeBeforeToolCall, type ToolHooks } from '../extensions/hooks.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
+import { resolveSecrets, type SecretProvider } from '../ports/secrets.ts'
+import { realLocation } from '../policy/paths.ts'
+import { sandboxModeFor, sandboxPolicyFor, widerSandbox } from '../policy/sandbox.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
 import { createToolScheduler, withScheduling } from '../tools/scheduler.ts'
@@ -11,7 +14,8 @@ import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
 import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
 import { createPermissionGate } from '../policy/gate.ts'
-import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
+import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, SandboxMode, ToolExecPayload } from '../session-entries/index.ts'
+import type { CokoTool } from '../tools/types.ts'
 import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -65,6 +69,8 @@ export interface AgentRuntimeOptions {
    * changes apply to the next call. Omitted: no permission check (library callers without an answer channel).
    */
   permissions?: RuntimePermissions
+  /** Resolves the secrets a tool declares (`CokoTool.secrets`), once per call. Omitted: tools declaring secrets fail. */
+  secrets?: SecretProvider
 }
 
 export interface RuntimePermissions {
@@ -147,13 +153,41 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   }
   const scheduling = { scheduler: createToolScheduler(options.toolConcurrency), sessionId: options.sessionId ?? randomUUID(), recordExecution }
 
+  const permissions = options.permissions
+  /** 已批准的单次提权，按 toolCallId；执行时取用并删除，Run 结束时清空。 */
+  const escalations = new Map<string, SandboxMode>()
+  let workspace: Promise<string> | undefined
+  const realWorkspace = () => (workspace ??= realLocation(options.cwd))
+
+  /**
+   * 执行上下文的补充（执行记录之后、execute 之前）：沙箱档位按执行时的模式现算（ADR 0005），已批准的提权取两者中较宽者；
+   * 声明的密钥只为这一次调用解析。没有权限判定时不设沙箱（库调用方，命令不受限）。
+   */
+  const withContext = (tool: CokoTool): CokoTool =>
+    !permissions && !tool.secrets?.length
+      ? tool
+      : {
+          ...tool,
+          async execute(toolCallId, params, signal, onUpdate, context) {
+            const extra: { sandbox?: Awaited<ReturnType<typeof sandboxPolicyFor>>; secrets?: Record<string, string> } = {}
+            if (permissions) {
+              const granted = escalations.get(toolCallId)
+              escalations.delete(toolCallId)
+              const current = sandboxModeFor(permissions.mode())
+              extra.sandbox = await sandboxPolicyFor(granted ? widerSandbox(granted, current) : current, await realWorkspace())
+            }
+            const secrets = await resolveSecrets(tool.name, tool.secrets, options.secrets)
+            if (secrets) extra.secrets = secrets
+            return tool.execute(toolCallId, params, signal, onUpdate, { idempotencyKey: context?.idempotencyKey ?? toolCallId, ...extra })
+          },
+        }
+
   // Seed the tools at construction so they are part of the leading system message; only later
   // changes are announced to the model (and committed) as a system message with toolsAdded/Removed.
   // 超时在调度之内：排队等待不计入调用的时限。
-  const effectiveTools = () => registry.list().map((tool) => withScheduling(withTimeout(tool, options.timeouts), scheduling) as AgentTool<any>)
+  const effectiveTools = () => registry.list().map((tool) => withScheduling(withTimeout(withContext(tool), options.timeouts), scheduling) as AgentTool<any>)
 
   const broker = createApprovalBroker((entry) => commit({ ...entry, ...(current ? { runId: current.runId } : {}) }))
-  const permissions = options.permissions
   const gate = permissions
     ? createPermissionGate({
         cwd: options.cwd,
@@ -170,6 +204,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           current.commitError ??= error
           agent.abort()
         },
+        grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
       })
     : undefined
 
@@ -294,6 +329,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       }
     } finally {
       current = undefined
+      // 批准后未执行（被后续 hook 拦下或 Run 停止）的提权不延续到下一个 Run。
+      escalations.clear()
     }
     progress({ type: 'run_end', runId: result.runId, status: result.status, ...(result.error ? { error: result.error } : {}) })
     return result

@@ -1,4 +1,4 @@
-import type { Credential, CredentialInfo, CredentialStore, EnvExclusion } from '@coko/agent'
+import type { Credential, CredentialInfo, CredentialStore, EnvExclusion, SecretProvider } from '@coko/agent'
 import type { ProviderRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
@@ -128,4 +128,12 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
     delete: readOnly,
     invalidate: () => {},
   }
+}
+
+/**
+ * 工具 Secrets（grilling B3）：按工具声明的变量名读 Sidecar 自身的环境。只有声明了该名字的工具在该次调用中拿到值；
+ * bash 等用户命令的环境仍按 HOST_ENV_EXCLUSIONS 剔除。M3 的 MCP 接入真实使用者时再决定密钥来源与映射。
+ */
+export function createEnvSecretProvider(env: Readonly<Record<string, string | undefined>>): SecretProvider {
+  return { get: (name) => env[name] || undefined }
 }

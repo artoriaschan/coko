@@ -156,7 +156,7 @@ export const en: Dictionary = {
     },
     modeDescriptions: {
       'read-only': 'Reads in the workspace run without asking. Commands cannot write anywhere.',
-      default: 'Reads in the workspace run without asking. Writes and commands ask first.',
+      default: 'Reads in the workspace run without asking. Writes and commands ask first; commands can only write to the workspace and temp folders.',
       'accept-edits': 'Also accepts file writes in the workspace and temp folders',
       'full-access': 'Allows everything except deny rules and protected paths. Commands run without a sandbox.',
     },
@@ -189,7 +189,7 @@ export const en: Dictionary = {
     version: 'Version {version}',
     description: 'A desktop app that runs a coding agent in your local workspaces',
     securityNote:
-      'Coko asks before writing files, running commands, or reading outside the workspace. Commands do not run in a sandbox yet, so use Coko only in workspaces you trust.',
+      'Coko asks before writing files, running commands, or reading outside the workspace. Commands run in a sandbox that only lets them write to the workspace and temp folders (Read only: nowhere); it does not limit network access or reads, so use Coko only in workspaces you trust.',
   },
   tool: {
     running: 'Running',
@@ -237,6 +237,23 @@ export const en: Dictionary = {
     allowedSession: 'Always allowed in this session',
     allowedWorkspace: 'Always allowed in this workspace',
     allowedGlobal: 'Always allowed',
+    titleEscalation: 'Run this command with wider access?',
+    escalationTarget: 'Access',
+    escalationJustification: 'Reason',
+    allowedWithMode: 'Allowed once with {mode}',
+  },
+  sandbox: {
+    modes: {
+      'read-only': 'Read only (no writes)',
+      'workspace-write': 'Write to workspace and temp folders',
+      'danger-full-access': 'Full access (no sandbox)',
+    },
+    shortModes: {
+      'read-only': 'Read only',
+      'workspace-write': 'Workspace write',
+      'danger-full-access': 'Full access',
+    },
+    denied: 'Blocked by the sandbox ({mode})',
   },
   connection: {
     connecting: 'Connecting to Sidecar',

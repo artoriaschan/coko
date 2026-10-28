@@ -13,6 +13,7 @@ import {
   type ProgressEvent as AgentProgress,
   type RunEntry,
   type RunResult,
+  type SecretProvider,
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
@@ -59,6 +60,8 @@ export interface SessionServiceOptions {
   extensions?: (context: SessionExtensionContext) => SessionExtension
   /** 默认：基于 store 新建。 */
   permissions?: PermissionService
+  /** 工具声明的 Secrets 的来源；只注入声明它们的那次调用。缺省：声明了 Secrets 的工具调用失败。 */
+  secrets?: SecretProvider
 }
 
 /** Session 的模式与 Session 规则：由 permission_mode / permission_rule 条目回放，之后随提交更新。 */
@@ -455,6 +458,7 @@ export class SessionService {
         rules: () => [...permissions.rules, ...this.permissions.rulesFor(session.workspaceId)],
       },
       ...(extension.hooks ? { hooks: extension.hooks } : {}),
+      ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       commit: async (entry) => {
         await publish(entry)
       },

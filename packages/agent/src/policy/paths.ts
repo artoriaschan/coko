@@ -1,10 +1,10 @@
 // 判定用的路径事实：把工具参数解析为绝对路径与真实路径（经符号链接，包括指向不存在目标的链接）。
 import { lstat, readlink, realpath } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import type { PermissionMode } from '../session-entries/index.ts'
 import { resolveToCwd } from '../tools/paths.ts'
 import type { PermissionTarget } from './decide.ts'
+import { sandboxModeFor, writableRootsForSandbox } from './sandbox.ts'
 
 const MAX_LINKS = 40
 
@@ -36,18 +36,10 @@ export async function resolveTarget(subject: string, cwd: string): Promise<Permi
   return { resolved, real: await realLocation(resolved) }
 }
 
-/** 系统临时目录的真实路径（macOS 上 /tmp 与 os.tmpdir() 都是 /private 下的链接）。 */
-async function tempRoots(): Promise<string[]> {
-  const roots = await Promise.all([tmpdir(), '/tmp'].map((dir) => realpath(dir).catch(() => undefined)))
-  return [...new Set(roots.filter((root): root is string => root !== undefined))]
-}
-
 /**
  * 模式对应的可写根（ADR 0005）：read-only 没有；default 与 accept-edits 为 Workspace 与系统临时目录；
- * full-access 为根目录（文件写入只受拒绝规则与受保护路径约束）。
+ * full-access 为根目录（文件写入只受拒绝规则与受保护路径约束）。与命令沙箱同一推导（sandbox.ts）。
  */
-export async function writableRootsFor(mode: PermissionMode, workspace: string): Promise<string[]> {
-  if (mode === 'read-only') return []
-  if (mode === 'full-access') return ['/']
-  return [workspace, ...(await tempRoots())]
+export function writableRootsFor(mode: PermissionMode, workspace: string): Promise<string[]> {
+  return writableRootsForSandbox(sandboxModeFor(mode), workspace)
 }

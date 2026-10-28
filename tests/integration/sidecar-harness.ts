@@ -340,6 +340,8 @@ export interface ApprovalRequestEntry {
   toolName: string
   kind: 'tool' | 'escalation'
   subject: string
+  targetMode?: string
+  justification?: string
   suggestions: unknown[]
 }
 

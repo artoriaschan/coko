@@ -9,7 +9,9 @@ import {
   createLocalExecPort,
   type GrepMatch,
   type GrepSearcher,
+  type CokoTool,
   type GrepSearchRequest,
+  type LocalSandbox,
   type ToolRegistry,
 } from '@coko/agent'
 import { HOST_ENV_EXCLUSIONS } from './credentials.ts'
@@ -122,14 +124,25 @@ export function probeRipgrep(rgPath: string, timeoutMs = 5_000): Promise<string>
     })
   })
 }
+export interface WorkspaceToolsOptions {
+  /** 随包 rg；给定时以 ripgrep grep 覆盖内置 grep。 */
+  rgPath?: string
+  /** bash 的命令沙箱（Seatbelt）；缺省时受限档位的命令 fail-closed。 */
+  sandbox?: LocalSandbox
+  /** 额外的宿主工具（测试工具等），按名字新增。 */
+  extraTools?: (cwd: string) => CokoTool[]
+}
+
 /**
  * 每个 Workspace 的工具集：内置工具，给定 rg 时以 ripgrep grep 覆盖内置 grep（契约不变）。
- * bash 的环境剔除 sidecar 配置与凭据变量（HOST_ENV_EXCLUSIONS）。
+ * bash 的环境剔除 sidecar 配置与凭据变量（HOST_ENV_EXCLUSIONS），在 Permission Mode 对应的沙箱档位内运行。
  */
-export function createWorkspaceTools(rgPath: string | undefined): (cwd: string) => ToolRegistry {
+export function createWorkspaceTools(options: WorkspaceToolsOptions = {}): (cwd: string) => ToolRegistry {
+  const { rgPath, sandbox, extraTools } = options
   return (cwd) => {
-    const registry = createBuiltinToolRegistry({ cwd, exec: createLocalExecPort({ excludeEnv: HOST_ENV_EXCLUSIONS }) })
+    const registry = createBuiltinToolRegistry({ cwd, exec: createLocalExecPort({ excludeEnv: HOST_ENV_EXCLUSIONS, ...(sandbox ? { sandbox } : {}) }) })
     if (rgPath) registry.register(createGrepTool({ cwd, searcher: createRipgrepSearcher(rgPath) }), { override: true })
+    for (const tool of extraTools?.(cwd) ?? []) registry.register(tool)
     return registry
   }
 }

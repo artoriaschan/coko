@@ -38,8 +38,35 @@ function json(value: unknown): string {
   }
 }
 
+/** 提权请求的明细：命令、目标档位与模型给出的理由（ADR 0005）。 */
+function EscalationDetail({ request }: { request: ApprovalRequestPayload }) {
+  const { t } = useI18n()
+  return (
+    <>
+      <p data-user-content className="font-mono text-ui-body break-all">
+        {request.subject}
+      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-ui-body">
+        <dt className="text-muted-foreground">{t('approval.escalationTarget')}</dt>
+        <dd data-escalation-target className="font-medium">
+          {request.targetMode ? t(`sandbox.modes.${request.targetMode}`) : ''}
+        </dd>
+        {request.justification !== undefined && (
+          <>
+            <dt className="text-muted-foreground">{t('approval.escalationJustification')}</dt>
+            <dd data-escalation-justification data-user-content className="break-words">
+              {request.justification}
+            </dd>
+          </>
+        )}
+      </dl>
+    </>
+  )
+}
+
 /** 审批请求的明细：命令、路径、写入内容或 edit 的 diff 摘要；未知工具原样显示参数。 */
 function Detail({ request, call }: { request: ApprovalRequestPayload; call: ToolCallBlock | undefined }) {
+  if (request.kind === 'escalation') return <EscalationDetail request={request} />
   const args = call?.arguments && typeof call.arguments === 'object' ? (call.arguments as Record<string, unknown>) : {}
   const subject = request.subject !== '' && (
     <p data-user-content className="font-mono text-ui-body break-all">
@@ -110,7 +137,7 @@ export function ApprovalPanel({ request, call, onAllow, onAllowAlways, onReject,
       {...(autoFocus ? { autoFocus } : {})}
       {...(allowAlways ? { allowAlways } : {})}
       requestKey={request.requestId}
-      title={key ? t(key) : t('approval.titleTool', { name: request.toolName })}
+      title={request.kind === 'escalation' ? t('approval.titleEscalation') : key ? t(key) : t('approval.titleTool', { name: request.toolName })}
       labels={{
         status: t('approval.status'),
         detailLabel: t('approval.detail'),

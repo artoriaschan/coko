@@ -155,7 +155,7 @@ export const zh = {
     },
     modeDescriptions: {
       'read-only': '读取工作区免审批，命令不能写任何位置',
-      default: '读取工作区免审批，写入与命令先询问',
+      default: '读取工作区免审批，写入与命令先询问；命令只能写工作区与临时目录',
       'accept-edits': '另外自动接受工作区与临时目录内的文件写入',
       'full-access': '除拒绝规则与受保护路径外全部放行，命令不受沙箱限制',
     },
@@ -187,7 +187,8 @@ export const zh = {
   about: {
     version: '版本 {version}',
     description: '在本机工作区中运行 coding agent 的桌面应用',
-    securityNote: '写文件、运行命令和读取工作区之外的文件前都会请你审批；命令尚未在沙箱中运行，只应在你信任的工作区中使用',
+    securityNote:
+      '写文件、运行命令和读取工作区之外的文件前都会请你审批。命令在沙箱中运行，只能写工作区与临时目录（只读模式下不能写任何位置）；沙箱不限制网络与读取，只应在你信任的工作区中使用',
   },
   tool: {
     running: '运行中',
@@ -235,6 +236,23 @@ export const zh = {
     allowedSession: '本会话总是允许',
     allowedWorkspace: '本工作区总是允许',
     allowedGlobal: '总是允许',
+    titleEscalation: '允许以更宽的权限运行这条命令？',
+    escalationTarget: '权限',
+    escalationJustification: '理由',
+    allowedWithMode: '已以{mode}允许一次',
+  },
+  sandbox: {
+    modes: {
+      'read-only': '只读（不能写入）',
+      'workspace-write': '可写工作区与临时目录',
+      'danger-full-access': '完全访问（不受沙箱限制）',
+    },
+    shortModes: {
+      'read-only': '只读',
+      'workspace-write': '可写工作区',
+      'danger-full-access': '完全访问',
+    },
+    denied: '被沙箱拦截（{mode}）',
   },
   connection: {
     connecting: '正在连接 Sidecar',

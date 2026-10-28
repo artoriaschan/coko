@@ -87,6 +87,45 @@ describe('工具卡', () => {
     expect(getComputedStyle(added).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
   })
 
+  it('bash 被沙箱拒绝：标题行显示沙箱拒绝；提权批准后显示以目标档位允许一次', async () => {
+    const call = { id: 'b', name: 'bash', arguments: { command: 'echo x > /etc/f' } }
+    const screen = await renderCard({
+      kind: 'tool',
+      key: 'tool:b',
+      call,
+      result: { isError: true, text: 'denied', details: { sandbox: { mode: 'workspace-write', denied: true } } },
+      status: 'error',
+      live: null,
+    })
+    expect(document.querySelector('[data-sandbox-denied]')?.textContent).toBe('Blocked by the sandbox (Workspace write)')
+    const request = {
+      requestId: 'r',
+      toolCallId: 'b',
+      toolName: 'bash',
+      kind: 'escalation' as const,
+      subject: 'x',
+      targetMode: 'danger-full-access' as const,
+      suggestions: [],
+    }
+    await screen.rerender(
+      <I18nProvider locale="en">
+        <ToolCardView
+          item={{
+            kind: 'tool',
+            key: 'tool:b',
+            call,
+            result: { isError: false, text: '', details: undefined },
+            status: 'done',
+            live: null,
+            approval: { request, decision: { requestId: 'r', outcome: 'allowed', scope: 'once' } },
+          }}
+        />
+      </I18nProvider>,
+    )
+    expect(document.querySelector('[data-sandbox-denied]')).toBeNull()
+    expect(document.querySelector('[data-approval-outcome]')?.textContent).toBe('Allowed once with Full access')
+  })
+
   it('bash 运行中显示实时输出，命令为摘要', async () => {
     await renderCard(
       {

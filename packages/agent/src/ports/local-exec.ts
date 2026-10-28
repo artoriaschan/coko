@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { constants as osConstants } from 'node:os'
-import type { ExecOutcome, ExecPort } from './exec.ts'
+import { isConfined, SandboxUnavailableError, type ExecOutcome, type ExecPort, type SandboxPolicy } from './exec.ts'
 
 /** Variables of the Sidecar process that must not leak into user commands. */
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
@@ -23,7 +23,27 @@ export interface LocalExecOptions {
    * Applied to the base environment in addition to the host-only variables.
    */
   excludeEnv?: readonly EnvExclusion[]
+  /**
+   * Confinement for requests with a confined sandbox mode. Omitted: such requests reject with SandboxUnavailableError
+   * (this package ships no sandbox; hosts provide one, for example Seatbelt on macOS).
+   */
+  sandbox?: LocalSandbox
 }
+
+/** A host's sandbox runner for the local shell. */
+export interface LocalSandbox {
+  /**
+   * The argv prefix that confines `<shell> -c <command>` to `policy` (for example `sandbox-exec -p <profile> --`).
+   * Throws SandboxUnavailableError when the policy cannot be enforced.
+   */
+  wrap(policy: SandboxPolicy): readonly string[]
+  /** Case-insensitive output substring the kernel emits for a denied file effect (Seatbelt: "operation not permitted"). */
+  denialSignature: string
+}
+
+/** Output kept for matching a denial signature that straddles chunk boundaries. */
+const DENIAL_TAIL = 64 * 1024
+const SPAWN_FAILURES = new Set(['ENOENT', 'EACCES'])
 
 const matches = (name: string, exclusion: EnvExclusion) =>
   typeof exclusion === 'string' ? name === exclusion : new RegExp(exclusion.source, exclusion.flags.replace('g', '')).test(name)
@@ -108,7 +128,7 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
   const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
   return {
-    async exec({ command, cwd, env, onData, signal, timeoutMs }): Promise<ExecOutcome> {
+    async exec({ command, cwd, env, onData, signal, timeoutMs, sandbox }): Promise<ExecOutcome> {
       if (signal?.aborted) return { kind: 'aborted' }
       try {
         if (!(await stat(cwd)).isDirectory()) throw new Error('not a directory')
@@ -116,7 +136,15 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
         throw new Error(`Working directory does not exist: ${cwd}`)
       }
 
-      const child = spawn(shell, ['-c', command], {
+      // fail-closed：受限档位只经宿主的沙箱运行，不能启用时命令不运行。
+      const confined = isConfined(sandbox) ? sandbox : undefined
+      let prefix: readonly string[] = []
+      if (confined) {
+        if (!options.sandbox) throw new SandboxUnavailableError(confined.mode, 'this host provides no sandbox')
+        prefix = options.sandbox.wrap(confined)
+      }
+      const argv = [...prefix, shell, '-c', command]
+      const child = spawn(argv[0]!, argv.slice(1), {
         cwd,
         detached: true,
         env: env ?? baseEnv(),
@@ -138,15 +166,33 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
               kill()
             }, timeoutMs)
           : undefined
-      child.stdout?.on('data', onData)
-      child.stderr?.on('data', onData)
+      const signature = confined ? options.sandbox!.denialSignature.toLowerCase() : undefined
+      let tail = ''
+      let denied = false
+      const observe = (chunk: Buffer) => {
+        onData(chunk)
+        if (signature === undefined || denied) return
+        tail = (tail + chunk.toString('utf8')).slice(-DENIAL_TAIL)
+        if (tail.toLowerCase().includes(signature)) denied = true
+      }
+      child.stdout?.on('data', observe)
+      child.stderr?.on('data', observe)
       signal?.addEventListener('abort', onAbort, { once: true })
       try {
-        const exitCode = await waitForExit(child)
+        let exitCode: number | null
+        try {
+          exitCode = await waitForExit(child)
+        } catch (error) {
+          // 沙箱可执行文件缺失或不可执行：命令没有运行。
+          const code = (error as { code?: unknown }).code
+          if (confined && typeof code === 'string' && SPAWN_FAILURES.has(code)) throw new SandboxUnavailableError(confined.mode, (error as Error).message)
+          throw error
+        }
         if (aborted) return { kind: 'aborted' }
         if (timedOut) return { kind: 'timeout' }
         const signalCode = child.signalCode
-        return { kind: 'exited', exitCode: exitCode ?? (signalCode ? 128 + (osConstants.signals[signalCode] ?? 0) : 1) }
+        const code = exitCode ?? (signalCode ? 128 + (osConstants.signals[signalCode] ?? 0) : 1)
+        return code !== 0 && denied ? { kind: 'exited', exitCode: code, sandboxDenied: true } : { kind: 'exited', exitCode: code }
       } finally {
         if (timer) clearTimeout(timer)
         signal?.removeEventListener('abort', onAbort)

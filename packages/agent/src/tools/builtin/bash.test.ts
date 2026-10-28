@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { ExecPort, ExecRequest } from '../../ports/exec.ts'
+import { SandboxUnavailableError } from '../../ports/exec.ts'
 import { createLocalExecPort } from '../../ports/local-exec.ts'
 import { isProcessAlive, readPids, waitFor } from '../../testing/process.ts'
 import { createTempWorkspace, type TempWorkspace } from '../../testing/workspace.ts'
@@ -56,6 +58,57 @@ describe('内置 bash', () => {
       .map((line) => line.split('=')[0])
       .filter((name) => name && !['PWD', 'SHLVL', '_', '__CF_USER_TEXT_ENCODING', 'OLDPWD'].includes(name))
     expect(names).toEqual(['HOME', 'KEEP', 'PATH'])
+  })
+
+  it('执行上下文的沙箱策略交给执行端口；被拒绝时结果追加拒绝标记与提权提示（在退出码之前）', async () => {
+    const seen: (ExecRequest['sandbox'] | undefined)[] = []
+    const exec: ExecPort = {
+      async exec(request) {
+        seen.push(request.sandbox)
+        request.onData(Buffer.from('bash: /x/f: Operation not permitted\n'))
+        return { kind: 'exited', exitCode: 1, sandboxDenied: true }
+      },
+    }
+    const sandbox = { mode: 'workspace-write' as const, writableRoots: [ws.dir] }
+    const result = await createBashTool({ cwd: ws.dir, exec, tempDir: ws.dir }).execute('c', { command: 'echo x > /x/f' }, undefined, undefined, {
+      idempotencyKey: 's:c',
+      sandbox,
+    })
+    expect(seen).toEqual([sandbox])
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toBe(
+      'bash: /x/f: Operation not permitted\n\n\n[sandbox: file access denied under workspace-write mode]\n' +
+        '[sandbox: escalation available — retry this exact command once with sandbox_permissions (the narrowest wider mode that suffices) + justification; the approval prompt asks the user]\n' +
+        'Command exited with code 1',
+    )
+    expect(result.details).toEqual({ sandbox: { mode: 'workspace-write', denied: true } })
+  })
+
+  it('沙箱不可用 → sandbox-unavailable 错误，说明命令未运行', async () => {
+    const exec: ExecPort = {
+      exec: async (request) => {
+        throw new SandboxUnavailableError(request.sandbox!.mode, 'sandbox-exec missing')
+      },
+    }
+    const pending = createBashTool({ cwd: ws.dir, exec, tempDir: ws.dir }).execute('c', { command: 'true' }, undefined, undefined, {
+      idempotencyKey: 's:c',
+      sandbox: { mode: 'read-only', writableRoots: [] },
+    })
+    await expect(pending).rejects.toThrow(/^sandbox-unavailable: the command was not run because the read-only sandbox is not available/)
+  })
+
+  it('参数契约：sandbox_permissions 只取更宽的两档，justification 为字符串；permissionSubject 与 sandboxRequest', () => {
+    const bash = tool()
+    const properties = (bash.parameters as { properties: Record<string, { anyOf?: { const: string }[] }> }).properties
+    expect(properties.sandbox_permissions?.anyOf?.map((s) => s.const)).toEqual(['workspace-write', 'danger-full-access'])
+    expect(properties.justification).toMatchObject({ type: 'string' })
+    expect(bash.description).toContain('[sandbox: file access denied under <mode> mode]')
+    expect(bash.sandboxRequest?.({ command: 'ls' })).toBeUndefined()
+    expect(bash.sandboxRequest?.({ command: 'ls', sandbox_permissions: 'danger-full-access', justification: 'why' })).toEqual({
+      mode: 'danger-full-access',
+      justification: 'why',
+    })
+    expect(bash.sandboxRequest?.({ command: 'ls', justification: 'why' })).toEqual({ justification: 'why' })
   })
 
   it('取消后命令及其子进程都已退出', async () => {
