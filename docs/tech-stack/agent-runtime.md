@@ -44,7 +44,7 @@ pi-agent-core 1.4.0 提供 Agent 执行核心，其持久化 Harness 与 Session
 | Context Management | 文件引用、检索、按需加载、工具输出裁剪与 Token 预算 | 文件及检索适配器 |
 | Compaction | 压缩策略、摘要结构、目标与约束保留、上下文重建 | 模型调用与 session |
 | Memory | 跨会话作用域、来源、检索、更新和删除策略 | 独立的 Memory 存储接口与宿主适配 |
-| Session Persistence | 决定保存内容、提交时机与执行恢复语义 | session 负责 JSONL、fsync、迁移和修复；server 负责断线重连 |
+| Session Persistence | 决定保存内容、提交时机与执行恢复语义 | session 负责 SQLite 事务、迁移和损坏隔离；server 负责断线重连 |
 | Checkpoint / Rewind | 检查点语义、会话回退与分叉 | session 保存记录；宿主处理文件快照 |
 | Workspace / Worktree | 工作目录绑定、多仓库使用约束、隔离需求与资源归属 | 宿主执行 Git、目录管理与清理 |
 | Execution Runtime | 定义 Shell、PTY、stdin、进程状态、退出码和取消接口 | 本地、容器或远程适配器 |

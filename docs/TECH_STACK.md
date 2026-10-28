@@ -73,8 +73,8 @@ overrides:
 | 本地访问认证 | 应用自有实现，基于 `node:crypto`：启动令牌、HMAC 签名 cookie 与请求信任围栏，见 [ADR 0002](adr/0002-local-service-access-auth.md) |
 | 输入校验 | typebox 1.3.27，与 Agent 及 UI 协议层共用 |
 | 宿主运行编排 | Effect 4.0.2，仅在 server 内使用 ManagedRuntime、Layer 与 FiberMap；Agent 业务状态机位于 packages/agent |
-| Session 与执行记录 | packages/session 提供应用自有 append-only JSONL，持久化提交启用 fsync |
-| 宿主写者互斥 | `node:sqlite`（Electron 内置 Node.js 提供），用于应用自有的单写者互斥机制 |
+| 设置、Session 与执行记录 | `node:sqlite`（Electron 内置 Node.js 提供）单库，由 packages/session 管理 schema、迁移与事务提交，见 [ADR 0003](adr/0003-settings-and-sessions-in-sqlite.md) |
+| 宿主写者互斥 | 同一 SQLite 库内的宿主租约，配合 Electron 单实例锁 |
 | 恢复任务 | packages/agent 定义状态机与恢复策略；session 保存记录；server 启动扫描并唤醒 |
 
 @hono/node-server 2.1.5 的 peer 为 `hono ^4 || ^5.0.0-0`；其 WebSocket 支持需项目自行安装 ws 并传入 `WebSocketServer`。移除原选型的 Bun 1.4.2、@types/bun 1.4.2 和 @hono/bun 1.0.0。[@hono/node-server 包元数据](https://registry.npmjs.org/@hono/node-server/2.1.5)、[WebSocket 用法](https://github.com/honojs/node-server#websocket)

@@ -35,13 +35,13 @@ repo/
 │       │   ├── ws/                 # 连接、订阅、事件推送与重连
 │       │   ├── application/        # 业务入口与 Agent 框架接口调用
 │       │   ├── runtime/            # Effect Layer、资源释放、定时唤醒与后台资源
-│       │   ├── adapters/           # node:sqlite 写者互斥、宿主工具实现（如 ripgrep grep）与宿主适配
+│       │   ├── adapters/           # 宿主工具实现（如 ripgrep grep）与宿主适配
 │       │   └── index.ts            # 进程入口与依赖装配
 │       └── tsdown.config.ts
 ├── packages/
 │   ├── protocol/                   # TypeBox DTO、命令、事件、错误码
 │   ├── agent/                      # Coding-agent 框架、状态机、策略与宿主接口
-│   ├── session/                    # Session 模型、Repository、JSONL 与回放
+│   ├── session/                    # Session 与设置模型、Repository、SQLite 存储与回放
 │   ├── ui/                         # shadcn/ui、Lexical、Streamdown 与设计 token
 │   ├── logging/                    # LogTape 接口、字段约定与宿主 sinks
 │   └── i18n/                       # locale、字典、插值与格式化
@@ -69,14 +69,14 @@ repo/
 | apps/server | 装配 agent、session、protocol、logging、i18n；负责 Hono、Effect、定时唤醒、资源管理、Node 宿主适配、本地访问认证，以及装配时注册或覆盖宿主工具 |
 | packages/protocol | 定义可序列化请求、响应和事件；依赖 TypeBox，向两端提供 schema 与推导类型 |
 | packages/agent | 统一实现执行机制、Goal / Plan / Task 状态机、扩展、权限与恢复策略；提供内置工具与[工具扩展/覆盖接口](agent-runtime.md#工具扩展与覆盖)，不依赖随安装包分发的二进制；依赖 session 接口和 logging，宿主能力、宿主工具与存储由 server 注入 |
-| packages/session | 对外提供 SessionRepository；内部处理记录提交、顺序写入、fsync、存储格式迁移、记录回放和损坏恢复 |
+| packages/session | 对外提供 Session、设置与 Memory 的 Repository 接口；内部处理 SQLite 打开、schema 迁移、事务提交、宿主租约、记录回放和损坏隔离 |
 | packages/ui | 提供可复用组件、编辑器与 MarkdownRenderer；业务流程、网络请求和会话状态归 desktop renderer |
 | packages/logging | 提供日志接口及独立的 console、file、IPC 适配入口，由各宿主装配 |
 | packages/i18n | 提供纯 TypeScript 字典与格式化，供 UI、服务和错误展示复用 |
 
 依赖从应用指向共享模块，业务共享模块不反向导入 apps。protocol 和 i18n 保持运行时无关；protocol 使用应用自己的 DTO，server 将 pi 消息和内部状态映射为协议事件。
 
-session 的公共入口暴露模型和存储接口，JSONL 实现与内存实现通过独立入口提供。agent 通过注入的 SessionRepository 使用存储；server 装配 JSONL 实现，测试可以装配内存实现。fsync、文件修复与锁的调用顺序封装在存储实现内，调用方只等待明确的提交结果。Pi SessionManager 的源码复用仍作为候选，在确定采用前保留应用自有存储方案。
+session 的公共入口暴露模型和存储接口，SQLite 实现与内存实现通过独立入口提供，`node:sqlite` 只在 SQLite 入口导入。agent 通过注入的 Repository 使用存储；server 装配 SQLite 实现，测试可以装配内存实现。事务、迁移与租约的调用顺序封装在存储实现内，调用方只等待明确的提交结果。不复用 Pi SessionManager。
 
 Goal、Task、授权和恢复等业务状态的含义与转换规则由 agent 定义，session 保存统一记录封装及其版本化 payload。业务 payload 的校验与迁移通过注册接口接入，由 server 装配；session 不反向导入 agent 实现。
 
@@ -108,6 +108,6 @@ apps/server 构建自身的 sidecar 产物。apps/desktop 的 Forge hooks 按依
 
 ## 服务装配与存储边界
 
-JSONL 的记录封装、schema 版本、写入顺序和损坏尾行处理由 session 定义；agent 定义业务状态恢复规则。SQLite 在此方案中用于宿主写者协调，业务 Session 数据仍保存在 JSONL 中；不能继续调用 pi-durable 的 JSONL 或 lease 实现。
+设置、Session 与相关业务状态保存在 sidecar 独占的单个 SQLite 库，入库范围、提交、迁移、租约与损坏处理见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。记录封装、schema 版本与事务边界由 session 定义；agent 定义业务状态恢复规则。不调用 pi-durable 的 JSONL 或 lease 实现。
 
 Effect 管理服务生命周期、唤醒任务与宿主资源，agent 定义执行策略并调用 pi-agent-core 循环。server 通过协议向客户端输出业务事件，前端不直接持有 Agent 实例。

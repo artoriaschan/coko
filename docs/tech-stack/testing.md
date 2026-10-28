@@ -10,7 +10,7 @@ lifecycle: active
 
 ## 运行与编排
 
-Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实浏览器中测试。Agent 与服务端的业务逻辑通过运行时无关的接口进行单元测试；涉及进程启动、访问认证、`node:sqlite` 写者互斥或恢复的集成测试，由 Vitest 以 `ELECTRON_RUN_AS_NODE=1` 启动真实 sidecar 并通过协议验证，使行为在 Electron 内置 Node.js 中成立。被宿主覆盖的工具，内置实现与宿主实现运行同一组契约测试。测试发现、断言、生命周期和报告统一使用 Vitest。
+Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实浏览器中测试。Agent 与服务端的业务逻辑通过运行时无关的接口进行单元测试；涉及进程启动、访问认证、`node:sqlite` 存储与写者互斥或恢复的集成测试，由 Vitest 以 `ELECTRON_RUN_AS_NODE=1` 启动真实 sidecar 并通过协议验证，使行为在 Electron 内置 Node.js 中成立。被宿主覆盖的工具，内置实现与宿主实现运行同一组契约测试。测试发现、断言、生命周期和报告统一使用 Vitest。
 
 依赖安装、类型检查、Lint、测试及桌面构建均通过本地脚本执行，打包与发布统一由 Electron Forge 管理。
 

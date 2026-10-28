@@ -14,11 +14,17 @@ Status: open
 - 参考：packages/agent 的编码实现优先参考 pi `packages/coding-agent`（/Users/chenzheng/Desktop/Work/open_sources/pi），相关逻辑参考 claude-code（/Users/chenzheng/Desktop/Work/open_sources/claude-code）；apps/desktop 优先参考 deepseek-harness（/Users/chenzheng/Desktop/Work/open_sources/deepseek-harness），尤其 UI 交互与设计系统。
 - 执行覆盖：本地图允许把执行带入路线——地图解决后按里程碑逐个走 grill-with-docs → to-spec → to-tickets → implement-spec → retro。每个实施票从 main 拆分支、在 worktree 开发，验收后合入 main 并清理 worktree。
 - 仓库无 remote：research 分支与 PR 不可推送，研究结果保存在本目录 research/ 并随 main 提交。
-- 环境事实：pnpm 12.15.0 经公司 Artifactory 安装；首次下载 pnpm 二进制需要 `NODE_TLS_REJECT_UNAUTHORIZED=0`（公司证书），之后缓存可用。
+- 环境事实：pnpm 12.15.0 经公司 Artifactory 安装；首次下载 pnpm 二进制需要 `NODE_TLS_REJECT_UNAUTHORIZED=0`（公司证书），之后缓存可用。Agent 宿主环境继承了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 或 E2E 前必须 unset。
 
 ## Decisions so far
 
 <!-- 一行一张已解决的票 -->
+
+- [pi agent-core 1.4.0 与 coding-agent 的可复用结构](issues/01-research-pi-agent-core-and-coding-agent.md)：用 Agent 类接入点组合机制，持久化订阅 message_end；并发上限、依赖图自研；coding-agent 工具与指令加载多数可拷贝，grep/find 改纯 JS，bash 走 ports。
+- [claude-code 的权限、Hooks、Plan Mode、子代理、压缩与 Todo 逻辑](issues/03-research-claude-code-agent-logic.md)：以社区还原版为行为参考；权限 deny 优先的分层流水线、Hook exit 2 阻断与聚合、Plan 作为权限模式、子代理权限不宽于父级、压缩阈值与熔断。
+- [deepseek-harness 桌面端的进程、存储与 UI 结构](issues/02-research-dsh-desktop-architecture.md)：sidecar 进程与分级退出可直接移植，认证保持 ADR 0002；DSH 会话非 SQLite，需自行设计；三栏 IA 与设计 token 精确值可沿用。
+- [技术栈依赖在本机的安装与运行可行性](issues/04-research-dependency-install-feasibility.md)：全部可装；需配 allowBuilds；Electron-as-Node 下 node:sqlite 与 BEGIN IMMEDIATE 互斥实测可用；E2E 前须 unset ELECTRON_RUN_AS_NODE。
+- [设置与会话改存 SQLite 的存储边界](issues/05-grill-sqlite-persistence.md)：sidecar 独占单个 SQLite 库，packages/session 拥有 schema/迁移/事务，会话条目 append-only；见 ADR 0003（按常设指示采纳）。
 
 ## Not yet specified
 
