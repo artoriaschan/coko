@@ -5,6 +5,8 @@ export type StoreErrorCode =
   | 'revision-conflict'
   /** 条目的 kind 未注册、版本未登记或 payload 不合 schema；整批未提交。 */
   | 'invalid-payload'
+  /** 仓库方法的参数不合约束（例如 Memory 的作用域与 workspaceId 不一致）。 */
+  | 'invalid-input'
   /** 存储已关闭。 */
   | 'closed'
   /** 另一实例持有宿主租约（打开时，fatal）。 */

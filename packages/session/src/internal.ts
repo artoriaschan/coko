@@ -40,6 +40,16 @@ export function revisionConflict(key: string, expected: number, actual: number):
   return new StoreError('revision-conflict', `setting "${key}" is at revision ${actual}, expected ${expected}`, { key, expected, actual })
 }
 
+/** Memory 的作用域与 workspaceId 必须一致：workspace 作用域需要 workspaceId，user 作用域不能有。 */
+export function checkMemoryScope(input: { scope: string; workspaceId?: string | null }): string | null {
+  if (input.scope !== 'user' && input.scope !== 'workspace')
+    throw new StoreError('invalid-input', `unknown memory scope ${input.scope}`, { scope: input.scope })
+  const workspaceId = input.workspaceId ?? null
+  if ((input.scope === 'workspace') !== (workspaceId !== null))
+    throw new StoreError('invalid-input', 'workspace memories need a workspaceId; user memories must not have one', { scope: input.scope })
+  return workspaceId
+}
+
 export function closedError(): StoreError {
   return new StoreError('closed', 'session store is closed')
 }

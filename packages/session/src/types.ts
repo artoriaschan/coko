@@ -120,11 +120,65 @@ export interface ProviderRepository {
   getCredentialCiphertext(id: string): Promise<Uint8Array | undefined>
 }
 
+/** Memory 的作用域：用户级（全部 Workspace）或某个 Workspace。 */
+export type MemoryScope = 'user' | 'workspace'
+
+/** Agent 或用户记下的一条记忆（ADR 0003）。workspace 作用域时 workspaceId 为该 Workspace，user 作用域时为 null。 */
+export interface Memory {
+  id: string
+  scope: MemoryScope
+  workspaceId: string | null
+  content: string
+  /** 写入方，例如 agent / user；取值由宿主约定。 */
+  source: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface MemoryInput {
+  scope: MemoryScope
+  /** workspace 作用域必填，user 作用域必须省略或为 null（否则 invalid-input）。 */
+  workspaceId?: string | null
+  content: string
+  source: string
+}
+
+export interface MemoryRepository {
+  /** 按 updatedAt 倒序。给出 scope 时只列该作用域；workspaceId 限定 workspace 作用域的 Workspace。 */
+  list(filter?: { scope?: MemoryScope; workspaceId?: string }): Promise<Memory[]>
+  get(id: string): Promise<Memory | undefined>
+  /** workspace 作用域的 Workspace 不存在时 not-found；作用域与 workspaceId 不一致时 invalid-input。 */
+  create(input: MemoryInput): Promise<Memory>
+  /** 只改正文；不存在时 not-found。 */
+  update(id: string, patch: { content: string }): Promise<Memory>
+  /** 不存在时 not-found。 */
+  delete(id: string): Promise<void>
+}
+
+/** 登记的 Secret：名称与提示（末四位）；密文只经 getCiphertext 读取（ADR 0007）。 */
+export interface SecretInfo {
+  name: string
+  hint: string
+  updatedAt: number
+}
+
+export interface SecretRepository {
+  /** 按名称升序；不含密文。 */
+  list(): Promise<SecretInfo[]>
+  /** 新增或替换；明文不经过 session。 */
+  setCiphertext(name: string, secret: { ciphertext: Uint8Array; hint: string }): Promise<SecretInfo>
+  getCiphertext(name: string): Promise<Uint8Array | undefined>
+  /** 不存在时 not-found。 */
+  delete(name: string): Promise<void>
+}
+
 /** 一组共享同一存储的仓库。 */
 export interface SessionStore {
   sessions: SessionRepository
   settings: SettingsRepository
   providers: ProviderRepository
+  memories: MemoryRepository
+  secrets: SecretRepository
   /** 幂等；关闭后所有操作以 closed 拒绝。 */
   close(): Promise<void>
 }
