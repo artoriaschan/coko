@@ -2,12 +2,13 @@
 // 经各种输出通道驱动后，WebSocket 帧、HTTP 响应体、coko.db（含 -wal / -shm）与 sidecar.jsonl 中都不得出现明文。
 // 后续票引入新的输出通道（审批卡、沙箱、快照、确认）时，在本文件追加驱动步骤并把新的落盘位置加入扫描。
 // 票 02：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
+// 票 03：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, type ServerMessage } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, type ServerMessage } from '@coko/protocol'
 import {
   connect,
   exchange,
@@ -122,8 +123,13 @@ describe('秘密不外泄总闸', () => {
     expect(approval).toMatchObject({ toolCallId: 'env1', toolName: 'bash', subject: 'env' })
     await api.get(apiPaths.session(faux))
     await api.get(API_ROUTES.sessions)
-    expect((await api.post(apiPaths.sessionApproval(faux, approval.requestId), { decision: 'allow', scope: 'once' })).status).toBe(204)
+    expect((await api.post(apiPaths.sessionApproval(faux, approval.requestId), { decision: 'allow', scope: 'workspace' })).status).toBe(204)
     await ended(faux, 2)
+    // 权限通道：保存的 Workspace 规则、Session 规则与模式的读回。
+    const permissions = await api.get(`${permissionPaths.permissions}?workspaceId=${workspace.body.id}`)
+    expect(permissions.body.workspace.rules).toEqual([{ behavior: 'allow', tool: 'Bash', content: 'env' }])
+    await api.get(permissionPaths.sessionPermissionRules(faux))
+    await api.get(API_ROUTES.settings)
     const fauxEntries = stream.entries(faux)
     // 前置：各通道确实被驱动（否则"没有明文"不能证明什么）。
     expect(stream.messages.some((m) => m.type === 'progress' && m.event.type === 'retry')).toBe(true)

@@ -1,4 +1,4 @@
-import type { AvailableModel, Provider, ProviderKind, ProviderPreset, SessionModel } from '@coko/protocol'
+import type { AvailableModel, PermissionsResponse, Provider, ProviderKind, ProviderPreset, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { CokoBridge, CredentialErrorCode } from '../../shared/bridge.ts'
@@ -16,7 +16,15 @@ export interface SettingsState {
   presets: ProviderPreset[]
   models: AvailableModel[]
   defaultModel: SessionModel | null
+  /** 默认模式与全局规则（及最近读取的 Workspace 规则）；读取前为 null。 */
+  permissions: PermissionsResponse | null
 }
+
+/** 去掉 expectedRevision 的修改；store 按已知 revision 补上。 */
+export type PermissionsChange =
+  | Omit<Extract<UpdatePermissionsRequest, { target: 'defaultMode' }>, 'expectedRevision'>
+  | Omit<Extract<UpdatePermissionsRequest, { target: 'global' }>, 'expectedRevision'>
+  | Omit<Extract<UpdatePermissionsRequest, { target: 'workspace' }>, 'expectedRevision'>
 
 export type SaveSettingResult = { status: 'saved' } | { status: 'conflict' } | { status: 'failed'; error: ApiError }
 
@@ -46,6 +54,10 @@ export interface SettingsActions {
   saveProvider(draft: ProviderDraft): Promise<SaveProviderResult>
   /** 返回是否已删除。 */
   deleteProvider(id: string): Promise<boolean>
+  /** 读取默认模式与全局规则；给出 workspaceId 时另带该 Workspace 的规则。 */
+  loadPermissions(workspaceId?: string): Promise<void>
+  /** 按已知 revision 修改一项；同一 store 的修改串行。冲突时读回最新值。 */
+  savePermissions(change: PermissionsChange): Promise<SaveSettingResult>
 }
 
 export type SettingsStore = StoreApi<SettingsState & SettingsActions>
@@ -92,6 +104,32 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       }
     }
 
+    let permissionChain: Promise<unknown> = Promise.resolve()
+    const expectedRevision = (change: PermissionsChange): number => {
+      const known = get().permissions
+      if (change.target === 'defaultMode') return known?.defaultMode.revision ?? 0
+      if (change.target === 'global') return known?.global.revision ?? 0
+      return known?.workspace?.workspaceId === change.workspaceId ? known.workspace.revision : 0
+    }
+    const putPermissions = async (change: PermissionsChange): Promise<SaveSettingResult> => {
+      const workspaceId = change.target === 'workspace' ? change.workspaceId : get().permissions?.workspace?.workspaceId
+      try {
+        const saved = await api.updatePermissions({ ...change, expectedRevision: expectedRevision(change) } as UpdatePermissionsRequest)
+        // 响应只带被修改的 Workspace；保留已知的其他部分。
+        set((state) => ({
+          permissions: { ...saved, ...(saved.workspace ? {} : state.permissions?.workspace ? { workspace: state.permissions.workspace } : {}) },
+        }))
+        return { status: 'saved' }
+      } catch (error) {
+        const apiError = toApiError(error)
+        if (apiError.code !== 'revision-conflict') return { status: 'failed', error: apiError }
+        await get()
+          .loadPermissions(workspaceId)
+          .catch(() => undefined)
+        return { status: 'conflict' }
+      }
+    }
+
     return {
       status: 'idle',
       values: {},
@@ -99,6 +137,21 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       presets: [],
       models: [],
       defaultModel: null,
+      permissions: null,
+
+      async loadPermissions(workspaceId) {
+        try {
+          set({ permissions: await api.getPermissions(workspaceId) })
+        } catch (error) {
+          onFailure?.(toApiError(error))
+        }
+      },
+
+      savePermissions(change) {
+        const next = permissionChain.then(() => putPermissions(change))
+        permissionChain = next
+        return next
+      },
 
       async load() {
         if (get().status !== 'ready') set({ status: 'loading' })
@@ -110,6 +163,7 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
             api.listModels(),
           ])
           set({ status: 'ready', values: toValues(settings), providers, presets, models, defaultModel })
+          void get().loadPermissions(get().permissions?.workspace?.workspaceId)
         } catch (error) {
           if (get().status !== 'ready') set({ status: 'error' })
           onFailure?.(toApiError(error))

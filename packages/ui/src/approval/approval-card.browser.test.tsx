@@ -129,3 +129,53 @@ describe('ApprovalCard', () => {
     expect(onReject).not.toHaveBeenCalled()
   })
 })
+
+describe('ApprovalCard 总是允许', () => {
+  const allowAlways = (onSelect: (scope: string) => Promise<void>) => ({
+    label: 'Always allow',
+    menuLabel: 'Choose where to always allow',
+    description: 'Saves the rule Bash(npm test)',
+    options: [
+      { scope: 'session', label: 'In this session' },
+      { scope: 'workspace', label: 'In this workspace' },
+      { scope: 'global', label: 'In all workspaces' },
+    ],
+    onSelect,
+  })
+
+  it('菜单中选择范围后以该范围回答一次，之后按钮禁用', async () => {
+    const onSelect = vi.fn<(scope: string) => Promise<void>>(async () => {})
+    const { onAllow, props } = setup({ allowAlways: allowAlways(onSelect) })
+    const screen = await render(<ApprovalCard {...props} />)
+    await page.getByRole('button', { name: 'Always allow' }).click()
+    expect(page.getByRole('menu').element().textContent).toContain('Saves the rule Bash(npm test)')
+    await page.getByRole('menuitem', { name: 'In this workspace' }).click()
+    await expect.poll(() => onSelect.mock.calls).toEqual([['workspace']])
+    expect(onAllow).not.toHaveBeenCalled()
+    await expect.element(page.getByRole('button', { name: 'Allow once' })).toBeDisabled()
+    // 菜单经 portal 渲染：先卸载，再由 afterEach 清空 body。
+    await screen.unmount()
+  })
+
+  it('菜单内的 Enter 与 Esc 不触发卡片的允许一次与拒绝', async () => {
+    const onSelect = vi.fn<(scope: string) => Promise<void>>(async () => {})
+    const { onAllow, onReject, props } = setup({ allowAlways: allowAlways(onSelect) })
+    const screen = await render(<ApprovalCard {...props} />)
+    await page.getByRole('button', { name: 'Always allow' }).click()
+    await expect.element(page.getByRole('menu')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+    await page.getByRole('button', { name: 'Always allow' }).click()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    await expect.poll(() => onSelect.mock.calls.length).toBe(1)
+    expect(onAllow).not.toHaveBeenCalled()
+    expect(onReject).not.toHaveBeenCalled()
+    await screen.unmount()
+  })
+
+  it('没有 allowAlways 时不显示该按钮', async () => {
+    const { props } = setup()
+    await render(<ApprovalCard {...props} />)
+    expect(page.getByRole('button', { name: 'Always allow' }).query()).toBeNull()
+  })
+})

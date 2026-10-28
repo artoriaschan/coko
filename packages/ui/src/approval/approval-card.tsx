@@ -1,5 +1,7 @@
+import { ChevronDownIcon } from 'lucide-react'
 import * as React from 'react'
 import { Button } from '../components/button.tsx'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/dropdown-menu.tsx'
 import { Input } from '../components/input.tsx'
 import { cn } from '../lib/utils.ts'
 
@@ -15,6 +17,17 @@ export interface ApprovalCardLabels {
   feedbackPlaceholder: string
 }
 
+/** "总是允许"：按范围保存规则并允许。范围与文案由调用方给出。 */
+export interface ApprovalAllowAlways<Scope extends string = string> {
+  label: string
+  /** 菜单的标题。 */
+  menuLabel: string
+  /** 菜单中的说明，例如将保存的规则。 */
+  description?: string
+  options: readonly { scope: Scope; label: string }[]
+  onSelect: (scope: Scope) => Promise<void>
+}
+
 export interface ApprovalCardProps {
   /** 请求身份；变化时重置回答状态与反馈输入。 */
   requestKey: string
@@ -26,6 +39,8 @@ export interface ApprovalCardProps {
   onAllow: () => Promise<void>
   /** 拒绝；带反馈时 feedback 为去掉首尾空白的非空文本。 */
   onReject: (feedback?: string) => Promise<void>
+  /** 省略时不显示"总是允许"（例如越界写入与提权只能允许一次）。 */
+  allowAlways?: ApprovalAllowAlways
   /** 工具、命令、路径或 diff 等明细。 */
   children?: React.ReactNode
   /** 出现时聚焦卡片本身（不是详情区：误触的 Enter 不会允许）；Tab 进入详情与按钮。 */
@@ -45,7 +60,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
   return <ApprovalFlow key={props.requestKey} {...props} />
 }
 
-function ApprovalFlow({ title, description, labels, onAllow, onReject, children, autoFocus, className, requestKey }: ApprovalCardProps) {
+function ApprovalFlow({ title, description, labels, onAllow, onReject, allowAlways, children, autoFocus, className, requestKey }: ApprovalCardProps) {
   const [answered, setAnswered] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [feedback, setFeedback] = React.useState('')
@@ -84,6 +99,8 @@ function ApprovalFlow({ title, description, labels, onAllow, onReject, children,
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.defaultPrevented || (event.key !== 'Enter' && event.key !== 'Escape')) return
     const target = event.target as Element
+    // 经 portal 渲染的菜单的按键沿 React 树冒泡到这里：只处理卡片自身 DOM 内的按键。
+    if (!root.current?.contains(target)) return
     if (target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return
     if (event.key === 'Enter' && target.closest('button, a[href], [role="button"]')) return
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
@@ -158,6 +175,29 @@ function ApprovalFlow({ title, description, labels, onAllow, onReject, children,
         <Button type="button" variant="outline" size="sm" data-action="reject" disabled={answered} onClick={reject}>
           {labels.reject}
         </Button>
+        {allowAlways && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm" data-action="allow-always" disabled={answered}>
+                {allowAlways.label}
+                <ChevronDownIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="end" className="max-w-80">
+              <DropdownMenuLabel>{allowAlways.menuLabel}</DropdownMenuLabel>
+              {allowAlways.description !== undefined && (
+                <p data-user-content className="px-2 pb-1 text-ui-small break-all text-muted-foreground">
+                  {allowAlways.description}
+                </p>
+              )}
+              {allowAlways.options.map((option) => (
+                <DropdownMenuItem key={option.scope} data-scope={option.scope} onSelect={() => answer(() => allowAlways.onSelect(option.scope))}>
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button type="button" size="sm" data-action="allow-once" disabled={answered} onClick={() => answer(onAllow)}>
           {labels.allowOnce}
         </Button>

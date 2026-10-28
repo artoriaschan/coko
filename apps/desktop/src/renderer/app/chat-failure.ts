@@ -9,6 +9,7 @@ const KIND_KEYS = {
   workspace: 'errors.workspaceFailed',
   model: 'errors.modelSwitchFailed',
   approval: 'errors.approvalFailed',
+  permissions: 'errors.permissionsFailed',
 } as const satisfies Record<ChatFailure['kind'], MessageKey>
 
 /** 操作失败的提示文案：协议错误码有专门说明时用它，否则按操作类型。 */

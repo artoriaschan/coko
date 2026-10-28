@@ -57,7 +57,7 @@ describe('Sidecar 存储的启动失败与损坏条目', () => {
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'hi' })
     await live.waitFor(isRunEnd(sessionId))
     const good = (await api.get(apiPaths.session(sessionId))).body.entries as SessionEntryRecord[]
-    expect(good.map((e) => e.kind)).toEqual(['run_start', 'message', 'message', 'run_end'])
+    expect(good.map((e) => e.kind)).toEqual(['permission_mode', 'run_start', 'message', 'message', 'run_end'])
     expect(await first.stop()).toEqual({ code: 0, signal: null })
 
     const db = join(dirs.dataDir, 'coko.db')

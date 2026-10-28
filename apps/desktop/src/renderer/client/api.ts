@@ -4,12 +4,15 @@ import {
   apiPaths,
   ErrorResponse,
   ModelListResponse,
+  permissionPaths,
+  PermissionsResponse,
   Provider,
   ProviderListResponse,
   ProviderPresetsResponse,
   Session,
   SessionDetailResponse,
   SessionListResponse,
+  SessionPermissionsResponse,
   Setting,
   SettingsResponse,
   SubmitMessageResponse,
@@ -19,7 +22,10 @@ import {
   type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
+  type PermissionMode,
+  type PermissionRule,
   type SessionModel,
+  type UpdatePermissionsRequest,
   type UpdateProviderRequest,
 } from '@coko/protocol'
 import { Type, type TSchema, type Static } from 'typebox'
@@ -79,6 +85,18 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 回答待审批请求；请求不在等待中时以 approval-not-pending 拒绝。 */
     answerApproval: (id: string, requestId: string, answer: AnswerApprovalRequest) => call(NoContent, 'POST', apiPaths.sessionApproval(id, requestId), answer),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
+    /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
+    setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
+    removeSessionRule: (id: string, rule: PermissionRule) => call(SessionPermissionsResponse, 'DELETE', permissionPaths.sessionPermissionRules(id), { rule }),
+    /** 默认模式与全局规则；给出 workspaceId 时另带该 Workspace 的规则。 */
+    getPermissions: (workspaceId?: string) =>
+      call(
+        PermissionsResponse,
+        'GET',
+        workspaceId ? `${permissionPaths.permissions}?workspaceId=${encodeURIComponent(workspaceId)}` : permissionPaths.permissions,
+      ),
+    /** revision 不一致时以 revision-conflict 拒绝。 */
+    updatePermissions: (request: UpdatePermissionsRequest) => call(PermissionsResponse, 'PUT', permissionPaths.permissions, request),
     listSettings: async () => (await call(SettingsResponse, 'GET', API_ROUTES.settings)).settings,
     /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */
     putSetting: (key: string, value: unknown, expectedRevision: number) => call(Setting, 'PUT', apiPaths.setting(key), { value, expectedRevision }),

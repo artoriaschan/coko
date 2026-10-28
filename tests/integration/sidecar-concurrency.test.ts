@@ -39,6 +39,7 @@ describe('工具调度与执行记录', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map(kindOf)).toEqual([
+      'permission_mode',
       'run_start',
       'user',
       'assistant',
@@ -52,7 +53,7 @@ describe('工具调度与执行记录', () => {
     ])
     const execs = entries.filter((e) => e.kind === 'tool_exec')
     expect(execs.map((e) => e.payload)).toEqual([{ toolCallId: 'b1', toolName: 'bash', idempotencyKey: `${sessionId}:b1` }])
-    const runId = entries[0]!.runId
+    const runId = entries.find((e) => e.kind === 'run_start')!.runId
     expect(execs[0]!.runId).toBe(runId)
     const assistantSeq = entries.find((e) => kindOf(e) === 'assistant')!.seq
     const bashResultSeq = entries.find((e) => kindOf(e) === 'toolResult' && (e.payload as { toolCallId: string }).toolCallId === 'b1')!.seq

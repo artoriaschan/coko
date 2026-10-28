@@ -1,5 +1,6 @@
 // ApprovalBroker：每个运行时一个。判定为 ask 的调用在这里等待回答；请求与决定各提交一条 Session Entry。
-// 状态：pending → allowed（scope）/ denied（可带反馈）/ cancelled（停止）。只能回答一次；没有超时。
+// 状态：pending → allowed（scope）/ denied（可带反馈）/ cancelled（停止）/ superseded（模式或规则变更后重新判定为
+// allow 或 deny）。只能回答一次；没有超时。
 import { randomUUID } from 'node:crypto'
 import type { ApprovalDecisionPayload, ApprovalRequestPayload, ApprovalScope } from '../session-entries/index.ts'
 
@@ -12,11 +13,21 @@ export class ApprovalNotPendingError extends Error {
   }
 }
 
-/** 用户对一个待审批请求的回答。feedback 只随拒绝有效，作为工具错误文本交给模型。 */
-export type ApprovalAnswer = { decision: 'allow'; scope?: ApprovalScope } | { decision: 'deny'; feedback?: string }
+/**
+ * 对一个待审批请求的回答。feedback 只随拒绝有效，作为工具错误文本交给模型。reevaluate 由宿主在模式或规则变更后发出：
+ * 按当时的模式与规则重新判定，结果为 allow 或 deny 时请求以 superseded 结束，仍需询问时保持等待。
+ */
+export type ApprovalAnswer = { decision: 'allow'; scope?: ApprovalScope } | { decision: 'deny'; feedback?: string } | { decision: 'reevaluate' }
+
+/** 重新判定的结论：allow / deny 结束请求，undefined 表示仍需询问。 */
+export type ReevaluateVerdict = { behavior: 'allow' } | { behavior: 'deny'; reason: string } | undefined
 
 /** 请求的结局（等待方据此继续或停止）。 */
-export type ApprovalResolution = { outcome: 'allowed'; scope: ApprovalScope } | { outcome: 'denied'; feedback?: string } | { outcome: 'cancelled' }
+export type ApprovalResolution =
+  | { outcome: 'allowed'; scope: ApprovalScope }
+  | { outcome: 'denied'; feedback?: string }
+  | { outcome: 'cancelled' }
+  | { outcome: 'superseded'; verdict: Exclude<ReevaluateVerdict, undefined> }
 
 export type ApprovalBrokerEntry =
   | { kind: 'approval_request'; payload: ApprovalRequestPayload }
@@ -25,10 +36,12 @@ export type ApprovalBrokerEntry =
 export interface ApprovalBroker {
   /**
    * 提交 approval_request 并等待回答；signal 触发时以 cancelled 结束。决定条目提交完成后才 resolve。
-   * 请求或决定的提交失败时 reject。
+   * 请求或决定的提交失败时 reject。reevaluate 供 `{ decision: 'reevaluate' }` 使用；缺省时该回答不改变请求。
    */
-  request(request: Omit<ApprovalRequestPayload, 'requestId'>, signal?: AbortSignal): Promise<ApprovalResolution>
-  /** 回答待审批请求；请求不在等待中时抛 ApprovalNotPendingError。决定条目提交后返回。 */
+  request(request: Omit<ApprovalRequestPayload, 'requestId'>, signal?: AbortSignal, reevaluate?: () => Promise<ReevaluateVerdict>): Promise<ApprovalResolution>
+  /**
+   * 回答待审批请求；请求不在等待中时抛 ApprovalNotPendingError。决定条目提交后返回；reevaluate 仍需询问时直接返回。
+   */
   answer(requestId: string, answer: ApprovalAnswer): Promise<void>
   /** 按提出顺序的待审批请求。 */
   pending(): ApprovalRequestPayload[]
@@ -38,10 +51,13 @@ export interface ApprovalBroker {
 const MAX_FEEDBACK = 4000
 
 export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Promise<void>): ApprovalBroker {
-  const waiting = new Map<string, { payload: ApprovalRequestPayload; settle: (resolution: ApprovalResolution) => Promise<void> }>()
+  const waiting = new Map<
+    string,
+    { payload: ApprovalRequestPayload; settle: (resolution: ApprovalResolution) => Promise<void>; reevaluate: (() => Promise<ReevaluateVerdict>) | undefined }
+  >()
 
   return {
-    async request(request, signal) {
+    async request(request, signal, reevaluate) {
       const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
       // 先登记再提交：条目一经发布就可能被回答。决定条目排在请求条目之后提交。
       let requested!: Promise<void>
@@ -68,7 +84,7 @@ export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Pro
           }
           resolve(resolution)
         }
-        waiting.set(payload.requestId, { payload, settle })
+        waiting.set(payload.requestId, { payload, settle, reevaluate })
         requested = commit({ kind: 'approval_request', payload })
         requested.catch(() => {
           // 请求未能记录：不再等待回答。
@@ -84,6 +100,12 @@ export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Pro
     async answer(requestId, answer) {
       const entry = waiting.get(requestId)
       if (!entry) throw new ApprovalNotPendingError(requestId)
+      if (answer.decision === 'reevaluate') {
+        const verdict = await entry.reevaluate?.()
+        // 判定期间请求可能已被回答或取消：settle 对已结束的请求不做任何事。
+        if (verdict) await entry.settle({ outcome: 'superseded', verdict })
+        return
+      }
       if (answer.decision === 'allow') return entry.settle({ outcome: 'allowed', scope: answer.scope ?? 'once' })
       const feedback = answer.feedback?.trim().slice(0, MAX_FEEDBACK)
       return entry.settle(feedback ? { outcome: 'denied', feedback } : { outcome: 'denied' })

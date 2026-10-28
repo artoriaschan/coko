@@ -72,7 +72,9 @@ describe('Session 协议', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1))
+    // 新 Session 的第一条是初始模式（票 03），不属于任何 Run。
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
+      'permission_mode',
       'run_start',
       'user',
       'assistant',
@@ -83,8 +85,9 @@ describe('Session 协议', () => {
       'assistant',
       'run_end',
     ])
-    expect(entries.every((e) => e.runId === runId)).toBe(true)
-    expect(entries[0]?.payload).toEqual({ trigger: 'submit' })
+    expect(entries[0]).toMatchObject({ runId: null, payload: { mode: 'default' } })
+    expect(entries.slice(1).every((e) => e.runId === runId)).toBe(true)
+    expect(entries[1]?.payload).toEqual({ trigger: 'submit' })
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
     expect(stream.invalid).toEqual([])
     expect(stream.invalidEntries).toEqual([])
@@ -282,6 +285,7 @@ describe('Session 协议', () => {
     await stream.waitFor((m) => m.type === 'entry' && m.entry.kind === 'run_end' && m.entry.runId === runId)
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
+      'permission_mode',
       'run_start',
       'user',
       'assistant',

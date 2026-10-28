@@ -1,6 +1,8 @@
 import {
   SessionEntry,
   type AnswerApprovalRequest,
+  type PermissionMode,
+  type PermissionRule,
   type ProgressEvent,
   type RunStatus,
   type ServerMessage,
@@ -54,9 +56,33 @@ export interface Conversation {
   running: boolean
   live: LiveRun | null
   unrecordedEnd?: UnrecordedRunEnd
+  /** 已发出、尚未由 permission_mode 条目确认的模式（乐观显示）。 */
+  pendingMode?: PermissionMode
 }
 
-export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval'; error: ApiError }
+export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions'; error: ApiError }
+
+/** Session 的当前模式：最后一条 permission_mode 条目；没有时为 default（旧 Session）。 */
+export function sessionPermissionMode(entries: readonly SessionEntry[]): PermissionMode {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!
+    if (entry.kind === 'permission_mode') return entry.payload.mode
+  }
+  return 'default'
+}
+
+const sameRule = (a: PermissionRule, b: PermissionRule) => a.behavior === b.behavior && a.tool === b.tool && a.content === b.content
+
+/** Session 规则：按 permission_rule 条目回放。 */
+export function sessionRules(entries: readonly SessionEntry[]): PermissionRule[] {
+  let rules: PermissionRule[] = []
+  for (const entry of entries) {
+    if (entry.kind !== 'permission_rule') continue
+    const { op, rule } = entry.payload
+    rules = op === 'add' ? [...rules.filter((r) => !sameRule(r, rule)), rule] : rules.filter((r) => !sameRule(r, rule))
+  }
+  return rules
+}
 
 /**
  * 仍在等待回答的审批请求（按提出顺序）：有 approval_request、没有对应的 approval_decision，且所属 Run 尚未结束。
@@ -91,6 +117,8 @@ export interface ChatState {
   draftWorkspaceId: string | null
   /** 草稿中选择的模型；创建 Session 时使用，null 表示用默认模型。 */
   draftModel: SessionModel | null
+  /** 草稿中选择的 Permission Mode；null 表示用设置中的默认模式。 */
+  draftPermissionMode: PermissionMode | null
   conversations: Record<string, Conversation>
 }
 
@@ -113,6 +141,10 @@ export interface ChatActions {
    * 返回是否已被接受。
    */
   answerApproval(requestId: string, answer: AnswerApprovalRequest): Promise<boolean>
+  /** 当前会话经协议切换 Permission Mode（立即显示，失败时撤回）；草稿中只记下选择。 */
+  setPermissionMode(mode: PermissionMode): Promise<void>
+  /** 删除当前会话的一条 Session 规则。 */
+  removeSessionRule(rule: PermissionRule): Promise<boolean>
 }
 
 export type ChatStore = StoreApi<ChatState & ChatActions>
@@ -144,6 +176,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   const subscribed = new Map<string, Set<() => void>>()
   /** 已发出或已被接受的审批回答（requestId 唯一）。 */
   const answering = new Set<string>()
+  /** 每个 Session 的模式切换按调用顺序发送（Shift+Tab 连按时最后一次为准）。 */
+  const modeChains = new Map<string, Promise<unknown>>()
   let loadedOnce = false
 
   const store = createStore<ChatState & ChatActions>()((set, get) => {
@@ -202,6 +236,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       activeSessionId: null,
       draftWorkspaceId: null,
       draftModel: null,
+      draftPermissionMode: null,
       conversations: {},
 
       async load() {
@@ -250,7 +285,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       },
 
       async send(text) {
-        const { activeSessionId, draftWorkspaceId, draftModel } = get()
+        const { activeSessionId, draftWorkspaceId, draftModel, draftPermissionMode } = get()
         if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text), 'send')
         if (draftWorkspaceId === null) return false
         let session: Session
@@ -268,6 +303,16 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           conversations: { ...state.conversations, [session.id]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } },
         }))
         await subscribe(session.id)
+        // 草稿中选过模式：新 Session 以默认模式创建，提交前切换（两条 permission_mode 条目）。
+        if (draftPermissionMode !== null) {
+          set({ draftPermissionMode: null })
+          try {
+            await api.setPermissionMode(session.id, draftPermissionMode)
+          } catch (error) {
+            onFailure?.({ kind: 'permissions', error: toApiError(error) })
+            return false
+          }
+        }
         return submit(session.id, () => api.submitMessage(session.id, text), 'send')
       },
 
@@ -300,6 +345,43 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           // 请求已经结束（例如另一处已回答）：不再允许重答，等决定条目到达。
           if (failure.code !== 'approval-not-pending') answering.delete(requestId)
           onFailure?.({ kind: 'approval', error: failure })
+          return false
+        }
+      },
+
+      setPermissionMode(mode) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) {
+          set({ draftPermissionMode: mode })
+          return Promise.resolve()
+        }
+        const current = get().conversations[sessionId]
+        if (current && (current.pendingMode ?? sessionPermissionMode(current.entries)) === mode) return Promise.resolve()
+        updateConversation(sessionId, (c) => ({ ...c, pendingMode: mode }))
+        const send = async () => {
+          try {
+            await api.setPermissionMode(sessionId, mode)
+            // 条目可能先于响应到达，也可能没有条目（与当时模式相同）：此时按条目即可。
+            updateConversation(sessionId, (c) => (c.pendingMode === mode && sessionPermissionMode(c.entries) === mode ? { ...c, pendingMode: undefined } : c))
+          } catch (error) {
+            // 只撤回仍是本次的乐观状态（之后的切换会覆盖它）。
+            updateConversation(sessionId, (c) => (c.pendingMode === mode ? { ...c, pendingMode: undefined } : c))
+            onFailure?.({ kind: 'permissions', error: toApiError(error) })
+          }
+        }
+        const next = (modeChains.get(sessionId) ?? Promise.resolve()).then(send)
+        modeChains.set(sessionId, next)
+        return next
+      },
+
+      async removeSessionRule(rule) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return false
+        try {
+          await api.removeSessionRule(sessionId, rule)
+          return true
+        } catch (error) {
+          onFailure?.({ kind: 'permissions', error: toApiError(error) })
           return false
         }
       },
@@ -353,6 +435,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           if (record.seq <= c.lastSeq) return c
           if (!entry) return { ...c, lastSeq: record.seq }
           const entries = [...c.entries, entry]
+          if (entry.kind === 'permission_mode' && c.pendingMode === entry.payload.mode) return { ...c, entries, lastSeq: entry.seq, pendingMode: undefined }
           if (entry.kind === 'run_end') return { ...c, entries, lastSeq: entry.seq, running: false, live: null, unrecordedEnd: undefined }
           // assistant 消息已提交：其增量不再需要，下一条消息的增量从空开始接收。
           const committedAssistant = entry.kind === 'message' && entry.payload.role === 'assistant'

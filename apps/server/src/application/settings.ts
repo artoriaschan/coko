@@ -1,4 +1,4 @@
-import { SETTING_KEY_PATTERN, type Setting } from '@coko/protocol'
+import { isPermissionSettingKey, SETTING_KEY_PATTERN, type Setting } from '@coko/protocol'
 import type { JsonValue, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
@@ -19,6 +19,8 @@ export class SettingsService {
   async put(key: string, value: unknown, expectedRevision: number): Promise<Setting> {
     if (!KEY.test(key)) throw new AppError('bad-request', `Invalid setting key: ${key}`)
     if (value === undefined) throw new AppError('bad-request', 'value is required')
+    // 权限设置有 schema 与重新判定，只能经 /api/permissions 修改。
+    if (isPermissionSettingKey(key)) throw new AppError('bad-request', `Setting ${key} can only be changed through /api/permissions`)
     return this.#store.settings.set(key, value as JsonValue, expectedRevision)
   }
 }

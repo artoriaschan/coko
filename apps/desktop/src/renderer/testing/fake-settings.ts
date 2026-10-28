@@ -1,5 +1,5 @@
 // 单元测试与 Browser Mode 共用：按 Sidecar 规则实现设置 revision 与 Provider 的内存后端。
-import type { AvailableModel, Provider, Setting } from '@coko/protocol'
+import type { AvailableModel, PermissionsResponse, Provider, Setting } from '@coko/protocol'
 import { vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { CokoBridge } from '../../shared/bridge.ts'
@@ -10,6 +10,12 @@ export function fakeSettingsBackend() {
   const settings = new Map<string, Setting>()
   const providers: Provider[] = []
   let nextId = 1
+  const permissions: PermissionsResponse = { defaultMode: { value: 'default', revision: 0 }, global: { rules: [], revision: 0 } }
+  const workspaceRules = new Map<string, { rules: PermissionsResponse['global']['rules']; revision: number }>()
+  const permissionsOf = (workspaceId?: string): PermissionsResponse => ({
+    ...structuredClone(permissions),
+    ...(workspaceId ? { workspace: { workspaceId, ...structuredClone(workspaceRules.get(workspaceId) ?? { rules: [], revision: 0 }) } } : {}),
+  })
   const models = (): AvailableModel[] =>
     providers.flatMap((p) => p.models.map((modelId) => ({ providerId: p.id, providerName: p.name, modelId, name: modelId })))
   const api = {
@@ -50,6 +56,21 @@ export function fakeSettingsBackend() {
       providers[index] = { ...providers[index]!, ...patch }
       return providers[index]!
     }),
+    getPermissions: vi.fn<Api['getPermissions']>(async (workspaceId) => permissionsOf(workspaceId)),
+    updatePermissions: vi.fn<Api['updatePermissions']>(async (request) => {
+      const current =
+        request.target === 'defaultMode'
+          ? permissions.defaultMode.revision
+          : request.target === 'global'
+            ? permissions.global.revision
+            : (workspaceRules.get(request.workspaceId)?.revision ?? 0)
+      if (current !== request.expectedRevision)
+        throw new ApiError('revision-conflict', 'conflict', 409, { expected: request.expectedRevision, actual: current })
+      if (request.target === 'defaultMode') permissions.defaultMode = { value: request.value, revision: current + 1 }
+      else if (request.target === 'global') permissions.global = { rules: request.rules, revision: current + 1 }
+      else workspaceRules.set(request.workspaceId, { rules: request.rules, revision: current + 1 })
+      return permissionsOf(request.target === 'workspace' ? request.workspaceId : undefined)
+    }),
     deleteProvider: vi.fn<Api['deleteProvider']>(async (id) => {
       const index = providers.findIndex((p) => p.id === id)
       if (index < 0) throw new ApiError('not-found', 'missing', 404)
@@ -69,5 +90,5 @@ export function fakeSettingsBackend() {
     provider.credential = { hint: secret.slice(-4) }
     return { ok: true, hint: secret.slice(-4) }
   })
-  return { api: api as unknown as ApiClient, raw: api, settings, providers, externalWrite, setCredential }
+  return { api: api as unknown as ApiClient, raw: api, settings, providers, permissions, externalWrite, setCredential }
 }

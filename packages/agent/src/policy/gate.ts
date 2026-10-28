@@ -36,11 +36,15 @@ export function createPermissionGate(options: PermissionGateOptions) {
     const tool = options.tool(name)
     const subject = tool?.permissionSubject?.(context.args as never)
     const category = toolCategory(name)
-    const mode = options.mode()
-    const root = await realWorkspace()
-    const call: PermissionCall = { toolName: name, ...(subject === undefined ? {} : { subject }) }
-    if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
-    const decision = decide(call, { mode, rules: options.rules(), workspace: root, writableRoots: await writableRootsFor(mode, root) })
+    /** 按调用时的模式与规则判定；等待审批期间模式或规则变更后再次调用。 */
+    const evaluate = async () => {
+      const mode = options.mode()
+      const root = await realWorkspace()
+      const call: PermissionCall = { toolName: name, ...(subject === undefined ? {} : { subject }) }
+      if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
+      return decide(call, { mode, rules: options.rules(), workspace: root, writableRoots: await writableRootsFor(mode, root) })
+    }
+    const decision = await evaluate()
 
     if (decision.behavior === 'allow') return undefined
     if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
@@ -50,6 +54,12 @@ export function createPermissionGate(options: PermissionGateOptions) {
       resolution = await options.broker.request(
         { toolCallId: context.toolCall.id, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: decision.suggestions },
         signal,
+        async () => {
+          const next = await evaluate()
+          if (next.behavior === 'allow') return { behavior: 'allow' }
+          if (next.behavior === 'deny') return { behavior: 'deny', reason: deniedByRule(next.rule) }
+          return undefined
+        },
       )
     } catch (error) {
       options.commitFailed(error instanceof Error ? error : new Error(String(error)))
@@ -60,6 +70,8 @@ export function createPermissionGate(options: PermissionGateOptions) {
         return undefined
       case 'cancelled':
         return { block: true, reason: 'Operation aborted' }
+      case 'superseded':
+        return resolution.verdict.behavior === 'allow' ? undefined : { block: true, reason: resolution.verdict.reason }
       case 'denied':
         if (resolution.feedback !== undefined) return { block: true, reason: rejectedWithFeedback(resolution.feedback) }
         options.reject()

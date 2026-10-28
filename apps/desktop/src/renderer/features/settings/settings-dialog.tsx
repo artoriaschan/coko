@@ -1,5 +1,5 @@
 import { cn, Dialog, DialogContent, DialogDescription, DialogTitle } from '@coko/ui'
-import { BoxIcon, InfoIcon, SlidersHorizontalIcon } from 'lucide-react'
+import { BoxIcon, InfoIcon, ShieldIcon, SlidersHorizontalIcon } from 'lucide-react'
 import type * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
@@ -8,17 +8,19 @@ import { useSettingsDialog } from '../../app/settings.tsx'
 import { AboutSection } from './about-section.tsx'
 import { GeneralSection } from './general-section.tsx'
 import { ModelsSection } from './models-section.tsx'
+import { PermissionsSection } from './permissions-section.tsx'
 
 const SECTIONS: { id: SettingsSection; icon: React.ComponentType }[] = [
   { id: 'general', icon: SlidersHorizontalIcon },
   { id: 'models', icon: BoxIcon },
+  { id: 'permissions', icon: ShieldIcon },
   { id: 'about', icon: InfoIcon },
 ]
 
 const navRow =
   'flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground'
 
-/** 设置弹窗：General、Models、About（M1 分区）。窄窗口下分区导航改为横排。 */
+/** 设置弹窗：General、Models、Permissions、About。窄窗口下分区导航改为横排。 */
 export function SettingsDialog({ theme }: { theme: Theme }) {
   const { t } = useI18n()
   const { open, section, setSection, close } = useSettingsDialog()
@@ -47,6 +49,7 @@ export function SettingsDialog({ theme }: { theme: Theme }) {
         <div className={cn('min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 sm:pt-12')}>
           {section === 'general' && <GeneralSection theme={theme} />}
           {section === 'models' && <ModelsSection />}
+          {section === 'permissions' && <PermissionsSection />}
           {section === 'about' && <AboutSection />}
         </div>
       </DialogContent>

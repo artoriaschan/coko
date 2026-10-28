@@ -91,7 +91,14 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
   let label: string
   switch (decision.outcome) {
     case 'allowed':
-      label = t('approval.allowedOnce')
+      label =
+        decision.scope === 'session'
+          ? t('approval.allowedSession')
+          : decision.scope === 'workspace'
+            ? t('approval.allowedWorkspace')
+            : decision.scope === 'global'
+              ? t('approval.allowedGlobal')
+              : t('approval.allowedOnce')
       break
     case 'denied':
       label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
