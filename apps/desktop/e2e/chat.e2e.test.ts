@@ -54,6 +54,13 @@ async function sendMessage(app: LaunchedApp, text: string) {
 }
 
 const toolCard = (app: LaunchedApp, tool: string) => app.window.locator(`[data-slot="tool-card"][data-tool="${tool}"]`)
+/** write 与 bash 需要审批（票 02）：等审批卡出现并允许一次。 */
+async function allowOnce(app: LaunchedApp) {
+  await app.window
+    .locator('[data-slot="approval-card"]')
+    .getByRole('button', { name: /^(Allow once|允许一次)$/ })
+    .click({ timeout: 30_000 })
+}
 const assistantText = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' })
 
 const WRITE_SCRIPT = {
@@ -84,6 +91,7 @@ describe('对话闭环', () => {
       }).observe(document.body, { subtree: true, childList: true, characterData: true })
     })
     await sendMessage(app, 'write a greeting')
+    await allowOnce(app)
 
     await expect.poll(() => toolCard(app, 'write').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     expect(await toolCard(app, 'write').textContent()).toContain('notes/hello.txt')
@@ -110,6 +118,7 @@ describe('对话闭环', () => {
     const app = await launch(env, root)
     await addWorkspace(app, workspace)
     await sendMessage(app, 'wait for a while')
+    await allowOnce(app)
 
     await expect.poll(() => toolCard(app, 'bash').getAttribute('data-status'), { timeout: 30_000 }).toBe('running')
     const stop = app.window.locator('[data-action="stop"]')
@@ -133,6 +142,7 @@ describe('对话闭环', () => {
     const app = await launch(env, root)
     await addWorkspace(app, workspace)
     await sendMessage(app, 'wait for a while')
+    await allowOnce(app)
     await expect.poll(() => toolCard(app, 'bash').getAttribute('data-status'), { timeout: 30_000 }).toBe('running')
     // 焦点移到标题，离开输入区。
     await app.window.getByRole('heading', { level: 1 }).click()
@@ -149,6 +159,7 @@ describe('对话闭环', () => {
     const first = await launch(env, root)
     await addWorkspace(first, workspace)
     await sendMessage(first, 'write a greeting')
+    await allowOnce(first)
     await expect.poll(() => toolCard(first, 'write').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     await first.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     await first.dispose()
