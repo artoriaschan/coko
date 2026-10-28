@@ -13,6 +13,10 @@ import {
   CreateProviderRequest,
   isMainOnlyPath,
   CreateSessionRequest,
+  permissionPaths,
+  SessionPermissionRuleRequest,
+  SetPermissionModeRequest,
+  UpdatePermissionsRequest,
   RegisterWorkspaceRequest,
   SetSessionModelRequest,
   SubmitMessageRequest,
@@ -141,6 +145,21 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     await app.sessions.answerApproval(c.req.param('id'), c.req.param('requestId'), await body(c, AnswerApprovalRequest))
     return c.body(null, 204)
   })
+  http.get(`${API_ROUTES.sessions}/:id/permission-rules`, async (c) => c.json(await app.sessions.sessionPermissions(c.req.param('id'))))
+  http.put(`${API_ROUTES.sessions}/:id/permission-mode`, async (c) => {
+    const { mode } = await body(c, SetPermissionModeRequest)
+    return c.json(await app.sessions.setPermissionMode(c.req.param('id'), mode))
+  })
+  http.post(`${API_ROUTES.sessions}/:id/permission-rules`, async (c) => {
+    const { rule } = await body(c, SessionPermissionRuleRequest)
+    return c.json(await app.sessions.changeSessionRule(c.req.param('id'), 'add', rule))
+  })
+  http.delete(`${API_ROUTES.sessions}/:id/permission-rules`, async (c) => {
+    const { rule } = await body(c, SessionPermissionRuleRequest)
+    return c.json(await app.sessions.changeSessionRule(c.req.param('id'), 'remove', rule))
+  })
+  http.get(permissionPaths.permissions, async (c) => c.json(await app.sessions.getPermissions(c.req.query('workspaceId') || undefined)))
+  http.put(permissionPaths.permissions, async (c) => c.json(await app.sessions.updatePermissions(await body(c, UpdatePermissionsRequest))))
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
     const { model } = await body(c, SetSessionModelRequest)
     return c.json(await app.sessions.setModel(c.req.param('id'), model))

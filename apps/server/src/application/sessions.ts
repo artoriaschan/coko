@@ -8,6 +8,8 @@ import {
   resolveModel,
   type AgentRuntime,
   type ModelRegistry,
+  type PermissionMode,
+  type PermissionRule,
   type ProgressEvent as AgentProgress,
   type RunEntry,
   type RunResult,
@@ -21,6 +23,9 @@ import {
   type ProgressEvent,
   type AnswerApprovalRequest,
   type Session,
+  type SessionPermissionsResponse,
+  type UpdatePermissionsRequest,
+  type PermissionsResponse,
   type SessionDetailResponse,
   type SessionModel,
 } from '@coko/protocol'
@@ -28,6 +33,7 @@ import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session a
 import { Value } from 'typebox/value'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
+import { PermissionService, sameRule, withRules } from './permissions.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -51,6 +57,15 @@ export interface SessionServiceOptions {
    * onEntry 在每条条目提交并发布之后调用。
    */
   extensions?: (context: SessionExtensionContext) => SessionExtension
+  /** 默认：基于 store 新建。 */
+  permissions?: PermissionService
+}
+
+/** Session 的模式与 Session 规则：由 permission_mode / permission_rule 条目回放，之后随提交更新。 */
+interface SessionPermissionState {
+  workspaceId: string
+  mode: PermissionMode
+  rules: PermissionRule[]
 }
 
 export interface SessionExtensionContext {
@@ -98,9 +113,16 @@ export class SessionService {
   /** 正在创建或已创建的运行时；创建失败时移除。 */
   readonly #pending = new Map<string, Promise<AgentRuntime>>()
   readonly #runtimes = new Map<string, AgentRuntime>()
+  readonly #permissionStates = new Map<string, Promise<SessionPermissionState>>()
+  /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）。 */
+  readonly #permissionLocks = new Map<string, Promise<unknown>>()
+  /** 运行时的条目发布（含扩展的 onEntry）；没有运行时的 Session 直接提交并发布。 */
+  readonly #publishers = new Map<string, (entry: RunEntry) => Promise<StoredEntry>>()
+  readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
     this.#options = options
+    this.permissions = options.permissions ?? new PermissionService(options.store)
   }
 
   isRunning(sessionId: string): boolean {
@@ -128,13 +150,132 @@ export class SessionService {
   async create(input: { workspaceId: string; title?: string; model?: SessionModel }): Promise<Session> {
     if (input.model) this.#resolve(input.model, 'bad-request')
     const model = input.model ?? (await this.defaultModel())
+    const mode = await this.permissions.defaultMode()
     const session = await this.#options.store.sessions.createSession({
       workspaceId: input.workspaceId,
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
     })
-    log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId })
+    // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
+    await this.#commit(session.id, { kind: 'permission_mode', payload: { mode } })
+    log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId, mode })
     return this.toDto(session)
+  }
+
+  // ---- 权限：模式、Session 规则、默认模式与全局 / Workspace 规则 ----
+
+  async #commit(sessionId: string, entry: RunEntry): Promise<StoredEntry> {
+    const publish = this.#publishers.get(sessionId)
+    if (publish) return publish(entry)
+    const [committed] = await this.#options.store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+    this.#options.hub.publishEntry(committed!)
+    return committed!
+  }
+
+  #permissionState(session: StoredSession): Promise<SessionPermissionState> {
+    let state = this.#permissionStates.get(session.id)
+    if (!state) {
+      state = (async () => {
+        await Promise.all([this.permissions.load(), this.permissions.loadWorkspace(session.workspaceId)])
+        const replayed: SessionPermissionState = { workspaceId: session.workspaceId, mode: 'default', rules: [] }
+        for (const entry of await this.#options.store.sessions.listEntries(session.id)) {
+          if (entry.kind === 'permission_mode') replayed.mode = (entry.payload as { mode: PermissionMode }).mode
+          else if (entry.kind === 'permission_rule') {
+            const { op, rule } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
+            replayed.rules = op === 'add' ? withRules(replayed.rules, [rule]) : replayed.rules.filter((r) => !sameRule(r, rule))
+          }
+        }
+        return replayed
+      })()
+      state.catch(() => this.#permissionStates.delete(session.id))
+      this.#permissionStates.set(session.id, state)
+    }
+    return state
+  }
+
+  /** 同一 Session 的权限修改串行执行。 */
+  #locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.#permissionLocks.get(sessionId) ?? Promise.resolve()
+    const next = previous.then(task, task)
+    this.#permissionLocks.set(
+      sessionId,
+      next.catch(() => undefined),
+    )
+    return next
+  }
+
+  static #view(state: SessionPermissionState): SessionPermissionsResponse {
+    return { mode: state.mode, rules: [...state.rules] }
+  }
+
+  async sessionPermissions(sessionId: string): Promise<SessionPermissionsResponse> {
+    return SessionService.#view(await this.#permissionState(await this.#get(sessionId)))
+  }
+
+  /** 切换模式：提交 permission_mode 条目（与当前相同时不提交），之后重新判定该 Session 的待审批请求。 */
+  async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
+    const session = await this.#get(sessionId)
+    const view = await this.#locked(sessionId, async () => {
+      const state = await this.#permissionState(session)
+      if (state.mode !== mode) {
+        await this.#commit(sessionId, { kind: 'permission_mode', payload: { mode } })
+        state.mode = mode
+        log.info('permission mode changed', { sessionId, mode })
+      }
+      return SessionService.#view(state)
+    })
+    await this.#reevaluate((id) => id === sessionId)
+    return view
+  }
+
+  /** 增删 Session 规则：提交 permission_rule 条目（无变化时不提交），之后重新判定该 Session 的待审批请求。 */
+  async changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
+    const session = await this.#get(sessionId)
+    const view = await this.#locked(sessionId, () => this.#applySessionRules(session, op, [rule]))
+    await this.#reevaluate((id) => id === sessionId)
+    return view
+  }
+
+  async #applySessionRules(session: StoredSession, op: 'add' | 'remove', rules: readonly PermissionRule[]): Promise<SessionPermissionsResponse> {
+    const state = await this.#permissionState(session)
+    for (const rule of rules) {
+      const present = state.rules.some((r) => sameRule(r, rule))
+      if (present === (op === 'add')) continue
+      await this.#commit(session.id, { kind: 'permission_rule', payload: { op, rule } })
+      state.rules = op === 'add' ? [...state.rules, rule] : state.rules.filter((r) => !sameRule(r, rule))
+    }
+    return SessionService.#view(state)
+  }
+
+  getPermissions(workspaceId?: string): Promise<PermissionsResponse> {
+    return this.permissions.get(workspaceId)
+  }
+
+  /** 修改默认模式或全局 / Workspace 规则；规则变化后重新判定受影响 Session 的待审批请求。 */
+  async updatePermissions(request: UpdatePermissionsRequest): Promise<PermissionsResponse> {
+    const response = await this.permissions.update(request)
+    if (request.target === 'global') await this.#reevaluate(() => true)
+    else if (request.target === 'workspace') await this.#reevaluate((_id, workspaceId) => workspaceId === request.workspaceId)
+    return response
+  }
+
+  /** 让匹配的 Session 的待审批请求按当前模式与规则重新判定（变为 allow / deny 的以 superseded 结束）。 */
+  async #reevaluate(match: (sessionId: string, workspaceId: string) => boolean): Promise<void> {
+    const work: Promise<void>[] = []
+    for (const [sessionId, runtime] of this.#runtimes) {
+      const state = await this.#permissionStates.get(sessionId)?.catch(() => undefined)
+      if (!state || !match(sessionId, state.workspaceId)) continue
+      for (const request of runtime.pendingApprovals) {
+        if (request.kind !== 'tool') continue
+        work.push(
+          runtime.answerApproval(request.requestId, { decision: 'reevaluate' }).catch((error: unknown) => {
+            if (!(error instanceof ApprovalNotPendingError))
+              log.error('approval re-decision failed', { sessionId, requestId: request.requestId, error: String(error) })
+          }),
+        )
+      }
+    }
+    await Promise.all(work)
   }
 
   async detail(sessionId: string): Promise<SessionDetailResponse> {
@@ -226,22 +367,35 @@ export class SessionService {
   }
 
   /**
-   * 回答待审批请求；决定条目提交后返回。请求不在等待中时 approval-not-pending。M2 票 02 只支持仅本次；
-   * 保存规则的作用域（session / workspace / global）由票 03 交付，此前以 bad-request 拒绝。
+   * 回答待审批请求；决定条目提交后返回。请求不在等待中时 approval-not-pending。scope 为 session / workspace / global 时
+   * 先保存请求的建议规则（Session 规则为条目，其余为设置），再允许；没有建议规则的请求（受保护路径、越界写入、提权、
+   * 询问规则命中、无法拆分的命令）只能允许一次，否则 bad-request。保存后重新判定受影响的其他待审批请求。
    */
   async answerApproval(sessionId: string, requestId: string, answer: AnswerApprovalRequest): Promise<void> {
-    await this.#get(sessionId)
-    if (answer.decision === 'allow' && answer.scope !== undefined && answer.scope !== 'once')
-      throw new AppError('bad-request', `Approval scope ${answer.scope} is not supported yet`)
+    const session = await this.#get(sessionId)
     const runtime = this.#runtimes.get(sessionId)
     if (!runtime) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
+    const scope = answer.decision === 'allow' ? (answer.scope ?? 'once') : 'once'
+    if (scope !== 'once') {
+      const request = runtime.pendingApprovals.find((p) => p.requestId === requestId)
+      if (!request) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
+      if (request.kind !== 'tool' || request.suggestions.length === 0)
+        throw new AppError('bad-request', `Approval request ${requestId} can only be allowed once`)
+      const state = await this.#permissionState(session)
+      if (scope === 'session') await this.#locked(sessionId, () => this.#applySessionRules(session, 'add', request.suggestions))
+      else await this.permissions.addRules(scope === 'global' ? { kind: 'global' } : { kind: 'workspace', workspaceId: state.workspaceId }, request.suggestions)
+      log.info('permission rules saved', { sessionId, requestId, scope, count: request.suggestions.length })
+    }
     try {
       await runtime.answerApproval(requestId, answer)
     } catch (error) {
       if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
       throw error
     }
-    log.info('approval answered', { sessionId, requestId, decision: answer.decision })
+    log.info('approval answered', { sessionId, requestId, decision: answer.decision, scope })
+    if (scope === 'session') await this.#reevaluate((id) => id === sessionId)
+    else if (scope === 'workspace') await this.#reevaluate((_id, workspaceId) => workspaceId === session.workspaceId)
+    else if (scope === 'global') await this.#reevaluate(() => true)
   }
 
   async #get(sessionId: string): Promise<StoredSession> {
@@ -278,6 +432,7 @@ export class SessionService {
     // 恢复 Session：已提交的 message 条目就是模型可见的对话记录。
     const entries = await store.sessions.listEntries(session.id)
     const messages = entries.filter((entry) => entry.kind === 'message').map((entry) => entry.payload as unknown as AgentMessage)
+    const permissions = await this.#permissionState(session)
     let extension: SessionExtension = {}
     const publish = async (entry: RunEntry): Promise<StoredEntry> => {
       const [committed] = await store.sessions.appendEntries(session.id, [toNewEntry(entry)])
@@ -286,6 +441,7 @@ export class SessionService {
       return committed!
     }
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
+    this.#publishers.set(session.id, publish)
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
@@ -293,8 +449,11 @@ export class SessionService {
       ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
       sessionId: session.id,
       messages,
-      // 票 02：模式固定为 default、没有规则；模式与规则的回放与持久化由票 03 接入。
-      permissions: { mode: () => 'default', rules: () => [] },
+      // 每次调用现算：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。
+      permissions: {
+        mode: () => permissions.mode,
+        rules: () => [...permissions.rules, ...this.permissions.rulesFor(session.workspaceId)],
+      },
       ...(extension.hooks ? { hooks: extension.hooks } : {}),
       commit: async (entry) => {
         await publish(entry)

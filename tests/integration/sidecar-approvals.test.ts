@@ -43,14 +43,24 @@ describe('审批闭环', () => {
 
     const path = apiPaths.sessionApproval(sessionId, request.requestId)
     expect((await api.post(path, { decision: 'maybe' })).status).toBe(400)
-    expect((await api.post(path, { decision: 'allow', scope: 'global' })).body).toMatchObject({ error: { code: 'bad-request' } })
+    expect((await api.post(path, { decision: 'allow', scope: 'forever' })).body).toMatchObject({ error: { code: 'bad-request' } })
     expect((await api.post(path, { decision: 'allow', scope: 'once' })).status).toBe(204)
     expect(await api.post(path, { decision: 'allow', scope: 'once' })).toMatchObject({ status: 409, body: { error: { code: 'approval-not-pending' } } })
     await stream.waitFor(isRunEnd(sessionId))
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('hi')
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['run_start', 'user', 'assistant', 'approval_request', 'approval_decision', 'toolResult', 'assistant', 'run_end'])
+    expect(entries.map(kindOf)).toEqual([
+      'permission_mode',
+      'run_start',
+      'user',
+      'assistant',
+      'approval_request',
+      'approval_decision',
+      'toolResult',
+      'assistant',
+      'run_end',
+    ])
     expect(entries.find((e) => e.kind === 'approval_decision')?.payload).toEqual({ requestId: request.requestId, outcome: 'allowed', scope: 'once' })
     expect(stream.invalidEntries).toEqual([])
     expect((await api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: false, activity: 'idle' })
