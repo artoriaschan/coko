@@ -34,6 +34,8 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | apps/desktop | electron、vitest；renderer：react、react-dom、lucide-react、@coko/ui、@coko/i18n，开发依赖 vite、@vitejs/plugin-react、@tailwindcss/vite、@types/react、@types/react-dom、vitest-browser-react、@vitest/browser-playwright、playwright |
 | packages/ui | radix-ui、class-variance-authority、clsx、tailwind-merge、tailwindcss、tw-animate-css、lucide-react、streamdown、@streamdown/code、@streamdown/math、@streamdown/mermaid、@streamdown/cjk、katex、sonner；peer react、react-dom；开发依赖 react、react-dom、@types/react、@types/react-dom、vite、@vitejs/plugin-react、@tailwindcss/vite、typescript（样式守卫解析 TSX）、vitest、vitest-browser-react、@vitest/browser-playwright、playwright |
 | packages/i18n | vitest |
+| packages/session | vitest、electron（devDependency，仅用于以 `ELECTRON_RUN_AS_NODE=1` 运行存储测试） |
+| packages/agent | @earendil-works/pi-agent-core、@earendil-works/pi-ai、typebox、diff、ignore、vitest；pi-ai 只经子路径导入 Chat Completions、Responses、Anthropic Messages 三个协议及 DeepSeek、OpenAI、Anthropic 模型目录 |
 | apps/server 与其余 packages | vitest |
 
 根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
@@ -90,6 +92,8 @@ overrides:
 | 设置、Session 与执行记录 | `node:sqlite`（Electron 内置 Node.js 提供）单库，由 packages/session 管理 schema、迁移与事务提交，见 [ADR 0003](adr/0003-settings-and-sessions-in-sqlite.md) |
 | 宿主写者互斥 | 同一 SQLite 库内的宿主租约，配合 Electron 单实例锁 |
 | 恢复任务 | packages/agent 定义状态机与恢复策略；session 保存记录；server 启动扫描并唤醒 |
+
+Electron 41.0.3 内置的 `node:sqlite`（SQLite 3.51.2）编译了 FTS5，依据为 2026-10-28 的本机实测；升级 Electron 时由 packages/session 的 Electron 运行时测试复核。
 
 @hono/node-server 2.1.5 的 peer 为 `hono ^4 || ^5.0.0-0`；其 WebSocket 支持需项目自行安装 ws 并传入 `WebSocketServer`。移除原选型的 Bun 1.4.2、@types/bun 1.4.2 和 @hono/bun 1.0.0。[@hono/node-server 包元数据](https://registry.npmjs.org/@hono/node-server/2.1.5)、[WebSocket 用法](https://github.com/honojs/node-server#websocket)
 
