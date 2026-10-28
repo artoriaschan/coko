@@ -27,6 +27,8 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
     label: 'find',
     description: `Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore. Output is truncated to ${DEFAULT_LIMIT} results or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first).`,
     parameters: findParameters,
+    effect: 'read',
+    permissionSubject: (args) => args.path ?? '.',
     async execute(_toolCallId, { pattern, path, limit }, signal) {
       throwIfAborted(signal)
       const searchPath = resolveToCwd(path || '.', cwd)

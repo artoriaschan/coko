@@ -1,4 +1,15 @@
-import { SessionEntry, type ProgressEvent, type RunStatus, type ServerMessage, type Session, type SessionModel, type Workspace } from '@coko/protocol'
+import {
+  SessionEntry,
+  type AnswerApprovalRequest,
+  type ProgressEvent,
+  type RunStatus,
+  type ServerMessage,
+  type Session,
+  type SessionActivity,
+  type SessionEntryOf,
+  type SessionModel,
+  type Workspace,
+} from '@coko/protocol'
 import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
@@ -45,7 +56,30 @@ export interface Conversation {
   unrecordedEnd?: UnrecordedRunEnd
 }
 
-export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model'; error: ApiError }
+export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval'; error: ApiError }
+
+/**
+ * 仍在等待回答的审批请求（按提出顺序）：有 approval_request、没有对应的 approval_decision，且所属 Run 尚未结束。
+ * 断线重连后由补发的条目重建。
+ */
+export function pendingApprovals(entries: readonly SessionEntry[]): SessionEntryOf<'approval_request'>[] {
+  const decided = new Set<string>()
+  const ended = new Set<string>()
+  for (const entry of entries) {
+    if (entry.kind === 'approval_decision') decided.add(entry.payload.requestId)
+    else if (entry.kind === 'run_end' && entry.runId) ended.add(entry.runId)
+  }
+  return entries.filter(
+    (entry): entry is SessionEntryOf<'approval_request'> =>
+      entry.kind === 'approval_request' && !decided.has(entry.payload.requestId) && !(entry.runId !== null && ended.has(entry.runId)),
+  )
+}
+
+/** 已打开会话的运行状态（由条目与订阅状态派生）。 */
+export function conversationActivity(conversation: Pick<Conversation, 'entries' | 'running'>): SessionActivity {
+  if (!conversation.running) return 'idle'
+  return pendingApprovals(conversation.entries).length > 0 ? 'awaiting-approval' : 'running'
+}
 
 export interface ChatState {
   workspaces: Workspace[]
@@ -74,6 +108,11 @@ export interface ChatActions {
   retry(): Promise<boolean>
   /** 当前会话经协议切换模型；草稿中只记下选择。 */
   selectModel(model: SessionModel): Promise<void>
+  /**
+   * 回答当前会话的待审批请求。同一请求只发送一次：发送中或已成功的重复调用直接返回 true；失败时可再次回答。
+   * 返回是否已被接受。
+   */
+  answerApproval(requestId: string, answer: AnswerApprovalRequest): Promise<boolean>
 }
 
 export type ChatStore = StoreApi<ChatState & ChatActions>
@@ -103,6 +142,8 @@ export function titleFromText(text: string): string {
  */
 export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000 }: ChatStoreOptions): ChatStore {
   const subscribed = new Map<string, Set<() => void>>()
+  /** 已发出或已被接受的审批回答（requestId 唯一）。 */
+  const answering = new Set<string>()
   let loadedOnce = false
 
   const store = createStore<ChatState & ChatActions>()((set, get) => {
@@ -246,6 +287,23 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         return submit(sessionId, () => api.retryRun(sessionId), 'retry')
       },
 
+      async answerApproval(requestId, answer) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return false
+        if (answering.has(requestId)) return true
+        answering.add(requestId)
+        try {
+          await api.answerApproval(sessionId, requestId, answer)
+          return true
+        } catch (error) {
+          const failure = toApiError(error)
+          // 请求已经结束（例如另一处已回答）：不再允许重答，等决定条目到达。
+          if (failure.code !== 'approval-not-pending') answering.delete(requestId)
+          onFailure?.({ kind: 'approval', error: failure })
+          return false
+        }
+      },
+
       async selectModel(model) {
         const sessionId = get().activeSessionId
         if (sessionId === null) {
@@ -279,7 +337,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           running: message.running,
           live: message.running ? (c.live ?? emptyLive(null, false)) : null,
         }))
-        patchSession(message.sessionId, { running: message.running })
+        const subscribedTo = store.getState().conversations[message.sessionId]
+        patchSession(message.sessionId, {
+          running: message.running,
+          ...(subscribedTo ? { activity: conversationActivity(subscribedTo) } : {}),
+        })
         for (const finish of subscribed.get(message.sessionId) ?? []) finish()
         return
       }
@@ -297,9 +359,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           const live = committedAssistant && c.live ? { ...c.live, accepting: true, blocks: [], retry: undefined } : c.live
           return { ...c, entries, lastSeq: entry.seq, live }
         })
+        const after = store.getState().conversations[message.sessionId]
         patchSession(message.sessionId, {
           updatedAt: record.createdAt,
           ...(entry?.kind === 'run_end' ? { running: false } : {}),
+          ...(after ? { activity: conversationActivity(after) } : {}),
         })
         return
       }
@@ -313,7 +377,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             const unrecordedEnd: UnrecordedRunEnd = { runId: message.runId, status: event.status, ...(event.error ? { error: event.error } : {}) }
             return { ...c, running: false, live: null, unrecordedEnd: recorded ? undefined : unrecordedEnd }
           })
-          patchSession(message.sessionId, { running: false })
+          patchSession(message.sessionId, { running: false, activity: 'idle' })
           return
         }
         patchConversation(message.sessionId, (c) => ({
@@ -322,7 +386,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           live: reduceProgress(c.live, message.runId, event),
           ...(event.type === 'run_start' ? { unrecordedEnd: undefined } : {}),
         }))
-        if (event.type === 'run_start') patchSession(message.sessionId, { running: true })
+        if (event.type === 'run_start') patchSession(message.sessionId, { running: true, activity: 'running' })
         return
       }
       case 'error': {

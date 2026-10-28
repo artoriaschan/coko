@@ -1,4 +1,5 @@
-// 产物 smoke：对 electron-forge package 的输出（out/）运行真实应用，完成一次 faux 对话，确认 grep 使用随包 ripgrep。
+// 产物 smoke：对 electron-forge package 的输出（out/）运行真实应用，完成一次 faux 对话，确认 grep 使用随包 ripgrep，
+// 并在审批卡中允许一次 bash 写入（票 02）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -97,6 +98,7 @@ describe('打包产物 smoke', () => {
         tokensPerSecond: 40,
         responses: [
           { content: [{ type: 'toolCall', name: 'grep', id: 'g1', arguments: { pattern: 'needle' } }] },
+          { content: [{ type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'printf found > found.txt' } }] },
           { content: 'Found the needle in **notes.txt**.' },
         ],
       }),
@@ -128,6 +130,13 @@ describe('打包产物 smoke', () => {
     await expect.poll(() => card.getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     await card.locator('[aria-expanded]').first().click()
     await expect.poll(() => card.textContent()).toContain('notes.txt:2: needle in the haystack')
+    // 审批：bash 写入在产物中经审批卡允许一次后执行。
+    const approval = page.locator('[data-slot="approval-card"]')
+    await approval.waitFor({ timeout: 30_000 })
+    expect(await readFile(join(workspace, 'found.txt'), 'utf8').catch(() => null)).toBeNull()
+    await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
+    await expect.poll(() => page.locator('[data-slot="tool-card"][data-tool="bash"]').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
+    expect(await readFile(join(workspace, 'found.txt'), 'utf8')).toBe('found')
     await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     expect(await page.getByRole('article', { name: 'Coko' }).last().textContent()).toBe('Found the needle in notes.txt.')
 

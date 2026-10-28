@@ -333,3 +333,19 @@ export class Stream {
 }
 
 export const isRunEnd = (sessionId: string) => (m: ServerMessage) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'run_end'
+
+export interface ApprovalRequestEntry {
+  requestId: string
+  toolCallId: string
+  toolName: string
+  kind: 'tool' | 'escalation'
+  subject: string
+  suggestions: unknown[]
+}
+
+/** 等第 n 条（从 1 起）approval_request 条目，返回其 payload。 */
+export async function waitApproval(stream: Stream, sessionId: string, n = 1): Promise<ApprovalRequestEntry> {
+  const requests = () => stream.entries(sessionId).filter((e) => e.kind === 'approval_request')
+  await stream.waitFor(() => requests().length >= n)
+  return requests()[n - 1]!.payload as ApprovalRequestEntry
+}

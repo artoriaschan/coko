@@ -129,6 +129,8 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
     label: 'grep',
     description: `Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore. Output is truncated to ${GREP_DEFAULT_LIMIT} matches or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). Long lines are truncated to ${GREP_MAX_LINE_LENGTH} chars.`,
     parameters: grepParameters,
+    effect: 'read',
+    permissionSubject: (args) => args.path ?? '.',
     async execute(_toolCallId, params, signal) {
       throwIfAborted(signal)
       const searchPath = resolveToCwd(params.path || '.', cwd)

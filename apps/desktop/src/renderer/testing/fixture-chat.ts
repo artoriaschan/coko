@@ -133,6 +133,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     },
     submitMessage: async () => ({ runId: 'run-2' }),
     abortRun: async () => ({ aborted: true }),
+    answerApproval: async () => undefined,
   } satisfies ApiClient
   const chat: ChatStore = createChatStore({ api, stream })
   void chat.getState().load()

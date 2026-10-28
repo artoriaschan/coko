@@ -18,6 +18,8 @@ export function createWriteTool({ cwd }: { cwd: string }): CokoTool<typeof write
     label: 'write',
     description: "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
     parameters: writeParameters,
+    effect: 'side-effect',
+    permissionSubject: (args) => args.path,
     async execute(_toolCallId, { path, content }, signal) {
       const absolutePath = resolveToCwd(path, cwd)
       // Check the signal between steps instead of rejecting from a listener, so the queue stays

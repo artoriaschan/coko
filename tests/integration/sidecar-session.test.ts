@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval, type Stream } from './sidecar-harness.ts'
 
 async function boot(dirs: Awaited<ReturnType<typeof sidecarDirs>>, script?: string) {
   const sidecar = await startSidecar({ dirs, ...(script ? { env: { COKO_FAUX_SCRIPT: script } } : {}) })
@@ -20,6 +20,16 @@ async function newSession(api: ReturnType<typeof client>, workspacePath: string)
 }
 
 const role = (entry: SessionEntryRecord) => (entry.payload as { role?: string }).role
+
+/** write 与 bash 需要审批（票 02）：等第 n 条请求并允许一次，再等它的决定条目提交（之后调用才执行）。 */
+async function allowNext(api: ReturnType<typeof client>, stream: Stream, sessionId: string, n = 1) {
+  const request = await waitApproval(stream, sessionId, n)
+  expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'allow', scope: 'once' })).status).toBe(204)
+  await stream.waitFor(
+    (m) => m.type === 'entry' && m.entry.kind === 'approval_decision' && (m.entry.payload as { requestId: string }).requestId === request.requestId,
+  )
+  return request
+}
 
 describe('Session 协议', () => {
   it('提交消息后收到 progress 与按 seq 递增的 entry，Agent 写入的文件存在', async () => {
@@ -48,6 +58,7 @@ describe('Session 协议', () => {
     const submitted = await api.post(apiPaths.sessionMessages(sessionId), { text: 'write a greeting' })
     expect(submitted.status).toBe(202)
     const { runId } = submitted.body as { runId: string }
+    await allowNext(api, stream, sessionId)
     await stream.waitFor(isRunEnd(sessionId))
 
     const progress = stream.messages.filter((m): m is Extract<ServerMessage, { type: 'progress' }> => m.type === 'progress')
@@ -61,7 +72,16 @@ describe('Session 协议', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1))
-    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual(['run_start', 'user', 'assistant', 'toolResult', 'assistant', 'run_end'])
+    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'approval_request',
+      'approval_decision',
+      'toolResult',
+      'assistant',
+      'run_end',
+    ])
     expect(entries.every((e) => e.runId === runId)).toBe(true)
     expect(entries[0]?.payload).toEqual({ trigger: 'submit' })
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
@@ -86,7 +106,7 @@ describe('Session 协议', () => {
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
 
     expect((await first.api.post(apiPaths.sessionMessages(sessionId), { text: 'wait' })).status).toBe(202)
-    await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'tool_start')
+    await allowNext(first.api, stream, sessionId)
     expect((await first.api.get(apiPaths.session(sessionId))).body.session.running).toBe(true)
     expect((await first.api.post(apiPaths.sessionMessages(sessionId), { text: 'again' })).body).toMatchObject({ error: { code: 'run-in-progress' } })
     first.sidecar.send({ type: 'inspect-quit', requestId: 1 })
@@ -122,7 +142,7 @@ describe('Session 协议', () => {
     const stream = await connect(first.sidecar, first.cookie)
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await first.api.post(apiPaths.sessionMessages(sessionId), { text: 'wait' })
-    await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'tool_start')
+    await allowNext(first.api, stream, sessionId)
     expect(await first.sidecar.stop()).toEqual({ code: 0, signal: null })
     expect(await stream.closed).toBe(1001)
 
@@ -195,6 +215,7 @@ describe('Session 协议', () => {
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed')
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'print env' })
+    await allowNext(api, stream, sessionId)
     await stream.waitFor(isRunEnd(sessionId))
     const result = stream.entries(sessionId).find((e) => role(e) === 'toolResult')
     const output = JSON.stringify(result?.payload)
@@ -234,6 +255,7 @@ describe('Session 协议', () => {
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed')
     const { runId } = (await api.post(apiPaths.sessionMessages(sessionId), { text: 'steal the lease' })).body as { runId: string }
+    await allowNext(api, stream, sessionId)
     const end = await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'run_end')
     expect(end).toMatchObject({ runId, event: { type: 'run_end', status: 'error', error: { code: 'commit_failed' } } })
     expect(stream.entries(sessionId).some((e) => e.kind === 'run_end')).toBe(false)

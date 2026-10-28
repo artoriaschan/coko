@@ -1,5 +1,5 @@
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from '@earendil-works/pi-agent-core'
-import type { TSchema } from 'typebox'
+import type { Static, TSchema } from 'typebox'
 
 /**
  * Tool contract used by Coko: pi's AgentTool plus an optional unified timeout.
@@ -13,7 +13,19 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
    * its own, like bash's `timeout` argument). Omitted: the runtime default applies.
    */
   timeoutMs?: number
+  /**
+   * `read`: no side effects; `side-effect`: may change files, processes or external state. Omitted: side-effect.
+   * Not part of the contract compared on override, but an override should keep the built-in's value.
+   */
+  effect?: ToolEffect
+  /**
+   * What the permission decision looks at: a path for read/grep/find/ls/write/edit, the command for bash.
+   * Receives the validated arguments. Omitted: the tool is judged by name only.
+   */
+  permissionSubject?: (args: Static<TParameters>) => string | undefined
 }
+
+export type ToolEffect = 'read' | 'side-effect'
 
 export type { AgentToolResult, AgentToolUpdateCallback }
 

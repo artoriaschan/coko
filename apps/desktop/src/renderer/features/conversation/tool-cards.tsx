@@ -83,6 +83,29 @@ function GenericBody({ item }: { item: ToolItem }) {
   )
 }
 
+/** 已结束审批的决定，显示在工具卡标题行。 */
+function ApprovalMeta({ item }: { item: ToolItem }) {
+  const { t } = useI18n()
+  const decision = item.approval?.decision
+  if (!decision) return null
+  let label: string
+  switch (decision.outcome) {
+    case 'allowed':
+      label = t('approval.allowedOnce')
+      break
+    case 'denied':
+      label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
+      break
+    default:
+      label = t(`approval.${decision.outcome}`)
+  }
+  return (
+    <span data-approval-outcome={decision.outcome} className="max-w-60 shrink truncate text-ui-small text-muted-foreground" title={label}>
+      {label}
+    </span>
+  )
+}
+
 export function ToolCardView({ item }: { item: ToolItem }) {
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
@@ -97,6 +120,7 @@ export function ToolCardView({ item }: { item: ToolItem }) {
         summary={item.call.name}
         status={item.status}
         statusLabel={statusLabel}
+        meta={<ApprovalMeta item={item} />}
         defaultExpanded={item.status === 'error'}
       >
         <GenericBody item={item} />
@@ -112,6 +136,7 @@ export function ToolCardView({ item }: { item: ToolItem }) {
       summary={view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
+      meta={<ApprovalMeta item={item} />}
       defaultExpanded={view.expanded === true || item.status === 'error'}
     >
       {hasBody ? view.body(item, args) : undefined}

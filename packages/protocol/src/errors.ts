@@ -12,6 +12,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('nothing-to-retry'),
   /** Session 没有可用模型（未配置 Provider 或模型不存在）。 */
   Type.Literal('model-not-configured'),
+  /** 审批请求不在等待中（已回答、已取消或不存在）。 */
+  Type.Literal('approval-not-pending'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   Type.Literal('revision-conflict'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */

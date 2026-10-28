@@ -60,6 +60,8 @@ export const apiPaths = {
   sessionRetry: (id: string) => `${apiPaths.session(id)}/retry`,
   /** POST：停止当前 Run。 */
   sessionAbort: (id: string) => `${apiPaths.session(id)}/abort`,
+  /** POST：回答待审批请求（AnswerApprovalRequest），204。 */
+  sessionApproval: (id: string, requestId: string) => `${apiPaths.session(id)}/approvals/${encodeURIComponent(requestId)}`,
   /** PUT：切换 Session 的模型。 */
   sessionModel: (id: string) => `${apiPaths.session(id)}/model`,
   setting: (key: string) => `${API_ROUTES.settings}/${encodeURIComponent(key)}`,

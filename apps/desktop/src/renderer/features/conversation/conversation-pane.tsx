@@ -7,7 +7,9 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
+import { pendingApprovals } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
+import { ApprovalPanel } from './approval-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { ModelPicker } from './model-picker.tsx'
 import { buildTimeline } from './timeline.ts'
@@ -37,7 +39,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
-  const { send, stop, retry, openSession, selectModel } = useChatActions()
+  const { send, stop, retry, openSession, selectModel, answerApproval } = useChatActions()
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
   const defaultModel = useSettings((s) => s.defaultModel)
@@ -47,6 +49,21 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const needsSetup = settingsStatus === 'ready' && models.length === 0
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
   const running = conversation?.running ?? false
+  // 同一时刻只有一张审批卡：最早的待审批请求接管输入区。
+  const pending = React.useMemo(() => (conversation?.running ? pendingApprovals(conversation.entries)[0] : undefined), [conversation])
+  const pendingCall = React.useMemo(() => {
+    if (!pending) return undefined
+    const item = items.find((i) => i.kind === 'tool' && i.call.id === pending.payload.toolCallId)
+    return item?.kind === 'tool' ? item.call : undefined
+  }, [items, pending])
+  // 输入区被接管时焦点若在其中，移到审批卡上；回答后回到输入区。
+  const composerArea = React.useRef<HTMLDivElement>(null)
+  const [focusCard, setFocusCard] = React.useState(false)
+  const requestId = pending?.payload.requestId
+  React.useLayoutEffect(() => {
+    if (requestId === undefined) return
+    setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
+  }, [requestId])
 
   const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
 
@@ -126,26 +143,39 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         </div>
 
         <div className="shrink-0 px-4 pb-4">
-          <Composer
-            ref={composerRef}
-            className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
-            running={running}
-            disabled={activeSessionId === null && draftWorkspaceId === null}
-            needsSetup={needsSetup}
-            onSend={send}
-            onStop={() => void stop()}
-            onSetup={() => settingsDialog.show('models')}
-            accessory={
-              models.length > 0 && (
-                <ModelPicker
-                  models={models}
-                  value={model}
-                  disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                  onChange={(m) => void selectModel(m)}
-                />
-              )
-            }
-          />
+          {pending && (
+            <ApprovalPanel
+              className={composerColumn}
+              request={pending.payload}
+              call={pendingCall}
+              autoFocus={focusCard}
+              onAllow={() => answerApproval(pending.payload.requestId, { decision: 'allow', scope: 'once' })}
+              onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
+            />
+          )}
+          {/* 被审批卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
+          <div ref={composerArea} hidden={pending !== undefined}>
+            <Composer
+              ref={composerRef}
+              className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
+              running={running}
+              disabled={activeSessionId === null && draftWorkspaceId === null}
+              needsSetup={needsSetup}
+              onSend={send}
+              onStop={() => void stop()}
+              onSetup={() => settingsDialog.show('models')}
+              accessory={
+                models.length > 0 && (
+                  <ModelPicker
+                    models={models}
+                    value={model}
+                    disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
+                    onChange={(m) => void selectModel(m)}
+                  />
+                )
+              }
+            />
+          </div>
         </div>
         {connection.phase === 'failed' && (
           <ConnectionFailure code={connection.code} message={connection.message} crashed={connection.crashed === true} onOpenLogs={onOpenLogs} />

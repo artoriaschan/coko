@@ -56,6 +56,16 @@ export const ApprovalDecisionPayload = Type.Object(
 )
 export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>
 
+/**
+ * POST /api/sessions/:id/approvals/:requestId：回答待审批请求，204。请求不在等待中时 409 approval-not-pending。
+ * feedback 只随拒绝：带反馈的拒绝作为工具错误交给模型，Run 继续；无反馈的拒绝在本批工具结束后以 aborted 结束 Run。
+ */
+export const AnswerApprovalRequest = Type.Union([
+  Type.Object({ decision: Type.Literal('allow'), scope: Type.Optional(ApprovalScope) }, strict),
+  Type.Object({ decision: Type.Literal('deny'), feedback: Type.Optional(Type.String({ maxLength: 4000 })) }, strict),
+])
+export type AnswerApprovalRequest = Static<typeof AnswerApprovalRequest>
+
 export const permissionEntryPayloadSchemas = {
   permission_mode: PermissionModePayload,
   permission_rule: PermissionRulePayload,

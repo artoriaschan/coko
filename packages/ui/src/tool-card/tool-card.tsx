@@ -2,7 +2,8 @@ import { ChevronRightIcon, LoaderCircleIcon } from 'lucide-react'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 
-export type ToolCardStatus = 'running' | 'done' | 'error' | 'pending'
+/** awaiting：等待用户审批，尚未执行。 */
+export type ToolCardStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
 
 export interface ToolCardProps {
   icon: React.ReactNode
@@ -91,6 +92,7 @@ function ToolStatus({ status, label }: { status: ToolCardStatus; label: string }
         status === 'done' && 'bg-success',
         status === 'error' && 'bg-destructive',
         status === 'pending' && 'bg-muted-foreground',
+        status === 'awaiting' && 'bg-warning',
       )}
     />
   )
