@@ -1,7 +1,7 @@
 # M1 行走骨架：规格
 
 Status: ready-for-agent
-Spec status: approved（按用户常设指示采纳推荐，2026-10-28）
+Spec status: delivered（2026-10-29，main 84a53f8；遗留项见地图 Carry-overs，真实模型场景未验证）
 Map: [Coko 桌面应用](../desktop-app/map.md) · [里程碑划分](../desktop-app/issues/06-grill-milestone-route.md)
 
 ## Problem Statement

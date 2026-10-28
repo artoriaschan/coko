@@ -50,8 +50,8 @@ Status: open
 
 | 里程碑 | 目录 | 状态 |
 | --- | --- | --- |
-| M1 行走骨架 | `.scratch/m1-walking-skeleton/` | next |
-| M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | pending |
+| M1 行走骨架 | `.scratch/m1-walking-skeleton/` | delivered（[复盘](../m1-walking-skeleton/retro.md)） |
+| M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | next |
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | pending |
 | M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | pending |
 | M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
