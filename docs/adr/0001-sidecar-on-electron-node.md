@@ -33,8 +33,8 @@ category: architecture
 ## 后果与验证
 
 - 产品运行时只剩 Electron；安装包不再携带独立运行时；sidecar 与 main 共用 Electron 的 Node ABI 和原生模块重建流程。
-- 保持 `RunAsNode` 开启意味着本机任意进程都可以把已签名的应用当作 Node 解释器运行，并带上应用的签名身份。若安全要求需要关闭该 fuse，应重新评估 `utilityProcess`。
-- `node:sqlite` 是否包含在 Electron 41.0.3 的 Node 构建中尚未实测。首个切片必须在 `ELECTRON_RUN_AS_NODE` 下验证能打开数据库并完成写者互斥；不可用时回到本决定重新选择，不得静默替换实现。
+- 保持 `RunAsNode` 开启意味着本机任意进程都可以把已签名的应用当作 Node 解释器运行，并带上应用的签名身份。用户于 2026-10-28 确认接受这一安全代价。若之后的安全要求需要关闭该 fuse，应重新评估 `utilityProcess`。
+- 用户于 2026-10-28 确认 `node:sqlite` 在 Electron 41.0.3 中可用。首个切片的 `ELECTRON_RUN_AS_NODE` 集成测试仍须覆盖打开数据库和写者互斥，作为本项目的实现证据；升级 Electron 时重新确认。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar 的集成测试，以及已签名安装包中 sidecar 启动与退出的产物 smoke。
 
 ## 来源与后继
