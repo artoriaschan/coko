@@ -100,6 +100,19 @@ describe('SidecarProcess', () => {
     await expect(slow.sidecar.inspectQuit()).rejects.toThrow(/timed out/)
   })
 
+  it('子进程退出时挂起的 inspectQuit 立即以 Sidecar exited 拒绝，不等超时', async () => {
+    const { sidecar } = await launch('slow-inspect', {}, { inspectMs: 30_000 })
+    await sidecar.start()
+    const pending = sidecar.inspectQuit()
+    const outcome = pending.then(
+      () => 'resolved',
+      (error: unknown) => error,
+    )
+    process.kill(sidecar.pid!, 'SIGKILL')
+    await sidecar.exited
+    expect(await outcome).toMatchObject({ message: 'Sidecar exited' })
+  })
+
   it('ready 之后的意外退出经 onUnexpectedExit 报告一次', async () => {
     const { sidecar } = await launch('normal')
     const exits: unknown[] = []

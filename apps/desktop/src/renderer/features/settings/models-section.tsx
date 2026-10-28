@@ -1,5 +1,5 @@
 import type { MessageKey } from '@coko/i18n'
-import type { Provider, ProviderKind, ProviderPreset } from '@coko/protocol'
+import { ProviderKind, type Provider, type ProviderPreset } from '@coko/protocol'
 import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
 import { ChevronDownIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
@@ -9,7 +9,8 @@ import type { ApiError } from '../../client/api.ts'
 import type { ProviderDraft } from '../../stores/settings-store.ts'
 import { SettingsCard } from './settings-dialog.tsx'
 
-const KINDS: ProviderKind[] = ['deepseek', 'openai', 'anthropic', 'openai-compatible']
+/** 新建菜单的顺序即协议 schema 中 kind 的顺序。 */
+const KINDS: ProviderKind[] = ProviderKind.anyOf.map((literal) => literal.const)
 
 /** 正在编辑的表单：key 在表单生命周期内不变（新建后转为编辑也不重挂载，保留输入）。 */
 interface Editing {

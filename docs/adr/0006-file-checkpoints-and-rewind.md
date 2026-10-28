@@ -2,7 +2,7 @@
 kind: decision
 description: "Checkpoint 只追踪文件工具的改动，原内容存为内容寻址文件、引用记为 Session Entry；回退对话以追加记录实现，不删除条目。修改快照、回退或分叉时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -37,6 +37,7 @@ M2 要让用户把 Session 的对话、文件或两者退回到某条用户消�
 - 回退不能撤销 bash 造成的文件变化，也不能撤销外部副作用。
 - 快照目录持续增长，直到实现 Session 删除与快照清理。
 - 回退本身不能再撤销；被回退的条目仍可查看。
+- 当前为 partial：备份与快照存储已实现。packages/session 的 `@coko/session/blobs` 提供快照目录（见 [@coko/session](../../packages/session/README.md#快照存储)）；packages/agent 的 checkpoint tracker 经 `beforeToolCall` 位于权限 hook 之后，在锚点下首次修改前提交 `file_backup`，修改后提交 `file_change`；Sidecar 把快照目录接到 `<dataDir>/blobs`。经协议的集成测试覆盖了备份时机与内容、新建文件记为不存在、新锚点下重新备份、bash 不追踪、超限文件未追踪与被拒绝的调用不备份。回退对话与代码、Agent 之外改动的标记、分叉、前置条件与界面尚未实现。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar 的集成测试，覆盖备份时机与内容、超限文件、三种回退模式下的文件内容与模型上下文、Agent 之外改动的标记、分叉不影响原 Session，以及 Run 进行中拒绝回退；Electron E2E 覆盖回退入口与确认对话框。
 
 ## 来源与后继

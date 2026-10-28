@@ -16,8 +16,13 @@ const fakeEncryption = (available = true): Encryption => ({
 function fakeChannel(options: { ready?: boolean; answer?: (message: MainToSidecarMessage) => SidecarToMainMessage | undefined } = {}) {
   const sent: MainToSidecarMessage[] = []
   const listeners = new Set<(message: SidecarToMainMessage) => void>()
+  const unavailableListeners = new Set<() => void>()
   const deliver = (message: SidecarToMainMessage) => {
     for (const listener of listeners) listener(message)
+  }
+  /** 模拟 Sidecar 意外退出。 */
+  const exit = () => {
+    for (const listener of unavailableListeners) listener()
   }
   const channel: CredentialChannel = {
     isReady: () => options.ready ?? true,
@@ -30,8 +35,12 @@ function fakeChannel(options: { ready?: boolean; answer?: (message: MainToSideca
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    onUnavailable(listener) {
+      unavailableListeners.add(listener)
+      return () => unavailableListeners.delete(listener)
+    },
   }
-  return { channel, sent, deliver }
+  return { channel, sent, deliver, exit }
 }
 
 const acceptStore = (message: MainToSidecarMessage): SidecarToMainMessage | undefined =>
@@ -95,6 +104,24 @@ describe('Credential bridge', () => {
 
     const silent = createCredentialBridge({ encryption, channel: fakeChannel().channel, timeoutMs: 50 })
     expect(await silent.set('p-1', 'sk-valid-key-123')).toMatchObject({ ok: false, code: 'timeout' })
+  })
+
+  it('Sidecar 在确认前退出时，挂起的 credential.store 立即以 sidecar-unavailable 结束，不等超时', async () => {
+    const { channel, sent, deliver, exit } = fakeChannel()
+    const bridge = createCredentialBridge({ encryption: fakeEncryption(), channel, timeoutMs: 60_000 })
+    const pending = bridge.set('p-1', 'sk-valid-key-123')
+    expect(sent).toHaveLength(1)
+    const startedAt = performance.now()
+    exit()
+    expect(await pending).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
+    expect(performance.now() - startedAt).toBeLessThan(1000)
+    // 迟到的确认不再影响已结束的请求；之后的请求照常等待确认。
+    const { requestId } = sent[0] as Extract<MainToSidecarMessage, { type: 'credential.store' }>
+    deliver({ type: 'credential.store.result', requestId, ok: true })
+    const next = bridge.set('p-1', 'sk-valid-key-456')
+    const second = sent[1] as Extract<MainToSidecarMessage, { type: 'credential.store' }>
+    deliver({ type: 'credential.store.result', requestId: second.requestId, ok: true })
+    expect(await next).toEqual({ ok: true, hint: '-456' })
   })
 
   it('解密：回答 credential.decrypt；safeStorage 失败或不可用时回答 error，不带明文', async () => {

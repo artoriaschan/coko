@@ -14,11 +14,70 @@ import { ANTHROPIC_MODELS } from '@earendil-works/pi-ai/providers/anthropic.mode
 import { DEEPSEEK_MODELS } from '@earendil-works/pi-ai/providers/deepseek.models'
 import { OPENAI_MODELS } from '@earendil-works/pi-ai/providers/openai.models'
 
-/** Wire protocols Coko supports in M1. */
-export type ModelProtocol = 'openai-completions' | 'openai-responses' | 'anthropic-messages'
+/** Wire protocols Coko supports. */
+export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
+export type ModelProtocol = (typeof MODEL_PROTOCOLS)[number]
 
-/** Provider kinds: the three presets plus a custom OpenAI-compatible endpoint. */
-export type ProviderKind = 'deepseek' | 'openai' | 'anthropic' | 'openai-compatible'
+interface Preset {
+  name: string
+  baseUrl: string
+  catalog: Readonly<Record<string, Model<any>>>
+}
+
+interface KindInfo {
+  protocol: ModelProtocol
+  /** Standalone Sidecar (no desktop parent) reads the key from this variable; also removed from user command environments. */
+  apiKeyEnv?: string
+  /** Kinds with a preset have a default address and catalog; the others need a baseUrl and explicit model limits. */
+  preset?: Preset
+}
+
+/** Widens a catalog to `Preset` so the kind table's declared type does not name pi-ai's catalog types. */
+const definePreset = (value: Preset): Preset => value
+
+/**
+ * The single table of Provider kinds: protocol, key variable and preset. Adding a kind starts here;
+ * the protocol schema (`ProviderKind` in @coko/protocol) is checked against it at compile time in apps/server,
+ * and the settings UI needs a label in each dictionary (`providers.kinds.<kind>`).
+ */
+const KINDS = {
+  deepseek: {
+    protocol: 'openai-completions',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+    preset: definePreset({ name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', catalog: DEEPSEEK_MODELS }),
+  },
+  openai: {
+    protocol: 'openai-responses',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    preset: definePreset({ name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', catalog: OPENAI_MODELS }),
+  },
+  anthropic: {
+    protocol: 'anthropic-messages',
+    apiKeyEnv: 'ANTHROPIC_API_KEY',
+    preset: definePreset({ name: 'Anthropic', baseUrl: 'https://api.anthropic.com', catalog: ANTHROPIC_MODELS }),
+  },
+  /** Custom OpenAI-compatible endpoint. */
+  'openai-compatible': { protocol: 'openai-completions' },
+} as const satisfies Record<string, KindInfo>
+
+/** Provider kinds: the presets plus a custom OpenAI-compatible endpoint. */
+export type ProviderKind = keyof typeof KINDS
+export const PROVIDER_KINDS = Object.keys(KINDS) as ProviderKind[]
+
+/** Kinds that have a preset address and catalog. */
+type PresetKind = { [K in ProviderKind]: (typeof KINDS)[K] extends { preset: Preset } ? K : never }[ProviderKind]
+
+/** The wire protocol a Provider kind speaks. */
+export function protocolOf(kind: ProviderKind): ModelProtocol {
+  return KINDS[kind].protocol
+}
+
+/** The environment variable holding the API key for a kind; undefined for unknown kinds and kinds without one. */
+export function apiKeyEnvOf(kind: string): string | undefined {
+  return Object.hasOwn(KINDS, kind) ? (KINDS[kind as ProviderKind] as KindInfo).apiKeyEnv : undefined
+}
+
+const presetOf = (kind: ProviderKind): Preset | undefined => (KINDS[kind] as KindInfo).preset
 
 export interface ModelSpec {
   id: string
@@ -45,21 +104,8 @@ export class ModelConfigError extends Error {
   override readonly name = 'ModelConfigError'
 }
 
-interface Preset {
-  name: string
-  protocol: ModelProtocol
-  baseUrl: string
-  catalog: Readonly<Record<string, Model<any>>>
-}
-
-const PRESETS: Record<Exclude<ProviderKind, 'openai-compatible'>, Preset> = {
-  deepseek: { name: 'DeepSeek', protocol: 'openai-completions', baseUrl: 'https://api.deepseek.com', catalog: DEEPSEEK_MODELS },
-  openai: { name: 'OpenAI', protocol: 'openai-responses', baseUrl: 'https://api.openai.com/v1', catalog: OPENAI_MODELS },
-  anthropic: { name: 'Anthropic', protocol: 'anthropic-messages', baseUrl: 'https://api.anthropic.com', catalog: ANTHROPIC_MODELS },
-}
-
 export interface ProviderPresetInfo {
-  kind: Exclude<ProviderKind, 'openai-compatible'>
+  kind: PresetKind
   name: string
   protocol: ModelProtocol
   baseUrl: string
@@ -69,13 +115,11 @@ export interface ProviderPresetInfo {
 
 /** The preset kinds with their default address and catalog, for settings UIs. */
 export function providerPresets(): ProviderPresetInfo[] {
-  return (Object.entries(PRESETS) as [ProviderPresetInfo['kind'], Preset][]).map(([kind, preset]) => ({
-    kind,
-    name: preset.name,
-    protocol: preset.protocol,
-    baseUrl: preset.baseUrl,
-    models: Object.keys(preset.catalog),
-  }))
+  return PROVIDER_KINDS.flatMap((kind) => {
+    const preset = presetOf(kind)
+    if (!preset) return []
+    return [{ kind: kind as PresetKind, name: preset.name, protocol: protocolOf(kind), baseUrl: preset.baseUrl, models: Object.keys(preset.catalog) }]
+  })
 }
 
 const PROTOCOL_STREAMS: Record<ModelProtocol, () => ProviderStreams> = {
@@ -99,7 +143,7 @@ function storedApiKeyAuth(name: string): ApiKeyAuth {
 const OPENAI_COMPATIBLE_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_384 }
 
 function buildModel(config: ProviderConfig, spec: ModelSpec, baseUrl: string): Model<any> {
-  const preset = config.kind === 'openai-compatible' ? undefined : PRESETS[config.kind]
+  const preset = presetOf(config.kind)
   const catalogModel = preset?.catalog[spec.id]
   const overrides = {
     ...(spec.name === undefined ? {} : { name: spec.name }),
@@ -120,7 +164,7 @@ function buildModel(config: ProviderConfig, spec: ModelSpec, baseUrl: string): M
   return {
     id: spec.id,
     name: spec.name ?? spec.id,
-    api: preset?.protocol ?? 'openai-completions',
+    api: protocolOf(config.kind),
     provider: config.id,
     baseUrl,
     reasoning: spec.reasoning ?? false,
@@ -133,9 +177,9 @@ function buildModel(config: ProviderConfig, spec: ModelSpec, baseUrl: string): M
 }
 
 function buildProvider(config: ProviderConfig) {
-  const preset = config.kind === 'openai-compatible' ? undefined : PRESETS[config.kind]
+  const preset = presetOf(config.kind)
   const baseUrl = config.baseUrl ?? preset?.baseUrl
-  if (!baseUrl) throw new ModelConfigError(`Provider "${config.id}" of kind openai-compatible needs a baseUrl`)
+  if (!baseUrl) throw new ModelConfigError(`Provider "${config.id}" of kind ${config.kind} needs a baseUrl`)
   const name = config.name ?? preset?.name ?? config.id
   const models = config.models.map((spec) => buildModel(config, spec, baseUrl))
   return createProvider({

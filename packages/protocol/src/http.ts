@@ -87,6 +87,7 @@ export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
 // ---- Providers ----
 
+/** 与 @coko/agent 的 PROVIDER_KINDS 一致（apps/server/src/application/providers.ts 中有编译期断言）；ModelProtocol 同理。 */
 export const ProviderKind = Type.Union([Type.Literal('deepseek'), Type.Literal('openai'), Type.Literal('anthropic'), Type.Literal('openai-compatible')])
 export type ProviderKind = Static<typeof ProviderKind>
 

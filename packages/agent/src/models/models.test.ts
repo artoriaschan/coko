@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createModelRegistry, ModelConfigError, resolveModel } from './registry.ts'
+import { apiKeyEnvOf, createModelRegistry, ModelConfigError, PROVIDER_KINDS, protocolOf, providerPresets, resolveModel } from './registry.ts'
 
 interface Recorded {
   method: string
@@ -34,6 +34,28 @@ function chatCompletionSse(text: string): string {
     `data: ${JSON.stringify({ id: 'cmpl-1', object: 'chat.completion.chunk', created: 0, model: 'mock-model', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`
   return chunk({ role: 'assistant', content: text }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n'
 }
+
+describe('Provider kind 表', () => {
+  it('每种 kind 的协议、密钥变量与是否有预设', () => {
+    expect(PROVIDER_KINDS).toEqual(['deepseek', 'openai', 'anthropic', 'openai-compatible'])
+    expect(PROVIDER_KINDS.map((kind) => [kind, protocolOf(kind), apiKeyEnvOf(kind)])).toEqual([
+      ['deepseek', 'openai-completions', 'DEEPSEEK_API_KEY'],
+      ['openai', 'openai-responses', 'OPENAI_API_KEY'],
+      ['anthropic', 'anthropic-messages', 'ANTHROPIC_API_KEY'],
+      ['openai-compatible', 'openai-completions', undefined],
+    ])
+    expect(providerPresets().map(({ kind, protocol }) => [kind, protocol])).toEqual([
+      ['deepseek', 'openai-completions'],
+      ['openai', 'openai-responses'],
+      ['anthropic', 'anthropic-messages'],
+    ])
+  })
+
+  it('库中读出的未知 kind 没有密钥变量', () => {
+    expect(apiKeyEnvOf('unknown')).toBeUndefined()
+    expect(apiKeyEnvOf('toString')).toBeUndefined()
+  })
+})
 
 describe('模型适配：Provider 配置', () => {
   it('预设 Provider 使用 pi-ai 目录中的模型元数据，可覆盖 baseUrl', () => {

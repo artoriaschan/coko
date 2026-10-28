@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Value } from 'typebox/value'
-import { SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
+import { createRequestTracker, SidecarToMainMessage, type MainToSidecarMessage, type RequestTracker } from '@coko/protocol'
 
 /** 分级退出与就绪的时限；默认值即 DEFAULT_SIDECAR_TIMEOUTS，记录于 apps/desktop README。 */
 export interface SidecarTimeouts {
@@ -82,8 +82,8 @@ export class SidecarProcess {
   #stopping = false
   #acknowledged = false
   #stderr = ''
-  #nextRequestId = 1
-  readonly #pending = new Map<number, { resolve: (activeRuns: number) => void; reject: (error: Error) => void }>()
+  /** inspect-quit 的回答（活动 Run 数）；超时拒绝，子进程关闭时全部拒绝。 */
+  readonly #inspections: RequestTracker<number>
   readonly #exitListeners = new Set<(info: SidecarExitInfo) => void>()
   readonly #controlListeners = new Set<(message: SidecarToMainMessage) => void>()
   #exitInfo: SidecarExitInfo | undefined
@@ -96,6 +96,10 @@ export class SidecarProcess {
   constructor(options: SidecarOptions) {
     this.#options = options
     this.#timeouts = { ...DEFAULT_SIDECAR_TIMEOUTS, ...options.timeouts }
+    this.#inspections = createRequestTracker({
+      timeoutMs: this.#timeouts.inspectMs,
+      timeoutMessage: (ms) => `Sidecar inspect-quit timed out after ${ms} ms`,
+    })
   }
 
   get pid(): number | undefined {
@@ -196,12 +200,9 @@ export class SidecarProcess {
           case 'shutdown-complete':
             this.#acknowledged = true
             return
-          case 'inspect-quit.result': {
-            const pending = this.#pending.get(message.requestId)
-            this.#pending.delete(message.requestId)
-            pending?.resolve(message.activeRuns)
+          case 'inspect-quit.result':
+            this.#inspections.resolve(message.requestId, message.activeRuns)
             return
-          }
           case 'credential.decrypt':
           case 'credential.store.result':
             if (this.#ready) for (const listener of this.#controlListeners) listener(message)
@@ -213,8 +214,7 @@ export class SidecarProcess {
       child.once('close', (code, signal) => {
         const info: SidecarExitInfo = { code, signal }
         this.#exitInfo = info
-        for (const pending of this.#pending.values()) pending.reject(new Error('Sidecar exited'))
-        this.#pending.clear()
+        this.#inspections.rejectAll(new Error('Sidecar exited'))
         if (!settled)
           fail(new SidecarStartError('sidecar-exited', `Sidecar exited before ready (code ${String(code)}, signal ${String(signal)})`, this.#stderr))
         else if (this.#ready && !this.#stopping) for (const listener of this.#exitListeners) listener(info)
@@ -227,24 +227,7 @@ export class SidecarProcess {
   inspectQuit(): Promise<number> {
     const child = this.#child
     if (!this.isReady || child === undefined || !child.connected) return Promise.reject(new Error('Sidecar is not available'))
-    const requestId = this.#nextRequestId++
-    return new Promise<number>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#pending.delete(requestId)
-        reject(new Error(`Sidecar inspect-quit timed out after ${this.#timeouts.inspectMs} ms`))
-      }, this.#timeouts.inspectMs)
-      this.#pending.set(requestId, {
-        resolve: (value) => {
-          clearTimeout(timer)
-          resolve(value)
-        },
-        reject: (error) => {
-          clearTimeout(timer)
-          reject(error)
-        },
-      })
-      this.#send({ type: 'inspect-quit', requestId })
-    })
+    return this.#inspections.request((requestId) => this.#send({ type: 'inspect-quit', requestId }))
   }
 
   /** 分级退出：shutdown → 宽限期 → SIGTERM → SIGKILL，并等待进程实际退出。可重复调用。 */
