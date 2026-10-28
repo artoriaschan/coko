@@ -1,10 +1,11 @@
 import { Type, type Static, type TSchema } from 'typebox'
 import { checkpointEntryPayloadSchemas } from './checkpoints.ts'
+import { contextEntryPayloadSchemas } from './context-entries.ts'
 import { permissionEntryPayloadSchemas } from './permissions.ts'
 import { runEntryPayloadSchemas } from './runs.ts'
 
 // Session Entry：线上信封（SessionEntryRecord，payload 未校验）与按 kind 判别的 SessionEntry。
-// 各 kind 的 payload schema 在领域文件（runs.ts、permissions.ts、checkpoints.ts）中维护，本文件不随 kind 变化而修改。
+// 各 kind 的 payload schema 在领域文件（runs.ts、permissions.ts、checkpoints.ts、context-entries.ts）中维护，本文件不随 kind 变化而修改。
 
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
@@ -24,7 +25,12 @@ const envelope = {
 export const SessionEntryRecord = Type.Object({ ...envelope, kind: Type.String(), payload: Type.Unknown() }, strict)
 export type SessionEntryRecord = Static<typeof SessionEntryRecord>
 
-export const SESSION_ENTRY_PAYLOAD_SCHEMAS = { ...runEntryPayloadSchemas, ...permissionEntryPayloadSchemas, ...checkpointEntryPayloadSchemas }
+export const SESSION_ENTRY_PAYLOAD_SCHEMAS = {
+  ...runEntryPayloadSchemas,
+  ...permissionEntryPayloadSchemas,
+  ...checkpointEntryPayloadSchemas,
+  ...contextEntryPayloadSchemas,
+}
 type PayloadSchemas = typeof SESSION_ENTRY_PAYLOAD_SCHEMAS
 export type SessionEntryKind = keyof PayloadSchemas
 

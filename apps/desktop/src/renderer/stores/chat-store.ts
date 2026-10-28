@@ -755,5 +755,8 @@ export function reduceProgress(live: LiveRun | null, runId: string, event: Exclu
     }
     case 'retry':
       return { ...current, retry: { attempt: event.attempt, maxRetries: event.maxRetries } }
+    // 上下文用量与压缩进度由之后的票接入（上下文环、压缩状态行）；此处不改变临时显示状态。
+    default:
+      return current
   }
 }

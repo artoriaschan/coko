@@ -25,7 +25,8 @@ export const SessionActivity = Type.Union([
 ])
 export type SessionActivity = Static<typeof SessionActivity>
 
-export const RunTrigger = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue')])
+/** compact：手动 /compact 的 Run，只提交 compaction（或失败的 run_end）。 */
+export const RunTrigger = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact')])
 export type RunTrigger = Static<typeof RunTrigger>
 
 export const RunStartPayload = Type.Object({ trigger: RunTrigger }, strict)

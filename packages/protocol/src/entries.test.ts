@@ -5,7 +5,7 @@ import { SESSION_ENTRY_PAYLOAD_SCHEMAS, SessionEntry, SessionEntryRecord } from 
 const base = { sessionId: 's1', seq: 1, payloadVersion: 1, runId: 'r1', createdAt: 1 }
 
 describe('SessionEntry 按 kind 判别', () => {
-  it('预先声明规格表中全部 M2 kind', () => {
+  it('预先声明规格表中全部 M2 与 M3 kind', () => {
     expect(Object.keys(SESSION_ENTRY_PAYLOAD_SCHEMAS).toSorted()).toEqual(
       [
         'approval_decision',
@@ -22,6 +22,8 @@ describe('SessionEntry 按 kind 判别', () => {
         'run_end',
         'run_start',
         'tool_exec',
+        'command',
+        'compaction',
       ].toSorted(),
     )
   })

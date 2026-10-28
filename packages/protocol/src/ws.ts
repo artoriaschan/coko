@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox'
 import { ErrorCode } from './errors.ts'
 import { SessionEntryRecord } from './entries.ts'
+import { CompactionTrigger } from './context-entries.ts'
 import { RunStatus } from './runs.ts'
 
 // WebSocket 消息（JSON 文本帧）。entry 是已提交的 Session Entry，带 seq，可在重连时以 afterSeq 补齐；
@@ -58,6 +59,22 @@ export const ProgressEvent = Type.Union([
       delayMs: Type.Number({ minimum: 0 }),
       errorMessage: Type.String(),
     },
+    strict,
+  ),
+  /** 每条 assistant 消息提交后：该消息的 usage（input + cacheRead + cacheWrite + output）与模型的上下文窗口。 */
+  Type.Object({ type: Type.Literal('context_usage'), tokens: Type.Integer({ minimum: 0 }), contextWindow: Type.Integer({ minimum: 0 }) }, strict),
+  Type.Object({ type: Type.Literal('compaction_start'), trigger: CompactionTrigger }, strict),
+  Type.Object(
+    {
+      type: Type.Literal('compaction_end'),
+      trigger: CompactionTrigger,
+      tokensBefore: Type.Integer({ minimum: 0 }),
+      tokensAfter: Type.Optional(Type.Integer({ minimum: 0 })),
+    },
+    strict,
+  ),
+  Type.Object(
+    { type: Type.Literal('compaction_failed'), trigger: CompactionTrigger, message: Type.String(), consecutiveFailures: Type.Integer({ minimum: 1 }) },
     strict,
   ),
   /** 每个 Run 的最后一个进度：run_end 条目已提交或提交失败之后发出；提交失败时客户端据此结束运行中状态。 */

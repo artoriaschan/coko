@@ -1,5 +1,5 @@
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
-import type { RunStatus, SessionEntryKind, SessionEntryPayloads } from '../session-entries/index.ts'
+import type { CompactionTrigger, RunStatus, SessionEntryKind, SessionEntryPayloads } from '../session-entries/index.ts'
 
 export type { RunStatus } from '../session-entries/index.ts'
 
@@ -41,6 +41,11 @@ export type ProgressEvent =
   /** In tool completion order; the committed toolResult entries keep the model's call order. */
   | { type: 'tool_end'; runId: string; toolCallId: string; toolName: string; isError: boolean; result: AgentToolResult<unknown>; durationMs?: number }
   | { type: 'retry'; runId: string; attempt: number; maxRetries: number; delayMs: number; errorMessage: string }
+  /** After every committed assistant message: its usage (input + cacheRead + cacheWrite + output) and the model's context window. */
+  | { type: 'context_usage'; runId: string; tokens: number; contextWindow: number }
+  | { type: 'compaction_start'; runId: string; trigger: CompactionTrigger }
+  | { type: 'compaction_end'; runId: string; trigger: CompactionTrigger; tokensBefore: number; tokensAfter?: number }
+  | { type: 'compaction_failed'; runId: string; trigger: CompactionTrigger; message: string; consecutiveFailures: number }
   /**
    * Last event of every Run, after its run_end entry was committed or the commit failed. A client that missed the
    * run_end entry (the commit failed) still learns that the Run is over.
