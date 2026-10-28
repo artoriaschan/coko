@@ -4,9 +4,9 @@ import type * as React from 'react'
 import { cn } from '../lib/utils.ts'
 
 // 由 shadcn CLI 4.21.4 生成后按设计系统改写：sm 为 H28/R8，default 为 H36/R12；各变体尺寸与圆角一致；
-// 焦点环使用主题的共享 focus-visible 样式；去掉 dark: 分支与默认色板。
+// 焦点环使用主题的共享 focus-ring 工具类（ring token、:focus-visible）；去掉 dark: 分支与默认色板。
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 aria-invalid:text-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors focus-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:text-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

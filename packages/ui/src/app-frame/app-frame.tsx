@@ -97,7 +97,8 @@ export function AppFrame({
 
   React.useEffect(() => {
     if (!drawerVisible) return
-    drawerRef.current?.focus()
+    // 内容已自行聚焦（例如打开即聚焦的搜索框）时保留，否则聚焦抽屉本身。
+    if (!drawerRef.current?.contains(document.activeElement)) drawerRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) setDrawerOpen(false)
     }

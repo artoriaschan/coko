@@ -8,7 +8,7 @@ import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
-import { Composer } from './composer.tsx'
+import { Composer, type ComposerHandle } from './composer.tsx'
 import { ModelPicker } from './model-picker.tsx'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
@@ -19,13 +19,16 @@ export interface ConversationPaneProps {
   onToggleRight: () => void
   connection: ConnectionState
   onAddWorkspace: () => void
+  /** 打开日志文件夹（诊断入口）；桥接不可用时为 undefined。 */
+  onOpenLogs?: (() => void) | undefined
+  composerRef?: React.Ref<ComposerHandle>
 }
 
 // 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
 const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
 
-export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace }: ConversationPaneProps) {
+export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace, onOpenLogs, composerRef }: ConversationPaneProps) {
   const { t } = useI18n()
   const activeSessionId = useChat((s) => s.activeSessionId)
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
@@ -90,7 +93,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   } else {
     body = (
       <div className={`${chatColumn} flex flex-col gap-4 py-4`}>
-        <TimelineView items={items} theme={theme} onRetry={(text) => void retry(text)} />
+        <TimelineView items={items} theme={theme} onRetry={() => void retry()} />
       </div>
     )
   }
@@ -124,6 +127,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
 
         <div className="shrink-0 px-4 pb-4">
           <Composer
+            ref={composerRef}
             className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
             running={running}
             disabled={activeSessionId === null && draftWorkspaceId === null}
@@ -143,7 +147,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             }
           />
         </div>
-        {connection.phase === 'failed' && <ConnectionFailure code={connection.code} message={connection.message} />}
+        {connection.phase === 'failed' && (
+          <ConnectionFailure code={connection.code} message={connection.message} crashed={connection.crashed === true} onOpenLogs={onOpenLogs} />
+        )}
       </div>
     </>
   )

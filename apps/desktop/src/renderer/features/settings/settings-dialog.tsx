@@ -16,7 +16,7 @@ const SECTIONS: { id: SettingsSection; icon: React.ComponentType }[] = [
 ]
 
 const navRow =
-  'flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-2 text-left text-ui-body outline-none hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground'
+  'flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground'
 
 /** 设置弹窗：General、Models、About（M1 分区）。窄窗口下分区导航改为横排。 */
 export function SettingsDialog({ theme }: { theme: Theme }) {

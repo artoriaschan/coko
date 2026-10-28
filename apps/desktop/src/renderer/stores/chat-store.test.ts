@@ -184,7 +184,7 @@ describe('chat store', () => {
     respond()
     expect(await sent).toBe(true)
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
-    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', retryText: 'fast' })
+    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', retryable: true })
   })
 
   it('提交失败返回 false 并报告协议错误码；出错的 Run 可重试', async () => {
@@ -202,7 +202,52 @@ describe('chat store', () => {
 
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('try this')) })
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'error', error: { code: 'model_error', message: 'boom' } }, 'run_end') })
-    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toEqual({ kind: 'error', key: '2', message: 'boom', retryText: 'try this' })
+    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toEqual({ kind: 'error', key: '2', message: 'boom', retryable: true })
+  })
+
+  it('重试调用 retry 接口重新执行上一轮，不再提交用户文本', async () => {
+    const stream = new FakeStream()
+    const api = fakeApi({ retryRun: vi.fn<Api['retryRun']>(async () => ({ runId: 'r2' })) })
+    const store = createChatStore({ api, stream })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: false })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('try this')) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'error', error: { code: 'model_error', message: 'boom' } }, 'run_end') })
+    expect(await store.getState().retry()).toBe(true)
+    expect(api.retryRun).toHaveBeenCalledWith('s1')
+    expect(api.submitMessage).not.toHaveBeenCalled()
+    expect(store.getState().conversations.s1?.running).toBe(true)
+  })
+
+  it('run_end 条目提交失败时，run_end progress 结束运行中状态并显示错误', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: false })
+    await store.getState().send('go')
+    stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r2', event: { type: 'run_start' } })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('go'), 'message', 'r2') })
+    stream.deliver({
+      type: 'progress',
+      sessionId: 's1',
+      runId: 'r2',
+      event: { type: 'run_end', status: 'error', error: { code: 'commit_failed', message: 'host lease was taken over' } },
+    })
+    expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
+    expect(store.getState().sessions[0]?.running).toBe(false)
+    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', message: 'host lease was taken over', retryable: false })
+  })
+
+  it('run_end 条目已到达时，随后的 run_end progress 不重复显示结束状态', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: false })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('go')) })
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'aborted' }, 'run_end') })
+    stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event: { type: 'run_end', status: 'aborted' } })
+    expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
+    expect(buildTimeline(store.getState().conversations.s1!).map((i) => i.kind)).toEqual(['user', 'stopped'])
   })
 
   it('草稿中选择的模型用于创建会话；打开的会话切换模型经协议写入并更新列表', async () => {

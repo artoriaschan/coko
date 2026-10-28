@@ -54,7 +54,7 @@ const CJK = /[\u3400-\u9fff]/
 function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {}) {
   const store = createAppearanceStore({ theme: 'light', locale })
   const connection = createConnectionStore()
-  const { chat, settings, backend } = createFixtureChat(options)
+  const { chat, settings, backend, api } = createFixtureChat(options)
   const settingsDialog = createSettingsDialogStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
   return {
@@ -63,6 +63,7 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {})
     chat,
     settings,
     backend,
+    api,
     screen: render(
       <div style={{ width: '100vw', height: '100vh' }}>
         <App
@@ -261,6 +262,126 @@ describe('设置弹窗', () => {
       .element(page.elementLocator(dialog.element().querySelector('[data-credential-status="configured"]')!))
       .toHaveTextContent('Configured · ends in 9876')
     expect(dialog.element().textContent).not.toContain('sk-browser-test')
+  })
+})
+
+describe('侧栏搜索', () => {
+  const visibleTitles = () => [...document.querySelectorAll('[data-session-id]')].map((el) => el.textContent?.trim())
+
+  it('搜索按钮打开输入框，按标题过滤会话（不区分大小写），无结果时说明；Escape 清除并关闭', async () => {
+    await page.viewport(1280, 800)
+    const { screen } = renderApp('en')
+    await screen
+    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
+    await page.getByRole('button', { name: 'Search', exact: true }).click()
+    const input = page.getByRole('searchbox', { name: 'Search sessions' })
+    await expect.element(input).toHaveFocus()
+    await userEvent.keyboard('SIDECAR')
+    await expect.poll(visibleTitles).toEqual(['Sidecar startup handshake'])
+    // 没有命中会话的工作区不显示。
+    expect(document.querySelector('[aria-labelledby="workspace-w-pi"]')).toBeNull()
+    await input.fill('no such session')
+    await expect.poll(visibleTitles).toEqual([])
+    await expect.element(page.getByText('No matching sessions')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(input).not.toBeInTheDocument()
+    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
+  })
+
+  it('rail 中的搜索按钮展开侧栏并聚焦搜索框', async () => {
+    await page.viewport(800, 700)
+    await renderApp('en').screen
+    await page.getByRole('button', { name: 'Search', exact: true }).click()
+    const drawer = page.getByRole('dialog', { name: 'Sidebar' })
+    await expect.element(drawer.getByRole('searchbox', { name: 'Search sessions' })).toHaveFocus()
+    await userEvent.keyboard('ripgrep')
+    await expect.poll(visibleTitles).toEqual(['ripgrep contract tests'])
+  })
+})
+
+describe('Models 分区', () => {
+  it('类别标签只在名称不等于预设名时显示：按 kind 与协议预设比较，不比较翻译文本', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend, settings } = renderApp('zh', { providers: false })
+    await screen
+    // 自定义 Provider 没有预设：名称恰好等于其类别的中文文案时，类别仍要显示。
+    await backend.api.createProvider({ name: 'OpenAI 兼容', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['m'] })
+    await backend.api.createProvider({ name: 'DeepSeek', kind: 'deepseek', models: ['deepseek-flash'] })
+    await settings.getState().load()
+    const dialog = await openSettings('设置')
+    await dialog.getByRole('button', { name: '模型', exact: true }).click()
+    const compatible = page.elementLocator(dialog.element().querySelector('[data-kind="openai-compatible"][data-provider-id]')!)
+    await expect.element(compatible).toBeVisible()
+    expect(compatible.element().textContent).toContain('OpenAI 兼容OpenAI 兼容')
+    const deepseek = dialog.element().querySelector('[data-kind="deepseek"][data-provider-id]')!
+    expect(deepseek.textContent?.match(/DeepSeek/g)).toHaveLength(1)
+  })
+
+  it('保存失败时显示可行动的本地化说明，技术原文只在详情中', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend } = renderApp('en', { providers: false })
+    await screen
+    const { ApiError } = await import('../client/api.ts')
+    vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
+    const dialog = await openSettings('Settings')
+    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Add Provider' }).click()
+    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
+    await dialog.getByLabelText('Name', { exact: true }).fill('Local')
+    await dialog.getByLabelText('Base URL', { exact: true }).fill('not a url')
+    await dialog.getByLabelText('Models', { exact: true }).fill('m1')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    const alert = dialog.getByRole('alert')
+    await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
+    expect(alert.element().textContent).not.toContain('Invalid request')
+    // 技术原文放在可展开的详情中，可选中复制。
+    const details = dialog.element().querySelector('[data-error-detail]')
+    expect(details?.textContent).toContain('Invalid request: /baseUrl must match format "uri"')
+  })
+})
+
+describe('键盘', () => {
+  it('⌘N 在任意焦点下新建会话草稿并聚焦输入区', async () => {
+    await page.viewport(1280, 800)
+    const { chat, screen } = renderApp('en')
+    await screen
+    await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await userEvent.keyboard('{Meta>}n{/Meta}')
+    await expect.element(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()
+    expect(chat.getState().activeSessionId).toBeNull()
+    await expect.poll(() => document.activeElement === page.getByRole('textbox', { name: 'Give Coko a task' }).element()).toBe(true)
+  })
+
+  it('Run 进行中时 Escape 在输入区之外也能停止', async () => {
+    await page.viewport(1280, 800)
+    const { chat, api, screen } = renderApp('en')
+    await screen
+    const abort = vi.spyOn(api, 'abortRun')
+    chat.getState().openSession('s-2')
+    await expect.element(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await page.getByRole('heading', { level: 1 }).click()
+    expect(document.activeElement?.getAttribute('role')).not.toBe('textbox')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(abort).toHaveBeenCalledWith('s-2'))
+    expect(abort).toHaveBeenCalledTimes(1)
+  })
+
+  it('对话框打开时 Escape 只关闭对话框，不停止 Run', async () => {
+    await page.viewport(1280, 800)
+    const { chat, api, screen } = renderApp('en')
+    await screen
+    const abort = vi.spyOn(api, 'abortRun')
+    chat.getState().openSession('s-2')
+    await expect.element(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await userEvent.keyboard('{Meta>},{/Meta}')
+    await expect.element(page.getByRole('dialog')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    expect(abort).not.toHaveBeenCalled()
+    // 对话框关闭后，下一次 Escape 才停止。
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(abort).toHaveBeenCalledTimes(1))
   })
 })
 

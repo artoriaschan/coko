@@ -76,11 +76,14 @@ describe('Sidecar --ripgrep', () => {
     expect(String(selected?.properties.version)).toMatch(/^ripgrep \d+\.\d+\.\d+/)
   })
 
-  it('未给定 --ripgrep 时使用内置 grep，日志记录生效实现', async () => {
+  it('未给定 --ripgrep 时使用内置 grep，日志记录生效实现；每条记录带 process 与 --app-version 给出的 appVersion', async () => {
     const dirs = await sidecarDirs()
-    const sidecar = await startSidecar({ dirs })
+    const sidecar = await startSidecar({ dirs, args: ['--data-dir', dirs.dataDir, '--log-dir', dirs.logDir, '--app-version', '9.8.7'] })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
-    const selected = (await logRecords(dirs.logDir)).find((record) => record.message === 'grep implementation selected')
+    const records = await logRecords(dirs.logDir)
+    const selected = records.find((record) => record.message === 'grep implementation selected')
     expect(selected?.properties).toMatchObject({ implementation: 'builtin' })
+    expect(records.length).toBeGreaterThan(0)
+    expect(records.filter((record) => record.properties.process !== 'sidecar' || record.properties.appVersion !== '9.8.7')).toEqual([])
   })
 })

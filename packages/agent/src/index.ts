@@ -1,5 +1,5 @@
 // Engine
-export { createAgentRuntime, DEFAULT_SYSTEM_PROMPT, RuntimeBusyError } from './engine/runtime.ts'
+export { createAgentRuntime, DEFAULT_SYSTEM_PROMPT, NothingToRetryError, RuntimeBusyError } from './engine/runtime.ts'
 export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'
@@ -30,7 +30,7 @@ export type { ToolHooks } from './extensions/hooks.ts'
 
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'
-export { createLocalExecPort } from './ports/local-exec.ts'
-export type { LocalExecOptions } from './ports/local-exec.ts'
+export { createLocalExecPort, filterEnv } from './ports/local-exec.ts'
+export type { EnvExclusion, LocalExecOptions } from './ports/local-exec.ts'
 export { InMemoryCredentialStore } from './ports/credentials.ts'
 export type { ApiKeyCredential, Credential, CredentialInfo, CredentialStore } from './ports/credentials.ts'

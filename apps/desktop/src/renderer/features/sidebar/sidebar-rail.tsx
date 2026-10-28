@@ -6,7 +6,7 @@ import { IconButton } from '../../app/icon-button.tsx'
 import { SettingsButton } from '../settings/settings-button.tsx'
 
 /** 收起后的 56px rail：主要操作保持可达。 */
-export function SidebarRail({ onAddWorkspace }: { onAddWorkspace: () => void }) {
+export function SidebarRail({ onAddWorkspace, onSearch }: { onAddWorkspace: () => void; onSearch: () => void }) {
   const { t } = useI18n()
   const { toggleSidebar, sidebarVisible } = useAppFrame()
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
@@ -21,7 +21,14 @@ export function SidebarRail({ onAddWorkspace }: { onAddWorkspace: () => void }) 
         <IconButton label={t('sidebar.newSession')} onClick={() => (hasWorkspace ? startDraft() : onAddWorkspace())}>
           <SquarePenIcon />
         </IconButton>
-        <IconButton label={t('sidebar.search')}>
+        <IconButton
+          label={t('sidebar.search')}
+          onClick={() => {
+            // 展开侧栏（窄窗口下为抽屉）并打开其中的搜索框。
+            onSearch()
+            if (!sidebarVisible) toggleSidebar()
+          }}
+        >
           <SearchIcon />
         </IconButton>
         <IconButton label={t('sidebar.addWorkspace')} onClick={onAddWorkspace}>

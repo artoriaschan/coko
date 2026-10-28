@@ -83,6 +83,11 @@ describe('随包 ripgrep', () => {
     const marker = desktop.find((r) => r.logger === 'coko.renderer.e2e')
     expect(marker).toMatchObject({ level: 'WARN', message: 'e2e marker [REDACTED]', properties: { source: 'renderer', apiKey: '[REDACTED]' } })
 
+    // main 以 --app-version 传入应用版本；两个日志的统一字段一致。
+    const appVersion = desktop[0]?.properties.appVersion
+    expect(appVersion).toEqual(expect.any(String))
+    expect(sidecar.filter((r) => r.properties.process !== 'sidecar' || r.properties.appVersion !== appVersion)).toEqual([])
+
     const desktopRoot = new URL('..', import.meta.url).pathname
     const selected = sidecar.find((r) => r.message === 'grep implementation selected')
     expect(selected?.properties).toMatchObject({ implementation: 'ripgrep', path: join(desktopRoot, 'dist', 'ripgrep', 'rg') })

@@ -15,6 +15,7 @@
     "@coko/i18n": "workspace:*",
     "@coko/logging": "workspace:*",
     "@coko/protocol": "workspace:*",
+    "@coko/server": "workspace:*",
     "@coko/ui": "workspace:*",
     "@electron-forge/cli": "8.0.1",
     "@electron-forge/plugin-fuses": "8.0.1",

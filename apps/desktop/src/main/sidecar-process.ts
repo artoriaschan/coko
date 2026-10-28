@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { Value } from 'typebox/value'
 import { SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
 
-/** 分级退出与就绪的时限；默认值见 desktop-delivery 约定。 */
+/** 分级退出与就绪的时限；默认值即 DEFAULT_SIDECAR_TIMEOUTS，记录于 apps/desktop README。 */
 export interface SidecarTimeouts {
   /** 等待 ready 的上限。 */
   readonly readyMs: number
@@ -100,6 +100,11 @@ export class SidecarProcess {
 
   get pid(): number | undefined {
     return this.#child?.pid
+  }
+
+  /** stderr 尾部（至多 16 KiB），只用于诊断；写入日志前由调用方脱敏。 */
+  get stderrTail(): string {
+    return this.#stderr
   }
 
   get isReady(): boolean {

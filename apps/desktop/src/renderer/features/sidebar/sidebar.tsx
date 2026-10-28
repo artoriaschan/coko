@@ -1,5 +1,5 @@
 import type { Session, Workspace } from '@coko/protocol'
-import { Button, cn, useAppFrame } from '@coko/ui'
+import { Button, cn, Input, useAppFrame } from '@coko/ui'
 import { FolderPlusIcon, PanelLeftCloseIcon, PlusIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
 import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
@@ -11,10 +11,22 @@ const GROUP_PAGE = 5
 
 export interface SidebarProps {
   onAddWorkspace: () => void
+  /** 搜索：null 为关闭；字符串为当前查询词（按会话标题过滤，不区分大小写）。由 App 持有，rail 也能打开。 */
+  search: string | null
+  onSearchChange: (query: string | null) => void
+}
+
+/** 按标题过滤会话；空查询不过滤。没有命中会话的工作区不显示。 */
+export function filterGroups(groups: ReturnType<typeof groupSessions>, query: string) {
+  const needle = query.trim().toLocaleLowerCase()
+  if (needle === '') return groups
+  return groups
+    .map((group) => ({ ...group, sessions: group.sessions.filter((s) => s.title.toLocaleLowerCase().includes(needle)) }))
+    .filter((group) => group.sessions.length > 0)
 }
 
 const rowClass =
-  'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body outline-none hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
+  'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
 
 /** 运行中的会话上浮，其余按最近更新排序。 */
 export function groupSessions(workspaces: readonly Workspace[], sessions: readonly Session[]) {
@@ -26,7 +38,7 @@ export function groupSessions(workspaces: readonly Workspace[], sessions: readon
   }))
 }
 
-export function Sidebar({ onAddWorkspace }: SidebarProps) {
+export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps) {
   const { t } = useI18n()
   const { toggleSidebar, closeSidebarDrawer } = useAppFrame()
   const workspaces = useChat((s) => s.workspaces)
@@ -34,7 +46,9 @@ export function Sidebar({ onAddWorkspace }: SidebarProps) {
   const activeSessionId = useChat((s) => s.activeSessionId)
   const listStatus = useChat((s) => s.listStatus)
   const { openSession, startDraft, load } = useChatActions()
-  const groups = React.useMemo(() => groupSessions(workspaces, sessions), [workspaces, sessions])
+  const grouped = React.useMemo(() => groupSessions(workspaces, sessions), [workspaces, sessions])
+  const groups = React.useMemo(() => (search === null ? grouped : filterGroups(grouped, search)), [grouped, search])
+  const filtering = search !== null && search.trim() !== ''
 
   const newSession = (workspaceId?: string) => {
     if (workspaces.length === 0) onAddWorkspace()
@@ -55,10 +69,32 @@ export function Sidebar({ onAddWorkspace }: SidebarProps) {
           <SquarePenIcon />
           {t('sidebar.newSession')}
         </Button>
-        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2">
-          <SearchIcon />
-          {t('sidebar.search')}
-        </Button>
+        {search === null ? (
+          <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={() => onSearchChange('')}>
+            <SearchIcon />
+            {t('sidebar.search')}
+          </Button>
+        ) : (
+          <div className="flex h-9 items-center gap-2 px-2">
+            <SearchIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <Input
+              type="search"
+              autoFocus
+              aria-label={t('sidebar.searchSessions')}
+              placeholder={t('sidebar.searchPlaceholder')}
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
+                // 只关闭搜索：不关闭侧栏抽屉，也不触发全局 Escape（停止 Run）。
+                event.preventDefault()
+                event.stopPropagation()
+                onSearchChange(null)
+              }}
+              className="h-7"
+            />
+          </div>
+        )}
         <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={onAddWorkspace}>
           <FolderPlusIcon />
           {t('sidebar.addWorkspace')}
@@ -75,6 +111,7 @@ export function Sidebar({ onAddWorkspace }: SidebarProps) {
             </Button>
           </div>
         )}
+        {filtering && groups.length === 0 && <p className="px-2 pt-2 text-ui-body text-muted-foreground">{t('sidebar.noMatches')}</p>}
         {groups.map(({ workspace, sessions: items }) => (
           <WorkspaceGroup
             key={workspace.id}

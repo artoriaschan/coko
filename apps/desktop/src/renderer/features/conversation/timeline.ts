@@ -22,8 +22,8 @@ export type TimelineItem =
   | { kind: 'tool'; key: string; call: ToolCallBlock; result: ToolResultView | null; status: 'running' | 'done' | 'error' | 'pending'; live: LiveTool | null }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
-  /** retryText：可重试时为该 Run 的用户文本（只在最后一个 Run 且未在运行时提供）。 */
-  | { kind: 'error'; key: string; message: string; retryText: string | null }
+  /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
+  | { kind: 'error'; key: string; message: string; retryable: boolean }
 
 interface Block {
   type?: unknown
@@ -59,7 +59,6 @@ const resultDetails = (result: unknown) => (result && typeof result === 'object'
 export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const items: TimelineItem[] = []
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
-  const userTextByRun = new Map<string, string>()
   let lastRunId: string | null = null
 
   for (const entry of conversation.entries) {
@@ -69,21 +68,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       // 未结束的工具在 Run 结束后不会再有结果。
       for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
-      else if (payload.status === 'error')
-        items.push({
-          kind: 'error',
-          key: `${entry.seq}`,
-          message: payload.error?.message ?? '',
-          retryText: entry.runId ? (userTextByRun.get(entry.runId) ?? null) : null,
-        })
+      else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: true })
       continue
     }
     if (entry.kind !== 'message') continue
     const message = entry.payload as { role?: string; content?: unknown; toolCallId?: string; toolName?: string; isError?: boolean; details?: unknown }
     if (message.role === 'user') {
-      const text = contentText(message.content)
-      if (entry.runId && !userTextByRun.has(entry.runId)) userTextByRun.set(entry.runId, text)
-      items.push({ kind: 'user', key: `${entry.seq}`, text })
+      items.push({ kind: 'user', key: `${entry.seq}`, text: contentText(message.content) })
     } else if (message.role === 'assistant') {
       blocksOf(message.content).forEach((block, index) => {
         const key = `${entry.seq}:${index}`
@@ -151,11 +142,20 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (!visible && !toolRunning) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
   }
 
+  // run_end 条目没能提交：只由进度得知结束。记录不完整，不提供重试。
+  const unrecorded = conversation.unrecordedEnd
+  if (unrecorded && !conversation.running) {
+    for (const tool of tools.values()) if (tool.result === null && tool.status === 'running') tool.status = 'pending'
+    if (unrecorded.status === 'aborted') items.push({ kind: 'stopped', key: `unrecorded:${unrecorded.runId}` })
+    else if (unrecorded.status === 'error')
+      items.push({ kind: 'error', key: `unrecorded:${unrecorded.runId}`, message: unrecorded.error?.message ?? '', retryable: false })
+  }
+
   // 只有最后一个 Run 的错误可以重试，且当前没有 Run。
   for (const item of items) {
     if (item.kind !== 'error') continue
-    const isLast = item === items.findLast((i) => i.kind === 'error') && lastRunIsError(conversation.entries, lastRunId)
-    if (!isLast || conversation.running) item.retryText = null
+    const isLast = item === items.findLast((i) => i.kind === 'error') && lastRunIsError(conversation.entries, lastRunId) && !unrecorded
+    if (!isLast || conversation.running) item.retryable = false
   }
   return items
 }

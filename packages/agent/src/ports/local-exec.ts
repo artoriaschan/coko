@@ -10,16 +10,29 @@ import type { ExecOutcome, ExecPort } from './exec.ts'
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
 const EXIT_STDIO_GRACE_MS = 100
 
+/** An exact variable name or a pattern tested against each name. */
+export type EnvExclusion = string | RegExp
+
 export interface LocalExecOptions {
   /** Shell executable; default `/bin/bash`, falling back to `/bin/sh`. */
   shell?: string
-  /** Base environment; default `process.env` without host-only variables. */
+  /** Base environment; default `process.env`. Host-only and excluded variables are removed either way. */
   env?: Record<string, string | undefined>
+  /**
+   * Variables the host keeps from user commands, for example its own configuration and credentials.
+   * Applied to the base environment in addition to the host-only variables.
+   */
+  excludeEnv?: readonly EnvExclusion[]
 }
 
-function defaultEnv(): Record<string, string | undefined> {
-  const env = { ...process.env }
-  for (const name of HOST_ONLY_ENV) delete env[name]
+const matches = (name: string, exclusion: EnvExclusion) =>
+  typeof exclusion === 'string' ? name === exclusion : new RegExp(exclusion.source, exclusion.flags.replace('g', '')).test(name)
+
+/** Copy of `base` without host-only variables and those matching `exclude`. */
+export function filterEnv(base: Readonly<Record<string, string | undefined>>, exclude: readonly EnvExclusion[] = []): Record<string, string | undefined> {
+  const all = [...HOST_ONLY_ENV, ...exclude]
+  const env: Record<string, string | undefined> = {}
+  for (const [name, value] of Object.entries(base)) if (!all.some((exclusion) => matches(name, exclusion))) env[name] = value
   return env
 }
 
@@ -93,6 +106,7 @@ function waitForExit(child: ChildProcess): Promise<number | null> {
 /** Local shell execution: each command runs in its own process group so cancellation kills descendants too. */
 export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
+  const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
   return {
     async exec({ command, cwd, env, onData, signal, timeoutMs }): Promise<ExecOutcome> {
       if (signal?.aborted) return { kind: 'aborted' }
@@ -105,7 +119,7 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
       const child = spawn(shell, ['-c', command], {
         cwd,
         detached: true,
-        env: env ?? options.env ?? defaultEnv(),
+        env: env ?? baseEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       })
       let aborted = false

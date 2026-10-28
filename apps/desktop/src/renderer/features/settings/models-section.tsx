@@ -1,9 +1,11 @@
+import type { MessageKey } from '@coko/i18n'
 import type { Provider, ProviderKind, ProviderPreset } from '@coko/protocol'
 import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
 import { ChevronDownIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings, useSettingsActions } from '../../app/settings.tsx'
+import type { ApiError } from '../../client/api.ts'
 import type { ProviderDraft } from '../../stores/settings-store.ts'
 import { SettingsCard } from './settings-dialog.tsx'
 
@@ -126,6 +128,7 @@ function CredentialStatus({ provider }: { provider: Provider }) {
 
 function ProviderCard({ provider, disabled, onEdit }: { provider: Provider; disabled: boolean; onEdit: () => void }) {
   const { t } = useI18n()
+  const presetName = useSettings((s) => s.presets.find((p) => p.kind === provider.kind)?.name)
   const { deleteProvider } = useSettingsActions()
   const [confirming, setConfirming] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -146,10 +149,8 @@ function ProviderCard({ provider, disabled, onEdit }: { provider: Provider; disa
           <span data-user-content className="truncate text-ui-body font-medium" title={provider.name}>
             {provider.name}
           </span>
-          {/* 名称与类别相同时（预设默认名）不重复显示类别。 */}
-          {provider.name !== t(`providers.kinds.${provider.kind}`) && (
-            <span className="shrink-0 text-ui-small text-muted-foreground">{t(`providers.kinds.${provider.kind}`)}</span>
-          )}
+          {/* 名称等于该 kind 的协议预设名（预设默认名）时不重复显示类别；比较协议数据，不比较翻译文本。 */}
+          {provider.name !== presetName && <span className="shrink-0 text-ui-small text-muted-foreground">{t(`providers.kinds.${provider.kind}`)}</span>}
         </div>
         <CredentialStatus provider={provider} />
         <span data-user-content className="truncate font-mono text-ui-small text-muted-foreground" title={provider.models.join(', ')}>
@@ -181,6 +182,14 @@ function ProviderCard({ provider, disabled, onEdit }: { provider: Provider; disa
   )
 }
 
+/** 协议错误码到字典键；其余错误用 providers.saveFailed。 */
+const PROVIDER_ERROR_KEYS: Partial<Record<ApiError['code'], MessageKey>> = {
+  'bad-request': 'providers.errors.invalid',
+  'not-found': 'providers.errors.notFound',
+  'storage-unavailable': 'providers.errors.unavailable',
+  network: 'providers.errors.unavailable',
+}
+
 const parseModels = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))]
 
 function ProviderForm({
@@ -207,6 +216,8 @@ function ProviderForm({
   const [modelText, setModelText] = React.useState((provider?.models ?? []).join(', '))
   const [secret, setSecret] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
+  /** 服务端错误的技术原文：只放在可展开的详情中。 */
+  const [detail, setDetail] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
   const compatible = kind === 'openai-compatible'
 
@@ -217,6 +228,7 @@ function ProviderForm({
     if (compatible && baseUrl.trim() === '') return setError(t('providers.baseUrlRequired'))
     if (chosen.length === 0) return setError(t('providers.modelsRequired'))
     setError(null)
+    setDetail(null)
     setSaving(true)
     const draft: ProviderDraft = {
       ...(provider ? { id: provider.id } : {}),
@@ -234,7 +246,8 @@ function ProviderForm({
       return
     }
     if (result.stage === 'provider') {
-      setError(result.error.message)
+      setError(t(PROVIDER_ERROR_KEYS[result.error.code] ?? 'providers.saveFailed'))
+      setDetail(`${result.error.message} (${result.error.code})`)
       toast.error(t('providers.saveFailed'))
       return
     }
@@ -304,6 +317,14 @@ function ProviderForm({
           <p role="alert" className="text-ui-small text-destructive">
             {error}
           </p>
+        )}
+        {detail !== null && (
+          <details className="text-ui-small text-muted-foreground">
+            <summary className="cursor-pointer select-none">{t('providers.errorDetail')}</summary>
+            <p data-error-detail data-user-content className="mt-1 break-words select-text">
+              {detail}
+            </p>
+          </details>
         )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={onCancel}>

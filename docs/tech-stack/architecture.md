@@ -28,8 +28,8 @@ repo/
 │   │   ├── build/                  # Forge hooks、watch 与资源准备
 │   │   ├── resources/              # 图标与打包静态资源
 │   │   ├── forge.config.ts
-│   │   └── tsdown.config.ts        # main / preload 构建
-│   └── server/                     # sidecar（Electron 内置 Node）与服务装配入口
+│   │   └── tsdown.config.ts        # main / preload 与 sidecar 构建（build/build.ts 编排）
+│   └── server/                     # sidecar（Electron 内置 Node）与服务装配入口；不单独输出产物
 │       ├── src/
 │       │   ├── http/               # Hono 路由、访问认证、中间件、错误映射
 │       │   ├── ws/                 # 连接、订阅、事件推送与重连
@@ -37,7 +37,6 @@ repo/
 │       │   ├── runtime/            # Effect Layer、资源释放、定时唤醒与后台资源
 │       │   ├── adapters/           # 宿主工具实现（如 ripgrep grep）与宿主适配
 │       │   └── index.ts            # 进程入口与依赖装配
-│       └── tsdown.config.ts
 ├── packages/
 │   ├── protocol/                   # TypeBox DTO、命令、事件、错误码
 │   ├── agent/                      # Coding-agent 框架、状态机、策略与宿主接口
@@ -106,7 +105,7 @@ sidecar 的服务即使只监听 loopback 也强制认证，没有关闭开关�
 
 消费方以 `"@coko/<pkg>": "workspace:*"` 声明依赖，并在自身 tsconfig 的 `references` 中引用该包。TypeScript 类型检查统一使用 tsc -b：各 workspace 是 composite 项目，只输出声明文件到被忽略的根 `.tsbuild/` 供增量检查，根 tsconfig 引用全部 workspace。
 
-apps/server 构建自身的 sidecar 产物。apps/desktop 的 Forge hooks 按依赖顺序调用 server、main / preload 和 renderer 构建，并将应用产物收集到桌面 workspace 的 dist/electron、dist/renderer、dist/sidecar。sidecar 的运行依赖与原生资源按桌面打包章节的 extraResource 规则准备，不携带独立运行时。
+sidecar 产物由 apps/desktop 构建：`build/build.ts` 以 tsdown 把 apps/server 的进程入口打成 dist/sidecar，apps/desktop 声明 `@coko/server` 为 workspace 依赖；apps/server 自身不输出产物，集成测试从其源码入口运行。apps/desktop 的 Forge hooks 按依赖顺序执行 sidecar、main / preload 和 renderer 构建，并将应用产物收集到桌面 workspace 的 dist/electron、dist/renderer、dist/sidecar。sidecar 的运行依赖与原生资源按桌面打包章节的 extraResource 规则准备，不携带独立运行时。
 
 单元测试与模块内集成测试就近放置，沿用 src 下的 *.test.ts / *.test.tsx，浏览器测试命名为 *.browser.test.ts / *.browser.test.tsx；跨应用集成测试和桌面验收放在根 tests。每个 workspace 用自己的 `vitest.config.ts`（及 `vitest.<name>.config.ts`，如 ui 的 `vitest.browser.config.ts`）声明 Vitest 项目，根 `vitest.config.ts` 按 glob 发现，新增项目不改根配置。所有测试由 Vitest 编排，Browser Mode 覆盖组件与交互，Playwright 驱动真实 Electron；涉及进程启动、访问认证、`node:sqlite` 或恢复的集成测试以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar。
 

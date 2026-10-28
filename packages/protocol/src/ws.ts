@@ -1,6 +1,6 @@
 import { Type, type Static } from 'typebox'
 import { ErrorCode } from './errors.ts'
-import { SessionEntry } from './http.ts'
+import { RunStatus, SessionEntry } from './http.ts'
 
 // WebSocket 消息（JSON 文本帧）。entry 是已提交的 Session Entry，带 seq，可在重连时以 afterSeq 补齐；
 // progress 是不持久化的临时显示状态，带 runId，断线丢失后由 entry 重建。
@@ -56,6 +56,15 @@ export const ProgressEvent = Type.Union([
       maxRetries: Type.Integer({ minimum: 0 }),
       delayMs: Type.Number({ minimum: 0 }),
       errorMessage: Type.String(),
+    },
+    strict,
+  ),
+  /** 每个 Run 的最后一个进度：run_end 条目已提交或提交失败之后发出；提交失败时客户端据此结束运行中状态。 */
+  Type.Object(
+    {
+      type: Type.Literal('run_end'),
+      status: RunStatus,
+      error: Type.Optional(Type.Object({ code: Type.String(), message: Type.String() }, strict)),
     },
     strict,
   ),

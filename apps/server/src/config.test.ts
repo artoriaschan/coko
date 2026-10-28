@@ -18,6 +18,12 @@ describe('Sidecar 启动参数', () => {
     expect(() => parseConfig(['--data-dir', '/d', '--log-dir', '/l', '--ripgrep', 'rg'], {})).toThrow(ConfigError)
   })
 
+  it('--app-version 可选，写入日志的统一字段；不是版本号形态时拒绝', () => {
+    expect(parseConfig(['--data-dir', '/d', '--log-dir', '/l', '--app-version', '1.2.3-beta.1'], {}).appVersion).toBe('1.2.3-beta.1')
+    expect(parseConfig(['--data-dir', '/d', '--log-dir', '/l'], {}).appVersion).toBeUndefined()
+    expect(() => parseConfig(['--data-dir', '/d', '--log-dir', '/l', '--app-version', 'not a version'], {})).toThrow(ConfigError)
+  })
+
   it('faux 脚本只由环境变量开启，且必须是绝对路径', () => {
     expect(parseConfig(['--data-dir', '/d', '--log-dir', '/l'], { COKO_FAUX_SCRIPT: '/s.json' }).fauxScript).toBe('/s.json')
     expect(() => parseConfig(['--data-dir', '/d', '--log-dir', '/l'], { COKO_FAUX_SCRIPT: 's.json' })).toThrow(ConfigError)

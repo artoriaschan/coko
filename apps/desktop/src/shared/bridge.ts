@@ -5,6 +5,9 @@ export const IPC = {
   pickDirectory: 'coko:pick-directory',
   setCredential: 'coko:set-credential',
   log: 'coko:log',
+  openLogs: 'coko:open-logs',
+  /** main → renderer：boot 之后 Sidecar 的状态变化（重启、重启完成、终态失败）。 */
+  sidecarState: 'coko:sidecar-state',
 } as const
 
 /** boot 信息：不含启动令牌或 cookie。 */
@@ -21,6 +24,15 @@ export interface BootFailure {
 }
 
 export type BootResult = { readonly ok: true; readonly info: BootInfo } | { readonly ok: false; readonly error: BootFailure }
+
+/**
+ * boot 之后的 Sidecar 状态：restarting 时 renderer 暂停连接；ready 带新的 WebSocket 基址（cookie 已重新交换），
+ * renderer 重连并补齐；failed 为终态（连续重启失败），renderer 停止重连。
+ */
+export type SidecarStateEvent =
+  | { readonly phase: 'restarting'; readonly attempt: number }
+  | { readonly phase: 'ready'; readonly wsBaseUrl: string }
+  | { readonly phase: 'failed'; readonly error: BootFailure }
 
 /**
  * 设置 Credential 的失败原因：invalid-input（Provider id 或密钥不合要求）、encryption-unavailable（safeStorage 不可用，
@@ -52,6 +64,10 @@ export interface CokoBridge {
   setCredential(providerId: string, secret: string): Promise<SetCredentialResult>
   /** 把一条日志转发到 main 的 desktop.jsonl；不等待、不回报结果。 */
   log(record: RendererLogInput): void
+  /** 在系统文件管理器中打开日志文件夹（诊断入口）；返回是否成功。 */
+  openLogs(): Promise<boolean>
+  /** 订阅 boot 之后的 Sidecar 状态变化；返回取消订阅函数。 */
+  onSidecarState(listener: (event: SidecarStateEvent) => void): () => void
 }
 
 // 声明放在契约旁：renderer 与 E2E（经 page.evaluate 访问 window.coko）分属不同 tsconfig 项目，都导入本文件。

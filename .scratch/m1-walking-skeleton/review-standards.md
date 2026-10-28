@@ -212,3 +212,36 @@
 | B1–B11 | judgement | 坏味道 | 见 B 节 |
 
 建议优先处理 A1、A2、A6、A13（安全或可访问性），然后是 A7、A8（文档与构建归属同批修正）。
+
+---
+
+## 处理结果
+
+2026-10-29，分支 `m1/10-review-fixes`（票 [10](issues/10-review-fixes.md)）。"测试"列出能捕获该问题的用例；标"先红"的用例在修复前已观察到按预期原因失败。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| A1 | 已修复：`toProgress` 对 `retry.errorMessage` 与新增的 `run_end.error.message` 调用入库同一个脱敏函数 `redactModelError`（= `redactText`） | tests/integration/sidecar-session.test.ts"可重试错误的 retry 进度在推送前脱敏"（先红：WebSocket 帧含 `sk-live…` 明文） |
+| A2 | 已修复：local-exec 改为接收宿主的 `excludeEnv`（字符串或正则），server 传入 `HOST_ENV_EXCLUSIONS`：`COKO_*`、各 kind 的 `*_API_KEY`、名字含 API_KEY / TOKEN / SECRET / PASSWORD / CREDENTIAL(S) / AUTH 的变量；PATH、HOME 保留 | sidecar-session.test.ts"bash 子进程的环境剔除 COKO_* 与凭据形态的变量"（先红，含 `AWS_SECRET_ACCESS_KEY` 这种中间含 SECRET 的名字）；agent bash.test.ts"命令环境去掉宿主专用变量与宿主声明剔除的变量" |
+| A3 | 不修复：Lead 在票 09 裁决 M1 产物保留 COKO_FAUX_SCRIPT（产物 smoke 依赖），关闭测试钩子记入 M6 | — |
+| A4 | 已修复：sidecar 新增可选启动参数 `--app-version`（版本号形态校验），main 传 `app.getVersion()`，写入 sidecar.jsonl 每条记录；README 参数表已更新 | apps/server config.test.ts（先红）；sidecar-ripgrep.test.ts"每条记录带 process 与 appVersion"（先红）；ripgrep-logging.e2e：两份日志的 appVersion 一致 |
+| A5 | 不修复：跨边界 requestId 需要改动 api 客户端、Hono 中间件与 LogTape 上下文，范围超出本票；observability 约定中的关联标识仍是目标约定，票 09 已列为未做 | — |
+| A6 | 已修复（与 F9 同一处）：打开序列改为先在事务中获取租约，再 quick_check、隔离与版本检查；租约被存活实例持有时报 `lease-held`，不检查、不改名。读不出租约（非数据库或页面损坏）时进入快速检查并隔离；版本过高时释放刚取得的租约。session README 已同步 | packages/session sqlite.test.ts"租约由存活的其他实例持有时……不隔离、不改动文件"（先红：原实现把活跃库改名为 `.corrupt-…`）；原有的非数据库、页面损坏、版本过高用例继续通过 |
+| A7 | 已修复（二选一取"保留现状、改写归属"）：apps/desktop 声明 `"@coko/server": "workspace:*"`；architecture.md 的目录树与构建归属、desktop-delivery.md、apps/server README、build.ts 注释改为"sidecar 产物由 apps/desktop 构建，apps/server 不单独输出" | `pnpm install --frozen-lockfile`、typecheck、产物 smoke 通过 |
+| A8 | 已修复：ADR 0001 的 partial 说明只留"已签名安装包 smoke"；ADR 0002 的剩余项（main 代理与头注入的联合测试、重启后重新交换）都已有证据，改为 implemented，并同步 docs/adr/README.md 表格 | check:docs 0 问题 |
+| A9 | 已修复：control.ts 头注释改写；messages.ts 随 A10 删除；sidecar-process.ts 的时限注释指向 `DEFAULT_SIDECAR_TIMEOUTS`，数值写入 desktop-delivery.md | — |
+| A10 | 已修复：main 原生对话框文案移到 @coko/i18n 的 `main.*`，main 用 `createTranslator(resolveLocale(app.getLocale()))`；复数改为 `confirmQuitOne` / `confirmQuitMany` / `confirmQuitUnknown` 三条 | i18n 字典同构与插值测试；desktop-shell.e2e 的对话框文案断言 |
+| A11 | 已修复：类别标签与 `presets.find(p => p.kind === provider.kind)?.name` 比较 | app.browser.test.tsx"类别标签只在名称不等于预设名时显示"（先红：中文下名为"OpenAI 兼容"的自定义 Provider 丢了类别） |
+| A12 | 已修复：Provider 保存失败按错误码映射到 `providers.errors.*`，未知码用 `providers.saveFailed`；技术原文放进可展开的"技术详情" | app.browser.test.tsx"保存失败时显示可行动的本地化说明，技术原文只在详情中"（先红） |
+| A13 | 已修复：新增共享工具类 `focus-ring`（theme.css，utilities 层：去掉鼠标 outline，`:focus-visible` 显示 2px ring 色焦点环），Button、Input、Checkbox、ToggleGroupItem、Dialog 关闭按钮、ToolCard 标题行、侧栏行、设置导航改用它。Dialog 内容容器与侧栏抽屉容器不是控件，保留 `outline-none` | packages/ui styles/focus.browser.test.tsx：Tab 聚焦后读计算样式 `outline-style: solid`、2px、颜色等于 `var(--ring)`（先红：`outline-style: none`） |
+| A14 | 已修复：错误态用 `border border-destructive`，其余用 `border-hairline border-border` | tool-card.browser.test.tsx（先红）。Chromium 的 computed style 在 DPR 1 和 2 下都把 0.5px 边框取整为 1px，所以用例读命中规则的声明宽度（CSSOM），不读 computed width |
+| A15 | 不修复：补齐多个包的 README 是文档工作量，不属于本次缺陷修复；本次涉及的契约已写进 apps/server、packages/session README 与 desktop-delivery.md | — |
+| A16 | 已修复（随 F1）：见 review-spec F1 | 见 F1 |
+| A17 | 不修复：make / publish 与 watch 重启属于交付范围，票 05 / 09 已在 Comments 记为未验证项，Lead 已知悉 | — |
+| A18 | 已修复：runtime.test.ts 的提交屏障用 deferred 控制提交完成，并在提交挂起时断言工具未开始；timeout.test.ts 用 fake timers 推进时间（finally 中恢复） | 把 `await commit(...)` 临时改为 `void commit(...)` 后屏障用例按预期失败，已撤销；两个文件连续运行 3 次通过 |
+| A19 | 不修复：Lead 在票 07 接受 E2E 放在 apps/desktop/e2e | — |
+| A20 | 不修复：payload 判别联合需要改协议与两端恢复逻辑，属于后续结构工作 | — |
+| A21 | 不修复：移除 Application.store 涉及 ws 层重写，与本次修复无关 | — |
+| B1 | 不修复：收敛 Provider kind 映射要改 protocol、agent、server、renderer、i18n 五处，并加编译期等价断言，成本不低 | — |
+| B2、B4–B11 | 不修复：judgement 项，本次不做。B9 的 `formSeq` 与 spinner 名称、B11 的 render-process-gone 监听留给后续 | — |
+| B3 | 不修复：pending-request-with-timeout 的 4 处语义不同（拒绝 / 返回失败结果 / 断开时清理），合并成一个工具需要逐处验证，成本不低。本次新增的 SidecarSupervisor 没有引入第 5 处 | — |

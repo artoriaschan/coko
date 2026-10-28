@@ -3,11 +3,13 @@ import type { Model } from '@earendil-works/pi-ai'
 import {
   createAgentRuntime,
   ModelConfigError,
+  NothingToRetryError,
   resolveModel,
   type AgentRuntime,
   type ModelRegistry,
   type ProgressEvent as AgentProgress,
   type RunEntry,
+  type RunResult,
   type ToolRegistry,
 } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
@@ -46,21 +48,25 @@ export interface SessionServiceOptions {
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
 
 /**
- * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库前脱敏（ADR 0004）。
- * 用户输入与工具输出保持原样。
+ * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
+ * （ADR 0004）。用户输入与工具输出保持原样。
  */
+const redactModelError = redactText
+
 function toNewEntry(entry: RunEntry): NewSessionEntry {
   if (entry.kind === 'message') {
     const message = entry.message
-    const safe = message.role === 'assistant' && message.errorMessage ? { ...message, errorMessage: redactText(message.errorMessage) } : message
+    const safe = message.role === 'assistant' && message.errorMessage ? { ...message, errorMessage: redactModelError(message.errorMessage) } : message
     return { kind: 'message', runId: entry.runId, payload: toJson(safe) }
   }
-  const error = entry.error ? { ...entry.error, message: redactText(entry.error.message) } : undefined
+  const error = entry.error ? { ...entry.error, message: redactModelError(entry.error.message) } : undefined
   return { kind: 'run_end', runId: entry.runId, payload: toJson({ status: entry.status, ...(error ? { error } : {}) }) }
 }
 
 function toProgress(event: AgentProgress): ProgressEvent {
   const { runId: _runId, ...rest } = event
+  if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
+  if (rest.type === 'run_end' && rest.error) return { ...rest, error: { ...rest.error, message: redactModelError(rest.error.message) } }
   return toJson(rest) as ProgressEvent
 }
 
@@ -138,7 +144,16 @@ export class SessionService {
   }
 
   /** 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。 */
-  async submit(sessionId: string, text: string): Promise<{ runId: string }> {
+  submit(sessionId: string, text: string): Promise<{ runId: string }> {
+    return this.#start(sessionId, (runtime) => runtime.run(text))
+  }
+
+  /** 重新执行出错的上一轮（不追加用户消息）；上一轮没有出错时以 nothing-to-retry 拒绝。 */
+  retry(sessionId: string): Promise<{ runId: string }> {
+    return this.#start(sessionId, (runtime) => runtime.retry())
+  }
+
+  async #start(sessionId: string, start: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }> {
     let session = await this.#get(sessionId)
     if (!session.model) {
       const model = await this.defaultModel()
@@ -155,10 +170,14 @@ export class SessionService {
     const off = runtime.subscribe((event) => {
       if (event.kind === 'progress' && event.event.type === 'run_start') runId ??= event.event.runId
     })
-    const run = runtime.run(text)
+    const run = start(runtime)
     off()
     if (runId === undefined) {
-      await run.catch(() => undefined)
+      const error = await run.then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+      if (error instanceof NothingToRetryError) throw new AppError('nothing-to-retry', error.message)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
     const started = runId

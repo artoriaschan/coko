@@ -55,6 +55,12 @@ const preferences = createPreferences({
 // 每次（重新）连接后读取设置与 Provider。
 stream.onOpen(() => void settings.getState().load())
 const pickDirectory = () => window.coko?.pickDirectory() ?? Promise.resolve(null)
+const openLogs = bridge
+  ? () =>
+      void bridge.openLogs().then((ok) => {
+        if (!ok) toast.error(t()('connection.openLogsFailed'))
+      })
+  : undefined
 
 createRoot(root).render(
   <StrictMode>
@@ -66,6 +72,7 @@ createRoot(root).render(
       preferences={preferences}
       settingsDialog={settingsDialog}
       pickDirectory={pickDirectory}
+      openLogs={openLogs}
     />
   </StrictMode>,
 )

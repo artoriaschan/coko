@@ -53,8 +53,9 @@ Map: [Coko 桌面应用](../desktop-app/map.md) · [里程碑划分](../desktop-
 
 **packages/protocol**
 - TypeBox schema 与推导类型：HTTP 请求/响应 DTO、WebSocket 消息、错误码、Sidecar 控制 IPC 消息。
-- HTTP：认证交换、health、workspaces（列表、登记）、sessions（列表、创建、详情含条目、提交消息、停止 Run、切换模型）、settings（读取、带 revision 的更新）、providers（列表、增改删，不含密钥）。
-- WebSocket：客户端 `subscribe { sessionId, afterSeq }`；服务端推送 `entry`（已提交的 Session Entry，带 seq）与 `progress`（临时：文本增量、工具执行进度、Run 状态，带 runId），两者明确区分；断线重连以 afterSeq 补齐。
+- HTTP：认证交换、health、workspaces（列表、登记）、sessions（列表、创建、详情含条目、提交消息、重试上一轮、停止 Run、切换模型）、settings（读取、带 revision 的更新）、providers（列表、增改删，不含密钥）、provider-presets（预设 kind 的默认地址与模型目录，供设置界面选择，用户故事 16）、models（已注册 Provider 的可用模型与默认模型，供模型选择，用户故事 18）。重试（`POST /api/sessions/:id/retry`）重新执行以模型错误结束的上一轮，不追加用户消息（票 10，评审 F8）。
+- WebSocket：客户端 `subscribe { sessionId, afterSeq }` 与 `unsubscribe { sessionId }`（协议保留，M1 renderer 不发送）；服务端推送 `entry`（已提交的 Session Entry，带 seq）与 `progress`（临时：文本增量、工具执行进度、Run 状态，带 runId），两者明确区分；每个 Run 以 `progress run_end { status, error? }` 结束，run_end 条目提交失败时也发出；断线重连以 afterSeq 补齐。
+- 独立运行的 Credential 环境变量：`COKO_CREDENTIAL_<PROVIDER_ID>` 优先，否则按 kind 读 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（见 apps/server README）。
 - Sidecar 控制 IPC：sidecar → main：starting、ready { port, token }、fatal { code, message }、shutdown-complete、credential.decrypt { requestId, ciphertext }；main → sidecar：shutdown、inspect-quit、credential.store { providerId, ciphertext }、credential.decrypt.result。
 
 **packages/session**（[ADR 0003](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)）

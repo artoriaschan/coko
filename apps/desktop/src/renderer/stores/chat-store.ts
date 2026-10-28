@@ -27,12 +27,20 @@ export interface LiveRun {
   retry?: { attempt: number; maxRetries: number }
 }
 
+/** 只由 run_end progress 得知的 Run 结束（run_end 条目提交失败）；之后到达的条目会覆盖它。 */
+export interface UnrecordedRunEnd {
+  runId: string
+  status: 'completed' | 'aborted' | 'error'
+  error?: { code: string; message: string }
+}
+
 export interface Conversation {
   status: 'loading' | 'ready' | 'error'
   entries: SessionEntry[]
   lastSeq: number
   running: boolean
   live: LiveRun | null
+  unrecordedEnd?: UnrecordedRunEnd
 }
 
 export type ChatFailure = { kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model'; error: ApiError }
@@ -60,8 +68,8 @@ export interface ChatActions {
   /** 在当前会话（或草稿）中发送；返回是否被接受（失败时保留输入）。 */
   send(text: string): Promise<boolean>
   stop(): Promise<void>
-  /** 以出错 Run 的用户文本重新提交。 */
-  retry(text: string): Promise<boolean>
+  /** 重新执行当前会话出错的上一轮（不追加用户消息）。 */
+  retry(): Promise<boolean>
   /** 当前会话经协议切换模型；草稿中只记下选择。 */
   selectModel(model: SessionModel): Promise<void>
 }
@@ -130,12 +138,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
      * 先乐观地标记运行中再请求：Run 可能在 202 返回前就结束，其 run_end 经 WebSocket 先到，
      * 之后不得再被改回运行中。请求失败时只撤销本次的乐观状态。
      */
-    const submit = async (sessionId: string, text: string, kind: ChatFailure['kind']): Promise<boolean> => {
+    const submit = async (sessionId: string, request: () => Promise<unknown>, kind: ChatFailure['kind']): Promise<boolean> => {
       const before = get().conversations[sessionId]
       const optimistic = before?.running ? before.live : emptyLive(null, true)
       if (before && !before.running) updateConversation(sessionId, (c) => ({ ...c, running: true, live: optimistic }))
       try {
-        await api.submitMessage(sessionId, text)
+        await request()
         return true
       } catch (error) {
         if (before && !before.running) updateConversation(sessionId, (c) => (c.live === optimistic ? { ...c, running: false, live: null } : c))
@@ -200,7 +208,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
 
       async send(text) {
         const { activeSessionId, draftWorkspaceId, draftModel } = get()
-        if (activeSessionId !== null) return submit(activeSessionId, text, 'send')
+        if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text), 'send')
         if (draftWorkspaceId === null) return false
         let session: Session
         try {
@@ -217,7 +225,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           conversations: { ...state.conversations, [session.id]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } },
         }))
         await subscribe(session.id)
-        return submit(session.id, text, 'send')
+        return submit(session.id, () => api.submitMessage(session.id, text), 'send')
       },
 
       async stop() {
@@ -230,10 +238,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      async retry(text) {
+      async retry() {
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
-        return submit(sessionId, text, 'retry')
+        return submit(sessionId, () => api.retryRun(sessionId), 'retry')
       },
 
       async selectModel(model) {
@@ -278,7 +286,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         patchConversation(message.sessionId, (c) => {
           if (entry.seq <= c.lastSeq) return c
           const entries = [...c.entries, entry]
-          if (entry.kind === 'run_end') return { ...c, entries, lastSeq: entry.seq, running: false, live: null }
+          if (entry.kind === 'run_end') return { ...c, entries, lastSeq: entry.seq, running: false, live: null, unrecordedEnd: undefined }
           const role = (entry.payload as { role?: unknown } | null)?.role
           // assistant 消息已提交：其增量不再需要，下一条消息的增量从空开始接收。
           const live = role === 'assistant' && c.live ? { ...c.live, accepting: true, blocks: [], retry: undefined } : c.live
@@ -292,8 +300,24 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       }
       case 'progress': {
         if (!state.conversations[message.sessionId]) return
-        patchConversation(message.sessionId, (c) => ({ ...c, running: true, live: reduceProgress(c.live, message.runId, message.event) }))
-        if (message.event.type === 'run_start') patchSession(message.sessionId, { running: true })
+        const event = message.event
+        if (event.type === 'run_end') {
+          // run_end 条目通常已先到；没有到（提交失败）时也结束运行中状态，并显示只由进度得知的结束状态。
+          patchConversation(message.sessionId, (c) => {
+            const recorded = c.entries.some((e) => e.kind === 'run_end' && e.runId === message.runId)
+            const unrecordedEnd: UnrecordedRunEnd = { runId: message.runId, status: event.status, ...(event.error ? { error: event.error } : {}) }
+            return { ...c, running: false, live: null, unrecordedEnd: recorded ? undefined : unrecordedEnd }
+          })
+          patchSession(message.sessionId, { running: false })
+          return
+        }
+        patchConversation(message.sessionId, (c) => ({
+          ...c,
+          running: true,
+          live: reduceProgress(c.live, message.runId, event),
+          ...(event.type === 'run_start' ? { unrecordedEnd: undefined } : {}),
+        }))
+        if (event.type === 'run_start') patchSession(message.sessionId, { running: true })
         return
       }
       case 'error': {
@@ -323,7 +347,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   return store
 }
 
-export function reduceProgress(live: LiveRun | null, runId: string, event: ProgressEvent): LiveRun {
+export function reduceProgress(live: LiveRun | null, runId: string, event: Exclude<ProgressEvent, { type: 'run_end' }>): LiveRun {
   if (event.type === 'run_start') return emptyLive(runId, true)
   const current = live ?? emptyLive(runId, false)
   switch (event.type) {

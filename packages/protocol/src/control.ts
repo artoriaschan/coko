@@ -1,7 +1,6 @@
 import { Type, type Static } from 'typebox'
 
-// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息。
-// 只包含 M1 已接入的消息；credential.* 由凭据切片补充。
+// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit 与 credential.*。
 
 const strict = { additionalProperties: false } as const
 const RequestId = Type.Integer({ minimum: 1 })

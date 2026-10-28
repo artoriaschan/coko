@@ -51,8 +51,9 @@ export function ToolCard({ icon, title, summary, status, statusLabel, meta, chil
       data-status={status}
       data-tool={rest['data-tool']}
       className={cn(
-        'min-w-0 overflow-hidden rounded-lg border-hairline border-border bg-card-fill text-ui-body',
-        status === 'error' && 'border-destructive',
+        'min-w-0 overflow-hidden rounded-lg bg-card-fill text-ui-body',
+        // 中性线为 0.5px；状态色边框保持 1px（设计系统规格）。
+        status === 'error' ? 'border border-destructive' : 'border-hairline border-border',
         className,
       )}
     >
@@ -62,7 +63,7 @@ export function ToolCard({ icon, title, summary, status, statusLabel, meta, chil
           aria-expanded={expanded}
           aria-controls={bodyId}
           onClick={() => setExpanded((open) => !open)}
-          className="flex h-9 w-full min-w-0 items-center gap-2 px-3 text-left outline-none hover:bg-accent"
+          className="flex h-9 w-full min-w-0 items-center gap-2 px-3 text-left focus-ring hover:bg-accent"
         >
           {header}
         </button>

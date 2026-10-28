@@ -60,5 +60,6 @@
 - `docs/tech-stack/ui.md` Markdown 渲染：MarkdownRenderer 经 `@coko/ui/markdown` 子路径导出、按需懒加载。
 - `apps/server/README.md`：dist/sidecar 产物的启动已由桌面 E2E 验证（开发路径），打包产物尚未验证。
 - 2026-10-28 lead：评审后合入 main（df4b97e）。main 上复核：install、typecheck、lint、format:check 退出 0；test 43 文件 327 用例通过（含两组 desktop E2E 共 15 例）；check:docs 0 问题。裁决：composer 纯文本、草稿仅在内存——M1 接受，EditorState JSON 草稿持久化与 @lexical/markdown 随 M3 的 @ / / typeahead 交付；E2E 留在 apps/desktop/e2e 以共用一次构建——接受，跨应用的 sidecar 集成测试仍在根 tests/integration。worktree 已清理。
+- 2026-10-29 implementer（票 10，分支 m1/10-review-fixes）：重试的行为已变更。原实现以出错 Run 的用户文本重新提交，对话记录与模型上下文中会出现两条相同的用户消息（评审 F8）。现在重试调用 `POST /api/sessions/:id/retry`：runtime 去掉末尾出错的 assistant 消息（入库记录保留），以 `agent.continue()` 重新执行上一轮，不追加用户条目。因此 `e2e/chat.e2e.test.ts`"模型出错时显示简短错误，重试后成功"的断言由 2 条"你"改为 1 条。同票还补了 ⌘N / Ctrl+N 新建会话、输入区之外的 Escape 停止（评审 F2），以及侧栏搜索按标题过滤（评审 F6），本票"未验证项"中的这两条已处理。
 
 Closed: true

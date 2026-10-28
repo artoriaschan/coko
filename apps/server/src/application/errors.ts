@@ -7,6 +7,7 @@ const STATUS: Record<ErrorCode, number> = {
   forbidden: 403,
   'not-found': 404,
   'run-in-progress': 409,
+  'nothing-to-retry': 409,
   'model-not-configured': 409,
   'revision-conflict': 409,
   'storage-unavailable': 503,

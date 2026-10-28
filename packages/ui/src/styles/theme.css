@@ -310,6 +310,18 @@
 }
 
 /* 菜单材质的模糊层；只由共享 Menu 组件使用。 */
+/*
+ * 共享焦点样式：控件不显示鼠标点击产生的 outline，键盘焦点（:focus-visible）显示 ring 色焦点环。
+ * 与 base 层的 :focus-visible 规则一致，但位于 utilities 层，不会被同一元素上的其他工具类清掉。
+ */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--ring);
+    outline-offset: -1px;
+  }
+}
+
 @utility menu-backdrop {
   backdrop-filter: var(--menu-backdrop-filter);
 }

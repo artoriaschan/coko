@@ -10,6 +10,7 @@ import {
   API_ROUTES,
   AuthExchangeRequest,
   CreateProviderRequest,
+  isMainOnlyPath,
   CreateSessionRequest,
   RegisterWorkspaceRequest,
   SetSessionModelRequest,
@@ -50,7 +51,7 @@ async function body<S extends TSchema>(c: Context<Env>, schema: S): Promise<Stat
   return value as Static<S>
 }
 
-/** Hono 路由。顺序：请求日志 → 信任围栏（403）→ 令牌交换 → cookie 校验（401）→ 业务路由。 */
+/** Hono 路由。顺序：请求日志 → 信任围栏（403）→ main-only 路由守卫（404）→ 令牌交换 → cookie 校验（401）→ 业务路由。 */
 export function createApp(options: { auth: AccessAuth; app: Application; sockets: SocketRegistry }) {
   const { auth, app, sockets } = options
   const http = new Hono<Env>()
@@ -71,6 +72,16 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
 
   http.use(async (c, next) => {
     if (!auth.isTrusted(c.env.incoming.headers)) return c.json(errorBody(new AppError('forbidden', 'Request is not trusted')), 403)
+    return next()
+  })
+
+  // main-only 路由只接受 main 的调用方式：原样路径、POST、不带 cookie。经 renderer 代理的请求总带 main 注入的 cookie，
+  // 编码变体（%65xchange、末尾斜杠、大小写、重复斜杠）规范化后同样命中前缀，一律 404。
+  http.use(async (c, next) => {
+    const raw = (c.env.incoming.url ?? '').split('?')[0] ?? ''
+    if (!isMainOnlyPath(raw)) return next()
+    const fromMain = raw === API_ROUTES.authExchange && c.req.method === 'POST' && c.env.incoming.headers.cookie === undefined
+    if (!fromMain) return c.json(errorBody(new AppError('not-found', 'Not found')), 404)
     return next()
   })
 
@@ -123,6 +134,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     const { text } = await body(c, SubmitMessageRequest)
     return c.json(await app.sessions.submit(c.req.param('id'), text), 202)
   })
+  http.post(`${API_ROUTES.sessions}/:id/retry`, async (c) => c.json(await app.sessions.retry(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/abort`, async (c) => c.json({ aborted: await app.sessions.abort(c.req.param('id')) }))
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
     const { model } = await body(c, SetSessionModelRequest)

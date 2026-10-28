@@ -1,7 +1,8 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { launchApp, launchSecondInstance, processExists, waitFor, type LaunchedApp, type LaunchOptions } from './harness.ts'
+import { readLogRecords } from './logs.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -74,7 +75,7 @@ describe('桌面壳', () => {
     })
     expect(visible.documentCookie).toBe('')
     // setCredential 只把密钥交给 main，不返回密钥（ADR 0004）。
-    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'log', 'pickDirectory', 'setCredential'])
+    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'log', 'onSidecarState', 'openLogs', 'pickDirectory', 'setCredential'])
     expect(visible.echoSetCookie).toBeNull()
     expect(visible.exchange).toBe(404)
     const exposed = JSON.stringify({ boot: visible.boot, html: visible.html, documentCookie: visible.documentCookie })
@@ -149,10 +150,112 @@ describe('桌面壳', () => {
     await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
   })
 
-  it('Sidecar 启动失败时显示错误对话框，renderer 显示失败状态', async () => {
+  it('Sidecar 启动失败时显示错误对话框（含打开日志文件夹），renderer 显示失败状态与诊断入口，stderr 脱敏后写入 desktop.jsonl', async () => {
     const fixtureGate = join(await import('node:os').then((os) => os.tmpdir()), `coko-gate-${process.pid}-${Date.now()}`)
-    const app = await launch({ COKO_FIXTURE_MODE: 'fatal', COKO_FIXTURE_GATE: fixtureGate }, { sidecar: 'placeholder' })
-    // 先替换对话框，再放行 sidecar 报告 fatal。
+    const secret = 'sk-stderrSecretValue123456'
+    const { mkdtemp, realpath, rm } = await import('node:fs/promises')
+    // 测试自己持有目录：dispose 之后还要读取日志。
+    const dir = await mkdtemp(join(await import('node:os').then((os) => os.tmpdir()), 'coko-fatal-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const app = await launch(
+      { COKO_FIXTURE_MODE: 'fatal', COKO_FIXTURE_GATE: fixtureGate, COKO_FIXTURE_STDERR: `boot trace with key ${secret}` },
+      { sidecar: 'placeholder', dir },
+    )
+    // 先替换对话框与 shell.openPath，再放行 sidecar 报告 fatal。对话框选择"打开日志文件夹"（按钮 1）。
+    await app.app.evaluate(({ dialog, shell }) => {
+      const g = globalThis as { __boxes?: unknown[]; __opened?: string[] }
+      g.__boxes = []
+      g.__opened = []
+      dialog.showMessageBox = (async (...args: unknown[]) => {
+        g.__boxes!.push(args.at(-1))
+        return { response: 1, checkboxChecked: false }
+      }) as typeof dialog.showMessageBox
+      shell.openPath = (async (path: string) => {
+        g.__opened!.push(path)
+        return ''
+      }) as typeof shell.openPath
+    })
+    await writeFile(fixtureGate, '')
+    const boxes = () =>
+      app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; detail?: string; buttons?: string[] }[] }).__boxes ?? [])
+    const opened = () => app.app.evaluate(() => (globalThis as { __opened?: string[] }).__opened ?? [])
+    const logsDir = join(await realpath(dir), 'user-data', 'logs')
+    await expect.poll(async () => (await boxes()).length, { timeout: 15_000 }).toBe(1)
+    const [box] = await boxes()
+    expect(box?.type).toBe('error')
+    expect(box?.message).toMatch(/Sidecar 启动失败|Sidecar failed to start/)
+    expect(box?.detail).toContain('fixture-fatal')
+    expect(box?.buttons).toEqual(expect.arrayContaining([expect.stringMatching(/^(打开日志文件夹|Open logs folder)$/)]))
+    await expect.poll(opened).toEqual([logsDir])
+
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('failed')
+    expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
+    await app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).click()
+    await expect.poll(opened).toEqual([logsDir, logsDir])
+
+    const [pid] = await app.sidecarPids()
+    await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
+    await app.dispose()
+    const desktopLog = await readFile(join(logsDir, 'desktop.jsonl'), 'utf8')
+    expect(desktopLog).not.toContain(secret)
+    const diagnostic = (await readLogRecords(join(logsDir, 'desktop.jsonl'))).find((r) => r.message === 'sidecar diagnostic')
+    expect(diagnostic?.properties.stderrTail).toContain('boot trace with key [REDACTED]')
+    await rm(fixtureGate, { force: true })
+  })
+
+  it('Sidecar 在 ready 之后退出：main 重启并重新交换 cookie，renderer 重连后数据仍在、可以继续对话', async () => {
+    const { mkdir, mkdtemp, rm } = await import('node:fs/promises')
+    const root = await mkdtemp(join(await import('node:os').then((os) => os.tmpdir()), 'coko-restart-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    const script = join(root, 'faux.json')
+    await writeFile(script, JSON.stringify({ responses: [{ content: 'Answered by the restarted sidecar.' }] }))
+    const app = await launch({ COKO_FAUX_SCRIPT: script }, { dir: root })
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
+    const registered = await app.window.evaluate(
+      async (path) => (await fetch('/api/workspaces', { method: 'POST', body: JSON.stringify({ path }) })).status,
+      workspace,
+    )
+    expect(registered).toBe(201)
+    await app.window.evaluate(() => {
+      const g = window as unknown as { __phases: string[] }
+      g.__phases = []
+      const el = document.querySelector('[role="status"]')!
+      new MutationObserver(() => g.__phases.push(el.getAttribute('data-connection') ?? '')).observe(el, { attributes: true })
+    })
+    const [pid] = await app.sidecarPids()
+    process.kill(pid!, 'SIGKILL')
+
+    await expect.poll(async () => (await app.sidecarPids()).length, { timeout: 15_000 }).toBe(2)
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
+    const phases = await app.window.evaluate(() => (window as unknown as { __phases: string[] }).__phases)
+    expect(phases).toContain('restarting')
+    expect(phases.at(-1)).toBe('connected')
+    expect(processExists(pid!)).toBe(false)
+    // 经代理的 HTTP 使用重新交换的 cookie；数据来自同一个库。
+    const workspaces = await app.window.evaluate(async () => (await (await fetch('/api/workspaces')).json()) as { workspaces: { path: string }[] })
+    expect(workspaces.workspaces.map((w) => w.path)).toEqual([workspace])
+
+    // WebSocket 连向新 Sidecar：发送后看到回复。
+    await app.window.reload()
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
+    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    const composer = app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
+    await composer.click()
+    await composer.fill('still there?')
+    await composer.press('Enter')
+    await expect
+      .poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 })
+      .toBe('Answered by the restarted sidecar.')
+    await app.dispose()
+    const records = await readLogRecords(join(root, 'user-data', 'logs', 'desktop.jsonl'))
+    expect(records.map((r) => r.message)).toEqual(expect.arrayContaining(['sidecar exited unexpectedly', 'sidecar restarting', 'sidecar restarted']))
+  })
+
+  it('Sidecar 重启连续失败达到上限：renderer 进入 failed 并停止重连，弹出一次错误对话框', async () => {
+    const app = await launch({ COKO_FIXTURE_MODE: 'fatal-after-first' }, { sidecar: 'placeholder' })
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     await app.app.evaluate(({ dialog }) => {
       const g = globalThis as { __boxes?: unknown[] }
       g.__boxes = []
@@ -161,19 +264,24 @@ describe('桌面壳', () => {
         return new Promise(() => {})
       }) as typeof dialog.showMessageBox
     })
-    await writeFile(fixtureGate, '')
-    const boxes = () => app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; detail?: string }[] }).__boxes ?? [])
-    await expect.poll(async () => (await boxes()).length, { timeout: 15_000 }).toBe(1)
-    const [box] = await boxes()
-    expect(box?.type).toBe('error')
-    expect(box?.message).toMatch(/Sidecar 启动失败|Sidecar failed to start/)
-    expect(box?.detail).toContain('fixture-fatal')
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('failed')
-    expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
     const [pid] = await app.sidecarPids()
-    await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
-    const { rm } = await import('node:fs/promises')
-    await rm(fixtureGate, { force: true })
+    process.kill(pid!, 'SIGKILL')
+
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('failed')
+    expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
+    expect(await app.window.getByText(/^(Sidecar 多次重启失败，已停止|Sidecar kept failing to restart and was stopped)$/).count()).toBe(1)
+    expect(await app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).count()).toBe(1)
+    const boxes = () => app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; buttons?: string[] }[] }).__boxes ?? [])
+    await expect.poll(async () => (await boxes()).length).toBe(1)
+    const [box] = await boxes()
+    expect(box).toMatchObject({ type: 'error' })
+    expect(box?.message).toMatch(/^(Sidecar 已意外退出|Sidecar exited unexpectedly)$/)
+    expect(box?.buttons).toHaveLength(3)
+    // 初次 1 个 + 默认 3 次重启；之后不再 spawn，所有 sidecar 进程都已退出。
+    const spawned = await app.sidecarPids()
+    expect(spawned).toHaveLength(4)
+    for (const spawnedPid of spawned) await waitFor(() => !processExists(spawnedPid), 5_000, 'sidecar exit')
+    expect(await status(app).getAttribute('data-connection')).toBe('failed')
   })
 
   it('目录选择经 preload 返回所选路径，取消时为 null', async () => {
