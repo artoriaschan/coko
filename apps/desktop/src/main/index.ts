@@ -8,6 +8,8 @@ import { createCredentialBridge } from './credentials.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
+import { TEST_BUILD } from './build-flags.ts'
+import { sidecarArgs, sidecarEnvironment } from './sidecar-env.ts'
 import { SidecarProcess } from './sidecar-process.ts'
 import { SidecarSupervisor } from './sidecar-supervisor.ts'
 import { decideWebSocketHeaders } from './websocket-headers.ts'
@@ -106,17 +108,14 @@ function run(): void {
       new SidecarProcess({
         execPath: process.execPath,
         entry: sidecarEntry,
-        args: [
-          '--data-dir',
-          join(app.getPath('userData'), 'data'),
-          '--log-dir',
-          app.getPath('logs'),
-          '--ripgrep',
-          ripgrepPath,
-          '--app-version',
-          app.getVersion(),
-        ],
-        env: process.env,
+        args: sidecarArgs(
+          ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath, '--app-version', app.getVersion()],
+          {
+            packaged: !development,
+          },
+        ),
+        // 打包的发布构建不把测试钩子变量（COKO_SANDBOX_EXEC、COKO_TEST_*、COKO_FAUX_SCRIPT）交给 Sidecar。
+        env: sidecarEnvironment(process.env, { packaged: !development, testBuild: TEST_BUILD }),
         onStdout: (chunk) => process.stdout.write(chunk),
       }),
     exchange: exchangeLaunchToken,
@@ -129,7 +128,13 @@ function run(): void {
   const startup: Promise<BootResult> = (async (): Promise<BootResult> => {
     try {
       await logging
-      log.info('app starting', { packaged: !development, electron: process.versions.electron, platform: process.platform, ripgrep: ripgrepPath })
+      log.info('app starting', {
+        packaged: !development,
+        testBuild: TEST_BUILD,
+        electron: process.versions.electron,
+        platform: process.platform,
+        ripgrep: ripgrepPath,
+      })
       const state = await supervisor.start()
       await app.whenReady()
       if (state.phase !== 'ready') {

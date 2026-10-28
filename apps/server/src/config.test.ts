@@ -38,6 +38,33 @@ describe('Sidecar 启动参数', () => {
     expect(() => parseConfig(argv, { COKO_TEST_TOOLS: 'yes' })).toThrow(ConfigError)
   })
 
+  it('COKO_TEST_HOLD_* 只在 COKO_TEST_TOOLS=1 时读入配置', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l']
+    expect(parseConfig(argv, { COKO_TEST_TOOLS: '1', COKO_TEST_HOLD_AFTER_TOOL: 'write', COKO_TEST_HOLD_BEFORE_CHECKPOINT: '1' }).testHold).toEqual({
+      tool: 'write',
+      beforeCheckpoint: true,
+    })
+    expect(parseConfig(argv, { COKO_TEST_HOLD_AFTER_TOOL: 'write' })).not.toHaveProperty('testHold')
+  })
+
+  it('--packaged 的发布构建不读任何测试钩子变量，并记下被忽略的名字', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l', '--packaged']
+    const env = { COKO_FAUX_SCRIPT: '/s.json', COKO_SANDBOX_EXEC: '/x/sandbox-exec', COKO_TEST_TOOLS: '1', COKO_TEST_HOLD_AFTER_TOOL: 'write' }
+    const config = parseConfig(argv, env, { testBuild: false })
+    expect(config).toMatchObject({
+      packaged: true,
+      ignoredTestHooks: ['COKO_FAUX_SCRIPT', 'COKO_SANDBOX_EXEC', 'COKO_TEST_TOOLS', 'COKO_TEST_HOLD_AFTER_TOOL'],
+    })
+    for (const key of ['fauxScript', 'sandboxExec', 'testTools', 'testHold']) expect(config).not.toHaveProperty(key)
+    // 格式错误的值同样被忽略，而不是让产物启动失败。
+    expect(() => parseConfig(argv, { COKO_SANDBOX_EXEC: 'relative' }, { testBuild: false })).not.toThrow()
+  })
+
+  it('测试构建（构建期标志）打包后仍读测试钩子，供产物 smoke 使用', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l', '--packaged']
+    expect(parseConfig(argv, { COKO_FAUX_SCRIPT: '/s.json' }, { testBuild: true })).toMatchObject({ packaged: true, fauxScript: '/s.json' })
+  })
+
   it.each([[[]], [['--data-dir', '/d']], [['--data-dir', 'd', '--log-dir', '/l']], [['--data-dir', '/d', '--log-dir', '/l', '--port', '1']], [['--data-dir']]])(
     '拒绝 %j',
     (argv) => {

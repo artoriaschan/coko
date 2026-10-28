@@ -115,6 +115,8 @@ describe('打包产物 smoke', () => {
     // 随包 Sidecar 由应用自身以 ELECTRON_RUN_AS_NODE 启动，参数带随包 ripgrep 的路径。
     const sidecar = childProcesses(app.child.pid!).find((p) => p.command.includes(join(resources, 'sidecar', 'index.mjs')))
     expect(sidecar?.command).toContain(`--ripgrep ${join(resources, 'ripgrep', 'rg')}`)
+    // 打包产物带 --packaged：只有测试构建（COKO_TEST_BUILD=1 打包，见 globalSetup）才接受 COKO_FAUX_SCRIPT 等测试钩子。
+    expect(sidecar?.command).toContain('--packaged')
 
     // 目录选择对话框无法在产物中替换：经协议代理登记 Workspace，重新加载后从侧栏新建会话。
     const registered = await page.evaluate(async (path) => {
@@ -164,7 +166,11 @@ describe('打包产物 smoke', () => {
     const logs = join(userData, 'logs')
     const desktop = await readLogRecords(join(logs, 'desktop.jsonl'))
     const sidecarLog = await readLogRecords(join(logs, 'sidecar.jsonl'))
-    expect(desktop.find((r) => r.message === 'app starting')?.properties).toMatchObject({ packaged: true, ripgrep: join(resources, 'ripgrep', 'rg') })
+    expect(desktop.find((r) => r.message === 'app starting')?.properties).toMatchObject({
+      packaged: true,
+      testBuild: true,
+      ripgrep: join(resources, 'ripgrep', 'rg'),
+    })
     expect(desktop.map((r) => r.message)).toEqual(expect.arrayContaining(['sidecar ready', 'app quitting']))
     expect(desktop.find((r) => r.logger === 'coko.renderer.smoke')).toMatchObject({
       message: 'smoke marker [REDACTED]',

@@ -12,6 +12,12 @@ export const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 // renderer 唯一的 Vite 配置：base './'，输出 dist/renderer；生产构建与开发服务器共用。
 const viteConfigFile = fileURLToPath(new URL('../src/renderer/vite.config.ts', import.meta.url))
 
+/**
+ * 构建期标志（main 与 Sidecar 的 build-flags.ts）：COKO_TEST_BUILD=1 时打出测试构建，打包产物仍接受 COKO_FAUX_SCRIPT 等
+ * 测试钩子（E2E 的 globalSetup 这样打包）；否则为发布构建，打包产物剥离并忽略它们。
+ */
+export const testBuildDefine = (): Record<string, string> => ({ __COKO_TEST_BUILD__: JSON.stringify(process.env.COKO_TEST_BUILD === '1') })
+
 const electronBase: InlineConfig = {
   config: false,
   cwd: desktopRoot,
@@ -56,11 +62,11 @@ export const sidecarConfig: InlineConfig = {
 
 export async function buildElectron(): Promise<void> {
   // 顺序执行：第一个配置负责清理 dist/electron。
-  for (const config of electronConfigs) await tsdown(config)
+  for (const config of electronConfigs) await tsdown({ ...config, define: testBuildDefine() })
 }
 
 export async function buildSidecar(): Promise<void> {
-  await tsdown(sidecarConfig)
+  await tsdown({ ...sidecarConfig, define: testBuildDefine() })
 }
 
 /**
