@@ -5,9 +5,10 @@
 // 票 03：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
 // 票 05：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
 // 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记）。Seatbelt 部分只在 darwin 运行。
+// 票 07：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, permissionPaths, type ServerMessage } from '@coko/protocol'
@@ -55,7 +56,11 @@ function recordingClient(sidecar: Pick<Sidecar, 'port'>, cookie: string, bodies:
     bodies.push(typeof result.body === 'string' ? result.body : JSON.stringify(result.body ?? null))
     return result
   }
-  return { get: (path: string) => call('GET', path), post: (path: string, body?: unknown) => call('POST', path, body ?? {}) }
+  return {
+    get: (path: string) => call('GET', path),
+    post: (path: string, body?: unknown) => call('POST', path, body ?? {}),
+    put: (path: string, body: unknown) => call('PUT', path, body),
+  }
 }
 
 /** 扫描全部通道，返回含明文的位置。 */
@@ -67,12 +72,14 @@ function leaksIn(channels: [string, string | Buffer][], secrets: Record<string, 
   )
 }
 
+/** 目录下的全部文件（递归，含 blobs/ 下的快照），name 为相对路径。 */
 async function readDir(dir: string): Promise<{ name: string; bytes: Buffer }[]> {
-  const names = await readdir(dir).catch(() => [] as string[])
-  return Promise.all(names.map(async (name) => ({ name, bytes: await readFile(join(dir, name)) })))
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => [])
+  const files = entries.filter((e) => e.isFile()).map((e) => join(e.parentPath, e.name))
+  return Promise.all(files.map(async (path) => ({ name: path.slice(dir.length + 1), bytes: await readFile(path) })))
 }
 
-/** 落盘位置：库文件（含 -wal、-shm）与日志目录（含轮转文件）。 */
+/** 落盘位置：库文件（含 -wal、-shm）、快照目录（<dataDir>/blobs）与日志目录（含轮转文件）。 */
 async function persisted(dirs: SidecarDirs) {
   const files = [...(await readDir(dirs.dataDir)), ...(await readDir(dirs.logDir))]
   expect(files.some((f) => f.name === 'coko.db')).toBe(true)
@@ -100,8 +107,12 @@ describe('秘密不外泄总闸', () => {
           ],
         },
         { content: 'done' },
+        // Checkpoint：write 覆盖已有文件（原内容存为快照）。
+        { content: [{ type: 'toolCall', name: 'write', id: 'w1', arguments: { path: 'notes.txt', content: 'updated notes\n' } }] },
+        { content: 'written' },
       ],
     })
+    await writeFile(join(root, 'notes.txt'), 'original notes\n')
     const sidecar = await startSidecar({
       dirs,
       ipc: false,
@@ -153,6 +164,19 @@ describe('秘密不外泄总闸', () => {
     expect(fauxEntries.filter((e) => e.kind === 'tool_exec').map((e) => e.payload)).toEqual([
       { toolCallId: 'env1', toolName: 'bash', idempotencyKey: `${faux}:env1` },
     ])
+    // 快照通道：accept-edits 下 write 覆盖 notes.txt → file_backup（blob）、file_change 与快照文件。
+    expect((await api.put(permissionPaths.sessionPermissionMode(faux), { mode: 'accept-edits' })).status).toBe(200)
+    await api.post(apiPaths.sessionMessages(faux), { text: 'update notes' })
+    await ended(faux, 3)
+    expect(await readFile(join(root, 'notes.txt'), 'utf8')).toBe('updated notes\n')
+    expect(
+      stream
+        .entries(faux)
+        .filter((e) => e.kind === 'file_backup' || e.kind === 'file_change')
+        .map((e) => e.kind),
+    ).toEqual(['file_backup', 'file_change'])
+    const snapshots = (await readDir(join(dirs.dataDir, 'blobs'))).filter((f) => !f.name.startsWith('.'))
+    expect(snapshots.map((f) => f.bytes.toString())).toEqual(['original notes\n'])
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
     const provider = (await api.post(API_ROUTES.providers, { name: 'DS', kind: 'deepseek', baseUrl, models: ['deepseek-flash'] })).body

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "@coko/session 的 Repository 接口、SQLite 与内存实现的打开、提交、租约、迁移和错误契约。装配存储或调用仓库前查阅。"
+description: "@coko/session 的 Repository 接口、SQLite 与内存实现的打开、提交、租约、迁移和错误契约，以及 Checkpoint 快照存储。装配存储、调用仓库或读写快照前查阅。"
 lifecycle: active
 ---
 
@@ -15,6 +15,7 @@ lifecycle: active
 | `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`SessionStore`、`createPayloadRegistry` 与 `PayloadRegistry`、`StoreError`；不导入 `node:sqlite` |
 | `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`；只在此入口导入 `node:sqlite` |
 | `@coko/session/memory` | `createMemoryStore({ payloads })`，不持久化，供单元测试装配 |
+| `@coko/session/blobs` | `openBlobStore(dir, { maxBytes? })`、`hashFile(path)`、`BlobTooLargeError`、`MAX_BLOB_BYTES`：Checkpoint 快照的内容寻址文件存储（[ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)），只依赖 `node:fs` 与 `node:crypto` |
 
 两种实现返回同一个 `SessionStore`：`sessions`（Workspace、Session、append-only Session Entry）、`settings`、`providers` 与 `close()`。SQLite 实现另有 `instanceId`、`migration`（`{ from, to, backupPath }`）和 `capabilities.fts5`。
 
@@ -31,6 +32,13 @@ lifecycle: active
 - **宿主租约。** `host_lease` 单行表，打开时最先于事务中获取。其他实例的进程存活且心跳未超过 TTL 时，打开以 `lease-held` 拒绝（`details` 带 `pid`、`instanceId`），不做快速检查与隔离，文件保持原样。持有者进程已退出或心跳超时则接管。每次写入都在事务内校验租约，被接管后本实例的所有操作以 `lease-lost` 拒绝。`close()` 释放租约。
 - **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时在获取租约之前报告 `version-too-new`，不写入任何内容，库文件逐字节不变。
 - **错误。** 所有失败都是 `StoreError`（`code`、`fatal`、`details`）。`fatal` 为 true 的错误（`lease-held`、`lease-lost`、`corrupt`、`version-too-new`、`migration-failed`、`open-failed`、`unknown-state`）表示存储不可继续使用，应由宿主提示用户。回滚本身失败时进入 `unknown-state`，必须关闭后重开。
+
+### 快照存储
+
+- **布局。** `<dir>/<SHA-256 前 2 位>/<SHA-256>`，引用是小写十六进制的 SHA-256。Sidecar 的 `dir` 是 `<dataDir>/blobs`（`apps/server/src/adapters/checkpoints.ts`）。目录在第一次写入时创建，快照目录与分片目录 0700（已存在时也收紧），文件 0600。
+- **写入。** `put(bytes | AsyncIterable)` 与 `putFile(path)` 先写同目录的临时文件 `.tmp-<pid>-<随机>`、边写边算摘要，fsync 后改名到位并 fsync 所在目录，兑现为 SHA-256。同一内容已存在时丢弃临时文件，只存一份。来源出错或超过 `maxBytes`（默认 `MAX_BLOB_BYTES` = 10 MiB，超出以 `BlobTooLargeError` 拒绝）时删除临时文件，不留下目标文件。`putFile` 对不存在的文件以 ENOENT 拒绝。
+- **读取。** `read(hash)`、`has(hash)`；引用不是 SHA-256 时拒绝，不会解析到目录之外。`hashFile(path)` 只计算摘要，不写入、不限大小。
+- **引用。** 快照的引用与元数据是 Session Entry（`file_backup`、`file_change`，payload 由 agent 定义），不新增表。M2 不清理快照目录。
 
 ## 配置与限制
 
@@ -53,6 +61,7 @@ lifecycle: active
 - `src/repository-contract.ts`：仓库契约测试套件（含 payload 写入拒绝与读取迁移、跳过），由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行；测试用注册表在 `src/test-payloads.ts`。
 - `src/sqlite/sqlite.test.ts`：重新打开后读回、升级注册表后重新打开时旧版本 payload 迁移且不合格行保留在库中、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、租约被存活实例持有时损坏库不被隔离、版本过高拒绝且库文件逐字节不变。
 - `src/sqlite/migrate.test.ts`：用合成迁移验证备份、逐步提交、失败回滚与租约释放。
+- `src/blobs/blobs.test.ts`：同一内容只存一份、读回逐字节相同、0700 / 0600、来源中途出错与超限时不留下任何文件、引用校验。
 - `src/sqlite/electron-runtime.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动 Electron 子进程（`src/sqlite/electron-fixture.ts`），验证跨进程提交读回、租约冲突、持有者被 SIGKILL 后接管，并断言运行时版本与 FTS5 可用。
 
 运行：`pnpm exec vitest run packages/session`。
