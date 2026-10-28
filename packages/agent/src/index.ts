@@ -11,7 +11,20 @@ export {
 export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'
-export type { ProgressEvent, RunEntry, RunError, RunErrorCode, RunResult, RunStatus, RuntimeEvent } from './engine/types.ts'
+export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
+export type {
+  BeforeRequestState,
+  ProgressEvent,
+  RunEntry,
+  RunError,
+  RunErrorCode,
+  RunInput,
+  RunResult,
+  RunStatus,
+  RuntimeContext,
+  RuntimeEvent,
+  SystemSection,
+} from './engine/types.ts'
 
 // Models
 export {

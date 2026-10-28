@@ -1,4 +1,5 @@
-import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentMessage, AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { Model, UserMessage } from '@earendil-works/pi-ai'
 import type { CompactionTrigger, RunStatus, SessionEntryKind, SessionEntryPayloads } from '../session-entries/index.ts'
 
 export type { RunStatus } from '../session-entries/index.ts'
@@ -51,6 +52,44 @@ export type ProgressEvent =
    * run_end entry (the commit failed) still learns that the Run is over.
    */
   | { type: 'run_end'; runId: string; status: RunStatus; error?: RunError }
+
+/** One named part of the system prompt (pi `SystemMessage.sections`). Keep the text self-delimiting (a tag or heading). */
+export interface SystemSection {
+  /** Stable, not integer-like (JSON objects reorder those), unique per runtime. */
+  name: string
+  text: string
+}
+
+/**
+ * Input of run() and steer(). `text` is what the user typed (returned in run_end.undeliveredSteering when not delivered);
+ * `content` replaces the user message content (e.g. an expanded command or attached file references); `before` entries are
+ * committed after run_start (for steer: right before the user message) and before the user message.
+ */
+export interface RunInput {
+  text: string
+  content?: Exclude<UserMessage['content'], string>
+  before?: RunEntry[]
+}
+
+/** State passed to `RuntimeContext.beforeRequest` immediately before every model request of a Run. */
+export interface BeforeRequestState {
+  runId: string
+  /** The context about to be sent (before `transformMessages`); do not mutate. */
+  messages: readonly AgentMessage[]
+  model: Model<any>
+  signal?: AbortSignal
+}
+
+/**
+ * Host contributions to the model context (M3). `systemSections` is read once at the start of every Run and becomes the
+ * leading system message's sections after the base prompt; `transformMessages` changes only the request, never the committed
+ * entries; `beforeRequest` runs before every model request (usage checks, compaction).
+ */
+export interface RuntimeContext {
+  systemSections?(): Promise<SystemSection[]>
+  transformMessages?(messages: AgentMessage[]): AgentMessage[]
+  beforeRequest?(state: BeforeRequestState): Promise<void>
+}
 
 /** `entry` is emitted after the host's commit resolved; `progress` is fire-and-forget. */
 export type RuntimeEvent = { kind: 'entry'; entry: RunEntry } | { kind: 'progress'; event: ProgressEvent }
