@@ -13,4 +13,5 @@
 
 ## Comments
 - 2026-10-28 lead：票 05 / 06 合并后的遗留项并入本票：(1) 把 boot.platform 写到 document 的 `data-platform`，使 macOS 红绿灯 72px 避让生效，并在 Electron 中核对；(2) renderer 自行生成的连接失败说明（no-bridge、health、ws-timeout、renderer）进入 i18n 字典，技术详情保持原文；(3) renderer 主 chunk 约 1.5MB（mermaid、shiki），按需拆分为懒加载。
+- 2026-10-28 lead：票 04 合并后补充：桌面 E2E 改用真实 Sidecar（faux 由 COKO_FAUX_SCRIPT 开启），与 main 的协议代理和 WebSocket 头注入联调；占位 sidecar 只保留在确有必要的壳层测试中。
 

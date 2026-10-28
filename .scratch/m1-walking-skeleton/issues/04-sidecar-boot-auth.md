@@ -45,3 +45,6 @@
 未验证：桌面 E2E 仍使用票 05 的占位 sidecar（`COKO_SIDECAR_ENTRY`），真实 sidecar 与 main 的联调（cookie 注入、WebSocket 头注入链路）；main 一侧的 safeStorage（票 08）；真实模型 API（无密钥）。
 
 文档影响：新增 apps/server/README.md（当前行为参考）；ADR 0001、0002、0004 implementation not-started → partial，0003 的 partial 说明更新，均写明剩余项；docs/adr/README.md 索引同步；TECH_STACK 接入状态表新增 apps/server、packages/protocol、packages/logging 与根集成测试依赖四行，原"apps/server 与其余 packages"改为"其余 packages"。
+- 2026-10-28 lead：评审后合入 main（ed43f5a）。main 上复核：install、typecheck、lint、format:check 退出 0；test 39 文件 306 用例通过；check:docs 60 文件 0 问题。接受偏离：credential.store 带 requestId 与 hint、新增 credential.store.result、密文 base64 传输；protocol 取本分支超集；删除入口冒烟测试；--ripgrep 留给票 09。worktree 已清理。
+
+Closed: true
