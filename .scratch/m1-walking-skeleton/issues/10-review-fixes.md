@@ -60,3 +60,6 @@
 - docs/tech-stack/architecture.md（构建归属、目录树）、desktop-delivery.md（构建职责、时限、重启与诊断入口）、docs/adr/0001、0002 与 docs/adr/README.md、docs/TECH_STACK.md 接入状态（apps/desktop 行加 @coko/server、@coko/i18n）。
 - apps/server/README.md（--app-version、/api/auth 守卫、retry 路由、WS unsubscribe、run_end progress、bash 环境剔除、构建归属）；packages/session/README.md（打开序列、租约、损坏、版本过高）。
 - .scratch：spec.md 的协议一节、票 07 Comments、两份评审的"处理结果"。
+- 2026-10-29 lead：评审后合入 main（532d285）。main 上复核：install、typecheck、lint、format:check 退出 0；test 55 文件 438 通过、1 跳过（真实模型）；check:docs 63 文件 0 问题。裁决：接受 ADR 0002 implemented、ADR 0001 保持 partial；接受 F1 重启参数（3 次、250ms/1s/3s、60s 清零、首启失败不重启）；接受新增协议面与 A7 构建归属。Sidecar 重启时进行中的 Run 不留 run_end，记入 M2 恢复。worktree 已清理。
+
+Closed: true
