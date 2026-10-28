@@ -6,7 +6,16 @@ export type { RetryPolicy } from './engine/retry.ts'
 export type { ProgressEvent, RunEntry, RunError, RunErrorCode, RunResult, RunStatus, RuntimeEvent } from './engine/types.ts'
 
 // Models
-export { createModelRegistry, ModelConfigError, providerPresets, resolveModel } from './models/registry.ts'
+export {
+  apiKeyEnvOf,
+  createModelRegistry,
+  MODEL_PROTOCOLS,
+  ModelConfigError,
+  PROVIDER_KINDS,
+  protocolOf,
+  providerPresets,
+  resolveModel,
+} from './models/registry.ts'
 export type { ModelProtocol, ModelRegistry, ModelRegistryOptions, ModelSpec, ProviderConfig, ProviderKind, ProviderPresetInfo } from './models/registry.ts'
 
 // Tools
