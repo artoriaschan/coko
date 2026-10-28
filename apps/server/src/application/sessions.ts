@@ -4,6 +4,8 @@ import {
   ApprovalNotPendingError,
   createAgentRuntime,
   ModelConfigError,
+  NoActiveRunError,
+  NothingToContinueError,
   NothingToRetryError,
   resolveModel,
   type AgentRuntime,
@@ -13,6 +15,7 @@ import {
   type ProgressEvent as AgentProgress,
   type RunEntry,
   type RunResult,
+  type RunStatus,
   type SecretProvider,
   type ToolHooks,
   type ToolRegistry,
@@ -86,6 +89,27 @@ export interface SessionExtension {
 
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
 
+/** 最后一条 run_end 的状态；没有结束的 Run 时为 undefined。 */
+function lastRunStatus(entries: readonly StoredEntry[]): RunStatus | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!
+    if (entry.kind === 'run_end') return (entry.payload as { status: RunStatus }).status
+  }
+  return undefined
+}
+
+/** 有 confirmation_request 而没有对应 confirmation_answer 的调用。 */
+function hasPendingConfirmation(entries: readonly StoredEntry[]): boolean {
+  const asked = new Set<string>()
+  for (const entry of entries) {
+    const toolCallId = (entry.payload as { toolCallId?: string }).toolCallId
+    if (toolCallId === undefined) continue
+    if (entry.kind === 'confirmation_request') asked.add(toolCallId)
+    else if (entry.kind === 'confirmation_answer') asked.delete(toolCallId)
+  }
+  return asked.size > 0
+}
+
 /**
  * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
  * （ADR 0004）。用户输入与工具输出保持原样。
@@ -121,6 +145,8 @@ export class SessionService {
   readonly #permissionLocks = new Map<string, Promise<unknown>>()
   /** 运行时的条目发布（含扩展的 onEntry）；没有运行时的 Session 直接提交并发布。 */
   readonly #publishers = new Map<string, (entry: RunEntry) => Promise<StoredEntry>>()
+  /** 已知的上一 Run 结束状态（读过条目或本进程内结束的 Run）；用于 Session 不在运行时的 activity。 */
+  readonly #lastStatus = new Map<string, RunStatus>()
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
@@ -141,8 +167,9 @@ export class SessionService {
   toDto(session: StoredSession): Session {
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
-    const activity = !running ? 'idle' : runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running'
-    return { ...session, running, activity }
+    if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
+    const last = this.#lastStatus.get(session.id)
+    return { ...session, running, activity: last === 'paused' || last === 'interrupted' ? last : 'idle' }
   }
 
   async list(workspaceId?: string): Promise<Session[]> {
@@ -284,7 +311,13 @@ export class SessionService {
   async detail(sessionId: string): Promise<SessionDetailResponse> {
     const session = await this.#get(sessionId)
     const entries = await this.#options.store.sessions.listEntries(sessionId)
+    this.#rememberStatus(sessionId, entries)
     return { session: this.toDto(session), entries }
+  }
+
+  #rememberStatus(sessionId: string, entries: readonly StoredEntry[]): void {
+    const status = lastRunStatus(entries)
+    if (status) this.#lastStatus.set(sessionId, status)
   }
 
   /** 设置 defaultModel → faux（测试）→ 第一个 Provider 的第一个模型；都不可用时为 undefined。 */
@@ -322,6 +355,44 @@ export class SessionService {
     return this.#start(sessionId, (runtime) => runtime.retry())
   }
 
+  /**
+   * 接着暂停或中断的上一 Run 开始新 Run（trigger continue）。上一 Run 不是 paused / interrupted 时 nothing-to-continue；
+   * 有未回答的结果确认时 confirmation-pending（未配对的调用会破坏模型请求）。
+   */
+  async continue(sessionId: string): Promise<{ runId: string }> {
+    const entries = await this.#options.store.sessions.listEntries(sessionId)
+    if (hasPendingConfirmation(entries)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
+    return this.#start(sessionId, (runtime) => runtime.continue())
+  }
+
+  /** 把追加指令送进当前 Run；没有进行中的 Run 时 no-active-run。 */
+  async steer(sessionId: string, text: string): Promise<void> {
+    await this.#get(sessionId)
+    const runtime = this.#runtimes.get(sessionId)
+    try {
+      if (!runtime) throw new NoActiveRunError()
+      runtime.steer(text)
+    } catch (error) {
+      if (error instanceof NoActiveRunError) throw new AppError('no-active-run', error.message)
+      throw error
+    }
+    log.info('steering queued', { sessionId })
+  }
+
+  /** 暂停当前 Run（本批完成后以 paused 结束）；没有进行中的 Run 时 no-active-run。 */
+  async pause(sessionId: string): Promise<void> {
+    await this.#get(sessionId)
+    const runtime = this.#runtimes.get(sessionId)
+    try {
+      if (!runtime) throw new NoActiveRunError()
+      runtime.pause()
+    } catch (error) {
+      if (error instanceof NoActiveRunError) throw new AppError('no-active-run', error.message)
+      throw error
+    }
+    log.info('run pause requested', { sessionId })
+  }
+
   async #start(sessionId: string, start: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }> {
     let session = await this.#get(sessionId)
     if (!session.model) {
@@ -347,12 +418,20 @@ export class SessionService {
         (e: unknown) => e,
       )
       if (error instanceof NothingToRetryError) throw new AppError('nothing-to-retry', error.message)
+      if (error instanceof NothingToContinueError) throw new AppError('nothing-to-continue', error.message)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
     const started = runId
     log.info('run started', { sessionId, runId: started, providerId: session.model!.providerId, modelId: session.model!.modelId })
     const done = run.then(
-      (result) => log.info('run ended', { sessionId, runId: started, status: result.status, ...(result.error ? { error: result.error } : {}) }),
+      (result) =>
+        log.info('run ended', {
+          sessionId,
+          runId: started,
+          status: result.status,
+          ...(result.error ? { error: result.error } : {}),
+          ...(result.undeliveredSteering ? { undeliveredSteering: result.undeliveredSteering.length } : {}),
+        }),
       (error: unknown) => log.error('run failed', { sessionId, runId: started, error: String(error) }),
     )
     this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
@@ -435,10 +514,13 @@ export class SessionService {
     // 恢复 Session：已提交的 message 条目就是模型可见的对话记录。
     const entries = await store.sessions.listEntries(session.id)
     const messages = entries.filter((entry) => entry.kind === 'message').map((entry) => entry.payload as unknown as AgentMessage)
+    const previous = lastRunStatus(entries)
+    if (previous) this.#lastStatus.set(session.id, previous)
     const permissions = await this.#permissionState(session)
     let extension: SessionExtension = {}
     const publish = async (entry: RunEntry): Promise<StoredEntry> => {
       const [committed] = await store.sessions.appendEntries(session.id, [toNewEntry(entry)])
+      if (entry.kind === 'run_end') this.#lastStatus.set(session.id, entry.payload.status)
       hub.publishEntry(committed!)
       extension.onEntry?.(committed!)
       return committed!
@@ -452,6 +534,7 @@ export class SessionService {
       ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
       sessionId: session.id,
       messages,
+      ...(previous ? { lastRunStatus: previous } : {}),
       // 每次调用现算：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。
       permissions: {
         mode: () => permissions.mode,

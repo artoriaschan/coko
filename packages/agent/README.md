@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "@coko/agent 的运行时入口、工具契约（effect、permissionSubject、sandboxRequest、secrets、执行上下文）、工具调度与执行记录（tool_exec、幂等键）、命令沙箱接缝与 Secrets 端口。注册宿主工具、装配运行时、实现执行端口或解读工具相关条目前查阅。"
+description: "@coko/agent 的运行时入口、运行控制（steer、pause、continue）、工具契约（effect、permissionSubject、sandboxRequest、secrets、执行上下文）、工具调度与执行记录（tool_exec、幂等键）、命令沙箱接缝与 Secrets 端口。注册宿主工具、装配运行时、实现执行端口或解读工具相关条目前查阅。"
 lifecycle: active
 ---
 
 # @coko/agent
 
-Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）。尚未实现：steering 与暂停/继续、启动恢复（执行记录已经提交，但还没有读取它的恢复流程）、回退与分叉。
+Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖运行控制（追加指令、暂停与继续）、工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）。尚未实现：启动恢复（执行记录已经提交，但还没有读取它的恢复流程）、回退与分叉。
 
 ## 使用或结构入口
 
@@ -15,9 +15,18 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 | `@coko/agent` | `createAgentRuntime`、工具注册表与内置工具、`CokoTool` 契约、`withTimeout`、Session Entry payload（`SESSION_ENTRY_PAYLOADS` 及各 kind 的 schema）、policy 与 ports（沙箱与 Secrets 的类型经 policy barrel 导出：`SandboxPolicy`、`LocalSandbox`、`SandboxUnavailableError`、`SecretProvider` 等） |
 | `@coko/agent/testing` | faux 模型、临时 Workspace、grep 契约测试套件；只供测试文件导入 |
 
-`createAgentRuntime(options)` 返回一个 Session 的运行时：`run(text)`、`retry()`、`abort()`、`answerApproval()`、`subscribe()`。每个已提交事实都以 `RunEntry`（`{ kind, runId?, payload }`）经 `options.commit` 交给宿主，提交兑现后 Run 才继续；提交被拒绝时 Run 以 `commit_failed` 结束。
+`createAgentRuntime(options)` 返回一个 Session 的运行时：`run(text)`、`retry()`、`continue()`、`steer(text)`、`pause()`、`abort()`、`answerApproval()`、`subscribe()`。每个已提交事实都以 `RunEntry`（`{ kind, runId?, payload }`）经 `options.commit` 交给宿主，提交兑现后 Run 才继续；提交被拒绝时 Run 以 `commit_failed` 结束。
 
 ## 契约与生命周期
+
+### 运行控制
+
+每个 Run 以 `run_start { trigger }` 开始（submit / retry / continue），以 `run_end { status, error?, undeliveredSteering? }` 结束。
+
+- **追加指令（Steering）。** `steer(text)` 把消息送进当前 Run：当前工具批次结束后、下一次模型请求前送达（pi `steer()`，一次送达全部已发送的），送达时提交为普通 user message 条目，位于这批 toolResult 之后、下一条 assistant 之前。最后一轮只有文本时也会送达，模型再回应一次。Run 以停止、暂停、无反馈拒绝或错误结束时，未送达的追加指令按发送顺序放进 `run_end.undeliveredSteering` 与 `RunResult.undeliveredSteering`，不延续到下一个 Run。没有 Run 时抛 `NoActiveRunError`。
+- **暂停。** `pause()`：当前工具批次正常完成并提交 toolResult，之后不再发起模型请求（`finishTurn` 返回 end），不杀进程；等待中的审批以 cancelled 结束，该调用不执行，toolResult 为 `PAUSED_BEFORE_APPROVAL_TEXT`。Run 以 `paused` 结束；暂停发生在只有文本的最后一轮时工作已完成，Run 以 `completed` 结束。没有 Run 时抛 `NoActiveRunError`。
+- **继续。** `continue()` 开始新 Run（trigger continue，不追加用户消息），只在上一 Run 为 `paused` 或 `interrupted` 且对话末尾是用户消息或工具结果时允许，否则抛 `NothingToContinueError`；Run 进行中抛 `RuntimeBusyError`。从条目恢复的运行时由宿主以 `lastRunStatus` 传入上一 Run 的状态。是否有待确认结果由宿主检查。
+- **停止。** `abort()`：等待中的审批 cancelled，未送达的追加指令随 run_end 退回，Run 以 `aborted` 结束。
 
 ### 工具契约
 
@@ -70,6 +79,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 | `sessionId` | 随机 | 幂等键的 Session 部分 |
 | `permissions` | 不判定 | 缺省时不做权限判定，也不设命令沙箱（无回答通道的库调用方）；server 总是传入 |
 | `secrets` | 无 | `SecretProvider`；声明了 `secrets` 的工具在缺省时调用失败 |
+| `lastRunStatus` | 无 | 上一 Run 的结束状态（从条目恢复时），决定能否 `continue()` |
 
 - 未声明 `effect` 的宿主工具按 side-effect 独占执行并提交执行记录；只读的宿主工具应声明 `effect: 'read'` 才能并行。
 - 在持有独占执行槽的工具内部再经同一运行时调度另一个工具会等待自己，形成死锁；目前没有这样的调用路径。
@@ -77,6 +87,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 
 ## 验证与相关设计
 
+- `src/engine/run-control.test.ts`：工具执行中 steer 的条目位置与下一次请求上下文、多条按序送达、abort 退回未送达、只有文本的最后一轮也送达、暂停边界（工具完成、不发新请求、待审批 cancelled 且不执行）、continue 的允许条件与 `lastRunStatus`。交叠由 deferred 控制。
 - `src/tools/scheduler.test.ts`：上限 2 时 6 个 read 至多 2 个同时执行、结果按调用顺序；默认上限 10；`[read, read, write, read]` 的屏障顺序；`tool_exec` 在 execute 之前提交、上下文携带幂等键、read 不提交；提交失败时不执行且 Run 以 `commit_failed` 结束；排队中取消返回 `Operation aborted` 且没有 `tool_exec`。交叠由 deferred 控制，不用 sleep。
 - `tests/integration/sidecar-concurrency.test.ts`：真实 Sidecar 中 bash 的 `tool_exec` 位于 assistant 之后、toolResult 之前，幂等键为 `<sessionId>:<toolCallId>`，同批 ls 没有 `tool_exec`，重启后读回一致。
 - `tests/integration/secrets-gate.test.ts`：`tool_exec` 条目在秘密不外泄总闸的扫描范围内。

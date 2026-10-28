@@ -40,6 +40,10 @@ export type TimelineItem =
     }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
+  /** Run 以暂停结束。 */
+  | { kind: 'paused'; key: string }
+  /** 已发出、尚未送达的追加指令。 */
+  | { kind: 'steering'; key: string; text: string }
   /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
   | { kind: 'error'; key: string; message: string; retryable: boolean }
 
@@ -87,6 +91,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       // 未结束的工具在 Run 结束后不会再有结果。
       for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
+      else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
       else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: true })
       continue
     }
@@ -181,11 +186,15 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (!visible && !toolRunning) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
   }
 
+  // 待送达的追加指令排在最后（送达后由 user 条目替代）。
+  conversation.steering?.forEach((text, index) => items.push({ kind: 'steering', key: `steering:${index}`, text }))
+
   // run_end 条目没能提交：只由进度得知结束。记录不完整，不提供重试。
   const unrecorded = conversation.unrecordedEnd
   if (unrecorded && !conversation.running) {
     for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
     if (unrecorded.status === 'aborted') items.push({ kind: 'stopped', key: `unrecorded:${unrecorded.runId}` })
+    else if (unrecorded.status === 'paused') items.push({ kind: 'paused', key: `unrecorded:${unrecorded.runId}` })
     else if (unrecorded.status === 'error')
       items.push({ kind: 'error', key: `unrecorded:${unrecorded.runId}`, message: unrecorded.error?.message ?? '', retryable: false })
   }

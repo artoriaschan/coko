@@ -1,5 +1,13 @@
 // Engine
-export { createAgentRuntime, DEFAULT_SYSTEM_PROMPT, NothingToRetryError, RuntimeBusyError } from './engine/runtime.ts'
+export {
+  createAgentRuntime,
+  DEFAULT_SYSTEM_PROMPT,
+  NoActiveRunError,
+  NothingToContinueError,
+  NothingToRetryError,
+  PAUSED_BEFORE_APPROVAL_TEXT,
+  RuntimeBusyError,
+} from './engine/runtime.ts'
 export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'

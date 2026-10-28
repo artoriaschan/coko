@@ -9,6 +9,7 @@ import {
   Provider,
   ProviderListResponse,
   ProviderPresetsResponse,
+  runPaths,
   Session,
   SessionDetailResponse,
   SessionListResponse,
@@ -82,6 +83,12 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 重新执行出错的上一轮，不追加用户消息。 */
     retryRun: (id: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionRetry(id), {}),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),
+    /** 追加指令：当前工具批次结束后送达；没有进行中的 Run 时以 no-active-run 拒绝。 */
+    steerRun: (id: string, text: string) => call(NoContent, 'POST', runPaths.sessionSteer(id), { text }),
+    /** 暂停：当前批次完成后停下，Run 以 paused 结束。 */
+    pauseRun: (id: string) => call(NoContent, 'POST', runPaths.sessionPause(id), {}),
+    /** 接着暂停或中断的上一 Run；202 返回新 runId。 */
+    continueRun: (id: string) => call(SubmitMessageResponse, 'POST', runPaths.sessionContinue(id), {}),
     /** 回答待审批请求；请求不在等待中时以 approval-not-pending 拒绝。 */
     answerApproval: (id: string, requestId: string, answer: AnswerApprovalRequest) => call(NoContent, 'POST', apiPaths.sessionApproval(id, requestId), answer),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),

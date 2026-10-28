@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxThinking, fauxToolCall, type FauxResponseStep } from '@earendil-works/pi-ai'
 import type { ModelRegistry } from '@coko/agent'
 import type { SessionModel } from '@coko/protocol'
@@ -12,6 +12,8 @@ import type { SessionModel } from '@coko/protocol'
 export interface FauxScript {
   tokensPerSecond?: number
   responses: FauxScriptResponse[]
+  /** 测试观察用：每次模型请求前把其上下文消息作为一行 JSON 追加到该文件。 */
+  requestLog?: string
 }
 
 export interface FauxScriptResponse {
@@ -50,7 +52,17 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
     models: [{ id: FAUX_MODEL_ID, name: 'Faux' }],
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),
   })
-  faux.setResponses(script.responses.map(toStep))
+  const log = script.requestLog
+  faux.setResponses(
+    script.responses.map((response) => {
+      const step = toStep(response)
+      if (!log) return step
+      return async (context) => {
+        await appendFile(log, JSON.stringify(context.messages) + '\n')
+        return step as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+      }
+    }),
+  )
   registry.models.setProvider(faux.provider)
   return { providerId: FAUX_PROVIDER_ID, modelId: FAUX_MODEL_ID }
 }

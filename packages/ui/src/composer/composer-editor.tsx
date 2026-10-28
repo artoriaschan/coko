@@ -4,7 +4,17 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
-import { $createParagraphNode, $getRoot, COMMAND_PRIORITY_HIGH, KEY_ENTER_COMMAND, KEY_ESCAPE_COMMAND, mergeRegister, type LexicalEditor } from 'lexical'
+import {
+  $createLineBreakNode,
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  COMMAND_PRIORITY_HIGH,
+  KEY_ENTER_COMMAND,
+  KEY_ESCAPE_COMMAND,
+  mergeRegister,
+  type LexicalEditor,
+} from 'lexical'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 
@@ -12,6 +22,10 @@ export interface ComposerEditorHandle {
   focus(): void
   /** 与 Enter 相同的提交路径（发送按钮使用）。 */
   submit(): Promise<void>
+  /** 替换编辑区内容并把光标放到末尾（例如退回未送达的追加指令）。 */
+  setText(text: string): void
+  /** 当前文本（未去首尾空白）。 */
+  getText(): string
 }
 
 export interface ComposerEditorProps {
@@ -120,7 +134,24 @@ function ComposerBridge({
     }
   }, [editor])
 
-  React.useImperativeHandle(handleRef, () => ({ focus: () => editor.focus(), submit }), [editor, submit])
+  const setText = React.useCallback(
+    (text: string) => {
+      editor.update(() => {
+        const root = $getRoot()
+        root.clear()
+        const paragraph = $createParagraphNode()
+        text.split('\n').forEach((line, index) => {
+          if (index > 0) paragraph.append($createLineBreakNode())
+          if (line !== '') paragraph.append($createTextNode(line))
+        })
+        root.append(paragraph)
+        paragraph.selectEnd()
+      })
+    },
+    [editor],
+  )
+
+  React.useImperativeHandle(handleRef, () => ({ focus: () => editor.focus(), submit, setText, getText: () => readText(editor) }), [editor, submit, setText])
 
   React.useEffect(() => {
     editor.setEditable(!disabled)
