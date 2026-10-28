@@ -42,6 +42,8 @@ export type TimelineItem =
   | { kind: 'stopped'; key: string }
   /** Run 以暂停结束。 */
   | { kind: 'paused'; key: string }
+  /** Run 被中断（应用或服务退出，启动恢复补记）。 */
+  | { kind: 'interrupted'; key: string }
   /** 已发出、尚未送达的追加指令。 */
   | { kind: 'steering'; key: string; text: string }
   /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
@@ -92,6 +94,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
       if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
       else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
+      else if (payload.status === 'interrupted') items.push({ kind: 'interrupted', key: `${entry.seq}` })
       else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: true })
       continue
     }

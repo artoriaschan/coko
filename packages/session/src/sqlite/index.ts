@@ -1,10 +1,12 @@
 // SQLite 入口：node:sqlite 只在本入口导入（ADR 0003）。
 import type { SessionStore, StoreOptions } from '../types.ts'
 import { openDatabase, type MigrationReport } from './open.ts'
+import { createRecoveryQueries, type RecoveryQueries } from './recovery.ts'
 import { createProviderRepository, createSessionRepository, createSettingsRepository } from './repositories.ts'
 import { MIGRATIONS } from './schema.ts'
 
 export type { MigrationReport } from './open.ts'
+export type { RecoveryQueries, UnfinishedRun } from './recovery.ts'
 
 /** 程序支持的库版本（PRAGMA user_version）。 */
 export const SQLITE_SCHEMA_VERSION = MIGRATIONS.length
@@ -26,6 +28,8 @@ export interface SqliteStore extends SessionStore {
   readonly migration: MigrationReport
   /** 运行时是否支持 FTS5；不支持时搜索降级为普通查询。 */
   readonly capabilities: { fts5: boolean }
+  /** 启动恢复用的跨 Session 查询（未完成的 Run、每个 Session 某 kind 的最后一条）。 */
+  readonly recovery: RecoveryQueries
 }
 
 /**
@@ -49,6 +53,7 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     sessions: createSessionRepository(conn, options),
     settings: createSettingsRepository(conn),
     providers: createProviderRepository(conn),
+    recovery: createRecoveryQueries(conn, options),
     close() {
       closing ??= new Promise<void>((resolve) => {
         opened.close()

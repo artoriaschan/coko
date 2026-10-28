@@ -8,6 +8,7 @@ import { Value } from 'typebox/value'
 import { getLogger } from '@coko/logging'
 import {
   AnswerApprovalRequest,
+  AnswerConfirmationRequest,
   API_ROUTES,
   AuthExchangeRequest,
   CreateProviderRequest,
@@ -152,6 +153,11 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     return c.body(null, 204)
   })
   http.post(`${API_ROUTES.sessions}/:id/continue`, async (c) => c.json(await app.sessions.continue(c.req.param('id')), 202))
+  http.post(`${API_ROUTES.sessions}/:id/confirmations/:toolCallId`, async (c) => {
+    const { answer } = await body(c, AnswerConfirmationRequest)
+    await app.sessions.answerConfirmation(c.req.param('id'), c.req.param('toolCallId'), answer)
+    return c.body(null, 204)
+  })
   http.post(`${API_ROUTES.sessions}/:id/approvals/:requestId`, async (c) => {
     await app.sessions.answerApproval(c.req.param('id'), c.req.param('requestId'), await body(c, AnswerApprovalRequest))
     return c.body(null, 204)

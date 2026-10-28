@@ -35,6 +35,13 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
    */
   secrets?: readonly string[]
   /**
+   * After a crash, tells whether a side-effect call that had started (its `tool_exec` was committed) took effect, by
+   * looking at the current state: `applied`, `not-applied`, or `unknown` when the state cannot tell. Startup recovery
+   * records a definite answer as the call's result and asks the user otherwise; it never runs the call again.
+   * Receives the validated arguments and the Workspace directory. Omitted: the user is asked.
+   */
+  probeOutcome?: (args: Static<TParameters>, cwd: string) => Promise<ToolOutcome>
+  /**
    * pi's execute plus the execution context the runtime passes as a fifth argument. Tools that ignore it
    * keep pi's four-argument form.
    */
@@ -48,6 +55,9 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
 }
 
 export type ToolEffect = 'read' | 'side-effect'
+
+/** Whether an interrupted side-effect call took effect (see `CokoTool.probeOutcome`). */
+export type ToolOutcome = 'applied' | 'not-applied' | 'unknown'
 
 /** What the runtime tells one call. Absent when a tool is executed outside the runtime (tests, direct calls). */
 export interface ToolExecutionContext {

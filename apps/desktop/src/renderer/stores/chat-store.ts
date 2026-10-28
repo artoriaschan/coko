@@ -1,6 +1,7 @@
 import {
   SessionEntry,
   type AnswerApprovalRequest,
+  type ConfirmationAnswer,
   type PermissionMode,
   type PermissionRule,
   type ProgressEvent,
@@ -67,7 +68,7 @@ export interface Conversation {
 }
 
 export type ChatFailure = {
-  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue'
+  kind: 'send' | 'stop' | 'retry' | 'workspace' | 'model' | 'approval' | 'permissions' | 'steer' | 'pause' | 'continue' | 'confirmation'
   error: ApiError
 }
 
@@ -119,13 +120,50 @@ export function pendingApprovals(entries: readonly SessionEntry[]): SessionEntry
   )
 }
 
+/** 恢复时结果不明、等待用户确认的调用（按请求顺序），带 assistant 消息中的工具名与参数。 */
+export interface PendingConfirmation {
+  toolCallId: string
+  toolName: string | undefined
+  arguments: unknown
+}
+
+export function pendingConfirmations(entries: readonly SessionEntry[]): PendingConfirmation[] {
+  const asked = new Set<string>()
+  const calls = new Map<string, { name: string; arguments: unknown }>()
+  for (const entry of entries) {
+    if (entry.kind === 'confirmation_request') asked.add(entry.payload.toolCallId)
+    else if (entry.kind === 'confirmation_answer') asked.delete(entry.payload.toolCallId)
+    else if (entry.kind === 'message' && entry.payload.role === 'assistant') {
+      for (const block of entry.payload.content as { type: string; id?: unknown; name?: unknown; arguments?: unknown }[]) {
+        if (block.type === 'toolCall' && typeof block.id === 'string') calls.set(block.id, { name: String(block.name), arguments: block.arguments })
+      }
+    }
+  }
+  return [...asked].map((toolCallId) => ({ toolCallId, toolName: calls.get(toolCallId)?.name, arguments: calls.get(toolCallId)?.arguments }))
+}
+
 /** 已打开会话的运行状态（由条目与订阅状态派生）。 */
 export function conversationActivity(conversation: Pick<Conversation, 'entries' | 'running'>): SessionActivity {
   if (!conversation.running) {
+    if (pendingConfirmations(conversation.entries).length > 0) return 'awaiting-confirmation'
     const last = lastRunStatus(conversation.entries)
     return last === 'paused' || last === 'interrupted' ? last : 'idle'
   }
   return pendingApprovals(conversation.entries).length > 0 ? 'awaiting-approval' : 'running'
+}
+
+/**
+ * 横幅的"继续"是否可用：上一 Run 为 paused / interrupted、没有待确认，且模型可以从最后一条消息接着做（用户消息或工具结果；
+ * 以 assistant 文本结束时没有可继续的内容，与运行时的 continue() 判定一致）。
+ */
+export function canContinue(conversation: Pick<Conversation, 'entries' | 'running'>): boolean {
+  const activity = conversationActivity(conversation)
+  if (activity !== 'paused' && activity !== 'interrupted') return false
+  for (let i = conversation.entries.length - 1; i >= 0; i--) {
+    const entry = conversation.entries[i]!
+    if (entry.kind === 'message') return entry.payload.role === 'user' || entry.payload.role === 'toolResult'
+  }
+  return false
 }
 
 export interface ChatState {
@@ -170,6 +208,11 @@ export interface ChatActions {
    * 返回是否已被接受。
    */
   answerApproval(requestId: string, answer: AnswerApprovalRequest): Promise<boolean>
+  /**
+   * 回答当前会话中结果不明的调用。同一调用只发送一次：发送中或已成功的重复调用直接返回 true；失败时可再次回答，
+   * 已不在等待（not-found）时不再重发。返回是否已被接受。
+   */
+  answerConfirmation(toolCallId: string, answer: ConfirmationAnswer): Promise<boolean>
   /** 当前会话经协议切换 Permission Mode（立即显示，失败时撤回）；草稿中只记下选择。 */
   setPermissionMode(mode: PermissionMode): Promise<void>
   /** 删除当前会话的一条 Session 规则。 */
@@ -224,6 +267,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   const subscribed = new Map<string, Set<() => void>>()
   /** 已发出或已被接受的审批回答（requestId 唯一）。 */
   const answering = new Set<string>()
+  /** 已发出或已被接受的结果确认（按 Session 与 toolCallId）。 */
+  const confirming = new Map<string, Promise<boolean>>()
   /** 每个 Session 的模式切换按调用顺序发送（Shift+Tab 连按时最后一次为准）。 */
   const modeChains = new Map<string, Promise<unknown>>()
   let loadedOnce = false
@@ -437,6 +482,26 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           onFailure?.({ kind: 'approval', error: failure })
           return false
         }
+      },
+
+      answerConfirmation(toolCallId, answer) {
+        const sessionId = get().activeSessionId
+        if (sessionId === null) return Promise.resolve(false)
+        const key = `${sessionId}:${toolCallId}`
+        const inflight = confirming.get(key)
+        if (inflight) return inflight.then((accepted) => accepted || confirming.get(key) !== undefined)
+        const sent = api.answerConfirmation(sessionId, toolCallId, answer).then(
+          () => true,
+          (error: unknown) => {
+            const failure = toApiError(error)
+            // 已不在等待（另一处已回答）：不再允许重发，等条目到达。
+            if (failure.code !== 'not-found') confirming.delete(key)
+            onFailure?.({ kind: 'confirmation', error: failure })
+            return false
+          },
+        )
+        confirming.set(key, sent)
+        return sent
       },
 
       setPermissionMode(mode) {

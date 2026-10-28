@@ -1,0 +1,87 @@
+---
+kind: reference
+description: "当前的启动恢复与结果确认契约：何时扫描、被中断 Run 的判定分类、write / edit 的结果探测、confirmation_request / confirmation_answer 条目与回答路由、待确认时的 409、activity 与界面。修改恢复判定、执行记录、工具的 probeOutcome 或中断相关界面前查阅。"
+lifecycle: active
+---
+
+# 启动恢复与结果确认
+
+本文说明 Sidecar 崩溃或被强杀后，重启时如何识别被中断的 Run、如何为没有结果的工具调用补齐记录，以及结果不明的副作用如何交给用户确认。恢复只读取已提交的条目与当前文件状态，不自动续跑，也不重跑任何调用（[Agent 运行时约定](../tech-stack/agent-runtime.md)）。执行记录（`tool_exec`）与幂等键见 [@coko/agent](../../packages/agent/README.md#执行记录与幂等键)。
+
+## 结构入口
+
+| 位置 | 职责 |
+| --- | --- |
+| `packages/session/src/sqlite/recovery.ts` | `store.recovery`：`listUnfinishedRuns()`（有 `run_start` 而没有其后同 runId 的 `run_end`）、`listLatestEntries(kind)`；经迁移 v2 的索引 `session_entries(session_id, kind, seq)` |
+| `packages/agent/src/recovery/plan.ts` | `planRecovery(entries, { runId, tool, cwd })` → 要补提交的条目；`unansweredConfirmations`、`confirmationResult`、`RECOVERY_TEXT`（模型可见文本） |
+| `packages/agent/src/tools/types.ts` | 工具契约的 `probeOutcome(args, cwd)` → `applied` / `not-applied` / `unknown` |
+| `packages/agent/src/tools/builtin/write.ts`、`edit.ts` | 内置的结果探测 |
+| `apps/server/src/application/sessions.ts` | `SessionService.recover()`（启动扫描）、`answerConfirmation()`、待确认时拒绝开始 Run、`activity` |
+| `apps/server/src/runtime/layers.ts` | 在打开存储之后、开始监听之前调用 `recover(store.recovery)` |
+| `packages/ui/src/approval/confirmation-card.tsx`、`apps/desktop/src/renderer/features/conversation/confirmation-panel.tsx` | 结果确认卡 |
+
+## 何时扫描
+
+Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始监听之前运行一次启动扫描，因此第一个请求看到的已是恢复后的状态。正常关闭（`shutdown` 消息、IPC 断开、SIGTERM、SIGINT）会中断 Run 并等它提交 `run_end { status: 'aborted' }`，这些 Run 不进入恢复。只有进程在 Run 进行中退出（崩溃、SIGKILL、断电）时才留下没有 `run_end` 的 Run。
+
+扫描对每个这样的 Run 调用 `planRecovery`，把结果在一个事务内提交，并记 warn `interrupted run recovered { sessionId, runId, entries, confirmations }`。单个 Session 失败只记 error `run recovery failed`，不阻止启动，该 Run 在下次启动时重新判定；查询本身失败时按 `recovery-failed` fatal。扫描结束后，从每个 Session 最后一条 `run_end` 建立 activity，未打开过的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
+
+## 判定分类
+
+`planRecovery` 只看该 Run（按 runId）的条目，按 toolCallId 关联 assistant 消息中的调用、`toolResult`、`tool_exec` 与审批条目，不依赖条目相邻或先后（同批调用的 `file_backup` 可能排在前一个调用的 `tool_exec` 之前）。对每个没有 toolResult 的调用，按调用顺序：
+
+| 情况 | 提交 |
+| --- | --- |
+| 审批请求没有决定（且没有 `tool_exec`） | `approval_decision { outcome: 'expired' }` 与错误结果 `Not run: … approval request expired …` |
+| 没有 `tool_exec`，工具 effect 为 read | 错误结果 `Interrupted: … no side effects, so you can retry it.`（read 不提交执行记录，可能已在运行） |
+| 没有 `tool_exec`，其余（含已批准未执行、未注册的工具） | 错误结果 `Not run: … It had no effect.` |
+| 有 `tool_exec`，`probeOutcome` 为 applied | 成功结果 `Applied: … the current state shows that it took effect. Its output was lost.` |
+| 有 `tool_exec`，`probeOutcome` 为 not-applied | 错误结果 `Not applied: …` |
+| 有 `tool_exec`，没有探测、探测为 unknown、探测抛错或参数不合 schema | `confirmation_request { toolCallId }`，不补结果 |
+
+最后提交 `run_end { status: 'interrupted' }`。全部条目带被中断 Run 的 runId。模型请求进行中被杀（没有 assistant 消息）时只有 `run_end`。
+
+**结果探测。** 探测在恢复时读取当前文件，不改动任何内容；参数先经工具的 `prepareArguments` 与 schema 校验。
+
+- write：内容与参数逐字节相同为 applied；文件不存在为 not-applied（write 总会创建文件）；内容不同（可能只写了一部分，或原有内容）为 unknown。
+- edit：只能按"旧 → 新"套用（与执行时相同的唯一、不重叠匹配）为 not-applied；只能按"新 → 旧"反向套用为 applied；两个方向都成立（例如新文本包含旧文本）、都不成立或文件不可读为 unknown。含删除（新文本为空）的调用不做反向套用。
+- bash 与宿主工具没有探测，总是交给用户确认。
+
+## 结果确认
+
+`POST /api/sessions/:id/confirmations/:toolCallId`（`runPaths.sessionConfirmation`），body `{ answer: 'applied' | 'not-applied' | 'unknown' }`。成功 204：`confirmation_answer { toolCallId, answer }` 与补齐的 toolResult 在一个事务内提交（runId 为被中断的 Run）。answer 不合 schema 400；该调用没有待回答的确认（不存在或已回答）404 `not-found`；Session 不存在 404。
+
+| answer | toolResult |
+| --- | --- |
+| applied | 成功：`Applied (confirmed by the user): … its output was lost.` |
+| not-applied | 错误：`Not applied (confirmed by the user): …` |
+| unknown | 错误：`Outcome unknown: … Before relying on it or running it again, check the current state.` |
+
+存在未回答的确认时，`POST …/messages`、`…/retry`、`…/continue` 返回 409 `confirmation-pending`：未配对的调用会使模型请求不合法。全部回答后，上一 Run 仍为 interrupted，`continue` 开始 `run_start { trigger: 'continue' }` 的新 Run，模型上下文含补齐的结果。回答时若该 Session 已有空闲的运行时，它被丢弃并在下次开始 Run 时从条目重建。等待中的审批不复活：继续后模型重新发起的调用按当时的模式与规则重新判定。
+
+## activity 与界面
+
+- **activity**：没有 Run 时，有未回答的确认为 `awaiting-confirmation`，否则按最后一条 `run_end`（`interrupted` / `paused` / `idle`）。renderer 对已打开的会话按条目派生同样的值。
+- **确认卡**：没有 Run 且有待确认时，最早的一项接管输入区（输入区保持挂载并隐藏，草稿不丢），显示中断的命令或路径与三个回答（已生效 / 未生效 / 不确定，让 Coko 核实）。三个回答没有默认项，Enter 与 Esc 不代替用户作答；同一调用只回答一次，失败后可重答，404 后不再重发。
+- **中断横幅**：上一 Run 为 interrupted 且没有待确认时，输入区上方显示"上次运行已中断"；对话末尾是用户消息或工具结果时带"继续"（以 assistant 文本结束时没有可继续的内容，不显示按钮）。时间线在该 Run 末尾显示"已中断"，补齐结果的工具卡按结果显示完成或失败。
+- **侧栏**：`awaiting-approval`、`awaiting-confirmation` 的会话带警示色徽标并排在所在 Workspace 组首，`interrupted` 的会话带中性徽标排在其后。
+
+## 配置与限制
+
+- 迁移 v2 之前（M1 库）的 Run 没有 `run_start`，崩溃留下的旧 Run 不会被识别。
+- 恢复补的 write / edit 结果不提交 `file_change`；回退代码时这些路径可能被标为在 Agent 之外改动过。
+- 仅测试：`COKO_TEST_TOOLS=1` 且 `COKO_TEST_HOLD_AFTER_TOOL=<工具名>` 时，该工具执行完、其后的 afterToolCall hook（checkpoint 的 `file_change`）之后挂起，toolResult 不提交，供集成测试在"已执行、未记录结果"处强杀 Sidecar。
+
+## 验证与相关设计
+
+- `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到 2（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
+- `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
+- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到 2。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
+- `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
+- 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。
+
+## 延伸阅读
+
+- [权限判定与审批](permissions.md)：审批请求的状态，expired 由本流程提交。
+- [apps/server README](../../apps/server/README.md)：协议总览与关闭顺序。
+- [@coko/session](../../packages/session/README.md)：恢复查询与迁移。

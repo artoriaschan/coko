@@ -1,6 +1,6 @@
 // Adapted from pi coding-agent 1.4.0 (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { Type } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
@@ -20,6 +20,16 @@ export function createWriteTool({ cwd }: { cwd: string }): CokoTool<typeof write
     parameters: writeParameters,
     effect: 'side-effect',
     permissionSubject: (args) => args.path,
+    // 恢复：内容已一致即已生效；文件不存在说明写入没有发生（write 总会创建文件）；其余（例如只写了一部分）无法判定。
+    async probeOutcome({ path, content }, workspace) {
+      let current: Buffer
+      try {
+        current = await readFile(resolveToCwd(path, workspace))
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'not-applied' : 'unknown'
+      }
+      return current.equals(Buffer.from(content, 'utf-8')) ? 'applied' : 'unknown'
+    },
     async execute(_toolCallId, { path, content }, signal) {
       const absolutePath = resolveToCwd(path, cwd)
       // Check the signal between steps instead of rejecting from a listener, so the queue stays

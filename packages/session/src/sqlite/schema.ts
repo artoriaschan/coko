@@ -84,4 +84,11 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // 启动恢复：按 kind 查找 Session 内的 run_start / run_end 等条目（ADR 0003 的迁移证据）。
+    version: 2,
+    up(db) {
+      db.exec('CREATE INDEX session_entries_by_kind ON session_entries(session_id, kind, seq)')
+    },
+  },
 ]

@@ -20,6 +20,7 @@ import {
   Workspace,
   WorkspaceListResponse,
   type AnswerApprovalRequest,
+  type ConfirmationAnswer,
   type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
@@ -91,6 +92,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     continueRun: (id: string) => call(SubmitMessageResponse, 'POST', runPaths.sessionContinue(id), {}),
     /** 回答待审批请求；请求不在等待中时以 approval-not-pending 拒绝。 */
     answerApproval: (id: string, requestId: string, answer: AnswerApprovalRequest) => call(NoContent, 'POST', apiPaths.sessionApproval(id, requestId), answer),
+    /** 回答恢复时结果不明的调用；没有待回答的确认时以 not-found 拒绝。 */
+    answerConfirmation: (id: string, toolCallId: string, answer: ConfirmationAnswer) =>
+      call(NoContent, 'POST', runPaths.sessionConfirmation(id, toolCallId), { answer }),
     setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
     /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
     setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),

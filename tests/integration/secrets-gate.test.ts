@@ -6,12 +6,14 @@
 // 票 05：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
 // 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记）。Seatbelt 部分只在 darwin 运行。
 // 票 07：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
+// 票 08：结果确认通道。bash 执行中 SIGKILL，重启后的启动扫描（confirmation_request、run_end interrupted、恢复日志）、确认回答
+// （confirmation_answer 与补齐的 toolResult）与之后的继续；两个 Sidecar 进程的帧、响应体与落盘文件都纳入扫描。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, permissionPaths, type ServerMessage } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, runPaths, type ServerMessage } from '@coko/protocol'
 import {
   connect,
   exchange,
@@ -283,5 +285,63 @@ describe('秘密不外泄总闸', () => {
       ...written.map((f): [string, Buffer] => [`escalated output ${f.name}`, f.bytes]),
     ]
     expect(leaksIn(channels, { credential, 'host secret': hostSecret, 'tool secret': toolSecret })).toEqual([])
+  })
+
+  it('崩溃恢复与结果确认流程之后仍无明文', { timeout: 120_000 }, async () => {
+    const credential = marker('cred')
+    const hostSecret = marker('host')
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    // 命令先输出环境再睡眠：被强杀时结果不明，重启后进入待确认。
+    const script = await fauxScript(root, {
+      responses: [{ content: [{ type: 'toolCall', name: 'bash', id: 'k1', arguments: { command: 'env; sleep 30' } }] }],
+    })
+    // 重启后的 faux 队列从头开始：继续时的回复单独成一个脚本。
+    const resumed = await fauxScript(root, { responses: [{ content: 'resumed' }] }, 'faux-resumed.json')
+    const env = { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential, MY_SERVICE_API_KEY: hostSecret }
+    const first = await startSidecar({ dirs, ipc: false, env })
+    const bodies: string[] = []
+    const firstCookie = await exchange(first)
+    const firstApi = recordingClient(first, firstCookie, bodies)
+    const firstStream = await connect(first, firstCookie)
+    const workspace = await firstApi.post(API_ROUTES.workspaces, { path: root })
+    const sessionId = (await firstApi.post(API_ROUTES.sessions, { workspaceId: workspace.body.id })).body.id as string
+    expect((await firstApi.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })).status).toBe(200)
+    firstStream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await firstStream.waitFor((m) => m.type === 'subscribed')
+    await firstApi.post(apiPaths.sessionMessages(sessionId), { text: 'dump env' })
+    await firstStream.waitFor((m) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'tool_exec')
+    first.child.kill('SIGKILL')
+    await first.exited
+
+    const second = await startSidecar({ dirs, ipc: false, env: { ...env, COKO_FAUX_SCRIPT: resumed } })
+    const cookie = await exchange(second)
+    const api = recordingClient(second, cookie, bodies)
+    const stream = await connect(second, cookie)
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed')
+    await api.get(API_ROUTES.sessions)
+    await api.get(apiPaths.session(sessionId))
+    expect((await api.post(runPaths.sessionConfirmation(sessionId, 'k1'), { answer: 'unknown' })).status).toBe(204)
+    expect((await api.post(runPaths.sessionContinue(sessionId))).status).toBe(202)
+    await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length >= 2)
+    await api.get(apiPaths.session(sessionId))
+    // 前置：确认通道确实被驱动。
+    const kinds = stream.entries(sessionId).map((e) => e.kind)
+    expect(kinds).toEqual(expect.arrayContaining(['confirmation_request', 'confirmation_answer']))
+    expect(stream.invalidEntries).toEqual([])
+
+    const running = await persisted(dirs)
+    second.child.kill('SIGTERM')
+    expect(await second.exited).toEqual({ code: 0, signal: null })
+    const stopped = await persisted(dirs)
+    expect(stopped.some((f) => f.name === 'sidecar.jsonl' && f.bytes.toString().includes('interrupted run recovered'))).toBe(true)
+    const channels: [string, string | Buffer][] = [
+      ...[...firstStream.frames, ...stream.frames].map((frame, i): [string, string] => [`ws frame ${i}`, frame]),
+      ...bodies.map((body, i): [string, string] => [`http body ${i}`, body]),
+      ...running.map((f): [string, Buffer] => [`running ${f.name}`, f.bytes]),
+      ...stopped.map((f): [string, Buffer] => [`stopped ${f.name}`, f.bytes]),
+    ]
+    expect(leaksIn(channels, { credential, 'host secret': hostSecret })).toEqual([])
   })
 })
