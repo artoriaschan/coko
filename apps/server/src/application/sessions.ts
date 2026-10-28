@@ -4,6 +4,12 @@ import {
   ApprovalNotPendingError,
   confirmationResult,
   createAgentRuntime,
+  effectiveEntries,
+  effectiveMessages,
+  forkEntries,
+  planRewind,
+  restoreFiles,
+  RewindTargetError,
   createBuiltinToolRegistry,
   createLocalExecPort,
   planRecovery,
@@ -19,6 +25,8 @@ import {
   type PermissionMode,
   type PermissionRule,
   type ProgressEvent as AgentProgress,
+  type RewindFiles,
+  type RewindMode,
   type RunEntry,
   type RunResult,
   type RunStatus,
@@ -33,6 +41,8 @@ import {
   SessionModel as SessionModelSchema,
   type ProgressEvent,
   type AnswerApprovalRequest,
+  type Checkpoint,
+  type RewindResponse,
   type Session,
   type SessionPermissionsResponse,
   type UpdatePermissionsRequest,
@@ -72,6 +82,8 @@ export interface SessionServiceOptions {
   permissions?: PermissionService
   /** 工具声明的 Secrets 的来源；只注入声明它们的那次调用。缺省：声明了 Secrets 的工具调用失败。 */
   secrets?: SecretProvider
+  /** 回退代码读取快照正文与当前文件摘要（Sidecar 为 <dataDir>/blobs）。缺省：回退代码以 internal 失败。 */
+  checkpoints?: RewindFiles
 }
 
 /** Session 的模式与 Session 规则：由 permission_mode / permission_rule 条目回放，之后随提交更新。 */
@@ -96,8 +108,9 @@ export interface SessionExtension {
 
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
 
-/** 最后一条 run_end 的状态；没有结束的 Run 时为 undefined。 */
-function lastRunStatus(entries: readonly StoredEntry[]): RunStatus | undefined {
+/** 有效上下文中最后一条 run_end 的状态（被回退的 Run 不算）；没有结束的 Run 时为 undefined。 */
+function lastRunStatus(all: readonly StoredEntry[]): RunStatus | undefined {
+  const entries = all.some((e) => e.kind === 'rewind') ? effectiveEntries(all) : all
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!
     if (entry.kind === 'run_end') return (entry.payload as { status: RunStatus }).status
@@ -157,6 +170,8 @@ export class SessionService {
   readonly #lastStatus = new Map<string, RunStatus>()
   /** 有未回答结果确认的 Session（启动扫描建立，回答后移除）。 */
   readonly #awaitingConfirmation = new Set<string>()
+  /** 正在回退或分叉的 Session：其间不能开始 Run（#start 在调用运行时之前检查）。 */
+  readonly #exclusive = new Set<string>()
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
@@ -214,7 +229,10 @@ export class SessionService {
       }
     }
     for (const end of await source.listLatestEntries('run_end')) {
-      const status = (end.payload as { status: RunStatus }).status
+      let status: RunStatus | undefined = (end.payload as { status: RunStatus }).status
+      // 暂停或中断的 Run 可能已被回退（之后的 rewind 条目把它移出有效上下文）：按有效条目重算。
+      if (status === 'paused' || status === 'interrupted') status = lastRunStatus(await this.#options.store.sessions.listEntries(end.sessionId))
+      if (status === undefined) continue
       this.#lastStatus.set(end.sessionId, status)
       // 待确认只出现在被中断的 Run 之后（之前的确认未回答时不能开始新 Run）。
       if (status === 'interrupted' && unansweredConfirmations(await this.#options.store.sessions.listEntries(end.sessionId)).length > 0)
@@ -407,6 +425,7 @@ export class SessionService {
   #rememberStatus(sessionId: string, entries: readonly StoredEntry[]): void {
     const status = lastRunStatus(entries)
     if (status) this.#lastStatus.set(sessionId, status)
+    else this.#lastStatus.delete(sessionId)
   }
 
   /** 设置 defaultModel → faux（测试）→ 第一个 Provider 的第一个模型；都不可用时为 undefined。 */
@@ -492,6 +511,8 @@ export class SessionService {
     const model = this.#resolve(session.model!, 'model-not-configured')
     const runtime = await this.#runtime(session, model)
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
+    // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
+    if (this.#exclusive.has(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
     runtime.setModel(model)
 
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
@@ -569,6 +590,109 @@ export class SessionService {
     else if (scope === 'global') await this.#reevaluate(() => true)
   }
 
+  // ---- Checkpoint：回退与分叉（ADR 0006） ----
+
+  /**
+   * 回退与分叉的前置条件，并在其间排斥新 Run：Run 进行中（含等待审批）session-busy，有未回答的结果确认 confirmation-pending
+   * （与 #start 同一判断：unansweredConfirmations）。检查与登记在同一同步段内，之后开始的 Run 在 #start 中被拒绝。
+   */
+  async #exclusively<T>(sessionId: string, task: (entries: StoredEntry[]) => Promise<T>): Promise<T> {
+    await this.#get(sessionId)
+    if (this.#runtimes.get(sessionId)?.isRunning || this.#exclusive.has(sessionId))
+      throw new AppError('session-busy', 'A Run is in progress or waiting for approval; rewind and fork are not available')
+    this.#exclusive.add(sessionId)
+    try {
+      const entries = await this.#options.store.sessions.listEntries(sessionId)
+      if (this.#runtimes.get(sessionId)?.isRunning) throw new AppError('session-busy', 'A Run is in progress or waiting for approval')
+      if (unansweredConfirmations(entries).length > 0) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
+      return await task(entries)
+    } finally {
+      this.#exclusive.delete(sessionId)
+    }
+  }
+
+  /** Checkpoint 列表：有效上下文中的用户消息，以及回退代码到该处时涉及的路径。 */
+  async checkpoints(sessionId: string): Promise<Checkpoint[]> {
+    await this.#get(sessionId)
+    const entries = await this.#options.store.sessions.listEntries(sessionId)
+    const backups = entries.flatMap((e) => (e.kind === 'file_backup' ? [e.payload as { anchorSeq: number; path: string }] : []))
+    return effectiveEntries(entries).flatMap((entry) => {
+      if (entry.kind !== 'message' || (entry.payload as { role?: unknown }).role !== 'user') return []
+      const { text } = planRewind(entries, entry.seq, 'conversation')
+      const paths = [...new Set(backups.filter((b) => b.anchorSeq >= entry.seq).map((b) => b.path))]
+      return [{ seq: entry.seq, text, createdAt: entry.createdAt, paths }]
+    })
+  }
+
+  /**
+   * 回退到某条用户消息（grilling G3）。code / both 先恢复文件（目标锚点及之后追踪过的路径回到最早的备份，原先不存在的删除），
+   * conversation / both 再提交 rewind 条目并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
+   */
+  async rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
+    return this.#exclusively(sessionId, async (entries) => {
+      const plan = this.#plan(() => planRewind(entries, input.targetSeq, input.mode))
+      const dryRun = input.dryRun ?? false
+      let files = { restored: [] as string[], deleted: [] as string[], diverged: [] as string[], untracked: [] as string[] }
+      if (plan.files.length > 0) {
+        if (!this.#options.checkpoints) throw new AppError('internal', 'File checkpoints are not available')
+        files = await restoreFiles(plan.files, this.#options.checkpoints, { dryRun })
+      }
+      if (!dryRun && plan.entry) {
+        await this.#commit(sessionId, plan.entry)
+        this.#discardRuntime(sessionId)
+        this.#rememberStatus(sessionId, await this.#options.store.sessions.listEntries(sessionId))
+      }
+      if (!dryRun)
+        log.info('session rewound', {
+          sessionId,
+          targetSeq: plan.targetSeq,
+          mode: plan.mode,
+          restored: files.restored.length,
+          deleted: files.deleted.length,
+          diverged: files.diverged.length,
+          untracked: files.untracked.length,
+        })
+      return { targetSeq: plan.targetSeq, mode: plan.mode, dryRun, text: plan.text, ...files }
+    })
+  }
+
+  /**
+   * 从某条用户消息分叉（grilling G4）：新 Session（同一 Workspace 与模型，标题加后缀）的条目为 fork_origin 与目标之前的有效消息、
+   * 权限条目；原 Session 不变，Workspace 文件不复制。返回新 Session 的 id 与目标文本。
+   */
+  async fork(sessionId: string, targetSeq: number): Promise<{ sessionId: string; text: string }> {
+    return this.#exclusively(sessionId, async (entries) => {
+      const source = await this.#get(sessionId)
+      const forked = this.#plan(() => forkEntries(entries, sessionId, targetSeq))
+      const session = await this.#options.store.sessions.createSession({
+        workspaceId: source.workspaceId,
+        title: `${source.title.trim() || 'Untitled'} (fork)`,
+        model: source.model,
+      })
+      await this.#commitBatch(session.id, forked.entries)
+      log.info('session forked', { sessionId, forkedSessionId: session.id, targetSeq, entries: forked.entries.length })
+      return { sessionId: session.id, text: forked.text }
+    })
+  }
+
+  #plan<T>(plan: () => T): T {
+    try {
+      return plan()
+    } catch (error) {
+      if (error instanceof RewindTargetError) throw new AppError('bad-request', error.message)
+      throw error
+    }
+  }
+
+  /** 丢弃未在运行的运行时：之后开始 Run 时从条目重建（有效上下文、锚点与权限状态）。 */
+  #discardRuntime(sessionId: string): void {
+    const runtime = this.#runtimes.get(sessionId)
+    if (runtime?.isRunning) return
+    this.#runtimes.delete(sessionId)
+    this.#pending.delete(sessionId)
+    this.#publishers.delete(sessionId)
+  }
+
   async #get(sessionId: string): Promise<StoredSession> {
     const session = await this.#options.store.sessions.getSession(sessionId)
     if (!session) throw new AppError('not-found', `Session ${sessionId} not found`)
@@ -602,7 +726,8 @@ export class SessionService {
     if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
     // 恢复 Session：已提交的 message 条目就是模型可见的对话记录。
     const entries = await store.sessions.listEntries(session.id)
-    const messages = entries.filter((entry) => entry.kind === 'message').map((entry) => entry.payload as unknown as AgentMessage)
+    // 被回退的区间不进入模型上下文（ADR 0006）。
+    const messages: AgentMessage[] = effectiveMessages(entries)
     const previous = lastRunStatus(entries)
     if (previous) this.#lastStatus.set(session.id, previous)
     const permissions = await this.#permissionState(session)

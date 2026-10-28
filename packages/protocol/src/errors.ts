@@ -16,6 +16,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('no-active-run'),
   /** 上一 Run 不是 paused 或 interrupted，没有可继续的内容。 */
   Type.Literal('nothing-to-continue'),
+  /** Run 进行中或等待审批：不能回退或分叉。 */
+  Type.Literal('session-busy'),
   /** 有未回答的结果确认（恢复时结果不明的调用）。 */
   Type.Literal('confirmation-pending'),
   /** 审批请求不在等待中（已回答、已取消或不存在）。 */

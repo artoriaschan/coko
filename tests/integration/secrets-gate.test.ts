@@ -8,12 +8,13 @@
 // 票 07：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
 // 票 08：结果确认通道。bash 执行中 SIGKILL，重启后的启动扫描（confirmation_request、run_end interrupted、恢复日志）、确认回答
 // （confirmation_answer 与补齐的 toolResult）与之后的继续；两个 Sidecar 进程的帧、响应体与落盘文件都纳入扫描。
+// 票 09：回退与分叉通道。Checkpoint 列表、回退 dry-run 与 both（rewind 条目、恢复的文件）、分叉（fork_origin 与复制的条目）及其读回。
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, permissionPaths, runPaths, type ServerMessage } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, runPaths, type ServerMessage } from '@coko/protocol'
 import {
   connect,
   exchange,
@@ -179,6 +180,20 @@ describe('秘密不外泄总闸', () => {
     ).toEqual(['file_backup', 'file_change'])
     const snapshots = (await readDir(join(dirs.dataDir, 'blobs'))).filter((f) => !f.name.startsWith('.'))
     expect(snapshots.map((f) => f.bytes.toString())).toEqual(['original notes\n'])
+    // 回退与分叉通道：Checkpoint 列表、dry-run、回退对话与代码（文件恢复为快照内容）、从此分叉（第一条消息，仍有效）与读回。
+    const anchors = stream
+      .entries(faux)
+      .filter((e) => e.kind === 'message' && (e.payload as { role: string }).role === 'user')
+      .map((e) => e.seq)
+    const anchor = anchors.at(-1)!
+    expect((await api.get(checkpointPaths.sessionCheckpoints(faux))).status).toBe(200)
+    expect((await api.post(checkpointPaths.sessionRewind(faux), { targetSeq: anchor, mode: 'both', dryRun: true })).body.restored).toHaveLength(1)
+    expect((await api.post(checkpointPaths.sessionRewind(faux), { targetSeq: anchor, mode: 'both' })).status).toBe(200)
+    expect(await readFile(join(root, 'notes.txt'), 'utf8')).toBe('original notes\n')
+    const forked = await api.post(checkpointPaths.sessionFork(faux), { targetSeq: anchors[0] })
+    expect(forked.status).toBe(201)
+    await api.get(apiPaths.session(forked.body.sessionId))
+    expect(stream.entries(faux).at(-1)?.kind).toBe('rewind')
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
     const provider = (await api.post(API_ROUTES.providers, { name: 'DS', kind: 'deepseek', baseUrl, models: ['deepseek-flash'] })).body

@@ -1,11 +1,11 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolHooks, type ToolRegistry } from '@coko/agent'
+import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type SnapshotPort, type ToolHooks, type ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
 import { createPayloadRegistry, isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
-import { openCheckpointSnapshots } from '../adapters/checkpoints.ts'
+import { openCheckpointStore } from '../adapters/checkpoints.ts'
 import { createEnvCredentialStore, createEnvSecretProvider, createIpcCredentialStore } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
@@ -145,8 +145,7 @@ const RunsLive = Layer.effect(
  * 每个 Session 运行时的扩展：Checkpoint tracker（ADR 0006）。快照写到 <dataDir>/blobs；锚点与已备份路径从该 Session
  * 已提交的条目恢复。hooks 排在权限判定之后，被拒绝的调用不备份。诊断只记 toolCallId 与错误，不含文件内容。
  */
-function checkpointExtensions(dataDir: string, store: SqliteStore): (context: SessionExtensionContext) => SessionExtension {
-  const snapshots = openCheckpointSnapshots(dataDir)
+function checkpointExtensions(snapshots: SnapshotPort, store: SqliteStore): (context: SessionExtensionContext) => SessionExtension {
   const log = getLogger(['checkpoints'])
   return ({ sessionId, cwd, commit }) => {
     const tracker = createCheckpointTracker({
@@ -163,6 +162,7 @@ function checkpointExtensions(dataDir: string, store: SqliteStore): (context: Se
 /**
  * 仅测试（COKO_TEST_TOOLS=1 且 COKO_TEST_HOLD_AFTER_TOOL=<工具名>）：该工具执行完、afterToolCall 的其他 hook（checkpoint 的
  * file_change）之后挂起，toolResult 不提交，直到 Run 被中止。集成测试借此在"已执行、未记录结果"处强杀 Sidecar。
+ * COKO_TEST_HOLD_BEFORE_CHECKPOINT=1 时挂起点移到 checkpoint 的 afterToolCall 之前（file_change 也不提交）。
  */
 function holdAfterTool(toolName: string): ToolHooks {
   return {
@@ -181,12 +181,14 @@ function holdAfterTool(toolName: string): ToolHooks {
 function withTestHold(
   extensions: (context: SessionExtensionContext) => SessionExtension,
   toolName: string | undefined,
+  beforeCheckpoint: boolean,
 ): (context: SessionExtensionContext) => SessionExtension {
   if (!toolName) return extensions
   const hold = holdAfterTool(toolName)
   return (context) => {
     const extension = extensions(context)
-    return { ...extension, hooks: [...(extension.hooks ?? []), hold] }
+    const hooks = extension.hooks ?? []
+    return { ...extension, hooks: beforeCheckpoint ? [hold, ...hooks] : [...hooks, hold] }
   }
 }
 
@@ -210,6 +212,7 @@ const AppLive = Layer.effect(
       })
       log.warn('faux provider enabled for tests', { providerId: fallbackModel.providerId })
     }
+    const checkpoints = openCheckpointStore(config.dataDir)
     const hub = new SessionHub()
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
@@ -220,7 +223,12 @@ const AppLive = Layer.effect(
       runs,
       tools: workspaceTools,
       secrets: createEnvSecretProvider(env),
-      extensions: withTestHold(checkpointExtensions(config.dataDir, store), config.testTools ? env.COKO_TEST_HOLD_AFTER_TOOL : undefined),
+      extensions: withTestHold(
+        checkpointExtensions(checkpoints.snapshots, store),
+        config.testTools ? env.COKO_TEST_HOLD_AFTER_TOOL : undefined,
+        env.COKO_TEST_HOLD_BEFORE_CHECKPOINT === '1',
+      ),
+      checkpoints: checkpoints.files,
       ...(fallbackModel ? { fallbackModel } : {}),
     })
     // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
