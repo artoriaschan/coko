@@ -41,6 +41,8 @@ Status: open
 - M6：发布构建关闭 COKO_FAUX_SCRIPT 等测试钩子（构建期标志开启），产物 smoke 改用测试构建（M1 票 09 裁决）。
 - M3：rg 读取全局 gitignore 与 .git/info/exclude，内置 grep 不读；在 Context Management 中决定是否对齐（M1 票 09）。
 
+- M2：模态对话框打开时 Toast 动作无法用键盘到达（M1 票 08）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |

@@ -54,3 +54,6 @@
 - `apps/server/README.md`：新增两个只读路由。
 - `docs/tech-stack/architecture.md`：Credential 经 preload setCredential → main safeStorage → 控制 IPC。
 - TECH_STACK 无变化（未新增依赖）。
+- 2026-10-28 lead：评审后合入 main（5e96cfd）。main 上复核：typecheck、lint、format:check 退出 0；test 52 文件 390 通过、1 跳过（真实模型，无密钥）；check:docs 0 问题。真实模型验收未验证，保留为已知缺口。对话框打开时 Toast 动作无法用键盘到达，记入 M2 界面遗留。worktree 已清理。
+
+Closed: true
