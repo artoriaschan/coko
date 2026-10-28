@@ -101,3 +101,21 @@
 - 未读：packages/ui 的 theme.css、各 shadcn 组件、app-frame 实现、style-guard 及其测试；packages/i18n 的字典正文；packages/agent 内置工具的细节（bash.ts、edit-diff.ts、read.ts、find/ls/glob/walk、output-accumulator、truncate 的算法、local-exec 的进程组 kill）；packages/logging/file.ts（轮转）；apps/desktop/build/build.ts；renderer 的 settings-dialog、general-section、timeline-view、markdown.tsx；占位 sidecar 与 tests 的 fixture；scripts/check-docs 与 docs/ 的改动。
 - 只抽样：各单元测试、Browser Mode 测试、E2E 正文（只读了用例名和 chat、harness、global-setup 的部分内容）；tests/integration 只运行了 sidecar-auth。
 - 未运行：完整的 `pnpm run test`、desktop-e2e、package smoke。F5 中 Chromium 对 `%65` 的规范化行为没有在 Electron 中验证。
+
+---
+
+## 处理结果
+
+2026-10-29，分支 `m1/10-review-fixes`（票 [10](issues/10-review-fixes.md)）。"先红"表示修复前已观察到用例按预期原因失败。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| F1 | 已修复，采用"重启 + 重新交换"：新增 `SidecarSupervisor`（apps/desktop/src/main/sidecar-supervisor.ts）。ready 之后意外退出时重启 sidecar、重新交换 cookie，期间代理返回 503；preload 新增 `onSidecarState` 事件，renderer 显示"重启中"，完成后连向新地址并以 afterSeq 补齐。一次故障最多连续重启 3 次，用尽后进入 failed（renderer 停止重连，覆盖层标题为"多次重启失败"），并弹出一次错误对话框。首次启动失败不重启。对话框增加"打开日志文件夹"，detail 先给本地化说明、后给技术信息。renderer 失败覆盖层也提供同一入口（preload 新增 `openLogs`，主框架校验与其他 IPC 一致）。sidecar 的 stderr 尾部经 `redactText` 写入 desktop.jsonl（`sidecar diagnostic { stderrTail }`）。规格写入 desktop-delivery.md 与 ADR 0002 | sidecar-supervisor.test.ts 4 例（先红）：重启并换新 cookie 后能通过新 sidecar 认证、连续失败进入 failed 且 spawn 次数为 1 + 上限、启动失败不重启、stop 打断重启。desktop-shell.e2e：fatal 对话框含"打开日志文件夹"且选择后 `shell.openPath(logs)`，覆盖层按钮同样打开，desktop.jsonl 中 stderr 的 `sk-…` 已脱敏；真实 sidecar 被 SIGKILL 后经 restarting 回到 connected、pid 改变、数据仍在、能完成一次对话，日志有 exited / restarting / restarted；重启连续失败时 renderer 停在 failed、对话框只弹一次、共 spawn 4 次且全部退出 |
+| F2 | 已修复：app.tsx 的全局 keydown 加入 ⌘N / Ctrl+N（跳过 isComposing；没有 Workspace 时走添加 Workspace，否则开始草稿并聚焦 composer）。Run 进行中时 Escape 在任意焦点下都能停止，但事件已被处理（`defaultPrevented`：composer、Radix 对话框或菜单），或页面上有 dialog / menu 时不停止，此时 Escape 只关闭对话框 | app.browser.test.tsx"键盘"3 例（先红）：⌘N 聚焦输入区、输入区之外的 Escape 停止、对话框打开时 Escape 只关对话框且下一次 Escape 才停止。chat.e2e 在真实 Electron 中验证 Escape 与 Meta+N |
+| F3 | 已修复：agent 每个 Run 的最后一个事件是 `progress run_end { status, error? }`，在 run_end 条目提交后发出，提交失败时也发出；protocol 增加该事件，server 脱敏 error.message。renderer 收到后结束运行中状态；没有对应 run_end 条目时显示只由进度得知的结束状态（错误不提供重试） | runtime.test.ts（先红）：run_end 提交失败仍发出 progress；sidecar-session.test.ts：bash 用 sqlite3 夺走租约后，客户端收到 `run_end … commit_failed`、没有 run_end 条目；chat-store.test.ts 2 例（先红） |
+| F4 | 不修复：judgement 覆盖缺口。本次 Browser Mode 新增了 rail 搜索按钮展开抽屉的用例，窄窗口下的发送仍未在 E2E 中断言 | — |
+| F5 | 已修复：protocol 新增 `normalizeRoutePath` / `isMainOnlyPath`（反复解码至多 3 次、合并重复斜杠、去掉末尾斜杠、转小写，解码失败视为命中）。代理先按规范化路径分流，无法解码时返回 400，`/api/auth` 前缀一律 404；sidecar 增加中间件，交换入口只接受原样路径、POST、不带 cookie（renderer 经代理的请求总带 main 注入的 cookie），其余形态 404 且不消耗令牌 | app-protocol.test.ts 10 种编码变体 + 无法解码（先红），断言不到达 sidecar；sidecar-auth.test.ts 5 种变体与带 cookie 的交换（先红），断言令牌仍可用 |
+| F6 | 已修复（按标题过滤，不隐藏按钮）：侧栏的搜索按钮切换为搜索框，按标题过滤会话、不区分大小写，没有命中的工作区隐藏，无结果时说明，Escape 清除并关闭；rail 的搜索按钮展开侧栏（窄窗口下为抽屉）并聚焦搜索框。抽屉打开时若内容已经聚焦，就不再抢焦点（app-frame） | app.browser.test.tsx"侧栏搜索"2 例（先红）；ui-browser 的 app-frame 用例回归通过 |
+| F7 | 已修复：apps/server README 与 spec 的协议一节登记 provider-presets、models、WS unsubscribe、`COKO_CREDENTIAL_<PROVIDER_ID>`，以及本次新增的 retry 路由与 run_end progress | check:docs 0 问题 |
+| F8 | 已修复，采用方案 (1)：新增 `POST /api/sessions/:id/retry`，runtime 的 `retry()` 去掉末尾出错的 assistant 消息（入库记录保留），再 `agent.continue()` 重新执行上一轮，不追加用户条目；上一轮没有以模型错误结束时 409 `nothing-to-retry`。renderer 的重试改为调用该接口，timeline 的 `retryText` 改为 `retryable`。票 07 Comments 已说明行为变更 | runtime.test.ts 2 例（先红）：模型上下文中用户请求只出现一次、从已提交条目恢复后也能重试；sidecar-session.test.ts：条目序列为 user, assistant, run_end, assistant, run_end；chat-store.test.ts（先红）；chat.e2e 断言改为只有 1 条"你" |
+| F9 | 已修复，同 review-standards A6 | 同 A6 |
