@@ -60,12 +60,17 @@ export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
               className={cn('min-w-0 shrink', warning && 'text-destructive [&_svg]:text-destructive')}
             >
               <Icon />
-              <span className="truncate">{label}</span>
-              <ChevronDownIcon />
+              {/* 窄主区中只显示图标（名称在 aria-label 与菜单中），让编辑区保留宽度。 */}
+              <span className="truncate @max-[560px]/main:hidden">{label}</span>
+              <ChevronDownIcon className="@max-[560px]/main:hidden" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent side="top">{t('permissions.modeCycleHint')}</TooltipContent>
+        <TooltipContent side="top">
+          {/* 窄宽度下按钮只有图标：Tooltip 同时给出当前模式。 */}
+          <span className="block">{label}</span>
+          <span className="block text-ui-small opacity-80">{t('permissions.modeCycleHint')}</span>
+        </TooltipContent>
       </Tooltip>
       <DropdownMenuContent side="top" align="start" className="w-80">
         <DropdownMenuLabel>{t('permissions.mode')}</DropdownMenuLabel>

@@ -52,6 +52,8 @@ export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetu
     >
       <ComposerEditor
         ref={editor}
+        // basis-0：长草稿不会把控件挤到下一行；只有控件本身放不下时才换行。
+        className="basis-0"
         label={t('conversation.composerPlaceholder')}
         placeholder={t('conversation.composerPlaceholder')}
         disabled={disabled}

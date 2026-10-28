@@ -168,7 +168,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           <div ref={composerArea} hidden={pending !== undefined}>
             <Composer
               ref={composerRef}
-              className={`${composerColumn} flex items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
+              // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
+              className={`${composerColumn} flex flex-wrap items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
               running={running}
               disabled={activeSessionId === null && draftWorkspaceId === null}
               needsSetup={needsSetup}
