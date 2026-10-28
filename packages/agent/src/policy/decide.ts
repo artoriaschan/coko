@@ -88,6 +88,10 @@ export type PermissionDecision =
 const PROTECTED_DIRS = new Set(['.git', '.coko', '.vscode', '.idea'])
 /** 任意位置的 shell、git 与凭据配置。 */
 const PROTECTED_NAMES = new Set(['.bashrc', '.zshrc', '.profile', '.bash_profile', '.zprofile', '.gitconfig', '.ssh', '.mcp.json'])
+/**
+ * 受保护的路径段（小写）：文件写入总要审批；受限档位的命令沙箱在可写根之下也拒绝写入它们（ADR 0005）。
+ */
+export const PROTECTED_PATH_NAMES: readonly string[] = [...PROTECTED_DIRS, ...PROTECTED_NAMES]
 
 /** 比较前转小写（大小写不敏感的文件系统上 .GIT 即 .git）；解析前后的路径任一命中即受保护。 */
 export function isProtectedPath(target: PermissionTarget): boolean {

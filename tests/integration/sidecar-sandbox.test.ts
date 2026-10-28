@@ -81,6 +81,25 @@ describe.skipIf(!darwin)('Seatbelt（只在 darwin 运行：其他平台没有 s
     expect(stream.invalidEntries).toEqual([])
   })
 
+  it('default：已批准的命令不能写 Workspace 内的 .git 与 .coko（受保护路径），普通文件照常写入', async () => {
+    const { root, api, sessionId, stream } = await boot(() => [
+      { content: [bash('b1', 'mkdir -p .git/hooks && echo x > .git/hooks/pre-commit')] },
+      { content: [bash('b2', 'mkdir .coko')] },
+      { content: [bash('b3', 'echo ok > ok.txt')] },
+      { content: 'done' },
+    ])
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })
+    for (const n of [1, 2, 3]) {
+      const request = await waitApproval(stream, sessionId, n)
+      await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'allow' })
+    }
+    await runEnds(stream, sessionId, 1)
+    for (const id of ['b1', 'b2']) expect(text(await resultOf(stream, sessionId, id))).toContain(DENIED('workspace-write'))
+    expect(await exists(join(root, '.git', 'hooks', 'pre-commit'))).toBe(false)
+    expect(await exists(join(root, '.coko'))).toBe(false)
+    expect(await readFile(join(root, 'ok.txt'), 'utf8')).toBe('ok\n')
+  })
+
   it('read-only：已批准的命令不能写 Workspace', async () => {
     const { root, api, sessionId, stream } = await boot(() => [{ content: [bash('b1', 'echo x > in.txt')] }, { content: 'done' }])
     expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'read-only' })).status).toBe(200)

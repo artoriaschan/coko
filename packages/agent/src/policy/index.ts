@@ -1,5 +1,5 @@
 // 领域 barrel：权限判定与 ApprovalBroker（票 02、03、05 在此导出）。packages/agent/src/index.ts 已 re-export 本文件，后续票只改本目录。
-export { canonicalRuleTool, decide, isProtectedPath, isWithin, ruleToolName, toolCategory } from './decide.ts'
+export { canonicalRuleTool, decide, isProtectedPath, isWithin, PROTECTED_PATH_NAMES, readDenial, ruleToolName, toolCategory } from './decide.ts'
 export type { AskReason, PermissionCall, PermissionContext, PermissionDecision, PermissionTarget, ToolCategory } from './decide.ts'
 export { ApprovalNotPendingError, createApprovalBroker } from './broker.ts'
 export type { ApprovalAnswer, ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
