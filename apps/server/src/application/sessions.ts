@@ -6,7 +6,9 @@ import {
   createAgentRuntime,
   effectiveEntries,
   effectiveMessages,
+  emptyRewindReport,
   forkEntries,
+  realLocation,
   planRewind,
   restoreFiles,
   RewindTargetError,
@@ -647,10 +649,13 @@ export class SessionService {
     return this.#exclusively(sessionId, async (entries) => {
       const plan = this.#plan(() => planRewind(entries, input.targetSeq, input.mode))
       const dryRun = input.dryRun ?? false
-      let files = { restored: [] as string[], deleted: [] as string[], diverged: [] as string[], untracked: [] as string[] }
+      let files = emptyRewindReport()
       if (plan.files.length > 0) {
         if (!this.#options.checkpoints) throw new AppError('internal', 'File checkpoints are not available')
-        files = await restoreFiles(plan.files, this.#options.checkpoints, { dryRun })
+        const session = await this.#get(sessionId)
+        const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
+        if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+        files = await restoreFiles(plan.files, this.#options.checkpoints, { workspace: await realLocation(workspace.path), dryRun })
       }
       if (!dryRun && plan.entry) {
         await this.#commit(sessionId, plan.entry)
@@ -666,6 +671,8 @@ export class SessionService {
           deleted: files.deleted.length,
           diverged: files.diverged.length,
           untracked: files.untracked.length,
+          outside: files.outside.length,
+          skipped: files.skipped.length,
         })
       return { targetSeq: plan.targetSeq, mode: plan.mode, dryRun, text: plan.text, ...files }
     })

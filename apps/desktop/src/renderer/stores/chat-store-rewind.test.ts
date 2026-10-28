@@ -68,6 +68,8 @@ const response = (patch: Partial<RewindResponse> = {}): RewindResponse => ({
   deleted: [],
   diverged: [],
   untracked: [],
+  outside: [],
+  skipped: [],
   ...patch,
 })
 

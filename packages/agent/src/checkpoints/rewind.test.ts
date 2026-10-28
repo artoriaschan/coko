@@ -1,13 +1,14 @@
 // 回退与有效上下文（ADR 0006，grilling G3）：纯函数 effectiveEntries / planRewind 由已提交的条目断言；restoreFiles 在临时
 // Workspace 上断言文件内容（逐字节）与报告。真实快照目录与模型请求见集成测试 sidecar-rewind。
 import { createHash } from 'node:crypto'
-import { readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
+import { forkEntries } from '../agents/index.ts'
 import {
   effectiveEntries,
   effectiveMessages,
-  forkEntries,
   planRewind,
   restoreFiles,
   RewindTargetError,
@@ -199,7 +200,14 @@ describe('restoreFiles', () => {
       if (!bytes) throw Object.assign(new Error('missing'), { code: 'ENOENT' })
       return bytes
     },
+    async writeFile(path, bytes) {
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(`${path}.tmp`, bytes)
+      await rename(`${path}.tmp`, path)
+    },
+    remove: (path) => rm(path, { force: true }),
   }
+  const options = () => ({ workspace: ws.dir })
   const absent = (path: string) =>
     stat(path).then(
       () => false,
@@ -224,8 +232,15 @@ describe('restoreFiles', () => {
 
   it('dry-run 只报告：恢复、删除、Agent 之外改过（含被删除的）与未追踪，不改任何文件', async () => {
     const { a, b, c, big, files } = await scenario()
-    const report = await restoreFiles(files, port, { dryRun: true })
-    expect(report).toEqual({ restored: [a, c, ws.path('gone/d.txt')], deleted: [b], diverged: [c, ws.path('gone/d.txt')], untracked: [big] })
+    const report = await restoreFiles(files, port, { ...options(), dryRun: true })
+    expect(report).toEqual({
+      restored: [a, c, ws.path('gone/d.txt')],
+      deleted: [b],
+      diverged: [c, ws.path('gone/d.txt')],
+      untracked: [big],
+      outside: [],
+      skipped: [],
+    })
     expect(await readFile(a, 'utf8')).toBe('v3')
     expect(await readFile(b, 'utf8')).toBe('created later')
     expect(await readFile(c, 'utf8')).toBe('edited by the user')
@@ -234,7 +249,7 @@ describe('restoreFiles', () => {
 
   it('执行：内容逐字节等于备份，原先不存在的删除，未追踪的不动；已是目标状态的不再列出', async () => {
     const { a, b, c, big, files } = await scenario()
-    const report = await restoreFiles(files, port)
+    const report = await restoreFiles(files, port, options())
     expect(report.restored).toEqual([a, c, ws.path('gone/d.txt')])
     expect(await readFile(a, 'utf8')).toBe('v1')
     expect(await readFile(c, 'utf8')).toBe('c before')
@@ -242,7 +257,44 @@ describe('restoreFiles', () => {
     expect(await absent(b)).toBe(true)
     expect(await readFile(big, 'utf8')).toBe('too large to keep')
     // 再执行一次：都已是目标状态。
-    expect(await restoreFiles(files, port, { dryRun: true })).toMatchObject({ restored: [], deleted: [] })
+    expect(await restoreFiles(files, port, { ...options(), dryRun: true })).toMatchObject({ restored: [], deleted: [] })
+  })
+
+  it('Workspace 之外与受保护路径单独列出（照常恢复，由确认对话框显式警告）', async () => {
+    const elsewhere = await createTempWorkspace('coko-rewind-out-')
+    try {
+      const out = await elsewhere.write('rc', 'changed')
+      const git = await ws.write('.git/config', 'changed')
+      const files: RewindFilePlan[] = [
+        { path: out, restore: { kind: 'content', blob: keep('rc before') }, recorded: { kind: 'content', hash: sha256('changed') } },
+        { path: git, restore: { kind: 'content', blob: keep('config before') }, recorded: { kind: 'content', hash: sha256('changed') } },
+      ]
+      expect(await restoreFiles(files, port, { ...options(), dryRun: true })).toMatchObject({ restored: [out, git], outside: [out, git], skipped: [] })
+      await restoreFiles(files, port, options())
+      expect(await readFile(out, 'utf8')).toBe('rc before')
+    } finally {
+      await elsewhere.dispose()
+    }
+  })
+
+  it('父目录在备份之后被替换为符号链接：该路径跳过，链接指向的文件不变', async () => {
+    const elsewhere = await createTempWorkspace('coko-rewind-link-')
+    try {
+      const victim = await elsewhere.write('d.txt', 'not yours')
+      const recorded = ws.path('dir/d.txt')
+      await symlink(elsewhere.dir, ws.path('dir'))
+      const files: RewindFilePlan[] = [
+        { path: recorded, restore: { kind: 'content', blob: keep('d before') }, recorded: { kind: 'content', hash: sha256('d by coko') } },
+        { path: join(ws.dir, 'dir', 'new.txt'), restore: { kind: 'delete' }, recorded: { kind: 'absent' } },
+      ]
+      await elsewhere.write('new.txt', 'also not yours')
+      const report = await restoreFiles(files, port, options())
+      expect(report).toMatchObject({ restored: [], deleted: [], skipped: [recorded, join(ws.dir, 'dir', 'new.txt')] })
+      expect(await readFile(victim, 'utf8')).toBe('not yours')
+      expect(await readFile(join(elsewhere.dir, 'new.txt'), 'utf8')).toBe('also not yours')
+    } finally {
+      await elsewhere.dispose()
+    }
   })
 
   it('记录为 unknown 的路径不算 Agent 之外改过；记录为不存在而现在存在的算', async () => {
@@ -254,7 +306,7 @@ describe('restoreFiles', () => {
         { path: y, restore: { kind: 'delete' }, recorded: { kind: 'absent' } },
       ],
       port,
-      { dryRun: true },
+      { ...options(), dryRun: true },
     )
     expect(report.diverged).toEqual([y])
   })

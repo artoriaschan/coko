@@ -140,7 +140,17 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     setPermissionMode: async (_id, mode) => ({ mode, rules: [] }),
     removeSessionRule: async () => ({ mode: 'default', rules: [] }),
     listCheckpoints: async () => [],
-    rewind: async (_id, request) => ({ ...request, dryRun: request.dryRun ?? false, text: '', restored: [], deleted: [], diverged: [], untracked: [] }),
+    rewind: async (_id, request) => ({
+      ...request,
+      dryRun: request.dryRun ?? false,
+      text: '',
+      restored: [],
+      deleted: [],
+      diverged: [],
+      untracked: [],
+      outside: [],
+      skipped: [],
+    }),
     fork: async () => ({ sessionId: 's-1', text: '' }),
   } satisfies ApiClient
   const chat: ChatStore = createChatStore({ api, stream })

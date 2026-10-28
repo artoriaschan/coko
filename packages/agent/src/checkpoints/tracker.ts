@@ -3,18 +3,13 @@
 // 经 ToolHooks 接入，位于权限 hook 之后：被拒绝或等待中的调用不备份。bash 与外部进程的改动不追踪。
 import type { BeforeToolCallResult } from '@earendil-works/pi-agent-core'
 import type { ToolHooks } from '../extensions/hooks.ts'
+import type { SnapshotPort } from '../ports/checkpoints.ts'
 import { realLocation } from '../policy/paths.ts'
 import type { FileBackupPayload, FileChangePayload } from '../session-entries/index.ts'
 import { resolveToCwd } from '../tools/paths.ts'
 import type { RunEntry } from '../engine/types.ts'
 
-/** 快照端口：内容寻址保存文件当前的字节（宿主实现，Sidecar 为 @coko/session/blobs）。 */
-export interface SnapshotPort {
-  /** 文件不存在为 absent；超过快照上限为 too-large（不保存）；其他失败抛错。 */
-  saveFile(path: string): Promise<{ kind: 'stored'; hash: string } | { kind: 'absent' } | { kind: 'too-large' }>
-  /** 文件当前内容的 SHA-256；不存在时抛错（ENOENT）。 */
-  hashFile(path: string): Promise<string>
-}
+export type { SnapshotPort } from '../ports/checkpoints.ts'
 
 /** tracker 读取的已提交条目（结构上与 @coko/session 的 SessionEntry 相容）。 */
 export interface CheckpointEntry {

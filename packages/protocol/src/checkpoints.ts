@@ -49,7 +49,8 @@ export type RewindRequest = Static<typeof RewindRequest>
 /**
  * 回退的结果（dryRun 为将要发生的）。text 为目标消息的文本（回到输入区）。文件列表只在 code / both 时有内容：
  * restored 写回备份、deleted 原先不存在而删除、diverged 当前状态与最后一次记录不一致（Agent 之外改过，照常恢复）、
- * untracked 超限未追踪而不能恢复。bash 与外部进程的改动不在其中。
+ * untracked 超限未追踪而不能恢复。bash 与外部进程的改动不在其中。outside 为将恢复或删除的路径中位于 Workspace 之外或属于受保护路径
+ * （.git、.coko 等）的，照常处理，确认时单独警告；skipped 为真实路径与记录不一致（父目录被换成符号链接等）而不处理的路径。
  */
 export const RewindResponse = Type.Object(
   {
@@ -61,6 +62,8 @@ export const RewindResponse = Type.Object(
     deleted: Type.Array(Path),
     diverged: Type.Array(Path),
     untracked: Type.Array(Path),
+    outside: Type.Array(Path),
+    skipped: Type.Array(Path),
   },
   strict,
 )

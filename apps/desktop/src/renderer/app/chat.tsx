@@ -8,7 +8,8 @@ export function ChatStoreProvider({ store, children }: { store: ChatStore; child
   return <ChatStoreContext.Provider value={store}>{children}</ChatStoreContext.Provider>
 }
 
-function useChatStoreApi(): ChatStore {
+/** store 本身：需要在 effect 中订阅外部变化（例如交给命令式编辑器）时使用。 */
+export function useChatStoreApi(): ChatStore {
   const store = React.useContext(ChatStoreContext)
   if (!store) throw new Error('useChat must be used inside <ChatStoreProvider>')
   return store

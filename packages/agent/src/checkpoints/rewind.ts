@@ -1,8 +1,9 @@
-// 回退（ADR 0006，grilling G3）：rewind 条目把 [targetSeq, 本条目) 区间移出有效上下文；原条目保留。多次回退叠加：
+// 回退（ADR 0006）：rewind 条目把 [targetSeq, 本条目) 区间移出有效上下文；原条目保留。多次回退叠加：
 // 目标只能是当时有效的用户消息，各区间要么嵌套、要么不相交，被任一区间覆盖的条目都不在有效上下文中。
-import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { isProtectedPath, isWithin } from '../policy/decide.ts'
+import { realLocation } from '../policy/paths.ts'
+import type { RewindFiles } from '../ports/checkpoints.ts'
 import type { RunEntry } from '../engine/types.ts'
 import type { FileBackupPayload, FileChangePayload, RewindPayload, RunEndPayload, ToolExecPayload } from '../session-entries/index.ts'
 import { CHECKPOINT_TOOLS, type CheckpointEntry } from './tracker.ts'
@@ -31,7 +32,7 @@ export function effectiveMessages(entries: readonly CheckpointEntry[]): AgentMes
     .filter((entry) => entry.kind === 'message')
     .map((entry) => entry.payload as AgentMessage)
 }
-/** 回退对话、代码或两者（grilling G3）。 */
+/** 回退对话、代码或两者（ADR 0006）。 */
 export type RewindMode = 'conversation' | 'code' | 'both'
 
 /** 目标不是有效的用户消息（不存在、不是用户消息，或已在被回退的区间内）。 */
@@ -154,13 +155,7 @@ export function planRewind(entries: readonly CheckpointEntry[], targetSeq: numbe
   plan.files = [...restores].map(([path, restore]) => ({ path, restore, recorded: recorded.get(path) ?? { kind: 'unknown' } }))
   return plan
 }
-/** 回退代码的文件端口：当前内容的摘要与快照正文（宿主实现，Sidecar 为 @coko/session/blobs）。 */
-export interface RewindFiles {
-  /** 文件当前内容的 SHA-256；不存在时以 ENOENT 拒绝。 */
-  hashFile(path: string): Promise<string>
-  /** 快照正文；不存在时拒绝。 */
-  readBlob(hash: string): Promise<Uint8Array>
-}
+export type { RewindFiles } from '../ports/checkpoints.ts'
 
 /** 回退代码的结果（dry-run 为将要发生的）：路径为绝对路径。 */
 export interface RewindReport {
@@ -172,6 +167,22 @@ export interface RewindReport {
   diverged: string[]
   /** 超限未追踪、不能恢复的文件；保持不动。 */
   untracked: string[]
+  /**
+   * 将恢复或删除的路径中位于 Workspace 之外或属于受保护路径（.git、.coko、shell 配置等）的：照常处理，确认对话框单独列出并警告。
+   */
+  outside: string[]
+  /** 真实路径与记录不一致（例如父目录在备份之后被换成了符号链接）而不处理的路径：不跟随链接写到别处。 */
+  skipped: string[]
+}
+
+/** 空的回退报告（只回退对话时）。 */
+export const emptyRewindReport = (): RewindReport => ({ restored: [], deleted: [], diverged: [], untracked: [], outside: [], skipped: [] })
+
+export interface RestoreOptions {
+  /** Workspace 的真实路径：之外的路径列入 outside。 */
+  workspace: string
+  /** 只返回报告，不改文件。 */
+  dryRun?: boolean
 }
 
 const isMissing = (error: unknown) => {
@@ -188,15 +199,23 @@ async function currentHash(files: RewindFiles, path: string): Promise<string | u
   }
 }
 
+/** 路径的真实位置仍是记录的位置（备份时记录的就是真实路径）。 */
+const unchanged = async (path: string) => (await realLocation(path)) === path
+
 /**
- * 按计划恢复文件（ADR 0006）。先判定全部路径，再依次写入；dryRun 只返回报告。备份内容写回原路径（父目录不在时重建），
- * 原先不存在的删除；未追踪的不动。读不到快照正文等失败原样抛出（此前已写入的文件不回滚）。
+ * 按计划恢复文件（ADR 0006）。先判定全部路径，再依次写入；dryRun 只返回报告。每个路径先重新解析真实路径：与记录不同时（父目录被
+ * 换成了符号链接等）列入 skipped 且不处理；写入与删除前再复核一次。备份内容经端口原子写回原路径（父目录不在时重建），原先不存在的
+ * 删除；未追踪的不动。Workspace 之外与受保护路径列入 outside。读不到快照正文等失败原样抛出（此前已写入的文件不回滚）。
  */
-export async function restoreFiles(files: readonly RewindFilePlan[], port: RewindFiles, options: { dryRun?: boolean } = {}): Promise<RewindReport> {
-  const report: RewindReport = { restored: [], deleted: [], diverged: [], untracked: [] }
+export async function restoreFiles(files: readonly RewindFilePlan[], port: RewindFiles, options: RestoreOptions): Promise<RewindReport> {
+  const report = emptyRewindReport()
   const writes: { path: string; blob: string }[] = []
   const deletes: string[] = []
   for (const file of files) {
+    if (!(await unchanged(file.path))) {
+      report.skipped.push(file.path)
+      continue
+    }
     const current = await currentHash(port, file.path)
     const { recorded, restore } = file
     if (recorded.kind === 'content' ? current !== recorded.hash : recorded.kind === 'absent' ? current !== undefined : false) report.diverged.push(file.path)
@@ -207,27 +226,21 @@ export async function restoreFiles(files: readonly RewindFilePlan[], port: Rewin
   }
   report.restored = writes.map((w) => w.path)
   report.deleted = [...deletes]
+  report.outside = [...report.restored, ...report.deleted].filter(
+    (path) => !isWithin(path, options.workspace) || isProtectedPath({ resolved: path, real: path }),
+  )
   if (options.dryRun) return report
+  const recheck = async (path: string) => {
+    if (await unchanged(path)) return true
+    report.skipped.push(path)
+    report.restored = report.restored.filter((p) => p !== path)
+    report.deleted = report.deleted.filter((p) => p !== path)
+    return false
+  }
   for (const { path, blob } of writes) {
     const bytes = await port.readBlob(blob)
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, bytes)
+    if (await recheck(path)) await port.writeFile(path, bytes)
   }
-  for (const path of deletes) await rm(path, { force: true })
+  for (const path of deletes) if (await recheck(path)) await port.remove(path)
   return report
-}
-/** 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。 */
-const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
-
-/**
- * 从某条用户消息分叉（ADR 0006，grilling G4）：新 Session 的条目为 fork_origin，之后是目标之前的有效消息与权限条目（去掉 runId）。
- * Run 生命周期、审批、执行记录与快照引用不复制：它们的 Run 与锚点属于原 Session；Workspace 文件不复制。
- * 目标不是有效的用户消息时抛 RewindTargetError。
- */
-export function forkEntries(entries: readonly CheckpointEntry[], sessionId: string, targetSeq: number): { text: string; entries: RunEntry[] } {
-  const { text } = rewindTarget(entries, targetSeq)
-  const copied = effectiveEntries(entries)
-    .filter((entry) => entry.seq < targetSeq && FORK_KINDS.has(entry.kind))
-    .map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
-  return { text, entries: [{ kind: 'fork_origin', payload: { sessionId, seq: targetSeq } }, ...copied] }
 }

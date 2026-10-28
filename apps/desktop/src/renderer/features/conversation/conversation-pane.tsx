@@ -2,7 +2,7 @@ import { PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIc
 import { Button } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
-import { useChat, useChatActions } from '../../app/chat.tsx'
+import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
@@ -96,10 +96,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
   }, [cardKey])
   const takenOver = pending !== undefined || confirmation !== undefined
-  // 回退与分叉：Run 进行中、等待审批或等待结果确认时不可用（Sidecar 同样以 409 拒绝）。
-  const [rewindTarget, setRewindTarget] = React.useState<{ seq: number; text: string } | null>(null)
+  // 回退与分叉：Run 进行中、等待审批或等待结果确认时不可用（Sidecar 同样以 409 拒绝）。目标与会话绑定：切换会话后视为关闭。
+  // opened 每次打开递增，作为对话框的 key，使其本地状态随每次打开重置。
+  // 关闭时保留请求只清 open，key 不变，关闭动画与焦点归还照常进行。
+  const [rewindRequest, setRewindRequest] = React.useState<{ sessionId: string; seq: number; text: string; opened: number; open: boolean } | null>(null)
+  const rewindTarget = rewindRequest?.open === true && rewindRequest.sessionId === activeSessionId ? rewindRequest : null
   const rewound = React.useRef(false)
-  React.useEffect(() => setRewindTarget(null), [activeSessionId])
   const actionsDisabled = running || takenOver
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
@@ -112,13 +114,20 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     },
     [composerRef],
   )
-  // 停止或暂停后未送达的追加指令回到输入区。
-  const returnedDraft = conversation?.returnedDraft
+  // 停止或暂停后未送达的追加指令（以及回退、分叉的目标消息）回到输入区：订阅 store 的退回槽，取走即清空。
+  // 这是 store 与命令式编辑器之间的必要桥接（编辑器内容不受 React 状态控制），不是在组件间镜像状态。
+  const chatStore = useChatStoreApi()
   React.useEffect(() => {
-    if (returnedDraft === undefined || activeSessionId === null) return
-    composer.current?.restore(returnedDraft)
-    takeReturnedDraft(activeSessionId)
-  }, [returnedDraft, activeSessionId, takeReturnedDraft])
+    if (activeSessionId === null) return
+    const deliver = () => {
+      const draft = chatStore.getState().conversations[activeSessionId]?.returnedDraft
+      if (draft === undefined || !composer.current) return
+      composer.current.restore(draft)
+      takeReturnedDraft(activeSessionId)
+    }
+    deliver()
+    return chatStore.subscribe(deliver)
+  }, [chatStore, activeSessionId, takeReturnedDraft])
   // 上一 Run 以暂停或中断结束：输入区上方显示横幅，模型能接着做时带"继续"。待确认时由确认卡接管，不显示横幅。
   const activity = conversation !== undefined && !running && conversation.status === 'ready' ? conversationActivity(conversation) : undefined
   const banner = activity === 'paused' || activity === 'interrupted' ? activity : undefined
@@ -173,7 +182,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           items={items}
           theme={theme}
           onRetry={() => void retry()}
-          onRewind={(seq, text) => setRewindTarget({ seq, text })}
+          onRewind={(seq, text) =>
+            activeSessionId !== null && setRewindRequest((prev) => ({ sessionId: activeSessionId, seq, text, opened: (prev?.opened ?? 0) + 1, open: true }))
+          }
           onFork={(seq) => void fork(seq)}
           actionsDisabled={actionsDisabled}
         />
@@ -278,6 +289,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           </div>
         </div>
         <RewindDialog
+          key={rewindRequest?.opened ?? 0}
           target={rewindTarget}
           workspacePath={workspacePath}
           onPreview={previewRewind}
@@ -286,7 +298,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             rewound.current = result !== undefined
             return result !== undefined
           }}
-          onClose={() => setRewindTarget(null)}
+          onClose={() => setRewindRequest((prev) => (prev ? { ...prev, open: false } : prev))}
           onCloseAutoFocus={(event) => {
             // 回退成功：目标消息已回到输入区，焦点交给输入区；取消时回到触发按钮。
             if (!rewound.current) return

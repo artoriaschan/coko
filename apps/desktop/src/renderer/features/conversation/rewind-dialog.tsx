@@ -30,8 +30,9 @@ function displayPath(path: string, root: string | undefined): string {
 }
 
 /**
- * 回退确认（ADR 0006）：选择回退对话、代码或两者；涉及代码时以 dry-run 列出将恢复和删除的文件，标出在 Agent 之外改过的
- * 与过大未追踪的文件，并说明命令造成的变化不回退。
+ * 回退确认（ADR 0006）：选择回退对话、代码或两者；涉及代码时以 dry-run 列出将恢复和删除的文件，标出在 Agent 之外改过的、
+ * 位于 Workspace 之外或受保护的、因路径被替换而跳过的与过大未追踪的文件，并说明命令造成的变化不回退。
+ * 每次打开由调用方换 key 重新挂载，本地状态（模式、提交中）随之重置。
  */
 export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onClose, onCloseAutoFocus }: RewindDialogProps) {
   const { t } = useI18n()
@@ -41,12 +42,6 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
   const seq = target?.seq
   const key = `${seq}:${mode}`
   const needsFiles = mode !== 'conversation'
-
-  React.useEffect(() => {
-    if (seq === undefined) return
-    setMode('both')
-    setSubmitting(false)
-  }, [seq])
 
   React.useEffect(() => {
     if (seq === undefined || !needsFiles) return
@@ -64,6 +59,7 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
   const files = needsFiles && preview?.key === key ? preview.result : undefined
   const failed = needsFiles && preview?.key === key && preview.result === undefined
   const diverged = new Set(files?.diverged ?? [])
+  const outside = new Set(files?.outside ?? [])
 
   const list = (paths: string[], label: string, slot: string) =>
     paths.length > 0 && (
@@ -71,8 +67,14 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
         <h3 className="text-ui-body font-medium">{label}</h3>
         <ul className="flex flex-col gap-0.5 text-ui-body">
           {paths.map((path) => (
-            <li key={path} data-path={path} data-diverged={diverged.has(path) || undefined} className="flex min-w-0 items-center gap-1.5">
-              {diverged.has(path) && <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-warning" />}
+            <li
+              key={path}
+              data-path={path}
+              data-diverged={diverged.has(path) || undefined}
+              data-outside={outside.has(path) || undefined}
+              className="flex min-w-0 items-center gap-1.5"
+            >
+              {(diverged.has(path) || outside.has(path)) && <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-warning" />}
               <span data-user-content className="truncate font-mono text-ui-small" title={path}>
                 {displayPath(path, workspacePath)}
               </span>
@@ -126,7 +128,7 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
             {failed && <p className="text-ui-body text-destructive">{t('rewind.previewFailed')}</p>}
             {files && (
               <>
-                {files.restored.length + files.deleted.length + files.untracked.length === 0 && (
+                {files.restored.length + files.deleted.length + files.untracked.length + files.skipped.length === 0 && (
                   <p className="text-ui-body text-muted-foreground">{t('rewind.noFileChanges')}</p>
                 )}
                 {files.diverged.length > 0 && (
@@ -135,8 +137,24 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
                     {t('rewind.diverged', { count: files.diverged.length })}
                   </p>
                 )}
-                {list(files.restored, t('rewind.restore', { count: files.restored.length }), 'rewind-restored')}
-                {list(files.deleted, t('rewind.delete', { count: files.deleted.length }), 'rewind-deleted')}
+                {files.outside.length > 0 && (
+                  <p role="alert" data-slot="rewind-outside" className="flex items-start gap-1.5 text-ui-body text-warning">
+                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                    {t('rewind.outside', { count: files.outside.length })}
+                  </p>
+                )}
+                {list(files.outside, t('rewind.outsideList', { count: files.outside.length }), 'rewind-outside-list')}
+                {list(
+                  files.restored.filter((p) => !outside.has(p)),
+                  t('rewind.restore', { count: files.restored.filter((p) => !outside.has(p)).length }),
+                  'rewind-restored',
+                )}
+                {list(
+                  files.deleted.filter((p) => !outside.has(p)),
+                  t('rewind.delete', { count: files.deleted.filter((p) => !outside.has(p)).length }),
+                  'rewind-deleted',
+                )}
+                {list(files.skipped, t('rewind.skipped', { count: files.skipped.length }), 'rewind-skipped')}
                 {list(files.untracked, t('rewind.untracked', { count: files.untracked.length }), 'rewind-untracked')}
               </>
             )}

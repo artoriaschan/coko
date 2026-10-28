@@ -1,7 +1,7 @@
 // 回退与分叉（票 09，ADR 0006）：真实 Sidecar（faux 模型）经协议驱动。断言 Workspace 文件内容（逐字节）、读回的条目、
 // faux 记录的模型请求上下文与 409 前置条件；SIGKILL 前以已提交条目或文件内容同步，不用固定 sleep。
 import { randomBytes } from 'node:crypto'
-import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rename, stat, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
@@ -103,6 +103,8 @@ describe('回退与分叉', () => {
         deleted: [created],
         diverged: [],
         untracked: [],
+        outside: [],
+        skipped: [],
       })
       expect(await readFile(notes, 'utf8')).toBe('v3\n\u00e9\n')
       expect(await readFile(created, 'utf8')).toBe('created in two\n')
@@ -123,6 +125,8 @@ describe('回退与分叉', () => {
         deleted: [created],
         diverged: [notes],
         untracked: [],
+        outside: [],
+        skipped: [],
       })
       expect(Buffer.compare(await readFile(notes), afterFirst)).toBe(0)
       expect(await absent(created)).toBe(true)
@@ -272,5 +276,31 @@ describe('回退与分叉', () => {
     expect(dry.body).toMatchObject({ restored: [notes], deleted: [], diverged: [], untracked: [] })
     expect((await api.post(checkpointPaths.sessionRewind(first.sessionId), { targetSeq: target, mode: 'code' })).status).toBe(200)
     expect(await readFile(notes, 'utf8')).toBe('original\n')
+  })
+
+  it('回退代码：Workspace 外的文件单独列在 outside；父目录被替换为符号链接的路径列在 skipped 且链接目标不变', { timeout: 60_000 }, async () => {
+    const outsideDir = await realpath(await tempDir('coko-rewind-outside-'))
+    const rc = join(outsideDir, 'rc')
+    await writeFile(rc, 'rc before\n')
+    const { root, api, sessionId, stream } = await boot({
+      mode: 'full-access',
+      responses: [{ content: [write('w1', rc, 'rc by coko\n'), write('w2', 'dir/d.txt', 'd by coko\n')] }, { content: 'done' }],
+    })
+    await mkdir(join(root, 'dir'))
+    await writeFile(join(root, 'dir', 'd.txt'), 'd before\n')
+    await send(api, stream, sessionId, 'change them', 1)
+    expect(await readFile(rc, 'utf8')).toBe('rc by coko\n')
+    // 备份之后 Agent 之外把 dir 换成指向别处的链接（bash 不追踪）。
+    const victimDir = await realpath(await tempDir('coko-rewind-victim-'))
+    await writeFile(join(victimDir, 'd.txt'), 'not yours\n')
+    await rename(join(root, 'dir'), join(root, 'dir-moved'))
+    await symlink(victimDir, join(root, 'dir'))
+    const [target] = userSeqs(await entriesOf(api, sessionId))
+    const dry = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: target, mode: 'code', dryRun: true })
+    expect(dry.body).toMatchObject({ restored: [rc], outside: [rc], skipped: [join(root, 'dir', 'd.txt')] })
+    const done = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: target, mode: 'code' })
+    expect(done.body).toMatchObject({ restored: [rc], outside: [rc], skipped: [join(root, 'dir', 'd.txt')] })
+    expect(await readFile(rc, 'utf8')).toBe('rc before\n')
+    expect(await readFile(join(victimDir, 'd.txt'), 'utf8')).toBe('not yours\n')
   })
 })
