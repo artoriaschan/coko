@@ -53,6 +53,8 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
     label: 'bash',
     description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
     parameters: bashParameters,
+    effect: 'side-effect',
+    permissionSubject: (args) => args.command,
     outputSchema: bashOutputSchema,
     // bash has its own `timeout` argument; the unified default would cut long builds short.
     timeoutMs: 0,

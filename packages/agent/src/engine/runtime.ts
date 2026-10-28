@@ -8,7 +8,9 @@ import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
 import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
-import type { RunTrigger } from '../session-entries/index.ts'
+import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
+import { createPermissionGate } from '../policy/gate.ts'
+import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger } from '../session-entries/index.ts'
 import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -51,6 +53,16 @@ export interface AgentRuntimeOptions {
   retry?: Partial<RetryPolicy>
   timeouts?: TimeoutOptions
   sessionId?: string
+  /**
+   * Permission decision and approvals (ADR 0005), first in the hook chain. Read on every call, so mode and rule
+   * changes apply to the next call. Omitted: no permission check (library callers without an answer channel).
+   */
+  permissions?: RuntimePermissions
+}
+
+export interface RuntimePermissions {
+  mode: () => PermissionMode
+  rules: () => readonly PermissionRule[]
 }
 
 export interface AgentRuntime {
@@ -63,8 +75,16 @@ export interface AgentRuntime {
    * did not end with a model error.
    */
   retry(): Promise<RunResult>
-  /** Cancel the current Run; it ends with status `aborted` after tools have stopped. */
+  /** Cancel the current Run; pending approvals end as cancelled, and the Run ends with status `aborted` after tools have stopped. */
   abort(): void
+  /**
+   * Answer a pending approval request. Resolves after the approval_decision entry was committed. Throws
+   * ApprovalNotPendingError when the request is not waiting (already answered, cancelled, or unknown).
+   * A denial without feedback ends the Run as `aborted` after the current tool batch.
+   */
+  answerApproval(requestId: string, answer: ApprovalAnswer): Promise<void>
+  /** Approval requests waiting for an answer, in request order. */
+  readonly pendingApprovals: readonly ApprovalRequestPayload[]
   subscribe(listener: (event: RuntimeEvent) => void): () => void
   /** Model for later Runs. Throws while a Run is in progress. */
   setModel(model: Model<any>): void
@@ -75,6 +95,8 @@ export interface AgentRuntime {
 interface RunState {
   runId: string
   aborted: boolean
+  /** A tool call was rejected without feedback: the Run ends after the current batch. */
+  rejected: boolean
   commitError?: Error
 }
 
@@ -106,7 +128,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   // changes are announced to the model (and committed) as a system message with toolsAdded/Removed.
   const effectiveTools = () => registry.list().map((tool) => withTimeout(tool, options.timeouts) as AgentTool<any>)
 
-  const before = composeBeforeToolCall(hooks)
+  const broker = createApprovalBroker((entry) => commit({ ...entry, ...(current ? { runId: current.runId } : {}) }))
+  const permissions = options.permissions
+  const gate = permissions
+    ? createPermissionGate({
+        cwd: options.cwd,
+        tool: (name) => registry.get(name),
+        broker,
+        mode: permissions.mode,
+        rules: permissions.rules,
+        rejected: () => current?.rejected ?? false,
+        reject: () => {
+          if (current) current.rejected = true
+        },
+        commitFailed: (error) => {
+          if (!current) return
+          current.commitError ??= error
+          agent.abort()
+        },
+      })
+    : undefined
+
+  // 权限判定位于 hook 链首：被拒绝或等待中的调用不经过其后的 hook（例如 checkpoint 备份）。
+  const before = composeBeforeToolCall(gate ? [{ beforeToolCall: gate }, ...hooks] : hooks)
   const after = composeAfterToolCall(hooks)
 
   const agent = new Agent({
@@ -131,6 +175,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       return before(context, signal)
     },
     afterToolCall: (context, signal) => after(context, signal),
+    finishTurn: () => (current?.rejected ? { action: 'end' } : undefined),
   })
 
   agent.subscribe(async (event: AgentEvent) => {
@@ -178,7 +223,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const outcome = (run: RunState): { status: RunStatus; error?: RunError } => {
     if (run.commitError) return { status: 'error', error: { code: 'commit_failed', message: run.commitError.message } }
     const last = agent.state.messages.at(-1)
-    if (run.aborted || (last?.role === 'assistant' && last.stopReason === 'aborted')) return { status: 'aborted' }
+    if (run.aborted || run.rejected || (last?.role === 'assistant' && last.stopReason === 'aborted')) return { status: 'aborted' }
     if (last?.role === 'assistant' && last.stopReason === 'error') {
       return { status: 'error', error: { code: 'model_error', message: last.errorMessage ?? 'Model request failed' } }
     }
@@ -197,7 +242,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    */
   const execute = async (trigger: RunTrigger, drive: () => Promise<void>): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
-    const run: RunState = { runId: randomUUID(), aborted: false }
+    const run: RunState = { runId: randomUUID(), aborted: false, rejected: false }
     current = run
     let result: RunResult
     try {
@@ -249,6 +294,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       if (!current) return
       current.aborted = true
       agent.abort()
+    },
+    answerApproval(requestId, answer) {
+      return broker.answer(requestId, answer)
+    },
+    get pendingApprovals() {
+      return broker.pending()
     },
     subscribe(listener) {
       listeners.add(listener)

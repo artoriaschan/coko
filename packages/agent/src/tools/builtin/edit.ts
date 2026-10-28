@@ -76,6 +76,8 @@ export function createEditTool({ cwd }: { cwd: string }): CokoTool<typeof editPa
     description:
       'Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.',
     parameters: editParameters,
+    effect: 'side-effect',
+    permissionSubject: (args) => args.path,
     prepareArguments: prepareEditArguments,
     async execute(_toolCallId, { path, edits }, signal) {
       if (!Array.isArray(edits) || edits.length === 0) throw new Error('Edit tool input is invalid. edits must contain at least one replacement.')
