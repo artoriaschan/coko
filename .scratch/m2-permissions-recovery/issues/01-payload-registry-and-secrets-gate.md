@@ -52,3 +52,6 @@
 - 负向确认：`open.ts` 回退到 main 后，"逐字节不变"用例失败；秘密总闸见上。
 
 **未验证**：Electron E2E 与产物 smoke（本票没有新增可见 UI，未运行）；真实模型（无密钥）；CI。
+- 2026-10-29 lead：评审 diff（越界仅 hub.ts 类型、renderer fixture 与 chat-store 测试，均已事先说明，接受）后合入 main（ba7e4da）。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 59 文件 454 通过、1 跳过（真实模型），含 desktop E2E 与产物 smoke；check:docs 0 问题。cookie 篡改用例的不稳定由 lead 单独修复。worktree 已清理。
+
+Closed: true
