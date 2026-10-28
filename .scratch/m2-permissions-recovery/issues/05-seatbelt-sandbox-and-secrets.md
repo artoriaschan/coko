@@ -31,4 +31,6 @@
   - **覆盖与命令。** `pnpm install --frozen-lockfile`、`pnpm run typecheck`、`pnpm run lint`（0 / 0）、`pnpm run format:check`、`pnpm run check:docs`（82 文件 0 问题）均通过；`pnpm run test`（含 desktop E2E、package 产物 smoke）：80 个文件，658 通过，1 跳过（真实 DeepSeek 凭据用例，本机无密钥）。新增：`tests/integration/sidecar-sandbox.test.ts`（7 个用例，覆盖本票前 6 条验收）、`secrets-gate.test.ts` 第二个用例（darwin：沙箱拒绝输出、escalation、secret_probe 后仍无明文）、`apps/desktop/e2e/sandbox.e2e.test.ts`（提权卡）、`package-smoke.e2e.test.ts`（产物中受限命令无法写 Workspace 之外）。变异检查：把 Seatbelt 包裹改为空前缀后，4 个依赖 Seatbelt 的集成用例失败。
   - **未验证。** 非 darwin 平台（Seatbelt 用例显式 skipIf；fail-closed 路径用 COKO_SANDBOX_EXEC 在本机验证）；真实模型对话（无凭据）。
   - **文档。** ADR 0005 → implemented（附实现与验证证据），`docs/adr/README.md` 对应行，`docs/subsystems/permissions.md` 新增"命令沙箱与提权"一节，`packages/agent/README.md`、`apps/server/README.md`；关于页安全说明与模式说明文案已更新（zh / en）。TECH_STACK 未改（无新依赖，sandbox-exec 为系统自带）。
+- 2026-10-29 lead：评审后合入 main（0bd4524）。接受：engine/runtime.ts 的最小接线（执行上下文带沙箱策略与 Secrets、grantEscalation）；新增 test-tools.ts 与 seatbelt.test.ts 等就近测试；默认可写集合沿用 DSH（Workspace、/tmp、系统临时目录、/dev/null；HOME 与包管理缓存不默认可写）；无沙箱时受限模式失败关闭；无反馈拒绝提权结束 Run。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 80 文件 658 通过、1 跳过（真实模型），含 desktop E2E 与产物 smoke；check:docs 82 文件 0 问题。worktree 已清理。
 
+Closed: true
