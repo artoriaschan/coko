@@ -80,6 +80,7 @@ describe('Session 协议', () => {
       'assistant',
       'approval_request',
       'approval_decision',
+      'tool_exec',
       'toolResult',
       'assistant',
       'run_end',

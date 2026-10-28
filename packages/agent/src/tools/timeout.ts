@@ -14,7 +14,10 @@ export interface TimeoutOptions {
  *
  * The tool receives a signal that fires on run cancellation or timeout. A well-behaved tool settles
  * after cleaning up (for bash: after the process group exited). A tool that ignores the signal is
- * abandoned after `graceMs` so the run can still end.
+ * abandoned after `graceMs` so the run can still end. The execution context is passed through unchanged.
+ *
+ * The runtime applies it inside the scheduler (see scheduler.ts), so the timeout counts from the moment the call
+ * holds an execution slot, not while it waits in the queue. An abandoned call releases its slot.
  */
 export function withTimeout(tool: CokoTool, options: TimeoutOptions = {}): CokoTool {
   const timeoutMs = tool.timeoutMs ?? options.defaultTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS
@@ -22,7 +25,7 @@ export function withTimeout(tool: CokoTool, options: TimeoutOptions = {}): CokoT
 
   return {
     ...tool,
-    async execute(toolCallId, params, parentSignal, onUpdate) {
+    async execute(toolCallId, params, parentSignal, onUpdate, context) {
       const controller = new AbortController()
       let timedOut = false
       let graceTimer: NodeJS.Timeout | undefined
@@ -51,7 +54,7 @@ export function withTimeout(tool: CokoTool, options: TimeoutOptions = {}): CokoT
           : undefined
 
       try {
-        return await Promise.race([tool.execute(toolCallId, params, controller.signal, onUpdate), abandoned])
+        return await Promise.race([tool.execute(toolCallId, params, controller.signal, onUpdate, context), abandoned])
       } catch (error) {
         if (timedOut) throw new Error(`Tool ${tool.name} timed out after ${timeoutMs}ms`, { cause: error })
         throw error

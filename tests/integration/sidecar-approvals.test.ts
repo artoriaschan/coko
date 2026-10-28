@@ -57,6 +57,7 @@ describe('审批闭环', () => {
       'assistant',
       'approval_request',
       'approval_decision',
+      'tool_exec',
       'toolResult',
       'assistant',
       'run_end',
