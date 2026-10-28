@@ -1,4 +1,4 @@
-import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
+import { createRequestTracker, RequestTimeoutError, type MainToSidecarMessage, type SidecarToMainMessage } from '@coko/protocol'
 import type { CredentialErrorCode, SetCredentialResult } from '../shared/bridge.ts'
 
 // Credential 的 main 一侧（ADR 0004）：renderer 经 preload 交来的密钥在这里用 safeStorage 加密，
@@ -17,6 +17,8 @@ export interface CredentialChannel {
   isReady(): boolean
   send(message: MainToSidecarMessage): void
   onMessage(listener: (message: SidecarToMainMessage) => void): () => void
+  /** 当前 Sidecar 意外退出；挂起的请求不会再得到回答。 */
+  onUnavailable(listener: () => void): () => void
 }
 
 export interface CredentialBridge {
@@ -37,15 +39,13 @@ const failure = (code: CredentialErrorCode, message: string): SetCredentialResul
 export function createCredentialBridge(options: { encryption: Encryption; channel: CredentialChannel; timeoutMs?: number }): CredentialBridge {
   const { encryption, channel } = options
   const timeoutMs = options.timeoutMs ?? 10_000
-  /** 等待 credential.store.result；undefined 表示已保存。 */
-  const pending = new Map<number, (rejected: SetCredentialResult | undefined) => void>()
-  let nextRequestId = 1
+  /** 等待 credential.store.result；undefined 表示已保存。超时与 Sidecar 退出以拒绝结束，由 set 转成失败结果。 */
+  const stores = createRequestTracker<SetCredentialResult | undefined>({ timeoutMs, timeoutMessage: (ms) => `Sidecar did not confirm within ${ms} ms` })
 
+  channel.onUnavailable(() => stores.rejectAll(new Error('Sidecar exited before confirming')))
   channel.onMessage((message) => {
     if (message.type === 'credential.store.result') {
-      const settle = pending.get(message.requestId)
-      pending.delete(message.requestId)
-      settle?.(message.ok ? undefined : failure('rejected', message.error ?? 'Sidecar rejected the credential'))
+      stores.resolve(message.requestId, message.ok ? undefined : failure('rejected', message.error ?? 'Sidecar rejected the credential'))
       return
     }
     if (message.type !== 'credential.decrypt') return
@@ -82,18 +82,13 @@ export function createCredentialBridge(options: { encryption: Encryption; channe
         return failure('encryption-unavailable', error instanceof Error ? error.message : String(error))
       }
       const hint = credentialHint(key)
-      const requestId = nextRequestId++
-      return new Promise<SetCredentialResult>((resolve) => {
-        const timer = setTimeout(() => {
-          pending.delete(requestId)
-          resolve(failure('timeout', `Sidecar did not confirm within ${timeoutMs} ms`))
-        }, timeoutMs)
-        pending.set(requestId, (rejected) => {
-          clearTimeout(timer)
-          resolve(rejected ?? { ok: true, hint })
-        })
-        channel.send({ type: 'credential.store', requestId, providerId, ciphertext, hint })
-      })
+      try {
+        const rejected = await stores.request((requestId) => channel.send({ type: 'credential.store', requestId, providerId, ciphertext, hint }))
+        return rejected ?? { ok: true, hint }
+      } catch (error) {
+        if (error instanceof RequestTimeoutError) return failure('timeout', error.message)
+        return failure('sidecar-unavailable', error instanceof Error ? error.message : String(error))
+      }
     },
   }
 }

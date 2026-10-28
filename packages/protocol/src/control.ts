@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox'
 
-// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit 与 credential.*。
+// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit 与 credential.*；
+// 以及两端共用的按 requestId 挂起请求的工具（运行时无关，只用 setTimeout 与 AbortSignal）。
 
 const strict = { additionalProperties: false } as const
 const RequestId = Type.Integer({ minimum: 1 })
@@ -68,3 +69,95 @@ export const MainCredentialDecryptResult = Type.Union([
 
 export const MainToSidecarMessage = Type.Union([MainShutdown, MainInspectQuit, MainCredentialStore, MainCredentialDecryptResult])
 export type MainToSidecarMessage = Static<typeof MainToSidecarMessage>
+
+// ---- 按 requestId 挂起的请求 ----
+
+/** 请求在时限内没有回答。 */
+export class RequestTimeoutError extends Error {
+  override readonly name = 'RequestTimeoutError'
+  readonly timeoutMs: number
+
+  constructor(message: string, timeoutMs: number) {
+    super(message)
+    this.timeoutMs = timeoutMs
+  }
+}
+
+export interface RequestTrackerOptions {
+  /** 每个请求等待回答的上限。 */
+  readonly timeoutMs: number
+  /** 超时错误的文案；默认 "Request timed out after <ms> ms"。 */
+  readonly timeoutMessage?: (timeoutMs: number) => string
+}
+
+export interface RequestTracker<T> {
+  /**
+   * 分配下一个 requestId（从 1 递增），登记等待后调用 send 发出请求。
+   * 结束方式：resolve / reject 交付的结果；超时（RequestTimeoutError）；signal 中止（中止原因）；send 抛错；rejectAll。
+   */
+  request(send: (requestId: number) => void, options?: { signal?: AbortSignal | undefined }): Promise<T>
+  /** 交付回答；id 未知或已结束时返回 false。 */
+  resolve(requestId: number, value: T): boolean
+  reject(requestId: number, error: Error): boolean
+  /** 通道断开或对端退出：以给定错误立即结束全部挂起请求。 */
+  rejectAll(error: Error): void
+  /** 当前挂起的请求数。 */
+  readonly size: number
+}
+
+/** 按 requestId 挂起并带超时的请求；回答、超时、中止与断开都只结束一次并清理计时器。 */
+export function createRequestTracker<T>(options: RequestTrackerOptions): RequestTracker<T> {
+  const { timeoutMs } = options
+  const timeoutMessage = options.timeoutMessage ?? ((ms: number) => `Request timed out after ${ms} ms`)
+  const pending = new Map<number, { resolve: (value: T) => void; reject: (error: Error) => void }>()
+  let nextId = 1
+
+  return {
+    request(send, requestOptions) {
+      const signal = requestOptions?.signal
+      return new Promise<T>((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(abortReason(signal))
+          return
+        }
+        const requestId = nextId++
+        const settle =
+          <V>(fn: (value: V) => void) =>
+          (value: V) => {
+            pending.delete(requestId)
+            clearTimeout(timer)
+            signal?.removeEventListener('abort', onAbort)
+            fn(value)
+          }
+        const onAbort = () => settle(reject)(abortReason(signal!))
+        const timer = setTimeout(() => settle(reject)(new RequestTimeoutError(timeoutMessage(timeoutMs), timeoutMs)), timeoutMs)
+        signal?.addEventListener('abort', onAbort, { once: true })
+        pending.set(requestId, { resolve: settle(resolve), reject: settle(reject) })
+        try {
+          send(requestId)
+        } catch (error) {
+          settle(reject)(error instanceof Error ? error : new Error(String(error)))
+        }
+      })
+    },
+    resolve(requestId, value) {
+      const waiter = pending.get(requestId)
+      waiter?.resolve(value)
+      return waiter !== undefined
+    },
+    reject(requestId, error) {
+      const waiter = pending.get(requestId)
+      waiter?.reject(error)
+      return waiter !== undefined
+    },
+    rejectAll(error) {
+      // 每个 waiter 结束时只删除自己的条目；Map 迭代允许删除当前项。
+      for (const waiter of pending.values()) waiter.reject(error)
+    },
+    get size() {
+      return pending.size
+    },
+  }
+}
+
+const abortReason = (signal: AbortSignal): Error => (signal.reason instanceof Error ? signal.reason : new Error('Aborted'))
