@@ -1,0 +1,182 @@
+// 仓库契约测试套件：SQLite 实现与内存实现运行同一组用例。普通模块（非 *.test.ts），由各实现的测试文件调用。
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { StoreError } from './errors.ts'
+import type { SessionStore, StoreOptions } from './types.ts'
+
+export type OpenStore = (options: StoreOptions) => Promise<SessionStore>
+
+async function expectStoreError(promise: Promise<unknown>, code: StoreError['code']): Promise<StoreError> {
+  const error = await promise.then(
+    () => undefined,
+    (e: unknown) => e,
+  )
+  expect(error).toBeInstanceOf(StoreError)
+  expect((error as StoreError).code).toBe(code)
+  return error as StoreError
+}
+
+export function describeRepositoryContract(name: string, openStore: OpenStore): void {
+  describe(`${name}：仓库契约`, () => {
+    let clock = 0
+    async function open(): Promise<SessionStore> {
+      clock = 1_000
+      const store = await openStore({ now: () => clock })
+      onTestFinished(() => store.close())
+      return store
+    }
+    const tick = (ms = 10) => {
+      clock += ms
+    }
+
+    it('登记 Workspace，同一路径重复登记返回已有记录', async () => {
+      const { sessions } = await open()
+      const a = await sessions.registerWorkspace({ path: '/work/alpha' })
+      expect(a).toMatchObject({ path: '/work/alpha', name: 'alpha', createdAt: 1_000 })
+      tick()
+      const b = await sessions.registerWorkspace({ path: '/work/beta', name: '项目 B' })
+      const again = await sessions.registerWorkspace({ path: '/work/alpha', name: '别名' })
+      expect(again).toEqual(a)
+      expect(await sessions.listWorkspaces()).toEqual([a, b])
+      expect(await sessions.getWorkspace(b.id)).toEqual(b)
+      expect(await sessions.getWorkspace('missing')).toBeUndefined()
+    })
+
+    it('在不存在的 Workspace 下创建 Session 以 not-found 拒绝', async () => {
+      const { sessions } = await open()
+      await expectStoreError(sessions.createSession({ workspaceId: 'missing' }), 'not-found')
+      expect(await sessions.listSessions()).toEqual([])
+    })
+
+    it('Session 列表按最近更新倒序，可按 Workspace 过滤', async () => {
+      const { sessions } = await open()
+      const w1 = await sessions.registerWorkspace({ path: '/w1' })
+      const w2 = await sessions.registerWorkspace({ path: '/w2' })
+      const s1 = await sessions.createSession({ workspaceId: w1.id, title: '第一个' })
+      tick()
+      const s2 = await sessions.createSession({ workspaceId: w2.id, model: { providerId: 'p', modelId: 'm' } })
+      tick()
+      const s3 = await sessions.createSession({ workspaceId: w1.id })
+      expect(s2).toMatchObject({ title: '', model: { providerId: 'p', modelId: 'm' }, createdAt: 1_010, updatedAt: 1_010 })
+      expect((await sessions.listSessions()).map((s) => s.id)).toEqual([s3.id, s2.id, s1.id])
+
+      tick()
+      await sessions.appendEntries(s1.id, [{ kind: 'user-message', payload: { text: 'hi' } }])
+      expect((await sessions.listSessions()).map((s) => s.id)).toEqual([s1.id, s3.id, s2.id])
+      expect((await sessions.listSessions({ workspaceId: w1.id })).map((s) => s.id)).toEqual([s1.id, s3.id])
+      expect(await sessions.getSession(s1.id)).toMatchObject({ title: '第一个', updatedAt: 1_030 })
+    })
+
+    it('修改标题与模型后读回，并刷新 updatedAt', async () => {
+      const { sessions } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id })
+      tick()
+      expect(await sessions.setSessionTitle(s.id, '修复登录')).toMatchObject({ title: '修复登录', updatedAt: 1_010 })
+      tick()
+      await sessions.setSessionModel(s.id, { providerId: 'deepseek', modelId: 'deepseek-chat' })
+      expect(await sessions.getSession(s.id)).toMatchObject({
+        title: '修复登录',
+        model: { providerId: 'deepseek', modelId: 'deepseek-chat' },
+        updatedAt: 1_020,
+      })
+      await sessions.setSessionModel(s.id, null)
+      expect((await sessions.getSession(s.id))?.model).toBeNull()
+      await expectStoreError(sessions.setSessionTitle('missing', 'x'), 'not-found')
+      await expectStoreError(sessions.setSessionModel('missing', null), 'not-found')
+    })
+
+    it('追加条目在 Session 内分配连续 seq，payload 原样读回', async () => {
+      const { sessions } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const a = await sessions.createSession({ workspaceId: w.id })
+      const b = await sessions.createSession({ workspaceId: w.id })
+      const payload = { text: '你好 👋', n: 1.5, nested: [true, null, { deep: 'x' }] }
+
+      const first = await sessions.appendEntries(a.id, [
+        { kind: 'user-message', payload, runId: 'run-1' },
+        { kind: 'assistant-message', payloadVersion: 2, payload: 'plain' },
+      ])
+      expect(first).toEqual([
+        { sessionId: a.id, seq: 1, kind: 'user-message', payloadVersion: 1, payload, runId: 'run-1', createdAt: 1_000 },
+        { sessionId: a.id, seq: 2, kind: 'assistant-message', payloadVersion: 2, payload: 'plain', runId: null, createdAt: 1_000 },
+      ])
+      expect((await sessions.appendEntries(b.id, [{ kind: 'k', payload: 0 }]))[0]?.seq).toBe(1)
+      expect((await sessions.appendEntries(a.id, [{ kind: 'tool-result', payload: [] }]))[0]?.seq).toBe(3)
+      expect(await sessions.appendEntries(a.id, [])).toEqual([])
+
+      const all = await sessions.listEntries(a.id)
+      expect(all.map((e) => e.seq)).toEqual([1, 2, 3])
+      expect(all.slice(0, 2)).toEqual(first)
+      expect((await sessions.listEntries(a.id, { afterSeq: 1 })).map((e) => e.seq)).toEqual([2, 3])
+      expect((await sessions.listEntries(a.id, { afterSeq: 0, limit: 2 })).map((e) => e.seq)).toEqual([1, 2])
+      expect(await sessions.listEntries('missing')).toEqual([])
+    })
+
+    it('向不存在的 Session 追加条目以 not-found 拒绝', async () => {
+      const { sessions } = await open()
+      await expect(sessions.appendEntries('missing', [{ kind: 'k', payload: null }])).rejects.toMatchObject({ name: 'StoreError', code: 'not-found' })
+    })
+
+    it('设置按 revision 乐观并发，revision 不匹配返回冲突且值不变', async () => {
+      const { settings } = await open()
+      expect(await settings.get('theme')).toBeUndefined()
+      expect(await settings.set('theme', 'dark', 0)).toEqual({ key: 'theme', value: 'dark', revision: 1, updatedAt: 1_000 })
+      tick()
+      expect(await settings.set('theme', { mode: 'light' }, 1)).toMatchObject({ value: { mode: 'light' }, revision: 2, updatedAt: 1_010 })
+
+      const stale = await expectStoreError(settings.set('theme', 'dark', 1), 'revision-conflict')
+      expect(stale.fatal).toBe(false)
+      expect(stale.details).toMatchObject({ key: 'theme', expected: 1, actual: 2 })
+      await expectStoreError(settings.set('locale', 'zh', 1), 'revision-conflict')
+      await expectStoreError(settings.set('theme', 'dark', 0), 'revision-conflict')
+
+      expect(await settings.get('theme')).toMatchObject({ value: { mode: 'light' }, revision: 2 })
+      await settings.set('locale', 'en', 0)
+      expect((await settings.list()).map((s) => [s.key, s.revision])).toEqual([
+        ['locale', 1],
+        ['theme', 2],
+      ])
+    })
+
+    it('Provider 增改删，Credential 只以提示暴露，密文按字节读回', async () => {
+      const { providers } = await open()
+      const input = { name: 'DeepSeek', kind: 'deepseek', api: 'openai-completions', baseUrl: 'https://api.deepseek.com', models: ['deepseek-chat'] }
+      const p = await providers.create(input)
+      expect(p).toEqual({ id: p.id, ...input, credential: null, createdAt: 1_000, updatedAt: 1_000 })
+      tick()
+      const updated = await providers.update(p.id, { models: ['deepseek-chat', 'deepseek-reasoner'] })
+      expect(updated).toMatchObject({ name: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'], updatedAt: 1_010 })
+
+      const ciphertext = new Uint8Array([0, 1, 2, 250, 255])
+      const withCredential = await providers.setCredential(p.id, { ciphertext, hint: 'a1b2' })
+      expect(withCredential.credential).toEqual({ hint: 'a1b2' })
+      expect(JSON.stringify(await providers.list())).not.toContain('ciphertext')
+      expect(Array.from((await providers.getCredentialCiphertext(p.id)) ?? [])).toEqual([0, 1, 2, 250, 255])
+
+      expect((await providers.clearCredential(p.id)).credential).toBeNull()
+      expect(await providers.getCredentialCiphertext(p.id)).toBeUndefined()
+
+      await providers.setCredential(p.id, { ciphertext, hint: 'zz99' })
+      const other = await providers.create({ ...input, name: 'OpenAI', kind: 'openai' })
+      expect((await providers.list()).map((x) => x.name)).toEqual(['DeepSeek', 'OpenAI'])
+      await providers.delete(p.id)
+      expect(await providers.get(p.id)).toBeUndefined()
+      expect(await providers.getCredentialCiphertext(p.id)).toBeUndefined()
+      expect(await providers.list()).toEqual([other])
+
+      await expectStoreError(providers.update(p.id, { name: 'x' }), 'not-found')
+      await expectStoreError(providers.delete(p.id), 'not-found')
+      await expectStoreError(providers.setCredential(p.id, { ciphertext, hint: 'x' }), 'not-found')
+      await expectStoreError(providers.clearCredential(p.id), 'not-found')
+    })
+
+    it('关闭后所有操作以 closed 拒绝，重复关闭无副作用', async () => {
+      const store = await open()
+      await store.close()
+      await store.close()
+      for (const attempt of [store.sessions.listWorkspaces(), store.settings.set('k', 1, 0), store.providers.list()]) {
+        await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
+      }
+    })
+  })
+}
