@@ -1,0 +1,14 @@
+---
+kind: index
+description: "Coko 长期决定（ADR）的索引。"
+lifecycle: active
+---
+
+# 长期决定
+
+ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_SYSTEM.md#四-状态与晋升)。accepted 不代表已实现。
+
+| 编号 | 决定 | status | implementation |
+| --- | --- | --- | --- |
+| [0001](0001-sidecar-on-electron-node.md) | sidecar 运行在 Electron 内置 Node.js，移除 Bun | accepted | not-started |
+| [0002](0002-local-service-access-auth.md) | 本地服务访问认证 | accepted | not-started |

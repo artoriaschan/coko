@@ -1,0 +1,3 @@
+interface:
+  display_name: "Coko Verify"
+  short_description: "Pick and run the minimal relevant checks"

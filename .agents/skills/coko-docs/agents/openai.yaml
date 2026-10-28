@@ -1,0 +1,3 @@
+interface:
+  display_name: "Coko Docs"
+  short_description: "Maintain Coko docs and run check:docs"

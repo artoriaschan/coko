@@ -1,0 +1,17 @@
+packages:
+  - apps/*
+  - packages/*
+
+nodeLinker: hoisted
+autoInstallPeers: false
+saveExact: true
+
+overrides:
+  '@earendil-works/pi-agent-core': 1.4.0
+  '@earendil-works/pi-ai': 1.4.0
+  '@earendil-works/pi-mcp': 1.4.0
+  '@earendil-works/pi-telemetry': 1.4.0
+  'typebox': 1.3.27
+  'shiki': 4.5.0
+  'katex': 0.16.47
+  'mermaid': 11.17.2
