@@ -2,25 +2,25 @@ import {
   createModelRegistry,
   InMemoryCredentialStore,
   ModelConfigError,
+  protocolOf,
   providerPresets,
+  type ModelProtocol as AgentModelProtocol,
   type ModelRegistry,
   type ProviderConfig,
-  type ProviderKind,
+  type ProviderKind as AgentProviderKind,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { AvailableModel, CreateProviderRequest, ModelProtocol, Provider, ProviderPreset, UpdateProviderRequest } from '@coko/protocol'
+import type { AvailableModel, CreateProviderRequest, ModelProtocol, Provider, ProviderKind, ProviderPreset, UpdateProviderRequest } from '@coko/protocol'
 import type { Provider as StoredProvider, ProviderInput, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
 
-/** kind 决定模型协议（与 packages/agent 的预设一致）。 */
-const PROTOCOL: Record<ProviderKind, ModelProtocol> = {
-  deepseek: 'openai-completions',
-  openai: 'openai-responses',
-  anthropic: 'anthropic-messages',
-  'openai-compatible': 'openai-completions',
-}
+// 协议 schema 与 packages/agent 的 kind 表（PROVIDER_KINDS）必须一致：任一侧增删 kind 或协议而另一侧未跟上时，这里编译失败。
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
+type Assert<T extends true> = T
+export type ProviderKindsAgree = Assert<Equal<ProviderKind, AgentProviderKind>>
+export type ModelProtocolsAgree = Assert<Equal<ModelProtocol, AgentModelProtocol>>
 
 export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'kind' | 'baseUrl' | 'models'>): ProviderConfig {
   return {
@@ -93,7 +93,7 @@ export class ProviderService {
   async create(input: CreateProviderRequest): Promise<Provider> {
     const baseUrl = input.baseUrl ?? ''
     if (input.kind === 'openai-compatible' && !baseUrl) throw new AppError('bad-request', 'openai-compatible Provider needs a baseUrl')
-    const record: ProviderInput = { name: input.name, kind: input.kind, api: PROTOCOL[input.kind], baseUrl, models: input.models }
+    const record: ProviderInput = { name: input.name, kind: input.kind, api: protocolOf(input.kind), baseUrl, models: input.models }
     validate(toProviderConfig({ id: 'validate', ...record }))
     const created = await this.#options.store.providers.create(record)
     this.#options.registry.setProvider(toProviderConfig(created))

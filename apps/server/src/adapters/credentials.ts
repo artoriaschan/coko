@@ -1,4 +1,5 @@
-import type { Credential, CredentialInfo, CredentialStore, EnvExclusion, SecretProvider } from '@coko/agent'
+import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion, type SecretProvider } from '@coko/agent'
+import { createRequestTracker } from '@coko/protocol'
 import type { ProviderRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
@@ -17,43 +18,19 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
   const { control, providers } = options
   const timeoutMs = options.timeoutMs ?? 10_000
   const cache = new Map<string, string>()
-  const pending = new Map<number, { resolve: (plaintext: string) => void; reject: (error: Error) => void }>()
-  let nextId = 1
+  // 超时、中止与断开都拒绝；调用方（模型请求）把它当作取不到密钥。
+  const decryptions = createRequestTracker<string>({ timeoutMs, timeoutMessage: (ms) => `Credential decryption timed out after ${ms} ms` })
 
   control.onMessage((message) => {
     if (message.type !== 'credential.decrypt.result') return
-    const waiter = pending.get(message.requestId)
-    pending.delete(message.requestId)
-    if (!waiter) return
-    if ('plaintext' in message) waiter.resolve(message.plaintext)
-    else waiter.reject(new Error(`Credential could not be decrypted: ${message.error}`))
+    if ('plaintext' in message) decryptions.resolve(message.requestId, message.plaintext)
+    else decryptions.reject(message.requestId, new Error(`Credential could not be decrypted: ${message.error}`))
   })
-  control.onDisconnect(() => {
-    for (const waiter of pending.values()) waiter.reject(new Error('Desktop app disconnected'))
-    pending.clear()
-  })
+  control.onDisconnect(() => decryptions.rejectAll(new Error('Desktop app disconnected')))
 
   const decrypt = (ciphertext: Uint8Array, signal?: AbortSignal) =>
-    new Promise<string>((resolve, reject) => {
-      const requestId = nextId++
-      const timer = setTimeout(() => {
-        pending.delete(requestId)
-        reject(new Error(`Credential decryption timed out after ${timeoutMs} ms`))
-      }, timeoutMs)
-      const settle =
-        <T>(fn: (value: T) => void) =>
-        (value: T) => {
-          clearTimeout(timer)
-          signal?.removeEventListener('abort', onAbort)
-          fn(value)
-        }
-      const onAbort = () => {
-        pending.delete(requestId)
-        settle(reject)(signal!.reason instanceof Error ? signal!.reason : new Error('Aborted'))
-      }
-      signal?.addEventListener('abort', onAbort, { once: true })
-      pending.set(requestId, { resolve: settle(resolve), reject: settle(reject) })
-      void control.send({ type: 'credential.decrypt', requestId, ciphertext: Buffer.from(ciphertext).toString('base64') })
+    decryptions.request((requestId) => void control.send({ type: 'credential.decrypt', requestId, ciphertext: Buffer.from(ciphertext).toString('base64') }), {
+      signal,
     })
 
   return {
@@ -77,12 +54,6 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
   }
 }
 
-const KIND_ENV: Record<string, string> = {
-  deepseek: 'DEEPSEEK_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  anthropic: 'ANTHROPIC_API_KEY',
-}
-
 /**
  * 不传给 bash 等用户命令的 sidecar 环境变量：sidecar 自身配置（COKO_*，含 COKO_CREDENTIAL_*）、
  * 各 Provider kind 的密钥变量，以及名字带凭据形态的变量（*_API_KEY、*TOKEN*、*SECRET*、*PASSWORD* 等）。
@@ -90,7 +61,7 @@ const KIND_ENV: Record<string, string> = {
  */
 export const HOST_ENV_EXCLUSIONS: readonly EnvExclusion[] = [
   /^COKO_/,
-  ...Object.values(KIND_ENV),
+  ...PROVIDER_KINDS.flatMap((kind) => apiKeyEnvOf(kind) ?? []),
   /(^|_)API_?KEY($|_)/i,
   /TOKEN/i,
   /SECRET/i,
@@ -111,7 +82,7 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
     const explicit = options.env[credentialEnvName(providerId)]
     if (explicit) return explicit
     const provider = await options.providers.get(providerId)
-    const name = provider ? KIND_ENV[provider.kind] : undefined
+    const name = provider ? apiKeyEnvOf(provider.kind) : undefined
     return name ? options.env[name] || undefined : undefined
   }
   return {

@@ -229,7 +229,12 @@ function run(): void {
       encrypt: (plaintext) => safeStorage.encryptString(plaintext),
       decrypt: (ciphertext) => safeStorage.decryptString(Buffer.from(ciphertext)),
     },
-    channel: { isReady: () => supervisor.isReady, send: (message) => supervisor.send(message), onMessage: (listener) => supervisor.onControlMessage(listener) },
+    channel: {
+      isReady: () => supervisor.isReady,
+      send: (message) => supervisor.send(message),
+      onMessage: (listener) => supervisor.onControlMessage(listener),
+      onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
+    },
   })
   ipcMain.handle(IPC.setCredential, async (event, providerId: unknown, secret: unknown) => {
     assertMainFrame(event)
