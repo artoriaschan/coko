@@ -133,6 +133,10 @@ describe('秘密不外泄总闸', () => {
     expect(results[0]).toContain('PATH=')
     expect(results[1]).toMatch(/ENOENT|not found|no such file/i)
     expect(fauxEntries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')).toHaveLength(2)
+    // 执行记录通道：bash env 在执行前提交 tool_exec（只含 toolCallId、工具名与幂等键）。
+    expect(fauxEntries.filter((e) => e.kind === 'tool_exec').map((e) => e.payload)).toEqual([
+      { toolCallId: 'env1', toolName: 'bash', idempotencyKey: `${faux}:env1` },
+    ])
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
     const provider = (await api.post(API_ROUTES.providers, { name: 'DS', kind: 'deepseek', baseUrl, models: ['deepseek-flash'] })).body

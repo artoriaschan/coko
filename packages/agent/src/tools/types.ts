@@ -23,9 +23,29 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
    * Receives the validated arguments. Omitted: the tool is judged by name only.
    */
   permissionSubject?: (args: Static<TParameters>) => string | undefined
+  /**
+   * pi's execute plus the execution context the runtime passes as a fifth argument. Tools that ignore it
+   * keep pi's four-argument form.
+   */
+  execute: (
+    toolCallId: string,
+    params: Static<TParameters>,
+    signal?: AbortSignal,
+    onUpdate?: AgentToolUpdateCallback<TDetails>,
+    context?: ToolExecutionContext,
+  ) => Promise<AgentToolResult<TDetails>>
 }
 
 export type ToolEffect = 'read' | 'side-effect'
+
+/** What the runtime tells one call. Absent when a tool is executed outside the runtime (tests, direct calls). */
+export interface ToolExecutionContext {
+  /**
+   * `<sessionId>:<toolCallId>`, the key of the call's `tool_exec` record. Stable across recovery, so an external
+   * capability can use it to deduplicate a repeated request.
+   */
+  idempotencyKey: string
+}
 
 export type { AgentToolResult, AgentToolUpdateCallback }
 

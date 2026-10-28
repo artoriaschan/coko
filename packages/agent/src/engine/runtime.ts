@@ -6,11 +6,12 @@ import type { ExecPort } from '../ports/exec.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
+import { createToolScheduler, withScheduling } from '../tools/scheduler.ts'
 import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
 import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
 import { createPermissionGate } from '../policy/gate.ts'
-import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger } from '../session-entries/index.ts'
+import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
 import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -52,6 +53,12 @@ export interface AgentRuntimeOptions {
   hooks?: ToolHooks[]
   retry?: Partial<RetryPolicy>
   timeouts?: TimeoutOptions
+  /**
+   * At most this many tool calls execute at once (default 10). Read calls share the slots; a side-effect call
+   * runs alone, after every earlier call of the batch finished and before any later one starts.
+   */
+  toolConcurrency?: number
+  /** Session of the transcript; the first part of every idempotency key. Omitted: a random id per runtime. */
   sessionId?: string
   /**
    * Permission decision and approvals (ADR 0005), first in the hook chain. Read on every call, so mode and rule
@@ -124,9 +131,26 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     notify({ kind: 'entry', entry })
   }
 
+  // side-effect 调用取得执行槽后、执行前提交 tool_exec；提交失败时该调用不执行，Run 以 commit_failed 结束。
+  const recordExecution = async (record: ToolExecPayload) => {
+    const run = current
+    try {
+      await commit({ kind: 'tool_exec', ...(run ? { runId: run.runId } : {}), payload: record })
+    } catch (error) {
+      const failure = error instanceof Error ? error : new Error(String(error))
+      if (run) {
+        run.commitError ??= failure
+        agent.abort()
+      }
+      throw failure
+    }
+  }
+  const scheduling = { scheduler: createToolScheduler(options.toolConcurrency), sessionId: options.sessionId ?? randomUUID(), recordExecution }
+
   // Seed the tools at construction so they are part of the leading system message; only later
   // changes are announced to the model (and committed) as a system message with toolsAdded/Removed.
-  const effectiveTools = () => registry.list().map((tool) => withTimeout(tool, options.timeouts) as AgentTool<any>)
+  // 超时在调度之内：排队等待不计入调用的时限。
+  const effectiveTools = () => registry.list().map((tool) => withScheduling(withTimeout(tool, options.timeouts), scheduling) as AgentTool<any>)
 
   const broker = createApprovalBroker((entry) => commit({ ...entry, ...(current ? { runId: current.runId } : {}) }))
   const permissions = options.permissions

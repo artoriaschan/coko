@@ -86,7 +86,17 @@ describe('审批闭环（default 模式）', () => {
 
     expect(result.status).toBe('completed')
     expect(await readFile(ws.path('out.txt'), 'utf8')).toBe('hi')
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'approval_request', 'approval_decision', 'toolResult', 'assistant', 'run_end'])
+    expect(kinds(h.entries)).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'approval_request',
+      'approval_decision',
+      'tool_exec',
+      'toolResult',
+      'assistant',
+      'run_end',
+    ])
     expect(h.entries.find((e) => e.kind === 'approval_decision')).toEqual({
       kind: 'approval_decision',
       runId: result.runId,
