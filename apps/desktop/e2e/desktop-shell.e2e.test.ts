@@ -73,7 +73,7 @@ describe('桌面壳', () => {
       }
     })
     expect(visible.documentCookie).toBe('')
-    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'pickDirectory'])
+    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'log', 'pickDirectory'])
     expect(visible.echoSetCookie).toBeNull()
     expect(visible.exchange).toBe(404)
     const exposed = JSON.stringify({ boot: visible.boot, html: visible.html, documentCookie: visible.documentCookie })

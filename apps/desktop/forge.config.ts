@@ -1,11 +1,11 @@
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import type { ForgeConfig } from '@electron-forge/shared-types'
-import { buildElectron, buildRenderer, buildSidecar, startRendererDevServer, type RendererDevServer } from './build/build.ts'
+import { buildElectron, buildRenderer, buildSidecar, prepareRipgrep, startRendererDevServer, type RendererDevServer } from './build/build.ts'
 
 let devServer: RendererDevServer | undefined
 
-/** 应用文件只含 package.json 与 main / preload / renderer 产物；sidecar 经 extraResource 放在 Resources/sidecar。 */
+/** 应用文件只含 package.json 与 main / preload / renderer 产物；sidecar 与 rg 经 extraResource 放在 Resources/sidecar、Resources/ripgrep。 */
 const KEEP = ['/package.json', '/dist', '/dist/electron', '/dist/renderer']
 const ignore = (file: string): boolean => {
   if (file === '') return false
@@ -18,7 +18,7 @@ const config: ForgeConfig = {
     executableName: 'Coko',
     appBundleId: 'dev.coko.desktop',
     asar: true,
-    extraResource: ['dist/sidecar'],
+    extraResource: ['dist/sidecar', 'dist/ripgrep'],
     ignore,
   },
   makers: [],
@@ -37,6 +37,7 @@ const config: ForgeConfig = {
   hooks: {
     preStart: async () => {
       // Forge 启动 Electron 时会删除 ELECTRON_RUN_AS_NODE；sidecar 由 main 单独设置。
+      await prepareRipgrep()
       await buildSidecar()
       await buildElectron()
       devServer = await startRendererDevServer()
@@ -50,6 +51,7 @@ const config: ForgeConfig = {
       })
     },
     prePackage: async () => {
+      await prepareRipgrep()
       await buildSidecar()
       await buildElectron()
       await buildRenderer()

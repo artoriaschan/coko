@@ -31,16 +31,16 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 位置 | 已声明依赖 |
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
-| apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol |
+| apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol；ripgrep 与日志切片：@vscode/ripgrep（构建时复制 rg 到 dist/ripgrep，经 extraResource 随包）、@coko/logging（main 的 desktop.jsonl） |
 | apps/desktop renderer | 界面基础切片（同为 devDependencies，由 Vite 打入 renderer 产物）：react、react-dom、lucide-react、@coko/ui、@coko/i18n、@tailwindcss/vite；Browser Mode 测试：vitest-browser-react、@vitest/browser-playwright、playwright；对话闭环切片：zustand（vanilla store） |
 | packages/protocol | typebox、vitest |
 | packages/ui | radix-ui、class-variance-authority、clsx、tailwind-merge、tailwindcss、tw-animate-css、lucide-react、streamdown、@streamdown/code、@streamdown/math、@streamdown/mermaid、@streamdown/cjk、katex、sonner、lexical、@lexical/react（其可选 peer yjs 只供协作插件，不安装）；peer react、react-dom；开发依赖 react、react-dom、@types/react、@types/react-dom、vite、@vitejs/plugin-react、@tailwindcss/vite、typescript（样式守卫解析 TSX）、vitest、vitest-browser-react、@vitest/browser-playwright、playwright |
 | packages/i18n | vitest |
 | packages/session | vitest、electron（devDependency，仅用于以 `ELECTRON_RUN_AS_NODE=1` 运行存储测试） |
 | packages/agent | @earendil-works/pi-agent-core、@earendil-works/pi-ai、typebox、diff、ignore、vitest；pi-ai 只经子路径导入 Chat Completions、Responses、Anthropic Messages 三个协议及 DeepSeek、OpenAI、Anthropic 模型目录 |
-| apps/server | hono、@hono/node-server、ws、effect、typebox、@earendil-works/pi-agent-core、@earendil-works/pi-ai、@coko/protocol、@coko/session、@coko/agent、@coko/logging、vitest、@types/ws（devDependency） |
+| apps/server | hono、@hono/node-server、ws、effect、typebox、@earendil-works/pi-agent-core、@earendil-works/pi-ai、@coko/protocol、@coko/session、@coko/agent、@coko/logging、vitest、@types/ws（devDependency）；@vscode/ripgrep（devDependency，仅供 ripgrep grep 的契约测试解析二进制，运行时路径由 `--ripgrep` 传入） |
 | packages/logging | @logtape/logtape、@logtape/file、@logtape/redaction、vitest；文件 sink 经 `@coko/logging/file` 入口导出 |
-| 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议） |
+| 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol、@vscode/ripgrep（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议；ripgrep 用于 `--ripgrep` 场景） |
 | 其余 packages | vitest |
 
 根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
@@ -64,7 +64,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 公网 HTTP 请求 | undici 8.11.2 |
 | 文件修改与工具卡 diff | diff 8.0.4，支持 unified / split 展示 |
 | glob 与内置 grep 的 gitignore 匹配 | ignore 7.0.8 |
-| 桌面端 grep 二进制 | @vscode/ripgrep 1.18.0，仅 apps/desktop 依赖；macOS arm64 资源为 @vscode/ripgrep-darwin-arm64 1.18.0；sidecar 装配时覆盖内置 grep，见 [内置 ripgrep](tech-stack/desktop-delivery.md#内置-ripgrep) |
+| 桌面端 grep 二进制 | @vscode/ripgrep 1.18.0，只由 apps/desktop 分发（apps/server 与根集成测试仅作 devDependency 解析二进制）；macOS arm64 资源为 @vscode/ripgrep-darwin-arm64 1.18.0；sidecar 装配时覆盖内置 grep，见 [内置 ripgrep](tech-stack/desktop-delivery.md#内置-ripgrep) |
 | 模型协议 | Chat Completions、Responses、Anthropic Messages |
 
 Agent 与应用层的职责、框架能力分工、模块内部结构、生命周期、Goal 机制和能力落地顺序见 [Agent 执行约定](tech-stack/agent-runtime.md)。

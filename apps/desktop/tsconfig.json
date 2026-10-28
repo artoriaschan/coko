@@ -9,5 +9,5 @@
   },
   "include": ["src", "tests", "e2e", "build", "*.config.ts"],
   "exclude": ["src/renderer"],
-  "references": [{ "path": "../../packages/protocol" }]
+  "references": [{ "path": "../../packages/protocol" }, { "path": "../../packages/logging" }]
 }
