@@ -44,4 +44,6 @@
 - 范围外的最小改动：`apps/desktop/package.json`（依赖与 `dev:renderer`、`build:renderer` 脚本）、`apps/desktop/tsconfig.json`（排除 `src/renderer`）、新增 `apps/desktop/vitest.browser.config.ts`、根 `tsconfig.json` 引用 renderer 项目、`.gitignore` 忽略 `.vitest/`、`pnpm-lock.yaml`。
 
 文档影响：TECH_STACK（接入状态、Toast 行、shadcn `cn` 说明）；ui-design-system.md（主题样式表位置、字号档位、发丝线工具类、样式守卫改为已接入）；ui.md（去掉"计划接入"）。
+- 2026-10-28 lead：与票 05 的冲突由合并子代理在本分支解决（b242a5a），随后合入 main（62b9858）。main 上复核：install、typecheck、lint、format:check 退出 0；test 32 文件 256 用例通过；check:docs 0 问题。接受 renderer 依赖全部作为 desktop devDependencies（由 Vite / tsdown 打入产物）。worktree 已清理。
 
+Closed: true
