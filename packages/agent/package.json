@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./entries": "./src/entries/index.ts",
     "./testing": "./src/testing/index.ts"
   },
   "dependencies": {

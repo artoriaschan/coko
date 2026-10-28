@@ -6,16 +6,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { forkEntries } from '../agents/index.ts'
-import {
-  effectiveEntries,
-  effectiveMessages,
-  planRewind,
-  restoreFiles,
-  RewindTargetError,
-  type CheckpointEntry,
-  type RewindFilePlan,
-  type RewindFiles,
-} from './index.ts'
+import { effectiveEntries } from '../entries/index.ts'
+import { effectiveMessages, planRewind, restoreFiles, RewindTargetError, type CheckpointEntry, type RewindFilePlan, type RewindFiles } from './index.ts'
 
 type Row = Omit<CheckpointEntry, 'seq'>
 const user = (text: string, runId = 'r'): Row => ({ kind: 'message', runId, payload: { role: 'user', content: [{ type: 'text', text }] } })

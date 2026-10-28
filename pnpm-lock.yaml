@@ -230,6 +230,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      '@coko/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@coko/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

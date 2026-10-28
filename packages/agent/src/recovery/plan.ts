@@ -123,17 +123,7 @@ export async function planRecovery(entries: readonly RecoveryEntry[], options: R
   return planned
 }
 
-/** 有 confirmation_request、还没有 confirmation_answer 的调用（按请求顺序），带请求所属的 runId。 */
-export function unansweredConfirmations(entries: readonly RecoveryEntry[]): { toolCallId: string; runId: string | null }[] {
-  const asked = new Map<string, string | null>()
-  for (const entry of entries) {
-    const toolCallId = isRecord(entry.payload) ? entry.payload.toolCallId : undefined
-    if (typeof toolCallId !== 'string') continue
-    if (entry.kind === 'confirmation_request') asked.set(toolCallId, entry.runId)
-    else if (entry.kind === 'confirmation_answer') asked.delete(toolCallId)
-  }
-  return [...asked].map(([toolCallId, runId]) => ({ toolCallId, runId }))
-}
+// 未回答的结果确认由 entries/ 的 unansweredConfirmations 派生（唯一实现），recovery barrel 原样转出。
 
 /** 用户回答结果确认后补给模型的 toolResult（与 confirmation_answer 一起提交）。 */
 export function confirmationResult(input: {

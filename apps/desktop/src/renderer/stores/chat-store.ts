@@ -15,6 +15,7 @@ import {
   type SessionModel,
   type Workspace,
 } from '@coko/protocol'
+import { effectiveEntries, lastRunStatus, unansweredConfirmations } from '@coko/agent/entries'
 import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
@@ -74,27 +75,7 @@ export type ChatFailure = {
   error: ApiError
 }
 
-/** 被回退的区间 [targetSeq, rewind 条目)（ADR 0006）；按 rewind 条目顺序。 */
-export function rewoundRanges(entries: readonly SessionEntry[]): { from: number; to: number }[] {
-  return entries.flatMap((entry) => (entry.kind === 'rewind' ? [{ from: entry.payload.targetSeq, to: entry.seq }] : []))
-}
-
-/** 有效条目：不在任何被回退区间内、且不是 rewind 条目本身（与 Sidecar 的模型上下文一致）。 */
-export function visibleEntries(entries: readonly SessionEntry[]): SessionEntry[] {
-  const ranges = rewoundRanges(entries)
-  if (ranges.length === 0) return entries as SessionEntry[]
-  return entries.filter((entry) => entry.kind !== 'rewind' && !ranges.some((r) => entry.seq >= r.from && entry.seq < r.to))
-}
-
-/** 有效条目中最后一个已结束 Run 的状态（被回退的 Run 不算）；没有时为 undefined。 */
-export function lastRunStatus(all: readonly SessionEntry[]): RunStatus | undefined {
-  const entries = visibleEntries(all)
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i]!
-    if (entry.kind === 'run_end') return entry.payload.status
-  }
-  return undefined
-}
+// 有效条目、上一 Run 状态与未回答的结果确认由 @coko/agent/entries 派生（与 Sidecar 同一实现，architecture.md）。
 
 /** Session 的当前模式：最后一条 permission_mode 条目；没有时为 default（旧 Session）。 */
 export function sessionPermissionMode(entries: readonly SessionEntry[]): PermissionMode {
@@ -143,18 +124,18 @@ export interface PendingConfirmation {
 }
 
 export function pendingConfirmations(entries: readonly SessionEntry[]): PendingConfirmation[] {
-  const asked = new Set<string>()
   const calls = new Map<string, { name: string; arguments: unknown }>()
   for (const entry of entries) {
-    if (entry.kind === 'confirmation_request') asked.add(entry.payload.toolCallId)
-    else if (entry.kind === 'confirmation_answer') asked.delete(entry.payload.toolCallId)
-    else if (entry.kind === 'message' && entry.payload.role === 'assistant') {
-      for (const block of entry.payload.content as { type: string; id?: unknown; name?: unknown; arguments?: unknown }[]) {
-        if (block.type === 'toolCall' && typeof block.id === 'string') calls.set(block.id, { name: String(block.name), arguments: block.arguments })
-      }
+    if (entry.kind !== 'message' || entry.payload.role !== 'assistant') continue
+    for (const block of entry.payload.content as { type: string; id?: unknown; name?: unknown; arguments?: unknown }[]) {
+      if (block.type === 'toolCall' && typeof block.id === 'string') calls.set(block.id, { name: String(block.name), arguments: block.arguments })
     }
   }
-  return [...asked].map((toolCallId) => ({ toolCallId, toolName: calls.get(toolCallId)?.name, arguments: calls.get(toolCallId)?.arguments }))
+  return unansweredConfirmations(entries).map(({ toolCallId }) => ({
+    toolCallId,
+    toolName: calls.get(toolCallId)?.name,
+    arguments: calls.get(toolCallId)?.arguments,
+  }))
 }
 
 /** 已打开会话的运行状态（由条目与订阅状态派生）。 */
@@ -174,7 +155,7 @@ export function conversationActivity(conversation: Pick<Conversation, 'entries' 
 export function canContinue(conversation: Pick<Conversation, 'entries' | 'running'>): boolean {
   const activity = conversationActivity(conversation)
   if (activity !== 'paused' && activity !== 'interrupted') return false
-  const entries = visibleEntries(conversation.entries)
+  const entries = effectiveEntries(conversation.entries)
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!
     if (entry.kind === 'message') return entry.payload.role === 'user' || entry.payload.role === 'toolResult'

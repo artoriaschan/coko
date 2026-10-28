@@ -48,6 +48,8 @@ export * from './session-entries/index.ts'
 export * from './policy/index.ts'
 export * from './recovery/index.ts'
 export * from './checkpoints/index.ts'
+// 条目派生的唯一实现；renderer 经浏览器安全子路径 @coko/agent/entries 导入同一模块。
+export * from './entries/index.ts'
 export * from './agents/index.ts'
 
 // Hooks

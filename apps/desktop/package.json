@@ -12,6 +12,7 @@
     "build:renderer": "vite build --config src/renderer/vite.config.ts"
   },
   "devDependencies": {
+    "@coko/agent": "workspace:*",
     "@coko/i18n": "workspace:*",
     "@coko/logging": "workspace:*",
     "@coko/protocol": "workspace:*",
