@@ -1,14 +1,15 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { launchApp, launchSecondInstance, processExists, waitFor, type LaunchedApp } from './harness.ts'
+import { launchApp, launchSecondInstance, processExists, waitFor, type LaunchedApp, type LaunchOptions } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
   for (const app of apps.splice(0)) await app.dispose()
 })
-async function launch(extra: Record<string, string> = {}): Promise<LaunchedApp> {
-  const launched = await launchApp(extra)
+/** 默认使用真实 Sidecar；需要观测认证细节或模拟故障的壳层用例显式使用占位 sidecar。 */
+async function launch(extra: Record<string, string> = {}, options: LaunchOptions = {}): Promise<LaunchedApp> {
+  const launched = await launchApp(extra, options)
   apps.push(launched)
   return launched
 }
@@ -19,37 +20,42 @@ describe('桌面壳', () => {
   it('窗口加载 coko-app://app 并显示 Sidecar 已连接', async () => {
     const app = await launch()
     expect(app.window.url()).toBe('coko-app://app/')
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     expect(await status(app).textContent()).toMatch(/Sidecar 已连接|Sidecar connected/)
   })
 
-  it('renderer 经代理请求 health，并经头注入建立 WebSocket', async () => {
+  it('renderer 经代理请求真实 Sidecar 的 health，并经头注入建立已认证的 WebSocket', async () => {
     const app = await launch()
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     const result = await app.window.evaluate(async () => {
       const boot = await window.coko!.boot()
       if (!boot.ok) throw new Error(boot.error.message)
       const health = await fetch('/api/health')
-      const echoed = await new Promise<string>((resolve, reject) => {
+      const workspaces = await fetch('/api/workspaces')
+      // 认证失败的升级会被拒绝；能收到协议应答说明 main 注入了 cookie 与 Origin。
+      const reply = await new Promise<unknown>((resolve, reject) => {
         const ws = new WebSocket(boot.info.wsBaseUrl + '/api/ws')
-        ws.onopen = () => ws.send('ping')
+        ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', sessionId: 'missing', afterSeq: 0 }))
         ws.onmessage = (event) => {
-          resolve(String(event.data))
+          resolve(JSON.parse(String(event.data)))
           ws.close()
         }
         ws.onerror = () => reject(new Error('WebSocket error'))
       })
-      return { origin: location.origin, status: health.status, body: await health.json(), echoed }
+      return { origin: location.origin, status: health.status, body: await health.json(), workspaces: await workspaces.json(), reply }
     })
-    expect(result).toEqual({ origin: 'coko-app://app', status: 200, body: { status: 'ok' }, echoed: 'ping' })
-    const upgrades = (await app.events()).filter((e) => e.event === 'upgrade')
-    expect(upgrades.length).toBeGreaterThan(0)
-    expect(upgrades.every((e) => e.accepted === true)).toBe(true)
+    expect(result).toEqual({
+      origin: 'coko-app://app',
+      status: 200,
+      body: { status: 'ok' },
+      workspaces: { workspaces: [] },
+      reply: { type: 'error', code: 'not-found', message: 'Session missing not found', sessionId: 'missing' },
+    })
   })
 
   it('renderer 读不到启动令牌或 cookie', async () => {
-    const app = await launch()
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    const app = await launch({}, { sidecar: 'placeholder' })
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     const token = (await app.events()).find((e) => e.event === 'listening')?.token as string
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
     const visible = await app.window.evaluate(async () => {
@@ -80,8 +86,8 @@ describe('桌面壳', () => {
   })
 
   it('非主窗口发往 sidecar 的 WebSocket 升级被取消，不到达 sidecar', async () => {
-    const app = await launch()
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    const app = await launch({}, { sidecar: 'placeholder' })
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     const port = (await app.events()).find((e) => e.event === 'listening')?.port as number
     const before = (await app.events()).filter((e) => e.event === 'upgrade').length
     const outcome = await app.app.evaluate(async ({ BrowserWindow }, url) => {
@@ -105,18 +111,17 @@ describe('桌面壳', () => {
 
   it('退出后 Sidecar 进程不存在', async () => {
     const app = await launch()
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     const [pid] = await app.sidecarPids()
     expect(pid).toBeDefined()
     expect(processExists(pid!)).toBe(true)
     await app.app.close()
     await waitFor(() => !processExists(pid!), 5_000, 'sidecar exit')
-    expect((await app.events()).some((e) => e.event === 'shutdown')).toBe(true)
   })
 
   it('有活动 Run 时退出先确认：取消后继续运行，确认后退出并关闭 Sidecar', async () => {
-    const app = await launch({ COKO_FIXTURE_ACTIVE_RUNS: '1' })
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    const app = await launch({ COKO_FIXTURE_ACTIVE_RUNS: '1' }, { sidecar: 'placeholder' })
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     const [pid] = await app.sidecarPids()
     await app.app.evaluate(({ dialog }) => {
       const g = globalThis as { __boxes?: unknown[]; __answer?: number }
@@ -145,7 +150,7 @@ describe('桌面壳', () => {
 
   it('Sidecar 启动失败时显示错误对话框，renderer 显示失败状态', async () => {
     const fixtureGate = join(await import('node:os').then((os) => os.tmpdir()), `coko-gate-${process.pid}-${Date.now()}`)
-    const app = await launch({ COKO_FIXTURE_MODE: 'fatal', COKO_FIXTURE_GATE: fixtureGate })
+    const app = await launch({ COKO_FIXTURE_MODE: 'fatal', COKO_FIXTURE_GATE: fixtureGate }, { sidecar: 'placeholder' })
     // 先替换对话框，再放行 sidecar 报告 fatal。
     await app.app.evaluate(({ dialog }) => {
       const g = globalThis as { __boxes?: unknown[] }
@@ -186,7 +191,7 @@ describe('桌面壳', () => {
 
   it('同一 userData 的第二个实例立即退出，不再启动 Sidecar', async () => {
     const app = await launch()
-    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 15_000 }).toBe('connected')
+    await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
     expect(await launchSecondInstance(app.env)).toBe(0)
     expect(await app.sidecarPids()).toHaveLength(1)
     expect(await status(app).getAttribute('data-connection')).toBe('connected')

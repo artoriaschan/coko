@@ -1,19 +1,26 @@
 import { createTranslator, type Locale } from '@coko/i18n'
 import { AppFrame, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider, toast } from '@coko/ui'
 import * as React from 'react'
+import type { ChatStore } from '../stores/chat-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
+import { ChatStoreProvider } from './chat.tsx'
 import type { ConnectionStore } from './connection-store.ts'
 import { AppearanceMenu } from '../features/appearance/appearance-menu.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { Sidebar } from '../features/sidebar/sidebar.tsx'
 import { SidebarRail } from '../features/sidebar/sidebar-rail.tsx'
-import { messages, workspaces } from './fixtures.ts'
 import { I18nProvider, useI18n } from './i18n.tsx'
 
-const allSessions = workspaces.flatMap((w) => w.sessions)
+export interface AppProps {
+  store: AppearanceStore
+  connection: ConnectionStore
+  chat: ChatStore
+  /** 目录选择（preload 提供）；取消时为 null。 */
+  pickDirectory: () => Promise<string | null>
+}
 
-export function App({ store, connection }: { store: AppearanceStore; connection: ConnectionStore }) {
+export function App({ store, connection, chat, pickDirectory }: AppProps) {
   const { theme, locale } = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
   const connectionState = React.useSyncExternalStore(connection.subscribe, connection.getSnapshot)
 
@@ -26,41 +33,41 @@ export function App({ store, connection }: { store: AppearanceStore; connection:
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
   const [rightOpen, setRightOpen] = React.useState(false)
-  const [activeSessionId, setActiveSessionId] = React.useState<string | null>(allSessions[0]?.id ?? null)
 
   const onLocaleChange = (next: Locale) => {
     if (next === locale) return
     store.setLocale(next)
     toast.success(createTranslator(next)('appearance.localeChanged'))
   }
+  const onAddWorkspace = () => void chat.getState().addWorkspace(pickDirectory)
 
   const appearanceMenu = <AppearanceMenu theme={theme} onThemeChange={store.setTheme} onLocaleChange={onLocaleChange} />
-  const active = allSessions.find((s) => s.id === activeSessionId)
 
   return (
     <I18nProvider locale={locale}>
-      <TooltipProvider>
-        <Frame
-          sidebarWidth={sidebarWidth}
-          onSidebarWidthChange={setSidebarWidth}
-          sidebarCollapsed={sidebarCollapsed}
-          onSidebarCollapsedChange={setSidebarCollapsed}
-          rightOpen={rightOpen}
-          sidebar={<Sidebar workspaces={workspaces} activeSessionId={activeSessionId} onSelectSession={setActiveSessionId} footer={appearanceMenu} />}
-          rail={<SidebarRail footer={appearanceMenu} />}
-          rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
-        >
-          <ConversationPane
-            title={active?.title ?? ''}
-            messages={messages}
-            theme={theme}
+      <ChatStoreProvider store={chat}>
+        <TooltipProvider>
+          <Frame
+            sidebarWidth={sidebarWidth}
+            onSidebarWidthChange={setSidebarWidth}
+            sidebarCollapsed={sidebarCollapsed}
+            onSidebarCollapsedChange={setSidebarCollapsed}
             rightOpen={rightOpen}
-            onToggleRight={() => setRightOpen((open) => !open)}
-            connection={connectionState}
-          />
-        </Frame>
-        <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
-      </TooltipProvider>
+            sidebar={<Sidebar onAddWorkspace={onAddWorkspace} footer={appearanceMenu} />}
+            rail={<SidebarRail onAddWorkspace={onAddWorkspace} footer={appearanceMenu} />}
+            rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
+          >
+            <ConversationPane
+              theme={theme}
+              rightOpen={rightOpen}
+              onToggleRight={() => setRightOpen((open) => !open)}
+              connection={connectionState}
+              onAddWorkspace={onAddWorkspace}
+            />
+          </Frame>
+          <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+        </TooltipProvider>
+      </ChatStoreProvider>
     </I18nProvider>
   )
 }

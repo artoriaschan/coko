@@ -1,25 +1,46 @@
+import type { Session, Workspace } from '@coko/protocol'
 import { Button, cn, useAppFrame } from '@coko/ui'
-import { PanelLeftCloseIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
+import { FolderPlusIcon, PanelLeftCloseIcon, PlusIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
 import * as React from 'react'
-import type { FixtureWorkspace } from '../../app/fixtures.ts'
+import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 
 const GROUP_PAGE = 5
 
 export interface SidebarProps {
-  workspaces: FixtureWorkspace[]
-  activeSessionId: string | null
-  onSelectSession: (id: string) => void
+  onAddWorkspace: () => void
   footer: React.ReactNode
 }
 
 const rowClass =
   'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-ui-body outline-none hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent'
 
-export function Sidebar({ workspaces, activeSessionId, onSelectSession, footer }: SidebarProps) {
+/** 运行中的会话上浮，其余按最近更新排序。 */
+export function groupSessions(workspaces: readonly Workspace[], sessions: readonly Session[]) {
+  return workspaces.map((workspace) => ({
+    workspace,
+    sessions: sessions
+      .filter((s) => s.workspaceId === workspace.id)
+      .toSorted((a, b) => Number(b.running) - Number(a.running) || b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)),
+  }))
+}
+
+export function Sidebar({ onAddWorkspace, footer }: SidebarProps) {
   const { t } = useI18n()
   const { toggleSidebar, closeSidebarDrawer } = useAppFrame()
+  const workspaces = useChat((s) => s.workspaces)
+  const sessions = useChat((s) => s.sessions)
+  const activeSessionId = useChat((s) => s.activeSessionId)
+  const listStatus = useChat((s) => s.listStatus)
+  const { openSession, startDraft, load } = useChatActions()
+  const groups = React.useMemo(() => groupSessions(workspaces, sessions), [workspaces, sessions])
+
+  const newSession = (workspaceId?: string) => {
+    if (workspaces.length === 0) onAddWorkspace()
+    else startDraft(workspaceId)
+    closeSidebarDrawer()
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -30,7 +51,7 @@ export function Sidebar({ workspaces, activeSessionId, onSelectSession, footer }
       </div>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-2 pb-2">
-        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2">
+        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={() => newSession()}>
           <SquarePenIcon />
           {t('sidebar.newSession')}
         </Button>
@@ -38,16 +59,31 @@ export function Sidebar({ workspaces, activeSessionId, onSelectSession, footer }
           <SearchIcon />
           {t('sidebar.search')}
         </Button>
+        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={onAddWorkspace}>
+          <FolderPlusIcon />
+          {t('sidebar.addWorkspace')}
+        </Button>
       </div>
 
-      <nav aria-label={t('sidebar.sessions')} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        {workspaces.map((workspace) => (
+      <nav aria-label={t('sidebar.sessions')} aria-busy={listStatus === 'loading' || undefined} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {listStatus === 'loading' && <SessionSkeleton />}
+        {listStatus === 'error' && (
+          <div className="flex flex-col items-start gap-1 px-2 pt-1 text-ui-body text-muted-foreground">
+            <p>{t('sidebar.loadFailed')}</p>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              {t('sidebar.retry')}
+            </Button>
+          </div>
+        )}
+        {groups.map(({ workspace, sessions: items }) => (
           <WorkspaceGroup
             key={workspace.id}
             workspace={workspace}
+            sessions={items}
             activeSessionId={activeSessionId}
+            onNewSession={() => newSession(workspace.id)}
             onSelect={(id) => {
-              onSelectSession(id)
+              openSession(id)
               closeSidebarDrawer()
             }}
           />
@@ -59,33 +95,60 @@ export function Sidebar({ workspaces, activeSessionId, onSelectSession, footer }
   )
 }
 
+function SessionSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-0.5 pt-1">
+      <div className="mx-2 mb-1 h-4.5 w-20 rounded-xs bg-skeleton" />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-8 rounded-md bg-skeleton" />
+      ))}
+    </div>
+  )
+}
+
 function WorkspaceGroup({
   workspace,
+  sessions,
   activeSessionId,
   onSelect,
+  onNewSession,
 }: {
-  workspace: FixtureWorkspace
+  workspace: Workspace
+  sessions: Session[]
   activeSessionId: string | null
   onSelect: (id: string) => void
+  onNewSession: () => void
 }) {
   const { t } = useI18n()
   const [limit, setLimit] = React.useState(GROUP_PAGE)
-  const visible = workspace.sessions.slice(0, limit)
-  const remaining = workspace.sessions.length - visible.length
+  const visible = sessions.slice(0, limit)
+  const remaining = sessions.length - visible.length
   const headingId = `workspace-${workspace.id}`
 
   return (
     <section aria-labelledby={headingId} className="pt-3 first:pt-1">
-      <h2 id={headingId} data-user-content className="truncate px-2 pb-1 text-ui-small font-medium text-muted-foreground" title={workspace.name}>
-        {workspace.name}
-      </h2>
+      <div className="flex h-6 items-center gap-1 ps-2 pb-1">
+        <h2 id={headingId} data-user-content className="min-w-0 flex-1 truncate text-ui-small font-medium text-muted-foreground" title={workspace.path}>
+          {workspace.name}
+        </h2>
+        <Button
+          variant="toolbar"
+          size="icon-xs"
+          aria-label={t('sidebar.newSessionIn', { name: workspace.name })}
+          title={t('sidebar.newSessionIn', { name: workspace.name })}
+          onClick={onNewSession}
+        >
+          <PlusIcon />
+        </Button>
+      </div>
       <ul className="flex flex-col gap-0.5">
         {visible.map((session) => {
-          const title = session.title ?? t('sidebar.untitled')
+          const title = session.title || t('sidebar.untitled')
           return (
             <li key={session.id}>
               <button
                 type="button"
+                data-session-id={session.id}
                 aria-current={session.id === activeSessionId ? 'page' : undefined}
                 className={rowClass}
                 title={title}

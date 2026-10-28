@@ -49,7 +49,7 @@ React 订阅在 app 层通过 `useSyncExternalStore` 接入；store 模块保持
 
 ## Markdown 渲染
 
-封装统一的 `MarkdownRenderer`，共享插件配置、标题、链接、图片、表格、代码块组件和明暗主题，组件样式使用现有设计 token。
+封装统一的 `MarkdownRenderer`，共享插件配置、标题、链接、图片、表格、代码块组件和明暗主题，组件样式使用现有设计 token。它经 `@coko/ui/markdown` 子路径导出、不在包的聚合入口中，消费方按需懒加载，使 Shiki、Mermaid 与 KaTeX 不进入首屏 chunk。
 
 | 场景 | 配置 |
 | --- | --- |

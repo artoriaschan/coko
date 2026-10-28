@@ -1,0 +1,129 @@
+// Browser Mode 测试用的内存协议后端：按协议形状提供 Workspace、Session 与条目，订阅时补发并确认。
+import type { ClientMessage, ServerMessage, Session, SessionEntry, Workspace } from '@coko/protocol'
+import type { ApiClient } from '../client/api.ts'
+import type { StreamClient } from '../client/connection.ts'
+import { createChatStore, type ChatStore } from '../stores/chat-store.ts'
+
+const ws = (id: string, name: string): Workspace => ({ id, path: `/Users/me/${name}`, name, createdAt: 1 })
+const session = (id: string, workspaceId: string, title: string, updatedAt: number, running = false): Session => ({
+  id,
+  workspaceId,
+  title,
+  model: { providerId: 'faux', modelId: 'faux-1' },
+  running,
+  createdAt: 1,
+  updatedAt,
+})
+
+export const fixtureWorkspaces: Workspace[] = [ws('w-coko', 'coko'), ws('w-pi', 'pi')]
+
+export const fixtureSessions: Session[] = [
+  session('s-1', 'w-coko', '设计 token 与三栏骨架', 100),
+  session('s-2', 'w-coko', 'Sidecar startup handshake', 90, true),
+  session('s-3', 'w-coko', 'SQLite 迁移与租约', 80),
+  session('s-4', 'w-coko', 'ripgrep contract tests', 70),
+  session('s-5', 'w-coko', '', 60),
+  session('s-6', 'w-coko', '工具卡 diff 展示', 50),
+  session('s-7', 'w-coko', 'Forge packaging smoke', 40),
+  session('s-8', 'w-pi', 'Read agent-core event flow', 30),
+  session('s-9', 'w-pi', '对比 coding-agent 截断策略', 20),
+]
+
+const markdown = [
+  '三栏宽度规则如下：',
+  '',
+  '| 区域 | 宽度 |',
+  '| --- | --- |',
+  '| 侧栏 | 264–420px，默认 280px，rail 56px |',
+  '| 中栏 | ≥ 400px |',
+  '| 右栏 | 45%，≤ 70%，≥ 300px |',
+  '',
+  '列宽计算：',
+  '',
+  '```ts',
+  'const right = Math.min(frameWidth * 0.7, Math.max(300, frameWidth * 0.45))',
+  "const columns = [sidebar, 'minmax(0, 1fr)', right].join(' ') // 中栏在剩余空间中伸缩，窄窗口下由 rail 让出空间",
+  '```',
+  '',
+  '聊天列宽度为 $$\\mathrm{clamp}(680, 0.64w, 920)$$。',
+].join('\n')
+
+let seq = 0
+const entry = (sessionId: string, payload: unknown, kind = 'message'): SessionEntry => ({
+  sessionId,
+  seq: ++seq,
+  kind,
+  payloadVersion: 1,
+  payload,
+  runId: 'run-1',
+  createdAt: seq,
+})
+
+function s1Entries(): SessionEntry[] {
+  seq = 0
+  return [
+    entry('s-1', { role: 'user', content: '给侧栏加上按工作区分组的会话列表，并说明三栏宽度规则。', timestamp: 0 }),
+    entry('s-1', {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '先看一下现有的侧栏。' },
+        { type: 'toolCall', id: 'call-edit', name: 'edit', arguments: { path: 'src/sidebar.tsx', edits: [{ oldText: 'a', newText: 'b' }] } },
+      ],
+      stopReason: 'toolUse',
+      timestamp: 0,
+    }),
+    entry('s-1', {
+      role: 'toolResult',
+      toolCallId: 'call-edit',
+      toolName: 'edit',
+      content: [{ type: 'text', text: 'Successfully replaced 1 block(s) in src/sidebar.tsx.' }],
+      details: { diff: ' 1 import x\n-2 const a = 1\n+2 const b = 2\n 3 export {}', patch: '' },
+      isError: false,
+      timestamp: 0,
+    }),
+    entry('s-1', { role: 'assistant', content: [{ type: 'text', text: markdown }], stopReason: 'stop', timestamp: 0 }),
+    entry('s-1', { status: 'completed' }, 'run_end'),
+  ]
+}
+
+/** 订阅时异步补发 afterSeq 之后的条目再确认；sendServer 可推送任意服务端消息。 */
+export function createFixtureChat(options: { entries?: Record<string, SessionEntry[]> } = {}) {
+  const entries: Record<string, SessionEntry[]> = { 's-1': s1Entries(), ...options.entries }
+  const messageListeners = new Set<(message: ServerMessage) => void>()
+  const sent: ClientMessage[] = []
+  const sendServer = (message: ServerMessage) => {
+    for (const listener of messageListeners) listener(message)
+  }
+  const stream: StreamClient = {
+    send(message) {
+      sent.push(message)
+      if (message.type !== 'subscribe') return true
+      queueMicrotask(() => {
+        for (const e of (entries[message.sessionId] ?? []).filter((x) => x.seq > message.afterSeq))
+          sendServer({ type: 'entry', sessionId: message.sessionId, entry: e })
+        const running = fixtureSessions.find((s) => s.id === message.sessionId)?.running ?? false
+        sendServer({ type: 'subscribed', sessionId: message.sessionId, lastSeq: entries[message.sessionId]?.at(-1)?.seq ?? 0, running })
+      })
+      return true
+    },
+    onOpen: () => () => {},
+    onMessage(listener) {
+      messageListeners.add(listener)
+      return () => messageListeners.delete(listener)
+    },
+  }
+  const api = {
+    listWorkspaces: async () => fixtureWorkspaces,
+    listSessions: async () => fixtureSessions,
+    registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),
+    createSession: async (input) => session('s-new', input.workspaceId, input.title ?? '', 200),
+    sessionDetail: async () => {
+      throw new Error('unused')
+    },
+    submitMessage: async () => ({ runId: 'run-2' }),
+    abortRun: async () => ({ aborted: true }),
+  } satisfies ApiClient
+  const chat: ChatStore = createChatStore({ api, stream })
+  void chat.getState().load()
+  return { chat, sent, sendServer }
+}

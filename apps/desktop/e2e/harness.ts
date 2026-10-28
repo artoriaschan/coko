@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron, type ElectronApplication, type Page } from 'playwright'
@@ -7,6 +7,15 @@ import { createFixtureDir, electronPath, placeholderSidecarEntry, processExists,
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 /** 与 electron-forge start 一致：以包目录启动，package.json 的 main 指向 dist/electron/main.cjs。 */
 export const mainEntry = desktopRoot
+/** globalSetup 构建的真实 Sidecar（apps/server）产物。 */
+export const realSidecarEntry = join(desktopRoot, 'dist', 'sidecar', 'index.mjs')
+
+export interface LaunchOptions {
+  /** real：随应用构建的真实 Sidecar（默认）；placeholder：可观测认证细节的占位 Sidecar（只用于壳层测试）。 */
+  sidecar?: 'real' | 'placeholder'
+  /** 复用已有的测试目录（重启场景）；由创建它的一方负责清理。 */
+  dir?: string
+}
 
 export interface LaunchedApp {
   readonly app: ElectronApplication
@@ -18,30 +27,49 @@ export interface LaunchedApp {
   events(): ReturnType<typeof readFixtureEvents>
   /** 已 spawn 的 sidecar 进程号。 */
   sidecarPids(): Promise<number[]>
-  /** 关闭应用并确认 Electron 与 sidecar 进程都已退出；超时则强制结束。 */
+  /** 关闭应用并确认 Electron 与 sidecar 进程都已退出；超时则强制结束。不删除复用的目录。 */
   dispose(): Promise<void>
 }
 
-/** 测试环境：去掉宿主带来的 ELECTRON_RUN_AS_NODE，使用独立 userData 与占位 sidecar。 */
-function testEnv(extra: Record<string, string>, dir: string, eventsPath: string): Record<string, string> {
+/** 宿主可能带有的真实模型凭据；测试只用 faux provider，不向应用传递它们。 */
+const CREDENTIAL_ENV = /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_FAUX_SCRIPT$|ELECTRON_RUN_AS_NODE$)/
+
+/** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData。 */
+function testEnv(extra: Record<string, string>, dir: string, eventsPath: string, sidecar: 'real' | 'placeholder'): Record<string, string> {
   const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value
+  for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !CREDENTIAL_ENV.test(key)) env[key] = value
   return {
     ...env,
     COKO_USER_DATA_DIR: join(dir, 'user-data'),
-    COKO_SIDECAR_ENTRY: placeholderSidecarEntry,
-    COKO_FIXTURE_EVENTS: eventsPath,
+    ...(sidecar === 'placeholder' ? { COKO_SIDECAR_ENTRY: placeholderSidecarEntry, COKO_FIXTURE_EVENTS: eventsPath } : {}),
     ...extra,
   }
 }
 
-export async function launchApp(extra: Record<string, string> = {}): Promise<LaunchedApp> {
-  const fixture = await createFixtureDir()
-  const env = testEnv(extra, fixture.dir, fixture.eventsPath)
+/** 真实 Sidecar 是 Electron 进程以 ELECTRON_RUN_AS_NODE 启动的子进程，按父进程与入口识别。 */
+function childSidecarPids(parentPid: number): number[] {
+  const out = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,command='], { encoding: 'utf8' })
+  return out
+    .split('\n')
+    .map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line))
+    .filter((m): m is RegExpExecArray => m !== null && Number(m[2]) === parentPid && m[3]!.includes(realSidecarEntry))
+    .map((m) => Number(m[1]))
+}
+
+export async function launchApp(extra: Record<string, string> = {}, options: LaunchOptions = {}): Promise<LaunchedApp> {
+  const sidecar = options.sidecar ?? 'real'
+  const fixture =
+    options.dir === undefined ? await createFixtureDir() : { dir: options.dir, eventsPath: join(options.dir, 'events.jsonl'), dispose: async () => {} }
+  const env = testEnv(extra, fixture.dir, fixture.eventsPath, sidecar)
   const app = await _electron.launch({ executablePath: electronPath, args: [mainEntry], env })
   // 应用关闭后 process() 不再可用，启动时记录。
   const electronPid = app.process().pid
-  const sidecarPids = async () => (await readFixtureEvents(fixture.eventsPath)).filter((e) => e.event === 'spawned').map((e) => e.pid)
+  const seen = new Set<number>()
+  const sidecarPids = async () => {
+    if (sidecar === 'placeholder') return (await readFixtureEvents(fixture.eventsPath)).filter((e) => e.event === 'spawned').map((e) => e.pid)
+    if (electronPid !== undefined && processExists(electronPid)) for (const pid of childSidecarPids(electronPid)) seen.add(pid)
+    return [...seen]
+  }
   let disposed = false
   const launched: LaunchedApp = {
     app,
@@ -54,6 +82,7 @@ export async function launchApp(extra: Record<string, string> = {}): Promise<Lau
     dispose: async () => {
       if (disposed) return
       disposed = true
+      await sidecarPids().catch(() => [])
       const closed = await Promise.race([
         app.close().then(
           () => true,
@@ -63,6 +92,7 @@ export async function launchApp(extra: Record<string, string> = {}): Promise<Lau
       ])
       if (!closed && electronPid !== undefined && processExists(electronPid)) process.kill(electronPid, 'SIGKILL')
       for (const pid of await sidecarPids()) if (processExists(pid)) process.kill(pid, 'SIGKILL')
+      await waitFor(async () => (await sidecarPids()).every((pid) => !processExists(pid)), 10_000, 'sidecar exit').catch(() => undefined)
       await fixture.dispose()
     },
   }
@@ -91,6 +121,22 @@ export function launchSecondInstance(env: Record<string, string>): Promise<numbe
       resolve(code)
     })
   })
+}
+
+/** 等待 renderer 报告 Sidecar 已连接。 */
+export async function waitConnected(window: Page): Promise<void> {
+  await waitFor(async () => (await window.locator('[role="status"]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
+}
+
+/** 替换目录选择对话框：依次返回给定路径。 */
+export async function stubDirectoryPicker(app: ElectronApplication, paths: string[]): Promise<void> {
+  await app.evaluate(({ dialog }, picks) => {
+    const queue = [...picks]
+    dialog.showOpenDialog = (async () => {
+      const next = queue.shift()
+      return next === undefined ? { canceled: true, filePaths: [] } : { canceled: false, filePaths: [next] }
+    }) as typeof dialog.showOpenDialog
+  }, paths)
 }
 
 export { processExists }
