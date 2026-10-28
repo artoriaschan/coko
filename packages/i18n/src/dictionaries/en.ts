@@ -233,6 +233,7 @@ export const en: Dictionary = {
     remove: 'Remove rule {rule}',
     invalidRule: 'Use Tool or Tool(content)',
     duplicateRule: 'This rule already exists',
+    unknownTool: 'Unknown tool "{tool}". Use Read, Edit, Bash, or the name of another tool',
     saved: 'Permission settings saved',
     conflict: 'Permission settings changed elsewhere. The latest values are loaded, try again.',
     loadFailed: 'Could not load permission settings',

@@ -1,4 +1,4 @@
-import type { PermissionRule } from '@coko/agent'
+import { canonicalRuleTool, type PermissionRule } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import {
   PERMISSIONS_DEFAULT_MODE_SETTING,
@@ -34,19 +34,60 @@ export function withRules(rules: readonly PermissionRule[], added: readonly Perm
 export { sameRule }
 
 /**
+ * 写入的规则：工具名归一为规范名（内置工具与组名不区分大小写归为 Read / Edit / Bash，宿主工具按注册名），重复的合并。
+ * 未知工具名以 bad-request 拒绝（details.reason = unknown-tool），否则这条规则永远不会命中。
+ */
+export function normalizeRules(rules: readonly PermissionRule[], known: readonly string[]): PermissionRule[] {
+  return withRules(
+    [],
+    rules.map((rule) => {
+      const tool = canonicalRuleTool(rule.tool, known)
+      if (tool === undefined) throw new AppError('bad-request', `Unknown tool in permission rule: ${rule.tool}`, { reason: 'unknown-tool', tool: rule.tool })
+      return { ...rule, tool }
+    }),
+  )
+}
+
+/** 读入的规则：库中已有的非规范写法按规范名读出（未知工具名保持原样），重复的合并。 */
+export function canonicalRules(rules: readonly PermissionRule[], known: readonly string[]): PermissionRule[] {
+  return withRules(
+    [],
+    rules.map((rule) => ({ ...rule, tool: canonicalRuleTool(rule.tool, known) ?? rule.tool })),
+  )
+}
+
+/**
  * 默认模式、全局与 Workspace 规则（设置键 permissions.*，ADR 0005）。值在读入时按 schema 校验，不合格时按缺省处理并记 warn；
  * 只经本服务写入（通用设置接口拒绝 permissions.*），因此内存中的值与 revision 与库一致，判定时同步读取。
  */
 export class PermissionService {
   readonly #store: SessionStore
+  /** 宿主注册的工具名（内置工具之外的，用于规则工具名的归一与校验）。 */
+  readonly #toolNames: () => readonly string[]
   #loaded: Promise<void> | undefined
   #defaultMode: Stored<PermissionMode> = { value: 'default', revision: 0 }
   #global: Stored<PermissionRule[]> = { value: [], revision: 0 }
   readonly #workspaces = new Map<string, Promise<void>>()
   readonly #workspaceValues = new Map<string, Stored<PermissionRule[]>>()
 
-  constructor(store: SessionStore) {
+  constructor(store: SessionStore, toolNames: () => readonly string[] = () => []) {
     this.#store = store
+    this.#toolNames = toolNames
+  }
+
+  /** 写入前归一并校验规则（见 normalizeRules）。 */
+  normalize(rules: readonly PermissionRule[]): PermissionRule[] {
+    return normalizeRules(rules, this.#toolNames())
+  }
+
+  /** 读出时归一库中的规则（见 canonicalRules）。 */
+  canonical(rules: readonly PermissionRule[]): PermissionRule[] {
+    return canonicalRules(rules, this.#toolNames())
+  }
+
+  async #readRules(key: string): Promise<Stored<PermissionRule[]>> {
+    const stored = await this.#read(key, PermissionRuleList, [] as PermissionRule[])
+    return { value: this.canonical(stored.value), revision: stored.revision }
   }
 
   async #read<T>(key: string, schema: TSchema, fallback: T): Promise<Stored<T>> {
@@ -61,7 +102,7 @@ export class PermissionService {
   load(): Promise<void> {
     this.#loaded ??= (async () => {
       this.#defaultMode = await this.#read(PERMISSIONS_DEFAULT_MODE_SETTING, PermissionModeSchema, 'default' as PermissionMode)
-      this.#global = await this.#read(PERMISSIONS_RULES_SETTING, PermissionRuleList, [] as PermissionRule[])
+      this.#global = await this.#readRules(PERMISSIONS_RULES_SETTING)
     })().catch((error: unknown) => {
       this.#loaded = undefined
       throw error
@@ -73,7 +114,7 @@ export class PermissionService {
   loadWorkspace(workspaceId: string): Promise<void> {
     let loading = this.#workspaces.get(workspaceId)
     if (!loading) {
-      loading = this.#read(workspaceRulesSetting(workspaceId), PermissionRuleList, [] as PermissionRule[]).then((stored) => {
+      loading = this.#readRules(workspaceRulesSetting(workspaceId)).then((stored) => {
         if (!this.#workspaceValues.has(workspaceId)) this.#workspaceValues.set(workspaceId, stored)
       })
       loading.catch(() => this.#workspaces.delete(workspaceId))
@@ -128,13 +169,15 @@ export class PermissionService {
         this.#defaultMode = await this.#set(PERMISSIONS_DEFAULT_MODE_SETTING, request.value, request.expectedRevision)
         return this.get()
       case 'global':
-        this.#global = await this.#set(PERMISSIONS_RULES_SETTING, request.rules, request.expectedRevision)
+        this.#global = await this.#set(PERMISSIONS_RULES_SETTING, this.normalize(request.rules), request.expectedRevision)
         return this.get()
-      case 'workspace':
+      case 'workspace': {
+        const rules = this.normalize(request.rules)
         await this.#workspace(request.workspaceId)
         await this.loadWorkspace(request.workspaceId)
-        this.#workspaceValues.set(request.workspaceId, await this.#set(workspaceRulesSetting(request.workspaceId), request.rules, request.expectedRevision))
+        this.#workspaceValues.set(request.workspaceId, await this.#set(workspaceRulesSetting(request.workspaceId), rules, request.expectedRevision))
         return this.get(request.workspaceId)
+      }
     }
   }
 

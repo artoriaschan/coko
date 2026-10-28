@@ -23,6 +23,24 @@ export function ruleToolName(toolName: string): string {
   return RULE_TOOL[toolCategory(toolName)] ?? toolName
 }
 
+/** 组名与内置工具名（小写）→ 规则工具名。 */
+const RULE_ALIASES: Record<string, string> = Object.fromEntries([
+  ...Object.keys(CATEGORY).map((name) => [name, ruleToolName(name)]),
+  ...Object.values(RULE_TOOL).flatMap((group) => (group ? [[group.toLowerCase(), group]] : [])),
+])
+
+/**
+ * 规则工具名的规范写法：内置工具名与组名（不区分大小写）归一为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，
+ * `grep` → `Read`）；其余名字按 `known`（宿主注册的其他工具名）不区分大小写匹配。都不是时返回 undefined（未知工具）。
+ */
+export function canonicalRuleTool(tool: string, known: readonly string[] = []): string | undefined {
+  const lower = tool.toLowerCase()
+  return RULE_ALIASES[lower] ?? known.find((name) => name.toLowerCase() === lower)
+}
+
+/** 判定时比较的工具名：内置工具与组名按组名，其余不区分大小写（库中可能有旧的非规范写法）。 */
+const matchesTool = (rule: PermissionRule, tool: string) => (RULE_ALIASES[rule.tool.toLowerCase()] ?? rule.tool).toLowerCase() === tool.toLowerCase()
+
 /** 文件工具的目标：resolved 为按 Workspace 解析的绝对路径，real 为经符号链接解析后的真实路径。 */
 export interface PermissionTarget {
   resolved: string
@@ -168,7 +186,7 @@ export function decide(call: PermissionCall, context: PermissionContext): Permis
     command: category === 'command' && call.subject !== undefined ? analyzeCommand(call.subject) : undefined,
   }
   const tool = ruleToolName(call.toolName)
-  const own = context.rules.filter((rule) => rule.tool === tool)
+  const own = context.rules.filter((rule) => matchesTool(rule, tool))
   const restrictive = (behavior: 'deny' | 'ask') =>
     own.find((rule) => rule.behavior === behavior && (rule.content === undefined || restrictiveMatch(rule.content, facts)))
 

@@ -232,6 +232,7 @@ export const zh = {
     remove: '删除规则 {rule}',
     invalidRule: '格式应为 Tool 或 Tool(内容)',
     duplicateRule: '这条规则已存在',
+    unknownTool: '未知工具"{tool}"。请使用 Read、Edit、Bash 或其他工具的名称',
     saved: '权限设置已保存',
     conflict: '权限设置已在别处修改，已读取最新内容，请重试',
     loadFailed: '无法读取权限设置',

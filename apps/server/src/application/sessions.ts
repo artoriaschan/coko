@@ -176,7 +176,19 @@ export class SessionService {
 
   constructor(options: SessionServiceOptions) {
     this.#options = options
-    this.permissions = options.permissions ?? new PermissionService(options.store)
+    this.permissions = options.permissions ?? new PermissionService(options.store, () => this.#hostToolNames())
+  }
+
+  #toolNames: readonly string[] | undefined
+  /** 宿主注册的工具名（与 Workspace 无关；第一次需要时从工具工厂读取）。 */
+  #hostToolNames(): readonly string[] {
+    this.#toolNames ??= this.#options.tools
+      ? this.#options
+          .tools(process.cwd())
+          .list()
+          .map((tool) => tool.name)
+      : []
+    return this.#toolNames
   }
 
   isRunning(sessionId: string): boolean {
@@ -318,7 +330,8 @@ export class SessionService {
         for (const entry of await this.#options.store.sessions.listEntries(session.id)) {
           if (entry.kind === 'permission_mode') replayed.mode = (entry.payload as { mode: PermissionMode }).mode
           else if (entry.kind === 'permission_rule') {
-            const { op, rule } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
+            const { op, rule: stored } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
+            const [rule] = this.permissions.canonical([stored]) as [PermissionRule]
             replayed.rules = op === 'add' ? withRules(replayed.rules, [rule]) : replayed.rules.filter((r) => !sameRule(r, rule))
           }
         }
@@ -368,7 +381,9 @@ export class SessionService {
   /** 增删 Session 规则：提交 permission_rule 条目（无变化时不提交），之后重新判定该 Session 的待审批请求。 */
   async changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
     const session = await this.#get(sessionId)
-    const view = await this.#locked(sessionId, () => this.#applySessionRules(session, op, [rule]))
+    // 新增时校验并归一；删除时按读出的规范名比较（库中可能有旧的非规范写法）。
+    const normalized = op === 'add' ? this.permissions.normalize([rule]) : this.permissions.canonical([rule])
+    const view = await this.#locked(sessionId, () => this.#applySessionRules(session, op, normalized))
     await this.#reevaluate((id) => id === sessionId)
     return view
   }
