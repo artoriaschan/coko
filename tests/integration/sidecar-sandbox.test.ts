@@ -93,9 +93,11 @@ describe.skipIf(!darwin)('Seatbelt（只在 darwin 运行：其他平台没有 s
     expect(await exists(join(root, 'in.txt'))).toBe(false)
   })
 
-  it('提权：escalation 卡带目标档位与理由、只能允许一次；批准后成功；随后不带参数的同一命令再次被拒；拒绝提权 → 停止并说明', async () => {
+  it('提权：未被沙箱拒绝过的命令不能提权；被拒后 escalation 卡带目标档位与理由、只能允许一次；批准后成功；随后不带参数的同一命令再次被拒；拒绝提权 → 停止并说明', async () => {
     const escalated = { sandbox_permissions: 'danger-full-access', justification: 'The file lives outside the workspace.' }
     const { outside, api, sessionId, stream } = await boot(({ outside }) => [
+      { content: [bash('e0', `printf 1 >> ${outside}/f`, escalated)] },
+      { content: [bash('p0', `printf 1 >> ${outside}/f`)] },
       { content: [bash('e1', `printf 1 >> ${outside}/f`, escalated)] },
       { content: [bash('p1', `printf 1 >> ${outside}/f`)] },
       { content: [bash('e2', `printf 1 >> ${outside}/f`, escalated)] },
@@ -103,7 +105,14 @@ describe.skipIf(!darwin)('Seatbelt（只在 darwin 运行：其他平台没有 s
     ])
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'append' })
 
-    const escalation = await waitApproval(stream, sessionId, 1)
+    // 先请求提权（本 Run 中没有被拒绝过）：参数错误，不询问。随后不带参数运行：普通审批，在 workspace-write 下被拒。
+    const first = await waitApproval(stream, sessionId, 1)
+    expect(first).toMatchObject({ toolCallId: 'p0', kind: 'tool' })
+    expect(text(await resultOf(stream, sessionId, 'e0'))).toContain('sandbox_permissions only retries a command the sandbox denied in this run')
+    await api.post(apiPaths.sessionApproval(sessionId, first.requestId), { decision: 'allow' })
+    expect(text(await resultOf(stream, sessionId, 'p0'))).toContain(DENIED('workspace-write'))
+
+    const escalation = await waitApproval(stream, sessionId, 2)
     expect(escalation).toMatchObject({
       toolCallId: 'e1',
       kind: 'escalation',
@@ -118,14 +127,14 @@ describe.skipIf(!darwin)('Seatbelt（只在 darwin 运行：其他平台没有 s
     expect(await readFile(join(outside, 'f'), 'utf8')).toBe('1')
 
     // 不带参数的同一命令：普通审批（kind=tool），批准后仍在 workspace-write 内被拒，文件不变。
-    const plain = await waitApproval(stream, sessionId, 2)
+    const plain = await waitApproval(stream, sessionId, 3)
     expect(plain).toMatchObject({ toolCallId: 'p1', kind: 'tool' })
     await api.post(apiPaths.sessionApproval(sessionId, plain.requestId), { decision: 'allow' })
     expect(text(await resultOf(stream, sessionId, 'p1'))).toContain(DENIED('workspace-write'))
     expect(await readFile(join(outside, 'f'), 'utf8')).toBe('1')
 
     // 拒绝提权（无反馈）：错误文本要求停止并说明，Run 以 aborted 结束，文件不变。
-    const second = await waitApproval(stream, sessionId, 3)
+    const second = await waitApproval(stream, sessionId, 4)
     expect(second).toMatchObject({ toolCallId: 'e2', kind: 'escalation' })
     await api.post(apiPaths.sessionApproval(sessionId, second.requestId), { decision: 'deny' })
     await runEnds(stream, sessionId, 1)

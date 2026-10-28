@@ -5,15 +5,16 @@ import { composeAfterToolCall, composeBeforeToolCall, type ToolHooks } from '../
 import type { ExecPort } from '../ports/exec.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
 import { resolveSecrets, type SecretProvider } from '../ports/secrets.ts'
+import { readDenial } from '../policy/decide.ts'
 import { realLocation } from '../policy/paths.ts'
 import { sandboxModeFor, sandboxPolicyFor, widerSandbox } from '../policy/sandbox.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
-import { createToolScheduler, withScheduling } from '../tools/scheduler.ts'
+import { createToolScheduler, withScheduling, type SchedulingOptions } from '../tools/scheduler.ts'
 import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
 import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
-import { createPermissionGate } from '../policy/gate.ts'
+import { createPermissionGate, OPERATION_ABORTED_TEXT, ToolCallBlockedError } from '../policy/gate.ts'
 import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, SandboxMode, ToolExecPayload } from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
@@ -205,8 +206,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       throw failure
     }
   }
-  const scheduling = { scheduler: createToolScheduler(options.toolConcurrency), sessionId: options.sessionId ?? randomUUID(), recordExecution }
-
   const permissions = options.permissions
   /** 已批准的单次提权，按 toolCallId；执行时取用并删除，Run 结束时清空。 */
   const escalations = new Map<string, SandboxMode>()
@@ -214,32 +213,60 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const realWorkspace = () => (workspace ??= realLocation(options.cwd))
 
   /**
-   * 执行上下文的补充（执行记录之后、execute 之前）：沙箱档位按执行时的模式现算（ADR 0005），已批准的提权取两者中较宽者；
-   * 声明的密钥只为这一次调用解析。没有权限判定时不设沙箱（库调用方，命令不受限）。
+   * 执行前的准备（取得执行槽之后、执行记录之前，ADR 0005）：文件写入的目标按执行时的真实路径复核；沙箱档位按执行时的模式现算，
+   * 已批准的提权取两者中较宽者；目录工具拿到 Read 拒绝规则的过滤；声明的密钥只为这一次调用解析，缺失时调用失败且不提交执行记录。
+   * 没有权限判定时不设沙箱与过滤（库调用方，命令不受限）。
    */
-  const withContext = (tool: CokoTool): CokoTool =>
-    !permissions && !tool.secrets?.length
+  const prepare: SchedulingOptions['prepare'] = async ({ toolCallId, tool, params, signal }) => {
+    const extra: { sandbox?: Awaited<ReturnType<typeof sandboxPolicyFor>>; secrets?: Record<string, string>; readDenied?: (path: string) => boolean } = {}
+    if (permissions && gate) {
+      await recheck(toolCallId, tool.name, params, signal)
+      const granted = escalations.get(toolCallId)
+      escalations.delete(toolCallId)
+      const current = sandboxModeFor(permissions.mode())
+      const root = await realWorkspace()
+      extra.sandbox = await sandboxPolicyFor(granted ? widerSandbox(granted, current) : current, root)
+      const denied = readDenial(permissions.rules(), root)
+      if (denied) extra.readDenied = denied
+    }
+    const secrets = await resolveSecrets(tool.name, tool.secrets, options.secrets)
+    if (secrets) extra.secrets = secrets
+    return extra
+  }
+
+  /** 复核期间暂停：等待中的复核审批与 beforeToolCall 中的一样以"暂停前未批准"结束。 */
+  const recheck = async (toolCallId: string, toolName: string, params: unknown, signal: AbortSignal | undefined) => {
+    const run = current
+    const paused = run?.pauseSignal.signal
+    const combined = paused ? (signal ? AbortSignal.any([signal, paused]) : paused) : signal
+    try {
+      await gate!.recheck(toolCallId, toolName, params, combined)
+    } catch (error) {
+      if (error instanceof ToolCallBlockedError && error.message === OPERATION_ABORTED_TEXT && run?.paused && !signal?.aborted)
+        throw new ToolCallBlockedError(PAUSED_BEFORE_APPROVAL_TEXT)
+      throw error
+    }
+  }
+
+  /** 记录被沙箱拒绝的命令（结果带 details.sandbox.denied）：之后同一命令才能带提权参数重试。 */
+  const observeSandbox = (tool: CokoTool): CokoTool =>
+    !gate || !tool.sandboxRequest
       ? tool
       : {
           ...tool,
           async execute(toolCallId, params, signal, onUpdate, context) {
-            const extra: { sandbox?: Awaited<ReturnType<typeof sandboxPolicyFor>>; secrets?: Record<string, string> } = {}
-            if (permissions) {
-              const granted = escalations.get(toolCallId)
-              escalations.delete(toolCallId)
-              const current = sandboxModeFor(permissions.mode())
-              extra.sandbox = await sandboxPolicyFor(granted ? widerSandbox(granted, current) : current, await realWorkspace())
-            }
-            const secrets = await resolveSecrets(tool.name, tool.secrets, options.secrets)
-            if (secrets) extra.secrets = secrets
-            return tool.execute(toolCallId, params, signal, onUpdate, { idempotencyKey: context?.idempotencyKey ?? toolCallId, ...extra })
+            const result = await tool.execute(toolCallId, params, signal, onUpdate, context)
+            const details = result.details as { sandbox?: { denied?: boolean } } | undefined
+            const command = tool.permissionSubject?.(params)
+            if (details?.sandbox?.denied && command !== undefined) gate.recordSandboxDenial(command)
+            return result
           },
         }
 
   // Seed the tools at construction so they are part of the leading system message; only later
   // changes are announced to the model (and committed) as a system message with toolsAdded/Removed.
   // 超时在调度之内：排队等待不计入调用的时限。
-  const effectiveTools = () => registry.list().map((tool) => withScheduling(withTimeout(withContext(tool), options.timeouts), scheduling) as AgentTool<any>)
+  const effectiveTools = () => registry.list().map((tool) => withScheduling(withTimeout(observeSandbox(tool), options.timeouts), scheduling) as AgentTool<any>)
 
   const broker = createApprovalBroker((entry) => commit({ ...entry, ...(current ? { runId: current.runId } : {}) }))
   const gate = permissions
@@ -261,15 +288,23 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
       })
     : undefined
+  const scheduling: SchedulingOptions = {
+    scheduler: createToolScheduler(options.toolConcurrency),
+    sessionId: options.sessionId ?? randomUUID(),
+    recordExecution,
+    prepare,
+  }
 
-  // 暂停只取消等待中的审批（不中断执行中的工具）：权限 gate 收到的 signal 另加上本 Run 的暂停信号。
+  // 暂停只取消等待中的审批（不中断执行中的工具）：权限 gate 收到的 signal 另加上本 Run 的暂停信号。只有被暂停取消的审批
+  // 改写为"暂停前未批准"；规则拒绝、参数错误与跳过保留原文。
   const pausableGate = gate
-    ? async (context: Parameters<typeof gate>[0], signal?: AbortSignal) => {
+    ? async (context: Parameters<typeof gate.beforeToolCall>[0], signal?: AbortSignal) => {
         const run = current
         const paused = run?.pauseSignal.signal
         const combined = paused ? (signal ? AbortSignal.any([signal, paused]) : paused) : signal
-        const result = await gate(context, combined)
-        if (result?.block && run?.paused && !signal?.aborted) return { block: true, reason: PAUSED_BEFORE_APPROVAL_TEXT }
+        const result = await gate.beforeToolCall(context, combined)
+        if (result?.block && result.reason === OPERATION_ABORTED_TEXT && run?.paused && !signal?.aborted)
+          return { block: true, reason: PAUSED_BEFORE_APPROVAL_TEXT }
         return result
       }
     : undefined
@@ -408,8 +443,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       lastStatus = result.status
     } finally {
       current = undefined
-      // 批准后未执行（被后续 hook 拦下或 Run 停止）的提权不延续到下一个 Run。
+      // 批准后未执行（被后续 hook 拦下或 Run 停止）的提权、复核目标与沙箱拒绝记录不延续到下一个 Run。
       escalations.clear()
+      gate?.reset()
     }
     progress({ type: 'run_end', runId: result.runId, status: result.status, ...(result.error ? { error: result.error } : {}) })
     return result

@@ -77,6 +77,11 @@ const toolResults = (entries: RunEntry[]) =>
 const text = (message: { content: readonly { type: string; text?: string }[] }) => message.content.map((b) => b.text ?? '').join('')
 const bash = (id: string, args: Record<string, unknown>) => fauxToolCall('bash', { command: 'echo x > /elsewhere/f', ...args }, { id })
 const allowBash: PermissionRule = { behavior: 'allow', tool: 'Bash' }
+/** workspace-write 下被沙箱拒绝、更宽档位成功：提权只用于重试被拒绝过的同一命令（ADR 0005）。 */
+const deniedUnderWorkspaceWrite = () =>
+  recordingExec((request) =>
+    request.sandbox?.mode === 'workspace-write' ? { kind: 'exited', exitCode: 1, sandboxDenied: true } : { kind: 'exited', exitCode: 0 },
+  )
 
 describe('命令的沙箱档位', () => {
   it.each([
@@ -99,10 +104,11 @@ describe('命令的沙箱档位', () => {
 })
 
 describe('单次提权', () => {
-  it('更宽档位 → kind=escalation 的请求（目标档位、理由、无建议规则），允许规则也不能免掉；批准一次只对该调用有效', async () => {
-    const exec = recordingExec()
+  it('被沙箱拒绝后以更宽档位重试 → kind=escalation 的请求（目标档位、理由、无建议规则），允许规则也不能免掉；批准一次只对该调用有效', async () => {
+    const exec = deniedUnderWorkspaceWrite()
     const h = harness({ rules: [allowBash], exec: exec.port })
     h.faux.setResponses([
+      fauxAssistantMessage(bash('p0', {}), { stopReason: 'toolUse' }),
       fauxAssistantMessage(bash('b1', { sandbox_permissions: 'danger-full-access', justification: 'needs ~/.npm' }), { stopReason: 'toolUse' }),
       fauxAssistantMessage(bash('b2', {}), { stopReason: 'toolUse' }),
       fauxAssistantMessage('done'),
@@ -119,13 +125,13 @@ describe('单次提权', () => {
       justification: 'needs ~/.npm',
       suggestions: [],
     })
-    expect(exec.requests).toHaveLength(0)
+    expect(exec.requests).toHaveLength(1)
     // 提权请求不随模式或规则变更重新判定。
     await h.runtime.answerApproval(request.payload.requestId, { decision: 'reevaluate' })
     expect(h.runtime.pendingApprovals).toHaveLength(1)
     await h.runtime.answerApproval(request.payload.requestId, { decision: 'allow' })
     expect((await run).status).toBe('completed')
-    expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['danger-full-access', 'workspace-write'])
+    expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['workspace-write', 'danger-full-access', 'workspace-write'])
     expect(h.entries.filter((e) => e.kind === 'approval_request')).toHaveLength(1)
   })
 
@@ -172,9 +178,10 @@ describe('单次提权', () => {
   })
 
   it('无反馈拒绝提权 → 错误文本要求停止并说明，命令不执行，Run 以 aborted 结束', async () => {
-    const exec = recordingExec()
-    const h = harness({ exec: exec.port })
+    const exec = deniedUnderWorkspaceWrite()
+    const h = harness({ rules: [allowBash], exec: exec.port })
     h.faux.setResponses([
+      fauxAssistantMessage(bash('p0', {}), { stopReason: 'toolUse' }),
       fauxAssistantMessage(bash('b1', { sandbox_permissions: 'danger-full-access', justification: 'x' }), { stopReason: 'toolUse' }),
       fauxAssistantMessage('should not be used'),
     ])
@@ -182,10 +189,10 @@ describe('单次提权', () => {
     const request = await h.request()
     await h.runtime.answerApproval(request.payload.requestId, { decision: 'deny' })
     expect((await run).status).toBe('aborted')
-    expect(text(toolResults(h.entries)[0]!)).toBe(
+    expect(text(toolResults(h.entries).find((r) => r.toolCallId === 'b1')!)).toBe(
       'The user rejected escalating this command to "danger-full-access"; it stays denied, so stop and explain instead of working around it.',
     )
-    expect(exec.requests).toHaveLength(0)
+    expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['workspace-write'])
   })
 })
 

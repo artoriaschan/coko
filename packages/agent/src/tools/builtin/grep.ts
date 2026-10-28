@@ -7,6 +7,7 @@ import { Type, type Static } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, GREP_MAX_LINE_LENGTH, truncateHead, truncateLine, type TruncationResult } from '../truncate.ts'
 import type { CokoTool } from '../types.ts'
+import { createReadFilter } from './read-filter.ts'
 import { walkTree } from './walk.ts'
 
 export const grepParameters = Type.Object({
@@ -131,7 +132,7 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
     parameters: grepParameters,
     effect: 'read',
     permissionSubject: (args) => args.path ?? '.',
-    async execute(_toolCallId, params, signal) {
+    async execute(_toolCallId, params, signal, _onUpdate, context) {
       throwIfAborted(signal)
       const searchPath = resolveToCwd(params.path || '.', cwd)
       let isDirectory: boolean
@@ -143,7 +144,8 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
       const contextLines = params.context && params.context > 0 ? Math.floor(params.context) : 0
       const limit = Math.max(1, Math.floor(params.limit ?? GREP_DEFAULT_LIMIT))
 
-      const { matches, limitReached } = await searcher({
+      const filter = await createReadFilter(context, searchPath)
+      const searched = await searcher({
         pattern: params.pattern,
         searchPath,
         isDirectory,
@@ -154,7 +156,17 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
         ...(signal ? { signal } : {}),
       })
       throwIfAborted(signal)
-      if (matches.length === 0) return { content: [{ type: 'text', text: 'No matches found' }], details: undefined }
+      // 被读取拒绝规则覆盖的文件不进入结果（按文件计数）。
+      const deniedFiles = new Map<string, boolean>()
+      const matches = searched.matches.filter((match) => {
+        let denied = deniedFiles.get(match.filePath)
+        if (denied === undefined) deniedFiles.set(match.filePath, (denied = filter.denied(match.filePath)))
+        return !denied
+      })
+      const limitReached = searched.limitReached
+      const omitted = filter.notice()
+      if (matches.length === 0)
+        return { content: [{ type: 'text', text: omitted ? `No matches found\n\n[${omitted}]` : 'No matches found' }], details: undefined }
 
       const formatPath = (filePath: string) => {
         if (isDirectory) {
@@ -219,6 +231,7 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
         notices.push(`Some lines truncated to ${GREP_MAX_LINE_LENGTH} chars. Use read tool to see full lines`)
         details.linesTruncated = true
       }
+      if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
       return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
     },

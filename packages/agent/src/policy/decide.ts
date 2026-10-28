@@ -176,6 +176,16 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
   return [{ behavior: 'allow', tool, content: literalPathPattern(rel.includes('/') ? rel : `./${rel}`) }]
 }
 
+/**
+ * 目录工具（grep、find、ls）的结果过滤：路径是否被某条 Read 拒绝规则覆盖。没有带内容的 Read 拒绝规则时为 undefined
+ * （不带内容的 Read 拒绝规则在判定时已拒绝整个调用）。
+ */
+export function readDenial(rules: readonly PermissionRule[], workspace: string, home: string = homedir()): ((path: string) => boolean) | undefined {
+  const denies = rules.filter((rule) => rule.behavior === 'deny' && rule.content !== undefined && matchesTool(rule, 'Read'))
+  if (denies.length === 0) return undefined
+  return (path) => denies.some((rule) => pathMatches(rule.content!, path, workspace, home))
+}
+
 export function decide(call: PermissionCall, context: PermissionContext): PermissionDecision {
   const category = toolCategory(call.toolName)
   const facts: Facts = {

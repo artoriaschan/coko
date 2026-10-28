@@ -1,6 +1,6 @@
 // 工具调度：并发上限与 effect 分区，包住 execute（pi 的 beforeToolCall 仍按调用顺序串行，审批逐个出现）。
 // read 调用共享执行槽；side-effect 调用是独占屏障：等前面的调用全部完成才开始，后面的调用等它完成。
-// side-effect 调用取得执行槽后、执行前提交 tool_exec 执行记录；提交失败则不执行。
+// 取得执行槽后先做执行前的准备（复核与执行上下文），再由 side-effect 调用提交 tool_exec 执行记录；任一步失败则不执行。
 import { idempotencyKeyFor, type ToolExecPayload } from '../session-entries/tools.ts'
 import type { CokoTool, ToolEffect, ToolExecutionContext } from './types.ts'
 
@@ -92,9 +92,24 @@ export interface SchedulingOptions {
    * 让 Run 以 commit_failed 结束由调用方负责。
    */
   recordExecution: (record: ToolExecPayload) => Promise<void>
+  /**
+   * 取得执行槽之后、执行记录之前：按执行时的事实复核调用并补充执行上下文（沙箱档位、Secrets、读取过滤）。拒绝时调用不执行，
+   * 也不提交执行记录；拒绝原因成为该调用的错误。独占调用在这里看到的是同批前面调用完成之后的状态。
+   */
+  prepare?: (call: PreparedCall) => Promise<Partial<Omit<ToolExecutionContext, 'idempotencyKey'>> | undefined>
 }
 
-/** 包住工具的 execute：经调度器排队，side-effect 调用先提交执行记录，执行上下文（幂等键）作为第五个参数交给工具。 */
+export interface PreparedCall {
+  toolCallId: string
+  tool: CokoTool
+  params: unknown
+  signal?: AbortSignal
+}
+
+/**
+ * 包住工具的 execute：经调度器排队，取得执行槽后先准备（options.prepare），side-effect 调用再提交执行记录，执行上下文（幂等键与
+ * 准备给出的补充）作为第五个参数交给工具。
+ */
 export function withScheduling(tool: CokoTool, options: SchedulingOptions): CokoTool {
   const effect: ToolEffect = tool.effect ?? 'side-effect'
   return {
@@ -104,12 +119,14 @@ export function withScheduling(tool: CokoTool, options: SchedulingOptions): Coko
       return options.scheduler.run(
         effect,
         async () => {
+          const extra = await options.prepare?.({ toolCallId, tool, params, ...(signal ? { signal } : {}) })
+          if (signal?.aborted) throw new Error(OPERATION_ABORTED)
           if (effect === 'side-effect') {
             await options.recordExecution({ toolCallId, toolName: tool.name, idempotencyKey: context.idempotencyKey })
             // 记录提交期间被取消：不再开始执行。
             if (signal?.aborted) throw new Error(OPERATION_ABORTED)
           }
-          return tool.execute(toolCallId, params, signal, onUpdate, context)
+          return tool.execute(toolCallId, params, signal, onUpdate, extra ? { ...extra, ...context } : context)
         },
         signal,
       )
