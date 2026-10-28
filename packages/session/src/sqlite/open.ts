@@ -1,5 +1,6 @@
-// 打开序列（ADR 0003）：0600 文件 → 宿主租约（被存活的其他实例持有时立即报告，不碰文件）→ quick_check
-// （失败隔离）→ 版本检查 → WAL / synchronous=FULL / 外键 → 迁移前 VACUUM INTO 备份 → 逐步迁移 → FTS5 探测 → 心跳。
+// 打开序列（ADR 0003）：0600 文件 → 版本过高检查（只读库头，不写库）→ 宿主租约（被存活的其他实例持有时立即报告，
+// 不碰文件）→ quick_check（失败隔离）→ 版本检查 → WAL / synchronous=FULL / 外键 → 迁移前 VACUUM INTO 备份 → 逐步迁移
+// → FTS5 探测 → 心跳。
 import { randomUUID } from 'node:crypto'
 import { chmod, mkdir, open, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -52,6 +53,9 @@ export async function openDatabase(options: OpenDatabaseOptions): Promise<Opened
 
   let connection: Connection | undefined
   try {
+    // 版本过高的库属于更新的程序：获取租约之前就拒绝，不写入任何内容（库文件逐字节不变）。库头读不出时交给后续检查。
+    const headerVersion = readUserVersion(db)
+    if (headerVersion !== undefined && headerVersion > latest) throw versionTooNew(path, headerVersion, latest)
     // 隔离会改名文件，必须先确认本实例是写者：租约被其他存活实例持有时报告 lease-held，不做快速检查与隔离。
     // 文件已无法读出租约（不是数据库或页面损坏）时，不可能有实例在正常使用它，继续由快速检查判定并隔离。
     const candidate = new Connection(db, randomUUID(), options.now)
@@ -61,11 +65,7 @@ export async function openDatabase(options: OpenDatabaseOptions): Promise<Opened
     const version = userVersion(db)
     if (version > latest) {
       if (leased) releaseLease(candidate)
-      throw new StoreError('version-too-new', `database schema version ${version} is newer than supported version ${latest}`, {
-        path,
-        version,
-        supported: latest,
-      })
+      throw versionTooNew(path, version, latest)
     }
     // 快速检查通过却拿不到租约：不是损坏导致的读取失败，按原错误报告。
     if (!leased) throw openFailed(path, new Error('host lease could not be acquired'))
@@ -122,6 +122,18 @@ async function prepareFile(path: string): Promise<void> {
 
 function openFailed(path: string, error: unknown): StoreError {
   return new StoreError('open-failed', `cannot open database: ${error instanceof Error ? error.message : String(error)}`, { path }, { cause: error })
+}
+
+function versionTooNew(path: string, version: number, supported: number): StoreError {
+  return new StoreError('version-too-new', `database schema version ${version} is newer than supported version ${supported}`, { path, version, supported })
+}
+
+function readUserVersion(db: DatabaseSync): number | undefined {
+  try {
+    return userVersion(db)
+  } catch {
+    return undefined
+  }
 }
 
 function userVersion(db: DatabaseSync): number {

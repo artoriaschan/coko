@@ -1,7 +1,8 @@
 // 仓库契约测试套件：SQLite 实现与内存实现运行同一组用例。普通模块（非 *.test.ts），由各实现的测试文件调用。
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { StoreError } from './errors.ts'
-import type { SessionStore, StoreOptions } from './types.ts'
+import { TEST_PAYLOADS } from './test-payloads.ts'
+import type { InvalidEntry, NewSessionEntry, SessionStore, StoreOptions } from './types.ts'
 
 export type OpenStore = (options: StoreOptions) => Promise<SessionStore>
 
@@ -18,9 +19,9 @@ async function expectStoreError(promise: Promise<unknown>, code: StoreError['cod
 export function describeRepositoryContract(name: string, openStore: OpenStore): void {
   describe(`${name}：仓库契约`, () => {
     let clock = 0
-    async function open(): Promise<SessionStore> {
+    async function open(options: Partial<StoreOptions> = {}): Promise<SessionStore> {
       clock = 1_000
-      const store = await openStore({ now: () => clock })
+      const store = await openStore({ now: () => clock, payloads: TEST_PAYLOADS, ...options })
       onTestFinished(() => store.close())
       return store
     }
@@ -115,6 +116,55 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
     it('向不存在的 Session 追加条目以 not-found 拒绝', async () => {
       const { sessions } = await open()
       await expect(sessions.appendEntries('missing', [{ kind: 'k', payload: null }])).rejects.toMatchObject({ name: 'StoreError', code: 'not-found' })
+    })
+
+    it('未注册 kind、未登记版本或不合 schema 的 payload 以 invalid-payload 拒绝，同批条目都不提交', async () => {
+      const { sessions } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id })
+      const valid = { kind: 'doc', payload: { body: 'ok' } }
+      const rejected: NewSessionEntry[] = [
+        { kind: 'unknown-kind', payload: {} },
+        { kind: 'doc', payload: { body: '' } },
+        { kind: 'doc', payloadVersion: 1, payload: { body: 'v2 shape at v1' } },
+        { kind: 'doc', payloadVersion: 3, payload: { body: 'future' } },
+        { kind: 'doc', payloadVersion: 0, payload: { body: 'zero' } },
+      ]
+      for (const [index, bad] of rejected.entries()) {
+        const error = await expectStoreError(sessions.appendEntries(s.id, [valid, bad]), 'invalid-payload')
+        expect(error.fatal).toBe(false)
+        expect(error.details).toMatchObject({ index: 1, kind: bad.kind })
+        expect(JSON.stringify(error.details), `case ${index}`).not.toContain(JSON.stringify(bad.payload))
+      }
+      expect(await sessions.listEntries(s.id)).toEqual([])
+      expect((await sessions.appendEntries(s.id, [valid]))[0]).toMatchObject({ seq: 1, kind: 'doc', payloadVersion: 2, payload: { body: 'ok' } })
+    })
+
+    it('读取时低版本 payload 逐版迁移到当前版本；迁移后仍不合格的条目不返回、报告且保留', async () => {
+      const invalid: InvalidEntry[] = []
+      const { sessions } = await open({ onInvalidEntry: (entry) => invalid.push(entry) })
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id })
+      const written = await sessions.appendEntries(s.id, [
+        { kind: 'doc', payloadVersion: 1, payload: { text: 'legacy' } },
+        { kind: 'doc', payloadVersion: 1, payload: { text: '' } },
+        { kind: 'doc', payload: { body: 'current' } },
+      ])
+      // 提交结果是写入时的原样记录。
+      expect(written.map((e) => [e.seq, e.payloadVersion, e.payload])).toEqual([
+        [1, 1, { text: 'legacy' }],
+        [2, 1, { text: '' }],
+        [3, 2, { body: 'current' }],
+      ])
+      const read = await sessions.listEntries(s.id)
+      expect(read.map((e) => [e.seq, e.payloadVersion, e.payload])).toEqual([
+        [1, 2, { body: 'legacy' }],
+        [3, 2, { body: 'current' }],
+      ])
+      expect(invalid).toEqual([{ sessionId: s.id, seq: 2, kind: 'doc', payloadVersion: 1, reason: expect.any(String) }])
+      // 被跳过的条目仍在存储中：seq 不被复用。
+      expect((await sessions.appendEntries(s.id, [{ kind: 'doc', payload: { body: 'next' } }]))[0]?.seq).toBe(4)
+      expect((await sessions.listEntries(s.id, { afterSeq: 1 })).map((e) => e.seq)).toEqual([3, 4])
     })
 
     it('设置按 revision 乐观并发，revision 不匹配返回冲突且值不变', async () => {

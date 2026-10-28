@@ -1,4 +1,6 @@
 import { Type, type Static } from 'typebox'
+import { SessionEntryRecord } from './entries.ts'
+import { SessionActivity } from './runs.ts'
 
 // HTTP 请求与响应 DTO。时间戳为毫秒；id 为不透明字符串。
 
@@ -31,6 +33,8 @@ export const Session = Type.Object(
     model: Type.Union([SessionModel, Type.Null()]),
     /** 当前是否有 Run 在进行。 */
     running: Type.Boolean(),
+    /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
+    activity: SessionActivity,
     createdAt: Timestamp,
     updatedAt: Timestamp,
   },
@@ -45,36 +49,8 @@ export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
 export type SessionListResponse = Static<typeof SessionListResponse>
 
-/**
- * 已提交、不可修改的 Session Entry；seq 在 Session 内从 1 连续递增。
- * kind 为 message 时 payload 是模型可见的消息（role 为 user / assistant / toolResult，结构沿用 Agent 消息）；
- * kind 为 run_end 时 payload 为 RunEndPayload。
- */
-export const SessionEntry = Type.Object(
-  {
-    sessionId: Id,
-    seq: Type.Integer({ minimum: 1 }),
-    kind: Type.String(),
-    payloadVersion: Type.Integer({ minimum: 1 }),
-    payload: Type.Unknown(),
-    runId: Type.Union([Type.String(), Type.Null()]),
-    createdAt: Timestamp,
-  },
-  strict,
-)
-export type SessionEntry = Static<typeof SessionEntry>
-
-export const RunStatus = Type.Union([Type.Literal('completed'), Type.Literal('aborted'), Type.Literal('error')])
-export type RunStatus = Static<typeof RunStatus>
-
-export const RunEndPayload = Type.Object({ status: RunStatus, error: Type.Optional(Type.Object({ code: Type.String(), message: Type.String() })) }, strict)
-export type RunEndPayload = Static<typeof RunEndPayload>
-
-/** message 条目 payload 的最小公共形状；其余字段按 role 不同而不同。 */
-export const MessagePayload = Type.Object({ role: Type.String(), content: Type.Optional(Type.Unknown()) })
-export type MessagePayload = Static<typeof MessagePayload>
-
-export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntry) }, strict)
+/** entries 为线上信封；客户端逐条按 SessionEntry 校验。 */
+export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>
 
 export const SubmitMessageRequest = Type.Object({ text: Type.String({ minLength: 1 }) }, strict)

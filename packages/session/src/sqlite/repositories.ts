@@ -1,6 +1,7 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
-import { defaultWorkspaceName, notFound, revisionConflict } from '../internal.ts'
+import { defaultWorkspaceName, notFound, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
+import { checkNewEntries } from '../payloads.ts'
 import type {
   JsonValue,
   NewSessionEntry,
@@ -13,6 +14,7 @@ import type {
   SessionRepository,
   Setting,
   SettingsRepository,
+  StoreOptions,
   Workspace,
 } from '../types.ts'
 import type { Connection } from './connection.ts'
@@ -68,12 +70,19 @@ const toSession = (r: SessionRow): Session => ({
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
-const toEntry = (r: EntryRow): SessionEntry => ({
+const parsePayload = (text: string): JsonValue | undefined => {
+  try {
+    return JSON.parse(text) as JsonValue
+  } catch {
+    return undefined
+  }
+}
+const toStoredEntry = (r: EntryRow): StoredEntry => ({
   sessionId: r.session_id,
   seq: r.seq,
   kind: r.kind,
   payloadVersion: r.payload_version,
-  payload: JSON.parse(r.payload) as JsonValue,
+  payload: parsePayload(r.payload),
   runId: r.run_id,
   createdAt: r.created_at,
 })
@@ -97,7 +106,7 @@ const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.kind, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
-export function createSessionRepository(conn: Connection): SessionRepository {
+export function createSessionRepository(conn: Connection, payloads: Pick<StoreOptions, 'payloads' | 'onInvalidEntry'>): SessionRepository {
   const getSession = (id: string) => conn.get<SessionRow>(`${SESSION_SELECT} WHERE id = ?`, id)
   const requireSession = (id: string): SessionRow => {
     const row = getSession(id)
@@ -189,6 +198,7 @@ export function createSessionRepository(conn: Connection): SessionRepository {
         conn.write(() => {
           requireSession(sessionId)
           if (entries.length === 0) return []
+          const versions = checkNewEntries(payloads.payloads, entries)
           const last = conn.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM session_entries WHERE session_id = ?', sessionId)?.seq ?? 0
           const at = conn.now()
           const committed = entries.map((entry, i): SessionEntry => {
@@ -196,7 +206,7 @@ export function createSessionRepository(conn: Connection): SessionRepository {
               sessionId,
               seq: last + i + 1,
               kind: entry.kind,
-              payloadVersion: entry.payloadVersion ?? 1,
+              payloadVersion: versions[i]!,
               payload: entry.payload,
               runId: entry.runId ?? null,
               createdAt: at,
@@ -222,14 +232,17 @@ export function createSessionRepository(conn: Connection): SessionRepository {
     listEntries: (sessionId, options) =>
       later(() =>
         conn.read(() =>
-          conn
-            .all<EntryRow>(
-              'SELECT session_id, seq, kind, payload_version, payload, run_id, created_at FROM session_entries WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?',
-              sessionId,
-              options?.afterSeq ?? 0,
-              options?.limit ?? -1,
-            )
-            .map(toEntry),
+          upgradeEntries(
+            conn
+              .all<EntryRow>(
+                'SELECT session_id, seq, kind, payload_version, payload, run_id, created_at FROM session_entries WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?',
+                sessionId,
+                options?.afterSeq ?? 0,
+                options?.limit ?? -1,
+              )
+              .map(toStoredEntry),
+            payloads,
+          ),
         ),
       ),
   }

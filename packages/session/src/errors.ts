@@ -3,6 +3,8 @@ export type StoreErrorCode =
   | 'not-found'
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   | 'revision-conflict'
+  /** 条目的 kind 未注册、版本未登记或 payload 不合 schema；整批未提交。 */
+  | 'invalid-payload'
   /** 存储已关闭。 */
   | 'closed'
   /** 另一实例持有宿主租约（打开时，fatal）。 */

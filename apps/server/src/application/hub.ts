@@ -1,4 +1,4 @@
-import type { ProgressEvent, ServerMessage, SessionEntry } from '@coko/protocol'
+import type { ProgressEvent, ServerMessage, SessionEntryRecord } from '@coko/protocol'
 
 type Listener = (message: ServerMessage) => void
 
@@ -16,7 +16,7 @@ export class SessionHub {
     }
   }
 
-  publishEntry(entry: SessionEntry): void {
+  publishEntry(entry: SessionEntryRecord): void {
     this.#emit(entry.sessionId, { type: 'entry', sessionId: entry.sessionId, entry })
   }
 

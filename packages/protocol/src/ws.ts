@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox'
 import { ErrorCode } from './errors.ts'
-import { RunStatus, SessionEntry } from './http.ts'
+import { SessionEntryRecord } from './entries.ts'
+import { RunStatus } from './runs.ts'
 
 // WebSocket 消息（JSON 文本帧）。entry 是已提交的 Session Entry，带 seq，可在重连时以 afterSeq 补齐；
 // progress 是不持久化的临时显示状态，带 runId，断线丢失后由 entry 重建。
@@ -22,7 +23,7 @@ export const SubscribedMessage = Type.Object(
   { type: Type.Literal('subscribed'), sessionId: Type.String(), lastSeq: Type.Integer({ minimum: 0 }), running: Type.Boolean() },
   strict,
 )
-export const EntryMessage = Type.Object({ type: Type.Literal('entry'), sessionId: Type.String(), entry: SessionEntry }, strict)
+export const EntryMessage = Type.Object({ type: Type.Literal('entry'), sessionId: Type.String(), entry: SessionEntryRecord }, strict)
 
 /** Run 的临时进度；工具结果的最终内容以 toolResult 条目为准。 */
 export const ProgressEvent = Type.Union([

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { Value } from 'typebox/value'
 import { onTestFinished } from 'vitest'
 import { WebSocket } from 'ws'
-import { API_ROUTES, ServerMessage, SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
+import { API_ROUTES, ServerMessage, SessionEntry, SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
 
 const electronPath = createRequire(import.meta.url)('electron') as string
 const entry = fileURLToPath(new URL('../../apps/server/src/index.ts', import.meta.url))
@@ -261,10 +261,15 @@ export async function connect(sidecar: Pick<Sidecar, 'port'>, cookie: string): P
   return outcome.stream
 }
 
-/** WebSocket 客户端：记录全部服务端消息（每条都校验 ServerMessage schema）。 */
+/**
+ * WebSocket 客户端：记录全部服务端消息（每条都校验 ServerMessage schema）。entry 消息另按 kind 判别的 SessionEntry
+ * 校验，不合格的记入 invalidEntries；frames 保留原始文本帧（秘密总闸扫描用）。
+ */
 export class Stream {
   readonly messages: ServerMessage[] = []
   readonly invalid: unknown[] = []
+  readonly invalidEntries: unknown[] = []
+  readonly frames: string[] = []
   readonly #ws: WebSocket
   readonly #waiters = new Set<() => void>()
   readonly closed: Promise<number>
@@ -272,9 +277,13 @@ export class Stream {
   constructor(ws: WebSocket) {
     this.#ws = ws
     ws.on('message', (data) => {
-      const parsed = JSON.parse(String(data)) as unknown
-      if (Value.Check(ServerMessage, parsed)) this.messages.push(parsed)
-      else this.invalid.push(parsed)
+      const text = String(data)
+      this.frames.push(text)
+      const parsed = JSON.parse(text) as unknown
+      if (Value.Check(ServerMessage, parsed)) {
+        this.messages.push(parsed)
+        if (parsed.type === 'entry' && !Value.Check(SessionEntry, parsed.entry)) this.invalidEntries.push(parsed.entry)
+      } else this.invalid.push(parsed)
       for (const waiter of this.#waiters) waiter()
     })
     this.closed = new Promise((resolve) => ws.once('close', (code) => resolve(code)))

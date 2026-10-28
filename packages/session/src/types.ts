@@ -1,3 +1,5 @@
+import type { PayloadRegistry } from './payloads.ts'
+
 /** 可序列化为 JSON 的值；条目 payload 与设置值都使用它。 */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 
@@ -25,15 +27,19 @@ export interface Session {
   updatedAt: number
 }
 
-/** 待提交的 Session Entry。payload 的含义与校验由调用方（agent）负责，session 只按版本保存。 */
+/** 待提交的 Session Entry。payload 的含义由 agent 定义，经 PayloadRegistry 校验后按版本保存。 */
 export interface NewSessionEntry {
   kind: string
+  /** 默认为该 kind 的当前版本。 */
   payloadVersion?: number
   payload: JsonValue
   runId?: string
 }
 
-/** 已提交、不可修改的 Session Entry；seq 在 Session 内从 1 开始连续递增。 */
+/**
+ * 已提交、不可修改的 Session Entry；seq 在 Session 内从 1 开始连续递增。listEntries 返回的 payload 已迁移到当前版本；
+ * 迁移后仍不合格的条目被跳过，因此读回的 seq 可能有空缺。
+ */
 export interface SessionEntry {
   sessionId: string
   seq: number
@@ -56,9 +62,15 @@ export interface SessionRepository {
   getSession(id: string): Promise<Session | undefined>
   setSessionTitle(id: string, title: string): Promise<Session>
   setSessionModel(id: string, model: SessionModel | null): Promise<Session>
-  /** 一个事务内提交全部条目；返回时已提交。Session 不存在时以 not-found 拒绝。 */
+  /**
+   * 一个事务内提交全部条目；返回时已提交，返回值是写入时的原样记录。Session 不存在时以 not-found 拒绝；
+   * 任一条目不合注册的 schema 时以 invalid-payload 拒绝，整批不提交。
+   */
   appendEntries(sessionId: string, entries: readonly NewSessionEntry[]): Promise<SessionEntry[]>
-  /** 返回 seq 大于 afterSeq（默认 0）的条目，按 seq 升序。 */
+  /**
+   * 返回 seq 大于 afterSeq（默认 0）的条目，按 seq 升序，payload 迁移到当前版本。不合格的条目不返回、交给
+   * onInvalidEntry，库中保留。limit 按存储中的条目计数，跳过的条目也占名额。
+   */
   listEntries(sessionId: string, options?: { afterSeq?: number; limit?: number }): Promise<SessionEntry[]>
 }
 
@@ -117,7 +129,20 @@ export interface SessionStore {
   close(): Promise<void>
 }
 
+/** 读取时被跳过的条目；不含 payload。 */
+export interface InvalidEntry {
+  sessionId: string
+  seq: number
+  kind: string
+  payloadVersion: number
+  reason: string
+}
+
 export interface StoreOptions {
   /** 时钟，默认 Date.now；测试注入以得到确定的时间戳。 */
   now?: () => number
+  /** Session Entry 的 payload 注册表，由宿主装配（agent 定义各 kind）。 */
+  payloads: PayloadRegistry
+  /** 读取时跳过不合格条目的报告（宿主记 warn）；默认不报告。 */
+  onInvalidEntry?: (entry: InvalidEntry) => void
 }

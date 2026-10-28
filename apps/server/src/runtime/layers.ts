@@ -1,9 +1,9 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createModelRegistry, type ToolRegistry } from '@coko/agent'
+import { createModelRegistry, SESSION_ENTRY_PAYLOADS, type ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
-import { isStoreError } from '@coko/session'
+import { createPayloadRegistry, isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
 import { createEnvCredentialStore, createIpcCredentialStore } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
@@ -86,14 +86,19 @@ const ToolsLive = Layer.effect(
   }),
 )
 
-/** SQLite 存储：打开失败（租约、损坏、版本过高、迁移）是 fatal。 */
+/**
+ * SQLite 存储：打开失败（租约、损坏、版本过高、迁移）是 fatal。Session Entry 的 payload 按 agent 定义的注册表
+ * 写入校验、读取迁移；读取时跳过的条目记 warn（不含 payload）。
+ */
 const StoreLive = Layer.effect(
   Store,
   Effect.gen(function* () {
     const { config } = yield* Host
+    const log = getLogger(['storage'])
+    const payloads = createPayloadRegistry(SESSION_ENTRY_PAYLOADS)
     return yield* Effect.acquireRelease(
       Effect.tryPromise({
-        try: () => openSqliteStore({ path: config.dbPath }),
+        try: () => openSqliteStore({ path: config.dbPath, payloads, onInvalidEntry: (entry) => log.warn('session entry skipped', { ...entry }) }),
         catch: (error) => new StartupError(isStoreError(error) ? `storage-${error.code}` : 'storage-open-failed', message(error), { cause: error }),
       }),
       (store) => Effect.promise(() => store.close()),

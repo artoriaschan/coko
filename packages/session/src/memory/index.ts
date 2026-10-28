@@ -1,6 +1,7 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { closedError, defaultWorkspaceName, notFound, revisionConflict } from '../internal.ts'
+import { closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import { checkNewEntries } from '../payloads.ts'
 import type { JsonValue, Provider, ProviderInput, Session, SessionEntry, SessionModel, SessionStore, Setting, StoreOptions, Workspace } from '../types.ts'
 
 interface ProviderRow {
@@ -8,7 +9,7 @@ interface ProviderRow {
   credential: { ciphertext: Uint8Array; hint: string } | null
 }
 
-export function createMemoryStore(options: StoreOptions = {}): SessionStore {
+export function createMemoryStore(options: StoreOptions): SessionStore {
   const now = options.now ?? Date.now
   let closed = false
   const workspaces = new Map<string, Workspace>()
@@ -81,13 +82,14 @@ export function createMemoryStore(options: StoreOptions = {}): SessionStore {
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
         if (input.length === 0) return []
+        const versions = checkNewEntries(options.payloads, input)
         const list = entries.get(sessionId) ?? []
         const at = now()
         const added = input.map((entry, i): SessionEntry => ({
           sessionId,
           seq: list.length + i + 1,
           kind: entry.kind,
-          payloadVersion: entry.payloadVersion ?? 1,
+          payloadVersion: versions[i]!,
           payload: copy(entry.payload),
           runId: entry.runId ?? null,
           createdAt: at,
@@ -96,9 +98,9 @@ export function createMemoryStore(options: StoreOptions = {}): SessionStore {
         session.updatedAt = at
         return added
       }),
-      listEntries: op((sessionId: string, options?: { afterSeq?: number; limit?: number }) => {
-        const after = (entries.get(sessionId) ?? []).filter((e) => e.seq > (options?.afterSeq ?? 0))
-        return options?.limit === undefined ? after : after.slice(0, options.limit)
+      listEntries: op((sessionId: string, range?: { afterSeq?: number; limit?: number }) => {
+        const after = (entries.get(sessionId) ?? []).filter((e) => e.seq > (range?.afterSeq ?? 0))
+        return upgradeEntries(range?.limit === undefined ? after : after.slice(0, range.limit), options)
       }),
     },
     settings: {

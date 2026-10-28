@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, type ServerMessage, type SessionEntry } from '@coko/protocol'
+import { API_ROUTES, apiPaths, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 async function boot(dirs: Awaited<ReturnType<typeof sidecarDirs>>, script?: string) {
@@ -19,7 +19,7 @@ async function newSession(api: ReturnType<typeof client>, workspacePath: string)
   return { workspaceId: workspace.body.id as string, sessionId: session.body.id as string, model: session.body.model }
 }
 
-const role = (entry: SessionEntry) => (entry.payload as { role?: string }).role
+const role = (entry: SessionEntryRecord) => (entry.payload as { role?: string }).role
 
 describe('Session 协议', () => {
   it('提交消息后收到 progress 与按 seq 递增的 entry，Agent 写入的文件存在', async () => {
@@ -61,15 +61,17 @@ describe('Session 协议', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1))
-    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual(['user', 'assistant', 'toolResult', 'assistant', 'run_end'])
+    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual(['run_start', 'user', 'assistant', 'toolResult', 'assistant', 'run_end'])
     expect(entries.every((e) => e.runId === runId)).toBe(true)
+    expect(entries[0]?.payload).toEqual({ trigger: 'submit' })
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
     expect(stream.invalid).toEqual([])
+    expect(stream.invalidEntries).toEqual([])
 
     expect(await readFile(join(workspacePath, 'notes/hello.txt'), 'utf8')).toBe('hello from coko\n')
     const detail = await api.get(apiPaths.session(sessionId))
     expect(detail.body.entries).toEqual(entries)
-    expect(detail.body.session.running).toBe(false)
+    expect(detail.body.session).toMatchObject({ running: false, activity: 'idle' })
   })
 
   it('停止 Run 后收到取消条目；重启 Sidecar 后条目完整读回；afterSeq 只补发缺失条目', async () => {
@@ -96,7 +98,7 @@ describe('Session 协议', () => {
     expect(Date.now() - started).toBeLessThan(10_000)
     expect(end.entry.payload).toEqual({ status: 'aborted' })
     expect((await first.api.post(apiPaths.sessionAbort(sessionId))).body).toEqual({ aborted: false })
-    const before = (await first.api.get(apiPaths.session(sessionId))).body.entries as SessionEntry[]
+    const before = (await first.api.get(apiPaths.session(sessionId))).body.entries as SessionEntryRecord[]
     expect(before.map((e) => e.kind)).toContain('run_end')
     expect(await first.sidecar.stop()).toEqual({ code: 0, signal: null })
 
@@ -125,7 +127,7 @@ describe('Session 协议', () => {
     expect(await stream.closed).toBe(1001)
 
     const second = await boot(dirs)
-    const entries = (await second.api.get(apiPaths.session(sessionId))).body.entries as SessionEntry[]
+    const entries = (await second.api.get(apiPaths.session(sessionId))).body.entries as SessionEntryRecord[]
     expect(entries.at(-1)).toMatchObject({ kind: 'run_end', payload: { status: 'aborted' } })
   })
 
@@ -256,8 +258,21 @@ describe('Session 协议', () => {
     const { runId } = retried.body as { runId: string }
     await stream.waitFor((m) => m.type === 'entry' && m.entry.kind === 'run_end' && m.entry.runId === runId)
     const entries = stream.entries(sessionId)
-    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual(['user', 'assistant', 'run_end', 'assistant', 'run_end'])
-    expect(entries.filter((e) => e.runId === runId).map((e) => e.kind)).toEqual(['message', 'run_end'])
+    expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'run_end',
+      'run_start',
+      'assistant',
+      'run_end',
+    ])
+    expect(entries.filter((e) => e.runId === runId).map((e) => [e.kind, e.payload])).toEqual([
+      ['run_start', { trigger: 'retry' }],
+      ['message', expect.objectContaining({ role: 'assistant' })],
+      ['run_end', { status: 'completed' }],
+    ])
+    expect(stream.invalidEntries).toEqual([])
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
     expect((await api.post(apiPaths.sessionRetry(sessionId))).body).toMatchObject({ error: { code: 'nothing-to-retry' } })
   })

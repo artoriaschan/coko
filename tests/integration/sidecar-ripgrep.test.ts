@@ -3,7 +3,7 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { rgPath } from '@vscode/ripgrep'
 import { describe, expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, type SessionEntry } from '@coko/protocol'
+import { API_ROUTES, apiPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, spawnSidecar, startSidecar, tempDir } from './sidecar-harness.ts'
 
 const args = (dirs: Awaited<ReturnType<typeof sidecarDirs>>, ripgrep: string) => ['--data-dir', dirs.dataDir, '--log-dir', dirs.logDir, '--ripgrep', ripgrep]
@@ -62,7 +62,7 @@ describe('Sidecar --ripgrep', () => {
     expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'find needle' })).status).toBe(202)
     await stream.waitFor(isRunEnd(sessionId))
 
-    const toolResult = stream.entries(sessionId).find((e: SessionEntry) => (e.payload as { role?: string }).role === 'toolResult')
+    const toolResult = stream.entries(sessionId).find((e: SessionEntryRecord) => (e.payload as { role?: string }).role === 'toolResult')
     expect(toolResult?.payload).toMatchObject({ content: [{ type: 'text', text: 'notes.txt:2: needle here' }] })
     // 一次启动探测（--version）与一次搜索。
     const invoked = (await readFile(calls, 'utf8')).trim().split('\n')
