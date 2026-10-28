@@ -22,3 +22,5 @@
 - [ ] `docs/subsystems/permissions.md` 描述当前判定与审批契约并从导航可达；ADR 0005 implementation 改为 partial 并写明剩余项
 
 ## Comments
+- 2026-10-29 lead：同意实施者提出的越界 1–6（protocol errors.ts 的 approval-not-pending、api.ts 的 sessionApproval 路径助手、renderer client/api.ts 的 answerApproval、chat-failure.ts 的 approval kind、fixture-chat.ts 桩、既有测试改为显式允许一次与 about.securityNote 文案）。
+
