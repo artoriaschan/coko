@@ -110,3 +110,58 @@ describe('权限判定（default 模式）', () => {
     expect(decide({ toolName: 'write' }, ctx())).toEqual({ behavior: 'ask', reason: 'approval-required', suggestions: [] })
   })
 })
+
+describe('四种模式 × 工具类型（ADR 0005）', () => {
+  const roots: Record<PermissionContext['mode'], string[]> = { 'read-only': [], default: [WS, TMP], 'accept-edits': [WS, TMP], 'full-access': ['/'] }
+  const at = (mode: PermissionContext['mode'], rules: PermissionRule[] = []) => ctx({ mode, rules, writableRoots: roots[mode] })
+  type Expect = 'allow' | 'deny' | `ask:${string}`
+  const outcome = (call: PermissionCall, context: PermissionContext): Expect => {
+    const decision = decide(call, context)
+    return decision.behavior === 'ask' ? `ask:${decision.reason}` : decision.behavior
+  }
+
+  it.each<[string, PermissionCall, Expect, Expect, Expect, Expect]>([
+    // 名称, 调用, read-only, default, accept-edits, full-access
+    ['Workspace 内读取', file('read', 'a.ts', `${WS}/a.ts`), 'allow', 'allow', 'allow', 'allow'],
+    ['Workspace 外读取', file('read', '/etc/hosts', '/etc/hosts'), 'ask:outside-workspace', 'ask:outside-workspace', 'ask:outside-workspace', 'allow'],
+    ['Workspace 内写入', file('write', 'a.ts', `${WS}/a.ts`), 'ask:outside-writable-roots', 'ask:approval-required', 'allow', 'allow'],
+    ['Workspace 内 edit', file('edit', 'a.ts', `${WS}/a.ts`), 'ask:outside-writable-roots', 'ask:approval-required', 'allow', 'allow'],
+    ['临时目录写入', file('write', '/private/tmp/x', '/private/tmp/x'), 'ask:outside-writable-roots', 'ask:approval-required', 'allow', 'allow'],
+    ['可写根之外写入', file('write', '/etc/x', '/etc/x'), 'ask:outside-writable-roots', 'ask:outside-writable-roots', 'ask:outside-writable-roots', 'allow'],
+    [
+      '受保护路径写入',
+      file('write', '.git/config', `${WS}/.git/config`),
+      'ask:protected-path',
+      'ask:protected-path',
+      'ask:protected-path',
+      'ask:protected-path',
+    ],
+    ['bash', bash('make'), 'ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'allow'],
+    ['未知工具', { toolName: 'deploy' }, 'ask:approval-required', 'ask:approval-required', 'ask:approval-required', 'allow'],
+  ])('%s', (_name, call, readOnly, normal, acceptEdits, fullAccess) => {
+    expect([outcome(call, at('read-only')), outcome(call, at('default')), outcome(call, at('accept-edits')), outcome(call, at('full-access'))]).toEqual([
+      readOnly,
+      normal,
+      acceptEdits,
+      fullAccess,
+    ])
+  })
+
+  it('拒绝规则与询问规则在 full-access 下仍生效', () => {
+    const rules = [rule('deny', 'Bash', 'rm *'), rule('deny', 'Read', '.env'), rule('ask', 'Edit', 'package.json')]
+    expect(outcome(bash('rm -rf build'), at('full-access', rules))).toBe('deny')
+    expect(outcome(file('read', '.env', `${WS}/.env`), at('full-access', rules))).toBe('deny')
+    expect(outcome(file('edit', 'package.json', `${WS}/package.json`), at('full-access', rules))).toBe('ask:ask-rule')
+  })
+
+  it('受保护路径不被允许规则免除（含 accept-edits 与 full-access）', () => {
+    const rules = [rule('allow', 'Edit'), rule('allow', 'Edit', '.git/**')]
+    for (const mode of ['accept-edits', 'full-access'] as const)
+      expect(outcome(file('edit', '.git/HEAD', `${WS}/.git/HEAD`), at(mode, rules))).toBe('ask:protected-path')
+  })
+
+  it('越出可写根的写入不提供可保存的建议（read-only 的 Workspace 内写入也是）', () => {
+    const decision = decide(file('write', 'a.ts', `${WS}/a.ts`), at('read-only'))
+    expect(decision).toEqual({ behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] })
+  })
+})
