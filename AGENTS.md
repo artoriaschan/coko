@@ -25,7 +25,7 @@
 
 ## UI 与设计系统
 
-新增或修改界面前，先阅读 [界面约定](docs/tech-stack/ui.md)：技术接入、设计系统、交互与布局、UI 状态与验收，并检查目标页面、相邻页面及 `packages/ui` 中已有的组件和样式。
+新增或修改界面前，先阅读 [界面约定](docs/tech-stack/ui.md)：技术接入、设计系统、交互与布局、UI 状态与验收，并检查目标页面、相邻页面及 `packages/ui` 中已有的组件和样式；改动样式、token 或组件几何时，再读 [设计系统规格](docs/tech-stack/ui-design-system.md)。
 
 ## 测试
 

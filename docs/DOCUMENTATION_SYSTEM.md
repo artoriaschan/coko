@@ -31,7 +31,7 @@ lifecycle: active
 | L6 变更与历史证据 | `docs/upgrade-guide/`、`docs/persistence-changes/`、`docs/postmortem/`、任务 evidence | 用户迁移、格式兼容性、事故原因、具体版本验证结果 | 被当作当前 API 或当前需求继续维护 |
 | 执行方法 | 项目 `.agents/skills/`，或已安装共享 skills | 可复用步骤、输入、完成条件、失败处理 | 产品事实、运行时契约、重复规则正文 |
 
-`TECH_STACK.md` 是技术选型和精确版本的正文及读取入口，`docs/tech-stack/` 承接项目级详细技术约定。目录名与入口同名，表示同一份技术规范的分层展开；其中的 architecture 是规定的结构，`docs/architecture.md` 才是有实现证据支持的结构。UI 与测试规则的正文在 `tech-stack/ui.md` 和 `tech-stack/testing.md`，AGENTS 只保留读取触发条件和链接。
+`TECH_STACK.md` 是技术选型和精确版本的正文及读取入口，`docs/tech-stack/` 承接项目级详细技术约定。目录名与入口同名，表示同一份技术规范的分层展开；其中的 architecture 是规定的结构，`docs/architecture.md` 才是有实现证据支持的结构。UI 规则的正文在 `tech-stack/ui.md` 与 `tech-stack/ui-design-system.md`，测试规则在 `tech-stack/testing.md`，AGENTS 只保留读取触发条件和链接。
 
 ### 需求、已选型与实现的边界
 
@@ -103,6 +103,7 @@ docs/
     agent-runtime.md                Agent 能力与执行约定
     desktop-delivery.md             桌面构建、打包与更新约定
     ui.md                           界面接入、设计系统、交互布局与 UI 验收
+    ui-design-system.md             设计 token、圆角、材质、状态写法与样式守卫
     observability.md                日志与诊断约定
     testing.md                      测试运行、用例设计、隔离与执行报告
   DEVELOPMENT_WORKFLOW.md

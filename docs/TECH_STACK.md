@@ -138,7 +138,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 
 Streamdown 及其插件分别使用上表的精确版本号。@streamdown/math 1.0.3 的 KaTeX 依赖范围为 0.16.x，@streamdown/mermaid 1.0.3 的 Mermaid 依赖范围为 11.x，因此将原选型的 KaTeX 0.19.1、Mermaid 12.2.0 分别调整为 0.16.47、11.17.2。根 `pnpm-workspace.yaml` 的 overrides 将 shiki、katex、mermaid 分别对齐到 4.5.0、0.16.47、11.17.2，其余传递依赖由 pnpm-lock.yaml 固定。[Streamdown 包元数据](https://registry.npmjs.org/streamdown/2.7.1)、[数学插件包元数据](https://registry.npmjs.org/@streamdown/math/1.0.3)、[Mermaid 插件包元数据](https://registry.npmjs.org/@streamdown/mermaid/1.0.3)
 
-技术接入、设计系统、交互与布局、UI 状态与验收及 Markdown 渲染见 [界面约定](tech-stack/ui.md)。
+技术接入、设计系统、交互与布局、UI 状态与验收及 Markdown 渲染见 [界面约定](tech-stack/ui.md)，token、圆角、材质与样式守卫的具体档位见 [设计系统规格](tech-stack/ui-design-system.md)。
 
 ## 日志与诊断
 
