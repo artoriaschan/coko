@@ -56,3 +56,6 @@
 **未验证**：真实模型（无密钥）；CI；非 darwin 平台；产物 smoke 未新增模式相关步骤（票验收未要求）；未订阅会话的 activity 仍只在列表重新加载时更新（票 02 已知）。
 
 **文档影响**：见上；GLOSSARY 已有 Permission Mode、Permission Rule 等术语，未改；TECH_STACK 无新增依赖。
+- 2026-10-29 lead：评审后合入 main（e566aa8）。接受：越界的 renderer client/api.ts、settings-dialog-store.ts、chat-failure.ts 与测试桩；新 Session 先提交初始 permission_mode 条目及随之调整的 4 个集成断言；经内部 reevaluate 回答实现重新判定（HTTP 不暴露）；PUT /api/permissions 按 target 一次改一项、新增 GET permission-rules；窄窗口模式选择只显示图标。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 73 文件 607 通过、1 跳过（真实模型），含 desktop E2E 与产物 smoke；check:docs 82 文件 0 问题。worktree 已清理。
+
+Closed: true
