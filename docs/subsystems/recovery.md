@@ -69,7 +69,8 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 ## 配置与限制
 
 - 迁移 v2 之前（M1 库）的 Run 没有 `run_start`，崩溃留下的旧 Run 不会被识别。
-- 恢复补的 write / edit 结果不提交 `file_change`；回退代码时这些路径可能被标为在 Agent 之外改动过。
+- 恢复补的 write / edit 结果不提交 `file_change`；回退代码时这些路径的当前内容无从比对，不标为在 Agent 之外改动过（[ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)）。
+- 有未回答的确认时，回退与分叉同样返回 409 `confirmation-pending`。
 - 仅测试：`COKO_TEST_TOOLS=1` 且 `COKO_TEST_HOLD_AFTER_TOOL=<工具名>` 时，该工具执行完、其后的 afterToolCall hook（checkpoint 的 `file_change`）之后挂起，toolResult 不提交，供集成测试在"已执行、未记录结果"处强杀 Sidecar。
 
 ## 验证与相关设计
