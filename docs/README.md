@@ -19,6 +19,7 @@ lifecycle: active
 - [文档生命周期](DOCUMENT_LIFECYCLE.md)：更新、弃用、归档、引用和入口同步，以及新会话的读取规则。
 - [文档模板](templates/README.md)：生成设计、ADR、当前参考、指南和证据时使用的格式。
 - [长期决定](adr/README.md)：已记录的 ADR 及其批准与实施状态。
+- [术语表](../GLOSSARY.md)：领域术语的唯一定义。
 
 - [Skills 项目配置](agents/issue-tracker.md)：本地 tracker；[分拣标签](agents/triage-labels.md)；[领域文档](agents/domain.md)。
 
