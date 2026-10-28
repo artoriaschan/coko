@@ -72,7 +72,7 @@ describe('Session 协议', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1))
-    // 新 Session 的第一条是初始模式（票 03），不属于任何 Run。
+    // 新 Session 的第一条是初始模式（票 03），不属于任何 Run；write 前后有 Checkpoint 条目（票 07）。
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
       'permission_mode',
       'run_start',
@@ -80,7 +80,9 @@ describe('Session 协议', () => {
       'assistant',
       'approval_request',
       'approval_decision',
+      'file_backup',
       'tool_exec',
+      'file_change',
       'toolResult',
       'assistant',
       'run_end',
