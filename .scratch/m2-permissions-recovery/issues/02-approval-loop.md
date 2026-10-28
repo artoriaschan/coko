@@ -60,4 +60,6 @@
 **未验证**：真实模型（无密钥）；CI；非 darwin 平台；未打开（未订阅）的会话 activity 只在列表重新加载时更新，未做实时推送。
 
 **文档影响**：见上；GLOSSARY 已有 Approval Request、Protected Path 等术语，未改。
+- 2026-10-29 lead：评审后合入 main（6abc17f）。main 上复核：install、typecheck、lint、format:check 退出 0；全量 test 65 文件 511 通过、1 跳过（真实模型），含 desktop E2E 与产物 smoke；check:docs 81 文件 0 问题。接受"等待审批时停止，整批都不执行"的行为（pi 先准备整批再执行）。worktree 已清理。
 
+Closed: true
