@@ -150,7 +150,7 @@ read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件�
 - `POST /api/sessions/:id/approvals/:requestId`，body 为 `AnswerApprovalRequest`：`{ decision: 'allow', scope? }` 或 `{ decision: 'deny', feedback? }`。成功 204；请求不在等待中 409 `approval-not-pending`；scope 不可保存时 400；Session 不存在 404。
 - `PUT /api/sessions/:id/permission-mode` `{ mode }`；`GET / POST / DELETE /api/sessions/:id/permission-rules`（POST / DELETE 的 body 为 `{ rule }`，已存在 / 不存在时不提交条目）。都返回 `SessionPermissionsResponse { mode, rules }`。
 - `GET /api/permissions?workspaceId=…` 返回 `PermissionsResponse`：`defaultMode`、`global`，给出 workspaceId 时另有 `workspace`，各带 revision（未保存过为 0）。`PUT /api/permissions` 一次修改一项：`{ target: 'defaultMode', value }`、`{ target: 'global', rules }` 或 `{ target: 'workspace', workspaceId, rules }`，都带 `expectedRevision`；不合 schema 400，revision 不一致 409 `revision-conflict`，Workspace 不存在 404。规则最多 500 条，工具名非空且不含括号与空白，内容非空、最长 4000。
-- Session DTO 的 `activity`：Run 进行中且有待审批请求为 `awaiting-approval`，否则 `running` / `idle`。`inspect-quit` 的 `activeRuns` 包含等待审批的 Run。
+- Session DTO 的 `activity`：Run 进行中且有待审批请求为 `awaiting-approval`，否则 `running`；没有 Run 时的取值见 [启动恢复与结果确认](recovery.md#activity-与界面)。`inspect-quit` 的 `activeRuns` 包含等待审批的 Run。
 - 重连：以 afterSeq 0 重新订阅即可看到仍在等待的 `approval_request`（没有对应 decision、所属 Run 未结束）。
 
 ## 界面
@@ -164,7 +164,7 @@ read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件�
 
 ## 尚未实现
 
-Sidecar 退出后请求过期（expired，由启动恢复提交）；网络与读取的沙箱限制、Windows / Linux 沙箱不在 M2 范围。
+网络与读取的沙箱限制、Windows / Linux 沙箱不在 M2 范围。Sidecar 在等待审批时退出，重启后请求以 expired 结束，见 [启动恢复与结果确认](recovery.md)。
 
 ## 验证
 
