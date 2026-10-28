@@ -11,6 +11,10 @@ export const API_ROUTES = {
   sessions: '/api/sessions',
   settings: '/api/settings',
   providers: '/api/providers',
+  /** GET：预设 Provider 的默认地址与模型目录。 */
+  providerPresets: '/api/provider-presets',
+  /** GET：已注册 Provider 的可用模型与默认模型。 */
+  models: '/api/models',
 } as const
 
 export const AuthExchangeRequest = Type.Object({ token: Type.String() }, { additionalProperties: false })

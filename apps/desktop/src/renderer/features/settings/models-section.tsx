@@ -1,0 +1,331 @@
+import type { Provider, ProviderKind, ProviderPreset } from '@coko/protocol'
+import { Button, Checkbox, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
+import { ChevronDownIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon } from 'lucide-react'
+import * as React from 'react'
+import { useI18n } from '../../app/i18n.tsx'
+import { useSettings, useSettingsActions } from '../../app/settings.tsx'
+import type { ProviderDraft } from '../../stores/settings-store.ts'
+import { SettingsCard } from './settings-dialog.tsx'
+
+const KINDS: ProviderKind[] = ['deepseek', 'openai', 'anthropic', 'openai-compatible']
+
+/** 正在编辑的表单：key 在表单生命周期内不变（新建后转为编辑也不重挂载，保留输入）。 */
+interface Editing {
+  key: string
+  kind: ProviderKind
+  /** 已存在的 Provider；新建表单在 Credential 保存失败后也会得到 id。 */
+  id?: string
+}
+
+let formSeq = 0
+
+export function ModelsSection() {
+  const { t } = useI18n()
+  const status = useSettings((s) => s.status)
+  const providers = useSettings((s) => s.providers)
+  const presets = useSettings((s) => s.presets)
+  const { load } = useSettingsActions()
+  const [editing, setEditing] = React.useState<Editing | null>(null)
+  const isNew = editing?.key.startsWith('new-') ?? false
+
+  const presetOf = (kind: ProviderKind) => presets.find((p) => p.kind === kind)
+  const form = (target: Editing, provider?: Provider) => (
+    <ProviderForm
+      key={target.key}
+      kind={target.kind}
+      provider={provider}
+      preset={presetOf(target.kind)}
+      onCancel={() => setEditing(null)}
+      onSaved={() => setEditing(null)}
+      onCreated={(id) => setEditing((current) => (current?.key === target.key ? { ...current, id } : current))}
+    />
+  )
+
+  return (
+    <section aria-labelledby="settings-models" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col">
+          <h2 id="settings-models" className="text-ui-body-lg font-medium">
+            {t('providers.title')}
+          </h2>
+          <p className="text-ui-small text-muted-foreground">{t('providers.description')}</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={status !== 'ready'}>
+              <PlusIcon />
+              {t('providers.add')}
+              <ChevronDownIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {KINDS.map((kind) => (
+              <DropdownMenuItem key={kind} data-kind={kind} onSelect={() => setEditing({ key: `new-${++formSeq}`, kind })}>
+                {t(`providers.kinds.${kind}`)}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {status === 'loading' && providers.length === 0 && (
+        <div className="flex justify-center py-8">
+          <LoaderCircleIcon aria-label={t('settings.models')} className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="flex flex-col items-start gap-2 text-ui-body text-muted-foreground">
+          <p>{t('providers.loadFailed')}</p>
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            {t('settings.retry')}
+          </Button>
+        </div>
+      )}
+
+      {editing &&
+        isNew &&
+        form(
+          editing,
+          providers.find((p) => p.id === editing.id),
+        )}
+
+      {status === 'ready' && providers.length === 0 && !editing && <p className="py-4 text-ui-body text-muted-foreground">{t('providers.empty')}</p>}
+
+      {providers
+        .filter((provider) => !(isNew && provider.id === editing?.id))
+        .map((provider) =>
+          editing?.id === provider.id ? (
+            <React.Fragment key={provider.id}>{form(editing, provider)}</React.Fragment>
+          ) : (
+            <ProviderCard
+              key={provider.id}
+              provider={provider}
+              disabled={editing !== null}
+              onEdit={() => setEditing({ key: provider.id, kind: provider.kind, id: provider.id })}
+            />
+          ),
+        )}
+    </section>
+  )
+}
+
+function CredentialStatus({ provider }: { provider: Provider }) {
+  const { t } = useI18n()
+  const credential = provider.credential
+  return (
+    <span data-credential-status={credential ? 'configured' : 'missing'} className="inline-flex items-center gap-1 text-ui-small text-muted-foreground">
+      <KeyRoundIcon aria-hidden className="size-3.5" />
+      {credential
+        ? credential.hint
+          ? t('providers.credentialConfigured', { hint: credential.hint })
+          : t('providers.credentialConfiguredNoHint')
+        : t('providers.credentialMissing')}
+    </span>
+  )
+}
+
+function ProviderCard({ provider, disabled, onEdit }: { provider: Provider; disabled: boolean; onEdit: () => void }) {
+  const { t } = useI18n()
+  const { deleteProvider } = useSettingsActions()
+  const [confirming, setConfirming] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const remove = async () => {
+    setDeleting(true)
+    const ok = await deleteProvider(provider.id)
+    setDeleting(false)
+    if (ok) toast.success(t('providers.deleted'))
+    else {
+      setConfirming(false)
+      toast.error(t('providers.deleteFailed'))
+    }
+  }
+  return (
+    <SettingsCard data-provider-id={provider.id} data-kind={provider.kind} className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span data-user-content className="truncate text-ui-body font-medium" title={provider.name}>
+            {provider.name}
+          </span>
+          {/* 名称与类别相同时（预设默认名）不重复显示类别。 */}
+          {provider.name !== t(`providers.kinds.${provider.kind}`) && (
+            <span className="shrink-0 text-ui-small text-muted-foreground">{t(`providers.kinds.${provider.kind}`)}</span>
+          )}
+        </div>
+        <CredentialStatus provider={provider} />
+        <span data-user-content className="truncate font-mono text-ui-small text-muted-foreground" title={provider.models.join(', ')}>
+          {provider.models.join(', ')}
+        </span>
+      </div>
+      <div className="flex shrink-0 gap-1">
+        {confirming ? (
+          <>
+            <Button variant="destructive" size="sm" disabled={deleting} onClick={() => void remove()}>
+              {t('providers.confirmDelete')}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={deleting} onClick={() => setConfirming(false)}>
+              {t('providers.cancel')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outline" size="sm" disabled={disabled} onClick={onEdit}>
+              {t('providers.edit')}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setConfirming(true)}>
+              {t('providers.delete')}
+            </Button>
+          </>
+        )}
+      </div>
+    </SettingsCard>
+  )
+}
+
+const parseModels = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))]
+
+function ProviderForm({
+  kind,
+  provider,
+  preset,
+  onCancel,
+  onSaved,
+  onCreated,
+}: {
+  kind: ProviderKind
+  provider: Provider | undefined
+  preset: ProviderPreset | undefined
+  onCancel: () => void
+  onSaved: () => void
+  onCreated: (id: string) => void
+}) {
+  const { t } = useI18n()
+  const { saveProvider } = useSettingsActions()
+  const id = React.useId()
+  const [name, setName] = React.useState(provider?.name ?? preset?.name ?? '')
+  const [baseUrl, setBaseUrl] = React.useState(provider?.baseUrl ?? '')
+  const [models, setModels] = React.useState<string[]>(provider?.models ?? (preset?.models[0] ? [preset.models[0]] : []))
+  const [modelText, setModelText] = React.useState((provider?.models ?? []).join(', '))
+  const [secret, setSecret] = React.useState('')
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const compatible = kind === 'openai-compatible'
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const chosen = compatible ? parseModels(modelText) : models
+    if (name.trim() === '') return setError(t('providers.nameRequired'))
+    if (compatible && baseUrl.trim() === '') return setError(t('providers.baseUrlRequired'))
+    if (chosen.length === 0) return setError(t('providers.modelsRequired'))
+    setError(null)
+    setSaving(true)
+    const draft: ProviderDraft = {
+      ...(provider ? { id: provider.id } : {}),
+      kind,
+      name: name.trim(),
+      baseUrl: baseUrl.trim(),
+      models: chosen,
+      secret: secret.trim(),
+    }
+    const result = await saveProvider(draft)
+    setSaving(false)
+    if (result.ok) {
+      toast.success(t('providers.saved'))
+      onSaved()
+      return
+    }
+    if (result.stage === 'provider') {
+      setError(result.error.message)
+      toast.error(t('providers.saveFailed'))
+      return
+    }
+    // 配置已保存但 Credential 没有：转为编辑已创建的 Provider，保留输入以便重试。
+    if (!provider) onCreated(result.provider.id)
+    const message = t(`providers.credentialErrors.${result.code}`)
+    setError(message)
+    toast.error(message)
+  }
+
+  return (
+    <SettingsCard data-provider-form data-kind={kind} className="px-4 py-3">
+      <form className="flex flex-col gap-3" onSubmit={(event) => void submit(event)} noValidate>
+        <p className="text-ui-body font-medium">{t(`providers.kinds.${kind}`)}</p>
+        <Field id={`${id}-name`} label={t('providers.name')}>
+          <Input id={`${id}-name`} name="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+        </Field>
+        <Field id={`${id}-url`} label={t('providers.baseUrl')} hint={preset ? t('providers.baseUrlPresetHint', { url: preset.baseUrl }) : undefined}>
+          <Input
+            id={`${id}-url`}
+            name="baseUrl"
+            type="url"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            aria-required={compatible}
+          />
+        </Field>
+        {compatible ? (
+          <Field id={`${id}-models`} label={t('providers.models')} hint={t('providers.modelsHint')}>
+            <Input id={`${id}-models`} name="models" value={modelText} onChange={(e) => setModelText(e.target.value)} autoComplete="off" spellCheck={false} />
+          </Field>
+        ) : (
+          <fieldset className="flex min-w-0 flex-col gap-1.5">
+            <legend className="mb-1.5 text-ui-small text-muted-foreground">{t('providers.models')}</legend>
+            <div className="grid max-h-48 grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-x-3 gap-y-1.5 overflow-y-auto rounded-lg border-hairline border-border p-2">
+              {(preset?.models ?? []).map((model) => (
+                <label key={model} className="flex min-w-0 items-center gap-2 text-ui-body">
+                  <Checkbox
+                    value={model}
+                    checked={models.includes(model)}
+                    onCheckedChange={(checked) => setModels((current) => (checked === true ? [...current, model] : current.filter((m) => m !== model)))}
+                  />
+                  <span data-user-content className="truncate font-mono text-ui-small" title={model}>
+                    {model}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        <Field id={`${id}-secret`} label={t('providers.credential')} hint={provider?.credential ? t('providers.credentialKeep') : undefined}>
+          <Input
+            id={`${id}-secret`}
+            name="credential"
+            type="password"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder={t('providers.credentialPlaceholder')}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {provider && <CredentialStatus provider={provider} />}
+        </Field>
+        {error !== null && (
+          <p role="alert" className="text-ui-small text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={onCancel}>
+            {t('providers.cancel')}
+          </Button>
+          <Button type="submit" size="sm" disabled={saving}>
+            {t('providers.save')}
+          </Button>
+        </div>
+      </form>
+    </SettingsCard>
+  )
+}
+
+function Field({ id, label, hint, children }: { id: string; label: string; hint?: string | undefined; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-ui-small text-muted-foreground">
+        {label}
+      </label>
+      {children}
+      {hint !== undefined && <p className="text-ui-small text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}

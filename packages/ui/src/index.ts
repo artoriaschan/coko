@@ -13,6 +13,10 @@ export {
   type FrameLayoutInput,
 } from './app-frame/frame-layout.ts'
 export { Button, buttonVariants } from './components/button.tsx'
+export { Checkbox } from './components/checkbox.tsx'
+export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from './components/dialog.tsx'
+export { Input } from './components/input.tsx'
+export { ToggleGroup, ToggleGroupItem } from './components/toggle-group.tsx'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,

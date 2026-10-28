@@ -30,6 +30,8 @@ function Toaster({ theme, position = 'top-center', containerAriaLabel, ...props 
           '--normal-text': 'var(--toast-foreground)',
           '--normal-border': 'transparent',
           '--border-radius': 'var(--radius-lg)',
+          // 模态对话框打开时 Radix 让 body 不接收指针事件；Toast（如"重试"）需要在对话框之上仍可点击。
+          pointerEvents: 'auto',
         } as React.CSSProperties
       }
       {...props}

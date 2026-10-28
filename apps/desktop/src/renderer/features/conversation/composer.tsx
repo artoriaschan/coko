@@ -1,5 +1,5 @@
 import { Button, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, SquareIcon } from 'lucide-react'
+import { ArrowUpIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -7,23 +7,30 @@ export interface ComposerProps {
   running: boolean
   /** 没有可发送的目标（无 Workspace）时禁用。 */
   disabled: boolean
+  /** 没有可用模型：发送入口改为引导到设置，草稿保留。 */
+  needsSetup: boolean
   onSend: (text: string) => Promise<boolean>
   onStop: () => void
+  onSetup: () => void
+  /** 编辑区与发送按钮之间的控件（模型选择）。 */
+  accessory?: React.ReactNode
   className?: string
 }
 
 /** 基础 composer：Lexical 编辑区与发送 / 停止按钮。运行中按钮变为停止，Escape 也可停止。 */
-export function Composer({ running, disabled, onSend, onStop, className }: ComposerProps) {
+export function Composer({ running, disabled, needsSetup, onSend, onStop, onSetup, accessory, className }: ComposerProps) {
   const { t } = useI18n()
   const editor = React.useRef<ComposerEditorHandle>(null)
   const [empty, setEmpty] = React.useState(true)
-  const action = running ? t('conversation.stop') : t('conversation.send')
+  const setup = needsSetup && !running
+  const action = running ? t('conversation.stop') : setup ? t('models.configure') : t('conversation.send')
   return (
     <form
       className={className}
       onSubmit={(event) => {
         event.preventDefault()
         if (running) onStop()
+        else if (setup) onSetup()
         else void editor.current?.submit()
       }}
     >
@@ -32,18 +39,34 @@ export function Composer({ running, disabled, onSend, onStop, className }: Compo
         label={t('conversation.composerPlaceholder')}
         placeholder={t('conversation.composerPlaceholder')}
         disabled={disabled}
-        onSubmit={onSend}
+        // 未配置模型时 Enter 也引导到设置；返回 false 保留草稿。
+        onSubmit={
+          setup
+            ? async () => {
+                onSetup()
+                return false
+              }
+            : onSend
+        }
         onEscape={running ? onStop : undefined}
         onEmptyChange={setEmpty}
       />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button type="submit" size="icon" aria-label={action} data-action={running ? 'stop' : 'send'} disabled={disabled || (!running && empty)}>
-            {running ? <SquareIcon className="fill-current" /> : <ArrowUpIcon />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">{action}</TooltipContent>
-      </Tooltip>
+      {accessory}
+      {setup ? (
+        <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
+          <SettingsIcon />
+          {action}
+        </Button>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button type="submit" size="icon" aria-label={action} data-action={running ? 'stop' : 'send'} disabled={disabled || (!running && empty)}>
+              {running ? <SquareIcon className="fill-current" /> : <ArrowUpIcon />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{action}</TooltipContent>
+        </Tooltip>
+      )}
     </form>
   )
 }

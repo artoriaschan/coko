@@ -1,8 +1,9 @@
 import { join, resolve } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, protocol, session, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, session, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
 import { getLogger } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult } from '../shared/bridge.ts'
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource, type SidecarEndpoint } from './app-protocol.ts'
+import { createCredentialBridge } from './credentials.ts'
 import { messagesFor } from './messages.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
@@ -155,6 +156,20 @@ function run(): void {
         picking = undefined
       })
     return picking
+  })
+
+  // ADR 0004：密钥只在 main 用 safeStorage 加解密，密文经控制 IPC 存入 Sidecar。
+  const credentials = createCredentialBridge({
+    encryption: {
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (plaintext) => safeStorage.encryptString(plaintext),
+      decrypt: (ciphertext) => safeStorage.decryptString(Buffer.from(ciphertext)),
+    },
+    channel: { isReady: () => sidecar.isReady, send: (message) => sidecar.send(message), onMessage: (listener) => sidecar.onControlMessage(listener) },
+  })
+  ipcMain.handle(IPC.setCredential, async (event, providerId: unknown, secret: unknown) => {
+    assertMainFrame(event)
+    return credentials.set(providerId, secret)
   })
 
   const quitCoordinator = new QuitCoordinator(() => ({
