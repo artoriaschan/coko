@@ -38,8 +38,15 @@ const contentBlocks = Type.Array(Type.Object({ type: Type.String() }))
 /** 模型可见消息（pi AgentMessage）。只约束各 role 的判别字段，其余字段随 pi 演进，原样保存。 */
 export const messagePayloadSchema = Type.Union([
   Type.Object({ role: Type.Literal('user'), content: Type.Union([Type.String(), contentBlocks]) }),
-  Type.Object({ role: Type.Literal('assistant'), content: contentBlocks, stopReason: Type.String() }),
-  Type.Object({ role: Type.Literal('toolResult'), toolCallId: Id, toolName: Type.String(), content: contentBlocks, isError: Type.Boolean() }),
+  Type.Object({ role: Type.Literal('assistant'), content: contentBlocks, stopReason: Type.String(), errorMessage: Type.Optional(Type.String()) }),
+  Type.Object({
+    role: Type.Literal('toolResult'),
+    toolCallId: Id,
+    toolName: Type.String(),
+    content: contentBlocks,
+    isError: Type.Boolean(),
+    details: Type.Optional(Type.Unknown()),
+  }),
   Type.Object({ role: Type.Literal('system'), content: Type.Union([Type.String(), contentBlocks]) }),
 ])
 
