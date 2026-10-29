@@ -16,7 +16,6 @@ export interface ProviderModelsBridge {
   fetch(input: unknown): Promise<FetchProviderModelsResult>
   /** 取消 requestKey 对应的进行中请求；未知或已结束时不做任何事。 */
   cancel(requestKey: unknown): void
-  readonly timeoutMs: number
 }
 
 const failure = (code: FetchProviderModelsErrorCode, message: string, status?: number): FetchProviderModelsResult => ({
@@ -57,7 +56,6 @@ export function createProviderModelsBridge(options: { channel: SidecarControlCha
   const cancelled = new Error('Cancelled')
 
   return {
-    timeoutMs,
     async fetch(input) {
       const parsed = parseInput(input)
       if ('ok' in parsed) return parsed
