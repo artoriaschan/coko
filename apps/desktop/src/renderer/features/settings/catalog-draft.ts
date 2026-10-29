@@ -64,31 +64,29 @@ export const toCatalog = (rows: readonly ModelRowDraft[]): CatalogModel[] =>
 /** 容量后缀的十进制位数：K = 10^3，M = 10^6。 */
 const SUFFIX_DIGITS = { '': 0, k: 3, m: 6 } as const
 
-const TOKENS = /^(\d+)(?:\.(\d+))?([km]?)$/i
+const TOKENS = /^(\d+)([km]?)$/i
 
 /**
- * 容量输入：纯数字或带 K/M 后缀（1000 进制），按小数位逐位换算，不经浮点乘法。留空返回 undefined（使用默认值），
- * 不是正整数 token 数时返回 null。
+ * 容量输入：整数，或整数加 K/M 后缀（1000 进制；不接受小数）。留空返回 undefined（使用默认值），不是正整数 token 数时
+ * 返回 null。
  */
 export function parseTokens(text: string): number | null | undefined {
   const trimmed = text.trim()
   if (trimmed === '') return undefined
   const match = TOKENS.exec(trimmed)
   if (!match) return null
-  const [, whole = '', fraction = '', suffix = ''] = match
-  const digits = SUFFIX_DIGITS[suffix.toLowerCase() as keyof typeof SUFFIX_DIGITS]
-  if (fraction.length > digits) return null
-  const tokens = Number(whole + fraction.padEnd(digits, '0'))
+  const [, whole = '', suffix = ''] = match
+  const tokens = Number(whole + '0'.repeat(SUFFIX_DIGITS[suffix.toLowerCase() as keyof typeof SUFFIX_DIGITS]))
   return tokens > 0 ? tokens : null
 }
 
-/** 回显容量：用能整除到一位小数的最大后缀（1000000 → 1M，1500000 → 1.5M）；否则显示原数。 */
+/** 回显容量：用能整除的最大后缀（1000000 → 1M，1500000 → 1500K）；否则显示原数。回显的文本总能被 parseTokens 读回。 */
 export function formatTokens(tokens: number): string {
   for (const [suffix, unit] of [
     ['M', 1_000_000],
     ['K', 1_000],
   ] as const) {
-    if (tokens >= unit && (tokens * 10) % unit === 0) return `${tokens / unit}${suffix}`
+    if (tokens >= unit && tokens % unit === 0) return `${tokens / unit}${suffix}`
   }
   return String(tokens)
 }
