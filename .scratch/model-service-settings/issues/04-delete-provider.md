@@ -8,10 +8,10 @@
 
 规格：[模型服务 PRD](../spec.md)；架构：[ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)、[ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)；术语：[GLOSSARY](../../../GLOSSARY.md)。 视觉以 Pencil 源稿 `/Users/chenzheng/Desktop/UI/设置-模型服务.pen` 为准；确认框沿用设计系统已有组件。
 
-- [ ] MS-32、MS-33 通过
-- [ ] 确认框显示的引用数量与库中实际一致；取消时不做任何修改
-- [ ] 删除后用相同 ID 重新创建，原 Session 不会自动使用新供应商
-- [ ] 删除后 Sidecar 的明文缓存被清除；库中没有该 Credential
+- [x] MS-32、MS-33 通过
+- [x] 确认框显示的引用数量与库中实际一致；取消时不做任何修改
+- [x] 删除后用相同 ID 重新创建，原 Session 不会自动使用新供应商
+- [x] 删除后 Sidecar 的明文缓存被清除；库中没有该 Credential
 
 ## Comments
 
@@ -48,3 +48,56 @@
 - 源码注释不要写票号：`scripts/source-references.test.ts` 会拒绝 apps、packages、tests 中的任务材料引用（合入 03 时因 `provider-draft.ts` 注释里的“票 05”失败过，已改）。
 - 并行提醒：票 05 与本票同时实施，两张票都改模型服务分区（`models-section.tsx`、`provider-form.tsx`、`provider-draft.ts`、`models-section.browser.test.tsx`、i18n 的 `providers.*`）。请只做本票需要的增量改动，并在 Comments 列出改过的共享位置；合入时由 merger 解决冲突。
 - 现在的删除是列表行内的“确认删除”，没有二次确认框和引用数量，由本票替换。
+
+### 票 04 交付记录
+
+**覆盖的验收**
+
+- MS-32：确认框（`role="alertdialog"`）打开时经 `GET /api/providers/:id/references` 读取引用数量；确认后同一事务删除 Provider 与 Credential、清空引用它的 Session 模型字段（档位 off，不改 updatedAt）、`defaultModel` 指向它时改为 null（revision 递增），因此默认模型回退为第一个可用模型；sidecar 清除明文缓存。Session 模型字段为空且有可用模型时，Run 以 409 `model-required` 拒绝（不再自动选用默认模型），界面在输入区上方提示“这个会话的模型已不可用，请先选择模型”，模型选择器显示“选择模型”，发送失败的 Toast 为“请先为这个会话选择模型”。
+- MS-33：相同 ID 重新创建后引用数为 0，原 Session 仍为 null，旧 Credential 与明文缓存都不在（新 Provider 无 Key 时模型服务收不到请求）。
+- 取消、Escape 不调用删除、列表不变，焦点回到该项“删除”；数量读取失败时“删除”禁用并可重试；删除失败时保留确认框与列表并 Toast。删除后焦点移到同一位置的列表项“编辑”（或添加入口）。
+
+**实际运行的命令与结果**
+
+- `vitest run --project session`：63 passed（含新契约用例，内存与 SQLite 各一）。
+- `vitest run --project integration tests/integration/sidecar-provider-delete.test.ts`：1 passed。
+- `vitest run --project server --project protocol --project integration`（并行）：266 passed / 5 failed，失败均为约 20s 超时；单独重跑 sidecar-recovery、sidecar-session、sidecar-settings-credentials、sidecar-thinking-level 4 个文件：30 passed。
+- `vitest run --project desktop-renderer --project desktop --project i18n --project scripts`（并行）：237 passed / 2 failed（`src/main/sidecar-supervisor.test.ts` 5s 超时，本票未改）；单独重跑该文件：5 passed。其中 delete-provider.browser.test.tsx 4 passed，models-section.browser.test.tsx 11 passed，app.browser.test.tsx 20 passed。
+- `vitest run --project desktop-e2e`：settings.e2e.test.ts 2 passed / 1 skipped（真实 DeepSeek，无凭据）；provider-delete.e2e.test.ts 1 passed。
+- `tsc -b` 通过；`oxlint` 0 warnings / 0 errors；`oxfmt --check` 通过；`vitest run --project scripts` 22 passed；`pnpm run check:docs` 129 个文件 0 个问题。
+
+**负向确认**
+
+- 契约用例、集成用例、store 用例、浏览器用例均先红（缺 `references`、`providerReferences`、`setReferences`、对话框）。
+- 变异：去掉 `ProviderService.delete` 中的 `invalidateCredential` 后，集成用例因旧明文 Key 被发出而失败（请求数 2 ≠ 1）；恢复后通过。
+- 变异：会话模型为空时恢复为代填 `defaultModel`，浏览器用例的“选择模型”断言失败；恢复后通过。
+
+**行为变化（请 Lead 留意）**
+
+- Run 开始时 Session 模型字段为空且有可用模型：原先自动选用默认模型并写入 Session，现在 409 `model-required`。这覆盖票 01 迁移 v4 清空的 Session（规格 4.9「下次运行前提示重新选择模型」）。没有任何可用模型时仍为 `model-not-configured`。新建 Session 仍在创建时取默认模型，不受影响。
+- 会话（非草稿）的模型字段为空时，界面不再以默认模型代填显示。
+
+**未验证项**
+
+- 明暗主题与窄窗口下确认框的视觉未逐项检查（沿用“放弃更改？”同一 Dialog 组件与几何）；Pencil 源稿没有删除确认画面。
+- 真实模型服务未验证（无凭据）。
+- 删除正在运行的 Session 引用的 Provider：当前 Run 不中断，下一个 Run 按 `model-required` 处理；未单独测试。
+
+**文档影响**
+
+- 更新 `apps/server/README.md`（providers 路由、references、删除语义、`model-required`、新集成测试）与 `packages/session/README.md`（`references`、`delete` 语义）。ADR 与 GLOSSARY 未改。
+
+**改动的共享位置（供合入时解决与票 05 的冲突）**
+
+- `features/settings/models-section.tsx`：删除行内“确认删除”；`ProviderRow` 新增 `onDelete` 属性、删除按钮加 `data-provider-delete`；分区新增 `deleting` 状态并渲染 `DeleteProviderDialog`（`focusAfterClose`）；去掉 `toast` 与 `useSettingsActions().deleteProvider` 的行内用法；`providers.map` 带 `index`。
+- `features/settings/models-section.browser.test.tsx`：最后一个用例的删除改为点确认框的 “Delete”（1 行）。
+- i18n `providers.*`：删除 `providers.confirmDelete`，新增 `providers.deleteDialog.{title,description,counting,references,noReferences,referencesFailed}`；另增 `errors.modelRequired`、`conversation.modelRequired`（zh / en）。
+- `testing/fake-settings.ts`：api 新增 `providerReferences`（vi.fn），`deleteProvider` 同时清掉引用数；返回值新增 `setReferences(id, n)`。
+- 其他：protocol `ErrorCode` 新增 `model-required`、`apiPaths.providerReferences`、`ProviderReferencesResponse`；`testing/fixture-chat.ts` 新增 `sessions` 选项与删除后清空引用并重读会话；`main.tsx` 传 `onProviderDeleted`；`conversation-pane.tsx`、`chat-failure.ts`。
+
+**供后续票**
+
+- 新文件：`features/settings/delete-provider-dialog.tsx`（`DeleteProviderDialog`、`DeleteProviderRequest`）。DOM：确认框 `[data-delete-provider-dialog]`（`role="alertdialog"`），数量区 `[data-provider-references="loading"|"ready"|"error"]`，行内删除按钮 `[data-provider-delete]`，输入区提示 `[data-slot="model-required"]`。
+- store：`settings.providerReferences(id)`（失败抛 `ApiError`），`createSettingsStore({ onProviderDeleted })`。ApiClient：`providerReferences(id)`。
+- session：`ProviderRepository.references(id)`、`delete(id): Promise<ProviderReferences>`；session 公共导出 `ProviderReferences`。
+- 测试：`tests/integration/sidecar-provider-delete.test.ts`、`apps/desktop/e2e/provider-delete.e2e.test.ts`、`features/settings/delete-provider.browser.test.tsx`。
