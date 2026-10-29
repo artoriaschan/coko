@@ -8,11 +8,11 @@
 
 规格：[模型服务 PRD](../spec.md)；架构：[ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)、[ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)；术语：[GLOSSARY](../../../GLOSSARY.md)。 视觉以 Pencil 源稿 `/Users/chenzheng/Desktop/UI/设置-模型服务.pen` 为准（画面 02C、06）。
 
-- [ ] MS-15 至 MS-18、MS-36 通过
-- [ ] “添加档位”按 off、minimal、low、medium、high、xhigh、max 顺序补齐最早缺失档位；七档齐全后置灰且文案不变；无顺序或下一档提示
-- [ ] 修改某行档位只能选尚未配置的档位；同一模型不出现重复档位
-- [ ] off 行参数输入禁用并显示“关闭思考”；其余档位默认参数值等于档位名且可编辑
-- [ ] 开关关闭时已填档位仍随草稿保存，重新打开表单时仍在
+- [x] MS-15 至 MS-18、MS-36 通过
+- [x] “添加档位”按 off、minimal、low、medium、high、xhigh、max 顺序补齐最早缺失档位；七档齐全后置灰且文案不变；无顺序或下一档提示
+- [x] 修改某行档位只能选尚未配置的档位；同一模型不出现重复档位
+- [x] off 行参数输入禁用并显示“关闭思考”；其余档位默认参数值等于档位名且可编辑
+- [x] 开关关闭时已填档位仍随草稿保存，重新打开表单时仍在
 
 ## Comments
 
@@ -74,3 +74,54 @@
 - 测试：`catalog-draft.test.ts`、`provider-draft.test.ts`、`model-catalog.browser.test.tsx`；`models-section.browser.test.tsx` 有 `addModelRow`、`addModel`、`describedError` helper；e2e 的 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`（`settings.e2e` 的 `models` 参数为 `{ id, contextWindow? }[]`）。逐键输入前先等新行的模型 ID 获得焦点，切换协议后先等菜单关闭，否则 Radix 归还焦点会吞掉后半段字符。
 - 推理设置放在 `ModelRow` 展开区，输入类型之后。加档位错误时扩展 `ModelRowField` 和 `CatalogErrors`，并让 `revealErrors` 展开有档位错误的行。
 - 并行提醒：票 07 与本票同时实施，两张票都改模型目录一带。可能冲突的位置：`model-catalog.tsx`（本票改 `ModelRow` 展开区，票 07改目录标题行）、`catalog-draft.ts`、i18n `providers.catalog.*`、`model-catalog.browser.test.tsx`，以及可能的 `provider-form.tsx`。只做本票需要的增量改动，并在 Comments 列出改过的共享位置；合入时由 merger 解决冲突。
+
+### 实施记录（ms/06-thinking-level-config）
+
+测试位置（无法与用户逐条确认，按须知与规格第 7 节选定）：纯函数 `thinking-levels.ts`（档位增删改与提交整理）；共享控件 `Switch` 的浏览器测试；经 App 装配打开设置的浏览器测试（fake 的 saveProvider）；真实 Electron + Sidecar 的 E2E（重新读取 `/api/providers`、`/api/models`）。
+
+覆盖的验收：
+
+- MS-15：展开模型后加档位，Provider ID、显示名称、地址与 Key 仍可见，与目录共用“创建供应商”（`thinking-levels.browser.test.tsx` 用例 1）。
+- MS-16、MS-17：连续添加七次，顺序 off → max；第七次后按钮禁用，文字仍为“添加档位”，按钮所在区域只有这几个字，表单不含“已添加全部档位”；禁用态仍为 H28。焦点在添加后移到新档位的选择器，按钮禁用时不落到 body。目录不出现“恢复默认模型”由票 05 的用例保证。
+- MS-18：删除 minimal 后再添加，补回 minimal 并追加在末尾；删除不确认，焦点到“添加档位”。修改档位的菜单只列当前档位与未配置的档位（键盘打开、方向键选择、焦点回到选择器）；改成新档位时参数值取新档位名。纯函数也拒绝改成已配置的档位（`thinking-levels.test.ts`）。
+- off 行：参数输入禁用、无值、占位为“关闭思考”，提交为 `{ level: 'off' }`；其余档位默认值等于档位名、可编辑；参数值留空提交时用档位名（`toCatalog` 经 `normalizeLevels`）。
+- MS-36（表单一侧）：关闭开关后档位仍显示、可编辑，保存为 `reasoning: false` 并保留档位；重新打开时开关为关、档位与参数值仍在。会话一侧：fake 与真实 Sidecar 的 `/api/models` 都只给 off（E2E）。
+- 只改开关或档位算作未保存修改，“取消”提示“放弃更改？”（用例 4；`isDirty` 已深比较行内容，未改动）。
+
+实际运行的命令与结果：
+
+- `pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 warning 0 error；`pnpm run format:check` 通过。
+- `pnpm run test apps/desktop/src/renderer packages/i18n packages/ui scripts tests/integration/secrets-gate`：57 个文件，335 个用例通过（新增 `thinking-levels.test.ts` 6、`catalog-draft.test.ts` +1、`thinking-levels.browser.test.tsx` 4、`switch.browser.test.tsx` 1；含样式守卫、zh/en 键一致与源码任务引用检查）。
+- `pnpm run test apps/desktop/e2e/settings.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts apps/desktop/e2e/thinking-levels.e2e.test.ts`：4 通过，1 跳过（真实 DeepSeek，无密钥）。
+- 已合入 model-service 64a79a1（Already up to date）。
+
+负向确认：每个新测试文件先因模块或控件缺失而失败；`toCatalog` 的档位整理先红后绿。变异各自使对应用例失败后恢复：档位选择项包含已配置档位、七档齐全后按钮仍可点、off 参数可编辑、开关不写回草稿。
+
+修过的问题：档位行最初以档位名为 key，修改档位会重新挂载该行，焦点丢失；改为与档位无关的稳定行 key。
+
+未验证：真实模型；Electron 中的深色主题、390px 窄窗口目视检查（浏览器用例只断言语义色随主题变化与 H20 开关、H36 选择器、H32 输入、H28 按钮的几何）；帮助图标 Tooltip 的显示未单独断言。Anthropic Messages 未设 `forceAdaptiveThinking` 时不发送参数值的缺口（票 08 记录）不在本票范围。
+
+视觉与规格说明：
+
+- 推理设置在输入类型之后，以 0.5px 分隔线隔开；标题“推理等级”旁有帮助图标（Tooltip 说明开关含义），右侧为开关。表头“档位 / API 参数值”在有档位时显示。档位名是协议值，按原文显示（等宽字体），不翻译。
+- 开关关闭时档位仍显示且可编辑（规格 4.5“已填写的档位仍随草稿保存”），不隐藏。
+- 参数值留空不报错，提交时用档位名，与容量留空用默认值一致；protocol 要求非 off 的 value 非空，这样提交总是合法。
+
+文档影响：无。apps/server 与 @coko/session 的 README 已描述 `reasoning` 与 `thinkingLevels` 的服务端语义，未变。
+
+改动的共享位置（与票 07 可能重叠）：
+
+- `model-catalog.tsx`：只加了 `ThinkingLevelsEditor` 的导入，以及 `ModelRow` 展开区末尾的分隔线和 `<ThinkingLevelsEditor … onChange={onChange} />`（共 3 行）；目录标题行未改。
+- `catalog-draft.ts`：导入 `normalizeLevels`，`toCatalog` 的 `thinkingLevels` 改为 `normalizeLevels(row.thinkingLevels)`（2 行）。
+- `catalog-draft.test.ts`：文件末尾加 1 个用例。
+- i18n：新增 `providers.thinking.*`（放在 `providers.loadFailed` 之后，没有动 `providers.catalog.*`）。
+- `packages/ui`：新增 `Switch`（`components/switch.tsx`，`index.ts` 导出一行），基于 radix-ui 已有的 Switch，没有新增依赖。
+- 未改 `provider-form.tsx`、`provider-draft.ts`、`model-catalog.browser.test.tsx`、`models-section.tsx`、`fake-settings.ts`。
+- 新文件：`thinking-levels.ts`、`thinking-levels-editor.tsx` 及其测试、`apps/desktop/e2e/thinking-levels.e2e.test.ts`。
+
+供后续票：
+
+- `thinking-levels.ts`：`nextLevel`、`addLevel`、`removeLevel`、`levelChoices`、`changeLevel`、`setLevelValue`、`normalizeLevels`。
+- `ThinkingLevelsEditor { id, reasoning, levels, onChange(patch: { reasoning?, thinkingLevels? }) }`。
+- DOM：开关 `role="switch"`、`name="reasoning"`，可访问名称为 `providers.thinking.title`（“推理等级”）；档位行 `li[data-thinking-level=<level>]`；选择器 `[data-thinking-select]`（可访问名称“档位”）、菜单项 `[data-thinking-choice]`；参数输入 `[name="thinkingValue"]`；“添加档位” `[data-thinking-add]`；删除按钮可访问名称“删除档位”。
+- 票 07 导入的模型 `reasoning: false`、`thinkingLevels: []`，即开关关闭、没有档位（`emptyModelRow` 的默认值）。
