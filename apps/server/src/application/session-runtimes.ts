@@ -37,6 +37,8 @@ export function toNewEntry(entry: RunEntry): NewSessionEntry {
 export function toProgress(event: AgentProgress): ProgressEvent {
   const { runId: _runId, ...rest } = event
   if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
+  // 摘要请求的错误（票 11）与 retry、run_end 一样可能回显凭据。
+  if (rest.type === 'compaction_failed') return { ...rest, message: redactModelError(rest.message) }
   if (rest.type === 'run_end' && rest.error) return { ...rest, error: { ...rest.error, message: redactModelError(rest.error.message) } }
   if (rest.type === 'tool_update' || rest.type === 'tool_end') return redactSecretsDeep(toJson(rest)) as ProgressEvent
   return toJson(rest) as ProgressEvent

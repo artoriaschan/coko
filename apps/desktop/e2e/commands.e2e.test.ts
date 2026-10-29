@@ -45,7 +45,7 @@ describe('/ 命令菜单', () => {
     const menu = page.getByRole('listbox', { name: /^(Commands|命令)$/ })
     await menu.waitFor()
     const groups = menu.getByRole('group')
-    expect(await groups.evaluateAll((items) => items.map((g) => g.getAttribute('data-group')))).toEqual(['project', 'user'])
+    expect(await groups.evaluateAll((items) => items.map((g) => g.getAttribute('data-group')))).toEqual(['builtin', 'project', 'user'])
     expect(
       await menu
         .getByRole('group', { name: /^(Project|项目)$/ })

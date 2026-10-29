@@ -97,3 +97,34 @@ describe('时间线：File Reference', () => {
     expect(items[1]).not.toHaveProperty('references')
   })
 })
+
+describe('时间线：压缩分隔条', () => {
+  const compaction = (extra: Record<string, unknown> = {}) =>
+    entry(
+      'compaction',
+      { summary: '## Goal\nS', firstKeptSeq: 3, tokensBefore: 30_000, tokensAfter: 4_000, trigger: 'auto', readFiles: [], modifiedFiles: [], ...extra },
+      'r',
+    )
+
+  it('compaction 显示为分隔条（约节省 tokensBefore − tokensAfter），之前的消息仍在时间线中', () => {
+    seq = 0
+    const items = buildTimeline(conversation([user('one'), reply('a1'), user('two'), compaction(), reply('a2')]))
+    expect(shape(items)).toEqual(['user:one*', 'text:a1', 'user:two*', 'compaction', 'text:a2'])
+    expect(items[3]).toEqual({ kind: 'compaction', key: '4', summary: '## Goal\nS', trigger: 'auto', saved: 26_000 })
+    const unknown = buildTimeline(conversation([user('x'), compaction({ tokensAfter: undefined })]))
+    expect(unknown[1]).not.toHaveProperty('saved')
+  })
+
+  it('手动压缩的 Run：失败不可重试，进行中不显示"生成中"', () => {
+    seq = 0
+    const start = entry('run_start', { trigger: 'compact' }, 'c')
+    const end = entry('run_end', { status: 'error', error: { code: 'model_error', message: 'x' } }, 'c')
+    expect(shape(buildTimeline(conversation([user('one'), reply('a1'), start, end])))).toEqual(['user:one*', 'text:a1', 'error'])
+    const running: Conversation = {
+      ...conversation([user('one'), reply('a1'), start]),
+      running: true,
+      live: { runId: 'c', accepting: true, blocks: [], tools: {} },
+    }
+    expect(shape(buildTimeline(running))).toEqual(['user:one*', 'text:a1'])
+  })
+})

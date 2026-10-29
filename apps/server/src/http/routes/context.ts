@@ -17,7 +17,14 @@ export function contextRoutes(app: Application) {
       app.store.sessions.listEntries(session.id),
       app.sessions.contextModel(session.model),
     ])
-    const body: ContextUsageResponse = await contextUsage({ context: app.context, scope, baseTools: app.sessions.baseTools(workspace.path), model, entries })
+    const body: ContextUsageResponse = await contextUsage({
+      context: app.context,
+      scope,
+      baseTools: app.sessions.baseTools(workspace.path),
+      model,
+      entries,
+      autoCompactPaused: app.sessions.compactionPaused(session.id),
+    })
     return c.json(body)
   })
   r.get('/workspaces/:id/context', async (c) => {

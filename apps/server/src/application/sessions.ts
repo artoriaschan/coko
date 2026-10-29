@@ -329,7 +329,17 @@ export class SessionService {
     if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
     const action = this.#context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
-    return action({ scope: await this.#scope(session), sessionId, args: expanded.args })
+    return action({
+      scope: await this.#scope(session),
+      sessionId,
+      args: expanded.args,
+      session: { entries: () => this.#options.store.sessions.listEntries(sessionId), start: (run) => this.#start(sessionId, run) },
+    })
+  }
+
+  /** 自动压缩是否因连续失败暂停（运行时内存；还没有运行时的 Session 为 false）。 */
+  compactionPaused(sessionId: string): boolean {
+    return this.#runtimes.get(sessionId)?.compaction.paused ?? false
   }
 
   /** 重新执行出错的上一轮（不追加用户消息）；上一轮没有出错时以 nothing-to-retry 拒绝。 */
@@ -510,6 +520,8 @@ export class SessionService {
         systemSections: () => context.systemSections(runContext.scope),
         ...(context.transformMessages ? { transformMessages: (messages: AgentMessage[]) => context.transformMessages!(messages, runContext.scope) } : {}),
       },
+      // 压缩（票 11）：切点与重建读已提交的条目；context.autoCompact 取该 Run 开始时的有效配置。
+      compaction: { entries: () => store.sessions.listEntries(session.id), autoCompact: () => runContext.scope.config.context.autoCompact },
       commit: async (entry) => {
         await publish(entry)
       },

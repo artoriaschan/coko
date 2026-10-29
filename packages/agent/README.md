@@ -25,7 +25,8 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 每个 Run 以 `run_start { trigger }` 开始（submit / retry / continue / compact），以 `run_end { status, error?, undeliveredSteering? }` 结束。
 
 - **输入与上下文 seam（M3）。** `run(input)` 与 `steer(input)` 接受字符串或 `RunInput { text, content?, before? }`：`content` 替换 user message 的内容，`before` 的条目在 run_start 之后（steer 时紧接在该 user message 之前）、user message 之前提交；未送达的追加指令退回的是 `text`。`options.context`（`RuntimeContext`）：`systemSections()` 每个 Run 开始时取一次，有非空段落时开头的系统消息改为 `sections`（`BASE_SYSTEM_SECTION` 为第一段、内容为基础提示），没有时保持 M2 的基础提示；`transformMessages` 只改发给模型的请求（pi `transformContext`），不改条目与对话记录；`beforeRequest` 在每次模型请求之前调用（pi `prepareRequest`）。每条 assistant 消息提交后发 progress `context_usage { tokens, contextWindow }`（tokens 为该消息 usage 的 input + cacheRead + cacheWrite + output）。
-- **M3 扩展点。** `instructions/shared`（只读文件端口 `createNodeFiles`、按 mtime 缓存 `createMtimeCache`、诊断 `ResourceDiagnostic`、`yaml` frontmatter 解析 `parseFrontmatter`）；`instructions/{rules,commands,skills}`、`context/{references,memory,usage}`、`extensions/mcp` 已实现（见 [docs/subsystems](../../docs/README.md)；`context/usage` 为预算、估算与时间裁剪），`context/compaction` 尚为空 barrel；内置遍历 `tools/builtin/walk.ts` 另读 `.git/info/exclude` 与全局 excludes（[忽略规则](../../docs/subsystems/context.md#忽略规则)）；`config/` 的 `capabilityConfigSchema` 与 `defaultCapabilityConfig()`。Session Entry 另有 `command` 与 `compaction`（`session-entries/context.ts`）。
+- **压缩（M3）。** `options.compaction`（`RuntimeCompaction { entries, autoCompact, keepRecentTokens? }`）开启后，每次模型请求前估算越过阈值时自动压缩（在 `context.beforeRequest` 之前），请求以上下文溢出失败时压缩一次并重试一次；`compact(instructions?)` 开始 `run_start { trigger: compact }` 的 Run，只提交 `compaction`；`compaction` 属性给出 `{ consecutiveFailures, paused }`（连续 3 次自动失败后暂停，成功的压缩复位）。压缩提交 `compaction` 条目，按条目（`modelContext`）重建对话记录并发 `compaction_start` / `compaction_end` / `compaction_failed`；停止时不提交条目。`forkEntries` 复制最后一个 compaction 与其保留的消息。见 [压缩](../../docs/subsystems/context.md#压缩)。
+- **M3 扩展点。** `instructions/shared`（只读文件端口 `createNodeFiles`、按 mtime 缓存 `createMtimeCache`、诊断 `ResourceDiagnostic`、`yaml` frontmatter 解析 `parseFrontmatter`）；`instructions/{rules,commands,skills}`、`context/{references,memory,usage,compaction}`、`extensions/mcp` 已实现（见 [docs/subsystems](../../docs/README.md)；`context/usage` 为预算、估算与时间裁剪，`context/compaction` 为切点、摘要提示、压缩后的估算与熔断）；内置遍历 `tools/builtin/walk.ts` 另读 `.git/info/exclude` 与全局 excludes（[忽略规则](../../docs/subsystems/context.md#忽略规则)）；`config/` 的 `capabilityConfigSchema` 与 `defaultCapabilityConfig()`。Session Entry 另有 `command` 与 `compaction`（`session-entries/context.ts`）。
 
 - **追加指令（Steering）。** `steer(text)` 把消息送进当前 Run：当前工具批次结束后、下一次模型请求前送达（pi `steer()`，一次送达全部已发送的），送达时提交为普通 user message 条目，位于这批 toolResult 之后、下一条 assistant 之前。最后一轮只有文本时也会送达，模型再回应一次。Run 以停止、暂停、无反馈拒绝或错误结束时，未送达的追加指令按发送顺序放进 `run_end.undeliveredSteering` 与 `RunResult.undeliveredSteering`，不延续到下一个 Run。没有 Run 时抛 `NoActiveRunError`。
 - **暂停。** `pause()`：当前工具批次正常完成并提交 toolResult，之后不再发起模型请求（`finishTurn` 返回 end），不杀进程；等待中的审批以 cancelled 结束，该调用不执行，toolResult 为 `PAUSED_BEFORE_APPROVAL_TEXT`。Run 以 `paused` 结束；暂停发生在只有文本的最后一轮时工作已完成，Run 以 `completed` 结束。没有 Run 时抛 `NoActiveRunError`。
@@ -85,6 +86,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 | `sessionId` | 随机 | 幂等键的 Session 部分 |
 | `permissions` | 不判定 | 缺省时不做权限判定，也不设命令沙箱（无回答通道的库调用方）；server 总是传入。`readRoots()` 给出额外读取根；工具的权限类在注册时给出（`RegisterToolOptions.permissionClass`），见 [权限判定与审批](../../docs/subsystems/permissions.md#模式) |
 | `context` | 无 | `RuntimeContext`：system sections、只改请求的消息变换、请求前钩子 |
+| `compaction` | 无（不压缩，`compact()` reject） | `RuntimeCompaction`：已提交条目（带 seq）、`context.autoCompact`、保留的最近 tokens（缺省 20 000） |
 | `secrets` | 无 | `SecretProvider`；声明了 `secrets` 的工具在缺省时调用失败 |
 | `lastRunStatus` | 无 | 上一 Run 的结束状态（从条目恢复时），决定能否 `continue()` |
 
@@ -94,7 +96,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 
 ## 验证与相关设计
 
-- `src/entries/entries.test.ts`：有效条目（回退区间、压缩、压缩落在被回退区间时原历史生效）、`modelContext`、`lastRunStatus`、`unansweredConfirmations` 的表驱动用例；导入守卫断言该子路径（含传递导入）不导入 `node:*` 与 `@earendil-works/*`。`src/engine/context-seam.test.ts`：system sections、`RunInput.before` 的位置、`transformMessages` 只改请求、`context_usage`。`src/instructions/shared/shared.test.ts`：frontmatter、mtime 缓存、文件端口与配置默认值。
+- `src/entries/entries.test.ts`：有效条目（回退区间、压缩、压缩落在被回退区间时原历史生效）、`modelContext`、`lastRunStatus`、`unansweredConfirmations` 的表驱动用例；导入守卫断言该子路径（含传递导入）不导入 `node:*` 与 `@earendil-works/*`。`src/engine/context-seam.test.ts`：system sections、`RunInput.before` 的位置、`transformMessages` 只改请求、`context_usage`。`src/instructions/shared/shared.test.ts`：frontmatter、mtime 缓存、文件端口与配置默认值。`src/context/compaction/compaction.test.ts`：切点、摘要提示、文件与 Skill 汇总、压缩后的估算与熔断；`src/engine/compaction.test.ts`：运行时的自动、溢出、熔断、手动压缩与停止。
 - `src/engine/run-control.test.ts`：工具执行中 steer 的条目位置与下一次请求上下文、多条按序送达、abort 退回未送达、只有文本的最后一轮也送达、暂停边界（工具完成、不发新请求、待审批 cancelled 且不执行）、continue 的允许条件与 `lastRunStatus`。交叠由 deferred 控制。
 - `src/tools/scheduler.test.ts`：上限 2 时 6 个 read 至多 2 个同时执行、结果按调用顺序；默认上限 10；`[read, read, write, read]` 的屏障顺序；`tool_exec` 在 execute 之前提交、上下文携带幂等键、read 不提交；提交失败时不执行且 Run 以 `commit_failed` 结束；排队中取消返回 `Operation aborted` 且没有 `tool_exec`。交叠由 deferred 控制，不用 sleep。
 - `tests/integration/sidecar-concurrency.test.ts`：真实 Sidecar 中 bash 的 `tool_exec` 位于 assistant 之后、toolResult 之前，幂等键为 `<sessionId>:<toolCallId>`，同批 ls 没有 `tool_exec`，重启后读回一致。

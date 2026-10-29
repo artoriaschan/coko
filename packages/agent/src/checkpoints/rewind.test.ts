@@ -335,4 +335,29 @@ describe('forkEntries', () => {
     ])
     expect(() => forkEntries(entries, 'source-1', 9)).toThrow(RewindTargetError)
   })
+
+  it('经过压缩：复制最后一个 compaction 与其保留的消息（不复制被摘要替代的），新 Session 的模型上下文与原 Session 相同', () => {
+    const compaction = (firstKeptSeq: number): Row => ({
+      kind: 'compaction',
+      runId: 'r2',
+      payload: { summary: 'S', firstKeptSeq, tokensBefore: 10, trigger: 'auto', readFiles: [], modifiedFiles: [] },
+    })
+    const entries = seqd([
+      { kind: 'permission_mode', runId: null, payload: { mode: 'default' } }, // 1
+      user('one', 'r1'), // 2
+      reply('a1', 'r1'), // 3
+      user('two', 'r2'), // 4
+      compaction(4), // 5
+      reply('a2', 'r2'), // 6
+      user('three', 'r3'), // 7
+      reply('a3', 'r3'), // 8
+    ])
+    const fork = forkEntries(entries, 'source-1', 7)
+    expect(fork.entries.map((e) => e.kind)).toEqual(['fork_origin', 'permission_mode', 'message', 'message', 'compaction'])
+    const forked = seqd(fork.entries.map((e) => ({ ...e, runId: null })) as Row[])
+    expect(texts(forked)).toEqual(texts(entries.filter((e) => e.seq < 7)))
+    expect(texts(forked)[0]).toContain('<summary>\nS\n</summary>')
+    // 目标在压缩之前：没有 compaction，复制原历史。
+    expect(forkEntries(entries, 'source-1', 4).entries.map((e) => e.kind)).toEqual(['fork_origin', 'permission_mode', 'message', 'message'])
+  })
 })

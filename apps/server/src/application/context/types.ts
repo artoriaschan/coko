@@ -1,8 +1,8 @@
 // 上下文装配（M3 规格"apps/server"）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
-import type { CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, SystemSection, ToolHooks } from '@coko/agent'
+import type { AgentRuntime, CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, RunResult, SystemSection, ToolHooks } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { LoadedInstructionFile, ResourceDiagnostic } from '@coko/protocol'
-import type { SessionStore } from '@coko/session'
+import type { SessionEntry, SessionStore } from '@coko/session'
 
 /** 一次取值的作用域：Workspace（及其 Session，如果有）与当时的有效配置。 */
 export interface ContextScope {
@@ -33,8 +33,14 @@ export interface CommandSourceContribution {
   list(scope: ContextScope): Promise<unknown[]>
 }
 
+/** 动作执行时 SessionService 提供的能力：该 Session 的已提交条目，与在其运行时上开始一个 Run（与 submit 相同的检查）。 */
+export interface ContextActionSession {
+  entries(): Promise<readonly SessionEntry[]>
+  start(run: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }>
+}
+
 /** 动作的执行：返回新 Run 的 runId（例如 /compact 的 Run）。 */
-export type ContextAction = (input: { scope: ContextScope; sessionId: string; args: string }) => Promise<{ runId: string }>
+export type ContextAction = (input: { scope: ContextScope; sessionId: string; args: string; session: ContextActionSession }) => Promise<{ runId: string }>
 
 /** 上下文用量接口的分项（票 10 读取；形状在协议 instructions.ts / config.ts 中声明）。 */
 export interface ContextReport {

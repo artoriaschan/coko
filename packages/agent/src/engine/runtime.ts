@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { Agent, type AgentEvent, type AgentMessage, type AgentTool, type ThinkingLevel } from '@earendil-works/pi-agent-core'
-import type { Model, Models, SystemMessage } from '@earendil-works/pi-ai'
+import { isContextOverflow, normalizeContext, type Model, type Models, type SystemMessage } from '@earendil-works/pi-ai'
+import {
+  createCompactionBreaker,
+  estimateCompactedTokens,
+  formatCompactionSummary,
+  isFailedReply,
+  planCompaction,
+  SUMMARY_MAX_TOKENS,
+  summaryRequest,
+  type CompactionPlan,
+} from '../context/compaction/index.ts'
+import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars } from '../context/usage/index.ts'
+import { modelContext, type EntryLike } from '../entries/index.ts'
 import { composeAfterToolCall, composeBeforeToolCall, type ToolHooks } from '../extensions/hooks.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
@@ -15,7 +27,16 @@ import { withTimeout, type TimeoutOptions } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
 import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
 import { createPermissionGate, OPERATION_ABORTED_TEXT, ToolCallBlockedError } from '../policy/gate.ts'
-import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, SandboxMode, ToolExecPayload } from '../session-entries/index.ts'
+import type {
+  ApprovalRequestPayload,
+  CompactionPayload,
+  CompactionTrigger,
+  PermissionMode,
+  PermissionRule,
+  RunTrigger,
+  SandboxMode,
+  ToolExecPayload,
+} from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ProgressEvent, RunEntry, RunError, RunInput, RunResult, RunStatus, RuntimeContext, RuntimeEvent, SystemSection } from './types.ts'
 
@@ -52,6 +73,9 @@ export class NothingToContinueError extends Error {
     super('The last Run was not paused or interrupted; there is nothing to continue')
   }
 }
+
+/** 手动压缩时没有可摘要的较早内容（宿主通常在开始 Run 之前就拒绝）。 */
+export const NOTHING_TO_COMPACT_TEXT = 'Nothing to compact: the conversation only has recent messages'
 
 /** 等待审批时被暂停的调用交给模型的文本（未执行）。 */
 export const PAUSED_BEFORE_APPROVAL_TEXT = 'Not run: the user paused the run before this call was approved.'
@@ -99,6 +123,21 @@ export interface AgentRuntimeOptions {
   lastRunStatus?: RunStatus
   /** Host contributions to the model context (system sections, request-only message transform, pre-request hook). */
   context?: RuntimeContext
+  /** 压缩（M3 票 11）：省略时没有自动压缩，compact() 拒绝。 */
+  compaction?: RuntimeCompaction
+}
+
+/**
+ * 压缩的宿主部分：已提交的条目（带 seq，切点与重建上下文用）与 context.autoCompact。每次模型请求前估算超过阈值时自动压缩；
+ * 请求以上下文溢出失败时压缩一次再重试一次；连续 3 次自动失败后暂停（运行时内存，成功的压缩复位）。
+ */
+export interface RuntimeCompaction {
+  /** Session 的全部已提交条目（按 seq）；压缩时读取一次。 */
+  entries: () => Promise<readonly EntryLike[]>
+  /** 自动压缩（含溢出后压缩）是否开启；每次请求前现取。 */
+  autoCompact: () => boolean
+  /** 压缩后保留的最近消息的估算 token 数；缺省 20 000。 */
+  keepRecentTokens?: number
 }
 
 export interface RuntimePermissions {
@@ -153,6 +192,13 @@ export interface AgentRuntime {
   subscribe(listener: (event: RuntimeEvent) => void): () => void
   /** Model for later Runs. Throws while a Run is in progress. */
   setModel(model: Model<any>): void
+  /**
+   * 手动压缩（/compact）：一个 trigger compact 的 Run，只提交 compaction 条目（或以失败的 run_end 结束）；instructions 追加为摘要的
+   * 额外要求。停止时不提交条目。没有 compaction 选项时 reject；Run 进行中抛 RuntimeBusyError。
+   */
+  compact(instructions?: string): Promise<RunResult>
+  /** 熔断状态：连续失败次数，以及自动压缩是否已暂停。 */
+  readonly compaction: { readonly consecutiveFailures: number; readonly paused: boolean }
   readonly isRunning: boolean
   readonly messages: readonly AgentMessage[]
 }
@@ -169,6 +215,13 @@ interface RunState {
   /** Steering messages sent and not yet committed, in send order, with the entries to commit right before each. */
   steering: Steering[]
   commitError?: Error
+  trigger: RunTrigger
+  /** 由 Run 自身决定的结束状态（手动压缩）；优先于按对话记录推断。 */
+  ended?: { status: RunStatus; error?: RunError }
+  /** 进行中的手动或溢出压缩（不在 agent 循环内）；abort() 一并停止。 */
+  compacting?: AbortController
+  /** 本 Run 已经因溢出压缩并重试过一次。 */
+  overflowRetried: boolean
 }
 
 interface Steering {
@@ -331,6 +384,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const after = composeAfterToolCall(hooks)
 
   const context = options.context
+  // 对话请求与摘要请求共用：同样的重试策略与 retry 进度。
+  const stream = withRetry(
+    (model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions),
+    retryPolicy,
+    (notice) => {
+      if (current) progress({ type: 'retry', runId: current.runId, ...notice })
+    },
+  )
 
   const agent = new Agent({
     initialState: {
@@ -340,13 +401,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       tools: effectiveTools(),
       messages: options.messages ?? [],
     },
-    streamFn: withRetry(
-      (model, context, streamOptions) => options.models.streamSimple(model, context, streamOptions),
-      retryPolicy,
-      (notice) => {
-        if (current) progress({ type: 'retry', runId: current.runId, ...notice })
-      },
-    ),
+    streamFn: (model, request, streamOptions) => stream(model, request, streamOptions),
     identity: { attribution: null },
     ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     beforeToolCall: async (context, signal) => {
@@ -355,10 +410,16 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     },
     afterToolCall: (context, signal) => after(context, signal),
     ...(context?.transformMessages ? { transformContext: async (messages: AgentMessage[]) => context.transformMessages!(messages) } : {}),
-    ...(context?.beforeRequest
+    ...(context?.beforeRequest || options.compaction
       ? {
           prepareRequest: async ({ context: request, model }, signal) => {
-            if (current) await context.beforeRequest!({ runId: current.runId, messages: request.messages, model, ...(signal ? { signal } : {}) })
+            const run = current
+            if (!run) return undefined
+            // 自动压缩在宿主钩子之前：钩子看到的是将要发出的上下文。
+            const compacted: AgentMessage[] | undefined = options.compaction ? await autoCompact(run, request.messages, model, signal) : undefined
+            const messages = compacted ?? request.messages
+            if (context?.beforeRequest) await context.beforeRequest({ runId: run.runId, messages, model, ...(signal ? { signal } : {}) })
+            return compacted ? { context: { ...request, messages: compacted } } : undefined
           },
         }
       : {}),
@@ -441,8 +502,131 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     }
   })
 
+  // ---- 压缩（grilling F1–F6） ----
+  const compaction = options.compaction
+  const breaker = createCompactionBreaker()
+
+  const systemTokens = () => {
+    const head = agent.state.messages[0]
+    return head?.role === 'system' ? charsToTokens(estimateMessageChars(head)) : 0
+  }
+  /** 当前模型上下文的估算：可信 usage（晚于最后一个压缩）或 chars/4 加系统消息。 */
+  const contextTokensOf = (entries: readonly EntryLike[]) => {
+    const estimate = estimateCompactedTokens(entries)
+    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + systemTokens()
+  }
+
+  class SummaryAborted extends Error {}
+
+  /** 摘要请求：Session 当前模型、没有工具、maxTokens 20 000（不超过模型上限）、不写提示缓存。 */
+  const summarize = async (plan: CompactionPlan, signal: AbortSignal, instructions?: string): Promise<string> => {
+    const { systemPrompt, prompt } = summaryRequest(plan, instructions)
+    const model = agent.state.model
+    const maxTokens = Math.min(SUMMARY_MAX_TOKENS, model.maxTokens > 0 ? model.maxTokens : SUMMARY_MAX_TOKENS)
+    const request = normalizeContext({ systemPrompt, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] })
+    const response = await (await stream(model, request, { signal, maxTokens, cacheRetention: 'none' })).result()
+    if (signal.aborted || response.stopReason === 'aborted') throw new SummaryAborted()
+    if (response.stopReason === 'error') throw new Error(response.errorMessage || 'Summarization failed')
+    if (response.stopReason === 'length') throw new Error('Summarization hit the output limit; the summary is incomplete')
+    if (response.content.some((block) => block.type === 'toolCall')) throw new Error('Summarization attempted to call a tool')
+    const text = response.content
+      .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+      .join('\n')
+      .trim()
+    if (text === '') throw new Error('Summarization returned an empty summary')
+    return text
+  }
+
+  type CompactOutcome = { kind: 'compacted' } | { kind: 'nothing' } | { kind: 'aborted' } | { kind: 'failed'; message: string }
+
+  /**
+   * 压缩一次：规划切点、摘要、提交 compaction 条目，再按条目重建运行时的对话记录（合成摘要消息 + firstKeptSeq 及之后，出错的回复
+   * 除外；开头的系统消息不变）。摘要失败记入熔断并发 compaction_failed；停止时不提交条目、不发 failed。
+   */
+  const compactNow = async (run: RunState, trigger: CompactionTrigger, signal: AbortSignal, instructions?: string): Promise<CompactOutcome> => {
+    const entries = await compaction!.entries()
+    const plan = planCompaction(entries, compaction!.keepRecentTokens === undefined ? {} : { keepRecentTokens: compaction!.keepRecentTokens })
+    if (!plan) return { kind: 'nothing' }
+    const tokensBefore = contextTokensOf(entries)
+    progress({ type: 'compaction_start', runId: run.runId, trigger })
+    let summary: string
+    try {
+      summary = await summarize(plan, signal, instructions)
+    } catch (error) {
+      if (error instanceof SummaryAborted || signal.aborted) return { kind: 'aborted' }
+      const message = error instanceof Error ? error.message : String(error)
+      progress({ type: 'compaction_failed', runId: run.runId, trigger, message, consecutiveFailures: breaker.failed(trigger) })
+      return { kind: 'failed', message }
+    }
+    if (signal.aborted || run.aborted) return { kind: 'aborted' }
+    const payload: CompactionPayload = {
+      summary: formatCompactionSummary(summary, plan),
+      firstKeptSeq: plan.firstKeptSeq,
+      tokensBefore,
+      trigger,
+      readFiles: plan.readFiles,
+      modifiedFiles: plan.modifiedFiles,
+      ...(plan.invokedSkills.length > 0 ? { invokedSkills: plan.invokedSkills } : {}),
+    }
+    const next = (modelContext([...entries, { seq: Number.MAX_SAFE_INTEGER, kind: 'compaction', runId: run.runId, payload }]) as AgentMessage[]).filter(
+      (message) => !isFailedReply(message),
+    )
+    payload.tokensAfter = next.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(message)), 0) + systemTokens()
+    try {
+      await commit({ kind: 'compaction', runId: run.runId, payload })
+    } catch (error) {
+      run.commitError ??= error instanceof Error ? error : new Error(String(error))
+      agent.abort()
+      return { kind: 'aborted' }
+    }
+    breaker.succeeded()
+    const head = agent.state.messages[0]?.role === 'system' ? [agent.state.messages[0]] : []
+    agent.state.messages = [...head, ...next]
+    progress({ type: 'compaction_end', runId: run.runId, trigger, tokensBefore, tokensAfter: payload.tokensAfter })
+    return { kind: 'compacted' }
+  }
+
+  /** 每次模型请求前：估算超过阈值时自动压缩，返回替换后的请求上下文；自动压缩失败不终止 Run（用原上下文继续）。 */
+  const autoCompact = async (
+    run: RunState,
+    messages: readonly AgentMessage[],
+    model: Model<any>,
+    signal: AbortSignal | undefined,
+  ): Promise<AgentMessage[] | undefined> => {
+    if (!compaction || run.trigger === 'compact' || run.aborted || run.commitError || breaker.paused || !compaction.autoCompact()) return undefined
+    const { threshold } = contextBudget({ contextWindow: model.contextWindow ?? 0, maxTokens: model.maxTokens ?? 0 })
+    if (threshold <= 0 || estimateContextTokens(messages).tokens < threshold) return undefined
+    // 内存中的估算可能用了压缩之前的 usage：按条目复核。
+    if (contextTokensOf(await compaction.entries()) < threshold) return undefined
+    const outcome = await compactNow(run, 'auto', signal ?? new AbortController().signal)
+    return outcome.kind === 'compacted' ? agent.state.messages.slice() : undefined
+  }
+
+  /** 请求以上下文溢出失败：压缩一次再重试一次（overflow）；压缩失败或没有可压缩的内容时以原模型错误结束。 */
+  const recoverOverflow = (drive: () => Promise<void>) => async () => {
+    await drive()
+    const run = current
+    if (!compaction || !run || run.overflowRetried || run.aborted || run.paused || run.rejected || run.commitError) return
+    if (breaker.paused || !compaction.autoCompact()) return
+    const last = agent.state.messages.at(-1)
+    if (last?.role !== 'assistant' || last.stopReason !== 'error' || !isContextOverflow(last, agent.state.model.contextWindow)) return
+    run.overflowRetried = true
+    const controller = new AbortController()
+    run.compacting = controller
+    let outcome: CompactOutcome
+    try {
+      outcome = await compactNow(run, 'overflow', controller.signal)
+    } finally {
+      run.compacting = undefined
+    }
+    if (outcome.kind !== 'compacted' || run.aborted) return
+    // 重建的上下文不含出错的回复：从最后的 user 消息或工具结果继续。
+    await agent.continue()
+  }
+
   const outcome = (run: RunState): { status: RunStatus; error?: RunError } => {
     if (run.commitError) return { status: 'error', error: { code: 'commit_failed', message: run.commitError.message } }
+    if (run.ended) return run.ended
     const last = agent.state.messages.at(-1)
     if (run.aborted || run.rejected || (last?.role === 'assistant' && last.stopReason === 'aborted')) return { status: 'aborted' }
     if (last?.role === 'assistant' && last.stopReason === 'error') {
@@ -465,7 +649,16 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    */
   const execute = async (trigger: RunTrigger, drive: () => Promise<void>, before: readonly RunEntry[] = []): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
-    const run: RunState = { runId: randomUUID(), aborted: false, rejected: false, paused: false, pauseSignal: new AbortController(), steering: [] }
+    const run: RunState = {
+      runId: randomUUID(),
+      aborted: false,
+      rejected: false,
+      paused: false,
+      pauseSignal: new AbortController(),
+      steering: [],
+      trigger,
+      overflowRetried: false,
+    }
     current = run
     let result: RunResult
     try {
@@ -520,18 +713,25 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   return {
     run(raw) {
       const input = toInput(raw)
-      return execute('submit', () => agent.prompt(userMessage(input)), input.before ?? [])
+      return execute(
+        'submit',
+        recoverOverflow(() => agent.prompt(userMessage(input))),
+        input.before ?? [],
+      )
     },
     async retry() {
       if (current || agent.state.isStreaming) throw new RuntimeBusyError()
       if (!failedTurn()) throw new NothingToRetryError()
-      return execute('retry', async () => {
-        const messages = agent.state.messages
-        let end = messages.length
-        while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--
-        agent.state.messages = messages.slice(0, end)
-        await agent.continue()
-      })
+      return execute(
+        'retry',
+        recoverOverflow(async () => {
+          const messages = agent.state.messages
+          let end = messages.length
+          while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--
+          agent.state.messages = messages.slice(0, end)
+          await agent.continue()
+        }),
+      )
     },
     continue() {
       if (current || agent.state.isStreaming) return Promise.reject(new RuntimeBusyError())
@@ -539,7 +739,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 上一 Run 须为 paused / interrupted；模型请求要从用户消息或工具结果继续。
       if ((lastStatus !== 'paused' && lastStatus !== 'interrupted') || !last || last.role === 'assistant' || last.role === 'system')
         return Promise.reject(new NothingToContinueError())
-      return execute('continue', () => agent.continue())
+      return execute(
+        'continue',
+        recoverOverflow(() => agent.continue()),
+      )
     },
     steer(raw) {
       const run = current
@@ -559,7 +762,32 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     abort() {
       if (!current) return
       current.aborted = true
+      current.compacting?.abort()
       agent.abort()
+    },
+    compact(instructions) {
+      if (!compaction) return Promise.reject(new Error('Compaction is not configured for this runtime'))
+      return execute('compact', async () => {
+        const run = current!
+        const controller = new AbortController()
+        run.compacting = controller
+        try {
+          const outcome = await compactNow(run, 'manual', controller.signal, instructions)
+          run.ended =
+            outcome.kind === 'compacted'
+              ? { status: 'completed' }
+              : outcome.kind === 'aborted'
+                ? { status: 'aborted' }
+                : outcome.kind === 'nothing'
+                  ? { status: 'error', error: { code: 'internal', message: NOTHING_TO_COMPACT_TEXT } }
+                  : { status: 'error', error: { code: 'model_error', message: outcome.message } }
+        } finally {
+          run.compacting = undefined
+        }
+      })
+    },
+    get compaction() {
+      return { consecutiveFailures: breaker.consecutiveFailures, paused: breaker.paused }
     },
     answerApproval(requestId, answer) {
       return broker.answer(requestId, answer)

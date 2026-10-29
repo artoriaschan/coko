@@ -13,6 +13,7 @@ import { createRendererLog } from './app/renderer-log.ts'
 import { createApiClient } from './client/api.ts'
 import { connect } from './client/connection.ts'
 import { createChatStore } from './stores/chat-store.ts'
+import { contextStore, trackCompaction } from './stores/context-store.ts'
 import { createSettingsStore } from './stores/settings-store.ts'
 
 const root = document.getElementById('root')
@@ -42,6 +43,14 @@ const chat = createChatStore({
   // 分叉的标题按当前语言生成，Sidecar 原样保存。
   forkTitle: (title) => t()('sidebar.forkTitle', { title: title || t()('sidebar.untitled') }),
 })
+// 压缩进度（票 11）：输入区上方的状态行与上下文环；失败时一次 Toast，连续自动失败（熔断）时提示 /compact。
+trackCompaction(contextStore, stream, (failure) =>
+  toast.error(
+    failure.trigger !== 'manual' && failure.consecutiveFailures >= 3
+      ? t()('context.compaction.pausedHint')
+      : t()('context.compaction.failed', { message: failure.message }),
+  ),
+)
 const bridge = window.coko
 const settings = createSettingsStore({
   api,

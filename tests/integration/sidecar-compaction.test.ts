@@ -1,0 +1,249 @@
+// 压缩（票 11）：真实 Sidecar（faux 小窗口，临时 COKO_HOME）。自动压缩提交 compaction { trigger: auto }，摘要请求没有工具、含规定的节标题，
+// 下一次请求为合成摘要 + firstKeptSeq 及之后；回退到压缩之前恢复原历史；压缩后分叉的 Session 上下文与原 Session 一致；/compact 开始
+// trigger compact 的 Run（服务端 action 路径），摘要请求含指示；压缩中停止不提交条目；连续 3 次失败熔断（上下文接口 paused），成功的手动
+// 压缩复位；溢出时压缩一次再重试一次。
+import { mkdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { API_ROUTES, apiPaths, checkpointPaths, contextPaths, type ContextUsageResponse, type ServerMessage } from '@coko/protocol'
+import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, writeCokoHome, type Stream } from './sidecar-harness.ts'
+
+type Api = ReturnType<typeof client>
+type Message = { role: string; content: unknown }
+
+/** 60k 窗口、4k 输出：阈值 = 56 000 − 13 000 = 43 000；保留最近 20 000 tokens（约 80 000 字符）。 */
+async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
+  const root = await tempDir()
+  const workspaceDir = join(root, 'ws')
+  await mkdir(workspaceDir)
+  const dirs = await sidecarDirs()
+  await writeCokoHome(dirs, 'AGENTS.md', 'USER-RULE\n')
+  const requestLog = join(root, 'requests.jsonl')
+  const script = await fauxScript(root, { contextWindow: 60_000, maxTokens: 4_000, requestLog, responses, ...extra })
+  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const cookie = await exchange(sidecar)
+  const api = client(sidecar, cookie)
+  const stream = await connect(sidecar, cookie)
+  const workspace = (await api.post(API_ROUTES.workspaces, { path: workspaceDir })).body as { id: string }
+  const requests = async (): Promise<Message[][]> =>
+    (await readFile(requestLog, 'utf8').catch(() => ''))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Message[])
+  return { api, stream, sidecar, workspace, requests }
+}
+
+async function openSession(api: Api, stream: Stream, workspaceId: string): Promise<string> {
+  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+  return sessionId
+}
+
+const runEnds = (stream: Stream, sessionId: string) => stream.entries(sessionId).filter((e) => e.kind === 'run_end')
+/** 提交一条消息并等到它的 run_end；返回该 Run 的条目。 */
+async function send(api: Api, stream: Stream, sessionId: string, text: string) {
+  const before = runEnds(stream, sessionId).length
+  const res = await api.post(apiPaths.sessionMessages(sessionId), { text })
+  expect({ status: res.status, body: res.body }).toMatchObject({ status: 202 })
+  await stream.waitFor(() => runEnds(stream, sessionId).length > before, 30_000)
+  const runId = res.body.runId as string
+  return stream.entries(sessionId).filter((e) => e.runId === runId)
+}
+
+const textOf = (message: Message | undefined) =>
+  !message ? '' : typeof message.content === 'string' ? message.content : (message.content as { text?: string }[]).map((b) => b.text ?? '').join('')
+const isSummaryRequest = (messages: Message[]) => messages.length === 2 && textOf(messages[1]).startsWith('<conversation>')
+const conversation = (messages: Message[]) => messages.filter((m) => m.role !== 'system').map((m) => [m.role, textOf(m)])
+const kinds = (entries: { kind: string; payload: unknown }[]) =>
+  entries.map((e) => (e.kind === 'message' ? 'message:' + (e.payload as { role: string }).role : e.kind))
+const progressOf = (stream: Stream, sessionId: string, type: string) =>
+  stream.messages.flatMap((m) => (m.type === 'progress' && m.sessionId === sessionId && m.event.type === type ? [m.event] : [])) as Extract<
+    ServerMessage,
+    { type: 'progress' }
+  >['event'][]
+const big = (n: number, c: string) => c.repeat(n)
+
+describe('自动压缩、回退与分叉', () => {
+  it('越过阈值提交 compaction { trigger: auto }；回退到压缩之前恢复原历史；压缩后分叉的上下文与原 Session 一致', { timeout: 90_000 }, async () => {
+    const { api, stream, sidecar, workspace, requests } = await boot([
+      { content: 'ok1' },
+      { content: 'ok2' },
+      { content: 'ok3' },
+      { content: '## Goal\nSUMMARY-AUTO' },
+      { content: 'ok4' },
+      { content: 'ok5' },
+      { content: 'fork-ok5' },
+      { content: 'after-rewind' },
+    ])
+    const sessionId = await openSession(api, stream, workspace.id)
+    for (const c of ['a', 'b', 'c']) expect(kinds(await send(api, stream, sessionId, big(40_000, c)))).not.toContain('compaction')
+    const fourth = await send(api, stream, sessionId, big(60_000, 'd'))
+    expect(kinds(fourth)).toEqual(['run_start', 'message:user', 'compaction', 'message:assistant', 'run_end'])
+    const compaction = fourth[2]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
+    const users = stream.entries(sessionId).filter((e) => e.kind === 'message' && (e.payload as Message).role === 'user')
+    expect(compaction).toMatchObject({ trigger: 'auto', firstKeptSeq: users[2]!.seq, summary: '## Goal\nSUMMARY-AUTO' })
+    expect(compaction.tokensBefore).toBeGreaterThanOrEqual(43_000)
+    expect(compaction.tokensAfter).toBeLessThan(compaction.tokensBefore)
+    expect(progressOf(stream, sessionId, 'compaction_start')).toEqual([{ type: 'compaction_start', trigger: 'auto' }])
+    expect(progressOf(stream, sessionId, 'compaction_end')).toHaveLength(1)
+
+    let log = await requests()
+    // 第 4 次模型请求是摘要：没有工具声明，只有摘要系统提示与一条 user 消息，含规定的节标题与被摘要的前两轮。
+    const summary = log[3]!
+    expect(isSummaryRequest(summary)).toBe(true)
+    expect((summary[0] as { toolsAdded?: unknown }).toolsAdded).toBeUndefined()
+    expect(textOf(summary[0])).not.toContain('USER-RULE')
+    for (const heading of ['## Goal', '## User Messages', '## Next Step']) expect(textOf(summary[1])).toContain(heading)
+    expect(textOf(summary[1])).toContain('[User]: ' + big(40_000, 'b'))
+    expect(textOf(summary[1])).not.toContain(big(40_000, 'c'))
+    // 下一次请求：合成摘要 + firstKeptSeq 及之后的消息。
+    expect(conversation(log[4]!)).toEqual([
+      ['user', expect.stringContaining('<summary>\n## Goal\nSUMMARY-AUTO\n</summary>')],
+      ['user', big(40_000, 'c')],
+      ['assistant', 'ok3'],
+      ['user', big(60_000, 'd')],
+    ])
+
+    // 压缩之后的一轮：不再压缩。之后从这条消息分叉，新 Session 的请求与原 Session 的这次请求一致。
+    expect(kinds(await send(api, stream, sessionId, 'five'))).not.toContain('compaction')
+    log = await requests()
+    const original = conversation(log[5]!)
+    const fifth = stream.entries(sessionId).findLast((e) => e.kind === 'message' && textOf(e.payload as Message) === 'five')!
+    const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: fifth.seq })
+    expect({ status: forked.status, body: forked.body }).toMatchObject({ status: 201 })
+    const forkId = forked.body.sessionId as string
+    stream.send({ type: 'subscribe', sessionId: forkId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
+    expect(stream.entries(forkId).some((e) => e.kind === 'compaction')).toBe(true)
+    await send(api, stream, forkId, 'five')
+    log = await requests()
+    expect(conversation(log[6]!)).toEqual(original)
+
+    // 回退到压缩之前的消息（第二条）：compaction 落在被回退区间内，下一次请求恢复原历史。
+    const rewound = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: users[1]!.seq, mode: 'conversation' })
+    expect({ status: rewound.status, body: rewound.body }).toMatchObject({ status: 200 })
+    await send(api, stream, sessionId, 'again')
+    log = await requests()
+    expect(conversation(log[7]!)).toEqual([
+      ['user', big(40_000, 'a')],
+      ['assistant', 'ok1'],
+      ['user', 'again'],
+    ])
+    expect(stream.invalidEntries).toEqual([])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+})
+
+describe('/compact 与停止', () => {
+  it('/compact 指示 → trigger compact 的 Run，只提交 compaction；没有可摘要内容时 400；压缩中停止不提交条目', { timeout: 90_000 }, async () => {
+    const { api, stream, sidecar, workspace, requests } = await boot(
+      [
+        { content: 'ok1' },
+        { content: 'ok2' },
+        { content: 'ok3' },
+        { content: 'MANUAL' },
+        { content: 'x' },
+        { content: 'y' },
+        { content: 'z' },
+        { content: big(2_000, 'S') },
+      ],
+      { tokensPerSecond: 50 },
+    )
+    const sessionId = await openSession(api, stream, workspace.id)
+    await send(api, stream, sessionId, big(4_000, 'g'))
+    await send(api, stream, sessionId, big(48_000, 'h'))
+    await send(api, stream, sessionId, big(40_000, 'i'))
+    const run = await send(api, stream, sessionId, '/compact 只保留接口设计')
+    expect(kinds(run)).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(run[0]!.payload).toEqual({ trigger: 'compact' })
+    expect(run[1]!.payload).toMatchObject({ trigger: 'manual', summary: 'MANUAL' })
+    expect(run[2]!.payload).toEqual({ status: 'completed' })
+    const log = await requests()
+    expect(isSummaryRequest(log[3]!)).toBe(true)
+    expect(textOf(log[3]![1])).toContain('Additional requirements from the user: 只保留接口设计')
+    expect(textOf(log[3]![1])).toContain('[User]: ' + big(4_000, 'g'))
+
+    // 只有最近内容的 Session：/compact 被拒绝，不开始 Run。
+    const fresh = await openSession(api, stream, workspace.id)
+    const refused = await api.post(apiPaths.sessionMessages(fresh), { text: '/compact' })
+    expect(refused.status).toBe(400)
+    expect(refused.body.error).toMatchObject({ code: 'bad-request', details: { reason: 'nothing-to-compact' } })
+    expect(stream.entries(fresh).some((e) => e.kind === 'run_start')).toBe(false)
+
+    // 压缩中停止：摘要流式输出约 10 秒，compaction_start 后停止；不提交 compaction，Run 以 aborted 结束。
+    const other = await openSession(api, stream, workspace.id)
+    await send(api, stream, other, big(4_000, 'p'))
+    await send(api, stream, other, big(48_000, 'q'))
+    await send(api, stream, other, big(40_000, 'r'))
+    const started = await api.post(apiPaths.sessionMessages(other), { text: '/compact' })
+    expect(started.status).toBe(202)
+    await stream.waitFor((m) => m.type === 'progress' && m.sessionId === other && m.event.type === 'compaction_start')
+    expect((await api.post(apiPaths.sessionAbort(other), {})).status).toBeLessThan(300)
+    await stream.waitFor(() => runEnds(stream, other).length === 4, 20_000)
+    expect(runEnds(stream, other).at(-1)!.payload).toEqual({ status: 'aborted' })
+    expect(stream.entries(other).some((e) => e.kind === 'compaction')).toBe(false)
+    expect(progressOf(stream, other, 'compaction_failed')).toEqual([])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+})
+
+describe('熔断与溢出', () => {
+  it('摘要连续失败 3 次后不再自动压缩，compaction_failed 带 consecutiveFailures，上下文接口 paused；成功的 /compact 复位', { timeout: 90_000 }, async () => {
+    const fail = { content: 'partial', stopReason: 'length' }
+    const { api, stream, sidecar, workspace, requests } = await boot([
+      { content: 'ok1' },
+      fail,
+      { content: 'ok2' },
+      fail,
+      { content: 'ok3' },
+      fail,
+      { content: 'ok4' },
+      { content: 'ok5' },
+      { content: 'RESET' },
+    ])
+    const sessionId = await openSession(api, stream, workspace.id)
+    await send(api, stream, sessionId, big(100_000, 'p'))
+    for (const text of [big(80_000, 'q'), 'r', 's']) expect((await send(api, stream, sessionId, text)).at(-1)!.payload).toEqual({ status: 'completed' })
+    expect(progressOf(stream, sessionId, 'compaction_failed').map((e) => (e as { consecutiveFailures: number }).consecutiveFailures)).toEqual([1, 2, 3])
+    const paused = (await api.get(contextPaths.session(sessionId))).body as ContextUsageResponse
+    expect(paused.autoCompact).toEqual({ enabled: true, paused: true })
+    const count = (await requests()).length
+    await send(api, stream, sessionId, 't')
+    expect((await requests()).length).toBe(count + 1)
+    expect(kinds(await send(api, stream, sessionId, '/compact'))).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(((await api.get(contextPaths.session(sessionId))).body as ContextUsageResponse).autoCompact.paused).toBe(false)
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('请求以上下文溢出失败：压缩一次（overflow）再重试一次成功', { timeout: 60_000 }, async () => {
+    const { api, stream, sidecar, workspace, requests } = await boot([
+      { content: 'ok1' },
+      { content: 'ok2' },
+      { content: 'ok3' },
+      { content: '', stopReason: 'error', errorMessage: 'prompt is too long: 70000 tokens > 60000 maximum' },
+      { content: 'S-OVERFLOW' },
+      { content: 'recovered' },
+    ])
+    const sessionId = await openSession(api, stream, workspace.id)
+    // faux 的 usage 把未命中缓存的部分计两次：每轮新增的内容保持较小，三轮之后仍低于阈值。
+    await send(api, stream, sessionId, big(4_000, 'x'))
+    await send(api, stream, sessionId, big(48_000, 'y'))
+    await send(api, stream, sessionId, big(40_000, 'w'))
+    const run = await send(api, stream, sessionId, 'z')
+    expect(kinds(run)).toEqual(['run_start', 'message:user', 'message:assistant', 'compaction', 'message:assistant', 'run_end'])
+    expect(run[3]!.payload).toMatchObject({ trigger: 'overflow', summary: 'S-OVERFLOW' })
+    expect(run.at(-1)!.payload).toEqual({ status: 'completed' })
+    const log = await requests()
+    expect(isSummaryRequest(log[4]!)).toBe(true)
+    expect(conversation(log[5]!)).toEqual([
+      ['user', expect.stringContaining('S-OVERFLOW')],
+      ['user', big(48_000, 'y')],
+      ['assistant', 'ok2'],
+      ['user', big(40_000, 'w')],
+      ['assistant', 'ok3'],
+      ['user', 'z'],
+    ])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+})

@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪，以及内置遍历与 ripgrep 共同的忽略来源。修改引用展开、文件候选、composer、用量与裁剪或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
 # 上下文管理
 
-本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖 [File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪与忽略规则；压缩尚未实现。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
+本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖 [File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
 
 ## 结构入口
 
@@ -28,7 +28,12 @@ lifecycle: active
 | `apps/server/src/application/context/usage.ts` | 时间裁剪的 `transformMessages`；`contextUsage` 汇总各贡献的 `report()` |
 | `apps/server/src/http/routes/context.ts` | `GET /api/sessions/:id/context`、`GET /api/workspaces/:id/context` |
 | `packages/ui/src/context-ring/`、`components/hover-card.tsx` | 上下文环与 HoverCard |
-| `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片 |
+| `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片；压缩进度（`trackCompaction`）与熔断暂停标记 |
+| `packages/agent/src/context/compaction/` | `planCompaction`（切点、要摘要的消息、文件与 Skill 汇总）、`summaryRequest` / `formatCompactionSummary`（摘要提示）、`estimateCompactedTokens`、`createCompactionBreaker` |
+| `packages/agent/src/engine/runtime.ts` | `compaction` 选项：请求前的自动压缩、溢出后压缩并重试、`compact()`（trigger compact 的 Run）、熔断状态 |
+| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction 与其保留的消息 |
+| `apps/server/src/application/context/compaction.ts`、`sessions.ts` | `/compact` 动作；运行时的 `compaction` 接线与 `compactionPaused` |
+| `apps/desktop/src/renderer/features/conversation/compaction-divider.tsx`、`composer.tsx` | 时间线的压缩分隔条；输入区上方的压缩状态行 |
 
 ## File Reference
 
@@ -94,23 +99,24 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 | 自动压缩阈值 | 有效窗口 − buffer；buffer 按 contextWindow：≥ 800k 为 50 000，≥ 400k 为 30 000，其余 13 000 |
 | 预警线 | 阈值 − 20 000 |
 
-窗口过小时各值取 0。例如 128k / maxTokens 16 384 → 阈值 98 616、预警 78 616；400k / 128k → 350 000、330 000；1M / 32k → 930 000、910 000。压缩（尚未实现）复用这里的阈值。
+窗口过小时各值取 0。例如 128k / maxTokens 16 384 → 阈值 98 616、预警 78 616；400k / 128k → 350 000、330 000；1M / 32k → 930 000、910 000。[压缩](#压缩)复用这里的阈值。
 
 ### 估算
 
 - tokens = 最后一次有效的 assistant usage（input + cacheRead + cacheWrite + output，跳过出错、中止与为 0 的回复）加其后消息的 chars/4（向上取整）；最后一条就是该回复时 `estimated` 为 false。
-- 分项一律 chars/4：`system`（基础系统提示）、`instructions`、`skills`、`memory`（各贡献 `report()` 的字符数，与注入的 system section 相同）、`tools`（基础工具与本作用域贡献工具的 name、description、parameters 的 JSON）、`messages`（有效对话记录，已应用回退与时间裁剪）。没有 usage，或时间裁剪会改变下一次请求而 usage 已不代表它时，tokens 为分项之和，`estimated` 为 true。
+- 分项一律 chars/4：`system`（基础系统提示）、`instructions`、`skills`、`memory`（各贡献 `report()` 的字符数，与注入的 system section 相同）、`tools`（基础工具与本作用域贡献工具的 name、description、parameters 的 JSON）、`messages`（有效对话记录，已应用回退与时间裁剪）。没有 usage，或时间裁剪会改变下一次请求而 usage 已不代表它，或最后一次 usage 早于最后一个有效的压缩（它量的是被摘要替代的历史）时，tokens 为分项之和，`estimated` 为 true。
 - 字符计法沿用 pi coding-agent：文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。
 - 每条 assistant 消息提交后 Sidecar 发 progress `context_usage { tokens, contextWindow }`，位于该 assistant 条目之后。
 
 ### 接口
 
-`GET /api/sessions/:id/context` 与还没有 Session 的草稿 `GET /api/workspaces/:id/context`（没有消息，按缺省模型）→ `ContextUsageResponse`：`{ contextWindow, threshold, warning, tokens, estimated, breakdown, instructions: { path, scope, chars, truncated }[], diagnostics, autoCompact: { enabled, paused } }`。不存在时 404；没有可用模型时窗口、阈值与预警为 0。`instructions` 是本作用域加载的用户级与项目级指令文件（截断的标出），`diagnostics` 汇总指令、Skills 与 MCP（配置与结果诊断）的诊断；`autoCompact.enabled` 为有效配置 `context.autoCompact`，`paused` 目前恒为 false。取值与 Run 开始时相同（会连接应当连接的 MCP Server），不改条目。
+`GET /api/sessions/:id/context` 与还没有 Session 的草稿 `GET /api/workspaces/:id/context`（没有消息，按缺省模型）→ `ContextUsageResponse`：`{ contextWindow, threshold, warning, tokens, estimated, breakdown, instructions: { path, scope, chars, truncated }[], diagnostics, autoCompact: { enabled, paused } }`。不存在时 404；没有可用模型时窗口、阈值与预警为 0。`instructions` 是本作用域加载的用户级与项目级指令文件（截断的标出），`diagnostics` 汇总指令、Skills 与 MCP（配置与结果诊断）的诊断；`autoCompact.enabled` 为有效配置 `context.autoCompact`，`paused` 为该 Session 的自动压缩是否已熔断（见 [熔断](#触发与熔断)；草稿恒为 false）。取值与 Run 开始时相同（会连接应当连接的 MCP Server），不改条目。
 
 ### 上下文环
 
 - 输入区底栏、模型选择之后显示环与百分比（占 contextWindow，向下取整）。tokens 达到预警线为 warning 色，达到阈值为 destructive 色；没有窗口或读取失败时只画轨道，名称为"上下文用量"。环固定宽度、不收缩，窄输入区中先收缩模式与模型选择。
-- 作用域（会话或草稿）变化、会话中每条 assistant 条目提交、Run 结束与打开卡片时重新读取；较早发出的请求晚到时丢弃。
+- 作用域（会话或草稿）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早发出的请求晚到时丢弃。
+- `autoCompact.paused` 为 true 时环之前显示暂停标记（`data-slot="auto-compact-paused"`，warning 色），名称与 Tooltip 提示可以输入 `/compact` 手动压缩。
 - 点击（或 Enter / 空格）打开 HoverCard（`role="dialog"`，名称"上下文"）；只悬停不打开，以免布局变化把环移到静止的指针下时卡片遮住输入区上方的横幅。指针离开环与卡片、外部点击或 Esc 关闭。内容：用量与是否含估算、阈值与预警（或自动压缩已关闭 / 已暂停）、六个分项、指令文件（作用域与截断）与诊断。Esc 关闭后焦点留在环上。
 
 ## 时间裁剪
@@ -118,6 +124,45 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 开关为有效配置 `context.trimOldToolResults`（默认开启，项目可关闭）。经上下文装配的 `transformMessages` 只改发给模型的请求，条目与对话记录不变；Sidecar 记 debug `old tool results trimmed { cleared }`。
 - 裁剪点：assistant 之后第一条间隔超过 60 分钟的非 assistant 消息（用户隔了很久才发消息，或工具结果隔了很久才到），以及请求时 now 距最后一条 assistant 超过 60 分钟时的末尾。每个裁剪点之前的 toolResult 除最近 5 个外，超过 2KB（UTF-8）的内容替换为 `[Old tool result content cleared]`。
 - 裁剪点只由消息时间戳决定，同一 Run 的后续请求与之后的 Run 得到相同的前缀，提示缓存只在已冷时失效一次。时钟可注入（`usageContribution({ now })`）。
+
+## 压缩
+
+较早的对话被结构化摘要替代；条目不删除，时间线仍显示之前的消息。开关为有效配置 `context.autoCompact`（默认开启，项目可关闭），只影响自动与溢出压缩，`/compact` 总可用。
+
+### 触发与熔断
+
+| 触发 | 时机 | 失败时 |
+| --- | --- | --- |
+| `auto` | 每次模型请求之前（pi `prepareRequest`），估算 tokens 达到[阈值](#预算)。内存中的估算可能用了压缩之前的 usage，越过阈值时再按条目复核（`estimateCompactedTokens`，加系统消息的 chars/4） | 发 `compaction_failed`，Run 用原上下文继续 |
+| `overflow` | 请求以上下文溢出失败（pi-ai `isContextOverflow`）：压缩一次再重试一次；每个 Run 至多一次 | 以原模型错误结束 |
+| `manual` | `/compact [指示]`：一个 `run_start { trigger: compact }` 的 Run，只提交 `compaction` 与 `run_end`；指示追加为摘要的额外要求。没有可摘要的较早内容时 400 `bad-request`（`details.reason: nothing-to-compact`），不开始 Run | Run 以 `error`（`model_error`）结束，不可重试 |
+
+- 熔断：一个 Session 连续 3 次自动或溢出压缩失败后不再自动压缩（运行时内存；Sidecar 重启或任何一次成功的压缩后复位，手动失败不计入暂停）。`compaction_failed.consecutiveFailures` 为任何触发方式的连续失败数。用量接口的 `autoCompact.paused` 来自 `SessionService.compactionPaused`。
+- 停止：压缩中 `POST …/abort` 停止摘要请求，不提交 `compaction` 条目，也不发 `compaction_failed`；Run 以 aborted 结束。
+- progress：`compaction_start { trigger }`、`compaction_end { trigger, tokensBefore, tokensAfter }`、`compaction_failed { trigger, message, consecutiveFailures }`。Sidecar 另记 info `manual compaction started`（只记是否带指示）。
+
+### 切点
+
+从最后一个有效 compaction 保留的部分起（没有时从头），对 user、assistant 与 toolResult 消息从尾部累加 chars/4 到 20 000 tokens；越过的位置之后最近的 user 或 assistant 消息开始处为切点（firstKeptSeq），不拆开 toolCall 与 toolResult；最后的工具结果本身就超过预算时保留它的调用。出错或中止的回复与 system 消息（工具声明的变化）不作为切点、不进入摘要。切点落在第一条消息或尾部不足 20 000 时没有可摘要的内容，不压缩。
+
+### 摘要请求
+
+- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。
+- 结构固定为 `## Goal`、`## Constraints & Preferences`、`## User Messages`（逐条，安全相关约束原文保留，不把 assistant 的话当成用户的）、`## Files and Code`、`## Errors and Fixes`、`## Key Decisions`、`## Progress`（Done / In Progress / Blocked）、`## Pending Tasks`、`## Current Work`、`## Next Step`（须与最近的明确请求一致）。已有摘要时用增量更新提示，上次摘要在 `<previous-summary>` 中。
+- 回复出错、被截断（`length`）、含工具调用或为空都算失败。成功时摘要正文之后追加 `<read-files>`、`<modified-files>`（从被摘要的 read / write / edit 调用与上次的列表汇总，改过的不再列为只读）与 `<invoked-skills>`（skill 调用与 Skill 来源的命令），只列路径与名字，不重读内容。
+- 摘要文本是模型输出，与对话文本同样进入条目与推送，不另脱敏；`compaction_failed.message` 与手动压缩失败的 `run_end.error.message` 和其他模型错误文本一样经脱敏后推送与入库。
+
+### 条目与模型上下文
+
+- `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills? }` 在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
+- 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
+- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉复制目标之前最后一个 compaction 保留的消息与权限条目，compaction 条目排在它们之后、`firstKeptSeq` 改为 1（新 Session 重新编号），新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。
+
+### 界面
+
+- 时间线：`compaction` 条目显示为分隔条（`data-slot="compaction-divider"`，`data-trigger`）"已压缩上下文 · 约节省 N tokens"（N = tokensBefore − tokensAfter），展开显示摘要（Markdown）；之前的消息照常显示。trigger compact 的 Run 进行中不显示"生成中"，失败不提供重试。
+- 输入区：当前会话收到 `compaction_start` 后，输入框上方显示状态行"正在压缩上下文…"与"停止压缩"（即停止当前 Run）；`compaction_end`、`compaction_failed`、`run_end` 或重连时清除。
+- 失败时每次一个 Toast，第 3 次自动失败的 Toast 改为提示自动压缩已暂停并给出 `/compact`；暂停标记见[上下文环](#上下文环)。
 
 ## 忽略规则
 
@@ -140,6 +185,9 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿。
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-context.test.ts`：草稿与会话的用量接口（分项、指令文件与截断、Skills 诊断、404）、Run 后 tokens 等于 faux usage（加其后 toolResult 的 chars/4）、`context_usage` 在 assistant 条目之后。`tests/integration/secrets-gate-context.test.ts`：用量响应在秘密总闸的扫描范围内。
+- `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
+- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
+- `apps/desktop/src/renderer/features/conversation/timeline.test.ts`、`composer.browser.test.tsx`、`stores/context-store.test.ts`：分隔条与节省数、compact Run 的错误不可重试；状态行与停止；进度跟踪。`apps/desktop/e2e/compaction.e2e.test.ts`：Electron 中的失败 Toast、熔断暂停标记、`/compact` 状态行、分隔条与摘要展开、之前的消息仍在。
 - `packages/agent/src/testing/grep-contract.ts`（内置 grep 与 `apps/server/src/adapters/ripgrep.test.ts` 都运行）：临时 HOME 下的 `.git/info/exclude`、`core.excludesFile`、XDG 缺省文件与没有这些文件时；`tools/builtin/walk.test.ts`：find 与文件候选、嵌套仓库与 worktree。
 - `apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx`、`stores/context-store.test.ts`：环的档位与颜色、HoverCard 内容、Esc 与焦点、390px 宽输入区不重叠；读取与过期请求。`apps/desktop/e2e/context.e2e.test.ts`：Electron 中的百分比、越过预警线变色、卡片的分项与指令文件、Esc、最窄窗口。
 

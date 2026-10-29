@@ -1,5 +1,7 @@
 // 产物 smoke：对 electron-forge package 的输出（out/）运行真实应用，完成一次 faux 对话，确认 grep 使用随包 ripgrep，
 // 并在审批卡中允许一次 bash 写入；批准的 Workspace 外写入被产物中的 Seatbelt 拦截（只在 darwin 断言）。
+// M3（票 11）：临时 COKO_HOME 的 AGENTS.md 出现在 faux requestLog 的系统提示中（产物同样读取 COKO_HOME）；仓库内的 stdio MCP 测试 Server
+// 的工具经审批调用成功（pi-mcp 与 cross-spawn 进入 sidecar 产物）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -13,6 +15,8 @@ import { BACKGROUND_ENV, processExists, waitFor } from './harness.ts'
 import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
+/** 仓库内的 stdio MCP 测试 Server（tests/fixtures/mcp/），以测试进程的 node 启动。 */
+const stdioServerEntry = fileURLToPath(new URL('../../../tests/fixtures/mcp/stdio-server.ts', import.meta.url))
 const outDir = join(desktopRoot, 'out', `Coko-${process.platform}-${process.arch}`)
 const executable = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'MacOS', 'Coko') : join(outDir, 'Coko')
 const resources = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'Resources') : join(outDir, 'resources')
@@ -99,13 +103,20 @@ describe('打包产物 smoke', () => {
     const temp = join(root, 'tmp')
     await Promise.all([mkdir(workspace), mkdir(outside), mkdir(temp)])
     await writeFile(join(workspace, 'notes.txt'), 'alpha\nneedle in the haystack\n')
+    // 用户级指令（临时 COKO_HOME，不读真实的 ~/.coko）。
+    const cokoHome = join(root, 'coko-home')
+    await mkdir(cokoHome)
+    await writeFile(join(cokoHome, 'AGENTS.md'), 'SMOKE-USER-RULE: answer briefly.\n')
     const script = join(root, 'faux.json')
+    const requestLog = join(root, 'requests.jsonl')
     await writeFile(
       script,
       JSON.stringify({
         tokensPerSecond: 40,
+        requestLog,
         responses: [
           { content: [{ type: 'toolCall', name: 'grep', id: 'g1', arguments: { pattern: 'needle' } }] },
+          { content: [{ type: 'toolCall', name: 'mcp__fixture__echo', id: 'm1', arguments: { text: 'from-package' } }] },
           { content: [{ type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'printf found > found.txt' } }] },
           { content: [{ type: 'toolCall', name: 'bash', id: 'b2', arguments: { command: `printf leak > ${join(outside, 'leak.txt')}` } }] },
           { content: 'Found the needle in **notes.txt**.' },
@@ -113,7 +124,7 @@ describe('打包产物 smoke', () => {
       }),
     )
     const userData = join(root, 'user-data')
-    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, TMPDIR: temp })
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, TMPDIR: temp, COKO_HOME: cokoHome })
     const { page } = app
     await waitConnected(page)
 
@@ -129,6 +140,22 @@ describe('打包产物 smoke', () => {
       return { status: res.status, body: (await res.json()) as { name: string } }
     }, workspace)
     expect(registered.status).toBe(201)
+    // stdio MCP 测试 Server（以测试进程的 node 启动）：产物中的 Sidecar 经 pi-mcp / cross-spawn 连接。
+    const workspaceId = (registered.body as unknown as { id: string }).id
+    const mcp = await page.evaluate(
+      async (body) => (await fetch('/api/mcp/servers', { method: 'PUT', headers: { 'content-type': 'application/json' }, body })).status,
+      JSON.stringify({ servers: { fixture: { command: process.execPath, args: [stdioServerEntry] } }, expectedRevision: 0, workspaceId }),
+    )
+    expect(mcp).toBe(200)
+    await waitFor(
+      () =>
+        page.evaluate(async (id) => {
+          const body = (await (await fetch('/api/mcp?workspaceId=' + id)).json()) as { servers: { name: string; status: string }[] }
+          return body.servers.some((s) => s.name === 'fixture' && s.status === 'connected')
+        }, workspaceId),
+      30_000,
+      'mcp fixture connected',
+    )
     await page.reload()
     await waitConnected(page)
     await page.getByRole('button', { name: new RegExp(`^(New session in|在 ).*${registered.body.name}`) }).click()
@@ -141,9 +168,16 @@ describe('打包产物 smoke', () => {
     await expect.poll(() => card.getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     await card.locator('[aria-expanded]').first().click()
     await expect.poll(() => card.textContent()).toContain('notes.txt:2: needle in the haystack')
-    // 审批：bash 写入在产物中经审批卡允许一次后执行。
+    // MCP 工具调用（external 类，默认需审批）：允许一次后 stdio 测试 Server 回显。
     const approval = page.locator('[data-slot="approval-card"]')
     await approval.waitFor({ timeout: 30_000 })
+    await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
+    const mcpCard = page.locator('[data-slot="tool-card"][data-tool="mcp__fixture__echo"]')
+    await expect.poll(() => mcpCard.getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
+    await mcpCard.locator('[aria-expanded]').first().click()
+    await expect.poll(() => mcpCard.textContent()).toContain('echo:from-package')
+    // 审批：bash 写入在产物中经审批卡允许一次后执行。
+    await expect.poll(() => approval.textContent().catch(() => ''), { timeout: 30_000 }).toContain('printf found')
     expect(await readFile(join(workspace, 'found.txt'), 'utf8').catch(() => null)).toBeNull()
     await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
     const bashCards = page.locator('[data-slot="tool-card"][data-tool="bash"]')
@@ -186,6 +220,9 @@ describe('打包产物 smoke', () => {
     expect(selected?.properties).toMatchObject({ implementation: 'ripgrep', path: join(resources, 'ripgrep', 'rg') })
     expect(String(selected?.properties.version)).toMatch(/^ripgrep \d+\.\d+\.\d+/)
     expect(sidecarLog.some((r) => r.message === 'run ended' && r.properties.status === 'completed')).toBe(true)
+    // COKO_HOME 的 AGENTS.md 进入第一次模型请求的系统提示。
+    const firstRequest = JSON.parse((await readFile(requestLog, 'utf8')).split('\n')[0]!) as { role: string; sections?: Record<string, string> }[]
+    expect(Object.values(firstRequest[0]?.sections ?? {}).join('\n')).toContain('SMOKE-USER-RULE: answer briefly.')
     for (const file of ['desktop.jsonl', 'sidecar.jsonl']) {
       const text = await readFile(join(logs, file), 'utf8')
       expect(text).not.toContain('plain-secret')

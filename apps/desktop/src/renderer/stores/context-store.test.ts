@@ -1,6 +1,6 @@
-import type { ContextUsageResponse } from '@coko/protocol'
+import type { ContextUsageResponse, ProgressEvent, ServerMessage } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
-import { createContextStore, httpFetchContextUsage } from './context-store.ts'
+import { createContextStore, httpFetchContextUsage, trackCompaction, type CompactionFailure } from './context-store.ts'
 
 const usage = (tokens: number, extra: Partial<ContextUsageResponse> = {}): ContextUsageResponse => ({
   contextWindow: 40_000,
@@ -63,5 +63,32 @@ describe('context-store', () => {
     failing.setState({ key: 'session:a', status: 'ready', usage: usage(9) })
     await failing.getState().load({ sessionId: 'a' })
     expect(failing.getState()).toMatchObject({ status: 'error', usage: { tokens: 9 } })
+  })
+
+  it('trackCompaction：compaction_start 标记会话正在压缩；end / failed / run_end 清除；结束时 revision 加一，失败时报告一次', () => {
+    const store = createContextStore(async () => usage(0))
+    const listeners: ((m: ServerMessage) => void)[] = []
+    const opens: ((r: boolean) => void)[] = []
+    const failures: CompactionFailure[] = []
+    const off = trackCompaction(store, { onMessage: (l) => (listeners.push(l), () => undefined), onOpen: (l) => (opens.push(l), () => undefined) }, (f) =>
+      failures.push(f),
+    )
+    const send = (sessionId: string, event: ProgressEvent) => listeners.forEach((l) => l({ type: 'progress', sessionId, runId: 'r', event }))
+    send('s1', { type: 'compaction_start', trigger: 'auto' })
+    send('s2', { type: 'compaction_start', trigger: 'manual' })
+    expect(store.getState()).toMatchObject({ compacting: { s1: true, s2: true }, compactionRevision: 0 })
+    send('s1', { type: 'compaction_end', trigger: 'auto', tokensBefore: 10, tokensAfter: 2 })
+    send('s2', { type: 'compaction_failed', trigger: 'manual', message: 'boom', consecutiveFailures: 2 })
+    expect(store.getState()).toMatchObject({ compacting: {}, compactionRevision: 2 })
+    expect(failures).toEqual([{ sessionId: 's2', trigger: 'manual', message: 'boom', consecutiveFailures: 2 }])
+    // 停止：只有 run_end，不报告失败。
+    send('s1', { type: 'compaction_start', trigger: 'manual' })
+    send('s1', { type: 'run_end', status: 'aborted' })
+    expect(store.getState()).toMatchObject({ compacting: {}, compactionRevision: 2 })
+    send('s1', { type: 'compaction_start', trigger: 'manual' })
+    opens.forEach((o) => o(true))
+    expect(store.getState().compacting).toEqual({})
+    expect(failures).toHaveLength(1)
+    off()
   })
 })

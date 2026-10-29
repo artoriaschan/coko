@@ -127,6 +127,8 @@ describe('命令展开', () => {
     const listed = (await api.get(`${commandPaths.commands}?workspaceId=${workspace.id}`)).body as { commands: { name: string; enabled: boolean }[] }
     // 停用的命令仍列出（enabled: false），供设置分区显示。
     expect(listed.commands.map((c) => [c.name, c.enabled])).toEqual([
+      // 内置命令不受 commands.enabled 影响（/compact 是动作，不是提示模板）。
+      ['compact', true],
       ['git:commit', false],
       ['review', false],
       ['hello', false],
@@ -140,6 +142,8 @@ describe('GET /api/commands', () => {
     const byWorkspace = await api.get(`${commandPaths.commands}?workspaceId=${workspace.id}`)
     expect(byWorkspace.status).toBe(200)
     expect(byWorkspace.body.commands).toEqual([
+      // 内置命令随其动作接入列出（票 11 的 /compact）。
+      { name: 'compact', description: 'Summarize earlier messages to free up context', argumentHint: '[instructions]', source: 'builtin', enabled: true },
       {
         name: 'git:commit',
         description: 'Write a conventional commit message for the staged changes.',
