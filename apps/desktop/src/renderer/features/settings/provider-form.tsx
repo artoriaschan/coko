@@ -7,6 +7,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { useSettingsActions } from '../../app/settings.tsx'
 import type { ProviderSaveErrorCode } from '../../../shared/bridge.ts'
 import { pruneCatalogErrors, type ModelRowDraft } from './catalog-draft.ts'
+import { FetchModels, type FetchModelsRequest } from './fetch-models-dialog.tsx'
 import { ModelCatalog } from './model-catalog.tsx'
 import { toProviderDraft, validateDraft, type DraftErrors, type DraftField, type FormDraft } from './provider-draft.ts'
 
@@ -111,6 +112,13 @@ export function ProviderForm({
     setDetail(`${result.message} (${result.code})`)
     toast.error(t('providers.saveFailed'))
   }
+
+  // 获取可用模型用表单当前的协议、地址与 Key；新建时地址或 Key 未填不可点，编辑时 Key 留空用已保存的 Credential。
+  const fetchSecret = draft.secret.trim()
+  const fetchRequest: FetchModelsRequest =
+    draft.baseUrl.trim() === '' || (isNew && fetchSecret === '')
+      ? null
+      : { api: draft.api, baseUrl: draft.baseUrl.trim(), ...(provider ? { providerId: provider.id } : {}), ...(fetchSecret ? { secret: fetchSecret } : {}) }
 
   const field = (name: Exclude<DraftField, 'models'>) => ({ id: `${id}-${name}`, error: errors[name] && t(errors[name]) })
 
@@ -244,6 +252,7 @@ export function ProviderForm({
         errors={errors.catalog}
         emptyError={errors.models && t(errors.models)}
         revealErrors={focusTick}
+        actions={<FetchModels request={fetchRequest} rows={draft.models} onImport={updateModels} />}
       />
       {formError !== null && (
         <div className="flex flex-col gap-1">

@@ -98,7 +98,51 @@ export function fakeSettingsBackend() {
   })
   /** 设置引用某 Provider 的 Session 数量（providerReferences 的返回值）。 */
   const setReferences = (id: string, sessions: number) => void references.set(id, sessions)
-  return { api: api as unknown as ApiClient, raw: api, settings, providers, permissions, externalWrite, seedProvider, saveProvider, setReferences }
+  /** 供应商返回的候选模型 ID（fetchProviderModels 的默认结果）。 */
+  let candidates: string[] = []
+  const setCandidates = (ids: string[]) => void (candidates = [...ids])
+  /** 进行中的获取：cancelProviderModels 以 cancelled 结束它们（与 main 一致）。 */
+  const pendingFetches = new Map<string, (result: Awaited<ReturnType<CokoBridge['fetchProviderModels']>>) => void>()
+  /**
+   * 模拟 main 与 Sidecar 的获取可用模型：没有 Key 时用 providerId 已保存的 Credential，没有则 no-credential。测试可用
+   * mockImplementationOnce 返回失败、空列表或用 holdFetch 挂起。
+   */
+  const fetchProviderModels = vi.fn<CokoBridge['fetchProviderModels']>(async ({ providerId, secret }) => {
+    const saved = providerId !== undefined && providers.find((p) => p.id === providerId)?.credential
+    if (!secret && !saved) return { ok: false, code: 'no-credential', message: 'No API key is available for this provider' }
+    return { ok: true, models: [...candidates] }
+  })
+  /** 让下一次获取挂起，直到 cancelProviderModels 或返回的 resolve 结束它。 */
+  const holdFetch = () => {
+    let resolve!: (result: Awaited<ReturnType<CokoBridge['fetchProviderModels']>>) => void
+    fetchProviderModels.mockImplementationOnce(
+      ({ requestKey }) =>
+        new Promise((r) => {
+          resolve = r
+          pendingFetches.set(requestKey, r)
+        }),
+    )
+    return (result: Awaited<ReturnType<CokoBridge['fetchProviderModels']>>) => resolve(result)
+  }
+  const cancelProviderModels = vi.fn<CokoBridge['cancelProviderModels']>((requestKey) => {
+    pendingFetches.get(requestKey)?.({ ok: false, code: 'cancelled', message: 'Cancelled' })
+    pendingFetches.delete(requestKey)
+  })
+  return {
+    api: api as unknown as ApiClient,
+    raw: api,
+    settings,
+    providers,
+    permissions,
+    externalWrite,
+    seedProvider,
+    saveProvider,
+    setReferences,
+    setCandidates,
+    fetchProviderModels,
+    cancelProviderModels,
+    holdFetch,
+  }
 }
 
 /** 测试用的 Model Catalog 条目：默认容量、文本输入、推理关闭。 */

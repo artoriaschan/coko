@@ -20,6 +20,7 @@ import {
   type MainToSidecarMessage,
   type ProviderFields,
   type ProviderSaveMode,
+  type SidecarProviderModelsResult,
   type SidecarProviderSaveResult,
 } from '@coko/protocol'
 
@@ -96,6 +97,35 @@ export function saveProvider(
       provider,
       ...(secret === undefined ? {} : { credential: { ciphertext: testCipher.encrypt(secret), hint: secret.length >= 8 ? secret.slice(-4) : '' } }),
     })
+  })
+}
+
+let modelsRequestId = 2_000
+
+/**
+ * 模拟 main 的获取可用模型（ADR 0010）：发 provider.models 并等待同一 requestId 的结果。onSent 收到 requestId，用于随后发
+ * provider.models.cancel。
+ */
+export function fetchModels(
+  sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>,
+  request: { api?: ProviderFields['api']; baseUrl: string; providerId?: string; secret?: string },
+  options: { timeoutMs?: number; onSent?: (requestId: number) => void } = {},
+): Promise<SidecarProviderModelsResult> {
+  const requestId = ++modelsRequestId
+  return new Promise((resolve, reject) => {
+    let done = false
+    const timer = setTimeout(() => {
+      done = true
+      reject(new Error(`provider.models ${requestId} was not answered`))
+    }, options.timeoutMs ?? 20_000)
+    sidecar.onMessage((message) => {
+      if (done || message.type !== 'provider.models.result' || message.requestId !== requestId) return
+      done = true
+      clearTimeout(timer)
+      resolve(message)
+    })
+    sidecar.send({ type: 'provider.models', requestId, api: request.api ?? 'openai-completions', ...request })
+    options.onSent?.(requestId)
   })
 }
 

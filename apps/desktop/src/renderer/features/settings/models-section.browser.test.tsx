@@ -439,8 +439,10 @@ it('键盘：Tab 到“添加模型供应商”并用键盘完成新建，焦点
   const protocol = dialog.getByRole('button', { name: 'API protocol', exact: true })
   await expect.element(protocol).toHaveTextContent('Anthropic Messages')
   await expect.element(protocol).toHaveFocus()
-  // 空目录：Tab 到“添加模型”，Enter 新增一行并聚焦模型 ID。
+  // 空目录：目录标题行的“获取可用模型”之后是“添加模型”，Enter 新增一行并聚焦模型 ID。
   await userEvent.keyboard('{Tab}sk-two-2222{Tab}')
+  expect(document.activeElement?.hasAttribute('data-fetch-models')).toBe(true)
+  await userEvent.keyboard('{Tab}')
   expect(document.activeElement).toBe(addModel())
   await userEvent.keyboard('{Enter}')
   await expect.element(page.elementLocator(document.querySelector<HTMLElement>('[role=dialog] [name="modelId"]')!)).toHaveFocus()

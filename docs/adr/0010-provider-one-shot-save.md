@@ -2,7 +2,7 @@
 kind: decision
 description: "Provider 的连接信息、Model Catalog 与 Credential 经 main 一次提交、在 sidecar 单个事务中存储；获取可用模型用表单中的密钥临时请求、不保存；去掉 kind 与品牌预设。修改 Provider 保存、密钥输入或模型发现时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -41,7 +41,8 @@ ADR 0004 的其余约束不变：加解密只在 main，库中只有密文，sid
 - 删除 kind 后，测试与独立运行只能用 `COKO_CREDENTIAL_<PROVIDER_ID>` 提供密钥，依赖按 kind 读取变量的测试需要改写。
 - implementation 变为 implemented 前需要：集成测试确认一次保存后 Provider 与密文同时存在、加密不可用时库不变、获取模型的临时密钥不进入库、日志与 CredentialStore 缓存，以及迁移后旧 Provider、Credential、默认模型与 Session 引用均已清除；Electron E2E 确认新建表单获取模型与一次保存可用。
 - 当前为 partial（2026-10-29）：已去掉 kind 与品牌预设，协议是 Provider 字段，用户输入的 ID 为主键（重复 `already-exists`），Model Catalog 显式保存各模型的容量、输入类型、推理开关与 Thinking Level 并据此注册 `thinkingLevelMap`；迁移 v4 先备份，再清除旧 Provider、Credential、默认模型与 Session 的模型引用；独立运行只读 `COKO_CREDENTIAL_<PROVIDER_ID>`。证据：`packages/session/src/sqlite/migrate-v4.test.ts`、`apps/server/src/application/providers.test.ts`、`apps/server/src/adapters/credentials.test.ts`、`tests/integration/sidecar-settings-credentials.test.ts`（重启后读回一致、ID 校验与重复、独立运行不读品牌变量）。
-- 一次提交、一次存储已实施（2026-10-29）：preload 的 `saveProvider` 把完整草稿交给 main，main 按协议 schema 校验（新建必须带 Key），用 safeStorage 加密后发一条 `provider.save { mode, provider, credential? }`，sidecar 在一个事务中写入 Provider 与密文并回 `provider.save.result`；加密不可用时 main 返回 `encryption-unavailable` 且不发送任何消息；编辑不带 Key 时保留原 Credential，带 Key 时替换并清除明文缓存；单独的 `credential.store` 与 HTTP 的 Provider 创建、更新已移除（列表与删除保留）。独立运行的 sidecar 不能保存 Provider，测试先以 IPC 模式写入。证据：`packages/session/src/sqlite/sqlite.test.ts`（密文写入失败时整个事务回滚）与仓库契约、`apps/desktop/src/main/credentials.test.ts`（加密不可用时不发送）、`tests/integration/sidecar-settings-credentials.test.ts`（失败的提交配置与密文都不写入、编辑保留与替换 Key、HTTP 创建与更新 404）、`tests/integration/secrets-gate-provider-save.test.ts`、`apps/desktop/e2e/settings.e2e.test.ts`（Electron 中新建带 Key 的 Provider 后调用本地兼容假服务）。获取可用模型尚未实施。
+- 一次提交、一次存储已实施（2026-10-29）：preload 的 `saveProvider` 把完整草稿交给 main，main 按协议 schema 校验（新建必须带 Key），用 safeStorage 加密后发一条 `provider.save { mode, provider, credential? }`，sidecar 在一个事务中写入 Provider 与密文并回 `provider.save.result`；加密不可用时 main 返回 `encryption-unavailable` 且不发送任何消息；编辑不带 Key 时保留原 Credential，带 Key 时替换并清除明文缓存；单独的 `credential.store` 与 HTTP 的 Provider 创建、更新已移除（列表与删除保留）。独立运行的 sidecar 不能保存 Provider，测试先以 IPC 模式写入。证据：`packages/session/src/sqlite/sqlite.test.ts`（密文写入失败时整个事务回滚）与仓库契约、`apps/desktop/src/main/credentials.test.ts`（加密不可用时不发送）、`tests/integration/sidecar-settings-credentials.test.ts`（失败的提交配置与密文都不写入、编辑保留与替换 Key、HTTP 创建与更新 404）、`tests/integration/secrets-gate-provider-save.test.ts`、`apps/desktop/e2e/settings.e2e.test.ts`（Electron 中新建带 Key 的 Provider 后调用本地兼容假服务）。
+- 获取可用模型已实施（2026-10-29），implementation 改为 implemented：preload 的 `fetchProviderModels` 把表单中的协议、地址、可选的 Provider ID 与 Key 交给 main，main 校验后发 `provider.models { api, baseUrl, providerId?, secret? }`，Key 以明文只随这一次请求；没有 `secret` 时 sidecar 读 `providerId` 已保存的 Credential（即使地址已改为其他主机）。sidecar 按协议请求 `<地址>/models`（OpenAI 两种协议，Bearer）或 `<地址>/v1/models`（Anthropic，`x-api-key`），不跟随重定向，只回模型 ID；请求期间把 Key 登记为按值脱敏的值，错误文本中的回显被替换，Key 不进入 CredentialStore 缓存。main 与 sidecar 各有 15 秒时限；`cancelProviderModels` 与超时都经 `provider.models.cancel` 中止对供应商的请求。证据：`apps/server/src/application/provider-models.test.ts`（协议路径与鉴权头、非 2xx、重定向不跟随、超时与取消、回显脱敏）、`apps/desktop/src/main/provider-models.test.ts`（输入校验、超时与取消转发）、`tests/integration/sidecar-provider-models.test.ts`（编辑时用已保存的 Credential、新 Key 不替换缓存、取消关闭连接）、`tests/integration/secrets-gate-provider-models.test.ts`（临时 Key 不出现在库、日志、WebSocket 帧、HTTP 响应体与控制消息中，之后的 Run 仍用已保存的 Key）、`apps/desktop/e2e/fetch-models.e2e.test.ts`（Electron 中新建表单获取、多选回填后一次创建；编辑时 Key 留空用已保存的 Key；关闭弹窗取消请求；用户数据目录不含临时 Key）。
 
 ## 来源与后继
 

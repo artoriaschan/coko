@@ -69,6 +69,36 @@ describe('Sidecar 控制 IPC', () => {
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2 })).toBe(false)
   })
 
+  it('provider.models：新建带表单中的明文 Key，编辑不带 Key 时按 Provider ID 用已保存的 Credential；可取消；结果只有模型 ID 或错误', () => {
+    const request = { type: 'provider.models', requestId: 1, api: 'openai-completions', baseUrl: 'https://gateway.example/v1' }
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: 'sk-form-key' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'custom-provider-1' })).toBe(true)
+    // 两者都给时用表单中的新 Key（编辑时填写了新值）。
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'custom-provider-1', secret: 'sk-new' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: '' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'Bad' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, api: 'google', secret: 'sk-x' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: 'sk-x', ciphertext: 'AAEC' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { type: 'provider.models.cancel', requestId: 1 })).toBe(true)
+
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: ['custom-model-1', 'custom-model-2'] })).toBe(
+      true,
+    )
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: [] })).toBe(true)
+    expect(
+      Value.Check(SidecarToMainMessage, {
+        type: 'provider.models.result',
+        requestId: 1,
+        ok: false,
+        error: { code: 'upstream-error', message: 'HTTP 401', status: 401 },
+      }),
+    ).toBe(true)
+    for (const code of ['no-credential', 'unreachable', 'invalid-response', 'timeout', 'cancelled', 'bad-request'])
+      expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: false, error: { code, message: 'x' } })).toBe(true)
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: false, error: { code: 'nope', message: 'x' } })).toBe(false)
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: [{ id: 'm' }] })).toBe(false)
+  })
+
   it('secret.store 按登记名携带密文与提示（ADR 0007）；名字必须合规；secret.decrypt 往返与 Credential 同形', () => {
     expect(Value.Check(MainToSidecarMessage, { type: 'secret.store', requestId: 1, name: 'MY_SERVICE_DSN', ciphertext: 'AAEC', hint: 'abcd' })).toBe(true)
     expect(Value.Check(MainToSidecarMessage, { type: 'secret.store', requestId: 1, name: 'my-dsn', ciphertext: 'AAEC', hint: 'abcd' })).toBe(false)

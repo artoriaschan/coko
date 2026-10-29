@@ -1,10 +1,12 @@
 // main、preload 与 renderer 共用的受控 IPC 契约。renderer 只导入类型。
-import type { ErrorCode, Provider, ProviderFields, ProviderSaveMode } from '@coko/protocol'
+import type { ErrorCode, ModelProtocol, Provider, ProviderFields, ProviderModelsErrorCode, ProviderSaveMode } from '@coko/protocol'
 
 export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
   saveProvider: 'coko:save-provider',
+  fetchProviderModels: 'coko:fetch-provider-models',
+  cancelProviderModels: 'coko:cancel-provider-models',
   setSecret: 'coko:set-secret',
   log: 'coko:log',
   openLogs: 'coko:open-logs',
@@ -63,6 +65,26 @@ export type SaveProviderResult =
   | { readonly ok: true; readonly provider: Provider }
   | { readonly ok: false; readonly code: ProviderSaveErrorCode; readonly message: string; readonly details?: Readonly<Record<string, unknown>> }
 
+/**
+ * 获取可用模型的请求（ADR 0010）：按表单中的协议与地址请求供应商的模型列表。secret 是表单中填写的 Key，只用于这一次请求、不保存；
+ * 编辑时 secret 留空则用 providerId 已保存的 Credential。requestKey 由 renderer 生成，用于 cancelProviderModels。
+ */
+export interface FetchProviderModelsInput {
+  readonly requestKey: string
+  readonly api: ModelProtocol
+  readonly baseUrl: string
+  readonly providerId?: string
+  readonly secret?: string
+}
+
+/** 获取可用模型的失败原因：main 一侧的 invalid-input、sidecar-unavailable，以及 Sidecar 回答的原因（含 timeout、cancelled）。 */
+export type FetchProviderModelsErrorCode = 'invalid-input' | 'sidecar-unavailable' | ProviderModelsErrorCode
+
+/** 成功时只有供应商返回的模型 ID（保持返回顺序）；失败说明已脱敏，status 为供应商的 HTTP 状态码。 */
+export type FetchProviderModelsResult =
+  | { readonly ok: true; readonly models: readonly string[] }
+  | { readonly ok: false; readonly code: FetchProviderModelsErrorCode; readonly message: string; readonly status?: number }
+
 /** 登记 Secret 的失败原因（invalid-input 为名字或值不合要求）。 */
 export type SecretErrorCode = CredentialErrorCode
 
@@ -89,6 +111,13 @@ export interface CokoBridge {
    * 加密不可用时整次拒绝、不发送任何消息。Key 不经 HTTP，也不返回 renderer（ADR 0004）。
    */
   saveProvider(input: SaveProviderInput): Promise<SaveProviderResult>
+  /**
+   * 获取可用模型（ADR 0010）：main 经控制消息请 Sidecar 请求供应商的模型列表。表单中的 Key 只用于这一次请求，不加密、不保存；
+   * 编辑时 Key 留空用已保存的 Credential。15 秒没有结果时以 timeout 结束。
+   */
+  fetchProviderModels(input: FetchProviderModelsInput): Promise<FetchProviderModelsResult>
+  /** 取消进行中的获取（弹窗关闭）：对应的 fetchProviderModels 以 cancelled 结束，Sidecar 中止对供应商的请求。 */
+  cancelProviderModels(requestKey: string): void
   /** 登记或替换一个 Secret：main 用 safeStorage 加密，密文经控制 IPC secret.store 存入 Sidecar（ADR 0007）；值不经 HTTP。 */
   setSecret(name: string, value: string): Promise<SetSecretResult>
   /** 把一条日志转发到 main 的 desktop.jsonl；不等待、不回报结果。 */

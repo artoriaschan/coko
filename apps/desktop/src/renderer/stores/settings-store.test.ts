@@ -53,6 +53,27 @@ describe('设置 store', () => {
     expect(backend.settings.get('theme')).toMatchObject({ value: 'dark', revision: 3 })
   })
 
+  it('获取可用模型经 bridge，不改变 store；取消转给 bridge；没有 bridge 或 bridge 抛错时为 sidecar-unavailable', async () => {
+    const backend = fakeSettingsBackend()
+    backend.setCandidates(['custom-model-1', 'custom-model-2'])
+    const providerModels = { fetchProviderModels: backend.fetchProviderModels, cancelProviderModels: backend.cancelProviderModels }
+    const store = createSettingsStore({ api: backend.api, providerModels })
+    await store.getState().load()
+    const before = store.getState().providers
+    const input = { requestKey: 'k1', api: 'openai-completions', baseUrl: 'http://x/v1', secret: 'sk-form-1234' } as const
+    expect(await store.getState().fetchProviderModels(input)).toEqual({ ok: true, models: ['custom-model-1', 'custom-model-2'] })
+    expect(backend.fetchProviderModels).toHaveBeenCalledWith(input)
+    expect(store.getState().providers).toBe(before)
+    expect(backend.saveProvider).not.toHaveBeenCalled()
+    store.getState().cancelProviderModels('k1')
+    expect(backend.cancelProviderModels).toHaveBeenCalledWith('k1')
+
+    backend.fetchProviderModels.mockRejectedValueOnce(new Error('IPC channel closed'))
+    expect(await store.getState().fetchProviderModels(input)).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
+    const noBridge = createSettingsStore({ api: backend.api })
+    expect(await noBridge.getState().fetchProviderModels(input)).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
+  })
+
   it('保存 Provider：草稿经 bridge 一次提交（配置、目录与 Key），成功后读回列表与可用模型', async () => {
     const backend = fakeSettingsBackend()
     const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider })

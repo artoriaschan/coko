@@ -23,6 +23,7 @@ export function ModelCatalog({
   errors = {},
   emptyError,
   revealErrors,
+  actions,
 }: {
   id: string
   rows: readonly ModelRowDraft[]
@@ -31,6 +32,8 @@ export function ModelCatalog({
   /** 空目录的错误文案。 */
   emptyError?: string | undefined
   revealErrors: number
+  /** 目录标题行右侧的操作（获取可用模型）。 */
+  actions?: React.ReactNode
 }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set())
@@ -77,9 +80,12 @@ export function ModelCatalog({
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
-      <h4 id={headingId} className="text-ui-body-lg font-medium">
-        {t('providers.models')}
-      </h4>
+      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+        <h4 id={headingId} className="text-ui-body-lg font-medium">
+          {t('providers.models')}
+        </h4>
+        {actions}
+      </div>
       {rows.length === 0 ? (
         <p className="text-ui-small text-muted-foreground">{t('providers.catalog.empty')}</p>
       ) : (
