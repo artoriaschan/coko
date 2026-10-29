@@ -108,17 +108,23 @@ export interface Provider extends ProviderInput {
   updatedAt: number
 }
 
+/** main 加密后的 Credential 密文与末四位提示；明文不经过 session。 */
+export interface CredentialRecord {
+  ciphertext: Uint8Array
+  hint: string
+}
+
 export interface ProviderRepository {
   list(): Promise<Provider[]>
   get(id: string): Promise<Provider | undefined>
-  /** ID 已被使用时以 already-exists 拒绝，已有记录不变。 */
-  create(input: ProviderInput): Promise<Provider>
-  /** ID 不可修改。 */
-  update(id: string, patch: Partial<Omit<ProviderInput, 'id'>>): Promise<Provider>
+  /** ID 已被使用时以 already-exists 拒绝，已有记录不变。给出 credential 时与配置在同一事务中写入（ADR 0010）。 */
+  create(input: ProviderInput, credential?: CredentialRecord): Promise<Provider>
+  /** ID 不可修改。给出 credential 时在同一事务中替换密文；不给出时保留原 Credential。 */
+  update(id: string, patch: Partial<Omit<ProviderInput, 'id'>>, credential?: CredentialRecord): Promise<Provider>
   /** 同时删除其 Credential 密文。 */
   delete(id: string): Promise<void>
   /** 保存 main 加密后的密文与提示；明文不经过 session。 */
-  setCredential(id: string, credential: { ciphertext: Uint8Array; hint: string }): Promise<Provider>
+  setCredential(id: string, credential: CredentialRecord): Promise<Provider>
   clearCredential(id: string): Promise<Provider>
   getCredentialCiphertext(id: string): Promise<Uint8Array | undefined>
 }

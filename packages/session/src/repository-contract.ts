@@ -233,6 +233,30 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(Array.from((await providers.getCredentialCiphertext(first.id)) ?? [])).toEqual([1, 2])
     })
 
+    it('一次存储：create 与 update 可同时写入 Credential 密文；update 不带 credential 时保留原密文；重复 ID 时新密文不写入', async () => {
+      const { providers } = await open()
+      const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
+      const created = await providers.create(input, { ciphertext: new Uint8Array([1, 2, 3]), hint: 'aaaa' })
+      expect(created).toEqual({ ...input, credential: { hint: 'aaaa' }, createdAt: 1_000, updatedAt: 1_000 })
+      expect(Array.from((await providers.getCredentialCiphertext(input.id)) ?? [])).toEqual([1, 2, 3])
+
+      tick()
+      const kept = await providers.update(input.id, { name: '一改' })
+      expect(kept).toMatchObject({ name: '一改', credential: { hint: 'aaaa' }, updatedAt: 1_010 })
+      expect(Array.from((await providers.getCredentialCiphertext(input.id)) ?? [])).toEqual([1, 2, 3])
+
+      tick()
+      const replaced = await providers.update(input.id, { baseUrl: 'https://b.example/v1' }, { ciphertext: new Uint8Array([7, 7]), hint: 'bbbb' })
+      expect(replaced).toMatchObject({ baseUrl: 'https://b.example/v1', credential: { hint: 'bbbb' }, updatedAt: 1_020 })
+      expect(Array.from((await providers.getCredentialCiphertext(input.id)) ?? [])).toEqual([7, 7])
+
+      await expectStoreError(providers.create({ ...input, name: '二' }, { ciphertext: new Uint8Array([9]), hint: 'cccc' }), 'already-exists')
+      await expectStoreError(providers.update('missing', { name: 'x' }, { ciphertext: new Uint8Array([9]), hint: 'cccc' }), 'not-found')
+      expect(await providers.list()).toEqual([replaced])
+      expect(Array.from((await providers.getCredentialCiphertext(input.id)) ?? [])).toEqual([7, 7])
+      expect(await providers.getCredentialCiphertext('missing')).toBeUndefined()
+    })
+
     it('Memory：按作用域与 Workspace 列出（最近更新在前），改正文刷新 updatedAt，删除后不可读', async () => {
       const { sessions, memories } = await open()
       const w1 = await sessions.registerWorkspace({ path: '/w1' })

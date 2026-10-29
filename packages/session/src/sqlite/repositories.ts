@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { alreadyExists, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
+  CredentialRecord,
   JsonValue,
   NewSessionEntry,
   Provider,
-  ProviderInput,
   ProviderRepository,
   Session,
   SessionEntry,
@@ -284,6 +284,16 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
     return row
   }
   const touch = (id: string) => conn.run('UPDATE providers SET updated_at = ? WHERE id = ?', conn.now(), id)
+  /** 写入或替换密文；调用方已在写事务中。 */
+  const putCredential = (id: string, credential: CredentialRecord, at: number) =>
+    conn.run(
+      `INSERT INTO provider_credentials (provider_id, ciphertext, hint, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(provider_id) DO UPDATE SET ciphertext = excluded.ciphertext, hint = excluded.hint, updated_at = excluded.updated_at`,
+      id,
+      credential.ciphertext,
+      credential.hint,
+      at,
+    )
 
   return {
     list: () => later(() => conn.read(() => conn.all<ProviderRow>(`${PROVIDER_SELECT} ORDER BY p.created_at, p.rowid`).map(toProvider))),
@@ -294,7 +304,7 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           return row ? toProvider(row) : undefined
         }),
       ),
-    create: (input: ProviderInput) =>
+    create: (input, credential) =>
       later(() =>
         conn.write(() => {
           const id = input.id
@@ -310,23 +320,26 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
             at,
             at,
           )
+          if (credential) putCredential(id, credential, at)
           return toProvider(requireProvider(id))
         }),
       ),
-    update: (id, patch) =>
+    update: (id, patch, credential) =>
       later(() =>
         conn.write(() => {
           const current = toProvider(requireProvider(id))
           const next = { ...current, ...patch, id }
+          const at = conn.now()
           conn.run(
             'UPDATE providers SET name = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
             next.name,
             next.api,
             next.baseUrl,
             JSON.stringify(next.models),
-            conn.now(),
+            at,
             id,
           )
+          if (credential) putCredential(id, credential, at)
           return toProvider(requireProvider(id))
         }),
       ),
@@ -341,15 +354,7 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
       later(() =>
         conn.write(() => {
           requireProvider(id)
-          const at = conn.now()
-          conn.run(
-            `INSERT INTO provider_credentials (provider_id, ciphertext, hint, updated_at) VALUES (?, ?, ?, ?)
-             ON CONFLICT(provider_id) DO UPDATE SET ciphertext = excluded.ciphertext, hint = excluded.hint, updated_at = excluded.updated_at`,
-            id,
-            credential.ciphertext,
-            credential.hint,
-            at,
-          )
+          putCredential(id, credential, conn.now())
           touch(id)
           return toProvider(requireProvider(id))
         }),
