@@ -20,3 +20,9 @@ Map: [Coko 桌面应用](../map.md)
 - **凭据存储。** 密文存 SQLite（sidecar 写入），加解密只在 main 用 Electron `safeStorage`（macOS Keychain 保护的密钥）完成。renderer 输入的密钥经 preload IPC 直达 main 加密，不经 HTTP；sidecar 调用模型时经 CredentialStore 端口通过控制 IPC 向 main 请求明文，只在进程内存中缓存。独立运行 sidecar（测试、headless）时 CredentialStore 回退到环境变量。
 - **脱敏。** API key、Authorization、Cookie、启动令牌按日志约定脱敏；设置接口只返回"已配置 / 末四位"。
 - 长期决定记录为 [ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)。
+
+## 后续需求修订
+
+2026-10-29，用户在模型服务视觉设计中明确改为仅创建自定义模型 API，并在供应商列表内完成添加与编辑；本票 Answer 的“四类预设”保留为首发规划历史，不作为本轮界面要求。后续交互与功能统一维护于 [模型服务 PRD](../../model-service-settings/spec.md)；其中尚未确认的规则标为待决，规格为 draft，不表示已经实现。三协议支持及 ADR 0004 的凭据安全约束继续生效。
+
+2026-10-29 规则确认后，品牌预设与按品牌区分的 kind 被移除，协议改为供应商自身字段；Provider ID 由用户输入，连接信息、Model Catalog 与 Credential 一次提交、一次存储，不兼容旧数据，记录为 [ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)。ADR 0004 的加密与存储决定继续生效。

@@ -96,6 +96,14 @@ _Avoid_: vendor、endpoint
 访问 Provider 所需的密钥。
 _Avoid_: token（token 另指启动令牌与模型计量单位）
 
+**Model Catalog**：
+一个 Provider 下由用户配置、可在 Session 中选用的模型集合。
+_Avoid_: 模型列表、预设目录、model list
+
+**Thinking Level**：
+模型推理强度的七级刻度之一：off、minimal、low、medium、high、xhigh、max；界面称“推理档位”。
+_Avoid_: effort、reasoning level、推理等级
+
 ## 工具
 
 **Built-in Tool**：

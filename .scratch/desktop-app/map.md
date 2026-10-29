@@ -28,7 +28,7 @@ Status: open
 - [技术栈依赖在本机的安装与运行可行性](issues/04-research-dependency-install-feasibility.md)：全部可装；需配 allowBuilds；Electron-as-Node 下 node:sqlite 与 BEGIN IMMEDIATE 互斥实测可用；E2E 前须 unset ELECTRON_RUN_AS_NODE。
 - [设置与会话改存 SQLite 的存储边界](issues/05-grill-sqlite-persistence.md)：sidecar 独占单个 SQLite 库，packages/session 拥有 schema/迁移/事务，会话条目 append-only；见 ADR 0003（按常设指示采纳）。
 - [从空仓库到完整应用的里程碑划分](issues/06-grill-milestone-route.md)：六个里程碑 M1 行走骨架 → M2 安全与恢复 → M3 上下文与指令 → M4 目标与任务 → M5 多代理与调度 → M6 扩展与交付，能力表逐行有归属。
-- [首发模型提供方与凭据存储](issues/07-grill-model-providers-credentials.md)：pi-ai 三协议，四类 provider 预设；safeStorage 在 main 加密、密文存 SQLite（ADR 0004）。
+- [首发模型提供方与凭据存储](issues/07-grill-model-providers-credentials.md)：pi-ai 三协议；四类预设为首发规划历史，已由 ADR 0010 移除；后续自定义 API 与列表内配置见 [模型服务 PRD](../model-service-settings/spec.md)（draft，非已交付声明）；safeStorage 在 main 加密、密文存 SQLite（ADR 0004），一次提交与存储见 ADR 0010（未实施）。
 - [桌面端信息架构与关键交互](issues/08-grill-desktop-information-architecture.md)：沿用 DSH 三栏几何与 composer dock，设置为 modal，Toast 用 Sonner；各界面按里程碑归属。
 - [各能力的首发深度与验收口径](issues/09-grill-capability-depth.md)：Seatbelt 沙箱、node-pty、LSP stdio、浏览器经 MCP、本地插件、会话内团队；签名公证不交付。
 
