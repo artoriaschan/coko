@@ -1,7 +1,7 @@
 import { Value } from 'typebox/value'
 import { createRequestTracker, MainProviderModels, RequestTimeoutError, type SidecarProviderModelsResult } from '@coko/protocol'
 import type { FetchProviderModelsErrorCode, FetchProviderModelsResult } from '../shared/bridge.ts'
-import type { CredentialChannel } from './credentials.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
 
 // 获取可用模型的 main 一侧（ADR 0010）：renderer 交来的请求在这里校验，经 provider.models 控制消息请 Sidecar 请求供应商的模型列表。
 // 表单中的 Key 以明文随这一次请求交给 Sidecar，不加密、不保存、不写日志；编辑时 Key 留空只带 Provider ID（Sidecar 用已保存的 Credential）。
@@ -42,7 +42,7 @@ function parseInput(input: unknown): Request | FetchProviderModelsResult {
   return { requestKey, message: message as Request['message'] }
 }
 
-export function createProviderModelsBridge(options: { channel: CredentialChannel; timeoutMs?: number }): ProviderModelsBridge {
+export function createProviderModelsBridge(options: { channel: SidecarControlChannel; timeoutMs?: number }): ProviderModelsBridge {
   const { channel } = options
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const results = createRequestTracker<SidecarProviderModelsResult>({ timeoutMs, timeoutMessage: (ms) => `The provider did not respond within ${ms} ms` })

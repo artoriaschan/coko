@@ -4,7 +4,8 @@ import { createTranslator, resolveLocale } from '@coko/i18n'
 import { getLogger, redactText } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '../shared/bridge.ts'
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } from './app-protocol.ts'
-import { createCredentialBridge, type CredentialChannel } from './credentials.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
+import { createCredentialBridge } from './credentials.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
@@ -241,7 +242,7 @@ function run(): void {
     encrypt: (plaintext: string) => safeStorage.encryptString(plaintext),
     decrypt: (ciphertext: Uint8Array) => safeStorage.decryptString(Buffer.from(ciphertext)),
   }
-  const channel: CredentialChannel = {
+  const channel: SidecarControlChannel = {
     isReady: () => supervisor.isReady,
     send: (message) => supervisor.send(message),
     onMessage: (listener) => supervisor.onControlMessage(listener),

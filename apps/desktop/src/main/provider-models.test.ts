@@ -1,6 +1,6 @@
 import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
-import type { CredentialChannel } from './credentials.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
 
 /** 假控制通道：记录 main 发出的消息，可注入 sidecar 的消息。 */
@@ -8,7 +8,7 @@ function fakeChannel(options: { ready?: boolean; answer?: (message: MainToSideca
   const sent: MainToSidecarMessage[] = []
   const listeners = new Set<(message: SidecarToMainMessage) => void>()
   const unavailable = new Set<() => void>()
-  const channel: CredentialChannel = {
+  const channel: SidecarControlChannel = {
     isReady: () => options.ready ?? true,
     send(message) {
       sent.push(message)

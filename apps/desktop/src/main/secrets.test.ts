@@ -1,6 +1,7 @@
 import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
-import type { CredentialChannel, Encryption } from './credentials.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
+import type { Encryption } from './credentials.ts'
 import { createSecretBridge } from './secrets.ts'
 
 const fakeEncryption = (available = true): Encryption => ({
@@ -12,7 +13,7 @@ const fakeEncryption = (available = true): Encryption => ({
 function fakeChannel(answer?: (message: MainToSidecarMessage) => SidecarToMainMessage | undefined) {
   const sent: MainToSidecarMessage[] = []
   const listeners = new Set<(message: SidecarToMainMessage) => void>()
-  const channel: CredentialChannel = {
+  const channel: SidecarControlChannel = {
     isReady: () => true,
     send(message) {
       sent.push(message)
