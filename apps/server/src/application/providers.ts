@@ -13,15 +13,17 @@ import { getLogger } from '@coko/logging'
 import type {
   AvailableModel,
   CatalogModel,
+  MainToSidecarMessage,
   ModelProtocol,
   Provider,
   ProviderFields,
   ProviderReferencesResponse,
   ProviderSaveMode,
+  SidecarToMainMessage,
   ThinkingLevel,
 } from '@coko/protocol'
 import { isStoreError, type CredentialRecord, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
-import { AppError } from './errors.ts'
+import { AppError, toAppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
 
@@ -147,4 +149,36 @@ export class ProviderService {
     this.#options.invalidateCredential(id)
     log.info('provider deleted', { providerId: id, sessionsCleared: cleared.sessions })
   }
+}
+
+/** 控制通道中本模块用到的部分。 */
+export interface ProviderSaveChannel {
+  send(message: SidecarToMainMessage): Promise<void>
+  onMessage(listener: (message: MainToSidecarMessage) => void): () => void
+}
+
+/**
+ * 回答 main 的 provider.save（ADR 0010：Provider 只经 main 的一次提交保存，HTTP 只提供列表与删除）。失败按协议错误码回答；
+ * 意外错误为 internal（不带原文）并记录日志。
+ */
+export function serveProviderSave(options: { control: ProviderSaveChannel; providers: Pick<ProviderService, 'save'> }): void {
+  const { control, providers } = options
+  control.onMessage((msg) => {
+    if (msg.type !== 'provider.save') return
+    const { requestId } = msg
+    providers.save(msg.mode, msg.provider, msg.credential).then(
+      (provider) => control.send({ type: 'provider.save.result', requestId, ok: true, provider }),
+      (error: unknown) => {
+        const appError = toAppError(error)
+        if (appError.code === 'internal' || appError.code === 'storage-unavailable')
+          log.error('provider save failed', { error: error instanceof Error ? error.message : String(error) })
+        return control.send({
+          type: 'provider.save.result',
+          requestId,
+          ok: false,
+          error: { code: appError.code, message: appError.message, ...(appError.details ? { details: appError.details } : {}) },
+        })
+      },
+    )
+  })
 }

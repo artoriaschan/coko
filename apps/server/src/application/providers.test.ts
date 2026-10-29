@@ -3,7 +3,8 @@ import type { CatalogModel, ProviderFields } from '@coko/protocol'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it } from 'vitest'
-import { ProviderService } from './providers.ts'
+import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
+import { ProviderService, serveProviderSave } from './providers.ts'
 
 const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): CatalogModel => ({
   id,
@@ -127,5 +128,57 @@ describe('ProviderService：自定义 Provider', () => {
     expect(registry.models.getModels('custom-provider-1').map((m) => [m.id, m.api, m.baseUrl, m.name])).toEqual([
       ['custom-model-2', 'openai-responses', 'http://127.0.0.1:9/v1', 'custom-model-2'],
     ])
+  })
+})
+
+describe('provider.save 控制消息', () => {
+  /** 假控制通道：注入 main 的消息，记录 Sidecar 的回答。 */
+  function channel() {
+    const sent: SidecarToMainMessage[] = []
+    let listener: ((message: MainToSidecarMessage) => void) | undefined
+    return {
+      sent,
+      control: {
+        send: async (message: SidecarToMainMessage) => void sent.push(message),
+        onMessage: (l: (message: MainToSidecarMessage) => void) => {
+          listener = l
+          return () => (listener = undefined)
+        },
+      },
+      deliver: (message: MainToSidecarMessage) => listener?.(message),
+    }
+  }
+
+  it('成功回 ok 与保存后的 Provider；失败按协议错误码回答并带 details；其他消息不处理', async () => {
+    const { service } = setup()
+    const { control, sent, deliver } = channel()
+    serveProviderSave({ control, providers: service })
+    deliver({ type: 'provider.save', requestId: 1, mode: 'create', provider: request() })
+    await expect.poll(() => sent.length).toBe(1)
+    expect(sent[0]).toMatchObject({ type: 'provider.save.result', requestId: 1, ok: true, provider: { id: 'custom-provider-1', credential: null } })
+    deliver({ type: 'provider.save', requestId: 2, mode: 'create', provider: request() })
+    deliver({ type: 'provider.save', requestId: 3, mode: 'update', provider: request({ id: 'custom-provider-9' }) })
+    deliver({ type: 'provider.save', requestId: 4, mode: 'create', provider: request({ id: 'custom-provider-2', baseUrl: 'ftp://gateway.example' }) })
+    deliver({ type: 'shutdown' })
+    await expect.poll(() => sent.length).toBe(4)
+    const byId = Object.fromEntries(sent.map((m) => [(m as { requestId: number }).requestId, m]))
+    expect(byId[2]).toEqual({
+      type: 'provider.save.result',
+      requestId: 2,
+      ok: false,
+      error: { code: 'already-exists', message: 'Provider ID custom-provider-1 is already in use', details: { field: 'id', id: 'custom-provider-1' } },
+    })
+    expect(byId[3]).toMatchObject({ ok: false, error: { code: 'not-found' } })
+    expect(byId[3]).not.toHaveProperty('error.details')
+    expect(byId[4]).toMatchObject({ ok: false, error: { code: 'bad-request' } })
+  })
+
+  it('意外错误回 internal，不带原文', async () => {
+    const { service } = setup()
+    const { control, sent, deliver } = channel()
+    serveProviderSave({ control, providers: { save: async () => Promise.reject(new Error('disk on fire /secret/path')) } as unknown as typeof service })
+    deliver({ type: 'provider.save', requestId: 5, mode: 'create', provider: request() })
+    await expect.poll(() => sent.length).toBe(1)
+    expect(sent[0]).toEqual({ type: 'provider.save.result', requestId: 5, ok: false, error: { code: 'internal', message: 'Internal error' } })
   })
 })
