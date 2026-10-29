@@ -1,4 +1,4 @@
-// File Reference（票 06）：真实 Sidecar（faux 模型），临时 Workspace 在测试中建立。断言提交的 user message 条目、faux requestLog 中实际发给
+// File Reference：真实 Sidecar（faux 模型），临时 Workspace 在测试中建立。断言提交的 user message 条目、faux requestLog 中实际发给
 // 模型的内容块，以及 GET /api/workspaces/:id/files 的候选。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

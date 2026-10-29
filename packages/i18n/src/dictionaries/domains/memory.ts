@@ -1,4 +1,4 @@
-// Memory 分区与工具卡（票 09）。
+// Memory 分区与工具卡。
 import { defineDomain } from './define.ts'
 
 export const memory = defineDomain(

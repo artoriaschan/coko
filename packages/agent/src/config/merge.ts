@@ -1,4 +1,4 @@
-// 分层能力配置（M3 规格"配置 schema"，ADR 0008）：有效值 = 默认 ← 全局（设置键 config）← 项目（<Workspace>/.coko/settings.json）。
+// 分层能力配置（docs/subsystems/configuration.md，ADR 0008）：有效值 = 默认 ← 全局（设置键 config）← 项目（<Workspace>/.coko/settings.json）。
 // 项目只能收紧：开关只有 false 生效，skills.disabled 追加，permissions.deny / ask 作为 project 作用域的规则；授予类的键被忽略并诊断。
 // 诊断不阻止其余键生效；JSON 解析失败时整个文件被忽略。
 import { diagnostic, type ResourceDiagnostic } from '../instructions/shared/index.ts'

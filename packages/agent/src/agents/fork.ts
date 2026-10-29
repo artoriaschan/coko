@@ -10,8 +10,9 @@ const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
 /**
  * 从某条用户消息分叉（ADR 0006）：新 Session 的条目为 fork_origin，之后是目标之前的有效消息与权限条目（去掉 runId）。
  * Run 生命周期、审批、执行记录与快照引用不复制：它们的 Run 与锚点属于原 Session；Workspace 文件不复制。
- * 目标之前有压缩时（grilling F6）只复制最后一个 compaction 保留的消息，compaction 条目排在它们之后、firstKeptSeq 改为 1（新 Session
- * 重新编号）：新 Session 的模型上下文与原 Session 在目标处相同。目标不是有效的用户消息时抛 RewindTargetError。
+ * 目标之前有压缩时只复制最后一个 compaction 保留的消息（docs/subsystems/context.md#压缩）：compaction 条目紧接 fork_origin、排在复制的
+ * 条目之前，firstKeptSeq 指向新 Session 中第一条复制的消息（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处
+ * 相同；之后回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍然有效。目标不是有效的用户消息时抛 RewindTargetError。
  */
 export function forkEntries(entries: readonly CheckpointEntry[], sessionId: string, targetSeq: number): { text: string; entries: RunEntry[] } {
   const { text } = rewindTarget(entries, targetSeq)
@@ -22,8 +23,11 @@ export function forkEntries(entries: readonly CheckpointEntry[], sessionId: stri
   const copied = prefix
     .filter((entry) => FORK_KINDS.has(entry.kind) && (entry.kind !== 'message' || kept.has(entry.seq)))
     .map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
-  const summary: RunEntry[] = compaction
-    ? [{ kind: 'compaction', payload: { ...(compaction.payload as Extract<RunEntry, { kind: 'compaction' }>['payload']), firstKeptSeq: 1 } }]
-    : []
-  return { text, entries: [{ kind: 'fork_origin', payload: { sessionId, seq: targetSeq } }, ...copied, ...summary] }
+  const origin: RunEntry = { kind: 'fork_origin', payload: { sessionId, seq: targetSeq } }
+  if (!compaction) return { text, entries: [origin, ...copied] }
+  // 新 Session 的 seq：fork_origin 为 1、compaction 为 2，复制的条目从 3 开始。
+  const firstMessage = copied.findIndex((entry) => entry.kind === 'message')
+  const firstKeptSeq = firstMessage < 0 ? 3 + copied.length : 3 + firstMessage
+  const summary: RunEntry = { kind: 'compaction', payload: { ...(compaction.payload as Extract<RunEntry, { kind: 'compaction' }>['payload']), firstKeptSeq } }
+  return { text, entries: [origin, summary, ...copied] }
 }

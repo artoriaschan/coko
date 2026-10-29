@@ -1,4 +1,4 @@
-// <available_skills> system section（M3 规格"预算与数值"）：每项 name、description 与 SKILL.md 绝对路径；disable-model-invocation 的不列。
+// <available_skills> system section（docs/subsystems/skills.md）：每项 name、description 与 SKILL.md 绝对路径；disable-model-invocation 的不列。
 // 合计不超过 8000 字符：放不下时前面的完整列出、尾部只列名字并注明数量；名字也放不下时注明其余的数量（参照 claude-code 的 skill 列表预算）。
 import type { SystemSection } from '../../engine/types.ts'
 import type { Skill } from './types.ts'

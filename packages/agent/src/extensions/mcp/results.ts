@@ -1,4 +1,4 @@
-// MCP 工具结果 → 模型内容（M3 规格 D6）：isError 为错误结果；文本按 2000 行 / 50KB 截断；图片透传；其他类型注明省略。
+// MCP 工具结果 → 模型内容（docs/subsystems/mcp.md）：isError 为错误结果；文本按 2000 行 / 50KB 截断；图片透传；其他类型注明省略。
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
 import type { AgentToolResult } from '@earendil-works/pi-agent-core'
 import type { CallToolResult, ContentBlock } from '@earendil-works/pi-mcp'

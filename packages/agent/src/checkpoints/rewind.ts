@@ -2,7 +2,7 @@
 // 目标只能是当时有效的用户消息，各区间要么嵌套、要么不相交，被任一区间覆盖的条目都不在有效上下文中。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { effectiveEntries, modelContext } from '../entries/index.ts'
-import { isProtectedPath, isWithin } from '../policy/decide.ts'
+import { isProtectedPath, pathContains } from '../policy/decide.ts'
 import { realLocation } from '../policy/paths.ts'
 import type { RewindFiles } from '../ports/checkpoints.ts'
 import type { RunEntry } from '../engine/types.ts'
@@ -211,7 +211,7 @@ export async function restoreFiles(files: readonly RewindFilePlan[], port: Rewin
   report.restored = writes.map((w) => w.path)
   report.deleted = [...deletes]
   report.outside = [...report.restored, ...report.deleted].filter(
-    (path) => !isWithin(path, options.workspace) || isProtectedPath({ resolved: path, real: path }),
+    (path) => !pathContains(options.workspace, path) || isProtectedPath({ resolved: path, real: path }),
   )
   if (options.dryRun) return report
   const recheck = async (path: string) => {

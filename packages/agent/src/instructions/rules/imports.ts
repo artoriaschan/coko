@@ -1,18 +1,20 @@
 // @import 的识别（claude-code claudemd.ts 的规则）：只在 Markdown 叶子文本中展开，代码块、行内代码与 HTML 注释中的不算。
-import { extname, isAbsolute, join, resolve } from 'node:path'
+import { basename, extname, isAbsolute, join, resolve } from 'node:path'
 
-/** @import 只接受这些扩展名（文本文件）。 */
+/** @import 只接受这些扩展名（文本文件）。环境文件（.env、.env.*、*.env）通常放本地凭据，不是文本扩展名。 */
 export const TEXT_EXTENSIONS: ReadonlySet<string> = new Set(
   (
     'md markdown mdx txt text rst adoc json jsonc json5 yaml yml toml ini cfg conf xml csv tsv html htm css scss sass less ' +
     'js jsx mjs cjs ts tsx mts cts py pyi rb go rs java kt kts scala c cc cpp cxx h hpp hxx cs swift php lua sh bash zsh fish ps1 ' +
-    'sql graphql gql proto vue svelte env example'
+    'sql graphql gql proto vue svelte'
   )
     .split(' ')
     .map((ext) => '.' + ext),
 )
 
-export const isTextPath = (path: string) => TEXT_EXTENSIONS.has(extname(path).toLowerCase())
+const ENV_FILE = /^\.env(\.|$)/i
+
+export const isTextPath = (path: string) => !ENV_FILE.test(basename(path)) && TEXT_EXTENSIONS.has(extname(path).toLowerCase())
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/
 

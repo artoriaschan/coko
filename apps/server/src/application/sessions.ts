@@ -26,7 +26,7 @@ import {
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactSecretsDeep } from '@coko/logging'
 import {
   type ConfirmationAnswer,
   DEFAULT_MODEL_SETTING,
@@ -50,6 +50,7 @@ import type { SessionHub } from './hub.ts'
 import { PermissionService, type HostToolNames } from './permissions.ts'
 import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionPermissions } from './session-permissions.ts'
+import { createProgressRedactor, redactModelMessages, secretRedactionHook } from './secret-redaction.ts'
 import { requireSession, SessionRuntimes, toProgress } from './session-runtimes.ts'
 
 export type { RecoveryReport, RecoverySource } from './recovery.ts'
@@ -319,11 +320,13 @@ export class SessionService {
   // ---- Run 控制 ----
 
   /**
-   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。提交的文本先经上下文装配展开（命令 → File Reference）；
-   * 展开为动作（例如 /compact）时调用该动作，Run 进行中 run-in-progress。
+   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。Run 进行中先以 run-in-progress 拒绝，不展开输入（展开可能调用 MCP
+   * prompts/get、读取 Skill 与引用的文件）。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用
+   * 该动作。展开期间另一个 Run 开始时，#start 与动作照常再检查一次。
    */
   async submit(sessionId: string, text: string): Promise<{ runId: string }> {
     const session = await this.#get(sessionId)
+    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
     const expanded = await this.#context.expandInput(text, await this.#scope(session))
     if (expanded.kind === 'input') return this.#start(sessionId, (runtime) => runtime.run(expanded.input))
     if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
@@ -501,7 +504,7 @@ export class SessionService {
       readRoots: [],
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
-    // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交（票 09）。
+    // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交。
     runContext.tools.set(await this.#context.tools(runContext.scope))
     const context = this.#context
     const runtime = createAgentRuntime({
@@ -513,22 +516,33 @@ export class SessionService {
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: { ...this.#permissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
-      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。
-      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks],
+      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。登记明文的替换排在最后：之前的 hook 附加的内容（如嵌套指令）也被替换，
+      // 结果进入运行时之前已不含明文（secret-redaction.ts）。
+      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
-        ...(context.transformMessages ? { transformMessages: (messages: AgentMessage[]) => context.transformMessages!(messages, runContext.scope) } : {}),
+        // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。
+        transformMessages: (messages: AgentMessage[]) => {
+          const redacted = redactModelMessages(messages)
+          return context.transformMessages ? context.transformMessages(redacted, runContext.scope) : redacted
+        },
       },
-      // 压缩（票 11）：切点与重建读已提交的条目；context.autoCompact 取该 Run 开始时的有效配置。
-      compaction: { entries: () => store.sessions.listEntries(session.id), autoCompact: () => runContext.scope.config.context.autoCompact },
+      // 压缩：切点与重建读已提交的条目（入库时已替换登记明文，摘要请求同样看不到明文）；context.autoCompact 取该 Run 开始时的有效配置。
+      compaction: {
+        entries: async () => (await store.sessions.listEntries(session.id)).map((entry) => (entry.kind === 'message' ? redactSecretsDeep(entry) : entry)),
+        autoCompact: () => runContext.scope.config.context.autoCompact,
+      },
       commit: async (entry) => {
         await publish(entry)
       },
     })
     this.#runContexts.set(runtime, runContext)
+    const progress = createProgressRedactor()
     runtime.subscribe((event) => {
-      if (event.kind === 'progress') hub.publishProgress(session.id, event.event.runId, toProgress(event.event))
+      if (event.kind === 'entry') return progress.reset()
+      const redacted = progress.redact(event.event)
+      if (redacted) hub.publishProgress(session.id, redacted.runId, toProgress(redacted))
     })
     return runtime
   }

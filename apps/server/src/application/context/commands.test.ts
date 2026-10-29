@@ -87,7 +87,7 @@ async function setup(options: { slow?: boolean } = {}) {
 
 describe('命令贡献：内置命令的动作与登记来源', () => {
   it('内置命令展开为动作并调用之；Run 进行中 409 run-in-progress；steer 中 400 bad-request', async () => {
-    const { service, session, act, finish } = await setup({ slow: true })
+    const { service, session, act, expand, finish } = await setup({ slow: true })
     expect(await service.submit(session.id, '/act now please')).toEqual({ runId: 'action-run' })
     expect(act).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ sessionId: session.id, args: 'now please' }))
 
@@ -95,6 +95,10 @@ describe('命令贡献：内置命令的动作与登记来源', () => {
     await expect(service.submit(session.id, '/act')).rejects.toMatchObject({ code: 'run-in-progress' })
     await expect(service.steer(session.id, '/act')).rejects.toMatchObject({ code: 'bad-request' })
     expect(act).toHaveBeenCalledOnce()
+    // Run 进行中先 409，不展开输入：来源的 expand（例如 MCP prompts/get）不被调用。
+    await expect(service.submit(session.id, '/pdf report.pdf')).rejects.toMatchObject({ code: 'run-in-progress' })
+    await expect(service.submit(session.id, 'plain text')).rejects.toMatchObject({ code: 'run-in-progress' })
+    expect(expand).not.toHaveBeenCalled()
     await finish()
   })
 

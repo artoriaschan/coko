@@ -1,8 +1,11 @@
-// 指令文件的加载（M3 规格"加载位置与优先级"与 grilling A1–A6）：用户级 → 仓库根 → … → Workspace（开始时），
-// 子目录按需（nested）；@import 最多 5 层、按真实路径防环、只在允许的根内；单文件与合计预算。
+// 指令文件的加载（docs/subsystems/instructions.md）：用户级 → 仓库根 → … → Workspace（开始时），子目录按需（nested）；
+// @import 最多 5 层、按真实路径防环、只在允许的根内；项目与嵌套指令文件的真实路径须在仓库根（没有仓库时为 Workspace）之内；
+// Read 拒绝规则覆盖的文件不加载；单文件与合计预算。
 import { dirname } from 'node:path'
+import { isProtectedPath } from '../../policy/decide.ts'
+import { pathContains } from '../../policy/rules.ts'
 import { createMtimeCache, diagnostic, type ResourceDiagnostic } from '../shared/index.ts'
-import { directoryChain, findRepoRoot, isWithin, pickInstructionFile } from './discover.ts'
+import { directoryChain, findRepoRoot, pickInstructionFile } from './discover.ts'
 import type { InstructionFiles } from './files.ts'
 import { extractImports, isTextPath, resolveImport } from './imports.ts'
 
@@ -32,14 +35,17 @@ export interface LoadedInstructions {
   totalChars: number
 }
 
+/** 路径是否被 Read 拒绝规则覆盖（按词法路径与真实路径各判定一次）；省略时没有规则。 */
+export type InstructionDenial = (path: string) => boolean
+
 export interface InstructionLoader {
   /** Run 开始时的指令：用户级与仓库根到 Workspace 的目录链（含 @import）。 */
-  load(input: { cwd: string; cokoHome: string }): Promise<LoadedInstructions>
+  load(input: { cwd: string; cokoHome: string; denied?: InstructionDenial }): Promise<LoadedInstructions>
   /**
    * Workspace 根之下、到 targetDir（含）为止的目录链上的指令（scope nested）；loaded 中的文件（及其真实路径）跳过。
    * targetDir 不在 Workspace 之内或就是 Workspace 根时为空。
    */
-  nested(input: { cwd: string; cokoHome: string; targetDir: string; loaded: ReadonlySet<string> }): Promise<LoadedInstructions>
+  nested(input: { cwd: string; cokoHome: string; targetDir: string; loaded: ReadonlySet<string>; denied?: InstructionDenial }): Promise<LoadedInstructions>
 }
 
 interface Parsed {
@@ -64,8 +70,12 @@ interface Walk {
   seen: Set<string>
   files: InstructionFile[]
   diagnostics: ResourceDiagnostic[]
+  /** @import 允许的根：仓库根（没有仓库时为 Workspace）与 COKO_HOME。 */
   lexicalRoots: string[]
   realRoots: string[]
+  /** 项目与嵌套指令文件允许的真实根：仓库根（没有仓库时为 Workspace）。 */
+  projectRoot: string
+  denied: InstructionDenial
 }
 
 export function createInstructionLoader(options: { files: InstructionFiles; homeDir: string }): InstructionLoader {
@@ -74,8 +84,23 @@ export function createInstructionLoader(options: { files: InstructionFiles; home
   const report = (walk: Walk, code: string, message: string, path?: string) => walk.diagnostics.push(diagnostic('instructions', code, message, path))
 
   async function visit(walk: Walk, path: string, scope: InstructionScope, depth: number, ancestors: readonly string[], importedBy?: string) {
-    const real = await files.realpath(path)
+    let real: string
+    try {
+      real = await files.realpath(path)
+    } catch (error) {
+      report(walk, 'read-failed', 'Could not read instruction file: ' + errorMessage(error), path)
+      return
+    }
     if (walk.seen.has(real)) return
+    // 目录链上的文件（不是 import）：项目与嵌套作用域经符号链接越出仓库根时不读；用户级是用户自己的目录，不限制。
+    if (importedBy === undefined && scope !== 'user' && !pathContains(walk.projectRoot, real)) {
+      report(walk, 'file-outside-boundary', 'Instruction file resolves outside the repository root: ' + real, path)
+      return
+    }
+    if (importedBy === undefined && (walk.denied(path) || walk.denied(real))) {
+      report(walk, 'file-denied', 'Instruction file is denied by a Read permission rule', path)
+      return
+    }
     walk.seen.add(real)
     let parsed: Parsed | undefined
     try {
@@ -88,7 +113,7 @@ export function createInstructionLoader(options: { files: InstructionFiles; home
     if (parsed.truncated) report(walk, 'file-truncated', 'Instruction file exceeds ' + INSTRUCTION_FILE_MAX_CHARS + ' characters and was truncated', path)
     for (const token of parsed.imports) {
       const target = resolveImport(token, dirname(path), homeDir)
-      if (!walk.lexicalRoots.some((root) => isWithin(root, target))) {
+      if (!walk.lexicalRoots.some((root) => pathContains(root, target))) {
         report(walk, 'import-outside-boundary', 'Import @' + token + ' is outside the repository root and COKO_HOME: ' + target, path)
         continue
       }
@@ -97,13 +122,25 @@ export function createInstructionLoader(options: { files: InstructionFiles; home
         report(walk, 'import-not-found', 'Import @' + token + ' not found: ' + target, path)
         continue
       }
+      if (isProtectedPath({ resolved: target, real: target })) {
+        report(walk, 'import-protected', 'Import @' + token + ' is a protected path (version control, editor or shell configuration): ' + target, path)
+        continue
+      }
       if (!isTextPath(target)) {
         report(walk, 'import-not-text', 'Import @' + token + ' is not a text file: ' + target, path)
         continue
       }
       const targetReal = await files.realpath(target)
-      if (!walk.realRoots.some((root) => isWithin(root, targetReal))) {
+      if (!walk.realRoots.some((root) => pathContains(root, targetReal))) {
         report(walk, 'import-outside-boundary', 'Import @' + token + ' resolves outside the repository root and COKO_HOME: ' + targetReal, path)
+        continue
+      }
+      if (isProtectedPath({ resolved: target, real: targetReal })) {
+        report(walk, 'import-protected', 'Import @' + token + ' resolves to a protected path: ' + targetReal, path)
+        continue
+      }
+      if (walk.denied(target) || walk.denied(targetReal)) {
+        report(walk, 'import-denied', 'Import @' + token + ' is denied by a Read permission rule: ' + target, path)
         continue
       }
       if (targetReal === real || ancestors.includes(targetReal)) {
@@ -139,18 +176,21 @@ export function createInstructionLoader(options: { files: InstructionFiles; home
     if (file) await visit(walk, file, scope, 0, [])
   }
 
-  async function walkFor(cwd: string, cokoHome: string): Promise<{ walk: Walk; repoRoot: string | undefined }> {
+  async function walkFor(cwd: string, cokoHome: string, denied: InstructionDenial | undefined): Promise<{ walk: Walk; repoRoot: string | undefined }> {
     const repoRoot = await findRepoRoot(files, cwd, homeDir)
     const lexicalRoots = [repoRoot ?? cwd, ...(cokoHome ? [cokoHome] : [])]
     const realRoots = await Promise.all(lexicalRoots.map((root) => files.realpath(root)))
-    return { walk: { seen: new Set(), files: [], diagnostics: [], lexicalRoots, realRoots }, repoRoot }
+    return {
+      walk: { seen: new Set(), files: [], diagnostics: [], lexicalRoots, realRoots, projectRoot: realRoots[0]!, denied: denied ?? (() => false) },
+      repoRoot,
+    }
   }
 
   const total = (list: readonly InstructionFile[]) => list.reduce((sum, file) => sum + file.chars, 0)
 
   return {
-    async load({ cwd, cokoHome }) {
-      const { walk, repoRoot } = await walkFor(cwd, cokoHome)
+    async load({ cwd, cokoHome, denied }) {
+      const { walk, repoRoot } = await walkFor(cwd, cokoHome, denied)
       if (cokoHome) await visitDirectory(walk, cokoHome, 'user')
       for (const dir of repoRoot ? directoryChain(repoRoot, cwd) : [cwd]) await visitDirectory(walk, dir, 'project')
       // 合计超出时从最远处（最前面）整文件丢弃。
@@ -161,9 +201,11 @@ export function createInstructionLoader(options: { files: InstructionFiles; home
       }
       return { files: kept, diagnostics: walk.diagnostics, totalChars: total(kept) }
     },
-    async nested({ cwd, cokoHome, targetDir, loaded }) {
-      if (targetDir === cwd || !isWithin(cwd, targetDir)) return { files: [], diagnostics: [], totalChars: 0 }
-      const { walk } = await walkFor(cwd, cokoHome)
+    async nested({ cwd, cokoHome, targetDir, loaded, denied }) {
+      if (targetDir === cwd || !pathContains(cwd, targetDir)) return { files: [], diagnostics: [], totalChars: 0 }
+      const { walk } = await walkFor(cwd, cokoHome, denied)
+      // 嵌套指令只来自 Workspace 之内（真实路径）。
+      walk.projectRoot = await files.realpath(cwd)
       for (const path of loaded) walk.seen.add(await files.realpath(path))
       for (const dir of directoryChain(cwd, targetDir).slice(1)) await visitDirectory(walk, dir, 'nested')
       return { files: walk.files, diagnostics: walk.diagnostics, totalChars: total(walk.files) }

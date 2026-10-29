@@ -1,4 +1,4 @@
-// 时间裁剪的贡献（票 10）：transformMessages 受 context.trimOldToolResults 控制，时钟可注入；只返回新数组，不改输入。
+// 时间裁剪的贡献：transformMessages 受 context.trimOldToolResults 控制，时钟可注入；只返回新数组，不改输入。
 import { defaultCapabilityConfig, OLD_TOOL_RESULT_CLEARED } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'

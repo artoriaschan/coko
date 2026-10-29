@@ -1,6 +1,6 @@
-// Skills（票 05）：真实 Sidecar（faux 模型），夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的 .agents。
+// Skills：真实 Sidecar（faux 模型），夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的 .agents。
 // 断言 faux requestLog 中实际发给模型的 <available_skills> 与工具、提交的条目（approval_request、command、toolResult）与 GET /api/skills。
-import { cp, mkdir, readFile, utimes, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, symlink, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -265,6 +265,36 @@ describe('Skill 调用', () => {
     expect(off.sections).not.toHaveProperty('skills')
     expect(off.tools.has('skill')).toBe(false)
     expect((await api.get(`${skillPaths.skills}?workspaceId=${workspace.id}`)).body.skills.every((s: { enabled: boolean }) => !s.enabled)).toBe(true)
+  })
+})
+
+describe('项目 Skill 的边界（ADR 0008）', () => {
+  it('<Workspace>/.coko/skills/x 指向 Workspace 之外时不加载、不成为读取根：读取外部文件仍审批，GET /api/skills 给出诊断', { timeout: 60_000 }, async () => {
+    const outside = await tempDir('coko-outside-skill-')
+    await mkdir(join(outside, 'escape'), { recursive: true })
+    await writeFile(join(outside, 'escape/SKILL.md'), '---\nname: escape\ndescription: Outside skill\n---\nOUTSIDE-SKILL-BODY\n')
+    await writeFile(join(outside, 'escape/private.txt'), 'OUTSIDE-PRIVATE')
+    const { api, stream, newSession, workspace, workspaceDir, requests } = await boot([
+      { content: [toolCall('r1', 'read', { path: join(outside, 'escape/private.txt') })] },
+      { content: 'done' },
+    ])
+    await symlink(join(outside, 'escape'), join(workspaceDir, '.coko/skills/escape'))
+    const listed = (await api.get(`${skillPaths.skills}?workspaceId=${workspace.id}`)).body as {
+      skills: { name: string }[]
+      diagnostics: { code: string; path?: string }[]
+    }
+    expect(listed.skills.map((s) => s.name)).not.toContain('escape')
+    expect(listed.diagnostics).toContainEqual(
+      expect.objectContaining({ source: 'skills', code: 'skill-outside-workspace', path: join(workspaceDir, '.coko/skills/escape/SKILL.md') }),
+    )
+    const sessionId = await newSession()
+    await send(api, stream, sessionId, 'read the outside file', async () => {
+      const request = await waitApproval(stream, sessionId, 1)
+      expect(request).toMatchObject({ toolCallId: 'r1', toolName: 'read', kind: 'tool' })
+      expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'deny' })).status).toBe(204)
+    })
+    expect(replay((await requests())[0]!).sections.skills).not.toContain('escape')
+    expect(JSON.stringify(stream.entries(sessionId))).not.toContain('OUTSIDE-PRIVATE')
   })
 })
 

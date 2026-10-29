@@ -44,7 +44,7 @@ export interface ProgressSource {
 }
 
 /**
- * 跟踪压缩进度（票 11）：compaction_start 标记会话正在压缩，compaction_end / compaction_failed / run_end 清除；失败时调用 onFailure
+ * 跟踪压缩进度：compaction_start 标记会话正在压缩，compaction_end / compaction_failed / run_end 清除；失败时调用 onFailure
  * （每次一个 Toast）。断线重连时清空（进行中的压缩之后由 run_end 或下一次进度更新）。返回取消订阅。
  */
 export function trackCompaction(store: ContextStore, stream: ProgressSource, onFailure?: (failure: CompactionFailure) => void): () => void {

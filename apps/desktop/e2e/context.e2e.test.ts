@@ -1,4 +1,4 @@
-// 上下文环（票 10）：真实 Electron + 真实 Sidecar（faux 模型，40k 窗口）。底栏显示百分比；faux 回复使用量越过预警线后环为 warning 色；
+// 上下文环：真实 Electron + 真实 Sidecar（faux 模型，40k 窗口）。底栏显示百分比；faux 回复使用量越过预警线后环为 warning 色；
 // 点击打开 HoverCard 看到分项与 COKO_HOME 的指令文件，Esc 关闭且焦点回到环；窗口最窄时环不挤压模式与模型选择。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

@@ -1,4 +1,4 @@
-// <memory> system section（票 09）：用户级与当前 Workspace 的条目，updatedAt 倒序，条目合计不超过 12 000 字符，超出注明数量。
+// <memory> system section：用户级与当前 Workspace 的条目，updatedAt 倒序，条目合计不超过 12 000 字符，超出注明数量。
 import type { SystemSection } from '../../engine/types.ts'
 
 /** 单条记忆正文的上限（字符）。 */

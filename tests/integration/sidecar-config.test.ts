@@ -1,4 +1,4 @@
-// 分层配置（票 02）：GET / PUT /api/config 与项目 .coko/settings.json（只收紧，ADR 0008），以及项目 deny / ask 规则作为
+// 分层配置：GET / PUT /api/config 与项目 .coko/settings.json（只收紧，ADR 0008），以及项目 deny / ask 规则作为
 // project 作用域参与权限判定。真实 Sidecar（faux 模型）经协议驱动；项目文件在两次请求或两个 Run 之间改写。
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

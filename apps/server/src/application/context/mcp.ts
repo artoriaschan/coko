@@ -1,7 +1,7 @@
-// MCP（票 07；资源与提示模板为票 08）：McpManager 按 (Workspace, Server) 池化连接，Workspace 的第一个 Run 开始时并发连接（单个 30 秒超时，
+// MCP（docs/subsystems/mcp.md）：McpManager 按 (Workspace, Server) 池化连接，Workspace 的第一个 Run 开始时并发连接（单个 30 秒超时，
 // 失败不阻止 Run，该 Server 的工具缺席），之后的 Run 复用；全局配置为设置键 mcp.servers，项目配置为 <Workspace>/.mcp.json（须按摘要批准，
 // 不能引用 Secret，同名被全局遮蔽，ADR 0007、0008）。配置、批准或 Secret 改变、Server 停用时关闭受影响的连接；有序关闭时在存储之前关闭全部连接。
-// 票 08：有已连接的 Server 声明 resources 时注册三个资源工具（权限类 context-read）；声明 prompts 的 Server 的提示模板以
+// 资源与提示模板：有已连接的 Server 声明 resources 时注册三个资源工具（权限类 context-read）；声明 prompts 的 Server 的提示模板以
 // /mcp__<server>__<prompt> 登记到命令目录（列表按连接缓存，prompts/list_changed 或重连后重新列出；列命令目录与提交消息时同样先连接）。
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -32,7 +32,7 @@ import {
   type McpTransportHandle,
   type ResourceDiagnostic,
 } from '@coko/agent'
-import { getLogger, redactSecretValues } from '@coko/logging'
+import { getLogger } from '@coko/logging'
 import {
   MCP_SERVERS_SETTING,
   mcpApprovalsSettingKey,
@@ -56,7 +56,7 @@ export interface McpManagerOptions {
   store: SessionStore
   /** 有效能力配置（mcp.enabled，含项目 .coko/settings.json 的收紧）。 */
   config: { effective(workspacePath?: string): Promise<CapabilityConfig> }
-  secrets: Pick<SecretService, 'resolve' | 'redact' | 'onChange'>
+  secrets: Pick<SecretService, 'resolve' | 'redact' | 'redactValues' | 'onChange'>
   /** 建立传输（adapters/mcp.ts）；config 中的 ${NAME} 已展开。 */
   createTransport: (config: McpServerConfig, options: { cwd: string }) => McpTransportHandle
   /** 测试覆盖（缺省 30 秒、1/2/4 秒）。 */
@@ -89,9 +89,10 @@ const keyOf = (workspaceId: string, name: string) => `${workspaceId}\0${name}`
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const timeoutMsOf = (config: McpServerConfig) => (config.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 
+/** 项目 Server 批准时显示的启动配置：与批准摘要覆盖的字段相同，含 env 与 headers 的值（项目项只有字面值，ADR 0007）。 */
 function launchOf(config: McpServerConfig): McpLaunchDetails {
-  if ('url' in config) return { url: config.url, headerNames: Object.keys(config.headers ?? {}) }
-  return { command: config.command, args: config.args ?? [], ...(config.cwd ? { cwd: config.cwd } : {}), envNames: Object.keys(config.env ?? {}) }
+  if ('url' in config) return { url: config.url, ...(config.headers ? { headers: { ...config.headers } } : {}) }
+  return { command: config.command, args: config.args ?? [], ...(config.cwd ? { cwd: config.cwd } : {}), ...(config.env ? { env: { ...config.env } } : {}) }
 }
 
 export class McpManager {
@@ -351,7 +352,7 @@ export class McpManager {
           const result = await getMcpPrompt(pooled.connection, prompt.name, mapped.arguments, { timeoutMs: timeoutMsOf(pooled.entry.config) })
           this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [])
           // 展开文本进入 user message 条目：先替换已登记 Secret 的明文（与工具结果相同，ADR 0007）。
-          return redactSecretValues(promptMessagesToText(result.messages))
+          return this.#options.secrets.redactValues(promptMessagesToText(result.messages))
         } catch (error) {
           if (error instanceof McpResultError) {
             this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [error.diagnostic])
@@ -429,7 +430,7 @@ export class McpManager {
       const result = validateMcpServerConfig(name, request.servers[name])
       if (!result.ok) throw new AppError('bad-request', result.message)
       const clash = names.find((other) => serverNamesConflict(other, name))
-      if (clash) throw new AppError('bad-request', `server "${name}" conflicts with "${clash}" (names differ only in "-" and "_")`)
+      if (clash) throw new AppError('bad-request', `server "${name}" conflicts with "${clash}" (names differ only in case, "-" or "_")`)
     }
     const workspace = request.workspaceId === undefined ? undefined : { id: request.workspaceId, path: await this.#workspacePath(request.workspaceId) }
     await this.#options.store.settings.set(MCP_SERVERS_SETTING, request.servers as JsonValue, request.expectedRevision)

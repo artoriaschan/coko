@@ -1,4 +1,4 @@
-// MCP 资源（M3 规格 D8）：Server 声明 resources 能力时，宿主注册 list_mcp_resources、list_mcp_resource_templates、
+// MCP 资源（docs/subsystems/mcp.md）：Server 声明 resources 能力时，宿主注册 list_mcp_resources、list_mcp_resource_templates、
 // read_mcp_resource { server, uri }（权限类 context-read 由宿主注册时给出，effect read）。列表为 JSON：给出 server 时列一页、cursor 接着翻；
 // 不给时列出全部 Server 的全部分页（重复 cursor 与 1000 页上限见 pagination.ts）。读取：文本按 2000 行 / 50KB 截断，图片按内容块透传，
 // 其他 blob 注明类型与大小。资源订阅不实现。

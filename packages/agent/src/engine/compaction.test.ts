@@ -1,4 +1,4 @@
-// 运行时的压缩（票 11）：每次请求前越过阈值时自动压缩并提交 compaction { trigger: auto }，摘要请求没有工具，下一次请求为合成摘要 +
+// 运行时的压缩：每次请求前越过阈值时自动压缩并提交 compaction { trigger: auto }，摘要请求没有工具，下一次请求为合成摘要 +
 // firstKeptSeq 及之后；溢出时压缩一次再重试一次；连续 3 次自动失败后暂停，成功的手动压缩复位；手动压缩中停止不提交条目。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Context, SystemMessage } from '@earendil-works/pi-ai'
@@ -86,6 +86,18 @@ describe('自动压缩', () => {
     expect(h.progress.filter((p) => p.type.startsWith('compaction_')).map((p) => p.type)).toEqual(['compaction_start', 'compaction_end'])
   })
 
+  it('被摘要的内容超过模型窗口时，摘要请求的输入被限制在窗口减去输出上限之内，压缩成功', async () => {
+    const h = harness()
+    h.reply(ok(), ok('SUMMARY'), ok('done'))
+    await h.runtime.run(big(200_000, 'a'))
+    expect((await h.runtime.run(big(8_000, 'b'))).status).toBe('completed')
+    expect(h.stored.some((e) => e.kind === 'compaction')).toBe(true)
+    const prompt = text(h.requests[1]!.messages[1])
+    // 40k 窗口、4k 输出：摘要请求的输入不超过 (40 000 − 4 000) × 4 个字符。
+    expect(prompt.length).toBeLessThan(36_000 * 4)
+    expect(prompt).toContain('omitted to fit the summary request')
+  })
+
   it('context.autoCompact 关闭时不压缩', async () => {
     const h = harness({ autoCompact: false })
     h.reply(ok(), ok('done'))
@@ -165,7 +177,8 @@ describe('熔断与手动压缩', () => {
     h.reply(ok())
     await h.runtime.run('hi')
     const result = await h.runtime.compact()
-    expect(result).toMatchObject({ status: 'error', error: { code: 'internal' } })
+    // 可预期的情形（宿主通常先以 400 拒绝），不当作程序错误记录。
+    expect(result).toMatchObject({ status: 'error', error: { code: 'model_error', message: expect.stringContaining('Nothing to compact') } })
     expect(h.stored.some((e) => e.kind === 'compaction')).toBe(false)
   })
 })

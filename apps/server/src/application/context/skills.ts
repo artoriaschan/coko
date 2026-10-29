@@ -1,4 +1,4 @@
-// Skills（票 05）：<available_skills> system section、skill 工具（context-read）、Skill 目录作为额外读取根、向命令目录登记 /<skill-name>，
+// Skills：<available_skills> system section、skill 工具（context-read）、Skill 目录作为额外读取根、向命令目录登记 /<skill-name>，
 // 以及 GET /api/skills 的列表。受 skills.enabled 与 skills.disabled（全局与项目追加）控制；allowed-tools 只展示（ADR 0008）。
 import {
   createSkillLoader,

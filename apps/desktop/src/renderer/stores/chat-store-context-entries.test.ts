@@ -1,4 +1,4 @@
-// M3 预先声明的条目与进度：renderer 接收 command / compaction 条目与 context_usage、compaction_* 进度时不报错；compaction 显示为分隔条（票 11），进度不改变对话的临时显示状态。
+// M3 预先声明的条目与进度：renderer 接收 command / compaction 条目与 context_usage、compaction_* 进度时不报错；compaction 显示为分隔条，进度不改变对话的临时显示状态。
 import type { ProgressEvent, SessionEntryRecord } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
 import { buildTimeline } from '../features/conversation/timeline.ts'
@@ -28,7 +28,7 @@ describe('M3 预先声明的条目与进度', () => {
     const entries = records.filter((r) => Value.Check(SessionEntry, r)) as SessionEntry[]
     expect(entries.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5])
     const conversation: Conversation = { status: 'ready', entries, lastSeq: 5, running: false, live: null }
-    // compaction 显示为分隔条（票 11）。
+    // compaction 显示为分隔条。
     expect(buildTimeline(conversation).map((i) => i.kind)).toEqual(['user', 'compaction'])
   })
 

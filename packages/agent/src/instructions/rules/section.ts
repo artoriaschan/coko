@@ -1,4 +1,4 @@
-// <instructions> system section 与 <instruction_file> 块的文本格式（M3 规格 A3）。
+// <instructions> system section 与 <instruction_file> 块的文本格式（docs/subsystems/instructions.md）。
 import type { InstructionFile } from './loader.ts'
 
 /** 前导语（claude-code）：这些指令覆盖默认行为，越靠后（越近）越优先。 */

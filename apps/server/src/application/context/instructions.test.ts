@@ -1,4 +1,4 @@
-// 指令贡献（票 03）：report() 给出已加载文件、字符数、截断与诊断；instructions.enabled 为 false 时不注入。
+// 指令贡献：report() 给出已加载文件、字符数、截断与诊断；instructions.enabled 为 false 时不注入。
 import { mkdir } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createInstructionLoader, createNodeInstructionFiles, defaultCapabilityConfig, INSTRUCTION_FILE_MAX_CHARS } from '@coko/agent'
@@ -54,6 +54,21 @@ describe('instructionsContribution', () => {
     expect(await c.report!(scope(false))).toEqual({ breakdown: { instructions: 0 }, instructions: [], diagnostics: [] })
     expect(await c.systemSections!(scope(true))).toHaveLength(1)
     expect(c.hooks!(scope(true))).toHaveLength(1)
+  })
+
+  it('作用域中的 Read 拒绝规则作用于 @import：被拒绝的文件不进入 section，诊断为 import-denied', async () => {
+    await ws.write('repo/.git/HEAD', 'ref')
+    await ws.write('repo/AGENTS.md', 'rules @./private/keys.md @./ok.md')
+    await ws.write('repo/private/keys.md', 'PRIVATE-KEYS')
+    await ws.write('repo/ok.md', 'fine')
+    const denying: ContextScope = { ...scope(), permissionRules: async () => [{ tool: 'Read', behavior: 'deny', content: 'private/**' }] }
+    const c = contribution()
+    const [section] = await c.systemSections!(denying)
+    expect(section!.text).not.toContain('PRIVATE-KEYS')
+    expect(section!.text).toContain('fine')
+    expect((await c.report!(denying)).diagnostics!.map((d) => d.code)).toEqual(['import-denied'])
+    // 没有规则时照常展开。
+    expect((await c.systemSections!(scope()))[0]!.text).toContain('PRIVATE-KEYS')
   })
 
   it('没有任何指令文件时没有 system section', async () => {

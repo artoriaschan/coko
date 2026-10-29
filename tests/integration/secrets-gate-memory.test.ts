@@ -1,18 +1,20 @@
-// 秘密不外泄总闸的 Memory 通道（票 09，ADR 0004）：模型服务在错误中回显 Credential，模型把回显的错误文本写入记忆，用户也把它粘贴进
+// 秘密不外泄总闸的 Memory 通道（ADR 0004）：模型服务在错误中回显 Credential（不是凭据形态的自定义密钥），模型把回显的错误文本写入记忆，用户也把它粘贴进
 // 设置的 Memory 分区。Memory 引入的通道——memory_* 工具结果（条目与 tool_end 进度）、/api/memories 响应体、库中 memories 表、
 // 之后 Session 的 <memory> system section——以及日志与 COKO_HOME 中都不得出现明文；保存的正文带脱敏占位。
 // 模型自己的工具调用参数（assistant 消息、tool_start 进度与审批对象）是模型输出的原文，与其他工具相同，不属于本通道。
+import { randomBytes } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, permissionPaths } from '@coko/protocol'
 import { connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
-import { leaksIn, marker, persisted, recordingClient } from './secrets-gate-harness.ts'
+import { leaksIn, persisted, recordingClient } from './secrets-gate-harness.ts'
 
 describe('秘密不外泄总闸：Memory', () => {
   it('回显 Credential 的错误文本经 memory_write 与 /api/memories 写入后，Memory 的各通道没有明文', { timeout: 120_000 }, async () => {
-    const credential = marker('cred')
+    // 不是凭据形态（没有 sk- 前缀、不是 43 字符的 base64url）：只能靠 Credential 明文登记为按值脱敏来源才被替换。
+    const credential = `plain-cred-${randomBytes(12).toString('hex')}`
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const echoed = `Incorrect API key provided: ${credential}`

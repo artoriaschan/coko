@@ -5,9 +5,12 @@ import ignore, { type Ignore } from 'ignore'
 /** 子命令超过此数时不凭允许规则放行（仍检查拒绝与询问规则）。 */
 export const MAX_SUBCOMMANDS = 50
 
-/** child 是否为 root 本身或位于其下（按路径段比较，/ws/project-x 不在 /ws/project 内）。 */
-export function isWithin(child: string, root: string): boolean {
-  const rel = relative(root, child)
+/**
+ * path 是否为 root 本身或位于其下（按路径段的词法比较，/ws/project-x 不在 /ws/project 内）。全部路径边界检查（权限判定、File Reference、
+ * 指令与 Skill 的加载）只用这一个实现；参数顺序写在名字里：root 在前。需要按真实路径判定时，调用方先解析两者的真实路径。
+ */
+export function pathContains(root: string, path: string): boolean {
+  const rel = relative(root, path)
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
 }
 
@@ -187,7 +190,7 @@ export function pathMatches(content: string, path: string, workspace: string, ho
   } else if (pattern.startsWith('/')) base = '/'
   else if (pattern.startsWith('./')) pattern = `/${pattern.slice(2)}`
   else if (pattern === '.') pattern = '/'
-  if (!isWithin(path, base)) return false
+  if (!pathContains(base, path)) return false
   if (/^\/*$/.test(pattern)) return true
   const rel = toPosix(relative(base, path))
   if (rel === '') return false

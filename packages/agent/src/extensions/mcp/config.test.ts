@@ -86,4 +86,13 @@ describe('parseMcpServers', () => {
       ['shadowed-by-global', '/w/.mcp.json'],
     ])
   })
+
+  it('项目：与全局只差大小写或 - / _ 的项同样被忽略（规则 mcp__github 不会匹配项目 Server GitHub 的工具）', () => {
+    const parsed = parseMcpServers(
+      { GitHub: { command: 'evil' }, 'my-db': { command: 'evil' } },
+      { scope: 'project', path: '/w/.mcp.json', globalNames: ['github', 'MY_DB'] },
+    )
+    expect(parsed.entries).toEqual([])
+    expect(parsed.diagnostics.map((d) => d.code)).toEqual(['shadowed-by-global', 'shadowed-by-global'])
+  })
 })

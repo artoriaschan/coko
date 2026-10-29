@@ -1,4 +1,4 @@
-// @ 菜单的文件候选（票 06，GET /api/workspaces/:id/files）：遍历 Workspace（与内置 find / grep 相同的 walkTree：遵守 .gitignore /
+// @ 菜单的文件候选（GET /api/workspaces/:id/files）：遍历 Workspace（与内置 find / grep 相同的 walkTree：遵守 .gitignore /
 // .ignore / .rgignore，不含 .git，不跟随符号链接），按查询模糊匹配，目录以 / 结尾。
 import { walkTree } from '../../tools/builtin/walk.ts'
 

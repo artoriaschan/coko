@@ -1,5 +1,5 @@
 import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
-import { createRequestTracker } from '@coko/protocol'
+import { createRequestTracker, SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
@@ -9,6 +9,8 @@ const readOnly = () => Promise.reject(new Error('Credentials are managed by the 
 export interface HostCredentialStore extends CredentialStore {
   /** 清除内存中的明文缓存。 */
   invalidate(providerId: string): void
+  /** 当前在内存中的明文（按值脱敏的来源，与 Secret 同一机制）。 */
+  cachedValues(): string[]
 }
 
 /**
@@ -51,6 +53,7 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
     modify: readOnly,
     delete: readOnly,
     invalidate: (providerId) => void cache.delete(providerId),
+    cachedValues: () => [...cache.values()],
   }
 }
 
@@ -98,6 +101,11 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
     modify: readOnly,
     delete: readOnly,
     invalidate: () => {},
+    // 环境中的值启动时已知：COKO_CREDENTIAL_* 与各 Provider kind 的密钥变量全部登记，不必等到第一次读取。
+    cachedValues: () =>
+      Object.entries(options.env).flatMap(([key, value]) =>
+        value && (key.startsWith('COKO_CREDENTIAL_') || PROVIDER_KINDS.some((kind) => apiKeyEnvOf(kind) === key)) ? [value] : [],
+      ),
   }
 }
 
@@ -119,7 +127,7 @@ export interface SecretSource {
 const SECRET_ENV_PREFIX = 'COKO_SECRET_'
 /** 无界面运行时 Secret <NAME> 的变量名；该前缀已被命令环境的 COKO_* 剔除规则覆盖。 */
 export const secretEnvName = (name: string) => `${SECRET_ENV_PREFIX}${name}`
-const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/
+const SECRET_NAME = new RegExp(SECRET_NAME_PATTERN)
 /** 与 Credential 相同：短于 8 个字符的值不给提示。 */
 const hintOf = (value: string) => (value.length >= 8 ? value.slice(-4) : '')
 

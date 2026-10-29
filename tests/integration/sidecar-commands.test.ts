@@ -1,4 +1,4 @@
-// 命令与提示模板（票 04）：真实 Sidecar（faux 模型），夹具 tests/fixtures/commands 复制到临时 Workspace 与临时 COKO_HOME。
+// 命令与提示模板：真实 Sidecar（faux 模型），夹具 tests/fixtures/commands 复制到临时 Workspace 与临时 COKO_HOME。
 // 断言提交的条目（run_start → command → 展开后的 user message）、faux requestLog 中实际发给模型的文本与 GET /api/commands。
 import { cp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -142,7 +142,7 @@ describe('GET /api/commands', () => {
     const byWorkspace = await api.get(`${commandPaths.commands}?workspaceId=${workspace.id}`)
     expect(byWorkspace.status).toBe(200)
     expect(byWorkspace.body.commands).toEqual([
-      // 内置命令随其动作接入列出（票 11 的 /compact）。
+      // 内置命令随其动作接入列出（例如 /compact）。
       { name: 'compact', description: 'Summarize earlier messages to free up context', argumentHint: '[instructions]', source: 'builtin', enabled: true },
       {
         name: 'git:commit',

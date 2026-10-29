@@ -1,4 +1,4 @@
-// File Reference 节点（票 06）：经 @ typeahead 插入的原子节点，作为整体删除；getText() 序列化为 @path / @"a b"；EditorState JSON 往返后
+// File Reference 节点：经 @ typeahead 插入的原子节点，作为整体删除；getText() 序列化为 @path / @"a b"；EditorState JSON 往返后
 // 节点仍在；目录用 Tab 进入（替换为 @dir/ 文本并继续查询），Enter 插入目录引用。
 import '../styles/theme.css'
 import * as React from 'react'

@@ -19,6 +19,7 @@ export { Checkbox } from './components/checkbox.tsx'
 export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from './components/dialog.tsx'
 export { HoverCard, HoverCardContent, HoverCardTrigger } from './components/hover-card.tsx'
 export { Input } from './components/input.tsx'
+export { Textarea } from './components/textarea.tsx'
 export { ToggleGroup, ToggleGroupItem } from './components/toggle-group.tsx'
 export {
   DropdownMenu,

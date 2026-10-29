@@ -1,4 +1,4 @@
-// MCP 分区（票 07）：真实 Electron + 真实 Sidecar + 仓库内的 stdio 测试 Server。添加 stdio Server 后看到 connected 与工具数，
+// MCP 分区：真实 Electron + 真实 Sidecar + 仓库内的 stdio 测试 Server。添加 stdio Server 后看到 connected 与工具数，
 // 停用后工具消失；登记 Secret 只显示末四位（值经 preload → main safeStorage → secret.store，ADR 0007）；批准项目 Server 的对话框显示完整命令。
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -91,7 +91,8 @@ describe('MCP 分区', () => {
     await approval.waitFor()
     expect(await approval.locator('[data-launch="command"]').textContent()).toBe(process.execPath)
     expect(await approval.locator('[data-launch="args"]').textContent()).toBe(`${stdioServerEntry} --project`)
-    expect(await approval.locator('[data-launch="envNames"]').textContent()).toBe('MCP_FIXTURE_LOG')
+    // 环境变量显示完整的键值（项目文件只有字面值）。
+    expect(await approval.locator('[data-launch="env"]').textContent()).toBe(`MCP_FIXTURE_LOG=${projectLog}`)
     await approval.locator('[data-action="approve"]').click()
     await approval.waitFor({ state: 'detached' })
     await expect.poll(() => project.getAttribute('data-status'), { timeout: 20_000 }).toBe('connected')

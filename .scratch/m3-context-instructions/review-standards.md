@@ -171,3 +171,35 @@
 - **未读**：`packages/agent/src/context/compaction/{plan,prompt}.ts` 正文（只读了 runtime 中的调用与 subsystems 文档）、`context/usage/{estimate,trim,budget}.ts`、`instructions/commands/{args,loader,registry}.ts`、`instructions/skills/{parse,section}.ts`、`extensions/mcp/{resources,prompts,pagination,results}.ts`、`tools/builtin/walk.ts`、`testing/grep-contract.ts`；`packages/session` 的 schema 与迁移（只读了 `memory-secrets.ts`）；`packages/i18n` 的各 domain 字典；`apps/server/src/runtime/layers.ts`、`application/{recovery,checkpoints,session-permissions}.ts`（票 01 的拆分）、`context/{usage,instructions}.ts`、`apps/server/src/config.ts`；`apps/desktop/forge.config.ts`、`vitest.browser.config.ts`、`e2e/foreground-watch.ts`、`sidecar-supervisor.ts` 之外的 main 改动。
 - **全部测试文件**（`*.test.ts(x)`、`tests/integration/*`、`apps/desktop/e2e/*`、`tests/fixtures/*`）只用来定位行为，没有按 testing.md 逐条评审隔离与确定性。
 - 没有运行 typecheck、lint、test 或 check:docs（只读评审）；S1、S2 由 `/tmp` 下的临时脚本复现。
+
+---
+
+## 处理结果（票 13，2026-10-29）
+
+修复在分支 `m3/13-review-fixes`（见 [票 13](issues/13-review-fixes.md)）。"先红"指改动前新测试失败，或对实现做变异后失败。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| S1（= F4） | 已修：`forkEntries` 把 compaction 放在 `fork_origin` 之后、复制的条目之前，`firstKeptSeq` 指向第一条复制的消息；`estimateCompactedTokens` 把没有 runId 的复制消息排除在"压缩之后"之外 | `checkpoints/rewind.test.ts` 3 例（位置与 firstKeptSeq、分叉后回退到第一条保留消息、复制消息的 usage）；`sidecar-compaction.test.ts` 协议层同一场景。用旧 `fork.ts` 跑集成测试先红 |
+| S2（= F2） | 已修：目录链与嵌套的指令文件真实路径须在仓库根（嵌套为 Workspace）之内，越界记 `file-outside-boundary` 并跳过；user 作用域不限 | `rules.test.ts` 3 例（目录链、嵌套、目标目录本身是链接），先红 |
+| S3（= M2） | 已修：项目 Server 的 `launch` 给出 `env` / `headers` 完整键值，对话框逐行显示；协议去掉 `envNames` / `headerNames` | `sidecar-mcp.test.ts`（先红）、`mcp.e2e.test.ts` |
+| S4 | 已修：`referencesContribution` 生成块时 `redactSecretsDeep` | 新 `secrets-gate-references.test.ts`，先红 |
+| S5 | 已修：唯一实现 `pathContains(root, path)`（`policy/rules.ts`，参数顺序写进名字），删除 discover.ts 的副本；decide、expand、rewind、discover、loader、read-filter、skills loader 都改用它 | 现有 policy / references / rewind / read-filter 用例全部通过（agent 584 例） |
+| S6 | 已修：`control.ts` 用 `SecretName`；server credentials 与 desktop main 从 `@coko/protocol` 取 `SECRET_NAME_PATTERN`；agent 保留常量 | 新 `apps/server/src/adapters/secret-name.test.ts`（比对 `SECRET_NAME.source` 与协议、源码中没有字面副本），先红 |
+| D1 | 已修：TECH_STACK Agent 表加 yaml 2.9.0 与包元数据链接 | check:docs |
+| D2 | 已修：apps、packages、tests 源码中的 grilling / 票号 / M3 规格指代改为文字或 docs/ 正文（127 个文件，只改注释）；新增 `scripts/source-references.test.ts` 机械检查 | 先红（列出全部命中）；临时在 `fork.ts` 加 `// grilling F6` 后失败、撤销后通过 |
+| D3 | 已修：删除 `context/index.ts` 的"只由票 01 修改"；server README 改为描述 `ConfigService` 与 `DOMAIN_ROUTES` | check:docs |
+| D4 | 已做：`application/config.ts` 加 `DiagnosticsAgree` | 给 agent 的 `DiagnosticSource` 临时加一个值后 tsc 报 8 个错误，撤销后通过 |
+| D5 | 已修：`packages/ui` 新增 `Textarea`（default / mono 变体），MCP 与 Memory 分区改用它 | 新 `textarea.browser.test.tsx`（与 Input 同几何与 token、mono 变体），组件不存在时先红；memory E2E 通过 |
+| D6 | 已修：保存失败显示 `mcp.saveFailed`，服务端原文在可展开的"技术详情"中；删除 Secret 失败只 toast 本地化的 `mcp.secrets.deleteFailed` | 新 `mcp-section.browser.test.tsx`，用旧 `mcp-section.tsx` 跑先红 |
+| D7 | 未做：三份诊断列表的映射表与布局各不相同（项目设置行可折叠、MCP 有标题），合并需要先统一界面形态，超出本票的修复范围；key 用下标的问题在列表只读、不重排时没有可见影响。留给之后的设置分区整理 | — |
+| J1 | 未做：把 `ruleTools` 移进 `ContextContribution` 需要改共享装配点与 PermissionService 的取名路径，属于结构重构，不影响行为 | — |
+| J2 | 未做：拆分 McpManager 是结构重构；每个 Run 读两遍配置是小的性能问题，没有正确性影响 | — |
+| J3 | 已修：`SecretService.redactValues`，`promptCommand` 经注入的端口调用 | `secrets-gate-mcp-prompts.test.ts` 通过 |
+| J4 | 未做：路由经 application 层取作用域是结构重构，涉及 4 个路由与 Application 形状 | — |
+| J5 | 未做：压缩编排抽出 driver 是结构重构；本票只在 `summarize` 中加了输入上限（F7） | — |
+| J6 | 未做：`CommandSourceContribution.list` 的类型收紧需要移动 `SourcedCommand` 并改动 skills / mcp 两个来源，收益低于本票其他项 | — |
+| J7 | 未做：Credential 与 Secret 通道合并是结构重构；本票只让 Credential 明文登记为按值脱敏来源（M3） | — |
+| J8 | 已修：`redact` 的注释写明是注入接缝（按值 + 凭据形态），与 `redactValues` 成对提供 | 同 J3 |
+| J9 | 已修：没有可压缩内容的手动压缩以 `model_error` 结束 | `engine/compaction.test.ts` 改断言，先红 |
+| J10（= F3） | 已修，见 review-spec F3 | 见 F3 |

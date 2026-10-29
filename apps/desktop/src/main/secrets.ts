@@ -1,4 +1,4 @@
-import { createRequestTracker, RequestTimeoutError } from '@coko/protocol'
+import { createRequestTracker, RequestTimeoutError, SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { SetSecretResult, SecretErrorCode } from '../shared/bridge.ts'
 import { credentialHint, type CredentialChannel, type Encryption } from './credentials.ts'
 
@@ -9,7 +9,7 @@ export interface SecretBridge {
   set(name: unknown, value: unknown): Promise<SetSecretResult>
 }
 
-const NAME = /^[A-Z][A-Z0-9_]{0,63}$/
+const NAME = new RegExp(SECRET_NAME_PATTERN)
 const MAX_VALUE_LENGTH = 8192
 
 const failure = (code: SecretErrorCode, message: string): SetSecretResult => ({ ok: false, code, message })

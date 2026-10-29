@@ -1,4 +1,4 @@
-// MCP 资源与提示模板（票 08）：真实 Sidecar + 仓库内的 stdio 测试 Server（MCP_FIXTURE_FEATURES 打开 resources / prompts）。
+// MCP 资源与提示模板：真实 Sidecar + 仓库内的 stdio 测试 Server（MCP_FIXTURE_FEATURES 打开 resources / prompts）。
 // 覆盖：没有 resources 能力时三个资源工具不注册；有时列表分页完整、模板、读取文本 / 超长文本 / 图片 / 二进制；四种模式都不出现审批；
 // 项目 .coko/settings.json 的 deny 规则拒绝 read_mcp_resource。/mcp__srv__greet Alice 提交 command { source: mcp } 与 prompts/get 的展开文本；
 // 缺必填参数 400 并给出参数名；结果不合 schema 时 400 并记诊断；prompts/list_changed 后 GET /api/commands 出现新提示模板。

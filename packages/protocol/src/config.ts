@@ -1,4 +1,4 @@
-// 能力配置（GET / PUT /api/config，票 02）。schema 与默认值的唯一定义在 @coko/agent 的 config/；这里是客户端信任边界的同形 schema，
+// 能力配置（GET / PUT /api/config）。schema 与默认值的唯一定义在 @coko/agent 的 config/；这里是客户端信任边界的同形 schema，
 // apps/server/src/application/config.ts 在编译期比对两侧一致。有效值 = 默认 ← 全局（设置键 config）← 项目（.coko/settings.json，只收紧，ADR 0008）。
 import { Type, type Static } from 'typebox'
 

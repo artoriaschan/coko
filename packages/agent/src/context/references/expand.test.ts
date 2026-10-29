@@ -1,4 +1,4 @@
-// File Reference 的展开（票 06）：Workspace 内文件按 read 截断（2000 行 / 50KB）读入、目录列表最多 200 项、单条消息最多 10 个 / 合计
+// File Reference 的展开：Workspace 内文件按 read 截断（2000 行 / 50KB）读入、目录列表最多 200 项、单条消息最多 10 个 / 合计
 // 200KB；Read 拒绝规则覆盖、Workspace 外或二进制时只附说明。断言生成的 <file_reference> 文本块。
 import { symlink } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'

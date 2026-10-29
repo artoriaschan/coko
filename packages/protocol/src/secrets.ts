@@ -1,5 +1,5 @@
 // 登记的 Secret（ADR 0007）：GET /api/secrets、DELETE /api/secrets/:name。值只经 preload setSecret → main safeStorage →
-// 控制 IPC secret.store 进入 Sidecar（见 control.ts），HTTP 从不携带值。票 01 建立本文件并在 index.ts 一次性 re-export。
+// 控制 IPC secret.store 进入 Sidecar（见 control.ts），HTTP 从不携带值。
 import { Type, type Static } from 'typebox'
 
 const strict = { additionalProperties: false } as const

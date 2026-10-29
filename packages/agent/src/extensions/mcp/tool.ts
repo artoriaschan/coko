@@ -1,4 +1,4 @@
-// MCP 工具 → CokoTool（M3 规格 D6、D7）：名字 mcp__<server>__<tool>；描述与 inputSchema 原样交给模型（缺 type / properties 时补上，
+// MCP 工具 → CokoTool（docs/subsystems/mcp.md）：名字 mcp__<server>__<tool>；描述与 inputSchema 原样交给模型（缺 type / properties 时补上，
 // 参数按 JSON Schema 校验，不支持的关键字放行，与 pi coding-agent 1.4.0 相同）；effect 一律 side-effect（Server 的 readOnly 提示不可信）；
 // 权限类 external 由宿主注册时给出；disabledTools 不注册；_meta.idempotencyKey 为 <sessionId>:<toolCallId>。
 // Adapted in part from pi coding-agent 1.4.0 extensions/mcp/tools.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.

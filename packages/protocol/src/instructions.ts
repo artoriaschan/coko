@@ -1,5 +1,4 @@
-// 指令文件（AGENTS.md / CLAUDE.md）：已加载文件的 DTO（票 10 声明，供上下文用量接口）；诊断用 config.ts 的 ResourceDiagnostic。
-// 票 01 建立本文件并在 index.ts 一次性 re-export；之后只改本文件。
+// 指令文件（AGENTS.md / CLAUDE.md）：已加载文件的 DTO（供上下文用量接口）；诊断用 config.ts 的 ResourceDiagnostic。
 import { Type, type Static } from 'typebox'
 
 const strict = { additionalProperties: false } as const

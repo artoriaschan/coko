@@ -1,4 +1,4 @@
-// 运行时 seam（M3 票 01）：context.systemSections 组成开头系统消息的 sections（基础提示为第一段）、RunInput.before 的条目位于
+// 运行时 seam：context.systemSections 组成开头系统消息的 sections（基础提示为第一段）、RunInput.before 的条目位于
 // run_start 之后与 user message 之前、transformMessages 只改请求不改条目、每条 assistant 提交后发 context_usage。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getSystemMessageText, type Context, type SystemMessage } from '@earendil-works/pi-ai'

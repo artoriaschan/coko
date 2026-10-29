@@ -1,4 +1,5 @@
 import { Type, type Static } from 'typebox'
+import { SecretName } from './secrets.ts'
 
 // Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit、credential.* 与 secret.*；
 // 以及两端共用的按 requestId 挂起请求的工具（运行时无关，只用 setTimeout 与 AbortSignal）。
@@ -37,8 +38,6 @@ export const SidecarCredentialStoreResult = Type.Object(
 )
 
 // ---- Secret（ADR 0007）：与 Credential 同一通道，按名字登记 ----
-
-const SecretNameField = Type.String({ pattern: '^[A-Z][A-Z0-9_]{0,63}$' })
 
 /** sidecar 需要某个 Secret 的明文时（MCP Server 启动或连接），请 main 用 safeStorage 解密库中的密文。 */
 export const SidecarSecretDecrypt = Type.Object({ type: Type.Literal('secret.decrypt'), requestId: RequestId, ciphertext: CredentialCiphertext }, strict)
@@ -83,7 +82,7 @@ export const MainCredentialDecryptResult = Type.Union([
 
 /** main 加密 renderer 输入的 Secret 后，把名字、密文与末四位提示交给 sidecar 存库；明文不经过 sidecar。 */
 export const MainSecretStore = Type.Object(
-  { type: Type.Literal('secret.store'), requestId: RequestId, name: SecretNameField, ciphertext: CredentialCiphertext, hint: Type.String({ maxLength: 4 }) },
+  { type: Type.Literal('secret.store'), requestId: RequestId, name: SecretName, ciphertext: CredentialCiphertext, hint: Type.String({ maxLength: 4 }) },
   strict,
 )
 /** 对 secret.decrypt 的回答：成功给出 plaintext，失败给出 error。 */

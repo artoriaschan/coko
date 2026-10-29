@@ -1,4 +1,4 @@
-// 输入区草稿（票 06，M3 规格"草稿"）：Lexical EditorState JSON 存 localStorage，键 coko.draft.<sessionId> / coko.draft.workspace.<workspaceId>，
+// 输入区草稿（docs/subsystems/context.md）：Lexical EditorState JSON 存 localStorage，键 coko.draft.<sessionId> / coko.draft.workspace.<workspaceId>，
 // 300 ms 防抖；提交被接受后清除；读出的值不是 JSON 或不是 EditorState 形状时丢弃并记 renderer warn。无 React 依赖。
 import type { CommandTarget } from './commands-store.ts'
 

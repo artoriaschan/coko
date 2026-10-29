@@ -1,4 +1,4 @@
-// Skills & Commands 分区（票 05）。
+// Skills & Commands 分区。
 import { defineDomain } from './define.ts'
 
 export const skills = defineDomain(
@@ -32,6 +32,7 @@ export const skills = defineDomain(
       'empty-template': '模板没有内容',
       'read-failed': '无法读取文件',
       shadowed: '被同名的 Skill 或命令遮蔽',
+      'skill-outside-workspace': '指向工作区之外，未加载',
       other: '文件有问题',
     },
   },
@@ -65,6 +66,7 @@ export const skills = defineDomain(
       'empty-template': 'The template is empty',
       'read-failed': "Couldn't read the file",
       shadowed: 'Shadowed by a skill or command with the same name',
+      'skill-outside-workspace': 'Points outside the workspace; not loaded',
       other: 'Problem in the file',
     },
   },

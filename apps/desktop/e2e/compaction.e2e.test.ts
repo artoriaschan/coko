@@ -1,4 +1,4 @@
-// 压缩（票 11）：真实 Electron + 真实 Sidecar（faux 模型，60k 窗口）。自动压缩的摘要连续失败：每次一个 Toast，第 3 次后上下文环旁出现暂停
+// 压缩：真实 Electron + 真实 Sidecar（faux 模型，60k 窗口）。自动压缩的摘要连续失败：每次一个 Toast，第 3 次后上下文环旁出现暂停
 // 标记；/compact 进行中输入区上方显示"正在压缩上下文…"；完成后时间线出现分隔条（约节省 N tokens），可展开摘要，之前的消息仍可查看，
 // 暂停标记消失。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'

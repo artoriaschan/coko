@@ -1,4 +1,4 @@
-// Skills & Commands 分区（票 05）：当前工作区的 Skill 与命令（来源、路径、启停、声明的工具（不授予）、诊断）。数据来自 GET /api/skills 与
+// Skills & Commands 分区：当前工作区的 Skill 与命令（来源、路径、启停、声明的工具（不授予）、诊断）。数据来自 GET /api/skills 与
 // GET /api/commands；启停写全局配置的 skills.enabled、skills.disabled 与 commands.disabled（PUT /api/config，带回其他全局键）。文件不被改写（ADR 0009）。
 import type { MessageKey } from '@coko/i18n'
 import type { CommandInfo, ResourceDiagnostic, SkillInfo } from '@coko/protocol'
@@ -8,6 +8,7 @@ import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { skillsStore } from '../../stores/skills-store.ts'
+import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
@@ -20,6 +21,7 @@ const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
   'empty-template': 'skills.diagnostics.empty-template',
   'read-failed': 'skills.diagnostics.read-failed',
   shadowed: 'skills.diagnostics.shadowed',
+  'skill-outside-workspace': 'skills.diagnostics.skill-outside-workspace',
 }
 
 /** 失败时 toast；进行中禁用控件。 */
@@ -73,6 +75,9 @@ export function SkillsSection() {
           <Group id="skills-list" title={t('skills.skillsHeading')} empty={t('skills.emptySkills')} ready={current && status === 'ready'}>
             {current && skills.map((skill) => <SkillRow key={skill.path} skill={skill} />)}
           </Group>
+          <SettingsCard>
+            <CapabilityToggle name="commands.enabled" workspaceId={workspaceId} />
+          </SettingsCard>
           <Group id="commands-list" title={t('skills.commandsHeading')} empty={t('skills.emptyCommands')} ready={current && status === 'ready'}>
             {current && commands.map((command) => <CommandRow key={`${command.source}:${command.name}`} command={command} />)}
           </Group>

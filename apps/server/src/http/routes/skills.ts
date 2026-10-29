@@ -1,4 +1,4 @@
-// GET /api/skills?workspaceId=…（票 05）：该 Workspace 的 Skill 列表与诊断（路径相对 /api）。
+// GET /api/skills?workspaceId=…：该 Workspace 的 Skill 列表与诊断（路径相对 /api）。
 import type { SkillListResponse } from '@coko/protocol'
 import { isSkillsContribution } from '../../application/context/skills.ts'
 import { AppError } from '../../application/errors.ts'

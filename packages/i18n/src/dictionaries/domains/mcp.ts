@@ -1,4 +1,4 @@
-// MCP Server 与 Secret（票 07、08）。
+// MCP Server 与 Secret。
 import { defineDomain } from './define.ts'
 
 export const mcp = defineDomain(
@@ -17,6 +17,7 @@ export const mcp = defineDomain(
     save: '保存',
     saved: '已保存 MCP 设置',
     saveFailed: '未能保存 MCP 设置',
+    errorDetails: '技术详情',
     conflict: 'MCP 设置已在别处更改，已重新读取',
     enable: '启用',
     disable: '停用',
@@ -62,8 +63,8 @@ export const mcp = defineDomain(
       args: '参数',
       cwd: '工作目录',
       url: '地址',
-      envNames: '环境变量',
-      headerNames: '请求头',
+      env: '环境变量',
+      headers: '请求头',
       none: '无',
       approve: '批准',
       approveFailed: '未能批准：配置可能已改变，请重新查看',
@@ -92,6 +93,7 @@ export const mcp = defineDomain(
       noHint: '已登记',
       saved: '已登记 Secret {name}',
       deleted: '已删除 Secret {name}',
+      deleteFailed: '未能删除 Secret {name}，请稍后重试',
       environment: '无界面运行：Secret 来自 COKO_SECRET_* 环境变量，不能在这里修改',
       unavailable: '当前环境不能登记 Secret',
       errors: {
@@ -118,6 +120,7 @@ export const mcp = defineDomain(
     save: 'Save',
     saved: 'MCP settings saved',
     saveFailed: "Couldn't save MCP settings",
+    errorDetails: 'Technical details',
     conflict: 'MCP settings changed elsewhere and were reloaded',
     enable: 'Enable',
     disable: 'Disable',
@@ -164,8 +167,8 @@ export const mcp = defineDomain(
       args: 'Arguments',
       cwd: 'Working directory',
       url: 'URL',
-      envNames: 'Environment variables',
-      headerNames: 'Headers',
+      env: 'Environment variables',
+      headers: 'Headers',
       none: 'None',
       approve: 'Approve',
       approveFailed: "Couldn't approve: the configuration may have changed; review it again",
@@ -195,6 +198,7 @@ export const mcp = defineDomain(
       noHint: 'Registered',
       saved: 'Secret {name} registered',
       deleted: 'Secret {name} deleted',
+      deleteFailed: "Couldn't delete secret {name}; try again later",
       environment: 'Headless mode: secrets come from COKO_SECRET_* variables and cannot be changed here',
       unavailable: "Secrets can't be registered here",
       errors: {

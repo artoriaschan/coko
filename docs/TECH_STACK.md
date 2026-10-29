@@ -57,6 +57,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | Agent 循环、工具执行、事件流、steering 与 follow-up | **@earendil-works/pi-agent-core 1.4.0** |
 | 模型调用与 provider 适配 | **@earendil-works/pi-ai 1.4.0** |
 | MCP 客户端 | **@earendil-works/pi-mcp 1.4.0** |
+| Skills 与命令模板的 frontmatter 解析 | yaml 2.9.0（只由 packages/agent 使用），[包元数据](https://registry.npmjs.org/yaml/2.9.0) |
 | pi 遥测契约 | **@earendil-works/pi-telemetry 1.4.0**；作为 pi-ai 的传递依赖对齐，业务直接使用时再显式声明 |
 | 工具参数与协议 schema | typebox 1.3.27，与 pi-agent-core / pi-ai 对齐 |
 | HTML → Markdown | turndown 7.2.4 + @joplin/turndown-plugin-gfm 1.0.68 |

@@ -1,4 +1,4 @@
-// 上下文用量与时间裁剪（票 10）：transformMessages 在 context.trimOldToolResults 开启时裁剪较旧的大段 toolResult（只改请求）；
+// 上下文用量与时间裁剪：transformMessages 在 context.trimOldToolResults 开启时裁剪较旧的大段 toolResult（只改请求）；
 // contextUsage 汇总各贡献的 report() 与对话，供 GET /api/sessions/:id/context 与 /api/workspaces/:id/context。
 import {
   charsToTokens,
@@ -62,7 +62,7 @@ export interface ContextUsageInput {
   /** Session 的条目；草稿为空。 */
   entries: readonly StoredEntry[]
   now?: () => number
-  /** 自动压缩因连续失败暂停（票 11 的熔断，SessionService.compactionPaused）；缺省 false。 */
+  /** 自动压缩因连续失败暂停（压缩的熔断，SessionService.compactionPaused）；缺省 false。 */
   autoCompactPaused?: boolean
 }
 
@@ -75,7 +75,7 @@ const lastAssistantTimestamp = (messages: readonly AgentMessage[]) => {
 }
 
 /**
- * 上下文用量（M3 规格"预算与数值"）：分项一律 chars/4；tokens 为最后一次 assistant usage 加其后消息的 chars/4，没有 usage
+ * 上下文用量（docs/subsystems/context.md#上下文用量）：分项一律 chars/4；tokens 为最后一次 assistant usage 加其后消息的 chars/4，没有 usage
  * （或时间裁剪将改变下一次请求、usage 已不代表它）时为分项之和。
  */
 export async function contextUsage(input: ContextUsageInput): Promise<ContextUsageResponse> {
@@ -118,7 +118,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
   const last = lastAssistantTimestamp(raw)
   const stale = trim && last !== undefined && clearedCount(messages) !== clearedCount(trimOldToolResults(raw, { now: last }))
   const estimate = estimateContextTokens(messages)
-  // 压缩之后、下一条 assistant 之前：最后一次 usage 量的是被摘要替代的历史（票 11）。
+  // 压缩之后、下一条 assistant 之前：最后一次 usage 量的是被摘要替代的历史。
   const compactedAfterUsage = estimate.usageTokens > 0 && estimateCompactedTokens(input.entries).usageTokens === 0
   const fromUsage = estimate.usageTokens > 0 && !stale && !compactedAfterUsage
   const budget = model ? contextBudget({ contextWindow: model.contextWindow ?? 0, maxTokens: model.maxTokens ?? 0 }) : undefined

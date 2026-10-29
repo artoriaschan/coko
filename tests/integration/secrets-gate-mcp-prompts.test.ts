@@ -1,4 +1,4 @@
-// 秘密不外泄总闸的 MCP 提示模板通道（票 08，ADR 0007）：prompts/get 的展开文本进入 user message 条目与模型请求。登记不匹配剔除模式的
+// 秘密不外泄总闸的 MCP 提示模板通道（ADR 0007）：prompts/get 的展开文本进入 user message 条目与模型请求。登记不匹配剔除模式的
 // Secret MY_SERVICE_DSN（IPC 模式，本测试模拟 main 的 safeStorage），在 MCP 配置 env 中引用；测试 Server 的 env 提示模板把该值原样放进
 // 提示。展开文本入库前替换已登记的明文：WebSocket 帧、HTTP 响应体、库文件（含 -wal）、sidecar.jsonl 与 Sidecar stderr 中都没有明文。
 import { randomBytes } from 'node:crypto'

@@ -1,4 +1,4 @@
-// 熔断（grilling F5）：一个 Session 连续 3 次自动（含溢出）压缩失败后停止自动压缩；运行时内存，重启或一次成功的压缩后复位。
+// 熔断（docs/subsystems/context.md#压缩）：一个 Session 连续 3 次自动（含溢出）压缩失败后停止自动压缩；运行时内存，重启或一次成功的压缩后复位。
 import type { CompactionTrigger } from '../../session-entries/index.ts'
 
 export const MAX_CONSECUTIVE_FAILURES = 3

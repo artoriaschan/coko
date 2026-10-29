@@ -1,4 +1,4 @@
-// Memory（票 09）：真实 Sidecar（faux 模型）经协议驱动。memory_write 的条目进入同 Workspace 新 Session 的 <memory> system section，
+// Memory：真实 Sidecar（faux 模型）经协议驱动。memory_write 的条目进入同 Workspace 新 Session 的 <memory> system section，
 // 另一 Workspace 只看到用户级；memory_delete 后不再注入；default 模式写入要审批、accept-edits 免审批、memory_list 免审批；
 // memory.enabled: false 时不注入、工具不在请求中；/api/memories 的增删改查与 Workspace 过滤；重启 Sidecar 后条目仍在。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'

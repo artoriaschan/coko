@@ -1,4 +1,4 @@
-// GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect（票 07；路径相对 /api）。
+// GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect（路径相对 /api）。
 import { McpApprovalRequest, McpReconnectRequest, UpdateMcpServersRequest } from '@coko/protocol'
 import type { Application } from '../../application/index.ts'
 import { body, domainRouter } from './shared.ts'

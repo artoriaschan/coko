@@ -1,19 +1,18 @@
-// MCP 与 Secrets 分区（票 07）：全局与当前工作区的 Server（状态、工具数、启停、增改删、项目 Server 批准、重连）与 Secrets 子区。
+// MCP 与 Secrets 分区：全局与当前工作区的 Server（状态、工具数、启停、增改删、项目 Server 批准、重连）与 Secrets 子区。
 // 状态来自 GET /api/mcp（分区打开期间轮询）；Secret 的值只经 preload setSecret 交给 main（ADR 0007），界面只显示末四位。
 import type { MessageKey } from '@coko/i18n'
 import type { McpServerInfo, McpServerStatus, McpServersConfig, ResourceDiagnostic } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { ChevronDownIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { mcpStore } from '../../stores/mcp-store.ts'
+import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const POLL_MS = 750
-const textarea =
-  'box-border min-h-16 w-full min-w-0 rounded-md border-hairline border-input bg-background px-3 py-1.5 font-mono text-ui-small text-foreground focus-ring placeholder:text-muted-foreground'
 
 const STATUS_TONE: Record<McpServerStatus, string> = {
   idle: 'text-muted-foreground',
@@ -69,6 +68,9 @@ export function McpSection() {
           {t('mcp.add')}
         </Button>
       </div>
+      <SettingsCard>
+        <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} />
+      </SettingsCard>
       {data && !data.enabled && <p className="text-ui-small text-warning">{t('mcp.disabled')}</p>}
       {workspaceId === undefined && <p className="text-ui-small text-muted-foreground">{t('mcp.noWorkspace')}</p>}
       {status === 'error' && !data && <p className="text-ui-body text-muted-foreground">{t('mcp.loadFailed')}</p>}
@@ -264,13 +266,16 @@ function ApprovalDialog({ server, onClose }: { server: McpServerInfo; onClose: (
   const { t } = useI18n()
   const [working, setWorking] = React.useState(false)
   const launch = server.approval!.launch
-  const rows: [MessageKey, string | string[] | undefined][] = [
-    ['mcp.project.command', launch.command],
-    ['mcp.project.args', launch.args],
-    ['mcp.project.cwd', launch.cwd],
-    ['mcp.project.url', launch.url],
-    ['mcp.project.envNames', launch.envNames],
-    ['mcp.project.headerNames', launch.headerNames],
+  // env 与 headers 逐行显示键值：它们决定实际执行的程序（NODE_OPTIONS、PATH 等）与发往何处的内容。
+  const pairs = (record: Record<string, string> | undefined, separator: string) =>
+    record === undefined ? undefined : Object.entries(record).map(([key, value]) => `${key}${separator}${value}`)
+  const rows: [MessageKey, string, string | string[] | undefined, 'words' | 'lines'][] = [
+    ['mcp.project.command', 'command', launch.command, 'words'],
+    ['mcp.project.args', 'args', launch.args, 'words'],
+    ['mcp.project.cwd', 'cwd', launch.cwd, 'words'],
+    ['mcp.project.url', 'url', launch.url, 'words'],
+    ['mcp.project.env', 'env', pairs(launch.env, '='), 'lines'],
+    ['mcp.project.headers', 'headers', pairs(launch.headers, ': '), 'lines'],
   ]
   const approve = async () => {
     setWorking(true)
@@ -289,12 +294,12 @@ function ApprovalDialog({ server, onClose }: { server: McpServerInfo; onClose: (
         </p>
         <dl className="flex flex-col gap-2">
           {rows
-            .filter(([, value]) => value !== undefined)
-            .map(([label, value]) => (
-              <div key={label} className="flex flex-col gap-0.5">
+            .filter(([, , value]) => value !== undefined)
+            .map(([label, field, value, layout]) => (
+              <div key={field} className="flex flex-col gap-0.5">
                 <dt className="text-ui-small text-muted-foreground">{t(label)}</dt>
-                <dd data-user-content data-launch={label.split('.').at(-1)} className="font-mono text-ui-small break-all select-text">
-                  {Array.isArray(value) ? (value.length === 0 ? t('mcp.project.none') : value.join(' ')) : value}
+                <dd data-user-content data-launch={field} className="font-mono text-ui-small break-all whitespace-pre-wrap select-text">
+                  {Array.isArray(value) ? (value.length === 0 ? t('mcp.project.none') : value.join(layout === 'lines' ? '\n' : ' ')) : value}
                 </dd>
               </div>
             ))}
@@ -351,10 +356,12 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
   const [timeout, setTimeoutValue] = React.useState(typeof existing?.timeout === 'number' ? String(existing.timeout) : '')
   const [disabledTools, setDisabledTools] = React.useState(Array.isArray(existing?.disabledTools) ? (existing.disabledTools as string[]).join(', ') : '')
   const [error, setError] = React.useState<string | null>(null)
+  const [errorDetail, setErrorDetail] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+    setErrorDetail(null)
     const trimmed = name.trim()
     if (trimmed === '') return setError(t('mcp.form.nameRequired'))
     const common: Record<string, unknown> = {}
@@ -396,7 +403,9 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
       onDone()
       return
     }
-    setError(result.code === 'revision-conflict' ? t('mcp.conflict') : `${t('mcp.saveFailed')}: ${result.message}`)
+    // 界面文案按 code 本地化；服务端原文只放在可展开的技术详情中（ui.md：技术详情放入诊断入口）。
+    setError(result.code === 'revision-conflict' ? t('mcp.conflict') : t('mcp.saveFailed'))
+    setErrorDetail(result.code === 'revision-conflict' ? null : result.message)
   }
 
   const field = (key: string, label: MessageKey, control: React.ReactNode) => (
@@ -441,12 +450,12 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
             {field(
               'args',
               'mcp.form.args',
-              <textarea id={`${id}-args`} name="args" className={textarea} value={args} onChange={(e) => setArgs(e.target.value)} spellCheck={false} />,
+              <Textarea id={`${id}-args`} name="args" variant="mono" value={args} onChange={(e) => setArgs(e.target.value)} spellCheck={false} />,
             )}
             {field(
               'env',
               'mcp.form.env',
-              <textarea id={`${id}-env`} name="env" className={textarea} value={env} onChange={(e) => setEnv(e.target.value)} spellCheck={false} />,
+              <Textarea id={`${id}-env`} name="env" variant="mono" value={env} onChange={(e) => setEnv(e.target.value)} spellCheck={false} />,
             )}
             {field(
               'cwd',
@@ -464,14 +473,7 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
             {field(
               'headers',
               'mcp.form.headers',
-              <textarea
-                id={`${id}-headers`}
-                name="headers"
-                className={textarea}
-                value={headers}
-                onChange={(e) => setHeaders(e.target.value)}
-                spellCheck={false}
-              />,
+              <Textarea id={`${id}-headers`} name="headers" variant="mono" value={headers} onChange={(e) => setHeaders(e.target.value)} spellCheck={false} />,
             )}
           </>
         )}
@@ -493,9 +495,19 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
           />,
         )}
         {error !== null && (
-          <p role="alert" className="text-ui-small break-words text-destructive">
-            {error}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p role="alert" className="text-ui-small break-words text-destructive">
+              {error}
+            </p>
+            {errorDetail !== null && (
+              <details className="text-ui-small text-muted-foreground" data-error-detail>
+                <summary className="cursor-default">{t('mcp.errorDetails')}</summary>
+                <p data-user-content className="mt-1 font-mono break-words select-text">
+                  {errorDetail}
+                </p>
+              </details>
+            )}
+          </div>
         )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={onDone}>
@@ -558,7 +570,8 @@ function SecretsPanel() {
   const remove = async (secret: string) => {
     const result = await mcpStore.getState().deleteSecret(secret)
     if (result.ok) toast.success(t('mcp.secrets.deleted', { name: secret }))
-    else toast.error(result.message)
+    // 只显示本地化文案；服务端原文不进入界面（ui.md：错误用简短、可行动的用户语言）。
+    else toast.error(t('mcp.secrets.deleteFailed', { name: secret }))
   }
   return (
     <div className="mt-2 flex flex-col gap-2" data-secrets>

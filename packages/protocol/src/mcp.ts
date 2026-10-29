@@ -1,5 +1,5 @@
-// MCP Server（票 07、08）：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
-// 票 01 建立本文件并在 index.ts 一次性 re-export；之后只改本文件。配置的逐项校验在 @coko/agent 的 extensions/mcp/config.ts，
+// MCP Server：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
+// 配置的逐项校验在 @coko/agent 的 extensions/mcp/config.ts，
 // 这里只约束外形（坏项由 Sidecar 以 400 拒绝并写明原因）。
 import { Type, type Static } from 'typebox'
 import { ResourceDiagnostic } from './config.ts'
@@ -36,15 +36,19 @@ export const McpServerStatus = Type.Union([
 ])
 export type McpServerStatus = Static<typeof McpServerStatus>
 
-/** 批准对话框显示的完整启动信息：命令、参数、工作目录、地址，以及环境变量与请求头的名字（值不返回）。 */
+/** 批准对话框显示的完整启动信息（只有项目 Server 有）：命令、参数、工作目录、地址、环境变量与请求头。 */
 export const McpLaunchDetails = Type.Object(
   {
     command: Type.Optional(Type.String()),
     args: Type.Optional(Type.Array(Type.String())),
     cwd: Type.Optional(Type.String()),
     url: Type.Optional(Type.String()),
-    envNames: Type.Optional(Type.Array(Type.String())),
-    headerNames: Type.Optional(Type.Array(Type.String())),
+    /**
+     * 项目 Server 的完整环境变量与请求头（批准摘要覆盖这些值）。项目文件不能引用 Secret（含 ${…} 的项整项拒绝，ADR 0007），这里只有
+     * 文件中的字面值，显示它们不会泄露登记的 Secret。
+     */
+    env: Type.Optional(Type.Record(Type.String(), Type.String())),
+    headers: Type.Optional(Type.Record(Type.String(), Type.String())),
   },
   strict,
 )

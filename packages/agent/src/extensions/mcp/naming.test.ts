@@ -29,6 +29,9 @@ describe('MCP 工具命名', () => {
     expect(serverNamesConflict('my-srv', 'my_srv')).toBe(true)
     expect(serverNamesConflict('my-srv', 'my-srv')).toBe(false)
     expect(serverNamesConflict('srv', 'srv2')).toBe(false)
+    // 与权限规则的匹配一致（大小写不敏感）：只差大小写的名字同样冲突，否则 mcp__github 规则会匹配 GitHub 的工具。
+    expect(serverNamesConflict('github', 'GitHub')).toBe(true)
+    expect(serverNamesConflict('My-Srv', 'my_srv')).toBe(true)
     expect(mcpNamespace('my-srv')).toBe('mcp__my-srv')
   })
 })

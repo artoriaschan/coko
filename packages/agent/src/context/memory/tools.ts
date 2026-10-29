@@ -1,4 +1,4 @@
-// memory_list / memory_write / memory_delete（票 09）。权限类由宿主注册时给出（工具自身不能声明）：memory_list 为 context-read，
+// memory_list / memory_write / memory_delete。权限类由宿主注册时给出（工具自身不能声明）：memory_list 为 context-read，
 // 写入与删除为 memory-write（规则组名 Memory）。存储经 MemoryPort 由宿主提供，可见范围为用户级与当前 Workspace。
 import { Type } from 'typebox'
 import type { PermissionClass } from '../../policy/decide.ts'

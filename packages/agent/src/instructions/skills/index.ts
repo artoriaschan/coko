@@ -1,4 +1,4 @@
-// Skills 的发现、校验、<available_skills> 索引、skill 工具与 /<skill-name> 展开（票 05）。
+// Skills 的发现、校验、<available_skills> 索引、skill 工具与 /<skill-name> 展开。
 export { createSkillLoader, SKILL_FILE, SKILL_FILES_MAX } from './loader.ts'
 export type { SkillDiscovery, SkillLoader, SkillLoaderOptions } from './loader.ts'
 export { parseSkillFile, SKILL_COMPATIBILITY_MAX, SKILL_DESCRIPTION_MAX, SKILL_NAME_MAX } from './parse.ts'

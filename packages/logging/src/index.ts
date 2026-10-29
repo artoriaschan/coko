@@ -8,11 +8,14 @@ export {
   SENSITIVE_FIELDS,
   SENSITIVE_PATTERNS,
   SESSION_COOKIE_NAME,
+  createSecretStreamRedactor,
   redactSecretValues,
+  redactSecretsDeep,
   redactSink,
   redactText,
   registerSecretValues,
   withProperties,
+  type SecretStreamRedactor,
 } from './redact.ts'
 
 /** 所有 Coko 日志的根分类。 */

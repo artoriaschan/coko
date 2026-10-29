@@ -1,4 +1,4 @@
-// GET /api/secrets、DELETE /api/secrets/:name（票 07；路径相对 /api）。值只经控制 IPC secret.store 登记，HTTP 不携带值。
+// GET /api/secrets、DELETE /api/secrets/:name（路径相对 /api）。值只经控制 IPC secret.store 登记，HTTP 不携带值。
 import type { Application } from '../../application/index.ts'
 import { domainRouter } from './shared.ts'
 

@@ -32,7 +32,7 @@ export interface SidecarConfig {
   /** COKO_LOG_LEVEL，默认 info。 */
   logLevel: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
   /**
-   * COKO_HOME：用户级资源目录（AGENTS.md、skills/、commands/），缺省 ~/.coko。不是测试钩子：打包产物同样读取（M3 规格）。
+   * COKO_HOME：用户级资源目录（AGENTS.md、skills/、commands/），缺省 ~/.coko。不是测试钩子：打包产物同样读取（docs/subsystems/configuration.md）。
    * Sidecar 不把它传给 Agent 的命令环境。
    */
   cokoHome: string

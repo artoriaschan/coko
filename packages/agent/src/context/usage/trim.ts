@@ -1,4 +1,4 @@
-// 时间裁剪（M3 规格"预算与数值"，参照 claude-code 的 time-based microcompact）：距上一条 assistant 超过 60 分钟（提示缓存已冷）时，
+// 时间裁剪（docs/subsystems/context.md#上下文用量，参照 claude-code 的 time-based microcompact）：距上一条 assistant 超过 60 分钟（提示缓存已冷）时，
 // 较早的大段 toolResult 替换为说明文本。只改模型请求（经 transformMessages），不改条目。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 

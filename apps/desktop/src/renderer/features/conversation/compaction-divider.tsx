@@ -5,7 +5,7 @@ import { Markdown } from './markdown.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 /**
- * 压缩分隔条（票 11）："已压缩上下文 · 约节省 N tokens"，可展开查看摘要。之前的消息仍在时间线中（模型上下文从这里开始为摘要）。
+ * 压缩分隔条："已压缩上下文 · 约节省 N tokens"，可展开查看摘要。之前的消息仍在时间线中（模型上下文从这里开始为摘要）。
  */
 export function CompactionDivider({ item, theme }: { item: Extract<TimelineItem, { kind: 'compaction' }>; theme: Theme }) {
   const { t, locale } = useI18n()

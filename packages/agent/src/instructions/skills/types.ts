@@ -8,6 +8,11 @@ export type SkillScope = 'project' | 'user'
 export interface SkillLocation {
   dir: string
   scope: SkillScope
+  /**
+   * 该位置中的 Skill 的真实路径须在此目录（的真实路径）之内，否则不加载并诊断 skill-outside-workspace。项目位置为 Workspace：仓库内的
+   * 符号链接不能把 Workspace 之外的目录变成读取根（ADR 0008）。用户位置省略。
+   */
+  boundary?: string
 }
 
 /** 一个已发现且合规的 Skill（含 SKILL.md 的目录）。 */
@@ -39,8 +44,8 @@ export interface SkillContent {
 /** 用户级 .agents/skills 是 COKO_HOME 的同级目录：缺省 COKO_HOME=~/.coko 时即 ~/.agents/skills；测试的临时 COKO_HOME 不读真实家目录。 */
 export function skillLocations(input: { cwd: string; cokoHome: string }): SkillLocation[] {
   const project: SkillLocation[] = [
-    { dir: join(input.cwd, '.coko', 'skills'), scope: 'project' },
-    { dir: join(input.cwd, '.agents', 'skills'), scope: 'project' },
+    { dir: join(input.cwd, '.coko', 'skills'), scope: 'project', boundary: input.cwd },
+    { dir: join(input.cwd, '.agents', 'skills'), scope: 'project', boundary: input.cwd },
   ]
   // COKO_HOME 为空时不读用户级（避免把相对路径解析到进程目录）。
   if (input.cokoHome === '') return project

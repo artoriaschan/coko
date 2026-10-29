@@ -1,4 +1,4 @@
-// 命令（提示模板）的发现、parseCommandArgs、substituteArgs、注册表与内置列表（票 04）。
+// 命令（提示模板）的发现、parseCommandArgs、substituteArgs、注册表与内置列表。
 export { COMMAND_NAME_SEGMENT, parseCommandArgs, parseCommandInvocation, substituteArgs } from './args.ts'
 export type { CommandInvocation } from './args.ts'
 export { BUILTIN_COMMANDS } from './builtin.ts'

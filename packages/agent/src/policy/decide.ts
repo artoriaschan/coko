@@ -3,9 +3,9 @@
 import { homedir } from 'node:os'
 import { relative, sep } from 'node:path'
 import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
-import { analyzeCommand, commandMatches, isWithin, literalPathPattern, pathMatches, type CommandAnalysis } from './rules.ts'
+import { analyzeCommand, commandMatches, literalPathPattern, pathContains, pathMatches, type CommandAnalysis } from './rules.ts'
 
-export { isWithin } from './rules.ts'
+export { pathContains } from './rules.ts'
 
 /**
  * 权限类（M3，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
@@ -47,7 +47,7 @@ export function ruleToolName(toolName: string, permissionClass?: PermissionClass
   return RULE_TOOL[toolCategory(toolName, permissionClass)] ?? toolName
 }
 
-/** 组名与内置工具名（小写）→ 规则工具名。skill 工具由宿主按 Run 贡献（可能尚未注册），规则名固定为 Skill（票 05）。 */
+/** 组名与内置工具名（小写）→ 规则工具名。skill 工具由宿主按 Run 贡献（可能尚未注册），规则名固定为 Skill。 */
 const RULE_ALIASES: Record<string, string> = Object.fromEntries([
   ...Object.keys(CATEGORY).map((name) => [name, ruleToolName(name)]),
   ...Object.values(RULE_TOOL).flatMap((group) => (group ? [[group.toLowerCase(), group]] : [])),
@@ -189,7 +189,7 @@ function allowedByRules(allows: readonly PermissionRule[], facts: Facts): boolea
 
 /** 读取目标在 Workspace 或某个额外读取根之内。 */
 const readable = (real: string, context: PermissionContext) =>
-  isWithin(real, context.workspace) || (context.readRoots ?? []).some((root) => isWithin(real, root))
+  pathContains(context.workspace, real) || (context.readRoots ?? []).some((root) => pathContains(root, real))
 
 function modeAllows(facts: Facts): boolean {
   const { category, call, context } = facts
@@ -204,7 +204,7 @@ function modeAllows(facts: Facts): boolean {
       return (
         readInside ||
         category === 'memory-write' ||
-        (category === 'write' && target !== undefined && context.writableRoots.some((root) => isWithin(target.real, root)))
+        (category === 'write' && target !== undefined && context.writableRoots.some((root) => pathContains(root, target.real)))
       )
     case 'full-access':
       return true
@@ -222,7 +222,7 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
   if (category !== 'read' && category !== 'write') return [{ behavior: 'allow', tool }]
   const target = call.target
   if (!target) return []
-  if (!isWithin(target.real, context.workspace)) return [{ behavior: 'allow', tool, content: literalPathPattern(target.resolved) }]
+  if (!pathContains(context.workspace, target.real)) return [{ behavior: 'allow', tool, content: literalPathPattern(target.resolved) }]
   const rel = toPosix(relative(context.workspace, target.real))
   if (rel === '') return [{ behavior: 'allow', tool, content: '.' }]
   // 不含斜杠的 gitignore 模式匹配任意深度：根下的文件以 ./ 锚定。
@@ -233,6 +233,16 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
  * 目录工具（grep、find、ls）的结果过滤：路径是否被某条 Read 拒绝规则覆盖。没有带内容的 Read 拒绝规则时为 undefined
  * （不带内容的 Read 拒绝规则在判定时已拒绝整个调用）。
  */
+/**
+ * 不经工具调用、直接读入上下文的文件（File Reference、指令文件与 @import）是否被 Read 拒绝规则覆盖：不带内容的 Read 拒绝规则覆盖一切，
+ * 带内容的按路径模式（与 grep / find / ls 的过滤相同）。
+ */
+export function contextReadDenial(rules: readonly PermissionRule[], workspace: string, home: string = homedir()): (path: string) => boolean {
+  const readDenies = rules.filter((rule) => rule.behavior === 'deny' && canonicalRuleTool(rule.tool) === 'Read')
+  if (readDenies.some((rule) => rule.content === undefined)) return () => true
+  return readDenial(readDenies, workspace, home) ?? (() => false)
+}
+
 export function readDenial(rules: readonly PermissionRule[], workspace: string, home: string = homedir()): ((path: string) => boolean) | undefined {
   const denies = rules.filter((rule) => rule.behavior === 'deny' && rule.content !== undefined && matchesTool(rule, 'Read'))
   if (denies.length === 0) return undefined
@@ -261,7 +271,7 @@ export function decide(call: PermissionCall, context: PermissionContext): Permis
   if (category === 'write') {
     if (!target) return { behavior: 'ask', reason: 'approval-required', suggestions: [] }
     if (isProtectedPath(target)) return { behavior: 'ask', reason: 'protected-path', suggestions: [] }
-    if (!context.writableRoots.some((root) => isWithin(target.real, root))) return { behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] }
+    if (!context.writableRoots.some((root) => pathContains(root, target.real))) return { behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] }
   }
 
   if (modeAllows(facts)) return { behavior: 'allow' }

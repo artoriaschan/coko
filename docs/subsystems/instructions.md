@@ -33,6 +33,8 @@ lifecycle: active
 - **每个目录取一个文件：** `AGENTS.md`，不存在时 `CLAUDE.md`；文件名大小写不敏感。空文件不进入上下文。
 - **仓库根：** 从 Workspace 向上最近的含 `.git`（目录，或 worktree 的文件）的祖先。遇到家目录或其祖先时停止，家目录本身不算仓库根。不在仓库内时只读 Workspace 根。
 - **顺序：** 用户级 → 仓库根 → … → Workspace 根 → 嵌套，越靠后越优先（前导语告诉模型这一点）。同一个文件（按真实路径）只加载一次。
+- **边界：** `project` 与 `nested` 指令文件的真实路径须在仓库根（不在仓库内时为 Workspace 根）之内，嵌套指令须在 Workspace 根之内：仓库里指向外部文件的符号链接（如 `AGENTS.md -> ~/.aws/credentials`）不读，记 `file-outside-boundary`。`user` 级是用户自己的目录，可以是指向 dotfiles 仓库的链接，不受此限制。
+- **Read 拒绝规则：** 当时生效的 Read 拒绝规则（与 [File Reference](context.md#file-reference) 相同：不带内容的拒绝一切，带内容的按路径模式，按词法与真实路径各判定一次）作用于指令文件与 @import；命中的不加载，分别记 `file-denied` 与 `import-denied`。
 - **重读：** 每个 Run 开始时重新解析，文件未变（mtime 与大小相同）时复用上次结果。Run 进行中的修改到下一个 Run 生效。
 
 ## @import
@@ -41,7 +43,7 @@ lifecycle: active
 
 - **形式：** `@./rel`、`@../rel`、`@~/x`（家目录）、`@/abs`、`@rel/path` 或 `@name.ext`（裸路径须含 `/` 或扩展名）。`@` 前须是行首或空白，因此邮件地址不算；`#` 之后的锚点与末尾标点被去掉；`\ ` 表示空格。
 - **不展开的位置：** 围栏代码块（`````` 或 `~~~`）、行内代码、HTML 注释。缩进代码块不识别（与列表续行难以区分），其中的 `@path` 会被展开。
-- **限制：** 只接受文本扩展名（md、txt、json、yaml、toml、常见源码等，表见 `imports.ts`）；没有扩展名的文件不展开。最多 5 层；按真实路径防环。
+- **限制：** 只接受文本扩展名（md、txt、json、yaml、toml、常见源码等，表见 `imports.ts`）；没有扩展名的文件与环境文件（`.env`、`.env.*`、`*.env`，通常放本地凭据）不展开，记 `import-not-text`。受保护路径（`.git`、`.ssh`、`.gitconfig`、shell 配置等，与 [权限判定](permissions.md) 的受保护路径段相同）不展开，记 `import-protected`。最多 5 层；按真实路径防环。
 - **边界：** 目标（词法路径与真实路径）都须在仓库根（不在仓库内时为 Workspace）或 `COKO_HOME` 之内；之外的不展开，不弹审批。
 
 ## 预算
@@ -80,7 +82,11 @@ Run 开始时的指令是名为 `instructions` 的 system section（位于基础
 | `read-failed` | 指令文件或目录无法读取 |
 | `file-truncated` | 单文件超过 40 000 字符 |
 | `budget-exceeded` | 合计超过 120 000 字符，该文件被丢弃 |
+| `file-outside-boundary` | 目录链或嵌套加载的指令文件经符号链接指向仓库根（嵌套为 Workspace 根）之外 |
+| `file-denied` | 指令文件被 Read 拒绝规则覆盖 |
 | `import-outside-boundary` | @import 的目标在仓库根与 `COKO_HOME` 之外（含经符号链接越出） |
+| `import-denied` | @import 的目标被 Read 拒绝规则覆盖 |
+| `import-protected` | @import 的目标是受保护路径 |
 | `import-not-found` | @import 的目标不存在或不是文件 |
 | `import-not-text` | @import 的目标不是文本扩展名 |
 | `import-cycle` | @import 指回引入链上的文件 |
@@ -91,8 +97,8 @@ Run 开始时的指令是名为 `instructions` 的 system section（位于基础
 
 ## 验证
 
-- `packages/agent/src/instructions/rules/rules.test.ts`：发现顺序、AGENTS.md 优先、没有 `.git`、不越过家目录、符号链接去重、mtime；@import 各形式、代码块与注释、环、5 层、缺失、非文本、越界（含符号链接）；预算；section 格式；嵌套 hook 的触发、顺序、去重与并行。
-- `apps/server/src/application/context/instructions.test.ts`：`report()` 的文件与诊断；`instructions.enabled: false` 时没有 section 与 hook。
+- `packages/agent/src/instructions/rules/rules.test.ts`：发现顺序、AGENTS.md 优先、没有 `.git`、不越过家目录、符号链接去重、mtime；@import 各形式、代码块与注释、环、5 层、缺失、非文本、越界（含符号链接）；预算；section 格式；嵌套 hook 的触发、顺序、去重与并行；目录链与嵌套的指令文件经链接越界（`file-outside-boundary`）、Read 拒绝规则（`file-denied`、`import-denied`）、`.env` 与受保护路径的 @import。
+- `apps/server/src/application/context/instructions.test.ts`：`report()` 的文件与诊断；`instructions.enabled: false` 时没有 section 与 hook；作用域中的 Read 拒绝规则作用于 @import。
 - `tests/integration/sidecar-instructions.test.ts`：真实 Sidecar（临时 `COKO_HOME`）的 faux requestLog 中 section 的内容与顺序、改文件后下一个 Run、项目设置关闭后不注入、日志；read 子目录后 toolResult 附加嵌套块、再次触及不重复、重新订阅读回一致。
 
 ## 延伸阅读

@@ -1,4 +1,4 @@
-// 指令文件的夹具（票 03）：仓库（含 .git）里的 Workspace 子目录、用户级 COKO_HOME 与 @import。只写入调用方给的临时目录。
+// 指令文件的夹具：仓库（含 .git）里的 Workspace 子目录、用户级 COKO_HOME 与 @import。只写入调用方给的临时目录。
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 

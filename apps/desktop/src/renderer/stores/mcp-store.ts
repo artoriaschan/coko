@@ -4,7 +4,7 @@ import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { CokoBridge, SetSecretResult } from '../../shared/bridge.ts'
 
-// MCP 分区的 vanilla store（票 07）：GET /api/mcp 与 /api/secrets 的读取、全局配置整体替换（409 时读回）、项目 Server 的批准、重连，
+// MCP 分区的 vanilla store：GET /api/mcp 与 /api/secrets 的读取、全局配置整体替换（409 时读回）、项目 Server 的批准、重连，
 // 以及经 preload setSecret 登记 Secret（值不经 HTTP，ADR 0007）。响应在信任边界按 schema 校验。
 
 export interface McpState {

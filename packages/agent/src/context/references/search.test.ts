@@ -1,4 +1,4 @@
-// @ 菜单的文件候选（票 06）：模糊匹配 Workspace 内的文件与目录，遵守忽略规则（不含 .git），目录带 /，有上限。
+// @ 菜单的文件候选：模糊匹配 Workspace 内的文件与目录，遵守忽略规则（不含 .git），目录带 /，有上限。
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../../testing/workspace.ts'
 import { FILE_SEARCH_LIMIT, searchWorkspaceFiles } from './index.ts'

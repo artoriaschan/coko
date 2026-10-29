@@ -1,4 +1,4 @@
-// 命令（票 04）：expandInput 识别草稿开头的 /name，提交 command 条目后提交展开文本；命令目录供 GET /api/commands。
+// 命令：expandInput 识别草稿开头的 /name，提交 command 条目后提交展开文本；命令目录供 GET /api/commands。
 // 来源：内置（只列出已接入动作的）、<Workspace>/.coko/commands、COKO_HOME/commands，以及 Skill 与 MCP 提示模板经 commandSources 登记的命令。
 import { join } from 'node:path'
 import {

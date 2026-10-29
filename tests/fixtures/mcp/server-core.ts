@@ -1,6 +1,6 @@
 // MCP 测试 Server 的协议核心（stdio 与 HTTP 共用）：最小 JSON-RPC，工具 echo、env_sha、env_raw、fail、big、sleep、hidden。
 // 每个 tools/call 的 params（含 _meta）追加到 options.log（JSONL），测试据此断言幂等键；env_sha 只回报环境变量的 SHA-256，证明收到而不回显值。
-// 票 08：features 含 resources / prompts 时声明对应能力（缺省都不声明，票 07 的用例不变）。resources：分 3 页的 resources/list、
+// features 含 resources / prompts 时声明对应能力（缺省都不声明，只用工具的用例不受影响）。resources：分 3 页的 resources/list、
 // 一个模板、文本 / 超长文本 / PNG / 二进制资源。prompts：greet（必填 name、可选 tone，结果含嵌入的文本资源）、broken（结果不合 schema）、
 // env（把环境变量的值放进提示，秘密总闸用）；工具 add_prompt 增加一个提示模板并发出 notifications/prompts/list_changed。
 import { createHash } from 'node:crypto'
@@ -11,7 +11,7 @@ export interface CoreOptions {
   log?: string | undefined
   /** 服务名（serverInfo.name）。 */
   name: string
-  /** 声明的额外能力（票 08）。 */
+  /** 声明的额外能力。 */
   features?: readonly ('resources' | 'prompts')[]
   /** 向客户端发通知（list_changed）；HTTP 夹具没有服务端流时省略。 */
   notify?: (method: string) => void

@@ -1,5 +1,4 @@
-// 上下文装配的组合（M3 规格"apps/server"）。固定顺序：system section 为 指令 → Skills 索引 → Memory；输入展开为 命令 → File Reference。
-// 各领域文件（instructions.ts 等）归所属票；本文件与 types.ts 只由票 01 修改。
+// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory；输入展开为 命令 → File Reference。
 import {
   composeAfterToolCall,
   composeBeforeToolCall,

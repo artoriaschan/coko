@@ -1,4 +1,4 @@
-// 上下文用量（票 10）：真实 Sidecar（faux 模型，临时 COKO_HOME）。GET /api/workspaces/:id/context 与 /api/sessions/:id/context 的分项、
+// 上下文用量：真实 Sidecar（faux 模型，临时 COKO_HOME）。GET /api/workspaces/:id/context 与 /api/sessions/:id/context 的分项、
 // 指令文件与截断、诊断；一次 Run 后 tokens 等于 faux usage（加其后消息的 chars/4）；context_usage progress 在 assistant 条目之后。
 // 另覆盖规则校验接受贡献工具名：PUT /api/permissions 写入 Memory 与 MCP 资源工具的拒绝规则后生效。
 import { mkdir, writeFile } from 'node:fs/promises'

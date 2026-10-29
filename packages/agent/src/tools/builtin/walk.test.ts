@@ -1,4 +1,4 @@
-// 忽略来源（票 10）：find 与 @ 文件搜索（同一 walkTree）遵守 .git/info/exclude 与全局 excludes，与 grep 契约相同；临时 HOME。
+// 忽略来源：find 与 @ 文件搜索（同一 walkTree）遵守 .git/info/exclude 与全局 excludes，与 grep 契约相同；临时 HOME。
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { searchWorkspaceFiles } from '../../context/references/search.ts'
 import { useTempGitHome } from '../../testing/grep-contract.ts'

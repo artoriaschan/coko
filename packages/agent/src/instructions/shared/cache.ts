@@ -1,4 +1,4 @@
-// 按 mtime 缓存：每个 Run 开始时重新解析资源，文件未变（mtime 与大小相同）时复用上次的解析结果（M3 规格"加载位置与优先级"）。
+// 按 mtime 缓存：每个 Run 开始时重新解析资源，文件未变（mtime 与大小相同）时复用上次的解析结果（docs/subsystems/instructions.md）。
 import type { ReadOnlyFiles } from './files.ts'
 
 export interface MtimeCache<T> {

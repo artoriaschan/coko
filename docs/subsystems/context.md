@@ -46,7 +46,7 @@ lifecycle: active
 
 ### 展开
 
-提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；第一个块是原文。没有引用时 user message 只有原文。块不是独立的条目 kind。
+提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；第一个块是原文。没有引用时 user message 只有原文。块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -124,6 +124,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 开关为有效配置 `context.trimOldToolResults`（默认开启，项目可关闭）。经上下文装配的 `transformMessages` 只改发给模型的请求，条目与对话记录不变；Sidecar 记 debug `old tool results trimmed { cleared }`。
 - 裁剪点：assistant 之后第一条间隔超过 60 分钟的非 assistant 消息（用户隔了很久才发消息，或工具结果隔了很久才到），以及请求时 now 距最后一条 assistant 超过 60 分钟时的末尾。每个裁剪点之前的 toolResult 除最近 5 个外，超过 2KB（UTF-8）的内容替换为 `[Old tool result content cleared]`。
 - 裁剪点只由消息时间戳决定，同一 Run 的后续请求与之后的 Run 得到相同的前缀，提示缓存只在已冷时失效一次。时钟可注入（`usageContribution({ now })`）。
+- 与规格的差异：规格只写了"距最后一条 assistant 超过 60 分钟"一个触发点。只用这一个点时，用户隔了很久发消息的那一轮裁剪了较早结果，下一轮（缓存热、不再满足条件）又恢复原文，请求前缀反复变化；所以历史中每个超过 60 分钟的间隔也是裁剪点。代价是某个旧间隔之前的较早大段结果始终被替换，即使当前缓存是热的。
 
 ## 压缩
 
@@ -135,7 +136,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 | --- | --- | --- |
 | `auto` | 每次模型请求之前（pi `prepareRequest`），估算 tokens 达到[阈值](#预算)。内存中的估算可能用了压缩之前的 usage，越过阈值时再按条目复核（`estimateCompactedTokens`，加系统消息的 chars/4） | 发 `compaction_failed`，Run 用原上下文继续 |
 | `overflow` | 请求以上下文溢出失败（pi-ai `isContextOverflow`）：压缩一次再重试一次；每个 Run 至多一次 | 以原模型错误结束 |
-| `manual` | `/compact [指示]`：一个 `run_start { trigger: compact }` 的 Run，只提交 `compaction` 与 `run_end`；指示追加为摘要的额外要求。没有可摘要的较早内容时 400 `bad-request`（`details.reason: nothing-to-compact`），不开始 Run | Run 以 `error`（`model_error`）结束，不可重试 |
+| `manual` | `/compact [指示]`：一个 `run_start { trigger: compact }` 的 Run，只提交 `compaction` 与 `run_end`；指示追加为摘要的额外要求。没有可摘要的较早内容时 400 `bad-request`（`details.reason: nothing-to-compact`），不开始 Run；检查与开始之间的竞态中 Run 同样以 `model_error`（`Nothing to compact…`）结束 | Run 以 `error`（`model_error`）结束，不可重试 |
 
 - 熔断：一个 Session 连续 3 次自动或溢出压缩失败后不再自动压缩（运行时内存；Sidecar 重启或任何一次成功的压缩后复位，手动失败不计入暂停）。`compaction_failed.consecutiveFailures` 为任何触发方式的连续失败数。用量接口的 `autoCompact.paused` 来自 `SessionService.compactionPaused`。
 - 停止：压缩中 `POST …/abort` 停止摘要请求，不提交 `compaction` 条目，也不发 `compaction_failed`；Run 以 aborted 结束。
@@ -147,16 +148,17 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 摘要请求
 
-- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。
+- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。`<file_reference>` 与 `<instruction_file>` 块缩为一行 `[file reference attached: <path>]` / `[instruction file attached: <path>]`，图片写为 `[image omitted]`，用户自己写的文本逐字保留。
+- 输入上限：整个请求文本不超过 (窗口 − 摘要输出上限) × 4 个字符。超出时从最早处省略，先省略工具结果，再省略消息，开头注明 `[N earlier messages omitted to fit the summary request]`；只剩一条仍超出时截掉它的中间。摘要请求因此不会自身溢出而反复触发熔断。
 - 结构固定为 `## Goal`、`## Constraints & Preferences`、`## User Messages`（逐条，安全相关约束原文保留，不把 assistant 的话当成用户的）、`## Files and Code`、`## Errors and Fixes`、`## Key Decisions`、`## Progress`（Done / In Progress / Blocked）、`## Pending Tasks`、`## Current Work`、`## Next Step`（须与最近的明确请求一致）。已有摘要时用增量更新提示，上次摘要在 `<previous-summary>` 中。
 - 回复出错、被截断（`length`）、含工具调用或为空都算失败。成功时摘要正文之后追加 `<read-files>`、`<modified-files>`（从被摘要的 read / write / edit 调用与上次的列表汇总，改过的不再列为只读）与 `<invoked-skills>`（skill 调用与 Skill 来源的命令），只列路径与名字，不重读内容。
-- 摘要文本是模型输出，与对话文本同样进入条目与推送，不另脱敏；`compaction_failed.message` 与手动压缩失败的 `run_end.error.message` 和其他模型错误文本一样经脱敏后推送与入库。
+- 摘要文本与其他模型输出一样，入库与推送前替换已登记的明文（[按值脱敏](mcp.md#secret-的来源)）；`compaction_failed.message` 与手动压缩失败的 `run_end.error.message` 和其他模型错误文本一样经脱敏后推送与入库。
 
 ### 条目与模型上下文
 
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills? }` 在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
-- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉复制目标之前最后一个 compaction 保留的消息与权限条目，compaction 条目排在它们之后、`firstKeptSeq` 改为 1（新 Session 重新编号），新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。
+- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉复制目标之前最后一个 compaction 保留的消息与权限条目；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 为新 Session 中第一条复制的消息（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
 
 ### 界面
 
@@ -179,13 +181,14 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ## 验证
 
 - `packages/agent/src/context/references/parse.test.ts`、`expand.test.ts`、`search.test.ts`：语法（引号、标点、邮箱等不误判）；截断、目录上限、10 个 / 200KB、拒绝规则、Workspace 外与二进制的说明；候选的忽略规则、排序与上限。
+- `tests/integration/secrets-gate-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记。
 - `tests/integration/sidecar-references.test.ts`：真实 Sidecar 上的 user message 块与 faux requestLog、project 作用域的 Read 拒绝规则、命令与引用的顺序、`GET /api/workspaces/:id/files`。
 - `packages/ui/src/composer/file-reference-node.browser.test.tsx`：节点的插入与整体删除、序列化、EditorState JSON 往返与拒绝、目录 Tab、onDraftChange。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿。
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-context.test.ts`：草稿与会话的用量接口（分项、指令文件与截断、Skills 诊断、404）、Run 后 tokens 等于 faux usage（加其后 toolResult 的 chars/4）、`context_usage` 在 assistant 条目之后。`tests/integration/secrets-gate-context.test.ts`：用量响应在秘密总闸的扫描范围内。
-- `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
+- `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位；附加文件块缩为路径、摘要输入超过上限时从最早处省略。`packages/agent/src/engine/compaction.test.ts`：被摘要内容超过窗口时摘要请求的输入受限、压缩成功。`packages/agent/src/checkpoints/rewind.test.ts`：分叉中 compaction 的位置与 `firstKeptSeq`、分叉后回退到第一条保留的消息、复制消息的 usage 不用于估算。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
 - `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
 - `apps/desktop/src/renderer/features/conversation/timeline.test.ts`、`composer.browser.test.tsx`、`stores/context-store.test.ts`：分隔条与节省数、compact Run 的错误不可重试；状态行与停止；进度跟踪。`apps/desktop/e2e/compaction.e2e.test.ts`：Electron 中的失败 Toast、熔断暂停标记、`/compact` 状态行、分隔条与摘要展开、之前的消息仍在。
 - `packages/agent/src/testing/grep-contract.ts`（内置 grep 与 `apps/server/src/adapters/ripgrep.test.ts` 都运行）：临时 HOME 下的 `.git/info/exclude`、`core.excludesFile`、XDG 缺省文件与没有这些文件时；`tools/builtin/walk.test.ts`：find 与文件候选、嵌套仓库与 worktree。

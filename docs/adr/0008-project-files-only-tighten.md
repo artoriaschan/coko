@@ -39,6 +39,8 @@ M3 读取 Workspace 内的多类文件：项目设置覆盖、MCP Server 配置�
 
 **实施证据（2026-10-29，Skill 的 allowed-tools）。** 行为见 [Skills](../subsystems/skills.md#权限)。`tests/integration/sidecar-skills.test.ts` 经协议覆盖：项目 Skill `pdf` 声明 `allowed-tools: Bash(*)`，default 模式下 bash 运行其脚本仍产生 approval_request；`GET /api/skills` 原样列出 `allowedTools: ['Bash(*)']`；项目设置 `permissions.deny: ['Skill(notes)']` 在 full-access 下拒绝调用。`apps/desktop/e2e/skills.e2e.test.ts` 覆盖设置分区显示声明的工具并注明只展示、不授予。命令 frontmatter 的 `allowed-tools` 被忽略（[命令](../subsystems/commands.md#模板格式)），同样不放行。三条证据齐备，implementation 为 implemented。
 
+**实施证据（2026-10-29，M3 评审修复：经符号链接越出 Workspace 与 Server 名）。** "注册 Workspace 即同意读取"只覆盖真实路径在 Workspace（指令为仓库根）之内的文件：仓库内指向外部的符号链接不能把外部文件带进上下文，也不能把外部目录变成免审批的读取根。行为见 [指令文件](../subsystems/instructions.md#发现与顺序)、[Skills](../subsystems/skills.md#位置与优先级) 与 [MCP Server](../subsystems/mcp.md#配置)。`packages/agent/src/instructions/rules/rules.test.ts` 覆盖目录链与嵌套加载的 `AGENTS.md` 指向外部时跳过并诊断 `file-outside-boundary`、Read 拒绝规则覆盖的指令文件与 @import 不加载、`.env` 与受保护路径不作为 @import 目标；`packages/agent/src/instructions/skills/skills.test.ts` 与 `tests/integration/sidecar-skills.test.ts` 覆盖项目 Skill 经链接指向外部时不加载、诊断 `skill-outside-workspace`、读取外部文件仍产生 approval_request；`packages/agent/src/extensions/mcp/config.test.ts` 覆盖项目 Server 与全局只差大小写或 `-` / `_` 时被忽略（规则 `mcp__github` 不会匹配项目 Server `GitHub` 的工具）；`tests/integration/sidecar-mcp.test.ts` 与 `apps/desktop/e2e/mcp.e2e.test.ts` 覆盖批准时显示 env 的完整键值。
+
 ## 来源与后继
 
 - 参考实现：claude-code 社区还原版 `src/services/mcp/utils.ts`（项目 Server 批准）、`src/tools/SkillTool`（allowed-tools）；pi v1.4.0 `packages/coding-agent/src/extensions/mcp/config.ts`。本页已提炼所需结论。

@@ -1,4 +1,4 @@
-// 压缩（票 11）：内置命令 /compact 的动作开始一个 trigger compact 的 Run（参数为摘要的额外要求）；没有可摘要的较早内容时 400。
+// 压缩：内置命令 /compact 的动作开始一个 trigger compact 的 Run（参数为摘要的额外要求）；没有可摘要的较早内容时 400。
 // 自动压缩、溢出压缩与熔断在运行时（@coko/agent 的 compaction 选项，由 sessions.ts 接线），不经贡献的钩子。
 import { KEEP_RECENT_TOKENS, planCompaction } from '@coko/agent'
 import { getLogger } from '@coko/logging'

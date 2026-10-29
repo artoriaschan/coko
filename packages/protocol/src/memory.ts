@@ -1,4 +1,4 @@
-// Memory（/api/memories，票 09）：跨 Session 保留的记忆条目（Memory Entry），属于用户或某个 Workspace（ADR 0003）。
+// Memory（/api/memories）：跨 Session 保留的记忆条目（Memory Entry），属于用户或某个 Workspace（ADR 0003）。
 import { Type, type Static } from 'typebox'
 
 const strict = { additionalProperties: false } as const

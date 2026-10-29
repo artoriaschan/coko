@@ -1,4 +1,4 @@
-// File Reference（@ 引用，票 06）：token 解析、展开为 <file_reference> 文本块、Workspace 文件候选。
+// File Reference（@ 引用）：token 解析、展开为 <file_reference> 文本块、Workspace 文件候选。
 export { formatFileReferenceToken, parseFileReferences, type FileReferenceToken } from './parse.ts'
 export {
   expandFileReferences,

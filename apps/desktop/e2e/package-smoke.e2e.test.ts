@@ -1,6 +1,6 @@
 // 产物 smoke：对 electron-forge package 的输出（out/）运行真实应用，完成一次 faux 对话，确认 grep 使用随包 ripgrep，
 // 并在审批卡中允许一次 bash 写入；批准的 Workspace 外写入被产物中的 Seatbelt 拦截（只在 darwin 断言）。
-// M3（票 11）：临时 COKO_HOME 的 AGENTS.md 出现在 faux requestLog 的系统提示中（产物同样读取 COKO_HOME）；仓库内的 stdio MCP 测试 Server
+// M3：临时 COKO_HOME 的 AGENTS.md 出现在 faux requestLog 的系统提示中（产物同样读取 COKO_HOME）；仓库内的 stdio MCP 测试 Server
 // 的工具经审批调用成功（pi-mcp 与 cross-spawn 进入 sidecar 产物）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
@@ -190,7 +190,8 @@ describe('打包产物 smoke', () => {
     expect(await bashCards.nth(1).locator('[data-sandbox-denied]').count()).toBe(process.platform === 'darwin' ? 1 : 0)
     expect(await readFile(join(outside, 'leak.txt'), 'utf8').catch(() => null)).toBeNull()
     await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
-    expect(await page.getByRole('article', { name: 'Coko' }).last().textContent()).toBe('Found the needle in notes.txt.')
+    // 发送按钮恢复时最后一条回复可能仍是流式显示（Markdown 原文），等提交的条目渲染完成。
+    await expect.poll(() => page.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 15_000 }).toBe('Found the needle in notes.txt.')
 
     await page.evaluate(() =>
       window.coko!.log({ level: 'info', category: ['smoke'], message: 'smoke marker sk-smokeSecretValue1', properties: { apiKey: 'plain-secret' } }),
