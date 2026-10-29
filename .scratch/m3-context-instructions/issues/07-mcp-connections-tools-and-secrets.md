@@ -20,3 +20,4 @@
 
 ## Comments
 - 2026-10-29 lead：来自票 09 的发现——默认启用的贡献工具（memory_*、skill、mcp__*）会让每个 Session 的第一个 Run 多提交一条带 toolsAdded 的 system 条目，导致 12 个 M2 精确序列断言失败。统一修法（由票 09 实施，越出写范围已授权）：apps/server/src/application/sessions.ts 的 #createRuntime 在 createAgentRuntime 之前调用一次 runContext.tools.set(await this.#context.tools(runContext.scope))，使贡献工具进入首条 system message，只有之后的配置变化才产生 system 条目。本票遇到同样失败时复用这一修法，不另行修改；若本票先于票 09 合入，按同一写法实现，合并时由 Lead 去重。
+- 2026-10-29 lead：来自票 09——Memory 写入前的脱敏只按凭据形态（如 sk- 前缀）匹配，不对照已登记的 Secret 值。本票建立 Secret 登记后，让共享脱敏同时替换已登记 Secret 的明文（Memory、工具结果、日志共用），并在秘密总闸中用非 sk- 形态的 Secret 验证。另：票 09 改动了 context/types.ts 与 runtime/layers.ts 的相邻行，合并 main 时注意。
