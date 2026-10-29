@@ -54,3 +54,17 @@
 - renderer：`SettingsStoreOptions.saveProvider`；`settings.saveProvider(draft: ProviderDraft)` 返回 `SaveProviderResult`（不再有 `stage`）；编辑时 `draft.secret === ''` 表示保留原 Key。ApiClient 不再有 `createProvider` / `updateProvider`。
 - 测试：renderer fake 用 `backend.seedProvider(fields, secret?)` 预置、`backend.saveProvider`（vi.fn）模拟一次提交；集成 harness 新增 `saveProvider(sidecar, fields, { mode?, secret? })`、`seedProviders(dirs, fields[])`、`answerDecrypts(sidecar)`、`testCipher`；`customProvider` 返回 `ProviderFields`。
 - 票 07 的获取模型通道可复用 main 的 `createCredentialBridge`（同一 `CredentialChannel` 与 request tracker 模式），并按须知新增 `secrets-gate-<channel>.test.ts`。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/02-one-shot-save` 合入集成分支 model-service，合入提交 8552a6e（票分支 d73d20f，已含 e13f847），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（536 文件）；`pnpm run format:check` 通过（562 文件）；`pnpm run test` 183 文件，1303 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：7 项验收与 diff 对应，未发现缺口。
+  - 单个事务：`createProviderRepository` 的 `create` / `update` 在同一个 `conn.write` 中调用 `putCredential`，`sqlite.test.ts` 用触发器让密文写入失败并确认回滚。
+  - 加密不可用：main 的 `saveProvider` 先校验、再加密，加密不可用或抛错时在 `channel.send` 之前返回 `encryption-unavailable`。
+  - HTTP：`apps/server/src/http/app.ts` 已删去 POST / PATCH `/api/providers`，GET 与 DELETE 保留；代码中已无 `setCredential` bridge、`credential.store` 消息、`CreateProviderRequest` / `UpdateProviderRequest`（session 仓库的 `setCredential` 方法仍在，不是 IPC 通道）。
+  - 新增 `tests/integration/secrets-gate-provider-save.test.ts`。ADR 0010 仍为 partial，正文写明一次提交已实施、获取模型属票 07；ADR 0004 同步。
+- 越出写范围（`packages/session`、i18n 字典、`models-section.tsx` 适配）与 lead 备注一致，可以接受。
+- “供后续票”的约定已转写到票 03、04、05、06、07、08 的 Comments（标题“来自票 02”）。
+
+Closed: true
