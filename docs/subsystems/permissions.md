@@ -53,7 +53,7 @@ lifecycle: active
 | memory-write | memory_write、memory_delete（规则组名 `Memory`） | accept-edits 与 full-access |
 | external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
 
-没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。票 01 只实现机制；具体工具由之后的票注册。
+没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。其余类的具体工具由之后的票注册。
 
 **额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
 
@@ -204,6 +204,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
+- `tests/integration/sidecar-mcp.test.ts`：真实 Sidecar 上 MCP 工具（external）在 default 下询问、Session 规则 `mcp__remote` 放行该 Server 的全部工具、full-access 免审批。
 - `tests/integration/sidecar-config.test.ts`：项目 deny 规则（小写工具名）在 full-access 下拒绝调用且优先于全局允许规则、改文件后下一个 Run 生效、项目 allow 不放行、读取接口的 `project`；`apps/desktop/e2e/config.e2e.test.ts`：Permissions 分区的只读项目规则。
 - `tests/integration/sidecar-approvals.test.ts`、`sidecar-permissions.test.ts`：真实 Sidecar 上的回答路由与 409；作用域保存、重启后规则与模式仍生效、Session 规则只影响该 Session；等待时切到 full-access 或新增拒绝规则后 superseded；默认模式、非法设置值 400、通用设置接口拒绝 `permissions.*`。`secrets-gate.test.ts` 驱动审批卡与"本 Workspace 总是允许"通道。
 - `packages/agent/src/policy/sandbox.test.ts`（档位映射、提权参数、标记文本）、`escalation.test.ts`（运行时上四种模式的沙箱策略与可写根、提权请求替代普通审批且允许规则不能免掉、参数错误不询问、拒绝规则优先、拒绝提权；Secrets 注入）；`ports/local-exec.test.ts`（包裹接缝、拒绝签名、fail-closed）；`tools/builtin/bash.test.ts`（拒绝标记顺序、sandbox-unavailable）。
@@ -214,5 +215,6 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 - [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)：模式、沙箱与提权的决定。
 - [ADR 0008](../adr/0008-project-files-only-tighten.md) 与 [分层配置](configuration.md)：project 作用域的来源与限制。
+- [MCP Server 连接与工具](mcp.md)：external 类工具的来源、命名与结果。
 - [apps/server README](../../apps/server/README.md)：协议总览。
 - [Agent 执行约定](../tech-stack/agent-runtime.md)：统一接入链的约定。

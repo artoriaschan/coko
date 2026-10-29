@@ -53,6 +53,16 @@ describe('Sidecar 控制 IPC', () => {
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2, error: 'safeStorage unavailable' })).toBe(true)
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2 })).toBe(false)
   })
+
+  it('secret.store 按登记名携带密文与提示（ADR 0007）；名字必须合规；secret.decrypt 往返与 Credential 同形', () => {
+    expect(Value.Check(MainToSidecarMessage, { type: 'secret.store', requestId: 1, name: 'MY_SERVICE_DSN', ciphertext: 'AAEC', hint: 'abcd' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { type: 'secret.store', requestId: 1, name: 'my-dsn', ciphertext: 'AAEC', hint: 'abcd' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { type: 'secret.store', requestId: 1, name: 'A', ciphertext: 'AAEC', hint: '', value: 'x' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { type: 'secret.decrypt.result', requestId: 2, plaintext: 'v' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { type: 'secret.decrypt.result', requestId: 2, error: 'unavailable' })).toBe(true)
+    expect(Value.Check(SidecarToMainMessage, { type: 'secret.decrypt', requestId: 3, ciphertext: 'AAEC' })).toBe(true)
+    expect(Value.Check(SidecarToMainMessage, { type: 'secret.store.result', requestId: 3, ok: false, error: 'invalid' })).toBe(true)
+  })
 })
 
 describe('createRequestTracker', () => {
