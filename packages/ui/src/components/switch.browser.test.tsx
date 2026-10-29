@@ -18,6 +18,25 @@ function Fixture() {
   )
 }
 
+/** 在 prefers-reduced-motion: reduce 下作用于该元素、关闭过渡的样式规则（设计系统：动效提供 motion-reduce 替代）。 */
+function reducedMotionDisablesTransition(element: Element): boolean {
+  const visit = (rules: CSSRuleList, reduced: boolean): boolean =>
+    [...rules].some((rule) => {
+      if (rule instanceof CSSMediaRule) return visit(rule.cssRules, reduced || /prefers-reduced-motion:\s*reduce/.test(rule.conditionText))
+      if (rule instanceof CSSGroupingRule) return visit(rule.cssRules, reduced)
+      if (!(rule instanceof CSSStyleRule) || !reduced) return false
+      return rule.style.getPropertyValue('transition-property') === 'none' && element.matches(rule.selectorText)
+    })
+  return [...document.styleSheets].some((sheet) => visit(sheet.cssRules, false))
+}
+
+it('减少动态效果时，轨道的颜色过渡与滑块的位移过渡都关闭', async () => {
+  await render(<Fixture />)
+  const track = page.getByRole('switch', { name: 'Reasoning' }).element()
+  expect(reducedMotionDisablesTransition(track.querySelector('[data-slot="switch-thumb"]')!)).toBe(true)
+  expect(reducedMotionDisablesTransition(track)).toBe(true)
+})
+
 it('开关：role=switch，H20 轨道与 16px 圆形滑块；点击与空格切换，焦点环可见；明暗主题下选中态使用语义色', async () => {
   await render(<Fixture />)
   const toggle = page.getByRole('switch', { name: 'Reasoning' })
