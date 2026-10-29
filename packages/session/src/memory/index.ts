@@ -1,6 +1,16 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import {
+  alreadyExists,
+  checkMemoryScope,
+  closedError,
+  DEFAULT_MODEL_KEY,
+  defaultWorkspaceName,
+  modelPointsTo,
+  notFound,
+  revisionConflict,
+  upgradeEntries,
+} from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
@@ -156,9 +166,23 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         if (credential) row.credential = copyCredential(credential)
         return toProvider(row)
       }),
+      references: op((id: string) => {
+        requireProvider(id)
+        return { sessions: [...sessions.values()].filter((s) => s.model?.providerId === id).length }
+      }),
       delete: op((id: string) => {
         requireProvider(id)
         providers.delete(id)
+        let cleared = 0
+        for (const session of sessions.values()) {
+          if (session.model?.providerId !== id) continue
+          Object.assign(session, { model: null, thinkingLevel: 'off' })
+          cleared++
+        }
+        const setting = settings.get(DEFAULT_MODEL_KEY)
+        if (setting && modelPointsTo(setting.value, id))
+          settings.set(DEFAULT_MODEL_KEY, { key: DEFAULT_MODEL_KEY, value: null, revision: setting.revision + 1, updatedAt: now() })
+        return { sessions: cleared }
       }),
       setCredential: op((id: string, credential: CredentialRecord) => {
         const row = requireProvider(id)

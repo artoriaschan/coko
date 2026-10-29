@@ -117,6 +117,10 @@ export interface CredentialRecord {
   hint: string
 }
 
+export interface ProviderReferences {
+  sessions: number
+}
+
 export interface ProviderRepository {
   list(): Promise<Provider[]>
   get(id: string): Promise<Provider | undefined>
@@ -124,8 +128,13 @@ export interface ProviderRepository {
   create(input: ProviderInput, credential?: CredentialRecord): Promise<Provider>
   /** ID 不可修改。给出 credential 时在同一事务中替换密文；不给出时保留原 Credential。 */
   update(id: string, patch: Partial<Omit<ProviderInput, 'id'>>, credential?: CredentialRecord): Promise<Provider>
-  /** 同时删除其 Credential 密文。 */
-  delete(id: string): Promise<void>
+  /** 引用该 Provider 的 Session 数量（删除前的确认用）；不存在时 not-found。 */
+  references(id: string): Promise<ProviderReferences>
+  /**
+   * 在一个事务中删除 Provider 与其 Credential 密文，清空引用它的 Session 的模型字段（档位回到 off，不改 updatedAt），
+   * 默认模型设置指向它时改为 null。以后用相同 ID 重新创建，这些引用也不会恢复。返回被清空的 Session 数量。
+   */
+  delete(id: string): Promise<ProviderReferences>
   /** 保存 main 加密后的密文与提示；明文不经过 session。 */
   setCredential(id: string, credential: CredentialRecord): Promise<Provider>
   clearCredential(id: string): Promise<Provider>
