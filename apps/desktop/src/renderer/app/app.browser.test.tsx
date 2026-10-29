@@ -9,7 +9,7 @@ import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
 import { createPreferences } from './preferences.ts'
 import { createSettingsDialogStore } from './settings-dialog-store.ts'
-import { customProvider } from '../testing/fake-settings.ts'
+import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 
 function leaves(value: unknown): string[] {
