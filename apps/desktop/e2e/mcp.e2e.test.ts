@@ -91,7 +91,8 @@ describe('MCP 分区', () => {
     await approval.waitFor()
     expect(await approval.locator('[data-launch="command"]').textContent()).toBe(process.execPath)
     expect(await approval.locator('[data-launch="args"]').textContent()).toBe(`${stdioServerEntry} --project`)
-    expect(await approval.locator('[data-launch="envNames"]').textContent()).toBe('MCP_FIXTURE_LOG')
+    // 环境变量显示完整的键值（项目文件只有字面值）。
+    expect(await approval.locator('[data-launch="env"]').textContent()).toBe(`MCP_FIXTURE_LOG=${projectLog}`)
     await approval.locator('[data-action="approve"]').click()
     await approval.waitFor({ state: 'detached' })
     await expect.poll(() => project.getAttribute('data-status'), { timeout: 20_000 }).toBe('connected')

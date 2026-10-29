@@ -89,9 +89,10 @@ const keyOf = (workspaceId: string, name: string) => `${workspaceId}\0${name}`
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const timeoutMsOf = (config: McpServerConfig) => (config.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 
+/** 项目 Server 批准时显示的启动配置：与批准摘要覆盖的字段相同，含 env 与 headers 的值（项目项只有字面值，ADR 0007）。 */
 function launchOf(config: McpServerConfig): McpLaunchDetails {
-  if ('url' in config) return { url: config.url, headerNames: Object.keys(config.headers ?? {}) }
-  return { command: config.command, args: config.args ?? [], ...(config.cwd ? { cwd: config.cwd } : {}), envNames: Object.keys(config.env ?? {}) }
+  if ('url' in config) return { url: config.url, ...(config.headers ? { headers: { ...config.headers } } : {}) }
+  return { command: config.command, args: config.args ?? [], ...(config.cwd ? { cwd: config.cwd } : {}), ...(config.env ? { env: { ...config.env } } : {}) }
 }
 
 export class McpManager {

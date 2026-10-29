@@ -185,7 +185,12 @@ describe('MCP 连接与工具', () => {
     ])
     const pending = initial.servers.find((s) => s.name === 'proj')!
     expect(pending.status).toBe('pending-approval')
-    expect(pending.approval).toMatchObject({ approved: false, launch: { command: process.execPath, args: [stdioServerEntry], envNames: ['MCP_FIXTURE_LOG'] } })
+    // 项目文件不能引用 Secret（${…} 整项拒绝），env 只有字面值：批准时显示完整的键值，看得到实际执行什么。
+    expect(pending.approval).toEqual({
+      digest: expect.any(String),
+      approved: false,
+      launch: { command: process.execPath, args: [stdioServerEntry], env: { MCP_FIXTURE_LOG: projectLog } },
+    })
     expect(initial.diagnostics.map((d) => d.code)).toEqual(['project-secret-reference', 'shadowed-by-global'])
     expect(initial.project).toMatchObject({ exists: true })
 
