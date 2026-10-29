@@ -33,6 +33,7 @@ category: architecture
 - `safeStorage` 不可用时（加密不可用）拒绝保存并提示，不回退明文。
 - implementation 变为 implemented 前需要：集成测试确认库中不含明文、设置接口不回传密钥、日志脱敏，以及 Electron E2E 中配置密钥后可调用模型。
 - 当前为 implemented：sidecar 一侧的 credential.store / credential.decrypt 控制消息、只存密文、明文内存缓存、环境变量模式与日志及模型错误文本脱敏，集成测试确认库与日志不含明文、设置接口不回传密钥，见 [apps/server](../../apps/server/README.md)；main 的 safeStorage 加解密与 preload 的 `setCredential` 通道（只回传末四位提示，safeStorage 不可用时返回 `encryption-unavailable` 且不发送任何消息），Electron E2E 在设置中添加 Provider 与密钥后经解密的密钥调用本地 OpenAI 兼容假服务，并确认用户数据目录中的每个文件都不含明文。真实模型服务的调用依赖宿主凭据，未在本机验证。
+- 按值脱敏（2026-10-29，M3 评审修复）：Credential 的明文与 [ADR 0007](0007-secrets-from-registered-entries.md) 的 Secret 用同一机制登记为按值脱敏的来源（IPC 模式为已解密的缓存，环境变量模式为 `COKO_CREDENTIAL_*` 与各 Provider kind 的密钥变量），替换为 `[REDACTED]`，没有 `sk-` 等凭据形态的自定义密钥被回显时同样替换。`tests/integration/secrets-gate-memory.test.ts` 改用非凭据形态的 Credential 覆盖；`apps/server/src/adapters/credentials.test.ts` 覆盖环境变量模式登记的值。
 
 ## 来源与后继
 

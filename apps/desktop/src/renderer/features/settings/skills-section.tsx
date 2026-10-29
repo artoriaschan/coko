@@ -21,6 +21,7 @@ const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
   'empty-template': 'skills.diagnostics.empty-template',
   'read-failed': 'skills.diagnostics.read-failed',
   shadowed: 'skills.diagnostics.shadowed',
+  'skill-outside-workspace': 'skills.diagnostics.skill-outside-workspace',
 }
 
 /** 失败时 toast；进行中禁用控件。 */

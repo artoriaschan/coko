@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的分层能力配置契约：默认 ← 全局设置键 config ← 项目 .coko/settings.json（只收紧）、项目文件的读取时机与诊断代码、GET / PUT /api/config、项目 deny / ask 规则的 project 作用域、设置界面的项目设置行。修改能力开关、项目设置的合并或诊断、配置接口或相关界面前查阅。"
+description: "当前的分层能力配置契约：默认 ← 全局设置键 config ← 项目 .coko/settings.json（只收紧）、项目文件的读取时机与诊断代码、GET / PUT /api/config、项目 deny / ask 规则的 project 作用域、设置界面的项目设置行与能力开关。修改能力开关、项目设置的合并或诊断、配置接口或相关界面前查阅。"
 lifecycle: active
 ---
 
@@ -19,7 +19,8 @@ lifecycle: active
 | `apps/server/src/application/permissions.ts` | `PermissionService` 经 `ProjectRuleSource`（由 `ConfigService` 实现）取项目规则，见 [权限判定与审批](permissions.md#作用域与持久化) |
 | `apps/server/src/http/routes/config.ts` | `GET / PUT /api/config` |
 | `apps/desktop/src/renderer/stores/config-store.ts` | renderer 的配置 store（读取 `GET /api/config`） |
-| `apps/desktop/src/renderer/features/settings/general-section.tsx` | General 分区的项目设置行 |
+| `apps/desktop/src/renderer/features/settings/general-section.tsx` | General 分区的项目设置行与"上下文"组的能力开关 |
+| `apps/desktop/src/renderer/features/settings/capability-toggle.tsx`、`stores/config-store.ts` | 能力开关组件与 `setSwitch`（读取后整体替换全局值） |
 
 ## 配置项与合并
 
@@ -54,18 +55,19 @@ lifecycle: active
 
 - `GET /api/config?workspaceId=…` → `{ effective, global, globalRevision, project? }`。`globalRevision` 未保存过为 0。给出 workspaceId 时 `effective` 含该项目文件，`project = { path, exists, values, diagnostics }`：`values` 只有生效的项（关闭的开关、追加的 `skills.disabled`、有规则时的 `permissions: { deny, ask }`），被忽略的项只出现在 `diagnostics` 中；文件不存在时 `exists: false`。Workspace 不存在 404。
 - `PUT /api/config { values, expectedRevision, workspaceId? }`：整体替换全局值，返回同形的响应。值不合 schema 400；revision 不一致 409 `revision-conflict`。
-- 设置界面目前只读取；能力开关的编辑入口随使用它们的功能交付。
+- 设置界面的能力开关经 `GET /api/config` 读取全局值与 revision，再以 `PUT /api/config` 整体替换（只改一个键，其他全局键原样带回），完成后重新读取。
 
 ## 界面
 
 - **General 分区的项目设置行**：当前会话（或草稿）所在 Workspace 的项目文件路径、"未创建" / "没有问题" / 诊断数；诊断数是一个按钮，展开后按 code 显示本地化标题与原始说明。没有 Workspace 时提示先打开会话。
+- **能力开关**：每个开关写全局值；有效值被项目设置关闭时注明"已被项目设置关闭"。General 分区的"上下文"组：`instructions.enabled`、`context.autoCompact`、`context.trimOldToolResults`；MCP 分区顶部：`mcp.enabled`；Skills & Commands 分区：`skills.enabled`、`commands.enabled`；Memory 分区：`memory.enabled`。共用组件 `features/settings/capability-toggle.tsx` 与 `stores/config-store.ts` 的 `setSwitch`（Skills 与 Memory 的开关各有自己的 store，行为相同）。
 - **Permissions 分区的项目规则**：只读列表，标出来源文件，没有删除入口与输入框，见 [权限判定与审批](permissions.md#界面)。
 
 ## 验证
 
 - `packages/agent/src/config/merge.test.ts`：合并（默认 / 全局 / 项目、项目 true 不打开全局 false、列表并集）与诊断（`project-cannot-grant`、`unknown-key`、`invalid-value` 且其余键照常、`invalid-json` 整文件忽略）。
 - `tests/integration/sidecar-config.test.ts`：真实 Sidecar 上的 `GET / PUT /api/config`、409、通用设置接口 400、改文件后下一次 GET 与下一个 Run 读到新值、项目 deny 在 full-access 下拒绝、项目 allow 不放行。
-- `apps/desktop/e2e/config.e2e.test.ts`：General 分区的路径与诊断、Permissions 分区的只读项目规则。
+- `apps/desktop/e2e/config.e2e.test.ts`：General 分区的路径与诊断、Permissions 分区的只读项目规则；能力开关（指令、自动压缩、时间裁剪、MCP、命令）写入全局配置、其他全局键带回、关闭再打开后读回、被项目关闭的项注明。`apps/desktop/src/renderer/stores/config-store.test.ts`：`setSwitch` 的整体替换与 revision。
 
 ## 延伸阅读
 

@@ -42,9 +42,9 @@ lifecycle: active
 | `timeout?` | 全部 | 单次请求超时（秒，缺省 60），进度通知重置 |
 | `disabledTools?` | 全部 | 不注册的工具（按 Server 给出的名字） |
 
-名字只能用字母、数字、`_`、`-`，不含 `__`，至多 40 个字符；只差 `-` 与 `_` 的两个名字冲突，后者被拒绝。未知键视为错误。能力配置 `mcp.enabled` 为 false 时（全局或项目设置关闭）所有 Server 为 disabled、不连接，见 [分层配置](configuration.md)。
+名字只能用字母、数字、`_`、`-`，不含 `__`，至多 40 个字符。名字按权限规则匹配工具名的方式比较：不区分大小写，`-` 等于 `_`（`serverNameKey`）；只差大小写、`-` 或 `_` 的两个名字冲突，后者被拒绝。项目项与全局项按同一规则比较，`GitHub` 与全局的 `github` 视为同名而被忽略，因此项目 Server 不能借名字继承用户为全局 Server 保存的 `mcp__github` 规则。未知键视为错误。能力配置 `mcp.enabled` 为 false 时（全局或项目设置关闭）所有 Server 为 disabled、不连接，见 [分层配置](configuration.md)。
 
-**诊断**（`{ source: 'mcp', path?, code, message }`，不阻止 Run）：`invalid-server`（该项不合法，忽略）、`project-secret-reference`（项目项中任意字符串含 `${`，拒绝加载，ADR 0007）、`shadowed-by-global`（项目项与全局同名，忽略，全局优先）、`name-conflict`、`invalid-json` / `invalid-value`（整个 `.mcp.json` 忽略）、`read-failed`。全局配置经接口写入时就逐项校验，不合法时 400 并写明哪一项。
+**诊断**（`{ source: 'mcp', path?, code, message }`，不阻止 Run）：`invalid-server`（该项不合法，忽略）、`project-secret-reference`（项目项中任意字符串含 `${`，拒绝加载，ADR 0007）、`shadowed-by-global`（项目项与全局同名，按上面的规则比较，忽略，全局优先）、`name-conflict`、`invalid-json` / `invalid-value`（整个 `.mcp.json` 忽略）、`read-failed`。全局配置经接口写入时就逐项校验，不合法时 400 并写明哪一项。
 
 **项目 Server 的批准**（ADR 0008）。摘要为启动相关字段（传输、command、args、cwd、env；url、headers）键序规范化后的 SHA-256；`enabled`、`timeout`、`disabledTools` 不进入摘要。批准保存在设置键 `mcp.approvals.<workspaceId>`（`{ [name]: digest }`）。保存的摘要不等于当前摘要时状态为 pending-approval、不启动；命令、参数、地址、环境或请求头一改即回到 pending，已有连接随即关闭。
 
@@ -87,7 +87,7 @@ pi-mcp 没有 prompts 方法，Coko 经连接的通用 `request()` 封装 `promp
 
 ## 协议
 
-- `GET /api/mcp?workspaceId` → `McpResponse { enabled, servers, global, globalRevision, project?, diagnostics }`（给出 `workspaceId` 时 `diagnostics` 含该 Workspace 连接的结果诊断）。`servers[]` 为 `{ name, scope, transport, enabled, status, error?, stderrTail?, tools, approval? }`：`tools` 为已注册工具（排除 `disabledTools`）；项目 Server 的 `approval = { digest, approved, launch }`，`launch` 为批准对话框显示的 command、args、cwd、url 与 env / 请求头的名字（不含值）。`global` 是保存的全局配置（Secret 以 `${NAME}` 出现）。不给 `workspaceId` 时只有全局 Server，状态不反映任何连接。
+- `GET /api/mcp?workspaceId` → `McpResponse { enabled, servers, global, globalRevision, project?, diagnostics }`（给出 `workspaceId` 时 `diagnostics` 含该 Workspace 连接的结果诊断）。`servers[]` 为 `{ name, scope, transport, enabled, status, error?, stderrTail?, tools, approval? }`：`tools` 为已注册工具（排除 `disabledTools`）；项目 Server 的 `approval = { digest, approved, launch }`，`launch` 为批准对话框显示的 command、args、cwd、url、`env` 与 `headers`（完整键值：项目项中含 `${` 的整项拒绝，这里只有文件中的字面值，不会泄露登记的 Secret；全局 Server 没有 `launch`）。`global` 是保存的全局配置（Secret 以 `${NAME}` 出现）。不给 `workspaceId` 时只有全局 Server，状态不反映任何连接。
 - `PUT /api/mcp/servers { servers, expectedRevision, workspaceId? }`：整体替换全局配置；不合法 400，revision 不一致 409 `revision-conflict`。
 - `POST /api/mcp/approvals { workspaceId, name, digest, approve }`：批准时摘要须等于当前项目配置，否则 409 `revision-conflict`；`approve: false` 撤销批准。项目 Server 不存在 404。
 - `POST /api/mcp/reconnect { workspaceId, name }`：关闭并重新连接，等待结束后返回 `McpResponse`；Server 为 disabled / pending-approval 时 400。
@@ -97,11 +97,18 @@ pi-mcp 没有 prompts 方法，Coko 经连接的通用 `request()` 封装 `promp
 
 Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload `setSecret(name, value)` → main 以 safeStorage 加密（不可用时 `encryption-unavailable`，不回退明文）→ 控制 IPC `secret.store { name, ciphertext, hint }` → Sidecar 存入 `secrets` 表并回 `secret.store.result`；需要明文时发 `secret.decrypt`，明文只缓存在 Sidecar 内存，登记被替换或删除时清除。无界面运行（没有 IPC 父进程）只读 `COKO_SECRET_<NAME>`；Sidecar 不再按名字读取自身环境中的同名变量。工具声明的 Secrets（`CokoTool.secrets`）经同一 `SecretService` 解析。
 
-**按值脱敏。** `SecretService` 把当前已解密的值登记为 `@coko/logging` 的进程级来源（`registerSecretValues`）：`redactText`（模型错误、Memory 正文、MCP 错误与 stderr 尾部）与 sidecar.jsonl 的格式化在凭据形态之外替换这些值；工具结果（`toolResult` 条目、`tool_update` / `tool_end` 进度）只替换这些值（`redactSecretValues`），其余输出保持原样。替换文本为 `[REDACTED:secret]`，少于 4 个字符的值不替换。只有本进程已解密过的值会被替换；模型在当前 Run 中看到的工具结果不经替换。
+**按值脱敏。** `SecretService` 把当前已解密的值登记为 `@coko/logging` 的进程级来源（`registerSecretValues`）；Provider Credential 的明文（IPC 模式为已解密的缓存，无界面运行为 `COKO_CREDENTIAL_*` 与各 Provider kind 的密钥变量）同样登记，替换文本为 `[REDACTED]`。`redactText`（模型错误、Memory 正文、MCP 错误与 stderr 尾部）与 sidecar.jsonl 的格式化在凭据形态之外替换这些值。Session 运行时上的替换点（`apps/server/src/application/secret-redaction.ts`）：
+
+- 工具结果在进入运行时之前替换（afterToolCall 链的最后一个 hook，含其他 hook 附加的嵌套指令）：运行时内存、下一次模型请求、库与推送看到同一份文本。
+- 每次模型请求前整个上下文按值替换（模型回显的文本与工具调用参数、压缩摘要、恢复后的条目），摘要请求读取的条目同样替换；工具实际执行时拿到的仍是模型给出的原参数。
+- 入库与推送前再替换一次：除用户消息外的全部条目 payload（assistant 文本与 toolCall 参数、工具结果、`compaction.summary`、审批对象、执行记录）与全部进度；assistant 增量按内容块缓冲，可能是某个登记值开头的结尾留到下一个增量，跨增量的值也被替换（留下的结尾由之后提交的完整条目取代）。
+- 用户自己输入的文本按原样入库；File Reference 块在生成时替换（与 read 工具一致），MCP 提示模板的展开文本经 `SecretService.redactValues` 替换。
+
+替换文本为 `[REDACTED:secret]`，少于 4 个字符的值不替换。只有本进程已解密过的值会被替换。
 
 ## 界面
 
-设置弹窗的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部）；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与环境变量 / 请求头的名字，批准后启动；已批准的可撤销）；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
+设置弹窗的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部）；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与逐行的环境变量 / 请求头键值，批准后启动；已批准的可撤销）；分区顶部的能力开关 `mcp.enabled`（与其他能力开关共用，见 [分层配置](configuration.md#界面)）；保存或删除失败时显示本地化文案，服务端原文只在表单的"技术详情"中展开查看；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
 
 ## 尚未实现
 
