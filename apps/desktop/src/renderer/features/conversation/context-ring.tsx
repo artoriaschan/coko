@@ -38,7 +38,7 @@ export interface ContextRingControlProps {
 }
 
 /**
- * 输入区底栏的上下文环：百分比与颜色（越过预警线为 warning，达到自动压缩阈值为 destructive）。悬停或点击打开 HoverCard，
+ * 输入区底栏的上下文环：百分比与颜色（越过预警线为 warning，达到自动压缩阈值为 destructive）。点击打开 HoverCard，
  * 显示用量、分项、已加载的指令文件与诊断；Esc 关闭并把焦点留在环上。作用域变化、assistant 条目提交、Run 结束与打开卡片时刷新。
  */
 export function ContextRingControl({ target, store = defaultStore }: ContextRingControlProps) {
@@ -56,15 +56,12 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
 
   const [open, setOpen] = React.useState(false)
   const trigger = React.useRef<HTMLButtonElement>(null)
-  // 点击或 Esc 之后，悬停的延迟打开（Radix 在指针进入时计时）不再生效，直到指针离开环；否则 Esc 后卡片会被计时器重新打开。
-  const hoverSuppressed = React.useRef(false)
+  // 只由点击（含 Enter / 空格）打开：悬停打开会在布局变化把环移到静止的指针下时弹出卡片，遮住输入区上方的横幅与按钮。
+  // Radix 的悬停关闭（指针离开环与卡片）、外部点击与 Esc 照常关闭。
   const onOpenChange = (next: boolean) => {
-    if (next && hoverSuppressed.current) return
-    setOpen(next)
-    if (next) refresh()
+    if (!next) setOpen(false)
   }
   const toggle = (next: boolean) => {
-    hoverSuppressed.current = true
     setOpen(next)
     if (next) refresh()
   }
@@ -85,7 +82,6 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
           aria-expanded={open}
           aria-haspopup="dialog"
           onClick={() => toggle(!open)}
-          onPointerLeave={() => (hoverSuppressed.current = false)}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && open) {
               event.preventDefault()
@@ -102,10 +98,7 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
         aria-label={t('context.card.title')}
         data-slot="context-card"
         className="w-80"
-        onEscapeKeyDown={() => {
-          hoverSuppressed.current = true
-          trigger.current?.focus()
-        }}
+        onEscapeKeyDown={() => trigger.current?.focus()}
       >
         {usage ? (
           <ContextDetails usage={usage} format={(n) => number.format(n)} />

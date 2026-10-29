@@ -74,8 +74,10 @@ describe('上下文环', () => {
   it('点击打开 HoverCard：用量、分项、指令文件（截断）与诊断；Esc 关闭且焦点回到环', async () => {
     const { fetchUsage } = renderRing(usage(2_000, { estimated: true }))
     await expect.poll(() => ring()?.textContent).toBe('5%')
-    // 先悬停：Radix 开始 openDelay（300 ms）计时；随后点击与 Esc 不能被这个计时器重新打开。
+    // 只悬停不打开（布局变化把环移到静止的指针下时不能弹出卡片挡住上方的按钮）；等过 openDelay（300 ms）的上限。
     await userEvent.hover(ring())
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    expect(card()).toBeNull()
     await userEvent.click(ring())
     await expect.poll(() => card()).not.toBeNull()
     const dialog = page.getByRole('dialog', { name: 'Context' })
