@@ -37,4 +37,6 @@
   **文档。** `docs/tech-stack/testing.md` 的"运行与编排"加了一段后台运行约定与 `COKO_E2E_VISIBLE=1`。不需要合并导航行或导出。
 
   **越出范围。** 无。main / harness 属于共享装配点，本票由用户直接授权修改。
+- 2026-10-29 lead：评审后合入 main（ec88f56）。用户反馈 desktop E2E 抢焦点而开的票：测试构建或未打包时 COKO_E2E_BACKGROUND=1 使窗口以 showInactive + 透明 + accessory 策略运行，COKO_E2E_VISIBLE=1 可关闭；发布构建忽略。全量运行期间前台采样本检出 0 次违规。main 上复核见票 10。worktree 已清理。
 
+Closed: true

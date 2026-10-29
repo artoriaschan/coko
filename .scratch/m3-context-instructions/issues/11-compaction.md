@@ -21,3 +21,4 @@
 - 2026-10-29 lead：来自票 01——ContextContribution 尚无 beforeRequest 字段，压缩无法挂到该接入点。本票可修改 apps/server/src/application/context/types.ts、context/index.ts 与 sessions.ts 中接线 beforeRequest 的最小部分（超出原 Write scope，已授权）。另：package-smoke 尚未传入临时 COKO_HOME，由本票补上；服务端 action 与贡献工具路径目前只在空贡献下运行，本票与票 04 补集成用例。
 - 2026-10-29 lead：来自票 03——产物 smoke 未设置 COKO_HOME，Sidecar 会读真实的 ~/.coko/AGENTS.md；本票补上临时 COKO_HOME（与票 01 的说明一致）。
 - 2026-10-29 lead：来自票 07——产物 smoke 须证明 MCP stdio 在打包产物中可用（pi-mcp 与 cross-spawn 进入 sidecar bundle）：用测试 MCP Server 在 package-smoke 中完成一次工具调用。
+- 2026-10-29 lead：来自票 10——contextBudget、compactionBuffer、estimateContextTokens、trimOldToolResults 等已从 @coko/agent 导出；apps/server/src/application/context/usage.ts 的 contextUsage 中 autoCompact.paused 固定为 false，由本票接上熔断；贡献的 transformMessages 已收到 scope；faux 脚本可设 contextWindow / maxTokens；上下文圆环选择器为 [data-context-ring]。E2E 默认后台运行（票 12），需要看窗口时设 COKO_E2E_VISIBLE=1。
