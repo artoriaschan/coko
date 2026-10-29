@@ -141,6 +141,8 @@ describe('Memory', () => {
     expect(inC.sections.memory).toContain('The user prefers answers in Chinese')
     expect(inC.sections.memory).not.toContain('pnpm')
     for (const name of ['memory_list', 'memory_write', 'memory_delete']) expect(inB.tools.has(name)).toBe(true)
+    // 默认开启的 memory 工具在开头的系统消息中声明：新 Session 的第一个 Run 不提交 system 条目（条目序列与 M2 相同）。
+    expect(stream.entries(b).map((e) => e.kind)).not.toContain('system')
     expect(await first.sidecar.stop()).toEqual({ code: 0, signal: null })
 
     // 重启：条目仍在；accept-edits 下 memory_delete 免审批，之后不再注入；memory.enabled: false 时不注入、工具不在请求中。
