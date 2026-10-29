@@ -86,6 +86,8 @@ it('连续添加模型：每次在末尾新增一个空行并聚焦模型 ID；�
   // 空目录：显示无模型状态与“添加模型”。
   await expect.element(page.elementLocator(form()).getByText('还没有模型', { exact: true })).toBeVisible()
   expect(modelRows()).toHaveLength(0)
+  // 目录不提供“恢复默认模型”。
+  expect(form().textContent).not.toContain('恢复默认模型')
 
   const add = page.elementLocator(form()).getByRole('button', { name: '添加模型', exact: true })
   for (const [index, id] of ['custom-model-1', 'custom-model-2', 'custom-model-3'].entries()) {
