@@ -17,8 +17,10 @@ import {
   SessionEntry,
   SidecarToMainMessage,
   type CatalogModel,
-  type CreateProviderRequest,
   type MainToSidecarMessage,
+  type ProviderFields,
+  type ProviderSaveMode,
+  type SidecarProviderSaveResult,
 } from '@coko/protocol'
 
 const electronPath = createRequire(import.meta.url)('electron') as string
@@ -41,9 +43,75 @@ export const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): Cat
   ...extra,
 })
 
-/** 创建自定义 Provider 的请求体；models 给模型 ID 时使用默认能力。 */
-export const customProvider = (id: string, baseUrl: string, models: (string | CatalogModel)[], api: CreateProviderRequest['api'] = 'openai-completions') =>
-  ({ id, name: id, api, baseUrl, models: models.map((m) => (typeof m === 'string' ? catalogModel(m) : m)) }) satisfies CreateProviderRequest
+/** 自定义 Provider 的完整配置（provider.save 的 provider 字段）；models 给模型 ID 时使用默认能力。 */
+export const customProvider = (id: string, baseUrl: string, models: (string | CatalogModel)[], api: ProviderFields['api'] = 'openai-completions') =>
+  ({ id, name: id, api, baseUrl, models: models.map((m) => (typeof m === 'string' ? catalogModel(m) : m)) }) satisfies ProviderFields
+
+/** 测试中的"safeStorage"：可逆变换，密文字节不含明文。 */
+export const testCipher = {
+  encrypt: (plaintext: string) => Buffer.from([...Buffer.from(plaintext)].map((b) => b ^ 0x5a)).toString('base64'),
+  decrypt: (ciphertext: string) => Buffer.from([...Buffer.from(ciphertext, 'base64')].map((b) => b ^ 0x5a)).toString(),
+}
+
+/** 模拟 main 回答 credential.decrypt（testCipher 解密），返回收到的密文。 */
+export function answerDecrypts(sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>): string[] {
+  const requests: string[] = []
+  sidecar.onMessage((message) => {
+    if (message.type !== 'credential.decrypt') return
+    requests.push(message.ciphertext)
+    sidecar.send({ type: 'credential.decrypt.result', requestId: message.requestId, plaintext: testCipher.decrypt(message.ciphertext) })
+  })
+  return requests
+}
+
+let saveRequestId = 1_000
+
+/**
+ * 模拟 main 的一次提交（ADR 0010）：发 provider.save 并等待同一 requestId 的结果。secret 给出时用 testCipher 加密，
+ * 提示取末四位（短于 8 个字符时为空，与 main 一致）。
+ */
+export function saveProvider(
+  sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>,
+  provider: ProviderFields,
+  options: { mode?: ProviderSaveMode; secret?: string; timeoutMs?: number } = {},
+): Promise<SidecarProviderSaveResult> {
+  const requestId = ++saveRequestId
+  const { secret } = options
+  return new Promise((resolve, reject) => {
+    let done = false
+    const timer = setTimeout(() => {
+      done = true
+      reject(new Error(`provider.save ${requestId} was not answered`))
+    }, options.timeoutMs ?? 20_000)
+    sidecar.onMessage((message) => {
+      if (done || message.type !== 'provider.save.result' || message.requestId !== requestId) return
+      done = true
+      clearTimeout(timer)
+      resolve(message)
+    })
+    sidecar.send({
+      type: 'provider.save',
+      requestId,
+      mode: options.mode ?? 'create',
+      provider,
+      ...(secret === undefined ? {} : { credential: { ciphertext: testCipher.encrypt(secret), hint: secret.length >= 8 ? secret.slice(-4) : '' } }),
+    })
+  })
+}
+
+/**
+ * 在数据目录中预先写入 Provider：独立运行的 Sidecar 没有 main，不能保存 Provider（ADR 0010），先用一个 IPC 模式的
+ * Sidecar 经 provider.save 写入，关闭后再启动被测实例。
+ */
+export async function seedProviders(dirs: SidecarDirs, providers: ProviderFields[]): Promise<void> {
+  const seeder = await startSidecar({ dirs })
+  for (const provider of providers) {
+    const result = await saveProvider(seeder, provider)
+    if (!result.ok) throw new Error(`seeding ${provider.id} failed: ${result.error.code} ${result.error.message}`)
+  }
+  const exit = await seeder.stop()
+  if (exit.code !== 0) throw new Error(`seeding sidecar exited with ${String(exit.code)}`)
+}
 
 /** 写 faux 脚本，返回其绝对路径。 */
 export async function fauxScript(dir: string, script: unknown, name = 'faux.json'): Promise<string> {

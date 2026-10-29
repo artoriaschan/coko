@@ -8,7 +8,6 @@ import {
   AnswerConfirmationRequest,
   API_ROUTES,
   AuthExchangeRequest,
-  CreateProviderRequest,
   ForkRequest,
   RewindRequest,
   isMainOnlyPath,
@@ -21,7 +20,6 @@ import {
   SteerRequest,
   SetSessionModelRequest,
   SubmitMessageRequest,
-  UpdateProviderRequest,
   UpdateSettingRequest,
 } from '@coko/protocol'
 import { AppError, toAppError } from '../application/errors.ts'
@@ -176,8 +174,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
 
   http.get(API_ROUTES.providers, async (c) => c.json({ providers: await app.providers.list() }))
   http.get(API_ROUTES.models, async (c) => c.json({ models: app.providers.models(), defaultModel: (await app.sessions.defaultModel()) ?? null }))
-  http.post(API_ROUTES.providers, async (c) => c.json(await app.providers.create(await body(c, CreateProviderRequest)), 201))
-  http.patch(`${API_ROUTES.providers}/:id`, async (c) => c.json(await app.providers.update(c.req.param('id'), await body(c, UpdateProviderRequest))))
+  // Provider 的创建与更新只经 main 的控制消息 provider.save（ADR 0010）。
   http.delete(`${API_ROUTES.providers}/:id`, async (c) => {
     await app.providers.delete(c.req.param('id'))
     return c.body(null, 204)

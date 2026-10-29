@@ -3,7 +3,7 @@ import { createRequestTracker, SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
-/** sidecar 不写 Credential：密钥由 main 加密后经 credential.store 进入库（ADR 0004）。 */
+/** sidecar 不经 CredentialStore 写 Credential：密钥由 main 加密后随 provider.save 一次进入库（ADR 0004、0010）。 */
 const readOnly = () => Promise.reject(new Error('Credentials are managed by the desktop app'))
 
 export interface HostCredentialStore extends CredentialStore {

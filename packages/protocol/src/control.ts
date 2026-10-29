@@ -1,7 +1,9 @@
 import { Type, type Static } from 'typebox'
+import { ErrorCode } from './errors.ts'
+import { Provider, ProviderFields, ProviderSaveMode } from './http.ts'
 import { SecretName } from './secrets.ts'
 
-// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit、credential.* 与 secret.*；
+// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit、provider.save、credential.* 与 secret.*；
 // 以及两端共用的按 requestId 挂起请求的工具（运行时无关，只用 setTimeout 与 AbortSignal）。
 
 const strict = { additionalProperties: false } as const
@@ -20,7 +22,7 @@ export const SidecarInspectQuitResult = Type.Object(
   strict,
 )
 
-// ---- Credential（ADR 0004）----
+// ---- Provider 与 Credential（ADR 0004、0010）----
 // Node IPC 默认按 JSON 序列化，二进制密文以标准 base64 传输。
 
 /** safeStorage 密文的 base64 编码。 */
@@ -31,11 +33,20 @@ export const SidecarCredentialDecrypt = Type.Object(
   { type: Type.Literal('credential.decrypt'), requestId: RequestId, ciphertext: CredentialCiphertext },
   strict,
 )
-/** 对 credential.store 的确认；ok 为 false 时密文未保存。 */
-export const SidecarCredentialStoreResult = Type.Object(
-  { type: Type.Literal('credential.store.result'), requestId: RequestId, ok: Type.Boolean(), error: Type.Optional(Type.String()) },
-  strict,
-)
+/** 对 provider.save 的回答：成功给出保存后的 Provider（只含提示），失败给出错误码；失败时配置与密文都没有写入。 */
+export const SidecarProviderSaveResult = Type.Union([
+  Type.Object({ type: Type.Literal('provider.save.result'), requestId: RequestId, ok: Type.Literal(true), provider: Provider }, strict),
+  Type.Object(
+    {
+      type: Type.Literal('provider.save.result'),
+      requestId: RequestId,
+      ok: Type.Literal(false),
+      error: Type.Object({ code: ErrorCode, message: Type.String(), details: Type.Optional(Type.Record(Type.String(), Type.Unknown())) }, strict),
+    },
+    strict,
+  ),
+])
+export type SidecarProviderSaveResult = Static<typeof SidecarProviderSaveResult>
 
 // ---- Secret（ADR 0007）：与 Credential 同一通道，按名字登记 ----
 
@@ -54,7 +65,7 @@ export const SidecarToMainMessage = Type.Union([
   SidecarShutdownComplete,
   SidecarInspectQuitResult,
   SidecarCredentialDecrypt,
-  SidecarCredentialStoreResult,
+  SidecarProviderSaveResult,
   SidecarSecretDecrypt,
   SidecarSecretStoreResult,
 ])
@@ -63,17 +74,21 @@ export type SidecarToMainMessage = Static<typeof SidecarToMainMessage>
 export const MainShutdown = Type.Object({ type: Type.Literal('shutdown') }, strict)
 export const MainInspectQuit = Type.Object({ type: Type.Literal('inspect-quit'), requestId: RequestId }, strict)
 
-/** main 加密 renderer 输入的密钥后，把密文与末四位提示交给 sidecar 存库；明文不经过 sidecar。 */
-export const MainCredentialStore = Type.Object(
+/**
+ * 一次提交（ADR 0010）：renderer 的完整草稿经 main 加密密钥后，配置与可选的密文、末四位提示一起交给 sidecar，
+ * 在一个事务中写入；明文不经过 sidecar。不带 credential 表示保留原 Credential（新建时即没有 Credential）。
+ */
+export const MainProviderSave = Type.Object(
   {
-    type: Type.Literal('credential.store'),
+    type: Type.Literal('provider.save'),
     requestId: RequestId,
-    providerId: Type.String({ minLength: 1 }),
-    ciphertext: CredentialCiphertext,
-    hint: Type.String({ maxLength: 4 }),
+    mode: ProviderSaveMode,
+    provider: ProviderFields,
+    credential: Type.Optional(Type.Object({ ciphertext: CredentialCiphertext, hint: Type.String({ maxLength: 4 }) }, strict)),
   },
   strict,
 )
+export type MainProviderSave = Static<typeof MainProviderSave>
 /** 对 credential.decrypt 的回答：成功给出 plaintext，失败给出 error。 */
 export const MainCredentialDecryptResult = Type.Union([
   Type.Object({ type: Type.Literal('credential.decrypt.result'), requestId: RequestId, plaintext: Type.String({ minLength: 1 }) }, strict),
@@ -94,7 +109,7 @@ export const MainSecretDecryptResult = Type.Union([
 export const MainToSidecarMessage = Type.Union([
   MainShutdown,
   MainInspectQuit,
-  MainCredentialStore,
+  MainProviderSave,
   MainCredentialDecryptResult,
   MainSecretStore,
   MainSecretDecryptResult,

@@ -162,8 +162,12 @@ export type Provider = Static<typeof Provider>
 export const ProviderListResponse = Type.Object({ providers: Type.Array(Provider) }, strict)
 export type ProviderListResponse = Static<typeof ProviderListResponse>
 
-/** ID 与已有 Provider 重复时 409 already-exists；地址不是 http(s) URL 或目录不合规则时 400。 */
-export const CreateProviderRequest = Type.Object(
+/**
+ * 一次提交的 Provider 配置（不含密钥）：新建与编辑都给出完整字段，编辑时 id 指定要修改的 Provider（不可修改）。
+ * 只经 preload IPC 与控制消息 provider.save 提交（ADR 0010），HTTP 不提供创建与更新。ID 重复时 already-exists；
+ * 地址不是 http(s) URL 或目录不合规则时 bad-request。
+ */
+export const ProviderFields = Type.Object(
   {
     id: ProviderId,
     name: Type.String({ minLength: 1 }),
@@ -173,19 +177,11 @@ export const CreateProviderRequest = Type.Object(
   },
   strict,
 )
-export type CreateProviderRequest = Static<typeof CreateProviderRequest>
+export type ProviderFields = Static<typeof ProviderFields>
 
-/** ID 不可修改；省略的字段保持不变。 */
-export const UpdateProviderRequest = Type.Object(
-  {
-    name: Type.Optional(Type.String({ minLength: 1 })),
-    api: Type.Optional(ModelProtocol),
-    baseUrl: Type.Optional(Type.String({ minLength: 1 })),
-    models: Type.Optional(Catalog),
-  },
-  strict,
-)
-export type UpdateProviderRequest = Static<typeof UpdateProviderRequest>
+/** create：新建，ID 不能已被使用；update：替换已有 Provider 的配置。 */
+export const ProviderSaveMode = Type.Union([Type.Literal('create'), Type.Literal('update')])
+export type ProviderSaveMode = Static<typeof ProviderSaveMode>
 
 // ---- Models ----
 
