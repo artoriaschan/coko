@@ -133,3 +133,22 @@
 - 测试：renderer fake 有 `setCandidates`、`fetchProviderModels`（vi.fn）、`cancelProviderModels`、`holdFetch()`；集成 harness 有 `fetchModels(sidecar, request, { onSent })`。
 - DOM：按钮 `[data-fetch-models]`；弹窗 `[data-fetch-models-dialog]`（与删除确认、“放弃更改？”区分）；候选行 `label[data-candidate=<id>]`，已在目录带 `data-in-catalog`；失败原文 `[data-error-detail]`。
 
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/07-fetch-available-models` 合入集成分支 model-service，合入提交 89c6e4f（票分支 f2895ee，已含 b568865），无冲突。
+- 修复：第一次全量测试中 `apps/desktop/e2e/desktop-shell.e2e.test.ts` 的“renderer 读不到启动令牌或 cookie”失败 1 例。这个用例断言 `window.coko` 暴露的方法清单，本票新增的 `fetchProviderModels`、`cancelProviderModels` 不在清单里；票分支只跑了 `fetch-models`、`settings`、`provider-delete` 三个 e2e 文件，没有跑到它。这两个通道是本票要求的 preload IPC，所以把它们加进清单，并把注释改为“只把 Key 交给 main，不回传 Key”（`fetchProviderModels` 会返回模型 ID）。提交 1dd0bb4 `fix(desktop): allow fetch model channels in bridge check`；单独重跑该文件 12 个用例通过。
+- 集成 worktree 复核（修复后）：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（568 文件）；`pnpm run format:check` 通过（594 文件）；`pnpm run test` 203 文件，1430 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：对照 MS-19 至 MS-28，没有发现缺口。新建用表单 Key、编辑留空用已保存的 Credential；弹窗只显示 ID、初次不选中、按序模糊匹配、全选只作用于当前结果中可新增的模型、已在目录的模型禁用且不计数；导入的模型名称为 ID、默认容量、文本、推理关闭，不保存供应商；取消或关闭时目录不变并中止请求；15 秒超时、脱敏错误与重试、空结果说明；每次打开都按表单当前的协议与地址重新获取。
+- secrets-gate-provider-models：扫描库文件（运行中与停止后，含 -wal / -shm）、sidecar.jsonl、WebSocket 帧、HTTP 响应体与 sidecar→main 控制消息，覆盖新建的临时 Key、非 sk- 形态的临时 Key 和已保存的 Key；CredentialStore 缓存由“之后的 Run 用已保存的 Key、只解密一次”间接证明。
+- ADR 0010 的“implemented 前需要”逐条核对（ADR 改为 implemented 的提交是票分支上的 74c1f8e，ADR 索引与 ADR 0004 已同步）：
+  - 一次保存后 Provider 与密文同时存在：`tests/integration/sidecar-settings-credentials.test.ts`、`packages/session/src/sqlite/sqlite.test.ts`（事务回滚）。有证据。
+  - 加密不可用时库不变：证据是 `apps/desktop/src/main/credentials.test.ts`（单元测试，加密不可用时不发送任何消息，所以 Sidecar 和库都不会被写入）。条件写的是“集成测试确认”，这里没有集成测试，属于措辞上的小缺口。
+  - 获取模型的临时 Key 不进入库、日志与 CredentialStore 缓存：`secrets-gate-provider-models.test.ts`、`sidecar-provider-models.test.ts`。有证据。
+  - 迁移后旧 Provider、Credential、默认模型与 Session 引用均已清除：ADR 只引用了 `packages/session/src/sqlite/migrate-v4.test.ts`（单元测试）。集成测试其实存在，即 `tests/integration/sidecar-recovery.test.ts` 的迁移用例（从 v1 升到 5），但 ADR 没有链接它。
+  - Electron E2E 确认新建表单获取模型与一次保存可用：`apps/desktop/e2e/fetch-models.e2e.test.ts`、`apps/desktop/e2e/settings.e2e.test.ts`。有证据。
+- **最终评审项（不阻塞）**：
+  - Anthropic 的模型列表只请求一页（`/v1/models?limit=1000`），不跟随 `has_more` 分页，未验证。
+  - ADR 0010 的证据可补两处：迁移条件加上 `sidecar-recovery.test.ts` 的链接；“加密不可用时库不变”说明证据是 main 单元测试，或补一个集成测试。
+- 这是最后一张实施票，不需要转写约定。
+
+Closed: true
