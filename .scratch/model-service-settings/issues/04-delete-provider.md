@@ -101,3 +101,17 @@
 - store：`settings.providerReferences(id)`（失败抛 `ApiError`），`createSettingsStore({ onProviderDeleted })`。ApiClient：`providerReferences(id)`。
 - session：`ProviderRepository.references(id)`、`delete(id): Promise<ProviderReferences>`；session 公共导出 `ProviderReferences`。
 - 测试：`tests/integration/sidecar-provider-delete.test.ts`、`apps/desktop/e2e/provider-delete.e2e.test.ts`、`features/settings/delete-provider.browser.test.tsx`。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/04-delete-provider` 合入集成分支 model-service，合入提交 cdf507c（票分支 79e50f0，基于 ab95d95），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（545 文件）；`pnpm run format:check` 通过（571 文件）；`pnpm run test` 189 文件，1330 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含 `sidecar-provider-delete`、`provider-delete.e2e` 与全部 desktop-e2e、产物 smoke；`pnpm run check:docs` 129 文件 0 问题。实施记录中并行运行时的超时失败在这次全量串行中没有出现。第一次全量运行被中断，没有结果；以上数字来自重跑。
+- Spec 评审：对照 MS-32、MS-33 与规格 4.9。
+  - 引用数量：`references` 按 `sessions.model_provider_id` 计数，与删除时清空的范围一致。
+  - 删除：同一个写事务删除 Provider（Credential 随外键级联删除）、清空引用它的 Session 模型字段并置 `thinking_level = 'off'`，`defaultModel` 指向它时改为 null 并递增 revision；之后 `invalidateCredential` 清除明文缓存。
+  - MS-33：相同 ID 重新创建后原 Session 仍为 null，由集成测试覆盖。没有发现阻塞缺口。
+- **最终评审项（不阻塞）**：没有 Provider 时创建的 Session（模型从未设置）在之后添加 Provider 后也会被 409 `model-required` 拦截，不会使用新的默认模型。在集成 worktree 用临时集成测试确认（测试文件已删除，未提交）：建 Session 时 `model` 为 null；没有 Provider 时提交返回 409 `model-not-configured`；保存 Provider 后 `defaultModel` 为 `later-provider/m1`，再提交返回 409 `model-required`。界面的常规路径不会产生这种 Session：没有 Provider 时发送入口变为“配置模型”，草稿在添加 Provider 后带默认模型创建 Session。只有经 API 创建，或在更早的版本中已创建的 Session 会遇到；遇到时输入区显示 `model-required` 提示，用户选择模型后可以继续。规格 4.9 只要求“删除或升级清空引用的 Session 下次运行前提示重新选择模型”，没有说明从未设置模型的 Session 应该怎样处理，留到最终评审决定是否区分这两种情况。
+- 越出写范围（`conversation-pane.tsx`、`chat-failure.ts`、`main.tsx`、`fixture-chat.ts`、protocol 与 session 的增量）与实施记录一致。
+- “供后续票”的约定已转写到票 05、06、07 的 Comments（标题“来自票 04”），05 中列出了并行实施的冲突点。
+
+Closed: true
