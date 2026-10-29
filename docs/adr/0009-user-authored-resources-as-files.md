@@ -2,7 +2,7 @@
 kind: decision
 description: "用户编写的指令、Skills 与自定义命令保存为 ~/.coko 与 Workspace 下的普通文件，应用设置与 Memory 仍在 SQLite；为什么两类用户数据存放方式不同。修改这些资源的位置、格式或编辑入口时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -31,6 +31,15 @@ category: architecture
 - 每次 Run 开始时重新读取这些文件（按修改时间缓存），修改后下一次 Run 生效；读取失败只产生诊断，不阻止 Run。
 - 卸载应用不删除 `~/.coko`。
 - implementation 变为 implemented 前需要：以临时 `COKO_HOME` 启动真实 Sidecar 的集成测试覆盖用户级指令、Skills 与命令被加载，修改文件后下一次 Run 读到新内容，界面启停状态在重启后保留且文件不被改写。
+
+**实施证据（2026-10-29，M3 票 03、04、05）。** 行为见 [指令文件](../subsystems/instructions.md)、[命令](../subsystems/commands.md) 与 [Skills](../subsystems/skills.md)。以临时 `COKO_HOME` 启动真实 Sidecar：
+
+- 指令：`tests/integration/sidecar-instructions.test.ts` 中用户级 `COKO_HOME/AGENTS.md` 与项目级指令进入模型请求，修改 Workspace 的指令文件后下一次 Run 读到新内容；子目录指令在触及时加载。
+- 命令：`tests/integration/sidecar-commands.test.ts` 中用户级 `COKO_HOME/commands` 与项目级 `.coko/commands` 的模板被展开；`tests/integration/sidecar-skills.test.ts` 中修改用户级命令模板后下一次读取得到新描述（`instructions/commands/commands.test.ts` 覆盖 mtime 缓存）。
+- Skills：`tests/integration/sidecar-skills.test.ts` 中四个位置（项目 `.coko` / `.agents`、`COKO_HOME/skills`、`COKO_HOME` 同级的 `.agents/skills`）的 Skill 被发现并进入索引、经 `skill` 工具与 `/<name>` 调用，修改 `SKILL.md` 后下一次读取得到新内容。
+- 启停与文件：`apps/desktop/e2e/skills.e2e.test.ts` 在 Skills & Commands 分区停用一个 Skill，SIGKILL Sidecar 由 supervisor 重启后仍停用（状态在库中的 `config` 设置键），`COKO_HOME`、其同级 `.agents` 与 Workspace `.coko` / `.agents` 下的文件逐字节不变。
+
+用户级 `.agents/skills` 取 `COKO_HOME` 的父目录（缺省即 `~/.agents`），使设置了 `COKO_HOME` 的进程不读真实家目录。implementation 为 implemented。
 
 ## 来源与后继
 

@@ -27,7 +27,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'general', label: 'settings.general', icon: SlidersHorizontalIcon, Component: GeneralSection, available: true },
   { id: 'models', label: 'settings.models', icon: BoxIcon, Component: ModelsSection, available: true },
   { id: 'permissions', label: 'settings.permissions', icon: ShieldIcon, Component: PermissionsSection, available: true },
-  { id: 'skills', label: 'skills.title', icon: BlocksIcon, Component: SkillsSection, available: false },
+  { id: 'skills', label: 'skills.title', icon: BlocksIcon, Component: SkillsSection, available: true },
   { id: 'mcp', label: 'mcp.title', icon: PlugIcon, Component: McpSection, available: true },
   { id: 'memory', label: 'memory.title', icon: BrainIcon, Component: MemorySection, available: true },
   { id: 'about', label: 'settings.about', icon: InfoIcon, Component: AboutSection, available: true },

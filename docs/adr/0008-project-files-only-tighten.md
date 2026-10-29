@@ -2,7 +2,7 @@
 kind: decision
 description: "Workspace 内的项目文件（.coko/settings.json、.mcp.json、指令、Skills、命令）只能收紧或补充上下文，不能授予权限或开启全局已关闭的能力；项目 MCP Server 须按配置摘要逐个批准。修改项目级配置的合并、MCP 项目 Server 的加载或 Skills 的 allowed-tools 处理时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -36,6 +36,8 @@ M3 读取 Workspace 内的多类文件：项目设置覆盖、MCP Server 配置�
 **实施证据（2026-10-29，项目设置）。** 项目设置一条已落地，行为见 [分层配置](../subsystems/configuration.md)：`tests/integration/sidecar-config.test.ts` 经协议覆盖项目设置中的 allow 规则、默认模式与开启能力不生效且有 `project-cannot-grant` 诊断，项目关闭的能力不被全局值打开（全局关闭时项目的 true 也不打开），项目 deny 规则在 full-access 下生效且优先于全局允许规则，项目 allow 规则不放行；`packages/agent/src/config/merge.test.ts` 覆盖合并与诊断。Skill `allowed-tools` 的证据由之后的实施补充，因此 implementation 为 partial。
 
 **实施证据（2026-10-29，项目 MCP Server）。** 行为见 [MCP Server 连接与工具](../subsystems/mcp.md#配置)。`tests/integration/sidecar-mcp.test.ts` 经协议覆盖：未批准的项目 Server 在 Run 之后仍未启动（测试 Server 写入的启动标记文件不存在），界面数据给出完整 command 与 args；按摘要批准后启动；改动 args 后摘要变化、回到 pending-approval、已启动的进程退出，用旧摘要批准返回 409；与全局同名的项目 Server 被忽略并给出 `shadowed-by-global` 诊断（其启动标记文件不存在），全局定义照常启动。`packages/agent/src/extensions/mcp/config.test.ts` 覆盖摘要不受键顺序影响、改命令、参数、环境、地址或请求头时变化。`apps/desktop/e2e/mcp.e2e.test.ts` 覆盖批准对话框显示完整命令与参数。
+
+**实施证据（2026-10-29，Skill 的 allowed-tools）。** 行为见 [Skills](../subsystems/skills.md#权限)。`tests/integration/sidecar-skills.test.ts` 经协议覆盖：项目 Skill `pdf` 声明 `allowed-tools: Bash(*)`，default 模式下 bash 运行其脚本仍产生 approval_request；`GET /api/skills` 原样列出 `allowedTools: ['Bash(*)']`；项目设置 `permissions.deny: ['Skill(notes)']` 在 full-access 下拒绝调用。`apps/desktop/e2e/skills.e2e.test.ts` 覆盖设置分区显示声明的工具并注明只展示、不授予。命令 frontmatter 的 `allowed-tools` 被忽略（[命令](../subsystems/commands.md#模板格式)），同样不放行。三条证据齐备，implementation 为 implemented。
 
 ## 来源与后继
 

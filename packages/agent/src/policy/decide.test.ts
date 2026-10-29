@@ -201,6 +201,15 @@ describe('权限类（M3）', () => {
     expect(decide(call('skill', 'context-read'), ctx({ mode: 'full-access', rules: [rule('deny', 'skill')] })).behavior).toBe('deny')
   })
 
+  it('skill：规则名 Skill（未注册时也接受），内容为 Skill 名', () => {
+    expect(canonicalRuleTool('Skill')).toBe('Skill')
+    expect(canonicalRuleTool('skill')).toBe('Skill')
+    const pdf: PermissionCall = { toolName: 'skill', permissionClass: 'context-read', subject: 'pdf' }
+    expect(decide(pdf, ctx({ mode: 'full-access', rules: [rule('deny', 'Skill', 'pdf')] })).behavior).toBe('deny')
+    expect(decide(pdf, ctx({ rules: [rule('deny', 'Skill', 'other')] })).behavior).toBe('allow')
+    expect(decide(pdf, ctx({ mode: 'full-access', rules: [rule('ask', 'Skill', 'pdf')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+  })
+
   it('memory-write：只在 accept-edits 与 full-access 放行；规则组名 Memory', () => {
     expect(MODES.map((mode) => decide(call('memory_write', 'memory-write'), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'allow', 'allow'])
     expect(decide(call('memory_delete', 'memory-write'), ctx())).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Memory' }] })

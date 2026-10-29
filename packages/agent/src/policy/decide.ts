@@ -14,7 +14,7 @@ export { isWithin } from './rules.ts'
  */
 export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external'
 
-/** 判定分组；规则以组名（Read、Edit、Bash、Memory）书写，其余工具按原名。 */
+/** 判定分组；规则以组名（Read、Edit、Bash、Memory）书写，skill 工具为 Skill，其余工具按原名。 */
 export type ToolCategory = 'read' | 'write' | 'command' | 'context-read' | 'memory-write' | 'external' | 'other'
 
 const CATEGORY: Record<string, ToolCategory> = { read: 'read', grep: 'read', find: 'read', ls: 'read', write: 'write', edit: 'write', bash: 'command' }
@@ -47,10 +47,11 @@ export function ruleToolName(toolName: string, permissionClass?: PermissionClass
   return RULE_TOOL[toolCategory(toolName, permissionClass)] ?? toolName
 }
 
-/** 组名与内置工具名（小写）→ 规则工具名。 */
+/** 组名与内置工具名（小写）→ 规则工具名。skill 工具由宿主按 Run 贡献（可能尚未注册），规则名固定为 Skill（票 05）。 */
 const RULE_ALIASES: Record<string, string> = Object.fromEntries([
   ...Object.keys(CATEGORY).map((name) => [name, ruleToolName(name)]),
   ...Object.values(RULE_TOOL).flatMap((group) => (group ? [[group.toLowerCase(), group]] : [])),
+  ['skill', 'Skill'],
 ])
 
 /**

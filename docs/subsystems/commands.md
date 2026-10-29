@@ -30,7 +30,7 @@ lifecycle: active
 | 内置 | `BUILTIN_COMMANDS` | 展开为动作（`actions[name]`），只在该动作已由某个上下文贡献接入时列出；目前没有内置命令（`/compact` 随压缩接入） |
 | 项目 | `<Workspace>/.coko/commands/**/*.md` | 提示模板 |
 | 用户 | `COKO_HOME/commands/**/*.md`（缺省 `~/.coko`） | 提示模板 |
-| Skill、MCP | 对应上下文贡献的 `commandSources` | 由来源展开；目前没有来源登记 |
+| Skill、MCP | 对应上下文贡献的 `commandSources` | 由来源展开；Skill 见 [Skills](skills.md#索引与调用) |
 
 - 名字为相对路径去掉 `.md`，子目录以 `:` 连接（`git/commit.md` → `/git:commit`）。每段只能含字母、数字、`.`、`_`、`-` 且不以 `.` 开头；以 `.` 开头的目录与 `node_modules` 不进入，目录深度上限 8。
 - 同名时按 内置 > 项目 > 用户 > Skill > MCP 取一个，被遮蔽的记诊断 `shadowed`。遮蔽只看来源顺序：停用的命令仍占用其名字。
