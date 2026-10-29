@@ -4,7 +4,7 @@ import type { ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { createChatStore, type ChatStore } from '../stores/chat-store.ts'
 import { createSettingsStore } from '../stores/settings-store.ts'
-import { fakeSettingsBackend } from './fake-settings.ts'
+import { customProvider, fakeSettingsBackend } from './fake-settings.ts'
 
 const ws = (id: string, name: string): Workspace => ({ id, path: `/Users/me/${name}`, name, createdAt: 1 })
 const session = (id: string, workspaceId: string, title: string, updatedAt: number, running = false): Session => ({
@@ -119,8 +119,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     },
   }
   const backend = fakeSettingsBackend()
-  if (options.providers !== false)
-    void backend.api.createProvider({ name: 'Fixture', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['faux-1'] })
+  if (options.providers !== false) void backend.api.createProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
   const api = {
     ...backend.api,
     setSessionModel: async (id: string, model) => ({ ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!), model }),
