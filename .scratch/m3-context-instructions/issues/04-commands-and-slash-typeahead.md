@@ -66,3 +66,6 @@
 - **设置分区（票 05）**：`GET /api/commands?workspaceId` 返回全部命令（含 `enabled: false`）与诊断；renderer `stores/commands-store.ts` 的 `createCommandsStore` / `httpFetchCommands` 可复用。启停写 `commands.disabled`（经 PUT /api/config，带回其他全局键）。
 - **typeahead（票 06 `@` 文件菜单）**：`ComposerTypeahead` 放在 `ComposerEditor` 的 children 中；`position: 'word'` 已实现（词首触发）但只有 `'start'` 有测试。`getItems(query)` 同步返回候选（为空时菜单不出现）；`onSelect(item)` 返回替换 token 的文本。选项 id 为 `typeahead-item-<index>`、容器 id 为 `typeahead-menu`（Lexical 插件固定），同一页面同时打开两个菜单会冲突。插件挂载时就在 body 放一个空 listbox 容器，组件在关闭时把它设为 aria-hidden 并本地化名称。
 - **时间线**：`TimelineItem` 的 user 项新增可选 `command`（CommandPayload）与 `invocation`（`/name 参数`，回退时放回输入区）。
+- 2026-10-29 lead：合入 main（8d89bf1）后首次全量 test 有 31 个 Browser Mode 用例失败：新的深层导入 @lexical/react/LexicalTypeaheadMenuPlugin 在运行中才被预构建，测试页面重载两次。lead 在两个 Browser Mode 配置的 optimizeDeps.include 列出全部 @lexical/react 与 radix-ui 深层导入，并新增 scripts/browser-deps.test.ts 检查遗漏（删去一项时该测试失败），合入 main（0a4a3b6）。接受越界：context/index.ts 向 commands 贡献传入其他领域、conversation-pane.tsx 传 commandTarget、dropdown-menu.tsx 导出 menuSurface、新增 commands.test.ts 与 timeline 用例、docs/README 一行。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 142 文件 1056 通过、1 跳过（真实模型），无页面重载；check:docs 110 文件 0 问题。worktree 已清理。
+
+Closed: true
