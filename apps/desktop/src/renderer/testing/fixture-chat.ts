@@ -92,9 +92,11 @@ function s1Entries(): SessionEntryRecord[] {
 
 /**
  * 订阅时异步补发 afterSeq 之后的条目再确认；sendServer 可推送任意服务端消息。
- * 设置后端默认有一个 faux Provider（providers: false 时为空，用于未配置模型的场景）。
+ * 设置后端默认有一个 faux Provider（providers: false 时为空，用于未配置模型的场景）。sessions 替换会话列表；删除 Provider 后
+ * 与 Sidecar 一样清空引用它的会话模型字段，并重新读取会话列表。
  */
-export function createFixtureChat(options: { entries?: Record<string, SessionEntryRecord[]>; providers?: boolean } = {}) {
+export function createFixtureChat(options: { entries?: Record<string, SessionEntryRecord[]>; providers?: boolean; sessions?: Session[] } = {}) {
+  let sessionList = options.sessions ?? fixtureSessions
   const entries: Record<string, SessionEntryRecord[]> = { 's-1': s1Entries(), ...options.entries }
   const messageListeners = new Set<(message: ServerMessage) => void>()
   const sent: ClientMessage[] = []
@@ -129,7 +131,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       thinkingLevel: thinkingLevel ?? 'off',
     }),
     listWorkspaces: async () => fixtureWorkspaces,
-    listSessions: async () => fixtureSessions,
+    listSessions: async () => sessionList,
     registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),
     createSession: async (input) => session('s-new', input.workspaceId, input.title ?? '', 200),
     sessionDetail: async () => {
@@ -159,7 +161,14 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   } satisfies ApiClient
   const chat: ChatStore = createChatStore({ api, stream })
   void chat.getState().load()
-  const settings = createSettingsStore({ api, saveProvider: backend.saveProvider })
+  const settings = createSettingsStore({
+    api,
+    saveProvider: backend.saveProvider,
+    onProviderDeleted: (id) => {
+      sessionList = sessionList.map((s) => (s.model?.providerId === id ? { ...s, model: null, thinkingLevel: 'off' } : s))
+      void chat.getState().load()
+    },
+  })
   void settings.getState().load()
   return { chat, sent, sendServer, settings, backend, api }
 }
