@@ -12,7 +12,7 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 | 入口 | 内容 |
 | --- | --- |
-| `@coko/agent` | `createAgentRuntime`、工具注册表与内置工具、`CokoTool` 契约、`withTimeout`、Session Entry payload（`SESSION_ENTRY_PAYLOADS` 及各 kind 的 schema）、policy 与 ports（沙箱与 Secrets 的类型经 policy barrel 导出：`SandboxPolicy`、`LocalSandbox`、`SandboxUnavailableError`、`SecretProvider` 等） |
+| `@coko/agent` | `createAgentRuntime`、工具注册表与内置工具、`CokoTool` 契约、`withTimeout`、Session Entry payload（`SESSION_ENTRY_PAYLOADS` 及各 kind 的 schema）、policy 与 ports（沙箱与 Secrets 的类型经 policy barrel 导出：`SandboxPolicy`、`LocalSandbox`、`SandboxUnavailableError`、`SecretProvider` 等）；模型层：`createModelRegistry`（推理开关打开的 Anthropic 模型以 adaptive thinking 的 effort 发送所选档位的参数值）、`selectableThinkingLevels`、`listProviderModels`（按协议请求供应商的模型列表；Anthropic 跟随 `has_more`，至多 `MAX_MODEL_PAGES` 页；失败为 `ListModelsError`，时限与脱敏由宿主负责）、`isHttpUrl` |
 | `@coko/agent/entries` | 浏览器安全的条目派生（唯一实现）：`effectiveEntries(entries, { compacted? })`（回退区间；`compacted` 时再应用最后一个有效的 compaction）、`rewoundRanges`、`lastRunStatus`、`unansweredConfirmations`、`modelContext`（有效条目 → 模型消息，压缩后为合成摘要消息 + firstKeptSeq 及之后）。只导入 typebox 与本目录内模块，server、renderer 与 agent 内部都从这里导入；`@coko/agent` 原样转出 |
 | `@coko/agent/testing` | faux 模型、临时 Workspace、grep 契约测试套件；只供测试文件导入 |
 

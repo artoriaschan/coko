@@ -13,7 +13,7 @@ lifecycle: active
 | 入口 | 内容 |
 | --- | --- |
 | `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`MemoryRepository`、`SecretRepository`、`SessionStore`、`createPayloadRegistry` 与 `PayloadRegistry`、`StoreError`；不导入 `node:sqlite` |
-| `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`（当前 5）、`RecoveryQueries` / `UnfinishedRun`；只在此入口导入 `node:sqlite` |
+| `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`（当前 6）、`RecoveryQueries` / `UnfinishedRun`；只在此入口导入 `node:sqlite` |
 | `@coko/session/memory` | `createMemoryStore({ payloads })`，不持久化，供单元测试装配 |
 | `@coko/session/blobs` | `openBlobStore(dir, { maxBytes? })`、`hashFile(path)`、`BlobTooLargeError`、`MAX_BLOB_BYTES`：Checkpoint 快照的内容寻址文件存储（[ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)），只依赖 `node:fs` 与 `node:crypto` |
 
