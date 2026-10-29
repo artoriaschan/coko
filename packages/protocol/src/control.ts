@@ -1,9 +1,9 @@
 import { Type, type Static } from 'typebox'
 import { ErrorCode } from './errors.ts'
-import { Provider, ProviderFields, ProviderSaveMode } from './http.ts'
+import { ModelProtocol, Provider, ProviderFields, ProviderId, ProviderSaveMode } from './http.ts'
 import { SecretName } from './secrets.ts'
 
-// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit、provider.save、credential.* 与 secret.*；
+// Sidecar 与 Electron main 之间经 Node IPC（结构化克隆）传递的控制消息：生命周期、inspect-quit、provider.save、provider.models、credential.* 与 secret.*；
 // 以及两端共用的按 requestId 挂起请求的工具（运行时无关，只用 setTimeout 与 AbortSignal）。
 
 const strict = { additionalProperties: false } as const
@@ -48,6 +48,37 @@ export const SidecarProviderSaveResult = Type.Union([
 ])
 export type SidecarProviderSaveResult = Static<typeof SidecarProviderSaveResult>
 
+/**
+ * 获取可用模型的失败原因：no-credential（编辑时没有已保存的 Key）、bad-request（地址不是 http(s) 或请求不合要求）、
+ * unreachable（连不上或网络错误）、upstream-error（供应商返回非 2xx，带 status）、invalid-response（返回体不是模型列表）、
+ * timeout、cancelled。
+ */
+export const ProviderModelsErrorCode = Type.Union([
+  Type.Literal('no-credential'),
+  Type.Literal('bad-request'),
+  Type.Literal('unreachable'),
+  Type.Literal('upstream-error'),
+  Type.Literal('invalid-response'),
+  Type.Literal('timeout'),
+  Type.Literal('cancelled'),
+])
+export type ProviderModelsErrorCode = Static<typeof ProviderModelsErrorCode>
+
+/** 对 provider.models 的回答：成功时只有供应商返回的模型 ID（保持返回顺序）；错误文本已按 ADR 0004 脱敏。 */
+export const SidecarProviderModelsResult = Type.Union([
+  Type.Object({ type: Type.Literal('provider.models.result'), requestId: RequestId, ok: Type.Literal(true), models: Type.Array(Type.String()) }, strict),
+  Type.Object(
+    {
+      type: Type.Literal('provider.models.result'),
+      requestId: RequestId,
+      ok: Type.Literal(false),
+      error: Type.Object({ code: ProviderModelsErrorCode, message: Type.String(), status: Type.Optional(Type.Integer()) }, strict),
+    },
+    strict,
+  ),
+])
+export type SidecarProviderModelsResult = Static<typeof SidecarProviderModelsResult>
+
 // ---- Secret（ADR 0007）：与 Credential 同一通道，按名字登记 ----
 
 /** sidecar 需要某个 Secret 的明文时（MCP Server 启动或连接），请 main 用 safeStorage 解密库中的密文。 */
@@ -66,6 +97,7 @@ export const SidecarToMainMessage = Type.Union([
   SidecarInspectQuitResult,
   SidecarCredentialDecrypt,
   SidecarProviderSaveResult,
+  SidecarProviderModelsResult,
   SidecarSecretDecrypt,
   SidecarSecretStoreResult,
 ])
@@ -89,6 +121,25 @@ export const MainProviderSave = Type.Object(
   strict,
 )
 export type MainProviderSave = Static<typeof MainProviderSave>
+
+/**
+ * 获取可用模型（ADR 0010）：按表单中的协议与地址请求供应商的模型列表。secret 是表单中填写的明文 Key，只用于这一次请求，
+ * 不加密、不落库、不进入 CredentialStore 缓存；没有 secret 时用 providerId 已保存的 Credential（编辑且 Key 留空）。
+ */
+export const MainProviderModels = Type.Object(
+  {
+    type: Type.Literal('provider.models'),
+    requestId: RequestId,
+    api: ModelProtocol,
+    baseUrl: Type.String({ minLength: 1, maxLength: 2048 }),
+    providerId: Type.Optional(ProviderId),
+    secret: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+  },
+  strict,
+)
+export type MainProviderModels = Static<typeof MainProviderModels>
+/** 取消进行中的 provider.models（弹窗关闭或 main 一侧超时）；sidecar 中止对供应商的请求并以 cancelled 回答。 */
+export const MainProviderModelsCancel = Type.Object({ type: Type.Literal('provider.models.cancel'), requestId: RequestId }, strict)
 /** 对 credential.decrypt 的回答：成功给出 plaintext，失败给出 error。 */
 export const MainCredentialDecryptResult = Type.Union([
   Type.Object({ type: Type.Literal('credential.decrypt.result'), requestId: RequestId, plaintext: Type.String({ minLength: 1 }) }, strict),
@@ -110,6 +161,8 @@ export const MainToSidecarMessage = Type.Union([
   MainShutdown,
   MainInspectQuit,
   MainProviderSave,
+  MainProviderModels,
+  MainProviderModelsCancel,
   MainCredentialDecryptResult,
   MainSecretStore,
   MainSecretDecryptResult,
