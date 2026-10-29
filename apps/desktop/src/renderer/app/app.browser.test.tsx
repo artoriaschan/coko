@@ -214,7 +214,7 @@ describe('设置弹窗', () => {
     await expect.element(dialog).toBeVisible()
     const inDictionary = dictionaryMatcher(locale)
     const openSection = async (section: 'general' | 'models' | 'about') => {
-      await dialog.getByRole('button', { name: dictionaries[locale].settings[section], exact: true }).click()
+      await dialog.getByRole('button', { name: dictionaries[locale].settings.nav[section], exact: true }).click()
       // 对话框标题之后是分区标题。
       await expect.element(dialog.getByRole('heading', { level: 2 }).last()).toBeVisible()
     }
@@ -238,7 +238,7 @@ describe('设置弹窗', () => {
     const { screen, backend } = renderApp('en', { providers: false })
     await screen
     const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
 
     backend.setCredential.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
@@ -246,7 +246,7 @@ describe('设置弹窗', () => {
     await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1, m2')
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1, m2')
     const secret = dialog.getByLabelText('Credential', { exact: true })
     await secret.fill('sk-browser-test-9876')
     await dialog.getByRole('button', { name: 'Save' }).click()
@@ -309,7 +309,7 @@ describe('Models 分区', () => {
     await backend.api.createProvider({ name: 'DeepSeek', kind: 'deepseek', models: ['deepseek-flash'] })
     await settings.getState().load()
     const dialog = await openSettings('设置')
-    await dialog.getByRole('button', { name: '模型', exact: true }).click()
+    await dialog.getByRole('button', { name: '模型服务', exact: true }).click()
     const compatible = page.elementLocator(dialog.element().querySelector('[data-kind="openai-compatible"][data-provider-id]')!)
     await expect.element(compatible).toBeVisible()
     expect(compatible.element().textContent).toContain('OpenAI 兼容OpenAI 兼容')
@@ -324,12 +324,12 @@ describe('Models 分区', () => {
     const { ApiError } = await import('../client/api.ts')
     vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
     const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
     await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('not a url')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1')
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1')
     await dialog.getByRole('button', { name: 'Save' }).click()
     const alert = dialog.getByRole('alert')
     await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
