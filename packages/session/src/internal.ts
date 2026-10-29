@@ -1,6 +1,6 @@
 // 两种实现共用的小工具；不从包入口导出。
 import { StoreError } from './errors.ts'
-import type { JsonValue, SessionEntry, StoreOptions } from './types.ts'
+import { THINKING_LEVELS, type JsonValue, type SessionEntry, type SessionModelChoice, type StoreOptions, type ThinkingLevel } from './types.ts'
 
 /** 存储中的一行；payload 解析失败时为 undefined。 */
 export type StoredEntry = Omit<SessionEntry, 'payload'> & { payload: JsonValue | undefined }
@@ -25,6 +25,14 @@ export function upgradeEntries(rows: readonly StoredEntry[], options: Pick<Store
   }
   return result
 }
+
+/** 与模型一起写入的档位：没有模型或未给档位时为 off。 */
+export const levelOf = (choice: Partial<SessionModelChoice>): ThinkingLevel => (choice.model && choice.thinkingLevel) || 'off'
+
+const isLevel = (text: string): text is ThinkingLevel => (THINKING_LEVELS as readonly string[]).includes(text)
+
+/** 库中读回的档位：不是七档之一（手改或未来版本写入）时为 off。 */
+export const parseLevel = (text: string): ThinkingLevel => (isLevel(text) ? text : 'off')
 
 /** Workspace 未给名称时取路径最后一段。 */
 export function defaultWorkspaceName(path: string): string {

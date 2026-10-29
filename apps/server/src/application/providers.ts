@@ -22,7 +22,14 @@ import type {
   SidecarToMainMessage,
   ThinkingLevel,
 } from '@coko/protocol'
-import { isStoreError, type CredentialRecord, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
+import {
+  isStoreError,
+  type CredentialRecord,
+  type Provider as StoredProvider,
+  type ProviderInput,
+  type SessionStore,
+  type ThinkingLevel as StoredThinkingLevel,
+} from '@coko/session'
 import { AppError, toAppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
@@ -32,6 +39,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
 type Assert<T extends true> = T
 export type ModelProtocolsAgree = Assert<Equal<ModelProtocol, AgentModelProtocol>>
 export type ThinkingLevelsAgree = Assert<Equal<ThinkingLevel, AgentThinkingLevel>>
+export type SessionThinkingLevelsAgree = Assert<Equal<ThinkingLevel, StoredThinkingLevel>>
 // Model Catalog 的协议结构可以原样作为 registry 的模型配置。
 export type CatalogMatchesModelSpec = Assert<Equal<CatalogModel, ModelSpec>>
 

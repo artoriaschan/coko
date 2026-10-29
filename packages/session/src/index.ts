@@ -17,6 +17,7 @@ export type {
   Session,
   SessionEntry,
   SessionModel,
+  SessionModelChoice,
   SessionRepository,
   SessionStore,
   Setting,
@@ -24,6 +25,8 @@ export type {
   StoreOptions,
   Workspace,
 } from './types.ts'
+export { THINKING_LEVELS } from './types.ts'
+export type { ThinkingLevel } from './types.ts'
 export { createPayloadRegistry } from './payloads.ts'
 export type { PayloadDefinition, PayloadRegistry, PayloadUpgrade, PayloadVersion } from './payloads.ts'
 export { StoreError, isStoreError, type StoreErrorCode } from './errors.ts'

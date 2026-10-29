@@ -54,6 +54,20 @@ describeRepositoryContract('SQLite 实现', async (options) => {
 })
 
 describe('SQLite 打开与持久化', () => {
+  it('库中不是七档之一的 Thinking Level 读回为 off', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const first = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
+    const workspace = await first.sessions.registerWorkspace({ path: '/w' })
+    const session = await first.sessions.createSession({ workspaceId: workspace.id, model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })
+    await first.close()
+    const raw = new DatabaseSync(path)
+    raw.prepare("UPDATE sessions SET thinking_level = 'turbo' WHERE id = ?").run(session.id)
+    raw.close()
+    const store = await openIn(dir)
+    expect((await store.sessions.getSession(session.id))?.thinkingLevel).toBe('off')
+  })
+
   it('新库以 0600 创建并迁移到当前版本，无需备份', async () => {
     const dir = await tempDir()
     const store = await openIn(dir)

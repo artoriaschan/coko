@@ -4,6 +4,8 @@ import {
   alreadyExists,
   DEFAULT_MODEL_KEY,
   defaultWorkspaceName,
+  levelOf,
+  parseLevel,
   modelPointsTo,
   notFound,
   revisionConflict,
@@ -19,7 +21,6 @@ import type {
   ProviderRepository,
   Session,
   SessionEntry,
-  SessionModel,
   SessionRepository,
   Setting,
   SettingsRepository,
@@ -76,7 +77,7 @@ const toSession = (r: SessionRow): Session => ({
   workspaceId: r.workspace_id,
   title: r.title,
   model: r.model_provider_id !== null && r.model_id !== null ? { providerId: r.model_provider_id, modelId: r.model_id } : null,
-  thinkingLevel: r.thinking_level,
+  thinkingLevel: parseLevel(r.thinking_level),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -157,7 +158,7 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
             input.title ?? '',
             model?.providerId ?? null,
             model?.modelId ?? null,
-            (model && input.thinkingLevel) || 'off',
+            levelOf(input),
             at,
             at,
           )
@@ -189,15 +190,15 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return toSession(requireSession(id))
         }),
       ),
-    setSessionModel: (id, model: SessionModel | null, thinkingLevel?: string) =>
+    setSessionModel: (id, choice) =>
       later(() =>
         conn.write(() => {
           requireSession(id)
           conn.run(
             'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, updated_at = ? WHERE id = ?',
-            model?.providerId ?? null,
-            model?.modelId ?? null,
-            (model && thinkingLevel) || 'off',
+            choice.model?.providerId ?? null,
+            choice.model?.modelId ?? null,
+            levelOf(choice),
             conn.now(),
             id,
           )

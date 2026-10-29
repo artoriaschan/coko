@@ -29,7 +29,7 @@ describe('SQLite 迁移 v5', () => {
       createdAt: 1,
       updatedAt: 5,
     })
-    await first.sessions.setSessionModel('s1', { providerId: 'custom-provider-1', modelId: 'custom-model-1' }, 'high')
+    await first.sessions.setSessionModel('s1', { model: { providerId: 'custom-provider-1', modelId: 'custom-model-1' }, thinkingLevel: 'high' })
     await first.close()
 
     const second = await openSqliteStore({ path, payloads: TEST_PAYLOADS })

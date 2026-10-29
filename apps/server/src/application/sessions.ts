@@ -202,7 +202,7 @@ export class SessionService {
 
   /** 保存的档位在当前模型下仍可选时使用它，否则为 off（模型已不可用或目录已不再配置该档位）。 */
   #effectiveLevel(session: Pick<StoredSession, 'model' | 'thinkingLevel'>): ThinkingLevel {
-    const level = session.thinkingLevel as ThinkingLevel
+    const level = session.thinkingLevel
     if (level === 'off' || !session.model) return 'off'
     const model = this.#options.registry.models.getModel(session.model.providerId, session.model.modelId)
     return model && selectableThinkingLevels(model).includes(level) ? level : 'off'
@@ -340,7 +340,7 @@ export class SessionService {
     const resolved = this.#resolve(model, 'bad-request')
     let level: ThinkingLevel
     if (thinkingLevel === undefined) {
-      const kept = current.thinkingLevel as ThinkingLevel
+      const kept = current.thinkingLevel
       level = selectableThinkingLevels(resolved).includes(kept) ? kept : 'off'
     } else {
       this.#checkLevel(resolved, thinkingLevel)
@@ -348,7 +348,7 @@ export class SessionService {
     }
     const runtime = this.#runtimes.get(sessionId)
     if (runtime?.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
-    const session = await this.#options.store.sessions.setSessionModel(sessionId, model, level)
+    const session = await this.#options.store.sessions.setSessionModel(sessionId, { model, thinkingLevel: level })
     runtime?.setModel(resolved)
     runtime?.setThinkingLevel(level)
     return this.toDto(session)

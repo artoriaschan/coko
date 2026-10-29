@@ -6,6 +6,7 @@ import {
   closedError,
   DEFAULT_MODEL_KEY,
   defaultWorkspaceName,
+  levelOf,
   modelPointsTo,
   notFound,
   revisionConflict,
@@ -23,9 +24,9 @@ import type {
   SecretInfo,
   Session,
   SessionEntry,
-  SessionModel,
   SessionStore,
   Setting,
+  SessionModelChoice,
   StoreOptions,
   Workspace,
 } from '../types.ts'
@@ -84,7 +85,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
-      createSession: op((input: { workspaceId: string; title?: string; model?: SessionModel | null; thinkingLevel?: string }) => {
+      createSession: op((input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>) => {
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
         const at = now()
         const session: Session = {
@@ -92,7 +93,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           workspaceId: input.workspaceId,
           title: input.title ?? '',
           model: input.model ?? null,
-          thinkingLevel: (input.model && input.thinkingLevel) || 'off',
+          thinkingLevel: levelOf(input),
           createdAt: at,
           updatedAt: at,
         }
@@ -109,9 +110,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
-      setSessionModel: op((id: string, model: SessionModel | null, thinkingLevel?: string) =>
-        touch(requireSession(id), { model: copy(model), thinkingLevel: (model && thinkingLevel) || 'off' }),
-      ),
+      setSessionModel: op((id: string, choice: SessionModelChoice) => touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice) })),
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
         if (input.length === 0) return []

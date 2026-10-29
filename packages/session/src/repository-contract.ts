@@ -74,16 +74,16 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       tick()
       expect(await sessions.setSessionTitle(s.id, '修复登录')).toMatchObject({ title: '修复登录', updatedAt: 1_010 })
       tick()
-      await sessions.setSessionModel(s.id, { providerId: 'deepseek', modelId: 'deepseek-chat' })
+      await sessions.setSessionModel(s.id, { model: { providerId: 'deepseek', modelId: 'deepseek-chat' } })
       expect(await sessions.getSession(s.id)).toMatchObject({
         title: '修复登录',
         model: { providerId: 'deepseek', modelId: 'deepseek-chat' },
         updatedAt: 1_020,
       })
-      await sessions.setSessionModel(s.id, null)
+      await sessions.setSessionModel(s.id, { model: null })
       expect((await sessions.getSession(s.id))?.model).toBeNull()
       await expectStoreError(sessions.setSessionTitle('missing', 'x'), 'not-found')
-      await expectStoreError(sessions.setSessionModel('missing', null), 'not-found')
+      await expectStoreError(sessions.setSessionModel('missing', { model: null }), 'not-found')
     })
 
     it('Thinking Level 与模型一起保存：新建默认 off；换模型时写入给定档位，未给出或清空模型时回到 off', async () => {
@@ -95,12 +95,15 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect((await sessions.getSession(withLevel.id))?.thinkingLevel).toBe('medium')
 
       tick()
-      expect(await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm' }, 'high')).toMatchObject({ thinkingLevel: 'high', updatedAt: 1_010 })
+      expect(await sessions.setSessionModel(s.id, { model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })).toMatchObject({
+        thinkingLevel: 'high',
+        updatedAt: 1_010,
+      })
       expect(await sessions.getSession(s.id)).toMatchObject({ model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })
-      await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm2' })
+      await sessions.setSessionModel(s.id, { model: { providerId: 'p', modelId: 'm2' } })
       expect((await sessions.getSession(s.id))?.thinkingLevel).toBe('off')
-      await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm' }, 'max')
-      await sessions.setSessionModel(s.id, null)
+      await sessions.setSessionModel(s.id, { model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'max' })
+      await sessions.setSessionModel(s.id, { model: null })
       expect(await sessions.getSession(s.id)).toMatchObject({ model: null, thinkingLevel: 'off' })
     })
 
