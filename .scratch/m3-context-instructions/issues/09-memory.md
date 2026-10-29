@@ -31,10 +31,10 @@
 5. `apps/desktop/e2e/memory.e2e.test.ts`：审批后 memory_write 工具卡显示"已记住"与正文；Memory 分区在"工作区"组列出模型写入的条目（Agent 记下），删除生效；"用户级"组手动添加、编辑生效；记忆开关关 / 开读回；关闭再打开设置后列表来自 Sidecar。另有 `tool-cards.browser.test.tsx` 新增 1 例（已记住 / 已更新记忆 / 已删除记忆、失败与等待时为动作名、中文）。
 6. `docs/subsystems/memory.md` 新建；ADR 0003 的 Memory 部分改为已实现（FTS5 与检索仍未实现），并链接 memory.md（因此 check:docs 的可达性通过）；`pnpm run check:docs` 107 个文件 0 问题。
 
-**实际运行的命令与结果**（worktree，HEAD 8ef7ae1，已 `git merge main`：main 无新提交）
+**实际运行的命令与结果**（worktree，已 `git merge main`（含票 03，合并提交 f31084d）后重新运行）
 
-- `pnpm install --frozen-lockfile` 0；`pnpm run typecheck` 0；`pnpm run lint` 0；`pnpm run format:check` 0；`pnpm run check:docs` 0（107 文件）。
-- `pnpm run test`：123 个文件通过，928 通过、1 跳过（settings E2E 中 M2 已有的跳过），含 desktop E2E 13 个文件与产物 smoke（`package-smoke.e2e.test.ts` 2 个）。基线（main）116 文件、884 通过。
+- `pnpm install --frozen-lockfile` 0；`pnpm run typecheck` 0；`pnpm run lint` 0；`pnpm run format:check` 0；`pnpm run check:docs` 0（108 文件）。
+- `pnpm run test`：126 个文件通过，970 通过、1 跳过（settings E2E 中 M2 已有的跳过），含 desktop E2E 13 个文件与产物 smoke（`package-smoke.e2e.test.ts` 2 个）。合并 main 之前：123 文件、928 通过、1 跳过。
 - 第一次全量有 12 个 M2 集成用例失败（见下"越界改动"第 1 条），修复后全量如上。
 
 **负向确认**
