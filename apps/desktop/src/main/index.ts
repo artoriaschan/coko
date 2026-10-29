@@ -4,12 +4,13 @@ import { createTranslator, resolveLocale } from '@coko/i18n'
 import { getLogger, redactText } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '../shared/bridge.ts'
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } from './app-protocol.ts'
-import { createCredentialBridge } from './credentials.ts'
+import { createCredentialBridge, type CredentialChannel } from './credentials.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
 import { TEST_BUILD } from './build-flags.ts'
 import { sidecarArgs, sidecarEnvironment } from './sidecar-env.ts'
+import { createSecretBridge } from './secrets.ts'
 import { SidecarProcess } from './sidecar-process.ts'
 import { SidecarSupervisor } from './sidecar-supervisor.ts'
 import { decideWebSocketHeaders } from './websocket-headers.ts'
@@ -227,23 +228,27 @@ function run(): void {
     return picking
   })
 
-  // ADR 0004：密钥只在 main 用 safeStorage 加解密，密文经控制 IPC 存入 Sidecar。
-  const credentials = createCredentialBridge({
-    encryption: {
-      isAvailable: () => safeStorage.isEncryptionAvailable(),
-      encrypt: (plaintext) => safeStorage.encryptString(plaintext),
-      decrypt: (ciphertext) => safeStorage.decryptString(Buffer.from(ciphertext)),
-    },
-    channel: {
-      isReady: () => supervisor.isReady,
-      send: (message) => supervisor.send(message),
-      onMessage: (listener) => supervisor.onControlMessage(listener),
-      onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
-    },
-  })
+  // ADR 0004、0007：Credential 与 Secret 只在 main 用 safeStorage 加解密，密文经控制 IPC 存入 Sidecar。
+  const encryption = {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plaintext: string) => safeStorage.encryptString(plaintext),
+    decrypt: (ciphertext: Uint8Array) => safeStorage.decryptString(Buffer.from(ciphertext)),
+  }
+  const channel: CredentialChannel = {
+    isReady: () => supervisor.isReady,
+    send: (message) => supervisor.send(message),
+    onMessage: (listener) => supervisor.onControlMessage(listener),
+    onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
+  }
+  const credentials = createCredentialBridge({ encryption, channel })
   ipcMain.handle(IPC.setCredential, async (event, providerId: unknown, secret: unknown) => {
     assertMainFrame(event)
     return credentials.set(providerId, secret)
+  })
+  const secrets = createSecretBridge({ encryption, channel })
+  ipcMain.handle(IPC.setSecret, async (event, name: unknown, value: unknown) => {
+    assertMainFrame(event)
+    return secrets.set(name, value)
   })
 
   const quitCoordinator = new QuitCoordinator(() => ({

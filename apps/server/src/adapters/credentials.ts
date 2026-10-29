@@ -1,6 +1,6 @@
-import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion, type SecretProvider } from '@coko/agent'
+import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
 import { createRequestTracker } from '@coko/protocol'
-import type { ProviderRepository } from '@coko/session'
+import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
 /** sidecar 不写 Credential：密钥由 main 加密后经 credential.store 进入库（ADR 0004）。 */
@@ -101,15 +101,76 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
   }
 }
 
-/** Provider Credential 的环境变量（COKO_CREDENTIAL_* 与各 kind 的密钥变量）：只供模型请求，不交给工具。 */
-const isProviderCredential = (name: string) =>
-  /^COKO_CREDENTIAL_/i.test(name) || PROVIDER_KINDS.some((kind) => apiKeyEnvOf(kind)?.toUpperCase() === name.toUpperCase())
+// ---- Secrets（ADR 0007）：只来自登记条目 ----
 
-/**
- * 工具 Secrets（Secrets 端口，见 @coko/agent 的 ports/secrets.ts）：按工具声明的变量名读 Sidecar 自身的环境，只有声明了该名字的工具
- * 在该次调用中拿到值。Provider Credential 的变量永远不返回（工具声明了也拿不到）。bash 等用户命令的环境仍按 HOST_ENV_EXCLUSIONS 剔除。
- * M3 的 MCP 接入真实使用者时再决定密钥来源与映射。
- */
-export function createEnvSecretProvider(env: Readonly<Record<string, string | undefined>>): SecretProvider {
-  return { get: (name) => (isProviderCredential(name) ? undefined : env[name] || undefined) }
+/** 一个 Secret 来源：IPC 模式为库中登记的密文（经 main 解密），无界面运行为 COKO_SECRET_<NAME> 变量。 */
+export interface SecretSource {
+  readonly kind: 'stored' | 'environment'
+  /** 登记的名字与末四位提示。 */
+  list(): Promise<{ name: string; hint: string; updatedAt?: number }[]>
+  /** 登记名字的明文；未登记时 undefined（不回退到进程环境）。 */
+  get(name: string, options?: { signal?: AbortSignal }): Promise<string | undefined>
+  /** 已解密、仍在内存中的值（脱敏用）。 */
+  cachedValues(): string[]
+  /** 清除某个名字的明文缓存（登记被替换或删除）。 */
+  invalidate(name: string): void
+}
+
+const SECRET_ENV_PREFIX = 'COKO_SECRET_'
+/** 无界面运行时 Secret <NAME> 的变量名；该前缀已被命令环境的 COKO_* 剔除规则覆盖。 */
+export const secretEnvName = (name: string) => `${SECRET_ENV_PREFIX}${name}`
+const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/
+/** 与 Credential 相同：短于 8 个字符的值不给提示。 */
+const hintOf = (value: string) => (value.length >= 8 ? value.slice(-4) : '')
+
+/** IPC 模式：读库中的密文，经 secret.decrypt 请 main 解密，只缓存在进程内存。 */
+export function createIpcSecretSource(options: { control: ControlChannel; secrets: SecretRepository; timeoutMs?: number }): SecretSource {
+  const { control, secrets } = options
+  const cache = new Map<string, string>()
+  const decryptions = createRequestTracker<string>({
+    timeoutMs: options.timeoutMs ?? 10_000,
+    timeoutMessage: (ms) => `Secret decryption timed out after ${ms} ms`,
+  })
+  control.onMessage((message) => {
+    if (message.type !== 'secret.decrypt.result') return
+    if ('plaintext' in message) decryptions.resolve(message.requestId, message.plaintext)
+    else decryptions.reject(message.requestId, new Error(`Secret could not be decrypted: ${message.error}`))
+  })
+  control.onDisconnect(() => decryptions.rejectAll(new Error('Desktop app disconnected')))
+  return {
+    kind: 'stored',
+    list: async () => (await secrets.list()).map(({ name, hint, updatedAt }) => ({ name, hint, updatedAt })),
+    async get(name, getOptions) {
+      if (!SECRET_NAME.test(name)) return undefined
+      const cached = cache.get(name)
+      if (cached !== undefined) return cached
+      const ciphertext = await secrets.getCiphertext(name)
+      if (!ciphertext) return undefined
+      const plaintext = await decryptions.request(
+        (requestId) => void control.send({ type: 'secret.decrypt', requestId, ciphertext: Buffer.from(ciphertext).toString('base64') }),
+        { signal: getOptions?.signal },
+      )
+      cache.set(name, plaintext)
+      return plaintext
+    },
+    cachedValues: () => [...cache.values()],
+    invalidate: (name) => void cache.delete(name),
+  }
+}
+
+/** 无界面运行（测试、headless）：只读 COKO_SECRET_<NAME>；不能经接口登记或删除。 */
+export function createEnvSecretSource(env: Readonly<Record<string, string | undefined>>): SecretSource {
+  const names = () =>
+    Object.keys(env)
+      .filter((key) => key.startsWith(SECRET_ENV_PREFIX) && SECRET_NAME.test(key.slice(SECRET_ENV_PREFIX.length)) && env[key])
+      .map((key) => key.slice(SECRET_ENV_PREFIX.length))
+      .sort()
+  const read = (name: string) => (SECRET_NAME.test(name) ? env[secretEnvName(name)] || undefined : undefined)
+  return {
+    kind: 'environment',
+    list: async () => names().map((name) => ({ name, hint: hintOf(read(name)!) })),
+    get: async (name) => read(name),
+    cachedValues: () => names().map((name) => read(name)!),
+    invalidate: () => {},
+  }
 }

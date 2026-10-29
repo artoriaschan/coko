@@ -6,16 +6,19 @@ import type { SessionModel } from '@coko/protocol'
 import { createPayloadRegistry, isStoreError } from '@coko/session'
 import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
 import { openCheckpointStore } from '../adapters/checkpoints.ts'
-import { createEnvCredentialStore, createEnvSecretProvider, createIpcCredentialStore } from '../adapters/credentials.ts'
+import { createEnvCredentialStore, createEnvSecretSource, createIpcCredentialStore, createIpcSecretSource } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
+import { createMcpTransport } from '../adapters/mcp.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { createSecretProbeTool } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
 import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
+import { McpManager } from '../application/context/mcp.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { ProviderService } from '../application/providers.ts'
+import { SecretService } from '../application/secrets.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
@@ -44,7 +47,9 @@ export class Logging extends Context.Service<Logging, FileLogging>()('coko/Loggi
 export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
-export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly }>()('coko/Assembly') {}
+export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly; mcp: McpManager; secrets: SecretService }>()(
+  'coko/Assembly',
+) {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
 export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
 
@@ -128,12 +133,26 @@ const StoreLive = Layer.effect(
 const AssemblyLive = Layer.effect(
   Assembly,
   Effect.gen(function* () {
-    const { config: sidecar } = yield* Host
+    const { config: sidecar, control, env } = yield* Host
     const store = yield* Store
     const config = new ConfigService({ store })
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome })
+    // Secret 只来自登记条目（ADR 0007）：IPC 模式为库中密文（经 main 解密），独立运行只读 COKO_SECRET_<NAME>。
+    const secrets = new SecretService({
+      store,
+      source: control.mode === 'ipc' ? createIpcSecretSource({ control, secrets: store.secrets }) : createEnvSecretSource(env),
+      ...(control.mode === 'ipc' ? { control } : {}),
+    })
+    const mcp = new McpManager({
+      store,
+      config,
+      secrets,
+      createTransport: (server, { cwd }) => createMcpTransport(server, { cwd, env }),
+      ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
+    })
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
-    return yield* Effect.acquireRelease(Effect.succeed({ config, context }), ({ context }) => Effect.promise(() => context.close()))
+    // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
+    return yield* Effect.acquireRelease(Effect.succeed({ config, context, mcp, secrets }), ({ context }) => Effect.promise(() => context.close()))
   }),
 )
 
@@ -219,7 +238,7 @@ const AppLive = Layer.effect(
     const store = yield* Store
     const runs = yield* Runs
     const workspaceTools = yield* Tools
-    const { config: capabilities, context } = yield* Assembly
+    const { config: capabilities, context, mcp, secrets } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -243,7 +262,7 @@ const AppLive = Layer.effect(
       hub,
       runs,
       tools: workspaceTools,
-      secrets: createEnvSecretProvider(env),
+      secrets: secrets.provider,
       extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
       context,
@@ -275,6 +294,8 @@ const AppLive = Layer.effect(
       workspaces: new WorkspaceService(store),
       config: capabilities,
       context,
+      mcp,
+      secrets,
     } satisfies Application
   }),
 )

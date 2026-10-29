@@ -250,12 +250,27 @@ describe('越出可写根的文件写入', () => {
 })
 
 describe('Secrets 注入', () => {
-  it('声明 secrets 的测试宿主工具在其子进程中拿到值；同一 Session 的 bash env 中没有', async () => {
+  it('声明 secrets 的测试宿主工具在其子进程中拿到登记的值；Sidecar 环境中的同名变量不被读取；同一 Session 的 bash env 中没有', async () => {
     const secret = `sk-cokosecret${randomBytes(12).toString('hex')}`
-    const { api, sessionId, stream } = await boot(
+    const hostValue = `sk-cokohost${randomBytes(12).toString('hex')}`
+    const { api, sessionId, stream, sidecar } = await boot(
       () => [{ content: [{ type: 'toolCall', name: 'secret_probe', id: 's1', arguments: {} }, bash('b1', 'env')] }, { content: 'done' }],
-      { COKO_TEST_TOOLS: '1', COKO_TEST_SECRET: secret },
+      { COKO_TEST_TOOLS: '1', COKO_TEST_SECRET: hostValue },
     )
+    // ADR 0007：Secret 只来自登记条目。模拟 main：secret.store 交来密文，secret.decrypt 时解密（可逆的假 safeStorage）。
+    const xor = (bytes: Buffer) => Buffer.from([...bytes].map((b) => b ^ 0x5a))
+    sidecar.onMessage((message) => {
+      if (message.type === 'secret.decrypt')
+        sidecar.send({ type: 'secret.decrypt.result', requestId: message.requestId, plaintext: xor(Buffer.from(message.ciphertext, 'base64')).toString() })
+    })
+    sidecar.send({
+      type: 'secret.store',
+      requestId: 1,
+      name: 'COKO_TEST_SECRET',
+      ciphertext: xor(Buffer.from(secret)).toString('base64'),
+      hint: secret.slice(-4),
+    })
+    expect(await sidecar.waitMessage('secret.store.result')).toMatchObject({ ok: true })
     await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'probe' })
     await runEnds(stream, sessionId, 1)
@@ -265,6 +280,7 @@ describe('Secrets 注入', () => {
     expect(env).toContain('PATH=')
     expect(env).not.toContain('COKO_TEST_SECRET')
     expect(env).not.toContain(secret)
+    expect(env).not.toContain(hostValue)
     expect(stream.frames.some((frame) => frame.includes(secret))).toBe(false)
   })
 })
