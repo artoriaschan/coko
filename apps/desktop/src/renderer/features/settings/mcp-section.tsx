@@ -9,6 +9,7 @@ import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { mcpStore } from '../../stores/mcp-store.ts'
+import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const POLL_MS = 750
@@ -69,6 +70,9 @@ export function McpSection() {
           {t('mcp.add')}
         </Button>
       </div>
+      <SettingsCard>
+        <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} label="config.capabilities.mcp.label" hint="config.capabilities.mcp.hint" />
+      </SettingsCard>
       {data && !data.enabled && <p className="text-ui-small text-warning">{t('mcp.disabled')}</p>}
       {workspaceId === undefined && <p className="text-ui-small text-muted-foreground">{t('mcp.noWorkspace')}</p>}
       {status === 'error' && !data && <p className="text-ui-body text-muted-foreground">{t('mcp.loadFailed')}</p>}

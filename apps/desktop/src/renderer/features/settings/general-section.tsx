@@ -9,6 +9,7 @@ import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { usePreferences } from '../../app/settings.tsx'
 import { configStore } from '../../stores/config-store.ts'
+import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard, SettingsRow } from './settings-dialog.tsx'
 
 export function GeneralSection({ theme }: { theme: Theme }) {
@@ -60,7 +61,43 @@ export function GeneralSection({ theme }: { theme: Theme }) {
         </SettingsRow>
         <ProjectSettingsRow />
       </SettingsCard>
+      <ContextSwitches />
     </section>
+  )
+}
+
+/** 指令文件、自动压缩与时间裁剪的全局开关。 */
+function ContextSwitches() {
+  const { t } = useI18n()
+  const activeWorkspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId)
+  const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
+  const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 id="settings-context" className="text-ui-body font-medium">
+        {t('config.capabilities.title')}
+      </h3>
+      <SettingsCard aria-labelledby="settings-context" role="group">
+        <CapabilityToggle
+          name="instructions.enabled"
+          workspaceId={workspaceId}
+          label="config.capabilities.instructions.label"
+          hint="config.capabilities.instructions.hint"
+        />
+        <CapabilityToggle
+          name="context.autoCompact"
+          workspaceId={workspaceId}
+          label="config.capabilities.autoCompact.label"
+          hint="config.capabilities.autoCompact.hint"
+        />
+        <CapabilityToggle
+          name="context.trimOldToolResults"
+          workspaceId={workspaceId}
+          label="config.capabilities.trimOldToolResults.label"
+          hint="config.capabilities.trimOldToolResults.hint"
+        />
+      </SettingsCard>
+    </div>
   )
 }
 

@@ -8,6 +8,7 @@ import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { skillsStore } from '../../stores/skills-store.ts'
+import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
@@ -73,6 +74,14 @@ export function SkillsSection() {
           <Group id="skills-list" title={t('skills.skillsHeading')} empty={t('skills.emptySkills')} ready={current && status === 'ready'}>
             {current && skills.map((skill) => <SkillRow key={skill.path} skill={skill} />)}
           </Group>
+          <SettingsCard>
+            <CapabilityToggle
+              name="commands.enabled"
+              workspaceId={workspaceId}
+              label="config.capabilities.commands.label"
+              hint="config.capabilities.commands.hint"
+            />
+          </SettingsCard>
           <Group id="commands-list" title={t('skills.commandsHeading')} empty={t('skills.emptyCommands')} ready={current && status === 'ready'}>
             {current && commands.map((command) => <CommandRow key={`${command.source}:${command.name}`} command={command} />)}
           </Group>
