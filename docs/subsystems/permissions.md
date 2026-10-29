@@ -65,7 +65,7 @@ workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：�
 
 判定只看工具名所属的组：read 组（read、grep、find、ls）、edit 组（write、edit）、bash、Memory 组（memory-write 类）；其他名字（宿主新增的工具）按原名判定。规则以组名书写：`Read`、`Edit`、`Bash`、`Memory`，`skill` 工具为 `Skill`（内容为 Skill 名，见 [Skills](skills.md#权限)），宿主工具用注册名。规则 `mcp__<server>` 匹配该 Server 的全部工具（`mcp__<server>__*`），不匹配名字以它开头的其他 Server（`mcp__srv` 不匹配 `mcp__srv2__x`）。
 
-**工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`，`skill` → `Skill`，后者即使本次 Run 未注册 skill 工具也接受），宿主工具按注册名不区分大小写匹配；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
+**工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`，`skill` → `Skill`，后者即使本次 Run 未注册 skill 工具也接受），宿主工具按注册名不区分大小写匹配；按 Run 贡献的工具即使当前未注册也接受（`memory_write` / `memory_delete` → `Memory`，`memory_list`、`list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` 按原名；之后新增的贡献工具在 Run 开始时登记）；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
 
 顺序固定（ADR 0005）：
 
@@ -202,7 +202,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 - `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external 在四种模式下的放行，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
-- `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`。
+- `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`；`sidecar-context.test.ts` 覆盖经 `PUT /api/permissions` 写入 Memory、`memory_list` 与 MCP 资源工具的拒绝规则后生效。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
 - `tests/integration/sidecar-mcp.test.ts`：真实 Sidecar 上 MCP 工具（external）在 default 下询问、Session 规则 `mcp__remote` 放行该 Server 的全部工具、full-access 免审批。
 - `tests/integration/sidecar-config.test.ts`：项目 deny 规则（小写工具名）在 full-access 下拒绝调用且优先于全局允许规则、改文件后下一个 Run 生效、项目 allow 不放行、读取接口的 `project`；`apps/desktop/e2e/config.e2e.test.ts`：Permissions 分区的只读项目规则。

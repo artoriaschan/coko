@@ -60,7 +60,7 @@ export interface ContextAssembly {
   hooks(scope: ContextScope): ToolHooks[]
   expandInput(text: string, scope: ContextScope): Promise<ExpandResult>
   /** 没有领域改动请求时 undefined（运行时不装 transformContext）。 */
-  readonly transformMessages: ((messages: AgentMessage[]) => AgentMessage[]) | undefined
+  readonly transformMessages: ((messages: AgentMessage[], scope: ContextScope) => AgentMessage[]) | undefined
   action(name: string): ContextAction | undefined
   report(scope: ContextScope): Promise<ContextReport[]>
   readonly contributions: readonly ContextContribution[]
@@ -112,7 +112,8 @@ export function createContextAssembly(options: {
       }
       return { kind: 'input', input }
     },
-    transformMessages: transforms.length === 0 ? undefined : (messages) => transforms.reduce((current, transform) => transform(current), messages),
+    transformMessages:
+      transforms.length === 0 ? undefined : (messages, scope) => transforms.reduce((current, transform) => transform(current, scope), messages),
     action(name) {
       for (const c of contributions) if (c.actions && Object.hasOwn(c.actions, name)) return c.actions[name]
       return undefined
