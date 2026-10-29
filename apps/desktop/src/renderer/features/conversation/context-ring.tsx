@@ -1,5 +1,6 @@
 import { contextUsageLevel, contextUsagePercent, type ContextBreakdown, type ContextUsageResponse } from '@coko/protocol'
-import { ContextRing, HoverCard, HoverCardContent, HoverCardTrigger, type ContextRingLevel } from '@coko/ui'
+import { ContextRing, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip, TooltipContent, TooltipTrigger, type ContextRingLevel } from '@coko/ui'
+import { CirclePauseIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -46,7 +47,9 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
   const key = targetKey(target)
   const usage = useStore(store, (s) => (s.key === key ? s.usage : null))
   const failed = useStore(store, (s) => s.key === key && s.status === 'error' && s.usage === null)
-  const signal = useRefreshSignal(target)
+  // 压缩结束（成功或失败）也刷新：熔断状态只在用量接口中。
+  const compactions = useStore(store, (s) => s.compactionRevision)
+  const signal = `${useRefreshSignal(target)}:${compactions}`
   const targetRef = React.useRef(target)
   targetRef.current = target
   const refresh = React.useCallback(() => void store.getState().load(targetRef.current), [store])
@@ -71,42 +74,62 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
   const label = percent === undefined ? t('context.ring.unknown') : t('context.ring.label', { percent: String(percent) })
   const number = React.useMemo(() => new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US'), [locale])
 
+  const paused = usage?.autoCompact.enabled === true && usage.autoCompact.paused
   return (
-    <HoverCard open={open} onOpenChange={onOpenChange}>
-      <HoverCardTrigger asChild>
-        <ContextRing
-          ref={trigger}
-          percent={percent}
-          level={level}
-          label={label}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          onClick={() => toggle(!open)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && open) {
-              event.preventDefault()
-              event.stopPropagation()
-              toggle(false)
-            }
-          }}
-        />
-      </HoverCardTrigger>
-      <HoverCardContent
-        side="top"
-        align="end"
-        role="dialog"
-        aria-label={t('context.card.title')}
-        data-slot="context-card"
-        className="w-80"
-        onEscapeKeyDown={() => trigger.current?.focus()}
-      >
-        {usage ? (
-          <ContextDetails usage={usage} format={(n) => number.format(n)} />
-        ) : (
-          <p className="text-ui-small text-muted-foreground">{failed ? t('context.card.loadFailed') : '…'}</p>
-        )}
-      </HoverCardContent>
-    </HoverCard>
+    <>
+      {paused && (
+        // 熔断：连续 3 次自动压缩失败后暂停，提示用 /compact 手动压缩。
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="img"
+              tabIndex={0}
+              aria-label={t('context.compaction.pausedHint')}
+              data-slot="auto-compact-paused"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-warning focus-ring"
+            >
+              <CirclePauseIcon aria-hidden className="size-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">{t('context.compaction.pausedHint')}</TooltipContent>
+        </Tooltip>
+      )}
+      <HoverCard open={open} onOpenChange={onOpenChange}>
+        <HoverCardTrigger asChild>
+          <ContextRing
+            ref={trigger}
+            percent={percent}
+            level={level}
+            label={label}
+            aria-expanded={open}
+            aria-haspopup="dialog"
+            onClick={() => toggle(!open)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && open) {
+                event.preventDefault()
+                event.stopPropagation()
+                toggle(false)
+              }
+            }}
+          />
+        </HoverCardTrigger>
+        <HoverCardContent
+          side="top"
+          align="end"
+          role="dialog"
+          aria-label={t('context.card.title')}
+          data-slot="context-card"
+          className="w-80"
+          onEscapeKeyDown={() => trigger.current?.focus()}
+        >
+          {usage ? (
+            <ContextDetails usage={usage} format={(n) => number.format(n)} />
+          ) : (
+            <p className="text-ui-small text-muted-foreground">{failed ? t('context.card.loadFailed') : '…'}</p>
+          )}
+        </HoverCardContent>
+      </HoverCard>
+    </>
   )
 }
 

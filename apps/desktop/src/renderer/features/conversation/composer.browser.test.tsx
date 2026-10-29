@@ -5,6 +5,7 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { TooltipProvider } from '@coko/ui'
 import { I18nProvider } from '../../app/i18n.tsx'
+import { createContextStore } from '../../stores/context-store.ts'
 import { Composer, type ComposerHandle, type ComposerProps } from './composer.tsx'
 
 type Submit = ComposerProps['onSend']
@@ -115,5 +116,28 @@ describe('Composer：Run 进行中', () => {
     await expect.poll(() => editorElement().innerText.replace(/\n+/g, '|')).toBe('first|second|my draft')
     await userEvent.keyboard('{Enter}')
     expect(h.onSend).toHaveBeenCalledExactlyOnceWith('first\nsecond\nmy draft')
+  })
+})
+
+describe('Composer：压缩状态行', () => {
+  it('当前会话正在压缩时显示"正在压缩上下文…"与停止按钮（调用 onStop）；其他会话压缩时不显示', async () => {
+    const contextStore = createContextStore(async () => {
+      throw new Error('offline')
+    })
+    const h = renderComposer({ running: true, commandTarget: { sessionId: 's1' }, contextStore })
+    await h.result
+    expect(document.querySelector('[data-slot="compaction-status"]')).toBeNull()
+    contextStore.setState({ compacting: { s2: true } })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(document.querySelector('[data-slot="compaction-status"]')).toBeNull()
+    contextStore.setState({ compacting: { s1: true } })
+    const status = () => document.querySelector('[data-slot="compaction-status"]')
+    await expect.poll(() => status()?.getAttribute('role')).toBe('status')
+    expect(status()!.textContent).toContain('Compacting context…')
+    expect(action('stop-compaction')?.textContent).toBe('Stop compacting')
+    action('stop-compaction')!.click()
+    expect(h.onStop).toHaveBeenCalledOnce()
+    contextStore.setState({ compacting: {} })
+    await expect.poll(() => document.querySelector('[data-slot="compaction-status"]')).toBeNull()
   })
 })

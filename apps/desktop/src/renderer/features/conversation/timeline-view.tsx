@@ -3,6 +3,7 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import { ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
+import { CompactionDivider } from './compaction-divider.tsx'
 import { Markdown } from './markdown.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ToolCardView } from './tool-cards.tsx'
@@ -153,6 +154,8 @@ export function TimelineView(props: TimelineViewProps) {
                 </div>
               </details>
             )
+          case 'compaction':
+            return <CompactionDivider key={item.key} item={item} theme={theme} />
           case 'text':
             return (
               <article

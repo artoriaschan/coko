@@ -1,4 +1,4 @@
-import { contextPaths, ContextUsageResponse } from '@coko/protocol'
+import { contextPaths, ContextUsageResponse, type ServerMessage } from '@coko/protocol'
 import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { targetKey, type CommandTarget } from './commands-store.ts'
@@ -11,6 +11,18 @@ export interface ContextState {
   key: string | null
   status: 'idle' | 'loading' | 'ready' | 'error'
   usage: ContextUsageResponse | null
+  /** 正在压缩的会话（compaction_start 到 compaction_end / failed 或 Run 结束）。 */
+  compacting: Record<string, true>
+  /** 每次压缩结束（成功或失败）加一：上下文环据此刷新（熔断状态只在用量接口中）。 */
+  compactionRevision: number
+}
+
+/** compaction_failed 进度（失败 Toast 用）。 */
+export interface CompactionFailure {
+  sessionId: string
+  trigger: 'auto' | 'manual' | 'overflow'
+  message: string
+  consecutiveFailures: number
 }
 
 export interface ContextActions {
@@ -24,6 +36,44 @@ export interface ContextActions {
 export type ContextStore = StoreApi<ContextState & ContextActions>
 
 export type FetchContextUsage = (target: ContextTarget) => Promise<ContextUsageResponse>
+
+/** 与对话 store 共用的 WebSocket 消息通道（只读消息）。 */
+export interface ProgressSource {
+  onMessage(listener: (message: ServerMessage) => void): () => void
+  onOpen(listener: (reconnected: boolean) => void): () => void
+}
+
+/**
+ * 跟踪压缩进度（票 11）：compaction_start 标记会话正在压缩，compaction_end / compaction_failed / run_end 清除；失败时调用 onFailure
+ * （每次一个 Toast）。断线重连时清空（进行中的压缩之后由 run_end 或下一次进度更新）。返回取消订阅。
+ */
+export function trackCompaction(store: ContextStore, stream: ProgressSource, onFailure?: (failure: CompactionFailure) => void): () => void {
+  const set = (sessionId: string, on: boolean, ended: boolean) => {
+    const { compacting, compactionRevision } = store.getState()
+    if (on === Boolean(compacting[sessionId]) && !ended) return
+    const next = { ...compacting }
+    if (on) next[sessionId] = true
+    else delete next[sessionId]
+    store.setState({ compacting: next, compactionRevision: compactionRevision + (ended ? 1 : 0) })
+  }
+  const offMessage = stream.onMessage((message) => {
+    if (message.type !== 'progress') return
+    const event = message.event
+    if (event.type === 'compaction_start') set(message.sessionId, true, false)
+    else if (event.type === 'compaction_end') set(message.sessionId, false, true)
+    else if (event.type === 'compaction_failed') {
+      set(message.sessionId, false, true)
+      onFailure?.({ sessionId: message.sessionId, trigger: event.trigger, message: event.message, consecutiveFailures: event.consecutiveFailures })
+    } else if (event.type === 'run_end') set(message.sessionId, false, false)
+  })
+  const offOpen = stream.onOpen((reconnected) => {
+    if (reconnected) store.setState({ compacting: {} })
+  })
+  return () => {
+    offMessage()
+    offOpen()
+  }
+}
 
 /** GET /api/sessions/:id/context 或 /api/workspaces/:id/context：同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。 */
 export function httpFetchContextUsage(fetchImpl: (input: string) => Promise<Response> = (input) => fetch(input)): FetchContextUsage {
@@ -43,6 +93,8 @@ export function createContextStore(fetchUsage: FetchContextUsage = httpFetchCont
     key: null,
     status: 'idle',
     usage: null,
+    compacting: {},
+    compactionRevision: 0,
     async load(target) {
       const key = targetKey(target)
       const request = ++latest

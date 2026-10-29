@@ -1,4 +1,4 @@
-// 上下文用量、File Reference 与压缩（票 06、10、11）。
+// 上下文用量、File Reference 与压缩（票 06、10、11；压缩的文案在 context.compaction，不另立领域）。
 import { defineDomain } from './define.ts'
 
 export const context = defineDomain(
@@ -30,6 +30,16 @@ export const context = defineDomain(
       diagnostics: '诊断',
       loadFailed: '无法读取上下文用量',
     },
+    compaction: {
+      inProgress: '正在压缩上下文…',
+      stop: '停止压缩',
+      divider: '已压缩上下文',
+      saved: '约节省 {tokens} tokens',
+      showSummary: '查看摘要',
+      failed: '压缩上下文失败：{message}',
+      pausedHint: '自动压缩连续失败，已暂停。可以输入 /compact 手动压缩',
+      paused: '自动压缩已暂停',
+    },
   },
   {
     ring: {
@@ -58,6 +68,16 @@ export const context = defineDomain(
       scopes: { user: 'User', project: 'Project', nested: 'Subdirectory' },
       diagnostics: 'Diagnostics',
       loadFailed: 'Could not load context usage',
+    },
+    compaction: {
+      inProgress: 'Compacting context…',
+      stop: 'Stop compacting',
+      divider: 'Context compacted',
+      saved: 'saved about {tokens} tokens',
+      showSummary: 'Show summary',
+      failed: 'Could not compact the context: {message}',
+      pausedHint: 'Auto-compact failed repeatedly and is paused. Type /compact to compact manually',
+      paused: 'Auto-compact is paused',
     },
   },
 )

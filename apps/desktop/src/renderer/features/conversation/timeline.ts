@@ -1,4 +1,11 @@
-import { fileReferencePath, type ApprovalDecisionPayload, type ApprovalRequestPayload, type CommandPayload, type SessionEntry } from '@coko/protocol'
+import {
+  fileReferencePath,
+  type ApprovalDecisionPayload,
+  type ApprovalRequestPayload,
+  type CommandPayload,
+  type CompactionPayload,
+  type SessionEntry,
+} from '@coko/protocol'
 import { rewoundRanges } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
@@ -33,6 +40,8 @@ export type TimelineItem =
   | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean; command?: CommandPayload; invocation?: string; references?: string[] }
   /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
   | { kind: 'rewound'; key: string; items: TimelineItem[] }
+  /** 压缩分隔条：之前的消息仍在时间线中；saved 为约节省的 tokens（没有 tokensAfter 时省略）。 */
+  | { kind: 'compaction'; key: string; summary: string; trigger: CompactionPayload['trigger']; saved?: number }
   | { kind: 'text'; key: string; text: string; streaming: boolean }
   | { kind: 'thinking'; key: string; text: string; streaming: boolean }
   | {
@@ -93,6 +102,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   let lastRunId: string | null = null
+  /** trigger compact 的 Run：其错误不可重试（重试会重新执行上一轮对话），也不显示"生成中"。 */
+  const compactRuns = new Set<string>()
   // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
   let pendingCommand: CommandPayload | null = null
   const ranges = rewoundRanges(conversation.entries)
@@ -131,7 +142,21 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
 
   const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
     if (entry.runId) lastRunId = entry.runId
-    if (entry.kind === 'run_start') pendingCommand = null
+    if (entry.kind === 'run_start') {
+      pendingCommand = null
+      if (entry.payload.trigger === 'compact' && entry.runId) compactRuns.add(entry.runId)
+    }
+    if (entry.kind === 'compaction') {
+      const { summary, trigger, tokensBefore, tokensAfter } = entry.payload
+      items.push({
+        kind: 'compaction',
+        key: `${entry.seq}`,
+        summary,
+        trigger,
+        ...(tokensAfter === undefined ? {} : { saved: Math.max(0, tokensBefore - tokensAfter) }),
+      })
+      return
+    }
     if (entry.kind === 'command') {
       pendingCommand = entry.payload
       return
@@ -144,7 +169,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
       else if (payload.status === 'interrupted') items.push({ kind: 'interrupted', key: `${entry.seq}` })
       // 被回退区间内的错误不可重试。
-      else if (payload.status === 'error') items.push({ kind: 'error', key: `${entry.seq}`, message: payload.error?.message ?? '', retryable: !hidden })
+      else if (payload.status === 'error')
+        items.push({
+          kind: 'error',
+          key: `${entry.seq}`,
+          message: payload.error?.message ?? '',
+          retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
+        })
       return
     }
     if (entry.kind === 'approval_request') {
@@ -253,7 +284,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     })
     // 以合并后的工具项判断：断线期间错过的 tool_end 由已提交的 toolResult 补上。
     const toolRunning = items.some((i) => i.kind === 'tool' && (i.status === 'running' || i.status === 'awaiting'))
-    if (!visible && !toolRunning) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
+    // 手动压缩的 Run 没有对话输出：状态行在输入区上方。
+    const compacting = live.runId !== null && compactRuns.has(live.runId)
+    if (!visible && !toolRunning && !compacting) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
   }
 
   // 待送达的追加指令排在最后（送达后由 user 条目替代）。

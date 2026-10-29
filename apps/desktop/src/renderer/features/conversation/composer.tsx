@@ -1,8 +1,10 @@
 import { Button, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
+import { ArrowUpIcon, LoaderCircleIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
+import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
 import type { CommandTarget } from '../../stores/commands-store.ts'
+import { contextStore as defaultContextStore, type ContextStore } from '../../stores/context-store.ts'
 import { appDraftStore, draftKey, type DraftStore } from '../../stores/draft-store.ts'
 import { CommandMenu } from './command-menu.tsx'
 import { ContextRingControl } from './context-ring.tsx'
@@ -34,6 +36,8 @@ export interface ComposerProps {
   fileWorkspaceId?: string | undefined
   /** 草稿持久化（测试注入）；缺省为应用内共用的 localStorage store。草稿按 commandTarget 区分，省略 commandTarget 时不持久化。 */
   drafts?: DraftStore
+  /** 上下文用量与压缩进度（测试注入）；缺省为应用内共用的 store。 */
+  contextStore?: ContextStore
   /** 外部聚焦编辑区（⌘N 新建会话后）或放回文本（退回的追加指令）。 */
   ref?: React.Ref<ComposerHandle>
 }
@@ -64,9 +68,12 @@ export function Composer({
   commandTarget,
   fileWorkspaceId,
   drafts: injectedDrafts,
+  contextStore = defaultContextStore,
   ref,
 }: ComposerProps) {
   const { t } = useI18n()
+  const sessionId = commandTarget && 'sessionId' in commandTarget ? commandTarget.sessionId : undefined
+  const compacting = useStore(contextStore, (s) => sessionId !== undefined && s.compacting[sessionId] === true)
   const editor = React.useRef<ComposerEditorHandle>(null)
   const [empty, setEmpty] = React.useState(true)
   const key = commandTarget ? draftKey(commandTarget) : undefined
@@ -149,6 +156,16 @@ export function Composer({
         else void editor.current?.submit()
       }}
     >
+      {compacting && (
+        // 压缩进行中（自动或 /compact）：独占一行，排在编辑区之上；停止不提交 compaction 条目。
+        <div role="status" data-slot="compaction-status" className="order-first flex w-full items-center gap-2 px-1 text-ui-body text-muted-foreground">
+          <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+          <span className="min-w-0 flex-1">{t('context.compaction.inProgress')}</span>
+          <Button type="button" size="sm" variant="ghost" data-action="stop-compaction" onClick={onStop}>
+            {t('context.compaction.stop')}
+          </Button>
+        </div>
+      )}
       <ComposerEditor
         ref={editor}
         // basis-0：长草稿不会把控件挤到下一行；只有控件本身放不下时才换行。
@@ -176,7 +193,7 @@ export function Composer({
       </ComposerEditor>
       {accessory}
       {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
-      {commandTarget && <ContextRingControl target={commandTarget} />}
+      {commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
       {setup ? (
         <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
           <SettingsIcon />
