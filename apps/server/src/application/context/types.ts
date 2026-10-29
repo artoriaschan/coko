@@ -1,6 +1,7 @@
 // 上下文装配（M3 规格"apps/server"）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
 import type { CapabilityConfig, CokoTool, PermissionClass, RunInput, SystemSection, ToolHooks } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { SessionStore } from '@coko/session'
 
 /** 一次取值的作用域：Workspace（及其 Session，如果有）与当时的有效配置。 */
 export interface ContextScope {
@@ -62,4 +63,9 @@ export interface ContextContribution {
 
 export interface ContextContributionOptions {
   cokoHome: string
+  /** Memory 的存储（票 09）；缺省时 Memory 为空贡献。 */
+  memories?: MemoryStore
 }
+
+/** Memory 贡献需要的存储部分：记忆仓库与 Workspace 查询。 */
+export type MemoryStore = { memories: SessionStore['memories']; sessions: Pick<SessionStore['sessions'], 'getWorkspace'> }

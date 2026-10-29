@@ -149,4 +149,44 @@ describe('工具卡', () => {
     expect(header.element().textContent).toContain('ls -la')
     expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).toBe('total 0')
   })
+  it('Memory 工具卡：按结果显示"已记住 / 已更新记忆 / 已删除记忆"，失败与等待时为动作名', async () => {
+    const memory = { id: 'm1', scope: 'workspace', content: 'Uses pnpm', updatedAt: 1 }
+    const write = (status: ToolItem['status'], details: unknown, isError = false, id?: string): ToolItem => ({
+      kind: 'tool',
+      key: 'tool:w',
+      call: { id: 'w', name: 'memory_write', arguments: { content: 'Uses pnpm', scope: 'workspace', ...(id ? { id } : {}) } },
+      result: status === 'done' || status === 'error' ? { isError, text: isError ? 'Memory entry m9 not found' : 'ok', details } : null,
+      status,
+      live: null,
+    })
+    const title = () => document.querySelector('[data-slot="tool-card"]')!.querySelector('button')!.textContent
+    const screen = await renderCard(write('done', { action: 'created', memory }))
+    expect(title()).toContain('Remembered')
+    expect(title()).toContain('Uses pnpm')
+    const again = (item: ToolItem, locale: 'en' | 'zh' = 'en') =>
+      screen.rerender(
+        <I18nProvider locale={locale}>
+          <ToolCardView item={item} />
+        </I18nProvider>,
+      )
+    await again(write('done', { action: 'updated', memory }, false, 'm1'))
+    expect(title()).toContain('Updated memory')
+    await again(write('done', { action: 'created', memory }), 'zh')
+    expect(title()).toContain('已记住')
+    await again(write('error', undefined, true, 'm9'))
+    expect(title()).toContain('Save memory')
+    await again(write('awaiting', undefined))
+    expect(title()).toContain('Save memory')
+    await again({
+      kind: 'tool',
+      key: 'tool:d',
+      call: { id: 'd', name: 'memory_delete', arguments: { id: 'm1' } },
+      result: { isError: false, text: 'Deleted memory m1.', details: { action: 'deleted', memory } },
+      status: 'done',
+      live: null,
+    })
+    expect(title()).toContain('Deleted memory')
+    expect(title()).toContain('m1')
+    expect(document.querySelector('[data-slot="tool-card"]')!.getAttribute('data-tool')).toBe('memory_delete')
+  })
 })

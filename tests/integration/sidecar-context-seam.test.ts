@@ -11,8 +11,8 @@ describe('上下文装配 seam', () => {
   it('空贡献时系统提示与 M2 相同；COKO_HOME 不进入 bash 环境', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
-    // 用户级指令文件已存在：票 01 的空贡献不读取它，请求不变（票 03 起才进入系统提示）。
-    await writeCokoHome(dirs, 'AGENTS.md', '# user instructions\n')
+    // COKO_HOME 中有文件但没有指令文件（票 03 起指令文件进入系统提示，见 sidecar-instructions.test.ts）：请求不变。
+    await writeCokoHome(dirs, 'notes.txt', 'not an instruction file\n')
     const requestLog = join(root, 'requests.jsonl')
     await writeFile(requestLog, '')
     const script = await fauxScript(root, {
