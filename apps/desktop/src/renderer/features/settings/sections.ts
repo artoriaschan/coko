@@ -29,7 +29,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'permissions', label: 'settings.permissions', icon: ShieldIcon, Component: PermissionsSection, available: true },
   { id: 'skills', label: 'skills.title', icon: BlocksIcon, Component: SkillsSection, available: false },
   { id: 'mcp', label: 'mcp.title', icon: PlugIcon, Component: McpSection, available: false },
-  { id: 'memory', label: 'memory.title', icon: BrainIcon, Component: MemorySection, available: false },
+  { id: 'memory', label: 'memory.title', icon: BrainIcon, Component: MemorySection, available: true },
   { id: 'about', label: 'settings.about', icon: InfoIcon, Component: AboutSection, available: true },
 ]
 
