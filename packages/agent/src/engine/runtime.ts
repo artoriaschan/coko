@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Agent, type AgentEvent, type AgentMessage, type AgentTool, type ThinkingLevel } from '@earendil-works/pi-agent-core'
-import type { Model, Models } from '@earendil-works/pi-ai'
+import type { Model, Models, SystemMessage } from '@earendil-works/pi-ai'
 import { composeAfterToolCall, composeBeforeToolCall, type ToolHooks } from '../extensions/hooks.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
@@ -17,10 +17,13 @@ import { createApprovalBroker, type ApprovalAnswer } from '../policy/broker.ts'
 import { createPermissionGate, OPERATION_ABORTED_TEXT, ToolCallBlockedError } from '../policy/gate.ts'
 import type { ApprovalRequestPayload, PermissionMode, PermissionRule, RunTrigger, SandboxMode, ToolExecPayload } from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
-import type { ProgressEvent, RunEntry, RunError, RunResult, RunStatus, RuntimeEvent } from './types.ts'
+import type { ProgressEvent, RunEntry, RunError, RunInput, RunResult, RunStatus, RuntimeContext, RuntimeEvent, SystemSection } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
   "You are Coko, a coding agent working in the user's Workspace. Use the tools to inspect and change files and to run commands. Keep answers concise."
+
+/** Name of the base prompt's section when host sections are present (the first section, ahead of every contribution). */
+export const BASE_SYSTEM_SECTION = 'coko.base'
 
 export class RuntimeBusyError extends Error {
   override readonly name = 'RuntimeBusyError'
@@ -94,16 +97,23 @@ export interface AgentRuntimeOptions {
    * continue() is allowed only after `paused` or `interrupted`. Omitted: no earlier Run.
    */
   lastRunStatus?: RunStatus
+  /** Host contributions to the model context (system sections, request-only message transform, pre-request hook). */
+  context?: RuntimeContext
 }
 
 export interface RuntimePermissions {
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
+  /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */
+  readRoots?: () => readonly string[]
 }
 
 export interface AgentRuntime {
-  /** Submit a user message and resolve when the Run ended and its run_end entry was committed. */
-  run(text: string): Promise<RunResult>
+  /**
+   * Submit a user message and resolve when the Run ended and its run_end entry was committed. `before` entries of a RunInput
+   * are committed after run_start and before the user message.
+   */
+  run(input: string | RunInput): Promise<RunResult>
   /**
    * Run the failed last turn again as a new Run, without a new user message: the trailing failed assistant
    * message is dropped from the model context and the model continues from the user message or tool results
@@ -121,7 +131,7 @@ export interface AgentRuntime {
    * next model request, and committed then as a user message. Messages not delivered when the Run ends are returned in
    * `run_end.undeliveredSteering`. Throws NoActiveRunError when no Run is in progress.
    */
-  steer(text: string): void
+  steer(input: string | RunInput): void
   /**
    * Pause the current Run: the current tool batch completes, no new model request starts, pending approvals end as
    * cancelled (those calls do not run), and the Run ends with status `paused`. Throws NoActiveRunError when no Run is in progress.
@@ -156,16 +166,21 @@ interface RunState {
   paused: boolean
   /** Aborted by pause(): cancels approvals that are waiting (not running tools). */
   pauseSignal: AbortController
-  /** Steering messages sent and not yet committed, in send order. */
-  steering: AgentMessage[]
+  /** Steering messages sent and not yet committed, in send order, with the entries to commit right before each. */
+  steering: Steering[]
   commitError?: Error
 }
 
-const textOfUser = (message: AgentMessage): string => {
-  const content = (message as { content?: unknown }).content
-  if (typeof content === 'string') return content
-  return Array.isArray(content) ? content.map((block: { type?: string; text?: string }) => (block.type === 'text' ? (block.text ?? '') : '')).join('') : ''
+interface Steering {
+  message: AgentMessage
+  /** What the user typed; returned in run_end.undeliveredSteering when not delivered. */
+  text: string
+  before: readonly RunEntry[]
 }
+
+const toInput = (input: string | RunInput): RunInput => (typeof input === 'string' ? { text: input } : input)
+
+const userMessage = (input: RunInput): AgentMessage => ({ role: 'user', content: input.content ?? [{ type: 'text', text: input.text }], timestamp: Date.now() })
 
 export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const registry = options.tools ?? createBuiltinToolRegistry({ cwd: options.cwd, exec: options.exec ?? createLocalExecPort() })
@@ -273,6 +288,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ? createPermissionGate({
         cwd: options.cwd,
         tool: (name) => registry.get(name),
+        permissionClass: (name) => registry.permissionClass(name),
+        ...(permissions.readRoots ? { readRoots: permissions.readRoots } : {}),
         broker,
         mode: permissions.mode,
         rules: permissions.rules,
@@ -313,6 +330,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const before = composeBeforeToolCall(pausableGate ? [{ beforeToolCall: pausableGate }, ...hooks] : hooks)
   const after = composeAfterToolCall(hooks)
 
+  const context = options.context
+
   const agent = new Agent({
     initialState: {
       systemPrompt: options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
@@ -335,11 +354,39 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       return before(context, signal)
     },
     afterToolCall: (context, signal) => after(context, signal),
+    ...(context?.transformMessages ? { transformContext: async (messages: AgentMessage[]) => context.transformMessages!(messages) } : {}),
+    ...(context?.beforeRequest
+      ? {
+          prepareRequest: async ({ context: request, model }, signal) => {
+            if (current) await context.beforeRequest!({ runId: current.runId, messages: request.messages, model, ...(signal ? { signal } : {}) })
+          },
+        }
+      : {}),
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
     finishTurn: () => (current?.aborted || current?.rejected || current?.paused ? { action: 'end' } : undefined),
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
   })
+
+  // 宿主每个 Run 开始时给出 system sections：替换开头的系统消息（它不是已提交的条目，每次构造运行时都按基础提示重建）。
+  // 没有宿主段落时保持基础提示原样，模型请求与 M2 相同。
+  const basePrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
+  // 只替换运行时自己建立的开头消息；恢复的对话记录本身以系统消息开头时不动它。
+  let leading: SystemMessage | undefined =
+    options.messages?.[0]?.role !== 'system' && agent.state.messages[0]?.role === 'system' ? (agent.state.messages[0] as SystemMessage) : undefined
+  const applySystemSections = (sections: readonly SystemSection[]) => {
+    const messages = agent.state.messages
+    const index = leading ? messages.indexOf(leading) : -1
+    if (!leading || index !== 0) return
+    const { sections: _previous, ...rest } = leading
+    const extra = sections.filter((section) => section.text.length > 0)
+    const next: SystemMessage =
+      extra.length === 0
+        ? { ...rest, content: basePrompt }
+        : { ...rest, content: '', sections: Object.fromEntries([[BASE_SYSTEM_SECTION, basePrompt], ...extra.map((s) => [s.name, s.text] as const)]) }
+    leading = next
+    agent.state.messages = [next, ...messages.slice(1)]
+  }
 
   agent.subscribe(async (event: AgentEvent) => {
     const run = current
@@ -355,13 +402,21 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       }
       case 'message_end':
         try {
+          const delivered = run.steering.findIndex((s) => s.message === event.message)
+          // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
+          if (delivered >= 0) for (const entry of run.steering[delivered]!.before) await commit({ ...entry, runId: run.runId } as RunEntry)
           await commit({ kind: 'message', runId: run.runId, payload: event.message })
           // 追加指令送达：提交成功后才不算未送达。
-          const delivered = run.steering.indexOf(event.message)
           if (delivered >= 0) run.steering.splice(delivered, 1)
         } catch (error) {
           run.commitError = error instanceof Error ? error : new Error(String(error))
           agent.abort()
+          return
+        }
+        if (event.message.role === 'assistant') {
+          const usage = event.message.usage
+          const tokens = usage ? usage.input + usage.cacheRead + usage.cacheWrite + usage.output : 0
+          progress({ type: 'context_usage', runId: run.runId, tokens, contextWindow: agent.state.model.contextWindow ?? 0 })
         }
         return
       case 'tool_execution_start':
@@ -408,7 +463,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    * One Run around `drive`: run_start progress (synchronously, so the host learns the runId), the run_start entry
    * before the first model request, the agent loop, the run_end entry, then the run_end progress.
    */
-  const execute = async (trigger: RunTrigger, drive: () => Promise<void>): Promise<RunResult> => {
+  const execute = async (trigger: RunTrigger, drive: () => Promise<void>, before: readonly RunEntry[] = []): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
     const run: RunState = { runId: randomUUID(), aborted: false, rejected: false, paused: false, pauseSignal: new AbortController(), steering: [] }
     current = run
@@ -423,13 +478,24 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         run.commitError = error instanceof Error ? error : new Error(String(error))
       }
       try {
+        if (!run.commitError) {
+          if (context?.systemSections) applySystemSections(await context.systemSections())
+          for (const entry of before) {
+            try {
+              await commit({ ...entry, runId: run.runId } as RunEntry)
+            } catch (error) {
+              run.commitError = error instanceof Error ? error : new Error(String(error))
+              break
+            }
+          }
+        }
         if (!run.commitError) await drive()
       } catch (error) {
         internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
       }
       // 未送达的追加指令退回宿主，不留到下一个 Run。
       agent.clearSteeringQueue()
-      const undelivered = run.steering.map(textOfUser)
+      const undelivered = run.steering.map((s) => s.text)
       const ended: { status: RunStatus; error?: RunError; undeliveredSteering?: string[] } = internal ? { status: 'error', error: internal } : outcome(run)
       if (undelivered.length > 0) ended.undeliveredSteering = undelivered
       result = { runId: run.runId, ...ended }
@@ -452,8 +518,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   }
 
   return {
-    run(text) {
-      return execute('submit', () => agent.prompt(text))
+    run(raw) {
+      const input = toInput(raw)
+      return execute('submit', () => agent.prompt(userMessage(input)), input.before ?? [])
     },
     async retry() {
       if (current || agent.state.isStreaming) throw new RuntimeBusyError()
@@ -474,11 +541,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         return Promise.reject(new NothingToContinueError())
       return execute('continue', () => agent.continue())
     },
-    steer(text) {
+    steer(raw) {
       const run = current
       if (!run) throw new NoActiveRunError()
-      const message: AgentMessage = { role: 'user', content: [{ type: 'text', text }], timestamp: Date.now() }
-      run.steering.push(message)
+      const input = toInput(raw)
+      const message = userMessage(input)
+      run.steering.push({ message, text: input.text, before: input.before ?? [] })
       agent.steer(message)
     },
     pause() {

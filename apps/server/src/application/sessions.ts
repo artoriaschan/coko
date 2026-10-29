@@ -1,22 +1,11 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
-  ApprovalNotPendingError,
-  confirmationResult,
   createAgentRuntime,
-  effectiveEntries,
-  effectiveMessages,
-  emptyRewindReport,
-  forkEntries,
-  realLocation,
-  planRewind,
-  restoreFiles,
-  RewindTargetError,
   createBuiltinToolRegistry,
   createLocalExecPort,
-  planRecovery,
-  toolNameOf,
-  unansweredConfirmations,
+  effectiveMessages,
+  lastRunStatus,
   ModelConfigError,
   NoActiveRunError,
   NothingToContinueError,
@@ -26,22 +15,19 @@ import {
   type ModelRegistry,
   type PermissionMode,
   type PermissionRule,
-  type ProgressEvent as AgentProgress,
   type RewindFiles,
   type RewindMode,
   type RunEntry,
   type RunResult,
-  type RunStatus,
   type SecretProvider,
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
-import { getLogger, redactText } from '@coko/logging'
+import { getLogger } from '@coko/logging'
 import {
   type ConfirmationAnswer,
   DEFAULT_MODEL_SETTING,
   SessionModel as SessionModelSchema,
-  type ProgressEvent,
   type AnswerApprovalRequest,
   type Checkpoint,
   type RewindResponse,
@@ -52,11 +38,18 @@ import {
   type SessionDetailResponse,
   type SessionModel,
 } from '@coko/protocol'
-import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
+import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { Value } from 'typebox/value'
+import { SessionCheckpoints } from './checkpoints.ts'
+import { dynamicHooks, emptyContextAssembly, layeredTools, type ContextAssembly, type ContextScope } from './context/index.ts'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
-import { PermissionService, sameRule, withRules } from './permissions.ts'
+import { PermissionService } from './permissions.ts'
+import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
+import { SessionPermissions } from './session-permissions.ts'
+import { requireSession, SessionRuntimes, toProgress } from './session-runtimes.ts'
+
+export type { RecoveryReport, RecoverySource } from './recovery.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -86,13 +79,16 @@ export interface SessionServiceOptions {
   secrets?: SecretProvider
   /** 回退代码读取快照正文与当前文件摘要（Sidecar 为 <dataDir>/blobs）。缺省：回退代码以 internal 失败。 */
   checkpoints?: RewindFiles
+  /** M3 上下文装配（application/context/）。缺省：没有任何贡献，模型请求与 M2 相同。 */
+  context?: ContextAssembly
 }
 
-/** Session 的模式与 Session 规则：由 permission_mode / permission_rule 条目回放，之后随提交更新。 */
-interface SessionPermissionState {
-  workspaceId: string
-  mode: PermissionMode
-  rules: PermissionRule[]
+/** 运行时每个 Run 开始时刷新的上下文取值（运行时创建后其工具集与 hook 链不变，经这里间接替换）。 */
+interface RunContext {
+  scope: ContextScope
+  tools: ReturnType<typeof layeredTools>
+  hooks: ReturnType<typeof dynamicHooks>
+  readRoots: readonly string[]
 }
 
 export interface SessionExtensionContext {
@@ -108,82 +104,38 @@ export interface SessionExtension {
   onEntry?: (entry: StoredEntry) => void
 }
 
-const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
-
-/** 有效上下文中最后一条 run_end 的状态（被回退的 Run 不算）；没有结束的 Run 时为 undefined。 */
-function lastRunStatus(all: readonly StoredEntry[]): RunStatus | undefined {
-  const entries = all.some((e) => e.kind === 'rewind') ? effectiveEntries(all) : all
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i]!
-    if (entry.kind === 'run_end') return (entry.payload as { status: RunStatus }).status
-  }
-  return undefined
-}
-
-/** 启动恢复读取的跨 Session 查询（SQLite 存储提供，见 @coko/session/sqlite 的 recovery）。 */
-export interface RecoverySource {
-  listUnfinishedRuns(): Promise<{ sessionId: string; runId: string }[]>
-  listLatestEntries(kind: string): Promise<StoredEntry[]>
-}
-
-/** 一次启动扫描的结果（计数用于日志与测试观察）。 */
-export interface RecoveryReport {
-  interruptedRuns: number
-  pendingConfirmations: number
-  failedSessions: number
-}
-
 /**
- * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
- * （ADR 0004）。用户输入与工具输出保持原样。
+ * Session 的协议入口：DTO 与 Run 控制（开始、重试、继续、追加指令、暂停、停止）。运行时注册表、权限、启动恢复与结果确认、
+ * Checkpoint 各在 session-runtimes.ts、session-permissions.ts、recovery.ts、checkpoints.ts，这里只转交。
  */
-const redactModelError = redactText
-
-/** 运行时条目按注册的 kind 原样提交（session 校验 payload）；只有回显模型错误的字段先脱敏。 */
-function toNewEntry(entry: RunEntry): NewSessionEntry {
-  let payload: unknown = entry.payload
-  if (entry.kind === 'message' && entry.payload.role === 'assistant' && entry.payload.errorMessage) {
-    payload = { ...entry.payload, errorMessage: redactModelError(entry.payload.errorMessage) }
-  } else if (entry.kind === 'run_end' && entry.payload.error) {
-    payload = { ...entry.payload, error: { ...entry.payload.error, message: redactModelError(entry.payload.error.message) } }
-  }
-  return { kind: entry.kind, ...(entry.runId === undefined ? {} : { runId: entry.runId }), payload: toJson(payload) }
-}
-
-function toProgress(event: AgentProgress): ProgressEvent {
-  const { runId: _runId, ...rest } = event
-  if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
-  if (rest.type === 'run_end' && rest.error) return { ...rest, error: { ...rest.error, message: redactModelError(rest.error.message) } }
-  return toJson(rest) as ProgressEvent
-}
-
-/** Session 的协议入口：把 HTTP 命令映射到 agent 运行时与 session 存储。 */
 export class SessionService {
   readonly #options: SessionServiceOptions
-  /** 正在创建或已创建的运行时；创建失败时移除。 */
-  readonly #pending = new Map<string, Promise<AgentRuntime>>()
-  readonly #runtimes = new Map<string, AgentRuntime>()
-  readonly #permissionStates = new Map<string, Promise<SessionPermissionState>>()
-  /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）。 */
-  readonly #permissionLocks = new Map<string, Promise<unknown>>()
-  /** 运行时的条目发布（含扩展的 onEntry）；没有运行时的 Session 直接提交并发布。 */
-  readonly #publishers = new Map<string, (entry: RunEntry) => Promise<StoredEntry>>()
-  /** 已知的上一 Run 结束状态（读过条目或本进程内结束的 Run）；用于 Session 不在运行时的 activity。 */
-  readonly #lastStatus = new Map<string, RunStatus>()
-  /**
-   * 有未回答结果确认的 Session：条目派生的缓存（confirmation_request 与 confirmation_answer 只经 #commitBatch 提交，并在那里更新它；
-   * 启动扫描从条目建立）。#start、#exclusively 与 toDto 都只读它（#awaitsConfirmation）。
-   */
-  readonly #awaitingConfirmation = new Set<string>()
-  /** 启动恢复失败的 Session 与其未结束的 Run：恢复成功之前拒绝 Run、回退与分叉，下次操作时重试。 */
-  readonly #recoveryFailed = new Map<string, string[]>()
-  /** 正在回退或分叉的 Session：其间不能开始 Run（#start 在调用运行时之前检查）。 */
-  readonly #exclusive = new Set<string>()
+  readonly #runtimes: SessionRuntimes
+  readonly #permissions: SessionPermissions
+  readonly #recovery: SessionRecovery
+  readonly #checkpoints: SessionCheckpoints
+  readonly #context: ContextAssembly
+  readonly #runContexts = new WeakMap<AgentRuntime, RunContext>()
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
     this.#options = options
+    this.#context = options.context ?? emptyContextAssembly()
     this.permissions = options.permissions ?? new PermissionService(options.store, () => this.#hostToolNames())
+    this.#runtimes = new SessionRuntimes(options.store, options.hub)
+    this.#permissions = new SessionPermissions({ store: options.store, runtimes: this.#runtimes, service: this.permissions })
+    this.#recovery = new SessionRecovery({
+      store: options.store,
+      runtimes: this.#runtimes,
+      ...(options.tools ? { tools: options.tools } : {}),
+      locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
+    })
+    this.#checkpoints = new SessionCheckpoints({
+      store: options.store,
+      runtimes: this.#runtimes,
+      recovery: this.#recovery,
+      ...(options.checkpoints ? { files: options.checkpoints } : {}),
+    })
   }
 
   #toolNames: readonly string[] | undefined
@@ -199,141 +151,74 @@ export class SessionService {
   }
 
   isRunning(sessionId: string): boolean {
-    return this.#runtimes.get(sessionId)?.isRunning ?? false
+    return this.#runtimes.isRunning(sessionId)
   }
 
   activeRuns(): number {
-    let count = 0
-    for (const runtime of this.#runtimes.values()) if (runtime.isRunning) count++
-    return count
+    return this.#runtimes.activeRuns()
   }
 
   toDto(session: StoredSession): Session {
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
     if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
-    if (this.#recoveryFailed.has(session.id)) return { ...session, running, activity: 'interrupted' }
-    if (this.#awaitsConfirmation(session.id)) return { ...session, running, activity: 'awaiting-confirmation' }
-    const last = this.#lastStatus.get(session.id)
+    if (this.#recovery.failed(session.id)) return { ...session, running, activity: 'interrupted' }
+    if (this.#recovery.awaitsConfirmation(session.id)) return { ...session, running, activity: 'awaiting-confirmation' }
+    const last = this.#runtimes.lastStatus(session.id)
     return { ...session, running, activity: last === 'paused' || last === 'interrupted' ? last : 'idle' }
   }
 
-  /**
-   * 启动扫描（打开存储之后、开始监听之前；recovery.md）：每个有 run_start 而无 run_end 的 Run 按 planRecovery 补齐条目
-   * （过期的审批、补齐的工具结果、confirmation_request、run_end interrupted），同一 Run 的条目一次事务提交。之后从各 Session
-   * 最后一条 run_end 建立 activity，使未打开的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
-   * 单个 Session 失败不阻止启动：记错误，该 Session 在恢复成功之前拒绝 Run、回退与分叉（recovery-failed），下次操作时重试。
-   */
-  async recover(source: RecoverySource): Promise<RecoveryReport> {
-    const report: RecoveryReport = { interruptedRuns: 0, pendingConfirmations: 0, failedSessions: 0 }
-    const bySession = new Map<string, string[]>()
-    for (const run of await source.listUnfinishedRuns()) bySession.set(run.sessionId, [...(bySession.get(run.sessionId) ?? []), run.runId])
-    for (const [sessionId, runIds] of bySession) {
-      const recovered = await this.#recoverSession(sessionId, runIds)
-      if (recovered === undefined) report.failedSessions++
-      else {
-        report.interruptedRuns += recovered.runs
-        report.pendingConfirmations += recovered.confirmations
-      }
-    }
-    for (const end of await source.listLatestEntries('run_end')) {
-      let status: RunStatus | undefined = (end.payload as { status: RunStatus }).status
-      // 暂停或中断的 Run 可能已被回退（之后的 rewind 条目把它移出有效上下文）：按有效条目重算。
-      if (status === 'paused' || status === 'interrupted') status = lastRunStatus(await this.#options.store.sessions.listEntries(end.sessionId))
-      if (status === undefined) continue
-      this.#lastStatus.set(end.sessionId, status)
-      // 待确认只出现在被中断的 Run 之后（之前的确认未回答时不能开始新 Run）。
-      if (status === 'interrupted' && unansweredConfirmations(await this.#options.store.sessions.listEntries(end.sessionId)).length > 0)
-        this.#awaitingConfirmation.add(end.sessionId)
-    }
-    return report
+  // ---- 启动恢复与结果确认（recovery.ts） ----
+
+  recover(source: RecoverySource): Promise<RecoveryReport> {
+    return this.#recovery.recover(source)
   }
 
-  /** 恢复一个 Session 中未结束的 Run（已有 run_end 的跳过）；失败时登记到 #recoveryFailed 并返回 undefined。 */
-  async #recoverSession(sessionId: string, runIds: readonly string[]): Promise<{ runs: number; confirmations: number } | undefined> {
-    const result = { runs: 0, confirmations: 0 }
-    try {
-      const session = await this.#get(sessionId)
-      const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
-      if (!workspace) throw new Error(`workspace ${session.workspaceId} not found`)
-      const tools = this.#options.tools?.(workspace.path) ?? createBuiltinToolRegistry({ cwd: workspace.path, exec: createLocalExecPort() })
-      for (const runId of runIds) {
-        const entries = await this.#options.store.sessions.listEntries(sessionId)
-        if (entries.some((e) => e.kind === 'run_end' && e.runId === runId)) continue
-        const planned = await planRecovery(entries, { runId, tool: (name) => tools.get(name), cwd: workspace.path })
-        await this.#commitBatch(sessionId, planned)
-        const confirmations = planned.filter((e) => e.kind === 'confirmation_request').length
-        result.runs++
-        result.confirmations += confirmations
-        log.warn('interrupted run recovered', { sessionId, runId, entries: planned.length, confirmations })
-      }
-      this.#recoveryFailed.delete(sessionId)
-      return result
-    } catch (error) {
-      this.#recoveryFailed.set(sessionId, [...runIds])
-      log.error('run recovery failed', { sessionId, error: error instanceof Error ? error.message : String(error) })
-      return undefined
-    }
+  answerConfirmation(sessionId: string, toolCallId: string, answer: ConfirmationAnswer): Promise<void> {
+    return this.#recovery.answerConfirmation(sessionId, toolCallId, answer)
   }
 
-  /** 恢复失败的 Session：先重试恢复，仍失败时以 recovery-failed 拒绝（未配对的调用会破坏模型请求，补齐的条目也会错位）。 */
-  async #ensureRecovered(sessionId: string): Promise<void> {
-    const runIds = this.#recoveryFailed.get(sessionId)
-    if (runIds === undefined) return
-    if ((await this.#recoverSession(sessionId, runIds)) === undefined)
-      throw new AppError('recovery-failed', 'This session could not be recovered after Coko stopped; see the logs for details')
-    this.#rememberStatus(sessionId, await this.#options.store.sessions.listEntries(sessionId))
+  // ---- 权限（session-permissions.ts） ----
+
+  sessionPermissions(sessionId: string): Promise<SessionPermissionsResponse> {
+    return this.#permissions.sessionPermissions(sessionId)
   }
 
-  /** 是否有未回答的结果确认（单一来源：#awaitingConfirmation）。 */
-  #awaitsConfirmation(sessionId: string): boolean {
-    return this.#awaitingConfirmation.has(sessionId)
+  setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
+    return this.#permissions.setMode(sessionId, mode)
   }
 
-  /**
-   * 回答恢复时结果不明的调用：confirmation_answer 与补齐的 toolResult 一次事务提交（之后"继续"的模型上下文含该结果）。
-   * 该调用没有待回答的确认时 not-found。
-   */
-  async answerConfirmation(sessionId: string, toolCallId: string, answer: ConfirmationAnswer): Promise<void> {
-    await this.#get(sessionId)
-    await this.#locked(sessionId, async () => {
-      const entries = await this.#options.store.sessions.listEntries(sessionId)
-      const pending = unansweredConfirmations(entries)
-      const target = pending.find((p) => p.toolCallId === toolCallId)
-      if (!target) throw new AppError('not-found', `No outcome confirmation is waiting for tool call ${toolCallId}`)
-      const runId = target.runId ?? undefined
-      const toolName = toolNameOf(entries, toolCallId) ?? 'unknown'
-      await this.#commitBatch(sessionId, [
-        { kind: 'confirmation_answer', ...(runId ? { runId } : {}), payload: { toolCallId, answer } },
-        { kind: 'message', ...(runId ? { runId } : {}), payload: confirmationResult({ toolCallId, toolName, answer }) },
-      ])
-      // 已建立的运行时的对话记录不含补齐的结果：丢弃它，下次开始 Run 时从条目重建。
-      const runtime = this.#runtimes.get(sessionId)
-      if (runtime && !runtime.isRunning) {
-        this.#runtimes.delete(sessionId)
-        this.#pending.delete(sessionId)
-        this.#publishers.delete(sessionId)
-      }
-      log.info('outcome confirmed', { sessionId, toolCallId, answer })
-    })
+  changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
+    return this.#permissions.changeSessionRule(sessionId, op, rule)
   }
 
-  /**
-   * 一次事务提交一批条目，之后逐条发布（没有运行时扩展的场景：启动扫描、结果确认与分叉）。含 confirmation_* 条目时按提交后的条目
-   * 重算 #awaitingConfirmation。
-   */
-  async #commitBatch(sessionId: string, entries: readonly RunEntry[]): Promise<void> {
-    const committed = await this.#options.store.sessions.appendEntries(sessionId, entries.map(toNewEntry))
-    for (const entry of committed) {
-      if (entry.kind === 'run_end') this.#lastStatus.set(sessionId, (entry.payload as { status: RunStatus }).status)
-      this.#options.hub.publishEntry(entry)
-    }
-    if (committed.some((e) => e.kind === 'confirmation_request' || e.kind === 'confirmation_answer')) {
-      const pending = unansweredConfirmations(await this.#options.store.sessions.listEntries(sessionId))
-      if (pending.length > 0) this.#awaitingConfirmation.add(sessionId)
-      else this.#awaitingConfirmation.delete(sessionId)
-    }
+  getPermissions(workspaceId?: string): Promise<PermissionsResponse> {
+    return this.#permissions.get(workspaceId)
   }
+
+  updatePermissions(request: UpdatePermissionsRequest): Promise<PermissionsResponse> {
+    return this.#permissions.update(request)
+  }
+
+  answerApproval(sessionId: string, requestId: string, answer: AnswerApprovalRequest): Promise<void> {
+    return this.#permissions.answerApproval(sessionId, requestId, answer)
+  }
+
+  // ---- Checkpoint：回退与分叉（checkpoints.ts，ADR 0006） ----
+
+  checkpoints(sessionId: string): Promise<Checkpoint[]> {
+    return this.#checkpoints.list(sessionId)
+  }
+
+  rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
+    return this.#checkpoints.rewind(sessionId, input)
+  }
+
+  fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
+    return this.#checkpoints.fork(sessionId, targetSeq, title)
+  }
+
+  // ---- DTO ----
 
   async list(workspaceId?: string): Promise<Session[]> {
     const sessions = await this.#options.store.sessions.listSessions(workspaceId ? { workspaceId } : {})
@@ -350,141 +235,16 @@ export class SessionService {
       model: model ?? null,
     })
     // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
-    await this.#commit(session.id, { kind: 'permission_mode', payload: { mode } })
+    await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
     log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId, mode })
     return this.toDto(session)
-  }
-
-  // ---- 权限：模式、Session 规则、默认模式与全局 / Workspace 规则 ----
-
-  async #commit(sessionId: string, entry: RunEntry): Promise<StoredEntry> {
-    const publish = this.#publishers.get(sessionId)
-    if (publish) return publish(entry)
-    const [committed] = await this.#options.store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
-    this.#options.hub.publishEntry(committed!)
-    return committed!
-  }
-
-  #permissionState(session: StoredSession): Promise<SessionPermissionState> {
-    let state = this.#permissionStates.get(session.id)
-    if (!state) {
-      state = (async () => {
-        await Promise.all([this.permissions.load(), this.permissions.loadWorkspace(session.workspaceId)])
-        const replayed: SessionPermissionState = { workspaceId: session.workspaceId, mode: 'default', rules: [] }
-        for (const entry of await this.#options.store.sessions.listEntries(session.id)) {
-          if (entry.kind === 'permission_mode') replayed.mode = (entry.payload as { mode: PermissionMode }).mode
-          else if (entry.kind === 'permission_rule') {
-            const { op, rule: stored } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
-            const [rule] = this.permissions.canonical([stored]) as [PermissionRule]
-            replayed.rules = op === 'add' ? withRules(replayed.rules, [rule]) : replayed.rules.filter((r) => !sameRule(r, rule))
-          }
-        }
-        return replayed
-      })()
-      state.catch(() => this.#permissionStates.delete(session.id))
-      this.#permissionStates.set(session.id, state)
-    }
-    return state
-  }
-
-  /** 同一 Session 的权限修改串行执行。 */
-  #locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.#permissionLocks.get(sessionId) ?? Promise.resolve()
-    const next = previous.then(task, task)
-    this.#permissionLocks.set(
-      sessionId,
-      next.catch(() => undefined),
-    )
-    return next
-  }
-
-  static #view(state: SessionPermissionState): SessionPermissionsResponse {
-    return { mode: state.mode, rules: [...state.rules] }
-  }
-
-  async sessionPermissions(sessionId: string): Promise<SessionPermissionsResponse> {
-    return SessionService.#view(await this.#permissionState(await this.#get(sessionId)))
-  }
-
-  /** 切换模式：提交 permission_mode 条目（与当前相同时不提交），之后重新判定该 Session 的待审批请求。 */
-  async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
-    const session = await this.#get(sessionId)
-    const view = await this.#locked(sessionId, async () => {
-      const state = await this.#permissionState(session)
-      if (state.mode !== mode) {
-        await this.#commit(sessionId, { kind: 'permission_mode', payload: { mode } })
-        state.mode = mode
-        log.info('permission mode changed', { sessionId, mode })
-      }
-      return SessionService.#view(state)
-    })
-    await this.#reevaluate((id) => id === sessionId)
-    return view
-  }
-
-  /** 增删 Session 规则：提交 permission_rule 条目（无变化时不提交），之后重新判定该 Session 的待审批请求。 */
-  async changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
-    const session = await this.#get(sessionId)
-    // 新增时校验并归一；删除时按读出的规范名比较（库中可能有旧的非规范写法）。
-    const normalized = op === 'add' ? this.permissions.normalize([rule]) : this.permissions.canonical([rule])
-    const view = await this.#locked(sessionId, () => this.#applySessionRules(session, op, normalized))
-    await this.#reevaluate((id) => id === sessionId)
-    return view
-  }
-
-  async #applySessionRules(session: StoredSession, op: 'add' | 'remove', rules: readonly PermissionRule[]): Promise<SessionPermissionsResponse> {
-    const state = await this.#permissionState(session)
-    for (const rule of rules) {
-      const present = state.rules.some((r) => sameRule(r, rule))
-      if (present === (op === 'add')) continue
-      await this.#commit(session.id, { kind: 'permission_rule', payload: { op, rule } })
-      state.rules = op === 'add' ? [...state.rules, rule] : state.rules.filter((r) => !sameRule(r, rule))
-    }
-    return SessionService.#view(state)
-  }
-
-  getPermissions(workspaceId?: string): Promise<PermissionsResponse> {
-    return this.permissions.get(workspaceId)
-  }
-
-  /** 修改默认模式或全局 / Workspace 规则；规则变化后重新判定受影响 Session 的待审批请求。 */
-  async updatePermissions(request: UpdatePermissionsRequest): Promise<PermissionsResponse> {
-    const response = await this.permissions.update(request)
-    if (request.target === 'global') await this.#reevaluate(() => true)
-    else if (request.target === 'workspace') await this.#reevaluate((_id, workspaceId) => workspaceId === request.workspaceId)
-    return response
-  }
-
-  /** 让匹配的 Session 的待审批请求按当前模式与规则重新判定（变为 allow / deny 的以 superseded 结束）。 */
-  async #reevaluate(match: (sessionId: string, workspaceId: string) => boolean): Promise<void> {
-    const work: Promise<void>[] = []
-    for (const [sessionId, runtime] of this.#runtimes) {
-      const state = await this.#permissionStates.get(sessionId)?.catch(() => undefined)
-      if (!state || !match(sessionId, state.workspaceId)) continue
-      for (const request of runtime.pendingApprovals) {
-        if (request.kind !== 'tool') continue
-        work.push(
-          runtime.answerApproval(request.requestId, { decision: 'reevaluate' }).catch((error: unknown) => {
-            if (!(error instanceof ApprovalNotPendingError))
-              log.error('approval re-decision failed', { sessionId, approvalId: request.requestId, error: String(error) })
-          }),
-        )
-      }
-    }
-    await Promise.all(work)
   }
 
   async detail(sessionId: string): Promise<SessionDetailResponse> {
     const session = await this.#get(sessionId)
     const entries = await this.#options.store.sessions.listEntries(sessionId)
-    this.#rememberStatus(sessionId, entries)
+    this.#runtimes.rememberStatus(sessionId, entries)
     return { session: this.toDto(session), entries }
-  }
-
-  #rememberStatus(sessionId: string, entries: readonly StoredEntry[]): void {
-    const status = lastRunStatus(entries)
-    if (status) this.#lastStatus.set(sessionId, status)
-    else this.#lastStatus.delete(sessionId)
   }
 
   /** 设置 defaultModel → faux（测试）→ 第一个 Provider 的第一个模型；都不可用时为 undefined。 */
@@ -512,9 +272,20 @@ export class SessionService {
     return this.toDto(session)
   }
 
-  /** 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。 */
-  submit(sessionId: string, text: string): Promise<{ runId: string }> {
-    return this.#start(sessionId, (runtime) => runtime.run(text))
+  // ---- Run 控制 ----
+
+  /**
+   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。提交的文本先经上下文装配展开（命令 → File Reference）；
+   * 展开为动作（例如 /compact）时调用该动作，Run 进行中 run-in-progress。
+   */
+  async submit(sessionId: string, text: string): Promise<{ runId: string }> {
+    const session = await this.#get(sessionId)
+    const expanded = await this.#context.expandInput(text, await this.#scope(session))
+    if (expanded.kind === 'input') return this.#start(sessionId, (runtime) => runtime.run(expanded.input))
+    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
+    const action = this.#context.action(expanded.name)
+    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
+    return action({ scope: await this.#scope(session), sessionId, args: expanded.args })
   }
 
   /** 重新执行出错的上一轮（不追加用户消息）；上一轮没有出错时以 nothing-to-retry 拒绝。 */
@@ -530,13 +301,15 @@ export class SessionService {
     return this.#start(sessionId, (runtime) => runtime.continue())
   }
 
-  /** 把追加指令送进当前 Run；没有进行中的 Run 时 no-active-run。 */
+  /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */
   async steer(sessionId: string, text: string): Promise<void> {
-    await this.#get(sessionId)
+    const session = await this.#get(sessionId)
     const runtime = this.#runtimes.get(sessionId)
     try {
-      if (!runtime) throw new NoActiveRunError()
-      runtime.steer(text)
+      if (!runtime?.isRunning) throw new NoActiveRunError()
+      const expanded = await this.#context.expandInput(text, this.#runContexts.get(runtime)?.scope ?? (await this.#scope(session)))
+      if (expanded.kind === 'action') throw new AppError('bad-request', `${expanded.name} cannot be sent while a Run is in progress`)
+      runtime.steer(expanded.input)
     } catch (error) {
       if (error instanceof NoActiveRunError) throw new AppError('no-active-run', error.message)
       throw error
@@ -560,19 +333,31 @@ export class SessionService {
 
   async #start(sessionId: string, start: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }> {
     let session = await this.#get(sessionId)
-    await this.#ensureRecovered(sessionId)
+    await this.#recovery.ensureRecovered(sessionId)
     // 未回答的结果确认之后不能开始任何 Run（submit、retry、continue）：未配对的调用会破坏模型请求（recovery.md）。
-    if (this.#awaitsConfirmation(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
+    if (this.#recovery.awaitsConfirmation(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
     if (!session.model) {
       const model = await this.defaultModel()
       if (!model) throw new AppError('model-not-configured', 'No model is configured; add a Provider in settings')
       session = await this.#options.store.sessions.setSessionModel(sessionId, model)
     }
     const model = this.#resolve(session.model!, 'model-not-configured')
-    const runtime = await this.#runtime(session, model)
+    const runtime = await this.#runtimes.obtain(session.id, () => this.#createRuntime(session, model))
+    if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
+    // 每个 Run 开始时向上下文装配取值（工具、读取根、hook）；取值之后再检查，检查与开始 Run 之间没有 await。
+    const scope = await this.#scope(session)
+    const [contributed, readRoots] = await Promise.all([this.#context.tools(scope), this.#context.readRoots(scope)])
+    const hooks = this.#context.hooks(scope)
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
-    if (this.#exclusive.has(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
+    if (this.#checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
+    const runContext = this.#runContexts.get(runtime)
+    if (runContext) {
+      runContext.scope = scope
+      runContext.tools.set(contributed)
+      runContext.hooks.set(hooks)
+      runContext.readRoots = readRoots
+    }
     runtime.setModel(model)
 
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
@@ -618,159 +403,14 @@ export class SessionService {
     return true
   }
 
-  /**
-   * 回答待审批请求；决定条目提交后返回。请求不在等待中时 approval-not-pending。scope 为 session / workspace / global 时
-   * 先保存请求的建议规则（Session 规则为条目，其余为设置），再允许；没有建议规则的请求（受保护路径、越界写入、提权、
-   * 询问规则命中、无法拆分的命令）只能允许一次，否则 bad-request。保存后重新判定受影响的其他待审批请求。
-   */
-  async answerApproval(sessionId: string, requestId: string, answer: AnswerApprovalRequest): Promise<void> {
-    const session = await this.#get(sessionId)
-    const runtime = this.#runtimes.get(sessionId)
-    if (!runtime) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
-    const scope = answer.decision === 'allow' ? (answer.scope ?? 'once') : 'once'
-    if (scope !== 'once') {
-      const request = runtime.pendingApprovals.find((p) => p.requestId === requestId)
-      if (!request) throw new AppError('approval-not-pending', `Approval request ${requestId} is not pending`)
-      if (request.kind !== 'tool' || request.suggestions.length === 0)
-        throw new AppError('bad-request', `Approval request ${requestId} can only be allowed once`)
-      const state = await this.#permissionState(session)
-      if (scope === 'session') await this.#locked(sessionId, () => this.#applySessionRules(session, 'add', request.suggestions))
-      else await this.permissions.addRules(scope === 'global' ? { kind: 'global' } : { kind: 'workspace', workspaceId: state.workspaceId }, request.suggestions)
-      log.info('permission rules saved', { sessionId, approvalId: requestId, scope, count: request.suggestions.length })
-    }
-    try {
-      await runtime.answerApproval(requestId, answer)
-    } catch (error) {
-      if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
-      throw error
-    }
-    log.info('approval answered', { sessionId, approvalId: requestId, decision: answer.decision, scope })
-    if (scope === 'session') await this.#reevaluate((id) => id === sessionId)
-    else if (scope === 'workspace') await this.#reevaluate((_id, workspaceId) => workspaceId === session.workspaceId)
-    else if (scope === 'global') await this.#reevaluate(() => true)
+  #get(sessionId: string): Promise<StoredSession> {
+    return requireSession(this.#options.store, sessionId)
   }
 
-  // ---- Checkpoint：回退与分叉（ADR 0006） ----
-
-  /**
-   * 回退与分叉的前置条件，并在其间排斥新 Run：恢复失败 recovery-failed，Run 进行中（含等待审批）session-busy，有未回答的结果确认
-   * confirmation-pending（与 #start 同一判断：#awaitsConfirmation）。检查与登记在同一同步段内，之后开始的 Run 在 #start 中被拒绝。
-   * 只读的预览（dry-run）检查同样的前置条件但不登记，并发的预览互不排斥（对话框的预览可能同时发出两次）。
-   */
-  async #exclusively<T>(sessionId: string, task: (entries: StoredEntry[]) => Promise<T>, options: { readOnly?: boolean } = {}): Promise<T> {
-    await this.#get(sessionId)
-    if (this.#runtimes.get(sessionId)?.isRunning || this.#exclusive.has(sessionId))
-      throw new AppError('session-busy', 'A Run is in progress or waiting for approval; rewind and fork are not available')
-    const register = !options.readOnly
-    if (register) this.#exclusive.add(sessionId)
-    try {
-      // 恢复失败的重试在登记之后：检查与登记之间没有 await，并发的回退预览不会同时通过。
-      await this.#ensureRecovered(sessionId)
-      const entries = await this.#options.store.sessions.listEntries(sessionId)
-      if (this.#runtimes.get(sessionId)?.isRunning) throw new AppError('session-busy', 'A Run is in progress or waiting for approval')
-      if (this.#awaitsConfirmation(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
-      return await task(entries)
-    } finally {
-      if (register) this.#exclusive.delete(sessionId)
-    }
-  }
-
-  /** Checkpoint 列表：有效上下文中的用户消息，以及回退代码到该处时涉及的路径。 */
-  async checkpoints(sessionId: string): Promise<Checkpoint[]> {
-    await this.#get(sessionId)
-    const entries = await this.#options.store.sessions.listEntries(sessionId)
-    const backups = entries.flatMap((e) => (e.kind === 'file_backup' ? [e.payload as { anchorSeq: number; path: string }] : []))
-    return effectiveEntries(entries).flatMap((entry) => {
-      if (entry.kind !== 'message' || (entry.payload as { role?: unknown }).role !== 'user') return []
-      const { text } = planRewind(entries, entry.seq, 'conversation')
-      const paths = [...new Set(backups.filter((b) => b.anchorSeq >= entry.seq).map((b) => b.path))]
-      return [{ seq: entry.seq, text, createdAt: entry.createdAt, paths }]
-    })
-  }
-
-  /**
-   * 回退到某条用户消息（ADR 0006）。code / both 先恢复文件（目标锚点及之后追踪过的路径回到最早的备份，原先不存在的删除），
-   * conversation / both 再提交 rewind 条目并丢弃运行时（下次开始 Run 时按有效条目重建）。dryRun 只返回将发生的变化。
-   */
-  async rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
-    return this.#exclusively(
-      sessionId,
-      async (entries) => {
-        const plan = this.#plan(() => planRewind(entries, input.targetSeq, input.mode))
-        const dryRun = input.dryRun ?? false
-        let files = emptyRewindReport()
-        if (plan.files.length > 0) {
-          if (!this.#options.checkpoints) throw new AppError('internal', 'File checkpoints are not available')
-          const session = await this.#get(sessionId)
-          const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
-          if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
-          files = await restoreFiles(plan.files, this.#options.checkpoints, { workspace: await realLocation(workspace.path), dryRun })
-        }
-        if (!dryRun && plan.entry) {
-          await this.#commit(sessionId, plan.entry)
-          this.#discardRuntime(sessionId)
-          this.#rememberStatus(sessionId, await this.#options.store.sessions.listEntries(sessionId))
-        }
-        if (!dryRun)
-          log.info('session rewound', {
-            sessionId,
-            targetSeq: plan.targetSeq,
-            mode: plan.mode,
-            restored: files.restored.length,
-            deleted: files.deleted.length,
-            diverged: files.diverged.length,
-            untracked: files.untracked.length,
-            outside: files.outside.length,
-            skipped: files.skipped.length,
-          })
-        return { targetSeq: plan.targetSeq, mode: plan.mode, dryRun, text: plan.text, ...files }
-      },
-      { readOnly: input.dryRun === true },
-    )
-  }
-
-  /**
-   * 从某条用户消息分叉（ADR 0006）：新 Session（同一 Workspace 与模型）的条目为 fork_origin 与目标之前的有效消息、权限条目；
-   * 原 Session 不变，Workspace 文件不复制。标题由界面按当前语言生成后传入（Sidecar 不写本地化文案），省略时沿用原标题。
-   * 返回新 Session 的 id 与目标文本。
-   */
-  async fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
-    return this.#exclusively(sessionId, async (entries) => {
-      const source = await this.#get(sessionId)
-      const forked = this.#plan(() => forkEntries(entries, sessionId, targetSeq))
-      const session = await this.#options.store.sessions.createSession({
-        workspaceId: source.workspaceId,
-        title: title?.trim() || source.title,
-        model: source.model,
-      })
-      await this.#commitBatch(session.id, forked.entries)
-      log.info('session forked', { sessionId, forkedSessionId: session.id, targetSeq, entries: forked.entries.length })
-      return { sessionId: session.id, text: forked.text }
-    })
-  }
-
-  #plan<T>(plan: () => T): T {
-    try {
-      return plan()
-    } catch (error) {
-      if (error instanceof RewindTargetError) throw new AppError('bad-request', error.message)
-      throw error
-    }
-  }
-
-  /** 丢弃未在运行的运行时：之后开始 Run 时从条目重建（有效上下文、锚点与权限状态）。 */
-  #discardRuntime(sessionId: string): void {
-    const runtime = this.#runtimes.get(sessionId)
-    if (runtime?.isRunning) return
-    this.#runtimes.delete(sessionId)
-    this.#pending.delete(sessionId)
-    this.#publishers.delete(sessionId)
-  }
-
-  async #get(sessionId: string): Promise<StoredSession> {
-    const session = await this.#options.store.sessions.getSession(sessionId)
-    if (!session) throw new AppError('not-found', `Session ${sessionId} not found`)
-    return session
+  async #scope(session: StoredSession): Promise<ContextScope> {
+    const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
+    if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+    return this.#context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id })
   }
 
   #resolve(model: SessionModel, code: 'bad-request' | 'model-not-configured'): Model<any> {
@@ -782,18 +422,6 @@ export class SessionService {
     }
   }
 
-  #runtime(session: StoredSession, model: Model<any>): Promise<AgentRuntime> {
-    const existing = this.#pending.get(session.id)
-    if (existing) return existing
-    const created = this.#createRuntime(session, model)
-    this.#pending.set(session.id, created)
-    created.then(
-      (runtime) => this.#runtimes.set(session.id, runtime),
-      () => this.#pending.delete(session.id),
-    )
-    return created
-  }
-
   async #createRuntime(session: StoredSession, model: Model<any>): Promise<AgentRuntime> {
     const { store, registry, hub } = this.#options
     const workspace = await store.sessions.getWorkspace(session.workspaceId)
@@ -803,37 +431,40 @@ export class SessionService {
     // 被回退的区间不进入模型上下文（ADR 0006）。
     const messages: AgentMessage[] = effectiveMessages(entries)
     const previous = lastRunStatus(entries)
-    if (previous) this.#lastStatus.set(session.id, previous)
-    const permissions = await this.#permissionState(session)
+    if (previous) this.#runtimes.setLastStatus(session.id, previous)
+    const permissions = await this.#permissions.state(session)
     let extension: SessionExtension = {}
-    const publish = async (entry: RunEntry): Promise<StoredEntry> => {
-      const [committed] = await store.sessions.appendEntries(session.id, [toNewEntry(entry)])
-      if (entry.kind === 'run_end') this.#lastStatus.set(session.id, entry.payload.status)
-      hub.publishEntry(committed!)
-      extension.onEntry?.(committed!)
-      return committed!
-    }
+    const publish = this.#runtimes.publisher(session.id, () => extension.onEntry)
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
-    this.#publishers.set(session.id, publish)
+    const base = this.#options.tools?.(workspace.path) ?? createBuiltinToolRegistry({ cwd: workspace.path, exec: createLocalExecPort() })
+    const runContext: RunContext = {
+      scope: await this.#scope(session),
+      tools: layeredTools(base),
+      hooks: dynamicHooks(),
+      readRoots: [],
+    }
+    const context = this.#context
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
       cwd: workspace.path,
-      ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
+      tools: runContext.tools.registry,
       sessionId: session.id,
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
-      // 每次调用现算：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。
-      permissions: {
-        mode: () => permissions.mode,
-        rules: () => [...permissions.rules, ...this.permissions.rulesFor(session.workspaceId)],
-      },
-      ...(extension.hooks ? { hooks: extension.hooks } : {}),
+      permissions: { ...this.#permissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
+      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。
+      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
+      context: {
+        systemSections: () => context.systemSections(runContext.scope),
+        ...(context.transformMessages ? { transformMessages: context.transformMessages } : {}),
+      },
       commit: async (entry) => {
         await publish(entry)
       },
     })
+    this.#runContexts.set(runtime, runContext)
     runtime.subscribe((event) => {
       if (event.kind === 'progress') hub.publishProgress(session.id, event.event.runId, toProgress(event.event))
     })

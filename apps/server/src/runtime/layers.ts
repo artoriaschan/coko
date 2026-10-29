@@ -11,6 +11,8 @@ import { installFauxProvider } from '../adapters/faux.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { createSecretProbeTool } from '../adapters/test-tools.ts'
+import { ConfigService } from '../application/config.ts'
+import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { ProviderService } from '../application/providers.ts'
@@ -42,6 +44,7 @@ export class Logging extends Context.Service<Logging, FileLogging>()('coko/Loggi
 export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
+export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly }>()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
 export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
 
@@ -115,6 +118,22 @@ const StoreLive = Layer.effect(
       }),
       (store) => Effect.promise(() => store.close()),
     )
+  }),
+)
+
+/**
+ * M3 上下文装配：各领域贡献（application/context/）与有效配置。位于存储与 Run 之间：关闭时 Run 先结束，再按顺序关闭各领域
+ * （例如 MCP 子进程），最后才关闭存储。
+ */
+const AssemblyLive = Layer.effect(
+  Assembly,
+  Effect.gen(function* () {
+    const { config: sidecar } = yield* Host
+    yield* Store
+    const config = new ConfigService()
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome })
+    const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
+    return yield* Effect.acquireRelease(Effect.succeed({ config, context }), ({ context }) => Effect.promise(() => context.close()))
   }),
 )
 
@@ -200,6 +219,7 @@ const AppLive = Layer.effect(
     const store = yield* Store
     const runs = yield* Runs
     const workspaceTools = yield* Tools
+    const { config: capabilities, context } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -226,6 +246,7 @@ const AppLive = Layer.effect(
       secrets: createEnvSecretProvider(env),
       extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
+      context,
       ...(fallbackModel ? { fallbackModel } : {}),
     })
     // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
@@ -250,6 +271,8 @@ const AppLive = Layer.effect(
       providers,
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
+      config: capabilities,
+      context,
     } satisfies Application
   }),
 )
@@ -266,13 +289,14 @@ const HttpLive = Layer.effect(
 )
 
 /**
- * 装配顺序：Host → Logging → Tools → Store → Runs → App → Http；释放顺序相反，
- * 即先停止接受请求，再中断并等待 Run，然后关闭存储，最后刷新日志。
+ * 装配顺序：Host → Logging → Tools → Store → Assembly → Runs → App → Http；释放顺序相反，
+ * 即先停止接受请求，再中断并等待 Run，然后关闭上下文各领域，再关闭存储，最后刷新日志。
  */
 export function sidecarLayer(host: HostShape) {
   return HttpLive.pipe(
     Layer.provideMerge(AppLive),
     Layer.provideMerge(RunsLive),
+    Layer.provideMerge(AssemblyLive),
     Layer.provideMerge(StoreLive),
     Layer.provideMerge(ToolsLive),
     Layer.provideMerge(LoggingLive),

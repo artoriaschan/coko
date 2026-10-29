@@ -13,7 +13,7 @@ const definition = (kind: string) => {
 const check = (kind: string, payload: unknown) => definition(kind).versions.at(-1)!.check(payload)
 
 describe('Session Entry payload 定义', () => {
-  it('预先定义规格表中全部 M2 kind，每个 kind 只出现一次', () => {
+  it('预先定义规格表中全部 M2 与 M3 kind，每个 kind 只出现一次', () => {
     expect(SESSION_ENTRY_PAYLOADS.map((d) => d.kind).toSorted()).toEqual(
       [
         'run_start',
@@ -30,6 +30,8 @@ describe('Session Entry payload 定义', () => {
         'file_change',
         'rewind',
         'fork_origin',
+        'command',
+        'compaction',
       ].toSorted(),
     )
   })

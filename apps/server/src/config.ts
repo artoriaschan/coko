@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { TEST_BUILD } from './build-flags.ts'
 
@@ -30,6 +31,11 @@ export interface SidecarConfig {
   ignoredTestHooks?: string[]
   /** COKO_LOG_LEVEL，默认 info。 */
   logLevel: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
+  /**
+   * COKO_HOME：用户级资源目录（AGENTS.md、skills/、commands/），缺省 ~/.coko。不是测试钩子：打包产物同样读取（M3 规格）。
+   * Sidecar 不把它传给 Agent 的命令环境。
+   */
+  cokoHome: string
 }
 
 export class ConfigError extends Error {
@@ -100,6 +106,8 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
   const ignored = hooksAllowed ? [] : Object.keys(env).filter((key) => TEST_HOOK_ENV.test(key) && env[key] !== undefined)
   const level = env.COKO_LOG_LEVEL ?? 'info'
   if (!LEVELS.has(level)) throw new ConfigError(`Unknown COKO_LOG_LEVEL: ${level}`)
+  const cokoHome = env.COKO_HOME || join(homedir(), '.coko')
+  if (!isAbsolute(cokoHome)) throw new ConfigError('COKO_HOME must be an absolute path')
   return {
     dataDir,
     dbPath: join(dataDir, 'coko.db'),
@@ -111,5 +119,6 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
     ...(hooksAllowed ? testHooks(env) : {}),
     ...(ignored.length > 0 ? { ignoredTestHooks: ignored } : {}),
     logLevel: level as SidecarConfig['logLevel'],
+    cokoHome,
   }
 }

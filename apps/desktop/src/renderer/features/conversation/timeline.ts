@@ -1,5 +1,6 @@
 import type { ApprovalDecisionPayload, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
-import { rewoundRanges, type Conversation, type LiveTool } from '../../stores/chat-store.ts'
+import { rewoundRanges } from '@coko/agent/entries'
+import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 export interface ToolCallBlock {
   id: string

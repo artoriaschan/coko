@@ -1,6 +1,7 @@
 // SQLite 入口：node:sqlite 只在本入口导入（ADR 0003）。
 import type { SessionStore, StoreOptions } from '../types.ts'
 import { openDatabase, type MigrationReport } from './open.ts'
+import { createMemoryRepository, createSecretRepository } from './memory-secrets.ts'
 import { createRecoveryQueries, type RecoveryQueries } from './recovery.ts'
 import { createProviderRepository, createSessionRepository, createSettingsRepository } from './repositories.ts'
 import { MIGRATIONS } from './schema.ts'
@@ -53,6 +54,8 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     sessions: createSessionRepository(conn, options),
     settings: createSettingsRepository(conn),
     providers: createProviderRepository(conn),
+    memories: createMemoryRepository(conn),
+    secrets: createSecretRepository(conn),
     recovery: createRecoveryQueries(conn, options),
     close() {
       closing ??= new Promise<void>((resolve) => {

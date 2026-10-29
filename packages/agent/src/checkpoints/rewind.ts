@@ -1,36 +1,19 @@
 // 回退（ADR 0006）：rewind 条目把 [targetSeq, 本条目) 区间移出有效上下文；原条目保留。多次回退叠加：
 // 目标只能是当时有效的用户消息，各区间要么嵌套、要么不相交，被任一区间覆盖的条目都不在有效上下文中。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import { effectiveEntries, modelContext } from '../entries/index.ts'
 import { isProtectedPath, isWithin } from '../policy/decide.ts'
 import { realLocation } from '../policy/paths.ts'
 import type { RewindFiles } from '../ports/checkpoints.ts'
 import type { RunEntry } from '../engine/types.ts'
-import type { FileBackupPayload, FileChangePayload, RewindPayload, RunEndPayload, ToolExecPayload } from '../session-entries/index.ts'
+import type { FileBackupPayload, FileChangePayload, RunEndPayload, ToolExecPayload } from '../session-entries/index.ts'
 import { CHECKPOINT_TOOLS, type CheckpointEntry } from './tracker.ts'
 
-/** 被回退的区间 [from, to)：from 为目标消息的 seq，to 为 rewind 条目的 seq。 */
-export interface RewoundRange {
-  from: number
-  to: number
-}
+// 有效条目与模型上下文的唯一实现在 entries/（@coko/agent/entries）；这里只保留回退计划与文件恢复。
 
-/** 全部 rewind 条目的区间（按 rewind 条目顺序）。 */
-export function rewoundRanges(entries: readonly CheckpointEntry[]): RewoundRange[] {
-  return entries.flatMap((entry) => (entry.kind === 'rewind' ? [{ from: (entry.payload as RewindPayload).targetSeq, to: entry.seq }] : []))
-}
-
-/** 有效条目：不在任何被回退区间内、且不是 rewind 条目本身。 */
-export function effectiveEntries<E extends CheckpointEntry>(entries: readonly E[]): E[] {
-  const ranges = rewoundRanges(entries)
-  if (ranges.length === 0) return [...entries]
-  return entries.filter((entry) => entry.kind !== 'rewind' && !ranges.some((range) => entry.seq >= range.from && entry.seq < range.to))
-}
-
-/** 模型可见的对话记录：有效条目中的 message payload（恢复运行时用）。 */
+/** 模型可见的对话记录（恢复运行时用）：entries/ 的 modelContext（回退与压缩都已应用）。 */
 export function effectiveMessages(entries: readonly CheckpointEntry[]): AgentMessage[] {
-  return effectiveEntries(entries)
-    .filter((entry) => entry.kind === 'message')
-    .map((entry) => entry.payload as AgentMessage)
+  return modelContext(entries) as AgentMessage[]
 }
 /** 回退对话、代码或两者（ADR 0006）。 */
 export type RewindMode = 'conversation' | 'code' | 'both'
@@ -89,6 +72,7 @@ export function userMessageText(payload: unknown): string | undefined {
 
 /** 有效上下文中的用户消息（Checkpoint 锚点）；不是时抛 RewindTargetError。 */
 export function rewindTarget(entries: readonly CheckpointEntry[], targetSeq: number): { entry: CheckpointEntry; text: string } {
+  // 只应用回退：压缩之前的用户消息仍是 Checkpoint（回退到它时压缩落在被回退区间，原历史生效）。
   const entry = effectiveEntries(entries).find((e) => e.seq === targetSeq)
   const text = entry?.kind === 'message' ? userMessageText(entry.payload) : undefined
   if (!entry || text === undefined) throw new RewindTargetError(targetSeq)

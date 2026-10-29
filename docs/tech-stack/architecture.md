@@ -64,7 +64,7 @@ repo/
 
 | 模块 | 职责与允许的依赖 |
 | --- | --- |
-| apps/desktop | main / preload 管理桌面能力，随安装包分发 ripgrep 并在启动 sidecar 时传入其路径；renderer 依赖 protocol、ui、logging、i18n，通过协议访问业务 |
+| apps/desktop | main / preload 管理桌面能力，随安装包分发 ripgrep 并在启动 sidecar 时传入其路径；renderer 依赖 protocol、ui、logging、i18n 与 agent 的浏览器安全子路径 `@coko/agent/entries`（见下），通过协议访问业务 |
 | apps/server | 装配 agent、session、protocol、logging、i18n；负责 Hono、Effect、定时唤醒、资源管理、Node 宿主适配、本地访问认证，以及装配时注册或覆盖宿主工具 |
 | packages/protocol | 定义可序列化请求、响应和事件；依赖 TypeBox，向两端提供 schema 与推导类型 |
 | packages/agent | 统一实现执行机制、Goal / Plan / Task 状态机、扩展、权限与恢复策略；提供内置工具与[工具扩展/覆盖接口](agent-runtime.md#工具扩展与覆盖)，不依赖随安装包分发的二进制；依赖 session 接口和 logging，宿主能力、宿主工具与存储由 server 注入 |
@@ -80,6 +80,8 @@ session 的公共入口暴露模型和存储接口，SQLite 实现与内存实�
 Goal、Task、授权和恢复等业务状态的含义与转换规则由 agent 定义，session 保存统一记录封装及其版本化 payload。业务 payload 的校验与迁移通过注册接口接入，由 server 装配；session 不反向导入 agent 实现。
 
 logging 的文件 sink 通过独立导出入口由 main / server 引入。renderer 与 preload 只引入浏览器可用的接口或 IPC 适配；浏览器构建不会经公共聚合导出加载 node:fs、node:sqlite 或 Electron main 模块。
+
+renderer 唯一可以导入的 agent 代码是 `@coko/agent/entries`：有效条目（回退与压缩）、上一 Run 状态、未回答的结果确认与模型上下文的派生必须在 Sidecar 与界面上一致，写两份曾导致分歧（M2 评审 S2），因此只保留这一份实现。该子路径是纯函数，只导入 typebox 与本目录内模块；`packages/agent/src/entries/entries.test.ts` 的导入守卫沿传递导入断言它不引入 `node:*` 与 `@earendil-works/*`。renderer 不得经 `@coko/agent` 主入口导入。
 
 ### 运行链路
 

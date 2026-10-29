@@ -49,8 +49,8 @@ describe('SQLite 迁移 v2', () => {
     v1.close()
 
     const store = await open(path)
-    expect(SQLITE_SCHEMA_VERSION).toBe(2)
-    expect(store.migration).toMatchObject({ from: 1, to: 2 })
+    // M3 起程序支持版本 3：v1 库一次打开逐步迁到当前版本（v2 的索引仍在）。
+    expect(store.migration).toMatchObject({ from: 1, to: SQLITE_SCHEMA_VERSION })
     const backup = store.migration.backupPath!
     expect(backup).toMatch(/coko\.db\.backup-v1-/)
     expect((await stat(backup)).mode & 0o777).toBe(0o600)
@@ -67,6 +67,55 @@ describe('SQLite 迁移 v2', () => {
     const old = new DatabaseSync(backup, { readOnly: true })
     try {
       expect((old.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(1)
+    } finally {
+      old.close()
+    }
+  })
+})
+
+describe('SQLite 迁移 v3', () => {
+  it('v2 库打开后为版本 3：迁移前备份 .backup-v2-*，原数据可读，新增 memories（STRICT、索引）与 secrets 表', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const v2 = await openDatabase({ path, migrations: MIGRATIONS.slice(0, 2), now: Date.now, leaseTtlMs: 30_000, heartbeatMs: 60_000, busyTimeoutMs: 1_000 })
+    const db = v2.connection.db
+    db.exec("INSERT INTO workspaces VALUES ('w1', '/w', 'w', 1)")
+    db.exec("INSERT INTO sessions VALUES ('s1', 'w1', 'kept', NULL, NULL, 1, 1)")
+    db.exec(`INSERT INTO session_entries VALUES ('s1', 1, 'note', 1, '{"text":"from v2"}', NULL, 1)`)
+    db.exec("INSERT INTO settings VALUES ('k', '1', 1, 1)")
+    v2.close()
+
+    const store = await open(path)
+    expect(SQLITE_SCHEMA_VERSION).toBe(3)
+    expect(store.migration).toMatchObject({ from: 2, to: 3 })
+    const backup = store.migration.backupPath!
+    expect(backup).toMatch(/coko\.db\.backup-v2-/)
+    expect((await stat(backup)).mode & 0o777).toBe(0o600)
+    expect((await store.sessions.getSession('s1'))?.title).toBe('kept')
+    expect((await store.sessions.listEntries('s1')).map((e) => e.payload)).toEqual([{ text: 'from v2' }])
+    expect((await store.settings.get('k'))?.value).toBe(1)
+
+    const memory = await store.memories.create({ scope: 'workspace', workspaceId: 'w1', content: 'm', source: 'agent' })
+    expect(await store.memories.list({ workspaceId: 'w1' })).toEqual([memory])
+    await store.secrets.setCiphertext('TOKEN', { ciphertext: new Uint8Array([1, 2]), hint: 'xy12' })
+    expect(await store.secrets.list()).toMatchObject([{ name: 'TOKEN', hint: 'xy12' }])
+
+    const raw = new DatabaseSync(path, { readOnly: true })
+    try {
+      const sql = (name: string) => (raw.prepare('SELECT sql FROM sqlite_master WHERE name = ?').get(name) as { sql: string } | undefined)?.sql ?? ''
+      expect(sql('memories')).toMatch(/STRICT$/)
+      expect(sql('secrets')).toMatch(/STRICT$/)
+      const columns = (raw.prepare("SELECT name FROM pragma_index_info('memories_by_scope')").all() as { name: string }[]).map((r) => r.name)
+      expect(columns).toEqual(['scope', 'workspace_id', 'updated_at'])
+      const secretColumns = (raw.prepare("SELECT name FROM pragma_table_info('secrets')").all() as { name: string }[]).map((r) => r.name)
+      expect(secretColumns).toEqual(['name', 'ciphertext', 'hint', 'updated_at'])
+    } finally {
+      raw.close()
+    }
+    const old = new DatabaseSync(backup, { readOnly: true })
+    try {
+      expect((old.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2)
+      expect(old.prepare("SELECT name FROM sqlite_master WHERE name IN ('memories', 'secrets')").all()).toEqual([])
     } finally {
       old.close()
     }

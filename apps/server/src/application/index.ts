@@ -1,4 +1,6 @@
 import type { SessionStore } from '@coko/session'
+import type { ConfigService } from './config.ts'
+import type { ContextAssembly } from './context/index.ts'
 import type { SessionHub } from './hub.ts'
 import type { ProviderService } from './providers.ts'
 import type { SessionService } from './sessions.ts'
@@ -13,4 +15,8 @@ export interface Application {
   providers: ProviderService
   settings: SettingsService
   workspaces: WorkspaceService
+  /** 有效能力配置（票 02 实现）。 */
+  config: ConfigService
+  /** M3 上下文装配（application/context/）。 */
+  context: ContextAssembly
 }

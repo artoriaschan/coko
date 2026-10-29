@@ -13,10 +13,10 @@ lifecycle: active
 | 位置 | 职责 |
 | --- | --- |
 | `packages/session/src/sqlite/recovery.ts` | `store.recovery`：`listUnfinishedRuns()`（有 `run_start` 而没有其后同 runId 的 `run_end`）、`listLatestEntries(kind)`；经迁移 v2 的索引 `session_entries(session_id, kind, seq)` |
-| `packages/agent/src/recovery/plan.ts` | `planRecovery(entries, { runId, tool, cwd })` → 要补提交的条目；`unansweredConfirmations`、`confirmationResult`、`RECOVERY_TEXT`（模型可见文本） |
+| `packages/agent/src/recovery/plan.ts` | `planRecovery(entries, { runId, tool, cwd })` → 要补提交的条目；`confirmationResult`、`RECOVERY_TEXT`（模型可见文本）。`unansweredConfirmations` 在 `@coko/agent/entries`（与 renderer 共用） |
 | `packages/agent/src/tools/types.ts` | 工具契约的 `probeOutcome(args, cwd)` → `applied` / `not-applied` / `unknown` |
 | `packages/agent/src/tools/builtin/write.ts`、`edit.ts` | 内置的结果探测 |
-| `apps/server/src/application/sessions.ts` | `SessionService.recover()`（启动扫描）、`answerConfirmation()`、待确认时拒绝开始 Run、`activity` |
+| `apps/server/src/application/recovery.ts` | `SessionRecovery`：启动扫描、恢复失败的重试、`answerConfirmation()`、"有未回答的结果确认"的单一来源；`SessionService`（`sessions.ts`）转交 `recover()` 与 `answerConfirmation()`，待确认时拒绝开始 Run 并派生 `activity` |
 | `apps/server/src/runtime/layers.ts` | 在打开存储之后、开始监听之前调用 `recover(store.recovery)` |
 | `packages/ui/src/approval/confirmation-card.tsx`、`apps/desktop/src/renderer/features/conversation/confirmation-panel.tsx` | 结果确认卡 |
 
@@ -75,9 +75,9 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 
 ## 验证与相关设计
 
-- `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到 2（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
+- `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到当前版本、v2 库迁移到 3（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
 - `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
-- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到 2。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
+- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（3）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
 - `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
 - `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
 - 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。

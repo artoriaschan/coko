@@ -2,7 +2,13 @@
 export type {
   InvalidEntry,
   JsonValue,
+  Memory,
+  MemoryInput,
+  MemoryRepository,
+  MemoryScope,
   NewSessionEntry,
+  SecretInfo,
+  SecretRepository,
   Provider,
   ProviderInput,
   ProviderRepository,

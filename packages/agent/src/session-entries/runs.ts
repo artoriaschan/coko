@@ -6,8 +6,8 @@ import { definePayloads } from './define.ts'
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** submit：用户消息；retry：重新执行出错的上一轮；continue：接着暂停或中断的 Run。 */
-export const runTriggerSchema = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue')])
+/** submit：用户消息；retry：重新执行出错的上一轮；continue：接着暂停或中断的 Run；compact：手动 /compact（只提交 compaction）。 */
+export const runTriggerSchema = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact')])
 export type RunTrigger = Static<typeof runTriggerSchema>
 
 export const runStatusSchema = Type.Union([

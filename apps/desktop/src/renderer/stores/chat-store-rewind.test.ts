@@ -3,7 +3,8 @@ import type { ClientMessage, RewindResponse, ServerMessage, Session, SessionEntr
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
-import { canContinue, conversationActivity, createChatStore, visibleEntries, type ChatFailure } from './chat-store.ts'
+import { effectiveEntries as visibleEntries } from '@coko/agent/entries'
+import { canContinue, conversationActivity, createChatStore, type ChatFailure } from './chat-store.ts'
 
 function fakeStream() {
   const listeners = new Set<(message: ServerMessage) => void>()

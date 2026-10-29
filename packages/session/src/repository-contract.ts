@@ -220,11 +220,74 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(providers.clearCredential(p.id), 'not-found')
     })
 
+    it('Memory：按作用域与 Workspace 列出（最近更新在前），改正文刷新 updatedAt，删除后不可读', async () => {
+      const { sessions, memories } = await open()
+      const w1 = await sessions.registerWorkspace({ path: '/w1' })
+      const w2 = await sessions.registerWorkspace({ path: '/w2' })
+      const user = await memories.create({ scope: 'user', content: 'prefers pnpm', source: 'agent' })
+      expect(user).toEqual({ id: user.id, scope: 'user', workspaceId: null, content: 'prefers pnpm', source: 'agent', createdAt: 1_000, updatedAt: 1_000 })
+      tick()
+      const a = await memories.create({ scope: 'workspace', workspaceId: w1.id, content: 'uses vitest', source: 'user' })
+      tick()
+      const b = await memories.create({ scope: 'workspace', workspaceId: w2.id, content: 'monorepo', source: 'agent' })
+      expect((await memories.list()).map((m) => m.id)).toEqual([b.id, a.id, user.id])
+      expect((await memories.list({ scope: 'user' })).map((m) => m.id)).toEqual([user.id])
+      expect((await memories.list({ scope: 'workspace', workspaceId: w1.id })).map((m) => m.id)).toEqual([a.id])
+
+      tick()
+      expect(await memories.update(user.id, { content: 'prefers pnpm 12' })).toMatchObject({ content: 'prefers pnpm 12', createdAt: 1_000, updatedAt: 1_030 })
+      expect((await memories.list()).map((m) => m.id)).toEqual([user.id, b.id, a.id])
+      expect(await memories.get(a.id)).toEqual(a)
+
+      await memories.delete(a.id)
+      expect(await memories.get(a.id)).toBeUndefined()
+      await expectStoreError(memories.delete(a.id), 'not-found')
+      await expectStoreError(memories.update(a.id, { content: 'x' }), 'not-found')
+    })
+
+    it('Memory：作用域与 workspaceId 不一致 invalid-input，Workspace 不存在 not-found，均不写入', async () => {
+      const { sessions, memories } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      await expectStoreError(memories.create({ scope: 'workspace', content: 'x', source: 'agent' }), 'invalid-input')
+      await expectStoreError(memories.create({ scope: 'user', workspaceId: w.id, content: 'x', source: 'agent' }), 'invalid-input')
+      await expectStoreError(memories.create({ scope: 'workspace', workspaceId: 'missing', content: 'x', source: 'agent' }), 'not-found')
+      expect(await memories.list()).toEqual([])
+    })
+
+    it('Secret：list 只返回 name 与 hint（不含密文），密文按字节读回，替换与删除', async () => {
+      const { secrets } = await open()
+      const ciphertext = new Uint8Array([9, 0, 255, 128])
+      expect(await secrets.setCiphertext('MY_TOKEN', { ciphertext, hint: 'ab12' })).toEqual({ name: 'MY_TOKEN', hint: 'ab12', updatedAt: 1_000 })
+      await secrets.setCiphertext('A_KEY', { ciphertext: new Uint8Array([1]), hint: 'zz00' })
+      const listed = await secrets.list()
+      expect(listed).toEqual([
+        { name: 'A_KEY', hint: 'zz00', updatedAt: 1_000 },
+        { name: 'MY_TOKEN', hint: 'ab12', updatedAt: 1_000 },
+      ])
+      expect(listed.every((s) => Object.keys(s).toSorted().join() === 'hint,name,updatedAt')).toBe(true)
+      expect(Array.from((await secrets.getCiphertext('MY_TOKEN')) ?? [])).toEqual([9, 0, 255, 128])
+
+      tick()
+      await secrets.setCiphertext('MY_TOKEN', { ciphertext: new Uint8Array([7]), hint: 'cd34' })
+      expect(await secrets.list()).toContainEqual({ name: 'MY_TOKEN', hint: 'cd34', updatedAt: 1_010 })
+      expect(Array.from((await secrets.getCiphertext('MY_TOKEN')) ?? [])).toEqual([7])
+
+      await secrets.delete('MY_TOKEN')
+      expect(await secrets.getCiphertext('MY_TOKEN')).toBeUndefined()
+      await expectStoreError(secrets.delete('MY_TOKEN'), 'not-found')
+    })
+
     it('关闭后所有操作以 closed 拒绝，重复关闭无副作用', async () => {
       const store = await open()
       await store.close()
       await store.close()
-      for (const attempt of [store.sessions.listWorkspaces(), store.settings.set('k', 1, 0), store.providers.list()]) {
+      for (const attempt of [
+        store.sessions.listWorkspaces(),
+        store.settings.set('k', 1, 0),
+        store.providers.list(),
+        store.memories.list(),
+        store.secrets.list(),
+      ]) {
         await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
       }
     })

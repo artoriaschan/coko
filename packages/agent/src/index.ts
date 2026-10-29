@@ -11,7 +11,20 @@ export {
 export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'
-export type { ProgressEvent, RunEntry, RunError, RunErrorCode, RunResult, RunStatus, RuntimeEvent } from './engine/types.ts'
+export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
+export type {
+  BeforeRequestState,
+  ProgressEvent,
+  RunEntry,
+  RunError,
+  RunErrorCode,
+  RunInput,
+  RunResult,
+  RunStatus,
+  RuntimeContext,
+  RuntimeEvent,
+  SystemSection,
+} from './engine/types.ts'
 
 // Models
 export {
@@ -46,11 +59,22 @@ export type { EditToolDetails } from './tools/builtin/edit.ts'
 // Session Entry payloads（按领域分文件）与领域 barrel。
 export * from './session-entries/index.ts'
 export * from './policy/index.ts'
+export { MCP_TOOL_PREFIX } from './policy/decide.ts'
+export type { PermissionClass } from './policy/decide.ts'
 export * from './recovery/index.ts'
 export * from './checkpoints/index.ts'
+// 条目派生的唯一实现；renderer 经浏览器安全子路径 @coko/agent/entries 导入同一模块。
+export * from './entries/index.ts'
 export * from './agents/index.ts'
 
+// M3 扩展点：指令类资源、上下文管理、能力配置与 MCP（各子目录 barrel 归所属票）。
+export * from './instructions/index.ts'
+export * from './context/index.ts'
+export * from './config/index.ts'
+export * from './extensions/mcp/index.ts'
+
 // Hooks
+export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks.ts'
 export type { ToolHooks } from './extensions/hooks.ts'
 
 // Ports

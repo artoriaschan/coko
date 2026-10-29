@@ -1,8 +1,23 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import { checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
-import type { JsonValue, Provider, ProviderInput, Session, SessionEntry, SessionModel, SessionStore, Setting, StoreOptions, Workspace } from '../types.ts'
+import type {
+  JsonValue,
+  Memory,
+  MemoryInput,
+  MemoryScope,
+  Provider,
+  ProviderInput,
+  SecretInfo,
+  Session,
+  SessionEntry,
+  SessionModel,
+  SessionStore,
+  Setting,
+  StoreOptions,
+  Workspace,
+} from '../types.ts'
 
 interface ProviderRow {
   provider: Omit<Provider, 'credential'>
@@ -17,6 +32,9 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   const entries = new Map<string, SessionEntry[]>()
   const settings = new Map<string, Setting>()
   const providers = new Map<string, ProviderRow>()
+  /** 插入顺序即 rowid 顺序（与 SQLite 的同时间戳排序一致）。 */
+  const memories = new Map<string, Memory>()
+  const secrets = new Map<string, SecretInfo & { ciphertext: Uint8Array }>()
 
   // 读写都复制，调用方修改返回值不影响已提交的状态。
   const copy = <T>(value: T): T => structuredClone(value)
@@ -150,6 +168,53 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       getCredentialCiphertext: op((id: string) => {
         const ciphertext = providers.get(id)?.credential?.ciphertext
         return ciphertext ? new Uint8Array(ciphertext) : undefined
+      }),
+    },
+    memories: {
+      list: op((filter: { scope?: MemoryScope; workspaceId?: string } = {}) =>
+        [...memories.values()]
+          .map((memory, index) => ({ memory, index }))
+          .filter(
+            ({ memory }) =>
+              (filter.scope === undefined || memory.scope === filter.scope) && (filter.workspaceId === undefined || memory.workspaceId === filter.workspaceId),
+          )
+          .sort((a, b) => b.memory.updatedAt - a.memory.updatedAt || b.index - a.index)
+          .map(({ memory }) => memory),
+      ),
+      get: op((id: string) => memories.get(id)),
+      create: op((input: MemoryInput) => {
+        const workspaceId = checkMemoryScope(input)
+        if (workspaceId !== null && !workspaces.has(workspaceId)) throw notFound('workspace', workspaceId)
+        const at = now()
+        const memory: Memory = { id: randomUUID(), scope: input.scope, workspaceId, content: input.content, source: input.source, createdAt: at, updatedAt: at }
+        memories.set(memory.id, memory)
+        return memory
+      }),
+      update: op((id: string, patch: { content: string }) => {
+        const memory = memories.get(id)
+        if (!memory) throw notFound('memory', id)
+        Object.assign(memory, { content: patch.content, updatedAt: now() })
+        return memory
+      }),
+      delete: op((id: string) => {
+        if (!memories.delete(id)) throw notFound('memory', id)
+      }),
+    },
+    secrets: {
+      list: op(() =>
+        [...secrets.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).map(({ name, hint, updatedAt }) => ({ name, hint, updatedAt })),
+      ),
+      setCiphertext: op((name: string, secret: { ciphertext: Uint8Array; hint: string }) => {
+        const row = { name, hint: secret.hint, updatedAt: now(), ciphertext: new Uint8Array(secret.ciphertext) }
+        secrets.set(name, row)
+        return { name, hint: row.hint, updatedAt: row.updatedAt }
+      }),
+      getCiphertext: op((name: string) => {
+        const ciphertext = secrets.get(name)?.ciphertext
+        return ciphertext ? new Uint8Array(ciphertext) : undefined
+      }),
+      delete: op((name: string) => {
+        if (!secrets.delete(name)) throw notFound('secret', name)
       }),
     },
     async close() {

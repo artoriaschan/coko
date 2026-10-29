@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron, type ElectronApplication, type Page } from 'playwright'
 import { createFixtureDir, electronPath, placeholderSidecarEntry, processExists, readFixtureEvents } from '../tests/sidecar-fixture.ts'
@@ -33,15 +34,27 @@ export interface LaunchedApp {
 
 /** 宿主可能带有的真实模型凭据；测试只用 faux provider，不向应用传递它们。 */
 const CREDENTIAL_ENV =
-  /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_RIPGREP_PATH$|COKO_FAUX_SCRIPT$|ELECTRON_RUN_AS_NODE$)/
+  /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_RIPGREP_PATH$|COKO_FAUX_SCRIPT$|COKO_HOME$|ELECTRON_RUN_AS_NODE$)/
 
-/** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData。 */
+/** 测试目录下的临时用户级资源目录（经 COKO_HOME 传给 Sidecar；测试不读写真实的 ~/.coko）。 */
+export const cokoHomeOf = (dir: string) => join(dir, 'coko-home')
+
+/** 在测试目录的 COKO_HOME 下写文件（相对路径，父目录按需创建），返回绝对路径。 */
+export async function writeCokoHome(dir: string, relative: string, content: string): Promise<string> {
+  const path = join(cokoHomeOf(dir), relative)
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, content)
+  return path
+}
+
+/** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData 与临时 COKO_HOME。 */
 function testEnv(extra: Record<string, string>, dir: string, eventsPath: string, sidecar: 'real' | 'placeholder'): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !CREDENTIAL_ENV.test(key)) env[key] = value
   return {
     ...env,
     COKO_USER_DATA_DIR: join(dir, 'user-data'),
+    COKO_HOME: cokoHomeOf(dir),
     ...(sidecar === 'placeholder' ? { COKO_SIDECAR_ENTRY: placeholderSidecarEntry, COKO_FIXTURE_EVENTS: eventsPath } : {}),
     ...extra,
   }

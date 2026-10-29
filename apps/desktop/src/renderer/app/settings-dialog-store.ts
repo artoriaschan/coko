@@ -1,4 +1,7 @@
-export type SettingsSection = 'general' | 'models' | 'permissions' | 'about'
+import type { SettingsSectionId } from '../features/settings/sections.ts'
+
+/** 分区 id 来自分区注册表（features/settings/sections.ts）。 */
+export type SettingsSection = SettingsSectionId
 
 export interface SettingsDialogState {
   open: boolean

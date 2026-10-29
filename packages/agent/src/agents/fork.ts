@@ -1,6 +1,7 @@
 // 从此分叉（ADR 0006）：新 Session 的条目由原 Session 已提交的条目推导。与 Rewind 共用有效上下文与目标校验（checkpoints/）。
 import type { RunEntry } from '../engine/types.ts'
-import { effectiveEntries, rewindTarget } from '../checkpoints/rewind.ts'
+import { rewindTarget } from '../checkpoints/rewind.ts'
+import { effectiveEntries } from '../entries/index.ts'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
 /** 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。 */

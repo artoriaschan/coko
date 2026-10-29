@@ -91,4 +91,31 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('CREATE INDEX session_entries_by_kind ON session_entries(session_id, kind, seq)')
     },
   },
+  {
+    // M3：Memory（ADR 0003）与登记的 Secret（ADR 0007）。
+    version: 3,
+    up(db) {
+      db.exec(`
+        CREATE TABLE memories (
+          id           TEXT PRIMARY KEY,
+          scope        TEXT NOT NULL CHECK (scope IN ('user', 'workspace')),
+          workspace_id TEXT REFERENCES workspaces(id),
+          content      TEXT NOT NULL,
+          source       TEXT NOT NULL,
+          created_at   INTEGER NOT NULL,
+          updated_at   INTEGER NOT NULL,
+          CHECK ((scope = 'workspace') = (workspace_id IS NOT NULL))
+        ) STRICT;
+        CREATE INDEX memories_by_scope ON memories(scope, workspace_id, updated_at);
+
+        -- 只存 main 用 safeStorage 加密后的密文（ADR 0007）。
+        CREATE TABLE secrets (
+          name       TEXT PRIMARY KEY,
+          ciphertext BLOB NOT NULL,
+          hint       TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        ) STRICT;
+      `)
+    },
+  },
 ]
