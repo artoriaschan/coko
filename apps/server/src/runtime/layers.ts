@@ -149,7 +149,7 @@ const AssemblyLive = Layer.effect(
       createTransport: (server, { cwd }) => createMcpTransport(server, { cwd, env }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp })
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     return yield* Effect.acquireRelease(Effect.succeed({ config, context, mcp, secrets }), ({ context }) => Effect.promise(() => context.close()))

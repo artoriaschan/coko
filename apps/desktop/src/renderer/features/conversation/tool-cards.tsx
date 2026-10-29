@@ -1,6 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import { DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
-import { FilePenIcon, FilePlusIcon, FileTextIcon, FolderSearchIcon, FolderTreeIcon, SearchIcon, TerminalIcon, WrenchIcon } from 'lucide-react'
+import { BrainIcon, FilePenIcon, FilePlusIcon, FileTextIcon, FolderSearchIcon, FolderTreeIcon, SearchIcon, TerminalIcon, WrenchIcon } from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
@@ -9,7 +9,8 @@ type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
 interface ToolView {
   icon: React.ReactNode
-  title: MessageKey
+  /** 函数形式按调用结果给出标题（例如 memory_write 的"已记住 / 已更新记忆"）。 */
+  title: MessageKey | ((item: ToolItem) => MessageKey)
   /** 摘要使用的参数字段，保持原文。 */
   summary: (args: Record<string, unknown>) => string | undefined
   body: (item: ToolItem, args: Record<string, unknown>) => React.ReactNode
@@ -19,6 +20,13 @@ interface ToolView {
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined)
 const output = (item: ToolItem) => item.result?.text ?? resultText(item.live?.partialResult)
+
+/** memory_write / memory_delete 成功后结果 details 中的动作（MemoryToolDetails.action）。 */
+function memoryAction(item: ToolItem): string | undefined {
+  if (item.status !== 'done' || item.result?.isError) return undefined
+  const action = (item.result?.details as { action?: unknown } | undefined)?.action
+  return typeof action === 'string' ? action : undefined
+}
 
 function TextBody({ text }: { text: string }) {
   const { t } = useI18n()
@@ -54,6 +62,22 @@ const VIEWS: Record<string, ToolView> = {
   grep: { icon: <SearchIcon />, title: 'tool.grep', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
   find: { icon: <FolderSearchIcon />, title: 'tool.find', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
   ls: { icon: <FolderTreeIcon />, title: 'tool.ls', summary: (a) => str(a.path) ?? '.', body: (item) => <TextBody text={output(item)} /> },
+  memory_list: { icon: <BrainIcon />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <TextBody text={output(item)} /> },
+  memory_write: {
+    icon: <BrainIcon />,
+    title: (item) => {
+      const action = memoryAction(item)
+      return action === 'created' ? 'memory.tool.written' : action === 'updated' ? 'memory.tool.updated' : 'memory.tool.write'
+    },
+    summary: (a) => str(a.content),
+    body: (item, a) => (item.result?.isError ? <TextBody text={output(item)} /> : <ToolOutput>{str(a.content) ?? ''}</ToolOutput>),
+  },
+  memory_delete: {
+    icon: <BrainIcon />,
+    title: (item) => (memoryAction(item) === 'deleted' ? 'memory.tool.deleted' : 'memory.tool.delete'),
+    summary: (a) => str(a.id),
+    body: (item) => <TextBody text={output(item)} />,
+  },
 }
 
 const json = (value: unknown) => {
@@ -160,12 +184,12 @@ export function ToolCardView({ item }: { item: ToolItem }) {
       </ToolCard>
     )
   }
-  const hasBody = item.result !== null || item.live?.partialResult !== undefined || item.call.name === 'write'
+  const hasBody = item.result !== null || item.live?.partialResult !== undefined || item.call.name === 'write' || item.call.name === 'memory_write'
   return (
     <ToolCard
       data-tool={item.call.name}
       icon={view.icon}
-      title={t(view.title)}
+      title={t(typeof view.title === 'function' ? view.title(item) : view.title)}
       summary={view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
