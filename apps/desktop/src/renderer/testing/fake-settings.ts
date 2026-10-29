@@ -18,6 +18,8 @@ type Api = ApiClient
 export function fakeSettingsBackend() {
   const settings = new Map<string, Setting>()
   const providers: Provider[] = []
+  /** 引用各 Provider 的 Session 数量（setReferences 设置；删除时归零）。 */
+  const references = new Map<string, number>()
   const permissions: PermissionsResponse = { defaultMode: { value: 'default', revision: 0 }, global: { rules: [], revision: 0 } }
   const workspaceRules = new Map<string, { rules: PermissionsResponse['global']['rules']; revision: number }>()
   const permissionsOf = (workspaceId?: string): PermissionsResponse => ({
@@ -60,10 +62,15 @@ export function fakeSettingsBackend() {
       else workspaceRules.set(request.workspaceId, { rules: request.rules, revision: current + 1 })
       return permissionsOf(request.target === 'workspace' ? request.workspaceId : undefined)
     }),
+    providerReferences: vi.fn<Api['providerReferences']>(async (id) => {
+      if (!providers.some((p) => p.id === id)) throw new ApiError('not-found', 'missing', 404)
+      return { sessions: references.get(id) ?? 0 }
+    }),
     deleteProvider: vi.fn<Api['deleteProvider']>(async (id) => {
       const index = providers.findIndex((p) => p.id === id)
       if (index < 0) throw new ApiError('not-found', 'missing', 404)
       providers.splice(index, 1)
+      references.delete(id)
       return undefined
     }),
   }
@@ -89,7 +96,9 @@ export function fakeSettingsBackend() {
     else providers.push(provider)
     return { ok: true, provider }
   })
-  return { api: api as unknown as ApiClient, raw: api, settings, providers, permissions, externalWrite, seedProvider, saveProvider }
+  /** 设置引用某 Provider 的 Session 数量（providerReferences 的返回值）。 */
+  const setReferences = (id: string, sessions: number) => void references.set(id, sessions)
+  return { api: api as unknown as ApiClient, raw: api, settings, providers, permissions, externalWrite, seedProvider, saveProvider, setReferences }
 }
 
 /** 测试用的 Model Catalog 条目：默认容量、文本输入、推理关闭。 */

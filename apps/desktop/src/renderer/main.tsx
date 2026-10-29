@@ -57,6 +57,8 @@ const settings = createSettingsStore({
   api,
   ...(bridge ? { saveProvider: (input: SaveProviderInput) => bridge.saveProvider(input) } : {}),
   onFailure: () => toast.error(t()('settings.loadFailed')),
+  // 删除 Provider 后引用它的 Session 模型字段已被清空：重新读取会话列表。
+  onProviderDeleted: () => void chat.getState().load(),
 })
 const preferences = createPreferences({
   appearance,

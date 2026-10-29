@@ -459,7 +459,7 @@ it('编辑目录（过渡输入）：修改协议与目录后保存，已有模�
   ])
 
   await row('custom-provider-2').getByRole('button', { name: 'Delete', exact: true }).click()
-  await row('custom-provider-2').getByRole('button', { name: 'Confirm delete', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
   await expect.element(dialog.getByText('No providers yet. Add one to start a conversation.')).toBeVisible()
   expect(backend.providers).toEqual([])
 })

@@ -9,6 +9,7 @@ const STATUS: Record<ErrorCode, number> = {
   'run-in-progress': 409,
   'nothing-to-retry': 409,
   'model-not-configured': 409,
+  'model-required': 409,
   'approval-not-pending': 409,
   'no-active-run': 409,
   'nothing-to-continue': 409,

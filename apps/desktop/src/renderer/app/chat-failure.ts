@@ -22,6 +22,7 @@ const KIND_KEYS = {
 export function failureMessage(locale: Locale, failure: ChatFailure): string {
   const t = createTranslator(locale)
   if (failure.error.code === 'model-not-configured') return t('errors.modelNotConfigured')
+  if (failure.error.code === 'model-required') return t('errors.modelRequired')
   if (failure.error.code === 'run-in-progress') return t('errors.runInProgress')
   if (failure.error.code === 'approval-not-pending') return t('errors.approvalNotPending')
   if (failure.error.code === 'no-active-run') return t('errors.noActiveRun')

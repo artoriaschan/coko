@@ -10,7 +10,16 @@ import {
   type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { AvailableModel, CatalogModel, ModelProtocol, Provider, ProviderFields, ProviderSaveMode, ThinkingLevel } from '@coko/protocol'
+import type {
+  AvailableModel,
+  CatalogModel,
+  ModelProtocol,
+  Provider,
+  ProviderFields,
+  ProviderReferencesResponse,
+  ProviderSaveMode,
+  ThinkingLevel,
+} from '@coko/protocol'
 import { isStoreError, type CredentialRecord, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
@@ -119,11 +128,30 @@ export class ProviderService {
     return toProviderDto(saved)
   }
 
+  /** 引用该 Provider 的 Session 数量；不存在时 not-found。 */
+  async references(id: string): Promise<ProviderReferencesResponse> {
+    try {
+      return await this.#options.store.providers.references(id)
+    } catch (error) {
+      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
+      throw error
+    }
+  }
+
+  /**
+   * 删除 Provider 与其 Credential，并清除 sidecar 内存中的明文缓存。引用它的 Session 模型字段在同一事务中清空（下次运行前要求
+   * 重新选择模型），默认模型设置指向它时改为 null（回退为第一个可用模型）；以后用相同 ID 重新创建也不会接回。
+   */
   async delete(id: string): Promise<void> {
-    if (!(await this.#options.store.providers.get(id))) throw new AppError('not-found', `Provider ${id} not found`)
-    await this.#options.store.providers.delete(id)
+    let cleared: { sessions: number }
+    try {
+      cleared = await this.#options.store.providers.delete(id)
+    } catch (error) {
+      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
+      throw error
+    }
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
-    log.info('provider deleted', { providerId: id })
+    log.info('provider deleted', { providerId: id, sessionsCleared: cleared.sessions })
   }
 }

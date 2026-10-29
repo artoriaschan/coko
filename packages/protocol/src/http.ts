@@ -178,6 +178,10 @@ export type Provider = Static<typeof Provider>
 export const ProviderListResponse = Type.Object({ providers: Type.Array(Provider) }, strict)
 export type ProviderListResponse = Static<typeof ProviderListResponse>
 
+/** 引用某 Provider 的 Session 数量；删除 Provider 时这些 Session 的模型字段被清空。 */
+export const ProviderReferencesResponse = Type.Object({ sessions: Type.Integer({ minimum: 0 }) }, strict)
+export type ProviderReferencesResponse = Static<typeof ProviderReferencesResponse>
+
 /**
  * 一次提交的 Provider 配置（不含密钥）：新建与编辑都给出完整字段，编辑时 id 指定要修改的 Provider（不可修改）。
  * 只经 preload IPC 与控制消息 provider.save 提交（ADR 0010），HTTP 不提供创建与更新。ID 重复时 already-exists；
