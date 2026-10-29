@@ -104,3 +104,9 @@
 - `catalog-draft.ts`：`ModelRowDraft { key, id, name, contextWindow, maxTokens, input, reasoning, thinkingLevels }`（容量为输入原文，key 只作行身份）、`emptyModelRow()`、`rowsOf(models)`、`toCatalog(rows)`、`validateCatalog(rows)`（返回 `CatalogErrors = Record<rowKey, { id?, contextWindow?, maxTokens? }>`）、`pruneCatalogErrors`、`parseTokens` / `formatTokens`。`reasoning` 与 `thinkingLevels` 原样往返，供票 06 编辑；票 06 加档位错误时扩展 `ModelRowField`。票 07 导入模型用 `{ ...emptyModelRow(), id, name: id }` 追加到 `draft.models`。
 - `model-catalog.tsx`：`ModelCatalog { id, rows, onChange, errors?, emptyError?, revealErrors }`；展开状态在组件内，`revealErrors` 变化时展开有容量错误的行。票 06 在 `ModelRow` 展开区（输入类型之后）加推理设置；票 07 在目录标题行加“获取可用模型”。
 - DOM：行 `li[data-model-row][data-model-row-key]`，展开时 `data-expanded`，有错误时 `data-invalid`；输入 `[name=modelId|modelName|contextWindow|maxTokens]`；复选框 `[name=input-text|input-image]`；“添加模型” `[data-model-add]`；图标按钮的可访问名称为 `providers.catalog.options`（“模型选项”）与 `providers.catalog.remove`（“删除模型”）。显示名称的可访问名称为“模型显示名称”，与供应商的“显示名称”区分。
+
+合入票 04（model-service cdf507c）后：
+
+- 共享文件核对：`models-section.tsx` 与 04 一致（删除确认 `delete-provider-dialog.tsx`、`providerReferences`）；i18n 同时有 `providers.deleteDialog.*` 与 `providers.catalog.*`；`models-section.browser.test.tsx` 只差本票的目录行改动。
+- 票 04 新增的 `apps/desktop/e2e/provider-delete.e2e.test.ts` 仍填写已删除的 `input[name="models"]`；其 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`，签名不变。
+- 重新验证：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 warning 0 error；`pnpm run format:check` 通过；`pnpm run test apps/desktop/src/renderer packages/i18n packages/ui/src/guards scripts tests/integration/secrets-gate tests/integration/sidecar-provider-delete.test.ts`：41 个文件，258 个用例通过；`pnpm run test apps/desktop/e2e/settings.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts`：3 通过，1 跳过（真实 DeepSeek）。
