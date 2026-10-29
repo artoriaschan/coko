@@ -2,6 +2,8 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
   createAgentRuntime,
+  createBuiltinToolRegistry,
+  createLocalExecPort,
   effectiveMessages,
   lastRunStatus,
   ModelConfigError,
@@ -39,6 +41,7 @@ import {
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { Value } from 'typebox/value'
 import { SessionCheckpoints } from './checkpoints.ts'
+import { dynamicHooks, emptyContextAssembly, layeredTools, type ContextAssembly, type ContextScope } from './context/index.ts'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import { PermissionService } from './permissions.ts'
@@ -76,6 +79,16 @@ export interface SessionServiceOptions {
   secrets?: SecretProvider
   /** 回退代码读取快照正文与当前文件摘要（Sidecar 为 <dataDir>/blobs）。缺省：回退代码以 internal 失败。 */
   checkpoints?: RewindFiles
+  /** M3 上下文装配（application/context/）。缺省：没有任何贡献，模型请求与 M2 相同。 */
+  context?: ContextAssembly
+}
+
+/** 运行时每个 Run 开始时刷新的上下文取值（运行时创建后其工具集与 hook 链不变，经这里间接替换）。 */
+interface RunContext {
+  scope: ContextScope
+  tools: ReturnType<typeof layeredTools>
+  hooks: ReturnType<typeof dynamicHooks>
+  readRoots: readonly string[]
 }
 
 export interface SessionExtensionContext {
@@ -101,10 +114,13 @@ export class SessionService {
   readonly #permissions: SessionPermissions
   readonly #recovery: SessionRecovery
   readonly #checkpoints: SessionCheckpoints
+  readonly #context: ContextAssembly
+  readonly #runContexts = new WeakMap<AgentRuntime, RunContext>()
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
     this.#options = options
+    this.#context = options.context ?? emptyContextAssembly()
     this.permissions = options.permissions ?? new PermissionService(options.store, () => this.#hostToolNames())
     this.#runtimes = new SessionRuntimes(options.store, options.hub)
     this.#permissions = new SessionPermissions({ store: options.store, runtimes: this.#runtimes, service: this.permissions })
@@ -258,9 +274,18 @@ export class SessionService {
 
   // ---- Run 控制 ----
 
-  /** 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。 */
-  submit(sessionId: string, text: string): Promise<{ runId: string }> {
-    return this.#start(sessionId, (runtime) => runtime.run(text))
+  /**
+   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。提交的文本先经上下文装配展开（命令 → File Reference）；
+   * 展开为动作（例如 /compact）时调用该动作，Run 进行中 run-in-progress。
+   */
+  async submit(sessionId: string, text: string): Promise<{ runId: string }> {
+    const session = await this.#get(sessionId)
+    const expanded = await this.#context.expandInput(text, await this.#scope(session))
+    if (expanded.kind === 'input') return this.#start(sessionId, (runtime) => runtime.run(expanded.input))
+    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
+    const action = this.#context.action(expanded.name)
+    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
+    return action({ scope: await this.#scope(session), sessionId, args: expanded.args })
   }
 
   /** 重新执行出错的上一轮（不追加用户消息）；上一轮没有出错时以 nothing-to-retry 拒绝。 */
@@ -276,13 +301,15 @@ export class SessionService {
     return this.#start(sessionId, (runtime) => runtime.continue())
   }
 
-  /** 把追加指令送进当前 Run；没有进行中的 Run 时 no-active-run。 */
+  /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */
   async steer(sessionId: string, text: string): Promise<void> {
-    await this.#get(sessionId)
+    const session = await this.#get(sessionId)
     const runtime = this.#runtimes.get(sessionId)
     try {
-      if (!runtime) throw new NoActiveRunError()
-      runtime.steer(text)
+      if (!runtime?.isRunning) throw new NoActiveRunError()
+      const expanded = await this.#context.expandInput(text, this.#runContexts.get(runtime)?.scope ?? (await this.#scope(session)))
+      if (expanded.kind === 'action') throw new AppError('bad-request', `${expanded.name} cannot be sent while a Run is in progress`)
+      runtime.steer(expanded.input)
     } catch (error) {
       if (error instanceof NoActiveRunError) throw new AppError('no-active-run', error.message)
       throw error
@@ -317,8 +344,20 @@ export class SessionService {
     const model = this.#resolve(session.model!, 'model-not-configured')
     const runtime = await this.#runtimes.obtain(session.id, () => this.#createRuntime(session, model))
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
+    // 每个 Run 开始时向上下文装配取值（工具、读取根、hook）；取值之后再检查，检查与开始 Run 之间没有 await。
+    const scope = await this.#scope(session)
+    const [contributed, readRoots] = await Promise.all([this.#context.tools(scope), this.#context.readRoots(scope)])
+    const hooks = this.#context.hooks(scope)
+    if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (this.#checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
+    const runContext = this.#runContexts.get(runtime)
+    if (runContext) {
+      runContext.scope = scope
+      runContext.tools.set(contributed)
+      runContext.hooks.set(hooks)
+      runContext.readRoots = readRoots
+    }
     runtime.setModel(model)
 
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
@@ -368,6 +407,12 @@ export class SessionService {
     return requireSession(this.#options.store, sessionId)
   }
 
+  async #scope(session: StoredSession): Promise<ContextScope> {
+    const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
+    if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+    return this.#context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id })
+  }
+
   #resolve(model: SessionModel, code: 'bad-request' | 'model-not-configured'): Model<any> {
     try {
       return resolveModel(this.#options.registry, model.providerId, model.modelId)
@@ -391,21 +436,35 @@ export class SessionService {
     let extension: SessionExtension = {}
     const publish = this.#runtimes.publisher(session.id, () => extension.onEntry)
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
+    const base = this.#options.tools?.(workspace.path) ?? createBuiltinToolRegistry({ cwd: workspace.path, exec: createLocalExecPort() })
+    const runContext: RunContext = {
+      scope: await this.#scope(session),
+      tools: layeredTools(base),
+      hooks: dynamicHooks(),
+      readRoots: [],
+    }
+    const context = this.#context
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
       cwd: workspace.path,
-      ...(this.#options.tools ? { tools: this.#options.tools(workspace.path) } : {}),
+      tools: runContext.tools.registry,
       sessionId: session.id,
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
-      permissions: this.#permissions.runtimePermissions(permissions, session.workspaceId),
-      ...(extension.hooks ? { hooks: extension.hooks } : {}),
+      permissions: { ...this.#permissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
+      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。
+      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
+      context: {
+        systemSections: () => context.systemSections(runContext.scope),
+        ...(context.transformMessages ? { transformMessages: context.transformMessages } : {}),
+      },
       commit: async (entry) => {
         await publish(entry)
       },
     })
+    this.#runContexts.set(runtime, runContext)
     runtime.subscribe((event) => {
       if (event.kind === 'progress') hub.publishProgress(session.id, event.event.runId, toProgress(event.event))
     })

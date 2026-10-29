@@ -184,7 +184,7 @@ describe('启动恢复与结果确认', () => {
     expect(await sidecarLog(dirs)).not.toContain('interrupted run recovered')
   })
 
-  it('迁移 v2：用 v1 库启动 Sidecar → 版本 2、生成 .backup-v1-*、原有 Session 与条目可读', async () => {
+  it('迁移：用 v1 库启动 Sidecar → 当前版本（M3 起为 3）、生成 .backup-v1-*、原有 Session 与条目可读', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const db = join(dirs.dataDir, 'coko.db')
@@ -214,7 +214,7 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    expect(version(db)).toBe(2)
+    expect(version(db)).toBe(3)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
   })
 })

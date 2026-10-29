@@ -74,6 +74,7 @@ export * from './config/index.ts'
 export * from './extensions/mcp/index.ts'
 
 // Hooks
+export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks.ts'
 export type { ToolHooks } from './extensions/hooks.ts'
 
 // Ports

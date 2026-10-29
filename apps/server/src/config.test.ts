@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
@@ -9,7 +11,18 @@ describe('Sidecar 启动参数', () => {
       logDir: '/l',
       logPath: '/l/sidecar.jsonl',
       logLevel: 'info',
+      cokoHome: join(homedir(), '.coko'),
     })
+  })
+
+  it('COKO_HOME：缺省 ~/.coko，给定时必须是绝对路径；打包的发布构建同样读取（不是测试钩子）', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l']
+    expect(parseConfig(argv, { COKO_HOME: '/h/.coko' }).cokoHome).toBe('/h/.coko')
+    expect(parseConfig(argv, { COKO_HOME: '' }).cokoHome).toBe(join(homedir(), '.coko'))
+    expect(() => parseConfig(argv, { COKO_HOME: 'rel' })).toThrow(ConfigError)
+    const packaged = parseConfig([...argv, '--packaged'], { COKO_HOME: '/h/.coko' }, { testBuild: false })
+    expect(packaged.cokoHome).toBe('/h/.coko')
+    expect(packaged).not.toHaveProperty('ignoredTestHooks')
   })
 
   it('--ripgrep 可选，给定时必须是绝对路径', () => {

@@ -2,10 +2,10 @@
 // 每个 Sidecar 用独立临时目录与端口 0；onTestFinished 登记 teardown，等待进程实际退出。
 import { spawn, type ChildProcess } from 'node:child_process'
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Value } from 'typebox/value'
 import { onTestFinished } from 'vitest'
@@ -31,11 +31,24 @@ export async function fauxScript(dir: string, script: unknown, name = 'faux.json
 export interface SidecarDirs {
   dataDir: string
   logDir: string
+  /**
+   * 临时的用户级资源目录，经环境变量 COKO_HOME 交给 Sidecar（测试不读写真实的 ~/.coko）。目录在第一次写入时创建；
+   * 用 writeCokoHome 写入其中的文件。
+   */
+  cokoHome: string
 }
 
 export async function sidecarDirs(): Promise<SidecarDirs> {
   const root = await tempDir('coko-sidecar-')
-  return { dataDir: join(root, 'data'), logDir: join(root, 'logs') }
+  return { dataDir: join(root, 'data'), logDir: join(root, 'logs'), cokoHome: join(root, 'coko-home') }
+}
+
+/** 在 dirs.cokoHome 下写文件（相对路径，父目录按需创建），返回绝对路径。 */
+export async function writeCokoHome(dirs: Pick<SidecarDirs, 'cokoHome'>, relative: string, content: string): Promise<string> {
+  const path = join(dirs.cokoHome, relative)
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, content)
+  return path
 }
 
 export interface SpawnOptions {
@@ -66,7 +79,7 @@ export function spawnSidecar(options: SpawnOptions): SidecarProcess {
   const ipc = options.ipc ?? true
   const args = options.args ?? ['--data-dir', options.dirs.dataDir, '--log-dir', options.dirs.logDir]
   const child = spawn(electronPath, [entry, ...args], {
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ELECTRON_RUN_AS_NODE: '1', ...options.env },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ELECTRON_RUN_AS_NODE: '1', COKO_HOME: options.dirs.cokoHome, ...options.env },
     stdio: ipc ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'pipe', 'pipe'],
   })
   const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>

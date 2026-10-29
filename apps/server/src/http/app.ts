@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { HttpBindings } from '@hono/node-server'
 import { upgradeWebSocket } from '@hono/node-server'
-import { Hono, type Context } from 'hono'
+import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import type { TSchema, Static } from 'typebox'
-import { Value } from 'typebox/value'
 import { getLogger } from '@coko/logging'
 import {
   AnswerApprovalRequest,
@@ -26,38 +23,19 @@ import {
   SubmitMessageRequest,
   UpdateProviderRequest,
   UpdateSettingRequest,
-  type ErrorResponse,
 } from '@coko/protocol'
 import { AppError, toAppError } from '../application/errors.ts'
 import type { Application } from '../application/index.ts'
 import { StreamConnection } from '../ws/connection.ts'
 import type { AccessAuth } from './auth.ts'
+import { DOMAIN_ROUTES } from './routes/index.ts'
+import { body, errorBody, type Env } from './routes/shared.ts'
 
 const log = getLogger(['http'])
-
-type Env = { Bindings: HttpBindings; Variables: { requestId: string } }
 
 /** 打开中的 WebSocket，关闭 sidecar 时以 1001 关闭。 */
 export interface SocketRegistry {
   add(socket: { close(code?: number, reason?: string): void }): () => void
-}
-
-function errorBody(error: AppError): ErrorResponse {
-  return { error: { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) } }
-}
-
-async function body<S extends TSchema>(c: Context<Env>, schema: S): Promise<Static<S>> {
-  let value: unknown
-  try {
-    value = await c.req.json()
-  } catch {
-    throw new AppError('bad-request', 'Request body must be JSON')
-  }
-  if (!Value.Check(schema, value)) {
-    const first = Value.Errors(schema, value)[0]
-    throw new AppError('bad-request', first ? `Invalid request: ${first.instancePath || '/'} ${first.message}` : 'Invalid request')
-  }
-  return value as Static<S>
 }
 
 /** Hono 路由。顺序：请求日志 → 信任围栏（403）→ main-only 路由守卫（404）→ 令牌交换 → cookie 校验（401）→ 业务路由。 */
@@ -205,6 +183,9 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     await app.providers.delete(c.req.param('id'))
     return c.body(null, 204)
   })
+
+  // M3 起的领域路由只经 http/routes/<domain>.ts 挂载（认证之后）。
+  for (const routes of DOMAIN_ROUTES) http.route('/api', routes(app))
 
   http.notFound((c) => c.json(errorBody(new AppError('not-found', 'Not found')), 404))
   http.onError((error, c) => {
