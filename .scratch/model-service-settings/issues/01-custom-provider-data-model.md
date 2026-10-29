@@ -64,3 +64,12 @@
 - renderer：`ProviderDraft { id, isNew, name, api, baseUrl, models: CatalogModel[], secret }`；表单字段 `name` 属性为 `providerId`、`name`、`baseUrl`、`models`、`credential`；协议下拉为 `DropdownMenuRadioItem[data-protocol]`；列表项 `[data-provider-id][data-protocol]`。i18n 新增 `providers.id`、`idHint`、`idInvalid`、`idTaken`、`protocol`、`protocols.*`、`baseUrlInvalid`，删除 `kinds.*`、`baseUrlPresetHint`、`baseUrlRequired`。
 
 **越出建议写范围的改动**：`tests/fixtures/v1-database.ts`（迁移证据）、`docs/subsystems/mcp.md`、`docs/adr/0004*`、`docs/adr/0010*` 与 `docs/adr/README.md`（凭据来源描述与实施状态同步）。共享文件 `packages/protocol/src/errors.ts`、`packages/i18n/src/dictionaries/{zh,en}.ts` 只做增删本票所需的键。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/01-custom-provider-data-model` 合入集成分支 model-service，合入提交 4bac390（票分支 52393c6），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（535 文件）；`pnpm run format:check` 通过（561 文件）；`pnpm run test` 182 文件，1294 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：验收 7 项与 diff 对应。`git grep` 在 apps、packages、tests 中已无 `ProviderKind`、`PROVIDER_KINDS`、`providerPresets`、`apiKeyEnvOf`、`protocolOf`；剩余的 `DEEPSEEK_API_KEY` 只出现在 e2e 环境剔除、真实模型用例和“不读取品牌变量”的负向测试中。ADR 0010 改为 `implementation: partial`，正文写明已实施范围（去 kind、ID 主键、迁移 v4、只读 `COKO_CREDENTIAL_<PROVIDER_ID>`）与未实施部分（一次提交、一次存储、获取模型），ADR 索引与 ADR 0004 同步。HTTP 创建与更新仍保留，由票 02 移除；空模型 Session 的重新选择提示归票 04。
+- “供后续票”的约定已转写到票 02、03、04、05、07、08 的 Comments（标题“来自票 01”）。
+
+Closed: true

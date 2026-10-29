@@ -23,3 +23,10 @@
 
 - 设置菜单已分组（票 09 已合入）。分类“Models”/“模型”是 `role="group"` 的无障碍名称（`aria-labelledby` 指向分类标题），在设置弹窗内用 `getByLabelText('Models')` 会同时匹配该分组和表单字段。查询表单字段时改用带角色的查询，例如 `getByRole('textbox', { name: 'Models' })`；新增带“Models”/“模型”标签的控件同样按角色查询。
 - 打开模型服务分区：菜单项文案为 `settings.nav.models`（“Model services”/“模型服务”），选择器 `[data-section=models]` 未变；分区页标题仍用 `settings.models` 等分区自己的键，与菜单文案分开。
+
+### 来自票 01
+
+- 数据模型（票 01 已合入）：Provider 没有 kind 与品牌预设，`Provider { id, name, api, baseUrl, models, credential, createdAt, updatedAt }`，ID 由用户输入并作主键，须符合 `PROVIDER_ID_PATTERN`（`^[a-z][a-z0-9-]{0,63}$`）。
+- `CatalogModel { id, name, contextWindow, maxTokens, input, reasoning, thinkingLevels }`（`@coko/protocol`）与 agent 的 `ModelSpec` 同形，由编译期断言保证；name 为空表示显示为模型 ID；`thinkingLevels` 按添加顺序保存。默认容量为 `MODEL_CATALOG_DEFAULTS { contextWindow: 128000, maxTokens: 16000 }`。
+- 导入的模型按 `CatalogModel` 生成：name 为空或等于 ID、容量取 `MODEL_CATALOG_DEFAULTS`、`input` 为文本、`reasoning` 关闭、`thinkingLevels` 为空。“已在目录”按模型 ID 判断，服务端拒绝重复模型 ID（400）。
+- 新的密钥输出通道要新增 `tests/integration/secrets-gate-<channel>.test.ts`；secrets-gate 现在用 `COKO_CREDENTIAL_GATE_PROVIDER` 提供密钥。

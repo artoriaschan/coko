@@ -20,3 +20,10 @@
 
 - 设置菜单已分组（票 09 已合入）。分类“Models”/“模型”是 `role="group"` 的无障碍名称（`aria-labelledby` 指向分类标题），在设置弹窗内用 `getByLabelText('Models')` 会同时匹配该分组和表单字段。查询表单字段时改用带角色的查询，例如 `getByRole('textbox', { name: 'Models' })`；新增带“Models”/“模型”标签的控件同样按角色查询。
 - 打开模型服务分区：菜单项文案为 `settings.nav.models`（“Model services”/“模型服务”），选择器 `[data-section=models]` 未变；分区页标题仍用 `settings.models` 等分区自己的键，与菜单文案分开。
+
+### 来自票 01
+
+- 数据模型（票 01 已合入）：Provider 没有 kind 与品牌预设，`Provider { id, name, api, baseUrl, models, credential, createdAt, updatedAt }`，ID 由用户输入并作主键，须符合 `PROVIDER_ID_PATTERN`（`^[a-z][a-z0-9-]{0,63}$`）。
+- `CatalogModel { id, name, contextWindow, maxTokens, input, reasoning, thinkingLevels }`（`@coko/protocol`）与 agent 的 `ModelSpec` 同形，由编译期断言保证；name 为空表示显示为模型 ID；`thinkingLevels` 按添加顺序保存。默认容量为 `MODEL_CATALOG_DEFAULTS { contextWindow: 128000, maxTokens: 16000 }`。
+- 重复 ID 返回 409 `already-exists`（`details: { field: 'id', id }`），界面映射为“ID 已被使用”（i18n `providers.idTaken`）。现有 i18n：`providers.id`、`idHint`、`idInvalid`、`idTaken`、`protocol`、`protocols.*`、`baseUrlInvalid`；`kinds.*`、`baseUrlPresetHint`、`baseUrlRequired` 已删除。
+- 现有过渡界面：`ProviderDraft { id, isNew, name, api, baseUrl, models: CatalogModel[], secret }`；表单字段 name 属性为 `providerId`、`name`、`baseUrl`、`models`、`credential`；协议下拉为 `DropdownMenuRadioItem[data-protocol]`；列表项 `[data-provider-id][data-protocol]`。模型目录暂为逗号分隔的模型 ID（新模型取默认能力，已有模型保留其能力），由本票及 05、06 重做。renderer 测试 helper 在 `apps/desktop/src/renderer/testing/fake-settings.ts`（`catalogModel`、`customProvider`）。
