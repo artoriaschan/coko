@@ -1,11 +1,13 @@
 import type { MessageKey } from '@coko/i18n'
 import { ModelProtocol, type Provider } from '@coko/protocol'
-import { Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
 import { ChevronDownIcon, CircleAlertIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettingsActions } from '../../app/settings.tsx'
 import type { ProviderSaveErrorCode } from '../../../shared/bridge.ts'
+import { pruneCatalogErrors, type ModelRowDraft } from './catalog-draft.ts'
+import { ModelCatalog } from './model-catalog.tsx'
 import { toProviderDraft, validateDraft, type DraftErrors, type DraftField, type FormDraft } from './provider-draft.ts'
 
 /** 协议下拉的顺序即协议 schema 中的顺序；默认 OpenAI Chat Completions。 */
@@ -61,7 +63,7 @@ export function ProviderForm({
     if (focusTick > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [focusTick])
 
-  const update = (field: keyof FormDraft, value: string) => {
+  const update = (field: Exclude<keyof FormDraft, 'models'>, value: string) => {
     onChange({ ...draft, [field]: value })
     if (field in errors)
       setErrors((current) => {
@@ -69,6 +71,19 @@ export function ProviderForm({
         delete next[field as DraftField]
         return next
       })
+  }
+
+  /** 目录变化：去掉失效的行错误；有了行之后空目录的错误消失。 */
+  const updateModels = (models: ModelRowDraft[]) => {
+    onChange({ ...draft, models })
+    if (errors.catalog === undefined && errors.models === undefined) return
+    setErrors(({ catalog, models: empty, ...rest }) => {
+      const next: DraftErrors = rest
+      if (empty !== undefined && models.length === 0) next.models = empty
+      const kept = catalog && pruneCatalogErrors(catalog, models, draft.models)
+      if (kept && Object.keys(kept).length > 0) next.catalog = kept
+      return next
+    })
   }
 
   const submit = async (event: React.FormEvent) => {
@@ -97,7 +112,7 @@ export function ProviderForm({
     toast.error(t('providers.saveFailed'))
   }
 
-  const field = (name: DraftField) => ({ id: `${id}-${name}`, error: errors[name] && t(errors[name]) })
+  const field = (name: Exclude<DraftField, 'models'>) => ({ id: `${id}-${name}`, error: errors[name] && t(errors[name]) })
 
   const idField = (
     <Field {...field('providerId')} label={t('providers.id')} hint={t('providers.idHint')}>
@@ -222,19 +237,14 @@ export function ProviderForm({
         </>
       )}
       <Separator />
-      <Field {...field('modelText')} label={t('providers.models')} hint={t('providers.modelsHint')} heading>
-        {(aria) => (
-          <Input
-            {...aria}
-            name="models"
-            value={draft.modelText}
-            onChange={(e) => update('modelText', e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            className="font-mono"
-          />
-        )}
-      </Field>
+      <ModelCatalog
+        id={`${id}-models`}
+        rows={draft.models}
+        onChange={updateModels}
+        errors={errors.catalog}
+        emptyError={errors.models && t(errors.models)}
+        revealErrors={focusTick}
+      />
       {formError !== null && (
         <div className="flex flex-col gap-1">
           <p role="alert" className="flex items-start gap-1.5 text-ui-small text-destructive">
@@ -279,15 +289,12 @@ function Field({
   label,
   hint,
   error,
-  heading = false,
   children,
 }: {
   id: string
   label: string
   hint?: string | undefined
   error?: string | undefined
-  /** 作为分组标题显示的标签（模型目录）。 */
-  heading?: boolean
   children: (aria: FieldAria) => React.ReactNode
 }) {
   const hintId = `${id}-hint`
@@ -295,7 +302,7 @@ function Field({
   const describedBy = [error !== undefined && errorId, hint !== undefined && hintId].filter(Boolean).join(' ')
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={cn(heading ? 'text-ui-body-lg font-medium' : 'text-ui-small text-muted-foreground')}>
+      <label htmlFor={id} className="text-ui-small text-muted-foreground">
         {label}
       </label>
       {children({ id, ...(error !== undefined ? { 'aria-invalid': true } : {}), ...(describedBy ? { 'aria-describedby': describedBy } : {}) })}

@@ -86,9 +86,21 @@ it('列表：每个供应商都有编辑与删除，状态点以文字区分已�
 })
 
 const forms = () => document.querySelectorAll('[role=dialog] [data-provider-form]')
+/** 目录的“添加模型”入口（新增一行并聚焦模型 ID）。 */
+const addModel = () => document.querySelector<HTMLElement>('[role=dialog] [data-provider-form] [data-model-add]')!
+/** 添加一个模型行，等新行的模型 ID 获得焦点后填写。 */
+async function addModelRow(id: string) {
+  await page.elementLocator(addModel()).click()
+  const input = page.elementLocator([...document.querySelectorAll<HTMLElement>('[role=dialog] [data-model-row] [name="modelId"]')].at(-1)!)
+  await expect.element(input).toHaveFocus()
+  await input.fill(id)
+}
 const field = (name: string) => document.querySelector<HTMLInputElement>(`[role=dialog] [data-provider-form] [name="${name}"]`)!
 const errorOf = (name: string) => {
   const input = field(name)
+  return describedError(input)
+}
+const describedError = (input: Element) => {
   const ids = input.getAttribute('aria-describedby')?.split(' ') ?? []
   return ids.map((id) => document.getElementById(id)).find((el) => el?.hasAttribute('data-field-error'))?.textContent ?? null
 }
@@ -138,7 +150,7 @@ it('新建校验：空表单、ID 格式与重复、非 http(s) 地址都阻止�
   expect(errorOf('name')).toBe('请填写显示名称')
   expect(errorOf('baseUrl')).toBe(dictionaries.zh.providers.baseUrlInvalid)
   expect(errorOf('credential')).toBe('请输入 API Key')
-  expect(errorOf('models')).toBe(dictionaries.zh.providers.modelsRequired)
+  expect(describedError(addModel())).toBe(dictionaries.zh.providers.modelsRequired)
   expect(field('providerId').getAttribute('aria-invalid')).toBe('true')
   await expect.element(page.elementLocator(field('providerId'))).toHaveFocus()
 
@@ -148,7 +160,7 @@ it('新建校验：空表单、ID 格式与重复、非 http(s) 地址都阻止�
   await page.elementLocator(field('name')).fill('自定义供应商二')
   await page.elementLocator(field('baseUrl')).fill('ftp://gateway.example')
   await page.elementLocator(field('credential')).fill('sk-new-provider-2222')
-  await page.elementLocator(field('models')).fill('custom-model-2')
+  await addModelRow('custom-model-2')
   await create.click()
   await expect.poll(() => errorOf('providerId')).toBe('ID 已被使用')
   expect(errorOf('baseUrl')).toBe(dictionaries.zh.providers.baseUrlInvalid)
@@ -347,7 +359,7 @@ it('提交中“创建供应商”不可点、只提交一次；失败时表单�
   await page.elementLocator(field('name')).fill('Custom one')
   await page.elementLocator(field('baseUrl')).fill('http://127.0.0.1:9/v1')
   await page.elementLocator(field('credential')).fill('sk-browser-test-9876')
-  await page.elementLocator(field('models')).fill('custom-model-1')
+  await addModelRow('custom-model-1')
   const create = dialog.getByRole('button', { name: 'Create provider', exact: true })
   await create.click()
   await expect.element(create).toBeDisabled()
@@ -391,7 +403,7 @@ it('服务端返回 ID 重复时字段旁提示“ID 已被使用”并保留草
   await page.elementLocator(field('name')).fill('自定义供应商一')
   await page.elementLocator(field('baseUrl')).fill('https://gateway.example/v1')
   await page.elementLocator(field('credential')).fill('sk-1111')
-  await page.elementLocator(field('models')).fill('custom-model-1')
+  await addModelRow('custom-model-1')
   await dialog.getByRole('button', { name: '创建供应商', exact: true }).click()
   await expect.poll(() => errorOf('providerId')).toBe('ID 已被使用')
   await expect.element(page.elementLocator(field('providerId'))).toHaveFocus()
@@ -427,7 +439,12 @@ it('键盘：Tab 到“添加模型供应商”并用键盘完成新建，焦点
   const protocol = dialog.getByRole('button', { name: 'API protocol', exact: true })
   await expect.element(protocol).toHaveTextContent('Anthropic Messages')
   await expect.element(protocol).toHaveFocus()
-  await userEvent.keyboard('{Tab}sk-two-2222{Tab}custom-model-2{Enter}')
+  // 空目录：Tab 到“添加模型”，Enter 新增一行并聚焦模型 ID。
+  await userEvent.keyboard('{Tab}sk-two-2222{Tab}')
+  expect(document.activeElement).toBe(addModel())
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.elementLocator(document.querySelector<HTMLElement>('[role=dialog] [name="modelId"]')!)).toHaveFocus()
+  await userEvent.keyboard('custom-model-2{Enter}')
   await expect.poll(() => rows().length).toBe(2)
   expect(backend.providers.find((p) => p.id === 'custom-provider-2')).toMatchObject({
     name: 'Custom two',
@@ -438,7 +455,7 @@ it('键盘：Tab 到“添加模型供应商”并用键盘完成新建，焦点
   await expect.element(row('custom-provider-2').getByRole('button', { name: 'Edit', exact: true })).toHaveFocus()
 })
 
-it('编辑目录（过渡输入）：修改协议与目录后保存，已有模型的能力配置保留；删除后从列表移除', async () => {
+it('编辑目录：修改协议并添加模型后保存，已有模型的能力配置保留；删除后从列表移除', async () => {
   const rich = catalogModel('custom-model-1', {
     contextWindow: 1_000_000,
     input: ['text', 'image'],
@@ -451,7 +468,10 @@ it('编辑目录（过渡输入）：修改协议与目录后保存，已有模�
   await row('custom-provider-2').getByRole('button', { name: 'Edit', exact: true }).click()
   await dialog.getByRole('button', { name: 'API protocol', exact: true }).click()
   await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
-  await page.elementLocator(field('models')).fill('custom-model-1, custom-model-3')
+  // 菜单关闭动画结束后焦点回到协议按钮；之后再添加模型。
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  await settled()
+  await addModelRow('custom-model-3')
   await dialog.getByRole('button', { name: 'Save changes', exact: true }).click()
   await expect.poll(() => forms().length).toBe(0)
   expect(backend.providers).toMatchObject([

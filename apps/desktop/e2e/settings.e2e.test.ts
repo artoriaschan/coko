@@ -76,8 +76,14 @@ async function addWorkspace(app: LaunchedApp, path: string) {
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
 const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
 
-/** 在已打开的模型服务分区中，用列表底部的表单新建自定义 Provider（默认协议 OpenAI Chat Completions）。 */
-async function addCustomProvider(app: LaunchedApp, options: { id: string; name: string; baseUrl: string; models: string; secret: string }) {
+/**
+ * 在已打开的模型服务分区中，用列表底部的表单新建自定义 Provider（默认协议 OpenAI Chat Completions）。目录逐行添加；
+ * contextWindow 给出时展开该行填写上下文窗口。
+ */
+async function addCustomProvider(
+  app: LaunchedApp,
+  options: { id: string; name: string; baseUrl: string; models: { id: string; contextWindow?: string }[]; secret: string },
+) {
   await dialog(app)
     .getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ })
     .click()
@@ -85,7 +91,14 @@ async function addCustomProvider(app: LaunchedApp, options: { id: string; name: 
   await form.locator('input[name="providerId"]').fill(options.id)
   await form.locator('input[name="name"]').fill(options.name)
   await form.locator('input[name="baseUrl"]').fill(options.baseUrl)
-  await form.locator('input[name="models"]').fill(options.models)
+  for (const [index, model] of options.models.entries()) {
+    await form.locator('[data-model-add]').click()
+    const row = form.locator('[data-model-row]').nth(index)
+    await row.locator('input[name="modelId"]').fill(model.id)
+    if (model.contextWindow === undefined) continue
+    await row.getByRole('button', { name: /^(Model options|模型选项)$/ }).click()
+    await row.locator('input[name="contextWindow"]').fill(model.contextWindow)
+  }
   await form.locator('input[name="credential"]').fill(options.secret)
   await form.locator('button[type="submit"]').click()
   await form.waitFor({ state: 'detached', timeout: 15_000 })
@@ -109,7 +122,7 @@ describe('设置：Provider 与 Credential', () => {
     await dialog(app).waitFor()
     expect(await dialog(app).locator('[data-section="models"]').getAttribute('aria-current')).toBe('page')
 
-    await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: 'm1', secret })
+    await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: [{ id: 'm1', contextWindow: '1M' }], secret })
     const card = dialog(app).locator('[data-provider-id]')
     await expect.poll(() => card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
     expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
@@ -123,6 +136,18 @@ describe('设置：Provider 与 Credential', () => {
     expect(await editForm.locator('input[name="providerId"]').count()).toBe(0)
     expect(await editForm.locator('[data-provider-static-id]').textContent()).toBe('local-fake')
     expect(await editForm.locator('input[name="credential"]').inputValue()).toBe('')
+    // 目录随一次提交保存：registry 中的上下文窗口与重新打开表单的回显一致（1M = 1 000 000 token）。
+    const registryWindow = await app.window.evaluate(async () => {
+      const { workspaces } = (await fetch('/api/workspaces').then((r) => r.json())) as { workspaces: { id: string }[] }
+      const usage = (await fetch(`/api/workspaces/${workspaces[0]!.id}/context`).then((r) => r.json())) as { contextWindow: number }
+      return usage.contextWindow
+    })
+    expect(registryWindow).toBe(1_000_000)
+    const savedRow = editForm.locator('[data-model-row]')
+    expect(await savedRow.locator('input[name="modelId"]').inputValue()).toBe('m1')
+    await savedRow.getByRole('button', { name: /^(Model options|模型选项)$/ }).click()
+    expect(await savedRow.locator('input[name="contextWindow"]').inputValue()).toBe('1M')
+    expect(await savedRow.locator('input[name="maxTokens"]').inputValue()).toBe('16K')
     await editForm.locator('input[name="name"]').fill('Local fake edited')
     await editForm.locator('button[type="submit"]').click()
     await editForm.waitFor({ state: 'detached', timeout: 15_000 })
@@ -235,7 +260,7 @@ describe('设置：Provider 与 Credential', () => {
       id: 'deepseek',
       name: 'DeepSeek',
       baseUrl: 'https://api.deepseek.com',
-      models: 'deepseek-chat',
+      models: [{ id: 'deepseek-chat' }],
       secret: process.env.DEEPSEEK_API_KEY!,
     })
     await app.window.keyboard.press('Escape')

@@ -59,7 +59,9 @@ async function addCustomProvider(app: LaunchedApp, options: { id: string; baseUr
   await form.locator('input[name="providerId"]').fill(options.id)
   await form.locator('input[name="name"]').fill(options.id)
   await form.locator('input[name="baseUrl"]').fill(options.baseUrl)
-  await form.locator('input[name="models"]').fill(options.models)
+  // 目录逐行添加：新增一行后填写模型 ID。
+  await form.locator('[data-model-add]').click()
+  await form.locator('[data-model-row] input[name="modelId"]').fill(options.models)
   await form.locator('input[name="credential"]').fill(options.secret)
   await form.locator('button[type="submit"]').click()
   await form.waitFor({ state: 'detached', timeout: 15_000 })

@@ -8,12 +8,12 @@
 
 规格：[模型服务 PRD](../spec.md)；架构：[ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)、[ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)；术语：[GLOSSARY](../../../GLOSSARY.md)。 视觉以 Pencil 源稿 `/Users/chenzheng/Desktop/UI/设置-模型服务.pen` 为准（画面 02A、02B、04、05）。
 
-- [ ] MS-12 至 MS-14 通过
-- [ ] 空目录、空模型 ID 或重复 ID 阻止提交并标出出错的行；显示名称留空保存后显示为模型 ID
-- [ ] 容量接受纯数字与 K/M（1000 进制），以 token 整数保存并带后缀回显；非正数或最大输出超过上下文窗口时报错；未填用默认 128K / 16K
-- [ ] 收起与展开不改变草稿；删除行不额外确认
-- [ ] 保存后重新打开表单与 registry 中的模型能力一致
-- [ ] 目录不出现“恢复默认模型”
+- [x] MS-12 至 MS-14 通过
+- [x] 空目录、空模型 ID 或重复 ID 阻止提交并标出出错的行；显示名称留空保存后显示为模型 ID
+- [x] 容量接受纯数字与 K/M（1000 进制），以 token 整数保存并带后缀回显；非正数或最大输出超过上下文窗口时报错；未填用默认 128K / 16K
+- [x] 收起与展开不改变草稿；删除行不额外确认
+- [x] 保存后重新打开表单与 registry 中的模型能力一致
+- [x] 目录不出现“恢复默认模型”
 
 ## Comments
 
@@ -70,3 +70,57 @@
   - `testing/fake-settings.ts`：新增 `providerReferences` 与 `setReferences`。
   - `models-section.browser.test.tsx` 最后一个用例的删除改为点确认框的 “Delete”。
   合入 model-service 时保留这些改动，只叠加本票的模型行。
+
+### 实施记录（ms/05-catalog-rows-capacity）
+
+覆盖的验收：
+
+- MS-12：“添加模型”每次在末尾新增空行并聚焦模型 ID；行内填写 ID 与显示名称、右箭头展开（`aria-expanded`，图标改为向下）、删除不确认，焦点移到相邻行或“添加模型”（`model-catalog.browser.test.tsx` 用例 1）。
+- MS-13：空目录的错误关联在“添加模型”上并聚焦它；空 ID 与重复 ID（每个重复行都标出）带 `aria-invalid` 与 `data-field-error` 文字，行带 `data-invalid`，阻止提交并聚焦第一个出错行；名称留空保存为 `''`，再次打开时名称输入框以模型 ID 为占位（用例 2；纯函数见 `catalog-draft.test.ts`）。registry 本身已有 `name || id`，会话选择器显示 ID 由已有代码保证。
+- MS-14：`1M` → 1 000 000、`128K` → 128 000；`0`、非数字报“请输入正整数…”，最大输出超过上下文窗口（留空按默认 128K / 16K 比较）报在最大输出上；收起的出错行在提交时自动展开并聚焦（用例 3）。回显规则：可整除到一位小数时用最大后缀（`1.5M`），否则显示原数（131072 不显示为 `131.072K`）。
+- 收起与展开只是显示状态，不进入草稿，不触发“放弃更改？”（用例 4）；`isDirty` 改为按目录内容深比较，不含行 key（`provider-draft.test.ts`）。
+- 保存后一致：浏览器用例 4 保存后再次打开回显与库一致；Electron E2E 新建时填上下文窗口 `1M`，`GET /api/workspaces/:id/context` 的 `contextWindow`（来自 registry）为 1 000 000，重新打开表单回显 `1M` / `16K`。
+- 目录不出现“恢复默认模型”（用例 1 断言表单文字）。
+
+实际运行的命令与结果：
+
+- `pnpm run typecheck`：退出 0。
+- `pnpm run lint`：0 warning，0 error（546 文件）；`pnpm run format:check`：通过（572 文件）。
+- `pnpm run test apps/desktop/src/renderer`：24 个文件，166 个用例全部通过，连续 3 次（其中新增 `catalog-draft.test.ts` 31、`provider-draft.test.ts` 4、`model-catalog.browser.test.tsx` 5）。
+- `pnpm run test packages/i18n packages/ui/src/guards scripts tests/integration/secrets-gate`：15 个文件，86 个用例通过（含 zh/en 键一致、样式守卫与源码任务引用检查）。
+- `pnpm run test apps/desktop/e2e/settings.e2e.test.ts`：2 通过，1 跳过（真实 DeepSeek，无 `DEEPSEEK_API_KEY`）。
+
+负向确认：先红（模块缺失、`modelText` 旧行为、组件缺失）后绿；变异各自使对应用例失败后恢复：去掉提交时展开出错行（用例 3 失败）、去掉重复 ID 检查（单元与用例 2 失败）、去掉新增后聚焦（用例 1–3 失败）、去掉后缀回显（单元 7 条与用例 3 失败）。
+
+合入前修过的不稳定点：协议菜单关闭后 Radix 把焦点还给触发按钮，若紧接着点击“添加模型”并逐键输入，后半段字符会落到别处。测试 helper 改为等新行模型 ID 获得焦点后再 `fill`，并在切换协议后等菜单关闭。
+
+未验证：真实模型；Electron 中的深色主题与 390px 窄窗口目视检查（浏览器用例只断言深色语义色变化与 H32/R12、H28/R8、行 R16 几何）；registry 一致性在 E2E 中只核对了上下文窗口，最大输出与输入类型由浏览器用例经 fake 的库读回核对。
+
+视觉与规格说明：
+
+- 行为 R16、0.5px `card-stroke` 描边；展开时加 `bg-muted` 背景。收起与展开使用相同内边距 10px（源稿展开为 12px），避免切换时内容移位。
+- 目录标题区留出操作位置但本票不放“获取可用模型”（票 07）；空目录只显示“还没有模型”与“添加模型”。
+- 输入类型至少保留一项（protocol `minItems: 1`）：只剩一项时该复选框禁用。
+
+文档影响：无。apps/server 与 @coko/session 的 README 只描述目录的服务端语义，未变；没有描述设置表单的正式文档。
+
+改动的共享位置（与票 04 可能重叠）：
+
+- `provider-draft.ts`：`FormDraft.modelText` 换成 `models: ModelRowDraft[]`；`DraftErrors` 增加 `catalog?: CatalogErrors`；`isDirty` 对 `models` 深比较；`validateDraft` 与 `toProviderDraft` 改用目录行。
+- `provider-form.tsx`：原 `models` 输入换成 `<ModelCatalog>`；新增 `updateModels`（修改后去掉失效的行错误）；`Field` 去掉不再使用的 `heading`；去掉未使用的 `cn` 导入。
+- i18n `providers.*`：删除 `modelsHint`；新增 `providers.catalog.*`；`modelsRequired` 文案改为“至少添加一个模型”/“Add at least one model”。
+- `models-section.browser.test.tsx`：新增 `addModelRow`、`addModel`、`describedError` helper，四处 `field('models')` 改为添加行；键盘用例改为 Tab 到“添加模型”后 Enter；“编辑目录”用例改名并改为添加行。
+- `apps/desktop/e2e/settings.e2e.test.ts`：`addCustomProvider` 的 `models` 改为 `{ id, contextWindow? }[]`。
+- 未改 `models-section.tsx` 与 `fake-settings.ts`。
+
+供后续票：
+
+- `catalog-draft.ts`：`ModelRowDraft { key, id, name, contextWindow, maxTokens, input, reasoning, thinkingLevels }`（容量为输入原文，key 只作行身份）、`emptyModelRow()`、`rowsOf(models)`、`toCatalog(rows)`、`validateCatalog(rows)`（返回 `CatalogErrors = Record<rowKey, { id?, contextWindow?, maxTokens? }>`）、`pruneCatalogErrors`、`parseTokens` / `formatTokens`。`reasoning` 与 `thinkingLevels` 原样往返，供票 06 编辑；票 06 加档位错误时扩展 `ModelRowField`。票 07 导入模型用 `{ ...emptyModelRow(), id, name: id }` 追加到 `draft.models`。
+- `model-catalog.tsx`：`ModelCatalog { id, rows, onChange, errors?, emptyError?, revealErrors }`；展开状态在组件内，`revealErrors` 变化时展开有容量错误的行。票 06 在 `ModelRow` 展开区（输入类型之后）加推理设置；票 07 在目录标题行加“获取可用模型”。
+- DOM：行 `li[data-model-row][data-model-row-key]`，展开时 `data-expanded`，有错误时 `data-invalid`；输入 `[name=modelId|modelName|contextWindow|maxTokens]`；复选框 `[name=input-text|input-image]`；“添加模型” `[data-model-add]`；图标按钮的可访问名称为 `providers.catalog.options`（“模型选项”）与 `providers.catalog.remove`（“删除模型”）。显示名称的可访问名称为“模型显示名称”，与供应商的“显示名称”区分。
+
+合入票 04（model-service cdf507c）后：
+
+- 共享文件核对：`models-section.tsx` 与 04 一致（删除确认 `delete-provider-dialog.tsx`、`providerReferences`）；i18n 同时有 `providers.deleteDialog.*` 与 `providers.catalog.*`；`models-section.browser.test.tsx` 只差本票的目录行改动。
+- 票 04 新增的 `apps/desktop/e2e/provider-delete.e2e.test.ts` 仍填写已删除的 `input[name="models"]`；其 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`，签名不变。
+- 重新验证：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 warning 0 error；`pnpm run format:check` 通过；`pnpm run test apps/desktop/src/renderer packages/i18n packages/ui/src/guards scripts tests/integration/secrets-gate tests/integration/sidecar-provider-delete.test.ts`：41 个文件，258 个用例通过；`pnpm run test apps/desktop/e2e/settings.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts`：3 通过，1 跳过（真实 DeepSeek）。
