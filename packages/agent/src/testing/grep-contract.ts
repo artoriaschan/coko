@@ -1,7 +1,49 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createGrepTool } from '../tools/builtin/grep.ts'
 import { toolContract, type CokoTool } from '../tools/types.ts'
 import { createTempWorkspace, type TempWorkspace } from './workspace.ts'
+
+/** 临时家目录：HOME 指向它、XDG_CONFIG_HOME 清除，测试不读真实的 ~/.gitconfig 与全局 excludes。 */
+export interface TempGitHome {
+  readonly dir: string
+  /** 在家目录下写文件（父目录按需创建），返回绝对路径。 */
+  write(relative: string, content: string): Promise<string>
+}
+
+/**
+ * 在当前 describe 的每个用例前把 HOME 换成临时目录并清除 XDG_CONFIG_HOME，用例后恢复原值（含原先不存在）。
+ * 内置遍历与 ripgrep 子进程都从这两个变量找全局 git 配置与 excludes。
+ */
+export function useTempGitHome(): { readonly current: TempGitHome } {
+  const state: { current: TempGitHome } = { current: undefined as never }
+  let saved: { HOME: string | undefined; XDG_CONFIG_HOME: string | undefined }
+  beforeEach(async () => {
+    saved = { HOME: process.env.HOME, XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME }
+    const dir = await mkdtemp(join(tmpdir(), 'coko-home-'))
+    process.env.HOME = dir
+    delete process.env.XDG_CONFIG_HOME
+    state.current = {
+      dir,
+      async write(relative, content) {
+        const target = join(dir, relative)
+        await mkdir(dirname(target), { recursive: true })
+        await writeFile(target, content)
+        return target
+      },
+    }
+  })
+  afterEach(async () => {
+    for (const key of ['HOME', 'XDG_CONFIG_HOME'] as const) {
+      if (saved[key] === undefined) delete process.env[key]
+      else process.env[key] = saved[key]
+    }
+    await rm(state.current.dir, { recursive: true, force: true })
+  })
+  return state
+}
 
 export interface GrepContractOptions {
   /** Suite title, e.g. "built-in grep" or "ripgrep grep". */
@@ -25,6 +67,7 @@ function text(result: { content: { type: string; text?: string }[] }): string {
  */
 export function describeGrepContract({ name, createTool }: GrepContractOptions): void {
   describe(`grep 契约：${name}`, () => {
+    const home = useTempGitHome()
     let ws: TempWorkspace
     let tool: CokoTool
     const run = async (params: Record<string, unknown>) => text(await tool.execute('grep-call', params as never))
@@ -70,6 +113,47 @@ export function describeGrepContract({ name, createTool }: GrepContractOptions):
       await ws.write('ignored.txt', 'needle\n')
       await ws.write('kept.txt', 'needle\n')
       expect(await run({ pattern: 'needle' })).toBe('kept.txt:1: needle')
+    })
+
+    it('遵守 .git/info/exclude（含从子目录搜索时仓库根的）', async () => {
+      await ws.write('.git/HEAD', 'ref: refs/heads/main\n')
+      await ws.write('.git/info/exclude', '*.tmp\n')
+      await ws.write('a.tmp', 'needle\n')
+      await ws.write('sub/b.tmp', 'needle\n')
+      await ws.write('sub/kept.txt', 'needle\n')
+      expect(await run({ pattern: 'needle' })).toBe('sub/kept.txt:1: needle')
+      expect(await run({ pattern: 'needle', path: 'sub' })).toBe('kept.txt:1: needle')
+    })
+
+    it('遵守 ~/.gitconfig 的 core.excludesFile（~ 展开）；.gitignore 的 ! 优先于全局 excludes', async () => {
+      await home.current.write('.gitconfig', '[user]\n\tname = Test\n[core]\n\texcludesFile = ~/global-ignore\n')
+      await home.current.write('global-ignore', '*.bak\n')
+      await ws.write('.git/HEAD', 'ref: refs/heads/main\n')
+      await ws.write('.gitignore', '!keep.bak\n')
+      await ws.write('drop.bak', 'needle\n')
+      await ws.write('keep.bak', 'needle\n')
+      await ws.write('kept.txt', 'needle\n')
+      expect(await run({ pattern: 'needle' })).toBe('keep.bak:1: needle\nkept.txt:1: needle')
+    })
+
+    it('core.excludesFile 未设时读 XDG 缺省文件（$XDG_CONFIG_HOME/git/ignore，未设 XDG_CONFIG_HOME 时 ~/.config/git/ignore）', async () => {
+      await home.current.write('.config/git/ignore', '*.cache\n')
+      await ws.write('.git/HEAD', 'ref: refs/heads/main\n')
+      await ws.write('a.cache', 'needle\n')
+      await ws.write('kept.txt', 'needle\n')
+      expect(await run({ pattern: 'needle' })).toBe('kept.txt:1: needle')
+
+      const xdg = await home.current.write('xdg/git/ignore', '*.txt\n')
+      process.env.XDG_CONFIG_HOME = dirname(dirname(xdg))
+      expect(await run({ pattern: 'needle' })).toBe('a.cache:1: needle')
+    })
+
+    it('没有 exclude 与全局 excludes 时结果不变', async () => {
+      await home.current.write('.gitconfig', '[user]\n\tname = Test\n')
+      await ws.write('.git/HEAD', 'ref: refs/heads/main\n')
+      await ws.write('a.tmp', 'needle\n')
+      await ws.write('b.bak', 'needle\n')
+      expect(await run({ pattern: 'needle' })).toBe('a.tmp:1: needle\nb.bak:1: needle')
     })
 
     it('glob 过滤：无斜杠匹配任意深度的文件名，有斜杠相对搜索目录锚定', async () => {

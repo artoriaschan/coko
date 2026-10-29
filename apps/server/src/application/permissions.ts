@@ -35,14 +35,28 @@ export function withRules(rules: readonly PermissionRule[], added: readonly Perm
 export { sameRule }
 
 /**
- * 写入的规则：工具名归一为规范名（内置工具与组名不区分大小写归为 Read / Edit / Bash，宿主工具按注册名），重复的合并。
+ * 宿主工具名：names 为按原名书写规则的工具（不区分大小写匹配）；aliases 为规则名不同于工具名的贡献工具（小写工具名 → 规则名，
+ * 例如 memory_write → Memory）。
+ */
+export interface HostToolNames {
+  names: readonly string[]
+  aliases?: Readonly<Record<string, string>>
+}
+
+const toHostToolNames = (known: readonly string[] | HostToolNames): HostToolNames => ('names' in known ? known : { names: known as readonly string[] })
+
+const canonicalTool = (tool: string, known: HostToolNames) => known.aliases?.[tool.toLowerCase()] ?? canonicalRuleTool(tool, known.names)
+
+/**
+ * 写入的规则：工具名归一为规范名（内置工具与组名不区分大小写归为 Read / Edit / Bash，宿主工具按注册名，贡献工具按其规则名），重复的合并。
  * 未知工具名以 bad-request 拒绝（details.reason = unknown-tool），否则这条规则永远不会命中。
  */
-export function normalizeRules(rules: readonly PermissionRule[], known: readonly string[]): PermissionRule[] {
+export function normalizeRules(rules: readonly PermissionRule[], known: readonly string[] | HostToolNames): PermissionRule[] {
+  const host = toHostToolNames(known)
   return withRules(
     [],
     rules.map((rule) => {
-      const tool = canonicalRuleTool(rule.tool, known)
+      const tool = canonicalTool(rule.tool, host)
       if (tool === undefined) throw new AppError('bad-request', `Unknown tool in permission rule: ${rule.tool}`, { reason: 'unknown-tool', tool: rule.tool })
       return { ...rule, tool }
     }),
@@ -50,10 +64,11 @@ export function normalizeRules(rules: readonly PermissionRule[], known: readonly
 }
 
 /** 读入的规则：库中已有的非规范写法按规范名读出（未知工具名保持原样），重复的合并。 */
-export function canonicalRules(rules: readonly PermissionRule[], known: readonly string[]): PermissionRule[] {
+export function canonicalRules(rules: readonly PermissionRule[], known: readonly string[] | HostToolNames): PermissionRule[] {
+  const host = toHostToolNames(known)
   return withRules(
     [],
-    rules.map((rule) => ({ ...rule, tool: canonicalRuleTool(rule.tool, known) ?? rule.tool })),
+    rules.map((rule) => ({ ...rule, tool: canonicalTool(rule.tool, host) ?? rule.tool })),
   )
 }
 
@@ -83,7 +98,7 @@ function projectRules(texts: ProjectRuleTexts): PermissionRule[] {
 export class PermissionService {
   readonly #store: SessionStore
   /** 宿主注册的工具名（内置工具之外的，用于规则工具名的归一与校验）。 */
-  readonly #toolNames: () => readonly string[]
+  readonly #toolNames: () => readonly string[] | HostToolNames
   #loaded: Promise<void> | undefined
   #defaultMode: Stored<PermissionMode> = { value: 'default', revision: 0 }
   #global: Stored<PermissionRule[]> = { value: [], revision: 0 }
@@ -93,7 +108,7 @@ export class PermissionService {
   readonly #workspacePaths = new Map<string, string>()
   #project: ProjectRuleSource | undefined
 
-  constructor(store: SessionStore, toolNames: () => readonly string[] = () => []) {
+  constructor(store: SessionStore, toolNames: () => readonly string[] | HostToolNames = () => []) {
     this.#store = store
     this.#toolNames = toolNames
   }
