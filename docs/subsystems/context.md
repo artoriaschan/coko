@@ -150,7 +150,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。
 - 结构固定为 `## Goal`、`## Constraints & Preferences`、`## User Messages`（逐条，安全相关约束原文保留，不把 assistant 的话当成用户的）、`## Files and Code`、`## Errors and Fixes`、`## Key Decisions`、`## Progress`（Done / In Progress / Blocked）、`## Pending Tasks`、`## Current Work`、`## Next Step`（须与最近的明确请求一致）。已有摘要时用增量更新提示，上次摘要在 `<previous-summary>` 中。
 - 回复出错、被截断（`length`）、含工具调用或为空都算失败。成功时摘要正文之后追加 `<read-files>`、`<modified-files>`（从被摘要的 read / write / edit 调用与上次的列表汇总，改过的不再列为只读）与 `<invoked-skills>`（skill 调用与 Skill 来源的命令），只列路径与名字，不重读内容。
-- 摘要文本是模型输出，与对话文本同样进入条目与推送，不另脱敏。
+- 摘要文本是模型输出，与对话文本同样进入条目与推送，不另脱敏；`compaction_failed.message` 与手动压缩失败的 `run_end.error.message` 和其他模型错误文本一样经脱敏后推送与入库。
 
 ### 条目与模型上下文
 
@@ -186,7 +186,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-context.test.ts`：草稿与会话的用量接口（分项、指令文件与截断、Skills 诊断、404）、Run 后 tokens 等于 faux usage（加其后 toolResult 的 chars/4）、`context_usage` 在 assistant 条目之后。`tests/integration/secrets-gate-context.test.ts`：用量响应在秘密总闸的扫描范围内。
 - `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
-- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。
+- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
 - `apps/desktop/src/renderer/features/conversation/timeline.test.ts`、`composer.browser.test.tsx`、`stores/context-store.test.ts`：分隔条与节省数、compact Run 的错误不可重试；状态行与停止；进度跟踪。`apps/desktop/e2e/compaction.e2e.test.ts`：Electron 中的失败 Toast、熔断暂停标记、`/compact` 状态行、分隔条与摘要展开、之前的消息仍在。
 - `packages/agent/src/testing/grep-contract.ts`（内置 grep 与 `apps/server/src/adapters/ripgrep.test.ts` 都运行）：临时 HOME 下的 `.git/info/exclude`、`core.excludesFile`、XDG 缺省文件与没有这些文件时；`tools/builtin/walk.test.ts`：find 与文件候选、嵌套仓库与 worktree。
 - `apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx`、`stores/context-store.test.ts`：环的档位与颜色、HoverCard 内容、Esc 与焦点、390px 宽输入区不重叠；读取与过期请求。`apps/desktop/e2e/context.e2e.test.ts`：Electron 中的百分比、越过预警线变色、卡片的分项与指令文件、Esc、最窄窗口。
