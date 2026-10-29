@@ -12,6 +12,7 @@ import {
   type ProjectCapabilityValues,
   type ProjectSettings,
   type ReadOnlyFiles,
+  type ResourceDiagnostic as AgentResourceDiagnostic,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import {
@@ -23,6 +24,7 @@ import {
   type ConfigResponse,
   type ProjectConfig,
   type ProjectConfigValues,
+  type ResourceDiagnostic as ProtocolResourceDiagnostic,
   type UpdateConfigRequest,
 } from '@coko/protocol'
 import type { JsonValue, SessionStore } from '@coko/session'
@@ -36,6 +38,7 @@ type Assert<T extends true> = T
 export type CapabilityConfigsAgree = Assert<Equal<CapabilityConfig, ProtocolCapabilityConfig>>
 export type ConfigSettingKeysAgree = Assert<Equal<typeof CONFIG_SETTING_KEY, typeof CONFIG_SETTING>>
 export type ProjectValuesAgree = Assert<Equal<ProjectCapabilityValues, Omit<ProjectConfigValues, 'permissions'>>>
+export type DiagnosticsAgree = Assert<Equal<AgentResourceDiagnostic, ProtocolResourceDiagnostic>>
 
 const log = getLogger(['application', 'config'])
 
