@@ -53,7 +53,7 @@ const ordered = (contributions: readonly ContextContribution[], order: readonly 
 
 /** 组合后的上下文：SessionService 每个 Run 开始时取值并交给运行时。单个领域取值失败只记 warn，不阻止 Run。 */
 export interface ContextAssembly {
-  scope(input: { workspaceId: string; cwd: string; sessionId?: string }): Promise<ContextScope>
+  scope(input: Omit<ContextScope, 'config' | 'cokoHome'>): Promise<ContextScope>
   systemSections(scope: ContextScope): Promise<SystemSection[]>
   tools(scope: ContextScope): Promise<ContributedTool[]>
   readRoots(scope: ContextScope): Promise<string[]>

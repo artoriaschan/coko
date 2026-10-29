@@ -1,5 +1,5 @@
 // 上下文装配（M3 规格"apps/server"）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
-import type { CapabilityConfig, CokoTool, PermissionClass, RunInput, SystemSection, ToolHooks } from '@coko/agent'
+import type { CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, SystemSection, ToolHooks } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { SessionStore } from '@coko/session'
 
@@ -13,6 +13,8 @@ export interface ContextScope {
   config: CapabilityConfig
   /** 用户级资源目录（COKO_HOME）。 */
   cokoHome: string
+  /** 当时生效的权限规则（Session、全局、Workspace 与 project；票 06 的 File Reference 据此应用 Read 拒绝规则）。省略时没有规则。 */
+  permissionRules?(): Promise<PermissionRule[]>
 }
 
 /** 宿主贡献的工具及其权限类（工具自身不能声明，见 RegisterToolOptions.permissionClass）。 */

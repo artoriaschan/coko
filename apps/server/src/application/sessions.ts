@@ -410,7 +410,9 @@ export class SessionService {
   async #scope(session: StoredSession): Promise<ContextScope> {
     const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
     if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
-    return this.#context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id })
+    // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
+    const permissionRules = async () => this.#permissions.runtimePermissions(await this.#permissions.state(session), session.workspaceId).rules()
+    return this.#context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id, permissionRules })
   }
 
   #resolve(model: SessionModel, code: 'bad-request' | 'model-not-configured'): Model<any> {
