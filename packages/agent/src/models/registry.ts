@@ -1,6 +1,7 @@
 import {
   createModels,
   createProvider,
+  getSupportedThinkingLevels,
   type ApiKeyAuth,
   type CredentialStore,
   type Model,
@@ -175,4 +176,13 @@ export function resolveModel(registry: Pick<ModelRegistry, 'models'>, providerId
   const model = registry.models.getModel(providerId, modelId)
   if (!model) throw new ModelConfigError(`Unknown model "${modelId}" for provider "${providerId}"`)
   return model
+}
+
+/**
+ * Thinking Levels a Session can choose for this model, in the fixed order: always `off`; with reasoning on, also every
+ * configured level (pi-ai's supported levels, where unconfigured levels are null).
+ */
+export function selectableThinkingLevels(model: Model<any>): ThinkingLevel[] {
+  const supported = new Set<ModelThinkingLevel>(getSupportedThinkingLevels(model))
+  return THINKING_LEVELS.filter((level) => level === 'off' || supported.has(level))
 }

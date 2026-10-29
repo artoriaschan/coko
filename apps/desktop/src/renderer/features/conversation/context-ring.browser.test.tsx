@@ -134,8 +134,11 @@ describe('输入区底栏在 390px 宽度', () => {
                 <>
                   <ModePicker value="default" onChange={() => {}} />
                   <ModelPicker
-                    models={[{ providerId: 'p', providerName: 'Provider', modelId: 'm', name: 'A model with a fairly long display name' }]}
+                    models={[
+                      { providerId: 'p', providerName: 'Provider', modelId: 'm', name: 'A model with a fairly long display name', thinkingLevels: ['off'] },
+                    ]}
                     value={{ providerId: 'p', modelId: 'm' }}
+                    thinkingLevel="off"
                     disabled={false}
                     onChange={() => {}}
                   />

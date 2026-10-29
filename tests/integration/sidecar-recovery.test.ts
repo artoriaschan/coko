@@ -184,7 +184,7 @@ describe('启动恢复与结果确认', () => {
     expect(await sidecarLog(dirs)).not.toContain('interrupted run recovered')
   })
 
-  it('迁移：用 v1 库启动 Sidecar → 当前版本（4）、生成 .backup-v1-*；旧 Provider、Credential 与默认模型被清除，Session 模型为空，条目可读', async () => {
+  it('迁移：用 v1 库启动 Sidecar → 当前版本（5）、生成 .backup-v1-*；旧 Provider、Credential 与默认模型被清除，Session 模型为空，条目可读', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const db = join(dirs.dataDir, 'coko.db')
@@ -199,7 +199,7 @@ describe('启动恢复与结果确认', () => {
     const api = client(sidecar, await exchange(sidecar))
     const sessions = (await api.get(API_ROUTES.sessions)).body.sessions
     expect(sessions).toHaveLength(1)
-    expect(sessions[0]).toMatchObject({ id: 's-v1', title: 'kept from v1', activity: 'idle', model: null })
+    expect(sessions[0]).toMatchObject({ id: 's-v1', title: 'kept from v1', activity: 'idle', model: null, thinkingLevel: 'off' })
     expect((await api.get(API_ROUTES.providers)).body).toEqual({ providers: [] })
     expect((await api.get(API_ROUTES.models)).body).toEqual({ models: [], defaultModel: null })
     expect((await api.get(API_ROUTES.settings)).body.settings.map((s: { key: string }) => s.key)).not.toContain('defaultModel')
@@ -219,7 +219,8 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    expect(version(db)).toBe(4)
+    // 当前版本 5（v5：Session 的 Thinking Level）。
+    expect(version(db)).toBe(5)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
     // 备份保留旧 Provider。
     const backup = new DatabaseSync(join(dirs.dataDir, backups[0]!), { readOnly: true })

@@ -12,6 +12,7 @@ const session = (id: string, workspaceId: string, title: string, updatedAt: numb
   workspaceId,
   title,
   model: { providerId: 'faux', modelId: 'faux-1' },
+  thinkingLevel: 'off',
   running,
   activity: running ? 'running' : 'idle',
   createdAt: 1,
@@ -122,7 +123,11 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   if (options.providers !== false) backend.seedProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
   const api = {
     ...backend.api,
-    setSessionModel: async (id: string, model) => ({ ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!), model }),
+    setSessionModel: async (id: string, model, thinkingLevel) => ({
+      ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!),
+      model,
+      thinkingLevel: thinkingLevel ?? 'off',
+    }),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => fixtureSessions,
     registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),

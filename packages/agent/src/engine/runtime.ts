@@ -193,6 +193,11 @@ export interface AgentRuntime {
   /** Model for later Runs. Throws while a Run is in progress. */
   setModel(model: Model<any>): void
   /**
+   * Thinking Level for later Runs ('off' sends the protocol's default way of turning reasoning off). pi-ai clamps a
+   * level the model does not support. Throws while a Run is in progress.
+   */
+  setThinkingLevel(level: ThinkingLevel): void
+  /**
    * 手动压缩（/compact）：一个 trigger compact 的 Run，只提交 compaction 条目（或以失败的 run_end 结束）；instructions 追加为摘要的
    * 额外要求。停止时不提交条目。没有 compaction 选项时 reject；Run 进行中抛 RuntimeBusyError。
    */
@@ -806,6 +811,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     setModel(model) {
       if (current) throw new RuntimeBusyError()
       agent.state.model = model
+    },
+    setThinkingLevel(level) {
+      if (current) throw new RuntimeBusyError()
+      agent.state.thinkingLevel = level
     },
     get isRunning() {
       return current !== undefined

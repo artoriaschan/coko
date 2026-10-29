@@ -10,7 +10,7 @@ import { openDatabase } from './open.ts'
 import { MIGRATIONS } from './schema.ts'
 
 describe('SQLite 迁移 v4', () => {
-  it('v3 库打开后为版本 4：先备份；旧 Provider、Credential 与默认模型被清除，Session 的模型字段为空，其余 Session、条目与设置可读', async () => {
+  it('v3 库打开后经过版本 4：先备份；旧 Provider、Credential 与默认模型被清除，Session 的模型字段为空，其余 Session、条目与设置可读', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'coko-migrate-v4-'))
     onTestFinished(() => rm(dir, { recursive: true, force: true }))
     const path = join(dir, 'coko.db')
@@ -29,8 +29,8 @@ describe('SQLite 迁移 v4', () => {
 
     const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
     onTestFinished(() => store.close())
-    expect(SQLITE_SCHEMA_VERSION).toBe(4)
-    expect(store.migration).toMatchObject({ from: 3, to: 4 })
+    // 之后的迁移（v5 起）照常继续执行。
+    expect(store.migration).toMatchObject({ from: 3, to: SQLITE_SCHEMA_VERSION })
     const backup = store.migration.backupPath!
     expect(backup).toMatch(/coko\.db\.backup-v3-/)
     expect((await stat(backup)).mode & 0o777).toBe(0o600)
@@ -40,7 +40,15 @@ describe('SQLite 迁移 v4', () => {
     expect(await store.settings.get('defaultModel')).toBeUndefined()
     expect(await store.settings.get('theme')).toMatchObject({ value: 'dark', revision: 1 })
     // 模型字段为空，其余字段（含 updatedAt）不变；条目可读。
-    expect(await store.sessions.getSession('s1')).toEqual({ id: 's1', workspaceId: 'w1', title: 'uses old provider', model: null, createdAt: 1, updatedAt: 5 })
+    expect(await store.sessions.getSession('s1')).toEqual({
+      id: 's1',
+      workspaceId: 'w1',
+      title: 'uses old provider',
+      model: null,
+      thinkingLevel: 'off',
+      createdAt: 1,
+      updatedAt: 5,
+    })
     expect((await store.sessions.getSession('s2'))?.title).toBe('no model')
     expect((await store.sessions.listEntries('s1')).map((e) => e.payload)).toEqual([{ text: 'kept' }])
 

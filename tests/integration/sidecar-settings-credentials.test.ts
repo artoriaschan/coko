@@ -118,8 +118,14 @@ describe('设置与 Provider', () => {
     expect((await again.get(API_ROUTES.providers)).body).toEqual(before)
     expect((await again.get(API_ROUTES.models)).body).toEqual({
       models: [
-        { providerId: 'custom-provider-1', providerName: 'custom-provider-1', modelId: 'custom-model-1', name: '自定义模型一' },
-        { providerId: 'custom-provider-1', providerName: 'custom-provider-1', modelId: 'custom-model-2', name: 'custom-model-2' },
+        {
+          providerId: 'custom-provider-1',
+          providerName: 'custom-provider-1',
+          modelId: 'custom-model-1',
+          name: '自定义模型一',
+          thinkingLevels: ['off', 'high', 'max'],
+        },
+        { providerId: 'custom-provider-1', providerName: 'custom-provider-1', modelId: 'custom-model-2', name: 'custom-model-2', thinkingLevels: ['off'] },
       ],
       defaultModel: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },
     })
@@ -193,8 +199,8 @@ describe('设置与 Provider', () => {
     const listed = (await api.get(API_ROUTES.models)).body
     expect(listed).toEqual({
       models: [
-        { providerId: 'local', providerName: 'local', modelId: 'm1', name: 'm1' },
-        { providerId: 'local', providerName: 'local', modelId: 'm2', name: 'm2' },
+        { providerId: 'local', providerName: 'local', modelId: 'm1', name: 'm1', thinkingLevels: ['off'] },
+        { providerId: 'local', providerName: 'local', modelId: 'm2', name: 'm2', thinkingLevels: ['off'] },
       ],
       defaultModel: { providerId: 'local', modelId: 'm1' },
     })
@@ -207,7 +213,7 @@ describe('设置与 Provider', () => {
     const faux = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: await fauxScript(root, { responses: [] }) } })
     const fauxApi = client(faux, await exchange(faux))
     expect((await fauxApi.get(API_ROUTES.models)).body).toEqual({
-      models: [{ providerId: 'faux', providerName: 'faux', modelId: 'faux-1', name: 'Faux' }],
+      models: [{ providerId: 'faux', providerName: 'faux', modelId: 'faux-1', name: 'Faux', thinkingLevels: ['off'] }],
       defaultModel: { providerId: 'faux', modelId: 'faux-1' },
     })
   })

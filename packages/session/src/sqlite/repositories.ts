@@ -31,6 +31,7 @@ interface SessionRow {
   title: string
   model_provider_id: string | null
   model_id: string | null
+  thinking_level: string
   created_at: number
   updated_at: number
 }
@@ -66,6 +67,7 @@ const toSession = (r: SessionRow): Session => ({
   workspaceId: r.workspace_id,
   title: r.title,
   model: r.model_provider_id !== null && r.model_id !== null ? { providerId: r.model_provider_id, modelId: r.model_id } : null,
+  thinkingLevel: r.thinking_level,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -100,7 +102,7 @@ const toProvider = (r: ProviderRow): Provider => ({
 // 同步 DatabaseSync 调用包成 Promise：同步错误转为 rejection。
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
-const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, created_at, updated_at FROM sessions'
+const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, created_at, updated_at FROM sessions'
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
@@ -140,12 +142,13 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           const model = input.model ?? null
           const id = randomUUID()
           conn.run(
-            'INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             input.workspaceId,
             input.title ?? '',
             model?.providerId ?? null,
             model?.modelId ?? null,
+            (model && input.thinkingLevel) || 'off',
             at,
             at,
           )
@@ -177,14 +180,15 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return toSession(requireSession(id))
         }),
       ),
-    setSessionModel: (id, model: SessionModel | null) =>
+    setSessionModel: (id, model: SessionModel | null, thinkingLevel?: string) =>
       later(() =>
         conn.write(() => {
           requireSession(id)
           conn.run(
-            'UPDATE sessions SET model_provider_id = ?, model_id = ?, updated_at = ? WHERE id = ?',
+            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, updated_at = ? WHERE id = ?',
             model?.providerId ?? null,
             model?.modelId ?? null,
+            (model && thinkingLevel) || 'off',
             conn.now(),
             id,
           )

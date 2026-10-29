@@ -86,6 +86,24 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(sessions.setSessionModel('missing', null), 'not-found')
     })
 
+    it('Thinking Level 与模型一起保存：新建默认 off；换模型时写入给定档位，未给出或清空模型时回到 off', async () => {
+      const { sessions } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id, model: { providerId: 'p', modelId: 'm' } })
+      expect(s.thinkingLevel).toBe('off')
+      const withLevel = await sessions.createSession({ workspaceId: w.id, model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'medium' })
+      expect((await sessions.getSession(withLevel.id))?.thinkingLevel).toBe('medium')
+
+      tick()
+      expect(await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm' }, 'high')).toMatchObject({ thinkingLevel: 'high', updatedAt: 1_010 })
+      expect(await sessions.getSession(s.id)).toMatchObject({ model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })
+      await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm2' })
+      expect((await sessions.getSession(s.id))?.thinkingLevel).toBe('off')
+      await sessions.setSessionModel(s.id, { providerId: 'p', modelId: 'm' }, 'max')
+      await sessions.setSessionModel(s.id, null)
+      expect(await sessions.getSession(s.id)).toMatchObject({ model: null, thinkingLevel: 'off' })
+    })
+
     it('追加条目在 Session 内分配连续 seq，payload 原样读回', async () => {
       const { sessions } = await open()
       const w = await sessions.registerWorkspace({ path: '/w' })

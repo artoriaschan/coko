@@ -150,4 +150,11 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // 模型服务：Session 的 Thinking Level 与模型一起保存；已有 Session 为 off（按协议的默认关闭方式请求）。
+    version: 5,
+    up(db) {
+      db.exec("ALTER TABLE sessions ADD COLUMN thinking_level TEXT NOT NULL DEFAULT 'off'")
+    },
+  },
 ]

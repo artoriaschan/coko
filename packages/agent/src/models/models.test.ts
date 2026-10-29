@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createModelRegistry, ModelConfigError, resolveModel, type ModelSpec, type ProviderConfig } from './registry.ts'
+import { createModelRegistry, ModelConfigError, resolveModel, selectableThinkingLevels, type ModelSpec, type ProviderConfig } from './registry.ts'
 
 interface Recorded {
   method: string
@@ -122,6 +122,26 @@ describe('模型适配：自定义 Provider 与 Model Catalog', () => {
   ])('配置非法（%s）时报 ModelConfigError', (_case, config, message) => {
     expect(() => createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [config] })).toThrow(ModelConfigError)
     expect(() => createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [config] })).toThrow(message)
+  })
+
+  it('会话可选的 Thinking Level：始终有 off；推理开关打开时再按固定顺序列出已配置的档位，未配置的不出现', () => {
+    const levels = [{ level: 'max', value: 'very-high' }, { level: 'off' }, { level: 'low', value: 'low' }, { level: 'high', value: 'deep' }] as const
+    const registry = createModelRegistry({
+      credentials: new InMemoryCredentialStore(),
+      providers: [
+        provider({
+          models: [
+            spec('reasoner', { reasoning: true, thinkingLevels: [...levels] }),
+            spec('switched-off', { reasoning: false, thinkingLevels: [...levels] }),
+            spec('no-levels', { reasoning: true }),
+          ],
+        }),
+      ],
+    })
+    const selectable = (id: string) => selectableThinkingLevels(resolveModel(registry, 'custom-provider-1', id))
+    expect(selectable('reasoner')).toEqual(['off', 'low', 'high', 'max'])
+    expect(selectable('switched-off')).toEqual(['off'])
+    expect(selectable('no-levels')).toEqual(['off'])
   })
 
   it('未知的 Provider 或模型报 ModelConfigError', () => {
