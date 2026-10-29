@@ -1,0 +1,21 @@
+.scratch/desktop-app/issues/07-grill-model-providers-credentials.md
+  s_2478d29b02081d::t_109dab2fc12d22 23-26
+.scratch/model-service-settings/spec.md
+  s_2478d29b02081d::t_109dab2fc12d22 1-2,5-9,11-17,20-23,25-34,36-39,41-47,49-51,54-55,57-69,71-76,78-85,88-89,92,94,96-102,109-117,119,121-126,128-130,132-140,144-145,147-148,150-161,163-167,171-173,175-183,185-194,196,198,202,204-206,209,213-214,217-230,232-246,254,256-266,270-299,301-303,305-307,310,312,346,348,354,365-369,373-378,384,386-388,390-397,399-400
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9e18e1a0f692ada5a94735ca4f7ad739a3ea0875",
+  "prompts": {},
+  "sessions": {
+    "s_2478d29b02081d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18694-0513-7a12-b416-1b75d0460bb1",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
