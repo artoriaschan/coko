@@ -3,6 +3,7 @@
 import {
   charsToTokens,
   contextBudget,
+  estimateCompactedTokens,
   DEFAULT_SYSTEM_PROMPT,
   effectiveMessages,
   estimateContextTokens,
@@ -61,6 +62,8 @@ export interface ContextUsageInput {
   /** Session 的条目；草稿为空。 */
   entries: readonly StoredEntry[]
   now?: () => number
+  /** 自动压缩因连续失败暂停（票 11 的熔断，SessionService.compactionPaused）；缺省 false。 */
+  autoCompactPaused?: boolean
 }
 
 const toolChars = (tool: { name: string; description: string; parameters: unknown }) =>
@@ -115,7 +118,9 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
   const last = lastAssistantTimestamp(raw)
   const stale = trim && last !== undefined && clearedCount(messages) !== clearedCount(trimOldToolResults(raw, { now: last }))
   const estimate = estimateContextTokens(messages)
-  const fromUsage = estimate.usageTokens > 0 && !stale
+  // 压缩之后、下一条 assistant 之前：最后一次 usage 量的是被摘要替代的历史（票 11）。
+  const compactedAfterUsage = estimate.usageTokens > 0 && estimateCompactedTokens(input.entries).usageTokens === 0
+  const fromUsage = estimate.usageTokens > 0 && !stale && !compactedAfterUsage
   const budget = model ? contextBudget({ contextWindow: model.contextWindow ?? 0, maxTokens: model.maxTokens ?? 0 }) : undefined
 
   return {
@@ -127,6 +132,6 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     breakdown,
     instructions,
     diagnostics,
-    autoCompact: { enabled: scope.config.context.autoCompact, paused: false },
+    autoCompact: { enabled: scope.config.context.autoCompact, paused: input.autoCompactPaused ?? false },
   }
 }
