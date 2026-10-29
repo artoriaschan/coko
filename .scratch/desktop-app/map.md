@@ -16,6 +16,8 @@ Status: open
 - 仓库无 remote：research 分支与 PR 不可推送，研究结果保存在本目录 research/ 并随 main 提交。
 - 环境事实：pnpm 12.15.0 经公司 Artifactory 安装；首次下载 pnpm 二进制需要 `NODE_TLS_REJECT_UNAUTHORIZED=0`（公司证书），之后缓存可用。Agent 宿主环境继承了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 或 E2E 前必须 unset。
 
+- 用户指示（2026-10-29）：M3 交付（评审修复、复盘、标记 delivered）后暂停目标，等待用户继续，不开始 M4。
+
 ## Decisions so far
 
 <!-- 一行一张已解决的票 -->
