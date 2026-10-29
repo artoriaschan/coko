@@ -1,8 +1,13 @@
 import { BrowserWindow, shell, type BrowserWindowConstructorOptions } from 'electron'
 import { APP_ORIGIN } from './app-protocol.ts'
 
+export interface MainWindowMode {
+  /** E2E 后台模式（e2e-background.ts）：不激活、不聚焦，窗口透明且不接收鼠标。 */
+  background: boolean
+}
+
 /** 主窗口参数：macOS 隐藏标题栏、红绿灯位置与侧栏材质，几何沿用信息架构决定。 */
-export function mainWindowOptions(preload: string): BrowserWindowConstructorOptions {
+export function mainWindowOptions(preload: string, mode: MainWindowMode = { background: false }): BrowserWindowConstructorOptions {
   return {
     width: 1280,
     height: 820,
@@ -27,7 +32,10 @@ export function mainWindowOptions(preload: string): BrowserWindowConstructorOpti
       nodeIntegration: false,
       webSecurity: true,
       webviewTag: false,
+      // 后台模式的窗口总在其他窗口之下，关闭节流使 rAF 与计时器按前台节奏运行。
+      ...(mode.background ? { backgroundThrottling: false } : {}),
     },
+    ...(mode.background ? { skipTaskbar: true } : {}),
   }
 }
 
@@ -42,9 +50,25 @@ export function hardenWebContents(contents: Electron.WebContents): void {
   })
 }
 
-export function createMainWindow(preload: string): BrowserWindow {
-  const window = new BrowserWindow(mainWindowOptions(preload))
-  window.once('ready-to-show', () => window.show())
+/**
+ * 显示主窗口（首次 ready-to-show 与第二实例启动时）。后台模式下 showInactive 不激活应用，透明度 0 且忽略鼠标，
+ * 窗口仍在屏幕上合成，渲染、rAF 与计时器照常运行；Playwright 经 CDP 注入输入，不受 setIgnoreMouseEvents 影响。
+ */
+export function revealMainWindow(window: BrowserWindow, mode: MainWindowMode): void {
+  if (mode.background) {
+    window.setOpacity(0)
+    window.setIgnoreMouseEvents(true)
+    window.showInactive()
+    return
+  }
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
+
+export function createMainWindow(preload: string, mode: MainWindowMode = { background: false }): BrowserWindow {
+  const window = new BrowserWindow(mainWindowOptions(preload, mode))
+  window.once('ready-to-show', () => (mode.background ? revealMainWindow(window, mode) : window.show()))
   void window.loadURL(`${APP_ORIGIN}/`)
   return window
 }

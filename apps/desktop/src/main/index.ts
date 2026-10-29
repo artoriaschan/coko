@@ -14,7 +14,8 @@ import { createSecretBridge } from './secrets.ts'
 import { SidecarProcess } from './sidecar-process.ts'
 import { SidecarSupervisor } from './sidecar-supervisor.ts'
 import { decideWebSocketHeaders } from './websocket-headers.ts'
-import { createMainWindow, hardenWebContents } from './window.ts'
+import { e2eBackgroundEnabled } from './e2e-background.ts'
+import { createMainWindow, hardenWebContents, revealMainWindow, type MainWindowMode } from './window.ts'
 
 // 必须在 ready 之前：standard 让 coko-app://app 拥有正常的 origin，secure 让其视为安全上下文。
 protocol.registerSchemesAsPrivileged([
@@ -27,6 +28,10 @@ if (userDataOverride !== undefined && userDataOverride !== '') {
   app.setPath('userData', resolve(userDataOverride))
   app.setAppLogsPath(join(resolve(userDataOverride), 'logs'))
 }
+
+// E2E 后台模式：在单实例锁之前切换为 accessory，第二实例在退出前也不显示 Dock 图标、不激活。
+const windowMode: MainWindowMode = { background: e2eBackgroundEnabled(process.env, { packaged: app.isPackaged, testBuild: TEST_BUILD }) }
+if (windowMode.background && process.platform === 'darwin') app.setActivationPolicy('accessory')
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -132,6 +137,7 @@ function run(): void {
       log.info('app starting', {
         packaged: !development,
         testBuild: TEST_BUILD,
+        background: windowMode.background,
         electron: process.versions.electron,
         platform: process.platform,
         ripgrep: ripgrepPath,
@@ -294,9 +300,7 @@ function run(): void {
 
   app.on('second-instance', () => {
     if (mainWindow === undefined || mainWindow.isDestroyed()) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
+    revealMainWindow(mainWindow, windowMode)
   })
 
   app.on('web-contents-created', (_event, contents) => hardenWebContents(contents))
@@ -322,7 +326,7 @@ function run(): void {
     })
 
     const open = () => {
-      mainWindow = createMainWindow(preload)
+      mainWindow = createMainWindow(preload, windowMode)
       mainWindow.on('closed', () => {
         mainWindow = undefined
       })

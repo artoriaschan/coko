@@ -47,12 +47,19 @@ export async function writeCokoHome(dir: string, relative: string, content: stri
   return path
 }
 
-/** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData 与临时 COKO_HOME。 */
+/**
+ * 后台模式（main 的 e2e-background.ts）：窗口不激活、不抢焦点、不显示 Dock 图标，仍在真实 Electron 中渲染。
+ * 本地调试需要看到窗口时设置 COKO_E2E_VISIBLE=1（宿主环境原样传给应用）。
+ */
+export const BACKGROUND_ENV = { COKO_E2E_BACKGROUND: '1' } as const
+
+/** 测试环境：去掉 ELECTRON_RUN_AS_NODE 与凭据变量，使用独立 userData 与临时 COKO_HOME，默认后台模式。 */
 function testEnv(extra: Record<string, string>, dir: string, eventsPath: string, sidecar: 'real' | 'placeholder'): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !CREDENTIAL_ENV.test(key)) env[key] = value
   return {
     ...env,
+    ...BACKGROUND_ENV,
     COKO_USER_DATA_DIR: join(dir, 'user-data'),
     COKO_HOME: cokoHomeOf(dir),
     ...(sidecar === 'placeholder' ? { COKO_SIDECAR_ENTRY: placeholderSidecarEntry, COKO_FIXTURE_EVENTS: eventsPath } : {}),
