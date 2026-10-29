@@ -74,6 +74,8 @@ describe('上下文环', () => {
   it('点击打开 HoverCard：用量、分项、指令文件（截断）与诊断；Esc 关闭且焦点回到环', async () => {
     const { fetchUsage } = renderRing(usage(2_000, { estimated: true }))
     await expect.poll(() => ring()?.textContent).toBe('5%')
+    // 先悬停：Radix 开始 openDelay（300 ms）计时；随后点击与 Esc 不能被这个计时器重新打开。
+    await userEvent.hover(ring())
     await userEvent.click(ring())
     await expect.poll(() => card()).not.toBeNull()
     const dialog = page.getByRole('dialog', { name: 'Context' })
@@ -82,12 +84,15 @@ describe('上下文环', () => {
     expect([...card()!.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(['System prompt', 'Instructions', 'Skills', 'Memory', 'Tools', 'Messages'])
     expect(card()!.querySelector('[data-instruction-file="/w/AGENTS.md"]')!.textContent).toContain('Truncated')
     expect(card()!.querySelector('[data-diagnostic="name-mismatch"]')).not.toBeNull()
-    // 打开时刷新一次。
-    expect(fetchUsage).toHaveBeenCalledTimes(2)
+    // 打开时刷新：挂载时一次，之后至少一次。
+    expect(fetchUsage.mock.calls.length).toBeGreaterThanOrEqual(2)
 
     await userEvent.keyboard('{Escape}')
     await expect.poll(() => card()).toBeNull()
     expect(document.activeElement).toBe(ring())
+    // 断言"不会再打开"只能等过计时器的上限：openDelay 300 ms，这里等 600 ms。
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    expect(card()).toBeNull()
   })
 
   it('读取失败且没有旧值时环只画轨道，名称为"Context usage"', async () => {

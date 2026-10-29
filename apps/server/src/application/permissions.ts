@@ -45,7 +45,9 @@ export interface HostToolNames {
 
 const toHostToolNames = (known: readonly string[] | HostToolNames): HostToolNames => ('names' in known ? known : { names: known as readonly string[] })
 
-const canonicalTool = (tool: string, known: HostToolNames) => known.aliases?.[tool.toLowerCase()] ?? canonicalRuleTool(tool, known.names)
+/** policy 的组名与内置别名（含 Skill、mcp__）优先，其次贡献工具的规则名，最后宿主工具名。 */
+const canonicalTool = (tool: string, known: HostToolNames) =>
+  canonicalRuleTool(tool) ?? known.aliases?.[tool.toLowerCase()] ?? canonicalRuleTool(tool, known.names)
 
 /**
  * 写入的规则：工具名归一为规范名（内置工具与组名不区分大小写归为 Read / Edit / Bash，宿主工具按注册名，贡献工具按其规则名），重复的合并。

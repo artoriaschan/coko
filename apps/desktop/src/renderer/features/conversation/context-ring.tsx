@@ -56,7 +56,15 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
 
   const [open, setOpen] = React.useState(false)
   const trigger = React.useRef<HTMLButtonElement>(null)
+  // 点击或 Esc 之后，悬停的延迟打开（Radix 在指针进入时计时）不再生效，直到指针离开环；否则 Esc 后卡片会被计时器重新打开。
+  const hoverSuppressed = React.useRef(false)
   const onOpenChange = (next: boolean) => {
+    if (next && hoverSuppressed.current) return
+    setOpen(next)
+    if (next) refresh()
+  }
+  const toggle = (next: boolean) => {
+    hoverSuppressed.current = true
     setOpen(next)
     if (next) refresh()
   }
@@ -76,12 +84,13 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
           label={label}
           aria-expanded={open}
           aria-haspopup="dialog"
-          onClick={() => onOpenChange(!open)}
+          onClick={() => toggle(!open)}
+          onPointerLeave={() => (hoverSuppressed.current = false)}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && open) {
               event.preventDefault()
               event.stopPropagation()
-              setOpen(false)
+              toggle(false)
             }
           }}
         />
@@ -93,7 +102,10 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
         aria-label={t('context.card.title')}
         data-slot="context-card"
         className="w-80"
-        onEscapeKeyDown={() => trigger.current?.focus()}
+        onEscapeKeyDown={() => {
+          hoverSuppressed.current = true
+          trigger.current?.focus()
+        }}
       >
         {usage ? (
           <ContextDetails usage={usage} format={(n) => number.format(n)} />
