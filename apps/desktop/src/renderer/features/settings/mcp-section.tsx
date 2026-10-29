@@ -599,7 +599,7 @@ function SecretsPanel() {
               onChange={(e) => setName(e.target.value.toUpperCase())}
               autoComplete="off"
               spellCheck={false}
-              placeholder="MY_SERVICE_DSN"
+              placeholder={t('mcp.secrets.namePlaceholder')}
             />
           </div>
           <div className="flex min-w-40 flex-1 flex-col gap-1.5">

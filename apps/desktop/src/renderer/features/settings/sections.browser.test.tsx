@@ -30,7 +30,7 @@ it('占位分区（skills）在注册表中但不显示；打开它时回到通�
       />
     </div>,
   )
-  settingsDialog.show('memory')
+  settingsDialog.show('skills')
   const dialog = page.getByRole('dialog')
   await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
   const nav = dialog.getByRole('navigation')
