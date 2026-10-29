@@ -8,14 +8,14 @@
 
 规格：[模型服务 PRD](../spec.md)；架构：[ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)、[ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)；术语：[GLOSSARY](../../../GLOSSARY.md)。 视觉以 Pencil 源稿 `/Users/chenzheng/Desktop/UI/设置-模型服务.pen` 为准（画面 07、07A、07B、08）；默认选择按规格为不选中，不按 07 画面的全选；加载、失败与空结果沿用源稿视觉语言。
 
-- [ ] MS-19 至 MS-28 通过
-- [ ] 集成测试：新建时的临时 Key 不进入库、日志、CredentialStore 缓存与任何 HTTP 响应；错误文本脱敏
-- [ ] 弹窗每行只显示模型 ID，保持返回顺序；按模型 ID 做不区分大小写的按序字符模糊匹配
-- [ ] 初次打开不选中；全选只作用于当前搜索结果中可新增的模型；修改搜索保留已选；已在目录的模型禁用且不计数
-- [ ] 导入模型显示名称为 ID、容量为默认值、输入类型为文本、推理关闭，按返回顺序追加；添加所选不保存供应商
-- [ ] 加载中按钮不可点；15 秒超时；失败显示错误与重试；空结果有说明；关闭弹窗取消请求
-- [ ] 切换协议或地址后已获取的候选作废；新建表单地址或 Key 未填时按钮不可点
-- [ ] 弹窗焦点管理与键盘操作可用
+- [x] MS-19 至 MS-28 通过
+- [x] 集成测试：新建时的临时 Key 不进入库、日志、CredentialStore 缓存与任何 HTTP 响应；错误文本脱敏
+- [x] 弹窗每行只显示模型 ID，保持返回顺序；按模型 ID 做不区分大小写的按序字符模糊匹配
+- [x] 初次打开不选中；全选只作用于当前搜索结果中可新增的模型；修改搜索保留已选；已在目录的模型禁用且不计数
+- [x] 导入模型显示名称为 ID、容量为默认值、输入类型为文本、推理关闭，按返回顺序追加；添加所选不保存供应商
+- [x] 加载中按钮不可点；15 秒超时；失败显示错误与重试；空结果有说明；关闭弹窗取消请求
+- [x] 切换协议或地址后已获取的候选作废；新建表单地址或 Key 未填时按钮不可点
+- [x] 弹窗焦点管理与键盘操作可用
 
 ## Comments
 
@@ -85,3 +85,51 @@
 - `@coko/ui` 新增 `Switch`（`packages/ui/src/components/switch.tsx`，基于 radix-ui，H20 全圆轨道）。本票如需开关可直接复用。
 - DOM：开关 `role="switch"`、`name="reasoning"`，可访问名称“推理等级”（`providers.thinking.title`）；档位行 `li[data-thinking-level=<level>]`；选择器 `[data-thinking-select]`、菜单项 `[data-thinking-choice]`；参数输入 `[name="thinkingValue"]`；“添加档位” `[data-thinking-add]`。i18n 新增 `providers.thinking.*`（在 `providers.loadFailed` 之后）。
 - 合入冲突提醒：本票与 06 并行实施。06 在 `model-catalog.tsx` 中加了 `ThinkingLevelsEditor` 的 import（与其他 import 相邻）和 `ModelRow` 展开区末尾的 2 行；`catalog-draft.ts` 加了 `normalizeLevels` 的 import 并改了 `toCatalog` 一行；`catalog-draft.test.ts` 末尾加了 1 个用例；i18n 在 `providers` 下加了 `thinking.*`。本票改 `model-catalog.tsx` 的 import 区或 i18n 的 `providers` 段时最可能冲突，合入时保留两边。
+
+### 实施记录（ms-07，2026-10-29）
+
+**覆盖的验收**
+
+- MS-19：新建表单把表单中的 Key 经 `fetchProviderModels` → main → `provider.models { secret }` 只用于这一次请求（integration、e2e 断言供应商收到该 Key，用户数据目录与库、日志不含它）。
+- MS-20：编辑且 Key 留空只带 `providerId`，Sidecar 用已保存的 Credential，地址改为其他主机也一样；填写新 Key 时用新 Key，且不替换已保存 Key 的明文缓存（integration：之后的请求仍为已保存的 Key、只解密一次）。
+- MS-21 至 MS-25：弹窗每行只显示模型 ID 并保持返回顺序；初次计数 0、“添加所选”禁用；按序模糊匹配、不区分大小写；全选只作用于当前结果中可新增的模型；修改搜索保留已选；已在目录禁用且不计数；添加所选按返回顺序追加（名称为 ID、默认容量、文本、推理关闭），不调用 `saveProvider`，保存时随目录一次提交。
+- MS-26：取消、关闭按钮与 Escape 都不修改目录；进行中的请求经 `cancelProviderModels` → `provider.models.cancel` 中止（integration 与 e2e 断言供应商一侧连接被关闭）。
+- MS-27：main 与 Sidecar 各有 15 秒时限（main 超时后也发 cancel）；失败显示本地化说明、可展开的脱敏原文与“重试”；空结果有说明。
+- MS-28：每次打开都按表单当前的协议、地址与 Key 重新获取，之前的候选不保留；目录不变。
+- 集成：`secrets-gate-provider-models.test.ts` 扫描 WebSocket 帧、HTTP 响应体、sidecar→main 控制消息、库（含 -wal/-shm）与 sidecar.jsonl，临时 Key（含一个非 sk- 形态的）不出现；之后的 Run 仍用已保存的 Key。
+- 焦点与键盘：打开时焦点在搜索框，Tab 到全选和候选，Space 勾选，Enter 触发“添加所选”；关闭后焦点回到“获取可用模型”；Escape 只关闭选择弹窗，不关闭设置。明暗主题截图人工检查过（未提交）。
+
+**实际运行的命令与结果**（合入 model-service b568865 之后重跑）
+
+- `pnpm run typecheck` 通过；`pnpm exec oxlint` 0 个错误；`pnpm exec oxfmt --check` 通过；`pnpm run check:docs` 检查 129 个文件，0 个问题。
+- `vitest run --project protocol --project i18n --project scripts --project server --project desktop`：56 个文件，380 个用例通过。
+- `vitest run --project desktop-renderer`：12 个文件，83 个用例通过（含 `fetch-models.browser.test.tsx` 9 个）。
+- `vitest run tests/integration/secrets-gate`：10 个文件，12 个用例通过；`sidecar-provider-models`、`sidecar-settings-credentials`、`sidecar-provider-delete` 一并通过（6 个文件，23 个用例）。
+- Electron E2E：`fetch-models`、`settings`、`provider-delete` 3 个文件，4 个用例通过，1 个跳过（既有的真实 DeepSeek 凭据用例，没有 `DEEPSEEK_API_KEY`）。
+
+**负向确认**
+
+- 先红：protocol、server、main、选择规则、弹窗 browser 测试在实现前均失败。
+- 变异：跟随重定向、去掉错误文本脱敏 → server 单元测试失败；有 `providerId` 时优先已保存的 Key → integration 失败；去掉请求期间的按值登记 → 总闸失败（控制消息含非 sk- 形态的 Key）；main 不转发 `provider.models.result` → e2e 失败。
+- 用 sk- 形态的 Key 把明文写进日志字段的变异没有被总闸发现，因为日志的形态脱敏已经替换了它；总闸因此加了一个非 sk- 形态的 Key。
+
+**未验证项**：真实供应商的模型列表接口（只用本地兼容假服务）；Anthropic 列表只取一页（`limit=1000`），不跟随 `has_more` 分页。
+
+**文档影响**：ADR 0010 记录获取可用模型已实施，`implementation` 改为 `implemented`（ADR 索引同步）；ADR 0004 的“部分实施”一句改为已实施；`docs/tech-stack/architecture.md` 加上 fetchProviderModels IPC；`apps/server/README.md` 的 Provider 一节与测试清单。
+
+**改过的共享位置（与票 06 并行）**
+
+- `model-catalog.tsx`：`ModelCatalog` 新增可选 prop `actions`，目录标题 `h4` 包进标题行 `div`，右侧放 `actions`。没有改 `ModelRow`。
+- `provider-form.tsx`：计算 `fetchRequest`，向 `ModelCatalog` 传 `actions={<FetchModels …/>}`，并 import `FetchModels`。
+- i18n：新增 `providers.fetchModels.*`（与 `providers.catalog.*` 并列，没有改 catalog 下的键）。
+- `catalog-draft.ts`、`model-catalog.browser.test.tsx` 未改。`models-section.browser.test.tsx` 的键盘用例多按一次 Tab（“获取可用模型”在“添加模型”之前）。
+- 合入 model-service（含票 06）时没有冲突。
+
+**供后续票**
+
+- 控制消息：`provider.models { requestId, api, baseUrl, providerId?, secret? }`、`provider.models.cancel { requestId }`、`provider.models.result`（`ok: true, models: string[]` 或 `ok: false, error: { code: ProviderModelsErrorCode, message, status? }`）。
+- bridge：`fetchProviderModels(FetchProviderModelsInput)` → `FetchProviderModelsResult`，`cancelProviderModels(requestKey)`；IPC 通道 `coko:fetch-provider-models`（invoke）、`coko:cancel-provider-models`（send）。main：`createProviderModelsBridge`（`apps/desktop/src/main/provider-models.ts`）。server：`listProviderModels`、`serveProviderModels`（`apps/server/src/application/provider-models.ts`）。
+- store：`settings.fetchProviderModels`、`settings.cancelProviderModels`；`createSettingsStore({ providerModels })`。
+- 测试：renderer fake 有 `setCandidates`、`fetchProviderModels`（vi.fn）、`cancelProviderModels`、`holdFetch()`；集成 harness 有 `fetchModels(sidecar, request, { onSent })`。
+- DOM：按钮 `[data-fetch-models]`；弹窗 `[data-fetch-models-dialog]`（与删除确认、“放弃更改？”区分）；候选行 `label[data-candidate=<id>]`，已在目录带 `data-in-catalog`；失败原文 `[data-error-detail]`。
+
