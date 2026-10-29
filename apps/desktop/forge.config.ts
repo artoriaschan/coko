@@ -1,6 +1,10 @@
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import type { ForgeConfig } from '@electron-forge/shared-types'
+import { createHash } from 'node:crypto'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { buildElectron, buildRenderer, buildSidecar, prepareRipgrep, startRendererDevServer, type RendererDevServer } from './build/build.ts'
 
 let devServer: RendererDevServer | undefined
@@ -20,6 +24,16 @@ const config: ForgeConfig = {
     asar: true,
     extraResource: ['dist/sidecar', 'dist/ripgrep'],
     ignore,
+    // electron-packager 默认在系统临时目录的固定子目录里组装应用；多个 worktree 同时打包会互相删除对方的文件。
+    // 每个检出按自身路径使用独立的临时目录。它不能位于应用目录内，否则 packager 会把目录复制进自身。
+    tmpdir: path.join(
+      tmpdir(),
+      'coko-packager-' +
+        createHash('sha256')
+          .update(fileURLToPath(import.meta.url))
+          .digest('hex')
+          .slice(0, 12),
+    ),
   },
   makers: [],
   plugins: [
