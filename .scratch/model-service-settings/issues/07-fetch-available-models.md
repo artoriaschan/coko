@@ -67,3 +67,13 @@
 - 行为变化：Session 模型字段为空且有可用模型时，Run 返回 409 `model-required`，不再自动选用默认模型；没有任何可用模型时仍为 `model-not-configured`。新建 Session 仍在创建时取默认模型。
 - 测试：renderer fake（`testing/fake-settings.ts`）的 api 新增 `providerReferences`（vi.fn），`deleteProvider` 同时清掉引用数，返回值新增 `setReferences(id, n)`；`testing/fixture-chat.ts` 新增 `sessions` 选项。参考 `tests/integration/sidecar-provider-delete.test.ts`、`apps/desktop/e2e/provider-delete.e2e.test.ts`、`features/settings/delete-provider.browser.test.tsx`。
 - 本票的“获取可用模型”弹窗与删除确认框、“放弃更改？”确认框共存于设置弹窗中，测试查询弹窗时用本票自己的 data 属性或名称，不要只按 `role` 查询。保留票 04 在 `fake-settings.ts` 中的 `providerReferences` 与 `setReferences`。
+
+### 来自票 05
+
+- 模型目录行（票 05 已合入）：`features/settings/catalog-draft.ts` 提供 `ModelRowDraft { key, id, name, contextWindow, maxTokens, input, reasoning, thinkingLevels }`（容量为输入原文，key 只作行身份）、`emptyModelRow()`、`rowsOf(models)`、`toCatalog(rows)`、`validateCatalog(rows)`（返回 `CatalogErrors = Record<rowKey, { id?, contextWindow?, maxTokens? }>`）、`pruneCatalogErrors`、`parseTokens` / `formatTokens`。`reasoning` 与 `thinkingLevels` 现在原样往返，没有界面。
+- `provider-draft.ts`：`FormDraft.modelText` 已换成 `models: ModelRowDraft[]`；`DraftErrors` 增加 `catalog?: CatalogErrors`；`isDirty` 对 `models` 深比较（不含行 key）；`validateDraft` 与 `toProviderDraft` 使用目录行。`provider-form.tsx` 用 `<ModelCatalog>`，`updateModels` 在修改后去掉失效的行错误。
+- `model-catalog.tsx`：`ModelCatalog { id, rows, onChange, errors?, emptyError?, revealErrors }`；展开状态在组件内，`revealErrors` 变化时展开有容量错误的行。收起与展开不进入草稿。
+- DOM：行 `li[data-model-row][data-model-row-key]`，展开时带 `data-expanded`，有错误时带 `data-invalid`；输入 `[name=modelId|modelName|contextWindow|maxTokens]`；复选框 `[name=input-text|input-image]`；“添加模型”为 `[data-model-add]`；图标按钮的可访问名称为 `providers.catalog.options`（“模型选项”）和 `providers.catalog.remove`（“删除模型”）；模型显示名称的可访问名称为“模型显示名称”，与供应商的“显示名称”区分。i18n 新增 `providers.catalog.*`，删除 `modelsHint`。
+- 测试：`catalog-draft.test.ts`、`provider-draft.test.ts`、`model-catalog.browser.test.tsx`；`models-section.browser.test.tsx` 有 `addModelRow`、`addModel`、`describedError` helper；e2e 的 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`（`settings.e2e` 的 `models` 参数为 `{ id, contextWindow? }[]`）。逐键输入前先等新行的模型 ID 获得焦点，切换协议后先等菜单关闭，否则 Radix 归还焦点会吞掉后半段字符。
+- “获取可用模型”放在目录标题行（票 05 已留出位置）。导入的模型用 `{ ...emptyModelRow(), id, name: id }` 追加到 `draft.models`，按返回顺序；“已在目录”按 `ModelRowDraft.id` 判断。
+- 并行提醒：票 06 与本票同时实施，两张票都改模型目录一带。可能冲突的位置：`model-catalog.tsx`（本票改目录标题行，票 06改 `ModelRow` 展开区和 `ModelRowField`）、`catalog-draft.ts`、i18n `providers.catalog.*`、`model-catalog.browser.test.tsx`，以及可能的 `provider-form.tsx`。只做本票需要的增量改动，并在 Comments 列出改过的共享位置；合入时由 merger 解决冲突。

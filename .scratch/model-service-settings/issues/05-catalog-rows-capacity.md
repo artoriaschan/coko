@@ -124,3 +124,13 @@
 - 共享文件核对：`models-section.tsx` 与 04 一致（删除确认 `delete-provider-dialog.tsx`、`providerReferences`）；i18n 同时有 `providers.deleteDialog.*` 与 `providers.catalog.*`；`models-section.browser.test.tsx` 只差本票的目录行改动。
 - 票 04 新增的 `apps/desktop/e2e/provider-delete.e2e.test.ts` 仍填写已删除的 `input[name="models"]`；其 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`，签名不变。
 - 重新验证：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 warning 0 error；`pnpm run format:check` 通过；`pnpm run test apps/desktop/src/renderer packages/i18n packages/ui/src/guards scripts tests/integration/secrets-gate tests/integration/sidecar-provider-delete.test.ts`：41 个文件，258 个用例通过；`pnpm run test apps/desktop/e2e/settings.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts`：3 通过，1 跳过（真实 DeepSeek）。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/05-catalog-rows-capacity` 合入集成分支 model-service，合入提交 9aaf5b2（票分支 c59bdda，已含 cdf507c）。唯一冲突在本票文件的 Comments：集成分支追加了“来自票 04”，票分支追加了实施记录，两段都保留。代码文件没有冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（550 文件）；`pnpm run format:check` 通过（576 文件）；`pnpm run test` 192 文件，1370 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含 `catalog-draft.test.ts` 31、`model-catalog.browser.test.tsx` 5、全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- 票 04 的 e2e：`provider-delete.e2e.test.ts` 只改了 `addCustomProvider` 辅助函数（改为点击 `[data-model-add]` 后填写模型 ID），删除流程的断言没有变，全量中 1 个用例通过；`sidecar-provider-delete` 集成测试也通过。
+- Spec 评审：对照 MS-12 至 MS-14，没有发现缺口。MS-12 新增行聚焦模型 ID、展开与删除；MS-13 空目录、空 ID、重复 ID 阻止提交并标出行，名称留空保存为 `''` 后显示为 ID；MS-14 `1M` → 1 000 000、`128K` → 128 000、`0` 与最大输出超过上下文窗口报错。目录中没有“恢复默认模型”。已知差异沿用实施记录：收起与展开都用 10px 内边距（源稿展开为 12px），没有在 Electron 中目视检查深色主题和 390px 窄窗口。
+- “供后续票”的约定已转写到票 06、07 的 Comments（标题“来自票 05”），两张票都注明了对方在并行实施和可能的冲突点。
+
+Closed: true
