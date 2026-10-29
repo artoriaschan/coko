@@ -429,7 +429,7 @@ export class McpManager {
       const result = validateMcpServerConfig(name, request.servers[name])
       if (!result.ok) throw new AppError('bad-request', result.message)
       const clash = names.find((other) => serverNamesConflict(other, name))
-      if (clash) throw new AppError('bad-request', `server "${name}" conflicts with "${clash}" (names differ only in "-" and "_")`)
+      if (clash) throw new AppError('bad-request', `server "${name}" conflicts with "${clash}" (names differ only in case, "-" or "_")`)
     }
     const workspace = request.workspaceId === undefined ? undefined : { id: request.workspaceId, path: await this.#workspacePath(request.workspaceId) }
     await this.#options.store.settings.set(MCP_SERVERS_SETTING, request.servers as JsonValue, request.expectedRevision)

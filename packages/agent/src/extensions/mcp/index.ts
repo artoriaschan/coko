@@ -15,7 +15,7 @@ export {
 export type { McpHttpServerConfig, McpServerConfig, McpServerEntry, McpServerScope, McpStdioServerConfig, McpTransportKind } from './config.ts'
 export { MCP_CONNECT_TIMEOUT_MS, MCP_RECONNECT_DELAYS_MS, MCP_STDERR_TAIL_LINES, McpConnection } from './connection.ts'
 export type { McpConnectionOptions, McpConnectionStatus, McpListKind, McpTransportHandle } from './connection.ts'
-export { createMcpToolName, MAX_MCP_SERVER_NAME_LENGTH, MAX_MCP_TOOL_NAME_LENGTH, mcpNamespace, serverNamesConflict } from './naming.ts'
+export { createMcpToolName, MAX_MCP_SERVER_NAME_LENGTH, MAX_MCP_TOOL_NAME_LENGTH, mcpNamespace, serverNameKey, serverNamesConflict } from './naming.ts'
 export { convertMcpResult } from './results.ts'
 export type { McpToolDetails } from './results.ts'
 export { createMcpTools, toParameters } from './tool.ts'

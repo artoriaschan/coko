@@ -22,7 +22,13 @@ export function createMcpToolName(server: string, tool: string, isTaken: (name: 
   return `${name.slice(0, MAX_MCP_TOOL_NAME_LENGTH - hash.length - 1)}_${hash}`
 }
 
-/** Server names that differ only in `-` and `_` are confusing in rules and logs; the later one is rejected. */
+/**
+ * Server names compared the way permission rules match tool names: case-insensitive, and `-` equal to `_`. Rules
+ * (`mcp__github`) match without regard to case, so `GitHub` and `github` must not be two servers.
+ */
+export const serverNameKey = (name: string) => name.toLowerCase().replace(/-/g, '_')
+
+/** Two different server names with the same key (only case, `-` or `_` differ): the later one is rejected. */
 export function serverNamesConflict(a: string, b: string): boolean {
-  return a !== b && a.replace(/-/g, '_') === b.replace(/-/g, '_')
+  return a !== b && serverNameKey(a) === serverNameKey(b)
 }

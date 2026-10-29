@@ -3,7 +3,7 @@
 // Adapted in part from pi coding-agent 1.4.0 core/mcp-servers.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { createHash } from 'node:crypto'
 import { diagnostic, type ResourceDiagnostic } from '../../instructions/shared/diagnostics.ts'
-import { MAX_MCP_SERVER_NAME_LENGTH, serverNamesConflict } from './naming.ts'
+import { MAX_MCP_SERVER_NAME_LENGTH, serverNameKey, serverNamesConflict } from './naming.ts'
 
 /** Default per-request timeout in seconds; progress notifications reset it. */
 export const DEFAULT_MCP_TIMEOUT_SECONDS = 60
@@ -188,14 +188,16 @@ export function parseMcpServers(raw: Record<string, unknown>, options: ParseOpti
         report('project-secret-reference', `server "${name}": project files cannot reference Secrets (\${…}); define it in the global MCP settings`)
         continue
       }
-      if (options.globalNames?.includes(name)) {
-        report('shadowed-by-global', `server "${name}" is defined globally; the project entry is ignored`)
+      // 与全局同名（按规则匹配的方式比较：大小写不敏感、- 等于 _）：项目项不能借名字继承用户为全局 Server 保存的规则（ADR 0008）。
+      const global = options.globalNames?.find((other) => serverNameKey(other) === serverNameKey(name))
+      if (global !== undefined) {
+        report('shadowed-by-global', `server "${name}" is defined globally as "${global}"; the project entry is ignored`)
         continue
       }
     }
     const clash = entries.find((other) => serverNamesConflict(other.name, name))
     if (clash) {
-      report('name-conflict', `server "${name}" conflicts with "${clash.name}" (names differ only in "-" and "_")`)
+      report('name-conflict', `server "${name}" conflicts with "${clash.name}" (names differ only in case, "-" or "_")`)
       continue
     }
     entries.push({ name, scope: options.scope, config: result.config, digest: digestMcpServer(result.config) })
