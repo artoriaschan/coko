@@ -1,12 +1,7 @@
 // 指令文件的发现：仓库根（Workspace 向上最近的含 .git 的祖先，不越过家目录）、目录链与每个目录的指令文件。
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { pathContains } from '../../policy/rules.ts'
 import type { ReadOnlyFiles } from '../shared/index.ts'
-
-/** path 等于 root 或在 root 之内（按词法比较）。 */
-export function isWithin(root: string, path: string): boolean {
-  const rel = relative(root, path)
-  return rel === '' || (rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel))
-}
 
 /**
  * Workspace 向上最近的含 .git（目录或 worktree 的文件）的祖先；遇到家目录或其祖先时停止（家目录本身不算），
@@ -16,7 +11,7 @@ export async function findRepoRoot(files: ReadOnlyFiles, cwd: string, homeDir: s
   const home = resolve(homeDir)
   let dir = resolve(cwd)
   for (;;) {
-    if (isWithin(dir, home)) return undefined
+    if (pathContains(dir, home)) return undefined
     const git = await files.stat(join(dir, '.git')).catch(() => undefined)
     if (git) return dir
     const parent = dirname(dir)

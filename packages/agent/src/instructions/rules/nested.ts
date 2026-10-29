@@ -1,4 +1,4 @@
-// 嵌套指令的按需加载（grilling A5）：read / write / edit / grep / find / ls 首次触及 Workspace 根之下的目录时，
+// 嵌套指令的按需加载（docs/subsystems/instructions.md）：read / write / edit / grep / find / ls 首次触及 Workspace 根之下的目录时，
 // 该目录链上尚未进入上下文的指令文件以 <instruction_file scope="nested"> 块追加在该次 toolResult 末尾（随结果提交，回放稳定）。
 // "已加载"从当前上下文中的 toolResult 块派生：压缩或回退移除这些块后，下次触及时重新加载；同一批并行调用经 pending 去重。
 import type { AfterToolCallContext } from '@earendil-works/pi-agent-core'
@@ -6,7 +6,7 @@ import { dirname } from 'node:path'
 import type { ToolHooks } from '../../extensions/hooks.ts'
 import { resolveToCwd } from '../../tools/paths.ts'
 import { createNodeFiles, diagnostic, type ReadOnlyFiles } from '../shared/index.ts'
-import type { InstructionLoader, LoadedInstructions } from './loader.ts'
+import type { InstructionDenial, InstructionLoader, LoadedInstructions } from './loader.ts'
 import { formatInstructionFile, nestedInstructionBlockPath } from './section.ts'
 
 /** 触及目录的工具：前三个取目标文件所在目录，后三个取目标目录（目标是文件时取其所在目录）。 */
@@ -22,6 +22,8 @@ export interface NestedInstructionsOptions {
   files?: ReadOnlyFiles
   /** 每次加载到文件或产生诊断时调用（日志）。 */
   onLoad?: (loaded: LoadedInstructions) => void
+  /** 当时生效的 Read 拒绝规则（每次触及时现取）；省略时没有规则。 */
+  denied?: () => Promise<InstructionDenial | undefined>
 }
 
 function loadedInContext(context: AfterToolCallContext['context']): Set<string> {
@@ -64,7 +66,8 @@ export function nestedInstructionsHook(options: NestedInstructionsOptions): Tool
         const loaded = new Set([...loadedInContext(ctx.context), ...batch.pending])
         let result: LoadedInstructions
         try {
-          result = await loader.nested({ cwd, cokoHome, targetDir: dir, loaded })
+          const denied = await options.denied?.()
+          result = await loader.nested({ cwd, cokoHome, targetDir: dir, loaded, ...(denied ? { denied } : {}) })
         } catch (error) {
           onLoad?.({
             files: [],

@@ -1,6 +1,7 @@
 // grep / find / ls 的读取拒绝过滤：执行上下文的 readDenied 命中的路径不出现在结果中（ADR 0005：拒绝规则在任何模式下都生效）。
 import { realpath } from 'node:fs/promises'
 import { join, relative } from 'node:path'
+import { pathContains } from '../../policy/rules.ts'
 import type { ToolExecutionContext } from '../types.ts'
 
 export interface ReadFilter {
@@ -24,7 +25,7 @@ export async function createReadFilter(context: ToolExecutionContext | undefined
   return {
     denied(path) {
       const rel = relative(root, path)
-      const hit = readDenied(path) || (realRoot !== root && !rel.startsWith('..') && readDenied(join(realRoot, rel)))
+      const hit = readDenied(path) || (realRoot !== root && pathContains(root, path) && readDenied(join(realRoot, rel)))
       if (hit) omitted++
       return hit
     },

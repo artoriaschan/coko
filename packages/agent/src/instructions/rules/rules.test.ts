@@ -109,6 +109,39 @@ describe('发现与顺序', () => {
     expect(summary(await loader.load({ cwd: ws.path('repo/sub'), cokoHome }))).toEqual([['repo/AGENTS.md', 'project']])
   })
 
+  it('目录链上的指令文件经符号链接指向仓库根之外时跳过并诊断（含 Workspace 本身没有 .git 时）', async () => {
+    await ws.write('outside/secret.txt', 'TOP-SECRET-OUTSIDE')
+    await ws.write('repo/.git/HEAD', 'ref')
+    await symlink(ws.path('outside/secret.txt'), ws.path('repo/AGENTS.md'))
+    await ws.write('repo/sub/AGENTS.md', 'sub')
+    const loaded = await loader.load({ cwd: ws.path('repo/sub'), cokoHome })
+    expect(summary(loaded)).toEqual([['repo/sub/AGENTS.md', 'project']])
+    expect(loaded.diagnostics).toEqual([expect.objectContaining({ source: 'instructions', code: 'file-outside-boundary', path: ws.path('repo/AGENTS.md') })])
+    expect(JSON.stringify(loaded)).not.toContain('TOP-SECRET-OUTSIDE')
+    await mkdir(ws.path('plain'), { recursive: true })
+    await symlink(ws.path('outside/secret.txt'), ws.path('plain/AGENTS.md'))
+    expect(codes(await loader.load({ cwd: ws.path('plain'), cokoHome }))).toEqual(['file-outside-boundary'])
+  })
+
+  it('Read 拒绝规则覆盖的指令文件与 import 不加载并诊断', async () => {
+    await ws.write('repo/.git/HEAD', 'ref')
+    const root = await ws.write('repo/AGENTS.md', 'root @./private/notes.md @./ok.md')
+    await ws.write('repo/private/notes.md', 'private notes')
+    await ws.write('repo/ok.md', 'ok')
+    await ws.write('repo/secret/AGENTS.md', 'secret dir rules')
+    // 按 Workspace 内的相对位置判定（macOS 的临时目录真实路径本身含 /private/）。
+    const denied = (path: string) => /\/repo\/(private|secret)\//.test(path)
+    const loaded = await loader.load({ cwd: ws.path('repo/secret'), cokoHome, denied })
+    expect(summary(loaded)).toEqual([
+      ['repo/ok.md', 'project'],
+      ['repo/AGENTS.md', 'project'],
+    ])
+    expect(loaded.diagnostics).toEqual([
+      expect.objectContaining({ code: 'import-denied', path: root, message: expect.stringContaining('private/notes.md') }),
+      expect.objectContaining({ code: 'file-denied', path: ws.path('repo/secret/AGENTS.md') }),
+    ])
+  })
+
   it('修改文件后下一次 load 读到新内容（mtime 缓存）', async () => {
     const path = await ws.write('proj/AGENTS.md', 'v1')
     expect(contentOf(await loader.load({ cwd: ws.path('proj'), cokoHome }), 'proj/AGENTS.md')).toBe('v1')
@@ -233,6 +266,23 @@ describe('@import', () => {
     expect(loaded.diagnostics).toEqual([
       expect.objectContaining({ code: 'import-not-found', path: root, message: expect.stringContaining('missing.md') }),
       expect.objectContaining({ code: 'import-not-text', path: root, message: expect.stringContaining('logo.png') }),
+    ])
+  })
+
+  it('.env 等环境文件与受保护路径（.git、.ssh 等）不作为 import 目标', async () => {
+    const root = await ws.write('repo/AGENTS.md', '@./.env @./.env.local @./config/.env.production @./.git/config @./docs.md')
+    await ws.write('repo/.env', 'TOKEN=1')
+    await ws.write('repo/.env.local', 'TOKEN=2')
+    await ws.write('repo/config/.env.production', 'TOKEN=3')
+    await ws.write('repo/.git/config', '[remote]')
+    await ws.write('repo/docs.md', 'docs')
+    const loaded = await loader.load({ cwd: ws.path('repo'), cokoHome })
+    expect(summary(loaded).map(([p]) => p)).toEqual(['repo/docs.md', 'repo/AGENTS.md'])
+    expect(loaded.diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['import-not-text', root],
+      ['import-not-text', root],
+      ['import-not-text', root],
+      ['import-protected', root],
     ])
   })
 
@@ -370,6 +420,25 @@ describe('nestedInstructionsHook', () => {
       call(hook, { tool: 'grep', args: { pattern: 'x', path: 'pkg' }, assistantMessage: batch }),
     ])
     expect([a, b].filter(Boolean)).toHaveLength(1)
+  })
+
+  it('子目录的指令文件经符号链接指向 Workspace 之外时不附加，诊断交给 onLoad', async () => {
+    await ws.write('outside/secret.txt', 'TOP-SECRET-NESTED')
+    await mkdir(ws.path('repo/linked'), { recursive: true })
+    await ws.write('repo/linked/a.ts', 'code')
+    await symlink(ws.path('outside/secret.txt'), ws.path('repo/linked/AGENTS.md'))
+    const diagnostics: string[] = []
+    const hook = nestedInstructionsHook({ loader, cwd, cokoHome, onLoad: (l) => diagnostics.push(...l.diagnostics.map((d) => d.code)) })
+    expect(await call(hook, { tool: 'read', args: { path: 'linked/a.ts' } })).toBeUndefined()
+    expect(diagnostics).toEqual(['file-outside-boundary'])
+  })
+
+  it('目标目录本身经符号链接指向 Workspace 之外时不加载', async () => {
+    await ws.write('outside/dir/AGENTS.md', 'TOP-SECRET-DIR')
+    await ws.write('outside/dir/x.ts', 'code')
+    await symlink(ws.path('outside/dir'), ws.path('repo/ext'))
+    const hook = nestedInstructionsHook({ loader, cwd, cokoHome })
+    expect(await call(hook, { tool: 'read', args: { path: 'ext/x.ts' } })).toBeUndefined()
   })
 
   it.each([

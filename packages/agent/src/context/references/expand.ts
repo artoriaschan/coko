@@ -5,8 +5,8 @@
 import { open, readdir, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
-import { canonicalRuleTool, readDenial } from '../../policy/decide.ts'
-import { isWithin } from '../../policy/rules.ts'
+import { contextReadDenial } from '../../policy/decide.ts'
+import { pathContains } from '../../policy/rules.ts'
 import type { PermissionRule } from '../../session-entries/index.ts'
 import { resolveToCwd } from '../../tools/paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
@@ -57,13 +57,6 @@ export interface ExpandedFileReferences {
 const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 const block = (path: string, body: string) => `<file_reference path="${escapeAttribute(path)}">\n${body}\n</file_reference>`
 const toPosix = (path: string) => (sep === '/' ? path : path.split(sep).join('/'))
-
-/** 路径是否被 Read 拒绝规则覆盖：不带内容的 Read 拒绝规则覆盖一切，带内容的按路径模式（与 grep / find / ls 的过滤相同）。 */
-function denialOf(rules: readonly PermissionRule[], root: string, home: string): (path: string) => boolean {
-  const readDenies = rules.filter((rule) => rule.behavior === 'deny' && canonicalRuleTool(rule.tool) === 'Read')
-  if (readDenies.some((rule) => rule.content === undefined)) return () => true
-  return readDenial(readDenies, root, home) ?? (() => false)
-}
 
 async function readHead(path: string, size: number): Promise<Buffer> {
   const handle = await open(path, 'r')
@@ -132,7 +125,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
   const out: ExpandedFileReferences = { blocks: [], references: [] }
   if (tokens.length === 0) return out
   const root = await realpath(options.cwd).catch(() => options.cwd)
-  const denied = denialOf(options.rules, root, home)
+  const denied = contextReadDenial(options.rules, root, home)
   const isDenied = (resolved: string, real: string) => denied(resolved) || denied(real)
   const seen = new Set<string>()
   let budget = FILE_REFERENCE_MESSAGE_BYTES
@@ -153,7 +146,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
     }
     if (seen.has(real)) continue
     seen.add(real)
-    const inside = isWithin(real, root) && isWithin(resolveToCwd(token.path, root), root)
+    const inside = pathContains(root, real) && pathContains(root, resolveToCwd(token.path, root))
     const relativePath = toPosix(relative(root, real))
     const shown = !inside ? token.path : info.isDirectory() ? (relativePath === '' ? './' : `${relativePath}/`) : relativePath
     if (out.references.length >= FILE_REFERENCE_MAX_COUNT) {

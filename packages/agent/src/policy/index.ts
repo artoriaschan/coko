@@ -1,5 +1,15 @@
 // 领域 barrel：权限判定、ApprovalBroker、命令沙箱与提权（ADR 0005）。
-export { canonicalRuleTool, decide, isProtectedPath, isWithin, PROTECTED_PATH_NAMES, readDenial, ruleToolName, toolCategory } from './decide.ts'
+export {
+  canonicalRuleTool,
+  contextReadDenial,
+  decide,
+  isProtectedPath,
+  pathContains,
+  PROTECTED_PATH_NAMES,
+  readDenial,
+  ruleToolName,
+  toolCategory,
+} from './decide.ts'
 export type { AskReason, PermissionCall, PermissionContext, PermissionDecision, PermissionTarget, ToolCategory } from './decide.ts'
 export { ApprovalNotPendingError, createApprovalBroker } from './broker.ts'
 export type { ApprovalAnswer, ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
