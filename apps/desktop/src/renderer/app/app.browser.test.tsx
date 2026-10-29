@@ -9,7 +9,7 @@ import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
 import { createPreferences } from './preferences.ts'
 import { createSettingsDialogStore } from './settings-dialog-store.ts'
-import { customProvider } from '../testing/fake-settings.ts'
+import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 
 function leaves(value: unknown): string[] {
@@ -351,6 +351,42 @@ describe('Models 分区', () => {
       baseUrl: 'https://gateway.example',
       models: [{ id: 'custom-model-2', contextWindow: 128_000, maxTokens: 16_000, input: ['text'], reasoning: false, thinkingLevels: [] }],
     })
+  })
+
+  it('编辑：ID 为静态文本；修改协议与目录后保存，已有模型的能力配置保留；留空 Key 不改 Credential；删除后从列表移除', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend, settings } = renderApp('en', { providers: false })
+    await screen
+    const rich = catalogModel('custom-model-1', {
+      contextWindow: 1_000_000,
+      input: ['text', 'image'],
+      reasoning: true,
+      thinkingLevels: [{ level: 'high', value: 'high' }],
+    })
+    await backend.api.createProvider({ ...customProvider('custom-provider-2', []), name: 'Custom two', models: [rich] })
+    await backend.setCredential('custom-provider-2', 'sk-existing-key-5555')
+    await settings.getState().load()
+    const dialog = await openSettings('Settings')
+    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Edit' }).click()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-form]')?.textContent).toContain('Custom twocustom-provider-2')
+    expect(dialog.element().querySelector('[data-provider-form] input[name="providerId"]')).toBeNull()
+
+    await dialog.getByLabelText('API protocol', { exact: true }).click()
+    await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
+    await dialog.getByLabelText('Models', { exact: true }).fill('custom-model-1, custom-model-3')
+    backend.setCredential.mockClear()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-form]')).toBeNull()
+    expect(backend.providers).toMatchObject([
+      { id: 'custom-provider-2', api: 'openai-responses', models: [rich, catalogModel('custom-model-3')], credential: { hint: '5555' } },
+    ])
+    expect(backend.setCredential).not.toHaveBeenCalled()
+
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await dialog.getByRole('button', { name: 'Confirm delete' }).click()
+    await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
+    expect(backend.providers).toEqual([])
   })
 
   it('保存失败时显示可行动的本地化说明，技术原文只在详情中', async () => {
