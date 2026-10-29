@@ -2,7 +2,7 @@
 // 状态来自 GET /api/mcp（分区打开期间轮询）；Secret 的值只经 preload setSecret 交给 main（ADR 0007），界面只显示末四位。
 import type { MessageKey } from '@coko/i18n'
 import type { McpServerInfo, McpServerStatus, McpServersConfig, ResourceDiagnostic } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { ChevronDownIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -13,8 +13,6 @@ import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const POLL_MS = 750
-const textarea =
-  'box-border min-h-16 w-full min-w-0 rounded-md border-hairline border-input bg-background px-3 py-1.5 font-mono text-ui-small text-foreground focus-ring placeholder:text-muted-foreground'
 
 const STATUS_TONE: Record<McpServerStatus, string> = {
   idle: 'text-muted-foreground',
@@ -452,12 +450,12 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
             {field(
               'args',
               'mcp.form.args',
-              <textarea id={`${id}-args`} name="args" className={textarea} value={args} onChange={(e) => setArgs(e.target.value)} spellCheck={false} />,
+              <Textarea id={`${id}-args`} name="args" variant="mono" value={args} onChange={(e) => setArgs(e.target.value)} spellCheck={false} />,
             )}
             {field(
               'env',
               'mcp.form.env',
-              <textarea id={`${id}-env`} name="env" className={textarea} value={env} onChange={(e) => setEnv(e.target.value)} spellCheck={false} />,
+              <Textarea id={`${id}-env`} name="env" variant="mono" value={env} onChange={(e) => setEnv(e.target.value)} spellCheck={false} />,
             )}
             {field(
               'cwd',
@@ -475,14 +473,7 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
             {field(
               'headers',
               'mcp.form.headers',
-              <textarea
-                id={`${id}-headers`}
-                name="headers"
-                className={textarea}
-                value={headers}
-                onChange={(e) => setHeaders(e.target.value)}
-                spellCheck={false}
-              />,
+              <Textarea id={`${id}-headers`} name="headers" variant="mono" value={headers} onChange={(e) => setHeaders(e.target.value)} spellCheck={false} />,
             )}
           </>
         )}

@@ -1,5 +1,5 @@
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope } from '@coko/protocol'
-import { Button, Checkbox, cn, toast } from '@coko/ui'
+import { Button, Checkbox, cn, toast, Textarea } from '@coko/ui'
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -11,10 +11,6 @@ import { createMemoryClient, memoryStore } from '../../stores/memory-store.ts'
 import { SettingsCard } from './settings-dialog.tsx'
 
 const memoryClient = createMemoryClient()
-
-/** 与 Input 同一几何（R12、0.5px 中性线），多行。 */
-const textareaClass =
-  'box-border min-h-16 w-full min-w-0 resize-y rounded-md border-hairline border-input bg-background px-3 py-1.5 text-ui-body text-foreground transition-colors focus-ring placeholder:text-muted-foreground disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive pointer-coarse:text-ui-title'
 
 /**
  * 设置弹窗的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；用户级与当前 Workspace 两组条目，查看、添加、编辑与删除。
@@ -232,11 +228,10 @@ function MemoryEditor({
         void submit()
       }}
     >
-      <textarea
+      <Textarea
         aria-label={t('memory.content')}
         aria-describedby={countId}
         aria-invalid={over || undefined}
-        className={textareaClass}
         placeholder={placeholder}
         value={text}
         disabled={busy}
