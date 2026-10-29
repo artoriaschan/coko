@@ -54,14 +54,17 @@ Status: open
 
 - M6：MCP HTTP Server 返回 401 时没有专门的 auth-required 状态，目前显示为普通失败（M3 票 07）。
 
+- M4：M3 结构债 J1、J2、J4–J7（sessions.ts 535 行、runtime.ts 813 行、路由直接访问存储等）在引入 Goal / Plan 状态前收敛（M3 Standards 评审）。
+- M4：新增读取根或注入点的票须附符号链接越界用例，秘密总闸扫描 requestLog（M3 复盘）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |
 | --- | --- | --- |
 | M1 行走骨架 | `.scratch/m1-walking-skeleton/` | delivered（[复盘](../m1-walking-skeleton/retro.md)） |
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
-| M3 上下文与指令 | `.scratch/m3-context-instructions/` | in progress |
-| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | pending |
+| M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
+| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | next（用户指示 M3 后暂停，等待继续） |
 | M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
 

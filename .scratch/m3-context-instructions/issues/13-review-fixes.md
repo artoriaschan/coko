@@ -39,3 +39,6 @@
   **越出原写范围的改动。** 用户直接授权本票修改共享装配点：`application/sessions.ts`、`session-runtimes.ts`、`runtime/layers.ts`、`context/{index,types}.ts`、`packages/protocol/src/{control,mcp}.ts`（`McpLaunchDetails` 的 `envNames` / `headerNames` 改为 `env` / `headers`，协议形状变化）、`packages/ui/src/index.ts`（导出 `Textarea`）、i18n 领域文件 config / mcp / skills、`packages/logging` 的导出、`packages/agent` 的导出（`pathContains` 取代 `isWithin`、`contextReadDenial`、`serverNameKey`、`InstructionDenial`）。D2 改动了 127 个文件的注释（只改注释，diff 中没有非注释行）。
 
   **文档影响。** TECH_STACK（yaml 行）、apps/server README、docs/subsystems 的 instructions、skills、mcp、context、configuration，ADR 0004、0006、0007、0008 的实施证据。导航行无需改动。
+- 2026-10-29 lead：评审后合入 main（4bf49a9）。接受：F9 保留现有时间裁剪触发点（理由见 context.md 时间裁剪一节，记为对规格的偏离）；工具调用参数按值脱敏后 tool_exec 参数也被替换，崩溃后含登记值的调用更可能进入待确认；每次模型请求替换用户输入中的登记值，保存的用户消息保留原文。接受越界（本票已授权）：共享装配点、protocol McpLaunchDetails 改为 env / headers、agent 与 logging 的导出调整、ui Textarea 导出。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 179 文件 1273 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 116 文件 0 问题。worktree 已清理。
+
+Closed: true
