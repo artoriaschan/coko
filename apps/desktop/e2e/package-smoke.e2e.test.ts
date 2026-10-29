@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { processExists, waitFor } from './harness.ts'
+import { BACKGROUND_ENV, processExists, waitFor } from './harness.ts'
 import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -38,7 +38,12 @@ interface Packaged {
 async function launchPackaged(env: Record<string, string>): Promise<Packaged> {
   const base: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !STRIPPED.test(key)) base[key] = value
-  const child = spawn(executable, ['--remote-debugging-port=0'], { env: { ...base, ...env }, stdio: ['ignore', 'ignore', 'pipe'] })
+  // 测试构建的产物同样以后台模式运行；COKO_E2E_VISIBLE=1 时保留，便于本地观察窗口。
+  const visible = process.env.COKO_E2E_VISIBLE === '1' ? { COKO_E2E_VISIBLE: '1' } : {}
+  const child = spawn(executable, ['--remote-debugging-port=0'], {
+    env: { ...base, ...BACKGROUND_ENV, ...visible, ...env },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  })
   const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
   onTestFinished(async () => {
     const pid = child.pid
@@ -169,6 +174,7 @@ describe('打包产物 smoke', () => {
     expect(desktop.find((r) => r.message === 'app starting')?.properties).toMatchObject({
       packaged: true,
       testBuild: true,
+      background: process.env.COKO_E2E_VISIBLE !== '1',
       ripgrep: join(resources, 'ripgrep', 'rg'),
     })
     expect(desktop.map((r) => r.message)).toEqual(expect.arrayContaining(['sidecar ready', 'app quitting']))
