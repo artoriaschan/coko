@@ -84,3 +84,6 @@
 - **票 11（产物 smoke）**：stdio 测试 Server 为 `tests/fixtures/mcp/stdio-server.ts`（`stdioServerConfig(env, extra)` 生成以 `process.execPath` 启动的配置），经 `PUT /api/mcp/servers { servers, expectedRevision: 0, workspaceId }` 登记后后台连接，`GET /api/mcp?workspaceId` 轮询 `status: 'connected'`。
 - **Secret**：`SecretService`（`application/secrets.ts`）的 `provider`、`resolve(name)`、`redact(text)`、`onChange(listener)`；进程级脱敏 `@coko/logging` 的 `registerSecretValues` / `redactSecretValues`。控制 IPC `secret.store` / `secret.decrypt`（`packages/protocol/src/control.ts`）；main 侧 `createSecretBridge`（`apps/desktop/src/main/secrets.ts`），preload `window.coko.setSecret(name, value)`。
 - **设置键**：`mcp.servers`、`mcp.approvals.<workspaceId>`（`isMcpSettingKey`）只能经 `/api/mcp` 修改。
+- 2026-10-29 lead：评审后合入 main（2b9b7c0）。接受越界：context/types.ts 的 mcp 选项、runtime/layers.ts 装配、application/index.ts、application/settings.ts 拒绝 mcp.* 键、session-runtimes.ts 与 packages/logging 的按值脱敏（lead 要求）、sections.ts 及其测试、desktop-shell E2E 的 bridge 键、secret_probe 改从登记条目取值、THIRD_PARTY_NOTICES、credentials.test.ts 重写。接受 inputSchema 无法编译时退化为开放对象。lead 更新 docs/README 导航与 TECH_STACK pi-mcp 行。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 135 文件 1001 通过、1 跳过（真实模型），无页面重载；check:docs 109 文件 0 问题。worktree 已清理。
+
+Closed: true
