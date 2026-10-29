@@ -3,7 +3,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
-import { listProviderModels, ListModelsError } from './list-models.ts'
+import { listProviderModels, ListModelsError, MAX_MODEL_PAGES } from './list-models.ts'
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
 const servers: Server[] = []
@@ -66,6 +66,44 @@ describe('listProviderModels', () => {
     expect(provider.requests[0]!.headers['x-api-key']).toBe(KEY)
     expect(provider.requests[0]!.headers['anthropic-version']).toBeTruthy()
     expect(provider.requests[0]!.headers.authorization).toBeUndefined()
+  })
+
+  it('anthropic-messages：has_more 时以 after_id 取下一页，按返回顺序合并全部页', async () => {
+    const pages: Record<string, unknown> = {
+      '/v1/models?limit=1000': { data: [{ id: 'custom-model-a' }, { id: 'custom-model-b' }], has_more: true, last_id: 'custom-model-b' },
+      '/v1/models?limit=1000&after_id=custom-model-b': { data: [{ id: 'custom-model-c' }], has_more: true, last_id: 'custom-model-c' },
+      '/v1/models?limit=1000&after_id=custom-model-c': { data: [{ id: 'custom-model-d' }], has_more: false, last_id: 'custom-model-d' },
+    }
+    const provider = await fakeProvider((req, res) => json(pages[req.url ?? ''] ?? { error: 'unknown page' }, pages[req.url ?? ''] ? 200 : 404)(req, res))
+    expect(await listProviderModels({ api: 'anthropic-messages', baseUrl: provider.origin, key: KEY })).toEqual([
+      'custom-model-a',
+      'custom-model-b',
+      'custom-model-c',
+      'custom-model-d',
+    ])
+    expect(provider.requests.map((r) => r.url)).toEqual(Object.keys(pages))
+    for (const request of provider.requests) expect(request.headers['x-api-key']).toBe(KEY)
+  })
+
+  it('anthropic-messages：页数有上限，供应商一直返回 has_more 时不会无限请求；has_more 而没有 last_id 时为 invalid-response', async () => {
+    let n = 0
+    const endless = await fakeProvider(
+      json({
+        get data() {
+          return [{ id: `custom-model-${++n}` }]
+        },
+        has_more: true,
+        get last_id() {
+          return `custom-model-${n}`
+        },
+      }),
+    )
+    const error = await failure(listProviderModels({ api: 'anthropic-messages', baseUrl: endless.origin, key: KEY }))
+    expect(error).toMatchObject({ code: 'invalid-response' })
+    expect(endless.requests).toHaveLength(MAX_MODEL_PAGES)
+    const broken = await fakeProvider(json({ data: [{ id: 'custom-model-a' }], has_more: true }))
+    expect(await failure(listProviderModels({ api: 'anthropic-messages', baseUrl: broken.origin, key: KEY }))).toMatchObject({ code: 'invalid-response' })
+    expect(broken.requests).toHaveLength(1)
   })
 
   it('空列表返回空数组', async () => {
