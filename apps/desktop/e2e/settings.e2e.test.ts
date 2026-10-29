@@ -76,10 +76,10 @@ async function addWorkspace(app: LaunchedApp, path: string) {
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
 const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
 
-/** 在已打开的 Models 分区中新建自定义 Provider（默认协议 OpenAI Chat Completions）。 */
+/** 在已打开的模型服务分区中，用列表底部的表单新建自定义 Provider（默认协议 OpenAI Chat Completions）。 */
 async function addCustomProvider(app: LaunchedApp, options: { id: string; name: string; baseUrl: string; models: string; secret: string }) {
   await dialog(app)
-    .getByRole('button', { name: /^(Add Provider|添加 Provider)$/ })
+    .getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ })
     .click()
   const form = app.window.locator('[data-provider-form]')
   await form.locator('input[name="providerId"]').fill(options.id)
@@ -92,7 +92,7 @@ async function addCustomProvider(app: LaunchedApp, options: { id: string; name: 
 }
 
 describe('设置：Provider 与 Credential', () => {
-  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示末四位，对话经解密的密钥调用模型；HTTP 不能创建 Provider；库文件不含明文', async () => {
+  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示末四位；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
     const root = await tempDir('coko-settings-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -116,6 +116,19 @@ describe('设置：Provider 与 Credential', () => {
     expect(await app.window.evaluate(() => document.body.innerText)).not.toContain(secret)
     expect(await app.window.evaluate(() => [...document.querySelectorAll('input')].some((i) => i.value.includes('sk-e2e')))).toBe(false)
 
+    // 列表项内编辑：ID 为静态文本，Key 输入框为空；只改显示名称并保存，Key 留空不覆盖原 Credential（规格 4.3）。
+    await card.getByRole('button', { name: /^(Edit|编辑)$/ }).click()
+    const editForm = card.locator('[data-provider-form="edit"]')
+    await editForm.waitFor()
+    expect(await editForm.locator('input[name="providerId"]').count()).toBe(0)
+    expect(await editForm.locator('[data-provider-static-id]').textContent()).toBe('local-fake')
+    expect(await editForm.locator('input[name="credential"]').inputValue()).toBe('')
+    await editForm.locator('input[name="name"]').fill('Local fake edited')
+    await editForm.locator('button[type="submit"]').click()
+    await editForm.waitFor({ state: 'detached', timeout: 15_000 })
+    await expect.poll(() => card.locator('[data-user-content]').first().textContent()).toBe('Local fake edited')
+    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+
     await app.window.keyboard.press('Escape')
     await dialog(app).waitFor({ state: 'detached' })
     expect(await composer(app).textContent()).toBe('say hello')
@@ -131,6 +144,7 @@ describe('设置：Provider 与 Credential', () => {
     const providers = await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))
     expect(providers).not.toContain(secret)
     expect(providers).toContain('"hint":"4821"')
+    expect(providers).toContain('"name":"Local fake edited"')
     const viaHttp = await app.window.evaluate(async () => {
       const body = JSON.stringify({ id: 'via-http', name: 'x', api: 'openai-completions', baseUrl: 'http://127.0.0.1:9/v1', models: [] })
       const post = await fetch('/api/providers', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
