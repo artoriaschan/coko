@@ -42,6 +42,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
+  const draftThinkingLevel = useChat((s) => s.draftThinkingLevel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
   const {
     send,
@@ -68,6 +69,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const settingsDialog = useSettingsDialog()
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
   const model = session ? (session.model ?? defaultModel) : (draftModel ?? defaultModel)
+  const thinkingLevel = session ? session.thinkingLevel : draftThinkingLevel
   const needsSetup = settingsStatus === 'ready' && models.length === 0
   // 会话：乐观的待确认模式，否则最后一条 permission_mode 条目；草稿：已选的或设置中的默认模式。
   const permissionMode = conversation
@@ -288,8 +290,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                     <ModelPicker
                       models={models}
                       value={model}
+                      thinkingLevel={thinkingLevel}
                       disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                      onChange={(m) => void selectModel(m)}
+                      onChange={(m, level) => void selectModel(m, level)}
                     />
                   )}
                 </>

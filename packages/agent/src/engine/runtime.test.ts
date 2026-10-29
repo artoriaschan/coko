@@ -322,6 +322,30 @@ describe('Agent 运行时：取消', () => {
   })
 })
 
+describe('Agent 运行时：Thinking Level', () => {
+  it('请求带当前 Thinking Level：构造时给出的档位、setThinkingLevel 之后的档位；off 不带 reasoning；Run 进行中不能修改', async () => {
+    const { faux, models, model } = createFauxModels({ models: [{ id: 'thinker', reasoning: true }] })
+    const seen: (string | undefined)[] = []
+    const reply = (text: string) => (_context: unknown, options: { reasoning?: string } | undefined) => {
+      seen.push(options?.reasoning)
+      return fauxAssistantMessage(text)
+    }
+    const runtime = createAgentRuntime({ models, model, cwd: ws.dir, commit: async () => {}, thinkingLevel: 'low' })
+    faux.setResponses([reply('a'), reply('b'), reply('c'), fauxAssistantMessage('slow reply '.repeat(20))])
+    await runtime.run('first')
+    runtime.setThinkingLevel('high')
+    await runtime.run('second')
+    runtime.setThinkingLevel('off')
+    await runtime.run('third')
+    expect(seen).toEqual(['low', 'high', undefined])
+
+    const running = runtime.run('fourth')
+    expect(() => runtime.setThinkingLevel('high')).toThrow(RuntimeBusyError)
+    runtime.abort()
+    await running
+  })
+})
+
 describe('Agent 运行时：模型错误与重试', () => {
   const unavailable = () => fauxAssistantMessage([], { stopReason: 'error', errorMessage: '503 Service Unavailable' })
 

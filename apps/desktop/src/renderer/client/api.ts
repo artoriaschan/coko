@@ -29,6 +29,7 @@ import {
   type PermissionRule,
   type RewindRequest,
   type SessionModel,
+  type ThinkingLevel,
   type UpdatePermissionsRequest,
 } from '@coko/protocol'
 import { Type, type TSchema, type Static } from 'typebox'
@@ -103,7 +104,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 从某条用户消息分叉：返回新 Session 的 id 与目标文本。 */
     fork: (id: string, targetSeq: number, title?: string) =>
       call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq, ...(title === undefined ? {} : { title }) }),
-    setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
+    /** thinkingLevel 缺省时 Sidecar 保留当前档位（新模型不能选它时回到 off）。 */
+    setSessionModel: (id: string, model: SessionModel, thinkingLevel?: ThinkingLevel) =>
+      call(Session, 'PUT', apiPaths.sessionModel(id), { model, ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }),
     /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
     setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
     removeSessionRule: (id: string, rule: PermissionRule) => call(SessionPermissionsResponse, 'DELETE', permissionPaths.sessionPermissionRules(id), { rule }),

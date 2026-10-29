@@ -234,6 +234,8 @@ export const zh = {
     picker: '选择模型',
     pickerCurrent: '选择模型：{model}',
     configure: '配置模型',
+    thinkingLevel: '推理档位',
+    thinkingLevels: { off: '关闭', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
   },
   permissions: {
     mode: '权限模式',

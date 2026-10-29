@@ -162,8 +162,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(permissionPaths.permissions, async (c) => c.json(await app.sessions.getPermissions(c.req.query('workspaceId') || undefined)))
   http.put(permissionPaths.permissions, async (c) => c.json(await app.sessions.updatePermissions(await body(c, UpdatePermissionsRequest))))
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
-    const { model } = await body(c, SetSessionModelRequest)
-    return c.json(await app.sessions.setModel(c.req.param('id'), model))
+    const { model, thinkingLevel } = await body(c, SetSessionModelRequest)
+    return c.json(await app.sessions.setModel(c.req.param('id'), model, thinkingLevel))
   })
 
   http.get(API_ROUTES.settings, async (c) => c.json({ settings: await app.settings.list() }))

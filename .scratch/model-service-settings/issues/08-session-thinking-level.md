@@ -4,15 +4,15 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent（实施完成，待合入）
 
 规格：[模型服务 PRD](../spec.md)；架构：[ADR 0010](../../../docs/adr/0010-provider-one-shot-save.md)、[ADR 0004](../../../docs/adr/0004-model-credentials-safe-storage.md)；术语：[GLOSSARY](../../../GLOSSARY.md)。 视觉沿用现有模型选择器与设计系统菜单组件（源稿未覆盖此处）。
 
-- [ ] MS-34、MS-35 通过
-- [ ] 档位与模型一起持久化，Sidecar 重启后读回；Run 进行中不能切换（与切换模型一致）
-- [ ] 经回显请求的假服务确认：选 high 时请求带配置的参数值；选“关闭”时按协议默认方式（例如 Responses 的 `effort: "none"`）
-- [ ] 未配置的档位与推理开关关闭的模型不出现档位选项
-- [ ] 模型选择器的其他交互不变；集成测试可经控制消息直接创建带档位的 Provider，不依赖 06 的界面
+- [x] MS-34、MS-35 通过
+- [x] 档位与模型一起持久化，Sidecar 重启后读回；Run 进行中不能切换（与切换模型一致）
+- [x] 经回显请求的假服务确认：选 high 时请求带配置的参数值；选“关闭”时按协议默认方式（例如 Responses 的 `effort: "none"`）
+- [x] 未配置的档位与推理开关关闭的模型不出现档位选项
+- [x] 模型选择器的其他交互不变；集成测试可经控制消息直接创建带档位的 Provider，不依赖 06 的界面
 
 ## Comments
 
@@ -30,3 +30,49 @@
 - ApiClient 不再有 `createProvider` / `updateProvider`；HTTP 只保留 GET 与 DELETE `/api/providers`，POST / PATCH 返回 404。
 - 测试：renderer fake（`apps/desktop/src/renderer/testing/fake-settings.ts`）用 `backend.seedProvider(fields, secret?)` 预置 Provider，用 `backend.saveProvider`（vi.fn）模拟和断言一次提交；`customProvider` 返回 `ProviderFields`。集成 harness（`tests/integration/sidecar-harness.ts`）有 `saveProvider(sidecar, fields, { mode?, secret? })`、`seedProviders(dirs, fields[])`、`answerDecrypts(sidecar)`、`testCipher`。独立运行的 sidecar 不能保存 Provider，要用 IPC 模式或 `seedProviders` 预置。
 - 需要 Provider 的 Session 测试用 `backend.seedProvider` 或 harness 的 `seedProviders` / `saveProvider` 预置，不要再走 HTTP 创建。
+
+### 票 08 交付（ms/08-session-thinking-level）
+
+**覆盖的验收**
+
+- MS-34：新建 Session 的 `thinkingLevel` 为 off；`GET /api/models` 的每个模型带 `thinkingLevels`（off，推理开关打开时再加已配置档位，固定顺序），选择器只在多于 off 时列出“推理档位”分组。证据：`tests/integration/sidecar-thinking-level.test.ts`、`app.browser.test.tsx`“推理档位”用例、`models.test.ts`。
+- MS-35：选 high 后请求带配置值（Responses `reasoning.effort: 'deep'`，Chat Completions `reasoning_effort: 'deep'`）；换到未配置 high 的模型回到 off，换到同样配置 high 的模型保留；重启 Sidecar 后读回并按该档位请求。
+- MS-36：推理开关关闭的模型只有 off（PUT 给 high 时 400，请求不带 reasoning），已填档位仍在目录中（目录未改动）。
+- off 按协议默认方式：Responses `effort: 'none'`、Chat Completions 不带 `reasoning_effort`、Anthropic `thinking: { type: 'disabled' }`。
+- Run 进行中 `PUT …/model` 带档位为 409 `run-in-progress`，档位不变。集成测试经 `provider.save` 直接创建带档位的 Provider，不依赖 06 的界面。
+
+**运行的命令与结果（合入 model-service `aee1e7b` 之后，无新提交需合入）**
+
+- `pnpm exec vitest run packages/agent packages/session packages/protocol packages/i18n apps/server apps/desktop/src`：109 文件、988 用例通过。
+- `pnpm exec vitest run --project desktop-renderer`：7 文件、54 用例通过。
+- `pnpm exec vitest run tests/integration`：35 文件、137 用例通过（含全部 `secrets-gate*`）。
+- `pnpm run typecheck` 通过；改动文件 `oxfmt --check`、`oxlint` 0 问题；`pnpm run check:docs` 0 问题。
+
+**负向确认**
+
+- 每个新用例先红：session 契约与 v5 迁移（无字段）、runtime（无 `setThinkingLevel`）、`selectableThinkingLevels`（未导出）、集成（无 `thinkingLevels`，PUT 拒绝未知字段）、chat-store（无 `draftThinkingLevel`）、浏览器（无档位分组）。
+- 变异：注释掉 server 中两处 `setThinkingLevel` 后集成用例 2 个失败（effort 为 none 而非 deep）；选择器中换模型时不回到 off 后浏览器用例失败。均已还原。
+
+**未验证**
+
+- Anthropic Messages 的非 off 档位：pi-ai 对未设 `compat.forceAdaptiveThinking` 的模型走 budget 思考（`thinking: { type: 'enabled', budget_tokens }`），不发送档位配置的参数值；只有 adaptive 模型发送 `output_config.effort`（取配置值）。本票没有改 registry 的 compat，也没有为 Anthropic 的 high 写断言。若要求 Anthropic 也发送配置值，需另行决定 compat（例如自定义 Provider 默认 adaptive）。
+- 真实模型服务未验证（无密钥）。分叉沿用原档位（`checkpoints.ts`）没有专门用例（faux 模型无档位）。
+
+**文档影响**
+
+- `apps/server/README.md`（Session 模型、`PUT …/model`、`/api/models`、集成测试列表、迁移版本）、`packages/session/README.md`（v5、`thinkingLevel` 契约、测试）、`docs/subsystems/recovery.md`（当前版本 5）。
+
+**共享文件的最小增量改动（合入时注意与 03 的冲突）**
+
+- `packages/protocol/src/http.ts`：ThinkingLevel 定义整体上移到 Session 之前（内容不变）；`Session.thinkingLevel`；`CreateSessionRequest.thinkingLevel?`；`SetSessionModelRequest.thinkingLevel?`；`AvailableModel.thinkingLevels`。barrel 未改。
+- `packages/i18n/src/dictionaries/{zh,en}.ts`：只在 `models` 下加 `thinkingLevel` 与 `thinkingLevels.{off…max}`（zh off 为“关闭”，其余为档位名）。
+- `apps/desktop/src/renderer/stores/chat-store.ts`：`draftThinkingLevel`、`selectModel(model, thinkingLevel?)`、创建时带非 off 档位。settings-store 未改。
+- `apps/desktop/src/renderer/testing/fake-settings.ts`：`models()` 带 `thinkingLevels`（与 Sidecar 同规则）；`fixture-chat.ts` 的 `setSessionModel` 回传档位。
+- session schema：新增迁移 v5（`sessions.thinking_level TEXT NOT NULL DEFAULT 'off'`），`SQLITE_SCHEMA_VERSION` 为 5；之后的迁移从 5 往上走。
+
+**供后续票**
+
+- `@coko/agent`：`selectableThinkingLevels(model)`；runtime `setThinkingLevel(level)`（Run 中抛 `RuntimeBusyError`）。
+- `@coko/session`：`Session.thinkingLevel: string`；`setSessionModel(id, model, thinkingLevel?)`，档位缺省或模型为 null 时写 off。票 04 清空模型字段时（`setSessionModel(id, null)` 或 SQL）档位应一并为 off；直接写 SQL 时请同时置 `thinking_level = 'off'`。
+- server：保存的档位在当前目录中已不可选时，DTO 与请求都按 off（`#effectiveLevel`），所以票 06 修改目录后不需要迁移 Session。
+- renderer：`ModelPicker` 新增必填 `thinkingLevel`，`onChange(model, thinkingLevel)`；导出 `levelForModel`。档位项带 `data-thinking-level`。

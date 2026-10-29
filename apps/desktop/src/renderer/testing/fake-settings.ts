@@ -1,6 +1,7 @@
 // 单元测试与 Browser Mode 共用：按 Sidecar 规则实现设置 revision 与 Provider 的内存后端。
 import {
   MODEL_CATALOG_DEFAULTS,
+  THINKING_LEVELS,
   type AvailableModel,
   type CatalogModel,
   type PermissionsResponse,
@@ -23,8 +24,13 @@ export function fakeSettingsBackend() {
     ...structuredClone(permissions),
     ...(workspaceId ? { workspace: { workspaceId, ...structuredClone(workspaceRules.get(workspaceId) ?? { rules: [], revision: 0 }) } } : {}),
   })
+  // 与 Sidecar 一致：会话可选的档位为 off，推理开关打开时再加上已配置的档位（固定顺序）。
+  const selectable = (m: CatalogModel) =>
+    THINKING_LEVELS.filter((level) => level === 'off' || (m.reasoning && m.thinkingLevels.some((configured) => configured.level === level)))
   const models = (): AvailableModel[] =>
-    providers.flatMap((p) => p.models.map((m) => ({ providerId: p.id, providerName: p.name, modelId: m.id, name: m.name || m.id })))
+    providers.flatMap((p) =>
+      p.models.map((m) => ({ providerId: p.id, providerName: p.name, modelId: m.id, name: m.name || m.id, thinkingLevels: selectable(m) })),
+    )
   const api = {
     listSettings: vi.fn<Api['listSettings']>(async () => [...settings.values()]),
     putSetting: vi.fn<Api['putSetting']>(async (key, value, expectedRevision) => {

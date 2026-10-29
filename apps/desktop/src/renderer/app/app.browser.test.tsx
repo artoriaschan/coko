@@ -350,6 +350,67 @@ describe('模型选择', () => {
     await expect.element(picker).toHaveTextContent('big-model')
     expect(chat.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
   })
+
+  it('推理档位：会话默认“关闭”；推理开关打开的模型列出“关闭”与已配置档位；选择写入会话；换到未配置该档位的模型回到“关闭”', async () => {
+    await page.viewport(1280, 800)
+    const { screen, chat, settings, backend } = renderApp('zh')
+    await screen
+    const levels = [{ level: 'off' }, { level: 'high', value: 'deep' }, { level: 'medium', value: 'medium' }] as const
+    backend.seedProvider(
+      customProvider('p2', [], {
+        name: 'Second',
+        models: [
+          catalogModel('thinker', { reasoning: true, thinkingLevels: [...levels] }),
+          catalogModel('low-only', { reasoning: true, thinkingLevels: [{ level: 'low', value: 'low' }] }),
+          catalogModel('switched-off', { reasoning: false, thinkingLevels: [...levels] }),
+        ],
+      }),
+    )
+    await settings.getState().load()
+    await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    const picker = page.getByRole('button', { name: /^选择模型：/ })
+    const levelItems = () => [...document.querySelectorAll('[data-thinking-level]')].map((el) => [el.textContent, el.getAttribute('aria-checked')])
+    const choose = async (name: string) => {
+      await picker.click()
+      await page.getByRole('menuitemradio', { name, exact: true }).click()
+    }
+
+    // 没有推理档位的模型（faux-1）不显示档位选项。
+    await picker.click()
+    await expect.element(page.getByRole('menu')).toBeVisible()
+    expect(levelItems()).toEqual([])
+    await userEvent.keyboard('{Escape}')
+
+    await choose('thinker')
+    await picker.click()
+    await expect.element(page.getByRole('menu').getByText('推理档位')).toBeVisible()
+    // 固定顺序；新会话的档位为“关闭”；未配置的档位不出现。
+    expect(levelItems()).toEqual([
+      ['关闭', 'true'],
+      ['medium', 'false'],
+      ['high', 'false'],
+    ])
+    await page.getByRole('menuitemradio', { name: 'high', exact: true }).click()
+    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
+    // 触发按钮显示模型名称与当前档位。
+    await expect.poll(() => picker.element().textContent).toBe('thinkerhigh')
+
+    // 换到未配置 high 的模型：回到“关闭”。
+    await choose('low-only')
+    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'low-only' }, thinkingLevel: 'off' })
+    await picker.click()
+    await expect.poll(levelItems).toEqual([
+      ['关闭', 'true'],
+      ['low', 'false'],
+    ])
+    await userEvent.keyboard('{Escape}')
+
+    // 推理开关关闭的模型只有“关闭”，不显示档位选项。
+    await choose('switched-off')
+    await picker.click()
+    await expect.element(page.getByRole('menu')).toBeVisible()
+    expect(levelItems()).toEqual([])
+  })
 })
 
 describe('窄窗口', () => {

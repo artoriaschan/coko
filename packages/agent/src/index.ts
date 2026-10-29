@@ -27,7 +27,7 @@ export type {
 } from './engine/types.ts'
 
 // Models
-export { createModelRegistry, MODEL_PROTOCOLS, ModelConfigError, resolveModel, THINKING_LEVELS } from './models/registry.ts'
+export { createModelRegistry, MODEL_PROTOCOLS, ModelConfigError, resolveModel, selectableThinkingLevels, THINKING_LEVELS } from './models/registry.ts'
 export type { ModelProtocol, ModelRegistry, ModelRegistryOptions, ModelSpec, ProviderConfig, ThinkingLevel, ThinkingLevelSpec } from './models/registry.ts'
 
 // Tools
