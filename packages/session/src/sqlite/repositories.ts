@@ -31,6 +31,7 @@ interface SessionRow {
   model_provider_id: string | null
   model_id: string | null
   thinking_level: string
+  model_cleared: number
   created_at: number
   updated_at: number
 }
@@ -67,6 +68,7 @@ const toSession = (r: SessionRow): Session => ({
   title: r.title,
   model: r.model_provider_id !== null && r.model_id !== null ? { providerId: r.model_provider_id, modelId: r.model_id } : null,
   thinkingLevel: parseLevel(r.thinking_level),
+  modelCleared: r.model_cleared === 1,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -101,7 +103,7 @@ const toProvider = (r: ProviderRow): Provider => ({
 // 同步 DatabaseSync 调用包成 Promise：同步错误转为 rejection。
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
-const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, created_at, updated_at FROM sessions'
+const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, created_at, updated_at FROM sessions'
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
@@ -184,7 +186,7 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
         conn.write(() => {
           requireSession(id)
           conn.run(
-            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, updated_at = ? WHERE id = ?',
+            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, model_cleared = 0, updated_at = ? WHERE id = ?',
             choice.model?.providerId ?? null,
             choice.model?.modelId ?? null,
             levelOf(choice),
@@ -359,7 +361,10 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           requireProvider(id)
           // provider_credentials 随 ON DELETE CASCADE 删除。
           conn.run('DELETE FROM providers WHERE id = ?', id)
-          const sessions = conn.run("UPDATE sessions SET model_provider_id = NULL, model_id = NULL, thinking_level = 'off' WHERE model_provider_id = ?", id)
+          const sessions = conn.run(
+            "UPDATE sessions SET model_provider_id = NULL, model_id = NULL, thinking_level = 'off', model_cleared = 1 WHERE model_provider_id = ?",
+            id,
+          )
           // 设置的改写由调用方给出；条件在本事务中求值，抛出时整个删除回滚。
           const rewritten: string[] = []
           for (const rewrite of options?.settings ?? []) {

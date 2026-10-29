@@ -53,6 +53,11 @@ export const Session = Type.Object(
     model: Type.Union([SessionModel, Type.Null()]),
     /** 与模型一起按 Session 保存的 Thinking Level；新建为 off。当前模型不支持该档位（例如目录已修改）时为 off。 */
     thinkingLevel: ThinkingLevel,
+    /**
+     * 模型字段被清空（Provider 被删除或升级时清除）：下次运行前要求重新选择模型（409 model-required），界面提示重新选择。
+     * 从未设置模型时为 false，运行时取默认模型。
+     */
+    modelCleared: Type.Boolean(),
     /** 当前是否有 Run 在进行。 */
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */

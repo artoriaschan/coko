@@ -34,6 +34,11 @@ export interface Session {
   model: SessionModel | null
   /** 与模型一起保存的 Thinking Level；新建默认 off，清空模型时回到 off。库中不是七档之一的值读回为 off。 */
   thinkingLevel: ThinkingLevel
+  /**
+   * 模型字段被清空（Provider 被删除或升级时清除）：宿主在下次运行前要求重新选择模型。从未设置模型时为 false；
+   * setSessionModel 后为 false。
+   */
+  modelCleared: boolean
   createdAt: number
   /** 创建、追加条目、改标题或换模型时更新；列表按它倒序。 */
   updatedAt: number

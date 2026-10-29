@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { openSqliteStore } from '@coko/session/sqlite'
+import { openSqliteStore, SQLITE_SCHEMA_VERSION } from '@coko/session/sqlite'
 import { TEST_PAYLOADS } from '../test-payloads.ts'
 import { openDatabase } from './open.ts'
 import { MIGRATIONS } from './schema.ts'
@@ -19,13 +19,14 @@ describe('SQLite 迁移 v5', () => {
     v4.close()
 
     const first = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
-    expect(first.migration).toMatchObject({ from: 4, to: 5 })
+    expect(first.migration).toMatchObject({ from: 4, to: SQLITE_SCHEMA_VERSION })
     expect(await first.sessions.getSession('s1')).toEqual({
       id: 's1',
       workspaceId: 'w1',
       title: 'kept',
       model: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },
       thinkingLevel: 'off',
+      modelCleared: false,
       createdAt: 1,
       updatedAt: 5,
     })

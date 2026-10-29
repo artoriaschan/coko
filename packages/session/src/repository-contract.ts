@@ -266,10 +266,14 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
         settings: ['pinned'],
       })
       expect(await providers.getCredentialCiphertext('custom-provider-1')).toBeUndefined()
-      expect(await sessions.getSession(a.id)).toEqual({ ...a, model: null, thinkingLevel: 'off' })
-      expect(await sessions.getSession(b.id)).toEqual({ ...b, model: null })
+      // 被清空的 Session 带 modelCleared（下次运行前要求重新选择）；从未设置模型的 Session 不带。
+      expect(empty.modelCleared).toBe(false)
+      expect(await sessions.getSession(a.id)).toEqual({ ...a, model: null, thinkingLevel: 'off', modelCleared: true })
+      expect(await sessions.getSession(b.id)).toEqual({ ...b, model: null, modelCleared: true })
       expect(await sessions.getSession(other.id)).toEqual(other)
       expect(await sessions.getSession(empty.id)).toEqual(empty)
+      // 重新选择模型后不再是被清空。
+      expect(await sessions.setSessionModel(b.id, { model: { providerId: 'custom-provider-2', modelId: 'm' } })).toMatchObject({ modelCleared: false })
       // 条件成立的设置改写（revision 递增）；未列出的设置不变。
       expect(await settings.get('pinned')).toEqual({ key: 'pinned', value: null, revision: 2, updatedAt: 1_010 })
       expect(await settings.get('untouched')).toMatchObject({ value: 'custom-provider-1', revision: 1 })

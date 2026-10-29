@@ -84,6 +84,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           title: input.title ?? '',
           model: input.model ?? null,
           thinkingLevel: levelOf(input),
+          modelCleared: false,
           createdAt: at,
           updatedAt: at,
         }
@@ -100,7 +101,9 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
-      setSessionModel: op((id: string, choice: SessionModelChoice) => touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice) })),
+      setSessionModel: op((id: string, choice: SessionModelChoice) =>
+        touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),
+      ),
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
         if (input.length === 0) return []
@@ -170,7 +173,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         let cleared = 0
         for (const session of sessions.values()) {
           if (session.model?.providerId !== id) continue
-          Object.assign(session, { model: null, thinkingLevel: 'off' })
+          Object.assign(session, { model: null, thinkingLevel: 'off', modelCleared: true })
           cleared++
         }
         for (const rewrite of rewrites) {

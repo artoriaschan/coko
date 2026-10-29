@@ -433,8 +433,9 @@ export class SessionService {
     if (!session.model) {
       const model = await this.defaultModel()
       if (!model) throw new AppError('model-not-configured', 'No model is configured; add a Provider in settings')
-      // 有可用模型但 Session 的模型字段为空（Provider 被删除或升级时被清空）：不自动选用，提示重新选择。
-      throw new AppError('model-required', 'Choose a model for this session before running')
+      // 模型字段被清空（Provider 被删除或升级时清除）：不自动选用，提示重新选择。从未设置时取默认模型。
+      if (session.modelCleared) throw new AppError('model-required', 'Choose a model for this session before running')
+      session = await this.#options.store.sessions.setSessionModel(sessionId, { model })
     }
     const model = this.#resolve(session.model!, 'model-not-configured')
     const runtime = await this.#runtimes.obtain(session.id, () => this.#createRuntime(session, model))

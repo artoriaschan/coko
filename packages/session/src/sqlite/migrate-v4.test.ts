@@ -40,16 +40,18 @@ describe('SQLite 迁移 v4', () => {
     expect(await store.settings.get('defaultModel')).toBeUndefined()
     expect(await store.settings.get('theme')).toMatchObject({ value: 'dark', revision: 1 })
     // 模型字段为空，其余字段（含 updatedAt）不变；条目可读。
+    // s1 设置过模型（未运行）：被清空，下次运行前要求重新选择；s2 从未设置：不标记，运行时取默认模型。
     expect(await store.sessions.getSession('s1')).toEqual({
       id: 's1',
       workspaceId: 'w1',
       title: 'uses old provider',
       model: null,
       thinkingLevel: 'off',
+      modelCleared: true,
       createdAt: 1,
       updatedAt: 5,
     })
-    expect((await store.sessions.getSession('s2'))?.title).toBe('no model')
+    expect(await store.sessions.getSession('s2')).toMatchObject({ title: 'no model', model: null, modelCleared: false, updatedAt: 2 })
     expect((await store.sessions.listEntries('s1')).map((e) => e.payload)).toEqual([{ text: 'kept' }])
 
     // 新表没有 kind 列；新库可按用户输入的 ID 创建 Provider 并保存密文。

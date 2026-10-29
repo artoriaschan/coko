@@ -121,6 +121,8 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     // 模型服务（ADR 0010）：去掉 Provider kind，ID 由用户输入，Model Catalog 显式保存各模型能力。不兼容旧数据：
     // 删除已有 Provider 与 Credential（迁移前的备份保留它们）、清空默认模型设置与 Session 的模型字段（不改 updated_at）。
+    // 发布前的修订（v4 只在未发布的 model-service 分支上）：清空前把这些 Session 的 ID 记在 model_cleared_sessions 中，v6 据此
+    // 标为“模型被清空”后删除该表（sessions 的 CHECK 要求两个模型字段同时为空，墓碑不能留在行内）。
     version: 4,
     up(db) {
       db.exec(`
@@ -146,6 +148,8 @@ export const MIGRATIONS: readonly Migration[] = [
         ) STRICT;
 
         DELETE FROM settings WHERE key = 'defaultModel';
+        CREATE TABLE model_cleared_sessions (id TEXT PRIMARY KEY) STRICT;
+        INSERT INTO model_cleared_sessions SELECT id FROM sessions WHERE model_provider_id IS NOT NULL;
         UPDATE sessions SET model_provider_id = NULL, model_id = NULL WHERE model_provider_id IS NOT NULL;
       `)
     },
@@ -155,6 +159,23 @@ export const MIGRATIONS: readonly Migration[] = [
     version: 5,
     up(db) {
       db.exec("ALTER TABLE sessions ADD COLUMN thinking_level TEXT NOT NULL DEFAULT 'off'")
+    },
+  },
+  {
+    // 模型服务：区分模型字段“被清空”（Provider 被删除、v4 升级清除；下次运行前要求重新选择）与“从未设置”（运行时取默认模型）。
+    // 被清空的是 v4 记在 model_cleared_sessions 中的 Session，以及按旧版 v4（没有该表）迁过的开发库中模型为空且运行过（没有模型
+    // 不能开始 Run）的 Session。标记后删除该表。不改 updated_at。
+    version: 6,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_cleared_sessions (id TEXT PRIMARY KEY) STRICT;
+        ALTER TABLE sessions ADD COLUMN model_cleared INTEGER NOT NULL DEFAULT 0;
+        UPDATE sessions SET model_cleared = 1
+          WHERE model_provider_id IS NULL
+            AND (id IN (SELECT id FROM model_cleared_sessions)
+                 OR EXISTS (SELECT 1 FROM session_entries e WHERE e.session_id = sessions.id AND e.kind IN ('message', 'run_start', 'run_end')));
+        DROP TABLE model_cleared_sessions;
+      `)
     },
   },
 ]

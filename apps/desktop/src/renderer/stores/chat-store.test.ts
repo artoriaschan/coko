@@ -39,6 +39,7 @@ const session = (id: string, patch: Partial<Session> = {}): Session => ({
   title: id,
   model: { providerId: 'faux', modelId: 'faux-1' },
   thinkingLevel: 'off',
+  modelCleared: false,
   running: false,
   activity: 'idle',
   createdAt: 1,

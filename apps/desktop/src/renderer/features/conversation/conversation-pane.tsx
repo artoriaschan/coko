@@ -68,11 +68,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const defaultModel = useSettings((s) => s.defaultModel)
   const settingsDialog = useSettingsDialog()
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
-  // 会话的模型字段为空（Provider 被删除或升级时被清空）时不代填默认模型：Sidecar 要求运行前重新选择。
-  const model = session ? session.model : (draftModel ?? defaultModel)
+  // 会话的模型被清空（Provider 被删除或升级时清除）时不代填默认模型：Sidecar 要求运行前重新选择。从未设置时显示默认模型，
+  // 运行时 Sidecar 同样取默认模型。
+  const model = session ? (session.model ?? (session.modelCleared ? null : defaultModel)) : (draftModel ?? defaultModel)
   const thinkingLevel = session ? session.thinkingLevel : draftThinkingLevel
   const needsSetup = settingsStatus === 'ready' && models.length === 0
-  const modelRequired = session !== undefined && session.model === null && !needsSetup && models.length > 0
+  const modelRequired = session !== undefined && session.model === null && session.modelCleared && !needsSetup && models.length > 0
   // 会话：乐观的待确认模式，否则最后一条 permission_mode 条目；草稿：已选的或设置中的默认模式。
   const permissionMode = conversation
     ? (conversation.pendingMode ?? sessionPermissionMode(conversation.entries))
