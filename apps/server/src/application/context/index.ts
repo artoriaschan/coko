@@ -34,9 +34,10 @@ const EXPAND_ORDER = ['commands', 'references']
 
 /** 全部领域的贡献（固定顺序；其余钩子按此顺序）。 */
 export function createContributions(options: ContextContributionOptions): ContextContribution[] {
-  return [
+  // 命令目录读取其余领域的 commandSources（Skill、MCP 提示模板）与 actions（内置命令）。
+  const contributions: ContextContribution[] = [
     instructionsContribution(options),
-    commandsContribution(options),
+    commandsContribution({ ...options, siblings: () => contributions }),
     skillsContribution(options),
     referencesContribution(options),
     mcpContribution(options),
@@ -44,6 +45,7 @@ export function createContributions(options: ContextContributionOptions): Contex
     usageContribution(options),
     compactionContribution(options),
   ]
+  return contributions
 }
 
 const ordered = (contributions: readonly ContextContribution[], order: readonly string[]) =>
