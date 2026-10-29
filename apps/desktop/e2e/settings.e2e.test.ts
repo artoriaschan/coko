@@ -105,7 +105,7 @@ async function addCustomProvider(
 }
 
 describe('设置：Provider 与 Credential', () => {
-  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示末四位；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
+  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示已配置 Key；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
     const root = await tempDir('coko-settings-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -125,7 +125,8 @@ describe('设置：Provider 与 Credential', () => {
     await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: [{ id: 'm1', contextWindow: '1M' }], secret })
     const card = dialog(app).locator('[data-provider-id]')
     await expect.poll(() => card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
-    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+    // 状态只表示已配置 Key，不显示末四位（规格 4.1）。
+    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/^(Key configured|已配置 Key)$/)
     expect(await app.window.evaluate(() => document.body.innerText)).not.toContain(secret)
     expect(await app.window.evaluate(() => [...document.querySelectorAll('input')].some((i) => i.value.includes('sk-e2e')))).toBe(false)
 
@@ -152,7 +153,7 @@ describe('设置：Provider 与 Credential', () => {
     await editForm.locator('button[type="submit"]').click()
     await editForm.waitFor({ state: 'detached', timeout: 15_000 })
     await expect.poll(() => card.locator('[data-user-content]').first().textContent()).toBe('Local fake edited')
-    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+    expect(await card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
 
     await app.window.keyboard.press('Escape')
     await dialog(app).waitFor({ state: 'detached' })
