@@ -66,3 +66,6 @@
 - **票 10（上下文用量）**：`instructions` 贡献的 `report(scope)` → `{ breakdown: { instructions: <section 字符数> }, instructions: { path, scope, chars, truncated }[], diagnostics: ResourceDiagnostic[] }`；诊断代码见 instructions.md。
 - **票 11（压缩）**：嵌套指令的"已加载"从模型上下文派生，压缩把 toolResult 换成摘要后自然清空，无需额外重置；若摘要保留了 `<instruction_file … scope="nested">` 开头的 toolResult 文本块，该文件不会重新加载。
 - **票 06（File Reference）**：嵌套块与 `<file_reference>` 同为 toolResult / user message 中的独立文本块；renderer 用 protocol `nestedInstructionPath` 识别（agent 内有一份同样的正则 `nestedInstructionBlockPath`，集成测试经 protocol 函数核对）。
+- 2026-10-29 lead：评审后合入 main（b9379b3）。接受越界：sidecar-context-seam.test.ts 的 COKO_HOME 文件改为 notes.txt（断言不变）、新增 instructions.test.ts 与 instructionsContribution 的可选 loader 参数、docs/README 一行导航。接受实现选择：已加载的嵌套指令由模型上下文中的块推出；无扩展名的 @import 不展开；缩进代码块不识别（已写入 instructions.md）。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 122 文件 953 通过、1 跳过（真实模型），无页面重载；check:docs 107 文件 0 问题。worktree 已清理。
+
+Closed: true

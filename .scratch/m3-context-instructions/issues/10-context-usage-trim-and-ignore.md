@@ -17,3 +17,4 @@
 - [ ] context.md 增加用量、裁剪与忽略规则；server README 的 ripgrep 说明改为"两种实现读取同样的忽略来源"；`pnpm run check:docs` 通过
 
 ## Comments
+- 2026-10-29 lead：来自票 03——已加载指令文件与诊断的形状目前由 ContextReport 承载，packages/protocol/src/instructions.ts 未改；本票如需在协议中声明，在 protocol 的 instructions 领域文件中定义并从 ContextReport 引用。

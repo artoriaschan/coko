@@ -18,3 +18,4 @@
 - [ ] memory.md 建立并可达（导航行写在 Comments）；ADR 0003 的 Memory 部分更新为已实现（FTS 仍未实现）；`pnpm run check:docs` 通过
 
 ## Comments
+- 2026-10-29 lead：同意 #createRuntime 中预先设置贡献工具的修法（越出写范围，已授权），并已在票 05、07 记录为统一修法。
