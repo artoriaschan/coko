@@ -1,5 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import { MODEL_CATALOG_DEFAULTS, type CatalogModel } from '@coko/protocol'
+import { normalizeLevels } from './thinking-levels.ts'
 
 /**
  * 模型目录中的一行草稿：模型 ID、显示名称与容量为输入框原文，提交时才整理为 CatalogModel。key 只用于界面上的行身份，
@@ -57,7 +58,7 @@ export const toCatalog = (rows: readonly ModelRowDraft[]): CatalogModel[] =>
     maxTokens: parseTokens(row.maxTokens) ?? MODEL_CATALOG_DEFAULTS.maxTokens,
     input: [...row.input],
     reasoning: row.reasoning,
-    thinkingLevels: structuredClone(row.thinkingLevels),
+    thinkingLevels: normalizeLevels(row.thinkingLevels),
   }))
 
 /** 容量后缀的十进制位数：K = 10^3，M = 10^6。 */
