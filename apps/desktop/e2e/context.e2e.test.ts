@@ -71,7 +71,15 @@ describe('上下文环', () => {
     await expect.poll(() => card.locator(`[data-instruction-file="${agents}"]`).count()).toBe(1)
     await page.keyboard.press('Escape')
     await card.waitFor({ state: 'detached' })
-    expect(await ring(page).evaluate((el) => el === document.activeElement)).toBe(true)
+    const focused = () =>
+      page.evaluate(() => {
+        const el = document.activeElement
+        const ring = document.querySelector('[data-context-ring]')
+        return el === ring
+          ? 'ring'
+          : `${el?.tagName}:${el?.getAttribute('aria-label') ?? ''}:${el?.getAttribute('data-slot') ?? ''}:hasFocus=${document.hasFocus()}`
+      })
+    expect(await focused()).toBe('ring')
 
     // 窗口最窄（minWidth 520）：环、模式与模型选择、发送按钮都在输入区内且互不重叠，模型名只截断。
     await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(520, 820))
