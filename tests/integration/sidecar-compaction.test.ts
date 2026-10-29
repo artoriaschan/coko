@@ -75,6 +75,7 @@ describe('自动压缩、回退与分叉', () => {
       { content: 'ok5' },
       { content: 'fork-ok5' },
       { content: 'after-rewind' },
+      { content: 'fork-after-rewind' },
     ])
     const sessionId = await openSession(api, stream, workspace.id)
     for (const c of ['a', 'b', 'c']) expect(kinds(await send(api, stream, sessionId, big(40_000, c)))).not.toContain('compaction')
@@ -129,6 +130,20 @@ describe('自动压缩、回退与分叉', () => {
       ['user', big(40_000, 'a')],
       ['assistant', 'ok1'],
       ['user', 'again'],
+    ])
+
+    // 分叉中回退到第一条复制的消息：compaction 排在复制的消息之前，不在被回退的区间内，摘要仍是模型上下文的开头。
+    const firstKept = stream.entries(forkId).find((e) => e.kind === 'message')!
+    const compactionEntry = stream.entries(forkId).find((e) => e.kind === 'compaction')!
+    expect(compactionEntry.seq).toBeLessThan(firstKept.seq)
+    expect((compactionEntry.payload as { firstKeptSeq: number }).firstKeptSeq).toBe(firstKept.seq)
+    const forkRewound = await api.post(checkpointPaths.sessionRewind(forkId), { targetSeq: firstKept.seq, mode: 'conversation' })
+    expect({ status: forkRewound.status, body: forkRewound.body }).toMatchObject({ status: 200 })
+    await send(api, stream, forkId, 'fork again')
+    log = await requests()
+    expect(conversation(log[8]!)).toEqual([
+      ['user', expect.stringContaining('<summary>\n## Goal\nSUMMARY-AUTO\n</summary>')],
+      ['user', 'fork again'],
     ])
     expect(stream.invalidEntries).toEqual([])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })

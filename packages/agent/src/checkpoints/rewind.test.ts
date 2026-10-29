@@ -6,7 +6,8 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { forkEntries } from '../agents/index.ts'
-import { effectiveEntries } from '../entries/index.ts'
+import { estimateCompactedTokens } from '../context/compaction/index.ts'
+import { effectiveEntries, modelContext } from '../entries/index.ts'
 import { effectiveMessages, planRewind, restoreFiles, RewindTargetError, type CheckpointEntry, type RewindFilePlan, type RewindFiles } from './index.ts'
 
 type Row = Omit<CheckpointEntry, 'seq'>
@@ -353,11 +354,53 @@ describe('forkEntries', () => {
       reply('a3', 'r3'), // 8
     ])
     const fork = forkEntries(entries, 'source-1', 7)
-    expect(fork.entries.map((e) => e.kind)).toEqual(['fork_origin', 'permission_mode', 'message', 'message', 'compaction'])
+    // compaction 在 fork_origin 之后、复制的消息之前；firstKeptSeq 指向第一条复制的消息（新 Session 从 seq 1 编号）。
+    expect(fork.entries.map((e) => e.kind)).toEqual(['fork_origin', 'compaction', 'permission_mode', 'message', 'message'])
+    expect((fork.entries[1]!.payload as { firstKeptSeq: number }).firstKeptSeq).toBe(4)
     const forked = seqd(fork.entries.map((e) => ({ ...e, runId: null })) as Row[])
     expect(texts(forked)).toEqual(texts(entries.filter((e) => e.seq < 7)))
     expect(texts(forked)[0]).toContain('<summary>\nS\n</summary>')
     // 目标在压缩之前：没有 compaction，复制原历史。
     expect(forkEntries(entries, 'source-1', 4).entries.map((e) => e.kind)).toEqual(['fork_origin', 'permission_mode', 'message', 'message'])
+  })
+
+  it('分叉后回退到第一条保留的消息：摘要仍在模型上下文中（分叉中没有被摘要替代的原历史可以恢复）', () => {
+    const entries = seqd([
+      user('A-constraint', 'r1'), // 1
+      reply('ok', 'r1'), // 2
+      user('B', 'r2'), // 3
+      reply('ok', 'r2'), // 4
+      user('C', 'r3'), // 5
+      {
+        kind: 'compaction',
+        runId: 'r3',
+        payload: { summary: 'keep A-constraint', firstKeptSeq: 5, tokensBefore: 10, trigger: 'auto', readFiles: [], modifiedFiles: [] },
+      }, // 6
+      reply('ok', 'r3'), // 7
+      user('D', 'r4'), // 8
+    ])
+    const fork = forkEntries(entries, 'source-1', 8)
+    const forked = seqd(fork.entries.map((e) => ({ ...e, runId: null })) as Row[])
+    const firstKept = forked.find((e) => e.kind === 'message')!
+    const rewound = seqd([...forked, rewind(firstKept.seq)] as Row[])
+    const context = modelContext(rewound).map((m) => (m as unknown as { content: { text: string }[] }).content[0]!.text)
+    expect(context).toHaveLength(1)
+    expect(context[0]).toContain('keep A-constraint')
+  })
+
+  it('分叉中复制的消息不算压缩之后的新消息：其 usage（量的是压缩之前的历史）不用于估算', () => {
+    const usage = (input: number) => ({ input, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: input, cost: {} })
+    const entries = seqd([
+      user('one', 'r1'), // 1
+      reply('a1', 'r1'), // 2
+      user('two', 'r2'), // 3
+      { kind: 'compaction', runId: 'r2', payload: { summary: 'S', firstKeptSeq: 3, tokensBefore: 90_000, trigger: 'auto', readFiles: [], modifiedFiles: [] } }, // 4
+      { ...reply('a2', 'r2'), payload: { ...(reply('a2', 'r2').payload as object), usage: usage(90_000) } }, // 5
+      user('three', 'r3'), // 6
+    ])
+    const forked = seqd(forkEntries(entries, 'source-1', 6).entries.map((e) => ({ ...e, runId: null })) as Row[])
+    const estimate = estimateCompactedTokens(forked)
+    expect(estimate.usageTokens).toBe(0)
+    expect(estimate.tokens).toBeLessThan(1_000)
   })
 })

@@ -1,4 +1,4 @@
-// 压缩的切点与准备（grilling F2、F4）：从最后一个有效 compaction 保留的部分起，从尾部累加估算 token 到 keepRecentTokens，
+// 压缩的切点与准备（docs/subsystems/context.md#压缩）：从最后一个有效 compaction 保留的部分起，从尾部累加估算 token 到 keepRecentTokens，
 // 切点只落在 user 或 assistant 消息开始处（不拆开 toolCall 与 toolResult）；没有可摘要的较早内容时不压缩。
 // 算法参照 pi coding-agent 1.4.0 core/compaction/compaction.ts 的 findCutPoint 与 prepareCompaction（MIT, Copyright (c) 2025 Mario Zechner），
 // 去掉了拆分回合的二次摘要：切在 assistant 开始处时，它之前的整轮都进入摘要。
@@ -108,8 +108,9 @@ export function planCompaction(entries: readonly EntryLike[], options: { keepRec
 }
 
 /**
- * 模型上下文（modelContext）的 token 估算：最后一次有效 usage 只在它晚于最后一个有效 compaction 时可信（之前的 usage 量的是被摘要
- * 替代的历史），否则全部按 chars/4。只计消息；没有可信 usage 时宿主另加系统提示与工具定义。
+ * 模型上下文（modelContext）的 token 估算：最后一次有效 usage 只在它来自最后一个有效 compaction 之后的 Run 时可信（之前的 usage 量的是
+ * 被摘要替代的历史），否则全部按 chars/4。分叉复制的消息排在 compaction 之后但没有 runId（它们的 usage 同样量的是压缩之前的历史），
+ * 不算新消息。只计消息；没有可信 usage 时宿主另加系统提示与工具定义。
  */
 export function estimateCompactedTokens(entries: readonly EntryLike[]): ContextTokenEstimate {
   const messages = modelContext(entries) as AgentMessage[]
@@ -117,7 +118,7 @@ export function estimateCompactedTokens(entries: readonly EntryLike[]): ContextT
   const compaction = effective.find((entry) => entry.kind === 'compaction')
   if (!compaction) return estimateContextTokens(messages)
   const kept = effective.filter((entry) => entry.kind === 'message')
-  const fresh = kept.findIndex((entry) => entry.seq > compaction.seq)
+  const fresh = kept.findIndex((entry) => entry.seq > compaction.seq && entry.runId != null)
   if (fresh >= 0) {
     // messages[0] 是合成摘要消息。
     const tail = estimateContextTokens(messages.slice(1 + fresh))
