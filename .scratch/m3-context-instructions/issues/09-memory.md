@@ -68,3 +68,6 @@
 - server：`memoryContribution` 的 `report` 给出 `breakdown.memory`（section 字符数，关闭时 0），供票 10 的上下文用量接口。
 - 协议：`MemoryEntry`、`MemoryListResponse`、`CreateMemoryRequest`、`UpdateMemoryRequest`、`memoryPaths`、`MEMORY_CONTENT_MAX`（protocol 的 `MemoryEntry` / `MemoryScope` 与 agent 同名，二者都导入时用别名）。
 - 贡献的工具现在在运行时构造时进入开头的系统消息（sessions.ts 的 `#createRuntime`），新增的默认开启工具不再改变 M2 的条目序列。
+- 2026-10-29 lead：评审后合入 main（7dea20f）。接受越界：sessions.ts 预先设置贡献工具（已授权，作为票 05、07 的统一修法）、context/types.ts 与 runtime/layers.ts 传入 memories、sections.ts 开启 Memory 分区及其测试、tool-cards 新用例。lead 补 docs/README 导航行。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 126 文件 970 通过、1 跳过（真实模型），无页面重载；check:docs 108 文件 0 问题。worktree 已清理。
+
+Closed: true
