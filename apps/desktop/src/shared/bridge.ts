@@ -1,9 +1,10 @@
 // main、preload 与 renderer 共用的受控 IPC 契约。renderer 只导入类型。
+import type { ErrorCode, Provider, ProviderFields, ProviderSaveMode } from '@coko/protocol'
 
 export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
-  setCredential: 'coko:set-credential',
+  saveProvider: 'coko:save-provider',
   setSecret: 'coko:set-secret',
   log: 'coko:log',
   openLogs: 'coko:open-logs',
@@ -36,17 +37,33 @@ export type SidecarStateEvent =
   | { readonly phase: 'failed'; readonly error: BootFailure }
 
 /**
- * 设置 Credential 的失败原因：invalid-input（Provider id 或密钥不合要求）、encryption-unavailable（safeStorage 不可用，
- * 不回退明文）、sidecar-unavailable（Sidecar 未就绪或已断开）、rejected（Sidecar 拒绝保存，如 Provider 不存在）、timeout。
+ * main 一侧保存密钥类值的失败原因：invalid-input（输入不合要求）、encryption-unavailable（safeStorage 不可用，不回退明文）、
+ * sidecar-unavailable（Sidecar 未就绪或已断开）、rejected（Sidecar 拒绝保存）、timeout。
  */
 export type CredentialErrorCode = 'invalid-input' | 'encryption-unavailable' | 'sidecar-unavailable' | 'rejected' | 'timeout'
 
-/** 成功时只回传末四位提示；密钥不返回 renderer。 */
-export type SetCredentialResult =
-  | { readonly ok: true; readonly hint: string }
-  | { readonly ok: false; readonly code: CredentialErrorCode; readonly message: string }
+/**
+ * 一次提交的 Provider 草稿（ADR 0010）：完整配置与可选的新 Key。新建必须带 Key；编辑不带 Key 表示保留原 Credential。
+ * 不能通过空值删除已有 Key。
+ */
+export interface SaveProviderInput {
+  readonly mode: ProviderSaveMode
+  readonly provider: ProviderFields
+  readonly secret?: string
+}
 
-/** 登记 Secret 的失败原因，含义与 CredentialErrorCode 相同（invalid-input 为名字或值不合要求）。 */
+/**
+ * 一次提交的失败原因：main 一侧的 invalid-input（草稿或 Key 不合要求）、encryption-unavailable、sidecar-unavailable、timeout，
+ * 以及 Sidecar 回答的协议错误码（already-exists、bad-request、not-found 等，details 原样带回）。任何失败都表示配置与 Key 都未写入。
+ */
+export type ProviderSaveErrorCode = Exclude<CredentialErrorCode, 'rejected'> | ErrorCode
+
+/** 成功时回传保存后的 Provider（只含是否已配置与末四位）；密钥不返回 renderer。 */
+export type SaveProviderResult =
+  | { readonly ok: true; readonly provider: Provider }
+  | { readonly ok: false; readonly code: ProviderSaveErrorCode; readonly message: string; readonly details?: Readonly<Record<string, unknown>> }
+
+/** 登记 Secret 的失败原因（invalid-input 为名字或值不合要求）。 */
 export type SecretErrorCode = CredentialErrorCode
 
 /** 成功时只回传末四位提示；值不返回 renderer（ADR 0007）。 */
@@ -67,8 +84,11 @@ export interface CokoBridge {
   boot(): Promise<BootResult>
   /** 打开目录选择对话框；取消时为 null。 */
   pickDirectory(): Promise<string | null>
-  /** 把密钥交给 main 用 safeStorage 加密，密文经控制 IPC 存入 Sidecar（ADR 0004）；明文不经 HTTP。 */
-  setCredential(providerId: string, secret: string): Promise<SetCredentialResult>
+  /**
+   * 一次提交 Provider（ADR 0010）：main 用 safeStorage 加密 Key 后，配置与密文经一条控制消息交给 Sidecar，在一个事务中写入；
+   * 加密不可用时整次拒绝、不发送任何消息。Key 不经 HTTP，也不返回 renderer（ADR 0004）。
+   */
+  saveProvider(input: SaveProviderInput): Promise<SaveProviderResult>
   /** 登记或替换一个 Secret：main 用 safeStorage 加密，密文经控制 IPC secret.store 存入 Sidecar（ADR 0007）；值不经 HTTP。 */
   setSecret(name: string, value: string): Promise<SetSecretResult>
   /** 把一条日志转发到 main 的 desktop.jsonl；不等待、不回报结果。 */

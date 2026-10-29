@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
+  CredentialRecord,
   JsonValue,
   Memory,
   MemoryInput,
@@ -21,7 +22,7 @@ import type {
 
 interface ProviderRow {
   provider: Omit<Provider, 'credential'>
-  credential: { ciphertext: Uint8Array; hint: string } | null
+  credential: CredentialRecord | null
 }
 
 export function createMemoryStore(options: StoreOptions): SessionStore {
@@ -56,6 +57,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
     if (!row) throw notFound('provider', id)
     return row
   }
+  const copyCredential = (credential: CredentialRecord): CredentialRecord => ({ ciphertext: new Uint8Array(credential.ciphertext), hint: credential.hint })
   const toProvider = (row: ProviderRow): Provider => ({ ...row.provider, credential: row.credential ? { hint: row.credential.hint } : null })
   const touch = (session: Session, patch: Partial<Session>): Session => {
     Object.assign(session, patch, { updatedAt: now() })
@@ -138,25 +140,26 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         const row = providers.get(id)
         return row ? toProvider(row) : undefined
       }),
-      create: op((input: ProviderInput) => {
+      create: op((input: ProviderInput, credential?: CredentialRecord) => {
         if (providers.has(input.id)) throw alreadyExists('provider', input.id)
         const at = now()
-        const row: ProviderRow = { provider: { ...copy(input), createdAt: at, updatedAt: at }, credential: null }
+        const row: ProviderRow = { provider: { ...copy(input), createdAt: at, updatedAt: at }, credential: credential ? copyCredential(credential) : null }
         providers.set(row.provider.id, row)
         return toProvider(row)
       }),
-      update: op((id: string, patch: Partial<Omit<ProviderInput, 'id'>>) => {
+      update: op((id: string, patch: Partial<Omit<ProviderInput, 'id'>>, credential?: CredentialRecord) => {
         const row = requireProvider(id)
         Object.assign(row.provider, copy(patch), { id, updatedAt: now() })
+        if (credential) row.credential = copyCredential(credential)
         return toProvider(row)
       }),
       delete: op((id: string) => {
         requireProvider(id)
         providers.delete(id)
       }),
-      setCredential: op((id: string, credential: { ciphertext: Uint8Array; hint: string }) => {
+      setCredential: op((id: string, credential: CredentialRecord) => {
         const row = requireProvider(id)
-        row.credential = { ciphertext: new Uint8Array(credential.ciphertext), hint: credential.hint }
+        row.credential = copyCredential(credential)
         row.provider.updatedAt = now()
         return toProvider(row)
       }),

@@ -130,6 +130,28 @@ describe('SQLite 打开与持久化', () => {
   })
 })
 
+describe('SQLite 一次存储', () => {
+  it('Credential 写入失败时整个事务回滚：Provider 新建与修改都不落库，原 Credential 不变', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const store = await openIn(dir)
+    const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
+    const existing = await store.providers.create({ ...input, id: 'custom-provider-0' }, { ciphertext: new Uint8Array([1]), hint: 'aaaa' })
+    // 另一连接装一个让密文写入失败的触发器（模拟磁盘或约束错误发生在 Provider 写入之后）。
+    const raw = new DatabaseSync(path)
+    try {
+      raw.exec(`CREATE TRIGGER fail_credential BEFORE INSERT ON provider_credentials WHEN NEW.hint = 'boom' BEGIN SELECT RAISE(ABORT, 'disk full'); END;
+        CREATE TRIGGER fail_credential_update BEFORE UPDATE ON provider_credentials WHEN NEW.hint = 'boom' BEGIN SELECT RAISE(ABORT, 'disk full'); END;`)
+    } finally {
+      raw.close()
+    }
+    await expect(store.providers.create(input, { ciphertext: new Uint8Array([2]), hint: 'boom' })).rejects.toThrow('disk full')
+    await expect(store.providers.update(existing.id, { name: '改' }, { ciphertext: new Uint8Array([3]), hint: 'boom' })).rejects.toThrow('disk full')
+    expect(await store.providers.list()).toEqual([existing])
+    expect(Array.from((await store.providers.getCredentialCiphertext(existing.id)) ?? [])).toEqual([1])
+  })
+})
+
 describe('SQLite 宿主租约', () => {
   it('第二个实例获取租约失败并得到 lease-held，第一个实例不受影响；关闭后可再次打开', async () => {
     const dir = await tempDir()

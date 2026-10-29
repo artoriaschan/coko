@@ -202,6 +202,7 @@ export const zh = {
     deleteFailed: 'Provider 删除失败',
     nameRequired: '请填写名称',
     modelsRequired: '至少填写一个模型',
+    credentialRequired: '请输入 API Key',
     loadFailed: 'Provider 加载失败',
     errors: {
       invalid: '有字段不符合要求，请检查地址与模型名称',
@@ -210,11 +211,10 @@ export const zh = {
     },
     errorDetail: '技术详情',
     credentialErrors: {
-      'invalid-input': 'Credential 不能为空，也不能包含空白字符',
-      'encryption-unavailable': '系统加密不可用，Credential 未保存',
-      'sidecar-unavailable': 'Sidecar 不可用，Credential 未保存',
-      rejected: 'Sidecar 拒绝保存 Credential',
-      timeout: '保存 Credential 超时',
+      'invalid-input': 'API Key 不能为空，也不能包含空白字符',
+      'encryption-unavailable': '系统加密不可用，未保存任何内容',
+      'sidecar-unavailable': 'Sidecar 不可用，未保存任何内容',
+      timeout: '保存超时，请重新打开设置确认供应商是否已保存',
     },
   },
   models: {

@@ -17,6 +17,7 @@ import { createContextAssembly, createContributions, type ContextAssembly } from
 import { McpManager } from '../application/context/mcp.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
+import { toAppError } from '../application/errors.ts'
 import { ProviderService } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
@@ -282,11 +283,21 @@ const AppLive = Layer.effect(
     })
     if (recovery.interruptedRuns > 0) log.warn('startup recovery finished', { ...recovery })
 
+    // Provider 只经 main 的一次提交保存（ADR 0010）；HTTP 只提供列表与删除。
     control.onMessage((msg) => {
-      if (msg.type !== 'credential.store') return
-      providers.storeCredential(msg.providerId, msg.ciphertext, msg.hint).then(
-        () => control.send({ type: 'credential.store.result', requestId: msg.requestId, ok: true }),
-        (error: unknown) => control.send({ type: 'credential.store.result', requestId: msg.requestId, ok: false, error: message(error) }),
+      if (msg.type !== 'provider.save') return
+      providers.save(msg.mode, msg.provider, msg.credential).then(
+        (provider) => control.send({ type: 'provider.save.result', requestId: msg.requestId, ok: true, provider }),
+        (error: unknown) => {
+          const appError = toAppError(error)
+          if (appError.code === 'internal' || appError.code === 'storage-unavailable') log.error('provider save failed', { error: message(error) })
+          return control.send({
+            type: 'provider.save.result',
+            requestId: msg.requestId,
+            ok: false,
+            error: { code: appError.code, message: appError.message, ...(appError.details ? { details: appError.details } : {}) },
+          })
+        },
       )
     })
 

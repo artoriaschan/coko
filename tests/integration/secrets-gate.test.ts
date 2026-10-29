@@ -14,7 +14,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, runPaths, type ServerMessage } from '@coko/protocol'
-import { connect, customProvider, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
+import { connect, customProvider, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 import { echoingModelServer, leaksIn, marker, persisted, readDir, recordingClient } from './secrets-gate-harness.ts'
 
 describe('秘密不外泄总闸', () => {
@@ -43,6 +43,8 @@ describe('秘密不外泄总闸', () => {
       ],
     })
     await writeFile(join(root, 'notes.txt'), 'original notes\n')
+    // 独立运行没有 main，不能保存 Provider（ADR 0010）：真实 Provider 先经 IPC 模式写入，密钥来自 COKO_CREDENTIAL_GATE_PROVIDER。
+    await seedProviders(dirs, [customProvider('gate-provider', baseUrl, ['gate-model'])])
     const sidecar = await startSidecar({
       dirs,
       ipc: false,
@@ -123,8 +125,7 @@ describe('秘密不外泄总闸', () => {
     expect(stream.entries(faux).at(-1)?.kind).toBe('rewind')
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
-    const provider = (await api.post(API_ROUTES.providers, customProvider('gate-provider', baseUrl, ['gate-model']))).body
-    const real = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id, model: { providerId: provider.id, modelId: 'gate-model' } })).body
+    const real = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id, model: { providerId: 'gate-provider', modelId: 'gate-model' } })).body
       .id as string
     stream.send({ type: 'subscribe', sessionId: real, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === real)

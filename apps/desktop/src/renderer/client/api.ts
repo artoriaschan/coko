@@ -10,7 +10,6 @@ import {
   ModelListResponse,
   permissionPaths,
   PermissionsResponse,
-  Provider,
   ProviderListResponse,
   runPaths,
   Session,
@@ -24,7 +23,6 @@ import {
   WorkspaceListResponse,
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
-  type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
   type PermissionMode,
@@ -32,7 +30,6 @@ import {
   type RewindRequest,
   type SessionModel,
   type UpdatePermissionsRequest,
-  type UpdateProviderRequest,
 } from '@coko/protocol'
 import { Type, type TSchema, type Static } from 'typebox'
 import { Value } from 'typebox/value'
@@ -123,8 +120,6 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */
     putSetting: (key: string, value: unknown, expectedRevision: number) => call(Setting, 'PUT', apiPaths.setting(key), { value, expectedRevision }),
     listProviders: async () => (await call(ProviderListResponse, 'GET', API_ROUTES.providers)).providers,
-    createProvider: (input: CreateProviderRequest) => call(Provider, 'POST', API_ROUTES.providers, input),
-    updateProvider: (id: string, patch: UpdateProviderRequest) => call(Provider, 'PATCH', apiPaths.provider(id), patch),
     deleteProvider: (id: string) => call(NoContent, 'DELETE', apiPaths.provider(id)),
     listModels: () => call(ModelListResponse, 'GET', API_ROUTES.models),
   }

@@ -9,8 +9,8 @@ import {
   type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { AvailableModel, CatalogModel, CreateProviderRequest, ModelProtocol, Provider, ThinkingLevel, UpdateProviderRequest } from '@coko/protocol'
-import { isStoreError, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
+import type { AvailableModel, CatalogModel, ModelProtocol, Provider, ProviderFields, ProviderSaveMode, ThinkingLevel } from '@coko/protocol'
+import { isStoreError, type CredentialRecord, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
@@ -84,30 +84,34 @@ export class ProviderService {
       )
   }
 
-  /** ID 已被使用时 already-exists；配置无效时 bad-request。两种情况都不写库。 */
-  async create(input: CreateProviderRequest): Promise<Provider> {
-    const record: ProviderInput = { id: input.id, name: input.name, api: input.api, baseUrl: input.baseUrl, models: input.models }
+  /**
+   * 一次提交（ADR 0010）：配置与可选的 Credential 密文（main 加密，base64）在一个事务中写入。create 时 ID 已被使用为
+   * already-exists；update 时 Provider 不存在为 not-found；配置无效为 bad-request。失败时配置与密文都不写入。
+   * update 不带 credential 时保留原 Credential；带 credential 时替换并清除 sidecar 内存中的明文缓存。
+   */
+  async save(mode: ProviderSaveMode, fields: ProviderFields, credential?: { ciphertext: string; hint: string }): Promise<Provider> {
+    const { id, name, api, baseUrl, models } = fields
+    const record: ProviderInput = { id, name, api, baseUrl, models }
+    const secret: CredentialRecord | undefined = credential && {
+      ciphertext: new Uint8Array(Buffer.from(credential.ciphertext, 'base64')),
+      hint: credential.hint,
+    }
     validate(toProviderConfig(record))
-    let created: StoredProvider
+    let saved: StoredProvider
     try {
-      created = await this.#options.store.providers.create(record)
+      saved =
+        mode === 'create'
+          ? await this.#options.store.providers.create(record, secret)
+          : await this.#options.store.providers.update(id, { name, api, baseUrl, models }, secret)
     } catch (error) {
-      if (isStoreError(error, 'already-exists'))
-        throw new AppError('already-exists', `Provider ID ${input.id} is already in use`, { field: 'id', id: input.id })
+      if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
+      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
       throw error
     }
-    this.#options.registry.setProvider(toProviderConfig(created))
-    log.info('provider created', { providerId: created.id, api: created.api })
-    return toProviderDto(created)
-  }
-
-  async update(id: string, patch: UpdateProviderRequest): Promise<Provider> {
-    const current = await this.#options.store.providers.get(id)
-    if (!current) throw new AppError('not-found', `Provider ${id} not found`)
-    validate(toProviderConfig({ ...current, ...patch }))
-    const updated = await this.#options.store.providers.update(id, patch)
-    this.#options.registry.setProvider(toProviderConfig(updated))
-    return toProviderDto(updated)
+    this.#options.registry.setProvider(toProviderConfig(saved))
+    if (secret) this.#options.invalidateCredential(id)
+    log.info('provider saved', { providerId: id, mode, api, credential: secret ? 'replaced' : 'kept' })
+    return toProviderDto(saved)
   }
 
   async delete(id: string): Promise<void> {
@@ -116,13 +120,5 @@ export class ProviderService {
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
     log.info('provider deleted', { providerId: id })
-  }
-
-  /** 保存 main 加密的密文（base64）与末四位提示。 */
-  async storeCredential(id: string, ciphertext: string, hint: string): Promise<void> {
-    if (!(await this.#options.store.providers.get(id))) throw new AppError('not-found', `Provider ${id} not found`)
-    await this.#options.store.providers.setCredential(id, { ciphertext: new Uint8Array(Buffer.from(ciphertext, 'base64')), hint })
-    this.#options.invalidateCredential(id)
-    log.info('credential stored', { providerId: id })
   }
 }

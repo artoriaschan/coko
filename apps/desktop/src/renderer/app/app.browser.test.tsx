@@ -238,7 +238,7 @@ describe('设置弹窗', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('Models：新建 Provider 只回显末四位；Credential 失败时保留输入并转为编辑', async () => {
+  it('Models：新建 Provider 只回显末四位；加密不可用时整次提交被拒绝，什么都不保存，表单保留草稿', async () => {
     await page.viewport(1280, 800)
     const { screen, backend } = renderApp('en', { providers: false })
     await screen
@@ -246,7 +246,7 @@ describe('设置弹窗', () => {
     await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
 
-    backend.setCredential.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
+    backend.saveProvider.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
     await dialog.getByLabelText('Provider ID', { exact: true }).fill('custom-provider-1')
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
@@ -256,12 +256,19 @@ describe('设置弹窗', () => {
     await secret.fill('sk-browser-test-9876')
     await dialog.getByRole('button', { name: 'Save' }).click()
 
-    await expect.element(dialog.getByRole('alert')).toHaveTextContent('System encryption is unavailable. The Credential was not saved.')
+    await expect.element(dialog.getByRole('alert')).toHaveTextContent(dictionaries.en.providers.credentialErrors['encryption-unavailable'])
     await expect.element(secret).toHaveValue('sk-browser-test-9876')
-    expect(backend.providers).toHaveLength(1)
-    // 再次保存是编辑同一个 Provider，不会重复创建。
+    await expect.element(dialog.getByLabelText('Provider ID', { exact: true })).toHaveValue('custom-provider-1')
+    expect(backend.providers).toEqual([])
+    expect(dialog.element().querySelector('[data-provider-id]')).toBeNull()
+    // 重试仍是新建，一次提交配置、目录与 Key。
     await dialog.getByRole('button', { name: 'Save' }).click()
-    await expect.element(page.elementLocator(dialog.element().querySelector('[data-provider-id]')!)).toBeVisible()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-id]')).not.toBeNull()
+    expect(backend.saveProvider).toHaveBeenLastCalledWith({
+      mode: 'create',
+      provider: expect.objectContaining({ id: 'custom-provider-1', models: [expect.objectContaining({ id: 'm1' }), expect.objectContaining({ id: 'm2' })] }),
+      secret: 'sk-browser-test-9876',
+    })
     expect(backend.providers).toHaveLength(1)
     await expect
       .element(page.elementLocator(dialog.element().querySelector('[data-credential-status="configured"]')!))
@@ -305,11 +312,11 @@ describe('侧栏搜索', () => {
 })
 
 describe('Models 分区', () => {
-  it('新建：输入 Provider ID 并选择三种协议之一（默认 OpenAI Chat Completions）；ID 不合格式或重复时不提交', async () => {
+  it('新建：输入 Provider ID 并选择三种协议之一（默认 OpenAI Chat Completions）；ID 不合格式、重复或未填 Key 时不提交', async () => {
     await page.viewport(1280, 800)
     const { screen, backend, settings } = renderApp('zh', { providers: false })
     await screen
-    await backend.api.createProvider(customProvider('custom-provider-1', ['custom-model-1'], { name: '自定义供应商一' }))
+    backend.seedProvider(customProvider('custom-provider-1', ['custom-model-1'], { name: '自定义供应商一' }))
     await settings.getState().load()
     const dialog = await openSettings('设置')
     await dialog.getByRole('button', { name: '模型服务', exact: true }).click()
@@ -335,14 +342,15 @@ describe('Models 分区', () => {
     for (const [value, message] of [
       ['Custom-2', dictionaries.zh.providers.idInvalid],
       ['custom-provider-1', dictionaries.zh.providers.idTaken],
+      ['custom-provider-2', dictionaries.zh.providers.credentialRequired],
     ] as const) {
       await id.fill(value)
       await dialog.getByRole('button', { name: '保存' }).click()
       await expect.element(dialog.getByRole('alert')).toHaveTextContent(message)
     }
-    expect(backend.raw.createProvider).toHaveBeenCalledTimes(1)
+    expect(backend.saveProvider).not.toHaveBeenCalled()
 
-    await id.fill('custom-provider-2')
+    await dialog.getByLabelText('Credential', { exact: true }).fill('sk-new-provider-2222')
     await dialog.getByRole('button', { name: '保存' }).click()
     await expect.poll(() => dialog.element().querySelector('[data-provider-id="custom-provider-2"]')).not.toBeNull()
     expect(backend.providers.find((p) => p.id === 'custom-provider-2')).toMatchObject({
@@ -350,7 +358,9 @@ describe('Models 分区', () => {
       api: 'anthropic-messages',
       baseUrl: 'https://gateway.example',
       models: [{ id: 'custom-model-2', contextWindow: 128_000, maxTokens: 16_000, input: ['text'], reasoning: false, thinkingLevels: [] }],
+      credential: { hint: '2222' },
     })
+    expect(backend.saveProvider).toHaveBeenCalledTimes(1)
   })
 
   it('编辑：ID 为静态文本；修改协议与目录后保存，已有模型的能力配置保留；留空 Key 不改 Credential；删除后从列表移除', async () => {
@@ -363,8 +373,7 @@ describe('Models 分区', () => {
       reasoning: true,
       thinkingLevels: [{ level: 'high', value: 'high' }],
     })
-    await backend.api.createProvider({ ...customProvider('custom-provider-2', []), name: 'Custom two', models: [rich] })
-    await backend.setCredential('custom-provider-2', 'sk-existing-key-5555')
+    backend.seedProvider({ ...customProvider('custom-provider-2', []), name: 'Custom two', models: [rich] }, 'sk-existing-key-5555')
     await settings.getState().load()
     const dialog = await openSettings('Settings')
     await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
@@ -375,13 +384,17 @@ describe('Models 分区', () => {
     await dialog.getByLabelText('API protocol', { exact: true }).click()
     await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
     await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('custom-model-1, custom-model-3')
-    backend.setCredential.mockClear()
     await dialog.getByRole('button', { name: 'Save' }).click()
     await expect.poll(() => dialog.element().querySelector('[data-provider-form]')).toBeNull()
     expect(backend.providers).toMatchObject([
       { id: 'custom-provider-2', api: 'openai-responses', models: [rich, catalogModel('custom-model-3')], credential: { hint: '5555' } },
     ])
-    expect(backend.setCredential).not.toHaveBeenCalled()
+    // Key 留空：一次提交不带 secret，原 Credential 保留。
+    expect(backend.saveProvider).toHaveBeenCalledWith({
+      mode: 'update',
+      provider: expect.objectContaining({ id: 'custom-provider-2', api: 'openai-responses' }),
+    })
+    expect(backend.saveProvider.mock.calls[0]![0]).not.toHaveProperty('secret')
 
     await dialog.getByRole('button', { name: 'Delete' }).click()
     await dialog.getByRole('button', { name: 'Confirm delete' }).click()
@@ -393,8 +406,7 @@ describe('Models 分区', () => {
     await page.viewport(1280, 800)
     const { screen, backend } = renderApp('en', { providers: false })
     await screen
-    const { ApiError } = await import('../client/api.ts')
-    vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
+    backend.saveProvider.mockResolvedValueOnce({ ok: false, code: 'bad-request', message: 'Invalid request: /baseUrl must match format "uri"' })
     const dialog = await openSettings('Settings')
     await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
@@ -402,6 +414,7 @@ describe('Models 分区', () => {
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
     await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1')
+    await dialog.getByLabelText('Credential', { exact: true }).fill('sk-local-key-0001')
     await dialog.getByRole('button', { name: 'Save' }).click()
     const alert = dialog.getByRole('alert')
     await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
@@ -477,7 +490,7 @@ describe('模型选择', () => {
     await page.viewport(1280, 800)
     const { screen, chat, settings, backend } = renderApp('en')
     await screen
-    await backend.api.createProvider(customProvider('p2', ['big-model'], { name: 'Second' }))
+    backend.seedProvider(customProvider('p2', ['big-model'], { name: 'Second' }))
     await settings.getState().load()
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     const picker = page.getByRole('button', { name: /^Choose model: / })

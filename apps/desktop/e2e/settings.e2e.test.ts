@@ -1,5 +1,6 @@
-// 设置、Provider 与 Credential：真实 Electron + 真实 Sidecar。Credential 经 preload → main safeStorage → Sidecar 存密文，
-// 调用模型时经控制 IPC 解密；模型服务是本地的 OpenAI 兼容假服务，断言其收到的 Authorization 与库文件内容。
+// 设置、Provider 与 Credential：真实 Electron + 真实 Sidecar。Provider 草稿与 Key 经 preload → main safeStorage → 一条
+// provider.save 控制消息一次存入 Sidecar（ADR 0010），调用模型时经控制 IPC 解密；模型服务是本地的 OpenAI 兼容假服务，
+// 断言其收到的 Authorization 与库文件内容。
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -91,7 +92,7 @@ async function addCustomProvider(app: LaunchedApp, options: { id: string; name: 
 }
 
 describe('设置：Provider 与 Credential', () => {
-  it('未配置时引导到设置；添加 Provider 与密钥后只显示末四位，对话经解密的密钥调用模型；库文件不含明文', async () => {
+  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示末四位，对话经解密的密钥调用模型；HTTP 不能创建 Provider；库文件不含明文', async () => {
     const root = await tempDir('coko-settings-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -126,10 +127,18 @@ describe('设置：Provider 与 Credential', () => {
     expect(model.requests).toHaveLength(1)
     expect(model.requests[0]).toMatchObject({ path: '/v1/chat/completions', headers: { authorization: `Bearer ${secret}` } })
 
-    // 设置接口不回传密钥。
+    // 设置接口不回传密钥；HTTP 不再提供 Provider 的创建与更新（ADR 0010）。
     const providers = await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))
     expect(providers).not.toContain(secret)
     expect(providers).toContain('"hint":"4821"')
+    const viaHttp = await app.window.evaluate(async () => {
+      const body = JSON.stringify({ id: 'via-http', name: 'x', api: 'openai-completions', baseUrl: 'http://127.0.0.1:9/v1', models: [] })
+      const post = await fetch('/api/providers', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+      const patch = await fetch('/api/providers/local-fake', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: '{"name":"x"}' })
+      return [post.status, patch.status]
+    })
+    expect(viaHttp).toEqual([404, 404])
+    expect(await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))).toBe(providers)
 
     await app.dispose()
     // 关闭后检查用户数据目录（SQLite 库与 WAL、日志、Chromium 存储）的每个文件都不含明文。

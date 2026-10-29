@@ -204,6 +204,7 @@ export const en: typeof zh = {
     deleteFailed: 'Could not delete the Provider',
     nameRequired: 'Enter a name',
     modelsRequired: 'Enter at least one model',
+    credentialRequired: 'Enter an API key',
     loadFailed: 'Could not load Providers',
     errors: {
       invalid: 'Some fields are not valid. Check the base URL and model names.',
@@ -212,11 +213,10 @@ export const en: typeof zh = {
     },
     errorDetail: 'Technical details',
     credentialErrors: {
-      'invalid-input': 'The Credential cannot be empty or contain spaces',
-      'encryption-unavailable': 'System encryption is unavailable. The Credential was not saved.',
-      'sidecar-unavailable': 'The Sidecar is unavailable. The Credential was not saved.',
-      rejected: 'The Sidecar refused to save the Credential',
-      timeout: 'Saving the Credential timed out',
+      'invalid-input': 'The API key cannot be empty or contain spaces',
+      'encryption-unavailable': 'System encryption is unavailable. Nothing was saved.',
+      'sidecar-unavailable': 'The Sidecar is unavailable. Nothing was saved.',
+      timeout: 'Saving timed out. Reopen settings to check whether the Provider was saved.',
     },
   },
   models: {

@@ -1,5 +1,5 @@
 import { createModelRegistry, InMemoryCredentialStore } from '@coko/agent'
-import type { CatalogModel, CreateProviderRequest } from '@coko/protocol'
+import type { CatalogModel, ProviderFields } from '@coko/protocol'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): CatalogMod
   ...extra,
 })
 
-const request = (extra: Partial<CreateProviderRequest> = {}): CreateProviderRequest => ({
+const request = (extra: Partial<ProviderFields> = {}): ProviderFields => ({
   id: 'custom-provider-1',
   name: '自定义供应商一',
   api: 'anthropic-messages',
@@ -36,14 +36,17 @@ const request = (extra: Partial<CreateProviderRequest> = {}): CreateProviderRequ
 
 function setup(store = createMemoryStore({ payloads: createPayloadRegistry([]) })) {
   const registry = createModelRegistry({ credentials: new InMemoryCredentialStore() })
-  const service = new ProviderService({ store, registry, invalidateCredential: () => {} })
-  return { store, registry, service }
+  const invalidated: string[] = []
+  const service = new ProviderService({ store, registry, invalidateCredential: (id) => void invalidated.push(id) })
+  return { store, registry, service, invalidated }
 }
+
+const credential = (bytes: number[], hint: string) => ({ ciphertext: Buffer.from(bytes).toString('base64'), hint })
 
 describe('ProviderService：自定义 Provider', () => {
   it('创建后读回与提交一致；模型以目录中的能力与 thinkingLevelMap 注册；重新装载（重启）后一致', async () => {
     const { store, registry, service } = setup()
-    const created = await service.create(request())
+    const created = await service.save('create', request())
     expect(created).toMatchObject({ ...request(), credential: null })
     expect(await service.list()).toEqual([created])
     const expected = {
@@ -69,32 +72,51 @@ describe('ProviderService：自定义 Provider', () => {
     ])
   })
 
-  it('ID 重复时以 already-exists 拒绝；目录或地址不合规则时以 bad-request 拒绝；库与 registry 不变', async () => {
-    const { registry, service } = setup()
-    const created = await service.create(request())
-    await expect(service.create(request({ name: '另一个', baseUrl: 'https://other.example' }))).rejects.toMatchObject({ code: 'already-exists' })
+  it('ID 重复、修改不存在的 Provider 或目录与地址不合规则时拒绝；配置、密文与 registry 都不变', async () => {
+    const { store, registry, service, invalidated } = setup()
+    const created = await service.save('create', request(), credential([1, 2], 'aaaa'))
+    await expect(service.save('create', request({ name: '另一个', baseUrl: 'https://other.example' }), credential([3], 'bbbb'))).rejects.toMatchObject({
+      code: 'already-exists',
+    })
+    await expect(service.save('update', request({ id: 'custom-provider-9' }), credential([3], 'bbbb'))).rejects.toMatchObject({ code: 'not-found' })
     for (const bad of [
       request({ id: 'custom-provider-2', baseUrl: 'ftp://gateway.example' }),
       request({ id: 'custom-provider-2', models: [catalogModel('m'), catalogModel('m')] }),
       request({ id: 'custom-provider-2', models: [catalogModel('m', { contextWindow: 1000, maxTokens: 2000 })] }),
     ]) {
-      await expect(service.create(bad)).rejects.toMatchObject({ code: 'bad-request' })
+      await expect(service.save('create', bad, credential([3], 'bbbb'))).rejects.toMatchObject({ code: 'bad-request' })
     }
-    await expect(service.update('custom-provider-1', { models: [catalogModel('m'), catalogModel('m')] })).rejects.toMatchObject({ code: 'bad-request' })
+    await expect(service.save('update', request({ models: [catalogModel('m'), catalogModel('m')] }), credential([3], 'bbbb'))).rejects.toMatchObject({
+      code: 'bad-request',
+    })
     expect(await service.list()).toEqual([created])
+    expect(Array.from((await store.providers.getCredentialCiphertext('custom-provider-1')) ?? [])).toEqual([1, 2])
+    expect(await store.providers.get('custom-provider-2')).toBeUndefined()
+    // 只有成功写入新密文时才清除明文缓存。
+    expect(invalidated).toEqual(['custom-provider-1'])
     expect(registry.models.getProviders().map((p) => p.id)).toEqual(['custom-provider-1'])
     expect(registry.models.getModels('custom-provider-1').map((m) => m.id)).toEqual(['custom-model-1'])
   })
 
-  it('修改协议、地址与目录后 registry 随之更新；ID 不变', async () => {
-    const { registry, service } = setup()
-    await service.create(request())
-    const updated = await service.update('custom-provider-1', {
-      api: 'openai-responses',
-      baseUrl: 'http://127.0.0.1:9/v1',
-      models: [catalogModel('custom-model-2')],
-    })
-    expect(updated).toMatchObject({ id: 'custom-provider-1', api: 'openai-responses', models: [catalogModel('custom-model-2')] })
+  it('修改协议、地址与目录后 registry 随之更新；ID 不变；带新密钥时替换并清除明文缓存', async () => {
+    const { store, registry, service, invalidated } = setup()
+    await service.save('create', request(), credential([1], 'aaaa'))
+    invalidated.length = 0
+    const updated = await service.save(
+      'update',
+      request({ api: 'openai-responses', baseUrl: 'http://127.0.0.1:9/v1', models: [catalogModel('custom-model-2')] }),
+    )
+    expect(updated).toMatchObject({ id: 'custom-provider-1', api: 'openai-responses', models: [catalogModel('custom-model-2')], credential: { hint: 'aaaa' } })
+    // 不带新密钥：保留原 Credential，不清缓存。
+    expect(invalidated).toEqual([])
+    expect(Array.from((await store.providers.getCredentialCiphertext('custom-provider-1')) ?? [])).toEqual([1])
+    const replaced = await service.save(
+      'update',
+      request({ api: 'openai-responses', baseUrl: 'http://127.0.0.1:9/v1', models: [catalogModel('custom-model-2')] }),
+      credential([5, 6], 'cccc'),
+    )
+    expect(replaced.credential).toEqual({ hint: 'cccc' })
+    expect(invalidated).toEqual(['custom-provider-1'])
     expect(registry.models.getModels('custom-provider-1').map((m) => [m.id, m.api, m.baseUrl, m.name])).toEqual([
       ['custom-model-2', 'openai-responses', 'http://127.0.0.1:9/v1', 'custom-model-2'],
     ])

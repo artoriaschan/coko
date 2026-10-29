@@ -234,7 +234,7 @@ function run(): void {
     return picking
   })
 
-  // ADR 0004、0007：Credential 与 Secret 只在 main 用 safeStorage 加解密，密文经控制 IPC 存入 Sidecar。
+  // ADR 0004、0007、0010：Credential 与 Secret 只在 main 用 safeStorage 加解密；Provider 与其 Key 经一条控制消息一次存入 Sidecar。
   const encryption = {
     isAvailable: () => safeStorage.isEncryptionAvailable(),
     encrypt: (plaintext: string) => safeStorage.encryptString(plaintext),
@@ -247,9 +247,9 @@ function run(): void {
     onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
   }
   const credentials = createCredentialBridge({ encryption, channel })
-  ipcMain.handle(IPC.setCredential, async (event, providerId: unknown, secret: unknown) => {
+  ipcMain.handle(IPC.saveProvider, async (event, input: unknown) => {
     assertMainFrame(event)
-    return credentials.set(providerId, secret)
+    return credentials.saveProvider(input)
   })
   const secrets = createSecretBridge({ encryption, channel })
   ipcMain.handle(IPC.setSecret, async (event, name: unknown, value: unknown) => {

@@ -5,7 +5,7 @@ import { ChevronDownIcon, KeyRoundIcon, LoaderCircleIcon, PlusIcon } from 'lucid
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings, useSettingsActions } from '../../app/settings.tsx'
-import type { ApiError } from '../../client/api.ts'
+import type { ProviderSaveErrorCode } from '../../../shared/bridge.ts'
 import type { ProviderDraft } from '../../stores/settings-store.ts'
 import { SettingsCard } from './settings-dialog.tsx'
 
@@ -13,10 +13,10 @@ import { SettingsCard } from './settings-dialog.tsx'
 const PROTOCOLS: ModelProtocol[] = ModelProtocol.anyOf.map((literal) => literal.const)
 const PROVIDER_ID = new RegExp(PROVIDER_ID_PATTERN)
 
-/** 正在编辑的表单：key 在表单生命周期内不变（新建后转为编辑也不重挂载，保留输入）。 */
+/** 正在编辑的表单：key 在表单生命周期内不变。 */
 interface Editing {
   key: string
-  /** 已存在的 Provider；新建表单在 Credential 保存失败后也会得到 id。 */
+  /** 正在编辑的已有 Provider；新建表单没有 id。 */
   id?: string
 }
 
@@ -37,7 +37,6 @@ export function ModelsSection() {
       takenIds={providers.filter((p) => p.id !== provider?.id).map((p) => p.id)}
       onCancel={() => setEditing(null)}
       onSaved={() => setEditing(null)}
-      onCreated={(id) => setEditing((current) => (current?.key === target.key ? { ...current, id } : current))}
     />
   )
 
@@ -70,24 +69,17 @@ export function ModelsSection() {
         </div>
       )}
 
-      {editing &&
-        isNew &&
-        form(
-          editing,
-          providers.find((p) => p.id === editing.id),
-        )}
+      {editing && isNew && form(editing)}
 
       {status === 'ready' && providers.length === 0 && !editing && <p className="py-4 text-ui-body text-muted-foreground">{t('providers.empty')}</p>}
 
-      {providers
-        .filter((provider) => !(isNew && provider.id === editing?.id))
-        .map((provider) =>
-          editing?.id === provider.id ? (
-            <React.Fragment key={provider.id}>{form(editing, provider)}</React.Fragment>
-          ) : (
-            <ProviderCard key={provider.id} provider={provider} disabled={editing !== null} onEdit={() => setEditing({ key: provider.id, id: provider.id })} />
-          ),
-        )}
+      {providers.map((provider) =>
+        editing?.id === provider.id ? (
+          <React.Fragment key={provider.id}>{form(editing, provider)}</React.Fragment>
+        ) : (
+          <ProviderCard key={provider.id} provider={provider} disabled={editing !== null} onEdit={() => setEditing({ key: provider.id, id: provider.id })} />
+        ),
+      )}
     </section>
   )
 }
@@ -164,13 +156,16 @@ function ProviderCard({ provider, disabled, onEdit }: { provider: Provider; disa
   )
 }
 
-/** 协议错误码到字典键；其余错误用 providers.saveFailed。 */
-const PROVIDER_ERROR_KEYS: Partial<Record<ApiError['code'], MessageKey>> = {
+/** 一次提交的错误码到字典键；其余错误用 providers.saveFailed。任何失败都表示什么都没有保存。 */
+const PROVIDER_ERROR_KEYS: Partial<Record<ProviderSaveErrorCode, MessageKey>> = {
   'bad-request': 'providers.errors.invalid',
   'already-exists': 'providers.idTaken',
   'not-found': 'providers.errors.notFound',
   'storage-unavailable': 'providers.errors.unavailable',
-  network: 'providers.errors.unavailable',
+  'invalid-input': 'providers.credentialErrors.invalid-input',
+  'encryption-unavailable': 'providers.credentialErrors.encryption-unavailable',
+  'sidecar-unavailable': 'providers.credentialErrors.sidecar-unavailable',
+  timeout: 'providers.credentialErrors.timeout',
 }
 
 const parseModelIds = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))]
@@ -192,13 +187,11 @@ function ProviderForm({
   takenIds,
   onCancel,
   onSaved,
-  onCreated,
 }: {
-  provider: Provider | undefined
+  provider?: Provider | undefined
   takenIds: string[]
   onCancel: () => void
   onSaved: () => void
-  onCreated: (id: string) => void
 }) {
   const { t } = useI18n()
   const { saveProvider } = useSettingsActions()
@@ -223,6 +216,7 @@ function ProviderForm({
     if (name.trim() === '') return setError(t('providers.nameRequired'))
     if (!isHttpUrl(baseUrl.trim())) return setError(t('providers.baseUrlInvalid'))
     if (ids.length === 0) return setError(t('providers.modelsRequired'))
+    if (isNew && secret.trim() === '') return setError(t('providers.credentialRequired'))
     setError(null)
     setDetail(null)
     setSaving(true)
@@ -242,17 +236,10 @@ function ProviderForm({
       onSaved()
       return
     }
-    if (result.stage === 'provider') {
-      setError(t(PROVIDER_ERROR_KEYS[result.error.code] ?? 'providers.saveFailed'))
-      setDetail(`${result.error.message} (${result.error.code})`)
-      toast.error(t('providers.saveFailed'))
-      return
-    }
-    // 配置已保存但 Credential 没有：转为编辑已创建的 Provider，保留输入以便重试。
-    if (isNew) onCreated(result.provider.id)
-    const message = t(`providers.credentialErrors.${result.code}`)
-    setError(message)
-    toast.error(message)
+    // 整次提交失败：配置与 Key 都没有保存，表单保留草稿以便修改或重试。
+    setError(t(PROVIDER_ERROR_KEYS[result.code] ?? 'providers.saveFailed'))
+    setDetail(`${result.message} (${result.code})`)
+    toast.error(t('providers.saveFailed'))
   }
 
   return (
