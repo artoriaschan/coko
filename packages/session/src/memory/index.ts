@@ -1,6 +1,6 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   JsonValue,
@@ -139,14 +139,15 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         return row ? toProvider(row) : undefined
       }),
       create: op((input: ProviderInput) => {
+        if (providers.has(input.id)) throw alreadyExists('provider', input.id)
         const at = now()
-        const row: ProviderRow = { provider: { id: randomUUID(), ...copy(input), createdAt: at, updatedAt: at }, credential: null }
+        const row: ProviderRow = { provider: { ...copy(input), createdAt: at, updatedAt: at }, credential: null }
         providers.set(row.provider.id, row)
         return toProvider(row)
       }),
-      update: op((id: string, patch: Partial<ProviderInput>) => {
+      update: op((id: string, patch: Partial<Omit<ProviderInput, 'id'>>) => {
         const row = requireProvider(id)
-        Object.assign(row.provider, copy(patch), { updatedAt: now() })
+        Object.assign(row.provider, copy(patch), { id, updatedAt: now() })
         return toProvider(row)
       }),
       delete: op((id: string) => {

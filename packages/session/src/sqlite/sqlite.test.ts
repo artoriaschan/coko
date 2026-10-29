@@ -100,8 +100,14 @@ describe('SQLite 打开与持久化', () => {
     ])
     await first.sessions.appendEntries(session.id, [{ kind: 'tool-result', payload: { ok: true }, runId: 'r1' }])
     await first.settings.set('theme', 'dark', 0)
-    const provider = await first.providers.create({ name: 'P', kind: 'openai', api: 'openai-responses', baseUrl: 'https://x', models: ['m'] })
-    await first.providers.setCredential(provider.id, { ciphertext: new Uint8Array([9, 8, 7]), hint: '7777' })
+    const provider = await first.providers.create({
+      id: 'custom-provider-1',
+      name: 'P',
+      api: 'openai-responses',
+      baseUrl: 'https://x',
+      models: [{ id: 'm', input: ['text', 'image'], thinkingLevels: [{ level: 'off' }] }],
+    })
+    const savedProvider = await first.providers.setCredential(provider.id, { ciphertext: new Uint8Array([9, 8, 7]), hint: '7777' })
     const savedSession = await first.sessions.getSession(session.id)
     await first.close()
 
@@ -118,6 +124,7 @@ describe('SQLite 打开与持久化', () => {
     expect(entries.slice(0, 2)).toEqual(committed)
     expect((await second.sessions.appendEntries(session.id, [{ kind: 'assistant-message', payload: 'done' }]))[0]?.seq).toBe(4)
     expect(await second.settings.get('theme')).toMatchObject({ value: 'dark', revision: 1 })
+    expect(await second.providers.list()).toEqual([savedProvider])
     expect((await second.providers.get(provider.id))?.credential).toEqual({ hint: '7777' })
     expect(Array.from((await second.providers.getCredentialCiphertext(provider.id)) ?? [])).toEqual([9, 8, 7])
   })

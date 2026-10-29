@@ -1,6 +1,8 @@
 export type StoreErrorCode =
   /** 引用的 Workspace、Session 或 Provider 不存在。 */
   | 'not-found'
+  /** 要创建的记录的主键已被使用（调用方给出 ID 的 Provider）。 */
+  | 'already-exists'
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   | 'revision-conflict'
   /** 条目的 kind 未注册、版本未登记或 payload 不合 schema；整批未提交。 */

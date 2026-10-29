@@ -89,19 +89,20 @@ export interface SettingsRepository {
   set(key: string, value: JsonValue, expectedRevision: number): Promise<Setting>
 }
 
+/** Provider 配置；字段取值（ID 格式、协议、Model Catalog 的结构）由协议层与宿主校验，session 原样保存。 */
 export interface ProviderInput {
+  /** 调用方给出的主键（用户输入的 Provider ID），创建后不可修改。 */
+  id: string
   name: string
-  /** 预设类别，例如 deepseek、openai、anthropic、openai-compatible；取值由协议层校验。 */
-  kind: string
   /** 模型协议，例如 openai-completions、openai-responses、anthropic-messages。 */
   api: string
   baseUrl: string
-  models: string[]
+  /** Model Catalog：每个模型的配置，按 JSON 保存并原样读回。 */
+  models: JsonValue[]
 }
 
 /** Provider 配置；不含 Credential 密文，只给出是否已配置与提示（末四位）。 */
 export interface Provider extends ProviderInput {
-  id: string
   credential: { hint: string } | null
   createdAt: number
   updatedAt: number
@@ -110,8 +111,10 @@ export interface Provider extends ProviderInput {
 export interface ProviderRepository {
   list(): Promise<Provider[]>
   get(id: string): Promise<Provider | undefined>
+  /** ID 已被使用时以 already-exists 拒绝，已有记录不变。 */
   create(input: ProviderInput): Promise<Provider>
-  update(id: string, patch: Partial<ProviderInput>): Promise<Provider>
+  /** ID 不可修改。 */
+  update(id: string, patch: Partial<Omit<ProviderInput, 'id'>>): Promise<Provider>
   /** 同时删除其 Credential 密文。 */
   delete(id: string): Promise<void>
   /** 保存 main 加密后的密文与提示；明文不经过 session。 */

@@ -24,6 +24,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('recovery-failed'),
   /** 审批请求不在等待中（已回答、已取消或不存在）。 */
   Type.Literal('approval-not-pending'),
+  /** 要创建的对象的 ID 已被使用（例如 Provider ID）。 */
+  Type.Literal('already-exists'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   Type.Literal('revision-conflict'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */

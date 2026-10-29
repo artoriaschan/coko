@@ -10,7 +10,16 @@ import { fileURLToPath } from 'node:url'
 import { Value } from 'typebox/value'
 import { onTestFinished } from 'vitest'
 import { WebSocket } from 'ws'
-import { API_ROUTES, ServerMessage, SessionEntry, SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
+import {
+  API_ROUTES,
+  MODEL_CATALOG_DEFAULTS,
+  ServerMessage,
+  SessionEntry,
+  SidecarToMainMessage,
+  type CatalogModel,
+  type CreateProviderRequest,
+  type MainToSidecarMessage,
+} from '@coko/protocol'
 
 const electronPath = createRequire(import.meta.url)('electron') as string
 const entry = fileURLToPath(new URL('../../apps/server/src/index.ts', import.meta.url))
@@ -20,6 +29,21 @@ export async function tempDir(prefix = 'coko-it-'): Promise<string> {
   onTestFinished(() => rm(dir, { recursive: true, force: true }))
   return dir
 }
+
+/** Model Catalog 中的一个模型：默认容量、只有文本输入、推理关闭。 */
+export const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): CatalogModel => ({
+  id,
+  name: '',
+  ...MODEL_CATALOG_DEFAULTS,
+  input: ['text'],
+  reasoning: false,
+  thinkingLevels: [],
+  ...extra,
+})
+
+/** 创建自定义 Provider 的请求体；models 给模型 ID 时使用默认能力。 */
+export const customProvider = (id: string, baseUrl: string, models: (string | CatalogModel)[], api: CreateProviderRequest['api'] = 'openai-completions') =>
+  ({ id, name: id, api, baseUrl, models: models.map((m) => (typeof m === 'string' ? catalogModel(m) : m)) }) satisfies CreateProviderRequest
 
 /** 写 faux 脚本，返回其绝对路径。 */
 export async function fauxScript(dir: string, script: unknown, name = 'faux.json'): Promise<string> {

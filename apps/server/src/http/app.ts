@@ -175,7 +175,6 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   })
 
   http.get(API_ROUTES.providers, async (c) => c.json({ providers: await app.providers.list() }))
-  http.get(API_ROUTES.providerPresets, (c) => c.json({ presets: app.providers.presets() }))
   http.get(API_ROUTES.models, async (c) => c.json({ models: app.providers.models(), defaultModel: (await app.sessions.defaultModel()) ?? null }))
   http.post(API_ROUTES.providers, async (c) => c.json(await app.providers.create(await body(c, CreateProviderRequest)), 201))
   http.patch(`${API_ROUTES.providers}/:id`, async (c) => c.json(await app.providers.update(c.req.param('id'), await body(c, UpdateProviderRequest))))

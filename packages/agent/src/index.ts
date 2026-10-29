@@ -27,17 +27,8 @@ export type {
 } from './engine/types.ts'
 
 // Models
-export {
-  apiKeyEnvOf,
-  createModelRegistry,
-  MODEL_PROTOCOLS,
-  ModelConfigError,
-  PROVIDER_KINDS,
-  protocolOf,
-  providerPresets,
-  resolveModel,
-} from './models/registry.ts'
-export type { ModelProtocol, ModelRegistry, ModelRegistryOptions, ModelSpec, ProviderConfig, ProviderKind, ProviderPresetInfo } from './models/registry.ts'
+export { createModelRegistry, MODEL_PROTOCOLS, ModelConfigError, resolveModel, THINKING_LEVELS } from './models/registry.ts'
+export type { ModelProtocol, ModelRegistry, ModelRegistryOptions, ModelSpec, ProviderConfig, ThinkingLevel, ThinkingLevelSpec } from './models/registry.ts'
 
 // Tools
 export { createToolRegistry, ToolRegistrationError } from './tools/registry.ts'

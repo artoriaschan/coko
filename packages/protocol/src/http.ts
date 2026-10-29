@@ -87,24 +87,70 @@ export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
 // ---- Providers ----
 
-/** 与 @coko/agent 的 PROVIDER_KINDS 一致（apps/server/src/application/providers.ts 中有编译期断言）；ModelProtocol 同理。 */
-export const ProviderKind = Type.Union([Type.Literal('deepseek'), Type.Literal('openai'), Type.Literal('anthropic'), Type.Literal('openai-compatible')])
-export type ProviderKind = Static<typeof ProviderKind>
+/** Provider ID 由用户输入并作为主键：小写字母开头，后接小写字母、数字或连字符，总长 1–64；创建后不可修改。 */
+export const PROVIDER_ID_PATTERN = '^[a-z][a-z0-9-]{0,63}$'
+export const ProviderId = Type.String({ pattern: PROVIDER_ID_PATTERN })
 
+/** Provider 保存的协议；与 @coko/agent 的 MODEL_PROTOCOLS 一致（apps/server/src/application/providers.ts 中有编译期断言）。 */
 export const ModelProtocol = Type.Union([Type.Literal('openai-completions'), Type.Literal('openai-responses'), Type.Literal('anthropic-messages')])
 export type ModelProtocol = Static<typeof ModelProtocol>
+
+/** 除 off 外的六档，按固定顺序。 */
+const ReasoningLevel = Type.Union([
+  Type.Literal('minimal'),
+  Type.Literal('low'),
+  Type.Literal('medium'),
+  Type.Literal('high'),
+  Type.Literal('xhigh'),
+  Type.Literal('max'),
+])
+
+/** 七档 Thinking Level：off 与其后六档，顺序固定；与 @coko/agent 的 THINKING_LEVELS 一致（同上，编译期断言）。 */
+export const ThinkingLevel = Type.Union([Type.Literal('off'), ...ReasoningLevel.anyOf])
+export type ThinkingLevel = Static<typeof ThinkingLevel>
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ThinkingLevel.anyOf.map((literal) => literal.const)
+
+/** 一个已配置的档位：off 没有参数（按协议的默认关闭方式请求）；其余档位发送 value。 */
+export const ThinkingLevelConfig = Type.Union([
+  Type.Object({ level: Type.Literal('off') }, strict),
+  Type.Object({ level: ReasoningLevel, value: Type.String({ minLength: 1 }) }, strict),
+])
+export type ThinkingLevelConfig = Static<typeof ThinkingLevelConfig>
+
+/** 未填写容量时界面使用的默认值（token）。 */
+export const MODEL_CATALOG_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_000 } as const
+
+const TokenCount = Type.Integer({ minimum: 1 })
+
+/**
+ * Model Catalog 中的一个模型。name 为空表示显示模型 ID。thinkingLevels 按用户添加的顺序保存；reasoning 关闭时档位仍保存，
+ * 但请求不使用它们。同一目录内模型 ID 不重复、maxTokens 不超过 contextWindow、档位不重复由 sidecar 校验（400）。
+ */
+export const CatalogModel = Type.Object(
+  {
+    id: Id,
+    name: Type.String(),
+    contextWindow: TokenCount,
+    maxTokens: TokenCount,
+    input: Type.Array(Type.Union([Type.Literal('text'), Type.Literal('image')]), { minItems: 1, uniqueItems: true }),
+    reasoning: Type.Boolean(),
+    thinkingLevels: Type.Array(ThinkingLevelConfig),
+  },
+  strict,
+)
+export type CatalogModel = Static<typeof CatalogModel>
+
+const Catalog = Type.Array(CatalogModel, { minItems: 1 })
 
 /** Provider 配置；不含密钥，只给出是否已配置与末四位。 */
 export const Provider = Type.Object(
   {
-    id: Id,
+    id: ProviderId,
     name: Type.String(),
-    kind: ProviderKind,
-    /** 由 kind 决定。 */
     api: ModelProtocol,
-    /** 为空字符串时使用预设地址。 */
+    /** http 或 https URL。 */
     baseUrl: Type.String(),
-    models: Type.Array(Type.String()),
+    models: Type.Array(CatalogModel),
     credential: Type.Union([Type.Object({ hint: Type.String() }, strict), Type.Null()]),
     createdAt: Timestamp,
     updatedAt: Timestamp,
@@ -116,37 +162,30 @@ export type Provider = Static<typeof Provider>
 export const ProviderListResponse = Type.Object({ providers: Type.Array(Provider) }, strict)
 export type ProviderListResponse = Static<typeof ProviderListResponse>
 
-/** openai-compatible 必须给 baseUrl；预设 kind 省略 baseUrl 时使用预设地址。 */
+/** ID 与已有 Provider 重复时 409 already-exists；地址不是 http(s) URL 或目录不合规则时 400。 */
 export const CreateProviderRequest = Type.Object(
   {
+    id: ProviderId,
     name: Type.String({ minLength: 1 }),
-    kind: ProviderKind,
-    baseUrl: Type.Optional(Type.String()),
-    models: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+    api: ModelProtocol,
+    baseUrl: Type.String({ minLength: 1 }),
+    models: Catalog,
   },
   strict,
 )
 export type CreateProviderRequest = Static<typeof CreateProviderRequest>
 
+/** ID 不可修改；省略的字段保持不变。 */
 export const UpdateProviderRequest = Type.Object(
   {
     name: Type.Optional(Type.String({ minLength: 1 })),
-    baseUrl: Type.Optional(Type.String()),
-    models: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })),
+    api: Type.Optional(ModelProtocol),
+    baseUrl: Type.Optional(Type.String({ minLength: 1 })),
+    models: Type.Optional(Catalog),
   },
   strict,
 )
 export type UpdateProviderRequest = Static<typeof UpdateProviderRequest>
-
-/** 预设 kind 的默认地址与目录中的模型 id；openai-compatible 没有目录，不在其中。 */
-export const ProviderPreset = Type.Object(
-  { kind: ProviderKind, name: Type.String(), baseUrl: Type.String(), models: Type.Array(Type.String({ minLength: 1 })) },
-  strict,
-)
-export type ProviderPreset = Static<typeof ProviderPreset>
-
-export const ProviderPresetsResponse = Type.Object({ presets: Type.Array(ProviderPreset) }, strict)
-export type ProviderPresetsResponse = Static<typeof ProviderPresetsResponse>
 
 // ---- Models ----
 

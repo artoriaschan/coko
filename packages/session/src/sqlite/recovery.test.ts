@@ -86,8 +86,7 @@ describe('SQLite 迁移 v3', () => {
     v2.close()
 
     const store = await open(path)
-    expect(SQLITE_SCHEMA_VERSION).toBe(3)
-    expect(store.migration).toMatchObject({ from: 2, to: 3 })
+    expect(store.migration).toMatchObject({ from: 2, to: SQLITE_SCHEMA_VERSION })
     const backup = store.migration.backupPath!
     expect(backup).toMatch(/coko\.db\.backup-v2-/)
     expect((await stat(backup)).mode & 0o777).toBe(0o600)
