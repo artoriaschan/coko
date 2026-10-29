@@ -10,6 +10,7 @@ import {
   type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
+import { DEFAULT_MODEL_SETTING, SessionModel as SessionModelSchema } from '@coko/protocol'
 import type {
   AvailableModel,
   CatalogModel,
@@ -22,6 +23,7 @@ import type {
   SidecarToMainMessage,
   ThinkingLevel,
 } from '@coko/protocol'
+import { Value } from 'typebox/value'
 import {
   isStoreError,
   type CredentialRecord,
@@ -149,13 +151,17 @@ export class ProviderService {
 
   /**
    * 删除 Provider 与其 Credential，并清除 sidecar 内存中的明文缓存。引用它的 Session 模型字段在同一事务中清空（下次运行前要求
-   * 重新选择模型），默认模型设置指向它时改为 null（回退为第一个可用模型）；以后用相同 ID 重新创建也不会接回。
+   * 重新选择模型）；默认模型设置指向它时在同一事务中改为 null，默认模型因此回退为第一个可用模型（SessionService.defaultModel），
+   * 以后用相同 ID 重新创建也不会接回。
    */
   async delete(id: string): Promise<void> {
-    const cleared = await storeCall(id, () => this.#options.store.providers.delete(id))
+    const pointsHere = (value: unknown) => Value.Check(SessionModelSchema, value) && value.providerId === id
+    const deleted = await storeCall(id, () =>
+      this.#options.store.providers.delete(id, { settings: [{ key: DEFAULT_MODEL_SETTING, when: pointsHere, value: null }] }),
+    )
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
-    log.info('provider deleted', { providerId: id, sessionsCleared: cleared.sessions })
+    log.info('provider deleted', { providerId: id, sessionsCleared: deleted.sessions, defaultModelCleared: deleted.settings.includes(DEFAULT_MODEL_SETTING) })
   }
 }
 

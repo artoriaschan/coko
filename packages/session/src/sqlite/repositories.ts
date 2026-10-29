@@ -1,17 +1,6 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
-import {
-  alreadyExists,
-  DEFAULT_MODEL_KEY,
-  defaultWorkspaceName,
-  levelOf,
-  parseLevel,
-  modelPointsTo,
-  notFound,
-  revisionConflict,
-  upgradeEntries,
-  type StoredEntry,
-} from '../internal.ts'
+import { alreadyExists, defaultWorkspaceName, levelOf, notFound, parseLevel, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
@@ -364,17 +353,28 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           return { sessions: conn.get<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE model_provider_id = ?', id)!.n }
         }),
       ),
-    delete: (id) =>
+    delete: (id, options) =>
       later(() =>
         conn.write(() => {
           requireProvider(id)
           // provider_credentials 随 ON DELETE CASCADE 删除。
           conn.run('DELETE FROM providers WHERE id = ?', id)
           const sessions = conn.run("UPDATE sessions SET model_provider_id = NULL, model_id = NULL, thinking_level = 'off' WHERE model_provider_id = ?", id)
-          const setting = conn.get<SettingRow>('SELECT key, value, revision, updated_at FROM settings WHERE key = ?', DEFAULT_MODEL_KEY)
-          if (setting && modelPointsTo(JSON.parse(setting.value), id))
-            conn.run('UPDATE settings SET value = ?, revision = ?, updated_at = ? WHERE key = ?', 'null', setting.revision + 1, conn.now(), DEFAULT_MODEL_KEY)
-          return { sessions }
+          // 设置的改写由调用方给出；条件在本事务中求值，抛出时整个删除回滚。
+          const rewritten: string[] = []
+          for (const rewrite of options?.settings ?? []) {
+            const row = conn.get<SettingRow>('SELECT key, value, revision, updated_at FROM settings WHERE key = ?', rewrite.key)
+            if (!row || !rewrite.when(JSON.parse(row.value) as JsonValue)) continue
+            conn.run(
+              'UPDATE settings SET value = ?, revision = ?, updated_at = ? WHERE key = ?',
+              JSON.stringify(rewrite.value),
+              row.revision + 1,
+              conn.now(),
+              rewrite.key,
+            )
+            rewritten.push(rewrite.key)
+          }
+          return { sessions, settings: rewritten }
         }),
       ),
     setCredential: (id, credential) =>

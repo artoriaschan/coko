@@ -131,6 +131,21 @@ export interface ProviderReferences {
   sessions: number
 }
 
+/**
+ * 删除 Provider 时在同一事务中改写的一项设置：键存在且 when(当前值) 为 true 时写入 value（revision 加 1）。设置的业务含义由
+ * 调用方定义；when 在事务中同步调用，抛出时整个删除回滚。
+ */
+export interface SettingRewrite {
+  key: string
+  when: (value: JsonValue) => boolean
+  value: JsonValue
+}
+
+export interface ProviderDeleted extends ProviderReferences {
+  /** 被改写的设置键。 */
+  settings: string[]
+}
+
 export interface ProviderRepository {
   list(): Promise<Provider[]>
   get(id: string): Promise<Provider | undefined>
@@ -141,10 +156,10 @@ export interface ProviderRepository {
   /** 引用该 Provider 的 Session 数量（删除前的确认用）；不存在时 not-found。 */
   references(id: string): Promise<ProviderReferences>
   /**
-   * 在一个事务中删除 Provider 与其 Credential 密文，清空引用它的 Session 的模型字段（档位回到 off，不改 updatedAt），
-   * 默认模型设置指向它时改为 null。以后用相同 ID 重新创建，这些引用也不会恢复。返回被清空的 Session 数量。
+   * 在一个事务中删除 Provider 与其 Credential 密文，清空引用它的 Session 的模型字段（档位回到 off，不改 updatedAt），并按
+   * options.settings 改写设置。以后用相同 ID 重新创建，这些引用也不会恢复。返回被清空的 Session 数量与被改写的设置键。
    */
-  delete(id: string): Promise<ProviderReferences>
+  delete(id: string, options?: { settings?: readonly SettingRewrite[] }): Promise<ProviderDeleted>
   /** 保存 main 加密后的密文与提示；明文不经过 session。 */
   setCredential(id: string, credential: CredentialRecord): Promise<Provider>
   clearCredential(id: string): Promise<Provider>

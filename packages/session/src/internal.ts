@@ -62,13 +62,6 @@ export function checkMemoryScope(input: { scope: string; workspaceId?: string | 
   return workspaceId
 }
 
-/** 默认模型的设置键（与 @coko/protocol 的 DEFAULT_MODEL_SETTING 相同）；删除 Provider 时清除指向它的值。 */
-export const DEFAULT_MODEL_KEY = 'defaultModel'
-
-/** 设置值是否为指向该 Provider 的 Session 模型。 */
-export const modelPointsTo = (value: unknown, providerId: string): boolean =>
-  typeof value === 'object' && value !== null && (value as { providerId?: unknown }).providerId === providerId
-
 export function closedError(): StoreError {
   return new StoreError('closed', 'session store is closed')
 }

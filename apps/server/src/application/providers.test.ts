@@ -131,6 +131,29 @@ describe('ProviderService：自定义 Provider', () => {
   })
 })
 
+describe('删除 Provider', () => {
+  it('默认模型指向它时在同一事务中改为 null：用相同 ID 重新创建也不会重新成为默认；指向别的 Provider 或不是模型时不变', async () => {
+    const { store, service, registry, invalidated } = setup()
+    await service.save('create', request(), credential([1], 'aaaa'))
+    await service.save('create', request({ id: 'custom-provider-2' }))
+    await store.settings.set('defaultModel', { providerId: 'custom-provider-1', modelId: 'custom-model-1' }, 0)
+    await service.delete('custom-provider-1')
+    expect(await store.settings.get('defaultModel')).toMatchObject({ value: null, revision: 2 })
+    expect(registry.models.getProviders().map((p) => p.id)).toEqual(['custom-provider-2'])
+    expect(invalidated).toContain('custom-provider-1')
+    await service.save('create', request())
+    expect((await store.settings.get('defaultModel'))?.value).toBeNull()
+
+    await store.settings.set('defaultModel', { providerId: 'custom-provider-2', modelId: 'custom-model-1' }, 2)
+    await service.delete('custom-provider-1')
+    expect(await store.settings.get('defaultModel')).toMatchObject({ value: { providerId: 'custom-provider-2' }, revision: 3 })
+    await store.settings.set('defaultModel', 'custom-provider-2', 3)
+    await service.delete('custom-provider-2')
+    expect(await store.settings.get('defaultModel')).toMatchObject({ value: 'custom-provider-2', revision: 4 })
+    await expect(service.delete('custom-provider-2')).rejects.toMatchObject({ code: 'not-found' })
+  })
+})
+
 describe('provider.save 控制消息', () => {
   /** 假控制通道：注入 main 的消息，记录 Sidecar 的回答。 */
   function channel() {

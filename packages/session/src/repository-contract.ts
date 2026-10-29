@@ -242,7 +242,7 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(providers.clearCredential(p.id), 'not-found')
     })
 
-    it('删除 Provider：同一事务删除 Credential、清空引用它的 Session 模型字段（档位回到 off，不改 updatedAt）与指向它的默认模型', async () => {
+    it('删除 Provider：同一事务删除 Credential、清空引用它的 Session 模型字段（档位回到 off，不改 updatedAt），并按调用方的条件改写设置', async () => {
       const { providers, sessions, settings } = await open()
       const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
       await providers.create(input, { ciphertext: new Uint8Array([1, 2]), hint: 'ab12' })
@@ -252,20 +252,27 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       const b = await sessions.createSession({ workspaceId: w.id, model: { providerId: 'custom-provider-1', modelId: 'm' } })
       const other = await sessions.createSession({ workspaceId: w.id, model: { providerId: 'custom-provider-2', modelId: 'm' } })
       const empty = await sessions.createSession({ workspaceId: w.id })
-      await settings.set('defaultModel', { providerId: 'custom-provider-1', modelId: 'm' }, 0)
+      // 设置的业务含义由调用方给出：这里用任意键与条件，session 只在同一事务中按条件改写。
+      await settings.set('pinned', { provider: 'custom-provider-1' }, 0)
+      await settings.set('untouched', 'custom-provider-1', 0)
       expect(await providers.references('custom-provider-1')).toEqual({ sessions: 2 })
       expect(await providers.references('custom-provider-2')).toEqual({ sessions: 1 })
       await expectStoreError(providers.references('missing'), 'not-found')
 
       tick()
-      expect(await providers.delete('custom-provider-1')).toEqual({ sessions: 2 })
+      const pointsHere = (value: unknown) => (value as { provider?: unknown } | null)?.provider === 'custom-provider-1'
+      expect(await providers.delete('custom-provider-1', { settings: [{ key: 'pinned', when: pointsHere, value: null }] })).toEqual({
+        sessions: 2,
+        settings: ['pinned'],
+      })
       expect(await providers.getCredentialCiphertext('custom-provider-1')).toBeUndefined()
       expect(await sessions.getSession(a.id)).toEqual({ ...a, model: null, thinkingLevel: 'off' })
       expect(await sessions.getSession(b.id)).toEqual({ ...b, model: null })
       expect(await sessions.getSession(other.id)).toEqual(other)
       expect(await sessions.getSession(empty.id)).toEqual(empty)
-      // 默认模型改为 null（revision 递增），以后用相同 ID 重新创建也不会被重新指向。
-      expect(await settings.get('defaultModel')).toEqual({ key: 'defaultModel', value: null, revision: 2, updatedAt: 1_010 })
+      // 条件成立的设置改写（revision 递增）；未列出的设置不变。
+      expect(await settings.get('pinned')).toEqual({ key: 'pinned', value: null, revision: 2, updatedAt: 1_010 })
+      expect(await settings.get('untouched')).toMatchObject({ value: 'custom-provider-1', revision: 1 })
 
       // 重新创建相同 ID：原 Session 不会接到新 Provider 上。
       await providers.create(input)
@@ -273,11 +280,35 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect((await sessions.getSession(a.id))?.model).toBeNull()
       expect(await providers.getCredentialCiphertext('custom-provider-1')).toBeUndefined()
 
-      // 默认模型指向别的 Provider 时不变。
-      await settings.set('defaultModel', { providerId: 'custom-provider-2', modelId: 'm' }, 2)
-      expect(await providers.delete('custom-provider-1')).toEqual({ sessions: 0 })
-      expect(await settings.get('defaultModel')).toMatchObject({ value: { providerId: 'custom-provider-2', modelId: 'm' }, revision: 3 })
+      // 条件不成立或设置不存在时不改写；不带 settings 时只删除 Provider。
+      await settings.set('pinned', { provider: 'custom-provider-2' }, 2)
+      const update = [
+        { key: 'pinned', when: pointsHere, value: null },
+        { key: 'missing', when: () => true, value: 1 },
+      ]
+      expect(await providers.delete('custom-provider-1', { settings: update })).toEqual({ sessions: 0, settings: [] })
+      expect(await settings.get('pinned')).toMatchObject({ value: { provider: 'custom-provider-2' }, revision: 3 })
+      expect(await settings.get('missing')).toBeUndefined()
+      await providers.create(input)
+      expect(await providers.delete('custom-provider-1')).toEqual({ sessions: 0, settings: [] })
       await expectStoreError(providers.delete('custom-provider-1'), 'not-found')
+    })
+
+    it('删除 Provider 时设置改写的条件抛出：整个删除回滚，Provider、Credential、Session 与设置都不变', async () => {
+      const { providers, sessions, settings } = await open()
+      const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
+      const created = await providers.create(input, { ciphertext: new Uint8Array([1, 2]), hint: 'ab12' })
+      const w = await sessions.registerWorkspace({ path: '/work/alpha' })
+      const a = await sessions.createSession({ workspaceId: w.id, model: { providerId: 'custom-provider-1', modelId: 'm' } })
+      await settings.set('pinned', 'x', 0)
+      const boom = () => {
+        throw new Error('condition failed')
+      }
+      await expect(providers.delete('custom-provider-1', { settings: [{ key: 'pinned', when: boom, value: null }] })).rejects.toThrow('condition failed')
+      expect(await providers.get('custom-provider-1')).toEqual(created)
+      expect(Array.from((await providers.getCredentialCiphertext('custom-provider-1')) ?? [])).toEqual([1, 2])
+      expect(await sessions.getSession(a.id)).toEqual(a)
+      expect(await settings.get('pinned')).toMatchObject({ value: 'x', revision: 1 })
     })
 
     it('Provider ID 由调用方给出；与已有 Provider 重复时以 already-exists 拒绝，已有记录与 Credential 不变', async () => {
