@@ -1,4 +1,4 @@
-import type { ApprovalDecisionPayload, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
+import type { ApprovalDecisionPayload, ApprovalRequestPayload, CommandPayload, SessionEntry } from '@coko/protocol'
 import { rewoundRanges } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
@@ -25,8 +25,11 @@ export interface ToolApproval {
 export type ToolItemStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
 
 export type TimelineItem =
-  /** seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。 */
-  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean }
+  /**
+   * seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。
+   * command：这条消息由命令展开而来（text 为展开后的全文），invocation 为原始调用 "/name 参数"（回退时放回输入区）。
+   */
+  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean; command?: CommandPayload; invocation?: string }
   /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
   | { kind: 'rewound'; key: string; items: TimelineItem[] }
   | { kind: 'text'; key: string; text: string; streaming: boolean }
@@ -89,6 +92,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   let lastRunId: string | null = null
+  // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
+  let pendingCommand: CommandPayload | null = null
   const ranges = rewoundRanges(conversation.entries)
 
   /**
@@ -125,6 +130,11 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
 
   const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
     if (entry.runId) lastRunId = entry.runId
+    if (entry.kind === 'run_start') pendingCommand = null
+    if (entry.kind === 'command') {
+      pendingCommand = entry.payload
+      return
+    }
     if (entry.kind === 'run_end') {
       const payload = entry.payload
       // 未结束的工具在 Run 结束后不会再有结果。
@@ -156,7 +166,16 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (entry.kind !== 'message') return
     const message = entry.payload
     if (message.role === 'user') {
-      items.push({ kind: 'user', key: `${entry.seq}`, text: contentText(message.content), seq: entry.seq, checkpoint: !hidden })
+      const command = pendingCommand
+      pendingCommand = null
+      items.push({
+        kind: 'user',
+        key: `${entry.seq}`,
+        text: contentText(message.content),
+        seq: entry.seq,
+        checkpoint: !hidden,
+        ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),
+      })
     } else if (message.role === 'assistant') {
       blocksOf(message.content).forEach((block, index) => {
         const key = `${entry.seq}:${index}`

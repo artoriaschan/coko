@@ -46,3 +46,33 @@ describe('时间线：回退折叠', () => {
     expect(shape(buildTimeline(conversation(entries)))).toEqual([['user:one', 'text:a1', ['user:two'], 'user:three'], ['user:four'], 'user:five*'])
   })
 })
+
+describe('时间线：命令消息', () => {
+  const command = (name: string, args: string, source = 'project') => entry('command', { name, args, source }, 'r')
+
+  it('command 条目附到紧随其后的用户消息：显示命令名与参数，全文为展开文本；回退目标文本为原始调用', () => {
+    seq = 0
+    const entries = [entry('run_start', { trigger: 'submit' }, 'r'), command('review', 'src'), user('Review src carefully.'), reply('ok'), user('plain')]
+    const items = buildTimeline(conversation(entries))
+    expect(items.filter((i) => i.kind === 'user')).toEqual([
+      expect.objectContaining({ text: 'Review src carefully.', command: { name: 'review', args: 'src', source: 'project' }, invocation: '/review src' }),
+      expect.not.objectContaining({ command: expect.anything() }),
+    ])
+    expect(items.map((i) => i.kind)).toEqual(['user', 'text', 'user'])
+  })
+
+  it('没有参数的命令调用文本只有名字；command 不跨越 Run 附到下一条消息', () => {
+    seq = 0
+    const entries = [
+      command('compact-notes', ''),
+      user('Expanded'),
+      entry('run_start', { trigger: 'submit' }, 'r2'),
+      command('orphan', ''),
+      entry('run_start', { trigger: 'submit' }, 'r3'),
+      user('next'),
+    ]
+    const users = buildTimeline(conversation(entries)).filter((i) => i.kind === 'user')
+    expect(users[0]).toMatchObject({ invocation: '/compact-notes', command: { name: 'compact-notes' } })
+    expect(users[1]).not.toHaveProperty('command')
+  })
+})

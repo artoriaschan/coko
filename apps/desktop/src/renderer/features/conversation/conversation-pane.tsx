@@ -103,6 +103,11 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const rewindTarget = rewindRequest?.open === true && rewindRequest.sessionId === activeSessionId ? rewindRequest : null
   const rewound = React.useRef(false)
   const actionsDisabled = running || takenOver
+  // / 命令菜单的作用域；对象随 id 变化才重建。
+  const commandTarget = React.useMemo(
+    () => (activeSessionId !== null ? { sessionId: activeSessionId } : draftWorkspaceId !== null ? { workspaceId: draftWorkspaceId } : undefined),
+    [activeSessionId, draftWorkspaceId],
+  )
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
   const composer = React.useRef<ComposerHandle | null>(null)
@@ -265,6 +270,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               className={`${composerColumn} flex flex-wrap items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
               running={running}
               disabled={activeSessionId === null && draftWorkspaceId === null}
+              commandTarget={commandTarget}
               needsSetup={needsSetup}
               onSend={send}
               onSteer={steer}

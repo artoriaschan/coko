@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { ChevronRightIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, Undo2Icon } from 'lucide-react'
+import { ChevronRightIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
@@ -64,9 +64,37 @@ export function TimelineView(props: TimelineViewProps) {
                 tabIndex={actions ? 0 : undefined}
                 className="group ms-auto flex w-fit max-w-[85%] flex-col items-end gap-1 rounded-xl focus-ring"
               >
-                <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
-                  {item.text}
-                </p>
+                {item.command ? (
+                  // 命令消息：显示命令名与参数，可展开看展开后的全文。
+                  <details data-slot="command-message" data-command={item.command.name} className="group/command flex flex-col items-end">
+                    <summary
+                      aria-label={t('commands.chipLabel', { name: `/${item.command.name}` })}
+                      className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
+                    >
+                      <SquareSlashIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="font-medium">/{item.command.name}</span>
+                      {item.command.args !== '' && (
+                        <span data-user-content className="min-w-0 break-words whitespace-pre-wrap">
+                          {item.command.args}
+                        </span>
+                      )}
+                      <ChevronRightIcon
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground transition-transform group-open/command:rotate-90 motion-reduce:transition-none"
+                      />
+                    </summary>
+                    <div className="mt-1 rounded-xl border-hairline border-border px-4 py-2.5">
+                      <p className="mb-1 text-ui-small text-muted-foreground">{t('commands.showExpanded')}</p>
+                      <p data-user-content data-slot="command-expanded" className="text-ui-body break-words whitespace-pre-wrap">
+                        {item.text}
+                      </p>
+                    </div>
+                  </details>
+                ) : (
+                  <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
+                    {item.text}
+                  </p>
+                )}
                 {actions && (
                   <div
                     role="group"
@@ -79,7 +107,8 @@ export function TimelineView(props: TimelineViewProps) {
                         label={t('conversation.rewindHere')}
                         action="rewind"
                         disabled={actionsDisabled}
-                        onClick={() => onRewind(item.seq, item.text)}
+                        // 命令消息回退时放回原始调用，而不是展开后的全文。
+                        onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
                       >
                         <Undo2Icon />
                       </MessageAction>

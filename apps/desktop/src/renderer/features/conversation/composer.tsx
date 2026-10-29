@@ -2,6 +2,8 @@ import { Button, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type C
 import { ArrowUpIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import type { CommandTarget } from '../../stores/commands-store.ts'
+import { CommandMenu } from './command-menu.tsx'
 
 export interface ComposerProps {
   running: boolean
@@ -23,6 +25,8 @@ export interface ComposerProps {
   /** 焦点在编辑区时 Shift+Tab：切换到下一档 Permission Mode（不移动焦点）。 */
   onCycleMode?: () => void
   className?: string
+  /** 命令目录的作用域（当前会话或 Workspace 草稿）：草稿开头输入 / 时显示命令菜单。省略时没有命令菜单。 */
+  commandTarget?: CommandTarget | undefined
   /** 外部聚焦编辑区（⌘N 新建会话后）或放回文本（退回的追加指令）。 */
   ref?: React.Ref<ComposerHandle>
 }
@@ -50,6 +54,7 @@ export function Composer({
   accessory,
   onCycleMode,
   className,
+  commandTarget,
   ref,
 }: ComposerProps) {
   const { t } = useI18n()
@@ -105,7 +110,9 @@ export function Composer({
         }
         onEscape={running ? onStop : undefined}
         onEmptyChange={setEmpty}
-      />
+      >
+        {commandTarget && <CommandMenu target={commandTarget} />}
+      </ComposerEditor>
       {accessory}
       {setup ? (
         <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">

@@ -1,2 +1,10 @@
-// 命令（提示模板）的发现、parseCommandArgs、substituteArgs、注册表与内置列表：票 04 在此实现并导出（票 01 建立空 barrel）。
-export {}
+// 命令（提示模板）的发现、parseCommandArgs、substituteArgs、注册表与内置列表（票 04）。
+export { COMMAND_NAME_SEGMENT, parseCommandArgs, parseCommandInvocation, substituteArgs } from './args.ts'
+export type { CommandInvocation } from './args.ts'
+export { BUILTIN_COMMANDS } from './builtin.ts'
+export { createCommandTemplateLoader } from './loader.ts'
+export type { CommandTemplateLoader } from './loader.ts'
+export { createCommandRegistry } from './registry.ts'
+export type { CommandRegistry, CommandsConfig, RegisteredCommand } from './registry.ts'
+export { COMMAND_SOURCE_ORDER } from './types.ts'
+export type { BuiltinCommand, CommandDefinition, CommandTemplate } from './types.ts'
