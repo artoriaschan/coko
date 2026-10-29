@@ -32,7 +32,7 @@ import {
   type McpTransportHandle,
   type ResourceDiagnostic,
 } from '@coko/agent'
-import { getLogger, redactSecretValues } from '@coko/logging'
+import { getLogger } from '@coko/logging'
 import {
   MCP_SERVERS_SETTING,
   mcpApprovalsSettingKey,
@@ -56,7 +56,7 @@ export interface McpManagerOptions {
   store: SessionStore
   /** 有效能力配置（mcp.enabled，含项目 .coko/settings.json 的收紧）。 */
   config: { effective(workspacePath?: string): Promise<CapabilityConfig> }
-  secrets: Pick<SecretService, 'resolve' | 'redact' | 'onChange'>
+  secrets: Pick<SecretService, 'resolve' | 'redact' | 'redactValues' | 'onChange'>
   /** 建立传输（adapters/mcp.ts）；config 中的 ${NAME} 已展开。 */
   createTransport: (config: McpServerConfig, options: { cwd: string }) => McpTransportHandle
   /** 测试覆盖（缺省 30 秒、1/2/4 秒）。 */
@@ -352,7 +352,7 @@ export class McpManager {
           const result = await getMcpPrompt(pooled.connection, prompt.name, mapped.arguments, { timeoutMs: timeoutMsOf(pooled.entry.config) })
           this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [])
           // 展开文本进入 user message 条目：先替换已登记 Secret 的明文（与工具结果相同，ADR 0007）。
-          return redactSecretValues(promptMessagesToText(result.messages))
+          return this.#options.secrets.redactValues(promptMessagesToText(result.messages))
         } catch (error) {
           if (error instanceof McpResultError) {
             this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [error.diagnostic])

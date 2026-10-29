@@ -1,7 +1,7 @@
 // 登记的 Secret（ADR 0007）：列表与删除（/api/secrets）、经控制 IPC secret.store 登记、按名字解析（MCP 配置的 ${NAME} 与工具声明的
 // Secrets），以及按已解密的值脱敏（MCP 的 stderr 与诊断）。值不经过 HTTP，也不写日志。
 import type { SecretProvider } from '@coko/agent'
-import { getLogger, redactText, registerSecretValues } from '@coko/logging'
+import { getLogger, redactSecretValues, redactText, registerSecretValues } from '@coko/logging'
 import { SECRET_NAME_PATTERN, type SecretsResponse } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import type { SecretSource } from '../adapters/credentials.ts'
@@ -65,9 +65,16 @@ export class SecretService {
     return this.#source.get(name)
   }
 
-  /** 把已解密的 Secret 值替换为标记，再按凭据形态脱敏（与 @coko/logging 的 redactText 相同）。 */
+  /**
+   * 注入接缝（MCP 的 stderr、诊断与错误文本经它脱敏，测试可替换）：按值替换已登记的明文，再按凭据形态脱敏（@coko/logging 的 redactText）。
+   */
   redact(text: string): string {
     return redactText(text)
+  }
+
+  /** 只按值替换已登记的明文，不应用凭据形态规则（工具结果、提示模板展开等须保持原样的文本）。 */
+  redactValues(text: string): string {
+    return redactSecretValues(text)
   }
 
   /** 注销进程级脱敏来源（测试；Sidecar 进程内只有一个实例）。 */
