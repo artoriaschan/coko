@@ -103,4 +103,45 @@ describe('SidecarSupervisor', () => {
     for (const pid of pids) expect(processExists(pid)).toBe(false)
     expect(supervisor.endpoint).toBeUndefined()
   })
+
+  it('stop 发生在 cookie 交换途中：先中止交换并等它结束，再停止进程', async () => {
+    const fixture = await createFixtureDir()
+    cleanups.push(fixture.dispose)
+    const order: string[] = []
+    let exchangeStarted!: () => void
+    const started = new Promise<void>((resolve) => (exchangeStarted = resolve))
+    const supervisor = new SidecarSupervisor({
+      create: () => {
+        const sidecar = new SidecarProcess({
+          execPath: electronPath,
+          entry: placeholderSidecarEntry,
+          env: { ...process.env, COKO_FIXTURE_MODE: 'normal', COKO_FIXTURE_EVENTS: fixture.eventsPath },
+          timeouts: { readyMs: 15_000, shutdownMs: 1_000, terminateMs: 1_000, killMs: 2_000 },
+        })
+        const stop = sidecar.stop.bind(sidecar)
+        sidecar.stop = () => {
+          order.push('process-stop')
+          return stop()
+        }
+        return sidecar
+      },
+      // 模拟一个只在收到中止信号后才结束的交换请求。
+      exchange: (_origin, _token, signal) =>
+        new Promise<string>((_resolve, reject) => {
+          exchangeStarted()
+          signal?.addEventListener('abort', () => {
+            order.push('exchange-aborted')
+            reject(signal.reason)
+          })
+        }),
+    })
+    cleanups.push(() => supervisor.stop())
+    const starting = supervisor.start()
+    await started
+    await supervisor.stop()
+    expect(order[0]).toBe('exchange-aborted')
+    expect(order).toContain('process-stop')
+    expect((await starting).phase).toBe('stopped')
+    for (const pid of await spawned(fixture.eventsPath)) expect(processExists(pid)).toBe(false)
+  })
 })

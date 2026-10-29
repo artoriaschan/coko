@@ -17,8 +17,8 @@ export type SupervisorState =
 export interface SupervisorOptions {
   /** 每次（重新）启动创建一个新的 SidecarProcess。 */
   readonly create: () => SidecarProcess
-  /** 用启动令牌交换会话 cookie（ADR 0002）。 */
-  readonly exchange: (origin: string, token: string) => Promise<string>
+  /** 用启动令牌交换会话 cookie（ADR 0002）。stop 时 signal 被中止，交换须随之结束。 */
+  readonly exchange: (origin: string, token: string, signal?: AbortSignal) => Promise<string>
   /** 一次崩溃后最多连续尝试的重启次数；默认 3。 */
   readonly maxRestarts?: number
   /** 第 n 次重启前的等待；用尽后取最后一档。默认 [250, 1000, 3000]。 */
@@ -40,6 +40,8 @@ export class SidecarSupervisor {
   #failures = 0
   #stopped = false
   #restarting: Promise<void> | undefined
+  /** 进行中的启动（spawn → ready → 交换）；stop 先中止它的交换请求并等它结束，再停止进程。 */
+  #launching: { readonly abort: AbortController; readonly done: Promise<unknown> } | undefined
   #startPromise: Promise<SupervisorState> | undefined
   readonly #stateListeners = new Set<(state: SupervisorState) => void>()
   readonly #exitListeners = new Set<(info: SidecarExitInfo & { diagnostic: string }) => void>()
@@ -97,7 +99,11 @@ export class SidecarSupervisor {
     this.#startPromise ??= (async () => {
       this.#set({ phase: 'starting' })
       const outcome = await this.#launch()
-      if (this.#stopped) return this.#state
+      if (this.#stopped) {
+        // 启动途中被 stop：返回最终的 stopped，而不是过时的 starting。
+        if (this.#state.phase !== 'stopped') this.#set({ phase: 'stopped' })
+        return this.#state
+      }
       if (outcome.ok) this.#set({ phase: 'ready', port: outcome.port })
       else this.#set({ phase: 'failed', reason: 'startup', error: outcome.error, diagnostic: outcome.diagnostic })
       return this.#state
@@ -109,6 +115,12 @@ export class SidecarSupervisor {
   async stop(): Promise<void> {
     this.#stopped = true
     this.#endpoint = undefined
+    // 交换请求在进行中时直接杀进程，undici 会在已关闭的 socket 上抛出无法捕获的 EINVAL。
+    const launching = this.#launching
+    if (launching) {
+      launching.abort.abort(new Error('Sidecar supervisor stopped'))
+      await launching.done.catch(() => undefined)
+    }
     await this.#process?.stop().catch(() => undefined)
     await this.#restarting
     await this.#process?.stop().catch(() => undefined)
@@ -120,7 +132,17 @@ export class SidecarSupervisor {
     for (const listener of this.#stateListeners) listener(state)
   }
 
-  async #launch(): Promise<{ ok: true; port: number } | { ok: false; error: SupervisorFailure; diagnostic: string }> {
+  #launch(): Promise<{ ok: true; port: number } | { ok: false; error: SupervisorFailure; diagnostic: string }> {
+    const abort = new AbortController()
+    const done = this.#launchWith(abort.signal)
+    const launching = { abort, done }
+    this.#launching = launching
+    return done.finally(() => {
+      if (this.#launching === launching) this.#launching = undefined
+    })
+  }
+
+  async #launchWith(signal: AbortSignal): Promise<{ ok: true; port: number } | { ok: false; error: SupervisorFailure; diagnostic: string }> {
     const sidecar = this.#options.create()
     this.#process = sidecar
     sidecar.onControlMessage((message) => {
@@ -130,7 +152,7 @@ export class SidecarSupervisor {
     try {
       const ready = await sidecar.start()
       const origin = `http://127.0.0.1:${ready.port}`
-      const cookie = await this.#options.exchange(origin, ready.token)
+      const cookie = await this.#options.exchange(origin, ready.token, signal)
       if (this.#stopped) {
         await sidecar.stop().catch(() => undefined)
         return { ok: false, error: { code: 'sidecar-stopped', message: 'Stopped during start' }, diagnostic: '' }
@@ -140,6 +162,7 @@ export class SidecarSupervisor {
       return { ok: true, port: ready.port }
     } catch (error) {
       await sidecar.stop().catch(() => undefined)
+      if (this.#stopped) return { ok: false, error: { code: 'sidecar-stopped', message: 'Stopped during start' }, diagnostic: '' }
       const failure: SupervisorFailure =
         error instanceof SidecarStartError ? { code: error.code, message: error.message } : { code: 'sidecar-auth', message: (error as Error).message }
       return { ok: false, error: failure, diagnostic: error instanceof SidecarStartError ? error.diagnostic : sidecar.stderrTail }
