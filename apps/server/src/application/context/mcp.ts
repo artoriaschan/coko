@@ -1,14 +1,25 @@
 // MCP（票 07；资源与提示模板为票 08）：McpManager 按 (Workspace, Server) 池化连接，Workspace 的第一个 Run 开始时并发连接（单个 30 秒超时，
 // 失败不阻止 Run，该 Server 的工具缺席），之后的 Run 复用；全局配置为设置键 mcp.servers，项目配置为 <Workspace>/.mcp.json（须按摘要批准，
 // 不能引用 Secret，同名被全局遮蔽，ADR 0007、0008）。配置、批准或 Secret 改变、Server 停用时关闭受影响的连接；有序关闭时在存储之前关闭全部连接。
+// 票 08：有已连接的 Server 声明 resources 时注册三个资源工具（权限类 context-read）；声明 prompts 的 Server 的提示模板以
+// /mcp__<server>__<prompt> 登记到命令目录（列表按连接缓存，prompts/list_changed 或重连后重新列出；列命令目录与提交消息时同样先连接）。
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  createMcpResourceTools,
+  DEFAULT_MCP_TIMEOUT_SECONDS,
   createMcpTools,
   createMcpToolName,
   diagnostic,
   expandSecretRefs,
+  getMcpPrompt,
+  listMcpPrompts,
+  mapPromptArguments,
   McpConnection,
+  McpResultError,
+  promptMessagesToText,
+  type CokoTool,
+  type McpPrompt,
   parseMcpServers,
   parseProjectMcpFile,
   secretRefsOf,
@@ -21,7 +32,7 @@ import {
   type McpTransportHandle,
   type ResourceDiagnostic,
 } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactSecretValues } from '@coko/logging'
 import {
   MCP_SERVERS_SETTING,
   mcpApprovalsSettingKey,
@@ -36,7 +47,8 @@ import {
 import type { JsonValue, SessionStore } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { SecretService } from '../secrets.ts'
-import type { ContextContribution, ContextContributionOptions } from './types.ts'
+import type { SourcedCommand } from './commands.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope } from './types.ts'
 
 const log = getLogger(['application', 'mcp'])
 
@@ -57,6 +69,10 @@ interface Pooled {
   workspaceId: string
   entry: McpServerEntry
   connection: McpConnection
+  /** prompts/list 的缓存：取得时连接的列表版本（listRevision('prompts')）。 */
+  prompts?: { revision: number; listing: Promise<McpPrompt[]> }
+  /** 最近一次列出或调用提示模板时的诊断（不合 schema、重复 cursor 等），按 code 去重。 */
+  runtimeDiagnostics: Map<string, ResourceDiagnostic>
 }
 
 interface Loaded {
@@ -71,6 +87,7 @@ interface Loaded {
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const keyOf = (workspaceId: string, name: string) => `${workspaceId}\0${name}`
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const timeoutMsOf = (config: McpServerConfig) => (config.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 
 function launchOf(config: McpServerConfig): McpLaunchDetails {
   if ('url' in config) return { url: config.url, headerNames: Object.keys(config.headers ?? {}) }
@@ -201,11 +218,15 @@ export class McpManager {
         return this.#options.createTransport(expanded.config, { cwd })
       },
     })
+    let lastStatus = connection.status
     connection.onChange(() => {
+      // onChange 也在工具或列表版本变化时触发；只在状态改变时记日志。
+      if (connection.status === lastStatus) return
+      lastStatus = connection.status
       if (connection.status === 'failed') log.warn('mcp server failed', { workspaceId, server: entry.name, error: connection.error ?? '' })
       else if (connection.status === 'connected') log.info('mcp server connected', { workspaceId, server: entry.name, tools: connection.tools.length })
     })
-    const pooled = { workspaceId, entry, connection }
+    const pooled: Pooled = { workspaceId, entry, connection, runtimeDiagnostics: new Map() }
     this.#pool.set(key, pooled)
     return pooled
   }
@@ -243,9 +264,115 @@ export class McpManager {
     return { tools, diagnostics: loaded.diagnostics }
   }
 
-  /** 配置诊断（上下文用量接口）；不连接。 */
+  /**
+   * 资源工具（权限类 context-read）：只在本 Run 开始时有已连接的 Server 声明 resources 时注册。调用时按池中当前连接查找，
+   * 只覆盖本 Run 加载的 Server。
+   */
+  async resourceToolsFor(scope: { workspaceId: string; cwd: string }): Promise<CokoTool[]> {
+    const loaded = await this.#load({ id: scope.workspaceId, path: scope.cwd })
+    if (!loaded.enabled) return []
+    const entries = loaded.entries.filter((entry) => this.#desired(entry, loaded))
+    const servers = () =>
+      entries.flatMap((entry) => {
+        const pooled = this.#pool.get(keyOf(scope.workspaceId, entry.name))
+        return pooled?.connection.status === 'connected' ? [{ connection: pooled.connection, timeoutMs: timeoutMsOf(entry.config) }] : []
+      })
+    if (!servers().some((s) => s.connection.capabilities?.resources)) return []
+    return createMcpResourceTools({ servers })
+  }
+
+  #recordDiagnostics(pooled: Pooled, kind: string, diagnostics: readonly ResourceDiagnostic[]): void {
+    for (const key of pooled.runtimeDiagnostics.keys()) if (key.startsWith(`${kind}:`)) pooled.runtimeDiagnostics.delete(key)
+    for (const d of diagnostics) {
+      pooled.runtimeDiagnostics.set(`${kind}:${d.code}`, d)
+      log.warn('mcp result diagnostic', { workspaceId: pooled.workspaceId, server: pooled.entry.name, code: d.code, message: d.message })
+    }
+  }
+
+  /** 已连接 Server 的提示模板（缓存到 prompts/list_changed 或重连）。列出失败只记 warn，返回空。 */
+  #prompts(pooled: Pooled): Promise<McpPrompt[]> {
+    const { connection } = pooled
+    const revision = connection.listRevision('prompts')
+    if (pooled.prompts?.revision === revision) return pooled.prompts.listing
+    const listing = listMcpPrompts(connection, { timeoutMs: timeoutMsOf(pooled.entry.config) }).then(
+      (listed) => {
+        this.#recordDiagnostics(pooled, 'prompts/list', listed.diagnostics)
+        return listed.items
+      },
+      (error: unknown) => {
+        log.warn('mcp prompts/list failed', { workspaceId: pooled.workspaceId, server: pooled.entry.name, error: message(error) })
+        // 失败不缓存：下一次重新请求。
+        if (pooled.prompts?.listing === listing) pooled.prompts = undefined
+        return [] as McpPrompt[]
+      },
+    )
+    pooled.prompts = { revision, listing }
+    return listing
+  }
+
+  /**
+   * 命令目录的 MCP 来源：该 Workspace 已连接、声明 prompts 的 Server 的提示模板，名字 /mcp__<server>__<prompt>。
+   * 与 Run 开始时一样先连接应当连接的 Server（失败的不重试）。
+   */
+  async promptCommands(scope: { workspaceId: string; cwd: string }): Promise<SourcedCommand[]> {
+    const loaded = await this.#load({ id: scope.workspaceId, path: scope.cwd })
+    await this.#reconcile(scope.workspaceId, loaded)
+    if (!loaded.enabled) return []
+    await this.#ensure(scope.workspaceId, scope.cwd, loaded)
+    const commands: SourcedCommand[] = []
+    for (const entry of loaded.entries) {
+      const pooled = this.#pool.get(keyOf(scope.workspaceId, entry.name))
+      if (pooled?.connection.status !== 'connected' || !pooled.connection.capabilities?.prompts) continue
+      const taken = new Set<string>()
+      for (const prompt of await this.#prompts(pooled)) {
+        const name = createMcpToolName(entry.name, prompt.name, (candidate) => taken.has(candidate))
+        taken.add(name)
+        commands.push(this.#promptCommand(scope.workspaceId, entry.name, name, prompt))
+      }
+    }
+    return commands
+  }
+
+  #promptCommand(workspaceId: string, server: string, name: string, prompt: McpPrompt): SourcedCommand {
+    const args = prompt.arguments ?? []
+    const argumentHint = args.map((a) => (a.required ? `<${a.name}>` : `[${a.name}]`)).join(' ')
+    return {
+      name,
+      description: prompt.description?.trim() || prompt.title || `MCP prompt ${prompt.name} from server ${server}`,
+      ...(argumentHint ? { argumentHint } : {}),
+      source: 'mcp',
+      expand: async (text: string) => {
+        const mapped = mapPromptArguments(prompt, text)
+        if (mapped.missing.length > 0)
+          throw new AppError('bad-request', `/${name} requires ${mapped.missing.join(', ')}`, { reason: 'missing-arguments', missing: mapped.missing })
+        const pooled = this.#pool.get(keyOf(workspaceId, server))
+        if (pooled?.connection.status !== 'connected') throw new AppError('bad-request', `MCP server ${server} is not connected`, { reason: 'not-connected' })
+        try {
+          const result = await getMcpPrompt(pooled.connection, prompt.name, mapped.arguments, { timeoutMs: timeoutMsOf(pooled.entry.config) })
+          this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [])
+          // 展开文本进入 user message 条目：先替换已登记 Secret 的明文（与工具结果相同，ADR 0007）。
+          return redactSecretValues(promptMessagesToText(result.messages))
+        } catch (error) {
+          if (error instanceof McpResultError) {
+            this.#recordDiagnostics(pooled, `prompts/get ${prompt.name}`, [error.diagnostic])
+            throw new AppError('bad-request', error.message, { reason: 'invalid-result' })
+          }
+          const reason = this.#options.secrets.redact(message(error))
+          log.warn('mcp prompts/get failed', { workspaceId, server, prompt: prompt.name, error: reason })
+          throw new AppError('bad-request', `MCP prompt ${prompt.name} from ${server} failed: ${reason}`, { reason: 'request-failed' })
+        }
+      },
+    }
+  }
+
+  /** 该 Workspace 各连接最近的结果诊断（提示模板列表与调用）。 */
+  #runtimeDiagnostics(workspaceId: string): ResourceDiagnostic[] {
+    return [...this.#pool.values()].filter((p) => p.workspaceId === workspaceId).flatMap((p) => [...p.runtimeDiagnostics.values()])
+  }
+
+  /** 配置诊断与结果诊断（上下文用量接口）；不连接。 */
   async diagnostics(scope: { workspaceId: string; cwd: string }): Promise<ResourceDiagnostic[]> {
-    return (await this.#load({ id: scope.workspaceId, path: scope.cwd })).diagnostics
+    return [...(await this.#load({ id: scope.workspaceId, path: scope.cwd })).diagnostics, ...this.#runtimeDiagnostics(scope.workspaceId)]
   }
 
   // ---- 接口 ----
@@ -291,7 +418,7 @@ export class McpManager {
       global: structuredClone(loaded.globalRaw) as McpResponse['global'],
       globalRevision: loaded.globalRevision,
       ...(loaded.project ? { project: loaded.project } : {}),
-      diagnostics: loaded.diagnostics,
+      diagnostics: workspace ? [...loaded.diagnostics, ...this.#runtimeDiagnostics(workspace.id)] : loaded.diagnostics,
     }
   }
 
@@ -363,8 +490,14 @@ export function mcpContribution(options: ContextContributionOptions): ContextCon
     name: 'mcp',
     async tools(scope) {
       const { tools } = await manager.toolsFor(scope)
-      return tools.map((tool) => ({ tool, permissionClass: 'external' as const }))
+      // toolsFor 已连接；资源工具按连接后的能力决定是否注册。
+      const resources = await manager.resourceToolsFor(scope)
+      return [
+        ...tools.map((tool) => ({ tool, permissionClass: 'external' as const })),
+        ...resources.map((tool) => ({ tool, permissionClass: 'context-read' as const })),
+      ]
     },
+    commandSources: [{ source: 'mcp', list: (scope: ContextScope) => manager.promptCommands(scope) }],
     async report(scope) {
       return { diagnostics: await manager.diagnostics(scope) }
     },
