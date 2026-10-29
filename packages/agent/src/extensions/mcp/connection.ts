@@ -1,6 +1,7 @@
 // 一个 MCP Server 的连接（M3 规格 D5）：pi-mcp McpClient，传输由宿主注入（createTransport）。状态 idle / connecting / connected /
 // failed；连接超时 30 秒；连接后意外断开时按 1、2、4 秒退避自动重连至多 3 次，之后停在 failed，需手动 reconnect()。
-// 失败原因带 stderr 最后 20 行，经宿主给出的 redact 脱敏。tools/list_changed 时刷新工具。
+// 失败原因带 stderr 最后 20 行，经宿主给出的 redact 脱敏。tools/list_changed 时刷新工具；prompts / resources 的 list_changed 与每次
+// 建立连接时使 listRevision 前进（缓存列表的宿主据此刷新，票 08）。
 // Connection handling adapted in part from pi coding-agent 1.4.0 extensions/mcp/runtime.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { pathToFileURL } from 'node:url'
 import { basename } from 'node:path'
@@ -11,6 +12,9 @@ export const MCP_RECONNECT_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000]
 export const MCP_STDERR_TAIL_LINES = 20
 
 export type McpConnectionStatus = 'idle' | 'connecting' | 'connected' | 'failed'
+
+/** Lists the server can change (`notifications/<kind>/list_changed`). */
+export type McpListKind = 'prompts' | 'resources'
 
 /** What the host's transport factory returns: the transport, and for stdio its stderr and process id. */
 export interface McpTransportHandle {
@@ -59,6 +63,7 @@ export class McpConnection {
   #retryTimer: NodeJS.Timeout | undefined
   #reconnectAttempts = 0
   #shutdown = false
+  readonly #listRevisions: Record<McpListKind, number> = { prompts: 0, resources: 0 }
   readonly #listeners = new Set<() => void>()
   readonly #options: McpConnectionOptions
 
@@ -91,7 +96,12 @@ export class McpConnection {
     return this.#reconnectAttempts
   }
 
-  /** Called after status, error or tools change. */
+  /** Advances when the server reports the list changed and on every new connection; a cache of the list is stale when it differs. */
+  listRevision(kind: McpListKind): number {
+    return this.#listRevisions[kind]
+  }
+
+  /** Called after status, error, tools or a list revision change. */
   onChange(listener: () => void): () => void {
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
@@ -154,6 +164,19 @@ export class McpConnection {
     return { ...value, content: value.content ?? [] } as CallToolResult
   }
 
+  /** Any request through the current client (resources, prompts); rejects when not connected. */
+  async request<T = unknown>(method: string, params?: Record<string, unknown>, options: McpRequestOptions = {}): Promise<T> {
+    const client = this.#client
+    if (!client || this.#status !== 'connected') throw new Error(`MCP server "${this.name}" is not connected (${this.#status})`)
+    return client.request<T>(method, params, options)
+  }
+
+  #bumpList(client: McpClient, kind: McpListKind): void {
+    if (this.#client !== client) return
+    this.#listRevisions[kind]++
+    this.#changed()
+  }
+
   async #open(): Promise<void> {
     this.#status = 'connecting'
     this.#changed()
@@ -188,8 +211,12 @@ export class McpConnection {
       this.#error = undefined
       this.#stderrTail = undefined
       this.#reconnectAttempts = 0
+      this.#listRevisions.prompts++
+      this.#listRevisions.resources++
       client.onClose(() => this.#unexpectedClose(client, handle!))
       client.onNotification('notifications/tools/list_changed', () => void this.#refreshTools(client))
+      client.onNotification('notifications/prompts/list_changed', () => this.#bumpList(client, 'prompts'))
+      client.onNotification('notifications/resources/list_changed', () => this.#bumpList(client, 'resources'))
       this.#changed()
     } catch (error) {
       this.#closedByUs.add(client)
