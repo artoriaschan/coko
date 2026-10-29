@@ -119,7 +119,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     },
   }
   const backend = fakeSettingsBackend()
-  if (options.providers !== false) void backend.api.createProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
+  if (options.providers !== false) backend.seedProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
   const api = {
     ...backend.api,
     setSessionModel: async (id: string, model) => ({ ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!), model }),
@@ -154,7 +154,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   } satisfies ApiClient
   const chat: ChatStore = createChatStore({ api, stream })
   void chat.getState().load()
-  const settings = createSettingsStore({ api, setCredential: backend.setCredential })
+  const settings = createSettingsStore({ api, saveProvider: backend.saveProvider })
   void settings.getState().load()
   return { chat, sent, sendServer, settings, backend, api }
 }

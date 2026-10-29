@@ -1,7 +1,7 @@
 import type { AvailableModel, CatalogModel, ModelProtocol, PermissionsResponse, Provider, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
-import type { CokoBridge, CredentialErrorCode } from '../../shared/bridge.ts'
+import type { CokoBridge, SaveProviderResult } from '../../shared/bridge.ts'
 
 /** 服务端已确认的设置值及其 revision；未保存过的键不在其中（revision 视为 0）。 */
 export interface KnownSetting {
@@ -27,7 +27,7 @@ export type PermissionsChange =
 
 export type SaveSettingResult = { status: 'saved' } | { status: 'conflict' } | { status: 'failed'; error: ApiError }
 
-/** 设置弹窗中编辑的 Provider；secret 为空表示不改 Credential。 */
+/** 设置弹窗中编辑的 Provider；编辑时 secret 为空表示保留原 Credential。 */
 export interface ProviderDraft {
   /** 新建时为用户输入的 Provider ID；编辑时为已有 Provider 的 ID（创建后不可修改）。 */
   id: string
@@ -39,11 +39,8 @@ export interface ProviderDraft {
   secret: string
 }
 
-export type SaveProviderResult =
-  | { ok: true; provider: Provider }
-  | { ok: false; stage: 'provider'; error: ApiError }
-  /** 配置已保存，Credential 未保存：界面转为编辑该 Provider 并保留输入。 */
-  | { ok: false; stage: 'credential'; code: CredentialErrorCode; message: string; provider: Provider }
+/** 一次提交的结果；失败时配置与 Key 都没有写入，界面保留草稿（ADR 0010）。 */
+export type { SaveProviderResult }
 
 export interface SettingsActions {
   /** 读取设置、Provider 与可用模型。 */
@@ -63,8 +60,8 @@ export type SettingsStore = StoreApi<SettingsState & SettingsActions>
 
 export interface SettingsStoreOptions {
   api: ApiClient
-  /** preload 的 Credential 通道；不在桌面窗口中时缺省。 */
-  setCredential?: CokoBridge['setCredential']
+  /** preload 的一次提交通道；不在桌面窗口中时缺省。 */
+  saveProvider?: CokoBridge['saveProvider']
   onFailure?: (error: ApiError) => void
 }
 
@@ -73,8 +70,8 @@ const toApiError = (error: unknown) => (error instanceof ApiError ? error : new 
 const toValues = (settings: { key: string; value: unknown; revision: number }[]) =>
   Object.fromEntries(settings.map((s) => [s.key, { value: s.value, revision: s.revision }]))
 
-/** 设置与 Provider 的 vanilla store（无 React 依赖）。密钥经 preload 交给 main，不经 HTTP（ADR 0004）。 */
-export function createSettingsStore({ api, setCredential, onFailure }: SettingsStoreOptions): SettingsStore {
+/** 设置与 Provider 的 vanilla store（无 React 依赖）。Provider 与密钥经 preload 交给 main 一次提交，不经 HTTP（ADR 0004、0010）。 */
+export function createSettingsStore({ api, saveProvider: submitProvider, onFailure }: SettingsStoreOptions): SettingsStore {
   const chains = new Map<string, Promise<unknown>>()
 
   return createStore<SettingsState & SettingsActions>()((set, get) => {
@@ -177,30 +174,20 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       },
 
       async saveProvider(draft) {
-        let provider: Provider
-        try {
-          const { id, name, api: protocol, baseUrl, models } = draft
-          provider = draft.isNew
-            ? await api.createProvider({ id, name, api: protocol, baseUrl, models })
-            : await api.updateProvider(id, { name, api: protocol, baseUrl, models })
-        } catch (error) {
-          return { ok: false, stage: 'provider', error: toApiError(error) }
-        }
-        let credentialFailure: { code: CredentialErrorCode; message: string } | undefined
-        if (draft.secret !== '') {
-          const result = setCredential
-            ? await setCredential(provider.id, draft.secret).catch((error: unknown) => ({
-                ok: false as const,
-                code: 'sidecar-unavailable' as const,
-                message: error instanceof Error ? error.message : String(error),
-              }))
-            : { ok: false as const, code: 'sidecar-unavailable' as const, message: 'Desktop bridge is unavailable' }
-          if (!result.ok) credentialFailure = { code: result.code, message: result.message }
-        }
+        if (!submitProvider) return { ok: false, code: 'sidecar-unavailable', message: 'Desktop bridge is unavailable' }
+        const { id, name, api: protocol, baseUrl, models, secret } = draft
+        const result = await submitProvider({
+          mode: draft.isNew ? 'create' : 'update',
+          provider: { id, name, api: protocol, baseUrl, models },
+          ...(secret === '' ? {} : { secret }),
+        }).catch((error: unknown): SaveProviderResult => ({
+          ok: false,
+          code: 'sidecar-unavailable',
+          message: error instanceof Error ? error.message : String(error),
+        }))
+        if (!result.ok) return result
         await refreshProviders().catch((error: unknown) => onFailure?.(toApiError(error)))
-        const latest = get().providers.find((p) => p.id === provider.id) ?? provider
-        if (credentialFailure) return { ok: false, stage: 'credential', ...credentialFailure, provider: latest }
-        return { ok: true, provider: latest }
+        return { ok: true, provider: get().providers.find((p) => p.id === result.provider.id) ?? result.provider }
       },
 
       async deleteProvider(id) {

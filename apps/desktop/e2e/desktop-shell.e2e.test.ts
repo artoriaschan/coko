@@ -74,8 +74,8 @@ describe('桌面壳', () => {
       }
     })
     expect(visible.documentCookie).toBe('')
-    // setCredential 与 setSecret 只把值交给 main，不返回值（ADR 0004、0007）。
-    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'log', 'onSidecarState', 'openLogs', 'pickDirectory', 'setCredential', 'setSecret'])
+    // saveProvider 与 setSecret 只把值交给 main，不返回值（ADR 0004、0007、0010）。
+    expect(visible.bridgeKeys.sort()).toEqual(['boot', 'log', 'onSidecarState', 'openLogs', 'pickDirectory', 'saveProvider', 'setSecret'])
     expect(visible.echoSetCookie).toBeNull()
     expect(visible.exchange).toBe(404)
     const exposed = JSON.stringify({ boot: visible.boot, html: visible.html, documentCookie: visible.documentCookie })

@@ -15,6 +15,7 @@ import { connect } from './client/connection.ts'
 import { createChatStore } from './stores/chat-store.ts'
 import { contextStore, trackCompaction } from './stores/context-store.ts'
 import { createSettingsStore } from './stores/settings-store.ts'
+import type { SaveProviderInput } from '../shared/bridge.ts'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('renderer: missing #root')
@@ -54,7 +55,7 @@ trackCompaction(contextStore, stream, (failure) =>
 const bridge = window.coko
 const settings = createSettingsStore({
   api,
-  ...(bridge ? { setCredential: (providerId: string, secret: string) => bridge.setCredential(providerId, secret) } : {}),
+  ...(bridge ? { saveProvider: (input: SaveProviderInput) => bridge.saveProvider(input) } : {}),
   onFailure: () => toast.error(t()('settings.loadFailed')),
 })
 const preferences = createPreferences({
