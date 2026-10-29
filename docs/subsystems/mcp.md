@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的 MCP Server 连接与工具契约：全局设置键 mcp.servers 与项目 .mcp.json 的形状与诊断、项目 Server 的按摘要批准、Secret 引用、连接状态机与池化、工具命名与结果转换、权限类 external、/api/mcp 与 /api/secrets、设置界面的 MCP 分区。修改 MCP 配置、连接、工具适配、Secret 来源或 MCP 界面前查阅。"
+description: "当前的 MCP Server 连接、工具、资源与提示模板契约：全局设置键 mcp.servers 与项目 .mcp.json 的形状与诊断、项目 Server 的按摘要批准、Secret 引用、连接状态机与池化、工具命名与结果转换、权限类 external 与 context-read、资源工具、/mcp__<server>__<prompt> 命令、/api/mcp 与 /api/secrets、设置界面的 MCP 分区。修改 MCP 配置、连接、工具适配、资源或提示模板、Secret 来源或 MCP 界面前查阅。"
 lifecycle: active
 ---
 
-# MCP Server 连接与工具
+# MCP Server 连接、工具、资源与提示模板
 
-本文说明 Coko 当前如何连接 MCP Server、把它们的工具交给 Agent，以及 MCP 配置可以引用的 Secret 从哪里来。范围是 stdio 与 streamable HTTP 两种传输上的工具；MCP 资源与提示模板尚未实现。长期决定见 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)（Secret 只来自登记条目）与 [ADR 0008](../adr/0008-project-files-only-tighten.md)（项目 Server 须批准）。
+本文说明 Coko 当前如何连接 MCP Server、把它们的工具与资源交给 Agent、把提示模板登记为命令，以及 MCP 配置可以引用的 Secret 从哪里来。范围是 stdio 与 streamable HTTP 两种传输。长期决定见 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)（Secret 只来自登记条目）与 [ADR 0008](../adr/0008-project-files-only-tighten.md)（项目 Server 须批准）。
 
 ## 结构入口
 
@@ -16,8 +16,11 @@ lifecycle: active
 | `packages/agent/src/extensions/mcp/naming.ts` | 工具名 `mcp__<server>__<tool>`、截断与 hash、Server 名冲突 |
 | `packages/agent/src/extensions/mcp/connection.ts` | `McpConnection`：pi-mcp `McpClient` 的连接状态机、连接超时、退避重连、stderr 尾部；传输由宿主注入 |
 | `packages/agent/src/extensions/mcp/tool.ts`、`results.ts` | MCP 工具 → `CokoTool`（参数 schema、幂等键、进度），结果 → 模型内容 |
+| `packages/agent/src/extensions/mcp/pagination.ts` | 分页列表：按 `nextCursor` 翻页、重复 cursor 与 1000 页上限、逐项校验与诊断 |
+| `packages/agent/src/extensions/mcp/resources.ts` | 资源工具 `list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` |
+| `packages/agent/src/extensions/mcp/prompts.ts` | 提示模板：`prompts/list` 与 `prompts/get` 的请求封装、结果校验、位置参数映射、消息转文本 |
 | `apps/server/src/adapters/mcp.ts` | stdio 与 streamable HTTP 传输；stdio 的环境与工作目录 |
-| `apps/server/src/application/context/mcp.ts` | `McpManager`（按 (Workspace, Server) 池化、读取配置与批准、接口）与上下文贡献 `mcpContribution` |
+| `apps/server/src/application/context/mcp.ts` | `McpManager`（按 (Workspace, Server) 池化、读取配置与批准、接口、资源工具与提示模板命令）与上下文贡献 `mcpContribution` |
 | `apps/server/src/adapters/credentials.ts`、`application/secrets.ts` | Secret 来源（IPC 密文 / `COKO_SECRET_<NAME>`）与 `SecretService`（登记、删除、解析、按值脱敏） |
 | `apps/server/src/http/routes/mcp.ts`、`routes/secrets.ts` | `/api/mcp` 系列与 `/api/secrets` |
 | `packages/protocol/src/mcp.ts`、`secrets.ts`、`control.ts` | DTO、路径常量、设置键；控制 IPC 的 `secret.store` / `secret.decrypt` |
@@ -52,7 +55,7 @@ lifecycle: active
 - **池化**：`McpManager` 按 (Workspace, Server 名) 保存连接，同一 Workspace 的 Session 共用。全局 Server 在每个 Workspace 各有一条连接。
 - **何时连接**：Workspace 的 Run 开始时并发连接所有应当连接、状态为 idle 的 Server 并等待其结束（单个连接 30 秒超时）；失败不阻止 Run，该 Server 的工具缺席。经 `PUT /api/mcp/servers`（带 `workspaceId`）或批准之后也在后台连接，界面可立即看到结果。已 failed 的连接不在 Run 开始时自动重试。
 - **状态**：idle、connecting、connected、failed（`error`，stdio 另有最后 20 行 stderr `stderrTail`）、disabled、pending-approval。错误与 stderr 尾部先把已解密的 Secret 值替换为 `[REDACTED:secret]`，再按凭据形态脱敏（`redactText`）。
-- **崩溃与重连**：已连接的传输意外关闭时状态为 failed（`Connection closed` 与 stderr 尾部），之后按 1、2、4 秒退避自动重连至多 3 次；用尽后停在 failed，需 `POST /api/mcp/reconnect`（或界面的重新连接）。`tools/list_changed` 时刷新工具列表。
+- **崩溃与重连**：已连接的传输意外关闭时状态为 failed（`Connection closed` 与 stderr 尾部），之后按 1、2、4 秒退避自动重连至多 3 次；用尽后停在 failed，需 `POST /api/mcp/reconnect`（或界面的重新连接）。`tools/list_changed` 时刷新工具列表；`prompts/list_changed`、`resources/list_changed` 与每次建立连接时，连接的列表版本（`listRevision`）前进，缓存的提示模板列表随之失效。
 - **关闭**：配置改变（摘要不同）、Server 或能力被关闭、批准被撤销、引用的 Secret 被登记、替换或删除时关闭受影响的连接。Sidecar 有序关闭时在 Run 结束之后、存储关闭之前关闭全部连接；stdio 由 pi-mcp 先关 stdin，0.5 秒后 SIGTERM，再 2 秒后 SIGKILL（进程组）。Sidecar 被强杀时 stdio 子进程可能残留（地图 M4 的孤儿进程 Carry-over）。
 - **stdio 的环境**：Sidecar 自身环境经与 bash 相同的 `HOST_ENV_EXCLUSIONS` 过滤（去掉 `COKO_*`、`ELECTRON_RUN_AS_NODE`、各 Provider 的密钥变量与凭据形态的名字），再叠加配置 `env`（Secret 已展开）。stdio 进程不套 Seatbelt。客户端声明的 roots 只有 Workspace。
 
@@ -64,9 +67,27 @@ lifecycle: active
 - **调用**：`tools/call` 的 `_meta.idempotencyKey` 为 `<sessionId>:<toolCallId>`（与 `tool_exec` 记录同一个键）；超时为配置的 `timeout`，进度通知重置并作为 `tool_update` 推送；统一的 10 分钟工具时限不适用。超时与中止为该次调用的错误结果，不中断 Run。
 - **结果**：`isError` 为错误结果（没有文本时为 `MCP tool <server>/<tool> returned an error`）；文本块合并后按 2000 行 / 50KB 截断并注明 `[MCP output truncated: showing N of M lines…]`；图片（含嵌入的图片资源）透传；嵌入的文本资源转为文本；音频、资源链接与二进制资源注明省略；只有 `structuredContent` 时为其 JSON。
 
+## 资源
+
+- **注册**：Run 开始时，若该 Workspace 有已连接的 Server 在 `initialize` 中声明了 `resources` 能力，注册三个工具（权限类 context-read，effect read，四种模式都不审批；deny 规则照常生效，例如项目 `.coko/settings.json` 的 `permissions.deny: ["read_mcp_resource"]`）。没有这样的 Server 时三个工具都不注册。工具在调用时按池中当前的连接查找 Server，只覆盖本 Run 加载的 Server；没有声明 resources 的 Server 不可用（错误写明有资源的 Server）。它们不计入 `GET /api/mcp` 中各 Server 的 `tools`。
+- **`list_mcp_resources { server?, cursor? }`、`list_mcp_resource_templates { server?, cursor? }`**：结果为 JSON。给出 `server` 时列一页（`{ server, resources | resourceTemplates, nextCursor? }`），`cursor` 接着翻；不给时按名字顺序列出全部 Server 的全部分页，失败或不合格的部分放进 `errors: [{ server, error }]`，不使整个调用失败。不给 `server` 时不能给 `cursor`。每项带 `server`，去掉 `_meta` 与 `icons`；缺 `name` 时用 URI 代替。
+- **分页**：按 `nextCursor` 翻页（`null` 与空字符串视为结束），最多 1000 页；cursor 重复时停止（`duplicate-cursor`），超过上限时停止（`page-limit`），已取得的项保留。页不合 schema 时停止、单项不合 schema 时跳过（`invalid-result`）。与提示模板共用同一实现。
+- **`read_mcp_resource { server, uri }`**：`resources/read` 的每个内容：文本合并后按 2000 行 / 50KB 截断并注明 `[Resource truncated: showing N of M lines…]`（单行超过 50KB 时按字节截断）；`image/*` 的 blob 作为图片内容块透传；其他 blob 注明 `[binary resource <uri> (<mimeType>, <大小>) omitted]`；有多个内容时以 URI 标注。结果不合 schema（缺 `contents`、内容缺 `uri` 或 `text` / `blob`）时为错误结果。请求超时为该 Server 的 `timeout`。
+- 结果作为 toolResult 条目入库前与其他工具输出一样替换已登记 Secret 的明文。资源订阅（`resources/subscribe`）与在 `@` 菜单中引用资源不实现。
+
+## 提示模板
+
+pi-mcp 没有 prompts 方法，Coko 经连接的通用 `request()` 封装 `prompts/list` 与 `prompts/get`。
+
+- **登记为命令**：声明了 `prompts` 能力的已连接 Server 的每个提示模板以 `/mcp__<server>__<prompt>` 登记到命令目录（来源 `mcp`，见 [命令](commands.md)；命名与截断规则同工具名）。描述取 `description`，缺省为 `title` 或 `MCP prompt <name> from server <server>`；`argumentHint` 按声明顺序列出参数，必填为 `<name>`、可选为 `[name]`。`commands.enabled` 与 `commands.disabled` 对它们生效；同名时优先级最低。
+- **何时连接与刷新**：`GET /api/commands` 与提交消息（命令展开）和 Run 开始时一样，先连接该 Workspace 应当连接、状态为 idle 的 Server（失败的不重试）。每个连接的 `prompts/list` 结果缓存到列表版本前进（`prompts/list_changed` 或重连）为止；列出失败只记 warn，下一次重新请求。
+- **调用**：参数文本按命令模板的规则拆分（引号可包含空格），按声明顺序映射到参数，多出的词并入最后一个参数；没有声明参数时忽略参数文本。缺必填参数时提交以 400 `bad-request` 失败，消息写明参数名，`details = { reason: 'missing-arguments', missing }`，不开始 Run。成功时先提交 `command { name, args, source: 'mcp' }` 条目，再提交展开文本为 user message（steer 同样）。
+- **结果校验**：`prompts/get` 的结果须有 `messages` 数组，每条 `role` 为 user 或 assistant、`content` 为合格的 text、image、audio、resource 或 resource_link 块。不合格时提交以 400 `bad-request`（`details.reason = 'invalid-result'`）失败，诊断 `invalid-result` 进入 `GET /api/mcp` 的 `diagnostics` 与上下文用量接口；请求失败（超时、Server 错误、未连接）同样 400，原因经 Secret 脱敏。`prompts/list` 中不合格的项跳过并记诊断。结果诊断按 Server 保存最近一次，下一次成功时清除。
+- **消息转文本**：全部消息按顺序以空行连接（不保留角色）：文本原样；嵌入的文本资源内联为 `<resource uri="…">\n…\n</resource>`；图片与音频注明 `[image <mimeType> omitted]` / `[audio … omitted]`；二进制资源注明类型与大小；资源链接写为 `[resource link <uri> "<title>"]`。展开文本入库前替换已登记 Secret 的明文。
+
 ## 协议
 
-- `GET /api/mcp?workspaceId` → `McpResponse { enabled, servers, global, globalRevision, project?, diagnostics }`。`servers[]` 为 `{ name, scope, transport, enabled, status, error?, stderrTail?, tools, approval? }`：`tools` 为已注册工具（排除 `disabledTools`）；项目 Server 的 `approval = { digest, approved, launch }`，`launch` 为批准对话框显示的 command、args、cwd、url 与 env / 请求头的名字（不含值）。`global` 是保存的全局配置（Secret 以 `${NAME}` 出现）。不给 `workspaceId` 时只有全局 Server，状态不反映任何连接。
+- `GET /api/mcp?workspaceId` → `McpResponse { enabled, servers, global, globalRevision, project?, diagnostics }`（给出 `workspaceId` 时 `diagnostics` 含该 Workspace 连接的结果诊断）。`servers[]` 为 `{ name, scope, transport, enabled, status, error?, stderrTail?, tools, approval? }`：`tools` 为已注册工具（排除 `disabledTools`）；项目 Server 的 `approval = { digest, approved, launch }`，`launch` 为批准对话框显示的 command、args、cwd、url 与 env / 请求头的名字（不含值）。`global` 是保存的全局配置（Secret 以 `${NAME}` 出现）。不给 `workspaceId` 时只有全局 Server，状态不反映任何连接。
 - `PUT /api/mcp/servers { servers, expectedRevision, workspaceId? }`：整体替换全局配置；不合法 400，revision 不一致 409 `revision-conflict`。
 - `POST /api/mcp/approvals { workspaceId, name, digest, approve }`：批准时摘要须等于当前项目配置，否则 409 `revision-conflict`；`approve: false` 撤销批准。项目 Server 不存在 404。
 - `POST /api/mcp/reconnect { workspaceId, name }`：关闭并重新连接，等待结束后返回 `McpResponse`；Server 为 disabled / pending-approval 时 400。
@@ -84,18 +105,21 @@ Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload 
 
 ## 尚未实现
 
-MCP 资源与提示模板（票 08）、OAuth、SSE 与 WebSocket 传输、sampling、elicitation、资源订阅、stdio Server 的沙箱。
+OAuth、SSE 与 WebSocket 传输、sampling、elicitation、资源订阅、在 `@` 菜单引用资源、stdio Server 的沙箱。HTTP 测试 Server 没有服务端流，list_changed 通知只在 stdio 上验证。
 
 ## 验证
 
 - `packages/agent/src/extensions/mcp/naming.test.ts`、`config.test.ts`、`results.test.ts`、`connection.test.ts`：命名（非法字符、64 字符截断加 hash、同 Server 规范化后同名、只差 `-` 与 `_` 的冲突）；配置校验、键顺序不影响摘要而改命令改变摘要、Secret 引用的展开与缺失、项目项的 `${…}` 与同名遮蔽；结果转换与截断；经 pi-mcp 内存传输的状态机、`_meta`、`disabledTools`、连接超时、stderr 尾部 20 行与脱敏、崩溃后退避重连与用尽、`tools/list_changed`。
 - `tests/integration/sidecar-mcp.test.ts`（仓库内的 `tests/fixtures/mcp/` stdio 与 HTTP 测试 Server）：工具出现在 faux 请求中、default 审批、Session 规则 `mcp__remote` 放行、full-access 免审批、`disabledTools`、isError、截断、超时、两种传输上的 `_meta.idempotencyKey`；项目 `.mcp.json` 批准前不启动（启动标记文件不存在）、批准后启动、改 args 后回到 pending 且旧进程退出、旧摘要 409、`${…}` 与同名的诊断；连接失败不阻止 Run、崩溃后 failed 带 stderr 尾部并自动重连、重连用尽后 `POST /api/mcp/reconnect` 恢复、有序关闭后按 pid 检查子进程已退出。
-- `tests/integration/secrets-gate-mcp.test.ts`：秘密总闸的 MCP 通道，见 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)。
+- `packages/agent/src/extensions/mcp/prompts.test.ts`、`resources.test.ts`（pi-mcp 内存传输）：分页合并、重复 cursor 停止并诊断、1000 页上限、不合 schema 的项与页、没有 prompts 能力时不请求、`prompts/list_changed` 使列表版本前进；位置参数映射与缺必填参数；不合 schema 的 `prompts/get` 结果被拒绝；消息转文本；资源列表的全部 / 单页 / cursor、读取文本截断（行与字节）、图片、blob、不合 schema 的读取结果。
+- `tests/integration/sidecar-mcp-resources-prompts.test.ts`（测试 Server 以 `MCP_FIXTURE_FEATURES=resources,prompts` 声明能力）：没有 resources 能力时三个工具不注册；有时全部分页、单页与 cursor、模板、文本 / 超长文本 / 图片 / 二进制读取；default、read-only、accept-edits、full-access 都不出现审批；项目 deny 规则拒绝 `read_mcp_resource`；`/mcp__srv__greet Alice` 提交 `command { source: mcp }` 与 `prompts/get` 的展开文本（模型只收到展开文本）；缺必填参数 400；不合 schema 400 并诊断；`prompts/list_changed` 之后 `GET /api/commands` 出现新提示模板（之前缓存不变）。
+- `tests/integration/secrets-gate-mcp.test.ts`、`secrets-gate-mcp-prompts.test.ts`：秘密总闸的 MCP 通道与提示模板通道，见 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)。
 - `apps/server/src/adapters/credentials.test.ts`、`apps/desktop/src/main/secrets.test.ts`、`packages/protocol/src/control.test.ts`：Secret 来源、main 的加解密与消息形状。
 - `apps/desktop/e2e/mcp.e2e.test.ts`：MCP 分区添加 stdio Server、connected 与工具数、停用后工具消失、Secret 只显示末四位、批准对话框显示完整命令。
 
 ## 延伸阅读
 
-- [权限判定与审批](permissions.md)：external 类与 `mcp__` 规则。
+- [权限判定与审批](permissions.md)：external 与 context-read 类、`mcp__` 规则。
+- [命令](commands.md)：命令目录、来源优先级与展开条目。
 - [分层配置](configuration.md)：`mcp.enabled` 与项目设置。
 - [apps/server README](../../apps/server/README.md)：协议总览与 Secret 的启动参数。
