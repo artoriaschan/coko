@@ -47,7 +47,7 @@ export function ruleToolName(toolName: string, permissionClass?: PermissionClass
   return RULE_TOOL[toolCategory(toolName, permissionClass)] ?? toolName
 }
 
-/** 组名与内置工具名（小写）→ 规则工具名。skill 工具由宿主按 Run 贡献（可能尚未注册），规则名固定为 Skill（票 05）。 */
+/** 组名与内置工具名（小写）→ 规则工具名。skill 工具由宿主按 Run 贡献（可能尚未注册），规则名固定为 Skill。 */
 const RULE_ALIASES: Record<string, string> = Object.fromEntries([
   ...Object.keys(CATEGORY).map((name) => [name, ruleToolName(name)]),
   ...Object.values(RULE_TOOL).flatMap((group) => (group ? [[group.toLowerCase(), group]] : [])),

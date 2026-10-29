@@ -1,5 +1,4 @@
-// 上下文用量（GET /api/sessions/:id/context、/api/workspaces/:id/context，票 10）。
-// 票 01 建立本文件并在 index.ts 一次性 re-export；之后只改本文件。
+// 上下文用量（GET /api/sessions/:id/context、/api/workspaces/:id/context）。
 import { Type, type Static } from 'typebox'
 import { ResourceDiagnostic } from './config.ts'
 import { LoadedInstructionFile } from './instructions.ts'
@@ -25,7 +24,7 @@ export const ContextUsageResponse = Type.Object(
     breakdown: ContextBreakdown,
     instructions: Type.Array(LoadedInstructionFile),
     diagnostics: Type.Array(ResourceDiagnostic),
-    /** 自动压缩：enabled 为有效配置 context.autoCompact；paused 为连续失败熔断后暂停（票 11）。 */
+    /** 自动压缩：enabled 为有效配置 context.autoCompact；paused 为连续失败熔断后暂停。 */
     autoCompact: Type.Object({ enabled: Type.Boolean(), paused: Type.Boolean() }, strict),
   },
   strict,

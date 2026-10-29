@@ -1,4 +1,4 @@
-// MCP Server 与 Secret（票 07、08）。
+// MCP Server 与 Secret。
 import { defineDomain } from './define.ts'
 
 export const mcp = defineDomain(

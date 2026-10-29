@@ -123,7 +123,7 @@ export interface AgentRuntimeOptions {
   lastRunStatus?: RunStatus
   /** Host contributions to the model context (system sections, request-only message transform, pre-request hook). */
   context?: RuntimeContext
-  /** 压缩（M3 票 11）：省略时没有自动压缩，compact() 拒绝。 */
+  /** 压缩：省略时没有自动压缩，compact() 拒绝。 */
   compaction?: RuntimeCompaction
 }
 

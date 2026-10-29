@@ -1,4 +1,4 @@
-// / 命令菜单与时间线的命令 chip（票 04）：真实 Electron + 真实 Sidecar（faux 模型）。夹具 tests/fixtures/commands 复制到临时
+// / 命令菜单与时间线的命令 chip：真实 Electron + 真实 Sidecar（faux 模型）。夹具 tests/fixtures/commands 复制到临时
 // Workspace 与临时 COKO_HOME；断言窗口中实际渲染的菜单（分组、argument-hint、几何）、键盘与指针选择、发送后的 chip 与展开全文。
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

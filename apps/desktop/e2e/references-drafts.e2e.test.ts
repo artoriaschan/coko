@@ -1,4 +1,4 @@
-// @ 文件引用与草稿持久化（票 06）：真实 Electron + 真实 Sidecar（faux 模型）。断言窗口中实际渲染的 @ 菜单与引用 chip、faux requestLog
+// @ 文件引用与草稿持久化：真实 Electron + 真实 Sidecar（faux 模型）。断言窗口中实际渲染的 @ 菜单与引用 chip、faux requestLog
 // 中的 <file_reference> 块，以及草稿在切换会话、重启应用后的保留、提交后的清除与损坏时的处理（localStorage 中实际的键）。
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

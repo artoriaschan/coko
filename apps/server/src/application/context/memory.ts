@@ -1,4 +1,4 @@
-// Memory（票 09）：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，关闭时不注入、不注册工具），以及
+// Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，关闭时不注入、不注册工具），以及
 // /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）。
 import { createMemoryTools, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
 import { redactText } from '@coko/logging'

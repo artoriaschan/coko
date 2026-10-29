@@ -1,5 +1,4 @@
-// Skills（GET /api/skills，票 05）。启停经 PUT /api/config 的 skills.enabled 与 skills.disabled（configPaths）。
-// 票 01 建立本文件并在 index.ts 一次性 re-export；之后只改本文件。
+// Skills（GET /api/skills）。启停经 PUT /api/config 的 skills.enabled 与 skills.disabled（configPaths）。
 import { Type, type Static } from 'typebox'
 import { ResourceDiagnostic } from './config.ts'
 

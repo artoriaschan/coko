@@ -1,4 +1,4 @@
-// MCP 连接与工具（票 07）：真实 Sidecar + 仓库内的 stdio 与 HTTP 测试 Server。覆盖工具进入模型请求、审批与权限类 external、
+// MCP 连接与工具：真实 Sidecar + 仓库内的 stdio 与 HTTP 测试 Server。覆盖工具进入模型请求、审批与权限类 external、
 // mcp__<server> 规则、disabledTools、isError、截断、超时与 _meta.idempotencyKey；项目 .mcp.json 的批准（ADR 0008）；连接失败不阻止 Run、
 // 崩溃后 failed 带 stderr 尾部与自动重连、手动重连、有序关闭后子进程退出。
 import { existsSync } from 'node:fs'

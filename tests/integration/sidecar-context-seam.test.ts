@@ -1,4 +1,4 @@
-// M3 上下文装配的 seam（票 01）：全部领域为空贡献时，faux requestLog 中发给模型的系统提示与 M2 相同；临时 COKO_HOME 经 harness
+// M3 上下文装配的 seam：全部领域为空贡献时，faux requestLog 中发给模型的系统提示与 M2 相同；临时 COKO_HOME 经 harness
 // 传给 Sidecar，且不出现在 Agent 命令（bash env）的环境中。
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -11,7 +11,7 @@ describe('上下文装配 seam', () => {
   it('空贡献时系统提示与 M2 相同；COKO_HOME 不进入 bash 环境', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
-    // COKO_HOME 中有文件但没有指令文件（票 03 起指令文件进入系统提示，见 sidecar-instructions.test.ts）：请求不变。
+    // COKO_HOME 中有文件但没有指令文件（指令文件进入系统提示见 sidecar-instructions.test.ts）：请求不变。
     await writeCokoHome(dirs, 'notes.txt', 'not an instruction file\n')
     const requestLog = join(root, 'requests.jsonl')
     await writeFile(requestLog, '')

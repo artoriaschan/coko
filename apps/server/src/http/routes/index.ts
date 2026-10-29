@@ -1,4 +1,4 @@
-// M3 各领域的路由（票 01 登记一次；之后各票只改自己的 routes/<domain>.ts）。
+// 各领域的路由：每个领域一个 routes/<domain>.ts，在这里登记一次。
 import { commandsRoutes } from './commands.ts'
 import { configRoutes } from './config.ts'
 import { contextRoutes } from './context.ts'

@@ -1,4 +1,4 @@
-// GET /api/sessions/:id/context、GET /api/workspaces/:id/context（票 10）：上下文用量（路径相对 /api）。
+// GET /api/sessions/:id/context、GET /api/workspaces/:id/context：上下文用量（路径相对 /api）。
 import type { ContextUsageResponse } from '@coko/protocol'
 import { contextUsage } from '../../application/context/usage.ts'
 import { AppError } from '../../application/errors.ts'

@@ -504,7 +504,7 @@ export class SessionService {
       readRoots: [],
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
-    // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交（票 09）。
+    // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交。
     runContext.tools.set(await this.#context.tools(runContext.scope))
     const context = this.#context
     const runtime = createAgentRuntime({

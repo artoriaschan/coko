@@ -17,12 +17,12 @@ export interface Application {
   providers: ProviderService
   settings: SettingsService
   workspaces: WorkspaceService
-  /** 有效能力配置（票 02 实现）。 */
+  /** 有效能力配置（docs/subsystems/configuration.md）。 */
   config: ConfigService
   /** M3 上下文装配（application/context/）。 */
   context: ContextAssembly
-  /** MCP Server 连接池与配置（票 07）。 */
+  /** MCP Server 连接池与配置。 */
   mcp: McpManager
-  /** 登记的 Secret（票 07，ADR 0007）。 */
+  /** 登记的 Secret（ADR 0007）。 */
   secrets: SecretService
 }

@@ -1,4 +1,4 @@
-// 指令贡献（票 03）：report() 给出已加载文件、字符数、截断与诊断；instructions.enabled 为 false 时不注入。
+// 指令贡献：report() 给出已加载文件、字符数、截断与诊断；instructions.enabled 为 false 时不注入。
 import { mkdir } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createInstructionLoader, createNodeInstructionFiles, defaultCapabilityConfig, INSTRUCTION_FILE_MAX_CHARS } from '@coko/agent'

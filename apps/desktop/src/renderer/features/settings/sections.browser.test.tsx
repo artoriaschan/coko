@@ -1,4 +1,4 @@
-// 设置分区注册表：未交付（available: false）的占位分区不出现在导航中，也不能经 show / setSection 打开。Skills & Commands（票 05）与 Memory（票 09）已交付。
+// 设置分区注册表：未交付（available: false）的占位分区不出现在导航中，也不能经 show / setSection 打开。全部分区已交付。
 import '../../styles.css'
 import { expect, it } from 'vitest'
 import { page } from 'vitest/browser'

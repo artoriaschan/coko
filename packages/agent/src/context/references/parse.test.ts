@@ -1,4 +1,4 @@
-// File Reference 的 token 解析（票 06）：@path 与 @"path with space"，词首触发，结尾标点不算路径，邮箱等不误判。
+// File Reference 的 token 解析：@path 与 @"path with space"，词首触发，结尾标点不算路径，邮箱等不误判。
 import { describe, expect, it } from 'vitest'
 import { formatFileReferenceToken, parseFileReferences } from './index.ts'
 

@@ -1,4 +1,4 @@
-// 能力配置（M3 规格"配置 schema"）：类型与默认值由票 01 定义；加载、合并（默认 ← 全局 ← 项目）与诊断由票 02 实现。
+// 能力配置（docs/subsystems/configuration.md）：类型与默认值；加载、合并（默认 ← 全局 ← 项目）与诊断在 merge.ts。
 // 项目 .coko/settings.json 只能收紧（ADR 0008）。
 import { Type, type Static } from 'typebox'
 

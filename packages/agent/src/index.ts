@@ -67,7 +67,7 @@ export * from './checkpoints/index.ts'
 export * from './entries/index.ts'
 export * from './agents/index.ts'
 
-// M3 扩展点：指令类资源、上下文管理、能力配置与 MCP（各子目录 barrel 归所属票）。
+// M3 扩展点：指令类资源、上下文管理、能力配置与 MCP（各子目录有自己的 barrel）。
 export * from './instructions/index.ts'
 export * from './context/index.ts'
 export * from './config/index.ts'

@@ -1,4 +1,4 @@
-// MCP Server 配置（M3 规格 D1、ADR 0007、0008）。形状沿用通用 mcpServers：stdio { command, args?, env?, cwd? }、
+// MCP Server 配置（docs/subsystems/mcp.md）。形状沿用通用 mcpServers：stdio { command, args?, env?, cwd? }、
 // HTTP { url, headers? }（type 可选），公共 { enabled?, timeout?（秒）, disabledTools? }。
 // Adapted in part from pi coding-agent 1.4.0 core/mcp-servers.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { createHash } from 'node:crypto'

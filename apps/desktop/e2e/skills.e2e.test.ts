@@ -1,4 +1,4 @@
-// Skills & Commands 分区（票 05）：真实 Electron + 真实 Sidecar（faux）。夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的
+// Skills & Commands 分区：真实 Electron + 真实 Sidecar（faux）。夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的
 // .agents；断言分区列出 Skill 与命令（来源、路径、声明的工具、诊断），停用一个 Skill 后 Sidecar 重启仍停用，且这些文件逐字节不变（ADR 0009）。
 import { createHash } from 'node:crypto'
 import { cp, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'

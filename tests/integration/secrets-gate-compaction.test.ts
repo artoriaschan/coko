@@ -1,4 +1,4 @@
-// 秘密不外泄总闸的压缩通道（票 11，ADR 0004）：摘要请求的错误回显 Credential。压缩引入的通道——compaction_failed 进度的 message，
+// 秘密不外泄总闸的压缩通道（ADR 0004）：摘要请求的错误回显 Credential。压缩引入的通道——compaction_failed 进度的 message，
 // 以及手动压缩失败的 run_end——与日志、库中都不得出现明文。摘要正文是模型输出，与 assistant 文本相同，不属于本通道。
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'

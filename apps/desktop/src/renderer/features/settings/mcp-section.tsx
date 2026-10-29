@@ -1,4 +1,4 @@
-// MCP 与 Secrets 分区（票 07）：全局与当前工作区的 Server（状态、工具数、启停、增改删、项目 Server 批准、重连）与 Secrets 子区。
+// MCP 与 Secrets 分区：全局与当前工作区的 Server（状态、工具数、启停、增改删、项目 Server 批准、重连）与 Secrets 子区。
 // 状态来自 GET /api/mcp（分区打开期间轮询）；Secret 的值只经 preload setSecret 交给 main（ADR 0007），界面只显示末四位。
 import type { MessageKey } from '@coko/i18n'
 import type { McpServerInfo, McpServerStatus, McpServersConfig, ResourceDiagnostic } from '@coko/protocol'

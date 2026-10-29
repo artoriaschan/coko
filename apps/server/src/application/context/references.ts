@@ -1,4 +1,4 @@
-// File Reference（票 06）：expandInput 排在命令之后，解析（展开后的）文本中的 @path，把 <file_reference> 文本块追加到同一条 user message。
+// File Reference：expandInput 排在命令之后，解析（展开后的）文本中的 @path，把 <file_reference> 文本块追加到同一条 user message。
 // 当时生效的 Read 拒绝规则作用于引用（scope.permissionRules）。块中已登记的明文在生成时替换（与 read 工具的结果一致，ADR 0007），
 // 用户输入的文本保持原样。日志只记数量与状态，不记路径与内容。
 import { expandFileReferences, type RunInput } from '@coko/agent'

@@ -1,4 +1,4 @@
-// 运行时的压缩（票 11）：每次请求前越过阈值时自动压缩并提交 compaction { trigger: auto }，摘要请求没有工具，下一次请求为合成摘要 +
+// 运行时的压缩：每次请求前越过阈值时自动压缩并提交 compaction { trigger: auto }，摘要请求没有工具，下一次请求为合成摘要 +
 // firstKeptSeq 及之后；溢出时压缩一次再重试一次；连续 3 次自动失败后暂停，成功的手动压缩复位；手动压缩中停止不提交条目。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Context, SystemMessage } from '@earendil-works/pi-ai'

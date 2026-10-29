@@ -1,4 +1,4 @@
-// 上下文预算（M3 规格"预算与数值"）：有效窗口、自动压缩阈值与预警线。票 11 的压缩触发复用这里的数值。
+// 上下文预算（docs/subsystems/context.md#上下文用量）：有效窗口、自动压缩阈值与预警线。压缩的触发复用这里的数值。
 
 /** 有效窗口为 contextWindow 减去 min(maxTokens, 20 000)（为回复留出的空间）。 */
 export const OUTPUT_RESERVE_MAX = 20_000

@@ -1,4 +1,4 @@
-// composer 的 File Reference 节点（票 06）：token 模式的文本节点（原子：作为整体选中与删除，不能在其中输入），文本即序列化形式
+// composer 的 File Reference 节点：token 模式的文本节点（原子：作为整体选中与删除，不能在其中输入），文本即序列化形式
 // @path（含空白等时 @"path"），因此 getText() 与提交的文本直接带着引用，Sidecar 解析同一语法（@coko/agent 的 parseFileReferences）。
 // EditorState JSON 中保存 path；导入时由 path 重建文本，path 不是字符串时抛错（草稿按损坏处理）。
 import { $applyNodeReplacement, TextNode, type EditorConfig, type LexicalNode, type NodeKey, type SerializedTextNode, type Spread } from 'lexical'

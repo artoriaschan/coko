@@ -1,4 +1,4 @@
-// MCP（pi-mcp McpClient）：配置校验与摘要、工具命名、结果转换、连接状态机与工具适配（票 07）；资源与提示模板（票 08）。
+// MCP（pi-mcp McpClient）：配置校验与摘要、工具命名、结果转换、连接状态机与工具适配；资源与提示模板。
 export {
   DEFAULT_MCP_TIMEOUT_SECONDS,
   digestMcpServer,

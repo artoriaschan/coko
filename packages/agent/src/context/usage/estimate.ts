@@ -1,4 +1,4 @@
-// Token 估算（M3 规格"预算与数值"）：最后一次有效的 assistant usage 加其后消息的 chars/4；没有 usage 时全部 chars/4。
+// Token 估算（docs/subsystems/context.md#上下文用量）：最后一次有效的 assistant usage 加其后消息的 chars/4；没有 usage 时全部 chars/4。
 // 字符计法与 pi coding-agent 1.4.0 的 estimateTokens 相同（MIT, Copyright (c) 2025 Mario Zechner）：图片按 4800 字符。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 

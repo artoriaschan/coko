@@ -1,4 +1,4 @@
-// 分页列表（M3 规格 D8、D9）：按 nextCursor 取全部分页，最多 1000 页；重复的 cursor 停止翻页。不合格的页停止、不合格的项跳过，
+// 分页列表（docs/subsystems/mcp.md）：按 nextCursor 取全部分页，最多 1000 页；重复的 cursor 停止翻页。不合格的页停止、不合格的项跳过，
 // 都只记诊断（保留已取得的项），不抛到 Run；请求本身失败（未连接、超时、Server 错误）时 reject。
 // Pagination limits follow pi-mcp 1.4.0 client.ts listAll (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import type { McpRequestOptions } from '@earendil-works/pi-mcp'

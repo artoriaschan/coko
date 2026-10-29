@@ -1,4 +1,4 @@
-// 命令目录与 / 菜单、时间线的命令 chip（票 04）。
+// 命令目录与 / 菜单、时间线的命令 chip。
 import { defineDomain } from './define.ts'
 
 export const commands = defineDomain(

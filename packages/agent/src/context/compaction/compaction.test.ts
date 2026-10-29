@@ -1,4 +1,4 @@
-// 压缩（票 11）：切点表驱动（工具调用对不拆开、只有最近内容时不压缩、错误回复与被回退的压缩不参与）、摘要提示（规定的节标题、
+// 压缩：切点表驱动（工具调用对不拆开、只有最近内容时不压缩、错误回复与被回退的压缩不参与）、摘要提示（规定的节标题、
 // 增量更新、/compact 指示）、文件与 Skill 汇总、压缩后的 token 估算不信任压缩之前的 usage，以及熔断计数与复位。
 import { describe, expect, it } from 'vitest'
 import type { EntryLike } from '../../entries/index.ts'

@@ -1,4 +1,4 @@
-// Skills（票 05）：真实 Sidecar（faux 模型），夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的 .agents。
+// Skills：真实 Sidecar（faux 模型），夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的 .agents。
 // 断言 faux requestLog 中实际发给模型的 <available_skills> 与工具、提交的条目（approval_request、command、toolResult）与 GET /api/skills。
 import { cp, mkdir, readFile, symlink, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

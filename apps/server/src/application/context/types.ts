@@ -1,4 +1,4 @@
-// 上下文装配（M3 规格"apps/server"）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
+// 上下文装配（docs/subsystems/context.md）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
 import type { AgentRuntime, CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, RunResult, SystemSection, ToolHooks } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { LoadedInstructionFile, ResourceDiagnostic } from '@coko/protocol'
@@ -14,7 +14,7 @@ export interface ContextScope {
   config: CapabilityConfig
   /** 用户级资源目录（COKO_HOME）。 */
   cokoHome: string
-  /** 当时生效的权限规则（Session、全局、Workspace 与 project；票 06 的 File Reference 据此应用 Read 拒绝规则）。省略时没有规则。 */
+  /** 当时生效的权限规则（Session、全局、Workspace 与 project；File Reference 与指令文件据此应用 Read 拒绝规则）。省略时没有规则。 */
   permissionRules?(): Promise<PermissionRule[]>
 }
 
@@ -27,7 +27,7 @@ export interface ContributedTool {
 /** 输入展开的结果：交给运行时的 RunInput，或一个动作（例如 /compact），由 actions[name] 执行。 */
 export type ExpandResult = { kind: 'input'; input: RunInput } | { kind: 'action'; name: string; args: string }
 
-/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）；条目形状由票 04 定义。 */
+/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）；条目形状见 commands.ts 的 SourcedCommand。 */
 export interface CommandSourceContribution {
   source: 'skill' | 'mcp'
   list(scope: ContextScope): Promise<unknown[]>
@@ -42,7 +42,7 @@ export interface ContextActionSession {
 /** 动作的执行：返回新 Run 的 runId（例如 /compact 的 Run）。 */
 export type ContextAction = (input: { scope: ContextScope; sessionId: string; args: string; session: ContextActionSession }) => Promise<{ runId: string }>
 
-/** 上下文用量接口的分项（票 10 读取；形状在协议 instructions.ts / config.ts 中声明）。 */
+/** 上下文用量接口的分项（上下文用量接口读取；形状在协议 instructions.ts / config.ts 中声明）。 */
 export interface ContextReport {
   /** 分项字符数，键为分项名（例如 instructions、skills、memory）。 */
   breakdown?: Record<string, number>
@@ -50,7 +50,7 @@ export interface ContextReport {
   diagnostics?: ResourceDiagnostic[]
 }
 
-/** 一个领域对上下文的贡献；全部可选，票 01 的各领域文件都是空贡献。 */
+/** 一个领域对上下文的贡献；全部可选，没有的钩子不参与组合。 */
 export interface ContextContribution {
   /** 领域名（日志与组合顺序）。 */
   name: string
@@ -72,9 +72,9 @@ export interface ContextContribution {
 
 export interface ContextContributionOptions {
   cokoHome: string
-  /** MCP 连接池（票 07）；省略时 mcp 贡献为空。 */
+  /** MCP 连接池；省略时 mcp 贡献为空。 */
   mcp?: import('./mcp.ts').McpManager
-  /** Memory 的存储（票 09）；缺省时 Memory 为空贡献。 */
+  /** Memory 的存储；缺省时 Memory 为空贡献。 */
   memories?: MemoryStore
 }
 

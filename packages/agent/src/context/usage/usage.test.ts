@@ -1,4 +1,4 @@
-// 上下文用量（票 10）：预算与阈值、Token 估算（最后一次 usage + 其后 chars/4）、时间裁剪（注入时钟）。
+// 上下文用量：预算与阈值、Token 估算（最后一次 usage + 其后 chars/4）、时间裁剪（注入时钟）。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'
 import { contextBudget, estimateContextTokens, estimateMessageChars, OLD_TOOL_RESULT_CLEARED, trimOldToolResults } from './index.ts'

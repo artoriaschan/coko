@@ -1,4 +1,4 @@
-// GET /api/commands?sessionId=… | workspaceId=…（票 04）：该 Workspace 的命令目录与诊断（路径相对 /api）。
+// GET /api/commands?sessionId=… | workspaceId=…：该 Workspace 的命令目录与诊断（路径相对 /api）。
 import type { CommandListResponse } from '@coko/protocol'
 import { isCommandsContribution } from '../../application/context/commands.ts'
 import { AppError } from '../../application/errors.ts'

@@ -1,4 +1,4 @@
-// Memory 的注入（<memory> system section）与 memory_* 工具（票 09）：注入顺序、预算截断与"另有 N 条"、超长内容为参数错误。
+// Memory 的注入（<memory> system section）与 memory_* 工具：注入顺序、预算截断与"另有 N 条"、超长内容为参数错误。
 import { validateToolArguments } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import {

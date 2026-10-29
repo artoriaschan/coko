@@ -1,4 +1,4 @@
-// @ 文件菜单与时间线的 File Reference chip（票 06）。
+// @ 文件菜单与时间线的 File Reference chip。
 import { defineDomain } from './define.ts'
 
 export const references = defineDomain(

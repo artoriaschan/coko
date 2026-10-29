@@ -1,6 +1,6 @@
 // File Reference 与嵌套指令：不是独立的条目 kind，而是同一条 user message / toolResult 中以固定开标签开头的文本块
-// （M3 规格"Session Entry 与事件"）。Sidecar 用 format* 生成开标签，renderer 用 *Path 识别并显示为 chip。
-// path 按 XML 属性转义（& " < >）。另有 @ 菜单的文件候选接口（票 06）。
+// （docs/subsystems/context.md）。Sidecar 用 format* 生成开标签，renderer 用 *Path 识别并显示为 chip。
+// path 按 XML 属性转义（& " < >）。另有 @ 菜单的文件候选接口。
 import { Type, type Static } from 'typebox'
 
 const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')

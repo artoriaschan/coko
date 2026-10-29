@@ -1,4 +1,4 @@
-// 压缩（票 11）：真实 Sidecar（faux 小窗口，临时 COKO_HOME）。自动压缩提交 compaction { trigger: auto }，摘要请求没有工具、含规定的节标题，
+// 压缩：真实 Sidecar（faux 小窗口，临时 COKO_HOME）。自动压缩提交 compaction { trigger: auto }，摘要请求没有工具、含规定的节标题，
 // 下一次请求为合成摘要 + firstKeptSeq 及之后；回退到压缩之前恢复原历史；压缩后分叉的 Session 上下文与原 Session 一致；/compact 开始
 // trigger compact 的 Run（服务端 action 路径），摘要请求含指示；压缩中停止不提交条目；连续 3 次失败熔断（上下文接口 paused），成功的手动
 // 压缩复位；溢出时压缩一次再重试一次。

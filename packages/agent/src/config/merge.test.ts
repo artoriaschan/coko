@@ -1,4 +1,4 @@
-// 分层能力配置（票 02）：默认 ← 全局 ← 项目，项目只能收紧（ADR 0008）；诊断不阻止其余键生效。
+// 分层能力配置：默认 ← 全局 ← 项目，项目只能收紧（ADR 0008）；诊断不阻止其余键生效。
 import { describe, expect, it } from 'vitest'
 import { defaultCapabilityConfig, mergeCapabilityConfig, parseProjectSettings, type CapabilityConfig, type ProjectCapabilityValues } from './index.ts'
 

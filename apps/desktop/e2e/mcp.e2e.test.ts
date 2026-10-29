@@ -1,4 +1,4 @@
-// MCP 分区（票 07）：真实 Electron + 真实 Sidecar + 仓库内的 stdio 测试 Server。添加 stdio Server 后看到 connected 与工具数，
+// MCP 分区：真实 Electron + 真实 Sidecar + 仓库内的 stdio 测试 Server。添加 stdio Server 后看到 connected 与工具数，
 // 停用后工具消失；登记 Secret 只显示末四位（值经 preload → main safeStorage → secret.store，ADR 0007）；批准项目 Server 的对话框显示完整命令。
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

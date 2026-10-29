@@ -1,4 +1,4 @@
-// 指令文件（票 03）：发现顺序、@import、预算、section 格式与嵌套按需加载。夹具为真实临时目录；家目录经 homeDir 注入。
+// 指令文件：发现顺序、@import、预算、section 格式与嵌套按需加载。夹具为真实临时目录；家目录经 homeDir 注入。
 import { mkdir, symlink, utimes, writeFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../../testing/workspace.ts'

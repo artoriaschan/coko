@@ -1,4 +1,4 @@
-// /api/memories（票 09，路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加的条目 source 为 user。
+// /api/memories（路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加的条目 source 为 user。
 import { CreateMemoryRequest, MemoryListResponse, UpdateMemoryRequest } from '@coko/protocol'
 import type { Application } from '../../application/index.ts'
 import { MemoryService } from '../../application/context/memory.ts'

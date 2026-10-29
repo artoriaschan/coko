@@ -1,4 +1,4 @@
-// @ 引用的展开（票 06，M3 规格"预算与数值"）：每个引用生成一个以 <file_reference path="…"> 开头的文本块，追加到同一条 user message。
+// @ 引用的展开（docs/subsystems/context.md）：每个引用生成一个以 <file_reference path="…"> 开头的文本块，追加到同一条 user message。
 // Workspace 内的文件按 read 工具的截断（2000 行 / 50KB）读入，目录给出 ls 式列表（最多 200 项）；单条消息最多 10 个、合计 200KB。
 // Read 拒绝规则覆盖、Workspace 外（含经符号链接）、二进制或超出上限时只附一行说明。用户显式引用视为读取授权：询问规则不适用，拒绝规则仍生效。
 // 不存在的路径不产生块（@someone 这类提及原样留在文本中）。

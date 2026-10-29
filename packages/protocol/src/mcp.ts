@@ -1,5 +1,5 @@
-// MCP Server（票 07、08）：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
-// 票 01 建立本文件并在 index.ts 一次性 re-export；之后只改本文件。配置的逐项校验在 @coko/agent 的 extensions/mcp/config.ts，
+// MCP Server：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
+// 配置的逐项校验在 @coko/agent 的 extensions/mcp/config.ts，
 // 这里只约束外形（坏项由 Sidecar 以 400 拒绝并写明原因）。
 import { Type, type Static } from 'typebox'
 import { ResourceDiagnostic } from './config.ts'

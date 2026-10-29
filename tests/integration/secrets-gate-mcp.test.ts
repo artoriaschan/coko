@@ -32,7 +32,7 @@ describe('秘密不外泄总闸：MCP', () => {
         {
           content: [
             { type: 'toolCall', name: 'mcp__dsn__env_sha', id: 'm1', arguments: { name: 'MY_SERVICE_DSN' } },
-            // 工具结果通道：Server 把值原样放进结果；入库、推送与日志前替换已登记的明文（票 09 的共享脱敏）。
+            // 工具结果通道：Server 把值原样放进结果；入库、推送与日志前替换已登记的明文（共享的按值脱敏）。
             { type: 'toolCall', name: 'mcp__dsn__env_raw', id: 'm2', arguments: { name: 'MY_SERVICE_DSN' } },
             { type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'env' } },
           ],

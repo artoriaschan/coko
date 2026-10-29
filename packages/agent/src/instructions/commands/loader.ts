@@ -1,4 +1,4 @@
-// 发现提示模板：<root>/**/*.md，子目录以 `:` 拼名；frontmatter 只认 description 与 argument-hint（M3 规格）。
+// 发现提示模板：<root>/**/*.md，子目录以 `:` 拼名；frontmatter 只认 description 与 argument-hint（docs/subsystems/commands.md）。
 // 读取失败或格式错误只产生诊断，不阻止 Run。做法参照 pi coding-agent 的 core/prompt-templates.ts（v1.4.0，MIT License）。
 import { join } from 'node:path'
 import { createMtimeCache, type MtimeCache } from '../shared/cache.ts'

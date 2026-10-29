@@ -10,7 +10,7 @@ import { ModelsSection } from './models-section.tsx'
 import { PermissionsSection } from './permissions-section.tsx'
 import { SkillsSection } from './skills-section.tsx'
 
-/** 设置分区的 id；新分区在 SETTINGS_SECTIONS 登记一次（票 01），之后各票只改自己的分区文件并把 available 设为 true。 */
+/** 设置分区的 id；新分区在 SETTINGS_SECTIONS 登记一次；分区组件在各自的文件中，交付后把 available 设为 true。 */
 export type SettingsSectionId = 'general' | 'models' | 'permissions' | 'skills' | 'mcp' | 'memory' | 'about'
 
 export interface SettingsSectionDefinition {

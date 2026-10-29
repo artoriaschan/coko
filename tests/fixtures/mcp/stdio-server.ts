@@ -1,7 +1,7 @@
 // stdio MCP 测试 Server：node tests/fixtures/mcp/stdio-server.ts。由测试经 MCP 配置启动（仓库内脚本，不从网络安装）。
 // 环境变量：MCP_FIXTURE_LOG（JSONL：start 带 pid 与 cwd、call 带 params）、MCP_FIXTURE_NAME、MCP_FIXTURE_STDERR（启动时写到 stderr）、
 // MCP_FIXTURE_FAIL_IF（该文件存在时写 stderr 后以 1 退出，用于崩溃后重连失败）、MCP_FIXTURE_STDERR_ENV（把该环境变量的值写到 stderr 后退出，
-// 用于验证 stderr 诊断经 Secret 脱敏）、MCP_FIXTURE_FEATURES（逗号分隔的 resources、prompts，票 08）。
+// 用于验证 stderr 诊断经 Secret 脱敏）、MCP_FIXTURE_FEATURES（逗号分隔的 resources、prompts）。
 import { existsSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { featuresFrom, handle, record, type CoreOptions } from './server-core.ts'

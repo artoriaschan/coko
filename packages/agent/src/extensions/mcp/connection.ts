@@ -1,7 +1,7 @@
-// 一个 MCP Server 的连接（M3 规格 D5）：pi-mcp McpClient，传输由宿主注入（createTransport）。状态 idle / connecting / connected /
+// 一个 MCP Server 的连接（docs/subsystems/mcp.md）：pi-mcp McpClient，传输由宿主注入（createTransport）。状态 idle / connecting / connected /
 // failed；连接超时 30 秒；连接后意外断开时按 1、2、4 秒退避自动重连至多 3 次，之后停在 failed，需手动 reconnect()。
 // 失败原因带 stderr 最后 20 行，经宿主给出的 redact 脱敏。tools/list_changed 时刷新工具；prompts / resources 的 list_changed 与每次
-// 建立连接时使 listRevision 前进（缓存列表的宿主据此刷新，票 08）。
+// 建立连接时使 listRevision 前进（缓存列表的宿主据此刷新）。
 // Connection handling adapted in part from pi coding-agent 1.4.0 extensions/mcp/runtime.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { pathToFileURL } from 'node:url'
 import { basename } from 'node:path'

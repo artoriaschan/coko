@@ -1,4 +1,4 @@
-// 指令文件（票 03）：真实 Sidecar（临时 COKO_HOME，faux 模型）。断言 faux requestLog 中实际发给模型的 system sections 与
+// 指令文件：真实 Sidecar（临时 COKO_HOME，faux 模型）。断言 faux requestLog 中实际发给模型的 system sections 与
 // toolResult、重新订阅读回的条目，以及项目设置 instructions.enabled: false 时不注入。
 import { readFile, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

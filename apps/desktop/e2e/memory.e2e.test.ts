@@ -1,4 +1,4 @@
-// Memory（票 09）：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式审批），工具卡显示"已记住"；
+// Memory：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式审批），工具卡显示"已记住"；
 // 设置的 Memory 分区按用户级与当前工作区分组列出它，删除、手动添加与编辑生效，记忆开关写入全局配置；重新打开后读到 Sidecar 中的条目。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

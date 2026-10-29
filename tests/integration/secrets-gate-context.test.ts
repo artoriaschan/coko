@@ -1,4 +1,4 @@
-// 秘密不外泄总闸的上下文用量通道（票 10）：GET /api/workspaces/:id/context 与 /api/sessions/:id/context 汇总 MCP 等贡献的诊断。
+// 秘密不外泄总闸的上下文用量通道：GET /api/workspaces/:id/context 与 /api/sessions/:id/context 汇总 MCP 等贡献的诊断。
 // 登记不匹配剔除模式的 Secret，一个 stdio 测试 Server 把它写到 stderr 后退出（连接失败）；两个接口的响应体（以及其余通道）中都没有明文。
 // 当前上下文用量只带 MCP 的配置诊断与结果诊断，连接错误与 stderr 尾部只在 GET /api/mcp（secrets-gate-mcp.test.ts）；本用例防止之后把它们带进来时泄漏。
 import { randomBytes } from 'node:crypto'

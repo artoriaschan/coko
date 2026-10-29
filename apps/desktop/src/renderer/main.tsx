@@ -43,7 +43,7 @@ const chat = createChatStore({
   // 分叉的标题按当前语言生成，Sidecar 原样保存。
   forkTitle: (title) => t()('sidebar.forkTitle', { title: title || t()('sidebar.untitled') }),
 })
-// 压缩进度（票 11）：输入区上方的状态行与上下文环；失败时一次 Toast，连续自动失败（熔断）时提示 /compact。
+// 压缩进度：输入区上方的状态行与上下文环；失败时一次 Toast，连续自动失败（熔断）时提示 /compact。
 trackCompaction(contextStore, stream, (failure) =>
   toast.error(
     failure.trigger !== 'manual' && failure.consecutiveFailures >= 3

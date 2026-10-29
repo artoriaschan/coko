@@ -1,4 +1,4 @@
-// 草稿 store（票 06）：键、300 ms 防抖、立即写入、删除，以及损坏内容的丢弃与 warn。
+// 草稿 store：键、300 ms 防抖、立即写入、删除，以及损坏内容的丢弃与 warn。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDraftStore, draftKey, DRAFT_SAVE_DELAY_MS, type DraftStorage } from './draft-store.ts'
 

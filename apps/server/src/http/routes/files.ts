@@ -1,4 +1,4 @@
-// GET /api/workspaces/:id/files?query=&limit=（票 06）：@ 菜单的文件候选（路径相对 /api）。遍历与内置 find / grep 相同，遵守忽略规则、不含 .git。
+// GET /api/workspaces/:id/files?query=&limit=：@ 菜单的文件候选（路径相对 /api）。遍历与内置 find / grep 相同，遵守忽略规则、不含 .git。
 import { searchWorkspaceFiles } from '@coko/agent'
 import { WORKSPACE_FILES_LIMIT, type WorkspaceFilesResponse } from '@coko/protocol'
 import { AppError } from '../../application/errors.ts'

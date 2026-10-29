@@ -1,4 +1,4 @@
-// @path / @"path with space" 的 token 解析（票 06）。@ 须在词首（开头或空白之后），因此 user@example.com、(@a) 不是引用；
+// @path / @"path with space" 的 token 解析。@ 须在词首（开头或空白之后），因此 user@example.com、(@a) 不是引用；
 // 未加引号的路径去掉结尾的标点（句号、逗号、括号与中文标点），加引号的原样保留。与 composer 的 File Reference 节点序列化互逆。
 
 export interface FileReferenceToken {

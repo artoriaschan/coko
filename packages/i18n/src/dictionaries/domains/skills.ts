@@ -1,4 +1,4 @@
-// Skills & Commands 分区（票 05）。
+// Skills & Commands 分区。
 import { defineDomain } from './define.ts'
 
 export const skills = defineDomain(

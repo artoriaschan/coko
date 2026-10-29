@@ -1,4 +1,4 @@
-// Skills & Commands 分区（票 05）：当前工作区的 Skill 与命令（来源、路径、启停、声明的工具（不授予）、诊断）。数据来自 GET /api/skills 与
+// Skills & Commands 分区：当前工作区的 Skill 与命令（来源、路径、启停、声明的工具（不授予）、诊断）。数据来自 GET /api/skills 与
 // GET /api/commands；启停写全局配置的 skills.enabled、skills.disabled 与 commands.disabled（PUT /api/config，带回其他全局键）。文件不被改写（ADR 0009）。
 import type { MessageKey } from '@coko/i18n'
 import type { CommandInfo, ResourceDiagnostic, SkillInfo } from '@coko/protocol'

@@ -1,4 +1,4 @@
-// MCP 提示模板（M3 规格 D9）：pi-mcp 没有 prompts 方法，经 McpConnection.request("prompts/list" | "prompts/get") 封装。
+// MCP 提示模板（docs/subsystems/mcp.md）：pi-mcp 没有 prompts 方法，经 McpConnection.request("prompts/list" | "prompts/get") 封装。
 // 能力检查（Server 未声明 prompts 时不请求）；prompts/list 按 cursor 分页（pagination.ts）；结果按 schema 校验，不合格的记诊断，
 // prompts/get 不合格时以 McpResultError 拒绝（宿主转为提交失败，不进入 Run）；消息转文本（文本拼接、嵌入的文本资源内联、
 // 图片、音频与二进制注明省略）。
