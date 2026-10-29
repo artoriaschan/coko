@@ -4,8 +4,9 @@ Parts of `src/tools/` are adapted from pi coding-agent 1.4.0
 (https://github.com/earendil-works/pi/tree/v1.4.0/packages/coding-agent/src/core/tools):
 truncation, read, write, edit and its diff helpers, ls, bash output handling, the file mutation queue,
 and the grep / find result formatting. Parts of `src/extensions/mcp/` (tool naming, server config validation,
-connection handling and tool adaptation) are adapted from
-https://github.com/earendil-works/pi/tree/v1.4.0/packages/coding-agent/src/extensions/mcp and `src/core/mcp-servers.ts`.
+connection handling, tool adaptation and the resource tools) are adapted from
+https://github.com/earendil-works/pi/tree/v1.4.0/packages/coding-agent/src/extensions/mcp and `src/core/mcp-servers.ts`;
+the list pagination limits follow https://github.com/earendil-works/pi/tree/v1.4.0/packages/mcp/src/client.ts.
 Files that contain adapted code say so in their header.
 
 ```text
