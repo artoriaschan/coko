@@ -8,7 +8,7 @@ export interface FormDraft {
   name: string
   api: ModelProtocol
   baseUrl: string
-  /** 模型目录的过渡输入：逗号分隔的模型 ID（票 05 改为逐行编辑）。 */
+  /** 模型目录的过渡输入：逗号分隔的模型 ID，之后改为逐行编辑。 */
   modelText: string
   /** 编辑时为空表示保留原 Credential。 */
   secret: string
