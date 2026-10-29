@@ -30,8 +30,8 @@ const brief = (skills: readonly Skill[]) => skills.map((s) => [s.name, s.scope, 
 describe('Skill 的位置', () => {
   it('项目 .coko > 项目 .agents > 用户 COKO_HOME/skills > 用户 .agents/skills（COKO_HOME 的同级，缺省即 ~/.agents）', () => {
     expect(skillLocations({ cwd: '/w', cokoHome: '/Users/me/.coko' })).toEqual([
-      { dir: '/w/.coko/skills', scope: 'project' },
-      { dir: '/w/.agents/skills', scope: 'project' },
+      { dir: '/w/.coko/skills', scope: 'project', boundary: '/w' },
+      { dir: '/w/.agents/skills', scope: 'project', boundary: '/w' },
       { dir: '/Users/me/.coko/skills', scope: 'user' },
       { dir: '/Users/me/.agents/skills', scope: 'user' },
     ])
@@ -74,6 +74,27 @@ describe('Skill 的发现', () => {
       ['shadowed', ws.path('home/.agents/skills/notes/SKILL.md')],
     ])
     expect(diagnostics.every((d) => d.source === 'skills' && d.message.length > 0)).toBe(true)
+  })
+
+  it('项目位置中经符号链接指向 Workspace 之外的 Skill 不加载并诊断；用户位置的符号链接照常加载', async () => {
+    await ws.write('outside/tool/SKILL.md', skillMd('tool', 'Outside tool'))
+    await ws.write('outside/whole/inner/SKILL.md', skillMd('inner', 'Outside inner'))
+    await ws.write('workspace/.coko/skills/ok/SKILL.md', skillMd('ok'))
+    await symlink(ws.path('outside/tool'), ws.path('workspace/.coko/skills/tool'))
+    // 位置目录本身是链接。
+    await mkdir(ws.path('workspace/.agents'), { recursive: true })
+    await symlink(ws.path('outside/whole'), ws.path('workspace/.agents/skills'))
+    await mkdir(ws.path('home/.coko/skills'), { recursive: true })
+    await symlink(ws.path('outside/tool'), ws.path('home/.coko/skills/tool'))
+    const { skills, diagnostics } = await createSkillLoader().discover(locations())
+    expect(brief(skills)).toEqual([
+      ['ok', 'project', ws.path('workspace/.coko/skills/ok/SKILL.md')],
+      ['tool', 'user', ws.path('home/.coko/skills/tool/SKILL.md')],
+    ])
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ['skill-outside-workspace', ws.path('workspace/.coko/skills/tool/SKILL.md')],
+      ['skill-outside-workspace', ws.path('workspace/.agents/skills/inner/SKILL.md')],
+    ])
   })
 
   it('目录不存在时为空且没有诊断', async () => {

@@ -3,6 +3,7 @@
 // 做法参照 pi coding-agent 的 core/skills.ts（v1.4.0，Copyright (c) 2025 Mario Zechner，MIT License）。
 import { realpath as nodeRealpath } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pathContains } from '../../policy/rules.ts'
 import { createMtimeCache } from '../shared/cache.ts'
 import { diagnostic, type ResourceDiagnostic } from '../shared/diagnostics.ts'
 import { createNodeFiles, type ReadOnlyFiles } from '../shared/files.ts'
@@ -70,8 +71,13 @@ export function createSkillLoader(options: SkillLoaderOptions = {}): SkillLoader
       for (const location of locations) {
         const info = await files.stat(location.dir).catch(() => undefined)
         if (info?.kind !== 'directory') continue
+        const boundary = location.boundary === undefined ? undefined : await realpath(location.boundary).catch(() => location.boundary!)
         for (const path of await findSkillFiles(location.dir, 0, diagnostics, true)) {
           const real = await realpath(path).catch(() => path)
+          if (boundary !== undefined && !pathContains(boundary, real)) {
+            diagnostics.push(diagnostic('skills', 'skill-outside-workspace', `Skill resolves outside the Workspace and was not loaded: ${real}`, path))
+            continue
+          }
           if (seen.has(real)) continue
           seen.add(real)
           let parsed: SkillParseResult | undefined
