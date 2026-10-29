@@ -5,6 +5,7 @@ import { getLogger, redactText } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '../shared/bridge.ts'
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } from './app-protocol.ts'
 import { createCredentialBridge, type CredentialChannel } from './credentials.ts'
+import { createProviderModelsBridge } from './provider-models.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
@@ -250,6 +251,21 @@ function run(): void {
   ipcMain.handle(IPC.saveProvider, async (event, input: unknown) => {
     assertMainFrame(event)
     return credentials.saveProvider(input)
+  })
+  // 获取可用模型：表单中的 Key 只用于这一次请求（ADR 0010）。
+  const providerModels = createProviderModelsBridge({ channel })
+  ipcMain.handle(IPC.fetchProviderModels, async (event, input: unknown) => {
+    assertMainFrame(event)
+    return providerModels.fetch(input)
+  })
+  // fire-and-forget，与日志相同：来自其他框架的消息直接忽略。
+  ipcMain.on(IPC.cancelProviderModels, (event, requestKey: unknown) => {
+    try {
+      assertMainFrame(event)
+    } catch {
+      return
+    }
+    providerModels.cancel(requestKey)
   })
   const secrets = createSecretBridge({ encryption, channel })
   ipcMain.handle(IPC.setSecret, async (event, name: unknown, value: unknown) => {
