@@ -51,3 +51,11 @@
 - DOM：分类为 `role="group"`，带 `data-settings-group` 和指向标题的 `aria-labelledby`；菜单项仍为 `[data-section=<id>]`。
 - 测试注意：分类“Models”/“模型”是 group 的无障碍名称，在弹窗内用 `getByLabelText('Models')` 会多匹配，应改用带角色的查询。
 
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/09-settings-menu-groups` 合入集成分支 model-service，合入提交 8053b45（票分支 6ea7313），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（532 文件）；`pnpm run format:check` 通过（558 文件）；`pnpm run test` 179 文件，1279 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含 desktop-e2e，实施记录中“未运行桌面 e2e”一项由此覆盖；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：对照规格 2.1 与 MS-01，分组、顺序、关于贴底、外观 / 插件 / Hook 隐藏、空分类不显示标题均与 diff 一致，未发现缺口。
+- “供后续票”中关于 `getByLabelText('Models')` 的测试约定已转写到票 03、05、06、07 的 Comments。
+
+Closed: true
