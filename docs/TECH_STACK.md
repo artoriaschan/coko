@@ -40,7 +40,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | packages/agent | @earendil-works/pi-agent-core、@earendil-works/pi-ai、typebox、diff、ignore、vitest；pi-ai 只经子路径导入 Chat Completions、Responses、Anthropic Messages 三个协议及 DeepSeek、OpenAI、Anthropic 模型目录 |
 | apps/server | hono、@hono/node-server、ws、effect、typebox、@earendil-works/pi-agent-core、@earendil-works/pi-ai、@coko/protocol、@coko/session、@coko/agent、@coko/logging、vitest、@types/ws（devDependency）；@vscode/ripgrep（devDependency，仅供 ripgrep grep 的契约测试解析二进制，运行时路径由 `--ripgrep` 传入） |
 | packages/logging | @logtape/logtape、@logtape/file、@logtape/redaction、vitest；文件 sink 经 `@coko/logging/file` 入口导出 |
-| M3 票 01 | packages/agent：@earendil-works/pi-mcp（MCP 客户端，票 07 起使用）、yaml（Skills 与命令的 frontmatter）；apps/desktop：@coko/agent（devDependency，renderer 只导入 `@coko/agent/entries`） |
+| M3 票 01 | packages/agent：@earendil-works/pi-mcp（MCP 客户端：票 07 接入 stdio 与 streamable HTTP 传输、McpClient 工具）、yaml（Skills 与命令的 frontmatter）；apps/desktop：@coko/agent（devDependency，renderer 只导入 `@coko/agent/entries`） |
 | 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol、@vscode/ripgrep（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议；ripgrep 用于 `--ripgrep` 场景） |
 | 其余 packages | vitest |
 

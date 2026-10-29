@@ -50,6 +50,8 @@ Status: open
 - M3：J4 Secrets 对 bash 的隐藏只靠环境变量名模式；接入 MCP 凭据时改为显式白名单或按来源隔离（M2 Standards 评审）。→ 已分配 M3 票 07，按来源隔离，见 ADR 0007。
 - M3：S2 条目派生逻辑在 server/agent 与 renderer 各一份、S3 SessionService 768 行，随 M3 改动 Session 时收敛（M2 Standards 评审）。→ 已分配 M3 票 01。
 
+- M6：MCP HTTP Server 返回 401 时没有专门的 auth-required 状态，目前显示为普通失败（M3 票 07）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |
