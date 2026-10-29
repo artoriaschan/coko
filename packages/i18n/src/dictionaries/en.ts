@@ -263,6 +263,15 @@ export const en: typeof zh = {
     modelsRequired: 'Add at least one model',
     credentialRequired: 'Enter an API key',
     loadFailed: 'Could not load providers',
+    thinking: {
+      title: 'Thinking level',
+      help: 'When on, sessions can choose the levels configured below. When off, sessions only use Off; the levels you entered are still saved.',
+      level: 'Level',
+      value: 'API parameter value',
+      offValue: 'Thinking off',
+      add: 'Add level',
+      remove: 'Delete level',
+    },
     deleteDialog: {
       title: 'Delete “{name}”?',
       description: 'The provider and its API key will be deleted. This cannot be undone.',

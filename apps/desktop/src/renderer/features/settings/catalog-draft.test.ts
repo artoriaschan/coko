@@ -106,3 +106,8 @@ describe('目录行与 CatalogModel', () => {
     ])
   })
 })
+
+it('提交时档位参数值留空用档位名；推理开关关闭时档位照样提交', () => {
+  const [model] = toCatalog([row({ id: 'm', reasoning: false, thinkingLevels: [{ level: 'off' }, { level: 'high', value: ' ' }] })])
+  expect(model).toMatchObject({ reasoning: false, thinkingLevels: [{ level: 'off' }, { level: 'high', value: 'high' }] })
+})

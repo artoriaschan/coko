@@ -261,6 +261,15 @@ export const zh = {
     modelsRequired: '至少添加一个模型',
     credentialRequired: '请输入 API Key',
     loadFailed: '供应商加载失败',
+    thinking: {
+      title: '推理等级',
+      help: '打开后，会话中可以选择下面已配置的档位；关闭后会话只能用“关闭”，已填的档位仍会保存',
+      level: '档位',
+      value: 'API 参数值',
+      offValue: '关闭思考',
+      add: '添加档位',
+      remove: '删除档位',
+    },
     deleteDialog: {
       title: '删除“{name}”？',
       description: '供应商与其 API Key 会一起删除，无法恢复',

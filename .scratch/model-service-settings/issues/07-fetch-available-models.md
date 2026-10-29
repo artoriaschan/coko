@@ -77,3 +77,11 @@
 - 测试：`catalog-draft.test.ts`、`provider-draft.test.ts`、`model-catalog.browser.test.tsx`；`models-section.browser.test.tsx` 有 `addModelRow`、`addModel`、`describedError` helper；e2e 的 `addCustomProvider` 改为点击 `[data-model-add]` 后填写 `modelId`（`settings.e2e` 的 `models` 参数为 `{ id, contextWindow? }[]`）。逐键输入前先等新行的模型 ID 获得焦点，切换协议后先等菜单关闭，否则 Radix 归还焦点会吞掉后半段字符。
 - “获取可用模型”放在目录标题行（票 05 已留出位置）。导入的模型用 `{ ...emptyModelRow(), id, name: id }` 追加到 `draft.models`，按返回顺序；“已在目录”按 `ModelRowDraft.id` 判断。
 - 并行提醒：票 06 与本票同时实施，两张票都改模型目录一带。可能冲突的位置：`model-catalog.tsx`（本票改目录标题行，票 06改 `ModelRow` 展开区和 `ModelRowField`）、`catalog-draft.ts`、i18n `providers.catalog.*`、`model-catalog.browser.test.tsx`，以及可能的 `provider-form.tsx`。只做本票需要的增量改动，并在 Comments 列出改过的共享位置；合入时由 merger 解决冲突。
+
+### 来自票 06
+
+- 推理档位配置（票 06 已合入）：`features/settings/thinking-levels-editor.tsx` 的 `ThinkingLevelsEditor { id, reasoning, levels, onChange(patch: { reasoning?, thinkingLevels? }) }` 放在 `model-catalog.tsx` 中 `ModelRow` 展开区的末尾：输入类型之后一条 0.5px 分隔线，再接编辑器。目录标题行没有改动，“获取可用模型”的位置仍空着。
+- `thinking-levels.ts` 是纯函数：`nextLevel`、`addLevel`、`removeLevel`、`levelChoices`、`changeLevel`、`setLevelValue`、`normalizeLevels`。`catalog-draft.ts` 的 `toCatalog` 现在用 `normalizeLevels(row.thinkingLevels)` 整理档位：非 off 档位的参数值留空时用档位名。导入的模型 `reasoning: false`、`thinkingLevels: []`（`emptyModelRow` 的默认值），经 `normalizeLevels` 后不变。
+- `@coko/ui` 新增 `Switch`（`packages/ui/src/components/switch.tsx`，基于 radix-ui，H20 全圆轨道）。本票如需开关可直接复用。
+- DOM：开关 `role="switch"`、`name="reasoning"`，可访问名称“推理等级”（`providers.thinking.title`）；档位行 `li[data-thinking-level=<level>]`；选择器 `[data-thinking-select]`、菜单项 `[data-thinking-choice]`；参数输入 `[name="thinkingValue"]`；“添加档位” `[data-thinking-add]`。i18n 新增 `providers.thinking.*`（在 `providers.loadFailed` 之后）。
+- 合入冲突提醒：本票与 06 并行实施。06 在 `model-catalog.tsx` 中加了 `ThinkingLevelsEditor` 的 import（与其他 import 相邻）和 `ModelRow` 展开区末尾的 2 行；`catalog-draft.ts` 加了 `normalizeLevels` 的 import 并改了 `toCatalog` 一行；`catalog-draft.test.ts` 末尾加了 1 个用例；i18n 在 `providers` 下加了 `thinking.*`。本票改 `model-catalog.tsx` 的 import 区或 i18n 的 `providers` 段时最可能冲突，合入时保留两边。
