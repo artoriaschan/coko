@@ -64,3 +64,6 @@
 - **修改全局值**：`PUT /api/config { values, expectedRevision, workspaceId? }` 整体替换全局值。票 05 改 `skills.disabled` 时须带上当前 `global` 的其他键（从 `GET` 的 `global` 读出再改）。renderer 的 `stores/config-store.ts`（`configStore`、`createConfigStore(fetchConfig)`）目前只有 `load(workspaceId?)`；需要保存时在该文件加 `save`（409 时读回）。
 - **键名**：协议 `CONFIG_SETTING` / `isConfigSettingKey`，agent `CONFIG_SETTING_KEY`（server 编译期比对两者与两份 schema）；项目文件位置 `PROJECT_SETTINGS_PATH = '.coko/settings.json'`。
 - **项目规则**：`PermissionsResponse.project { workspaceId, path, rules }`；`PermissionService.useProjectRules(source)`，`ProjectRuleSource` 由 `ConfigService` 实现。票 07 若要让项目 `.mcp.json` 的诊断走同一形状，用 `diagnostic('mcp', …)`。
+- 2026-10-29 lead：评审后合入 main（6bd7230）。接受越界：runtime/layers.ts 接线、application/settings.ts 拒绝 config 键、i18n config 域注册、settings-store.ts 保留项目规则、docs/README 一行导航。lead 在 apps/server/README.md 补 /api/config。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 119 文件 911 通过、1 跳过（真实模型），无页面重载；check:docs 0 问题。worktree 已清理。
+
+Closed: true

@@ -17,3 +17,5 @@
 - [ ] skills.md 建立并可达（导航行写在 Comments）；ADR 0008 记录 allowed-tools 证据；ADR 0009 汇总票 03、04、05 的证据并改 implementation；`pnpm run check:docs` 通过
 
 ## Comments
+- 2026-10-29 lead：来自票 02——PUT /api/config 整体替换全局值，保存 Skills 开关时须带回其他全局键（以 GET 返回的 global 为基础修改后提交）；诊断类型复用 protocol/config.ts 的 ResourceDiagnostic；scope.config 已是合并后的生效值。
+
