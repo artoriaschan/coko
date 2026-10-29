@@ -39,6 +39,7 @@ export {
   DropdownMenuTrigger,
 } from './components/dropdown-menu.tsx'
 export { Separator } from './components/separator.tsx'
+export { Switch } from './components/switch.tsx'
 export { Toaster, type ToasterProps } from './components/sonner.tsx'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.tsx'
 export { ContextRing, type ContextRingLevel, type ContextRingProps } from './context-ring/context-ring.tsx'
