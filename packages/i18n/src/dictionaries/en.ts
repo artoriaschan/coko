@@ -1,6 +1,7 @@
-import type { Dictionary } from '../dictionaries.ts'
+import type { zh } from './zh.ts'
 
-export const en: Dictionary = {
+// 基础字典（M2 及之前）；M3 起的文案在 domains/。
+export const en: typeof zh = {
   app: {
     name: 'Coko',
   },
