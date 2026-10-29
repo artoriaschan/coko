@@ -20,3 +20,10 @@
 
 - 设置菜单已分组（票 09 已合入）。分类“Models”/“模型”是 `role="group"` 的无障碍名称（`aria-labelledby` 指向分类标题），在设置弹窗内用 `getByLabelText('Models')` 会同时匹配该分组和表单字段。查询表单字段时改用带角色的查询，例如 `getByRole('textbox', { name: 'Models' })`；新增带“Models”/“模型”标签的控件同样按角色查询。
 - 打开模型服务分区：菜单项文案为 `settings.nav.models`（“Model services”/“模型服务”），选择器 `[data-section=models]` 未变；分区页标题仍用 `settings.models` 等分区自己的键，与菜单文案分开。
+
+### 来自票 01
+
+- Thinking Level（`@coko/protocol`）：`THINKING_LEVELS` 为 off、minimal、low、medium、high、xhigh、max，与 agent 的 `THINKING_LEVELS` 一致（编译期断言）；`ThinkingLevelConfig` 是 `{ level: 'off' }` 或 `{ level, value }`，value 非空。
+- `CatalogModel.thinkingLevels` 按添加顺序保存；`reasoning` 是模型的推理开关。agent 对应 `ThinkingLevelSpec`，`CatalogModel` 与 `ModelSpec` 同形。
+- registry 的 `thinkingLevelMap`：已配置档位为其 value，未配置为 null，off 不写入（按协议默认关闭）；`reasoning` 关闭时 pi-ai 只支持 off。
+- 服务端校验（`ModelConfigError` → 400）拒绝同一模型的重复档位。现有过渡表单不编辑档位，编辑已有模型时保留其 `thinkingLevels`；renderer 测试 helper `catalogModel` 在 `apps/desktop/src/renderer/testing/fake-settings.ts`。
