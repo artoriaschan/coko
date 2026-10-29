@@ -125,3 +125,18 @@
 - `ThinkingLevelsEditor { id, reasoning, levels, onChange(patch: { reasoning?, thinkingLevels? }) }`。
 - DOM：开关 `role="switch"`、`name="reasoning"`，可访问名称为 `providers.thinking.title`（“推理等级”）；档位行 `li[data-thinking-level=<level>]`；选择器 `[data-thinking-select]`（可访问名称“档位”）、菜单项 `[data-thinking-choice]`；参数输入 `[name="thinkingValue"]`；“添加档位” `[data-thinking-add]`；删除按钮可访问名称“删除档位”。
 - 票 07 导入的模型 `reasoning: false`、`thinkingLevels: []`，即开关关闭、没有档位（`emptyModelRow` 的默认值）。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/06-thinking-level-config` 合入集成分支 model-service，合入提交 b75a214（票分支 9c210a8，基于 64a79a1），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（557 文件）；`pnpm run format:check` 通过（583 文件）；`pnpm run test` 196 文件，1383 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含 `thinking-levels.test.ts` 6、`thinking-levels.browser.test.tsx` 4、`switch.browser.test.tsx` 1、`thinking-levels.e2e.test.ts` 1 与全部 desktop-e2e、产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：对照 MS-15 至 MS-18 与 MS-36（表单侧），没有发现缺口。
+  - MS-16、MS-17：七次添加的顺序为 off → max，第七次后按钮禁用且文案不变，没有顺序提示或“已添加全部档位”。
+  - MS-18：删除后补齐最早缺失档位，修改时只能选尚未配置的档位。
+  - off 行参数输入禁用并显示“关闭思考”，其余档位默认值为档位名；开关关闭时档位仍随草稿保存，重新打开后仍在。
+- 共享文件改动与 lead 备注一致：`model-catalog.tsx` 3 行、`catalog-draft.ts` 2 行、i18n 新增 `providers.thinking.*`。依赖没有变化（`package.json` 与 `pnpm-lock.yaml` 无 diff）。
+- `Switch` 对照 `docs/tech-stack/ui-design-system.md`：全圆轨道和滑块用 `rounded-round`（规则要求全圆轨道用它，不用 `rounded-full`）；颜色只用语义 token（`bg-primary`、`bg-input`、`bg-background`），没有 `dark:` 变体；焦点环用共享 `focus-ring`。几何为 H20 × W32、滑块 16px、内边距 2px，选中位移 12px 与轨道宽度吻合。**小缺口（不阻塞）**：设计系统要求动效提供 `motion-reduce:` 替代，滑块有 `motion-reduce:transition-none`，轨道的 `transition-colors` 没有，可在最终评审时顺手补上。
+- 已知差异沿用实施记录：没有在 Electron 中目视检查深色主题和 390px 窄窗口；帮助图标的 Tooltip 没有单独断言。Anthropic 档位参数的缺口仍按票 08 的记录留到最终评审。
+- “供后续票”的约定已转写到票 07 的 Comments（标题“来自票 06”），并注明了 07 合入时可能在 `model-catalog.tsx` 冲突。
+
+Closed: true
