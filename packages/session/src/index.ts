@@ -12,6 +12,7 @@ export type {
   SecretRepository,
   Provider,
   ProviderInput,
+  ProviderReferences,
   ProviderRepository,
   Session,
   SessionEntry,

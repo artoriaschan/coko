@@ -11,6 +11,7 @@ import {
   permissionPaths,
   PermissionsResponse,
   ProviderListResponse,
+  ProviderReferencesResponse,
   runPaths,
   Session,
   SessionDetailResponse,
@@ -123,6 +124,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */
     putSetting: (key: string, value: unknown, expectedRevision: number) => call(Setting, 'PUT', apiPaths.setting(key), { value, expectedRevision }),
     listProviders: async () => (await call(ProviderListResponse, 'GET', API_ROUTES.providers)).providers,
+    /** 引用该 Provider 的 Session 数量；删除确认用。 */
+    providerReferences: (id: string) => call(ProviderReferencesResponse, 'GET', apiPaths.providerReferences(id)),
+    /** 同时删除其 Credential；引用它的 Session 模型字段被清空，默认模型指向它时回退。 */
     deleteProvider: (id: string) => call(NoContent, 'DELETE', apiPaths.provider(id)),
     listModels: () => call(ModelListResponse, 'GET', API_ROUTES.models),
   }

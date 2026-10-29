@@ -1,9 +1,10 @@
 import type { Provider } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, toast } from '@coko/ui'
+import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle } from '@coko/ui'
 import { LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings, useSettingsActions, useSettingsDialog } from '../../app/settings.tsx'
+import { DeleteProviderDialog, type DeleteProviderRequest } from './delete-provider-dialog.tsx'
 import { draftOf, emptyDraft, isDirty, type FormDraft } from './provider-draft.ts'
 import { ProviderForm } from './provider-form.tsx'
 import { SettingsCard } from './settings-dialog.tsx'
@@ -33,6 +34,7 @@ export function ModelsSection() {
   const { setLeaveGuard } = useSettingsDialog()
   const [open, setOpen] = React.useState<OpenForm | null>(null)
   const [confirming, setConfirming] = React.useState<{ resolve: (discard: boolean) => void } | null>(null)
+  const [deleting, setDeleting] = React.useState<DeleteProviderRequest | null>(null)
   const listId = React.useId()
   const sectionRef = React.useRef<HTMLElement>(null)
   const focusAfter = React.useRef<FocusTarget | null>(null)
@@ -131,7 +133,7 @@ export function ModelsSection() {
 
       {providers.length > 0 && (
         <ul aria-label={t('providers.list')} className="flex flex-col gap-1">
-          {providers.map((provider) => {
+          {providers.map((provider, index) => {
             const editing = current?.id === provider.id ? current : null
             const formId = editing ? `${listId}-${editing.key}` : undefined
             return (
@@ -141,6 +143,7 @@ export function ModelsSection() {
                 expanded={editing !== null}
                 formId={formId}
                 onEdit={() => void switchTo(editing ? null : editForm(provider))}
+                onDelete={() => setDeleting((prev) => ({ provider, index, opened: (prev?.opened ?? 0) + 1, open: true }))}
               >
                 {editing && form(editing, provider)}
               </ProviderRow>
@@ -158,6 +161,19 @@ export function ModelsSection() {
         </Button>
       )}
 
+      <DeleteProviderDialog
+        key={deleting?.opened ?? 0}
+        request={deleting}
+        onClose={() => setDeleting((prev) => (prev ? { ...prev, open: false } : prev))}
+        focusAfterClose={(request, deleted) => {
+          const root = sectionRef.current
+          // 取消：回到该项的“删除”。删除后该项已不在：同一位置的列表项（或最后一项、添加入口）。
+          if (!deleted) return root?.querySelector<HTMLElement>(`[data-provider-id="${CSS.escape(request.provider.id)}"] [data-provider-delete]`) ?? null
+          const items = root?.querySelectorAll<HTMLElement>('[data-provider-id]') ?? []
+          const item = items[Math.min(request.index, items.length - 1)]
+          return item?.querySelector<HTMLElement>('[data-provider-edit]') ?? root?.querySelector<HTMLElement>('[data-provider-add]') ?? null
+        }}
+      />
       <DiscardDialog
         open={confirming !== null}
         onAnswer={(discard) => {
@@ -192,28 +208,18 @@ function ProviderRow({
   expanded,
   formId,
   onEdit,
+  onDelete,
   children,
 }: {
   provider: Provider
   expanded: boolean
   formId: string | undefined
   onEdit: () => void
+  /** 打开删除确认。 */
+  onDelete: () => void
   children: React.ReactNode
 }) {
   const { t } = useI18n()
-  const { deleteProvider } = useSettingsActions()
-  const [confirming, setConfirming] = React.useState(false)
-  const [deleting, setDeleting] = React.useState(false)
-  const remove = async () => {
-    setDeleting(true)
-    const ok = await deleteProvider(provider.id)
-    setDeleting(false)
-    if (ok) toast.success(t('providers.deleted'))
-    else {
-      setConfirming(false)
-      toast.error(t('providers.deleteFailed'))
-    }
-  }
   return (
     <li
       data-provider-id={provider.id}
@@ -229,25 +235,12 @@ function ProviderRow({
           <CredentialStatus provider={provider} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {confirming ? (
-            <>
-              <Button variant="destructive" size="sm" disabled={deleting} onClick={() => void remove()}>
-                {t('providers.confirmDelete')}
-              </Button>
-              <Button variant="ghost" size="sm" disabled={deleting} onClick={() => setConfirming(false)}>
-                {t('providers.cancel')}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button data-provider-edit variant="outline" size="sm" aria-expanded={expanded} aria-controls={formId} onClick={onEdit}>
-                {t('providers.edit')}
-              </Button>
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setConfirming(true)}>
-                {t('providers.delete')}
-              </Button>
-            </>
-          )}
+          <Button data-provider-edit variant="outline" size="sm" aria-expanded={expanded} aria-controls={formId} onClick={onEdit}>
+            {t('providers.edit')}
+          </Button>
+          <Button data-provider-delete variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
+            {t('providers.delete')}
+          </Button>
         </div>
       </div>
       {expanded && (

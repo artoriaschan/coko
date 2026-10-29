@@ -119,4 +119,19 @@ describe('设置 store', () => {
     expect(await store.getState().deleteProvider('custom-provider-1')).toBe(true)
     expect(store.getState()).toMatchObject({ providers: [], models: [], defaultModel: null })
   })
+
+  it('删除前读取引用数量；删除成功后通知（会话列表据此重新读取），失败时不通知', async () => {
+    const backend = fakeSettingsBackend()
+    backend.seedProvider(customProvider('custom-provider-1', ['m']))
+    backend.setReferences('custom-provider-1', 3)
+    const deleted: string[] = []
+    const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider, onProviderDeleted: (id) => void deleted.push(id) })
+    await store.getState().load()
+    expect(await store.getState().providerReferences('custom-provider-1')).toEqual({ sessions: 3 })
+    await expect(store.getState().providerReferences('missing')).rejects.toMatchObject({ code: 'not-found' })
+    expect(await store.getState().deleteProvider('missing')).toBe(false)
+    expect(deleted).toEqual([])
+    expect(await store.getState().deleteProvider('custom-provider-1')).toBe(true)
+    expect(deleted).toEqual(['custom-provider-1'])
+  })
 })
