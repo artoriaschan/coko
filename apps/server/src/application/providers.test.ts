@@ -68,7 +68,14 @@ describe('ProviderService：自定义 Provider', () => {
     expect(await restarted.service.list()).toEqual([created])
     expect(restarted.registry.models.getModel('custom-provider-1', 'custom-model-1')).toMatchObject(expected)
     expect(restarted.service.models()).toEqual([
-      { providerId: 'custom-provider-1', providerName: '自定义供应商一', modelId: 'custom-model-1', name: '自定义模型一' },
+      // 会话可选的档位：off 与已配置的档位，按固定顺序。
+      {
+        providerId: 'custom-provider-1',
+        providerName: '自定义供应商一',
+        modelId: 'custom-model-1',
+        name: '自定义模型一',
+        thinkingLevels: ['off', 'medium', 'high'],
+      },
     ])
   })
 

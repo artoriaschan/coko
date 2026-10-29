@@ -22,6 +22,8 @@ export interface Session {
   workspaceId: string
   title: string
   model: SessionModel | null
+  /** 与模型一起保存的 Thinking Level（off、minimal … max；取值由宿主校验）；新建默认 off，清空模型时回到 off。 */
+  thinkingLevel: string
   createdAt: number
   /** 创建、追加条目、改标题或换模型时更新；列表按它倒序。 */
   updatedAt: number
@@ -56,12 +58,13 @@ export interface SessionRepository {
   listWorkspaces(): Promise<Workspace[]>
   getWorkspace(id: string): Promise<Workspace | undefined>
   /** Workspace 不存在时以 not-found 拒绝。 */
-  createSession(input: { workspaceId: string; title?: string; model?: SessionModel | null }): Promise<Session>
+  createSession(input: { workspaceId: string; title?: string; model?: SessionModel | null; thinkingLevel?: string }): Promise<Session>
   /** 按 updatedAt 倒序；给出 workspaceId 时只列该 Workspace。 */
   listSessions(filter?: { workspaceId?: string }): Promise<Session[]>
   getSession(id: string): Promise<Session | undefined>
   setSessionTitle(id: string, title: string): Promise<Session>
-  setSessionModel(id: string, model: SessionModel | null): Promise<Session>
+  /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */
+  setSessionModel(id: string, model: SessionModel | null, thinkingLevel?: string): Promise<Session>
   /**
    * 一个事务内提交全部条目；返回时已提交，返回值是写入时的原样记录。Session 不存在时以 not-found 拒绝；
    * 任一条目不合注册的 schema 时以 invalid-payload 拒绝，整批不提交。

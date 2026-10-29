@@ -74,7 +74,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
-      createSession: op((input: { workspaceId: string; title?: string; model?: SessionModel | null }) => {
+      createSession: op((input: { workspaceId: string; title?: string; model?: SessionModel | null; thinkingLevel?: string }) => {
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
         const at = now()
         const session: Session = {
@@ -82,6 +82,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           workspaceId: input.workspaceId,
           title: input.title ?? '',
           model: input.model ?? null,
+          thinkingLevel: (input.model && input.thinkingLevel) || 'off',
           createdAt: at,
           updatedAt: at,
         }
@@ -98,7 +99,9 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
-      setSessionModel: op((id: string, model: SessionModel | null) => touch(requireSession(id), { model: copy(model) })),
+      setSessionModel: op((id: string, model: SessionModel | null, thinkingLevel?: string) =>
+        touch(requireSession(id), { model: copy(model), thinkingLevel: (model && thinkingLevel) || 'off' }),
+      ),
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
         if (input.length === 0) return []

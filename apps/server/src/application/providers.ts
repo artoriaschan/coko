@@ -2,6 +2,7 @@ import {
   createModelRegistry,
   InMemoryCredentialStore,
   ModelConfigError,
+  selectableThinkingLevels,
   type ModelProtocol as AgentModelProtocol,
   type ModelRegistry,
   type ModelSpec,
@@ -74,14 +75,18 @@ export class ProviderService {
     return (await this.#options.store.providers.list()).map(toProviderDto)
   }
 
-  /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序。 */
+  /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序；各带会话中可选的 Thinking Level。 */
   models(): AvailableModel[] {
     const { models } = this.#options.registry
-    return models
-      .getProviders()
-      .flatMap((provider) =>
-        models.getModels(provider.id).map((model) => ({ providerId: provider.id, providerName: provider.name, modelId: model.id, name: model.name })),
-      )
+    return models.getProviders().flatMap((provider) =>
+      models.getModels(provider.id).map((model) => ({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: model.id,
+        name: model.name,
+        thinkingLevels: selectableThinkingLevels(model),
+      })),
+    )
   }
 
   /**

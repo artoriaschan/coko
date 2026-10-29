@@ -20,6 +20,26 @@ export type RegisterWorkspaceRequest = Static<typeof RegisterWorkspaceRequest>
 export const WorkspaceListResponse = Type.Object({ workspaces: Type.Array(Workspace) }, strict)
 export type WorkspaceListResponse = Static<typeof WorkspaceListResponse>
 
+// ---- Thinking Level ----
+
+/** 除 off 外的六档，按固定顺序。 */
+const ReasoningLevel = Type.Union([
+  Type.Literal('minimal'),
+  Type.Literal('low'),
+  Type.Literal('medium'),
+  Type.Literal('high'),
+  Type.Literal('xhigh'),
+  Type.Literal('max'),
+])
+
+/**
+ * 七档 Thinking Level：off 与其后六档，顺序固定；与 @coko/agent 的 THINKING_LEVELS 一致（apps/server/src/application/providers.ts
+ * 中有编译期断言）。
+ */
+export const ThinkingLevel = Type.Union([Type.Literal('off'), ...ReasoningLevel.anyOf])
+export type ThinkingLevel = Static<typeof ThinkingLevel>
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ThinkingLevel.anyOf.map((literal) => literal.const)
+
 // ---- Session ----
 
 export const SessionModel = Type.Object({ providerId: Id, modelId: Id }, strict)
@@ -31,6 +51,8 @@ export const Session = Type.Object(
     workspaceId: Id,
     title: Type.String(),
     model: Type.Union([SessionModel, Type.Null()]),
+    /** 与模型一起按 Session 保存的 Thinking Level；新建为 off。当前模型不支持该档位（例如目录已修改）时为 off。 */
+    thinkingLevel: ThinkingLevel,
     /** 当前是否有 Run 在进行。 */
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
@@ -42,8 +64,13 @@ export const Session = Type.Object(
 )
 export type Session = Static<typeof Session>
 
-/** 未给 model 时使用默认模型（设置 defaultModel，否则第一个可用模型）。 */
-export const CreateSessionRequest = Type.Object({ workspaceId: Id, title: Type.Optional(Type.String()), model: Type.Optional(SessionModel) }, strict)
+/**
+ * 未给 model 时使用默认模型（设置 defaultModel，否则第一个可用模型）。thinkingLevel 缺省为 off；所用模型不能选该档位时 400。
+ */
+export const CreateSessionRequest = Type.Object(
+  { workspaceId: Id, title: Type.Optional(Type.String()), model: Type.Optional(SessionModel), thinkingLevel: Type.Optional(ThinkingLevel) },
+  strict,
+)
 export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
@@ -64,7 +91,11 @@ export type SubmitMessageResponse = Static<typeof SubmitMessageResponse>
 export const AbortRunResponse = Type.Object({ aborted: Type.Boolean() }, strict)
 export type AbortRunResponse = Static<typeof AbortRunResponse>
 
-export const SetSessionModelRequest = Type.Object({ model: SessionModel }, strict)
+/**
+ * 模型与 Thinking Level 一起切换（Run 进行中 409 run-in-progress）。给出 thinkingLevel 时该模型不能选它为 400；缺省时保留当前档位，
+ * 新模型不能选它时回到 off。
+ */
+export const SetSessionModelRequest = Type.Object({ model: SessionModel, thinkingLevel: Type.Optional(ThinkingLevel) }, strict)
 export type SetSessionModelRequest = Static<typeof SetSessionModelRequest>
 
 // ---- Settings ----
@@ -94,21 +125,6 @@ export const ProviderId = Type.String({ pattern: PROVIDER_ID_PATTERN })
 /** Provider 保存的协议；与 @coko/agent 的 MODEL_PROTOCOLS 一致（apps/server/src/application/providers.ts 中有编译期断言）。 */
 export const ModelProtocol = Type.Union([Type.Literal('openai-completions'), Type.Literal('openai-responses'), Type.Literal('anthropic-messages')])
 export type ModelProtocol = Static<typeof ModelProtocol>
-
-/** 除 off 外的六档，按固定顺序。 */
-const ReasoningLevel = Type.Union([
-  Type.Literal('minimal'),
-  Type.Literal('low'),
-  Type.Literal('medium'),
-  Type.Literal('high'),
-  Type.Literal('xhigh'),
-  Type.Literal('max'),
-])
-
-/** 七档 Thinking Level：off 与其后六档，顺序固定；与 @coko/agent 的 THINKING_LEVELS 一致（同上，编译期断言）。 */
-export const ThinkingLevel = Type.Union([Type.Literal('off'), ...ReasoningLevel.anyOf])
-export type ThinkingLevel = Static<typeof ThinkingLevel>
-export const THINKING_LEVELS: readonly ThinkingLevel[] = ThinkingLevel.anyOf.map((literal) => literal.const)
 
 /** 一个已配置的档位：off 没有参数（按协议的默认关闭方式请求）；其余档位发送 value。 */
 export const ThinkingLevelConfig = Type.Union([
@@ -185,8 +201,14 @@ export type ProviderSaveMode = Static<typeof ProviderSaveMode>
 
 // ---- Models ----
 
-/** 一个可选的模型：Session 可以切换到它。 */
-export const AvailableModel = Type.Object({ providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String() }, strict)
+/**
+ * 一个可选的模型：Session 可以切换到它。thinkingLevels 为会话中可选的档位，按固定顺序：始终有 off，推理开关打开时再加上
+ * 目录中已配置的档位。
+ */
+export const AvailableModel = Type.Object(
+  { providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String(), thinkingLevels: Type.Array(ThinkingLevel, { minItems: 1 }) },
+  strict,
+)
 export type AvailableModel = Static<typeof AvailableModel>
 
 /** 已注册 Provider 的模型（按 Provider 登记顺序）与新建 Session 的默认模型；没有可用模型时 defaultModel 为 null。 */

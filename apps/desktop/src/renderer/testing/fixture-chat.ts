@@ -12,6 +12,7 @@ const session = (id: string, workspaceId: string, title: string, updatedAt: numb
   workspaceId,
   title,
   model: { providerId: 'faux', modelId: 'faux-1' },
+  thinkingLevel: 'off',
   running,
   activity: running ? 'running' : 'idle',
   createdAt: 1,
