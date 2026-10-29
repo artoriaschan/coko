@@ -320,11 +320,13 @@ export class SessionService {
   // ---- Run 控制 ----
 
   /**
-   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。提交的文本先经上下文装配展开（命令 → File Reference）；
-   * 展开为动作（例如 /compact）时调用该动作，Run 进行中 run-in-progress。
+   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。Run 进行中先以 run-in-progress 拒绝，不展开输入（展开可能调用 MCP
+   * prompts/get、读取 Skill 与引用的文件）。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用
+   * 该动作。展开期间另一个 Run 开始时，#start 与动作照常再检查一次。
    */
   async submit(sessionId: string, text: string): Promise<{ runId: string }> {
     const session = await this.#get(sessionId)
+    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
     const expanded = await this.#context.expandInput(text, await this.#scope(session))
     if (expanded.kind === 'input') return this.#start(sessionId, (runtime) => runtime.run(expanded.input))
     if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
