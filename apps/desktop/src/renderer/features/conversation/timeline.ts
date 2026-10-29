@@ -1,4 +1,4 @@
-import type { ApprovalDecisionPayload, ApprovalRequestPayload, CommandPayload, SessionEntry } from '@coko/protocol'
+import { fileReferencePath, type ApprovalDecisionPayload, type ApprovalRequestPayload, type CommandPayload, type SessionEntry } from '@coko/protocol'
 import { rewoundRanges } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
@@ -28,8 +28,9 @@ export type TimelineItem =
   /**
    * seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。
    * command：这条消息由命令展开而来（text 为展开后的全文），invocation 为原始调用 "/name 参数"（回退时放回输入区）。
+   * references：随消息附上的 File Reference（<file_reference> 文本块的 path，按出现顺序）；块本身不进入 text。
    */
-  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean; command?: CommandPayload; invocation?: string }
+  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean; command?: CommandPayload; invocation?: string; references?: string[] }
   /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
   | { kind: 'rewound'; key: string; items: TimelineItem[] }
   | { kind: 'text'; key: string; text: string; streaming: boolean }
@@ -168,10 +169,17 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (message.role === 'user') {
       const command = pendingCommand
       pendingCommand = null
+      const references: string[] = []
+      const own = blocksOf(message.content).filter((b) => {
+        const path = b.type === 'text' && typeof b.text === 'string' ? fileReferencePath(b.text) : undefined
+        if (path !== undefined) references.push(path)
+        return path === undefined
+      })
       items.push({
         kind: 'user',
         key: `${entry.seq}`,
-        text: contentText(message.content),
+        text: typeof message.content === 'string' ? message.content : contentText(own),
+        ...(references.length > 0 ? { references } : {}),
         seq: entry.seq,
         checkpoint: !hidden,
         ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),

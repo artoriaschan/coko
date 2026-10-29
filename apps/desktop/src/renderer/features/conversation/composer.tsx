@@ -3,7 +3,9 @@ import { ArrowUpIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { CommandTarget } from '../../stores/commands-store.ts'
+import { appDraftStore, draftKey, type DraftStore } from '../../stores/draft-store.ts'
 import { CommandMenu } from './command-menu.tsx'
+import { FileMenu } from './file-menu.tsx'
 
 export interface ComposerProps {
   running: boolean
@@ -27,6 +29,10 @@ export interface ComposerProps {
   className?: string
   /** 命令目录的作用域（当前会话或 Workspace 草稿）：草稿开头输入 / 时显示命令菜单。省略时没有命令菜单。 */
   commandTarget?: CommandTarget | undefined
+  /** @ 文件菜单的 Workspace（当前会话的或草稿的）。省略时没有文件菜单。 */
+  fileWorkspaceId?: string | undefined
+  /** 草稿持久化（测试注入）；缺省为应用内共用的 localStorage store。草稿按 commandTarget 区分，省略 commandTarget 时不持久化。 */
+  drafts?: DraftStore
   /** 外部聚焦编辑区（⌘N 新建会话后）或放回文本（退回的追加指令）。 */
   ref?: React.Ref<ComposerHandle>
 }
@@ -55,11 +61,63 @@ export function Composer({
   onCycleMode,
   className,
   commandTarget,
+  fileWorkspaceId,
+  drafts: injectedDrafts,
   ref,
 }: ComposerProps) {
   const { t } = useI18n()
   const editor = React.useRef<ComposerEditorHandle>(null)
   const [empty, setEmpty] = React.useState(true)
+  const key = commandTarget ? draftKey(commandTarget) : undefined
+  const drafts = React.useMemo(() => (key === undefined ? undefined : (injectedDrafts ?? appDraftStore())), [key === undefined, injectedDrafts])
+  // 编辑区当前内容所属的草稿键；提交等待期间切换作用域时内容随之带到新键（不替换为新键的草稿）。
+  const loadedKey = React.useRef<string | undefined>(undefined)
+  const submitting = React.useRef(0)
+  const persist = React.useCallback(() => {
+    const target = loadedKey.current
+    const handle = editor.current
+    if (target === undefined || !drafts || !handle) return
+    if (handle.getText().trim() === '') drafts.remove(target)
+    else drafts.schedule(target, () => handle.getEditorState())
+  }, [drafts])
+  // 作用域变化（切换会话、新会话）：写入上一个作用域的待写草稿，载入新作用域的草稿；损坏的草稿丢弃，输入区为空。
+  React.useLayoutEffect(() => {
+    const handle = editor.current
+    if (key === undefined || !drafts || !handle) {
+      loadedKey.current = undefined
+      return
+    }
+    if (submitting.current > 0 && loadedKey.current !== undefined) {
+      loadedKey.current = key
+      persist()
+    } else {
+      loadedKey.current = key
+      const saved = drafts.load(key)
+      if (saved === undefined) handle.clear()
+      else if (!handle.setEditorState(saved)) {
+        drafts.discard(key, 'rejected-by-editor')
+        handle.clear()
+      }
+    }
+    return () => drafts.flush()
+  }, [key, drafts, persist])
+  /** 提交被接受后清除提交时所属作用域的草稿（编辑区随后被清空，persist 再处理当前作用域）。 */
+  const withDraft = React.useCallback(
+    (submit: (text: string) => Promise<boolean>) => async (text: string) => {
+      const at = loadedKey.current
+      submitting.current++
+      try {
+        const accepted = await submit(text)
+        if (accepted && at !== undefined && at !== loadedKey.current) drafts?.remove(at)
+        return accepted
+      } finally {
+        submitting.current--
+      }
+    },
+    [drafts],
+  )
+  const send = React.useMemo(() => withDraft(onSend), [withDraft, onSend])
+  const steer = React.useMemo(() => withDraft(onSteer), [withDraft, onSteer])
   React.useImperativeHandle(
     ref,
     () => ({
@@ -105,13 +163,15 @@ export function Composer({
                 return false
               }
             : running
-              ? onSteer
-              : onSend
+              ? steer
+              : send
         }
         onEscape={running ? onStop : undefined}
         onEmptyChange={setEmpty}
+        onDraftChange={persist}
       >
         {commandTarget && <CommandMenu target={commandTarget} />}
+        {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
       </ComposerEditor>
       {accessory}
       {setup ? (

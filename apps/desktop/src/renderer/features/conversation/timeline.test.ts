@@ -76,3 +76,24 @@ describe('时间线：命令消息', () => {
     expect(users[1]).not.toHaveProperty('command')
   })
 })
+
+describe('时间线：File Reference', () => {
+  it('<file_reference> 块不进入气泡文本，按出现顺序作为 references；没有引用时省略', () => {
+    const withRefs = entry(
+      'message',
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '看看 @src/a.ts 和 @"my dir/"' },
+          { type: 'text', text: '<file_reference path="src/a.ts">\nexport const a = 1\n</file_reference>' },
+          { type: 'text', text: '<file_reference path="my dir/">\nx.ts\n</file_reference>' },
+        ],
+        timestamp: 0,
+      },
+      'r',
+    )
+    const items = buildTimeline(conversation([withRefs, user('plain')]))
+    expect(items[0]).toMatchObject({ kind: 'user', text: '看看 @src/a.ts 和 @"my dir/"', references: ['src/a.ts', 'my dir/'] })
+    expect(items[1]).not.toHaveProperty('references')
+  })
+})

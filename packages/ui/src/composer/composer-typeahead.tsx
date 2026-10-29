@@ -8,6 +8,7 @@ import {
   $isTextNode,
   COMMAND_PRIORITY_BEFORE_CRITICAL,
   COMMAND_PRIORITY_CRITICAL,
+  HISTORY_MERGE_TAG,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ENTER_COMMAND,
@@ -22,6 +23,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { menuSurface } from '../components/dropdown-menu.tsx'
 import { cn } from '../lib/utils.ts'
+import { $createFileReferenceNode } from './file-reference-node.ts'
 
 export interface ComposerTypeaheadItem {
   /** 稳定身份（同一列表内唯一）。 */
@@ -41,17 +43,28 @@ export interface ComposerTypeaheadGroup {
   label: string
 }
 
+/** 候选是怎样被选中的：Enter、Tab 或指针。 */
+export type ComposerTypeaheadSelection = 'enter' | 'tab' | 'pointer'
+
+/** 替换 token 的内容：文本（例如 '/review '），或一个 File Reference 节点（其后跟一个空格）。 */
+export type ComposerTypeaheadReplacement = string | { fileReference: string }
+
 export interface ComposerTypeaheadProps {
   /** 触发字符，例如 '/' 或 '@'。 */
   trigger: string
   /** start：只在草稿开头触发；word：在词首（行首或空白之后）触发。 */
   position: 'start' | 'word'
-  /** 查询（触发字符之后、光标之前的文本）对应的候选；没有候选时菜单不出现，按键照常交给编辑区。 */
+  /**
+   * 查询（触发字符之后、光标之前的文本）对应的候选；没有候选时菜单不出现，按键照常交给编辑区。候选异步到达时换一个新的 getItems，
+   * 光标仍在 token 中时重新匹配（菜单随之打开）。
+   */
   getItems: (query: string) => readonly ComposerTypeaheadItem[]
+  /** token 的查询变化时调用（包括还没有候选时），例如据此请求候选。 */
+  onQuery?: (query: string) => void
   /** 分组顺序与标题；候选按此顺序分组显示，没有候选的分组不显示。 */
   groups: readonly ComposerTypeaheadGroup[]
-  /** 选中后替换 token（含触发字符）的文本，例如 '/review '。 */
-  onSelect: (item: ComposerTypeaheadItem) => string
+  /** 选中后替换 token（含触发字符）的内容；替换为文本且其中仍是同一种 token 时菜单按新的查询继续（例如 Tab 进入目录）。 */
+  onSelect: (item: ComposerTypeaheadItem, selection: ComposerTypeaheadSelection) => ComposerTypeaheadReplacement
   /** 已本地化的列表名称。 */
   label: string
   /** 编辑区获得焦点时调用（例如刷新候选来源）。 */
@@ -115,7 +128,7 @@ function tokenStart(before: string, trigger: string, position: ComposerTypeahead
  * 用 replacement 替换光标前的整个 token。插件按上一次渲染时的匹配切分文本节点：菜单打开后连续输入再确认时，切出的节点可能只含
  * 查询的后半部分（其余仍在前一个兄弟节点中），因此这里把光标所在行内、该节点及其之前相邻的文本节点合起来重新计算 token。
  */
-function $replaceToken(node: TextNode | null, trigger: string, position: ComposerTypeaheadProps['position'], replacement: string) {
+function $replaceToken(node: TextNode | null, trigger: string, position: ComposerTypeaheadProps['position'], replacement: ComposerTypeaheadReplacement) {
   let end: TextNode | null = node
   if (!end) {
     const selection = $getSelection()
@@ -131,10 +144,23 @@ function $replaceToken(node: TextNode | null, trigger: string, position: Compose
   const before = parts.map((part) => part.getTextContent()).join('')
   const start = tokenStart(before, trigger, position)
   if (start < 0) return
-  const inserted = $createTextNode(before.slice(0, start) + replacement)
-  end.replace(inserted)
   for (const part of parts.slice(0, -1)) part.remove()
-  inserted.select()
+  if (typeof replacement === 'string') {
+    const inserted = $createTextNode(before.slice(0, start) + replacement)
+    end.replace(inserted)
+    inserted.select()
+    return
+  }
+  const reference = $createFileReferenceNode(replacement.fileReference)
+  const space = $createTextNode(' ')
+  if (start === 0) end.replace(reference)
+  else {
+    const prefix = $createTextNode(before.slice(0, start))
+    end.replace(prefix)
+    prefix.insertAfter(reference)
+  }
+  reference.insertAfter(space)
+  space.select(1, 1)
 }
 
 // 菜单材质来自 dropdown-menu；项几何同其菜单项（R12、高 32px 起）。
@@ -145,7 +171,7 @@ const menuItem = 'flex min-h-8 cursor-default items-center gap-2 rounded-md px-2
  * 选中项经 aria-activedescendant 指出；↑↓ 移动、Enter / Tab 确认、Esc 关闭且不改草稿、关闭后同一 token 不再弹出，
  * 输入法组合期间不触发、不确认。菜单经 Popper 定位在编辑区上方（放不下时翻到下方），不越出窗口，可用指针选择。
  */
-export function ComposerTypeahead({ trigger, position, getItems, groups, onSelect, label, onFocus, className }: ComposerTypeaheadProps) {
+export function ComposerTypeahead({ trigger, position, getItems, onQuery, groups, onSelect, label, onFocus, className }: ComposerTypeaheadProps) {
   const [editor] = useLexicalComposerContext()
   const [query, setQuery] = React.useState<string | null>(null)
   // Esc 关闭的 token（文本节点与起点）：同一 token 不再弹出，token 消失后复位。
@@ -163,22 +189,30 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
       container.setAttribute('aria-label', label)
     }
   })
-  const latest = React.useRef({ getItems, trigger, position, onFocus })
+  const latest = React.useRef({ getItems, trigger, position, onFocus, onQuery })
   React.useLayoutEffect(() => {
-    latest.current = { getItems, trigger, position, onFocus }
+    latest.current = { getItems, trigger, position, onFocus, onQuery }
   })
+  // 最近一次报告给 onQuery 的查询（token 消失时复位）；选中方式由 Enter / Tab 在菜单处理之前记下。
+  const reported = React.useRef<string | null>(null)
+  const selection = React.useRef<ComposerTypeaheadSelection>('enter')
 
   const options = React.useMemo(() => (query === null ? [] : getItems(query).map((item) => new TypeaheadOption(item))), [getItems, query])
 
   const triggerFn = React.useCallback((_text: string, editor: LexicalEditor): MenuTextMatch | null => {
-    const { trigger, position, getItems } = latest.current
+    const { trigger, position, getItems, onQuery } = latest.current
     const match = editor.isComposing() || blurred.current ? null : matchToken(editor, trigger, position)
     if (!match) {
       dismissed.current = null
       current.current = null
+      reported.current = null
       return null
     }
     current.current = { key: match.key, leadOffset: match.leadOffset }
+    if (reported.current !== match.matchingString) {
+      reported.current = match.matchingString
+      onQuery?.(match.matchingString)
+    }
     const d = dismissed.current
     if (d && (d.key !== match.key || d.leadOffset !== match.leadOffset)) dismissed.current = null
     if (dismissed.current) return null
@@ -186,6 +220,12 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
     if (getItems(match.matchingString).length === 0) return null
     return { leadOffset: match.leadOffset, matchingString: match.matchingString, replaceableString: match.replaceableString }
   }, [])
+
+  // 候选异步到达（getItems 换了）且光标仍在 token 中：重新匹配，使菜单打开或更新。
+  React.useEffect(() => {
+    if (current.current === null || blurred.current || !editor.getRootElement()?.contains(document.activeElement)) return
+    editor.update(() => $getRoot().markDirty(), { tag: HISTORY_MERGE_TAG })
+  }, [editor, getItems])
 
   React.useEffect(() => {
     const consumeIme = (event: KeyboardEvent | null) => {
@@ -196,8 +236,22 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
     }
     const rerun = () => editor.update(() => $getRoot().markDirty())
     const unregister = mergeRegister(
-      editor.registerCommand(KEY_ENTER_COMMAND, consumeIme, COMMAND_PRIORITY_BEFORE_CRITICAL),
-      editor.registerCommand(KEY_TAB_COMMAND, consumeIme, COMMAND_PRIORITY_BEFORE_CRITICAL),
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          selection.current = 'enter'
+          return consumeIme(event)
+        },
+        COMMAND_PRIORITY_BEFORE_CRITICAL,
+      ),
+      editor.registerCommand(
+        KEY_TAB_COMMAND,
+        (event) => {
+          selection.current = 'tab'
+          return consumeIme(event)
+        },
+        COMMAND_PRIORITY_BEFORE_CRITICAL,
+      ),
       editor.registerCommand(KEY_ARROW_DOWN_COMMAND, consumeIme, COMMAND_PRIORITY_BEFORE_CRITICAL),
       editor.registerCommand(KEY_ARROW_UP_COMMAND, consumeIme, COMMAND_PRIORITY_BEFORE_CRITICAL),
       editor.registerCommand(
@@ -232,7 +286,9 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
 
   const onSelectOption = React.useCallback(
     (option: TypeaheadOption, node: TextNode | null, closeMenu: () => void) => {
-      $replaceToken(node, latest.current.trigger, latest.current.position, onSelect(option.item))
+      const how = selection.current
+      selection.current = 'enter'
+      $replaceToken(node, latest.current.trigger, latest.current.position, onSelect(option.item, how))
       closeMenu()
     },
     [onSelect],
@@ -265,7 +321,10 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
                 options={options}
                 selectedIndex={selectedIndex}
                 onHighlight={setHighlightedIndex}
-                onChoose={selectOptionAndCleanUp}
+                onChoose={(option) => {
+                  selection.current = 'pointer'
+                  selectOptionAndCleanUp(option)
+                }}
               />,
               anchor.current,
             )

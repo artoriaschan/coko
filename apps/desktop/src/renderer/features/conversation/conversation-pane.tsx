@@ -271,6 +271,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               running={running}
               disabled={activeSessionId === null && draftWorkspaceId === null}
               commandTarget={commandTarget}
+              fileWorkspaceId={session?.workspaceId ?? draftWorkspaceId ?? undefined}
               needsSetup={needsSetup}
               onSend={send}
               onSteer={steer}

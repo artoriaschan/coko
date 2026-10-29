@@ -14,7 +14,7 @@ React 订阅在 app 层通过 `useSyncExternalStore` 接入；store 模块保持
 
 组件统一基于 shadcn/ui，源码纳入仓库并使用本地设计 token；新增组件和现有组件的适配沿用同一套约定。类名合并通过 `extendTailwindMerge` 识别 `text-ui-*` 及项目圆角类，见 [设计系统规格](ui-design-system.md#档位)；ProviderIcon 仅深导入 @lobehub/icons 的 Mono / Color SVG 组件。
 
-消息输入采用 Lexical，编辑区通过 @lexical/react 接入 React，工具栏、菜单和弹层沿用 shadcn/ui。草稿保存 Lexical EditorState JSON，提交时转换为应用协议约定的消息内容；Markdown 导入导出使用 @lexical/markdown。会话消息和静态文档统一通过 Streamdown 展示。lexical 与实际引入的 @lexical/* 包统一精确锁定为 0.52.0。[Lexical React 集成](https://lexical.dev/docs/getting-started/react)、[Lexical 版本元数据](https://registry.npmjs.org/lexical/0.52.0)
+消息输入采用 Lexical，编辑区通过 @lexical/react 接入 React，工具栏、菜单和弹层沿用 shadcn/ui。草稿保存 Lexical EditorState JSON；composer 为纯文本（File Reference 节点序列化为 `@path` 文本），支持富文本时再引入 @lexical/markdown。会话消息和静态文档统一通过 Streamdown 展示。lexical 与实际引入的 @lexical/* 包统一精确锁定为 0.52.0。[Lexical React 集成](https://lexical.dev/docs/getting-started/react)、[Lexical 版本元数据](https://registry.npmjs.org/lexical/0.52.0)
 
 ## 设计系统
 
