@@ -63,6 +63,8 @@ export interface ContextContribution {
 
 export interface ContextContributionOptions {
   cokoHome: string
+  /** MCP 连接池（票 07）；省略时 mcp 贡献为空。 */
+  mcp?: import('./mcp.ts').McpManager
   /** Memory 的存储（票 09）；缺省时 Memory 为空贡献。 */
   memories?: MemoryStore
 }

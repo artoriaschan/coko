@@ -2,7 +2,18 @@
 import { getLogger as getLogTapeLogger, type Logger } from '@logtape/logtape'
 
 export type { Logger, LogLevel } from '@logtape/logtape'
-export { REDACTED, SENSITIVE_FIELDS, SENSITIVE_PATTERNS, SESSION_COOKIE_NAME, redactSink, redactText, withProperties } from './redact.ts'
+export {
+  REDACTED,
+  SECRET_REDACTED,
+  SENSITIVE_FIELDS,
+  SENSITIVE_PATTERNS,
+  SESSION_COOKIE_NAME,
+  redactSecretValues,
+  redactSink,
+  redactText,
+  registerSecretValues,
+  withProperties,
+} from './redact.ts'
 
 /** 所有 Coko 日志的根分类。 */
 export const ROOT_CATEGORY = 'coko'

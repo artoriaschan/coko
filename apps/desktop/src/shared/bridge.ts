@@ -4,6 +4,7 @@ export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
   setCredential: 'coko:set-credential',
+  setSecret: 'coko:set-secret',
   log: 'coko:log',
   openLogs: 'coko:open-logs',
   /** main → renderer：boot 之后 Sidecar 的状态变化（重启、重启完成、终态失败）。 */
@@ -45,6 +46,12 @@ export type SetCredentialResult =
   | { readonly ok: true; readonly hint: string }
   | { readonly ok: false; readonly code: CredentialErrorCode; readonly message: string }
 
+/** 登记 Secret 的失败原因，含义与 CredentialErrorCode 相同（invalid-input 为名字或值不合要求）。 */
+export type SecretErrorCode = CredentialErrorCode
+
+/** 成功时只回传末四位提示；值不返回 renderer（ADR 0007）。 */
+export type SetSecretResult = { readonly ok: true; readonly hint: string } | { readonly ok: false; readonly code: SecretErrorCode; readonly message: string }
+
 /** renderer 转发给 main 的一条日志；main 校验级别、字段与大小（上限 16 KiB）并标记来源。 */
 export interface RendererLogInput {
   readonly level: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
@@ -62,6 +69,8 @@ export interface CokoBridge {
   pickDirectory(): Promise<string | null>
   /** 把密钥交给 main 用 safeStorage 加密，密文经控制 IPC 存入 Sidecar（ADR 0004）；明文不经 HTTP。 */
   setCredential(providerId: string, secret: string): Promise<SetCredentialResult>
+  /** 登记或替换一个 Secret：main 用 safeStorage 加密，密文经控制 IPC secret.store 存入 Sidecar（ADR 0007）；值不经 HTTP。 */
+  setSecret(name: string, value: string): Promise<SetSecretResult>
   /** 把一条日志转发到 main 的 desktop.jsonl；不等待、不回报结果。 */
   log(record: RendererLogInput): void
   /** 在系统文件管理器中打开日志文件夹（诊断入口）；返回是否成功。 */

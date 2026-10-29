@@ -4,7 +4,8 @@
 // 审批：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
 // 规则：该审批以"本 Workspace 总是允许"回答，建议规则写入设置（permissions.rules.workspace.*）；读回 /api/permissions 与 Session 规则。
 // 沙箱：沙箱拒绝输出（bash env 写到 Workspace 外被 Seatbelt 拒绝，拒绝标记与提权提示）、escalation 审批（理由回显 env 输出）、
-// 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记）。Seatbelt 部分只在 darwin 运行。
+// 提权后的 bash env，以及声明 Secrets 的测试工具（secret_probe，注入第三个标记；无界面运行时 Secret 只来自 COKO_SECRET_<NAME>，ADR 0007）。
+// Seatbelt 部分只在 darwin 运行。
 // Checkpoint：accept-edits 下 write 覆盖已有文件，产生 file_backup / file_change 条目与 <dataDir>/blobs 下的快照文件；快照目录纳入扫描。
 // 恢复：结果确认通道。bash 执行中 SIGKILL，重启后的启动扫描（confirmation_request、run_end interrupted、恢复日志）、确认回答
 // （confirmation_answer 与补齐的 toolResult）与之后的继续；两个 Sidecar 进程的帧、响应体与落盘文件都纳入扫描。
@@ -175,7 +176,13 @@ describe('秘密不外泄总闸', () => {
     const sidecar = await startSidecar({
       dirs,
       ipc: false,
-      env: { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential, MY_SERVICE_API_KEY: hostSecret, COKO_TEST_TOOLS: '1', COKO_TEST_SECRET: toolSecret },
+      env: {
+        COKO_FAUX_SCRIPT: script,
+        DEEPSEEK_API_KEY: credential,
+        MY_SERVICE_API_KEY: hostSecret,
+        COKO_TEST_TOOLS: '1',
+        COKO_SECRET_COKO_TEST_SECRET: toolSecret,
+      },
     })
     const cookie = await exchange(sidecar)
     const bodies: string[] = []

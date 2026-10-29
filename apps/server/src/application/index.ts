@@ -1,8 +1,10 @@
 import type { SessionStore } from '@coko/session'
 import type { ConfigService } from './config.ts'
 import type { ContextAssembly } from './context/index.ts'
+import type { McpManager } from './context/mcp.ts'
 import type { SessionHub } from './hub.ts'
 import type { ProviderService } from './providers.ts'
+import type { SecretService } from './secrets.ts'
 import type { SessionService } from './sessions.ts'
 import type { SettingsService } from './settings.ts'
 import type { WorkspaceService } from './workspaces.ts'
@@ -19,4 +21,8 @@ export interface Application {
   config: ConfigService
   /** M3 上下文装配（application/context/）。 */
   context: ContextAssembly
+  /** MCP Server 连接池与配置（票 07）。 */
+  mcp: McpManager
+  /** 登记的 Secret（票 07，ADR 0007）。 */
+  secrets: SecretService
 }

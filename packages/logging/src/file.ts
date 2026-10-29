@@ -5,7 +5,7 @@ import { getRotatingFileSink } from '@logtape/file'
 import { configure, dispose, getConsoleSink, getJsonLinesFormatter, type LogLevel, type Sink } from '@logtape/logtape'
 import { redactByPattern } from '@logtape/redaction'
 import { ROOT_CATEGORY } from './index.ts'
-import { SENSITIVE_PATTERNS, redactSink, withProperties } from './redact.ts'
+import { SENSITIVE_PATTERNS, redactSecretValues, redactSink, withProperties } from './redact.ts'
 
 export interface FileLoggingOptions {
   /** 日志文件，例如 <logs>/sidecar.jsonl；目录不存在时以 0700 创建。 */
@@ -52,7 +52,9 @@ export async function configureFileLogging(options: FileLoggingOptions): Promise
   let fileError: Error | undefined
   try {
     mkdirSync(dirname(options.path), { recursive: true, mode: 0o700 })
-    const formatter = redactByPattern(getJsonLinesFormatter({ properties: 'nest:properties' }), SENSITIVE_PATTERNS)
+    const patterned = redactByPattern(getJsonLinesFormatter({ properties: 'nest:properties' }), SENSITIVE_PATTERNS)
+    // 已登记的 Secret 值（ADR 0007）在凭据形态之外一并替换。
+    const formatter = (record: Parameters<typeof patterned>[0]) => redactSecretValues(patterned(record))
     sinks.file = decorate(getRotatingFileSink(options.path, { formatter, maxSize: options.maxSize ?? 10 * 1024 * 1024, maxFiles: options.maxFiles ?? 5 }))
   } catch (error) {
     fileError = error instanceof Error ? error : new Error(String(error))
