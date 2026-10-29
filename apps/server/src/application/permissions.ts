@@ -1,6 +1,7 @@
-import { canonicalRuleTool, type PermissionRule } from '@coko/agent'
+import { canonicalRuleTool, type PermissionRule, type ProjectRuleTexts } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import {
+  parsePermissionRule,
   PERMISSIONS_DEFAULT_MODE_SETTING,
   PERMISSIONS_RULES_SETTING,
   PermissionMode as PermissionModeSchema,
@@ -57,7 +58,26 @@ export function canonicalRules(rules: readonly PermissionRule[], known: readonly
 }
 
 /**
- * 默认模式、全局与 Workspace 规则（设置键 permissions.*，ADR 0005）。值在读入时按 schema 校验，不合格时按缺省处理并记 warn；
+ * project 作用域的来源（ConfigService）：Workspace 的 .coko/settings.json 中的 permissions.deny / ask（ADR 0008）。
+ * rules 同步给出最近一次读到的值（每个 Run 开始时 ConfigService.effective 重新读取）；read 按 mtime 重新读取。
+ */
+export interface ProjectRuleSource {
+  projectRules(workspacePath: string): ProjectRuleTexts
+  readProjectRules(workspacePath: string): Promise<{ path: string; rules: ProjectRuleTexts }>
+}
+
+/** 项目规则文本 → 规则（文本已由 ConfigService 校验，不合法的已作为诊断剔除）。 */
+function projectRules(texts: ProjectRuleTexts): PermissionRule[] {
+  return (['deny', 'ask'] as const).flatMap((behavior) =>
+    texts[behavior].flatMap((text) => {
+      const parsed = parsePermissionRule(text)
+      return parsed ? [{ behavior, ...parsed }] : []
+    }),
+  )
+}
+
+/**
+ * 默认模式、全局与 Workspace 规则（设置键 permissions.*，ADR 0005），以及只读的 project 规则（ProjectRuleSource）。值在读入时按 schema 校验，不合格时按缺省处理并记 warn；
  * 只经本服务写入（通用设置接口拒绝 permissions.*），因此内存中的值与 revision 与库一致，判定时同步读取。
  */
 export class PermissionService {
@@ -69,10 +89,18 @@ export class PermissionService {
   #global: Stored<PermissionRule[]> = { value: [], revision: 0 }
   readonly #workspaces = new Map<string, Promise<void>>()
   readonly #workspaceValues = new Map<string, Stored<PermissionRule[]>>()
+  /** Workspace 目录（project 规则按目录读取）。 */
+  readonly #workspacePaths = new Map<string, string>()
+  #project: ProjectRuleSource | undefined
 
   constructor(store: SessionStore, toolNames: () => readonly string[] = () => []) {
     this.#store = store
     this.#toolNames = toolNames
+  }
+
+  /** 接入 project 作用域（runtime 层装配时调用一次）。 */
+  useProjectRules(source: ProjectRuleSource): void {
+    this.#project = source
   }
 
   /** 写入前归一并校验规则（见 normalizeRules）。 */
@@ -110,13 +138,18 @@ export class PermissionService {
     return this.#loaded
   }
 
-  /** 读入某个 Workspace 的规则（一次）。 */
+  /** 读入某个 Workspace 的规则与目录（一次），并读一次其项目规则（之后每个 Run 开始时刷新）。 */
   loadWorkspace(workspaceId: string): Promise<void> {
     let loading = this.#workspaces.get(workspaceId)
     if (!loading) {
-      loading = this.#readRules(workspaceRulesSetting(workspaceId)).then((stored) => {
+      loading = (async () => {
+        const [stored, workspace] = await Promise.all([this.#readRules(workspaceRulesSetting(workspaceId)), this.#store.sessions.getWorkspace(workspaceId)])
         if (!this.#workspaceValues.has(workspaceId)) this.#workspaceValues.set(workspaceId, stored)
-      })
+        if (workspace) {
+          this.#workspacePaths.set(workspaceId, workspace.path)
+          await this.#project?.readProjectRules(workspace.path)
+        }
+      })()
       loading.catch(() => this.#workspaces.delete(workspaceId))
       this.#workspaces.set(workspaceId, loading)
     }
@@ -133,9 +166,11 @@ export class PermissionService {
     return this.#defaultMode.value
   }
 
-  /** 全局与该 Workspace 的规则；调用前须已 load() 与 loadWorkspace()。 */
+  /** 全局、该 Workspace 与其项目（project 作用域，只有 deny / ask）的规则；调用前须已 load() 与 loadWorkspace()。 */
   rulesFor(workspaceId: string): PermissionRule[] {
-    return [...this.#global.value, ...(this.#workspaceValues.get(workspaceId)?.value ?? [])]
+    const path = this.#workspacePaths.get(workspaceId)
+    const project = path !== undefined && this.#project ? this.canonical(projectRules(this.#project.projectRules(path))) : []
+    return [...this.#global.value, ...(this.#workspaceValues.get(workspaceId)?.value ?? []), ...project]
   }
 
   async get(workspaceId?: string): Promise<PermissionsResponse> {
@@ -148,6 +183,11 @@ export class PermissionService {
       await this.#workspace(workspaceId)
       const stored = await this.#workspaceRules(workspaceId)
       response.workspace = { workspaceId, rules: [...stored.value], revision: stored.revision }
+      const path = this.#workspacePaths.get(workspaceId)
+      if (path !== undefined && this.#project) {
+        const project = await this.#project.readProjectRules(path)
+        response.project = { workspaceId, path: project.path, rules: this.canonical(projectRules(project.rules)) }
+      }
     }
     return response
   }

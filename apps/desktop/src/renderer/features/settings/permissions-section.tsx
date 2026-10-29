@@ -29,7 +29,10 @@ type RuleSaveOutcome = { saved: boolean; unknownTool?: string }
 const ruleKey = (rule: PermissionRule) => `${rule.behavior}:${formatPermissionRule(rule)}`
 const sameRule = (a: PermissionRule, b: PermissionRule) => ruleKey(a) === ruleKey(b)
 
-/** 设置弹窗的 Permissions 分区：新会话的默认模式；全局与当前 Workspace 的规则（增删）；当前会话的规则（只读可删）。 */
+/**
+ * 设置弹窗的 Permissions 分区：新会话的默认模式；全局与当前 Workspace 的规则（增删）；该 Workspace 项目设置中的规则（只读，标出来源文件）；
+ * 当前会话的规则（只读可删）。
+ */
 export function PermissionsSection() {
   const { t } = useI18n()
   const permissions = useSettings((s) => s.permissions)
@@ -59,6 +62,7 @@ export function PermissionsSection() {
   const defaultMode = permissions?.defaultMode.value ?? 'default'
   const DefaultIcon = MODE_ICONS[defaultMode]
   const workspaceRules = permissions?.workspace?.workspaceId === workspaceId ? permissions?.workspace?.rules : undefined
+  const projectRules = permissions?.project?.workspaceId === workspaceId ? permissions?.project : undefined
 
   return (
     <section aria-labelledby="settings-permissions" className="flex flex-col gap-4">
@@ -123,6 +127,16 @@ export function PermissionsSection() {
             <p className="text-ui-small text-muted-foreground">{t('permissions.noWorkspace')}</p>
           )}
 
+          {projectRules !== undefined && (
+            // project 作用域（ADR 0008）：来自 .coko/settings.json 的 deny / ask，只读，没有删除入口。
+            <RuleList
+              id="project"
+              title={t('config.projectRules.title')}
+              hint={t('config.projectRules.hint', { path: projectRules.path })}
+              rules={projectRules.rules}
+            />
+          )}
+
           {conversation && (
             <RuleList
               id="session"
@@ -152,7 +166,8 @@ function RuleList({
   title: string
   hint?: string
   rules: readonly PermissionRule[]
-  onRemove: (rule: PermissionRule) => void | Promise<unknown>
+  /** 省略时只读（没有删除入口）。 */
+  onRemove?: (rule: PermissionRule) => void | Promise<unknown>
   children?: React.ReactNode
 }) {
   const { t } = useI18n()
@@ -187,9 +202,11 @@ function RuleList({
                       <code data-user-content className="min-w-0 flex-1 font-mono text-ui-body break-all">
                         {text}
                       </code>
-                      <IconButton label={t('permissions.remove', { rule: text })} onClick={() => void onRemove(rule)}>
-                        <Trash2Icon />
-                      </IconButton>
+                      {onRemove && (
+                        <IconButton label={t('permissions.remove', { rule: text })} onClick={() => void onRemove(rule)}>
+                          <Trash2Icon />
+                        </IconButton>
+                      )}
                     </li>
                   )
                 }),

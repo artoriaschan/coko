@@ -95,12 +95,23 @@ export type PermissionRuleInput = Static<typeof PermissionRuleInput>
 
 export const PermissionRuleList = Type.Array(PermissionRuleInput, { maxItems: 500 })
 
-/** GET /api/permissions?workspaceId=…：默认模式、全局规则，以及给出 workspaceId 时该 Workspace 的规则；各带 revision（未保存过为 0）。 */
+/**
+ * project 作用域（ADR 0008）：Workspace 的 .coko/settings.json 中的 permissions.deny / ask，只读（改文件才能改），没有 revision。
+ * 每次读取 GET /api/permissions 与每个 Run 开始时按 mtime 读取；工具名按规范名读出。
+ */
+export const ProjectPermissionRules = Type.Object({ workspaceId: Id, path: Type.String(), rules: Type.Array(PermissionRule) }, strict)
+export type ProjectPermissionRules = Static<typeof ProjectPermissionRules>
+
+/**
+ * GET /api/permissions?workspaceId=…：默认模式、全局规则，以及给出 workspaceId 时该 Workspace 的规则与项目规则（project）；
+ * 可写的各带 revision（未保存过为 0）。
+ */
 export const PermissionsResponse = Type.Object(
   {
     defaultMode: Type.Object({ value: PermissionMode, revision: Type.Integer({ minimum: 0 }) }, strict),
     global: Type.Object({ rules: Type.Array(PermissionRule), revision: Type.Integer({ minimum: 0 }) }, strict),
     workspace: Type.Optional(Type.Object({ workspaceId: Id, rules: Type.Array(PermissionRule), revision: Type.Integer({ minimum: 0 }) }, strict)),
+    project: Type.Optional(ProjectPermissionRules),
   },
   strict,
 )

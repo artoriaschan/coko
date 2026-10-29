@@ -129,8 +129,8 @@ const AssemblyLive = Layer.effect(
   Assembly,
   Effect.gen(function* () {
     const { config: sidecar } = yield* Host
-    yield* Store
-    const config = new ConfigService()
+    const store = yield* Store
+    const config = new ConfigService({ store })
     const contributions = createContributions({ cokoHome: sidecar.cokoHome })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     return yield* Effect.acquireRelease(Effect.succeed({ config, context }), ({ context }) => Effect.promise(() => context.close()))
@@ -249,6 +249,8 @@ const AppLive = Layer.effect(
       context,
       ...(fallbackModel ? { fallbackModel } : {}),
     })
+    // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
+    sessions.permissions.useProjectRules(capabilities)
     // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
     const recovery = yield* Effect.tryPromise({
       try: () => sessions.recover(store.recovery),
