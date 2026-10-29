@@ -104,6 +104,9 @@ function checkModel(config: ProviderConfig, spec: ModelSpec): void {
 }
 
 function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
+  // Anthropic: pi-ai's budget-based thinking ignores the configured values, so request adaptive thinking whose effort
+  // is the configured value of the chosen level.
+  const anthropicEffort = config.api === 'anthropic-messages' && spec.reasoning
   return {
     id: spec.id,
     name: spec.name || spec.id,
@@ -117,6 +120,7 @@ function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
     contextWindow: spec.contextWindow,
     maxTokens: spec.maxTokens,
     ...(config.headers ? { headers: config.headers } : {}),
+    ...(anthropicEffort ? { compat: { forceAdaptiveThinking: true } } : {}),
   }
 }
 

@@ -185,20 +185,36 @@ describe('会话中的 Thinking Level', () => {
     expect((await send(sessionId, server)).reasoning_effort).toBe('deep')
   })
 
-  it('Anthropic Messages：off 按协议默认方式关闭思考（thinking disabled）', { timeout: 60_000 }, async () => {
-    const server = await recordingModelServer()
-    const sidecar = await startSidecar({ dirs: await sidecarDirs() })
-    const provider = customProvider(
-      'custom-provider-3',
-      server.baseUrl.replace(/\/v1$/, ''),
-      [reasoner('custom-model-1', [['high', 'high']])],
-      'anthropic-messages',
-    )
-    expect(await saveProvider(sidecar, provider, { secret: 'sk-thinking-key-0003' })).toMatchObject({ ok: true })
-    const { api, send } = await open(sidecar)
-    const sessionId = (await sessionWith(api, { providerId: 'custom-provider-3', modelId: 'custom-model-1' })).body.id as string
-    expect((await send(sessionId, server)).thinking).toEqual({ type: 'disabled' })
-  })
+  it(
+    'Anthropic Messages：off 按协议默认方式关闭思考（thinking disabled）；其他档位以 adaptive thinking 发送该档位配置的参数值',
+    { timeout: 60_000 },
+    async () => {
+      const server = await recordingModelServer()
+      const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+      const provider = customProvider(
+        'custom-provider-3',
+        server.baseUrl.replace(/\/v1$/, ''),
+        [
+          reasoner('custom-model-1', [
+            ['high', 'deep'],
+            ['max', 'max'],
+          ]),
+        ],
+        'anthropic-messages',
+      )
+      expect(await saveProvider(sidecar, provider, { secret: 'sk-thinking-key-0003' })).toMatchObject({ ok: true })
+      const { api, send } = await open(sidecar)
+      const model = { providerId: 'custom-provider-3', modelId: 'custom-model-1' }
+      const sessionId = (await sessionWith(api, model)).body.id as string
+      expect((await send(sessionId, server)).thinking).toEqual({ type: 'disabled' })
+      await api.put(apiPaths.sessionModel(sessionId), { model, thinkingLevel: 'high' })
+      const high = await send(sessionId, server)
+      expect(high.thinking).toMatchObject({ type: 'adaptive' })
+      expect(high.output_config).toEqual({ effort: 'deep' })
+      await api.put(apiPaths.sessionModel(sessionId), { model, thinkingLevel: 'max' })
+      expect((await send(sessionId, server)).output_config).toEqual({ effort: 'max' })
+    },
+  )
 
   it('Run 进行中不能切换档位（与切换模型一致），档位不变', { timeout: 60_000 }, async () => {
     const server = await recordingModelServer()
