@@ -48,7 +48,9 @@ export interface SettingsActions {
   /** 以已知 revision 写入；同一键的写入按调用顺序串行。冲突时读回服务端的值与 revision。 */
   saveSetting(key: string, value: unknown): Promise<SaveSettingResult>
   saveProvider(draft: ProviderDraft): Promise<SaveProviderResult>
-  /** 返回是否已删除。 */
+  /** 引用该 Provider 的 Session 数量；失败时抛出 ApiError（不经 onFailure）。 */
+  providerReferences(id: string): Promise<{ sessions: number }>
+  /** 同时删除其 Credential，引用它的 Session 模型字段被清空。返回是否已删除。 */
   deleteProvider(id: string): Promise<boolean>
   /** 读取默认模式与全局规则；给出 workspaceId 时另带该 Workspace 的规则。 */
   loadPermissions(workspaceId?: string): Promise<void>
@@ -63,6 +65,8 @@ export interface SettingsStoreOptions {
   /** preload 的一次提交通道；不在桌面窗口中时缺省。 */
   saveProvider?: CokoBridge['saveProvider']
   onFailure?: (error: ApiError) => void
+  /** Provider 删除成功后调用：引用它的 Session 模型字段已在 Sidecar 清空，会话列表需要重新读取。 */
+  onProviderDeleted?: (id: string) => void
 }
 
 const toApiError = (error: unknown) => (error instanceof ApiError ? error : new ApiError('network', error instanceof Error ? error.message : String(error), 0))
@@ -71,7 +75,7 @@ const toValues = (settings: { key: string; value: unknown; revision: number }[])
   Object.fromEntries(settings.map((s) => [s.key, { value: s.value, revision: s.revision }]))
 
 /** 设置与 Provider 的 vanilla store（无 React 依赖）。Provider 与密钥经 preload 交给 main 一次提交，不经 HTTP（ADR 0004、0010）。 */
-export function createSettingsStore({ api, saveProvider: submitProvider, onFailure }: SettingsStoreOptions): SettingsStore {
+export function createSettingsStore({ api, saveProvider: submitProvider, onFailure, onProviderDeleted }: SettingsStoreOptions): SettingsStore {
   const chains = new Map<string, Promise<unknown>>()
 
   return createStore<SettingsState & SettingsActions>()((set, get) => {
@@ -190,6 +194,14 @@ export function createSettingsStore({ api, saveProvider: submitProvider, onFailu
         return { ok: true, provider: get().providers.find((p) => p.id === result.provider.id) ?? result.provider }
       },
 
+      async providerReferences(id) {
+        try {
+          return await api.providerReferences(id)
+        } catch (error) {
+          throw toApiError(error)
+        }
+      },
+
       async deleteProvider(id) {
         try {
           await api.deleteProvider(id)
@@ -197,6 +209,7 @@ export function createSettingsStore({ api, saveProvider: submitProvider, onFailu
           onFailure?.(toApiError(error))
           return false
         }
+        onProviderDeleted?.(id)
         await refreshProviders().catch((error: unknown) => onFailure?.(toApiError(error)))
         return true
       },
