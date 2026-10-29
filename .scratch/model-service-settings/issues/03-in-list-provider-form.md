@@ -98,3 +98,14 @@
 - DOM 约定：列表项 `li[data-provider-id][data-protocol]`，展开时带 `data-expanded`；入口按钮 `[data-provider-add]`、`[data-provider-edit]`；表单 `form[data-provider-form="create"|"edit"]`；编辑表单中的静态 ID `[data-provider-static-id]`；确认框为 `role="alertdialog"`，名称“放弃更改？”。
 - 离开守卫：分区用 `useSettingsDialog().setLeaveGuard(async () => boolean)` 登记，返回撤销函数。`setSection`、`close` 和换分区的 `show` 在守卫返回 true 后才生效。票 07 的“获取可用模型”弹窗不需要接入守卫。
 - 测试 helper：`models-section.browser.test.tsx` 中的 `openModels(locale, seed)`、`row(id)`、`field(name)`、`errorOf(name)`、`settled()`。几何断言前先 `settled()`，等弹窗缩放动画结束。用键盘操作共享菜单时，先等打开动画结束，并逐键发送方向键。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/03-in-list-provider-form` 合入集成分支 model-service，合入提交 5cf3807（票分支 d139da4，基于 b21b7db）。唯一冲突在本票文件的 Comments：集成分支追加了“来自票 08”，票分支追加了交付记录，两段都保留。代码文件没有冲突；i18n 字典、`fake-settings.ts` 与 `fixture-chat.ts` 中票 08 的改动在合入后仍在。
+- 修复：全量测试中 `scripts/source-references.test.ts` 失败 1 例，原因是 `provider-draft.ts` 的注释写了“票 05”。已改为不含票号的说明，提交 659618c `fix(settings): drop ticket reference from provider draft comment`。
+- 集成 worktree 复核（修复后）：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（541 文件）；`pnpm run format:check` 通过（567 文件）；`pnpm run test` 186 文件，1321 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：对照 MS-02 至 MS-11，`models-section.browser.test.tsx` 的 11 个用例逐项覆盖；MS-06 的空目录由过渡输入的 `providers.modelsRequired` 覆盖。离开守卫在 `settings-dialog-store` 中拦截 `setSection`、`close` 和换分区的 `show`，确认进行中不会重复询问。没有发现阻塞缺口。已知差异沿用实施记录：源稿列表行的“自定义”标记没有实现（kind 已删除），没有对照 Pencil 源稿截图检查，也没有做窄窗口检查。
+- 越出写范围（`settings-dialog-store` 的 `setLeaveGuard`、`settings.tsx`、`app.browser.test.tsx`、i18n `providers.*`）与 lead 备注一致，可以接受。
+- “供后续票”的约定已转写到票 04、05、06、07 的 Comments（标题“来自票 03”），04 与 05 中注明了对方在并行实施。
+
+Closed: true
