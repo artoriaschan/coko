@@ -18,6 +18,7 @@ import { McpManager } from '../application/context/mcp.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { toAppError } from '../application/errors.ts'
+import { serveProviderModels } from '../application/provider-models.ts'
 import { ProviderService } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
@@ -300,6 +301,9 @@ const AppLive = Layer.effect(
         },
       )
     })
+
+    // 获取可用模型：表单中的 Key 只用于这一次请求；编辑且 Key 留空时用已保存的 Credential（ADR 0010）。
+    serveProviderModels({ control, credentials })
 
     return {
       store,
