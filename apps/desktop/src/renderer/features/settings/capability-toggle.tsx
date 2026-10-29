@@ -7,18 +7,20 @@ import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
 import { CAPABILITY_SWITCHES, configStore, type CapabilitySwitch } from '../../stores/config-store.ts'
 
-export function CapabilityToggle({
-  name,
-  workspaceId,
-  label,
-  hint,
-}: {
-  name: CapabilitySwitch
-  workspaceId: string | undefined
-  label: MessageKey
-  hint: MessageKey
-}) {
+type ToggleSwitch = Exclude<CapabilitySwitch, 'skills.enabled' | 'memory.enabled'>
+
+/** 每个开关的标题与说明（Skills 与 Memory 的开关在各自分区，用各自的文案）。 */
+const COPY: Record<ToggleSwitch, { label: MessageKey; hint: MessageKey }> = {
+  'instructions.enabled': { label: 'config.capabilities.instructions.label', hint: 'config.capabilities.instructions.hint' },
+  'commands.enabled': { label: 'config.capabilities.commands.label', hint: 'config.capabilities.commands.hint' },
+  'mcp.enabled': { label: 'config.capabilities.mcp.label', hint: 'config.capabilities.mcp.hint' },
+  'context.autoCompact': { label: 'config.capabilities.autoCompact.label', hint: 'config.capabilities.autoCompact.hint' },
+  'context.trimOldToolResults': { label: 'config.capabilities.trimOldToolResults.label', hint: 'config.capabilities.trimOldToolResults.hint' },
+}
+
+export function CapabilityToggle({ name, workspaceId }: { name: ToggleSwitch; workspaceId: string | undefined }) {
   const { t } = useI18n()
+  const { label, hint } = COPY[name]
   const config = useStore(configStore, (s) => (s.workspaceId === (workspaceId ?? null) ? s.config : null))
   const [busy, setBusy] = React.useState(false)
   const id = React.useId()

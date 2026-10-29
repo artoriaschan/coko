@@ -78,24 +78,9 @@ function ContextSwitches() {
         {t('config.capabilities.title')}
       </h3>
       <SettingsCard aria-labelledby="settings-context" role="group">
-        <CapabilityToggle
-          name="instructions.enabled"
-          workspaceId={workspaceId}
-          label="config.capabilities.instructions.label"
-          hint="config.capabilities.instructions.hint"
-        />
-        <CapabilityToggle
-          name="context.autoCompact"
-          workspaceId={workspaceId}
-          label="config.capabilities.autoCompact.label"
-          hint="config.capabilities.autoCompact.hint"
-        />
-        <CapabilityToggle
-          name="context.trimOldToolResults"
-          workspaceId={workspaceId}
-          label="config.capabilities.trimOldToolResults.label"
-          hint="config.capabilities.trimOldToolResults.hint"
-        />
+        <CapabilityToggle name="instructions.enabled" workspaceId={workspaceId} />
+        <CapabilityToggle name="context.autoCompact" workspaceId={workspaceId} />
+        <CapabilityToggle name="context.trimOldToolResults" workspaceId={workspaceId} />
       </SettingsCard>
     </div>
   )

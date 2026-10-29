@@ -76,12 +76,7 @@ export function SkillsSection() {
             {current && skills.map((skill) => <SkillRow key={skill.path} skill={skill} />)}
           </Group>
           <SettingsCard>
-            <CapabilityToggle
-              name="commands.enabled"
-              workspaceId={workspaceId}
-              label="config.capabilities.commands.label"
-              hint="config.capabilities.commands.hint"
-            />
+            <CapabilityToggle name="commands.enabled" workspaceId={workspaceId} />
           </SettingsCard>
           <Group id="commands-list" title={t('skills.commandsHeading')} empty={t('skills.emptyCommands')} ready={current && status === 'ready'}>
             {current && commands.map((command) => <CommandRow key={`${command.source}:${command.name}`} command={command} />)}

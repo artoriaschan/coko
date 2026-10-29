@@ -69,7 +69,7 @@ export function McpSection() {
         </Button>
       </div>
       <SettingsCard>
-        <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} label="config.capabilities.mcp.label" hint="config.capabilities.mcp.hint" />
+        <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} />
       </SettingsCard>
       {data && !data.enabled && <p className="text-ui-small text-warning">{t('mcp.disabled')}</p>}
       {workspaceId === undefined && <p className="text-ui-small text-muted-foreground">{t('mcp.noWorkspace')}</p>}
