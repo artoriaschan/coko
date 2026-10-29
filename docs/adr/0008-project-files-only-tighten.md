@@ -2,7 +2,7 @@
 kind: decision
 description: "Workspace 内的项目文件（.coko/settings.json、.mcp.json、指令、Skills、命令）只能收紧或补充上下文，不能授予权限或开启全局已关闭的能力；项目 MCP Server 须按配置摘要逐个批准。修改项目级配置的合并、MCP 项目 Server 的加载或 Skills 的 allowed-tools 处理时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -32,6 +32,8 @@ M3 读取 Workspace 内的多类文件：项目设置覆盖、MCP Server 配置�
 
 - 依赖项目级 allow 规则的团队配置在 Coko 中不生效，须由每个用户保存到 Workspace 作用域；设置界面要显示被忽略的项及原因。
 - implementation 变为 implemented 前需要：经协议的集成测试覆盖项目设置中的 allow 规则与开启能力不生效且有诊断、项目 deny 规则在 full-access 下生效、项目关闭的能力不被全局值打开；未批准的项目 MCP Server 不启动、批准后改动命令须重新批准、同名项目 Server 被忽略；Skill 的 `allowed-tools` 不放行调用。
+
+**实施证据（2026-10-29，项目设置）。** 项目设置一条已落地，行为见 [分层配置](../subsystems/configuration.md)：`tests/integration/sidecar-config.test.ts` 经协议覆盖项目设置中的 allow 规则、默认模式与开启能力不生效且有 `project-cannot-grant` 诊断，项目关闭的能力不被全局值打开（全局关闭时项目的 true 也不打开），项目 deny 规则在 full-access 下生效且优先于全局允许规则，项目 allow 规则不放行；`packages/agent/src/config/merge.test.ts` 覆盖合并与诊断。项目 MCP Server 的批准与 Skill `allowed-tools` 的证据由之后的实施补充，因此 implementation 为 partial。
 
 ## 来源与后继
 

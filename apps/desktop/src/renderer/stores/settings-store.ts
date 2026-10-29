@@ -115,10 +115,16 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       const workspaceId = change.target === 'workspace' ? change.workspaceId : get().permissions?.workspace?.workspaceId
       try {
         const saved = await api.updatePermissions({ ...change, expectedRevision: expectedRevision(change) } as UpdatePermissionsRequest)
-        // 响应只带被修改的 Workspace；保留已知的其他部分。
-        set((state) => ({
-          permissions: { ...saved, ...(saved.workspace ? {} : state.permissions?.workspace ? { workspace: state.permissions.workspace } : {}) },
-        }))
+        // 响应只带被修改的 Workspace（及其项目规则）；保留已知的其他部分。
+        set((state) => {
+          const known = saved.workspace
+            ? {}
+            : {
+                ...(state.permissions?.workspace ? { workspace: state.permissions.workspace } : {}),
+                ...(state.permissions?.project ? { project: state.permissions.project } : {}),
+              }
+          return { permissions: { ...saved, ...known } }
+        })
         return { status: 'saved' }
       } catch (error) {
         const apiError = toApiError(error)

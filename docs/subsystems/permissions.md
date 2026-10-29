@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的权限判定与审批契约：四种模式、权限类与额外读取根、判定顺序、规则语法与作用域、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
+description: "当前的权限判定与审批契约：四种模式、权限类与额外读取根、判定顺序、规则语法与作用域（含只读的 project 作用域）、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
 lifecycle: active
 ---
 
@@ -24,7 +24,7 @@ lifecycle: active
 | `packages/agent/src/engine/runtime.ts` | `AgentRuntimeOptions.permissions`（每次调用读取模式与规则）、`answerApproval()`、`pendingApprovals`；调度器的执行前准备（复核、沙箱档位、Secrets、读取过滤） |
 | `packages/agent/src/tools/builtin/read-filter.ts` | grep、find、ls 不列出被 Read 拒绝规则覆盖的路径 |
 | `packages/protocol/src/permissions.ts` | 条目 payload、协议 DTO、`permissionPaths`、设置键、规则文本 `formatPermissionRule` / `parsePermissionRule` |
-| `apps/server/src/application/permissions.ts` | `PermissionService`：默认模式、全局与 Workspace 规则的读入、缓存与写入 |
+| `apps/server/src/application/permissions.ts` | `PermissionService`：默认模式、全局与 Workspace 规则的读入、缓存与写入；经 `ProjectRuleSource`（`ConfigService`）取只读的 project 规则 |
 | `apps/server/src/application/session-permissions.ts` | Session 模式与规则的回放、同一 Session 的修改串行、保存"总是允许"、触发重新判定 |
 | `apps/server/src/application/sessions.ts` | Session `activity`；每个 Run 开始时把上下文装配给出的工具（带权限类）与额外读取根交给运行时 |
 | `packages/ui/src/approval/approval-card.tsx` | 共享审批卡（键盘、单次回答、"总是允许"菜单） |
@@ -142,8 +142,16 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 | session | `permission_rule { op: add / remove, rule }` 条目 | 该 Session（重启后回放） |
 | workspace | 设置键 `permissions.rules.workspace.<workspaceId>` | 该 Workspace 的所有 Session |
 | global | 设置键 `permissions.rules` | 所有 Session |
+| project（只读） | `<Workspace>/.coko/settings.json` 的 `permissions.deny` / `permissions.ask`（规则文本数组） | 该 Workspace 的所有 Session |
 
-设置值在读入时按 schema 校验，不合格时按缺省（default / 空规则）处理并记 warn `permission setting ignored`。`permissions.*` 键只能经 `/api/permissions` 修改（通用设置接口 400），因此 `PermissionService` 的缓存与库一致。判定时规则顺序是 Session、全局、Workspace，顺序不影响结果。
+设置值在读入时按 schema 校验，不合格时按缺省（default / 空规则）处理并记 warn `permission setting ignored`。`permissions.*` 键只能经 `/api/permissions` 修改（通用设置接口 400），因此 `PermissionService` 的缓存与库一致。判定时规则顺序是 Session、全局、Workspace、project，顺序不影响结果。
+
+**project 作用域（ADR 0008）。** 项目文件只能收紧：其中只有拒绝与询问规则生效，`permissions.allow` 与 `permissions.defaultMode` 被忽略并给出诊断 `project-cannot-grant`（见 [分层配置](configuration.md#项目设置文件)）。规则在每个 Run 开始时与 `GET /api/permissions` 时按 mtime 读取，判定时用最近一次读到的值；Workspace 第一次加载时另读一次。工具名按规范名读出（不检查是否已注册）。只能改文件，不能经协议增删，也不能用"总是允许"保存到这里。项目规则变化不触发待审批请求的重新判定（下一次判定按新值）。
+
+| 作用域 | 允许 | 询问 | 拒绝 | 可经协议修改 |
+| --- | --- | --- | --- | --- |
+| session、workspace、global | 是 | 是 | 是 | 是 |
+| project | 否（忽略并诊断） | 是 | 是 | 否 |
 
 ## 审批状态与条目
 
@@ -173,7 +181,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 - `POST /api/sessions/:id/approvals/:requestId`，body 为 `AnswerApprovalRequest`：`{ decision: 'allow', scope? }` 或 `{ decision: 'deny', feedback? }`。成功 204；请求不在等待中 409 `approval-not-pending`；scope 不可保存时 400；Session 不存在 404。
 - `PUT /api/sessions/:id/permission-mode` `{ mode }`；`GET / POST / DELETE /api/sessions/:id/permission-rules`（POST / DELETE 的 body 为 `{ rule }`，已存在 / 不存在时不提交条目）。都返回 `SessionPermissionsResponse { mode, rules }`。
-- `GET /api/permissions?workspaceId=…` 返回 `PermissionsResponse`：`defaultMode`、`global`，给出 workspaceId 时另有 `workspace`，各带 revision（未保存过为 0）。`PUT /api/permissions` 一次修改一项：`{ target: 'defaultMode', value }`、`{ target: 'global', rules }` 或 `{ target: 'workspace', workspaceId, rules }`，都带 `expectedRevision`；不合 schema 400，revision 不一致 409 `revision-conflict`，Workspace 不存在 404。规则最多 500 条，工具名非空且不含括号与空白，内容非空、最长 4000。
+- `GET /api/permissions?workspaceId=…` 返回 `PermissionsResponse`：`defaultMode`、`global`，给出 workspaceId 时另有 `workspace` 与 `project { workspaceId, path, rules }`（只读，没有 revision），可写的各带 revision（未保存过为 0）。`PUT /api/permissions` 一次修改一项：`{ target: 'defaultMode', value }`、`{ target: 'global', rules }` 或 `{ target: 'workspace', workspaceId, rules }`，都带 `expectedRevision`；不合 schema 400，revision 不一致 409 `revision-conflict`，Workspace 不存在 404。规则最多 500 条，工具名非空且不含括号与空白，内容非空、最长 4000。
 - Session DTO 的 `activity`：Run 进行中且有待审批请求为 `awaiting-approval`，否则 `running`；没有 Run 时的取值见 [启动恢复与结果确认](recovery.md#activity-与界面)。`inspect-quit` 的 `activeRuns` 包含等待审批的 Run。
 - 重连：以 afterSeq 0 重新订阅即可看到仍在等待的 `approval_request`（没有对应 decision、所属 Run 未结束）。
 
@@ -184,7 +192,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 - **审批卡**：最早的待审批请求接管输入区；输入区保持挂载（隐藏），草稿不丢。卡片出现时若焦点在输入区，焦点移到卡片本身。焦点在详情区时 Enter 允许一次、Esc 拒绝；Esc 被卡片处理后不再触发全局"停止 Run"。"拒绝并说明原因"展开输入框，其中 Enter 提交带反馈的拒绝，Esc 收起。有建议规则的工具请求另有"总是允许"菜单：显示将保存的规则，选本会话 / 本工作区 / 所有工作区；菜单内的 Enter 与 Esc 不触发卡片的允许与拒绝。键盘与指针共用一把锁，同一请求只回答一次。
 - **工具卡**：等待时为 `awaiting` 状态，结束后标题行显示决定（已允许一次、以某档位允许一次（提权）、本会话 / 本工作区总是允许、总是允许、已拒绝及原因、已取消、已按新设置自动处理）；被沙箱拒绝的 bash 另显示"被沙箱拦截（档位）"。
 - **侧栏**：`awaiting-approval` 的会话带徽标并排在所在 Workspace 组首。只有打开过（已订阅）的会话会随条目实时更新 activity。
-- **Permissions 分区**（设置弹窗）：新会话的默认模式；全局规则与当前会话所在 Workspace 的规则（按允许、询问、拒绝分组，可增删；输入框按 `parsePermissionRule` 校验）；当前会话的 Session 规则（只读，可删除）。保存冲突时读回最新值并提示重试。
+- **Permissions 分区**（设置弹窗）：新会话的默认模式；全局规则与当前会话所在 Workspace 的规则（按允许、询问、拒绝分组，可增删；输入框按 `parsePermissionRule` 校验）；该 Workspace 项目设置中的规则（project 作用域，只读，标出来源文件，没有删除入口与输入框）；当前会话的 Session 规则（只读，可删除）。保存冲突时读回最新值并提示重试。General 分区另有项目设置行，见 [分层配置](configuration.md#界面)。
 
 ## 尚未实现
 
@@ -196,6 +204,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
+- `tests/integration/sidecar-config.test.ts`：项目 deny 规则（小写工具名）在 full-access 下拒绝调用且优先于全局允许规则、改文件后下一个 Run 生效、项目 allow 不放行、读取接口的 `project`；`apps/desktop/e2e/config.e2e.test.ts`：Permissions 分区的只读项目规则。
 - `tests/integration/sidecar-approvals.test.ts`、`sidecar-permissions.test.ts`：真实 Sidecar 上的回答路由与 409；作用域保存、重启后规则与模式仍生效、Session 规则只影响该 Session；等待时切到 full-access 或新增拒绝规则后 superseded；默认模式、非法设置值 400、通用设置接口拒绝 `permissions.*`。`secrets-gate.test.ts` 驱动审批卡与"本 Workspace 总是允许"通道。
 - `packages/agent/src/policy/sandbox.test.ts`（档位映射、提权参数、标记文本）、`escalation.test.ts`（运行时上四种模式的沙箱策略与可写根、提权请求替代普通审批且允许规则不能免掉、参数错误不询问、拒绝规则优先、拒绝提权；Secrets 注入）；`ports/local-exec.test.ts`（包裹接缝、拒绝签名、fail-closed）；`tools/builtin/bash.test.ts`（拒绝标记顺序、sandbox-unavailable）。
 - `apps/server/src/adapters/seatbelt.test.ts`：profile 文本（含受保护路径的 deny）、探测；darwin 上真实 sandbox-exec 的写入放行与拒绝、可写根内 `.git` 与 `.coko` 被拒绝。`sidecar-sandbox.test.ts` 另覆盖 default 下已批准的命令不能写 `.git/hooks` 与 `.coko`、没有先被拒绝的提权为参数错误。`sidecar-boot.test.ts`：`--packaged` 时测试钩子变量被忽略。`tests/integration/sidecar-sandbox.test.ts`：真实 Sidecar 上 default 越界写入被拒而 Workspace 与 `/tmp` 成功、read-only 不能写 Workspace、提权卡与单次有效、拒绝提权、参数错误、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、accept-edits 越界写入只能允许一次、Secrets 注入（Seatbelt 用例只在 darwin 运行，其他平台显式跳过）。`secrets-gate.test.ts` 另驱动沙箱拒绝输出、提权流程与 secret_probe。
@@ -204,5 +213,6 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 ## 延伸阅读
 
 - [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)：模式、沙箱与提权的决定。
+- [ADR 0008](../adr/0008-project-files-only-tighten.md) 与 [分层配置](configuration.md)：project 作用域的来源与限制。
 - [apps/server README](../../apps/server/README.md)：协议总览。
 - [Agent 执行约定](../tech-stack/agent-runtime.md)：统一接入链的约定。

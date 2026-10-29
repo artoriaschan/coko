@@ -1,0 +1,73 @@
+---
+kind: reference
+description: "当前的分层能力配置契约：默认 ← 全局设置键 config ← 项目 .coko/settings.json（只收紧）、项目文件的读取时机与诊断代码、GET / PUT /api/config、项目 deny / ask 规则的 project 作用域、设置界面的项目设置行。修改能力开关、项目设置的合并或诊断、配置接口或相关界面前查阅。"
+lifecycle: active
+---
+
+# 分层配置
+
+本文说明 Coko 当前如何得到每个 Run 的有效能力配置：默认值、用户在设置中保存的全局值与 Workspace 内的项目设置文件三层合并，项目文件只能收紧。长期决定见 [ADR 0008](../adr/0008-project-files-only-tighten.md)（项目文件只收紧）与 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)（应用状态在 SQLite、项目配置为只读覆盖）。各能力开关由对应的上下文贡献读取；本页只描述配置本身。
+
+## 结构入口
+
+| 位置 | 职责 |
+| --- | --- |
+| `packages/agent/src/config/schema.ts` | 配置 schema 与默认值 `defaultCapabilityConfig()`、设置键 `CONFIG_SETTING_KEY` |
+| `packages/agent/src/config/merge.ts` | `parseProjectSettings(text, path, { isRule? })` → 生效的项目值、规则文本与诊断；`mergeCapabilityConfig(global, project?)` → 有效值 |
+| `packages/protocol/src/config.ts` | `ConfigResponse`、`UpdateConfigRequest`、`ResourceDiagnostic`、`configPaths`、`isConfigSettingKey`、`PROJECT_SETTINGS_PATH` |
+| `apps/server/src/application/config.ts` | `ConfigService`：全局值的读写、项目文件按 mtime 读取、`effective(workspacePath?)`；两份 schema 的编译期比对 |
+| `apps/server/src/application/permissions.ts` | `PermissionService` 经 `ProjectRuleSource`（由 `ConfigService` 实现）取项目规则，见 [权限判定与审批](permissions.md#作用域与持久化) |
+| `apps/server/src/http/routes/config.ts` | `GET / PUT /api/config` |
+| `apps/desktop/src/renderer/stores/config-store.ts` | renderer 的配置 store（读取 `GET /api/config`） |
+| `apps/desktop/src/renderer/features/settings/general-section.tsx` | General 分区的项目设置行 |
+
+## 配置项与合并
+
+| 键 | 默认 | 项目文件中 |
+| --- | --- | --- |
+| `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
+| `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
+| `skills.disabled` | [] | 追加（与全局取并集） |
+| `commands.disabled` | [] | 不接受（`unknown-key`） |
+| `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
+| `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
+
+有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
+
+## 项目设置文件
+
+位置为 `<Workspace>/.coko/settings.json`（`.coko` 是受保护路径，Agent 写入须审批）。读取时机：每个 Run 开始时（上下文装配取有效配置）、`GET /api/config?workspaceId` 与 `GET /api/permissions?workspaceId` 时；文件未变（mtime 与大小相同）时复用上次的解析结果。Run 进行中改动文件，到下一个 Run 才生效。
+
+读取失败或格式问题只产生诊断 `{ source: 'config', path, code, message }`，不阻止 Run，其余键照常生效：
+
+| code | 何时 | 结果 |
+| --- | --- | --- |
+| `invalid-json` | JSON 解析失败 | 整个文件被忽略 |
+| `invalid-value` | 顶层不是对象；分区不是对象；开关不是布尔值；列表不是非空字符串数组；单条规则不是合法的规则文本 | 顶层问题时整个文件被忽略，否则只忽略该键或该条规则 |
+| `unknown-key` | 不认识的键（含项目中的 `commands.disabled`） | 忽略该键 |
+| `project-cannot-grant` | 值为 true 的开关、`permissions.allow`、`permissions.defaultMode` | 忽略该键 |
+| `read-failed` | 文件存在但无法读取 | 按空文件处理，记 warn `project settings unreadable` |
+
+规则文本按 `parsePermissionRule` 的语法校验（`Tool` 或 `Tool(content)`）；工具名在判定与显示时归一为规范名（`bash` → `Bash`），不检查是否为已注册的工具。
+
+## 协议
+
+- `GET /api/config?workspaceId=…` → `{ effective, global, globalRevision, project? }`。`globalRevision` 未保存过为 0。给出 workspaceId 时 `effective` 含该项目文件，`project = { path, exists, values, diagnostics }`：`values` 只有生效的项（关闭的开关、追加的 `skills.disabled`、有规则时的 `permissions: { deny, ask }`），被忽略的项只出现在 `diagnostics` 中；文件不存在时 `exists: false`。Workspace 不存在 404。
+- `PUT /api/config { values, expectedRevision, workspaceId? }`：整体替换全局值，返回同形的响应。值不合 schema 400；revision 不一致 409 `revision-conflict`。
+- 设置界面目前只读取；能力开关的编辑入口随使用它们的功能交付。
+
+## 界面
+
+- **General 分区的项目设置行**：当前会话（或草稿）所在 Workspace 的项目文件路径、"未创建" / "没有问题" / 诊断数；诊断数是一个按钮，展开后按 code 显示本地化标题与原始说明。没有 Workspace 时提示先打开会话。
+- **Permissions 分区的项目规则**：只读列表，标出来源文件，没有删除入口与输入框，见 [权限判定与审批](permissions.md#界面)。
+
+## 验证
+
+- `packages/agent/src/config/merge.test.ts`：合并（默认 / 全局 / 项目、项目 true 不打开全局 false、列表并集）与诊断（`project-cannot-grant`、`unknown-key`、`invalid-value` 且其余键照常、`invalid-json` 整文件忽略）。
+- `tests/integration/sidecar-config.test.ts`：真实 Sidecar 上的 `GET / PUT /api/config`、409、通用设置接口 400、改文件后下一次 GET 与下一个 Run 读到新值、项目 deny 在 full-access 下拒绝、项目 allow 不放行。
+- `apps/desktop/e2e/config.e2e.test.ts`：General 分区的路径与诊断、Permissions 分区的只读项目规则。
+
+## 延伸阅读
+
+- [ADR 0008](../adr/0008-project-files-only-tighten.md)：为什么项目文件只能收紧。
+- [权限判定与审批](permissions.md)：project 作用域在判定中的位置。
