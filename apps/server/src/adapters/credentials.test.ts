@@ -3,7 +3,7 @@ import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import type { ControlChannel } from '../control/channel.ts'
-import { createEnvSecretSource, createIpcSecretSource, secretEnvName } from './credentials.ts'
+import { createEnvCredentialStore, createEnvSecretSource, createIpcSecretSource, secretEnvName } from './credentials.ts'
 
 describe('Secret 来源（ADR 0007）', () => {
   it('无界面运行：只读 COKO_SECRET_<NAME>，不按名字读 Sidecar 自身环境', async () => {
@@ -46,5 +46,16 @@ describe('Secret 来源（ADR 0007）', () => {
     source.invalidate('MY_SERVICE_DSN')
     expect(source.cachedValues()).toEqual([])
     expect(await source.list()).toEqual([expect.objectContaining({ name: 'MY_SERVICE_DSN', hint: 'alue' })])
+  })
+})
+
+describe('Credential 明文作为按值脱敏来源（ADR 0004）', () => {
+  it('无界面运行：COKO_CREDENTIAL_* 与 Provider kind 的密钥变量都在 cachedValues 中，其他变量不在', () => {
+    const store = createMemoryStore({ payloads: createPayloadRegistry([]) })
+    const credentials = createEnvCredentialStore({
+      env: { COKO_CREDENTIAL_LOCAL: 'local-key-value', DEEPSEEK_API_KEY: 'deepseek-key', PATH: '/usr/bin', COKO_CREDENTIAL_EMPTY: '' },
+      providers: store.providers,
+    })
+    expect(credentials.cachedValues().sort()).toEqual(['deepseek-key', 'local-key-value'])
   })
 })

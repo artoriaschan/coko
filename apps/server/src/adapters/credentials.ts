@@ -9,6 +9,8 @@ const readOnly = () => Promise.reject(new Error('Credentials are managed by the 
 export interface HostCredentialStore extends CredentialStore {
   /** 清除内存中的明文缓存。 */
   invalidate(providerId: string): void
+  /** 当前在内存中的明文（按值脱敏的来源，与 Secret 同一机制）。 */
+  cachedValues(): string[]
 }
 
 /**
@@ -51,6 +53,7 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
     modify: readOnly,
     delete: readOnly,
     invalidate: (providerId) => void cache.delete(providerId),
+    cachedValues: () => [...cache.values()],
   }
 }
 
@@ -98,6 +101,11 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
     modify: readOnly,
     delete: readOnly,
     invalidate: () => {},
+    // 环境中的值启动时已知：COKO_CREDENTIAL_* 与各 Provider kind 的密钥变量全部登记，不必等到第一次读取。
+    cachedValues: () =>
+      Object.entries(options.env).flatMap(([key, value]) =>
+        value && (key.startsWith('COKO_CREDENTIAL_') || PROVIDER_KINDS.some((kind) => apiKeyEnvOf(kind) === key)) ? [value] : [],
+      ),
   }
 }
 

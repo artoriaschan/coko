@@ -1,5 +1,5 @@
 import { lastRunStatus, type AgentRuntime, type ProgressEvent as AgentProgress, type RunEntry, type RunStatus } from '@coko/agent'
-import { redactSecretValues, redactText } from '@coko/logging'
+import { redactSecretsDeep, redactText } from '@coko/logging'
 import type { ProgressEvent } from '@coko/protocol'
 import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
@@ -8,39 +8,34 @@ import type { SessionHub } from './hub.ts'
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue
 
 /**
- * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
- * （ADR 0004）。用户输入保持原样；工具输出只替换已登记 Secret 的明文（ADR 0007），其余原样。
+ * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都按凭据形态与登记明文脱敏
+ * （ADR 0004）。
  */
 const redactModelError = redactText
 
-/** 递归替换值中所有字符串里已登记的 Secret 明文。 */
-function redactSecretsDeep(value: unknown): unknown {
-  if (typeof value === 'string') return redactSecretValues(value)
-  if (Array.isArray(value)) return value.map(redactSecretsDeep)
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, redactSecretsDeep(inner)]))
-  return value
-}
-
-/** 运行时条目按注册的 kind 原样提交（session 校验 payload）；只有回显模型错误的字段先脱敏。 */
+/**
+ * 运行时条目按注册的 kind 提交（session 校验 payload）。回显模型错误的字段按凭据形态脱敏；除用户消息外的全部 payload（模型输出的
+ * 文本与工具调用参数、工具结果、压缩摘要、审批对象、执行记录）再替换登记的明文（secret-redaction.ts 的第二道防线）。
+ * 用户输入的文本保持原样（ADR 0007）。
+ */
 export function toNewEntry(entry: RunEntry): NewSessionEntry {
   let payload: unknown = entry.payload
   if (entry.kind === 'message' && entry.payload.role === 'assistant' && entry.payload.errorMessage) {
     payload = { ...entry.payload, errorMessage: redactModelError(entry.payload.errorMessage) }
   } else if (entry.kind === 'run_end' && entry.payload.error) {
     payload = { ...entry.payload, error: { ...entry.payload.error, message: redactModelError(entry.payload.error.message) } }
-  } else if (entry.kind === 'message' && entry.payload.role === 'toolResult') {
-    payload = redactSecretsDeep(toJson(entry.payload))
   }
-  return { kind: entry.kind, ...(entry.runId === undefined ? {} : { runId: entry.runId }), payload: toJson(payload) }
+  const json = toJson(payload)
+  const userInput = entry.kind === 'message' && entry.payload.role === 'user'
+  return { kind: entry.kind, ...(entry.runId === undefined ? {} : { runId: entry.runId }), payload: userInput ? json : redactSecretsDeep(json) }
 }
 
+/** 进度的协议形状：回显模型错误的字段按凭据形态脱敏（登记明文的替换由调用方先经 createProgressRedactor 完成）。 */
 export function toProgress(event: AgentProgress): ProgressEvent {
   const { runId: _runId, ...rest } = event
   if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
-  // 摘要请求的错误（票 11）与 retry、run_end 一样可能回显凭据。
   if (rest.type === 'compaction_failed') return { ...rest, message: redactModelError(rest.message) }
   if (rest.type === 'run_end' && rest.error) return { ...rest, error: { ...rest.error, message: redactModelError(rest.error.message) } }
-  if (rest.type === 'tool_update' || rest.type === 'tool_end') return redactSecretsDeep(toJson(rest)) as ProgressEvent
   return toJson(rest) as ProgressEvent
 }
 

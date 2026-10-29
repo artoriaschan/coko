@@ -3,6 +3,8 @@
 // 其 stderr 尾部进入 MCP 诊断；另一工具把值原样放进工具结果（条目、推送与日志中替换为标记）。Sidecar 自身环境中放同名变量（另一个值）：MCP 拿到的是登记的值，bash env 看不到登记的值。
 // 扫描 WebSocket 帧、HTTP 响应体、库文件（含 -wal）、sidecar.jsonl 与 MCP 诊断中都没有明文；未登记的名字使 Server 启动失败并诊断。
 import { createHash, randomBytes } from 'node:crypto'
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, mcpPaths, permissionPaths, secretPaths, type McpResponse } from '@coko/protocol'
 import { stdioServerConfig } from '../fixtures/mcp/index.ts'
@@ -21,7 +23,11 @@ describe('秘密不外泄总闸：MCP', () => {
     const hostValue = `host-dsn-${randomBytes(12).toString('hex')}`
     const root = await tempDir()
     const dirs = await sidecarDirs()
+    // 模型请求通道：工具结果在进入运行时之前替换，下一次请求里也没有明文。
+    const requestLog = join(root, 'requests.jsonl')
+    await writeFile(requestLog, '')
     const script = await fauxScript(root, {
+      requestLog,
       responses: [
         {
           content: [
@@ -112,7 +118,11 @@ describe('秘密不外泄总闸：MCP', () => {
     expect(running.some((f) => f.name === 'coko.db-wal')).toBe(true)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
     const stopped = await persisted(dirs)
+    const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
+    expect(requests).toHaveLength(2)
+    expect(requests[1]).toContain('MY_SERVICE_DSN=[REDACTED:secret]')
     const channels: [string, string | Buffer][] = [
+      ...requests.map((line, i): [string, string] => [`model request ${i}`, line]),
       ...stream.frames.map((frame, i): [string, string] => [`ws frame ${i}`, frame]),
       ...bodies.map((body, i): [string, string] => [`http body ${i}`, body]),
       ...running.map((f): [string, Buffer] => [`running ${f.name}`, f.bytes]),

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { redactSecretValues, redactText, registerSecretValues, SECRET_REDACTED } from './redact.ts'
+import { createSecretStreamRedactor, REDACTED, redactSecretsDeep, redactSecretValues, redactText, registerSecretValues, SECRET_REDACTED } from './redact.ts'
 
 const disposers: (() => void)[] = []
 afterEach(() => {
@@ -18,5 +18,41 @@ describe('登记的 Secret 值脱敏（ADR 0007）', () => {
     expect(redactSecretValues('sk-abcdefghijkl')).toBe('sk-abcdefghijkl')
     disposers.pop()!()
     expect(redactText(`dsn=${value}`)).toBe(`dsn=${value}`)
+  })
+
+  it('来源可以指定替换文本（Credential 用 REDACTED）；值重叠时先替换长的', () => {
+    disposers.push(registerSecretValues(() => ['plain-provider-key-1234'], { replacement: REDACTED }))
+    disposers.push(registerSecretValues(() => ['provider-key']))
+    expect(redactSecretValues('a plain-provider-key-1234 b provider-key')).toBe(`a ${REDACTED} b ${SECRET_REDACTED}`)
+  })
+
+  it('redactSecretsDeep 替换嵌套对象与数组中的字符串；没有替换时返回同一引用', () => {
+    disposers.push(registerSecretValues(() => ['hunter2-value']))
+    const untouched = { a: ['x', { b: 'y' }], n: 1 }
+    expect(redactSecretsDeep(untouched)).toBe(untouched)
+    const value = { a: ['x', { b: 'pw=hunter2-value' }], n: 1, keep: untouched }
+    const redacted = redactSecretsDeep(value)
+    expect(redacted).toEqual({ a: ['x', { b: `pw=${SECRET_REDACTED}` }], n: 1, keep: untouched })
+    expect(redacted.keep).toBe(untouched)
+    expect(value.a[1]).toEqual({ b: 'pw=hunter2-value' })
+  })
+
+  it('流式替换：值跨多个增量到达时，拼接后的输出不含明文；不是前缀的结尾立即发出', () => {
+    const secret = 'postgres://svc:pw@db/app'
+    disposers.push(registerSecretValues(() => [secret]))
+    const stream = createSecretStreamRedactor()
+    const text = `The DSN is ${secret}. Next postgres is a database.`
+    let out = ''
+    for (let i = 0; i < text.length; i += 3) out += stream.push(text.slice(i, i + 3))
+    out += stream.flush()
+    expect(out).toBe(`The DSN is ${SECRET_REDACTED}. Next postgres is a database.`)
+    const plain = createSecretStreamRedactor()
+    expect(plain.push('hello wor')).toBe('hello wor')
+    // "pos" 可能是登记值的开头：留到下一个增量。
+    expect(plain.push('ld pos')).toBe('ld ')
+    // "poster" 不再是任何登记值的开头：一并发出。
+    expect(plain.push('ter')).toBe('poster')
+    expect(plain.push('ity')).toBe('ity')
+    expect(plain.flush()).toBe('')
   })
 })

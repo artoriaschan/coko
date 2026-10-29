@@ -26,7 +26,7 @@ import {
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactSecretsDeep } from '@coko/logging'
 import {
   type ConfirmationAnswer,
   DEFAULT_MODEL_SETTING,
@@ -50,6 +50,7 @@ import type { SessionHub } from './hub.ts'
 import { PermissionService, type HostToolNames } from './permissions.ts'
 import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionPermissions } from './session-permissions.ts'
+import { createProgressRedactor, redactModelMessages, secretRedactionHook } from './secret-redaction.ts'
 import { requireSession, SessionRuntimes, toProgress } from './session-runtimes.ts'
 
 export type { RecoveryReport, RecoverySource } from './recovery.ts'
@@ -513,22 +514,33 @@ export class SessionService {
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: { ...this.#permissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
-      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。
-      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks],
+      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。登记明文的替换排在最后：之前的 hook 附加的内容（如嵌套指令）也被替换，
+      // 结果进入运行时之前已不含明文（secret-redaction.ts）。
+      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
-        ...(context.transformMessages ? { transformMessages: (messages: AgentMessage[]) => context.transformMessages!(messages, runContext.scope) } : {}),
+        // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。
+        transformMessages: (messages: AgentMessage[]) => {
+          const redacted = redactModelMessages(messages)
+          return context.transformMessages ? context.transformMessages(redacted, runContext.scope) : redacted
+        },
       },
-      // 压缩（票 11）：切点与重建读已提交的条目；context.autoCompact 取该 Run 开始时的有效配置。
-      compaction: { entries: () => store.sessions.listEntries(session.id), autoCompact: () => runContext.scope.config.context.autoCompact },
+      // 压缩：切点与重建读已提交的条目（入库时已替换登记明文，摘要请求同样看不到明文）；context.autoCompact 取该 Run 开始时的有效配置。
+      compaction: {
+        entries: async () => (await store.sessions.listEntries(session.id)).map((entry) => (entry.kind === 'message' ? redactSecretsDeep(entry) : entry)),
+        autoCompact: () => runContext.scope.config.context.autoCompact,
+      },
       commit: async (entry) => {
         await publish(entry)
       },
     })
     this.#runContexts.set(runtime, runContext)
+    const progress = createProgressRedactor()
     runtime.subscribe((event) => {
-      if (event.kind === 'progress') hub.publishProgress(session.id, event.event.runId, toProgress(event.event))
+      if (event.kind === 'entry') return progress.reset()
+      const redacted = progress.redact(event.event)
+      if (redacted) hub.publishProgress(session.id, redacted.runId, toProgress(redacted))
     })
     return runtime
   }

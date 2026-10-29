@@ -1,6 +1,6 @@
 import { Context, Effect, FiberMap, Layer } from 'effect'
 import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type SnapshotPort, type ToolHooks, type ToolRegistry } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, REDACTED, registerSecretValues } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
 import { createPayloadRegistry, isStoreError } from '@coko/session'
@@ -242,6 +242,11 @@ const AppLive = Layer.effect(
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
+    // Credential 明文与 Secret 走同一个按值脱敏机制（ADR 0004）：不是凭据形态的自定义密钥被回显时同样替换。
+    yield* Effect.acquireRelease(
+      Effect.sync(() => registerSecretValues(() => credentials.cachedValues(), { replacement: REDACTED })),
+      (unregister) => Effect.sync(unregister),
+    )
     const registry = createModelRegistry({ credentials })
     let fallbackModel: SessionModel | undefined
     if (config.fauxScript) {
