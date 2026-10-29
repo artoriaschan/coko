@@ -128,3 +128,24 @@
 - 未读：`apps/server/src/application/` 下的 recovery.ts、checkpoints.ts、session-permissions.ts（票 01 拆分，只看了调用点）；`packages/session/src/sqlite/memory-secrets.ts` 与迁移 v3；`apps/desktop/src/main/sidecar-supervisor.ts` 的改动。
 - 文档（docs/subsystems/*，以及 ADR 0007、0008 以外的 ADR）、i18n 字典、大部分 E2E 与集成测试正文只按需检索，没有通读。
 - 没有运行集成测试与 E2E。F1 的结论来自代码阅读，没有用会回显工具结果的 faux 脚本实测。
+
+---
+
+## 处理结果（票 13，2026-10-29）
+
+修复在分支 `m3/13-review-fixes`（见 [票 13](issues/13-review-fixes.md)）。"先红"指改动前新测试失败，或对实现做变异后失败。
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| F1 | 已修：`apps/server/src/application/secret-redaction.ts`。工具结果在 afterToolCall 链最后一个 hook 中替换（含 structuredContent 与其他 hook 附加的嵌套指令），之后才进入运行时；每次模型请求前整个上下文按值替换（模型回显、压缩摘要、恢复的条目），摘要请求读取的条目同样替换；入库与推送前再替换一次：除用户消息外的全部条目 payload 与全部进度，assistant 增量按内容块缓冲（跨增量的值也被替换）。共享函数为 `@coko/logging` 的 `redactSecretValues` / `redactSecretsDeep` / `createSecretStreamRedactor` | 新 `secrets-gate-echo.test.ts`（扫描 faux requestLog、拼接后的增量；模型在文本、bash 参数与摘要中回显登记值），先红；去掉请求替换、改为逐增量替换各使它失败。`secrets-gate-mcp.test.ts` 加入 requestLog 通道，去掉 hook 与请求替换时先红。`secret-redaction.test.ts`、`logging/secret-values.test.ts` 单元 |
+| F2 | 已修，同 review-standards S2；Read 拒绝规则见 F6 | 见 S2 |
+| F3 | 已修：`SkillLocation.boundary`，项目位置的 Skill 真实路径须在 Workspace 真实路径内，否则 `skill-outside-workspace` 且不成为读取根 | `skills.test.ts`（文件链接与位置目录链接）先红；`sidecar-skills.test.ts`：不加载、读外部文件仍审批，变异先红 |
+| F4 | 已修，同 S1 | 见 S1 |
+| F5 | 选择"统一比较规则"：`serverNameKey` = 小写且 `-`→`_`，冲突与 `shadowed-by-global` 都按它比较；规则匹配保持大小写不敏感。mcp.md 写明 | `naming.test.ts`、`config.test.ts`，先红 |
+| F6 | 已修：`TEXT_EXTENSIONS` 去掉 env / example，另拒绝 `.env`、`.env.*`；受保护路径记 `import-protected`；loader 接受 `denied`（`contextReadDenial`，与 File Reference 同一实现），指令文件 `file-denied`、@import `import-denied`；server 从 `scope.permissionRules` 取规则（含嵌套 hook） | `rules.test.ts` 2 例、`instructions.test.ts` 1 例，先红（server 接线另做变异确认） |
+| F7 | 已修：`summaryRequest` 接受 `maxInputChars`，运行时按 (窗口 − 摘要输出上限) × 4；超出时先省略最早的工具结果，再省略最早的消息并注明条数；`<file_reference>` / `<instruction_file>` 缩为路径，图片 `[image omitted]` | `compaction.test.ts` 2 例、`engine/compaction.test.ts` 1 例（去掉上限后失败） |
+| F8 | 已修：`submit` 开头先查 `isRunning`，进行中 409，不展开输入 | `commands.test.ts` 断言来源 expand 未被调用，用旧代码先红 |
+| F9 | 选择"保留实现并写进 context.md"：历史中每个超过 60 分钟的间隔也是裁剪点，理由是只用"距最后一条 assistant"时下一轮又恢复原文、前缀反复变化；代价写明。请 Lead 裁决是否接受这一偏离 | 文档项，无新测试 |
+| M1 | 已修：`config-store` 的 `setSwitch`（GET 后整体 PUT）与共享 `CapabilityToggle`；General"上下文"组（instructions.enabled、context.autoCompact、context.trimOldToolResults）、MCP 分区顶部（mcp.enabled）、Skills & Commands（commands.enabled）；被项目关闭时注明 | `config-store.test.ts` 2 例（先红）；`config.e2e.test.ts` 新增 1 例（写入、其他键带回、revision、关闭再打开读回、项目关闭注明） |
+| M2 | 已修，同 S3 | 见 S3 |
+| M3 | 已修：`HostCredentialStore.cachedValues()`（IPC 为已解密缓存，环境变量模式为 `COKO_CREDENTIAL_*` 与 Provider kind 变量），`AppLive` 以 `[REDACTED]` 登记 | `secrets-gate-memory.test.ts` 改用非 sk- 形态的 Credential，先红；`credentials.test.ts` 1 例 |
