@@ -268,9 +268,10 @@ describe('桌面壳', () => {
     process.kill(pid!, 'SIGKILL')
 
     await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('failed')
-    expect(await app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
-    expect(await app.window.getByText(/^(Sidecar 多次重启失败，已停止|Sidecar kept failing to restart and was stopped)$/).count()).toBe(1)
-    expect(await app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).count()).toBe(1)
+    // data-connection 先变为 failed，失败覆盖层在下一次渲染出现：等待覆盖层本身，而不是只读一次。
+    await expect.poll(() => app.window.locator('[data-error-code]').getAttribute('data-error-code')).toBe('fixture-fatal')
+    await expect.poll(() => app.window.getByText(/^(Sidecar 多次重启失败，已停止|Sidecar kept failing to restart and was stopped)$/).count()).toBe(1)
+    await expect.poll(() => app.window.getByRole('button', { name: /^(打开日志文件夹|Open logs folder)$/ }).count()).toBe(1)
     const boxes = () => app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; buttons?: string[] }[] }).__boxes ?? [])
     await expect.poll(async () => (await boxes()).length).toBe(1)
     const [box] = await boxes()
