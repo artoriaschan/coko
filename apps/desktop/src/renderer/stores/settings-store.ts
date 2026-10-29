@@ -52,7 +52,10 @@ export interface SettingsActions {
   fetchProviderModels(input: FetchProviderModelsInput): Promise<FetchProviderModelsResult>
   /** 取消进行中的获取；对应的 fetchProviderModels 以 cancelled 结束。 */
   cancelProviderModels(requestKey: string): void
-  /** 引用该 Provider 的 Session 数量；失败时抛出 ApiError（不经 onFailure）。 */
+  /**
+   * 引用该 Provider 的 Session 数量；失败时抛出 ApiError（ApiClient 已把各种失败转为 ApiError），不经 onFailure。直接转发：
+   * 组件只经 store 访问 Sidecar，不持有 ApiClient；删除确认在自己的区域显示读取失败与重试。
+   */
   providerReferences(id: string): Promise<{ sessions: number }>
   /** 同时删除其 Credential，引用它的 Session 模型字段被清空。返回是否已删除。 */
   deleteProvider(id: string): Promise<boolean>
@@ -213,13 +216,7 @@ export function createSettingsStore({ api, saveProvider: submitProvider, provide
         providerModels?.cancelProviderModels(requestKey)
       },
 
-      async providerReferences(id) {
-        try {
-          return await api.providerReferences(id)
-        } catch (error) {
-          throw toApiError(error)
-        }
-      },
+      providerReferences: (id) => api.providerReferences(id),
 
       async deleteProvider(id) {
         try {
