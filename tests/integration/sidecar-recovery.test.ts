@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
-import { writeV1Database } from '../fixtures/v1-database.ts'
+import { V1_PROVIDER, writeV1Database } from '../fixtures/v1-database.ts'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs } from './sidecar-harness.ts'
 
 const kindOf = (e: SessionEntryRecord) => (e.kind === 'message' ? (e.payload as { role: string }).role : e.kind)
@@ -184,7 +184,7 @@ describe('启动恢复与结果确认', () => {
     expect(await sidecarLog(dirs)).not.toContain('interrupted run recovered')
   })
 
-  it('迁移：用 v1 库启动 Sidecar → 当前版本（M3 起为 3）、生成 .backup-v1-*、原有 Session 与条目可读', async () => {
+  it('迁移：用 v1 库启动 Sidecar → 当前版本（4）、生成 .backup-v1-*；旧 Provider、Credential 与默认模型被清除，Session 模型为空，条目可读', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const db = join(dirs.dataDir, 'coko.db')
@@ -193,13 +193,18 @@ describe('启动恢复与结果确认', () => {
       { kind: 'message', runId: 'r1', payload: { role: 'assistant', content: [{ type: 'text', text: 'hi' }], stopReason: 'stop', timestamp: 2 } },
       { kind: 'run_end', runId: 'r1', payload: { status: 'completed' } },
     ]
-    await writeV1Database(db, { workspacePath: root, sessionId: 's-v1', title: 'kept from v1', entries: v1Entries })
+    await writeV1Database(db, { workspacePath: root, sessionId: 's-v1', title: 'kept from v1', entries: v1Entries, withProvider: true })
 
     const sidecar = await startSidecar({ dirs })
     const api = client(sidecar, await exchange(sidecar))
     const sessions = (await api.get(API_ROUTES.sessions)).body.sessions
     expect(sessions).toHaveLength(1)
-    expect(sessions[0]).toMatchObject({ id: 's-v1', title: 'kept from v1', activity: 'idle' })
+    expect(sessions[0]).toMatchObject({ id: 's-v1', title: 'kept from v1', activity: 'idle', model: null })
+    expect((await api.get(API_ROUTES.providers)).body).toEqual({ providers: [] })
+    expect((await api.get(API_ROUTES.models)).body).toEqual({ models: [], defaultModel: null })
+    expect((await api.get(API_ROUTES.settings)).body.settings.map((s: { key: string }) => s.key)).not.toContain('defaultModel')
+    // 没有可用模型时 Run 不会开始，界面据此引导重新选择模型。
+    expect((await api.post(apiPaths.sessionMessages('s-v1'), { text: 'again' })).body).toMatchObject({ error: { code: 'model-not-configured' } })
     const entries = (await api.get(apiPaths.session('s-v1'))).body.entries as SessionEntryRecord[]
     expect(entries.map((e) => [e.seq, e.kind, e.payload])).toEqual(v1Entries.map((e, i) => [i + 1, e.kind, e.payload]))
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
@@ -214,7 +219,19 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    expect(version(db)).toBe(3)
+    expect(version(db)).toBe(4)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
+    // 备份保留旧 Provider。
+    const backup = new DatabaseSync(join(dirs.dataDir, backups[0]!), { readOnly: true })
+    try {
+      expect(
+        backup
+          .prepare('SELECT id, kind FROM providers')
+          .all()
+          .map((r) => ({ ...r })),
+      ).toEqual([{ id: V1_PROVIDER.id, kind: V1_PROVIDER.kind }])
+    } finally {
+      backup.close()
+    }
   })
 })

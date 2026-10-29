@@ -36,14 +36,32 @@ export interface V1Entry {
   runId?: string
 }
 
-/** 在 path 写一个版本 1 的库：一个 Workspace、一个 Session 与给定条目（按顺序编号）。 */
-export async function writeV1Database(path: string, input: { workspacePath: string; sessionId: string; title: string; entries: V1Entry[] }): Promise<void> {
+/** 版本 1 的按 kind 配置的 Provider（随机 ID、预设目录中的模型）：Session 与默认模型都引用它，并有密文。 */
+export const V1_PROVIDER = { id: '0b6f2c1e-v1', kind: 'deepseek', modelId: 'deepseek-flash' } as const
+
+/** 在 path 写一个版本 1 的库：一个 Workspace、一个 Session 与给定条目（按顺序编号）；withProvider 时另写 V1_PROVIDER。 */
+export async function writeV1Database(
+  path: string,
+  input: { workspacePath: string; sessionId: string; title: string; entries: V1Entry[]; withProvider?: boolean },
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const db = new DatabaseSync(path)
   try {
     db.exec(V1_DDL)
     db.prepare('INSERT INTO workspaces VALUES (?, ?, ?, 1)').run('w-v1', input.workspacePath, 'v1')
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, NULL, NULL, 1, 1)').run(input.sessionId, 'w-v1', input.title)
+    const { id, kind, modelId } = V1_PROVIDER
+    if (input.withProvider) {
+      db.prepare("INSERT INTO providers VALUES (?, 'DeepSeek', ?, 'openai-completions', '', ?, 1, 1)").run(id, kind, JSON.stringify([modelId]))
+      db.prepare("INSERT INTO provider_credentials VALUES (?, X'0102', 'ab12', 1)").run(id)
+      db.prepare('INSERT INTO settings VALUES (?, ?, 1, 1)').run('defaultModel', JSON.stringify({ providerId: id, modelId }))
+    }
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, 1, 1)').run(
+      input.sessionId,
+      'w-v1',
+      input.title,
+      input.withProvider ? id : null,
+      input.withProvider ? modelId : null,
+    )
     const insert = db.prepare('INSERT INTO session_entries VALUES (?, ?, ?, 1, ?, ?, 1)')
     input.entries.forEach((entry, i) => insert.run(input.sessionId, i + 1, entry.kind, JSON.stringify(entry.payload), entry.runId ?? null))
     db.exec('PRAGMA user_version = 1')
