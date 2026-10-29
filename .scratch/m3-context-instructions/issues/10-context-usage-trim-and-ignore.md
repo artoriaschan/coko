@@ -18,3 +18,4 @@
 
 ## Comments
 - 2026-10-29 lead：来自票 03——已加载指令文件与诊断的形状目前由 ContextReport 承载，packages/protocol/src/instructions.ts 未改；本票如需在协议中声明，在 protocol 的 instructions 领域文件中定义并从 ContextReport 引用。
+- 2026-10-29 lead：来自票 08 与 05——Session、全局与 Workspace 规则接口用 SessionService.#hostToolNames() 校验工具名，只覆盖基础工具，贡献工具（memory_*、read_mcp_resource、list_mcp_resources 等）写规则时被拒为 unknown-tool（票 05 只为 skill 加了别名）。本票顺带修复：规则校验接受当前已注册的贡献工具名与 mcp__ 前缀（越出写范围，已授权：apps/server/src/application/sessions.ts 的 #hostToolNames 与 permissions 校验），并用集成测试覆盖 PUT /api/permissions 写入 Memory 与 MCP 资源工具的拒绝规则后生效。

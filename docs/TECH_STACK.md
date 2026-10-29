@@ -141,7 +141,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | Toast | sonner 2.0.8，经 shadcn/ui 的 Sonner 组件接入 |
 | 消息输入编辑器 | lexical 0.52.0 |
 | 编辑器 React 集成 | @lexical/react 0.52.0 |
-| 输入内容 Markdown 转换 | @lexical/markdown 0.52.0 |
+| 输入内容 Markdown 转换 | @lexical/markdown 0.52.0；已选未接入：composer 为纯文本，支持富文本时引入（见 [界面约定](tech-stack/ui.md#技术接入)） |
 | 动效 | motion 14.1.0 + tw-animate-css 1.4.0 |
 | 浮层 | @floating-ui/dom 1.8.0 |
 | 组件底层原语 | radix-ui 1.7.0 |

@@ -62,3 +62,6 @@
 - 资源工具名常量：`LIST_MCP_RESOURCES_TOOL`、`LIST_MCP_RESOURCE_TEMPLATES_TOOL`、`READ_MCP_RESOURCE_TOOL`、`MCP_RESOURCE_TOOL_NAMES`（@coko/agent）。
 - `McpManager.diagnostics(scope)`（上下文用量接口，票 10）现在含结果诊断（`invalid-result`、`duplicate-cursor`、`page-limit`），每个 Server 每类保留最近一次。
 - 测试 Server：`MCP_FIXTURE_FEATURES=resources,prompts` 打开能力；未设置时行为与票 07 相同。
+- 2026-10-29 lead：评审后合入 main（7068503）。合入后首次全量 test 所有用例通过，但 Vitest 报 1 个未处理错误（setTypeOfService EINVAL，来自 sidecar-supervisor.test.ts，与本票无关、票 01 基线已出现）：stop 在 cookie 交换请求进行中杀进程，undici 在已关闭 socket 上抛出无法捕获的错误。lead 在 m3/fix-supervisor-stop-race 先写失败测试（stop 发生在交换途中），再让 stop 先中止交换并等启动结束、start 被中断时返回 stopped，合入 main（5a96f85）。接受越界：secrets-gate-mcp-prompts.test.ts、THIRD_PARTY_NOTICES 2 行、docs/README 与 server README 各 1 行。接受行为变更：GET /api/commands 与提交消息前先连接空闲的 MCP Server。worktree 已清理。
+
+Closed: true

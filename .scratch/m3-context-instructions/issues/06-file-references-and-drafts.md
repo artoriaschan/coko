@@ -65,3 +65,6 @@
 - **typeahead**：`ComposerTypeahead` 新增 `onQuery(query)`（异步候选）；`onSelect(item, selection: 'enter' | 'tab' | 'pointer')` 可返回 `{ fileReference: path }` 插入节点；getItems 换新时光标仍在 token 中会重新匹配。
 - **ContextScope.permissionRules**：任何贡献需要当时生效的规则时可复用；省略时（单元测试、草稿 Workspace 作用域）视为没有规则。
 - **时间线**：user 项新增可选 `references: string[]`；`text` 不含 `<file_reference>` 块。
+- 2026-10-29 lead：合入 main（ce6ad06），docs/README 导航行与票 05 冲突，保留两行。接受越界：context/types.ts 的 ContextScope.permissionRules、context/index.ts 一行、sessions.ts 三行、conversation-pane.tsx 一行、i18n references 域注册、新测试与 timeline 用例、docs/README 一行。lead 把 TECH_STACK 的 @lexical/markdown 行标为"已选未接入"。main 上复核（后台任务，含票 05、08 与 supervisor 修复）：install、typecheck、lint、format:check 退出 0；全量 test 156 文件 1164 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 112 文件 0 问题。worktree 已清理。
+
+Closed: true

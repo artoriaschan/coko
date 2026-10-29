@@ -62,4 +62,6 @@
 - **上下文报告（票 10）**：Skills 贡献的 `report()` 给出 `breakdown.skills`（`<available_skills>` 字符数）与 Skill 诊断。
 - **压缩（票 11）**：skill 工具结果的 `details = { name, path, baseDir, files, filesTruncated }`，可从 toolResult 中取 `name` 汇总 `invokedSkills`。
 - 导出：`@coko/agent` 新增 `createSkillLoader`、`skillLocations`、`skillsSection`、`createSkillTool`、`expandSkillInvocation`、`formatSkillBlock`、`parseSkillFile` 等（经 `instructions/skills` barrel，无需改 index.ts）；protocol `skills.ts` 新增 `SkillInfo`、`SkillListResponse`、`skillPaths`（index.ts 已 re-export）。
+- 2026-10-29 lead：评审后合入 main（2f0992c）。接受越界：decide.ts RULE_ALIASES 的 skill → Skill 与用例、sections.ts 开启 Skills 分区及其测试、docs/README、adr/README、commands.md 与 permissions.md 各一行。裁决：用户级 .agents/skills 从 dirname(COKO_HOME)/.agents/skills 读取，默认即 ~/.agents/skills，使临时 COKO_HOME 的测试不读真实目录——接受，已写入 skills.md。lead 更新 agent README 中 barrel 的状态。main 上复核（与票 06 合并后一并，见票 06）。worktree 已清理。
 
+Closed: true
