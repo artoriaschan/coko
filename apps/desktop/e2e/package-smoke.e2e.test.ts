@@ -190,7 +190,8 @@ describe('打包产物 smoke', () => {
     expect(await bashCards.nth(1).locator('[data-sandbox-denied]').count()).toBe(process.platform === 'darwin' ? 1 : 0)
     expect(await readFile(join(outside, 'leak.txt'), 'utf8').catch(() => null)).toBeNull()
     await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
-    expect(await page.getByRole('article', { name: 'Coko' }).last().textContent()).toBe('Found the needle in notes.txt.')
+    // 发送按钮恢复时最后一条回复可能仍是流式显示（Markdown 原文），等提交的条目渲染完成。
+    await expect.poll(() => page.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 15_000 }).toBe('Found the needle in notes.txt.')
 
     await page.evaluate(() =>
       window.coko!.log({ level: 'info', category: ['smoke'], message: 'smoke marker sk-smokeSecretValue1', properties: { apiKey: 'plain-secret' } }),
