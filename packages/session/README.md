@@ -12,8 +12,8 @@ lifecycle: active
 
 | 入口 | 内容 |
 | --- | --- |
-| `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`SessionStore`、`createPayloadRegistry` 与 `PayloadRegistry`、`StoreError`；不导入 `node:sqlite` |
-| `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`（当前 2）、`RecoveryQueries` / `UnfinishedRun`；只在此入口导入 `node:sqlite` |
+| `@coko/session` | 模型类型、`SessionRepository`、`SettingsRepository`、`ProviderRepository`、`MemoryRepository`、`SecretRepository`、`SessionStore`、`createPayloadRegistry` 与 `PayloadRegistry`、`StoreError`；不导入 `node:sqlite` |
+| `@coko/session/sqlite` | `openSqliteStore({ path, payloads, ... })`、`SQLITE_SCHEMA_VERSION`（当前 3）、`RecoveryQueries` / `UnfinishedRun`；只在此入口导入 `node:sqlite` |
 | `@coko/session/memory` | `createMemoryStore({ payloads })`，不持久化，供单元测试装配 |
 | `@coko/session/blobs` | `openBlobStore(dir, { maxBytes? })`、`hashFile(path)`、`BlobTooLargeError`、`MAX_BLOB_BYTES`：Checkpoint 快照的内容寻址文件存储（[ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)），只依赖 `node:fs` 与 `node:crypto` |
 
@@ -27,9 +27,11 @@ lifecycle: active
 - **读取。** `listEntries(sessionId, { afterSeq, limit })` 返回 `seq > afterSeq` 的条目，供断线重连补齐；payload 逐版迁移到当前版本。迁移后仍不合格（或 JSON 已损坏）的条目不返回、交给 `onInvalidEntry({ sessionId, seq, kind, payloadVersion, reason })`，库中保留，因此读回的 seq 可能有空缺；`limit` 按库中条目计数。`listSessions` 按 `updatedAt` 倒序。
 - **设置。** 键值 JSON，每个键单独计 revision；不存在的键为 0。`set(key, value, expectedRevision)` 不匹配时以 `revision-conflict` 拒绝，`details` 带 `expected` 与 `actual`，值保持不变。
 - **Provider 与 Credential。** Provider 只返回 `credential: { hint } | null`。密文由 main 加密后经 `setCredential` 存入单独的表，只能用 `getCredentialCiphertext` 取回；删除 Provider 时同时删除密文。
+- **Memory。** `store.memories`：`list({ scope?, workspaceId? })`（按 `updatedAt` 倒序）、`get`、`create({ scope, workspaceId?, content, source })`、`update(id, { content })`、`delete`。`scope` 为 `user`（`workspaceId` 必须为空）或 `workspace`（必须给出），不一致时 `invalid-input`，Workspace 不存在或条目不存在时 `not-found`。Agent 的工具与设置界面由 M3 票 09 接入。
+- **登记的 Secret**（[ADR 0007](../../docs/adr/0007-secrets-from-registered-entries.md)）。`store.secrets`：`list()` 只返回 `{ name, hint, updatedAt }`（按名字排序，不含密文）、`setCiphertext(name, { ciphertext, hint })`（新增或替换）、`getCiphertext(name)`、`delete(name)`（不存在时 `not-found`）。只存 main 加密后的密文。
 - **打开序列。** 创建目录（0700）与库文件（0600）→ 读库头版本，高于 `SQLITE_SCHEMA_VERSION` 时立即报告 `version-too-new` → 获取宿主租约 → `PRAGMA quick_check` → 版本检查 → WAL、`synchronous=FULL`、外键、busy timeout → 迁移 → FTS5 探测 → 启动心跳。租约先于快速检查：隔离会改名文件，只有确认本实例是写者后才执行；文件已读不出租约（不是数据库或页面损坏）时直接进入快速检查。
 - **迁移。** 迁移按编号前向执行，每一步与 `user_version` 在同一事务提交。库里已有数据时，迁移前先 `VACUUM INTO <path>.backup-v<N>-<时间>`（0600）。某一步失败时只回滚该步，已提交的步骤保留，并报告 `migration-failed`（`details` 带 `version`、`failedVersion` 与 `backupPath`）。
-- **版本。** 1：初始表；2：索引 `session_entries_by_kind`（`session_id, kind, seq`），供恢复查询。
+- **版本。** 1：初始表；2：索引 `session_entries_by_kind`（`session_id, kind, seq`），供恢复查询；3：`memories`（STRICT，索引 `memories_by_scope(scope, workspace_id, updated_at)`）与 `secrets`（name 主键、ciphertext、hint、updated_at）。
 - **恢复查询。** `recovery.listUnfinishedRuns()` 返回有 `run_start`（带 runId）而没有其后同 runId `run_end` 的 Run `{ sessionId, runId, startSeq }`，按 sessionId、startSeq 排序；`recovery.listLatestEntries(kind)` 返回每个 Session 该 kind 的最后一条条目，payload 与 `listEntries` 一样迁移，不合格的跳过并报告。kind 字面量是存储与 agent 之间的约定，session 不解释 payload。用法见 [启动恢复与结果确认](../../docs/subsystems/recovery.md)。
 - **宿主租约。** `host_lease` 单行表，打开时最先于事务中获取。其他实例的进程存活且心跳未超过 TTL 时，打开以 `lease-held` 拒绝（`details` 带 `pid`、`instanceId`），不做快速检查与隔离，文件保持原样。持有者进程已退出或心跳超时则接管。每次写入都在事务内校验租约，被接管后本实例的所有操作以 `lease-lost` 拒绝。`close()` 释放租约。
 - **损坏。** `quick_check` 未通过，或文件不是数据库，都会把原文件（连同 `-wal`、`-shm`）改名为 `<path>.corrupt-<时间>-<id>` 隔离，并报告 `corrupt`（`details.quarantinedTo`）；不会自动重建。库版本高于 `SQLITE_SCHEMA_VERSION` 时在获取租约之前报告 `version-too-new`，不写入任何内容，库文件逐字节不变。
@@ -60,10 +62,10 @@ lifecycle: active
 
 ## 验证与相关设计
 
-- `src/repository-contract.ts`：仓库契约测试套件（含 payload 写入拒绝与读取迁移、跳过），由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行；测试用注册表在 `src/test-payloads.ts`。
+- `src/repository-contract.ts`：仓库契约测试套件（含 payload 写入拒绝与读取迁移、跳过；Memory 的作用域与排序；Secret 的 list 不含密文、密文按字节读回），由 `src/memory/memory.test.ts` 与 `src/sqlite/sqlite.test.ts` 对两种实现分别运行；测试用注册表在 `src/test-payloads.ts`。
 - `src/sqlite/sqlite.test.ts`：重新打开后读回、升级注册表后重新打开时旧版本 payload 迁移且不合格行保留在库中、0600 权限、租约冲突与 TTL 接管、损坏隔离（非数据库文件、页面损坏）、租约被存活实例持有时损坏库不被隔离、版本过高拒绝且库文件逐字节不变。
 - `src/sqlite/migrate.test.ts`：用合成迁移验证备份、逐步提交、失败回滚与租约释放。
-- `src/sqlite/recovery.test.ts`：v1 库迁移到 2（`.backup-v1-*` 为 0600、索引列、原数据可读）与两个恢复查询；经协议的迁移证据在 `tests/integration/sidecar-recovery.test.ts`。
+- `src/sqlite/recovery.test.ts`：v1 库迁移到当前版本、v2 库迁移到 3（`.backup-v2-*` 为 0600、新表为 STRICT、索引列、原数据可读）与两个恢复查询；经协议的迁移证据在 `tests/integration/sidecar-recovery.test.ts`。
 - `src/blobs/blobs.test.ts`：同一内容只存一份、读回逐字节相同、0700 / 0600、来源中途出错与超限时不留下任何文件、引用校验。
 - `src/sqlite/electron-runtime.test.ts`：以 `ELECTRON_RUN_AS_NODE=1` 启动 Electron 子进程（`src/sqlite/electron-fixture.ts`），验证跨进程提交读回、租约冲突、持有者被 SIGKILL 后接管，并断言运行时版本与 FTS5 可用。
 

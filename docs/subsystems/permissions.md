@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的权限判定与审批契约：四种模式、判定顺序、规则语法与作用域、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
+description: "当前的权限判定与审批契约：四种模式、权限类与额外读取根、判定顺序、规则语法与作用域、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
 lifecycle: active
 ---
 
@@ -12,7 +12,8 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `packages/agent/src/policy/decide.ts` | 纯函数 `decide(call, { mode, rules, workspace, writableRoots, home? })` → allow / deny / ask（附建议规则） |
+| `packages/agent/src/policy/decide.ts` | 纯函数 `decide(call, { mode, rules, workspace, writableRoots, readRoots?, home? })` → allow / deny / ask（附建议规则）；权限类 `PermissionClass` |
+| `packages/agent/src/tools/registry.ts` | `RegisterToolOptions.permissionClass`：宿主注册工具时给出权限类，`ToolRegistry.permissionClass(name)` 读回 |
 | `packages/agent/src/policy/rules.ts` | 规则内容的匹配：bash 拆分、env 前缀剥离、精确 / 前缀；gitignore 风格路径 |
 | `packages/agent/src/policy/paths.ts` | 把工具参数解析为绝对路径与真实路径（经符号链接，含悬空链接）；模式对应的可写根（委托 sandbox.ts） |
 | `packages/agent/src/policy/sandbox.ts` | 模式 → Sandbox Mode、可写根的唯一推导、提权参数校验 `checkEscalation`、模型可见的拒绝标记与提示文本 |
@@ -24,7 +25,8 @@ lifecycle: active
 | `packages/agent/src/tools/builtin/read-filter.ts` | grep、find、ls 不列出被 Read 拒绝规则覆盖的路径 |
 | `packages/protocol/src/permissions.ts` | 条目 payload、协议 DTO、`permissionPaths`、设置键、规则文本 `formatPermissionRule` / `parsePermissionRule` |
 | `apps/server/src/application/permissions.ts` | `PermissionService`：默认模式、全局与 Workspace 规则的读入、缓存与写入 |
-| `apps/server/src/application/sessions.ts` | Session 模式与规则的回放、保存"总是允许"、触发重新判定、Session `activity` |
+| `apps/server/src/application/session-permissions.ts` | Session 模式与规则的回放、同一 Session 的修改串行、保存"总是允许"、触发重新判定 |
+| `apps/server/src/application/sessions.ts` | Session `activity`；每个 Run 开始时把上下文装配给出的工具（带权限类）与额外读取根交给运行时 |
 | `packages/ui/src/approval/approval-card.tsx` | 共享审批卡（键盘、单次回答、"总是允许"菜单） |
 | `apps/desktop/src/renderer/features/conversation/approval-panel.tsx` | 审批卡的业务组合：标题、命令 / 路径 / diff 摘要、建议规则；提权卡（目标档位与理由） |
 | `apps/desktop/src/renderer/features/conversation/mode-picker.tsx` | 输入区的模式选择与 Shift+Tab 循环顺序 |
@@ -43,15 +45,27 @@ lifecycle: active
 | accept-edits | 另加可写根内的 write / edit | workspace-write | 同 default |
 | full-access | 全部调用 | danger-full-access（不包裹） | `/` |
 
+**权限类（M3）。** 宿主注册工具时给出权限类（`RegisterToolOptions.permissionClass`），工具对象自身不能声明（工具上的同名属性被忽略）。内置工具按名字归入 read、edit、bash，不受宿主给出的类影响；其他类在"模式放行"一步的行为：
+
+| 权限类 | 工具 | 模式放行 |
+| --- | --- | --- |
+| context-read | skill、memory_list、list_mcp_resources、list_mcp_resource_templates、read_mcp_resource | 四种模式都放行 |
+| memory-write | memory_write、memory_delete（规则组名 `Memory`） | accept-edits 与 full-access |
+| external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
+
+没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。票 01 只实现机制；具体工具由之后的票注册。
+
+**额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
+
 workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
 
 新 Session 创建时提交一条 `permission_mode` 条目，取设置 `permissions.defaultMode`（缺省 default）；之后改默认模式不影响已有 Session。没有 `permission_mode` 条目的旧 Session 按 default。切换模式提交新的 `permission_mode` 条目（与当前相同时不提交），立即作用于下一次调用。
 
 ## 判定
 
-判定只看工具名所属的组：read 组（read、grep、find、ls）、edit 组（write、edit）、bash；其他名字（宿主新增的工具）按原名判定。规则以组名书写：`Read`、`Edit`、`Bash`，宿主工具用注册名。
+判定只看工具名所属的组：read 组（read、grep、find、ls）、edit 组（write、edit）、bash、Memory 组（memory-write 类）；其他名字（宿主新增的工具）按原名判定。规则以组名书写：`Read`、`Edit`、`Bash`、`Memory`，宿主工具用注册名。规则 `mcp__<server>` 匹配该 Server 的全部工具（`mcp__<server>__*`），不匹配名字以它开头的其他 Server（`mcp__srv` 不匹配 `mcp__srv2__x`）。
 
-**工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`），宿主工具按注册名不区分大小写匹配；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
+**工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`），宿主工具按注册名不区分大小写匹配；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
 
 顺序固定（ADR 0005）：
 
@@ -61,7 +75,7 @@ workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：�
 4. edit 组写入越出可写根 → ask，没有建议规则（这次批准即这次提权）。
 5. 模式放行（上表）。
 6. 允许规则 → allow。
-7. 其余 → ask。read 组读取 Workspace 之外为 `outside-workspace`，其他为 `approval-required`。
+7. 其余 → ask。read 组读取 Workspace 与额外读取根之外为 `outside-workspace`，其他为 `approval-required`。
 
 路径按真实路径判定：Workspace 内指向外部的符号链接按外部位置处理；Workspace 与可写根也是真实路径。
 
@@ -178,7 +192,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 ## 验证
 
-- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则。
+- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external 在四种模式下的放行，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
