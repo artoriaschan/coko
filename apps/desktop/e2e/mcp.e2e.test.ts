@@ -57,7 +57,7 @@ describe('MCP 分区', () => {
     await form.waitFor({ state: 'detached' })
     const card = dialog.locator('[data-mcp-server="fixture"]')
     await expect.poll(() => card.getAttribute('data-status'), { timeout: 20_000 }).toBe('connected')
-    expect(await card.getAttribute('data-tool-count')).toBe('5')
+    expect(await card.getAttribute('data-tool-count')).toBe('6')
     await card.locator('[data-mcp-tools]').click()
     await card.locator('[data-mcp-tool="mcp__fixture__echo"]').waitFor()
     expect(await card.locator('[data-mcp-tool="mcp__fixture__hidden"]').count()).toBe(0)

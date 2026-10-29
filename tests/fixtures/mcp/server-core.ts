@@ -1,4 +1,4 @@
-// MCP 测试 Server 的协议核心（stdio 与 HTTP 共用）：最小 JSON-RPC，工具 echo、env_sha、fail、big、sleep。
+// MCP 测试 Server 的协议核心（stdio 与 HTTP 共用）：最小 JSON-RPC，工具 echo、env_sha、env_raw、fail、big、sleep、hidden。
 // 每个 tools/call 的 params（含 _meta）追加到 options.log（JSONL），测试据此断言幂等键；env_sha 只回报环境变量的 SHA-256，证明收到而不回显值。
 import { createHash } from 'node:crypto'
 import { appendFileSync } from 'node:fs'
@@ -17,6 +17,11 @@ export const FIXTURE_TOOLS = [
   {
     name: 'env_sha',
     description: 'SHA-256 of an environment variable',
+    inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+  },
+  {
+    name: 'env_raw',
+    description: 'Value of an environment variable (secrets gate only)',
     inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
   },
   { name: 'fail', description: 'Always returns an error result', inputSchema: { type: 'object', properties: {} } },
@@ -40,6 +45,8 @@ async function call(params: Json, env: NodeJS.ProcessEnv): Promise<unknown> {
       const value = env[String(args.name)]
       return text(JSON.stringify({ name: args.name, sha256: value === undefined ? null : createHash('sha256').update(value).digest('hex') }))
     }
+    case 'env_raw':
+      return text(`${String(args.name)}=${env[String(args.name)] ?? ''}`)
     case 'fail':
       return text('fixture failure', true)
     case 'big':

@@ -1,6 +1,6 @@
 // 秘密不外泄总闸的 MCP 通道（ADR 0007）：登记不匹配剔除模式的 Secret MY_SERVICE_DSN（IPC 模式，本测试模拟 main 的 safeStorage），
 // 在全局 MCP 配置 env 中以 ${MY_SERVICE_DSN} 引用。stdio 测试 Server 只回报其 SHA-256 证明收到；另一个 Server 把它写到 stderr 后退出，
-// 其 stderr 尾部进入 MCP 诊断。Sidecar 自身环境中放同名变量（另一个值）：MCP 拿到的是登记的值，bash env 看不到登记的值。
+// 其 stderr 尾部进入 MCP 诊断；另一工具把值原样放进工具结果（条目、推送与日志中替换为标记）。Sidecar 自身环境中放同名变量（另一个值）：MCP 拿到的是登记的值，bash env 看不到登记的值。
 // 扫描 WebSocket 帧、HTTP 响应体、库文件（含 -wal）、sidecar.jsonl 与 MCP 诊断中都没有明文；未登记的名字使 Server 启动失败并诊断。
 import { createHash, randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
@@ -26,6 +26,8 @@ describe('秘密不外泄总闸：MCP', () => {
         {
           content: [
             { type: 'toolCall', name: 'mcp__dsn__env_sha', id: 'm1', arguments: { name: 'MY_SERVICE_DSN' } },
+            // 工具结果通道：Server 把值原样放进结果；入库、推送与日志前替换已登记的明文（票 09 的共享脱敏）。
+            { type: 'toolCall', name: 'mcp__dsn__env_raw', id: 'm2', arguments: { name: 'MY_SERVICE_DSN' } },
             { type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'env' } },
           ],
         },
@@ -90,6 +92,7 @@ describe('秘密不外泄总闸：MCP', () => {
         .join('')
     // 前置：MCP Server 收到的是登记的值（不是 Sidecar 环境中的同名变量）；bash 确实运行了 env。
     expect(JSON.parse(text('m1'))).toEqual({ name: 'MY_SERVICE_DSN', sha256: sha256(value) })
+    expect(text('m2')).toBe('MY_SERVICE_DSN=[REDACTED:secret]')
     expect(text('b1')).toContain('PATH=')
     expect(text('b1')).toContain(`MY_SERVICE_DSN=${hostValue}`)
     expect(text('b1')).not.toContain(value)

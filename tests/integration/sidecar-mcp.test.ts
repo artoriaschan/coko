@@ -106,7 +106,14 @@ describe('MCP 连接与工具', () => {
 
     const local = await waitServer(api, workspace.id, 'local', (s) => s.status === 'connected')
     expect(local).toMatchObject({ scope: 'global', transport: 'stdio' })
-    expect(local.tools.map((t) => t.name)).toEqual(['mcp__local__echo', 'mcp__local__env_sha', 'mcp__local__fail', 'mcp__local__big', 'mcp__local__sleep'])
+    expect(local.tools.map((t) => t.name)).toEqual([
+      'mcp__local__echo',
+      'mcp__local__env_sha',
+      'mcp__local__env_raw',
+      'mcp__local__fail',
+      'mcp__local__big',
+      'mcp__local__sleep',
+    ])
     await waitServer(api, workspace.id, 'remote', (s) => s.status === 'connected' && s.transport === 'http')
 
     // Run 1（default）：MCP 工具需要审批，允许后结果回到模型。

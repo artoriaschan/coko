@@ -1,5 +1,5 @@
 import { lastRunStatus, type AgentRuntime, type ProgressEvent as AgentProgress, type RunEntry, type RunStatus } from '@coko/agent'
-import { redactText } from '@coko/logging'
+import { redactSecretValues, redactText } from '@coko/logging'
 import type { ProgressEvent } from '@coko/protocol'
 import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
@@ -9,9 +9,17 @@ const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) 
 
 /**
  * 模型服务的错误文本可能回显请求凭据（例如 "Incorrect API key provided: sk-…"），入库与推送前都经同一函数脱敏
- * （ADR 0004）。用户输入与工具输出保持原样。
+ * （ADR 0004）。用户输入保持原样；工具输出只替换已登记 Secret 的明文（ADR 0007），其余原样。
  */
 const redactModelError = redactText
+
+/** 递归替换值中所有字符串里已登记的 Secret 明文。 */
+function redactSecretsDeep(value: unknown): unknown {
+  if (typeof value === 'string') return redactSecretValues(value)
+  if (Array.isArray(value)) return value.map(redactSecretsDeep)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, redactSecretsDeep(inner)]))
+  return value
+}
 
 /** 运行时条目按注册的 kind 原样提交（session 校验 payload）；只有回显模型错误的字段先脱敏。 */
 export function toNewEntry(entry: RunEntry): NewSessionEntry {
@@ -20,6 +28,8 @@ export function toNewEntry(entry: RunEntry): NewSessionEntry {
     payload = { ...entry.payload, errorMessage: redactModelError(entry.payload.errorMessage) }
   } else if (entry.kind === 'run_end' && entry.payload.error) {
     payload = { ...entry.payload, error: { ...entry.payload.error, message: redactModelError(entry.payload.error.message) } }
+  } else if (entry.kind === 'message' && entry.payload.role === 'toolResult') {
+    payload = redactSecretsDeep(toJson(entry.payload))
   }
   return { kind: entry.kind, ...(entry.runId === undefined ? {} : { runId: entry.runId }), payload: toJson(payload) }
 }
@@ -28,6 +38,7 @@ export function toProgress(event: AgentProgress): ProgressEvent {
   const { runId: _runId, ...rest } = event
   if (rest.type === 'retry') return { ...rest, errorMessage: redactModelError(rest.errorMessage) }
   if (rest.type === 'run_end' && rest.error) return { ...rest, error: { ...rest.error, message: redactModelError(rest.error.message) } }
+  if (rest.type === 'tool_update' || rest.type === 'tool_end') return redactSecretsDeep(toJson(rest)) as ProgressEvent
   return toJson(rest) as ProgressEvent
 }
 

@@ -76,6 +76,8 @@ lifecycle: active
 
 Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload `setSecret(name, value)` → main 以 safeStorage 加密（不可用时 `encryption-unavailable`，不回退明文）→ 控制 IPC `secret.store { name, ciphertext, hint }` → Sidecar 存入 `secrets` 表并回 `secret.store.result`；需要明文时发 `secret.decrypt`，明文只缓存在 Sidecar 内存，登记被替换或删除时清除。无界面运行（没有 IPC 父进程）只读 `COKO_SECRET_<NAME>`；Sidecar 不再按名字读取自身环境中的同名变量。工具声明的 Secrets（`CokoTool.secrets`）经同一 `SecretService` 解析。
 
+**按值脱敏。** `SecretService` 把当前已解密的值登记为 `@coko/logging` 的进程级来源（`registerSecretValues`）：`redactText`（模型错误、Memory 正文、MCP 错误与 stderr 尾部）与 sidecar.jsonl 的格式化在凭据形态之外替换这些值；工具结果（`toolResult` 条目、`tool_update` / `tool_end` 进度）只替换这些值（`redactSecretValues`），其余输出保持原样。替换文本为 `[REDACTED:secret]`，少于 4 个字符的值不替换。只有本进程已解密过的值会被替换；模型在当前 Run 中看到的工具结果不经替换。
+
 ## 界面
 
 设置弹窗的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部）；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与环境变量 / 请求头的名字，批准后启动；已批准的可撤销）；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。

@@ -1,7 +1,7 @@
 // 登记的 Secret（ADR 0007）：列表与删除（/api/secrets）、经控制 IPC secret.store 登记、按名字解析（MCP 配置的 ${NAME} 与工具声明的
 // Secrets），以及按已解密的值脱敏（MCP 的 stderr 与诊断）。值不经过 HTTP，也不写日志。
 import type { SecretProvider } from '@coko/agent'
-import { getLogger, redactText } from '@coko/logging'
+import { getLogger, redactText, registerSecretValues } from '@coko/logging'
 import { SECRET_NAME_PATTERN, type SecretsResponse } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import type { SecretSource } from '../adapters/credentials.ts'
@@ -10,9 +10,6 @@ import { AppError } from './errors.ts'
 
 const log = getLogger(['application', 'secrets'])
 const NAME = new RegExp(SECRET_NAME_PATTERN)
-/** 更短的值替换后会误伤普通文本；它们仍经 redactText 的凭据形态规则处理。 */
-const MIN_REDACT_LENGTH = 4
-const SECRET_REDACTED = '[REDACTED:secret]'
 
 export interface SecretServiceOptions {
   source: SecretSource
@@ -25,6 +22,7 @@ export class SecretService {
   readonly #source: SecretSource
   readonly #store: SessionStore
   readonly #listeners = new Set<(name: string) => void>()
+  readonly #unregister: () => void
   /** 工具声明的 Secrets（CokoTool.secrets）同样只解析登记的名字。 */
   readonly provider: SecretProvider
 
@@ -32,6 +30,8 @@ export class SecretService {
     this.#source = options.source
     this.#store = options.store
     this.provider = { get: (name) => this.resolve(name) }
+    // 已解密的值登记为进程级脱敏来源：Memory、模型错误、工具结果与日志共用（@coko/logging）。
+    this.#unregister = registerSecretValues(() => this.#source.cachedValues())
     options.control?.onMessage((message) => {
       if (message.type !== 'secret.store') return
       const reply = (ok: boolean, error?: string) =>
@@ -65,12 +65,14 @@ export class SecretService {
     return this.#source.get(name)
   }
 
-  /** 把已解密的 Secret 值替换为标记，再按凭据形态脱敏。 */
+  /** 把已解密的 Secret 值替换为标记，再按凭据形态脱敏（与 @coko/logging 的 redactText 相同）。 */
   redact(text: string): string {
-    let result = text
-    const values = this.#source.cachedValues().filter((value) => value.length >= MIN_REDACT_LENGTH)
-    for (const value of values.sort((a, b) => b.length - a.length)) result = result.replaceAll(value, SECRET_REDACTED)
-    return redactText(result)
+    return redactText(text)
+  }
+
+  /** 注销进程级脱敏来源（测试；Sidecar 进程内只有一个实例）。 */
+  dispose(): void {
+    this.#unregister()
   }
 
   /** 某个名字被登记、替换或删除之后调用（引用它的 MCP 连接据此关闭）。 */
