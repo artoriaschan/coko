@@ -198,6 +198,54 @@ describe('摘要提示', () => {
     expect(request.prompt.trimEnd().endsWith('Additional requirements from the user: 只保留接口设计')).toBe(true)
   })
 
+  it('File Reference 与指令文件块缩为一行路径，图片标为省略；用户自己写的文本逐字保留', () => {
+    const request = summaryRequest({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'look at @a.ts' },
+            { type: 'text', text: '<file_reference path="a.ts">\n' + 'F'.repeat(50_000) + '\n</file_reference>' },
+            { type: 'image', data: 'xx', mimeType: 'image/png' },
+          ],
+          timestamp: 1,
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'c',
+          toolName: 'read',
+          content: [
+            { type: 'text', text: 'ok' },
+            { type: 'text', text: '<instruction_file path="/w/pkg/AGENTS.md" scope="nested">\nrules\n</instruction_file>' },
+          ],
+          isError: false,
+        },
+      ] as never,
+    })
+    expect(request.prompt).toContain('[User]: look at @a.ts\n[file reference attached: a.ts]\n[image omitted]')
+    expect(request.prompt).not.toContain('FFFF')
+    expect(request.prompt).toContain('[Tool result]: ok\n[instruction file attached: /w/pkg/AGENTS.md]')
+  })
+
+  it('输入超过上限时先省略最早的工具结果，再省略最早的消息，并注明省略了多少条；最近的部分保留', () => {
+    const messages = [
+      { role: 'user', content: [{ type: 'text', text: 'FIRST ' + 'u'.repeat(3_000) }], timestamp: 1 },
+      { role: 'toolResult', toolCallId: 'c', toolName: 'read', content: [{ type: 'text', text: 'r'.repeat(1_900) }], isError: false },
+      { role: 'user', content: [{ type: 'text', text: 'SECOND ' + 'v'.repeat(3_000) }], timestamp: 2 },
+      { role: 'user', content: [{ type: 'text', text: 'LAST request' }], timestamp: 3 },
+    ] as never
+    const unlimited = summaryRequest({ messages })
+    expect(unlimited.prompt).toContain('FIRST')
+    const capped = summaryRequest({ messages }, undefined, { maxInputChars: 7_000 })
+    const conversation = capped.prompt.slice(0, capped.prompt.indexOf('</conversation>'))
+    expect(conversation.length).toBeLessThanOrEqual(7_000)
+    expect(conversation).not.toContain('rrrr')
+    expect(conversation).not.toContain('FIRST')
+    expect(conversation).toContain('[2 earlier messages omitted to fit the summary request]')
+    expect(conversation).toContain('SECOND')
+    expect(conversation).toContain('LAST request')
+  })
+
   it('摘要正文之后列出读过与改过的文件和已调用的 Skill', () => {
     expect(formatCompactionSummary('BODY', { readFiles: ['a.ts'], modifiedFiles: ['b.ts'], invokedSkills: ['deploy'] })).toBe(
       'BODY\n\n<read-files>\na.ts\n</read-files>\n\n<modified-files>\nb.ts\n</modified-files>\n\n<invoked-skills>\ndeploy\n</invoked-skills>',

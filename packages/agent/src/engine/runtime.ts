@@ -502,7 +502,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     }
   })
 
-  // ---- 压缩（grilling F1–F6） ----
+  // ---- 压缩（docs/subsystems/context.md#压缩） ----
   const compaction = options.compaction
   const breaker = createCompactionBreaker()
 
@@ -518,11 +518,15 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 
   class SummaryAborted extends Error {}
 
-  /** 摘要请求：Session 当前模型、没有工具、maxTokens 20 000（不超过模型上限）、不写提示缓存。 */
+  /**
+   * 摘要请求：Session 当前模型、没有工具、maxTokens 20 000（不超过模型上限）、不写提示缓存。输入限制在窗口减去输出上限之内
+   * （按 4 字符 / token 估算），超出时从最早处省略，摘要请求本身不会溢出。
+   */
   const summarize = async (plan: CompactionPlan, signal: AbortSignal, instructions?: string): Promise<string> => {
-    const { systemPrompt, prompt } = summaryRequest(plan, instructions)
     const model = agent.state.model
     const maxTokens = Math.min(SUMMARY_MAX_TOKENS, model.maxTokens > 0 ? model.maxTokens : SUMMARY_MAX_TOKENS)
+    const window = model.contextWindow ?? 0
+    const { systemPrompt, prompt } = summaryRequest(plan, instructions, window > maxTokens ? { maxInputChars: (window - maxTokens) * 4 } : {})
     const request = normalizeContext({ systemPrompt, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] })
     const response = await (await stream(model, request, { signal, maxTokens, cacheRetention: 'none' })).result()
     if (signal.aborted || response.stopReason === 'aborted') throw new SummaryAborted()
@@ -779,7 +783,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
               : outcome.kind === 'aborted'
                 ? { status: 'aborted' }
                 : outcome.kind === 'nothing'
-                  ? { status: 'error', error: { code: 'internal', message: NOTHING_TO_COMPACT_TEXT } }
+                  ? { status: 'error', error: { code: 'model_error', message: NOTHING_TO_COMPACT_TEXT } }
                   : { status: 'error', error: { code: 'model_error', message: outcome.message } }
         } finally {
           run.compacting = undefined
