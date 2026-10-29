@@ -1,7 +1,7 @@
 import type { AvailableModel, CatalogModel, ModelProtocol, PermissionsResponse, Provider, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
-import type { CokoBridge, SaveProviderResult } from '../../shared/bridge.ts'
+import type { CokoBridge, FetchProviderModelsInput, FetchProviderModelsResult, SaveProviderResult } from '../../shared/bridge.ts'
 
 /** 服务端已确认的设置值及其 revision；未保存过的键不在其中（revision 视为 0）。 */
 export interface KnownSetting {
@@ -48,6 +48,10 @@ export interface SettingsActions {
   /** 以已知 revision 写入；同一键的写入按调用顺序串行。冲突时读回服务端的值与 revision。 */
   saveSetting(key: string, value: unknown): Promise<SaveSettingResult>
   saveProvider(draft: ProviderDraft): Promise<SaveProviderResult>
+  /** 获取供应商的可用模型（ADR 0010）：表单中的 Key 只用于这一次请求；编辑时 Key 留空用已保存的 Credential。不改变 store。 */
+  fetchProviderModels(input: FetchProviderModelsInput): Promise<FetchProviderModelsResult>
+  /** 取消进行中的获取；对应的 fetchProviderModels 以 cancelled 结束。 */
+  cancelProviderModels(requestKey: string): void
   /** 引用该 Provider 的 Session 数量；失败时抛出 ApiError（不经 onFailure）。 */
   providerReferences(id: string): Promise<{ sessions: number }>
   /** 同时删除其 Credential，引用它的 Session 模型字段被清空。返回是否已删除。 */
@@ -64,6 +68,8 @@ export interface SettingsStoreOptions {
   api: ApiClient
   /** preload 的一次提交通道；不在桌面窗口中时缺省。 */
   saveProvider?: CokoBridge['saveProvider']
+  /** preload 的获取可用模型通道；不在桌面窗口中时缺省。 */
+  providerModels?: Pick<CokoBridge, 'fetchProviderModels' | 'cancelProviderModels'> | undefined
   onFailure?: (error: ApiError) => void
   /** Provider 删除成功后调用：引用它的 Session 模型字段已在 Sidecar 清空，会话列表需要重新读取。 */
   onProviderDeleted?: (id: string) => void
@@ -75,7 +81,7 @@ const toValues = (settings: { key: string; value: unknown; revision: number }[])
   Object.fromEntries(settings.map((s) => [s.key, { value: s.value, revision: s.revision }]))
 
 /** 设置与 Provider 的 vanilla store（无 React 依赖）。Provider 与密钥经 preload 交给 main 一次提交，不经 HTTP（ADR 0004、0010）。 */
-export function createSettingsStore({ api, saveProvider: submitProvider, onFailure, onProviderDeleted }: SettingsStoreOptions): SettingsStore {
+export function createSettingsStore({ api, saveProvider: submitProvider, providerModels, onFailure, onProviderDeleted }: SettingsStoreOptions): SettingsStore {
   const chains = new Map<string, Promise<unknown>>()
 
   return createStore<SettingsState & SettingsActions>()((set, get) => {
@@ -192,6 +198,19 @@ export function createSettingsStore({ api, saveProvider: submitProvider, onFailu
         if (!result.ok) return result
         await refreshProviders().catch((error: unknown) => onFailure?.(toApiError(error)))
         return { ok: true, provider: get().providers.find((p) => p.id === result.provider.id) ?? result.provider }
+      },
+
+      async fetchProviderModels(input) {
+        if (!providerModels) return { ok: false, code: 'sidecar-unavailable', message: 'Desktop bridge is unavailable' }
+        return providerModels.fetchProviderModels(input).catch((error: unknown): FetchProviderModelsResult => ({
+          ok: false,
+          code: 'sidecar-unavailable',
+          message: error instanceof Error ? error.message : String(error),
+        }))
+      },
+
+      cancelProviderModels(requestKey) {
+        providerModels?.cancelProviderModels(requestKey)
       },
 
       async providerReferences(id) {

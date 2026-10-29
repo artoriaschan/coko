@@ -15,7 +15,7 @@ import { connect } from './client/connection.ts'
 import { createChatStore } from './stores/chat-store.ts'
 import { contextStore, trackCompaction } from './stores/context-store.ts'
 import { createSettingsStore } from './stores/settings-store.ts'
-import type { SaveProviderInput } from '../shared/bridge.ts'
+import type { FetchProviderModelsInput, SaveProviderInput } from '../shared/bridge.ts'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('renderer: missing #root')
@@ -55,7 +55,15 @@ trackCompaction(contextStore, stream, (failure) =>
 const bridge = window.coko
 const settings = createSettingsStore({
   api,
-  ...(bridge ? { saveProvider: (input: SaveProviderInput) => bridge.saveProvider(input) } : {}),
+  ...(bridge
+    ? {
+        saveProvider: (input: SaveProviderInput) => bridge.saveProvider(input),
+        providerModels: {
+          fetchProviderModels: (input: FetchProviderModelsInput) => bridge.fetchProviderModels(input),
+          cancelProviderModels: (requestKey: string) => bridge.cancelProviderModels(requestKey),
+        },
+      }
+    : {}),
   onFailure: () => toast.error(t()('settings.loadFailed')),
   // 删除 Provider 后引用它的 Session 模型字段已被清空：重新读取会话列表。
   onProviderDeleted: () => void chat.getState().load(),

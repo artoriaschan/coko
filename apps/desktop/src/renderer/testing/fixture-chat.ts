@@ -164,6 +164,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   const settings = createSettingsStore({
     api,
     saveProvider: backend.saveProvider,
+    providerModels: { fetchProviderModels: backend.fetchProviderModels, cancelProviderModels: backend.cancelProviderModels },
     onProviderDeleted: (id) => {
       sessionList = sessionList.map((s) => (s.model?.providerId === id ? { ...s, model: null, thinkingLevel: 'off' } : s))
       void chat.getState().load()
