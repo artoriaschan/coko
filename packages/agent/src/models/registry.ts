@@ -13,6 +13,7 @@ import {
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import { isHttpUrl } from './base-url.ts'
 
 /** Wire protocols Coko supports; each Provider stores one of them. */
 export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
@@ -85,13 +86,7 @@ function thinkingLevelMap(levels: readonly ThinkingLevelSpec[]): ThinkingLevelMa
 }
 
 function checkBaseUrl(config: ProviderConfig): void {
-  let protocol: string
-  try {
-    protocol = new URL(config.baseUrl).protocol
-  } catch {
-    protocol = ''
-  }
-  if (protocol !== 'http:' && protocol !== 'https:') throw new ModelConfigError(`Provider "${config.id}" needs an http or https baseUrl`)
+  if (!isHttpUrl(config.baseUrl)) throw new ModelConfigError(`Provider "${config.id}" needs an http or https baseUrl`)
 }
 
 function checkModel(config: ProviderConfig, spec: ModelSpec): void {
@@ -104,6 +99,9 @@ function checkModel(config: ProviderConfig, spec: ModelSpec): void {
 }
 
 function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
+  // Anthropic: pi-ai's budget-based thinking ignores the configured values, so request adaptive thinking whose effort
+  // is the configured value of the chosen level.
+  const anthropicEffort = config.api === 'anthropic-messages' && spec.reasoning
   return {
     id: spec.id,
     name: spec.name || spec.id,
@@ -117,6 +115,7 @@ function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
     contextWindow: spec.contextWindow,
     maxTokens: spec.maxTokens,
     ...(config.headers ? { headers: config.headers } : {}),
+    ...(anthropicEffort ? { compat: { forceAdaptiveThinking: true } } : {}),
   }
 }
 

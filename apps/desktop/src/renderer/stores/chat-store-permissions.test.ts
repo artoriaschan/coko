@@ -30,6 +30,7 @@ const session = (id: string): Session => ({
   title: id,
   model: null,
   thinkingLevel: 'off',
+  modelCleared: false,
   running: false,
   activity: 'idle',
   createdAt: 1,

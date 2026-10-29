@@ -1,6 +1,7 @@
 import type { MainToSidecarMessage, ProviderFields, SidecarToMainMessage } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
-import { createCredentialBridge, credentialHint, type CredentialChannel, type Encryption } from './credentials.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
+import { createCredentialBridge, credentialHint, type Encryption } from './credentials.ts'
 
 /** 可逆的假 safeStorage：密文字节不含明文。 */
 const fakeEncryption = (available = true): Encryption => ({
@@ -24,7 +25,7 @@ function fakeChannel(options: { ready?: boolean; answer?: (message: MainToSideca
   const exit = () => {
     for (const listener of unavailableListeners) listener()
   }
-  const channel: CredentialChannel = {
+  const channel: SidecarControlChannel = {
     isReady: () => options.ready ?? true,
     send(message) {
       sent.push(message)

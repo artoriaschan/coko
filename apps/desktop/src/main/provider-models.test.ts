@@ -1,6 +1,6 @@
 import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
-import { describe, expect, it } from 'vitest'
-import type { CredentialChannel } from './credentials.ts'
+import { describe, expect, it, vi } from 'vitest'
+import type { SidecarControlChannel } from './control-channel.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
 
 /** 假控制通道：记录 main 发出的消息，可注入 sidecar 的消息。 */
@@ -8,7 +8,7 @@ function fakeChannel(options: { ready?: boolean; answer?: (message: MainToSideca
   const sent: MainToSidecarMessage[] = []
   const listeners = new Set<(message: SidecarToMainMessage) => void>()
   const unavailable = new Set<() => void>()
-  const channel: CredentialChannel = {
+  const channel: SidecarControlChannel = {
     isReady: () => options.ready ?? true,
     send(message) {
       sent.push(message)
@@ -121,7 +121,18 @@ describe('获取可用模型（ADR 0010）', () => {
     expect(sent[1]).toEqual({ type: 'provider.models.cancel', requestId })
   })
 
-  it('默认时限为 15 秒', () => {
-    expect(createProviderModelsBridge({ channel: fakeChannel().channel }).timeoutMs).toBe(15_000)
+  it('默认时限为 15 秒：之前仍在等待，到时以 timeout 结束', async () => {
+    vi.useFakeTimers()
+    try {
+      const bridge = createProviderModelsBridge({ channel: fakeChannel().channel })
+      let settled = false
+      const pending = bridge.fetch({ ...request, secret: 'sk-x-12345678' }).finally(() => (settled = true))
+      await vi.advanceTimersByTimeAsync(14_999)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await pending).toMatchObject({ ok: false, code: 'timeout' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

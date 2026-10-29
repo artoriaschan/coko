@@ -53,6 +53,11 @@ export const Session = Type.Object(
     model: Type.Union([SessionModel, Type.Null()]),
     /** 与模型一起按 Session 保存的 Thinking Level；新建为 off。当前模型不支持该档位（例如目录已修改）时为 off。 */
     thinkingLevel: ThinkingLevel,
+    /**
+     * 模型字段被清空（Provider 被删除或升级时清除）：下次运行前要求重新选择模型（409 model-required），界面提示重新选择。
+     * 从未设置模型时为 false，运行时取默认模型。
+     */
+    modelCleared: Type.Boolean(),
     /** 当前是否有 Run 在进行。 */
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
@@ -120,6 +125,16 @@ export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
 /** Provider ID 由用户输入并作为主键：小写字母开头，后接小写字母、数字或连字符，总长 1–64；创建后不可修改。 */
 export const PROVIDER_ID_PATTERN = '^[a-z][a-z0-9-]{0,63}$'
+
+/** Provider 的 API 地址须为 http 或 https URL（新建、编辑与获取模型共用）。 */
+export function isHttpUrl(text: string): boolean {
+  try {
+    const { protocol } = new URL(text)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 export const ProviderId = Type.String({ pattern: PROVIDER_ID_PATTERN })
 
 /** Provider 保存的协议；与 @coko/agent 的 MODEL_PROTOCOLS 一致（apps/server/src/application/providers.ts 中有编译期断言）。 */

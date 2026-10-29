@@ -1,16 +1,6 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import {
-  alreadyExists,
-  checkMemoryScope,
-  closedError,
-  DEFAULT_MODEL_KEY,
-  defaultWorkspaceName,
-  modelPointsTo,
-  notFound,
-  revisionConflict,
-  upgradeEntries,
-} from '../internal.ts'
+import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, levelOf, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
@@ -23,9 +13,10 @@ import type {
   SecretInfo,
   Session,
   SessionEntry,
-  SessionModel,
   SessionStore,
   Setting,
+  SessionModelChoice,
+  SettingRewrite,
   StoreOptions,
   Workspace,
 } from '../types.ts'
@@ -84,7 +75,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
-      createSession: op((input: { workspaceId: string; title?: string; model?: SessionModel | null; thinkingLevel?: string }) => {
+      createSession: op((input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>) => {
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
         const at = now()
         const session: Session = {
@@ -92,7 +83,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           workspaceId: input.workspaceId,
           title: input.title ?? '',
           model: input.model ?? null,
-          thinkingLevel: (input.model && input.thinkingLevel) || 'off',
+          thinkingLevel: levelOf(input),
+          modelCleared: false,
           createdAt: at,
           updatedAt: at,
         }
@@ -109,8 +101,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
-      setSessionModel: op((id: string, model: SessionModel | null, thinkingLevel?: string) =>
-        touch(requireSession(id), { model: copy(model), thinkingLevel: (model && thinkingLevel) || 'off' }),
+      setSessionModel: op((id: string, choice: SessionModelChoice) =>
+        touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),
       ),
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
@@ -170,19 +162,25 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         requireProvider(id)
         return { sessions: [...sessions.values()].filter((s) => s.model?.providerId === id).length }
       }),
-      delete: op((id: string) => {
+      delete: op((id: string, options?: { settings?: readonly SettingRewrite[] }) => {
         requireProvider(id)
+        // 与 SQLite 的事务一致：先求出全部改写（条件可能抛出），再修改状态。
+        const rewrites = (options?.settings ?? []).filter((rewrite) => {
+          const current = settings.get(rewrite.key)
+          return current !== undefined && rewrite.when(copy(current.value))
+        })
         providers.delete(id)
         let cleared = 0
         for (const session of sessions.values()) {
           if (session.model?.providerId !== id) continue
-          Object.assign(session, { model: null, thinkingLevel: 'off' })
+          Object.assign(session, { model: null, thinkingLevel: 'off', modelCleared: true })
           cleared++
         }
-        const setting = settings.get(DEFAULT_MODEL_KEY)
-        if (setting && modelPointsTo(setting.value, id))
-          settings.set(DEFAULT_MODEL_KEY, { key: DEFAULT_MODEL_KEY, value: null, revision: setting.revision + 1, updatedAt: now() })
-        return { sessions: cleared }
+        for (const rewrite of rewrites) {
+          const current = settings.get(rewrite.key)!
+          settings.set(rewrite.key, { key: rewrite.key, value: copy(rewrite.value), revision: current.revision + 1, updatedAt: now() })
+        }
+        return { sessions: cleared, settings: rewrites.map((r) => r.key) }
       }),
       setCredential: op((id: string, credential: CredentialRecord) => {
         const row = requireProvider(id)

@@ -1,14 +1,7 @@
 import { Value } from 'typebox/value'
-import {
-  createRequestTracker,
-  ProviderFields,
-  ProviderSaveMode,
-  RequestTimeoutError,
-  type MainProviderSave,
-  type MainToSidecarMessage,
-  type SidecarToMainMessage,
-} from '@coko/protocol'
+import { createRequestTracker, MAX_CREDENTIAL_LENGTH, ProviderFields, ProviderSaveMode, RequestTimeoutError, type MainProviderSave } from '@coko/protocol'
 import type { ProviderSaveErrorCode, SaveProviderResult } from '../shared/bridge.ts'
+import type { SidecarControlChannel } from './control-channel.ts'
 
 // Provider 与 Credential 的 main 一侧（ADR 0004、0010）：renderer 经 preload 交来的草稿在这里校验，Key 用 safeStorage 加密，
 // 配置与密文经一条 provider.save 控制消息交给 Sidecar 在一个事务中存库；Sidecar 调用模型时经 credential.decrypt 请这里解密。
@@ -21,21 +14,11 @@ export interface Encryption {
   decrypt(ciphertext: Uint8Array): string
 }
 
-/** 与 Sidecar 的控制通道（SidecarProcess 提供）。 */
-export interface CredentialChannel {
-  isReady(): boolean
-  send(message: MainToSidecarMessage): void
-  onMessage(listener: (message: SidecarToMainMessage) => void): () => void
-  /** 当前 Sidecar 意外退出；挂起的请求不会再得到回答。 */
-  onUnavailable(listener: () => void): () => void
-}
-
 export interface CredentialBridge {
   /** renderer 的输入未经信任：先按协议 schema 校验，再加密并发送。 */
   saveProvider(input: unknown): Promise<SaveProviderResult>
 }
 
-const MAX_SECRET_LENGTH = 4096
 /** 提示只取末四位；更短的密钥露出四位就泄露了大半，不给提示。 */
 const MIN_HINT_SOURCE = 8
 
@@ -61,11 +44,12 @@ function parseInput(input: unknown): { mode: ProviderSaveMode; provider: Provide
   }
   if (typeof secret !== 'string') return failure('invalid-input', 'API key must be a string')
   const key = secret.trim()
-  if (key === '' || key.length > MAX_SECRET_LENGTH || /\s/.test(key)) return failure('invalid-input', 'API key must be 1–4096 characters without whitespace')
+  if (key === '' || key.length > MAX_CREDENTIAL_LENGTH || /\s/.test(key))
+    return failure('invalid-input', `API key must be 1–${MAX_CREDENTIAL_LENGTH} characters without whitespace`)
   return { mode, provider, secret: key }
 }
 
-export function createCredentialBridge(options: { encryption: Encryption; channel: CredentialChannel; timeoutMs?: number }): CredentialBridge {
+export function createCredentialBridge(options: { encryption: Encryption; channel: SidecarControlChannel; timeoutMs?: number }): CredentialBridge {
   const { encryption, channel } = options
   const timeoutMs = options.timeoutMs ?? 10_000
   /** 等待 provider.save.result。超时与 Sidecar 退出以拒绝结束，由 saveProvider 转成失败结果。 */

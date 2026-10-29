@@ -13,6 +13,7 @@ const session = (id: string, workspaceId: string, title: string, updatedAt: numb
   title,
   model: { providerId: 'faux', modelId: 'faux-1' },
   thinkingLevel: 'off',
+  modelCleared: false,
   running,
   activity: running ? 'running' : 'idle',
   createdAt: 1,
@@ -166,7 +167,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     saveProvider: backend.saveProvider,
     providerModels: { fetchProviderModels: backend.fetchProviderModels, cancelProviderModels: backend.cancelProviderModels },
     onProviderDeleted: (id) => {
-      sessionList = sessionList.map((s) => (s.model?.providerId === id ? { ...s, model: null, thinkingLevel: 'off' } : s))
+      sessionList = sessionList.map((s) => (s.model?.providerId === id ? { ...s, model: null, thinkingLevel: 'off', modelCleared: true } : s))
       void chat.getState().load()
     },
   })

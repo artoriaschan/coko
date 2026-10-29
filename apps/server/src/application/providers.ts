@@ -10,18 +10,29 @@ import {
   type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
+import { DEFAULT_MODEL_SETTING, SessionModel as SessionModelSchema } from '@coko/protocol'
 import type {
   AvailableModel,
   CatalogModel,
+  MainToSidecarMessage,
   ModelProtocol,
   Provider,
   ProviderFields,
   ProviderReferencesResponse,
   ProviderSaveMode,
+  SidecarToMainMessage,
   ThinkingLevel,
 } from '@coko/protocol'
-import { isStoreError, type CredentialRecord, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
-import { AppError } from './errors.ts'
+import { Value } from 'typebox/value'
+import {
+  isStoreError,
+  type CredentialRecord,
+  type Provider as StoredProvider,
+  type ProviderInput,
+  type SessionStore,
+  type ThinkingLevel as StoredThinkingLevel,
+} from '@coko/session'
+import { AppError, toAppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
 
@@ -30,6 +41,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
 type Assert<T extends true> = T
 export type ModelProtocolsAgree = Assert<Equal<ModelProtocol, AgentModelProtocol>>
 export type ThinkingLevelsAgree = Assert<Equal<ThinkingLevel, AgentThinkingLevel>>
+export type SessionThinkingLevelsAgree = Assert<Equal<ThinkingLevel, StoredThinkingLevel>>
 // Model Catalog 的协议结构可以原样作为 registry 的模型配置。
 export type CatalogMatchesModelSpec = Assert<Equal<CatalogModel, ModelSpec>>
 
@@ -42,6 +54,17 @@ export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 
 
 export function toProviderDto(provider: StoredProvider): Provider {
   return { ...provider, api: provider.api as ModelProtocol, models: catalogOf(provider) }
+}
+
+/** 存储层对 Provider 的拒绝转为协议错误：ID 已被使用为 already-exists，不存在为 not-found；其余原样抛出。 */
+async function storeCall<T>(id: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call()
+  } catch (error) {
+    if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
+    if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
+    throw error
+  }
 }
 
 /** 先在临时 registry 中构造，配置无效时以 bad-request 拒绝，不写库。 */
@@ -111,17 +134,10 @@ export class ProviderService {
       hint: credential.hint,
     }
     validate(toProviderConfig(record))
-    let saved: StoredProvider
-    try {
-      saved =
-        mode === 'create'
-          ? await this.#options.store.providers.create(record, secret)
-          : await this.#options.store.providers.update(id, { name, api, baseUrl, models }, secret)
-    } catch (error) {
-      if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+    const { providers } = this.#options.store
+    const saved = await storeCall(id, () =>
+      mode === 'create' ? providers.create(record, secret) : providers.update(id, { name, api, baseUrl, models }, secret),
+    )
     this.#options.registry.setProvider(toProviderConfig(saved))
     if (secret) this.#options.invalidateCredential(id)
     log.info('provider saved', { providerId: id, mode, api, credential: secret ? 'replaced' : 'kept' })
@@ -129,29 +145,54 @@ export class ProviderService {
   }
 
   /** 引用该 Provider 的 Session 数量；不存在时 not-found。 */
-  async references(id: string): Promise<ProviderReferencesResponse> {
-    try {
-      return await this.#options.store.providers.references(id)
-    } catch (error) {
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+  references(id: string): Promise<ProviderReferencesResponse> {
+    return storeCall(id, () => this.#options.store.providers.references(id))
   }
 
   /**
    * 删除 Provider 与其 Credential，并清除 sidecar 内存中的明文缓存。引用它的 Session 模型字段在同一事务中清空（下次运行前要求
-   * 重新选择模型），默认模型设置指向它时改为 null（回退为第一个可用模型）；以后用相同 ID 重新创建也不会接回。
+   * 重新选择模型）；默认模型设置指向它时在同一事务中改为 null，默认模型因此回退为第一个可用模型（SessionService.defaultModel），
+   * 以后用相同 ID 重新创建也不会接回。
    */
   async delete(id: string): Promise<void> {
-    let cleared: { sessions: number }
-    try {
-      cleared = await this.#options.store.providers.delete(id)
-    } catch (error) {
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+    const pointsHere = (value: unknown) => Value.Check(SessionModelSchema, value) && value.providerId === id
+    const deleted = await storeCall(id, () =>
+      this.#options.store.providers.delete(id, { settings: [{ key: DEFAULT_MODEL_SETTING, when: pointsHere, value: null }] }),
+    )
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
-    log.info('provider deleted', { providerId: id, sessionsCleared: cleared.sessions })
+    log.info('provider deleted', { providerId: id, sessionsCleared: deleted.sessions, defaultModelCleared: deleted.settings.includes(DEFAULT_MODEL_SETTING) })
   }
+}
+
+/** 控制通道中本模块用到的部分。 */
+export interface ProviderSaveChannel {
+  send(message: SidecarToMainMessage): Promise<void>
+  onMessage(listener: (message: MainToSidecarMessage) => void): () => void
+}
+
+/**
+ * 回答 main 的 provider.save（ADR 0010：Provider 只经 main 的一次提交保存，HTTP 只提供列表与删除）。失败按协议错误码回答；
+ * 意外错误为 internal（不带原文）并记录日志。
+ */
+export function serveProviderSave(options: { control: ProviderSaveChannel; providers: Pick<ProviderService, 'save'> }): void {
+  const { control, providers } = options
+  control.onMessage((msg) => {
+    if (msg.type !== 'provider.save') return
+    const { requestId } = msg
+    providers.save(msg.mode, msg.provider, msg.credential).then(
+      (provider) => control.send({ type: 'provider.save.result', requestId, ok: true, provider }),
+      (error: unknown) => {
+        const appError = toAppError(error)
+        if (appError.code === 'internal' || appError.code === 'storage-unavailable')
+          log.error('provider save failed', { error: error instanceof Error ? error.message : String(error) })
+        return control.send({
+          type: 'provider.save.result',
+          requestId,
+          ok: false,
+          error: { code: appError.code, message: appError.message, ...(appError.details ? { details: appError.details } : {}) },
+        })
+      },
+    )
+  })
 }

@@ -139,3 +139,27 @@ it('引用数量读取失败时不能确认删除，可重试；删除失败时�
   await expect.element(confirmDialog().getByRole('button', { name: 'Delete', exact: true })).toBeEnabled()
   expect(backend.providers.map((p) => p.id)).toEqual(['custom-provider-1', 'custom-provider-2'])
 })
+
+it('从未设置过模型的会话不提示重新选择：模型选择器显示默认模型，运行时由 Sidecar 取默认模型', async () => {
+  await page.viewport(1280, 800)
+  const never = sessions().map((s, i) => (i === 0 ? { ...s, model: null, modelCleared: false } : s))
+  const fixture = createFixtureChat({ providers: false, sessions: never })
+  seedTwo(fixture.backend)
+  const appearance = createAppearanceStore({ theme: 'light', locale: 'zh' })
+  await render(
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <App
+        store={appearance}
+        connection={createConnectionStore()}
+        chat={fixture.chat}
+        settings={fixture.settings}
+        preferences={createPreferences({ appearance, settings: fixture.settings, onConflict: () => {}, onFailure: () => {} })}
+        settingsDialog={createSettingsDialogStore()}
+        pickDirectory={async () => null}
+      />
+    </div>,
+  )
+  await fixture.settings.getState().load()
+  await expect.poll(() => document.querySelector('[data-model-picker]')?.getAttribute('data-model')).toBe('custom-provider-1/custom-model-1')
+  expect(document.querySelector('[data-slot="model-required"]')).toBeNull()
+})

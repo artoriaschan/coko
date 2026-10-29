@@ -73,7 +73,7 @@ it('列表：每个供应商都有编辑与删除，状态点以文字区分已�
   }
   await expect.element(row('custom-provider-1').getByText('自定义供应商一', { exact: true })).toBeVisible()
   // 状态以文字表达，不只靠点的颜色。
-  expect(row('custom-provider-1').element().querySelector('[data-credential-status]')?.textContent).toBe('已配置 Key · 末四位 1111')
+  expect(row('custom-provider-1').element().querySelector('[data-credential-status]')?.textContent).toBe('已配置 Key')
   expect(row('custom-provider-2').element().querySelector('[data-credential-status]')?.textContent).toBe('未配置 Key')
 
   const [first, second] = rows().map((r) => r.getBoundingClientRect())
@@ -181,7 +181,7 @@ it('新建校验：空表单、ID 格式与重复、非 http(s) 地址都阻止�
   // 新供应商具备同样的编辑与删除入口，状态为已配置 Key。
   await expect.element(row('custom-provider-2').getByRole('button', { name: '编辑', exact: true })).toBeVisible()
   await expect.element(row('custom-provider-2').getByRole('button', { name: '删除', exact: true })).toBeVisible()
-  expect(row('custom-provider-2').element().querySelector('[data-credential-status]')?.textContent).toBe('已配置 Key · 末四位 2222')
+  expect(row('custom-provider-2').element().querySelector('[data-credential-status]')?.textContent).toBe('已配置 Key')
   // 关闭后焦点不丢到 body。
   expect(document.activeElement).not.toBe(document.body)
 })

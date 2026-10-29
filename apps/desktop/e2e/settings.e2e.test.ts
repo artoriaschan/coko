@@ -5,6 +5,7 @@ import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
 
@@ -105,7 +106,7 @@ async function addCustomProvider(
 }
 
 describe('设置：Provider 与 Credential', () => {
-  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示末四位；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
+  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示已配置 Key；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
     const root = await tempDir('coko-settings-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -125,7 +126,8 @@ describe('设置：Provider 与 Credential', () => {
     await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: [{ id: 'm1', contextWindow: '1M' }], secret })
     const card = dialog(app).locator('[data-provider-id]')
     await expect.poll(() => card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
-    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+    // 状态只表示已配置 Key，不显示末四位（规格 4.1）。
+    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/^(Key configured|已配置 Key)$/)
     expect(await app.window.evaluate(() => document.body.innerText)).not.toContain(secret)
     expect(await app.window.evaluate(() => [...document.querySelectorAll('input')].some((i) => i.value.includes('sk-e2e')))).toBe(false)
 
@@ -152,7 +154,7 @@ describe('设置：Provider 与 Credential', () => {
     await editForm.locator('button[type="submit"]').click()
     await editForm.waitFor({ state: 'detached', timeout: 15_000 })
     await expect.poll(() => card.locator('[data-user-content]').first().textContent()).toBe('Local fake edited')
-    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+    expect(await card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
 
     await app.window.keyboard.press('Escape')
     await dialog(app).waitFor({ state: 'detached' })
@@ -183,6 +185,51 @@ describe('设置：Provider 与 Credential', () => {
     // 关闭后检查用户数据目录（SQLite 库与 WAL、日志、Chromium 存储）的每个文件都不含明文。
     const files = await filesUnder(join(root, 'user-data'))
     expect(files.some((f) => f.endsWith('coko.db'))).toBe(true)
+    const leaking: string[] = []
+    for (const file of files) if ((await readFile(file)).includes(secret)) leaking.push(file)
+    expect(leaking).toEqual([])
+  })
+
+  it('系统加密不可用时创建供应商：整次提交被拒绝，表单保留草稿并提示原因；库中没有该 Provider 与密文', async () => {
+    const root = await tempDir('coko-settings-')
+    const secret = 'sk-e2e-no-encryption-5f1d'
+    const app = await launch(root)
+    // 只替换 safeStorage 的可用性：main 的一次提交在加密前拒绝，不发 provider.save（ADR 0010）。
+    await app.app.evaluate(({ safeStorage }) => {
+      safeStorage.isEncryptionAvailable = () => false
+    })
+    await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
+    await dialog(app).locator('[data-section="models"]').click()
+    await dialog(app)
+      .getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ })
+      .click()
+    const form = app.window.locator('[data-provider-form]')
+    await form.locator('input[name="providerId"]').fill('local-locked')
+    await form.locator('input[name="name"]').fill('Local locked')
+    await form.locator('input[name="baseUrl"]').fill('http://127.0.0.1:9/v1')
+    await form.locator('[data-model-add]').click()
+    await form.locator('[data-model-row] input[name="modelId"]').fill('m1')
+    await form.locator('input[name="credential"]').fill(secret)
+    await form.locator('button[type="submit"]').click()
+    await expect
+      .poll(() => form.getByRole('alert').textContent())
+      .toMatch(/^(System encryption is unavailable\. Nothing was saved\.|系统加密不可用，未保存任何内容)$/)
+    // 草稿保留，可以修改或重试。
+    expect(await form.locator('input[name="providerId"]').inputValue()).toBe('local-locked')
+    expect(await form.locator('[data-model-row] input[name="modelId"]').inputValue()).toBe('m1')
+    expect(await app.window.evaluate(() => fetch('/api/providers').then((r) => r.json()))).toEqual({ providers: [] })
+
+    await app.dispose()
+    // 重新读取持久化状态：库中没有 Provider 与密文，库文件不含 Key。
+    const files = await filesUnder(join(root, 'user-data'))
+    const dbPath = files.find((f) => f.endsWith('coko.db'))!
+    const db = new DatabaseSync(dbPath, { readOnly: true })
+    try {
+      expect(db.prepare('SELECT COUNT(*) AS n FROM providers').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM provider_credentials').get()).toEqual({ n: 0 })
+    } finally {
+      db.close()
+    }
     const leaking: string[] = []
     for (const file of files) if ((await readFile(file)).includes(secret)) leaking.push(file)
     expect(leaking).toEqual([])

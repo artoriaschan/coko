@@ -192,11 +192,7 @@ function CredentialStatus({ provider }: { provider: Provider }) {
     <span className="inline-flex min-w-0 items-center gap-1.5 text-ui-small text-muted-foreground">
       <span aria-hidden className={cn('size-1.5 shrink-0 rounded-round', credential ? 'bg-success' : 'bg-muted-foreground')} />
       <span data-credential-status={credential ? 'configured' : 'missing'} className="truncate">
-        {credential
-          ? credential.hint
-            ? t('providers.credentialConfigured', { hint: credential.hint })
-            : t('providers.credentialConfiguredNoHint')
-          : t('providers.credentialMissing')}
+        {credential ? t('providers.credentialConfigured') : t('providers.credentialMissing')}
       </span>
     </span>
   )

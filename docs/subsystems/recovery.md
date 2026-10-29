@@ -77,7 +77,7 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 
 - `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到当前版本、v2 库迁移到 3（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
 - `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
-- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（5）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
+- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（6）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
 - `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
 - `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
 - 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。

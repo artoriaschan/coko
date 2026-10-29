@@ -79,9 +79,9 @@ it('删除被 Session 引用的 Provider：引用数量与库一致；确认后 
   expect((await api.delete(apiPaths.provider('custom-provider-1'))).status).toBe(204)
   const sessions = (await api.get(API_ROUTES.sessions)).body.sessions as { id: string; model: unknown; thinkingLevel: string }[]
   const byId = (id: string) => sessions.find((s) => s.id === id)
-  expect(byId(s1.id)).toMatchObject({ model: null, thinkingLevel: 'off' })
-  expect(byId(s2.id)).toMatchObject({ model: null, thinkingLevel: 'off' })
-  expect(byId(s3.id)).toMatchObject({ model: kept })
+  expect(byId(s1.id)).toMatchObject({ model: null, thinkingLevel: 'off', modelCleared: true })
+  expect(byId(s2.id)).toMatchObject({ model: null, thinkingLevel: 'off', modelCleared: true })
+  expect(byId(s3.id)).toMatchObject({ model: kept, modelCleared: false })
   // 默认模型回退为第一个可用模型。
   expect((await api.get(API_ROUTES.models)).body.defaultModel).toEqual(kept)
 
@@ -116,4 +116,32 @@ it('删除被 Session 引用的 Provider：引用数量与库一致；确认后 
   } finally {
     db.close()
   }
+})
+
+it('从未设置模型的 Session（创建时还没有 Provider）：添加 Provider 后运行照旧使用默认模型，不要求重新选择', async () => {
+  const fake = await fakeModelServer()
+  const sidecar = await startSidecar({ dirs: await sidecarDirs() })
+  const cookie = await exchange(sidecar)
+  const api = client(sidecar, cookie)
+  answerDecrypts(sidecar)
+  const ws = (await api.post(API_ROUTES.workspaces, { path: await tempDir() })).body
+  const never = (await api.post(API_ROUTES.sessions, { workspaceId: ws.id })).body
+  expect(never).toMatchObject({ model: null, modelCleared: false })
+  expect(await api.post(apiPaths.sessionMessages(never.id), { text: 'hello' })).toMatchObject({
+    status: 409,
+    body: { error: { code: 'model-not-configured' } },
+  })
+
+  expect(
+    await saveProvider(sidecar, customProvider('custom-provider-1', fake.baseUrl, ['custom-model-1']), { secret: 'sk-default-key-cccc3333' }),
+  ).toMatchObject({ ok: true })
+  const stream = await connect(sidecar, cookie)
+  stream.send({ type: 'subscribe', sessionId: never.id, afterSeq: 0 })
+  expect((await api.post(apiPaths.sessionMessages(never.id), { text: 'hello' })).status).toBe(202)
+  await stream.waitFor(isRunEnd(never.id))
+  expect((await api.get(apiPaths.session(never.id))).body.session).toMatchObject({
+    model: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },
+    modelCleared: false,
+  })
+  expect(fake.requests).toHaveLength(1)
 })
