@@ -10,6 +10,7 @@ export const DEFAULT_MCP_TIMEOUT_SECONDS = 60
 /** Server names: letters, digits, `_` and `-`, without `__` (which separates server and tool in tool names). */
 export const MCP_SERVER_NAME = /^[A-Za-z0-9_-]+$/
 /** Registered Secret names (ADR 0007). */
+/** Secret 名的形状（ADR 0007）。agent 不依赖 @coko/protocol；apps/server 的 secret-name.test.ts 比对它与 SECRET_NAME_PATTERN 一致。 */
 export const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/
 /** `${NAME}` in env and header values. */
 const SECRET_REF = /\$\{([^}]*)\}/g

@@ -1,5 +1,5 @@
 import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
-import { createRequestTracker } from '@coko/protocol'
+import { createRequestTracker, SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
 
@@ -127,7 +127,7 @@ export interface SecretSource {
 const SECRET_ENV_PREFIX = 'COKO_SECRET_'
 /** 无界面运行时 Secret <NAME> 的变量名；该前缀已被命令环境的 COKO_* 剔除规则覆盖。 */
 export const secretEnvName = (name: string) => `${SECRET_ENV_PREFIX}${name}`
-const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/
+const SECRET_NAME = new RegExp(SECRET_NAME_PATTERN)
 /** 与 Credential 相同：短于 8 个字符的值不给提示。 */
 const hintOf = (value: string) => (value.length >= 8 ? value.slice(-4) : '')
 
