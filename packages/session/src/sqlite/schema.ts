@@ -118,4 +118,36 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // 模型服务（ADR 0010）：去掉 Provider kind，ID 由用户输入，Model Catalog 显式保存各模型能力。不兼容旧数据：
+    // 删除已有 Provider 与 Credential（迁移前的备份保留它们）、清空默认模型设置与 Session 的模型字段（不改 updated_at）。
+    version: 4,
+    up(db) {
+      db.exec(`
+        DROP TABLE provider_credentials;
+        DROP TABLE providers;
+
+        CREATE TABLE providers (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          api        TEXT NOT NULL,
+          base_url   TEXT NOT NULL,
+          models     TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        ) STRICT;
+
+        -- 只存 main 用 safeStorage 加密后的密文（ADR 0004）。
+        CREATE TABLE provider_credentials (
+          provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE,
+          ciphertext  BLOB NOT NULL,
+          hint        TEXT NOT NULL,
+          updated_at  INTEGER NOT NULL
+        ) STRICT;
+
+        DELETE FROM settings WHERE key = 'defaultModel';
+        UPDATE sessions SET model_provider_id = NULL, model_id = NULL WHERE model_provider_id IS NOT NULL;
+      `)
+    },
+  },
 ]

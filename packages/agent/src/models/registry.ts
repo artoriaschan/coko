@@ -4,122 +4,51 @@ import {
   type ApiKeyAuth,
   type CredentialStore,
   type Model,
+  type ModelThinkingLevel,
   type MutableModels,
   type ProviderStreams,
+  type ThinkingLevelMap,
 } from '@earendil-works/pi-ai'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
-import { ANTHROPIC_MODELS } from '@earendil-works/pi-ai/providers/anthropic.models'
-import { DEEPSEEK_MODELS } from '@earendil-works/pi-ai/providers/deepseek.models'
-import { OPENAI_MODELS } from '@earendil-works/pi-ai/providers/openai.models'
 
-/** Wire protocols Coko supports. */
+/** Wire protocols Coko supports; each Provider stores one of them. */
 export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
 export type ModelProtocol = (typeof MODEL_PROTOCOLS)[number]
 
-interface Preset {
-  name: string
-  baseUrl: string
-  catalog: Readonly<Record<string, Model<any>>>
-}
+/** The seven Thinking Levels in their fixed order (pi-ai's `MODEL_THINKING_LEVELS`). */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ModelThinkingLevel[]
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
-interface KindInfo {
-  protocol: ModelProtocol
-  /** Standalone Sidecar (no desktop parent) reads the key from this variable; also removed from user command environments. */
-  apiKeyEnv?: string
-  /** Kinds with a preset have a default address and catalog; the others need a baseUrl and explicit model limits. */
-  preset?: Preset
-}
+/** A configured Thinking Level: `off` has no API value (each protocol sends its own default); the others send `value`. */
+export type ThinkingLevelSpec = { level: 'off' } | { level: Exclude<ThinkingLevel, 'off'>; value: string }
 
-/** Widens a catalog to `Preset` so the kind table's declared type does not name pi-ai's catalog types. */
-const definePreset = (value: Preset): Preset => value
-
-/**
- * The single table of Provider kinds: protocol, key variable and preset. Adding a kind starts here;
- * the protocol schema (`ProviderKind` in @coko/protocol) is checked against it at compile time in apps/server,
- * and the settings UI needs a label in each dictionary (`providers.kinds.<kind>`).
- */
-const KINDS = {
-  deepseek: {
-    protocol: 'openai-completions',
-    apiKeyEnv: 'DEEPSEEK_API_KEY',
-    preset: definePreset({ name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', catalog: DEEPSEEK_MODELS }),
-  },
-  openai: {
-    protocol: 'openai-responses',
-    apiKeyEnv: 'OPENAI_API_KEY',
-    preset: definePreset({ name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', catalog: OPENAI_MODELS }),
-  },
-  anthropic: {
-    protocol: 'anthropic-messages',
-    apiKeyEnv: 'ANTHROPIC_API_KEY',
-    preset: definePreset({ name: 'Anthropic', baseUrl: 'https://api.anthropic.com', catalog: ANTHROPIC_MODELS }),
-  },
-  /** Custom OpenAI-compatible endpoint. */
-  'openai-compatible': { protocol: 'openai-completions' },
-} as const satisfies Record<string, KindInfo>
-
-/** Provider kinds: the presets plus a custom OpenAI-compatible endpoint. */
-export type ProviderKind = keyof typeof KINDS
-export const PROVIDER_KINDS = Object.keys(KINDS) as ProviderKind[]
-
-/** Kinds that have a preset address and catalog. */
-type PresetKind = { [K in ProviderKind]: (typeof KINDS)[K] extends { preset: Preset } ? K : never }[ProviderKind]
-
-/** The wire protocol a Provider kind speaks. */
-export function protocolOf(kind: ProviderKind): ModelProtocol {
-  return KINDS[kind].protocol
-}
-
-/** The environment variable holding the API key for a kind; undefined for unknown kinds and kinds without one. */
-export function apiKeyEnvOf(kind: string): string | undefined {
-  return Object.hasOwn(KINDS, kind) ? (KINDS[kind as ProviderKind] as KindInfo).apiKeyEnv : undefined
-}
-
-const presetOf = (kind: ProviderKind): Preset | undefined => (KINDS[kind] as KindInfo).preset
-
+/** One Model Catalog entry with its explicit capabilities; nothing comes from a built-in catalog. */
 export interface ModelSpec {
   id: string
-  name?: string
-  /** Required for models outside the preset catalog. */
-  contextWindow?: number
-  maxTokens?: number
-  reasoning?: boolean
-  input?: ('text' | 'image')[]
+  /** Display name; empty means the model id. */
+  name: string
+  contextWindow: number
+  maxTokens: number
+  input: ('text' | 'image')[]
+  /** Whether requests use the configured Thinking Levels. Levels stay configured while this is off. */
+  reasoning: boolean
+  thinkingLevels: ThinkingLevelSpec[]
 }
 
 export interface ProviderConfig {
   /** Provider id; also the CredentialStore key. */
   id: string
-  name?: string
-  kind: ProviderKind
-  /** Required for `openai-compatible`; overrides the preset address otherwise. */
-  baseUrl?: string
+  name: string
+  api: ModelProtocol
+  baseUrl: string
   headers?: Record<string, string>
   models: ModelSpec[]
 }
 
 export class ModelConfigError extends Error {
   override readonly name = 'ModelConfigError'
-}
-
-export interface ProviderPresetInfo {
-  kind: PresetKind
-  name: string
-  protocol: ModelProtocol
-  baseUrl: string
-  /** Chat model ids in the preset catalog; any of them can be configured without extra limits. */
-  models: string[]
-}
-
-/** The preset kinds with their default address and catalog, for settings UIs. */
-export function providerPresets(): ProviderPresetInfo[] {
-  return PROVIDER_KINDS.flatMap((kind) => {
-    const preset = presetOf(kind)
-    if (!preset) return []
-    return [{ kind: kind as PresetKind, name: preset.name, protocol: protocolOf(kind), baseUrl: preset.baseUrl, models: Object.keys(preset.catalog) }]
-  })
 }
 
 const PROTOCOL_STREAMS: Record<ModelProtocol, () => ProviderStreams> = {
@@ -140,55 +69,74 @@ function storedApiKeyAuth(name: string): ApiKeyAuth {
   }
 }
 
-const OPENAI_COMPATIBLE_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_384 }
+/**
+ * Configured levels map to their API value; unconfigured levels are null (unsupported). `off` is left out so each
+ * protocol applies its default way of turning reasoning off.
+ */
+function thinkingLevelMap(levels: readonly ThinkingLevelSpec[]): ThinkingLevelMap {
+  const map: ThinkingLevelMap = {}
+  for (const level of THINKING_LEVELS) {
+    if (level === 'off') continue
+    const configured = levels.find((l) => l.level === level)
+    map[level] = configured && 'value' in configured ? configured.value : null
+  }
+  return map
+}
 
-function buildModel(config: ProviderConfig, spec: ModelSpec, baseUrl: string): Model<any> {
-  const preset = presetOf(config.kind)
-  const catalogModel = preset?.catalog[spec.id]
-  const overrides = {
-    ...(spec.name === undefined ? {} : { name: spec.name }),
-    ...(spec.contextWindow === undefined ? {} : { contextWindow: spec.contextWindow }),
-    ...(spec.maxTokens === undefined ? {} : { maxTokens: spec.maxTokens }),
-    ...(spec.reasoning === undefined ? {} : { reasoning: spec.reasoning }),
-    ...(spec.input === undefined ? {} : { input: spec.input }),
+function checkBaseUrl(config: ProviderConfig): void {
+  let protocol: string
+  try {
+    protocol = new URL(config.baseUrl).protocol
+  } catch {
+    protocol = ''
   }
-  if (catalogModel) {
-    return { ...catalogModel, ...overrides, provider: config.id, baseUrl, ...(config.headers ? { headers: config.headers } : {}) }
+  if (protocol !== 'http:' && protocol !== 'https:') throw new ModelConfigError(`Provider "${config.id}" needs an http or https baseUrl`)
+}
+
+function checkModel(config: ProviderConfig, spec: ModelSpec): void {
+  if (!Number.isInteger(spec.contextWindow) || spec.contextWindow <= 0 || !Number.isInteger(spec.maxTokens) || spec.maxTokens <= 0) {
+    throw new ModelConfigError(`Model "${spec.id}" of provider "${config.id}" needs positive integer contextWindow and maxTokens`)
   }
-  const defaults = preset ? undefined : OPENAI_COMPATIBLE_DEFAULTS
-  const contextWindow = spec.contextWindow ?? defaults?.contextWindow
-  const maxTokens = spec.maxTokens ?? defaults?.maxTokens
-  if (contextWindow === undefined || maxTokens === undefined) {
-    throw new ModelConfigError(`Model "${spec.id}" is not in the ${config.kind} catalog; set contextWindow and maxTokens`)
-  }
+  if (spec.maxTokens > spec.contextWindow) throw new ModelConfigError(`Model "${spec.id}" has maxTokens above its contextWindow`)
+  const levels = spec.thinkingLevels.map((l) => l.level)
+  if (new Set(levels).size !== levels.length) throw new ModelConfigError(`Model "${spec.id}" has a duplicate thinking level`)
+}
+
+function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
   return {
     id: spec.id,
-    name: spec.name ?? spec.id,
-    api: protocolOf(config.kind),
+    name: spec.name || spec.id,
+    api: config.api,
     provider: config.id,
-    baseUrl,
-    reasoning: spec.reasoning ?? false,
-    input: spec.input ?? ['text'],
+    baseUrl: config.baseUrl,
+    reasoning: spec.reasoning,
+    thinkingLevelMap: thinkingLevelMap(spec.thinkingLevels),
+    input: [...spec.input],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow,
-    maxTokens,
+    contextWindow: spec.contextWindow,
+    maxTokens: spec.maxTokens,
     ...(config.headers ? { headers: config.headers } : {}),
   }
 }
 
+/** Validates the whole configuration first, so an invalid Provider never reaches the collection. */
 function buildProvider(config: ProviderConfig) {
-  const preset = presetOf(config.kind)
-  const baseUrl = config.baseUrl ?? preset?.baseUrl
-  if (!baseUrl) throw new ModelConfigError(`Provider "${config.id}" of kind ${config.kind} needs a baseUrl`)
-  const name = config.name ?? preset?.name ?? config.id
-  const models = config.models.map((spec) => buildModel(config, spec, baseUrl))
+  checkBaseUrl(config)
+  if (config.models.length === 0) throw new ModelConfigError(`Provider "${config.id}" needs at least one model`)
+  const ids = new Set<string>()
+  for (const spec of config.models) {
+    if (ids.has(spec.id)) throw new ModelConfigError(`Provider "${config.id}" has a duplicate model "${spec.id}"`)
+    ids.add(spec.id)
+    checkModel(config, spec)
+  }
+  const name = config.name || config.id
   return createProvider({
     id: config.id,
     name,
-    baseUrl,
+    baseUrl: config.baseUrl,
     ...(config.headers ? { headers: config.headers } : {}),
     auth: { apiKey: storedApiKeyAuth(name) },
-    models,
+    models: config.models.map((spec) => buildModel(config, spec)),
     api: Object.fromEntries(Object.entries(PROTOCOL_STREAMS).map(([protocol, streams]) => [protocol, streams()])),
   })
 }

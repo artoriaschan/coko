@@ -48,6 +48,7 @@ import { dynamicHooks, emptyContextAssembly, layeredTools, type ContextAssembly,
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import { PermissionService, type HostToolNames } from './permissions.ts'
+import { catalogOf } from './providers.ts'
 import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionPermissions } from './session-permissions.ts'
 import { createProgressRedactor, redactModelMessages, secretRedactionHook } from './secret-redaction.ts'
@@ -280,7 +281,8 @@ export class SessionService {
     const setting = await this.#options.store.settings.get(DEFAULT_MODEL_SETTING)
     const candidates: unknown[] = [setting?.value, this.#options.fallbackModel]
     for (const provider of await this.#options.store.providers.list()) {
-      if (provider.models[0]) candidates.push({ providerId: provider.id, modelId: provider.models[0] })
+      const first = catalogOf(provider)[0]
+      if (first) candidates.push({ providerId: provider.id, modelId: first.id })
     }
     for (const candidate of candidates) {
       if (!Value.Check(SessionModelSchema, candidate)) continue

@@ -97,7 +97,7 @@ pi-mcp 没有 prompts 方法，Coko 经连接的通用 `request()` 封装 `promp
 
 Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload `setSecret(name, value)` → main 以 safeStorage 加密（不可用时 `encryption-unavailable`，不回退明文）→ 控制 IPC `secret.store { name, ciphertext, hint }` → Sidecar 存入 `secrets` 表并回 `secret.store.result`；需要明文时发 `secret.decrypt`，明文只缓存在 Sidecar 内存，登记被替换或删除时清除。无界面运行（没有 IPC 父进程）只读 `COKO_SECRET_<NAME>`；Sidecar 不再按名字读取自身环境中的同名变量。工具声明的 Secrets（`CokoTool.secrets`）经同一 `SecretService` 解析。
 
-**按值脱敏。** `SecretService` 把当前已解密的值登记为 `@coko/logging` 的进程级来源（`registerSecretValues`）；Provider Credential 的明文（IPC 模式为已解密的缓存，无界面运行为 `COKO_CREDENTIAL_*` 与各 Provider kind 的密钥变量）同样登记，替换文本为 `[REDACTED]`。`redactText`（模型错误、Memory 正文、MCP 错误与 stderr 尾部）与 sidecar.jsonl 的格式化在凭据形态之外替换这些值。Session 运行时上的替换点（`apps/server/src/application/secret-redaction.ts`）：
+**按值脱敏。** `SecretService` 把当前已解密的值登记为 `@coko/logging` 的进程级来源（`registerSecretValues`）；Provider Credential 的明文（IPC 模式为已解密的缓存，无界面运行为 `COKO_CREDENTIAL_*`）同样登记，替换文本为 `[REDACTED]`。`redactText`（模型错误、Memory 正文、MCP 错误与 stderr 尾部）与 sidecar.jsonl 的格式化在凭据形态之外替换这些值。Session 运行时上的替换点（`apps/server/src/application/secret-redaction.ts`）：
 
 - 工具结果在进入运行时之前替换（afterToolCall 链的最后一个 hook，含其他 hook 附加的嵌套指令）：运行时内存、下一次模型请求、库与推送看到同一份文本。
 - 每次模型请求前整个上下文按值替换（模型回显的文本与工具调用参数、压缩摘要、恢复后的条目），摘要请求读取的条目同样替换；工具实际执行时拿到的仍是模型给出的原参数。

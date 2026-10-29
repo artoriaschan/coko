@@ -1,6 +1,6 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
-import { defaultWorkspaceName, notFound, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
+import { alreadyExists, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   JsonValue,
@@ -52,7 +52,6 @@ interface SettingRow {
 interface ProviderRow {
   id: string
   name: string
-  kind: string
   api: string
   base_url: string
   models: string
@@ -90,10 +89,9 @@ const toSetting = (r: SettingRow): Setting => ({ key: r.key, value: JSON.parse(r
 const toProvider = (r: ProviderRow): Provider => ({
   id: r.id,
   name: r.name,
-  kind: r.kind,
   api: r.api,
   baseUrl: r.base_url,
-  models: JSON.parse(r.models) as string[],
+  models: JSON.parse(r.models) as JsonValue[],
   credential: r.hint === null ? null : { hint: r.hint },
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -103,7 +101,7 @@ const toProvider = (r: ProviderRow): Provider => ({
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
 const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, created_at, updated_at FROM sessions'
-const PROVIDER_SELECT = `SELECT p.id, p.name, p.kind, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
+const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
 export function createSessionRepository(conn: Connection, payloads: Pick<StoreOptions, 'payloads' | 'onInvalidEntry'>): SessionRepository {
@@ -299,13 +297,13 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
     create: (input: ProviderInput) =>
       later(() =>
         conn.write(() => {
-          const id = randomUUID()
+          const id = input.id
+          if (select(id)) throw alreadyExists('provider', id)
           const at = conn.now()
           conn.run(
-            'INSERT INTO providers (id, name, kind, api, base_url, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO providers (id, name, api, base_url, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             id,
             input.name,
-            input.kind,
             input.api,
             input.baseUrl,
             JSON.stringify(input.models),
@@ -319,11 +317,10 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
       later(() =>
         conn.write(() => {
           const current = toProvider(requireProvider(id))
-          const next = { ...current, ...patch }
+          const next = { ...current, ...patch, id }
           conn.run(
-            'UPDATE providers SET name = ?, kind = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
+            'UPDATE providers SET name = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
             next.name,
-            next.kind,
             next.api,
             next.baseUrl,
             JSON.stringify(next.models),

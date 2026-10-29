@@ -2,7 +2,7 @@
 kind: decision
 description: "Provider 的连接信息、Model Catalog 与 Credential 经 main 一次提交、在 sidecar 单个事务中存储；获取可用模型用表单中的密钥临时请求、不保存；去掉 kind 与品牌预设。修改 Provider 保存、密钥输入或模型发现时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -40,6 +40,7 @@ ADR 0004 的其余约束不变：加解密只在 main，库中只有密文，sid
 - 明文密钥在获取模型时会短暂经过控制 IPC 进入 sidecar 内存，范围限于该次请求。
 - 删除 kind 后，测试与独立运行只能用 `COKO_CREDENTIAL_<PROVIDER_ID>` 提供密钥，依赖按 kind 读取变量的测试需要改写。
 - implementation 变为 implemented 前需要：集成测试确认一次保存后 Provider 与密文同时存在、加密不可用时库不变、获取模型的临时密钥不进入库、日志与 CredentialStore 缓存，以及迁移后旧 Provider、Credential、默认模型与 Session 引用均已清除；Electron E2E 确认新建表单获取模型与一次保存可用。
+- 当前为 partial（2026-10-29）：已去掉 kind 与品牌预设，协议是 Provider 字段，用户输入的 ID 为主键（重复 409 `already-exists`），Model Catalog 显式保存各模型的容量、输入类型、推理开关与 Thinking Level 并据此注册 `thinkingLevelMap`；迁移 v4 先备份，再清除旧 Provider、Credential、默认模型与 Session 的模型引用；独立运行只读 `COKO_CREDENTIAL_<PROVIDER_ID>`。证据：`packages/session/src/sqlite/migrate-v4.test.ts`、`apps/server/src/application/providers.test.ts`、`apps/server/src/adapters/credentials.test.ts`、`tests/integration/sidecar-settings-credentials.test.ts`（重启后读回一致、ID 校验与重复、独立运行不读品牌变量）。一次提交、一次存储与获取可用模型尚未实施，HTTP 仍提供 Provider 的创建与更新。
 
 ## 来源与后继
 

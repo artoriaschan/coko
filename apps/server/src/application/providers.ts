@@ -2,38 +2,36 @@ import {
   createModelRegistry,
   InMemoryCredentialStore,
   ModelConfigError,
-  protocolOf,
-  providerPresets,
   type ModelProtocol as AgentModelProtocol,
   type ModelRegistry,
+  type ModelSpec,
   type ProviderConfig,
-  type ProviderKind as AgentProviderKind,
+  type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { AvailableModel, CreateProviderRequest, ModelProtocol, Provider, ProviderKind, ProviderPreset, UpdateProviderRequest } from '@coko/protocol'
-import type { Provider as StoredProvider, ProviderInput, SessionStore } from '@coko/session'
+import type { AvailableModel, CatalogModel, CreateProviderRequest, ModelProtocol, Provider, ThinkingLevel, UpdateProviderRequest } from '@coko/protocol'
+import { isStoreError, type Provider as StoredProvider, type ProviderInput, type SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
 
-// 协议 schema 与 packages/agent 的 kind 表（PROVIDER_KINDS）必须一致：任一侧增删 kind 或协议而另一侧未跟上时，这里编译失败。
+// 协议 schema 与 packages/agent 的协议表、档位表必须一致：任一侧增删而另一侧未跟上时，这里编译失败。
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 type Assert<T extends true> = T
-export type ProviderKindsAgree = Assert<Equal<ProviderKind, AgentProviderKind>>
 export type ModelProtocolsAgree = Assert<Equal<ModelProtocol, AgentModelProtocol>>
+export type ThinkingLevelsAgree = Assert<Equal<ThinkingLevel, AgentThinkingLevel>>
+// Model Catalog 的协议结构可以原样作为 registry 的模型配置。
+export type CatalogMatchesModelSpec = Assert<Equal<CatalogModel, ModelSpec>>
 
-export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'kind' | 'baseUrl' | 'models'>): ProviderConfig {
-  return {
-    id: provider.id,
-    name: provider.name,
-    kind: provider.kind as ProviderKind,
-    ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
-    models: provider.models.map((id) => ({ id })),
-  }
+/** 库中的 Model Catalog：写入前已按协议 schema 校验，读回原样使用。 */
+export const catalogOf = (provider: Pick<StoredProvider, 'models'>): CatalogModel[] => provider.models as CatalogModel[]
+
+export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'api' | 'baseUrl' | 'models'>): ProviderConfig {
+  return { id: provider.id, name: provider.name, api: provider.api as ModelProtocol, baseUrl: provider.baseUrl, models: catalogOf(provider) }
 }
 
 export function toProviderDto(provider: StoredProvider): Provider {
-  return { ...provider, kind: provider.kind as ProviderKind, api: provider.api as ModelProtocol }
+  return { ...provider, api: provider.api as ModelProtocol, models: catalogOf(provider) }
 }
 
 /** 先在临时 registry 中构造，配置无效时以 bad-request 拒绝，不写库。 */
@@ -76,10 +74,6 @@ export class ProviderService {
     return (await this.#options.store.providers.list()).map(toProviderDto)
   }
 
-  presets(): ProviderPreset[] {
-    return providerPresets().map(({ kind, name, baseUrl, models }) => ({ kind, name, baseUrl, models }))
-  }
-
   /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序。 */
   models(): AvailableModel[] {
     const { models } = this.#options.registry
@@ -90,23 +84,27 @@ export class ProviderService {
       )
   }
 
+  /** ID 已被使用时 already-exists；配置无效时 bad-request。两种情况都不写库。 */
   async create(input: CreateProviderRequest): Promise<Provider> {
-    const baseUrl = input.baseUrl ?? ''
-    if (input.kind === 'openai-compatible' && !baseUrl) throw new AppError('bad-request', 'openai-compatible Provider needs a baseUrl')
-    const record: ProviderInput = { name: input.name, kind: input.kind, api: protocolOf(input.kind), baseUrl, models: input.models }
-    validate(toProviderConfig({ id: 'validate', ...record }))
-    const created = await this.#options.store.providers.create(record)
+    const record: ProviderInput = { id: input.id, name: input.name, api: input.api, baseUrl: input.baseUrl, models: input.models }
+    validate(toProviderConfig(record))
+    let created: StoredProvider
+    try {
+      created = await this.#options.store.providers.create(record)
+    } catch (error) {
+      if (isStoreError(error, 'already-exists'))
+        throw new AppError('already-exists', `Provider ID ${input.id} is already in use`, { field: 'id', id: input.id })
+      throw error
+    }
     this.#options.registry.setProvider(toProviderConfig(created))
-    log.info('provider created', { providerId: created.id, kind: created.kind })
+    log.info('provider created', { providerId: created.id, api: created.api })
     return toProviderDto(created)
   }
 
   async update(id: string, patch: UpdateProviderRequest): Promise<Provider> {
     const current = await this.#options.store.providers.get(id)
     if (!current) throw new AppError('not-found', `Provider ${id} not found`)
-    const next = { ...current, ...patch }
-    if (next.kind === 'openai-compatible' && !next.baseUrl) throw new AppError('bad-request', 'openai-compatible Provider needs a baseUrl')
-    validate(toProviderConfig(next))
+    validate(toProviderConfig({ ...current, ...patch }))
     const updated = await this.#options.store.providers.update(id, patch)
     this.#options.registry.setProvider(toProviderConfig(updated))
     return toProviderDto(updated)

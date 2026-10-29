@@ -1,4 +1,4 @@
-import { apiKeyEnvOf, PROVIDER_KINDS, type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
+import { type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
 import { createRequestTracker, SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
@@ -58,13 +58,11 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
 }
 
 /**
- * 不传给 bash 等用户命令的 sidecar 环境变量：sidecar 自身配置（COKO_*，含 COKO_CREDENTIAL_*）、
- * 各 Provider kind 的密钥变量，以及名字带凭据形态的变量（*_API_KEY、*TOKEN*、*SECRET*、*PASSWORD* 等）。
- * PATH、HOME 等普通变量保留。
+ * 不传给 bash 等用户命令的 sidecar 环境变量：sidecar 自身配置（COKO_*，含 COKO_CREDENTIAL_*）与名字带凭据形态的变量
+ * （*_API_KEY、*TOKEN*、*SECRET*、*PASSWORD* 等）。PATH、HOME 等普通变量保留。
  */
 export const HOST_ENV_EXCLUSIONS: readonly EnvExclusion[] = [
   /^COKO_/,
-  ...PROVIDER_KINDS.flatMap((kind) => apiKeyEnvOf(kind) ?? []),
   /(^|_)API_?KEY($|_)/i,
   /TOKEN/i,
   /SECRET/i,
@@ -76,18 +74,9 @@ export const HOST_ENV_EXCLUSIONS: readonly EnvExclusion[] = [
 /** COKO_CREDENTIAL_<ID> 中 id 的写法：大写，非字母数字换成下划线。 */
 export const credentialEnvName = (providerId: string) => `COKO_CREDENTIAL_${providerId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`
 
-/**
- * 独立运行（无 IPC 父进程）：COKO_CREDENTIAL_<PROVIDER_ID> 优先，否则按 Provider kind 读
- * DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY。
- */
+/** 独立运行（无 IPC 父进程）：只读 COKO_CREDENTIAL_<PROVIDER_ID>，不按品牌或协议回退到其他变量（ADR 0010）。 */
 export function createEnvCredentialStore(options: { env: Readonly<Record<string, string | undefined>>; providers: ProviderRepository }): HostCredentialStore {
-  const lookup = async (providerId: string) => {
-    const explicit = options.env[credentialEnvName(providerId)]
-    if (explicit) return explicit
-    const provider = await options.providers.get(providerId)
-    const name = provider ? apiKeyEnvOf(provider.kind) : undefined
-    return name ? options.env[name] || undefined : undefined
-  }
+  const lookup = async (providerId: string) => options.env[credentialEnvName(providerId)] || undefined
   return {
     async read(providerId) {
       const key = await lookup(providerId)
@@ -101,11 +90,8 @@ export function createEnvCredentialStore(options: { env: Readonly<Record<string,
     modify: readOnly,
     delete: readOnly,
     invalidate: () => {},
-    // 环境中的值启动时已知：COKO_CREDENTIAL_* 与各 Provider kind 的密钥变量全部登记，不必等到第一次读取。
-    cachedValues: () =>
-      Object.entries(options.env).flatMap(([key, value]) =>
-        value && (key.startsWith('COKO_CREDENTIAL_') || PROVIDER_KINDS.some((kind) => apiKeyEnvOf(kind) === key)) ? [value] : [],
-      ),
+    // 环境中的值启动时已知：COKO_CREDENTIAL_* 全部登记，不必等到第一次读取。
+    cachedValues: () => Object.entries(options.env).flatMap(([key, value]) => (value && key.startsWith('COKO_CREDENTIAL_') ? [value] : [])),
   }
 }
 

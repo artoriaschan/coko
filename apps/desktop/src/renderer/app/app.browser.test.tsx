@@ -9,6 +9,7 @@ import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
 import { createPreferences } from './preferences.ts'
 import { createSettingsDialogStore } from './settings-dialog-store.ts'
+import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 
 function leaves(value: unknown): string[] {
@@ -224,9 +225,13 @@ describe('设置弹窗', () => {
     await openSection('models')
     // 同时检查新建表单。
     await dialog.getByRole('button', { name: dictionaries[locale].providers.add }).click()
-    await page.getByRole('menuitem', { name: dictionaries[locale].providers.kinds.deepseek }).click()
     await expect.element(dialog.getByLabelText(dictionaries[locale].providers.credential, { exact: true })).toBeVisible()
     expect(untranslated()).toEqual([])
+    // 协议菜单的选项同样来自字典。
+    await dialog.getByLabelText(dictionaries[locale].providers.protocol, { exact: true }).click()
+    await expect.element(page.getByRole('menuitemradio').first()).toBeVisible()
+    expect(chromeStrings(page.getByRole('menu').element()).filter((s) => !inDictionary(s))).toEqual([])
+    await userEvent.keyboard('{Escape}')
     await openSection('about')
     expect(untranslated()).toEqual([])
     await userEvent.keyboard('{Escape}')
@@ -243,7 +248,7 @@ describe('设置弹窗', () => {
 
     backend.setCredential.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
-    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
+    await dialog.getByLabelText('Provider ID', { exact: true }).fill('custom-provider-1')
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
     await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1, m2')
@@ -300,21 +305,88 @@ describe('侧栏搜索', () => {
 })
 
 describe('Models 分区', () => {
-  it('类别标签只在名称不等于预设名时显示：按 kind 与协议预设比较，不比较翻译文本', async () => {
+  it('新建：输入 Provider ID 并选择三种协议之一（默认 OpenAI Chat Completions）；ID 不合格式或重复时不提交', async () => {
     await page.viewport(1280, 800)
     const { screen, backend, settings } = renderApp('zh', { providers: false })
     await screen
-    // 自定义 Provider 没有预设：名称恰好等于其类别的中文文案时，类别仍要显示。
-    await backend.api.createProvider({ name: 'OpenAI 兼容', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['m'] })
-    await backend.api.createProvider({ name: 'DeepSeek', kind: 'deepseek', models: ['deepseek-flash'] })
+    await backend.api.createProvider(customProvider('custom-provider-1', ['custom-model-1'], { name: '自定义供应商一' }))
     await settings.getState().load()
     const dialog = await openSettings('设置')
     await dialog.getByRole('button', { name: '模型服务', exact: true }).click()
-    const compatible = page.elementLocator(dialog.element().querySelector('[data-kind="openai-compatible"][data-provider-id]')!)
-    await expect.element(compatible).toBeVisible()
-    expect(compatible.element().textContent).toContain('OpenAI 兼容OpenAI 兼容')
-    const deepseek = dialog.element().querySelector('[data-kind="deepseek"][data-provider-id]')!
-    expect(deepseek.textContent?.match(/DeepSeek/g)).toHaveLength(1)
+    // 列表项显示名称与 Provider ID，没有类别标签。
+    await expect.poll(() => dialog.element().querySelector('[data-provider-id="custom-provider-1"]')?.textContent).toContain('自定义供应商一custom-provider-1')
+
+    await dialog.getByRole('button', { name: '添加 Provider' }).click()
+    const protocol = dialog.getByLabelText('API 协议', { exact: true })
+    await expect.element(protocol).toHaveTextContent('OpenAI Chat Completions')
+    await protocol.click()
+    expect([...document.querySelectorAll('[role="menuitemradio"]')].map((el) => el.textContent)).toEqual([
+      'OpenAI Chat Completions',
+      'OpenAI Responses',
+      'Anthropic Messages',
+    ])
+    await page.getByRole('menuitemradio', { name: 'Anthropic Messages' }).click()
+    await expect.element(protocol).toHaveTextContent('Anthropic Messages')
+
+    await dialog.getByLabelText('名称', { exact: true }).fill('自定义供应商二')
+    await dialog.getByLabelText('地址', { exact: true }).fill('https://gateway.example')
+    await dialog.getByRole('textbox', { name: '模型', exact: true }).fill('custom-model-2')
+    const id = dialog.getByLabelText('Provider ID', { exact: true })
+    for (const [value, message] of [
+      ['Custom-2', dictionaries.zh.providers.idInvalid],
+      ['custom-provider-1', dictionaries.zh.providers.idTaken],
+    ] as const) {
+      await id.fill(value)
+      await dialog.getByRole('button', { name: '保存' }).click()
+      await expect.element(dialog.getByRole('alert')).toHaveTextContent(message)
+    }
+    expect(backend.raw.createProvider).toHaveBeenCalledTimes(1)
+
+    await id.fill('custom-provider-2')
+    await dialog.getByRole('button', { name: '保存' }).click()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-id="custom-provider-2"]')).not.toBeNull()
+    expect(backend.providers.find((p) => p.id === 'custom-provider-2')).toMatchObject({
+      name: '自定义供应商二',
+      api: 'anthropic-messages',
+      baseUrl: 'https://gateway.example',
+      models: [{ id: 'custom-model-2', contextWindow: 128_000, maxTokens: 16_000, input: ['text'], reasoning: false, thinkingLevels: [] }],
+    })
+  })
+
+  it('编辑：ID 为静态文本；修改协议与目录后保存，已有模型的能力配置保留；留空 Key 不改 Credential；删除后从列表移除', async () => {
+    await page.viewport(1280, 800)
+    const { screen, backend, settings } = renderApp('en', { providers: false })
+    await screen
+    const rich = catalogModel('custom-model-1', {
+      contextWindow: 1_000_000,
+      input: ['text', 'image'],
+      reasoning: true,
+      thinkingLevels: [{ level: 'high', value: 'high' }],
+    })
+    await backend.api.createProvider({ ...customProvider('custom-provider-2', []), name: 'Custom two', models: [rich] })
+    await backend.setCredential('custom-provider-2', 'sk-existing-key-5555')
+    await settings.getState().load()
+    const dialog = await openSettings('Settings')
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Edit' }).click()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-form]')?.textContent).toContain('Custom twocustom-provider-2')
+    expect(dialog.element().querySelector('[data-provider-form] input[name="providerId"]')).toBeNull()
+
+    await dialog.getByLabelText('API protocol', { exact: true }).click()
+    await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('custom-model-1, custom-model-3')
+    backend.setCredential.mockClear()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(() => dialog.element().querySelector('[data-provider-form]')).toBeNull()
+    expect(backend.providers).toMatchObject([
+      { id: 'custom-provider-2', api: 'openai-responses', models: [rich, catalogModel('custom-model-3')], credential: { hint: '5555' } },
+    ])
+    expect(backend.setCredential).not.toHaveBeenCalled()
+
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await dialog.getByRole('button', { name: 'Confirm delete' }).click()
+    await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
+    expect(backend.providers).toEqual([])
   })
 
   it('保存失败时显示可行动的本地化说明，技术原文只在详情中', async () => {
@@ -326,9 +398,9 @@ describe('Models 分区', () => {
     const dialog = await openSettings('Settings')
     await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
-    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
+    await dialog.getByLabelText('Provider ID', { exact: true }).fill('local')
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
-    await dialog.getByLabelText('Base URL', { exact: true }).fill('not a url')
+    await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
     await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1')
     await dialog.getByRole('button', { name: 'Save' }).click()
     const alert = dialog.getByRole('alert')
@@ -405,7 +477,7 @@ describe('模型选择', () => {
     await page.viewport(1280, 800)
     const { screen, chat, settings, backend } = renderApp('en')
     await screen
-    await backend.api.createProvider({ name: 'Second', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['big-model'] })
+    await backend.api.createProvider(customProvider('p2', ['big-model'], { name: 'Second' }))
     await settings.getState().load()
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     const picker = page.getByRole('button', { name: /^Choose model: / })

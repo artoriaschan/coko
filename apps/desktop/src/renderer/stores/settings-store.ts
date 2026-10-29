@@ -1,4 +1,4 @@
-import type { AvailableModel, PermissionsResponse, Provider, ProviderKind, ProviderPreset, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
+import type { AvailableModel, CatalogModel, ModelProtocol, PermissionsResponse, Provider, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { CokoBridge, CredentialErrorCode } from '../../shared/bridge.ts'
@@ -13,7 +13,6 @@ export interface SettingsState {
   status: 'idle' | 'loading' | 'ready' | 'error'
   values: Record<string, KnownSetting>
   providers: Provider[]
-  presets: ProviderPreset[]
   models: AvailableModel[]
   defaultModel: SessionModel | null
   /** 默认模式与全局规则（及最近读取的 Workspace 规则）；读取前为 null。 */
@@ -30,13 +29,13 @@ export type SaveSettingResult = { status: 'saved' } | { status: 'conflict' } | {
 
 /** 设置弹窗中编辑的 Provider；secret 为空表示不改 Credential。 */
 export interface ProviderDraft {
-  /** 编辑已有 Provider 时给出；kind 创建后不可改。 */
-  id?: string
-  kind: ProviderKind
+  /** 新建时为用户输入的 Provider ID；编辑时为已有 Provider 的 ID（创建后不可修改）。 */
+  id: string
+  isNew: boolean
   name: string
-  /** 预设 kind 留空表示使用预设地址。 */
+  api: ModelProtocol
   baseUrl: string
-  models: string[]
+  models: CatalogModel[]
   secret: string
 }
 
@@ -47,7 +46,7 @@ export type SaveProviderResult =
   | { ok: false; stage: 'credential'; code: CredentialErrorCode; message: string; provider: Provider }
 
 export interface SettingsActions {
-  /** 读取设置、Provider、预设与可用模型。 */
+  /** 读取设置、Provider 与可用模型。 */
   load(): Promise<void>
   /** 以已知 revision 写入；同一键的写入按调用顺序串行。冲突时读回服务端的值与 revision。 */
   saveSetting(key: string, value: unknown): Promise<SaveSettingResult>
@@ -140,7 +139,6 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       status: 'idle',
       values: {},
       providers: [],
-      presets: [],
       models: [],
       defaultModel: null,
       permissions: null,
@@ -162,13 +160,8 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       async load() {
         if (get().status !== 'ready') set({ status: 'loading' })
         try {
-          const [settings, providers, presets, { models, defaultModel }] = await Promise.all([
-            api.listSettings(),
-            api.listProviders(),
-            api.listProviderPresets(),
-            api.listModels(),
-          ])
-          set({ status: 'ready', values: toValues(settings), providers, presets, models, defaultModel })
+          const [settings, providers, { models, defaultModel }] = await Promise.all([api.listSettings(), api.listProviders(), api.listModels()])
+          set({ status: 'ready', values: toValues(settings), providers, models, defaultModel })
           void get().loadPermissions(get().permissions?.workspace?.workspaceId)
         } catch (error) {
           if (get().status !== 'ready') set({ status: 'error' })
@@ -186,10 +179,10 @@ export function createSettingsStore({ api, setCredential, onFailure }: SettingsS
       async saveProvider(draft) {
         let provider: Provider
         try {
-          provider =
-            draft.id === undefined
-              ? await api.createProvider({ kind: draft.kind, name: draft.name, models: draft.models, ...(draft.baseUrl ? { baseUrl: draft.baseUrl } : {}) })
-              : await api.updateProvider(draft.id, { name: draft.name, baseUrl: draft.baseUrl, models: draft.models })
+          const { id, name, api: protocol, baseUrl, models } = draft
+          provider = draft.isNew
+            ? await api.createProvider({ id, name, api: protocol, baseUrl, models })
+            : await api.updateProvider(id, { name, api: protocol, baseUrl, models })
         } catch (error) {
           return { ok: false, stage: 'provider', error: toApiError(error) }
         }

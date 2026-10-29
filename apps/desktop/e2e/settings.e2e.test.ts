@@ -75,13 +75,13 @@ async function addWorkspace(app: LaunchedApp, path: string) {
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
 const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
 
-/** 在已打开的 Models 分区中新建 OpenAI 兼容 Provider。 */
-async function addCompatibleProvider(app: LaunchedApp, options: { name: string; baseUrl: string; models: string; secret: string }) {
+/** 在已打开的 Models 分区中新建自定义 Provider（默认协议 OpenAI Chat Completions）。 */
+async function addCustomProvider(app: LaunchedApp, options: { id: string; name: string; baseUrl: string; models: string; secret: string }) {
   await dialog(app)
     .getByRole('button', { name: /^(Add Provider|添加 Provider)$/ })
     .click()
-  await app.window.locator('[role="menuitem"][data-kind="openai-compatible"]').click()
   const form = app.window.locator('[data-provider-form]')
+  await form.locator('input[name="providerId"]').fill(options.id)
   await form.locator('input[name="name"]').fill(options.name)
   await form.locator('input[name="baseUrl"]').fill(options.baseUrl)
   await form.locator('input[name="models"]').fill(options.models)
@@ -108,7 +108,7 @@ describe('设置：Provider 与 Credential', () => {
     await dialog(app).waitFor()
     expect(await dialog(app).locator('[data-section="models"]').getAttribute('aria-current')).toBe('page')
 
-    await addCompatibleProvider(app, { name: 'Local fake', baseUrl: model.baseUrl, models: 'm1', secret })
+    await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: 'm1', secret })
     const card = dialog(app).locator('[data-provider-id]')
     await expect.poll(() => card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
     expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
@@ -198,8 +198,9 @@ describe('设置：Provider 与 Credential', () => {
     await second.window.getByRole('button', { name: target === 'zh' ? '设置' : 'Settings', exact: true }).waitFor()
   })
 
-  // 真实模型：仅在宿主提供 DEEPSEEK_API_KEY 时运行；密钥经界面输入，与用户路径一致，不写入日志或断言输出。
-  it.skipIf(!process.env.DEEPSEEK_API_KEY)('真实 DeepSeek 凭据：一次对话成功', async () => {
+  // 真实模型：仅在测试宿主提供 DEEPSEEK_API_KEY 时运行。密钥由测试读取后经界面输入，与用户路径一致；Sidecar 不读取该变量
+  // （harness 从子进程环境中剔除它），不写入日志或断言输出。
+  it.skipIf(!process.env.DEEPSEEK_API_KEY)('真实 DeepSeek 凭据：经自定义 Provider 一次对话成功', async () => {
     const root = await tempDir('coko-real-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -207,14 +208,13 @@ describe('设置：Provider 与 Credential', () => {
     await addWorkspace(app, workspace)
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     await dialog(app).locator('[data-section="models"]').click()
-    await dialog(app)
-      .getByRole('button', { name: /^(Add Provider|添加 Provider)$/ })
-      .click()
-    await app.window.locator('[role="menuitem"][data-kind="deepseek"]').click()
-    const form = app.window.locator('[data-provider-form]')
-    await form.locator('input[name="credential"]').fill(process.env.DEEPSEEK_API_KEY!)
-    await form.locator('button[type="submit"]').click()
-    await form.waitFor({ state: 'detached', timeout: 15_000 })
+    await addCustomProvider(app, {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      models: 'deepseek-chat',
+      secret: process.env.DEEPSEEK_API_KEY!,
+    })
     await app.window.keyboard.press('Escape')
     await composer(app).click()
     await composer(app).fill('Reply with the single word: pong')

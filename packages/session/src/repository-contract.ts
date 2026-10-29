@@ -190,12 +190,13 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
 
     it('Provider 增改删，Credential 只以提示暴露，密文按字节读回', async () => {
       const { providers } = await open()
-      const input = { name: 'DeepSeek', kind: 'deepseek', api: 'openai-completions', baseUrl: 'https://api.deepseek.com', models: ['deepseek-chat'] }
+      const catalog = [{ id: 'custom-model-1', name: '自定义模型一', contextWindow: 1_000_000, thinkingLevels: [{ level: 'high', value: 'high' }] }]
+      const input = { id: 'custom-provider-1', name: '自定义供应商一', api: 'openai-completions', baseUrl: 'https://gateway.example/v1', models: catalog }
       const p = await providers.create(input)
-      expect(p).toEqual({ id: p.id, ...input, credential: null, createdAt: 1_000, updatedAt: 1_000 })
+      expect(p).toEqual({ ...input, credential: null, createdAt: 1_000, updatedAt: 1_000 })
       tick()
-      const updated = await providers.update(p.id, { models: ['deepseek-chat', 'deepseek-reasoner'] })
-      expect(updated).toMatchObject({ name: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'], updatedAt: 1_010 })
+      const updated = await providers.update(p.id, { api: 'anthropic-messages', models: [...catalog, { id: 'custom-model-2' }] })
+      expect(updated).toMatchObject({ id: 'custom-provider-1', api: 'anthropic-messages', models: [...catalog, { id: 'custom-model-2' }], updatedAt: 1_010 })
 
       const ciphertext = new Uint8Array([0, 1, 2, 250, 255])
       const withCredential = await providers.setCredential(p.id, { ciphertext, hint: 'a1b2' })
@@ -207,8 +208,8 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await providers.getCredentialCiphertext(p.id)).toBeUndefined()
 
       await providers.setCredential(p.id, { ciphertext, hint: 'zz99' })
-      const other = await providers.create({ ...input, name: 'OpenAI', kind: 'openai' })
-      expect((await providers.list()).map((x) => x.name)).toEqual(['DeepSeek', 'OpenAI'])
+      const other = await providers.create({ ...input, id: 'custom-provider-2', name: '自定义供应商二' })
+      expect((await providers.list()).map((x) => x.id)).toEqual(['custom-provider-1', 'custom-provider-2'])
       await providers.delete(p.id)
       expect(await providers.get(p.id)).toBeUndefined()
       expect(await providers.getCredentialCiphertext(p.id)).toBeUndefined()
@@ -218,6 +219,18 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(providers.delete(p.id), 'not-found')
       await expectStoreError(providers.setCredential(p.id, { ciphertext, hint: 'x' }), 'not-found')
       await expectStoreError(providers.clearCredential(p.id), 'not-found')
+    })
+
+    it('Provider ID 由调用方给出；与已有 Provider 重复时以 already-exists 拒绝，已有记录与 Credential 不变', async () => {
+      const { providers } = await open()
+      const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
+      const first = await providers.create(input)
+      const withCredential = await providers.setCredential(first.id, { ciphertext: new Uint8Array([1, 2]), hint: 'ab12' })
+      tick()
+      const error = await expectStoreError(providers.create({ ...input, name: '二', baseUrl: 'https://b.example/v1' }), 'already-exists')
+      expect(error.details).toMatchObject({ entity: 'provider', id: 'custom-provider-1' })
+      expect(await providers.list()).toEqual([withCredential])
+      expect(Array.from((await providers.getCredentialCiphertext(first.id)) ?? [])).toEqual([1, 2])
     })
 
     it('Memory：按作用域与 Workspace 列出（最近更新在前），改正文刷新 updatedAt，删除后不可读', async () => {

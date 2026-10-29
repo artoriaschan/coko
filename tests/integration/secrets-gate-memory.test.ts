@@ -33,7 +33,7 @@ describe('秘密不外泄总闸：Memory', () => {
         { content: 'hello again' },
       ],
     })
-    const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential } })
+    const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_CREDENTIAL_GATE_PROVIDER: credential } })
     const cookie = await exchange(sidecar)
     const bodies: string[] = []
     const api = recordingClient(sidecar, cookie, bodies)

@@ -1,5 +1,13 @@
 // 单元测试与 Browser Mode 共用：按 Sidecar 规则实现设置 revision 与 Provider 的内存后端。
-import type { AvailableModel, PermissionsResponse, Provider, Setting } from '@coko/protocol'
+import {
+  MODEL_CATALOG_DEFAULTS,
+  type AvailableModel,
+  type CatalogModel,
+  type CreateProviderRequest,
+  type PermissionsResponse,
+  type Provider,
+  type Setting,
+} from '@coko/protocol'
 import { vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { CokoBridge } from '../../shared/bridge.ts'
@@ -9,7 +17,6 @@ type Api = ApiClient
 export function fakeSettingsBackend() {
   const settings = new Map<string, Setting>()
   const providers: Provider[] = []
-  let nextId = 1
   const permissions: PermissionsResponse = { defaultMode: { value: 'default', revision: 0 }, global: { rules: [], revision: 0 } }
   const workspaceRules = new Map<string, { rules: PermissionsResponse['global']['rules']; revision: number }>()
   const permissionsOf = (workspaceId?: string): PermissionsResponse => ({
@@ -17,7 +24,7 @@ export function fakeSettingsBackend() {
     ...(workspaceId ? { workspace: { workspaceId, ...structuredClone(workspaceRules.get(workspaceId) ?? { rules: [], revision: 0 }) } } : {}),
   })
   const models = (): AvailableModel[] =>
-    providers.flatMap((p) => p.models.map((modelId) => ({ providerId: p.id, providerName: p.name, modelId, name: modelId })))
+    providers.flatMap((p) => p.models.map((m) => ({ providerId: p.id, providerName: p.name, modelId: m.id, name: m.name || m.id })))
   const api = {
     listSettings: vi.fn<Api['listSettings']>(async () => [...settings.values()]),
     putSetting: vi.fn<Api['putSetting']>(async (key, value, expectedRevision) => {
@@ -28,32 +35,21 @@ export function fakeSettingsBackend() {
       return next
     }),
     listProviders: vi.fn<Api['listProviders']>(async () => [...providers]),
-    listProviderPresets: vi.fn<Api['listProviderPresets']>(async () => [
-      { kind: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', models: ['deepseek-flash'] },
-    ]),
     listModels: vi.fn<Api['listModels']>(async () => {
       const list = models()
       return { models: list, defaultModel: list[0] ? { providerId: list[0].providerId, modelId: list[0].modelId } : null }
     }),
     createProvider: vi.fn<Api['createProvider']>(async (input) => {
-      const provider: Provider = {
-        id: `p${nextId++}`,
-        name: input.name,
-        kind: input.kind,
-        api: 'openai-completions',
-        baseUrl: input.baseUrl ?? '',
-        models: input.models,
-        credential: null,
-        createdAt: 1,
-        updatedAt: 1,
-      }
+      if (providers.some((p) => p.id === input.id))
+        throw new ApiError('already-exists', `Provider ID ${input.id} is already in use`, 409, { field: 'id', id: input.id })
+      const provider: Provider = { ...structuredClone(input), credential: null, createdAt: 1, updatedAt: 1 }
       providers.push(provider)
       return provider
     }),
     updateProvider: vi.fn<Api['updateProvider']>(async (id, patch) => {
       const index = providers.findIndex((p) => p.id === id)
       if (index < 0) throw new ApiError('not-found', 'missing', 404)
-      providers[index] = { ...providers[index]!, ...patch }
+      providers[index] = { ...providers[index]!, ...structuredClone(patch) }
       return providers[index]!
     }),
     getPermissions: vi.fn<Api['getPermissions']>(async (workspaceId) => permissionsOf(workspaceId)),
@@ -91,4 +87,20 @@ export function fakeSettingsBackend() {
     return { ok: true, hint: secret.slice(-4) }
   })
   return { api: api as unknown as ApiClient, raw: api, settings, providers, permissions, externalWrite, setCredential }
+}
+
+/** 测试用的 Model Catalog 条目：默认容量、文本输入、推理关闭。 */
+export const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): CatalogModel => ({
+  id,
+  name: '',
+  ...MODEL_CATALOG_DEFAULTS,
+  input: ['text'],
+  reasoning: false,
+  thinkingLevels: [],
+  ...extra,
+})
+
+/** 自定义 Provider 的创建请求；models 给模型 ID 时使用默认能力。 */
+export function customProvider(id: string, models: string[], extra: Partial<CreateProviderRequest> = {}): CreateProviderRequest {
+  return { id, name: id, api: 'openai-completions', baseUrl: 'http://127.0.0.1:9/v1', models: models.map((m) => catalogModel(m)), ...extra }
 }

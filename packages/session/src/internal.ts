@@ -36,6 +36,10 @@ export function notFound(what: string, id: string): StoreError {
   return new StoreError('not-found', `${what} ${id} does not exist`, { [what]: id })
 }
 
+export function alreadyExists(entity: string, id: string): StoreError {
+  return new StoreError('already-exists', `${entity} ${id} already exists`, { entity, id })
+}
+
 export function revisionConflict(key: string, expected: number, actual: number): StoreError {
   return new StoreError('revision-conflict', `setting "${key}" is at revision ${actual}, expected ${expected}`, { key, expected, actual })
 }

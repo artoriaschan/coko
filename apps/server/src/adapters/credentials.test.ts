@@ -3,7 +3,7 @@ import type { MainToSidecarMessage, SidecarToMainMessage } from '@coko/protocol'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import type { ControlChannel } from '../control/channel.ts'
-import { createEnvCredentialStore, createEnvSecretSource, createIpcSecretSource, secretEnvName } from './credentials.ts'
+import { createEnvCredentialStore, createEnvSecretSource, createIpcSecretSource, credentialEnvName, secretEnvName } from './credentials.ts'
 
 describe('Secret 来源（ADR 0007）', () => {
   it('无界面运行：只读 COKO_SECRET_<NAME>，不按名字读 Sidecar 自身环境', async () => {
@@ -50,12 +50,42 @@ describe('Secret 来源（ADR 0007）', () => {
 })
 
 describe('Credential 明文作为按值脱敏来源（ADR 0004）', () => {
-  it('无界面运行：COKO_CREDENTIAL_* 与 Provider kind 的密钥变量都在 cachedValues 中，其他变量不在', () => {
+  it('无界面运行：只有 COKO_CREDENTIAL_* 在 cachedValues 中；按品牌命名的 *_API_KEY 不登记', () => {
     const store = createMemoryStore({ payloads: createPayloadRegistry([]) })
     const credentials = createEnvCredentialStore({
-      env: { COKO_CREDENTIAL_LOCAL: 'local-key-value', DEEPSEEK_API_KEY: 'deepseek-key', PATH: '/usr/bin', COKO_CREDENTIAL_EMPTY: '' },
+      env: {
+        COKO_CREDENTIAL_LOCAL: 'local-key-value',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        OPENAI_API_KEY: 'openai-key',
+        ANTHROPIC_API_KEY: 'anthropic-key',
+        PATH: '/usr/bin',
+        COKO_CREDENTIAL_EMPTY: '',
+      },
       providers: store.providers,
     })
-    expect(credentials.cachedValues().sort()).toEqual(['deepseek-key', 'local-key-value'])
+    expect(credentials.cachedValues()).toEqual(['local-key-value'])
+  })
+})
+
+describe('独立运行的 Credential 来源（ADR 0010）', () => {
+  it('只读 COKO_CREDENTIAL_<PROVIDER_ID>（大写、连字符换成下划线）；不按协议或旧 kind 回退到 *_API_KEY', async () => {
+    const store = createMemoryStore({ payloads: createPayloadRegistry([]) })
+    const model = { id: 'm', name: '', contextWindow: 1000, maxTokens: 100, input: ['text'], reasoning: false, thinkingLevels: [] }
+    for (const [id, api] of [
+      ['custom-provider-1', 'openai-completions'],
+      ['deepseek', 'openai-completions'],
+      ['openai', 'openai-responses'],
+      ['anthropic', 'anthropic-messages'],
+    ] as const) {
+      await store.providers.create({ id, name: id, api, baseUrl: 'https://gateway.example/v1', models: [model] })
+    }
+    const credentials = createEnvCredentialStore({
+      env: { COKO_CREDENTIAL_CUSTOM_PROVIDER_1: 'custom-key-value', DEEPSEEK_API_KEY: 'd', OPENAI_API_KEY: 'o', ANTHROPIC_API_KEY: 'a' },
+      providers: store.providers,
+    })
+    expect(credentialEnvName('custom-provider-1')).toBe('COKO_CREDENTIAL_CUSTOM_PROVIDER_1')
+    expect(await credentials.read('custom-provider-1')).toEqual({ type: 'api_key', key: 'custom-key-value' })
+    for (const id of ['deepseek', 'openai', 'anthropic']) expect(await credentials.read(id)).toBeUndefined()
+    expect(await credentials.list()).toEqual([{ providerId: 'custom-provider-1', type: 'api_key' }])
   })
 })
