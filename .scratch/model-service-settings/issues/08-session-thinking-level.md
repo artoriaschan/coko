@@ -76,3 +76,13 @@
 - `@coko/session`：`Session.thinkingLevel: string`；`setSessionModel(id, model, thinkingLevel?)`，档位缺省或模型为 null 时写 off。票 04 清空模型字段时（`setSessionModel(id, null)` 或 SQL）档位应一并为 off；直接写 SQL 时请同时置 `thinking_level = 'off'`。
 - server：保存的档位在当前目录中已不可选时，DTO 与请求都按 off（`#effectiveLevel`），所以票 06 修改目录后不需要迁移 Session。
 - renderer：`ModelPicker` 新增必填 `thinkingLevel`，`onChange(model, thinkingLevel)`；导出 `levelForModel`。档位项带 `data-thinking-level`。
+
+### 合入记录（ms-merger，2026-10-29）
+
+- 以 `git merge --no-ff ms/08-session-thinking-level` 合入集成分支 model-service，合入提交 b21b7db（票分支 79c784f，基于 aee1e7b），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（538 文件）；`pnpm run format:check` 通过（564 文件）；`pnpm run test` 185 文件，1314 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含全部 desktop-e2e 与产物 smoke；`pnpm run check:docs` 129 文件 0 问题。
+- Spec 评审：对照规格 4.7 与 MS-34、MS-35、MS-36，档位总含 off、推理开关打开才列出已配置档位、新建为 off、与模型一起保存且重启后读回、换到不支持当前档位的模型回到 off、Run 中切换 409、off 按协议默认方式请求，都与 diff 和测试一致。档位与模型一样写在 Session 字段上（`setSessionModel`），不生成单独的条目，与模型切换的现有做法相同。
+- **已知未满足项（不阻塞，留到最终评审）**：Anthropic Messages 的模型没有设 `compat.forceAdaptiveThinking` 时，非 off 档位由 pi-ai 按 budget 思考请求（`thinking: { type: 'enabled', budget_tokens }`），不发送档位配置的参数值；只有 adaptive 模型发送 `output_config.effort`（取配置值）。这与规格 4.7“选择其他档位时发送该档位配置的 API 参数值”不完全一致。本票没有为 Anthropic 的 high 写断言。
+- “供后续票”的约定已转写到票 03、04、05、06、07 的 Comments（标题“来自票 08”）；票 03 中注明了与 08 在 i18n 字典、`fake-settings.ts`、`fixture-chat.ts` 处可能冲突。
+
+Closed: true
