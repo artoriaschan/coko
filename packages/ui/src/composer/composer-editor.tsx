@@ -42,6 +42,8 @@ export interface ComposerEditorProps {
   disabled?: boolean
   className?: string
   ref?: React.Ref<ComposerEditorHandle>
+  /** 编辑器插件（例如 ComposerTypeahead），渲染在同一个 Lexical 上下文中。 */
+  children?: React.ReactNode
 }
 
 /**
@@ -58,7 +60,7 @@ const readText = (editor: LexicalEditor) => editor.getEditorState().read(() => $
  * 基础 composer 编辑区（Lexical 纯文本）：Enter 提交、Shift+Enter 换行，输入法组合期间不提交。
  * 草稿由编辑器自身保存；组件保持挂载即保留草稿与选区。
  */
-export function ComposerEditor({ label, placeholder, onSubmit, onEscape, onEmptyChange, disabled = false, className, ref }: ComposerEditorProps) {
+export function ComposerEditor({ label, placeholder, onSubmit, onEscape, onEmptyChange, disabled = false, className, ref, children }: ComposerEditorProps) {
   const initialConfig = React.useMemo(
     () => ({
       namespace: 'coko-composer',
@@ -92,6 +94,7 @@ export function ComposerEditor({ label, placeholder, onSubmit, onEscape, onEmpty
         />
         <HistoryPlugin />
         <ComposerBridge onSubmit={onSubmit} onEscape={onEscape} onEmptyChange={onEmptyChange} disabled={disabled} handleRef={ref} />
+        {children}
       </div>
     </LexicalComposer>
   )
