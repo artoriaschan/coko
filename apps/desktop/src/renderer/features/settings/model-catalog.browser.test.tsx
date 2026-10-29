@@ -4,7 +4,7 @@ import '../../styles.css'
 import { dictionaries, type Locale } from '@coko/i18n'
 import { toast } from '@coko/ui'
 import { afterEach, expect, it, vi } from 'vitest'
-import { page, userEvent } from 'vitest/browser'
+import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
@@ -63,6 +63,14 @@ const input = (index: number, name: string) => modelRows()[index]!.querySelector
 const fill = (element: HTMLInputElement, value: string) => page.elementLocator(element).fill(value)
 const connection = (name: string) => form().querySelector<HTMLInputElement>(`[name="${name}"]`)!
 
+/** 点击“添加模型”，等新行的模型 ID 获得焦点后填写。 */
+async function addRow(id: string) {
+  await page.elementLocator(form()).getByRole('button', { name: dictionaries.zh.providers.catalog.add, exact: true }).click()
+  const last = modelRows().length - 1
+  await expect.element(page.elementLocator(input(last, 'modelId'))).toHaveFocus()
+  if (id !== '') await fill(input(last, 'modelId'), id)
+}
+
 /** 新建表单中填好连接信息与 Key。 */
 async function fillConnection(id = 'custom-provider-1') {
   await fill(connection('providerId'), id)
@@ -86,7 +94,7 @@ it('连续添加模型：每次在末尾新增一个空行并聚焦模型 ID；�
     expect(input(index, 'modelId').value).toBe('')
     expect(input(index, 'modelName').value).toBe('')
     await expect.element(page.elementLocator(input(index, 'modelId'))).toHaveFocus()
-    await userEvent.keyboard(id)
+    await fill(input(index, 'modelId'), id)
   }
   expect(modelRows().map((_, i) => input(i, 'modelId').value)).toEqual(['custom-model-1', 'custom-model-2', 'custom-model-3'])
   await fill(input(1, 'modelName'), '自定义模型二')
@@ -139,14 +147,11 @@ it('空目录、空模型 ID 或重复 ID 阻止提交并标出出错的行；�
   await expect.poll(() => errorOf(add.element())).toBe('至少添加一个模型')
   await expect.element(add).toHaveFocus()
 
-  await add.click()
+  await addRow('custom-model-1')
   expect(errorOf(add.element())).toBeNull()
-  await userEvent.keyboard('custom-model-1')
-  await add.click()
-  await add.click()
-  await userEvent.keyboard('custom-model-1')
-  await add.click()
-  await userEvent.keyboard('custom-model-2')
+  await addRow('')
+  await addRow('custom-model-1')
+  await addRow('custom-model-2')
   await create.click()
   // 第二行空 ID，第一、三行重复；第四行没有错误。
   await expect.poll(() => errorOf(input(1, 'modelId'))).toBe('请填写模型 ID')
@@ -188,11 +193,7 @@ it('容量：1M 与 128K 按 1000 进制存为 token 整数；0 与最大输出�
   const { dialog, backend } = await openModels('zh')
   await dialog.getByRole('button', { name: '添加模型供应商', exact: true }).click()
   await fillConnection()
-  const add = page.elementLocator(form()).getByRole('button', { name: '添加模型', exact: true })
-  for (const id of ['custom-model-1', 'custom-model-2', 'custom-model-3']) {
-    await add.click()
-    await userEvent.keyboard(id)
-  }
+  for (const id of ['custom-model-1', 'custom-model-2', 'custom-model-3']) await addRow(id)
   await expand(0)
   // 未填时提示默认值 128K / 16K；标准输入 H32。
   expect(input(0, 'contextWindow').placeholder).toBe('128K')

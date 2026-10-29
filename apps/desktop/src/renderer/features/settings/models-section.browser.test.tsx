@@ -88,10 +88,12 @@ it('列表：每个供应商都有编辑与删除，状态点以文字区分已�
 const forms = () => document.querySelectorAll('[role=dialog] [data-provider-form]')
 /** 目录的“添加模型”入口（新增一行并聚焦模型 ID）。 */
 const addModel = () => document.querySelector<HTMLElement>('[role=dialog] [data-provider-form] [data-model-add]')!
-/** 添加一个模型行并填写模型 ID。 */
+/** 添加一个模型行，等新行的模型 ID 获得焦点后填写。 */
 async function addModelRow(id: string) {
   await page.elementLocator(addModel()).click()
-  await userEvent.keyboard(id)
+  const input = page.elementLocator([...document.querySelectorAll<HTMLElement>('[role=dialog] [data-model-row] [name="modelId"]')].at(-1)!)
+  await expect.element(input).toHaveFocus()
+  await input.fill(id)
 }
 const field = (name: string) => document.querySelector<HTMLInputElement>(`[role=dialog] [data-provider-form] [name="${name}"]`)!
 const errorOf = (name: string) => {
@@ -466,6 +468,9 @@ it('编辑目录：修改协议并添加模型后保存，已有模型的能力�
   await row('custom-provider-2').getByRole('button', { name: 'Edit', exact: true }).click()
   await dialog.getByRole('button', { name: 'API protocol', exact: true }).click()
   await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
+  // 菜单关闭动画结束后焦点回到协议按钮；之后再添加模型。
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  await settled()
   await addModelRow('custom-model-3')
   await dialog.getByRole('button', { name: 'Save changes', exact: true }).click()
   await expect.poll(() => forms().length).toBe(0)
