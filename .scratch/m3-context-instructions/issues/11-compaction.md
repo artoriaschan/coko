@@ -18,3 +18,5 @@
 - [ ] context.md、agent README、server README 同步；`pnpm run check:docs` 通过
 
 ## Comments
+- 2026-10-29 lead：来自票 01——ContextContribution 尚无 beforeRequest 字段，压缩无法挂到该接入点。本票可修改 apps/server/src/application/context/types.ts、context/index.ts 与 sessions.ts 中接线 beforeRequest 的最小部分（超出原 Write scope，已授权）。另：package-smoke 尚未传入临时 COKO_HOME，由本票补上；服务端 action 与贡献工具路径目前只在空贡献下运行，本票与票 04 补集成用例。
+

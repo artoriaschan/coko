@@ -17,3 +17,5 @@
 - [ ] commands.md 建立并可达（导航行写在 Comments）；`pnpm run check:docs` 通过
 
 ## Comments
+- 2026-10-29 lead：来自票 01——服务端 action 与贡献工具路径目前只在空贡献下运行，本票为命令贡献补集成用例。
+

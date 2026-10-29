@@ -84,3 +84,6 @@
 - **i18n**：新文案写 `packages/i18n/src/dictionaries/domains/<domain>.ts`（`defineDomain(zh, en)`）；已有 `skills.title`、`mcp.title`、`memory.title` 供分区导航。
 - **设置分区**：在 `features/settings/sections.ts` 中把对应分区改为 `available: true`（本文件归票 01，这一行变更请写进 Comments 由 Lead 合并）；分区组件签名 `({ theme }) => ReactNode`。
 - **harness**：集成 `sidecarDirs()` 返回 `cokoHome`、`writeCokoHome(dirs, relative, content)`；E2E `cokoHomeOf(dir)`、`writeCokoHome(dir, relative, content)`；秘密总闸 `secrets-gate-harness.ts` 的 `marker`、`echoingModelServer`、`recordingClient`、`leaksIn`、`readDir`、`persisted(dirs, { includeCokoHome })`。
+- 2026-10-29 lead：评审后合入 main（d96f519）。接受越界：desktop package.json 与 renderer tsconfig 引用 @coko/agent、所列断言更新（kind 列表、schema 版本 3、cokoHome、index.test.ts 超时）、recovery / checkpoints barrel 改从 entries 导出、en.ts 类型注解、routes/shared.ts 与 routes/index.ts、recovery.md 与 ADR 0006 的过时引用；TECH_STACK 单独一行保留。裁决：ContextContribution 的 beforeRequest 由票 11 补充，允许票 11 修改 context/types.ts、context/index.ts、sessions.ts 中与此相关的最小部分（已记入票 11）。main 上复核（后台任务，避免超时）：install、typecheck、lint、format:check 退出 0；全量 test 116 文件 884 通过、1 跳过（真实模型），无页面重载；check:docs 104 文件 0 问题；sessions.ts 由 768 行降到 473 行。worktree 已清理。
+
+Closed: true
