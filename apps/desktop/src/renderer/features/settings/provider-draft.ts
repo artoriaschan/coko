@@ -1,5 +1,5 @@
 import type { MessageKey } from '@coko/i18n'
-import { PROVIDER_ID_PATTERN, type ModelProtocol, type Provider } from '@coko/protocol'
+import { isHttpUrl, PROVIDER_ID_PATTERN, type ModelProtocol, type Provider } from '@coko/protocol'
 import type { ProviderDraft } from '../../stores/settings-store.ts'
 import { rowsOf, toCatalog, validateCatalog, type CatalogErrors, type ModelRowDraft } from './catalog-draft.ts'
 
@@ -42,14 +42,6 @@ export const isDirty = (draft: FormDraft, initial: FormDraft) =>
   (Object.keys(initial) as (keyof FormDraft)[]).some((key) =>
     key === 'models' ? catalogContent(draft.models) !== catalogContent(initial.models) : draft[key] !== initial[key],
   )
-
-const isHttpUrl = (text: string) => {
-  try {
-    return ['http:', 'https:'].includes(new URL(text).protocol)
-  } catch {
-    return false
-  }
-}
 
 /** 提交前的字段校验（规格 4.2–4.5）：ID 格式与重复只在新建时检查；新建必须带 Key；目录不能为空，行的错误标在对应行。 */
 export function validateDraft(draft: FormDraft, { isNew, takenIds }: { isNew: boolean; takenIds: readonly string[] }): DraftErrors {

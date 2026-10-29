@@ -1,3 +1,4 @@
+import { isHttpUrl } from './base-url.ts'
 import type { ModelProtocol } from './registry.ts'
 
 // 模型列表适配：按协议请求供应商的模型列表，只取模型 ID（ADR 0010 获取可用模型）。时限、按值脱敏与 Key 的来源由宿主负责；
@@ -72,13 +73,8 @@ const networkCause = (error: unknown): string => {
  */
 export async function listProviderModels(options: ListProviderModelsOptions): Promise<string[]> {
   const { api, key, signal } = options
-  let base: URL
-  try {
-    base = new URL(options.baseUrl)
-  } catch {
-    throw new ListModelsError('bad-request', 'API address is not a valid URL')
-  }
-  if (base.protocol !== 'http:' && base.protocol !== 'https:') throw new ListModelsError('bad-request', 'API address must be an http or https URL')
+  if (!isHttpUrl(options.baseUrl)) throw new ListModelsError('bad-request', 'API address must be an http or https URL')
+  const base = new URL(options.baseUrl)
 
   const ids: string[] = []
   let after: string | undefined

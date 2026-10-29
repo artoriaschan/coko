@@ -1,6 +1,6 @@
 import { listProviderModels, ListModelsError, type CredentialStore, type ListModelsErrorCode, type ModelProtocol } from '@coko/agent'
 import { getLogger, redactText, registerSecretValues, REDACTED } from '@coko/logging'
-import type { MainToSidecarMessage, ProviderModelsErrorCode, SidecarToMainMessage } from '@coko/protocol'
+import { PROVIDER_MODELS_TIMEOUT_MS, type MainToSidecarMessage, type ProviderModelsErrorCode, type SidecarToMainMessage } from '@coko/protocol'
 
 // 获取可用模型的 Sidecar 一侧（ADR 0010）：装配 packages/agent 的模型列表适配，加上时限与按值脱敏。Key 只用于这一次请求：
 // 请求期间登记为按值脱敏的值，错误文本中的回显被替换；不缓存、不落库。
@@ -8,9 +8,6 @@ import type { MainToSidecarMessage, ProviderModelsErrorCode, SidecarToMainMessag
 // agent 的失败种类都是协议错误码；agent 增加了协议没有的种类时，这里编译失败。
 type Assert<T extends true> = T
 export type ListModelsCodesAreProtocolCodes = Assert<ListModelsErrorCode extends ProviderModelsErrorCode ? true : false>
-
-/** 获取模型的默认时限（规格：15 秒未返回视为失败）。 */
-export const PROVIDER_MODELS_TIMEOUT_MS = 15_000
 
 export class ProviderModelsError extends Error {
   override readonly name = 'ProviderModelsError'

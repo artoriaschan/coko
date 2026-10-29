@@ -1,15 +1,20 @@
 import { Value } from 'typebox/value'
-import { createRequestTracker, MainProviderModels, RequestTimeoutError, type SidecarProviderModelsResult } from '@coko/protocol'
+import {
+  createRequestTracker,
+  MainProviderModels,
+  MAX_CREDENTIAL_LENGTH,
+  PROVIDER_MODELS_TIMEOUT_MS,
+  RequestTimeoutError,
+  type SidecarProviderModelsResult,
+} from '@coko/protocol'
 import type { FetchProviderModelsErrorCode, FetchProviderModelsResult } from '../shared/bridge.ts'
 import type { SidecarControlChannel } from './control-channel.ts'
 
 // 获取可用模型的 main 一侧（ADR 0010）：renderer 交来的请求在这里校验，经 provider.models 控制消息请 Sidecar 请求供应商的模型列表。
 // 表单中的 Key 以明文随这一次请求交给 Sidecar，不加密、不保存、不写日志；编辑时 Key 留空只带 Provider ID（Sidecar 用已保存的 Credential）。
 
-/** 获取模型的时限（规格：15 秒未返回视为失败）。 */
-const DEFAULT_TIMEOUT_MS = 15_000
-const MAX_SECRET_LENGTH = 4096
 const MAX_REQUEST_KEY_LENGTH = 128
+const KEY_RULE = `API key must be 1–${MAX_CREDENTIAL_LENGTH} characters without whitespace`
 
 export interface ProviderModelsBridge {
   /** renderer 的输入未经信任：先校验，再发送。 */
@@ -34,7 +39,7 @@ function parseInput(input: unknown): Request | FetchProviderModelsResult {
   if (typeof requestKey !== 'string' || requestKey === '' || requestKey.length > MAX_REQUEST_KEY_LENGTH) return invalid
   if (secret !== undefined && typeof secret !== 'string') return invalid
   const key = typeof secret === 'string' ? secret.trim() : ''
-  if (key.length > MAX_SECRET_LENGTH || /\s/.test(key)) return failure('invalid-input', 'API key must be 1–4096 characters without whitespace')
+  if (key.length > MAX_CREDENTIAL_LENGTH || /\s/.test(key)) return failure('invalid-input', KEY_RULE)
   const message = { type: 'provider.models', api, baseUrl, ...(providerId === undefined ? {} : { providerId }), ...(key === '' ? {} : { secret: key }) }
   if (!Value.Check(MainProviderModels, { ...message, requestId: 1 })) return invalid
   if (key === '' && providerId === undefined) return failure('invalid-input', 'An API key is required')
@@ -43,7 +48,7 @@ function parseInput(input: unknown): Request | FetchProviderModelsResult {
 
 export function createProviderModelsBridge(options: { channel: SidecarControlChannel; timeoutMs?: number }): ProviderModelsBridge {
   const { channel } = options
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const timeoutMs = options.timeoutMs ?? PROVIDER_MODELS_TIMEOUT_MS
   const results = createRequestTracker<SidecarProviderModelsResult>({ timeoutMs, timeoutMessage: (ms) => `The provider did not respond within ${ms} ms` })
   /** requestKey → 进行中的 requestId 与取消。 */
   const inflight = new Map<string, { requestId: number; controller: AbortController }>()

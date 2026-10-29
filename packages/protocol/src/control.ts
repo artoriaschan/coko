@@ -122,6 +122,11 @@ export const MainProviderSave = Type.Object(
 )
 export type MainProviderSave = Static<typeof MainProviderSave>
 
+/** Provider Key 的长度上限（保存与获取模型共用；main 校验与控制消息 schema 都用它）。 */
+export const MAX_CREDENTIAL_LENGTH = 4096
+/** 获取可用模型的时限（规格 4.6：15 秒未返回视为失败）；main 与 Sidecar 都用它。 */
+export const PROVIDER_MODELS_TIMEOUT_MS = 15 * 1000
+
 /**
  * 获取可用模型（ADR 0010）：按表单中的协议与地址请求供应商的模型列表。secret 是表单中填写的明文 Key，只用于这一次请求，
  * 不加密、不落库、不进入 CredentialStore 缓存；没有 secret 时用 providerId 已保存的 Credential（编辑且 Key 留空）。
@@ -133,7 +138,7 @@ export const MainProviderModels = Type.Object(
     api: ModelProtocol,
     baseUrl: Type.String({ minLength: 1, maxLength: 2048 }),
     providerId: Type.Optional(ProviderId),
-    secret: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    secret: Type.Optional(Type.String({ minLength: 1, maxLength: MAX_CREDENTIAL_LENGTH })),
   },
   strict,
 )

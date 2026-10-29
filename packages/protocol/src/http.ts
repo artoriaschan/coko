@@ -120,6 +120,16 @@ export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
 /** Provider ID 由用户输入并作为主键：小写字母开头，后接小写字母、数字或连字符，总长 1–64；创建后不可修改。 */
 export const PROVIDER_ID_PATTERN = '^[a-z][a-z0-9-]{0,63}$'
+
+/** Provider 的 API 地址须为 http 或 https URL（新建、编辑与获取模型共用）。 */
+export function isHttpUrl(text: string): boolean {
+  try {
+    const { protocol } = new URL(text)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 export const ProviderId = Type.String({ pattern: PROVIDER_ID_PATTERN })
 
 /** Provider 保存的协议；与 @coko/agent 的 MODEL_PROTOCOLS 一致（apps/server/src/application/providers.ts 中有编译期断言）。 */

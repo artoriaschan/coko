@@ -13,6 +13,7 @@ import {
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import { isHttpUrl } from './base-url.ts'
 
 /** Wire protocols Coko supports; each Provider stores one of them. */
 export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
@@ -85,13 +86,7 @@ function thinkingLevelMap(levels: readonly ThinkingLevelSpec[]): ThinkingLevelMa
 }
 
 function checkBaseUrl(config: ProviderConfig): void {
-  let protocol: string
-  try {
-    protocol = new URL(config.baseUrl).protocol
-  } catch {
-    protocol = ''
-  }
-  if (protocol !== 'http:' && protocol !== 'https:') throw new ModelConfigError(`Provider "${config.id}" needs an http or https baseUrl`)
+  if (!isHttpUrl(config.baseUrl)) throw new ModelConfigError(`Provider "${config.id}" needs an http or https baseUrl`)
 }
 
 function checkModel(config: ProviderConfig, spec: ModelSpec): void {

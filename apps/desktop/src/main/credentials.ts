@@ -1,5 +1,5 @@
 import { Value } from 'typebox/value'
-import { createRequestTracker, ProviderFields, ProviderSaveMode, RequestTimeoutError, type MainProviderSave } from '@coko/protocol'
+import { createRequestTracker, MAX_CREDENTIAL_LENGTH, ProviderFields, ProviderSaveMode, RequestTimeoutError, type MainProviderSave } from '@coko/protocol'
 import type { ProviderSaveErrorCode, SaveProviderResult } from '../shared/bridge.ts'
 import type { SidecarControlChannel } from './control-channel.ts'
 
@@ -19,7 +19,6 @@ export interface CredentialBridge {
   saveProvider(input: unknown): Promise<SaveProviderResult>
 }
 
-const MAX_SECRET_LENGTH = 4096
 /** 提示只取末四位；更短的密钥露出四位就泄露了大半，不给提示。 */
 const MIN_HINT_SOURCE = 8
 
@@ -45,7 +44,8 @@ function parseInput(input: unknown): { mode: ProviderSaveMode; provider: Provide
   }
   if (typeof secret !== 'string') return failure('invalid-input', 'API key must be a string')
   const key = secret.trim()
-  if (key === '' || key.length > MAX_SECRET_LENGTH || /\s/.test(key)) return failure('invalid-input', 'API key must be 1–4096 characters without whitespace')
+  if (key === '' || key.length > MAX_CREDENTIAL_LENGTH || /\s/.test(key))
+    return failure('invalid-input', `API key must be 1–${MAX_CREDENTIAL_LENGTH} characters without whitespace`)
   return { mode, provider, secret: key }
 }
 
