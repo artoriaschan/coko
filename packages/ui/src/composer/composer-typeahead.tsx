@@ -20,6 +20,7 @@ import {
 import { Popper } from 'radix-ui/internal'
 import * as React from 'react'
 import { createPortal } from 'react-dom'
+import { menuSurface } from '../components/dropdown-menu.tsx'
 import { cn } from '../lib/utils.ts'
 
 export interface ComposerTypeaheadItem {
@@ -136,9 +137,7 @@ function $replaceToken(node: TextNode | null, trigger: string, position: Compose
   inserted.select()
 }
 
-// 菜单材质与项几何同 dropdown-menu（components/dropdown-menu.tsx）：外框 R16、内边距 4px、项 R12，背景 --menu-fill，模糊在 ::before 层。
-const menuSurface =
-  'relative isolate z-50 rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
+// 菜单材质来自 dropdown-menu；项几何同其菜单项（R12、高 32px 起）。
 const menuItem = 'flex min-h-8 cursor-default items-center gap-2 rounded-md px-2 py-1 text-ui-body outline-hidden select-none'
 
 /**
@@ -154,6 +153,16 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
   const current = React.useRef<{ key: string; leadOffset: number } | null>(null)
   const open = React.useRef(false)
   const blurred = React.useRef(false)
+  // 插件在挂载时就把一个空的 listbox 容器（英文名称 "Typeahead menu"）挂到 body。菜单关闭时（每次渲染检查）容器对辅助技术隐藏并使用
+  // 已本地化的名称；打开时由 TypeaheadMenu 维护（插件以行内 display: block 显示容器，hidden 属性不起作用，因此用 aria-hidden）。
+  const anchorClass = `coko-typeahead-${React.useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  React.useLayoutEffect(() => {
+    for (const container of document.getElementsByClassName(anchorClass)) {
+      if (container.childElementCount > 0) continue
+      container.setAttribute('aria-hidden', 'true')
+      container.setAttribute('aria-label', label)
+    }
+  })
   const latest = React.useRef({ getItems, trigger, position, onFocus })
   React.useLayoutEffect(() => {
     latest.current = { getItems, trigger, position, onFocus }
@@ -243,13 +252,14 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
       }}
       // 高于 ComposerEditor 的 Enter 提交与 Esc（HIGH）。
       commandPriority={COMMAND_PRIORITY_CRITICAL}
+      anchorClassName={anchorClass}
       menuRenderFn={(anchor, { options, selectedIndex, selectOptionAndCleanUp, setHighlightedIndex }) =>
         anchor.current && options.length > 0
           ? createPortal(
               <TypeaheadMenu
                 container={anchor.current}
-                editor={editor}
                 label={label}
+                editor={editor}
                 className={className}
                 groups={groups}
                 options={options}
@@ -267,8 +277,8 @@ export function ComposerTypeahead({ trigger, position, getItems, groups, onSelec
 
 function TypeaheadMenu({
   container,
-  editor,
   label,
+  editor,
   className,
   groups,
   options,
@@ -277,8 +287,8 @@ function TypeaheadMenu({
   onChoose,
 }: {
   container: HTMLElement
-  editor: LexicalEditor
   label: string
+  editor: LexicalEditor
   className: string | undefined
   groups: readonly ComposerTypeaheadGroup[]
   options: TypeaheadOption[]
@@ -286,14 +296,15 @@ function TypeaheadMenu({
   onHighlight: (index: number) => void
   onChoose: (option: TypeaheadOption) => void
 }) {
-  // 插件建立的容器是 listbox（aria-controls 指向它），每次重新挂上时把名称写回英文默认值；保持为已本地化的文案。
+  // 插件建立的容器是 listbox（aria-controls 指向它），每次重新挂上时把名称写回英文默认值；保持为已本地化的文案并对辅助技术可见。
   React.useLayoutEffect(() => {
     const apply = () => {
       if (container.getAttribute('aria-label') !== label) container.setAttribute('aria-label', label)
+      if (container.hasAttribute('aria-hidden')) container.removeAttribute('aria-hidden')
     }
     apply()
     const observer = new MutationObserver(apply)
-    observer.observe(container, { attributes: true, attributeFilter: ['aria-label'] })
+    observer.observe(container, { attributes: true, attributeFilter: ['aria-label', 'aria-hidden'] })
     return () => observer.disconnect()
   }, [container, label])
   const anchor = React.useRef<{ getBoundingClientRect(): DOMRect }>({

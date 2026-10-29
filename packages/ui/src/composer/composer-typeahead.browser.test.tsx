@@ -35,7 +35,8 @@ async function setup() {
 
 const editor = () => page.getByRole('textbox', { name: 'Task' })
 const root = () => editor().element() as HTMLElement
-const menu = () => document.querySelector<HTMLElement>('[role="listbox"][aria-label="Commands"]')
+/** 打开的菜单（关闭时插件的空容器仍在 body 中，aria-hidden）。 */
+const menu = () => document.querySelector<HTMLElement>('[role="listbox"][aria-label="Commands"]:not([aria-hidden="true"])')
 const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')]
 const selected = () => options().find((o) => o.getAttribute('aria-selected') === 'true')?.textContent ?? null
 const text = () => root().textContent

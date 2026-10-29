@@ -7,7 +7,8 @@ import { cn } from '../lib/utils.ts'
 // - 标准菜单外框 R16、内边距 4px、项 R12；抬升用 shadow-panel，无中性边框。
 // - 菜单材质：背景 --menu-fill，模糊放在 ::before 层，避免菜单成为 fixed 后代的包含块。
 // - 业务与平台样式不覆盖菜单背景与模糊。
-const menuSurface =
+/** 菜单材质（composer 的 typeahead 菜单同样使用）。 */
+export const menuSurface =
   'relative isolate z-50 rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
 
 const menuMotion =
