@@ -54,6 +54,20 @@ describeRepositoryContract('SQLite 实现', async (options) => {
 })
 
 describe('SQLite 打开与持久化', () => {
+  it('库中不是七档之一的 Thinking Level 读回为 off', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const first = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
+    const workspace = await first.sessions.registerWorkspace({ path: '/w' })
+    const session = await first.sessions.createSession({ workspaceId: workspace.id, model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })
+    await first.close()
+    const raw = new DatabaseSync(path)
+    raw.prepare("UPDATE sessions SET thinking_level = 'turbo' WHERE id = ?").run(session.id)
+    raw.close()
+    const store = await openIn(dir)
+    expect((await store.sessions.getSession(session.id))?.thinkingLevel).toBe('off')
+  })
+
   it('新库以 0600 创建并迁移到当前版本，无需备份', async () => {
     const dir = await tempDir()
     const store = await openIn(dir)
@@ -100,8 +114,14 @@ describe('SQLite 打开与持久化', () => {
     ])
     await first.sessions.appendEntries(session.id, [{ kind: 'tool-result', payload: { ok: true }, runId: 'r1' }])
     await first.settings.set('theme', 'dark', 0)
-    const provider = await first.providers.create({ name: 'P', kind: 'openai', api: 'openai-responses', baseUrl: 'https://x', models: ['m'] })
-    await first.providers.setCredential(provider.id, { ciphertext: new Uint8Array([9, 8, 7]), hint: '7777' })
+    const provider = await first.providers.create({
+      id: 'custom-provider-1',
+      name: 'P',
+      api: 'openai-responses',
+      baseUrl: 'https://x',
+      models: [{ id: 'm', input: ['text', 'image'], thinkingLevels: [{ level: 'off' }] }],
+    })
+    const savedProvider = await first.providers.setCredential(provider.id, { ciphertext: new Uint8Array([9, 8, 7]), hint: '7777' })
     const savedSession = await first.sessions.getSession(session.id)
     await first.close()
 
@@ -118,8 +138,31 @@ describe('SQLite 打开与持久化', () => {
     expect(entries.slice(0, 2)).toEqual(committed)
     expect((await second.sessions.appendEntries(session.id, [{ kind: 'assistant-message', payload: 'done' }]))[0]?.seq).toBe(4)
     expect(await second.settings.get('theme')).toMatchObject({ value: 'dark', revision: 1 })
+    expect(await second.providers.list()).toEqual([savedProvider])
     expect((await second.providers.get(provider.id))?.credential).toEqual({ hint: '7777' })
     expect(Array.from((await second.providers.getCredentialCiphertext(provider.id)) ?? [])).toEqual([9, 8, 7])
+  })
+})
+
+describe('SQLite 一次存储', () => {
+  it('Credential 写入失败时整个事务回滚：Provider 新建与修改都不落库，原 Credential 不变', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'coko.db')
+    const store = await openIn(dir)
+    const input = { id: 'custom-provider-1', name: '一', api: 'openai-completions', baseUrl: 'https://a.example/v1', models: [{ id: 'm' }] }
+    const existing = await store.providers.create({ ...input, id: 'custom-provider-0' }, { ciphertext: new Uint8Array([1]), hint: 'aaaa' })
+    // 另一连接装一个让密文写入失败的触发器（模拟磁盘或约束错误发生在 Provider 写入之后）。
+    const raw = new DatabaseSync(path)
+    try {
+      raw.exec(`CREATE TRIGGER fail_credential BEFORE INSERT ON provider_credentials WHEN NEW.hint = 'boom' BEGIN SELECT RAISE(ABORT, 'disk full'); END;
+        CREATE TRIGGER fail_credential_update BEFORE UPDATE ON provider_credentials WHEN NEW.hint = 'boom' BEGIN SELECT RAISE(ABORT, 'disk full'); END;`)
+    } finally {
+      raw.close()
+    }
+    await expect(store.providers.create(input, { ciphertext: new Uint8Array([2]), hint: 'boom' })).rejects.toThrow('disk full')
+    await expect(store.providers.update(existing.id, { name: '改' }, { ciphertext: new Uint8Array([3]), hint: 'boom' })).rejects.toThrow('disk full')
+    expect(await store.providers.list()).toEqual([existing])
+    expect(Array.from((await store.providers.getCredentialCiphertext(existing.id)) ?? [])).toEqual([1])
   })
 })
 

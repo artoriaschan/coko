@@ -35,7 +35,7 @@ export function useSettingsActions(): SettingsActions {
 export function useSettingsDialog() {
   const { dialog } = useSettingsContext()
   const state = React.useSyncExternalStore(dialog.subscribe, dialog.getSnapshot)
-  return { ...state, show: dialog.show, setSection: dialog.setSection, close: dialog.close }
+  return { ...state, show: dialog.show, setSection: dialog.setSection, close: dialog.close, setLeaveGuard: dialog.setLeaveGuard }
 }
 
 export function usePreferences(): Preferences {

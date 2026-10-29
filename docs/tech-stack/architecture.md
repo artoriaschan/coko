@@ -89,7 +89,7 @@ renderer 通过 HTTP 提交命令、通过 WebSocket 订阅业务事件。server
 
 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动自身可执行文件运行 sidecar，经 Node IPC 等待就绪。renderer 通过 `coko-app://` 协议加载，HTTP 与 WebSocket 由 main 代为附加认证凭据，preload 不暴露令牌或 cookie。窗口、原生对话框、更新和日志转发使用受控 IPC；业务会话与 Agent 执行通过服务协议处理。
 
-sidecar 的 HTTP 路由都在 `/api` 下，renderer 以同源相对路径请求，由 `coko-app://app` 转发；令牌交换入口只供 main 调用，代理对 renderer 返回 404。renderer 经 preload 的 boot IPC 取得 WebSocket 基址（`ws://127.0.0.1:<port>`）、平台与 locale，boot 在 sidecar 就绪并完成令牌交换后返回。Credential 经 preload 的 setCredential IPC 交给 main，由 safeStorage 加密后经控制 IPC 存入 sidecar，不经 HTTP（[ADR 0004](../adr/0004-model-credentials-safe-storage.md)）。退出前 main 经控制 IPC 的 inspect-quit 询问活动 Run 数，2 秒内未回答按"可能有活动 Run"弹确认框，确认后再进入分级退出。
+sidecar 的 HTTP 路由都在 `/api` 下，renderer 以同源相对路径请求，由 `coko-app://app` 转发；令牌交换入口只供 main 调用，代理对 renderer 返回 404。renderer 经 preload 的 boot IPC 取得 WebSocket 基址（`ws://127.0.0.1:<port>`）、平台与 locale，boot 在 sidecar 就绪并完成令牌交换后返回。Provider 草稿与 Credential 经 preload 的 saveProvider IPC 交给 main，由 safeStorage 加密 Key 后经一条控制消息 provider.save 一次存入 sidecar，不经 HTTP；获取可用模型经 preload 的 fetchProviderModels IPC 交给 main，再经控制消息 provider.models 由 sidecar 请求供应商，表单中的 Key 只用于这一次请求（[ADR 0004](../adr/0004-model-credentials-safe-storage.md)、[ADR 0010](../adr/0010-provider-one-shot-save.md)）。退出前 main 经控制 IPC 的 inspect-quit 询问活动 Run 数，2 秒内未回答按"可能有活动 Run"弹确认框，确认后再进入分级退出。
 
 ### 本地服务访问认证
 

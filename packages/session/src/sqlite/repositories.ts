@@ -1,16 +1,15 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
-import { defaultWorkspaceName, notFound, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
+import { alreadyExists, defaultWorkspaceName, levelOf, notFound, parseLevel, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
+  CredentialRecord,
   JsonValue,
   NewSessionEntry,
   Provider,
-  ProviderInput,
   ProviderRepository,
   Session,
   SessionEntry,
-  SessionModel,
   SessionRepository,
   Setting,
   SettingsRepository,
@@ -31,6 +30,8 @@ interface SessionRow {
   title: string
   model_provider_id: string | null
   model_id: string | null
+  thinking_level: string
+  model_cleared: number
   created_at: number
   updated_at: number
 }
@@ -52,7 +53,6 @@ interface SettingRow {
 interface ProviderRow {
   id: string
   name: string
-  kind: string
   api: string
   base_url: string
   models: string
@@ -67,6 +67,8 @@ const toSession = (r: SessionRow): Session => ({
   workspaceId: r.workspace_id,
   title: r.title,
   model: r.model_provider_id !== null && r.model_id !== null ? { providerId: r.model_provider_id, modelId: r.model_id } : null,
+  thinkingLevel: parseLevel(r.thinking_level),
+  modelCleared: r.model_cleared === 1,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -90,10 +92,9 @@ const toSetting = (r: SettingRow): Setting => ({ key: r.key, value: JSON.parse(r
 const toProvider = (r: ProviderRow): Provider => ({
   id: r.id,
   name: r.name,
-  kind: r.kind,
   api: r.api,
   baseUrl: r.base_url,
-  models: JSON.parse(r.models) as string[],
+  models: JSON.parse(r.models) as JsonValue[],
   credential: r.hint === null ? null : { hint: r.hint },
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -102,8 +103,8 @@ const toProvider = (r: ProviderRow): Provider => ({
 // 同步 DatabaseSync 调用包成 Promise：同步错误转为 rejection。
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
-const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, created_at, updated_at FROM sessions'
-const PROVIDER_SELECT = `SELECT p.id, p.name, p.kind, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
+const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, created_at, updated_at FROM sessions'
+const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
 export function createSessionRepository(conn: Connection, payloads: Pick<StoreOptions, 'payloads' | 'onInvalidEntry'>): SessionRepository {
@@ -142,12 +143,13 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           const model = input.model ?? null
           const id = randomUUID()
           conn.run(
-            'INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             input.workspaceId,
             input.title ?? '',
             model?.providerId ?? null,
             model?.modelId ?? null,
+            levelOf(input),
             at,
             at,
           )
@@ -179,14 +181,15 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return toSession(requireSession(id))
         }),
       ),
-    setSessionModel: (id, model: SessionModel | null) =>
+    setSessionModel: (id, choice) =>
       later(() =>
         conn.write(() => {
           requireSession(id)
           conn.run(
-            'UPDATE sessions SET model_provider_id = ?, model_id = ?, updated_at = ? WHERE id = ?',
-            model?.providerId ?? null,
-            model?.modelId ?? null,
+            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, model_cleared = 0, updated_at = ? WHERE id = ?',
+            choice.model?.providerId ?? null,
+            choice.model?.modelId ?? null,
+            levelOf(choice),
             conn.now(),
             id,
           )
@@ -286,6 +289,16 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
     return row
   }
   const touch = (id: string) => conn.run('UPDATE providers SET updated_at = ? WHERE id = ?', conn.now(), id)
+  /** 写入或替换密文；调用方已在写事务中。 */
+  const putCredential = (id: string, credential: CredentialRecord, at: number) =>
+    conn.run(
+      `INSERT INTO provider_credentials (provider_id, ciphertext, hint, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(provider_id) DO UPDATE SET ciphertext = excluded.ciphertext, hint = excluded.hint, updated_at = excluded.updated_at`,
+      id,
+      credential.ciphertext,
+      credential.hint,
+      at,
+    )
 
   return {
     list: () => later(() => conn.read(() => conn.all<ProviderRow>(`${PROVIDER_SELECT} ORDER BY p.created_at, p.rowid`).map(toProvider))),
@@ -296,63 +309,84 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           return row ? toProvider(row) : undefined
         }),
       ),
-    create: (input: ProviderInput) =>
+    create: (input, credential) =>
       later(() =>
         conn.write(() => {
-          const id = randomUUID()
+          const id = input.id
+          if (select(id)) throw alreadyExists('provider', id)
           const at = conn.now()
           conn.run(
-            'INSERT INTO providers (id, name, kind, api, base_url, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO providers (id, name, api, base_url, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             id,
             input.name,
-            input.kind,
             input.api,
             input.baseUrl,
             JSON.stringify(input.models),
             at,
             at,
           )
+          if (credential) putCredential(id, credential, at)
           return toProvider(requireProvider(id))
         }),
       ),
-    update: (id, patch) =>
+    update: (id, patch, credential) =>
       later(() =>
         conn.write(() => {
           const current = toProvider(requireProvider(id))
-          const next = { ...current, ...patch }
+          const next = { ...current, ...patch, id }
+          const at = conn.now()
           conn.run(
-            'UPDATE providers SET name = ?, kind = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
+            'UPDATE providers SET name = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
             next.name,
-            next.kind,
             next.api,
             next.baseUrl,
             JSON.stringify(next.models),
-            conn.now(),
+            at,
             id,
           )
+          if (credential) putCredential(id, credential, at)
           return toProvider(requireProvider(id))
         }),
       ),
-    delete: (id) =>
+    references: (id) =>
+      later(() =>
+        conn.read(() => {
+          requireProvider(id)
+          return { sessions: conn.get<{ n: number }>('SELECT COUNT(*) AS n FROM sessions WHERE model_provider_id = ?', id)!.n }
+        }),
+      ),
+    delete: (id, options) =>
       later(() =>
         conn.write(() => {
           requireProvider(id)
+          // provider_credentials 随 ON DELETE CASCADE 删除。
           conn.run('DELETE FROM providers WHERE id = ?', id)
+          const sessions = conn.run(
+            "UPDATE sessions SET model_provider_id = NULL, model_id = NULL, thinking_level = 'off', model_cleared = 1 WHERE model_provider_id = ?",
+            id,
+          )
+          // 设置的改写由调用方给出；条件在本事务中求值，抛出时整个删除回滚。
+          const rewritten: string[] = []
+          for (const rewrite of options?.settings ?? []) {
+            const row = conn.get<SettingRow>('SELECT key, value, revision, updated_at FROM settings WHERE key = ?', rewrite.key)
+            if (!row || !rewrite.when(JSON.parse(row.value) as JsonValue)) continue
+            conn.run(
+              'UPDATE settings SET value = ?, revision = ?, updated_at = ? WHERE key = ?',
+              JSON.stringify(rewrite.value),
+              row.revision + 1,
+              conn.now(),
+              rewrite.key,
+            )
+            rewritten.push(rewrite.key)
+          }
+          return { sessions, settings: rewritten }
         }),
       ),
     setCredential: (id, credential) =>
       later(() =>
         conn.write(() => {
           requireProvider(id)
-          const at = conn.now()
-          conn.run(
-            `INSERT INTO provider_credentials (provider_id, ciphertext, hint, updated_at) VALUES (?, ?, ?, ?)
-             ON CONFLICT(provider_id) DO UPDATE SET ciphertext = excluded.ciphertext, hint = excluded.hint, updated_at = excluded.updated_at`,
-            id,
-            credential.ciphertext,
-            credential.hint,
-            at,
-          )
+          putCredential(id, credential, conn.now())
           touch(id)
           return toProvider(requireProvider(id))
         }),

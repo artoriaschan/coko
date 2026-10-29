@@ -17,11 +17,28 @@ export interface SessionModel {
   modelId: string
 }
 
+/** 七档 Thinking Level，顺序固定（与 @coko/protocol 的 ThinkingLevel 相同；apps/server 编译期比对）。 */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
+
+/** 一起写入 Session 的模型与 Thinking Level；model 为 null 或未给档位时档位为 off。 */
+export interface SessionModelChoice {
+  model: SessionModel | null
+  thinkingLevel?: ThinkingLevel
+}
+
 export interface Session {
   id: string
   workspaceId: string
   title: string
   model: SessionModel | null
+  /** 与模型一起保存的 Thinking Level；新建默认 off，清空模型时回到 off。库中不是七档之一的值读回为 off。 */
+  thinkingLevel: ThinkingLevel
+  /**
+   * 模型字段被清空（Provider 被删除或升级时清除）：宿主在下次运行前要求重新选择模型。从未设置模型时为 false；
+   * setSessionModel 后为 false。
+   */
+  modelCleared: boolean
   createdAt: number
   /** 创建、追加条目、改标题或换模型时更新；列表按它倒序。 */
   updatedAt: number
@@ -56,12 +73,13 @@ export interface SessionRepository {
   listWorkspaces(): Promise<Workspace[]>
   getWorkspace(id: string): Promise<Workspace | undefined>
   /** Workspace 不存在时以 not-found 拒绝。 */
-  createSession(input: { workspaceId: string; title?: string; model?: SessionModel | null }): Promise<Session>
+  createSession(input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>): Promise<Session>
   /** 按 updatedAt 倒序；给出 workspaceId 时只列该 Workspace。 */
   listSessions(filter?: { workspaceId?: string }): Promise<Session[]>
   getSession(id: string): Promise<Session | undefined>
   setSessionTitle(id: string, title: string): Promise<Session>
-  setSessionModel(id: string, model: SessionModel | null): Promise<Session>
+  /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */
+  setSessionModel(id: string, choice: SessionModelChoice): Promise<Session>
   /**
    * 一个事务内提交全部条目；返回时已提交，返回值是写入时的原样记录。Session 不存在时以 not-found 拒绝；
    * 任一条目不合注册的 schema 时以 invalid-payload 拒绝，整批不提交。
@@ -89,33 +107,66 @@ export interface SettingsRepository {
   set(key: string, value: JsonValue, expectedRevision: number): Promise<Setting>
 }
 
+/** Provider 配置；字段取值（ID 格式、协议、Model Catalog 的结构）由协议层与宿主校验，session 原样保存。 */
 export interface ProviderInput {
+  /** 调用方给出的主键（用户输入的 Provider ID），创建后不可修改。 */
+  id: string
   name: string
-  /** 预设类别，例如 deepseek、openai、anthropic、openai-compatible；取值由协议层校验。 */
-  kind: string
   /** 模型协议，例如 openai-completions、openai-responses、anthropic-messages。 */
   api: string
   baseUrl: string
-  models: string[]
+  /** Model Catalog：每个模型的配置，按 JSON 保存并原样读回。 */
+  models: JsonValue[]
 }
 
 /** Provider 配置；不含 Credential 密文，只给出是否已配置与提示（末四位）。 */
 export interface Provider extends ProviderInput {
-  id: string
   credential: { hint: string } | null
   createdAt: number
   updatedAt: number
 }
 
+/** main 加密后的 Credential 密文与末四位提示；明文不经过 session。 */
+export interface CredentialRecord {
+  ciphertext: Uint8Array
+  hint: string
+}
+
+export interface ProviderReferences {
+  sessions: number
+}
+
+/**
+ * 删除 Provider 时在同一事务中改写的一项设置：键存在且 when(当前值) 为 true 时写入 value（revision 加 1）。设置的业务含义由
+ * 调用方定义；when 在事务中同步调用，抛出时整个删除回滚。
+ */
+export interface SettingRewrite {
+  key: string
+  when: (value: JsonValue) => boolean
+  value: JsonValue
+}
+
+export interface ProviderDeleted extends ProviderReferences {
+  /** 被改写的设置键。 */
+  settings: string[]
+}
+
 export interface ProviderRepository {
   list(): Promise<Provider[]>
   get(id: string): Promise<Provider | undefined>
-  create(input: ProviderInput): Promise<Provider>
-  update(id: string, patch: Partial<ProviderInput>): Promise<Provider>
-  /** 同时删除其 Credential 密文。 */
-  delete(id: string): Promise<void>
+  /** ID 已被使用时以 already-exists 拒绝，已有记录不变。给出 credential 时与配置在同一事务中写入（ADR 0010）。 */
+  create(input: ProviderInput, credential?: CredentialRecord): Promise<Provider>
+  /** ID 不可修改。给出 credential 时在同一事务中替换密文；不给出时保留原 Credential。 */
+  update(id: string, patch: Partial<Omit<ProviderInput, 'id'>>, credential?: CredentialRecord): Promise<Provider>
+  /** 引用该 Provider 的 Session 数量（删除前的确认用）；不存在时 not-found。 */
+  references(id: string): Promise<ProviderReferences>
+  /**
+   * 在一个事务中删除 Provider 与其 Credential 密文，清空引用它的 Session 的模型字段（档位回到 off，不改 updatedAt），并按
+   * options.settings 改写设置。以后用相同 ID 重新创建，这些引用也不会恢复。返回被清空的 Session 数量与被改写的设置键。
+   */
+  delete(id: string, options?: { settings?: readonly SettingRewrite[] }): Promise<ProviderDeleted>
   /** 保存 main 加密后的密文与提示；明文不经过 session。 */
-  setCredential(id: string, credential: { ciphertext: Uint8Array; hint: string }): Promise<Provider>
+  setCredential(id: string, credential: CredentialRecord): Promise<Provider>
   clearCredential(id: string): Promise<Provider>
   getCredentialCiphertext(id: string): Promise<Uint8Array | undefined>
 }

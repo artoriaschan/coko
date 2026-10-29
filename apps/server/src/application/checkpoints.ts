@@ -144,6 +144,7 @@ export class SessionCheckpoints {
         workspaceId: source.workspaceId,
         title: title?.trim() || source.title,
         model: source.model,
+        thinkingLevel: source.thinkingLevel,
       })
       await recovery.commitBatch(session.id, forked.entries)
       log.info('session forked', { sessionId, forkedSessionId: session.id, targetSeq, entries: forked.entries.length })

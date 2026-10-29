@@ -1,9 +1,11 @@
-// 设置、Provider 与 Credential：真实 Electron + 真实 Sidecar。Credential 经 preload → main safeStorage → Sidecar 存密文，
-// 调用模型时经控制 IPC 解密；模型服务是本地的 OpenAI 兼容假服务，断言其收到的 Authorization 与库文件内容。
+// 设置、Provider 与 Credential：真实 Electron + 真实 Sidecar。Provider 草稿与 Key 经 preload → main safeStorage → 一条
+// provider.save 控制消息一次存入 Sidecar（ADR 0010），调用模型时经控制 IPC 解密；模型服务是本地的 OpenAI 兼容假服务，
+// 断言其收到的 Authorization 与库文件内容。
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
 
@@ -75,23 +77,36 @@ async function addWorkspace(app: LaunchedApp, path: string) {
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
 const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
 
-/** 在已打开的 Models 分区中新建 OpenAI 兼容 Provider。 */
-async function addCompatibleProvider(app: LaunchedApp, options: { name: string; baseUrl: string; models: string; secret: string }) {
+/**
+ * 在已打开的模型服务分区中，用列表底部的表单新建自定义 Provider（默认协议 OpenAI Chat Completions）。目录逐行添加；
+ * contextWindow 给出时展开该行填写上下文窗口。
+ */
+async function addCustomProvider(
+  app: LaunchedApp,
+  options: { id: string; name: string; baseUrl: string; models: { id: string; contextWindow?: string }[]; secret: string },
+) {
   await dialog(app)
-    .getByRole('button', { name: /^(Add Provider|添加 Provider)$/ })
+    .getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ })
     .click()
-  await app.window.locator('[role="menuitem"][data-kind="openai-compatible"]').click()
   const form = app.window.locator('[data-provider-form]')
+  await form.locator('input[name="providerId"]').fill(options.id)
   await form.locator('input[name="name"]').fill(options.name)
   await form.locator('input[name="baseUrl"]').fill(options.baseUrl)
-  await form.locator('input[name="models"]').fill(options.models)
+  for (const [index, model] of options.models.entries()) {
+    await form.locator('[data-model-add]').click()
+    const row = form.locator('[data-model-row]').nth(index)
+    await row.locator('input[name="modelId"]').fill(model.id)
+    if (model.contextWindow === undefined) continue
+    await row.getByRole('button', { name: /^(Model options|模型选项)$/ }).click()
+    await row.locator('input[name="contextWindow"]').fill(model.contextWindow)
+  }
   await form.locator('input[name="credential"]').fill(options.secret)
   await form.locator('button[type="submit"]').click()
   await form.waitFor({ state: 'detached', timeout: 15_000 })
 }
 
 describe('设置：Provider 与 Credential', () => {
-  it('未配置时引导到设置；添加 Provider 与密钥后只显示末四位，对话经解密的密钥调用模型；库文件不含明文', async () => {
+  it('未配置时引导到设置；一次提交新建带 Key 的 Provider 后只显示已配置 Key；列表项内编辑并留空 Key 保存，原 Key 仍用于对话；HTTP 不能创建 Provider；库文件不含明文', async () => {
     const root = await tempDir('coko-settings-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -108,12 +123,38 @@ describe('设置：Provider 与 Credential', () => {
     await dialog(app).waitFor()
     expect(await dialog(app).locator('[data-section="models"]').getAttribute('aria-current')).toBe('page')
 
-    await addCompatibleProvider(app, { name: 'Local fake', baseUrl: model.baseUrl, models: 'm1', secret })
+    await addCustomProvider(app, { id: 'local-fake', name: 'Local fake', baseUrl: model.baseUrl, models: [{ id: 'm1', contextWindow: '1M' }], secret })
     const card = dialog(app).locator('[data-provider-id]')
     await expect.poll(() => card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
-    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/4821$/)
+    // 状态只表示已配置 Key，不显示末四位（规格 4.1）。
+    expect(await card.locator('[data-credential-status]').textContent()).toMatch(/^(Key configured|已配置 Key)$/)
     expect(await app.window.evaluate(() => document.body.innerText)).not.toContain(secret)
     expect(await app.window.evaluate(() => [...document.querySelectorAll('input')].some((i) => i.value.includes('sk-e2e')))).toBe(false)
+
+    // 列表项内编辑：ID 为静态文本，Key 输入框为空；只改显示名称并保存，Key 留空不覆盖原 Credential（规格 4.3）。
+    await card.getByRole('button', { name: /^(Edit|编辑)$/ }).click()
+    const editForm = card.locator('[data-provider-form="edit"]')
+    await editForm.waitFor()
+    expect(await editForm.locator('input[name="providerId"]').count()).toBe(0)
+    expect(await editForm.locator('[data-provider-static-id]').textContent()).toBe('local-fake')
+    expect(await editForm.locator('input[name="credential"]').inputValue()).toBe('')
+    // 目录随一次提交保存：registry 中的上下文窗口与重新打开表单的回显一致（1M = 1 000 000 token）。
+    const registryWindow = await app.window.evaluate(async () => {
+      const { workspaces } = (await fetch('/api/workspaces').then((r) => r.json())) as { workspaces: { id: string }[] }
+      const usage = (await fetch(`/api/workspaces/${workspaces[0]!.id}/context`).then((r) => r.json())) as { contextWindow: number }
+      return usage.contextWindow
+    })
+    expect(registryWindow).toBe(1_000_000)
+    const savedRow = editForm.locator('[data-model-row]')
+    expect(await savedRow.locator('input[name="modelId"]').inputValue()).toBe('m1')
+    await savedRow.getByRole('button', { name: /^(Model options|模型选项)$/ }).click()
+    expect(await savedRow.locator('input[name="contextWindow"]').inputValue()).toBe('1M')
+    expect(await savedRow.locator('input[name="maxTokens"]').inputValue()).toBe('16K')
+    await editForm.locator('input[name="name"]').fill('Local fake edited')
+    await editForm.locator('button[type="submit"]').click()
+    await editForm.waitFor({ state: 'detached', timeout: 15_000 })
+    await expect.poll(() => card.locator('[data-user-content]').first().textContent()).toBe('Local fake edited')
+    expect(await card.locator('[data-credential-status]').getAttribute('data-credential-status')).toBe('configured')
 
     await app.window.keyboard.press('Escape')
     await dialog(app).waitFor({ state: 'detached' })
@@ -126,15 +167,69 @@ describe('设置：Provider 与 Credential', () => {
     expect(model.requests).toHaveLength(1)
     expect(model.requests[0]).toMatchObject({ path: '/v1/chat/completions', headers: { authorization: `Bearer ${secret}` } })
 
-    // 设置接口不回传密钥。
+    // 设置接口不回传密钥；HTTP 不再提供 Provider 的创建与更新（ADR 0010）。
     const providers = await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))
     expect(providers).not.toContain(secret)
     expect(providers).toContain('"hint":"4821"')
+    expect(providers).toContain('"name":"Local fake edited"')
+    const viaHttp = await app.window.evaluate(async () => {
+      const body = JSON.stringify({ id: 'via-http', name: 'x', api: 'openai-completions', baseUrl: 'http://127.0.0.1:9/v1', models: [] })
+      const post = await fetch('/api/providers', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+      const patch = await fetch('/api/providers/local-fake', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: '{"name":"x"}' })
+      return [post.status, patch.status]
+    })
+    expect(viaHttp).toEqual([404, 404])
+    expect(await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))).toBe(providers)
 
     await app.dispose()
     // 关闭后检查用户数据目录（SQLite 库与 WAL、日志、Chromium 存储）的每个文件都不含明文。
     const files = await filesUnder(join(root, 'user-data'))
     expect(files.some((f) => f.endsWith('coko.db'))).toBe(true)
+    const leaking: string[] = []
+    for (const file of files) if ((await readFile(file)).includes(secret)) leaking.push(file)
+    expect(leaking).toEqual([])
+  })
+
+  it('系统加密不可用时创建供应商：整次提交被拒绝，表单保留草稿并提示原因；库中没有该 Provider 与密文', async () => {
+    const root = await tempDir('coko-settings-')
+    const secret = 'sk-e2e-no-encryption-5f1d'
+    const app = await launch(root)
+    // 只替换 safeStorage 的可用性：main 的一次提交在加密前拒绝，不发 provider.save（ADR 0010）。
+    await app.app.evaluate(({ safeStorage }) => {
+      safeStorage.isEncryptionAvailable = () => false
+    })
+    await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
+    await dialog(app).locator('[data-section="models"]').click()
+    await dialog(app)
+      .getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ })
+      .click()
+    const form = app.window.locator('[data-provider-form]')
+    await form.locator('input[name="providerId"]').fill('local-locked')
+    await form.locator('input[name="name"]').fill('Local locked')
+    await form.locator('input[name="baseUrl"]').fill('http://127.0.0.1:9/v1')
+    await form.locator('[data-model-add]').click()
+    await form.locator('[data-model-row] input[name="modelId"]').fill('m1')
+    await form.locator('input[name="credential"]').fill(secret)
+    await form.locator('button[type="submit"]').click()
+    await expect
+      .poll(() => form.getByRole('alert').textContent())
+      .toMatch(/^(System encryption is unavailable\. Nothing was saved\.|系统加密不可用，未保存任何内容)$/)
+    // 草稿保留，可以修改或重试。
+    expect(await form.locator('input[name="providerId"]').inputValue()).toBe('local-locked')
+    expect(await form.locator('[data-model-row] input[name="modelId"]').inputValue()).toBe('m1')
+    expect(await app.window.evaluate(() => fetch('/api/providers').then((r) => r.json()))).toEqual({ providers: [] })
+
+    await app.dispose()
+    // 重新读取持久化状态：库中没有 Provider 与密文，库文件不含 Key。
+    const files = await filesUnder(join(root, 'user-data'))
+    const dbPath = files.find((f) => f.endsWith('coko.db'))!
+    const db = new DatabaseSync(dbPath, { readOnly: true })
+    try {
+      expect(db.prepare('SELECT COUNT(*) AS n FROM providers').get()).toEqual({ n: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS n FROM provider_credentials').get()).toEqual({ n: 0 })
+    } finally {
+      db.close()
+    }
     const leaking: string[] = []
     for (const file of files) if ((await readFile(file)).includes(secret)) leaking.push(file)
     expect(leaking).toEqual([])
@@ -198,8 +293,9 @@ describe('设置：Provider 与 Credential', () => {
     await second.window.getByRole('button', { name: target === 'zh' ? '设置' : 'Settings', exact: true }).waitFor()
   })
 
-  // 真实模型：仅在宿主提供 DEEPSEEK_API_KEY 时运行；密钥经界面输入，与用户路径一致，不写入日志或断言输出。
-  it.skipIf(!process.env.DEEPSEEK_API_KEY)('真实 DeepSeek 凭据：一次对话成功', async () => {
+  // 真实模型：仅在测试宿主提供 DEEPSEEK_API_KEY 时运行。密钥由测试读取后经界面输入，与用户路径一致；Sidecar 不读取该变量
+  // （harness 从子进程环境中剔除它），不写入日志或断言输出。
+  it.skipIf(!process.env.DEEPSEEK_API_KEY)('真实 DeepSeek 凭据：经自定义 Provider 一次对话成功', async () => {
     const root = await tempDir('coko-real-')
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
@@ -207,14 +303,13 @@ describe('设置：Provider 与 Credential', () => {
     await addWorkspace(app, workspace)
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     await dialog(app).locator('[data-section="models"]').click()
-    await dialog(app)
-      .getByRole('button', { name: /^(Add Provider|添加 Provider)$/ })
-      .click()
-    await app.window.locator('[role="menuitem"][data-kind="deepseek"]').click()
-    const form = app.window.locator('[data-provider-form]')
-    await form.locator('input[name="credential"]').fill(process.env.DEEPSEEK_API_KEY!)
-    await form.locator('button[type="submit"]').click()
-    await form.waitFor({ state: 'detached', timeout: 15_000 })
+    await addCustomProvider(app, {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      models: [{ id: 'deepseek-chat' }],
+      secret: process.env.DEEPSEEK_API_KEY!,
+    })
     await app.window.keyboard.press('Escape')
     await composer(app).click()
     await composer(app).fill('Reply with the single word: pong')

@@ -19,4 +19,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0007](0007-secrets-from-registered-entries.md) | Secret 只来自登记条目，项目文件不能引用 | accepted | not-started |
 | [0008](0008-project-files-only-tighten.md) | 项目文件只能收紧，不能授予 | accepted | implemented |
 | [0009](0009-user-authored-resources-as-files.md) | 用户编写的指令、Skills 与命令保存为文件 | accepted | implemented |
-| [0010](0010-provider-one-shot-save.md) | Provider 与 Credential 一次提交、一次存储 | accepted | not-started |
+| [0010](0010-provider-one-shot-save.md) | Provider 与 Credential 一次提交、一次存储 | accepted | implemented |

@@ -1,11 +1,20 @@
-import { describe, expect, it, vi } from 'vitest'
-import { ApiError } from '../client/api.ts'
-import type { SetCredentialResult } from '../../shared/bridge.ts'
-import { fakeSettingsBackend } from '../testing/fake-settings.ts'
-import { createSettingsStore } from './settings-store.ts'
+import { describe, expect, it } from 'vitest'
+import { catalogModel, customProvider, fakeSettingsBackend } from '../testing/fake-settings.ts'
+import { createSettingsStore, type ProviderDraft } from './settings-store.ts'
+
+const draft = (extra: Partial<ProviderDraft> = {}): ProviderDraft => ({
+  id: 'custom-provider-1',
+  isNew: true,
+  name: '自定义供应商一',
+  api: 'openai-completions',
+  baseUrl: 'http://x/v1',
+  models: [catalogModel('m')],
+  secret: '',
+  ...extra,
+})
 
 describe('设置 store', () => {
-  it('load 读取设置、Provider、预设与可用模型', async () => {
+  it('load 读取设置、Provider 与可用模型', async () => {
     const backend = fakeSettingsBackend()
     backend.externalWrite('theme', 'dark')
     const store = createSettingsStore({ api: backend.api })
@@ -17,7 +26,7 @@ describe('设置 store', () => {
       models: [],
       defaultModel: null,
     })
-    expect(store.getState().presets.map((p) => p.kind)).toEqual(['deepseek'])
+    expect(store.getState()).not.toHaveProperty('presets')
   })
 
   it('revision 冲突：返回 conflict 并读回服务端的 revision；再次保存成功', async () => {
@@ -44,59 +53,106 @@ describe('设置 store', () => {
     expect(backend.settings.get('theme')).toMatchObject({ value: 'dark', revision: 3 })
   })
 
-  it('保存 Provider：先建配置再经 bridge 设置 Credential，读回列表与可用模型', async () => {
+  it('获取可用模型经 bridge，不改变 store；取消转给 bridge；没有 bridge 或 bridge 抛错时为 sidecar-unavailable', async () => {
     const backend = fakeSettingsBackend()
-    const store = createSettingsStore({ api: backend.api, setCredential: backend.setCredential })
+    backend.setCandidates(['custom-model-1', 'custom-model-2'])
+    const providerModels = { fetchProviderModels: backend.fetchProviderModels, cancelProviderModels: backend.cancelProviderModels }
+    const store = createSettingsStore({ api: backend.api, providerModels })
     await store.getState().load()
-    const result = await store
-      .getState()
-      .saveProvider({ kind: 'deepseek', name: 'DeepSeek', baseUrl: '', models: ['deepseek-flash'], secret: 'sk-abcdef-1234' })
-    expect(result).toMatchObject({ ok: true, provider: { id: 'p1' } })
-    // 预设 kind 留空地址时不发送 baseUrl。
-    expect(backend.raw.createProvider).toHaveBeenCalledWith({ kind: 'deepseek', name: 'DeepSeek', models: ['deepseek-flash'] })
-    expect(backend.setCredential).toHaveBeenCalledWith('p1', 'sk-abcdef-1234')
-    expect(store.getState().providers).toMatchObject([{ id: 'p1', credential: { hint: '1234' } }])
-    expect(store.getState().models.map((m) => m.modelId)).toEqual(['deepseek-flash'])
+    const before = store.getState().providers
+    const input = { requestKey: 'k1', api: 'openai-completions', baseUrl: 'http://x/v1', secret: 'sk-form-1234' } as const
+    expect(await store.getState().fetchProviderModels(input)).toEqual({ ok: true, models: ['custom-model-1', 'custom-model-2'] })
+    expect(backend.fetchProviderModels).toHaveBeenCalledWith(input)
+    expect(store.getState().providers).toBe(before)
+    expect(backend.saveProvider).not.toHaveBeenCalled()
+    store.getState().cancelProviderModels('k1')
+    expect(backend.cancelProviderModels).toHaveBeenCalledWith('k1')
 
-    // 编辑时密钥留空：只改配置，不动 Credential。
-    backend.setCredential.mockClear()
-    await store.getState().saveProvider({ id: 'p1', kind: 'deepseek', name: 'DS', baseUrl: '', models: ['deepseek-flash'], secret: '' })
-    expect(backend.raw.updateProvider).toHaveBeenCalledWith('p1', { name: 'DS', baseUrl: '', models: ['deepseek-flash'] })
-    expect(backend.setCredential).not.toHaveBeenCalled()
-    expect(store.getState().providers[0]).toMatchObject({ name: 'DS', credential: { hint: '1234' } })
+    backend.fetchProviderModels.mockRejectedValueOnce(new Error('IPC channel closed'))
+    expect(await store.getState().fetchProviderModels(input)).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
+    const noBridge = createSettingsStore({ api: backend.api })
+    expect(await noBridge.getState().fetchProviderModels(input)).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
   })
 
-  it('Credential 失败时返回已创建的 Provider，便于界面转为编辑并保留输入；没有 bridge 时视为不可用', async () => {
+  it('保存 Provider：草稿经 bridge 一次提交（配置、目录与 Key），成功后读回列表与可用模型', async () => {
     const backend = fakeSettingsBackend()
-    const failing = vi.fn<() => Promise<SetCredentialResult>>(async () => ({ ok: false, code: 'encryption-unavailable', message: 'no keychain' }))
-    const store = createSettingsStore({ api: backend.api, setCredential: failing })
-    const result = await store
-      .getState()
-      .saveProvider({ kind: 'openai-compatible', name: 'Local', baseUrl: 'http://x/v1', models: ['m'], secret: 'sk-abcdef-1234' })
-    expect(result).toMatchObject({ ok: false, stage: 'credential', code: 'encryption-unavailable', provider: { id: 'p1' } })
-    expect(store.getState().providers).toHaveLength(1)
+    const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider })
+    await store.getState().load()
+    const models = [catalogModel('custom-model-1', { contextWindow: 1_000_000, input: ['text', 'image'] })]
+    const result = await store.getState().saveProvider(draft({ api: 'openai-responses', models, secret: 'sk-abcdef-1234' }))
+    expect(result).toMatchObject({ ok: true, provider: { id: 'custom-provider-1', credential: { hint: '1234' } } })
+    expect(backend.saveProvider).toHaveBeenCalledTimes(1)
+    expect(backend.saveProvider).toHaveBeenCalledWith({
+      mode: 'create',
+      provider: { id: 'custom-provider-1', name: '自定义供应商一', api: 'openai-responses', baseUrl: 'http://x/v1', models },
+      secret: 'sk-abcdef-1234',
+    })
+    expect(store.getState().providers).toMatchObject([{ id: 'custom-provider-1', credential: { hint: '1234' } }])
+    expect(store.getState().models.map((m) => m.modelId)).toEqual(['custom-model-1'])
 
-    const noBridge = createSettingsStore({ api: fakeSettingsBackend().api })
-    expect(
-      await noBridge.getState().saveProvider({ kind: 'openai-compatible', name: 'L', baseUrl: 'http://x/v1', models: ['m'], secret: 'sk-abcdef-1234' }),
-    ).toMatchObject({
+    // 编辑时 Key 留空：提交不带 secret，表示保留原 Credential。
+    backend.saveProvider.mockClear()
+    await store.getState().saveProvider(draft({ isNew: false, name: 'DS', api: 'anthropic-messages', models }))
+    expect(backend.saveProvider).toHaveBeenCalledWith({
+      mode: 'update',
+      provider: { id: 'custom-provider-1', name: 'DS', api: 'anthropic-messages', baseUrl: 'http://x/v1', models },
+    })
+    expect(store.getState().providers[0]).toMatchObject({ name: 'DS', api: 'anthropic-messages', credential: { hint: '1234' } })
+  })
+
+  it('提交失败（加密不可用、ID 重复、配置无效）时原样返回错误码，列表不变；没有 bridge 时视为 Sidecar 不可用', async () => {
+    const backend = fakeSettingsBackend()
+    backend.seedProvider(customProvider('custom-provider-1', ['m']), 'sk-existing-0000')
+    const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider })
+    await store.getState().load()
+    const before = store.getState().providers
+
+    backend.saveProvider.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
+    expect(await store.getState().saveProvider(draft({ id: 'custom-provider-2', secret: 'sk-abcdef-1234' }))).toEqual({
       ok: false,
-      stage: 'credential',
+      code: 'encryption-unavailable',
+      message: 'no keychain',
+    })
+    expect(await store.getState().saveProvider(draft({ secret: 'sk-abcdef-1234' }))).toMatchObject({ ok: false, code: 'already-exists' })
+    backend.saveProvider.mockResolvedValueOnce({ ok: false, code: 'bad-request', message: 'needs an http or https baseUrl' })
+    expect(await store.getState().saveProvider(draft({ id: 'custom-provider-3', baseUrl: 'ftp://x', secret: 'sk-abcdef-1234' }))).toMatchObject({
+      ok: false,
+      code: 'bad-request',
+    })
+    backend.saveProvider.mockRejectedValueOnce(new Error('IPC channel closed'))
+    expect(await store.getState().saveProvider(draft({ id: 'custom-provider-4', secret: 'sk-abcdef-1234' }))).toMatchObject({
+      ok: false,
       code: 'sidecar-unavailable',
     })
+    expect(store.getState().providers).toEqual(before)
+    expect(backend.providers.map((p) => p.id)).toEqual(['custom-provider-1'])
+
+    const noBridge = createSettingsStore({ api: fakeSettingsBackend().api })
+    expect(await noBridge.getState().saveProvider(draft({ secret: 'sk-abcdef-1234' }))).toMatchObject({ ok: false, code: 'sidecar-unavailable' })
   })
 
-  it('配置被拒绝时不设置 Credential；删除后列表与模型更新', async () => {
+  it('删除后列表与模型更新', async () => {
     const backend = fakeSettingsBackend()
-    backend.raw.createProvider.mockRejectedValueOnce(new ApiError('bad-request', 'needs baseUrl', 400))
-    const store = createSettingsStore({ api: backend.api, setCredential: backend.setCredential })
-    const rejected = await store.getState().saveProvider({ kind: 'openai-compatible', name: 'L', baseUrl: '', models: ['m'], secret: 'sk-abcdef-1234' })
-    expect(rejected).toMatchObject({ ok: false, stage: 'provider', error: { code: 'bad-request' } })
-    expect(backend.setCredential).not.toHaveBeenCalled()
-
-    await store.getState().saveProvider({ kind: 'openai-compatible', name: 'L', baseUrl: 'http://x/v1', models: ['m'], secret: '' })
+    backend.seedProvider(customProvider('custom-provider-1', ['m']))
+    const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider })
+    await store.getState().load()
     expect(store.getState().models).toHaveLength(1)
-    expect(await store.getState().deleteProvider('p1')).toBe(true)
+    expect(await store.getState().deleteProvider('custom-provider-1')).toBe(true)
     expect(store.getState()).toMatchObject({ providers: [], models: [], defaultModel: null })
+  })
+
+  it('删除前读取引用数量；删除成功后通知（会话列表据此重新读取），失败时不通知', async () => {
+    const backend = fakeSettingsBackend()
+    backend.seedProvider(customProvider('custom-provider-1', ['m']))
+    backend.setReferences('custom-provider-1', 3)
+    const deleted: string[] = []
+    const store = createSettingsStore({ api: backend.api, saveProvider: backend.saveProvider, onProviderDeleted: (id) => void deleted.push(id) })
+    await store.getState().load()
+    expect(await store.getState().providerReferences('custom-provider-1')).toEqual({ sessions: 3 })
+    await expect(store.getState().providerReferences('missing')).rejects.toMatchObject({ code: 'not-found' })
+    expect(await store.getState().deleteProvider('missing')).toBe(false)
+    expect(deleted).toEqual([])
+    expect(await store.getState().deleteProvider('custom-provider-1')).toBe(true)
+    expect(deleted).toEqual(['custom-provider-1'])
   })
 })

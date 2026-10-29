@@ -22,7 +22,7 @@ describe('秘密不外泄总闸：压缩', () => {
       // Run 1–2 建立越过阈值的历史；Run 2 的请求前自动压缩失败；之后 /compact 失败。
       responses: [{ content: 'ok1' }, failure, { content: 'ok2' }, failure],
     })
-    const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential } })
+    const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_CREDENTIAL_GATE_PROVIDER: credential } })
     const cookie = await exchange(sidecar)
     const bodies: string[] = []
     const api = recordingClient(sidecar, cookie, bodies)

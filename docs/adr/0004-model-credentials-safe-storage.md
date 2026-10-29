@@ -32,10 +32,10 @@ category: architecture
 - 凭据可用性依赖 main 在线；sidecar 重启后需重新取得明文。
 - `safeStorage` 不可用时（加密不可用）拒绝保存并提示，不回退明文。
 - implementation 变为 implemented 前需要：集成测试确认库中不含明文、设置接口不回传密钥、日志脱敏，以及 Electron E2E 中配置密钥后可调用模型。
-- 当前为 implemented：sidecar 一侧的 credential.store / credential.decrypt 控制消息、只存密文、明文内存缓存、环境变量模式与日志及模型错误文本脱敏，集成测试确认库与日志不含明文、设置接口不回传密钥，见 [apps/server](../../apps/server/README.md)；main 的 safeStorage 加解密与 preload 的 `setCredential` 通道（只回传末四位提示，safeStorage 不可用时返回 `encryption-unavailable` 且不发送任何消息），Electron E2E 在设置中添加 Provider 与密钥后经解密的密钥调用本地 OpenAI 兼容假服务，并确认用户数据目录中的每个文件都不含明文。真实模型服务的调用依赖宿主凭据，未在本机验证。
-- 按值脱敏（2026-10-29，M3 评审修复）：Credential 的明文与 [ADR 0007](0007-secrets-from-registered-entries.md) 的 Secret 用同一机制登记为按值脱敏的来源（IPC 模式为已解密的缓存，环境变量模式为 `COKO_CREDENTIAL_*` 与各 Provider kind 的密钥变量），替换为 `[REDACTED]`，没有 `sk-` 等凭据形态的自定义密钥被回显时同样替换。`tests/integration/secrets-gate-memory.test.ts` 改用非凭据形态的 Credential 覆盖；`apps/server/src/adapters/credentials.test.ts` 覆盖环境变量模式登记的值。
+- 当前为 implemented：sidecar 一侧只存密文、经 credential.decrypt 取明文并只缓存在内存、环境变量模式与日志及模型错误文本脱敏，集成测试确认库与日志不含明文、设置接口不回传密钥，见 [apps/server](../../apps/server/README.md)；main 的 safeStorage 加解密（safeStorage 不可用时返回 `encryption-unavailable` 且不发送任何消息），Electron E2E 在设置中添加 Provider 与密钥后经解密的密钥调用本地 OpenAI 兼容假服务，并确认用户数据目录中的每个文件都不含明文。密钥的写入通道已由 [ADR 0010](0010-provider-one-shot-save.md) 的一次提交（preload `saveProvider` → 控制消息 `provider.save`）取代原来的 `setCredential` / `credential.store`。真实模型服务的调用依赖宿主凭据，未在本机验证。
+- 按值脱敏（2026-10-29，M3 评审修复）：Credential 的明文与 [ADR 0007](0007-secrets-from-registered-entries.md) 的 Secret 用同一机制登记为按值脱敏的来源（IPC 模式为已解密的缓存，环境变量模式为 `COKO_CREDENTIAL_*`；按 kind 的密钥变量已随 [ADR 0010](0010-provider-one-shot-save.md) 移除），替换为 `[REDACTED]`，没有 `sk-` 等凭据形态的自定义密钥被回显时同样替换。`tests/integration/secrets-gate-memory.test.ts` 改用非凭据形态的 Credential 覆盖；`apps/server/src/adapters/credentials.test.ts` 覆盖环境变量模式登记的值。
 
-- 写入与使用路径调整（2026-10-29 决定，尚未实施）：Provider 配置与密钥改为经 main 一次提交、在一个事务中存储，获取可用模型可临时使用表单中的明文密钥，独立运行不再按 kind 读取密钥变量，见 [ADR 0010](0010-provider-one-shot-save.md)。本页的加密位置、密文存储与按需取明文不变；上文“当前为 implemented”描述的是 0010 实施前的两步写入。
+- 写入与使用路径调整（2026-10-29 决定并实施）：Provider 配置与密钥改为经 main 一次提交、在一个事务中存储，获取可用模型可临时使用表单中的明文密钥，独立运行不再按 kind 读取密钥变量，见 [ADR 0010](0010-provider-one-shot-save.md)。独立运行只读 `COKO_CREDENTIAL_<PROVIDER_ID>`、一次提交与获取可用模型（表单中的明文只随一次请求进入 sidecar 内存，登记为按值脱敏、不缓存不落库）均已实施。本页的加密位置、密文存储与按需取明文不变。
 
 ## 来源与后继
 

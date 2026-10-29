@@ -2,38 +2,69 @@ import {
   createModelRegistry,
   InMemoryCredentialStore,
   ModelConfigError,
-  protocolOf,
-  providerPresets,
+  selectableThinkingLevels,
   type ModelProtocol as AgentModelProtocol,
   type ModelRegistry,
+  type ModelSpec,
   type ProviderConfig,
-  type ProviderKind as AgentProviderKind,
+  type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { AvailableModel, CreateProviderRequest, ModelProtocol, Provider, ProviderKind, ProviderPreset, UpdateProviderRequest } from '@coko/protocol'
-import type { Provider as StoredProvider, ProviderInput, SessionStore } from '@coko/session'
-import { AppError } from './errors.ts'
+import { DEFAULT_MODEL_SETTING, SessionModel as SessionModelSchema } from '@coko/protocol'
+import type {
+  AvailableModel,
+  CatalogModel,
+  MainToSidecarMessage,
+  ModelProtocol,
+  Provider,
+  ProviderFields,
+  ProviderReferencesResponse,
+  ProviderSaveMode,
+  SidecarToMainMessage,
+  ThinkingLevel,
+} from '@coko/protocol'
+import { Value } from 'typebox/value'
+import {
+  isStoreError,
+  type CredentialRecord,
+  type Provider as StoredProvider,
+  type ProviderInput,
+  type SessionStore,
+  type ThinkingLevel as StoredThinkingLevel,
+} from '@coko/session'
+import { AppError, toAppError } from './errors.ts'
 
 const log = getLogger(['application', 'providers'])
 
-// 协议 schema 与 packages/agent 的 kind 表（PROVIDER_KINDS）必须一致：任一侧增删 kind 或协议而另一侧未跟上时，这里编译失败。
+// 协议 schema 与 packages/agent 的协议表、档位表必须一致：任一侧增删而另一侧未跟上时，这里编译失败。
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 type Assert<T extends true> = T
-export type ProviderKindsAgree = Assert<Equal<ProviderKind, AgentProviderKind>>
 export type ModelProtocolsAgree = Assert<Equal<ModelProtocol, AgentModelProtocol>>
+export type ThinkingLevelsAgree = Assert<Equal<ThinkingLevel, AgentThinkingLevel>>
+export type SessionThinkingLevelsAgree = Assert<Equal<ThinkingLevel, StoredThinkingLevel>>
+// Model Catalog 的协议结构可以原样作为 registry 的模型配置。
+export type CatalogMatchesModelSpec = Assert<Equal<CatalogModel, ModelSpec>>
 
-export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'kind' | 'baseUrl' | 'models'>): ProviderConfig {
-  return {
-    id: provider.id,
-    name: provider.name,
-    kind: provider.kind as ProviderKind,
-    ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
-    models: provider.models.map((id) => ({ id })),
-  }
+/** 库中的 Model Catalog：写入前已按协议 schema 校验，读回原样使用。 */
+export const catalogOf = (provider: Pick<StoredProvider, 'models'>): CatalogModel[] => provider.models as CatalogModel[]
+
+export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'api' | 'baseUrl' | 'models'>): ProviderConfig {
+  return { id: provider.id, name: provider.name, api: provider.api as ModelProtocol, baseUrl: provider.baseUrl, models: catalogOf(provider) }
 }
 
 export function toProviderDto(provider: StoredProvider): Provider {
-  return { ...provider, kind: provider.kind as ProviderKind, api: provider.api as ModelProtocol }
+  return { ...provider, api: provider.api as ModelProtocol, models: catalogOf(provider) }
+}
+
+/** 存储层对 Provider 的拒绝转为协议错误：ID 已被使用为 already-exists，不存在为 not-found；其余原样抛出。 */
+async function storeCall<T>(id: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call()
+  } catch (error) {
+    if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
+    if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
+    throw error
+  }
 }
 
 /** 先在临时 registry 中构造，配置无效时以 bad-request 拒绝，不写库。 */
@@ -76,55 +107,92 @@ export class ProviderService {
     return (await this.#options.store.providers.list()).map(toProviderDto)
   }
 
-  presets(): ProviderPreset[] {
-    return providerPresets().map(({ kind, name, baseUrl, models }) => ({ kind, name, baseUrl, models }))
-  }
-
-  /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序。 */
+  /** registry 中已注册的模型（含测试用 faux），按 Provider 登记顺序；各带会话中可选的 Thinking Level。 */
   models(): AvailableModel[] {
     const { models } = this.#options.registry
-    return models
-      .getProviders()
-      .flatMap((provider) =>
-        models.getModels(provider.id).map((model) => ({ providerId: provider.id, providerName: provider.name, modelId: model.id, name: model.name })),
-      )
+    return models.getProviders().flatMap((provider) =>
+      models.getModels(provider.id).map((model) => ({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: model.id,
+        name: model.name,
+        thinkingLevels: selectableThinkingLevels(model),
+      })),
+    )
   }
 
-  async create(input: CreateProviderRequest): Promise<Provider> {
-    const baseUrl = input.baseUrl ?? ''
-    if (input.kind === 'openai-compatible' && !baseUrl) throw new AppError('bad-request', 'openai-compatible Provider needs a baseUrl')
-    const record: ProviderInput = { name: input.name, kind: input.kind, api: protocolOf(input.kind), baseUrl, models: input.models }
-    validate(toProviderConfig({ id: 'validate', ...record }))
-    const created = await this.#options.store.providers.create(record)
-    this.#options.registry.setProvider(toProviderConfig(created))
-    log.info('provider created', { providerId: created.id, kind: created.kind })
-    return toProviderDto(created)
+  /**
+   * 一次提交（ADR 0010）：配置与可选的 Credential 密文（main 加密，base64）在一个事务中写入。create 时 ID 已被使用为
+   * already-exists；update 时 Provider 不存在为 not-found；配置无效为 bad-request。失败时配置与密文都不写入。
+   * update 不带 credential 时保留原 Credential；带 credential 时替换并清除 sidecar 内存中的明文缓存。
+   */
+  async save(mode: ProviderSaveMode, fields: ProviderFields, credential?: { ciphertext: string; hint: string }): Promise<Provider> {
+    const { id, name, api, baseUrl, models } = fields
+    const record: ProviderInput = { id, name, api, baseUrl, models }
+    const secret: CredentialRecord | undefined = credential && {
+      ciphertext: new Uint8Array(Buffer.from(credential.ciphertext, 'base64')),
+      hint: credential.hint,
+    }
+    validate(toProviderConfig(record))
+    const { providers } = this.#options.store
+    const saved = await storeCall(id, () =>
+      mode === 'create' ? providers.create(record, secret) : providers.update(id, { name, api, baseUrl, models }, secret),
+    )
+    this.#options.registry.setProvider(toProviderConfig(saved))
+    if (secret) this.#options.invalidateCredential(id)
+    log.info('provider saved', { providerId: id, mode, api, credential: secret ? 'replaced' : 'kept' })
+    return toProviderDto(saved)
   }
 
-  async update(id: string, patch: UpdateProviderRequest): Promise<Provider> {
-    const current = await this.#options.store.providers.get(id)
-    if (!current) throw new AppError('not-found', `Provider ${id} not found`)
-    const next = { ...current, ...patch }
-    if (next.kind === 'openai-compatible' && !next.baseUrl) throw new AppError('bad-request', 'openai-compatible Provider needs a baseUrl')
-    validate(toProviderConfig(next))
-    const updated = await this.#options.store.providers.update(id, patch)
-    this.#options.registry.setProvider(toProviderConfig(updated))
-    return toProviderDto(updated)
+  /** 引用该 Provider 的 Session 数量；不存在时 not-found。 */
+  references(id: string): Promise<ProviderReferencesResponse> {
+    return storeCall(id, () => this.#options.store.providers.references(id))
   }
 
+  /**
+   * 删除 Provider 与其 Credential，并清除 sidecar 内存中的明文缓存。引用它的 Session 模型字段在同一事务中清空（下次运行前要求
+   * 重新选择模型）；默认模型设置指向它时在同一事务中改为 null，默认模型因此回退为第一个可用模型（SessionService.defaultModel），
+   * 以后用相同 ID 重新创建也不会接回。
+   */
   async delete(id: string): Promise<void> {
-    if (!(await this.#options.store.providers.get(id))) throw new AppError('not-found', `Provider ${id} not found`)
-    await this.#options.store.providers.delete(id)
+    const pointsHere = (value: unknown) => Value.Check(SessionModelSchema, value) && value.providerId === id
+    const deleted = await storeCall(id, () =>
+      this.#options.store.providers.delete(id, { settings: [{ key: DEFAULT_MODEL_SETTING, when: pointsHere, value: null }] }),
+    )
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
-    log.info('provider deleted', { providerId: id })
+    log.info('provider deleted', { providerId: id, sessionsCleared: deleted.sessions, defaultModelCleared: deleted.settings.includes(DEFAULT_MODEL_SETTING) })
   }
+}
 
-  /** 保存 main 加密的密文（base64）与末四位提示。 */
-  async storeCredential(id: string, ciphertext: string, hint: string): Promise<void> {
-    if (!(await this.#options.store.providers.get(id))) throw new AppError('not-found', `Provider ${id} not found`)
-    await this.#options.store.providers.setCredential(id, { ciphertext: new Uint8Array(Buffer.from(ciphertext, 'base64')), hint })
-    this.#options.invalidateCredential(id)
-    log.info('credential stored', { providerId: id })
-  }
+/** 控制通道中本模块用到的部分。 */
+export interface ProviderSaveChannel {
+  send(message: SidecarToMainMessage): Promise<void>
+  onMessage(listener: (message: MainToSidecarMessage) => void): () => void
+}
+
+/**
+ * 回答 main 的 provider.save（ADR 0010：Provider 只经 main 的一次提交保存，HTTP 只提供列表与删除）。失败按协议错误码回答；
+ * 意外错误为 internal（不带原文）并记录日志。
+ */
+export function serveProviderSave(options: { control: ProviderSaveChannel; providers: Pick<ProviderService, 'save'> }): void {
+  const { control, providers } = options
+  control.onMessage((msg) => {
+    if (msg.type !== 'provider.save') return
+    const { requestId } = msg
+    providers.save(msg.mode, msg.provider, msg.credential).then(
+      (provider) => control.send({ type: 'provider.save.result', requestId, ok: true, provider }),
+      (error: unknown) => {
+        const appError = toAppError(error)
+        if (appError.code === 'internal' || appError.code === 'storage-unavailable')
+          log.error('provider save failed', { error: error instanceof Error ? error.message : String(error) })
+        return control.send({
+          type: 'provider.save.result',
+          requestId,
+          ok: false,
+          error: { code: appError.code, message: appError.message, ...(appError.details ? { details: appError.details } : {}) },
+        })
+      },
+    )
+  })
 }

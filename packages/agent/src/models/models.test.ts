@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { afterEach, describe, expect, it } from 'vitest'
-import { apiKeyEnvOf, createModelRegistry, ModelConfigError, PROVIDER_KINDS, protocolOf, providerPresets, resolveModel } from './registry.ts'
+import { createModelRegistry, ModelConfigError, resolveModel, selectableThinkingLevels, type ModelSpec, type ProviderConfig } from './registry.ts'
 
 interface Recorded {
   method: string
@@ -35,69 +35,124 @@ function chatCompletionSse(text: string): string {
   return chunk({ role: 'assistant', content: text }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n'
 }
 
-describe('Provider kind 表', () => {
-  it('每种 kind 的协议、密钥变量与是否有预设', () => {
-    expect(PROVIDER_KINDS).toEqual(['deepseek', 'openai', 'anthropic', 'openai-compatible'])
-    expect(PROVIDER_KINDS.map((kind) => [kind, protocolOf(kind), apiKeyEnvOf(kind)])).toEqual([
-      ['deepseek', 'openai-completions', 'DEEPSEEK_API_KEY'],
-      ['openai', 'openai-responses', 'OPENAI_API_KEY'],
-      ['anthropic', 'anthropic-messages', 'ANTHROPIC_API_KEY'],
-      ['openai-compatible', 'openai-completions', undefined],
-    ])
-    expect(providerPresets().map(({ kind, protocol }) => [kind, protocol])).toEqual([
-      ['deepseek', 'openai-completions'],
-      ['openai', 'openai-responses'],
-      ['anthropic', 'anthropic-messages'],
-    ])
-  })
-
-  it('库中读出的未知 kind 没有密钥变量', () => {
-    expect(apiKeyEnvOf('unknown')).toBeUndefined()
-    expect(apiKeyEnvOf('toString')).toBeUndefined()
-  })
+/** 只带必填能力的模型配置；显示名称留空表示使用模型 ID。 */
+const spec = (id: string, extra: Partial<ModelSpec> = {}): ModelSpec => ({
+  id,
+  name: '',
+  contextWindow: 128_000,
+  maxTokens: 16_000,
+  input: ['text'],
+  reasoning: false,
+  thinkingLevels: [],
+  ...extra,
 })
 
-describe('模型适配：Provider 配置', () => {
-  it('预设 Provider 使用 pi-ai 目录中的模型元数据，可覆盖 baseUrl', () => {
-    const registry = createModelRegistry({
-      credentials: new InMemoryCredentialStore(),
-      providers: [{ id: 'my-deepseek', kind: 'deepseek', baseUrl: 'https://proxy.example/v1', models: [{ id: 'deepseek-flash' }] }],
-    })
-    const model = resolveModel(registry, 'my-deepseek', 'deepseek-flash')
-    expect(model).toMatchObject({
-      id: 'deepseek-flash',
-      provider: 'my-deepseek',
-      api: 'openai-completions',
-      baseUrl: 'https://proxy.example/v1',
-      reasoning: true,
-    })
-  })
+const provider = (extra: Partial<ProviderConfig> = {}): ProviderConfig => ({
+  id: 'custom-provider-1',
+  name: '自定义供应商一',
+  api: 'openai-completions',
+  baseUrl: 'https://gateway.example/v1',
+  models: [spec('custom-model-1')],
+  ...extra,
+})
 
-  it('三种协议分别映射到 Chat Completions、Responses、Anthropic Messages', () => {
+describe('模型适配：自定义 Provider 与 Model Catalog', () => {
+  it('按 Provider 自身的协议与地址注册，模型带目录中的显示名称、容量、输入类型、推理开关与 thinkingLevelMap', () => {
     const registry = createModelRegistry({
       credentials: new InMemoryCredentialStore(),
       providers: [
-        { id: 'oa', kind: 'openai', models: [{ id: 'gpt-5' }] },
-        { id: 'an', kind: 'anthropic', models: [{ id: 'claude-sonnet-4-6' }] },
-        { id: 'custom', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:1/v1', models: [{ id: 'local', contextWindow: 32000 }] },
+        provider({
+          api: 'openai-responses',
+          models: [
+            spec('custom-model-1', {
+              name: '自定义模型一',
+              contextWindow: 1_000_000,
+              maxTokens: 128_000,
+              input: ['text', 'image'],
+              reasoning: true,
+              thinkingLevels: [{ level: 'off' }, { level: 'high', value: 'high' }, { level: 'max', value: 'very-high' }],
+            }),
+            spec('custom-model-2'),
+          ],
+        }),
       ],
     })
-    expect(resolveModel(registry, 'oa', 'gpt-5').api).toBe('openai-responses')
-    expect(resolveModel(registry, 'an', 'claude-sonnet-4-6').api).toBe('anthropic-messages')
-    expect(resolveModel(registry, 'custom', 'local')).toMatchObject({ api: 'openai-completions', contextWindow: 32000 })
+    expect(resolveModel(registry, 'custom-provider-1', 'custom-model-1')).toMatchObject({
+      id: 'custom-model-1',
+      name: '自定义模型一',
+      provider: 'custom-provider-1',
+      api: 'openai-responses',
+      baseUrl: 'https://gateway.example/v1',
+      contextWindow: 1_000_000,
+      maxTokens: 128_000,
+      input: ['text', 'image'],
+      reasoning: true,
+      // 未配置的档位为 null（不支持）；off 不写入，按协议的默认关闭方式请求。
+      thinkingLevelMap: { minimal: null, low: null, medium: null, high: 'high', xhigh: null, max: 'very-high' },
+    })
+    // 显示名称留空时使用模型 ID；没有档位的模型只支持 off。
+    expect(resolveModel(registry, 'custom-provider-1', 'custom-model-2')).toMatchObject({
+      name: 'custom-model-2',
+      reasoning: false,
+      thinkingLevelMap: { minimal: null, low: null, medium: null, high: null, xhigh: null, max: null },
+    })
+    expect(registry.models.getProviders().map((p) => [p.id, p.name])).toEqual([['custom-provider-1', '自定义供应商一']])
   })
 
-  it('配置非法时报 ModelConfigError', () => {
-    const credentials = new InMemoryCredentialStore()
-    expect(() => createModelRegistry({ credentials, providers: [{ id: 'c', kind: 'openai-compatible', models: [{ id: 'm' }] }] })).toThrow(ModelConfigError)
-    expect(() => createModelRegistry({ credentials, providers: [{ id: 'd', kind: 'deepseek', models: [{ id: 'not-in-catalog' }] }] })).toThrow(/contextWindow/)
-    const registry = createModelRegistry({ credentials, providers: [] })
-    expect(() => resolveModel(registry, 'nope', 'm')).toThrow(/Unknown model/)
+  it.each([
+    ['地址不是 http(s) URL', provider({ baseUrl: 'ftp://gateway.example' }), /http/],
+    ['地址无法解析', provider({ baseUrl: 'gateway.example/v1' }), /http/],
+    ['目录为空', provider({ models: [] }), /at least one model/],
+    ['模型 ID 重复', provider({ models: [spec('m'), spec('m')] }), /duplicate model/i],
+    ['最大输出超过上下文窗口', provider({ models: [spec('m', { contextWindow: 1000, maxTokens: 1001 })] }), /maxTokens/],
+    [
+      '档位重复',
+      provider({
+        models: [
+          spec('m', {
+            thinkingLevels: [
+              { level: 'low', value: 'a' },
+              { level: 'low', value: 'b' },
+            ],
+          }),
+        ],
+      }),
+      /duplicate thinking level/i,
+    ],
+  ])('配置非法（%s）时报 ModelConfigError', (_case, config, message) => {
+    expect(() => createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [config] })).toThrow(ModelConfigError)
+    expect(() => createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [config] })).toThrow(message)
+  })
+
+  it('会话可选的 Thinking Level：始终有 off；推理开关打开时再按固定顺序列出已配置的档位，未配置的不出现', () => {
+    const levels = [{ level: 'max', value: 'very-high' }, { level: 'off' }, { level: 'low', value: 'low' }, { level: 'high', value: 'deep' }] as const
+    const registry = createModelRegistry({
+      credentials: new InMemoryCredentialStore(),
+      providers: [
+        provider({
+          models: [
+            spec('reasoner', { reasoning: true, thinkingLevels: [...levels] }),
+            spec('switched-off', { reasoning: false, thinkingLevels: [...levels] }),
+            spec('no-levels', { reasoning: true }),
+          ],
+        }),
+      ],
+    })
+    const selectable = (id: string) => selectableThinkingLevels(resolveModel(registry, 'custom-provider-1', id))
+    expect(selectable('reasoner')).toEqual(['off', 'low', 'high', 'max'])
+    expect(selectable('switched-off')).toEqual(['off'])
+    expect(selectable('no-levels')).toEqual(['off'])
+  })
+
+  it('未知的 Provider 或模型报 ModelConfigError', () => {
+    const registry = createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [provider()] })
+    expect(() => resolveModel(registry, 'nope', 'custom-model-1')).toThrow(/Unknown model/)
+    expect(() => resolveModel(registry, 'custom-provider-1', 'nope')).toThrow(ModelConfigError)
   })
 })
 
 describe('模型适配：CredentialStore 与请求', () => {
-  it('自定义 OpenAI 兼容 Provider 以 CredentialStore 中的密钥发起 Chat Completions 流式请求', async () => {
+  it('OpenAI Chat Completions 协议以 CredentialStore 中的密钥发起流式请求', async () => {
     const { baseUrl, requests } = await startServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       res.end(chatCompletionSse('hello from mock'))
@@ -106,7 +161,7 @@ describe('模型适配：CredentialStore 与请求', () => {
     await credentials.modify('local', async () => ({ type: 'api_key', key: 'sk-test-1234' }))
     const registry = createModelRegistry({
       credentials,
-      providers: [{ id: 'local', kind: 'openai-compatible', baseUrl: `${baseUrl}/v1`, models: [{ id: 'mock-model' }] }],
+      providers: [provider({ id: 'local', baseUrl: `${baseUrl}/v1`, models: [spec('mock-model')] })],
     })
     const message = await registry.models.completeSimple(resolveModel(registry, 'local', 'mock-model'), {
       messages: [{ role: 'user', content: 'hi', timestamp: Date.now() }],
@@ -119,20 +174,17 @@ describe('模型适配：CredentialStore 与请求', () => {
   })
 
   it.each([
-    ['openai' as const, 'gpt-5', '/v1/responses', 'authorization', 'Bearer sk-oa'],
-    ['anthropic' as const, 'claude-sonnet-4-6', '/v1/messages', 'x-api-key', 'sk-oa'],
-  ])('%s 预设走各自协议端点并携带密钥', async (kind, modelId, path, header, value) => {
+    ['openai-responses' as const, '/v1', '/v1/responses', 'authorization', 'Bearer sk-oa'],
+    ['anthropic-messages' as const, '', '/v1/messages', 'x-api-key', 'sk-oa'],
+  ])('%s 协议走各自端点并携带密钥', async (api, prefix, path, header, value) => {
     const { baseUrl, requests } = await startServer((_req, res) => {
       res.writeHead(400, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ error: { type: 'invalid_request_error', message: 'mock rejects request' } }))
     })
     const credentials = new InMemoryCredentialStore()
     await credentials.modify('p', async () => ({ type: 'api_key', key: 'sk-oa' }))
-    const registry = createModelRegistry({
-      credentials,
-      providers: [{ id: 'p', kind, baseUrl: kind === 'anthropic' ? baseUrl : `${baseUrl}/v1`, models: [{ id: modelId }] }],
-    })
-    const message = await registry.models.completeSimple(resolveModel(registry, 'p', modelId), {
+    const registry = createModelRegistry({ credentials, providers: [provider({ id: 'p', api, baseUrl: `${baseUrl}${prefix}` })] })
+    const message = await registry.models.completeSimple(resolveModel(registry, 'p', 'custom-model-1'), {
       messages: [{ role: 'user', content: 'hi', timestamp: Date.now() }],
     })
     expect(message.stopReason).toBe('error')
@@ -146,7 +198,7 @@ describe('模型适配：CredentialStore 与请求', () => {
     const { baseUrl, requests } = await startServer((_req, res) => res.end())
     const registry = createModelRegistry({
       credentials: new InMemoryCredentialStore(),
-      providers: [{ id: 'local', kind: 'openai-compatible', baseUrl, models: [{ id: 'm' }] }],
+      providers: [provider({ id: 'local', baseUrl, models: [spec('m')] })],
     })
     const message = await registry.models.completeSimple(resolveModel(registry, 'local', 'm'), {
       messages: [{ role: 'user', content: 'hi', timestamp: Date.now() }],

@@ -13,6 +13,7 @@ import {
   type SessionActivity,
   type SessionEntryOf,
   type SessionModel,
+  type ThinkingLevel,
   type Workspace,
 } from '@coko/protocol'
 import { effectiveEntries, lastRunStatus, unansweredConfirmations } from '@coko/agent/entries'
@@ -183,6 +184,8 @@ export interface ChatState {
   draftWorkspaceId: string | null
   /** 草稿中选择的模型；创建 Session 时使用，null 表示用默认模型。 */
   draftModel: SessionModel | null
+  /** 草稿中选择的 Thinking Level；新会话默认 off。 */
+  draftThinkingLevel: ThinkingLevel
   /** 草稿中选择的 Permission Mode；null 表示用设置中的默认模式。 */
   draftPermissionMode: PermissionMode | null
   conversations: Record<string, Conversation>
@@ -210,8 +213,11 @@ export interface ChatActions {
   continueRun(promptText?: string): Promise<boolean>
   /** 输入区取走退回的未送达追加指令。 */
   takeReturnedDraft(sessionId: string): void
-  /** 当前会话经协议切换模型；草稿中只记下选择。 */
-  selectModel(model: SessionModel): Promise<void>
+  /**
+   * 当前会话经协议切换模型与 Thinking Level；草稿中只记下选择。thinkingLevel 缺省时会话保留当前档位（新模型不能选它时 Sidecar
+   * 回到 off），草稿回到 off。
+   */
+  selectModel(model: SessionModel, thinkingLevel?: ThinkingLevel): Promise<void>
   /**
    * 回答当前会话的待审批请求。同一请求只发送一次：发送中或已成功的重复调用直接返回 true；失败时可再次回答。
    * 返回是否已被接受。
@@ -346,6 +352,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       activeSessionId: null,
       draftWorkspaceId: null,
       draftModel: null,
+      draftThinkingLevel: 'off',
       draftPermissionMode: null,
       conversations: {},
 
@@ -395,12 +402,17 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       },
 
       async send(text) {
-        const { activeSessionId, draftWorkspaceId, draftModel, draftPermissionMode } = get()
+        const { activeSessionId, draftWorkspaceId, draftModel, draftThinkingLevel, draftPermissionMode } = get()
         if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text), 'send')
         if (draftWorkspaceId === null) return false
         let session: Session
         try {
-          session = await api.createSession({ workspaceId: draftWorkspaceId, title: titleFromText(text), ...(draftModel ? { model: draftModel } : {}) })
+          session = await api.createSession({
+            workspaceId: draftWorkspaceId,
+            title: titleFromText(text),
+            ...(draftModel ? { model: draftModel } : {}),
+            ...(draftThinkingLevel === 'off' ? {} : { thinkingLevel: draftThinkingLevel }),
+          })
         } catch (error) {
           onFailure?.({ kind: 'send', error: toApiError(error) })
           return false
@@ -609,15 +621,17 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         return true
       },
 
-      async selectModel(model) {
+      async selectModel(model, thinkingLevel) {
         const sessionId = get().activeSessionId
         if (sessionId === null) {
-          set({ draftModel: model })
+          set({ draftModel: model, draftThinkingLevel: thinkingLevel ?? 'off' })
           return
         }
         try {
-          const updated = await api.setSessionModel(sessionId, model)
-          set((state) => ({ sessions: state.sessions.map((s) => (s.id === updated.id ? { ...s, model: updated.model } : s)) }))
+          const updated = thinkingLevel === undefined ? await api.setSessionModel(sessionId, model) : await api.setSessionModel(sessionId, model, thinkingLevel)
+          set((state) => ({
+            sessions: state.sessions.map((s) => (s.id === updated.id ? { ...s, model: updated.model, thinkingLevel: updated.thinkingLevel } : s)),
+          }))
         } catch (error) {
           onFailure?.({ kind: 'model', error: toApiError(error) })
         }

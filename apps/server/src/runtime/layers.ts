@@ -17,7 +17,8 @@ import { createContextAssembly, createContributions, type ContextAssembly } from
 import { McpManager } from '../application/context/mcp.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
-import { ProviderService } from '../application/providers.ts'
+import { serveProviderModels } from '../application/provider-models.ts'
+import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
@@ -282,13 +283,11 @@ const AppLive = Layer.effect(
     })
     if (recovery.interruptedRuns > 0) log.warn('startup recovery finished', { ...recovery })
 
-    control.onMessage((msg) => {
-      if (msg.type !== 'credential.store') return
-      providers.storeCredential(msg.providerId, msg.ciphertext, msg.hint).then(
-        () => control.send({ type: 'credential.store.result', requestId: msg.requestId, ok: true }),
-        (error: unknown) => control.send({ type: 'credential.store.result', requestId: msg.requestId, ok: false, error: message(error) }),
-      )
-    })
+    // Provider 只经 main 的一次提交保存（ADR 0010）；HTTP 只提供列表与删除。
+    serveProviderSave({ control, providers })
+
+    // 获取可用模型：表单中的 Key 只用于这一次请求；编辑且 Key 留空时用已保存的 Credential（ADR 0010）。
+    serveProviderModels({ control, credentials })
 
     return {
       store,

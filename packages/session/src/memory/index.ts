@@ -1,8 +1,9 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { checkMemoryScope, closedError, defaultWorkspaceName, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, levelOf, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
+  CredentialRecord,
   JsonValue,
   Memory,
   MemoryInput,
@@ -12,16 +13,17 @@ import type {
   SecretInfo,
   Session,
   SessionEntry,
-  SessionModel,
   SessionStore,
   Setting,
+  SessionModelChoice,
+  SettingRewrite,
   StoreOptions,
   Workspace,
 } from '../types.ts'
 
 interface ProviderRow {
   provider: Omit<Provider, 'credential'>
-  credential: { ciphertext: Uint8Array; hint: string } | null
+  credential: CredentialRecord | null
 }
 
 export function createMemoryStore(options: StoreOptions): SessionStore {
@@ -56,6 +58,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
     if (!row) throw notFound('provider', id)
     return row
   }
+  const copyCredential = (credential: CredentialRecord): CredentialRecord => ({ ciphertext: new Uint8Array(credential.ciphertext), hint: credential.hint })
   const toProvider = (row: ProviderRow): Provider => ({ ...row.provider, credential: row.credential ? { hint: row.credential.hint } : null })
   const touch = (session: Session, patch: Partial<Session>): Session => {
     Object.assign(session, patch, { updatedAt: now() })
@@ -72,7 +75,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
-      createSession: op((input: { workspaceId: string; title?: string; model?: SessionModel | null }) => {
+      createSession: op((input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>) => {
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
         const at = now()
         const session: Session = {
@@ -80,6 +83,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           workspaceId: input.workspaceId,
           title: input.title ?? '',
           model: input.model ?? null,
+          thinkingLevel: levelOf(input),
+          modelCleared: false,
           createdAt: at,
           updatedAt: at,
         }
@@ -96,7 +101,9 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
-      setSessionModel: op((id: string, model: SessionModel | null) => touch(requireSession(id), { model: copy(model) })),
+      setSessionModel: op((id: string, choice: SessionModelChoice) =>
+        touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),
+      ),
       appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
         const session = requireSession(sessionId)
         if (input.length === 0) return []
@@ -138,24 +145,46 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         const row = providers.get(id)
         return row ? toProvider(row) : undefined
       }),
-      create: op((input: ProviderInput) => {
+      create: op((input: ProviderInput, credential?: CredentialRecord) => {
+        if (providers.has(input.id)) throw alreadyExists('provider', input.id)
         const at = now()
-        const row: ProviderRow = { provider: { id: randomUUID(), ...copy(input), createdAt: at, updatedAt: at }, credential: null }
+        const row: ProviderRow = { provider: { ...copy(input), createdAt: at, updatedAt: at }, credential: credential ? copyCredential(credential) : null }
         providers.set(row.provider.id, row)
         return toProvider(row)
       }),
-      update: op((id: string, patch: Partial<ProviderInput>) => {
+      update: op((id: string, patch: Partial<Omit<ProviderInput, 'id'>>, credential?: CredentialRecord) => {
         const row = requireProvider(id)
-        Object.assign(row.provider, copy(patch), { updatedAt: now() })
+        Object.assign(row.provider, copy(patch), { id, updatedAt: now() })
+        if (credential) row.credential = copyCredential(credential)
         return toProvider(row)
       }),
-      delete: op((id: string) => {
+      references: op((id: string) => {
         requireProvider(id)
-        providers.delete(id)
+        return { sessions: [...sessions.values()].filter((s) => s.model?.providerId === id).length }
       }),
-      setCredential: op((id: string, credential: { ciphertext: Uint8Array; hint: string }) => {
+      delete: op((id: string, options?: { settings?: readonly SettingRewrite[] }) => {
+        requireProvider(id)
+        // 与 SQLite 的事务一致：先求出全部改写（条件可能抛出），再修改状态。
+        const rewrites = (options?.settings ?? []).filter((rewrite) => {
+          const current = settings.get(rewrite.key)
+          return current !== undefined && rewrite.when(copy(current.value))
+        })
+        providers.delete(id)
+        let cleared = 0
+        for (const session of sessions.values()) {
+          if (session.model?.providerId !== id) continue
+          Object.assign(session, { model: null, thinkingLevel: 'off', modelCleared: true })
+          cleared++
+        }
+        for (const rewrite of rewrites) {
+          const current = settings.get(rewrite.key)!
+          settings.set(rewrite.key, { key: rewrite.key, value: copy(rewrite.value), revision: current.revision + 1, updatedAt: now() })
+        }
+        return { sessions: cleared, settings: rewrites.map((r) => r.key) }
+      }),
+      setCredential: op((id: string, credential: CredentialRecord) => {
         const row = requireProvider(id)
-        row.credential = { ciphertext: new Uint8Array(credential.ciphertext), hint: credential.hint }
+        row.credential = copyCredential(credential)
         row.provider.updatedAt = now()
         return toProvider(row)
       }),

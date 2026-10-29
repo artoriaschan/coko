@@ -10,7 +10,19 @@ import { fileURLToPath } from 'node:url'
 import { Value } from 'typebox/value'
 import { onTestFinished } from 'vitest'
 import { WebSocket } from 'ws'
-import { API_ROUTES, ServerMessage, SessionEntry, SidecarToMainMessage, type MainToSidecarMessage } from '@coko/protocol'
+import {
+  API_ROUTES,
+  MODEL_CATALOG_DEFAULTS,
+  ServerMessage,
+  SessionEntry,
+  SidecarToMainMessage,
+  type CatalogModel,
+  type MainToSidecarMessage,
+  type ProviderFields,
+  type ProviderSaveMode,
+  type SidecarProviderModelsResult,
+  type SidecarProviderSaveResult,
+} from '@coko/protocol'
 
 const electronPath = createRequire(import.meta.url)('electron') as string
 const entry = fileURLToPath(new URL('../../apps/server/src/index.ts', import.meta.url))
@@ -19,6 +31,116 @@ export async function tempDir(prefix = 'coko-it-'): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix))
   onTestFinished(() => rm(dir, { recursive: true, force: true }))
   return dir
+}
+
+/** Model Catalog 中的一个模型：默认容量、只有文本输入、推理关闭。 */
+export const catalogModel = (id: string, extra: Partial<CatalogModel> = {}): CatalogModel => ({
+  id,
+  name: '',
+  ...MODEL_CATALOG_DEFAULTS,
+  input: ['text'],
+  reasoning: false,
+  thinkingLevels: [],
+  ...extra,
+})
+
+/** 自定义 Provider 的完整配置（provider.save 的 provider 字段）；models 给模型 ID 时使用默认能力。 */
+export const customProvider = (id: string, baseUrl: string, models: (string | CatalogModel)[], api: ProviderFields['api'] = 'openai-completions') =>
+  ({ id, name: id, api, baseUrl, models: models.map((m) => (typeof m === 'string' ? catalogModel(m) : m)) }) satisfies ProviderFields
+
+/** 测试中的"safeStorage"：可逆变换，密文字节不含明文。 */
+export const testCipher = {
+  encrypt: (plaintext: string) => Buffer.from([...Buffer.from(plaintext)].map((b) => b ^ 0x5a)).toString('base64'),
+  decrypt: (ciphertext: string) => Buffer.from([...Buffer.from(ciphertext, 'base64')].map((b) => b ^ 0x5a)).toString(),
+}
+
+/** 模拟 main 回答 credential.decrypt（testCipher 解密），返回收到的密文。 */
+export function answerDecrypts(sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>): string[] {
+  const requests: string[] = []
+  sidecar.onMessage((message) => {
+    if (message.type !== 'credential.decrypt') return
+    requests.push(message.ciphertext)
+    sidecar.send({ type: 'credential.decrypt.result', requestId: message.requestId, plaintext: testCipher.decrypt(message.ciphertext) })
+  })
+  return requests
+}
+
+let saveRequestId = 1_000
+
+/**
+ * 模拟 main 的一次提交（ADR 0010）：发 provider.save 并等待同一 requestId 的结果。secret 给出时用 testCipher 加密，
+ * 提示取末四位（短于 8 个字符时为空，与 main 一致）。
+ */
+export function saveProvider(
+  sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>,
+  provider: ProviderFields,
+  options: { mode?: ProviderSaveMode; secret?: string; timeoutMs?: number } = {},
+): Promise<SidecarProviderSaveResult> {
+  const requestId = ++saveRequestId
+  const { secret } = options
+  return new Promise((resolve, reject) => {
+    let done = false
+    const timer = setTimeout(() => {
+      done = true
+      reject(new Error(`provider.save ${requestId} was not answered`))
+    }, options.timeoutMs ?? 20_000)
+    sidecar.onMessage((message) => {
+      if (done || message.type !== 'provider.save.result' || message.requestId !== requestId) return
+      done = true
+      clearTimeout(timer)
+      resolve(message)
+    })
+    sidecar.send({
+      type: 'provider.save',
+      requestId,
+      mode: options.mode ?? 'create',
+      provider,
+      ...(secret === undefined ? {} : { credential: { ciphertext: testCipher.encrypt(secret), hint: secret.length >= 8 ? secret.slice(-4) : '' } }),
+    })
+  })
+}
+
+let modelsRequestId = 2_000
+
+/**
+ * 模拟 main 的获取可用模型（ADR 0010）：发 provider.models 并等待同一 requestId 的结果。onSent 收到 requestId，用于随后发
+ * provider.models.cancel。
+ */
+export function fetchModels(
+  sidecar: Pick<SidecarProcess, 'onMessage' | 'send'>,
+  request: { api?: ProviderFields['api']; baseUrl: string; providerId?: string; secret?: string },
+  options: { timeoutMs?: number; onSent?: (requestId: number) => void } = {},
+): Promise<SidecarProviderModelsResult> {
+  const requestId = ++modelsRequestId
+  return new Promise((resolve, reject) => {
+    let done = false
+    const timer = setTimeout(() => {
+      done = true
+      reject(new Error(`provider.models ${requestId} was not answered`))
+    }, options.timeoutMs ?? 20_000)
+    sidecar.onMessage((message) => {
+      if (done || message.type !== 'provider.models.result' || message.requestId !== requestId) return
+      done = true
+      clearTimeout(timer)
+      resolve(message)
+    })
+    sidecar.send({ type: 'provider.models', requestId, api: request.api ?? 'openai-completions', ...request })
+    options.onSent?.(requestId)
+  })
+}
+
+/**
+ * 在数据目录中预先写入 Provider：独立运行的 Sidecar 没有 main，不能保存 Provider（ADR 0010），先用一个 IPC 模式的
+ * Sidecar 经 provider.save 写入，关闭后再启动被测实例。
+ */
+export async function seedProviders(dirs: SidecarDirs, providers: ProviderFields[]): Promise<void> {
+  const seeder = await startSidecar({ dirs })
+  for (const provider of providers) {
+    const result = await saveProvider(seeder, provider)
+    if (!result.ok) throw new Error(`seeding ${provider.id} failed: ${result.error.code} ${result.error.message}`)
+  }
+  const exit = await seeder.stop()
+  if (exit.code !== 0) throw new Error(`seeding sidecar exited with ${String(exit.code)}`)
 }
 
 /** 写 faux 脚本，返回其绝对路径。 */

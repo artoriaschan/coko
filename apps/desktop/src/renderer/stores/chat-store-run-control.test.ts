@@ -24,6 +24,8 @@ const session = (id: string, patch: Partial<Session> = {}): Session => ({
   workspaceId: 'w1',
   title: id,
   model: null,
+  thinkingLevel: 'off',
+  modelCleared: false,
   running: false,
   activity: 'idle',
   createdAt: 1,

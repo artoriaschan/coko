@@ -12,6 +12,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('nothing-to-retry'),
   /** Session 没有可用模型（未配置 Provider 或模型不存在）。 */
   Type.Literal('model-not-configured'),
+  /** Session 的模型字段为空（例如其 Provider 已被删除）：运行前需要重新选择模型。 */
+  Type.Literal('model-required'),
   /** 没有进行中的 Run（追加指令、暂停）。 */
   Type.Literal('no-active-run'),
   /** 上一 Run 不是 paused 或 interrupted，没有可继续的内容。 */
@@ -24,6 +26,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('recovery-failed'),
   /** 审批请求不在等待中（已回答、已取消或不存在）。 */
   Type.Literal('approval-not-pending'),
+  /** 要创建的对象的 ID 已被使用（例如 Provider ID）。 */
+  Type.Literal('already-exists'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   Type.Literal('revision-conflict'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */

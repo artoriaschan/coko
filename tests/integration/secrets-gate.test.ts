@@ -1,4 +1,4 @@
-// 秘密不外泄总闸（ADR 0004）：唯一标记的 Credential（环境变量模式）与同形态的宿主环境变量
+// 秘密不外泄总闸（ADR 0004）：唯一标记的 Credential（环境变量模式，COKO_CREDENTIAL_<PROVIDER_ID>）与同形态的宿主环境变量
 // 经各种输出通道驱动后，WebSocket 帧、HTTP 响应体、coko.db（含 -wal / -shm）与 sidecar.jsonl 中都不得出现明文。
 // M2 的通道在本文件；M3 起的新通道新增 secrets-gate-<channel>.test.ts，复用 secrets-gate-harness.ts。本文件覆盖的通道：
 // 审批：bash `env` 经审批卡通道（approval_request / approval_decision 条目、回答路由），参数原样出现在审批请求中。
@@ -14,7 +14,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, runPaths, type ServerMessage } from '@coko/protocol'
-import { connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
+import { connect, customProvider, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 import { echoingModelServer, leaksIn, marker, persisted, readDir, recordingClient } from './secrets-gate-harness.ts'
 
 describe('秘密不外泄总闸', () => {
@@ -43,10 +43,12 @@ describe('秘密不外泄总闸', () => {
       ],
     })
     await writeFile(join(root, 'notes.txt'), 'original notes\n')
+    // 独立运行没有 main，不能保存 Provider（ADR 0010）：真实 Provider 先经 IPC 模式写入，密钥来自 COKO_CREDENTIAL_GATE_PROVIDER。
+    await seedProviders(dirs, [customProvider('gate-provider', baseUrl, ['gate-model'])])
     const sidecar = await startSidecar({
       dirs,
       ipc: false,
-      env: { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential, MY_SERVICE_API_KEY: hostSecret },
+      env: { COKO_FAUX_SCRIPT: script, COKO_CREDENTIAL_GATE_PROVIDER: credential, MY_SERVICE_API_KEY: hostSecret },
     })
     const cookie = await exchange(sidecar)
     const bodies: string[] = []
@@ -123,8 +125,7 @@ describe('秘密不外泄总闸', () => {
     expect(stream.entries(faux).at(-1)?.kind).toBe('rewind')
 
     // 2. 环境变量模式的 Credential 经真实 Provider 发给模型服务，服务在错误中回显它。
-    const provider = (await api.post(API_ROUTES.providers, { name: 'DS', kind: 'deepseek', baseUrl, models: ['deepseek-flash'] })).body
-    const real = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id, model: { providerId: provider.id, modelId: 'deepseek-flash' } })).body
+    const real = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id, model: { providerId: 'gate-provider', modelId: 'gate-model' } })).body
       .id as string
     stream.send({ type: 'subscribe', sessionId: real, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === real)
@@ -178,7 +179,7 @@ describe('秘密不外泄总闸', () => {
       ipc: false,
       env: {
         COKO_FAUX_SCRIPT: script,
-        DEEPSEEK_API_KEY: credential,
+        COKO_CREDENTIAL_GATE_PROVIDER: credential,
         MY_SERVICE_API_KEY: hostSecret,
         COKO_TEST_TOOLS: '1',
         COKO_SECRET_COKO_TEST_SECRET: toolSecret,
@@ -246,7 +247,7 @@ describe('秘密不外泄总闸', () => {
     })
     // 重启后的 faux 队列从头开始：继续时的回复单独成一个脚本。
     const resumed = await fauxScript(root, { responses: [{ content: 'resumed' }] }, 'faux-resumed.json')
-    const env = { COKO_FAUX_SCRIPT: script, DEEPSEEK_API_KEY: credential, MY_SERVICE_API_KEY: hostSecret }
+    const env = { COKO_FAUX_SCRIPT: script, COKO_CREDENTIAL_GATE_PROVIDER: credential, MY_SERVICE_API_KEY: hostSecret }
     const first = await startSidecar({ dirs, ipc: false, env })
     const bodies: string[] = []
     const firstCookie = await exchange(first)

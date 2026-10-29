@@ -5,6 +5,15 @@ import { createRequestTracker, MainToSidecarMessage, RequestTimeoutError, Sideca
 // 32 字节随机数的 base64url 编码，43 个字符。
 const token = 'q2Jx3bL8kV0fT1rN9sYwZc4uPaHdGe5mKi7oQjXlR6E'
 
+const fields = {
+  id: 'custom-provider-1',
+  name: '自定义供应商一',
+  api: 'openai-completions',
+  baseUrl: 'https://gateway.example/v1',
+  models: [{ id: 'custom-model-1', name: '', contextWindow: 128_000, maxTokens: 16_000, input: ['text'], reasoning: false, thinkingLevels: [] }],
+}
+const savedProvider = { ...fields, credential: { hint: 'abcd' }, createdAt: 1, updatedAt: 1 }
+
 describe('Sidecar 控制 IPC', () => {
   it.each([
     { type: 'starting' },
@@ -13,8 +22,8 @@ describe('Sidecar 控制 IPC', () => {
     { type: 'shutdown-complete' },
     { type: 'inspect-quit.result', requestId: 1, activeRuns: 2 },
     { type: 'credential.decrypt', requestId: 3, ciphertext: 'AAEC/w==' },
-    { type: 'credential.store.result', requestId: 4, ok: true },
-    { type: 'credential.store.result', requestId: 4, ok: false, error: 'provider not found' },
+    { type: 'provider.save.result', requestId: 4, ok: true, provider: savedProvider },
+    { type: 'provider.save.result', requestId: 4, ok: false, error: { code: 'already-exists', message: 'in use', details: { field: 'id', id: 'p1' } } },
   ])('接受 sidecar 发往 main 的合法消息 %j', (message) => {
     expect(Value.Check(SidecarToMainMessage, message)).toBe(true)
   })
@@ -30,6 +39,8 @@ describe('Sidecar 控制 IPC', () => {
     { type: 'inspect-quit.result', requestId: 1, activeRuns: -1 },
     { type: 'credential.decrypt', requestId: 1, ciphertext: '' },
     { type: 'credential.decrypt', requestId: 1, ciphertext: 'not base64!' },
+    { type: 'credential.store.result', requestId: 4, ok: true },
+    { type: 'provider.save.result', requestId: 4, ok: false, error: { code: 'nope', message: 'x' } },
     { type: 'unknown' },
     null,
     'ready',
@@ -43,15 +54,49 @@ describe('Sidecar 控制 IPC', () => {
     expect(Value.Check(MainToSidecarMessage, { type: 'inspect-quit' })).toBe(false)
   })
 
-  it('credential.store 只携带密文与末四位提示；decrypt.result 二选一给出明文或错误', () => {
-    expect(Value.Check(MainToSidecarMessage, { type: 'credential.store', requestId: 1, providerId: 'p1', ciphertext: 'AAEC', hint: 'abcd' })).toBe(true)
-    expect(
-      Value.Check(MainToSidecarMessage, { type: 'credential.store', requestId: 1, providerId: 'p1', ciphertext: 'AAEC', hint: 'abcd', plaintext: 'sk-x' }),
-    ).toBe(false)
-    expect(Value.Check(MainToSidecarMessage, { type: 'credential.store', requestId: 1, providerId: 'p1', ciphertext: 'AAEC', hint: 'abcde' })).toBe(false)
+  it('provider.save 一条消息携带完整配置与可选的密文和末四位提示（ADR 0010）；不接受明文；单独的 credential.store 已移除', () => {
+    const save = { type: 'provider.save', requestId: 1, mode: 'create', provider: fields }
+    expect(Value.Check(MainToSidecarMessage, save)).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...save, mode: 'update', credential: { ciphertext: 'AAEC', hint: 'abcd' } })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...save, mode: 'upsert' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...save, credential: { ciphertext: 'AAEC', hint: 'abcde' } })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...save, credential: { ciphertext: 'AAEC', hint: 'abcd', plaintext: 'sk-x' } })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...save, secret: 'sk-x' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...save, provider: { ...fields, id: 'Bad' } })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { type: 'credential.store', requestId: 1, providerId: 'p1', ciphertext: 'AAEC', hint: 'abcd' })).toBe(false)
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2, plaintext: 'sk-x' })).toBe(true)
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2, error: 'safeStorage unavailable' })).toBe(true)
     expect(Value.Check(MainToSidecarMessage, { type: 'credential.decrypt.result', requestId: 2 })).toBe(false)
+  })
+
+  it('provider.models：新建带表单中的明文 Key，编辑不带 Key 时按 Provider ID 用已保存的 Credential；可取消；结果只有模型 ID 或错误', () => {
+    const request = { type: 'provider.models', requestId: 1, api: 'openai-completions', baseUrl: 'https://gateway.example/v1' }
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: 'sk-form-key' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'custom-provider-1' })).toBe(true)
+    // 两者都给时用表单中的新 Key（编辑时填写了新值）。
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'custom-provider-1', secret: 'sk-new' })).toBe(true)
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: '' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, providerId: 'Bad' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, api: 'google', secret: 'sk-x' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { ...request, secret: 'sk-x', ciphertext: 'AAEC' })).toBe(false)
+    expect(Value.Check(MainToSidecarMessage, { type: 'provider.models.cancel', requestId: 1 })).toBe(true)
+
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: ['custom-model-1', 'custom-model-2'] })).toBe(
+      true,
+    )
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: [] })).toBe(true)
+    expect(
+      Value.Check(SidecarToMainMessage, {
+        type: 'provider.models.result',
+        requestId: 1,
+        ok: false,
+        error: { code: 'upstream-error', message: 'HTTP 401', status: 401 },
+      }),
+    ).toBe(true)
+    for (const code of ['no-credential', 'unreachable', 'invalid-response', 'timeout', 'cancelled', 'bad-request'])
+      expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: false, error: { code, message: 'x' } })).toBe(true)
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: false, error: { code: 'nope', message: 'x' } })).toBe(false)
+    expect(Value.Check(SidecarToMainMessage, { type: 'provider.models.result', requestId: 1, ok: true, models: [{ id: 'm' }] })).toBe(false)
   })
 
   it('secret.store 按登记名携带密文与提示（ADR 0007）；名字必须合规；secret.decrypt 往返与 Credential 同形', () => {

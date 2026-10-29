@@ -10,9 +10,8 @@ import {
   ModelListResponse,
   permissionPaths,
   PermissionsResponse,
-  Provider,
   ProviderListResponse,
-  ProviderPresetsResponse,
+  ProviderReferencesResponse,
   runPaths,
   Session,
   SessionDetailResponse,
@@ -25,15 +24,14 @@ import {
   WorkspaceListResponse,
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
-  type CreateProviderRequest,
   type CreateSessionRequest,
   type ErrorCode,
   type PermissionMode,
   type PermissionRule,
   type RewindRequest,
   type SessionModel,
+  type ThinkingLevel,
   type UpdatePermissionsRequest,
-  type UpdateProviderRequest,
 } from '@coko/protocol'
 import { Type, type TSchema, type Static } from 'typebox'
 import { Value } from 'typebox/value'
@@ -107,7 +105,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** 从某条用户消息分叉：返回新 Session 的 id 与目标文本。 */
     fork: (id: string, targetSeq: number, title?: string) =>
       call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq, ...(title === undefined ? {} : { title }) }),
-    setSessionModel: (id: string, model: SessionModel) => call(Session, 'PUT', apiPaths.sessionModel(id), { model }),
+    /** thinkingLevel 缺省时 Sidecar 保留当前档位（新模型不能选它时回到 off）。 */
+    setSessionModel: (id: string, model: SessionModel, thinkingLevel?: ThinkingLevel) =>
+      call(Session, 'PUT', apiPaths.sessionModel(id), { model, ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }),
     /** 切换 Session 的 Permission Mode；返回当前模式与 Session 规则。 */
     setPermissionMode: (id: string, mode: PermissionMode) => call(SessionPermissionsResponse, 'PUT', permissionPaths.sessionPermissionMode(id), { mode }),
     removeSessionRule: (id: string, rule: PermissionRule) => call(SessionPermissionsResponse, 'DELETE', permissionPaths.sessionPermissionRules(id), { rule }),
@@ -124,9 +124,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     /** expectedRevision 不一致时以 revision-conflict 拒绝，details 带 expected 与 actual。 */
     putSetting: (key: string, value: unknown, expectedRevision: number) => call(Setting, 'PUT', apiPaths.setting(key), { value, expectedRevision }),
     listProviders: async () => (await call(ProviderListResponse, 'GET', API_ROUTES.providers)).providers,
-    listProviderPresets: async () => (await call(ProviderPresetsResponse, 'GET', API_ROUTES.providerPresets)).presets,
-    createProvider: (input: CreateProviderRequest) => call(Provider, 'POST', API_ROUTES.providers, input),
-    updateProvider: (id: string, patch: UpdateProviderRequest) => call(Provider, 'PATCH', apiPaths.provider(id), patch),
+    /** 引用该 Provider 的 Session 数量；删除确认用。 */
+    providerReferences: (id: string) => call(ProviderReferencesResponse, 'GET', apiPaths.providerReferences(id)),
+    /** 同时删除其 Credential；引用它的 Session 模型字段被清空，默认模型指向它时回退。 */
     deleteProvider: (id: string) => call(NoContent, 'DELETE', apiPaths.provider(id)),
     listModels: () => call(ModelListResponse, 'GET', API_ROUTES.models),
   }

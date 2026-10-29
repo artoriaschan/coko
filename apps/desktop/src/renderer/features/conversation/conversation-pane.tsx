@@ -42,6 +42,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const hasWorkspace = useChat((s) => s.workspaces.length > 0)
   const listStatus = useChat((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
+  const draftThinkingLevel = useChat((s) => s.draftThinkingLevel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
   const {
     send,
@@ -67,8 +68,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const defaultModel = useSettings((s) => s.defaultModel)
   const settingsDialog = useSettingsDialog()
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
-  const model = session ? (session.model ?? defaultModel) : (draftModel ?? defaultModel)
+  // 会话的模型被清空（Provider 被删除或升级时清除）时不代填默认模型：Sidecar 要求运行前重新选择。从未设置时显示默认模型，
+  // 运行时 Sidecar 同样取默认模型。
+  const model = session ? (session.model ?? (session.modelCleared ? null : defaultModel)) : (draftModel ?? defaultModel)
+  const thinkingLevel = session ? session.thinkingLevel : draftThinkingLevel
   const needsSetup = settingsStatus === 'ready' && models.length === 0
+  const modelRequired = session !== undefined && session.model === null && session.modelCleared && !needsSetup && models.length > 0
   // 会话：乐观的待确认模式，否则最后一条 permission_mode 条目；草稿：已选的或设置中的默认模式。
   const permissionMode = conversation
     ? (conversation.pendingMode ?? sessionPermissionMode(conversation.entries))
@@ -246,6 +251,15 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               onAnswer={(answer) => answerConfirmation(confirmation.toolCallId, answer)}
             />
           )}
+          {modelRequired && !takenOver && (
+            <div
+              role="status"
+              data-slot="model-required"
+              className={`${composerColumn} mb-2 rounded-panel border-hairline border-border bg-background px-3 py-2 text-ui-body text-muted-foreground`}
+            >
+              {t('conversation.modelRequired')}
+            </div>
+          )}
           {banner && !takenOver && (
             <div
               role="status"
@@ -288,8 +302,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                     <ModelPicker
                       models={models}
                       value={model}
+                      thinkingLevel={thinkingLevel}
                       disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                      onChange={(m) => void selectModel(m)}
+                      onChange={(m, level) => void selectModel(m, level)}
                     />
                   )}
                 </>

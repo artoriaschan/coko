@@ -24,7 +24,18 @@ function fakeStream() {
   return { stream, deliver, sent }
 }
 
-const session = (id: string): Session => ({ id, workspaceId: 'w1', title: id, model: null, running: false, activity: 'idle', createdAt: 1, updatedAt: 1 })
+const session = (id: string): Session => ({
+  id,
+  workspaceId: 'w1',
+  title: id,
+  model: null,
+  thinkingLevel: 'off',
+  modelCleared: false,
+  running: false,
+  activity: 'idle',
+  createdAt: 1,
+  updatedAt: 1,
+})
 let seq = 0
 const entry = (sessionId: string, kind: string, payload: unknown): SessionEntryRecord => ({
   sessionId,

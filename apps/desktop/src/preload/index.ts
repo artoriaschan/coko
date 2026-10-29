@@ -1,12 +1,22 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type BootResult, type CokoBridge, type SetCredentialResult, type SetSecretResult, type SidecarStateEvent } from '../shared/bridge.ts'
+import {
+  IPC,
+  type BootResult,
+  type CokoBridge,
+  type FetchProviderModelsResult,
+  type SaveProviderResult,
+  type SetSecretResult,
+  type SidecarStateEvent,
+} from '../shared/bridge.ts'
 
-// 只在 coko-app://app 文档中暴露；不暴露令牌、cookie 或任意 IPC。setCredential 与 setSecret 只把值交给 main，不返回值。
+// 只在 coko-app://app 文档中暴露；不暴露令牌、cookie 或任意 IPC。saveProvider、fetchProviderModels 与 setSecret 只把值交给 main，不返回值。
 if (location.protocol === 'coko-app:' && location.host === 'app') {
   const bridge: CokoBridge = {
     boot: () => ipcRenderer.invoke(IPC.boot) as Promise<BootResult>,
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
-    setCredential: (providerId, secret) => ipcRenderer.invoke(IPC.setCredential, providerId, secret) as Promise<SetCredentialResult>,
+    saveProvider: (input) => ipcRenderer.invoke(IPC.saveProvider, input) as Promise<SaveProviderResult>,
+    fetchProviderModels: (input) => ipcRenderer.invoke(IPC.fetchProviderModels, input) as Promise<FetchProviderModelsResult>,
+    cancelProviderModels: (requestKey) => ipcRenderer.send(IPC.cancelProviderModels, requestKey),
     setSecret: (name, value) => ipcRenderer.invoke(IPC.setSecret, name, value) as Promise<SetSecretResult>,
     log: (record) => ipcRenderer.send(IPC.log, record),
     openLogs: () => ipcRenderer.invoke(IPC.openLogs) as Promise<boolean>,

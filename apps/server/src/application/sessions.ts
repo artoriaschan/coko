@@ -13,6 +13,7 @@ import {
   NothingToRetryError,
   resolveModel,
   ruleToolName,
+  selectableThinkingLevels,
   type AgentRuntime,
   type ModelRegistry,
   type PermissionClass,
@@ -40,6 +41,7 @@ import {
   type PermissionsResponse,
   type SessionDetailResponse,
   type SessionModel,
+  type ThinkingLevel,
 } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import { Value } from 'typebox/value'
@@ -48,6 +50,7 @@ import { dynamicHooks, emptyContextAssembly, layeredTools, type ContextAssembly,
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import { PermissionService, type HostToolNames } from './permissions.ts'
+import { catalogOf } from './providers.ts'
 import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionPermissions } from './session-permissions.ts'
 import { createProgressRedactor, redactModelMessages, secretRedactionHook } from './secret-redaction.ts'
@@ -186,7 +189,8 @@ export class SessionService {
     return this.#runtimes.activeRuns()
   }
 
-  toDto(session: StoredSession): Session {
+  toDto(stored: StoredSession): Session {
+    const session = { ...stored, thinkingLevel: this.#effectiveLevel(stored) }
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
     if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
@@ -194,6 +198,19 @@ export class SessionService {
     if (this.#recovery.awaitsConfirmation(session.id)) return { ...session, running, activity: 'awaiting-confirmation' }
     const last = this.#runtimes.lastStatus(session.id)
     return { ...session, running, activity: last === 'paused' || last === 'interrupted' ? last : 'idle' }
+  }
+
+  /** 保存的档位在当前模型下仍可选时使用它，否则为 off（模型已不可用或目录已不再配置该档位）。 */
+  #effectiveLevel(session: Pick<StoredSession, 'model' | 'thinkingLevel'>): ThinkingLevel {
+    const level = session.thinkingLevel
+    if (level === 'off' || !session.model) return 'off'
+    const model = this.#options.registry.models.getModel(session.model.providerId, session.model.modelId)
+    return model && selectableThinkingLevels(model).includes(level) ? level : 'off'
+  }
+
+  /** 给出的档位必须是该模型可选的档位（bad-request）。 */
+  #checkLevel(model: Model<any>, level: ThinkingLevel): void {
+    if (!selectableThinkingLevels(model).includes(level)) throw new AppError('bad-request', `Model ${model.id} has no thinking level ${level}`)
   }
 
   // ---- 启动恢复与结果确认（recovery.ts） ----
@@ -253,14 +270,20 @@ export class SessionService {
     return sessions.map((session) => this.toDto(session))
   }
 
-  async create(input: { workspaceId: string; title?: string; model?: SessionModel }): Promise<Session> {
+  async create(input: { workspaceId: string; title?: string; model?: SessionModel; thinkingLevel?: ThinkingLevel }): Promise<Session> {
     if (input.model) this.#resolve(input.model, 'bad-request')
     const model = input.model ?? (await this.defaultModel())
+    const thinkingLevel = input.thinkingLevel ?? 'off'
+    if (thinkingLevel !== 'off') {
+      if (!model) throw new AppError('bad-request', `No model to use thinking level ${thinkingLevel}`)
+      this.#checkLevel(this.#resolve(model, 'bad-request'), thinkingLevel)
+    }
     const mode = await this.permissions.defaultMode()
     const session = await this.#options.store.sessions.createSession({
       workspaceId: input.workspaceId,
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
+      thinkingLevel,
     })
     // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
     await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
@@ -280,7 +303,8 @@ export class SessionService {
     const setting = await this.#options.store.settings.get(DEFAULT_MODEL_SETTING)
     const candidates: unknown[] = [setting?.value, this.#options.fallbackModel]
     for (const provider of await this.#options.store.providers.list()) {
-      if (provider.models[0]) candidates.push({ providerId: provider.id, modelId: provider.models[0] })
+      const first = catalogOf(provider)[0]
+      if (first) candidates.push({ providerId: provider.id, modelId: first.id })
     }
     for (const candidate of candidates) {
       if (!Value.Check(SessionModelSchema, candidate)) continue
@@ -307,13 +331,26 @@ export class SessionService {
     return this.#options.tools?.(cwd) ?? createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() })
   }
 
-  async setModel(sessionId: string, model: SessionModel): Promise<Session> {
-    await this.#get(sessionId)
+  /**
+   * 模型与 Thinking Level 一起切换并写入 Session。给出的档位该模型不能选时 bad-request；未给出时保留当前档位，新模型不能选它时
+   * 回到 off。Run 进行中 run-in-progress。
+   */
+  async setModel(sessionId: string, model: SessionModel, thinkingLevel?: ThinkingLevel): Promise<Session> {
+    const current = await this.#get(sessionId)
     const resolved = this.#resolve(model, 'bad-request')
+    let level: ThinkingLevel
+    if (thinkingLevel === undefined) {
+      const kept = current.thinkingLevel
+      level = selectableThinkingLevels(resolved).includes(kept) ? kept : 'off'
+    } else {
+      this.#checkLevel(resolved, thinkingLevel)
+      level = thinkingLevel
+    }
     const runtime = this.#runtimes.get(sessionId)
     if (runtime?.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
-    const session = await this.#options.store.sessions.setSessionModel(sessionId, model)
+    const session = await this.#options.store.sessions.setSessionModel(sessionId, { model, thinkingLevel: level })
     runtime?.setModel(resolved)
+    runtime?.setThinkingLevel(level)
     return this.toDto(session)
   }
 
@@ -396,7 +433,9 @@ export class SessionService {
     if (!session.model) {
       const model = await this.defaultModel()
       if (!model) throw new AppError('model-not-configured', 'No model is configured; add a Provider in settings')
-      session = await this.#options.store.sessions.setSessionModel(sessionId, model)
+      // 模型字段被清空（Provider 被删除或升级时清除）：不自动选用，提示重新选择。从未设置时取默认模型。
+      if (session.modelCleared) throw new AppError('model-required', 'Choose a model for this session before running')
+      session = await this.#options.store.sessions.setSessionModel(sessionId, { model })
     }
     const model = this.#resolve(session.model!, 'model-not-configured')
     const runtime = await this.#runtimes.obtain(session.id, () => this.#createRuntime(session, model))
@@ -417,6 +456,7 @@ export class SessionService {
       runContext.readRoots = readRoots
     }
     runtime.setModel(model)
+    runtime.setThinkingLevel(this.#effectiveLevel(session))
 
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
     let runId: string | undefined
@@ -435,7 +475,13 @@ export class SessionService {
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
     const started = runId
-    log.info('run started', { sessionId, runId: started, providerId: session.model!.providerId, modelId: session.model!.modelId })
+    log.info('run started', {
+      sessionId,
+      runId: started,
+      providerId: session.model!.providerId,
+      modelId: session.model!.modelId,
+      thinkingLevel: this.#effectiveLevel(session),
+    })
     const done = run.then(
       (result) =>
         log.info('run ended', {
@@ -510,6 +556,7 @@ export class SessionService {
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
+      thinkingLevel: this.#effectiveLevel(session),
       cwd: workspace.path,
       tools: runContext.tools.registry,
       sessionId: session.id,

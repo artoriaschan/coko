@@ -9,6 +9,7 @@ import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
 import { createPreferences } from './preferences.ts'
 import { createSettingsDialogStore } from './settings-dialog-store.ts'
+import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 
 function leaves(value: unknown): string[] {
@@ -214,7 +215,7 @@ describe('设置弹窗', () => {
     await expect.element(dialog).toBeVisible()
     const inDictionary = dictionaryMatcher(locale)
     const openSection = async (section: 'general' | 'models' | 'about') => {
-      await dialog.getByRole('button', { name: dictionaries[locale].settings[section], exact: true }).click()
+      await dialog.getByRole('button', { name: dictionaries[locale].settings.nav[section], exact: true }).click()
       // 对话框标题之后是分区标题。
       await expect.element(dialog.getByRole('heading', { level: 2 }).last()).toBeVisible()
     }
@@ -224,44 +225,17 @@ describe('设置弹窗', () => {
     await openSection('models')
     // 同时检查新建表单。
     await dialog.getByRole('button', { name: dictionaries[locale].providers.add }).click()
-    await page.getByRole('menuitem', { name: dictionaries[locale].providers.kinds.deepseek }).click()
     await expect.element(dialog.getByLabelText(dictionaries[locale].providers.credential, { exact: true })).toBeVisible()
     expect(untranslated()).toEqual([])
+    // 协议菜单的选项同样来自字典。
+    await dialog.getByRole('button', { name: dictionaries[locale].providers.protocol, exact: true }).click()
+    await expect.element(page.getByRole('menuitemradio').first()).toBeVisible()
+    expect(chromeStrings(page.getByRole('menu').element()).filter((s) => !inDictionary(s))).toEqual([])
+    await userEvent.keyboard('{Escape}')
     await openSection('about')
     expect(untranslated()).toEqual([])
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('Models：新建 Provider 只回显末四位；Credential 失败时保留输入并转为编辑', async () => {
-    await page.viewport(1280, 800)
-    const { screen, backend } = renderApp('en', { providers: false })
-    await screen
-    const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
-    await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
-
-    backend.setCredential.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
-    await dialog.getByRole('button', { name: 'Add Provider' }).click()
-    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
-    await dialog.getByLabelText('Name', { exact: true }).fill('Local')
-    await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1, m2')
-    const secret = dialog.getByLabelText('Credential', { exact: true })
-    await secret.fill('sk-browser-test-9876')
-    await dialog.getByRole('button', { name: 'Save' }).click()
-
-    await expect.element(dialog.getByRole('alert')).toHaveTextContent('System encryption is unavailable. The Credential was not saved.')
-    await expect.element(secret).toHaveValue('sk-browser-test-9876')
-    expect(backend.providers).toHaveLength(1)
-    // 再次保存是编辑同一个 Provider，不会重复创建。
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    await expect.element(page.elementLocator(dialog.element().querySelector('[data-provider-id]')!)).toBeVisible()
-    expect(backend.providers).toHaveLength(1)
-    await expect
-      .element(page.elementLocator(dialog.element().querySelector('[data-credential-status="configured"]')!))
-      .toHaveTextContent('Configured · ends in 9876')
-    expect(dialog.element().textContent).not.toContain('sk-browser-test')
   })
 })
 
@@ -296,47 +270,6 @@ describe('侧栏搜索', () => {
     await expect.element(drawer.getByRole('searchbox', { name: 'Search sessions' })).toHaveFocus()
     await userEvent.keyboard('ripgrep')
     await expect.poll(visibleTitles).toEqual(['ripgrep contract tests'])
-  })
-})
-
-describe('Models 分区', () => {
-  it('类别标签只在名称不等于预设名时显示：按 kind 与协议预设比较，不比较翻译文本', async () => {
-    await page.viewport(1280, 800)
-    const { screen, backend, settings } = renderApp('zh', { providers: false })
-    await screen
-    // 自定义 Provider 没有预设：名称恰好等于其类别的中文文案时，类别仍要显示。
-    await backend.api.createProvider({ name: 'OpenAI 兼容', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['m'] })
-    await backend.api.createProvider({ name: 'DeepSeek', kind: 'deepseek', models: ['deepseek-flash'] })
-    await settings.getState().load()
-    const dialog = await openSettings('设置')
-    await dialog.getByRole('button', { name: '模型', exact: true }).click()
-    const compatible = page.elementLocator(dialog.element().querySelector('[data-kind="openai-compatible"][data-provider-id]')!)
-    await expect.element(compatible).toBeVisible()
-    expect(compatible.element().textContent).toContain('OpenAI 兼容OpenAI 兼容')
-    const deepseek = dialog.element().querySelector('[data-kind="deepseek"][data-provider-id]')!
-    expect(deepseek.textContent?.match(/DeepSeek/g)).toHaveLength(1)
-  })
-
-  it('保存失败时显示可行动的本地化说明，技术原文只在详情中', async () => {
-    await page.viewport(1280, 800)
-    const { screen, backend } = renderApp('en', { providers: false })
-    await screen
-    const { ApiError } = await import('../client/api.ts')
-    vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
-    const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Add Provider' }).click()
-    await page.getByRole('menuitem', { name: 'OpenAI compatible' }).click()
-    await dialog.getByLabelText('Name', { exact: true }).fill('Local')
-    await dialog.getByLabelText('Base URL', { exact: true }).fill('not a url')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1')
-    await dialog.getByRole('button', { name: 'Save' }).click()
-    const alert = dialog.getByRole('alert')
-    await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
-    expect(alert.element().textContent).not.toContain('Invalid request')
-    // 技术原文放在可展开的详情中，可选中复制。
-    const details = dialog.element().querySelector('[data-error-detail]')
-    expect(details?.textContent).toContain('Invalid request: /baseUrl must match format "uri"')
   })
 })
 
@@ -396,7 +329,7 @@ describe('模型选择', () => {
     await composer.click()
     await userEvent.keyboard('{Enter}')
     const dialog = page.getByRole('dialog')
-    await expect.element(dialog.getByRole('heading', { name: 'Providers' })).toBeVisible()
+    await expect.element(dialog.getByRole('heading', { name: 'Model services', level: 2 })).toBeVisible()
     await userEvent.keyboard('{Escape}')
     await expect.element(composer).toHaveTextContent('keep this draft')
   })
@@ -405,7 +338,7 @@ describe('模型选择', () => {
     await page.viewport(1280, 800)
     const { screen, chat, settings, backend } = renderApp('en')
     await screen
-    await backend.api.createProvider({ name: 'Second', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:9/v1', models: ['big-model'] })
+    backend.seedProvider(customProvider('p2', ['big-model'], { name: 'Second' }))
     await settings.getState().load()
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     const picker = page.getByRole('button', { name: /^Choose model: / })
@@ -416,6 +349,67 @@ describe('模型选择', () => {
     await page.getByRole('menuitemradio', { name: 'big-model' }).click()
     await expect.element(picker).toHaveTextContent('big-model')
     expect(chat.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
+  })
+
+  it('推理档位：会话默认“关闭”；推理开关打开的模型列出“关闭”与已配置档位；选择写入会话；换到未配置该档位的模型回到“关闭”', async () => {
+    await page.viewport(1280, 800)
+    const { screen, chat, settings, backend } = renderApp('zh')
+    await screen
+    const levels = [{ level: 'off' }, { level: 'high', value: 'deep' }, { level: 'medium', value: 'medium' }] as const
+    backend.seedProvider(
+      customProvider('p2', [], {
+        name: 'Second',
+        models: [
+          catalogModel('thinker', { reasoning: true, thinkingLevels: [...levels] }),
+          catalogModel('low-only', { reasoning: true, thinkingLevels: [{ level: 'low', value: 'low' }] }),
+          catalogModel('switched-off', { reasoning: false, thinkingLevels: [...levels] }),
+        ],
+      }),
+    )
+    await settings.getState().load()
+    await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    const picker = page.getByRole('button', { name: /^选择模型：/ })
+    const levelItems = () => [...document.querySelectorAll('[data-thinking-level]')].map((el) => [el.textContent, el.getAttribute('aria-checked')])
+    const choose = async (name: string) => {
+      await picker.click()
+      await page.getByRole('menuitemradio', { name, exact: true }).click()
+    }
+
+    // 没有推理档位的模型（faux-1）不显示档位选项。
+    await picker.click()
+    await expect.element(page.getByRole('menu')).toBeVisible()
+    expect(levelItems()).toEqual([])
+    await userEvent.keyboard('{Escape}')
+
+    await choose('thinker')
+    await picker.click()
+    await expect.element(page.getByRole('menu').getByText('推理档位')).toBeVisible()
+    // 固定顺序；新会话的档位为“关闭”；未配置的档位不出现。
+    expect(levelItems()).toEqual([
+      ['关闭', 'true'],
+      ['medium', 'false'],
+      ['high', 'false'],
+    ])
+    await page.getByRole('menuitemradio', { name: 'high', exact: true }).click()
+    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
+    // 触发按钮显示模型名称与当前档位。
+    await expect.poll(() => picker.element().textContent).toBe('thinkerhigh')
+
+    // 换到未配置 high 的模型：回到“关闭”。
+    await choose('low-only')
+    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'low-only' }, thinkingLevel: 'off' })
+    await picker.click()
+    await expect.poll(levelItems).toEqual([
+      ['关闭', 'true'],
+      ['low', 'false'],
+    ])
+    await userEvent.keyboard('{Escape}')
+
+    // 推理开关关闭的模型只有“关闭”，不显示档位选项。
+    await choose('switched-off')
+    await picker.click()
+    await expect.element(page.getByRole('menu')).toBeVisible()
+    expect(levelItems()).toEqual([])
   })
 })
 

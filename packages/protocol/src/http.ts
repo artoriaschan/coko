@@ -20,6 +20,26 @@ export type RegisterWorkspaceRequest = Static<typeof RegisterWorkspaceRequest>
 export const WorkspaceListResponse = Type.Object({ workspaces: Type.Array(Workspace) }, strict)
 export type WorkspaceListResponse = Static<typeof WorkspaceListResponse>
 
+// ---- Thinking Level ----
+
+/** 除 off 外的六档，按固定顺序。 */
+const ReasoningLevel = Type.Union([
+  Type.Literal('minimal'),
+  Type.Literal('low'),
+  Type.Literal('medium'),
+  Type.Literal('high'),
+  Type.Literal('xhigh'),
+  Type.Literal('max'),
+])
+
+/**
+ * 七档 Thinking Level：off 与其后六档，顺序固定；与 @coko/agent 的 THINKING_LEVELS 一致（apps/server/src/application/providers.ts
+ * 中有编译期断言）。
+ */
+export const ThinkingLevel = Type.Union([Type.Literal('off'), ...ReasoningLevel.anyOf])
+export type ThinkingLevel = Static<typeof ThinkingLevel>
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ThinkingLevel.anyOf.map((literal) => literal.const)
+
 // ---- Session ----
 
 export const SessionModel = Type.Object({ providerId: Id, modelId: Id }, strict)
@@ -31,6 +51,13 @@ export const Session = Type.Object(
     workspaceId: Id,
     title: Type.String(),
     model: Type.Union([SessionModel, Type.Null()]),
+    /** 与模型一起按 Session 保存的 Thinking Level；新建为 off。当前模型不支持该档位（例如目录已修改）时为 off。 */
+    thinkingLevel: ThinkingLevel,
+    /**
+     * 模型字段被清空（Provider 被删除或升级时清除）：下次运行前要求重新选择模型（409 model-required），界面提示重新选择。
+     * 从未设置模型时为 false，运行时取默认模型。
+     */
+    modelCleared: Type.Boolean(),
     /** 当前是否有 Run 在进行。 */
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
@@ -42,8 +69,13 @@ export const Session = Type.Object(
 )
 export type Session = Static<typeof Session>
 
-/** 未给 model 时使用默认模型（设置 defaultModel，否则第一个可用模型）。 */
-export const CreateSessionRequest = Type.Object({ workspaceId: Id, title: Type.Optional(Type.String()), model: Type.Optional(SessionModel) }, strict)
+/**
+ * 未给 model 时使用默认模型（设置 defaultModel，否则第一个可用模型）。thinkingLevel 缺省为 off；所用模型不能选该档位时 400。
+ */
+export const CreateSessionRequest = Type.Object(
+  { workspaceId: Id, title: Type.Optional(Type.String()), model: Type.Optional(SessionModel), thinkingLevel: Type.Optional(ThinkingLevel) },
+  strict,
+)
 export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
@@ -64,7 +96,11 @@ export type SubmitMessageResponse = Static<typeof SubmitMessageResponse>
 export const AbortRunResponse = Type.Object({ aborted: Type.Boolean() }, strict)
 export type AbortRunResponse = Static<typeof AbortRunResponse>
 
-export const SetSessionModelRequest = Type.Object({ model: SessionModel }, strict)
+/**
+ * 模型与 Thinking Level 一起切换（Run 进行中 409 run-in-progress）。给出 thinkingLevel 时该模型不能选它为 400；缺省时保留当前档位，
+ * 新模型不能选它时回到 off。
+ */
+export const SetSessionModelRequest = Type.Object({ model: SessionModel, thinkingLevel: Type.Optional(ThinkingLevel) }, strict)
 export type SetSessionModelRequest = Static<typeof SetSessionModelRequest>
 
 // ---- Settings ----
@@ -87,24 +123,65 @@ export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
 // ---- Providers ----
 
-/** 与 @coko/agent 的 PROVIDER_KINDS 一致（apps/server/src/application/providers.ts 中有编译期断言）；ModelProtocol 同理。 */
-export const ProviderKind = Type.Union([Type.Literal('deepseek'), Type.Literal('openai'), Type.Literal('anthropic'), Type.Literal('openai-compatible')])
-export type ProviderKind = Static<typeof ProviderKind>
+/** Provider ID 由用户输入并作为主键：小写字母开头，后接小写字母、数字或连字符，总长 1–64；创建后不可修改。 */
+export const PROVIDER_ID_PATTERN = '^[a-z][a-z0-9-]{0,63}$'
 
+/** Provider 的 API 地址须为 http 或 https URL（新建、编辑与获取模型共用）。 */
+export function isHttpUrl(text: string): boolean {
+  try {
+    const { protocol } = new URL(text)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+export const ProviderId = Type.String({ pattern: PROVIDER_ID_PATTERN })
+
+/** Provider 保存的协议；与 @coko/agent 的 MODEL_PROTOCOLS 一致（apps/server/src/application/providers.ts 中有编译期断言）。 */
 export const ModelProtocol = Type.Union([Type.Literal('openai-completions'), Type.Literal('openai-responses'), Type.Literal('anthropic-messages')])
 export type ModelProtocol = Static<typeof ModelProtocol>
+
+/** 一个已配置的档位：off 没有参数（按协议的默认关闭方式请求）；其余档位发送 value。 */
+export const ThinkingLevelConfig = Type.Union([
+  Type.Object({ level: Type.Literal('off') }, strict),
+  Type.Object({ level: ReasoningLevel, value: Type.String({ minLength: 1 }) }, strict),
+])
+export type ThinkingLevelConfig = Static<typeof ThinkingLevelConfig>
+
+/** 未填写容量时界面使用的默认值（token）。 */
+export const MODEL_CATALOG_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_000 } as const
+
+const TokenCount = Type.Integer({ minimum: 1 })
+
+/**
+ * Model Catalog 中的一个模型。name 为空表示显示模型 ID。thinkingLevels 按用户添加的顺序保存；reasoning 关闭时档位仍保存，
+ * 但请求不使用它们。同一目录内模型 ID 不重复、maxTokens 不超过 contextWindow、档位不重复由 sidecar 校验（400）。
+ */
+export const CatalogModel = Type.Object(
+  {
+    id: Id,
+    name: Type.String(),
+    contextWindow: TokenCount,
+    maxTokens: TokenCount,
+    input: Type.Array(Type.Union([Type.Literal('text'), Type.Literal('image')]), { minItems: 1, uniqueItems: true }),
+    reasoning: Type.Boolean(),
+    thinkingLevels: Type.Array(ThinkingLevelConfig),
+  },
+  strict,
+)
+export type CatalogModel = Static<typeof CatalogModel>
+
+const Catalog = Type.Array(CatalogModel, { minItems: 1 })
 
 /** Provider 配置；不含密钥，只给出是否已配置与末四位。 */
 export const Provider = Type.Object(
   {
-    id: Id,
+    id: ProviderId,
     name: Type.String(),
-    kind: ProviderKind,
-    /** 由 kind 决定。 */
     api: ModelProtocol,
-    /** 为空字符串时使用预设地址。 */
+    /** http 或 https URL。 */
     baseUrl: Type.String(),
-    models: Type.Array(Type.String()),
+    models: Type.Array(CatalogModel),
     credential: Type.Union([Type.Object({ hint: Type.String() }, strict), Type.Null()]),
     createdAt: Timestamp,
     updatedAt: Timestamp,
@@ -116,42 +193,41 @@ export type Provider = Static<typeof Provider>
 export const ProviderListResponse = Type.Object({ providers: Type.Array(Provider) }, strict)
 export type ProviderListResponse = Static<typeof ProviderListResponse>
 
-/** openai-compatible 必须给 baseUrl；预设 kind 省略 baseUrl 时使用预设地址。 */
-export const CreateProviderRequest = Type.Object(
+/** 引用某 Provider 的 Session 数量；删除 Provider 时这些 Session 的模型字段被清空。 */
+export const ProviderReferencesResponse = Type.Object({ sessions: Type.Integer({ minimum: 0 }) }, strict)
+export type ProviderReferencesResponse = Static<typeof ProviderReferencesResponse>
+
+/**
+ * 一次提交的 Provider 配置（不含密钥）：新建与编辑都给出完整字段，编辑时 id 指定要修改的 Provider（不可修改）。
+ * 只经 preload IPC 与控制消息 provider.save 提交（ADR 0010），HTTP 不提供创建与更新。ID 重复时 already-exists；
+ * 地址不是 http(s) URL 或目录不合规则时 bad-request。
+ */
+export const ProviderFields = Type.Object(
   {
+    id: ProviderId,
     name: Type.String({ minLength: 1 }),
-    kind: ProviderKind,
-    baseUrl: Type.Optional(Type.String()),
-    models: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+    api: ModelProtocol,
+    baseUrl: Type.String({ minLength: 1 }),
+    models: Catalog,
   },
   strict,
 )
-export type CreateProviderRequest = Static<typeof CreateProviderRequest>
+export type ProviderFields = Static<typeof ProviderFields>
 
-export const UpdateProviderRequest = Type.Object(
-  {
-    name: Type.Optional(Type.String({ minLength: 1 })),
-    baseUrl: Type.Optional(Type.String()),
-    models: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })),
-  },
-  strict,
-)
-export type UpdateProviderRequest = Static<typeof UpdateProviderRequest>
-
-/** 预设 kind 的默认地址与目录中的模型 id；openai-compatible 没有目录，不在其中。 */
-export const ProviderPreset = Type.Object(
-  { kind: ProviderKind, name: Type.String(), baseUrl: Type.String(), models: Type.Array(Type.String({ minLength: 1 })) },
-  strict,
-)
-export type ProviderPreset = Static<typeof ProviderPreset>
-
-export const ProviderPresetsResponse = Type.Object({ presets: Type.Array(ProviderPreset) }, strict)
-export type ProviderPresetsResponse = Static<typeof ProviderPresetsResponse>
+/** create：新建，ID 不能已被使用；update：替换已有 Provider 的配置。 */
+export const ProviderSaveMode = Type.Union([Type.Literal('create'), Type.Literal('update')])
+export type ProviderSaveMode = Static<typeof ProviderSaveMode>
 
 // ---- Models ----
 
-/** 一个可选的模型：Session 可以切换到它。 */
-export const AvailableModel = Type.Object({ providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String() }, strict)
+/**
+ * 一个可选的模型：Session 可以切换到它。thinkingLevels 为会话中可选的档位，按固定顺序：始终有 off，推理开关打开时再加上
+ * 目录中已配置的档位。
+ */
+export const AvailableModel = Type.Object(
+  { providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String(), thinkingLevels: Type.Array(ThinkingLevel, { minItems: 1 }) },
+  strict,
+)
 export type AvailableModel = Static<typeof AvailableModel>
 
 /** 已注册 Provider 的模型（按 Provider 登记顺序）与新建 Session 的默认模型；没有可用模型时 defaultModel 为 null。 */

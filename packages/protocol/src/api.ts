@@ -11,8 +11,6 @@ export const API_ROUTES = {
   sessions: '/api/sessions',
   settings: '/api/settings',
   providers: '/api/providers',
-  /** GET：预设 Provider 的默认地址与模型目录。 */
-  providerPresets: '/api/provider-presets',
   /** GET：已注册 Provider 的可用模型与默认模型。 */
   models: '/api/models',
 } as const
@@ -66,4 +64,6 @@ export const apiPaths = {
   sessionModel: (id: string) => `${apiPaths.session(id)}/model`,
   setting: (key: string) => `${API_ROUTES.settings}/${encodeURIComponent(key)}`,
   provider: (id: string) => `${API_ROUTES.providers}/${encodeURIComponent(id)}`,
+  /** GET：引用该 Provider 的 Session 数量（ProviderReferencesResponse），删除前确认用。 */
+  providerReferences: (id: string) => `${apiPaths.provider(id)}/references`,
 } as const

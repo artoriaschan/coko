@@ -8,7 +8,6 @@ import {
   AnswerConfirmationRequest,
   API_ROUTES,
   AuthExchangeRequest,
-  CreateProviderRequest,
   ForkRequest,
   RewindRequest,
   isMainOnlyPath,
@@ -21,7 +20,6 @@ import {
   SteerRequest,
   SetSessionModelRequest,
   SubmitMessageRequest,
-  UpdateProviderRequest,
   UpdateSettingRequest,
 } from '@coko/protocol'
 import { AppError, toAppError } from '../application/errors.ts'
@@ -164,8 +162,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(permissionPaths.permissions, async (c) => c.json(await app.sessions.getPermissions(c.req.query('workspaceId') || undefined)))
   http.put(permissionPaths.permissions, async (c) => c.json(await app.sessions.updatePermissions(await body(c, UpdatePermissionsRequest))))
   http.put(`${API_ROUTES.sessions}/:id/model`, async (c) => {
-    const { model } = await body(c, SetSessionModelRequest)
-    return c.json(await app.sessions.setModel(c.req.param('id'), model))
+    const { model, thinkingLevel } = await body(c, SetSessionModelRequest)
+    return c.json(await app.sessions.setModel(c.req.param('id'), model, thinkingLevel))
   })
 
   http.get(API_ROUTES.settings, async (c) => c.json({ settings: await app.settings.list() }))
@@ -175,10 +173,9 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   })
 
   http.get(API_ROUTES.providers, async (c) => c.json({ providers: await app.providers.list() }))
-  http.get(API_ROUTES.providerPresets, (c) => c.json({ presets: app.providers.presets() }))
   http.get(API_ROUTES.models, async (c) => c.json({ models: app.providers.models(), defaultModel: (await app.sessions.defaultModel()) ?? null }))
-  http.post(API_ROUTES.providers, async (c) => c.json(await app.providers.create(await body(c, CreateProviderRequest)), 201))
-  http.patch(`${API_ROUTES.providers}/:id`, async (c) => c.json(await app.providers.update(c.req.param('id'), await body(c, UpdateProviderRequest))))
+  // Provider 的创建与更新只经 main 的控制消息 provider.save（ADR 0010）。
+  http.get(`${API_ROUTES.providers}/:id/references`, async (c) => c.json(await app.providers.references(c.req.param('id'))))
   http.delete(`${API_ROUTES.providers}/:id`, async (c) => {
     await app.providers.delete(c.req.param('id'))
     return c.body(null, 204)

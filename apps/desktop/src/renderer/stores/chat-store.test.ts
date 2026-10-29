@@ -38,6 +38,8 @@ const session = (id: string, patch: Partial<Session> = {}): Session => ({
   workspaceId: 'w1',
   title: id,
   model: { providerId: 'faux', modelId: 'faux-1' },
+  thinkingLevel: 'off',
+  modelCleared: false,
   running: false,
   activity: 'idle',
   createdAt: 1,
@@ -300,6 +302,31 @@ describe('chat store', () => {
     await store.getState().selectModel(other)
     expect(api.setSessionModel).toHaveBeenCalledWith('s-new', other)
     expect(store.getState().sessions.find((s) => s.id === 's-new')?.model).toEqual(other)
+  })
+
+  it('Thinking Level 与模型一起选择：草稿默认 off，选择的档位用于创建会话；打开的会话切换档位经协议写入并按回复更新', async () => {
+    const stream = new FakeStream()
+    const thinker = { providerId: 'p1', modelId: 'thinker' }
+    const api = fakeApi({
+      listSessions: vi.fn<Api['listSessions']>(async () => []),
+      setSessionModel: vi.fn<Api['setSessionModel']>(async (id, model, thinkingLevel) => session(id, { model, thinkingLevel: thinkingLevel ?? 'off' })),
+    })
+    const store = createChatStore({ api, stream })
+    await store.getState().load()
+    expect(store.getState().draftThinkingLevel).toBe('off')
+    await store.getState().selectModel(thinker, 'high')
+    expect(store.getState()).toMatchObject({ draftModel: thinker, draftThinkingLevel: 'high' })
+    expect(api.setSessionModel).not.toHaveBeenCalled()
+
+    const sending = store.getState().send('hello')
+    await flush()
+    expect(api.createSession).toHaveBeenCalledWith({ workspaceId: 'w1', title: 'hello', model: thinker, thinkingLevel: 'high' })
+    stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: false })
+    await sending
+
+    await store.getState().selectModel(thinker, 'medium')
+    expect(api.setSessionModel).toHaveBeenLastCalledWith('s-new', thinker, 'medium')
+    expect(store.getState().sessions.find((s) => s.id === 's-new')).toMatchObject({ model: thinker, thinkingLevel: 'medium' })
   })
 
   it('切换模型失败时报告 model 失败，会话模型不变', async () => {
