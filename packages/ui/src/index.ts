@@ -43,6 +43,14 @@ export { cn } from './lib/utils.ts'
 // MarkdownRenderer 经 @coko/ui/markdown 子路径导入，使消费方可以按需懒加载（Shiki、Mermaid、KaTeX 体积大）。
 export type { MarkdownRendererProps, MarkdownTranslations } from './markdown/markdown-renderer.tsx'
 export { ComposerEditor, type ComposerEditorHandle, type ComposerEditorProps } from './composer/composer-editor.tsx'
-export { ComposerTypeahead, type ComposerTypeaheadGroup, type ComposerTypeaheadItem, type ComposerTypeaheadProps } from './composer/composer-typeahead.tsx'
+export {
+  ComposerTypeahead,
+  type ComposerTypeaheadGroup,
+  type ComposerTypeaheadItem,
+  type ComposerTypeaheadProps,
+  type ComposerTypeaheadReplacement,
+  type ComposerTypeaheadSelection,
+} from './composer/composer-typeahead.tsx'
+export { $createFileReferenceNode, $isFileReferenceNode, FileReferenceNode, formatFileReference } from './composer/file-reference-node.ts'
 export { DiffBlock, ToolCard, ToolOutput, type ToolCardProps, type ToolCardStatus } from './tool-card/tool-card.tsx'
 export { toast } from 'sonner'

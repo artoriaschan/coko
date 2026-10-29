@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { ChevronRightIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import { ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
@@ -94,6 +94,23 @@ export function TimelineView(props: TimelineViewProps) {
                   <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
                     {item.text}
                   </p>
+                )}
+                {item.references && (
+                  // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
+                  <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-1">
+                    {item.references.map((path) => (
+                      <li
+                        key={path}
+                        data-slot="file-reference-chip"
+                        data-path={path}
+                        aria-label={t('references.chipLabel', { path })}
+                        className="flex h-6 max-w-full min-w-0 items-center gap-1 rounded-sm border-hairline border-border px-2 text-ui-small text-muted-foreground"
+                      >
+                        {path.endsWith('/') ? <FolderIcon aria-hidden className="size-3.5 shrink-0" /> : <FileIcon aria-hidden className="size-3.5 shrink-0" />}
+                        <span className="truncate">{path}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
                 {actions && (
                   <div

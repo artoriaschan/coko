@@ -4,9 +4,10 @@ import { config } from './config.ts'
 import { context } from './context.ts'
 import { mcp } from './mcp.ts'
 import { memory } from './memory.ts'
+import { references } from './references.ts'
 import { skills } from './skills.ts'
 
-const DOMAINS = { commands, config, context, mcp, memory, skills }
+const DOMAINS = { commands, config, context, mcp, memory, references, skills }
 
 type Domains = typeof DOMAINS
 export type DomainDictionary = { [K in keyof Domains]: Domains[K]['zh'] }

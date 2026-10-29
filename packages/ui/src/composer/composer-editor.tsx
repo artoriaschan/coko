@@ -9,14 +9,17 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  CLEAR_HISTORY_COMMAND,
   COMMAND_PRIORITY_HIGH,
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
   mergeRegister,
   type LexicalEditor,
+  type SerializedEditorState,
 } from 'lexical'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
+import { FileReferenceNode } from './file-reference-node.ts'
 
 export interface ComposerEditorHandle {
   focus(): void
@@ -24,8 +27,14 @@ export interface ComposerEditorHandle {
   submit(): Promise<void>
   /** 替换编辑区内容并把光标放到末尾（例如退回未送达的追加指令）。 */
   setText(text: string): void
-  /** 当前文本（未去首尾空白）。 */
+  /** 当前文本（未去首尾空白）；File Reference 节点为 @path。 */
   getText(): string
+  /** 当前内容的 EditorState JSON（草稿持久化）。 */
+  getEditorState(): SerializedEditorState
+  /** 以 EditorState JSON 替换内容并清空撤销历史（不调用 onDraftChange）；JSON 不合法或含未知节点时返回 false，内容不变。 */
+  setEditorState(json: unknown): boolean
+  /** 清空内容与撤销历史（不调用 onDraftChange）。 */
+  clear(): void
 }
 
 export interface ComposerEditorProps {
@@ -39,6 +48,8 @@ export interface ComposerEditorProps {
   onEscape?: () => void
   /** 内容在空与非空之间变化时调用（初始为空）。 */
   onEmptyChange?: (empty: boolean) => void
+  /** 用户编辑了内容（输入、删除、选择候选、提交后清空）；setEditorState 与 clear 不调用。 */
+  onDraftChange?: () => void
   disabled?: boolean
   className?: string
   ref?: React.Ref<ComposerEditorHandle>
@@ -60,10 +71,25 @@ const readText = (editor: LexicalEditor) => editor.getEditorState().read(() => $
  * 基础 composer 编辑区（Lexical 纯文本）：Enter 提交、Shift+Enter 换行，输入法组合期间不提交。
  * 草稿由编辑器自身保存；组件保持挂载即保留草稿与选区。
  */
-export function ComposerEditor({ label, placeholder, onSubmit, onEscape, onEmptyChange, disabled = false, className, ref, children }: ComposerEditorProps) {
+/** 程序替换内容（加载草稿、clear）的更新标记：不视为用户编辑。 */
+const PROGRAMMATIC = 'coko-composer-programmatic'
+
+export function ComposerEditor({
+  label,
+  placeholder,
+  onSubmit,
+  onEscape,
+  onEmptyChange,
+  onDraftChange,
+  disabled = false,
+  className,
+  ref,
+  children,
+}: ComposerEditorProps) {
   const initialConfig = React.useMemo(
     () => ({
       namespace: 'coko-composer',
+      nodes: [FileReferenceNode],
       onError: (error: Error) => {
         throw error
       },
@@ -93,7 +119,14 @@ export function ComposerEditor({ label, placeholder, onSubmit, onEscape, onEmpty
           ErrorBoundary={LexicalErrorBoundary}
         />
         <HistoryPlugin />
-        <ComposerBridge onSubmit={onSubmit} onEscape={onEscape} onEmptyChange={onEmptyChange} disabled={disabled} handleRef={ref} />
+        <ComposerBridge
+          onSubmit={onSubmit}
+          onEscape={onEscape}
+          onEmptyChange={onEmptyChange}
+          onDraftChange={onDraftChange}
+          disabled={disabled}
+          handleRef={ref}
+        />
         {children}
       </div>
     </LexicalComposer>
@@ -104,14 +137,18 @@ function ComposerBridge({
   onSubmit,
   onEscape,
   onEmptyChange,
+  onDraftChange,
   disabled,
   handleRef,
-}: Pick<ComposerEditorProps, 'onSubmit' | 'onEscape' | 'onEmptyChange'> & { disabled: boolean; handleRef: React.Ref<ComposerEditorHandle> | undefined }) {
+}: Pick<ComposerEditorProps, 'onSubmit' | 'onEscape' | 'onEmptyChange' | 'onDraftChange'> & {
+  disabled: boolean
+  handleRef: React.Ref<ComposerEditorHandle> | undefined
+}) {
   const [editor] = useLexicalComposerContext()
   // 回调经 ref 读取最新值，命令只注册一次。
-  const callbacks = React.useRef({ onSubmit, onEscape, onEmptyChange })
+  const callbacks = React.useRef({ onSubmit, onEscape, onEmptyChange, onDraftChange })
   React.useLayoutEffect(() => {
-    callbacks.current = { onSubmit, onEscape, onEmptyChange }
+    callbacks.current = { onSubmit, onEscape, onEmptyChange, onDraftChange }
   })
   const pending = React.useRef(false)
 
@@ -154,7 +191,48 @@ function ComposerBridge({
     [editor],
   )
 
-  React.useImperativeHandle(handleRef, () => ({ focus: () => editor.focus(), submit, setText, getText: () => readText(editor) }), [editor, submit, setText])
+  const clear = React.useCallback(() => {
+    editor.update(
+      () => {
+        const root = $getRoot()
+        root.clear()
+        root.append($createParagraphNode())
+      },
+      { tag: PROGRAMMATIC, discrete: true },
+    )
+    editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
+  }, [editor])
+
+  const setEditorState = React.useCallback(
+    (json: unknown) => {
+      let state
+      try {
+        // parseEditorState 对未知节点类型与 importJSON 的错误抛出。
+        state = editor.parseEditorState(json as SerializedEditorState)
+      } catch {
+        return false
+      }
+      if (state.isEmpty()) return false
+      editor.setEditorState(state, { tag: PROGRAMMATIC })
+      editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
+      return true
+    },
+    [editor],
+  )
+
+  React.useImperativeHandle(
+    handleRef,
+    () => ({
+      focus: () => editor.focus(),
+      submit,
+      setText,
+      getText: () => readText(editor),
+      getEditorState: () => editor.getEditorState().toJSON(),
+      setEditorState,
+      clear,
+    }),
+    [editor, submit, setText, setEditorState, clear],
+  )
 
   React.useEffect(() => {
     editor.setEditable(!disabled)
@@ -171,6 +249,10 @@ function ComposerBridge({
     report(readText(editor))
     return mergeRegister(
       editor.registerTextContentListener(report),
+      editor.registerUpdateListener(({ dirtyElements, dirtyLeaves, tags }) => {
+        if (tags.has(PROGRAMMATIC) || (dirtyElements.size === 0 && dirtyLeaves.size === 0)) return
+        callbacks.current.onDraftChange?.()
+      }),
       editor.registerCommand(
         KEY_ENTER_COMMAND,
         (event) => {
