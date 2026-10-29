@@ -13,3 +13,10 @@
 - [ ] 协议下拉只有三项，默认 OpenAI Chat Completions
 - [ ] 按钮文案始终为“编辑”；提交中按钮不可点，失败时表单底部显示错误并保留草稿
 - [ ] 键盘可操作，焦点可见，明暗主题正确；几何符合规格第 6 节
+
+## Comments
+
+### 来自票 09
+
+- 设置菜单已分组（票 09 已合入）。分类“Models”/“模型”是 `role="group"` 的无障碍名称（`aria-labelledby` 指向分类标题），在设置弹窗内用 `getByLabelText('Models')` 会同时匹配该分组和表单字段。查询表单字段时改用带角色的查询，例如 `getByRole('textbox', { name: 'Models' })`；新增带“Models”/“模型”标签的控件同样按角色查询。
+- 打开模型服务分区：菜单项文案为 `settings.nav.models`（“Model services”/“模型服务”），选择器 `[data-section=models]` 未变；分区页标题仍用 `settings.models` 等分区自己的键，与菜单文案分开。

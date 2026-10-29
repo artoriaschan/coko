@@ -16,3 +16,10 @@
 - [ ] 加载中按钮不可点；15 秒超时；失败显示错误与重试；空结果有说明；关闭弹窗取消请求
 - [ ] 切换协议或地址后已获取的候选作废；新建表单地址或 Key 未填时按钮不可点
 - [ ] 弹窗焦点管理与键盘操作可用
+
+## Comments
+
+### 来自票 09
+
+- 设置菜单已分组（票 09 已合入）。分类“Models”/“模型”是 `role="group"` 的无障碍名称（`aria-labelledby` 指向分类标题），在设置弹窗内用 `getByLabelText('Models')` 会同时匹配该分组和表单字段。查询表单字段时改用带角色的查询，例如 `getByRole('textbox', { name: 'Models' })`；新增带“Models”/“模型”标签的控件同样按角色查询。
+- 打开模型服务分区：菜单项文案为 `settings.nav.models`（“Model services”/“模型服务”），选择器 `[data-section=models]` 未变；分区页标题仍用 `settings.models` 等分区自己的键，与菜单文案分开。

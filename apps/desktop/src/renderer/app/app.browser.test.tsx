@@ -215,7 +215,7 @@ describe('设置弹窗', () => {
     await expect.element(dialog).toBeVisible()
     const inDictionary = dictionaryMatcher(locale)
     const openSection = async (section: 'general' | 'models' | 'about') => {
-      await dialog.getByRole('button', { name: dictionaries[locale].settings[section], exact: true }).click()
+      await dialog.getByRole('button', { name: dictionaries[locale].settings.nav[section], exact: true }).click()
       // 对话框标题之后是分区标题。
       await expect.element(dialog.getByRole('heading', { level: 2 }).last()).toBeVisible()
     }
@@ -243,7 +243,7 @@ describe('设置弹窗', () => {
     const { screen, backend } = renderApp('en', { providers: false })
     await screen
     const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await expect.element(dialog.getByText('No Providers yet. Add one to start a conversation.')).toBeVisible()
 
     backend.setCredential.mockResolvedValueOnce({ ok: false, code: 'encryption-unavailable', message: 'no keychain' })
@@ -251,7 +251,7 @@ describe('设置弹窗', () => {
     await dialog.getByLabelText('Provider ID', { exact: true }).fill('custom-provider-1')
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1, m2')
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1, m2')
     const secret = dialog.getByLabelText('Credential', { exact: true })
     await secret.fill('sk-browser-test-9876')
     await dialog.getByRole('button', { name: 'Save' }).click()
@@ -312,7 +312,7 @@ describe('Models 分区', () => {
     await backend.api.createProvider(customProvider('custom-provider-1', ['custom-model-1'], { name: '自定义供应商一' }))
     await settings.getState().load()
     const dialog = await openSettings('设置')
-    await dialog.getByRole('button', { name: '模型', exact: true }).click()
+    await dialog.getByRole('button', { name: '模型服务', exact: true }).click()
     // 列表项显示名称与 Provider ID，没有类别标签。
     await expect.poll(() => dialog.element().querySelector('[data-provider-id="custom-provider-1"]')?.textContent).toContain('自定义供应商一custom-provider-1')
 
@@ -330,7 +330,7 @@ describe('Models 分区', () => {
 
     await dialog.getByLabelText('名称', { exact: true }).fill('自定义供应商二')
     await dialog.getByLabelText('地址', { exact: true }).fill('https://gateway.example')
-    await dialog.getByLabelText('模型', { exact: true }).fill('custom-model-2')
+    await dialog.getByRole('textbox', { name: '模型', exact: true }).fill('custom-model-2')
     const id = dialog.getByLabelText('Provider ID', { exact: true })
     for (const [value, message] of [
       ['Custom-2', dictionaries.zh.providers.idInvalid],
@@ -367,14 +367,14 @@ describe('Models 分区', () => {
     await backend.setCredential('custom-provider-2', 'sk-existing-key-5555')
     await settings.getState().load()
     const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await dialog.getByRole('button', { name: 'Edit' }).click()
     await expect.poll(() => dialog.element().querySelector('[data-provider-form]')?.textContent).toContain('Custom twocustom-provider-2')
     expect(dialog.element().querySelector('[data-provider-form] input[name="providerId"]')).toBeNull()
 
     await dialog.getByLabelText('API protocol', { exact: true }).click()
     await page.getByRole('menuitemradio', { name: 'OpenAI Responses' }).click()
-    await dialog.getByLabelText('Models', { exact: true }).fill('custom-model-1, custom-model-3')
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('custom-model-1, custom-model-3')
     backend.setCredential.mockClear()
     await dialog.getByRole('button', { name: 'Save' }).click()
     await expect.poll(() => dialog.element().querySelector('[data-provider-form]')).toBeNull()
@@ -396,12 +396,12 @@ describe('Models 分区', () => {
     const { ApiError } = await import('../client/api.ts')
     vi.mocked(backend.raw.createProvider).mockRejectedValueOnce(new ApiError('bad-request', 'Invalid request: /baseUrl must match format "uri"', 400))
     const dialog = await openSettings('Settings')
-    await dialog.getByRole('button', { name: 'Models', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Model services', exact: true }).click()
     await dialog.getByRole('button', { name: 'Add Provider' }).click()
     await dialog.getByLabelText('Provider ID', { exact: true }).fill('local')
     await dialog.getByLabelText('Name', { exact: true }).fill('Local')
     await dialog.getByLabelText('Base URL', { exact: true }).fill('http://127.0.0.1:9/v1')
-    await dialog.getByLabelText('Models', { exact: true }).fill('m1')
+    await dialog.getByRole('textbox', { name: 'Models', exact: true }).fill('m1')
     await dialog.getByRole('button', { name: 'Save' }).click()
     const alert = dialog.getByRole('alert')
     await expect.element(alert).toHaveTextContent(dictionaries.en.providers.errors.invalid)
