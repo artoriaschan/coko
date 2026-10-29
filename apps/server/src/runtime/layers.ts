@@ -131,7 +131,7 @@ const AssemblyLive = Layer.effect(
     const { config: sidecar } = yield* Host
     const store = yield* Store
     const config = new ConfigService({ store })
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome })
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, memories: store })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     return yield* Effect.acquireRelease(Effect.succeed({ config, context }), ({ context }) => Effect.promise(() => context.close()))
   }),
