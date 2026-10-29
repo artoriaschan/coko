@@ -4,6 +4,7 @@ import { Button, Checkbox, cn, Input, Tooltip, TooltipContent, TooltipTrigger } 
 import { ChevronDownIcon, ChevronRightIcon, CircleAlertIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { ThinkingLevelsEditor } from './thinking-levels-editor.tsx'
 import { emptyModelRow, formatTokens, type CatalogErrors, type ModelRowDraft, type ModelRowField } from './catalog-draft.ts'
 
 const INPUT_KINDS: CatalogModel['input'][number][] = ['text', 'image']
@@ -215,6 +216,8 @@ function ModelRow({
               )
             })}
           </div>
+          <div aria-hidden className="h-hairline shrink-0 bg-border" />
+          <ThinkingLevelsEditor id={`${id}-thinking`} reasoning={row.reasoning} levels={row.thinkingLevels} onChange={onChange} />
         </div>
       )}
     </li>
