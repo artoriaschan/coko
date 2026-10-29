@@ -1,6 +1,7 @@
 // 上下文装配（M3 规格"apps/server"）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
 import type { CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, SystemSection, ToolHooks } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { LoadedInstructionFile, ResourceDiagnostic } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 
 /** 一次取值的作用域：Workspace（及其 Session，如果有）与当时的有效配置。 */
@@ -35,12 +36,12 @@ export interface CommandSourceContribution {
 /** 动作的执行：返回新 Run 的 runId（例如 /compact 的 Run）。 */
 export type ContextAction = (input: { scope: ContextScope; sessionId: string; args: string }) => Promise<{ runId: string }>
 
-/** 上下文用量接口的分项（票 10 读取）。 */
+/** 上下文用量接口的分项（票 10 读取；形状在协议 instructions.ts / config.ts 中声明）。 */
 export interface ContextReport {
   /** 分项字符数，键为分项名（例如 instructions、skills、memory）。 */
   breakdown?: Record<string, number>
-  instructions?: { path: string; scope: string; chars: number; truncated: boolean }[]
-  diagnostics?: { source: string; path?: string; code: string; message: string }[]
+  instructions?: LoadedInstructionFile[]
+  diagnostics?: ResourceDiagnostic[]
 }
 
 /** 一个领域对上下文的贡献；全部可选，票 01 的各领域文件都是空贡献。 */
@@ -54,8 +55,8 @@ export interface ContextContribution {
   hooks?(scope: ContextScope): ToolHooks[]
   /** 返回 undefined 表示不处理，交给下一个领域；前一个领域的结果作为 input 传入。 */
   expandInput?(input: RunInput, scope: ContextScope): Promise<ExpandResult | undefined>
-  /** 只改模型请求，不改条目。 */
-  transformMessages?(messages: AgentMessage[]): AgentMessage[]
+  /** 只改模型请求，不改条目；scope 为该 Run 开始时取值的作用域（含有效配置）。 */
+  transformMessages?(messages: AgentMessage[], scope: ContextScope): AgentMessage[]
   commandSources?: CommandSourceContribution[]
   actions?: Record<string, ContextAction>
   report?(scope: ContextScope): Promise<ContextReport>

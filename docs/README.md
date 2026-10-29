@@ -31,7 +31,7 @@ lifecycle: active
 - [指令文件](subsystems/instructions.md)：AGENTS.md / CLAUDE.md 的发现顺序、@import、预算、注入格式与嵌套按需加载。
 - [命令](subsystems/commands.md)：提示模板的发现与展开、同名优先级与诊断、命令目录接口、/ 命令菜单与命令 chip。
 - [Skills](subsystems/skills.md)：Skill 的发现位置与校验、<available_skills> 索引与预算、skill 工具与读取根、/<skill-name> 展开、开关与 Skills & Commands 分区。
-- [上下文管理](subsystems/context.md)：@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化。
+- [上下文管理](subsystems/context.md)：@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量与上下文环、时间裁剪、忽略规则。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
 - [@coko/agent](../packages/agent/README.md)：运行时入口、工具契约、工具调度与执行记录。

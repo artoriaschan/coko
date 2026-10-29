@@ -15,6 +15,11 @@ export function useChatStoreApi(): ChatStore {
   return store
 }
 
+/** store 本身；不在 <ChatStoreProvider> 之内（组件测试）时为 null。 */
+export function useOptionalChatStoreApi(): ChatStore | null {
+  return React.useContext(ChatStoreContext)
+}
+
 /** 订阅对话 store 的一个切片；selector 返回的引用应来自 store 自身，避免每次渲染新建对象。 */
 export function useChat<T>(selector: (state: ChatState & ChatActions) => T): T {
   return useStore(useChatStoreApi(), selector)

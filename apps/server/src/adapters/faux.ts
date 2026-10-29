@@ -7,10 +7,13 @@ import type { SessionModel } from '@coko/protocol'
  * 测试用 faux provider 的脚本（COKO_FAUX_SCRIPT 指向的 JSON 文件）。responses 按模型调用顺序依次消费，
  * 所有 Session 共用一个队列。
  *
- * { "tokensPerSecond": 200, "responses": [{ "content": [{ "type": "toolCall", "name": "write", "arguments": {...} }] }, { "content": "done" }] }
+ * { "tokensPerSecond": 200, "contextWindow": 40000, "responses": [{ "content": [{ "type": "toolCall", "name": "write", "arguments": {...} }] }, { "content": "done" }] }
  */
 export interface FauxScript {
   tokensPerSecond?: number
+  /** faux 模型的上下文窗口与最大输出（缺省 128 000 / 16 384）；上下文用量与压缩测试用小窗口。 */
+  contextWindow?: number
+  maxTokens?: number
   responses: FauxScriptResponse[]
   /** 测试观察用：每次模型请求前把其上下文消息作为一行 JSON 追加到该文件。 */
   requestLog?: string
@@ -47,9 +50,20 @@ function toStep(response: FauxScriptResponse): FauxResponseStep {
 export async function installFauxProvider(registry: ModelRegistry, path: string): Promise<SessionModel> {
   const script = JSON.parse(await readFile(path, 'utf8')) as FauxScript
   if (!script || !Array.isArray(script.responses)) throw new Error('Faux script must have a responses array')
+  for (const key of ['contextWindow', 'maxTokens'] as const) {
+    const value = script[key]
+    if (value !== undefined && !(Number.isInteger(value) && value > 0)) throw new Error(`Faux script ${key} must be a positive integer`)
+  }
   const faux = fauxProvider({
     provider: FAUX_PROVIDER_ID,
-    models: [{ id: FAUX_MODEL_ID, name: 'Faux' }],
+    models: [
+      {
+        id: FAUX_MODEL_ID,
+        name: 'Faux',
+        ...(script.contextWindow === undefined ? {} : { contextWindow: script.contextWindow }),
+        ...(script.maxTokens === undefined ? {} : { maxTokens: script.maxTokens }),
+      },
+    ],
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),
   })
   const log = script.requestLog

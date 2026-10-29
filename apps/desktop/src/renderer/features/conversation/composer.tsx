@@ -5,6 +5,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import type { CommandTarget } from '../../stores/commands-store.ts'
 import { appDraftStore, draftKey, type DraftStore } from '../../stores/draft-store.ts'
 import { CommandMenu } from './command-menu.tsx'
+import { ContextRingControl } from './context-ring.tsx'
 import { FileMenu } from './file-menu.tsx'
 
 export interface ComposerProps {
@@ -174,6 +175,8 @@ export function Composer({
         {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
       </ComposerEditor>
       {accessory}
+      {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
+      {commandTarget && <ContextRingControl target={commandTarget} />}
       {setup ? (
         <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
           <SettingsIcon />
