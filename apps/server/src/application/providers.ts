@@ -44,6 +44,17 @@ export function toProviderDto(provider: StoredProvider): Provider {
   return { ...provider, api: provider.api as ModelProtocol, models: catalogOf(provider) }
 }
 
+/** 存储层对 Provider 的拒绝转为协议错误：ID 已被使用为 already-exists，不存在为 not-found；其余原样抛出。 */
+async function storeCall<T>(id: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call()
+  } catch (error) {
+    if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
+    if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
+    throw error
+  }
+}
+
 /** 先在临时 registry 中构造，配置无效时以 bad-request 拒绝，不写库。 */
 function validate(config: ProviderConfig): void {
   try {
@@ -111,17 +122,10 @@ export class ProviderService {
       hint: credential.hint,
     }
     validate(toProviderConfig(record))
-    let saved: StoredProvider
-    try {
-      saved =
-        mode === 'create'
-          ? await this.#options.store.providers.create(record, secret)
-          : await this.#options.store.providers.update(id, { name, api, baseUrl, models }, secret)
-    } catch (error) {
-      if (isStoreError(error, 'already-exists')) throw new AppError('already-exists', `Provider ID ${id} is already in use`, { field: 'id', id })
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+    const { providers } = this.#options.store
+    const saved = await storeCall(id, () =>
+      mode === 'create' ? providers.create(record, secret) : providers.update(id, { name, api, baseUrl, models }, secret),
+    )
     this.#options.registry.setProvider(toProviderConfig(saved))
     if (secret) this.#options.invalidateCredential(id)
     log.info('provider saved', { providerId: id, mode, api, credential: secret ? 'replaced' : 'kept' })
@@ -129,13 +133,8 @@ export class ProviderService {
   }
 
   /** 引用该 Provider 的 Session 数量；不存在时 not-found。 */
-  async references(id: string): Promise<ProviderReferencesResponse> {
-    try {
-      return await this.#options.store.providers.references(id)
-    } catch (error) {
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+  references(id: string): Promise<ProviderReferencesResponse> {
+    return storeCall(id, () => this.#options.store.providers.references(id))
   }
 
   /**
@@ -143,13 +142,7 @@ export class ProviderService {
    * 重新选择模型），默认模型设置指向它时改为 null（回退为第一个可用模型）；以后用相同 ID 重新创建也不会接回。
    */
   async delete(id: string): Promise<void> {
-    let cleared: { sessions: number }
-    try {
-      cleared = await this.#options.store.providers.delete(id)
-    } catch (error) {
-      if (isStoreError(error, 'not-found')) throw new AppError('not-found', `Provider ${id} not found`)
-      throw error
-    }
+    const cleared = await storeCall(id, () => this.#options.store.providers.delete(id))
     this.#options.registry.deleteProvider(id)
     this.#options.invalidateCredential(id)
     log.info('provider deleted', { providerId: id, sessionsCleared: cleared.sessions })
