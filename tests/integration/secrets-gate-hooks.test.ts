@@ -170,10 +170,10 @@ describe('秘密不外泄总闸：Hook', () => {
         ['sidecar stderr', sidecar.stderr()],
       ]
       expect(leaksIn(channels, { 'hook output secret': value })).toEqual([])
-      // 用户输入的明文只在用户自己的消息中（入库、推送与 HTTP 读回）；Hook 的 stdin、模型请求、日志与 stderr 中没有。
+      // 用户输入的明文只在用户自己的消息中（库、推送与 HTTP 读回）；Hook 的 stdin、模型请求、日志、其余落盘文件与 stderr 中没有。
       const outbound: [string, string | Buffer][] = [
         ...requests.map((line, i): [string, string] => ['model request ' + i, line]),
-        ...files.filter((f) => f.name.startsWith('hooks/') || f.name.includes('log')).map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
+        ...files.filter((f) => !f.name.startsWith('coko.db')).map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
         ['sidecar stderr', sidecar.stderr()],
       ]
       expect(leaksIn(outbound, { 'typed secret': typed })).toEqual([])
