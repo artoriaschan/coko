@@ -1,7 +1,7 @@
 // 后台任务的工具（docs/subsystems/jobs.md）：job_output（游标读取与等待）、job_list、job_kill、job_input（PTY Job 的输入）。Job 表经 JobsPort
 // 由宿主提供，只含本 Session 的 Job；权限类由宿主注册时给出（job_output、job_list 为 context-read，job_kill 为 session-state，job_input 为 bash，
 // 判定对象为 text）。
-import { Type } from 'typebox'
+import { Type, type Static } from 'typebox'
 import type { SandboxPolicy, SpawnRequest, ExecProcess } from '../../ports/exec.ts'
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail } from '../../tools/truncate.ts'
 import type { CokoTool } from '../../tools/types.ts'
@@ -156,8 +156,18 @@ const ENTER = '\r'
 /**
  * 向 PTY Job 输入（只对 running 的 pty Job；其他 Job 的 stdin 已关闭）：ctrl_c 先写 \x03，再写 text，submit 追加 \r。不等待回应，
  * 结果提示用 job_output 读取。
+ *
+ * 判定对象是 shell 将要执行的整行：上次回车之后已写入的当前行加本次文本（ctrl_c 时当前行先清空），与 bash 命令同一套规则，
+ * 拆成几次输入不能绕过拒绝规则。同一批的调用都先判定再执行：执行时当前行与判定时不同（前一段已写入），本次不发送。
+ * Job 启动时的沙箱档位比当前模式宽时，plan / read-only 下拒绝，其余模式要求一次提权审批（fixedSandbox）。
  */
 export function createJobInputTool(port: JobsPort): CokoTool<typeof jobInputParameters, undefined> {
+  /** 判定时看到的当前行，按参数对象（判定与执行用同一个对象）。 */
+  const judged = new WeakMap<object, string>()
+  const pendingLine = (args: Static<typeof jobInputParameters>) => {
+    const job = port.get(args.job_id)
+    return job && !args.ctrl_c ? job.line : ''
+  }
   return {
     name: 'job_input',
     label: 'job_input',
@@ -166,16 +176,30 @@ export function createJobInputTool(port: JobsPort): CokoTool<typeof jobInputPara
       'submit presses Enter after the text; ctrl_c sends Ctrl-C first. Does not wait: read the response with job_output (wait: true, a short timeout_ms).',
     parameters: jobInputParameters,
     effect: 'side-effect',
-    // 判定对象为输入的文本，与 bash 命令同一套规则。
-    permissionSubject: (args) => args.text,
-    async execute(_toolCallId, { job_id, text: input, submit, ctrl_c }) {
+    permissionSubject: (args) => {
+      const line = pendingLine(args)
+      judged.set(args, line)
+      return line + args.text
+    },
+    fixedSandbox: (args) => {
+      const job = port.get(args.job_id)
+      return job?.sandbox ? { mode: job.sandbox, what: `background job ${args.job_id}` } : undefined
+    },
+    async execute(_toolCallId, args) {
+      const { job_id, text: input, submit, ctrl_c } = args
       if (input === '' && !submit && !ctrl_c) throw new Error('Nothing to send: give text, submit or ctrl_c')
       const job = port.get(job_id)
       if (!job) throw new UnknownJobError(job_id)
       if (job.info.kind !== 'pty')
         throw new Error(`Background job ${job_id} is not a terminal job: its stdin is closed. Start it with bash tty: true to send input.`)
       if (job.status !== 'running') throw new Error(`Background job ${job_id} is not running (status: ${job.status}).`)
-      port.input(job_id, (ctrl_c ? CTRL_C : '') + input + (submit ? ENTER : ''))
+      const seen = judged.get(args)
+      judged.delete(args)
+      if (seen !== undefined && seen !== pendingLine(args))
+        throw new Error(`Not sent: an earlier input changed the current line of background job ${job_id} after this call was checked; send it again.`)
+      const data = (ctrl_c ? CTRL_C : '') + input + (submit ? ENTER : '')
+      port.input(job_id, data)
+      job.typed(data)
       const typed = input === '' ? (submit ? 'Enter' : '') : `${input.length} characters${submit ? ' and Enter' : ''}`
       const sent = ctrl_c ? (typed ? `Ctrl-C, then ${typed}` : 'Ctrl-C') : typed
       return text(`Sent ${sent} to background job ${job_id}. Read the response with job_output.`)

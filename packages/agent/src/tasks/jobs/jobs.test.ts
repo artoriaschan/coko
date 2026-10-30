@@ -1,7 +1,7 @@
 // 后台任务的 agent 部分（docs/subsystems/jobs.md）：环形缓冲与游标、ANSI 去除、等待的三种返回、通知文本、工具结果与"不再通知"标记。
 // 进程、日志与条目由 apps/server 的 JobService 负责，见 tests/integration/sidecar-jobs.test.ts。
 import { describe, expect, it } from 'vitest'
-import { BackgroundJob, jobNotificationText, NOTIFICATION_OUTPUT_MAX, statusLine } from './job.ts'
+import { BackgroundJob, jobNotificationText, nextLine, NOTIFICATION_OUTPUT_MAX, statusLine } from './job.ts'
 import { jobLabel, OutputRing, stripAnsi } from './output.ts'
 import { createJobInputTool, createJobKillTool, createJobListTool, createJobOutputTool, JOB_WAIT_MAX_MS, type JobsPort } from './tools.ts'
 
@@ -290,4 +290,18 @@ describe('通知文本', () => {
   })
 
   it('statusLine', () => expect(statusLine({ status: 'lost' })).toBe('[status: lost]'))
+})
+
+describe('终端的当前行（job_input 的判定对象）', () => {
+  it.each([
+    ['', 'rm -r', 'rm -r'],
+    ['rm -r', 'f build\r', ''],
+    ['echo a', '\rls', 'ls'],
+    ['rm -r', '\x03', ''],
+    ['rm -rx', '\x7f', 'rm -r'],
+    ['rm -r', '\x15ls', 'ls'],
+    ['a', 'b\nc', 'c'],
+  ])('%j 写入 %j 之后为 %j', (line, data, expected) => {
+    expect(nextLine(line, data)).toBe(expected)
+  })
 })

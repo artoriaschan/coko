@@ -8,7 +8,7 @@ import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
 import { decide, toolCategory, type PermissionCall, type PermissionClass, type PermissionDecision, type PermissionTarget } from './decide.ts'
 import { realLocation, resolveTarget, writableRootsFor } from './paths.ts'
-import { checkEscalation, escalationRejectedText, sandboxModeFor } from './sandbox.ts'
+import { checkEscalation, escalationRejectedText, isWiderSandbox, sandboxModeFor } from './sandbox.ts'
 
 /** 模型可见的拒绝文本（契约）。 */
 export const REJECTED_TEXT = 'The user rejected this tool call. Stop and wait for the user to tell you how to proceed.'
@@ -21,6 +21,10 @@ export const RECORD_FAILED_TEXT = 'Run stopped: the record could not be saved'
 export const ESCALATION_NOT_DENIED_TEXT =
   'invalid escalation: sandbox_permissions only retries a command the sandbox denied in this run; run the command without it first'
 export const rejectedWithFeedback = (feedback: string) => `The user rejected this tool call and said:\n${feedback}`
+/** 调用的效果固定在比当前模式更宽的沙箱中执行，而当前模式（plan、read-only）不允许提权。 */
+export const fixedSandboxRefusedText = (what: string, fixed: SandboxMode, mode: PermissionMode) =>
+  `Not sent: ${what} was started under the ${fixed} sandbox, wider than ${mode} mode allows; input to it would run with that access. ` +
+  'Start a new terminal job under the current mode instead.'
 export const deniedByRule = (rule: PermissionRule) => `Permission denied by rule ${rule.tool}${rule.content === undefined ? '' : `(${rule.content})`}.`
 
 export interface PermissionGateOptions {
@@ -234,6 +238,15 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
         if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)
+      }
+
+      // 效果固定在更宽档位中执行的调用（向较宽档位启动的终端输入）：plan 与 read-only 下拒绝，其余模式按一次提权询问（与 sandbox_permissions
+      // 相同，允许规则与模式放行都不能免掉它）。
+      const fixed = tool?.fixedSandbox?.(context.args as never)
+      const mode = options.mode()
+      if (fixed && isWiderSandbox(fixed.mode, sandboxModeFor(mode))) {
+        if (mode === 'plan' || mode === 'read-only') return { block: true, reason: fixedSandboxRefusedText(fixed.what, fixed.mode, mode) }
+        return escalate(context, signal, subject ?? '', fixed.mode, `${fixed.what} runs with ${fixed.mode} access, wider than the current ${mode} mode`)
       }
 
       // 提权在拒绝规则之后检查；严格更宽的档位总要用户批准一次（允许规则与模式放行都不能免掉它），替代该次调用的普通审批，

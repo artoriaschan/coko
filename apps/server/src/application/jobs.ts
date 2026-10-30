@@ -341,16 +341,19 @@ export class JobService {
     let resolveEnded!: () => void
     const ended = new Promise<void>((resolve) => (resolveEnded = resolve))
     const live: LiveJob = {
-      job: new BackgroundJob({
-        jobId,
-        sessionId,
-        kind,
-        label,
-        command,
-        toolCallId: request.toolCallId,
-        ...(goalId ? { goalId } : {}),
-        startedAt: Date.now(),
-      }),
+      job: new BackgroundJob(
+        {
+          jobId,
+          sessionId,
+          kind,
+          label,
+          command,
+          toolCallId: request.toolCallId,
+          ...(goalId ? { goalId } : {}),
+          startedAt: Date.now(),
+        },
+        request.sandbox ? { sandbox: request.sandbox.mode } : {},
+      ),
       logPath,
       writes: Promise.resolve(),
       file,
