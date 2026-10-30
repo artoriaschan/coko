@@ -10,4 +10,5 @@ export {
   unansweredConfirmations,
 } from './derive.ts'
 export type { EffectiveOptions } from './derive.ts'
+export { JOB_NOTIFICATION_TAG } from './job-notification.ts'
 export type { CompactionFields, ContextMessage, EntryLike, EntryRunStatus, RewoundRange, UnansweredConfirmation } from './types.ts'

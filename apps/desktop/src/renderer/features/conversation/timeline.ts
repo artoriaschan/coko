@@ -11,7 +11,7 @@ import {
   type PlanPayload,
   type SessionEntry,
 } from '@coko/protocol'
-import { rewoundRanges } from '@coko/agent/entries'
+import { JOB_NOTIFICATION_TAG, rewoundRanges } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 export interface ToolCallBlock {
@@ -89,8 +89,6 @@ interface Block {
   name?: unknown
   arguments?: unknown
 }
-
-const JOB_NOTIFICATION = '<job-notification>'
 
 const blocksOf = (content: unknown): Block[] => (Array.isArray(content) ? (content.filter((b) => b && typeof b === 'object') as Block[]) : [])
 
@@ -242,7 +240,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
       const blocks = blocksOf(message.content)
       const own = blocks.filter((b) => {
-        if (b.type === 'text' && typeof b.text === 'string' && b.text.startsWith(JOB_NOTIFICATION)) return false
+        if (b.type === 'text' && typeof b.text === 'string' && b.text.startsWith(JOB_NOTIFICATION_TAG)) return false
         const path = b.type === 'text' && typeof b.text === 'string' ? fileReferencePath(b.text) : undefined
         if (path !== undefined) references.push(path)
         return path === undefined

@@ -41,6 +41,9 @@ export class AppError extends Error {
   }
 }
 
+/** 错误的消息文本（日志与 cleanup.failures 用）；不是 Error 的值转为字符串。 */
+export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
 /** 把 StoreError 等已知失败转换为 AppError；未知错误归为 internal。 */
 export function toAppError(error: unknown): AppError {
   if (error instanceof AppError) return error

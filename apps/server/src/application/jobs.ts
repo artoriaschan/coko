@@ -25,7 +25,7 @@ import {
 import { createSecretStreamRedactor, getLogger, redactSecretsDeep, redactSecretValues, type SecretStreamRedactor } from '@coko/logging'
 import { JOB_OUTPUT_PAGE_MAX, type JobOutputResponse, type JobSnapshot } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
-import { AppError } from './errors.ts'
+import { AppError, errorMessage } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import type { TrackProcess } from './processes.ts'
 import type { RecoverySource } from './recovery.ts'
@@ -34,7 +34,6 @@ import type { SessionService } from './sessions.ts'
 import { toNewEntry } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'jobs'])
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** 每个 Job 的日志上限；超出后停止写入，末尾注明 truncated。 */
 export const JOB_LOG_MAX_BYTES = 64 * 1024 * 1024
@@ -428,7 +427,7 @@ export class JobService {
       () => file.write(bytes).then(() => undefined),
       () => undefined,
     )
-    live.writes.catch((error: unknown) => log.warn('job log write failed', { jobId: live.job.info.jobId, error: message(error) }))
+    live.writes.catch((error: unknown) => log.warn('job log write failed', { jobId: live.job.info.jobId, error: errorMessage(error) }))
   }
 
   #flushFrame(live: LiveJob): void {
@@ -476,7 +475,7 @@ export class JobService {
       this.#publishUpdate(live)
       if (!job.observedEnd && !this.#closing) this.#notify(live)
     } catch (error) {
-      log.error('job end failed', { sessionId, jobId, error: message(error) })
+      log.error('job end failed', { sessionId, jobId, error: errorMessage(error) })
     } finally {
       live.resolveEnded()
     }

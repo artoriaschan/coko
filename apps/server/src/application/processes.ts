@@ -7,12 +7,12 @@ import type { ExecPort, ExecRequest } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import type { HostProcess, HostProcessKind, SessionStore } from '@coko/session'
 import { hostProcessTable, type HostProcessTable } from '../adapters/processes.ts'
+import { errorMessage } from './errors.ts'
 
 export const KILL_GRACE_MS = 2_000
 const POLL_MS = 25
 
 const log = getLogger(['runtime', 'processes'])
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** 要登记的进程：spawn 报告的 pid（与 detached 时的进程组），以及类别、所属 Session / Job 与命令。 */
 export interface TrackedProcess {
@@ -138,7 +138,7 @@ export class ProcessRegistry {
 
   #background<T>(work: () => Promise<T>, operation: string): Promise<T | false> {
     const promise = work().catch((error: unknown) => {
-      log.warn('process registration failed', { operation, error: message(error) })
+      log.warn('process registration failed', { operation, error: errorMessage(error) })
       return false as const
     })
     this.#pending.add(promise)

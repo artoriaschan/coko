@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
 import { ContextService } from '../application/context-service.ts'
+import { errorMessage } from '../application/errors.ts'
 import { createContextAssembly, createContributions, type ContextAssembly, type SessionEntryAccess } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
@@ -65,8 +66,6 @@ export class Assembly extends Context.Service<
 >()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
 export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
-
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** 有序关闭的每一步记一行（按释放顺序：Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
 const shutdownStep = (step: string) => Effect.sync(() => getLogger(['runtime']).info('shutdown step {step}', { step }))
@@ -120,7 +119,7 @@ const ToolsLive = Layer.effect(
     }
     const version = yield* Effect.tryPromise({
       try: () => probeRipgrep(path),
-      catch: (error) => new StartupError('ripgrep-unavailable', message(error), { cause: error }),
+      catch: (error) => new StartupError('ripgrep-unavailable', errorMessage(error), { cause: error }),
     })
     log.info('grep implementation selected', { implementation: 'ripgrep', path, version })
     return (extra: Pick<WorkspaceToolsOptions, 'wrapExec'>) => createWorkspaceTools({ ...base, rgPath: path, ...extra })
@@ -140,7 +139,7 @@ const StoreLive = Layer.effect(
     return yield* Effect.acquireRelease(
       Effect.tryPromise({
         try: () => openSqliteStore({ path: config.dbPath, payloads, onInvalidEntry: (entry) => log.warn('session entry skipped', { ...entry }) }),
-        catch: (error) => new StartupError(isStoreError(error) ? `storage-${error.code}` : 'storage-open-failed', message(error), { cause: error }),
+        catch: (error) => new StartupError(isStoreError(error) ? `storage-${error.code}` : 'storage-open-failed', errorMessage(error), { cause: error }),
       }),
       (store) => shutdownStep('storage').pipe(Effect.andThen(Effect.promise(() => store.close()))),
     )
@@ -259,7 +258,7 @@ function checkpointExtensions(snapshots: SnapshotPort, store: SqliteStore): (con
       snapshots,
       commit,
       history: () => store.sessions.listEntries(sessionId),
-      onError: (error, context) => log.warn('checkpoint record failed', { sessionId, ...context, error: message(error) }),
+      onError: (error, context) => log.warn('checkpoint record failed', { sessionId, ...context, error: errorMessage(error) }),
     })
     return { hooks: [tracker.hooks], onEntry: (entry) => tracker.observe(entry) }
   }
@@ -322,7 +321,7 @@ const AppLive = Layer.effect(
       const script = config.fauxScript
       fallbackModel = yield* Effect.tryPromise({
         try: () => installFauxProvider(registry, script),
-        catch: (error) => new StartupError('faux-script-invalid', message(error), { cause: error }),
+        catch: (error) => new StartupError('faux-script-invalid', errorMessage(error), { cause: error }),
       })
       log.warn('faux provider enabled for tests', { providerId: fallbackModel.providerId })
     }
@@ -354,7 +353,7 @@ const AppLive = Layer.effect(
           { name: 'jobs', recover: (source) => jobs.recover(source) },
           { name: 'goals', recover: (source) => goals.recover(source) },
         ]),
-      catch: (error) => new StartupError('recovery-failed', message(error), { cause: error }),
+      catch: (error) => new StartupError('recovery-failed', errorMessage(error), { cause: error }),
     })
     if (recovery.interruptedRuns > 0 || Object.values(recovery.domains).some((n) => n > 0)) log.warn('startup recovery finished', { ...recovery })
 
@@ -387,7 +386,7 @@ const HttpLive = Layer.effect(
   Effect.gen(function* () {
     const app = yield* App
     return yield* Effect.acquireRelease(
-      Effect.tryPromise({ try: () => startHttpServer(app), catch: (error) => new StartupError('listen-failed', message(error), { cause: error }) }),
+      Effect.tryPromise({ try: () => startHttpServer(app), catch: (error) => new StartupError('listen-failed', errorMessage(error), { cause: error }) }),
       (server) => Effect.promise(() => server.close()),
     )
   }),
