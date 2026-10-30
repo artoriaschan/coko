@@ -195,7 +195,8 @@ describe('本地执行的后台命令（spawn）', () => {
 
   it('kill 向进程组发信号：派生的子进程一起结束，退出码为 128 + 信号', async () => {
     const port = createLocalExecPort()
-    const proc = await port.spawn!({ command: `sleep 30 & echo $! > ${ws.dir}/child.pid; wait`, cwd: ws.dir, onData: () => undefined })
+    // 前台用 exec：信号若在 shell 进入 wait 之前到达，wait 版本的 bash 会以 0 退出；exec 后前台进程本身被信号终止。
+    const proc = await port.spawn!({ command: `sleep 30 & echo $! > ${ws.dir}/child.pid; exec sleep 30`, cwd: ws.dir, onData: () => undefined })
     let child = 0
     await expect.poll(async () => (child = Number((await readFile(ws.dir + '/child.pid', 'utf8').catch(() => '0')).trim()))).toBeGreaterThan(0)
     proc.kill('SIGTERM')
