@@ -22,6 +22,7 @@ import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { RewindDialog } from './rewind-dialog.tsx'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
+import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
 
 export interface ConversationPaneProps {
   theme: Theme
@@ -115,6 +116,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
   }, [cardKey])
   const takenOver = pending !== undefined || confirmation !== undefined
+  // 绑定的 worktree 已移除：会话只能查看（Sidecar 以 409 worktree-removed 拒绝提交），输入区换成只读提示。
+  const readOnlyWorktree = session?.worktree?.status === 'removed' && !takenOver ? session.worktree : undefined
   // 回退与分叉：Run 进行中、等待审批或等待结果确认时不可用（Sidecar 同样以 409 拒绝）。目标与会话绑定：切换会话后视为关闭。
   // opened 每次打开递增，作为对话框的 key，使其本地状态随每次打开重置。
   // 关闭时保留请求只清 open，key 不变，关闭动画与焦点归还照常进行。
@@ -233,6 +236,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
           {title}
         </h1>
+        {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
         <ConnectionStatus state={connection} />
         {activeSessionId !== null && headerActions.length > 0 && (
           <div data-slot="header-actions" className="flex shrink-0 items-center gap-1">
@@ -305,8 +309,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             </div>
           )}
           {!takenOver && <Dock sessionId={activeSessionId} className={composerColumn} />}
+          {readOnlyWorktree && <WorktreeReadOnlyNotice worktree={readOnlyWorktree} className={composerColumn} />}
           {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
-          <div ref={composerArea} hidden={takenOver}>
+          <div ref={composerArea} hidden={takenOver || readOnlyWorktree !== undefined}>
             <Composer
               ref={setComposer}
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。

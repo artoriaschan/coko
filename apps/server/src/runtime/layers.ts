@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
 import { createTestClock, systemClock, type ClockPort, type TestClock } from '../adapters/clock.ts'
 import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
+import { createGitRunner } from '../adapters/git.ts'
 import { HandoffService } from '../application/handoff.ts'
 import { HookService } from '../application/hooks.ts'
 import { NotificationService } from '../application/notifications.ts'
@@ -370,7 +371,15 @@ const AppLive = Layer.effect(
     if (testClock) log.warn('test clock enabled', { now: testClock.now() })
     const clock: ClockPort = testClock ?? systemClock()
     const subagents = new SubagentService()
-    const worktrees = new WorktreeService()
+    // Worktree（ADR 0016）：git 在宿主执行并登记为 git（ADR 0012）；移除前的 busy 检查读取之后创建的 SessionService 与 JobService。
+    const worktrees: WorktreeService = new WorktreeService({
+      store,
+      git: createGitRunner({ env, track: processes.track }),
+      activity: {
+        running: (sessionId): boolean => sessions.isRunning(sessionId),
+        runningJobs: async (sessionId) => (await jobs.list(sessionId)).some((job) => job.status === 'running'),
+      },
+    })
     const handoff = new HandoffService()
     const schedules = new ScheduleService({ clock })
     const notifications = new NotificationService({
@@ -395,7 +404,7 @@ const AppLive = Layer.effect(
     const checkpoints = openCheckpointStore(config.dataDir)
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
-    const sessions = new SessionService({
+    const sessions: SessionService = new SessionService({
       store,
       registry,
       hub,
@@ -405,6 +414,7 @@ const AppLive = Layer.effect(
       extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
       context,
+      cwd: worktrees.cwd,
       ...(fallbackModel ? { fallbackModel } : {}),
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
