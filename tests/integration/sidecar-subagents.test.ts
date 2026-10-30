@@ -1,80 +1,9 @@
 // 子代理（docs/subsystems/subagents.md，ADR 0014）：真实 Sidecar 与 faux 模型（回复按 match 分给父 Session 与各子 Session）。前台 explore 在独立上下文
 // 中工作、父级收到 <agent-result>；同一批两个 agent 并行；后台子代理立即返回，结束时通知在父 Run 进行中作为追加指令、空闲时挂起到下一个 Run；
 // agent_wait 与 agent_cancel；第 5 个 running 子代理为错误结果；子 Session 不在列表中、不能提交；GET …/agents；max-turns。等待用条目，不用固定 sleep。
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { agentPaths, API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
-
-type Logged = { role: string; content: unknown; sections?: Record<string, string> }[]
-const fixtures = new URL('../fixtures/agents/', import.meta.url)
-
-export const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
-const texts = (content: unknown) => (typeof content === 'string' ? [content] : (content as { type: string; text?: string }[]).map((b) => b.text ?? ''))
-export const flat = (logged: Logged) => JSON.stringify(logged)
-/** 最后一条 user message 含该文本的请求（父级之后的请求在 agent 调用参数中也含子代理的 prompt）。 */
-export const byUser = (logged: Logged[], marker: string) =>
-  logged.filter((r) =>
-    texts(r.filter((m) => m.role === 'user').at(-1)?.content ?? '')
-      .join('')
-      .includes(marker),
-  )
-
-export async function bootAgents(responses: unknown[], options: { env?: Record<string, string>; script?: Record<string, unknown> } = {}) {
-  const root = await tempDir()
-  const requestLog = join(root, 'requests.jsonl')
-  await writeFile(requestLog, '')
-  const dirs = await sidecarDirs()
-  const script = await fauxScript(root, { requestLog, responses, ...options.script })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', ...options.env } })
-  const cookie = await exchange(sidecar)
-  const api = client(sidecar, cookie)
-  const stream = await connect(sidecar, cookie)
-  const wsPath = join(root, 'ws')
-  await mkdir(join(wsPath, '.coko', 'agents'), { recursive: true })
-  await cp(new URL('two-turns.md', fixtures), join(wsPath, '.coko', 'agents', 'two-turns.md'))
-  await cp(new URL('writer.md', fixtures), join(wsPath, '.coko', 'agents', 'writer.md'))
-  await writeFile(join(wsPath, 'notes.txt'), 'NOTES-CONTENT\n')
-  const workspaceId = (await api.post(API_ROUTES.workspaces, { path: wsPath })).body.id as string
-  const subscribe = async (sessionId: string) => {
-    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
-    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
-  }
-  const open = async (mode?: string) => {
-    const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
-    const set = mode ? await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode }) : undefined
-    if (set && set.status !== 200) throw new Error(`setting mode ${mode} failed: ${set.status}`)
-    await subscribe(sessionId)
-    return sessionId
-  }
-  const requests = async () =>
-    (await readFile(requestLog, 'utf8'))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as Logged)
-  const submit = async (sessionId: string, text: string) => {
-    const res = await api.post(apiPaths.sessionMessages(sessionId), { text })
-    if (res.status !== 202) throw new Error(`submit failed: ${res.status} ${JSON.stringify(res.body)}`)
-    return res.body.runId as string
-  }
-  return { root, wsPath, dirs, sidecar, api, stream, workspaceId, open, subscribe, requests, submit }
-}
-
-export const of = (stream: Stream, sessionId: string, kind: string) => stream.entries(sessionId).filter((e) => e.kind === kind)
-export const waitKind = (stream: Stream, sessionId: string, kind: string, n = 1, timeoutMs = 30_000) =>
-  stream.waitFor(() => of(stream, sessionId, kind).length >= n, timeoutMs)
-export const runEnds = (stream: Stream, sessionId: string) =>
-  of(stream, sessionId, 'run_end').map((e) => e.payload as { status: string; error?: { code: string } })
-export const toolResults = (stream: Stream, sessionId: string, name?: string) =>
-  of(stream, sessionId, 'message')
-    .map((e) => e.payload as { role: string; toolName?: string; isError?: boolean; content: unknown })
-    .filter((m) => m.role === 'toolResult' && (name === undefined || m.toolName === name))
-    .map((m) => ({ toolName: m.toolName, isError: m.isError, text: texts(m.content).join('') }))
-export const starts = (stream: Stream, sessionId: string) =>
-  of(stream, sessionId, 'agent_start').map((e) => e.payload as { agentId: string; agentType: string; background: boolean; goalId?: string })
-export const ends = (stream: Stream, sessionId: string) =>
-  of(stream, sessionId, 'agent_end').map((e) => e.payload as { agentId: string; status: string; usage: { turns: number; toolCalls: number; tokens: number } })
+import { agentPaths, API_ROUTES, apiPaths } from '@coko/protocol'
+import { bootAgents, byUser, call, ends, flat, of, runEnds, starts, texts, toolResults, waitKind } from './sidecar-subagents-harness.ts'
 
 describe('子代理：派发与结果', { timeout: 120_000 }, () => {
   it('前台 explore：子 Session 的上下文没有父级消息、有 <subagent>，父级收到 <agent-result>；子 Session 不在列表、不能提交；GET …/agents', async () => {

@@ -542,7 +542,12 @@ export class SessionRuns {
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
     // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交。
     const context = this.#options.context
-    runContext.tools.set(await context.tools(runContext.scope))
+    const seeded = await context.tools(runContext.scope)
+    runContext.tools.set(seeded)
+    // 开头的系统消息只列本 Session 可用的工具（子代理的工具交集）：构造前就按 filterTools 限定，不先列出再撤回。
+    const seedNames = [...this.baseTools(cwd).list(), ...seeded.map((c) => c.tool)].map((tool) => tool.name)
+    const seedVisible = context.filterTools(seedNames, runContext.scope)
+    if (seedVisible.length !== seedNames.length) runContext.tools.allow(new Set(seedVisible))
     const runtime = createAgentRuntime({
       models: registry.models,
       model,
