@@ -238,7 +238,8 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
             {t('plan.review.approve')}
             <span className="text-ui-small opacity-80">· {modeLabel(restores)}</span>
           </Button>
-          <DropdownMenu>
+          {/* 非模态：批准后按钮即禁用，模态菜单关闭时的焦点归还与对其余节点的隐藏不再适用。 */}
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"

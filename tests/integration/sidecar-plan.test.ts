@@ -5,7 +5,7 @@ import { access, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval as waitRequest, type Stream } from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
 type Logged = { role: string; content: unknown; sections?: Record<string, string> }[]
@@ -13,6 +13,9 @@ type ToolResult = { toolCallId: string; isError: boolean; content: { text?: stri
 
 const call = (name: string, id: string, args: Record<string, unknown>) => ({ content: [{ type: 'toolCall', name, id, arguments: args }] })
 const exit = (id: string, plan: string) => call('exit_plan_mode', id, { plan })
+/** approval_request 的 payload（kind plan 另带 planId 与 revision）。 */
+const waitApproval = async (stream: Stream, sessionId: string, n = 1) =>
+  (await waitRequest(stream, sessionId, n)) as Awaited<ReturnType<typeof waitRequest>> & { planId?: string; revision?: number }
 const kindOf = (e: SessionEntryRecord) => (e.kind === 'message' ? (e.payload as { role: string }).role : e.kind)
 const text = (r: ToolResult) => r.content.map((b) => b.text ?? '').join('')
 
