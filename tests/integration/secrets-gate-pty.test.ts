@@ -14,8 +14,10 @@ describe.skipIf(process.platform !== 'darwin')('秘密不外泄总闸：PTY', ()
     // 不是凭据形态：只能靠登记明文的按值替换。命令中只有两半；完整的值经 job_input 输入，由终端回显并被程序再打印。
     const value = 'pty-token-' + randomBytes(12).toString('hex')
     const [head, tail] = [value.slice(0, 12), value.slice(12)]
-    const command = `printf 'token=%s' '${head}'; sleep 0.3; printf '%s\\n' '${tail}'; read -r line; echo "got:$line"`
     const root = await tempDir()
+    // 终端在输入到达时就回显：等程序打印完两段（ready 文件出现）之后才输入，回显不会插进两段之间。
+    const ready = join(root, 'ready')
+    const command = `printf 'token=%s' '${head}'; sleep 0.3; printf '%s\\n' '${tail}'; touch ${ready}; read -r line; echo "got:$line"`
     const dirs = await sidecarDirs()
     const requestLog = join(root, 'requests.jsonl')
     await writeFile(requestLog, '')
@@ -24,6 +26,7 @@ describe.skipIf(process.platform !== 'darwin')('秘密不外泄总闸：PTY', ()
       requestLog,
       responses: [
         { content: [call('b1', 'bash', { command, run_in_background: true, tty: true })] },
+        { content: [call('w1', 'bash', { command: `while [ ! -f ${ready} ]; do sleep 0.05; done` })] },
         { content: [call('i1', 'job_input', { job_id: '$LAST_JOB_ID', text: value, submit: true })] },
         { content: [call('o1', 'job_output', { job_id: '$LAST_JOB_ID', wait: true, timeout_ms: 20_000 })] },
         { content: 'done' },
