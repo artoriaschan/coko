@@ -116,13 +116,13 @@ export class GoalService {
   }
 
   /**
-   * 本 Run 注册的 Goal 工具：Session 有 Goal 或本 Run 不是 Goal Round 时注册 get_goal、update_goal；create_goal 只在不是 Goal Round 时注册
-   * （Goal Round 中没有 create）。授权在调用时按条目判定（runAuthority）。
+   * 本 Run 注册的 Goal 工具：get_goal 在 Session 有 Goal 或本 Run 不是 Goal Round 时注册；create_goal 只在不是 Goal Round 时注册（Goal Round 中
+   * 没有 create）；update_goal 只在 Session 有 Goal 时注册（没有 Goal 时它只能返回 not-found，不占用模型上下文）。授权在调用时按条目判定。
    */
-  async toolNames(sessionId: string): Promise<{ goal: boolean; create: boolean }> {
+  async toolNames(sessionId: string): Promise<{ read: boolean; create: boolean; update: boolean }> {
     const round = this.#driver.starting(sessionId)
     const has = currentGoal(await this.#entries(sessionId)) !== undefined
-    return { goal: has || !round, create: !round }
+    return { read: has || !round, create: !round, update: has }
   }
 
   // ---- 用户的动作（HTTP 与 /goal） ----

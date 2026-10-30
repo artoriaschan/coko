@@ -54,9 +54,9 @@ export function goalContribution(options: ContextContributionOptions): ContextCo
       const names = await goals.toolNames(scope.sessionId)
       const port = goals.port(scope.sessionId)
       return [
-        ...(names.goal ? [{ tool: createGetGoalTool(port), permissionClass: 'context-read' as const }] : []),
+        ...(names.read ? [{ tool: createGetGoalTool(port), permissionClass: 'context-read' as const }] : []),
         ...(names.create ? [{ tool: createCreateGoalTool(port), permissionClass: 'session-state' as const }] : []),
-        ...(names.goal ? [{ tool: createUpdateGoalTool(port), permissionClass: 'session-state' as const }] : []),
+        ...(names.update ? [{ tool: createUpdateGoalTool(port), permissionClass: 'session-state' as const }] : []),
       ]
     },
     async onRunEnd(_scope, info) {

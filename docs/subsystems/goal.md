@@ -68,7 +68,7 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 | --- | --- | --- |
 | `get_goal` | context-read | Session 有 Goal，或本 Run 不是 Goal Round |
 | `create_goal { objective, criteria, constraints?, budget? }` | session-state | 本 Run 不是 Goal Round |
-| `update_goal { goal_id, revision, action, objective?, criteria?, constraints?, budget?, evidence?, reason?, job_ids? }` | session-state | 同 `get_goal` |
+| `update_goal { goal_id, revision, action, objective?, criteria?, constraints?, budget?, evidence?, reason?, job_ids? }` | session-state | Session 有 Goal（没有 Goal 时它只能返回 not-found；同一 Run 中刚创建的 Goal 到下一个 Run 才能经它更新） |
 
 `budget` 的字段为 `max_rounds`、`max_tool_calls`、`max_tokens`、`max_cost`、`max_duration_ms`；`evidence` 的元素为 `{ criterion_id, text, tool_call_ids? }`。结果为紧凑 JSON `{ goal: { id, revision, objective, constraints?, criteria, phase, reason?, round, maxRounds?, budget, waitingFor?, evidence? } | null }`，取自入库后的快照。被拒绝的调用为错误结果（`isError: true`），不提交条目；revision 过期的消息带当前 revision。
 
