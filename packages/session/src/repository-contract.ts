@@ -408,6 +408,51 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(secrets.delete('MY_TOKEN'), 'not-found')
     })
 
+    it('子进程登记：register 原样读回（可空字段为 null），list 按登记顺序，remove 幂等', async () => {
+      const { processes } = await open()
+      const job = await processes.register({
+        id: 'p1',
+        pid: 4242,
+        pgid: 4242,
+        startedAt: 'Thu Oct 30 14:22:09 2026',
+        kind: 'job',
+        sessionId: 's1',
+        jobId: 'j1',
+        command: 'npm run dev',
+      })
+      expect(job).toEqual({
+        id: 'p1',
+        pid: 4242,
+        pgid: 4242,
+        startedAt: 'Thu Oct 30 14:22:09 2026',
+        kind: 'job',
+        sessionId: 's1',
+        jobId: 'j1',
+        command: 'npm run dev',
+        createdAt: 1_000,
+      })
+      tick()
+      const mcp = await processes.register({ id: 'p2', pid: 77, startedAt: 'Thu Oct 30 14:22:10 2026', kind: 'mcp', command: 'node server.mjs' })
+      expect(mcp).toMatchObject({ pgid: null, sessionId: null, jobId: null, createdAt: 1_010 })
+      expect((await processes.list()).map((p) => p.id)).toEqual(['p1', 'p2'])
+      await processes.remove('p1')
+      await processes.remove('p1')
+      await processes.remove('missing')
+      expect(await processes.list()).toEqual([mcp])
+    })
+
+    it('子进程登记：重复 id already-exists，pid / pgid 非正整数与未知 kind invalid-input，均不写入', async () => {
+      const { processes } = await open()
+      const base = { id: 'p1', pid: 10, startedAt: 'x', kind: 'bash' as const, command: 'ls' }
+      await processes.register(base)
+      await expectStoreError(processes.register({ ...base, pid: 11 }), 'already-exists')
+      await expectStoreError(processes.register({ ...base, id: 'p2', pid: 0 }), 'invalid-input')
+      await expectStoreError(processes.register({ ...base, id: 'p3', pid: 1.5 }), 'invalid-input')
+      await expectStoreError(processes.register({ ...base, id: 'p4', pgid: -1 }), 'invalid-input')
+      await expectStoreError(processes.register({ ...base, id: 'p5', kind: 'daemon' as never }), 'invalid-input')
+      expect((await processes.list()).map((p) => [p.id, p.pid])).toEqual([['p1', 10]])
+    })
+
     it('关闭后所有操作以 closed 拒绝，重复关闭无副作用', async () => {
       const store = await open()
       await store.close()
@@ -418,6 +463,7 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
         store.providers.list(),
         store.memories.list(),
         store.secrets.list(),
+        store.processes.list(),
       ]) {
         await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
       }

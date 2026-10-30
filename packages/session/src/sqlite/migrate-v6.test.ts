@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { openSqliteStore } from '@coko/session/sqlite'
+import { openSqliteStore, SQLITE_SCHEMA_VERSION } from '@coko/session/sqlite'
 import { TEST_PAYLOADS } from '../test-payloads.ts'
 import { openDatabase } from './open.ts'
 import { MIGRATIONS } from './schema.ts'
@@ -37,7 +37,7 @@ describe('SQLite 迁移 v6', () => {
 
     const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS, onInvalidEntry: () => {} })
     onTestFinished(() => store.close())
-    expect(store.migration).toMatchObject({ from: 5, to: 6 })
+    expect(store.migration).toMatchObject({ from: 5, to: SQLITE_SCHEMA_VERSION })
     const byId = Object.fromEntries((await store.sessions.listSessions()).map((s) => [s.id, s]))
     expect(byId['ran-kept']).toMatchObject({
       model: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },

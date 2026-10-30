@@ -223,6 +223,47 @@ export interface SecretRepository {
   delete(name: string): Promise<void>
 }
 
+/** 宿主启动的子进程的种类：前台 bash、后台 Job、PTY Job、stdio MCP Server。 */
+export type HostProcessKind = 'bash' | 'job' | 'pty' | 'mcp'
+
+export const HOST_PROCESS_KINDS: readonly HostProcessKind[] = ['bash', 'job', 'pty', 'mcp']
+
+/** 登记的子进程（ADR 0012）：进程存活期间存在，退出时删除；宿主启动时据此清理上次留下的孤儿。 */
+export interface HostProcess {
+  /** 调用方给出的登记 ID。 */
+  id: string
+  pid: number
+  /** 进程组；有时按组终止（kill(-pgid)）。MCP 进程没有。 */
+  pgid: number | null
+  /** `ps -o lstart=` 的原文：同一 pid 被复用时据此区分。 */
+  startedAt: string
+  kind: HostProcessKind
+  sessionId: string | null
+  jobId: string | null
+  command: string
+  createdAt: number
+}
+
+export interface HostProcessInput {
+  id: string
+  pid: number
+  pgid?: number | null
+  startedAt: string
+  kind: HostProcessKind
+  sessionId?: string | null
+  jobId?: string | null
+  command: string
+}
+
+export interface ProcessRepository {
+  /** 登记；同一 id 已存在时 already-exists，pid、pgid 不是正整数或 kind 未知时 invalid-input，均不写入。 */
+  register(input: HostProcessInput): Promise<HostProcess>
+  /** 删除登记；不存在时不报错（进程退出与启动清理可能先后删除同一行）。 */
+  remove(id: string): Promise<void>
+  /** 按登记顺序。 */
+  list(): Promise<HostProcess[]>
+}
+
 /** 一组共享同一存储的仓库。 */
 export interface SessionStore {
   sessions: SessionRepository
@@ -230,6 +271,8 @@ export interface SessionStore {
   providers: ProviderRepository
   memories: MemoryRepository
   secrets: SecretRepository
+  /** 宿主登记的子进程（ADR 0012）。 */
+  processes: ProcessRepository
   /** 幂等；关闭后所有操作以 closed 拒绝。 */
   close(): Promise<void>
 }
