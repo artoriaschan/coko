@@ -5,8 +5,11 @@ export {
   NoActiveRunError,
   NothingToContinueError,
   NothingToRetryError,
+  ONSTOP_CONTINUE_LIMIT,
   PAUSED_BEFORE_APPROVAL_TEXT,
   RuntimeBusyError,
+  SUMMARY_EMPTY_TEXT,
+  SUMMARY_TOOL_CALL_TEXT,
 } from './engine/runtime.ts'
 export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
@@ -14,7 +17,11 @@ export type { RetryPolicy } from './engine/retry.ts'
 export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
 export type {
   BeforeRequestState,
+  CompactInfo,
+  CompactVerdict,
   RequestStop,
+  StopContinue,
+  StopInfo,
   ProgressEvent,
   RunEntry,
   RunError,
@@ -82,9 +89,9 @@ export * from './goals/index.ts'
 export * from './planning/index.ts'
 export * from './tasks/index.ts'
 
-// Hooks
-export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks.ts'
-export type { HostBlock, ToolBlockResult, ToolHooks } from './extensions/hooks.ts'
+// Hooks：工具调用的 hook 链与外部 Hook 的类型（extensions/hooks/）。
+export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks/index.ts'
+export type { HookDecision, HookEventContext, HookToolCall, HookVerdict, HostBlock, ToolBlockResult, ToolHooks } from './extensions/hooks/index.ts'
 
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'

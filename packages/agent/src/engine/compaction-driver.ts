@@ -15,7 +15,7 @@ import {
 import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars } from '../context/usage/index.ts'
 import { modelContext, type EntryLike } from '../entries/index.ts'
 import type { CompactionPayload, CompactionTrigger, RequestUsage } from '../session-entries/index.ts'
-import type { ProgressEvent, RunEntry, RunError, RunStatus, RuntimeCompaction } from './types.ts'
+import type { CompactInfo, CompactVerdict, ProgressEvent, RunEntry, RunError, RunStatus, RuntimeCompaction } from './types.ts'
 
 /** 手动压缩时没有可摘要的较早内容（宿主通常在开始 Run 之前就拒绝）。 */
 export const NOTHING_TO_COMPACT_TEXT = 'Nothing to compact: the conversation only has recent messages'
@@ -50,12 +50,14 @@ export interface CompactionDriverOptions {
   abortAgent: () => void
   /** 溢出恢复的摘要请求之前的宿主检查（预算）：false 时不压缩、不重试（宿主已停止本 Run）。 */
   admit: (run: CompactionRun) => Promise<boolean>
+  /** 手动与自动压缩有可摘要的内容时、摘要请求之前（RuntimeContext.beforeCompact）；溢出恢复不调用。 */
+  beforeCompact?: (info: CompactInfo) => Promise<void | CompactVerdict>
 }
 
 const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0)
 
 /** 摘要请求的 usage 只保留 token 与费用（pi-ai 的 Usage 另有 provider 相关字段）；缺失或非法的值记 0。 */
-function requestUsage(usage: Partial<RequestUsage> | undefined): RequestUsage {
+export function requestUsage(usage: Partial<RequestUsage> | undefined): RequestUsage {
   const cost = usage?.cost
   return {
     input: amount(usage?.input),
@@ -73,7 +75,13 @@ function requestUsage(usage: Partial<RequestUsage> | undefined): RequestUsage {
   }
 }
 
-type CompactOutcome = { kind: 'compacted' } | { kind: 'nothing' } | { kind: 'aborted' } | { kind: 'failed'; message: string }
+type CompactOutcome =
+  | { kind: 'compacted' }
+  | { kind: 'nothing' }
+  | { kind: 'aborted' }
+  | { kind: 'failed'; message: string }
+  /** beforeCompact 返回 block：没有发出摘要请求。 */
+  | { kind: 'blocked'; reason: string }
 
 class SummaryAborted extends Error {}
 
@@ -133,6 +141,13 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const entries = await compaction.entries()
     const plan = planCompaction(entries, compaction.keepRecentTokens === undefined ? {} : { keepRecentTokens: compaction.keepRecentTokens })
     if (!plan) return { kind: 'nothing' }
+    if (trigger !== 'overflow' && options.beforeCompact) {
+      const verdict = await options.beforeCompact({ trigger, ...(instructions === undefined ? {} : { instructions }) })
+      if (verdict && 'block' in verdict) return { kind: 'blocked', reason: verdict.block }
+      if (verdict && 'instructions' in verdict && verdict.instructions.trim() !== '')
+        instructions = instructions === undefined || instructions.trim() === '' ? verdict.instructions : `${instructions}\n\n${verdict.instructions}`
+      if (signal.aborted || run.aborted) return { kind: 'aborted' }
+    }
     const tokensBefore = contextTokensOf(entries)
     progress({ type: 'compaction_start', runId: run.runId, trigger })
     let summary: string
@@ -190,10 +205,12 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       const outcome = await tracked(run, 'manual', instructions)
       if (outcome.kind === 'compacted') return { status: 'completed' }
       if (outcome.kind === 'aborted') return { status: 'aborted' }
+      if (outcome.kind === 'blocked') return { status: 'error', error: { code: 'hook_stopped', message: outcome.reason } }
       return { status: 'error', error: { code: 'model_error', message: outcome.kind === 'nothing' ? NOTHING_TO_COMPACT_TEXT : outcome.message } }
     },
     async autoCompact(run, messages, model, signal) {
-      if (run.trigger === 'compact' || run.aborted || run.commitError || breaker.paused || !compaction.autoCompact()) return undefined
+      if (run.trigger === 'compact' || run.trigger === 'handoff' || run.aborted || run.commitError || breaker.paused || !compaction.autoCompact())
+        return undefined
       const { threshold } = contextBudget({ contextWindow: model.contextWindow ?? 0, maxTokens: model.maxTokens ?? 0 })
       if (threshold <= 0 || estimateContextTokens(messages).tokens < threshold) return undefined
       // 内存中的估算可能用了压缩之前的 usage：按条目复核。

@@ -1,7 +1,7 @@
 import type { AgentMessage, AgentToolResult, ThinkingLevel } from '@earendil-works/pi-agent-core'
-import type { Model, Models, UserMessage } from '@earendil-works/pi-ai'
+import type { Model, Models, TextContent, UserMessage } from '@earendil-works/pi-ai'
 import type { EntryLike } from '../entries/index.ts'
-import type { ToolHooks } from '../extensions/hooks.ts'
+import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { ApprovalAnswer } from '../policy/broker.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import type { SecretProvider } from '../ports/secrets.ts'
@@ -10,7 +10,9 @@ import type {
   CompactionTrigger,
   PermissionMode,
   PermissionRule,
+  RequestUsage,
   RunStatus,
+  RunTrigger,
   SessionEntryKind,
   SessionEntryPayloads,
 } from '../session-entries/index.ts'
@@ -31,6 +33,10 @@ export type RunErrorCode =
   | 'budget_exhausted'
   /** Stopped by the host before a request: a cost limit is set but the model has no price. */
   | 'cost_unpriced'
+  /** Stopped by a hook (continue: false), or a manual compaction a hook blocked. */
+  | 'hook_stopped'
+  /** A subagent used up its turn limit. */
+  | 'max_turns'
 
 export interface RunError {
   code: RunErrorCode
@@ -53,6 +59,10 @@ export interface RunResult {
   error?: RunError
   /** Steering messages that were sent but not delivered before the Run ended (also in the run_end entry). */
   undeliveredSteering?: string[]
+  /** Summary mode (trigger handoff), completed: the reply's text. */
+  summary?: string
+  /** Summary mode: usage of the one summary request (the host counts it in the Goal budget). */
+  summaryUsage?: RequestUsage
 }
 
 /** Temporary display state. Never persisted; a client that reconnects rebuilds from entries. */
@@ -91,11 +101,42 @@ export interface RunInput {
   text: string
   content?: Exclude<UserMessage['content'], string>
   before?: RunEntry[]
-  /** run() only. Default submit; goal marks a Goal Round started by the host. Written to run_start. */
-  trigger?: 'submit' | 'goal'
+  /**
+   * run() only. Default submit; goal marks a Goal Round started by the host, schedule a due scheduled task, subagent a child
+   * Session's Run. handoff is summary mode: one request with the effective context plus this input, no tools, nothing but
+   * run_start / run_end committed, the transcript unchanged; the reply text is RunResult.summary. Written to run_start.
+   */
+  trigger?: Extract<RunTrigger, 'submit' | 'goal' | 'schedule' | 'subagent' | 'handoff'>
   /** run() only: the Goal and round of a Goal Round, written to run_start. */
   goal?: { goalId: string; round: number }
+  /** run() only: the scheduled task and its occurrence (UTC ms) of a trigger schedule Run, written to run_start. */
+  schedule?: { scheduleId: string; occurrence: number }
 }
+
+/** State passed to `RuntimeContext.onStop`. */
+export interface StopInfo {
+  runId: string
+  trigger: RunTrigger
+  /** Continuations already made in this Run (0 on the first stop). */
+  continuations: number
+  /** The Run already continued because of onStop (claude-code's stop_hook_active). */
+  stopHookActive: boolean
+}
+
+/** Returned by `RuntimeContext.onStop`: request again with this user message. */
+export interface StopContinue {
+  continue: TextContent[]
+}
+
+/** State passed to `RuntimeContext.beforeCompact` (manual and automatic compaction, never overflow recovery). */
+export interface CompactInfo {
+  trigger: 'auto' | 'manual'
+  /** Manual /compact: the user's extra instructions. */
+  instructions?: string
+}
+
+/** `{ block }` skips an automatic compaction (the request proceeds) or ends a manual one; `{ instructions }` are appended to the summary requirements. */
+export type CompactVerdict = { block: string } | { instructions: string }
 
 /** Returned by `RuntimeContext.beforeRequest` to withhold the request: the Run ends paused with this error (see stopAfterBatch). */
 export interface RequestStop {
@@ -121,6 +162,14 @@ export interface RuntimeContext {
   systemSections?(): Promise<SystemSection[]>
   transformMessages?(messages: AgentMessage[]): AgentMessage[]
   beforeRequest?(state: BeforeRequestState): Promise<void | RequestStop>
+  /** Before a manual or automatic compaction that has something to summarize; not called for overflow recovery. */
+  beforeCompact?(info: CompactInfo): Promise<void | CompactVerdict>
+  /**
+   * Before a conversation Run (not compact, not handoff) ends normally (its last turn is text only). Returning `{ continue }`
+   * requests again with that user message; the runtime allows ONSTOP_CONTINUE_LIMIT continuations per Run and ignores later
+   * ones. The continuation's request passes beforeRequest like any other.
+   */
+  onStop?(info: StopInfo): Promise<void | StopContinue>
 }
 
 /** `entry` is emitted after the host's commit resolved; `progress` is fire-and-forget. */

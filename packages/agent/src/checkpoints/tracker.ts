@@ -2,7 +2,7 @@
 // 第一次修改某路径之前，经 SnapshotPort 保存原内容并提交 file_backup；修改之后提交 file_change { afterHash }。
 // 经 ToolHooks 接入，位于权限 hook 之后：被拒绝或等待中的调用不备份。bash 与外部进程的改动不追踪。
 import type { BeforeToolCallResult } from '@earendil-works/pi-agent-core'
-import type { ToolHooks } from '../extensions/hooks.ts'
+import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { SnapshotPort } from '../ports/checkpoints.ts'
 import { realLocation } from '../policy/paths.ts'
 import type { FileBackupPayload, FileChangePayload } from '../session-entries/index.ts'
