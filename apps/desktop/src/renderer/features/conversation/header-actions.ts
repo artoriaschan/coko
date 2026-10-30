@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
-import { HandoffButton } from './handoff-dialog.tsx'
+import { HandoffButton, HandoffMenuItem } from './handoff-dialog.tsx'
 import { JobsButton } from './jobs-button.tsx'
 import { SessionCost } from './session-cost.tsx'
 
@@ -16,6 +16,11 @@ export interface HeaderActionProps {
 export interface HeaderActionDefinition {
   id: HeaderActionId
   Component: React.ComponentType<HeaderActionProps>
+  /**
+   * 窄主区（主列窄于 560 px）时的呈现：标题栏"更多操作"菜单中的一项（DropdownMenuItem）。此时 Component 仍挂载但隐藏，它持有的对话框
+   * 照常工作，菜单项只请求它打开。省略时该操作在任何宽度下都留在标题栏（状态类操作，例如带 running 数的后台任务）。
+   */
+  MenuItem?: React.ComponentType<HeaderActionProps>
   /** false：功能尚未交付，不挂载。交付该操作的票只把自己的一行改为 true，并把 Component 换成自己的组件。 */
   available: boolean
 }
@@ -30,7 +35,7 @@ export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'cost', Component: SessionCost, available: true },
   { id: 'agents', Component: Unavailable, available: false },
   { id: 'schedules', Component: Unavailable, available: false },
-  { id: 'handoff', Component: HandoffButton, available: true },
+  { id: 'handoff', Component: HandoffButton, MenuItem: HandoffMenuItem, available: true },
 ]
 
 export const visibleHeaderActions = (actions: readonly HeaderActionDefinition[] = HEADER_ACTIONS) => actions.filter((action) => action.available)

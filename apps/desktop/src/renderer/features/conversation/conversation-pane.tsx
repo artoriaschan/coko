@@ -1,5 +1,5 @@
-import { PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon, PlayIcon } from 'lucide-react'
-import { Button } from '@coko/ui'
+import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon, PlayIcon } from 'lucide-react'
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
@@ -14,7 +14,7 @@ import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
-import { visibleHeaderActions } from './header-actions.ts'
+import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
 import { ModelPicker } from './model-picker.tsx'
@@ -38,6 +38,45 @@ export interface ConversationPaneProps {
 // 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
 const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
+
+/**
+ * 标题栏操作（docs/tech-stack/ui.md 的"先重排，再截断"）：主列不窄于 560 px 时全部留在标题栏；更窄时（包括 390 px 与侧栏收起过渡中的
+ * 瞬时宽度）提供菜单呈现的操作收进"更多操作"菜单，按钮本身仍挂载但隐藏，它持有的对话框照常工作；其余操作（状态类）留在标题栏。
+ * "更多操作"只在窄主区且至少一个可收起的操作实际渲染时显示（例如子 Session 没有交接）。
+ */
+function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDefinition[] } & HeaderActionProps) {
+  const { t } = useI18n()
+  const collapsible = actions.filter((action) => action.MenuItem !== undefined)
+  return (
+    <div data-slot="header-actions" className="group/actions flex shrink-0 items-center gap-1">
+      {actions.map(({ id, Component, MenuItem }) =>
+        MenuItem ? (
+          <span key={id} data-collapsible-action={id} className="contents @max-[560px]/main:hidden">
+            <Component {...props} />
+          </span>
+        ) : (
+          <Component key={id} {...props} />
+        ),
+      )}
+      {collapsible.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              label={t('conversation.moreActions')}
+              data-action="more-header-actions"
+              className="hidden @max-[560px]/main:group-has-[[data-collapsible-action]>*]/actions:inline-flex"
+            >
+              <EllipsisIcon />
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" data-slot="header-actions-menu">
+            {collapsible.map(({ id, MenuItem }) => MenuItem && <MenuItem key={id} {...props} />)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  )
+}
 
 export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace, onOpenLogs, composerRef }: ConversationPaneProps) {
   const { t } = useI18n()
@@ -229,22 +268,17 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
 
   return (
     <>
+      {/* 窄主区中间距从 8 px 收到 4 px：侧栏收起过渡中主列可短暂窄到约 110 px，标题与连接文案已截断，剩下的固定宽度控件仍需放下。 */}
       <header
         data-window-drag
-        className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-[calc(16px_+_max(0px,_var(--frame-leading-clearance)_-_var(--local-sidebar-column)))] pe-2"
+        className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-[calc(16px_+_max(0px,_var(--frame-leading-clearance)_-_var(--local-sidebar-column)))] pe-2 @max-[560px]/main:gap-1"
       >
         <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
           {title}
         </h1>
         {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
         <ConnectionStatus state={connection} />
-        {activeSessionId !== null && headerActions.length > 0 && (
-          <div data-slot="header-actions" className="flex shrink-0 items-center gap-1">
-            {headerActions.map(({ id, Component }) => (
-              <Component key={id} sessionId={activeSessionId} openTab={openTab} />
-            ))}
-          </div>
-        )}
+        {activeSessionId !== null && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
         <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
           {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
         </IconButton>

@@ -54,6 +54,7 @@ export const zh = {
     send: '发送',
     stop: '停止',
     newSession: '新会话',
+    moreActions: '更多操作',
     noWorkspaceTitle: '添加一个工作区',
     noWorkspaceBody: '选择本机目录作为工作区，Coko 在其中读写文件和运行命令',
     emptySession: '向 Coko 布置任务开始对话',

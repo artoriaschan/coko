@@ -1,9 +1,10 @@
 import type { MessageKey } from '@coko/i18n'
 import type { HandoffTarget } from '@coko/protocol'
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DropdownMenuItem, Input, Textarea, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { ArrowRightLeftIcon, LoaderCircleIcon, TriangleAlertIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
+import { createStore } from 'zustand/vanilla'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
@@ -39,31 +40,66 @@ const ERRORS: Partial<Record<string, MessageKey>> = {
 
 type TargetKind = HandoffTarget['kind']
 
-/** 标题栏的"交接"按钮：根会话可用；交接进行中时显示进度并重新打开对话框。 */
-export function HandoffButton({ sessionId }: HeaderActionProps) {
+/**
+ * 窄主区中"更多操作"菜单项的打开请求（按会话计数）。对话框由标题栏中始终挂载（窄时隐藏）的 HandoffButton 持有：菜单关闭后菜单项卸载，
+ * 对话框不能放在菜单项里。
+ */
+const openRequests = createStore<Record<string, number>>(() => ({}))
+const requestOpen = (sessionId: string) => openRequests.setState((s) => ({ [sessionId]: (s[sessionId] ?? 0) + 1 }))
+
+/** 按钮与菜单项共用：子 Session（子代理）不能交接（Sidecar 409 child-session），不显示；交接进行中时换成进行中的文案与图标。 */
+function useHandoffAction(sessionId: string) {
   const { t } = useI18n()
   const store = React.useContext(HandoffStoreContext)
   const chat = useOptionalChatStoreApi()
-  React.useEffect(() => (chat ? store.getState().attach(chat) : undefined), [chat, store])
   const progress = useStore(store, (s) => s.progress[sessionId])
-  // 子 Session（子代理）不能交接（Sidecar 409 child-session）：不显示按钮。
   const child = React.useSyncExternalStore(chat?.subscribe ?? (() => () => {}), () => {
     const session = chat?.getState().sessions.find((s) => s.id === sessionId)
     return session?.parentSessionId !== undefined
   })
+  const active = progress !== undefined && progress.phase !== 'stopped'
+  const label = active ? t('handoff.headerActionRunning') : t('handoff.headerAction')
+  const icon = active ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <ArrowRightLeftIcon />
+  return { hidden: child, phase: progress?.phase, label, icon }
+}
+
+/** 标题栏的"交接"按钮：根会话可用；交接进行中时显示进度并重新打开对话框。窄主区中按钮隐藏，对话框仍由它持有（见 HandoffMenuItem）。 */
+export function HandoffButton({ sessionId }: HeaderActionProps) {
+  const store = React.useContext(HandoffStoreContext)
+  const chat = useOptionalChatStoreApi()
+  React.useEffect(() => (chat ? store.getState().attach(chat) : undefined), [chat, store])
+  const { hidden, phase, label, icon } = useHandoffAction(sessionId)
   const [open, setOpen] = React.useState(false)
   // 对话框属于打开它的会话：切换会话（包括交接完成后切到目标会话）时关闭。
   React.useEffect(() => setOpen(false), [sessionId])
-  if (child) return null
-  const active = progress !== undefined && progress.phase !== 'stopped'
-  const label = active ? t('handoff.headerActionRunning') : t('handoff.headerAction')
+  // 菜单项的打开请求：只响应挂载之后的新请求。
+  const request = useStore(openRequests, (s) => s[sessionId] ?? 0)
+  const seen = React.useRef(request)
+  React.useEffect(() => {
+    if (request === seen.current) return
+    seen.current = request
+    setOpen(true)
+  }, [request])
+  if (hidden) return null
   return (
     <>
-      <IconButton label={label} data-action="open-handoff" data-handoff-phase={progress?.phase} onClick={() => setOpen(true)}>
-        {active ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <ArrowRightLeftIcon />}
+      <IconButton label={label} data-action="open-handoff" data-handoff-phase={phase} onClick={() => setOpen(true)}>
+        {icon}
       </IconButton>
       <HandoffDialog sessionId={sessionId} open={open} onClose={() => setOpen(false)} />
     </>
+  )
+}
+
+/** 窄主区中"更多操作"菜单里的"交接"：请求标题栏中隐藏的 HandoffButton 打开对话框。 */
+export function HandoffMenuItem({ sessionId }: HeaderActionProps) {
+  const { hidden, phase, label, icon } = useHandoffAction(sessionId)
+  if (hidden) return null
+  return (
+    <DropdownMenuItem data-action="open-handoff" data-handoff-phase={phase} onSelect={() => requestOpen(sessionId)}>
+      {icon}
+      {label}
+    </DropdownMenuItem>
   )
 }
 

@@ -56,6 +56,7 @@ export const en: typeof zh = {
     send: 'Send',
     stop: 'Stop',
     newSession: 'New session',
+    moreActions: 'More actions',
     noWorkspaceTitle: 'Add a workspace',
     noWorkspaceBody: 'Choose a local folder as a workspace. Coko reads and writes files and runs commands there.',
     emptySession: 'Give Coko a task to start',
