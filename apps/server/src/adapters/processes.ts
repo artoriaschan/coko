@@ -9,14 +9,20 @@ export interface ProcessIdentity {
   pgid: number
 }
 
+/** 信号的目标：给出 pgid 时为该进程组，否则为单个 pid。 */
+export interface ProcessTarget {
+  pid: number
+  pgid?: number | undefined
+}
+
 /** 宿主进程表的端口；ProcessRegistry 经它读取与发信号，测试可以替换。 */
 export interface HostProcessTable {
   /** 进程不存在时 undefined。 */
   inspect(pid: number): Promise<ProcessIdentity | undefined>
   /** 向进程组（给出 pgid）或单个 pid 发信号；目标已不存在时不报错。 */
-  signal(target: { pid: number; pgid?: number | undefined }, signal: NodeJS.Signals): void
+  signal(target: ProcessTarget, signal: NodeJS.Signals): void
   /** 目标（进程组或 pid）中是否仍有进程；没有权限发信号的也算存在。 */
-  alive(target: { pid: number; pgid?: number | undefined }): boolean
+  alive(target: ProcessTarget): boolean
 }
 
 const PS_ENV = { PATH: '/bin:/usr/bin', LC_ALL: 'C', TZ: 'UTC' }
@@ -41,17 +47,23 @@ export function inspectProcess(pid: number): Promise<ProcessIdentity | undefined
   })
 }
 
-const targetOf = ({ pid, pgid }: { pid: number; pgid?: number | undefined }) => (pgid === undefined ? pid : -pgid)
+const targetOf = ({ pid, pgid }: ProcessTarget) => (pgid === undefined ? pid : -pgid)
 
-export function signalProcess(target: { pid: number; pgid?: number | undefined }, signal: NodeJS.Signals): void {
+/** 向目标发信号；返回是否送达（目标已不存在时 false，不抛错）。 */
+export function signalTarget(target: ProcessTarget, signal: NodeJS.Signals): boolean {
   try {
     process.kill(targetOf(target), signal)
+    return true
   } catch {
-    // 已不存在。
+    return false
   }
 }
 
-export function processAlive(target: { pid: number; pgid?: number | undefined }): boolean {
+export function signalProcess(target: ProcessTarget, signal: NodeJS.Signals): void {
+  signalTarget(target, signal)
+}
+
+export function processAlive(target: ProcessTarget): boolean {
   try {
     process.kill(targetOf(target), 0)
     return true
