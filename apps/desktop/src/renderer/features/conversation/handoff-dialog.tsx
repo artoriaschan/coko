@@ -52,6 +52,8 @@ export function HandoffButton({ sessionId }: HeaderActionProps) {
     return session?.parentSessionId !== undefined
   })
   const [open, setOpen] = React.useState(false)
+  // 对话框属于打开它的会话：切换会话（包括交接完成后切到目标会话）时关闭。
+  React.useEffect(() => setOpen(false), [sessionId])
   if (child) return null
   const active = progress !== undefined && progress.phase !== 'stopped'
   const label = active ? t('handoff.headerActionRunning') : t('handoff.headerAction')
