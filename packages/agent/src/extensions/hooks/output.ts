@@ -1,5 +1,6 @@
 // Hook 进程结果的解释（ADR 0013）：exit 2 为阻断（stderr 为原因）；exit 0 时 stdout 可以是 JSON 决定（字段名沿用 claude-code）；超时、
 // 非 0 非 2 的退出、exit 0 而 stdout 不是合法 JSON（PreCompact 除外）都没有决定。只有有结果的执行带 outcome（据此提交 hook_run）。
+// Notification 只观测：exit 2 与 stdout 都没有作用，只记录失败。
 import type { HookDecision, HookEvent, HookOutcome } from './types.ts'
 
 /** 一次执行的原始结果（宿主的 Hook 执行端口给出）。 */
@@ -67,6 +68,8 @@ export function interpretHookResult(event: HookEvent, result: HookProcessResult)
   if (result.error !== undefined) return { outcome: 'error', reason: result.error }
   if (result.timedOut) return { outcome: 'timeout' }
   const stderr = result.stderr.trim()
+  // Notification 只观测：没有阻断，stdout 忽略；只有失败（非 0 非 2 的退出、启动失败、超时）有结果。
+  if (event === 'Notification') return result.exitCode === 0 || result.exitCode === 2 ? {} : { outcome: 'error', ...(stderr ? { reason: stderr } : {}) }
   if (result.exitCode === 2) {
     if (event === 'PostToolUse' || event === 'PostToolUseFailure') return stderr ? { outcome: 'context', context: stderr } : {}
     if (event === 'PreToolUse' || event === 'PermissionRequest') return { outcome: 'blocked', decision: 'deny', ...(stderr ? { reason: stderr } : {}) }

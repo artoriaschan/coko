@@ -167,6 +167,26 @@ describe('interpretHookResult', () => {
     ],
     ['PreCompact：stdout 文本', 'PreCompact', proc({ stdout: 'keep the API list' }), { outcome: 'context', text: 'keep the API list' }],
     ['Stop exit 2：阻断', 'Stop', proc({ exitCode: 2, stderr: 'go on' }), { outcome: 'blocked', block: true, reason: 'go on' }],
+    [
+      'Stop decision block + reason',
+      'Stop',
+      proc({ stdout: json({ decision: 'block', reason: 'tests fail' }) }),
+      { outcome: 'blocked', block: true, reason: 'tests fail' },
+    ],
+    [
+      'UserPromptSubmit additionalContext',
+      'UserPromptSubmit',
+      proc({ stdout: json({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'branch main' } }) }),
+      { outcome: 'context', context: 'branch main' },
+    ],
+    ['UserPromptSubmit 的纯文本 stdout 不是上下文', 'UserPromptSubmit', proc({ stdout: 'plain text' }), { outcome: 'invalid-output' }],
+    ['UserPromptSubmit continue false', 'UserPromptSubmit', proc({ stdout: json({ continue: false }) }), { outcome: 'stopped', stop: true }],
+    ['PreCompact exit 2：阻断', 'PreCompact', proc({ exitCode: 2, stderr: 'not now' }), { outcome: 'blocked', block: true, reason: 'not now' }],
+    ['PreCompact 的 JSON stdout 也按文本', 'PreCompact', proc({ stdout: json({ continue: false }) }), { outcome: 'context', text: '{"continue":false}' }],
+    ['Notification exit 2 不阻断', 'Notification', proc({ exitCode: 2, stderr: 'x' }), {}],
+    ['Notification 忽略 stdout（含 continue false）', 'Notification', proc({ stdout: json({ continue: false, decision: 'block' }) }), {}],
+    ['Notification 失败照常记录', 'Notification', proc({ exitCode: 1, stderr: 'boom' }), { outcome: 'error', reason: 'boom' }],
+    ['Notification 超时照常记录', 'Notification', proc({ timedOut: true, exitCode: null }), { outcome: 'timeout' }],
   ] as const)('%s', (_name, event, result, expected) => {
     expect(interpretHookResult(event, result)).toEqual(expected)
   })
