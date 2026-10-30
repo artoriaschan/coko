@@ -64,3 +64,4 @@
 - 2026-10-31 lead：合入 main（dd72582）时 layers.ts 与票 03 冲突（03 在 AssemblyLive 创建 HookService，05 在 AssemblyLive 创建 ScheduleService / NotificationService / 时钟，并在 AppLive 留下 Hook 存根）：保留两者，Hook、定时任务、通知与时钟都在 AssemblyLive 创建，删除 AppLive 中重复的时钟与 Hook 存根。接受越界：tasks/index.ts 一行、layers.ts、context/types.ts 的 schedules 选项、config.ts 的两个测试变量、desktop main/index.ts 传入 Notification、两处导航行、sidecar-todo.test.ts 压缩用例的窗口 60 000 → 64 000（schedule_* 工具定义使基线增长，与 M4 sidecar-compaction 同类，阈值算法不变）。main 上复核（后台任务，等其他 vitest 结束后运行）：install、typecheck、lint、format:check 退出 0；全量 test 279 文件 2341 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 179 文件 0 问题。worktree-removed 跳过原因没有集成用例——记入 M5 评审。worktree 已清理。
 
 Closed: true
+- 2026-10-31 lead（关闭后补记）：main 的 sidecar-process.ts 没有把 notify 控制消息转发给 main，桌面通知从未显示；由票 09 发现并修复（见票 09 Comments）。本票的验收缺少跨控制通道的用例——记入 M5 评审与复盘。
