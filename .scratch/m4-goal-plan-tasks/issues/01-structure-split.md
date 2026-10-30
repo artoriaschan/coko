@@ -69,3 +69,6 @@
 - `Application.context` 现为 `ContextService`（装配为 `.assembly`），`Application.memories` 为 `MemoryService`，`Application.mcp` 为 `McpAdmin`；新路由经 application 服务访问，不读 `app.store`。
 - 运行时接线点：压缩在 `compaction-driver.ts`；`prepareRequest` 在 runtime.ts（先 `driver.autoCompact`，后 `context.beforeRequest`）；`stopAfterBatch`（票 02）可放在 runtime.ts 的运行控制旁。`AgentRuntimeOptions` / `AgentRuntime` 在 `engine/types.ts`。
 - 已知的过时注释（不在本票范围）：`application/context/compaction.ts` 第 2 行仍写"由 sessions.ts 接线"，应为 session-runs.ts。
+- 2026-10-30 lead：评审后合入 main（8a9238e）。接受越界：新增 engine/permission-wiring.ts（runtime.ts 拆出编排后仍 525 行）、新测试 mcp.test.ts 与 permissions.test.ts、四个 subsystems 文档的代码位置行；接受 commands.test.ts 去掉不合形的 bogus 命令源（J6 删除了过滤它的守卫）。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 209 文件 1463 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 148 文件 0 问题；sessions.ts 296 行、runtime.ts 436 行。worktree 已清理。
+
+Closed: true

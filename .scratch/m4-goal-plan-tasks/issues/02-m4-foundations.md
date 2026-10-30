@@ -22,3 +22,4 @@
 - [ ] TECH_STACK 登记 node-pty 1.2.0-beta.15（附包元数据与选择理由）、anser 接入、allowBuilds；ADR 0003 记 host_processes；permissions.md 写两个新权限类；README 同步；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 01——SessionRuns.start（apps/server/src/application/session-runs.ts）是 startRun 的接入点；新的贡献工具只需声明 ruleTools；Application.context 现为 ContextService，组装结果在 .assembly。apps/server/src/application/context/compaction.ts 第 2 行注释仍写 sessions.ts，应为 session-runs.ts，本票顺带修正。
