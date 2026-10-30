@@ -2,7 +2,7 @@
 // 文本只来自已提交的快照（入库时已替换登记明文）。
 import type { SystemSection } from '../engine/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
-import { formatCost, GOAL_BLOCKED_MIN_ROUNDS, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
+import { costText, GOAL_BLOCKED_MIN_ROUNDS, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
 
 export const GOAL_SECTION_NAME = 'goal'
 
@@ -16,7 +16,7 @@ function budgetLines(goal: GoalPayload, usage: GoalUsageSnapshot): string[] {
   const lines = [`- rounds: ${usage.rounds} / ${budget.maxRounds ?? 'unlimited'}`]
   if (budget.maxToolCalls !== undefined) lines.push(line('tool calls', text(usage.toolCalls), String(budget.maxToolCalls)))
   if (budget.maxTokens !== undefined) lines.push(line('tokens', text(usage.tokens), String(budget.maxTokens)))
-  if (budget.maxCost !== undefined) lines.push(line('cost', usage.cost === undefined ? undefined : formatCost(usage.cost), formatCost(budget.maxCost)))
+  if (budget.maxCost !== undefined) lines.push(line('cost', usage.cost === undefined ? undefined : costText(usage.cost), costText(budget.maxCost)))
   if (budget.maxDurationMs !== undefined)
     lines.push(line('time', usage.durationMs === undefined ? undefined : usage.durationMs + ' ms', budget.maxDurationMs + ' ms'))
   return lines

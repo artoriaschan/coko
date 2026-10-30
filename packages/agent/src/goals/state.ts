@@ -141,8 +141,8 @@ export function exhaustedDimension(
   return undefined
 }
 
-/** 费用的显示：最多 6 位小数，去掉末尾的 0。 */
-export const formatCost = (cost: number) => String(Number(cost.toFixed(6)))
+/** 模型可见文本中的费用（<goal> section 与预算消息）：最多 6 位小数，去掉末尾的 0，不带货币。界面的费用格式在 renderer。 */
+export const costText = (cost: number) => String(Number(cost.toFixed(6)))
 
 /** 形如 "Goal budget exhausted: tool calls (n / max)"；时间带 ms。 */
 export function exhaustedMessage(dimension: string, budget: GoalBudget, usage: GoalUsageSnapshot): string {
@@ -151,7 +151,7 @@ export function exhaustedMessage(dimension: string, budget: GoalBudget, usage: G
   const used = usedOf(usage, known) ?? 0
   const limit = limitOf(budget, known) ?? 0
   const name = known === 'tool-calls' ? 'tool calls' : known
-  const pair = known === 'cost' ? `${formatCost(used)} / ${formatCost(limit)}` : known === 'time' ? `${used} ms / ${limit} ms` : `${used} / ${limit}`
+  const pair = known === 'cost' ? `${costText(used)} / ${costText(limit)}` : known === 'time' ? `${used} ms / ${limit} ms` : `${used} / ${limit}`
   return `${GOAL_BUDGET_EXHAUSTED_PREFIX}${name} (${pair})`
 }
 
