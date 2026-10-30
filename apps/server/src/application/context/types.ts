@@ -215,6 +215,8 @@ export interface ContextContributionOptions {
   entries?: SessionEntryAccess
   /** 外部 Hook（application/hooks.ts）；省略时 hooks 贡献为空。 */
   hooks?: import('../hooks.ts').HookService
+  /** 交接（application/handoff.ts）；省略时 /handoff 为 400。 */
+  handoff?: import('../handoff.ts').HandoffService
   /** 仅测试：额外的贡献，排在全部领域之后（集成测试驱动 seam）。 */
   extra?: readonly ContextContribution[]
 }
