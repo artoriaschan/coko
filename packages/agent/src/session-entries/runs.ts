@@ -1,13 +1,22 @@
 // Run 生命周期、模型可见消息与恢复确认的条目 payload。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { Type, type Static } from 'typebox'
-import { definePayloads } from './define.ts'
+import { definePayloads, type EntryJson } from './define.ts'
 
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-/** submit：用户消息；retry：重新执行出错的上一轮；continue：接着暂停或中断的 Run；compact：手动 /compact（只提交 compaction）。 */
-export const runTriggerSchema = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact')])
+/**
+ * submit：用户消息；retry：重新执行出错的上一轮；continue：接着暂停或中断的 Run；compact：手动 /compact（只提交 compaction）；
+ * goal：Goal Round（宿主自动推进 Goal 的 Run）。
+ */
+export const runTriggerSchema = Type.Union([
+  Type.Literal('submit'),
+  Type.Literal('retry'),
+  Type.Literal('continue'),
+  Type.Literal('compact'),
+  Type.Literal('goal'),
+])
 export type RunTrigger = Static<typeof runTriggerSchema>
 
 export const runStatusSchema = Type.Union([
@@ -19,7 +28,17 @@ export const runStatusSchema = Type.Union([
 ])
 export type RunStatus = Static<typeof runStatusSchema>
 
-export const runStartPayloadSchema = Type.Object({ trigger: runTriggerSchema }, strict)
+/** run_start v1：只有 trigger（v1 的 trigger 取值是 v2 的子集，迁移时原样保留）。 */
+const runStartV1Schema = Type.Object(
+  { trigger: Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact')]) },
+  strict,
+)
+
+/** run_start v2：Goal Round 另带所属 Goal 与轮次。 */
+export const runStartPayloadSchema = Type.Object(
+  { trigger: runTriggerSchema, goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)) },
+  strict,
+)
 export type RunStartPayload = Static<typeof runStartPayloadSchema>
 
 export const runEndPayloadSchema = Type.Object(
@@ -69,7 +88,7 @@ export interface RunEntryPayloads {
 }
 
 export const runEntryPayloads = definePayloads({
-  run_start: [{ schema: runStartPayloadSchema }],
+  run_start: [{ schema: runStartV1Schema }, { schema: runStartPayloadSchema, migrate: (previous: EntryJson) => previous }],
   message: [{ schema: messagePayloadSchema }],
   run_end: [{ schema: runEndPayloadSchema }],
   confirmation_request: [{ schema: confirmationRequestPayloadSchema }],

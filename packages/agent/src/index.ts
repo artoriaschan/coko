@@ -14,6 +14,7 @@ export type { RetryPolicy } from './engine/retry.ts'
 export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
 export type {
   BeforeRequestState,
+  RequestStop,
   ProgressEvent,
   RunEntry,
   RunError,
@@ -67,6 +68,11 @@ export * from './context/index.ts'
 export * from './config/index.ts'
 export * from './extensions/mcp/index.ts'
 
+// M4：目标与任务（各子目录有自己的 barrel）。
+export * from './goals/index.ts'
+export * from './planning/index.ts'
+export * from './tasks/index.ts'
+
 // Hooks
 export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks.ts'
 export type { ToolHooks } from './extensions/hooks.ts'
@@ -74,6 +80,8 @@ export type { ToolHooks } from './extensions/hooks.ts'
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'
 export type { RewindFiles, SnapshotPort } from './ports/checkpoints.ts'
+export { PtyUnavailableError } from './ports/pty.ts'
+export type { PtyExit, PtyPort, PtyProcess, PtySpawnRequest } from './ports/pty.ts'
 export { createLocalExecPort, filterEnv } from './ports/local-exec.ts'
 export type { EnvExclusion, LocalExecOptions } from './ports/local-exec.ts'
 export { InMemoryCredentialStore } from './ports/credentials.ts'

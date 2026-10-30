@@ -25,11 +25,15 @@ export const SessionActivity = Type.Union([
 ])
 export type SessionActivity = Static<typeof SessionActivity>
 
-/** compact：手动 /compact 的 Run，只提交 compaction（或失败的 run_end）。 */
-export const RunTrigger = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact')])
+/** compact：手动 /compact 的 Run，只提交 compaction（或失败的 run_end）；goal：Goal Round（自动推进 Goal 的 Run）。 */
+export const RunTrigger = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact'), Type.Literal('goal')])
 export type RunTrigger = Static<typeof RunTrigger>
 
-export const RunStartPayload = Type.Object({ trigger: RunTrigger }, strict)
+/** run_start v2：Goal Round 另带所属 Goal 与轮次（v1 只有 trigger，原样迁移）。 */
+export const RunStartPayload = Type.Object(
+  { trigger: RunTrigger, goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)) },
+  strict,
+)
 export type RunStartPayload = Static<typeof RunStartPayload>
 
 export const RunEndPayload = Type.Object(

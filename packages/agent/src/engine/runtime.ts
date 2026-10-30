@@ -10,40 +10,14 @@ import { createApprovalBroker } from '../policy/broker.ts'
 import { createCompactionDriver, type CompactionDriver, type CompactionRun } from './compaction-driver.ts'
 import { createSystemMessage, DEFAULT_SYSTEM_PROMPT } from './system-message.ts'
 import { createPermissionWiring, type PermissionRun } from './permission-wiring.ts'
-import type { RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
+import type { RunStartPayload, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
+import { NoActiveRunError, NothingToContinueError, NothingToRetryError, REQUEST_WITHHELD_TEXT, RuntimeBusyError } from './errors.ts'
 import type { AgentRuntime, AgentRuntimeOptions, ProgressEvent, RunEntry, RunError, RunInput, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
 export { BASE_SYSTEM_SECTION, DEFAULT_SYSTEM_PROMPT } from './system-message.ts'
 export { NOTHING_TO_COMPACT_TEXT } from './compaction-driver.ts'
 export type { AgentRuntime, AgentRuntimeOptions, RuntimeCompaction, RuntimePermissions } from './types.ts'
-
-export class RuntimeBusyError extends Error {
-  override readonly name = 'RuntimeBusyError'
-  constructor() {
-    super('A Run is already in progress')
-  }
-}
-
-export class NothingToRetryError extends Error {
-  override readonly name = 'NothingToRetryError'
-  constructor() {
-    super('The last turn did not fail; there is nothing to retry')
-  }
-}
-
-export class NoActiveRunError extends Error {
-  override readonly name = 'NoActiveRunError'
-  constructor() {
-    super('There is no Run in progress')
-  }
-}
-
-export class NothingToContinueError extends Error {
-  override readonly name = 'NothingToContinueError'
-  constructor() {
-    super('The last Run was not paused or interrupted; there is nothing to continue')
-  }
-}
+export { NoActiveRunError, NothingToContinueError, NothingToRetryError, RuntimeBusyError } from './errors.ts'
 
 export { PAUSED_BEFORE_APPROVAL_TEXT } from './permission-wiring.ts'
 
@@ -62,6 +36,10 @@ interface RunState extends CompactionRun, PermissionRun {
   trigger: RunTrigger
   /** 由 Run 自身决定的结束状态（手动压缩）；优先于按对话记录推断。 */
   ended?: { status: RunStatus; error?: RunError }
+  /** 宿主停止（stopAfterBatch 或 beforeRequest 返回 stop）：本批完成后以 paused 加该 error 结束。第一次为准。 */
+  halt?: RunError
+  /** 本次请求被宿主扣下：pi 为它记下的失败消息不提交，Run 结束前从对话记录中移除。 */
+  withheld?: boolean
 }
 
 interface Steering {
@@ -168,24 +146,40 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     },
     afterToolCall: (context, signal) => after(context, signal),
     ...(context?.transformMessages ? { transformContext: async (messages: AgentMessage[]) => context.transformMessages!(messages) } : {}),
-    ...(context?.beforeRequest || options.compaction
-      ? {
-          prepareRequest: async ({ context: request, model }, signal) => {
-            const run = current
-            if (!run) return undefined
-            // 自动压缩在宿主钩子之前：钩子看到的是将要发出的上下文。
-            const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
-            const messages = compacted ?? request.messages
-            if (context?.beforeRequest) await context.beforeRequest({ runId: run.runId, messages, model, ...(signal ? { signal } : {}) })
-            return compacted ? { context: { ...request, messages: compacted } } : undefined
-          },
-        }
-      : {}),
+    prepareRequest: async ({ context: request, model }, signal) => {
+      const run = current
+      if (!run) return undefined
+      // 宿主已要求停止（例如 Goal Round 开始前预算已耗尽）：不发出请求。
+      if (run.halt) return withhold(run)
+      // 自动压缩在宿主钩子之前：钩子看到的是将要发出的上下文（压缩的用量也已计入）。
+      const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
+      const messages = compacted ?? request.messages
+      const verdict = context?.beforeRequest ? await context.beforeRequest({ runId: run.runId, messages, model, ...(signal ? { signal } : {}) }) : undefined
+      if (verdict) {
+        halt(run, verdict.stop)
+        return withhold(run)
+      }
+      return compacted ? { context: { ...request, messages: compacted } } : undefined
+    },
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
     finishTurn: () => (current?.aborted || current?.rejected || current?.paused ? { action: 'end' } : undefined),
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
   })
+
+  // 宿主停止：与暂停相同（本批完成后结束，等待中的审批取消），结束状态另带 error。
+  const halt = (run: RunState, error: RunError) => {
+    run.halt ??= error
+    run.paused = true
+    run.pauseSignal.abort()
+  }
+  // 扣下请求：抛出使 pi 结束本轮（不调用模型）；它记下的失败消息不提交（message_end），Run 结束前移除。
+  const withhold = (run: RunState): never => {
+    run.withheld = true
+    throw new Error(REQUEST_WITHHELD_TEXT)
+  }
+  const isWithheld = (run: RunState, message: AgentMessage) =>
+    run.withheld === true && message.role === 'assistant' && message.errorMessage === REQUEST_WITHHELD_TEXT
 
   // 宿主每个 Run 开始时给出 system sections，替换开头的系统消息（system-message.ts）。
   const systemMessage = createSystemMessage({ basePrompt: options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT, restored: options.messages, state: agent.state })
@@ -203,6 +197,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         return
       }
       case 'message_end':
+        if (isWithheld(run, event.message)) return
         try {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
@@ -263,6 +258,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     if (run.ended) return run.ended
     const last = agent.state.messages.at(-1)
     if (run.aborted || run.rejected || (last?.role === 'assistant' && last.stopReason === 'aborted')) return { status: 'aborted' }
+    if (run.halt) return { status: 'paused', error: run.halt }
     if (last?.role === 'assistant' && last.stopReason === 'error') {
       return { status: 'error', error: { code: 'model_error', message: last.errorMessage ?? 'Model request failed' } }
     }
@@ -281,7 +277,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    * One Run around `drive`: run_start progress (synchronously, so the host learns the runId), the run_start entry
    * before the first model request, the agent loop, the run_end entry, then the run_end progress.
    */
-  const execute = async (trigger: RunTrigger, drive: () => Promise<void>, before: readonly RunEntry[] = []): Promise<RunResult> => {
+  const execute = async (
+    trigger: RunTrigger,
+    drive: () => Promise<void>,
+    before: readonly RunEntry[] = [],
+    goal?: RunStartPayload['goal'],
+  ): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
     const run: RunState = {
       runId: randomUUID(),
@@ -300,7 +301,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       progress({ type: 'run_start', runId: run.runId })
       let internal: RunError | undefined
       try {
-        await commit({ kind: 'run_start', runId: run.runId, payload: { trigger } })
+        await commit({ kind: 'run_start', runId: run.runId, payload: goal ? { trigger, goal } : { trigger } })
       } catch (error) {
         run.commitError = error instanceof Error ? error : new Error(String(error))
       }
@@ -317,6 +318,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           }
         }
         if (!run.commitError) await drive()
+        // 被扣下的请求在对话记录中留下的失败消息：不属于对话（没有提交），之后的 continue 从此前的消息接着做。
+        const last = agent.state.messages.at(-1)
+        if (last && isWithheld(run, last)) agent.state.messages = agent.state.messages.slice(0, -1)
       } catch (error) {
         internal = { code: 'internal', message: error instanceof Error ? error.message : String(error) }
       }
@@ -347,9 +351,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     run(raw) {
       const input = toInput(raw)
       return execute(
-        'submit',
+        input.trigger ?? 'submit',
         recoverOverflow(() => agent.prompt(userMessage(input))),
         input.before ?? [],
+        input.goal,
       )
     },
     async retry() {
@@ -391,6 +396,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       if (run.paused) return
       run.paused = true
       run.pauseSignal.abort()
+    },
+    stopAfterBatch(error) {
+      const run = current
+      if (!run) throw new NoActiveRunError()
+      halt(run, error)
     },
     abort() {
       if (!current) return

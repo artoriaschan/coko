@@ -256,6 +256,26 @@ describe('权限类（M3）', () => {
     expect(decide(file('write', `${SKILL}/x`, `${SKILL}/x`), withRoots('accept-edits'))).toMatchObject({ behavior: 'ask', reason: 'outside-writable-roots' })
   })
 
+  it('session-state：每种模式都放行（放行与模式无关）；deny 与 ask 规则仍生效', () => {
+    for (const name of ['todo_write', 'create_goal', 'update_goal', 'job_kill'])
+      expect(MODES.map((mode) => decide(call(name, 'session-state'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
+    expect(decide(call('job_kill', 'session-state'), ctx({ mode: 'full-access', rules: [rule('deny', 'job_kill')] }))).toMatchObject({
+      behavior: 'deny',
+      rule: { tool: 'job_kill' },
+    })
+    expect(decide(call('todo_write', 'session-state'), allIn('read-only'))).toEqual({ behavior: 'allow' })
+    expect(decide(call('update_goal', 'session-state'), ctx({ rules: [rule('ask', 'update_goal')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+  })
+
+  it('plan-exit：每种模式都询问且不建议规则；允许规则不生效，拒绝规则生效', () => {
+    expect(MODES.map((mode) => decide(call('exit_plan_mode', 'plan-exit'), allIn(mode)))).toEqual(
+      MODES.map(() => ({ behavior: 'ask', reason: 'approval-required', suggestions: [] })),
+    )
+    for (const allow of [rule('allow', 'exit_plan_mode'), rule('allow', 'exit_plan_mode', 'anything')])
+      expect(decide(call('exit_plan_mode', 'plan-exit'), ctx({ mode: 'full-access', writableRoots: ['/'], rules: [allow] })).behavior).toBe('ask')
+    expect(decide(call('exit_plan_mode', 'plan-exit'), ctx({ rules: [rule('deny', 'exit_plan_mode')] })).behavior).toBe('deny')
+  })
+
   it('内置工具名不受宿主给出的权限类影响', () => {
     expect(decide(call('bash', 'context-read'), ctx()).behavior).toBe('ask')
     expect(decide({ ...file('write', 'a', `${WS}/a`), permissionClass: 'context-read' }, ctx()).behavior).toBe('ask')

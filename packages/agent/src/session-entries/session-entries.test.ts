@@ -13,7 +13,7 @@ const definition = (kind: string) => {
 const check = (kind: string, payload: unknown) => definition(kind).versions.at(-1)!.check(payload)
 
 describe('Session Entry payload 定义', () => {
-  it('预先定义规格表中全部 M2 与 M3 kind，每个 kind 只出现一次', () => {
+  it('预先定义规格表中全部 M2、M3 与 M4 kind，每个 kind 只出现一次', () => {
     expect(SESSION_ENTRY_PAYLOADS.map((d) => d.kind).toSorted()).toEqual(
       [
         'run_start',
@@ -32,6 +32,12 @@ describe('Session Entry payload 定义', () => {
         'fork_origin',
         'command',
         'compaction',
+        'goal',
+        'todo_list',
+        'plan',
+        'job_start',
+        'job_end',
+        'job_notification',
       ].toSorted(),
     )
   })
@@ -61,6 +67,44 @@ describe('Session Entry payload 定义', () => {
     } finally {
       await ws.dispose()
     }
+  })
+
+  it('run_start v1 条目迁移为 v2（原样）；v2 接受 trigger goal 与 goal', () => {
+    const versions = definition('run_start').versions
+    expect(versions).toHaveLength(2)
+    for (const trigger of ['submit', 'retry', 'continue', 'compact']) {
+      expect(versions[0]!.check({ trigger })).toBeUndefined()
+      const migrated = versions[1]!.migrate!({ trigger })
+      expect(migrated).toEqual({ trigger })
+      expect(versions[1]!.check(migrated)).toBeUndefined()
+    }
+    expect(versions[0]!.check({ trigger: 'goal' })).toEqual(expect.any(String))
+    expect(check('run_start', { trigger: 'goal', goal: { goalId: 'g1', round: 2 } })).toBeUndefined()
+    expect(check('run_start', { trigger: 'goal', goal: { goalId: 'g1', round: 0 } })).toEqual(expect.any(String))
+  })
+
+  it('M4 kind 的示例 payload 合格，越界的取值被拒绝', () => {
+    const goal = {
+      id: 'g1',
+      revision: 1,
+      objective: 'fix tests',
+      criteria: [{ id: 'c1', text: 'tests pass' }],
+      budget: { maxRounds: 50 },
+      phase: 'running',
+      resumedAtRound: 0,
+      source: 'model',
+    }
+    expect(check('goal', goal)).toBeUndefined()
+    expect(check('goal', { ...goal, criteria: [] })).toEqual(expect.any(String))
+    expect(check('goal', { ...goal, phase: 'sleeping' })).toEqual(expect.any(String))
+    expect(check('todo_list', { items: [{ id: 't1', content: 'a', status: 'in_progress', blockedBy: [] }] })).toBeUndefined()
+    expect(check('todo_list', { items: [{ id: 't1', content: 'a', status: 'doing' }] })).toEqual(expect.any(String))
+    expect(check('plan', { planId: 'p1', revision: 1, markdown: '# Plan', status: 'proposed' })).toBeUndefined()
+    expect(
+      check('job_start', { jobId: 'j1', kind: 'pty', label: 'npm run dev', command: 'npm run dev', toolCallId: 't', logPath: '/d/jobs/s/j1.log' }),
+    ).toBeUndefined()
+    expect(check('job_end', { jobId: 'j1', status: 'lost', outputBytes: 0, truncated: false })).toBeUndefined()
+    expect(check('job_notification', { jobIds: [] })).toEqual(expect.any(String))
   })
 
   it('不合 schema 的 payload 给出不含值的原因', () => {
