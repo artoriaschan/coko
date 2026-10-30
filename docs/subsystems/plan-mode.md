@@ -29,7 +29,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 ## 注入
 
 - plan 模式开始的 Run 注入 system section `<plan_mode>`（只调研与设计、不改动 Workspace、用 exit_plan_mode 提交以 # 标题开头的完整计划），并注册 `exit_plan_mode`（权限类 plan-exit）。section 与工具在 Run 开始时取值：Run 中批准后模式已恢复，本 Run 剩余的请求仍带 `<plan_mode>`，模型从工具结果得知已批准。
-- 最新的 approved 计划早于最后一个有效 compaction 的 `firstKeptSeq`（已被摘要掉）时，之后每个 Run 注入 `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度）。与模式无关。section 顺序见 [上下文管理](context.md#压缩后的重新注入)。
+- 最新的 approved 计划早于最后一个有效 compaction 的 `firstKeptSeq`（已被摘要掉）时，之后每个 Run 注入 `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度）。与模式无关。section 顺序见 [上下文管理](context.md#压缩后的-approved_plan)。
 
 ## 提交与审阅
 
