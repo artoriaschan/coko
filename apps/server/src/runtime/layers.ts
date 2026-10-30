@@ -40,7 +40,7 @@ import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
 import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
-import { toNewEntry } from '../application/session-runtimes.ts'
+import { requireSession, toNewEntry } from '../application/session-runtimes.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
@@ -460,6 +460,13 @@ const AppLive = Layer.effect(
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
     bindSessions(sessions)
+    // 外部 Hook 的生命周期事件：continue: false 的停止、输入的 permission_mode、Notification 的作用域；Notification Hook 订阅发出的通知。
+    hooks.bind({
+      stopAfterBatch: (sessionId, error) => sessions.runs.stopAfterBatch(sessionId, error),
+      permissionMode: async (sessionId) => (await sessions.sessionPermissions(sessionId)).mode,
+      scope: async (sessionId) => sessions.runs.scope(await requireSession(store, sessionId)),
+    })
+    notifications.observe((input) => hooks.notification(input))
     // 之后创建的运行时的 bash 可以 run_in_background；追加指令到达时唤醒等待中的 job_output。
     sessions.runs.useJobs({ launcher: (sessionId) => jobs.launcher(sessionId), steered: (sessionId) => jobs.steered(sessionId) })
     sessions.runs.useSubagents(subagents)

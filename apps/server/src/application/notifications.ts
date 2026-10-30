@@ -1,5 +1,6 @@
 // 桌面通知（M5）的应用服务：读取设置键 notifications（缺省全开），经控制通道发 notify 给 main（窗口不在前台时显示）。
-// 发出方：定时任务 Run 的结束与等待审批（application/schedules.ts）；后台子代理与 Notification Hook 由各自的实现接入。
+// 发出方：定时任务 Run 的结束与等待审批（application/schedules.ts）；后台子代理由其实现接入。发出后通知观察者（Notification Hook，
+// application/hooks.ts），观察者不影响通知。
 import { DEFAULT_NOTIFICATION_SETTINGS, NOTIFICATIONS_SETTING, NotificationSettings, type NotificationKind, type SidecarNotify } from '@coko/protocol'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionStore } from '@coko/session'
@@ -23,11 +24,18 @@ export interface NotificationInput {
 export class NotificationService {
   readonly #store: Pick<SessionStore, 'settings'>
   readonly #send: ((message: SidecarNotify) => void) | undefined
+  readonly #observers = new Set<(input: NotificationInput) => unknown>()
 
   /** send：控制通道（IPC 模式）；独立运行时省略，只记日志。 */
   constructor(options: { store: Pick<SessionStore, 'settings'>; send?: (message: SidecarNotify) => void }) {
     this.#store = options.store
     this.#send = options.send
+  }
+
+  /** 订阅发出的通知（脱敏后的值；不等待，抛错只记 warn）；返回取消订阅。 */
+  observe(observer: (input: NotificationInput) => unknown): () => void {
+    this.#observers.add(observer)
+    return () => void this.#observers.delete(observer)
   }
 
   /** 当前的通知设置（库中值不合 schema 时取缺省）。 */
@@ -47,6 +55,14 @@ export class NotificationService {
     const message = redactSecretsDeep({ type: 'notify' as const, ...input })
     this.#send?.(message)
     log.info('notification sent', { kind: input.kind, sessionId: input.sessionId })
+    const { type: _type, ...sent } = message
+    for (const observer of this.#observers) {
+      try {
+        void Promise.resolve(observer(sent)).catch((error: unknown) => log.warn('notification observer failed', { error: String(error) }))
+      } catch (error) {
+        log.warn('notification observer failed', { error: String(error) })
+      }
+    }
     return true
   }
 }

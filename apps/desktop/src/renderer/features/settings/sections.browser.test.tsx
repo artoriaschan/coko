@@ -1,4 +1,4 @@
-// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件、Hook）不出现在导航中，也不能经 show / setSection 打开。
+// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件）不出现在导航中，也不能经 show / setSection 打开。
 import '../../styles.css'
 import type { Locale } from '@coko/i18n'
 import { afterEach, expect, it } from 'vitest'
@@ -17,11 +17,11 @@ import { navigationGroups, resolveSection, SETTINGS_SECTIONS, visibleSections } 
 
 const ids = (groups: ReturnType<typeof navigationGroups>) => groups.map((g) => ({ group: g.id, sections: g.sections.map((s) => s.id) }))
 
-it('菜单按个人、环境、插件、模型分组，关于不属于任何分类且在最后；未交付的外观、插件、Hook 不出现', () => {
+it('菜单按个人、环境、插件、模型分组，关于不属于任何分类且在最后；未交付的外观、插件不出现', () => {
   expect(ids(navigationGroups())).toEqual([
     { group: 'personal', sections: ['general', 'memory'] },
     { group: 'environment', sections: ['permissions'] },
-    { group: 'plugins', sections: ['skills', 'mcp'] },
+    { group: 'plugins', sections: ['skills', 'mcp', 'hooks'] },
     { group: 'models', sections: ['models'] },
     { group: null, sections: ['about'] },
   ])
@@ -78,7 +78,7 @@ it.each([
     [
       { title: '个人', items: ['常规', '记忆'] },
       { title: '环境', items: ['权限'] },
-      { title: '插件', items: ['技能', 'MCP'] },
+      { title: '插件', items: ['技能', 'MCP', 'Hook'] },
       { title: '模型', items: ['模型服务'] },
       { title: null, items: ['关于'] },
     ],
@@ -88,7 +88,7 @@ it.each([
     [
       { title: 'Personal', items: ['General', 'Memory'] },
       { title: 'Environment', items: ['Permissions'] },
-      { title: 'Plugins', items: ['Skills', 'MCP'] },
+      { title: 'Plugins', items: ['Skills', 'MCP', 'Hooks'] },
       { title: 'Models', items: ['Model services'] },
       { title: null, items: ['About'] },
     ],
@@ -125,7 +125,7 @@ it('show 与 setSection 打开已交付分区并标记当前项；未交付分�
   await expect.element(dialog.getByRole('heading', { name: 'Permissions' })).toBeVisible()
   expect(nav.querySelector('[data-section="permissions"]')?.getAttribute('aria-current')).toBe('page')
 
-  for (const id of ['appearance', 'plugins', 'hooks'] as const) {
+  for (const id of ['appearance', 'plugins'] as const) {
     settingsPage.setSection(id)
     await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
     expect(nav.querySelector('[data-section="general"]')?.getAttribute('aria-current')).toBe('page')
@@ -152,7 +152,7 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
     const active = document.activeElement as HTMLElement
     steps.push({ id: active.getAttribute('data-section'), ring: active.matches(':focus-visible') ? getComputedStyle(active).outlineStyle : 'none' })
   }
-  expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'permissions', 'skills', 'mcp', 'models', 'about'])
+  expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'permissions', 'skills', 'mcp', 'hooks', 'models', 'about'])
   expect(steps.slice(1).map((s) => s.ring)).toEqual(Array(rows.length - 1).fill('solid'))
   await userEvent.keyboard('{Enter}')
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()

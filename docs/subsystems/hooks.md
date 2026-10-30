@@ -1,14 +1,14 @@
 ---
 kind: reference
-description: "当前的外部 Hook 契约：配置形状与诊断、全局与项目 Hook（逐条批准、只收紧）、能力开关、matcher 与 if、执行（bash -c、进程组、登记、环境、超时与输出上限）、PreToolUse 与判定的组合表、PermissionRequest、PostToolUse(Failure) 的追加上下文、hook_run 条目、/api/hooks 与界面。修改 Hook 的配置、执行、组合或记录前查阅。"
+description: "当前的外部 Hook 契约：配置形状与诊断、全局与项目 Hook（逐条批准、只收紧、已改动）、能力开关、matcher 与 if、执行（bash -c、进程组、登记、环境、超时与输出上限）、PreToolUse 与判定的组合表、PermissionRequest、PostToolUse(Failure) 的追加上下文、生命周期事件（UserPromptSubmit、Stop、PreCompact、Notification）、continue: false 的 hook_stopped、hook_run 条目、/api/hooks 与设置分区。修改 Hook 的配置、执行、组合、生命周期事件或记录前查阅。"
 lifecycle: active
 ---
 
 # 外部 Hook
 
-本文说明 Coko 当前如何在工具调用前后运行用户配置的命令：Hook 可以拒绝、要求确认或放行一次调用，也可以向工具结果追加给模型的文本。Hook 只能收紧判定，放行越不过规则、受保护路径、沙箱提权与计划审阅，取舍见 [ADR 0013](../adr/0013-external-hooks-tighten-only.md)。判定顺序见 [权限判定与审批](permissions.md#判定)；进程登记见 [命令执行与子进程登记](execution.md)。
+本文说明 Coko 当前如何在工具调用前后、提交、Run 结束、压缩与桌面通知时运行用户配置的命令：Hook 可以拒绝、要求确认或放行一次调用，拒绝一次提交或压缩，让 Run 继续或停止，也可以追加给模型的文本。Hook 只能收紧判定，放行越不过规则、受保护路径、沙箱提权与计划审阅，取舍见 [ADR 0013](../adr/0013-external-hooks-tighten-only.md)。判定顺序见 [权限判定与审批](permissions.md#判定)；进程登记见 [命令执行与子进程登记](execution.md)。
 
-当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse 与 PostToolUseFailure。UserPromptSubmit、Stop、SubagentStart / SubagentStop、PreCompact 与 Notification 已在配置与协议中声明（配置可以写，解析不报诊断），但还没有调用方，配置了也不会运行；设置中的 Hooks 分区也尚未交付。
+当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact 与 Notification。SubagentStart / SubagentStop 已在配置与协议中声明（配置可以写，解析不报诊断），由子代理接入，在此之前配置了也不会运行。
 
 ## 结构入口
 
@@ -20,12 +20,15 @@ lifecycle: active
 | `packages/agent/src/extensions/hooks/combine.ts` | `aggregateVerdict`（deny > ask > allow）与 `combinePreToolUse`（组合表） |
 | `packages/agent/src/policy/gate.ts`、`broker.ts` | gate 中运行 PreToolUse 与 PermissionRequest 并按组合表处理；`recordHookAllowed` 提交由 Hook 回答的审批 |
 | `packages/protocol/src/hooks.ts` | `hook_run` payload、`HooksConfig`、`HooksResponse`、`UpdateHooksRequest`、`ApproveHookRequest`、`hookPaths`、设置键 |
-| `apps/server/src/application/hooks.ts` | `HookService`：全局配置、项目 Hook 与批准、执行与记录、权限端口与观察 hook |
-| `apps/server/src/application/context/hooks.ts` | 上下文贡献：每个 Run 一份 Hook 状态，给出 `permissionHooks` 与 `observeHooks` |
+| `apps/server/src/application/hooks.ts` | `HookService`：全局配置、项目 Hook 与批准、执行与记录、权限端口与观察 hook、生命周期事件（`userPromptSubmit`、`stop`、`preCompact`、`notification`）与 continue: false 的停止；`bind(HookSessionHost)` 在 SessionService 创建后接上停止 Run、权限模式与作用域 |
+| `apps/server/src/application/context/hooks.ts` | 上下文贡献：每个 Run 一份 Hook 状态，给出 `permissionHooks`、`observeHooks`、`beforeSubmit`（UserPromptSubmit）、`onStop`（Stop）、自动压缩的 `beforeCompact`（PreCompact），以及 `beforeRequest` 中 UserPromptSubmit 的停止 |
+| `apps/server/src/application/context/compaction.ts` | `/compact` 的动作：开始 Run 之前运行 PreCompact（trigger manual） |
+| `apps/server/src/application/notifications.ts` | `NotificationService.observe`：Notification Hook 订阅发出的通知 |
 | `apps/server/src/adapters/hook-runner.ts` | 执行端口：`/bin/bash -c`、进程组、登记、环境、超时与输出上限 |
 | `apps/server/src/http/routes/hooks.ts` | `GET / PUT /api/hooks`、`POST /api/hooks/approvals` |
 | `apps/desktop/src/renderer/features/conversation/hook-row.tsx`、`tool-cards.tsx` | 时间线的 `hook_run` 紧凑行；工具卡的"被 Hook 阻止"与"由 Hook 允许" |
-| `apps/desktop/src/renderer/stores/hooks-store.ts` | renderer 的 Hook 视图（读取、保存全局配置、批准项目 Hook） |
+| `apps/desktop/src/renderer/stores/hooks-store.ts` | renderer 的 Hook 视图（按会话或 Workspace 读取、保存全局配置、批准项目 Hook） |
+| `apps/desktop/src/renderer/features/settings/hooks-section.tsx` | 设置 → Hooks 分区 |
 
 ## 配置
 
@@ -55,7 +58,7 @@ lifecycle: active
 
 ## 项目 Hook 的批准
 
-未批准的项目 Hook 不运行。批准按 Workspace 与 digest 保存在设置键 `hooks.approvals.<workspaceId>`（digest 列表）；项目文件中任一字段改动后 digest 变化，回到未批准。项目 Hook 的 allow 不参与聚合（只收紧），记录为 `allowed` 并注明 `Ignored: a project hook cannot allow a call`。
+未批准的项目 Hook 不运行。批准按 Workspace 与 digest 保存在设置键 `hooks.approvals.<workspaceId>`（`{ digest, hookId }` 列表，hookId 为批准时的位置；早期只存 digest 字符串，照常读取）；项目文件中任一字段改动后 digest 变化，回到未批准，同一位置曾经批准过时 `changed: true`（界面显示"已改动"）。项目 Hook 的 allow 不参与聚合（只收紧），记录为 `allowed` 并注明 `Ignored: a project hook cannot allow a call`。
 
 ## 选择
 
@@ -74,19 +77,20 @@ lifecycle: active
 - **stdin**：一行 JSON 后关闭。公共字段 `session_id`、`cwd`、`hook_event_name`、`permission_mode`；子 Session 另有 `parent_session_id`、`agent_type`。工具事件另有 `tool_name`（注册名）、`tool_input`、`tool_use_id`，PostToolUse(Failure) 另有 `tool_response`（`{ content, details? }`）与失败时的 `error`。整行按值替换登记明文后写入。
 - **输出**：stdout 与 stderr 各保留前 64 KB。
 - **超时**：缺省 60 秒（Notification 10 秒），配置上限 600 秒。超时或有序关闭时向进程组 SIGTERM，2 秒后仍有进程则 SIGKILL。
+- **生命周期事件的输入**：`permission_mode` 为 Session 当前模式；UserPromptSubmit 另有 `prompt`（用户提交的原文，按值脱敏），Stop 另有 `stop_hook_active`，PreCompact 另有 `trigger`（`manual` / `auto`）与 `custom_instructions`（`/compact` 的参数，自动压缩为空串），Notification 另有 `notification_type`、`title` 与 `message`。
 
 结果的解释：
 
 | 进程结果 | 结论 |
 | --- | --- |
-| exit 2 | PreToolUse / PermissionRequest：拒绝，stderr 为原因；PostToolUse(Failure)：stderr 追加到结果 |
+| exit 2 | PreToolUse / PermissionRequest：拒绝，stderr 为原因；PostToolUse(Failure)：stderr 追加到结果；UserPromptSubmit / PreCompact：阻止，stderr 为原因；Stop：stderr 作为 user message 送达；Notification：没有作用 |
 | exit 0，stdout 为 JSON | 按字段（下文）；没有决定字段时没有决定 |
 | exit 0，stdout 为空 | 没有决定 |
-| exit 0，stdout 不是 JSON 对象，或决定字段的值不合法 | 没有决定，记 `invalid-output` |
+| exit 0，stdout 不是 JSON 对象，或决定字段的值不合法 | 没有决定，记 `invalid-output`（PreCompact 的 stdout 按文本，见下文；Notification 忽略 stdout） |
 | 其他退出码、被信号终止、启动失败 | 没有决定，记 `error` |
 | 超时 | 没有决定，记 `timeout` |
 
-JSON 字段（名字沿用 claude-code）：PreToolUse 为 `hookSpecificOutput.permissionDecision`（`allow` / `deny` / `ask`）与 `permissionDecisionReason`，也接受旧写法 `decision: approve / block` 与 `reason`；PermissionRequest 为 `hookSpecificOutput.decision { behavior: allow / deny, message? }`；PostToolUse(Failure) 为 `hookSpecificOutput.additionalContext`。`systemMessage` 只显示给用户（`hook_run.message`）；`continue: false` 记为 `stopped`，但停止 Run 尚未接入。
+JSON 字段（名字沿用 claude-code）：PreToolUse 为 `hookSpecificOutput.permissionDecision`（`allow` / `deny` / `ask`）与 `permissionDecisionReason`，也接受旧写法 `decision: approve / block` 与 `reason`；PermissionRequest 为 `hookSpecificOutput.decision { behavior: allow / deny, message? }`；PostToolUse(Failure) 与 UserPromptSubmit 为 `hookSpecificOutput.additionalContext`；UserPromptSubmit 与 Stop 另接受 `decision: block` 与 `reason`。`systemMessage` 只显示给用户（`hook_run.message`）；`continue: false` 记为 `stopped` 并停止 Run（见[停止](#continue-false-的停止)）。
 
 ## PreToolUse 与判定的组合
 
@@ -120,13 +124,56 @@ run the formatter
 </hook-feedback>
 ```
 
+## UserPromptSubmit
+
+在 trigger submit 的输入展开之后、开始 Run 之前运行（`POST …/messages`；Run 进行中的追加指令、Goal Round、定时任务、子 Session 与动作不运行，`/compact` 等展开为动作的命令也不运行）。
+
+- **阻止**：任一 Hook exit 2 或 `decision: block` → HTTP 400 `hook-blocked`，`message` 与 `details.reason` 为原因（各 Hook 的原因以换行连接，按值脱敏，≤ 2 KB；没有原因时 `Blocked by a UserPromptSubmit hook`）。不提交 user message，不开始 Run；`hook_run { outcome: blocked }` 不属于任何 Run（runId 为 null）。
+- **追加上下文**：各 Hook 的 `additionalContext` 以空行连接，按值脱敏，至多 10 000 字符，作为同一条 user message 中用户原文之后的单独文本块：
+
+```text
+<hook-context>
+branch is main
+</hook-context>
+```
+
+  时间线的用户气泡不显示这个块（由 `hook_run` 行显示），回退时也不放回输入区；模型请求与压缩照常看到它。
+
+## Stop
+
+在根 Session 的对话 Run 正常结束之前运行（最后一轮只有文本；停止、暂停、拒绝、宿主停止与出错的 Run 不运行；trigger compact、handoff 与子 Session 的 Run 不运行，子 Session 的结束归 SubagentStop）。
+
+- **继续**：任一 Hook exit 2（stderr）或 `decision: block`（`reason`）→ 以一条 user message 再请求一次，内容为 `Stop hook feedback:\n<原因>`（各 Hook 的原因以空行连接，按值脱敏，≤ 10 000 字符）；`hook_run { outcome: continued }`。继续的请求与其他请求一样经请求前检查（[Goal 预算](goal.md#预算)），预算耗尽时 Run 以 paused + `budget_exhausted` 结束。
+- **上限**：每个 Run 至多继续 3 次（运行时执行）。之后 Stop 仍运行，`stop_hook_active` 为 true，block 被忽略：`hook_run { outcome: blocked, message: Ignored: the run already continued 3 times because of Stop hooks }`，Sidecar 记 warn。
+- 决定只来自 Hook 进程自己的退出码与 stdout：模型回复中出现的 `{"decision":"block"}` 只是文本。
+
+## PreCompact
+
+在手动与自动压缩之前运行（有可摘要的内容时；溢出恢复不运行），matcher 对象为 `manual` / `auto`。
+
+- **手动**（`/compact [指示]`）：在开始 Run 之前运行。exit 2 → HTTP 400 `hook-blocked`（原因为 stderr），不开始 Run、不发摘要请求；`hook_run` 不属于任何 Run。没有可摘要的内容时先 400 `nothing-to-compact`，不运行 Hook。
+- **自动**：exit 2 → 跳过本次压缩，请求照常发出（用原上下文）；之后的请求越过阈值时再运行。
+- **摘要要求**：exit 0 的 stdout 按文本（不解析 JSON），各 Hook 以空行连接，按值脱敏，至多 4 000 字符，追加到摘要请求的额外要求（手动时排在用户的指示之后）；`hook_run { outcome: context }`。
+
+## Notification
+
+Coko 发出桌面通知时运行（`NotificationService.notify` 按设置决定发出之后，不论窗口是否在前台、通知是否显示），matcher 对象为通知类别（`schedule-run-ended`、`approval-waiting`、`agent-finished`）。只观测：exit 2 与 stdout 没有作用，不等待结果，Hook 的失败不影响通知；只有失败（`error`、`timeout`）提交 `hook_run`（不属于任何 Run）。
+
+## continue: false 的停止
+
+任一事件（Notification 与 PreCompact 除外）的 Hook 输出 `continue: false` 时，Run 在本批完成后以 `run_end { status: paused, error: { code: hook_stopped, message: <stopReason 或 Stopped by a hook> } }` 结束（`stopReason` 按值脱敏，≤ 2 KB）；`hook_run { outcome: stopped }`。
+
+- 工具事件与 Stop：进行中的 Run 本批完成后停止（与 Goal 的工具调用上限相同的 stopAfterBatch，第一次为准）；本批的调用照常执行。
+- UserPromptSubmit：提交照常（user message 入库、Run 开始），Run 在第一次模型请求之前停止。
+- Goal Round 中发生时按 Goal 现有的 Run 结束规则：`hook_stopped` 不是预算停止也不是用户停止，Goal 保持 running，不开始下一轮（等用户提交或操作 Goal）。
+
 ## 记录
 
-只有有结果的执行提交 `hook_run` v1：`{ event, hookId, source, command, outcome, exitCode?, durationMs, message? }`，`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `stopped` / `timeout` / `error` / `invalid-output`（`continued` 留给生命周期事件）。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。条目归属当前 Run（runId 在第一次模型请求前得知）。
+只有有结果的执行提交 `hook_run` v1：`{ event, hookId, source, command, outcome, exitCode?, durationMs, message? }`，`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `continued`（Stop 使 Run 继续）/ `stopped` / `timeout` / `error` / `invalid-output`。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。工具事件与 Stop 的条目归属当前 Run（runId 在第一次模型请求前得知）；UserPromptSubmit、手动 PreCompact 与 Notification 发生在 Run 之外，runId 为 null。
 
 ## 协议
 
-- `GET /api/hooks?sessionId=` → `{ enabled, global: { hooks, revision, diagnostics }, project? }`。给出 sessionId 时 `project = { path, entries: [{ hookId, event, matcher?, if?, command, timeout?, digest, approved }], diagnostics }`，读该 Session 的工作目录，命令为完整原文。
+- `GET /api/hooks?sessionId=` 或 `?workspaceId=` → `{ enabled, global: { hooks, revision, diagnostics }, project? }`。给出 sessionId 时 `project = { path, entries: [{ hookId, event, matcher?, if?, command, timeout?, digest, approved, changed? }], diagnostics }`，读该 Session 的工作目录；只给 workspaceId 时（新会话草稿）读 Workspace 目录；命令为完整原文。
 - `PUT /api/hooks { hooks, expectedRevision }`：整体替换全局配置，返回同形的响应（不含 project）。不合 schema 400；有诊断 400，`details.diagnostics` 为诊断列表；revision 不一致 409 `revision-conflict`。
 - `POST /api/hooks/approvals { workspaceId, digest, sessionId? }` → 204。给出 sessionId 时读该 Session 的工作目录（须属于该 Workspace），否则读 Workspace 目录；digest 不在当前项目文件中 409 `digest-mismatch`。
 
@@ -134,7 +181,12 @@ run the formatter
 
 - **工具卡**：被 Hook 拦下的调用（`details.hostBlock.by === 'hook'`，运行时写入，工具自身给出的被去掉）在标题行标注"被 Hook 阻止"（title 为命令），明细开头显示该 Hook 的命令；由 PermissionRequest 允许的审批在标题行显示"由 Hook 允许"。
 - **时间线**：`hook_run` 为紧凑行：事件名、结论（阻断与失败为警示色）、来源与退出码、命令（单行截断，title 为全文）、message（换行显示）。
-- `hooks-store.ts` 提供读取、保存（revision 冲突时读回）与批准；设置 → Hooks 分区尚未交付。
+- **时间线**的 `hook_run` 行：阻断、拒绝、停止与失败为警示色，要求继续、追加上下文与放行为常规色。
+- **设置 → Hooks 分区**（插件分类，MCP 之后）：
+  - 能力开关 `hooks.enabled`（写全局能力配置）；关闭时提示下面的配置不会运行。
+  - 全局配置：mono 文本框编辑整份 JSON。保存前在本地解析，不是 JSON 或不是对象时行内提示、不发请求；服务端 400 时行内显示诊断（`code` 与原文）、不保存；revision 冲突时提示"已在别处修改"并换成读回的最新内容。保存成功后编辑区换成服务端读回的值。
+  - 项目 Hook：当前会话目录（没有会话时为新会话草稿的 Workspace 目录）的项目文件路径与每条 Hook：事件、状态（已批准 / 待批准 / 已改动）、matcher、if、超时与完整命令（换行显示，不截断）；未批准的有"批准"按钮。分区每次打开时读取，文件改动后重新打开即可看到。
+  - 已加载的 Hook：全局 Hook 与已批准的项目 Hook，按事件分组（事件顺序同协议），每行来源、matcher 与命令（单行截断，title 为全文）。
 
 ## 验证
 
@@ -142,11 +194,16 @@ run the formatter
 - `packages/agent/src/policy/gate-hooks.test.ts`：运行时中的组合（Hook deny 在 full-access 下、allow 免掉第 7 步、对手用例：allow 不免掉询问规则 / 受保护路径 / 越出可写根，ask 不随模式放宽消失）与 PermissionRequest 的三种结论。
 - `apps/server/src/adapters/hook-runner.test.ts`：stdin、环境过滤、输出上限、忽略 SIGTERM 时 2 秒后 SIGKILL 与登记释放（darwin）。
 - `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
-- `tests/integration/secrets-gate-hooks.test.ts`：Hook 的 stdin 记录、`hook_run`、`<hook-feedback>`、WS、库、日志与 faux requestLog 中没有登记明文，Hook 环境中没有 Secret。
-- `apps/desktop/src/renderer/features/conversation/{tool-cards,hook-row}.browser.test.tsx`、`stores/hooks-store.test.ts`：界面与 store。
+- `tests/integration/sidecar-hooks-lifecycle.test.ts`：真实 Sidecar 与内联 bash Hook，覆盖 UserPromptSubmit（400 `hook-blocked` 且没有 user message 与 run_start、`<hook-context>` 块、continue: false、定时任务与 Goal Round 不运行）、Stop（继续与 stop_hook_active、第 4 次忽略、伪造的 Hook JSON 不继续、暂停与停止不运行）、PreCompact（手动 400 与 stdout 追加、自动跳过、溢出不运行）、Notification（输入字段、matcher、失败不影响通知）、PreToolUse 的 continue: false（含 Goal Round），以及对手用例：Stop 持续 block 时 Goal 的 maxTokens 在继续的请求前生效、未批准的项目 UserPromptSubmit 不运行、改动后为已改动。
+- `apps/server/src/application/hooks.test.ts`：Stop 与 UserPromptSubmit 在子 Session 中不运行。
+- `tests/integration/secrets-gate-hooks.test.ts`：Hook 的 stdin 记录、`hook_run`、`<hook-feedback>`、WS、库、日志与 faux requestLog 中没有登记明文，Hook 环境中没有 Secret；提示中输入的 Secret 在 UserPromptSubmit 的 stdin 与 requestLog 中为脱敏值，`<hook-context>` 与 Stop 反馈中的 Secret 在全部通道中替换。
+- `apps/desktop/src/renderer/features/conversation/{tool-cards,hook-row}.browser.test.tsx`、`timeline.test.ts`、`features/settings/hooks-section.browser.test.tsx`、`stores/hooks-store.test.ts`：界面与 store（含明暗主题下状态文字的对比度与键盘批准）。
+- `apps/desktop/e2e/hooks.e2e.test.ts`：真实 Electron 中的 Hooks 分区（诊断、读回、冲突、批准、已改动、开关、明暗主题与键盘）。
 
 ## 延伸阅读
 
 - [权限判定与审批](permissions.md)：判定顺序、审批条目与审批卡。
 - [分层配置](configuration.md)：项目设置文件与能力开关。
+- [上下文管理](context.md#hook-追加的上下文)：Hook 追加给模型的文本与压缩前的 Hook。
+- [Goal](goal.md#预算)：继续的请求与预算检查。
 - [命令执行与子进程登记](execution.md)：进程登记、孤儿清理与有序关闭。

@@ -44,6 +44,18 @@ describe('hooks-store', () => {
     ])
   })
 
+  it('没有会话时按 Workspace 读取；批准不带 sessionId', async () => {
+    const { calls, fetchImpl } = fakeFetch((method) => (method === 'POST' ? { status: 204 } : { status: 200, body: view(1) }))
+    const store = createHooksStore(httpHooksBackend(fetchImpl))
+    await store.getState().load({ workspaceId: 'w 1' })
+    await store.getState().approve('w 1', 'd'.repeat(64))
+    expect(calls.map((c) => [c.method, c.path, c.body])).toEqual([
+      ['GET', '/api/hooks?workspaceId=w%201', undefined],
+      ['POST', '/api/hooks/approvals', { workspaceId: 'w 1', digest: 'd'.repeat(64) }],
+      ['GET', '/api/hooks?workspaceId=w%201', undefined],
+    ])
+  })
+
   it('save 带当前 revision；revision 冲突时读回并抛出；诊断在 error.details', async () => {
     let revision = 1
     const { calls, fetchImpl } = fakeFetch((method, _path, body) => {
