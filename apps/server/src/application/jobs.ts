@@ -270,11 +270,17 @@ export class JobService {
 
   // ---- 启动恢复与关闭 ----
 
-  /** 启动恢复：为没有 job_end 的 Job 提交 job_end lost（进程已由孤儿清理终止）；返回补记的数量。 */
+  /**
+   * 启动恢复：为没有 job_end 的 Job 提交 job_end lost（进程已由孤儿清理终止）；返回补记的数量。只读有日志目录的 Session 的条目
+   * （#start 在提交 job_start 之前建立目录），不扫描没有启动过 Job 的 Session。
+   */
   async recover(_source: RecoverySource): Promise<number> {
-    const { store } = this.#options
+    const { store, logDir } = this.#options
     let count = 0
-    for (const session of await store.sessions.listSessions()) {
+    const dirs = await readdir(logDir).catch(() => [] as string[])
+    for (const sessionId of dirs) {
+      const session = await store.sessions.getSession(sessionId)
+      if (!session) continue
       const entries = await store.sessions.listEntries(session.id)
       const ended = new Set(entries.filter((e) => e.kind === 'job_end').map((e) => (e.payload as unknown as JobEndPayload).jobId))
       for (const entry of entries) {

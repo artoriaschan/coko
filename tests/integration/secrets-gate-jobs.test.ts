@@ -19,13 +19,14 @@ describe('秘密不外泄总闸：后台任务', () => {
     const dirs = await sidecarDirs()
     const requestLog = join(root, 'requests.jsonl')
     await writeFile(requestLog, '')
-    const bg = (id: string) => ({ type: 'toolCall', name: 'bash', id, arguments: { command: echo, run_in_background: true } })
+    const bg = (id: string, delay = '') => ({ type: 'toolCall', name: 'bash', id, arguments: { command: delay + echo, run_in_background: true } })
     const script = await fauxScript(root, {
       requestLog,
       responses: [
         { content: [bg('a1')] },
         { content: [{ type: 'toolCall', name: 'job_output', id: 'o1', arguments: { job_id: '$LAST_JOB_ID', wait: true, timeout_ms: 20_000 } }] },
-        { content: [bg('b1')] },
+        // 在 Run 结束之后才结束：通知挂起到下一次提交。
+        { content: [bg('b1', 'sleep 0.5; ')] },
         { content: 'started' },
         { content: 'noted' },
       ],

@@ -180,7 +180,8 @@ describe('后台任务（真实 Sidecar）', { timeout: 120_000 }, () => {
 
   it('HTTP 分页读取不影响模型游标；WS job_output 帧按 offset 连续，与日志一致', async () => {
     const h = await setup([
-      { content: [bg('b1', 'seq 1 1000')] },
+      // 在 Run 结束之后才结束（否则通知在本 Run 内送达，多消耗一条脚本回复）。
+      { content: [bg('b1', 'sleep 0.5; seq 1 1000')] },
       { content: 'started' },
       { content: [call('o1', 'job_output', { job_id: '$LAST_JOB_ID' })] },
       { content: 'read' },
@@ -219,7 +220,7 @@ describe('后台任务（真实 Sidecar）', { timeout: 120_000 }, () => {
     expect(updates).toEqual(['running', 'completed'])
 
     const listed = (await h.api.get(jobPaths.sessionJobs(h.sessionId))).body.jobs as JobSnapshot[]
-    expect(listed).toMatchObject([{ jobId, status: 'completed', exitCode: 0, outputBytes: expected.length, label: 'seq 1 1000' }])
+    expect(listed).toMatchObject([{ jobId, status: 'completed', exitCode: 0, outputBytes: expected.length, label: 'sleep 0.5; seq 1 1000' }])
 
     await h.turn('read it')
     const read = textOf(h.toolResult('o1')!.payload as Message)
@@ -230,7 +231,7 @@ describe('后台任务（真实 Sidecar）', { timeout: 120_000 }, () => {
 
   it('Workspace 内指向 Job 日志目录的符号链接：default 模式下 read 需要审批（日志目录不是读取根）', async () => {
     const h = await setup([
-      { content: [bg('b1', 'echo log-line')] },
+      { content: [bg('b1', 'sleep 0.5; echo log-line')] },
       { content: 'started' },
       { content: [call('r1', 'read', { path: 'joblogs/$LAST_JOB_ID.log' })] },
       { content: 'denied' },
