@@ -39,7 +39,7 @@ async function send(app: LaunchedApp, text: string) {
 const idle = (app: LaunchedApp) => app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
 const card = (app: LaunchedApp) => app.window.locator('[data-slot="approval-card"]')
 const modePicker = (app: LaunchedApp) => app.window.locator('[data-permission-mode]')
-const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
+const dialog = (app: LaunchedApp) => app.window.locator('[data-settings-page]')
 const exists = (path: string) =>
   access(path).then(
     () => true,

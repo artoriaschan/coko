@@ -30,7 +30,7 @@ lifecycle: active
 | `packages/ui/src/approval/approval-card.tsx` | 共享审批卡（键盘、单次回答、"总是允许"菜单） |
 | `apps/desktop/src/renderer/features/conversation/approval-panel.tsx` | 审批卡的业务组合：标题、命令 / 路径 / diff 摘要、建议规则；提权卡（目标档位与理由） |
 | `apps/desktop/src/renderer/features/conversation/mode-picker.tsx` | 输入区的模式选择与 Shift+Tab 循环顺序 |
-| `apps/desktop/src/renderer/features/settings/permissions-section.tsx` | 设置弹窗的 Permissions 分区 |
+| `apps/desktop/src/renderer/features/settings/permissions-section.tsx` | 设置页的 Permissions 分区 |
 
 工具契约（`packages/agent/src/tools/types.ts`）有 `effect: 'read' | 'side-effect'`（缺省 side-effect）、`permissionSubject(args)` 与 `sandboxRequest(args)`（提权参数，只有 bash 声明）。内置工具：read、grep、find、ls 为 read，subject 是路径（缺省 `.`）；write、edit 为 side-effect，subject 是路径；bash 为 side-effect，subject 是命令。
 
@@ -192,7 +192,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 - **审批卡**：最早的待审批请求接管输入区；输入区保持挂载（隐藏），草稿不丢。卡片出现时若焦点在输入区，焦点移到卡片本身。焦点在详情区时 Enter 允许一次、Esc 拒绝；Esc 被卡片处理后不再触发全局"停止 Run"。"拒绝并说明原因"展开输入框，其中 Enter 提交带反馈的拒绝，Esc 收起。有建议规则的工具请求另有"总是允许"菜单：显示将保存的规则，选本会话 / 本工作区 / 所有工作区；菜单内的 Enter 与 Esc 不触发卡片的允许与拒绝。键盘与指针共用一把锁，同一请求只回答一次。
 - **工具卡**：等待时为 `awaiting` 状态，结束后标题行显示决定（已允许一次、以某档位允许一次（提权）、本会话 / 本工作区总是允许、总是允许、已拒绝及原因、已取消、已按新设置自动处理）；被沙箱拒绝的 bash 另显示"被沙箱拦截（档位）"。
 - **侧栏**：`awaiting-approval` 的会话带徽标并排在所在 Workspace 组首。只有打开过（已订阅）的会话会随条目实时更新 activity。
-- **Permissions 分区**（设置弹窗）：新会话的默认模式；全局规则与当前会话所在 Workspace 的规则（按允许、询问、拒绝分组，可增删；输入框按 `parsePermissionRule` 校验）；该 Workspace 项目设置中的规则（project 作用域，只读，标出来源文件，没有删除入口与输入框）；当前会话的 Session 规则（只读，可删除）。保存冲突时读回最新值并提示重试。General 分区另有项目设置行，见 [分层配置](configuration.md#界面)。
+- **Permissions 分区**（设置页）：新会话的默认模式；全局规则与当前会话所在 Workspace 的规则（按允许、询问、拒绝分组，可增删；输入框按 `parsePermissionRule` 校验）；该 Workspace 项目设置中的规则（project 作用域，只读，标出来源文件，没有删除入口与输入框）；当前会话的 Session 规则（只读，可删除）。保存冲突时读回最新值并提示重试。General 分区另有项目设置行，见 [分层配置](configuration.md#界面)。
 
 ## 尚未实现
 

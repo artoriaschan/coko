@@ -53,7 +53,7 @@ describe('Memory', () => {
     await window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
 
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
-    const dialog = window.getByRole('dialog')
+    const dialog = window.locator('[data-settings-page]')
     await dialog.locator('[data-section="memory"]').click()
     const workspaceList = dialog.locator('[data-memory-list="workspace"]')
     const userList = dialog.locator('[data-memory-list="user"]')

@@ -10,10 +10,11 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { ApiError } from '../../client/api.ts'
 import { customProvider, type fakeSettingsBackend } from '../../testing/fake-settings.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 afterEach(async () => {
   toast.dismiss()
@@ -35,7 +36,7 @@ async function openModels(locale: 'zh' | 'en', seed: (backend: Backend) => void)
   const appearance = createAppearanceStore({ theme: 'light', locale })
   const fixture = createFixtureChat({ providers: false, sessions: sessions() })
   seed(fixture.backend)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -45,16 +46,16 @@ async function openModels(locale: 'zh' | 'en', seed: (backend: Backend) => void)
         chat={fixture.chat}
         settings={fixture.settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
   await fixture.settings.getState().load()
-  settingsDialog.show('models')
-  await expect.element(page.getByRole('dialog').getByRole('heading', { name: locale === 'zh' ? '模型服务' : 'Model services' })).toBeVisible()
+  settingsPage.open('models')
+  await expect.element(settingsRegion().getByRole('heading', { name: locale === 'zh' ? '模型服务' : 'Model services' })).toBeVisible()
   await settled()
-  return { ...fixture, settingsDialog }
+  return { ...fixture, settingsPage }
 }
 
 const seedTwo = (backend: Backend) => {
@@ -64,7 +65,7 @@ const seedTwo = (backend: Backend) => {
   backend.setReferences('custom-provider-2', 1)
 }
 
-const row = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[role=dialog] [data-provider-id="${id}"]`)!)
+const row = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[data-settings-page] [data-provider-id="${id}"]`)!)
 const confirmDialog = () => page.getByRole('alertdialog')
 
 it('确认框写明引用数量；取消时不做任何修改，焦点回到“删除”', async () => {
@@ -99,21 +100,21 @@ it('Escape 等于取消；每次打开重新读取引用数量，没有会话引
 })
 
 it('确认删除：列表移除、提示已删除、焦点移到下一个供应商；引用它的会话模型为空，输入区提示重新选择模型', async () => {
-  const { backend, settingsDialog } = await openModels('zh', seedTwo)
+  const { backend, settingsPage } = await openModels('zh', seedTwo)
   await row('custom-provider-1').getByRole('button', { name: '删除', exact: true }).click()
   const confirm = confirmDialog().getByRole('button', { name: '删除', exact: true })
   await expect.element(confirm).toBeEnabled()
   await confirm.click()
   await expect
-    .poll(() => [...document.querySelectorAll<HTMLElement>('[role=dialog] [data-provider-id]')].map((r) => r.dataset.providerId))
+    .poll(() => [...document.querySelectorAll<HTMLElement>('[data-settings-page] [data-provider-id]')].map((r) => r.dataset.providerId))
     .toEqual(['custom-provider-2'])
   expect(backend.raw.deleteProvider).toHaveBeenCalledExactlyOnceWith('custom-provider-1')
   await expect.element(page.getByText('供应商已删除')).toBeVisible()
   await expect.element(row('custom-provider-2').getByRole('button', { name: '编辑', exact: true })).toHaveFocus()
 
   // 当前会话 s-1 引用了被删除的供应商：模型选择器显示“选择模型”，输入区上方提示重新选择。
-  settingsDialog.close()
-  await expect.poll(() => document.querySelector('[role=dialog]')).toBeNull()
+  settingsPage.back()
+  await expect.poll(() => document.querySelector('[data-settings-page]')).toBeNull()
   const picker = page.elementLocator(document.querySelector<HTMLElement>('[data-model-picker]')!)
   await expect.element(picker).toHaveAccessibleName('选择模型：选择模型')
   expect(picker.element().hasAttribute('data-model')).toBe(false)
@@ -154,7 +155,7 @@ it('从未设置过模型的会话不提示重新选择：模型选择器显示�
         chat={fixture.chat}
         settings={fixture.settings}
         preferences={createPreferences({ appearance, settings: fixture.settings, onConflict: () => {}, onFailure: () => {} })}
-        settingsDialog={createSettingsDialogStore()}
+        settingsPage={createSettingsPageStore()}
         pickDirectory={async () => null}
       />
     </div>,

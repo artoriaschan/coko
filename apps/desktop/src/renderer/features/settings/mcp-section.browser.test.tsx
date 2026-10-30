@@ -8,8 +8,9 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 const RAW = 'server "x" conflicts with "X" (names differ only in case, "-" or "_")'
 const RAW_DELETE = 'SQLITE_BUSY: database is locked'
@@ -48,7 +49,7 @@ it('保存被拒绝与删除 Secret 失败：界面只显示本地化文案，�
   )
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const { chat, settings } = createFixtureChat()
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -58,13 +59,13 @@ it('保存被拒绝与删除 Secret 失败：界面只显示本地化文案，�
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
-  settingsDialog.show('mcp')
-  const dialog = page.getByRole('dialog')
+  settingsPage.open('mcp')
+  const dialog = settingsRegion()
   await dialog.getByRole('button', { name: 'Add server' }).click()
   const form = dialog.element().querySelector('[data-mcp-form]') as HTMLElement
   await page.elementLocator(form).getByLabelText('Name', { exact: true }).fill('X')

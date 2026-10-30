@@ -43,7 +43,7 @@ describe('MCP 分区', () => {
       .click()
     await window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
-    const dialog = window.getByRole('dialog').first()
+    const dialog = window.locator('[data-settings-page]')
     await dialog.locator('[data-section="mcp"]').click()
 
     // 添加 stdio Server。

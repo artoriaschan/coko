@@ -8,8 +8,9 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 import { navigationGroups, resolveSection, SETTINGS_SECTIONS, visibleSections } from './sections.ts'
 
 const ids = (groups: ReturnType<typeof navigationGroups>) => groups.map((g) => ({ group: g.id, sections: g.sections.map((s) => s.id) }))
@@ -38,7 +39,7 @@ it('占位分区不显示，打开它时回到通用分区', () => {
 function renderSettings(locale: Locale = 'en', theme: 'light' | 'dark' = 'light') {
   const store = createAppearanceStore({ theme, locale })
   const { chat, settings } = createFixtureChat()
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
   const screen = render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -48,12 +49,12 @@ function renderSettings(locale: Locale = 'en', theme: 'light' | 'dark' = 'light'
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
-  return { screen, settingsDialog }
+  return { screen, settingsPage }
 }
 
 /** 菜单的可见结构：每个分类的标题与菜单项文案；无分类的项标题为 null。 */
@@ -92,10 +93,10 @@ it.each([
   ],
 ] as const)('%s：设置菜单按分类显示标题与菜单项，关于在最底部且无分类标题', async (locale, expected) => {
   await page.viewport(1280, 800)
-  const { screen, settingsDialog } = renderSettings(locale)
+  const { screen, settingsPage } = renderSettings(locale)
   await screen
-  settingsDialog.show('general')
-  const nav = page.getByRole('dialog').getByRole('navigation')
+  settingsPage.open('general')
+  const nav = settingsRegion().getByRole('navigation')
   await expect.element(nav).toBeVisible()
   expect(menu(nav.element())).toEqual(expected)
   // 分类以 group 角色暴露，名称为分类标题。
@@ -109,21 +110,21 @@ it.each([
 
 it('show 与 setSection 打开已交付分区并标记当前项；未交付分区回到常规', async () => {
   await page.viewport(1280, 800)
-  const { screen, settingsDialog } = renderSettings('en')
+  const { screen, settingsPage } = renderSettings('en')
   await screen
-  settingsDialog.show('skills')
-  const dialog = page.getByRole('dialog')
+  settingsPage.open('skills')
+  const dialog = settingsRegion()
   await expect.element(dialog.getByRole('heading', { name: 'Skills & Commands' })).toBeVisible()
   const nav = dialog.getByRole('navigation').element()
   expect(nav.querySelector('[data-section="skills"]')?.getAttribute('aria-current')).toBe('page')
   expect([...nav.querySelectorAll('[aria-current="page"]')]).toHaveLength(1)
 
-  settingsDialog.setSection('permissions')
+  settingsPage.setSection('permissions')
   await expect.element(dialog.getByRole('heading', { name: 'Permissions' })).toBeVisible()
   expect(nav.querySelector('[data-section="permissions"]')?.getAttribute('aria-current')).toBe('page')
 
   for (const id of ['appearance', 'plugins', 'hooks'] as const) {
-    settingsDialog.setSection(id)
+    settingsPage.setSection(id)
     await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
     expect(nav.querySelector('[data-section="general"]')?.getAttribute('aria-current')).toBe('page')
     expect(nav.querySelector(`[data-section="${id}"]`)).toBeNull()
@@ -135,10 +136,10 @@ it('show 与 setSection 打开已交付分区并标记当前项；未交付分�
 
 it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开分区', async () => {
   await page.viewport(1280, 800)
-  const { screen, settingsDialog } = renderSettings('en')
+  const { screen, settingsPage } = renderSettings('en')
   await screen
-  settingsDialog.show('general')
-  const nav = page.getByRole('dialog').getByRole('navigation')
+  settingsPage.open('general')
+  const nav = settingsRegion().getByRole('navigation')
   await expect.element(nav).toBeVisible()
   const rows = [...nav.element().querySelectorAll<HTMLElement>('[data-section]')]
   rows[0]!.focus()
@@ -152,21 +153,21 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
   expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'permissions', 'skills', 'mcp', 'models', 'about'])
   expect(steps.slice(1).map((s) => s.ring)).toEqual(Array(rows.length - 1).fill('solid'))
   await userEvent.keyboard('{Enter}')
-  await expect.element(page.getByRole('dialog').getByRole('heading', { name: 'About' })).toBeVisible()
+  await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
 })
 
 it('暗色主题：分类标题与菜单项使用主题前景色，标题比菜单项更弱', async () => {
   await page.viewport(1280, 800)
   for (const theme of ['light', 'dark'] as const) {
-    const { screen, settingsDialog } = renderSettings('en', theme)
+    const { screen, settingsPage } = renderSettings('en', theme)
     const result = await screen
-    settingsDialog.show('general')
-    const nav = page.getByRole('dialog').getByRole('navigation')
+    settingsPage.open('general')
+    const nav = settingsRegion().getByRole('navigation')
     await expect.element(nav).toBeVisible()
     expect(document.documentElement.classList.contains('dark')).toBe(theme === 'dark')
     const title = document.getElementById(nav.element().querySelector('[data-settings-group]')!.getAttribute('aria-labelledby')!)!
     const item = nav.element().querySelector('[data-section="memory"]')!
-    const bg = getComputedStyle(page.getByRole('dialog').element()).backgroundColor
+    const bg = getComputedStyle(settingsRegion().element()).backgroundColor
     // 文字与背景不同色（不会在暗色下变成黑字黑底），标题与菜单项颜色不同（标题为弱化色）。
     expect(getComputedStyle(title).color).not.toBe(bg)
     expect(getComputedStyle(item).color).not.toBe(bg)

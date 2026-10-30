@@ -47,7 +47,7 @@ async function fakeOpenAI(reply: string) {
 }
 
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
-const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
+const dialog = (app: LaunchedApp) => app.window.locator('[data-settings-page]')
 const api = <T>(app: LaunchedApp, path: string) => app.window.evaluate((p) => fetch(p).then((r) => r.json()), path) as Promise<T>
 type Sessions = { sessions: { id: string; model: { providerId: string; modelId: string } | null }[] }
 
