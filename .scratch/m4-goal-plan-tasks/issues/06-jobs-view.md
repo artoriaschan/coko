@@ -33,3 +33,6 @@
   - **实际运行的命令。** 已合入 main（含票 05，a6c27a4）。`pnpm run typecheck`、`lint`、`format:check`、`check:docs`（153 个文件 0 问题）均为 0；`pnpm run test`（全量，含 desktop E2E 与 package-smoke）：240 个文件，1692 passed、1 skipped，test=0，没有未处理错误。之前两次全量与其他 worktree 的全量重叠（负载 18–20），出现 33 / 3 个超时失败（settings、composer 等无关文件）；单独重跑这些文件全部通过，等其他 vitest 结束、负载降下后的全量为 0。另：`dock.browser.test.tsx` 的注册表断言改为 jobs 已交付（越出写范围，属于交付后必然的期望更新）。
   - **文档影响。** `docs/subsystems/jobs.md` 增加"界面"一节与验证条目，开头一句在合入票 05 后改为链接 execution.md 的 PTY 一节。`docs/README.md` 当前行为中 jobs.md 一行建议由 Lead 合并时补"、后台任务视图"（不在本票范围）。
   - **供后续票。** `stores/jobs-store.ts` 导出 `jobsStore` / `createJobsStore` / `httpJobsBackend`；`features/conversation/jobs-button.tsx` 导出 `JobsStoreProvider`、`useSessionJobs`、`JobStatusDot`、`formatJobDuration`。`jobsStore.getState().open(sessionId, jobId)` 选中并打开右栏 Jobs tab（经标题栏按钮的 openRequests）。PTY Job（票 05）的 kind `pty` 在列表中同样显示，输出按原始 SGR 渲染。
+- 2026-10-30 lead：评审后合入 main（9e82729）。接受越界：timeline.ts 与其测试过滤 <job-notification> 文本、vitest.browser.config.ts 的 optimizeDeps 加 anser、run-control.e2e 的待送达定位改为 Queue 卡、dock 浏览器测试的注册表断言。未使用的 i18n 键 conversation.steeringPending 由票 11 删除（已授权，记入票 11）。已知限制：16 色 ANSI 映射到现有语义色，浅色背景下绿色与黄色对比度偏低；256 色与真彩色显示为默认前景色——记入 M4 评审。main 上复核（后台任务，含票 05、09 与两个测试修复）：install、typecheck、lint、format:check 退出 0；全量 test 244 文件 1863 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 154 文件 0 问题。worktree 已清理。
+
+Closed: true

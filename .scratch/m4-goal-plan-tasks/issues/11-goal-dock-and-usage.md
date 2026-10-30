@@ -17,3 +17,4 @@
 - [ ] goal.md 界面一节；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 06——i18n 键 conversation.steeringPending 已不再使用（时间线"尚未送达"气泡已删除），本票从 zh / en 字典删除（越出写范围，已授权：packages/i18n/src/dictionaries/{en,zh}.ts）。

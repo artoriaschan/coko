@@ -31,3 +31,6 @@
   - **未验证：** 非 darwin 平台（PTY 用例显式跳过）；真实模型（无凭据）；renderer 中 pty Job 的显示（票 06）。
   - **文档影响 / 需要 Lead 合并处理：** permissions.md 权限类表加一行（或在 bash 行说明）：`| bash（M4 增加） | job_input（判定对象为 text，与 bash 命令同一套规则，规则组名 Bash） | 与 bash 相同 |`。jobs.md（票 06 写范围）第 9 行"PTY Job 与 `job_input`、后台任务视图尚未实现"需改为只剩后台任务视图，并可链接 execution.md#pty-与-stdin。docs/README 当前行为导航不需要新行（execution.md 已有）。TECH_STACK 接入状态表不需要新行。
   - **供后续票：** 票 06——Job kind `pty` 的日志与 WS `job_output` 帧是终端原始输出（带 CR 与 SGR），anser 渲染即可；用户在界面输入不做（规格 Out of Scope）。票 10（README 汇总）——agent README 记 `PtyPort`、`PTY_COLS/ROWS/TERM`、`SpawnRequest.tty`、`ExecProcess.write`、`createJobInputTool`、`JobsPort.input`、`LocalExecOptions.pty`；server README 记 `adapters/pty.ts`（`probeNodePty`、日志 `pty backend selected`）、`WorkspaceToolsOptions.pty`、MCP 登记进程组。
+- 2026-10-30 lead：评审后合入 main（a6c27a4）。接受越界：ripgrep.ts 的 pty 选项（3 行）、新测试 pty.test.ts；已授权的 MCP 登记 pgid、mcp.ts 注释、孙进程用例、spec 与 ADR 0012。lead 在 permissions.md 补 job_input 一行、docs/README 后台任务一行补 PTY 与视图。合入后 main 全量有 4 例失败：sidecar-jobs.test.ts:301 在 send 后只读一次 job_start（既有竞态，lead 在 m4/fix-jobs-start-race 改为等待条目本身，合入 3cf347a）；其余 3 例为另一 worktree 全量同时运行时的超时。worktree 已清理。
+
+Closed: true

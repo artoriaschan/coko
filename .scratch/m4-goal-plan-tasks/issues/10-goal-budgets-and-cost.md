@@ -19,3 +19,4 @@
 - [ ] goal.md 补预算；ADR 0011 改为 implemented 并链接 09、10 的证据；模型服务 PRD 10.1 追加修订记录；agent 与 server README 汇总 M4；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 09——exhaustedDimension 与 GoalUsageSnapshot 目前只有 rounds；GoalUsage 的可选字段；runEnded 中 budget_exhausted 与 cost_unpriced 的映射；详见票 09 Comments"供后续票"。来自票 05、09 的合并：sidecar-compaction 的自动压缩用例已把窗口改为 65k，本票若再增加系统提示或工具定义，先看该用例第三轮的断言。请核对 goal.md 是否写明票 09 的四项偏离（update_goal 注册时机、停止 Run 暂停 Goal、有序关闭记 user-stopped、goal-n 与 snake_case），缺则补。faux 的 $LAST_JOB_ID 占位保留（票 04）。
