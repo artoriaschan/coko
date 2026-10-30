@@ -8,7 +8,7 @@ lifecycle: active
 
 本文说明 Coko 当前如何在工具调用前后、提交、Run 结束、压缩与桌面通知时运行用户配置的命令：Hook 可以拒绝、要求确认或放行一次调用，拒绝一次提交或压缩，让 Run 继续或停止，也可以追加给模型的文本。Hook 只能收紧判定，放行越不过规则、受保护路径、沙箱提权与计划审阅，取舍见 [ADR 0013](../adr/0013-external-hooks-tighten-only.md)。判定顺序见 [权限判定与审批](permissions.md#判定)；进程登记见 [命令执行与子进程登记](execution.md)。
 
-当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact 与 Notification。SubagentStart / SubagentStop 已在配置与协议中声明（配置可以写，解析不报诊断），由子代理接入，在此之前配置了也不会运行。
+当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact、Notification、SubagentStart 与 SubagentStop；后两者在子代理派发与结束时运行（见 [子代理](subagents.md)）。
 
 ## 结构入口
 

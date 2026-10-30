@@ -152,7 +152,10 @@ export class SessionService {
     }
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
-    if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
+    // 任一 running 子代理在等待审批时父 Session 也是 awaiting-approval（审批在父会话中回答，ADR 0014）。
+    const waiting = (runtime?.pendingApprovals.length ?? 0) > 0 || this.#runs.childAwaitingApproval(session.id)
+    if (running) return { ...session, running, activity: waiting ? 'awaiting-approval' : 'running' }
+    if (waiting) return { ...session, running, activity: 'awaiting-approval' }
     if (this.#recovery.failed(session.id)) return { ...session, running, activity: 'interrupted' }
     if (this.#recovery.awaitsConfirmation(session.id)) return { ...session, running, activity: 'awaiting-confirmation' }
     const last = this.#runtimes.lastStatus(session.id)

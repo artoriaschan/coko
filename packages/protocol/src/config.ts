@@ -19,6 +19,7 @@ export const ResourceDiagnostic = Type.Object(
       Type.Literal('mcp'),
       Type.Literal('config'),
       Type.Literal('memory'),
+      Type.Literal('agents'),
     ]),
     path: Type.Optional(Type.String()),
     /** 稳定的机器可读代码（unknown-key、invalid-value、project-cannot-grant、invalid-json、read-failed 等）。 */

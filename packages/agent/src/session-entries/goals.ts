@@ -54,7 +54,9 @@ export const goalPayloadSchema = Type.Object(
     evidence: Type.Optional(Type.Array(goalEvidenceSchema)),
     completedBy: Type.Optional(Type.Union([Type.Literal('model'), Type.Literal('user')])),
     /** 取消时的停止传播结果；失败项不阻止取消。 */
-    cleanup: Type.Optional(Type.Object({ runsAborted: Count, jobsKilled: Count, failures: Type.Array(Type.String()) }, strict)),
+    cleanup: Type.Optional(
+      Type.Object({ runsAborted: Count, jobsKilled: Count, agentsStopped: Type.Optional(Count), failures: Type.Array(Type.String()) }, strict),
+    ),
     source: Type.Union([Type.Literal('model'), Type.Literal('user'), Type.Literal('system')]),
   },
   strict,

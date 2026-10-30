@@ -20,6 +20,7 @@
 
 ## Comments
 - 2026-10-31 lead：接受越界修复 "fix(desktop): forward notify control messages to main"（sidecar-process.ts 控制消息 switch 加 case 'notify'）。这是票 05 留下的缺陷：main 上桌面通知从未显示——05 的单元测试直接调用 handleNotify、集成测试只看 Sidecar 侧的 notifyMessages，没有一个用例跨过控制通道；lead 合入 05 时也没有发现。本票的 schedules.e2e 在没有修复时 2/2 失败、修复后 2/2 通过，作为跨通道的回归用例。
+- 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。
 
 - 2026-10-31 实施者（票 09）：
   - **覆盖的验收**（全部勾选）。browser：`features/right-panel/schedules-tab.browser.test.tsx`（16）——列表的 after / at / every / cron 描述、cron 的下次时间与时区（`Next Nov 2, 2026, 9:00 AM (UTC)`）、非 cron 注明本机时区、状态与最近结果（started、budget、worktree-removed、未执行；中文一例）；表单行内错误（间隔 0 与 1.5 分钟、一次性时刻在过去、cron `61 * * * *`、标题与指令为空），cron 输入时接下来 3 次、改时区为 UTC 后预览为 01:30Z；时区下拉缺省本机时区；暂停 / 恢复 / 删除（确认、取消不删）；行操作与编辑的 revision 冲突读回；编辑只发改动字段；投递历史；标题栏按钮（无任务隐藏、徽标只计 active、pendingOpen 只取一次）；投递行；明暗主题对比度 ≥ 4.5:1；390 px；键盘新建。`features/settings/schedules-notifications.browser.test.tsx`（6）——全部会话分组、暂停与删除、"打开会话"切会话并打开 Schedules tab、空状态；通知缺省全开、关闭"定时任务结束"写入设置键、总开关关闭时三类不可改、键盘、冲突读回不覆盖另一处写入、不合 schema 按缺省。`stores/schedules-store.test.ts`（5）。`packages/agent/src/entries/entries.test.ts`（+7：`upcomingOccurrences`，含 Asia/Shanghai 与 America/New_York 夏令时结束日取较早一次）。E2E `apps/desktop/e2e/schedules.e2e.test.ts`（2，真实 Electron + 测试时钟）：新建 cron → 下次时间 → 拨快后 Run、`schedule_fire` 行、历史 +1、通知一次；暂停后拨快一天不投递（同步点后 `lastOccurrence` 不变、历史仍 1）；390 px 真实窗口；设置跳转；关闭"定时任务结束"时该会话无 `notification shown`、重新开启后有。

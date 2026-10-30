@@ -158,9 +158,9 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
 })
 
-it('M5 尚未交付的注册表占位不显示：设置菜单中没有子代理，打开时回到常规；右栏 tab 与标题栏操作不含子代理与交接', async () => {
+it('M5 尚未交付的注册表占位不显示：设置菜单中没有子代理，打开时回到常规；右栏 tab 与标题栏操作不含子代理', async () => {
   expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'schedules'])
-  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'schedules'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'schedules', 'handoff'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
   const result = await screen

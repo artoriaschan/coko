@@ -1,5 +1,5 @@
 // M5 的装配接入点：真实 Sidecar（faux）。空贡献时发给模型的请求不变；测试贡献驱动 beforeSubmit（reject 400 hook-blocked、context 进入
-// user message）与 onStop（多一次请求）；/handoff 实现之前 400；有序关闭（定时器 → Run → Job → 贡献 → 登记进程 → 存储）；测试时钟只在
+// user message）与 onStop（多一次请求）；/handoff 在没有用户消息时 400（交接本身见 sidecar-handoff）；有序关闭（定时器 → Run → Job → 贡献 → 登记进程 → 存储）；测试时钟只在
 // 测试构建中开启时挂载。harness 自测：faux match、git 夹具、Hook 夹具、秘密总闸的额外扫描目录。
 // 本文件不新增读取根或注入点（测试贡献的上下文是固定文本）：符号链接越界用例由引入读取根的功能各自给出。
 import { execFile } from 'node:child_process'
@@ -122,13 +122,13 @@ describe('M5 装配接入点', () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/handoff 实现之前为 400 bad-request，不开始 Run', async () => {
+  it('/handoff 在没有用户消息的 Session 中为 400 nothing-to-hand-off，不开始 Run', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const script = await fauxScript(root, { responses: [] })
     const { sidecar, api, sessionId } = await boot(dirs, root, { COKO_FAUX_SCRIPT: script })
     const response = await api.post(apiPaths.sessionMessages(sessionId), { text: '/handoff continue the refactor' })
-    expect([response.status, response.body.error?.code]).toEqual([400, 'bad-request'])
+    expect([response.status, response.body.error?.code]).toEqual([400, 'nothing-to-hand-off'])
     expect((await api.get(apiPaths.session(sessionId))).body.entries.map((e: SessionEntryRecord) => e.kind)).toEqual(['permission_mode'])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })

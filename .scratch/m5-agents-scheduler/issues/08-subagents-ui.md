@@ -20,3 +20,4 @@
 
 ## Comments
 - 2026-10-31 lead：来自票 09——main 进程的文件日志（logtape rotating file sink）按 8 KB 或"相隔 5 秒的下一条记录"写出，运行中轮询 harness 的 notificationsShown（或其他读 desktop.jsonl 的辅助）读不到刚记的行。断言桌面通知或 main 日志时，在应用退出（dispose 写出缓冲）之后读取，或等待界面可观察状态；不要靠加长等待。另：main 上的桌面通知转发由票 09 修复，合入前在你的分支上看不到通知是这个原因。
+- 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。

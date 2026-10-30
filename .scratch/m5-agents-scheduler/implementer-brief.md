@@ -2,6 +2,21 @@
 
 所有实施票共用。复制自 [M4 实施者须知](../m4-goal-plan-tasks/implementer-brief.md) 并改为 M5，另加入 [M4 复盘](../m4-goal-plan-tasks/retro.md) 中已采纳的规则（见末节）。Lead 只通过上下文指针沟通，细节读文件。
 
+## 全量测试锁
+
+**全量测试锁（2026-10-31 起）。** 多个 worktree 的全量 `pnpm run test` 会互相重叠（"先等其他 vitest run 结束"只在开始前检查，开始后别人仍会进来），负载到 20–40 时真实进程与 Browser Mode 用例大面积超时。运行全量时用同一把锁：
+
+```bash
+until mkdir /tmp/coko-full-test.lock 2>/dev/null; do
+  pid=$(cat /tmp/coko-full-test.lock/pid 2>/dev/null); [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null && rm -rf /tmp/coko-full-test.lock
+  sleep 10
+done
+echo $ > /tmp/coko-full-test.lock/pid; trap 'rm -rf /tmp/coko-full-test.lock' EXIT
+pnpm run test
+```
+
+只跑单个或几个测试文件时不需要锁。
+
 ## 同一台机器上的全量测试
 
 多个 worktree 共用一台机器。两个全量 `pnpm run test` 同时运行时负载会到 15 以上，启动真实 sidecar / Electron 或冷启动转译的用例会超时。运行全量前先等其他 `vitest run` 结束：

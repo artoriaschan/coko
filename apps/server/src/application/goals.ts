@@ -67,6 +67,21 @@ export interface GoalRunHost {
   pause(sessionId: string): Promise<void>
 }
 
+/**
+ * 子代理对 Goal 的接线（SubagentService，装配时 useSubagents）：取消 Goal 时停止它的 Run 派发的全部子代理（等待 agent_end），返回停止的数量。
+ */
+export interface GoalSubagents {
+  stopForGoal(sessionId: string, goalId: string): Promise<number>
+}
+
+/** 根 Session 的 agent_start 条目给出的、属于该 Goal 的子 Session（派发它的 Run 属于该 Goal）。 */
+function childSessionIds(entries: readonly StoredEntry[], goalId: string): string[] {
+  const runs = goalRunIds(entries, goalId)
+  return entries
+    .filter((e) => e.kind === 'agent_start' && ((e.payload as { goalId?: string }).goalId === goalId || (e.runId !== null && runs.has(e.runId))))
+    .map((e) => (e.payload as { agentId: string }).agentId)
+}
+
 export interface GoalServiceOptions {
   store: SessionStore
   /** Session 的条目推送（goal 快照）与订阅（run_end、job_end、审批）。 */
@@ -110,6 +125,7 @@ export class GoalService {
   readonly #admitted = new Map<string, { runId: string; ids: Set<string> }>()
   /** 工具调用前检查按 Session 串行（同一批的调用并发进入 hook）。 */
   readonly #toolCallLocks = new KeyedMutex()
+  #subagents: GoalSubagents | undefined
 
   constructor(options: GoalServiceOptions) {
     this.#options = options
@@ -128,6 +144,39 @@ export class GoalService {
     })
   }
 
+  /** 装配时接上子代理（取消 Goal 时停止其子代理）。 */
+  useSubagents(subagents: GoalSubagents): void {
+    this.#subagents = subagents
+  }
+
+  /** 该 Goal 的五维用量：根 Session 自己的 Run 加上它的 Run 派发的子 Session 的全部 Run（不计轮次，ADR 0014）。 */
+  async #usage(entries: readonly StoredEntry[], goalId: string, extra: { now?: number } = {}) {
+    const children = await Promise.all(childSessionIds(entries, goalId).map((id) => this.#entries(id)))
+    return goalUsage(entries, goalId, { ...extra, ...(children.length > 0 ? { children } : {}) })
+  }
+
+  /**
+   * 子 Session 的 Run 所属的 Goal（ADR 0014）：父 Session 当前 Goal 为 running，且派发它的 agent_start 属于该 Goal。根 Session 自己时为
+   * 该 Session 的 Goal 与它的 Run 是否属于 Goal（own）。
+   */
+  async #governing(
+    sessionId: string,
+    runId: string,
+  ): Promise<{ goal: GoalPayload; root: string; entries: readonly StoredEntry[]; member: boolean } | undefined> {
+    const session = await this.#options.store.sessions.getSession(sessionId)
+    if (!session) return undefined
+    if (session.parentSessionId === null) {
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      return goal ? { goal, root: sessionId, entries, member: goalRunIds(entries, goal.id).has(runId) } : undefined
+    }
+    const root = session.parentSessionId
+    const entries = await this.#entries(root)
+    const goal = currentGoal(entries)
+    if (!goal) return undefined
+    return { goal, root, entries, member: childSessionIds(entries, goal.id).includes(sessionId) }
+  }
+
   // ---- 读取 ----
 
   /** 当前 Goal（最新的 goal 条目）与已用量。 */
@@ -136,14 +185,14 @@ export class GoalService {
     const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
     if (!goal) return { goal: null, usage: { rounds: 0 } }
-    return { goal, usage: { ...goalUsage(entries, goal.id), costUnpriced: !(await this.#priced(sessionId)) } }
+    return { goal, usage: { ...(await this.#usage(entries, goal.id)), costUnpriced: !(await this.#priced(sessionId)) } }
   }
 
   /** Goal 未终结时的 <goal> section（已设维度的用量 / 上限）。 */
   async systemSection(sessionId: string): Promise<SystemSection | undefined> {
     const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
-    return goalSection(goal, goal ? goalUsage(entries, goal.id) : { rounds: 0 })
+    return goalSection(goal, goal ? await this.#usage(entries, goal.id) : { rounds: 0 })
   }
 
   // ---- 预算检查点（context/goal.ts 的 beforeRequest 与工具 hook） ----
@@ -153,11 +202,12 @@ export class GoalService {
    * 未定价时 cost_unpriced。返回停止的原因；Run 以 paused 加该 error 结束，Run 结束后 Goal 进入 budget-exhausted / blocked（runEnded）。
    */
   async beforeRequest(sessionId: string, runId: string): Promise<RunError | undefined> {
-    if (this.#cancelling.has(sessionId)) return undefined
-    const entries = await this.#entries(sessionId)
-    const goal = currentGoal(entries)
-    if (!goal || goal.phase !== 'running' || !goalRunIds(entries, goal.id).has(runId)) return undefined
-    const usage = goalUsage(entries, goal.id)
+    // 子 Session 的 Run 检查父 Session 的 Goal（含其他子 Session 的已用）。
+    const governing = await this.#governing(sessionId, runId)
+    if (!governing || this.#cancelling.has(governing.root)) return undefined
+    const { goal, entries } = governing
+    if (goal.phase !== 'running' || !governing.member) return undefined
+    const usage = await this.#usage(entries, goal.id)
     const dimension = exhaustedDimension(goal.budget, usage, ['tokens', 'cost', 'time'])
     if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage), dimension }
     if (goal.budget.maxCost !== undefined && !(await this.#priced(sessionId))) return { code: 'cost_unpriced', message: COST_UNPRICED_MESSAGE }
@@ -176,10 +226,12 @@ export class GoalService {
   async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
     const runs = this.#options.runs
     const runId = runs.activeRunId(sessionId)
-    if (runId === undefined || this.#cancelling.has(sessionId)) return undefined
+    if (runId === undefined) return undefined
+    const governing = await this.#governing(sessionId, runId)
+    if (!governing || this.#cancelling.has(governing.root)) return undefined
+    const { goal } = governing
+    if (goal.phase !== 'running' || goal.budget.maxToolCalls === undefined || !governing.member) return undefined
     const entries = await this.#entries(sessionId)
-    const goal = currentGoal(entries)
-    if (!goal || goal.phase !== 'running' || goal.budget.maxToolCalls === undefined || !goalRunIds(entries, goal.id).has(runId)) return undefined
     let admitted = this.#admitted.get(sessionId)
     if (admitted?.runId !== runId) {
       admitted = { runId, ids: new Set() }
@@ -189,7 +241,7 @@ export class GoalService {
       entries.filter((e) => e.runId === runId && e.kind === 'message').map((e) => (e.payload as { role?: string; toolCallId?: string }).toolCallId),
     )
     const pending = [...admitted.ids].filter((id) => !committed.has(id)).length
-    const usage = goalUsage(entries, goal.id)
+    const usage = await this.#usage(governing.entries, goal.id)
     const used = { ...usage, toolCalls: usage.toolCalls + pending }
     if (exhaustedDimension(goal.budget, used, ['tool-calls'])) {
       const message = exhaustedMessage('tool-calls', goal.budget, used)
@@ -230,7 +282,7 @@ export class GoalService {
         // 取消进行中：取消提交 cancelled 之前，用户的动作不再改变 Goal（否则 resume 会开出一个在取消之后继续运行的 Goal Round）。
         if (this.#cancelling.has(sessionId)) throw new GoalError('invalid-transition', 'The goal is being cancelled')
         expectRevision(goal, request.revision)
-        const usage = goalUsage(entries, goal.id)
+        const usage = await this.#usage(entries, goal.id)
         const change: GoalChange =
           request.action === 'pause'
             ? { type: 'pause', reason: { code: 'user-paused', message: 'Paused by the user' } }
@@ -278,8 +330,14 @@ export class GoalService {
       this.#cancelling.add(sessionId)
       return current
     })
-    const cleanup = { runsAborted: 0, jobsKilled: 0, failures: [] as string[] }
+    const cleanup = { runsAborted: 0, jobsKilled: 0, agentsStopped: 0, failures: [] as string[] }
     try {
+      // 子代理先停（前台子代理的 agent 调用随之结束，父 Run 才能停下；后台子代理不随父 Run 停止）。
+      try {
+        cleanup.agentsStopped = (await this.#subagents?.stopForGoal(sessionId, goal.id)) ?? 0
+      } catch (error) {
+        cleanup.failures.push('Stopping subagents failed: ' + errorMessage(error))
+      }
       const runs = this.#options.runs
       const runId = runs.activeRunId(sessionId)
       if (runId !== undefined && runs.isRunning(sessionId)) {
@@ -362,7 +420,7 @@ export class GoalService {
             entries,
             authority: runAuthority(entries),
             rounds,
-            ...(goal ? { usage: goalUsage(entries, goal.id) } : {}),
+            ...(goal ? { usage: await this.#usage(entries, goal.id) } : {}),
             jobRunning: (id) => jobs.get(id)?.running ?? false,
           })
           let committed = await this.#commit(sessionId, next)

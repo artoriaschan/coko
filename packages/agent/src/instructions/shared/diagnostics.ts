@@ -1,6 +1,6 @@
 // 加载用户编写的资源（指令、Skills、命令、MCP 配置、能力配置）时的诊断：读取失败或格式错误只产生诊断，不阻止 Run（docs/subsystems/instructions.md）。
 
-export type DiagnosticSource = 'instructions' | 'skills' | 'commands' | 'mcp' | 'config' | 'memory'
+export type DiagnosticSource = 'instructions' | 'skills' | 'commands' | 'mcp' | 'config' | 'memory' | 'agents'
 
 export interface ResourceDiagnostic {
   source: DiagnosticSource

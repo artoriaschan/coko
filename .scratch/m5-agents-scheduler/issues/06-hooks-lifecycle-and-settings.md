@@ -35,3 +35,7 @@
   - 越出 Write scope 的最小改动：`apps/server/src/runtime/layers.ts`（AppLive 中 `hooks.bind(...)` 与 `notifications.observe(...)`，约 9 行；HookService 需要 SessionService 创建之后的停止 Run、权限模式与作用域）；`apps/server/src/application/notifications.ts`（`observe()`，Notification Hook 订阅）；`apps/desktop/src/renderer/features/conversation/timeline.ts`（用户气泡不显示 `<hook-context>` 块，与 `<job-notification>` 同法）；`docs/subsystems/configuration.md` 一句（hooks.enabled 的开关已在 Hooks 分区）；`docs/README.md` hooks 一行的摘要更新；`apps/server/src/http/routes/hooks.ts` 在范围内。
   - Goal 与 hook_stopped：按 lead 裁决照现状断言 running（用例注释注明待改），留给 m5/fix-goal-hook-stopped。
   - 导出 / README 要点（交给票 08 汇总）：server README——HookService 的生命周期事件与 `bind(HookSessionHost)`、`NotificationService.observe`；agent README——`interpretHookResult` 对 Notification 只记失败。
+- 2026-10-31 lead：合入 main（da02884）后全量有 1 例失败：worktrees.test.ts 的 removeIfUnchanged（票 04 的用例，与本票无关）——每例多次运行真实 git，无竞争时约 2 秒，默认 5 秒在并行全量下不够（负载 40 时 4/4 失败）。lead 在 m5/fix-worktrees-test-budget 给两个 describe 设 30 秒预算（断言不变，git 自身超时由 adapters/git.ts 控制），合入（b6320fb）。之后的全量又与票 09、10 的全量重叠，10 例 Browser Mode 与导入用例超时；lead 加了全量测试锁，在锁内重跑（见下一条）。
+- 2026-10-31 lead：接受越界：layers.ts 约 9 行（hooks.bind、notifications.observe）、notifications.ts 的 observe()、renderer timeline.ts 隐藏 <hook-context>、configuration.md 一句、docs/README 一行；协议 ProjectHookEntry.changed?、GET /api/hooks 接受 ?workspaceId=、批准记录改为 {digest, hookId}（旧格式照读）。main 上在全量测试锁内复核：全量 test 283 文件 2369 通过、1 跳过（真实模型），无页面重载、无未处理错误；运行期间最多 1 个其他全量重叠，负载约 9–11。worktree 已清理。
+
+Closed: true

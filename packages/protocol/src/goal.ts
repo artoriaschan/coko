@@ -90,7 +90,9 @@ export const GoalPayload = Type.Object(
     resumedAtRound: Count,
     evidence: Type.Optional(Type.Array(GoalEvidence)),
     completedBy: Type.Optional(Type.Union([Type.Literal('model'), Type.Literal('user')])),
-    cleanup: Type.Optional(Type.Object({ runsAborted: Count, jobsKilled: Count, failures: Type.Array(Type.String()) }, strict)),
+    cleanup: Type.Optional(
+      Type.Object({ runsAborted: Count, jobsKilled: Count, agentsStopped: Type.Optional(Count), failures: Type.Array(Type.String()) }, strict),
+    ),
     source: GoalSource,
   },
   strict,

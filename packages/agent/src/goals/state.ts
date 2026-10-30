@@ -49,7 +49,7 @@ export type GoalChange =
   | { type: 'resume' }
   | { type: 'edit'; objective?: string; constraints?: string; criteria?: readonly string[]; budget?: GoalBudget }
   | { type: 'complete'; by: 'model' | 'user'; evidence?: GoalEvidence[] }
-  | { type: 'cancel'; cleanup: { runsAborted: number; jobsKilled: number; failures: string[] } }
+  | { type: 'cancel'; cleanup: { runsAborted: number; jobsKilled: number; agentsStopped?: number; failures: string[] } }
   | { type: 'block'; reason: { code: string; message: string } }
   | { type: 'wait-input'; reason: { code: string; message: string } }
   | { type: 'wait-jobs'; jobIds: string[]; reason: { code: string; message: string } }
