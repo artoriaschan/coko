@@ -21,3 +21,4 @@
 ## Comments
 - 2026-10-31 lead：接受越界修复 "fix(desktop): forward notify control messages to main"（sidecar-process.ts 控制消息 switch 加 case 'notify'）。这是票 05 留下的缺陷：main 上桌面通知从未显示——05 的单元测试直接调用 handleNotify、集成测试只看 Sidecar 侧的 notifyMessages，没有一个用例跨过控制通道；lead 合入 05 时也没有发现。本票的 schedules.e2e 在没有修复时 2/2 失败、修复后 2/2 通过，作为跨通道的回归用例。
 - 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。
+- 2026-10-31 lead：收到 BLOCKED（9f0224d）。阻塞原因是 main 上的 390px 标题栏溢出（票 10 的交接按钮），由 m5/fix-header-narrow 修复；修复合入后 lead 把本分支合入 main 并在锁内复核，本票不需要再改。接受取舍：标题栏"定时任务"按钮改为有任务时才显示，新建入口为始终可见的 Schedules tab。接受越界：sidecar-process.ts 的 case 'notify'、entries 导出与导入守卫、architecture.md 一句、两个注册表测试的固定值。lead 已处理：锁脚本的 PID 行（`echo $$`）、configuration.md:39 的"子代理、定时任务尚未交付"（permissions.md:62 已是当前内容）。留给 M5 评审：定时任务的 user message 在时间线中显示为原文 <scheduled_task …> 气泡（timeline.ts）。
