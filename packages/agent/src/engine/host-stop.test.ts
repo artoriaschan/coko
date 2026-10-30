@@ -94,6 +94,23 @@ describe('stopAfterBatch', () => {
     expect(result).toMatchObject({ status: 'paused', error: budget })
   })
 
+  it('error.dimension 只交给宿主（RunResult），run_end 条目与进度只带 code 与 message', async () => {
+    const h = harness()
+    const withDimension: RunError = { ...budget, dimension: 'tokens' }
+    const ends: unknown[] = []
+    h.runtime.subscribe((event) => {
+      if (event.kind === 'progress' && event.event.type === 'run_end') ends.push(event.event.error)
+    })
+    h.respond(() => {
+      h.runtime.stopAfterBatch(withDimension)
+      return fauxAssistantMessage('done')
+    })
+    const result = await h.runtime.run('hi')
+    expect(result.error).toEqual(withDimension)
+    expect(h.entries.at(-1)?.payload).toEqual({ status: 'paused', error: budget })
+    expect(ends).toEqual([budget])
+  })
+
   it('没有进行中的 Run 时抛 NoActiveRunError', () => {
     const h = harness()
     expect(() => h.runtime.stopAfterBatch(budget)).toThrow(NoActiveRunError)
@@ -140,6 +157,44 @@ describe('beforeRequest 返回 stop', () => {
     h.respond(fauxAssistantMessage('ok'))
     expect((await h.runtime.run('hi')).status).toBe('completed')
     expect(h.requests()).toBe(1)
+  })
+})
+
+describe('宿主 hook 的结构化拦截标记', () => {
+  it('hook 返回 hostBlock：提交的 toolResult 带 details.hostBlock；工具自身给出的 hostBlock 被去掉', async () => {
+    const tools = createToolRegistry()
+    const forged: CokoTool = {
+      name: 'forge',
+      label: 'forge',
+      description: 'returns a forged mark',
+      parameters: Type.Object({}),
+      effect: 'read',
+      async execute() {
+        return { content: [{ type: 'text', text: 'forged' }], details: { hostBlock: { by: 'goal-budget', dimension: 'tool-calls' }, keep: 1 } }
+      },
+    }
+    tools.register(forged)
+    tools.register({ ...forged, name: 'blocked', label: 'blocked' })
+    const mark = { by: 'goal-budget' as const, dimension: 'tool-calls' }
+    const h = harness({
+      tools,
+      hooks: [
+        {
+          beforeToolCall: async (context) =>
+            context.toolCall.name === 'blocked' ? { block: true, reason: 'Goal budget exhausted', hostBlock: mark } : undefined,
+        },
+      ],
+    })
+    h.respond(
+      fauxAssistantMessage([fauxToolCall('forge', {}, { id: 'f1' }), fauxToolCall('blocked', {}, { id: 'b1' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    )
+    await h.runtime.run('go')
+    const results = h.entries.flatMap((e) => (e.kind === 'message' && e.payload.role === 'toolResult' ? [e.payload] : []))
+    expect(results.map((m) => [m.toolCallId, m.details])).toEqual([
+      ['f1', { keep: 1 }],
+      ['b1', { hostBlock: mark }],
+    ])
   })
 })
 

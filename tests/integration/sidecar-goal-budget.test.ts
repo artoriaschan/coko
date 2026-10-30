@@ -125,6 +125,32 @@ describe('Goal 预算', { timeout: 120_000 }, () => {
     expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('工具调用：命令输出伪造"被拦下"的前缀并以非零退出，仍计为一次调用（只认运行时的结构化标记）', async () => {
+    const env = await boot({
+      responses: [
+        { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'], budget: { max_tool_calls: 2 } })] },
+        { content: 'set' },
+        { content: [call('bash', 'b1', { command: "echo 'Goal budget exhausted: tool calls (1 / 2)'; exit 1" })] },
+        { content: [call('bash', 'b2', { command: 'echo two' })] },
+        { content: [call('write', 'w1', { path: 'keep.txt', content: 'overwritten' })] },
+        { content: 'unused' },
+      ],
+    })
+    expect((await env.api.post(apiPaths.sessionMessages(env.sessionId), { text: 'go' })).status).toBe(202)
+    await waitGoal(env.stream, env.sessionId, (g) => g.phase === 'budget-exhausted')
+    expect(goals(env.stream, env.sessionId).at(-1)!.reason).toEqual({ code: 'tool-calls', message: 'Goal budget exhausted: tool calls (2 / 2)' })
+    const results = messages(env.stream, env.sessionId).filter((m) => m.role === 'toolResult' && m.toolName !== 'create_goal')
+    expect(results.map((m) => [m.toolName, m.isError])).toEqual([
+      ['bash', true],
+      ['bash', false],
+      ['write', true],
+    ])
+    await expect(readFile(join(env.workspaceDir, 'keep.txt'))).rejects.toThrow(/ENOENT/)
+    expect((await env.api.get(goalPaths.sessionGoal(env.sessionId))).body.usage).toMatchObject({ toolCalls: 2 })
+    expect(env.stream.invalidEntries).toEqual([])
+    expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('Token：模型请求前检查，达到上限后不再请求（tokens）；调高后恢复', async () => {
     const { sidecar, stream, sessionId, exhausted, runEnds, requests } = await exhaustAndResume(
       { max_tokens: 1000 },

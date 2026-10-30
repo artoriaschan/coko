@@ -1,10 +1,10 @@
 // Goal 预算的派生（ADR 0011：用量从条目计算，不另存计数器；docs/subsystems/goal.md#预算）。属于 Goal 的 Run：Goal 处于非终态且非 paused 时
 // 开始的 Run（含用户提交的），以及该 Goal 的 Goal Round。轮次 = Goal Round 数；工具调用 = 这些 Run 的 toolResult 数（工具调用上限拦下的错误
-// 结果除外）；Token = assistant usage 的 input + output + cacheRead + cacheWrite 加 compaction.usage；费用 = 同一组 usage 的 cost.total；
+// 结果除外，按 details.hostBlock 识别）；Token = assistant usage 的 input + output + cacheRead + cacheWrite 加 compaction.usage；费用 = 同一组 usage 的 cost.total；
 // 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。子 Session 的条目（M5 接入）整体计入，不计轮次。
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
-import { GOAL_BUDGET_EXHAUSTED_PREFIX, goalRounds, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
+import { goalRounds, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
 
 /** 派生用到的条目：另带提交时间（毫秒）。结构上与 @coko/session 的 SessionEntry 相容。 */
 export interface BudgetEntry extends EntryLike {
@@ -63,7 +63,7 @@ function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | 
         break
       }
       case 'message': {
-        const message = entry.payload as { role?: string; usage?: UsageLike; isError?: boolean; content?: { type?: string; text?: string }[] }
+        const message = entry.payload as { role?: string; usage?: UsageLike; details?: unknown }
         if (message.role === 'assistant' && message.usage) {
           totals.tokens += tokensOf(message.usage)
           totals.cost += num(message.usage.cost?.total)
@@ -77,11 +77,13 @@ function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | 
   return totals
 }
 
-/** 工具调用上限拦下的调用：它没有执行，不计为一次调用。 */
-function isBudgetBlocked(message: { isError?: boolean; content?: { type?: string; text?: string }[] }): boolean {
-  if (message.isError !== true) return false
-  const first = message.content?.find((block) => block.type === 'text')
-  return first?.text?.startsWith(GOAL_BUDGET_EXHAUSTED_PREFIX + 'tool calls') ?? false
+/**
+ * 工具调用上限拦下的调用：它没有执行，不计为一次调用。只认运行时写入的结构化标记 details.hostBlock（工具自身给出的会被运行时去掉），
+ * 不看结果文本：命令输出可以伪造任何文字。
+ */
+function isBudgetBlocked(message: { details?: unknown }): boolean {
+  const mark = (message.details as { hostBlock?: { by?: unknown } } | null | undefined)?.hostBlock
+  return mark?.by === 'goal-budget'
 }
 
 export interface GoalUsageOptions {

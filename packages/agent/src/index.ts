@@ -84,7 +84,7 @@ export * from './tasks/index.ts'
 
 // Hooks
 export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks.ts'
-export type { ToolHooks } from './extensions/hooks.ts'
+export type { HostBlock, ToolBlockResult, ToolHooks } from './extensions/hooks.ts'
 
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'

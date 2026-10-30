@@ -8,7 +8,7 @@ import { createFauxModels, fauxAssistantMessage } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { SESSION_ENTRY_PAYLOADS } from '../session-entries/index.ts'
 import { createAgentRuntime } from './runtime.ts'
-import type { ProgressEvent } from './types.ts'
+import type { ProgressEvent, RunError, RuntimeContext } from './types.ts'
 
 let ws: TempWorkspace
 beforeEach(async () => {
@@ -21,7 +21,7 @@ afterEach(async () => {
 type Step = ReturnType<typeof fauxAssistantMessage> | ((context: Context) => ReturnType<typeof fauxAssistantMessage>)
 
 /** 40k 窗口、4k 输出：阈值 23 000。保留最近 1000 tokens，使小用例也有可摘要的内容。 */
-function harness(options: { autoCompact?: boolean } = {}) {
+function harness(options: { autoCompact?: boolean; context?: RuntimeContext } = {}) {
   const { faux, models, model } = createFauxModels({ models: [{ id: 'small', contextWindow: 40_000, maxTokens: 4_000 }] })
   const stored: EntryLike[] = []
   const progress: ProgressEvent[] = []
@@ -35,6 +35,7 @@ function harness(options: { autoCompact?: boolean } = {}) {
       stored.push({ seq: stored.length + 1, kind: entry.kind, runId: entry.runId ?? null, payload: entry.payload })
     },
     compaction: { entries: async () => stored, autoCompact: () => options.autoCompact ?? true, keepRecentTokens: 1_000 },
+    ...(options.context ? { context: options.context } : {}),
   })
   runtime.subscribe((event) => {
     if (event.kind === 'progress') progress.push(event.event)
@@ -156,6 +157,55 @@ describe('自动压缩', () => {
     const retried = h.requests.at(-1)!.messages
     expect(retried.map((m) => m.role)).toEqual(['system', 'user', 'user', 'assistant', 'user'])
     expect(text(retried.at(-1))).toBe('next')
+  })
+})
+
+describe('压缩前的请求前检查（Goal 预算）', () => {
+  const budget: RunError = { code: 'budget_exhausted', message: 'Goal budget exhausted: tokens (10 / 10)', dimension: 'tokens' }
+
+  it('越过阈值但 beforeRequest 返回 stop：不发出摘要请求、不提交 compaction，Run 以 paused 加该 error 结束', async () => {
+    let stop = false
+    const h = harness({ context: { beforeRequest: async () => (stop ? { stop: budget } : undefined) } })
+    h.reply(ok(), ok('SUMMARY'), ok('done'))
+    await h.runtime.run(big(60_000, 'a'))
+    stop = true
+    const result = await h.runtime.run(big(40_000, 'b'))
+    expect(result).toMatchObject({ status: 'paused', error: budget })
+    expect(h.stored.some((e) => e.kind === 'compaction')).toBe(false)
+    expect(h.requests).toHaveLength(1)
+  })
+
+  it('压缩之后再检查一次（计入压缩的用量）：压缩后返回 stop 时不发出对话请求', async () => {
+    let checks = 0
+    const h = harness({ context: { beforeRequest: async () => (++checks === 3 ? { stop: budget } : undefined) } })
+    h.reply(ok(), ok('SUMMARY'), ok('never'))
+    await h.runtime.run(big(60_000, 'a'))
+    const result = await h.runtime.run(big(40_000, 'b'))
+    expect(result).toMatchObject({ status: 'paused', error: budget })
+    expect(h.stored.filter((e) => e.kind === 'compaction')).toHaveLength(1)
+    // 第一个 Run 一次对话请求，第二个 Run 只有摘要请求。
+    expect(h.requests).toHaveLength(2)
+  })
+
+  it('溢出恢复前 beforeRequest 返回 stop：不压缩、不重试，Run 以 paused 加该 error 结束', async () => {
+    let stop = false
+    const h = harness({ context: { beforeRequest: async () => (stop ? { stop: budget } : undefined) } })
+    h.reply(
+      ok(),
+      ok(),
+      () => {
+        stop = true
+        return fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'prompt is too long: 50000 tokens > 40000 maximum' })
+      },
+      ok('S'),
+      ok('recovered'),
+    )
+    await h.runtime.run(big(40_000, 'a'))
+    await h.runtime.run(big(8_000, 'b'))
+    const result = await h.runtime.run('next')
+    expect(result).toMatchObject({ status: 'paused', error: budget })
+    expect(h.stored.some((e) => e.kind === 'compaction')).toBe(false)
+    expect(h.requests).toHaveLength(3)
   })
 })
 

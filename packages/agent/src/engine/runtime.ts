@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { Agent, type AgentEvent, type AgentMessage, type AgentTool } from '@earendil-works/pi-agent-core'
-import { composeAfterToolCall, composeBeforeToolCall } from '../extensions/hooks.ts'
+import { Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool } from '@earendil-works/pi-agent-core'
+import type { ToolResultMessage } from '@earendil-works/pi-ai'
+import { composeAfterToolCall, composeBeforeToolCall, type HostBlock } from '../extensions/hooks.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import { createToolScheduler, withScheduling, type SchedulingOptions } from '../tools/scheduler.ts'
@@ -40,6 +41,8 @@ interface RunState extends CompactionRun, PermissionRun {
   halt?: RunError
   /** 本次请求被宿主扣下：pi 为它记下的失败消息不提交，Run 结束前从对话记录中移除。 */
   withheld?: boolean
+  /** 被宿主 hook 拦下的调用的结构化标记，按 toolCallId；提交其 toolResult 时写入 details.hostBlock。 */
+  hostBlocks: Map<string, HostBlock>
 }
 
 interface Steering {
@@ -48,6 +51,9 @@ interface Steering {
   text: string
   before: readonly RunEntry[]
 }
+
+/** 进入条目与进度的 error：只有 code 与 message（协议的形状）。 */
+const publicError = ({ code, message }: RunError): RunError => ({ code, message })
 
 const toInput = (input: string | RunInput): RunInput => (typeof input === 'string' ? { text: input } : input)
 
@@ -142,7 +148,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     beforeToolCall: async (context, signal) => {
       if (current?.commitError) return { block: true, reason: 'Run stopped: the record could not be saved' }
-      return before(context, signal)
+      const result = await before(context, signal)
+      if (!result?.block) return result
+      const { hostBlock, ...block } = result
+      if (hostBlock) current?.hostBlocks.set(context.toolCall.id, hostBlock)
+      return block
     },
     afterToolCall: (context, signal) => after(context, signal),
     ...(context?.transformMessages ? { transformContext: async (messages: AgentMessage[]) => context.transformMessages!(messages) } : {}),
@@ -151,14 +161,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       if (!run) return undefined
       // 宿主已要求停止（例如 Goal Round 开始前预算已耗尽）：不发出请求。
       if (run.halt) return withhold(run)
-      // 自动压缩在宿主钩子之前：钩子看到的是将要发出的上下文（压缩的用量也已计入）。
+      // 宿主检查（预算）在自动压缩之前：摘要请求同样是一次模型请求，预算耗尽或未定价时不发出。压缩之后再检查一次（计入压缩的用量）。
+      if (!(await admit(run, request.messages, model, signal))) return withhold(run)
       const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
-      const messages = compacted ?? request.messages
-      const verdict = context?.beforeRequest ? await context.beforeRequest({ runId: run.runId, messages, model, ...(signal ? { signal } : {}) }) : undefined
-      if (verdict) {
-        halt(run, verdict.stop)
-        return withhold(run)
-      }
+      if (compacted && !(await admit(run, compacted, model, signal))) return withhold(run)
       return compacted ? { context: { ...request, messages: compacted } } : undefined
     },
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
@@ -166,6 +172,15 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
   })
+
+  /** 宿主的请求前检查（RuntimeContext.beforeRequest）：返回 stop 时停止本 Run 并返回 false（调用方不发出请求）。 */
+  const admit = async (run: RunState, messages: readonly AgentMessage[], model: AgentState['model'], signal?: AbortSignal): Promise<boolean> => {
+    if (run.halt) return false
+    const verdict = context?.beforeRequest ? await context.beforeRequest({ runId: run.runId, messages, model, ...(signal ? { signal } : {}) }) : undefined
+    if (!verdict) return true
+    halt(run, verdict.stop)
+    return false
+  }
 
   // 宿主停止：与暂停相同（本批完成后结束，等待中的审批取消），结束状态另带 error。
   const halt = (run: RunState, error: RunError) => {
@@ -177,6 +192,16 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const withhold = (run: RunState): never => {
     run.withheld = true
     throw new Error(REQUEST_WITHHELD_TEXT)
+  }
+  /** toolResult 的 details.hostBlock 只来自宿主 hook 的拦截（工具自身给出的被去掉）。 */
+  const markHostBlock = (run: RunState, message: ToolResultMessage) => {
+    const mark = run.hostBlocks.get(message.toolCallId)
+    run.hostBlocks.delete(message.toolCallId)
+    const details: unknown = message.details
+    const object = details !== null && typeof details === 'object' ? (details as Record<string, unknown>) : undefined
+    if (!mark && !(object && Object.hasOwn(object, 'hostBlock'))) return
+    const { hostBlock: _dropped, ...rest } = object ?? {}
+    message.details = (mark ? { ...rest, hostBlock: mark } : rest) as ToolResultMessage['details']
   }
   const isWithheld = (run: RunState, message: AgentMessage) =>
     run.withheld === true && message.role === 'assistant' && message.errorMessage === REQUEST_WITHHELD_TEXT
@@ -202,6 +227,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
           if (delivered >= 0) for (const entry of run.steering[delivered]!.before) await commit({ ...entry, runId: run.runId } as RunEntry)
+          if (event.message.role === 'toolResult') markHostBlock(run, event.message)
           await commit({ kind: 'message', runId: run.runId, payload: event.message })
           // 追加指令送达：提交成功后才不算未送达。
           if (delivered >= 0) run.steering.splice(delivered, 1)
@@ -249,6 +275,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         current: () => current,
         resume: () => agent.continue(),
         abortAgent: () => agent.abort(),
+        admit: (run) => admit(run as RunState, agent.state.messages, agent.state.model),
       })
     : undefined
   const recoverOverflow = (drive: () => Promise<void>) => (driver ? driver.recoverOverflow(drive) : drive)
@@ -293,6 +320,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       steering: [],
       trigger,
       overflowRetried: false,
+      hostBlocks: new Map(),
     }
     current = run
     let result: RunResult
@@ -332,7 +360,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       result = { runId: run.runId, ...ended }
       if (!run.commitError) {
         try {
-          await commit({ kind: 'run_end', runId: run.runId, payload: ended })
+          // 条目与进度只带 code 与 message：dimension 只交给宿主（RunResult），不进入协议。
+          await commit({ kind: 'run_end', runId: run.runId, payload: ended.error ? { ...ended, error: publicError(ended.error) } : ended })
         } catch (error) {
           result = { runId: run.runId, status: 'error', error: { code: 'commit_failed', message: error instanceof Error ? error.message : String(error) } }
         }
@@ -343,7 +372,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 批准后未执行（被后续 hook 拦下或 Run 停止）的提权、复核目标与沙箱拒绝记录不延续到下一个 Run。
       wiring.reset()
     }
-    progress({ type: 'run_end', runId: result.runId, status: result.status, ...(result.error ? { error: result.error } : {}) })
+    progress({ type: 'run_end', runId: result.runId, status: result.status, ...(result.error ? { error: publicError(result.error) } : {}) })
     return result
   }
 

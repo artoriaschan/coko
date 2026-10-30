@@ -35,6 +35,8 @@ export type RunErrorCode =
 export interface RunError {
   code: RunErrorCode
   message: string
+  /** budget_exhausted: the budget dimension that is used up (for example `tokens`), so the host never parses `message`. */
+  dimension?: string
 }
 
 /**

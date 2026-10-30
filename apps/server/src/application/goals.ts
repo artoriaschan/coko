@@ -26,6 +26,7 @@ import {
   type RunError,
   type RunResult,
   type SystemSection,
+  type ToolBlockResult,
   type ToolHooks,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -141,20 +142,21 @@ export class GoalService {
     if (!goal || goal.phase !== 'running' || !goalRunIds(entries, goal.id).has(runId)) return undefined
     const usage = goalUsage(entries, goal.id)
     const dimension = exhaustedDimension(goal.budget, usage, ['tokens', 'cost', 'time'])
-    if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage) }
+    if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage), dimension }
     if (goal.budget.maxCost !== undefined && !(await this.#priced(sessionId))) return { code: 'cost_unpriced', message: COST_UNPRICED_MESSAGE }
     return undefined
   }
 
   /**
    * 工具调用前（权限判定之后的 hook）：该 Run 属于 running 且设了 maxToolCalls 的 Goal 时，已提交的调用加本 Run 已放行未提交的调用达到上限，
-   * 则该调用不执行（错误结果 "Goal budget exhausted: tool calls (n / max)"），并要求 Run 本批完成后停止（stopAfterBatch）。
+   * 则该调用不执行（错误结果 "Goal budget exhausted: tool calls (n / max)"，带结构化标记 hostBlock，用量派生只认这个标记），并要求 Run
+   * 本批完成后停止（stopAfterBatch）。
    */
   toolHooks(sessionId: string): ToolHooks {
     return { beforeToolCall: (context) => this.#gate(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
   }
 
-  async #checkToolCall(sessionId: string, toolCallId: string): Promise<{ block: true; reason: string } | undefined> {
+  async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
     const runs = this.#sessions?.runs
     const runId = runs?.activeRunId(sessionId)
     if (!runs || runId === undefined || this.#cancelling.has(sessionId)) return undefined
@@ -174,9 +176,9 @@ export class GoalService {
     const used = { ...usage, toolCalls: usage.toolCalls + pending }
     if (exhaustedDimension(goal.budget, used, ['tool-calls'])) {
       const message = exhaustedMessage('tool-calls', goal.budget, used)
-      runs.stopAfterBatch(sessionId, { code: 'budget_exhausted', message })
+      runs.stopAfterBatch(sessionId, { code: 'budget_exhausted', message, dimension: 'tool-calls' })
       log.info('goal tool call blocked by budget', { sessionId, goalId: goal.id, toolCallId, used: used.toolCalls })
-      return { block: true, reason: message }
+      return { block: true, reason: message, hostBlock: { by: 'goal-budget', dimension: 'tool-calls' } }
     }
     admitted.ids.add(toolCallId)
     return undefined
@@ -495,7 +497,7 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
   const { result, trigger } = info
   const error = result.error
   if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'budget_exhausted') {
-    return { type: 'exhaust', reason: { code: budgetDimension(error.message), message: error.message } }
+    return { type: 'exhaust', reason: { code: error.dimension ?? 'budget', message: error.message } }
   }
   if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'cost_unpriced')
     return { type: 'block', reason: { code: 'cost-unpriced', message: error.message } }
@@ -511,10 +513,3 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
 }
 
 const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)
-
-/** budget_exhausted 的 message 形如 "Goal budget exhausted: tool calls (n / max)"：取维度为 reason.code。 */
-function budgetDimension(text: string): string {
-  const match = /exhausted: ([a-z ]+)/.exec(text)
-  const name = match?.[1]?.trim()
-  return name === 'tool calls' ? 'tool-calls' : (name ?? 'budget')
-}
