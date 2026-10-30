@@ -2,7 +2,7 @@
 // Goal 的已用量与动作经注入的 GoalBackend（与 GET / POST …/goal 同形）。
 import '../../../styles.css'
 import type { GoalActionRequest, GoalPayload, GoalResponse, GoalUsage, SessionEntryRecord } from '@coko/protocol'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../../app/app.tsx'
@@ -100,6 +100,11 @@ const toggle = async () => {
   card()!.querySelector<HTMLButtonElement>('[data-action="toggle-goal"]')!.click()
   await expect.poll(() => card()?.querySelector('[data-slot="goal-details"]')).not.toBeNull()
 }
+
+// Browser Mode 的各文件共用同一个页面源：其他文件留下的输入区草稿（localStorage）会让编辑区一开始就有文字。
+beforeEach(() => {
+  localStorage.clear()
+})
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -342,7 +347,6 @@ it('/goal 无参数打开 Goal 卡（没有 Goal 时为空状态），不发送�
   const box = page.getByRole('textbox', { name: 'Give Coko a task' })
   await userEvent.click(box)
   await userEvent.keyboard('/goal')
-  // 高负载下按键可能晚于提交到达编辑区：等编辑区里确实是 "/goal" 再按 Esc 与 Enter。
   await expect.poll(() => box.element().textContent).toBe('/goal')
   await userEvent.keyboard('{Escape}')
   await userEvent.keyboard('{Enter}')
