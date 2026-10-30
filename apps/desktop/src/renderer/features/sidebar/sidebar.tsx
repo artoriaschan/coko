@@ -5,7 +5,9 @@ import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
+import { WorktreeChip } from '../conversation/worktree-chip.tsx'
 import { SettingsButton } from '../settings/settings-button.tsx'
+import { WorkspaceWorktreeMenu } from './worktrees.tsx'
 
 const GROUP_PAGE = 5
 
@@ -135,6 +137,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             sessions={items}
             activeSessionId={activeSessionId}
             onNewSession={() => newSession(workspace.id)}
+            onOpened={closeSidebarDrawer}
             onSelect={(id) => {
               openSession(id)
               closeSidebarDrawer()
@@ -167,12 +170,15 @@ function WorkspaceGroup({
   activeSessionId,
   onSelect,
   onNewSession,
+  onOpened,
 }: {
   workspace: Workspace
   sessions: Session[]
   activeSessionId: string | null
   onSelect: (id: string) => void
   onNewSession: () => void
+  /** 在新 worktree 中新建的会话已打开。 */
+  onOpened: () => void
 }) {
   const { t } = useI18n()
   const [limit, setLimit] = React.useState(GROUP_PAGE)
@@ -195,6 +201,7 @@ function WorkspaceGroup({
         >
           <PlusIcon />
         </Button>
+        <WorkspaceWorktreeMenu workspace={workspace} onOpened={onOpened} />
       </div>
       <ul className="flex flex-col gap-0.5">
         {visible.map((session) => {
@@ -212,6 +219,7 @@ function WorkspaceGroup({
                 <span data-user-content={session.title ? '' : undefined} className={cn('min-w-0 flex-1 truncate', !session.title && 'text-muted-foreground')}>
                   {title}
                 </span>
+                {session.worktree && <WorktreeChip worktree={session.worktree} className="max-w-24" />}
                 {session.activity in BADGES ? (
                   <span
                     role="img"

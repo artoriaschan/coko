@@ -44,6 +44,17 @@ export type SessionWorktree = Static<typeof SessionWorktree>
 export const CreateWorktreeRequest = Type.Object({ name: Type.Optional(Type.String({ minLength: 1 })) }, strict)
 export type CreateWorktreeRequest = Static<typeof CreateWorktreeRequest>
 
+/** 移除被拒绝的原因：绑定的会话有 Run、running 子代理、running Job 或 active 定时任务（409 worktree-busy 的 details.reasons）。 */
+export const WorktreeBusyReason = Type.Union([Type.Literal('run'), Type.Literal('agent'), Type.Literal('job'), Type.Literal('schedule')])
+export type WorktreeBusyReason = Static<typeof WorktreeBusyReason>
+export const WorktreeBusyDetails = Type.Object({ reasons: Type.Array(WorktreeBusyReason, { minItems: 1 }) }, strict)
+export type WorktreeBusyDetails = Static<typeof WorktreeBusyDetails>
+
+/** 409 worktree-dirty 的 details：未提交的文件（git status --porcelain 的路径，至多 WORKTREE_DIRTY_FILES_MAX 个）与总数。 */
+export const WORKTREE_DIRTY_FILES_MAX = 200
+export const WorktreeDirtyDetails = Type.Object({ files: Type.Array(Type.String(), { maxItems: WORKTREE_DIRTY_FILES_MAX }), count: Count }, strict)
+export type WorktreeDirtyDetails = Static<typeof WorktreeDirtyDetails>
+
 /** GET /api/sessions/:id/git-status。 */
 export const GitStatusResponse = Type.Object({ repo: Type.Boolean(), branch: Type.Optional(Type.String()), dirtyFiles: Count }, strict)
 export type GitStatusResponse = Static<typeof GitStatusResponse>

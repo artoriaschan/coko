@@ -40,6 +40,7 @@ lifecycle: active
 - [Plan Mode](subsystems/plan-mode.md)：plan 权限模式、/plan 与 prior、exit_plan_mode 的提交与审阅、<plan_mode> 与 <approved_plan> 注入、审阅卡与右栏 Plan tab。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
+- [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、会话绑定与固定的工作目录、宿主执行的 git、移除的 busy / dirty 检查与只读会话、HTTP 接口与侧栏入口。
 - [@coko/agent](../packages/agent/README.md)：运行时入口、工具契约、工具调度与执行记录。
 
 当前行为文档随实际实现逐步建立。尚不存在的架构、子系统或接口页面不作为可用资料列入导航。
