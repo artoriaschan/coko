@@ -49,13 +49,15 @@ lifecycle: active
 
 - Goal Round 以 error 结束 → failed（`reason.code` 为 Run 的错误码），不自动重试。
 - Goal 为 running 时 Run 被停止（aborted，或 paused 且没有 error）：Goal Round 停止时仍有等待回答的审批（`approval_decision` cancelled）→ waiting-input（`approval-unanswered`）；否则 → paused（`user-stopped`）。用户提交的 Run 被停止时同样暂停，避免停止后立即开始下一轮。
-- Goal 为 waiting-input 时，用户提交（或回答审批之后）的 Run 正常结束 → running。
-- 预算停止（`run_end.error.code` 为 `budget_exhausted`、`cost_unpriced`）→ budget-exhausted（`reason.code` 为消息中的维度）/ blocked（`cost-unpriced`），见 [预算](#预算)。
+- Goal 为 waiting-input 时，用户提交（或回答审批之后）的 Run 正常结束 → running；Goal 在这个 Run 之中才进入 waiting-input（模型在用户的 Run 里调用了 `wait_input`）时不唤醒，等用户的下一次提交。
+- 预算停止（`run_end.error.code` 为 `budget_exhausted`、`cost_unpriced`）→ budget-exhausted（`reason.code` 为运行时交给宿主的 `RunError.dimension`，不解析消息文本）/ blocked（`cost-unpriced`），见 [预算](#预算)。
+
+**Goal Round 中的计划审阅。** Goal Round 中提交 kind plan 的审批请求（`exit_plan_mode`）时 Goal 进入 waiting-input（`plan-review`），界面显示在等用户；回答（批准或带反馈拒绝）后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，按上面的规则等用户提交。
 - 之后 Goal 为 running 且该 Run 正常结束、没有退回用户写的追加指令时发起下一轮。
 
 ## 推进
 
-`GoalDriver.advance` 在 Session 的锁内执行，因此同一 Session 的推进串行：Session 有 Run 时不发起；重读当前 Goal，不是 running 时不发起；轮次 = 该 Goal 的 `run_start.goal.round` 的最大值；检查五维（[预算](#预算)），任一维度用尽时提交 budget-exhausted，设了费用上限而模型未定价时提交 blocked（`cost-unpriced`），都不开始 Run；否则以 `trigger: goal`、`goal { goalId, round: n + 1 }` 调用统一入口 `startRun`。下一轮的轮次取自已提交的 `run_start`，同一轮不会开始两次；用户先开始了 Run（`run-in-progress`）、有未回答的结果确认、回退或分叉进行中时放弃这次发起。挂起的 Job 通知（`pendingInput`）照常合并在 `<goal_round>` 之前。
+`GoalDriver.advance` 在 Session 的锁内执行，因此同一 Session 的推进串行：Session 有 Run 时不发起；重读当前 Goal，不是 running 时不发起；轮次 = 该 Goal 的 `run_start.goal.round` 的最大值；检查五维（[预算](#预算)），任一维度用尽时提交 budget-exhausted，设了费用上限而模型未定价时提交 blocked（`cost-unpriced`），都不开始 Run；否则以 `trigger: goal`、`goal { goalId, round: n + 1 }` 调用统一入口 `startRun`。下一轮的轮次取自已提交的 `run_start`，同一轮不会开始两次；用户先开始了 Run（`run-in-progress`）或回退、分叉进行中（`session-busy`）时放弃这次发起，Goal 保持 running，那个 Run 结束后再判定；不会自然再判定的原因不让 Goal 停在 running：模型未配置或须重新选择（`model-not-configured`、`model-required`）提交 blocked，有未回答的结果确认（`confirmation-pending`）提交 waiting-input，`reason.code` 都是该错误码。Goal 正在取消时不发起。挂起的 Job 通知（`pendingInput`）照常合并在 `<goal_round>` 之前。
 
 Goal Round 中用户照常可以追加指令、停止与回答审批；提交新消息以 `run-in-progress` 拒绝。
 
@@ -70,7 +72,7 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 | 维度（`reason.code`） | 已用 | 上限 |
 | --- | --- | --- |
 | `rounds` | 该 Goal 的 Goal Round 数（用户提交的 Run 不计） | `maxRounds`，缺省 50 |
-| `tool-calls` | 这些 Run 的 toolResult 数（被拒绝的调用照常计入，工具调用上限拦下的不计） | `maxToolCalls` |
+| `tool-calls` | 这些 Run 的 toolResult 数（被拒绝的调用照常计入；工具调用上限拦下的不计，按运行时写入的 `details.hostBlock` 识别，不看结果文本） | `maxToolCalls` |
 | `tokens` | assistant usage 的 input + output + cacheRead + cacheWrite，加 `compaction.usage`（摘要请求） | `maxTokens` |
 | `cost` | 同一组 usage 的 `cost.total`（不换算货币） | `maxCost` |
 | `time` | 各 Run `run_end.createdAt − run_start.createdAt` 之和（含审批等待，不含 Run 之间；进行中的 Run 计到此刻） | `maxDurationMs`（毫秒） |
@@ -80,8 +82,8 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 **检查点**（只对 running 的 Goal 与属于它的 Run）：
 
 - **Goal Round 开始前**（`GoalDriver.advance`）：五维；未定价检查。
-- **每次模型请求前**（`beforeRequest`，自动压缩之后）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。
-- **每次工具调用前**（权限判定与 Checkpoint 备份之后的 hook）：已提交的调用数加本 Run 已放行、结果尚未提交的调用数（同一批的调用先放行、后提交结果，检查按 Session 串行）达到 `maxToolCalls` 时该调用不执行，结果为错误 `Goal budget exhausted: tool calls (n / max)`，并要求 Run 本批完成后停止（`stopAfterBatch`）；同一批中先到的调用照常执行。
+- **每次模型请求前**（`beforeRequest`）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。自动压缩与溢出恢复的摘要请求也是模型请求：压缩之前先检查一次，返回 stop 时不压缩；压缩之后（计入 `compaction.usage`）再检查一次。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。手动 `/compact` 由用户发起，不经这项检查。
+- **每次工具调用前**（权限判定之后、Checkpoint 备份之前的准入 hook `admissionHooks`；被拦下的调用不读文件、不写快照）：已提交的调用数加本 Run 已放行、结果尚未提交的调用数（同一批的调用先放行、后提交结果，检查按 Session 串行）达到 `maxToolCalls` 时该调用不执行，结果为错误 `Goal budget exhausted: tool calls (n / max)`，带运行时写入的结构化标记 `details.hostBlock { by: goal-budget, dimension }`（工具自身给出的同名字段被去掉，命令输出无法伪造），并要求 Run 本批完成后停止（`stopAfterBatch`）；同一批中先到的调用照常执行。
 
 耗尽的消息形如 `Goal budget exhausted: tokens (1050 / 1000)`（费用最多 6 位小数，时间带 `ms`）。Run 结束后 Goal 进入 budget-exhausted；恢复前须用 edit 使该维度有余量（`budget` 整体替换），否则 409 `invalid-transition`。
 
@@ -89,7 +91,7 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 
 ## 模型价格
 
-Model Catalog 的模型可带 `price { input, output, cacheRead?, cacheWrite? }`（每百万 token，非负；缓存价格省略为 0），经 `provider.save` 保存，负数或非有限数为 400 `bad-request`；没有 `price` 的旧目录照常可用。注册表把价格写入 pi-ai 的 `model.cost`，pi-ai 按模型服务返回的 usage 计算每条 assistant 消息的 `usage.cost`。目录中带 `price` 的模型算已定价（全部为 0 也算）；不经目录注册的 Provider（测试用 faux）按 `cost` 是否有非零单价判定，faux 脚本可设 `price`。全局设置 `usage.currency`（`USD` / `CNY`，缺省 USD）只决定界面的货币符号。设置 → 模型服务：顶部选择费用货币，模型选项中填写四项价格（留空为未定价；填了价格时输入与输出必填）。
+Model Catalog 的模型可带 `price { input, output, cacheRead?, cacheWrite? }`（每百万 token，非负；缓存价格省略为 0），经 `provider.save` 保存；协议 schema 要求四项非负（`minimum: 0`），main 发送前按 schema 校验，Sidecar 对不合 schema、带 requestId 的控制请求立即回答 `bad-request`，注册表对非有限数另以 400 `bad-request` 拒绝；没有 `price` 的旧目录照常可用。注册表把价格写入 pi-ai 的 `model.cost`，pi-ai 按模型服务返回的 usage 计算每条 assistant 消息的 `usage.cost`。目录中带 `price` 的模型算已定价（全部为 0 也算）；不经目录注册的 Provider（测试用 faux）按 `cost` 是否有非零单价判定，faux 脚本可设 `price`。全局设置 `usage.currency`（`USD` / `CNY`，缺省 USD）只决定界面的货币符号。设置 → 模型服务：顶部选择费用货币，模型选项中填写四项价格（留空为未定价；填了价格时输入与输出必填）。
 
 ## 工具
 
@@ -127,6 +129,8 @@ Goal Round 的输入是一条 user message：`<goal_round>`、`Objective: "<目�
 - **暂停**：提交 paused（`user-paused`）；Run 进行中时该 Run 本批完成后停下（与 `POST …/pause` 相同），不终止 Job。
 - **恢复**：提交 running，Session 空闲时立即发起下一轮。
 - **标为完成**：提交 complete（`completedBy: user`）；Run 进行中时同样在本批完成后停下。
+- **编辑**：可改目标、约束（`constraints`，与 create 对称）、成功条件与预算。
+- 取消进行中（提交 cancelled 之前）的动作以 409 `invalid-transition`（"The goal is being cancelled"）拒绝。
 
 ## 界面
 
@@ -155,7 +159,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 ## 取消与重启
 
-**取消**（HTTP 或 `/goal cancel`）：先标记该 Session 正在取消（Run 结束、Job 结束与模型的 Goal 工具都不再改变 Goal），停止进行中的 Run 并等待其 `run_end`（至多 30 秒，超出记入 failures），再终止 `goalId` 为此 Goal 的 running Job 并等待 `job_end`，最后提交 cancelled 快照与 `cleanup { runsAborted, jobsKilled, failures }`。失败项不阻止取消。请求在这些都完成后返回。
+**取消**（HTTP 或 `/goal cancel`）：先标记该 Session 正在取消（Run 结束、Job 结束与模型的 Goal 工具都不再改变 Goal），停止进行中的 Run 并等待其 `run_end`（至多 30 秒，超出记入 failures），再终止 `goalId` 为此 Goal 的 running Job 并等待 `job_end`，最后提交 cancelled 快照与 `cleanup { runsAborted, jobsKilled, failures }`；提交前若仍有 Run 进行中（等待期间开始的），同样停止并等待它。取消期间用户的动作返回 409，`advance` 不发起 Goal Round。失败项不阻止取消。请求在这些都完成后返回。
 
 **重启**：启动恢复在 Session 恢复与 Job 补记 lost 之后，把 running、waiting-input、waiting-external 的 Goal 提交为 paused（`reason.code: restarted`，source system）。不会自动继续，由用户恢复。
 
@@ -164,17 +168,19 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 ## 验证
 
 - `packages/agent/src/goals/goals.test.ts`：转换表每一行与每个非法组合、resume 与 edit 的 resumedAtRound、budget-exhausted 恢复须有余量、创建的校验、完成证据（缺条件、空文本、未知条件、引用不存在或出错的调用）、各动作在 user / 本 Goal 的轮 / 其他 Goal 的轮 / none 四种 Run 中的授权、blocked 的 3 轮阈值、revision 过期、`runAuthority`、`<goal>` 与 `<goal_round>` 文本。
-- `tests/integration/sidecar-goal.test.ts`：create_goal 之后 Goal Round 依次开始直到完整证据的 complete；轮次耗尽、POST 动作与 409；Goal Round 中的审批、停止为 waiting-input、用户提交后回到 running、追加指令授权 edit 与同一轮不重复；wait_jobs 后 Job 结束时下一轮开始；取消停止 Run 与 Job 并记 cleanup；`/goal` 的动作；分叉与回退。
+- `tests/integration/sidecar-goal.test.ts`：create_goal 之后 Goal Round 依次开始直到完整证据的 complete；轮次耗尽、POST 动作与 409；Goal Round 中的审批、停止为 waiting-input、用户提交后回到 running、追加指令授权 edit 与同一轮不重复；用户的 Run 中调用 wait_input 后不立即唤醒；Goal Round 中的计划审阅为 waiting-input（plan-review）；wait_jobs 后 Job 结束时下一轮开始；取消停止 Run 与 Job 并记 cleanup；取消进行中 resume 为 409；`/goal` 的动作；分叉与回退。
+- `apps/server/src/application/goal-driver.test.ts`：Goal Round 没能开始时按错误码为 blocked、waiting-input 或保持 running。
+- `packages/agent/src/engine/host-stop.test.ts`：`details.hostBlock` 只来自宿主 hook、`RunError.dimension` 不进入条目；`compaction.test.ts`：压缩与溢出恢复之前的请求前检查。
 - `packages/agent/src/goals/budget.test.ts`：五维派生（属于 Goal 的 Run、paused 期间不计、用户提交的 Run 不计轮次、compaction.usage、进行中的 Run、拦下的调用不计）、子 Session 汇总、耗尽的维度与消息、按完整用量判定恢复、`<goal>` 的用量行；`packages/agent/src/engine/compaction.test.ts`：compaction 带摘要请求的 usage、v1 读回为 v2；`packages/agent/src/models/models.test.ts`：价格写入 `model.cost`、已定价判定、负数拒绝。
-- `tests/integration/sidecar-goal-budget.test.ts`：每一维单独设上限，耗尽为 budget-exhausted 且 reason 写明维度、工具调用上限时超出的调用不执行且文件逐字节不变、调高后恢复直到完成；未定价模型设费用上限时 blocked 且 Goal 没有模型请求。
-- `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格 400、没有价格的目录照常可用。
+- `tests/integration/sidecar-goal-budget.test.ts`：每一维单独设上限，耗尽为 budget-exhausted 且 reason 写明维度、工具调用上限时超出的调用不执行且文件逐字节不变、被拦下的 write 没有 `file_backup`、命令输出伪造拦下前缀时仍计为调用、调高后恢复直到完成；未定价模型设费用上限时 blocked 且 Goal 没有模型请求。
+- `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格得到 bad-request、没有价格的目录照常可用；`apps/server/src/control/channel.test.ts`：不合 schema、带 requestId 的控制请求立即得到失败回答。
 - `apps/desktop/src/renderer/features/settings/model-price.browser.test.tsx`：价格输入与校验、编辑回显与清空、费用货币。
 - `tests/integration/sidecar-goal-restart.test.ts`：Goal Round 中 SIGKILL，重启后 paused（restarted）、30 秒内没有新的 run_start，恢复后继续。
 - `apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx`：九个阶段的徽标与原因（zh / en）、预算条阈值与颜色、未定价时显示提示而不是 0、取消需确认与清理结果、key 为 goalId 与 criterionId、budget-exhausted 时恢复不可用与编辑预算、revision 冲突、`/goal` 打开空状态不发送、Run 用量行与 Session 费用分项。
 - `apps/desktop/e2e/goal.e2e.test.ts`（真实 Electron + Sidecar + faux 多轮）：Goal 卡在 Todo 与 Queue 之间、轮次随 Goal Round 增长、暂停后不推进与恢复、工具调用上限耗尽后编辑预算再恢复、完成后显示证据；用量行与标题栏费用与条目及 `GET …/goal` 一致；明暗主题、390 px 窗口与键盘操作。
 - `tests/integration/secrets-gate-goal.test.ts`：目标、约束、条件与证据含登记 Secret 时 goal 条目、工具结果、WebSocket、HTTP（含用量字段）、库、requestLog（`<goal>` 的用量行、`<goal_round>`）与日志中没有明文。
 
-**已知限制**：一个只填了全 0 价格的模型算已定价，费用上限永远不会耗尽；Checkpoint 的备份在工具调用上限的检查之前，被拦下的 write / edit 仍可能留下一份备份（Workspace 文件不变）。
+**已知限制**：一个只填了全 0 价格的模型算已定价，费用上限永远不会耗尽。
 
 ## 延伸阅读
 

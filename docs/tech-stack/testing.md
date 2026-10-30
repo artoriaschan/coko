@@ -35,6 +35,7 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 - **原子分配资源。** 每个测试使用独立临时目录、数据库和会话命名空间；临时目录使用 `mkdtemp`，网络服务绑定 loopback 的端口 `0` 并在 listening 后读取实际端口。禁止先探测空闲端口再绑定，或使用可冲突的固定路径。仅作为解析输入或期望值的字面量不受此限制。
 - **恢复全局状态。** 优先依赖注入；确需修改环境变量、cwd、时区、locale、全局 mock、注册表或 fake timers 时，立即登记清理，并在最小作用域的 `try/finally` 中恢复原值，包括原先不存在的状态。
 - **等待可观察状态。** 通过就绪事件、握手、状态变化、受控 promise 或外部条件同步。固定 sleep 不能代表准备或清理完成；timeout 只限制等待上限。测试时间行为时注入或模拟时钟，并恢复真实时钟。
+- **Browser Mode 共用页面。** 同一 Browser Mode 项目的文件共用一个页面源。desktop renderer 的共用 setup（`apps/desktop/src/renderer/testing/browser-setup.ts`）在每个用例前快照 localStorage、结束后恢复，卸载渲染的组件，并在 body 的子节点留有 `aria-hidden` / `data-aria-hidden` 或 body 的 `pointer-events` 未复原时让该用例失败：打开 Radix 菜单或对话框的用例要等它关闭后再结束，不要清空 `document.body` 代替卸载，`unmount()` 要 await。
 - **清理到真正结束。** 获取资源后立即登记 teardown，确保断言失败、超时或重试时也释放资源。停止新任务、解除监听并等待子进程退出、server close、worker termination 等完成信号；仅调用 `abort()`、`close()` 或 `kill()` 不算清理完成。迟到的回调不得污染其他测试。
 - **尊重平台与执行预算。** 用实际读回值验证操作系统管理的时间戳等数据；确属平台专有行为时显式跳过并说明原因。测试和 hooks 的超时预算应匹配执行环境；测试内部 deadline 必须明显短于外层等待上限。
 - **按风险验证隔离。** 全局状态变更验证恢复，生命周期变更验证清理完成，跨进程资源隔离修复使用独立测试进程并发验证。只在单独运行时通过应视为测试缺陷；不要用整个套件串行化掩盖资源冲突。
