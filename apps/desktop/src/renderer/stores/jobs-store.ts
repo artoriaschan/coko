@@ -1,8 +1,7 @@
-import { ErrorResponse, JOB_OUTPUT_PAGE_MAX, JobOutputResponse, jobPaths, SessionJobsResponse, type JobSnapshot, type ProgressEvent } from '@coko/protocol'
-import { Type, type Static, type TSchema } from 'typebox'
-import { Value } from 'typebox/value'
+import { JOB_OUTPUT_PAGE_MAX, JobOutputResponse, jobPaths, SessionJobsResponse, type JobSnapshot, type ProgressEvent } from '@coko/protocol'
+import { Type } from 'typebox'
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import { ApiError } from '../client/api.ts'
+import { ApiError, requestJson, type Fetch } from '../client/api.ts'
 
 // 后台任务视图的 store（docs/subsystems/jobs.md#界面）：每个 Session 的 Job 快照（GET /api/sessions/:id/jobs 加 WS job_update），
 // 以及被查看的 Job 的输出窗口（GET /api/jobs/:id/output 分页加 WS job_output 追加）。WS 帧的 offset 与 HTTP 的 offset 都是日志文件的
@@ -17,28 +16,13 @@ export interface JobsBackend {
 
 const NoContent = Type.Undefined()
 
-/** 同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。 */
-export function httpJobsBackend(fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = (input, init) => fetch(input, init)): JobsBackend {
-  async function call<S extends TSchema>(schema: S, method: string, path: string): Promise<Static<S>> {
-    let response: Response
-    try {
-      response = await fetchImpl(path, { method })
-    } catch (error) {
-      throw new ApiError('network', error instanceof Error ? error.message : String(error), 0)
-    }
-    const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
-    if (!response.ok) {
-      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
-      throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
-    }
-    if (!Value.Check(schema, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
-    return value as Static<S>
-  }
+/** 经 requestJson（错误体与响应在信任边界按 schema 校验）。 */
+export function httpJobsBackend(fetchImpl?: Fetch): JobsBackend {
   return {
-    list: async (sessionId) => (await call(SessionJobsResponse, 'GET', jobPaths.sessionJobs(sessionId))).jobs,
-    output: (jobId, offset, limit) => call(JobOutputResponse, 'GET', jobPaths.output(jobId, offset, limit)),
+    list: async (sessionId) => (await requestJson(SessionJobsResponse, 'GET', jobPaths.sessionJobs(sessionId), undefined, fetchImpl)).jobs,
+    output: (jobId, offset, limit) => requestJson(JobOutputResponse, 'GET', jobPaths.output(jobId, offset, limit), undefined, fetchImpl),
     kill: async (jobId) => {
-      await call(NoContent, 'POST', jobPaths.kill(jobId))
+      await requestJson(NoContent, 'POST', jobPaths.kill(jobId), undefined, fetchImpl)
     },
   }
 }

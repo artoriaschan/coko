@@ -1,7 +1,6 @@
-import { ErrorResponse, GoalResponse, goalPaths, type GoalActionRequest, type GoalUsage } from '@coko/protocol'
-import { Value } from 'typebox/value'
+import { GoalResponse, goalPaths, type GoalActionRequest, type GoalUsage } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import { ApiError } from '../client/api.ts'
+import { requestJson, type Fetch } from '../client/api.ts'
 
 // Goal 卡的 store（docs/subsystems/goal.md#界面）：Goal 快照本身取自会话条目（最新的 goal 条目），这里只保存 GET /api/sessions/:id/goal
 // 派生的五维已用量、进行中的动作，以及卡片的界面状态（展开、经 /goal 打开、关闭）。界面状态只在 renderer 内存中，不入记录。
@@ -12,29 +11,11 @@ export interface GoalBackend {
   act(sessionId: string, request: GoalActionRequest): Promise<GoalResponse>
 }
 
-/** 同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。 */
-export function httpGoalBackend(fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = (input, init) => fetch(input, init)): GoalBackend {
-  async function call(method: string, path: string, body?: unknown): Promise<GoalResponse> {
-    let response: Response
-    try {
-      response = await fetchImpl(path, {
-        method,
-        ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-      })
-    } catch (error) {
-      throw new ApiError('network', error instanceof Error ? error.message : String(error), 0)
-    }
-    const value: unknown = await response.json().catch(() => undefined)
-    if (!response.ok) {
-      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
-      throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
-    }
-    if (!Value.Check(GoalResponse, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
-    return value
-  }
+/** 经 requestJson（错误体与响应在信任边界按 schema 校验）。 */
+export function httpGoalBackend(fetchImpl?: Fetch): GoalBackend {
   return {
-    get: (sessionId) => call('GET', goalPaths.sessionGoal(sessionId)),
-    act: (sessionId, request) => call('POST', goalPaths.sessionGoal(sessionId), request),
+    get: (sessionId) => requestJson(GoalResponse, 'GET', goalPaths.sessionGoal(sessionId), undefined, fetchImpl),
+    act: (sessionId, request) => requestJson(GoalResponse, 'POST', goalPaths.sessionGoal(sessionId), request, fetchImpl),
   }
 }
 

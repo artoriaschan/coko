@@ -56,26 +56,41 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>
 /** 204 无响应体。 */
 const NoContent = Type.Undefined()
 
-/** Sidecar HTTP 客户端：同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。 */
-export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input, init)) {
-  async function call<S extends TSchema>(schema: S, method: string, path: string, body?: unknown): Promise<Static<S>> {
-    let response: Response
-    try {
-      response = await fetchImpl(path, {
-        method,
-        ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-      })
-    } catch (error) {
-      throw new ApiError('network', error instanceof Error ? error.message : String(error), 0)
-    }
-    const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
-    if (!response.ok) {
-      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
-      throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
-    }
-    if (!Value.Check(schema, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
-    return value as Static<S>
+const defaultFetch: Fetch = (input, init) => fetch(input, init)
+
+/**
+ * 一次 Sidecar HTTP 调用：同源相对路径，经 coko-app:// 代理附加认证；响应在信任边界按 schema 校验。
+ * 失败时抛 ApiError：错误体按 ErrorResponse 校验，不合法时为 bad-response；204 的响应体为 undefined。
+ */
+export async function requestJson<S extends TSchema>(
+  schema: S,
+  method: string,
+  path: string,
+  body?: unknown,
+  fetchImpl: Fetch = defaultFetch,
+): Promise<Static<S>> {
+  let response: Response
+  try {
+    response = await fetchImpl(path, {
+      method,
+      ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+    })
+  } catch (error) {
+    throw new ApiError('network', error instanceof Error ? error.message : String(error), 0)
   }
+  const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
+  if (!response.ok) {
+    if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
+    throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
+  }
+  if (!Value.Check(schema, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
+  return value as Static<S>
+}
+
+/** Sidecar HTTP 客户端，每个方法经 requestJson。 */
+export function createApiClient(fetchImpl: Fetch = defaultFetch) {
+  const call = <S extends TSchema>(schema: S, method: string, path: string, body?: unknown): Promise<Static<S>> =>
+    requestJson(schema, method, path, body, fetchImpl)
 
   return {
     listWorkspaces: async () => (await call(WorkspaceListResponse, 'GET', API_ROUTES.workspaces)).workspaces,
