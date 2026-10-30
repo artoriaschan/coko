@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { BackgroundJob, jobNotificationText, NOTIFICATION_OUTPUT_MAX, statusLine } from './job.ts'
 import { jobLabel, OutputRing, stripAnsi } from './output.ts'
-import { createJobKillTool, createJobListTool, createJobOutputTool, JOB_WAIT_MAX_MS, type JobsPort } from './tools.ts'
+import { createJobInputTool, createJobKillTool, createJobListTool, createJobOutputTool, JOB_WAIT_MAX_MS, type JobsPort } from './tools.ts'
 
 const info = { jobId: 'j1', sessionId: 's1', kind: 'bash' as const, label: 'npm test', command: 'npm test', toolCallId: 'c1', startedAt: 1 }
 
@@ -11,7 +11,9 @@ function harness() {
   const job = new BackgroundJob(info)
   let interrupt = new AbortController()
   const kills: string[] = []
+  const inputs: string[] = []
   const port: JobsPort = {
+    input: (id, data) => void inputs.push(`${id}:${JSON.stringify(data)}`),
     get: (id) => (id === 'j1' ? job : undefined),
     list: async () => [job.snapshot()],
     kill: async (id) => {
@@ -30,6 +32,7 @@ function harness() {
     job,
     port,
     kills,
+    inputs,
     read,
     steer: () => {
       interrupt.abort()
@@ -155,6 +158,96 @@ describe('job_kill 与 job_list', () => {
     const h = harness()
     const text = ((await createJobListTool(h.port).execute('t', {})).content[0] as { text: string }).text
     expect(text).toBe('j1 [bash] running — npm test')
+  })
+})
+
+describe('job_input', () => {
+  const ptyInfo = { ...info, jobId: 'p1', kind: 'pty' as const, label: 'python3 -i', command: 'python3 -i' }
+  function inputHarness() {
+    const jobs = new Map<string, BackgroundJob>([
+      ['j1', new BackgroundJob(info)],
+      ['p1', new BackgroundJob(ptyInfo)],
+      ['p2', new BackgroundJob({ ...ptyInfo, jobId: 'p2' })],
+      ['p3', new BackgroundJob({ ...ptyInfo, jobId: 'p3' })],
+    ])
+    jobs.get('p2')!.requestStop()
+    jobs.get('p3')!.finish({ exitCode: 0 })
+    const inputs: string[] = []
+    const port: JobsPort = {
+      get: (id) => jobs.get(id),
+      list: async () => [...jobs.values()].map((j) => j.snapshot()),
+      kill: async () => undefined,
+      interrupt: () => new AbortController().signal,
+      input: (id, data) => void inputs.push(`${id}:${data}`),
+    }
+    return { tool: createJobInputTool(port), inputs }
+  }
+  const run = async (args: { job_id: string; text: string; submit?: boolean; ctrl_c?: boolean }) => {
+    const h = inputHarness()
+    const outcome = await h.tool.execute('t', args).then(
+      (r) => ({ kind: 'ok', text: (r.content[0] as { text: string }).text }),
+      (e: Error) => ({ kind: 'error', text: e.message }),
+    )
+    return { outcome, inputs: h.inputs }
+  }
+
+  it.each([
+    {
+      name: 'running 的 pty：写入原文',
+      args: { job_id: 'p1', text: 'abc' },
+      inputs: ['p1:abc'],
+      kind: 'ok',
+      text: 'Sent 3 characters to background job p1. Read the response with job_output.',
+    },
+    {
+      name: 'submit 追加 \\r',
+      args: { job_id: 'p1', text: 'print(6*7)', submit: true },
+      inputs: ['p1:print(6*7)\r'],
+      kind: 'ok',
+      text: 'Sent 10 characters and Enter',
+    },
+    { name: 'ctrl_c 先写 \\x03', args: { job_id: 'p1', text: '', ctrl_c: true }, inputs: ['p1:\u0003'], kind: 'ok', text: 'Sent Ctrl-C to background job p1' },
+    {
+      name: 'ctrl_c 与文本：先中断再输入',
+      args: { job_id: 'p1', text: 'ls', ctrl_c: true, submit: true },
+      inputs: ['p1:\u0003ls\r'],
+      kind: 'ok',
+      text: 'Sent Ctrl-C, then 2 characters and Enter',
+    },
+    {
+      name: '非 PTY Job：stdin 已关闭',
+      args: { job_id: 'j1', text: 'y' },
+      inputs: [],
+      kind: 'error',
+      text: 'Background job j1 is not a terminal job: its stdin is closed. Start it with bash tty: true',
+    },
+    {
+      name: 'stopping 的 pty：不接受',
+      args: { job_id: 'p2', text: 'y' },
+      inputs: [],
+      kind: 'error',
+      text: 'Background job p2 is not running (status: stopping)',
+    },
+    {
+      name: '已结束的 pty：不接受',
+      args: { job_id: 'p3', text: 'y' },
+      inputs: [],
+      kind: 'error',
+      text: 'Background job p3 is not running (status: completed)',
+    },
+    { name: '未知 id', args: { job_id: 'zz', text: 'y' }, inputs: [], kind: 'error', text: 'No background job zz in this session' },
+    { name: '没有文本、submit 与 ctrl_c：参数错误', args: { job_id: 'p1', text: '' }, inputs: [], kind: 'error', text: 'Nothing to send' },
+  ])('$name', async ({ args, inputs, kind, text }) => {
+    const result = await run(args)
+    expect(result.outcome.kind).toBe(kind)
+    expect(result.outcome.text).toContain(text)
+    expect(result.inputs).toEqual(inputs)
+  })
+
+  it('判定对象为 text', () => {
+    const { tool } = inputHarness()
+    expect(tool.permissionSubject?.({ job_id: 'p1', text: 'rm -rf x', submit: true })).toBe('rm -rf x')
+    expect(tool.effect).toBe('side-effect')
   })
 })
 

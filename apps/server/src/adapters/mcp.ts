@@ -1,7 +1,8 @@
 // MCP 传输（docs/subsystems/mcp.md）：stdio 与 streamable HTTP（pi-mcp）。stdio 的环境 = 过滤后的 Sidecar 环境（与 bash 相同的 HOST_ENV_EXCLUSIONS，
 // 不含 ELECTRON_RUN_AS_NODE、COKO_*、凭据形态的变量）+ 配置 env（其中的 ${NAME} 已由调用方从登记的 Secret 展开）；工作目录缺省为
 // Workspace，配置 cwd 相对 Workspace。关闭时 pi-mcp 先关 stdin，再 SIGTERM，2 秒后 SIGKILL。stdio 进程不套 Seatbelt。
-// 子进程登记（ADR 0012；docs/subsystems/execution.md）：stdio 传输启动成功后经 onProcess 登记其 pid（无进程组），传输关闭后释放。
+// 子进程登记（ADR 0012；docs/subsystems/execution.md）：stdio 传输启动成功后经 onProcess 登记其 pid（宿主同时登记进程组：pi-mcp 以 detached 启动），
+// 传输关闭后释放。
 import { resolve } from 'node:path'
 import { filterEnv, type McpServerConfig, type McpTransportHandle } from '@coko/agent'
 import { StdioTransport, StreamableHttpTransport } from '@earendil-works/pi-mcp'

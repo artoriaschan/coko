@@ -1,5 +1,6 @@
 // 后台任务（Background Job，docs/subsystems/jobs.md）：bash run_in_background 的启动、输出（环形缓冲、日志、进度）、停止、完成通知与启动恢复。
-// 进程经 bash 的执行端口启动（与前台 bash 同一沙箱与环境），以 kind job 登记（ADR 0012）。输出在进入日志、环形缓冲与推送之前按值替换
+// 进程经 bash 的执行端口启动（与前台 bash 同一沙箱与环境），以 kind job 登记（ADR 0012）；tty 的在 PTY 中运行（Job kind pty，登记 kind pty），
+// 日志保存终端原始输出，job_input 写入其终端输入，其余 Job 的 stdin 关闭。输出在进入日志、环形缓冲与推送之前按值替换
 // 登记的 Secret 与 Credential 明文；日志目录 <dataDir>/jobs 不是读取根。runtime/layers.ts 装配一次。
 import { randomUUID } from 'node:crypto'
 import { closeSync, constants as fsConstants } from 'node:fs'
@@ -135,6 +136,7 @@ export class JobService {
         if (live && live.job.info.sessionId === sessionId) await this.#kill(live, 'model')
       },
       interrupt: () => this.#interruptSignal(sessionId),
+      input: (jobId, data) => this.#input(sessionId, jobId, data),
     }
   }
 
@@ -318,6 +320,7 @@ export class JobService {
     if (running >= JOB_MAX_RUNNING)
       throw new Error(`At most ${JOB_MAX_RUNNING} background jobs can run at once in a session; stop one with job_kill or wait for one to finish`)
     const jobId = 'job_' + randomUUID().replaceAll('-', '').slice(0, 12)
+    const kind = request.tty ? 'pty' : 'bash'
     // 命令文本可能含模型写入的登记值：label、快照与条目都用替换后的文本。
     const command = redactSecretValues(request.command)
     const label = jobLabel(command)
@@ -328,7 +331,7 @@ export class JobService {
     let resolveEnded!: () => void
     const ended = new Promise<void>((resolve) => (resolveEnded = resolve))
     const live: LiveJob = {
-      job: new BackgroundJob({ jobId, sessionId, kind: 'bash', label, command, toolCallId: request.toolCallId, startedAt: Date.now() }),
+      job: new BackgroundJob({ jobId, sessionId, kind, label, command, toolCallId: request.toolCallId, startedAt: Date.now() }),
       logPath,
       writes: Promise.resolve(),
       file,
@@ -348,9 +351,10 @@ export class JobService {
         command: request.command,
         cwd: request.cwd,
         ...(request.sandbox ? { sandbox: request.sandbox } : {}),
+        ...(request.tty ? { tty: true } : {}),
         onData: (chunk) => this.#emit(live, live.redactor.push(live.decoder.write(chunk))),
         onSpawn: ({ pid, pgid }) => {
-          release = this.#options.track?.({ pid, pgid, kind: 'job', sessionId, jobId, command: request.command })
+          release = this.#options.track?.({ pid, pgid, kind: kind === 'pty' ? 'pty' : 'job', sessionId, jobId, command: request.command })
         },
         onExit: () => release?.(),
       })
@@ -360,13 +364,13 @@ export class JobService {
       throw error
     }
     try {
-      await this.#commit(sessionId, { kind: 'job_start', payload: { jobId, kind: 'bash', label, command, toolCallId: request.toolCallId, logPath } })
+      await this.#commit(sessionId, { kind: 'job_start', payload: { jobId, kind, label, command, toolCallId: request.toolCallId, logPath } })
     } catch (error) {
       live.discarded = true
       live.process.kill('SIGKILL')
       throw error
     }
-    log.info('job started', { sessionId, jobId, pid: live.process.pid })
+    log.info('job started', { sessionId, jobId, kind, pid: live.process.pid })
     this.#publishUpdate(live)
     void live.process.exited.then((exit) => this.#finish(live, exit))
     return { jobId, label }
@@ -487,6 +491,15 @@ export class JobService {
       void live.ended.finally(() => clearTimeout(timer))
     }
     await live.ended
+  }
+
+  /** job_input：写入本 Session running 的 pty Job 的终端输入。日志只记字节数，不记文本。 */
+  #input(sessionId: string, jobId: string, data: string): void {
+    const live = this.#live.get(jobId)
+    if (!live || live.discarded || live.job.info.sessionId !== sessionId) throw new Error(`No background job ${jobId} in this session`)
+    if (live.job.status !== 'running' || !live.process?.write) throw new Error(`Background job ${jobId} does not accept input`)
+    live.process.write(data)
+    log.info('job input sent', { sessionId, jobId, bytes: Buffer.byteLength(data, 'utf8') })
   }
 
   #interruptSignal(sessionId: string): AbortSignal {

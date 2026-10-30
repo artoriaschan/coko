@@ -13,6 +13,12 @@ export interface PtySpawnRequest {
   rows: number
 }
 
+/** Terminal size of PTY jobs. */
+export const PTY_COLS = 120
+export const PTY_ROWS = 30
+/** TERM for PTY jobs when the host environment sets none. */
+export const PTY_TERM = 'xterm-256color'
+
 export interface PtyExit {
   exitCode: number
   /** Signal number when the process was terminated by a signal. */
@@ -20,6 +26,7 @@ export interface PtyExit {
 }
 
 export interface PtyProcess {
+  /** Also the process group id: the PTY child leads its own session. */
   readonly pid: number
   write(text: string): void
   resize(cols: number, rows: number): void

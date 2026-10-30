@@ -61,13 +61,20 @@ export interface ExecPort {
   exec(request: ExecRequest): Promise<ExecOutcome>
   /**
    * Start a long-lived command (background job) without waiting for it to exit. Resolves once the process was started;
-   * rejects like `exec` when it could not be. Stdin is closed. Omitted: the host cannot run background commands.
+   * rejects like `exec` when it could not be. Stdin is closed, unless `tty` runs it in a pseudo terminal (then `write`
+   * feeds its input). Omitted: the host cannot run background commands.
    */
   spawn?(request: SpawnRequest): Promise<ExecProcess>
 }
 
 /** A background command: like ExecRequest, without abort or timeout (the caller stops it with `kill`). */
-export type SpawnRequest = Omit<ExecRequest, 'signal' | 'timeoutMs'>
+export type SpawnRequest = Omit<ExecRequest, 'signal' | 'timeoutMs'> & {
+  /**
+   * Run in a pseudo terminal (ports/pty.ts): the real working directory, 120×30, stdout and stderr merged as the terminal
+   * shows them (raw, with control sequences). Rejects with PtyUnavailableError when the host has no PTY.
+   */
+  tty?: boolean
+}
 
 /** How a background command ended. `exitCode` follows the shell convention (128 + signal number when killed). */
 export interface ProcessExit {
@@ -83,6 +90,8 @@ export interface ExecProcess {
   readonly pgid?: number
   /** Signal the whole process group (default SIGTERM). Ignored after exit. */
   kill(signal?: NodeJS.Signals): void
+  /** Write to the terminal input; present only for `tty` commands (others have stdin closed). Ignored after exit. */
+  write?(text: string): void
   /** Resolves once after the process exited and its output was delivered. */
   readonly exited: Promise<ProcessExit>
 }

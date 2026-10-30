@@ -9,6 +9,7 @@ import { openCheckpointStore } from '../adapters/checkpoints.ts'
 import { createEnvCredentialStore, createEnvSecretSource, createIpcCredentialStore, createIpcSecretSource } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
 import { createMcpTransport } from '../adapters/mcp.ts'
+import { probeNodePty } from '../adapters/pty.ts'
 import { createWorkspaceTools, probeRipgrep, type WorkspaceToolsOptions } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { join } from 'node:path'
@@ -92,6 +93,7 @@ const LoggingLive = Layer.effect(
 /**
  * 工具集：给定 --ripgrep 时先探测可执行性，失败是 fatal（不回退内置 grep，以免掩盖打包缺陷）。
  * 命令沙箱（Seatbelt）探测一次：不可用不阻止启动，受限档位的命令 fail-closed（ADR 0005），full-access 不受影响。
+ * PTY（node-pty）同样探测一次：加载失败不阻止启动，bash tty 调用以 pty-unavailable 返回。
  * 在打开存储之前执行，失败时不占用租约。
  */
 const ToolsLive = Layer.effect(
@@ -105,10 +107,13 @@ const ToolsLive = Layer.effect(
     if (probe.available) log.info('command sandbox selected', { sandbox: 'seatbelt', executable })
     else log.warn('command sandbox unavailable; confined commands will not run', { sandbox: 'seatbelt', executable, reason: probe.reason })
     const sandbox = createSeatbeltSandbox(probe)
+    const pty = probeNodePty()
+    if (pty.available) log.info('pty backend selected', { backend: 'node-pty', version: pty.version, path: pty.path })
+    else log.warn('pty backend unavailable; tty commands will not run', { backend: 'node-pty', reason: pty.reason })
     const extraTools = config.testTools ? () => [createSecretProbeTool()] : undefined
     if (extraTools) log.warn('test tools enabled', { tools: ['secret_probe'] })
     const path = config.ripgrepPath
-    const base: WorkspaceToolsOptions = { sandbox, ...(extraTools ? { extraTools } : {}) }
+    const base: WorkspaceToolsOptions = { sandbox, ...(pty.available ? { pty: pty.port } : {}), ...(extraTools ? { extraTools } : {}) }
     if (path === undefined) {
       log.info('grep implementation selected', { implementation: 'builtin' })
       return (extra: Pick<WorkspaceToolsOptions, 'wrapExec'>) => createWorkspaceTools({ ...base, ...extra })
@@ -144,7 +149,7 @@ const StoreLive = Layer.effect(
 
 /**
  * 子进程登记（ADR 0012）：打开存储之后、启动恢复之前清理上次留下的孤儿；关闭时在存储关闭之前终止全部登记进程。
- * 登记的来源：前台 bash（AppLive 包装工具集的执行端口）与 stdio MCP Server（AssemblyLive 的传输工厂）。
+ * 登记的来源：前台 bash（AppLive 包装工具集的执行端口）、后台与 PTY Job（JobService）与 stdio MCP Server（AssemblyLive 的传输工厂）。
  */
 const ProcessesLive = Layer.effect(
   Processes,
@@ -183,13 +188,18 @@ const AssemblyLive = Layer.effect(
       store,
       config,
       secrets,
-      // stdio Server 的 pid 登记为 mcp（ADR 0012），传输关闭后删除。
+      // stdio Server 登记为 mcp（ADR 0012），传输关闭后删除。pi-mcp 在 POSIX 上以独立进程组（detached，pgid = pid）启动它，登记进程组使
+      // 孤儿清理覆盖 Server 派生的子进程（例如经 npx 启动的 Server）；Windows 没有进程组。
       createTransport: (server, { cwd }) =>
-        createMcpTransport(server, { cwd, env, onProcess: ({ pid, command }) => processes.track({ pid, kind: 'mcp', command }) }),
+        createMcpTransport(server, {
+          cwd,
+          env,
+          onProcess: ({ pid, command }) => processes.track({ pid, ...(process.platform === 'win32' ? {} : { pgid: pid }), kind: 'mcp', command }),
+        }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
     // 后台任务与 Goal 先于贡献创建（贡献读取它们），SessionService 在 AppLive 中接上。
-    // Job 的进程登记为 job（ADR 0012），退出后删除。
+    // Job 的进程登记为 job（PTY Job 为 pty，ADR 0012），退出后删除。
     const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
     const goals = new GoalService({ store, jobs })
     const extra = sidecar.testTools ? [createTestSeamContribution()] : []
