@@ -31,6 +31,11 @@ export interface ProjectSettings {
   values: ProjectCapabilityValues
   rules: ProjectRuleTexts
   diagnostics: ResourceDiagnostic[]
+  /**
+   * 项目 Hook 的配置（hooks 键去掉 enabled 之后的原值，ADR 0013）：由 Hook 的加载（parseHooksConfig）解析并诊断、逐条批准后才运行。
+   * 文件中没有 hooks 键时省略。
+   */
+  hooks?: unknown
 }
 
 export interface ParseProjectSettingsOptions {
@@ -79,6 +84,12 @@ export function parseProjectSettings(text: string, path: string, options: ParseP
     if (GLOBAL_ONLY_SECTIONS.has(section)) {
       if (isObject(value) && Object.hasOwn(value, 'enabled'))
         report('project-cannot-grant', `${key}.enabled is ignored: this capability can only be switched in global settings`)
+      if (section === 'hooks') {
+        if (isObject(value)) {
+          const { enabled: _ignored, ...events } = value
+          result.hooks = events
+        } else report('invalid-value', 'hooks must be an object of events')
+      }
       continue
     }
     if (!isObject(value)) {
