@@ -11,7 +11,7 @@ import { IconButton } from '../../app/icon-button.tsx'
 import { ApiError } from '../../client/api.ts'
 import { handoffStore as defaultHandoffStore, type HandoffStore } from '../../stores/handoff-store.ts'
 import { worktreesStore as defaultWorktreesStore, type WorktreesStore } from '../../stores/worktrees-store.ts'
-import type { HeaderActionProps } from './header-actions.ts'
+import { HeaderMenuActionContext, type HeaderActionProps } from './header-actions.ts'
 
 // 交接（docs/subsystems/handoff.md）：标题栏的"交接"按钮与对话框。对话框填写下一步目标与目标目录（当前目录 / 新 worktree / 已有 worktree），
 // 源会话有未提交改动时提示；提交后显示进行中（可停止），完成后由 handoff store 切到目标会话并把摘要写入其输入区草稿。
@@ -70,23 +70,41 @@ export function HandoffButton({ sessionId }: HeaderActionProps) {
   React.useEffect(() => (chat ? store.getState().attach(chat) : undefined), [chat, store])
   const { hidden, phase, label, icon } = useHandoffAction(sessionId)
   const [open, setOpen] = React.useState(false)
+  // 对话框没有 DialogTrigger：自己记下打开它的元素（标题栏按钮，或窄主区中的"更多操作"按钮），关闭后焦点回到那里。
+  const opener = React.useRef<HTMLElement | null>(null)
+  const show = () => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setOpen(true)
+  }
   // 对话框属于打开它的会话：切换会话（包括交接完成后切到目标会话）时关闭。
   React.useEffect(() => setOpen(false), [sessionId])
-  // 菜单项的打开请求：只响应挂载之后的新请求。
+  // 菜单项的打开请求：只响应本会话在挂载（或切换到本会话）之后的新请求；计数按会话记，切换会话不算新请求。
   const request = useStore(openRequests, (s) => s[sessionId] ?? 0)
-  const seen = React.useRef(request)
+  const seen = React.useRef({ sessionId, request })
   React.useEffect(() => {
-    if (request === seen.current) return
-    seen.current = request
-    setOpen(true)
-  }, [request])
+    const last = seen.current
+    seen.current = { sessionId, request }
+    if (last.sessionId === sessionId && last.request !== request) show()
+  }, [sessionId, request])
   if (hidden) return null
   return (
     <>
-      <IconButton label={label} data-action="open-handoff" data-handoff-phase={phase} onClick={() => setOpen(true)}>
+      <IconButton label={label} data-action="open-handoff" data-handoff-phase={phase} onClick={show}>
         {icon}
       </IconButton>
-      <HandoffDialog sessionId={sessionId} open={open} onClose={() => setOpen(false)} />
+      <HandoffDialog
+        sessionId={sessionId}
+        open={open}
+        onClose={() => setOpen(false)}
+        onCloseAutoFocus={(event) => {
+          const target = opener.current
+          opener.current = null
+          // 打开者已卸载或不再显示（例如窗口在此期间变宽或变窄）时交给默认行为。
+          if (!target?.isConnected || target.getClientRects().length === 0) return
+          event.preventDefault()
+          target.focus()
+        }}
+      />
     </>
   )
 }
@@ -94,9 +112,10 @@ export function HandoffButton({ sessionId }: HeaderActionProps) {
 /** 窄主区中"更多操作"菜单里的"交接"：请求标题栏中隐藏的 HandoffButton 打开对话框。 */
 export function HandoffMenuItem({ sessionId }: HeaderActionProps) {
   const { hidden, phase, label, icon } = useHandoffAction(sessionId)
+  const afterMenuClose = React.useContext(HeaderMenuActionContext)
   if (hidden) return null
   return (
-    <DropdownMenuItem data-action="open-handoff" data-handoff-phase={phase} onSelect={() => requestOpen(sessionId)}>
+    <DropdownMenuItem data-action="open-handoff" data-handoff-phase={phase} onSelect={() => afterMenuClose(() => requestOpen(sessionId))}>
       {icon}
       {label}
     </DropdownMenuItem>
@@ -107,9 +126,11 @@ export interface HandoffDialogProps {
   sessionId: string
   open: boolean
   onClose: () => void
+  /** 对话框关闭后的焦点去向（Radix 的 onCloseAutoFocus）。 */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
-export function HandoffDialog({ sessionId, open, onClose }: HandoffDialogProps) {
+export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: HandoffDialogProps) {
   const { t } = useI18n()
   const store = React.useContext(HandoffStoreContext)
   const worktrees = React.useContext(WorktreeListContext)
@@ -167,7 +188,13 @@ export function HandoffDialog({ sessionId, open, onClose }: HandoffDialogProps) 
   const dirty = git?.dirtyFiles ?? 0
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent closeLabel={t('handoff.close')} data-slot="handoff-dialog" data-phase={progress?.phase ?? 'idle'} className="max-w-[560px] gap-4 p-6">
+      <DialogContent
+        closeLabel={t('handoff.close')}
+        onCloseAutoFocus={onCloseAutoFocus}
+        data-slot="handoff-dialog"
+        data-phase={progress?.phase ?? 'idle'}
+        className="max-w-[560px] gap-4 p-6"
+      >
         <div className="flex flex-col gap-1 pe-8">
           <DialogTitle>{t('handoff.title')}</DialogTitle>
           <DialogDescription>{t('handoff.description')}</DialogDescription>

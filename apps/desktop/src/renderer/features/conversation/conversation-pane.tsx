@@ -14,7 +14,7 @@ import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
-import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
+import { HeaderMenuActionContext, visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
 import { ModelPicker } from './model-picker.tsx'
@@ -44,9 +44,15 @@ const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32
  * 瞬时宽度）提供菜单呈现的操作收进"更多操作"菜单，按钮本身仍挂载但隐藏，它持有的对话框照常工作；其余操作（状态类）留在标题栏。
  * "更多操作"只在窄主区且至少一个可收起的操作实际渲染时显示（例如子 Session 没有交接）。
  */
-function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDefinition[] } & HeaderActionProps) {
+export function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDefinition[] } & HeaderActionProps) {
   const { t } = useI18n()
   const collapsible = actions.filter((action) => action.MenuItem !== undefined)
+  // 菜单项选中的动作：菜单关闭时先把焦点还给菜单按钮，再执行（见 HeaderMenuActionContext）。
+  const trigger = React.useRef<HTMLButtonElement>(null)
+  const pending = React.useRef<(() => void) | null>(null)
+  const afterMenuClose = React.useCallback((action: () => void) => {
+    pending.current = action
+  }, [])
   return (
     <div data-slot="header-actions" className="group/actions flex shrink-0 items-center gap-1">
       {actions.map(({ id, Component, MenuItem }) =>
@@ -60,7 +66,7 @@ function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDe
       )}
       {collapsible.length > 0 && (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild ref={trigger}>
             <IconButton
               label={t('conversation.moreActions')}
               data-action="more-header-actions"
@@ -69,8 +75,21 @@ function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDe
               <EllipsisIcon />
             </IconButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" data-slot="header-actions-menu">
-            {collapsible.map(({ id, MenuItem }) => MenuItem && <MenuItem key={id} {...props} />)}
+          <DropdownMenuContent
+            align="end"
+            data-slot="header-actions-menu"
+            onCloseAutoFocus={(event) => {
+              const action = pending.current
+              if (!action) return
+              pending.current = null
+              event.preventDefault()
+              trigger.current?.focus()
+              action()
+            }}
+          >
+            <HeaderMenuActionContext.Provider value={afterMenuClose}>
+              {collapsible.map(({ id, MenuItem }) => MenuItem && <MenuItem key={id} {...props} />)}
+            </HeaderMenuActionContext.Provider>
           </DropdownMenuContent>
         </DropdownMenu>
       )}

@@ -1,4 +1,4 @@
-import type * as React from 'react'
+import * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
 import { HandoffButton, HandoffMenuItem } from './handoff-dialog.tsx'
 import { JobsButton } from './jobs-button.tsx'
@@ -24,6 +24,12 @@ export interface HeaderActionDefinition {
   /** false：功能尚未交付，不挂载。交付该操作的票只把自己的一行改为 true，并把 Component 换成自己的组件。 */
   available: boolean
 }
+
+/**
+ * "更多操作"菜单项执行动作的方式：动作在菜单关闭、焦点回到菜单按钮之后执行。菜单项打开对话框时用它，对话框打开时记下的是菜单按钮，
+ * 关闭后焦点回到那里（菜单项已卸载）；否则菜单关闭时会把焦点从刚打开的对话框中拉走。菜单之外（测试）直接执行。
+ */
+export const HeaderMenuActionContext = React.createContext<(action: () => void) => void>((action) => action())
 
 /** 未交付操作的占位：available 为 false，不会挂载。 */
 function Unavailable() {
