@@ -115,7 +115,9 @@ export function createAgentTool(port: SubagentsPort): CokoTool<typeof agentParam
       'Delegate a self-contained task to a subagent with its own context. It returns only its final report in <agent-result>. ' +
       'Several agent calls in one turn run in parallel. Use run_in_background for long tasks and agent_wait to collect them.',
     parameters: agentParameters,
-    effect: 'side-effect',
+    // 同一批的多个 agent 调用并行（side-effect 在调度中是独占屏障）。子代理的副作用在子 Session 中各有条目与执行记录；判定按权限类 agent，
+    // 不看 effect；重启后父级被中断的调用由宿主补中断说明，不进入结果确认。
+    effect: 'read',
     // 子代理的时长由其 max-turns 与预算控制，统一超时会截断它。
     timeoutMs: 0,
     permissionSubject: (args) => args.subagent_type ?? 'general',
