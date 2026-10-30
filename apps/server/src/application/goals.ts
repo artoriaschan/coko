@@ -1,32 +1,436 @@
-// Goal（ADR 0011）：读写 Goal 快照条目、动作（暂停、恢复、取消、标为完成、编辑）与启动恢复。
-// 尚未接入：没有 Goal；恢复是空操作。runtime/layers.ts 装配一次，之后的实现只改本文件与 goal-driver.ts、context/goal.ts、routes/goals.ts。
-import type { SessionStore } from '@coko/session'
+// Goal（ADR 0011，docs/subsystems/goal.md）：读写 goal 快照条目（每次变化一条完整快照，revision 递增）、用户的动作（暂停、恢复、编辑、标为
+// 完成、取消与停止传播）、模型的 Goal 工具端口、Run 结束与 Job 结束后的阶段转换与推进（goal-driver.ts），以及启动恢复（重启后暂停）。
+// 同一 Session 的 Goal 变化与推进经同一把锁串行；等待 Run 结束（取消）不持锁。runtime/layers.ts 装配一次。
+import {
+  applyGoalChange,
+  currentGoal,
+  expectRevision,
+  GoalError,
+  goalRounds,
+  goalSection,
+  goalView,
+  isActivePhase,
+  isTerminalPhase,
+  planGoalCreate,
+  planGoalUpdate,
+  runAuthority,
+  type GoalChange,
+  type GoalPayload,
+  type GoalToolPort,
+  type JobEndPayload,
+  type RunResult,
+  type SystemSection,
+} from '@coko/agent'
+import { getLogger } from '@coko/logging'
+import type { GoalActionRequest, GoalResponse, GoalUsage } from '@coko/protocol'
+import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
+import { AppError } from './errors.ts'
+import type { RunEndInfo } from './context/types.ts'
+import { GoalDriver, hasUserSteering } from './goal-driver.ts'
 import type { JobService } from './jobs.ts'
 import type { RecoverySource } from './recovery.ts'
 import type { SessionService } from './sessions.ts'
+import { requireSession, toNewEntry } from './session-runtimes.ts'
+
+const log = getLogger(['application', 'goals'])
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/** 取消时等待进行中的 Run 结束的上限；超出记入 cleanup.failures，不阻止取消。 */
+const CANCEL_RUN_WAIT_MS = 30_000
 
 export interface GoalServiceOptions {
   store: SessionStore
   jobs: JobService
 }
 
+/** GoalError → 协议错误（HTTP 与 /goal 动作）。 */
+export function toGoalAppError(error: GoalError): AppError {
+  switch (error.code) {
+    case 'revision-conflict':
+      return new AppError('revision-conflict', error.message, error.details)
+    case 'invalid-transition':
+      return new AppError('invalid-transition', error.message, error.details)
+    case 'not-found':
+      return new AppError('not-found', error.message)
+    case 'already-exists':
+      return new AppError('already-exists', error.message, error.details)
+    case 'not-authorized':
+      return new AppError('forbidden', error.message)
+    case 'invalid-argument':
+      return new AppError('bad-request', error.message)
+  }
+}
+
+const rethrow = (error: unknown): never => {
+  throw error instanceof GoalError ? toGoalAppError(error) : error
+}
+
 export class GoalService {
   readonly #options: GoalServiceOptions
   #sessions: SessionService | undefined
+  readonly #driver: GoalDriver
+  readonly #locks = new Map<string, Promise<unknown>>()
+  /** 正在取消的 Session：Run 结束、Job 结束与模型的工具调用都不再改变 Goal。 */
+  readonly #cancelling = new Set<string>()
+  /** 有推进中（running / waiting-*）Goal 的 Session 的 job_end 订阅。 */
+  readonly #watches = new Map<string, () => void>()
 
   constructor(options: GoalServiceOptions) {
     this.#options = options
+    this.#driver = new GoalDriver({
+      entries: (sessionId) => this.#entries(sessionId),
+      commit: (sessionId, goal) => this.#commit(sessionId, goal),
+      isRunning: (sessionId) => this.#sessions?.isRunning(sessionId) ?? false,
+      startRun: (sessionId, request) => {
+        if (!this.#sessions) throw new AppError('internal', 'Goal service is not attached')
+        return this.#sessions.runs.startRun(sessionId, request)
+      },
+    })
+    // 之后启动的 Job 记下 Session 当时未终结的 Goal（取消该 Goal 时终止它们）。
+    options.jobs.useGoals(async (sessionId) => {
+      const goal = currentGoal(await this.#entries(sessionId))
+      return goal && !isTerminalPhase(goal.phase) ? goal.id : undefined
+    })
   }
 
-  /** 装配时接上 SessionService（Goal Round 经其统一入口开始）。 */
+  /** 装配时接上 SessionService（Goal Round 经其统一入口开始，取消经它停止 Run）。 */
   attach(sessions: SessionService): void {
     this.#sessions = sessions
   }
 
-  /** 启动恢复（Session 恢复之后）：running / waiting-* 的 Goal 提交为 paused（restarted）；返回暂停的数量。 */
-  async recover(_source: RecoverySource): Promise<number> {
-    void this.#options
-    void this.#sessions
-    return 0
+  // ---- 读取 ----
+
+  /** 当前 Goal（最新的 goal 条目）与已用量。 */
+  async get(sessionId: string): Promise<GoalResponse> {
+    await requireSession(this.#options.store, sessionId)
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    return { goal: goal ?? null, usage: usageOf(entries, goal) }
   }
+
+  /** Goal 未终结时的 <goal> section。 */
+  async systemSection(sessionId: string): Promise<SystemSection | undefined> {
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    return goalSection(goal, { rounds: goal ? goalRounds(entries, goal.id) : 0 })
+  }
+
+  /**
+   * 本 Run 注册的 Goal 工具：get_goal 在 Session 有 Goal 或本 Run 不是 Goal Round 时注册；create_goal 只在不是 Goal Round 时注册（Goal Round 中
+   * 没有 create）；update_goal 只在 Session 有 Goal 时注册（没有 Goal 时它只能返回 not-found，不占用模型上下文）。授权在调用时按条目判定。
+   */
+  async toolNames(sessionId: string): Promise<{ read: boolean; create: boolean; update: boolean }> {
+    const round = this.#driver.starting(sessionId)
+    const has = currentGoal(await this.#entries(sessionId)) !== undefined
+    return { read: has || !round, create: !round, update: has }
+  }
+
+  // ---- 用户的动作（HTTP 与 /goal） ----
+
+  /** 用户的动作；见 GoalActionRequest。 */
+  async act(sessionId: string, request: GoalActionRequest): Promise<GoalResponse> {
+    await requireSession(this.#options.store, sessionId)
+    if (request.action === 'cancel') return this.#cancel(sessionId, request.revision)
+    let pause = false
+    await this.#locked(sessionId, async () => {
+      const entries = await this.#entries(sessionId)
+      const goal = this.#require(entries)
+      try {
+        expectRevision(goal, request.revision)
+        const rounds = goalRounds(entries, goal.id)
+        const change: GoalChange =
+          request.action === 'pause'
+            ? { type: 'pause', reason: { code: 'user-paused', message: 'Paused by the user' } }
+            : request.action === 'resume'
+              ? { type: 'resume' }
+              : request.action === 'complete'
+                ? { type: 'complete', by: 'user' }
+                : {
+                    type: 'edit',
+                    ...(request.objective === undefined ? {} : { objective: request.objective }),
+                    ...(request.constraints === undefined ? {} : { constraints: request.constraints }),
+                    ...(request.criteria === undefined ? {} : { criteria: request.criteria }),
+                    ...(request.budget === undefined ? {} : { budget: request.budget }),
+                  }
+        await this.#commit(sessionId, applyGoalChange(goal, change, 'user', rounds))
+      } catch (error) {
+        rethrow(error)
+      }
+      log.info('goal action', { sessionId, goalId: goal.id, action: request.action })
+      pause = request.action === 'pause' || request.action === 'complete'
+      // 恢复：Session 空闲时立即开始下一轮。
+      if (request.action === 'resume') await this.#driver.advance(sessionId)
+    })
+    // 暂停（与用户标为完成）：进行中的 Run 本批完成后停下；不终止 Job。
+    if (pause && this.#sessions?.isRunning(sessionId)) await this.#sessions.pause(sessionId).catch(() => undefined)
+    return this.get(sessionId)
+  }
+
+  /** 当前 Goal 的 revision（/goal 的动作用）；没有 Goal 时 not-found。 */
+  async revision(sessionId: string): Promise<number> {
+    return this.#require(await this.#entries(sessionId)).revision
+  }
+
+  /** 取消：停止进行中的 Run（等待 run_end）、终止该 Goal 的 Job（等待 job_end），再提交 cancelled 快照与 cleanup。 */
+  async #cancel(sessionId: string, revision: number): Promise<GoalResponse> {
+    const goal = await this.#locked(sessionId, async () => {
+      const current = this.#require(await this.#entries(sessionId))
+      try {
+        expectRevision(current, revision)
+        if (isTerminalPhase(current.phase))
+          throw new GoalError('invalid-transition', `Goal ${current.id} is already ${current.phase}`, { phase: current.phase })
+      } catch (error) {
+        rethrow(error)
+      }
+      this.#cancelling.add(sessionId)
+      return current
+    })
+    const cleanup = { runsAborted: 0, jobsKilled: 0, failures: [] as string[] }
+    try {
+      const sessions = this.#sessions
+      const runId = sessions?.runs.activeRunId(sessionId)
+      if (sessions && runId !== undefined && sessions.isRunning(sessionId)) {
+        const ended = this.#runEnd(sessionId, runId)
+        if (await sessions.abort(sessionId)) cleanup.runsAborted++
+        if (!(await ended)) cleanup.failures.push(`Run ${runId} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
+      }
+      try {
+        cleanup.jobsKilled = await this.#options.jobs.killSession(sessionId, goal.id)
+      } catch (error) {
+        cleanup.failures.push('Stopping background jobs failed: ' + message(error))
+      }
+      await this.#locked(sessionId, async () => {
+        const entries = await this.#entries(sessionId)
+        const current = this.#require(entries)
+        if (isTerminalPhase(current.phase)) return
+        await this.#commit(sessionId, applyGoalChange(current, { type: 'cancel', cleanup }, 'user', goalRounds(entries, current.id)))
+      })
+      log.info('goal cancelled', { sessionId, goalId: goal.id, ...cleanup, failures: cleanup.failures.length })
+    } finally {
+      this.#cancelling.delete(sessionId)
+    }
+    return this.get(sessionId)
+  }
+
+  /** 等待该 Run 的 run_end（进度或条目）；超时 false。 */
+  #runEnd(sessionId: string, runId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => finish(false), CANCEL_RUN_WAIT_MS)
+      const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
+        if (
+          (m.type === 'progress' && m.runId === runId && m.event.type === 'run_end') ||
+          (m.type === 'entry' && m.entry.runId === runId && m.entry.kind === 'run_end')
+        )
+          finish(true)
+      })
+      const finish = (ended: boolean) => {
+        clearTimeout(timer)
+        off()
+        resolve(ended)
+      }
+    })
+  }
+
+  // ---- 模型的工具（context/goal.ts） ----
+
+  port(sessionId: string): GoalToolPort {
+    const guard = () => {
+      if (this.#cancelling.has(sessionId)) throw new GoalError('invalid-transition', 'The goal is being cancelled')
+    }
+    return {
+      get: async () => {
+        const entries = await this.#entries(sessionId)
+        const goal = currentGoal(entries)
+        return goalView(goal, goal ? goalRounds(entries, goal.id) : 0)
+      },
+      create: (args) =>
+        this.#locked(sessionId, async () => {
+          guard()
+          const entries = await this.#entries(sessionId)
+          const committed = await this.#commit(sessionId, planGoalCreate(args, { entries, authority: runAuthority(entries) }))
+          log.info('goal created', { sessionId, goalId: committed.id, criteria: committed.criteria.length })
+          return goalView(committed, 0)
+        }),
+      update: (args) =>
+        this.#locked(sessionId, async () => {
+          guard()
+          const entries = await this.#entries(sessionId)
+          const goal = currentGoal(entries)
+          const rounds = goal ? goalRounds(entries, goal.id) : 0
+          const jobs = this.#options.jobs.port(sessionId)
+          const next = planGoalUpdate(goal, args, { entries, authority: runAuthority(entries), rounds, jobRunning: (id) => jobs.get(id)?.running ?? false })
+          let committed = await this.#commit(sessionId, next)
+          log.info('goal updated by the model', { sessionId, goalId: committed.id, action: args.action, phase: committed.phase })
+          // 等待的 Job 恰在判定与提交之间结束：立即回到 running。
+          if (committed.phase === 'waiting-external' && (await this.#jobsEnded(sessionId, committed)))
+            committed = await this.#wake(sessionId, committed, rounds)
+          return goalView(committed, rounds)
+        }),
+    }
+  }
+
+  // ---- Run 与 Job 结束（context/goal.ts 的 onRunEnd、job_end 订阅） ----
+
+  /** Run 结束之后（run_end 已提交）：按规格转换阶段，Goal 为 running 时发起下一轮。 */
+  async runEnded(info: RunEndInfo): Promise<void> {
+    const { sessionId, result, trigger } = info
+    if (trigger === 'compact') return
+    await this.#locked(sessionId, async () => {
+      if (this.#cancelling.has(sessionId)) return
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      if (!goal || isTerminalPhase(goal.phase)) return
+      const rounds = goalRounds(entries, goal.id)
+      const change = endChange(goal, info, entries)
+      if (change) {
+        await this.#commit(sessionId, applyGoalChange(goal, change, 'system', rounds))
+        log.info('goal phase changed after run', { sessionId, goalId: goal.id, change: change.type, status: result.status })
+      }
+      const phase = change ? (change.type === 'wake' ? 'running' : undefined) : goal.phase
+      if (phase === 'running' && result.status === 'completed' && !hasUserSteering(result.undeliveredSteering)) await this.#driver.advance(sessionId)
+    })
+  }
+
+  async #jobEnded(sessionId: string): Promise<void> {
+    await this.#locked(sessionId, async () => {
+      if (this.#cancelling.has(sessionId)) return
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      if (!goal) return
+      if (goal.phase !== 'waiting-external' || !(await this.#jobsEnded(sessionId, goal))) return
+      await this.#wake(sessionId, goal, goalRounds(entries, goal.id))
+      // Session 空闲时立即开始下一轮；Run 进行中时该 Run 结束后照常推进（advance 遇到进行中的 Run 不发起）。
+      await this.#driver.advance(sessionId)
+    })
+  }
+
+  async #jobsEnded(sessionId: string, goal: GoalPayload): Promise<boolean> {
+    const port = this.#options.jobs.port(sessionId)
+    return (goal.waitingFor?.jobIds ?? []).every((id) => !(port.get(id)?.running ?? false))
+  }
+
+  async #wake(sessionId: string, goal: GoalPayload, rounds: number): Promise<GoalPayload> {
+    const committed = await this.#commit(sessionId, applyGoalChange(goal, { type: 'wake' }, 'system', rounds))
+    log.info('goal resumed after waiting', { sessionId, goalId: goal.id, from: goal.phase })
+    return committed
+  }
+
+  // ---- 启动恢复 ----
+
+  /** 启动恢复（Session 恢复之后）：running / waiting-* 的 Goal 提交为 paused（restarted）；返回暂停的数量。 */
+  async recover(source: RecoverySource): Promise<number> {
+    let count = 0
+    for (const entry of await source.listLatestEntries('goal')) {
+      const goal = entry.payload as unknown as GoalPayload
+      if (!isActivePhase(goal.phase)) continue
+      const entries = await this.#entries(entry.sessionId)
+      const latest = currentGoal(entries)
+      if (!latest || !isActivePhase(latest.phase)) continue
+      const reason = { code: 'restarted', message: 'Coko restarted; resume the goal to continue' }
+      await this.#commit(entry.sessionId, applyGoalChange(latest, { type: 'pause', reason }, 'system', goalRounds(entries, latest.id)))
+      log.warn('goal paused after restart', { sessionId: entry.sessionId, goalId: latest.id, phase: latest.phase })
+      count++
+    }
+    return count
+  }
+
+  // ---- 内部 ----
+
+  #entries(sessionId: string): Promise<readonly StoredEntry[]> {
+    return this.#options.store.sessions.listEntries(sessionId)
+  }
+
+  #require(entries: readonly StoredEntry[]): GoalPayload {
+    const goal = currentGoal(entries)
+    if (!goal) throw new AppError('not-found', 'This session has no goal')
+    return goal
+  }
+
+  /** 提交一条 goal 快照（入库前替换登记明文）并推送；返回入库后的快照。推进中的 Goal 订阅本 Session 的 job_end。 */
+  async #commit(sessionId: string, goal: GoalPayload): Promise<GoalPayload> {
+    const [committed] = await this.#options.store.sessions.appendEntries(sessionId, [toNewEntry({ kind: 'goal', payload: goal })])
+    this.#options.jobs.hub.publishEntry(committed!)
+    const saved = committed!.payload as unknown as GoalPayload
+    if (isActivePhase(saved.phase)) this.#watch(sessionId)
+    else this.#unwatch(sessionId)
+    return saved
+  }
+
+  #watch(sessionId: string): void {
+    if (this.#watches.has(sessionId)) return
+    const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
+      if (m.type !== 'entry' || m.entry.kind !== 'job_end') return
+      const jobId = (m.entry.payload as unknown as JobEndPayload).jobId
+      void this.#jobEnded(sessionId).catch((error: unknown) => log.warn('goal job end handling failed', { sessionId, jobId, error: message(error) }))
+    })
+    this.#watches.set(sessionId, off)
+  }
+
+  #unwatch(sessionId: string): void {
+    this.#watches.get(sessionId)?.()
+    this.#watches.delete(sessionId)
+  }
+
+  /** 同一 Session 的 Goal 变化串行（前一个失败不影响后一个）。 */
+  #locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.#locks.get(sessionId) ?? Promise.resolve()
+    const run = previous.then(task, task)
+    const tail = run.catch(() => undefined)
+    this.#locks.set(sessionId, tail)
+    void tail.then(() => {
+      if (this.#locks.get(sessionId) === tail) this.#locks.delete(sessionId)
+    })
+    return run
+  }
+}
+
+/** 已用量：本票派生轮次（其余维度由预算派生补齐）。 */
+function usageOf(entries: readonly StoredEntry[], goal: GoalPayload | undefined): GoalUsage {
+  return { rounds: goal ? goalRounds(entries, goal.id) : 0 }
+}
+
+/** 该 Run 中是否有审批以 cancelled 结束（停止时仍在等待回答）。 */
+function approvalCancelled(entries: readonly StoredEntry[], runId: string): boolean {
+  const requests = new Set(entries.filter((e) => e.kind === 'approval_request' && e.runId === runId).map((e) => (e.payload as { requestId: string }).requestId))
+  return entries.some(
+    (e) =>
+      e.kind === 'approval_decision' &&
+      requests.has((e.payload as { requestId: string; outcome: string }).requestId) &&
+      (e.payload as { outcome: string }).outcome === 'cancelled',
+  )
+}
+
+/**
+ * Run 结束后的转换（规格的转换表）：
+ * - 预算停止（budget_exhausted、cost_unpriced）→ budget-exhausted / blocked；
+ * - Goal Round 以 error 结束 → failed（不自动重试）；
+ * - running 时 Run 被停止（aborted，或 paused 且没有 error）→ Goal Round 停止时仍有等待回答的审批为 waiting-input，否则 paused（user-stopped）；
+ * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running。
+ */
+function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly StoredEntry[]): GoalChange | undefined {
+  const { result, trigger } = info
+  const error = result.error
+  if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'budget_exhausted') {
+    return { type: 'exhaust', reason: { code: budgetDimension(error.message), message: error.message } }
+  }
+  if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'cost_unpriced')
+    return { type: 'block', reason: { code: 'cost-unpriced', message: error.message } }
+  if (trigger === 'goal' && goal.phase === 'running' && result.status === 'error')
+    return { type: 'fail', reason: { code: error?.code ?? 'internal', message: error?.message ?? 'The goal round failed' } }
+  if (goal.phase === 'running' && stopped(result)) {
+    if (trigger === 'goal' && approvalCancelled(entries, info.runId))
+      return { type: 'wait-input', reason: { code: 'approval-unanswered', message: 'The goal round stopped while an approval was waiting for an answer' } }
+    return { type: 'pause', reason: { code: 'user-stopped', message: 'The run was stopped by the user' } }
+  }
+  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed') return { type: 'wake' }
+  return undefined
+}
+
+const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)
+
+/** budget_exhausted 的 message 形如 "Goal budget exhausted: tool calls (n / max)"：取维度为 reason.code。 */
+function budgetDimension(text: string): string {
+  const match = /exhausted: ([a-z ]+)/.exec(text)
+  const name = match?.[1]?.trim()
+  return name === 'tool calls' ? 'tool-calls' : (name ?? 'budget')
 }

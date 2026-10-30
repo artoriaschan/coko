@@ -95,6 +95,8 @@ export class JobService {
   readonly #sent = new Map<string, Sent[]>()
   readonly #interrupts = new Map<string, AbortController>()
   #closing = false
+  /** 启动时所属的 Goal（application/goals.ts 装配时给出）：Session 有未终结的 Goal 时 job_start 带其 goalId。 */
+  #goalOf: ((sessionId: string) => Promise<string | undefined>) | undefined
 
   constructor(options: JobServiceOptions) {
     this.#options = options
@@ -104,6 +106,11 @@ export class JobService {
   attach(sessions: SessionService): void {
     this.#sessions = sessions
     sessions.runs.useJobs({ launcher: (sessionId) => this.launcher(sessionId), steered: (sessionId) => this.#interrupt(sessionId) })
+  }
+
+  /** GoalService 装配时调用：之后启动的 Job 记下所属的 Goal（取消 Goal 时只终结它们）。 */
+  useGoals(goalOf: (sessionId: string) => Promise<string | undefined>): void {
+    this.#goalOf = goalOf
   }
 
   /** Session 的条目与进度推送（与 SessionService 共用；Job 的进度经它发出）。 */
@@ -230,9 +237,11 @@ export class JobService {
     throw new AppError('not-found', `Job ${jobId} not found`)
   }
 
-  /** 终止该 Session 运行中的全部 Job（取消 Goal 用）；返回终止的数量。 */
-  async killSession(sessionId: string): Promise<number> {
-    const targets = [...this.#live.values()].filter((l) => l.job.info.sessionId === sessionId && l.job.running && !l.discarded)
+  /** 终止该 Session 运行中的 Job（给出 goalId 时只终止属于该 Goal 的，取消 Goal 用）；返回终止的数量。 */
+  async killSession(sessionId: string, goalId?: string): Promise<number> {
+    const targets = [...this.#live.values()].filter(
+      (l) => l.job.info.sessionId === sessionId && l.job.running && !l.discarded && (goalId === undefined || l.job.info.goalId === goalId),
+    )
     await Promise.all(targets.map((l) => this.#kill(l, 'system')))
     return targets.length
   }
@@ -326,12 +335,22 @@ export class JobService {
     const label = jobLabel(command)
     const dir = join(this.#options.logDir, sessionId)
     const logPath = join(dir, jobId + '.log')
+    const goalId = await this.#goalOf?.(sessionId)
     await mkdir(dir, { recursive: true, mode: 0o700 })
     const file = await open(logPath, fsConstants.O_CREAT | fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_EXCL, 0o600)
     let resolveEnded!: () => void
     const ended = new Promise<void>((resolve) => (resolveEnded = resolve))
     const live: LiveJob = {
-      job: new BackgroundJob({ jobId, sessionId, kind, label, command, toolCallId: request.toolCallId, startedAt: Date.now() }),
+      job: new BackgroundJob({
+        jobId,
+        sessionId,
+        kind,
+        label,
+        command,
+        toolCallId: request.toolCallId,
+        ...(goalId ? { goalId } : {}),
+        startedAt: Date.now(),
+      }),
       logPath,
       writes: Promise.resolve(),
       file,
@@ -364,7 +383,10 @@ export class JobService {
       throw error
     }
     try {
-      await this.#commit(sessionId, { kind: 'job_start', payload: { jobId, kind, label, command, toolCallId: request.toolCallId, logPath } })
+      await this.#commit(sessionId, {
+        kind: 'job_start',
+        payload: { jobId, kind, label, command, toolCallId: request.toolCallId, ...(goalId ? { goalId } : {}), logPath },
+      })
     } catch (error) {
       live.discarded = true
       live.process.kill('SIGKILL')

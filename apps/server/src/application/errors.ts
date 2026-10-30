@@ -18,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   'session-busy': 409,
   'already-exists': 409,
   'revision-conflict': 409,
+  'invalid-transition': 409,
   'job-not-running': 409,
   'storage-unavailable': 503,
   internal: 500,

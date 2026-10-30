@@ -39,6 +39,10 @@ M4 引入 Goal：用户给出一个跨多个 Run 的目标，Agent 在无人值�
 - 需要重新审视的条件：出现跨 Session 的 Goal 需求；Scheduler（M5）需要在无人值守时自动恢复 Goal。
 - implementation 变为 implemented 前需要：真实 Sidecar 集成测试覆盖 Goal 的创建与逐轮推进、revision 冲突、预算各维度耗尽、完成证据校验、SIGKILL 后重启为暂停且不自动推进、取消时停止 Run 与后台任务并记录清理结果。
 
+## 实施记录
+
+- 2026-10-30 Goal 核心（快照与 revision、转换表、授权、完成证据、轮次上限、推进与去重、wait_jobs、取消的停止传播、重启后暂停）已实现，当前行为见 [Goal](../subsystems/goal.md)。证据：`packages/agent/src/goals/goals.test.ts`（转换表、授权、证据、revision）、`tests/integration/sidecar-goal.test.ts`（创建与逐轮推进、revision 冲突、轮次耗尽、证据拒绝与接受、取消清理）、`tests/integration/sidecar-goal-restart.test.ts`（SIGKILL 后暂停且 30 秒内不推进）。其余预算维度尚未实现，implementation 保持 not-started。
+
 ## 来源与后继
 
 - 参考实现：deepseek-harness `packages/goal`（goal 服务、round driver、goal 工具与命令）。本页已提炼所需结论。

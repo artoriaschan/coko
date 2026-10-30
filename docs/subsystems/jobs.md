@@ -73,7 +73,7 @@ bash 的 `run_in_background: true` 与前台 bash 经过同样的权限判定、
 ## 停止、关闭与恢复
 
 - 停止 Run 不终止 Job。
-- `JobService.killSession(sessionId)` 终止该 Session 的全部 Job（供取消 Goal 使用；`job_start.goalId` 尚未写入）。
+- `JobService.killSession(sessionId, goalId?)` 终止该 Session 的 Job，给出 goalId 时只终止属于该 Goal 的（取消 Goal 使用）；Session 有未终结的 Goal 时启动的 Job 在 `job_start` 中带 `goalId`，见 [Goal](goal.md#推进)。
 - 有序关闭在中断 Run 之后、关闭上下文贡献之前终止全部 Job（`job_end killed`，不再通知）；登记表随后由 `terminateAll()` 兜底。
 - 启动恢复（Session 恢复之后、Goal 恢复之前）为每个没有 `job_end` 的 `job_start` 提交 `job_end { status: lost }`，outputBytes 取日志大小；进程此前已由孤儿清理终止。运行中的 Job 不跨重启恢复。
 
@@ -91,7 +91,7 @@ faux 脚本中工具调用参数里的 `$LAST_JOB_ID` 在请求时替换为上�
 
 ## 限制
 
-- 不唤醒没有 Goal 的空闲 Session；Goal 的等待与唤醒尚未接入。
+- 不唤醒没有 Goal 的空闲 Session；Goal 为 waiting-external 时，等待的 Job 全部结束后由 Goal 发起下一轮，见 [Goal](goal.md#推进)。
 - 日志不清理；被截断的日志之后的 `job_output` 进度帧的 offset 超出日志长度，HTTP 只能读到截断处。
 - 输出按 UTF-8 解码，非 UTF-8 字节以替换字符保存。
 - 环形缓冲按字节丢弃，最早保留的一个多字节字符可能被切开。
