@@ -146,7 +146,20 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     expect(await item.locator('[data-slot="schedule-next"]').textContent()).toMatch(/^(No next run|没有下次执行)$/)
     expect(await fireRows.count()).toBe(1)
     expect(await window.locator('[data-slot="schedule-history-item"]').count()).toBe(1)
-    // 窗口在后台：定时任务的那一次 Run 结束时发出通知（测试构建只记日志），暂停后没有第二次。
+    // 窄窗口（内容区验收下限 390 px；窗口 minWidth 为 520，只在本用例中放开）：右栏为浮层，恢复按钮可达，没有整页横向滚动。
+    await app.app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]!
+      win.setMinimumSize(390, 400)
+      win.setContentSize(390, 820)
+    })
+    await expect.poll(() => window.evaluate(() => window.innerWidth)).toBe(390)
+    const resume = item.locator('[data-action="resume-schedule"]')
+    const box = await resume.boundingBox()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+    expect(await window.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await resume.click()
+    await expect.poll(() => item.getAttribute('data-status')).toBe('active')
+    // 窗口在后台：定时任务的那一次 Run 结束时发出通知（测试构建只记日志），暂停期间没有第二次。
     expect(await notificationsAfterQuit(app)).toEqual([sessionId])
   })
 
