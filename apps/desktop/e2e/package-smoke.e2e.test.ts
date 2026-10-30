@@ -2,10 +2,11 @@
 // 并在审批卡中允许一次 bash 写入；批准的 Workspace 外写入被产物中的 Seatbelt 拦截（只在 darwin 断言）。
 // M3：临时 COKO_HOME 的 AGENTS.md 出现在 faux requestLog 的系统提示中（产物同样读取 COKO_HOME）；仓库内的 stdio MCP 测试 Server
 // 的工具经审批调用成功（pi-mcp 与 cross-spawn 进入 sidecar 产物）。
+// M4：Resources/sidecar/node_modules/node-pty 的 spawn-helper 可执行，打包应用中一个 tty 后台任务输出 ok（node-pty 从随包位置加载）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -89,9 +90,63 @@ async function launchPackaged(env: Record<string, string>): Promise<Packaged> {
 const waitConnected = (page: Page) =>
   waitFor(async () => (await page.locator('[role="status"]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
 
-describe('打包产物 smoke', () => {
+describe('打包产物 smoke', { timeout: 180_000 }, () => {
   it('globalSetup 已产出可执行文件', () => {
     expect(existsSync(executable)).toBe(true)
+  })
+
+  it.skipIf(process.platform !== 'darwin')('PTY：随包 node-pty 的 spawn-helper 可执行，tty 后台任务输出 ok', async () => {
+    const ptyRoot = join(resources, 'sidecar', 'node_modules', 'node-pty')
+    const helper = join(ptyRoot, 'prebuilds', `darwin-${process.arch}`, 'spawn-helper')
+    expect((await stat(helper)).mode & 0o111).not.toBe(0)
+
+    const root = await mkdtemp(join(tmpdir(), 'coko-packaged-pty-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    const script = join(root, 'faux.json')
+    await writeFile(
+      script,
+      JSON.stringify({
+        responses: [
+          { content: [{ type: 'toolCall', name: 'bash', id: 't1', arguments: { command: 'echo ok', run_in_background: true, tty: true } }] },
+          { content: [{ type: 'toolCall', name: 'job_output', id: 'o1', arguments: { job_id: '$LAST_JOB_ID', wait: true, timeout_ms: 20_000 } }] },
+          { content: 'done' },
+        ],
+      }),
+    )
+    const userData = join(root, 'user-data')
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, COKO_HOME: join(root, 'coko-home') })
+    const { page } = app
+    await waitConnected(page)
+    // 经协议代理建会话并提交（full-access：不经审批），轮询 Job 列表与日志输出。
+    const sessionId = await page.evaluate(async (path) => {
+      const post = (url: string, body: unknown, method: 'POST' | 'PUT' = 'POST') =>
+        fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json().catch(() => null))
+      const workspaceId = ((await post('/api/workspaces', { path })) as { id: string }).id
+      const id = ((await post('/api/sessions', { workspaceId })) as { id: string }).id
+      await post(`/api/sessions/${id}/permission-mode`, { mode: 'full-access' }, 'PUT')
+      await post(`/api/sessions/${id}/messages`, { text: 'run a tty job' })
+      return id
+    }, workspace)
+    const jobs = () =>
+      page.evaluate(
+        async (id) => ((await (await fetch(`/api/sessions/${id}/jobs`)).json()) as { jobs: { jobId: string; kind: string; status: string }[] }).jobs,
+        sessionId,
+      )
+    await expect.poll(jobs, { timeout: 30_000 }).toMatchObject([{ kind: 'pty', status: 'completed' }])
+    const [job] = await jobs()
+    const output = await page.evaluate(async (jobId) => ((await (await fetch(`/api/jobs/${jobId}/output`)).json()) as { chunk: string }).chunk, job!.jobId)
+    expect(output).toBe('ok\r\n')
+
+    await app.browser.close()
+    app.child.kill('SIGTERM')
+    expect(await app.exited).toBe(0)
+    const sidecarLog = await readLogRecords(join(userData, 'logs', 'sidecar.jsonl'))
+    expect(sidecarLog.find((r) => r.message === 'pty backend selected')?.properties).toMatchObject({
+      backend: 'node-pty',
+      path: join(ptyRoot, 'package.json'),
+    })
   })
 
   it('启动并完成一次 faux 对话；Sidecar 与 grep 使用随包资源；日志落盘且已脱敏', async () => {

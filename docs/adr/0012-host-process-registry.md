@@ -2,7 +2,7 @@
 kind: decision
 description: "Sidecar 把自己启动的长寿命子进程（bash 进程组、后台任务、PTY、stdio MCP Server）登记在 SQLite，启动时按 pid 与进程启动时间核对身份后清理上次留下的孤儿。修改子进程启动、关闭顺序、后台任务或 MCP 传输时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -19,7 +19,7 @@ bash 以独立进程组（detached）启动命令，以便超时与停止时终�
 
 - **登记。** Sidecar 每启动一个可能比单次调用更久的子进程，在 spawn 成功后立即在同一个 SQLite 库的进程登记表中写入一行：pid、进程组（仅 detached 启动的进程）、操作系统报告的进程启动时间、类别（bash、job、pty、mcp）、所属 Session 与 Job。进程退出或被回收后删除该行。有序关闭在关闭存储之前终止并删除全部登记进程。
 - **启动清理。** Sidecar 打开存储后、启动恢复之前，逐行核对：该 pid 仍存在且启动时间与登记一致时，视为上次遗留的孤儿，向进程组（没有进程组的只向该 pid）发 SIGTERM，宽限后 SIGKILL；pid 不存在或启动时间不一致（pid 已被复用）时只删除该行，不发信号。每一项的结果记入日志。
-- **范围与限制。** 只终止登记过的进程及其进程组；不按名字或命令行搜索进程。没有独立进程组的子进程派生出的孙进程（例如经 npx 启动的 MCP Server）可能逃逸，这一点记为已知限制。后台任务的输出不跨进程恢复：重启后未结束的 Job 记为 lost。
+- **范围与限制。** 只终止登记过的进程及其进程组；不按名字或命令行搜索进程。没有独立进程组的子进程派生出的孙进程可能逃逸，这一点记为已知限制。stdio MCP Server 由 pi-mcp 以独立进程组启动，登记其进程组，经 npx 启动的 Server 的孙进程随组终止（2026-10-30 实施 PTY 时修订）。后台任务的输出不跨进程恢复：重启后未结束的 Job 记为 lost。
 
 ## 理由与备选方案
 
@@ -34,7 +34,8 @@ bash 以独立进程组（detached）启动命令，以便超时与停止时终�
 - 每个子进程多一次库写入；bash 的短命令同样登记，退出后删除。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，在前台 bash、后台 Job 与忽略 stdin 关闭的 stdio MCP 测试 Server 运行时 SIGKILL Sidecar，重启后这些进程在有限时间内退出；伪造一行启动时间不符的登记，确认对应进程不被终止。
 - 前台 bash 与 stdio MCP（2026-10-30）：登记、启动清理与有序关闭已实现，机制与限制见 [命令执行与子进程登记](../subsystems/execution.md)。证据：`tests/integration/sidecar-orphans.test.ts`（darwin，真实 Sidecar）在前台 bash 的 `sleep 300` 与经 `.mcp.json` 批准、忽略 stdin 关闭的 stdio MCP 测试 Server 运行时 SIGKILL Sidecar，重启后两者在 5 秒内消失、日志有 `orphan process terminated`；伪造 lstart 不符的登记，对应进程仍在、行被删除；有序关闭后登记表为空。`apps/server/src/application/processes.test.ts` 覆盖宽限后的 SIGKILL 与 pid 复用；`packages/agent/src/ports/local-exec.test.ts` 覆盖 `onSpawn` / `onExit`。后台 Job 与 PTY 尚未登记；implementation 在它们完成后更新。
-- 后台 Job（2026-10-30）：Job 进程以 kind job、带 sessionId 与 jobId 登记，退出后删除；行为见 [后台任务](../subsystems/jobs.md)。证据：`tests/integration/sidecar-jobs.test.ts`（darwin，真实 Sidecar）在后台 Job 的 `sleep 300` 运行时 SIGKILL Sidecar，重启后 shell 与子进程在 5 秒内消失、日志有 kind job 的 `orphan process terminated`、启动恢复提交 `job_end lost`；job_kill 与 `POST /api/jobs/:id/kill` 之后进程组退出、登记行删除；有序关闭以 `job_end killed` 结束全部 Job 且登记表为空。PTY 尚未登记。
+- 后台 Job（2026-10-30）：Job 进程以 kind job、带 sessionId 与 jobId 登记，退出后删除；行为见 [后台任务](../subsystems/jobs.md)。证据：`tests/integration/sidecar-jobs.test.ts`（darwin，真实 Sidecar）在后台 Job 的 `sleep 300` 运行时 SIGKILL Sidecar，重启后 shell 与子进程在 5 秒内消失、日志有 kind job 的 `orphan process terminated`、启动恢复提交 `job_end lost`；job_kill 与 `POST /api/jobs/:id/kill` 之后进程组退出、登记行删除；有序关闭以 `job_end killed` 结束全部 Job 且登记表为空。
+- PTY Job 与 MCP 进程组（2026-10-30）：PTY Job 以 kind pty 登记（pgid = pid，PTY 子进程的会话）；stdio MCP Server 改为登记进程组。行为见 [命令执行与子进程登记](../subsystems/execution.md#pty-与-stdin)。证据：`tests/integration/sidecar-pty.test.ts`（darwin，真实 Sidecar）在忽略 SIGHUP 的 PTY shell 与其 `sleep 300` 运行时 SIGKILL Sidecar，重启后两者在 5 秒内消失、日志有 kind pty 的 `orphan process terminated`、Job 记 lost；`tests/integration/sidecar-orphans.test.ts` 中经 `/bin/sh` 启动、留下同组孙进程的 stubborn MCP Server 连同孙进程被清理。变异确认：MCP 不登记进程组时孙进程留下，PTY 不登记进程组时登记行不符。至此前台 bash、后台 Job、PTY 与 stdio MCP 都已登记，implementation 改为 implemented。
 
 ## 来源与后继
 

@@ -58,6 +58,12 @@ ripgrep 只由桌面应用分发，packages/agent 不依赖它。apps/desktop �
 
 传入的路径缺失或不可执行时，sidecar 报告 fatal 并退出，不静默回退到内置实现，以免掩盖打包缺陷；未传入路径（例如脱离桌面单独运行 sidecar）时使用内置 grep。安装包 smoke 需确认 sidecar 实际使用的是随包 ripgrep。
 
+### 随包 node-pty
+
+PTY 后台任务（[命令执行与子进程登记](../subsystems/execution.md#pty-与-stdin)）由 apps/server 依赖的 node-pty 提供，它是带预编译 `pty.node` 与 `spawn-helper` 的原生模块。sidecar 的 tsdown 构建把 `node-pty` 保留为 external（`deps.neverBundle`），`buildSidecar` 在 tsdown 之后把 apps/server 解析到的 node-pty 的 `package.json`、`LICENSE`、`lib/` 与当前平台的 `prebuilds/<platform>-<arch>/` 复制到 `dist/sidecar/node_modules/node-pty/`，并把 `spawn-helper` 设为 0755（npm 包会丢失可执行位）。node-pty 的运行依赖 node-addon-api 只在编译时使用，不复制。sidecar 的 `index.mjs` 按 Node 的解析规则从相邻的 `node_modules` 加载它，开发与打包产物走同一路径。
+
+`dist/sidecar` 经 `extraResource` 原样放在 `Resources/sidecar`，不在 asar 内，因此不需要 asar 解包（`asar.unpack`）或 auto-unpack-natives 插件：`spawn-helper` 是从文件系统直接 exec 的可执行文件，node-pty 自己的 `app.asar` → `app.asar.unpacked` 路径替换也不会触发。`pty.node` 基于 N-API，sidecar 与 main 共用 Electron 的 Node，不需要按 Electron ABI 重新编译。Sidecar 启动时探测 node-pty，日志 `pty backend selected` 带实际加载的路径；产物 smoke 断言 `Resources/sidecar/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper` 可执行、该路径被加载，并在打包应用中运行一个 tty 后台任务读到 `ok`。只打当前平台的预编译产物；扩展到其他平台时按目标平台复制。
+
 ### 自动更新
 
 macOS 使用已签名、公证的应用和 ZIP 更新产物，DMG 用于首次安装。自动更新的客户端使用 Electron `autoUpdater`，服务端提供与其兼容的更新 feed；Forge 负责生成和发布更新所需产物。仅生成 DMG/ZIP 不等于更新链路已经可用。[Forge 自动更新说明](https://www.electronforge.io/advanced/auto-update)

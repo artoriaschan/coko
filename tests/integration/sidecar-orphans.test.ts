@@ -1,5 +1,6 @@
 // 子进程登记与孤儿清理（ADR 0012）：真实 Sidecar（faux）+ 前台 bash 的 sleep 300 + 经 .mcp.json 批准、忽略 stdin 关闭的 stdio MCP 测试 Server。
-// SIGKILL Sidecar 后以同一数据目录重启：两者在 5 秒内消失（轮询进程表）；lstart 不符的登记只删行；有序关闭后登记表为空。
+// MCP Server 经 /bin/sh 启动：shell 先在后台留下一个 sleep（与 Server 同一进程组的孙进程，类似经 npx 启动的 Server），再 exec 成 Server。
+// SIGKILL Sidecar 后以同一数据目录重启：它们在 5 秒内消失（轮询进程表）；lstart 不符的登记只删行；有序关闭后登记表为空。
 // 依赖 `ps -o lstart=` 与进程组信号，只在 darwin 验证；其他平台显式跳过。本文件不新增文件读取根或注入点（无符号链接用例）。
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -70,9 +71,14 @@ async function runningProcesses(root: string, dirs: SidecarDirs, env: Record<str
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
   const mcpLog = join(root, 'stubborn.jsonl')
+  const grandchildFile = join(root, 'mcp-grandchild.pid')
+  // 孙进程的 stdio 不连到 Server 的管道，Server 的协议不受影响；exec 后 Server 的 pid 即 shell 的 pid（进程组组长）。
+  const launcher = `sleep 300 </dev/null >/dev/null 2>&1 & echo $! > '${grandchildFile}'; exec "$0" "$@"`
   await writeFile(
     join(root, '.mcp.json'),
-    JSON.stringify({ mcpServers: { stubborn: { command: process.execPath, args: [stubbornStdioServerEntry], env: { MCP_FIXTURE_LOG: mcpLog } } } }),
+    JSON.stringify({
+      mcpServers: { stubborn: { command: '/bin/sh', args: ['-c', launcher, process.execPath, stubbornStdioServerEntry], env: { MCP_FIXTURE_LOG: mcpLog } } },
+    }),
   )
   const workspace = (await api.post(API_ROUTES.workspaces, { path: root })).body as { id: string }
   const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId: workspace.id })).body.id as string
@@ -94,7 +100,9 @@ async function runningProcesses(root: string, dirs: SidecarDirs, env: Record<str
     .filter(Boolean)
     .map((line) => JSON.parse(line) as { event: string; pid: number })
   const mcp = starts.find((e) => e.event === 'start')!.pid
-  reap(mcp)
+  const grandchild = await readPid(grandchildFile)
+  expect(grandchild).toBeGreaterThan(0)
+  reap(mcp, grandchild)
 
   expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'run it' })).status).toBe(202)
   let shell = 0
@@ -121,9 +129,10 @@ async function runningProcesses(root: string, dirs: SidecarDirs, env: Record<str
     .toEqual(['bash', 'mcp'])
   const registered = rows(dirs)
   expect(registered.find((r) => r.kind === 'bash')).toMatchObject({ pid: shell, pgid: shell })
-  expect(registered.find((r) => r.kind === 'mcp')).toMatchObject({ pid: mcp, pgid: null, command: process.execPath })
-  expect([shell, sleep, mcp].every(processExists)).toBe(true)
-  return { sidecar, shell, sleep, mcp }
+  // pi-mcp 以独立进程组启动 stdio Server：登记进程组（pgid = pid），孙进程随组终止。
+  expect(registered.find((r) => r.kind === 'mcp')).toMatchObject({ pid: mcp, pgid: mcp, command: '/bin/sh' })
+  expect([shell, sleep, mcp, grandchild].every(processExists)).toBe(true)
+  return { sidecar, shell, sleep, mcp, grandchild }
 }
 
 async function setup() {
@@ -135,12 +144,12 @@ async function setup() {
 }
 
 describe.skipIf(!darwin)('子进程登记与孤儿清理（darwin）', { timeout: 120_000 }, () => {
-  it('SIGKILL Sidecar 后重启：前台 bash 的进程组与忽略 stdin 关闭的 MCP Server 在 5 秒内消失，日志 orphan process terminated', async () => {
+  it('SIGKILL Sidecar 后重启：前台 bash 的进程组与忽略 stdin 关闭的 MCP Server（含其孙进程）在 5 秒内消失，日志 orphan process terminated', async () => {
     const { root, dirs, env } = await setup()
-    const { sidecar, shell, sleep, mcp } = await runningProcesses(root, dirs, env)
+    const { sidecar, shell, sleep, mcp, grandchild } = await runningProcesses(root, dirs, env)
 
     const restarted = await killAndRestart(sidecar, { dirs, env })
-    await waitProcessesGone([shell, sleep, mcp], 5_000)
+    await waitProcessesGone([shell, sleep, mcp, grandchild], 5_000)
     expect(rows(dirs).filter((r) => r.pid === shell || r.pid === mcp)).toEqual([])
     // 文件日志有缓冲：有序关闭后读取。
     expect(await restarted.stop()).toEqual({ code: 0, signal: null })
