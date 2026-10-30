@@ -323,7 +323,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     }
   }
 
-  async #start(parentId: string, request: AgentStartRequest, signal?: AbortSignal): Promise<AgentStarted> {
+  async #start(parentId: string, raw: AgentStartRequest, signal?: AbortSignal): Promise<AgentStarted> {
+    // 模型给出的参数是原文（assistant 条目入库时才脱敏）：子代理的首条 user message、Session 标题与通知文本都不再经过替换，在这里替换一次。
+    const request = { ...raw, description: redactSecretValues(raw.description), prompt: redactSecretValues(raw.prompt) }
     const sessions = this.#sessions
     const { store } = this.#options
     const parent = await store.sessions.getSession(parentId)
