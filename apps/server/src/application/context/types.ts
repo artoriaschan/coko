@@ -143,6 +143,11 @@ export interface ContextContribution {
   /** 额外读取根（例如 Skill 目录），其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?(scope: ContextScope): Promise<string[]>
   hooks?(scope: ContextScope): ToolHooks[]
+  /**
+   * 准入 hook：只决定调用是否执行（返回 block 或 undefined），没有副作用；排在权限判定之后、扩展（checkpoint 备份）与 hooks 之前，
+   * 被拦下的调用不经过任何有副作用的 hook（例如预算拦截）。
+   */
+  admissionHooks?(scope: ContextScope): ToolHooks[]
   /** 返回 undefined 表示不处理，交给下一个领域；前一个领域的结果作为 input 传入。 */
   expandInput?(input: RunInput, scope: ContextScope): Promise<ExpandResult | undefined>
   /** 只改模型请求，不改条目；scope 为该 Run 开始时取值的作用域（含有效配置）。 */

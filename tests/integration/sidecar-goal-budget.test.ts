@@ -101,7 +101,7 @@ describe('Goal 预算', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('工具调用：Workspace 中已有的文件逐字节不变', async () => {
+  it('工具调用：Workspace 中已有的文件逐字节不变，被拦下的 write 没有 file_backup', async () => {
     const env = await boot({
       responses: [
         { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'], budget: { max_tool_calls: 1 } })] },
@@ -116,6 +116,8 @@ describe('Goal 预算', { timeout: 120_000 }, () => {
     await waitGoal(env.stream, env.sessionId, (g) => g.phase === 'budget-exhausted')
     expect(goals(env.stream, env.sessionId).at(-1)!.reason?.code).toBe('tool-calls')
     expect(Buffer.compare(await readFile(join(env.workspaceDir, 'keep.txt')), original)).toBe(0)
+    // 预算拦截排在 checkpoint 备份之前：被拦下的 write 不读文件、不写快照，没有 file_backup。
+    expect(of(env.stream, env.sessionId, 'file_backup')).toEqual([])
     // 同一批中先到的调用照常执行，超出的不执行。
     const results = messages(env.stream, env.sessionId).filter((m) => m.role === 'toolResult' && m.toolName !== 'create_goal')
     expect(results.map((m) => [m.toolName, m.isError])).toEqual([
