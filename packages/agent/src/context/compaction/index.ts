@@ -1,4 +1,4 @@
-// 压缩：切点与准备、摘要提示与增量更新、熔断。触发与提交在运行时（engine/runtime.ts 的 compaction 选项）。
+// 压缩：切点与准备、摘要提示与增量更新、熔断。触发与提交在 engine/compaction-driver.ts（运行时的 compaction 选项）。
 export { estimateCompactedTokens, isFailedReply, KEEP_RECENT_TOKENS, planCompaction, type CompactionPlan } from './plan.ts'
 export {
   formatCompactionSummary,
