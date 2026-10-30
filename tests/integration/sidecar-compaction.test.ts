@@ -11,7 +11,7 @@ import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempD
 type Api = ReturnType<typeof client>
 type Message = { role: string; content: unknown }
 
-/** 60k 窗口、4k 输出：阈值 = 56 000 − 13 000 = 43 000；保留最近 20 000 tokens（约 80 000 字符）。 */
+/** 默认 60k 窗口、4k 输出：阈值 = 56 000 − 13 000 = 43 000；保留最近 20 000 tokens（约 80 000 字符）。用例可经 extra 覆盖窗口。 */
 async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
   const root = await tempDir()
   const workspaceDir = join(root, 'ws')
@@ -66,17 +66,22 @@ const big = (n: number, c: string) => c.repeat(n)
 
 describe('自动压缩、回退与分叉', () => {
   it('越过阈值提交 compaction { trigger: auto }；回退到压缩之前恢复原历史；压缩后分叉的上下文与原 Session 一致', { timeout: 90_000 }, async () => {
-    const { api, stream, sidecar, workspace, requests } = await boot([
-      { content: 'ok1' },
-      { content: 'ok2' },
-      { content: 'ok3' },
-      { content: '## Goal\nSUMMARY-AUTO' },
-      { content: 'ok4' },
-      { content: 'ok5' },
-      { content: 'fork-ok5' },
-      { content: 'after-rewind' },
-      { content: 'fork-after-rewind' },
-    ])
+    const { api, stream, sidecar, workspace, requests } = await boot(
+      [
+        { content: 'ok1' },
+        { content: 'ok2' },
+        { content: 'ok3' },
+        { content: '## Goal\nSUMMARY-AUTO' },
+        { content: 'ok4' },
+        { content: 'ok5' },
+        { content: 'fork-ok5' },
+        { content: 'after-rewind' },
+        { content: 'fork-after-rewind' },
+      ],
+      // 窗口 65k：阈值 = 61 000 − 13 000 = 48 000。工具定义随里程碑增加占用固定基线（M4 约 16k），第三轮结束时约 43k，
+      // 仍在阈值之下；第四轮越过。基线继续增长时，下面对第三轮的断言先失败。切点只取决于消息大小，不受窗口影响。
+      { contextWindow: 65_000 },
+    )
     const sessionId = await openSession(api, stream, workspace.id)
     for (const c of ['a', 'b', 'c']) expect(kinds(await send(api, stream, sessionId, big(40_000, c)))).not.toContain('compaction')
     const fourth = await send(api, stream, sessionId, big(60_000, 'd'))
@@ -84,7 +89,7 @@ describe('自动压缩、回退与分叉', () => {
     const compaction = fourth[2]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
     const users = stream.entries(sessionId).filter((e) => e.kind === 'message' && (e.payload as Message).role === 'user')
     expect(compaction).toMatchObject({ trigger: 'auto', firstKeptSeq: users[2]!.seq, summary: '## Goal\nSUMMARY-AUTO' })
-    expect(compaction.tokensBefore).toBeGreaterThanOrEqual(43_000)
+    expect(compaction.tokensBefore).toBeGreaterThanOrEqual(48_000)
     expect(compaction.tokensAfter).toBeLessThan(compaction.tokensBefore)
     expect(progressOf(stream, sessionId, 'compaction_start')).toEqual([{ type: 'compaction_start', trigger: 'auto' }])
     expect(progressOf(stream, sessionId, 'compaction_end')).toHaveLength(1)
