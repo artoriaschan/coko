@@ -132,14 +132,14 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
                   <p className="text-ui-body text-muted-foreground">{t('rewind.noFileChanges')}</p>
                 )}
                 {files.diverged.length > 0 && (
-                  <p role="alert" data-slot="rewind-diverged" className="flex items-start gap-1.5 text-ui-body text-warning">
-                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <p role="alert" data-slot="rewind-diverged" className="flex items-start gap-1.5 text-ui-body text-warning-text">
+                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
                     {t('rewind.diverged', { count: files.diverged.length })}
                   </p>
                 )}
                 {files.outside.length > 0 && (
-                  <p role="alert" data-slot="rewind-outside" className="flex items-start gap-1.5 text-ui-body text-warning">
-                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <p role="alert" data-slot="rewind-outside" className="flex items-start gap-1.5 text-ui-body text-warning-text">
+                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
                     {t('rewind.outside', { count: files.outside.length })}
                   </p>
                 )}

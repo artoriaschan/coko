@@ -20,7 +20,7 @@ const STATUS_TONE: Record<McpServerStatus, string> = {
   connected: 'text-success',
   failed: 'text-destructive',
   disabled: 'text-muted-foreground',
-  'pending-approval': 'text-warning',
+  'pending-approval': 'text-warning-text',
 }
 
 const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
@@ -71,7 +71,7 @@ export function McpSection() {
       <SettingsCard>
         <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} />
       </SettingsCard>
-      {data && !data.enabled && <p className="text-ui-small text-warning">{t('mcp.disabled')}</p>}
+      {data && !data.enabled && <p className="text-ui-small text-warning-text">{t('mcp.disabled')}</p>}
       {workspaceId === undefined && <p className="text-ui-small text-muted-foreground">{t('mcp.noWorkspace')}</p>}
       {status === 'error' && !data && <p className="text-ui-body text-muted-foreground">{t('mcp.loadFailed')}</p>}
 
