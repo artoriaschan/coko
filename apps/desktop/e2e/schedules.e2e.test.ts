@@ -152,7 +152,7 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
       win.setMinimumSize(390, 400)
       win.setContentSize(390, 820)
     })
-    await expect.poll(() => window.evaluate(() => window.innerWidth)).toBe(390)
+    await expect.poll(() => window.evaluate(() => globalThis.innerWidth)).toBe(390)
     const resume = item.locator('[data-action="resume-schedule"]')
     const box = await resume.boundingBox()
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)
