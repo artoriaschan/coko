@@ -24,17 +24,17 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
     [history],
   )
   const pending = React.useMemo(() => (running ? pendingApprovals(entries).find((e) => e.payload.kind === 'plan') : undefined), [entries, running])
-  const [selected, setSelected] = React.useState<string | null>(null)
   const latestKey = revisions[0] ? `${revisions[0].planId}:${revisions[0].revision}` : null
-  // 新的修订出现时回到最新。
-  React.useEffect(() => setSelected(null), [latestKey])
+  // 选择与当时的最新修订一起保存：新的修订出现后（latestKey 变化）选择失效，回到最新。渲染时派生，不用 effect 同步。
+  const [choice, setChoice] = React.useState<{ latest: string | null; key: string } | null>(null)
+  const selected = choice !== null && choice.latest === latestKey ? choice.key : null
+  const setSelected = (key: string) => setChoice({ latest: latestKey, key })
   const current = revisions.find((p) => `${p.planId}:${p.revision}` === selected) ?? revisions[0]
   const reviewing = pending !== undefined && current !== undefined && pending.payload.planId === current.planId && pending.payload.revision === current.revision
   const draft = usePlanDraft(sessionId, current?.planId, current?.revision)
-  const [editing, setEditing] = React.useState(false)
-  React.useEffect(() => {
-    if (!reviewing) setEditing(false)
-  }, [reviewing])
+  const [editingRequested, setEditing] = React.useState(false)
+  // 只有审阅中的修订可编辑：审阅结束后编辑框随之关闭。
+  const editing = editingRequested && reviewing
 
   if (!current || sessionId === null) {
     return <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('plan.empty')}</div>

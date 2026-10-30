@@ -1,4 +1,4 @@
-import { JOB_OUTPUT_PAGE_MAX, JobOutputResponse, jobPaths, SessionJobsResponse, type JobSnapshot, type ProgressEvent } from '@coko/protocol'
+import { ErrorResponse, JOB_OUTPUT_PAGE_MAX, JobOutputResponse, jobPaths, SessionJobsResponse, type JobSnapshot, type ProgressEvent } from '@coko/protocol'
 import { Type, type Static, type TSchema } from 'typebox'
 import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
@@ -28,9 +28,7 @@ export function httpJobsBackend(fetchImpl: (input: string, init?: RequestInit) =
     }
     const value: unknown = response.status === 204 ? undefined : await response.json().catch(() => undefined)
     if (!response.ok) {
-      const error = (value as { error?: { code?: unknown; message?: unknown } } | undefined)?.error
-      if (typeof error?.code === 'string' && typeof error.message === 'string')
-        throw new ApiError(error.code as ApiError['code'], error.message, response.status)
+      if (Value.Check(ErrorResponse, value)) throw new ApiError(value.error.code, value.error.message, response.status, value.error.details)
       throw new ApiError('bad-response', `Request failed with status ${response.status}`, response.status)
     }
     if (!Value.Check(schema, value)) throw new ApiError('bad-response', `Unexpected response for ${method} ${path}`, response.status)
