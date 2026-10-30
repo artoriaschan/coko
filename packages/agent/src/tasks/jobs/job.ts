@@ -1,5 +1,6 @@
 // 后台任务的状态机与等待（docs/subsystems/jobs.md）：running → stopping → killed；running → completed / failed；lost 只由启动恢复补记。
 // 输出进入环形缓冲；模型的游标只经 job_output 与送达的完成通知前移。宿主（apps/server application/jobs.ts）负责进程、日志与条目。
+import { JOB_NOTIFICATION_TAG } from '../../entries/job-notification.ts'
 import type { SandboxMode } from '../../session-entries/index.ts'
 import type { JobEndStatus, JobKind } from '../../session-entries/jobs.ts'
 import { OutputRing, stripAnsi } from './output.ts'
@@ -192,7 +193,7 @@ export function jobNotificationText(job: JobSnapshot, unread: string): { text: s
   const bytes = Buffer.byteLength(unread, 'utf8')
   const inlined = bytes > 0 && bytes <= NOTIFICATION_OUTPUT_MAX
   const parts = [
-    '<job-notification>',
+    JOB_NOTIFICATION_TAG,
     `<job-id>${escapeXml(job.jobId)}</job-id>`,
     `<status>${job.status}</status>`,
     ...(job.exitCode === undefined ? [] : [`<exit-code>${job.exitCode}</exit-code>`]),

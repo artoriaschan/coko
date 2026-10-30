@@ -179,7 +179,7 @@ function ContextDetails({ usage, format }: { usage: ContextUsageResponse; format
                 </span>
                 <span className="shrink-0 text-muted-foreground">
                   {t(`context.card.scopes.${file.scope}`)}
-                  {file.truncated && <span className="text-warning"> · {t('context.card.truncated')}</span>}
+                  {file.truncated && <span className="text-warning-text"> · {t('context.card.truncated')}</span>}
                 </span>
               </li>
             ))}
@@ -192,7 +192,7 @@ function ContextDetails({ usage, format }: { usage: ContextUsageResponse; format
           <ul className="flex flex-col gap-1 text-ui-small">
             {usage.diagnostics.map((d, index) => (
               <li key={`${d.source}:${d.code}:${d.path ?? ''}:${index}`} data-diagnostic={d.code} className="flex flex-col">
-                <span className="text-warning">{d.code}</span>
+                <span className="text-warning-text">{d.code}</span>
                 <span data-user-content="" className="break-words text-muted-foreground">
                   {d.path ? `${d.path}: ${d.message}` : d.message}
                 </span>

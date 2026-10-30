@@ -4,10 +4,9 @@ import {
   parsePermissionRule,
   PERMISSIONS_DEFAULT_MODE_SETTING,
   PERMISSIONS_RULES_SETTING,
-  StandardPermissionMode as PermissionModeSchema,
   PermissionRuleList,
+  StandardPermissionMode,
   workspaceRulesSetting,
-  type StandardPermissionMode as PermissionMode,
   type PermissionsResponse,
   type UpdatePermissionsRequest,
 } from '@coko/protocol'
@@ -126,7 +125,7 @@ export class PermissionService {
   /** 宿主注册的工具名（内置工具之外的，用于规则工具名的归一与校验）。 */
   readonly #toolNames: () => readonly string[] | HostToolNames
   #loaded: Promise<void> | undefined
-  #defaultMode: Stored<PermissionMode> = { value: 'default', revision: 0 }
+  #defaultMode: Stored<StandardPermissionMode> = { value: 'default', revision: 0 }
   #global: Stored<PermissionRule[]> = { value: [], revision: 0 }
   readonly #workspaces = new Map<string, Promise<void>>()
   readonly #workspaceValues = new Map<string, Stored<PermissionRule[]>>()
@@ -170,7 +169,7 @@ export class PermissionService {
   /** 读入默认模式与全局规则（一次）。 */
   load(): Promise<void> {
     this.#loaded ??= (async () => {
-      this.#defaultMode = await this.#read(PERMISSIONS_DEFAULT_MODE_SETTING, PermissionModeSchema, 'default' as PermissionMode)
+      this.#defaultMode = await this.#read(PERMISSIONS_DEFAULT_MODE_SETTING, StandardPermissionMode, 'default' as StandardPermissionMode)
       this.#global = await this.#readRules(PERMISSIONS_RULES_SETTING)
     })().catch((error: unknown) => {
       this.#loaded = undefined
@@ -202,7 +201,7 @@ export class PermissionService {
     return this.#workspaceValues.get(workspaceId)!
   }
 
-  async defaultMode(): Promise<PermissionMode> {
+  async defaultMode(): Promise<StandardPermissionMode> {
     await this.load()
     return this.#defaultMode.value
   }

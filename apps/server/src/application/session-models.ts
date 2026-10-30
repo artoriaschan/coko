@@ -74,6 +74,18 @@ export class SessionModels {
     return undefined
   }
 
+  /** 该 Session 当前（或将用的默认）模型是否已定价（Goal 的费用上限）；没有可用模型时 false。 */
+  async modelPriced(sessionId: string): Promise<boolean> {
+    const session = await requireSession(this.#options.store, sessionId)
+    const ref = session.model ?? (session.modelCleared ? null : await this.defaultModel())
+    if (!ref) return false
+    try {
+      return this.#options.registry.priced(this.resolve(ref, 'model-not-configured'))
+    } catch {
+      return false
+    }
+  }
+
   /** 上下文用量接口的模型：给定的 Session 模型，否则缺省模型；都不能解析时 undefined。 */
   async contextModel(model: SessionModel | null | undefined): Promise<Model<any> | undefined> {
     const chosen = model ?? (await this.defaultModel())

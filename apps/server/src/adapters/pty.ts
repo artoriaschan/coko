@@ -5,6 +5,7 @@
 // 产物，随 Resources/sidecar/node_modules 分发（apps/desktop/build/build.ts）。
 import { createRequire } from 'node:module'
 import type { PtyPort } from '@coko/agent'
+import { signalTarget } from './processes.ts'
 
 type NodePty = typeof import('node-pty')
 
@@ -12,18 +13,8 @@ const require = createRequire(import.meta.url)
 
 export type PtyProbe = { available: true; port: PtyPort; version: string; path: string } | { available: false; reason: string }
 
-/** 进程组信号；组已不存在时退回 pid。 */
-function signalGroup(pid: number, signal: NodeJS.Signals): void {
-  try {
-    process.kill(-pid, signal)
-  } catch {
-    try {
-      process.kill(pid, signal)
-    } catch {
-      // 已退出。
-    }
-  }
-}
+/** 进程组信号（pgid = pid）；组已不存在时退回 pid。 */
+const signalGroup = (pid: number, signal: NodeJS.Signals) => void (signalTarget({ pid, pgid: pid }, signal) || signalTarget({ pid }, signal))
 
 /** 以已加载的 node-pty 构造端口。 */
 export function createNodePtyPort(pty: NodePty): PtyPort {

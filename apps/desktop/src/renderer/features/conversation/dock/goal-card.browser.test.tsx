@@ -1,7 +1,8 @@
 // Goal 卡、Goal 行、Run 用量行与 Session 费用：在应用中（内存协议后端）由 goal、run_start 与带 usage 的 assistant 条目驱动；
 // Goal 的已用量与动作经注入的 GoalBackend（与 GET / POST …/goal 同形）。
 import '../../../styles.css'
-import type { GoalActionRequest, GoalPayload, GoalResponse, GoalUsage, SessionEntryRecord } from '@coko/protocol'
+import { dictionaries } from '@coko/i18n'
+import { GOAL_REASON_CODES, type GoalActionRequest, type GoalPayload, type GoalResponse, type GoalUsage, type SessionEntryRecord } from '@coko/protocol'
 import { expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
@@ -39,10 +40,14 @@ const goal = (patch: Partial<GoalPayload> = {}): GoalPayload => ({
 function fakeGoals(initial: { goal: GoalPayload | null; usage: GoalUsage }) {
   const state = { ...initial }
   const calls: GoalActionRequest[] = []
+  const reads = { count: 0 }
   let hold: { resolve: (r: GoalResponse) => void; reject: (e: unknown) => void } | undefined
   let holding = false
   const backend: GoalBackend = {
-    get: async () => ({ goal: state.goal, usage: state.usage }),
+    get: async () => {
+      reads.count++
+      return { goal: state.goal, usage: state.usage }
+    },
     act: (_sessionId, request) => {
       calls.push(request)
       if (!holding) return Promise.resolve({ goal: state.goal, usage: state.usage })
@@ -52,6 +57,7 @@ function fakeGoals(initial: { goal: GoalPayload | null; usage: GoalUsage }) {
   return {
     state,
     calls,
+    reads,
     backend,
     holdNext: () => (holding = true),
     release: (response: GoalResponse) => {
@@ -149,6 +155,59 @@ for (const locale of ['en', 'zh'] as const) {
     // 第一条快照为"新目标"与目标文本。
     expect(document.querySelector('[data-slot="goal-row"]')!.textContent).toContain(locale === 'en' ? 'New goal' : '新目标')
     expect(document.querySelector('[data-slot="goal-row"]')!.textContent).toContain('make the tests pass')
+  })
+}
+
+it('reason.code 的每个已知取值在 zh / en 中都有文案（不落到"运行出错"）', () => {
+  for (const locale of ['zh', 'en'] as const) {
+    const reasons: Record<string, string> = dictionaries[locale].goal.reason
+    expect({ locale, missing: GOAL_REASON_CODES.filter((code) => !(code in reasons)) }).toEqual({ locale, missing: [] })
+  }
+})
+
+/** 等两帧：同一帧内合并的重读已经发出。 */
+const frames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+
+it('已用量只在 goal、run_end、compaction 与带 usage 的 assistant 条目到达时重读：20 条无 usage 的消息至多 1 次', async () => {
+  const fixture = await open({ entries: [record('goal', goal())] })
+  await expect.poll(() => fixture.goals.reads.count).toBeGreaterThan(0)
+  await frames()
+  const before = fixture.goals.reads.count
+  const entries = () => fixture.chat.getState().conversations['s-1']!.entries.length
+  for (let i = 0; i < 10; i++) {
+    const assistant = { role: 'assistant', content: [{ type: 'toolCall', id: 't' + i, name: 'bash', arguments: {} }], stopReason: 'toolUse', timestamp: 0 }
+    const result = { role: 'toolResult', toolCallId: 't' + i, toolName: 'bash', content: [{ type: 'text', text: 'ok' }], isError: false, timestamp: 0 }
+    for (const payload of [assistant, result]) {
+      const count = entries()
+      fixture.send(record('message', payload, 'run-a'))
+      await expect.poll(entries).toBe(count + 1)
+      await frames()
+    }
+  }
+  expect(fixture.goals.reads.count - before).toBeLessThanOrEqual(1)
+  const settled = fixture.goals.reads.count
+  fixture.send(record('goal', goal({ revision: 2 })))
+  await expect.poll(() => fixture.goals.reads.count).toBe(settled + 1)
+})
+
+for (const locale of ['en', 'zh'] as const) {
+  it(`未设费用上限的提示（${locale}）：已定价且没有 maxCost 时显示，设了上限或未定价时不显示`, async () => {
+    const hint = locale === 'en' ? 'No cost limit' : '未设费用上限'
+    const fixture = await open({
+      locale,
+      usage: { rounds: 1, toolCalls: 0, tokens: 0, cost: 0, durationMs: 0, costUnpriced: false },
+      entries: [record('goal', goal())],
+    })
+    await toggle()
+    const text = () => card()!.querySelector('[data-slot="goal-no-cost-limit"]')?.textContent ?? null
+    await expect.poll(text).toContain(hint)
+    fixture.send(record('goal', goal({ revision: 2, budget: { maxRounds: 10, maxCost: 1 } })))
+    await expect.poll(() => card()!.getAttribute('data-revision')).toBe('2')
+    await expect.poll(text).toBeNull()
+    fixture.goals.state.usage = { rounds: 1, toolCalls: 0, tokens: 0, cost: 0, durationMs: 0, costUnpriced: true }
+    fixture.send(record('goal', goal({ revision: 3 })))
+    await expect.poll(() => card()!.querySelector('[data-goal-cost]')?.textContent).toBe(locale === 'en' ? 'Unpriced' : '未定价')
+    expect(text()).toBeNull()
   })
 }
 

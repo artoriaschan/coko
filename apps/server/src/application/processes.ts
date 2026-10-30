@@ -6,18 +6,16 @@ import { randomUUID } from 'node:crypto'
 import type { ExecPort, ExecRequest } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import type { HostProcess, HostProcessKind, SessionStore } from '@coko/session'
-import { hostProcessTable, type HostProcessTable } from '../adapters/processes.ts'
+import { hostProcessTable, type HostProcessTable, type ProcessTarget } from '../adapters/processes.ts'
+import { errorMessage } from './errors.ts'
 
 export const KILL_GRACE_MS = 2_000
 const POLL_MS = 25
 
 const log = getLogger(['runtime', 'processes'])
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** 要登记的进程：spawn 报告的 pid（与 detached 时的进程组），以及类别、所属 Session / Job 与命令。 */
-export interface TrackedProcess {
-  pid: number
-  pgid?: number | undefined
+export interface TrackedProcess extends ProcessTarget {
   kind: HostProcessKind
   sessionId?: string | undefined
   jobId?: string | undefined
@@ -35,8 +33,6 @@ export interface ProcessRegistryOptions {
   /** SIGTERM 到 SIGKILL 的宽限；默认 2 000 ms。 */
   killGraceMs?: number
 }
-
-type Target = { pid: number; pgid?: number | undefined }
 
 export class ProcessRegistry {
   readonly #store: Pick<SessionStore, 'processes'>
@@ -56,7 +52,7 @@ export class ProcessRegistry {
    * 有序关闭开始后启动的进程不再登记，立即 SIGKILL（之后没有人会终止它）。
    */
   track: TrackProcess = (process) => {
-    const target: Target = { pid: process.pid, pgid: process.pgid }
+    const target: ProcessTarget = { pid: process.pid, pgid: process.pgid }
     if (this.#closing) {
       this.#table.signal(target, 'SIGKILL')
       log.warn('process started during shutdown killed', { pid: process.pid, kind: process.kind })
@@ -138,7 +134,7 @@ export class ProcessRegistry {
 
   #background<T>(work: () => Promise<T>, operation: string): Promise<T | false> {
     const promise = work().catch((error: unknown) => {
-      log.warn('process registration failed', { operation, error: message(error) })
+      log.warn('process registration failed', { operation, error: errorMessage(error) })
       return false as const
     })
     this.#pending.add(promise)
@@ -147,8 +143,8 @@ export class ProcessRegistry {
   }
 
   /** 逐行核对身份：一致的返回（带信号目标），其余删除。进程组只在 ps 报告的当前组仍是登记的组时使用。 */
-  async #verify(onStale: (row: HostProcess, reason: 'not-running' | 'pid-reused') => void): Promise<{ row: HostProcess; target: Target }[]> {
-    const live: { row: HostProcess; target: Target }[] = []
+  async #verify(onStale: (row: HostProcess, reason: 'not-running' | 'pid-reused') => void): Promise<{ row: HostProcess; target: ProcessTarget }[]> {
+    const live: { row: HostProcess; target: ProcessTarget }[] = []
     for (const row of await this.#store.processes.list()) {
       const identity = await this.#table.inspect(row.pid)
       if (identity && identity.startedAt === row.startedAt) {
@@ -162,7 +158,7 @@ export class ProcessRegistry {
   }
 
   /** SIGTERM，宽限期内轮询，仍存在的 SIGKILL；之后删除这些行。 */
-  async #terminate(live: readonly { row: HostProcess; target: Target }[]): Promise<void> {
+  async #terminate(live: readonly { row: HostProcess; target: ProcessTarget }[]): Promise<void> {
     if (live.length === 0) return
     for (const { target } of live) this.#table.signal(target, 'SIGTERM')
     const deadline = Date.now() + this.#graceMs

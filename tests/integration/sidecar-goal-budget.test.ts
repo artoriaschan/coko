@@ -211,6 +211,64 @@ describe('Goal 预算', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  /**
+   * 手动 /compact 与预算：Goal 为 running、Session 空闲且 Token 已耗尽。用户提交的 Run 以不重试的模型错误结束时不推进 Goal（Goal 保持 running），
+   * 借此构造这个状态：先有足够的较早内容可摘要，再建 Goal，再由一个属于 Goal 的 Run 用掉 1100 / 1000 Token。
+   */
+  async function exhaustedIdle(extra: unknown[] = []) {
+    const failed = (input: number, output: number) => ({ content: [], stopReason: 'error', errorMessage: 'invalid request', ...usage(input, output) })
+    const env = await boot({
+      responses: [
+        { content: 'ok a' },
+        { content: 'ok b' },
+        { content: 'ok c' },
+        { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'], budget: { max_tokens: 1000 } })] },
+        failed(1, 1),
+        failed(900, 200),
+        ...extra,
+      ],
+    })
+    const { api, stream, sessionId } = env
+    const send = async (text: string) => {
+      const ends = of(stream, sessionId, 'run_end').length
+      expect((await api.post(apiPaths.sessionMessages(sessionId), { text })).status).toBe(202)
+      await stream.waitFor(() => of(stream, sessionId, 'run_end').length > ends, 30_000)
+    }
+    for (const c of ['a', 'b', 'c']) await send(c.repeat(40_000))
+    await send('set a goal')
+    await send('keep going')
+    const state = (await api.get(goalPaths.sessionGoal(sessionId))).body
+    expect(state).toMatchObject({ goal: { phase: 'running' }, usage: { tokens: 1100 } })
+    expect(await env.requests()).toHaveLength(6)
+    return { ...env, send, goal: state.goal as Goal }
+  }
+
+  it('对手用例：Goal running 且 Token 已耗尽时用户发 /compact，不发摘要请求、没有 compaction，Run 以 paused + budget_exhausted 结束，Goal 为 budget-exhausted', async () => {
+    const env = await exhaustedIdle([{ content: '## Goal\nMUST-NOT-SUMMARIZE' }])
+    await env.send('/compact')
+    const end = of(env.stream, env.sessionId, 'run_end').at(-1)!
+    const start = of(env.stream, env.sessionId, 'run_start').at(-1)!
+    expect(start.payload).toEqual({ trigger: 'compact' })
+    expect(end.payload).toEqual({ status: 'paused', error: { code: 'budget_exhausted', message: 'Goal budget exhausted: tokens (1100 / 1000)' } })
+    expect(of(env.stream, env.sessionId, 'compaction')).toEqual([])
+    await waitGoal(env.stream, env.sessionId, (g) => g.phase === 'budget-exhausted')
+    expect(goals(env.stream, env.sessionId).at(-1)!.reason).toEqual({ code: 'tokens', message: 'Goal budget exhausted: tokens (1100 / 1000)' })
+    expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
+    expect(await env.requests()).toHaveLength(6)
+    expect((await env.requests()).join('\n')).not.toContain('<conversation>')
+  })
+
+  it('Goal paused 时 /compact 照常：发出摘要请求并提交 compaction，Goal 仍为 paused', async () => {
+    const env = await exhaustedIdle([{ content: '## Goal\nSUMMARY-PAUSED' }])
+    expect((await env.api.post(goalPaths.sessionGoal(env.sessionId), { action: 'pause', revision: env.goal.revision })).status).toBe(200)
+    await env.send('/compact')
+    expect(of(env.stream, env.sessionId, 'run_end').at(-1)!.payload).toEqual({ status: 'completed' })
+    expect(of(env.stream, env.sessionId, 'compaction')).toHaveLength(1)
+    expect(goals(env.stream, env.sessionId).at(-1)!.phase).toBe('paused')
+    expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
+    expect(await env.requests()).toHaveLength(7)
+  })
+
   it('设了费用上限而模型未定价：不发出 Goal 的模型请求，Goal 为 blocked（cost-unpriced）；恢复后仍 blocked', async () => {
     const { sidecar, api, stream, sessionId, requests } = await boot({
       responses: [

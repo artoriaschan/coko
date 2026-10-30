@@ -85,9 +85,40 @@ export interface GoalUsageSnapshot {
   durationMs?: number
 }
 
-/** 预算维度（reason.code 的取值），按判定顺序。 */
-export const GOAL_BUDGET_DIMENSIONS = ['rounds', 'tool-calls', 'tokens', 'cost', 'time'] as const
-export type GoalBudgetDimension = (typeof GOAL_BUDGET_DIMENSIONS)[number]
+/** 模型可见文本中的费用（<goal> section 与预算消息）：最多 6 位小数，去掉末尾的 0，不带货币。界面的费用格式在 renderer。 */
+export const costText = (cost: number) => String(Number(cost.toFixed(6)))
+
+/** 一个预算维度：预算字段、用量字段、模型可见的名称与数值格式。 */
+export interface GoalBudgetDimensionSpec {
+  limit: keyof GoalBudget
+  used: keyof GoalUsageSnapshot
+  /** 模型可见文本中的名称（预算消息与 <goal> section）。 */
+  name: string
+  /** 模型可见文本中的数值。 */
+  format: (value: number) => string
+}
+
+/**
+ * 预算维度的描述表（维度映射的唯一来源；键为 reason.code 的取值，顺序即判定顺序）。新增维度只改这里与预算 / 用量的 schema；
+ * 协议的 GOAL_BUDGET_DIMENSION_KEYS 与本表的键相同（server goals.ts 中有编译期断言）。
+ */
+export const GOAL_BUDGET_DIMENSIONS = {
+  rounds: { limit: 'maxRounds', used: 'rounds', name: 'rounds', format: String },
+  'tool-calls': { limit: 'maxToolCalls', used: 'toolCalls', name: 'tool calls', format: String },
+  tokens: { limit: 'maxTokens', used: 'tokens', name: 'tokens', format: String },
+  cost: { limit: 'maxCost', used: 'cost', name: 'cost', format: costText },
+  time: { limit: 'maxDurationMs', used: 'durationMs', name: 'time', format: (ms) => ms + ' ms' },
+} as const satisfies Record<string, GoalBudgetDimensionSpec>
+export type GoalBudgetDimension = keyof typeof GOAL_BUDGET_DIMENSIONS
+/** 判定顺序的维度键。 */
+export const GOAL_BUDGET_DIMENSION_KEYS = Object.keys(GOAL_BUDGET_DIMENSIONS) as GoalBudgetDimension[]
+
+const isDimension = (value: string): value is GoalBudgetDimension => Object.hasOwn(GOAL_BUDGET_DIMENSIONS, value)
+
+/** 该维度的上限；未设时 undefined。 */
+export const budgetLimit = (budget: GoalBudget, dimension: GoalBudgetDimension): number | undefined => budget[GOAL_BUDGET_DIMENSIONS[dimension].limit]
+/** 该维度的已用量；用量中省略时 undefined。 */
+export const budgetUsed = (usage: GoalUsageSnapshot, dimension: GoalBudgetDimension): number | undefined => usage[GOAL_BUDGET_DIMENSIONS[dimension].used]
 
 /** 预算停止的消息前缀（run_end.error.message、工具调用上限拦下的调用结果）。 */
 export const GOAL_BUDGET_EXHAUSTED_PREFIX = 'Goal budget exhausted: '
@@ -118,11 +149,6 @@ export function nextGoalId(entries: readonly EntryLike[]): string {
   return 'goal-' + n
 }
 
-const limitOf = (budget: GoalBudget, dimension: GoalBudgetDimension) =>
-  ({ rounds: budget.maxRounds, 'tool-calls': budget.maxToolCalls, tokens: budget.maxTokens, cost: budget.maxCost, time: budget.maxDurationMs })[dimension]
-const usedOf = (usage: GoalUsageSnapshot, dimension: GoalBudgetDimension) =>
-  ({ rounds: usage.rounds, 'tool-calls': usage.toolCalls, tokens: usage.tokens, cost: usage.cost, time: usage.durationMs })[dimension]
-
 /**
  * 已设维度中第一个达到上限（已用 ≥ 上限）的维度（reason.code）；都有余量时 undefined。dimensions 限定检查的维度（检查点各查各的：
  * 模型请求前查 Token、费用、时间，工具调用前查调用数，Goal Round 开始前查五维）；用量中省略的维度不判定。
@@ -130,29 +156,22 @@ const usedOf = (usage: GoalUsageSnapshot, dimension: GoalBudgetDimension) =>
 export function exhaustedDimension(
   budget: GoalBudget,
   usage: GoalUsageSnapshot,
-  dimensions: readonly GoalBudgetDimension[] = GOAL_BUDGET_DIMENSIONS,
+  dimensions: readonly GoalBudgetDimension[] = GOAL_BUDGET_DIMENSION_KEYS,
 ): GoalBudgetDimension | undefined {
-  for (const dimension of GOAL_BUDGET_DIMENSIONS) {
+  for (const dimension of GOAL_BUDGET_DIMENSION_KEYS) {
     if (!dimensions.includes(dimension)) continue
-    const limit = limitOf(budget, dimension)
-    const used = usedOf(usage, dimension)
+    const limit = budgetLimit(budget, dimension)
+    const used = budgetUsed(usage, dimension)
     if (limit !== undefined && used !== undefined && used >= limit) return dimension
   }
   return undefined
 }
 
-/** 费用的显示：最多 6 位小数，去掉末尾的 0。 */
-export const formatCost = (cost: number) => String(Number(cost.toFixed(6)))
-
-/** 形如 "Goal budget exhausted: tool calls (n / max)"；时间带 ms。 */
+/** 形如 "Goal budget exhausted: tool calls (n / max)"；名称与数值格式取自描述表（时间带 ms）。 */
 export function exhaustedMessage(dimension: string, budget: GoalBudget, usage: GoalUsageSnapshot): string {
-  const known = GOAL_BUDGET_DIMENSIONS.find((d) => d === dimension)
-  if (!known) return GOAL_BUDGET_EXHAUSTED_PREFIX + dimension
-  const used = usedOf(usage, known) ?? 0
-  const limit = limitOf(budget, known) ?? 0
-  const name = known === 'tool-calls' ? 'tool calls' : known
-  const pair = known === 'cost' ? `${formatCost(used)} / ${formatCost(limit)}` : known === 'time' ? `${used} ms / ${limit} ms` : `${used} / ${limit}`
-  return `${GOAL_BUDGET_EXHAUSTED_PREFIX}${name} (${pair})`
+  if (!isDimension(dimension)) return GOAL_BUDGET_EXHAUSTED_PREFIX + dimension
+  const { name, format } = GOAL_BUDGET_DIMENSIONS[dimension]
+  return `${GOAL_BUDGET_EXHAUSTED_PREFIX}${name} (${format(budgetUsed(usage, dimension) ?? 0)} / ${format(budgetLimit(budget, dimension) ?? 0)})`
 }
 
 /** 设了费用上限而当前模型未定价：不发请求，Goal 进入 blocked（cost-unpriced）。 */

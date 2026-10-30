@@ -19,7 +19,74 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+const rgb = (value: string) =>
+  value
+    .match(/[\d.]+/g)!
+    .slice(0, 3)
+    .map(Number) as [number, number, number]
+const luminance = ([r, g, b]: [number, number, number]) => {
+  const f = (c: number) => ((c /= 255) <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+const transparent = (color: string) => color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color)
+/** 文字颜色对其最近的不透明背景（向上找祖先，最后是根元素）的对比度。 */
+function contrastOf(el: Element): number {
+  let node: Element | null = el
+  let background = ''
+  while (node) {
+    const color = getComputedStyle(node).backgroundColor
+    if (!transparent(color)) {
+      background = color
+      break
+    }
+    node = node.parentElement
+  }
+  if (background === '') background = getComputedStyle(document.documentElement).backgroundColor
+  const [x, y] = [luminance(rgb(getComputedStyle(el).color)), luminance(rgb(background))].sort((p, q) => q - p)
+  return (x! + 0.05) / (y! + 0.05)
+}
+
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+
+for (const theme of ['light', 'dark'] as const) {
+  it(`作文字的警告色对比度 ≥ 4.5:1（${theme}）：待批准状态与"MCP 已关闭"提示`, async () => {
+    const server = { name: 'proj', scope: 'project', transport: 'stdio', enabled: true, status: 'pending-approval', tools: [] }
+    const mcp = { enabled: false, servers: [server], global: {}, globalRevision: 0, diagnostics: [] }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        if (input.startsWith('/api/mcp')) return json(200, mcp)
+        if (input.startsWith('/api/secrets')) return json(200, { source: 'stored', secrets: [] })
+        return json(404, { error: { code: 'not-found', message: 'not found' } })
+      }),
+    )
+    const store = createAppearanceStore({ theme, locale: 'en' })
+    const { chat, settings } = createFixtureChat()
+    const settingsPage = createSettingsPageStore()
+    const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
+    await render(
+      <div style={{ width: '100vw', height: '100vh' }}>
+        <App
+          store={store}
+          connection={createConnectionStore()}
+          chat={chat}
+          settings={settings}
+          preferences={preferences}
+          settingsPage={settingsPage}
+          pickDirectory={async () => null}
+        />
+      </div>,
+    )
+    settingsPage.open('mcp')
+    const dialog = settingsRegion()
+    await expect.element(dialog.getByText('Awaiting approval')).toBeVisible()
+    const status = dialog.element().querySelector('[data-mcp-server="proj"] [data-mcp-status]')!
+    const disabled = [...dialog.element().querySelectorAll('p')].find(
+      (p) => p.textContent === 'MCP is turned off in the capability settings; servers will not connect',
+    )!
+    expect([contrastOf(status) >= 4.5, contrastOf(disabled) >= 4.5]).toEqual([true, true])
+  })
+}
 
 it('保存被拒绝与删除 Secret 失败：界面只显示本地化文案，服务端原文在技术详情中', async () => {
   const mcp = { enabled: true, servers: [], global: {}, globalRevision: 0, diagnostics: [] }

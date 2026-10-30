@@ -20,6 +20,7 @@ import type { Session as StoredSession, SessionStore } from '@coko/session'
 import type { ContextContribution } from './context/index.ts'
 import { bindPlanHost, type PlanHost } from './context/plan.ts'
 import { AppError } from './errors.ts'
+import { KeyedMutex } from './keyed-mutex.ts'
 import { PermissionService, sameRule, withRules } from './permissions.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
@@ -43,6 +44,12 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
 /** 批准计划时模式的宽窄（plan 不会作为批准后的模式）。 */
 const MODE_RANK: Record<Exclude<PermissionMode, 'plan'>, number> = { 'read-only': 0, default: 1, 'accept-edits': 2, 'full-access': 3 }
 
+/** 待批准的计划没有审阅记录（状态不一致）：internal，记一条 error。 */
+function missingPlan(sessionId: string, toolCallId: string): AppError {
+  log.error('plan approval without a pending review', { sessionId, toolCallId })
+  return new AppError('internal', 'The plan under review was not found')
+}
+
 /** 计划审阅中的一次 exit_plan_mode：提交时的位置与正文，以及批准时用户给出的编辑与模式（回答到达时登记）。 */
 interface PendingPlan {
   ref: PlanRef
@@ -61,7 +68,7 @@ export class SessionPermissions implements PlanHost {
   /** 审阅中的计划，按 `<sessionId>:<toolCallId>`。 */
   readonly #plans = new Map<string, PendingPlan>()
   /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）；结果确认也经它串行。 */
-  readonly #locks = new Map<string, Promise<unknown>>()
+  readonly #locks = new KeyedMutex()
   readonly service: PermissionService
 
   /** contributions：上下文装配的贡献；其中的 plan 贡献（context/plan.ts）经它读写模式与计划审阅。 */
@@ -100,13 +107,7 @@ export class SessionPermissions implements PlanHost {
 
   /** 同一 Session 的权限修改（与结果确认）串行执行。 */
   locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.#locks.get(sessionId) ?? Promise.resolve()
-    const next = previous.then(task, task)
-    this.#locks.set(
-      sessionId,
-      next.catch(() => undefined),
-    )
-    return next
+    return this.#locks.run(sessionId, task)
   }
 
   /** 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。 */
@@ -187,8 +188,10 @@ export class SessionPermissions implements PlanHost {
         await commitPlan({ ...pending.ref, markdown: pending.markdown, status: 'rejected', ...(feedback === undefined ? {} : { feedback }) })
         log.info('plan rejected', { sessionId, planId: pending.ref.planId, revision: pending.ref.revision, feedback: feedback !== undefined })
       },
-      approved: async (toolCallId, markdown) => {
-        const pending = this.#plans.get(key(toolCallId)) ?? { ref: nextPlanRef(await this.#store.sessions.listEntries(sessionId)), markdown }
+      approved: async (toolCallId) => {
+        const pending = this.#plans.get(key(toolCallId))
+        // propose 总在询问之前登记；没有记录说明状态不一致：不猜 revision（批准的计划须是提交的那一版）。
+        if (!pending) throw missingPlan(sessionId, toolCallId)
         this.#plans.delete(key(toolCallId))
         const edited = pending.answer?.editedPlan
         const final = edited !== undefined && edited !== pending.markdown ? edited : pending.markdown
@@ -298,16 +301,15 @@ export class SessionPermissions implements PlanHost {
         throw new AppError('bad-request', `mode ${answer.mode} is wider than ${restores}, the mode before planning`, { mode: answer.mode, restores })
     }
     const pending = this.#plans.get(`${sessionId}:${toolCallId}`)
-    if (pending) {
-      pending.answer = {
-        ...(answer.editedPlan !== undefined ? { editedPlan: answer.editedPlan } : {}),
-        ...(answer.mode !== undefined ? { mode: answer.mode } : {}),
-      }
+    if (!pending) throw missingPlan(sessionId, toolCallId)
+    pending.answer = {
+      ...(answer.editedPlan !== undefined ? { editedPlan: answer.editedPlan } : {}),
+      ...(answer.mode !== undefined ? { mode: answer.mode } : {}),
     }
     try {
       await runtime.answerApproval(requestId, { decision: 'allow', scope: 'once' })
     } catch (error) {
-      if (pending) delete pending.answer
+      delete pending.answer
       if (error instanceof ApprovalNotPendingError) throw new AppError('approval-not-pending', error.message)
       throw error
     }

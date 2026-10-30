@@ -136,7 +136,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 | --- | --- | --- |
 | `auto` | 每次模型请求之前（pi `prepareRequest`），估算 tokens 达到[阈值](#预算)。内存中的估算可能用了压缩之前的 usage，越过阈值时再按条目复核（`estimateCompactedTokens`，加系统消息的 chars/4） | 发 `compaction_failed`，Run 用原上下文继续 |
 | `overflow` | 请求以上下文溢出失败（pi-ai `isContextOverflow`）：压缩一次再重试一次；每个 Run 至多一次 | 以原模型错误结束 |
-| `manual` | `/compact [指示]`：一个 `run_start { trigger: compact }` 的 Run，只提交 `compaction` 与 `run_end`；指示追加为摘要的额外要求。没有可摘要的较早内容时 400 `bad-request`（`details.reason: nothing-to-compact`），不开始 Run；检查与开始之间的竞态中 Run 同样以 `model_error`（`Nothing to compact…`）结束 | Run 以 `error`（`model_error`）结束，不可重试 |
+| `manual` | `/compact [指示]`：一个 `run_start { trigger: compact }` 的 Run，只提交 `compaction` 与 `run_end`；指示追加为摘要的额外要求。没有可摘要的较早内容时 400 `bad-request`（`details.reason: nothing-to-compact`），不开始 Run；检查与开始之间的竞态中 Run 同样以 `model_error`（`Nothing to compact…`）结束。摘要请求之前经与对话请求相同的请求前检查（[Goal 预算](goal.md#预算)）：返回 stop 时不发请求、不提交 `compaction`，Run 以 paused 加该 error 结束 | Run 以 `error`（`model_error`）结束，不可重试 |
 
 - 熔断：一个 Session 连续 3 次自动或溢出压缩失败后不再自动压缩（运行时内存；Sidecar 重启或任何一次成功的压缩后复位，手动失败不计入暂停）。`compaction_failed.consecutiveFailures` 为任何触发方式的连续失败数。用量接口的 `autoCompact.paused` 来自 `SessionService.compactionPaused`。
 - 停止：压缩中 `POST …/abort` 停止摘要请求，不提交 `compaction` 条目，也不发 `compaction_failed`；Run 以 aborted 结束。
