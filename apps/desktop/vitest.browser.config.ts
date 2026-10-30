@@ -29,6 +29,8 @@ export default defineProject({
   test: {
     name: 'desktop-renderer',
     include: ['src/renderer/**/*.browser.test.{ts,tsx}'],
+    // 恢复 localStorage、卸载组件并断言没有遗留的模态层（aria-hidden、pointer-events）。
+    setupFiles: ['src/renderer/testing/browser-setup.ts'],
     browser: {
       enabled: true,
       headless: true,

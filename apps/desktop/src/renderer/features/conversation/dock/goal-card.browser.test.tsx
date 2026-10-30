@@ -2,7 +2,7 @@
 // Goal 的已用量与动作经注入的 GoalBackend（与 GET / POST …/goal 同形）。
 import '../../../styles.css'
 import type { GoalActionRequest, GoalPayload, GoalResponse, GoalUsage, SessionEntryRecord } from '@coko/protocol'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../../app/app.tsx'
@@ -100,15 +100,6 @@ const toggle = async () => {
   card()!.querySelector<HTMLButtonElement>('[data-action="toggle-goal"]')!.click()
   await expect.poll(() => card()?.querySelector('[data-slot="goal-details"]')).not.toBeNull()
 }
-
-// Browser Mode 的各文件共用同一个页面源：其他文件留下的输入区草稿（localStorage）会让编辑区一开始就有文字。
-beforeEach(() => {
-  localStorage.clear()
-})
-
-afterEach(() => {
-  document.body.innerHTML = ''
-})
 
 const PHASES: readonly { phase: GoalPayload['phase']; reason?: GoalPayload['reason']; en: [string, string | null]; zh: [string, string | null] }[] = [
   { phase: 'running', en: ['Running', null], zh: ['进行中', null] },
