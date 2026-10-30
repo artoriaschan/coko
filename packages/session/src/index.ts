@@ -11,7 +11,19 @@ export type {
   MemoryInput,
   MemoryRepository,
   MemoryScope,
+  NewSchedule,
+  NewSession,
   NewSessionEntry,
+  NewWorktree,
+  ScheduleFire,
+  SchedulePatch,
+  ScheduleRecord,
+  ScheduleRepository,
+  ScheduleStatus,
+  WorktreeCreator,
+  WorktreeRecord,
+  WorktreeRepository,
+  WorktreeStatus,
   SecretInfo,
   SecretRepository,
   Provider,
@@ -31,7 +43,7 @@ export type {
   StoreOptions,
   Workspace,
 } from './types.ts'
-export { HOST_PROCESS_KINDS, THINKING_LEVELS } from './types.ts'
+export { HOST_PROCESS_KINDS, SCHEDULE_STATUSES, THINKING_LEVELS, WORKTREE_CREATORS } from './types.ts'
 export type { ThinkingLevel } from './types.ts'
 export { createPayloadRegistry } from './payloads.ts'
 export type { PayloadDefinition, PayloadRegistry, PayloadUpgrade, PayloadVersion } from './payloads.ts'

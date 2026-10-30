@@ -27,6 +27,8 @@ describe('SQLite 迁移 v5', () => {
       model: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },
       thinkingLevel: 'off',
       modelCleared: false,
+      parentSessionId: null,
+      worktreeId: null,
       createdAt: 1,
       updatedAt: 5,
     })

@@ -1,6 +1,19 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
-import { alreadyExists, defaultWorkspaceName, levelOf, notFound, parseLevel, revisionConflict, upgradeEntries, type StoredEntry } from '../internal.ts'
+import {
+  alreadyExists,
+  checkScheduleStatus,
+  checkWorktreeCreator,
+  defaultWorkspaceName,
+  levelOf,
+  notFound,
+  parseLevel,
+  recordRevisionConflict,
+  revisionConflict,
+  sameWorkspace,
+  upgradeEntries,
+  type StoredEntry,
+} from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
@@ -8,6 +21,9 @@ import type {
   NewSessionEntry,
   Provider,
   ProviderRepository,
+  ScheduleRecord,
+  ScheduleRepository,
+  ScheduleStatus,
   Session,
   SessionEntry,
   SessionRepository,
@@ -15,6 +31,10 @@ import type {
   SettingsRepository,
   StoreOptions,
   Workspace,
+  WorktreeCreator,
+  WorktreeRecord,
+  WorktreeRepository,
+  WorktreeStatus,
 } from '../types.ts'
 import type { Connection } from './connection.ts'
 
@@ -32,6 +52,8 @@ interface SessionRow {
   model_id: string | null
   thinking_level: string
   model_cleared: number
+  parent_session_id: string | null
+  worktree_id: string | null
   created_at: number
   updated_at: number
 }
@@ -69,6 +91,8 @@ const toSession = (r: SessionRow): Session => ({
   model: r.model_provider_id !== null && r.model_id !== null ? { providerId: r.model_provider_id, modelId: r.model_id } : null,
   thinkingLevel: parseLevel(r.thinking_level),
   modelCleared: r.model_cleared === 1,
+  parentSessionId: r.parent_session_id,
+  worktreeId: r.worktree_id,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -103,7 +127,8 @@ const toProvider = (r: ProviderRow): Provider => ({
 // 同步 DatabaseSync 调用包成 Promise：同步错误转为 rejection。
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
-const SESSION_SELECT = 'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, created_at, updated_at FROM sessions'
+const SESSION_SELECT =
+  'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, created_at, updated_at FROM sessions'
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
@@ -139,17 +164,28 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
       later(() =>
         conn.write(() => {
           if (!conn.get('SELECT 1 FROM workspaces WHERE id = ?', input.workspaceId)) throw notFound('workspace', input.workspaceId)
+          const parentSessionId = input.parentSessionId ?? null
+          const worktreeId = input.worktreeId ?? null
+          if (parentSessionId !== null) sameWorkspace('parentSessionId', requireSession(parentSessionId).workspace_id, input.workspaceId)
+          if (worktreeId !== null) {
+            const worktree = conn.get<{ workspace_id: string }>('SELECT workspace_id FROM worktrees WHERE id = ?', worktreeId)
+            if (!worktree) throw notFound('worktree', worktreeId)
+            sameWorkspace('worktreeId', worktree.workspace_id, input.workspaceId)
+          }
           const at = conn.now()
           const model = input.model ?? null
           const id = randomUUID()
           conn.run(
-            'INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.workspaceId,
             input.title ?? '',
             model?.providerId ?? null,
             model?.modelId ?? null,
             levelOf(input),
+            parentSessionId,
+            worktreeId,
             at,
             at,
           )
@@ -161,10 +197,17 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
         conn.read(() => {
           const rows =
             filter?.workspaceId === undefined
-              ? conn.all<SessionRow>(`${SESSION_SELECT} ORDER BY updated_at DESC, rowid DESC`)
-              : conn.all<SessionRow>(`${SESSION_SELECT} WHERE workspace_id = ? ORDER BY updated_at DESC, rowid DESC`, filter.workspaceId)
+              ? conn.all<SessionRow>(`${SESSION_SELECT} WHERE parent_session_id IS NULL ORDER BY updated_at DESC, rowid DESC`)
+              : conn.all<SessionRow>(
+                  `${SESSION_SELECT} WHERE parent_session_id IS NULL AND workspace_id = ? ORDER BY updated_at DESC, rowid DESC`,
+                  filter.workspaceId,
+                )
           return rows.map(toSession)
         }),
+      ),
+    listChildren: (parentSessionId) =>
+      later(() =>
+        conn.read(() => conn.all<SessionRow>(`${SESSION_SELECT} WHERE parent_session_id = ? ORDER BY created_at, rowid`, parentSessionId).map(toSession)),
       ),
     getSession: (id) =>
       later(() =>
@@ -196,42 +239,7 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return toSession(requireSession(id))
         }),
       ),
-    appendEntries: (sessionId, entries: readonly NewSessionEntry[]) =>
-      later(() =>
-        conn.write(() => {
-          requireSession(sessionId)
-          if (entries.length === 0) return []
-          const versions = checkNewEntries(payloads.payloads, entries)
-          const last = conn.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM session_entries WHERE session_id = ?', sessionId)?.seq ?? 0
-          const at = conn.now()
-          const committed = entries.map((entry, i): SessionEntry => {
-            const row: SessionEntry = {
-              sessionId,
-              seq: last + i + 1,
-              kind: entry.kind,
-              payloadVersion: versions[i]!,
-              payload: entry.payload,
-              runId: entry.runId ?? null,
-              createdAt: at,
-            }
-            const payload = JSON.stringify(row.payload)
-            conn.run(
-              'INSERT INTO session_entries (session_id, seq, kind, payload_version, payload, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              sessionId,
-              row.seq,
-              row.kind,
-              row.payloadVersion,
-              payload,
-              row.runId,
-              at,
-            )
-            // 返回值与读回值一致（经过同一次 JSON 序列化），不共享调用方对象。
-            return { ...row, payload: JSON.parse(payload) as JsonValue }
-          })
-          conn.run('UPDATE sessions SET updated_at = ? WHERE id = ?', at, sessionId)
-          return committed
-        }),
-      ),
+    appendEntries: (sessionId, entries: readonly NewSessionEntry[]) => later(() => conn.write(() => appendInTransaction(conn, payloads, sessionId, entries))),
     listEntries: (sessionId, options) =>
       later(() =>
         conn.read(() =>
@@ -405,6 +413,249 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
         conn.read(() => {
           const row = conn.get<{ ciphertext: Uint8Array }>('SELECT ciphertext FROM provider_credentials WHERE provider_id = ?', id)
           return row ? new Uint8Array(row.ciphertext) : undefined
+        }),
+      ),
+  }
+}
+/** 在调用方的写事务中追加条目（Session 不存在 not-found、不合 schema invalid-payload，均抛出以回滚整个事务）。 */
+function appendInTransaction(
+  conn: Connection,
+  payloads: Pick<StoreOptions, 'payloads'>,
+  sessionId: string,
+  entries: readonly NewSessionEntry[],
+): SessionEntry[] {
+  if (!conn.get('SELECT 1 FROM sessions WHERE id = ?', sessionId)) throw notFound('session', sessionId)
+  if (entries.length === 0) return []
+  const versions = checkNewEntries(payloads.payloads, entries)
+  const last = conn.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM session_entries WHERE session_id = ?', sessionId)?.seq ?? 0
+  const at = conn.now()
+  const committed = entries.map((entry, i): SessionEntry => {
+    const row: SessionEntry = {
+      sessionId,
+      seq: last + i + 1,
+      kind: entry.kind,
+      payloadVersion: versions[i]!,
+      payload: entry.payload,
+      runId: entry.runId ?? null,
+      createdAt: at,
+    }
+    const payload = JSON.stringify(row.payload)
+    conn.run(
+      'INSERT INTO session_entries (session_id, seq, kind, payload_version, payload, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      sessionId,
+      row.seq,
+      row.kind,
+      row.payloadVersion,
+      payload,
+      row.runId,
+      at,
+    )
+    // 返回值与读回值一致（经过同一次 JSON 序列化），不共享调用方对象。
+    return { ...row, payload: JSON.parse(payload) as JsonValue }
+  })
+  conn.run('UPDATE sessions SET updated_at = ? WHERE id = ?', at, sessionId)
+  return committed
+}
+
+interface WorktreeRow {
+  id: string
+  workspace_id: string
+  name: string
+  path: string
+  branch: string
+  base_commit: string
+  repo_root: string
+  status: WorktreeStatus
+  created_by: WorktreeCreator
+  created_at: number
+  removed_at: number | null
+}
+
+const toWorktree = (r: WorktreeRow): WorktreeRecord => ({
+  id: r.id,
+  workspaceId: r.workspace_id,
+  name: r.name,
+  path: r.path,
+  branch: r.branch,
+  baseCommit: r.base_commit,
+  repoRoot: r.repo_root,
+  status: r.status,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+  removedAt: r.removed_at,
+})
+
+export function createWorktreeRepository(conn: Connection): WorktreeRepository {
+  const select = (id: string) => conn.get<WorktreeRow>('SELECT * FROM worktrees WHERE id = ?', id)
+  return {
+    create: (input) =>
+      later(() =>
+        conn.write(() => {
+          if (!conn.get('SELECT 1 FROM workspaces WHERE id = ?', input.workspaceId)) throw notFound('workspace', input.workspaceId)
+          checkWorktreeCreator(input.createdBy)
+          if (conn.get('SELECT 1 FROM worktrees WHERE path = ?', input.path)) throw alreadyExists('worktree', input.path)
+          const id = randomUUID()
+          conn.run(
+            `INSERT INTO worktrees (id, workspace_id, name, path, branch, base_commit, repo_root, status, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+            id,
+            input.workspaceId,
+            input.name,
+            input.path,
+            input.branch,
+            input.baseCommit,
+            input.repoRoot,
+            input.createdBy,
+            conn.now(),
+          )
+          return toWorktree(select(id)!)
+        }),
+      ),
+    get: (id) =>
+      later(() =>
+        conn.read(() => {
+          const row = select(id)
+          return row ? toWorktree(row) : undefined
+        }),
+      ),
+    list: (workspaceId) =>
+      later(() =>
+        conn.read(() => conn.all<WorktreeRow>('SELECT * FROM worktrees WHERE workspace_id = ? ORDER BY created_at, rowid', workspaceId).map(toWorktree)),
+      ),
+    markRemoved: (id) =>
+      later(() =>
+        conn.write(() => {
+          const row = select(id)
+          if (!row) throw notFound('worktree', id)
+          if (row.status !== 'removed') conn.run("UPDATE worktrees SET status = 'removed', removed_at = ? WHERE id = ?", conn.now(), id)
+          return toWorktree(select(id)!)
+        }),
+      ),
+  }
+}
+
+interface ScheduleRow {
+  id: string
+  session_id: string
+  title: string
+  prompt: string
+  rule: string
+  status: ScheduleStatus
+  next_at: number | null
+  last_occurrence: number | null
+  revision: number
+  created_at: number
+  updated_at: number
+}
+
+const toSchedule = (r: ScheduleRow): ScheduleRecord => ({
+  id: r.id,
+  sessionId: r.session_id,
+  title: r.title,
+  prompt: r.prompt,
+  rule: JSON.parse(r.rule) as JsonValue,
+  status: r.status,
+  nextAt: r.next_at,
+  lastOccurrence: r.last_occurrence,
+  revision: r.revision,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+})
+
+export function createScheduleRepository(conn: Connection, payloads: Pick<StoreOptions, 'payloads'>): ScheduleRepository {
+  const select = (id: string) => conn.get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id)
+  const requireSchedule = (id: string): ScheduleRow => {
+    const row = select(id)
+    if (!row) throw notFound('schedule', id)
+    return row
+  }
+  return {
+    create: (input) =>
+      later(() =>
+        conn.write(() => {
+          if (!conn.get('SELECT 1 FROM sessions WHERE id = ?', input.sessionId)) throw notFound('session', input.sessionId)
+          const status = input.status ?? 'active'
+          checkScheduleStatus(status)
+          const id = randomUUID()
+          const at = conn.now()
+          conn.run(
+            `INSERT INTO schedules (id, session_id, title, prompt, rule, status, next_at, last_occurrence, revision, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?)`,
+            id,
+            input.sessionId,
+            input.title,
+            input.prompt,
+            JSON.stringify(input.rule),
+            status,
+            input.nextAt,
+            at,
+            at,
+          )
+          return toSchedule(select(id)!)
+        }),
+      ),
+    update: (id, revision, patch) =>
+      later(() =>
+        conn.write(() => {
+          const current = toSchedule(requireSchedule(id))
+          if (current.revision !== revision) throw recordRevisionConflict('schedule', id, revision, current.revision)
+          if (patch.status !== undefined) checkScheduleStatus(patch.status)
+          const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined))
+          const next = { ...current, ...defined }
+          conn.run(
+            'UPDATE schedules SET title = ?, prompt = ?, rule = ?, status = ?, next_at = ?, revision = ?, updated_at = ? WHERE id = ?',
+            next.title,
+            next.prompt,
+            JSON.stringify(next.rule),
+            next.status,
+            next.nextAt,
+            current.revision + 1,
+            conn.now(),
+            id,
+          )
+          return toSchedule(select(id)!)
+        }),
+      ),
+    delete: (id) =>
+      later(() =>
+        conn.write(() => {
+          requireSchedule(id)
+          conn.run('DELETE FROM schedules WHERE id = ?', id)
+        }),
+      ),
+    list: (filter) =>
+      later(() =>
+        conn.read(() =>
+          (filter?.sessionId === undefined
+            ? conn.all<ScheduleRow>('SELECT * FROM schedules ORDER BY created_at, rowid')
+            : conn.all<ScheduleRow>('SELECT * FROM schedules WHERE session_id = ? ORDER BY created_at, rowid', filter.sessionId)
+          ).map(toSchedule),
+        ),
+      ),
+    due: (now) =>
+      later(() =>
+        conn.read(() =>
+          conn
+            .all<ScheduleRow>("SELECT * FROM schedules WHERE status = 'active' AND next_at IS NOT NULL AND next_at <= ? ORDER BY next_at, rowid", now)
+            .map(toSchedule),
+        ),
+      ),
+    recordFire: (id, fire, entry) =>
+      later(() =>
+        conn.write(() => {
+          const current = requireSchedule(id)
+          if (fire.status !== undefined) checkScheduleStatus(fire.status)
+          // 先改任务行、后追加条目：条目校验或写入失败时整个事务回滚，两者都不变。
+          conn.run(
+            'UPDATE schedules SET last_occurrence = ?, next_at = ?, status = ?, updated_at = ? WHERE id = ?',
+            fire.occurrence,
+            fire.nextAt,
+            fire.status ?? current.status,
+            conn.now(),
+            id,
+          )
+          const [committed] = appendInTransaction(conn, payloads, current.session_id, [entry])
+          return { schedule: toSchedule(select(id)!), entry: committed! }
         }),
       ),
   }

@@ -128,8 +128,16 @@ export class SessionService {
     return this.#runtimes.activeRuns()
   }
 
-  toDto(stored: StoredSession): Session {
-    const session = { ...stored, thinkingLevel: this.#models.effectiveLevel(stored) }
+  /** 协议 DTO：parentSessionId 只在子 Session 上出现，worktree 为创建时绑定的 worktree（含已移除的）。 */
+  async toDto(stored: StoredSession): Promise<Session> {
+    const { parentSessionId, worktreeId, ...rest } = stored
+    const worktree = worktreeId === null ? undefined : await this.#store.worktrees.get(worktreeId)
+    const session = {
+      ...rest,
+      thinkingLevel: this.#models.effectiveLevel(stored),
+      ...(parentSessionId === null ? {} : { parentSessionId }),
+      ...(worktree ? { worktree: { id: worktree.id, name: worktree.name, branch: worktree.branch, status: worktree.status } } : {}),
+    }
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false
     if (running) return { ...session, running, activity: runtime!.pendingApprovals.length > 0 ? 'awaiting-approval' : 'running' }
@@ -192,11 +200,28 @@ export class SessionService {
   // ---- DTO 与模型（session-models.ts） ----
 
   async list(workspaceId?: string): Promise<Session[]> {
+    // 子 Session 不在列表中（store 的 listSessions 只列根 Session）。
     const sessions = await this.#store.sessions.listSessions(workspaceId ? { workspaceId } : {})
-    return sessions.map((session) => this.toDto(session))
+    return Promise.all(sessions.map((session) => this.toDto(session)))
   }
 
-  async create(input: { workspaceId: string; title?: string; model?: SessionModel; thinkingLevel?: ThinkingLevel }): Promise<Session> {
+  /** 子 Session（子代理）按创建顺序。 */
+  async children(parentSessionId: string): Promise<Session[]> {
+    return Promise.all((await this.#store.sessions.listChildren(parentSessionId)).map((session) => this.toDto(session)))
+  }
+
+  /**
+   * 新建 Session。worktreeId 绑定同一 Workspace 的 worktree（ADR 0016，工作目录见 SessionCwd）；parentSessionId 创建子 Session
+   * （子代理，ADR 0014）。两者必须属于同一 Workspace，否则 400。
+   */
+  async create(input: {
+    workspaceId: string
+    title?: string
+    model?: SessionModel
+    thinkingLevel?: ThinkingLevel
+    worktreeId?: string
+    parentSessionId?: string
+  }): Promise<Session> {
     const { model, thinkingLevel } = await this.#models.initial(input)
     const mode = await this.permissions.defaultMode()
     const session = await this.#store.sessions.createSession({
@@ -204,6 +229,8 @@ export class SessionService {
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
       thinkingLevel,
+      ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
+      ...(input.parentSessionId === undefined ? {} : { parentSessionId: input.parentSessionId }),
     })
     // 初始模式也是条目：之后默认模式改变不影响已有 Session（ADR 0005）。
     await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
@@ -215,7 +242,7 @@ export class SessionService {
     const session = await this.#get(sessionId)
     const entries = await this.#store.sessions.listEntries(sessionId)
     this.#runtimes.rememberStatus(sessionId, entries)
-    return { session: this.toDto(session), entries }
+    return { session: await this.toDto(session), entries }
   }
 
   /** 设置 defaultModel → faux（测试）→ 第一个 Provider 的第一个模型；都不可用时为 undefined。 */

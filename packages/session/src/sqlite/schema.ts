@@ -198,4 +198,64 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // M5：子 Session 与 worktree 绑定（ADR 0014、0016）、定时任务（ADR 0015）、子进程登记增加 hook 与 git 类别（ADR 0012）。
+    // host_processes 的 kind CHECK 不能原地修改：按原样复制登记行后重建。worktrees 先于 sessions.worktree_id 创建（外键引用）。
+    version: 8,
+    up(db) {
+      db.exec(`
+        CREATE TABLE worktrees (
+          id           TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+          name         TEXT NOT NULL,
+          path         TEXT NOT NULL UNIQUE,
+          branch       TEXT NOT NULL,
+          base_commit  TEXT NOT NULL,
+          repo_root    TEXT NOT NULL,
+          status       TEXT NOT NULL CHECK (status IN ('active', 'removed')),
+          created_by   TEXT NOT NULL CHECK (created_by IN ('user', 'subagent')),
+          created_at   INTEGER NOT NULL,
+          removed_at   INTEGER,
+          CHECK ((status = 'removed') = (removed_at IS NOT NULL))
+        ) STRICT;
+        CREATE INDEX worktrees_by_workspace ON worktrees(workspace_id, created_at);
+
+        ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions(id);
+        ALTER TABLE sessions ADD COLUMN worktree_id TEXT REFERENCES worktrees(id);
+        CREATE INDEX sessions_by_parent ON sessions(parent_session_id, created_at);
+
+        CREATE TABLE schedules (
+          id              TEXT PRIMARY KEY,
+          session_id      TEXT NOT NULL REFERENCES sessions(id),
+          title           TEXT NOT NULL,
+          prompt          TEXT NOT NULL,
+          rule            TEXT NOT NULL,
+          status          TEXT NOT NULL CHECK (status IN ('active', 'paused', 'inactive')),
+          next_at         INTEGER,
+          last_occurrence INTEGER,
+          revision        INTEGER NOT NULL CHECK (revision >= 1),
+          created_at      INTEGER NOT NULL,
+          updated_at      INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX schedules_by_next ON schedules(next_at);
+        CREATE INDEX schedules_by_session ON schedules(session_id, created_at);
+
+        CREATE TABLE host_processes_v8 (
+          id         TEXT PRIMARY KEY,
+          pid        INTEGER NOT NULL CHECK (pid > 0),
+          pgid       INTEGER CHECK (pgid IS NULL OR pgid > 0),
+          started_at TEXT NOT NULL,
+          kind       TEXT NOT NULL CHECK (kind IN ('bash', 'job', 'pty', 'mcp', 'hook', 'git')),
+          session_id TEXT,
+          job_id     TEXT,
+          command    TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        ) STRICT;
+        INSERT INTO host_processes_v8 (rowid, id, pid, pgid, started_at, kind, session_id, job_id, command, created_at)
+          SELECT rowid, id, pid, pgid, started_at, kind, session_id, job_id, command, created_at FROM host_processes;
+        DROP TABLE host_processes;
+        ALTER TABLE host_processes_v8 RENAME TO host_processes;
+      `)
+    },
+  },
 ]

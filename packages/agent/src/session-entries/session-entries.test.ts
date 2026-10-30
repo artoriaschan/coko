@@ -3,7 +3,7 @@ import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing
 import { createTempWorkspace } from '../testing/workspace.ts'
 import { createAgentRuntime } from '../engine/runtime.ts'
 import type { RunEntry } from '../engine/types.ts'
-import { SESSION_ENTRY_PAYLOADS } from './index.ts'
+import { SESSION_ENTRY_PAYLOADS, type EntryJson } from './index.ts'
 
 const definition = (kind: string) => {
   const found = SESSION_ENTRY_PAYLOADS.find((d) => d.kind === kind)
@@ -93,7 +93,7 @@ describe('Session Entry payload 定义', () => {
   it('run_start v2 条目迁移为 v3（原样）；v3 接受 schedule / subagent / handoff 与 schedule 字段，v2 不接受', () => {
     const versions = definition('run_start').versions
     expect(versions).toHaveLength(3)
-    for (const payload of [{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'g1', round: 2 } }]) {
+    for (const payload of [{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'g1', round: 2 } }] as EntryJson[]) {
       expect(versions[1]!.check(payload)).toBeUndefined()
       const migrated = versions[2]!.migrate!(payload)
       expect(migrated).toEqual(payload)

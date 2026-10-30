@@ -2,7 +2,9 @@
 import { StoreError } from './errors.ts'
 import {
   HOST_PROCESS_KINDS,
+  SCHEDULE_STATUSES,
   THINKING_LEVELS,
+  WORKTREE_CREATORS,
   type HostProcessInput,
   type JsonValue,
   type SessionEntry,
@@ -80,6 +82,26 @@ export function checkHostProcess(input: HostProcessInput): { pgid: number | null
   if (!(HOST_PROCESS_KINDS as readonly string[]).includes(input.kind))
     throw new StoreError('invalid-input', `unknown process kind ${String(input.kind)}`, { field: 'kind' })
   return { pgid, sessionId: input.sessionId ?? null, jobId: input.jobId ?? null }
+}
+
+/** 记录的乐观并发冲突（与设置的 revisionConflict 同形的 details）。 */
+export function recordRevisionConflict(entity: string, id: string, expected: number, actual: number): StoreError {
+  return new StoreError('revision-conflict', `${entity} ${id} is at revision ${actual}, expected ${expected}`, { [entity]: id, expected, actual })
+}
+
+export function checkScheduleStatus(status: string): void {
+  if (!(SCHEDULE_STATUSES as readonly string[]).includes(status))
+    throw new StoreError('invalid-input', `unknown schedule status ${status}`, { field: 'status' })
+}
+
+export function checkWorktreeCreator(createdBy: string): void {
+  if (!(WORKTREE_CREATORS as readonly string[]).includes(createdBy))
+    throw new StoreError('invalid-input', `unknown worktree creator ${createdBy}`, { field: 'createdBy' })
+}
+
+/** 新 Session 的父 Session 与 worktree 必须属于同一 Workspace。 */
+export function sameWorkspace(what: string, actual: string, expected: string): void {
+  if (actual !== expected) throw new StoreError('invalid-input', `${what} belongs to another workspace`, { field: what })
 }
 
 export function closedError(): StoreError {

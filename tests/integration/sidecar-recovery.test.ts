@@ -219,8 +219,8 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    // 当前版本 7（v7：子进程登记表 host_processes）。
-    expect(version(db)).toBe(7)
+    // 当前版本 8（v8：子 Session、worktrees、schedules，host_processes 增加 hook / git）。
+    expect(version(db)).toBe(8)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
     // 备份保留旧 Provider。
     const backup = new DatabaseSync(join(dirs.dataDir, backups[0]!), { readOnly: true })

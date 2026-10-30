@@ -63,6 +63,8 @@ export function toAppError(error: unknown): AppError {
   if (isStoreError(error)) {
     if (error.code === 'not-found') return new AppError('not-found', error.message)
     if (error.code === 'revision-conflict') return new AppError('revision-conflict', error.message, { ...error.details })
+    // 调用方给出的引用不一致（例如父 Session 属于其他 Workspace）。
+    if (error.code === 'invalid-input') return new AppError('bad-request', error.message)
     if (error.fatal || error.code === 'closed') return new AppError('storage-unavailable', error.message, { storeCode: error.code })
   }
   return new AppError('internal', 'Internal error')
