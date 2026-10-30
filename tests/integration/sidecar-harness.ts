@@ -306,6 +306,38 @@ export async function startSidecar(options: SpawnOptions): Promise<Sidecar> {
   })
 }
 
+/**
+ * SIGKILL Sidecar（不经有序关闭：Run、Job 与登记的子进程都不会被收尾），等它退出，再以同一数据目录与给定选项启动新 Sidecar。
+ * 重启后的启动清理与启动恢复由新实例完成；faux 队列从头开始，需要不同回复时在 options.env 中换脚本。
+ */
+export async function killAndRestart(sidecar: Pick<SidecarProcess, 'child' | 'exited'>, options: SpawnOptions): Promise<Sidecar> {
+  sidecar.child.kill('SIGKILL')
+  const exit = await sidecar.exited
+  if (exit.signal !== 'SIGKILL') throw new Error(`Sidecar exited before SIGKILL: ${JSON.stringify(exit)}`)
+  return startSidecar(options)
+}
+
+/** 进程是否存在（signal 0；没有权限发信号的进程也算存在）。只用于测试自己启动或记录了 pid 的进程。 */
+export function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/** 等待这些进程都不存在（轮询进程表，不用固定 sleep）；超时时报出仍存在的 pid。 */
+export async function waitProcessesGone(pids: readonly number[], timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const alive = pids.filter(processExists)
+    if (alive.length === 0) return
+    if (Date.now() > deadline) throw new Error(`Processes still running after ${timeoutMs} ms: ${alive.join(', ')}`)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 export interface HttpResult {
   status: number
   headers: IncomingHttpHeaders

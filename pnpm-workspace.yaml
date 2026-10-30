@@ -9,6 +9,8 @@ saveExact: true
 # strictDepBuilds 默认开启：未裁决的安装脚本会让安装失败。逐个放行或拒绝。
 allowBuilds:
   electron: true
+  # PTY 后端（apps/server）；安装脚本只在没有预编译产物时编译。spawn-helper 的可执行位由根 postinstall 恢复。
+  node-pty: true
   koffi: false
   protobufjs: false
   '@google/genai': false

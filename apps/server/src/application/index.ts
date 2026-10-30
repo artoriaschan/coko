@@ -1,6 +1,8 @@
 import type { SessionStore } from '@coko/session'
 import type { ConfigService } from './config.ts'
 import type { ContextService } from './context-service.ts'
+import type { GoalService } from './goals.ts'
+import type { JobService } from './jobs.ts'
 import type { McpAdmin } from './context/mcp-admin.ts'
 import type { MemoryService } from './context/memory.ts'
 import type { SessionHub } from './hub.ts'
@@ -28,4 +30,8 @@ export interface Application {
   mcp: McpAdmin
   /** 登记的 Secret（ADR 0007）。 */
   secrets: SecretService
+  /** 后台任务（/api/sessions/:id/jobs、/api/jobs）。 */
+  jobs: JobService
+  /** Goal（/api/sessions/:id/goal）。 */
+  goals: GoalService
 }

@@ -7,6 +7,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",
+    "postinstall": "node scripts/postinstall-node-pty.mjs",
     "prepare": "husky",
     "test": "vitest run",
     "typecheck": "tsc -b"

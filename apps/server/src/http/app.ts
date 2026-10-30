@@ -117,7 +117,9 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.detail(c.req.param('id'))))
   http.post(`${API_ROUTES.sessions}/:id/messages`, async (c) => {
     const { text } = await body(c, SubmitMessageRequest)
-    return c.json(await app.sessions.submit(c.req.param('id'), text), 202)
+    const result = await app.sessions.submit(c.req.param('id'), text)
+    // 不开始 Run 的动作（例如 /goal pause）：204。
+    return 'runId' in result ? c.json(result, 202) : c.body(null, 204)
   })
   http.post(`${API_ROUTES.sessions}/:id/retry`, async (c) => c.json(await app.sessions.retry(c.req.param('id')), 202))
   http.post(`${API_ROUTES.sessions}/:id/abort`, async (c) => c.json({ aborted: await app.sessions.abort(c.req.param('id')) }))

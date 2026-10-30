@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process'
 import { Type } from 'typebox'
 import type { CokoTool } from '@coko/agent'
+import type { ContextContribution } from '../application/context/types.ts'
 
 /** secret_probe 声明的密钥名。 */
 export const TEST_SECRET = 'COKO_TEST_SECRET'
@@ -12,6 +13,39 @@ const value = process.env.${TEST_SECRET}
 const hash = value === undefined ? null : require('node:crypto').createHash('sha256').update(value).digest('hex')
 process.stdout.write(JSON.stringify({ sha256: hash, length: value === undefined ? 0 : value.length }))
 `
+
+/**
+ * test_queue_input：把文本排进"下一个 Run 的待送达内容"（ContextContribution.pendingInput），集成测试据此观察合并到 user message
+ * 开头的内容。Run 开始后确认送达才清空。
+ */
+export function createTestSeamContribution(): ContextContribution {
+  let queued: string[] = []
+  const tool: CokoTool = {
+    name: 'test_queue_input',
+    label: 'test_queue_input',
+    description: 'Test tool: queues text that is merged into the next Run.',
+    parameters: Type.Object({ text: Type.String() }),
+    effect: 'read',
+    async execute(_toolCallId, params) {
+      queued.push((params as { text: string }).text)
+      return { content: [{ type: 'text', text: 'queued' }], details: undefined }
+    },
+  }
+  return {
+    name: 'test-seam',
+    tools: async () => [{ tool, permissionClass: 'session-state' }],
+    async pendingInput() {
+      if (queued.length === 0) return undefined
+      const taken = queued
+      return {
+        content: taken.map((text) => ({ type: 'text' as const, text })),
+        delivered: () => {
+          queued = queued.filter((text) => !taken.includes(text))
+        },
+      }
+    },
+  }
+}
 
 /** secret_probe：在子进程中读取声明的密钥并回报其散列，证明注入只作用于该次调用的子进程（子进程环境只有 PATH 与该密钥）。 */
 export function createSecretProbeTool(): CokoTool {

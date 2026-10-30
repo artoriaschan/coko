@@ -60,12 +60,18 @@ export async function readDir(dir: string): Promise<{ name: string; bytes: Buffe
   return Promise.all(files.map(async (path) => ({ name: path.slice(dir.length + 1), bytes: await readFile(path) })))
 }
 
+/** 后台任务的日志目录 <dataDir>/jobs（每个 Session 一个子目录）。 */
+export const jobLogDir = (dirs: Pick<SidecarDirs, 'dataDir'>) => join(dirs.dataDir, 'jobs')
+
 /**
- * 落盘位置：库文件（含 -wal、-shm）、快照目录（<dataDir>/blobs）与日志目录（含轮转文件）。includeCokoHome 时一并扫描临时 COKO_HOME
- * （Memory、指令等写入用户级目录的通道）。
+ * 落盘位置：库文件（含 -wal、-shm）、快照目录（<dataDir>/blobs）、后台任务日志（<dataDir>/jobs）与日志目录（含轮转文件）。
+ * includeCokoHome 时一并扫描临时 COKO_HOME（Memory、指令等写入用户级目录的通道）。
  */
 export async function persisted(dirs: SidecarDirs, options: { includeCokoHome?: boolean } = {}) {
-  const files = [...(await readDir(dirs.dataDir)), ...(await readDir(dirs.logDir))]
+  // <dataDir> 的递归读取已含 blobs/；jobs/ 单列一次，即使将来 dataDir 的扫描改为只读库文件，Job 日志也在扫描范围内。
+  const data = await readDir(dirs.dataDir)
+  const jobs = (await readDir(jobLogDir(dirs))).map((f) => ({ ...f, name: `jobs/${f.name}` }))
+  const files = [...data.filter((f) => !f.name.startsWith('jobs/')), ...jobs, ...(await readDir(dirs.logDir))]
   if (options.includeCokoHome) files.push(...(await readDir(dirs.cokoHome)).map((f) => ({ ...f, name: `coko-home/${f.name}` })))
   expect(files.some((f) => f.name === 'coko.db')).toBe(true)
   expect(files.some((f) => f.name === 'sidecar.jsonl')).toBe(true)
