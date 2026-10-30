@@ -209,6 +209,8 @@ export interface ContextContributionOptions {
   jobs?: import('../jobs.ts').JobService
   /** Goal（application/goals.ts）；省略时 goal 贡献为空。 */
   goals?: import('../goals.ts').GoalService
+  /** 定时任务（application/schedules.ts）；省略时 schedules 贡献只有规则工具名。 */
+  schedules?: import('../schedules.ts').ScheduleService
   /** Session 条目的读取与提交（领域自己的条目，例如 todo_list）；省略时这些领域为空贡献。 */
   entries?: SessionEntryAccess
   /** 仅测试：额外的贡献，排在全部领域之后（集成测试驱动 seam）。 */

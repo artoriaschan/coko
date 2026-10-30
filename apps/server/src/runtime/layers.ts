@@ -20,7 +20,7 @@ import { HandoffService } from '../application/handoff.ts'
 import { HookService } from '../application/hooks.ts'
 import { NotificationService } from '../application/notifications.ts'
 import { m5RecoveryHooks } from '../application/recovery.ts'
-import { ScheduleService } from '../application/schedules.ts'
+import { ScheduleService, type ScheduleRunHost } from '../application/schedules.ts'
 import { SubagentService } from '../application/subagents.ts'
 import { WorktreeService } from '../application/worktrees.ts'
 import { ConfigService } from '../application/config.ts'
@@ -79,7 +79,12 @@ export class Assembly extends Context.Service<
     hub: SessionHub
     jobs: JobService
     goals: GoalService
-    /** AppLive 创建 SessionService 之后调用一次：Job 与 Goal 的 Run 能力从此生效。 */
+    /** 定时任务与桌面通知（定时任务的贡献读取它们；定时器在 AppLive 启动恢复之后开始）。 */
+    schedules: ScheduleService
+    notifications: NotificationService
+    clock: ClockPort
+    testClock: TestClock | undefined
+    /** AppLive 创建 SessionService 之后调用一次：Job、Goal 与定时任务的 Run 能力从此生效。 */
     bindSessions: (sessions: SessionService) => void
   }
 >()('coko/Assembly') {}
@@ -109,7 +114,13 @@ function lateSessionRuns() {
     abort: (sessionId) => sessions().abort(sessionId),
     pause: (sessionId) => sessions().pause(sessionId),
   }
-  return { jobs, goals, bind: (service: SessionService) => void (bound = service) }
+  const schedules: ScheduleRunHost = {
+    isRunning: (sessionId) => sessions().isRunning(sessionId),
+    startRun: (sessionId, request) => sessions().runs.startRun(sessionId, request),
+    defaultModel: () => sessions().defaultModel(),
+    cwd: async (session) => (await sessions().runs.cwd(session)).cwd,
+  }
+  return { jobs, goals, schedules, bind: (service: SessionService) => void (bound = service) }
 }
 
 /** 有序关闭的每一步记一行（按释放顺序：定时器 → Run → Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
@@ -248,6 +259,23 @@ const AssemblyLive = Layer.effect(
     const runs = lateSessionRuns()
     const jobs = new JobService({ store, hub, runs: runs.jobs, logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
     const goals = new GoalService({ store, hub, jobs, runs: runs.goals })
+    // 时钟：测试构建且未 --packaged、开启 COKO_TEST_CLOCK 时为可控时钟（起点可由 COKO_TEST_CLOCK_START 给出）。
+    const testClock: TestClock | undefined = sidecar.testClock && !sidecar.packaged ? createTestClock(sidecar.testClockStart ?? Date.now()) : undefined
+    if (testClock) getLogger(['runtime']).warn('test clock enabled', { now: testClock.now() })
+    const clock: ClockPort = testClock ?? systemClock()
+    const notifications = new NotificationService({
+      store,
+      ...(control.mode === 'ipc' ? { send: (message: Parameters<ControlChannel['send']>[0]) => void control.send(message).catch(() => undefined) } : {}),
+    })
+    const schedules = new ScheduleService({
+      store,
+      hub,
+      clock,
+      config,
+      notifications,
+      runs: runs.schedules,
+      ...(sidecar.testScheduleHold ? { holdAfterRecord: true } : {}),
+    })
     // 测试工具另带 M5 seam 的测试贡献（beforeSubmit、onStop 等，按消息中的标记触发）。
     const extra = sidecar.testTools ? [createTestSeamContribution(), createM5SeamContribution()] : []
     // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。
@@ -259,14 +287,14 @@ const AssemblyLive = Layer.effect(
         return committed!
       },
     }
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, entries, extra })
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, schedules, entries, extra })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
     yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
     // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
     yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
-    return { config, context, mcp: admin, secrets, hub, jobs, goals, bindSessions: runs.bind }
+    return { config, context, mcp: admin, secrets, hub, jobs, goals, schedules, notifications, clock, testClock, bindSessions: runs.bind }
   }),
 )
 
@@ -356,23 +384,15 @@ const AppLive = Layer.effect(
     const processes = yield* Processes
     // 前台 bash 的进程组登记为 bash（ADR 0012），命令结束后删除。
     const workspaceTools = (yield* Tools)({ wrapExec: (port) => processes.trackExec(port, { kind: 'bash' }) })
-    const { config: capabilities, context, mcp, secrets, hub, jobs, goals, bindSessions } = yield* Assembly
+    const { config: capabilities, context, mcp, secrets, hub, jobs, goals, schedules, notifications, clock, testClock, bindSessions } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
-    // M5 的服务（存根，各自的实现接入）。时钟：测试构建且未 --packaged、开启 COKO_TEST_CLOCK 时为可控时钟。
-    const testClock: TestClock | undefined = config.testClock && !config.packaged ? createTestClock() : undefined
-    if (testClock) log.warn('test clock enabled', { now: testClock.now() })
-    const clock: ClockPort = testClock ?? systemClock()
+    // M5 的服务（存根，各自的实现接入）；定时任务与通知在 AssemblyLive 创建。
     const hooks = new HookService()
     const subagents = new SubagentService()
     const worktrees = new WorktreeService()
     const handoff = new HandoffService()
-    const schedules = new ScheduleService({ clock })
-    const notifications = new NotificationService({
-      store,
-      ...(control.mode === 'ipc' ? { send: (message: Parameters<ControlChannel['send']>[0]) => void control.send(message).catch(() => undefined) } : {}),
-    })
     // Credential 明文与 Secret 走同一个按值脱敏机制（ADR 0004）：不是凭据形态的自定义密钥被回显时同样替换。
     yield* Effect.acquireRelease(
       Effect.sync(() => registerSecretValues(() => credentials.cachedValues(), { replacement: REDACTED })),

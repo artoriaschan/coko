@@ -1,5 +1,17 @@
 import { join, resolve } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, protocol, safeStorage, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Notification,
+  protocol,
+  safeStorage,
+  session,
+  shell,
+  type IpcMainInvokeEvent,
+  type MessageBoxOptions,
+} from 'electron'
 import { createTranslator, resolveLocale } from '@coko/i18n'
 import { getLogger, redactText } from '@coko/logging'
 import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '../shared/bridge.ts'
@@ -255,6 +267,12 @@ function run(): void {
     handleNotify(message, {
       focused: () => mainWindow !== undefined && !mainWindow.isDestroyed() && mainWindow.isFocused() && mainWindow.isVisible(),
       testBuild: TEST_BUILD,
+      show: ({ title, body }) => {
+        if (!Notification.isSupported()) return undefined
+        const notification = new Notification({ title, body })
+        notification.show()
+        return { onClick: (listener) => void notification.on('click', listener), onClose: (listener) => void notification.on('close', listener) }
+      },
       openSession: (sessionId) => {
         if (mainWindow === undefined || mainWindow.isDestroyed()) return
         if (mainWindow.isMinimized()) mainWindow.restore()
