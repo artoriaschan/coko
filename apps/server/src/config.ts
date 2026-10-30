@@ -25,6 +25,8 @@ export interface SidecarConfig {
   sandboxExec?: string
   /** COKO_TEST_TOOLS=1：注册测试用宿主工具（secret_probe），仅测试使用。 */
   testTools?: boolean
+  /** COKO_TEST_CLOCK=1：定时任务使用可控时钟并挂载 POST /api/test/clock，仅测试使用。 */
+  testClock?: boolean
   /** COKO_TEST_HOLD_AFTER_TOOL / COKO_TEST_HOLD_BEFORE_CHECKPOINT（需 COKO_TEST_TOOLS=1）：工具执行后挂起，仅测试使用。 */
   testHold?: { tool: string; beforeCheckpoint: boolean }
   /** 打包的发布构建中被忽略的测试钩子变量名（只记名字，用于启动日志）。 */
@@ -58,7 +60,9 @@ export interface ParseOptions {
 type Env = Readonly<Record<string, string | undefined>>
 
 /** 测试钩子：faux provider、替换 sandbox-exec、测试工具与挂起。格式错误时抛 ConfigError。 */
-function testHooks(env: Env): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold'> {
+function testHooks(env: Env): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock'> {
+  const testClock = env.COKO_TEST_CLOCK
+  if (testClock !== undefined && testClock !== '1') throw new ConfigError('COKO_TEST_CLOCK must be 1 when set')
   const fauxScript = env.COKO_FAUX_SCRIPT
   if (fauxScript !== undefined && !isAbsolute(fauxScript)) throw new ConfigError('COKO_FAUX_SCRIPT must be an absolute path')
   const sandboxExec = env.COKO_SANDBOX_EXEC
@@ -70,6 +74,7 @@ function testHooks(env: Env): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' |
     ...(fauxScript ? { fauxScript } : {}),
     ...(sandboxExec ? { sandboxExec } : {}),
     ...(testTools ? { testTools: true } : {}),
+    ...(testClock ? { testClock: true } : {}),
     ...(hold ? { testHold: { tool: hold, beforeCheckpoint: env.COKO_TEST_HOLD_BEFORE_CHECKPOINT === '1' } } : {}),
   }
 }

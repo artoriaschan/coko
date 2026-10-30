@@ -1,14 +1,19 @@
 import {
   fileReferencePath,
+  type AgentNotificationPayload,
   type ApprovalDecisionPayload,
   type ApprovalRequestPayload,
   type CommandPayload,
   type CompactionPayload,
   type GoalPayload,
+  type HandoffOriginPayload,
+  type HandoffPayload,
+  type HookRunPayload,
   type JobEndPayload,
   type JobNotificationPayload,
   type JobStartPayload,
   type PlanPayload,
+  type ScheduleFirePayload,
   type SessionEntry,
 } from '@coko/protocol'
 import { JOB_NOTIFICATION_TAG, rewoundRanges } from '@coko/agent/entries'
@@ -80,6 +85,11 @@ export type TimelineItem =
       key: string
       job: { kind: 'start'; payload: JobStartPayload } | { kind: 'end'; payload: JobEndPayload } | { kind: 'notification'; payload: JobNotificationPayload }
     }
+  /** M5 的条目：各自的组件在对应功能交付前不渲染（返回 null）。agent_start / agent_end / subagent_origin 不单独成行（由工具卡表示）。 */
+  | { kind: 'hook'; key: string; hook: HookRunPayload }
+  | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
+  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload }
+  | { kind: 'handoff'; key: string; handoff: { kind: 'source'; payload: HandoffPayload } | { kind: 'origin'; payload: HandoffOriginPayload } }
 
 interface Block {
   type?: unknown
@@ -194,6 +204,23 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             ? ({ kind: 'end', payload: entry.payload } as const)
             : ({ kind: 'notification', payload: entry.payload } as const)
       items.push({ kind: 'job', key: `${entry.seq}`, job })
+      return
+    }
+    if (entry.kind === 'hook_run') {
+      items.push({ kind: 'hook', key: `${entry.seq}`, hook: entry.payload })
+      return
+    }
+    if (entry.kind === 'agent_notification') {
+      items.push({ kind: 'agent-notification', key: `${entry.seq}`, notification: entry.payload })
+      return
+    }
+    if (entry.kind === 'schedule_fire') {
+      items.push({ kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload })
+      return
+    }
+    if (entry.kind === 'handoff' || entry.kind === 'handoff_origin') {
+      const handoff = entry.kind === 'handoff' ? ({ kind: 'source', payload: entry.payload } as const) : ({ kind: 'origin', payload: entry.payload } as const)
+      items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
       return
     }
     if (entry.kind === 'run_end') {

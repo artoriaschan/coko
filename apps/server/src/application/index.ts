@@ -1,4 +1,11 @@
 import type { SessionStore } from '@coko/session'
+import type { ClockPort, TestClock } from '../adapters/clock.ts'
+import type { HandoffService } from './handoff.ts'
+import type { HookService } from './hooks.ts'
+import type { NotificationService } from './notifications.ts'
+import type { ScheduleService } from './schedules.ts'
+import type { SubagentService } from './subagents.ts'
+import type { WorktreeService } from './worktrees.ts'
 import type { ConfigService } from './config.ts'
 import type { ContextService } from './context-service.ts'
 import type { GoalService } from './goals.ts'
@@ -34,4 +41,14 @@ export interface Application {
   jobs: JobService
   /** Goal（/api/sessions/:id/goal）。 */
   goals: GoalService
+  /** M5：时钟（定时任务）；测试构建开启 COKO_TEST_CLOCK 时为可控时钟。 */
+  clock: ClockPort
+  /** 测试时钟（只在测试构建且开启时）：POST /api/test/clock 据此挂载。 */
+  testClock?: TestClock
+  hooks: HookService
+  subagents: SubagentService
+  schedules: ScheduleService
+  worktrees: WorktreeService
+  handoff: HandoffService
+  notifications: NotificationService
 }

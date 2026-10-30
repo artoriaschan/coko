@@ -10,6 +10,7 @@ import { createConnectionStore } from './app/connection-store.ts'
 import { createPreferences } from './app/preferences.ts'
 import { createSettingsPageStore } from './app/settings-page-store.ts'
 import { createRendererLog } from './app/renderer-log.ts'
+import { bindOpenSession } from './app/open-session.ts'
 import { createApiClient } from './client/api.ts'
 import { connect } from './client/connection.ts'
 import { createChatStore } from './stores/chat-store.ts'
@@ -74,6 +75,8 @@ const preferences = createPreferences({
   onConflict: (retry) => toast.error(t()('settings.conflict'), { action: { label: t()('settings.retry'), onClick: retry } }),
   onFailure: (_error, retry) => toast.error(t()('settings.saveFailed'), { action: { label: t()('settings.retry'), onClick: retry } }),
 })
+// 点击桌面通知：main 经 preload 要求打开该会话。
+bindOpenSession(bridge, { openSession: (sessionId) => chat.getState().openSession(sessionId), closeSettings: () => settingsPage.back() })
 // 每次（重新）连接后读取设置与 Provider。
 stream.onOpen(() => void settings.getState().load())
 const pickDirectory = () => window.coko?.pickDirectory() ?? Promise.resolve(null)

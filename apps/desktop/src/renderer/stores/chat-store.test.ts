@@ -351,3 +351,72 @@ describe('chat store', () => {
     expect(store.getState().sessions[0]?.model).toEqual({ providerId: 'faux', modelId: 'faux-1' })
   })
 })
+
+describe('chat store：M5 的条目与进度', () => {
+  it('新 kind 的条目通过信任边界校验、不报错；时间线只给出空组件的分发项，agent_start / agent_end / subagent_origin 不成行', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream })
+    await store.getState().load()
+    const m5: [string, unknown][] = [
+      ['hook_run', { event: 'PreToolUse', hookId: 'h', source: 'global', command: 'c', outcome: 'blocked', durationMs: 1 }],
+      ['agent_start', { agentId: 's2', agentType: 'explore', description: 'd', background: false, toolCallId: 't' }],
+      ['agent_end', { agentId: 's2', status: 'completed', usage: { turns: 1, toolCalls: 0, tokens: 1, cost: 0, durationMs: 1 }, resultChars: 0 }],
+      ['agent_notification', { agentIds: ['s2'] }],
+      [
+        'subagent_origin',
+        { parentSessionId: 's0', parentRunId: 'r0', toolCallId: 't', definition: { name: 'general', source: 'builtin', tools: [], maxTurns: 50 } },
+      ],
+      ['schedule_fire', { scheduleId: 'sc', occurrence: 1, status: 'started', runId: 'r9' }],
+      ['handoff', { targetSessionId: 's3', instructions: 'i', summary: 's', target: 'current' }],
+      ['handoff_origin', { sessionId: 's0', seq: 4 }],
+    ]
+    m5.forEach(([kind, payload], i) => stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', i + 1, payload, kind) }))
+    stream.deliver({
+      type: 'entry',
+      sessionId: 's1',
+      entry: entry('s1', 9, { trigger: 'schedule', schedule: { scheduleId: 'sc', occurrence: 1 } }, 'run_start'),
+    })
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 9, running: false })
+    const conversation = store.getState().conversations.s1!
+    expect(conversation.entries.map((e) => e.kind)).toEqual([...m5.map(([kind]) => kind), 'run_start'])
+    expect(buildTimeline(conversation).map((i) => i.kind)).toEqual(['hook', 'agent-notification', 'schedule-fire', 'handoff', 'handoff'])
+  })
+
+  it('agent_update 与 schedule_update 进度不使会话进入运行中，照常交给订阅者', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: false })
+    const seen: string[] = []
+    store.getState().onProgress((p) => void seen.push(p.event.type))
+    stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event: { type: 'agent_update', agentId: 's2', status: 'running' } })
+    stream.deliver({
+      type: 'progress',
+      sessionId: 's1',
+      runId: '',
+      event: {
+        type: 'schedule_update',
+        schedule: { id: 'sc', sessionId: 's1', title: 't', prompt: 'p', rule: { kind: 'every', seconds: 60 }, status: 'active', revision: 1 },
+      },
+    })
+    expect(seen).toEqual(['agent_update', 'schedule_update'])
+    expect(store.getState().conversations.s1!.running).toBe(false)
+    expect(store.getState().sessions.find((s) => s.id === 's1')?.running).toBe(false)
+  })
+
+  it('subscribeSession 订阅子 Session 而不切换当前会话；已订阅的不重复订阅', async () => {
+    const stream = new FakeStream()
+    const store = createChatStore({ api: fakeApi(), stream, subscribeTimeoutMs: 50 })
+    await store.getState().load()
+    const done = store.getState().subscribeSession('child')
+    expect(store.getState().activeSessionId).toBe('s1')
+    expect(stream.sent.at(-1)).toEqual({ type: 'subscribe', sessionId: 'child', afterSeq: 0 })
+    stream.deliver({ type: 'entry', sessionId: 'child', entry: entry('child', 1, user('task')) })
+    stream.deliver({ type: 'subscribed', sessionId: 'child', lastSeq: 1, running: true })
+    await done
+    expect(store.getState().conversations.child).toMatchObject({ status: 'ready', running: true, lastSeq: 1 })
+    const sent = stream.sent.length
+    await store.getState().subscribeSession('child')
+    expect(stream.sent.length).toBe(sent)
+  })
+})

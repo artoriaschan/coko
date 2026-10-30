@@ -21,12 +21,13 @@ import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
-import { SessionPermissions } from './session-permissions.ts'
-import { SessionRuns, type RunLauncher, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
+import { SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
+import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
 
 export type { RecoveryHook, RecoveryReport, RecoverySource } from './recovery.ts'
-export type { RunLauncher, SessionExtension, SessionExtensionContext } from './session-runs.ts'
+export type { RunLauncher, SessionCwd, SessionExtension, SessionExtensionContext } from './session-runs.ts'
+export type { PermissionScopeResolver } from './session-permissions.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -52,6 +53,10 @@ export interface SessionServiceOptions {
   checkpoints?: RewindFiles
   /** M3 上下文装配（application/context/）。缺省：没有任何贡献，模型请求与 M2 相同。 */
   context?: ContextAssembly
+  /** M5：Session 的工作目录（ADR 0016）。缺省 Workspace 目录。 */
+  cwd?: SessionCwd
+  /** M5：子 Session 的权限作用域（ADR 0014）。缺省每个 Session 是自己的根、没有上限。 */
+  permissionScopes?: PermissionScopeResolver
 }
 
 /**
@@ -79,7 +84,13 @@ export class SessionService {
       options.permissions ??
       new PermissionService(store, hostToolNames({ ...(options.tools ? { tools: options.tools } : {}), ruleTools: this.#context.ruleTools }))
     this.#runtimes = new SessionRuntimes(store, options.hub)
-    this.#permissions = new SessionPermissions({ store, runtimes: this.#runtimes, service: this.permissions, contributions: this.#context.contributions })
+    this.#permissions = new SessionPermissions({
+      store,
+      runtimes: this.#runtimes,
+      service: this.permissions,
+      contributions: this.#context.contributions,
+      ...(options.permissionScopes ? { scopes: options.permissionScopes } : {}),
+    })
     this.#recovery = new SessionRecovery({
       store,
       runtimes: this.#runtimes,
@@ -112,6 +123,7 @@ export class SessionService {
       recovery: this.#recovery,
       checkpoints: this.#checkpoints,
       models: this.#models,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
     })
   }
 

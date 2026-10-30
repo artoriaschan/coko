@@ -14,6 +14,15 @@ import { createWorkspaceTools, probeRipgrep, type WorkspaceToolsOptions } from '
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { join } from 'node:path'
 import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
+import { createTestClock, systemClock, type ClockPort, type TestClock } from '../adapters/clock.ts'
+import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
+import { HandoffService } from '../application/handoff.ts'
+import { HookService } from '../application/hooks.ts'
+import { NotificationService } from '../application/notifications.ts'
+import { m5RecoveryHooks } from '../application/recovery.ts'
+import { ScheduleService } from '../application/schedules.ts'
+import { SubagentService } from '../application/subagents.ts'
+import { WorktreeService } from '../application/worktrees.ts'
 import { ConfigService } from '../application/config.ts'
 import { ContextService } from '../application/context-service.ts'
 import { errorMessage } from '../application/errors.ts'
@@ -103,7 +112,7 @@ function lateSessionRuns() {
   return { jobs, goals, bind: (service: SessionService) => void (bound = service) }
 }
 
-/** 有序关闭的每一步记一行（按释放顺序：Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
+/** 有序关闭的每一步记一行（按释放顺序：定时器 → Run → Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
 const shutdownStep = (step: string) => Effect.sync(() => getLogger(['runtime']).info('shutdown step {step}', { step }))
 
 /** 文件日志：最先建立、最后释放。目录不可写时退回 console 诊断，不阻止启动。 */
@@ -239,7 +248,8 @@ const AssemblyLive = Layer.effect(
     const runs = lateSessionRuns()
     const jobs = new JobService({ store, hub, runs: runs.jobs, logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
     const goals = new GoalService({ store, hub, jobs, runs: runs.goals })
-    const extra = sidecar.testTools ? [createTestSeamContribution()] : []
+    // 测试工具另带 M5 seam 的测试贡献（beforeSubmit、onStop 等，按消息中的标记触发）。
+    const extra = sidecar.testTools ? [createTestSeamContribution(), createM5SeamContribution()] : []
     // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。
     const entries: SessionEntryAccess = {
       list: (sessionId) => store.sessions.listEntries(sessionId),
@@ -265,6 +275,8 @@ const RunsLive = Layer.effect(
   Runs,
   Effect.gen(function* () {
     const map = yield* FiberMap.make<string>()
+    // 后加的先释放：这一步记在 FiberMap 中断全部 Run 之前。
+    yield* Effect.addFinalizer(() => shutdownStep('runs'))
     const run = yield* FiberMap.runtime(map)<never>()
     return {
       launch(key, promise, abort) {
@@ -348,6 +360,19 @@ const AppLive = Layer.effect(
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
+    // M5 的服务（存根，各自的实现接入）。时钟：测试构建且未 --packaged、开启 COKO_TEST_CLOCK 时为可控时钟。
+    const testClock: TestClock | undefined = config.testClock && !config.packaged ? createTestClock() : undefined
+    if (testClock) log.warn('test clock enabled', { now: testClock.now() })
+    const clock: ClockPort = testClock ?? systemClock()
+    const hooks = new HookService()
+    const subagents = new SubagentService()
+    const worktrees = new WorktreeService()
+    const handoff = new HandoffService()
+    const schedules = new ScheduleService({ clock })
+    const notifications = new NotificationService({
+      store,
+      ...(control.mode === 'ipc' ? { send: (message: Parameters<ControlChannel['send']>[0]) => void control.send(message).catch(() => undefined) } : {}),
+    })
     // Credential 明文与 Secret 走同一个按值脱敏机制（ADR 0004）：不是凭据形态的自定义密钥被回显时同样替换。
     yield* Effect.acquireRelease(
       Effect.sync(() => registerSecretValues(() => credentials.cachedValues(), { replacement: REDACTED })),
@@ -388,12 +413,17 @@ const AppLive = Layer.effect(
       // Session 恢复之后：Job 补记 lost，再把未结束的 Goal 暂停（重启后不自动继续）。
       try: () =>
         sessions.recover(store.recovery, [
+          ...m5RecoveryHooks({ subagents, worktrees }),
           { name: 'jobs', recover: (source) => jobs.recover(source) },
           { name: 'goals', recover: (source) => goals.recover(source) },
         ]),
       catch: (error) => new StartupError('recovery-failed', errorMessage(error), { cause: error }),
     })
     if (recovery.interruptedRuns > 0 || Object.values(recovery.domains).some((n) => n > 0)) log.warn('startup recovery finished', { ...recovery })
+    // 定时器在恢复之后开始；关闭时最先停止（HTTP 之后、Run 之前：本层的释放先于 Runs 层）。
+    schedules.start()
+    yield* Effect.addFinalizer(() => shutdownStep('timers').pipe(Effect.andThen(Effect.promise(() => schedules.stop()))))
+    yield* Effect.addFinalizer(() => Effect.promise(() => hooks.close()))
 
     // Provider 只经 main 的一次提交保存（ADR 0010）；HTTP 只提供列表与删除。
     serveProviderSave({ control, providers })
@@ -415,6 +445,14 @@ const AppLive = Layer.effect(
       secrets,
       jobs,
       goals,
+      clock,
+      ...(testClock ? { testClock } : {}),
+      hooks,
+      subagents,
+      schedules,
+      worktrees,
+      handoff,
+      notifications,
     } satisfies Application
   }),
 )
@@ -431,8 +469,9 @@ const HttpLive = Layer.effect(
 )
 
 /**
- * 装配顺序：Host → Logging → Tools → Store → Processes（孤儿清理）→ Assembly（上下文贡献、Job、Goal）→ Runs → App（启动恢复）→ Http；
- * 释放顺序相反：停止 HTTP → 中断并等待 Run → 关闭 Job → 关闭上下文贡献 → 终止登记进程 → 关闭存储 → 刷新日志。
+ * 装配顺序：Host → Logging → Tools → Store → Processes（孤儿清理）→ Assembly（上下文贡献、Job、Goal）→ Runs → App（M5 服务、启动恢复、
+ * 定时器）→ Http；释放顺序相反：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 终止登记进程 →
+ * 关闭存储 → 刷新日志。
  */
 export function sidecarLayer(host: HostShape) {
   return HttpLive.pipe(

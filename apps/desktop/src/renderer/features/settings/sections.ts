@@ -1,5 +1,19 @@
 import type { MessageKey } from '@coko/i18n'
-import { BlocksIcon, BoxIcon, BrainIcon, InfoIcon, PaletteIcon, PlugIcon, PuzzleIcon, ShieldIcon, SlidersHorizontalIcon, WebhookIcon } from 'lucide-react'
+import {
+  BellIcon,
+  BlocksIcon,
+  BotIcon,
+  BoxIcon,
+  BrainIcon,
+  ClockIcon,
+  InfoIcon,
+  PaletteIcon,
+  PlugIcon,
+  PuzzleIcon,
+  ShieldIcon,
+  SlidersHorizontalIcon,
+  WebhookIcon,
+} from 'lucide-react'
 import type * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { AboutSection } from './about-section.tsx'
@@ -11,7 +25,20 @@ import { PermissionsSection } from './permissions-section.tsx'
 import { SkillsSection } from './skills-section.tsx'
 
 /** 设置分区的 id；新分区在 SETTINGS_SECTIONS 登记一次；分区组件在各自的文件中，交付后把 available 设为 true。 */
-export type SettingsSectionId = 'general' | 'appearance' | 'memory' | 'permissions' | 'plugins' | 'skills' | 'mcp' | 'hooks' | 'models' | 'about'
+export type SettingsSectionId =
+  | 'general'
+  | 'appearance'
+  | 'memory'
+  | 'notifications'
+  | 'permissions'
+  | 'schedules'
+  | 'plugins'
+  | 'skills'
+  | 'mcp'
+  | 'hooks'
+  | 'agents'
+  | 'models'
+  | 'about'
 
 /** 菜单分类，按 SETTINGS_GROUPS 的顺序显示。 */
 export type SettingsGroupId = 'personal' | 'environment' | 'plugins' | 'models'
@@ -45,11 +72,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'general', label: 'settings.nav.general', icon: SlidersHorizontalIcon, Component: GeneralSection, group: 'personal', available: true },
   { id: 'appearance', label: 'settings.nav.appearance', icon: PaletteIcon, Component: Unavailable, group: 'personal', available: false },
   { id: 'memory', label: 'settings.nav.memory', icon: BrainIcon, Component: MemorySection, group: 'personal', available: true },
+  { id: 'notifications', label: 'notifications.settings', icon: BellIcon, Component: Unavailable, group: 'personal', available: false },
   { id: 'permissions', label: 'settings.nav.permissions', icon: ShieldIcon, Component: PermissionsSection, group: 'environment', available: true },
+  { id: 'schedules', label: 'schedules.settings', icon: ClockIcon, Component: Unavailable, group: 'environment', available: false },
   { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: Unavailable, group: 'plugins', available: false },
   { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
   { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
   { id: 'hooks', label: 'settings.nav.hooks', icon: WebhookIcon, Component: Unavailable, group: 'plugins', available: false },
+  { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: Unavailable, group: 'plugins', available: false },
   { id: 'models', label: 'settings.nav.models', icon: BoxIcon, Component: ModelsSection, group: 'models', available: true },
   { id: 'about', label: 'settings.nav.about', icon: InfoIcon, Component: AboutSection, available: true },
 ]

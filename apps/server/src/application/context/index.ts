@@ -5,7 +5,12 @@ import {
   composeBeforeToolCall,
   createToolRegistry,
   type BeforeRequestState,
+  type CompactInfo,
+  type CompactVerdict,
+  type PermissionHookPort,
   type RunInput,
+  type StopContinue,
+  type StopInfo,
   type SystemSection,
   type ToolHooks,
   type ToolRegistry,
@@ -16,13 +21,17 @@ import { ConfigService } from '../config.ts'
 import { commandsContribution } from './commands.ts'
 import { compactionContribution } from './compaction.ts'
 import { goalContribution } from './goal.ts'
+import { handoffContribution } from './handoff.ts'
+import { hooksContribution } from './hooks.ts'
 import { instructionsContribution } from './instructions.ts'
 import { jobsContribution } from './jobs.ts'
 import { mcpContribution } from './mcp.ts'
 import { memoryContribution } from './memory.ts'
 import { planContribution } from './plan.ts'
 import { referencesContribution } from './references.ts'
+import { schedulesContribution } from './schedules.ts'
 import { skillsContribution } from './skills.ts'
+import { subagentsContribution } from './subagents.ts'
 import { todoContribution } from './todo.ts'
 import type {
   ContextAction,
@@ -36,6 +45,7 @@ import type {
   RequestVerdict,
   RuleTool,
   RunEndInfo,
+  SubmitVerdict,
 } from './types.ts'
 import { usageContribution } from './usage.ts'
 
@@ -65,6 +75,10 @@ export function createContributions(options: ContextContributionOptions): Contex
     goalContribution(options),
     todoContribution(options),
     jobsContribution(options),
+    hooksContribution(options),
+    subagentsContribution(options),
+    schedulesContribution(options),
+    handoffContribution(options),
     ...(options.extra ?? []),
   ]
   return contributions
@@ -95,6 +109,18 @@ export interface ContextAssembly {
   onRunEnd(scope: ContextScope, info: RunEndInfo): Promise<void>
   /** 各领域声明的规则工具（ContextContribution.ruleTools 的汇总）。 */
   readonly ruleTools: readonly RuleTool[]
+  /** M5：外部 Hook 的权限端口（第一个给出的领域为准）；没有时 undefined，gate 与没有 Hook 时相同。 */
+  permissionHooks(scope: ContextScope): PermissionHookPort | undefined
+  /** 观察 hook（排在登记明文替换之后）。 */
+  observeHooks(scope: ContextScope): ToolHooks[]
+  /** 提交前检查：第一个 reject 为准；各领域的 context 按领域顺序以空行连接。单个领域失败只记 warn（放行）。 */
+  beforeSubmit(scope: ContextScope, text: string): Promise<SubmitVerdict>
+  /** 压缩前：第一个 block 为准，instructions 以空行连接；没有领域检查时 undefined（运行时不装）。 */
+  readonly beforeCompact: ((scope: ContextScope, info: CompactInfo) => Promise<void | CompactVerdict>) | undefined
+  /** Run 正常结束前：第一个 continue 为准；没有领域时 undefined（运行时不装）。 */
+  readonly onStop: ((scope: ContextScope, info: StopInfo) => Promise<void | StopContinue>) | undefined
+  /** 工具名过滤（各领域依次）；没有领域过滤时原样返回。 */
+  filterTools(tools: readonly string[], scope: ContextScope): readonly string[]
   readonly contributions: readonly ContextContribution[]
   /** 按顺序关闭各领域（存储关闭之前）；单个失败不影响其余。 */
   close(): Promise<void>
@@ -124,9 +150,54 @@ export function createContextAssembly(options: {
   }
   const transforms = contributions.flatMap((c) => (c.transformMessages ? [c.transformMessages.bind(c)] : []))
   const checks = contributions.filter((c) => c.beforeRequest)
+  const compactChecks = contributions.filter((c) => c.beforeCompact)
+  const stops = contributions.filter((c) => c.onStop)
   return {
     contributions,
     ruleTools: contributions.flatMap((c) => c.ruleTools ?? []),
+    permissionHooks(scope) {
+      for (const c of contributions) {
+        const port = c.permissionHooks?.(scope)
+        if (port) return port
+      }
+      return undefined
+    },
+    observeHooks: (scope) => contributions.flatMap((c) => c.observeHooks?.(scope) ?? []),
+    async beforeSubmit(scope, text) {
+      const context: string[] = []
+      for (const c of contributions) {
+        if (!c.beforeSubmit) continue
+        const verdict = await guarded(c, 'beforeSubmit', undefined as SubmitVerdict, () => c.beforeSubmit!(scope, text))
+        if (!verdict) continue
+        if ('reject' in verdict) return verdict
+        if (verdict.context !== '') context.push(verdict.context)
+      }
+      return context.length > 0 ? { context: context.join('\n\n') } : undefined
+    },
+    beforeCompact:
+      compactChecks.length === 0
+        ? undefined
+        : async (scope, info) => {
+            const instructions: string[] = []
+            for (const c of compactChecks) {
+              const verdict = await guarded(c, 'beforeCompact', undefined as void | CompactVerdict, () => c.beforeCompact!(scope, info))
+              if (!verdict) continue
+              if ('block' in verdict) return verdict
+              if (verdict.instructions !== '') instructions.push(verdict.instructions)
+            }
+            return instructions.length > 0 ? { instructions: instructions.join('\n\n') } : undefined
+          },
+    onStop:
+      stops.length === 0
+        ? undefined
+        : async (scope, info) => {
+            for (const c of stops) {
+              const verdict = await guarded(c, 'onStop', undefined as void | StopContinue, () => c.onStop!(scope, info))
+              if (verdict) return verdict
+            }
+            return undefined
+          },
+    filterTools: (tools, scope) => contributions.reduce((current, c) => (c.filterTools ? c.filterTools(current, scope) : current), tools),
     async scope(input) {
       return { ...input, config: await config.effective(input.cwd), cokoHome }
     },
@@ -204,9 +275,19 @@ export function createContextAssembly(options: {
 export const emptyContextAssembly = (cokoHome = ''): ContextAssembly => createContextAssembly({ contributions: [], config: new ConfigService(), cokoHome })
 
 /** 运行时的工具：宿主的基础工具集加上本次 Run 贡献的工具（与基础工具同名的贡献被忽略并记 warn）。 */
-export function layeredTools(base: ToolRegistry): { registry: ToolRegistry; set(tools: readonly ContributedTool[]): void } {
+export function layeredTools(base: ToolRegistry): {
+  registry: ToolRegistry
+  set(tools: readonly ContributedTool[]): void
+  /** 本次 Run 可用的工具名（filterTools 的结果）；undefined 为不过滤。 */
+  allow(names: ReadonlySet<string> | undefined): void
+} {
   let extra = createToolRegistry()
+  let allowed: ReadonlySet<string> | undefined
+  const visible = (name: string) => allowed === undefined || allowed.has(name)
   return {
+    allow(names) {
+      allowed = names
+    },
     set(tools) {
       const next = createToolRegistry()
       for (const { tool, permissionClass } of tools) {
@@ -220,9 +301,9 @@ export function layeredTools(base: ToolRegistry): { registry: ToolRegistry; set(
     },
     registry: {
       register: (tool, registerOptions) => base.register(tool, registerOptions),
-      get: (name) => base.get(name) ?? extra.get(name),
-      list: () => [...base.list(), ...extra.list()],
-      implementations: () => [...base.implementations(), ...extra.implementations()],
+      get: (name) => (visible(name) ? (base.get(name) ?? extra.get(name)) : undefined),
+      list: () => [...base.list(), ...extra.list()].filter((tool) => visible(tool.name)),
+      implementations: () => [...base.implementations(), ...extra.implementations()].filter((tool) => visible(tool.name)),
       permissionClass: (name) => (base.get(name) ? base.permissionClass(name) : extra.permissionClass(name)),
     },
   }

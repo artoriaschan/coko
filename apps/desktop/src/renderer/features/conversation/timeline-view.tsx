@@ -6,6 +6,10 @@ import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
 import { GoalRow } from './goal-row.tsx'
 import { JobRow } from './job-row.tsx'
+import { AgentNotificationRow } from './agent-notification-row.tsx'
+import { HandoffRow } from './handoff-row.tsx'
+import { HookRow } from './hook-row.tsx'
+import { ScheduleFireRow } from './schedule-fire-row.tsx'
 import { Markdown } from './markdown.tsx'
 import { PlanCard } from './plan-card.tsx'
 import { RunUsageRow } from './run-usage-row.tsx'
@@ -241,6 +245,14 @@ export function TimelineView(props: TimelineViewProps) {
             return <JobRow key={item.key} item={item} />
           case 'run-usage':
             return <RunUsageRow key={item.key} item={item} />
+          case 'hook':
+            return <HookRow key={item.key} item={item} />
+          case 'agent-notification':
+            return <AgentNotificationRow key={item.key} item={item} />
+          case 'schedule-fire':
+            return <ScheduleFireRow key={item.key} item={item} />
+          case 'handoff':
+            return <HandoffRow key={item.key} item={item} />
         }
       })}
     </>

@@ -1,6 +1,6 @@
 import {
   SessionEntry,
-  isJobProgress,
+  isDetachedProgress,
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
   type PermissionMode,
@@ -196,6 +196,11 @@ export interface ChatActions {
   /** 读取 Workspace 与 Session 列表；首次加载时打开最近的会话。 */
   load(): Promise<void>
   openSession(sessionId: string): void
+  /**
+   * 订阅一个会话的条目而不切换当前会话（右栏 Agents tab 查看子 Session）：没有对话记录时建立并订阅，已有时不变。
+   * 返回订阅完成（subscribed 到达或超时）。
+   */
+  subscribeSession(sessionId: string): Promise<void>
   startDraft(workspaceId?: string): void
   /** 选择目录并登记；登记成功后在其中开始新会话草稿。 */
   addWorkspace(pickDirectory: () => Promise<string | null>): Promise<void>
@@ -389,6 +394,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       openSession(sessionId) {
         set({ activeSessionId: sessionId, draftWorkspaceId: null })
         ensureConversation(sessionId)
+      },
+
+      subscribeSession(sessionId) {
+        if (get().conversations[sessionId]) return Promise.resolve()
+        set((state) => ({ conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } } }))
+        return subscribe(sessionId)
       },
 
       startDraft(workspaceId) {
@@ -722,8 +733,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           })
           const ended = store.getState().conversations[sessionId]
           patchSession(sessionId, { running: false, activity: ended ? conversationActivity(ended) : 'idle' })
-        } else if (!isJobProgress(event)) {
-          // 后台任务的进度不属于 Run：不进入运行中状态，只交给订阅者（Job 可以比发起它的 Run 活得更久）。
+        } else if (!isDetachedProgress(event)) {
+          // 后台任务、子代理与定时任务的进度不属于 Run：不进入运行中状态，只交给订阅者（它们可以比发起它的 Run 活得更久）。
           patchConversation(sessionId, (c) => ({
             ...c,
             running: true,

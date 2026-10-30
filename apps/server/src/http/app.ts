@@ -27,6 +27,7 @@ import type { Application } from '../application/index.ts'
 import { StreamConnection } from '../ws/connection.ts'
 import type { AccessAuth } from './auth.ts'
 import { DOMAIN_ROUTES } from './routes/index.ts'
+import { testClockRoutes } from './routes/test-clock.ts'
 import { body, errorBody, type Env } from './routes/shared.ts'
 
 const log = getLogger(['http'])
@@ -185,6 +186,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
 
   // M3 起的领域路由只经 http/routes/<domain>.ts 挂载（认证之后）。
   for (const routes of DOMAIN_ROUTES) http.route('/api', routes(app))
+  // 测试时钟只在测试构建中开启时挂载；否则 POST /api/test/clock 为 404。
+  if (app.testClock) http.route('/api', testClockRoutes(app.testClock))
 
   http.notFound((c) => c.json(errorBody(new AppError('not-found', 'Not found')), 404))
   http.onError((error, c) => {

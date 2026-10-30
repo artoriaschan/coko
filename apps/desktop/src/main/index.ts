@@ -7,6 +7,7 @@ import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } f
 import type { SidecarControlChannel } from './control-channel.ts'
 import { createCredentialBridge } from './credentials.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
+import { handleNotify } from './notifications.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
@@ -248,6 +249,20 @@ function run(): void {
     onMessage: (listener) => supervisor.onControlMessage(listener),
     onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
   }
+  // Sidecar 的 notify 控制消息：窗口不在前台时显示桌面通知（main/notifications.ts；测试构建只记日志）。
+  channel.onMessage((message) => {
+    if (message.type !== 'notify') return
+    handleNotify(message, {
+      focused: () => mainWindow !== undefined && !mainWindow.isDestroyed() && mainWindow.isFocused() && mainWindow.isVisible(),
+      testBuild: TEST_BUILD,
+      openSession: (sessionId) => {
+        if (mainWindow === undefined || mainWindow.isDestroyed()) return
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        mainWindow.focus()
+        mainWindow.webContents.send(IPC.openSession, sessionId)
+      },
+    })
+  })
   const credentials = createCredentialBridge({ encryption, channel })
   ipcMain.handle(IPC.saveProvider, async (event, input: unknown) => {
     assertMainFrame(event)

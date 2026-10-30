@@ -18,6 +18,7 @@ import {
   type BashExecutionContext,
   type CokoTool,
   type ModelRegistry,
+  type PermissionHookPort,
   type RunEntry,
   type RunError,
   type RunInput,
@@ -27,7 +28,7 @@ import {
   type ToolRegistry,
 } from '@coko/agent'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
-import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
+import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
 import {
   dynamicHooks,
@@ -58,6 +59,17 @@ function withPending(input: RunInput, pending: PendingInput | undefined): RunInp
   return { ...input, content, ...(before.length > 0 ? { before } : {}) }
 }
 
+/** 提交前检查给出的上下文：作为 user message 中单独标注的文本块（排在输入之后）。 */
+export const SUBMIT_CONTEXT_TAG = 'hook-context'
+function withSubmitContext(input: RunInput, context: string | undefined): RunInput {
+  if (context === undefined) return input
+  const content = [
+    ...(input.content ?? [{ type: 'text' as const, text: input.text }]),
+    { type: 'text' as const, text: `<${SUBMIT_CONTEXT_TAG}>\n${context}\n</${SUBMIT_CONTEXT_TAG}>` },
+  ]
+  return { ...input, content }
+}
+
 /** 按请求在运行时上开始 Run（run() 在第一个 await 之前同步发出 run_start）。 */
 function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInput | undefined): Promise<RunResult> {
   switch (request.trigger) {
@@ -65,6 +77,12 @@ function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInpu
       return runtime.run(withPending(request.input, pending))
     case 'goal':
       return runtime.run({ ...withPending(request.input, pending), trigger: 'goal', goal: request.goal })
+    case 'schedule':
+      return runtime.run({ ...withPending(request.input, pending), trigger: 'schedule', schedule: request.schedule })
+    case 'subagent':
+      return runtime.run({ ...request.input, trigger: 'subagent' })
+    case 'handoff':
+      return runtime.run({ ...request.input, trigger: 'handoff' })
     case 'retry':
       return runtime.retry()
     case 'continue':
@@ -73,6 +91,19 @@ function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInpu
       return runtime.compact(request.instructions)
   }
 }
+
+/** 带 pendingInput 的 trigger（用户与无人值守的输入）。 */
+const takesPending = (trigger: RunRequest['trigger']) => trigger === 'submit' || trigger === 'goal' || trigger === 'schedule'
+
+/**
+ * Session 的工作目录（ADR 0016）：Session 创建时确定，生命周期内不变。缺省为 Workspace 目录；worktree 绑定由 worktree 的实现给出
+ * （worktree 路径 + Workspace 相对仓库根的路径）。指令、项目设置、项目 Hook 与 MCP、Skills、子代理定义都从这个目录读取。
+ */
+export interface SessionCwd {
+  resolve(session: StoredSession, workspace: Workspace): Promise<string>
+}
+
+export const workspaceCwd: SessionCwd = { resolve: async (_session, workspace) => workspace.path }
 
 /** 受管的 Run 执行：关闭 sidecar 时中断并等待 Run 结束（run_end 已提交）。由 runtime 层用 Effect 实现。 */
 export interface RunLauncher {
@@ -107,6 +138,8 @@ export interface SessionRunsOptions {
   recovery: SessionRecovery
   checkpoints: SessionCheckpoints
   models: SessionModels
+  /** Session 的工作目录；缺省 Workspace 目录（workspaceCwd）。 */
+  cwd?: SessionCwd
 }
 
 /** 后台任务对 Run 的接线（runtime/layers.ts 以 JobService 给出）：bash 的启动入口与追加指令到达的通知。 */
@@ -147,8 +180,15 @@ interface RunContext {
   hooks: ReturnType<typeof dynamicHooks>
   /** 准入 hook（只拦截、无副作用），排在扩展之前。 */
   admission: ReturnType<typeof dynamicHooks>
+  /** 观察 hook，排在登记明文替换之后（收到已脱敏的结果）。 */
+  observe: ReturnType<typeof dynamicHooks>
   readRoots: readonly string[]
+  /** 该 Run 的外部 Hook 权限端口；没有时 gate 与没有 Hook 时相同。 */
+  permissionHooks: PermissionHookPort | undefined
 }
+
+/** 运行时的 PermissionHookPort：转交该 Run 的端口；没有端口时没有决定。 */
+const NO_VERDICT = Promise.resolve({})
 
 export class SessionRuns {
   readonly #options: SessionRunsOptions
@@ -214,13 +254,26 @@ export class SessionRuns {
     return this.#runContexts.get(runtime)?.scope
   }
 
-  async scope(session: StoredSession): Promise<ContextScope> {
+  /** Session 的工作目录（SessionCwd；缺省 Workspace 目录）。 */
+  async cwd(session: StoredSession): Promise<{ workspace: Workspace; cwd: string }> {
     const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
     if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+    return { workspace, cwd: await (this.#options.cwd ?? workspaceCwd).resolve(session, workspace) }
+  }
+
+  async scope(session: StoredSession): Promise<ContextScope> {
+    const { cwd } = await this.cwd(session)
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
-    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId).rules()
-    return this.#options.context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id, permissionRules })
+    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id).rules()
+    return this.#options.context.scope({
+      workspaceId: session.workspaceId,
+      cwd,
+      sessionId: session.id,
+      permissionRules,
+      ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
+      ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
+    })
   }
 
   /**
@@ -252,7 +305,9 @@ export class SessionRuns {
     const [contributed, readRoots] = await Promise.all([context.tools(scope), context.readRoots(scope)])
     const hooks = context.hooks(scope)
     const admission = context.admissionHooks(scope)
-    const pending = request.trigger === 'submit' || request.trigger === 'goal' ? await context.pendingInput(scope) : undefined
+    const observe = context.observeHooks(scope)
+    const permissionHooks = context.permissionHooks(scope)
+    const pending = takesPending(request.trigger) ? await context.pendingInput(scope) : undefined
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
@@ -262,7 +317,13 @@ export class SessionRuns {
       runContext.tools.set(contributed)
       runContext.hooks.set(hooks)
       runContext.admission.set(admission)
+      runContext.observe.set(observe)
       runContext.readRoots = readRoots
+      runContext.permissionHooks = permissionHooks
+      // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
+      const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
+      const visible = context.filterTools(names, scope)
+      runContext.tools.allow(visible.length === names.length && visible.every((name, i) => name === names[i]) ? undefined : new Set(visible))
     }
     runtime.setModel(model)
     runtime.setThinkingLevel(models.effectiveLevel(session))
@@ -294,6 +355,7 @@ export class SessionRuns {
       thinkingLevel: models.effectiveLevel(session),
     })
     const goal = request.trigger === 'goal' ? request.goal : undefined
+    const schedule = request.trigger === 'schedule' ? request.schedule : undefined
     const done = run.then(
       async (result) => {
         if (this.#activeRuns.get(sessionId) === started) this.#activeRuns.delete(sessionId)
@@ -305,7 +367,14 @@ export class SessionRuns {
           ...(result.undeliveredSteering ? { undeliveredSteering: result.undeliveredSteering.length } : {}),
         })
         // 关闭时 RunLauncher 等待到这里：领域在 Run 结束后的处理（例如 Goal 推进的判定）也在关闭存储之前完成。
-        await context.onRunEnd(scope, { sessionId, runId: started, trigger: request.trigger, ...(goal ? { goal } : {}), result })
+        await context.onRunEnd(scope, {
+          sessionId,
+          runId: started,
+          trigger: request.trigger,
+          ...(goal ? { goal } : {}),
+          ...(schedule ? { schedule } : {}),
+          result,
+        })
       },
       (error: unknown) => {
         if (this.#activeRuns.get(sessionId) === started) this.#activeRuns.delete(sessionId)
@@ -332,8 +401,14 @@ export class SessionRuns {
       if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
-    const expanded = await context.expandInput(text, await this.scope(session))
-    if (expanded.kind === 'input') return this.startRun(sessionId, { trigger: 'submit', input: expanded.input })
+    const scope = await this.scope(session)
+    const expanded = await context.expandInput(text, scope)
+    if (expanded.kind === 'input') {
+      // 提交前检查（UserPromptSubmit 等）：reject 时不提交 user message、不开始 Run。
+      const verdict = await context.beforeSubmit(scope, text)
+      if (verdict && 'reject' in verdict) throw new AppError('hook-blocked', verdict.reject.slice(0, 2048), { reason: verdict.reject.slice(0, 2048) })
+      return this.startRun(sessionId, { trigger: 'submit', input: withSubmitContext(expanded.input, verdict?.context) })
+    }
     const action = context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
     if (runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')
@@ -398,8 +473,7 @@ export class SessionRuns {
 
   async #createRuntime(session: StoredSession, model: Model<any>): Promise<AgentRuntime> {
     const { store, registry, hub, runtimes, permissions: sessionPermissions } = this.#options
-    const workspace = await store.sessions.getWorkspace(session.workspaceId)
-    if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
+    const { cwd } = await this.cwd(session)
     // 恢复 Session：已提交的 message 条目就是模型可见的对话记录。
     const entries = await store.sessions.listEntries(session.id)
     // 被回退的区间不进入模型上下文（ADR 0006）。
@@ -409,13 +483,15 @@ export class SessionRuns {
     const permissions = await sessionPermissions.state(session)
     let extension: SessionExtension = {}
     const publish = runtimes.publisher(session.id, () => extension.onEntry)
-    if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
+    if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd, commit: publish })
     const runContext: RunContext = {
       scope: await this.scope(session),
-      tools: layeredTools(this.#jobs ? withJobs(this.baseTools(workspace.path), this.#jobs.launcher(session.id)) : this.baseTools(workspace.path)),
+      tools: layeredTools(this.#jobs ? withJobs(this.baseTools(cwd), this.#jobs.launcher(session.id)) : this.baseTools(cwd)),
       hooks: dynamicHooks(),
       admission: dynamicHooks(),
+      observe: dynamicHooks(),
       readRoots: [],
+      permissionHooks: undefined,
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
     // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交。
@@ -425,16 +501,24 @@ export class SessionRuns {
       models: registry.models,
       model,
       thinkingLevel: this.#options.models.effectiveLevel(session),
-      cwd: workspace.path,
+      cwd,
       tools: runContext.tools.registry,
       sessionId: session.id,
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
-      permissions: { ...sessionPermissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
+      permissions: {
+        ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id),
+        readRoots: () => runContext.readRoots,
+        // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
+        hooks: {
+          preToolUse: (call, signal) => runContext.permissionHooks?.preToolUse(call, signal) ?? NO_VERDICT,
+          permissionRequest: (call, signal) => runContext.permissionHooks?.permissionRequest(call, signal) ?? NO_VERDICT,
+        },
+      },
       // 权限判定在链首；之后是贡献的准入 hook（只拦截，例如 Goal 预算），被拦下的调用不经过扩展（checkpoint 备份）等有副作用的 hook；
       // 其余贡献的 hook 排在扩展之后。登记明文的替换排在最后：之前的 hook 附加的内容（如嵌套指令）也被替换，结果进入运行时之前已不含明文
       // （secret-redaction.ts）。
-      hooks: [runContext.admission.hooks, ...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook],
+      hooks: [runContext.admission.hooks, ...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook, runContext.observe.hooks],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
@@ -445,6 +529,9 @@ export class SessionRuns {
           const redacted = redactModelMessages(messages)
           return context.transformMessages ? context.transformMessages(redacted, runContext.scope) : redacted
         },
+        // M5：压缩前（PreCompact）与 Run 正常结束前（Stop）；没有领域时不装，运行时与之前相同。
+        ...(context.beforeCompact ? { beforeCompact: (info) => context.beforeCompact!(runContext.scope, info) } : {}),
+        ...(context.onStop ? { onStop: (info) => context.onStop!(runContext.scope, info) } : {}),
       },
       // 压缩：切点与重建读已提交的条目（入库时已替换登记明文，摘要请求同样看不到明文）；context.autoCompact 取该 Run 开始时的有效配置。
       compaction: {
