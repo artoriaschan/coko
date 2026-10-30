@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { Value } from 'typebox/value'
-import { createRequestTracker, SidecarToMainMessage, type MainToSidecarMessage, type RequestTracker } from '@coko/protocol'
+import { createRequestTracker, MainToSidecarMessage, SidecarToMainMessage, type RequestTracker } from '@coko/protocol'
 
 /** 分级退出与就绪的时限；默认值即 DEFAULT_SIDECAR_TIMEOUTS，记录于 apps/desktop README。 */
 export interface SidecarTimeouts {
@@ -280,6 +280,8 @@ export class SidecarProcess {
   }
 
   #send(message: MainToSidecarMessage): void {
+    // 发出前按 schema 检查：不合 schema 的消息是 main 的编程错误，立即抛出，而不是让 Sidecar 丢弃后等到超时。
+    if (!Value.Check(MainToSidecarMessage, message)) throw new TypeError(`Invalid control message ${String((message as { type?: unknown }).type)}`)
     const child = this.#child
     if (child === undefined || !child.connected) return
     // 发送失败意味着通道已断开，由 close 事件统一处理。
