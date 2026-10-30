@@ -8,6 +8,8 @@ import type { PermissionMode, SandboxMode } from '../session-entries/index.ts'
 
 const SANDBOX_MODE: Record<PermissionMode, SandboxMode> = {
   'read-only': 'read-only',
+  // Plan Mode 只调研：命令沙箱只读，可写根为空。
+  plan: 'read-only',
   default: 'workspace-write',
   'accept-edits': 'workspace-write',
   'full-access': 'danger-full-access',

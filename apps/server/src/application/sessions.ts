@@ -79,7 +79,7 @@ export class SessionService {
       options.permissions ??
       new PermissionService(store, hostToolNames({ ...(options.tools ? { tools: options.tools } : {}), ruleTools: this.#context.ruleTools }))
     this.#runtimes = new SessionRuntimes(store, options.hub)
-    this.#permissions = new SessionPermissions({ store, runtimes: this.#runtimes, service: this.permissions })
+    this.#permissions = new SessionPermissions({ store, runtimes: this.#runtimes, service: this.permissions, contributions: this.#context.contributions })
     this.#recovery = new SessionRecovery({
       store,
       runtimes: this.#runtimes,

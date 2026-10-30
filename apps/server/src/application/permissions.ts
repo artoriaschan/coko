@@ -4,10 +4,10 @@ import {
   parsePermissionRule,
   PERMISSIONS_DEFAULT_MODE_SETTING,
   PERMISSIONS_RULES_SETTING,
-  PermissionMode as PermissionModeSchema,
+  StandardPermissionMode as PermissionModeSchema,
   PermissionRuleList,
   workspaceRulesSetting,
-  type PermissionMode,
+  type StandardPermissionMode as PermissionMode,
   type PermissionsResponse,
   type UpdatePermissionsRequest,
 } from '@coko/protocol'
