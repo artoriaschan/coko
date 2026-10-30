@@ -24,3 +24,7 @@ Map: [Coko 桌面应用](../map.md)
 - **设置。** modal，分区：General（主题、语言）、Models（provider 与凭据）、Permissions、MCP、Skills & Commands、Plugins、Agents（子代理预设）、About。各分区随所属里程碑出现，M1 只有 General、Models、About。
 - **Toast。** 采用 shadcn 推荐的 Sonner，在 M1 引入时登记精确版本到 TECH_STACK。
 - **里程碑归属。** M1：窗口、三栏骨架、会话列表、消息流、工具卡、基础 composer、设置（General / Models / About）、Toast。M2：审批卡、权限模式、Permissions 设置、rewind。M3：@ / / typeahead、Skills、MCP 设置、压缩提示。M4：Todo / Goal / Queue dock、Plan chip 与右栏审阅、后台任务视图。M5：子代理卡、调度设置、分叉入口、worktree 选择。M6：Plugins 设置、团队视图、LSP 诊断展示。
+
+## 后续需求修订
+
+2026-10-30，用户要求设置从 modal 改为占满窗口的整页，外壳按模型服务视觉稿实现：左侧设置导航含“返回应用”与菜单名称搜索，会话界面隐藏但不卸载。本票 Answer 中“设置。modal”保留为当时的决定；当前要求见 [模型服务 PRD](../../model-service-settings/spec.md) 2.1。
