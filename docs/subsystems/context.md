@@ -166,6 +166,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 输入区：当前会话收到 `compaction_start` 后，输入框上方显示状态行"正在压缩上下文…"与"停止压缩"（即停止当前 Run）；`compaction_end`、`compaction_failed`、`run_end` 或重连时清除。
 - 失败时每次一个 Toast，第 3 次自动失败的 Toast 改为提示自动压缩已暂停并给出 `/compact`；暂停标记见[上下文环](#上下文环)。
 
+### 压缩后的 `<todo_list>`
+
+`<todo_list>` system section 每个 Run 开始时从该 Session 最新的 `todo_list` 条目生成，不依赖对话消息：压缩把 todo_write 的调用与结果摘要掉之后，有未完成项时 section 照常注入，模型仍看到当前表。见 [Todo List](todo.md#注入)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：
