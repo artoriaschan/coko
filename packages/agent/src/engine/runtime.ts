@@ -441,6 +441,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       if (!driver) return Promise.reject(new Error('Compaction is not configured for this runtime'))
       return execute('compact', async () => {
         const run = current!
+        // 摘要请求也是一次模型请求：与对话请求、自动压缩一样先过宿主的请求前检查（预算）；返回 stop 时以 paused 加该 error 结束。
+        if (!(await admit(run, agent.state.messages, agent.state.model))) return
         run.ended = await driver.manual(run, instructions)
       })
     },

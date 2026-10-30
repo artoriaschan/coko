@@ -187,6 +187,29 @@ describe('压缩前的请求前检查（Goal 预算）', () => {
     expect(h.requests).toHaveLength(2)
   })
 
+  it('手动压缩（/compact）同样先过 beforeRequest：返回 stop 时不发出摘要请求、不提交 compaction，Run 以 paused 加该 error 结束', async () => {
+    let stop = false
+    const seen: string[] = []
+    const h = harness({
+      context: {
+        beforeRequest: async ({ runId }) => {
+          seen.push(runId)
+          return stop ? { stop: budget } : undefined
+        },
+      },
+    })
+    h.reply(ok(), ok(), ok('NEVER'))
+    await h.runtime.run(big(40_000, 'a'))
+    await h.runtime.run(big(8_000, 'b'))
+    stop = true
+    const before = h.stored.length
+    const result = await h.runtime.compact()
+    expect(result).toMatchObject({ status: 'paused', error: budget })
+    expect(kinds(h.stored.slice(before))).toEqual(['run_start', 'run_end'])
+    expect(h.requests).toHaveLength(2)
+    expect(seen.at(-1)).toBe(result.runId)
+  })
+
   it('溢出恢复前 beforeRequest 返回 stop：不压缩、不重试，Run 以 paused 加该 error 结束', async () => {
     let stop = false
     const h = harness({ context: { beforeRequest: async () => (stop ? { stop: budget } : undefined) } })

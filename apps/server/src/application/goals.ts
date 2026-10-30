@@ -380,7 +380,8 @@ export class GoalService {
   /** Run 结束之后（run_end 已提交）：按规格转换阶段，Goal 为 running 时发起下一轮。 */
   async runEnded(info: RunEndInfo): Promise<void> {
     const { sessionId, result, trigger } = info
-    if (trigger === 'compact') return
+    // 手动压缩的 Run 不推进 Goal；只有它在摘要请求前被预算检查停下时（paused 加 budget_exhausted / cost_unpriced）照常转换阶段。
+    if (trigger === 'compact' && !budgetStop(result)) return
     await this.#locks.run(sessionId, async () => {
       if (this.#cancelling.has(sessionId)) return
       const entries = await this.#entries(sessionId)
@@ -576,5 +577,8 @@ function waitingBefore(goal: GoalPayload, runId: string, entries: readonly Store
   }
   return started !== undefined && entered !== undefined && entered < started
 }
+
+/** Run 被请求前的预算检查停下（beforeRequest 返回 stop，或工具调用上限的 stopAfterBatch）。 */
+const budgetStop = (result: RunResult) => result.status === 'paused' && (result.error?.code === 'budget_exhausted' || result.error?.code === 'cost_unpriced')
 
 const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)
