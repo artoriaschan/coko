@@ -30,7 +30,7 @@ async function boot(responses: unknown[], options: { env?: Record<string, string
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const dirs = await sidecarDirs()
-  const faux = options.faux === false ? {} : { COKO_FAUX_SCRIPT: await fauxScript(root, { requestLog, responses }) }
+  const faux: Record<string, string> = options.faux === false ? {} : { COKO_FAUX_SCRIPT: await fauxScript(root, { requestLog, responses }) }
   const sidecar = await startSidecar({ dirs, ...(options.ipc === false ? { ipc: false } : {}), env: { COKO_TEST_CLOCK: '1', ...faux, ...options.env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
