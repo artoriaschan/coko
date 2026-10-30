@@ -5,7 +5,7 @@ import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
-import { useSettings, useSettingsDialog } from '../../app/settings.tsx'
+import { useSettings, useSettingsPage } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
 import { continueMode, conversationActivity, pendingApprovals, pendingConfirmations, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
@@ -66,7 +66,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
   const defaultModel = useSettings((s) => s.defaultModel)
-  const settingsDialog = useSettingsDialog()
+  const settingsPage = useSettingsPage()
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
   // 会话的模型被清空（Provider 被删除或升级时清除）时不代填默认模型：Sidecar 要求运行前重新选择。从未设置时显示默认模型，
   // 运行时 Sidecar 同样取默认模型。
@@ -292,7 +292,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               onStop={() => void stop()}
               onPause={() => void pause()}
               pausing={conversation?.pausing ?? false}
-              onSetup={() => settingsDialog.show('models')}
+              onSetup={() => settingsPage.open('models')}
               onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
               accessory={
                 <>

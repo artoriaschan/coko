@@ -3,11 +3,11 @@ import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle } fro
 import { LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
-import { useSettings, useSettingsActions, useSettingsDialog } from '../../app/settings.tsx'
+import { useSettings, useSettingsActions, useSettingsPage } from '../../app/settings.tsx'
 import { DeleteProviderDialog, type DeleteProviderRequest } from './delete-provider-dialog.tsx'
 import { draftOf, emptyDraft, isDirty, type FormDraft } from './provider-draft.ts'
 import { ProviderForm } from './provider-form.tsx'
-import { SettingsCard } from './settings-dialog.tsx'
+import { SettingsCard } from './settings-page.tsx'
 
 /** 展开中的表单：新建（id 省略）或编辑某个已有 Provider。key 在表单生命周期内不变。 */
 interface OpenForm {
@@ -31,7 +31,7 @@ export function ModelsSection() {
   const status = useSettings((s) => s.status)
   const providers = useSettings((s) => s.providers)
   const { load } = useSettingsActions()
-  const { setLeaveGuard } = useSettingsDialog()
+  const { setLeaveGuard } = useSettingsPage()
   const [open, setOpen] = React.useState<OpenForm | null>(null)
   const [confirming, setConfirming] = React.useState<{ resolve: (discard: boolean) => void } | null>(null)
   const [deleting, setDeleting] = React.useState<DeleteProviderRequest | null>(null)
@@ -48,7 +48,7 @@ export function ModelsSection() {
   /** 有未保存修改时询问；返回是否可以丢弃当前草稿。 */
   const confirmDiscard = React.useCallback(() => (dirtyRef.current ? new Promise<boolean>((resolve) => setConfirming({ resolve })) : Promise.resolve(true)), [])
 
-  // 离开分区（切换分区、关闭设置）前确认；确认后丢弃草稿。
+  // 离开分区（切换分区、返回应用）前确认；确认后丢弃草稿。
   React.useEffect(
     () =>
       setLeaveGuard(async () => {

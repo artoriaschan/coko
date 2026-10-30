@@ -8,7 +8,7 @@ import { createAppearanceStore, defaultAppearance } from './app/appearance-store
 import { notifyFailure } from './app/chat-failure.ts'
 import { createConnectionStore } from './app/connection-store.ts'
 import { createPreferences } from './app/preferences.ts'
-import { createSettingsDialogStore } from './app/settings-dialog-store.ts'
+import { createSettingsPageStore } from './app/settings-page-store.ts'
 import { createRendererLog } from './app/renderer-log.ts'
 import { createApiClient } from './client/api.ts'
 import { connect } from './client/connection.ts'
@@ -36,11 +36,11 @@ const stream = connect({
     connection.set(state)
   },
 })
-const settingsDialog = createSettingsDialogStore()
+const settingsPage = createSettingsPageStore()
 const chat = createChatStore({
   api,
   stream,
-  onFailure: (failure) => notifyFailure(appearance.getSnapshot().locale, failure, () => settingsDialog.show('models')),
+  onFailure: (failure) => notifyFailure(appearance.getSnapshot().locale, failure, () => settingsPage.open('models')),
   // 分叉的标题按当前语言生成，Sidecar 原样保存。
   forkTitle: (title) => t()('sidebar.forkTitle', { title: title || t()('sidebar.untitled') }),
 })
@@ -92,7 +92,7 @@ createRoot(root).render(
       chat={chat}
       settings={settings}
       preferences={preferences}
-      settingsDialog={settingsDialog}
+      settingsPage={settingsPage}
       pickDirectory={pickDirectory}
       openLogs={openLogs}
     />

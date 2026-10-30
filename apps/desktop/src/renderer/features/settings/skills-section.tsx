@@ -9,7 +9,7 @@ import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { skillsStore } from '../../stores/skills-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
-import { SettingsCard } from './settings-dialog.tsx'
+import { SettingsCard } from './settings-page.tsx'
 
 const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
   'invalid-frontmatter': 'skills.diagnostics.invalid-frontmatter',

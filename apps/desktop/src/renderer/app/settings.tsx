@@ -2,18 +2,18 @@ import * as React from 'react'
 import { useStore } from 'zustand'
 import type { SettingsActions, SettingsState, SettingsStore } from '../stores/settings-store.ts'
 import type { Preferences } from './preferences.ts'
-import type { SettingsDialogStore } from './settings-dialog-store.ts'
+import type { SettingsPageStore } from './settings-page-store.ts'
 
 interface SettingsContextValue {
   store: SettingsStore
-  dialog: SettingsDialogStore
+  page: SettingsPageStore
   preferences: Preferences
 }
 
 const SettingsContext = React.createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children, ...value }: SettingsContextValue & { children: React.ReactNode }) {
-  const memo = React.useMemo(() => value, [value.store, value.dialog, value.preferences])
+  const memo = React.useMemo(() => value, [value.store, value.page, value.preferences])
   return <SettingsContext.Provider value={memo}>{children}</SettingsContext.Provider>
 }
 
@@ -32,10 +32,11 @@ export function useSettingsActions(): SettingsActions {
   return useSettingsContext().store.getState()
 }
 
-export function useSettingsDialog() {
-  const { dialog } = useSettingsContext()
-  const state = React.useSyncExternalStore(dialog.subscribe, dialog.getSnapshot)
-  return { ...state, show: dialog.show, setSection: dialog.setSection, close: dialog.close, setLeaveGuard: dialog.setLeaveGuard }
+/** 整页设置的显示状态与操作。 */
+export function useSettingsPage() {
+  const { page } = useSettingsContext()
+  const state = React.useSyncExternalStore(page.subscribe, page.getSnapshot)
+  return { ...state, open: page.open, back: page.back, toggle: page.toggle, setSection: page.setSection, setLeaveGuard: page.setLeaveGuard }
 }
 
 export function usePreferences(): Preferences {
