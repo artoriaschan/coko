@@ -26,3 +26,6 @@
   - **未验证：** 真实模型（无凭据）。窄窗口只在约 414px 的 Browser Mode 截图中看过明暗两种主题，没有在 Electron 中逐状态检查。
   - **文档影响 / 需要 Lead 处理：** `docs/README.md` 当前行为导航加一行：`- [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时注入的 <todo_list>（压缩后仍在）、dock 的待办卡与队列卡。` `packages/agent/README.md` / `apps/server/README.md` 要点（交给票 10 汇总）：agent `tasks/todo/` 导出 `createTodoTool`、`TodoPort`、`normalizeTodoItems`、`todoListSection`、`todoResultText`、`TodoValidationError`；server 新增 `SessionEntryAccess` 贡献选项。
   - **供后续票：** 需要在工具或动作中提交自己条目的领域（08 的 plan、09 / 10 的 goal）可以用 `options.entries.commit(sessionId, entry)`：条目不带 runId，与运行时条目同样脱敏并推送，返回入库后的条目（取脱敏后的 payload）。时间线中原有的"待送达"气泡仍在，与 Queue 卡重复显示；是否去掉由 Lead 决定（`timeline-view.tsx` 不在本票范围）。
+- 2026-10-30 lead：评审后合入 main（867a3eb），layers.ts 与票 03 的改动自动合并。接受越界：context/types.ts 的 ContextContributionOptions.entries、layers.ts 约 10 行接线、dock.browser.test.tsx 的断言调整。lead 补 docs/README 导航行。裁决：时间线中"尚未送达"的气泡与 Queue 卡重复显示待送达指令——Queue 卡是规格中的唯一呈现，时间线气泡由票 06 删除（已授权，记入票 06）。main 上复核见票 03。worktree 已清理。
+
+Closed: true
