@@ -149,6 +149,18 @@ export interface SessionJobs {
   steered(sessionId: string): void
 }
 
+/**
+ * 子代理对 Run 的接线（runtime/layers.ts 以 SubagentService 给出，ADR 0014）：子 Session 的定义（作用域的 subagent）、追加指令到达的通知
+ * （唤醒等待中的 agent_wait）与父 Session 的 running 子代理（activity 的 awaiting-approval）。
+ */
+export interface SessionSubagents {
+  definition(sessionId: string): ContextScope['subagent'] | undefined
+  steered(sessionId: string): void
+  runningChildren(parentSessionId: string): readonly string[]
+}
+
+const childSession = () => new AppError('child-session', 'A subagent session cannot take messages directly; it is driven by its parent')
+
 /** 基础工具集中的 bash 在执行上下文中拿到本 Session 的后台任务入口（其余工具不变）。 */
 function withJobs(base: ToolRegistry, launcher: BackgroundJobLauncher): ToolRegistry {
   let source: CokoTool | undefined
@@ -196,6 +208,7 @@ export class SessionRuns {
   /** 每个 Session 进行中的 Run（后台任务的进度带发起它的 runId）。 */
   readonly #activeRuns = new Map<string, string>()
   #jobs: SessionJobs | undefined
+  #subagents: SessionSubagents | undefined
 
   constructor(options: SessionRunsOptions) {
     this.#options = options
@@ -204,6 +217,28 @@ export class SessionRuns {
   /** 装配时接上后台任务（之后创建的运行时的 bash 可以 run_in_background）。 */
   useJobs(jobs: SessionJobs): void {
     this.#jobs = jobs
+  }
+
+  /** 装配时接上子代理（作用域的定义、追加指令通知与父级的审批状态）。 */
+  useSubagents(subagents: SessionSubagents): void {
+    this.#subagents = subagents
+  }
+
+  /** 该 Session 本次 Run 可用的工具名（filterTools 之后）；还没有运行时时 undefined。子代理的工具交集以派发时父级的这组工具为准。 */
+  visibleTools(sessionId: string): string[] | undefined {
+    const runtime = this.#options.runtimes.get(sessionId)
+    const context = runtime && this.#runContexts.get(runtime)
+    return context?.tools.registry.list().map((tool) => tool.name)
+  }
+
+  /** 父 Session 的 running 子代理中是否有在等待审批的（父 Session 的 activity 为 awaiting-approval）。 */
+  childAwaitingApproval(parentSessionId: string): boolean {
+    return (this.#subagents?.runningChildren(parentSessionId) ?? []).some((id) => (this.#options.runtimes.get(id)?.pendingApprovals.length ?? 0) > 0)
+  }
+
+  /** 子代理的模型（<providerId>/<modelId> 或 Session 模型）：解析不到时 bad-request；priced 为是否已定价（Goal 的 maxCost）。 */
+  resolveModel(model: { providerId: string; modelId: string }): { priced: boolean } {
+    return { priced: this.#options.registry.priced(this.#options.models.resolve(model, 'bad-request')) }
   }
 
   /** 该 Session 进行中的 Run 的 runId；没有时 undefined。 */
@@ -225,6 +260,7 @@ export class SessionRuns {
       throw error
     }
     this.#jobs?.steered(sessionId)
+    this.#subagents?.steered(sessionId)
     return true
   }
 
@@ -266,6 +302,7 @@ export class SessionRuns {
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
     const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id).rules()
+    const subagent = session.parentSessionId ? this.#subagents?.definition(session.id) : undefined
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
       cwd,
@@ -273,6 +310,7 @@ export class SessionRuns {
       permissionRules,
       ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
       ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
+      ...(subagent ? { subagent } : {}),
     })
   }
 
@@ -287,6 +325,8 @@ export class SessionRuns {
   async #start(sessionId: string, request: RunRequest): Promise<{ runId: string }> {
     const { store, recovery, models, context, checkpoints } = this.#options
     let session = await requireSession(store, sessionId)
+    // 子 Session 只由派发它的 agent 调用开始 Run（ADR 0014）：用户提交、重试、继续、压缩与其他来源都拒绝。
+    if (session.parentSessionId !== null && request.trigger !== 'subagent') throw childSession()
     await recovery.ensureRecovered(sessionId)
     // 未回答的结果确认之后不能开始任何 Run（submit、retry、continue）：未配对的调用会破坏模型请求（recovery.md）。
     if (recovery.awaitsConfirmation(sessionId)) throw new AppError('confirmation-pending', 'An outcome confirmation is waiting for an answer')
@@ -394,6 +434,7 @@ export class SessionRuns {
   async submit(sessionId: string, text: string): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
+    if (session.parentSessionId !== null) throw childSession()
     if (runtimes.isRunning(sessionId)) {
       const invocation = parseCommandInvocation(text)
       const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
@@ -433,6 +474,7 @@ export class SessionRuns {
   /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */
   async steer(sessionId: string, text: string): Promise<void> {
     const session = await requireSession(this.#options.store, sessionId)
+    if (session.parentSessionId !== null) throw childSession()
     const runtime = this.#options.runtimes.get(sessionId)
     try {
       if (!runtime?.isRunning) throw new NoActiveRunError()
@@ -444,6 +486,7 @@ export class SessionRuns {
       throw error
     }
     this.#jobs?.steered(sessionId)
+    this.#subagents?.steered(sessionId)
     log.info('steering queued', { sessionId })
   }
 
@@ -486,7 +529,10 @@ export class SessionRuns {
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd, commit: publish })
     const runContext: RunContext = {
       scope: await this.scope(session),
-      tools: layeredTools(this.#jobs ? withJobs(this.baseTools(cwd), this.#jobs.launcher(session.id)) : this.baseTools(cwd)),
+      // 子 Session 没有后台任务入口：bash 的 run_in_background / tty 为参数错误（ADR 0014）。
+      tools: layeredTools(
+        this.#jobs && session.parentSessionId === null ? withJobs(this.baseTools(cwd), this.#jobs.launcher(session.id)) : this.baseTools(cwd),
+      ),
       hooks: dynamicHooks(),
       admission: dynamicHooks(),
       observe: dynamicHooks(),
