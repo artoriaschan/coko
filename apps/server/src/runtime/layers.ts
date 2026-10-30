@@ -18,7 +18,7 @@ import { createSecretProbeTool, createTestSeamContribution } from '../adapters/t
 import { createTestClock, systemClock, type ClockPort, type TestClock } from '../adapters/clock.ts'
 import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
 import { createGitRunner } from '../adapters/git.ts'
-import { HandoffService } from '../application/handoff.ts'
+import { HandoffService, type HandoffRunHost, type HandoffWorktrees } from '../application/handoff.ts'
 import { HookService } from '../application/hooks.ts'
 import { NotificationService } from '../application/notifications.ts'
 import { m5RecoveryHooks } from '../application/recovery.ts'
@@ -90,8 +90,10 @@ export class Assembly extends Context.Service<
     subagents: SubagentService
     clock: ClockPort
     testClock: TestClock | undefined
-    /** AppLive 创建 SessionService 之后调用一次：Job、Goal 与定时任务的 Run 能力从此生效。 */
-    bindSessions: (sessions: SessionService) => void
+    /** 交接（上下文贡献与 /api/sessions/:id/handoff 共用）。 */
+    handoff: HandoffService
+    /** AppLive 创建 SessionService 之后调用一次：Job、Goal、定时任务与交接的 Run 能力（交接另有 worktree）从此生效。 */
+    bindSessions: (sessions: SessionService, worktrees: WorktreeService) => void
   }
 >()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
@@ -103,9 +105,14 @@ export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
  */
 function lateSessionRuns() {
   let bound: SessionService | undefined
+  let boundWorktrees: WorktreeService | undefined
   const sessions = () => {
     if (!bound) throw new Error('SessionService is not bound yet')
     return bound
+  }
+  const worktreeService = () => {
+    if (!boundWorktrees) throw new Error('WorktreeService is not bound yet')
+    return boundWorktrees
   }
   const jobs: JobRunHost = {
     activeRunId: (sessionId) => sessions().runs.activeRunId(sessionId),
@@ -126,7 +133,27 @@ function lateSessionRuns() {
     defaultModel: () => sessions().defaultModel(),
     cwd: async (session) => (await sessions().runs.cwd(session)).cwd,
   }
-  return { jobs, goals, schedules, bind: (service: SessionService) => void (bound = service) }
+  const handoff: HandoffRunHost = {
+    isRunning: (sessionId) => sessions().isRunning(sessionId),
+    startRun: (sessionId, request) => sessions().runs.startRun(sessionId, request),
+  }
+  const worktrees: HandoffWorktrees = {
+    get: (id) => worktreeService().get(id),
+    list: (workspaceId) => worktreeService().list(workspaceId),
+    create: (workspaceId, input) => worktreeService().create(workspaceId, input),
+    gitStatus: (session) => worktreeService().gitStatus(session),
+  }
+  return {
+    jobs,
+    goals,
+    schedules,
+    handoff,
+    worktrees,
+    bind: (service: SessionService, worktreeServiceValue: WorktreeService) => {
+      bound = service
+      boundWorktrees = worktreeServiceValue
+    },
+  }
 }
 
 /** 有序关闭的每一步记一行（按释放顺序：定时器 → Run → Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
@@ -297,14 +324,44 @@ const AssemblyLive = Layer.effect(
     const hooks = new HookService({ store, config, runner: createHookRunner({ env, track: processes.track }), entries })
     const subagents = new SubagentService({ store, hub, entries, config, cokoHome: sidecar.cokoHome, hooks, notifications })
     goals.useSubagents(subagents)
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, schedules, entries, hooks, subagents, extra })
+    // 交接：摘要 Run 经 SessionService，目标 worktree 经 WorktreeService（都在 AppLive 创建后接上）；目标创建后之后的请求按 Goal 预算重查。
+    const handoff = new HandoffService({ store, entries, runs: runs.handoff, worktrees: runs.worktrees, goals })
+    const contributions = createContributions({
+      cokoHome: sidecar.cokoHome,
+      mcp,
+      memories: store,
+      jobs,
+      goals,
+      schedules,
+      entries,
+      hooks,
+      subagents,
+      handoff,
+      extra,
+    })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
     yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
     // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
     yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
-    return { config, context, mcp: admin, secrets, hub, jobs, goals, hooks, schedules, notifications, subagents, clock, testClock, bindSessions: runs.bind }
+    return {
+      config,
+      context,
+      mcp: admin,
+      secrets,
+      hub,
+      jobs,
+      goals,
+      hooks,
+      schedules,
+      notifications,
+      subagents,
+      clock,
+      testClock,
+      handoff,
+      bindSessions: runs.bind,
+    }
   }),
 )
 
@@ -408,12 +465,13 @@ const AppLive = Layer.effect(
       subagents,
       clock,
       testClock,
+      handoff,
       bindSessions,
     } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
-    // M5 的服务；Hook、子代理、定时任务、通知与时钟在 AssemblyLive 创建。
+    // M5 的服务；Hook、子代理、定时任务、通知、时钟与交接在 AssemblyLive 创建。
     // Worktree（ADR 0016）：git 在宿主执行并登记为 git（ADR 0012）；移除前的 busy 检查读取之后创建的 SessionService 与 JobService。
     const worktrees: WorktreeService = new WorktreeService({
       store,
@@ -423,7 +481,6 @@ const AppLive = Layer.effect(
         runningJobs: async (sessionId) => (await jobs.list(sessionId)).some((job) => job.status === 'running'),
       },
     })
-    const handoff = new HandoffService()
     // Credential 明文与 Secret 走同一个按值脱敏机制（ADR 0004）：不是凭据形态的自定义密钥被回显时同样替换。
     yield* Effect.acquireRelease(
       Effect.sync(() => registerSecretValues(() => credentials.cachedValues(), { replacement: REDACTED })),
@@ -459,7 +516,7 @@ const AppLive = Layer.effect(
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
-    bindSessions(sessions)
+    bindSessions(sessions, worktrees)
     // 外部 Hook 的生命周期事件：continue: false 的停止、输入的 permission_mode、Notification 的作用域；Notification Hook 订阅发出的通知。
     hooks.bind({
       stopAfterBatch: (sessionId, error) => sessions.runs.stopAfterBatch(sessionId, error),

@@ -160,7 +160,7 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
 
 it('M5 的注册表占位不显示：设置菜单中没有子代理、定时任务与通知，打开时回到常规；右栏 tab 与标题栏操作不含它们', async () => {
   expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs'])
-  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'handoff'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
   const result = await screen

@@ -32,7 +32,7 @@ it('注册表：dock 三张卡、标题栏 jobs 与 cost、右栏 plan 与 jobs 
     ['cost', true],
     ['agents', false],
     ['schedules', false],
-    ['handoff', false],
+    ['handoff', true],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],

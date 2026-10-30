@@ -217,6 +217,8 @@ export interface ContextContributionOptions {
   hooks?: import('../hooks.ts').HookService
   /** 子代理（application/subagents.ts）；省略时 subagents 贡献只有规则工具名。 */
   subagents?: import('../subagents.ts').SubagentService
+  /** 交接（application/handoff.ts）；省略时 /handoff 为 400。 */
+  handoff?: import('../handoff.ts').HandoffService
   /** 仅测试：额外的贡献，排在全部领域之后（集成测试驱动 seam）。 */
   extra?: readonly ContextContribution[]
 }

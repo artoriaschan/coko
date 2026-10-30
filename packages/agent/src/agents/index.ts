@@ -1,5 +1,6 @@
-// 领域 barrel：多代理与会话派生（agent-runtime.md 的 agents/）：从此分叉、子代理的定义与工具（ADR 0014）。
+// 领域 barrel：多代理与会话派生（agent-runtime.md 的 agents/）：从此分叉、交接、子代理的定义与工具（ADR 0014）。
 export { forkEntries } from './fork.ts'
+export { HANDOFF_COPIED_KINDS, HANDOFF_SUMMARY_MAX_CHARS, handoffPrompt, handoffSummaryText, handoffTargetEntries, hasUserMessage } from './handoff.ts'
 export {
   AGENT_DEFAULT_MAX_TURNS,
   AGENT_MAX_TURNS_LIMIT,
