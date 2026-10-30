@@ -29,7 +29,7 @@ Session 中一条已提交、不可修改的记录，例如用户消息、模型
 _Avoid_: event、record、message（泛指时）
 
 **Run**：
-从一次用户提交、重试或继续开始，到 Agent 停止为止的一次执行。
+从一次用户提交、重试、继续或 Goal Round 开始，到 Agent 停止为止的一次执行。
 _Avoid_: turn（turn 指一次模型请求与其工具调用）
 
 **Steering**：
@@ -103,6 +103,40 @@ _Avoid_: 模型列表、预设目录、model list
 **Thinking Level**：
 模型推理强度的七级刻度之一：off、minimal、low、medium、high、xhigh、max；界面称“推理档位”。
 _Avoid_: effort、reasoning level、推理等级
+
+## 目标与任务
+
+**Goal**：
+Session 中一个跨多个 Run 的完成目标，带预先记录的成功条件与预算，由 Agent 逐轮推进直到完成、停下或被取消。
+_Avoid_: task、objective（泛指时）、mission
+
+**Goal Round**：
+Goal 推进中由 Coko 而不是用户发起的一个 Run。
+_Avoid_: iteration、loop、自动轮次
+
+**Goal Budget**：
+一个 Goal 允许消耗的时间、Token、费用、轮次与工具调用的上限。
+_Avoid_: quota、limit（泛指时）
+
+**Success Criterion**：
+创建 Goal 时记录、判定其是否完成所依据的一条可检查条件。
+_Avoid_: acceptance、done condition
+
+**Plan Mode**：
+只调研与规划、不改动 Workspace 的 Permission Mode；退出须经用户审阅计划，并回到进入前的模式。
+_Avoid_: planning state、dry run
+
+**Plan**：
+Agent 在 Plan Mode 中提交给用户审阅的执行方案，按修订保留。
+_Avoid_: proposal、spec
+
+**Todo List**：
+Agent 为当前 Session 维护的一张可见步骤清单，每次整体替换。
+_Avoid_: task list、checklist、Task（Task 留给多代理共享的任务）
+
+**Background Job**：
+在 Run 之外继续运行、输出可随时读取或停止的命令，属于发起它的 Session。
+_Avoid_: task、daemon、background process
 
 ## 工具
 
