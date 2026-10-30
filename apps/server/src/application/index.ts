@@ -1,7 +1,7 @@
 import type { SessionStore } from '@coko/session'
 import type { ConfigService } from './config.ts'
 import type { ContextAssembly } from './context/index.ts'
-import type { McpManager } from './context/mcp.ts'
+import type { McpAdmin } from './context/mcp-admin.ts'
 import type { SessionHub } from './hub.ts'
 import type { ProviderService } from './providers.ts'
 import type { SecretService } from './secrets.ts'
@@ -21,8 +21,8 @@ export interface Application {
   config: ConfigService
   /** M3 上下文装配（application/context/）。 */
   context: ContextAssembly
-  /** MCP Server 连接池与配置。 */
-  mcp: McpManager
+  /** MCP Server 的配置、批准与连接状态视图（连接池为 context/mcp.ts 的 McpManager）。 */
+  mcp: McpAdmin
   /** 登记的 Secret（ADR 0007）。 */
   secrets: SecretService
 }
