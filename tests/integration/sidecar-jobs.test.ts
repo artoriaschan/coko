@@ -298,6 +298,8 @@ describe.skipIf(!darwin)('后台任务的停止与孤儿（darwin）', { timeout
     const pids = waitPids(root, 'b')
     await h.send('go')
     const [shell, child] = await pids
+    // send 不等待本轮结束：进程已出现时 job_start 条目可能尚未经 WebSocket 到达，等待条目本身。
+    await h.stream.waitFor(() => h.jobStarts().length === 1)
     const jobId = h.jobStarts()[0]!.jobId
     await expect.poll(() => jobRows(h.dirs)).toEqual([{ pid: shell, pgid: shell, kind: 'job', job_id: jobId }])
     expect((await h.api.post(apiPaths.sessionAbort(h.sessionId))).status).toBeLessThan(300)
