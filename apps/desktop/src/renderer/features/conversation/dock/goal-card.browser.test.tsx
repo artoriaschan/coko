@@ -342,6 +342,8 @@ it('/goal 无参数打开 Goal 卡（没有 Goal 时为空状态），不发送�
   const box = page.getByRole('textbox', { name: 'Give Coko a task' })
   await userEvent.click(box)
   await userEvent.keyboard('/goal')
+  // 高负载下按键可能晚于提交到达编辑区：等编辑区里确实是 "/goal" 再按 Esc 与 Enter。
+  await expect.poll(() => box.element().textContent).toBe('/goal')
   await userEvent.keyboard('{Escape}')
   await userEvent.keyboard('{Enter}')
   await expect.poll(() => card()?.hasAttribute('data-empty')).toBe(true)
