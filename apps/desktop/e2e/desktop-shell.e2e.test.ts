@@ -80,6 +80,7 @@ describe('桌面壳', () => {
       'cancelProviderModels',
       'fetchProviderModels',
       'log',
+      'onOpenSession',
       'onSidecarState',
       'openLogs',
       'pickDirectory',
