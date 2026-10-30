@@ -1,17 +1,53 @@
 // WorktreeService：真实 git（夹具仓库）与内存存储。removeIfUnchanged（供子代理）、name 校验、仓库根经符号链接时拒绝、子目录 Workspace 的工作目录。
 import { execFile } from 'node:child_process'
-import { access, mkdir, readdir, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
-import { createGitWorkspace, type GitWorkspace } from '../../../../tests/fixtures/git/index.ts'
 import { createGitRunner, type GitPort } from '../adapters/git.ts'
 import { AppError } from './errors.ts'
 import { validWorktreeName, WorktreeService } from './worktrees.ts'
 
 const run = promisify(execFile)
+
+/** 临时仓库（与 tests/fixtures/git 相同的隔离：临时 HOME、GIT_CONFIG_GLOBAL=/dev/null、固定 author）。 */
+interface GitWorkspace {
+  root: string
+  home: string
+  env: Record<string, string>
+  git(...args: string[]): Promise<string>
+  dispose(): Promise<void>
+}
+
+async function createGitWorkspace(options: { files: Record<string, string> }): Promise<GitWorkspace> {
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'coko-wt-unit-')))
+  const root = join(base, 'repo')
+  const home = join(base, 'home')
+  await mkdir(root, { recursive: true })
+  await mkdir(home, { recursive: true })
+  const env = {
+    HOME: home,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Coko Unit',
+    GIT_AUTHOR_EMAIL: 'unit@coko.test',
+    GIT_COMMITTER_NAME: 'Coko Unit',
+    GIT_COMMITTER_EMAIL: 'unit@coko.test',
+  }
+  const git = async (...args: string[]) => (await run('git', args, { cwd: root, env: { PATH: process.env.PATH ?? '', ...env } })).stdout
+  await git('init', '-q', '-b', 'main')
+  await git('config', 'commit.gpgsign', 'false')
+  for (const [path, content] of Object.entries(options.files)) {
+    await mkdir(join(root, path, '..'), { recursive: true })
+    await writeFile(join(root, path), content)
+  }
+  await git('add', '-A')
+  await git('commit', '-q', '-m', 'initial')
+  return { root, home, env, git, dispose: () => rm(base, { recursive: true, force: true }) }
+}
 const repos: GitWorkspace[] = []
 afterEach(async () => {
   for (const repo of repos.splice(0)) await repo.dispose()
@@ -122,8 +158,6 @@ describe('WorktreeService 创建与工作目录', () => {
     const { store, service, workspace } = await setup()
     const kept = await service.create(workspace.id, { name: 'kept' })
     const gone = await service.create(workspace.id, { name: 'gone' })
-    await mkdir(join(gone.path, '..', 'unrelated'), { recursive: true })
-    const { rm } = await import('node:fs/promises')
     await rm(gone.path, { recursive: true, force: true })
     expect(await service.recover({ listUnfinishedRuns: async () => [], listLatestEntries: async () => [] })).toBe(1)
     expect((await store.worktrees.list(workspace.id)).map((w) => [w.name, w.status])).toEqual([
