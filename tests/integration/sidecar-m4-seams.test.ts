@@ -1,5 +1,5 @@
 // M4 的装配接入点：真实 Sidecar（faux）。空贡献时发给模型的请求不变；待送达内容（pendingInput）合并到下一个 Run 的 user message 开头；
-// 尚未实现的 /plan 与 /goal 返回 400；有序关闭的顺序；faux 回复的 usage；harness 的重启、进程存在与 Job 日志扫描辅助。
+// 尚未实现的 /goal 返回 400（/plan 见 sidecar-plan.test.ts）；有序关闭的顺序；faux 回复的 usage；harness 的重启、进程存在与 Job 日志扫描辅助。
 // 本文件不新增文件读取路径（没有读取根或注入点涉及符号链接）。
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -99,12 +99,12 @@ describe('M4 装配接入点', () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan 与 /goal pause 在实现前返回 400；Run 进行中 /goal pause 仍为 400（Run 中可用的动作），/plan 为 409', async () => {
+  it('/goal 在实现前返回 400；Run 进行中 /goal pause 仍为 400（Run 中可用的动作），/plan 为 409', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const script = await fauxScript(root, { responses: [{ content: [{ type: 'toolCall', name: 'bash', id: 'b1', arguments: { command: 'sleep 30' } }] }] })
     const { sidecar, api, sessionId, stream, runEnds } = await boot(dirs, root, { COKO_FAUX_SCRIPT: script })
-    for (const text of ['/plan', '/plan look around first', '/goal pause', '/goal fix the tests']) {
+    for (const text of ['/goal pause', '/goal fix the tests']) {
       const res = await api.post(apiPaths.sessionMessages(sessionId), { text })
       expect([text, res.status, res.body.error?.code, res.body.error?.details?.reason]).toEqual([text, 400, 'bad-request', 'not-implemented'])
     }

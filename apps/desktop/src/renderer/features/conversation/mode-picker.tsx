@@ -1,4 +1,4 @@
-import { CYCLED_PERMISSION_MODES, type PermissionMode } from '@coko/protocol'
+import { CYCLED_PERMISSION_MODES, type PermissionMode, type StandardPermissionMode } from '@coko/protocol'
 import {
   Button,
   cn,
@@ -13,20 +13,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { ChevronDownIcon, EyeIcon, FilePenLineIcon, ShieldAlertIcon, ShieldIcon } from 'lucide-react'
+import { ChevronDownIcon, ClipboardListIcon, EyeIcon, FilePenLineIcon, ShieldAlertIcon, ShieldIcon } from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
-export const PERMISSION_MODES: readonly PermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
+/** 四档（默认模式也只能是其一）；plan（规划）在菜单中另列一项。 */
+export const PERMISSION_MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 
 export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?: string }>> = {
   'read-only': EyeIcon,
   default: ShieldIcon,
   'accept-edits': FilePenLineIcon,
   'full-access': ShieldAlertIcon,
+  plan: ClipboardListIcon,
 }
 
-/** Shift+Tab 的下一档：只在前三档之间循环；从 full-access 回到第一档。 */
+/** Shift+Tab 的下一档：只在前三档之间循环（不含 plan）；从 full-access 或 plan 回到第一档。 */
 export function nextCycledMode(mode: PermissionMode): PermissionMode {
   const index = CYCLED_PERMISSION_MODES.indexOf(mode as (typeof CYCLED_PERMISSION_MODES)[number])
   return CYCLED_PERMISSION_MODES[(index + 1) % CYCLED_PERMISSION_MODES.length]!
@@ -42,7 +44,7 @@ export interface ModePickerProps {
 export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
   const { t } = useI18n()
   const Icon = MODE_ICONS[value]
-  const label = t(`permissions.modes.${value}`)
+  const label = value === 'plan' ? t('plan.mode') : t(`permissions.modes.${value}`)
   const warning = value === 'full-access'
   return (
     <DropdownMenu>
@@ -89,6 +91,16 @@ export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
               </DropdownMenuRadioItem>
             )
           })}
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioItem value="plan" data-mode="plan" className="h-auto py-1.5">
+            <span className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-2">
+                <ClipboardListIcon className="text-link" />
+                {t('plan.mode')}
+              </span>
+              <span className="text-ui-small text-muted-foreground">{t('plan.modeDescription')}</span>
+            </span>
+          </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         {warning && (
           <>

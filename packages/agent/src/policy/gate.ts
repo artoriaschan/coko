@@ -1,7 +1,9 @@
 // 权限 hook：位于 ToolHooks 链首。判定 allow 直接放行，deny 以规则拒绝，ask 经 ApprovalBroker 等待用户回答。
 // 执行前（取得执行槽之后、执行记录之前）recheck 复核文件写入的目标：判定之后目标被替换（例如同批的命令新建了符号链接）时按新判定处理。
+// exit_plan_mode（plan-exit）：询问前提交 proposed 的计划，以 kind plan 的请求等待审阅（不随模式或规则变更重新判定）。
 import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core'
 import type { PermissionMode, PermissionRule, SandboxMode } from '../session-entries/index.ts'
+import { invalidPlanText, planFeedbackText, planMarkdownProblem, planReviewOf, planTitle, type PlanReview } from '../planning/exit-plan-mode.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
 import { decide, toolCategory, type PermissionCall, type PermissionClass, type PermissionDecision, type PermissionTarget } from './decide.ts'
@@ -185,6 +187,42 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     }
   }
 
+  /**
+   * 计划审阅：校验计划（参数错误时不提交、不询问），提交 proposed 的 plan 条目，再以 kind plan 的请求等待回答。批准时放行（执行时提交
+   * approved）；拒绝时提交 rejected，带反馈的交给模型继续规划，无反馈的与普通拒绝相同（本批结束后 aborted）。
+   */
+  const reviewPlan = async (context: BeforeToolCallContext, review: PlanReview, signal: AbortSignal | undefined): Promise<BeforeToolCallResult | undefined> => {
+    const markdown = String((context.args as { plan?: unknown } | undefined)?.plan ?? '')
+    const problem = planMarkdownProblem(markdown)
+    if (problem) return { block: true, reason: invalidPlanText(problem) }
+    let resolution: ApprovalResolution
+    try {
+      const ref = await review.propose(context.toolCall.id, markdown)
+      resolution = await options.broker.request(
+        { toolCallId: context.toolCall.id, toolName: context.toolCall.name, kind: 'plan', subject: planTitle(markdown), suggestions: [], ...ref },
+        signal,
+      )
+    } catch (error) {
+      return { block: true, reason: failed(error) }
+    }
+    switch (resolution.outcome) {
+      case 'allowed':
+        return undefined
+      case 'cancelled':
+      case 'superseded':
+        return { block: true, reason: OPERATION_ABORTED_TEXT }
+      case 'denied':
+        try {
+          await review.rejected(context.toolCall.id, resolution.feedback)
+        } catch (error) {
+          return { block: true, reason: failed(error) }
+        }
+        if (resolution.feedback !== undefined) return { block: true, reason: planFeedbackText(resolution.feedback) }
+        options.reject()
+        return { block: true, reason: REJECTED_TEXT }
+    }
+  }
+
   return {
     async beforeToolCall(context, signal) {
       if (options.rejected()) return { block: true, reason: SKIPPED_TEXT }
@@ -214,6 +252,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         remember(undefined)
         return undefined
       }
+      const review = categoryOf(name) === 'plan-exit' ? planReviewOf(tool) : undefined
+      if (review) return reviewPlan(context, review, signal)
       const reason = await askTool(context.toolCall.id, name, subject, decision, signal, remember)
       return reason === undefined ? undefined : { block: true, reason }
     },

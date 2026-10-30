@@ -1,6 +1,7 @@
 import type { MessageKey } from '@coko/i18n'
 import type * as React from 'react'
 import { createStore } from 'zustand/vanilla'
+import { PlanTab } from './plan-tab.tsx'
 
 /** 右栏的 tab id，按 RIGHT_PANEL_TABS 的顺序显示。 */
 export type RightPanelTabId = 'plan' | 'jobs'
@@ -24,7 +25,7 @@ function Unavailable() {
 }
 
 export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
-  { id: 'plan', label: 'plan.tab', Component: Unavailable, available: false },
+  { id: 'plan', label: 'plan.tab', Component: PlanTab, available: true },
   { id: 'jobs', label: 'jobs.tab', Component: Unavailable, available: false },
 ]
 

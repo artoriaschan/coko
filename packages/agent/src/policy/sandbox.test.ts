@@ -8,6 +8,7 @@ describe('模式对应的沙箱档位', () => {
     ['default', 'workspace-write'],
     ['accept-edits', 'workspace-write'],
     ['full-access', 'danger-full-access'],
+    ['plan', 'read-only'],
   ] as const)('%s → %s', (mode, sandbox) => {
     expect(sandboxModeFor(mode)).toBe(sandbox)
   })

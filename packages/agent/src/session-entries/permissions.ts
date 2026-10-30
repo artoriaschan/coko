@@ -1,11 +1,21 @@
 // Permission Mode、Session 规则与审批请求 / 决定的条目 payload（ADR 0005）。
 import { Type, type Static } from 'typebox'
-import { definePayloads } from './define.ts'
+import { definePayloads, type EntryJson } from './define.ts'
 
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 
-export const permissionModeSchema = Type.Union([Type.Literal('read-only'), Type.Literal('default'), Type.Literal('accept-edits'), Type.Literal('full-access')])
+/** 可作为默认模式与 plan 之前模式的四档。 */
+export const standardPermissionModeSchema = Type.Union([
+  Type.Literal('read-only'),
+  Type.Literal('default'),
+  Type.Literal('accept-edits'),
+  Type.Literal('full-access'),
+])
+export type StandardPermissionMode = Static<typeof standardPermissionModeSchema>
+
+/** Session 的 Permission Mode：四档加 plan（判定与 read-only 相同，命令沙箱 read-only；只对一个 Session 生效）。 */
+export const permissionModeSchema = Type.Union([standardPermissionModeSchema, Type.Literal('plan')])
 export type PermissionMode = Static<typeof permissionModeSchema>
 
 /** Sandbox Mode：命令运行时的写入档位。 */
@@ -19,7 +29,11 @@ export const permissionRuleSchema = Type.Object(
 )
 export type PermissionRule = Static<typeof permissionRuleSchema>
 
-export const permissionModePayloadSchema = Type.Object({ mode: permissionModeSchema }, strict)
+/** permission_mode v1：只有四档。 */
+const permissionModeV1Schema = Type.Object({ mode: standardPermissionModeSchema }, strict)
+
+/** permission_mode v2：增加 plan；进入 plan 时 prior 为进入前的模式（退出与批准计划时回到它）。 */
+export const permissionModePayloadSchema = Type.Object({ mode: permissionModeSchema, prior: Type.Optional(standardPermissionModeSchema) }, strict)
 export type PermissionModePayload = Static<typeof permissionModePayloadSchema>
 
 export const permissionRulePayloadSchema = Type.Object({ op: Type.Union([Type.Literal('add'), Type.Literal('remove')]), rule: permissionRuleSchema }, strict)
@@ -30,14 +44,17 @@ export const approvalRequestPayloadSchema = Type.Object(
     requestId: Id,
     toolCallId: Id,
     toolName: Type.String(),
-    /** escalation：命令请求以更宽的 Sandbox Mode 运行一次。 */
-    kind: Type.Union([Type.Literal('tool'), Type.Literal('escalation')]),
+    /** escalation：命令请求以更宽的 Sandbox Mode 运行一次；plan：exit_plan_mode 提交的计划等待审阅。 */
+    kind: Type.Union([Type.Literal('tool'), Type.Literal('escalation'), Type.Literal('plan')]),
     /** 命令或路径。 */
     subject: Type.String(),
     targetMode: Type.Optional(sandboxModeSchema),
     justification: Type.Optional(Type.String()),
     /** 可保存为"总是允许"的建议规则；越界写入与提权为空。 */
     suggestions: Type.Array(permissionRuleSchema),
+    /** kind plan：proposed 的 plan 条目（subject 为计划标题）。 */
+    planId: Type.Optional(Id),
+    revision: Type.Optional(Type.Integer({ minimum: 1 })),
   },
   strict,
 )
@@ -69,7 +86,7 @@ export interface PermissionEntryPayloads {
 }
 
 export const permissionEntryPayloads = definePayloads({
-  permission_mode: [{ schema: permissionModePayloadSchema }],
+  permission_mode: [{ schema: permissionModeV1Schema }, { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous }],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
   approval_request: [{ schema: approvalRequestPayloadSchema }],
   approval_decision: [{ schema: approvalDecisionPayloadSchema }],

@@ -170,6 +170,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 `<todo_list>` system section 每个 Run 开始时从该 Session 最新的 `todo_list` 条目生成，不依赖对话消息：压缩把 todo_write 的调用与结果摘要掉之后，有未完成项时 section 照常注入，模型仍看到当前表。见 [Todo List](todo.md#注入)。
 
+### 压缩后的 `<approved_plan>`
+
+最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal → todo）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：
