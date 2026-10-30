@@ -42,6 +42,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | packages/logging | @logtape/logtape、@logtape/file、@logtape/redaction、vitest；文件 sink 经 `@coko/logging/file` 入口导出 |
 | M3 票 01 | packages/agent：@earendil-works/pi-mcp（MCP 客户端：票 07 接入 stdio 与 streamable HTTP 传输、McpClient 工具）、yaml（Skills 与命令的 frontmatter）；apps/desktop：@coko/agent（devDependency，renderer 只导入 `@coko/agent/entries`） |
 | M4 票 02 | apps/server：node-pty（PTY 后端，预编译原生模块）、electron（devDependency，仅供 `pty-runtime.test.ts` 以 `ELECTRON_RUN_AS_NODE=1` 加载 node-pty）；apps/desktop：anser（devDependency，由 Vite 打入 renderer，供后台任务输出的 SGR 渲染）；根 `package.json` 的 `postinstall`（`scripts/postinstall-node-pty.mjs`） |
+| M5 票 04 | 不新增依赖：apps/server 以 argv 运行本机系统 `git`（经 `PATH` 解析，创建与移除 worktree），未安装 git 时 worktree 接口以 `not-a-git-repo` 失败 |
 | 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol、@vscode/ripgrep（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议；ripgrep 用于 `--ripgrep` 场景） |
 | 其余 packages | vitest |
 
