@@ -2,7 +2,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { constants as osConstants } from 'node:os'
 import {
   isConfined,
@@ -15,6 +15,7 @@ import {
   type SpawnedProcess,
   type SpawnRequest,
 } from './exec.ts'
+import { PTY_COLS, PTY_ROWS, PTY_TERM, PtyUnavailableError, type PtyPort } from './pty.ts'
 
 /** Variables of the Sidecar process that must not leak into user commands. */
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
@@ -38,6 +39,8 @@ export interface LocalExecOptions {
    * (this package ships no sandbox; hosts provide one, for example Seatbelt on macOS).
    */
   sandbox?: LocalSandbox
+  /** Pseudo terminals for `spawn({ tty: true })`. Omitted: such requests reject with PtyUnavailableError. */
+  pty?: PtyPort
 }
 
 /** A host's sandbox runner for the local shell. */
@@ -65,6 +68,9 @@ export function filterEnv(base: Readonly<Record<string, string | undefined>>, ex
   for (const [name, value] of Object.entries(base)) if (!all.some((exclusion) => matches(name, exclusion))) env[name] = value
   return env
 }
+
+/** Signal number → name (`15` → `SIGTERM`). */
+const SIGNAL_NAMES = new Map(Object.entries(osConstants.signals).map(([name, number]) => [number, name]))
 
 function killProcessGroup(pid: number, signal: NodeJS.Signals = 'SIGKILL'): void {
   try {
@@ -150,8 +156,8 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
   const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
 
-  /** 检查工作目录、按沙箱档位加前缀，以独立进程组启动 `<shell> -c <command>`（stdin 关闭）。 */
-  const start = async ({ command, cwd, env, sandbox }: Pick<SpawnRequest, 'command' | 'cwd' | 'env' | 'sandbox'>) => {
+  /** 检查工作目录、按沙箱档位加前缀，得到 `[...前缀, <shell>, -c, <command>]`。 */
+  const prepare = async ({ command, cwd, sandbox }: Pick<SpawnRequest, 'command' | 'cwd' | 'sandbox'>) => {
     try {
       if (!(await stat(cwd)).isDirectory()) throw new Error('not a directory')
     } catch {
@@ -164,9 +170,52 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
       if (!options.sandbox) throw new SandboxUnavailableError(confined.mode, 'this host provides no sandbox')
       prefix = options.sandbox.wrap(confined)
     }
-    const argv = [...prefix, shell, '-c', command]
-    const child = spawn(argv[0]!, argv.slice(1), { cwd, detached: true, env: env ?? baseEnv(), stdio: ['ignore', 'pipe', 'pipe'] })
+    return { argv: [...prefix, shell, '-c', command], confined }
+  }
+  /** 以独立进程组启动（stdin 关闭）。 */
+  const start = async (request: Pick<SpawnRequest, 'command' | 'cwd' | 'env' | 'sandbox'>) => {
+    const { argv, confined } = await prepare(request)
+    const child = spawn(argv[0]!, argv.slice(1), { cwd: request.cwd, detached: true, env: request.env ?? baseEnv(), stdio: ['ignore', 'pipe', 'pipe'] })
     return { child, confined }
+  }
+  /**
+   * PTY 中启动（node-pty 等宿主端口）：cwd 为真实路径，120×30，TERM 缺省 xterm-256color。PTY 子进程是自己会话与进程组的组长
+   * （pgid = pid），kill 由端口向进程组发信号。
+   */
+  const spawnTty = async (request: SpawnRequest): Promise<ExecProcess> => {
+    const pty = options.pty
+    if (!pty) throw new PtyUnavailableError()
+    const { argv } = await prepare(request)
+    const cwd = await realpath(request.cwd)
+    const env: Record<string, string> = {}
+    for (const [name, value] of Object.entries(request.env ?? baseEnv())) if (value !== undefined) env[name] = value
+    env.TERM ??= PTY_TERM
+    const term = await pty.spawn({ argv, cwd, env, cols: PTY_COLS, rows: PTY_ROWS })
+    const pid = term.pid
+    notify<[SpawnedProcess]>(request.onSpawn, { pid, pgid: pid })
+    let done = false
+    term.onData((chunk) => request.onData(Buffer.from(chunk, 'utf8')))
+    const exited = new Promise<ProcessExit>((resolve) =>
+      term.onExit(({ exitCode, signal }) => {
+        const name = signal ? SIGNAL_NAMES.get(signal) : undefined
+        resolve(signal ? { exitCode: 128 + signal, ...(name ? { signal: name } : {}) } : { exitCode })
+      }),
+    )
+    void exited.then(() => {
+      done = true
+      notify(request.onExit)
+    })
+    return {
+      pid,
+      pgid: pid,
+      kill: (signal = 'SIGTERM') => {
+        if (!done) term.kill(signal)
+      },
+      write: (text) => {
+        if (!done) term.write(text)
+      },
+      exited,
+    }
   }
   /** 沙箱可执行文件缺失或不可执行：命令没有运行。 */
   const startFailure = (error: unknown, confined: SandboxPolicy | undefined): unknown => {
@@ -180,7 +229,9 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   }
 
   return {
-    async spawn({ command, cwd, env, onData, sandbox, onSpawn, onExit }): Promise<ExecProcess> {
+    async spawn(request): Promise<ExecProcess> {
+      if (request.tty) return spawnTty(request)
+      const { command, cwd, env, onData, sandbox, onSpawn, onExit } = request
       const { child, confined } = await start({ command, cwd, env, sandbox })
       child.stdout?.on('data', onData)
       child.stderr?.on('data', onData)

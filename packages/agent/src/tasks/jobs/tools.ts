@@ -1,5 +1,6 @@
-// 后台任务的工具（docs/subsystems/jobs.md）：job_output（游标读取与等待）、job_list、job_kill。Job 表经 JobsPort 由宿主提供，
-// 只含本 Session 的 Job；权限类由宿主注册时给出（job_output、job_list 为 context-read，job_kill 为 session-state）。
+// 后台任务的工具（docs/subsystems/jobs.md）：job_output（游标读取与等待）、job_list、job_kill、job_input（PTY Job 的输入）。Job 表经 JobsPort
+// 由宿主提供，只含本 Session 的 Job；权限类由宿主注册时给出（job_output、job_list 为 context-read，job_kill 为 session-state，job_input 为 bash，
+// 判定对象为 text）。
 import { Type } from 'typebox'
 import type { SandboxPolicy, SpawnRequest, ExecProcess } from '../../ports/exec.ts'
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail } from '../../tools/truncate.ts'
@@ -23,6 +24,8 @@ export interface JobsPort {
   kill(jobId: string, reason?: string): Promise<void>
   /** 有追加指令到达时中止的信号（每次取当前的一个）。 */
   interrupt(): AbortSignal
+  /** 写入 running 的 pty Job 的终端输入；其他 Job 抛出。 */
+  input(jobId: string, data: string): void
 }
 
 /** bash run_in_background 的启动请求。spawn 由 bash 给出（同一执行端口、同一沙箱档位）。 */
@@ -31,6 +34,8 @@ export interface BackgroundJobRequest {
   command: string
   cwd: string
   sandbox?: SandboxPolicy
+  /** 在 PTY 中运行（Job kind pty）。 */
+  tty?: boolean
   spawn: (request: SpawnRequest) => Promise<ExecProcess>
 }
 
@@ -133,6 +138,47 @@ export function createJobKillTool(port: JobsPort): CokoTool<typeof jobKillParame
       job.observedEnd = true
       await port.kill(job_id, reason)
       return text(`Stopped background job ${job_id}: ${job.info.label}\n\n${statusLine(job.snapshot())}`)
+    },
+  }
+}
+
+export const jobInputParameters = Type.Object({
+  job_id: jobId,
+  text: Type.String({ description: 'Text to type into the terminal (may be empty with ctrl_c or submit)' }),
+  submit: Type.Optional(Type.Boolean({ description: 'Press Enter after the text (appends \\r)' })),
+  ctrl_c: Type.Optional(Type.Boolean({ description: 'Send Ctrl-C (\\x03) before the text, interrupting the foreground program' })),
+})
+
+/** Ctrl-C 与 Enter 在终端输入中的字节。 */
+const CTRL_C = '\x03'
+const ENTER = '\r'
+
+/**
+ * 向 PTY Job 输入（只对 running 的 pty Job；其他 Job 的 stdin 已关闭）：ctrl_c 先写 \x03，再写 text，submit 追加 \r。不等待回应，
+ * 结果提示用 job_output 读取。
+ */
+export function createJobInputTool(port: JobsPort): CokoTool<typeof jobInputParameters, undefined> {
+  return {
+    name: 'job_input',
+    label: 'job_input',
+    description:
+      'Type into a running terminal job started with bash tty: true and run_in_background: true. ' +
+      'submit presses Enter after the text; ctrl_c sends Ctrl-C first. Does not wait: read the response with job_output (wait: true, a short timeout_ms).',
+    parameters: jobInputParameters,
+    effect: 'side-effect',
+    // 判定对象为输入的文本，与 bash 命令同一套规则。
+    permissionSubject: (args) => args.text,
+    async execute(_toolCallId, { job_id, text: input, submit, ctrl_c }) {
+      if (input === '' && !submit && !ctrl_c) throw new Error('Nothing to send: give text, submit or ctrl_c')
+      const job = port.get(job_id)
+      if (!job) throw new UnknownJobError(job_id)
+      if (job.info.kind !== 'pty')
+        throw new Error(`Background job ${job_id} is not a terminal job: its stdin is closed. Start it with bash tty: true to send input.`)
+      if (job.status !== 'running') throw new Error(`Background job ${job_id} is not running (status: ${job.status}).`)
+      port.input(job_id, (ctrl_c ? CTRL_C : '') + input + (submit ? ENTER : ''))
+      const typed = input === '' ? (submit ? 'Enter' : '') : `${input.length} characters${submit ? ' and Enter' : ''}`
+      const sent = ctrl_c ? (typed ? `Ctrl-C, then ${typed}` : 'Ctrl-C') : typed
+      return text(`Sent ${sent} to background job ${job_id}. Read the response with job_output.`)
     },
   }
 }

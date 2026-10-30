@@ -140,7 +140,7 @@ M3 之后 Agent 有了指令、Skills、MCP 与压缩，但每次只能完成一
 
 ### 子进程登记与孤儿清理（ADR 0012；agent `ports/exec.ts`，server `adapters/processes.ts`、`application/processes.ts`）
 
-迁移 v7 新表 `host_processes`（id 主键、pid、pgid?、started_at（`ps -o lstart=` 原文）、kind: bash / job / pty / mcp、session_id?、job_id?、command、created_at；STRICT）与 `store.processes`（`register`、`remove`、`list`）。ExecPort 增加生命周期回调 `onSpawn({ pid, pgid? }) / onExit`；宿主在回调中登记与删除。MCP stdio 传输连接成功后登记其 pid（无 pgid）。启动时（打开存储之后、启动恢复之前）逐行核对：pid 存在且 lstart 一致 → 有 pgid 则 `kill(-pgid)` 否则 `kill(pid)`，SIGTERM，2 秒后 SIGKILL，日志 `orphan process terminated { pid, kind, sessionId? }`；否则只删行。有序关闭在关闭存储之前终止全部登记进程。
+迁移 v7 新表 `host_processes`（id 主键、pid、pgid?、started_at（`ps -o lstart=` 原文）、kind: bash / job / pty / mcp、session_id?、job_id?、command、created_at；STRICT）与 `store.processes`（`register`、`remove`、`list`）。ExecPort 增加生命周期回调 `onSpawn({ pid, pgid? }) / onExit`；宿主在回调中登记与删除。MCP stdio 传输连接成功后登记其 pid 与进程组（pi-mcp 以 detached 启动，pgid = pid；票 05 由"无 pgid"修订，使经 npx 启动的孙进程也被清理）。启动时（打开存储之后、启动恢复之前）逐行核对：pid 存在且 lstart 一致 → 有 pgid 则 `kill(-pgid)` 否则 `kill(pid)`，SIGTERM，2 秒后 SIGKILL，日志 `orphan process terminated { pid, kind, sessionId? }`；否则只删行。有序关闭在关闭存储之前终止全部登记进程。
 
 ### 权限类（扩展 [M3 的权限类](../../docs/subsystems/permissions.md#模式)）
 

@@ -13,6 +13,7 @@ import {
   type ExecPort,
   type GrepSearchRequest,
   type LocalSandbox,
+  type PtyPort,
   type ToolRegistry,
 } from '@coko/agent'
 import { HOST_ENV_EXCLUSIONS } from './credentials.ts'
@@ -134,6 +135,8 @@ export interface WorkspaceToolsOptions {
   extraTools?: (cwd: string) => CokoTool[]
   /** 包装 bash 的执行端口（子进程登记，ADR 0012）。 */
   wrapExec?: (port: ExecPort) => ExecPort
+  /** bash tty 后台任务的 PTY（node-pty）；缺省时 tty 调用以 pty-unavailable 返回。 */
+  pty?: PtyPort
 }
 
 /**
@@ -141,9 +144,9 @@ export interface WorkspaceToolsOptions {
  * bash 的环境剔除 sidecar 配置与凭据变量（HOST_ENV_EXCLUSIONS），在 Permission Mode 对应的沙箱档位内运行。
  */
 export function createWorkspaceTools(options: WorkspaceToolsOptions = {}): (cwd: string) => ToolRegistry {
-  const { rgPath, sandbox, extraTools, wrapExec } = options
+  const { rgPath, sandbox, extraTools, wrapExec, pty } = options
   return (cwd) => {
-    const exec = createLocalExecPort({ excludeEnv: HOST_ENV_EXCLUSIONS, ...(sandbox ? { sandbox } : {}) })
+    const exec = createLocalExecPort({ excludeEnv: HOST_ENV_EXCLUSIONS, ...(sandbox ? { sandbox } : {}), ...(pty ? { pty } : {}) })
     const registry = createBuiltinToolRegistry({ cwd, exec: wrapExec ? wrapExec(exec) : exec })
     if (rgPath) registry.register(createGrepTool({ cwd, searcher: createRipgrepSearcher(rgPath) }), { override: true })
     for (const tool of extraTools?.(cwd) ?? []) registry.register(tool)

@@ -160,6 +160,44 @@ describe('bash run_in_background', () => {
     expect(seen).toEqual([{ toolCallId: 'c9', command: 'sleep 0', cwd: ws.dir, sandbox }])
   })
 
+  it.each([
+    { name: 'tty 而不后台：参数错误，不启动', args: { command: 'python3 -i', tty: true }, error: 'tty requires run_in_background: true' },
+    {
+      name: 'tty 且 run_in_background: false：参数错误',
+      args: { command: 'python3 -i', tty: true, run_in_background: false },
+      error: 'tty requires run_in_background',
+    },
+  ])('$name', async ({ args, error }) => {
+    const started: unknown[] = []
+    const jobs: BackgroundJobLauncher = { start: async (request) => (started.push(request), { jobId: 'j', label: 'x' }) }
+    const pending = createBashTool({ cwd: ws.dir, exec: createLocalExecPort() }).execute('c', args, undefined, undefined, {
+      idempotencyKey: 's:c',
+      jobs,
+    } as BashExecutionContext)
+    await expect(pending).rejects.toThrow(error)
+    expect(started).toEqual([])
+  })
+
+  it('tty 后台：请求带 tty 交给宿主；宿主没有 PTY 时 pty-unavailable 错误，说明命令未运行', async () => {
+    const seen: (boolean | undefined)[] = []
+    const jobs: BackgroundJobLauncher = {
+      async start(request) {
+        seen.push(request.tty)
+        await request.spawn({ command: request.command, cwd: request.cwd, tty: request.tty, onData: () => undefined })
+        return { jobId: 'j1', label: 'python3 -i' }
+      },
+    }
+    const pending = createBashTool({ cwd: ws.dir, exec: createLocalExecPort() }).execute(
+      'c',
+      { command: 'python3 -i', tty: true, run_in_background: true },
+      undefined,
+      undefined,
+      { idempotencyKey: 's:c', jobs } as BashExecutionContext,
+    )
+    await expect(pending).rejects.toThrow(/^pty-unavailable: the command was not run because no pseudo terminal is available on this host/)
+    expect(seen).toEqual([true])
+  })
+
   it('宿主没有后台任务或执行端口不能 spawn：错误结果', async () => {
     const tool = createBashTool({ cwd: ws.dir, exec: { exec: createLocalExecPort().exec } })
     await expect(tool.execute('c', { command: 'true', run_in_background: true })).rejects.toThrow('Background jobs are not available')

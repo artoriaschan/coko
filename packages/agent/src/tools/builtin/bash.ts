@@ -2,6 +2,7 @@
 
 import { Type, type Static } from 'typebox'
 import { SandboxUnavailableError, type ExecPort } from '../../ports/exec.ts'
+import { PtyUnavailableError } from '../../ports/pty.ts'
 import {
   escalationHintMarker,
   JUSTIFICATION_DESCRIPTION,
@@ -33,7 +34,17 @@ export const bashParameters = Type.Object({
         'Run the command as a background job and return its job id immediately (for dev servers, watchers and long builds). Read its output with job_output, stop it with job_kill; you are notified when it ends. timeout does not apply.',
     }),
   ),
+  tty: Type.Optional(
+    Type.Boolean({
+      description:
+        'Run the background job in a pseudo terminal (120x30) for interactive programs such as REPLs, installers and debuggers; send input with job_input. Requires run_in_background: true.',
+    }),
+  ),
 })
+
+/** 宿主没有 PTY：命令未运行。 */
+export const ptyUnavailableText = (reason?: string) =>
+  `pty-unavailable: the command was not run because no pseudo terminal is available on this host${reason ? ` (${reason})` : ''}. Run it without tty, non-interactively.`
 
 /**
  * bash 在宿主提供后台任务时收到的执行上下文：jobs 为本 Session 的后台任务入口（宿主在运行时的工具集上注入）。缺省时
@@ -92,17 +103,20 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
     outputSchema: bashOutputSchema,
     // bash has its own `timeout` argument; the unified default would cut long builds short.
     timeoutMs: 0,
-    async execute(toolCallId, { command, timeout, run_in_background }, signal, onUpdate, context) {
+    async execute(toolCallId, { command, timeout, run_in_background, tty }, signal, onUpdate, context) {
       const sandbox = context?.sandbox
+      if (tty && !run_in_background) throw new Error('Invalid arguments: tty requires run_in_background: true')
       if (run_in_background) {
         const jobs = (context as BashExecutionContext | undefined)?.jobs
         if (!jobs || !exec.spawn) throw new Error('Background jobs are not available on this host')
         const spawn = exec.spawn.bind(exec)
         try {
-          const { jobId, label } = await jobs.start({ toolCallId, command, cwd, ...(sandbox ? { sandbox } : {}), spawn })
-          return { content: [{ type: 'text', text: `Started background job ${jobId}: ${label}. Read output with job_output.` }], details: undefined }
+          const { jobId, label } = await jobs.start({ toolCallId, command, cwd, ...(sandbox ? { sandbox } : {}), ...(tty ? { tty } : {}), spawn })
+          const read = tty ? 'Send input with job_input; read output with job_output.' : 'Read output with job_output.'
+          return { content: [{ type: 'text', text: `Started background job ${jobId}: ${label}. ${read}` }], details: undefined }
         } catch (error) {
           if (error instanceof SandboxUnavailableError) throw new Error(sandboxUnavailableText(error.mode, error.message), { cause: error })
+          if (error instanceof PtyUnavailableError) throw new Error(ptyUnavailableText(), { cause: error })
           throw error
         }
       }
