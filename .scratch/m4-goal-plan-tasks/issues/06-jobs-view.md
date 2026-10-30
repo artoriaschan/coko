@@ -30,5 +30,6 @@
     - `apps/desktop/vitest.browser.config.ts`：`optimizeDeps.include` 加 `'anser'`（CommonJS，运行中被发现会触发预构建并重载测试页面，首次运行已出现）。只加 desktop 一份，packages/ui 不依赖 anser。
     - `apps/desktop/e2e/run-control.e2e.test.ts`：Lead 已授权删除时间线中的待送达气泡；该 E2E 的待送达定位改为 Queue 卡（`[data-slot="queue-card"] [data-queued]`），用例名与注释同步。
     - `timeline-view.tsx` 的 `steering` 分支返回 null（Lead 已授权）；`timeline.ts` 中的 steering 项保留（chat-store 测试使用），i18n `conversation.steeringPending` 已不使用，未删除（`dictionaries/{en,zh}.ts` 只有 02 改）。
-  - **文档影响。** `docs/subsystems/jobs.md` 增加"界面"一节与验证条目，开头说明改为 PTY 与 job_input 尚未实现（票 05 也会改这一句，合并时取两者）。`docs/README.md` 当前行为中 jobs.md 一行建议由 Lead 合并时补"、后台任务视图"（不在本票范围）。
+  - **实际运行的命令。** 已合入 main（含票 05，a6c27a4）。`pnpm run typecheck`、`lint`、`format:check`、`check:docs`（153 个文件 0 问题）均为 0；`pnpm run test`（全量，含 desktop E2E 与 package-smoke）：240 个文件，1692 passed、1 skipped，test=0，没有未处理错误。之前两次全量与其他 worktree 的全量重叠（负载 18–20），出现 33 / 3 个超时失败（settings、composer 等无关文件）；单独重跑这些文件全部通过，等其他 vitest 结束、负载降下后的全量为 0。另：`dock.browser.test.tsx` 的注册表断言改为 jobs 已交付（越出写范围，属于交付后必然的期望更新）。
+  - **文档影响。** `docs/subsystems/jobs.md` 增加"界面"一节与验证条目，开头一句在合入票 05 后改为链接 execution.md 的 PTY 一节。`docs/README.md` 当前行为中 jobs.md 一行建议由 Lead 合并时补"、后台任务视图"（不在本票范围）。
   - **供后续票。** `stores/jobs-store.ts` 导出 `jobsStore` / `createJobsStore` / `httpJobsBackend`；`features/conversation/jobs-button.tsx` 导出 `JobsStoreProvider`、`useSessionJobs`、`JobStatusDot`、`formatJobDuration`。`jobsStore.getState().open(sessionId, jobId)` 选中并打开右栏 Jobs tab（经标题栏按钮的 openRequests）。PTY Job（票 05）的 kind `pty` 在列表中同样显示，输出按原始 SGR 渲染。
