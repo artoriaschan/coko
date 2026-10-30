@@ -127,12 +127,13 @@ describe('PreToolUse 与判定的组合', () => {
     expect(h.calls.request).toEqual([])
   })
 
-  it.each([
-    ['询问规则', { rules: [{ behavior: 'ask' as const, tool: 'Bash', content: 'printf *' }] }, () => bash('b1', 'printf hi > out.txt'), 'ask-rule'],
-    ['.git/config 写入（受保护路径）', { mode: 'full-access' as const }, () => write('w1', '.git/config'), 'protected'],
+  const cases: [string, Setup, () => ReturnType<typeof fauxToolCall>][] = [
+    ['询问规则', { rules: [{ behavior: 'ask', tool: 'Bash', content: 'printf *' }] }, () => bash('b1', 'printf hi > out.txt')],
+    ['.git/config 写入（受保护路径）', { mode: 'full-access' }, () => write('w1', '.git/config')],
     // 系统临时目录是 accept-edits 的可写根：用一个不存在的系统目录（被拒绝，不会写入）。
-    ['越出可写根', { mode: 'accept-edits' as const }, () => write('w1', '/usr/coko-hook-gate-never/x.txt'), 'outside'],
-  ])('对手用例：Hook allow 不免掉%s', async (_name, setup, call) => {
+    ['越出可写根', { mode: 'accept-edits' }, () => write('w1', '/usr/coko-hook-gate-never/x.txt')],
+  ]
+  it.each(cases)('对手用例：Hook allow 不免掉%s', async (_name, setup, call) => {
     const h = harness({ ...setup, pre: () => ({ decision: 'allow', source: 'global' }) })
     script(h, call())
     const run = h.runtime.run('go')

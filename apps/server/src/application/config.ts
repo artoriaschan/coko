@@ -114,6 +114,13 @@ export class ConfigService implements ProjectRuleSource {
     return { path: snapshot.path, rules: snapshot.settings.rules }
   }
 
+  /** 项目 Hook（ADR 0013）：按 mtime 重新读取 <cwd>/.coko/settings.json，返回其 hooks 键（去掉 enabled）的原值；没有该键时 hooks 省略。 */
+  async projectHooks(cwd: string): Promise<{ path: string; exists: boolean; hooks?: unknown }> {
+    const snapshot = await this.#project(cwd)
+    const hooks = snapshot.settings.hooks
+    return { path: snapshot.path, exists: snapshot.exists, ...(hooks === undefined ? {} : { hooks }) }
+  }
+
   #requireStore(): SessionStore {
     if (!this.#store) throw new AppError('internal', 'Config store is not available')
     return this.#store

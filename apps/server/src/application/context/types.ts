@@ -211,6 +211,8 @@ export interface ContextContributionOptions {
   goals?: import('../goals.ts').GoalService
   /** Session 条目的读取与提交（领域自己的条目，例如 todo_list）；省略时这些领域为空贡献。 */
   entries?: SessionEntryAccess
+  /** 外部 Hook（application/hooks.ts）；省略时 hooks 贡献为空。 */
+  hooks?: import('../hooks.ts').HookService
   /** 仅测试：额外的贡献，排在全部领域之后（集成测试驱动 seam）。 */
   extra?: readonly ContextContribution[]
 }

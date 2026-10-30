@@ -2,7 +2,7 @@
 // 环境为 Sidecar 基础环境（去掉 COKO_* 与凭据形态的变量，与 bash 工具相同）加 COKO_PROJECT_DIR、COKO_SESSION_ID、COKO_HOOK_EVENT，不注入 Secret；
 // stdin 写一行 JSON 后关闭；stdout / stderr 各保留前 64 KB。超时或中止时向进程组 SIGTERM，2 秒后仍有进程则 SIGKILL，进程组消失后删除登记。
 // 不经 Seatbelt：Hook 与已批准的 MCP stdio Server 处于同一信任级别。
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { filterEnv } from '@coko/agent'
 import { HOST_ENV_EXCLUSIONS } from './credentials.ts'
 import { processAlive, signalTarget, type ProcessTarget } from './processes.ts'
@@ -77,8 +77,9 @@ export function createHookRunner(options: HookRunnerOptions): HookRunner {
       const started = Date.now()
       return new Promise<HookRunOutcome>((resolve) => {
         const env: Record<string, string> = {}
-        for (const [name, value] of Object.entries({ ...base, ...request.env })) if (value !== undefined) env[name] = value
-        let child
+        const merged: Record<string, string | undefined> = { ...base, ...request.env }
+        for (const [name, value] of Object.entries(merged)) if (value !== undefined) env[name] = value
+        let child: ChildProcessWithoutNullStreams
         try {
           child = spawn(shell, ['-c', request.command], { cwd: request.cwd, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
         } catch (error) {

@@ -8,6 +8,7 @@ import { openSqliteStore, type SqliteStore } from '@coko/session/sqlite'
 import { openCheckpointStore } from '../adapters/checkpoints.ts'
 import { createEnvCredentialStore, createEnvSecretSource, createIpcCredentialStore, createIpcSecretSource } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
+import { createHookRunner } from '../adapters/hook-runner.ts'
 import { createMcpTransport } from '../adapters/mcp.ts'
 import { probeNodePty } from '../adapters/pty.ts'
 import { createWorkspaceTools, probeRipgrep, type WorkspaceToolsOptions } from '../adapters/ripgrep.ts'
@@ -79,6 +80,8 @@ export class Assembly extends Context.Service<
     hub: SessionHub
     jobs: JobService
     goals: GoalService
+    /** 外部 Hook（ADR 0013）：上下文贡献与 /api/hooks 共用。 */
+    hooks: HookService
     /** AppLive 创建 SessionService 之后调用一次：Job 与 Goal 的 Run 能力从此生效。 */
     bindSessions: (sessions: SessionService) => void
   }
@@ -259,14 +262,16 @@ const AssemblyLive = Layer.effect(
         return committed!
       },
     }
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, entries, extra })
+    // 外部 Hook：进程登记为 hook（ADR 0012），环境为 Sidecar 基础环境去掉 COKO_* 与凭据形态的变量。
+    const hooks = new HookService({ store, config, runner: createHookRunner({ env, track: processes.track }), entries })
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, entries, hooks, extra })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
     yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
     // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
     yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
-    return { config, context, mcp: admin, secrets, hub, jobs, goals, bindSessions: runs.bind }
+    return { config, context, mcp: admin, secrets, hub, jobs, goals, hooks, bindSessions: runs.bind }
   }),
 )
 
@@ -356,7 +361,7 @@ const AppLive = Layer.effect(
     const processes = yield* Processes
     // 前台 bash 的进程组登记为 bash（ADR 0012），命令结束后删除。
     const workspaceTools = (yield* Tools)({ wrapExec: (port) => processes.trackExec(port, { kind: 'bash' }) })
-    const { config: capabilities, context, mcp, secrets, hub, jobs, goals, bindSessions } = yield* Assembly
+    const { config: capabilities, context, mcp, secrets, hub, jobs, goals, hooks, bindSessions } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -364,7 +369,6 @@ const AppLive = Layer.effect(
     const testClock: TestClock | undefined = config.testClock && !config.packaged ? createTestClock() : undefined
     if (testClock) log.warn('test clock enabled', { now: testClock.now() })
     const clock: ClockPort = testClock ?? systemClock()
-    const hooks = new HookService()
     const subagents = new SubagentService()
     const worktrees = new WorktreeService()
     const handoff = new HandoffService()
