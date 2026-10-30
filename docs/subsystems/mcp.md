@@ -20,11 +20,11 @@ lifecycle: active
 | `packages/agent/src/extensions/mcp/resources.ts` | 资源工具 `list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` |
 | `packages/agent/src/extensions/mcp/prompts.ts` | 提示模板：`prompts/list` 与 `prompts/get` 的请求封装、结果校验、位置参数映射、消息转文本 |
 | `apps/server/src/adapters/mcp.ts` | stdio 与 streamable HTTP 传输；stdio 的环境与工作目录 |
-| `apps/server/src/application/context/mcp.ts` | `McpManager`（按 (Workspace, Server) 池化、读取配置与批准、接口、资源工具与提示模板命令）与上下文贡献 `mcpContribution` |
+| `apps/server/src/application/context/mcp.ts`、`mcp-admin.ts` | `McpManager`（按 (Workspace, Server) 池化、读取配置与批准、资源工具与提示模板命令）与上下文贡献 `mcpContribution`；`McpAdmin`（`/api/mcp` 的视图、保存、批准与重连） |
 | `apps/server/src/adapters/credentials.ts`、`application/secrets.ts` | Secret 来源（IPC 密文 / `COKO_SECRET_<NAME>`）与 `SecretService`（登记、删除、解析、按值脱敏） |
 | `apps/server/src/http/routes/mcp.ts`、`routes/secrets.ts` | `/api/mcp` 系列与 `/api/secrets` |
 | `packages/protocol/src/mcp.ts`、`secrets.ts`、`control.ts` | DTO、路径常量、设置键；控制 IPC 的 `secret.store` / `secret.decrypt` |
-| `apps/desktop/src/main/secrets.ts` | main 一侧：safeStorage 加密 `setSecret` 的值、回答 `secret.decrypt` |
+| `apps/desktop/src/main/secrets.ts`、`encrypting-bridge.ts` | main 一侧：safeStorage 加密 `setSecret` 的值、回答 `secret.decrypt`（与 Credential 共用 `createEncryptingBridge`） |
 | `apps/desktop/src/renderer/stores/mcp-store.ts`、`features/settings/mcp-section.tsx` | 设置页的 MCP 分区 |
 
 ## 配置

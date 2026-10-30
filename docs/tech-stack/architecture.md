@@ -33,7 +33,7 @@ repo/
 │       ├── src/
 │       │   ├── http/               # Hono 路由、访问认证、中间件、错误映射
 │       │   ├── ws/                 # 连接、订阅、事件推送与重连
-│       │   ├── application/        # 业务入口与 Agent 框架接口调用
+│       │   ├── application/        # 业务入口与 Agent 框架接口调用（路由只经此访问存储与上下文）
 │       │   ├── runtime/            # Effect Layer、资源释放、定时唤醒与后台资源
 │       │   ├── adapters/           # 宿主工具实现（如 ripgrep grep）与宿主适配
 │       │   └── index.ts            # 进程入口与依赖装配
@@ -85,7 +85,7 @@ renderer 唯一可以导入的 agent 代码是 `@coko/agent/entries`：有效条
 
 ### 运行链路
 
-renderer 通过 HTTP 提交命令、通过 WebSocket 订阅业务事件。server 校验 protocol schema，通过 application 入口调用 agent 框架及 session 查询接口，再输出可序列化的业务结果。执行、权限、Goal 和恢复策略集中在 agent；server 提供生命周期、唤醒和资源适配。协议事件携带关联标识和顺序信息，重连时由 server 根据持久化状态重新同步。
+renderer 通过 HTTP 提交命令、通过 WebSocket 订阅业务事件。server 校验 protocol schema，通过 application 入口调用 agent 框架及 session 查询接口，再输出可序列化的业务结果；HTTP 路由只校验与调用 application 的服务（如 `SessionService`、`ContextService`、`MemoryService`、`McpAdmin`），不直接访问存储或上下文贡献。执行、权限、Goal 和恢复策略集中在 agent；server 提供生命周期、唤醒和资源适配。协议事件携带关联标识和顺序信息，重连时由 server 根据持久化状态重新同步。
 
 Electron main 以 `ELECTRON_RUN_AS_NODE=1` 启动自身可执行文件运行 sidecar，经 Node IPC 等待就绪。renderer 通过 `coko-app://` 协议加载，HTTP 与 WebSocket 由 main 代为附加认证凭据，preload 不暴露令牌或 cookie。窗口、原生对话框、更新和日志转发使用受控 IPC；业务会话与 Agent 执行通过服务协议处理。
 

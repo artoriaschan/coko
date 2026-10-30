@@ -18,6 +18,8 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 `createAgentRuntime(options)` 返回一个 Session 的运行时：`run(text)`、`retry()`、`continue()`、`steer(text)`、`pause()`、`abort()`、`answerApproval()`、`subscribe()`。每个已提交事实都以 `RunEntry`（`{ kind, runId?, payload }`）经 `options.commit` 交给宿主，提交兑现后 Run 才继续；提交被拒绝时 Run 以 `commit_failed` 结束。
 
+`src/engine/` 的划分：`runtime.ts`（`createAgentRuntime`：Run 生命周期、事件到条目与进度、运行控制）、`types.ts`（`AgentRuntimeOptions`、`AgentRuntime` 与 Run 的类型）、`compaction-driver.ts`（压缩编排：摘要请求、熔断、手动 / 自动 / 溢出三个触发点，运行时只在 `prepareRequest` 与 `compact()` 接线）、`system-message.ts`（基础提示与 system sections 组成的开头系统消息）、`permission-wiring.ts`（权限判定在运行时的接线：链首判定、执行前准备、沙箱拒绝记录）、`retry.ts`（模型请求的重试）。
+
 ## 契约与生命周期
 
 ### 运行控制
