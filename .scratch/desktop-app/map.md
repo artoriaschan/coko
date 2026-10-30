@@ -68,7 +68,7 @@ Status: open
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
 | M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | delivered（[复盘](../m4-goal-plan-tasks/retro.md)） |
-| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | next |
+| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | in progress（用户 2026-10-31 指示继续） |
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
 
 ## Out of scope
