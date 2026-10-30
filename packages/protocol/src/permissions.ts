@@ -1,4 +1,5 @@
 import { Type, type Static } from 'typebox'
+import { PLAN_MAX_CHARS } from './planning.ts'
 
 // Permission Mode、规则与审批的条目 payload（ADR 0005）。
 
@@ -82,7 +83,7 @@ export const AnswerApprovalRequest = Type.Union([
     {
       decision: Type.Literal('allow'),
       scope: Type.Optional(ApprovalScope),
-      editedPlan: Type.Optional(Type.String({ minLength: 1, maxLength: 64_000 })),
+      editedPlan: Type.Optional(Type.String({ minLength: 1, maxLength: PLAN_MAX_CHARS })),
       mode: Type.Optional(Type.Union([Type.Literal('read-only'), Type.Literal('default'), Type.Literal('accept-edits')])),
     },
     strict,
