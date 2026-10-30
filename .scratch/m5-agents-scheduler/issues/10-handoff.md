@@ -21,3 +21,4 @@
 
 ## Comments
 - 2026-10-31 lead：来自票 02——/handoff 已出现在命令目录中，动作目前为 400 占位，由本票替换；摘要模式只提交 run_start / run_end，摘要的 usage 在 RunResult.summaryUsage，由本票写进 handoff 条目。
+- 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。

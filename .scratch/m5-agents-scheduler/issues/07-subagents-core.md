@@ -26,3 +26,4 @@
 ## Comments
 - 2026-10-31 lead：本票增加的常驻工具定义可能使 sidecar-compaction 与 sidecar-todo 的压缩用例再次提前触发（M4 票 09、M5 票 05 都出现过）。若出现，按同样做法只调该用例的 contextWindow，阈值算法与消息大小不变，并在 Comments 记录。layers.ts 现在由 AssemblyLive 创建 Hook、定时任务、通知与时钟；子代理服务若需要它们，从 Assembly 读取。
 - 2026-10-31 lead：goals.ts 中"hook_stopped 使 Goal 暂停"不在本票范围，lead 在 06、07 合入后单独处理（见票 06 Comments），本票不要改这一处。
+- 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。

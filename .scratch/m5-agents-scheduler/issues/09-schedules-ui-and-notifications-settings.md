@@ -20,3 +20,4 @@
 
 ## Comments
 - 2026-10-31 lead：接受越界修复 "fix(desktop): forward notify control messages to main"（sidecar-process.ts 控制消息 switch 加 case 'notify'）。这是票 05 留下的缺陷：main 上桌面通知从未显示——05 的单元测试直接调用 handleNotify、集成测试只看 Sidecar 侧的 notifyMessages，没有一个用例跨过控制通道；lead 合入 05 时也没有发现。本票的 schedules.e2e 在没有修复时 2/2 失败、修复后 2/2 通过，作为跨通道的回归用例。
+- 2026-10-31 lead：运行全量 `pnpm run test` 前取得全量测试锁 `/tmp/coko-full-test.lock`（做法见 implementer-brief 的"全量测试锁"一节）；只跑单个文件不需要。之前多个 worktree 的全量互相重叠，负载到 20–40，真实进程与 Browser Mode 用例大面积超时。
