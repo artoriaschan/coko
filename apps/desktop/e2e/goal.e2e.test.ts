@@ -270,7 +270,11 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect.poll(() => toggle.getAttribute('aria-expanded')).toBe('false')
     await composer.click()
     await composer.fill('/goal')
+    // 命令菜单打开后再按 Esc，关闭后再按 Enter：高负载下菜单晚于 Esc 出现时，Enter 会选中菜单项而不是提交 /goal。
+    const commandMenu = win.locator('[role="listbox"]:not([aria-hidden="true"]) [role="option"]').first()
+    await commandMenu.waitFor()
     await win.keyboard.press('Escape')
+    await commandMenu.waitFor({ state: 'detached' })
     await composer.press('Enter')
     await expect.poll(() => toggle.getAttribute('aria-expanded')).toBe('true')
     expect(await win.locator('article[data-seq]').count()).toBe(users)
