@@ -121,6 +121,12 @@ export type UpdateSettingRequest = Static<typeof UpdateSettingRequest>
 /** 新建 Session 默认使用的模型；值为 SessionModel。 */
 export const DEFAULT_MODEL_SETTING = 'defaultModel'
 
+/** 费用的显示货币（全局设置，只决定符号，不换算）；其他值或未设置时为 USD。 */
+export const USAGE_CURRENCY_SETTING = 'usage.currency'
+export const USAGE_CURRENCIES = ['USD', 'CNY'] as const
+export type UsageCurrency = (typeof USAGE_CURRENCIES)[number]
+export const usageCurrencyOf = (value: unknown): UsageCurrency => (value === 'CNY' ? 'CNY' : 'USD')
+
 // ---- Providers ----
 
 /** Provider ID 由用户输入并作为主键：小写字母开头，后接小写字母、数字或连字符，总长 1–64；创建后不可修改。 */
@@ -154,8 +160,19 @@ export const MODEL_CATALOG_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_00
 const TokenCount = Type.Integer({ minimum: 1 })
 
 /**
+ * 模型价格：每百万 token 的单价，显示货币由设置 usage.currency 决定（不换算）。缓存读写的价格省略时为 0。非负由 sidecar 校验（400），
+ * 使负数价格得到错误回答而不是被控制通道丢弃。
+ */
+export const ModelPrice = Type.Object(
+  { input: Type.Number(), output: Type.Number(), cacheRead: Type.Optional(Type.Number()), cacheWrite: Type.Optional(Type.Number()) },
+  strict,
+)
+export type ModelPrice = Static<typeof ModelPrice>
+
+/**
  * Model Catalog 中的一个模型。name 为空表示显示模型 ID。thinkingLevels 按用户添加的顺序保存；reasoning 关闭时档位仍保存，
- * 但请求不使用它们。同一目录内模型 ID 不重复、maxTokens 不超过 contextWindow、档位不重复由 sidecar 校验（400）。
+ * 但请求不使用它们。price 省略为未定价（usage.cost 为 0，界面显示"未定价"）。同一目录内模型 ID 不重复、maxTokens 不超过
+ * contextWindow、档位不重复、价格非负由 sidecar 校验（400）。
  */
 export const CatalogModel = Type.Object(
   {
@@ -166,6 +183,7 @@ export const CatalogModel = Type.Object(
     input: Type.Array(Type.Union([Type.Literal('text'), Type.Literal('image')]), { minItems: 1, uniqueItems: true }),
     reasoning: Type.Boolean(),
     thinkingLevels: Type.Array(ThinkingLevelConfig),
+    price: Type.Optional(ModelPrice),
   },
   strict,
 )

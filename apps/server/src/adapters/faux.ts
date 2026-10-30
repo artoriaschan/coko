@@ -1,5 +1,6 @@
 import { appendFile, readFile } from 'node:fs/promises'
 import {
+  calculateCost,
   createFauxCore,
   createProvider,
   fauxAssistantMessage,
@@ -30,6 +31,11 @@ export interface FauxScript {
   responses: FauxScriptResponse[]
   /** 测试观察用：每次模型请求前把其上下文消息作为一行 JSON 追加到该文件。 */
   requestLog?: string
+  /**
+   * faux 模型的价格（每百万 token，同 Model Catalog 的 price）：省略时未定价。有价格时，usage 未给出 cost 的回复按价格计算费用
+   * （pi-ai calculateCost，与真实 Provider 相同）。
+   */
+  price?: { input: number; output: number; cacheRead?: number; cacheWrite?: number }
 }
 
 export interface FauxScriptResponse {
@@ -93,11 +99,21 @@ function toStep(response: FauxScriptResponse): FauxResponseStep {
   })
 }
 
-/** 把脚本的 usage 换回到结束消息上（done / error 事件与 end 共用同一个消息对象）。 */
-function restoreUsage(message: AssistantMessage | undefined): void {
-  if (!message?.responseId?.startsWith(USAGE_MARKER)) return
-  message.usage = toUsage(JSON.parse(message.responseId.slice(USAGE_MARKER.length)) as FauxScriptUsage)
-  delete message.responseId
+/**
+ * 把脚本的 usage 换回到结束消息上（done / error 事件与 end 共用同一个消息对象）。模型有价格且脚本没有给出 cost 时按价格计算
+ * （包括 faux 按字符估算的 usage）。
+ */
+function restoreUsage(message: AssistantMessage | undefined, model: Parameters<typeof calculateCost>[0]): void {
+  if (!message) return
+  let scripted: FauxScriptUsage | undefined
+  if (message.responseId?.startsWith(USAGE_MARKER)) {
+    scripted = JSON.parse(message.responseId.slice(USAGE_MARKER.length)) as FauxScriptUsage
+    message.usage = toUsage(scripted)
+    delete message.responseId
+  }
+  const { input, output, cacheRead, cacheWrite } = model.cost
+  if (scripted?.cost === undefined && message.usage && (input > 0 || output > 0 || cacheRead > 0 || cacheWrite > 0))
+    message.usage.cost = calculateCost(model, message.usage)
 }
 
 function withScriptedUsage<O extends StreamOptions>(stream: StreamFunction<string, O>): StreamFunction<string, O> {
@@ -105,8 +121,8 @@ function withScriptedUsage<O extends StreamOptions>(stream: StreamFunction<strin
     const events = stream(model, context, options) as AssistantMessageEventStream
     const push = events.push.bind(events)
     events.push = (event) => {
-      if (event.type === 'done') restoreUsage(event.message)
-      else if (event.type === 'error') restoreUsage(event.error)
+      if (event.type === 'done') restoreUsage(event.message, model)
+      else if (event.type === 'error') restoreUsage(event.error, model)
       push(event)
     }
     return events
@@ -152,6 +168,16 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
         name: 'Faux',
         ...(script.contextWindow === undefined ? {} : { contextWindow: script.contextWindow }),
         ...(script.maxTokens === undefined ? {} : { maxTokens: script.maxTokens }),
+        ...(script.price
+          ? {
+              cost: {
+                input: script.price.input,
+                output: script.price.output,
+                cacheRead: script.price.cacheRead ?? 0,
+                cacheWrite: script.price.cacheWrite ?? 0,
+              },
+            }
+          : {}),
       },
     ],
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),

@@ -19,6 +19,7 @@ import {
   type CokoTool,
   type ModelRegistry,
   type RunEntry,
+  type RunError,
   type RunInput,
   type RunResult,
   type SecretProvider,
@@ -183,6 +184,34 @@ export class SessionRuns {
     }
     this.#jobs?.steered(sessionId)
     return true
+  }
+
+  /**
+   * 宿主停止（Goal 预算）：进行中的 Run 本批完成后以 paused 加该 error 结束（运行时 stopAfterBatch，第一次为准）；没有进行中的 Run 时 false。
+   */
+  stopAfterBatch(sessionId: string, error: RunError): boolean {
+    const runtime = this.#options.runtimes.get(sessionId)
+    if (!runtime?.isRunning) return false
+    try {
+      runtime.stopAfterBatch(error)
+    } catch (e) {
+      if (e instanceof NoActiveRunError) return false
+      throw e
+    }
+    log.info('run stop after batch requested', { sessionId, code: error.code })
+    return true
+  }
+
+  /** 该 Session 当前（或将用的默认）模型是否已定价（Goal 的费用上限）；没有可用模型时 false。 */
+  async modelPriced(sessionId: string): Promise<boolean> {
+    const session = await requireSession(this.#options.store, sessionId)
+    const ref = session.model ?? (session.modelCleared ? null : await this.#options.models.defaultModel())
+    if (!ref) return false
+    try {
+      return this.#options.registry.priced(this.#options.models.resolve(ref, 'model-not-configured'))
+    } catch {
+      return false
+    }
   }
 
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */

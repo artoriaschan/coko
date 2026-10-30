@@ -18,9 +18,24 @@ export type CommandPayload = Static<typeof CommandPayload>
 export const CompactionTrigger = Type.Union([Type.Literal('auto'), Type.Literal('manual'), Type.Literal('overflow')])
 export type CompactionTrigger = Static<typeof CompactionTrigger>
 
+const Amount = Type.Number({ minimum: 0 })
+/** 一次模型请求的 usage：token 数与按模型价格计算的费用（未定价模型为 0）。 */
+export const RequestUsage = Type.Object(
+  {
+    input: Amount,
+    output: Amount,
+    cacheRead: Amount,
+    cacheWrite: Amount,
+    totalTokens: Amount,
+    cost: Type.Object({ input: Amount, output: Amount, cacheRead: Amount, cacheWrite: Amount, total: Amount }, strict),
+  },
+  strict,
+)
+export type RequestUsage = Static<typeof RequestUsage>
+
 /**
- * 压缩成功：之后的模型上下文为合成摘要消息 + firstKeptSeq 及之后的消息（@coko/agent/entries 的 modelContext）。原条目保留，
- * 时间线仍可查看；compaction 落在被回退区间内时不生效。
+ * 压缩成功（v2）：之后的模型上下文为合成摘要消息 + firstKeptSeq 及之后的消息（@coko/agent/entries 的 modelContext）。原条目保留，
+ * 时间线仍可查看；compaction 落在被回退区间内时不生效。usage 为摘要请求的 usage（计入 Goal 预算）；v1 迁移而来的条目没有。
  */
 export const CompactionPayload = Type.Object(
   {
@@ -32,6 +47,7 @@ export const CompactionPayload = Type.Object(
     readFiles: Type.Array(Type.String()),
     modifiedFiles: Type.Array(Type.String()),
     invokedSkills: Type.Optional(Type.Array(Type.String())),
+    usage: Type.Optional(RequestUsage),
   },
   strict,
 )

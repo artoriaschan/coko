@@ -29,7 +29,16 @@ export type {
 
 // Models
 export { createModelRegistry, MODEL_PROTOCOLS, ModelConfigError, resolveModel, selectableThinkingLevels, THINKING_LEVELS } from './models/registry.ts'
-export type { ModelProtocol, ModelRegistry, ModelRegistryOptions, ModelSpec, ProviderConfig, ThinkingLevel, ThinkingLevelSpec } from './models/registry.ts'
+export type {
+  ModelPrice,
+  ModelProtocol,
+  ModelRegistry,
+  ModelRegistryOptions,
+  ModelSpec,
+  ProviderConfig,
+  ThinkingLevel,
+  ThinkingLevelSpec,
+} from './models/registry.ts'
 export { ListModelsError, listProviderModels } from './models/list-models.ts'
 export { isHttpUrl } from './models/base-url.ts'
 export type { ListModelsErrorCode, ListProviderModelsOptions } from './models/list-models.ts'

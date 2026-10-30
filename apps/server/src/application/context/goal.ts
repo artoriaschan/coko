@@ -1,5 +1,6 @@
 // Goal 的上下文贡献（docs/subsystems/goal.md）：<goal> system section（Goal 未终结时每个 Run 注入，压缩后同样存在）、Goal 工具（get_goal 为
-// context-read，create_goal、update_goal 为 session-state）、Run 结束后的阶段转换与推进（GoalService.runEnded），以及内置命令 /goal 的动作。
+// context-read，create_goal、update_goal 为 session-state）、预算检查点（工具调用前的 hook 与模型请求前的 beforeRequest）、Run 结束后的阶段
+// 转换与推进（GoalService.runEnded），以及内置命令 /goal 的动作。
 import { createCreateGoalTool, createGetGoalTool, createUpdateGoalTool } from '@coko/agent'
 import { AppError } from '../errors.ts'
 import type { ContextAction, ContextContribution, ContextContributionOptions, RuleTool } from './types.ts'
@@ -58,6 +59,15 @@ export function goalContribution(options: ContextContributionOptions): ContextCo
         ...(names.create ? [{ tool: createCreateGoalTool(port), permissionClass: 'session-state' as const }] : []),
         ...(names.update ? [{ tool: createUpdateGoalTool(port), permissionClass: 'session-state' as const }] : []),
       ]
+    },
+    // 预算检查点：工具调用前（权限判定之后）检查调用数；每次模型请求前检查 Token、费用、时间与未定价。
+    hooks(scope) {
+      return scope.sessionId === undefined ? [] : [goals.toolHooks(scope.sessionId)]
+    },
+    async beforeRequest(state, scope) {
+      if (scope.sessionId === undefined) return undefined
+      const stop = await goals.beforeRequest(scope.sessionId, state.runId)
+      return stop ? { stop } : undefined
     },
     async onRunEnd(_scope, info) {
       await goals.runEnded(info)

@@ -2,20 +2,23 @@
 // 文本只来自已提交的快照（入库时已替换登记明文）。
 import type { SystemSection } from '../engine/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
-import { GOAL_BLOCKED_MIN_ROUNDS, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
+import { formatCost, GOAL_BLOCKED_MIN_ROUNDS, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
 
 export const GOAL_SECTION_NAME = 'goal'
 
 const criteriaLines = (goal: GoalPayload) => goal.criteria.map((c) => `- ${c.id}: ${c.text}`)
 
-/** 已设维度的用量 / 上限（本票只有轮次的用量；其余维度只列上限）。 */
+/** 已设维度的用量 / 上限（用量中省略的维度只列上限）。 */
 function budgetLines(goal: GoalPayload, usage: GoalUsageSnapshot): string[] {
   const { budget } = goal
+  const line = (name: string, used: string | undefined, limit: string) => (used === undefined ? `- ${name}: limit ${limit}` : `- ${name}: ${used} / ${limit}`)
+  const text = (value: number | undefined) => (value === undefined ? undefined : String(value))
   const lines = [`- rounds: ${usage.rounds} / ${budget.maxRounds ?? 'unlimited'}`]
-  if (budget.maxToolCalls !== undefined) lines.push(`- tool calls: limit ${budget.maxToolCalls}`)
-  if (budget.maxTokens !== undefined) lines.push(`- tokens: limit ${budget.maxTokens}`)
-  if (budget.maxCost !== undefined) lines.push(`- cost: limit ${budget.maxCost}`)
-  if (budget.maxDurationMs !== undefined) lines.push(`- time: limit ${budget.maxDurationMs} ms`)
+  if (budget.maxToolCalls !== undefined) lines.push(line('tool calls', text(usage.toolCalls), String(budget.maxToolCalls)))
+  if (budget.maxTokens !== undefined) lines.push(line('tokens', text(usage.tokens), String(budget.maxTokens)))
+  if (budget.maxCost !== undefined) lines.push(line('cost', usage.cost === undefined ? undefined : formatCost(usage.cost), formatCost(budget.maxCost)))
+  if (budget.maxDurationMs !== undefined)
+    lines.push(line('time', usage.durationMs === undefined ? undefined : usage.durationMs + ' ms', budget.maxDurationMs + ' ms'))
   return lines
 }
 

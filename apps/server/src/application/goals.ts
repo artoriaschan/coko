@@ -3,11 +3,16 @@
 // 同一 Session 的 Goal 变化与推进经同一把锁串行；等待 Run 结束（取消）不持锁。runtime/layers.ts 装配一次。
 import {
   applyGoalChange,
+  COST_UNPRICED_MESSAGE,
   currentGoal,
+  exhaustedDimension,
+  exhaustedMessage,
   expectRevision,
   GoalError,
   goalRounds,
+  goalRunIds,
   goalSection,
+  goalUsage,
   goalView,
   isActivePhase,
   isTerminalPhase,
@@ -18,11 +23,13 @@ import {
   type GoalPayload,
   type GoalToolPort,
   type JobEndPayload,
+  type RunError,
   type RunResult,
   type SystemSection,
+  type ToolHooks,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { GoalActionRequest, GoalResponse, GoalUsage } from '@coko/protocol'
+import type { GoalActionRequest, GoalResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { RunEndInfo } from './context/types.ts'
@@ -74,6 +81,10 @@ export class GoalService {
   readonly #cancelling = new Set<string>()
   /** 有推进中（running / waiting-*）Goal 的 Session 的 job_end 订阅。 */
   readonly #watches = new Map<string, () => void>()
+  /** 工具调用上限：每个 Session 当前 Run 已放行、结果尚未提交的调用（同一批的调用先放行、后提交结果）。 */
+  readonly #admitted = new Map<string, { runId: string; ids: Set<string> }>()
+  /** 工具调用前检查按 Session 串行（同一批的调用并发进入 hook）。 */
+  readonly #gates = new Map<string, Promise<unknown>>()
 
   constructor(options: GoalServiceOptions) {
     this.#options = options
@@ -85,6 +96,7 @@ export class GoalService {
         if (!this.#sessions) throw new AppError('internal', 'Goal service is not attached')
         return this.#sessions.runs.startRun(sessionId, request)
       },
+      priced: (sessionId) => this.#priced(sessionId),
     })
     // 之后启动的 Job 记下 Session 当时未终结的 Goal（取消该 Goal 时终止它们）。
     options.jobs.useGoals(async (sessionId) => {
@@ -105,14 +117,85 @@ export class GoalService {
     await requireSession(this.#options.store, sessionId)
     const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
-    return { goal: goal ?? null, usage: usageOf(entries, goal) }
+    if (!goal) return { goal: null, usage: { rounds: 0 } }
+    return { goal, usage: { ...goalUsage(entries, goal.id), costUnpriced: !(await this.#priced(sessionId)) } }
   }
 
-  /** Goal 未终结时的 <goal> section。 */
+  /** Goal 未终结时的 <goal> section（已设维度的用量 / 上限）。 */
   async systemSection(sessionId: string): Promise<SystemSection | undefined> {
     const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
-    return goalSection(goal, { rounds: goal ? goalRounds(entries, goal.id) : 0 })
+    return goalSection(goal, goal ? goalUsage(entries, goal.id) : { rounds: 0 })
+  }
+
+  // ---- 预算检查点（context/goal.ts 的 beforeRequest 与工具 hook） ----
+
+  /**
+   * 模型请求前（运行时 beforeRequest）：该 Run 属于 running 的 Goal 时检查 Token、费用与时间（进行中的 Run 计到此刻），设了费用上限而模型
+   * 未定价时 cost_unpriced。返回停止的原因；Run 以 paused 加该 error 结束，Run 结束后 Goal 进入 budget-exhausted / blocked（runEnded）。
+   */
+  async beforeRequest(sessionId: string, runId: string): Promise<RunError | undefined> {
+    if (this.#cancelling.has(sessionId)) return undefined
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    if (!goal || goal.phase !== 'running' || !goalRunIds(entries, goal.id).has(runId)) return undefined
+    const usage = goalUsage(entries, goal.id)
+    const dimension = exhaustedDimension(goal.budget, usage, ['tokens', 'cost', 'time'])
+    if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage) }
+    if (goal.budget.maxCost !== undefined && !(await this.#priced(sessionId))) return { code: 'cost_unpriced', message: COST_UNPRICED_MESSAGE }
+    return undefined
+  }
+
+  /**
+   * 工具调用前（权限判定之后的 hook）：该 Run 属于 running 且设了 maxToolCalls 的 Goal 时，已提交的调用加本 Run 已放行未提交的调用达到上限，
+   * 则该调用不执行（错误结果 "Goal budget exhausted: tool calls (n / max)"），并要求 Run 本批完成后停止（stopAfterBatch）。
+   */
+  toolHooks(sessionId: string): ToolHooks {
+    return { beforeToolCall: (context) => this.#gate(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
+  }
+
+  async #checkToolCall(sessionId: string, toolCallId: string): Promise<{ block: true; reason: string } | undefined> {
+    const runs = this.#sessions?.runs
+    const runId = runs?.activeRunId(sessionId)
+    if (!runs || runId === undefined || this.#cancelling.has(sessionId)) return undefined
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    if (!goal || goal.phase !== 'running' || goal.budget.maxToolCalls === undefined || !goalRunIds(entries, goal.id).has(runId)) return undefined
+    let admitted = this.#admitted.get(sessionId)
+    if (admitted?.runId !== runId) {
+      admitted = { runId, ids: new Set() }
+      this.#admitted.set(sessionId, admitted)
+    }
+    const committed = new Set(
+      entries.filter((e) => e.runId === runId && e.kind === 'message').map((e) => (e.payload as { role?: string; toolCallId?: string }).toolCallId),
+    )
+    const pending = [...admitted.ids].filter((id) => !committed.has(id)).length
+    const usage = goalUsage(entries, goal.id)
+    const used = { ...usage, toolCalls: usage.toolCalls + pending }
+    if (exhaustedDimension(goal.budget, used, ['tool-calls'])) {
+      const message = exhaustedMessage('tool-calls', goal.budget, used)
+      runs.stopAfterBatch(sessionId, { code: 'budget_exhausted', message })
+      log.info('goal tool call blocked by budget', { sessionId, goalId: goal.id, toolCallId, used: used.toolCalls })
+      return { block: true, reason: message }
+    }
+    admitted.ids.add(toolCallId)
+    return undefined
+  }
+
+  #gate<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.#gates.get(sessionId) ?? Promise.resolve()
+    const run = previous.then(task, task)
+    const tail = run.catch(() => undefined)
+    this.#gates.set(sessionId, tail)
+    void tail.then(() => {
+      if (this.#gates.get(sessionId) === tail) this.#gates.delete(sessionId)
+    })
+    return run
+  }
+
+  /** 该 Session 的模型是否已定价；没有装配 SessionService 时 false。 */
+  #priced(sessionId: string): Promise<boolean> {
+    return this.#sessions ? this.#sessions.runs.modelPriced(sessionId) : Promise.resolve(false)
   }
 
   /**
@@ -137,7 +220,7 @@ export class GoalService {
       const goal = this.#require(entries)
       try {
         expectRevision(goal, request.revision)
-        const rounds = goalRounds(entries, goal.id)
+        const usage = goalUsage(entries, goal.id)
         const change: GoalChange =
           request.action === 'pause'
             ? { type: 'pause', reason: { code: 'user-paused', message: 'Paused by the user' } }
@@ -152,7 +235,7 @@ export class GoalService {
                     ...(request.criteria === undefined ? {} : { criteria: request.criteria }),
                     ...(request.budget === undefined ? {} : { budget: request.budget }),
                   }
-        await this.#commit(sessionId, applyGoalChange(goal, change, 'user', rounds))
+        await this.#commit(sessionId, applyGoalChange(goal, change, 'user', usage))
       } catch (error) {
         rethrow(error)
       }
@@ -258,7 +341,13 @@ export class GoalService {
           const goal = currentGoal(entries)
           const rounds = goal ? goalRounds(entries, goal.id) : 0
           const jobs = this.#options.jobs.port(sessionId)
-          const next = planGoalUpdate(goal, args, { entries, authority: runAuthority(entries), rounds, jobRunning: (id) => jobs.get(id)?.running ?? false })
+          const next = planGoalUpdate(goal, args, {
+            entries,
+            authority: runAuthority(entries),
+            rounds,
+            ...(goal ? { usage: goalUsage(entries, goal.id) } : {}),
+            jobRunning: (id) => jobs.get(id)?.running ?? false,
+          })
           let committed = await this.#commit(sessionId, next)
           log.info('goal updated by the model', { sessionId, goalId: committed.id, action: args.action, phase: committed.phase })
           // 等待的 Job 恰在判定与提交之间结束：立即回到 running。
@@ -382,11 +471,6 @@ export class GoalService {
     })
     return run
   }
-}
-
-/** 已用量：本票派生轮次（其余维度由预算派生补齐）。 */
-function usageOf(entries: readonly StoredEntry[], goal: GoalPayload | undefined): GoalUsage {
-  return { rounds: goal ? goalRounds(entries, goal.id) : 0 }
 }
 
 /** 该 Run 中是否有审批以 cancelled 结束（停止时仍在等待回答）。 */

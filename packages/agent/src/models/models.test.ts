@@ -144,6 +144,39 @@ describe('模型适配：自定义 Provider 与 Model Catalog', () => {
     expect(selectable('no-levels')).toEqual(['off'])
   })
 
+  it('价格（每百万 token）写入 model.cost；留空为未定价（cost 为 0）；显式价格即使为 0 也算已定价；负数或非有限数拒绝', () => {
+    const registry = createModelRegistry({
+      credentials: new InMemoryCredentialStore(),
+      providers: [
+        provider({
+          models: [spec('priced', { price: { input: 2, output: 10, cacheRead: 0.5 } }), spec('free', { price: { input: 0, output: 0 } }), spec('unpriced')],
+        }),
+      ],
+    })
+    const id = provider().id
+    const priced = resolveModel(registry, id, 'priced')
+    expect(priced.cost).toEqual({ input: 2, output: 10, cacheRead: 0.5, cacheWrite: 0 })
+    expect(registry.priced(priced)).toBe(true)
+    expect(registry.priced(resolveModel(registry, id, 'free'))).toBe(true)
+    const unpriced = resolveModel(registry, id, 'unpriced')
+    expect(unpriced.cost).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
+    expect(registry.priced(unpriced)).toBe(false)
+    // 去掉价格后重新保存：不再算已定价；删除 Provider 后同样。
+    registry.setProvider(provider({ models: [spec('priced')] }))
+    expect(registry.priced(resolveModel(registry, id, 'priced'))).toBe(false)
+    registry.setProvider(provider({ models: [spec('priced', { price: { input: 1, output: 1 } })] }))
+    registry.deleteProvider(id)
+    expect(registry.priced({ ...priced, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } })).toBe(false)
+    for (const price of [
+      { input: -1, output: 0 },
+      { input: 0, output: Number.NaN },
+      { input: 0, output: 0, cacheWrite: -0.1 },
+    ])
+      expect(() => createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [provider({ models: [spec('m', { price })] })] })).toThrow(
+        /non-negative price/,
+      )
+  })
+
   it('未知的 Provider 或模型报 ModelConfigError', () => {
     const registry = createModelRegistry({ credentials: new InMemoryCredentialStore(), providers: [provider()] })
     expect(() => resolveModel(registry, 'nope', 'custom-model-1')).toThrow(/Unknown model/)
