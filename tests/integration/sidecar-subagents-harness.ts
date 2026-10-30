@@ -2,7 +2,7 @@
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
 
 export type Logged = { role: string; content: unknown; sections?: Record<string, string> }[]
 const fixtures = new URL('../fixtures/agents/', import.meta.url)
@@ -18,11 +18,15 @@ export const byUser = (logged: Logged[], marker: string) =>
       .includes(marker),
   )
 
-export async function bootAgents(responses: unknown[], options: { env?: Record<string, string>; script?: Record<string, unknown> } = {}) {
+export async function bootAgents(
+  responses: unknown[],
+  options: { env?: Record<string, string>; script?: Record<string, unknown>; providers?: Parameters<typeof seedProviders>[1] } = {},
+) {
   const root = await tempDir()
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const dirs = await sidecarDirs()
+  if (options.providers) await seedProviders(dirs, options.providers)
   const script = await fauxScript(root, { requestLog, responses, ...options.script })
   const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', ...options.env } })
   const cookie = await exchange(sidecar)
