@@ -178,6 +178,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal → todo）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
 
+## 定时任务的 `<scheduled_task>` 输入
+
+定时任务到期时，Run 的 user message 为 `<scheduled_task schedule-id="…" title="…" occurrence="ISO">prompt</scheduled_task>`：prompt 原文，不经命令与 File Reference 展开，属性值转义；各领域的待送达内容照常合并在它之前。这是一条普通的 user message 条目（`run_start.trigger` 为 schedule），压缩时与其他消息一样被摘要。用户自己写的同名标签只是文本，不使 Run 成为定时任务触发。见 [定时任务](schedules.md#定时器与投递)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：
@@ -212,3 +216,4 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - [权限判定与审批](permissions.md)：Read 拒绝规则与作用域。
 - [界面约定](../tech-stack/ui.md)：composer 与草稿的技术约定。
 - [指令文件](instructions.md)：用量接口中指令文件与截断的来源。
+- [定时任务](schedules.md)：`<scheduled_task>` 输入的来源与授权。

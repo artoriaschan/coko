@@ -203,7 +203,8 @@ describe('Todo List', () => {
         { content: 'SUMMARY' },
         { content: 'after compaction' },
       ],
-      { contextWindow: 60_000, maxTokens: 4_000 },
+      // 窗口随常驻工具定义的体积调整（定时任务的 schedule_* 工具）；阈值算法不变。
+      { contextWindow: 64_000, maxTokens: 4_000 },
     )
     const sessionId = await newSession(api, stream, workspaceId, 'read-only')
     await send(api, stream, sessionId, big(4_000, 'g'))

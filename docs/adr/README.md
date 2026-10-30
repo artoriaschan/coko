@@ -24,5 +24,5 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0012](0012-host-process-registry.md) | Sidecar 登记子进程，启动时按身份清理孤儿 | accepted | implemented |
 | [0013](0013-external-hooks-tighten-only.md) | 外部 Hook 只能收紧判定，allow 不越过规则 | accepted | partial |
 | [0014](0014-subagents-as-child-sessions.md) | 子代理是同一 Sidecar 中的子 Session | accepted | not-started |
-| [0015](0015-schedules-at-most-once-latest-catch-up.md) | 定时任务至多一次投递，只补最近一次 | accepted | not-started |
+| [0015](0015-schedules-at-most-once-latest-catch-up.md) | 定时任务至多一次投递，只补最近一次 | accepted | partial |
 | [0016](0016-session-cwd-fixed-worktrees.md) | Session 的工作目录创建时固定，worktree 只在干净时移除 | accepted | partial |

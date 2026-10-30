@@ -27,6 +27,10 @@ export interface SidecarConfig {
   testTools?: boolean
   /** COKO_TEST_CLOCK=1：定时任务使用可控时钟并挂载 POST /api/test/clock，仅测试使用。 */
   testClock?: boolean
+  /** COKO_TEST_CLOCK_START=<UTC 毫秒>（需 COKO_TEST_CLOCK=1）：测试时钟的起点（重启后定时任务的启动扫描），仅测试使用。 */
+  testClockStart?: number
+  /** COKO_TEST_HOLD_SCHEDULE_FIRE=1：定时任务记录投递后、开始 Run 之前挂起（集成测试在此强杀），仅测试使用。 */
+  testScheduleHold?: boolean
   /** COKO_TEST_HOLD_AFTER_TOOL / COKO_TEST_HOLD_BEFORE_CHECKPOINT（需 COKO_TEST_TOOLS=1）：工具执行后挂起，仅测试使用。 */
   testHold?: { tool: string; beforeCheckpoint: boolean }
   /** 打包的发布构建中被忽略的测试钩子变量名（只记名字，用于启动日志）。 */
@@ -60,9 +64,15 @@ export interface ParseOptions {
 type Env = Readonly<Record<string, string | undefined>>
 
 /** 测试钩子：faux provider、替换 sandbox-exec、测试工具与挂起。格式错误时抛 ConfigError。 */
-function testHooks(env: Env): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock'> {
+function testHooks(
+  env: Env,
+): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock' | 'testClockStart' | 'testScheduleHold'> {
   const testClock = env.COKO_TEST_CLOCK
   if (testClock !== undefined && testClock !== '1') throw new ConfigError('COKO_TEST_CLOCK must be 1 when set')
+  const clockStart = testClock ? env.COKO_TEST_CLOCK_START : undefined
+  if (clockStart !== undefined && !/^\d+$/.test(clockStart)) throw new ConfigError('COKO_TEST_CLOCK_START must be a UTC timestamp in milliseconds')
+  const scheduleHold = env.COKO_TEST_HOLD_SCHEDULE_FIRE
+  if (scheduleHold !== undefined && scheduleHold !== '1') throw new ConfigError('COKO_TEST_HOLD_SCHEDULE_FIRE must be 1 when set')
   const fauxScript = env.COKO_FAUX_SCRIPT
   if (fauxScript !== undefined && !isAbsolute(fauxScript)) throw new ConfigError('COKO_FAUX_SCRIPT must be an absolute path')
   const sandboxExec = env.COKO_SANDBOX_EXEC
@@ -75,6 +85,8 @@ function testHooks(env: Env): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' |
     ...(sandboxExec ? { sandboxExec } : {}),
     ...(testTools ? { testTools: true } : {}),
     ...(testClock ? { testClock: true } : {}),
+    ...(clockStart !== undefined ? { testClockStart: Number(clockStart) } : {}),
+    ...(scheduleHold ? { testScheduleHold: true } : {}),
     ...(hold ? { testHold: { tool: hold, beforeCheckpoint: env.COKO_TEST_HOLD_BEFORE_CHECKPOINT === '1' } } : {}),
   }
 }
