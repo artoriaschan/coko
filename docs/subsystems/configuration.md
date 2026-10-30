@@ -36,7 +36,7 @@ lifecycle: active
 | `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
 | `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
 
-`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled`、`schedules.enabled` 目前只进入有效配置（子代理、定时任务尚未交付）。设置界面还没有这三个开关。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
+`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled`、`schedules.enabled` 目前只进入有效配置（子代理、定时任务尚未交付）。`hooks.enabled` 的开关在设置 → Hooks 分区，其余两个在设置界面中还没有开关。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
 
 有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
 
