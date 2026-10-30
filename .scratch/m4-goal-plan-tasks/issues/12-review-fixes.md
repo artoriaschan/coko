@@ -28,3 +28,5 @@
   - **未处理：** B1–B12、B15（judgement，不在清单；HTTP helper 与每 Session 锁的收敛为可选，未做）。手动 `/compact` 不经预算检查，已写入 goal.md。
   - **越出 Write scope：** 无超出上面所列范围的改动。
   - **供后续票：** `ContextContribution.admissionHooks`（只拦截、无副作用的 hook，排在扩展之前）；`CokoTool.fixedSandbox`；`ToolBlockResult.hostBlock` / `HostBlock`（@coko/agent 导出）；`RunError.dimension`；`PlanReview.active()`；desktop Browser Mode 的 `src/renderer/testing/browser-setup.ts`；ui token `text-success-text`、`text-warning-text`、`text-terminal-*`。
+  - **实际运行（main e0f129b 已合入，Already up to date）：** `pnpm run lint` 0 warnings / 0 errors；`pnpm run format:check` 通过；`pnpm run typecheck` 退出 0；`pnpm run check:docs` 157 个文件 0 问题；全量 `pnpm run test`（运行前等其他 vitest run 结束）退出 0：250 个文件，1951 通过、1 跳过，含 desktop E2E 与 package-smoke（3 例），无未处理错误。第一次全量有 1 例失败（jobs.e2e 仍以 destructive 色比较 ANSI 红，A12 的预期变化），改为 terminal-red 后单独重跑 2/2 通过，第二次全量通过（7f200d5）。
+  - **未验证：** 非 darwin 平台（PTY 与 Seatbelt 用例按既有方式跳过）；A12 的颜色只按计算样式测量，没有人工截图检查。
