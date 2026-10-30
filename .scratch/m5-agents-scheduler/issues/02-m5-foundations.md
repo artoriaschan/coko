@@ -75,5 +75,7 @@
 
 **需要 Lead 合并时处理：** 没有新的导航行；协议的新导出经 `index.ts` 的 `export *`（agents、handoff、hooks、schedules、worktrees）。
 
+**最终验证（2026-10-31 03:38–03:42，main 058c126 已合入，没有新提交；等其他 vitest run 结束后运行，负载约 4–7）：** worktree 中 `pnpm run test`：261 个测试文件全部通过，2082 例（2081 通过、1 跳过为既有的真实模型用例），test=0，日志中没有 Unhandled；包含 27 个 desktop-e2e 文件与 `package-smoke.e2e.test.ts`（3 例）。第一次全量（03:33）有 3 个确定性失败：sidecar-config 的有效配置、desktop-shell 的 bridge 键列表与 dock 的注册表列表（新键 / 占位行，实际值见上文"已有测试"），按实际值修正后全量通过。另：`pnpm run typecheck`、`lint`、`format:check`、`check:docs`（176 文件 0 问题）退出码 0；`scripts/browser-deps.test.ts` 与 `scripts/source-references.test.ts` 4 例通过。较票 01 的基线新增 6 个测试文件、98 例。
+
 **未验证：** 真实模型（无凭据）；Electron 中点击真实桌面通知（测试构建只记日志，显示与点击由 05 接入）；睡眠唤醒。
 
