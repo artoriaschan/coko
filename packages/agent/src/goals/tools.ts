@@ -253,7 +253,9 @@ export function createCreateGoalTool(port: GoalToolPort): CokoTool<typeof create
     label: 'create_goal',
     description:
       'Create a goal that Coko keeps working on across automatic goal rounds, with checkable success criteria. Use it when the user asks ' +
-      'for a long-running objective (or uses /goal); not for single-step work. Only one unfinished goal per session.',
+      'for a long-running objective (or uses /goal); not for single-step work. Only one unfinished goal per session. Automatic rounds ' +
+      'are capped only by max_rounds unless you set other limits: for long or open-ended work, set budget.max_cost (and max_tokens or ' +
+      'max_duration_ms when the user gives one).',
     parameters: createGoalParameters,
     effect: 'side-effect',
     execute: async (_id, args) => json(await port.create(args)),

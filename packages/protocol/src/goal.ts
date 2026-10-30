@@ -43,6 +43,38 @@ export type GoalEvidence = Static<typeof GoalEvidence>
 export const GoalSource = Type.Union([Type.Literal('model'), Type.Literal('user'), Type.Literal('system')])
 export type GoalSource = Static<typeof GoalSource>
 
+/** 预算维度，按判定顺序；budget-exhausted 的 reason.code 为其中之一。与 @coko/agent 的 GOAL_BUDGET_DIMENSIONS 键相同（server goals.ts 中有编译期断言）。 */
+export const GOAL_BUDGET_DIMENSION_KEYS = ['rounds', 'tool-calls', 'tokens', 'cost', 'time'] as const
+export type GoalBudgetDimension = (typeof GOAL_BUDGET_DIMENSION_KEYS)[number]
+
+/**
+ * reason.code 的已知取值：预算维度（与没有维度时的 budget）、用户与系统的暂停或停止、模型的 update_goal、等待、取消，以及 Goal Round
+ * 没能开始的错误码。Goal Round 以 error 结束时 code 为 Run 的错误码（任意字符串），由 schema 的 String 兜底。
+ */
+export const GOAL_REASON_CODES = [
+  ...GOAL_BUDGET_DIMENSION_KEYS,
+  'budget',
+  'cost-unpriced',
+  'user-paused',
+  'user-stopped',
+  'user-cancelled',
+  'restarted',
+  'approval-unanswered',
+  'plan-review',
+  'model-paused',
+  'model-blocked',
+  'needs-input',
+  'waiting-jobs',
+  'model-not-configured',
+  'model-required',
+  'confirmation-pending',
+] as const
+export type KnownGoalReasonCode = (typeof GOAL_REASON_CODES)[number]
+
+/** 阶段的原因：code 为已知字面量之一，或 Run 的错误码（兜底的 String）。 */
+export const GoalReason = Type.Object({ code: Type.Union([Type.Enum(GOAL_REASON_CODES), Type.String()]), message: Type.String() }, strict)
+export type GoalReason = Static<typeof GoalReason>
+
 /** goal v1：Goal 的完整快照；最后一条即当前状态。 */
 export const GoalPayload = Type.Object(
   {
@@ -53,7 +85,7 @@ export const GoalPayload = Type.Object(
     criteria: Type.Array(GoalCriterion, { minItems: 1, maxItems: 10 }),
     budget: GoalBudget,
     phase: GoalPhase,
-    reason: Type.Optional(Type.Object({ code: Type.String(), message: Type.String() }, strict)),
+    reason: Type.Optional(GoalReason),
     waitingFor: Type.Optional(Type.Object({ jobIds: Type.Array(Id) }, strict)),
     resumedAtRound: Count,
     evidence: Type.Optional(Type.Array(GoalEvidence)),

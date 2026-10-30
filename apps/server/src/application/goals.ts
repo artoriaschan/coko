@@ -19,6 +19,7 @@ import {
   planGoalCreate,
   planGoalUpdate,
   runAuthority,
+  type GoalBudgetDimension as AgentGoalBudgetDimension,
   type GoalChange,
   type GoalPayload,
   type GoalToolPort,
@@ -30,7 +31,7 @@ import {
   type ToolHooks,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { GoalActionRequest, GoalResponse } from '@coko/protocol'
+import type { GoalActionRequest, GoalBudgetDimension, GoalResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError, errorMessage } from './errors.ts'
 import type { RunEndInfo } from './context/types.ts'
@@ -42,6 +43,11 @@ import type { SessionService } from './sessions.ts'
 import { requireSession, toNewEntry } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'goals'])
+
+// 预算维度在 agent 的描述表与协议的 GOAL_BUDGET_DIMENSION_KEYS 中各有一份（agent 不依赖 protocol）：两边的键必须相同。
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
+type Assert<T extends true> = T
+export type GoalBudgetDimensionsAgree = Assert<Equal<GoalBudgetDimension, AgentGoalBudgetDimension>>
 
 /** 取消时等待进行中的 Run 结束的上限；超出记入 cleanup.failures，不阻止取消。 */
 const CANCEL_RUN_WAIT_MS = 30_000

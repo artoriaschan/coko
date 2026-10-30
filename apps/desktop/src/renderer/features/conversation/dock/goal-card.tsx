@@ -1,4 +1,13 @@
-import type { GoalActionRequest, GoalBudget, GoalPayload, GoalPhase, GoalUsage, SessionEntry } from '@coko/protocol'
+import {
+  GOAL_BUDGET_DIMENSION_KEYS,
+  type GoalActionRequest,
+  type GoalBudget,
+  type GoalBudgetDimension,
+  type GoalPayload,
+  type GoalPhase,
+  type GoalUsage,
+  type SessionEntry,
+} from '@coko/protocol'
 import type { MessageKey, Translator } from '@coko/i18n'
 import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, toast } from '@coko/ui'
 import { ChevronDownIcon, CircleCheckIcon, CircleIcon, LoaderCircleIcon, TargetIcon, XIcon } from 'lucide-react'
@@ -13,7 +22,7 @@ import { formatJobDuration } from '../jobs-button.tsx'
 import { formatCost, formatCount, useCurrency } from '../session-cost.tsx'
 import type { DockCardProps } from './dock-slots.ts'
 
-// dock 的 Goal 卡（docs/subsystems/goal.md#界面）：Goal 快照取自会话中最新的 goal 条目，已用量取自 GET …/goal（条目变化时重新读取），
+// dock 的 Goal 卡（docs/subsystems/goal.md#界面）：Goal 快照取自会话中最新的 goal 条目，已用量取自 GET …/goal（影响用量的条目到达时重新读取），
 // 动作经 POST …/goal（带当前 revision）。卡片的展开、经 /goal 打开与关闭只在 renderer 内存中。
 
 const GoalStoreContext = React.createContext<GoalStore>(goalStore)
@@ -48,6 +57,22 @@ function latestGoalEntry(entries: readonly SessionEntry[]): Extract<SessionEntry
     if (entry.kind === 'goal') return entry
   }
   return undefined
+}
+
+/**
+ * 影响已用量的条目数：goal（阶段与 Goal 的归属）、run_end（时间）、compaction 与带 usage 的 assistant 消息（Token 与费用）。工具结果之后总有
+ * 一条带 usage 的 assistant 消息或 run_end，不单独重读。
+ */
+function usageChanges(entries: readonly SessionEntry[]): number {
+  let count = 0
+  for (const entry of entries) {
+    if (entry.kind === 'goal' || entry.kind === 'run_end' || entry.kind === 'compaction') count++
+    else if (entry.kind === 'message') {
+      const message = entry.payload as { role?: unknown; usage?: unknown }
+      if (message.role === 'assistant' && message.usage !== undefined) count++
+    }
+  }
+  return count
 }
 
 function lastRunStartSeq(entries: readonly SessionEntry[]): number {
@@ -105,15 +130,17 @@ export function goalReasonText(t: Translator, dictionary: { goal: { reason: Reco
   return { text: t('goal.reason.error'), detail: reason.message === '' ? undefined : reason.message }
 }
 
-type Dimension = 'rounds' | 'tool-calls' | 'tokens' | 'cost' | 'time'
+type Dimension = GoalBudgetDimension
 
-const DIMENSIONS: readonly { id: Dimension; max: (b: GoalBudget) => number | undefined; used: (u: GoalUsage, round: number) => number | undefined }[] = [
-  { id: 'rounds', max: (b) => b.maxRounds ?? DEFAULT_MAX_ROUNDS, used: (u, round) => Math.max(u.rounds, round) },
-  { id: 'tool-calls', max: (b) => b.maxToolCalls, used: (u) => u.toolCalls },
-  { id: 'tokens', max: (b) => b.maxTokens, used: (u) => u.tokens },
-  { id: 'cost', max: (b) => b.maxCost, used: (u) => u.cost },
-  { id: 'time', max: (b) => b.maxDurationMs, used: (u) => u.durationMs },
-]
+/** 每个预算维度在卡片上的上限与已用量；键与顺序取自协议的 GOAL_BUDGET_DIMENSION_KEYS（新增维度时这里缺项是编译错误）。 */
+const DIMENSION_VALUES: Record<Dimension, { max: (b: GoalBudget) => number | undefined; used: (u: GoalUsage, round: number) => number | undefined }> = {
+  rounds: { max: (b) => b.maxRounds ?? DEFAULT_MAX_ROUNDS, used: (u, round) => Math.max(u.rounds, round) },
+  'tool-calls': { max: (b) => b.maxToolCalls, used: (u) => u.toolCalls },
+  tokens: { max: (b) => b.maxTokens, used: (u) => u.tokens },
+  cost: { max: (b) => b.maxCost, used: (u) => u.cost },
+  time: { max: (b) => b.maxDurationMs, used: (u) => u.durationMs },
+}
+const DIMENSIONS = GOAL_BUDGET_DIMENSION_KEYS.map((id) => ({ id, ...DIMENSION_VALUES[id] }))
 
 export type BudgetLevel = 'normal' | 'warning' | 'exhausted'
 
@@ -414,6 +441,8 @@ function GoalBody({ sessionId, goal, round, usage, expanded, pending, onToggle, 
   const canResume = phase === 'paused' || phase === 'blocked' || phase === 'failed' || phase === 'budget-exhausted'
   const needsRaise = phase === 'budget-exhausted' && exhaustedNow(goal, usage, rounds)
   const busy = pending !== undefined
+  // 已定价、没有费用上限：无人值守的推进只受轮次等维度限制，提示用户可以设上限。
+  const noCostLimit = usage !== undefined && !unpriced && goal.budget.maxCost === undefined
   const budgetRows = DIMENSIONS.flatMap((d) => {
     const max = d.max(goal.budget)
     return max === undefined ? [] : [{ id: d.id, max, used: usage ? d.used(usage, rounds) : d.id === 'rounds' ? rounds : undefined }]
@@ -512,6 +541,11 @@ function GoalBody({ sessionId, goal, round, usage, expanded, pending, onToggle, 
                   <BudgetRow key={row.id} id={row.id} used={row.used} max={row.max} unpriced={unpriced} />
                 ))}
               </ul>
+              {noCostLimit && (
+                <p data-slot="goal-no-cost-limit" className="text-ui-small text-muted-foreground">
+                  {t('goal.noCostLimit')}
+                </p>
+              )}
             </div>
           )}
           {goal.cleanup && (
@@ -596,11 +630,14 @@ export function GoalCard({ sessionId }: DockCardProps) {
   const dismissed = useGoals((s) => s.dismissed[sessionId])
   const pending = useGoals((s) => s.pending[sessionId])
   const loaded = useGoals((s) => s.usage[sessionId])
-  // 条目变化时重新读取已用量（Sidecar 从条目派生）；没有 Goal 时不读取。
+  // 影响用量的条目到达时重新读取已用量（Sidecar 每次从全部条目派生）；同一帧内到达的合并为一次。没有 Goal 时不读取。
   const hasGoal = goal !== undefined
+  const changes = React.useMemo(() => usageChanges(entries), [entries])
   React.useEffect(() => {
-    if (hasGoal) void store.getState().load(sessionId)
-  }, [store, sessionId, hasGoal, entries.length])
+    if (!hasGoal) return
+    const frame = requestAnimationFrame(() => void store.getState().load(sessionId))
+    return () => cancelAnimationFrame(frame)
+  }, [store, sessionId, hasGoal, changes])
   const lastSeq = entries.at(-1)?.seq ?? 0
   const runAfter = (seq: number) => lastRunStartSeq(entries) > seq
   const pinned = opened !== undefined && !runAfter(opened)

@@ -2,24 +2,30 @@
 // 文本只来自已提交的快照（入库时已替换登记明文）。
 import type { SystemSection } from '../engine/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
-import { costText, GOAL_BLOCKED_MIN_ROUNDS, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
+import {
+  budgetLimit,
+  budgetUsed,
+  GOAL_BLOCKED_MIN_ROUNDS,
+  GOAL_BUDGET_DIMENSION_KEYS,
+  GOAL_BUDGET_DIMENSIONS,
+  isTerminalPhase,
+  type GoalUsageSnapshot,
+} from './state.ts'
 
 export const GOAL_SECTION_NAME = 'goal'
 
 const criteriaLines = (goal: GoalPayload) => goal.criteria.map((c) => `- ${c.id}: ${c.text}`)
 
-/** 已设维度的用量 / 上限（用量中省略的维度只列上限）。 */
+/** 轮次总是列出（未设上限为 unlimited）；其余为已设维度的用量 / 上限（用量中省略的维度只列上限）。名称与格式取自描述表。 */
 function budgetLines(goal: GoalPayload, usage: GoalUsageSnapshot): string[] {
   const { budget } = goal
-  const line = (name: string, used: string | undefined, limit: string) => (used === undefined ? `- ${name}: limit ${limit}` : `- ${name}: ${used} / ${limit}`)
-  const text = (value: number | undefined) => (value === undefined ? undefined : String(value))
-  const lines = [`- rounds: ${usage.rounds} / ${budget.maxRounds ?? 'unlimited'}`]
-  if (budget.maxToolCalls !== undefined) lines.push(line('tool calls', text(usage.toolCalls), String(budget.maxToolCalls)))
-  if (budget.maxTokens !== undefined) lines.push(line('tokens', text(usage.tokens), String(budget.maxTokens)))
-  if (budget.maxCost !== undefined) lines.push(line('cost', usage.cost === undefined ? undefined : costText(usage.cost), costText(budget.maxCost)))
-  if (budget.maxDurationMs !== undefined)
-    lines.push(line('time', usage.durationMs === undefined ? undefined : usage.durationMs + ' ms', budget.maxDurationMs + ' ms'))
-  return lines
+  return GOAL_BUDGET_DIMENSION_KEYS.flatMap((dimension) => {
+    const { name, format } = GOAL_BUDGET_DIMENSIONS[dimension]
+    const limit = budgetLimit(budget, dimension)
+    const used = budgetUsed(usage, dimension)
+    if (limit === undefined) return dimension === 'rounds' ? [`- ${name}: ${format(usage.rounds)} / unlimited`] : []
+    return [used === undefined ? `- ${name}: limit ${format(limit)}` : `- ${name}: ${format(used)} / ${format(limit)}`]
+  })
 }
 
 /** Goal 未终结时的 <goal> section（目标、约束、条件、阶段与原因、轮次与预算、工具用法）；终结或没有 Goal 时 undefined。 */
