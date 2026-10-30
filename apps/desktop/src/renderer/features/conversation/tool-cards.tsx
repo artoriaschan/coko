@@ -112,6 +112,21 @@ const json = (value: unknown) => {
   }
 }
 
+/** 被 Hook 阻止的调用：明细开头显示拦下它的 Hook 命令（已脱敏）。 */
+function HookBlockNote({ item }: { item: ToolItem }) {
+  const { t } = useI18n()
+  const hook = hookBlock(item)
+  if (!hook) return null
+  return (
+    <p data-slot="hook-block" className="flex min-w-0 items-baseline gap-2 px-3 pt-2 text-ui-small text-muted-foreground">
+      <span className="shrink-0">{t('hooks.blockedBy')}</span>
+      <code data-user-content className="min-w-0 truncate font-mono text-foreground" title={hook.command}>
+        {hook.command}
+      </code>
+    </p>
+  )
+}
+
 /** 未知工具：工具名为摘要，参数与结果按原样展示。 */
 function GenericBody({ item }: { item: ToolItem }) {
   const { t } = useI18n()
@@ -138,12 +153,28 @@ function sandboxDenial(item: ToolItem): SandboxModeKey | undefined {
   return sandbox?.denied === true && typeof sandbox.mode === 'string' ? (sandbox.mode as SandboxModeKey) : undefined
 }
 
-/** 标题行的元信息：沙箱拒绝与已结束审批的决定。 */
+/** 外部 Hook 拦下的调用（toolResult details.hostBlock { by: hook }，运行时写入，工具自身不能声明）。 */
+export function hookBlock(item: ToolItem): { command: string } | undefined {
+  const mark = (item.result?.details as { hostBlock?: { by?: unknown; command?: unknown } } | undefined)?.hostBlock
+  return mark?.by === 'hook' && typeof mark.command === 'string' ? { command: mark.command } : undefined
+}
+
+/** 标题行的元信息：Hook 拦截、沙箱拒绝与已结束审批的决定。 */
 function ToolMeta({ item }: { item: ToolItem }) {
   const { t } = useI18n()
   const denied = sandboxDenial(item)
+  const hook = hookBlock(item)
   return (
     <>
+      {hook && (
+        <span
+          data-hook-blocked
+          className="max-w-60 shrink truncate text-ui-small text-destructive"
+          title={t('hooks.blockedCommand', { command: hook.command })}
+        >
+          {t('hooks.blockedBy')}
+        </span>
+      )}
       {denied && (
         <span data-sandbox-denied={denied} className="max-w-60 shrink truncate text-ui-small text-destructive">
           {t('sandbox.denied', { mode: t(`sandbox.shortModes.${denied}`) })}
@@ -163,15 +194,18 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
   let label: string
   switch (decision.outcome) {
     case 'allowed':
-      label = target
-        ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
-        : decision.scope === 'session'
-          ? t('approval.allowedSession')
-          : decision.scope === 'workspace'
-            ? t('approval.allowedWorkspace')
-            : decision.scope === 'global'
-              ? t('approval.allowedGlobal')
-              : t('approval.allowedOnce')
+      label =
+        decision.by === 'hook'
+          ? t('hooks.allowedBy')
+          : target
+            ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
+            : decision.scope === 'session'
+              ? t('approval.allowedSession')
+              : decision.scope === 'workspace'
+                ? t('approval.allowedWorkspace')
+                : decision.scope === 'global'
+                  ? t('approval.allowedGlobal')
+                  : t('approval.allowedOnce')
       break
     case 'denied':
       label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
@@ -203,6 +237,7 @@ export function ToolCardView({ item }: { item: ToolItem }) {
         meta={<ToolMeta item={item} />}
         defaultExpanded={item.status === 'error'}
       >
+        <HookBlockNote item={item} />
         <GenericBody item={item} />
       </ToolCard>
     )
@@ -219,7 +254,14 @@ export function ToolCardView({ item }: { item: ToolItem }) {
       meta={<ToolMeta item={item} />}
       defaultExpanded={view.expanded === true || item.status === 'error'}
     >
-      {hasBody ? view.body(item, args) : undefined}
+      {hookBlock(item) ? (
+        <div className="flex flex-col">
+          <HookBlockNote item={item} />
+          {view.body(item, args)}
+        </div>
+      ) : hasBody ? (
+        view.body(item, args)
+      ) : undefined}
     </ToolCard>
   )
 }

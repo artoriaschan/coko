@@ -190,3 +190,53 @@ describe('工具卡', () => {
     expect(document.querySelector('[data-slot="tool-card"]')!.getAttribute('data-tool')).toBe('memory_delete')
   })
 })
+
+describe('工具卡：外部 Hook', () => {
+  const blocked: ToolItem = {
+    kind: 'tool',
+    key: 'tool:b1',
+    call: { id: 'b1', name: 'bash', arguments: { command: 'rm -rf build' } },
+    result: {
+      isError: true,
+      text: 'Blocked by hook: no rm',
+      details: { hostBlock: { by: 'hook', hookId: 'global:PreToolUse:0:0', command: './guard.sh --strict' } },
+    },
+    status: 'error',
+    live: null,
+  }
+
+  it('被 Hook 阻止：标题行标注"被 Hook 阻止"（title 带命令），明细开头显示命令与原因（中英文）', async () => {
+    const screen = await renderCard(blocked, 'zh')
+    const mark = document.querySelector('[data-hook-blocked]')!
+    expect(mark.textContent).toBe('被 Hook 阻止')
+    expect(mark.getAttribute('title')).toBe('被 Hook 阻止：./guard.sh --strict')
+    const note = document.querySelector('[data-slot="hook-block"]')!
+    expect(note.textContent).toBe('被 Hook 阻止./guard.sh --strict')
+    expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).toContain('Blocked by hook: no rm')
+    await screen.unmount()
+    await renderCard(blocked, 'en')
+    expect(document.querySelector('[data-hook-blocked]')?.textContent).toBe('Blocked by hook')
+  })
+
+  it('工具自身 details 中的 hostBlock 不是 Hook 标注的来源之外的形状时不显示（只认 by: hook 与字符串命令）', async () => {
+    await renderCard({ ...blocked, result: { ...blocked.result!, details: { hostBlock: { by: 'goal-budget', dimension: 'tool-calls' } } } })
+    expect(document.querySelector('[data-hook-blocked]')).toBeNull()
+    expect(document.querySelector('[data-slot="hook-block"]')).toBeNull()
+  })
+
+  it('PermissionRequest Hook 允许的审批：标题行显示"由 Hook 允许"', async () => {
+    await renderCard({
+      kind: 'tool',
+      key: 'tool:a1',
+      call: { id: 'a1', name: 'bash', arguments: { command: 'make' } },
+      result: { isError: false, text: 'ok', details: undefined },
+      status: 'done',
+      live: null,
+      approval: {
+        request: { requestId: 'r1', toolCallId: 'a1', toolName: 'bash', kind: 'tool', subject: 'make', suggestions: [] },
+        decision: { requestId: 'r1', outcome: 'allowed', scope: 'once', by: 'hook' },
+      },
+    })
+    expect(document.querySelector('[data-approval-outcome="allowed"]')?.textContent).toBe('Allowed by hook')
+  })
+})
