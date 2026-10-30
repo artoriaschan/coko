@@ -170,8 +170,19 @@ export interface ContextContributionOptions {
   jobs?: import('../jobs.ts').JobService
   /** Goal（application/goals.ts）；省略时 goal 贡献为空。 */
   goals?: import('../goals.ts').GoalService
+  /** Session 条目的读取与提交（领域自己的条目，例如 todo_list）；省略时这些领域为空贡献。 */
+  entries?: SessionEntryAccess
   /** 仅测试：额外的贡献，排在全部领域之后（集成测试驱动 seam）。 */
   extra?: readonly ContextContribution[]
+}
+
+/**
+ * 领域提交自己的条目（例如 todo_write 的 todo_list）：payload 与运行时条目一样经 toNewEntry 替换登记明文后入库，再经 hub 推送。
+ * commit 返回实际入库的条目（脱敏之后）。
+ */
+export interface SessionEntryAccess {
+  list(sessionId: string): Promise<readonly SessionEntry[]>
+  commit(sessionId: string, entry: RunEntry): Promise<SessionEntry>
 }
 
 /** Memory 贡献需要的存储部分：记忆仓库与 Workspace 查询。 */
