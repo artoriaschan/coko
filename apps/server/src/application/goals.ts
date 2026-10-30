@@ -405,6 +405,39 @@ export class GoalService {
     })
   }
 
+  /**
+   * Goal Round 中的计划审阅（exit_plan_mode 等待用户）：请求提交时 Goal 进入 waiting-input（plan-review），使界面显示在等用户；回答（未被取消）
+   * 之后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，等用户提交（Run 结束后的转换照常）。
+   */
+  async #planReview(sessionId: string, entry: { kind: string; runId: string | null; payload: unknown }): Promise<void> {
+    await this.#locked(sessionId, async () => {
+      if (this.#cancelling.has(sessionId)) return
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      if (!goal) return
+      const rounds = goalRounds(entries, goal.id)
+      if (entry.kind === 'approval_request') {
+        const request = entry.payload as { kind?: string }
+        if (request.kind !== 'plan' || goal.phase !== 'running' || entry.runId === null || !isGoalRound(entries, entry.runId, goal.id)) return
+        await this.#commit(
+          sessionId,
+          applyGoalChange(goal, { type: 'wait-input', reason: { code: 'plan-review', message: 'Waiting for the user to review the plan' } }, 'system', rounds),
+        )
+        log.info('goal waiting for plan review', { sessionId, goalId: goal.id })
+        return
+      }
+      const decision = entry.payload as { requestId: string; outcome: string }
+      if (goal.phase !== 'waiting-input' || goal.reason?.code !== 'plan-review' || decision.outcome === 'cancelled') return
+      const asked = entries.some(
+        (e) =>
+          e.kind === 'approval_request' &&
+          (e.payload as { requestId: string; kind?: string }).requestId === decision.requestId &&
+          (e.payload as { kind?: string }).kind === 'plan',
+      )
+      if (asked) await this.#wake(sessionId, goal, rounds)
+    })
+  }
+
   async #jobsEnded(sessionId: string, goal: GoalPayload): Promise<boolean> {
     const port = this.#options.jobs.port(sessionId)
     return (goal.waitingFor?.jobIds ?? []).every((id) => !(port.get(id)?.running ?? false))
@@ -460,7 +493,13 @@ export class GoalService {
   #watch(sessionId: string): void {
     if (this.#watches.has(sessionId)) return
     const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
-      if (m.type !== 'entry' || m.entry.kind !== 'job_end') return
+      if (m.type !== 'entry') return
+      if (m.entry.kind === 'approval_request' || m.entry.kind === 'approval_decision') {
+        const entry = m.entry
+        void this.#planReview(sessionId, entry).catch((error: unknown) => log.warn('goal plan review handling failed', { sessionId, error: message(error) }))
+        return
+      }
+      if (m.entry.kind !== 'job_end') return
       const jobId = (m.entry.payload as unknown as JobEndPayload).jobId
       void this.#jobEnded(sessionId).catch((error: unknown) => log.warn('goal job end handling failed', { sessionId, jobId, error: message(error) }))
     })
@@ -483,6 +522,12 @@ export class GoalService {
     })
     return run
   }
+}
+
+/** 该 Run 是否为该 Goal 的 Goal Round。 */
+function isGoalRound(entries: readonly StoredEntry[], runId: string, goalId: string): boolean {
+  const start = entries.find((e) => e.kind === 'run_start' && e.runId === runId)?.payload as { trigger?: string; goal?: { goalId: string } } | undefined
+  return start?.trigger === 'goal' && start.goal?.goalId === goalId
 }
 
 /** 该 Run 中是否有审批以 cancelled 结束（停止时仍在等待回答）。 */

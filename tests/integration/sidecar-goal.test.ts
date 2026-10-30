@@ -326,6 +326,27 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('Goal Round 中的计划审阅：Goal 进入 waiting-input（plan-review），批准后同一 Run 中回到 running 并照常推进', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['planned'], { budget: { max_rounds: 1 } })] },
+      { content: 'set' },
+      { content: [call('exit_plan_mode', 'e1', { plan: '# Plan\n\n1. do it' })] },
+      { content: 'r1 done' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId)
+    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
+    await submit(api, sessionId, 'go')
+    const review = await waitApproval(stream, sessionId, 1)
+    expect(review).toMatchObject({ kind: 'plan', toolName: 'exit_plan_mode' })
+    await waitGoal(stream, sessionId, (g) => g.phase === 'waiting-input')
+    expect(goals(stream, sessionId).at(-1)).toMatchObject({ reason: { code: 'plan-review' }, source: 'system' })
+    expect((await api.post(apiPaths.sessionApproval(sessionId, review.requestId), { decision: 'allow' })).status).toBe(204)
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    expect(phases(stream, sessionId)).toEqual(['running', 'waiting-input', 'running', 'budget-exhausted'])
+    expect(starts(stream, sessionId)).toEqual([{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'goal-1', round: 1 } }])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('wait_jobs：Goal 进入 waiting-external，等待的 Job 结束后下一轮开始（通知合并在 <goal_round> 之前）；job_start 带 goalId', async () => {
     const { sidecar, api, stream, workspaceId, requests } = await boot([
       { content: [createGoal(['build succeeds'])] },
