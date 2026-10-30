@@ -13,6 +13,7 @@ import { ApprovalPanel } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { Dock } from './dock/dock.tsx'
+import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
 import { visibleHeaderActions } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
@@ -65,6 +66,15 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     rewind,
     fork,
   } = useChatActions()
+  // /goal（无参数）在当前会话中打开 Goal 卡，不发送；Run 进行中的 /goal pause 与 /goal cancel 作为提交（Sidecar 的动作），不作为追加指令。
+  const goals = useGoalStoreApi()
+  const openGoalCard = (text: string) => {
+    if (activeSessionId === null || !isGoalCardCommand(text)) return false
+    goals.getState().open(activeSessionId, conversation?.entries.at(-1)?.seq ?? 0)
+    return true
+  }
+  const sendOrOpen = async (text: string) => openGoalCard(text) || send(text)
+  const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const workspacePath = useChat((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
@@ -306,8 +316,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               commandTarget={commandTarget}
               fileWorkspaceId={session?.workspaceId ?? draftWorkspaceId ?? undefined}
               needsSetup={needsSetup}
-              onSend={send}
-              onSteer={steer}
+              onSend={sendOrOpen}
+              onSteer={steerOrAct}
               onStop={() => void stop()}
               onPause={() => void pause()}
               pausing={conversation?.pausing ?? false}

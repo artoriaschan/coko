@@ -345,7 +345,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       const optimistic = before?.running ? before.live : emptyLive(null, true)
       if (before && !before.running) updateConversation(sessionId, (c) => ({ ...c, running: true, live: optimistic }))
       try {
-        await request()
+        const result = await request()
+        // 不开始 Run 的动作（204，例如 /goal pause）：撤销本次的乐观状态。
+        if (result && typeof result === 'object' && 'done' in result && before && !before.running)
+          updateConversation(sessionId, (c) => (c.live === optimistic ? { ...c, running: false, live: null } : c))
         return true
       } catch (error) {
         if (before && !before.running) updateConversation(sessionId, (c) => (c.live === optimistic ? { ...c, running: false, live: null } : c))

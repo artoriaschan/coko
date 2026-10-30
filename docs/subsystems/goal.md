@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的 Goal 契约：goal 条目（完整快照与 revision）、九阶段的转换表、create_goal / get_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重（GoalDriver）、wait_jobs 与 Job 结束后的唤醒、五维预算（从条目派生的口径与三个检查点、未定价模型）、<goal> 与 <goal_round> 注入、/goal 命令与 /api/sessions/:id/goal、取消的停止传播与重启后暂停。修改 Goal 的状态机、推进、预算、工具、注入或接口前查阅。"
+description: "当前的 Goal 契约：goal 条目（完整快照与 revision）、九阶段的转换表、create_goal / get_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重（GoalDriver）、wait_jobs 与 Job 结束后的唤醒、五维预算（从条目派生的口径与三个检查点、未定价模型）、<goal> 与 <goal_round> 注入、/goal 命令与 /api/sessions/:id/goal、取消的停止传播与重启后暂停，以及界面（dock 的 Goal 卡、时间线的 Goal 行与 Run 用量行、标题栏的 Session 费用）。修改 Goal 的状态机、推进、预算、工具、注入、接口或界面前查阅。"
 lifecycle: active
 ---
 
 # Goal
 
-本文说明 Coko 当前如何让 Agent 跨多个 Run 推进一个 [Goal](../../GLOSSARY.md)：模型在用户请求的 Run 中用 `create_goal` 记下目标与成功条件，之后 Sidecar 在 Session 空闲时逐轮发起 [Goal Round](../../GLOSSARY.md)，直到模型为每条条件给出证据、需要用户输入、等待后台任务、轮次用尽或被用户暂停。五维预算（轮次、工具调用、Token、费用、时间）从已提交的条目派生，在调用前检查。决定见 [ADR 0011](../adr/0011-goal-state-as-session-entries.md)。Goal 卡与 Run 用量的界面尚未实现。
+本文说明 Coko 当前如何让 Agent 跨多个 Run 推进一个 [Goal](../../GLOSSARY.md)：模型在用户请求的 Run 中用 `create_goal` 记下目标与成功条件，之后 Sidecar 在 Session 空闲时逐轮发起 [Goal Round](../../GLOSSARY.md)，直到模型为每条条件给出证据、需要用户输入、等待后台任务、轮次用尽或被用户暂停。五维预算（轮次、工具调用、Token、费用、时间）从已提交的条目派生，在调用前检查。决定见 [ADR 0011](../adr/0011-goal-state-as-session-entries.md)。界面见 [界面](#界面)。
 
 ## 结构入口
 
@@ -128,6 +128,31 @@ Goal Round 的输入是一条 user message：`<goal_round>`、`Objective: "<目�
 - **恢复**：提交 running，Session 空闲时立即发起下一轮。
 - **标为完成**：提交 complete（`completedBy: user`）；Run 进行中时同样在本批完成后停下。
 
+## 界面
+
+Renderer 只读条目与上述接口，不新增协议字段、条目、注入点或读取根。
+
+| 位置 | 职责 |
+| --- | --- |
+| `apps/desktop/src/renderer/features/conversation/dock/goal-card.tsx` | dock 的 Goal 卡、取消确认、编辑对话框；`GoalStoreProvider`、`isGoalCardCommand` |
+| `apps/desktop/src/renderer/stores/goal-store.ts` | 已用量（`GET …/goal`）、动作（`POST …/goal`）与卡片的界面状态 |
+| `apps/desktop/src/renderer/features/conversation/goal-row.tsx` | 时间线的 Goal 行 |
+| `apps/desktop/src/renderer/features/conversation/run-usage-row.tsx`、`session-cost.tsx` | Run 用量行；标题栏的 Session 费用与用量汇总函数 |
+
+**Goal 卡**（dock 中 Todo 与 Queue 之间）。快照取自最新的 `goal` 条目；已用量在条目变化时经 `GET …/goal` 重新读取。未终结的 Goal 一直显示；complete、cancelled 在下一个 Run 开始前显示，可关闭。收起时为一行：目标（单行截断）、阶段徽标、轮次 n / 上限（缺省 50）、费用（模型未定价且没有费用时为"未定价"），下方一行原因。展开后：目标全文（两行截断，可展开）、原因、成功条件（有证据时显示证据）、已设维度的预算条（已用 / 上限，≥ 80% warning 色，≥ 100% destructive 色；模型未定价时费用为提示而不是进度）、取消的清理结果，以及操作：
+
+- 暂停（running、waiting-*）、恢复（paused、blocked、failed、budget-exhausted；仍有维度达到上限时不可用并提示先调高预算）、编辑（目标与五维预算，留空为不设上限；时间以分钟输入）、标为完成、取消（确认框；请求在清理完成后返回，期间显示"正在停止"）。
+- 动作带当前快照的 revision；`revision-conflict` 时提示并重新读取，其他失败以 Toast 提示。
+- 原因按 `reason.code` 本地化；needs-input、model-blocked、model-paused 另附模型给出的原文；其余代码（Run 的错误码）显示"运行出错"并附错误消息。
+
+展开状态、经 `/goal` 打开与关闭只在 renderer 内存中。`/goal`（无参数，独占整段输入）在 renderer 中直接展开 Goal 卡、不发送；没有 Goal 时显示空状态（如何用 `/goal <目标>` 建立），下一个 Run 开始或关闭后消失。Run 进行中的 `/goal pause`、`/goal cancel` 作为提交（Sidecar 的动作）发送，不作为追加指令；提交返回 204 时 renderer 不进入运行中、不报错。
+
+**时间线**。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。每个 Run 结束后（该 Run 有带 usage 的 assistant 消息时）一行用量：Token 合计（input + output + cacheRead + cacheWrite，含该 Run 的 `compaction.usage`）与费用（`usage.cost.total` 之和）。
+
+**Session 费用**（会话标题栏）。汇总本 Session 所有带 runId 的 assistant 消息与 compaction 的 usage（分叉复制来的消息没有 runId，不计）；HoverCard 分项为输入、输出、缓存读取、缓存写入的 Token 与费用。会话没有用量时不显示。
+
+**未定价。** 一条回复的模型在 Model Catalog 中且没有 `price` 时算未定价；不在目录中（faux、已删除的 Provider）时按该回复的 `cost.total` 是否大于 0 判定。全部未定价时显示"未定价"，部分未定价时在费用后注明。Goal 卡的费用按 `usage.costUnpriced`（当前模型）判定。货币符号取 `usage.currency`，不换算；小于 1 时保留 4 位小数。
+
 ## 取消与重启
 
 **取消**（HTTP 或 `/goal cancel`）：先标记该 Session 正在取消（Run 结束、Job 结束与模型的 Goal 工具都不再改变 Goal），停止进行中的 Run 并等待其 `run_end`（至多 30 秒，超出记入 failures），再终止 `goalId` 为此 Goal 的 running Job 并等待 `job_end`，最后提交 cancelled 快照与 `cleanup { runsAborted, jobsKilled, failures }`。失败项不阻止取消。请求在这些都完成后返回。
@@ -145,6 +170,8 @@ Goal Round 的输入是一条 user message：`<goal_round>`、`Objective: "<目�
 - `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格 400、没有价格的目录照常可用。
 - `apps/desktop/src/renderer/features/settings/model-price.browser.test.tsx`：价格输入与校验、编辑回显与清空、费用货币。
 - `tests/integration/sidecar-goal-restart.test.ts`：Goal Round 中 SIGKILL，重启后 paused（restarted）、30 秒内没有新的 run_start，恢复后继续。
+- `apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx`：九个阶段的徽标与原因（zh / en）、预算条阈值与颜色、未定价时显示提示而不是 0、取消需确认与清理结果、key 为 goalId 与 criterionId、budget-exhausted 时恢复不可用与编辑预算、revision 冲突、`/goal` 打开空状态不发送、Run 用量行与 Session 费用分项。
+- `apps/desktop/e2e/goal.e2e.test.ts`（真实 Electron + Sidecar + faux 多轮）：Goal 卡在 Todo 与 Queue 之间、轮次随 Goal Round 增长、暂停后不推进与恢复、工具调用上限耗尽后编辑预算再恢复、完成后显示证据；用量行与标题栏费用与条目及 `GET …/goal` 一致；明暗主题、390 px 窗口与键盘操作。
 - `tests/integration/secrets-gate-goal.test.ts`：目标、约束、条件与证据含登记 Secret 时 goal 条目、工具结果、WebSocket、HTTP（含用量字段）、库、requestLog（`<goal>` 的用量行、`<goal_round>`）与日志中没有明文。
 
 **已知限制**：一个只填了全 0 价格的模型算已定价，费用上限永远不会耗尽；Checkpoint 的备份在工具调用上限的检查之前，被拦下的 write / edit 仍可能留下一份备份（Workspace 文件不变）。

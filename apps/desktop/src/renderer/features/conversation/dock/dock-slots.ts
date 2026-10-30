@@ -20,7 +20,7 @@ export interface DockSlotDefinition {
 
 export const DOCK_SLOTS: readonly DockSlotDefinition[] = [
   { id: 'todo', Component: TodoCard, available: true },
-  { id: 'goal', Component: GoalCard, available: false },
+  { id: 'goal', Component: GoalCard, available: true },
   { id: 'queue', Component: QueueCard, available: true },
 ]
 
