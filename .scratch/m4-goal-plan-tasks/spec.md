@@ -93,7 +93,7 @@ M3 之后 Agent 有了指令、Skills、MCP 与压缩，但每次只能完成一
 
 **推进（GoalDriver）。** Session 的 `run_end` 提交后，若 Goal 为 running、没有待回答的结果确认、没有未送达的追加指令、轮次与预算有余量，则发起 Goal Round：`session-runs` 的统一入口以 `trigger: goal`、`goal { goalId, round: 上一轮 + 1 }` 开始 Run，输入为 `<goal_round>` user message（目标 JSON 字符串、成功条件、"第 n / 上限 轮"、"以当前 Workspace、工具结果与已提交状态为准；完成时用 update_goal 给出每条条件的证据"）。每个 Session 的推进串行；开始前重读 Goal，revision 变化或 Run 已在进行（用户先提交）时放弃预留；启动时已有同 goalId、同 round 的 run_start 时不再发起。Goal Round 的 Run 中用户可以照常追加指令、停止。
 
-**工具**（权限类见下文）：`get_goal`；`create_goal { objective, criteria, constraints?, budget? }`；`update_goal { goal_id, revision, action: edit | pause | resume | complete | blocked | wait_input | wait_jobs, objective?, criteria?, budget?, evidence?, reason?, job_ids? }`。edit / pause / resume / create 的授权规则见 [grilling B5](grilling.md#第-2-轮)；revision 过期返回错误结果（含当前 revision）。结果为紧凑 JSON `{ goal: … | null }`。工具在 Session 有 Goal 或本 Run 由用户提交时注册（Goal Round 中没有 create）。
+**工具**（权限类见下文）：`get_goal`；`create_goal { objective, criteria, constraints?, budget? }`；`update_goal { goal_id, revision, action: edit | pause | resume | complete | blocked | wait_input | wait_jobs, objective?, criteria?, constraints?, budget?, evidence?, reason?, job_ids? }`（constraints 可编辑，与 create 对称；评审 Spec 17 接受）。edit / pause / resume / create 的授权规则见 [grilling B5](grilling.md#第-2-轮)；revision 过期返回错误结果（含当前 revision）。结果为紧凑 JSON `{ goal: … | null }`。工具在 Session 有 Goal 或本 Run 由用户提交时注册（Goal Round 中没有 create）。
 
 **完成证据。** `complete` 须覆盖每条 criterion、text 非空；`toolCallIds` 中每个 id 必须是本 Session 已提交、`isError: false` 的 toolResult。用户标为完成不需要证据（`completedBy: user`）。Run 正常结束不改变阶段。
 
@@ -107,7 +107,7 @@ M3 之后 Agent 有了指令、Skills、MCP 与压缩，但每次只能完成一
 
 **命令。** 内置 `/goal`：`/goal <目标>` 展开为请模型调用 `create_goal` 的普通提交；`/goal pause | resume | cancel | complete` 为动作（不产生 user message；pause、cancel 在 Run 进行中可用）；无参数时界面打开 Goal 卡。控制词只在独占整段输入时识别。
 
-**HTTP。** `GET /api/sessions/:id/goal` → `{ goal, usage }`（usage 为五维已用值与 `costUnpriced`）；`POST /api/sessions/:id/goal` `{ action: pause | resume | cancel | complete | edit, revision, objective?, criteria?, budget? }`（revision 过期 409 `revision-conflict`，非法转换 409 `invalid-transition`）。
+**HTTP。** `GET /api/sessions/:id/goal` → `{ goal, usage }`（usage 为五维已用值与 `costUnpriced`）；`POST /api/sessions/:id/goal` `{ action: pause | resume | cancel | complete | edit, revision, objective?, constraints?, criteria?, budget? }`（revision 过期 409 `revision-conflict`，非法转换与取消进行中 409 `invalid-transition`）。
 
 ### Plan Mode（agent `planning/`、`policy/decide.ts`，server `context/plan.ts`、`session-permissions.ts`）
 
@@ -115,7 +115,7 @@ M3 之后 Agent 有了指令、Skills、MCP 与压缩，但每次只能完成一
 - **进入与退出。** 模式菜单"规划"、`/plan [消息]`（动作：切到 plan，`permission_mode { mode: plan, prior }`；有消息时随后作为普通提交）、`/plan off` 与 Plan chip 的 ×（回到 `prior`）。从 plan 选择其他模式即退出（不经审阅）。Shift+Tab 循环不含 plan。已处于 plan 时再进入不改 `prior`。
 - **注入。** plan 模式的 Run 注入 `<plan_mode>`（只调研与设计、不改动 Workspace、用 exit_plan_mode 提交以 # 标题开头的完整 Markdown 计划）。
 - **exit_plan_mode { plan }。** 只在 plan 模式的 Run 中注册；权限类 plan-exit：任何模式都询问、允许规则不生效、拒绝规则生效。提交 `plan`（proposed，同一 planId 的 revision 递增）与 `approval_request { kind: plan, planId, revision }`。markdown ≤ 64 000 字符，必须以 `#` 标题开头（否则参数错误）。
-- **回答。** 批准 `{ decision: allow, editedPlan?, mode? }`：`mode` 缺省为 `prior`，可选 default / accept-edits，不可为 full-access（400）；提交 `plan`（approved；有 editedPlan 时为新 revision）、`permission_mode { mode }`、toolResult "The user approved the plan. Proceed under <mode>." 附最终计划，Run 继续。带反馈的拒绝：`plan`（rejected，feedback），toolResult 为反馈，Run 继续规划。无反馈拒绝：现有语义（本批结束后 aborted）。Goal Round 中的 plan 审阅使 Goal 进入 waiting-input。
+- **回答。** 批准 `{ decision: allow, editedPlan?, mode? }`：`mode` 缺省为 `prior`，可选 read-only / default / accept-edits 中不宽于 prior 的（用户故事 9；宽于 prior 或 full-access 为 400）；提交 `plan`（approved；有 editedPlan 时为新 revision）、`permission_mode { mode }`、toolResult "The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under <mode>." 附最终计划，Run 继续；之后同一 Run 中的 exit_plan_mode 不审阅、返回错误结果。带反馈的拒绝：`plan`（rejected，feedback），toolResult 为反馈，Run 继续规划。无反馈拒绝：现有语义（本批结束后 aborted）。Goal Round 中的 plan 审阅使 Goal 进入 waiting-input。
 - **压缩后。** 最新的 approved `plan` 早于最后一个 compaction 的 firstKeptSeq 时注入 `<approved_plan>`（≤ 16 000 字符，超出截断并注明）。
 
 ### Todo List（agent `tasks/todo/`，server `context/todo.ts`）
