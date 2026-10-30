@@ -1,0 +1,93 @@
+// 秘密不外泄总闸的 Hook 通道（ADR 0004、0007、0013）：命令回显登记的 Secret（不是凭据形态，只能靠按值替换），并在下一次调用的参数中再次出现。
+// Hook 引入的通道——Hook 的 stdin（tool_input、tool_response，夹具记录到 hooks/ 目录）、hook_run 条目（message、command）、追加到结果的
+// <hook-feedback>（经 faux requestLog 发给模型）——以及 WS、HTTP、库、日志与 stderr 中都不得出现明文；Hook 的环境中没有 Secret。
+import { randomBytes } from 'node:crypto'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { API_ROUTES, apiPaths, hookPaths, permissionPaths } from '@coko/protocol'
+import { connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { leaksIn, persisted, recordingClient } from './secrets-gate-harness.ts'
+
+const q = (path: string) => `'${path.replaceAll("'", "'\\''")}'`
+
+describe('秘密不外泄总闸：Hook', () => {
+  it(
+    '工具输出含登记 Secret：Hook 的 stdin、hook_run、追加的 <hook-feedback>、WS、库、日志与 requestLog 中没有明文；Hook 环境中没有 Secret',
+    { timeout: 90_000 },
+    async () => {
+      const value = 'hook-token-' + randomBytes(12).toString('hex')
+      const root = await tempDir()
+      const hooksDir = join(root, 'hooks')
+      await mkdir(hooksDir)
+      const dirs = await sidecarDirs()
+      const requestLog = join(root, 'requests.jsonl')
+      await writeFile(requestLog, '')
+      const call = (id: string, command: string) => ({ type: 'toolCall', name: 'bash', id, arguments: { command } })
+      const script = await fauxScript(root, {
+        requestLog,
+        responses: [
+          // 第一次：命令输出 Secret（命令文本中没有明文，值来自 Workspace 中的测试文件）。第二次：模型把值写进参数（入库前已替换为占位）。
+          { content: [call('b1', 'printf "token=%s\\n" "$(cat .value)"')] },
+          { content: [call('b2', `printf '%s' '${value}'`)] },
+          { content: 'done' },
+        ],
+      })
+      const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_SECRET_DEPLOY_TOKEN: value } })
+      const cookie = await exchange(sidecar)
+      const bodies: string[] = []
+      const api = recordingClient(sidecar, cookie, bodies)
+      const stream = await connect(sidecar, cookie)
+      await writeFile(join(root, '.value'), value)
+      const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+      const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+      expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'full-access' })).status).toBe(200)
+      const hooks = {
+        // PreToolUse：记录 stdin 与 Hook 的完整环境。
+        PreToolUse: [{ hooks: [{ type: 'command', command: `cat >> ${q(join(hooksDir, 'pre-stdin.jsonl'))}; env >> ${q(join(hooksDir, 'pre-env.txt'))}` }] }],
+        // PostToolUse：记录 stdin，并把 stdin 原样作为 exit 2 的 stderr 交回（追加到结果与 hook_run.message）。
+        PostToolUse: [{ hooks: [{ type: 'command', command: `tee -a ${q(join(hooksDir, 'post-stdin.jsonl'))} >&2; exit 2` }] }],
+      }
+      expect((await api.put(hookPaths.hooks, { hooks, expectedRevision: 0 })).status).toBe(200)
+      stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+      await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+      expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })).status).toBe(202)
+      await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'run_end'), 30_000)
+      await api.get(`${hookPaths.hooks}?sessionId=${sessionId}`)
+      await api.get(apiPaths.session(sessionId))
+
+      // 前置：每个通道确实被驱动，保存的文本带占位。
+      const entries = stream.entries(sessionId)
+      const runs = entries.filter((e) => e.kind === 'hook_run').map((e) => e.payload as { event: string; outcome: string; message?: string })
+      expect(runs.filter((r) => r.event === 'PostToolUse').map((r) => r.outcome)).toEqual(['context', 'context'])
+      expect(runs.some((r) => r.message?.includes('[REDACTED:secret]'))).toBe(true)
+      const first = entries.find((e) => e.kind === 'message' && (e.payload as { toolCallId?: string }).toolCallId === 'b1')!
+      expect(JSON.stringify(first.payload)).toContain('<hook-feedback>')
+      expect(JSON.stringify(first.payload)).toContain('token=[REDACTED:secret]')
+      const postStdin = await readFile(join(hooksDir, 'post-stdin.jsonl'), 'utf8')
+      expect(postStdin).toContain('"tool_response"')
+      expect(postStdin).toContain('token=[REDACTED:secret]')
+      const preStdin = await readFile(join(hooksDir, 'pre-stdin.jsonl'), 'utf8')
+      expect(preStdin.split('\n').filter(Boolean)).toHaveLength(2)
+      expect(preStdin).toContain('[REDACTED:secret]')
+      const env = await readFile(join(hooksDir, 'pre-env.txt'), 'utf8')
+      expect(env).toContain('COKO_HOOK_EVENT=PreToolUse')
+      expect(env).not.toMatch(/COKO_SECRET_/)
+      const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
+      expect(requests.some((r) => r.includes('<hook-feedback>'))).toBe(true)
+
+      sidecar.child.kill('SIGTERM')
+      expect(await sidecar.exited).toEqual({ code: 0, signal: null })
+      const files = await persisted(dirs, { extraDirs: { hooks: hooksDir } })
+      expect(files.filter((f) => f.name.startsWith('hooks/'))).toHaveLength(3)
+      const channels: [string, string | Buffer][] = [
+        ...stream.frames.map((frame, i): [string, string] => ['ws frame ' + i, frame]),
+        ...bodies.map((body, i): [string, string] => ['http body ' + i, body]),
+        ...requests.map((line, i): [string, string] => ['model request ' + i, line]),
+        ...files.map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
+        ['sidecar stderr', sidecar.stderr()],
+      ]
+      expect(leaksIn(channels, { 'registered secret': value })).toEqual([])
+    },
+  )
+})

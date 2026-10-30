@@ -19,7 +19,7 @@ lifecycle: active
 | `packages/agent/src/policy/sandbox.ts` | 模式 → Sandbox Mode、可写根的唯一推导、提权参数校验 `checkEscalation`、模型可见的拒绝标记与提示文本 |
 | `packages/agent/src/ports/exec.ts`、`local-exec.ts` | `ExecRequest.sandbox`、`SandboxUnavailableError`；本地执行经宿主给出的 `LocalSandbox` 包裹受限命令，没有时 fail-closed |
 | `apps/server/src/adapters/seatbelt.ts` | Seatbelt profile、启动探测、`sandbox-exec -p <profile> --` 包裹 |
-| `packages/agent/src/policy/broker.ts` | `ApprovalBroker`：每个运行时一个，提交请求与决定条目，等待回答或重新判定 |
+| `packages/agent/src/policy/broker.ts` | `ApprovalBroker`：每个运行时一个，提交请求与决定条目，等待回答或重新判定；`recordHookAllowed` 提交由 PermissionRequest Hook 回答的请求 |
 | `packages/agent/src/policy/gate.ts` | 权限 hook，位于 `ToolHooks.beforeToolCall` 链首；执行前复核 `recheck`；本 Run 的沙箱拒绝记录；模型可见的拒绝文本 |
 | `packages/agent/src/engine/runtime.ts`、`permission-wiring.ts` | `AgentRuntimeOptions.permissions`（每次调用读取模式与规则）、`answerApproval()`、`pendingApprovals`；调度器的执行前准备（复核、沙箱档位、Secrets、读取过滤，在 `permission-wiring.ts`） |
 | `packages/agent/src/tools/builtin/read-filter.ts` | grep、find、ls 不列出被 Read 拒绝规则覆盖的路径 |
@@ -75,7 +75,9 @@ workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：�
 
 **工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`，`skill` → `Skill`，后者即使本次 Run 未注册 skill 工具也接受），宿主工具按注册名不区分大小写匹配；按 Run 贡献的工具即使当前未注册也接受（`memory_write` / `memory_delete` → `Memory`，`memory_list`、`list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` 按原名；之后新增的贡献工具在 Run 开始时登记）；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
 
-**判定步骤。** `decideWithStep` 另给出作出判定的步骤：`deny-rule`、`ask-rule`、`protected`（受保护路径）、`outside-writable`（越出可写根，或没有目标的写入）、`mode`（模式放行；plan-exit 的总询问也记在这一步）、`allow-rule`、`default`（模式与规则都没有放行的询问）。`decide` 只返回判定。权限 gate 另接受可选的 `PermissionHookPort { preToolUse, permissionRequest }`，外部 Hook 的组合（[ADR 0013](../adr/0013-external-hooks-tighten-only.md)）按步骤区分：第 2–4 步、提权与 plan-exit 的询问不能被 Hook 的放行免掉。目前没有领域提供这个端口，所以 gate 的行为与没有 Hook 时相同。
+**判定步骤。** `decideWithStep` 另给出作出判定的步骤：`deny-rule`、`ask-rule`、`protected`（受保护路径）、`outside-writable`（越出可写根，或没有目标的写入）、`mode`（模式放行；plan-exit 的总询问也记在这一步）、`allow-rule`、`default`（模式与规则都没有放行的询问）。`decide` 只返回判定。
+
+**外部 Hook 的位置（M5）。** 权限 gate 接受 `PermissionHookPort { preToolUse, permissionRequest }`，由 Hook 的上下文贡献给出（[外部 Hook](hooks.md)，[ADR 0013](../adr/0013-external-hooks-tighten-only.md)）。PreToolUse 对每次调用在判定结果生效之前运行：Hook 的 deny 优先于一切（`Blocked by hook: <reason>`，结果带 `details.hostBlock { by: 'hook' }`）；之后是规则拒绝；第 2–4 步、提权与 plan-exit 的询问不能被 Hook 的 allow 免掉；Hook 的 ask 强制询问且没有建议规则（等待中模式放宽不使它消失）；Hook 的 allow 只能放行第 7 步的询问，与一条允许规则同位。最终为第 7 步的询问时，出卡片之前运行 PermissionRequest：deny 拒绝，allow 提交 `approval_request` 与 `approval_decision { by: hook }` 后执行，其余出卡片。没有 Hook 或 Hook 没有决定时 gate 的行为与之前相同。
 
 顺序固定（ADR 0005）：
 

@@ -1,4 +1,4 @@
-import { isConfigSettingKey, isMcpSettingKey, isPermissionSettingKey, SETTING_KEY_PATTERN, type Setting } from '@coko/protocol'
+import { isConfigSettingKey, isHooksSettingKey, isMcpSettingKey, isPermissionSettingKey, SETTING_KEY_PATTERN, type Setting } from '@coko/protocol'
 import type { JsonValue, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
@@ -25,6 +25,8 @@ export class SettingsService {
     if (isConfigSettingKey(key)) throw new AppError('bad-request', `Setting ${key} can only be changed through /api/config`)
     // MCP 配置与批准有校验、批准摘要与连接管理，只能经 /api/mcp 修改（ADR 0008）。
     if (isMcpSettingKey(key)) throw new AppError('bad-request', `Setting ${key} can only be changed through /api/mcp`)
+    // Hook 的配置与项目 Hook 的批准有校验与批准摘要，只能经 /api/hooks 修改（ADR 0013）。
+    if (isHooksSettingKey(key)) throw new AppError('bad-request', `Setting ${key} can only be changed through /api/hooks`)
     return this.#store.settings.set(key, value as JsonValue, expectedRevision)
   }
 }

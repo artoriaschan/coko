@@ -15,7 +15,7 @@ lifecycle: active
 | `packages/agent/src/config/schema.ts` | 配置 schema 与默认值 `defaultCapabilityConfig()`、设置键 `CONFIG_SETTING_KEY` |
 | `packages/agent/src/config/merge.ts` | `parseProjectSettings(text, path, { isRule? })` → 生效的项目值、规则文本与诊断；`mergeCapabilityConfig(global, project?)` → 有效值 |
 | `packages/protocol/src/config.ts` | `ConfigResponse`、`UpdateConfigRequest`、`ResourceDiagnostic`、`configPaths`、`isConfigSettingKey`、`PROJECT_SETTINGS_PATH` |
-| `apps/server/src/application/config.ts` | `ConfigService`：全局值的读写、项目文件按 mtime 读取、`effective(workspacePath?)`；两份 schema 的编译期比对 |
+| `apps/server/src/application/config.ts` | `ConfigService`：全局值的读写、项目文件按 mtime 读取、`effective(workspacePath?)`、项目 Hook 的原值 `projectHooks(cwd)`；两份 schema 的编译期比对 |
 | `apps/server/src/application/permissions.ts` | `PermissionService` 经 `ProjectRuleSource`（由 `ConfigService` 实现）取项目规则，见 [权限判定与审批](permissions.md#作用域与持久化) |
 | `apps/server/src/http/routes/config.ts` | `GET / PUT /api/config` |
 | `apps/desktop/src/renderer/stores/config-store.ts` | renderer 的配置 store（读取 `GET /api/config`） |
@@ -29,13 +29,14 @@ lifecycle: active
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
 | `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
-| `hooks.enabled`（M5） | true | 只能在全局设置：项目文件中的 `hooks.enabled` 不论取值都以 `project-cannot-grant` 忽略；项目文件的 `hooks` 键是项目 Hook 的配置，由 Hook 的加载解析（能力配置不对其中的事件键报诊断） |
+| `hooks.enabled`（M5） | true | 只能在全局设置：项目文件中的 `hooks.enabled` 不论取值都以 `project-cannot-grant` 忽略，关不掉全局 Hook；关闭后全局与项目 Hook 都不运行 |
+| `hooks`（M5，项目 Hook） | — | 项目 Hook 的配置：`parseProjectSettings` 原样交出（去掉 `enabled`，`ProjectSettings.hooks`），由 Hook 的加载解析与诊断、逐条批准后才运行，见 [外部 Hook](hooks.md#配置)；不是对象时 `invalid-value`。能力配置不对其中的事件键报诊断 |
 | `skills.disabled` | [] | 追加（与全局取并集） |
 | `commands.disabled` | [] | 不接受（`unknown-key`） |
 | `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
 | `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
 
-M5 的三个开关目前只进入有效配置，还没有读取它们的功能（Hook、子代理、定时任务尚未交付），设置界面也还没有对应的开关。
+`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled`、`schedules.enabled` 目前只进入有效配置（子代理、定时任务尚未交付）。设置界面还没有这三个开关。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
 
 有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
 

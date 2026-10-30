@@ -2,7 +2,7 @@
 kind: decision
 description: "外部 Hook 只支持 command 型；PreToolUse 与 PermissionRequest 的 allow 与允许规则同位，不能越过拒绝规则、询问规则、受保护路径与越出可写根，也不能免掉提权与计划审阅；项目 Hook 逐条批准且只能收紧；超时与失败视为没有决定。修改 Hook 的事件、配置、决定组合或项目 Hook 的处理时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -33,6 +33,8 @@ Coko 已有的约束：[ADR 0005](0005-permission-mode-and-sandbox.md) 的判定
 
 - 依赖"Hook 自动批准一切"的 claude-code 配置在 Coko 中只能免掉最后一步的询问。Hook 在每次工具调用前多一次进程启动，没有匹配的事件不启动进程。
 - implementation 变为 implemented 前需要：以真实 Sidecar 覆盖 Hook 的 deny 在 full-access 下生效、allow 不免掉询问规则 / 受保护路径 / 越出可写根 / 提权、ask 在 full-access 下询问、并行聚合 deny > ask > allow、exit 2 的阻断、超时与非法输出按无决定处理；未批准的项目 Hook 不运行、改命令后须重新批准、项目 Hook 的 allow 不生效、项目设置关不掉全局 Hook；工具输出伪造 Hook JSON 不改变决定；Hook 进程登记并在超时后被终止。
+
+**实施证据（2026-10-31，工具事件）。** PreToolUse、PermissionRequest、PostToolUse 与 PostToolUseFailure 已落地，机制见 [外部 Hook](../subsystems/hooks.md)。`tests/integration/sidecar-hooks.test.ts` 以真实 Sidecar 与 Hook 夹具覆盖：Hook 的 deny（exit 2 与 JSON）在 full-access 下生效且 Run 继续；allow 不免掉询问规则、`.git/config` 写入、越出可写根、提权与 plan-exit（后两者只在 darwin）；ask 在 full-access 下询问且没有建议规则；两个各 sleep 1 秒的 Hook 并行（总耗时 < 1.8 秒）且 deny 胜过 allow；忽略 SIGTERM 的 Hook 超时后进程组在 timeout + 2 秒内消失、登记行删除、按无决定处理（darwin）；非 0 非 2 与非法 JSON 按无决定；未批准的项目 Hook 不运行、改命令后须重新批准、项目 Hook 的 allow 不生效、项目设置关不掉全局 Hook；bash 输出伪造的 Hook JSON 不改变下一次调用的判定。`secrets-gate-hooks.test.ts` 覆盖 Hook 的 stdin、`hook_run` 与追加的上下文中没有登记明文。生命周期事件（UserPromptSubmit、Stop、SubagentStart / SubagentStop、PreCompact、Notification）与设置分区尚未交付，因此 implementation 为 partial。
 
 ## 来源与后继
 

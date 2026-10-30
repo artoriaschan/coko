@@ -83,6 +83,8 @@ export type HooksConfig = Static<typeof HooksConfig>
 /** 设置键：全局 Hook 配置；项目 Hook 的批准在 hooks.approvals.<workspaceId>。 */
 export const HOOKS_SETTING = 'hooks'
 export const hookApprovalsSetting = (workspaceId: string) => `hooks.approvals.${workspaceId}`
+/** Hook 的设置（配置与批准）只能经 /api/hooks 修改：通用设置接口拒绝这些键。 */
+export const isHooksSettingKey = (key: string) => key === HOOKS_SETTING || key.startsWith(`${HOOKS_SETTING}.`)
 
 /** 项目文件中的一条 Hook：完整命令与 digest，approved 为该 Workspace 是否已批准当前 digest。 */
 export const ProjectHookEntry = Type.Object(
@@ -115,8 +117,11 @@ export type HooksResponse = Static<typeof HooksResponse>
 export const UpdateHooksRequest = Type.Object({ hooks: HooksConfig, expectedRevision: Count }, strict)
 export type UpdateHooksRequest = Static<typeof UpdateHooksRequest>
 
-/** POST /api/hooks/approvals：批准一条项目 Hook（204；digest 不在当前项目文件中 409 digest-mismatch）。 */
-export const ApproveHookRequest = Type.Object({ workspaceId: Id, digest: Id }, strict)
+/**
+ * POST /api/hooks/approvals：批准一条项目 Hook（204；digest 不在当前项目文件中 409 digest-mismatch）。给出 sessionId 时按该 Session 的工作目录
+ * （worktree 会话为其 worktree）读取项目文件，批准仍记在其 Workspace 下。
+ */
+export const ApproveHookRequest = Type.Object({ workspaceId: Id, digest: Id, sessionId: Type.Optional(Id) }, strict)
 export type ApproveHookRequest = Static<typeof ApproveHookRequest>
 
 export const hookPaths = {

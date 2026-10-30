@@ -61,6 +61,14 @@ describe('mergeCapabilityConfig', () => {
     expect(project({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'x' }] }] } }).diagnostics).toEqual([])
   })
 
+  it('项目文件的 hooks 键原样交给 Hook 的加载（去掉 enabled）；没有该键时省略；不是对象时诊断', () => {
+    const events = { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'guard.sh' }] }] }
+    expect(project({ hooks: { enabled: false, ...events } }).hooks).toEqual(events)
+    expect(project({ memory: { enabled: false } })).not.toHaveProperty('hooks')
+    const invalid = project({ hooks: [] })
+    expect([invalid.hooks, invalid.diagnostics.map((d) => d.code)]).toEqual([undefined, ['invalid-value']])
+  })
+
   it('每次返回新对象，不改输入与默认值', () => {
     const global = { skills: { disabled: ['a'] } }
     const merged = mergeCapabilityConfig(global, { skills: { disabled: ['b'] } })

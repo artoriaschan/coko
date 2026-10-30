@@ -4,10 +4,10 @@ import type { AfterToolCallContext, AfterToolCallResult, BeforeToolCallContext, 
  * Structured mark of a call the host stopped before it ran (for example a Goal's tool-call limit). The runtime writes it to the
  * committed toolResult's `details.hostBlock`; a tool's own `details.hostBlock` is dropped, so a result cannot claim it.
  */
-export interface HostBlock {
-  by: 'goal-budget'
-  dimension: string
-}
+export type HostBlock =
+  | { by: 'goal-budget'; dimension: string }
+  /** An external PreToolUse / PermissionRequest hook denied the call (ADR 0013); command is the (redacted) hook command. */
+  | { by: 'hook'; hookId: string; command: string }
 
 /** A before hook's result: pi's block, optionally carrying a HostBlock mark. */
 export type ToolBlockResult = BeforeToolCallResult & { hostBlock?: HostBlock }
