@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron, type ElectronApplication, type Page } from 'playwright'
@@ -118,6 +118,26 @@ export async function launchApp(extra: Record<string, string> = {}, options: Lau
     },
   }
   return launched
+}
+
+/** main 的桌面日志（COKO_USER_DATA_DIR 下的 logs/desktop.jsonl）。 */
+export const desktopLogPath = (dir: string) => join(dir, 'user-data', 'logs', 'desktop.jsonl')
+
+/** 测试构建不弹出桌面通知，只记日志 notification shown；返回这些记录的属性（kind、sessionId、title），按写入顺序。 */
+export async function notificationsShown(dir: string): Promise<{ kind?: string; sessionId?: string; title?: string }[]> {
+  const text = await readFile(desktopLogPath(dir), 'utf8').catch(() => '')
+  return text
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as { message?: string; properties?: Record<string, string> }]
+      } catch {
+        return []
+      }
+    })
+    .filter((record) => record.message === 'notification shown')
+    .map((record) => ({ ...record.properties }))
 }
 
 /** 等待条件成立；只限制上限，不以固定 sleep 代表完成。 */

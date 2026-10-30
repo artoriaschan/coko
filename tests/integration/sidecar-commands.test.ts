@@ -130,6 +130,7 @@ describe('命令展开', () => {
       // 内置命令不受 commands.enabled 影响（/compact 是动作，不是提示模板）。
       ['compact', true],
       ['goal', true],
+      ['handoff', true],
       ['plan', true],
       ['git:commit', false],
       ['review', false],
@@ -150,6 +151,13 @@ describe('GET /api/commands', () => {
         name: 'goal',
         description: 'Set a goal the agent works toward over several rounds',
         argumentHint: '[objective | pause | resume | cancel | complete]',
+        source: 'builtin',
+        enabled: true,
+      },
+      {
+        name: 'handoff',
+        description: 'Hand off to a new session with a summary as its draft',
+        argumentHint: '<next goal>',
         source: 'builtin',
         enabled: true,
       },
