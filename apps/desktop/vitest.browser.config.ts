@@ -20,6 +20,8 @@ export default defineProject({
       '@lexical/react/LexicalHistoryPlugin',
       '@lexical/react/LexicalPlainTextPlugin',
       '@lexical/react/LexicalTypeaheadMenuPlugin',
+      // CommonJS（后台任务输出的 SGR 解析），首次在 Jobs tab 中被发现。
+      'anser',
     ],
   },
   // 与 src/renderer/vite.config.ts 一致：应用版本注入 renderer。

@@ -3,6 +3,7 @@ import { DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
 import { BrainIcon, FilePenIcon, FilePlusIcon, FileTextIcon, FolderSearchIcon, FolderTreeIcon, SearchIcon, TerminalIcon, WrenchIcon } from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { JobChip } from './job-row.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
@@ -33,13 +34,35 @@ function TextBody({ text }: { text: string }) {
   return <ToolOutput>{text === '' ? t('tool.noOutput') : text}</ToolOutput>
 }
 
+/** 后台 bash 的结果（"Started background job <id>: <label>. …"）中的 jobId。 */
+const STARTED_JOB = /^Started background job (job_[0-9a-f]+):/
+
+export function backgroundJobId(item: ToolItem): string | undefined {
+  if (item.status !== 'done' || !item.result || item.result.isError) return undefined
+  return STARTED_JOB.exec(item.result.text)?.[1]
+}
+
+/** bash 的明细：后台 bash 在输出之上显示 Job chip（点击在右栏打开该 Job）。 */
+function BashBody({ item }: { item: ToolItem }) {
+  const jobId = backgroundJobId(item)
+  if (!jobId) return <TextBody text={output(item)} />
+  return (
+    <div className="flex flex-col">
+      <div className="px-3 pt-2">
+        <JobChip jobId={jobId} />
+      </div>
+      <TextBody text={output(item)} />
+    </div>
+  )
+}
+
 /** 按工具名分发的专属展示；未登记的工具使用通用展示。 */
 const VIEWS: Record<string, ToolView> = {
   bash: {
     icon: <TerminalIcon />,
     title: 'tool.bash',
     summary: (a) => str(a.command),
-    body: (item) => <TextBody text={output(item)} />,
+    body: (item) => <BashBody item={item} />,
     expanded: true,
   },
   read: { icon: <FileTextIcon />, title: 'tool.read', summary: (a) => str(a.path), body: (item) => <TextBody text={output(item)} /> },

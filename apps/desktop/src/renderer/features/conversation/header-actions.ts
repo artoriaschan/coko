@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
+import { JobsButton } from './jobs-button.tsx'
 
 /** 会话标题栏的操作 id：后台任务按钮（running 数徽标）与 Session 费用。 */
 export type HeaderActionId = 'jobs' | 'cost'
@@ -23,7 +24,7 @@ function Unavailable() {
 }
 
 export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
-  { id: 'jobs', Component: Unavailable, available: false },
+  { id: 'jobs', Component: JobsButton, available: true },
   { id: 'cost', Component: Unavailable, available: false },
 ]
 

@@ -6,7 +6,7 @@ lifecycle: active
 
 # 后台任务
 
-本文说明 Coko 当前如何让 Agent 把长命令（开发服务器、监听、长构建）放到后台运行，随时读取输出或停止，并在结束时得到通知。进程登记与孤儿清理见 [命令执行与子进程登记](execution.md)；权限类见 [权限判定与审批](permissions.md)。PTY Job 与 `job_input`、后台任务视图尚未实现。
+本文说明 Coko 当前如何让 Agent 把长命令（开发服务器、监听、长构建）放到后台运行，随时读取输出或停止，并在结束时得到通知。进程登记与孤儿清理见 [命令执行与子进程登记](execution.md)；权限类见 [权限判定与审批](permissions.md)。PTY Job 与 `job_input` 见 [命令执行与子进程登记](execution.md#pty-与-stdin)；renderer 中的后台任务视图见 [界面](#界面)。
 
 ## 结构入口
 
@@ -20,6 +20,8 @@ lifecycle: active
 | `apps/server/src/application/session-runs.ts` | 为运行时的 bash 注入本 Session 的启动入口；`deliver`（通知作为追加指令送达）；追加指令到达时唤醒等待的 `job_output` |
 | `apps/server/src/application/context/jobs.ts` | 上下文贡献：三个工具、`pendingInput`（挂起的通知）、`onRunEnd`（未送达的通知挂起） |
 | `apps/server/src/http/routes/jobs.ts` | HTTP 接口 |
+| `apps/desktop/src/renderer/stores/jobs-store.ts` | renderer 的 Job 快照与输出窗口：接口读取、WS 帧按字节偏移合并、停止 |
+| `apps/desktop/src/renderer/features/conversation/jobs-button.tsx`、`job-row.tsx`、`tool-cards.tsx`，`features/right-panel/jobs-tab.tsx` | 标题栏按钮、Job chip 与通知行、右栏 Jobs tab 与输出组件 |
 
 ## 发起
 
@@ -85,6 +87,17 @@ bash 的 `run_in_background: true` 与前台 bash 经过同样的权限判定、
 | `GET /api/jobs/:id/output?offset=&limit=` | `{ offset, chunk, nextOffset, done }`：读日志，不影响模型游标；limit 1–262 144（缺省上限），不在多字节字符中间结束；done 为 Job 已结束且读到日志末尾 |
 | `POST /api/jobs/:id/kill` | 204（Job 结束后返回）；已结束 409 `job-not-running`；未知 404 |
 
+## 界面
+
+renderer 的后台任务视图只经上面的 HTTP 接口与 WebSocket 进度读取，不新增注入点或读取根。
+
+- **标题栏按钮。** 会话有 Job 时，会话标题栏显示"后台任务"按钮，徽标为 running 与 stopping 的 Job 数（没有时不显示徽标）；点击打开右栏并切到 Jobs tab。
+- **Jobs tab。** 列表按启动顺序，每行为状态点（另有状态名作无障碍名称）、label、状态 · 时长 · 退出码或信号；行的 key 为 jobId。缺省选中最近启动的运行中 Job，没有时选中最近启动的。选中项显示命令、停止按钮（running / stopping 时；停止中显示"正在停止"）或结束状态，以及输出。
+- **输出。** 打开时先取日志大小（`offset` 超过日志长度时接口返回末尾的空块，`nextOffset` 即大小），读取末尾一页（256 KB），从中途开始时丢到第一个换行之后；更早的部分经"加载更早的输出"逐页加载。之后 WS `job_output` 帧按日志字节偏移并入窗口：与窗口重叠的部分丢弃，偏移超过窗口末尾（缺口）时从窗口末尾用接口补齐；Job 结束后读到 `done`。窗口超过约 1 Mi 字符时从开头按行丢弃（之后可再加载）。重新打开会话时列表与输出都从接口恢复，不依赖已收到的帧；`job_start` / `job_end` 条目数变化时（包括重连后补发）重新读取列表。
+- **渲染。** anser 解析 SGR：16 色映射到语义色（红 destructive、绿 success、黄 warning、蓝 / 品红 / 青 link、黑 muted-foreground；红绿背景为 diff 色），bold 为 `font-medium`；256 色与 truecolor 按默认前景。OSC 序列与其他 C0 控制字符不显示；行内的 `\r` 只保留最后一次覆盖之后的内容。等宽、不换行，在输出区内横向与纵向滚动，不撑开面板；按 200 行一块渲染，SGR 状态不跨块延续。贴底时跟随新输出，用户上滚后暂停并显示"跟随最新输出"。
+- **工具卡与时间线。** 后台 bash 的工具卡（结果为 `Started background job <id>: …`）在明细中显示 Job chip（状态点与 label），点击在右栏打开该 Job。`job_notification` 为时间线紧凑行："后台任务已结束"与每个 Job 的 label、状态与退出码，点击打开该 Job；送达通知的 `<job-notification>` 文本块不进入用户气泡，只有通知的消息不成气泡。`job_start` / `job_end` 条目不单独成行。
+- 窄窗口下右栏为浮层（宽度规则见应用框架），Jobs tab 与停止按钮照常可用。
+
 ## 测试替身
 
 faux 脚本中工具调用参数里的 `$LAST_JOB_ID` 在请求时替换为上下文中最近一次 `Started background job <id>` 结果的 jobId（`apps/server/src/adapters/faux.ts`）。
@@ -101,6 +114,8 @@ faux 脚本中工具调用参数里的 `$LAST_JOB_ID` 在请求时替换为上�
 - `packages/agent/src/tasks/jobs/jobs.test.ts`：环形缓冲与偏移、ANSI 去除、label、job_output 的游标、wait 的结束 / 超时 / 追加指令 / 取消、截断、未知 id、job_kill 与 job_list、状态机、通知文本（内联、超过 2 KB、转义）。
 - `packages/agent/src/ports/local-exec.test.ts`、`tools/builtin/bash.test.ts`：`spawn` 的流式输出、进程组 kill 与退出码、启动失败；bash 经启动入口启动与没有入口时的错误。
 - `tests/integration/sidecar-jobs.test.ts`：真实 Sidecar 上的全部发起、输出、日志权限、上限、两种通知（requestLog）、HTTP 分页与 WS 帧偏移、符号链接需要审批；darwin 上 job_kill 与 HTTP 停止后进程组退出与登记行删除、停止 Run 后 Job 仍在、SIGKILL 重启后 lost 与孤儿清理。
+- `apps/desktop/src/renderer/features/right-panel/jobs-tab.browser.test.tsx`：输出组件的 SGR 颜色、长行横向滚动不撑开面板、跟随尾部与上滚暂停；列表的状态、时长、退出码与 key；键盘停止；store 的重叠、缺口补齐、末尾一页与加载更早的输出。`features/conversation/jobs-timeline.browser.test.tsx`：Job chip、通知行与通知文本不进入用户气泡。
+- `apps/desktop/e2e/jobs.e2e.test.ts`（真实 Electron 与 Sidecar）：徽标、实时输出与颜色、键盘停止后 killed 与徽标消失、Job chip 打开对应 Job、390 px 窗口、通知行；重启后重新打开会话时列表与输出从接口恢复。
 - `tests/integration/secrets-gate-jobs.test.ts`：后台 bash 跨输出块回显登记 Secret，日志、job_output 结果、WS 帧、HTTP 输出、通知文本、requestLog、库与日志中没有明文。
 
 ## 延伸阅读
