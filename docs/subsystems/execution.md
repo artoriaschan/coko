@@ -6,7 +6,7 @@ lifecycle: active
 
 # 命令执行与子进程登记
 
-本文说明 Sidecar 如何运行 shell 命令，以及如何登记自己启动的长寿命子进程，使 Sidecar 被强杀后，下次启动能终止上次留下的孤儿进程。决定与备选方案见 [ADR 0012](../adr/0012-host-process-registry.md)；命令的沙箱档位见 [权限判定与审批](permissions.md)；MCP 连接本身见 [MCP](mcp.md)。目前登记的来源是前台 bash 与 stdio MCP Server；后台任务与 PTY 尚未实现。
+本文说明 Sidecar 如何运行 shell 命令，以及如何登记自己启动的长寿命子进程，使 Sidecar 被强杀后，下次启动能终止上次留下的孤儿进程。决定与备选方案见 [ADR 0012](../adr/0012-host-process-registry.md)；命令的沙箱档位见 [权限判定与审批](permissions.md)；MCP 连接本身见 [MCP](mcp.md)。目前登记的来源是前台 bash、后台任务（[后台任务](jobs.md)）与 stdio MCP Server；PTY 尚未实现。
 
 ## 结构入口
 
@@ -30,6 +30,8 @@ lifecycle: active
 - 环境去掉 `ELECTRON_RUN_AS_NODE` 与宿主给出的排除项（Sidecar 用 `HOST_ENV_EXCLUSIONS`：`COKO_*` 与凭据形态的变量）。
 - 受限沙箱档位只经宿主的沙箱前缀运行，不能启用时 fail-closed（[ADR 0005](../adr/0005-permission-mode-and-sandbox.md)）。
 
+**后台命令。** `ExecPort.spawn(request)` 以同样的方式（工作目录检查、沙箱前缀、环境过滤、独立进程组、stdin 关闭）启动命令，进程启动后即返回句柄 `{ pid, pgid, kill(signal), exited }`：`kill` 向进程组发信号（缺省 SIGTERM），`exited` 在退出且输出送达后 resolve 为 `{ exitCode, signal? }`（信号终止时退出码为 128 + 信号）。没有超时与中止。`trackExec` 原样转交 `spawn`，由后台任务自己登记。
+
 **生命周期回调。** spawn 成功（Node 的 `spawn` 事件）后调用一次 `onSpawn({ pid, pgid })`，进程退出、被中止或超时后调用一次 `onExit`；命令没有启动时两者都不调用。回调抛出的错误被忽略，不影响命令结果。
 
 ## 进程登记
@@ -39,6 +41,7 @@ lifecycle: active
 | 来源 | kind | pgid | command | 删除时机 |
 | --- | --- | --- | --- | --- |
 | 前台 bash（`trackExec` 包装工具集的执行端口） | bash | 有（= pid） | 命令文本 | `onExit` |
+| 后台任务（`ExecPort.spawn`，JobService 的 onSpawn） | job | 有（= pid） | 命令文本（带 sessionId、jobId） | 进程退出 |
 | stdio MCP Server（传输 `start()` 成功后） | mcp | 无 | 可执行文件路径（不含参数与环境） | 传输关闭（含 Server 自行退出、崩溃） |
 
 登记与删除都是后台写入，不阻塞命令：先读 lstart 再写行；进程在读到之前已退出时不写；释放早于写入完成时，写入后再删除。写入失败记 warn `process registration failed { operation, error }`，不影响命令。命令文本入库前经 `redactText` 脱敏（登记的 Secret 值与凭据形态，[ADR 0007](../adr/0007-secrets-from-registered-entries.md)），不写日志；秘密总闸扫描库文件。
