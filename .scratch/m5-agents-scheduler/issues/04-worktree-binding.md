@@ -59,3 +59,6 @@
 - `apps/server/README.md` 要点（交给 08 汇总）：新增 `adapters/git.ts`（`createGitRunner`）、`WorktreeService`（`SessionCwd` 的 worktree 实现）、routes/worktrees 的四个接口。
 
 **未验证：** 真实模型（无凭据）；非 darwin 平台（bash / Seatbelt 部分跳过）；系统没有安装 git 的情况。
+- 2026-10-31 lead：评审后合入 main（dc33c83）。合入后 main 的 typecheck 失败（worktrees.e2e.test.ts:110 在 noUncheckedIndexedAccess 下 env.GIT_CONFIG_GLOBAL 为 string | undefined）——实施者报告中的全量 test 通过，但 typecheck 那一步其实没有覆盖到这个文件，或在 merge main 之前跑的；lead 的复核输出 typecheck=2 而当时回复了"OK"，由票 03、05 的实施者先指出。lead 在 m5/fix-worktrees-e2e-type 把 gitRepo 的返回类型写明 GIT_CONFIG_GLOBAL: string，合入；main 上 typecheck、lint 退出 0，worktrees E2E 通过。全量复核在票 03、05 合入后一并进行（main 合入 04 后的全量 test 已通过：266 文件 2119 通过、1 跳过）。接受越界：layers.ts 装配 WorktreeService 与 cwd、ADR 0016 改为 partial（由票 07 改为 implemented）、新增就近测试与 sidebar/worktrees.tsx。已知限制（已写入 worktrees.md）：创建 Session 时不拒绝绑定 removed 的 worktree；上下文用量、恢复探测与项目 deny / ask 规则仍按 Workspace 目录取作用域；新 worktree 会话没有标题——记入 M5 评审。ADR 0012 的证据行由 lead 补入。worktree 已清理。
+
+Closed: true
