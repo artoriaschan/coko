@@ -34,6 +34,7 @@ bash 以独立进程组（detached）启动命令，以便超时与停止时终�
 - 每个子进程多一次库写入；bash 的短命令同样登记，退出后删除。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，在前台 bash、后台 Job 与忽略 stdin 关闭的 stdio MCP 测试 Server 运行时 SIGKILL Sidecar，重启后这些进程在有限时间内退出；伪造一行启动时间不符的登记，确认对应进程不被终止。
 - 前台 bash 与 stdio MCP（2026-10-30）：登记、启动清理与有序关闭已实现，机制与限制见 [命令执行与子进程登记](../subsystems/execution.md)。证据：`tests/integration/sidecar-orphans.test.ts`（darwin，真实 Sidecar）在前台 bash 的 `sleep 300` 与经 `.mcp.json` 批准、忽略 stdin 关闭的 stdio MCP 测试 Server 运行时 SIGKILL Sidecar，重启后两者在 5 秒内消失、日志有 `orphan process terminated`；伪造 lstart 不符的登记，对应进程仍在、行被删除；有序关闭后登记表为空。`apps/server/src/application/processes.test.ts` 覆盖宽限后的 SIGKILL 与 pid 复用；`packages/agent/src/ports/local-exec.test.ts` 覆盖 `onSpawn` / `onExit`。后台 Job 与 PTY 尚未登记；implementation 在它们完成后更新。
+- 后台 Job（2026-10-30）：Job 进程以 kind job、带 sessionId 与 jobId 登记，退出后删除；行为见 [后台任务](../subsystems/jobs.md)。证据：`tests/integration/sidecar-jobs.test.ts`（darwin，真实 Sidecar）在后台 Job 的 `sleep 300` 运行时 SIGKILL Sidecar，重启后 shell 与子进程在 5 秒内消失、日志有 kind job 的 `orphan process terminated`、启动恢复提交 `job_end lost`；job_kill 与 `POST /api/jobs/:id/kill` 之后进程组退出、登记行删除；有序关闭以 `job_end killed` 结束全部 Job 且登记表为空。PTY 尚未登记。
 
 ## 来源与后继
 

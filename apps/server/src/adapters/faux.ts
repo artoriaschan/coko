@@ -113,6 +113,29 @@ function withScriptedUsage<O extends StreamOptions>(stream: StreamFunction<strin
   }) as StreamFunction<string, O>
 }
 
+/**
+ * 工具调用参数中的 `$LAST_JOB_ID` 在请求时替换为上下文中最近一次 "Started background job <id>" 工具结果的 jobId（Job id 随机生成，
+ * 脚本无法预先写出）。
+ */
+export const LAST_JOB_ID = '$LAST_JOB_ID'
+const STARTED_JOB = /Started background job (\S+?):/g
+
+function lastJobId(messages: readonly unknown[]): string | undefined {
+  let found: string | undefined
+  for (const message of messages) {
+    const m = message as { role?: string; content?: unknown }
+    if (m.role !== 'toolResult' || !Array.isArray(m.content)) continue
+    for (const block of m.content as { type?: string; text?: string }[])
+      if (block.type === 'text' && block.text) for (const match of block.text.matchAll(STARTED_JOB)) found = match[1]
+  }
+  return found
+}
+
+function withLastJobId(response: FauxScriptResponse, jobId: string | undefined): FauxScriptResponse {
+  if (jobId === undefined) return response
+  return JSON.parse(JSON.stringify(response).replaceAll(LAST_JOB_ID, jobId)) as FauxScriptResponse
+}
+
 /** 读取脚本并把 faux provider 注册进 registry；返回其模型，作为没有默认设置时的 Session 模型。 */
 export async function installFauxProvider(registry: ModelRegistry, path: string): Promise<SessionModel> {
   const script = JSON.parse(await readFile(path, 'utf8')) as FauxScript
@@ -136,11 +159,13 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
   const log = script.requestLog
   core.setResponses(
     script.responses.map((response) => {
+      const placeholder = JSON.stringify(response).includes(LAST_JOB_ID)
       const step = toStep(response)
-      if (!log) return step
+      if (!log && !placeholder) return step
       return async (context) => {
-        await appendFile(log, JSON.stringify(context.messages) + '\n')
-        return step as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+        if (log) await appendFile(log, JSON.stringify(context.messages) + '\n')
+        const resolved = placeholder ? toStep(withLastJobId(response, lastJobId(context.messages))) : step
+        return resolved as Exclude<FauxResponseStep, (...args: never[]) => unknown>
       }
     }),
   )

@@ -189,7 +189,8 @@ const AssemblyLive = Layer.effect(
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
     // 后台任务与 Goal 先于贡献创建（贡献读取它们），SessionService 在 AppLive 中接上。
-    const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs') })
+    // Job 的进程登记为 job（ADR 0012），退出后删除。
+    const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
     const goals = new GoalService({ store, jobs })
     const extra = sidecar.testTools ? [createTestSeamContribution()] : []
     // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。

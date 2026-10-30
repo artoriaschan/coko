@@ -33,6 +33,7 @@ lifecycle: active
 - [Skills](subsystems/skills.md)：Skill 的发现位置与校验、<available_skills> 索引与预算、skill 工具与读取根、/<skill-name> 展开、开关与 Skills & Commands 分区。
 - [上下文管理](subsystems/context.md)：@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量与上下文环、时间裁剪、压缩、忽略规则。
 - [命令执行与子进程登记](subsystems/execution.md)：bash 的进程组执行与生命周期回调、子进程登记表、启动时的孤儿清理与有序关闭、已知限制。
+- [后台任务](subsystems/jobs.md)：bash run_in_background、Job 输出（环形缓冲、日志、进度）、job_output / job_list / job_kill、完成通知、HTTP 接口、停止与重启 lost。
 - [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时注入的 <todo_list>（压缩后仍在）、dock 的待办卡与队列卡。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。

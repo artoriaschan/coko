@@ -89,9 +89,13 @@ export class ProcessRegistry {
     }
   }
 
-  /** 让经该端口启动的每个命令都登记为 `kind`（请求自带的 onSpawn / onExit 照常调用）。 */
+  /**
+   * 让经该端口 exec 的每个命令都登记为 `kind`（请求自带的 onSpawn / onExit 照常调用）。spawn（后台任务）原样转交：
+   * JobService 在自己的 onSpawn 中以 kind job 与 jobId 登记。
+   */
   trackExec(port: ExecPort, context: Omit<TrackedProcess, 'pid' | 'pgid' | 'command'>): ExecPort {
     return {
+      ...(port.spawn ? { spawn: port.spawn.bind(port) } : {}),
       exec: (request: ExecRequest) => {
         let release: (() => void) | undefined
         return port.exec({

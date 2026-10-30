@@ -59,6 +59,32 @@ export interface ExecPort {
    * when the command could not be started (for example a missing working directory, or SandboxUnavailableError).
    */
   exec(request: ExecRequest): Promise<ExecOutcome>
+  /**
+   * Start a long-lived command (background job) without waiting for it to exit. Resolves once the process was started;
+   * rejects like `exec` when it could not be. Stdin is closed. Omitted: the host cannot run background commands.
+   */
+  spawn?(request: SpawnRequest): Promise<ExecProcess>
+}
+
+/** A background command: like ExecRequest, without abort or timeout (the caller stops it with `kill`). */
+export type SpawnRequest = Omit<ExecRequest, 'signal' | 'timeoutMs'>
+
+/** How a background command ended. `exitCode` follows the shell convention (128 + signal number when killed). */
+export interface ProcessExit {
+  exitCode: number
+  /** Signal name when the process was terminated by a signal. */
+  signal?: string
+}
+
+/** A running background command. */
+export interface ExecProcess {
+  readonly pid: number
+  /** Present when the process leads its own process group. */
+  readonly pgid?: number
+  /** Signal the whole process group (default SIGTERM). Ignored after exit. */
+  kill(signal?: NodeJS.Signals): void
+  /** Resolves once after the process exited and its output was delivered. */
+  readonly exited: Promise<ProcessExit>
 }
 
 /** A confined sandbox mode was requested but the host cannot enforce it; the command did not run. */

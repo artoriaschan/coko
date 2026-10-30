@@ -4,7 +4,17 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { constants as osConstants } from 'node:os'
-import { isConfined, SandboxUnavailableError, type ExecOutcome, type ExecPort, type SandboxPolicy, type SpawnedProcess } from './exec.ts'
+import {
+  isConfined,
+  SandboxUnavailableError,
+  type ExecOutcome,
+  type ExecPort,
+  type ExecProcess,
+  type ProcessExit,
+  type SandboxPolicy,
+  type SpawnedProcess,
+  type SpawnRequest,
+} from './exec.ts'
 
 /** Variables of the Sidecar process that must not leak into user commands. */
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
@@ -56,12 +66,12 @@ export function filterEnv(base: Readonly<Record<string, string | undefined>>, ex
   return env
 }
 
-function killProcessGroup(pid: number): void {
+function killProcessGroup(pid: number, signal: NodeJS.Signals = 'SIGKILL'): void {
   try {
-    process.kill(-pid, 'SIGKILL')
+    process.kill(-pid, signal)
   } catch {
     try {
-      process.kill(pid, 'SIGKILL')
+      process.kill(pid, signal)
     } catch {
       // Already gone.
     }
@@ -139,29 +149,70 @@ function notify<T extends unknown[]>(callback: ((...args: T) => void) | undefine
 export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
   const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
+
+  /** 检查工作目录、按沙箱档位加前缀，以独立进程组启动 `<shell> -c <command>`（stdin 关闭）。 */
+  const start = async ({ command, cwd, env, sandbox }: Pick<SpawnRequest, 'command' | 'cwd' | 'env' | 'sandbox'>) => {
+    try {
+      if (!(await stat(cwd)).isDirectory()) throw new Error('not a directory')
+    } catch {
+      throw new Error(`Working directory does not exist: ${cwd}`)
+    }
+    // fail-closed：受限档位只经宿主的沙箱运行，不能启用时命令不运行。
+    const confined = isConfined(sandbox) ? sandbox : undefined
+    let prefix: readonly string[] = []
+    if (confined) {
+      if (!options.sandbox) throw new SandboxUnavailableError(confined.mode, 'this host provides no sandbox')
+      prefix = options.sandbox.wrap(confined)
+    }
+    const argv = [...prefix, shell, '-c', command]
+    const child = spawn(argv[0]!, argv.slice(1), { cwd, detached: true, env: env ?? baseEnv(), stdio: ['ignore', 'pipe', 'pipe'] })
+    return { child, confined }
+  }
+  /** 沙箱可执行文件缺失或不可执行：命令没有运行。 */
+  const startFailure = (error: unknown, confined: SandboxPolicy | undefined): unknown => {
+    const code = (error as { code?: unknown }).code
+    if (confined && typeof code === 'string' && SPAWN_FAILURES.has(code)) return new SandboxUnavailableError(confined.mode, (error as Error).message)
+    return error
+  }
+  const exitOf = (child: ChildProcess, exitCode: number | null): ProcessExit => {
+    const signalCode = child.signalCode
+    return { exitCode: exitCode ?? (signalCode ? 128 + (osConstants.signals[signalCode] ?? 0) : 1), ...(signalCode ? { signal: signalCode } : {}) }
+  }
+
   return {
+    async spawn({ command, cwd, env, onData, sandbox, onSpawn, onExit }): Promise<ExecProcess> {
+      const { child, confined } = await start({ command, cwd, env, sandbox })
+      child.stdout?.on('data', onData)
+      child.stderr?.on('data', onData)
+      const exit = waitForExit(child)
+      await new Promise<void>((resolve, reject) => {
+        child.once('spawn', () => resolve())
+        exit.catch((error: unknown) => reject(startFailure(error, confined)))
+      })
+      const pid = child.pid!
+      notify<[SpawnedProcess]>(onSpawn, { pid, pgid: pid })
+      let done = false
+      const exited = exit.then(
+        (code) => exitOf(child, code),
+        // 启动之后的 'error'（极少见）按失败退出处理。
+        (): ProcessExit => ({ exitCode: 1 }),
+      )
+      void exited.then(() => {
+        done = true
+        notify(onExit)
+      })
+      return {
+        pid,
+        pgid: pid,
+        kill: (signal = 'SIGTERM') => {
+          if (!done) killProcessGroup(pid, signal)
+        },
+        exited,
+      }
+    },
     async exec({ command, cwd, env, onData, signal, timeoutMs, sandbox, onSpawn, onExit }): Promise<ExecOutcome> {
       if (signal?.aborted) return { kind: 'aborted' }
-      try {
-        if (!(await stat(cwd)).isDirectory()) throw new Error('not a directory')
-      } catch {
-        throw new Error(`Working directory does not exist: ${cwd}`)
-      }
-
-      // fail-closed：受限档位只经宿主的沙箱运行，不能启用时命令不运行。
-      const confined = isConfined(sandbox) ? sandbox : undefined
-      let prefix: readonly string[] = []
-      if (confined) {
-        if (!options.sandbox) throw new SandboxUnavailableError(confined.mode, 'this host provides no sandbox')
-        prefix = options.sandbox.wrap(confined)
-      }
-      const argv = [...prefix, shell, '-c', command]
-      const child = spawn(argv[0]!, argv.slice(1), {
-        cwd,
-        detached: true,
-        env: env ?? baseEnv(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
+      const { child, confined } = await start({ command, cwd, env, sandbox })
       // 'spawn' fires only for a started process and before 'exit'; a spawn failure emits 'error' instead.
       let spawned = false
       child.once('spawn', () => {
@@ -202,15 +253,11 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
         try {
           exitCode = await waitForExit(child)
         } catch (error) {
-          // 沙箱可执行文件缺失或不可执行：命令没有运行。
-          const code = (error as { code?: unknown }).code
-          if (confined && typeof code === 'string' && SPAWN_FAILURES.has(code)) throw new SandboxUnavailableError(confined.mode, (error as Error).message)
-          throw error
+          throw startFailure(error, confined)
         }
         if (aborted) return { kind: 'aborted' }
         if (timedOut) return { kind: 'timeout' }
-        const signalCode = child.signalCode
-        const code = exitCode ?? (signalCode ? 128 + (osConstants.signals[signalCode] ?? 0) : 1)
+        const code = exitOf(child, exitCode).exitCode
         return code !== 0 && denied ? { kind: 'exited', exitCode: code, sandboxDenied: true } : { kind: 'exited', exitCode: code }
       } finally {
         if (timer) clearTimeout(timer)
