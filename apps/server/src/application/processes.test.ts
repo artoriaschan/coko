@@ -141,9 +141,20 @@ describe.skipIf(!darwin)('ProcessRegistry（darwin：真实进程）', { timeout
 
   it('启动清理：忽略 SIGTERM 的进程在宽限期后被 SIGKILL', async () => {
     const s = store()
-    const pid = start("trap '' TERM; while :; do sleep 0.1; done")
-    // 让 trap 先生效。
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    const { mkdtemp, rm, stat } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = await mkdtemp(join(tmpdir(), 'coko-proc-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const ready = join(dir, 'ready')
+    const pid = start(`trap '' TERM; touch ${ready}; while :; do sleep 0.1; done`)
+    // trap 生效之后才写 ready 文件。
+    await waitFor(() =>
+      stat(ready).then(
+        () => true,
+        () => false,
+      ),
+    )
     new ProcessRegistry({ store: s }).track({ pid, kind: 'mcp', command: 'stubborn' })
     await waitFor(async () => (await s.processes.list()).length === 1)
     const startedAt = Date.now()
