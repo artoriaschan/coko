@@ -2,7 +2,7 @@
 kind: decision
 description: "Session 的工作目录（Workspace 或其某个 git worktree）在创建时固定、之后不变；worktree 放在仓库根的 .coko-worktrees/<name>、分支 coko/<name>，由宿主以 argv 执行 git，只在干净且无运行中工作时由用户移除，分支保留。修改 Session 与目录的绑定、worktree 的位置、创建或清理时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -33,6 +33,11 @@ Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它
 
 - 仓库中多出一个被本地排除的目录；父 Session 读取 worktree 中的文件是 Workspace 之外的读取，须审批。M6 的团队成员复用同一机制。依赖本机安装的 git。
 - implementation 变为 implemented 前需要：以临时 git 仓库的真实 Sidecar 覆盖创建（分支、exclude、Workspace 为仓库子目录时的工作目录）、worktree 会话的命令与写入落在 worktree 内且不被当作受保护路径、父 Session 的 grep 不列出 worktree 内容、读取另一 checkout 须审批、`.coko-worktrees` 为符号链接时拒绝创建、有未提交改动或运行中工作时移除被拒、移除后会话只读、子代理隔离 worktree 的自动移除与保留。
+
+## 实施记录
+
+- 2026-10-31，worktree 的绑定与移除：创建、会话绑定、工作目录（含 Workspace 为仓库子目录）、exclude、符号链接拒绝、busy / dirty / removed 与启动恢复、宿主 git 执行与侧栏入口已实现，当前行为见 [Worktree](../subsystems/worktrees.md)。证据：`tests/integration/sidecar-worktrees.test.ts`、`apps/server/src/application/worktrees.test.ts`、`apps/server/src/adapters/git.test.ts`、`apps/desktop/e2e/worktrees.e2e.test.ts`。子代理隔离 worktree 的自动移除与保留只有 `removeIfUnchanged` 的单元测试，接入子代理后补齐；在此之前 implementation 为 partial。
+- 与上文"读取另一 checkout 须审批"一致的实现方式：worktree 会话的 Workspace 根就是其工作目录，主 checkout 的读取按越出 Workspace 处理。
 
 ## 来源与后继
 
