@@ -182,6 +182,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 定时任务到期时，Run 的 user message 为 `<scheduled_task schedule-id="…" title="…" occurrence="ISO">prompt</scheduled_task>`：prompt 原文，不经命令与 File Reference 展开，属性值转义；各领域的待送达内容照常合并在它之前。这是一条普通的 user message 条目（`run_start.trigger` 为 schedule），压缩时与其他消息一样被摘要。用户自己写的同名标签只是文本，不使 Run 成为定时任务触发。见 [定时任务](schedules.md#定时器与投递)。
 
+## 子代理的 `<subagent>` 与首条消息
+
+子 Session 的 system sections 照常有指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：

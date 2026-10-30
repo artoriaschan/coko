@@ -79,7 +79,7 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 
 已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。
 
-`goalUsage` 的 `children` 参数是为子 Session 预留的接口：传入的每组条目全部 Run 计入工具调用、Token、费用与时间，不计轮次。子 Session 的汇总由子代理接入，目前没有调用方，Goal 的用量只来自本 Session 的条目。
+子代理的用量计入 Goal：派发它的 Run 属于 Goal 时（`agent_start.goalId`），子 Session 的全部 Run 经 `goalUsage` 的 `children` 计入工具调用、Token、费用与时间，不计轮次；`GET …/goal`、`<goal>` 与各检查点都用这个总量。子 Run 的请求前与工具调用前同样检查父 Session 的 Goal（含其他子 Session 的已用），耗尽时子 Run 停止，父级在下一个检查点停止。取消 Goal 先停止它的 Run 派发的子代理，`cleanup.agentsStopped` 为停止的数量。见 [子代理](subagents.md#预算并行与取消)。
 
 **检查点**（只对 running 的 Goal 与属于它的 Run）：
 
