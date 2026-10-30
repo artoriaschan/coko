@@ -23,3 +23,4 @@
 - [ ] goal.md 删除"手动 /compact 不经这项检查"，B10 的子 Session 汇总写成接口说明；README 同步；`typecheck`、`lint`、`format:check`、`check:docs`、`scripts/browser-deps.test.ts`、`scripts/source-references.test.ts` 通过
 
 ## Comments
+- 2026-10-31 lead：实施者报告的基线失败（tests/integration/sidecar-pty.test.ts 中"job_input 按上次回车之后累计的输入判定"，main 上既有、不稳定）已由 lead 在 m5/fix-pty-trap-race 修复并合入 main（4f5e33f）：原因是 Job 启动与输入在同一 Run 中，Ctrl-C 可能在 bash 装好 `trap '' INT` 之前到达并结束 Job；改为 Job 在第一个 Run 中启动、打印 trap-ready 后再输入，断言不变；单独连跑 6 次通过。本票完成前 git merge main 即可得到修复。
