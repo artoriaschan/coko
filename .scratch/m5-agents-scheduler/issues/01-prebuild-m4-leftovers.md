@@ -23,3 +23,7 @@
 - [ ] goal.md 删除"手动 /compact 不经这项检查"，B10 的子 Session 汇总写成接口说明；README 同步；`typecheck`、`lint`、`format:check`、`check:docs`、`scripts/browser-deps.test.ts`、`scripts/source-references.test.ts` 通过
 
 ## Comments
+
+### 实施者（票 01）
+
+**基线（main 92f9205，worktree 中 `pnpm run test`，2026-10-31 01:44，负载约 3）：** 250 个测试文件（249 通过、1 失败），1952 例（1950 通过、1 失败、1 跳过），test=1。失败用例在 main 上已存在：`tests/integration/sidecar-pty.test.ts` 的"job_input 按上次回车之后累计的输入判定…"。实际值：Ctrl-C（c1）之后，`trap '' INT; cat` 的 PTY Job 以 status failed 结束，q1 / q2 都返回 "Background job … is not running (status: failed)"，日志为 `rm -r^C`。单独运行该文件 4 次：2 次失败、2 次通过（负载约 3.8）。这在本票写范围之外，不改；推测为 Ctrl-C 早于 trap 生效（未验证）。跳过的 1 例是 settings.e2e 中已有的 skip。
