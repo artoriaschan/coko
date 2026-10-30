@@ -162,15 +162,16 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
       w.setContentSize(390, 820)
     })
     await expect.poll(() => win.evaluate(() => window.innerWidth)).toBe(390)
-    await shot('exhausted-dark-390')
-    for (const action of ['edit-goal', 'complete-goal', 'cancel-goal']) {
-      const box = await card.locator(`[data-action="${action}"]`).boundingBox()
-      expect(box!.x).toBeGreaterThanOrEqual(0)
-      expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+    // 缩窄后布局重排是异步的：轮询几何直到稳定，不只读一次。
+    const inViewport = async (locator: ReturnType<typeof card.locator> | typeof card) => {
+      const box = await locator.boundingBox()
+      return box !== null && box.x >= 0 && box.x + box.width <= 390
     }
-    const cardBox = await card.boundingBox()
-    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(390)
-    expect(await win.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    for (const action of ['edit-goal', 'complete-goal', 'cancel-goal'])
+      await expect.poll(() => inViewport(card.locator(`[data-action="${action}"]`)), { timeout: 10_000 }).toBe(true)
+    await expect.poll(() => inViewport(card), { timeout: 10_000 }).toBe(true)
+    await expect.poll(() => win.evaluate(() => document.documentElement.scrollWidth), { timeout: 10_000 }).toBeLessThanOrEqual(390)
+    await shot('exhausted-dark-390')
     // 390 px 时侧栏收起，设置入口不可见：回到宽窗口切换主题，再检查亮色的 390 px。
     const resize = async (width: number) => {
       await app.app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0]!.setContentSize(w, 820), width)
@@ -183,7 +184,8 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await win.keyboard.press('Escape')
     await win.locator('[data-settings-page]').waitFor({ state: 'detached' })
     await resize(390)
-    expect(await win.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await expect.poll(() => win.evaluate(() => document.documentElement.scrollWidth), { timeout: 10_000 }).toBeLessThanOrEqual(390)
+    await expect.poll(() => inViewport(card.locator('[data-action="cancel-goal"]')), { timeout: 10_000 }).toBe(true)
     await shot('exhausted-light-390')
     await resize(1280)
 
