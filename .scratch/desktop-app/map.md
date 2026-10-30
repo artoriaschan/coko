@@ -57,6 +57,9 @@ Status: open
 - M4：M3 结构债 J1、J2、J4–J7（sessions.ts 535 行、runtime.ts 813 行、路由直接访问存储等）在引入 Goal / Plan 状态前收敛（M3 Standards 评审）。→ 已分配 M4 票 01。
 - M4：新增读取根或注入点的票须附符号链接越界用例，秘密总闸扫描 requestLog（M3 复盘）。→ 写入 M4 implementer-brief。
 
+- M5：M4 评审未做的坏味道（B1–B12、B15，含三份 HTTP helper 与每 Session 锁的重复）；context-ring、mcp-section、rewind-dialog 中把 text-warning 用作文字的地方改为 text-warning-text；手动 /compact 不经预算检查（M4 评审修复票 12）。
+- M5：预算、权限或沙箱判定的票，验收固定加"对手用例"——模型或命令输出构造的输入不能改变判定结果（M4 复盘）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |
@@ -64,8 +67,8 @@ Status: open
 | M1 行走骨架 | `.scratch/m1-walking-skeleton/` | delivered（[复盘](../m1-walking-skeleton/retro.md)） |
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
-| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | in progress（用户 2026-10-30 指示继续） |
-| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
+| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | delivered（[复盘](../m4-goal-plan-tasks/retro.md)） |
+| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | next |
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
 
 ## Out of scope
