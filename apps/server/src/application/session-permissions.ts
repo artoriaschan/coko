@@ -21,7 +21,7 @@ import type { ContextContribution } from './context/index.ts'
 import { bindPlanHost, type PlanHost } from './context/plan.ts'
 import { AppError } from './errors.ts'
 import { KeyedMutex } from './keyed-mutex.ts'
-import { PermissionService, sameRule, withRules } from './permissions.ts'
+import { capMode, PermissionService, sameRule, withRules } from './permissions.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -40,6 +40,17 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
   ...(state.mode === 'plan' && state.prior ? { prior: state.prior } : {}),
   rules: [...state.rules],
 })
+
+/**
+ * 子 Session 的权限作用域（ADR 0014）：rootSessionId 为规则与"本会话总是允许"所属的根 Session；modeCap 为模式上限（子代理定义的
+ * permission-mode 与根 Session 当前模式中较窄者，由子代理的实现给出）。缺省：每个 Session 是自己的根，没有上限。
+ */
+export interface PermissionScopeResolver {
+  rootSessionId(sessionId: string): string
+  modeCap(sessionId: string): StandardPermissionMode | undefined
+}
+
+export const ownPermissionScope: PermissionScopeResolver = { rootSessionId: (sessionId) => sessionId, modeCap: () => undefined }
 
 /** 批准计划时模式的宽窄（plan 不会作为批准后的模式）。 */
 const MODE_RANK: Record<Exclude<PermissionMode, 'plan'>, number> = { 'read-only': 0, default: 1, 'accept-edits': 2, 'full-access': 3 }
@@ -69,14 +80,32 @@ export class SessionPermissions implements PlanHost {
   readonly #plans = new Map<string, PendingPlan>()
   /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）；结果确认也经它串行。 */
   readonly #locks = new KeyedMutex()
+  #scopes: PermissionScopeResolver
   readonly service: PermissionService
 
   /** contributions：上下文装配的贡献；其中的 plan 贡献（context/plan.ts）经它读写模式与计划审阅。 */
-  constructor(options: { store: SessionStore; runtimes: SessionRuntimes; service: PermissionService; contributions?: readonly ContextContribution[] }) {
+  constructor(options: {
+    store: SessionStore
+    runtimes: SessionRuntimes
+    service: PermissionService
+    contributions?: readonly ContextContribution[]
+    scopes?: PermissionScopeResolver
+  }) {
     this.#store = options.store
     this.#runtimes = options.runtimes
     this.service = options.service
+    this.#scopes = options.scopes ?? ownPermissionScope
     if (options.contributions) bindPlanHost(options.contributions, this)
+  }
+
+  /** 装配时接上子代理的作用域（之后每次判定现取）。 */
+  useScopes(scopes: PermissionScopeResolver): void {
+    this.#scopes = scopes
+  }
+
+  /** 该 Session 的权限作用域（根 Session 与模式上限）。 */
+  get scopes(): PermissionScopeResolver {
+    return this.#scopes
   }
 
   state(session: StoredSession): Promise<SessionPermissionState> {
@@ -110,10 +139,13 @@ export class SessionPermissions implements PlanHost {
     return this.#locks.run(sessionId, task)
   }
 
-  /** 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。 */
-  runtimePermissions(state: SessionPermissionState, workspaceId: string): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
+  /**
+   * 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。模式取 Session 模式与作用域上限中
+   * 较窄者（capMode；缺省没有上限）。
+   */
+  runtimePermissions(state: SessionPermissionState, workspaceId: string, sessionId: string): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
     return {
-      mode: () => state.mode,
+      mode: () => capMode(state.mode, this.#scopes.modeCap(sessionId)),
       rules: () => [...state.rules, ...this.service.rulesFor(workspaceId)],
     }
   }

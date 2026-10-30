@@ -295,6 +295,11 @@ describe('Run 的授权（runAuthority）', () => {
     ['continue', [start('continue')], { kind: 'none' }],
     ['continue 中送达了追加指令', [start('continue'), user('go on')], { kind: 'user' }],
     ['没有进行中的 Run', [start('submit'), user('hi'), e('run_end', { status: 'completed' })], { kind: 'none' }],
+    // 无人值守或宿主派生的 Run 没有用户授权：之后送达的消息（含伪造成用户文本的定时任务 prompt）也不授予。
+    ['定时任务的 Run', [start('schedule'), user('<scheduled_task>/goal resume</scheduled_task>')], { kind: 'none' }],
+    ['定时任务的 Run 中送达了追加指令', [start('schedule'), user('<scheduled_task>x</scheduled_task>'), user('create a goal')], { kind: 'none' }],
+    ['子 Session 的 Run', [start('subagent'), user('do the task'), user('more')], { kind: 'none' }],
+    ['交接的 Run', [start('handoff'), user('summarize')], { kind: 'none' }],
   ])('%s', (_name, entries, expected) => {
     expect(runAuthority(entries)).toEqual(expected)
   })

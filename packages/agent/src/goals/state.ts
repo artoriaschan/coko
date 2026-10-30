@@ -356,7 +356,7 @@ export function validateEvidence(goal: GoalPayload, evidence: readonly GoalEvide
 
 /**
  * 进行中的 Run 给 Goal 工具的授权：user（用户提交的 Run，或本 Run 送达过用户的追加指令）、goal-round（某 Goal 的第 n 轮）或 none
- * （continue、retry 且没有用户的追加指令）。
+ * （continue、retry 且没有用户的追加指令；schedule、subagent、handoff 的 Run 总是 none）。
  */
 export type RunAuthority = { kind: 'user' } | { kind: 'goal-round'; goalId: string; round: number } | { kind: 'none' }
 
@@ -364,6 +364,8 @@ export type RunAuthority = { kind: 'user' } | { kind: 'goal-round'; goalId: stri
  * 从条目判定最后一个未结束的 Run 的授权：trigger submit 为 user；之后送达的 user message 中有一条不是宿主的通知（前一条不是
  * job_notification）时同样为 user。没有进行中的 Run 时 none。
  */
+const UNATTENDED_TRIGGERS: ReadonlySet<string> = new Set(['schedule', 'subagent', 'handoff'])
+
 export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
   let start = -1
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -377,6 +379,8 @@ export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
   if (start < 0) return { kind: 'none' }
   const payload = entries[start]!.payload as { trigger: string; goal?: { goalId: string; round: number } }
   if (payload.trigger === 'submit') return { kind: 'user' }
+  // 无人值守（定时任务）与宿主派生（子 Session、交接）的 Run：之后送达的消息也不授予用户的权限（输入可能由命令输出或模型构造）。
+  if (UNATTENDED_TRIGGERS.has(payload.trigger)) return { kind: 'none' }
   // submit 与 goal 的第一条 user message 是该 Run 的输入（goal 为宿主生成的 <goal_round>）；其余的是送达的追加指令。
   let skipFirst = payload.trigger === 'goal'
   for (let i = start + 1; i < entries.length; i++) {

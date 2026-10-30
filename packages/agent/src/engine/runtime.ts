@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool } from '@earendil-works/pi-agent-core'
 import type { ToolResultMessage } from '@earendil-works/pi-ai'
-import { composeAfterToolCall, composeBeforeToolCall, type HostBlock } from '../extensions/hooks.ts'
+import { composeAfterToolCall, composeBeforeToolCall, type HostBlock } from '../extensions/hooks/index.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
 import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import { createToolScheduler, withScheduling, type SchedulingOptions } from '../tools/scheduler.ts'
 import { withTimeout } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
 import { createApprovalBroker } from '../policy/broker.ts'
-import { createCompactionDriver, type CompactionDriver, type CompactionRun } from './compaction-driver.ts'
+import { createCompactionDriver, requestUsage, type CompactionDriver, type CompactionRun } from './compaction-driver.ts'
 import { createSystemMessage, DEFAULT_SYSTEM_PROMPT } from './system-message.ts'
 import { createPermissionWiring, type PermissionRun } from './permission-wiring.ts'
 import type { RunStartPayload, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
@@ -21,6 +21,13 @@ export type { AgentRuntime, AgentRuntimeOptions, RuntimeCompaction, RuntimePermi
 export { NoActiveRunError, NothingToContinueError, NothingToRetryError, RuntimeBusyError } from './errors.ts'
 
 export { PAUSED_BEFORE_APPROVAL_TEXT } from './permission-wiring.ts'
+
+/** onStop 每个 Run 至多使 Run 继续这么多次；之后的 continue 被忽略（宿主记 warn）。 */
+export const ONSTOP_CONTINUE_LIMIT = 3
+
+/** 摘要模式的回复调用了工具或没有文本时的错误文本。 */
+export const SUMMARY_TOOL_CALL_TEXT = 'The summary request attempted to call a tool'
+export const SUMMARY_EMPTY_TEXT = 'The summary request returned no text'
 
 interface RunState extends CompactionRun, PermissionRun {
   runId: string
@@ -43,6 +50,10 @@ interface RunState extends CompactionRun, PermissionRun {
   withheld?: boolean
   /** 被宿主 hook 拦下的调用的结构化标记，按 toolCallId；提交其 toolResult 时写入 details.hostBlock。 */
   hostBlocks: Map<string, HostBlock>
+  /** 摘要模式（trigger handoff）：只有一轮，不注册工具，消息不提交，结束后恢复对话记录。 */
+  summary: boolean
+  /** 摘要模式完成时的文本与请求 usage。 */
+  summaryResult?: { text: string; usage: RunResult['summaryUsage'] }
 }
 
 interface Steering {
@@ -148,6 +159,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     beforeToolCall: async (context, signal) => {
       if (current?.commitError) return { block: true, reason: 'Run stopped: the record could not be saved' }
+      // 摘要模式不注册工具：模型仍然给出的调用不经权限判定，直接拦下（该轮结束后 Run 以错误结束）。
+      if (current?.summary) return { block: true, reason: SUMMARY_TOOL_CALL_TEXT }
       const result = await before(context, signal)
       if (!result?.block) return result
       const { hostBlock, ...block } = result
@@ -168,7 +181,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       return compacted ? { context: { ...request, messages: compacted } } : undefined
     },
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
-    finishTurn: () => (current?.aborted || current?.rejected || current?.paused ? { action: 'end' } : undefined),
+    // 摘要模式只有一轮。
+    finishTurn: () => (current?.aborted || current?.rejected || current?.paused || current?.summary ? { action: 'end' } : undefined),
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
   })
@@ -222,7 +236,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         return
       }
       case 'message_end':
-        if (isWithheld(run, event.message)) return
+        // 摘要模式的消息不属于 Session 的对话记录：不提交（结束后恢复对话记录）。
+        if (run.summary || isWithheld(run, event.message)) return
         try {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
@@ -276,6 +291,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         resume: () => agent.continue(),
         abortAgent: () => agent.abort(),
         admit: (run) => admit(run as RunState, agent.state.messages, agent.state.model),
+        ...(context?.beforeCompact ? { beforeCompact: (info) => context.beforeCompact!(info) } : {}),
       })
     : undefined
   const recoverOverflow = (drive: () => Promise<void>) => (driver ? driver.recoverOverflow(drive) : drive)
@@ -284,6 +300,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     if (run.commitError) return { status: 'error', error: { code: 'commit_failed', message: run.commitError.message } }
     if (run.ended) return run.ended
     const last = agent.state.messages.at(-1)
+    if (run.summary) {
+      if (run.aborted) return { status: 'aborted' }
+      if (run.halt) return { status: 'paused', error: run.halt }
+    }
     if (run.aborted || run.rejected || (last?.role === 'assistant' && last.stopReason === 'aborted')) return { status: 'aborted' }
     if (run.halt) return { status: 'paused', error: run.halt }
     if (last?.role === 'assistant' && last.stopReason === 'error') {
@@ -304,11 +324,73 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
    * One Run around `drive`: run_start progress (synchronously, so the host learns the runId), the run_start entry
    * before the first model request, the agent loop, the run_end entry, then the run_end progress.
    */
+  /** Run 正常结束（最后一轮只有文本，没有停止、暂停、拒绝或宿主停止）。 */
+  const normalStop = (run: RunState) => {
+    if (run.aborted || run.rejected || run.paused || run.halt || run.commitError || run.ended) return false
+    const last = agent.state.messages.at(-1)
+    return last?.role === 'assistant' && last.stopReason === 'stop'
+  }
+
+  /**
+   * 对话 Run 正常结束之前调用 onStop：返回 continue 时以该 user message 再请求一次（同样经过 beforeRequest 与溢出恢复）。
+   * 每个 Run 至多继续 ONSTOP_CONTINUE_LIMIT 次；之后仍调用 onStop（宿主据 continuations 记录），但忽略其 continue。
+   */
+  const withStop = (drive: () => Promise<void>) => async () => {
+    await drive()
+    const onStop = context?.onStop
+    const run = current
+    if (!onStop || !run) return
+    let continuations = 0
+    while (normalStop(run)) {
+      const verdict = await onStop({ runId: run.runId, trigger: run.trigger, continuations, stopHookActive: continuations > 0 })
+      if (!verdict || continuations >= ONSTOP_CONTINUE_LIMIT || !normalStop(run)) return
+      continuations++
+      await recoverOverflow(() => agent.prompt({ role: 'user', content: verdict.continue, timestamp: Date.now() }))()
+    }
+  }
+
+  /** 摘要模式：一次请求（有效上下文 + 调用方的提示），没有工具；结束后恢复对话记录与工具。 */
+  const summaryDrive = (input: RunInput) => async () => {
+    const run = current!
+    // 复制：pi 在原数组上追加本轮的消息。
+    const saved = { messages: agent.state.messages.slice(), tools: agent.state.tools.slice() }
+    agent.state.tools = []
+    try {
+      await agent.prompt(userMessage(input))
+      if (run.aborted || run.halt || run.commitError) return
+      const replies = agent.state.messages.slice(saved.messages.length).filter((m) => m.role === 'assistant')
+      const reply = replies[0]
+      if (!reply || reply.role !== 'assistant') return
+      if (reply.stopReason === 'aborted') return
+      if (reply.stopReason === 'error') {
+        run.ended = { status: 'error', error: { code: 'model_error', message: reply.errorMessage ?? 'Model request failed' } }
+        return
+      }
+      if (reply.content.some((block) => block.type === 'toolCall')) {
+        run.ended = { status: 'error', error: { code: 'model_error', message: SUMMARY_TOOL_CALL_TEXT } }
+        return
+      }
+      const text = reply.content
+        .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+        .join('\n')
+        .trim()
+      if (text === '') {
+        run.ended = { status: 'error', error: { code: 'model_error', message: SUMMARY_EMPTY_TEXT } }
+        return
+      }
+      run.summaryResult = { text, usage: requestUsage(reply.usage) }
+      run.ended = { status: 'completed' }
+    } finally {
+      agent.state.messages = saved.messages
+      agent.state.tools = saved.tools
+    }
+  }
+
   const execute = async (
     trigger: RunTrigger,
     drive: () => Promise<void>,
     before: readonly RunEntry[] = [],
-    goal?: RunStartPayload['goal'],
+    start: Omit<RunStartPayload, 'trigger'> = {},
   ): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
     const run: RunState = {
@@ -321,6 +403,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       trigger,
       overflowRetried: false,
       hostBlocks: new Map(),
+      summary: trigger === 'handoff',
     }
     current = run
     let result: RunResult
@@ -329,7 +412,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       progress({ type: 'run_start', runId: run.runId })
       let internal: RunError | undefined
       try {
-        await commit({ kind: 'run_start', runId: run.runId, payload: goal ? { trigger, goal } : { trigger } })
+        await commit({ kind: 'run_start', runId: run.runId, payload: { trigger, ...start } })
       } catch (error) {
         run.commitError = error instanceof Error ? error : new Error(String(error))
       }
@@ -358,6 +441,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       const ended: { status: RunStatus; error?: RunError; undeliveredSteering?: string[] } = internal ? { status: 'error', error: internal } : outcome(run)
       if (undelivered.length > 0) ended.undeliveredSteering = undelivered
       result = { runId: run.runId, ...ended }
+      if (run.summaryResult && ended.status === 'completed')
+        result = { ...result, summary: run.summaryResult.text, ...(run.summaryResult.usage ? { summaryUsage: run.summaryResult.usage } : {}) }
       if (!run.commitError) {
         try {
           // 条目与进度只带 code 与 message：dimension 只交给宿主（RunResult），不进入协议。
@@ -379,25 +464,25 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   return {
     run(raw) {
       const input = toInput(raw)
-      return execute(
-        input.trigger ?? 'submit',
-        recoverOverflow(() => agent.prompt(userMessage(input))),
-        input.before ?? [],
-        input.goal,
-      )
+      const trigger = input.trigger ?? 'submit'
+      const start = { ...(input.goal ? { goal: input.goal } : {}), ...(input.schedule ? { schedule: input.schedule } : {}) }
+      if (trigger === 'handoff') return execute(trigger, summaryDrive(input), input.before ?? [], start)
+      return execute(trigger, withStop(recoverOverflow(() => agent.prompt(userMessage(input)))), input.before ?? [], start)
     },
     async retry() {
       if (current || agent.state.isStreaming) throw new RuntimeBusyError()
       if (!failedTurn()) throw new NothingToRetryError()
       return execute(
         'retry',
-        recoverOverflow(async () => {
-          const messages = agent.state.messages
-          let end = messages.length
-          while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--
-          agent.state.messages = messages.slice(0, end)
-          await agent.continue()
-        }),
+        withStop(
+          recoverOverflow(async () => {
+            const messages = agent.state.messages
+            let end = messages.length
+            while (end > 0 && messages[end - 1]?.role === 'assistant' && (messages[end - 1] as { stopReason?: string }).stopReason === 'error') end--
+            agent.state.messages = messages.slice(0, end)
+            await agent.continue()
+          }),
+        ),
       )
     },
     continue() {
@@ -406,10 +491,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 上一 Run 须为 paused / interrupted；模型请求要从用户消息或工具结果继续。
       if ((lastStatus !== 'paused' && lastStatus !== 'interrupted') || !last || last.role === 'assistant' || last.role === 'system')
         return Promise.reject(new NothingToContinueError())
-      return execute(
-        'continue',
-        recoverOverflow(() => agent.continue()),
-      )
+      return execute('continue', withStop(recoverOverflow(() => agent.continue())))
     },
     steer(raw) {
       const run = current

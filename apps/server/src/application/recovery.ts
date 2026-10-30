@@ -33,6 +33,20 @@ export interface RecoveryReport {
   domains: Record<string, number>
 }
 
+/**
+ * M5 的领域恢复钩子（在 Job 与 Goal 之前）：子代理补记 interrupted（父 Session 的 agent_end）、worktree 把已不存在的路径标为 removed。
+ * 两者由各自的服务实现（当前为空实现）。
+ */
+export function m5RecoveryHooks(services: {
+  subagents: { recover(source: RecoverySource): Promise<number> }
+  worktrees: { recover(source: RecoverySource): Promise<number> }
+}): RecoveryHook[] {
+  return [
+    { name: 'subagents', recover: (source) => services.subagents.recover(source) },
+    { name: 'worktrees', recover: (source) => services.worktrees.recover(source) },
+  ]
+}
+
 /** Session 恢复之后按顺序调用的领域恢复钩子（后台任务、Goal）；单个失败记错误，不阻止启动。 */
 export interface RecoveryHook {
   name: string

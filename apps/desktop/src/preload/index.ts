@@ -26,6 +26,14 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
       ipcRenderer.on(IPC.sidecarState, handler)
       return () => void ipcRenderer.removeListener(IPC.sidecarState, handler)
     },
+    onOpenSession: (listener) => {
+      // 只交出字符串 sessionId（不是字符串的值丢弃）。
+      const handler = (_event: IpcRendererEvent, sessionId: unknown) => {
+        if (typeof sessionId === 'string' && sessionId !== '') listener(sessionId)
+      }
+      ipcRenderer.on(IPC.openSession, handler)
+      return () => void ipcRenderer.removeListener(IPC.openSession, handler)
+    },
   }
   contextBridge.exposeInMainWorld('coko', bridge)
 }

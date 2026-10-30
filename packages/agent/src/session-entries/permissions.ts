@@ -72,10 +72,22 @@ export type ApprovalOutcome = Static<typeof approvalOutcomeSchema>
 export const approvalScopeSchema = Type.Union([Type.Literal('once'), Type.Literal('session'), Type.Literal('workspace'), Type.Literal('global')])
 export type ApprovalScope = Static<typeof approvalScopeSchema>
 
-export const approvalDecisionPayloadSchema = Type.Object(
-  { requestId: Id, outcome: approvalOutcomeSchema, scope: Type.Optional(approvalScopeSchema), feedback: Type.Optional(Type.String()) },
-  strict,
-)
+const approvalDecisionFields = {
+  requestId: Id,
+  outcome: approvalOutcomeSchema,
+  scope: Type.Optional(approvalScopeSchema),
+  feedback: Type.Optional(Type.String()),
+}
+
+/** approval_decision v1：没有回答者。 */
+const approvalDecisionV1Schema = Type.Object(approvalDecisionFields, strict)
+
+/** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）。缺省为用户。 */
+export const approvalDeciderSchema = Type.Union([Type.Literal('user'), Type.Literal('hook')])
+export type ApprovalDecider = Static<typeof approvalDeciderSchema>
+
+/** approval_decision v2：另带回答者 by（v1 原样迁移）。 */
+export const approvalDecisionPayloadSchema = Type.Object({ ...approvalDecisionFields, by: Type.Optional(approvalDeciderSchema) }, strict)
 export type ApprovalDecisionPayload = Static<typeof approvalDecisionPayloadSchema>
 
 export interface PermissionEntryPayloads {
@@ -89,5 +101,5 @@ export const permissionEntryPayloads = definePayloads({
   permission_mode: [{ schema: permissionModeV1Schema }, { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous }],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
   approval_request: [{ schema: approvalRequestPayloadSchema }],
-  approval_decision: [{ schema: approvalDecisionPayloadSchema }],
+  approval_decision: [{ schema: approvalDecisionV1Schema }, { schema: approvalDecisionPayloadSchema, migrate: (previous: EntryJson) => previous }],
 } satisfies Record<keyof PermissionEntryPayloads, unknown>)

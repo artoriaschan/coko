@@ -25,13 +25,29 @@ export const SessionActivity = Type.Union([
 ])
 export type SessionActivity = Static<typeof SessionActivity>
 
-/** compact：手动 /compact 的 Run，只提交 compaction（或失败的 run_end）；goal：Goal Round（自动推进 Goal 的 Run）。 */
-export const RunTrigger = Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact'), Type.Literal('goal')])
+/**
+ * compact：手动 /compact 的 Run，只提交 compaction（或失败的 run_end）；goal：Goal Round（自动推进 Goal 的 Run）；schedule：定时任务到期；
+ * subagent：子 Session 的 Run；handoff：只发一次摘要请求的交接 Run。
+ */
+export const RunTrigger = Type.Union([
+  Type.Literal('submit'),
+  Type.Literal('retry'),
+  Type.Literal('continue'),
+  Type.Literal('compact'),
+  Type.Literal('goal'),
+  Type.Literal('schedule'),
+  Type.Literal('subagent'),
+  Type.Literal('handoff'),
+])
 export type RunTrigger = Static<typeof RunTrigger>
 
-/** run_start v2：Goal Round 另带所属 Goal 与轮次（v1 只有 trigger，原样迁移）。 */
+/** run_start v3：Goal Round 另带所属 Goal 与轮次，定时任务的 Run 另带任务与到期时刻（v1、v2 原样迁移）。 */
 export const RunStartPayload = Type.Object(
-  { trigger: RunTrigger, goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)) },
+  {
+    trigger: RunTrigger,
+    goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)),
+    schedule: Type.Optional(Type.Object({ scheduleId: Id, occurrence: Type.Integer({ minimum: 0 }) }, strict)),
+  },
   strict,
 )
 export type RunStartPayload = Static<typeof RunStartPayload>
@@ -45,6 +61,10 @@ export const RunEndPayload = Type.Object(
   strict,
 )
 export type RunEndPayload = Static<typeof RunEndPayload>
+
+/** run_end.error.code 中宿主写入的 M5 取值：hook_stopped（Hook 输出 continue: false）、max_turns（子代理的轮次上限）。 */
+export const RUN_ERROR_HOOK_STOPPED = 'hook_stopped'
+export const RUN_ERROR_MAX_TURNS = 'max_turns'
 
 const ContentBlocks = Type.Array(Type.Object({ type: Type.String() }))
 

@@ -89,6 +89,28 @@ export const SidecarSecretStoreResult = Type.Object(
   strict,
 )
 
+// ---- 桌面通知 ----
+
+/** 通知类别：定时任务的 Run 结束、定时任务的 Run 或后台子代理等待审批、后台子代理结束。 */
+export const NotificationKind = Type.Union([Type.Literal('schedule-run-ended'), Type.Literal('approval-waiting'), Type.Literal('agent-finished')])
+export type NotificationKind = Static<typeof NotificationKind>
+
+/** 设置键 notifications 的值；缺省全开。 */
+export const NOTIFICATIONS_SETTING = 'notifications'
+export const NotificationSettings = Type.Object(
+  { enabled: Type.Boolean(), scheduleRunEnded: Type.Boolean(), approvalWaiting: Type.Boolean(), agentFinished: Type.Boolean() },
+  strict,
+)
+export type NotificationSettings = Static<typeof NotificationSettings>
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = { enabled: true, scheduleRunEnded: true, approvalWaiting: true, agentFinished: true }
+
+/** sidecar 请 main 显示桌面通知（窗口不在前台时显示；点击聚焦窗口并打开 sessionId）。title 与 body 已脱敏。 */
+export const SidecarNotify = Type.Object(
+  { type: Type.Literal('notify'), kind: NotificationKind, sessionId: Type.String({ minLength: 1 }), title: Type.String(), body: Type.String() },
+  strict,
+)
+export type SidecarNotify = Static<typeof SidecarNotify>
+
 export const SidecarToMainMessage = Type.Union([
   SidecarStarting,
   SidecarReady,
@@ -100,6 +122,7 @@ export const SidecarToMainMessage = Type.Union([
   SidecarProviderModelsResult,
   SidecarSecretDecrypt,
   SidecarSecretStoreResult,
+  SidecarNotify,
 ])
 export type SidecarToMainMessage = Static<typeof SidecarToMainMessage>
 

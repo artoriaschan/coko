@@ -48,6 +48,8 @@ describe('SQLite 迁移 v4', () => {
       model: null,
       thinkingLevel: 'off',
       modelCleared: true,
+      parentSessionId: null,
+      worktreeId: null,
       createdAt: 1,
       updatedAt: 5,
     })

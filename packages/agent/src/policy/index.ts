@@ -3,6 +3,7 @@ export {
   canonicalRuleTool,
   contextReadDenial,
   decide,
+  decideWithStep,
   isProtectedPath,
   pathContains,
   PROTECTED_PATH_NAMES,
@@ -10,10 +11,20 @@ export {
   ruleToolName,
   toolCategory,
 } from './decide.ts'
-export type { AskReason, PermissionCall, PermissionContext, PermissionDecision, PermissionTarget, ToolCategory } from './decide.ts'
+export type {
+  AskReason,
+  DecisionStep,
+  PermissionCall,
+  PermissionContext,
+  PermissionDecision,
+  PermissionTarget,
+  SteppedDecision,
+  ToolCategory,
+} from './decide.ts'
 export { ApprovalNotPendingError, createApprovalBroker } from './broker.ts'
 export type { ApprovalAnswer, ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
 export { REJECTED_TEXT } from './gate.ts'
+export type { PermissionHookPort } from './gate.ts'
 export { analyzeCommand, commandMatches, MAX_SUBCOMMANDS, pathMatches, stripEnvPrefix } from './rules.ts'
 export type { CommandAnalysis, Subcommand } from './rules.ts'
 export { realLocation, resolveTarget, writableRootsFor } from './paths.ts'

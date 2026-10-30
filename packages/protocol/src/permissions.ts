@@ -65,8 +65,13 @@ export type ApprovalOutcome = Static<typeof ApprovalOutcome>
 export const ApprovalScope = Type.Union([Type.Literal('once'), Type.Literal('session'), Type.Literal('workspace'), Type.Literal('global')])
 export type ApprovalScope = Static<typeof ApprovalScope>
 
+/** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）；缺省为用户。 */
+export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook')])
+export type ApprovalDecider = Static<typeof ApprovalDecider>
+
+/** approval_decision v2：另带回答者 by（v1 原样迁移）。 */
 export const ApprovalDecisionPayload = Type.Object(
-  { requestId: Id, outcome: ApprovalOutcome, scope: Type.Optional(ApprovalScope), feedback: Type.Optional(Type.String()) },
+  { requestId: Id, outcome: ApprovalOutcome, scope: Type.Optional(ApprovalScope), feedback: Type.Optional(Type.String()), by: Type.Optional(ApprovalDecider) },
   strict,
 )
 export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>

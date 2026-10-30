@@ -3,7 +3,7 @@
 // "已加载"从当前上下文中的 toolResult 块派生：压缩或回退移除这些块后，下次触及时重新加载；同一批并行调用经 pending 去重。
 import type { AfterToolCallContext } from '@earendil-works/pi-agent-core'
 import { dirname } from 'node:path'
-import type { ToolHooks } from '../../extensions/hooks.ts'
+import type { ToolHooks } from '../../extensions/hooks/index.ts'
 import { resolveToCwd } from '../../tools/paths.ts'
 import { createNodeFiles, diagnostic, type ReadOnlyFiles } from '../shared/index.ts'
 import type { InstructionDenial, InstructionLoader, LoadedInstructions } from './loader.ts'

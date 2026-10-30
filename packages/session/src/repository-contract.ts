@@ -453,6 +453,185 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect((await processes.list()).map((p) => [p.id, p.pid])).toEqual([['p1', 10]])
     })
 
+    it('子 Session：createSession 带 parentSessionId，listSessions 不含子 Session，listChildren 按创建顺序列出', async () => {
+      const { sessions } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const other = await sessions.registerWorkspace({ path: '/other' })
+      const root = await sessions.createSession({ workspaceId: w.id })
+      expect(root).toMatchObject({ parentSessionId: null, worktreeId: null })
+      tick()
+      const c1 = await sessions.createSession({ workspaceId: w.id, parentSessionId: root.id })
+      tick()
+      const c2 = await sessions.createSession({ workspaceId: w.id, parentSessionId: root.id })
+      expect(c1).toMatchObject({ parentSessionId: root.id, worktreeId: null })
+      expect((await sessions.listSessions()).map((s) => s.id)).toEqual([root.id])
+      expect((await sessions.listSessions({ workspaceId: w.id })).map((s) => s.id)).toEqual([root.id])
+      expect((await sessions.listChildren(root.id)).map((s) => s.id)).toEqual([c1.id, c2.id])
+      expect(await sessions.listChildren(c1.id)).toEqual([])
+      expect(await sessions.getSession(c2.id)).toEqual(c2)
+      // 追加条目刷新子 Session 的 updatedAt，但它仍不出现在列表中。
+      tick()
+      await sessions.appendEntries(c1.id, [{ kind: 'note', payload: { n: 1 } }])
+      expect((await sessions.listSessions()).map((s) => s.id)).toEqual([root.id])
+      await expectStoreError(sessions.createSession({ workspaceId: w.id, parentSessionId: 'missing' }), 'not-found')
+      await expectStoreError(sessions.createSession({ workspaceId: other.id, parentSessionId: root.id }), 'invalid-input')
+      expect(await sessions.listSessions({ workspaceId: other.id })).toEqual([])
+    })
+
+    it('worktree：create / get / list（含 removed，按创建顺序），markRemoved 幂等；Session 可绑定同一 Workspace 的 worktree', async () => {
+      const { sessions, worktrees } = await open()
+      const w = await sessions.registerWorkspace({ path: '/repo/app' })
+      const other = await sessions.registerWorkspace({ path: '/elsewhere' })
+      const input = {
+        workspaceId: w.id,
+        name: 'a',
+        path: '/repo/.coko-worktrees/a',
+        branch: 'coko/a',
+        baseCommit: 'abc',
+        repoRoot: '/repo',
+        createdBy: 'user' as const,
+      }
+      const a = await worktrees.create(input)
+      expect(a).toMatchObject({ ...input, status: 'active', createdAt: 1_000, removedAt: null })
+      tick()
+      const b = await worktrees.create({ ...input, name: 'b', path: '/repo/.coko-worktrees/b', branch: 'coko/b', createdBy: 'subagent' })
+      expect(await worktrees.get(a.id)).toEqual(a)
+      expect(await worktrees.get('missing')).toBeUndefined()
+      expect((await worktrees.list(w.id)).map((x) => x.id)).toEqual([a.id, b.id])
+      expect(await worktrees.list(other.id)).toEqual([])
+
+      const bound = await sessions.createSession({ workspaceId: w.id, worktreeId: a.id })
+      expect(bound.worktreeId).toBe(a.id)
+      await expectStoreError(sessions.createSession({ workspaceId: other.id, worktreeId: a.id }), 'invalid-input')
+      await expectStoreError(sessions.createSession({ workspaceId: w.id, worktreeId: 'missing' }), 'not-found')
+
+      tick()
+      const removed = await worktrees.markRemoved(a.id)
+      expect(removed).toMatchObject({ status: 'removed', removedAt: 1_020 })
+      tick()
+      expect(await worktrees.markRemoved(a.id)).toEqual(removed)
+      expect((await worktrees.list(w.id)).map((x) => [x.id, x.status])).toEqual([
+        [a.id, 'removed'],
+        [b.id, 'active'],
+      ])
+      // 绑定 removed worktree 的 Session 照常可读。
+      expect((await sessions.getSession(bound.id))?.worktreeId).toBe(a.id)
+      await expectStoreError(worktrees.markRemoved('missing'), 'not-found')
+    })
+
+    it('worktree：Workspace 不存在 not-found，path 重复（含已移除的）already-exists，createdBy 未知 invalid-input，均不写入', async () => {
+      const { sessions, worktrees } = await open()
+      const w = await sessions.registerWorkspace({ path: '/repo' })
+      const input = {
+        workspaceId: w.id,
+        name: 'a',
+        path: '/repo/.coko-worktrees/a',
+        branch: 'coko/a',
+        baseCommit: 'abc',
+        repoRoot: '/repo',
+        createdBy: 'user' as const,
+      }
+      await expectStoreError(worktrees.create({ ...input, workspaceId: 'missing' }), 'not-found')
+      const a = await worktrees.create(input)
+      await worktrees.markRemoved(a.id)
+      await expectStoreError(worktrees.create({ ...input, name: 'again' }), 'already-exists')
+      await expectStoreError(worktrees.create({ ...input, path: '/repo/.coko-worktrees/c', createdBy: 'robot' as never }), 'invalid-input')
+      expect((await worktrees.list(w.id)).map((x) => x.name)).toEqual(['a'])
+    })
+
+    it('定时任务：create / update（revision 乐观并发）/ delete / list（可按 Session）/ due（active 且到期，按 nextAt）', async () => {
+      const { sessions, schedules } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s1 = await sessions.createSession({ workspaceId: w.id })
+      const s2 = await sessions.createSession({ workspaceId: w.id })
+      const rule = { kind: 'every', seconds: 60 }
+      const a = await schedules.create({ sessionId: s1.id, title: 'check', prompt: 'look', rule, nextAt: 5_000 })
+      expect(a).toMatchObject({
+        sessionId: s1.id,
+        title: 'check',
+        prompt: 'look',
+        rule,
+        status: 'active',
+        nextAt: 5_000,
+        lastOccurrence: null,
+        revision: 1,
+        createdAt: 1_000,
+      })
+      tick()
+      const b = await schedules.create({ sessionId: s2.id, title: 'b', prompt: 'p', rule: { kind: 'after', seconds: 1 }, nextAt: 3_000 })
+      tick()
+      const c = await schedules.create({ sessionId: s1.id, title: 'c', prompt: 'p', rule, nextAt: 2_000, status: 'paused' })
+      expect((await schedules.list()).map((x) => x.id)).toEqual([a.id, b.id, c.id])
+      expect((await schedules.list({ sessionId: s1.id })).map((x) => x.id)).toEqual([a.id, c.id])
+      expect((await schedules.due(4_000)).map((x) => x.id)).toEqual([b.id])
+      expect((await schedules.due(5_000)).map((x) => x.id)).toEqual([b.id, a.id])
+
+      tick()
+      const edited = await schedules.update(a.id, 1, { title: 'renamed', nextAt: 9_000, status: 'paused' })
+      expect(edited).toMatchObject({ title: 'renamed', prompt: 'look', nextAt: 9_000, status: 'paused', revision: 2, updatedAt: 1_030 })
+      const conflict = await expectStoreError(schedules.update(a.id, 1, { title: 'stale' }), 'revision-conflict')
+      expect(conflict.details).toMatchObject({ expected: 1, actual: 2 })
+      expect(await schedules.update(a.id, 2, { nextAt: null, status: 'active' })).toMatchObject({ nextAt: null, revision: 3 })
+      expect((await schedules.due(100_000)).map((x) => x.id)).toEqual([b.id])
+      await expectStoreError(schedules.update(a.id, 3, { status: 'sleeping' as never }), 'invalid-input')
+      await expectStoreError(schedules.update('missing', 1, {}), 'not-found')
+
+      await schedules.delete(b.id)
+      await expectStoreError(schedules.delete(b.id), 'not-found')
+      expect((await schedules.list()).map((x) => x.id)).toEqual([a.id, c.id])
+      await expectStoreError(schedules.create({ sessionId: 'missing', title: 't', prompt: 'p', rule, nextAt: null }), 'not-found')
+      await expectStoreError(schedules.create({ sessionId: s1.id, title: 't', prompt: 'p', rule, nextAt: null, status: 'x' as never }), 'invalid-input')
+      expect(await schedules.list({ sessionId: s2.id })).toEqual([])
+    })
+
+    it('定时任务 recordFire：一个事务内更新 lastOccurrence / nextAt / status 并追加条目，revision 不变', async () => {
+      const { sessions, schedules } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id })
+      const a = await schedules.create({ sessionId: s.id, title: 't', prompt: 'p', rule: { kind: 'at' }, nextAt: 2_000 })
+      tick()
+      const fired = await schedules.recordFire(a.id, { occurrence: 2_000, nextAt: null, status: 'inactive' }, { kind: 'note', payload: { fired: 2_000 } })
+      expect(fired.schedule).toMatchObject({ lastOccurrence: 2_000, nextAt: null, status: 'inactive', revision: 1, updatedAt: 1_010 })
+      expect(fired.entry).toMatchObject({ sessionId: s.id, seq: 1, kind: 'note', payload: { fired: 2_000 } })
+      expect((await schedules.list())[0]).toEqual(fired.schedule)
+      expect((await sessions.listEntries(s.id)).map((e) => e.payload)).toEqual([{ fired: 2_000 }])
+      // 不给 status 时保持原状态。
+      const b = await schedules.create({ sessionId: s.id, title: 'b', prompt: 'p', rule: { kind: 'every' }, nextAt: 1_000, status: 'paused' })
+      expect((await schedules.recordFire(b.id, { occurrence: 1_000, nextAt: 61_000 }, { kind: 'note', payload: {} })).schedule).toMatchObject({
+        status: 'paused',
+        nextAt: 61_000,
+        lastOccurrence: 1_000,
+      })
+      await expectStoreError(schedules.recordFire('missing', { occurrence: 1, nextAt: null }, { kind: 'note', payload: {} }), 'not-found')
+    })
+
+    it('定时任务 recordFire：条目不合 schema（事务中途抛错）时表行与条目都不变', async () => {
+      const { sessions, schedules } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s = await sessions.createSession({ workspaceId: w.id })
+      const a = await schedules.create({ sessionId: s.id, title: 't', prompt: 'p', rule: { kind: 'every' }, nextAt: 2_000 })
+      await sessions.appendEntries(s.id, [{ kind: 'note', payload: { before: true } }])
+      tick()
+      await expectStoreError(
+        schedules.recordFire(a.id, { occurrence: 2_000, nextAt: 62_000, status: 'inactive' }, { kind: 'doc', payload: { body: '' } }),
+        'invalid-payload',
+      )
+      await expectStoreError(schedules.recordFire(a.id, { occurrence: 2_000, nextAt: 62_000 }, { kind: 'unregistered', payload: {} }), 'invalid-payload')
+      expect((await schedules.list())[0]).toEqual(a)
+      expect((await sessions.listEntries(s.id)).map((e) => e.payload)).toEqual([{ before: true }])
+      expect((await schedules.due(2_000)).map((x) => x.id)).toEqual([a.id])
+    })
+
+    it('子进程登记接受 M5 的 hook 与 git 类别', async () => {
+      const { processes } = await open()
+      await processes.register({ id: 'h', pid: 5, pgid: 5, startedAt: 'x', kind: 'hook', sessionId: 's', command: 'check.sh' })
+      await processes.register({ id: 'g', pid: 6, startedAt: 'y', kind: 'git', command: 'git worktree add' })
+      expect((await processes.list()).map((p) => [p.id, p.kind])).toEqual([
+        ['h', 'hook'],
+        ['g', 'git'],
+      ])
+    })
+
     it('关闭后所有操作以 closed 拒绝，重复关闭无副作用', async () => {
       const store = await open()
       await store.close()
@@ -464,6 +643,9 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
         store.memories.list(),
         store.secrets.list(),
         store.processes.list(),
+        store.worktrees.list('w'),
+        store.schedules.list(),
+        store.sessions.listChildren('s'),
       ]) {
         await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
       }

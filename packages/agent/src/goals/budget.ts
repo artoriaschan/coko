@@ -1,7 +1,7 @@
 // Goal 预算的派生（ADR 0011：用量从条目计算，不另存计数器；docs/subsystems/goal.md#预算）。属于 Goal 的 Run：Goal 处于非终态且非 paused 时
 // 开始的 Run（含用户提交的），以及该 Goal 的 Goal Round。轮次 = Goal Round 数；工具调用 = 这些 Run 的 toolResult 数（工具调用上限拦下的错误
 // 结果除外，按 details.hostBlock 识别）；Token = assistant usage 的 input + output + cacheRead + cacheWrite 加 compaction.usage；费用 = 同一组 usage 的 cost.total；
-// 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。子 Session 的条目（M5 接入）整体计入，不计轮次。
+// 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。handoff 条目的 usage 与 compaction 相同，计入其 Run。子 Session 的条目（M5 接入）整体计入，不计轮次。
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
 import { goalRounds, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
@@ -54,7 +54,9 @@ function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | 
         started.delete(runId)
         break
       }
-      case 'compaction': {
+      // 摘要请求的 usage：压缩与交接（trigger handoff 的 Run 不提交消息，只在 handoff 条目上记 usage）。
+      case 'compaction':
+      case 'handoff': {
         const usage = (entry.payload as { usage?: UsageLike }).usage
         if (usage) {
           totals.tokens += tokensOf(usage)

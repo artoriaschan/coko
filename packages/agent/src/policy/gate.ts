@@ -12,9 +12,18 @@ import {
   planTitle,
   type PlanReview,
 } from '../planning/exit-plan-mode.ts'
+import type { HookToolCall, HookVerdict } from '../extensions/hooks/types.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
-import { decide, toolCategory, type PermissionCall, type PermissionClass, type PermissionDecision, type PermissionTarget } from './decide.ts'
+import {
+  decideWithStep,
+  toolCategory,
+  type DecisionStep,
+  type PermissionCall,
+  type PermissionClass,
+  type PermissionDecision,
+  type PermissionTarget,
+} from './decide.ts'
 import { realLocation, resolveTarget, writableRootsFor } from './paths.ts'
 import { checkEscalation, escalationRejectedText, isWiderSandbox, sandboxModeFor } from './sandbox.ts'
 
@@ -35,6 +44,16 @@ export const fixedSandboxRefusedText = (what: string, fixed: SandboxMode, mode: 
   'Start a new terminal job under the current mode instead.'
 export const deniedByRule = (rule: PermissionRule) => `Permission denied by rule ${rule.tool}${rule.content === undefined ? '' : `(${rule.content})`}.`
 
+/**
+ * 外部 Hook 在权限判定中的端口（ADR 0013）：PreToolUse 在 decide 之前运行，PermissionRequest 在第 7 步（default）的询问出卡片之前运行。
+ * 两者的组合（deny > 规则拒绝 > 第 2–4 步、提权与 plan-exit 的询问 > Hook 的 ask > Hook 的 allow > decide）由 Hook 的实现接入 gate；
+ * 没有端口时 gate 的行为与没有 Hook 时相同。
+ */
+export interface PermissionHookPort {
+  preToolUse(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
+  permissionRequest(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
+}
+
 export interface PermissionGateOptions {
   /** Workspace 目录（按调用时的真实路径判定）。 */
   cwd: string
@@ -53,6 +72,8 @@ export interface PermissionGateOptions {
   commitFailed: (error: Error) => void
   /** 用户批准了该调用的提权：执行时以该档位（或执行时更宽的模式档位）运行，只对这一次调用有效。 */
   grantEscalation: (toolCallId: string, mode: SandboxMode) => void
+  /** 外部 Hook（缺省无）。 */
+  hooks?: PermissionHookPort
 }
 
 export interface PermissionGate {
@@ -89,23 +110,36 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
   const classOf = (name: string) => options.permissionClass?.(name)
   const categoryOf = (name: string) => toolCategory(name, classOf(name))
 
+  /** agent 类的调用是否要求隔离的 worktree（参数 isolation: 'worktree'）。 */
+  const isolationOf = (name: string, args: unknown) =>
+    categoryOf(name) === 'agent' && (args as { isolation?: unknown } | null | undefined)?.isolation === 'worktree'
+
   /** 按调用时的模式与规则判定；等待审批期间模式或规则变更后再次调用。 */
-  const evaluate = async (name: string, subject: string | undefined): Promise<{ decision: PermissionDecision; target?: PermissionTarget }> => {
+  const evaluate = async (
+    name: string,
+    subject: string | undefined,
+    isolation = false,
+  ): Promise<{ decision: PermissionDecision; step: DecisionStep; target?: PermissionTarget }> => {
     const mode = options.mode()
     const root = await realWorkspace()
     const permissionClass = classOf(name)
-    const call: PermissionCall = { toolName: name, ...(permissionClass ? { permissionClass } : {}), ...(subject === undefined ? {} : { subject }) }
+    const call: PermissionCall = {
+      toolName: name,
+      ...(permissionClass ? { permissionClass } : {}),
+      ...(subject === undefined ? {} : { subject }),
+      ...(isolation ? { isolation } : {}),
+    }
     const category = categoryOf(name)
     if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
     const readRoots = await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path)))
-    const decision = decide(call, {
+    const { decision, step } = decideWithStep(call, {
       mode,
       rules: options.rules(),
       workspace: root,
       writableRoots: await writableRootsFor(mode, root),
       ...(readRoots.length > 0 ? { readRoots } : {}),
     })
-    return { decision, ...(call.target ? { target: call.target } : {}) }
+    return { decision, step, ...(call.target ? { target: call.target } : {}) }
   }
 
   const failed = (error: unknown): string => {
@@ -124,6 +158,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     first: Extract<PermissionDecision, { behavior: 'ask' }>,
     signal: AbortSignal | undefined,
     onAllowed: (target: PermissionTarget | undefined) => void,
+    isolation = false,
   ): Promise<string | undefined> => {
     let asked = first
     let latestTarget: PermissionTarget | undefined
@@ -134,7 +169,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
           { toolCallId, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: asked.suggestions },
           signal,
           async (): Promise<ReevaluateVerdict> => {
-            const next = await evaluate(name, subject)
+            const next = await evaluate(name, subject, isolation)
             latestTarget = next.target
             if (next.decision.behavior === 'allow') return { behavior: 'allow' }
             if (next.decision.behavior === 'deny') return { behavior: 'deny', reason: deniedByRule(next.decision.rule) }
@@ -242,7 +277,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const name = context.toolCall.name
       const tool = options.tool(name)
       const subject = subjectOf(name, context.args)
-      const { decision, target } = await evaluate(name, subject)
+      const isolation = isolationOf(name, context.args)
+      const { decision, target } = await evaluate(name, subject, isolation)
       if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
@@ -276,7 +312,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       }
       const review = categoryOf(name) === 'plan-exit' ? planReviewOf(tool) : undefined
       if (review) return reviewPlan(context, review, signal)
-      const reason = await askTool(context.toolCall.id, name, subject, decision, signal, remember)
+      const reason = await askTool(context.toolCall.id, name, subject, decision, signal, remember, isolation)
       return reason === undefined ? undefined : { block: true, reason }
     },
 

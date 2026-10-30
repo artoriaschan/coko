@@ -5,12 +5,18 @@ import type {
   CapabilityConfig,
   CokoTool,
   CommandDefinition,
+  CompactInfo,
+  CompactVerdict,
   PermissionClass,
+  PermissionHookPort,
   PermissionRule,
   RunError,
   RunEntry,
   RunInput,
   RunResult,
+  StandardPermissionMode,
+  StopContinue,
+  StopInfo,
   SystemSection,
   ToolHooks,
 } from '@coko/agent'
@@ -31,7 +37,16 @@ export interface ContextScope {
   cokoHome: string
   /** 当时生效的权限规则（Session、全局、Workspace 与 project；File Reference 与指令文件据此应用 Read 拒绝规则）。省略时没有规则。 */
   permissionRules?(): Promise<PermissionRule[]>
+  /** 子 Session（子代理，ADR 0014）的父 Session。 */
+  parentSessionId?: string
+  /** 子 Session 所用的子代理定义（工具、模式上限与轮次上限）。 */
+  subagent?: { name: string; tools: readonly string[]; permissionMode?: StandardPermissionMode; maxTurns: number }
+  /** Session 创建时绑定的 worktree（ADR 0016）；cwd 为其中的工作目录。 */
+  worktreeId?: string
 }
+
+/** beforeSubmit 的结果：reject 拒绝提交（HTTP 400 hook-blocked，不提交 user message）；context 作为 user message 中单独的文本块。 */
+export type SubmitVerdict = void | { reject: string } | { context: string }
 
 /** 宿主贡献的工具及其权限类（工具自身不能声明，见 RegisterToolOptions.permissionClass）。 */
 export interface ContributedTool {
@@ -76,6 +91,12 @@ export type RunRequest =
   | { trigger: 'retry' }
   | { trigger: 'continue' }
   | { trigger: 'compact'; instructions?: string }
+  /** 定时任务到期（ADR 0015）：输入不经命令展开，pendingInput 照常合并在前。 */
+  | { trigger: 'schedule'; input: RunInput; schedule: { scheduleId: string; occurrence: number } }
+  /** 子 Session 的 Run（ADR 0014）。 */
+  | { trigger: 'subagent'; input: RunInput }
+  /** 交接的摘要 Run：只发一次请求、没有工具（运行时的摘要模式），input 为摘要提示。 */
+  | { trigger: 'handoff'; input: RunInput }
 
 /** 动作执行时 SessionService 提供的能力：该 Session 的已提交条目，与开始一个 Run（与 submit 相同的检查）。 */
 export interface ContextActionSession {
@@ -121,6 +142,7 @@ export interface RunEndInfo {
   runId: string
   trigger: RunRequest['trigger']
   goal?: { goalId: string; round: number }
+  schedule?: { scheduleId: string; occurrence: number }
   result: RunResult
 }
 
@@ -161,6 +183,18 @@ export interface ContextContribution {
   pendingInput?(scope: ContextScope): Promise<PendingInput | undefined>
   /** Run 结束之后（run_end 已提交或提交失败）；Goal 推进与 waiting-input 判定用。 */
   onRunEnd?(scope: ContextScope, info: RunEndInfo): Promise<void>
+  /** M5：外部 Hook 在权限判定中的端口（PreToolUse / PermissionRequest）；至多一个领域给出（Hook）。 */
+  permissionHooks?(scope: ContextScope): PermissionHookPort | undefined
+  /** 观察 hook：排在登记明文替换（secretRedactionHook）之后，收到已脱敏的结果（PostToolUse）。 */
+  observeHooks?(scope: ContextScope): ToolHooks[]
+  /** trigger submit 的输入展开之后、开始 Run 之前；第一个 reject 为准，各领域的 context 依次合并。 */
+  beforeSubmit?(scope: ContextScope, text: string): Promise<SubmitVerdict>
+  /** 手动与自动压缩之前（运行时的 beforeCompact）；第一个 block 为准，instructions 依次合并。 */
+  beforeCompact?(scope: ContextScope, info: CompactInfo): Promise<void | CompactVerdict>
+  /** 对话 Run 正常结束之前（运行时的 onStop，每 Run 至多继续 3 次）；第一个 continue 为准。 */
+  onStop?(scope: ContextScope, info: StopInfo): Promise<void | StopContinue>
+  /** 每个 Run 开始时过滤可用工具（名字列表，基础工具与贡献的工具；子代理的工具交集）；按领域顺序依次过滤。 */
+  filterTools?(tools: readonly string[], scope: ContextScope): readonly string[]
   /** 有序关闭时调用（存储关闭之前）。 */
   close?(): Promise<void>
 }

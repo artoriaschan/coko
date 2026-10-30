@@ -24,6 +24,8 @@ lifecycle: active
 
 Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始监听之前运行一次启动扫描，因此第一个请求看到的已是恢复后的状态。正常关闭（`shutdown` 消息、IPC 断开、SIGTERM、SIGINT）会中断 Run 并等它提交 `run_end { status: 'aborted' }`，这些 Run 不进入恢复。只有进程在 Run 进行中退出（崩溃、SIGKILL、断电）时才留下没有 `run_end` 的 Run。
 
+Session 恢复之后按顺序调用领域的恢复钩子：子代理（为没有 `agent_end` 的子代理补记 interrupted）、worktree（把路径已不存在的 active worktree 标为 removed）、后台任务（补记 `job_end lost`）、Goal（暂停未结束的 Goal）。子代理与 worktree 的钩子目前是空实现（功能尚未交付）。
+
 扫描对每个这样的 Run 调用 `planRecovery`，把结果在一个事务内提交，并记 warn `interrupted run recovered { sessionId, runId, entries, confirmations }`。单个 Session 失败记 error `run recovery failed`，不阻止启动；该 Session 在恢复成功之前，`POST …/messages`、`…/retry`、`…/continue`、`…/rewind`、`…/fork` 返回 409 `recovery-failed`（未配对的调用会破坏模型请求，补齐的条目也会排在新 Run 之后），activity 显示 interrupted，界面提示"未能恢复这个会话"；每次这些操作先重试恢复，成功后照常处理；查询本身失败时按 `recovery-failed` fatal。扫描结束后，从每个 Session 最后一条 `run_end` 建立 activity，未打开过的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
 
 ## 判定分类
@@ -77,7 +79,7 @@ Sidecar 装配时，在 SQLite 存储打开（含迁移）之后、HTTP 开始�
 
 - `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到当前版本、v2 库迁移到 3（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
 - `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
-- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（7）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
+- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（8）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
 - `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
 - `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
 - 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。

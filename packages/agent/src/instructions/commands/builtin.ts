@@ -10,4 +10,10 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     argumentHint: '[objective | pause | resume | cancel | complete]',
     action: 'goal',
   },
+  {
+    name: 'handoff',
+    description: 'Hand off to a new session with a summary as its draft',
+    argumentHint: '<next goal>',
+    action: 'handoff',
+  },
 ]

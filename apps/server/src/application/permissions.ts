@@ -1,4 +1,4 @@
-import { canonicalRuleTool, ruleToolName, type PermissionClass, type PermissionRule, type ProjectRuleTexts } from '@coko/agent'
+import { canonicalRuleTool, ruleToolName, type PermissionClass, type PermissionMode, type PermissionRule, type ProjectRuleTexts } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import {
   parsePermissionRule,
@@ -25,6 +25,16 @@ interface Stored<T> {
 const sameRule = (a: PermissionRule, b: PermissionRule) => a.behavior === b.behavior && a.tool === b.tool && a.content === b.content
 
 /** 不重复地追加规则。 */
+/** 模式的宽窄序：read-only < default < accept-edits < full-access；plan 按 read-only 计（ADR 0014）。 */
+const MODE_ORDER: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
+const rank = (mode: PermissionMode) => MODE_ORDER.indexOf(mode === 'plan' ? 'read-only' : mode)
+
+/** 模式与上限中较窄者；没有上限时原样（plan 不被上限改成其他模式，除非上限更窄）。 */
+export function capMode(mode: PermissionMode, cap: StandardPermissionMode | undefined): PermissionMode {
+  if (cap === undefined) return mode
+  return rank(cap) < rank(mode) ? cap : mode
+}
+
 export function withRules(rules: readonly PermissionRule[], added: readonly PermissionRule[]): PermissionRule[] {
   const next = [...rules]
   for (const rule of added) if (!next.some((r) => sameRule(r, rule))) next.push(rule)

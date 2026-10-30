@@ -20,6 +20,19 @@ const STATUS: Record<ErrorCode, number> = {
   'revision-conflict': 409,
   'invalid-transition': 409,
   'job-not-running': 409,
+  'hook-blocked': 400,
+  'child-session': 409,
+  'agent-not-running': 409,
+  'schedule-not-allowed': 409,
+  'not-a-git-repo': 400,
+  'invalid-name': 400,
+  'unsafe-worktree-path': 400,
+  'worktree-exists': 409,
+  'worktree-busy': 409,
+  'worktree-dirty': 409,
+  'worktree-removed': 409,
+  'nothing-to-hand-off': 400,
+  'digest-mismatch': 409,
   'storage-unavailable': 503,
   internal: 500,
 }
@@ -50,6 +63,8 @@ export function toAppError(error: unknown): AppError {
   if (isStoreError(error)) {
     if (error.code === 'not-found') return new AppError('not-found', error.message)
     if (error.code === 'revision-conflict') return new AppError('revision-conflict', error.message, { ...error.details })
+    // 调用方给出的引用不一致（例如父 Session 属于其他 Workspace）。
+    if (error.code === 'invalid-input') return new AppError('bad-request', error.message)
     if (error.fatal || error.code === 'closed') return new AppError('storage-unavailable', error.message, { storeCode: error.code })
   }
   return new AppError('internal', 'Internal error')

@@ -88,6 +88,9 @@ describe('能力配置默认值', () => {
       mcp: { enabled: true },
       memory: { enabled: true },
       context: { autoCompact: true, trimOldToolResults: true },
+      hooks: { enabled: true },
+      agents: { enabled: true },
+      schedules: { enabled: true },
     })
     a.skills.disabled.push('x')
     expect(defaultCapabilityConfig().skills.disabled).toEqual([])

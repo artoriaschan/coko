@@ -3,7 +3,7 @@ import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing
 import { createTempWorkspace } from '../testing/workspace.ts'
 import { createAgentRuntime } from '../engine/runtime.ts'
 import type { RunEntry } from '../engine/types.ts'
-import { SESSION_ENTRY_PAYLOADS } from './index.ts'
+import { SESSION_ENTRY_PAYLOADS, type EntryJson } from './index.ts'
 
 const definition = (kind: string) => {
   const found = SESSION_ENTRY_PAYLOADS.find((d) => d.kind === kind)
@@ -13,7 +13,7 @@ const definition = (kind: string) => {
 const check = (kind: string, payload: unknown) => definition(kind).versions.at(-1)!.check(payload)
 
 describe('Session Entry payload 定义', () => {
-  it('预先定义规格表中全部 M2、M3 与 M4 kind，每个 kind 只出现一次', () => {
+  it('预先定义规格表中全部 M2–M5 kind，每个 kind 只出现一次', () => {
     expect(SESSION_ENTRY_PAYLOADS.map((d) => d.kind).toSorted()).toEqual(
       [
         'run_start',
@@ -38,6 +38,14 @@ describe('Session Entry payload 定义', () => {
         'job_start',
         'job_end',
         'job_notification',
+        'hook_run',
+        'agent_start',
+        'agent_end',
+        'agent_notification',
+        'subagent_origin',
+        'schedule_fire',
+        'handoff',
+        'handoff_origin',
       ].toSorted(),
     )
   })
@@ -71,7 +79,6 @@ describe('Session Entry payload 定义', () => {
 
   it('run_start v1 条目迁移为 v2（原样）；v2 接受 trigger goal 与 goal', () => {
     const versions = definition('run_start').versions
-    expect(versions).toHaveLength(2)
     for (const trigger of ['submit', 'retry', 'continue', 'compact']) {
       expect(versions[0]!.check({ trigger })).toBeUndefined()
       const migrated = versions[1]!.migrate!({ trigger })
@@ -81,6 +88,108 @@ describe('Session Entry payload 定义', () => {
     expect(versions[0]!.check({ trigger: 'goal' })).toEqual(expect.any(String))
     expect(check('run_start', { trigger: 'goal', goal: { goalId: 'g1', round: 2 } })).toBeUndefined()
     expect(check('run_start', { trigger: 'goal', goal: { goalId: 'g1', round: 0 } })).toEqual(expect.any(String))
+  })
+
+  it('run_start v2 条目迁移为 v3（原样）；v3 接受 schedule / subagent / handoff 与 schedule 字段，v2 不接受', () => {
+    const versions = definition('run_start').versions
+    expect(versions).toHaveLength(3)
+    for (const payload of [{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'g1', round: 2 } }] as EntryJson[]) {
+      expect(versions[1]!.check(payload)).toBeUndefined()
+      const migrated = versions[2]!.migrate!(payload)
+      expect(migrated).toEqual(payload)
+      expect(versions[2]!.check(migrated)).toBeUndefined()
+    }
+    for (const trigger of ['schedule', 'subagent', 'handoff']) {
+      expect(versions[1]!.check({ trigger })).toEqual(expect.any(String))
+      expect(check('run_start', { trigger })).toBeUndefined()
+    }
+    expect(check('run_start', { trigger: 'schedule', schedule: { scheduleId: 'sc1', occurrence: 1000 } })).toBeUndefined()
+    expect(check('run_start', { trigger: 'schedule', schedule: { scheduleId: '', occurrence: 1000 } })).toEqual(expect.any(String))
+  })
+
+  it('approval_decision v1 条目迁移为 v2（原样）；v2 接受 by user / hook', () => {
+    const versions = definition('approval_decision').versions
+    expect(versions).toHaveLength(2)
+    const v1 = { requestId: 'q', outcome: 'allowed', scope: 'session' }
+    expect(versions[0]!.check(v1)).toBeUndefined()
+    expect(versions[0]!.check({ ...v1, by: 'hook' })).toEqual(expect.any(String))
+    expect(versions[1]!.migrate!(v1)).toEqual(v1)
+    expect(check('approval_decision', v1)).toBeUndefined()
+    expect(check('approval_decision', { ...v1, by: 'hook' })).toBeUndefined()
+    expect(check('approval_decision', { ...v1, by: 'script' })).toEqual(expect.any(String))
+  })
+
+  it.each([
+    [
+      'hook_run',
+      {
+        event: 'PreToolUse',
+        hookId: 'global:PreToolUse:0:0',
+        source: 'global',
+        command: 'check.sh',
+        outcome: 'blocked',
+        exitCode: 2,
+        durationMs: 12,
+        message: 'no',
+      },
+    ],
+    [
+      'agent_start',
+      {
+        agentId: 's2',
+        agentType: 'explore',
+        description: 'find',
+        background: true,
+        toolCallId: 't',
+        goalId: 'g1',
+        isolation: { worktreeId: 'w', path: '/r/.coko-worktrees/a', branch: 'coko/a' },
+      },
+    ],
+    [
+      'agent_end',
+      {
+        agentId: 's2',
+        status: 'max-turns',
+        usage: { turns: 3, toolCalls: 4, tokens: 100, cost: 0.1, durationMs: 50 },
+        resultChars: 10,
+        worktree: { kept: true, path: '/p', branch: 'coko/a' },
+      },
+    ],
+    ['agent_notification', { agentIds: ['s2'] }],
+    [
+      'subagent_origin',
+      {
+        parentSessionId: 's1',
+        parentRunId: 'r1',
+        toolCallId: 't',
+        definition: { name: 'explore', source: 'builtin', tools: ['read'], permissionMode: 'read-only', maxTurns: 50 },
+      },
+    ],
+    ['schedule_fire', { scheduleId: 'sc1', occurrence: 1000, status: 'skipped', reason: 'budget', missed: 3 }],
+    ['handoff', { targetSessionId: 's3', instructions: 'next', summary: '## Task', target: 'worktree' }],
+    ['handoff_origin', { sessionId: 's1', seq: 9 }],
+  ])('M5 kind %s 的示例 payload 合格，多余字段被拒绝', (kind, payload) => {
+    expect(check(kind as string, payload)).toBeUndefined()
+    expect(check(kind as string, { ...(payload as object), extra: 1 })).toEqual(expect.any(String))
+  })
+
+  it('M5 kind 越界的取值被拒绝', () => {
+    expect(check('hook_run', { event: 'SessionStart', hookId: 'h', source: 'global', command: 'c', outcome: 'blocked', durationMs: 0 })).toEqual(
+      expect.any(String),
+    )
+    expect(
+      check('hook_run', { event: 'Stop', hookId: 'h', source: 'global', command: 'c', outcome: 'context', durationMs: 0, message: 'x'.repeat(2049) }),
+    ).toEqual(expect.any(String))
+    expect(check('agent_notification', { agentIds: [] })).toEqual(expect.any(String))
+    expect(check('schedule_fire', { scheduleId: 's', occurrence: 1, status: 'skipped', reason: 'sleeping' })).toEqual(expect.any(String))
+    expect(
+      check('subagent_origin', {
+        parentSessionId: 'p',
+        parentRunId: 'r',
+        toolCallId: 't',
+        definition: { name: 'x', source: 'builtin', tools: [], permissionMode: 'plan', maxTurns: 1 },
+      }),
+    ).toEqual(expect.any(String))
   })
 
   it('M4 kind 的示例 payload 合格，越界的取值被拒绝', () => {

@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox'
 import { SessionEntryRecord } from './entries.ts'
 import { SessionActivity } from './runs.ts'
+import { SessionWorktree } from './worktrees.ts'
 
 // HTTP 请求与响应 DTO。时间戳为毫秒；id 为不透明字符串。
 
@@ -62,6 +63,10 @@ export const Session = Type.Object(
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
     activity: SessionActivity,
+    /** 子 Session（子代理）的父 Session；子 Session 不在 GET /api/sessions 的列表中。 */
+    parentSessionId: Type.Optional(Id),
+    /** 创建时绑定的 worktree（ADR 0016）；工作目录在 Session 的生命周期内不变。 */
+    worktree: Type.Optional(SessionWorktree),
     createdAt: Timestamp,
     updatedAt: Timestamp,
   },
@@ -73,7 +78,14 @@ export type Session = Static<typeof Session>
  * 未给 model 时使用默认模型（设置 defaultModel，否则第一个可用模型）。thinkingLevel 缺省为 off；所用模型不能选该档位时 400。
  */
 export const CreateSessionRequest = Type.Object(
-  { workspaceId: Id, title: Type.Optional(Type.String()), model: Type.Optional(SessionModel), thinkingLevel: Type.Optional(ThinkingLevel) },
+  {
+    workspaceId: Id,
+    title: Type.Optional(Type.String()),
+    model: Type.Optional(SessionModel),
+    thinkingLevel: Type.Optional(ThinkingLevel),
+    /** 绑定该 Workspace 的 active worktree（ADR 0016）。 */
+    worktreeId: Type.Optional(Id),
+  },
   strict,
 )
 export type CreateSessionRequest = Static<typeof CreateSessionRequest>

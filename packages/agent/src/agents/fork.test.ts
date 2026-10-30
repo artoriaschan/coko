@@ -1,4 +1,4 @@
-// 分叉复制的条目种类：M4 的 Goal、Todo、计划与后台任务状态不随分叉复制（它们属于原 Session）。
+// 分叉复制的条目种类：M4 的 Goal、Todo、计划与后台任务状态，M5 的 Hook、子代理、定时任务与 Handoff 记录不随分叉复制（它们属于原 Session）。
 import { describe, expect, it } from 'vitest'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 import { forkEntries } from './fork.ts'
@@ -17,8 +17,60 @@ const M4_KINDS: [string, unknown][] = [
   ['job_notification', { jobIds: ['j1'] }],
 ]
 
-describe('forkEntries 不复制 M4 条目', () => {
-  it.each(M4_KINDS)('%s 不出现在分叉后的条目中；消息与权限条目照常复制', (kind, payload) => {
+/** M5 的条目（Hook、子代理、定时任务、Handoff）属于原 Session，分叉不复制。 */
+const M5_KINDS: [string, unknown][] = [
+  [
+    'hook_run',
+    {
+      event: 'PreToolUse',
+      hookId: 'global:PreToolUse:0:0',
+      source: 'global',
+      command: 'check.sh',
+      outcome: 'blocked',
+      exitCode: 2,
+      durationMs: 12,
+      message: 'no',
+    },
+  ],
+  [
+    'agent_start',
+    {
+      agentId: 's2',
+      agentType: 'explore',
+      description: 'find',
+      background: true,
+      toolCallId: 't',
+      goalId: 'g1',
+      isolation: { worktreeId: 'w', path: '/r/.coko-worktrees/a', branch: 'coko/a' },
+    },
+  ],
+  [
+    'agent_end',
+    {
+      agentId: 's2',
+      status: 'max-turns',
+      usage: { turns: 3, toolCalls: 4, tokens: 100, cost: 0.1, durationMs: 50 },
+      resultChars: 10,
+      worktree: { kept: true, path: '/p', branch: 'coko/a' },
+    },
+  ],
+  ['agent_notification', { agentIds: ['s2'] }],
+  [
+    'subagent_origin',
+    {
+      parentSessionId: 's1',
+      parentRunId: 'r1',
+      toolCallId: 't',
+      definition: { name: 'explore', source: 'builtin', tools: ['read'], permissionMode: 'read-only', maxTurns: 50 },
+    },
+  ],
+  ['schedule_fire', { scheduleId: 'sc1', occurrence: 1000, status: 'skipped', reason: 'budget', missed: 3 }],
+  ['handoff', { targetSessionId: 's3', instructions: 'next', summary: '## Task', target: 'worktree' }],
+  ['handoff_origin', { sessionId: 's1', seq: 9 }],
+]
+
+describe('forkEntries 不复制 M4 与 M5 条目', () => {
+  it.each([...M4_KINDS, ...M5_KINDS])('%s 不出现在分叉后的条目中；消息与权限条目照常复制', (kind, payload) => {
     seq = 0
     const entries = [entry('permission_mode', { mode: 'default' }, null), user('one'), entry(kind, payload), user('two')]
     const forked = forkEntries(entries, 's', 4)

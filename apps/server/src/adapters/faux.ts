@@ -19,7 +19,8 @@ import type { SessionModel } from '@coko/protocol'
 
 /**
  * 测试用 faux provider 的脚本（COKO_FAUX_SCRIPT 指向的 JSON 文件）。responses 按模型调用顺序依次消费，
- * 所有 Session 共用一个队列。
+ * 所有 Session 共用一个队列；带 match 的回复只在请求的最后一条 user message 或系统提示含该子串时取用（并行的 Session 各取自己的回复），
+ * 其余按顺序。
  *
  * { "tokensPerSecond": 200, "contextWindow": 40000, "responses": [{ "content": [{ "type": "toolCall", "name": "write", "arguments": {...} }] }, { "content": "done" }] }
  */
@@ -48,6 +49,8 @@ export interface FauxScriptResponse {
    * 这条回复的 usage（替换 faux 按字符估算的值）；省略的字段为 0，totalTokens 为四项之和。用量、预算与费用测试用。
    */
   usage?: FauxScriptUsage
+  /** 只在最后一条 user message 或系统提示含该子串时取用；没有 match 的回复按顺序取用。 */
+  match?: string
 }
 
 export interface FauxScriptUsage {
@@ -152,6 +155,39 @@ function withLastJobId(response: FauxScriptResponse, jobId: string | undefined):
   return JSON.parse(JSON.stringify(response).replaceAll(LAST_JOB_ID, jobId)) as FauxScriptResponse
 }
 
+const blockText = (content: unknown): string =>
+  typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? (content as { type?: string; text?: string }[]).map((block) => (block.type === 'text' ? (block.text ?? '') : '')).join('\n')
+      : ''
+
+/** 请求中 match 比对的文本：最后一条 user message 与系统提示（含 sections）。 */
+function matchTexts(context: { systemPrompt?: string; messages: readonly unknown[] }): string[] {
+  const messages = context.messages as { role?: string; content?: unknown; sections?: Record<string, string> }[]
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+  const system = messages.filter((m) => m.role === 'system').map((m) => [blockText(m.content), ...Object.values(m.sections ?? {})].join('\n'))
+  return [lastUser ? blockText(lastUser.content) : '', context.systemPrompt ?? '', ...system]
+}
+
+/**
+ * 选出本次请求的回复：第一条未用且 match 命中的回复，否则第一条未用且没有 match 的回复。都没有时 undefined（faux 以脚本耗尽报错）。
+ */
+export function pickResponse(
+  responses: readonly FauxScriptResponse[],
+  used: boolean[],
+  context: { systemPrompt?: string; messages: readonly unknown[] },
+): number | undefined {
+  const texts = matchTexts(context)
+  const matched = responses.findIndex((r, i) => !used[i] && r.match !== undefined && texts.some((t) => t.includes(r.match!)))
+  const index = matched >= 0 ? matched : responses.findIndex((r, i) => !used[i] && r.match === undefined)
+  if (index < 0) return undefined
+  used[index] = true
+  return index
+}
+
+const stripMatch = ({ match: _match, ...response }: FauxScriptResponse): FauxScriptResponse => response
+
 /** 读取脚本并把 faux provider 注册进 registry；返回其模型，作为没有默认设置时的 Session 模型。 */
 export async function installFauxProvider(registry: ModelRegistry, path: string): Promise<SessionModel> {
   const script = JSON.parse(await readFile(path, 'utf8')) as FauxScript
@@ -183,18 +219,32 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),
   })
   const log = script.requestLog
-  core.setResponses(
-    script.responses.map((response) => {
-      const placeholder = JSON.stringify(response).includes(LAST_JOB_ID)
-      const step = toStep(response)
-      if (!log && !placeholder) return step
-      return async (context) => {
+  const scripted = script.responses
+  if (scripted.some((response) => response.match !== undefined)) {
+    // 带 match 的脚本：每次请求按上下文选回复（调用次数仍为回复数）。
+    const used = scripted.map(() => false)
+    core.setResponses(
+      scripted.map(() => async (context) => {
         if (log) await appendFile(log, JSON.stringify(context.messages) + '\n')
-        const resolved = placeholder ? toStep(withLastJobId(response, lastJobId(context.messages))) : step
-        return resolved as Exclude<FauxResponseStep, (...args: never[]) => unknown>
-      }
-    }),
-  )
+        const index = pickResponse(scripted, used, context)
+        if (index === undefined) return fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Faux script has no response for this request' })
+        const response = stripMatch(scripted[index]!)
+        return toStep(withLastJobId(response, lastJobId(context.messages))) as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+      }),
+    )
+  } else
+    core.setResponses(
+      scripted.map((response) => {
+        const placeholder = JSON.stringify(response).includes(LAST_JOB_ID)
+        const step = toStep(response)
+        if (!log && !placeholder) return step
+        return async (context) => {
+          if (log) await appendFile(log, JSON.stringify(context.messages) + '\n')
+          const resolved = placeholder ? toStep(withLastJobId(response, lastJobId(context.messages))) : step
+          return resolved as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+        }
+      }),
+    )
   registry.models.setProvider(
     createProvider({
       id: core.provider,

@@ -131,7 +131,8 @@ describe('M4 装配接入点', () => {
       .map((line) => JSON.parse(line) as { message: string; properties: { step?: string } })
       .filter((r) => r.message.startsWith('shutdown step'))
       .map((r) => r.properties.step)
-    expect(steps).toEqual(['jobs', 'contributions', 'processes', 'storage'])
+    // M4 的四步保持相对顺序；M5 在前面加了定时器与 Run（全部顺序见 sidecar-m5-seams.test.ts）。
+    expect(steps.filter((step) => ['jobs', 'contributions', 'processes', 'storage'].includes(step!))).toEqual(['jobs', 'contributions', 'processes', 'storage'])
   })
 
   it('faux 脚本的 usage 原样出现在 assistant 条目中；省略时为估算值', async () => {

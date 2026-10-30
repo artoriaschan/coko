@@ -44,6 +44,23 @@ describe('mergeCapabilityConfig', () => {
     expect(parsed.diagnostics.map((d) => d.code)).toEqual(['project-cannot-grant', 'project-cannot-grant'])
   })
 
+  it('M5 开关缺省开启；项目文件中 agents / schedules 只有 false 生效，hooks.enabled 不论取值都以 project-cannot-grant 忽略', () => {
+    expect(defaultCapabilityConfig()).toMatchObject({ hooks: { enabled: true }, agents: { enabled: true }, schedules: { enabled: true } })
+    const off = project({ hooks: { enabled: false, PreToolUse: [] }, agents: { enabled: false }, schedules: { enabled: false } })
+    expect(off.values).toEqual({ agents: { enabled: false }, schedules: { enabled: false } })
+    expect(off.diagnostics.map((d) => [d.code, d.message])).toEqual([
+      ['project-cannot-grant', 'hooks.enabled is ignored: this capability can only be switched in global settings'],
+    ])
+    const merged = mergeCapabilityConfig({}, { ...off.values, hooks: { enabled: false } } as ProjectCapabilityValues)
+    expect([merged.hooks.enabled, merged.agents.enabled, merged.schedules.enabled]).toEqual([true, false, false])
+    expect(mergeCapabilityConfig({ hooks: { enabled: false } }).hooks.enabled).toBe(false)
+    const on = project({ agents: { enabled: true }, schedules: { enabled: true } })
+    expect(on.values).toEqual({})
+    expect(on.diagnostics.map((d) => d.code)).toEqual(['project-cannot-grant', 'project-cannot-grant'])
+    // 项目 Hook 的配置（事件键）不产生能力配置的诊断：它由 Hook 的加载解析。
+    expect(project({ hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'x' }] }] } }).diagnostics).toEqual([])
+  })
+
   it('每次返回新对象，不改输入与默认值', () => {
     const global = { skills: { disabled: ['a'] } }
     const merged = mergeCapabilityConfig(global, { skills: { disabled: ['b'] } })

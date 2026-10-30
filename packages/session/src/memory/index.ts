@@ -4,11 +4,15 @@ import {
   alreadyExists,
   checkHostProcess,
   checkMemoryScope,
+  checkScheduleStatus,
+  checkWorktreeCreator,
   closedError,
   defaultWorkspaceName,
   levelOf,
   notFound,
+  recordRevisionConflict,
   revisionConflict,
+  sameWorkspace,
   upgradeEntries,
 } from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
@@ -20,14 +24,22 @@ import type {
   Memory,
   MemoryInput,
   MemoryScope,
+  NewSchedule,
+  NewSession,
+  NewSessionEntry,
+  NewWorktree,
   Provider,
   ProviderInput,
+  ScheduleFire,
+  SchedulePatch,
+  ScheduleRecord,
   SecretInfo,
   Session,
   SessionEntry,
   SessionStore,
   Setting,
   SessionModelChoice,
+  WorktreeRecord,
   SettingRewrite,
   StoreOptions,
   Workspace,
@@ -51,6 +63,9 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   const secrets = new Map<string, SecretInfo & { ciphertext: Uint8Array }>()
   /** 插入顺序即登记顺序。 */
   const processes = new Map<string, HostProcess>()
+  /** 插入顺序即创建顺序。 */
+  const worktrees = new Map<string, WorktreeRecord>()
+  const schedules = new Map<string, ScheduleRecord>()
 
   // 读写都复制，调用方修改返回值不影响已提交的状态。
   const copy = <T>(value: T): T => structuredClone(value)
@@ -66,6 +81,36 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
     const session = sessions.get(id)
     if (!session) throw notFound('session', id)
     return session
+  }
+  const requireSchedule = (id: string): ScheduleRecord => {
+    const schedule = schedules.get(id)
+    if (!schedule) throw notFound('schedule', id)
+    return schedule
+  }
+  /** 校验并生成待追加的条目，不修改状态（与 SQLite 的事务一致：先完成全部检查再写入）。 */
+  const prepareEntries = (sessionId: string, input: readonly NewSessionEntry[]) => {
+    const session = requireSession(sessionId)
+    const versions = input.length === 0 ? [] : checkNewEntries(options.payloads, input)
+    const list = entries.get(sessionId) ?? []
+    const at = now()
+    const added = input.map((entry, i): SessionEntry => ({
+      sessionId,
+      seq: list.length + i + 1,
+      kind: entry.kind,
+      payloadVersion: versions[i]!,
+      payload: copy(entry.payload),
+      runId: entry.runId ?? null,
+      createdAt: at,
+    }))
+    return {
+      added,
+      commit: () => {
+        if (added.length === 0) return
+        list.push(...added)
+        entries.set(sessionId, list)
+        session.updatedAt = at
+      },
+    }
   }
   const requireProvider = (id: string): ProviderRow => {
     const row = providers.get(id)
@@ -89,8 +134,16 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
-      createSession: op((input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>) => {
+      createSession: op((input: NewSession) => {
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
+        const parentSessionId = input.parentSessionId ?? null
+        const worktreeId = input.worktreeId ?? null
+        if (parentSessionId !== null) sameWorkspace('parentSessionId', requireSession(parentSessionId).workspaceId, input.workspaceId)
+        if (worktreeId !== null) {
+          const worktree = worktrees.get(worktreeId)
+          if (!worktree) throw notFound('worktree', worktreeId)
+          sameWorkspace('worktreeId', worktree.workspaceId, input.workspaceId)
+        }
         const at = now()
         const session: Session = {
           id: randomUUID(),
@@ -99,6 +152,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           model: input.model ?? null,
           thinkingLevel: levelOf(input),
           modelCleared: false,
+          parentSessionId,
+          worktreeId,
           createdAt: at,
           updatedAt: at,
         }
@@ -109,32 +164,19 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       listSessions: op((filter?: { workspaceId?: string }) =>
         [...sessions.values()]
           .map((session, index) => ({ session, index }))
-          .filter(({ session }) => filter?.workspaceId === undefined || session.workspaceId === filter.workspaceId)
+          .filter(({ session }) => session.parentSessionId === null && (filter?.workspaceId === undefined || session.workspaceId === filter.workspaceId))
           .sort((a, b) => b.session.updatedAt - a.session.updatedAt || b.index - a.index)
           .map(({ session }) => session),
       ),
+      listChildren: op((parentSessionId: string) => [...sessions.values()].filter((session) => session.parentSessionId === parentSessionId)),
       getSession: op((id: string) => sessions.get(id)),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
       setSessionModel: op((id: string, choice: SessionModelChoice) =>
         touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),
       ),
-      appendEntries: op((sessionId: string, input: readonly { kind: string; payloadVersion?: number; payload: JsonValue; runId?: string }[]) => {
-        const session = requireSession(sessionId)
-        if (input.length === 0) return []
-        const versions = checkNewEntries(options.payloads, input)
-        const list = entries.get(sessionId) ?? []
-        const at = now()
-        const added = input.map((entry, i): SessionEntry => ({
-          sessionId,
-          seq: list.length + i + 1,
-          kind: entry.kind,
-          payloadVersion: versions[i]!,
-          payload: copy(entry.payload),
-          runId: entry.runId ?? null,
-          createdAt: at,
-        }))
-        list.push(...added)
-        session.updatedAt = at
+      appendEntries: op((sessionId: string, input: readonly NewSessionEntry[]) => {
+        const { added, commit } = prepareEntries(sessionId, input)
+        commit()
         return added
       }),
       listEntries: op((sessionId: string, range?: { afterSeq?: number; limit?: number }) => {
@@ -282,6 +324,82 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         processes.delete(id)
       }),
       list: op(() => [...processes.values()].sort((a, b) => a.createdAt - b.createdAt)),
+    },
+    worktrees: {
+      create: op((input: NewWorktree) => {
+        if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
+        checkWorktreeCreator(input.createdBy)
+        for (const existing of worktrees.values()) if (existing.path === input.path) throw alreadyExists('worktree', input.path)
+        const worktree: WorktreeRecord = { id: randomUUID(), ...copy(input), status: 'active', createdAt: now(), removedAt: null }
+        worktrees.set(worktree.id, worktree)
+        return worktree
+      }),
+      get: op((id: string) => worktrees.get(id)),
+      list: op((workspaceId: string) => [...worktrees.values()].filter((w) => w.workspaceId === workspaceId)),
+      markRemoved: op((id: string) => {
+        const worktree = worktrees.get(id)
+        if (!worktree) throw notFound('worktree', id)
+        if (worktree.status !== 'removed') Object.assign(worktree, { status: 'removed', removedAt: now() })
+        return worktree
+      }),
+    },
+    schedules: {
+      create: op((input: NewSchedule) => {
+        requireSession(input.sessionId)
+        const status = input.status ?? 'active'
+        checkScheduleStatus(status)
+        const at = now()
+        const schedule: ScheduleRecord = {
+          id: randomUUID(),
+          sessionId: input.sessionId,
+          title: input.title,
+          prompt: input.prompt,
+          rule: copy(input.rule),
+          status,
+          nextAt: input.nextAt,
+          lastOccurrence: null,
+          revision: 1,
+          createdAt: at,
+          updatedAt: at,
+        }
+        schedules.set(schedule.id, schedule)
+        return schedule
+      }),
+      update: op((id: string, revision: number, patch: SchedulePatch) => {
+        const schedule = requireSchedule(id)
+        if (schedule.revision !== revision) throw recordRevisionConflict('schedule', id, revision, schedule.revision)
+        if (patch.status !== undefined) checkScheduleStatus(patch.status)
+        const defined = Object.fromEntries(Object.entries(copy(patch)).filter(([, value]) => value !== undefined))
+        Object.assign(schedule, defined, { revision: schedule.revision + 1, updatedAt: now() })
+        return schedule
+      }),
+      delete: op((id: string) => {
+        if (!schedules.delete(id)) throw notFound('schedule', id)
+      }),
+      list: op((filter: { sessionId?: string } = {}) =>
+        [...schedules.values()].filter((s) => filter.sessionId === undefined || s.sessionId === filter.sessionId),
+      ),
+      due: op((at: number) =>
+        [...schedules.values()]
+          .map((schedule, index) => ({ schedule, index }))
+          .filter(({ schedule }) => schedule.status === 'active' && schedule.nextAt !== null && schedule.nextAt <= at)
+          .sort((a, b) => a.schedule.nextAt! - b.schedule.nextAt! || a.index - b.index)
+          .map(({ schedule }) => schedule),
+      ),
+      recordFire: op((id: string, fire: ScheduleFire, entry: NewSessionEntry) => {
+        const schedule = requireSchedule(id)
+        if (fire.status !== undefined) checkScheduleStatus(fire.status)
+        // 先完成全部检查（条目校验可能抛出），再同时修改任务与条目。
+        const { added, commit } = prepareEntries(schedule.sessionId, [entry])
+        commit()
+        Object.assign(schedule, {
+          lastOccurrence: fire.occurrence,
+          nextAt: fire.nextAt,
+          ...(fire.status !== undefined ? { status: fire.status } : {}),
+          updatedAt: now(),
+        })
+        return { schedule, entry: added[0]! }
+      }),
     },
     async close() {
       closed = true

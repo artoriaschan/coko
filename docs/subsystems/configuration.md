@@ -28,10 +28,14 @@ lifecycle: active
 | --- | --- | --- |
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
+| `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
+| `hooks.enabled`（M5） | true | 只能在全局设置：项目文件中的 `hooks.enabled` 不论取值都以 `project-cannot-grant` 忽略；项目文件的 `hooks` 键是项目 Hook 的配置，由 Hook 的加载解析（能力配置不对其中的事件键报诊断） |
 | `skills.disabled` | [] | 追加（与全局取并集） |
 | `commands.disabled` | [] | 不接受（`unknown-key`） |
 | `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
 | `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
+
+M5 的三个开关目前只进入有效配置，还没有读取它们的功能（Hook、子代理、定时任务尚未交付），设置界面也还没有对应的开关。
 
 有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
 

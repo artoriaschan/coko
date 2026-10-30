@@ -518,3 +518,24 @@ export async function waitApproval(stream: Stream, sessionId: string, n = 1): Pr
   await stream.waitFor(() => requests().length >= n)
   return requests()[n - 1]!.payload as ApprovalRequestEntry
 }
+
+/** 测试时钟（Sidecar 以 COKO_TEST_CLOCK=1 启动）：拨快 ms 毫秒，返回 Sidecar 的当前时刻。到期的计时器在返回前触发。 */
+export async function advanceClock(api: ReturnType<typeof client>, ms: number): Promise<number> {
+  const response = await api.post('/api/test/clock', { advanceMs: ms })
+  if (response.status !== 200) throw new Error(`advanceClock failed: ${response.status} ${JSON.stringify(response.body)}`)
+  return (response.body as { now: number }).now
+}
+
+/** 测试时钟：设定为某一时刻（不能早于当前）。 */
+export async function setClock(api: ReturnType<typeof client>, at: number): Promise<number> {
+  const response = await api.post('/api/test/clock', { setMs: at })
+  if (response.status !== 200) throw new Error(`setClock failed: ${response.status} ${JSON.stringify(response.body)}`)
+  return (response.body as { now: number }).now
+}
+
+/** Sidecar 发给 main 的 notify 控制消息（桌面通知；main 是否显示见 desktop E2E 的 notificationsShown）。 */
+export const notifyMessages = (sidecar: Pick<SidecarProcess, 'messages'>) => sidecar.messages.filter((m) => m.type === 'notify')
+
+/** Hook 测试夹具（tests/fixtures/hooks/hook.mjs）的绝对路径与命令拼装（node 取当前进程的可执行文件）。 */
+export const hookFixturePath = fileURLToPath(new URL('../fixtures/hooks/hook.mjs', import.meta.url))
+export const hookCommand = (...args: string[]) => [process.execPath, hookFixturePath, ...args].map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ')

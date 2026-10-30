@@ -34,6 +34,32 @@ export const ErrorCode = Type.Union([
   Type.Literal('invalid-transition'),
   /** 后台任务已经结束，不能停止。 */
   Type.Literal('job-not-running'),
+  /** Hook 阻止了提交或手动压缩（details.reason ≤ 2 KB）。 */
+  Type.Literal('hook-blocked'),
+  /** 子 Session 不接受用户提交或交接。 */
+  Type.Literal('child-session'),
+  /** 子代理已经结束，不能停止。 */
+  Type.Literal('agent-not-running'),
+  /** 定时任务的 Run 与子 Session 中不能创建或修改定时任务。 */
+  Type.Literal('schedule-not-allowed'),
+  /** Workspace 不在 git 仓库中。 */
+  Type.Literal('not-a-git-repo'),
+  /** worktree 名不合规则。 */
+  Type.Literal('invalid-name'),
+  /** worktree 目录或其祖先是符号链接，或真实路径不在仓库根下。 */
+  Type.Literal('unsafe-worktree-path'),
+  /** 同名分支或路径已存在。 */
+  Type.Literal('worktree-exists'),
+  /** 绑定的会话有 Run、子代理、Job 或定时任务在进行（details.reasons）。 */
+  Type.Literal('worktree-busy'),
+  /** worktree 有未提交的改动（details.files）。 */
+  Type.Literal('worktree-dirty'),
+  /** 会话绑定的 worktree 已被移除。 */
+  Type.Literal('worktree-removed'),
+  /** 会话没有用户消息，没有可交接的内容。 */
+  Type.Literal('nothing-to-hand-off'),
+  /** 要批准的 digest 不在当前项目文件中。 */
+  Type.Literal('digest-mismatch'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */
   Type.Literal('storage-unavailable'),
   Type.Literal('internal'),

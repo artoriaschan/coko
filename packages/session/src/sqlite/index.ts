@@ -4,7 +4,13 @@ import { openDatabase, type MigrationReport } from './open.ts'
 import { createMemoryRepository, createSecretRepository } from './memory-secrets.ts'
 import { createProcessRepository } from './processes.ts'
 import { createRecoveryQueries, type RecoveryQueries } from './recovery.ts'
-import { createProviderRepository, createSessionRepository, createSettingsRepository } from './repositories.ts'
+import {
+  createProviderRepository,
+  createScheduleRepository,
+  createSessionRepository,
+  createSettingsRepository,
+  createWorktreeRepository,
+} from './repositories.ts'
 import { MIGRATIONS } from './schema.ts'
 
 export type { MigrationReport } from './open.ts'
@@ -58,6 +64,8 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     memories: createMemoryRepository(conn),
     secrets: createSecretRepository(conn),
     processes: createProcessRepository(conn),
+    worktrees: createWorktreeRepository(conn),
+    schedules: createScheduleRepository(conn, options),
     recovery: createRecoveryQueries(conn, options),
     close() {
       closing ??= new Promise<void>((resolve) => {

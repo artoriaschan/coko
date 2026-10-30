@@ -11,6 +11,8 @@ import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { settingsRegion } from '../../testing/settings-page.ts'
+import { visibleHeaderActions } from '../conversation/header-actions.ts'
+import { visibleRightPanelTabs } from '../right-panel/tabs.ts'
 import { navigationGroups, resolveSection, SETTINGS_SECTIONS, visibleSections } from './sections.ts'
 
 const ids = (groups: ReturnType<typeof navigationGroups>) => groups.map((g) => ({ group: g.id, sections: g.sections.map((s) => s.id) }))
@@ -154,6 +156,24 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
   expect(steps.slice(1).map((s) => s.ring)).toEqual(Array(rows.length - 1).fill('solid'))
   await userEvent.keyboard('{Enter}')
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
+})
+
+it('M5 的注册表占位不显示：设置菜单中没有子代理、定时任务与通知，打开时回到常规；右栏 tab 与标题栏操作不含它们', async () => {
+  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost'])
+  await page.viewport(1280, 800)
+  const { screen, settingsPage } = renderSettings('en')
+  const result = await screen
+  settingsPage.open('general')
+  const dialog = settingsRegion()
+  const nav = dialog.getByRole('navigation')
+  await expect.element(nav).toBeVisible()
+  for (const id of ['agents', 'schedules', 'notifications'] as const) {
+    expect(nav.element().querySelector(`[data-section="${id}"]`)).toBeNull()
+    settingsPage.setSection(id)
+    await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
+  }
+  await result.unmount()
 })
 
 it('暗色主题：分类标题与菜单项使用主题前景色，标题比菜单项更弱', async () => {

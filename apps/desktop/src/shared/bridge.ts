@@ -12,6 +12,8 @@ export const IPC = {
   openLogs: 'coko:open-logs',
   /** main → renderer：boot 之后 Sidecar 的状态变化（重启、重启完成、终态失败）。 */
   sidecarState: 'coko:sidecar-state',
+  /** main → renderer：打开某个会话（用户点击了桌面通知）；参数为 sessionId。 */
+  openSession: 'coko:open-session',
 } as const
 
 /** boot 信息：不含启动令牌或 cookie。 */
@@ -126,6 +128,8 @@ export interface CokoBridge {
   openLogs(): Promise<boolean>
   /** 订阅 boot 之后的 Sidecar 状态变化；返回取消订阅函数。 */
   onSidecarState(listener: (event: SidecarStateEvent) => void): () => void
+  /** main 要求打开某个会话（用户点击了桌面通知）；返回取消订阅。 */
+  onOpenSession(listener: (sessionId: string) => void): () => void
 }
 
 // 声明放在契约旁：renderer 与 E2E（经 page.evaluate 访问 window.coko）分属不同 tsconfig 项目，都导入本文件。

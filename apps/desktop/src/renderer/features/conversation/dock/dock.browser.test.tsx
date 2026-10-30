@@ -30,10 +30,15 @@ it('注册表：dock 三张卡、标题栏 jobs 与 cost、右栏 plan 与 jobs 
   expect(HEADER_ACTIONS.map((a) => [a.id, a.available])).toEqual([
     ['jobs', true],
     ['cost', true],
+    ['agents', false],
+    ['schedules', false],
+    ['handoff', false],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],
     ['jobs', true],
+    ['agents', false],
+    ['schedules', false],
   ])
 })
 

@@ -78,6 +78,7 @@ export function createPermissionWiring(options: {
           options.abortAgent()
         },
         grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
+        ...(permissions.hooks ? { hooks: permissions.hooks } : {}),
       })
     : undefined
 

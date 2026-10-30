@@ -39,9 +39,21 @@ export interface Session {
    * setSessionModel 后为 false。
    */
   modelCleared: boolean
+  /** 子 Session（子代理）的父 Session；根 Session 为 null。 */
+  parentSessionId: string | null
+  /** 创建时绑定的 worktree（ADR 0016）；没有绑定为 null。 */
+  worktreeId: string | null
   createdAt: number
   /** 创建、追加条目、改标题或换模型时更新；列表按它倒序。 */
   updatedAt: number
+}
+
+/** 新建 Session 的输入。parentSessionId、worktreeId 必须指向同一 Workspace 中已有的记录。 */
+export interface NewSession extends Partial<SessionModelChoice> {
+  workspaceId: string
+  title?: string
+  parentSessionId?: string | null
+  worktreeId?: string | null
 }
 
 /** 待提交的 Session Entry。payload 的含义由 agent 定义，经 PayloadRegistry 校验后按版本保存。 */
@@ -72,10 +84,14 @@ export interface SessionRepository {
   registerWorkspace(input: { path: string; name?: string }): Promise<Workspace>
   listWorkspaces(): Promise<Workspace[]>
   getWorkspace(id: string): Promise<Workspace | undefined>
-  /** Workspace 不存在时以 not-found 拒绝。 */
-  createSession(input: { workspaceId: string; title?: string } & Partial<SessionModelChoice>): Promise<Session>
-  /** 按 updatedAt 倒序；给出 workspaceId 时只列该 Workspace。 */
+  /**
+   * Workspace、父 Session 或 worktree 不存在时以 not-found 拒绝；父 Session 或 worktree 属于其他 Workspace 时以 invalid-input 拒绝。
+   */
+  createSession(input: NewSession): Promise<Session>
+  /** 按 updatedAt 倒序；给出 workspaceId 时只列该 Workspace。不含子 Session（见 listChildren）。 */
   listSessions(filter?: { workspaceId?: string }): Promise<Session[]>
+  /** 该 Session 的子 Session，按创建顺序。 */
+  listChildren(parentSessionId: string): Promise<Session[]>
   getSession(id: string): Promise<Session | undefined>
   setSessionTitle(id: string, title: string): Promise<Session>
   /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */
@@ -223,10 +239,10 @@ export interface SecretRepository {
   delete(name: string): Promise<void>
 }
 
-/** 宿主启动的子进程的种类：前台 bash、后台 Job、PTY Job、stdio MCP Server。 */
-export type HostProcessKind = 'bash' | 'job' | 'pty' | 'mcp'
+/** 宿主启动的子进程的种类：前台 bash、后台 Job、PTY Job、stdio MCP Server、外部 Hook 命令、宿主执行的 git。 */
+export type HostProcessKind = 'bash' | 'job' | 'pty' | 'mcp' | 'hook' | 'git'
 
-export const HOST_PROCESS_KINDS: readonly HostProcessKind[] = ['bash', 'job', 'pty', 'mcp']
+export const HOST_PROCESS_KINDS: readonly HostProcessKind[] = ['bash', 'job', 'pty', 'mcp', 'hook', 'git']
 
 /** 登记的子进程（ADR 0012）：进程存活期间存在，退出时删除；宿主启动时据此清理上次留下的孤儿。 */
 export interface HostProcess {
@@ -264,6 +280,100 @@ export interface ProcessRepository {
   list(): Promise<HostProcess[]>
 }
 
+export type WorktreeStatus = 'active' | 'removed'
+export type WorktreeCreator = 'user' | 'subagent'
+export const WORKTREE_CREATORS: readonly WorktreeCreator[] = ['user', 'subagent']
+
+/** 宿主创建的 git worktree（ADR 0016）。path 为绝对路径，在全部记录中唯一（移除后仍占用）。 */
+export interface WorktreeRecord {
+  id: string
+  workspaceId: string
+  name: string
+  path: string
+  branch: string
+  baseCommit: string
+  repoRoot: string
+  status: WorktreeStatus
+  createdBy: WorktreeCreator
+  createdAt: number
+  removedAt: number | null
+}
+
+export interface NewWorktree {
+  workspaceId: string
+  name: string
+  path: string
+  branch: string
+  baseCommit: string
+  repoRoot: string
+  createdBy: WorktreeCreator
+}
+
+export interface WorktreeRepository {
+  /** Workspace 不存在时 not-found；path 已被使用时 already-exists；createdBy 未知时 invalid-input。均不写入。 */
+  create(input: NewWorktree): Promise<WorktreeRecord>
+  get(id: string): Promise<WorktreeRecord | undefined>
+  /** 该 Workspace 的 worktree（含 removed），按创建顺序。 */
+  list(workspaceId: string): Promise<WorktreeRecord[]>
+  /** 标为 removed 并记录时间；已是 removed 时原样返回。不存在时 not-found。 */
+  markRemoved(id: string): Promise<WorktreeRecord>
+}
+
+export type ScheduleStatus = 'active' | 'paused' | 'inactive'
+export const SCHEDULE_STATUSES: readonly ScheduleStatus[] = ['active', 'paused', 'inactive']
+
+/** 定时任务（ADR 0015）。rule 的含义由宿主定义（协议的 ScheduleRule），原样保存；nextAt / lastOccurrence 为 UTC 毫秒。 */
+export interface ScheduleRecord {
+  id: string
+  sessionId: string
+  title: string
+  prompt: string
+  rule: JsonValue
+  status: ScheduleStatus
+  nextAt: number | null
+  lastOccurrence: number | null
+  /** 创建为 1，每次 update 加 1；recordFire 不改变它。 */
+  revision: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface NewSchedule {
+  sessionId: string
+  title: string
+  prompt: string
+  rule: JsonValue
+  status?: ScheduleStatus
+  nextAt: number | null
+}
+
+export type SchedulePatch = Partial<Pick<ScheduleRecord, 'title' | 'prompt' | 'rule' | 'status' | 'nextAt'>>
+
+/** 一次投递或跳过的记录：本次到期时刻、下一次时刻（null 为不再到期）与可选的新状态（一次性任务投递后 inactive）。 */
+export interface ScheduleFire {
+  occurrence: number
+  nextAt: number | null
+  status?: ScheduleStatus
+}
+
+export interface ScheduleRepository {
+  /** Session 不存在时 not-found；status 未知时 invalid-input。 */
+  create(input: NewSchedule): Promise<ScheduleRecord>
+  /** revision 不一致时 revision-conflict（details 带 expected 与 actual），不存在时 not-found；成功时 revision 加 1。 */
+  update(id: string, revision: number, patch: SchedulePatch): Promise<ScheduleRecord>
+  /** 不存在时 not-found。 */
+  delete(id: string): Promise<void>
+  /** 按创建顺序；给出 sessionId 时只列该 Session。 */
+  list(filter?: { sessionId?: string }): Promise<ScheduleRecord[]>
+  /** active 且 nextAt ≤ now 的任务，按 nextAt 升序。 */
+  due(now: number): Promise<ScheduleRecord[]>
+  /**
+   * 在一个事务中更新 lastOccurrence / nextAt（与可选的 status）并向任务所属 Session 追加 entry（通常为 schedule_fire）。
+   * 任一步失败（任务不存在、entry 不合 schema 等）时表行与条目都不变。返回更新后的任务与已提交的条目。
+   */
+  recordFire(id: string, fire: ScheduleFire, entry: NewSessionEntry): Promise<{ schedule: ScheduleRecord; entry: SessionEntry }>
+}
+
 /** 一组共享同一存储的仓库。 */
 export interface SessionStore {
   sessions: SessionRepository
@@ -273,6 +383,10 @@ export interface SessionStore {
   secrets: SecretRepository
   /** 宿主登记的子进程（ADR 0012）。 */
   processes: ProcessRepository
+  /** 宿主创建的 git worktree（ADR 0016）。 */
+  worktrees: WorktreeRepository
+  /** 定时任务（ADR 0015）。 */
+  schedules: ScheduleRepository
   /** 幂等；关闭后所有操作以 closed 拒绝。 */
   close(): Promise<void>
 }
