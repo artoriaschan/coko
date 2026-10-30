@@ -20,3 +20,4 @@
 - [ ] plan-mode.md 建立并可达（导航行写在 Comments）；permissions.md 写 plan 模式、plan-exit 与审批 kind；ADR 0005 补实施记录；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 02——decide.test.ts 的 session-state 与 plan-exit 权限类目前只覆盖四种现有模式；本票加入 plan 模式后补上这两个权限类在 plan 模式下的用例。
