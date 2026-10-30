@@ -1,14 +1,4 @@
-import {
-  BUILTIN_COMMANDS,
-  parseCommandInvocation,
-  type ModelRegistry,
-  type PermissionMode,
-  type PermissionRule,
-  type RewindFiles,
-  type RewindMode,
-  type SecretProvider,
-  type ToolRegistry,
-} from '@coko/agent'
+import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type {
   AnswerApprovalRequest,
@@ -26,8 +16,7 @@ import type {
 import type { Session as StoredSession, SessionStore } from '@coko/session'
 import type { Model } from '@earendil-works/pi-ai'
 import { SessionCheckpoints } from './checkpoints.ts'
-import { emptyContextAssembly, type ActionResult, type ContextActionSession, type ContextAssembly } from './context/index.ts'
-import { AppError } from './errors.ts'
+import { emptyContextAssembly, type ActionResult, type ContextAssembly } from './context/index.ts'
 import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
@@ -251,41 +240,9 @@ export class SessionService {
 
   // ---- Run 控制（开始 Run 与运行时构造在 session-runs.ts） ----
 
-  /**
-   * 开始一个 Run 并立即返回 runId，或执行不开始 Run 的动作（{ done: true }）；Run 的条目与进度经 hub 推送。Run 进行中不展开输入
-   * （展开可能调用 MCP prompts/get、读取 Skill 与引用的文件）：只查内置命令表，声明 Run 中可用的动作（例如 /goal pause）照常执行，
-   * 其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
-   * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
-   */
-  async submit(sessionId: string, text: string): Promise<ActionResult> {
-    const session = await this.#get(sessionId)
-    if (this.#runtimes.isRunning(sessionId)) {
-      const invocation = parseCommandInvocation(text)
-      const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
-      const action = builtin ? this.#context.action(builtin.action) : undefined
-      if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session.id, action, invocation.args)
-      throw new AppError('run-in-progress', 'A Run is in progress')
-    }
-    const expanded = await this.#context.expandInput(text, await this.#runs.scope(session))
-    if (expanded.kind === 'input') return this.#runs.startRun(sessionId, { trigger: 'submit', input: expanded.input })
-    const action = this.#context.action(expanded.name)
-    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
-    if (this.#runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')
-    return this.#act(sessionId, action, expanded.args)
-  }
-
-  async #act(sessionId: string, action: NonNullable<ReturnType<ContextAssembly['action']>>, args: string): Promise<ActionResult> {
-    const session: ContextActionSession = {
-      entries: () => this.#store.sessions.listEntries(sessionId),
-      start: (request) => this.#runs.startRun(sessionId, request),
-      submit: async (text) => {
-        const result = await this.submit(sessionId, text)
-        if (!('runId' in result)) throw new AppError('bad-request', 'The message did not start a Run')
-        return result
-      },
-      running: () => this.#runtimes.isRunning(sessionId),
-    }
-    return action({ scope: await this.#runs.scope(await this.#get(sessionId)), sessionId, args, session })
+  /** 提交一条消息：开始 Run（{ runId }）或执行不开始 Run 的动作（{ done: true }）；见 SessionRuns.submit。 */
+  submit(sessionId: string, text: string): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text)
   }
 
   /** 自动压缩是否因连续失败暂停（运行时内存；还没有运行时的 Session 为 false）。 */

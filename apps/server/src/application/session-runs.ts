@@ -3,6 +3,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
+  BUILTIN_COMMANDS,
   createAgentRuntime,
   createBuiltinToolRegistry,
   createLocalExecPort,
@@ -11,6 +12,7 @@ import {
   NoActiveRunError,
   NothingToContinueError,
   NothingToRetryError,
+  parseCommandInvocation,
   type AgentRuntime,
   type ModelRegistry,
   type RunEntry,
@@ -23,7 +25,17 @@ import {
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
-import { dynamicHooks, layeredTools, type ContextAssembly, type ContextScope, type PendingInput, type RunRequest } from './context/index.ts'
+import {
+  dynamicHooks,
+  layeredTools,
+  type ActionResult,
+  type ContextAction,
+  type ContextActionSession,
+  type ContextAssembly,
+  type ContextScope,
+  type PendingInput,
+  type RunRequest,
+} from './context/index.ts'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import type { SessionRecovery } from './recovery.ts'
@@ -212,6 +224,45 @@ export class SessionRuns {
     )
     this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
     return { runId: started }
+  }
+
+  /**
+   * 提交一条消息：开始一个 Run 并立即返回 runId，或执行不开始 Run 的动作（{ done: true }）；Run 的条目与进度经 hub 推送。Run 进行中
+   * 不展开输入（展开可能调用 MCP prompts/get、读取 Skill 与引用的文件）：只查内置命令表，声明 Run 中可用的动作（例如 /goal pause）照常
+   * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
+   * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
+   */
+  async submit(sessionId: string, text: string): Promise<ActionResult> {
+    const { store, runtimes, context } = this.#options
+    const session = await requireSession(store, sessionId)
+    if (runtimes.isRunning(sessionId)) {
+      const invocation = parseCommandInvocation(text)
+      const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
+      const action = builtin ? context.action(builtin.action) : undefined
+      if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
+      throw new AppError('run-in-progress', 'A Run is in progress')
+    }
+    const expanded = await context.expandInput(text, await this.scope(session))
+    if (expanded.kind === 'input') return this.startRun(sessionId, { trigger: 'submit', input: expanded.input })
+    const action = context.action(expanded.name)
+    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
+    if (runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')
+    return this.#act(session, action, expanded.args)
+  }
+
+  async #act(session: StoredSession, action: ContextAction, args: string): Promise<ActionResult> {
+    const sessionId = session.id
+    const actions: ContextActionSession = {
+      entries: () => this.#options.store.sessions.listEntries(sessionId),
+      start: (request) => this.startRun(sessionId, request),
+      submit: async (text) => {
+        const result = await this.submit(sessionId, text)
+        if (!('runId' in result)) throw new AppError('bad-request', 'The message did not start a Run')
+        return result
+      },
+      running: () => this.#options.runtimes.isRunning(sessionId),
+    }
+    return action({ scope: await this.scope(session), sessionId, args, session: actions })
   }
 
   /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */
