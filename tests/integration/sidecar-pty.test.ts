@@ -217,8 +217,10 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
 
   it('job_input 按上次回车之后累计的输入判定：拆成几段的命令匹配拒绝规则；同一批中前一段改变了当前行时后一段不发送', async () => {
     const h = await setup([
-      // cat 忽略 SIGINT：Ctrl-C 只清空终端的当前行。
-      { content: [tty('b1', "trap '' INT; cat")] },
+      // cat 忽略 SIGINT：Ctrl-C 只清空终端的当前行。trap 装好后打印 trap-ready；Job 在第一个 Run 中启动，第二个 Run 等它就绪后才输入，
+      // 否则 Ctrl-C 可能在 trap 生效前到达并结束 Job。
+      { content: [tty('b1', "trap '' INT; echo trap-ready; cat")] },
+      { content: 'started' },
       { content: [input('p1', { text: 'rm -r' })] },
       { content: [input('p2', { text: 'f build', submit: true })] },
       { content: [input('c1', { text: '', ctrl_c: true })] },
@@ -228,6 +230,8 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     ])
     const rule = { behavior: 'deny', tool: 'Bash', content: 'rm -rf *' }
     expect((await h.api.post(permissionPaths.sessionPermissionRules(h.sessionId), { rule })).status).toBe(200)
+    await h.turn('start')
+    await expect.poll(async () => (await readFile(h.jobStarts()[0]!.logPath, 'utf8').catch(() => '')).includes('trap-ready'), { timeout: 10_000 }).toBe(true)
     await h.turn('split')
     expect(h.result('p1')!.isError).toBe(false)
     expect(h.result('p2')).toEqual({ text: 'Permission denied by rule Bash(rm -rf *).', isError: true })
