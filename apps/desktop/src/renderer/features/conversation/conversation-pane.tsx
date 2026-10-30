@@ -12,6 +12,10 @@ import { ConnectionFailure, ConnectionStatus } from '../connection/connection-st
 import { ApprovalPanel } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
+import { Dock } from './dock/dock.tsx'
+import { visibleHeaderActions } from './header-actions.ts'
+import { PlanChip } from './plan-chip.tsx'
+import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { RewindDialog } from './rewind-dialog.tsx'
@@ -146,6 +150,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const continuable = resumeMode !== undefined
 
   const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
+  // 标题栏操作（后台任务、费用）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
+  const headerActions = visibleHeaderActions()
+  const openTab = (tab: RightPanelTabId) => {
+    selectRightPanelTab(tab)
+    if (!rightOpen) onToggleRight()
+  }
 
   // 贴底时跟随新内容；用户上翻阅读时不打断。
   const scroller = React.useRef<HTMLDivElement>(null)
@@ -214,6 +224,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           {title}
         </h1>
         <ConnectionStatus state={connection} />
+        {activeSessionId !== null && headerActions.length > 0 && (
+          <div data-slot="header-actions" className="flex shrink-0 items-center gap-1">
+            {headerActions.map(({ id, Component }) => (
+              <Component key={id} sessionId={activeSessionId} openTab={openTab} />
+            ))}
+          </div>
+        )}
         <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
           {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
         </IconButton>
@@ -276,6 +293,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               )}
             </div>
           )}
+          {!takenOver && <Dock sessionId={activeSessionId} className={composerColumn} />}
           {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
           <div ref={composerArea} hidden={takenOver}>
             <Composer
@@ -294,6 +312,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               pausing={conversation?.pausing ?? false}
               onSetup={() => settingsPage.open('models')}
               onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
+              planChip={<PlanChip sessionId={activeSessionId} />}
               accessory={
                 <>
                   {/* 模式在 Run 中也可切换：立即作用于下一次调用，等待中的审批按新模式重新判定。 */}

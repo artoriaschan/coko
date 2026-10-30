@@ -1,5 +1,6 @@
 import {
   SessionEntry,
+  isJobProgress,
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
   type PermissionMode,
@@ -238,7 +239,14 @@ export interface ChatActions {
   rewind(targetSeq: number, mode: RewindMode): Promise<RewindResponse | undefined>
   /** 从当前会话的某条用户消息分叉：打开新会话，目标文本放入其输入区。返回是否成功。 */
   fork(targetSeq: number): Promise<boolean>
+  /**
+   * 订阅打开过的会话收到的全部 progress（含 Run 生命周期之外的后台任务进度），供功能 store 维护各自的临时状态。
+   * 在本 store 处理该帧之后调用；返回取消订阅。
+   */
+  onProgress(listener: ProgressListener): () => void
 }
+
+export type ProgressListener = (progress: { sessionId: string; runId: string; event: ProgressEvent }) => void
 
 export type ChatStore = StoreApi<ChatState & ChatActions>
 
@@ -294,6 +302,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   const confirming = new Map<string, Promise<boolean>>()
   /** 每个 Session 的模式切换按调用顺序发送（Shift+Tab 连按时最后一次为准）。 */
   const modeChains = new Map<string, Promise<unknown>>()
+  const progressListeners = new Set<ProgressListener>()
   let loadedOnce = false
 
   const store = createStore<ChatState & ChatActions>()((set, get) => {
@@ -636,6 +645,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           onFailure?.({ kind: 'model', error: toApiError(error) })
         }
       },
+
+      onProgress(listener) {
+        progressListeners.add(listener)
+        return () => progressListeners.delete(listener)
+      },
     }
   })
 
@@ -695,25 +709,27 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       }
       case 'progress': {
         if (!state.conversations[message.sessionId]) return
-        const event = message.event
+        const { sessionId, runId, event } = message
         if (event.type === 'run_end') {
           // run_end 条目通常已先到；没有到（提交失败）时也结束运行中状态，并显示只由进度得知的结束状态。
-          patchConversation(message.sessionId, (c) => {
-            const recorded = c.entries.some((e) => e.kind === 'run_end' && e.runId === message.runId)
-            const unrecordedEnd: UnrecordedRunEnd = { runId: message.runId, status: event.status, ...(event.error ? { error: event.error } : {}) }
+          patchConversation(sessionId, (c) => {
+            const recorded = c.entries.some((e) => e.kind === 'run_end' && e.runId === runId)
+            const unrecordedEnd: UnrecordedRunEnd = { runId, status: event.status, ...(event.error ? { error: event.error } : {}) }
             return { ...endRun(c), running: false, live: null, unrecordedEnd: recorded ? undefined : unrecordedEnd }
           })
-          const ended = store.getState().conversations[message.sessionId]
-          patchSession(message.sessionId, { running: false, activity: ended ? conversationActivity(ended) : 'idle' })
-          return
+          const ended = store.getState().conversations[sessionId]
+          patchSession(sessionId, { running: false, activity: ended ? conversationActivity(ended) : 'idle' })
+        } else if (!isJobProgress(event)) {
+          // 后台任务的进度不属于 Run：不进入运行中状态，只交给订阅者（Job 可以比发起它的 Run 活得更久）。
+          patchConversation(sessionId, (c) => ({
+            ...c,
+            running: true,
+            live: reduceProgress(c.live, runId, event),
+            ...(event.type === 'run_start' ? { unrecordedEnd: undefined } : {}),
+          }))
+          if (event.type === 'run_start') patchSession(sessionId, { running: true, activity: 'running' })
         }
-        patchConversation(message.sessionId, (c) => ({
-          ...c,
-          running: true,
-          live: reduceProgress(c.live, message.runId, event),
-          ...(event.type === 'run_start' ? { unrecordedEnd: undefined } : {}),
-        }))
-        if (event.type === 'run_start') patchSession(message.sessionId, { running: true, activity: 'running' })
+        for (const listener of progressListeners) listener({ sessionId, runId, event })
         return
       }
       case 'error': {

@@ -27,6 +27,8 @@ export interface ComposerProps {
   onSetup: () => void
   /** 编辑区与发送按钮之间的控件（模型选择）。 */
   accessory?: React.ReactNode
+  /** 底栏最前的 Plan chip 槽（plan 模式时显示）；没有内容时不占位。 */
+  planChip?: React.ReactNode
   /** 焦点在编辑区时 Shift+Tab：切换到下一档 Permission Mode（不移动焦点）。 */
   onCycleMode?: () => void
   className?: string
@@ -63,6 +65,7 @@ export function Composer({
   pausing = false,
   onSetup,
   accessory,
+  planChip,
   onCycleMode,
   className,
   commandTarget,
@@ -191,6 +194,7 @@ export function Composer({
         {commandTarget && <CommandMenu target={commandTarget} />}
         {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
       </ComposerEditor>
+      {planChip}
       {accessory}
       {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
       {commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
