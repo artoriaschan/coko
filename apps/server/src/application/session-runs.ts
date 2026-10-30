@@ -109,7 +109,7 @@ export interface SessionRunsOptions {
   models: SessionModels
 }
 
-/** 后台任务对 Run 的接线（application/jobs.ts 装配时给出）：bash 的启动入口与追加指令到达的通知。 */
+/** 后台任务对 Run 的接线（runtime/layers.ts 以 JobService 给出）：bash 的启动入口与追加指令到达的通知。 */
 export interface SessionJobs {
   launcher(sessionId: string): BackgroundJobLauncher
   /** 有追加指令送进该 Session 的 Run（用户的或通知）：唤醒等待中的 job_output。 */
@@ -202,18 +202,6 @@ export class SessionRuns {
     }
     log.info('run stop after batch requested', { sessionId, code: error.code })
     return true
-  }
-
-  /** 该 Session 当前（或将用的默认）模型是否已定价（Goal 的费用上限）；没有可用模型时 false。 */
-  async modelPriced(sessionId: string): Promise<boolean> {
-    const session = await requireSession(this.#options.store, sessionId)
-    const ref = session.model ?? (session.modelCleared ? null : await this.#options.models.defaultModel())
-    if (!ref) return false
-    try {
-      return this.#options.registry.priced(this.#options.models.resolve(ref, 'model-not-configured'))
-    } catch {
-      return false
-    }
   }
 
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */

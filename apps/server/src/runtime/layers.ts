@@ -21,8 +21,8 @@ import { createContextAssembly, createContributions, type ContextAssembly, type 
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
 import { MemoryService } from '../application/context/memory.ts'
-import { GoalService } from '../application/goals.ts'
-import { JobService } from '../application/jobs.ts'
+import { GoalService, type GoalRunHost } from '../application/goals.ts'
+import { JobService, type JobRunHost } from '../application/jobs.ts'
 import { ProcessRegistry } from '../application/processes.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
@@ -62,10 +62,46 @@ export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
 export class Processes extends Context.Service<Processes, ProcessRegistry>()('coko/Processes') {}
 export class Assembly extends Context.Service<
   Assembly,
-  { config: ConfigService; context: ContextAssembly; mcp: McpAdmin; secrets: SecretService; jobs: JobService; goals: GoalService }
+  {
+    config: ConfigService
+    context: ContextAssembly
+    mcp: McpAdmin
+    secrets: SecretService
+    hub: SessionHub
+    jobs: JobService
+    goals: GoalService
+    /** AppLive 创建 SessionService 之后调用一次：Job 与 Goal 的 Run 能力从此生效。 */
+    bindSessions: (sessions: SessionService) => void
+  }
 >()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
 export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
+
+/**
+ * Job 与 Goal 先于 SessionService 创建（上下文贡献读取它们），它们需要的 Run 能力由之后创建的 SessionService 提供：构造时注入这里的窄接口，
+ * AppLive 创建 SessionService 后 bind 一次。bind 在启动恢复与开始监听之前，之前不会有调用；万一有，抛错而不是静默返回空值。
+ */
+function lateSessionRuns() {
+  let bound: SessionService | undefined
+  const sessions = () => {
+    if (!bound) throw new Error('SessionService is not bound yet')
+    return bound
+  }
+  const jobs: JobRunHost = {
+    activeRunId: (sessionId) => sessions().runs.activeRunId(sessionId),
+    deliver: (sessionId, input) => sessions().runs.deliver(sessionId, input),
+  }
+  const goals: GoalRunHost = {
+    activeRunId: (sessionId) => sessions().runs.activeRunId(sessionId),
+    stopAfterBatch: (sessionId, error) => sessions().runs.stopAfterBatch(sessionId, error),
+    startRun: (sessionId, request) => sessions().runs.startRun(sessionId, request),
+    modelPriced: (sessionId) => sessions().modelPriced(sessionId),
+    isRunning: (sessionId) => sessions().isRunning(sessionId),
+    abort: (sessionId) => sessions().abort(sessionId),
+    pause: (sessionId) => sessions().pause(sessionId),
+  }
+  return { jobs, goals, bind: (service: SessionService) => void (bound = service) }
+}
 
 /** 有序关闭的每一步记一行（按释放顺序：Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
 const shutdownStep = (step: string) => Effect.sync(() => getLogger(['runtime']).info('shutdown step {step}', { step }))
@@ -197,17 +233,19 @@ const AssemblyLive = Layer.effect(
         }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
-    // 后台任务与 Goal 先于贡献创建（贡献读取它们），SessionService 在 AppLive 中接上。
+    // 后台任务与 Goal 先于贡献创建（贡献读取它们）；它们的 Run 能力在 AppLive 创建 SessionService 后接上（lateSessionRuns）。
     // Job 的进程登记为 job（PTY Job 为 pty，ADR 0012），退出后删除。
-    const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
-    const goals = new GoalService({ store, jobs })
+    const hub = new SessionHub()
+    const runs = lateSessionRuns()
+    const jobs = new JobService({ store, hub, runs: runs.jobs, logDir: join(sidecar.dataDir, 'jobs'), track: processes.track })
+    const goals = new GoalService({ store, hub, jobs, runs: runs.goals })
     const extra = sidecar.testTools ? [createTestSeamContribution()] : []
     // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。
     const entries: SessionEntryAccess = {
       list: (sessionId) => store.sessions.listEntries(sessionId),
       async commit(sessionId, entry) {
         const [committed] = await store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
-        jobs.hub.publishEntry(committed!)
+        hub.publishEntry(committed!)
         return committed!
       },
     }
@@ -218,7 +256,7 @@ const AssemblyLive = Layer.effect(
     yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
     // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
     yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
-    return { config, context, mcp: admin, secrets, jobs, goals }
+    return { config, context, mcp: admin, secrets, hub, jobs, goals, bindSessions: runs.bind }
   }),
 )
 
@@ -306,7 +344,7 @@ const AppLive = Layer.effect(
     const processes = yield* Processes
     // 前台 bash 的进程组登记为 bash（ADR 0012），命令结束后删除。
     const workspaceTools = (yield* Tools)({ wrapExec: (port) => processes.trackExec(port, { kind: 'bash' }) })
-    const { config: capabilities, context, mcp, secrets, jobs, goals } = yield* Assembly
+    const { config: capabilities, context, mcp, secrets, hub, jobs, goals, bindSessions } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -326,7 +364,6 @@ const AppLive = Layer.effect(
       log.warn('faux provider enabled for tests', { providerId: fallbackModel.providerId })
     }
     const checkpoints = openCheckpointStore(config.dataDir)
-    const hub = jobs.hub
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
     const sessions = new SessionService({
@@ -343,8 +380,9 @@ const AppLive = Layer.effect(
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
-    jobs.attach(sessions)
-    goals.attach(sessions)
+    bindSessions(sessions)
+    // 之后创建的运行时的 bash 可以 run_in_background；追加指令到达时唤醒等待中的 job_output。
+    sessions.runs.useJobs({ launcher: (sessionId) => jobs.launcher(sessionId), steered: (sessionId) => jobs.steered(sessionId) })
     // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
     const recovery = yield* Effect.tryPromise({
       // Session 恢复之后：Job 补记 lost，再把未结束的 Goal 暂停（重启后不自动继续）。

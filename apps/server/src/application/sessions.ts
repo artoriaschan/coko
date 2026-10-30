@@ -223,6 +223,11 @@ export class SessionService {
     return this.#models.defaultModel()
   }
 
+  /** 该 Session 当前（或将用的默认）模型是否已定价（见 SessionModels.modelPriced；Goal 的费用上限）。 */
+  modelPriced(sessionId: string): Promise<boolean> {
+    return this.#models.modelPriced(sessionId)
+  }
+
   /** 上下文用量接口的模型：给定的 Session 模型，否则缺省模型；都不能解析时 undefined。 */
   contextModel(model: SessionModel | null | undefined): Promise<Model<any> | undefined> {
     return this.#models.contextModel(model)

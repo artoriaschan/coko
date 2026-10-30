@@ -34,12 +34,12 @@ import { getLogger } from '@coko/logging'
 import type { GoalActionRequest, GoalBudgetDimension, GoalResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError, errorMessage } from './errors.ts'
-import type { RunEndInfo } from './context/types.ts'
+import type { RunEndInfo, RunRequest } from './context/types.ts'
 import { GoalDriver, hasUserSteering } from './goal-driver.ts'
 import type { JobService } from './jobs.ts'
 import { KeyedMutex } from './keyed-mutex.ts'
 import type { RecoverySource } from './recovery.ts'
-import type { SessionService } from './sessions.ts'
+import type { SessionHub } from './hub.ts'
 import { requireSession, toNewEntry } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'goals'])
@@ -52,9 +52,27 @@ export type GoalBudgetDimensionsAgree = Assert<Equal<GoalBudgetDimension, AgentG
 /** 取消时等待进行中的 Run 结束的上限；超出记入 cleanup.failures，不阻止取消。 */
 const CANCEL_RUN_WAIT_MS = 30_000
 
+/** GoalService 需要的 Run 能力（runtime/layers.ts 以 SessionService 实现）：Goal Round 经统一入口开始，取消与暂停经它停止 Run。 */
+export interface GoalRunHost {
+  /** 该 Session 进行中的 Run 的 runId；没有时 undefined。 */
+  activeRunId(sessionId: string): string | undefined
+  /** 进行中的 Run 本批完成后以 paused 加该 error 结束；没有进行中的 Run 时 false。 */
+  stopAfterBatch(sessionId: string, error: RunError): boolean
+  startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }>
+  /** 该 Session 当前（或将用的默认）模型是否已定价。 */
+  modelPriced(sessionId: string): Promise<boolean>
+  isRunning(sessionId: string): boolean
+  /** 返回是否确有进行中的 Run 被要求停止。 */
+  abort(sessionId: string): Promise<boolean>
+  pause(sessionId: string): Promise<void>
+}
+
 export interface GoalServiceOptions {
   store: SessionStore
+  /** Session 的条目推送（goal 快照）与订阅（run_end、job_end、审批）。 */
+  hub: SessionHub
   jobs: JobService
+  runs: GoalRunHost
 }
 
 /** GoalError → 协议错误（HTTP 与 /goal 动作）。 */
@@ -81,7 +99,6 @@ const rethrow = (error: unknown): never => {
 
 export class GoalService {
   readonly #options: GoalServiceOptions
-  #sessions: SessionService | undefined
   readonly #driver: GoalDriver
   /** 同一 Session 的 Goal 变化串行（前一个失败不影响后一个）。 */
   readonly #locks = new KeyedMutex()
@@ -99,11 +116,8 @@ export class GoalService {
     this.#driver = new GoalDriver({
       entries: (sessionId) => this.#entries(sessionId),
       commit: (sessionId, goal) => this.#commit(sessionId, goal),
-      isRunning: (sessionId) => this.#sessions?.isRunning(sessionId) ?? false,
-      startRun: (sessionId, request) => {
-        if (!this.#sessions) throw new AppError('internal', 'Goal service is not attached')
-        return this.#sessions.runs.startRun(sessionId, request)
-      },
+      isRunning: (sessionId) => options.runs.isRunning(sessionId),
+      startRun: (sessionId, request) => options.runs.startRun(sessionId, request),
       priced: (sessionId) => this.#priced(sessionId),
       isCancelling: (sessionId) => this.#cancelling.has(sessionId),
     })
@@ -112,11 +126,6 @@ export class GoalService {
       const goal = currentGoal(await this.#entries(sessionId))
       return goal && !isTerminalPhase(goal.phase) ? goal.id : undefined
     })
-  }
-
-  /** 装配时接上 SessionService（Goal Round 经其统一入口开始，取消经它停止 Run）。 */
-  attach(sessions: SessionService): void {
-    this.#sessions = sessions
   }
 
   // ---- 读取 ----
@@ -165,9 +174,9 @@ export class GoalService {
   }
 
   async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
-    const runs = this.#sessions?.runs
-    const runId = runs?.activeRunId(sessionId)
-    if (!runs || runId === undefined || this.#cancelling.has(sessionId)) return undefined
+    const runs = this.#options.runs
+    const runId = runs.activeRunId(sessionId)
+    if (runId === undefined || this.#cancelling.has(sessionId)) return undefined
     const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
     if (!goal || goal.phase !== 'running' || goal.budget.maxToolCalls === undefined || !goalRunIds(entries, goal.id).has(runId)) return undefined
@@ -192,9 +201,9 @@ export class GoalService {
     return undefined
   }
 
-  /** 该 Session 的模型是否已定价；没有装配 SessionService 时 false。 */
+  /** 该 Session 的模型是否已定价。 */
   #priced(sessionId: string): Promise<boolean> {
-    return this.#sessions ? this.#sessions.runs.modelPriced(sessionId) : Promise.resolve(false)
+    return this.#options.runs.modelPriced(sessionId)
   }
 
   /**
@@ -246,7 +255,7 @@ export class GoalService {
       if (request.action === 'resume') await this.#driver.advance(sessionId)
     })
     // 暂停（与用户标为完成）：进行中的 Run 本批完成后停下；不终止 Job。
-    if (pause && this.#sessions?.isRunning(sessionId)) await this.#sessions.pause(sessionId).catch(() => undefined)
+    if (pause && this.#options.runs.isRunning(sessionId)) await this.#options.runs.pause(sessionId).catch(() => undefined)
     return this.get(sessionId)
   }
 
@@ -271,11 +280,11 @@ export class GoalService {
     })
     const cleanup = { runsAborted: 0, jobsKilled: 0, failures: [] as string[] }
     try {
-      const sessions = this.#sessions
-      const runId = sessions?.runs.activeRunId(sessionId)
-      if (sessions && runId !== undefined && sessions.isRunning(sessionId)) {
+      const runs = this.#options.runs
+      const runId = runs.activeRunId(sessionId)
+      if (runId !== undefined && runs.isRunning(sessionId)) {
         const ended = this.#runEnd(sessionId, runId)
-        if (await sessions.abort(sessionId)) cleanup.runsAborted++
+        if (await runs.abort(sessionId)) cleanup.runsAborted++
         if (!(await ended)) cleanup.failures.push(`Run ${runId} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
       }
       try {
@@ -284,10 +293,10 @@ export class GoalService {
         cleanup.failures.push('Stopping background jobs failed: ' + errorMessage(error))
       }
       // 等待期间开始的 Run（取消进行中拒绝了 Goal 的动作与推进，这里是兜底）：提交 cancelled 之前同样停止它并等待 run_end。
-      const late = sessions?.runs.activeRunId(sessionId)
-      if (sessions && late !== undefined && late !== runId && sessions.isRunning(sessionId)) {
+      const late = runs.activeRunId(sessionId)
+      if (late !== undefined && late !== runId && runs.isRunning(sessionId)) {
         const ended = this.#runEnd(sessionId, late)
-        if (await sessions.abort(sessionId)) cleanup.runsAborted++
+        if (await runs.abort(sessionId)) cleanup.runsAborted++
         if (!(await ended)) cleanup.failures.push(`Run ${late} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
       }
       await this.#locks.run(sessionId, async () => {
@@ -307,7 +316,7 @@ export class GoalService {
   #runEnd(sessionId: string, runId: string): Promise<boolean> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => finish(false), CANCEL_RUN_WAIT_MS)
-      const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
+      const off = this.#options.hub.subscribe(sessionId, (m) => {
         if (
           (m.type === 'progress' && m.runId === runId && m.event.type === 'run_end') ||
           (m.type === 'entry' && m.entry.runId === runId && m.entry.kind === 'run_end')
@@ -479,7 +488,7 @@ export class GoalService {
   /** 提交一条 goal 快照（入库前替换登记明文）并推送；返回入库后的快照。推进中的 Goal 订阅本 Session 的 job_end。 */
   async #commit(sessionId: string, goal: GoalPayload): Promise<GoalPayload> {
     const [committed] = await this.#options.store.sessions.appendEntries(sessionId, [toNewEntry({ kind: 'goal', payload: goal })])
-    this.#options.jobs.hub.publishEntry(committed!)
+    this.#options.hub.publishEntry(committed!)
     const saved = committed!.payload as unknown as GoalPayload
     if (isActivePhase(saved.phase)) this.#watch(sessionId)
     else this.#unwatch(sessionId)
@@ -488,7 +497,7 @@ export class GoalService {
 
   #watch(sessionId: string): void {
     if (this.#watches.has(sessionId)) return
-    const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
+    const off = this.#options.hub.subscribe(sessionId, (m) => {
       if (m.type !== 'entry') return
       if (m.entry.kind === 'approval_request' || m.entry.kind === 'approval_decision') {
         const entry = m.entry

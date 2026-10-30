@@ -20,6 +20,7 @@ import {
   type JobsPort,
   type JobStartPayload,
   type RunEntry,
+  type RunInput,
   type RunResult,
 } from '@coko/agent'
 import { createSecretStreamRedactor, getLogger, redactSecretsDeep, redactSecretValues, type SecretStreamRedactor } from '@coko/logging'
@@ -30,7 +31,6 @@ import type { SessionHub } from './hub.ts'
 import type { TrackProcess } from './processes.ts'
 import type { RecoverySource } from './recovery.ts'
 import type { PendingInput } from './context/types.ts'
-import type { SessionService } from './sessions.ts'
 import { toNewEntry } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'jobs'])
@@ -42,9 +42,19 @@ const PROGRESS_INTERVAL_MS = 100
 const TRUNCATED_MARKER = '\n[truncated: the log reached its 64 MiB limit]\n'
 const JOB_ID = /^[A-Za-z0-9_-]{1,64}$/
 
+/** JobService 需要的 Run 能力（runtime/layers.ts 以 SessionService 的 runs 实现）。 */
+export interface JobRunHost {
+  /** 该 Session 进行中的 Run 的 runId（Job 的进度带发起它的 runId）；没有时 undefined。 */
+  activeRunId(sessionId: string): string | undefined
+  /** 把完成通知作为追加指令送进当前 Run；没有进行中的 Run 时 false。 */
+  deliver(sessionId: string, input: RunInput): boolean
+}
+
 export interface JobServiceOptions {
   store: SessionStore
+  /** Session 的条目与进度推送（与 SessionService 共用；Job 的进度经它发出）。 */
   hub: SessionHub
+  runs: JobRunHost
   /** Job 日志的根目录 <dataDir>/jobs（不是读取根）。 */
   logDir: string
   /** 登记 Job 的进程（kind job，ADR 0012）；省略时不登记（单元测试）。 */
@@ -86,7 +96,6 @@ interface Sent {
 
 export class JobService {
   readonly #options: JobServiceOptions
-  #sessions: SessionService | undefined
   readonly #live = new Map<string, LiveJob>()
   /** 挂起的通知（Session 空闲时结束的 Job），按结束顺序。 */
   readonly #pending = new Map<string, string[]>()
@@ -101,20 +110,9 @@ export class JobService {
     this.#options = options
   }
 
-  /** 装配时接上 SessionService：通知经其 Run 送达，bash 经其运行时拿到本 Session 的启动入口。 */
-  attach(sessions: SessionService): void {
-    this.#sessions = sessions
-    sessions.runs.useJobs({ launcher: (sessionId) => this.launcher(sessionId), steered: (sessionId) => this.#interrupt(sessionId) })
-  }
-
   /** GoalService 装配时调用：之后启动的 Job 记下所属的 Goal（取消 Goal 时只终结它们）。 */
   useGoals(goalOf: (sessionId: string) => Promise<string | undefined>): void {
     this.#goalOf = goalOf
-  }
-
-  /** Session 的条目与进度推送（与 SessionService 共用；Job 的进度经它发出）。 */
-  get hub(): SessionHub {
-    return this.#options.hub
   }
 
   /** 日志根目录。 */
@@ -359,7 +357,7 @@ export class JobService {
       logBytes: 0,
       decoder: new StringDecoder('utf8'),
       redactor: createSecretStreamRedactor(),
-      runId: this.#sessions?.runs.activeRunId(sessionId) ?? jobId,
+      runId: this.#options.runs.activeRunId(sessionId) ?? jobId,
       lastFrameAt: 0,
       ended,
       resolveEnded,
@@ -485,7 +483,7 @@ export class JobService {
   #notify(live: LiveJob): void {
     const { sessionId, jobId } = live.job.info
     const note = this.#note(live)
-    const delivered = this.#sessions?.runs.deliver(sessionId, {
+    const delivered = this.#options.runs.deliver(sessionId, {
       text: note.text,
       content: [{ type: 'text', text: note.text }],
       before: [{ kind: 'job_notification', payload: { jobIds: [jobId] } }],
@@ -538,8 +536,8 @@ export class JobService {
     return controller.signal
   }
 
-  /** 有追加指令到达：唤醒本 Session 中等待的 job_output。 */
-  #interrupt(sessionId: string): void {
+  /** 有追加指令送进该 Session 的 Run（用户的或通知；SessionRuns.useJobs 的 steered）：唤醒本 Session 中等待的 job_output。 */
+  steered(sessionId: string): void {
     this.#interrupts.get(sessionId)?.abort()
     this.#interrupts.delete(sessionId)
   }
