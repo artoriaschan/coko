@@ -138,9 +138,9 @@ export class JobService {
         return live && live.job.info.sessionId === sessionId && !live.discarded ? live.job : undefined
       },
       list: () => this.list(sessionId),
-      kill: async (jobId) => {
+      kill: async (jobId, reason) => {
         const live = this.#live.get(jobId)
-        if (live && live.job.info.sessionId === sessionId) await this.#kill(live, 'model')
+        if (live && live.job.info.sessionId === sessionId) await this.#kill(live, 'model', reason)
       },
       interrupt: () => this.#interruptSignal(sessionId),
       input: (jobId, data) => this.#input(sessionId, jobId, data),
@@ -506,10 +506,16 @@ export class JobService {
     return { jobId: live.job.info.jobId, text: redactSecretValues(text), inlined }
   }
 
-  async #kill(live: LiveJob, by: 'model' | 'user' | 'system'): Promise<void> {
+  /** reason：job_kill 给出的原因（模型写的文本，按值替换登记明文后记入日志）。 */
+  async #kill(live: LiveJob, by: 'model' | 'user' | 'system', reason?: string): Promise<void> {
     if (!live.job.running || !live.process) return live.ended
     if (live.job.requestStop()) {
-      log.info('job stop requested', { sessionId: live.job.info.sessionId, jobId: live.job.info.jobId, by })
+      log.info('job stop requested', {
+        sessionId: live.job.info.sessionId,
+        jobId: live.job.info.jobId,
+        by,
+        ...(reason === undefined ? {} : { reason: redactSecretValues(reason) }),
+      })
       this.#publishUpdate(live)
       live.process.kill('SIGTERM')
       const timer = setTimeout(() => live.process?.kill('SIGKILL'), this.#options.killGraceMs ?? JOB_KILL_GRACE_MS)
