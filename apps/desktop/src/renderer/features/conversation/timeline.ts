@@ -19,6 +19,9 @@ import {
 import { JOB_NOTIFICATION_TAG, rewoundRanges } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
+/** UserPromptSubmit 的 additionalContext 在 user message 中的文本块开头（服务端 session-runs.ts 的 SUBMIT_CONTEXT_TAG）。 */
+const HOOK_CONTEXT_TAG = '<hook-context>'
+
 export interface ToolCallBlock {
   id: string
   name: string
@@ -265,9 +268,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       pendingCommand = null
       const references: string[] = []
       // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
+      // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
       const blocks = blocksOf(message.content)
       const own = blocks.filter((b) => {
-        if (b.type === 'text' && typeof b.text === 'string' && b.text.startsWith(JOB_NOTIFICATION_TAG)) return false
+        if (b.type === 'text' && typeof b.text === 'string' && (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG))) return false
         const path = b.type === 'text' && typeof b.text === 'string' ? fileReferencePath(b.text) : undefined
         if (path !== undefined) references.push(path)
         return path === undefined

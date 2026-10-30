@@ -2,8 +2,8 @@ import { WebhookIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
 
-/** 结论为阻断或失败的 hook_run 用警示色（与工具卡的拒绝标注一致）。 */
-const DESTRUCTIVE = new Set(['blocked', 'denied', 'timeout', 'error', 'invalid-output'])
+/** 结论为阻断、停止或失败的 hook_run 用警示色（与工具卡的拒绝标注一致）；要求继续、追加上下文与放行为常规色。 */
+const DESTRUCTIVE = new Set(['blocked', 'denied', 'stopped', 'timeout', 'error', 'invalid-output'])
 
 /**
  * 时间线的 Hook 行（hook_run 条目）：紧凑行。事件名、结论、来源与（已脱敏的）命令；有 message 时另起一行显示（换行，不截断）。
