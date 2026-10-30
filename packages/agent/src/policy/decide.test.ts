@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PermissionRule } from '../session-entries/index.ts'
+import { permissionEntryPayloads, type PermissionRule } from '../session-entries/index.ts'
 import { canonicalRuleTool, decide, type PermissionCall, type PermissionContext } from './decide.ts'
 
 const WS = '/ws/project'
@@ -112,7 +112,7 @@ describe('权限判定（default 模式）', () => {
 })
 
 describe('四种模式 × 工具类型（ADR 0005）', () => {
-  const roots: Record<PermissionContext['mode'], string[]> = { 'read-only': [], default: [WS, TMP], 'accept-edits': [WS, TMP], 'full-access': ['/'] }
+  const roots: Record<PermissionContext['mode'], string[]> = { 'read-only': [], default: [WS, TMP], 'accept-edits': [WS, TMP], 'full-access': ['/'], plan: [] }
   const at = (mode: PermissionContext['mode'], rules: PermissionRule[] = []) => ctx({ mode, rules, writableRoots: roots[mode] })
   type Expect = 'allow' | 'deny' | `ask:${string}`
   const outcome = (call: PermissionCall, context: PermissionContext): Expect => {
@@ -279,5 +279,78 @@ describe('权限类（M3）', () => {
   it('内置工具名不受宿主给出的权限类影响', () => {
     expect(decide(call('bash', 'context-read'), ctx()).behavior).toBe('ask')
     expect(decide({ ...file('write', 'a', `${WS}/a`), permissionClass: 'context-read' }, ctx()).behavior).toBe('ask')
+  })
+})
+
+describe('plan 模式（Plan Mode，ADR 0005）', () => {
+  // plan 与 read-only 的可写根都为空（sandbox.ts 的推导）。
+  const at = (mode: 'plan' | 'read-only', rules: PermissionRule[] = [], readRoots?: string[]) =>
+    ctx({ mode, rules, writableRoots: [], ...(readRoots ? { readRoots } : {}) })
+  const SKILL = '/Users/me/.agents/skills/review'
+
+  it.each<[string, PermissionCall]>([
+    ['Workspace 内读取', file('read', 'a.ts', `${WS}/a.ts`)],
+    ['grep Workspace', file('grep', '.', WS)],
+    ['Workspace 外读取', file('read', '/etc/hosts', '/etc/hosts')],
+    ['额外读取根内的读取', file('read', `${SKILL}/notes.md`, `${SKILL}/notes.md`)],
+    ['Workspace 内写入', file('write', 'a.ts', `${WS}/a.ts`)],
+    ['Workspace 内 edit', file('edit', 'a.ts', `${WS}/a.ts`)],
+    ['受保护路径写入', file('write', '.git/config', `${WS}/.git/config`)],
+    ['bash', bash('ls')],
+    ['未知工具', { toolName: 'deploy' }],
+    ['context-read', { toolName: 'memory_list', permissionClass: 'context-read' }],
+    ['memory-write', { toolName: 'memory_write', permissionClass: 'memory-write' }],
+    ['external', { toolName: 'mcp__srv__x', permissionClass: 'external' }],
+    ['session-state', { toolName: 'todo_write', permissionClass: 'session-state' }],
+  ])('%s：与 read-only 的判定相同', (_name, call) => {
+    expect(decide(call, at('plan', [], [SKILL]))).toEqual(decide(call, at('read-only', [], [SKILL])))
+  })
+
+  it('读取放行、写入与命令询问（不放行写入；可保存的建议与 read-only 相同）', () => {
+    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan')).behavior).toBe('allow')
+    expect(decide(file('write', 'a.ts', `${WS}/a.ts`), at('plan'))).toEqual({ behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] })
+    expect(decide(bash('touch x'), at('plan'))).toMatchObject({ behavior: 'ask', reason: 'approval-required' })
+  })
+
+  it('session-state 在 plan 中放行；deny 规则仍生效', () => {
+    for (const name of ['todo_write', 'create_goal', 'update_goal', 'job_kill'])
+      expect(decide({ toolName: name, permissionClass: 'session-state' }, at('plan'))).toEqual({ behavior: 'allow' })
+    expect(decide({ toolName: 'job_kill', permissionClass: 'session-state' }, at('plan', [rule('deny', 'job_kill')])).behavior).toBe('deny')
+  })
+
+  it('plan-exit 在 plan 中询问且没有建议；允许规则不生效，拒绝规则生效', () => {
+    const exit: PermissionCall = { toolName: 'exit_plan_mode', permissionClass: 'plan-exit' }
+    expect(decide(exit, at('plan'))).toEqual({ behavior: 'ask', reason: 'approval-required', suggestions: [] })
+    expect(decide(exit, at('plan', [rule('allow', 'exit_plan_mode')])).behavior).toBe('ask')
+    expect(decide(exit, at('plan', [rule('deny', 'exit_plan_mode')])).behavior).toBe('deny')
+  })
+
+  it('允许规则在 plan 中照常生效（与 read-only 相同），拒绝与询问规则同样前置', () => {
+    expect(decide(bash('git status'), at('plan', [rule('allow', 'Bash', 'git status')])).behavior).toBe('allow')
+    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan', [rule('deny', 'Read')])).behavior).toBe('deny')
+    expect(decide(file('read', 'a.ts', `${WS}/a.ts`), at('plan', [rule('ask', 'Read')]))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+  })
+})
+
+describe('permission_mode 条目的版本', () => {
+  const definition = permissionEntryPayloads.find((d) => d.kind === 'permission_mode')!
+  const [v1, v2] = definition.versions
+
+  it('v1 的四档读回为 v2（原样迁移）；v1 不接受 plan 与 prior', () => {
+    expect(definition.versions).toHaveLength(2)
+    for (const mode of ['read-only', 'default', 'accept-edits', 'full-access']) {
+      expect(v1!.check({ mode })).toBeUndefined()
+      const migrated = v2!.migrate!({ mode })
+      expect(migrated).toEqual({ mode })
+      expect(v2!.check(migrated)).toBeUndefined()
+    }
+    expect(v1!.check({ mode: 'plan' })).toBeDefined()
+    expect(v1!.check({ mode: 'default', prior: 'default' })).toBeDefined()
+  })
+
+  it('v2：plan 可带 prior（四档之一）；prior 不能是 plan', () => {
+    expect(v2!.check({ mode: 'plan', prior: 'accept-edits' })).toBeUndefined()
+    expect(v2!.check({ mode: 'plan' })).toBeUndefined()
+    expect(v2!.check({ mode: 'plan', prior: 'plan' })).toBeDefined()
   })
 })

@@ -101,7 +101,7 @@ export interface PermissionContext {
   rules: readonly PermissionRule[]
   /** Workspace 的真实路径。 */
   workspace: string
-  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only 下为空，full-access 下为根目录。 */
+  /** 文件写入与命令沙箱共用的可写根（真实路径）；read-only 与 plan 下为空，full-access 下为根目录。 */
   writableRoots: readonly string[]
   /** 额外读取根（真实路径，例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?: readonly string[]
@@ -201,7 +201,9 @@ function modeAllows(facts: Facts): boolean {
   const target = call.target
   const readInside = category === 'read' && target !== undefined && readable(target.real, context)
   switch (context.mode) {
+    // plan（Plan Mode）的模式放行与 read-only 相同：只调研，写入、命令、MCP 与 memory-write 照常询问。
     case 'read-only':
+    case 'plan':
     case 'default':
       return readInside
     case 'accept-edits':
