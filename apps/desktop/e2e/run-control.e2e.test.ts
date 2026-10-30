@@ -51,11 +51,12 @@ const sleepCall = (id: string, seconds: number) => ({
   arguments: { command: 'touch started && sleep ' + seconds + ' && echo slept' },
 })
 const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
-const pendingSteering = (app: LaunchedApp) => app.window.locator('[data-steering="pending"]')
-const userBubbles = (app: LaunchedApp) => app.window.locator('article[aria-label="You"]:not([data-steering]), article[aria-label="你"]:not([data-steering])')
+// 待送达的追加指令只在 dock 的 Queue 卡中显示（时间线中没有待送达气泡）。
+const pendingSteering = (app: LaunchedApp) => app.window.locator('[data-slot="queue-card"] [data-queued]')
+const userBubbles = (app: LaunchedApp) => app.window.locator('article[aria-label="You"], article[aria-label="你"]')
 
 describe('运行控制', () => {
-  it('Run 中输入并回车 → 待送达气泡，送达后变为普通消息，Agent 据此继续', async () => {
+  it('Run 中输入并回车 → 进入 Queue 卡，送达后变为普通消息，Agent 据此继续', async () => {
     const { app, workspace } = await setup({ responses: [{ content: [sleepCall('b1', 3)] }, { content: 'Noted the README request.' }] })
     await type(app, 'run the command')
     await expect.poll(() => exists(join(workspace, 'started')), { timeout: 30_000 }).toBe(true)
@@ -66,7 +67,7 @@ describe('运行控制', () => {
     await type(app, 'also check the README')
     await pendingSteering(app).waitFor({ timeout: 10_000 })
     expect(await pendingSteering(app).textContent()).toContain('also check the README')
-    // 待送达气泡先乐观显示；请求被接受后编辑区才清空。
+    // 待送达项先乐观显示；请求被接受后编辑区才清空。
     await expect.poll(() => composer(app).textContent(), { timeout: 10_000 }).toBe('')
 
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Noted the README request.')

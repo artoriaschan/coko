@@ -47,6 +47,33 @@ describe('时间线：回退折叠', () => {
   })
 })
 
+describe('时间线：后台任务通知', () => {
+  it('<job-notification> 文本块不进入用户气泡；只有通知的消息不成气泡', () => {
+    seq = 0
+    const note = '<job-notification>\n<job-id>job_1</job-id>\n</job-notification>\n\n'
+    const entries = [
+      entry('job_notification', { jobIds: ['job_1'] }, 'r'),
+      entry(
+        'message',
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: note },
+            { type: 'text', text: 'next step' },
+          ],
+          timestamp: 0,
+        },
+        'r',
+      ),
+      reply('ok'),
+      entry('job_notification', { jobIds: ['job_2'] }, 'r'),
+      entry('message', { role: 'user', content: [{ type: 'text', text: note }], timestamp: 0 }, 'r'),
+      reply('noted'),
+    ]
+    expect(shape(buildTimeline(conversation(entries)))).toEqual(['job', 'user:next step*', 'text:ok', 'job', 'text:noted'])
+  })
+})
+
 describe('时间线：命令消息', () => {
   const command = (name: string, args: string, source = 'project') => entry('command', { name, args, source }, 'r')
 
