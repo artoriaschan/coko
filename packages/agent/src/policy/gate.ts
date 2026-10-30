@@ -2,6 +2,9 @@
 // 执行前（取得执行槽之后、执行记录之前）recheck 复核文件写入的目标：判定之后目标被替换（例如同批的命令新建了符号链接）时按新判定处理。
 // exit_plan_mode（plan-exit）：询问前提交 proposed 的计划，以 kind plan 的请求等待审阅（不随模式或规则变更重新判定）。
 import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core'
+import { blockedByHookText, combinePreToolUse, type CombinedDecision } from '../extensions/hooks/combine.ts'
+import type { HookCondition } from '../extensions/hooks/config.ts'
+import type { ToolBlockResult } from '../extensions/hooks/tool-hooks.ts'
 import type { PermissionMode, PermissionRule, SandboxMode } from '../session-entries/index.ts'
 import {
   invalidPlanText,
@@ -17,6 +20,7 @@ import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
 import {
   decideWithStep,
+  ruleToolName,
   toolCategory,
   type DecisionStep,
   type PermissionCall,
@@ -45,9 +49,9 @@ export const fixedSandboxRefusedText = (what: string, fixed: SandboxMode, mode: 
 export const deniedByRule = (rule: PermissionRule) => `Permission denied by rule ${rule.tool}${rule.content === undefined ? '' : `(${rule.content})`}.`
 
 /**
- * 外部 Hook 在权限判定中的端口（ADR 0013）：PreToolUse 在 decide 之前运行，PermissionRequest 在第 7 步（default）的询问出卡片之前运行。
- * 两者的组合（deny > 规则拒绝 > 第 2–4 步、提权与 plan-exit 的询问 > Hook 的 ask > Hook 的 allow > decide）由 Hook 的实现接入 gate；
- * 没有端口时 gate 的行为与没有 Hook 时相同。
+ * 外部 Hook 在权限判定中的端口（ADR 0013）：PreToolUse 在 decide 之前运行（每次调用），PermissionRequest 在第 7 步（default）的询问出卡片之前
+ * 运行。组合表见 extensions/hooks/combine.ts：Hook 的 deny > 规则拒绝 > 第 2–4 步、提权与 plan-exit 的询问 > Hook 的 ask（没有建议规则）>
+ * Hook 的 allow（与允许规则同位）> decide。没有端口或端口没有决定时 gate 的行为与没有 Hook 时相同。
  */
 export interface PermissionHookPort {
   preToolUse(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
@@ -78,7 +82,7 @@ export interface PermissionGateOptions {
 
 export interface PermissionGate {
   /** beforeToolCall：判定、提权与审批。 */
-  beforeToolCall(context: BeforeToolCallContext, signal?: AbortSignal): Promise<BeforeToolCallResult | undefined>
+  beforeToolCall(context: BeforeToolCallContext, signal?: AbortSignal): Promise<ToolBlockResult | undefined>
   /**
    * 执行前复核（取得执行槽之后、执行记录之前）：文件写入的真实目标与判定时不同时按当前模式与规则重新判定，deny 与用户拒绝时
    * 以 Error 拒绝（调用不执行），ask 时再次审批。其余调用直接返回。
@@ -96,6 +100,31 @@ export class ToolCallBlockedError extends Error {
 }
 
 const commandKey = (command: string) => command.replace(/\s+/g, ' ').trim()
+
+/** Hook 拦下的调用：模型看到原因，toolResult 带 details.hostBlock { by: hook }（工具卡的"被 Hook 阻止"标注）。 */
+const hookBlock = (reason: string, verdict: HookVerdict): ToolBlockResult => ({
+  block: true,
+  reason,
+  ...(verdict.hookId !== undefined && verdict.command !== undefined ? { hostBlock: { by: 'hook', hookId: verdict.hookId, command: verdict.command } } : {}),
+})
+
+/** 重新判定的结论：允许、带模型可见文本的拒绝、或询问（原因与建议）。 */
+type Reasked = { behavior: 'allow' } | { behavior: 'deny'; reason: string } | Extract<PermissionDecision, { behavior: 'ask' }>
+
+/**
+ * Hook 的 ask 等待期间模式或规则变更：重新判定的结果与同一 Hook 结论再组合（Hook 不重跑）。规则拒绝照常结束请求；仍为询问时保持原请求
+ * （Hook 的 ask 不随模式放宽而消失）。
+ */
+function hookAskAgain(
+  verdict: HookVerdict,
+  next: { decision: PermissionDecision; step: DecisionStep },
+  asked: Extract<PermissionDecision, { behavior: 'ask' }>,
+): Reasked {
+  const combined: CombinedDecision = combinePreToolUse(verdict, next)
+  if (combined.behavior === 'deny') return { behavior: 'deny', reason: combined.by === 'rule' ? deniedByRule(combined.decision.rule) : combined.reason }
+  if (combined.behavior === 'allow') return { behavior: 'allow' }
+  return combined.by === 'hook' ? asked : combined.decision
+}
 const sameSuggestions = (a: readonly PermissionRule[], b: readonly PermissionRule[]) => JSON.stringify(a) === JSON.stringify(b)
 
 export function createPermissionGate(options: PermissionGateOptions): PermissionGate {
@@ -119,7 +148,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     name: string,
     subject: string | undefined,
     isolation = false,
-  ): Promise<{ decision: PermissionDecision; step: DecisionStep; target?: PermissionTarget }> => {
+  ): Promise<{ decision: PermissionDecision; step: DecisionStep; target?: PermissionTarget; matchesRule: (condition: HookCondition) => boolean }> => {
     const mode = options.mode()
     const root = await realWorkspace()
     const permissionClass = classOf(name)
@@ -132,14 +161,21 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     const category = categoryOf(name)
     if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
     const readRoots = await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path)))
-    const { decision, step } = decideWithStep(call, {
+    const context = {
       mode,
       rules: options.rules(),
       workspace: root,
       writableRoots: await writableRootsFor(mode, root),
       ...(readRoots.length > 0 ? { readRoots } : {}),
-    })
-    return { decision, step, ...(call.target ? { target: call.target } : {}) }
+    }
+    const { decision, step } = decideWithStep(call, context)
+    // Hook 的 if：与一条拒绝规则相同的匹配（命令的任一子命令、路径的解析前或真实路径），不看模式与其他规则。
+    const matchesRule = (condition: HookCondition) =>
+      decideWithStep(call, {
+        ...context,
+        rules: [{ behavior: 'deny', tool: condition.tool, ...(condition.content === undefined ? {} : { content: condition.content }) }],
+      }).step === 'deny-rule'
+    return { decision, step, matchesRule, ...(call.target ? { target: call.target } : {}) }
   }
 
   const failed = (error: unknown): string => {
@@ -159,6 +195,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     signal: AbortSignal | undefined,
     onAllowed: (target: PermissionTarget | undefined) => void,
     isolation = false,
+    /** 重新判定的结果与 PreToolUse Hook 的组合（Hook 不重跑）；省略时按 decide。 */
+    combine?: (next: { decision: PermissionDecision; step: DecisionStep }) => Reasked,
   ): Promise<string | undefined> => {
     let asked = first
     let latestTarget: PermissionTarget | undefined
@@ -169,12 +207,17 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
           { toolCallId, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: asked.suggestions },
           signal,
           async (): Promise<ReevaluateVerdict> => {
-            const next = await evaluate(name, subject, isolation)
-            latestTarget = next.target
-            if (next.decision.behavior === 'allow') return { behavior: 'allow' }
-            if (next.decision.behavior === 'deny') return { behavior: 'deny', reason: deniedByRule(next.decision.rule) }
-            if (next.decision.reason === asked.reason && sameSuggestions(next.decision.suggestions, asked.suggestions)) return undefined
-            asked = next.decision
+            const evaluated = await evaluate(name, subject, isolation)
+            latestTarget = evaluated.target
+            const next: Reasked = combine
+              ? combine(evaluated)
+              : evaluated.decision.behavior === 'deny'
+                ? { behavior: 'deny', reason: deniedByRule(evaluated.decision.rule) }
+                : evaluated.decision
+            if (next.behavior === 'allow') return { behavior: 'allow' }
+            if (next.behavior === 'deny') return { behavior: 'deny', reason: next.reason }
+            if (next.reason === asked.reason && sameSuggestions(next.suggestions, asked.suggestions)) return undefined
+            asked = next
             return { behavior: 'reask' }
           },
         )
@@ -278,7 +321,18 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const tool = options.tool(name)
       const subject = subjectOf(name, context.args)
       const isolation = isolationOf(name, context.args)
-      const { decision, target } = await evaluate(name, subject, isolation)
+      const { decision, step, target, matchesRule } = await evaluate(name, subject, isolation)
+      // PreToolUse（ADR 0013）：在 decide 的结果生效之前运行；Hook 的 deny 优先于一切（含规则拒绝与提权）。
+      const hookCall: HookToolCall = {
+        toolCallId: context.toolCall.id,
+        toolName: name,
+        ruleTool: ruleToolName(name, classOf(name)),
+        input: context.args,
+        permissionMode: options.mode(),
+        matchesRule,
+      }
+      const verdict = options.hooks ? await options.hooks.preToolUse(hookCall, signal) : {}
+      if (verdict.decision === 'deny') return hookBlock(blockedByHookText(verdict.reason), verdict)
       if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
@@ -306,13 +360,45 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         }
       }
 
-      if (decision.behavior === 'allow') {
+      const forced = categoryOf(name) === 'plan-exit'
+      const combined = combinePreToolUse(verdict, { decision, step }, forced)
+      if (combined.behavior === 'allow') {
         remember(undefined)
         return undefined
       }
-      const review = categoryOf(name) === 'plan-exit' ? planReviewOf(tool) : undefined
+      if (combined.behavior === 'deny') return { block: true, reason: combined.by === 'hook' ? combined.reason : deniedByRule(combined.decision.rule) }
+      const review = forced ? planReviewOf(tool) : undefined
       if (review) return reviewPlan(context, review, signal)
-      const reason = await askTool(context.toolCall.id, name, subject, decision, signal, remember, isolation)
+      // PermissionRequest：只在最终为第 7 步的询问时、出卡片之前运行；deny 拒绝，allow 以 approval_decision { by: hook } 结束，其余出卡片。
+      if (combined.by === 'policy' && combined.step === 'default' && options.hooks) {
+        const answer = await options.hooks.permissionRequest(hookCall, signal)
+        if (answer.decision === 'deny') return hookBlock(blockedByHookText(answer.reason), answer)
+        if (answer.decision === 'allow') {
+          try {
+            await options.broker.recordHookAllowed({
+              toolCallId: context.toolCall.id,
+              toolName: name,
+              kind: 'tool',
+              subject: subject ?? '',
+              suggestions: combined.decision.suggestions,
+            })
+          } catch (error) {
+            return { block: true, reason: failed(error) }
+          }
+          remember(undefined)
+          return undefined
+        }
+      }
+      const reason = await askTool(
+        context.toolCall.id,
+        name,
+        subject,
+        combined.decision,
+        signal,
+        remember,
+        isolation,
+        combined.by === 'hook' ? (next) => hookAskAgain(verdict, next, combined.decision) : undefined,
+      )
       return reason === undefined ? undefined : { block: true, reason }
     },
 

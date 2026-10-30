@@ -90,8 +90,39 @@ export * from './planning/index.ts'
 export * from './tasks/index.ts'
 
 // Hooks：工具调用的 hook 链与外部 Hook 的类型（extensions/hooks/）。
-export { composeAfterToolCall, composeBeforeToolCall } from './extensions/hooks/index.ts'
-export type { HookDecision, HookEventContext, HookToolCall, HookVerdict, HostBlock, ToolBlockResult, ToolHooks } from './extensions/hooks/index.ts'
+export {
+  aggregateVerdict,
+  blockedByHookText,
+  combinePreToolUse,
+  composeAfterToolCall,
+  composeBeforeToolCall,
+  HOOK_EVENTS,
+  hookDigest,
+  hookTimeoutMs,
+  interpretHookResult,
+  matcherMatches,
+  parseHooksConfig,
+  selectHooks,
+  TOOL_HOOK_EVENTS,
+  validMatcher,
+} from './extensions/hooks/index.ts'
+export type {
+  CombinedDecision,
+  HookCondition,
+  HookDecision,
+  HookEventContext,
+  HookProcessResult,
+  HookResult,
+  HookTarget,
+  HookToolCall,
+  HookVerdict,
+  HostBlock,
+  LoadedHook,
+  ParsedHooks,
+  SourcedHookResult,
+  ToolBlockResult,
+  ToolHooks,
+} from './extensions/hooks/index.ts'
 
 // Ports
 export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'

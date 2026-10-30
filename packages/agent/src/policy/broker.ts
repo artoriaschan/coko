@@ -48,6 +48,11 @@ export interface ApprovalBroker {
   answer(requestId: string, answer: ApprovalAnswer): Promise<void>
   /** 按提出顺序的待审批请求。 */
   pending(): ApprovalRequestPayload[]
+  /**
+   * 不等待用户、由 PermissionRequest Hook 回答的请求（ADR 0013）：依次提交 approval_request 与 approval_decision { outcome: allowed, scope: once,
+   * by: hook }；不进入等待表。提交失败时 reject。
+   */
+  recordHookAllowed(request: Omit<ApprovalRequestPayload, 'requestId'>): Promise<void>
 }
 
 /** 反馈交给模型，限制长度。 */
@@ -115,5 +120,11 @@ export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Pro
     },
 
     pending: () => [...waiting.values()].map((entry) => entry.payload),
+
+    async recordHookAllowed(request) {
+      const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
+      await commit({ kind: 'approval_request', payload })
+      await commit({ kind: 'approval_decision', payload: { requestId: payload.requestId, outcome: 'allowed', scope: 'once', by: 'hook' } })
+    },
   }
 }
