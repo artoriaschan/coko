@@ -11,7 +11,7 @@ until mkdir /tmp/coko-full-test.lock 2>/dev/null; do
   pid=$(cat /tmp/coko-full-test.lock/pid 2>/dev/null); [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null && rm -rf /tmp/coko-full-test.lock
   sleep 10
 done
-echo $ > /tmp/coko-full-test.lock/pid; trap 'rm -rf /tmp/coko-full-test.lock' EXIT
+echo $$ > /tmp/coko-full-test.lock/pid; trap 'rm -rf /tmp/coko-full-test.lock' EXIT
 pnpm run test
 ```
 
