@@ -148,7 +148,7 @@ describe('UserPromptSubmit', () => {
       join(root, '.coko', 'settings.json'),
       JSON.stringify({ hooks: { UserPromptSubmit: [group(recording(record, "echo 'project says no' >&2; exit 2"))] } }),
     )
-    const h = await boot([{ content: 'ran' }], { root })
+    const h = await boot([{ content: 'ran' }, { content: 'ran again' }], { root })
     await h.send('first')
     expect(existsSync(record)).toBe(false)
     const view = (await h.api.get(`${hookPaths.hooks}?sessionId=${h.sessionId}`)).body as HooksResponse
@@ -158,6 +158,16 @@ describe('UserPromptSubmit', () => {
     expect([res.status, res.body.error?.code, res.body.error?.message]).toEqual([400, 'hook-blocked', 'project says no'])
     expect(await records(record)).toHaveLength(1)
     expect(h.of('run_start')).toHaveLength(1)
+
+    // 改动文件：同一位置回到未批准并标为已改动；没有 Session 时按 Workspace 目录读取同样的结果。改动后的 Hook 不运行。
+    await writeFile(
+      join(root, '.coko', 'settings.json'),
+      JSON.stringify({ hooks: { UserPromptSubmit: [group(recording(record, "echo 'changed' >&2; exit 2"))] } }),
+    )
+    const byWorkspace = (await h.api.get(`${hookPaths.hooks}?workspaceId=${h.workspaceId}`)).body as HooksResponse
+    expect(byWorkspace.project!.entries).toEqual([expect.objectContaining({ hookId: 'project:UserPromptSubmit:0:0', approved: false, changed: true })])
+    await h.send('third')
+    expect(await records(record)).toHaveLength(1)
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })

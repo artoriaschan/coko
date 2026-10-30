@@ -109,6 +109,19 @@ const parseRule = (text: string): HookCondition | undefined => {
   return rule ? { tool: rule.tool, ...(rule.content === undefined ? {} : { content: rule.content }) } : undefined
 }
 
+/** 设置键 hooks.approvals.<workspaceId> 的值：批准的 digest 与批准时的位置（早期只存 digest 字符串）。 */
+function approvalsOf(value: unknown): { digest: string; hookId?: string }[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((v): { digest: string; hookId?: string }[] => {
+    if (typeof v === 'string') return [{ digest: v }]
+    if (typeof v === 'object' && v !== null && typeof (v as { digest?: unknown }).digest === 'string') {
+      const { digest, hookId } = v as { digest: string; hookId?: unknown }
+      return [{ digest, ...(typeof hookId === 'string' ? { hookId } : {}) }]
+    }
+    return []
+  })
+}
+
 const truncate = (text: string, max: number) => (text.length > max ? text.slice(0, max - 1) + '…' : text)
 
 /** 有结果的执行在 hook_run.message 中显示的文本（已脱敏、≤ 2 KB）。 */
@@ -172,8 +185,11 @@ export class HookService {
     if (!loaded.entries.some((entry) => entry.digest === request.digest))
       throw new AppError('digest-mismatch', 'The project hook changed or does not exist; review it again', { digest: request.digest })
     const key = hookApprovalsSetting(request.workspaceId)
-    if (loaded.approvals.includes(request.digest)) return
-    await this.#store.settings.set(key, [...loaded.approvals, request.digest], loaded.approvalsRevision)
+    if (loaded.approvals.some((a) => a.digest === request.digest)) return
+    // 记下批准时的位置（hookId）：同一位置的内容改动后显示为"已改动"。
+    const hookIds = loaded.entries.filter((entry) => entry.digest === request.digest).map((entry) => entry.hookId)
+    const next = [...loaded.approvals, ...hookIds.map((hookId) => ({ digest: request.digest, hookId }))]
+    await this.#store.settings.set(key, next as JsonValue, loaded.approvalsRevision)
     log.info('project hook approved', { workspaceId: request.workspaceId })
   }
 
@@ -190,7 +206,8 @@ export class HookService {
 
   async #project(workspaceId: string, cwd: string) {
     const [file, approvalsSetting] = await Promise.all([this.#config.projectHooks(cwd), this.#store.settings.get(hookApprovalsSetting(workspaceId))])
-    const approvals = Array.isArray(approvalsSetting?.value) ? approvalsSetting.value.filter((v): v is string => typeof v === 'string') : []
+    const approvals = approvalsOf(approvalsSetting?.value)
+    const approved = new Set(approvals.map((a) => a.digest))
     const parsed = parseHooksConfig(file.hooks, 'project', { parseRule, path: file.path })
     const entries: ProjectHookEntry[] = parsed.hooks.map((hook) => ({
       hookId: hook.hookId,
@@ -200,7 +217,8 @@ export class HookService {
       command: hook.command,
       ...(hook.timeout === undefined ? {} : { timeout: hook.timeout }),
       digest: hook.digest,
-      approved: approvals.includes(hook.digest),
+      approved: approved.has(hook.digest),
+      ...(!approved.has(hook.digest) && approvals.some((a) => a.hookId === hook.hookId) ? { changed: true as const } : {}),
     }))
     return { path: file.path, entries, hooks: parsed.hooks, diagnostics: parsed.diagnostics, approvals, approvalsRevision: approvalsSetting?.revision ?? 0 }
   }
@@ -211,7 +229,7 @@ export class HookService {
   async load(scope: Pick<HookScope, 'workspaceId' | 'cwd' | 'config'>): Promise<LoadedHook[]> {
     if (!scope.config.hooks.enabled) return []
     const [global, project] = await Promise.all([this.#global(), this.#project(scope.workspaceId, scope.cwd)])
-    return [...global.parsed, ...project.hooks.filter((hook) => project.approvals.includes(hook.digest))]
+    return [...global.parsed, ...project.hooks.filter((hook) => project.approvals.some((a) => a.digest === hook.digest))]
   }
 
   /** 新的 Run 状态（Hook 在第一次需要时加载）。 */

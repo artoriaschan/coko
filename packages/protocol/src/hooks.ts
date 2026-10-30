@@ -86,7 +86,10 @@ export const hookApprovalsSetting = (workspaceId: string) => `hooks.approvals.${
 /** Hook 的设置（配置与批准）只能经 /api/hooks 修改：通用设置接口拒绝这些键。 */
 export const isHooksSettingKey = (key: string) => key === HOOKS_SETTING || key.startsWith(`${HOOKS_SETTING}.`)
 
-/** 项目文件中的一条 Hook：完整命令与 digest，approved 为该 Workspace 是否已批准当前 digest。 */
+/**
+ * 项目文件中的一条 Hook：完整命令与 digest，approved 为该 Workspace 是否已批准当前 digest；changed 为同一位置（hookId）曾经批准过、
+ * 但内容已改动（digest 不同），须重新批准。
+ */
 export const ProjectHookEntry = Type.Object(
   {
     hookId: Id,
@@ -97,6 +100,7 @@ export const ProjectHookEntry = Type.Object(
     timeout: Type.Optional(Type.Integer({ minimum: 1 })),
     digest: Id,
     approved: Type.Boolean(),
+    changed: Type.Optional(Type.Literal(true)),
   },
   strict,
 )
@@ -125,7 +129,7 @@ export const ApproveHookRequest = Type.Object({ workspaceId: Id, digest: Id, ses
 export type ApproveHookRequest = Static<typeof ApproveHookRequest>
 
 export const hookPaths = {
-  /** GET HooksResponse（?sessionId=）/ PUT UpdateHooksRequest。 */
+  /** GET HooksResponse（?sessionId= 或 ?workspaceId=）/ PUT UpdateHooksRequest。 */
   hooks: '/api/hooks',
   /** POST ApproveHookRequest。 */
   approvals: '/api/hooks/approvals',
