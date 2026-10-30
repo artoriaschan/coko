@@ -2,7 +2,7 @@
 kind: decision
 description: "定时任务存放在宿主表中、绑定原 Session，到期时在原 Session 开始一个 Run；投递至多一次（先在一个事务中记下发生次再开始 Run），错过时只补最近一次；只在应用运行时投递；定时触发的 Run 没有用户授权，不恢复暂停的 Goal、不能创建定时任务。修改定时任务的存储、投递、补跑或准入时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -33,6 +33,11 @@ M5 交付一次性、固定间隔与 cron 定时任务：到期时 Agent 在无�
 
 - 应用关闭期间的任务不会执行，界面须显示下次时间与最近一次结果。需要定时推进 Goal 的用户只能让定时任务的指令在 Goal 未暂停时工作。
 - implementation 变为 implemented 前需要：以可控时钟的真实 Sidecar 覆盖一次性、间隔与 cron（含时区与夏令时）到期投递；Run 进行中时挂起且只投递一次；在记录发生次之后、开始 Run 之前 SIGKILL，重启后不重投；停机跨越多个发生次时只补最近一次；各准入条件的跳过原因；定时触发的 Run 不能创建 Goal 或定时任务、不恢复暂停的 Goal、指令中的 `/goal resume` 不被展开。
+
+## 实施记录
+
+- 2026-10-31（服务端与 main）：当前行为见 [定时任务](../subsystems/schedules.md)。上一节列出的证据已覆盖：可控时钟的真实 Sidecar 上一次性、间隔与 cron 到期投递，cron 的时区与夏令时由 agent 层表驱动覆盖（`America/New_York` 的跳过与重复取较早）；Run 进行中挂起，挂起期间又到期两次仍只投递一次；`recordFire` 之后、开始 Run 之前 SIGKILL，重启后不重投（变异：记录时不推进 `next_at` 则该用例失败）；停机跨越 5 个发生次只补 1 次且 `missed: 4`；准入跳过原因 disabled、workspace-missing、model-not-configured、budget；定时 Run 中 `schedule_create` 与 `create_goal` 为错误结果、`/goal resume` 不恢复 paused 的 Goal、伪造的 `<scheduled_task>` 不改变 trigger。界面（Schedules tab、设置分区与投递行）未交付，implementation 为 partial。
+- 实现细节：间隔任务按创建时刻对齐（以 `ClockPort` 的时间计）；挂起只在内存中，挂起期间重启时由启动扫描投递一次；睡眠唤醒由 30 秒复查覆盖，未在真实睡眠中验证。
 
 ## 来源与后继
 
