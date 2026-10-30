@@ -64,7 +64,7 @@ Status: open
 | M1 行走骨架 | `.scratch/m1-walking-skeleton/` | delivered（[复盘](../m1-walking-skeleton/retro.md)） |
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
-| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | next（用户指示 M3 后暂停，等待继续） |
+| M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | in progress（用户 2026-10-30 指示继续） |
 | M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | pending |
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
 
