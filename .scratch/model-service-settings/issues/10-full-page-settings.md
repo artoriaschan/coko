@@ -76,3 +76,21 @@
 
 - 浏览器测试定位设置：`settingsRegion()`（`apps/desktop/src/renderer/testing/settings-page.ts`），即名为“设置 / Settings”的 region；CSS 选择器用 `[data-settings-page]`。E2E 用 `window.locator('[data-settings-page]')`。设置内的确认框与弹窗仍是独立的 `alertdialog` / `dialog`，在 `page` 上查询。
 - 判断设置是否打开用 `settingsPage.getSnapshot().visible`；未打开时 region 不在文档中。
+
+### 合入记录（ms-merger，2026-10-30）
+
+- 集成分支 model-service 已按 lead 说明重建，合入前 HEAD 与 main 同为 727a605，工作区干净。以 `git merge --no-ff ms/10-full-page-settings` 合入，合入提交 7260bfe（票分支 2e61765，基于 727a605），无冲突。
+- 集成 worktree 复核：`pnpm install --frozen-lockfile` 退出 0（只补装依赖，锁文件不变）；`pnpm run typecheck` 退出 0；`pnpm run lint` 0 警告 0 错误（576 文件）；`pnpm run format:check` 通过（602 文件）；`pnpm run check:docs` 132 文件 0 问题。
+- `pnpm run test`：
+  - 第一次 207 文件，1458 通过、2 失败、1 跳过。失败的是 `apps/desktop/src/main/sidecar-process.test.ts` 与 `sidecar-supervisor.test.ts` 各 1 例，都是 5 秒超时；本票没有改 `apps/desktop/src/main`、preload 或 shared。单独重跑这两个文件 16 个用例全部通过。
+  - 第二次全量 207 文件，1460 通过、1 跳过（`settings.e2e` 的真实 DeepSeek 用例，无密钥），含 `settings-page.browser.test.tsx` 9 例与全部 desktop-e2e、产物 smoke。判断第一次失败是负载导致的超时，与本票无关。
+  - ms-03 提到的 `thinking-levels.browser.test.tsx`“连续添加七次”超时在集成 worktree 两次全量中都没有复现（4 例通过）。
+- Spec 评审：对照本票 8 项验收与规格 2.1（2026-10-30 修订），没有发现缺口。
+  - 打开与返回：应用容器在设置打开时带 `invisible` 与 `inert`，不卸载；打开前记下焦点，返回后恢复。⌘, 调用 `toggle()`，“返回应用”与 Escape 调用 `back()`，都经离开守卫。
+  - Escape：已被弹窗、菜单或 composer 处理的事件，或文档中有不在 `[inert]` 内的 dialog / alertdialog / menu 时，只关闭该层；设置打开时 Escape 返回应用，不会走到停止 Run 的分支。
+  - 搜索、分组、几何、landmark 与焦点由 `settings-page.browser.test.tsx` 与 `sections.browser.test.tsx` 覆盖。外壳样式只用语义 token，没有 `dark:` 变体与 `rounded-full`。
+  - 改名完整：apps、packages、docs、tests 中已没有“设置弹窗”、`settings-dialog`、`SettingsDialog`、`useSettingsDialog`。
+- 已知差异沿用实施记录：Toast“去设置”入口没有新测试（`main.tsx` 仍调用 `settingsPage.open('models')`，与侧栏入口走同一个 store 方法）；没有在真实 Electron 窗口中目测 macOS 红绿灯与 48px 安全区的避让。
+- 没有后继票，不需要转写约定。
+
+Closed: true
