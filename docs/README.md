@@ -35,7 +35,7 @@ lifecycle: active
 - [命令执行与子进程登记](subsystems/execution.md)：bash 的进程组执行与生命周期回调、子进程登记表、启动时的孤儿清理与有序关闭、已知限制。
 - [后台任务](subsystems/jobs.md)：bash run_in_background、Job 输出（环形缓冲、日志、进度）、job_output / job_list / job_kill、完成通知、HTTP 接口、停止与重启 lost、PTY Job 与 job_input、后台任务视图。
 - [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时注入的 <todo_list>（压缩后仍在）、dock 的待办卡与队列卡。
-- [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、<goal> 与 <goal_round> 注入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停。
+- [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、<goal> 与 <goal_round> 注入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停、预算与模型价格、Goal 卡与用量界面。
 - [Plan Mode](subsystems/plan-mode.md)：plan 权限模式、/plan 与 prior、exit_plan_mode 的提交与审阅、<plan_mode> 与 <approved_plan> 注入、审阅卡与右栏 Plan tab。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
