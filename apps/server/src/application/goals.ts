@@ -109,7 +109,7 @@ export class GoalService {
   /** 工具调用上限：每个 Session 当前 Run 已放行、结果尚未提交的调用（同一批的调用先放行、后提交结果）。 */
   readonly #admitted = new Map<string, { runId: string; ids: Set<string> }>()
   /** 工具调用前检查按 Session 串行（同一批的调用并发进入 hook）。 */
-  readonly #gates = new KeyedMutex()
+  readonly #toolCallLocks = new KeyedMutex()
 
   constructor(options: GoalServiceOptions) {
     this.#options = options
@@ -170,7 +170,7 @@ export class GoalService {
    * 本批完成后停止（stopAfterBatch）。
    */
   toolHooks(sessionId: string): ToolHooks {
-    return { beforeToolCall: (context) => this.#gates.run(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
+    return { beforeToolCall: (context) => this.#toolCallLocks.run(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
   }
 
   async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
