@@ -55,9 +55,11 @@ lifecycle: active
 | external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
 | session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill | 所有模式都放行（含 read-only 与 plan） |
 | plan-exit（M4） | exit_plan_mode | 无：任何模式都询问且不建议规则，允许规则不生效 |
+| agent（M5） | agent（规则组名 `Agent`，内容为子代理类型；建议规则为 `Agent(<类型>)`） | 所有模式都放行；带 `isolation: 'worktree'` 时只有 full-access 放行，其余询问 |
+| automation（M5） | schedule_create、schedule_update（规则组名 `Schedule`） | 只有 full-access |
 | bash（M4 增加） | job_input（判定对象为终端当前行加写入的 text，与 bash 命令同一套规则，规则组名 `Bash`；Job 启动时的沙箱宽于当前模式时 plan / read-only 拒绝、其余模式按提权询问，见 [PTY 与 stdin](execution.md#pty-与-stdin)） | 与 bash 相同 |
 
-没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。session-state 的工具由 Todo、Goal 与后台任务注册；plan-exit 的 `exit_plan_mode` 只在 plan 模式的 Run 中注册，询问不受允许规则免除，拒绝规则照常生效，审批为 kind plan（见下文与 [Plan Mode](plan-mode.md)）。
+M5 的 agent_wait、schedule_list 按 context-read，agent_cancel、schedule_delete 按 session-state 注册。这些工具由子代理与定时任务注册（尚未交付）；判定与规则组名已在 `decide` 中生效。没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。session-state 的工具由 Todo、Goal 与后台任务注册；plan-exit 的 `exit_plan_mode` 只在 plan 模式的 Run 中注册，询问不受允许规则免除，拒绝规则照常生效，审批为 kind plan（见下文与 [Plan Mode](plan-mode.md)）。
 
 **额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
 
@@ -72,6 +74,8 @@ workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：�
 判定只看工具名所属的组：read 组（read、grep、find、ls）、edit 组（write、edit）、bash、Memory 组（memory-write 类）；其他名字（宿主新增的工具）按原名判定。规则以组名书写：`Read`、`Edit`、`Bash`、`Memory`，`skill` 工具为 `Skill`（内容为 Skill 名，见 [Skills](skills.md#权限)），宿主工具用注册名。规则 `mcp__<server>` 匹配该 Server 的全部工具（`mcp__<server>__*`），不匹配名字以它开头的其他 Server（`mcp__srv` 不匹配 `mcp__srv2__x`）。
 
 **工具名的写法。** 经 `/api/permissions` 与 `…/permission-rules` 写入时，工具名归一为规范名（`canonicalRuleTool`）：内置工具名与组名不区分大小写归为组名（`bash` → `Bash`，`write` / `edit` → `Edit`，`grep` → `Read`，`skill` → `Skill`，后者即使本次 Run 未注册 skill 工具也接受），宿主工具按注册名不区分大小写匹配；按 Run 贡献的工具即使当前未注册也接受（`memory_write` / `memory_delete` → `Memory`，`memory_list`、`list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` 按原名；之后新增的贡献工具在 Run 开始时登记）；`mcp__` 开头的名字即使当前未注册也原样接受（Server 可能尚未连接）；都不是时 400 `bad-request`，`details = { reason: 'unknown-tool', tool }`，设置分区在输入框下行内提示。库中已有的非规范写法在读入时归一；`decide` 也按组名、不区分大小写比较，旧规则不会静默失效。
+
+**判定步骤。** `decideWithStep` 另给出作出判定的步骤：`deny-rule`、`ask-rule`、`protected`（受保护路径）、`outside-writable`（越出可写根，或没有目标的写入）、`mode`（模式放行；plan-exit 的总询问也记在这一步）、`allow-rule`、`default`（模式与规则都没有放行的询问）。`decide` 只返回判定。权限 gate 另接受可选的 `PermissionHookPort { preToolUse, permissionRequest }`，外部 Hook 的组合（[ADR 0013](../adr/0013-external-hooks-tighten-only.md)）按步骤区分：第 2–4 步、提权与 plan-exit 的询问不能被 Hook 的放行免掉。目前没有领域提供这个端口，所以 gate 的行为与没有 Hook 时相同。
 
 顺序固定（ADR 0005）：
 
