@@ -8,7 +8,7 @@ const Id = Type.String({ minLength: 1 })
 
 /**
  * submit：用户消息；retry：重新执行出错的上一轮；continue：接着暂停或中断的 Run；compact：手动 /compact（只提交 compaction）；
- * goal：Goal Round（宿主自动推进 Goal 的 Run）。
+ * goal：Goal Round（宿主自动推进 Goal 的 Run）；schedule：定时任务到期；subagent：子 Session 的 Run；handoff：只发一次摘要请求的交接 Run。
  */
 export const runTriggerSchema = Type.Union([
   Type.Literal('submit'),
@@ -16,6 +16,9 @@ export const runTriggerSchema = Type.Union([
   Type.Literal('continue'),
   Type.Literal('compact'),
   Type.Literal('goal'),
+  Type.Literal('schedule'),
+  Type.Literal('subagent'),
+  Type.Literal('handoff'),
 ])
 export type RunTrigger = Static<typeof runTriggerSchema>
 
@@ -34,9 +37,24 @@ const runStartV1Schema = Type.Object(
   strict,
 )
 
-/** run_start v2：Goal Round 另带所属 Goal 与轮次。 */
+const goalRefSchema = Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)
+
+/** run_start v2：Goal Round 另带所属 Goal 与轮次（trigger 取值是 v3 的子集，迁移时原样保留）。 */
+const runStartV2Schema = Type.Object(
+  {
+    trigger: Type.Union([Type.Literal('submit'), Type.Literal('retry'), Type.Literal('continue'), Type.Literal('compact'), Type.Literal('goal')]),
+    goal: Type.Optional(goalRefSchema),
+  },
+  strict,
+)
+
+/** run_start v3：定时任务的 Run 另带任务与本次到期时刻（UTC 毫秒）。 */
 export const runStartPayloadSchema = Type.Object(
-  { trigger: runTriggerSchema, goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)) },
+  {
+    trigger: runTriggerSchema,
+    goal: Type.Optional(goalRefSchema),
+    schedule: Type.Optional(Type.Object({ scheduleId: Id, occurrence: Type.Integer({ minimum: 0 }) }, strict)),
+  },
   strict,
 )
 export type RunStartPayload = Static<typeof runStartPayloadSchema>
@@ -88,7 +106,11 @@ export interface RunEntryPayloads {
 }
 
 export const runEntryPayloads = definePayloads({
-  run_start: [{ schema: runStartV1Schema }, { schema: runStartPayloadSchema, migrate: (previous: EntryJson) => previous }],
+  run_start: [
+    { schema: runStartV1Schema },
+    { schema: runStartV2Schema, migrate: (previous: EntryJson) => previous },
+    { schema: runStartPayloadSchema, migrate: (previous: EntryJson) => previous },
+  ],
   message: [{ schema: messagePayloadSchema }],
   run_end: [{ schema: runEndPayloadSchema }],
   confirmation_request: [{ schema: confirmationRequestPayloadSchema }],

@@ -2,7 +2,7 @@
 // 项目只能收紧：开关只有 false 生效，skills.disabled 追加，permissions.deny / ask 作为 project 作用域的规则；授予类的键被忽略并诊断。
 // 诊断不阻止其余键生效；JSON 解析失败时整个文件被忽略。
 import { diagnostic, type ResourceDiagnostic } from '../instructions/shared/index.ts'
-import { defaultCapabilityConfig, type CapabilityConfig } from './schema.ts'
+import { defaultCapabilityConfig, GLOBAL_ONLY_SECTIONS, type CapabilityConfig } from './schema.ts'
 
 type Section = keyof CapabilityConfig
 
@@ -17,6 +17,8 @@ export interface ProjectCapabilityValues {
   mcp?: { enabled?: false }
   memory?: { enabled?: false }
   context?: { autoCompact?: false; trimOldToolResults?: false }
+  agents?: { enabled?: false }
+  schedules?: { enabled?: false }
 }
 
 /** 项目的拒绝与询问规则（规则文本，如 Bash(rm *)），作为只读的 project 作用域参与判定。 */
@@ -73,6 +75,12 @@ export function parseProjectSettings(text: string, path: string, options: ParseP
       continue
     }
     const section = key as Section
+    // 项目文件中的 hooks 是项目 Hook 的配置（Hook 的加载另行解析）；其中的 enabled 不能开关能力。
+    if (GLOBAL_ONLY_SECTIONS.has(section)) {
+      if (isObject(value) && Object.hasOwn(value, 'enabled'))
+        report('project-cannot-grant', `${key}.enabled is ignored: this capability can only be switched in global settings`)
+      continue
+    }
     if (!isObject(value)) {
       report('invalid-value', `${key} must be an object`)
       continue
@@ -136,7 +144,7 @@ export function mergeCapabilityConfig(global: CapabilityConfigPatch, project: Pr
   }
   for (const section of Object.keys(merged) as Section[]) {
     apply(section, global[section], (_current, value) => value)
-    apply(section, (project as CapabilityConfigPatch)[section], (current, value) => current && value)
+    if (!GLOBAL_ONLY_SECTIONS.has(section)) apply(section, (project as CapabilityConfigPatch)[section], (current, value) => current && value)
   }
   return merged
 }
