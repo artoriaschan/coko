@@ -94,6 +94,28 @@ export function createDraftStore({ storage, warn = () => {}, delayMs = DRAFT_SAV
   }
 }
 
+/** 纯文本的 EditorState（与输入区 setText 相同的结构：一个段落，行之间为换行节点）。 */
+export function textEditorState(text: string): unknown {
+  const children = text
+    .split('\n')
+    .flatMap((line, index) => [
+      ...(index > 0 ? [{ type: 'linebreak', version: 1 }] : []),
+      ...(line === '' ? [] : [{ type: 'text', version: 1, text: line, detail: 0, format: 0, mode: 'normal', style: '' }]),
+    ])
+  const paragraph = { type: 'paragraph', version: 1, children, direction: null, format: '', indent: 0, textFormat: 0, textStyle: '' }
+  return { root: { type: 'root', version: 1, children: [paragraph], direction: null, format: '', indent: 0 } }
+}
+
+/**
+ * 为指定会话写入草稿（交接：目标会话的输入区草稿为摘要）：替换该会话已有的草稿并立即写入（打开该会话时输入区读出它，不提交）。
+ */
+export function writeSessionDraft(sessionId: string, text: string, drafts: DraftStore = appDraftStore()): void {
+  const key = draftKey({ sessionId })
+  const state = textEditorState(text)
+  drafts.schedule(key, () => state)
+  drafts.flush()
+}
+
 let shared: DraftStore | undefined
 
 /** 应用内共用的 store（localStorage；warn 经 preload 写入 desktop.jsonl）；窗口关闭前写入待写的草稿。 */

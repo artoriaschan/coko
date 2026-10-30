@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
+import { HandoffButton } from './handoff-dialog.tsx'
 import { JobsButton } from './jobs-button.tsx'
 import { SessionCost } from './session-cost.tsx'
 
@@ -29,7 +30,7 @@ export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'cost', Component: SessionCost, available: true },
   { id: 'agents', Component: Unavailable, available: false },
   { id: 'schedules', Component: Unavailable, available: false },
-  { id: 'handoff', Component: Unavailable, available: false },
+  { id: 'handoff', Component: HandoffButton, available: true },
 ]
 
 export const visibleHeaderActions = (actions: readonly HeaderActionDefinition[] = HEADER_ACTIONS) => actions.filter((action) => action.available)
