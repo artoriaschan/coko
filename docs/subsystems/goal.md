@@ -12,8 +12,8 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `packages/agent/src/goals/state.ts` | 转换表 `GOAL_TRANSITIONS` 与 `applyGoalChange`、`createGoalSnapshot`、`validateEvidence`、`runAuthority`、`goalRounds`、`currentGoal`、`GoalError`；预算判定 `exhaustedDimension`、`exhaustedMessage`、`GOAL_BUDGET_DIMENSIONS`、`COST_UNPRICED_MESSAGE` |
-| `packages/agent/src/goals/budget.ts` | 预算派生：`goalRunIds`（属于 Goal 的 Run）、`goalUsage`（五维用量，接受子 Session 的条目） |
+| `packages/agent/src/goals/state.ts` | 转换表 `GOAL_TRANSITIONS` 与 `applyGoalChange`、`createGoalSnapshot`、`validateEvidence`、`runAuthority`、`goalRounds`、`currentGoal`、`GoalError`；预算维度的描述表 `GOAL_BUDGET_DIMENSIONS`（每维的预算字段、用量字段、模型可见名与格式，维度映射的唯一来源；键与协议的 `GOAL_BUDGET_DIMENSION_KEYS` 相同，server `goals.ts` 中有编译期断言）、判定 `exhaustedDimension`、`exhaustedMessage`、`COST_UNPRICED_MESSAGE` |
+| `packages/agent/src/goals/budget.ts` | 预算派生：`goalRunIds`（属于 Goal 的 Run）、`goalUsage`（五维用量） |
 | `packages/agent/src/goals/tools.ts` | `planGoalCreate` / `planGoalUpdate`（授权与判定）、三个工具与 `GoalToolPort` |
 | `packages/agent/src/goals/prompt.ts` | `goalSection`（`<goal>`）与 `goalRoundText`（`<goal_round>`） |
 | `packages/agent/src/session-entries/goals.ts`、`packages/protocol/src/goal.ts` | `goal` v1 的 payload schema；协议另有 `GoalResponse`、`GoalActionRequest`、`GoalUsage`、`goalPaths` |
@@ -77,12 +77,14 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 | `cost` | 同一组 usage 的 `cost.total`（不换算货币） | `maxCost` |
 | `time` | 各 Run `run_end.createdAt − run_start.createdAt` 之和（含审批等待，不含 Run 之间；进行中的 Run 计到此刻） | `maxDurationMs`（毫秒） |
 
-已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。汇总函数另接受子 Session 的条目（全部 Run 计入，不计轮次），M4 没有调用方。
+已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。
+
+`goalUsage` 的 `children` 参数是为子 Session 预留的接口：传入的每组条目全部 Run 计入工具调用、Token、费用与时间，不计轮次。子 Session 的汇总由子代理接入，目前没有调用方，Goal 的用量只来自本 Session 的条目。
 
 **检查点**（只对 running 的 Goal 与属于它的 Run）：
 
 - **Goal Round 开始前**（`GoalDriver.advance`）：五维；未定价检查。
-- **每次模型请求前**（`beforeRequest`）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。自动压缩与溢出恢复的摘要请求也是模型请求：压缩之前先检查一次，返回 stop 时不压缩；压缩之后（计入 `compaction.usage`）再检查一次。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。手动 `/compact` 由用户发起，不经这项检查。
+- **每次模型请求前**（`beforeRequest`）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。自动压缩与溢出恢复的摘要请求也是模型请求：压缩之前先检查一次，返回 stop 时不压缩；压缩之后（计入 `compaction.usage`）再检查一次。手动 `/compact` 的摘要请求同样先经这项检查：Goal 为 running 且已耗尽时不发摘要请求、不提交 `compaction`，compact 的 Run 照常转换 Goal 的阶段；Goal 不存在或不是 running 时照常压缩。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。
 - **每次工具调用前**（权限判定之后、Checkpoint 备份之前的准入 hook `admissionHooks`；被拦下的调用不读文件、不写快照）：已提交的调用数加本 Run 已放行、结果尚未提交的调用数（同一批的调用先放行、后提交结果，检查按 Session 串行）达到 `maxToolCalls` 时该调用不执行，结果为错误 `Goal budget exhausted: tool calls (n / max)`，带运行时写入的结构化标记 `details.hostBlock { by: goal-budget, dimension }`（工具自身给出的同名字段被去掉，命令输出无法伪造），并要求 Run 本批完成后停止（`stopAfterBatch`）；同一批中先到的调用照常执行。
 
 耗尽的消息形如 `Goal budget exhausted: tokens (1050 / 1000)`（费用最多 6 位小数，时间带 `ms`）。Run 结束后 Goal 进入 budget-exhausted；恢复前须用 edit 使该维度有余量（`budget` 整体替换），否则 409 `invalid-transition`。
@@ -143,11 +145,11 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 | `apps/desktop/src/renderer/features/conversation/goal-row.tsx` | 时间线的 Goal 行 |
 | `apps/desktop/src/renderer/features/conversation/run-usage-row.tsx`、`session-cost.tsx` | Run 用量行；标题栏的 Session 费用与用量汇总函数 |
 
-**Goal 卡**（dock 中 Todo 与 Queue 之间）。快照取自最新的 `goal` 条目；已用量在条目变化时经 `GET …/goal` 重新读取。未终结的 Goal 一直显示；complete、cancelled 在下一个 Run 开始前显示，可关闭。收起时为一行：目标（单行截断）、阶段徽标、轮次 n / 上限（缺省 50）、费用（模型未定价且没有费用时为"未定价"），下方一行原因。展开后：目标全文（两行截断，可展开）、原因、成功条件（有证据时显示证据）、已设维度的预算条（已用 / 上限，≥ 80% warning 色，≥ 100% destructive 色；模型未定价时费用为提示而不是进度）、取消的清理结果，以及操作：
+**Goal 卡**（dock 中 Todo 与 Queue 之间）。快照取自最新的 `goal` 条目；已用量经 `GET …/goal` 读取，只在影响用量的条目（`goal`、`run_end`、`compaction` 与带 usage 的 assistant 消息）到达时重新读取，同一帧内到达的合并为一次。未终结的 Goal 一直显示；complete、cancelled 在下一个 Run 开始前显示，可关闭。收起时为一行：目标（单行截断）、阶段徽标、轮次 n / 上限（缺省 50）、费用（模型未定价且没有费用时为"未定价"），下方一行原因。展开后：目标全文（两行截断，可展开）、原因、成功条件（有证据时显示证据）、已设维度的预算条（已用 / 上限，≥ 80% warning 色，≥ 100% destructive 色；模型未定价时费用为提示而不是进度；模型已定价且没有费用上限时，预算条下方提示"未设费用上限"）、取消的清理结果，以及操作：
 
 - 暂停（running、waiting-*）、恢复（paused、blocked、failed、budget-exhausted；仍有维度达到上限时不可用并提示先调高预算）、编辑（目标与五维预算，留空为不设上限；时间以分钟输入）、标为完成、取消（确认框；请求在清理完成后返回，期间显示"正在停止"）。
 - 动作带当前快照的 revision；`revision-conflict` 时提示并重新读取，其他失败以 Toast 提示。
-- 原因按 `reason.code` 本地化；needs-input、model-blocked、model-paused 另附模型给出的原文；其余代码（Run 的错误码）显示"运行出错"并附错误消息。
+- 原因按 `reason.code` 本地化：协议 `GoalReason.code` 为已知字面量（`GOAL_REASON_CODES`：预算维度与 `budget`、`cost-unpriced`、用户与系统的暂停、停止与取消、`restarted`、`approval-unanswered`、`plan-review`、模型的 update_goal 原因、Goal Round 没能开始的错误码）的联合，另以字符串兜底；每个已知值在 zh / en 中都有文案。needs-input、model-blocked、model-paused 另附模型给出的原文；其余代码（Run 的错误码）显示"运行出错"并附错误消息。
 
 展开状态、经 `/goal` 打开与关闭只在 renderer 内存中。`/goal`（无参数，独占整段输入）在 renderer 中直接展开 Goal 卡、不发送；没有 Goal 时显示空状态（如何用 `/goal <目标>` 建立），下一个 Run 开始或关闭后消失。Run 进行中的 `/goal pause`、`/goal cancel` 作为提交（Sidecar 的动作）发送，不作为追加指令；提交返回 204 时 renderer 不进入运行中、不报错。
 
@@ -170,9 +172,9 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 - `packages/agent/src/goals/goals.test.ts`：转换表每一行与每个非法组合、resume 与 edit 的 resumedAtRound、budget-exhausted 恢复须有余量、创建的校验、完成证据（缺条件、空文本、未知条件、引用不存在或出错的调用）、各动作在 user / 本 Goal 的轮 / 其他 Goal 的轮 / none 四种 Run 中的授权、blocked 的 3 轮阈值、revision 过期、`runAuthority`、`<goal>` 与 `<goal_round>` 文本。
 - `tests/integration/sidecar-goal.test.ts`：create_goal 之后 Goal Round 依次开始直到完整证据的 complete；轮次耗尽、POST 动作与 409；Goal Round 中的审批、停止为 waiting-input、用户提交后回到 running、追加指令授权 edit 与同一轮不重复；用户的 Run 中调用 wait_input 后不立即唤醒；Goal Round 中的计划审阅为 waiting-input（plan-review）；wait_jobs 后 Job 结束时下一轮开始；取消停止 Run 与 Job 并记 cleanup；取消进行中 resume 为 409；`/goal` 的动作；分叉与回退。
 - `apps/server/src/application/goal-driver.test.ts`：Goal Round 没能开始时按错误码为 blocked、waiting-input 或保持 running。
-- `packages/agent/src/engine/host-stop.test.ts`：`details.hostBlock` 只来自宿主 hook、`RunError.dimension` 不进入条目；`compaction.test.ts`：压缩与溢出恢复之前的请求前检查。
-- `packages/agent/src/goals/budget.test.ts`：五维派生（属于 Goal 的 Run、paused 期间不计、用户提交的 Run 不计轮次、compaction.usage、进行中的 Run、拦下的调用不计）、子 Session 汇总、耗尽的维度与消息、按完整用量判定恢复、`<goal>` 的用量行；`packages/agent/src/engine/compaction.test.ts`：compaction 带摘要请求的 usage、v1 读回为 v2；`packages/agent/src/models/models.test.ts`：价格写入 `model.cost`、已定价判定、负数拒绝。
-- `tests/integration/sidecar-goal-budget.test.ts`：每一维单独设上限，耗尽为 budget-exhausted 且 reason 写明维度、工具调用上限时超出的调用不执行且文件逐字节不变、被拦下的 write 没有 `file_backup`、命令输出伪造拦下前缀时仍计为调用、调高后恢复直到完成；未定价模型设费用上限时 blocked 且 Goal 没有模型请求。
+- `packages/agent/src/engine/host-stop.test.ts`：`details.hostBlock` 只来自宿主 hook、`RunError.dimension` 不进入条目；`compaction.test.ts`：自动压缩、溢出恢复与手动压缩之前的请求前检查。
+- `packages/agent/src/goals/budget.test.ts`：五维派生（属于 Goal 的 Run、paused 期间不计、用户提交的 Run 不计轮次、compaction.usage、进行中的 Run、拦下的调用不计）、`children` 接口、耗尽的维度与消息、按完整用量判定恢复、`<goal>` 的用量行；`src/goals/dimensions.test.ts`：描述表的每一维（预算字段、用量字段、名称、格式）与判定、消息、`<goal>` 都取自它，`create_goal` 描述建议设 `max_cost`；`packages/agent/src/engine/compaction.test.ts`：compaction 带摘要请求的 usage、v1 读回为 v2；`packages/agent/src/models/models.test.ts`：价格写入 `model.cost`、已定价判定、负数拒绝。
+- `tests/integration/sidecar-goal-budget.test.ts`：每一维单独设上限，耗尽为 budget-exhausted 且 reason 写明维度、工具调用上限时超出的调用不执行且文件逐字节不变、被拦下的 write 没有 `file_backup`、命令输出伪造拦下前缀时仍计为调用、调高后恢复直到完成；Goal running 且 Token 已耗尽时 `/compact` 不发摘要请求、没有 `compaction`，Goal 为 budget-exhausted（对手用例），Goal paused 时 `/compact` 照常；未定价模型设费用上限时 blocked 且 Goal 没有模型请求。
 - `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格得到 bad-request、没有价格的目录照常可用；`apps/server/src/control/channel.test.ts`：不合 schema、带 requestId 的控制请求立即得到失败回答。
 - `apps/desktop/src/renderer/features/settings/model-price.browser.test.tsx`：价格输入与校验、编辑回显与清空、费用货币。
 - `tests/integration/sidecar-goal-restart.test.ts`：Goal Round 中 SIGKILL，重启后 paused（restarted）、30 秒内没有新的 run_start，恢复后继续。
