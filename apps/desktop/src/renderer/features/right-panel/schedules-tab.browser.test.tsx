@@ -15,6 +15,7 @@ import { createSchedulesStore, type SchedulesBackend, type SchedulesStore } from
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { localTimeZone, SchedulesStoreProvider } from '../conversation/schedules-button.tsx'
 import { ScheduleFireRow } from '../conversation/schedule-fire-row.tsx'
+import { SchedulesButton } from '../conversation/schedules-button.tsx'
 import { visibleHeaderActions } from '../conversation/header-actions.ts'
 import { SchedulesTab } from './schedules-tab.tsx'
 import { visibleRightPanelTabs } from './tabs.ts'
@@ -105,6 +106,28 @@ describe('注册表', () => {
   it('Schedules tab 与标题栏"定时任务"按钮已交付', () => {
     expect(visibleRightPanelTabs().map((t) => t.id)).toContain('schedules')
     expect(visibleHeaderActions().map((a) => a.id)).toContain('schedules')
+  })
+})
+
+describe('标题栏按钮', () => {
+  it('没有任务时不显示；有任务时显示，徽标只计 active；点击打开 Schedules tab', async () => {
+    const { api, rows } = backend([])
+    const store = createSchedulesStore(api)
+    const opened: string[] = []
+    await mount(store, <SchedulesButton sessionId="s-1" openTab={(tab) => opened.push(tab)} />)
+    await expect.poll(() => store.getState().lists['s-1']?.status).toBe('ready')
+    expect(document.querySelector('[data-action="open-schedules"]')).toBeNull()
+    rows.set('a', schedule('a'))
+    rows.set('b', schedule('b', { status: 'paused' }))
+    await store.getState().load('s-1')
+    await expect.poll(() => document.querySelector('[data-action="open-schedules"]')).not.toBeNull()
+    expect(document.querySelector('[data-slot="schedules-badge"]')?.textContent).toBe('1')
+    await userEvent.click(page.getByRole('button', { name: 'Scheduled tasks (1 active)' }))
+    expect(opened).toEqual(['schedules'])
+    // 设置的"打开会话"：待打开的会话只取一次。
+    store.getState().requestOpen('s-1')
+    await expect.poll(() => opened).toEqual(['schedules', 'schedules'])
+    expect(store.getState().pendingOpen).toBeNull()
   })
 })
 

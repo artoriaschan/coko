@@ -150,8 +150,9 @@ export function ScheduleStatusDot({ status, className }: { status: ScheduleStatu
 }
 
 /**
- * 会话标题栏的"定时任务"按钮：始终显示（新建任务的入口），徽标为 active 的数量（没有时不显示徽标）；点击打开右栏的 Schedules tab。
- * 设置 → 定时任务的"打开会话"（store 的 pendingOpen）也经这里打开右栏。
+ * 会话标题栏的"定时任务"按钮：会话有定时任务时显示（与后台任务按钮一致；新建入口是右栏的 Schedules tab），徽标为 active 的数量
+ * （没有时不显示徽标）；点击打开右栏的 Schedules tab。设置 → 定时任务的"打开会话"（store 的 pendingOpen）也经这里打开右栏；
+ * 读取与订阅在隐藏时照常进行（时间线投递行的标题来自这份列表）。
  */
 export function SchedulesButton({ sessionId, openTab }: HeaderActionProps) {
   const { t } = useI18n()
@@ -161,7 +162,8 @@ export function SchedulesButton({ sessionId, openTab }: HeaderActionProps) {
   React.useEffect(() => {
     if (pending === sessionId && store.getState().takeOpenRequest(sessionId)) openTab('schedules')
   }, [pending, sessionId, store, openTab])
-  const active = list?.schedules.filter((s) => s.status === 'active').length ?? 0
+  if (!list || list.schedules.length === 0) return null
+  const active = list.schedules.filter((s) => s.status === 'active').length
   const label = active > 0 ? t('schedules.headerActionActive', { count: active }) : t('schedules.headerAction')
   return (
     <IconButton label={label} data-action="open-schedules" data-active={active} className="relative" onClick={() => openTab('schedules')}>

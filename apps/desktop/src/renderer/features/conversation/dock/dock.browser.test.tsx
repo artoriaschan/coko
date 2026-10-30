@@ -21,7 +21,7 @@ import { DOCK_SLOTS } from './dock-slots.ts'
 
 afterEach(() => rightPanelTabStore.setState({ selected: null }))
 
-it('注册表：dock 三张卡、标题栏 jobs 与 cost、右栏 plan 与 jobs 均已交付', () => {
+it('注册表：dock 三张卡、标题栏 jobs、cost 与 schedules、右栏 plan、jobs 与 schedules 均已交付', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
     ['todo', true],
     ['goal', true],
@@ -31,18 +31,18 @@ it('注册表：dock 三张卡、标题栏 jobs 与 cost、右栏 plan 与 jobs 
     ['jobs', true],
     ['cost', true],
     ['agents', false],
-    ['schedules', false],
+    ['schedules', true],
     ['handoff', false],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],
     ['jobs', true],
     ['agents', false],
-    ['schedules', false],
+    ['schedules', true],
   ])
 })
 
-it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan 与 Tasks', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan、Tasks 与 Schedules', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -67,7 +67,7 @@ it('应用中：会话打开后 dock 没有内容时不占位；没有后台任�
   await userEvent.click(page.getByRole('button', { name: 'Open right panel' }))
   expect(document.querySelector('[data-slot="plan-chip"]')).toBeNull()
   await expect.element(page.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true')
-  expect([...screen.container.querySelectorAll('[role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['plan', 'jobs'])
+  expect([...screen.container.querySelectorAll('[role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['plan', 'jobs', 'schedules'])
 })
 
 function renderWithProviders(node: React.ReactNode) {
