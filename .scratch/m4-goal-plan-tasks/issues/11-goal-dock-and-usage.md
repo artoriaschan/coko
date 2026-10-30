@@ -18,3 +18,4 @@
 
 ## Comments
 - 2026-10-30 lead：来自票 06——i18n 键 conversation.steeringPending 已不再使用（时间线"尚未送达"气泡已删除），本票从 zh / en 字典删除（越出写范围，已授权：packages/i18n/src/dictionaries/{en,zh}.ts）。
+- 2026-10-30 lead：来自票 10——GoalResponse.usage 带 toolCalls / tokens / cost / durationMs / costUnpriced；@coko/protocol 的 USAGE_CURRENCY_SETTING 与 usageCurrencyOf；i18n 已有 usage.unpriced、usage.currency.*、usage.price.*；详见票 10 Comments。界面上显示"未定价"时与 Goal 的 cost-unpriced 阻塞原因保持同一措辞。
