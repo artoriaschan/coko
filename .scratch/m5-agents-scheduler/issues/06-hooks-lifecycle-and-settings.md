@@ -23,3 +23,4 @@
 
 ## Comments
 - 2026-10-31 lead：来自票 02——手动 /compact 被 beforeCompact block 时，运行时目前以 error hook_stopped 结束；规格要求的 400 hook-blocked 须在开始 Run 之前判定（本票或票 03 实现，与票 03 协调：PreCompact 事件归本票）。
+- 2026-10-31 lead：裁决实施者的中途说明——Goal Round 中 Hook 以 continue: false（hook_stopped）停下 Run 时，Goal 不应停在 running 不推进（与 M4 评审 A5 同类）。goals.ts 不在本票写范围，本票照现状断言即可（并在用例注释中说明这是待改的行为）；lead 在票 06、07 都合入后另开 m5/fix-goal-hook-stopped：hook_stopped 使运行中的 Goal 进入 paused，reason 新增 hook-stopped（协议 GoalReason 联合、i18n 文案、编译期键断言），并把本票的断言改为 paused。
