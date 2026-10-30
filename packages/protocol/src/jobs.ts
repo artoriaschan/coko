@@ -64,6 +64,31 @@ export const JobSnapshot = Type.Object(
 )
 export type JobSnapshot = Static<typeof JobSnapshot>
 
+/** GET /api/sessions/:id/jobs：该 Session 的 Job 快照（启动顺序）。 */
+export const SessionJobsResponse = Type.Object({ jobs: Type.Array(JobSnapshot) }, strict)
+export type SessionJobsResponse = Static<typeof SessionJobsResponse>
+
+/** GET /api/jobs/:id/output 的单页上限（字节）。 */
+export const JOB_OUTPUT_PAGE_MAX = 256 * 1024
+
+/**
+ * GET /api/jobs/:id/output?offset=&limit=：日志从 offset 起至多 limit 字节（已脱敏，不切开多字节字符），不影响模型的 job_output 游标。
+ * done：Job 已结束且日志已读完。
+ */
+export const JobOutputResponse = Type.Object({ offset: Count, chunk: Type.String(), nextOffset: Count, done: Type.Boolean() }, strict)
+export type JobOutputResponse = Static<typeof JobOutputResponse>
+
+/** 后台任务的路径。 */
+export const jobPaths = {
+  /** GET：SessionJobsResponse。 */
+  sessionJobs: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}/jobs`,
+  /** GET：JobOutputResponse。 */
+  output: (jobId: string, offset = 0, limit?: number) =>
+    `/api/jobs/${encodeURIComponent(jobId)}/output?offset=${offset}${limit === undefined ? '' : `&limit=${limit}`}`,
+  /** POST：停止（204；已结束 409 job-not-running）。 */
+  kill: (jobId: string) => `/api/jobs/${encodeURIComponent(jobId)}/kill`,
+} as const
+
 /** 本领域的 kind → payload schema。 */
 export const jobEntryPayloadSchemas = {
   job_start: JobStartPayload,

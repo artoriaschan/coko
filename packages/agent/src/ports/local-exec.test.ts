@@ -1,7 +1,7 @@
 // 本地执行端口的沙箱接缝：受限档位经宿主给出的 LocalSandbox 包裹命令；没有沙箱或无法启用时 fail-closed（命令不运行）。
 // 这里用不依赖系统二进制的替身包裹器观察接缝；真实 Seatbelt 由 apps/server 的 seatbelt 适配器与 darwin 集成测试覆盖。
 // 生命周期回调（ADR 0012）：spawn 成功后 onSpawn 报告 pid 与进程组，进程退出后 onExit；没有启动的命令两者都不调用。
-import { access } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
 import { SandboxUnavailableError, type ExecRequest, type SandboxPolicy, type SpawnedProcess } from './exec.ts'
@@ -160,5 +160,54 @@ describe('本地执行的生命周期回调', () => {
     )
     await expect(createLocalExecPort({ shell: ws.path('no-such-shell') }).exec({ ...base, cwd: ws.dir })).rejects.toMatchObject({ code: 'ENOENT' })
     expect(calls).toEqual([])
+  })
+})
+
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+describe('本地执行的后台命令（spawn）', () => {
+  it('不等待退出即返回进程句柄，流式送出输出，退出后 exited 与 onExit', async () => {
+    const port = createLocalExecPort()
+    const chunks: string[] = []
+    const events: string[] = []
+    const proc = await port.spawn!({
+      command: 'echo one; sleep 0.2; echo two',
+      cwd: ws.dir,
+      onData: (chunk) => chunks.push(chunk.toString()),
+      onSpawn: (p) => events.push('spawn:' + (p.pgid === p.pid)),
+      onExit: () => events.push('exit'),
+    })
+    expect(proc.pgid).toBe(proc.pid)
+    expect(events).toEqual(['spawn:true'])
+    expect(await proc.exited).toEqual({ exitCode: 0 })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(chunks.join('')).toBe('one\ntwo\n')
+    expect(events).toEqual(['spawn:true', 'exit'])
+  })
+
+  it('kill 向进程组发信号：派生的子进程一起结束，退出码为 128 + 信号', async () => {
+    const port = createLocalExecPort()
+    const proc = await port.spawn!({ command: `sleep 30 & echo $! > ${ws.dir}/child.pid; wait`, cwd: ws.dir, onData: () => undefined })
+    let child = 0
+    await expect.poll(async () => (child = Number((await readFile(ws.dir + '/child.pid', 'utf8').catch(() => '0')).trim()))).toBeGreaterThan(0)
+    proc.kill('SIGTERM')
+    const exit = await proc.exited
+    expect(exit.exitCode).toBe(143)
+    await expect.poll(() => alive(child)).toBe(false)
+  })
+
+  it('没能启动时 reject：工作目录不存在、没有沙箱时的受限档位', async () => {
+    const port = createLocalExecPort()
+    await expect(port.spawn!({ command: 'true', cwd: ws.dir + '/missing', onData: () => undefined })).rejects.toThrow('Working directory does not exist')
+    await expect(port.spawn!({ command: 'true', cwd: ws.dir, onData: () => undefined, sandbox: policy('read-only') })).rejects.toBeInstanceOf(
+      SandboxUnavailableError,
+    )
   })
 })

@@ -30,6 +30,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('already-exists'),
   /** 设置的 expectedRevision 与当前 revision 不一致。 */
   Type.Literal('revision-conflict'),
+  /** 后台任务已经结束，不能停止。 */
+  Type.Literal('job-not-running'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */
   Type.Literal('storage-unavailable'),
   Type.Literal('internal'),

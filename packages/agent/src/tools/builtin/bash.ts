@@ -12,7 +12,8 @@ import {
 } from '../../policy/sandbox.ts'
 import type { SandboxMode } from '../../session-entries/permissions.ts'
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type TruncationResult } from '../truncate.ts'
-import type { CokoTool } from '../types.ts'
+import type { BackgroundJobLauncher } from '../../tasks/jobs/tools.ts'
+import type { CokoTool, ToolExecutionContext } from '../types.ts'
 import { OutputAccumulator, type OutputSnapshot } from './output-accumulator.ts'
 
 const MAX_TIMEOUT_MS = 2_147_483_647
@@ -26,7 +27,21 @@ export const bashParameters = Type.Object({
     Type.Union([Type.Literal('workspace-write'), Type.Literal('danger-full-access')], { description: SANDBOX_PERMISSIONS_DESCRIPTION }),
   ),
   justification: Type.Optional(Type.String({ description: JUSTIFICATION_DESCRIPTION })),
+  run_in_background: Type.Optional(
+    Type.Boolean({
+      description:
+        'Run the command as a background job and return its job id immediately (for dev servers, watchers and long builds). Read its output with job_output, stop it with job_kill; you are notified when it ends. timeout does not apply.',
+    }),
+  ),
 })
+
+/**
+ * bash 在宿主提供后台任务时收到的执行上下文：jobs 为本 Session 的后台任务入口（宿主在运行时的工具集上注入）。缺省时
+ * run_in_background 以错误结果返回。
+ */
+export interface BashExecutionContext extends ToolExecutionContext {
+  jobs?: BackgroundJobLauncher
+}
 
 export const bashOutputSchema = Type.Object({
   output: Type.String({ description: 'Combined stdout and stderr, possibly truncated' }),
@@ -77,8 +92,20 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
     outputSchema: bashOutputSchema,
     // bash has its own `timeout` argument; the unified default would cut long builds short.
     timeoutMs: 0,
-    async execute(_toolCallId, { command, timeout }, signal, onUpdate, context) {
+    async execute(toolCallId, { command, timeout, run_in_background }, signal, onUpdate, context) {
       const sandbox = context?.sandbox
+      if (run_in_background) {
+        const jobs = (context as BashExecutionContext | undefined)?.jobs
+        if (!jobs || !exec.spawn) throw new Error('Background jobs are not available on this host')
+        const spawn = exec.spawn.bind(exec)
+        try {
+          const { jobId, label } = await jobs.start({ toolCallId, command, cwd, ...(sandbox ? { sandbox } : {}), spawn })
+          return { content: [{ type: 'text', text: `Started background job ${jobId}: ${label}. Read output with job_output.` }], details: undefined }
+        } catch (error) {
+          if (error instanceof SandboxUnavailableError) throw new Error(sandboxUnavailableText(error.mode, error.message), { cause: error })
+          throw error
+        }
+      }
       const timeoutMs = resolveTimeoutMs(timeout)
       const output = new OutputAccumulator(tempDir)
       let accepting = true

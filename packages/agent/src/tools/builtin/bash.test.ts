@@ -5,7 +5,8 @@ import { SandboxUnavailableError } from '../../ports/exec.ts'
 import { createLocalExecPort } from '../../ports/local-exec.ts'
 import { isProcessAlive, readPids, waitFor } from '../../testing/process.ts'
 import { createTempWorkspace, type TempWorkspace } from '../../testing/workspace.ts'
-import { createBashTool } from './bash.ts'
+import type { BackgroundJobLauncher } from '../../tasks/jobs/tools.ts'
+import { createBashTool, type BashExecutionContext } from './bash.ts'
 
 const textOf = (result: { content: { type: string; text?: string }[] }) => result.content.map((block) => block.text ?? '').join('')
 
@@ -121,5 +122,46 @@ describe('内置 bash', () => {
     await expect(pending).rejects.toThrow('Command aborted')
     expect(isProcessAlive(pids[0] as number)).toBe(false)
     expect(await waitFor(() => !isProcessAlive(pids[1] as number), 2_000)).toBe(true)
+  })
+})
+
+describe('bash run_in_background', () => {
+  let ws: TempWorkspace
+  beforeEach(async () => {
+    ws = await createTempWorkspace('coko-bash-bg-')
+  })
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  it('经宿主的后台任务入口启动（同一执行端口与沙箱档位），立即返回 jobId', async () => {
+    const seen: { toolCallId: string; command: string; cwd: string; sandbox?: unknown }[] = []
+    const jobs: BackgroundJobLauncher = {
+      async start(request) {
+        seen.push({ toolCallId: request.toolCallId, command: request.command, cwd: request.cwd, sandbox: request.sandbox })
+        const proc = await request.spawn({ command: request.command, cwd: request.cwd, onData: () => undefined })
+        await proc.exited
+        return { jobId: 'j7', label: 'sleep 0' }
+      },
+    }
+    const sandbox = { mode: 'danger-full-access' as const, writableRoots: [] }
+    const result = await createBashTool({ cwd: ws.dir, exec: createLocalExecPort() }).execute(
+      'c9',
+      { command: 'sleep 0', run_in_background: true },
+      undefined,
+      undefined,
+      {
+        idempotencyKey: 's:c9',
+        sandbox,
+        jobs,
+      } as BashExecutionContext,
+    )
+    expect(textOf(result)).toBe('Started background job j7: sleep 0. Read output with job_output.')
+    expect(seen).toEqual([{ toolCallId: 'c9', command: 'sleep 0', cwd: ws.dir, sandbox }])
+  })
+
+  it('宿主没有后台任务或执行端口不能 spawn：错误结果', async () => {
+    const tool = createBashTool({ cwd: ws.dir, exec: { exec: createLocalExecPort().exec } })
+    await expect(tool.execute('c', { command: 'true', run_in_background: true })).rejects.toThrow('Background jobs are not available')
   })
 })

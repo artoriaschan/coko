@@ -14,6 +14,9 @@ import {
   NothingToRetryError,
   parseCommandInvocation,
   type AgentRuntime,
+  type BackgroundJobLauncher,
+  type BashExecutionContext,
+  type CokoTool,
   type ModelRegistry,
   type RunEntry,
   type RunInput,
@@ -105,6 +108,37 @@ export interface SessionRunsOptions {
   models: SessionModels
 }
 
+/** 后台任务对 Run 的接线（application/jobs.ts 装配时给出）：bash 的启动入口与追加指令到达的通知。 */
+export interface SessionJobs {
+  launcher(sessionId: string): BackgroundJobLauncher
+  /** 有追加指令送进该 Session 的 Run（用户的或通知）：唤醒等待中的 job_output。 */
+  steered(sessionId: string): void
+}
+
+/** 基础工具集中的 bash 在执行上下文中拿到本 Session 的后台任务入口（其余工具不变）。 */
+function withJobs(base: ToolRegistry, launcher: BackgroundJobLauncher): ToolRegistry {
+  let source: CokoTool | undefined
+  let wrapped: CokoTool | undefined
+  const bash = (tool: CokoTool): CokoTool => {
+    if (tool !== source) {
+      source = tool
+      wrapped = {
+        ...tool,
+        execute: (id, params, signal, onUpdate, context) => tool.execute(id, params, signal, onUpdate, { ...context, jobs: launcher } as BashExecutionContext),
+      }
+    }
+    return wrapped!
+  }
+  const pick = (tool: CokoTool | undefined) => (tool?.name === 'bash' ? bash(tool) : tool)
+  return {
+    register: (tool, options) => base.register(tool, options),
+    get: (name) => pick(base.get(name)),
+    list: () => base.list().map((tool) => pick(tool)!),
+    implementations: () => base.implementations(),
+    permissionClass: (name) => base.permissionClass(name),
+  }
+}
+
 /** 运行时每个 Run 开始时刷新的上下文取值（运行时创建后其工具集与 hook 链不变，经这里间接替换）。 */
 interface RunContext {
   scope: ContextScope
@@ -116,9 +150,39 @@ interface RunContext {
 export class SessionRuns {
   readonly #options: SessionRunsOptions
   readonly #runContexts = new WeakMap<AgentRuntime, RunContext>()
+  /** 每个 Session 进行中的 Run（后台任务的进度带发起它的 runId）。 */
+  readonly #activeRuns = new Map<string, string>()
+  #jobs: SessionJobs | undefined
 
   constructor(options: SessionRunsOptions) {
     this.#options = options
+  }
+
+  /** 装配时接上后台任务（之后创建的运行时的 bash 可以 run_in_background）。 */
+  useJobs(jobs: SessionJobs): void {
+    this.#jobs = jobs
+  }
+
+  /** 该 Session 进行中的 Run 的 runId；没有时 undefined。 */
+  activeRunId(sessionId: string): string | undefined {
+    return this.#activeRuns.get(sessionId)
+  }
+
+  /**
+   * 把宿主生成的内容（后台任务的完成通知）作为追加指令送进当前 Run，不经输入展开；返回是否送出（没有进行中的 Run 时 false）。
+   * 是否真正送达以 Run 结束时的 undeliveredSteering 为准。
+   */
+  deliver(sessionId: string, input: RunInput): boolean {
+    const runtime = this.#options.runtimes.get(sessionId)
+    if (!runtime?.isRunning) return false
+    try {
+      runtime.steer(input)
+    } catch (error) {
+      if (error instanceof NoActiveRunError) return false
+      throw error
+    }
+    this.#jobs?.steered(sessionId)
+    return true
   }
 
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */
@@ -199,6 +263,7 @@ export class SessionRuns {
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
     const started = runId
+    this.#activeRuns.set(sessionId, started)
     pending?.delivered()
     log.info('run started', {
       sessionId,
@@ -210,6 +275,7 @@ export class SessionRuns {
     const goal = request.trigger === 'goal' ? request.goal : undefined
     const done = run.then(
       async (result) => {
+        if (this.#activeRuns.get(sessionId) === started) this.#activeRuns.delete(sessionId)
         log.info('run ended', {
           sessionId,
           runId: started,
@@ -220,7 +286,10 @@ export class SessionRuns {
         // 关闭时 RunLauncher 等待到这里：领域在 Run 结束后的处理（例如 Goal 推进的判定）也在关闭存储之前完成。
         await context.onRunEnd(scope, { sessionId, runId: started, trigger: request.trigger, ...(goal ? { goal } : {}), result })
       },
-      (error: unknown) => log.error('run failed', { sessionId, runId: started, error: String(error) }),
+      (error: unknown) => {
+        if (this.#activeRuns.get(sessionId) === started) this.#activeRuns.delete(sessionId)
+        log.error('run failed', { sessionId, runId: started, error: String(error) })
+      },
     )
     this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
     return { runId: started }
@@ -278,6 +347,7 @@ export class SessionRuns {
       if (error instanceof NoActiveRunError) throw new AppError('no-active-run', error.message)
       throw error
     }
+    this.#jobs?.steered(sessionId)
     log.info('steering queued', { sessionId })
   }
 
@@ -321,7 +391,7 @@ export class SessionRuns {
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd: workspace.path, commit: publish })
     const runContext: RunContext = {
       scope: await this.scope(session),
-      tools: layeredTools(this.baseTools(workspace.path)),
+      tools: layeredTools(this.#jobs ? withJobs(this.baseTools(workspace.path), this.#jobs.launcher(session.id)) : this.baseTools(workspace.path)),
       hooks: dynamicHooks(),
       readRoots: [],
     }
