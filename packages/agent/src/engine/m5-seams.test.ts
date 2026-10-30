@@ -219,6 +219,22 @@ describe('beforeCompact', () => {
   })
 })
 
+describe('第一次模型请求之前停止', () => {
+  // run_start 进度同步发出（Run 已开始），此时 pi 还没有开始请求：agent.abort() 没有可停止的流。停止必须在请求前的检查中生效，
+  // 否则请求照常发出、流到结束（交接的摘要请求可能要几分钟）。
+  it.each(['handoff', 'submit'] as const)('%s：不发出模型请求，Run 以 aborted 结束', async (trigger) => {
+    const h = harness()
+    h.reply(ok('never'))
+    const off = h.runtime.subscribe((event) => {
+      if (event.kind === 'progress' && event.event.type === 'run_start') h.runtime.abort()
+    })
+    const result = await h.runtime.run(trigger === 'handoff' ? { text: 'sum', trigger: 'handoff' } : 'question')
+    off()
+    expect(result.status).toBe('aborted')
+    expect(h.requests).toHaveLength(0)
+  })
+})
+
 describe('摘要模式（trigger handoff）', () => {
   it('只发一次请求：没有工具、带有效上下文与调用方的提示，经 beforeRequest；只提交 run_start / run_end，对话记录不变', async () => {
     const slow = gated('slow')

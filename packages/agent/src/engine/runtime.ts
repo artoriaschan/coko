@@ -175,6 +175,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 宿主已要求停止（例如 Goal Round 开始前预算已耗尽）：不发出请求。
       if (run.halt) return withhold(run)
       // 宿主检查（预算）在自动压缩之前：摘要请求同样是一次模型请求，预算耗尽或未定价时不发出。压缩之后再检查一次（计入压缩的用量）。
+      // 停止在 pi 开始请求之前到达时 agent.abort() 没有可停止的流：在这里扣下请求，不发出。
+      if (run.aborted) return withhold(run)
       if (!(await admit(run, request.messages, model, signal))) return withhold(run)
       const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
       if (compacted && !(await admit(run, compacted, model, signal))) return withhold(run)
