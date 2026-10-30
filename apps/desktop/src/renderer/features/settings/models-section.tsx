@@ -1,5 +1,5 @@
-import type { Provider } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle } from '@coko/ui'
+import { USAGE_CURRENCIES, USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider } from '@coko/protocol'
+import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -7,7 +7,7 @@ import { useSettings, useSettingsActions, useSettingsPage } from '../../app/sett
 import { DeleteProviderDialog, type DeleteProviderRequest } from './delete-provider-dialog.tsx'
 import { draftOf, emptyDraft, isDirty, type FormDraft } from './provider-draft.ts'
 import { ProviderForm } from './provider-form.tsx'
-import { SettingsCard } from './settings-page.tsx'
+import { SettingsCard, SettingsRow } from './settings-page.tsx'
 
 /** 展开中的表单：新建（id 省略）或编辑某个已有 Provider。key 在表单生命周期内不变。 */
 interface OpenForm {
@@ -116,6 +116,8 @@ export function ModelsSection() {
         <div aria-hidden className="h-hairline bg-border" />
       </div>
 
+      <CurrencyRow />
+
       {status === 'loading' && providers.length === 0 && (
         <div className="flex justify-center py-8">
           <LoaderCircleIcon aria-label={t('settings.models')} className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
@@ -182,6 +184,41 @@ export function ModelsSection() {
         }}
       />
     </section>
+  )
+}
+
+/** 费用的显示货币（全局设置 usage.currency，缺省 USD）：只决定符号，不换算。 */
+function CurrencyRow() {
+  const { t } = useI18n()
+  const currency = useSettings((s) => usageCurrencyOf(s.values[USAGE_CURRENCY_SETTING]?.value))
+  const ready = useSettings((s) => s.status === 'ready')
+  const { saveSetting } = useSettingsActions()
+  return (
+    <SettingsCard data-usage-currency>
+      <div>
+        <SettingsRow label={t('usage.currency.label')}>
+          <ToggleGroup
+            type="single"
+            aria-label={t('usage.currency.label')}
+            value={currency}
+            disabled={!ready}
+            onValueChange={(value) => {
+              if (!value || value === currency) return
+              void saveSetting(USAGE_CURRENCY_SETTING, value).then((result) => {
+                if (result.status === 'failed') toast.error(result.error.message)
+              })
+            }}
+          >
+            {USAGE_CURRENCIES.map((code) => (
+              <ToggleGroupItem key={code} value={code} data-currency-option={code}>
+                {t(`usage.currency.${code}`)}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </SettingsRow>
+      </div>
+      <p className="-mt-1 px-4 pb-3 text-ui-caption text-muted-foreground">{t('usage.currency.hint')}</p>
+    </SettingsCard>
   )
 }
 

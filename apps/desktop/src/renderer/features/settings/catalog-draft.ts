@@ -15,10 +15,19 @@ export interface ModelRowDraft {
   input: CatalogModel['input']
   reasoning: boolean
   thinkingLevels: CatalogModel['thinkingLevels']
+  /** 价格（每百万 token）输入框原文；四项都留空为未定价。 */
+  priceInput: string
+  priceOutput: string
+  priceCacheRead: string
+  priceCacheWrite: string
 }
 
+/** 价格的四个输入框。 */
+export const PRICE_FIELDS = ['priceInput', 'priceOutput', 'priceCacheRead', 'priceCacheWrite'] as const
+export type PriceField = (typeof PRICE_FIELDS)[number]
+
 /** 有校验错误的行字段；值为字典键。 */
-export type ModelRowField = 'id' | 'contextWindow' | 'maxTokens'
+export type ModelRowField = 'id' | 'contextWindow' | 'maxTokens' | PriceField
 export type CatalogErrors = Record<string, Partial<Record<ModelRowField, MessageKey>>>
 
 let rowSeq = 0
@@ -34,7 +43,13 @@ export const emptyModelRow = (): ModelRowDraft => ({
   input: ['text'],
   reasoning: false,
   thinkingLevels: [],
+  priceInput: '',
+  priceOutput: '',
+  priceCacheRead: '',
+  priceCacheWrite: '',
 })
+
+const priceText = (value: number | undefined) => (value === undefined ? '' : String(value))
 
 /** 编辑表单的初始行：已保存的容量带后缀回显。 */
 export const rowsOf = (models: readonly CatalogModel[]): ModelRowDraft[] =>
@@ -47,7 +62,36 @@ export const rowsOf = (models: readonly CatalogModel[]): ModelRowDraft[] =>
     input: [...m.input],
     reasoning: m.reasoning,
     thinkingLevels: structuredClone(m.thinkingLevels),
+    priceInput: priceText(m.price?.input),
+    priceOutput: priceText(m.price?.output),
+    priceCacheRead: priceText(m.price?.cacheRead),
+    priceCacheWrite: priceText(m.price?.cacheWrite),
   }))
+
+/** 四项价格都留空：未定价。 */
+const unpriced = (row: ModelRowDraft) => PRICE_FIELDS.every((field) => row[field].trim() === '')
+
+/** 校验通过后的价格：未定价时 undefined；缓存价格留空时省略（按 0 计）。 */
+function priceOf(row: ModelRowDraft): CatalogModel['price'] {
+  if (unpriced(row)) return undefined
+  const cacheRead = parsePrice(row.priceCacheRead)
+  const cacheWrite = parsePrice(row.priceCacheWrite)
+  return {
+    input: parsePrice(row.priceInput) ?? 0,
+    output: parsePrice(row.priceOutput) ?? 0,
+    ...(typeof cacheRead === 'number' ? { cacheRead } : {}),
+    ...(typeof cacheWrite === 'number' ? { cacheWrite } : {}),
+  }
+}
+
+const PRICE = /^\d+(\.\d+)?$/
+
+/** 价格输入：非负的十进制数。留空返回 undefined，负数或不是数字时返回 null。 */
+export function parsePrice(text: string): number | null | undefined {
+  const trimmed = text.trim()
+  if (trimmed === '') return undefined
+  return PRICE.test(trimmed) ? Number(trimmed) : null
+}
 
 /** 校验通过后的提交内容：去掉首尾空白，留空的容量使用默认值，名称留空保存为空字符串（显示为模型 ID）。 */
 export const toCatalog = (rows: readonly ModelRowDraft[]): CatalogModel[] =>
@@ -59,6 +103,7 @@ export const toCatalog = (rows: readonly ModelRowDraft[]): CatalogModel[] =>
     input: [...row.input],
     reasoning: row.reasoning,
     thinkingLevels: normalizeLevels(row.thinkingLevels),
+    ...(unpriced(row) ? {} : { price: priceOf(row) }),
   }))
 
 /** 容量后缀的十进制位数：K = 10^3，M = 10^6。 */
@@ -92,7 +137,7 @@ export function formatTokens(tokens: number): string {
 }
 /**
  * 目录行校验（规格 4.4、4.5）：模型 ID 必填且不重复（重复的每一行都标出）；容量须为正整数；最大输出不超过上下文窗口，
- * 留空的容量按默认值比较。返回出错的行及其字段。
+ * 留空的容量按默认值比较；价格为非负数，填了价格时输入与输出必填。返回出错的行及其字段。
  */
 export function validateCatalog(rows: readonly ModelRowDraft[]): CatalogErrors {
   const errors: CatalogErrors = {}
@@ -109,6 +154,10 @@ export function validateCatalog(rows: readonly ModelRowDraft[]): CatalogErrors {
     if (max === null) found.maxTokens = 'providers.catalog.tokensInvalid'
     else if (context !== null && (max ?? MODEL_CATALOG_DEFAULTS.maxTokens) > (context ?? MODEL_CATALOG_DEFAULTS.contextWindow))
       found.maxTokens = 'providers.catalog.maxTokensAboveContext'
+    // 价格：每项为非负数；填了任一项时输入与输出都必填（缓存价格可留空，按 0 计）。
+    for (const field of PRICE_FIELDS) if (parsePrice(row[field]) === null) found[field] = 'usage.price.invalid'
+    if (!unpriced(row))
+      for (const field of ['priceInput', 'priceOutput'] as const) if (!found[field] && row[field].trim() === '') found[field] = 'usage.price.required'
     if (Object.keys(found).length > 0) errors[row.key] = found
   }
   return errors

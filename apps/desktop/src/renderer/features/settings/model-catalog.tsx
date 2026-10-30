@@ -1,11 +1,22 @@
 import type { MessageKey } from '@coko/i18n'
-import { MODEL_CATALOG_DEFAULTS, type CatalogModel } from '@coko/protocol'
+import { MODEL_CATALOG_DEFAULTS, USAGE_CURRENCY_SETTING, usageCurrencyOf, type CatalogModel } from '@coko/protocol'
 import { Button, Checkbox, cn, Input, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import { ChevronDownIcon, ChevronRightIcon, CircleAlertIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { useSettings } from '../../app/settings.tsx'
 import { ThinkingLevelsEditor } from './thinking-levels-editor.tsx'
-import { emptyModelRow, formatTokens, type CatalogErrors, type ModelRowDraft, type ModelRowField } from './catalog-draft.ts'
+import { emptyModelRow, formatTokens, PRICE_FIELDS, type CatalogErrors, type ModelRowDraft, type ModelRowField, type PriceField } from './catalog-draft.ts'
+
+const PRICE_LABELS: Record<PriceField, MessageKey> = {
+  priceInput: 'usage.price.input',
+  priceOutput: 'usage.price.output',
+  priceCacheRead: 'usage.price.cacheRead',
+  priceCacheWrite: 'usage.price.cacheWrite',
+}
+
+/** 显示货币的符号（设置 usage.currency）。 */
+const CURRENCY_SYMBOLS = { USD: '$', CNY: '¥' } as const
 
 const INPUT_KINDS: CatalogModel['input'][number][] = ['text', 'image']
 
@@ -14,7 +25,7 @@ type FocusTarget = { kind: 'row'; key: string } | { kind: 'add' }
 /**
  * 供应商表单中的模型目录（规格 4.4、4.5）：逐行填写模型 ID 与显示名称，展开后配置容量与输入类型。行草稿由表单持有，
  * 展开状态只是显示状态，不进入草稿；添加、删除与收起都不提交。revealErrors 每次变化（提交校验失败）时展开有容量错误的行，
- * 使表单能聚焦到出错的输入框。
+ * 使表单能聚焦到出错的输入框。展开的选项另有价格（每百万 token，留空为未定价）。
  */
 export function ModelCatalog({
   id,
@@ -46,7 +57,8 @@ export function ModelCatalog({
   // 在渲染中同步展开，父表单的聚焦 effect 运行时出错的容量输入框已经在 DOM 中。
   if (revealed !== revealErrors) {
     setRevealed(revealErrors)
-    const hidden = rows.filter((row) => !expanded.has(row.key) && (errors[row.key]?.contextWindow || errors[row.key]?.maxTokens))
+    // 容量与价格在展开的选项中：有这些错误的行展开。
+    const hidden = rows.filter((row) => !expanded.has(row.key) && Object.keys(errors[row.key] ?? {}).some((field) => field !== 'id'))
     if (hidden.length > 0) setExpanded(new Set([...expanded, ...hidden.map((row) => row.key)]))
   }
 
@@ -143,6 +155,7 @@ function ModelRow({
   onRemove: () => void
 }) {
   const { t } = useI18n()
+  const currency = useSettings((s) => usageCurrencyOf(s.values[USAGE_CURRENCY_SETTING]?.value))
   const optionsId = `${id}-options`
   const idError = errors.id && t(errors.id)
   const invalid = Object.keys(errors).length > 0
@@ -221,6 +234,29 @@ function ModelRow({
                 </label>
               )
             })}
+          </div>
+          <div aria-hidden className="h-hairline shrink-0 bg-border" />
+          <div role="group" aria-labelledby={`${id}-price`} aria-describedby={`${id}-price-hint`} data-model-price className="flex flex-col gap-2">
+            <span id={`${id}-price`} className="text-ui-small text-muted-foreground">
+              {t('usage.price.title', { symbol: CURRENCY_SYMBOLS[currency] })}
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              {PRICE_FIELDS.map((field) => (
+                <TokenField
+                  key={field}
+                  id={`${id}-${field}`}
+                  name={field}
+                  label={t(PRICE_LABELS[field])}
+                  placeholder=""
+                  value={row[field]}
+                  error={errors[field] && t(errors[field])}
+                  onChange={(value) => onChange({ [field]: value })}
+                />
+              ))}
+            </div>
+            <p id={`${id}-price-hint`} className="text-ui-caption text-muted-foreground">
+              {t('usage.price.hint')}
+            </p>
           </div>
           <div aria-hidden className="h-hairline shrink-0 bg-border" />
           <ThinkingLevelsEditor id={`${id}-thinking`} reasoning={row.reasoning} levels={row.thinkingLevels} onChange={onChange} />

@@ -1,4 +1,4 @@
-// 用量与费用：时间线的 Run 用量行、会话标题栏的 Session 费用与 dock 的追加指令队列。
+// 用量与费用：时间线的 Run 用量行、会话标题栏的 Session 费用与 dock 的追加指令队列；设置 → 模型服务的模型价格与显示货币。
 import { defineDomain } from './define.ts'
 
 export const usage = defineDomain(
@@ -6,10 +6,44 @@ export const usage = defineDomain(
     title: '用量',
     headerAction: '费用',
     queue: '待送达',
+    unpriced: '未定价',
+    currency: {
+      label: '费用货币',
+      hint: '只决定费用的显示符号，不做换算。',
+      USD: '美元（$）',
+      CNY: '人民币（¥）',
+    },
+    price: {
+      title: '价格（每百万 token，{symbol}）',
+      hint: '留空表示未定价：费用显示为“未定价”，设了费用上限的目标不会在该模型上运行。',
+      input: '输入',
+      output: '输出',
+      cacheRead: '缓存读取',
+      cacheWrite: '缓存写入',
+      invalid: '请输入不小于 0 的数字',
+      required: '填写价格时输入与输出都必填',
+    },
   },
   {
     title: 'Usage',
     headerAction: 'Cost',
     queue: 'Queued',
+    unpriced: 'Unpriced',
+    currency: {
+      label: 'Cost currency',
+      hint: 'Only sets the symbol shown for costs; amounts are not converted.',
+      USD: 'US dollar ($)',
+      CNY: 'Chinese yuan (¥)',
+    },
+    price: {
+      title: 'Price (per million tokens, {symbol})',
+      hint: 'Leave blank for an unpriced model: costs show as "Unpriced" and goals with a cost limit do not run on it.',
+      input: 'Input',
+      output: 'Output',
+      cacheRead: 'Cache read',
+      cacheWrite: 'Cache write',
+      invalid: 'Enter a number of 0 or more',
+      required: 'Input and output are required when a price is set',
+    },
   },
 )

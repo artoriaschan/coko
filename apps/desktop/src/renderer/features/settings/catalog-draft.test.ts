@@ -1,7 +1,7 @@
 // 模型目录行的纯函数：容量输入（纯数字或 K/M 后缀，1000 进制）、行校验与提交内容（规格 4.4、4.5）。
 import { describe, expect, it } from 'vitest'
 import type { CatalogModel } from '@coko/protocol'
-import { emptyModelRow, formatTokens, parseTokens, rowsOf, toCatalog, validateCatalog, type ModelRowDraft } from './catalog-draft.ts'
+import { emptyModelRow, formatTokens, parsePrice, parseTokens, rowsOf, toCatalog, validateCatalog, type ModelRowDraft } from './catalog-draft.ts'
 
 const row = (fields: Partial<ModelRowDraft>): ModelRowDraft => ({ ...emptyModelRow(), ...fields })
 
@@ -108,4 +108,33 @@ describe('目录行与 CatalogModel', () => {
 it('提交时档位参数值留空用档位名；推理开关关闭时档位照样提交', () => {
   const [model] = toCatalog([row({ id: 'm', reasoning: false, thinkingLevels: [{ level: 'off' }, { level: 'high', value: ' ' }] })])
   expect(model).toMatchObject({ reasoning: false, thinkingLevels: [{ level: 'off' }, { level: 'high', value: 'high' }] })
+})
+
+describe('价格', () => {
+  it.each([
+    ['', undefined],
+    ['  ', undefined],
+    ['0', 0],
+    ['2', 2],
+    ['10.5', 10.5],
+    [' 0.25 ', 0.25],
+    ['-1', null],
+    ['1e3', null],
+    ['abc', null],
+    ['1.', null],
+    ['.5', null],
+  ])('parsePrice(%j) → %j', (text, expected) => {
+    expect(parsePrice(text)).toBe(expected)
+  })
+
+  it('四项留空为未定价；填了价格时输入与输出必填；回显后读回不变', () => {
+    expect(toCatalog([row({ id: 'm' })])[0]!.price).toBeUndefined()
+    expect(Object.values(validateCatalog([row({ id: 'm', priceCacheRead: '0.1' })]))).toEqual([
+      { priceInput: 'usage.price.required', priceOutput: 'usage.price.required' },
+    ])
+    const priced = row({ id: 'm', priceInput: '2', priceOutput: '10', priceCacheWrite: '3' })
+    expect(validateCatalog([priced])).toEqual({})
+    expect(toCatalog([priced])[0]!.price).toEqual({ input: 2, output: 10, cacheWrite: 3 })
+    expect(toCatalog(rowsOf(toCatalog([priced])))).toEqual(toCatalog([priced]))
+  })
 })
