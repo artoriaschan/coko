@@ -61,3 +61,6 @@
 **最终验证（2026-10-31 04:3x，main dc33c83 已合入；等其他 vitest run 结束后后台运行）：** worktree 中 `pnpm run test`：272 个测试文件全部通过，2224 例（2223 通过、1 跳过为既有的真实模型用例），test=0，日志中没有 Unhandled；含 28 个 desktop-e2e 文件与 `package-smoke.e2e.test.ts`（3 例）。第一次全量（04:27）1 个确定性失败即上述 sidecar-todo，按实际值调整后全量通过。另：`pnpm run lint`、`format:check` 退出 0；`check:docs` 0 问题；`scripts/browser-deps.test.ts` 与 `scripts/source-references.test.ts` 4 例通过。`tsc -b` 只有一个错误，来自 main 上票 04 的 `apps/desktop/e2e/worktrees.e2e.test.ts(110,52)`（`env.GIT_CONFIG_GLOBAL` 为 `string | undefined`），本票未改该文件，已另行告知 Lead。
 
 **未验证：** 真实模型（无凭据）；Electron 中真实桌面通知的显示与点击（main 单元测试以替身覆盖，测试构建只记日志）；真实睡眠唤醒（30 秒复查）；`worktree-removed` 跳过原因没有集成用例（准入代码有此分支，票 04 已合入，可由票 09 或后续补）。
+- 2026-10-31 lead：合入 main（dd72582）时 layers.ts 与票 03 冲突（03 在 AssemblyLive 创建 HookService，05 在 AssemblyLive 创建 ScheduleService / NotificationService / 时钟，并在 AppLive 留下 Hook 存根）：保留两者，Hook、定时任务、通知与时钟都在 AssemblyLive 创建，删除 AppLive 中重复的时钟与 Hook 存根。接受越界：tasks/index.ts 一行、layers.ts、context/types.ts 的 schedules 选项、config.ts 的两个测试变量、desktop main/index.ts 传入 Notification、两处导航行、sidecar-todo.test.ts 压缩用例的窗口 60 000 → 64 000（schedule_* 工具定义使基线增长，与 M4 sidecar-compaction 同类，阈值算法不变）。main 上复核（后台任务，等其他 vitest 结束后运行）：install、typecheck、lint、format:check 退出 0；全量 test 279 文件 2341 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 179 文件 0 问题。worktree-removed 跳过原因没有集成用例——记入 M5 评审。worktree 已清理。
+
+Closed: true

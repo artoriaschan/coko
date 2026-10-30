@@ -66,3 +66,6 @@
 **供后续票（06）：** `HookService.run(scope, state, event, hooks, input, signal)` 与 `interpretHookResult` 已支持非工具事件（block、context、stop、PreCompact 的 text）；`hooks-store.ts` 提供 load / save（revision 冲突读回）/ approve，设置分区可直接使用；`hook_run` 的 `continued` 尚未写入。
 
 **未验证：** 真实模型（无凭据）；非 darwin 平台的超时与进程组用例（显式跳过）。
+- 2026-10-31 lead：评审后合入 main（184d98a）。接受越界：agent index.ts 导出、policy/broker.ts 的 recordHookAllowed、context/types.ts 的 hooks 选项、layers.ts 在 AssemblyLive 中创建 HookService、settings.ts 拒绝 hooks.* 键、docs/README 一行、ADR 索引 0013 为 partial。接受设计：Hook 的 ask 不再运行 PermissionRequest；Hook 每个 Run 加载一次；continue: false 的实际停止交给票 06。ADR 0012 证据行由 lead 补入。main 上复核（含票 05，见票 05）。worktree 已清理。
+
+Closed: true
