@@ -22,7 +22,7 @@ const exists = (path: string) =>
     () => false,
   )
 
-async function gitRepo(root: string, home: string): Promise<{ repo: string; env: Record<string, string> }> {
+async function gitRepo(root: string, home: string): Promise<{ repo: string; env: Record<string, string> & { GIT_CONFIG_GLOBAL: string } }> {
   const repo = join(root, 'repo')
   await mkdir(repo)
   const env = {
