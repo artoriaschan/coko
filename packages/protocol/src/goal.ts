@@ -65,6 +65,51 @@ export const GoalPayload = Type.Object(
 )
 export type GoalPayload = Static<typeof GoalPayload>
 
+/**
+ * Goal 的已用量（ADR 0011：从条目派生）。rounds 为已开始的 Goal Round 数；其余维度在预算派生实现后给出（省略表示尚未派生）。
+ * costUnpriced：当前模型未定价，费用无法计算。
+ */
+export const GoalUsage = Type.Object(
+  {
+    rounds: Count,
+    toolCalls: Type.Optional(Count),
+    tokens: Type.Optional(Count),
+    cost: Type.Optional(Type.Number({ minimum: 0 })),
+    durationMs: Type.Optional(Count),
+    costUnpriced: Type.Optional(Type.Boolean()),
+  },
+  strict,
+)
+export type GoalUsage = Static<typeof GoalUsage>
+
+/** GET / POST /api/sessions/:id/goal 的响应：当前 Goal（最新的 goal 条目；没有时 null）与已用量。 */
+export const GoalResponse = Type.Object({ goal: Type.Union([GoalPayload, Type.Null()]), usage: GoalUsage }, strict)
+export type GoalResponse = Static<typeof GoalResponse>
+
+/**
+ * POST /api/sessions/:id/goal：用户的动作。revision 必须是当前 revision（否则 409 revision-conflict）；当前阶段不允许时 409
+ * invalid-transition；没有 Goal 时 404。edit 给出要替换的字段（criteria 为条件文本，id 按位置重新编号；budget 整体替换，maxRounds 缺省 50）。
+ * cancel 在进行中的 Run 结束、该 Goal 的 Job 停止之后返回，快照带 cleanup。
+ */
+export const GoalActionRequest = Type.Object(
+  {
+    action: Type.Union([Type.Literal('pause'), Type.Literal('resume'), Type.Literal('cancel'), Type.Literal('complete'), Type.Literal('edit')]),
+    revision: Type.Integer({ minimum: 1 }),
+    objective: Type.Optional(Type.String({ minLength: 1 })),
+    constraints: Type.Optional(Type.String()),
+    criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 10 })),
+    budget: Type.Optional(GoalBudget),
+  },
+  strict,
+)
+export type GoalActionRequest = Static<typeof GoalActionRequest>
+
+/** Goal 的路径。 */
+export const goalPaths = {
+  /** GET：GoalResponse；POST：GoalActionRequest → GoalResponse。 */
+  sessionGoal: (sessionId: string) => `/api/sessions/${encodeURIComponent(sessionId)}/goal`,
+} as const
+
 /** 本领域的 kind → payload schema。 */
 export const goalEntryPayloadSchemas = {
   goal: GoalPayload,

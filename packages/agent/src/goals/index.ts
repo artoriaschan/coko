@@ -1,2 +1,5 @@
-// Goal：状态机、预算派生、完成证据与 Goal 工具（尚未实现；条目 schema 在 session-entries/goals.ts，决定见 ADR 0011）。
-export {}
+// Goal（ADR 0011，docs/subsystems/goal.md）：状态机与授权（state.ts）、模型可见文本（prompt.ts）与 Goal 工具（tools.ts）。条目 schema 在
+// session-entries/goals.ts。
+export * from './state.ts'
+export * from './prompt.ts'
+export * from './tools.ts'
