@@ -4,7 +4,7 @@
 // 有序关闭在关闭存储之前以同样的方式终止全部登记进程。
 import { randomUUID } from 'node:crypto'
 import type { ExecPort, ExecRequest } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactText } from '@coko/logging'
 import type { HostProcess, HostProcessKind, SessionStore } from '@coko/session'
 import { hostProcessTable, type HostProcessTable } from '../adapters/processes.ts'
 
@@ -21,7 +21,7 @@ export interface TrackedProcess {
   kind: HostProcessKind
   sessionId?: string | undefined
   jobId?: string | undefined
-  /** bash 的命令文本或 MCP Server 的可执行文件；只存库，不写日志。 */
+  /** bash 的命令文本或 MCP Server 的可执行文件；脱敏后存库，不写日志。 */
   command: string
 }
 
@@ -74,7 +74,8 @@ export class ProcessRegistry {
         kind: process.kind,
         sessionId: process.sessionId ?? null,
         jobId: process.jobId ?? null,
-        command: process.command,
+        // 命令文本可能含模型回显的登记值或凭据：入库前按值与凭据形态脱敏（ADR 0004、0007）。
+        command: redactText(process.command),
       })
       return true
     }, 'register')

@@ -41,7 +41,7 @@ lifecycle: active
 | 前台 bash（`trackExec` 包装工具集的执行端口） | bash | 有（= pid） | 命令文本 | `onExit` |
 | stdio MCP Server（传输 `start()` 成功后） | mcp | 无 | 可执行文件路径（不含参数与环境） | 传输关闭（含 Server 自行退出、崩溃） |
 
-登记与删除都是后台写入，不阻塞命令：先读 lstart 再写行；进程在读到之前已退出时不写；释放早于写入完成时，写入后再删除。写入失败记 warn `process registration failed { operation, error }`，不影响命令。命令文本只存在库中，不写日志。
+登记与删除都是后台写入，不阻塞命令：先读 lstart 再写行；进程在读到之前已退出时不写；释放早于写入完成时，写入后再删除。写入失败记 warn `process registration failed { operation, error }`，不影响命令。命令文本入库前经 `redactText` 脱敏（登记的 Secret 值与凭据形态，[ADR 0007](../adr/0007-secrets-from-registered-entries.md)），不写日志；秘密总闸扫描库文件。
 
 ## 启动清理
 

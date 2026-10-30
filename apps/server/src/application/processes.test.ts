@@ -2,6 +2,7 @@
 // 依赖 `ps -o lstart=` 与进程组信号；只在 darwin 运行（孤儿清理只在 darwin 验证），其他平台显式跳过。
 import { spawn } from 'node:child_process'
 import { createLocalExecPort } from '@coko/agent'
+import { registerSecretValues, SECRET_REDACTED } from '@coko/logging'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it, onTestFinished } from 'vitest'
@@ -87,6 +88,17 @@ describe.skipIf(!darwin)('ProcessRegistry（darwin：真实进程）', { timeout
     registry.track({ pid: gone, kind: 'bash', command: 'exit 0' })
     await registry.flush()
     expect(await s.processes.list()).toEqual([])
+  })
+
+  it('登记的命令文本经脱敏：登记的 Secret 值不入库', async () => {
+    const secret = 'svc-secret-0123456789'
+    onTestFinished(registerSecretValues(() => [secret]))
+    const s = store()
+    const registry = new ProcessRegistry({ store: s })
+    const pid = start('sleep 30')
+    registry.track({ pid, pgid: pid, kind: 'bash', command: `curl -H 'x: ${secret}' host` })
+    await registry.flush()
+    expect((await s.processes.list())[0]!.command).toBe(`curl -H 'x: ${SECRET_REDACTED}' host`)
   })
 
   it('trackExec：经端口启动的命令在运行期间有一行，结束后删除；请求自带的回调照常调用', async () => {
