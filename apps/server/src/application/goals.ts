@@ -98,6 +98,7 @@ export class GoalService {
         return this.#sessions.runs.startRun(sessionId, request)
       },
       priced: (sessionId) => this.#priced(sessionId),
+      isCancelling: (sessionId) => this.#cancelling.has(sessionId),
     })
     // 之后启动的 Job 记下 Session 当时未终结的 Goal（取消该 Goal 时终止它们）。
     options.jobs.useGoals(async (sessionId) => {
@@ -221,6 +222,8 @@ export class GoalService {
       const entries = await this.#entries(sessionId)
       const goal = this.#require(entries)
       try {
+        // 取消进行中：取消提交 cancelled 之前，用户的动作不再改变 Goal（否则 resume 会开出一个在取消之后继续运行的 Goal Round）。
+        if (this.#cancelling.has(sessionId)) throw new GoalError('invalid-transition', 'The goal is being cancelled')
         expectRevision(goal, request.revision)
         const usage = goalUsage(entries, goal.id)
         const change: GoalChange =
@@ -283,6 +286,13 @@ export class GoalService {
         cleanup.jobsKilled = await this.#options.jobs.killSession(sessionId, goal.id)
       } catch (error) {
         cleanup.failures.push('Stopping background jobs failed: ' + message(error))
+      }
+      // 等待期间开始的 Run（取消进行中拒绝了 Goal 的动作与推进，这里是兜底）：提交 cancelled 之前同样停止它并等待 run_end。
+      const late = sessions?.runs.activeRunId(sessionId)
+      if (sessions && late !== undefined && late !== runId && sessions.isRunning(sessionId)) {
+        const ended = this.#runEnd(sessionId, late)
+        if (await sessions.abort(sessionId)) cleanup.runsAborted++
+        if (!(await ended)) cleanup.failures.push(`Run ${late} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
       }
       await this.#locked(sessionId, async () => {
         const entries = await this.#entries(sessionId)

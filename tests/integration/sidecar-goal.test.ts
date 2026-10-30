@@ -392,6 +392,34 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('取消进行中（等待 Job 退出时）resume 返回 409，不开始 Goal Round；取消完成后为 cancelled', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 1 } })] },
+      // 忽略 SIGTERM 的后台 Job：取消在 SIGKILL 宽限（5 秒）内等待它退出，这段时间不持锁。
+      { content: [call('bash', 'bg', { command: "trap '' TERM; sleep 60", run_in_background: true })] },
+      { content: 'set' },
+      { content: 'r1' },
+      { content: 'must not run: round 2' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId, 'full-access')
+    await submit(api, sessionId, 'go')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 2, 30_000)
+    const edited = await action(api, sessionId, { action: 'edit', revision: 2, budget: { maxRounds: 2 } })
+    expect(edited.body.goal).toMatchObject({ revision: 3, phase: 'budget-exhausted' })
+
+    const cancelling = action(api, sessionId, { action: 'cancel', revision: 3 })
+    // 交叠位置：取消已在终止 Job（job_update stopping），尚未提交 cancelled。
+    await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'job_update' && m.event.job.status === 'stopping', 10_000)
+    const resumed = await action(api, sessionId, { action: 'resume', revision: 3 })
+    expect([resumed.status, resumed.body.error?.code]).toEqual([409, 'invalid-transition'])
+    const cancelled = await cancelling
+    expect(cancelled.body.goal).toMatchObject({ phase: 'cancelled', revision: 4, cleanup: { runsAborted: 0, jobsKilled: 1, failures: [] } })
+    expect(starts(stream, sessionId)).toHaveLength(2)
+    expect((await api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: false })
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('/goal pause 与 /goal cancel 在 Run 进行中可用；/goal resume 继续；/goal <目标> 请模型调用 create_goal', async () => {
     const { sidecar, api, stream, workspaceId, requests } = await boot([
       { content: [createGoal(['done'])] },

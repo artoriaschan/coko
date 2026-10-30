@@ -26,6 +26,8 @@ export interface GoalDriverHost {
   startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }>
   /** 该 Session 的模型是否已定价（设了费用上限时）。 */
   priced(sessionId: string): Promise<boolean>
+  /** 该 Session 的 Goal 正在取消：不发起 Goal Round。 */
+  isCancelling(sessionId: string): boolean
 }
 
 /** Job 的完成通知以这个标签开头（宿主生成）；Run 结束时退回的通知不算用户的追加指令。 */
@@ -55,7 +57,7 @@ export class GoalDriver {
    */
   async advance(sessionId: string): Promise<string | undefined> {
     const host = this.#host
-    if (host.isRunning(sessionId)) return undefined
+    if (host.isRunning(sessionId) || host.isCancelling(sessionId)) return undefined
     const entries = await host.entries(sessionId)
     const goal = currentGoal(entries)
     if (!goal || goal.phase !== 'running') return undefined
