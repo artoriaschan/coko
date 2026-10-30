@@ -158,6 +158,23 @@ describe('预算派生', () => {
     const parent = [goalEntry(0, goal('running', 1)), start(1000, 'p1', 1), toolResult(1100, 'p1', 'p'), end(2000, 'p1')]
     expect(goalUsage(parent, 'goal-1', { now: 3000, children: [child] })).toEqual({ rounds: 1, toolCalls: 2, tokens: 110, cost: 0.1, durationMs: 1600 })
   })
+
+  it('handoff 条目的 usage 计入同一 Run（属于该 Goal 时），与 compaction 相同；不属于 Goal 的 Run 不计', () => {
+    seq = 0
+    const handoff = (t: number, runId: string, u?: ReturnType<typeof usage>) =>
+      at(t, 'handoff', { targetSessionId: 's2', instructions: 'next', summary: 's', target: 'current', ...(u ? { usage: u } : {}) }, runId)
+    const entries = [
+      at(0, 'run_start', { trigger: 'handoff' }, 'h0'),
+      at(10, 'run_end', { status: 'completed' }, 'h0'),
+      handoff(11, 'h0', usage(500, 50, 0.5)),
+      goalEntry(100, goal('running', 1)),
+      at(200, 'run_start', { trigger: 'handoff' }, 'h1'),
+      at(300, 'run_end', { status: 'completed' }, 'h1'),
+      handoff(301, 'h1', usage(40, 5, 0.04, { cacheRead: 5 })),
+      handoff(302, 'h1'),
+    ]
+    expect(goalUsage(entries, 'goal-1', { now: 400 })).toEqual({ rounds: 0, toolCalls: 0, tokens: 50, cost: 0.04, durationMs: 100 })
+  })
 })
 
 describe('耗尽的维度', () => {

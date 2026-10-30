@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { permissionEntryPayloads, type PermissionRule } from '../session-entries/index.ts'
-import { canonicalRuleTool, decide, type PermissionCall, type PermissionContext } from './decide.ts'
+import { canonicalRuleTool, decide, decideWithStep, type DecisionStep, type PermissionCall, type PermissionContext } from './decide.ts'
 
 const WS = '/ws/project'
 const TMP = '/private/tmp'
@@ -352,5 +352,91 @@ describe('permission_mode 条目的版本', () => {
     expect(v2!.check({ mode: 'plan', prior: 'accept-edits' })).toBeUndefined()
     expect(v2!.check({ mode: 'plan' })).toBeUndefined()
     expect(v2!.check({ mode: 'plan', prior: 'plan' })).toBeDefined()
+  })
+})
+
+describe('判定步骤（decideWithStep）', () => {
+  const allowAll = [rule('allow', 'Edit'), rule('allow', 'Bash')]
+  it.each<[string, PermissionCall, PermissionContext, DecisionStep, string]>([
+    ['拒绝规则', bash('rm -rf x'), ctx({ rules: [rule('deny', 'Bash', 'rm *')] }), 'deny-rule', 'deny'],
+    ['拒绝规则先于受保护路径', file('write', '.git/config', `${WS}/.git/config`), ctx({ rules: [rule('deny', 'Edit')] }), 'deny-rule', 'deny'],
+    ['询问规则', bash('git push'), ctx({ mode: 'full-access', writableRoots: ['/'], rules: [rule('ask', 'Bash', 'git push')] }), 'ask-rule', 'ask'],
+    [
+      '受保护路径（full-access 与允许规则下也询问）',
+      file('write', '.git/HEAD', `${WS}/.git/HEAD`),
+      ctx({ mode: 'full-access', writableRoots: ['/'], rules: allowAll }),
+      'protected',
+      'ask',
+    ],
+    ['越出可写根的写入', file('write', '/etc/x', '/etc/x'), ctx({ rules: allowAll }), 'outside-writable', 'ask'],
+    ['没有目标的写入', { toolName: 'write' }, ctx({ rules: allowAll }), 'outside-writable', 'ask'],
+    ['模式放行', file('read', 'a', `${WS}/a`), ctx(), 'mode', 'allow'],
+    [
+      'plan-exit 的总询问在模式这一步',
+      { toolName: 'exit_plan_mode', permissionClass: 'plan-exit' },
+      ctx({ rules: [rule('allow', 'exit_plan_mode')] }),
+      'mode',
+      'ask',
+    ],
+    ['允许规则', bash('npm test'), ctx({ rules: [rule('allow', 'Bash', 'npm test')] }), 'allow-rule', 'allow'],
+    ['模式与规则都没有放行', bash('npm test'), ctx(), 'default', 'ask'],
+    ['Workspace 外的读取', file('read', '/etc/hosts', '/etc/hosts'), ctx(), 'default', 'ask'],
+  ])('%s', (_name, call, context, step, behavior) => {
+    const result = decideWithStep(call, context)
+    expect([result.step, result.decision.behavior]).toEqual([step, behavior])
+    expect(decide(call, context)).toEqual(result.decision)
+  })
+})
+
+describe('权限类（M5）：agent 与 automation', () => {
+  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
+  const allIn = (mode: (typeof MODES)[number]) =>
+    ctx({ mode, writableRoots: mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
+  const agent = (type: string, isolation?: boolean): PermissionCall => ({
+    toolName: 'agent',
+    permissionClass: 'agent',
+    subject: type,
+    ...(isolation ? { isolation } : {}),
+  })
+  const schedule = (name: string): PermissionCall => ({ toolName: name, permissionClass: 'automation' })
+
+  it('agent：五种模式都放行；带 isolation 时只有 full-access 放行，其余询问', () => {
+    expect(MODES.map((mode) => decide(agent('explore'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+    expect(MODES.map((mode) => decide(agent('general', true), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+    expect(decideWithStep(agent('general', true), allIn('full-access')).step).toBe('mode')
+  })
+
+  it('agent：规则组名 Agent，内容为子代理类型；deny 与 ask 规则在任何模式生效', () => {
+    expect([canonicalRuleTool('agent'), canonicalRuleTool('AGENT'), canonicalRuleTool('schedule')]).toEqual(['Agent', 'Agent', 'Schedule'])
+    expect(decide(agent('explore'), { ...allIn('full-access'), rules: [rule('deny', 'Agent', 'explore')] })).toMatchObject({
+      behavior: 'deny',
+      rule: { tool: 'Agent', content: 'explore' },
+    })
+    expect(decide(agent('general'), { ...allIn('full-access'), rules: [rule('deny', 'Agent', 'explore')] }).behavior).toBe('allow')
+    expect(decide(agent('general'), { ...allIn('read-only'), rules: [rule('ask', 'Agent')] })).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+    // 隔离的询问可保存为 Agent 的允许规则。
+    expect(decide(agent('general', true), allIn('default'))).toMatchObject({
+      behavior: 'ask',
+      suggestions: [{ behavior: 'allow', tool: 'Agent', content: 'general' }],
+    })
+    expect(decide(agent('general', true), { ...allIn('default'), rules: [rule('allow', 'Agent', 'general')] }).behavior).toBe('allow')
+  })
+
+  it('automation：只在 full-access 放行；规则组名 Schedule；deny 规则在 full-access 也生效', () => {
+    for (const name of ['schedule_create', 'schedule_update'])
+      expect(MODES.map((mode) => decide(schedule(name), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+    expect(decide(schedule('schedule_create'), allIn('default'))).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Schedule' }] })
+    expect(decide(schedule('schedule_create'), { ...allIn('default'), rules: [rule('allow', 'Schedule')] }).behavior).toBe('allow')
+    expect(decide(schedule('schedule_update'), { ...allIn('full-access'), rules: [rule('deny', 'Schedule')] }).behavior).toBe('deny')
+  })
+
+  it('context-read / session-state 的 M5 工具（agent_wait、schedule_list、agent_cancel、schedule_delete）在五种模式放行', () => {
+    for (const [name, permissionClass] of [
+      ['agent_wait', 'context-read'],
+      ['schedule_list', 'context-read'],
+      ['agent_cancel', 'session-state'],
+      ['schedule_delete', 'session-state'],
+    ] as const)
+      expect(MODES.map((mode) => decide({ toolName: name, permissionClass }, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
   })
 })

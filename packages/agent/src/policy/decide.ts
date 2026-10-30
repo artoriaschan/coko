@@ -11,12 +11,25 @@ export { pathContains } from './rules.ts'
  * 权限类（M3 起，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
  * read / edit / bash 是内置工具的类；context-read（skill、memory_list、MCP 资源）所有模式放行；memory-write（规则组名 Memory）在
  * accept-edits 与 full-access 放行；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
- * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。
+ * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。M5：agent（派发子代理，
+ * 规则组名 Agent，内容为子代理类型）所有模式放行，带 isolation 时只有 full-access 放行；automation（创建或修改定时任务，规则组名
+ * Schedule）只在 full-access 放行。
  */
-export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit'
+export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit' | 'agent' | 'automation'
 
-/** 判定分组；规则以组名（Read、Edit、Bash、Memory）书写，skill 工具为 Skill，其余工具按原名。 */
-export type ToolCategory = 'read' | 'write' | 'command' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit' | 'other'
+/** 判定分组；规则以组名（Read、Edit、Bash、Memory、Agent、Schedule）书写，skill 工具为 Skill，其余工具按原名。 */
+export type ToolCategory =
+  | 'read'
+  | 'write'
+  | 'command'
+  | 'context-read'
+  | 'memory-write'
+  | 'external'
+  | 'session-state'
+  | 'plan-exit'
+  | 'agent'
+  | 'automation'
+  | 'other'
 
 const CATEGORY: Record<string, ToolCategory> = { read: 'read', grep: 'read', find: 'read', ls: 'read', write: 'write', edit: 'write', bash: 'command' }
 const CLASS_CATEGORY: Record<PermissionClass, ToolCategory> = {
@@ -28,8 +41,17 @@ const CLASS_CATEGORY: Record<PermissionClass, ToolCategory> = {
   external: 'external',
   'session-state': 'session-state',
   'plan-exit': 'plan-exit',
+  agent: 'agent',
+  automation: 'automation',
 }
-const RULE_TOOL: Partial<Record<ToolCategory, string>> = { read: 'Read', write: 'Edit', command: 'Bash', 'memory-write': 'Memory' }
+const RULE_TOOL: Partial<Record<ToolCategory, string>> = {
+  read: 'Read',
+  write: 'Edit',
+  command: 'Bash',
+  'memory-write': 'Memory',
+  agent: 'Agent',
+  automation: 'Schedule',
+}
 
 /** MCP 工具名的前缀：`mcp__<server>__<tool>`。 */
 export const MCP_TOOL_PREFIX = 'mcp__'
@@ -94,6 +116,8 @@ export interface PermissionCall {
   subject?: string
   /** 文件工具（read 与 edit 组）解析后的目标。 */
   target?: PermissionTarget
+  /** agent 类：子代理在隔离的 worktree 中运行（只有 full-access 放行）。 */
+  isolation?: boolean
 }
 
 export interface PermissionContext {
@@ -126,6 +150,18 @@ export type PermissionDecision =
   | { behavior: 'deny'; rule: PermissionRule }
   /** suggestions：可保存为"总是允许"的规则；受保护路径、越界写入、询问规则与无法拆分的命令为空。 */
   | { behavior: 'ask'; reason: AskReason; suggestions: PermissionRule[] }
+
+/**
+ * 给出判定的步骤（按判定顺序）：deny-rule、ask-rule、protected（受保护路径）、outside-writable（越出可写根或没有目标的写入）、
+ * mode（模式放行；plan-exit 的总询问也在这一步，它不能被 Hook 或规则免掉）、allow-rule、default（模式与规则都没有放行的询问）。
+ * 外部 Hook 的组合按它区分：第 2–4 步的询问不能被 Hook 的 allow 免掉（ADR 0013）。
+ */
+export type DecisionStep = 'deny-rule' | 'ask-rule' | 'protected' | 'outside-writable' | 'mode' | 'allow-rule' | 'default'
+
+export interface SteppedDecision {
+  decision: PermissionDecision
+  step: DecisionStep
+}
 
 /** 任意深度出现即受保护的目录（Workspace 内的版本库与编辑器配置）。 */
 const PROTECTED_DIRS = new Set(['.git', '.coko', '.vscode', '.idea'])
@@ -198,6 +234,8 @@ function modeAllows(facts: Facts): boolean {
   const { category, call, context } = facts
   if (category === 'context-read' || category === 'session-state') return true
   if (category === 'plan-exit') return false
+  if (category === 'agent') return call.isolation !== true || context.mode === 'full-access'
+  if (category === 'automation') return context.mode === 'full-access'
   const target = call.target
   const readInside = category === 'read' && target !== undefined && readable(target.real, context)
   switch (context.mode) {
@@ -225,6 +263,8 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
     const missing = [...new Set(command.subcommands.map((s) => s.command))].filter((s) => !commandAllowed(s, allows))
     return missing.map((content) => ({ behavior: 'allow', tool, content }))
   }
+  // 子代理的允许规则按类型建议（Agent(general)），不放行全部类型。
+  if (category === 'agent' && call.subject !== undefined) return [{ behavior: 'allow', tool, content: call.subject }]
   if (category !== 'read' && category !== 'write') return [{ behavior: 'allow', tool }]
   const target = call.target
   if (!target) return []
@@ -255,7 +295,14 @@ export function readDenial(rules: readonly PermissionRule[], workspace: string, 
   return (path) => denies.some((rule) => pathMatches(rule.content!, path, workspace, home))
 }
 
+/** 判定结果（与 decideWithStep 相同，不带步骤）。 */
 export function decide(call: PermissionCall, context: PermissionContext): PermissionDecision {
+  return decideWithStep(call, context).decision
+}
+
+/** 判定，并给出作出判定的步骤。 */
+export function decideWithStep(call: PermissionCall, context: PermissionContext): SteppedDecision {
+  const at = (step: DecisionStep, decision: PermissionDecision): SteppedDecision => ({ decision, step })
   const category = toolCategory(call.toolName, call.permissionClass)
   const facts: Facts = {
     call,
@@ -270,23 +317,25 @@ export function decide(call: PermissionCall, context: PermissionContext): Permis
     own.find((rule) => rule.behavior === behavior && (rule.content === undefined || restrictiveMatch(rule.content, facts)))
 
   const deny = restrictive('deny')
-  if (deny) return { behavior: 'deny', rule: deny }
-  if (restrictive('ask')) return { behavior: 'ask', reason: 'ask-rule', suggestions: [] }
+  if (deny) return at('deny-rule', { behavior: 'deny', rule: deny })
+  if (restrictive('ask')) return at('ask-rule', { behavior: 'ask', reason: 'ask-rule', suggestions: [] })
 
   const target = call.target
   if (category === 'write') {
-    if (!target) return { behavior: 'ask', reason: 'approval-required', suggestions: [] }
-    if (isProtectedPath(target)) return { behavior: 'ask', reason: 'protected-path', suggestions: [] }
-    if (!context.writableRoots.some((root) => pathContains(root, target.real))) return { behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] }
+    // 没有目标的写入无法判定可写根：与越界写入同样处理（不能被规则或 Hook 免掉）。
+    if (!target) return at('outside-writable', { behavior: 'ask', reason: 'approval-required', suggestions: [] })
+    if (isProtectedPath(target)) return at('protected', { behavior: 'ask', reason: 'protected-path', suggestions: [] })
+    if (!context.writableRoots.some((root) => pathContains(root, target.real)))
+      return at('outside-writable', { behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] })
   }
 
   // 提交计划是交给用户审阅的动作：模式与允许规则都不能免掉审批，也不建议保存为规则。
-  if (category === 'plan-exit') return { behavior: 'ask', reason: 'approval-required', suggestions: [] }
+  if (category === 'plan-exit') return at('mode', { behavior: 'ask', reason: 'approval-required', suggestions: [] })
 
-  if (modeAllows(facts)) return { behavior: 'allow' }
+  if (modeAllows(facts)) return at('mode', { behavior: 'allow' })
   const allows = own.filter((rule) => rule.behavior === 'allow')
-  if (allowedByRules(allows, facts)) return { behavior: 'allow' }
+  if (allowedByRules(allows, facts)) return at('allow-rule', { behavior: 'allow' })
 
   const outside = category === 'read' && target !== undefined && !readable(target.real, context)
-  return { behavior: 'ask', reason: outside ? 'outside-workspace' : 'approval-required', suggestions: suggest(facts, allows) }
+  return at('default', { behavior: 'ask', reason: outside ? 'outside-workspace' : 'approval-required', suggestions: suggest(facts, allows) })
 }

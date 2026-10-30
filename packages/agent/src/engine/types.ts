@@ -3,6 +3,7 @@ import type { Model, Models, TextContent, UserMessage } from '@earendil-works/pi
 import type { EntryLike } from '../entries/index.ts'
 import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { ApprovalAnswer } from '../policy/broker.ts'
+import type { PermissionHookPort } from '../policy/gate.ts'
 import type { ExecPort } from '../ports/exec.ts'
 import type { SecretProvider } from '../ports/secrets.ts'
 import type {
@@ -240,6 +241,8 @@ export interface RuntimePermissions {
   rules: () => readonly PermissionRule[]
   /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */
   readRoots?: () => readonly string[]
+  /** 外部 Hook 的 PreToolUse / PermissionRequest（ADR 0013）；缺省无。 */
+  hooks?: PermissionHookPort
 }
 
 export interface AgentRuntime {
