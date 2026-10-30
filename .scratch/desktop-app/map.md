@@ -46,7 +46,7 @@ Status: open
 - ~~M2：模态对话框打开时 Toast 动作无法用键盘到达（M1 票 08）。~~ 已由 M2 票 10 解决。
 
 - ~~M2：Sidecar 崩溃或重启时进行中的 Run 不留 run_end，启动恢复须把它们判定为中断并按幂等规则处理（M1 票 10）。~~ 已由 M2 票 08 解决。
-- M4：Sidecar 被强杀时 bash 的 detached 子进程会继续运行到结束；stdio MCP 服务器子进程同理（M3 规划）。Background Jobs 与 Execution Runtime 需负责孤儿进程的登记与清理（M2 票 08）。
+- M4：Sidecar 被强杀时 bash 的 detached 子进程会继续运行到结束；stdio MCP 服务器子进程同理（M3 规划）。Background Jobs 与 Execution Runtime 需负责孤儿进程的登记与清理（M2 票 08）。→ 已分配 M4 票 03（ADR 0012）。
 - ~~M2：B1 Provider kind 映射散落 6 处、B3 挂起请求加超时重复 4 处，随 M2 涉及的模块收敛（M1 Standards 评审）。~~ 已由 M2 票 10 解决。
 
 - M3：J4 Secrets 对 bash 的隐藏只靠环境变量名模式；接入 MCP 凭据时改为显式白名单或按来源隔离（M2 Standards 评审）。→ 已分配 M3 票 07，按来源隔离，见 ADR 0007。
@@ -54,8 +54,8 @@ Status: open
 
 - M6：MCP HTTP Server 返回 401 时没有专门的 auth-required 状态，目前显示为普通失败（M3 票 07）。
 
-- M4：M3 结构债 J1、J2、J4–J7（sessions.ts 535 行、runtime.ts 813 行、路由直接访问存储等）在引入 Goal / Plan 状态前收敛（M3 Standards 评审）。
-- M4：新增读取根或注入点的票须附符号链接越界用例，秘密总闸扫描 requestLog（M3 复盘）。
+- M4：M3 结构债 J1、J2、J4–J7（sessions.ts 535 行、runtime.ts 813 行、路由直接访问存储等）在引入 Goal / Plan 状态前收敛（M3 Standards 评审）。→ 已分配 M4 票 01。
+- M4：新增读取根或注入点的票须附符号链接越界用例，秘密总闸扫描 requestLog（M3 复盘）。→ 写入 M4 implementer-brief。
 
 ## Route status
 
