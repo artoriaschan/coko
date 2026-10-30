@@ -62,3 +62,6 @@
 **最终验证（合入 main fe38367 之后，e0ce9bb 起）：** worktree 中 `pnpm run test`（02:21，负载约 4.7）：255 个测试文件全部通过，1984 例（1983 通过、1 跳过），test=0，日志中没有 Unhandled；包含 27 个 desktop-e2e 文件、`package-smoke.e2e.test.ts`（3 例）与 Lead 修复后的 `sidecar-pty.test.ts`（8 例）。另：`pnpm run typecheck`、`lint`、`format:check`、`check:docs` 退出码 0；`scripts/browser-deps.test.ts` 与 `scripts/source-references.test.ts` 4 例通过。较基线新增 5 个测试文件、32 例。
 
 **未验证：** 真实模型（无凭据）；Electron 窗口最小化时 requestAnimationFrame 暂停，GoalCard 的重读推迟到窗口恢复（按设计接受，未在 E2E 中单测）。
+- 2026-10-31 lead：评审后合入 main（9b848b8）。接受越界：sessions.ts 一行 modelPriced 委托、goals/prompt.ts（B5 / B6 的消费方）、新文件 entries/job-notification.ts（entries 导入守卫只允许本目录）、i18n goal 域的 reason 文案与 B15 提示、plan-mode.md 一句、新增的就近测试。接受行为说明：被预算停下的 compact Run 转换 Goal 阶段；lateSessionRuns 在 bind 之前调用时抛错（实际走不到）。窗口最小化时 GoalCard 的用量重读推迟到窗口恢复——接受。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 255 文件 1983 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 176 文件 0 问题。worktree 已清理。
+
+Closed: true
