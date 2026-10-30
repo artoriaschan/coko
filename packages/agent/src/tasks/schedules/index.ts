@@ -12,6 +12,7 @@ export {
   SCHEDULE_PROMPT_MAX_CHARS,
   SCHEDULE_TITLE_MAX_CHARS,
   ScheduleRuleError,
+  upcomingOccurrences,
   validateRule,
 } from './rules.ts'
 export type { CatchUp, ScheduleRuleSpec } from './rules.ts'

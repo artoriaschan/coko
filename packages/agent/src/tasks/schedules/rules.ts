@@ -85,6 +85,24 @@ export function nextOccurrence(rule: ScheduleRuleSpec, anchor: number, after: nu
   }
 }
 
+/**
+ * 新建或修改规则时的预览：校验后从 now 起的接下来至多 count 次（UTC 毫秒，升序）。after 与 every 以 now 为起点（与创建时一致）；
+ * 一次性规则至多一次。不合要求时抛 ScheduleRuleError。只依赖 Intl，renderer 经 @coko/agent/entries 使用。
+ */
+export function upcomingOccurrences(rule: ScheduleRuleSpec, now: number, count: number): number[] {
+  const valid = validateRule(rule, now)
+  const out: number[] = []
+  let after = now
+  while (out.length < count) {
+    const next = nextOccurrence(valid, now, after)
+    if (next === undefined) break
+    out.push(next)
+    if (isOneShot(valid)) break
+    after = next
+  }
+  return out
+}
+
 /** 一次性规则（after、at）：投递后不再到期。 */
 export const isOneShot = (rule: ScheduleRuleSpec) => rule.kind === 'after' || rule.kind === 'at'
 
