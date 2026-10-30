@@ -276,7 +276,7 @@ describe.skipIf(!darwin)('后台任务的停止与孤儿（darwin）', { timeout
     const h = await setup([
       { content: [bg('b1', holder(root, 'a'))] },
       { content: [call('w1', 'bash', { command: wait })] },
-      { content: [call('k1', 'job_kill', { job_id: '$LAST_JOB_ID' })] },
+      { content: [call('k1', 'job_kill', { job_id: '$LAST_JOB_ID', reason: 'no longer needed' })] },
       { content: 'killed' },
       { content: 'ok' },
     ])
@@ -290,6 +290,13 @@ describe.skipIf(!darwin)('后台任务的停止与孤儿（darwin）', { timeout
     await expect.poll(() => jobRows(h.dirs)).toEqual([])
     await h.turn('again')
     expect((await h.requests()).at(-1)!.map(textOf).join('\n')).not.toContain('<job-notification>')
+    // job_kill 的 reason 记入日志（按值脱敏后）；日志在有序关闭时写完。
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+    const records = (await readFile(join(h.dirs.logDir, 'sidecar.jsonl'), 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { message: string; properties: Record<string, unknown> })
+    expect(records.find((r) => r.message === 'job stop requested')?.properties).toMatchObject({ jobId, by: 'model', reason: 'no longer needed' })
   })
 
   it('停止 Run 后 Job 仍在运行；POST /api/jobs/:id/kill 使进程组退出（204），再次停止 409 job-not-running；用户停止的 Job 下一次提交时通知', async () => {

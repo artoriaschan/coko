@@ -44,7 +44,7 @@ bash 的 `tty: true`（须同时 `run_in_background: true`，否则参数错误�
 - `ExecPort.spawn({ tty: true })` 与普通后台命令同样检查工作目录、加沙箱前缀、过滤环境，再交给 `PtyPort.spawn({ argv, cwd, env, cols, rows })`：argv 为沙箱前缀 + `<shell> -c <command>`，cwd 为 Workspace 的真实路径（Workspace 经符号链接登记时，命令中的 `pwd -P` 与 `$PWD` 都是目标路径，与权限判定和沙箱可写根使用的路径一致），尺寸 120×30，环境没有 `TERM` 时设为 `xterm-256color`。句柄多出 `write(text)`；其余 Job 的 stdin 关闭，没有 `write`。
 - node-pty 的 spawn-helper 先 `setsid` 再 exec 命令，PTY 子进程是自己会话与进程组的组长（pgid = pid）。`kill` 向进程组发信号（node-pty 自身的 `kill` 只发给 pid）；信号退出时退出码为 128 + 信号号，并带信号名。
 - 输出是终端看到的字节（stdout 与 stderr 合并，带 CR 与控制序列）。日志保存原始输出；job_output 与完成通知去除 ANSI 并把 CRLF 归一为 LF。按值替换登记明文与普通后台任务相同，终端回显的输入同样被替换。
-- `job_input { job_id, text, submit?, ctrl_c? }`：只接受本 Session running 的 pty Job（非 PTY Job 返回"stdin 已关闭"错误结果，stopping 与已结束的返回"not running"）。写入顺序为 `ctrl_c` 的 `\x03`、`text`、`submit` 的 `\r`；三者都为空时参数错误。不等待回应，结果提示用 job_output 读取。权限类为 bash，判定对象为 `text`，与 bash 命令同一套规则（`Bash(...)` 的拒绝与询问规则匹配 text；default 询问，full-access 放行）。日志只记 `job input sent { sessionId, jobId, bytes }`，不记文本。
+- `job_input { job_id, text, submit?, ctrl_c? }`：只接受本 Session running 的 pty Job（非 PTY Job 返回"stdin 已关闭"错误结果，stopping 与已结束的返回"not running"）。写入顺序为 `ctrl_c` 的 `\x03`、`text`、`submit` 的 `\r`；三者都为空时参数错误。不等待回应，结果提示用 job_output 读取。权限类为 bash，判定对象是 shell 将要执行的整行：上次回车之后已写入的当前行加本次 `text`（`ctrl_c` 时当前行先清空；按回车、换行、Ctrl-C、Ctrl-U 与退格近似，其他行编辑键原样计入），与 bash 命令同一套规则（`Bash(...)` 的拒绝与询问规则匹配整行，拆成几次输入不能绕过；default 询问，full-access 放行）。同一批的调用都先判定再执行：执行时当前行与判定时不同（前一段已写入）的调用不发送。Job 记下启动时的沙箱档位；该档位严格宽于当前模式的档位时，plan 与 read-only 下拒绝（`Not sent: … wider than <mode> mode allows`），其余模式要求一次 kind escalation 审批（允许规则与模式放行都不能免掉），见 [ADR 0005](../adr/0005-permission-mode-and-sandbox.md)。日志只记 `job input sent { sessionId, jobId, bytes }`，不记文本。
 - **没有 PTY。** Sidecar 在启动时（`ToolsLive`，打开存储之前）加载 node-pty 一次：成功记 info `pty backend selected { backend, version, path }`，失败记 warn `pty backend unavailable; tty commands will not run`，不阻止启动。没有 PtyPort 时 `tty: true` 以错误结果 `pty-unavailable: the command was not run …` 返回，命令不运行。
 
 ## 进程登记
@@ -86,9 +86,9 @@ bash 的 `tty: true`（须同时 `run_in_background: true`，否则参数错误�
 ## 验证
 
 - `packages/agent/src/ports/local-exec.test.ts`：`onSpawn` 的 pid 与进程组与命令自身看到的一致、中止与超时后的 `onExit`、回调抛错不影响结果、没有启动的命令不调用回调；tty 请求的 argv、真实 cwd、尺寸与环境，没有 PtyPort 时 `pty-unavailable`，非 PTY 句柄没有 `write`。
-- `packages/agent/src/tools/builtin/bash.test.ts` 与 `tasks/jobs/jobs.test.ts`（表驱动）：`tty` 而不后台为参数错误，宿主没有 PTY 时的错误文本；job_input 只接受 running 的 pty Job、写入顺序、判定对象为 text。
+- `packages/agent/src/tools/builtin/bash.test.ts` 与 `tasks/jobs/jobs.test.ts`（表驱动）：`tty` 而不后台为参数错误，宿主没有 PTY 时的错误文本；job_input 只接受 running 的 pty Job、写入顺序、终端当前行的推导（`nextLine`）。
 - `apps/server/src/adapters/pty.test.ts`（darwin）：node-pty 中 cwd、尺寸与 TERM，输入被读到，kill 向进程组发信号。`pty-runtime.test.ts`：Electron 内置 Node 中加载。
-- `tests/integration/sidecar-pty.test.ts`（darwin，真实 Sidecar）：`python3 -i` 经 job_input 读到 42；`ctrl_c` 中断前台的 `sleep 100`；default 询问、full-access 不询问、拒绝规则匹配 text；read-only 档位的 Seatbelt 拒绝写入；SIGKILL 后 PTY 进程组被清理、Job 记 lost；Workspace 经符号链接登记时 `pwd -P` 为目标路径。`secrets-gate-pty.test.ts`：PTY 回显登记 Secret 时各通道没有明文。
+- `tests/integration/sidecar-pty.test.ts`（darwin，真实 Sidecar）：`python3 -i` 经 job_input 读到 42；`ctrl_c` 中断前台的 `sleep 100`；default 询问、full-access 不询问、拒绝规则匹配 text、拆成几段的命令被拒绝规则匹配、同一批中前一段改变当前行时后一段不发送、full-access 下启动后切到 plan 拒绝输入而 default 下要求提权；read-only 档位的 Seatbelt 拒绝写入；SIGKILL 后 PTY 进程组被清理、Job 记 lost；Workspace 经符号链接登记时 `pwd -P` 为目标路径。`secrets-gate-pty.test.ts`：PTY 回显登记 Secret 时各通道没有明文。
 - `apps/server/src/application/processes.test.ts`（darwin）：登记与删除、`trackExec`、进程组 SIGTERM、忽略 SIGTERM 时 SIGKILL、pid 复用与已退出只删行、进程组不符时只向 pid 发信号、有序关闭与之后的进程。
 - `tests/integration/sidecar-orphans.test.ts`（darwin，真实 Sidecar）：前台 bash 的 `sleep 300` 与经 `.mcp.json` 批准、忽略 stdin 关闭的 stdio MCP 测试 Server（经 `/bin/sh` 启动，留下同组的孙进程）运行时 SIGKILL Sidecar，重启后连同孙进程 5 秒内消失并有 `orphan process terminated`；伪造 lstart 不符的登记，对应进程仍在、行被删除；有序关闭后登记表为空。
 

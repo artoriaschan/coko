@@ -145,6 +145,8 @@ interface RunContext {
   scope: ContextScope
   tools: ReturnType<typeof layeredTools>
   hooks: ReturnType<typeof dynamicHooks>
+  /** 准入 hook（只拦截、无副作用），排在扩展之前。 */
+  admission: ReturnType<typeof dynamicHooks>
   readRoots: readonly string[]
 }
 
@@ -261,6 +263,7 @@ export class SessionRuns {
     const scope = await this.scope(session)
     const [contributed, readRoots] = await Promise.all([context.tools(scope), context.readRoots(scope)])
     const hooks = context.hooks(scope)
+    const admission = context.admissionHooks(scope)
     const pending = request.trigger === 'submit' || request.trigger === 'goal' ? await context.pendingInput(scope) : undefined
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
@@ -270,6 +273,7 @@ export class SessionRuns {
       runContext.scope = scope
       runContext.tools.set(contributed)
       runContext.hooks.set(hooks)
+      runContext.admission.set(admission)
       runContext.readRoots = readRoots
     }
     runtime.setModel(model)
@@ -422,6 +426,7 @@ export class SessionRuns {
       scope: await this.scope(session),
       tools: layeredTools(this.#jobs ? withJobs(this.baseTools(workspace.path), this.#jobs.launcher(session.id)) : this.baseTools(workspace.path)),
       hooks: dynamicHooks(),
+      admission: dynamicHooks(),
       readRoots: [],
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
@@ -438,9 +443,10 @@ export class SessionRuns {
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: { ...sessionPermissions.runtimePermissions(permissions, session.workspaceId), readRoots: () => runContext.readRoots },
-      // 贡献的 hook 排在扩展（checkpoint）之后；权限判定仍在链首。登记明文的替换排在最后：之前的 hook 附加的内容（如嵌套指令）也被替换，
-      // 结果进入运行时之前已不含明文（secret-redaction.ts）。
-      hooks: [...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook],
+      // 权限判定在链首；之后是贡献的准入 hook（只拦截，例如 Goal 预算），被拦下的调用不经过扩展（checkpoint 备份）等有副作用的 hook；
+      // 其余贡献的 hook 排在扩展之后。登记明文的替换排在最后：之前的 hook 附加的内容（如嵌套指令）也被替换，结果进入运行时之前已不含明文
+      // （secret-redaction.ts）。
+      hooks: [runContext.admission.hooks, ...(extension.hooks ?? []), runContext.hooks.hooks, secretRedactionHook],
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),

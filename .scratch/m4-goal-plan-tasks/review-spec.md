@@ -172,3 +172,27 @@
 - **没有读**：票 01 的结构拆分（J1–J7）与其 diff：mcp-admin、context-service、compaction-driver 的拆分细节、ipc-decryptor 与 encrypting-bridge 的完整实现（只看了 ipc-decryptor.ts）；packages/session 的迁移 v7、`sqlite/processes.ts`、契约测试；i18n 五个域的文案；`apps/desktop/build/build.ts`、postinstall、package-smoke 的打包细节；`todo.ts` 的校验实现（只依赖票 07 的验收与测试列表）；`exit-plan-mode.ts`、`planning/state.ts`；faux.ts；dock.tsx、queue-card、todo-card、session-cost、run-usage-row、goal-row、job-row、jobs-button、plan-tab、plan-chip、model-catalog 与价格草稿的 UI 代码；chat-store 的 M4 改动；所有 E2E 与集成测试的正文（只按需 grep）。
 - **只抽样**：goal-card.tsx（阈值、颜色、取消确认、key）；plan-review-panel.tsx（模式选项）；jobs-tab.tsx（ANSI 映射）；local-exec.ts 与 bash.ts 的 diff；runtime.ts 的 prepareRequest、halt 与 run_start 附近。
 - **没有运行**：集成测试、Browser Mode、E2E、真实模型；也没有用测试复现第 1–4 项（需要新增测试文件）。
+
+---
+
+## 处理结果（m4/12-review-fixes，2026-10-30）
+
+| # | 处理 | 测试 |
+| --- | --- | --- |
+| 1 | `endChange` 只在 Goal 进入当前这段 waiting-input 的快照早于本 Run 的 run_start 时唤醒（afa3b60） | sidecar-goal：用户的 Run 中 wait_input → 仍 waiting-input、没有新的 Goal Round → 再提交后推进（先红） |
+| 2 | 同 Standards A3（194dc9b） | 同 A3 |
+| 3 | job_input 判定对象 = 终端当前行（上次回车之后）+ text，ctrl_c 清空；同一批中执行时当前行与判定时不同则不发送（a08424b） | sidecar-pty：拆成两段的 `rm -rf build` 被拒绝；同一批两段时后一段不发送、日志没有 build；jobs.test `nextLine` 七例 |
+| 4 | 同 Standards A1（a08424b）；非 PTY Job 在模式切换后仍按原沙箱运行，写入 plan-mode.md | 同 A1 |
+| 5 | 同 Standards A4（3799caf） | 同 A4 |
+| 6 | 方案一：Goal Round 中 kind plan 的 approval_request 使 Goal 进入 waiting-input（plan-review），未取消的回答在同一 Run 中唤醒（049fbd2） | sidecar-goal：phases running → waiting-input → running → budget-exhausted（先红） |
+| 7 | 按用户故事 9：批准的 mode 可为 read-only / default / accept-edits，宽于 prior 时 400；审阅卡只在恢复模式为 full-access 时给出"批准并允许编辑"；spec.md L118 已改（f1bdf07） | sidecar-plan：read-only prior 下 default / accept-edits 400；plan.browser：三种 prior 下不给出更宽选项（先红） |
+| 8 | 批准结果写明 plan 模式已结束；`PlanReview.active()`，不在 plan 时 exit_plan_mode 不审阅、返回 `Not in plan mode`（f1bdf07） | sidecar-plan：批准后同一 Run 的 exit_plan_mode 为错误结果、只有一个 approval_request |
+| 9 | job_kill 的 reason 按值脱敏后记入 `job stop requested`（171a2d0） | sidecar-jobs：日志 properties 带 reason（关闭后读日志） |
+| 10 | 同 Standards A7（2d7b227） | 同 A7 |
+| 11 | 同 Standards A7 | 同 A7 |
+| 12 | 同 Standards A12（cc49c4b）；goal-card 的 `text-warning` 文字改为 `text-warning-text`。context-ring、mcp-section、rewind-dialog 的 `text-warning` 文字未改（不在本票清单） | 同 A12 |
+| 13 | 同 Standards A6（8c698ae） | 同 A6 |
+| 14 | 同 Standards A11（1ba9e82） | 同 A11 |
+| 15 | 同 Standards A10（a653f94） | 同 A10 |
+| 16 | 已核对，不改 | — |
+| 17 | 接受：spec.md L96 与 L110 补上 constraints，goal.md 写入"编辑"一项 | 已有 goals.test / sidecar 用例 |

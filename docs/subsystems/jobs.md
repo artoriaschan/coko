@@ -48,7 +48,7 @@ bash 的 `run_in_background: true` 与前台 bash 经过同样的权限判定、
 | --- | --- | --- |
 | `job_output { job_id, wait?, timeout_ms? }` | context-read | 只返回游标之后的输出（去除 ANSI 控制序列，CRLF 归一为 LF），按工具输出规则保留末尾 2000 行 / 50 KB，末尾 `[status: …]`（`completed`、`failed (exit code n)`、`killed (signal SIGTERM)`…）。wait 时等到结束、超时（缺省 30 000 ms，上限 600 000 ms）或有追加指令送进该 Session 的 Run。没有新输出时为 `(no new output)`。 |
 | `job_list` | context-read | 每个 Job 一行 `<id> [<kind>] <status> — <label>`，含重启前的历史；没有时 `No background jobs.`。 |
-| `job_kill { job_id, reason? }` | session-state | 进程组 SIGTERM，5 秒后仍在则 SIGKILL，等到 `job_end` 提交后返回；已结束的返回当前状态。 |
+| `job_kill { job_id, reason? }` | session-state | 进程组 SIGTERM，5 秒后仍在则 SIGKILL，等到 `job_end` 提交后返回；已结束的返回当前状态。`reason` 按值替换登记明文后记入日志 `job stop requested { jobId, by: model, reason }`。 |
 
 三个工具只能访问本 Session 中运行中或本进程内结束的 Job，其他 id 为错误结果。
 

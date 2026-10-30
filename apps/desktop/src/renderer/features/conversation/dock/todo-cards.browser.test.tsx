@@ -1,7 +1,7 @@
 // dock 的待办卡与队列卡：在应用中（内存协议后端）由 todo_list 条目与本窗口未送达的追加指令驱动。
 import '../../../styles.css'
 import type { SessionEntryRecord } from '@coko/protocol'
-import { afterEach, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../../app/app.tsx'
@@ -54,10 +54,6 @@ async function open(extra: SessionEntryRecord[] = []) {
 }
 
 const cards = () => [...document.querySelectorAll('[data-slot="dock"] > section')].map((e) => e.getAttribute('data-slot'))
-
-afterEach(() => {
-  document.body.innerHTML = ''
-})
 
 it('注册表：三张卡均已交付；顺序 Todo → Goal → Queue', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([

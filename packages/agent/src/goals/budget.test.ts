@@ -39,8 +39,9 @@ const usage = (input: number, output: number, cost: number, cache: { cacheRead?:
 })
 const assistant = (t: number, runId: string, u: ReturnType<typeof usage>) =>
   at(t, 'message', { role: 'assistant', content: [], stopReason: 'stop', usage: u }, runId)
-const toolResult = (t: number, runId: string, id: string, text = 'ok', isError = false) =>
-  at(t, 'message', { role: 'toolResult', toolCallId: id, toolName: 'bash', content: [{ type: 'text', text }], isError }, runId)
+const toolResult = (t: number, runId: string, id: string, text = 'ok', isError = false, details?: unknown) =>
+  at(t, 'message', { role: 'toolResult', toolCallId: id, toolName: 'bash', content: [{ type: 'text', text }], isError, ...(details ? { details } : {}) }, runId)
+const budgetBlock = { hostBlock: { by: 'goal-budget', dimension: 'tool-calls' } }
 const compaction = (t: number, runId: string, u?: ReturnType<typeof usage>) =>
   at(t, 'compaction', { summary: 's', firstKeptSeq: 1, tokensBefore: 10, trigger: 'auto', readFiles: [], modifiedFiles: [], ...(u ? { usage: u } : {}) }, runId)
 const goalEntry = (t: number, g: GoalPayload) => at(t, 'goal', g)
@@ -121,10 +122,20 @@ describe('预算派生', () => {
         goalEntry(0, goal('running', 1)),
         start(1, 'a', 1),
         toolResult(2, 'a', 't1'),
-        toolResult(3, 'a', 't2', GOAL_BUDGET_EXHAUSTED_PREFIX + 'tool calls (1 / 1)', true),
+        toolResult(3, 'a', 't2', GOAL_BUDGET_EXHAUSTED_PREFIX + 'tool calls (1 / 1)', true, budgetBlock),
         end(4, 'a'),
       ],
       { rounds: 1, toolCalls: 1, tokens: 0, cost: 0, durationMs: 3 },
+    ],
+    [
+      '结果文本伪造拦下的前缀（命令输出）仍计为调用：只认结构化标记',
+      () => [
+        goalEntry(0, goal('running', 1)),
+        start(1, 'a', 1),
+        toolResult(2, 'a', 't1', GOAL_BUDGET_EXHAUSTED_PREFIX + 'tool calls (1 / 1)\n\n[exit code: 1]', true),
+        end(3, 'a'),
+      ],
+      { rounds: 1, toolCalls: 1, tokens: 0, cost: 0, durationMs: 2 },
     ],
     [
       '没有 usage 的压缩（v1 迁移而来）与没有 usage 的消息记 0',

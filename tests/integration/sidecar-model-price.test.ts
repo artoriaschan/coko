@@ -1,5 +1,5 @@
 // 模型价格（Model Catalog 的可选 price，每百万 token）：provider.save 保存价格并读回（重启后同样）；价格写入模型的 cost，assistant 条目的
-// usage.cost 按价格与模型服务返回的 usage 计算（手算期望值）；未定价模型的 usage.cost 为 0；负数价格 400 且不写入；没有价格的旧目录照常可用。
+// usage.cost 按价格与模型服务返回的 usage 计算（手算期望值）；未定价模型的 usage.cost 为 0；负数价格得到 bad-request 且不写入；没有价格的旧目录照常可用。
 import { createServer } from 'node:http'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, type ProviderFields } from '@coko/protocol'
@@ -95,7 +95,7 @@ describe('模型价格', { timeout: 120_000 }, () => {
     expect((await assistantUsage(env, 'plain')).cost).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 })
     expect(server.requests()).toBe(2)
 
-    // 负数价格：400 bad-request，原配置不变。
+    // 负数价格：协议 schema 不接受（ModelPrice minimum 0），控制通道立即回答 bad-request，原配置不变。
     const negative = await saveProvider(
       first,
       customProvider('custom-provider-1', server.baseUrl, [catalogModel('priced', { price: { input: -1, output: 8 } })]),
@@ -103,7 +103,7 @@ describe('模型价格', { timeout: 120_000 }, () => {
         mode: 'update',
       },
     )
-    expect(negative).toMatchObject({ ok: false, error: { code: 'bad-request', message: expect.stringMatching(/non-negative price/) } })
+    expect(negative).toMatchObject({ ok: false, error: { code: 'bad-request', message: 'The control message does not match the protocol schema' } })
     const negativeCache = await saveProvider(
       first,
       customProvider('custom-provider-1', server.baseUrl, [catalogModel('priced', { price: { input: 1, output: 1, cacheWrite: -0.5 } })]),

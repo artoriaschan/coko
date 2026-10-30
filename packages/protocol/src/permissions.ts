@@ -74,7 +74,8 @@ export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>
  * POST /api/sessions/:id/approvals/:requestId：回答待审批请求，204。请求不在等待中时 409 approval-not-pending。
  * feedback 只随拒绝：带反馈的拒绝作为工具错误交给模型，Run 继续；无反馈的拒绝在本批工具结束后以 aborted 结束 Run。
  * editedPlan 与 mode 只用于 kind plan 的请求（否则 400）：editedPlan 为用户编辑后的计划（规则同 exit_plan_mode 的 plan），mode 为批准后
- * 的模式（缺省为进入 plan 之前的模式；只能是 default 或 accept-edits）。plan 请求的 scope 只能是 once。
+ * 的模式（缺省为进入 plan 之前的模式；可以是 read-only、default 或 accept-edits，不能宽于进入 plan 之前的模式，否则 400）。plan 请求的
+ * scope 只能是 once。
  */
 export const AnswerApprovalRequest = Type.Union([
   Type.Object(
@@ -82,7 +83,7 @@ export const AnswerApprovalRequest = Type.Union([
       decision: Type.Literal('allow'),
       scope: Type.Optional(ApprovalScope),
       editedPlan: Type.Optional(Type.String({ minLength: 1, maxLength: 64_000 })),
-      mode: Type.Optional(Type.Union([Type.Literal('default'), Type.Literal('accept-edits')])),
+      mode: Type.Optional(Type.Union([Type.Literal('read-only'), Type.Literal('default'), Type.Literal('accept-edits')])),
     },
     strict,
   ),

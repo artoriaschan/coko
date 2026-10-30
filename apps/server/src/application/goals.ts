@@ -26,6 +26,7 @@ import {
   type RunError,
   type RunResult,
   type SystemSection,
+  type ToolBlockResult,
   type ToolHooks,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -97,6 +98,7 @@ export class GoalService {
         return this.#sessions.runs.startRun(sessionId, request)
       },
       priced: (sessionId) => this.#priced(sessionId),
+      isCancelling: (sessionId) => this.#cancelling.has(sessionId),
     })
     // 之后启动的 Job 记下 Session 当时未终结的 Goal（取消该 Goal 时终止它们）。
     options.jobs.useGoals(async (sessionId) => {
@@ -141,20 +143,21 @@ export class GoalService {
     if (!goal || goal.phase !== 'running' || !goalRunIds(entries, goal.id).has(runId)) return undefined
     const usage = goalUsage(entries, goal.id)
     const dimension = exhaustedDimension(goal.budget, usage, ['tokens', 'cost', 'time'])
-    if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage) }
+    if (dimension) return { code: 'budget_exhausted', message: exhaustedMessage(dimension, goal.budget, usage), dimension }
     if (goal.budget.maxCost !== undefined && !(await this.#priced(sessionId))) return { code: 'cost_unpriced', message: COST_UNPRICED_MESSAGE }
     return undefined
   }
 
   /**
    * 工具调用前（权限判定之后的 hook）：该 Run 属于 running 且设了 maxToolCalls 的 Goal 时，已提交的调用加本 Run 已放行未提交的调用达到上限，
-   * 则该调用不执行（错误结果 "Goal budget exhausted: tool calls (n / max)"），并要求 Run 本批完成后停止（stopAfterBatch）。
+   * 则该调用不执行（错误结果 "Goal budget exhausted: tool calls (n / max)"，带结构化标记 hostBlock，用量派生只认这个标记），并要求 Run
+   * 本批完成后停止（stopAfterBatch）。
    */
   toolHooks(sessionId: string): ToolHooks {
     return { beforeToolCall: (context) => this.#gate(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
   }
 
-  async #checkToolCall(sessionId: string, toolCallId: string): Promise<{ block: true; reason: string } | undefined> {
+  async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
     const runs = this.#sessions?.runs
     const runId = runs?.activeRunId(sessionId)
     if (!runs || runId === undefined || this.#cancelling.has(sessionId)) return undefined
@@ -174,9 +177,9 @@ export class GoalService {
     const used = { ...usage, toolCalls: usage.toolCalls + pending }
     if (exhaustedDimension(goal.budget, used, ['tool-calls'])) {
       const message = exhaustedMessage('tool-calls', goal.budget, used)
-      runs.stopAfterBatch(sessionId, { code: 'budget_exhausted', message })
+      runs.stopAfterBatch(sessionId, { code: 'budget_exhausted', message, dimension: 'tool-calls' })
       log.info('goal tool call blocked by budget', { sessionId, goalId: goal.id, toolCallId, used: used.toolCalls })
-      return { block: true, reason: message }
+      return { block: true, reason: message, hostBlock: { by: 'goal-budget', dimension: 'tool-calls' } }
     }
     admitted.ids.add(toolCallId)
     return undefined
@@ -219,6 +222,8 @@ export class GoalService {
       const entries = await this.#entries(sessionId)
       const goal = this.#require(entries)
       try {
+        // 取消进行中：取消提交 cancelled 之前，用户的动作不再改变 Goal（否则 resume 会开出一个在取消之后继续运行的 Goal Round）。
+        if (this.#cancelling.has(sessionId)) throw new GoalError('invalid-transition', 'The goal is being cancelled')
         expectRevision(goal, request.revision)
         const usage = goalUsage(entries, goal.id)
         const change: GoalChange =
@@ -281,6 +286,13 @@ export class GoalService {
         cleanup.jobsKilled = await this.#options.jobs.killSession(sessionId, goal.id)
       } catch (error) {
         cleanup.failures.push('Stopping background jobs failed: ' + message(error))
+      }
+      // 等待期间开始的 Run（取消进行中拒绝了 Goal 的动作与推进，这里是兜底）：提交 cancelled 之前同样停止它并等待 run_end。
+      const late = sessions?.runs.activeRunId(sessionId)
+      if (sessions && late !== undefined && late !== runId && sessions.isRunning(sessionId)) {
+        const ended = this.#runEnd(sessionId, late)
+        if (await sessions.abort(sessionId)) cleanup.runsAborted++
+        if (!(await ended)) cleanup.failures.push(`Run ${late} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
       }
       await this.#locked(sessionId, async () => {
         const entries = await this.#entries(sessionId)
@@ -393,6 +405,39 @@ export class GoalService {
     })
   }
 
+  /**
+   * Goal Round 中的计划审阅（exit_plan_mode 等待用户）：请求提交时 Goal 进入 waiting-input（plan-review），使界面显示在等用户；回答（未被取消）
+   * 之后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，等用户提交（Run 结束后的转换照常）。
+   */
+  async #planReview(sessionId: string, entry: { kind: string; runId: string | null; payload: unknown }): Promise<void> {
+    await this.#locked(sessionId, async () => {
+      if (this.#cancelling.has(sessionId)) return
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      if (!goal) return
+      const rounds = goalRounds(entries, goal.id)
+      if (entry.kind === 'approval_request') {
+        const request = entry.payload as { kind?: string }
+        if (request.kind !== 'plan' || goal.phase !== 'running' || entry.runId === null || !isGoalRound(entries, entry.runId, goal.id)) return
+        await this.#commit(
+          sessionId,
+          applyGoalChange(goal, { type: 'wait-input', reason: { code: 'plan-review', message: 'Waiting for the user to review the plan' } }, 'system', rounds),
+        )
+        log.info('goal waiting for plan review', { sessionId, goalId: goal.id })
+        return
+      }
+      const decision = entry.payload as { requestId: string; outcome: string }
+      if (goal.phase !== 'waiting-input' || goal.reason?.code !== 'plan-review' || decision.outcome === 'cancelled') return
+      const asked = entries.some(
+        (e) =>
+          e.kind === 'approval_request' &&
+          (e.payload as { requestId: string; kind?: string }).requestId === decision.requestId &&
+          (e.payload as { kind?: string }).kind === 'plan',
+      )
+      if (asked) await this.#wake(sessionId, goal, rounds)
+    })
+  }
+
   async #jobsEnded(sessionId: string, goal: GoalPayload): Promise<boolean> {
     const port = this.#options.jobs.port(sessionId)
     return (goal.waitingFor?.jobIds ?? []).every((id) => !(port.get(id)?.running ?? false))
@@ -448,7 +493,13 @@ export class GoalService {
   #watch(sessionId: string): void {
     if (this.#watches.has(sessionId)) return
     const off = this.#options.jobs.hub.subscribe(sessionId, (m) => {
-      if (m.type !== 'entry' || m.entry.kind !== 'job_end') return
+      if (m.type !== 'entry') return
+      if (m.entry.kind === 'approval_request' || m.entry.kind === 'approval_decision') {
+        const entry = m.entry
+        void this.#planReview(sessionId, entry).catch((error: unknown) => log.warn('goal plan review handling failed', { sessionId, error: message(error) }))
+        return
+      }
+      if (m.entry.kind !== 'job_end') return
       const jobId = (m.entry.payload as unknown as JobEndPayload).jobId
       void this.#jobEnded(sessionId).catch((error: unknown) => log.warn('goal job end handling failed', { sessionId, jobId, error: message(error) }))
     })
@@ -473,6 +524,12 @@ export class GoalService {
   }
 }
 
+/** 该 Run 是否为该 Goal 的 Goal Round。 */
+function isGoalRound(entries: readonly StoredEntry[], runId: string, goalId: string): boolean {
+  const start = entries.find((e) => e.kind === 'run_start' && e.runId === runId)?.payload as { trigger?: string; goal?: { goalId: string } } | undefined
+  return start?.trigger === 'goal' && start.goal?.goalId === goalId
+}
+
 /** 该 Run 中是否有审批以 cancelled 结束（停止时仍在等待回答）。 */
 function approvalCancelled(entries: readonly StoredEntry[], runId: string): boolean {
   const requests = new Set(entries.filter((e) => e.kind === 'approval_request' && e.runId === runId).map((e) => (e.payload as { requestId: string }).requestId))
@@ -489,13 +546,14 @@ function approvalCancelled(entries: readonly StoredEntry[], runId: string): bool
  * - 预算停止（budget_exhausted、cost_unpriced）→ budget-exhausted / blocked；
  * - Goal Round 以 error 结束 → failed（不自动重试）；
  * - running 时 Run 被停止（aborted，或 paused 且没有 error）→ Goal Round 停止时仍有等待回答的审批为 waiting-input，否则 paused（user-stopped）；
- * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running。
+ * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running；Goal 在本 Run 之中才进入 waiting-input 的（模型在这个 Run 里调用了
+ *   wait_input）不唤醒：它等的用户输入还没有到来。
  */
 function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly StoredEntry[]): GoalChange | undefined {
   const { result, trigger } = info
   const error = result.error
   if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'budget_exhausted') {
-    return { type: 'exhaust', reason: { code: budgetDimension(error.message), message: error.message } }
+    return { type: 'exhaust', reason: { code: error.dimension ?? 'budget', message: error.message } }
   }
   if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'cost_unpriced')
     return { type: 'block', reason: { code: 'cost-unpriced', message: error.message } }
@@ -506,15 +564,22 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
       return { type: 'wait-input', reason: { code: 'approval-unanswered', message: 'The goal round stopped while an approval was waiting for an answer' } }
     return { type: 'pause', reason: { code: 'user-stopped', message: 'The run was stopped by the user' } }
   }
-  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed') return { type: 'wake' }
+  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed' && waitingBefore(goal, info.runId, entries)) return { type: 'wake' }
   return undefined
 }
 
-const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)
-
-/** budget_exhausted 的 message 形如 "Goal budget exhausted: tool calls (n / max)"：取维度为 reason.code。 */
-function budgetDimension(text: string): string {
-  const match = /exhausted: ([a-z ]+)/.exec(text)
-  const name = match?.[1]?.trim()
-  return name === 'tool calls' ? 'tool-calls' : (name ?? 'budget')
+/** Goal 进入当前这段 waiting-input 的快照（之后的 edit 不改变阶段）是否早于该 Run 的 run_start。 */
+function waitingBefore(goal: GoalPayload, runId: string, entries: readonly StoredEntry[]): boolean {
+  const started = entries.find((e) => e.kind === 'run_start' && e.runId === runId)?.seq
+  let entered: number | undefined
+  for (const e of entries) {
+    if (e.kind !== 'goal') continue
+    const snapshot = e.payload as unknown as GoalPayload
+    if (snapshot.id !== goal.id) continue
+    if (snapshot.phase !== 'waiting-input') entered = undefined
+    else entered ??= e.seq
+  }
+  return started !== undefined && entered !== undefined && entered < started
 }
+
+const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)

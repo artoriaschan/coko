@@ -17,7 +17,7 @@ lifecycle: active
 | 层 | 命名 | 定义位置 | 消费者 |
 | --- | --- | --- | --- |
 | 原始色板 | `--palette-*` | 主题样式表 | 只供语义 token 引用 |
-| 语义 token | shadcn/ui 的 `--background`、`--foreground`、`--primary`、`--muted`、`--border`、`--ring` 等，加 Coko 扩展的 `--link`、`--overlay`、`--menu-fill`、`--card-fill`、`--card-stroke`、`--elevation-stroke` 等 | 主题样式表的 `:root` 与 `.dark` | 经 `@theme inline` 映射为 Tailwind 工具类 |
+| 语义 token | shadcn/ui 的 `--background`、`--foreground`、`--primary`、`--muted`、`--border`、`--ring` 等，加 Coko 扩展的 `--link`、`--overlay`、`--menu-fill`、`--card-fill`、`--card-stroke`、`--elevation-stroke`、正文用的 `--success-text` / `--warning-text` 与终端 ANSI 前景色 `--terminal-{red,green,yellow,blue,magenta,cyan,muted}` 等 | 主题样式表的 `:root` 与 `.dark` | 经 `@theme inline` 映射为 Tailwind 工具类 |
 | Tailwind theme | `--color-*`、`--radius-*`、`--shadow-*`、`--text-ui-*` | 主题样式表的 `@theme` | 业务组件使用 `bg-background`、`rounded-md`、`shadow-panel`、`text-ui-body` 等类 |
 | 组件局部变量 | `--local-*` | 所属组件 | 仅用于该组件的布局，可引用共享 token |
 
@@ -29,7 +29,7 @@ lifecycle: active
 
 - 业务组件只使用语义颜色类。字面量颜色（`#hex`、`rgb()`、`oklch()` 等）只出现在主题样式表的原始色板中；业务组件不引用 `--palette-*`，也不写 `bg-[#…]` 这类任意颜色值。
 - 明暗主题由主题样式表中 `.dark` 下的语义 token 取值解决。业务组件不写 `dark:` 变体和主题判断；shadcn/ui 组件源码引入时，把其中的 `dark:` 分支改写为语义 token。
-- 文字与背景的组合在明暗两套主题下都需可读。弱化色适合装饰性表面，用于文字前在两套主题下分别核对对比度。
+- 文字与背景的组合在明暗两套主题下都需可读。弱化色适合装饰性表面，用于文字前在两套主题下分别核对对比度。`--success` / `--warning` 用于图标、状态点与填充；正文大小的成功与警告文字用 `--success-text` / `--warning-text`，终端输出用 `--terminal-*`，两套主题下对背景都不低于 4.5:1（Jobs tab 的浏览器测试按计算样式核对）。
 
 ## 字体与链接
 

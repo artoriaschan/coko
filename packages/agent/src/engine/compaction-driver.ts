@@ -48,6 +48,8 @@ export interface CompactionDriverOptions {
   resume: () => Promise<void>
   /** 提交失败时停止 agent 循环。 */
   abortAgent: () => void
+  /** 溢出恢复的摘要请求之前的宿主检查（预算）：false 时不压缩、不重试（宿主已停止本 Run）。 */
+  admit: (run: CompactionRun) => Promise<boolean>
 }
 
 const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0)
@@ -207,6 +209,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       const last = state.messages.at(-1)
       if (last?.role !== 'assistant' || last.stopReason !== 'error' || !isContextOverflow(last, state.model.contextWindow)) return
       run.overflowRetried = true
+      if (!(await options.admit(run))) return
       const outcome = await tracked(run, 'overflow')
       if (outcome.kind !== 'compacted' || run.aborted) return
       // 重建的上下文不含出错的回复：从最后的 user 消息或工具结果继续。

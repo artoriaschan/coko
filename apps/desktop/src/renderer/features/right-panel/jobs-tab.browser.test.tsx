@@ -87,11 +87,46 @@ function wrap(node: React.ReactNode, store: JobsStore) {
 const lines = (n: number, prefix = 'line') => Array.from({ length: n }, (_, i) => `${prefix} ${i + 1}`).join('\n') + '\n'
 
 describe('输出组件', () => {
-  it('SGR 颜色映射到语义色：红色与 destructive 同色，未着色的文字为前景色', async () => {
+  it.each(['light', 'dark'] as const)('%s 主题：七种 ANSI 前景色各不相同，对背景的对比度都不低于 4.5:1', async (theme) => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    try {
+      const colors = [31, 32, 33, 34, 35, 36, 90]
+      const text = colors.map((c) => `\u001b[${c}mc${c}\u001b[0m`).join(' ') + '\n'
+      const screen = await render(
+        <I18nProvider locale="en">
+          <div className="w-80 bg-background">
+            <JobOutputView label="dev" text={text} />
+          </div>
+        </I18nProvider>,
+      )
+      await expect.element(screen.getByText('c31')).toBeVisible()
+      const rgb = (value: string) =>
+        value
+          .match(/[\d.]+/g)!
+          .slice(0, 3)
+          .map(Number) as [number, number, number]
+      const luminance = ([r, g, b]: [number, number, number]) => {
+        const f = (c: number) => ((c /= 255) <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+      }
+      const contrast = (a: string, b: string) => {
+        const [x, y] = [luminance(rgb(a)), luminance(rgb(b))].sort((p, q) => q - p)
+        return (x! + 0.05) / (y! + 0.05)
+      }
+      const background = getComputedStyle(screen.container.querySelector('.bg-background')!).backgroundColor
+      const foregrounds = colors.map((c) => getComputedStyle(screen.getByText(`c${c}`).element()).color)
+      expect(new Set(foregrounds).size).toBe(colors.length)
+      for (const [i, color] of foregrounds.entries()) expect([colors[i], contrast(color, background) >= 4.5]).toEqual([colors[i], true])
+    } finally {
+      document.documentElement.classList.remove('dark')
+    }
+  })
+
+  it('SGR 颜色映射到终端语义色：红色与 text-terminal-red 同色，未着色的文字为前景色', async () => {
     const screen = await render(
       <I18nProvider locale="en">
         <div className="w-80">
-          <span data-ref className="text-destructive">
+          <span data-ref className="text-terminal-red">
             ref
           </span>
           <JobOutputView label="dev" text={'plain \u001b[31mred text\u001b[0m after\u001b]0;title\u0007\n'} />

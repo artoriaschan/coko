@@ -1,6 +1,7 @@
 import type { AgentTool, AgentToolResult, AgentToolUpdateCallback } from '@earendil-works/pi-agent-core'
 import type { Static, TSchema } from 'typebox'
 import type { SandboxPolicy } from '../ports/exec.ts'
+import type { SandboxMode } from '../session-entries/index.ts'
 
 /**
  * Tool contract used by Coko: pi's AgentTool plus an optional unified timeout.
@@ -29,6 +30,13 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
    * (ADR 0005). Undefined when the call asks for none. Omitted: the tool cannot escalate.
    */
   sandboxRequest?: (args: Static<TParameters>) => { mode?: string; justification?: string } | undefined
+  /**
+   * The sandbox the call's effect runs under regardless of the current mode, fixed by an earlier call (job_input types into a
+   * terminal started under the job's sandbox). When it is strictly wider than the current mode's sandbox the permission gate
+   * refuses the call in plan and read-only, and otherwise asks for a one-time escalation approval (ADR 0005). `what` names
+   * the holder for the refusal text. Undefined when nothing is fixed.
+   */
+  fixedSandbox?: (args: Static<TParameters>) => { mode: SandboxMode; what: string } | undefined
   /**
    * Names of the secrets the tool needs (for example `['GITHUB_TOKEN']`). The runtime resolves them through its
    * SecretProvider for each call and passes only these in `context.secrets`; nothing else sees them.

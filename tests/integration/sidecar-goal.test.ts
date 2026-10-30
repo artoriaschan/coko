@@ -282,6 +282,71 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('用户提交的 Run 中调用 wait_input：Run 结束后 Goal 仍为 waiting-input、不开始 Goal Round；用户再提交后回到 running 并推进', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 1 } })] },
+      { content: 'set' },
+      { content: 'r1' },
+      // 用户的 Run（Goal 为 budget-exhausted 时开始）：执行期间用户调高上限并恢复，之后模型调用 wait_input。
+      { content: [call('bash', 'b1', { command: 'sleep 2' })] },
+      { content: [call('update_goal', 'wi', { goal_id: 'goal-1', revision: 4, action: 'wait_input', reason: 'which database?' })] },
+      { content: 'which database should I use?' },
+      // 用户回答之后的 Run 与 Goal Round 2。
+      { content: 'noted' },
+      { content: 'r2' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId, 'full-access')
+    await submit(api, sessionId, 'go')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 2, 30_000)
+    expect((await action(api, sessionId, { action: 'edit', revision: 2, budget: { maxRounds: 2 } })).status).toBe(200)
+
+    await submit(api, sessionId, 'look at the schema')
+    await stream.waitFor(() => of(stream, sessionId, 'tool_exec').length >= 2, 30_000)
+    // Run 进行中恢复：Goal 回到 running，推进等这个 Run 结束后再判定。
+    expect((await action(api, sessionId, { action: 'resume', revision: 3 })).body.goal).toMatchObject({ phase: 'running', revision: 4 })
+    await waitGoal(stream, sessionId, (g) => g.phase === 'waiting-input')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 3, 30_000)
+    // 推进的判定在 run_end 之后、同一把锁内：经 Goal 的动作接口排在它之后（revision 不符的 pause 返回 409），再看没有新的 Run。
+    expect((await action(api, sessionId, { action: 'pause', revision: 1 })).status).toBe(409)
+    expect((await api.get(goalPaths.sessionGoal(sessionId))).body.goal).toMatchObject({ phase: 'waiting-input', revision: 5, reason: { code: 'needs-input' } })
+    expect((await api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: false })
+    expect(starts(stream, sessionId)).toHaveLength(3)
+
+    await submit(api, sessionId, 'use sqlite')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted' && g.revision > 5)
+    expect(phases(stream, sessionId)).toEqual(['running', 'budget-exhausted', 'budget-exhausted', 'running', 'waiting-input', 'running', 'budget-exhausted'])
+    expect(starts(stream, sessionId)).toEqual([
+      { trigger: 'submit' },
+      { trigger: 'goal', goal: { goalId: 'goal-1', round: 1 } },
+      { trigger: 'submit' },
+      { trigger: 'submit' },
+      { trigger: 'goal', goal: { goalId: 'goal-1', round: 2 } },
+    ])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('Goal Round 中的计划审阅：Goal 进入 waiting-input（plan-review），批准后同一 Run 中回到 running 并照常推进', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['planned'], { budget: { max_rounds: 1 } })] },
+      { content: 'set' },
+      { content: [call('exit_plan_mode', 'e1', { plan: '# Plan\n\n1. do it' })] },
+      { content: 'r1 done' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId)
+    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
+    await submit(api, sessionId, 'go')
+    const review = await waitApproval(stream, sessionId, 1)
+    expect(review).toMatchObject({ kind: 'plan', toolName: 'exit_plan_mode' })
+    await waitGoal(stream, sessionId, (g) => g.phase === 'waiting-input')
+    expect(goals(stream, sessionId).at(-1)).toMatchObject({ reason: { code: 'plan-review' }, source: 'system' })
+    expect((await api.post(apiPaths.sessionApproval(sessionId, review.requestId), { decision: 'allow' })).status).toBe(204)
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    expect(phases(stream, sessionId)).toEqual(['running', 'waiting-input', 'running', 'budget-exhausted'])
+    expect(starts(stream, sessionId)).toEqual([{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'goal-1', round: 1 } }])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('wait_jobs：Goal 进入 waiting-external，等待的 Job 结束后下一轮开始（通知合并在 <goal_round> 之前）；job_start 带 goalId', async () => {
     const { sidecar, api, stream, workspaceId, requests } = await boot([
       { content: [createGoal(['build succeeds'])] },
@@ -345,6 +410,34 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect((await api.get(jobPaths.sessionJobs(sessionId))).body.jobs).toMatchObject([{ status: 'killed', goalId: 'goal-1' }])
     expect(detail.session).toMatchObject({ running: false })
     expect(starts(stream, sessionId)).toHaveLength(2)
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('取消进行中（等待 Job 退出时）resume 返回 409，不开始 Goal Round；取消完成后为 cancelled', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 1 } })] },
+      // 忽略 SIGTERM 的后台 Job：取消在 SIGKILL 宽限（5 秒）内等待它退出，这段时间不持锁。
+      { content: [call('bash', 'bg', { command: "trap '' TERM; sleep 60", run_in_background: true })] },
+      { content: 'set' },
+      { content: 'r1' },
+      { content: 'must not run: round 2' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId, 'full-access')
+    await submit(api, sessionId, 'go')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 2, 30_000)
+    const edited = await action(api, sessionId, { action: 'edit', revision: 2, budget: { maxRounds: 2 } })
+    expect(edited.body.goal).toMatchObject({ revision: 3, phase: 'budget-exhausted' })
+
+    const cancelling = action(api, sessionId, { action: 'cancel', revision: 3 })
+    // 交叠位置：取消已在终止 Job（job_update stopping），尚未提交 cancelled。
+    await stream.waitFor((m) => m.type === 'progress' && m.event.type === 'job_update' && m.event.job.status === 'stopping', 10_000)
+    const resumed = await action(api, sessionId, { action: 'resume', revision: 3 })
+    expect([resumed.status, resumed.body.error?.code]).toEqual([409, 'invalid-transition'])
+    const cancelled = await cancelling
+    expect(cancelled.body.goal).toMatchObject({ phase: 'cancelled', revision: 4, cleanup: { runsAborted: 0, jobsKilled: 1, failures: [] } })
+    expect(starts(stream, sessionId)).toHaveLength(2)
+    expect((await api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: false })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 

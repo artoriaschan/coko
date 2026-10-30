@@ -1,5 +1,6 @@
 // 后台任务的状态机与等待（docs/subsystems/jobs.md）：running → stopping → killed；running → completed / failed；lost 只由启动恢复补记。
 // 输出进入环形缓冲；模型的游标只经 job_output 与送达的完成通知前移。宿主（apps/server application/jobs.ts）负责进程、日志与条目。
+import type { SandboxMode } from '../../session-entries/index.ts'
 import type { JobEndStatus, JobKind } from '../../session-entries/jobs.ts'
 import { OutputRing, stripAnsi } from './output.ts'
 
@@ -56,9 +57,26 @@ export class BackgroundJob {
   #waiters = new Set<() => void>()
   /** 模型已经用 job_output 读到终态或用 job_kill 停止了它：结束时不再通知。 */
   observedEnd = false
+  /**
+   * 启动时的命令沙箱档位（PTY 中之后的输入都在这个档位下执行）；没有权限判定时（库调用方）undefined。不进入快照与协议。
+   */
+  readonly sandbox: SandboxMode | undefined
+  /** PTY 的当前行：上次回车之后写入、尚未提交的输入（job_input 的判定对象 = 当前行 + 本次文本）。 */
+  #line = ''
 
-  constructor(info: JobInfo) {
+  constructor(info: JobInfo, options: { sandbox?: SandboxMode } = {}) {
     this.info = info
+    this.sandbox = options.sandbox
+  }
+
+  /** 终端的当前行（近似：只按回车、换行、Ctrl-C、Ctrl-U 与退格处理，其他行编辑键原样计入）。 */
+  get line(): string {
+    return this.#line
+  }
+
+  /** 写入终端之后：按写入的字节更新当前行。 */
+  typed(data: string): void {
+    this.#line = nextLine(this.#line, data)
   }
 
   get status(): JobStatus {
@@ -139,6 +157,17 @@ export class BackgroundJob {
       truncated: this.#truncated,
     }
   }
+}
+
+/** 写入 data 之后终端的当前行：回车、换行与 Ctrl-C、Ctrl-U 清空，退格删去一个字符。 */
+export function nextLine(line: string, data: string): string {
+  let next = line
+  for (const c of data) {
+    if (c === '\r' || c === '\n' || c === '\x03' || c === '\x15') next = ''
+    else if (c === '\x7f' || c === '\b') next = next.slice(0, -1)
+    else next += c
+  }
+  return next
 }
 
 /** 通知中内联未读输出的上限（字节）。 */

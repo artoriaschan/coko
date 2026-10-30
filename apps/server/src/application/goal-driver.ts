@@ -9,6 +9,7 @@ import {
   exhaustedMessage,
   goalRoundText,
   goalUsage,
+  type GoalChange,
   type GoalPayload,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -26,6 +27,8 @@ export interface GoalDriverHost {
   startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }>
   /** 该 Session 的模型是否已定价（设了费用上限时）。 */
   priced(sessionId: string): Promise<boolean>
+  /** 该 Session 的 Goal 正在取消：不发起 Goal Round。 */
+  isCancelling(sessionId: string): boolean
 }
 
 /** Job 的完成通知以这个标签开头（宿主生成）；Run 结束时退回的通知不算用户的追加指令。 */
@@ -33,6 +36,14 @@ const JOB_NOTIFICATION = '<job-notification>'
 
 /** Run 结束时退回的追加指令中是否有用户写的（有时不发起下一轮：它们回到输入区，等用户处理）。 */
 export const hasUserSteering = (undelivered: readonly string[] | undefined) => (undelivered ?? []).some((text) => !text.startsWith(JOB_NOTIFICATION))
+
+/** Goal Round 没能开始时的转换；undefined 表示 Goal 保持 running。 */
+function notStartedChange(error: AppError): GoalChange | undefined {
+  const reason = { code: error.code, message: error.message }
+  if (error.code === 'model-not-configured' || error.code === 'model-required') return { type: 'block', reason }
+  if (error.code === 'confirmation-pending') return { type: 'wait-input', reason }
+  return undefined
+}
 
 export class GoalDriver {
   readonly #host: GoalDriverHost
@@ -55,7 +66,7 @@ export class GoalDriver {
    */
   async advance(sessionId: string): Promise<string | undefined> {
     const host = this.#host
-    if (host.isRunning(sessionId)) return undefined
+    if (host.isRunning(sessionId) || host.isCancelling(sessionId)) return undefined
     const entries = await host.entries(sessionId)
     const goal = currentGoal(entries)
     if (!goal || goal.phase !== 'running') return undefined
@@ -82,9 +93,15 @@ export class GoalDriver {
       log.info('goal round started', { sessionId, goalId: goal.id, round, runId })
       return runId
     } catch (error) {
-      // 用户的 Run 优先；结果确认、回退或分叉、模型未配置时不推进（Goal 保持 running，下一次 Run 结束后再判定）。
-      if (error instanceof AppError) log.info('goal round not started', { sessionId, goalId: goal.id, round, code: error.code })
-      else log.warn('goal round failed to start', { sessionId, goalId: goal.id, round, error: error instanceof Error ? error.message : String(error) })
+      if (!(error instanceof AppError)) {
+        log.warn('goal round failed to start', { sessionId, goalId: goal.id, round, error: error instanceof Error ? error.message : String(error) })
+        return undefined
+      }
+      log.info('goal round not started', { sessionId, goalId: goal.id, round, code: error.code })
+      // 用户的 Run 优先、回退或分叉进行中：Goal 保持 running，那个 Run（或操作之后的下一个 Run）结束后再判定。其余不会自然再判定的原因
+      // 不让 Goal 停在 running：模型不可用为 blocked，结果确认待回答为 waiting-input（用户回答并提交后的 Run 结束时唤醒）。
+      const change = notStartedChange(error)
+      if (change) await host.commit(sessionId, applyGoalChange(goal, change, 'system', usage))
       return undefined
     } finally {
       this.#starting.delete(sessionId)

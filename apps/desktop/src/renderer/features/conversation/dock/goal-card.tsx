@@ -121,7 +121,7 @@ export type BudgetLevel = 'normal' | 'warning' | 'exhausted'
 export const budgetLevel = (used: number, max: number): BudgetLevel => (used >= max ? 'exhausted' : used >= max * 0.8 ? 'warning' : 'normal')
 
 const LEVEL_FILL: Record<BudgetLevel, string> = { normal: 'bg-primary', warning: 'bg-warning', exhausted: 'bg-destructive' }
-const LEVEL_TEXT: Record<BudgetLevel, string> = { normal: 'text-muted-foreground', warning: 'text-warning', exhausted: 'text-destructive' }
+const LEVEL_TEXT: Record<BudgetLevel, string> = { normal: 'text-muted-foreground', warning: 'text-warning-text', exhausted: 'text-destructive' }
 
 /** budget-exhausted 时仍有已设维度达到上限：恢复会被拒绝（409），先调高预算。 */
 function exhaustedNow(goal: GoalPayload, usage: GoalUsage | undefined, round: number): boolean {
@@ -179,7 +179,7 @@ function BudgetRow({ id, used, max, unpriced }: { id: Dimension; used: number | 
           <span>{label}</span>
           <span className="text-ui-small text-muted-foreground tabular-nums">{t('goal.budgetUsage', { used: t('usage.unpriced'), max: format(max) })}</span>
         </div>
-        <p className="text-ui-small text-warning">{t('goal.unpricedHint')}</p>
+        <p className="text-ui-small text-warning-text">{t('goal.unpricedHint')}</p>
       </li>
     )
   const value = used ?? 0

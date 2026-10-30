@@ -151,3 +151,27 @@ oxlint / oxfmt / tsc / check:docs / 样式守卫 / browser-deps / source-referen
 - renderer：goal-card.tsx（只读了 560-632 行与 grep 结果）、jobs-tab.tsx、jobs-button.tsx、job-row.tsx、todo-card.tsx、queue-card.tsx、plan-review-panel.tsx（只读了 120-150 行）、approval-panel.tsx、conversation-pane.tsx、timeline*.ts、chat-store.ts、jobs-store.ts（第 45 行之后）、settings 下的价格输入；i18n 的五个新领域文件。
 - 测试：所有 `tests/integration/sidecar-*.test.ts`、`secrets-gate-*.test.ts` 与 e2e 文件只 grep 了隔离方面的问题（localStorage、env、固定路径、sleep），没有核对断言内容；`apps/desktop/build/build.ts`、`scripts/postinstall-node-pty.mjs`、`package-smoke.e2e.test.ts` 未读。
 - 没有运行任何测试或检查命令（只读评审）。
+
+---
+
+## 处理结果（m4/12-review-fixes，2026-10-30）
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| A1 | Job 记下启动时的沙箱档位（`BackgroundJob.sandbox`，不进入快照与协议）；工具新增 `fixedSandbox`，权限 gate 在该档位严格宽于当前模式时 plan / read-only 拒绝，其余模式按 kind escalation 询问（a08424b） | sidecar-pty："较宽档位启动、之后收紧"（plan 拒绝且终端未写入；default 为 escalation，subject 为整行），原"default 询问"一例改为 escalation |
+| A2 | 被宿主 hook 拦下的调用由运行时写 `details.hostBlock`（工具自身给出的去掉），budget.ts 只认它；`RunError.dimension` 交给宿主、不进入 run_end 条目与进度，`budgetDimension` 删除（3799caf，前任起草） | budget.test 伪造前缀仍计数；host-stop.test hostBlock 与 dimension；sidecar-goal-budget 伪造前缀以非零退出仍计 1 次（先红） |
+| A3 | `act` 取消中 409；`advance` 经 `isCancelling` 放弃；提交 cancelled 前重读 activeRunId 并停止（194dc9b） | sidecar-goal：忽略 SIGTERM 的 Job 卡住取消，job_update stopping 处 resume → 409，只有 2 个 run_start（先红：200） |
+| A4 | 自动压缩与溢出恢复之前先过 `beforeRequest`，压缩后再检查一次（3799caf，前任起草）；手动 /compact 不检查，写入 goal.md | compaction.test 三例（不发摘要请求、压缩后 stop、溢出恢复前 stop） |
+| A5 | model-not-configured / model-required → blocked，confirmation-pending → waiting-input，reason.code 为错误码（df98f62） | goal-driver.test 五例（先红 3 例）；未写"删除 Provider 后 resume"集成用例，以单元测试覆盖 |
+| A6 | `ContextContribution.admissionHooks`，链序：权限 → 准入 → 扩展（checkpoint）→ hooks → 脱敏；goal 的工具 hook 移入（8c698ae） | sidecar-goal-budget：被拦下的 write 没有 file_backup（先红） |
+| A7 | ModelPrice 四项 `minimum: 0`；channel.ts 对带 requestId 的 provider.save / provider.models / secret.store 非法消息回答 bad-request；main `#send` 前 `Value.Check`（2d7b227） | control/channel.test 四例（先红 3 例）；sidecar-model-price 负数价格得到 bad-request |
+| A8 | desktop Browser Mode 共用 setup：localStorage 快照与恢复；goal-card 的 `localStorage.clear()` 删除（a653f94） | 全量 desktop-renderer 137 例 |
+| A9 | 删除 goal-card、todo-cards 的 `document.body.innerHTML = ''`，setup 中 `cleanup()`（a653f94） | 同上 |
+| A10 | setup 断言 body 子节点没有 aria-hidden / data-aria-hidden、pointer-events 复原；4 个 plan 文件合回 `plan.browser.test.tsx`。合并后的真正原因是 plan-review 用例中 `screen.unmount()` 未 await（act 未完成），改为 await（a653f94） | 合并文件 12 例；临时用例留下模态层时 setup 使其失败（已删除） |
+| A11 | plan.e2e 改为等 `[role=menu]` detached 且 body pointer-events 不为 none，单次点击（1ba9e82） | plan.e2e 1 例 |
+| A12 | 新增 `--success-text`、`--warning-text`、`--terminal-{red,green,yellow,blue,magenta,cyan,muted}`（明暗各一套）；jobs-tab 与 goal-card 文字改用（cc49c4b）。实测对白色 ≥ 4.92、对 gray-800 ≥ 5.04 | jobs-tab.browser：两种主题下 7 色互不相同且对背景 ≥ 4.5:1（先红） |
+| A13 | plan-tab 的选中修订与 editing 在渲染时派生（1030edc） | plan.browser 的 Plan tab 用例 |
+| A14 | jobs-store 错误体按 `ErrorResponse` 校验并带 details（1030edc）；未合并为共用 requestJson（B1 可选，未做） | jobs-store.test 两例（先红） |
+| B13 | processes.ts 注释改正（fe85414） | — |
+| B14 | trap 之后写 ready 文件，测试等文件（fe85414） | processes.test 9 例 |
+| B1–B12、B15 | 未处理（judgement，未列入本票清单） | — |

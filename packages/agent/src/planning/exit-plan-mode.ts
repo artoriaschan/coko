@@ -27,7 +27,11 @@ export function planTitle(markdown: string): string {
 export const invalidPlanText = (problem: string) => `Invalid plan: ${problem}. Call exit_plan_mode again with the complete plan.`
 
 /** 批准后交给模型的文本（契约）。 */
-export const planApprovedText = (mode: PermissionMode, markdown: string) => `The user approved the plan. Proceed under ${mode}.\n\n${markdown}`
+export const planApprovedText = (mode: PermissionMode, markdown: string) =>
+  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under ${mode}.\n\n${markdown}`
+
+/** 不在 plan 模式时调用 exit_plan_mode（例如同一 Run 中计划已批准）：不审阅。 */
+export const NOT_IN_PLAN_MODE_TEXT = 'Not in plan mode: the plan was already approved or plan mode was turned off. Continue with the task.'
 
 /** 带反馈的拒绝交给模型的文本（契约）。 */
 export const planFeedbackText = (feedback: string) =>
@@ -41,6 +45,8 @@ export interface PlanReview {
   rejected(toolCallId: string, feedback: string | undefined): Promise<void>
   /** 用户批准、本工具执行时：提交 approved 的计划（编辑后为新 revision）与批准后的模式，返回最终计划与模式。 */
   approved(toolCallId: string, markdown: string): Promise<{ markdown: string; mode: PermissionMode }>
+  /** Session 当前是否在 plan 模式；false 时不提交、不询问（工具在 Run 开始时注册，批准后同一 Run 中仍可调用）。 */
+  active(): Promise<boolean>
 }
 
 const parameters = Type.Object({

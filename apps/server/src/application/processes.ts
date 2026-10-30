@@ -1,5 +1,5 @@
-// 子进程登记与孤儿清理（ADR 0012；docs/subsystems/execution.md）。Sidecar 启动的长寿命子进程（前台 bash 的进程组、stdio MCP Server，
-// 之后还有后台 Job 与 PTY）在 spawn 成功后登记到 host_processes，退出后删除。启动时（打开存储之后、启动恢复之前）逐行核对：pid 存在且
+// 子进程登记与孤儿清理（ADR 0012；docs/subsystems/execution.md）。Sidecar 启动的长寿命子进程（前台 bash 的进程组、stdio MCP Server、
+// 后台 Job 与 PTY）在 spawn 成功后登记到 host_processes，退出后删除。启动时（打开存储之后、启动恢复之前）逐行核对：pid 存在且
 // lstart 与登记一致 → 上次遗留的孤儿，有进程组时向组、否则向 pid 发 SIGTERM，宽限 2 秒后 SIGKILL；否则（已退出或 pid 被复用）只删行。
 // 有序关闭在关闭存储之前以同样的方式终止全部登记进程。
 import { randomUUID } from 'node:crypto'

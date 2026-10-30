@@ -36,21 +36,16 @@ const modeButton = (app: LaunchedApp) => app.window.locator('[data-permission-mo
 const chip = (app: LaunchedApp) => app.window.locator('[data-slot="plan-chip"]')
 const review = (app: LaunchedApp) => app.window.locator('[data-slot="plan-review"]')
 const planTab = (app: LaunchedApp) => app.window.locator('[data-slot="plan-tab"]')
-/** 打开模式菜单并选"规划"：菜单在 30 秒内没有出现时（高负载下点击可能落在上一次关闭的过程中）关闭后重试。 */
+/**
+ * 打开模式菜单并选"规划"。点击前等上一次的菜单完全关闭：Radix 在退出动画结束前保留 [role=menu]，body 的 pointer-events 仍为 none，
+ * 这时的点击会被吞掉（与 goal.e2e 等命令菜单 detached 相同）。
+ */
 async function choosePlan(app: LaunchedApp) {
+  await app.window.locator('[role="menu"]').waitFor({ state: 'detached' })
+  await expect.poll(() => app.window.evaluate(() => document.body.style.pointerEvents)).not.toBe('none')
+  await modeButton(app).click()
   const item = app.window.getByRole('menuitemradio', { name: /^(Plan|规划)/ })
-  const deadline = Date.now() + 30_000
-  for (;;) {
-    await expect.poll(() => modeButton(app).getAttribute('aria-expanded')).not.toBe('true')
-    await modeButton(app).click()
-    try {
-      await item.waitFor({ timeout: 5_000 })
-      break
-    } catch (error) {
-      if (Date.now() > deadline) throw error
-      await app.window.keyboard.press('Escape')
-    }
-  }
+  await item.waitFor()
   await item.click()
   await chip(app).waitFor()
 }

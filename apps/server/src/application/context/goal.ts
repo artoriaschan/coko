@@ -60,8 +60,8 @@ export function goalContribution(options: ContextContributionOptions): ContextCo
         ...(names.update ? [{ tool: createUpdateGoalTool(port), permissionClass: 'session-state' as const }] : []),
       ]
     },
-    // 预算检查点：工具调用前（权限判定之后）检查调用数；每次模型请求前检查 Token、费用、时间与未定价。
-    hooks(scope) {
+    // 预算检查点：工具调用前（权限判定之后、checkpoint 备份之前的准入 hook）检查调用数；每次模型请求前检查 Token、费用、时间与未定价。
+    admissionHooks(scope) {
       return scope.sessionId === undefined ? [] : [goals.toolHooks(scope.sessionId)]
     },
     async beforeRequest(state, scope) {

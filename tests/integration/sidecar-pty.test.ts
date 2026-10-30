@@ -167,7 +167,8 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     await h.setMode('default')
     await h.send('type')
     const approval = await h.allow()
-    expect(approval).toMatchObject({ toolName: 'job_input', subject: 'echo hello-pty' })
+    // Job 在 full-access 下启动：default 下的输入经提权审批（档位比当前宽），subject 仍为 text。
+    expect(approval).toMatchObject({ toolName: 'job_input', kind: 'escalation', subject: 'echo hello-pty' })
     await h.stream.waitFor(() => h.count('run_end') === 2, 30_000)
     expect(h.result('i1')!.isError).toBe(false)
 
@@ -179,6 +180,62 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     const log = await readFile(h.jobStarts()[0]!.logPath, 'utf8')
     expect(log).toContain('hello-pty')
     expect(log).not.toContain('rm -rf x')
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('Job 在较宽档位启动、之后模式收紧：plan 下 job_input 被拒绝（不写入终端）；default 下要求一次提权审批（kind escalation）', async () => {
+    const h = await setup([
+      { content: [tty('b1', 'cat')] },
+      { content: 'started' },
+      { content: [input('i1', { text: 'touch planned.txt', submit: true })] },
+      { content: 'refused' },
+      { content: [input('i2', { text: 'echo widened', submit: true })] },
+      { content: 'sent' },
+    ])
+    await h.turn('start')
+    expect(h.result('b1')!.isError).toBe(false)
+
+    await h.setMode('plan')
+    await h.turn('touch')
+    expect(h.count('approval_request')).toBe(0)
+    expect(h.result('i1')).toEqual({
+      text: expect.stringMatching(/^Not sent: background job \S+ was started under the danger-full-access sandbox, wider than plan mode allows/),
+      isError: true,
+    })
+
+    await h.setMode('default')
+    await h.send('echo')
+    const approval = await h.allow()
+    expect(approval).toMatchObject({ toolName: 'job_input', kind: 'escalation', subject: 'echo widened', targetMode: 'danger-full-access' })
+    await h.stream.waitFor(() => h.count('run_end') === 3, 30_000)
+    expect(h.result('i2')!.isError).toBe(false)
+    const log = await readFile(h.jobStarts()[0]!.logPath, 'utf8')
+    expect(log).toContain('widened')
+    expect(log).not.toContain('planned')
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('job_input 按上次回车之后累计的输入判定：拆成几段的命令匹配拒绝规则；同一批中前一段改变了当前行时后一段不发送', async () => {
+    const h = await setup([
+      // cat 忽略 SIGINT：Ctrl-C 只清空终端的当前行。
+      { content: [tty('b1', "trap '' INT; cat")] },
+      { content: [input('p1', { text: 'rm -r' })] },
+      { content: [input('p2', { text: 'f build', submit: true })] },
+      { content: [input('c1', { text: '', ctrl_c: true })] },
+      // 同一批：q1 之前当前行为空，q2 判定时看到的也是空行加本段；q1 执行后当前行已变。
+      { content: [input('q1', { text: 'rm -r' }), input('q2', { text: 'f build', submit: true })] },
+      { content: 'done' },
+    ])
+    const rule = { behavior: 'deny', tool: 'Bash', content: 'rm -rf *' }
+    expect((await h.api.post(permissionPaths.sessionPermissionRules(h.sessionId), { rule })).status).toBe(200)
+    await h.turn('split')
+    expect(h.result('p1')!.isError).toBe(false)
+    expect(h.result('p2')).toEqual({ text: 'Permission denied by rule Bash(rm -rf *).', isError: true })
+    expect(h.result('c1')!.isError).toBe(false)
+    expect(h.result('q1')!.isError).toBe(false)
+    expect(h.result('q2')).toEqual({ text: expect.stringMatching(/^Not sent: an earlier input changed the current line of background job \S+/), isError: true })
+    const log = await readFile(h.jobStarts()[0]!.logPath, 'utf8')
+    expect(log).not.toContain('build')
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 

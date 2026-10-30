@@ -19,22 +19,22 @@ import type { RightPanelTabProps } from './tabs.ts'
 
 // 右栏 Jobs tab：会话的后台任务列表（状态点、标签、时长、退出码）与选中项的输出（anser 解析 SGR，映射到语义色；局部横向滚动；跟随尾部；停止）。
 
-/** anser 的颜色类 → 语义色。256 色与 truecolor 没有对应 token，按默认前景显示。 */
+/** anser 的颜色类 → 终端语义色（两套主题下对比度 ≥ 4.5:1）。256 色与 truecolor 没有对应 token，按默认前景显示。 */
 const FG: Record<string, string> = {
-  'ansi-black': 'text-muted-foreground',
-  'ansi-bright-black': 'text-muted-foreground',
-  'ansi-red': 'text-destructive',
-  'ansi-bright-red': 'text-destructive',
-  'ansi-green': 'text-success',
-  'ansi-bright-green': 'text-success',
-  'ansi-yellow': 'text-warning',
-  'ansi-bright-yellow': 'text-warning',
-  'ansi-blue': 'text-link',
-  'ansi-bright-blue': 'text-link',
-  'ansi-magenta': 'text-link',
-  'ansi-bright-magenta': 'text-link',
-  'ansi-cyan': 'text-link',
-  'ansi-bright-cyan': 'text-link',
+  'ansi-black': 'text-terminal-muted',
+  'ansi-bright-black': 'text-terminal-muted',
+  'ansi-red': 'text-terminal-red',
+  'ansi-bright-red': 'text-terminal-red',
+  'ansi-green': 'text-terminal-green',
+  'ansi-bright-green': 'text-terminal-green',
+  'ansi-yellow': 'text-terminal-yellow',
+  'ansi-bright-yellow': 'text-terminal-yellow',
+  'ansi-blue': 'text-terminal-blue',
+  'ansi-bright-blue': 'text-terminal-blue',
+  'ansi-magenta': 'text-terminal-magenta',
+  'ansi-bright-magenta': 'text-terminal-magenta',
+  'ansi-cyan': 'text-terminal-cyan',
+  'ansi-bright-cyan': 'text-terminal-cyan',
 }
 const BG: Record<string, string> = {
   'ansi-red': 'bg-diff-deleted',
@@ -168,7 +168,7 @@ export function JobOutputView({ label, text, earlier, truncated }: JobOutputView
         ) : (
           blocks.map((block, i) => <AnsiBlock key={i} text={block} />)
         )}
-        {truncated && <span className="block font-sans text-warning">{t('jobs.output.truncated')}</span>}
+        {truncated && <span className="block font-sans text-warning-text">{t('jobs.output.truncated')}</span>}
       </pre>
       {!following && (
         <Button type="button" variant="outline" size="sm" data-action="follow-tail" className="absolute end-3 bottom-2 shadow-soft" onClick={follow}>

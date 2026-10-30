@@ -159,14 +159,10 @@ export const MODEL_CATALOG_DEFAULTS = { contextWindow: 128_000, maxTokens: 16_00
 
 const TokenCount = Type.Integer({ minimum: 1 })
 
-/**
- * 模型价格：每百万 token 的单价，显示货币由设置 usage.currency 决定（不换算）。缓存读写的价格省略时为 0。非负由 sidecar 校验（400），
- * 使负数价格得到错误回答而不是被控制通道丢弃。
- */
-export const ModelPrice = Type.Object(
-  { input: Type.Number(), output: Type.Number(), cacheRead: Type.Optional(Type.Number()), cacheWrite: Type.Optional(Type.Number()) },
-  strict,
-)
+const Price = Type.Number({ minimum: 0 })
+
+/** 模型价格：每百万 token 的单价（非负），显示货币由设置 usage.currency 决定（不换算）。缓存读写的价格省略时为 0。 */
+export const ModelPrice = Type.Object({ input: Price, output: Price, cacheRead: Type.Optional(Price), cacheWrite: Type.Optional(Price) }, strict)
 export type ModelPrice = Static<typeof ModelPrice>
 
 /**

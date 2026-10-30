@@ -80,6 +80,8 @@ export interface ContextAssembly {
   tools(scope: ContextScope): Promise<ContributedTool[]>
   readRoots(scope: ContextScope): Promise<string[]>
   hooks(scope: ContextScope): ToolHooks[]
+  /** 各领域的准入 hook（ContextContribution.admissionHooks），排在扩展与 hooks 之前。 */
+  admissionHooks(scope: ContextScope): ToolHooks[]
   expandInput(text: string, scope: ContextScope): Promise<ExpandResult>
   /** 没有领域改动请求时 undefined（运行时不装 transformContext）。 */
   readonly transformMessages: ((messages: AgentMessage[], scope: ContextScope) => AgentMessage[]) | undefined
@@ -133,6 +135,7 @@ export function createContextAssembly(options: {
     tools: (scope) => collect('tools', (c) => (c.tools ? () => c.tools!(scope) : undefined)),
     readRoots: (scope) => collect('readRoots', (c) => (c.readRoots ? () => c.readRoots!(scope) : undefined)),
     hooks: (scope) => contributions.flatMap((c) => c.hooks?.(scope) ?? []),
+    admissionHooks: (scope) => contributions.flatMap((c) => c.admissionHooks?.(scope) ?? []),
     async expandInput(text, scope) {
       let input: RunInput = { text }
       for (const c of ordered(contributions, EXPAND_ORDER)) {
