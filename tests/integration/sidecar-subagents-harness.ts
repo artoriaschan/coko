@@ -20,7 +20,7 @@ export const byUser = (logged: Logged[], marker: string) =>
 
 export async function bootAgents(
   responses: unknown[],
-  options: { env?: Record<string, string>; script?: Record<string, unknown>; providers?: Parameters<typeof seedProviders>[1] } = {},
+  options: { env?: Record<string, string>; script?: Record<string, unknown>; providers?: Parameters<typeof seedProviders>[1]; workspace?: string } = {},
 ) {
   const root = await tempDir()
   const requestLog = join(root, 'requests.jsonl')
@@ -32,7 +32,7 @@ export async function bootAgents(
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
-  const wsPath = join(root, 'ws')
+  const wsPath = options.workspace ?? join(root, 'ws')
   await mkdir(join(wsPath, '.coko', 'agents'), { recursive: true })
   await cp(new URL('two-turns.md', fixtures), join(wsPath, '.coko', 'agents', 'two-turns.md'))
   await cp(new URL('writer.md', fixtures), join(wsPath, '.coko', 'agents', 'writer.md'))

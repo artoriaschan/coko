@@ -20,6 +20,7 @@ import {
   type AgentUsageTotals,
   type AgentWaitItem,
   type BeforeRequestState,
+  type PermissionRule,
   type RunEntry,
   type RunInput,
   type RunResult,
@@ -228,6 +229,21 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     return this.#live.get(sessionId)?.definition.permissionMode
   }
 
+  /** 每个根 Session 的子代理 isolation worktree（派发时与启动恢复时登记；已移除的去掉）。 */
+  readonly #isolated = new Map<string, Set<string>>()
+
+  extraRules(sessionId: string): PermissionRule[] {
+    return [...(this.#isolated.get(sessionId) ?? [])].map((path) => ({ behavior: 'ask' as const, tool: 'Read', content: path }))
+  }
+
+  #isolate(rootId: string, path: string, on: boolean): void {
+    const set = this.#isolated.get(rootId) ?? new Set<string>()
+    if (on) set.add(path)
+    else set.delete(path)
+    if (set.size > 0) this.#isolated.set(rootId, set)
+    else this.#isolated.delete(rootId)
+  }
+
   definition(sessionId: string): ContextScope['subagent'] | undefined {
     const live = this.#live.get(sessionId)
     if (!live) return undefined
@@ -349,6 +365,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     try {
       const tools = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
       const worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
+      if (worktree) this.#isolate(parentId, worktree.path, true)
       const child = await store.sessions.createSession({
         workspaceId: parent.workspaceId,
         title: request.description,
@@ -542,6 +559,13 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
           return undefined
         })
         if (removed && !removed.removed) worktree = { kept: true, path: removed.path, branch: removed.branch }
+        else if (removed?.removed) {
+          const start = (await store.sessions.listEntries(live.rootId)).find(
+            (e) => e.kind === 'agent_start' && (e.payload as { agentId: string }).agentId === live.agentId,
+          )
+          const path = (start?.payload as { isolation?: { path: string } } | undefined)?.isolation?.path
+          if (path) this.#isolate(live.rootId, path, false)
+        }
       }
       outcome = { ...outcome, usage: childUsage(entries), text, ...(worktree ? { worktree } : {}) }
       // 前台：与派发它的调用同一 Run；后台：父 Session 此刻的 Run（没有时不属于 Run）。
@@ -745,6 +769,10 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       const ended = new Set(entries.filter((e) => e.kind === 'agent_end').map((e) => (e.payload as { agentId: string }).agentId))
       for (const start of entries.filter((e) => e.kind === 'agent_start')) {
         const agentId = (start.payload as { agentId: string }).agentId
+        // 仍在的 isolation worktree：父 Session 读取它照样须审批。
+        const isolation = (start.payload as { isolation?: { worktreeId: string; path: string } }).isolation
+        if (isolation && (await this.#options.store.worktrees.get(isolation.worktreeId))?.status === 'active')
+          this.#isolate(latest.sessionId, isolation.path, true)
         if (ended.has(agentId)) continue
         await this.#options.entries.commit(latest.sessionId, await this.#interruptedEnd(agentId))
         log.warn('subagent marked interrupted', { sessionId: latest.sessionId, agentId })

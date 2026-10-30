@@ -50,6 +50,11 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
 export interface PermissionScopeResolver {
   rootSessionId(sessionId: string): string
   modeCap(sessionId: string): StandardPermissionMode | undefined
+  /**
+   * 根 Session 额外的询问规则（不入库，判定时现取）：子代理的 isolation worktree 在 Workspace 之内（.coko-worktrees/），父 Session 读取它须审批，
+   * 使隔离成立（ADR 0016）。子 Session 没有（它的工作目录就在其中）。
+   */
+  extraRules?(sessionId: string): PermissionRule[]
 }
 
 export const ownPermissionScope: PermissionScopeResolver = { rootSessionId: (sessionId) => sessionId, modeCap: () => undefined }
@@ -175,7 +180,7 @@ export class SessionPermissions implements PlanHost {
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
       mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : capMode(state.mode, this.#scopes.modeCap(sessionId))),
-      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId)],
+      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
     }
   }
 
