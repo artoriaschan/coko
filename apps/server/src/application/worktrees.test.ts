@@ -76,7 +76,11 @@ async function setup(options: { git?: (real: GitPort) => GitPort; workspaceDir?:
 
 const branches = async (repo: GitWorkspace) => (await repo.git('branch', '--format=%(refname:short)')).trim().split('\n').sort()
 
-describe('WorktreeService.removeIfUnchanged', () => {
+// 每个用例在临时仓库中运行多次真实 git（init、commit、worktree add / remove、status），无竞争时单例约 1.7–2.7 秒；
+// 并行全量下默认 5 秒不够。预算只限制等待上限，git 自身的超时仍由 adapters/git.ts 控制。
+const REAL_GIT_BUDGET = { timeout: 30_000 }
+
+describe('WorktreeService.removeIfUnchanged', REAL_GIT_BUDGET, () => {
   it('HEAD = base 且干净：目录与分支都删除，记录为 removed', async () => {
     const { repo, store, service, workspace } = await setup()
     const created = await service.createForSubagent(workspace.id, 'abcdef12-3456')
@@ -119,7 +123,7 @@ describe('WorktreeService.removeIfUnchanged', () => {
   })
 })
 
-describe('WorktreeService 创建与工作目录', () => {
+describe('WorktreeService 创建与工作目录', REAL_GIT_BUDGET, () => {
   it.each(['../x', 'a/b', 'Upper', 'x'.repeat(65), '.hidden', '-dash', 'a..b', 'end.', 'x.lock', ''])('非法 name %j', (name) => {
     expect(validWorktreeName(name)).toBe(false)
   })

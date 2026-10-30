@@ -41,6 +41,47 @@ describe('时间线的 Hook 行', () => {
     expect(outcome.className).toContain('text-destructive')
   })
 
+  it('生命周期事件的结论：Stop 要求继续为常规色，continue: false 的停止与 Notification 失败为警示色', async () => {
+    const screen = await renderRow({
+      event: 'Stop',
+      hookId: 'global:Stop:0:0',
+      source: 'global',
+      command: 'stop.sh',
+      outcome: 'continued',
+      exitCode: 2,
+      durationMs: 4,
+      message: 'keep going',
+    })
+    let row = document.querySelector('[data-slot="hook-row"]') as HTMLElement
+    expect(row.textContent).toContain('Asked to continue')
+    expect(row.querySelector('[data-slot="hook-outcome"]')!.className).not.toContain('text-destructive')
+    await screen.unmount()
+    const stopped = await renderRow({
+      event: 'UserPromptSubmit',
+      hookId: 'global:UserPromptSubmit:0:0',
+      source: 'global',
+      command: 'u.sh',
+      outcome: 'stopped',
+      durationMs: 4,
+    })
+    row = document.querySelector('[data-slot="hook-row"]') as HTMLElement
+    expect(row.textContent).toContain('Stopped')
+    expect(row.querySelector('[data-slot="hook-outcome"]')!.className).toContain('text-destructive')
+    await stopped.unmount()
+    await renderRow({
+      event: 'Notification',
+      hookId: 'global:Notification:0:0',
+      source: 'global',
+      command: 'n.sh',
+      outcome: 'error',
+      exitCode: 1,
+      durationMs: 4,
+    })
+    row = document.querySelector('[data-slot="hook-row"]') as HTMLElement
+    expect([row.dataset.event, row.dataset.outcome]).toEqual(['Notification', 'error'])
+    expect(row.querySelector('[data-slot="hook-outcome"]')!.className).toContain('text-destructive')
+  })
+
   it('非阻断结论为常规色；没有 message 与退出码时不显示；中文文案', async () => {
     await renderRow({ event: 'PostToolUse', hookId: 'project:PostToolUse:0:0', source: 'project', command: 'lint.sh', outcome: 'context', durationMs: 3 }, 'zh')
     const row = document.querySelector('[data-slot="hook-row"]') as HTMLElement

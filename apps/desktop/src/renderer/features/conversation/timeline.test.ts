@@ -47,6 +47,37 @@ describe('时间线：回退折叠', () => {
   })
 })
 
+describe('时间线：Hook 追加的上下文', () => {
+  it('<hook-context> 文本块不进入用户气泡，由 hook_run 行显示', () => {
+    seq = 0
+    const entries = [
+      entry('hook_run', {
+        event: 'UserPromptSubmit',
+        hookId: 'global:UserPromptSubmit:0:0',
+        source: 'global',
+        command: 'ctx.sh',
+        outcome: 'context',
+        durationMs: 1,
+      }),
+      entry('run_start', { trigger: 'submit' }, 'r'),
+      entry(
+        'message',
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'hello' },
+            { type: 'text', text: '<hook-context>\nbranch is main\n</hook-context>' },
+          ],
+          timestamp: 0,
+        },
+        'r',
+      ),
+      reply('ok'),
+    ]
+    expect(shape(buildTimeline(conversation(entries)))).toEqual(['hook', 'user:hello*', 'text:ok'])
+  })
+})
+
 describe('时间线：后台任务通知', () => {
   it('<job-notification> 文本块不进入用户气泡；只有通知的消息不成气泡', () => {
     seq = 0
