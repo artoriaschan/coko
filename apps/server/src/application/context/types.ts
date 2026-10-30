@@ -1,5 +1,16 @@
 // 上下文装配（docs/subsystems/context.md）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
-import type { AgentRuntime, CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, RunResult, SystemSection, ToolHooks } from '@coko/agent'
+import type {
+  AgentRuntime,
+  CapabilityConfig,
+  CokoTool,
+  CommandDefinition,
+  PermissionClass,
+  PermissionRule,
+  RunInput,
+  RunResult,
+  SystemSection,
+  ToolHooks,
+} from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { LoadedInstructionFile, ResourceDiagnostic } from '@coko/protocol'
 import type { SessionEntry, SessionStore } from '@coko/session'
@@ -27,10 +38,19 @@ export interface ContributedTool {
 /** 输入展开的结果：交给运行时的 RunInput，或一个动作（例如 /compact），由 actions[name] 执行。 */
 export type ExpandResult = { kind: 'input'; input: RunInput } | { kind: 'action'; name: string; args: string }
 
-/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）；条目形状见 commands.ts 的 SourcedCommand。 */
+/**
+ * Skill 与 MCP 提示模板向命令目录登记的一条（CommandSourceContribution.list 的元素）。被调用时由来源展开：返回展开后的文本；
+ * 参数不合要求时抛出 AppError（例如缺少必填参数时 bad-request），提交以该错误失败。
+ */
+export interface SourcedCommand extends CommandDefinition {
+  source: 'skill' | 'mcp'
+  expand(args: string, scope: ContextScope): Promise<string>
+}
+
+/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）。 */
 export interface CommandSourceContribution {
   source: 'skill' | 'mcp'
-  list(scope: ContextScope): Promise<unknown[]>
+  list(scope: ContextScope): Promise<SourcedCommand[]>
 }
 
 /** 动作执行时 SessionService 提供的能力：该 Session 的已提交条目，与在其运行时上开始一个 Run（与 submit 相同的检查）。 */

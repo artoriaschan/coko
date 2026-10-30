@@ -34,7 +34,7 @@ async function setup(options: { slow?: boolean } = {}) {
     commandSources: [
       {
         source: 'skill',
-        list: async () => [{ name: 'pdf', description: 'Read PDFs', source: 'skill', path: '/skills/pdf/SKILL.md', expand }, { name: 'bogus' }],
+        list: async () => [{ name: 'pdf', description: 'Read PDFs', source: 'skill', path: '/skills/pdf/SKILL.md', expand }],
       },
       { source: 'mcp', list: async () => Promise.reject(new Error('server down')) },
     ],
@@ -102,7 +102,7 @@ describe('命令贡献：内置命令的动作与登记来源', () => {
     await finish()
   })
 
-  it('Skill 来源的命令由来源展开并带 command 条目；来源抛出的 AppError 使提交失败；未接入动作的内置命令与不合格的条目不进目录', async () => {
+  it('Skill 来源的命令由来源展开并带 command 条目；来源抛出的 AppError 使提交失败；未接入动作的内置命令不进目录', async () => {
     const { service, store, session, expand, context, workspace, finish } = await setup()
     await expect(service.submit(session.id, '/pdf')).rejects.toMatchObject({ code: 'bad-request', message: 'Missing required argument: file' })
     await service.submit(session.id, '/pdf report.pdf')

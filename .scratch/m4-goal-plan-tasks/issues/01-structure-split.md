@@ -22,3 +22,9 @@
 - [ ] `pnpm run typecheck`、`lint`、`format:check`、`check:docs` 退出 0；`scripts/browser-deps.test.ts`、`scripts/source-references.test.ts` 通过；README 与 architecture.md 的结构描述与新文件一致
 
 ## Comments
+
+### 基线（main 0eafbba，改动前）
+
+- `pnpm run test`（全量，含 desktop E2E 与 package-smoke）：Test Files 2 failed | 205 passed (207)；Tests 2 failed | 1458 passed | 1 skipped (1461)；退出码 1。
+- 两个失败均为 5 秒超时：`apps/desktop/src/main/sidecar-process.test.ts`（以 ELECTRON_RUN_AS_NODE 启动…）与 `sidecar-supervisor.test.ts`（ready 之后意外退出…）。单独重跑这两个文件：2 files、16 tests 全部通过，退出 0，判定为全量并发负载下的超时，与本票无关。
+- 跳过的 1 项：`apps/desktop/e2e/settings.e2e.test.ts` 中原有的 skip。

@@ -47,8 +47,7 @@ import {
 import type { JsonValue, SessionStore } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { SecretService } from '../secrets.ts'
-import type { SourcedCommand } from './commands.ts'
-import type { ContextContribution, ContextContributionOptions, ContextScope } from './types.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope, SourcedCommand } from './types.ts'
 
 const log = getLogger(['application', 'mcp'])
 

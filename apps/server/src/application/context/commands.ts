@@ -18,24 +18,9 @@ import {
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import { PROJECT_COMMANDS_DIR, USER_COMMANDS_DIR, type CommandInfo, type CommandListResponse } from '@coko/protocol'
-import type { ContextContribution, ContextContributionOptions, ContextScope, ExpandResult } from './types.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope, ExpandResult, SourcedCommand } from './types.ts'
 
 const log = getLogger(['application', 'context', 'commands'])
-
-/**
- * Skill 与 MCP 提示模板向命令目录登记的一条（CommandSourceContribution.list 的元素）。被调用时由来源展开：返回展开后的文本；
- * 参数不合要求时抛出 AppError（例如缺少必填参数时 bad-request），提交以该错误失败。
- */
-export interface SourcedCommand extends CommandDefinition {
-  source: 'skill' | 'mcp'
-  expand(args: string, scope: ContextScope): Promise<string>
-}
-
-export function isSourcedCommand(value: unknown): value is SourcedCommand {
-  if (!value || typeof value !== 'object') return false
-  const v = value as Record<string, unknown>
-  return typeof v.name === 'string' && typeof v.description === 'string' && (v.source === 'skill' || v.source === 'mcp') && typeof v.expand === 'function'
-}
 
 type BuiltinEntry = CommandDefinition & { source: 'builtin'; action: string }
 type CatalogEntry = BuiltinEntry | CommandTemplate | SourcedCommand
@@ -99,11 +84,7 @@ export function commandsContribution(options: CommandsContributionOptions): Comm
     for (const contribution of others) {
       for (const source of contribution.commandSources ?? []) {
         try {
-          const listed = await source.list(scope)
-          for (const item of listed) {
-            if (isSourcedCommand(item) && item.source === source.source) entries.push(item)
-            else log.warn('command source returned an invalid entry', { contribution: contribution.name, source: source.source })
-          }
+          entries.push(...(await source.list(scope)))
         } catch (error) {
           log.warn('command source failed', { contribution: contribution.name, source: source.source, error: message(error) })
         }
