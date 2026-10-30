@@ -6,7 +6,7 @@ lifecycle: active
 
 # 后台任务
 
-本文说明 Coko 当前如何让 Agent 把长命令（开发服务器、监听、长构建）放到后台运行，随时读取输出或停止，并在结束时得到通知。进程登记与孤儿清理见 [命令执行与子进程登记](execution.md)；权限类见 [权限判定与审批](permissions.md)。PTY Job 与 `job_input` 尚未实现；renderer 中的后台任务视图见 [界面](#界面)。
+本文说明 Coko 当前如何让 Agent 把长命令（开发服务器、监听、长构建）放到后台运行，随时读取输出或停止，并在结束时得到通知。进程登记与孤儿清理见 [命令执行与子进程登记](execution.md)；权限类见 [权限判定与审批](permissions.md)。PTY Job 与 `job_input` 见 [命令执行与子进程登记](execution.md#pty-与-stdin)；renderer 中的后台任务视图见 [界面](#界面)。
 
 ## 结构入口
 
