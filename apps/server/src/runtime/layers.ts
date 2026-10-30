@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
 import { ContextService } from '../application/context-service.ts'
-import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
+import { createContextAssembly, createContributions, type ContextAssembly, type SessionEntryAccess } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
 import { MemoryService } from '../application/context/memory.ts'
@@ -27,6 +27,7 @@ import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
 import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
+import { toNewEntry } from '../application/session-runtimes.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
@@ -191,7 +192,16 @@ const AssemblyLive = Layer.effect(
     const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs') })
     const goals = new GoalService({ store, jobs })
     const extra = sidecar.testTools ? [createTestSeamContribution()] : []
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, extra })
+    // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。
+    const entries: SessionEntryAccess = {
+      list: (sessionId) => store.sessions.listEntries(sessionId),
+      async commit(sessionId, entry) {
+        const [committed] = await store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+        jobs.hub.publishEntry(committed!)
+        return committed!
+      },
+    }
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, entries, extra })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
