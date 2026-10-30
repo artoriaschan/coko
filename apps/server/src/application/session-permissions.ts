@@ -20,6 +20,7 @@ import type { Session as StoredSession, SessionStore } from '@coko/session'
 import type { ContextContribution } from './context/index.ts'
 import { bindPlanHost, type PlanHost } from './context/plan.ts'
 import { AppError } from './errors.ts'
+import { KeyedMutex } from './keyed-mutex.ts'
 import { PermissionService, sameRule, withRules } from './permissions.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
@@ -61,7 +62,7 @@ export class SessionPermissions implements PlanHost {
   /** 审阅中的计划，按 `<sessionId>:<toolCallId>`。 */
   readonly #plans = new Map<string, PendingPlan>()
   /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）；结果确认也经它串行。 */
-  readonly #locks = new Map<string, Promise<unknown>>()
+  readonly #locks = new KeyedMutex()
   readonly service: PermissionService
 
   /** contributions：上下文装配的贡献；其中的 plan 贡献（context/plan.ts）经它读写模式与计划审阅。 */
@@ -100,13 +101,7 @@ export class SessionPermissions implements PlanHost {
 
   /** 同一 Session 的权限修改（与结果确认）串行执行。 */
   locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.#locks.get(sessionId) ?? Promise.resolve()
-    const next = previous.then(task, task)
-    this.#locks.set(
-      sessionId,
-      next.catch(() => undefined),
-    )
-    return next
+    return this.#locks.run(sessionId, task)
   }
 
   /** 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。 */

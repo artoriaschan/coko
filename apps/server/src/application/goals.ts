@@ -32,16 +32,16 @@ import {
 import { getLogger } from '@coko/logging'
 import type { GoalActionRequest, GoalResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
-import { AppError } from './errors.ts'
+import { AppError, errorMessage } from './errors.ts'
 import type { RunEndInfo } from './context/types.ts'
 import { GoalDriver, hasUserSteering } from './goal-driver.ts'
 import type { JobService } from './jobs.ts'
+import { KeyedMutex } from './keyed-mutex.ts'
 import type { RecoverySource } from './recovery.ts'
 import type { SessionService } from './sessions.ts'
 import { requireSession, toNewEntry } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'goals'])
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** 取消时等待进行中的 Run 结束的上限；超出记入 cleanup.failures，不阻止取消。 */
 const CANCEL_RUN_WAIT_MS = 30_000
@@ -77,7 +77,8 @@ export class GoalService {
   readonly #options: GoalServiceOptions
   #sessions: SessionService | undefined
   readonly #driver: GoalDriver
-  readonly #locks = new Map<string, Promise<unknown>>()
+  /** 同一 Session 的 Goal 变化串行（前一个失败不影响后一个）。 */
+  readonly #locks = new KeyedMutex()
   /** 正在取消的 Session：Run 结束、Job 结束与模型的工具调用都不再改变 Goal。 */
   readonly #cancelling = new Set<string>()
   /** 有推进中（running / waiting-*）Goal 的 Session 的 job_end 订阅。 */
@@ -85,7 +86,7 @@ export class GoalService {
   /** 工具调用上限：每个 Session 当前 Run 已放行、结果尚未提交的调用（同一批的调用先放行、后提交结果）。 */
   readonly #admitted = new Map<string, { runId: string; ids: Set<string> }>()
   /** 工具调用前检查按 Session 串行（同一批的调用并发进入 hook）。 */
-  readonly #gates = new Map<string, Promise<unknown>>()
+  readonly #gates = new KeyedMutex()
 
   constructor(options: GoalServiceOptions) {
     this.#options = options
@@ -154,7 +155,7 @@ export class GoalService {
    * 本批完成后停止（stopAfterBatch）。
    */
   toolHooks(sessionId: string): ToolHooks {
-    return { beforeToolCall: (context) => this.#gate(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
+    return { beforeToolCall: (context) => this.#gates.run(sessionId, () => this.#checkToolCall(sessionId, context.toolCall.id)) }
   }
 
   async #checkToolCall(sessionId: string, toolCallId: string): Promise<ToolBlockResult | undefined> {
@@ -185,17 +186,6 @@ export class GoalService {
     return undefined
   }
 
-  #gate<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.#gates.get(sessionId) ?? Promise.resolve()
-    const run = previous.then(task, task)
-    const tail = run.catch(() => undefined)
-    this.#gates.set(sessionId, tail)
-    void tail.then(() => {
-      if (this.#gates.get(sessionId) === tail) this.#gates.delete(sessionId)
-    })
-    return run
-  }
-
   /** 该 Session 的模型是否已定价；没有装配 SessionService 时 false。 */
   #priced(sessionId: string): Promise<boolean> {
     return this.#sessions ? this.#sessions.runs.modelPriced(sessionId) : Promise.resolve(false)
@@ -218,7 +208,7 @@ export class GoalService {
     await requireSession(this.#options.store, sessionId)
     if (request.action === 'cancel') return this.#cancel(sessionId, request.revision)
     let pause = false
-    await this.#locked(sessionId, async () => {
+    await this.#locks.run(sessionId, async () => {
       const entries = await this.#entries(sessionId)
       const goal = this.#require(entries)
       try {
@@ -261,7 +251,7 @@ export class GoalService {
 
   /** 取消：停止进行中的 Run（等待 run_end）、终止该 Goal 的 Job（等待 job_end），再提交 cancelled 快照与 cleanup。 */
   async #cancel(sessionId: string, revision: number): Promise<GoalResponse> {
-    const goal = await this.#locked(sessionId, async () => {
+    const goal = await this.#locks.run(sessionId, async () => {
       const current = this.#require(await this.#entries(sessionId))
       try {
         expectRevision(current, revision)
@@ -285,7 +275,7 @@ export class GoalService {
       try {
         cleanup.jobsKilled = await this.#options.jobs.killSession(sessionId, goal.id)
       } catch (error) {
-        cleanup.failures.push('Stopping background jobs failed: ' + message(error))
+        cleanup.failures.push('Stopping background jobs failed: ' + errorMessage(error))
       }
       // 等待期间开始的 Run（取消进行中拒绝了 Goal 的动作与推进，这里是兜底）：提交 cancelled 之前同样停止它并等待 run_end。
       const late = sessions?.runs.activeRunId(sessionId)
@@ -294,7 +284,7 @@ export class GoalService {
         if (await sessions.abort(sessionId)) cleanup.runsAborted++
         if (!(await ended)) cleanup.failures.push(`Run ${late} did not end within ${CANCEL_RUN_WAIT_MS} ms`)
       }
-      await this.#locked(sessionId, async () => {
+      await this.#locks.run(sessionId, async () => {
         const entries = await this.#entries(sessionId)
         const current = this.#require(entries)
         if (isTerminalPhase(current.phase)) return
@@ -339,7 +329,7 @@ export class GoalService {
         return goalView(goal, goal ? goalRounds(entries, goal.id) : 0)
       },
       create: (args) =>
-        this.#locked(sessionId, async () => {
+        this.#locks.run(sessionId, async () => {
           guard()
           const entries = await this.#entries(sessionId)
           const committed = await this.#commit(sessionId, planGoalCreate(args, { entries, authority: runAuthority(entries) }))
@@ -347,7 +337,7 @@ export class GoalService {
           return goalView(committed, 0)
         }),
       update: (args) =>
-        this.#locked(sessionId, async () => {
+        this.#locks.run(sessionId, async () => {
           guard()
           const entries = await this.#entries(sessionId)
           const goal = currentGoal(entries)
@@ -376,7 +366,7 @@ export class GoalService {
   async runEnded(info: RunEndInfo): Promise<void> {
     const { sessionId, result, trigger } = info
     if (trigger === 'compact') return
-    await this.#locked(sessionId, async () => {
+    await this.#locks.run(sessionId, async () => {
       if (this.#cancelling.has(sessionId)) return
       const entries = await this.#entries(sessionId)
       const goal = currentGoal(entries)
@@ -393,7 +383,7 @@ export class GoalService {
   }
 
   async #jobEnded(sessionId: string): Promise<void> {
-    await this.#locked(sessionId, async () => {
+    await this.#locks.run(sessionId, async () => {
       if (this.#cancelling.has(sessionId)) return
       const entries = await this.#entries(sessionId)
       const goal = currentGoal(entries)
@@ -410,7 +400,7 @@ export class GoalService {
    * 之后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，等用户提交（Run 结束后的转换照常）。
    */
   async #planReview(sessionId: string, entry: { kind: string; runId: string | null; payload: unknown }): Promise<void> {
-    await this.#locked(sessionId, async () => {
+    await this.#locks.run(sessionId, async () => {
       if (this.#cancelling.has(sessionId)) return
       const entries = await this.#entries(sessionId)
       const goal = currentGoal(entries)
@@ -496,12 +486,14 @@ export class GoalService {
       if (m.type !== 'entry') return
       if (m.entry.kind === 'approval_request' || m.entry.kind === 'approval_decision') {
         const entry = m.entry
-        void this.#planReview(sessionId, entry).catch((error: unknown) => log.warn('goal plan review handling failed', { sessionId, error: message(error) }))
+        void this.#planReview(sessionId, entry).catch((error: unknown) =>
+          log.warn('goal plan review handling failed', { sessionId, error: errorMessage(error) }),
+        )
         return
       }
       if (m.entry.kind !== 'job_end') return
       const jobId = (m.entry.payload as unknown as JobEndPayload).jobId
-      void this.#jobEnded(sessionId).catch((error: unknown) => log.warn('goal job end handling failed', { sessionId, jobId, error: message(error) }))
+      void this.#jobEnded(sessionId).catch((error: unknown) => log.warn('goal job end handling failed', { sessionId, jobId, error: errorMessage(error) }))
     })
     this.#watches.set(sessionId, off)
   }
@@ -509,18 +501,6 @@ export class GoalService {
   #unwatch(sessionId: string): void {
     this.#watches.get(sessionId)?.()
     this.#watches.delete(sessionId)
-  }
-
-  /** 同一 Session 的 Goal 变化串行（前一个失败不影响后一个）。 */
-  #locked<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.#locks.get(sessionId) ?? Promise.resolve()
-    const run = previous.then(task, task)
-    const tail = run.catch(() => undefined)
-    this.#locks.set(sessionId, tail)
-    void tail.then(() => {
-      if (this.#locks.get(sessionId) === tail) this.#locks.delete(sessionId)
-    })
-    return run
   }
 }
 
