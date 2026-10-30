@@ -50,6 +50,8 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 - 评审修复（2026-10-30，M4 两轴评审）：PTY Job 在启动时固定沙箱档位，之后写入终端的输入在该档位下执行。为了不让一次提权或较宽模式下启动的终端在模式收紧后成为持久越界，Job 记下启动档位，`job_input` 在该档位严格宽于当前模式时：plan 与 read-only 下拒绝，其余模式每次按 kind escalation 询问（与单次提权同一审批，不能保存为规则）。机制见 [PTY 与 stdin](../subsystems/execution.md#pty-与-stdin)。
 - 验证证据：`tests/integration/sidecar-sandbox.test.ts` 以 `ELECTRON_RUN_AS_NODE` 启动真实 Sidecar，覆盖 Seatbelt 拒绝（default 越界写入、read-only 写 Workspace、可写根内的 `.git` 与 `.coko`）、未被拒绝过的命令不能提权、单次提权与拒绝提权、`COKO_SANDBOX_EXEC` 不可用时 fail-closed、越出可写根的文件写入只能允许一次；`apps/desktop/e2e/package-smoke.e2e.test.ts` 中打包产物里受限命令无法写 Workspace 之外；完整清单见 [权限判定与审批](../subsystems/permissions.md#验证)。Seatbelt 用例只在 darwin 运行。
 
+**实施记录（2026-10-31，M5 外部 Hook）。** "以后接入的 Hook 放行不能越过前四步"已落地：权限 gate 在判定结果生效前运行 PreToolUse，Hook 的 deny 优先于一切；第 2–4 步（询问规则、受保护路径、越出可写根）、提权与 plan-exit 的询问不能被 Hook 的 allow 免掉；Hook 的 allow 只放行第 7 步的询问；PermissionRequest 只在第 7 步的询问出卡片前运行。判定顺序本身不变。机制见 [外部 Hook](../subsystems/hooks.md#pretooluse-与判定的组合)；证据为 `packages/agent/src/extensions/hooks/hooks.test.ts` 的组合表、`packages/agent/src/policy/gate-hooks.test.ts` 与 `tests/integration/sidecar-hooks.test.ts` 的对手用例（darwin 上含沙箱拒绝后的提权与 plan-exit）。
+
 ## 来源与后继
 
 - 参考实现：claude-code 社区还原版的 `src/utils/permissions`（判定流水线、权限模式、规则语法与作用域）；deepseek-harness 的 `packages/sandbox`（Seatbelt 档位、可写根、提权阶梯、拒绝标记）与 `packages/interaction/permission-presets`。本页已提炼所需结论。
