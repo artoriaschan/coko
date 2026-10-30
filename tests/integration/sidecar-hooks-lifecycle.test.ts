@@ -274,6 +274,8 @@ describe('continue: false', () => {
       expect(await readFile(join(root, 'hi.txt'), 'utf8')).toBe('hi\n')
       expect(await h.requests()).toHaveLength(3)
       expect(h.hookRuns()).toEqual([expect.objectContaining({ event: 'PreToolUse', outcome: 'stopped', message: 'enough for now' })])
+      // 现状：Goal 的 Run 结束规则不处理 hook_stopped（不是预算停止也不是用户停止），Goal 停在 running、不开始下一轮。这是待改的行为：
+      // 应当进入 paused（reason hook-stopped）；改动 Goal 的结束规则时把这里的断言改为 paused。
       const goal = (await h.api.get(goalPaths.sessionGoal(h.sessionId))).body
       expect(goal).toMatchObject({ goal: { phase: 'running' }, usage: { rounds: 1 } })
       expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
