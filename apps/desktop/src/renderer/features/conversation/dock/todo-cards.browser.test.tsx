@@ -59,10 +59,10 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-it('注册表：todo 与 queue 已交付，goal 未交付；顺序 Todo → Goal → Queue', () => {
+it('注册表：三张卡均已交付；顺序 Todo → Goal → Queue', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
     ['todo', true],
-    ['goal', false],
+    ['goal', true],
     ['queue', true],
   ])
 })

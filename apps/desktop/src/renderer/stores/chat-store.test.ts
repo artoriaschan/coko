@@ -215,6 +215,18 @@ describe('chat store', () => {
     expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', retryable: true })
   })
 
+  it('不开始 Run 的动作（204，例如 /goal pause）：返回 true、不报告失败，撤销运行中', async () => {
+    const stream = new FakeStream()
+    const failures: ChatFailure[] = []
+    const api = fakeApi({ submitMessage: vi.fn<Api['submitMessage']>(async () => ({ done: true as const })) })
+    const store = createChatStore({ api, stream, onFailure: (f) => failures.push(f) })
+    await store.getState().load()
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 0, running: false })
+    expect(await store.getState().send('/goal pause')).toBe(true)
+    expect(failures).toEqual([])
+    expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
+  })
+
   it('提交失败返回 false 并报告协议错误码；出错的 Run 可重试', async () => {
     const stream = new FakeStream()
     const failures: ChatFailure[] = []

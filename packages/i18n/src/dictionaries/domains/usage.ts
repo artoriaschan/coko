@@ -1,12 +1,26 @@
-// 用量与费用：时间线的 Run 用量行、会话标题栏的 Session 费用与 dock 的追加指令队列；设置 → 模型服务的模型价格与显示货币。
+// 用量与费用：时间线的 Run 用量行、会话标题栏的 Session 费用；设置 → 模型服务的模型价格与显示货币。
 import { defineDomain } from './define.ts'
 
 export const usage = defineDomain(
   {
     title: '用量',
     headerAction: '费用',
-    queue: '待送达',
     unpriced: '未定价',
+    partlyUnpriced: '{cost}（部分未定价）',
+    tokens: '{count} tokens',
+    runRow: '本次运行用量',
+    session: {
+      label: '会话费用：{cost}',
+      title: '会话累计',
+      input: '输入',
+      output: '输出',
+      cacheRead: '缓存读取',
+      cacheWrite: '缓存写入',
+      total: '合计',
+      tokens: 'Token',
+      cost: '费用',
+      unpricedNote: '部分回复来自未定价的模型，未计入费用。',
+    },
     currency: {
       label: '费用货币',
       hint: '只决定费用的显示符号，不做换算。',
@@ -27,8 +41,22 @@ export const usage = defineDomain(
   {
     title: 'Usage',
     headerAction: 'Cost',
-    queue: 'Queued',
     unpriced: 'Unpriced',
+    partlyUnpriced: '{cost} (partly Unpriced)',
+    tokens: '{count} tokens',
+    runRow: 'Usage for this run',
+    session: {
+      label: 'Session cost: {cost}',
+      title: 'Session total',
+      input: 'Input',
+      output: 'Output',
+      cacheRead: 'Cache read',
+      cacheWrite: 'Cache write',
+      total: 'Total',
+      tokens: 'Tokens',
+      cost: 'Cost',
+      unpricedNote: 'Some replies came from Unpriced models and are not included in the cost.',
+    },
     currency: {
       label: 'Cost currency',
       hint: 'Only sets the symbol shown for costs; amounts are not converted.',

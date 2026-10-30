@@ -21,15 +21,15 @@ import { DOCK_SLOTS } from './dock-slots.ts'
 
 afterEach(() => rightPanelTabStore.setState({ selected: null }))
 
-it('注册表：todo、queue 已交付，goal 未交付；标题栏 jobs 已交付、cost 未交付；右栏 plan 与 jobs 已交付', () => {
+it('注册表：dock 三张卡、标题栏 jobs 与 cost、右栏 plan 与 jobs 均已交付', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
     ['todo', true],
-    ['goal', false],
+    ['goal', true],
     ['queue', true],
   ])
   expect(HEADER_ACTIONS.map((a) => [a.id, a.available])).toEqual([
     ['jobs', true],
-    ['cost', false],
+    ['cost', true],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],

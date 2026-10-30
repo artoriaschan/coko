@@ -83,7 +83,9 @@ export function createApiClient(fetchImpl: Fetch = (input, init) => fetch(input,
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
     createSession: (input: CreateSessionRequest) => call(Session, 'POST', API_ROUTES.sessions, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
-    submitMessage: (id: string, text: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionMessages(id), { text }),
+    /** 202 返回新 runId；不开始 Run 的动作（例如 /goal pause）为 204，返回 { done: true }。 */
+    submitMessage: async (id: string, text: string): Promise<SubmitMessageResponse | { done: true }> =>
+      (await call(Type.Union([SubmitMessageResponse, NoContent]), 'POST', apiPaths.sessionMessages(id), { text })) ?? { done: true as const },
     /** 重新执行出错的上一轮，不追加用户消息。 */
     retryRun: (id: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionRetry(id), {}),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),
