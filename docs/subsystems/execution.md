@@ -1,19 +1,22 @@
 ---
 kind: reference
-description: "当前的命令执行与子进程登记契约：ExecPort 与本地执行（进程组、超时、中止、沙箱接缝、onSpawn / onExit）、host_processes 登记表、启动时的孤儿清理与有序关闭、日志与已知限制。修改 bash 执行、子进程启动、MCP stdio 传输或 Sidecar 关闭顺序前查阅。"
+description: "当前的命令执行与子进程登记契约：ExecPort 与本地执行（进程组、超时、中止、沙箱接缝、onSpawn / onExit）、PTY 与 stdin（node-pty、job_input）、host_processes 登记表、启动时的孤儿清理与有序关闭、日志与已知限制。修改 bash 执行、PTY、子进程启动、MCP stdio 传输或 Sidecar 关闭顺序前查阅。"
 lifecycle: active
 ---
 
 # 命令执行与子进程登记
 
-本文说明 Sidecar 如何运行 shell 命令，以及如何登记自己启动的长寿命子进程，使 Sidecar 被强杀后，下次启动能终止上次留下的孤儿进程。决定与备选方案见 [ADR 0012](../adr/0012-host-process-registry.md)；命令的沙箱档位见 [权限判定与审批](permissions.md)；MCP 连接本身见 [MCP](mcp.md)。目前登记的来源是前台 bash、后台任务（[后台任务](jobs.md)）与 stdio MCP Server；PTY 尚未实现。
+本文说明 Sidecar 如何运行 shell 命令，以及如何登记自己启动的长寿命子进程，使 Sidecar 被强杀后，下次启动能终止上次留下的孤儿进程。决定与备选方案见 [ADR 0012](../adr/0012-host-process-registry.md)；命令的沙箱档位见 [权限判定与审批](permissions.md)；MCP 连接本身见 [MCP](mcp.md)。目前登记的来源是前台 bash、后台任务（[后台任务](jobs.md)，含 PTY Job）与 stdio MCP Server。
 
 ## 结构入口
 
 | 位置 | 职责 |
 | --- | --- |
 | `packages/agent/src/ports/exec.ts` | `ExecPort`、`ExecRequest`（含 `onSpawn` / `onExit`）、`SpawnedProcess`、`SandboxUnavailableError` |
-| `packages/agent/src/ports/local-exec.ts` | `createLocalExecPort`：`<shell> -c <command>` 以独立进程组（detached）运行，环境过滤，沙箱前缀 |
+| `packages/agent/src/ports/local-exec.ts` | `createLocalExecPort`：`<shell> -c <command>` 以独立进程组（detached）运行，环境过滤，沙箱前缀；`spawn({ tty: true })` 经 PtyPort 在 PTY 中运行 |
+| `packages/agent/src/ports/pty.ts` | `PtyPort`、`PtyProcess`、`PtyUnavailableError`（`pty-unavailable`）、尺寸 120×30 |
+| `packages/agent/src/tasks/jobs/tools.ts` | `job_input`：向 running 的 pty Job 写入 |
+| `apps/server/src/adapters/pty.ts` | node-pty 实现 PtyPort：启动探测、进程组信号 |
 | `apps/server/src/adapters/processes.ts` | 进程表：`ps -o lstart=,pgid= -p <pid>` 读启动时间与进程组，向进程组或 pid 发信号 |
 | `apps/server/src/application/processes.ts` | `ProcessRegistry`：`track`、`trackExec`、`cleanup`（启动清理）、`terminateAll`（有序关闭） |
 | `apps/server/src/adapters/mcp.ts` | stdio 传输启动成功后经 `onProcess` 登记，传输关闭后释放 |
@@ -34,6 +37,16 @@ lifecycle: active
 
 **生命周期回调。** spawn 成功（Node 的 `spawn` 事件）后调用一次 `onSpawn({ pid, pgid })`，进程退出、被中止或超时后调用一次 `onExit`；命令没有启动时两者都不调用。回调抛出的错误被忽略，不影响命令结果。
 
+## PTY 与 stdin
+
+bash 的 `tty: true`（须同时 `run_in_background: true`，否则参数错误，命令不运行）让后台任务在伪终端中运行，Job kind 为 `pty`：
+
+- `ExecPort.spawn({ tty: true })` 与普通后台命令同样检查工作目录、加沙箱前缀、过滤环境，再交给 `PtyPort.spawn({ argv, cwd, env, cols, rows })`：argv 为沙箱前缀 + `<shell> -c <command>`，cwd 为 Workspace 的真实路径（Workspace 经符号链接登记时，命令中的 `pwd -P` 与 `$PWD` 都是目标路径，与权限判定和沙箱可写根使用的路径一致），尺寸 120×30，环境没有 `TERM` 时设为 `xterm-256color`。句柄多出 `write(text)`；其余 Job 的 stdin 关闭，没有 `write`。
+- node-pty 的 spawn-helper 先 `setsid` 再 exec 命令，PTY 子进程是自己会话与进程组的组长（pgid = pid）。`kill` 向进程组发信号（node-pty 自身的 `kill` 只发给 pid）；信号退出时退出码为 128 + 信号号，并带信号名。
+- 输出是终端看到的字节（stdout 与 stderr 合并，带 CR 与控制序列）。日志保存原始输出；job_output 与完成通知去除 ANSI 并把 CRLF 归一为 LF。按值替换登记明文与普通后台任务相同，终端回显的输入同样被替换。
+- `job_input { job_id, text, submit?, ctrl_c? }`：只接受本 Session running 的 pty Job（非 PTY Job 返回"stdin 已关闭"错误结果，stopping 与已结束的返回"not running"）。写入顺序为 `ctrl_c` 的 `\x03`、`text`、`submit` 的 `\r`；三者都为空时参数错误。不等待回应，结果提示用 job_output 读取。权限类为 bash，判定对象为 `text`，与 bash 命令同一套规则（`Bash(...)` 的拒绝与询问规则匹配 text；default 询问，full-access 放行）。日志只记 `job input sent { sessionId, jobId, bytes }`，不记文本。
+- **没有 PTY。** Sidecar 在启动时（`ToolsLive`，打开存储之前）加载 node-pty 一次：成功记 info `pty backend selected { backend, version, path }`，失败记 warn `pty backend unavailable; tty commands will not run`，不阻止启动。没有 PtyPort 时 `tty: true` 以错误结果 `pty-unavailable: the command was not run …` 返回，命令不运行。
+
 ## 进程登记
 
 `host_processes` 每行是一个仍在运行的子进程：`pid`、`pgid`（只有自己是进程组组长的进程）、`started_at`（`ps -o lstart=` 原文，`ps` 以 `LC_ALL=C`、`TZ=UTC` 运行，同一进程两次读到的值相同）、`kind`（bash、job、pty、mcp）、`session_id`、`job_id`、`command`。
@@ -42,7 +55,8 @@ lifecycle: active
 | --- | --- | --- | --- | --- |
 | 前台 bash（`trackExec` 包装工具集的执行端口） | bash | 有（= pid） | 命令文本 | `onExit` |
 | 后台任务（`ExecPort.spawn`，JobService 的 onSpawn） | job | 有（= pid） | 命令文本（带 sessionId、jobId） | 进程退出 |
-| stdio MCP Server（传输 `start()` 成功后） | mcp | 无 | 可执行文件路径（不含参数与环境） | 传输关闭（含 Server 自行退出、崩溃） |
+| PTY Job（`spawn({ tty: true })`，JobService 的 onSpawn） | pty | 有（= pid，PTY 子进程的会话） | 命令文本（带 sessionId、jobId） | 进程退出 |
+| stdio MCP Server（传输 `start()` 成功后） | mcp | 有（= pid；pi-mcp 在 POSIX 上以 detached 启动，Windows 无） | 可执行文件路径（不含参数与环境） | 传输关闭（含 Server 自行退出、崩溃） |
 
 登记与删除都是后台写入，不阻塞命令：先读 lstart 再写行；进程在读到之前已退出时不写；释放早于写入完成时，写入后再删除。写入失败记 warn `process registration failed { operation, error }`，不影响命令。命令文本入库前经 `redactText` 脱敏（登记的 Secret 值与凭据形态，[ADR 0007](../adr/0007-secrets-from-registered-entries.md)），不写日志；秘密总闸扫描库文件。
 
@@ -65,15 +79,18 @@ lifecycle: active
 ## 限制
 
 - **spawn 与登记之间的窗口。** spawn 成功到行写入之间（一次 `ps` 与一次库写入）被强杀，这个进程不在登记表中，不会被清理。
-- **孙进程逃逸。** 没有登记进程组的进程只按 pid 终止：stdio MCP Server 派生的子进程（例如经 `npx` 启动的 Server）可能留下。pi-mcp 1.4.0 实际以独立进程组启动 stdio Server，但登记表按决定不记录其进程组。另外，进程把自己移到新的进程组（`setsid`）后不再随组终止。
+- **孙进程逃逸。** 登记的进程都带进程组，孤儿清理向整个组发信号：stdio MCP Server 派生的子进程（例如经 `npx` 启动的 Server）随组终止。进程把自己移到新的进程组或会话（`setsid`、交互式 shell 的作业控制）后不再随组终止。
 - **组长退出后的后台子进程。** bash 命令的 shell 退出后行即被删除；命令留在后台的子进程（`cmd &` 后 shell 退出）不再登记，与 Sidecar 正常运行时相同。
 - **平台。** 依赖 `ps -o lstart=` 与进程组信号（macOS 与 Linux 都有）；只在 darwin 验证。lstart 精确到秒。
 
 ## 验证
 
-- `packages/agent/src/ports/local-exec.test.ts`：`onSpawn` 的 pid 与进程组与命令自身看到的一致、中止与超时后的 `onExit`、回调抛错不影响结果、没有启动的命令不调用回调。
+- `packages/agent/src/ports/local-exec.test.ts`：`onSpawn` 的 pid 与进程组与命令自身看到的一致、中止与超时后的 `onExit`、回调抛错不影响结果、没有启动的命令不调用回调；tty 请求的 argv、真实 cwd、尺寸与环境，没有 PtyPort 时 `pty-unavailable`，非 PTY 句柄没有 `write`。
+- `packages/agent/src/tools/builtin/bash.test.ts` 与 `tasks/jobs/jobs.test.ts`（表驱动）：`tty` 而不后台为参数错误，宿主没有 PTY 时的错误文本；job_input 只接受 running 的 pty Job、写入顺序、判定对象为 text。
+- `apps/server/src/adapters/pty.test.ts`（darwin）：node-pty 中 cwd、尺寸与 TERM，输入被读到，kill 向进程组发信号。`pty-runtime.test.ts`：Electron 内置 Node 中加载。
+- `tests/integration/sidecar-pty.test.ts`（darwin，真实 Sidecar）：`python3 -i` 经 job_input 读到 42；`ctrl_c` 中断前台的 `sleep 100`；default 询问、full-access 不询问、拒绝规则匹配 text；read-only 档位的 Seatbelt 拒绝写入；SIGKILL 后 PTY 进程组被清理、Job 记 lost；Workspace 经符号链接登记时 `pwd -P` 为目标路径。`secrets-gate-pty.test.ts`：PTY 回显登记 Secret 时各通道没有明文。
 - `apps/server/src/application/processes.test.ts`（darwin）：登记与删除、`trackExec`、进程组 SIGTERM、忽略 SIGTERM 时 SIGKILL、pid 复用与已退出只删行、进程组不符时只向 pid 发信号、有序关闭与之后的进程。
-- `tests/integration/sidecar-orphans.test.ts`（darwin，真实 Sidecar）：前台 bash 的 `sleep 300` 与经 `.mcp.json` 批准、忽略 stdin 关闭的 stdio MCP 测试 Server 运行时 SIGKILL Sidecar，重启后 5 秒内消失并有 `orphan process terminated`；伪造 lstart 不符的登记，对应进程仍在、行被删除；有序关闭后登记表为空。
+- `tests/integration/sidecar-orphans.test.ts`（darwin，真实 Sidecar）：前台 bash 的 `sleep 300` 与经 `.mcp.json` 批准、忽略 stdin 关闭的 stdio MCP 测试 Server（经 `/bin/sh` 启动，留下同组的孙进程）运行时 SIGKILL Sidecar，重启后连同孙进程 5 秒内消失并有 `orphan process terminated`；伪造 lstart 不符的登记，对应进程仍在、行被删除；有序关闭后登记表为空。
 
 ## 延伸阅读
 
