@@ -80,10 +80,10 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     await expect.poll(ticks, { timeout: 15_000 }).toBeGreaterThan(2)
     const seen = await ticks()
     await expect.poll(ticks, { timeout: 15_000 }).toBeGreaterThan(seen)
-    // SGR 红色映射到 destructive；控制序列不显示。
+    // SGR 红色映射到终端语义色 terminal-red；控制序列不显示。
     const colors = await output(app).evaluate((el) => {
       const ref = document.createElement('span')
-      ref.className = 'text-destructive'
+      ref.className = 'text-terminal-red'
       document.body.append(ref)
       const expected = getComputedStyle(ref).color
       ref.remove()
