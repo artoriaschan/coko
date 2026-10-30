@@ -138,7 +138,10 @@ export const zh = {
   settings: {
     open: '打开设置',
     title: '设置',
-    close: '关闭设置',
+    back: '返回应用',
+    search: '搜索设置…',
+    searchLabel: '搜索设置',
+    searchEmpty: '没有匹配的设置',
     sections: '设置分区',
     groups: {
       personal: '个人',

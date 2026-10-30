@@ -75,7 +75,7 @@ async function addWorkspace(app: LaunchedApp, path: string) {
 }
 
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
-const dialog = (app: LaunchedApp) => app.window.getByRole('dialog')
+const dialog = (app: LaunchedApp) => app.window.locator('[data-settings-page]')
 
 /**
  * 在已打开的模型服务分区中，用列表底部的表单新建自定义 Provider（默认协议 OpenAI Chat Completions）。目录逐行添加；

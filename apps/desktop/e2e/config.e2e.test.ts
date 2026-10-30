@@ -34,7 +34,7 @@ describe('项目设置', () => {
     await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
 
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
-    const dialog = app.window.getByRole('dialog')
+    const dialog = app.window.locator('[data-settings-page]')
     const row = dialog.locator('[data-project-settings]')
     await row.waitFor()
     // macOS 的 tmpdir 可能经 /private 符号链接；Workspace 按登记的路径显示。
@@ -86,7 +86,7 @@ describe('项目设置', () => {
       app.window.evaluate(async () => (await fetch('/api/config')).json() as Promise<{ global: Record<string, unknown>; globalRevision: number }>)
 
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
-    const dialog = app.window.getByRole('dialog')
+    const dialog = app.window.locator('[data-settings-page]')
     const toggle = (name: string) => dialog.locator(`[data-capability="${name}"]`)
     const box = (name: string) => toggle(name).locator('[data-capability-enabled]')
     for (const name of ['instructions.enabled', 'context.autoCompact', 'context.trimOldToolResults']) {
@@ -114,7 +114,7 @@ describe('项目设置', () => {
     expect(saved.global).toEqual({ context: { autoCompact: false, trimOldToolResults: false }, mcp: { enabled: false }, commands: { enabled: false } })
     expect(saved.globalRevision).toBe(4)
 
-    // 关闭设置再打开：开关读回保存的值。
+    // 返回应用再打开设置：开关读回保存的值。
     await app.window.keyboard.press('Escape')
     await dialog.waitFor({ state: 'detached' })
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()

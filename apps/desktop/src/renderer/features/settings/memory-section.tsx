@@ -8,12 +8,12 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { configStore } from '../../stores/config-store.ts'
 import { createMemoryClient, memoryStore } from '../../stores/memory-store.ts'
-import { SettingsCard } from './settings-dialog.tsx'
+import { SettingsCard } from './settings-page.tsx'
 
 const memoryClient = createMemoryClient()
 
 /**
- * 设置弹窗的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；用户级与当前 Workspace 两组条目，查看、添加、编辑与删除。
+ * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；用户级与当前 Workspace 两组条目，查看、添加、编辑与删除。
  */
 export function MemorySection() {
   const { t } = useI18n()

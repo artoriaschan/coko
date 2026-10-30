@@ -1,5 +1,5 @@
 import { useI18n } from '../../app/i18n.tsx'
-import { SettingsCard } from './settings-dialog.tsx'
+import { SettingsCard } from './settings-page.tsx'
 
 export function AboutSection() {
   const { t } = useI18n()

@@ -10,9 +10,10 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { catalogModel, customProvider, type fakeSettingsBackend } from '../../testing/fake-settings.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 afterEach(async () => {
   toast.dismiss()
@@ -34,7 +35,7 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
   const appearance = createAppearanceStore({ theme: 'light', locale })
   const { chat, settings, backend } = createFixtureChat({ providers: false })
   seed(backend)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance, settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -44,22 +45,22 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
   await settings.getState().load()
-  settingsDialog.show('models')
-  const dialog = page.getByRole('dialog')
+  settingsPage.open('models')
+  const dialog = settingsRegion()
   await expect.element(dialog.getByRole('heading', { name: dictionaries[locale].providers.title })).toBeVisible()
   // 几何断言前等弹窗的缩放动画结束。
   await settled()
-  return { dialog, backend, settings, settingsDialog, appearance }
+  return { dialog, backend, settings, settingsPage, appearance }
 }
 
-const rows = () => [...document.querySelectorAll<HTMLElement>('[role=dialog] [data-provider-id]')]
-const row = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[role=dialog] [data-provider-id="${id}"]`)!)
+const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-page] [data-provider-id]')]
+const row = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[data-settings-page] [data-provider-id="${id}"]`)!)
 
 it('列表：每个供应商都有编辑与删除，状态点以文字区分已配置 / 未配置 Key；紧凑行 H40/R12、间距 4px，添加入口在列表下方', async () => {
   const { dialog } = await openModels('zh', (backend) => {
@@ -85,17 +86,17 @@ it('列表：每个供应商都有编辑与删除，状态点以文字区分已�
   expect(add.height).toBe(36)
 })
 
-const forms = () => document.querySelectorAll('[role=dialog] [data-provider-form]')
+const forms = () => document.querySelectorAll('[data-settings-page] [data-provider-form]')
 /** 目录的“添加模型”入口（新增一行并聚焦模型 ID）。 */
-const addModel = () => document.querySelector<HTMLElement>('[role=dialog] [data-provider-form] [data-model-add]')!
+const addModel = () => document.querySelector<HTMLElement>('[data-settings-page] [data-provider-form] [data-model-add]')!
 /** 添加一个模型行，等新行的模型 ID 获得焦点后填写。 */
 async function addModelRow(id: string) {
   await page.elementLocator(addModel()).click()
-  const input = page.elementLocator([...document.querySelectorAll<HTMLElement>('[role=dialog] [data-model-row] [name="modelId"]')].at(-1)!)
+  const input = page.elementLocator([...document.querySelectorAll<HTMLElement>('[data-settings-page] [data-model-row] [name="modelId"]')].at(-1)!)
   await expect.element(input).toHaveFocus()
   await input.fill(id)
 }
-const field = (name: string) => document.querySelector<HTMLInputElement>(`[role=dialog] [data-provider-form] [name="${name}"]`)!
+const field = (name: string) => document.querySelector<HTMLInputElement>(`[data-settings-page] [data-provider-form] [name="${name}"]`)!
 const errorOf = (name: string) => {
   const input = field(name)
   return describedError(input)
@@ -261,13 +262,13 @@ it('有未保存修改时取消、再次点击编辑、展开其他项或点击�
   await edit1.click()
   await page.elementLocator(field('baseUrl')).fill('https://changed.example/v1')
 
-  // 取消：继续编辑（以及 Escape）保留表单与草稿，设置弹窗不关闭。
+  // 取消：继续编辑（以及 Escape）保留表单与草稿，设置页不关闭。
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   await answerDiscard('keep')
   expect(field('baseUrl').value).toBe('https://changed.example/v1')
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   await answerDiscard('escape')
-  await expect.element(page.getByRole('dialog', { name: '设置' })).toBeVisible()
+  await expect.element(settingsRegion()).toBeVisible()
   expect(field('baseUrl').value).toBe('https://changed.example/v1')
 
   // 再次点击同项“编辑”。
@@ -290,7 +291,7 @@ it('有未保存修改时取消、再次点击编辑、展开其他项或点击�
   // 无修改时直接切换到新建，不提示；新建与编辑互斥。
   await dialog.getByRole('button', { name: '添加模型供应商', exact: true }).click()
   expect(document.querySelector('[role=alertdialog]')).toBeNull()
-  await expect.poll(() => document.querySelector('[role=dialog] [data-provider-form="create"]')).not.toBeNull()
+  await expect.poll(() => document.querySelector('[data-settings-page] [data-provider-form="create"]')).not.toBeNull()
   expect(forms()).toHaveLength(1)
   await expect.element(edit2).toHaveAttribute('aria-expanded', 'false')
 
@@ -308,8 +309,8 @@ it('有未保存修改时取消、再次点击编辑、展开其他项或点击�
   expect(backend.saveProvider).not.toHaveBeenCalled()
 })
 
-it('有未保存修改时切换设置分区或关闭设置先提示“放弃更改？”；继续编辑留在模型服务，确认后离开并丢弃草稿', async () => {
-  const { dialog, settingsDialog } = await openModels('zh', (b) =>
+it('有未保存修改时切换设置分区或返回应用先提示“放弃更改？”；继续编辑留在模型服务，确认后离开并丢弃草稿', async () => {
+  const { dialog, settingsPage } = await openModels('zh', (b) =>
     b.seedProvider(customProvider('custom-provider-1', ['custom-model-1'], { name: '自定义供应商一' }), 'sk-1111'),
   )
   await row('custom-provider-1').getByRole('button', { name: '编辑', exact: true }).click()
@@ -318,36 +319,36 @@ it('有未保存修改时切换设置分区或关闭设置先提示“放弃更�
   const general = dialog.getByRole('button', { name: dictionaries.zh.settings.nav.general, exact: true })
   await general.click()
   await answerDiscard('keep')
-  expect(settingsDialog.getSnapshot().section).toBe('models')
+  expect(settingsPage.getSnapshot().section).toBe('models')
   expect(field('name').value).toBe('改过的名称')
 
-  // 关闭设置（Escape 与关闭按钮）：继续编辑时弹窗保持打开。
+  // 返回应用（Escape 与“返回应用”）：继续编辑时设置保持打开。
   field('name').focus()
   await userEvent.keyboard('{Escape}')
   await answerDiscard('keep')
-  await dialog.getByRole('button', { name: dictionaries.zh.settings.close, exact: true }).click()
+  await dialog.getByRole('button', { name: dictionaries.zh.settings.back, exact: true }).click()
   await answerDiscard('keep')
-  expect(settingsDialog.getSnapshot().open).toBe(true)
+  expect(settingsPage.getSnapshot().visible).toBe(true)
   expect(field('name').value).toBe('改过的名称')
 
   await general.click()
   await answerDiscard('discard')
-  await expect.poll(() => settingsDialog.getSnapshot().section).toBe('general')
+  await expect.poll(() => settingsPage.getSnapshot().section).toBe('general')
   // 回到模型服务：草稿已丢弃，没有展开的表单；再次离开不再提示。
-  settingsDialog.setSection('models')
+  settingsPage.setSection('models')
   await expect.poll(() => rows().length).toBe(1)
   expect(forms()).toHaveLength(0)
-  settingsDialog.close()
-  await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  settingsPage.back()
+  await expect.element(settingsRegion()).not.toBeInTheDocument()
   expect(document.querySelector('[role=alertdialog]')).toBeNull()
 
   // 无修改的表单离开时不提示。
-  settingsDialog.show('models')
+  settingsPage.open('models')
   await expect.element(page.getByRole('heading', { name: '模型服务', level: 2 })).toBeVisible()
   await row('custom-provider-1').getByRole('button', { name: '编辑', exact: true }).click()
   await expect.poll(() => forms().length).toBe(1)
-  settingsDialog.close()
-  await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  settingsPage.back()
+  await expect.element(settingsRegion()).not.toBeInTheDocument()
 })
 
 it('提交中“创建供应商”不可点、只提交一次；失败时表单底部显示错误并保留草稿，库中没有该供应商', async () => {
@@ -445,7 +446,7 @@ it('键盘：Tab 到“添加模型供应商”并用键盘完成新建，焦点
   await userEvent.keyboard('{Tab}')
   expect(document.activeElement).toBe(addModel())
   await userEvent.keyboard('{Enter}')
-  await expect.element(page.elementLocator(document.querySelector<HTMLElement>('[role=dialog] [name="modelId"]')!)).toHaveFocus()
+  await expect.element(page.elementLocator(document.querySelector<HTMLElement>('[data-settings-page] [name="modelId"]')!)).toHaveFocus()
   await userEvent.keyboard('custom-model-2{Enter}')
   await expect.poll(() => rows().length).toBe(2)
   expect(backend.providers.find((p) => p.id === 'custom-provider-2')).toMatchObject({

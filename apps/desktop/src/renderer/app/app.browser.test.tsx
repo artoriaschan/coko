@@ -8,9 +8,10 @@ import { App } from './app.tsx'
 import { createAppearanceStore } from './appearance-store.ts'
 import { createConnectionStore } from './connection-store.ts'
 import { createPreferences } from './preferences.ts'
-import { createSettingsDialogStore } from './settings-dialog-store.ts'
+import { createSettingsPageStore } from './settings-page-store.ts'
 import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
+import { settingsRegion } from '../testing/settings-page.ts'
 
 function leaves(value: unknown): string[] {
   return Object.values(value as Record<string, unknown>).flatMap((child) => (typeof child === 'string' ? [child] : leaves(child)))
@@ -56,7 +57,7 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {})
   const store = createAppearanceStore({ theme: 'light', locale })
   const connection = createConnectionStore()
   const { chat, settings, backend, api } = createFixtureChat(options)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
   return {
     store,
@@ -73,7 +74,7 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {})
           chat={chat}
           settings={settings}
           preferences={preferences}
-          settingsDialog={settingsDialog}
+          settingsPage={settingsPage}
           pickDirectory={async () => null}
         />
       </div>,
@@ -83,7 +84,7 @@ function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {})
 
 async function openSettings(name: RegExp | string) {
   await page.getByRole('button', { name }).first().click()
-  return page.getByRole('dialog')
+  return settingsRegion()
 }
 
 afterEach(async () => {
@@ -107,7 +108,7 @@ describe('界面语言', () => {
     await dialog.getByRole('radio', { name: 'English' }).click()
     await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(settingsRegion()).not.toBeInTheDocument()
     await vi.waitFor(() => expect(backend.settings.get('locale')?.value).toBe('en'))
 
     await expect.element(page.getByRole('button', { name: 'New session' })).toBeVisible()
@@ -205,13 +206,13 @@ describe('主题', () => {
   })
 })
 
-describe('设置弹窗', () => {
-  it.each(['zh', 'en'] as const)('%s：各分区的文案都来自字典；⌘, 打开，Escape 关闭并把焦点还给页面', async (locale) => {
+describe('设置页', () => {
+  it.each(['zh', 'en'] as const)('%s：各分区的文案都来自字典；⌘, 打开，Escape 返回应用', async (locale) => {
     await page.viewport(1280, 800)
     await renderApp(locale).screen
     await expect.element(page.getByRole('button', { name: dictionaries[locale].sidebar.newSession })).toBeVisible()
     await userEvent.keyboard('{Meta>},{/Meta}')
-    const dialog = page.getByRole('dialog')
+    const dialog = settingsRegion()
     await expect.element(dialog).toBeVisible()
     const inDictionary = dictionaryMatcher(locale)
     const openSection = async (section: 'general' | 'models' | 'about') => {
@@ -235,7 +236,7 @@ describe('设置弹窗', () => {
     await openSection('about')
     expect(untranslated()).toEqual([])
     await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(settingsRegion()).not.toBeInTheDocument()
   })
 })
 
@@ -300,7 +301,7 @@ describe('键盘', () => {
     expect(abort).toHaveBeenCalledTimes(1)
   })
 
-  it('对话框打开时 Escape 只关闭对话框，不停止 Run', async () => {
+  it('设置打开时 Escape 只返回应用，不停止 Run', async () => {
     await page.viewport(1280, 800)
     const { chat, api, screen } = renderApp('en')
     await screen
@@ -308,11 +309,11 @@ describe('键盘', () => {
     chat.getState().openSession('s-2')
     await expect.element(page.getByRole('button', { name: 'Stop' })).toBeVisible()
     await userEvent.keyboard('{Meta>},{/Meta}')
-    await expect.element(page.getByRole('dialog')).toBeVisible()
+    await expect.element(settingsRegion()).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(settingsRegion()).not.toBeInTheDocument()
     expect(abort).not.toHaveBeenCalled()
-    // 对话框关闭后，下一次 Escape 才停止。
+    // 回到应用后，下一次 Escape 才停止。
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(abort).toHaveBeenCalledTimes(1))
   })
@@ -328,7 +329,7 @@ describe('模型选择', () => {
     await expect.element(setup).toBeVisible()
     await composer.click()
     await userEvent.keyboard('{Enter}')
-    const dialog = page.getByRole('dialog')
+    const dialog = settingsRegion()
     await expect.element(dialog.getByRole('heading', { name: 'Model services', level: 2 })).toBeVisible()
     await userEvent.keyboard('{Escape}')
     await expect.element(composer).toHaveTextContent('keep this draft')

@@ -10,9 +10,10 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { catalogModel, customProvider, type fakeSettingsBackend } from '../../testing/fake-settings.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 afterEach(async () => {
   toast.dismiss()
@@ -32,7 +33,7 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
   const appearance = createAppearanceStore({ theme: 'light', locale })
   const { chat, settings, backend } = createFixtureChat({ providers: false })
   seed(backend)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance, settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -42,20 +43,20 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
   await settings.getState().load()
-  settingsDialog.show('models')
-  const dialog = page.getByRole('dialog')
+  settingsPage.open('models')
+  const dialog = settingsRegion()
   await expect.element(dialog.getByRole('heading', { name: dictionaries[locale].providers.title })).toBeVisible()
   await settled()
   return { dialog, backend, appearance }
 }
 
-const form = () => document.querySelector<HTMLFormElement>('[role=dialog] [data-provider-form]')!
+const form = () => document.querySelector<HTMLFormElement>('[data-settings-page] [data-provider-form]')!
 const modelRows = () => [...form().querySelectorAll<HTMLElement>('[data-model-row]')]
 const levelRows = (model = 0) => [...modelRows()[model]!.querySelectorAll<HTMLElement>('[data-thinking-level]')]
 const levels = (model = 0) => levelRows(model).map((row) => row.dataset.thinkingLevel)
@@ -70,7 +71,7 @@ async function expand(index = 0) {
 }
 
 /** 新建表单：填好连接信息、Key，并添加一个模型。 */
-async function startCreate(dialog: ReturnType<typeof page.getByRole>) {
+async function startCreate(dialog: ReturnType<typeof settingsRegion>) {
   await dialog.getByRole('button', { name: '添加模型供应商', exact: true }).click()
   await page.elementLocator(connection('providerId')).fill('custom-provider-1')
   await page.elementLocator(connection('name')).fill('自定义供应商一')
@@ -144,9 +145,9 @@ it('从无档位开始连续添加七次：顺序为 off 至 max，第七次后�
 })
 
 /** 编辑已有 Provider 并展开第一个模型。 */
-async function openEdit(dialog: ReturnType<typeof page.getByRole>, id = 'custom-provider-2') {
+async function openEdit(dialog: ReturnType<typeof settingsRegion>, id = 'custom-provider-2') {
   const edit = page
-    .elementLocator(document.querySelector<HTMLElement>(`[role=dialog] [data-provider-id="${id}"]`)!)
+    .elementLocator(document.querySelector<HTMLElement>(`[data-settings-page] [data-provider-id="${id}"]`)!)
     .getByRole('button', { name: '编辑', exact: true })
   await edit.click()
   await expect.poll(() => modelRows().length).toBeGreaterThan(0)
@@ -201,7 +202,7 @@ it('删除一个档位后再次添加补齐最早缺失档位；修改某行档�
   await expect.element(select).toHaveFocus()
 
   await dialog.getByRole('button', { name: '保存更改', exact: true }).click()
-  await expect.poll(() => document.querySelector('[role=dialog] [data-provider-form]')).toBeNull()
+  await expect.poll(() => document.querySelector('[data-settings-page] [data-provider-form]')).toBeNull()
   expect(backend.providers[0]!.models[0]!.thinkingLevels).toEqual([
     { level: 'off' },
     { level: 'xhigh', value: 'xhigh' },
@@ -230,7 +231,7 @@ it('推理等级开关关闭时已填档位仍随草稿保存；重新打开表�
   expect(levels()).toEqual(['off', 'high'])
   await expect.element(addLevelButton()).toBeEnabled()
   await dialog.getByRole('button', { name: '保存更改', exact: true }).click()
-  await expect.poll(() => document.querySelector('[role=dialog] [data-provider-form]')).toBeNull()
+  await expect.poll(() => document.querySelector('[data-settings-page] [data-provider-form]')).toBeNull()
   expect(backend.saveProvider.mock.calls[0]![0].provider.models[0]).toMatchObject({
     reasoning: false,
     thinkingLevels: [{ level: 'off' }, { level: 'high', value: 'effort-high' }],

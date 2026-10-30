@@ -87,7 +87,7 @@ export interface ConfigActions {
 
 export type ConfigStore = StoreApi<ConfigState & ConfigActions>
 
-/** 能力配置的 vanilla store（无 React 依赖）：设置弹窗的项目设置行与能力开关读取它。 */
+/** 能力配置的 vanilla store（无 React 依赖）：设置页的项目设置行与能力开关读取它。 */
 export function createConfigStore(client: Pick<ConfigClient, 'get' | 'update'> = createConfigClient()): ConfigStore {
   let latest = 0
   return createStore<ConfigState & ConfigActions>()((set, get) => ({

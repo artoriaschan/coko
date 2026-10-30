@@ -56,7 +56,7 @@ it('新建表单用填写的 Key 获取并多选回填，一次创建；编辑�
   await waitConnected(app.window)
   const { window } = app
   await window.keyboard.press('Meta+Comma')
-  const settings = window.getByRole('dialog').first()
+  const settings = window.locator('[data-settings-page]')
   await settings.locator('[data-section="models"]').click()
   await settings.getByRole('button', { name: /^(Add model provider|添加模型供应商)$/ }).click()
   const form = window.locator('[data-provider-form]')

@@ -21,7 +21,7 @@ import { useSettings, useSettingsActions } from '../../app/settings.tsx'
 import { sessionRules } from '../../stores/chat-store.ts'
 import type { PermissionsChange, SaveSettingResult } from '../../stores/settings-store.ts'
 import { MODE_ICONS, PERMISSION_MODES } from '../conversation/mode-picker.tsx'
-import { SettingsCard, SettingsRow } from './settings-dialog.tsx'
+import { SettingsCard, SettingsRow } from './settings-page.tsx'
 
 const BEHAVIORS: PermissionRule['behavior'][] = ['allow', 'ask', 'deny']
 /** 保存规则的结果：Sidecar 拒绝未知工具名时带该名字。 */
@@ -30,7 +30,7 @@ const ruleKey = (rule: PermissionRule) => `${rule.behavior}:${formatPermissionRu
 const sameRule = (a: PermissionRule, b: PermissionRule) => ruleKey(a) === ruleKey(b)
 
 /**
- * 设置弹窗的 Permissions 分区：新会话的默认模式；全局与当前 Workspace 的规则（增删）；该 Workspace 项目设置中的规则（只读，标出来源文件）；
+ * 设置页的 Permissions 分区：新会话的默认模式；全局与当前 Workspace 的规则（增删）；该 Workspace 项目设置中的规则（只读，标出来源文件）；
  * 当前会话的规则（只读可删）。
  */
 export function PermissionsSection() {
