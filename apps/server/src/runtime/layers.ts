@@ -11,13 +11,17 @@ import { installFauxProvider } from '../adapters/faux.ts'
 import { createMcpTransport } from '../adapters/mcp.ts'
 import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
-import { createSecretProbeTool } from '../adapters/test-tools.ts'
+import { join } from 'node:path'
+import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
 import { ContextService } from '../application/context-service.ts'
 import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
 import { MemoryService } from '../application/context/memory.ts'
+import { GoalService } from '../application/goals.ts'
+import { JobService } from '../application/jobs.ts'
+import { ProcessRegistry } from '../application/processes.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
@@ -51,13 +55,18 @@ export class Logging extends Context.Service<Logging, FileLogging>()('coko/Loggi
 export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
-export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly; mcp: McpAdmin; secrets: SecretService }>()(
-  'coko/Assembly',
-) {}
+export class Processes extends Context.Service<Processes, ProcessRegistry>()('coko/Processes') {}
+export class Assembly extends Context.Service<
+  Assembly,
+  { config: ConfigService; context: ContextAssembly; mcp: McpAdmin; secrets: SecretService; jobs: JobService; goals: GoalService }
+>()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
 export class Http extends Context.Service<Http, HttpServer>()('coko/Http') {}
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/** 有序关闭的每一步记一行（按释放顺序：Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
+const shutdownStep = (step: string) => Effect.sync(() => getLogger(['runtime']).info('shutdown step {step}', { step }))
 
 /** 文件日志：最先建立、最后释放。目录不可写时退回 console 诊断，不阻止启动。 */
 const LoggingLive = Layer.effect(
@@ -125,7 +134,26 @@ const StoreLive = Layer.effect(
         try: () => openSqliteStore({ path: config.dbPath, payloads, onInvalidEntry: (entry) => log.warn('session entry skipped', { ...entry }) }),
         catch: (error) => new StartupError(isStoreError(error) ? `storage-${error.code}` : 'storage-open-failed', message(error), { cause: error }),
       }),
-      (store) => Effect.promise(() => store.close()),
+      (store) => shutdownStep('storage').pipe(Effect.andThen(Effect.promise(() => store.close()))),
+    )
+  }),
+)
+
+/**
+ * 子进程登记（ADR 0012）：打开存储之后、启动恢复之前清理上次留下的孤儿；关闭时在存储关闭之前终止全部登记进程。
+ */
+const ProcessesLive = Layer.effect(
+  Processes,
+  Effect.gen(function* () {
+    const store = yield* Store
+    const registry = new ProcessRegistry({ store })
+    return yield* Effect.acquireRelease(
+      Effect.promise(async () => {
+        const terminated = await registry.cleanup()
+        if (terminated > 0) getLogger(['runtime']).warn('orphan cleanup finished', { terminated })
+        return registry
+      }),
+      (registry) => shutdownStep('processes').pipe(Effect.andThen(Effect.promise(() => registry.terminateAll()))),
     )
   }),
 )
@@ -153,11 +181,18 @@ const AssemblyLive = Layer.effect(
       createTransport: (server, { cwd }) => createMcpTransport(server, { cwd, env }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store })
+    // 后台任务与 Goal 先于贡献创建（贡献读取它们），SessionService 在 AppLive 中接上。
+    const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs') })
+    const goals = new GoalService({ store, jobs })
+    const extra = sidecar.testTools ? [createTestSeamContribution()] : []
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, extra })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
-    return yield* Effect.acquireRelease(Effect.succeed({ config, context, mcp: admin, secrets }), ({ context }) => Effect.promise(() => context.close()))
+    yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
+    // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
+    yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
+    return { config, context, mcp: admin, secrets, jobs, goals }
   }),
 )
 
@@ -243,7 +278,7 @@ const AppLive = Layer.effect(
     const store = yield* Store
     const runs = yield* Runs
     const workspaceTools = yield* Tools
-    const { config: capabilities, context, mcp, secrets } = yield* Assembly
+    const { config: capabilities, context, mcp, secrets, jobs, goals } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
       control.mode === 'ipc' ? createIpcCredentialStore({ control, providers: store.providers }) : createEnvCredentialStore({ env, providers: store.providers })
@@ -263,7 +298,7 @@ const AppLive = Layer.effect(
       log.warn('faux provider enabled for tests', { providerId: fallbackModel.providerId })
     }
     const checkpoints = openCheckpointStore(config.dataDir)
-    const hub = new SessionHub()
+    const hub = jobs.hub
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
     const sessions = new SessionService({
@@ -280,12 +315,19 @@ const AppLive = Layer.effect(
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
+    jobs.attach(sessions)
+    goals.attach(sessions)
     // 启动恢复：打开存储之后、开始监听之前（HttpLive 依赖本层）。正常关闭的 Run 已有 run_end，不进入恢复。
     const recovery = yield* Effect.tryPromise({
-      try: () => sessions.recover(store.recovery),
+      // Session 恢复之后：Job 补记 lost，再把未结束的 Goal 暂停（重启后不自动继续）。
+      try: () =>
+        sessions.recover(store.recovery, [
+          { name: 'jobs', recover: (source) => jobs.recover(source) },
+          { name: 'goals', recover: (source) => goals.recover(source) },
+        ]),
       catch: (error) => new StartupError('recovery-failed', message(error), { cause: error }),
     })
-    if (recovery.interruptedRuns > 0) log.warn('startup recovery finished', { ...recovery })
+    if (recovery.interruptedRuns > 0 || Object.values(recovery.domains).some((n) => n > 0)) log.warn('startup recovery finished', { ...recovery })
 
     // Provider 只经 main 的一次提交保存（ADR 0010）；HTTP 只提供列表与删除。
     serveProviderSave({ control, providers })
@@ -305,6 +347,8 @@ const AppLive = Layer.effect(
       memories: new MemoryService(store),
       mcp,
       secrets,
+      jobs,
+      goals,
     } satisfies Application
   }),
 )
@@ -321,14 +365,15 @@ const HttpLive = Layer.effect(
 )
 
 /**
- * 装配顺序：Host → Logging → Tools → Store → Assembly → Runs → App → Http；释放顺序相反，
- * 即先停止接受请求，再中断并等待 Run，然后关闭上下文各领域，再关闭存储，最后刷新日志。
+ * 装配顺序：Host → Logging → Tools → Store → Processes（孤儿清理）→ Assembly（上下文贡献、Job、Goal）→ Runs → App（启动恢复）→ Http；
+ * 释放顺序相反：停止 HTTP → 中断并等待 Run → 关闭 Job → 关闭上下文贡献 → 终止登记进程 → 关闭存储 → 刷新日志。
  */
 export function sidecarLayer(host: HostShape) {
   return HttpLive.pipe(
     Layer.provideMerge(AppLive),
     Layer.provideMerge(RunsLive),
     Layer.provideMerge(AssemblyLive),
+    Layer.provideMerge(ProcessesLive),
     Layer.provideMerge(StoreLive),
     Layer.provideMerge(ToolsLive),
     Layer.provideMerge(LoggingLive),

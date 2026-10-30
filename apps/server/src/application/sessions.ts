@@ -16,17 +16,16 @@ import type {
 import type { Session as StoredSession, SessionStore } from '@coko/session'
 import type { Model } from '@earendil-works/pi-ai'
 import { SessionCheckpoints } from './checkpoints.ts'
-import { emptyContextAssembly, type ContextAssembly } from './context/index.ts'
-import { AppError } from './errors.ts'
+import { emptyContextAssembly, type ActionResult, type ContextAssembly } from './context/index.ts'
 import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
-import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
+import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
 import { SessionPermissions } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
 
-export type { RecoveryReport, RecoverySource } from './recovery.ts'
+export type { RecoveryHook, RecoveryReport, RecoverySource } from './recovery.ts'
 export type { RunLauncher, SessionExtension, SessionExtensionContext } from './session-runs.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -116,6 +115,11 @@ export class SessionService {
     })
   }
 
+  /** 开始 Run 的统一入口与运行控制（session-runs.ts）；Goal 与后台任务经它开始 Goal Round、送达通知。 */
+  get runs(): SessionRuns {
+    return this.#runs
+  }
+
   isRunning(sessionId: string): boolean {
     return this.#runtimes.isRunning(sessionId)
   }
@@ -137,8 +141,8 @@ export class SessionService {
 
   // ---- 启动恢复与结果确认（recovery.ts） ----
 
-  recover(source: RecoverySource): Promise<RecoveryReport> {
-    return this.#recovery.recover(source)
+  recover(source: RecoverySource, hooks?: readonly RecoveryHook[]): Promise<RecoveryReport> {
+    return this.#recovery.recover(source, hooks)
   }
 
   answerConfirmation(sessionId: string, toolCallId: string, answer: ConfirmationAnswer): Promise<void> {
@@ -236,25 +240,9 @@ export class SessionService {
 
   // ---- Run 控制（开始 Run 与运行时构造在 session-runs.ts） ----
 
-  /**
-   * 开始一个 Run 并立即返回 runId；Run 的条目与进度经 hub 推送。Run 进行中先以 run-in-progress 拒绝，不展开输入（展开可能调用 MCP
-   * prompts/get、读取 Skill 与引用的文件）。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用
-   * 该动作。展开期间另一个 Run 开始时，start 与动作照常再检查一次。
-   */
-  async submit(sessionId: string, text: string): Promise<{ runId: string }> {
-    const session = await this.#get(sessionId)
-    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
-    const expanded = await this.#context.expandInput(text, await this.#runs.scope(session))
-    if (expanded.kind === 'input') return this.#runs.start(sessionId, (runtime) => runtime.run(expanded.input))
-    if (this.#runtimes.isRunning(sessionId)) throw new AppError('run-in-progress', 'A Run is in progress')
-    const action = this.#context.action(expanded.name)
-    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
-    return action({
-      scope: await this.#runs.scope(session),
-      sessionId,
-      args: expanded.args,
-      session: { entries: () => this.#store.sessions.listEntries(sessionId), start: (run) => this.#runs.start(sessionId, run) },
-    })
+  /** 提交一条消息：开始 Run（{ runId }）或执行不开始 Run 的动作（{ done: true }）；见 SessionRuns.submit。 */
+  submit(sessionId: string, text: string): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text)
   }
 
   /** 自动压缩是否因连续失败暂停（运行时内存；还没有运行时的 Session 为 false）。 */
@@ -264,7 +252,7 @@ export class SessionService {
 
   /** 重新执行出错的上一轮（不追加用户消息）；上一轮没有出错时以 nothing-to-retry 拒绝。 */
   retry(sessionId: string): Promise<{ runId: string }> {
-    return this.#runs.start(sessionId, (runtime) => runtime.retry())
+    return this.#runs.startRun(sessionId, { trigger: 'retry' })
   }
 
   /**
@@ -272,7 +260,7 @@ export class SessionService {
    * 有未回答的结果确认时 confirmation-pending（未配对的调用会破坏模型请求）。
    */
   continue(sessionId: string): Promise<{ runId: string }> {
-    return this.#runs.start(sessionId, (runtime) => runtime.continue())
+    return this.#runs.startRun(sessionId, { trigger: 'continue' })
   }
 
   /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */

@@ -41,6 +41,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | apps/server | hono、@hono/node-server、ws、effect、typebox、@earendil-works/pi-agent-core、@earendil-works/pi-ai、@coko/protocol、@coko/session、@coko/agent、@coko/logging、vitest、@types/ws（devDependency）；@vscode/ripgrep（devDependency，仅供 ripgrep grep 的契约测试解析二进制，运行时路径由 `--ripgrep` 传入） |
 | packages/logging | @logtape/logtape、@logtape/file、@logtape/redaction、vitest；文件 sink 经 `@coko/logging/file` 入口导出 |
 | M3 票 01 | packages/agent：@earendil-works/pi-mcp（MCP 客户端：票 07 接入 stdio 与 streamable HTTP 传输、McpClient 工具）、yaml（Skills 与命令的 frontmatter）；apps/desktop：@coko/agent（devDependency，renderer 只导入 `@coko/agent/entries`） |
+| M4 票 02 | apps/server：node-pty（PTY 后端，预编译原生模块）、electron（devDependency，仅供 `pty-runtime.test.ts` 以 `ELECTRON_RUN_AS_NODE=1` 加载 node-pty）；apps/desktop：anser（devDependency，由 Vite 打入 renderer，供后台任务输出的 SGR 渲染）；根 `package.json` 的 `postinstall`（`scripts/postinstall-node-pty.mjs`） |
 | 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol、@vscode/ripgrep（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议；ripgrep 用于 `--ripgrep` 场景） |
 | 其余 packages | vitest |
 
@@ -99,10 +100,13 @@ overrides:
 | 设置、Session 与执行记录 | `node:sqlite`（Electron 内置 Node.js 提供）单库，由 packages/session 管理 schema、迁移与事务提交，见 [ADR 0003](adr/0003-settings-and-sessions-in-sqlite.md) |
 | 宿主写者互斥 | 同一 SQLite 库内的宿主租约，配合 Electron 单实例锁 |
 | 恢复任务 | packages/agent 定义状态机与恢复策略；session 保存记录；server 启动扫描并唤醒 |
+| PTY | **node-pty 1.2.0-beta.15**（预发布版），apps/server 的 dependency；agent 只依赖 `ports/pty.ts` 的类型 |
 
 Electron 41.0.3 内置的 `node:sqlite`（SQLite 3.51.2）编译了 FTS5，依据为 2026-10-28 的本机实测；升级 Electron 时由 packages/session 的 Electron 运行时测试复核。
 
 @hono/node-server 2.1.5 的 peer 为 `hono ^4 || ^5.0.0-0`；其 WebSocket 支持需项目自行安装 ws 并传入 `WebSocketServer`。移除原选型的 Bun 1.4.2、@types/bun 1.4.2 和 @hono/bun 1.0.0。[@hono/node-server 包元数据](https://registry.npmjs.org/@hono/node-server/2.1.5)、[WebSocket 用法](https://github.com/honojs/node-server#websocket)
+
+node-pty 1.2.0-beta.15 是预发布版本（MIT，运行依赖只有 node-addon-api ^7.1.0，带 darwin、linux、win32 的 arm64 / x64 预编译 `pty.node` 与 `spawn-helper`）。选择理由：参考实现 DeepSeek Harness 使用同一版本并已在 Electron 上运行；Coko 不带其补丁。安装脚本 `node scripts/prebuild.js || node-gyp rebuild` 在有预编译产物时不编译，`allowBuilds` 放行。npm 包丢失 `spawn-helper` 的可执行位，macOS 上 spawn 会以 `posix_spawnp failed` 失败，因此根 `postinstall` 把它恢复为 0755（DeepSeek Harness 同样处理）。2026-10-30 本机实测：`apps/server/src/adapters/pty-runtime.test.ts` 以 `ELECTRON_RUN_AS_NODE=1` 启动 Electron 41.0.3 子进程加载 node-pty，spawn `/bin/echo ok` 读到 `ok`、写入的输入被读到、非零退出码原样返回，`prebuilds/darwin-arm64/spawn-helper` 可执行。升级 Electron 时由该测试复核。[node-pty 包元数据](https://registry.npmjs.org/node-pty/1.2.0-beta.15)
 
 服务职责、持久化边界与访问认证见 [项目架构约定](tech-stack/architecture.md#服务装配与存储边界)。
 
@@ -156,7 +160,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 图表 | @streamdown/mermaid 1.0.3 + mermaid 11.17.2 |
 | 中文解析适配 | @streamdown/cjk 1.0.4 |
 | 虚拟列表 | @tanstack/react-virtual 3.14.14 |
-| ANSI 展示 | anser 2.3.5 |
+| ANSI 展示 | anser 2.3.5（apps/desktop devDependency，M4 票 02 写入 manifest；后台任务视图接入） |
 | Diff 展示 | diff 8.0.4 |
 | 状态管理 | Zustand 5.0.15，使用 vanilla store |
 | 可选状态辅助 | Immer 10.2.0，实际需要时再引入 |
@@ -198,6 +202,6 @@ Streamdown 及其插件分别使用上表的精确版本号。@streamdown/math 1
 | 浏览器与桌面自动化驱动 | playwright 1.64.0，由 Vitest 编排 |
 | 构建侧 Node 类型 | @types/node 24.19.2 |
 
-所有 workspace 显式声明实际使用的运行依赖。根 `pnpm-workspace.yaml` 设置 `autoInstallPeers: false`，必须显式安装所需 peer，包括 React、React DOM 和 @electron/fuses；避免因图标库未使用的 peer 自动引入 antd 与 @lobehub/ui。同一文件设置 `nodeLinker: hoisted` 和 `saveExact: true`；pnpm 12 默认 `strictDepBuilds`，未裁决的安装脚本会使安装失败，因此 `allowBuilds` 逐个裁决：放行 electron（postinstall 下载二进制），拒绝 koffi（预编译二进制由 optional 依赖提供）、protobufjs 与 @google/genai（脚本不影响运行）。`permissions` 对 @logtape/logtape 设置 `skills: false`，不把其附带的 Agent skills 链接进仓库。依据为 2026-10-28 的本机安装实测。
+所有 workspace 显式声明实际使用的运行依赖。根 `pnpm-workspace.yaml` 设置 `autoInstallPeers: false`，必须显式安装所需 peer，包括 React、React DOM 和 @electron/fuses；避免因图标库未使用的 peer 自动引入 antd 与 @lobehub/ui。同一文件设置 `nodeLinker: hoisted` 和 `saveExact: true`；pnpm 12 默认 `strictDepBuilds`，未裁决的安装脚本会使安装失败，因此 `allowBuilds` 逐个裁决：放行 electron（postinstall 下载二进制）与 node-pty（只在没有预编译产物时编译），拒绝 koffi（预编译二进制由 optional 依赖提供）、protobufjs 与 @google/genai（脚本不影响运行）。`permissions` 对 @logtape/logtape 设置 `skills: false`，不把其附带的 Agent skills 链接进仓库。依据为 2026-10-28 的本机安装实测。
 
 测试运行与编排、用例设计、隔离和执行报告见 [测试约定](tech-stack/testing.md)。

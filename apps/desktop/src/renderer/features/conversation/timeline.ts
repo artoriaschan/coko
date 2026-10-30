@@ -4,6 +4,11 @@ import {
   type ApprovalRequestPayload,
   type CommandPayload,
   type CompactionPayload,
+  type GoalPayload,
+  type JobEndPayload,
+  type JobNotificationPayload,
+  type JobStartPayload,
+  type PlanPayload,
   type SessionEntry,
 } from '@coko/protocol'
 import { rewoundRanges } from '@coko/agent/entries'
@@ -65,6 +70,16 @@ export type TimelineItem =
   | { kind: 'steering'; key: string; text: string }
   /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
   | { kind: 'error'; key: string; message: string; retryable: boolean }
+  /** M4 的条目：各自的组件在对应功能交付前不渲染（返回 null）。 */
+  | { kind: 'plan'; key: string; plan: PlanPayload }
+  | { kind: 'goal'; key: string; goal: GoalPayload }
+  /** Run 结束后的用量行：只在该 Run 的 assistant 消息带 usage 时出现；用量由组件按 runId 从条目汇总。 */
+  | { kind: 'run-usage'; key: string; runId: string }
+  | {
+      kind: 'job'
+      key: string
+      job: { kind: 'start'; payload: JobStartPayload } | { kind: 'end'; payload: JobEndPayload } | { kind: 'notification'; payload: JobNotificationPayload }
+    }
 
 interface Block {
   type?: unknown
@@ -104,6 +119,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   let lastRunId: string | null = null
   /** trigger compact 的 Run：其错误不可重试（重试会重新执行上一轮对话），也不显示"生成中"。 */
   const compactRuns = new Set<string>()
+  /** assistant 消息带 usage 的 Run：结束后显示用量行。 */
+  const usageRuns = new Set<string>()
   // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
   let pendingCommand: CommandPayload | null = null
   const ranges = rewoundRanges(conversation.entries)
@@ -161,6 +178,24 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       pendingCommand = entry.payload
       return
     }
+    if (entry.kind === 'plan') {
+      items.push({ kind: 'plan', key: `${entry.seq}`, plan: entry.payload })
+      return
+    }
+    if (entry.kind === 'goal') {
+      items.push({ kind: 'goal', key: `${entry.seq}`, goal: entry.payload })
+      return
+    }
+    if (entry.kind === 'job_start' || entry.kind === 'job_end' || entry.kind === 'job_notification') {
+      const job =
+        entry.kind === 'job_start'
+          ? ({ kind: 'start', payload: entry.payload } as const)
+          : entry.kind === 'job_end'
+            ? ({ kind: 'end', payload: entry.payload } as const)
+            : ({ kind: 'notification', payload: entry.payload } as const)
+      items.push({ kind: 'job', key: `${entry.seq}`, job })
+      return
+    }
     if (entry.kind === 'run_end') {
       const payload = entry.payload
       // 未结束的工具在 Run 结束后不会再有结果。
@@ -176,6 +211,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           message: payload.error?.message ?? '',
           retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
         })
+      if (entry.runId && usageRuns.has(entry.runId)) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
       return
     }
     if (entry.kind === 'approval_request') {
@@ -216,6 +252,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),
       })
     } else if (message.role === 'assistant') {
+      if (entry.runId && 'usage' in message && message.usage) usageRuns.add(entry.runId)
       blocksOf(message.content).forEach((block, index) => {
         const key = `${entry.seq}:${index}`
         if (block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')

@@ -129,6 +129,8 @@ describe('命令展开', () => {
     expect(listed.commands.map((c) => [c.name, c.enabled])).toEqual([
       // 内置命令不受 commands.enabled 影响（/compact 是动作，不是提示模板）。
       ['compact', true],
+      ['goal', true],
+      ['plan', true],
       ['git:commit', false],
       ['review', false],
       ['hello', false],
@@ -144,6 +146,20 @@ describe('GET /api/commands', () => {
     expect(byWorkspace.body.commands).toEqual([
       // 内置命令随其动作接入列出（例如 /compact）。
       { name: 'compact', description: 'Summarize earlier messages to free up context', argumentHint: '[instructions]', source: 'builtin', enabled: true },
+      {
+        name: 'goal',
+        description: 'Set a goal the agent works toward over several rounds',
+        argumentHint: '[objective | pause | resume | cancel | complete]',
+        source: 'builtin',
+        enabled: true,
+      },
+      {
+        name: 'plan',
+        description: 'Plan before making changes (read-only until you approve)',
+        argumentHint: '[message | off]',
+        source: 'builtin',
+        enabled: true,
+      },
       {
         name: 'git:commit',
         description: 'Write a conventional commit message for the staged changes.',

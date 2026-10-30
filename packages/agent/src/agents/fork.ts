@@ -4,7 +4,10 @@ import { rewindTarget } from '../checkpoints/rewind.ts'
 import { effectiveEntries } from '../entries/index.ts'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
-/** 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。 */
+/**
+ * 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。Goal、Todo、计划与后台任务的条目属于原 Session，
+ * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。
+ */
 const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
 
 /**

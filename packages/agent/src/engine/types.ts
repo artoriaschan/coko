@@ -27,6 +27,10 @@ export type RunErrorCode =
   | 'commit_failed'
   /** Unexpected failure inside the runtime. */
   | 'internal'
+  /** Stopped by the host (stopAfterBatch, or a beforeRequest stop) because a budget is used up. */
+  | 'budget_exhausted'
+  /** Stopped by the host before a request: a cost limit is set but the model has no price. */
+  | 'cost_unpriced'
 
 export interface RunError {
   code: RunErrorCode
@@ -85,6 +89,15 @@ export interface RunInput {
   text: string
   content?: Exclude<UserMessage['content'], string>
   before?: RunEntry[]
+  /** run() only. Default submit; goal marks a Goal Round started by the host. Written to run_start. */
+  trigger?: 'submit' | 'goal'
+  /** run() only: the Goal and round of a Goal Round, written to run_start. */
+  goal?: { goalId: string; round: number }
+}
+
+/** Returned by `RuntimeContext.beforeRequest` to withhold the request: the Run ends paused with this error (see stopAfterBatch). */
+export interface RequestStop {
+  stop: RunError
 }
 
 /** State passed to `RuntimeContext.beforeRequest` immediately before every model request of a Run. */
@@ -99,12 +112,13 @@ export interface BeforeRequestState {
 /**
  * Host contributions to the model context (M3). `systemSections` is read once at the start of every Run and becomes the
  * leading system message's sections after the base prompt; `transformMessages` changes only the request, never the committed
- * entries; `beforeRequest` runs before every model request (usage checks, compaction).
+ * entries; `beforeRequest` runs before every model request, after automatic compaction (budget checks). Returning `{ stop }`
+ * withholds that request: nothing is sent, and the Run ends as after stopAfterBatch(stop).
  */
 export interface RuntimeContext {
   systemSections?(): Promise<SystemSection[]>
   transformMessages?(messages: AgentMessage[]): AgentMessage[]
-  beforeRequest?(state: BeforeRequestState): Promise<void>
+  beforeRequest?(state: BeforeRequestState): Promise<void | RequestStop>
 }
 
 /** `entry` is emitted after the host's commit resolved; `progress` is fire-and-forget. */
@@ -180,7 +194,7 @@ export interface RuntimePermissions {
 export interface AgentRuntime {
   /**
    * Submit a user message and resolve when the Run ended and its run_end entry was committed. `before` entries of a RunInput
-   * are committed after run_start and before the user message.
+   * are committed after run_start and before the user message; `trigger` and `goal` go into run_start.
    */
   run(input: string | RunInput): Promise<RunResult>
   /**
@@ -206,6 +220,12 @@ export interface AgentRuntime {
    * cancelled (those calls do not run), and the Run ends with status `paused`. Throws NoActiveRunError when no Run is in progress.
    */
   pause(): void
+  /**
+   * Host stop (Goal budgets): like pause(), the current tool batch completes, no new model request starts and pending approvals
+   * end as cancelled; the Run then ends with status `paused` and `error`, even when its last turn was text only. The first
+   * stop of a Run wins. Throws NoActiveRunError when no Run is in progress.
+   */
+  stopAfterBatch(error: RunError): void
   /**
    * Cancel the current Run; pending approvals end as cancelled, undelivered steering is returned in run_end, and the Run
    * ends with status `aborted` after tools have stopped.

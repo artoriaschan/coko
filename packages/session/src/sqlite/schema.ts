@@ -178,4 +178,24 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // M4：宿主启动的子进程登记（ADR 0012）。started_at 为 `ps -o lstart=` 原文，启动时核对同一 pid 是否仍是同一个进程。
+    // session_id / job_id 不设外键：登记行只在进程存活期间存在，MCP 进程不属于任何 Session。
+    version: 7,
+    up(db) {
+      db.exec(`
+        CREATE TABLE host_processes (
+          id         TEXT PRIMARY KEY,
+          pid        INTEGER NOT NULL CHECK (pid > 0),
+          pgid       INTEGER CHECK (pgid IS NULL OR pgid > 0),
+          started_at TEXT NOT NULL,
+          kind       TEXT NOT NULL CHECK (kind IN ('bash', 'job', 'pty', 'mcp')),
+          session_id TEXT,
+          job_id     TEXT,
+          command    TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        ) STRICT;
+      `)
+    },
+  },
 ]

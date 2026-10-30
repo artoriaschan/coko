@@ -1,8 +1,10 @@
-// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory；输入展开为 命令 → File Reference。
+// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory → plan → goal → todo；
+// 输入展开为 命令 → File Reference。
 import {
   composeAfterToolCall,
   composeBeforeToolCall,
   createToolRegistry,
+  type BeforeRequestState,
   type RunInput,
   type SystemSection,
   type ToolHooks,
@@ -13,11 +15,15 @@ import { getLogger } from '@coko/logging'
 import { ConfigService } from '../config.ts'
 import { commandsContribution } from './commands.ts'
 import { compactionContribution } from './compaction.ts'
+import { goalContribution } from './goal.ts'
 import { instructionsContribution } from './instructions.ts'
+import { jobsContribution } from './jobs.ts'
 import { mcpContribution } from './mcp.ts'
 import { memoryContribution } from './memory.ts'
+import { planContribution } from './plan.ts'
 import { referencesContribution } from './references.ts'
 import { skillsContribution } from './skills.ts'
+import { todoContribution } from './todo.ts'
 import type {
   ContextAction,
   ContextContribution,
@@ -26,7 +32,10 @@ import type {
   ContextScope,
   ContributedTool,
   ExpandResult,
+  PendingInput,
+  RequestVerdict,
   RuleTool,
+  RunEndInfo,
 } from './types.ts'
 import { usageContribution } from './usage.ts'
 
@@ -35,8 +44,8 @@ export type * from './types.ts'
 const log = getLogger(['application', 'context'])
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-/** system section 的顺序：指令 → Skills 索引 → Memory。 */
-const SECTION_ORDER = ['instructions', 'skills', 'memory']
+/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → todo。 */
+const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo']
 /** 输入展开的顺序：命令 → File Reference。 */
 const EXPAND_ORDER = ['commands', 'references']
 
@@ -52,6 +61,11 @@ export function createContributions(options: ContextContributionOptions): Contex
     memoryContribution(options),
     usageContribution(options),
     compactionContribution(options),
+    planContribution(options),
+    goalContribution(options),
+    todoContribution(options),
+    jobsContribution(options),
+    ...(options.extra ?? []),
   ]
   return contributions
 }
@@ -71,6 +85,12 @@ export interface ContextAssembly {
   readonly transformMessages: ((messages: AgentMessage[], scope: ContextScope) => AgentMessage[]) | undefined
   action(name: string): ContextAction | undefined
   report(scope: ContextScope): Promise<ContextReport[]>
+  /** 每次模型请求前按领域顺序检查，第一个 stop 为准；没有领域检查时 undefined。单个领域失败只记 warn（放行）。 */
+  readonly beforeRequest: ((state: BeforeRequestState, scope: ContextScope) => Promise<RequestVerdict>) | undefined
+  /** 各领域的待送达内容按领域顺序合并；没有时 undefined。 */
+  pendingInput(scope: ContextScope): Promise<PendingInput | undefined>
+  /** Run 结束后按领域顺序通知；单个失败只记 warn。 */
+  onRunEnd(scope: ContextScope, info: RunEndInfo): Promise<void>
   /** 各领域声明的规则工具（ContextContribution.ruleTools 的汇总）。 */
   readonly ruleTools: readonly RuleTool[]
   readonly contributions: readonly ContextContribution[]
@@ -101,6 +121,7 @@ export function createContextAssembly(options: {
     return out
   }
   const transforms = contributions.flatMap((c) => (c.transformMessages ? [c.transformMessages.bind(c)] : []))
+  const checks = contributions.filter((c) => c.beforeRequest)
   return {
     contributions,
     ruleTools: contributions.flatMap((c) => c.ruleTools ?? []),
@@ -125,6 +146,35 @@ export function createContextAssembly(options: {
     },
     transformMessages:
       transforms.length === 0 ? undefined : (messages, scope) => transforms.reduce((current, transform) => transform(current, scope), messages),
+    beforeRequest:
+      checks.length === 0
+        ? undefined
+        : async (state, scope) => {
+            for (const c of checks) {
+              const verdict = await guarded(c, 'beforeRequest', undefined as RequestVerdict, () => c.beforeRequest!(state, scope))
+              if (verdict) return verdict
+            }
+            return undefined
+          },
+    async pendingInput(scope) {
+      const parts: PendingInput[] = []
+      for (const c of contributions) {
+        if (!c.pendingInput) continue
+        const part = await guarded(c, 'pendingInput', undefined, () => c.pendingInput!(scope))
+        if (part) parts.push(part)
+      }
+      if (parts.length === 0) return undefined
+      return {
+        content: parts.flatMap((p) => p.content),
+        before: parts.flatMap((p) => p.before ?? []),
+        delivered: () => {
+          for (const part of parts) part.delivered()
+        },
+      }
+    },
+    async onRunEnd(scope, info) {
+      for (const c of contributions) if (c.onRunEnd) await guarded(c, 'onRunEnd', undefined, () => c.onRunEnd!(scope, info))
+    },
     action(name) {
       for (const c of contributions) if (c.actions && Object.hasOwn(c.actions, name)) return c.actions[name]
       return undefined

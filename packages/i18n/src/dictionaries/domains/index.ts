@@ -2,12 +2,17 @@
 import { commands } from './commands.ts'
 import { config } from './config.ts'
 import { context } from './context.ts'
+import { goal } from './goal.ts'
+import { jobs } from './jobs.ts'
 import { mcp } from './mcp.ts'
 import { memory } from './memory.ts'
+import { plan } from './plan.ts'
 import { references } from './references.ts'
 import { skills } from './skills.ts'
+import { todo } from './todo.ts'
+import { usage } from './usage.ts'
 
-const DOMAINS = { commands, config, context, mcp, memory, references, skills }
+const DOMAINS = { commands, config, context, goal, jobs, mcp, memory, plan, references, skills, todo, usage }
 
 type Domains = typeof DOMAINS
 export type DomainDictionary = { [K in keyof Domains]: Domains[K]['zh'] }

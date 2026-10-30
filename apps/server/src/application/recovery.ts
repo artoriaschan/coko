@@ -29,6 +29,14 @@ export interface RecoveryReport {
   interruptedRuns: number
   pendingConfirmations: number
   failedSessions: number
+  /** 各领域恢复钩子的结果（例如 jobs：补记 lost 的 Job 数，goals：暂停的 Goal 数）。 */
+  domains: Record<string, number>
+}
+
+/** Session 恢复之后按顺序调用的领域恢复钩子（后台任务、Goal）；单个失败记错误，不阻止启动。 */
+export interface RecoveryHook {
+  name: string
+  recover(source: RecoverySource): Promise<number>
 }
 
 export interface SessionRecoveryOptions {
@@ -73,9 +81,9 @@ export class SessionRecovery {
    * 最后一条 run_end 建立 activity，使未打开的 Session 在列表中也显示 interrupted / paused / awaiting-confirmation。
    * 单个 Session 失败不阻止启动：记错误，该 Session 在恢复成功之前拒绝 Run、回退与分叉（recovery-failed），下次操作时重试。
    */
-  async recover(source: RecoverySource): Promise<RecoveryReport> {
+  async recover(source: RecoverySource, hooks: readonly RecoveryHook[] = []): Promise<RecoveryReport> {
     const { store, runtimes } = this.#options
-    const report: RecoveryReport = { interruptedRuns: 0, pendingConfirmations: 0, failedSessions: 0 }
+    const report: RecoveryReport = { interruptedRuns: 0, pendingConfirmations: 0, failedSessions: 0, domains: {} }
     const bySession = new Map<string, string[]>()
     for (const run of await source.listUnfinishedRuns()) bySession.set(run.sessionId, [...(bySession.get(run.sessionId) ?? []), run.runId])
     for (const [sessionId, runIds] of bySession) {
@@ -95,6 +103,14 @@ export class SessionRecovery {
       // 待确认只出现在被中断的 Run 之后（之前的确认未回答时不能开始新 Run）。
       if (status === 'interrupted' && unansweredConfirmations(await store.sessions.listEntries(end.sessionId)).length > 0)
         this.#awaitingConfirmation.add(end.sessionId)
+    }
+    // 领域恢复在 Session 恢复之后：Job 先补记 lost，Goal 再暂停（等待中的 Job 已结束）。
+    for (const hook of hooks) {
+      try {
+        report.domains[hook.name] = await hook.recover(source)
+      } catch (error) {
+        log.error('domain recovery failed', { domain: hook.name, error: error instanceof Error ? error.message : String(error) })
+      }
     }
     return report
   }

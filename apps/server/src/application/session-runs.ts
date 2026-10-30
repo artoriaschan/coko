@@ -1,8 +1,9 @@
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
-// 交给 RunLauncher 受管执行。
+// 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
+  BUILTIN_COMMANDS,
   createAgentRuntime,
   createBuiltinToolRegistry,
   createLocalExecPort,
@@ -11,9 +12,11 @@ import {
   NoActiveRunError,
   NothingToContinueError,
   NothingToRetryError,
+  parseCommandInvocation,
   type AgentRuntime,
   type ModelRegistry,
   type RunEntry,
+  type RunInput,
   type RunResult,
   type SecretProvider,
   type ToolHooks,
@@ -22,7 +25,17 @@ import {
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
-import { dynamicHooks, layeredTools, type ContextAssembly, type ContextScope } from './context/index.ts'
+import {
+  dynamicHooks,
+  layeredTools,
+  type ActionResult,
+  type ContextAction,
+  type ContextActionSession,
+  type ContextAssembly,
+  type ContextScope,
+  type PendingInput,
+  type RunRequest,
+} from './context/index.ts'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
 import type { SessionRecovery } from './recovery.ts'
@@ -32,6 +45,30 @@ import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'sessions'])
+
+/** 待送达内容合并到 user message 开头；其 before 条目排在输入自身的 before（例如 command）之前。 */
+function withPending(input: RunInput, pending: PendingInput | undefined): RunInput {
+  if (!pending || (pending.content.length === 0 && (pending.before ?? []).length === 0)) return input
+  const content = [...pending.content, ...(input.content ?? [{ type: 'text' as const, text: input.text }])]
+  const before = [...(pending.before ?? []), ...(input.before ?? [])]
+  return { ...input, content, ...(before.length > 0 ? { before } : {}) }
+}
+
+/** 按请求在运行时上开始 Run（run() 在第一个 await 之前同步发出 run_start）。 */
+function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInput | undefined): Promise<RunResult> {
+  switch (request.trigger) {
+    case 'submit':
+      return runtime.run(withPending(request.input, pending))
+    case 'goal':
+      return runtime.run({ ...withPending(request.input, pending), trigger: 'goal', goal: request.goal })
+    case 'retry':
+      return runtime.retry()
+    case 'continue':
+      return runtime.continue()
+    case 'compact':
+      return runtime.compact(request.instructions)
+  }
+}
 
 /** 受管的 Run 执行：关闭 sidecar 时中断并等待 Run 结束（run_end 已提交）。由 runtime 层用 Effect 实现。 */
 export interface RunLauncher {
@@ -103,7 +140,15 @@ export class SessionRuns {
     return this.#options.context.scope({ workspaceId: session.workspaceId, cwd: workspace.path, sessionId: session.id, permissionRules })
   }
 
-  async start(sessionId: string, start: (runtime: AgentRuntime) => Promise<RunResult>): Promise<{ runId: string }> {
+  /**
+   * 开始一个 Run 并立即返回 runId（统一入口）。submit 与 goal 的 user message 开头合并各领域的待送达内容（pendingInput），
+   * 其 before 条目排在输入自身的 before 之前；Run 开始之后才确认送达，没能开始时内容留到下一次。Run 结束后通知各领域（onRunEnd）。
+   */
+  startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }> {
+    return this.#start(sessionId, request)
+  }
+
+  async #start(sessionId: string, request: RunRequest): Promise<{ runId: string }> {
     const { store, recovery, models, context, checkpoints } = this.#options
     let session = await requireSession(store, sessionId)
     await recovery.ensureRecovered(sessionId)
@@ -123,6 +168,7 @@ export class SessionRuns {
     const scope = await this.scope(session)
     const [contributed, readRoots] = await Promise.all([context.tools(scope), context.readRoots(scope)])
     const hooks = context.hooks(scope)
+    const pending = request.trigger === 'submit' || request.trigger === 'goal' ? await context.pendingInput(scope) : undefined
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
@@ -141,7 +187,7 @@ export class SessionRuns {
     const off = runtime.subscribe((event) => {
       if (event.kind === 'progress' && event.event.type === 'run_start') runId ??= event.event.runId
     })
-    const run = start(runtime)
+    const run = launch(runtime, request, pending)
     off()
     if (runId === undefined) {
       const error = await run.then(
@@ -153,6 +199,7 @@ export class SessionRuns {
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
     const started = runId
+    pending?.delivered()
     log.info('run started', {
       sessionId,
       runId: started,
@@ -160,19 +207,62 @@ export class SessionRuns {
       modelId: session.model!.modelId,
       thinkingLevel: models.effectiveLevel(session),
     })
+    const goal = request.trigger === 'goal' ? request.goal : undefined
     const done = run.then(
-      (result) =>
+      async (result) => {
         log.info('run ended', {
           sessionId,
           runId: started,
           status: result.status,
           ...(result.error ? { error: result.error } : {}),
           ...(result.undeliveredSteering ? { undeliveredSteering: result.undeliveredSteering.length } : {}),
-        }),
+        })
+        // 关闭时 RunLauncher 等待到这里：领域在 Run 结束后的处理（例如 Goal 推进的判定）也在关闭存储之前完成。
+        await context.onRunEnd(scope, { sessionId, runId: started, trigger: request.trigger, ...(goal ? { goal } : {}), result })
+      },
       (error: unknown) => log.error('run failed', { sessionId, runId: started, error: String(error) }),
     )
     this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
     return { runId: started }
+  }
+
+  /**
+   * 提交一条消息：开始一个 Run 并立即返回 runId，或执行不开始 Run 的动作（{ done: true }）；Run 的条目与进度经 hub 推送。Run 进行中
+   * 不展开输入（展开可能调用 MCP prompts/get、读取 Skill 与引用的文件）：只查内置命令表，声明 Run 中可用的动作（例如 /goal pause）照常
+   * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
+   * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
+   */
+  async submit(sessionId: string, text: string): Promise<ActionResult> {
+    const { store, runtimes, context } = this.#options
+    const session = await requireSession(store, sessionId)
+    if (runtimes.isRunning(sessionId)) {
+      const invocation = parseCommandInvocation(text)
+      const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
+      const action = builtin ? context.action(builtin.action) : undefined
+      if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
+      throw new AppError('run-in-progress', 'A Run is in progress')
+    }
+    const expanded = await context.expandInput(text, await this.scope(session))
+    if (expanded.kind === 'input') return this.startRun(sessionId, { trigger: 'submit', input: expanded.input })
+    const action = context.action(expanded.name)
+    if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
+    if (runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')
+    return this.#act(session, action, expanded.args)
+  }
+
+  async #act(session: StoredSession, action: ContextAction, args: string): Promise<ActionResult> {
+    const sessionId = session.id
+    const actions: ContextActionSession = {
+      entries: () => this.#options.store.sessions.listEntries(sessionId),
+      start: (request) => this.startRun(sessionId, request),
+      submit: async (text) => {
+        const result = await this.submit(sessionId, text)
+        if (!('runId' in result)) throw new AppError('bad-request', 'The message did not start a Run')
+        return result
+      },
+      running: () => this.#options.runtimes.isRunning(sessionId),
+    }
+    return action({ scope: await this.scope(session), sessionId, args, session: actions })
   }
 
   /** 把追加指令送进当前 Run（先经上下文装配展开；展开为动作时 bad-request）；没有进行中的 Run 时 no-active-run。 */
@@ -255,6 +345,8 @@ export class SessionRuns {
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
+        // 预算等请求前检查（各领域的 beforeRequest）；没有领域检查时放行。
+        beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),
         // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。
         transformMessages: (messages: AgentMessage[]) => {
           const redacted = redactModelMessages(messages)

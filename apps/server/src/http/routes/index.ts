@@ -3,6 +3,8 @@ import { commandsRoutes } from './commands.ts'
 import { configRoutes } from './config.ts'
 import { contextRoutes } from './context.ts'
 import { filesRoutes } from './files.ts'
+import { goalsRoutes } from './goals.ts'
+import { jobsRoutes } from './jobs.ts'
 import { mcpRoutes } from './mcp.ts'
 import { memoriesRoutes } from './memories.ts'
 import { secretsRoutes } from './secrets.ts'
@@ -18,4 +20,6 @@ export const DOMAIN_ROUTES: readonly DomainRoutes[] = [
   secretsRoutes,
   memoriesRoutes,
   contextRoutes,
+  goalsRoutes,
+  jobsRoutes,
 ]

@@ -4,7 +4,11 @@ import { ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
+import { GoalRow } from './goal-row.tsx'
+import { JobRow } from './job-row.tsx'
 import { Markdown } from './markdown.tsx'
+import { PlanCard } from './plan-card.tsx'
+import { RunUsageRow } from './run-usage-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ToolCardView } from './tool-cards.tsx'
 
@@ -241,6 +245,14 @@ export function TimelineView(props: TimelineViewProps) {
                 )}
               </div>
             )
+          case 'plan':
+            return <PlanCard key={item.key} item={item} />
+          case 'goal':
+            return <GoalRow key={item.key} item={item} />
+          case 'job':
+            return <JobRow key={item.key} item={item} />
+          case 'run-usage':
+            return <RunUsageRow key={item.key} item={item} />
         }
       })}
     </>

@@ -1,9 +1,21 @@
 // 内存实现：语义与 SQLite 实现一致（同一组契约测试），用于单元测试；不持久化。
 import { randomUUID } from 'node:crypto'
-import { alreadyExists, checkMemoryScope, closedError, defaultWorkspaceName, levelOf, notFound, revisionConflict, upgradeEntries } from '../internal.ts'
+import {
+  alreadyExists,
+  checkHostProcess,
+  checkMemoryScope,
+  closedError,
+  defaultWorkspaceName,
+  levelOf,
+  notFound,
+  revisionConflict,
+  upgradeEntries,
+} from '../internal.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
+  HostProcess,
+  HostProcessInput,
   JsonValue,
   Memory,
   MemoryInput,
@@ -37,6 +49,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   /** 插入顺序即 rowid 顺序（与 SQLite 的同时间戳排序一致）。 */
   const memories = new Map<string, Memory>()
   const secrets = new Map<string, SecretInfo & { ciphertext: Uint8Array }>()
+  /** 插入顺序即登记顺序。 */
+  const processes = new Map<string, HostProcess>()
 
   // 读写都复制，调用方修改返回值不影响已提交的状态。
   const copy = <T>(value: T): T => structuredClone(value)
@@ -245,6 +259,29 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       delete: op((name: string) => {
         if (!secrets.delete(name)) throw notFound('secret', name)
       }),
+    },
+    processes: {
+      register: op((input: HostProcessInput) => {
+        const { pgid, sessionId, jobId } = checkHostProcess(input)
+        if (processes.has(input.id)) throw alreadyExists('process', input.id)
+        const process: HostProcess = {
+          id: input.id,
+          pid: input.pid,
+          pgid,
+          startedAt: input.startedAt,
+          kind: input.kind,
+          sessionId,
+          jobId,
+          command: input.command,
+          createdAt: now(),
+        }
+        processes.set(process.id, process)
+        return process
+      }),
+      remove: op((id: string) => {
+        processes.delete(id)
+      }),
+      list: op(() => [...processes.values()].sort((a, b) => a.createdAt - b.createdAt)),
     },
     async close() {
       closed = true

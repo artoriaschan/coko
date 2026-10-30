@@ -1,5 +1,18 @@
 import { appendFile, readFile } from 'node:fs/promises'
-import { fauxAssistantMessage, fauxProvider, fauxText, fauxThinking, fauxToolCall, type FauxResponseStep } from '@earendil-works/pi-ai'
+import {
+  createFauxCore,
+  createProvider,
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+  type AssistantMessage,
+  type AssistantMessageEventStream,
+  type FauxResponseStep,
+  type StreamFunction,
+  type StreamOptions,
+  type Usage,
+} from '@earendil-works/pi-ai'
 import type { ModelRegistry } from '@coko/agent'
 import type { SessionModel } from '@coko/protocol'
 
@@ -25,6 +38,18 @@ export interface FauxScriptResponse {
   /** 默认：含 toolCall 时为 toolUse，否则 stop。 */
   stopReason?: 'stop' | 'length' | 'toolUse' | 'error'
   errorMessage?: string
+  /**
+   * 这条回复的 usage（替换 faux 按字符估算的值）；省略的字段为 0，totalTokens 为四项之和。用量、预算与费用测试用。
+   */
+  usage?: FauxScriptUsage
+}
+
+export interface FauxScriptUsage {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; total?: number }
 }
 
 export type FauxScriptBlock =
@@ -35,6 +60,24 @@ export type FauxScriptBlock =
 export const FAUX_PROVIDER_ID = 'faux'
 export const FAUX_MODEL_ID = 'faux-1'
 
+/** 脚本给出的 usage 经 responseId 带过 faux 的复制与估算，在流结束前换回（responseId 随之清除）。 */
+const USAGE_MARKER = 'coko-faux-usage:'
+
+export function toUsage(input: FauxScriptUsage): Usage {
+  const tokens = { input: input.input ?? 0, output: input.output ?? 0, cacheRead: input.cacheRead ?? 0, cacheWrite: input.cacheWrite ?? 0 }
+  const cost = {
+    input: input.cost?.input ?? 0,
+    output: input.cost?.output ?? 0,
+    cacheRead: input.cost?.cacheRead ?? 0,
+    cacheWrite: input.cost?.cacheWrite ?? 0,
+  }
+  return {
+    ...tokens,
+    totalTokens: tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite,
+    cost: { ...cost, total: input.cost?.total ?? cost.input + cost.output + cost.cacheRead + cost.cacheWrite },
+  }
+}
+
 function toStep(response: FauxScriptResponse): FauxResponseStep {
   const blocks = typeof response.content === 'string' ? [{ type: 'text' as const, text: response.content }] : response.content
   const content = blocks.map((block) => {
@@ -43,7 +86,31 @@ function toStep(response: FauxScriptResponse): FauxResponseStep {
     return fauxToolCall(block.name, block.arguments as never, block.id ? { id: block.id } : {})
   })
   const stopReason = response.stopReason ?? (blocks.some((block) => block.type === 'toolCall') ? 'toolUse' : 'stop')
-  return fauxAssistantMessage(content, { stopReason, ...(response.errorMessage ? { errorMessage: response.errorMessage } : {}) })
+  return fauxAssistantMessage(content, {
+    stopReason,
+    ...(response.errorMessage ? { errorMessage: response.errorMessage } : {}),
+    ...(response.usage ? { responseId: USAGE_MARKER + JSON.stringify(response.usage) } : {}),
+  })
+}
+
+/** 把脚本的 usage 换回到结束消息上（done / error 事件与 end 共用同一个消息对象）。 */
+function restoreUsage(message: AssistantMessage | undefined): void {
+  if (!message?.responseId?.startsWith(USAGE_MARKER)) return
+  message.usage = toUsage(JSON.parse(message.responseId.slice(USAGE_MARKER.length)) as FauxScriptUsage)
+  delete message.responseId
+}
+
+function withScriptedUsage<O extends StreamOptions>(stream: StreamFunction<string, O>): StreamFunction<string, O> {
+  return ((model, context, options) => {
+    const events = stream(model, context, options) as AssistantMessageEventStream
+    const push = events.push.bind(events)
+    events.push = (event) => {
+      if (event.type === 'done') restoreUsage(event.message)
+      else if (event.type === 'error') restoreUsage(event.error)
+      push(event)
+    }
+    return events
+  }) as StreamFunction<string, O>
 }
 
 /** 读取脚本并把 faux provider 注册进 registry；返回其模型，作为没有默认设置时的 Session 模型。 */
@@ -54,7 +121,7 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
     const value = script[key]
     if (value !== undefined && !(Number.isInteger(value) && value > 0)) throw new Error(`Faux script ${key} must be a positive integer`)
   }
-  const faux = fauxProvider({
+  const core = createFauxCore({
     provider: FAUX_PROVIDER_ID,
     models: [
       {
@@ -67,7 +134,7 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),
   })
   const log = script.requestLog
-  faux.setResponses(
+  core.setResponses(
     script.responses.map((response) => {
       const step = toStep(response)
       if (!log) return step
@@ -77,6 +144,18 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
       }
     }),
   )
-  registry.models.setProvider(faux.provider)
+  registry.models.setProvider(
+    createProvider({
+      id: core.provider,
+      auth: { apiKey: { name: 'Faux', resolve: async () => ({ auth: {} }) } },
+      models: core.models,
+      api: {
+        stream: withScriptedUsage(core.stream),
+        streamSimple: withScriptedUsage(core.streamSimple),
+        fetchDeferred: core.fetchDeferred,
+        cancelDeferred: core.cancelDeferred,
+      },
+    }),
+  )
   return { providerId: FAUX_PROVIDER_ID, modelId: FAUX_MODEL_ID }
 }

@@ -1,5 +1,5 @@
 // 权限判定（ADR 0005）：纯函数，输入一次调用与当时的模式、规则、Workspace 与可写根，输出 allow / deny / ask。
-// 顺序固定：拒绝规则 → 询问规则 → 受保护路径 → 越出可写根的文件写入 → 模式放行 → 允许规则 → 询问。
+// 顺序固定：拒绝规则 → 询问规则 → 受保护路径 → 越出可写根的文件写入 → （plan-exit 总询问）→ 模式放行 → 允许规则 → 询问。
 import { homedir } from 'node:os'
 import { relative, sep } from 'node:path'
 import type { PermissionMode, PermissionRule } from '../session-entries/index.ts'
@@ -8,14 +8,15 @@ import { analyzeCommand, commandMatches, literalPathPattern, pathContains, pathM
 export { pathContains } from './rules.ts'
 
 /**
- * 权限类（M3，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
+ * 权限类（M3 起，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
  * read / edit / bash 是内置工具的类；context-read（skill、memory_list、MCP 资源）所有模式放行；memory-write（规则组名 Memory）在
- * accept-edits 与 full-access 放行；external（mcp__*）只在 full-access 放行。
+ * accept-edits 与 full-access 放行；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
+ * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。
  */
-export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external'
+export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit'
 
 /** 判定分组；规则以组名（Read、Edit、Bash、Memory）书写，skill 工具为 Skill，其余工具按原名。 */
-export type ToolCategory = 'read' | 'write' | 'command' | 'context-read' | 'memory-write' | 'external' | 'other'
+export type ToolCategory = 'read' | 'write' | 'command' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit' | 'other'
 
 const CATEGORY: Record<string, ToolCategory> = { read: 'read', grep: 'read', find: 'read', ls: 'read', write: 'write', edit: 'write', bash: 'command' }
 const CLASS_CATEGORY: Record<PermissionClass, ToolCategory> = {
@@ -25,6 +26,8 @@ const CLASS_CATEGORY: Record<PermissionClass, ToolCategory> = {
   'context-read': 'context-read',
   'memory-write': 'memory-write',
   external: 'external',
+  'session-state': 'session-state',
+  'plan-exit': 'plan-exit',
 }
 const RULE_TOOL: Partial<Record<ToolCategory, string>> = { read: 'Read', write: 'Edit', command: 'Bash', 'memory-write': 'Memory' }
 
@@ -193,7 +196,8 @@ const readable = (real: string, context: PermissionContext) =>
 
 function modeAllows(facts: Facts): boolean {
   const { category, call, context } = facts
-  if (category === 'context-read') return true
+  if (category === 'context-read' || category === 'session-state') return true
+  if (category === 'plan-exit') return false
   const target = call.target
   const readInside = category === 'read' && target !== undefined && readable(target.real, context)
   switch (context.mode) {
@@ -273,6 +277,9 @@ export function decide(call: PermissionCall, context: PermissionContext): Permis
     if (isProtectedPath(target)) return { behavior: 'ask', reason: 'protected-path', suggestions: [] }
     if (!context.writableRoots.some((root) => pathContains(root, target.real))) return { behavior: 'ask', reason: 'outside-writable-roots', suggestions: [] }
   }
+
+  // 提交计划是交给用户审阅的动作：模式与允许规则都不能免掉审批，也不建议保存为规则。
+  if (category === 'plan-exit') return { behavior: 'ask', reason: 'approval-required', suggestions: [] }
 
   if (modeAllows(facts)) return { behavior: 'allow' }
   const allows = own.filter((rule) => rule.behavior === 'allow')
