@@ -90,4 +90,93 @@ describe('秘密不外泄总闸：Hook', () => {
       expect(leaksIn(channels, { 'registered secret': value })).toEqual([])
     },
   )
+
+  it(
+    'UserPromptSubmit 与 Stop：提示含 Secret 时 Hook 的 stdin 与 requestLog 为脱敏值；additionalContext 与 Stop 的反馈中的 Secret 在条目、WS、库、日志与 requestLog 中替换',
+    { timeout: 90_000 },
+    async () => {
+      // typed：用户在提示中输入（用户消息按原文入库，ADR 0007）；value：Hook 从 Workspace 文件读出、经输出交回。
+      const typed = 'typed-token-' + randomBytes(12).toString('hex')
+      const value = 'feedback-token-' + randomBytes(12).toString('hex')
+      const root = await tempDir()
+      const hooksDir = join(root, 'hooks')
+      await mkdir(hooksDir)
+      const dirs = await sidecarDirs()
+      const requestLog = join(root, 'requests.jsonl')
+      await writeFile(requestLog, '')
+      const script = await fauxScript(root, { requestLog, responses: [{ content: 'first' }, { content: 'second' }] })
+      const sidecar = await startSidecar({
+        dirs,
+        ipc: false,
+        env: { COKO_FAUX_SCRIPT: script, COKO_SECRET_DEPLOY_TOKEN: typed, COKO_SECRET_FEEDBACK_TOKEN: value },
+      })
+      const cookie = await exchange(sidecar)
+      const bodies: string[] = []
+      const api = recordingClient(sidecar, cookie, bodies)
+      const stream = await connect(sidecar, cookie)
+      await writeFile(join(root, '.value'), value)
+      const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+      const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+      const ups = q(join(hooksDir, 'ups-stdin.jsonl'))
+      const stop = q(join(hooksDir, 'stop-stdin.jsonl'))
+      const hooks = {
+        // 记录 stdin，并把 Workspace 中的值作为 additionalContext 交回。
+        UserPromptSubmit: [
+          { hooks: [{ type: 'command', command: `cat >> ${ups}; printf '{"hookSpecificOutput":{"additionalContext":"ctx=%s"}}' "$(cat .value)"` }] },
+        ],
+        // 第一次 Stop：把值作为 exit 2 的 stderr 交回（Run 继续，反馈作为 user message 送达）。
+        Stop: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command: `cat >> ${stop}; if [ ! -f .stopped ]; then touch .stopped; printf 'feedback=%s' "$(cat .value)" >&2; exit 2; fi`,
+              },
+            ],
+          },
+        ],
+      }
+      expect((await api.put(hookPaths.hooks, { hooks, expectedRevision: 0 })).status).toBe(200)
+      stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+      await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+      expect((await api.post(apiPaths.sessionMessages(sessionId), { text: `deploy with ${typed}` })).status).toBe(202)
+      await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'run_end'), 30_000)
+
+      // 前置：每个通道确实被驱动。
+      const upsStdin = await readFile(join(hooksDir, 'ups-stdin.jsonl'), 'utf8')
+      expect(upsStdin).toContain('"prompt":"deploy with [REDACTED:secret]"')
+      const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
+      expect(requests).toHaveLength(2)
+      expect(requests[0]).toContain('ctx=[REDACTED:secret]')
+      expect(requests[1]).toContain('Stop hook feedback:\\nfeedback=[REDACTED:secret]')
+      const runs = stream
+        .entries(sessionId)
+        .filter((e) => e.kind === 'hook_run')
+        .map((e) => e.payload as { event: string; outcome: string; message?: string })
+      expect(runs.map((r) => [r.event, r.outcome, r.message])).toEqual([
+        ['UserPromptSubmit', 'context', 'ctx=[REDACTED:secret]'],
+        ['Stop', 'continued', 'feedback=[REDACTED:secret]'],
+      ])
+
+      sidecar.child.kill('SIGTERM')
+      expect(await sidecar.exited).toEqual({ code: 0, signal: null })
+      const files = await persisted(dirs, { extraDirs: { hooks: hooksDir } })
+      expect(files.filter((f) => f.name.startsWith('hooks/'))).toHaveLength(2)
+      const channels: [string, string | Buffer][] = [
+        ...stream.frames.map((frame, i): [string, string] => ['ws frame ' + i, frame]),
+        ...bodies.map((body, i): [string, string] => ['http body ' + i, body]),
+        ...requests.map((line, i): [string, string] => ['model request ' + i, line]),
+        ...files.map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
+        ['sidecar stderr', sidecar.stderr()],
+      ]
+      expect(leaksIn(channels, { 'hook output secret': value })).toEqual([])
+      // 用户输入的明文只在用户自己的消息中（入库、推送与 HTTP 读回）；Hook 的 stdin、模型请求、日志与 stderr 中没有。
+      const outbound: [string, string | Buffer][] = [
+        ...requests.map((line, i): [string, string] => ['model request ' + i, line]),
+        ...files.filter((f) => f.name.startsWith('hooks/') || f.name.includes('log')).map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
+        ['sidecar stderr', sidecar.stderr()],
+      ]
+      expect(leaksIn(outbound, { 'typed secret': typed })).toEqual([])
+    },
+  )
 })
