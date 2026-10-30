@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
 import { JobsButton } from './jobs-button.tsx'
+import { SchedulesButton } from './schedules-button.tsx'
 import { SessionCost } from './session-cost.tsx'
 
 /** 会话标题栏的操作 id：后台任务按钮（running 数徽标）、Session 费用，以及 M5 的子代理、定时任务与交接。 */
@@ -28,7 +29,7 @@ export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'jobs', Component: JobsButton, available: true },
   { id: 'cost', Component: SessionCost, available: true },
   { id: 'agents', Component: Unavailable, available: false },
-  { id: 'schedules', Component: Unavailable, available: false },
+  { id: 'schedules', Component: SchedulesButton, available: true },
   { id: 'handoff', Component: Unavailable, available: false },
 ]
 
