@@ -21,11 +21,11 @@ import { DOCK_SLOTS } from './dock-slots.ts'
 
 afterEach(() => rightPanelTabStore.setState({ selected: null }))
 
-it('注册表的占位都未交付：todo、goal、queue；jobs、cost；plan、jobs', () => {
+it('注册表：todo、queue 已交付，goal 未交付；jobs、cost；plan、jobs 未交付', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
-    ['todo', false],
+    ['todo', true],
     ['goal', false],
-    ['queue', false],
+    ['queue', true],
   ])
   expect(HEADER_ACTIONS.map((a) => [a.id, a.available])).toEqual([
     ['jobs', false],
@@ -37,7 +37,7 @@ it('注册表的占位都未交付：todo、goal、queue；jobs、cost；plan、
   ])
 })
 
-it('应用中：会话打开后没有 dock、标题栏操作与 Plan chip；右栏只有空状态，没有 tab 列表', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位，没有标题栏操作与 Plan chip；右栏只有空状态，没有 tab 列表', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -56,7 +56,8 @@ it('应用中：会话打开后没有 dock、标题栏操作与 Plan chip；右�
   )
   await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
   await expect.element(page.getByRole('textbox')).toBeVisible()
-  expect(document.querySelector('[data-slot="dock"]')).toBeNull()
+  // 待办卡与队列卡已交付，但 s-1 没有待办与追加指令：容器为空，empty:hidden 不占位。
+  expect(getComputedStyle(document.querySelector('[data-slot="dock"]')!).display).toBe('none')
   expect(document.querySelector('[data-slot="header-actions"]')).toBeNull()
   await userEvent.click(page.getByRole('button', { name: 'Open right panel' }))
   await expect.element(page.getByText('Select a file or change to preview it here')).toBeVisible()
