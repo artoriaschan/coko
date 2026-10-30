@@ -491,7 +491,8 @@ function approvalCancelled(entries: readonly StoredEntry[], runId: string): bool
  * - 预算停止（budget_exhausted、cost_unpriced）→ budget-exhausted / blocked；
  * - Goal Round 以 error 结束 → failed（不自动重试）；
  * - running 时 Run 被停止（aborted，或 paused 且没有 error）→ Goal Round 停止时仍有等待回答的审批为 waiting-input，否则 paused（user-stopped）；
- * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running。
+ * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running；Goal 在本 Run 之中才进入 waiting-input 的（模型在这个 Run 里调用了
+ *   wait_input）不唤醒：它等的用户输入还没有到来。
  */
 function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly StoredEntry[]): GoalChange | undefined {
   const { result, trigger } = info
@@ -508,8 +509,22 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
       return { type: 'wait-input', reason: { code: 'approval-unanswered', message: 'The goal round stopped while an approval was waiting for an answer' } }
     return { type: 'pause', reason: { code: 'user-stopped', message: 'The run was stopped by the user' } }
   }
-  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed') return { type: 'wake' }
+  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed' && waitingBefore(goal, info.runId, entries)) return { type: 'wake' }
   return undefined
+}
+
+/** Goal 进入当前这段 waiting-input 的快照（之后的 edit 不改变阶段）是否早于该 Run 的 run_start。 */
+function waitingBefore(goal: GoalPayload, runId: string, entries: readonly StoredEntry[]): boolean {
+  const started = entries.find((e) => e.kind === 'run_start' && e.runId === runId)?.seq
+  let entered: number | undefined
+  for (const e of entries) {
+    if (e.kind !== 'goal') continue
+    const snapshot = e.payload as unknown as GoalPayload
+    if (snapshot.id !== goal.id) continue
+    if (snapshot.phase !== 'waiting-input') entered = undefined
+    else entered ??= e.seq
+  }
+  return started !== undefined && entered !== undefined && entered < started
 }
 
 const stopped = (result: RunResult) => result.status === 'aborted' || (result.status === 'paused' && !result.error)

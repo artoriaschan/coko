@@ -282,6 +282,50 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('用户提交的 Run 中调用 wait_input：Run 结束后 Goal 仍为 waiting-input、不开始 Goal Round；用户再提交后回到 running 并推进', async () => {
+    const { sidecar, api, stream, workspaceId } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 1 } })] },
+      { content: 'set' },
+      { content: 'r1' },
+      // 用户的 Run（Goal 为 budget-exhausted 时开始）：执行期间用户调高上限并恢复，之后模型调用 wait_input。
+      { content: [call('bash', 'b1', { command: 'sleep 2' })] },
+      { content: [call('update_goal', 'wi', { goal_id: 'goal-1', revision: 4, action: 'wait_input', reason: 'which database?' })] },
+      { content: 'which database should I use?' },
+      // 用户回答之后的 Run 与 Goal Round 2。
+      { content: 'noted' },
+      { content: 'r2' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId, 'full-access')
+    await submit(api, sessionId, 'go')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 2, 30_000)
+    expect((await action(api, sessionId, { action: 'edit', revision: 2, budget: { maxRounds: 2 } })).status).toBe(200)
+
+    await submit(api, sessionId, 'look at the schema')
+    await stream.waitFor(() => of(stream, sessionId, 'tool_exec').length >= 2, 30_000)
+    // Run 进行中恢复：Goal 回到 running，推进等这个 Run 结束后再判定。
+    expect((await action(api, sessionId, { action: 'resume', revision: 3 })).body.goal).toMatchObject({ phase: 'running', revision: 4 })
+    await waitGoal(stream, sessionId, (g) => g.phase === 'waiting-input')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length >= 3, 30_000)
+    // 推进的判定在 run_end 之后、同一把锁内：经 Goal 的动作接口排在它之后（revision 不符的 pause 返回 409），再看没有新的 Run。
+    expect((await action(api, sessionId, { action: 'pause', revision: 1 })).status).toBe(409)
+    expect((await api.get(goalPaths.sessionGoal(sessionId))).body.goal).toMatchObject({ phase: 'waiting-input', revision: 5, reason: { code: 'needs-input' } })
+    expect((await api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: false })
+    expect(starts(stream, sessionId)).toHaveLength(3)
+
+    await submit(api, sessionId, 'use sqlite')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted' && g.revision > 5)
+    expect(phases(stream, sessionId)).toEqual(['running', 'budget-exhausted', 'budget-exhausted', 'running', 'waiting-input', 'running', 'budget-exhausted'])
+    expect(starts(stream, sessionId)).toEqual([
+      { trigger: 'submit' },
+      { trigger: 'goal', goal: { goalId: 'goal-1', round: 1 } },
+      { trigger: 'submit' },
+      { trigger: 'submit' },
+      { trigger: 'goal', goal: { goalId: 'goal-1', round: 2 } },
+    ])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('wait_jobs：Goal 进入 waiting-external，等待的 Job 结束后下一轮开始（通知合并在 <goal_round> 之前）；job_start 带 goalId', async () => {
     const { sidecar, api, stream, workspaceId, requests } = await boot([
       { content: [createGoal(['build succeeds'])] },
