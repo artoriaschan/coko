@@ -21,23 +21,23 @@ import { DOCK_SLOTS } from './dock-slots.ts'
 
 afterEach(() => rightPanelTabStore.setState({ selected: null }))
 
-it('注册表：todo、queue 已交付，goal 未交付；jobs、cost 未交付；右栏 plan 已交付（Plan Mode），jobs 未交付', () => {
+it('注册表：todo、queue 已交付，goal 未交付；标题栏 jobs 已交付、cost 未交付；右栏 plan 与 jobs 已交付', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
     ['todo', true],
     ['goal', false],
     ['queue', true],
   ])
   expect(HEADER_ACTIONS.map((a) => [a.id, a.available])).toEqual([
-    ['jobs', false],
+    ['jobs', true],
     ['cost', false],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],
-    ['jobs', false],
+    ['jobs', true],
   ])
 })
 
-it('应用中：会话打开后 dock 没有内容时不占位，没有标题栏操作与 Plan chip（不在 plan 模式）；右栏 tab 列表只有 Plan', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan 与 Tasks', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -58,11 +58,11 @@ it('应用中：会话打开后 dock 没有内容时不占位，没有标题栏�
   await expect.element(page.getByRole('textbox')).toBeVisible()
   // 待办卡与队列卡已交付，但 s-1 没有待办与追加指令：容器为空，empty:hidden 不占位。
   expect(getComputedStyle(document.querySelector('[data-slot="dock"]')!).display).toBe('none')
-  expect(document.querySelector('[data-slot="header-actions"]')).toBeNull()
+  expect(document.querySelector('[data-action="open-jobs"]')).toBeNull()
   await userEvent.click(page.getByRole('button', { name: 'Open right panel' }))
   expect(document.querySelector('[data-slot="plan-chip"]')).toBeNull()
   await expect.element(page.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true')
-  expect([...screen.container.querySelectorAll('[role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['plan'])
+  expect([...screen.container.querySelectorAll('[role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['plan', 'jobs'])
 })
 
 function renderWithProviders(node: React.ReactNode) {
