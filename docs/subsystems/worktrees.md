@@ -58,7 +58,7 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 - `createForSubagent(workspaceId, sessionId)`：名字为 `agent-<子 Session id 的前 8 个字母数字>`，冲突时加后缀，`createdBy: subagent`。
 - `removeIfUnchanged(id)`：HEAD 仍为 `base_commit` 且没有未提交与未跟踪的文件时 `git worktree remove` 与 `git branch -d`，返回 `{ removed: true }`；否则保留，返回 `{ removed: false, path, branch }`。
 
-子代理接入这两个方法之前，它们只有单元测试覆盖。
+子代理的 `isolation: 'worktree'` 经这两个方法创建与清理，见 [子代理](subagents.md#isolation-worktree)。
 
 ## git 执行
 

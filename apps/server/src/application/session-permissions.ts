@@ -1,5 +1,6 @@
 import {
   ApprovalNotPendingError,
+  effectiveSubagentMode,
   nextPlanRef,
   type AgentRuntime,
   type PermissionMode,
@@ -42,12 +43,18 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
 })
 
 /**
- * 子 Session 的权限作用域（ADR 0014）：rootSessionId 为规则与"本会话总是允许"所属的根 Session；modeCap 为模式上限（子代理定义的
- * permission-mode 与根 Session 当前模式中较窄者，由子代理的实现给出）。缺省：每个 Session 是自己的根，没有上限。
+ * 子 Session 的权限作用域（ADR 0014）：rootSessionId 为规则与"本会话总是允许"所属的根 Session；modeCap 为子代理定义的 permission-mode
+ * （SubagentService 给出）。缺省：每个 Session 是自己的根，没有上限。子 Session 的有效模式在每次判定时取根 Session 当前模式（plan 按
+ * read-only）与 modeCap 中较窄者（effectiveSubagentMode）；子 Session 没有自己的模式与规则，读写的都是根 Session 的状态。
  */
 export interface PermissionScopeResolver {
   rootSessionId(sessionId: string): string
   modeCap(sessionId: string): StandardPermissionMode | undefined
+  /**
+   * 根 Session 额外的询问规则（不入库，判定时现取）：子代理的 isolation worktree 在 Workspace 之内（.coko-worktrees/），父 Session 读取它须审批，
+   * 使隔离成立（ADR 0016）。子 Session 没有（它的工作目录就在其中）。
+   */
+  extraRules?(sessionId: string): PermissionRule[]
 }
 
 export const ownPermissionScope: PermissionScopeResolver = { rootSessionId: (sessionId) => sessionId, modeCap: () => undefined }
@@ -81,6 +88,8 @@ export class SessionPermissions implements PlanHost {
   /** 每个 Session 的权限条目提交串行（回放后的内存状态与条目顺序一致）；结果确认也经它串行。 */
   readonly #locks = new KeyedMutex()
   #scopes: PermissionScopeResolver
+  /** 已解析过的子 Session（重启后作用域中没有的子 Session 同样按子级计算模式）。 */
+  readonly #children = new Set<string>()
   readonly service: PermissionService
 
   /** contributions：上下文装配的贡献；其中的 plan 贡献（context/plan.ts）经它读写模式与计划审阅。 */
@@ -108,7 +117,30 @@ export class SessionPermissions implements PlanHost {
     return this.#scopes
   }
 
-  state(session: StoredSession): Promise<SessionPermissionState> {
+  /**
+   * Session 的权限状态。子 Session（parentSessionId 非空）取根 Session 的同一个状态对象：根中途切换模式或增删规则，子级的下一次判定即可见。
+   */
+  async state(session: StoredSession): Promise<SessionPermissionState> {
+    if (session.parentSessionId === null) return this.#own(session)
+    this.#children.add(session.id)
+    const rootId = this.#rootOf(session)
+    return this.#own(await requireSession(this.#store, rootId))
+  }
+
+  /** 子 Session → 根 Session（作用域给出的根优先；重启后作用域里没有时按 parentSessionId，深度为 1）。 */
+  #rootOf(session: StoredSession): string {
+    const root = this.#scopes.rootSessionId(session.id)
+    return root !== session.id ? root : (session.parentSessionId ?? session.id)
+  }
+
+  /** 该 Session 是否为子 Session（拒绝直接切换模式与修改规则）。 */
+  async #rejectChild(sessionId: string): Promise<StoredSession> {
+    const session = await requireSession(this.#store, sessionId)
+    if (session.parentSessionId !== null) throw new AppError('child-session', 'A subagent session uses the permissions of its root session')
+    return session
+  }
+
+  #own(session: StoredSession): Promise<SessionPermissionState> {
     let state = this.#states.get(session.id)
     if (!state) {
       state = (async () => {
@@ -144,9 +176,11 @@ export class SessionPermissions implements PlanHost {
    * 较窄者（capMode；缺省没有上限）。
    */
   runtimePermissions(state: SessionPermissionState, workspaceId: string, sessionId: string): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
+    // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。
+    const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
-      mode: () => capMode(state.mode, this.#scopes.modeCap(sessionId)),
-      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId)],
+      mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : capMode(state.mode, this.#scopes.modeCap(sessionId))),
+      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
     }
   }
 
@@ -159,7 +193,7 @@ export class SessionPermissions implements PlanHost {
    * （已在 plan 时不变）；从 plan 切到其他模式即退出规划（不经审阅）。
    */
   async setMode(sessionId: string, mode: PermissionMode): Promise<SessionPermissionsResponse> {
-    const session = await requireSession(this.#store, sessionId)
+    const session = await this.#rejectChild(sessionId)
     const result = await this.locked(sessionId, async () => {
       const state = await this.state(session)
       if (state.mode !== mode) {
@@ -172,8 +206,13 @@ export class SessionPermissions implements PlanHost {
       }
       return view(state)
     })
-    await this.reevaluate((id) => id === sessionId)
+    await this.reevaluate(this.#sameRoot(sessionId))
     return result
+  }
+
+  /** 匹配该根 Session 及其子 Session（重新判定待审批请求时：子 Session 按根的模式与规则判定）。 */
+  #sameRoot(rootId: string): (sessionId: string) => boolean {
+    return (sessionId) => sessionId === rootId || this.#scopes.rootSessionId(sessionId) === rootId
   }
 
   // ---- Plan Mode（context/plan.ts 经 PlanHost 调用） ----
@@ -240,11 +279,11 @@ export class SessionPermissions implements PlanHost {
 
   /** 增删 Session 规则：提交 permission_rule 条目（无变化时不提交），之后重新判定该 Session 的待审批请求。 */
   async changeSessionRule(sessionId: string, op: 'add' | 'remove', rule: PermissionRule): Promise<SessionPermissionsResponse> {
-    const session = await requireSession(this.#store, sessionId)
+    const session = await this.#rejectChild(sessionId)
     // 新增时校验并归一；删除时按读出的规范名比较（库中可能有旧的非规范写法）。
     const normalized = op === 'add' ? this.service.normalize([rule]) : this.service.canonical([rule])
     const result = await this.locked(sessionId, () => this.#applySessionRules(session, op, normalized))
-    await this.reevaluate((id) => id === sessionId)
+    await this.reevaluate(this.#sameRoot(sessionId))
     return result
   }
 
@@ -293,7 +332,9 @@ export class SessionPermissions implements PlanHost {
       if (request.kind !== 'tool' || request.suggestions.length === 0)
         throw new AppError('bad-request', `Approval request ${requestId} can only be allowed once`)
       const state = await this.state(session)
-      if (scope === 'session') await this.locked(sessionId, () => this.#applySessionRules(session, 'add', request.suggestions))
+      // 子 Session 的"本会话总是允许"写入根 Session 的规则（ADR 0014）。
+      const root = session.parentSessionId === null ? session : await requireSession(this.#store, this.#rootOf(session))
+      if (scope === 'session') await this.locked(root.id, () => this.#applySessionRules(root, 'add', request.suggestions))
       else await this.service.addRules(scope === 'global' ? { kind: 'global' } : { kind: 'workspace', workspaceId: state.workspaceId }, request.suggestions)
       log.info('permission rules saved', { sessionId, approvalId: requestId, scope, count: request.suggestions.length })
     }
@@ -304,7 +345,7 @@ export class SessionPermissions implements PlanHost {
       throw error
     }
     log.info('approval answered', { sessionId, approvalId: requestId, decision: answer.decision, scope })
-    if (scope === 'session') await this.reevaluate((id) => id === sessionId)
+    if (scope === 'session') await this.reevaluate(this.#sameRoot(session.parentSessionId === null ? sessionId : this.#rootOf(session)))
     else if (scope === 'workspace') await this.reevaluate((_id, workspaceId) => workspaceId === session.workspaceId)
     else if (scope === 'global') await this.reevaluate(() => true)
   }
@@ -352,7 +393,7 @@ export class SessionPermissions implements PlanHost {
   async reevaluate(match: (sessionId: string, workspaceId: string) => boolean): Promise<void> {
     const work: Promise<void>[] = []
     for (const [sessionId, runtime] of this.#runtimes.entries()) {
-      const state = await this.#states.get(sessionId)?.catch(() => undefined)
+      const state = await this.#states.get(this.#scopes.rootSessionId(sessionId))?.catch(() => undefined)
       if (!state || !match(sessionId, state.workspaceId)) continue
       for (const request of runtime.pendingApprovals) {
         if (request.kind !== 'tool') continue

@@ -191,6 +191,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - **PostToolUse(Failure)**：追加到工具结果末尾的 `<hook-feedback>` 块（≤ 10 000 字符）。
 - **PreCompact**：stdout 追加为摘要请求的额外要求（≤ 4 000 字符，手动时排在用户的指示之后），不进入对话；手动压缩被阻止时 400 `hook-blocked`、不开始 Run，自动压缩被阻止时跳过本次、用原上下文请求。溢出恢复不运行 PreCompact。
 
+## 子代理的 `<subagent>` 与首条消息
+
+子 Session 的 system sections 照常有指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：
