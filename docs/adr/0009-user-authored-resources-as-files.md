@@ -30,6 +30,7 @@ category: architecture
 
 - 每次 Run 开始时重新读取这些文件（按修改时间缓存），修改后下一次 Run 生效；读取失败只产生诊断，不阻止 Run。
 - 卸载应用不删除 `~/.coko`。
+- 子代理定义（M5）沿用本决定：`~/.coko/agents/*.md` 与 Workspace 的 `.coko/agents/*.md`，见 [ADR 0014](0014-subagents-as-child-sessions.md)。
 - implementation 变为 implemented 前需要：以临时 `COKO_HOME` 启动真实 Sidecar 的集成测试覆盖用户级指令、Skills 与命令被加载，修改文件后下一次 Run 读到新内容，界面启停状态在重启后保留且文件不被改写。
 
 **实施证据（2026-10-29，M3 票 03、04、05）。** 行为见 [指令文件](../subsystems/instructions.md)、[命令](../subsystems/commands.md) 与 [Skills](../subsystems/skills.md)。以临时 `COKO_HOME` 启动真实 Sidecar：

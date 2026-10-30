@@ -21,7 +21,7 @@ _Avoid_: project、folder、repo
 ## 会话
 
 **Session**：
-一个 Workspace 中与 Agent 的一段持续对话及其全部执行记录。
+一个 Workspace（或其某个 Worktree）中与 Agent 的一段持续对话及其全部执行记录；工作目录在创建时确定。
 _Avoid_: chat、thread、conversation
 
 **Session Entry**：
@@ -29,7 +29,7 @@ Session 中一条已提交、不可修改的记录，例如用户消息、模型
 _Avoid_: event、record、message（泛指时）
 
 **Run**：
-从一次用户提交、重试、继续或 Goal Round 开始，到 Agent 停止为止的一次执行。
+从一次用户提交、重试、继续、Goal Round、定时任务到期或子代理派发开始，到 Agent 停止为止的一次执行。
 _Avoid_: turn（turn 指一次模型请求与其工具调用）
 
 **Steering**：
@@ -59,6 +59,10 @@ _Avoid_: undo、revert
 **Fork**：
 从某条用户消息之前复制出一个新 Session 的操作，原 Session 不变。
 _Avoid_: branch、clone
+
+**Handoff**：
+把一个 Session 的工作状态写成交接摘要、在新 Session 中作为草稿继续的操作，不复制消息，原 Session 不变。
+_Avoid_: transfer、继续会话（泛指时）
 
 ## 权限
 
@@ -137,6 +141,28 @@ _Avoid_: task list、checklist、Task（Task 留给多代理共享的任务）
 **Background Job**：
 在 Run 之外继续运行、输出可随时读取或停止的命令，属于发起它的 Session。
 _Avoid_: task、daemon、background process
+
+## 多代理与调度
+
+**Subagent**：
+Agent 在 Run 中派发、在独立的子 Session 中执行一段工作并把结论交回的代理；权限不宽于派发它的 Session。
+_Avoid_: worker、child agent、teammate（teammate 留给 Agent Teams）
+
+**Subagent Definition**：
+描述一类 Subagent 的角色提示、可用工具、模型与权限上限的条目，内置或由用户以文件编写。
+_Avoid_: preset、agent profile
+
+**Hook**：
+用户配置、在工具调用或 Run 生命周期的固定时刻运行的外部命令，可以阻断、追加上下文或收紧权限决定。
+_Avoid_: callback、trigger、plugin
+
+**Schedule**：
+绑定一个 Session、在一次性时刻、固定间隔或 cron 时刻到期时在该 Session 中开始 Run 的定时任务。
+_Avoid_: cron job、reminder、automation（泛指时）
+
+**Worktree**：
+Workspace 所在 git 仓库的另一个检出目录，带自己的分支，供 Session 隔离地工作。
+_Avoid_: checkout、branch（分支只是其一部分）
 
 ## 工具
 

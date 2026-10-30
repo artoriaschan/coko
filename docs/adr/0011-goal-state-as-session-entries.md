@@ -36,7 +36,7 @@ M4 引入 Goal：用户给出一个跨多个 Run 的目标，Agent 在无人值�
 
 - 每次 Goal 变更多一条条目；时间线需要把它们显示为紧凑的状态行。预算计算随条目数线性增长，Run 开始与每次模型请求前各计算一次；需要时可在运行时内存中增量缓存，但以条目为准。
 - 未定价模型的费用无法计算：设置了费用上限的 Goal 在未定价模型上不运行，以"阻塞（费用无法计算）"停下。
-- 需要重新审视的条件：出现跨 Session 的 Goal 需求；Scheduler（M5）需要在无人值守时自动恢复 Goal。
+- 需要重新审视的条件：出现跨 Session 的 Goal 需求；Scheduler（M5）需要在无人值守时自动恢复 Goal。M5 规划时决定定时任务不恢复暂停的 Goal（[ADR 0015](0015-schedules-at-most-once-latest-catch-up.md)），该条件未触发，本决定不变。
 - implementation 变为 implemented 前需要：真实 Sidecar 集成测试覆盖 Goal 的创建与逐轮推进、revision 冲突、预算各维度耗尽、完成证据校验、SIGKILL 后重启为暂停且不自动推进、取消时停止 Run 与后台任务并记录清理结果。
 
 ## 实施记录
