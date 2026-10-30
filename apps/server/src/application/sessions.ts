@@ -6,17 +6,14 @@ import {
   createLocalExecPort,
   effectiveMessages,
   lastRunStatus,
-  MCP_RESOURCE_TOOL_NAMES,
   ModelConfigError,
   NoActiveRunError,
   NothingToContinueError,
   NothingToRetryError,
   resolveModel,
-  ruleToolName,
   selectableThinkingLevels,
   type AgentRuntime,
   type ModelRegistry,
-  type PermissionClass,
   type PermissionMode,
   type PermissionRule,
   type RewindFiles,
@@ -49,7 +46,7 @@ import { SessionCheckpoints } from './checkpoints.ts'
 import { dynamicHooks, emptyContextAssembly, layeredTools, type ContextAssembly, type ContextScope } from './context/index.ts'
 import { AppError } from './errors.ts'
 import type { SessionHub } from './hub.ts'
-import { PermissionService, type HostToolNames } from './permissions.ts'
+import { hostToolNames, PermissionService } from './permissions.ts'
 import { catalogOf } from './providers.ts'
 import { SessionRecovery, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionPermissions } from './session-permissions.ts'
@@ -59,17 +56,6 @@ import { requireSession, SessionRuntimes, toProgress } from './session-runtimes.
 export type { RecoveryReport, RecoverySource } from './recovery.ts'
 
 const log = getLogger(['application', 'sessions'])
-
-/**
- * 按 Run 贡献的工具（application/context/）及其权限类：写规则时即使当前没有注册（Memory 关闭、MCP Server 未连接）也接受这些名字。
- * skill 由 policy 固定为 Skill，mcp__ 前缀由 policy 原样接受。
- */
-const CONTRIBUTED_TOOLS: readonly [string, PermissionClass][] = [
-  ['memory_list', 'context-read'],
-  ['memory_write', 'memory-write'],
-  ['memory_delete', 'memory-write'],
-  ...MCP_RESOURCE_TOOL_NAMES.map((name) => [name, 'context-read'] as [string, PermissionClass]),
-]
 
 /** 受管的 Run 执行：关闭 sidecar 时中断并等待 Run 结束（run_end 已提交）。由 runtime 层用 Effect 实现。 */
 export interface RunLauncher {
@@ -139,7 +125,10 @@ export class SessionService {
   constructor(options: SessionServiceOptions) {
     this.#options = options
     this.#context = options.context ?? emptyContextAssembly()
-    this.permissions = options.permissions ?? new PermissionService(options.store, () => this.#hostToolNames())
+    // 规则工具名：宿主工具集与各贡献声明的 ruleTools（skill 由 policy 固定为 Skill，mcp__ 前缀由 policy 原样接受）。
+    this.permissions =
+      options.permissions ??
+      new PermissionService(options.store, hostToolNames({ ...(options.tools ? { tools: options.tools } : {}), ruleTools: this.#context.ruleTools }))
     this.#runtimes = new SessionRuntimes(options.store, options.hub)
     this.#permissions = new SessionPermissions({ store: options.store, runtimes: this.#runtimes, service: this.permissions })
     this.#recovery = new SessionRecovery({
@@ -154,31 +143,6 @@ export class SessionService {
       recovery: this.#recovery,
       ...(options.checkpoints ? { files: options.checkpoints } : {}),
     })
-  }
-
-  #toolNames: readonly string[] | undefined
-  /** Run 开始时见到的贡献工具（不在 CONTRIBUTED_TOOLS 中的，例如之后新增的领域）：小写名 → 规则名。 */
-  readonly #contributedAliases = new Map<string, string>(CONTRIBUTED_TOOLS.map(([name, permissionClass]) => [name, ruleToolName(name, permissionClass)]))
-
-  /**
-   * 写规则时可用的工具名：宿主注册的工具（与 Workspace 无关；第一次需要时从工具工厂读取），以及按 Run 贡献的工具按其规则名
-   * （memory_write / memory_delete → Memory，其余为原名）。
-   */
-  #hostToolNames(): HostToolNames {
-    this.#toolNames ??= this.#options.tools
-      ? this.#options
-          .tools(process.cwd())
-          .list()
-          .map((tool) => tool.name)
-      : []
-    return { names: this.#toolNames, aliases: Object.fromEntries(this.#contributedAliases) }
-  }
-
-  #rememberContributed(tools: readonly { tool: { name: string }; permissionClass?: PermissionClass }[]): void {
-    for (const { tool, permissionClass } of tools) {
-      const lower = tool.name.toLowerCase()
-      if (!this.#contributedAliases.has(lower)) this.#contributedAliases.set(lower, ruleToolName(tool.name, permissionClass))
-    }
   }
 
   isRunning(sessionId: string): boolean {
@@ -444,7 +408,6 @@ export class SessionService {
     const scope = await this.#scope(session)
     const [contributed, readRoots] = await Promise.all([this.#context.tools(scope), this.#context.readRoots(scope)])
     const hooks = this.#context.hooks(scope)
-    this.#rememberContributed(contributed)
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (this.#checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')

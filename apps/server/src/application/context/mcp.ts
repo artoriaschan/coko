@@ -13,6 +13,7 @@ import {
   createMcpToolName,
   diagnostic,
   expandSecretRefs,
+  MCP_RESOURCE_TOOL_NAMES,
   getMcpPrompt,
   listMcpPrompts,
   mapPromptArguments,
@@ -36,7 +37,7 @@ import { MCP_SERVERS_SETTING, mcpApprovalsSettingKey, PROJECT_MCP_PATH, type Mcp
 import type { SessionStore } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { SecretService } from '../secrets.ts'
-import type { ContextContribution, ContextContributionOptions, ContextScope, SourcedCommand } from './types.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope, RuleTool, SourcedCommand } from './types.ts'
 
 const log = getLogger(['application', 'mcp'])
 
@@ -382,11 +383,15 @@ export class McpManager {
   }
 }
 
+/** 资源工具的规则名为原名（context-read）；mcp__ 前缀的工具由 policy 原样接受，不必声明。 */
+const MCP_RULE_TOOLS: readonly RuleTool[] = MCP_RESOURCE_TOOL_NAMES.map((name) => ({ name, permissionClass: 'context-read' }))
+
 export function mcpContribution(options: ContextContributionOptions): ContextContribution {
   const manager = options.mcp
-  if (!manager) return { name: 'mcp' }
+  if (!manager) return { name: 'mcp', ruleTools: MCP_RULE_TOOLS }
   return {
     name: 'mcp',
+    ruleTools: MCP_RULE_TOOLS,
     async tools(scope) {
       const { tools, resources } = await manager.runTools(scope)
       return [

@@ -35,6 +35,15 @@ export interface ContributedTool {
   permissionClass?: PermissionClass
 }
 
+/**
+ * 贡献工具在规则中的名字来源（静态、与 Run 无关）：写规则时即使当前没有注册（领域关闭、Server 未连接）也接受这些名字，
+ * 并按权限类归一（例如 memory-write → Memory）。
+ */
+export interface RuleTool {
+  name: string
+  permissionClass: PermissionClass
+}
+
 /** 输入展开的结果：交给运行时的 RunInput，或一个动作（例如 /compact），由 actions[name] 执行。 */
 export type ExpandResult = { kind: 'input'; input: RunInput } | { kind: 'action'; name: string; args: string }
 
@@ -76,6 +85,8 @@ export interface ContextContribution {
   name: string
   systemSections?(scope: ContextScope): Promise<SystemSection[]>
   tools?(scope: ContextScope): Promise<ContributedTool[]>
+  /** 本领域可能贡献的工具及其权限类（PermissionService 据此校验与归一规则中的工具名）。 */
+  ruleTools?: readonly RuleTool[]
   /** 额外读取根（例如 Skill 目录），其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?(scope: ContextScope): Promise<string[]>
   hooks?(scope: ContextScope): ToolHooks[]
