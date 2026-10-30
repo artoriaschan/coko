@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { EntryLike } from '../entries/index.ts'
 import { createFauxModels, fauxAssistantMessage } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
+import { SESSION_ENTRY_PAYLOADS } from '../session-entries/index.ts'
 import { createAgentRuntime } from './runtime.ts'
 import type { ProgressEvent } from './types.ts'
 
@@ -84,6 +85,36 @@ describe('自动压缩', () => {
     expect(text(next[1])).toContain('<summary>\nSUMMARY BODY\n</summary>')
     expect(text(next[2])).toBe(big(40_000, 'b'))
     expect(h.progress.filter((p) => p.type.startsWith('compaction_')).map((p) => p.type)).toEqual(['compaction_start', 'compaction_end'])
+  })
+
+  it('compaction 带摘要请求的 usage（计入 Goal 预算）；v1 条目读回为 v2', async () => {
+    const h = harness()
+    h.reply(ok(), ok('SUMMARY BODY'), ok('done'))
+    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(40_000, 'b'))
+    const payload = h.stored.find((e) => e.kind === 'compaction')!.payload as { usage?: Record<string, unknown> }
+    // faux 按字符估算摘要请求的 usage：输入为被摘要的内容（约 60 000 字符），输出为 "SUMMARY BODY"。
+    expect(payload.usage).toEqual({
+      input: expect.any(Number),
+      output: expect.any(Number),
+      cacheRead: expect.any(Number),
+      cacheWrite: expect.any(Number),
+      totalTokens: expect.any(Number),
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    })
+    expect(payload.usage!.input as number).toBeGreaterThan(10_000)
+    const versions = SESSION_ENTRY_PAYLOADS.find((d) => d.kind === 'compaction')!.versions
+    expect(versions).toHaveLength(2)
+    expect(versions[1]!.check(payload)).toBeUndefined()
+    const v1 = { summary: 's', firstKeptSeq: 3, tokensBefore: 10, trigger: 'auto', readFiles: [], modifiedFiles: [] }
+    expect(versions[0]!.check(v1)).toBeUndefined()
+    expect(versions[0]!.check(payload)).toEqual(expect.any(String))
+    const migrated = versions[1]!.migrate!(v1)
+    expect(migrated).toEqual(v1)
+    expect(versions[1]!.check(migrated)).toBeUndefined()
+    expect(versions[1]!.check({ ...v1, usage: { input: -1, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { total: 0 } } })).toEqual(
+      expect.any(String),
+    )
   })
 
   it('被摘要的内容超过模型窗口时，摘要请求的输入被限制在窗口减去输出上限之内，压缩成功', async () => {

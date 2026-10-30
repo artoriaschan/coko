@@ -24,7 +24,12 @@ describe('秘密不外泄总闸：Goal', () => {
       responses: [
         {
           content: [
-            call('create_goal', 'cg', { objective: 'rotate ' + value, criteria: ['old key ' + value + ' revoked'], constraints: 'never print ' + value }),
+            call('create_goal', 'cg', {
+              objective: 'rotate ' + value,
+              criteria: ['old key ' + value + ' revoked'],
+              constraints: 'never print ' + value,
+              budget: { max_tool_calls: 20, max_tokens: 10_000_000, max_duration_ms: 600_000 },
+            }),
           ],
         },
         { content: 'set' },
@@ -54,8 +59,17 @@ describe('秘密不外泄总闸：Goal', () => {
     expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'rotate the key' })).status).toBe(202)
     await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'goal' && (e.payload as { phase: string }).phase === 'complete'), 30_000)
     await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length >= 2, 30_000)
-    await api.get(goalPaths.sessionGoal(sessionId))
+    const goalBody = (await api.get(goalPaths.sessionGoal(sessionId))).body
     await api.get(apiPaths.session(sessionId))
+    // 用量字段（预算派生）进入 HTTP 与 <goal>：同样只有占位。
+    expect(goalBody.usage).toEqual({
+      rounds: 1,
+      toolCalls: 2,
+      tokens: expect.any(Number),
+      cost: 0,
+      durationMs: expect.any(Number),
+      costUnpriced: true,
+    })
 
     // 前置：通道确实被驱动，保存的快照带占位。
     const snapshots = stream.entries(sessionId).filter((e) => e.kind === 'goal')
@@ -67,6 +81,7 @@ describe('秘密不外泄总闸：Goal', () => {
     expect(requests[2]).toContain('<goal>')
     expect(requests[2]).toContain('<goal_round>')
     expect(requests[2]).toContain('rotate [REDACTED:secret]')
+    expect(requests[2]).toMatch(/- tool calls: \d+ \/ 20\\n- tokens: \d+ \/ 10000000\\n- time: \d+ ms \/ 600000 ms/)
 
     sidecar.child.kill('SIGTERM')
     expect(await sidecar.exited).toEqual({ code: 0, signal: null })

@@ -2,7 +2,7 @@
 kind: decision
 description: "每个 Session 至多一个当前 Goal，其全部变更记为带完整快照与 revision 的 Session Entry，预算用量从条目派生；完成只能按创建时记录的成功条件与证据判定；自动推进（Goal Round）的授权只在当前 Sidecar 进程内有效，重启后未结束的 Goal 记为暂停。修改 Goal 存储、推进、预算口径或重启恢复时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -41,7 +41,8 @@ M4 引入 Goal：用户给出一个跨多个 Run 的目标，Agent 在无人值�
 
 ## 实施记录
 
-- 2026-10-30 Goal 核心（快照与 revision、转换表、授权、完成证据、轮次上限、推进与去重、wait_jobs、取消的停止传播、重启后暂停）已实现，当前行为见 [Goal](../subsystems/goal.md)。证据：`packages/agent/src/goals/goals.test.ts`（转换表、授权、证据、revision）、`tests/integration/sidecar-goal.test.ts`（创建与逐轮推进、revision 冲突、轮次耗尽、证据拒绝与接受、取消清理）、`tests/integration/sidecar-goal-restart.test.ts`（SIGKILL 后暂停且 30 秒内不推进）。其余预算维度尚未实现，implementation 保持 not-started。
+- 2026-10-30 Goal 核心（快照与 revision、转换表、授权、完成证据、轮次上限、推进与去重、wait_jobs、取消的停止传播、重启后暂停）已实现，当前行为见 [Goal](../subsystems/goal.md)。证据：`packages/agent/src/goals/goals.test.ts`（转换表、授权、证据、revision）、`tests/integration/sidecar-goal.test.ts`（创建与逐轮推进、revision 冲突、轮次耗尽、证据拒绝与接受、取消清理）、`tests/integration/sidecar-goal-restart.test.ts`（SIGKILL 后暂停且 30 秒内不推进）。其余预算维度当时尚未实现。
+- 2026-10-30 五维预算已实现：用量由 `packages/agent/src/goals/budget.ts` 的 `goalUsage` 从 `run_start`、assistant usage、toolResult、`compaction.usage`（compaction v2）与 `run_end` 派生，不另存计数器；检查点为 Goal Round 开始前、每次模型请求前与每次工具调用前；未定价模型遇到费用上限时 blocked（`cost-unpriced`），价格来自 Model Catalog 的 `price`。当前行为见 [Goal 的预算](../subsystems/goal.md#预算)。证据：`packages/agent/src/goals/budget.test.ts`（口径与子 Session 汇总）、`tests/integration/sidecar-goal-budget.test.ts`（每一维耗尽与恢复、超出的工具调用不执行、未定价时不发请求）、`tests/integration/sidecar-model-price.test.ts`（价格与 usage.cost）。连同上一条的 Goal 核心证据，"后果与验证"列出的条件均已满足，implementation 改为 implemented。
 
 ## 来源与后继
 

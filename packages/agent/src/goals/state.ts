@@ -73,10 +73,24 @@ export const GOAL_TRANSITIONS: Record<GoalChange['type'], readonly GoalPhase[]> 
   exhaust: ['running'],
 }
 
-/** 已用量（ADR 0011：从条目派生）。M4 的本票只派生轮次；其余维度由预算派生补齐。 */
+/**
+ * 已用量（ADR 0011：从条目派生，见 budget.ts 的 goalUsage）。rounds 总是派生；其余维度省略时不参与判定（只有轮次的调用方）。
+ */
 export interface GoalUsageSnapshot {
   rounds: number
+  toolCalls?: number
+  tokens?: number
+  /** usage.cost.total 之和（显示货币由设置 usage.currency 决定，不换算）。 */
+  cost?: number
+  durationMs?: number
 }
+
+/** 预算维度（reason.code 的取值），按判定顺序。 */
+export const GOAL_BUDGET_DIMENSIONS = ['rounds', 'tool-calls', 'tokens', 'cost', 'time'] as const
+export type GoalBudgetDimension = (typeof GOAL_BUDGET_DIMENSIONS)[number]
+
+/** 预算停止的消息前缀（run_end.error.message、工具调用上限拦下的调用结果）。 */
+export const GOAL_BUDGET_EXHAUSTED_PREFIX = 'Goal budget exhausted: '
 
 /** 该 Goal 已开始的 Goal Round 数（run_start 中 goal.goalId 为它的条目的最大 round）。 */
 export function goalRounds(entries: readonly EntryLike[], goalId: string): number {
@@ -104,16 +118,45 @@ export function nextGoalId(entries: readonly EntryLike[]): string {
   return 'goal-' + n
 }
 
-/** 已设维度中第一个达到上限的维度（reason.code）；都有余量时 undefined。本票只检查轮次。 */
-export function exhaustedDimension(budget: GoalBudget, usage: GoalUsageSnapshot): string | undefined {
-  if (budget.maxRounds !== undefined && usage.rounds >= budget.maxRounds) return 'rounds'
+const limitOf = (budget: GoalBudget, dimension: GoalBudgetDimension) =>
+  ({ rounds: budget.maxRounds, 'tool-calls': budget.maxToolCalls, tokens: budget.maxTokens, cost: budget.maxCost, time: budget.maxDurationMs })[dimension]
+const usedOf = (usage: GoalUsageSnapshot, dimension: GoalBudgetDimension) =>
+  ({ rounds: usage.rounds, 'tool-calls': usage.toolCalls, tokens: usage.tokens, cost: usage.cost, time: usage.durationMs })[dimension]
+
+/**
+ * 已设维度中第一个达到上限（已用 ≥ 上限）的维度（reason.code）；都有余量时 undefined。dimensions 限定检查的维度（检查点各查各的：
+ * 模型请求前查 Token、费用、时间，工具调用前查调用数，Goal Round 开始前查五维）；用量中省略的维度不判定。
+ */
+export function exhaustedDimension(
+  budget: GoalBudget,
+  usage: GoalUsageSnapshot,
+  dimensions: readonly GoalBudgetDimension[] = GOAL_BUDGET_DIMENSIONS,
+): GoalBudgetDimension | undefined {
+  for (const dimension of GOAL_BUDGET_DIMENSIONS) {
+    if (!dimensions.includes(dimension)) continue
+    const limit = limitOf(budget, dimension)
+    const used = usedOf(usage, dimension)
+    if (limit !== undefined && used !== undefined && used >= limit) return dimension
+  }
   return undefined
 }
 
+/** 费用的显示：最多 6 位小数，去掉末尾的 0。 */
+export const formatCost = (cost: number) => String(Number(cost.toFixed(6)))
+
+/** 形如 "Goal budget exhausted: tool calls (n / max)"；时间带 ms。 */
 export function exhaustedMessage(dimension: string, budget: GoalBudget, usage: GoalUsageSnapshot): string {
-  if (dimension === 'rounds') return `Goal budget exhausted: rounds (${usage.rounds} / ${budget.maxRounds})`
-  return `Goal budget exhausted: ${dimension}`
+  const known = GOAL_BUDGET_DIMENSIONS.find((d) => d === dimension)
+  if (!known) return GOAL_BUDGET_EXHAUSTED_PREFIX + dimension
+  const used = usedOf(usage, known) ?? 0
+  const limit = limitOf(budget, known) ?? 0
+  const name = known === 'tool-calls' ? 'tool calls' : known
+  const pair = known === 'cost' ? `${formatCost(used)} / ${formatCost(limit)}` : known === 'time' ? `${used} ms / ${limit} ms` : `${used} / ${limit}`
+  return `${GOAL_BUDGET_EXHAUSTED_PREFIX}${name} (${pair})`
 }
+
+/** 设了费用上限而当前模型未定价：不发请求，Goal 进入 blocked（cost-unpriced）。 */
+export const COST_UNPRICED_MESSAGE = 'The goal has a cost limit, but the current model has no price; set a price in Settings → Models or remove the cost limit'
 
 const trimmed = (value: string, what: string, max: number) => {
   const text = value.trim()
@@ -192,10 +235,12 @@ export function expectRevision(goal: GoalPayload, revision: number): void {
 }
 
 /**
- * 按转换表应用一次变化，返回下一份快照（revision 加一）。rounds 为该 Goal 已开始的 Goal Round 数：resume 与 edit 把 resumedAtRound 设为它；
- * budget-exhausted 恢复前须使耗尽的维度有余量。进入 running 时清除 reason、waitingFor；离开 waiting-external 时清除 waitingFor。
+ * 按转换表应用一次变化，返回下一份快照（revision 加一）。used 为该 Goal 已开始的 Goal Round 数或完整用量：resume 与 edit 把 resumedAtRound
+ * 设为其轮次；budget-exhausted 恢复前须使耗尽的维度有余量（只给轮次时只检查轮次）。进入 running 时清除 reason、waitingFor；离开 waiting-external 时清除 waitingFor。
  */
-export function applyGoalChange(goal: GoalPayload, change: GoalChange, source: GoalSource, rounds: number): GoalPayload {
+export function applyGoalChange(goal: GoalPayload, change: GoalChange, source: GoalSource, used: number | GoalUsageSnapshot): GoalPayload {
+  const usage: GoalUsageSnapshot = typeof used === 'number' ? { rounds: used } : used
+  const rounds = usage.rounds
   if (isTerminalPhase(goal.phase)) throw new GoalError('invalid-transition', `Goal ${goal.id} is already ${goal.phase}`, { phase: goal.phase })
   if (!GOAL_TRANSITIONS[change.type].includes(goal.phase))
     throw new GoalError('invalid-transition', `Cannot ${change.type} a goal that is ${goal.phase}`, { phase: goal.phase, action: change.type })
@@ -207,9 +252,9 @@ export function applyGoalChange(goal: GoalPayload, change: GoalChange, source: G
       return enter('paused', change.reason)
     case 'resume': {
       if (goal.phase === 'budget-exhausted') {
-        const dimension = exhaustedDimension(goal.budget, { rounds })
+        const dimension = exhaustedDimension(goal.budget, usage)
         if (dimension)
-          throw new GoalError('invalid-transition', `Raise the ${dimension} budget before resuming: ${exhaustedMessage(dimension, goal.budget, { rounds })}`, {
+          throw new GoalError('invalid-transition', `Raise the ${dimension} budget before resuming: ${exhaustedMessage(dimension, goal.budget, usage)}`, {
             phase: goal.phase,
             dimension,
           })

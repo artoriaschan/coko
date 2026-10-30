@@ -26,6 +26,14 @@ export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 /** A configured Thinking Level: `off` has no API value (each protocol sends its own default); the others send `value`. */
 export type ThinkingLevelSpec = { level: 'off' } | { level: Exclude<ThinkingLevel, 'off'>; value: string }
 
+/** Price per million tokens (pi-ai's `model.cost` unit). Omitted cache prices are 0. */
+export interface ModelPrice {
+  input: number
+  output: number
+  cacheRead?: number
+  cacheWrite?: number
+}
+
 /** One Model Catalog entry with its explicit capabilities; nothing comes from a built-in catalog. */
 export interface ModelSpec {
   id: string
@@ -37,6 +45,8 @@ export interface ModelSpec {
   /** Whether requests use the configured Thinking Levels. Levels stay configured while this is off. */
   reasoning: boolean
   thinkingLevels: ThinkingLevelSpec[]
+  /** Omitted: unpriced (usage.cost stays 0 and a Goal cost limit cannot be checked). */
+  price?: ModelPrice
 }
 
 export interface ProviderConfig {
@@ -96,7 +106,19 @@ function checkModel(config: ProviderConfig, spec: ModelSpec): void {
   if (spec.maxTokens > spec.contextWindow) throw new ModelConfigError(`Model "${spec.id}" has maxTokens above its contextWindow`)
   const levels = spec.thinkingLevels.map((l) => l.level)
   if (new Set(levels).size !== levels.length) throw new ModelConfigError(`Model "${spec.id}" has a duplicate thinking level`)
+  if (spec.price) {
+    const { input, output, cacheRead = 0, cacheWrite = 0 } = spec.price
+    if (![input, output, cacheRead, cacheWrite].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0))
+      throw new ModelConfigError(`Model "${spec.id}" needs a non-negative price per million tokens`)
+  }
 }
+
+const costOf = (price: ModelPrice | undefined) => ({
+  input: price?.input ?? 0,
+  output: price?.output ?? 0,
+  cacheRead: price?.cacheRead ?? 0,
+  cacheWrite: price?.cacheWrite ?? 0,
+})
 
 function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
   // Anthropic: pi-ai's budget-based thinking ignores the configured values, so request adaptive thinking whose effort
@@ -111,7 +133,7 @@ function buildModel(config: ProviderConfig, spec: ModelSpec): Model<any> {
     reasoning: spec.reasoning,
     thinkingLevelMap: thinkingLevelMap(spec.thinkingLevels),
     input: [...spec.input],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: costOf(spec.price),
     contextWindow: spec.contextWindow,
     maxTokens: spec.maxTokens,
     ...(config.headers ? { headers: config.headers } : {}),
@@ -147,6 +169,11 @@ export interface ModelRegistry {
   /** Add or replace a Provider from its configuration. */
   setProvider(config: ProviderConfig): void
   deleteProvider(id: string): void
+  /**
+   * Whether usage.cost of this model reflects a price: its catalog entry has a price (even an all-zero one), or — for a Provider
+   * registered directly on `models` (the test faux provider) — its `cost` has a non-zero rate.
+   */
+  priced(model: Pick<Model<any>, 'provider' | 'id' | 'cost'>): boolean
 }
 
 export interface ModelRegistryOptions {
@@ -161,10 +188,24 @@ export function createModelRegistry({ credentials, providers = [] }: ModelRegist
     authContext: { env: async () => undefined, fileExists: async () => false },
     identity: { attribution: null },
   })
+  // Catalog entries with a price, per Provider (replaced on every setProvider).
+  const pricedIds = new Map<string, Set<string>>()
   const registry: ModelRegistry = {
     models,
-    setProvider: (config) => models.setProvider(buildProvider(config)),
-    deleteProvider: (id) => models.deleteProvider(id),
+    setProvider: (config) => {
+      models.setProvider(buildProvider(config))
+      pricedIds.set(config.id, new Set(config.models.filter((spec) => spec.price).map((spec) => spec.id)))
+    },
+    deleteProvider: (id) => {
+      models.deleteProvider(id)
+      pricedIds.delete(id)
+    },
+    priced: (model) => {
+      const configured = pricedIds.get(model.provider)
+      if (configured) return configured.has(model.id)
+      const { input, output, cacheRead, cacheWrite } = model.cost
+      return input > 0 || output > 0 || cacheRead > 0 || cacheWrite > 0
+    },
   }
   for (const config of providers) registry.setProvider(config)
   return registry

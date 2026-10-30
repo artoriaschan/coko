@@ -13,6 +13,7 @@ import {
   GoalError,
   validateEvidence,
   type GoalChange,
+  type GoalUsageSnapshot,
   type RunAuthority,
 } from './state.ts'
 
@@ -131,6 +132,8 @@ export interface GoalUpdateContext {
   authority: RunAuthority
   /** 当前 Goal 已开始的 Goal Round 数。 */
   rounds: number
+  /** 当前 Goal 的完整用量（budget-exhausted 恢复须使耗尽的维度有余量）；省略时只按轮次判定。 */
+  usage?: GoalUsageSnapshot
   /** 本 Session 中 running 的 Job。 */
   jobRunning(jobId: string): boolean
 }
@@ -215,7 +218,7 @@ export function planGoalUpdate(goal: GoalPayload | undefined, args: UpdateGoalAr
       break
     }
   }
-  return applyGoalChange(goal, change, 'model', rounds)
+  return applyGoalChange(goal, change, 'model', context.usage ?? rounds)
 }
 
 const toEvidence = (item: NonNullable<UpdateGoalArgs['evidence']>[number]): GoalEvidence => ({

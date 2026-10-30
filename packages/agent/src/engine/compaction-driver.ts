@@ -14,7 +14,7 @@ import {
 } from '../context/compaction/index.ts'
 import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars } from '../context/usage/index.ts'
 import { modelContext, type EntryLike } from '../entries/index.ts'
-import type { CompactionPayload, CompactionTrigger } from '../session-entries/index.ts'
+import type { CompactionPayload, CompactionTrigger, RequestUsage } from '../session-entries/index.ts'
 import type { ProgressEvent, RunEntry, RunError, RunStatus, RuntimeCompaction } from './types.ts'
 
 /** 手动压缩时没有可摘要的较早内容（宿主通常在开始 Run 之前就拒绝）。 */
@@ -50,6 +50,27 @@ export interface CompactionDriverOptions {
   abortAgent: () => void
 }
 
+const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0)
+
+/** 摘要请求的 usage 只保留 token 与费用（pi-ai 的 Usage 另有 provider 相关字段）；缺失或非法的值记 0。 */
+function requestUsage(usage: Partial<RequestUsage> | undefined): RequestUsage {
+  const cost = usage?.cost
+  return {
+    input: amount(usage?.input),
+    output: amount(usage?.output),
+    cacheRead: amount(usage?.cacheRead),
+    cacheWrite: amount(usage?.cacheWrite),
+    totalTokens: amount(usage?.totalTokens),
+    cost: {
+      input: amount(cost?.input),
+      output: amount(cost?.output),
+      cacheRead: amount(cost?.cacheRead),
+      cacheWrite: amount(cost?.cacheWrite),
+      total: amount(cost?.total),
+    },
+  }
+}
+
 type CompactOutcome = { kind: 'compacted' } | { kind: 'nothing' } | { kind: 'aborted' } | { kind: 'failed'; message: string }
 
 class SummaryAborted extends Error {}
@@ -83,7 +104,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
    * 摘要请求：Session 当前模型、没有工具、maxTokens 20 000（不超过模型上限）、不写提示缓存。输入限制在窗口减去输出上限之内
    * （按 4 字符 / token 估算），超出时从最早处省略，摘要请求本身不会溢出。
    */
-  const summarize = async (plan: CompactionPlan, signal: AbortSignal, instructions?: string): Promise<string> => {
+  const summarize = async (plan: CompactionPlan, signal: AbortSignal, instructions?: string): Promise<{ text: string; usage: RequestUsage }> => {
     const model = state.model
     const maxTokens = Math.min(SUMMARY_MAX_TOKENS, model.maxTokens > 0 ? model.maxTokens : SUMMARY_MAX_TOKENS)
     const window = model.contextWindow ?? 0
@@ -99,7 +120,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       .join('\n')
       .trim()
     if (text === '') throw new Error('Summarization returned an empty summary')
-    return text
+    return { text, usage: requestUsage(response.usage) }
   }
 
   /**
@@ -113,8 +134,9 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const tokensBefore = contextTokensOf(entries)
     progress({ type: 'compaction_start', runId: run.runId, trigger })
     let summary: string
+    let usage: RequestUsage
     try {
-      summary = await summarize(plan, signal, instructions)
+      ;({ text: summary, usage } = await summarize(plan, signal, instructions))
     } catch (error) {
       if (error instanceof SummaryAborted || signal.aborted) return { kind: 'aborted' }
       const message = error instanceof Error ? error.message : String(error)
@@ -130,6 +152,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       readFiles: plan.readFiles,
       modifiedFiles: plan.modifiedFiles,
       ...(plan.invokedSkills.length > 0 ? { invokedSkills: plan.invokedSkills } : {}),
+      usage,
     }
     const next = (modelContext([...entries, { seq: Number.MAX_SAFE_INTEGER, kind: 'compaction', runId: run.runId, payload }]) as AgentMessage[]).filter(
       (message) => !isFailedReply(message),

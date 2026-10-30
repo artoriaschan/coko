@@ -1,6 +1,6 @@
 // M3 上下文相关的条目 payload：命令与压缩（与 @coko/protocol 的 context-entries.ts 一致，server 的 entry-payloads.ts 编译期比对）。
 import { Type, type Static } from 'typebox'
-import { definePayloads } from './define.ts'
+import { definePayloads, type EntryJson } from './define.ts'
 
 const strict = { additionalProperties: false } as const
 const Count = Type.Integer({ minimum: 0 })
@@ -21,20 +21,40 @@ export type CommandPayload = Static<typeof commandPayloadSchema>
 export const compactionTriggerSchema = Type.Union([Type.Literal('auto'), Type.Literal('manual'), Type.Literal('overflow')])
 export type CompactionTrigger = Static<typeof compactionTriggerSchema>
 
-/** 压缩成功：之后的模型上下文为合成摘要消息 + firstKeptSeq 及之后的消息（entries/ 的 modelContext）。 */
-export const compactionPayloadSchema = Type.Object(
+const compactionFields = {
+  summary: Type.String(),
+  firstKeptSeq: Type.Integer({ minimum: 1 }),
+  tokensBefore: Count,
+  tokensAfter: Type.Optional(Count),
+  trigger: compactionTriggerSchema,
+  readFiles: Type.Array(Type.String()),
+  modifiedFiles: Type.Array(Type.String()),
+  invokedSkills: Type.Optional(Type.Array(Type.String())),
+}
+
+/** compaction v1：没有摘要请求的 usage。 */
+const compactionV1Schema = Type.Object(compactionFields, strict)
+
+const Amount = Type.Number({ minimum: 0 })
+/** 一次模型请求的 usage（pi-ai Usage 的 token 与费用部分）。 */
+export const requestUsageSchema = Type.Object(
   {
-    summary: Type.String(),
-    firstKeptSeq: Type.Integer({ minimum: 1 }),
-    tokensBefore: Count,
-    tokensAfter: Type.Optional(Count),
-    trigger: compactionTriggerSchema,
-    readFiles: Type.Array(Type.String()),
-    modifiedFiles: Type.Array(Type.String()),
-    invokedSkills: Type.Optional(Type.Array(Type.String())),
+    input: Amount,
+    output: Amount,
+    cacheRead: Amount,
+    cacheWrite: Amount,
+    totalTokens: Amount,
+    cost: Type.Object({ input: Amount, output: Amount, cacheRead: Amount, cacheWrite: Amount, total: Amount }, strict),
   },
   strict,
 )
+export type RequestUsage = Static<typeof requestUsageSchema>
+
+/**
+ * 压缩成功（v2）：之后的模型上下文为合成摘要消息 + firstKeptSeq 及之后的消息（entries/ 的 modelContext）。usage 为摘要请求的 usage
+ * （计入 Goal 预算）；v1 迁移而来的条目没有。
+ */
+export const compactionPayloadSchema = Type.Object({ ...compactionFields, usage: Type.Optional(requestUsageSchema) }, strict)
 export type CompactionPayload = Static<typeof compactionPayloadSchema>
 
 export interface ContextEntryPayloads {
@@ -44,5 +64,5 @@ export interface ContextEntryPayloads {
 
 export const contextEntryPayloads = definePayloads({
   command: [{ schema: commandPayloadSchema }],
-  compaction: [{ schema: compactionPayloadSchema }],
+  compaction: [{ schema: compactionV1Schema }, { schema: compactionPayloadSchema, migrate: (previous: EntryJson) => previous }],
 } satisfies Record<keyof ContextEntryPayloads, unknown>)
