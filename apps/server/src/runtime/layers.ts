@@ -13,9 +13,11 @@ import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { createSecretProbeTool } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
+import { ContextService } from '../application/context-service.ts'
 import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
+import { MemoryService } from '../application/context/memory.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
@@ -299,7 +301,8 @@ const AppLive = Layer.effect(
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
       config: capabilities,
-      context,
+      context: new ContextService({ store, assembly: context, sessions }),
+      memories: new MemoryService(store),
       mcp,
       secrets,
     } satisfies Application
