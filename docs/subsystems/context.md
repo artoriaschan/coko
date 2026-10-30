@@ -166,6 +166,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 输入区：当前会话收到 `compaction_start` 后，输入框上方显示状态行"正在压缩上下文…"与"停止压缩"（即停止当前 Run）；`compaction_end`、`compaction_failed`、`run_end` 或重连时清除。
 - 失败时每次一个 Toast，第 3 次自动失败的 Toast 改为提示自动压缩已暂停并给出 `/compact`；暂停标记见[上下文环](#上下文环)。
 
+### 压缩后的 `<todo_list>`
+
+`<todo_list>` system section 每个 Run 开始时从该 Session 最新的 `todo_list` 条目生成，不依赖对话消息：压缩把 todo_write 的调用与结果摘要掉之后，有未完成项时 section 照常注入，模型仍看到当前表。见 [Todo List](todo.md#注入)。
+
 ### 压缩后的重新注入
 
 - **已批准的计划**：最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal → todo）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。

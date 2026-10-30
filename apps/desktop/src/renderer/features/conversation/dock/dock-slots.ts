@@ -19,9 +19,9 @@ export interface DockSlotDefinition {
 }
 
 export const DOCK_SLOTS: readonly DockSlotDefinition[] = [
-  { id: 'todo', Component: TodoCard, available: false },
+  { id: 'todo', Component: TodoCard, available: true },
   { id: 'goal', Component: GoalCard, available: false },
-  { id: 'queue', Component: QueueCard, available: false },
+  { id: 'queue', Component: QueueCard, available: true },
 ]
 
 export const visibleDockSlots = (slots: readonly DockSlotDefinition[] = DOCK_SLOTS) => slots.filter((slot) => slot.available)

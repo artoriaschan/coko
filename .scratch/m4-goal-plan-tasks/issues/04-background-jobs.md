@@ -20,3 +20,4 @@
 - [ ] jobs.md 建立并可达（导航行写在 Comments）；ADR 0012 补 Job 证据；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 03——用 processes.track({ pid, pgid?, kind, sessionId?, jobId?, command }) 登记 Job 进程并在退出时调用返回的释放函数，或用 processes.trackExec(port, { kind, ... }) 包装 ExecPort；命令文本入库前已由登记表脱敏。来自票 07——贡献可经 options.entries.commit(sessionId, entry) 提交自己的条目（无 runId，与运行时条目同样脱敏与推送），Job 完成通知等条目可复用。

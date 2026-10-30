@@ -19,3 +19,4 @@
 - [ ] execution.md 补 PTY 与 stdin；desktop-delivery.md 说明 node-pty 的打包方式与不需要 asar 解包的理由；ADR 0012 改为 implemented 并链接 03–05 的证据；permissions.md 的 job_input 一行写在 Comments；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 03——pi-mcp 1.4.0 以 detached（独立进程组）启动 stdio MCP Server；本票把 MCP 登记改为记录 pgid，使孤儿清理覆盖经 npx 启动的孙进程，并同步 spec.md 与 ADR 0012 中"MCP 登记不记 pgid"的措辞（越出写范围，已授权：apps/server/src/adapters/mcp.ts 的登记一行、spec.md、ADR 0012）；sidecar-orphans.test.ts 增加孙进程被清理的用例。ADR 0012 的 implementation 由本票按证据改为 implemented。processes.track / trackExec 用法见票 03 Comments 的"供后续票"。

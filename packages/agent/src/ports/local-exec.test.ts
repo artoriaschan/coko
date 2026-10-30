@@ -1,9 +1,10 @@
 // 本地执行端口的沙箱接缝：受限档位经宿主给出的 LocalSandbox 包裹命令；没有沙箱或无法启用时 fail-closed（命令不运行）。
 // 这里用不依赖系统二进制的替身包裹器观察接缝；真实 Seatbelt 由 apps/server 的 seatbelt 适配器与 darwin 集成测试覆盖。
+// 生命周期回调（ADR 0012）：spawn 成功后 onSpawn 报告 pid 与进程组，进程退出后 onExit；没有启动的命令两者都不调用。
 import { access } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
-import { SandboxUnavailableError, type ExecRequest, type SandboxPolicy } from './exec.ts'
+import { SandboxUnavailableError, type ExecRequest, type SandboxPolicy, type SpawnedProcess } from './exec.ts'
 import { createLocalExecPort, type LocalSandbox } from './local-exec.ts'
 
 let ws: TempWorkspace
@@ -91,5 +92,73 @@ describe('本地执行的沙箱接缝', () => {
       expect(error).toMatchObject({ code: 'sandbox-unavailable', mode: 'read-only' })
     }
     expect(await exists(marker)).toBe(false)
+  })
+})
+
+describe('本地执行的生命周期回调', () => {
+  it('spawn 后 onSpawn 报告 pid 与独立进程组（pgid = pid，与命令自身看到的一致），退出后 onExit，各一次', async () => {
+    const events: string[] = []
+    let spawned: SpawnedProcess | undefined
+    let output = ''
+    const outcome = await createLocalExecPort().exec({
+      command: 'echo "$$ $(ps -o pgid= -p $$)"',
+      cwd: ws.dir,
+      onData: (chunk) => (output += chunk.toString()),
+      onSpawn: (process) => {
+        spawned = process
+        events.push('spawn')
+      },
+      onExit: () => events.push('exit'),
+    })
+    expect(outcome).toEqual({ kind: 'exited', exitCode: 0 })
+    expect(events).toEqual(['spawn', 'exit'])
+    const [pid, pgid] = output.trim().split(/\s+/).map(Number)
+    expect(spawned).toEqual({ pid, pgid })
+    expect(pgid).toBe(pid)
+  })
+
+  it('中止与超时同样在 onSpawn 之后调用 onExit；回调抛错不影响命令结果', async () => {
+    const events: string[] = []
+    const controller = new AbortController()
+    const aborted = await createLocalExecPort().exec({
+      command: 'sleep 30',
+      cwd: ws.dir,
+      onData: () => undefined,
+      signal: controller.signal,
+      onSpawn: () => {
+        events.push('spawn')
+        controller.abort()
+        throw new Error('host failed to record')
+      },
+      onExit: () => events.push('exit'),
+    })
+    expect(aborted).toEqual({ kind: 'aborted' })
+    const timedOut = await createLocalExecPort().exec({
+      command: 'sleep 30',
+      cwd: ws.dir,
+      onData: () => undefined,
+      timeoutMs: 50,
+      onSpawn: () => events.push('spawn'),
+      onExit: () => {
+        events.push('exit')
+        throw new Error('host failed to remove')
+      },
+    })
+    expect(timedOut).toEqual({ kind: 'timeout' })
+    expect(events).toEqual(['spawn', 'exit', 'spawn', 'exit'])
+  })
+
+  it('没有启动的命令不调用回调：工作目录不存在、fail-closed、包裹的可执行文件不存在', async () => {
+    const calls: string[] = []
+    const hooks = { onSpawn: () => calls.push('spawn'), onExit: () => calls.push('exit') }
+    const base = { command: 'true', onData: () => undefined, ...hooks }
+    await expect(createLocalExecPort().exec({ ...base, cwd: ws.path('missing') })).rejects.toThrow(/Working directory/)
+    await expect(createLocalExecPort().exec({ ...base, cwd: ws.dir, sandbox: policy('read-only') })).rejects.toBeInstanceOf(SandboxUnavailableError)
+    const missing: LocalSandbox = { denialSignature: 'x', wrap: () => [ws.path('no-such-sandbox-exec')] }
+    await expect(createLocalExecPort({ sandbox: missing }).exec({ ...base, cwd: ws.dir, sandbox: policy('read-only') })).rejects.toBeInstanceOf(
+      SandboxUnavailableError,
+    )
+    await expect(createLocalExecPort({ shell: ws.path('no-such-shell') }).exec({ ...base, cwd: ws.dir })).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(calls).toEqual([])
   })
 })

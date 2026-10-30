@@ -9,13 +9,13 @@ import { openCheckpointStore } from '../adapters/checkpoints.ts'
 import { createEnvCredentialStore, createEnvSecretSource, createIpcCredentialStore, createIpcSecretSource } from '../adapters/credentials.ts'
 import { installFauxProvider } from '../adapters/faux.ts'
 import { createMcpTransport } from '../adapters/mcp.ts'
-import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
+import { createWorkspaceTools, probeRipgrep, type WorkspaceToolsOptions } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { join } from 'node:path'
 import { createSecretProbeTool, createTestSeamContribution } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
 import { ContextService } from '../application/context-service.ts'
-import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
+import { createContextAssembly, createContributions, type ContextAssembly, type SessionEntryAccess } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
 import { McpAdmin } from '../application/context/mcp-admin.ts'
 import { MemoryService } from '../application/context/memory.ts'
@@ -27,6 +27,7 @@ import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
 import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
+import { toNewEntry } from '../application/session-runtimes.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
@@ -52,7 +53,8 @@ export interface HostShape {
 
 export class Host extends Context.Service<Host, HostShape>()('coko/Host') {}
 export class Logging extends Context.Service<Logging, FileLogging>()('coko/Logging') {}
-export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
+/** 探测后的工具集工厂；执行端口的包装（子进程登记）在存储打开之后由 AppLive 给出。 */
+export class Tools extends Context.Service<Tools, (extra: Pick<WorkspaceToolsOptions, 'wrapExec'>) => (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
 export class Processes extends Context.Service<Processes, ProcessRegistry>()('coko/Processes') {}
@@ -106,16 +108,17 @@ const ToolsLive = Layer.effect(
     const extraTools = config.testTools ? () => [createSecretProbeTool()] : undefined
     if (extraTools) log.warn('test tools enabled', { tools: ['secret_probe'] })
     const path = config.ripgrepPath
+    const base: WorkspaceToolsOptions = { sandbox, ...(extraTools ? { extraTools } : {}) }
     if (path === undefined) {
       log.info('grep implementation selected', { implementation: 'builtin' })
-      return createWorkspaceTools({ sandbox, ...(extraTools ? { extraTools } : {}) })
+      return (extra: Pick<WorkspaceToolsOptions, 'wrapExec'>) => createWorkspaceTools({ ...base, ...extra })
     }
     const version = yield* Effect.tryPromise({
       try: () => probeRipgrep(path),
       catch: (error) => new StartupError('ripgrep-unavailable', message(error), { cause: error }),
     })
     log.info('grep implementation selected', { implementation: 'ripgrep', path, version })
-    return createWorkspaceTools({ rgPath: path, sandbox, ...(extraTools ? { extraTools } : {}) })
+    return (extra: Pick<WorkspaceToolsOptions, 'wrapExec'>) => createWorkspaceTools({ ...base, rgPath: path, ...extra })
   }),
 )
 
@@ -141,6 +144,7 @@ const StoreLive = Layer.effect(
 
 /**
  * 子进程登记（ADR 0012）：打开存储之后、启动恢复之前清理上次留下的孤儿；关闭时在存储关闭之前终止全部登记进程。
+ * 登记的来源：前台 bash（AppLive 包装工具集的执行端口）与 stdio MCP Server（AssemblyLive 的传输工厂）。
  */
 const ProcessesLive = Layer.effect(
   Processes,
@@ -167,6 +171,7 @@ const AssemblyLive = Layer.effect(
   Effect.gen(function* () {
     const { config: sidecar, control, env } = yield* Host
     const store = yield* Store
+    const processes = yield* Processes
     const config = new ConfigService({ store })
     // Secret 只来自登记条目（ADR 0007）：IPC 模式为库中密文（经 main 解密），独立运行只读 COKO_SECRET_<NAME>。
     const secrets = new SecretService({
@@ -178,14 +183,25 @@ const AssemblyLive = Layer.effect(
       store,
       config,
       secrets,
-      createTransport: (server, { cwd }) => createMcpTransport(server, { cwd, env }),
+      // stdio Server 的 pid 登记为 mcp（ADR 0012），传输关闭后删除。
+      createTransport: (server, { cwd }) =>
+        createMcpTransport(server, { cwd, env, onProcess: ({ pid, command }) => processes.track({ pid, kind: 'mcp', command }) }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
     // 后台任务与 Goal 先于贡献创建（贡献读取它们），SessionService 在 AppLive 中接上。
     const jobs = new JobService({ store, hub: new SessionHub(), logDir: join(sidecar.dataDir, 'jobs') })
     const goals = new GoalService({ store, jobs })
     const extra = sidecar.testTools ? [createTestSeamContribution()] : []
-    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, extra })
+    // 领域自己的条目（todo_list 等）：与运行时条目相同的脱敏（toNewEntry）后入库，再推送。
+    const entries: SessionEntryAccess = {
+      list: (sessionId) => store.sessions.listEntries(sessionId),
+      async commit(sessionId, entry) {
+        const [committed] = await store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+        jobs.hub.publishEntry(committed!)
+        return committed!
+      },
+    }
+    const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store, jobs, goals, entries, extra })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
@@ -277,7 +293,9 @@ const AppLive = Layer.effect(
     const { config, control, env } = yield* Host
     const store = yield* Store
     const runs = yield* Runs
-    const workspaceTools = yield* Tools
+    const processes = yield* Processes
+    // 前台 bash 的进程组登记为 bash（ADR 0012），命令结束后删除。
+    const workspaceTools = (yield* Tools)({ wrapExec: (port) => processes.trackExec(port, { kind: 'bash' }) })
     const { config: capabilities, context, mcp, secrets, jobs, goals } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
