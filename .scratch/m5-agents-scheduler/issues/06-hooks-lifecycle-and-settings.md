@@ -22,3 +22,4 @@
 - [ ] hooks.md 补全全部事件与界面；context.md 一段；ADR 0013 补证据并改 implemented（README 索引同步）；`check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：来自票 02——手动 /compact 被 beforeCompact block 时，运行时目前以 error hook_stopped 结束；规格要求的 400 hook-blocked 须在开始 Run 之前判定（本票或票 03 实现，与票 03 协调：PreCompact 事件归本票）。

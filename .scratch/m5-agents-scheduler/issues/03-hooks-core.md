@@ -22,3 +22,4 @@
 - [ ] hooks.md 建立并可达（导航行写在 Comments）；permissions.md 写 Hook 在判定中的位置；configuration.md 写 `hooks` 键；ADR 0005 / 0008 / 0013 补本票证据（0012 的证据行写进 Comments）；`check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：来自票 02——decideWithStep 返回 { decision, step }，PermissionHookPort 在没有 Hook 时 gate 行为不变；hooks.enabled 只在全局生效。手动 /compact 被 Hook 阻断时 400 hook-blocked 的前置判定可能落在本票或票 06，PreCompact 事件归票 06。

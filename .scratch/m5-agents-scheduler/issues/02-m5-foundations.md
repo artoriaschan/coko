@@ -78,4 +78,6 @@
 **最终验证（2026-10-31 03:38–03:42，main 058c126 已合入，没有新提交；等其他 vitest run 结束后运行，负载约 4–7）：** worktree 中 `pnpm run test`：261 个测试文件全部通过，2082 例（2081 通过、1 跳过为既有的真实模型用例），test=0，日志中没有 Unhandled；包含 27 个 desktop-e2e 文件与 `package-smoke.e2e.test.ts`（3 例）。第一次全量（03:33）有 3 个确定性失败：sidecar-config 的有效配置、desktop-shell 的 bridge 键列表与 dock 的注册表列表（新键 / 占位行，实际值见上文"已有测试"），按实际值修正后全量通过。另：`pnpm run typecheck`、`lint`、`format:check`、`check:docs`（176 文件 0 问题）退出码 0；`scripts/browser-deps.test.ts` 与 `scripts/source-references.test.ts` 4 例通过。较票 01 的基线新增 6 个测试文件、98 例。
 
 **未验证：** 真实模型（无凭据）；Electron 中点击真实桌面通知（测试构建只记日志，显示与点击由 05 接入）；睡眠唤醒。
+- 2026-10-31 lead：评审后合入 main（6cb3c45）。接受越界：protocol/config.ts 与 agent config/merge.ts（hooks.enabled 只在全局生效）、server errors.ts 的新错误码与 invalid-input → 400、server config.ts 的 COKO_TEST_CLOCK、adapters/m5-test-seams.ts、desktop bridge.ts 与 main.tsx 的 bindOpenSession、就近测试。接受设计点：decide 返回值不变、新增 decideWithStep；Agent 规则建议为 Agent(<type>)；测试时钟只在 COKO_TEST_CLOCK=1 且未 --packaged 时挂载。三项交给后续票（已记入票 03、06、10）。main 上复核（后台任务）：install、typecheck、lint、format:check 退出 0；全量 test 261 文件 2081 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 176 文件 0 问题。worktree 已清理。
 
+Closed: true

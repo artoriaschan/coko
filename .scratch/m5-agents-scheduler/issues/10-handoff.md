@@ -20,3 +20,4 @@
 - [ ] handoff.md 建立并可达（含与 Fork 的差异表）；`check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：来自票 02——/handoff 已出现在命令目录中，动作目前为 400 占位，由本票替换；摘要模式只提交 run_start / run_end，摘要的 usage 在 RunResult.summaryUsage，由本票写进 handoff 条目。
