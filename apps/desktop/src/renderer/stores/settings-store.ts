@@ -27,7 +27,7 @@ export type PermissionsChange =
 
 export type SaveSettingResult = { status: 'saved' } | { status: 'conflict' } | { status: 'failed'; error: ApiError }
 
-/** 设置弹窗中编辑的 Provider；编辑时 secret 为空表示保留原 Credential。 */
+/** 设置页中编辑的 Provider；编辑时 secret 为空表示保留原 Credential。 */
 export interface ProviderDraft {
   /** 新建时为用户输入的 Provider ID；编辑时为已有 Provider 的 ID（创建后不可修改）。 */
   id: string

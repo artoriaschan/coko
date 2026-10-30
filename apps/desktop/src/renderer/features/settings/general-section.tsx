@@ -10,7 +10,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { usePreferences } from '../../app/settings.tsx'
 import { configStore } from '../../stores/config-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
-import { SettingsCard, SettingsRow } from './settings-dialog.tsx'
+import { SettingsCard, SettingsRow } from './settings-page.tsx'
 
 export function GeneralSection({ theme }: { theme: Theme }) {
   const { t, locale } = useI18n()

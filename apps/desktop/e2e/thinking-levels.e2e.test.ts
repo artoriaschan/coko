@@ -20,7 +20,7 @@ it('创建时配置档位后 /api/models 列出 off 与已配置档位；关闭�
   apps.push(app)
   await waitConnected(app.window)
   const { window } = app
-  const dialog = window.getByRole('dialog')
+  const dialog = window.locator('[data-settings-page]')
   await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
   await dialog.locator('[data-section="models"]').click()
 

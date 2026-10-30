@@ -84,7 +84,7 @@ export interface MemoryActions {
 
 export type MemoryStore = StoreApi<MemoryState & MemoryActions>
 
-/** 设置弹窗 Memory 分区的 vanilla store（无 React 依赖）。 */
+/** 设置页 Memory 分区的 vanilla store（无 React 依赖）。 */
 export function createMemoryStore(client: MemoryClient = createMemoryClient()): MemoryStore {
   let latest = 0
   return createStore<MemoryState & MemoryActions>()((set, get) => {

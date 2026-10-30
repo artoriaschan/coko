@@ -10,7 +10,7 @@ import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { mcpStore } from '../../stores/mcp-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
-import { SettingsCard } from './settings-dialog.tsx'
+import { SettingsCard } from './settings-page.tsx'
 
 const POLL_MS = 750
 

@@ -140,7 +140,10 @@ export const en: typeof zh = {
   settings: {
     open: 'Open settings',
     title: 'Settings',
-    close: 'Close settings',
+    back: 'Back to app',
+    search: 'Search settings…',
+    searchLabel: 'Search settings',
+    searchEmpty: 'No matching settings',
     sections: 'Settings sections',
     groups: {
       personal: 'Personal',

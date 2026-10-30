@@ -1,5 +1,5 @@
 import { createTranslator } from '@coko/i18n'
-import { AppFrame, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
+import { AppFrame, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
 import * as React from 'react'
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
@@ -9,12 +9,12 @@ import type { ConnectionStore } from './connection-store.ts'
 import type { ComposerHandle } from '../features/conversation/composer.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
-import { SettingsDialog } from '../features/settings/settings-dialog.tsx'
+import { SettingsPage } from '../features/settings/settings-page.tsx'
 import { Sidebar } from '../features/sidebar/sidebar.tsx'
 import { SidebarRail } from '../features/sidebar/sidebar-rail.tsx'
 import { I18nProvider, useI18n } from './i18n.tsx'
 import type { Preferences } from './preferences.ts'
-import type { SettingsDialogStore } from './settings-dialog-store.ts'
+import type { SettingsPageStore } from './settings-page-store.ts'
 import { SettingsProvider } from './settings.tsx'
 
 export interface AppProps {
@@ -23,14 +23,14 @@ export interface AppProps {
   chat: ChatStore
   settings: SettingsStore
   preferences: Preferences
-  settingsDialog: SettingsDialogStore
+  settingsPage: SettingsPageStore
   /** 目录选择（preload 提供）；取消时为 null。 */
   pickDirectory: () => Promise<string | null>
   /** 打开日志文件夹（preload 提供）；桥接不可用时为 undefined。 */
   openLogs?: (() => void) | undefined
 }
 
-export function App({ store, connection, chat, settings, preferences, settingsDialog, pickDirectory, openLogs }: AppProps) {
+export function App({ store, connection, chat, settings, preferences, settingsPage, pickDirectory, openLogs }: AppProps) {
   const { theme, locale } = React.useSyncExternalStore(store.subscribe, store.getSnapshot)
   const connectionState = React.useSyncExternalStore(connection.subscribe, connection.getSnapshot)
 
@@ -41,35 +41,56 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
   }, [theme, locale])
 
   const composer = React.useRef<ComposerHandle>(null)
+  const { visible: settingsVisible } = React.useSyncExternalStore(settingsPage.subscribe, settingsPage.getSnapshot)
 
-  // 全局快捷键（输入法组合期间不响应）：⌘, / Ctrl+, 打开设置；⌘N / Ctrl+N 新建会话；Run 进行中 Escape 停止。
-  // Escape 已被对话框、菜单或 composer 处理（defaultPrevented）或有弹层打开时不停止：对话框打开时 Escape 只关闭对话框。
+  // 打开设置前记下焦点所在（store 通知先于渲染，应用尚未 inert），返回应用后焦点回到那里。
+  const returnFocus = React.useRef<HTMLElement | null>(null)
+  React.useEffect(() => {
+    let wasVisible = settingsPage.getSnapshot().visible
+    return settingsPage.subscribe(() => {
+      const { visible } = settingsPage.getSnapshot()
+      if (visible && !wasVisible) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      wasVisible = visible
+    })
+  }, [settingsPage])
+  React.useLayoutEffect(() => {
+    if (settingsVisible) return
+    const target = returnFocus.current
+    returnFocus.current = null
+    if (target?.isConnected) target.focus()
+  }, [settingsVisible])
+
+  // 全局快捷键（输入法组合期间不响应）：⌘, / Ctrl+, 打开或关闭设置；⌘N / Ctrl+N 新建会话；Escape 返回应用或停止 Run。
+  // Escape 已被弹窗、菜单或 composer 处理（defaultPrevented）或有弹层打开时只关闭弹层；设置打开时 Escape 返回应用，不停止 Run。
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing) return
       const command = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey
       if (command && event.key === ',') {
         event.preventDefault()
-        settingsDialog.show()
+        settingsPage.toggle()
       } else if (command && event.key.toLowerCase() === 'n') {
         event.preventDefault()
         if (chat.getState().workspaces.length === 0) {
           void chat.getState().addWorkspace(pickDirectory)
           return
         }
-        settingsDialog.close()
+        settingsPage.back()
         chat.getState().startDraft()
         // 草稿渲染后再聚焦。
         requestAnimationFrame(() => composer.current?.focus())
       } else if (event.key === 'Escape' && !command && !event.defaultPrevented) {
-        if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
+        // 应用隐藏（inert）时其中的抽屉等不算打开的弹层。
+        const layers = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"]')]
+        if (layers.some((layer) => !layer.closest('[inert]'))) return
+        if (settingsPage.getSnapshot().visible) return settingsPage.back()
         const { activeSessionId, conversations } = chat.getState()
         if (activeSessionId !== null && conversations[activeSessionId]?.running) void chat.getState().stop()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsDialog, chat, pickDirectory])
+  }, [settingsPage, chat, pickDirectory])
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
@@ -81,29 +102,34 @@ export function App({ store, connection, chat, settings, preferences, settingsDi
   return (
     <I18nProvider locale={locale}>
       <ChatStoreProvider store={chat}>
-        <SettingsProvider store={settings} dialog={settingsDialog} preferences={preferences}>
+        <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
           <TooltipProvider>
-            <Frame
-              sidebarWidth={sidebarWidth}
-              onSidebarWidthChange={setSidebarWidth}
-              sidebarCollapsed={sidebarCollapsed}
-              onSidebarCollapsedChange={setSidebarCollapsed}
-              rightOpen={rightOpen}
-              sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
-              rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
-              rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
-            >
-              <ConversationPane
-                theme={theme}
-                rightOpen={rightOpen}
-                onToggleRight={() => setRightOpen((open) => !open)}
-                connection={connectionState}
-                onAddWorkspace={onAddWorkspace}
-                onOpenLogs={openLogs}
-                composerRef={composer}
-              />
-            </Frame>
-            <SettingsDialog theme={theme} />
+            <div className="relative h-full w-full">
+              {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
+              <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
+                <Frame
+                  sidebarWidth={sidebarWidth}
+                  onSidebarWidthChange={setSidebarWidth}
+                  sidebarCollapsed={sidebarCollapsed}
+                  onSidebarCollapsedChange={setSidebarCollapsed}
+                  rightOpen={rightOpen}
+                  sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
+                  rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
+                  rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
+                >
+                  <ConversationPane
+                    theme={theme}
+                    rightOpen={rightOpen}
+                    onToggleRight={() => setRightOpen((open) => !open)}
+                    connection={connectionState}
+                    onAddWorkspace={onAddWorkspace}
+                    onOpenLogs={openLogs}
+                    composerRef={composer}
+                  />
+                </Frame>
+              </div>
+              <SettingsPage theme={theme} />
+            </div>
             <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
           </TooltipProvider>
         </SettingsProvider>

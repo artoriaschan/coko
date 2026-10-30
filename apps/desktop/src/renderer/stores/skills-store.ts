@@ -93,7 +93,7 @@ export type SkillsStore = StoreApi<SkillsState & SkillsActions>
 
 const TOGGLEABLE_SOURCES = new Set<CommandInfo['source']>(['project', 'user', 'mcp'])
 
-/** 设置弹窗 Skills & Commands 分区的 vanilla store（无 React 依赖）。 */
+/** 设置页 Skills & Commands 分区的 vanilla store（无 React 依赖）。 */
 export function createSkillsStore(client: SkillsClient = createSkillsClient()): SkillsStore {
   let latest = 0
   return createStore<SkillsState & SkillsActions>()((set, get) => {

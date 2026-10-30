@@ -10,9 +10,10 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { customProvider, type fakeSettingsBackend } from '../../testing/fake-settings.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 afterEach(async () => {
   toast.dismiss()
@@ -33,7 +34,7 @@ async function openModels(locale: Locale = 'zh', seed: (backend: Backend) => voi
   const { chat, settings, backend } = createFixtureChat({ providers: false })
   backend.setCandidates(CANDIDATES)
   seed(backend)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance, settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -43,14 +44,14 @@ async function openModels(locale: Locale = 'zh', seed: (backend: Backend) => voi
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
   await settings.getState().load()
-  settingsDialog.show('models')
-  const dialog = page.getByRole('dialog').first()
+  settingsPage.open('models')
+  const dialog = settingsRegion()
   await expect.element(dialog.getByRole('heading', { name: dictionaries[locale].providers.title })).toBeVisible()
   await settled()
   return { dialog, backend }
@@ -67,7 +68,7 @@ const visibleIds = () => candidateRows().map((row) => row.getAttribute('data-can
 const checkbox = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[data-candidate="${id}"] [role=checkbox]`)!)
 const catalogIds = () => [...form().querySelectorAll<HTMLInputElement>('[data-model-row] [name="modelId"]')].map((input) => input.value)
 
-async function openCreate(dialog: ReturnType<typeof page.getByRole>) {
+async function openCreate(dialog: ReturnType<typeof settingsRegion>) {
   await dialog.getByRole('button', { name: '添加模型供应商', exact: true }).click()
   await fill(connection('providerId'), 'custom-provider-1')
   await fill(connection('name'), '自定义供应商一')
@@ -228,7 +229,7 @@ it('编辑时填写了新 Key：获取用新 Key；取消或关闭弹窗不修�
   expect(backend.cancelProviderModels).toHaveBeenCalledWith(requestKey)
   await expect.element(trigger()).toBeEnabled()
 
-  // Escape 关闭：只关闭选择弹窗，不关闭设置。
+  // Escape 关闭：只关闭选择弹窗，不离开设置。
   await openPicker()
   await userEvent.keyboard('{Escape}')
   await expect.poll(pickerOpen).toBe(false)

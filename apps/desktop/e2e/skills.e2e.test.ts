@@ -55,7 +55,7 @@ describe('Skills & Commands 分区', () => {
 
     const openSection = async () => {
       await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
-      const dialog = window.getByRole('dialog')
+      const dialog = window.locator('[data-settings-page]')
       await dialog.locator('[data-section="skills"]').click()
       await dialog.locator('[data-skill]').first().waitFor()
       return dialog

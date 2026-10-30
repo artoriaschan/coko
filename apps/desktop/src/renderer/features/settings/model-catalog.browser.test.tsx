@@ -10,9 +10,10 @@ import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
-import { createSettingsDialogStore } from '../../app/settings-dialog-store.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { catalogModel, customProvider, type fakeSettingsBackend } from '../../testing/fake-settings.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { settingsRegion } from '../../testing/settings-page.ts'
 
 afterEach(async () => {
   toast.dismiss()
@@ -33,7 +34,7 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
   const appearance = createAppearanceStore({ theme: 'light', locale })
   const { chat, settings, backend } = createFixtureChat({ providers: false })
   seed(backend)
-  const settingsDialog = createSettingsDialogStore()
+  const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance, settings, onConflict: () => {}, onFailure: () => {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -43,20 +44,20 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
         chat={chat}
         settings={settings}
         preferences={preferences}
-        settingsDialog={settingsDialog}
+        settingsPage={settingsPage}
         pickDirectory={async () => null}
       />
     </div>,
   )
   await settings.getState().load()
-  settingsDialog.show('models')
-  const dialog = page.getByRole('dialog')
+  settingsPage.open('models')
+  const dialog = settingsRegion()
   await expect.element(dialog.getByRole('heading', { name: dictionaries[locale].providers.title })).toBeVisible()
   await settled()
   return { dialog, backend, appearance }
 }
 
-const form = () => document.querySelector<HTMLFormElement>('[role=dialog] [data-provider-form]')!
+const form = () => document.querySelector<HTMLFormElement>('[data-settings-page] [data-provider-form]')!
 const modelRows = () => [...form().querySelectorAll<HTMLElement>('[data-model-row]')]
 const modelRow = (index: number) => page.elementLocator(modelRows()[index]!)
 const input = (index: number, name: string) => modelRows()[index]!.querySelector<HTMLInputElement>(`[name="${name}"]`)!
@@ -177,7 +178,7 @@ it('空目录、空模型 ID 或重复 ID 阻止提交并标出出错的行；�
   ])
 
   // 重新打开：名称为空，以模型 ID 作为显示。
-  const row = page.elementLocator(document.querySelector<HTMLElement>('[role=dialog] [data-provider-id="custom-provider-1"]')!)
+  const row = page.elementLocator(document.querySelector<HTMLElement>('[data-settings-page] [data-provider-id="custom-provider-1"]')!)
   await row.getByRole('button', { name: '编辑', exact: true }).click()
   await expect.poll(() => modelRows().length).toBe(3)
   expect(input(0, 'modelName').value).toBe('')
@@ -249,7 +250,7 @@ it('编辑：已保存的容量带后缀回显，输入类型、推理开关与�
     b.seedProvider({ ...customProvider('custom-provider-2', []), name: '自定义供应商二', models: [rich, catalogModel('custom-model-2')] }, 'sk-2222'),
   )
   const edit = page
-    .elementLocator(document.querySelector<HTMLElement>('[role=dialog] [data-provider-id="custom-provider-2"]')!)
+    .elementLocator(document.querySelector<HTMLElement>('[data-settings-page] [data-provider-id="custom-provider-2"]')!)
     .getByRole('button', { name: '编辑', exact: true })
   await edit.click()
   await expect.poll(() => modelRows().length).toBe(2)
@@ -260,7 +261,7 @@ it('编辑：已保存的容量带后缀回显，输入类型、推理开关与�
   await modelRow(0).getByRole('button', { name: '模型选项', exact: true }).click()
   // 只改变展开状态：再次点击“编辑”直接收起，不提示放弃更改。
   await edit.click()
-  await expect.poll(() => document.querySelector('[role=dialog] [data-provider-form]')).toBeNull()
+  await expect.poll(() => document.querySelector('[data-settings-page] [data-provider-form]')).toBeNull()
   expect(document.querySelector('[role=alertdialog]')).toBeNull()
 
   await edit.click()
@@ -268,7 +269,7 @@ it('编辑：已保存的容量带后缀回显，输入类型、推理开关与�
   await expand(1)
   await fill(input(1, 'maxTokens'), '32K')
   await dialog.getByRole('button', { name: '保存更改', exact: true }).click()
-  await expect.poll(() => document.querySelector('[role=dialog] [data-provider-form]')).toBeNull()
+  await expect.poll(() => document.querySelector('[data-settings-page] [data-provider-form]')).toBeNull()
   const saved = [rich, catalogModel('custom-model-2', { maxTokens: 32_000 })]
   expect(backend.providers[0]!.models).toEqual(saved)
 

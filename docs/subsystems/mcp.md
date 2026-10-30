@@ -25,7 +25,7 @@ lifecycle: active
 | `apps/server/src/http/routes/mcp.ts`、`routes/secrets.ts` | `/api/mcp` 系列与 `/api/secrets` |
 | `packages/protocol/src/mcp.ts`、`secrets.ts`、`control.ts` | DTO、路径常量、设置键；控制 IPC 的 `secret.store` / `secret.decrypt` |
 | `apps/desktop/src/main/secrets.ts` | main 一侧：safeStorage 加密 `setSecret` 的值、回答 `secret.decrypt` |
-| `apps/desktop/src/renderer/stores/mcp-store.ts`、`features/settings/mcp-section.tsx` | 设置弹窗的 MCP 分区 |
+| `apps/desktop/src/renderer/stores/mcp-store.ts`、`features/settings/mcp-section.tsx` | 设置页的 MCP 分区 |
 
 ## 配置
 
@@ -108,7 +108,7 @@ Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload 
 
 ## 界面
 
-设置弹窗的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部）；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与逐行的环境变量 / 请求头键值，批准后启动；已批准的可撤销）；分区顶部的能力开关 `mcp.enabled`（与其他能力开关共用，见 [分层配置](configuration.md#界面)）；保存或删除失败时显示本地化文案，服务端原文只在表单的"技术详情"中展开查看；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
+设置页的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部）；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与逐行的环境变量 / 请求头键值，批准后启动；已批准的可撤销）；分区顶部的能力开关 `mcp.enabled`（与其他能力开关共用，见 [分层配置](configuration.md#界面)）；保存或删除失败时显示本地化文案，服务端原文只在表单的"技术详情"中展开查看；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
 
 ## 尚未实现
 
