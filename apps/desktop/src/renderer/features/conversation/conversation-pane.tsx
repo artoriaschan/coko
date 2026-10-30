@@ -255,6 +255,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               request={pending.payload}
               call={pendingCall}
               autoFocus={focusCard}
+              onOpenPlan={() => openTab('plan')}
               onAllow={() => answerApproval(pending.payload.requestId, { decision: 'allow', scope: 'once' })}
               onAllowAlways={(scope) => answerApproval(pending.payload.requestId, { decision: 'allow', scope })}
               onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}

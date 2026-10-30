@@ -1,6 +1,8 @@
 import { formatPermissionRule, type ApprovalRequestPayload } from '@coko/protocol'
 import { ApprovalCard, DiffBlock, ToolOutput } from '@coko/ui'
+import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { PlanReviewPanel } from './plan-review-panel.tsx'
 import type { ToolCallBlock } from './timeline.ts'
 
 export interface ApprovalPanelProps {
@@ -13,6 +15,8 @@ export interface ApprovalPanelProps {
   onReject: (feedback?: string) => Promise<boolean>
   autoFocus?: boolean
   className?: string
+  /** kind plan 的请求：打开右栏的 Plan tab（审阅卡的"在右栏查看"与新计划自动打开）。 */
+  onOpenPlan?: () => void
 }
 
 export type AllowScope = 'session' | 'workspace' | 'global'
@@ -111,7 +115,31 @@ const TITLE = {
 } as const
 
 /** 接管输入区的审批卡：一次只显示一个待审批请求（最早的）。 */
-export function ApprovalPanel({ request, call, onAllow, onAllowAlways, onReject, autoFocus, className }: ApprovalPanelProps) {
+/** kind plan：计划审阅接管输入区（读取当前会话的条目与回答接口）。 */
+function PlanApproval({ request, autoFocus, className, onOpenPlan }: Pick<ApprovalPanelProps, 'request' | 'autoFocus' | 'className' | 'onOpenPlan'>) {
+  const sessionId = useChat((s) => s.activeSessionId)
+  const entries = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]?.entries))
+  const { answerApproval } = useChatActions()
+  if (sessionId === null || !entries) return null
+  return (
+    <PlanReviewPanel
+      sessionId={sessionId}
+      request={request}
+      entries={entries}
+      answer={(answer) => answerApproval(request.requestId, answer)}
+      onOpenPanel={onOpenPlan}
+      {...(autoFocus ? { autoFocus } : {})}
+      {...(className ? { className } : {})}
+    />
+  )
+}
+
+export function ApprovalPanel(props: ApprovalPanelProps) {
+  if (props.request.kind === 'plan') return <PlanApproval {...props} />
+  return <ToolApproval {...props} />
+}
+
+function ToolApproval({ request, call, onAllow, onAllowAlways, onReject, autoFocus, className }: ApprovalPanelProps) {
   const { t } = useI18n()
   const key = TITLE[request.toolName as keyof typeof TITLE]
   const accepted = async (sent: Promise<boolean>) => {

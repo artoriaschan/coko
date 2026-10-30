@@ -1,4 +1,4 @@
-import { formatPermissionRule, parsePermissionRule, type PermissionMode, type PermissionRule } from '@coko/protocol'
+import { formatPermissionRule, parsePermissionRule, type PermissionRule, type StandardPermissionMode } from '@coko/protocol'
 import {
   Button,
   cn,
@@ -94,7 +94,10 @@ export function PermissionsSection() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuRadioGroup value={defaultMode} onValueChange={(value) => void save({ target: 'defaultMode', value: value as PermissionMode })}>
+                  <DropdownMenuRadioGroup
+                    value={defaultMode}
+                    onValueChange={(value) => void save({ target: 'defaultMode', value: value as StandardPermissionMode })}
+                  >
                     {PERMISSION_MODES.map((mode) => (
                       <DropdownMenuRadioItem
                         key={mode}
