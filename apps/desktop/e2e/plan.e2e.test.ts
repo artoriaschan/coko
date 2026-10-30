@@ -36,9 +36,22 @@ const modeButton = (app: LaunchedApp) => app.window.locator('[data-permission-mo
 const chip = (app: LaunchedApp) => app.window.locator('[data-slot="plan-chip"]')
 const review = (app: LaunchedApp) => app.window.locator('[data-slot="plan-review"]')
 const planTab = (app: LaunchedApp) => app.window.locator('[data-slot="plan-tab"]')
+/** 打开模式菜单并选"规划"：菜单在 30 秒内没有出现时（高负载下点击可能落在上一次关闭的过程中）关闭后重试。 */
 async function choosePlan(app: LaunchedApp) {
-  await modeButton(app).click()
-  await app.window.getByRole('menuitemradio', { name: /^(Plan|规划)/ }).click()
+  const item = app.window.getByRole('menuitemradio', { name: /^(Plan|规划)/ })
+  const deadline = Date.now() + 30_000
+  for (;;) {
+    await expect.poll(() => modeButton(app).getAttribute('aria-expanded')).not.toBe('true')
+    await modeButton(app).click()
+    try {
+      await item.waitFor({ timeout: 5_000 })
+      break
+    } catch (error) {
+      if (Date.now() > deadline) throw error
+      await app.window.keyboard.press('Escape')
+    }
+  }
+  await item.click()
   await chip(app).waitFor()
 }
 
