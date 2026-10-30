@@ -20,3 +20,4 @@
 - [ ] goal.md 建立并可达（导航行写在 Comments）；ADR 0011 补本票证据；`check:docs` 通过
 
 ## Comments
+- 2026-10-30 lead：来自票 04——停止 Goal 时用 JobService.killSession(sessionId) 结束该 Session 的 Job；Job 的 goalId 尚未写入，由本票写；带 Goal 的空闲 Session 在 Job 完成时的唤醒由本票实现（无 Goal 时不唤醒，见规格）。

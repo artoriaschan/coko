@@ -20,3 +20,4 @@
 
 ## Comments
 - 2026-10-30 lead：来自票 03——pi-mcp 1.4.0 以 detached（独立进程组）启动 stdio MCP Server；本票把 MCP 登记改为记录 pgid，使孤儿清理覆盖经 npx 启动的孙进程，并同步 spec.md 与 ADR 0012 中"MCP 登记不记 pgid"的措辞（越出写范围，已授权：apps/server/src/adapters/mcp.ts 的登记一行、spec.md、ADR 0012）；sidecar-orphans.test.ts 增加孙进程被清理的用例。ADR 0012 的 implementation 由本票按证据改为 implemented。processes.track / trackExec 用法见票 03 Comments 的"供后续票"。
+- 2026-10-30 lead：来自票 04——在 JobService.#start 中增加 PTY 分支；Job 日志、游标与通知沿用票 04 的实现。

@@ -19,3 +19,4 @@
 
 ## Comments
 - 2026-10-30 lead：来自票 07——时间线中"尚未送达"的气泡与 dock 的 Queue 卡重复显示待送达指令。Queue 卡为唯一呈现，本票删除时间线中的该气泡并更新相关测试（越出写范围，已授权：apps/desktop/src/renderer/features/conversation/timeline-view.tsx 与其测试）。
+- 2026-10-30 lead：来自票 04——列表接口为 SessionJobsResponse { jobs }，路径见 jobPaths；WS job_output 的偏移等于日志文件的字节偏移，可直接用于增量追加。

@@ -2,6 +2,16 @@
 
 所有实施票共用。复制自 [M3 实施者须知](../m3-context-instructions/implementer-brief.md) 并改为 M4，另加入 [M3 复盘](../m3-context-instructions/retro.md) 中已采纳的规则。Lead 只通过上下文指针沟通，细节读文件。
 
+## 同一台机器上的全量测试
+
+多个 worktree 共用一台机器。两个全量 `pnpm run test` 同时运行时负载会到 15 以上，启动真实 sidecar / Electron 或冷启动转译的用例会超时。运行全量前先等其他 `vitest run` 结束：
+
+```bash
+while ps -ax -o command | grep -E "node .*vitest run" | grep -v grep >/dev/null; do sleep 5; done
+```
+
+只跑单个测试文件时不需要等待。
+
 ## 完成报告（必须）
 
 完成后回复 Lead，**第一行**只写：

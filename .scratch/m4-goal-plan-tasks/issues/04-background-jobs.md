@@ -29,3 +29,6 @@
   - **未验证 / 未做：** Goal 相关（取消 Goal 终止其 Job：提供了 `JobService.killSession(sessionId)`；`job_start.goalId` 未写入；空闲 Session 有 Goal 时的唤醒）留给票 09；PTY 留给票 05；真实模型未验证（无凭据）。
   - **供后续票：** 票 05——`BackgroundJobRequest.spawn` 与 `JobService.#start` 目前只有 kind bash，PTY 需在 #start 增加 kind 与 PtyPort 分支，日志保存原始输出、模型读取时已去除 ANSI（`BackgroundJob.unread`）。票 06——`GET /api/sessions/:id/jobs` 返回 `{ jobs }`（`SessionJobsResponse`），`jobPaths.{sessionJobs,output,kill}`，WS `job_output` 的 offset 与 HTTP 日志偏移相同（脱敏后字节），`job_update` 在 running / stopping / 结束时各一次。票 09——`JobService.killSession`、`pendingInput` 已在 goal 触发的 Run 合并。票 10（README 汇总）：agent README 记 `ExecPort.spawn`、`tasks/jobs/` 导出与 `BashExecutionContext`；server README 记 JobService、routes/jobs、`job-not-running`、faux 的 `$LAST_JOB_ID`。
   - **文档影响：** 新建 `docs/subsystems/jobs.md`；ADR 0012 补后台 Job 证据（implementation 仍为 not-started，PTY 完成后由票 05 改）；execution.md 更新；`pnpm run check:docs` 通过。
+- 2026-10-30 lead：评审后合入 main（28eeef7）。接受越界：protocol 与 server 的 job-not-running 错误码、processes.ts 的 trackExec 透传 spawn、layers.ts 一行、faux 的 $LAST_JOB_ID 占位（票 10 保留）、execution.md 与 docs/README 一行。main 上复核（后台任务，等其他 vitest 结束后运行）：install、typecheck、lint、format:check 退出 0；全量 test 234 文件 1650 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 153 文件 0 问题。worktree 已清理。
+
+Closed: true
