@@ -20,6 +20,19 @@ export interface ExecRequest {
    * enforce rejects with SandboxUnavailableError before anything runs (fail-closed).
    */
   sandbox?: SandboxPolicy
+  /**
+   * Lifecycle (ADR 0012): called once the process was started, with its pid and, when it leads its own process group,
+   * the group id. Not called when the command could not be started. The host registers the process here.
+   */
+  onSpawn?: (process: SpawnedProcess) => void
+  /** Called once after the process exited (or was killed), only if `onSpawn` was called. The host removes its registration. */
+  onExit?: () => void
+}
+
+/** A started process as reported to `onSpawn`. `pgid` is present when the process leads its own process group (detached). */
+export interface SpawnedProcess {
+  pid: number
+  pgid?: number
 }
 
 /** Where a confined command may write: `read-only` nothing, `workspace-write` only under `writableRoots` (real paths). */
