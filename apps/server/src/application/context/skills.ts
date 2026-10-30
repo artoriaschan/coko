@@ -13,8 +13,7 @@ import {
 import { getLogger } from '@coko/logging'
 import type { SkillListResponse } from '@coko/protocol'
 import { AppError } from '../errors.ts'
-import type { SourcedCommand } from './commands.ts'
-import type { ContextContribution, ContextContributionOptions, ContextScope } from './types.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope, SourcedCommand } from './types.ts'
 
 const log = getLogger(['application', 'context', 'skills'])
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))

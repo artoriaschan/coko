@@ -1,0 +1,40 @@
+// 开头的系统消息：基础提示与宿主每个 Run 开始时给出的 system sections。
+import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { SystemMessage } from '@earendil-works/pi-ai'
+import type { SystemSection } from './types.ts'
+
+export const DEFAULT_SYSTEM_PROMPT =
+  "You are Coko, a coding agent working in the user's Workspace. Use the tools to inspect and change files and to run commands. Keep answers concise."
+
+/** Name of the base prompt's section when host sections are present (the first section, ahead of every contribution). */
+export const BASE_SYSTEM_SECTION = 'coko.base'
+
+/**
+ * 替换运行时自己建立的开头系统消息（它不是已提交的条目，每次构造运行时都按基础提示重建）。恢复的对话记录本身以系统消息开头时
+ * 不动它；没有宿主段落时保持基础提示原样，模型请求与 M2 相同。
+ */
+export function createSystemMessage(options: {
+  basePrompt: string
+  /** 构造时传入的对话记录（判断开头的系统消息是否属于它）。 */
+  restored: readonly AgentMessage[] | undefined
+  state: { messages: AgentMessage[] }
+}): { apply(sections: readonly SystemSection[]): void } {
+  const { basePrompt, state } = options
+  let leading: SystemMessage | undefined =
+    options.restored?.[0]?.role !== 'system' && state.messages[0]?.role === 'system' ? (state.messages[0] as SystemMessage) : undefined
+  return {
+    apply(sections) {
+      const messages = state.messages
+      const index = leading ? messages.indexOf(leading) : -1
+      if (!leading || index !== 0) return
+      const { sections: _previous, ...rest } = leading
+      const extra = sections.filter((section) => section.text.length > 0)
+      const next: SystemMessage =
+        extra.length === 0
+          ? { ...rest, content: basePrompt }
+          : { ...rest, content: '', sections: Object.fromEntries([[BASE_SYSTEM_SECTION, basePrompt], ...extra.map((s) => [s.name, s.text] as const)]) }
+      leading = next
+      state.messages = [next, ...messages.slice(1)]
+    },
+  }
+}

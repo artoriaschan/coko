@@ -1,7 +1,8 @@
 import { type Credential, type CredentialInfo, type CredentialStore, type EnvExclusion } from '@coko/agent'
-import { createRequestTracker, SECRET_NAME_PATTERN } from '@coko/protocol'
+import { SECRET_NAME_PATTERN } from '@coko/protocol'
 import type { ProviderRepository, SecretRepository } from '@coko/session'
 import type { ControlChannel } from '../control/channel.ts'
+import { createIpcDecryptor } from './ipc-decryptor.ts'
 
 /** sidecar 不经 CredentialStore 写 Credential：密钥由 main 加密后随 provider.save 一次进入库（ADR 0004、0010）。 */
 const readOnly = () => Promise.reject(new Error('Credentials are managed by the desktop app'))
@@ -18,33 +19,20 @@ export interface HostCredentialStore extends CredentialStore {
  */
 export function createIpcCredentialStore(options: { control: ControlChannel; providers: ProviderRepository; timeoutMs?: number }): HostCredentialStore {
   const { control, providers } = options
-  const timeoutMs = options.timeoutMs ?? 10_000
-  const cache = new Map<string, string>()
   // 超时、中止与断开都拒绝；调用方（模型请求）把它当作取不到密钥。
-  const decryptions = createRequestTracker<string>({ timeoutMs, timeoutMessage: (ms) => `Credential decryption timed out after ${ms} ms` })
-
-  control.onMessage((message) => {
-    if (message.type !== 'credential.decrypt.result') return
-    if ('plaintext' in message) decryptions.resolve(message.requestId, message.plaintext)
-    else decryptions.reject(message.requestId, new Error(`Credential could not be decrypted: ${message.error}`))
+  const decryptor = createIpcDecryptor({
+    control,
+    requestType: 'credential.decrypt',
+    resultType: 'credential.decrypt.result',
+    label: 'Credential',
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   })
-  control.onDisconnect(() => decryptions.rejectAll(new Error('Desktop app disconnected')))
-
-  const decrypt = (ciphertext: Uint8Array, signal?: AbortSignal) =>
-    decryptions.request((requestId) => void control.send({ type: 'credential.decrypt', requestId, ciphertext: Buffer.from(ciphertext).toString('base64') }), {
-      signal,
-    })
 
   return {
     async read(providerId, readOptions) {
       readOptions?.signal?.throwIfAborted()
-      const cached = cache.get(providerId)
-      if (cached !== undefined) return { type: 'api_key', key: cached }
-      const ciphertext = await providers.getCredentialCiphertext(providerId)
-      if (!ciphertext) return undefined
-      const plaintext = await decrypt(ciphertext, readOptions?.signal)
-      cache.set(providerId, plaintext)
-      return { type: 'api_key', key: plaintext } satisfies Credential
+      const key = await decryptor.get(providerId, () => providers.getCredentialCiphertext(providerId), { signal: readOptions?.signal })
+      return key === undefined ? undefined : ({ type: 'api_key', key } satisfies Credential)
     },
     async list() {
       const all = await providers.list()
@@ -52,8 +40,8 @@ export function createIpcCredentialStore(options: { control: ControlChannel; pro
     },
     modify: readOnly,
     delete: readOnly,
-    invalidate: (providerId) => void cache.delete(providerId),
-    cachedValues: () => [...cache.values()],
+    invalidate: (providerId) => decryptor.invalidate(providerId),
+    cachedValues: () => decryptor.cachedValues(),
   }
 }
 
@@ -120,35 +108,22 @@ const hintOf = (value: string) => (value.length >= 8 ? value.slice(-4) : '')
 /** IPC 模式：读库中的密文，经 secret.decrypt 请 main 解密，只缓存在进程内存。 */
 export function createIpcSecretSource(options: { control: ControlChannel; secrets: SecretRepository; timeoutMs?: number }): SecretSource {
   const { control, secrets } = options
-  const cache = new Map<string, string>()
-  const decryptions = createRequestTracker<string>({
-    timeoutMs: options.timeoutMs ?? 10_000,
-    timeoutMessage: (ms) => `Secret decryption timed out after ${ms} ms`,
+  const decryptor = createIpcDecryptor({
+    control,
+    requestType: 'secret.decrypt',
+    resultType: 'secret.decrypt.result',
+    label: 'Secret',
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   })
-  control.onMessage((message) => {
-    if (message.type !== 'secret.decrypt.result') return
-    if ('plaintext' in message) decryptions.resolve(message.requestId, message.plaintext)
-    else decryptions.reject(message.requestId, new Error(`Secret could not be decrypted: ${message.error}`))
-  })
-  control.onDisconnect(() => decryptions.rejectAll(new Error('Desktop app disconnected')))
   return {
     kind: 'stored',
     list: async () => (await secrets.list()).map(({ name, hint, updatedAt }) => ({ name, hint, updatedAt })),
     async get(name, getOptions) {
       if (!SECRET_NAME.test(name)) return undefined
-      const cached = cache.get(name)
-      if (cached !== undefined) return cached
-      const ciphertext = await secrets.getCiphertext(name)
-      if (!ciphertext) return undefined
-      const plaintext = await decryptions.request(
-        (requestId) => void control.send({ type: 'secret.decrypt', requestId, ciphertext: Buffer.from(ciphertext).toString('base64') }),
-        { signal: getOptions?.signal },
-      )
-      cache.set(name, plaintext)
-      return plaintext
+      return decryptor.get(name, () => secrets.getCiphertext(name), { signal: getOptions?.signal })
     },
-    cachedValues: () => [...cache.values()],
-    invalidate: (name) => void cache.delete(name),
+    cachedValues: () => decryptor.cachedValues(),
+    invalidate: (name) => decryptor.invalidate(name),
   }
 }
 

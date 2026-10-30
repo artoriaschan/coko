@@ -21,12 +21,12 @@ lifecycle: active
 | `apps/server/src/adapters/seatbelt.ts` | Seatbelt profile、启动探测、`sandbox-exec -p <profile> --` 包裹 |
 | `packages/agent/src/policy/broker.ts` | `ApprovalBroker`：每个运行时一个，提交请求与决定条目，等待回答或重新判定 |
 | `packages/agent/src/policy/gate.ts` | 权限 hook，位于 `ToolHooks.beforeToolCall` 链首；执行前复核 `recheck`；本 Run 的沙箱拒绝记录；模型可见的拒绝文本 |
-| `packages/agent/src/engine/runtime.ts` | `AgentRuntimeOptions.permissions`（每次调用读取模式与规则）、`answerApproval()`、`pendingApprovals`；调度器的执行前准备（复核、沙箱档位、Secrets、读取过滤） |
+| `packages/agent/src/engine/runtime.ts`、`permission-wiring.ts` | `AgentRuntimeOptions.permissions`（每次调用读取模式与规则）、`answerApproval()`、`pendingApprovals`；调度器的执行前准备（复核、沙箱档位、Secrets、读取过滤，在 `permission-wiring.ts`） |
 | `packages/agent/src/tools/builtin/read-filter.ts` | grep、find、ls 不列出被 Read 拒绝规则覆盖的路径 |
 | `packages/protocol/src/permissions.ts` | 条目 payload、协议 DTO、`permissionPaths`、设置键、规则文本 `formatPermissionRule` / `parsePermissionRule` |
 | `apps/server/src/application/permissions.ts` | `PermissionService`：默认模式、全局与 Workspace 规则的读入、缓存与写入；经 `ProjectRuleSource`（`ConfigService`）取只读的 project 规则 |
 | `apps/server/src/application/session-permissions.ts` | Session 模式与规则的回放、同一 Session 的修改串行、保存"总是允许"、触发重新判定 |
-| `apps/server/src/application/sessions.ts` | Session `activity`；每个 Run 开始时把上下文装配给出的工具（带权限类）与额外读取根交给运行时 |
+| `apps/server/src/application/sessions.ts`、`session-runs.ts` | Session `activity`；每个 Run 开始时把上下文装配给出的工具（带权限类）与额外读取根交给运行时（`session-runs.ts`）；规则工具名来自各贡献的 `ruleTools` |
 | `packages/ui/src/approval/approval-card.tsx` | 共享审批卡（键盘、单次回答、"总是允许"菜单） |
 | `apps/desktop/src/renderer/features/conversation/approval-panel.tsx` | 审批卡的业务组合：标题、命令 / 路径 / diff 摘要、建议规则；提权卡（目标档位与理由） |
 | `apps/desktop/src/renderer/features/conversation/mode-picker.tsx` | 输入区的模式选择与 Shift+Tab 循环顺序 |

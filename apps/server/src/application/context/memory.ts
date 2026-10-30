@@ -5,7 +5,7 @@ import { redactText } from '@coko/logging'
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemorySource } from '@coko/protocol'
 import type { Memory } from '@coko/session'
 import { AppError } from '../errors.ts'
-import type { ContextContribution, ContextContributionOptions, ContextScope, MemoryStore } from './types.ts'
+import type { ContextContribution, ContextContributionOptions, ContextScope, MemoryStore, RuleTool } from './types.ts'
 
 const toEntry = (m: Memory): MemoryEntry => ({
   id: m.id,
@@ -96,12 +96,19 @@ export function memoryPort(service: MemoryService, workspaceId: string): MemoryP
   }
 }
 
+const notConnected = () => Promise.reject(new Error('Memory port is not connected'))
+/** memory_* 的名字与权限类取自工具本身的定义（不执行，端口不接通）；Memory 关闭或没有存储时同样声明。 */
+const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools({ list: notConnected, create: notConnected, update: notConnected, delete: notConnected }).map(
+  ({ tool, permissionClass }) => ({ name: tool.name, permissionClass }),
+)
+
 export function memoryContribution(options: ContextContributionOptions): ContextContribution {
-  if (!options.memories) return { name: 'memory' }
+  if (!options.memories) return { name: 'memory', ruleTools: MEMORY_RULE_TOOLS }
   const service = new MemoryService(options.memories)
   const section = async (scope: ContextScope) => memorySection((await service.list(scope.workspaceId)).map(toAgent))
   return {
     name: 'memory',
+    ruleTools: MEMORY_RULE_TOOLS,
     async systemSections(scope) {
       if (!scope.config.memory.enabled) return []
       const built = await section(scope)

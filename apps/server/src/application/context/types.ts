@@ -1,5 +1,16 @@
 // 上下文装配（docs/subsystems/context.md）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
-import type { AgentRuntime, CapabilityConfig, CokoTool, PermissionClass, PermissionRule, RunInput, RunResult, SystemSection, ToolHooks } from '@coko/agent'
+import type {
+  AgentRuntime,
+  CapabilityConfig,
+  CokoTool,
+  CommandDefinition,
+  PermissionClass,
+  PermissionRule,
+  RunInput,
+  RunResult,
+  SystemSection,
+  ToolHooks,
+} from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { LoadedInstructionFile, ResourceDiagnostic } from '@coko/protocol'
 import type { SessionEntry, SessionStore } from '@coko/session'
@@ -24,13 +35,31 @@ export interface ContributedTool {
   permissionClass?: PermissionClass
 }
 
+/**
+ * 贡献工具在规则中的名字来源（静态、与 Run 无关）：写规则时即使当前没有注册（领域关闭、Server 未连接）也接受这些名字，
+ * 并按权限类归一（例如 memory-write → Memory）。
+ */
+export interface RuleTool {
+  name: string
+  permissionClass: PermissionClass
+}
+
 /** 输入展开的结果：交给运行时的 RunInput，或一个动作（例如 /compact），由 actions[name] 执行。 */
 export type ExpandResult = { kind: 'input'; input: RunInput } | { kind: 'action'; name: string; args: string }
 
-/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）；条目形状见 commands.ts 的 SourcedCommand。 */
+/**
+ * Skill 与 MCP 提示模板向命令目录登记的一条（CommandSourceContribution.list 的元素）。被调用时由来源展开：返回展开后的文本；
+ * 参数不合要求时抛出 AppError（例如缺少必填参数时 bad-request），提交以该错误失败。
+ */
+export interface SourcedCommand extends CommandDefinition {
+  source: 'skill' | 'mcp'
+  expand(args: string, scope: ContextScope): Promise<string>
+}
+
+/** 命令目录的一个来源（Skill 与 MCP 提示模板向命令目录登记）。 */
 export interface CommandSourceContribution {
   source: 'skill' | 'mcp'
-  list(scope: ContextScope): Promise<unknown[]>
+  list(scope: ContextScope): Promise<SourcedCommand[]>
 }
 
 /** 动作执行时 SessionService 提供的能力：该 Session 的已提交条目，与在其运行时上开始一个 Run（与 submit 相同的检查）。 */
@@ -56,6 +85,8 @@ export interface ContextContribution {
   name: string
   systemSections?(scope: ContextScope): Promise<SystemSection[]>
   tools?(scope: ContextScope): Promise<ContributedTool[]>
+  /** 本领域可能贡献的工具及其权限类（PermissionService 据此校验与归一规则中的工具名）。 */
+  ruleTools?: readonly RuleTool[]
   /** 额外读取根（例如 Skill 目录），其下的 read 组调用与 Workspace 内读取同样处理。 */
   readRoots?(scope: ContextScope): Promise<string[]>
   hooks?(scope: ContextScope): ToolHooks[]

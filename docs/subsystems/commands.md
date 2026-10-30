@@ -17,7 +17,7 @@ lifecycle: active
 | `packages/agent/src/instructions/commands/registry.ts` | `createCommandRegistry`：同名取舍、遮蔽诊断、启停 |
 | `packages/agent/src/instructions/commands/builtin.ts` | 内置命令列表（目前为空） |
 | `packages/protocol/src/commands.ts` | `CommandInfo`、`CommandListResponse`、`commandPaths`；条目 payload `CommandPayload` 在 `context-entries.ts` |
-| `apps/server/src/application/context/commands.ts` | 命令贡献：命令目录与 `expandInput`；Skill 与 MCP 提示模板经 `commandSources` 登记的 `SourcedCommand` |
+| `apps/server/src/application/context/commands.ts` | 命令贡献：命令目录与 `expandInput`；Skill 与 MCP 提示模板经 `commandSources` 登记的 `SourcedCommand`（类型在 `context/types.ts`） |
 | `apps/server/src/http/routes/commands.ts` | `GET /api/commands` |
 | `packages/ui/src/composer/composer-typeahead.tsx` | `ComposerTypeahead`：输入区 typeahead（键盘、输入法、定位） |
 | `apps/desktop/src/renderer/features/conversation/command-menu.tsx`、`stores/commands-store.ts` | / 命令菜单与命令目录 store |

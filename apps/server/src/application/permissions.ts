@@ -1,4 +1,4 @@
-import { canonicalRuleTool, type PermissionRule, type ProjectRuleTexts } from '@coko/agent'
+import { canonicalRuleTool, ruleToolName, type PermissionClass, type PermissionRule, type ProjectRuleTexts } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import {
   parsePermissionRule,
@@ -41,6 +41,30 @@ export { sameRule }
 export interface HostToolNames {
   names: readonly string[]
   aliases?: Readonly<Record<string, string>>
+}
+
+/** 只为取工具名而构造宿主工具集时用的固定目录（工具集的名字与 Workspace 无关；构造不访问该目录）。 */
+const TOOL_NAMES_CWD = '/'
+
+/**
+ * 写规则时可用的工具名：宿主注册的工具（第一次需要时从工具工厂读取），以及贡献声明的规则工具按其规则名
+ * （memory_write / memory_delete → Memory，其余为原名）。
+ */
+export function hostToolNames(options: {
+  tools?: (cwd: string) => { list(): readonly { name: string }[] }
+  ruleTools: readonly { name: string; permissionClass: PermissionClass }[]
+}): () => HostToolNames {
+  let names: readonly string[] | undefined
+  const aliases = Object.fromEntries(options.ruleTools.map(({ name, permissionClass }) => [name.toLowerCase(), ruleToolName(name, permissionClass)]))
+  return () => {
+    names ??= options.tools
+      ? options
+          .tools(TOOL_NAMES_CWD)
+          .list()
+          .map((tool) => tool.name)
+      : []
+    return { names, aliases }
+  }
 }
 
 const toHostToolNames = (known: readonly string[] | HostToolNames): HostToolNames => ('names' in known ? known : { names: known as readonly string[] })

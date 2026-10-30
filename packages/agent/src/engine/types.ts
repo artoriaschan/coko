@@ -1,6 +1,22 @@
-import type { AgentMessage, AgentToolResult } from '@earendil-works/pi-agent-core'
-import type { Model, UserMessage } from '@earendil-works/pi-ai'
-import type { CompactionTrigger, RunStatus, SessionEntryKind, SessionEntryPayloads } from '../session-entries/index.ts'
+import type { AgentMessage, AgentToolResult, ThinkingLevel } from '@earendil-works/pi-agent-core'
+import type { Model, Models, UserMessage } from '@earendil-works/pi-ai'
+import type { EntryLike } from '../entries/index.ts'
+import type { ToolHooks } from '../extensions/hooks.ts'
+import type { ApprovalAnswer } from '../policy/broker.ts'
+import type { ExecPort } from '../ports/exec.ts'
+import type { SecretProvider } from '../ports/secrets.ts'
+import type {
+  ApprovalRequestPayload,
+  CompactionTrigger,
+  PermissionMode,
+  PermissionRule,
+  RunStatus,
+  SessionEntryKind,
+  SessionEntryPayloads,
+} from '../session-entries/index.ts'
+import type { ToolRegistry } from '../tools/registry.ts'
+import type { TimeoutOptions } from '../tools/timeout.ts'
+import type { RetryPolicy } from './retry.ts'
 
 export type { RunStatus } from '../session-entries/index.ts'
 
@@ -93,3 +109,131 @@ export interface RuntimeContext {
 
 /** `entry` is emitted after the host's commit resolved; `progress` is fire-and-forget. */
 export type RuntimeEvent = { kind: 'entry'; entry: RunEntry } | { kind: 'progress'; event: ProgressEvent }
+
+export interface AgentRuntimeOptions {
+  /** pi-ai collection that owns the model's Provider (see createModelRegistry). */
+  models: Models
+  model: Model<any>
+  /** Workspace directory. */
+  cwd: string
+  /**
+   * Persist one entry. Awaited before the Run continues: a toolResult or the next request only
+   * proceeds after the previous message was committed. A rejection stops the Run with `commit_failed`.
+   */
+  commit: (entry: RunEntry) => Promise<void>
+  /** Default: built-in tools for `cwd` using `exec`. Read again at the start of every Run. */
+  tools?: ToolRegistry
+  /** Default: local shell. Only used when `tools` is omitted. */
+  exec?: ExecPort
+  systemPrompt?: string
+  /** Transcript to continue, usually the committed message entries of the Session. */
+  messages?: AgentMessage[]
+  thinkingLevel?: ThinkingLevel
+  hooks?: ToolHooks[]
+  retry?: Partial<RetryPolicy>
+  timeouts?: TimeoutOptions
+  /**
+   * At most this many tool calls execute at once (default 10). Read calls share the slots; a side-effect call
+   * runs alone, after every earlier call of the batch finished and before any later one starts.
+   */
+  toolConcurrency?: number
+  /** Session of the transcript; the first part of every idempotency key. Omitted: a random id per runtime. */
+  sessionId?: string
+  /**
+   * Permission decision and approvals (ADR 0005), first in the hook chain. Read on every call, so mode and rule
+   * changes apply to the next call. Omitted: no permission check (library callers without an answer channel).
+   */
+  permissions?: RuntimePermissions
+  /** Resolves the secrets a tool declares (`CokoTool.secrets`), once per call. Omitted: tools declaring secrets fail. */
+  secrets?: SecretProvider
+  /**
+   * Status of the Session's last ended Run (its run_end entry), for a runtime restored from committed entries.
+   * continue() is allowed only after `paused` or `interrupted`. Omitted: no earlier Run.
+   */
+  lastRunStatus?: RunStatus
+  /** Host contributions to the model context (system sections, request-only message transform, pre-request hook). */
+  context?: RuntimeContext
+  /** 压缩：省略时没有自动压缩，compact() 拒绝。 */
+  compaction?: RuntimeCompaction
+}
+
+/**
+ * 压缩的宿主部分：已提交的条目（带 seq，切点与重建上下文用）与 context.autoCompact。每次模型请求前估算超过阈值时自动压缩；
+ * 请求以上下文溢出失败时压缩一次再重试一次；连续 3 次自动失败后暂停（运行时内存，成功的压缩复位）。
+ */
+export interface RuntimeCompaction {
+  /** Session 的全部已提交条目（按 seq）；压缩时读取一次。 */
+  entries: () => Promise<readonly EntryLike[]>
+  /** 自动压缩（含溢出后压缩）是否开启；每次请求前现取。 */
+  autoCompact: () => boolean
+  /** 压缩后保留的最近消息的估算 token 数；缺省 20 000。 */
+  keepRecentTokens?: number
+}
+
+export interface RuntimePermissions {
+  mode: () => PermissionMode
+  rules: () => readonly PermissionRule[]
+  /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */
+  readRoots?: () => readonly string[]
+}
+
+export interface AgentRuntime {
+  /**
+   * Submit a user message and resolve when the Run ended and its run_end entry was committed. `before` entries of a RunInput
+   * are committed after run_start and before the user message.
+   */
+  run(input: string | RunInput): Promise<RunResult>
+  /**
+   * Run the failed last turn again as a new Run, without a new user message: the trailing failed assistant
+   * message is dropped from the model context and the model continues from the user message or tool results
+   * before it. The failed message stays in the committed record. Throws NothingToRetryError when the last turn
+   * did not end with a model error.
+   */
+  retry(): Promise<RunResult>
+  /**
+   * Continue the last Run after it was paused or interrupted, as a new Run (`run_start { trigger: continue }`) without a
+   * new user message. Throws NothingToContinueError when the last Run ended otherwise, RuntimeBusyError while a Run is in progress.
+   */
+  continue(): Promise<RunResult>
+  /**
+   * Send a message into the current Run (Steering). It is delivered after the current tool batch finishes, before the
+   * next model request, and committed then as a user message. Messages not delivered when the Run ends are returned in
+   * `run_end.undeliveredSteering`. Throws NoActiveRunError when no Run is in progress.
+   */
+  steer(input: string | RunInput): void
+  /**
+   * Pause the current Run: the current tool batch completes, no new model request starts, pending approvals end as
+   * cancelled (those calls do not run), and the Run ends with status `paused`. Throws NoActiveRunError when no Run is in progress.
+   */
+  pause(): void
+  /**
+   * Cancel the current Run; pending approvals end as cancelled, undelivered steering is returned in run_end, and the Run
+   * ends with status `aborted` after tools have stopped.
+   */
+  abort(): void
+  /**
+   * Answer a pending approval request. Resolves after the approval_decision entry was committed. Throws
+   * ApprovalNotPendingError when the request is not waiting (already answered, cancelled, or unknown).
+   * A denial without feedback ends the Run as `aborted` after the current tool batch.
+   */
+  answerApproval(requestId: string, answer: ApprovalAnswer): Promise<void>
+  /** Approval requests waiting for an answer, in request order. */
+  readonly pendingApprovals: readonly ApprovalRequestPayload[]
+  subscribe(listener: (event: RuntimeEvent) => void): () => void
+  /** Model for later Runs. Throws while a Run is in progress. */
+  setModel(model: Model<any>): void
+  /**
+   * Thinking Level for later Runs ('off' sends the protocol's default way of turning reasoning off). pi-ai clamps a
+   * level the model does not support. Throws while a Run is in progress.
+   */
+  setThinkingLevel(level: ThinkingLevel): void
+  /**
+   * 手动压缩（/compact）：一个 trigger compact 的 Run，只提交 compaction 条目（或以失败的 run_end 结束）；instructions 追加为摘要的
+   * 额外要求。停止时不提交条目。没有 compaction 选项时 reject；Run 进行中抛 RuntimeBusyError。
+   */
+  compact(instructions?: string): Promise<RunResult>
+  /** 熔断状态：连续失败次数，以及自动压缩是否已暂停。 */
+  readonly compaction: { readonly consecutiveFailures: number; readonly paused: boolean }
+  readonly isRunning: boolean
+  readonly messages: readonly AgentMessage[]
+}

@@ -18,7 +18,16 @@ import { mcpContribution } from './mcp.ts'
 import { memoryContribution } from './memory.ts'
 import { referencesContribution } from './references.ts'
 import { skillsContribution } from './skills.ts'
-import type { ContextAction, ContextContribution, ContextContributionOptions, ContextReport, ContextScope, ContributedTool, ExpandResult } from './types.ts'
+import type {
+  ContextAction,
+  ContextContribution,
+  ContextContributionOptions,
+  ContextReport,
+  ContextScope,
+  ContributedTool,
+  ExpandResult,
+  RuleTool,
+} from './types.ts'
 import { usageContribution } from './usage.ts'
 
 export type * from './types.ts'
@@ -62,6 +71,8 @@ export interface ContextAssembly {
   readonly transformMessages: ((messages: AgentMessage[], scope: ContextScope) => AgentMessage[]) | undefined
   action(name: string): ContextAction | undefined
   report(scope: ContextScope): Promise<ContextReport[]>
+  /** 各领域声明的规则工具（ContextContribution.ruleTools 的汇总）。 */
+  readonly ruleTools: readonly RuleTool[]
   readonly contributions: readonly ContextContribution[]
   /** 按顺序关闭各领域（存储关闭之前）；单个失败不影响其余。 */
   close(): Promise<void>
@@ -92,6 +103,7 @@ export function createContextAssembly(options: {
   const transforms = contributions.flatMap((c) => (c.transformMessages ? [c.transformMessages.bind(c)] : []))
   return {
     contributions,
+    ruleTools: contributions.flatMap((c) => c.ruleTools ?? []),
     async scope(input) {
       return { ...input, config: await config.effective(input.cwd), cokoHome }
     },

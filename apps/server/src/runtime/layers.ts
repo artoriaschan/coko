@@ -13,8 +13,11 @@ import { createWorkspaceTools, probeRipgrep } from '../adapters/ripgrep.ts'
 import { createSeatbeltSandbox, DEFAULT_SANDBOX_EXEC, probeSeatbelt } from '../adapters/seatbelt.ts'
 import { createSecretProbeTool } from '../adapters/test-tools.ts'
 import { ConfigService } from '../application/config.ts'
+import { ContextService } from '../application/context-service.ts'
 import { createContextAssembly, createContributions, type ContextAssembly } from '../application/context/index.ts'
 import { McpManager } from '../application/context/mcp.ts'
+import { McpAdmin } from '../application/context/mcp-admin.ts'
+import { MemoryService } from '../application/context/memory.ts'
 import { SessionHub } from '../application/hub.ts'
 import type { Application } from '../application/index.ts'
 import { serveProviderModels } from '../application/provider-models.ts'
@@ -48,7 +51,7 @@ export class Logging extends Context.Service<Logging, FileLogging>()('coko/Loggi
 export class Tools extends Context.Service<Tools, (cwd: string) => ToolRegistry>()('coko/Tools') {}
 export class Store extends Context.Service<Store, SqliteStore>()('coko/Store') {}
 export class Runs extends Context.Service<Runs, RunLauncher>()('coko/Runs') {}
-export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly; mcp: McpManager; secrets: SecretService }>()(
+export class Assembly extends Context.Service<Assembly, { config: ConfigService; context: ContextAssembly; mcp: McpAdmin; secrets: SecretService }>()(
   'coko/Assembly',
 ) {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
@@ -153,7 +156,8 @@ const AssemblyLive = Layer.effect(
     const contributions = createContributions({ cokoHome: sidecar.cokoHome, mcp, memories: store })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
-    return yield* Effect.acquireRelease(Effect.succeed({ config, context, mcp, secrets }), ({ context }) => Effect.promise(() => context.close()))
+    const admin = new McpAdmin({ store, manager: mcp })
+    return yield* Effect.acquireRelease(Effect.succeed({ config, context, mcp: admin, secrets }), ({ context }) => Effect.promise(() => context.close()))
   }),
 )
 
@@ -297,7 +301,8 @@ const AppLive = Layer.effect(
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
       config: capabilities,
-      context,
+      context: new ContextService({ store, assembly: context, sessions }),
+      memories: new MemoryService(store),
       mcp,
       secrets,
     } satisfies Application
