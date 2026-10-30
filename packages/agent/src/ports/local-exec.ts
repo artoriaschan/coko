@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { constants as osConstants } from 'node:os'
-import { isConfined, SandboxUnavailableError, type ExecOutcome, type ExecPort, type SandboxPolicy } from './exec.ts'
+import { isConfined, SandboxUnavailableError, type ExecOutcome, type ExecPort, type SandboxPolicy, type SpawnedProcess } from './exec.ts'
 
 /** Variables of the Sidecar process that must not leak into user commands. */
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
@@ -123,12 +123,24 @@ function waitForExit(child: ChildProcess): Promise<number | null> {
   })
 }
 
-/** Local shell execution: each command runs in its own process group so cancellation kills descendants too. */
+/** Host lifecycle callbacks must not break the command they observe. */
+function notify<T extends unknown[]>(callback: ((...args: T) => void) | undefined, ...args: T): void {
+  try {
+    callback?.(...args)
+  } catch {
+    // The host records its own failures.
+  }
+}
+
+/**
+ * Local shell execution: each command runs in its own process group so cancellation kills descendants too.
+ * The process leads that group (detached spawn), so `onSpawn` reports `pgid = pid`.
+ */
 export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
   const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
   const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
   return {
-    async exec({ command, cwd, env, onData, signal, timeoutMs, sandbox }): Promise<ExecOutcome> {
+    async exec({ command, cwd, env, onData, signal, timeoutMs, sandbox, onSpawn, onExit }): Promise<ExecOutcome> {
       if (signal?.aborted) return { kind: 'aborted' }
       try {
         if (!(await stat(cwd)).isDirectory()) throw new Error('not a directory')
@@ -149,6 +161,13 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
         detached: true,
         env: env ?? baseEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      // 'spawn' fires only for a started process and before 'exit'; a spawn failure emits 'error' instead.
+      let spawned = false
+      child.once('spawn', () => {
+        spawned = true
+        const pid = child.pid!
+        notify<[SpawnedProcess]>(onSpawn, { pid, pgid: pid })
       })
       let aborted = false
       let timedOut = false
@@ -196,6 +215,7 @@ export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
       } finally {
         if (timer) clearTimeout(timer)
         signal?.removeEventListener('abort', onAbort)
+        if (spawned) notify(onExit)
       }
     },
   }
