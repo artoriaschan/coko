@@ -45,7 +45,8 @@ function settled(supervisor: SidecarSupervisor, predicate: (state: SupervisorSta
 
 const spawned = async (eventsPath: string) => (await readFixtureEvents(eventsPath)).filter((e) => e.event === 'spawned').map((e) => e.pid)
 
-describe('SidecarSupervisor', () => {
+// 每个用例启动真实的 Electron sidecar 进程（单独运行约 2.5 秒）；全量并行时负载高，默认 5 秒不够。
+describe('SidecarSupervisor', { timeout: 30_000 }, () => {
   it('ready 之后意外退出：重启 sidecar 并重新交换 cookie，旧端点被替换', async () => {
     const { supervisor, states } = await supervise('normal')
     const first = await supervisor.start()
