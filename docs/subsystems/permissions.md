@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的权限判定与审批契约：四种模式、权限类与额外读取根、判定顺序、规则语法与作用域（含只读的 project 作用域）、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
+description: "当前的权限判定与审批契约：五种模式（含 plan）、权限类与额外读取根、判定顺序、规则语法与作用域（含只读的 project 作用域）、受保护路径、ApprovalBroker 状态与重新判定、审批条目、协议路由、拒绝语义、命令沙箱（Seatbelt）与单次提权、审批卡与模式选择。修改判定、规则、审批流程、沙箱或权限界面前查阅。"
 lifecycle: active
 ---
 
@@ -44,22 +44,25 @@ lifecycle: active
 | default | Workspace 内的 read 组调用 | workspace-write | Workspace、`/tmp`、`os.tmpdir()` 的真实路径 |
 | accept-edits | 另加可写根内的 write / edit | workspace-write | 同 default |
 | full-access | 全部调用 | danger-full-access（不包裹） | `/` |
+| plan（M4） | 与 read-only 相同 | read-only | 无 |
 
 **权限类（M3）。** 宿主注册工具时给出权限类（`RegisterToolOptions.permissionClass`），工具对象自身不能声明（工具上的同名属性被忽略）。内置工具按名字归入 read、edit、bash，不受宿主给出的类影响；其他类在"模式放行"一步的行为：
 
 | 权限类 | 工具 | 模式放行 |
 | --- | --- | --- |
-| context-read | skill、memory_list、list_mcp_resources、list_mcp_resource_templates、read_mcp_resource | 四种模式都放行 |
+| context-read | skill、memory_list、list_mcp_resources、list_mcp_resource_templates、read_mcp_resource | 所有模式都放行 |
 | memory-write | memory_write、memory_delete（规则组名 `Memory`） | accept-edits 与 full-access |
 | external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
-| session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill | 四种模式都放行 |
+| session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill | 所有模式都放行（含 read-only 与 plan） |
 | plan-exit（M4） | exit_plan_mode | 无：任何模式都询问且不建议规则，允许规则不生效 |
 
-没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。其余类的具体工具由之后的票注册：M4 的 session-state 与 plan-exit 已在 `decide.ts` 声明，对应工具由 Todo、Goal、后台任务与 Plan Mode 注册。plan-exit 的询问不受允许规则免除，拒绝规则照常生效。
+没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。session-state 的工具由 Todo、Goal 与后台任务注册；plan-exit 的 `exit_plan_mode` 只在 plan 模式的 Run 中注册，询问不受允许规则免除，拒绝规则照常生效，审批为 kind plan（见下文与 [Plan Mode](plan-mode.md)）。
 
 **额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
 
 workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
+
+**plan（Plan Mode）。** 判定与 read-only 相同，命令沙箱 read-only；进入时 `permission_mode`（v2）带 `prior`（进入前的模式，已在 plan 时不变），`/plan off`、Plan chip 与批准计划回到它；从 plan 选择其他模式即退出。默认模式只能是四档之一；Shift+Tab 循环不含 plan。完整契约见 [Plan Mode](plan-mode.md)。
 
 新 Session 创建时提交一条 `permission_mode` 条目，取设置 `permissions.defaultMode`（缺省 default）；之后改默认模式不影响已有 Session。没有 `permission_mode` 条目的旧 Session 按 default。切换模式提交新的 `permission_mode` 条目（与当前相同时不提交），立即作用于下一次调用。
 
@@ -157,7 +160,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 ## 审批状态与条目
 
-判定为 ask 时，broker 先登记等待、再提交 `approval_request { requestId, toolCallId, toolName, kind: 'tool', subject, suggestions }`。状态只能前进一次：
+判定为 ask 时，broker 先登记等待、再提交 `approval_request { requestId, toolCallId, toolName, kind: 'tool', subject, suggestions }`。kind 另有 escalation（单次提权，见上文）与 plan（`exit_plan_mode` 提交的计划：询问前先提交 proposed 的 `plan` 条目，请求带 `planId`、`revision`，subject 为计划标题，不重新判定；见 [Plan Mode](plan-mode.md#提交与审阅)）。状态只能前进一次：
 
 | 结局 | 何时 | approval_decision |
 | --- | --- | --- |
@@ -181,15 +184,15 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 ## 协议
 
-- `POST /api/sessions/:id/approvals/:requestId`，body 为 `AnswerApprovalRequest`：`{ decision: 'allow', scope? }` 或 `{ decision: 'deny', feedback? }`。成功 204；请求不在等待中 409 `approval-not-pending`；scope 不可保存时 400；Session 不存在 404。
-- `PUT /api/sessions/:id/permission-mode` `{ mode }`；`GET / POST / DELETE /api/sessions/:id/permission-rules`（POST / DELETE 的 body 为 `{ rule }`，已存在 / 不存在时不提交条目）。都返回 `SessionPermissionsResponse { mode, rules }`。
+- `POST /api/sessions/:id/approvals/:requestId`，body 为 `AnswerApprovalRequest`：`{ decision: 'allow', scope?, editedPlan?, mode? }` 或 `{ decision: 'deny', feedback? }`；`editedPlan` 与 `mode`（default / accept-edits）只用于 kind plan，其他请求 400，kind plan 的 scope 只能是 once。成功 204；请求不在等待中 409 `approval-not-pending`；scope 不可保存时 400；Session 不存在 404。
+- `PUT /api/sessions/:id/permission-mode` `{ mode }`；`GET / POST / DELETE /api/sessions/:id/permission-rules`（POST / DELETE 的 body 为 `{ rule }`，已存在 / 不存在时不提交条目）。都返回 `SessionPermissionsResponse { mode, prior?, rules }`（prior 只在 plan 模式时出现）。
 - `GET /api/permissions?workspaceId=…` 返回 `PermissionsResponse`：`defaultMode`、`global`，给出 workspaceId 时另有 `workspace` 与 `project { workspaceId, path, rules }`（只读，没有 revision），可写的各带 revision（未保存过为 0）。`PUT /api/permissions` 一次修改一项：`{ target: 'defaultMode', value }`、`{ target: 'global', rules }` 或 `{ target: 'workspace', workspaceId, rules }`，都带 `expectedRevision`；不合 schema 400，revision 不一致 409 `revision-conflict`，Workspace 不存在 404。规则最多 500 条，工具名非空且不含括号与空白，内容非空、最长 4000。
 - Session DTO 的 `activity`：Run 进行中且有待审批请求为 `awaiting-approval`，否则 `running`；没有 Run 时的取值见 [启动恢复与结果确认](recovery.md#activity-与界面)。`inspect-quit` 的 `activeRuns` 包含等待审批的 Run。
 - 重连：以 afterSeq 0 重新订阅即可看到仍在等待的 `approval_request`（没有对应 decision、所属 Run 未结束）。
 
 ## 界面
 
-- **模式选择**：输入区底栏、模型选择旁，显示当前模式；菜单列出四种模式及说明。full-access 只能在菜单中选择，选中时按钮与图标为 destructive 色，菜单中显示警示。焦点在编辑区时 Shift+Tab 在 read-only → default → accept-edits 之间循环（从 full-access 回到 read-only），焦点不离开编辑区；焦点在其他控件上时 Shift+Tab 照常移动焦点。会话中切换立即显示，经协议提交，失败时撤回并提示；草稿中选的模式在创建 Session 后、提交第一条消息前切换。Run 中也可切换。
+- **模式选择**：输入区底栏、模型选择旁，显示当前模式；菜单列出四种模式及说明，之后另列"规划"（plan，见 [Plan Mode](plan-mode.md#界面)）。full-access 只能在菜单中选择，选中时按钮与图标为 destructive 色，菜单中显示警示。焦点在编辑区时 Shift+Tab 在 read-only → default → accept-edits 之间循环（从 full-access 回到 read-only），焦点不离开编辑区；焦点在其他控件上时 Shift+Tab 照常移动焦点。会话中切换立即显示，经协议提交，失败时撤回并提示；草稿中选的模式在创建 Session 后、提交第一条消息前切换。Run 中也可切换。
 - **提权卡**：审批卡的变体，标题"允许以更宽的权限运行这条命令？"，明细为命令、目标档位与理由；没有"总是允许"。
 - **审批卡**：最早的待审批请求接管输入区；输入区保持挂载（隐藏），草稿不丢。卡片出现时若焦点在输入区，焦点移到卡片本身。焦点在详情区时 Enter 允许一次、Esc 拒绝；Esc 被卡片处理后不再触发全局"停止 Run"。"拒绝并说明原因"展开输入框，其中 Enter 提交带反馈的拒绝，Esc 收起。有建议规则的工具请求另有"总是允许"菜单：显示将保存的规则，选本会话 / 本工作区 / 所有工作区；菜单内的 Enter 与 Esc 不触发卡片的允许与拒绝。键盘与指针共用一把锁，同一请求只回答一次。
 - **工具卡**：等待时为 `awaiting` 状态，结束后标题行显示决定（已允许一次、以某档位允许一次（提权）、本会话 / 本工作区总是允许、总是允许、已拒绝及原因、已取消、已按新设置自动处理）；被沙箱拒绝的 bash 另显示"被沙箱拦截（档位）"。
@@ -202,7 +205,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 
 ## 验证
 
-- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，plan-exit 在四种模式下都询问且允许规则不生效，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
+- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
 - `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`；`sidecar-context.test.ts` 覆盖经 `PUT /api/permissions` 写入 Memory、`memory_list` 与 MCP 资源工具的拒绝规则后生效。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
