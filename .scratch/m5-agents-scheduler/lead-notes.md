@@ -8,3 +8,4 @@
 - 2026-10-31：票 04 合入后 main 的 typecheck=2 出现在 lead 的复核输出中，lead 只看了 test=0 就回复"OK"；由并行的票 03、05 实施者合并 main 后发现。复核脚本的结论必须逐项看，不能只看 test 一行。
 - 2026-10-31：票 03、05 的 MERGE-READY 都先回复了"OK"；05 合入冲突时又回复了一次"OK"，之后才按 resolving-merge-conflicts 解决。
 - 2026-10-31：票 06 实施者的中途说明（Goal 在 hook_stopped 后停在 running）lead 先回复了"OK"，17 分钟后才裁决并记录。
+- 2026-10-31：票 09 实施者发现 main 上桌面通知从未生效（票 05 的缺陷，控制消息没有转发 notify）；lead 先回复了"OK"，13 分钟后才记录。lead 合入 05 时只看了"Sidecar 日志有 notification sent"类的证据，没有要求一个跨过控制通道、在 main 侧观察结果的用例。
