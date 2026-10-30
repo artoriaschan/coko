@@ -126,6 +126,8 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
   const edited = draft !== undefined && proposed !== undefined && draft !== proposed.markdown
   const invalid = edited && planMarkdownProblem(draft) !== undefined
   const restores = restoredMode(entries)
+  // 批准时只能选比进入前更窄的模式（不借批准放宽设置）：只有进入前为 full-access 时才给出 accept-edits。
+  const narrower = restores === 'full-access'
   const [answered, setAnswered] = React.useState(false)
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
   const [feedback, setFeedback] = React.useState('')
@@ -231,7 +233,7 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
             data-action="approve"
             data-restores={restores}
             disabled={answered || invalid}
-            className="rounded-e-none"
+            className={narrower ? 'rounded-e-none' : undefined}
             title={t('plan.review.restores', { mode: modeLabel(restores) })}
             onClick={() => approve()}
           >
@@ -239,25 +241,27 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
             <span className="text-ui-small opacity-80">· {modeLabel(restores)}</span>
           </Button>
           {/* 非模态：批准后按钮即禁用，模态菜单关闭时的焦点归还与对其余节点的隐藏不再适用。 */}
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                size="icon-sm"
-                data-action="approve-more"
-                disabled={answered || invalid}
-                aria-label={t('plan.review.more')}
-                className="rounded-s-none border-s-hairline border-primary-foreground/30"
-              >
-                <ChevronDownIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="end">
-              <DropdownMenuItem data-action="approve-accept-edits" onSelect={() => approve('accept-edits')}>
-                {t('plan.review.approveAcceptEdits')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {narrower && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  data-action="approve-more"
+                  disabled={answered || invalid}
+                  aria-label={t('plan.review.more')}
+                  className="rounded-s-none border-s-hairline border-primary-foreground/30"
+                >
+                  <ChevronDownIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="end">
+                <DropdownMenuItem data-action="approve-accept-edits" onSelect={() => approve('accept-edits')}>
+                  {t('plan.review.approveAcceptEdits')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
       {invalid && (

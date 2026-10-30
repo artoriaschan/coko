@@ -77,14 +77,20 @@ describe('审阅卡：下拉批准', () => {
     />
   )
 
-  it('批准并允许编辑：mode accept-edits；右栏中的编辑随批准提交（editedPlan）', async () => {
+  it('批准并允许编辑（进入前为 full-access，accept-edits 更窄）：mode accept-edits；右栏中的编辑随批准提交（editedPlan）', async () => {
     const answers: AnswerApprovalRequest[] = []
     setPlanDraft('s-1', 'p1', 1, '# Fix the parser\n\nTests first')
-    const screen = await wrap(panel(answers, [], planEntries('default')))
+    const screen = await wrap(panel(answers, [], planEntries('full-access')))
     await expect.element(screen.getByText('Edited')).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: 'More approval options' }))
     await userEvent.click(page.getByRole('menuitem', { name: 'Approve and allow edits' }))
     await menuClosed()
     expect(answers).toEqual([{ decision: 'allow', editedPlan: '# Fix the parser\n\nTests first', mode: 'accept-edits' }])
+  })
+
+  it.each(['read-only', 'default', 'accept-edits'])('进入前为 %s：不给出更宽的"批准并允许编辑"', async (prior) => {
+    const screen = await wrap(panel([], [], planEntries(prior)))
+    await expect.element(screen.getByRole('button', { name: /Approve/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'More approval options' }).query()).toBeNull()
   })
 })

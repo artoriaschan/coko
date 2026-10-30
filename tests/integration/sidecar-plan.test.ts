@@ -122,7 +122,9 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.modes().at(-1)).toEqual({ mode: 'default' })
     const approved = await h.resultOf('e1')
     expect(approved.isError).toBe(false)
-    expect(text(approved)).toBe(`The user approved the plan. Proceed under default.\n\n${EDITED}`)
+    expect(text(approved)).toBe(
+      `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under default.\n\n${EDITED}`,
+    )
     expect(h.entries().at(-1)!.payload).toMatchObject({ status: 'completed' })
     // 顺序：proposed → 审批请求 → 决定 → approved → 恢复的模式 → 工具结果。
     const order = h.entries().filter((e) => ['approval_request', 'approval_decision', 'plan', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
@@ -133,7 +135,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(logged).toHaveLength(4)
     for (const request of logged) expect(h.sections(request).map((s) => s.name)).toContain('plan_mode')
     expect(h.sections(logged[0]!).find((s) => s.name === 'plan_mode')!.text).toContain('exit_plan_mode')
-    expect(JSON.stringify(logged[3]!.at(-1))).toContain('The user approved the plan. Proceed under default.')
+    expect(JSON.stringify(logged[3]!.at(-1))).toContain('Proceed under default.')
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -181,7 +183,9 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       [true, 2, 'approved', undefined],
     ])
     expect(h.modes().at(-1)).toEqual({ mode: 'accept-edits' })
-    expect(text(await h.resultOf('e2'))).toBe('The user approved the plan. Proceed under accept-edits.\n\n# Two')
+    expect(text(await h.resultOf('e2'))).toBe(
+      'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under accept-edits.\n\n# Two',
+    )
     expect(
       h
         .entries()
@@ -197,8 +201,8 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan off 与模式菜单回到 prior；/plan 带消息时随后提交；approval 批准时指定 accept-edits', async () => {
-    const h = await boot([exit('e1', '# Plan A'), { content: 'done' }])
+  it('/plan off 与模式菜单回到 prior；/plan 带消息时随后提交；批准时的模式不能宽于 prior（read-only 下 default / accept-edits 为 400）', async () => {
+    const h = await boot([exit('e1', '# Plan A'), exit('e2', '# Plan B'), { content: 'done' }])
     expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'read-only' })).status).toBe(200)
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan' })).status).toBe(204)
     expect(h.modes().at(-1)).toEqual({ mode: 'plan', prior: 'read-only' })
@@ -218,10 +222,16 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       .map((e) => JSON.stringify(e.payload))
     expect(users).toHaveLength(1)
     expect(users[0]).toContain('draft a plan for Y')
-    expect((await h.answer(review.requestId, { decision: 'allow', mode: 'accept-edits' })).status).toBe(204)
+    for (const mode of ['accept-edits', 'default']) expect([mode, (await h.answer(review.requestId, { decision: 'allow', mode })).status]).toEqual([mode, 400])
+    expect((await h.answer(review.requestId, { decision: 'allow', mode: 'read-only' })).status).toBe(204)
+    expect(text(await h.resultOf('e1'))).toMatch(
+      /^The user approved the plan\. Plan mode has ended: ignore the earlier <plan_mode> instructions\. Proceed under read-only\./,
+    )
+    // 同一 Run 中已不在 plan：再次 exit_plan_mode 直接报错，不再审阅。
+    expect(await h.resultOf('e2')).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^Not in plan mode/) }] })
     await h.runEnds(1)
-    expect(h.modes().at(-1)).toEqual({ mode: 'accept-edits' })
-    expect(text(await h.resultOf('e1'))).toContain('Proceed under accept-edits.')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
+    expect(h.modes().at(-1)).toEqual({ mode: 'read-only' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 

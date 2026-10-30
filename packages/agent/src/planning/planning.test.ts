@@ -102,6 +102,7 @@ describe('审阅闭环（createAgentRuntime）', () => {
     const calls: string[] = []
     let current: PermissionMode = 'plan'
     const review: PlanReview = {
+      active: async () => current === 'plan',
       async propose(toolCallId, markdown) {
         calls.push(`propose ${toolCallId} ${planTitle(markdown)}`)
         return { planId: 'p1', revision: calls.filter((c) => c.startsWith('propose')).length }
@@ -164,7 +165,12 @@ describe('审阅闭环（createAgentRuntime）', () => {
     await h.runtime.answerApproval(req.payload.requestId, { decision: 'allow' })
     expect((await done).status).toBe('completed')
     expect(h.calls).toEqual(['propose e1 Fix it', 'approved e1'])
-    expect(h.results()).toEqual([{ isError: false, text: 'The user approved the plan. Proceed under accept-edits.\n\n# Fix it\n- a\n(edited)' }])
+    expect(h.results()).toEqual([
+      {
+        isError: false,
+        text: 'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions. Proceed under accept-edits.\n\n# Fix it\n- a\n(edited)',
+      },
+    ])
   })
 
   it('带反馈的拒绝：提交 rejected，模型看到反馈并继续规划；无反馈的拒绝本批后 aborted', async () => {

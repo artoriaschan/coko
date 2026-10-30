@@ -40,6 +40,9 @@ const view = (state: SessionPermissionState): SessionPermissionsResponse => ({
   rules: [...state.rules],
 })
 
+/** 批准计划时模式的宽窄（plan 不会作为批准后的模式）。 */
+const MODE_RANK: Record<Exclude<PermissionMode, 'plan'>, number> = { 'read-only': 0, default: 1, 'accept-edits': 2, 'full-access': 3 }
+
 /** 计划审阅中的一次 exit_plan_mode：提交时的位置与正文，以及批准时用户给出的编辑与模式（回答到达时登记）。 */
 interface PendingPlan {
   ref: PlanRef
@@ -166,6 +169,7 @@ export class SessionPermissions implements PlanHost {
     const commitPlan = (payload: { planId: string; revision: number; markdown: string; status: 'proposed' | 'approved' | 'rejected'; feedback?: string }) =>
       this.#runtimes.commit(sessionId, { kind: 'plan', payload })
     return {
+      active: async () => (await this.mode(sessionId)) === 'plan',
       propose: (toolCallId, markdown) =>
         this.locked(sessionId, async () => {
           // 同一 Session 只有一个待审阅的计划：之前留下的（被停止的 Run）不再需要。
@@ -285,6 +289,13 @@ export class SessionPermissions implements PlanHost {
     if (answer.editedPlan !== undefined) {
       const problem = planMarkdownProblem(answer.editedPlan)
       if (problem) throw new AppError('bad-request', `Invalid editedPlan: ${problem}`)
+    }
+    if (answer.mode !== undefined) {
+      // 用户故事：批准后回到进入规划前的模式，或用户选择的较窄模式；不借批准放宽设置。
+      const state = await this.state(await requireSession(this.#store, sessionId))
+      const restores = state.mode === 'plan' ? (state.prior ?? 'default') : state.mode
+      if (MODE_RANK[answer.mode] > MODE_RANK[restores])
+        throw new AppError('bad-request', `mode ${answer.mode} is wider than ${restores}, the mode before planning`, { mode: answer.mode, restores })
     }
     const pending = this.#plans.get(`${sessionId}:${toolCallId}`)
     if (pending) {

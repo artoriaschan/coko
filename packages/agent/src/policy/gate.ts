@@ -3,7 +3,15 @@
 // exit_plan_mode（plan-exit）：询问前提交 proposed 的计划，以 kind plan 的请求等待审阅（不随模式或规则变更重新判定）。
 import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core'
 import type { PermissionMode, PermissionRule, SandboxMode } from '../session-entries/index.ts'
-import { invalidPlanText, planFeedbackText, planMarkdownProblem, planReviewOf, planTitle, type PlanReview } from '../planning/exit-plan-mode.ts'
+import {
+  invalidPlanText,
+  NOT_IN_PLAN_MODE_TEXT,
+  planFeedbackText,
+  planMarkdownProblem,
+  planReviewOf,
+  planTitle,
+  type PlanReview,
+} from '../planning/exit-plan-mode.ts'
 import type { CokoTool } from '../tools/types.ts'
 import type { ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
 import { decide, toolCategory, type PermissionCall, type PermissionClass, type PermissionDecision, type PermissionTarget } from './decide.ts'
@@ -196,6 +204,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
    * approved）；拒绝时提交 rejected，带反馈的交给模型继续规划，无反馈的与普通拒绝相同（本批结束后 aborted）。
    */
   const reviewPlan = async (context: BeforeToolCallContext, review: PlanReview, signal: AbortSignal | undefined): Promise<BeforeToolCallResult | undefined> => {
+    if (!(await review.active())) return { block: true, reason: NOT_IN_PLAN_MODE_TEXT }
     const markdown = String((context.args as { plan?: unknown } | undefined)?.plan ?? '')
     const problem = planMarkdownProblem(markdown)
     if (problem) return { block: true, reason: invalidPlanText(problem) }
