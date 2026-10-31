@@ -1,7 +1,7 @@
 # M5 多代理与调度：规格
 
 Status: ready-for-agent
-Spec status: approved（2026-10-31，按用户常设指示采纳，未经用户逐条确认）
+Spec status: delivered（2026-10-31，main 95825aa；真实模型与非 darwin 平台未验证，遗留项见地图 Carry-overs）
 Map: [Coko 桌面应用](../desktop-app/map.md) · [里程碑划分](../desktop-app/issues/06-grill-milestone-route.md) · 讨论：[grilling.md](grilling.md) · 实施须知：[implementer-brief.md](implementer-brief.md)
 
 ## Problem Statement

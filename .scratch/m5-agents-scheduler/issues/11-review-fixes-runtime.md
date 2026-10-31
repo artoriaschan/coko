@@ -41,3 +41,6 @@ Lead 裁决的 judgement 项：
 - 越出写范围：`packages/i18n`（合并时删除我加的 handed-off，保留 main 上票 12 的一份）、`apps/desktop/src/renderer/`（上条对齐，已授权）、`packages/agent/src/{entries,tasks,session-entries}`（host-input 与 handoff_failed schema）。
 - 未验证：H8 的 E2E `notification shown`（apps/desktop/e2e 不在写范围）；回退边界（checkpoints 改用 SessionCwd）没有单独用例，只有类型检查与现有回退测试。上下文用量仍按 Workspace 目录（worktrees.md 已知限制）。
 - 文档：subagents、worktrees、handoff、goal、schedules 与 ADR 0011 / 0014 / 0015 / 0016 的实施记录已更新，check:docs 0 问题。
+- 2026-10-31 lead：评审后合入 main（95825aa）。接受越界：packages/agent 的 entries / tasks / session-entries（共享宿主输入标签与 handoff_failed schema）、renderer 与 handoff_failed 的对齐（已授权）、i18n 保留 main 上的 handed-off。接受做法：交接失败用新 kind handoff_failed（替代约定中的 handoff + status failed）；会话创建收为 createRecord 一个入口。原先 skipIf 的推送用例现在实际运行并通过（fixture 的 usage.cost 原本不合 schema）。未处理的 J3、J4、J8、J9 与 Standards H4、H5、H8、T3–T5、S2–S10 记入地图的 M6 Carry-overs。main 上在全量测试锁内复核：install、typecheck、lint、format:check 退出 0；全量 test 315 文件 2563 通过、1 跳过（真实模型），无页面重载、无未处理错误，运行期间没有其他全量重叠；check:docs 185 文件 0 问题。worktree 已清理。
+
+Closed: true

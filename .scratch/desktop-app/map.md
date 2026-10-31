@@ -64,6 +64,11 @@ Status: open
 - M6：Plugins 以同一 Hook schema 声明 Hook；prompt / http / agent 型 Hook 与 `updatedInput` 不在 M5（ADR 0013）。
 - M6：子代理的继续对话（send_message）；teammate 的 worktree 复用 ADR 0016 的机制。
 
+- M6：M5 评审未处理的项——Spec J3（关闭通知时 Notification Hook 不运行）、J4（父 Session 写入 isolation worktree 不询问）、J8（COKO_PROJECT_DIR 与 grilling:109 不一致）、J9（UserPromptSubmit 收到展开前的原文）；Standards H4（worktree 移除的 TOCTOU）、H5（项目 PermissionRequest 的 allow 记为 allowed）、H8（SubagentStart/Stop 用 redactSecretValues 而非 redactText）、T3–T5、S2–S10。理由见 M5 两份评审的"处理结果"。
+- M6：worktree 会话的上下文用量仍按 Workspace 目录；checkpoint 回退边界的改动没有专门用例；子代理桌面通知在 Electron 中的显示没有 E2E（M5 票 11）。
+- M6：390 px 下输入区占位符逐词换行（M5 票 12）。
+- M6：凡新增宿主注入的消息种类，验收固定包含 runAuthority、Goal 的用户输入判断与时间线三处；跨进程功能至少一条在接收侧观察结果的用例；可并行票之间的接口在开票时定死（M5 复盘）。
+
 ## Route status
 
 | 里程碑 | 目录 | 状态 |
@@ -72,8 +77,8 @@ Status: open
 | M2 安全与恢复 | `.scratch/m2-permissions-recovery/` | delivered（[复盘](../m2-permissions-recovery/retro.md)） |
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
 | M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | delivered（[复盘](../m4-goal-plan-tasks/retro.md)） |
-| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | in progress（用户 2026-10-31 指示继续） |
-| M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | pending |
+| M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | delivered（[复盘](../m5-agents-scheduler/retro.md)） |
+| M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | next |
 
 ## Out of scope
 
