@@ -253,34 +253,79 @@ describe('Stop', () => {
 })
 
 describe('continue: false', () => {
+  const stopOnBash = { PreToolUse: [group(`printf '{"continue":false,"stopReason":"enough for now"}'`, 'Bash')] }
+  const trigger = (h: Awaited<ReturnType<typeof boot>>) => h.of('run_start').map((e) => (e.payload as { trigger: string }).trigger)
+  const goalOf = async (h: Awaited<ReturnType<typeof boot>>) => (await h.api.get(goalPaths.sessionGoal(h.sessionId))).body
+
   it(
-    'PreToolUse 输出 continue: false：本批完成后 run_end paused + hook_stopped；Goal Round 中按现有 paused 规则（不开始下一轮）',
+    'PreToolUse 输出 continue: false：本批完成后 run_end paused + hook_stopped；Goal Round 中 Goal 进入 paused（hook-stopped）、不开始下一轮；恢复后照常推进',
     { timeout: 60_000 },
     async () => {
       const root = await realpath(await tempDir())
       const h = await boot(
         [
-          { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'] })] },
+          { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'], budget: { max_rounds: 2 } })] },
           { content: 'goal set' },
           { content: [bash('b1', 'echo hi > hi.txt')] },
-          { content: 'must not be requested' },
+          { content: 'round two' },
         ],
-        { root, hooks: { PreToolUse: [group(`printf '{"continue":false,"stopReason":"enough for now"}'`, 'Bash')] } },
+        { root, hooks: stopOnBash },
       )
       await h.send('set a goal')
       await h.stream.waitFor(() => h.runEnds().length >= 2, 30_000)
       expect(h.runEnds().at(-1)).toEqual({ status: 'paused', error: { code: 'hook_stopped', message: 'enough for now' } })
       // 本批照常完成：调用执行了，之后没有请求。
       expect(await readFile(join(root, 'hi.txt'), 'utf8')).toBe('hi\n')
-      expect(await h.requests()).toHaveLength(3)
       expect(h.hookRuns()).toEqual([expect.objectContaining({ event: 'PreToolUse', outcome: 'stopped', message: 'enough for now' })])
-      // 现状：Goal 的 Run 结束规则不处理 hook_stopped（不是预算停止也不是用户停止），Goal 停在 running、不开始下一轮。这是待改的行为：
-      // 应当进入 paused（reason hook-stopped）；改动 Goal 的结束规则时把这里的断言改为 paused。
-      const goal = (await h.api.get(goalPaths.sessionGoal(h.sessionId))).body
-      expect(goal).toMatchObject({ goal: { phase: 'running' }, usage: { rounds: 1 } })
+      // Run 结束后的转换与推进在同一把锁内：经 Goal 的动作接口排在它之后（revision 不符的 pause 返回 409），再看阶段与没有新的 Run。
+      expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'pause', revision: 99 })).status).toBe(409)
+      expect(await goalOf(h)).toMatchObject({
+        goal: { phase: 'paused', revision: 2, reason: { code: 'hook-stopped', message: 'enough for now' } },
+        usage: { rounds: 1 },
+      })
+      expect(trigger(h)).toEqual(['submit', 'goal'])
+      expect(await h.requests()).toHaveLength(3)
+
+      // 恢复：Goal Round 2 开始并完成（没有 Bash 调用，Hook 不运行），之后轮次用尽。
+      expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'resume', revision: 2 })).body.goal).toMatchObject({ phase: 'running' })
+      await poll(async () => ((await goalOf(h)).goal?.phase as string) === 'budget-exhausted', 'goal exhausted')
+      expect(trigger(h)).toEqual(['submit', 'goal', 'goal'])
+      expect(h.runEnds().at(-1)).toEqual({ status: 'completed' })
+      expect(await h.requests()).toHaveLength(4)
       expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
     },
   )
+
+  it('对照：Goal 不是 running 时（waiting-input），用户提交的 Run 被 Hook 停下，Goal 不变、不开始 Goal Round', { timeout: 60_000 }, async () => {
+    const root = await realpath(await tempDir())
+    const h = await boot(
+      [
+        { content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'] })] },
+        { content: 'goal set' },
+        // Goal Round 1：模型等用户输入，Goal 进入 waiting-input。
+        { content: [call('update_goal', 'wi', { goal_id: 'goal-1', revision: 1, action: 'wait_input', reason: 'which database?' })] },
+        { content: 'which database should I use?' },
+        { content: [bash('b1', 'echo hi > hi.txt')] },
+        { content: 'must not be requested' },
+      ],
+      { root, hooks: stopOnBash },
+    )
+    await h.send('set a goal')
+    await h.stream.waitFor(() => h.runEnds().length >= 2, 30_000)
+    await poll(async () => ((await goalOf(h)).goal?.phase as string) === 'waiting-input', 'goal waiting for input')
+    const waiting = (await goalOf(h)).goal
+    expect(waiting).toMatchObject({ phase: 'waiting-input', revision: 2, reason: { code: 'needs-input' } })
+
+    await h.send('use sqlite and write a file')
+    expect(h.runEnds().at(-1)).toEqual({ status: 'paused', error: { code: 'hook_stopped', message: 'enough for now' } })
+    expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'pause', revision: 99 })).status).toBe(409)
+    // 没有新的 goal 快照：阶段、revision 与原因都不变；没有 Goal Round。
+    expect((await goalOf(h)).goal).toEqual(waiting)
+    expect(h.of('goal')).toHaveLength(2)
+    expect(trigger(h)).toEqual(['submit', 'goal', 'submit'])
+    expect(await h.requests()).toHaveLength(5)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
 })
 
 describe('PreCompact', () => {
