@@ -376,6 +376,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       delete: op((id: string) => {
         if (!schedules.delete(id)) throw notFound('schedule', id)
       }),
+      get: op((id: string) => schedules.get(id)),
       list: op((filter: { sessionId?: string } = {}) =>
         [...schedules.values()].filter((s) => filter.sessionId === undefined || s.sessionId === filter.sessionId),
       ),

@@ -28,6 +28,9 @@ import { KeyedMutex } from './keyed-mutex.ts'
 import type { NotificationService } from './notifications.ts'
 import { requireSession, toNewEntry } from './session-runtimes.ts'
 
+/** 只取属于该 Session 的任务（按 id 读取，不扫描全表）。 */
+const bySession = <T extends { sessionId: string }>(record: T | undefined, sessionId: string) => (record?.sessionId === sessionId ? record : undefined)
+
 const log = getLogger(['application', 'schedules'])
 
 /** 定时器之外的复查间隔（睡眠唤醒、时钟跳变）。 */
@@ -165,7 +168,7 @@ export class ScheduleService {
 
   async #fire(scheduleId: string): Promise<void> {
     const { store, clock, runs } = this.#options
-    const record = (await store.schedules.list()).find((s) => s.id === scheduleId)
+    const record = await store.schedules.get(scheduleId)
     const now = clock.now()
     if (!record || record.status !== 'active' || record.nextAt === null || record.nextAt > now) return
     const rule = toRule(record)
@@ -268,7 +271,7 @@ export class ScheduleService {
   async #commit(sessionId: string, payload: ScheduleFirePayload): Promise<void> {
     const [committed] = await this.#options.store.sessions.appendEntries(sessionId, [toNewEntry({ kind: 'schedule_fire', payload })])
     this.#options.hub.publishEntry(committed!)
-    const record = (await this.#options.store.schedules.list({ sessionId })).find((s) => s.id === payload.scheduleId)
+    const record = bySession(await this.#options.store.schedules.get(payload.scheduleId), sessionId)
     if (record) await this.#publish(record)
   }
 
@@ -280,7 +283,7 @@ export class ScheduleService {
     if (scheduled) {
       this.#scheduledRuns.delete(info.runId)
       this.#unwatchIfIdle(info.sessionId)
-      const record = (await this.#options.store.schedules.list({ sessionId: info.sessionId })).find((s) => s.id === scheduled.scheduleId)
+      const record = bySession(await this.#options.store.schedules.get(scheduled.scheduleId), info.sessionId)
       const status = info.result.status === 'completed' ? 'finished' : info.result.status
       await this.#notify({
         kind: 'schedule-run-ended',
@@ -324,7 +327,7 @@ export class ScheduleService {
   }
 
   async #approvalWaiting(sessionId: string, scheduleId: string): Promise<void> {
-    const record = (await this.#options.store.schedules.list({ sessionId })).find((s) => s.id === scheduleId)
+    const record = bySession(await this.#options.store.schedules.get(scheduleId), sessionId)
     await this.#notify({ kind: 'approval-waiting', sessionId, title: record?.title ?? 'Scheduled task', body: 'A scheduled task is waiting for approval' })
   }
 
@@ -471,7 +474,7 @@ export class ScheduleService {
   port(sessionId: string): SchedulesPort {
     const { store } = this.#options
     const own = async (id: string) => {
-      const record = (await store.schedules.list({ sessionId })).find((s) => s.id === id)
+      const record = bySession(await store.schedules.get(id), sessionId)
       if (!record) throw new Error(`No scheduled task ${id} in this session`)
       return record
     }
@@ -514,7 +517,7 @@ export class ScheduleService {
   }
 
   async #require(scheduleId: string): Promise<ScheduleRecord> {
-    const record = (await this.#options.store.schedules.list()).find((s) => s.id === scheduleId)
+    const record = await this.#options.store.schedules.get(scheduleId)
     if (!record) throw new AppError('not-found', `Scheduled task ${scheduleId} not found`)
     return record
   }

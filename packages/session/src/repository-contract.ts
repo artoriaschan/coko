@@ -539,6 +539,21 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect((await worktrees.list(w.id)).map((x) => x.name)).toEqual(['a'])
     })
 
+    it('定时任务 get：按 id 读一条（与 list 中的记录相同）；不存在或已删除时 undefined', async () => {
+      const { sessions, schedules } = await open()
+      const w = await sessions.registerWorkspace({ path: '/w' })
+      const s1 = await sessions.createSession({ workspaceId: w.id })
+      const a = await schedules.create({ sessionId: s1.id, title: 'a', prompt: 'p', rule: { kind: 'every', seconds: 60 }, nextAt: 5_000 })
+      const b = await schedules.create({ sessionId: s1.id, title: 'b', prompt: 'p', rule: { kind: 'at' }, nextAt: null, status: 'paused' })
+      expect(await schedules.get(a.id)).toEqual(a)
+      expect(await schedules.get(b.id)).toEqual((await schedules.list()).find((x) => x.id === b.id))
+      const edited = await schedules.update(a.id, 1, { title: 'renamed' })
+      expect(await schedules.get(a.id)).toEqual(edited)
+      await schedules.delete(a.id)
+      expect(await schedules.get(a.id)).toBeUndefined()
+      expect(await schedules.get('missing')).toBeUndefined()
+    })
+
     it('定时任务：create / update（revision 乐观并发）/ delete / list（可按 Session）/ due（active 且到期，按 nextAt）', async () => {
       const { sessions, schedules } = await open()
       const w = await sessions.registerWorkspace({ path: '/w' })

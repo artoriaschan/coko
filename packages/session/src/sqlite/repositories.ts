@@ -594,6 +594,11 @@ export function createScheduleRepository(conn: Connection, payloads: Pick<StoreO
           return toSchedule(select(id)!)
         }),
       ),
+    get: (id) =>
+      later(() => {
+        const row = select(id)
+        return row ? toSchedule(row) : undefined
+      }),
     update: (id, revision, patch) =>
       later(() =>
         conn.write(() => {
