@@ -7,12 +7,14 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
+import { ChatStoreProvider } from '../../app/chat.tsx'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createAgentsStore } from '../../stores/agents-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { AgentsStoreProvider } from './agents-button.tsx'
+import { useChildApproval } from './approval-panel.tsx'
 
 const seqs: Record<string, number> = {}
 const rec = (sessionId: string, kind: string, payload: unknown, createdAt: number): SessionEntryRecord => ({
@@ -127,5 +129,39 @@ describe('审批冒泡', () => {
     expect(composer.element().textContent).toBe('keep this draft')
     expect(childAnswers).toHaveLength(2)
     expect(parentAnswers).toHaveLength(1)
+  })
+
+  it('子代理结束或组件卸载后释放子 Session 的订阅（WS unsubscribe，对话记录移除）', async () => {
+    const fixture = createFixtureChat({ entries: { 'child-a': [], 'child-b': [] } })
+    let listed = [running('child-a', 'general', 'write docs'), running('child-b', 'explore', 'scan repo')]
+    const agents = createAgentsStore({
+      list: async (sessionId) => (sessionId === 's-2' ? listed : []),
+      cancel: async () => {},
+      definitions: async () => ({ definitions: [], diagnostics: [] }),
+      answer: async () => {},
+    })
+    function Probe() {
+      useChildApproval('s-2')
+      return null
+    }
+    const screen = await render(
+      <ChatStoreProvider store={fixture.chat}>
+        <AgentsStoreProvider store={agents}>
+          <Probe />
+        </AgentsStoreProvider>
+      </ChatStoreProvider>,
+    )
+    const status = () => [fixture.chat.getState().conversations['child-a']?.status, fixture.chat.getState().conversations['child-b']?.status]
+    const unsubscribed = () => fixture.sent.filter((m) => m.type === 'unsubscribe').map((m) => m.sessionId)
+    await expect.poll(status).toEqual(['ready', 'ready'])
+    expect(unsubscribed()).toEqual([])
+    // 子代理 B 结束：不再是 running，释放它的订阅；A 保持。
+    listed = [running('child-a', 'general', 'write docs'), { ...running('child-b', 'explore', 'scan repo'), status: 'completed' }]
+    await agents.getState().load('s-2')
+    await expect.poll(unsubscribed).toEqual(['child-b'])
+    expect(status()).toEqual(['ready', undefined])
+    await screen.unmount()
+    await expect.poll(unsubscribed).toEqual(['child-b', 'child-a'])
+    expect(status()).toEqual([undefined, undefined])
   })
 })

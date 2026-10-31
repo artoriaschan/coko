@@ -60,6 +60,8 @@ export const HOOK_BLOCK_REASON_MAX_CHARS = 2_048
 export const STOP_FEEDBACK_PREFIX = 'Stop hook feedback:'
 /** continue: false 没有 stopReason 时 run_end 的 message。 */
 export const HOOK_STOPPED_TEXT = 'Stopped by a hook'
+/** 项目 Hook 的 allow 被忽略时 hook_run.message 的文本。 */
+export const PROJECT_ALLOW_IGNORED_TEXT = 'Ignored: a project hook cannot allow a call'
 /** Stop 达到每 Run 的继续上限后，block 被忽略时 hook_run.message 的文本。 */
 export const STOP_LIMIT_TEXT = `Ignored: the run already continued ${ONSTOP_CONTINUE_LIMIT} times because of Stop hooks`
 
@@ -350,9 +352,11 @@ export class HookService {
     const { hook, result } = run
     let outcome: HookOutcome = result.outcome!
     let message = run.message ?? messageOf(result)
-    // 项目 Hook 的 allow 不参与聚合（只收紧）：记录为放行但注明被忽略。
-    if (hook.source === 'project' && result.decision === 'allow') message = 'Ignored: a project hook cannot allow a call'
-    if (hook.event === 'PermissionRequest' && result.decision === 'allow') outcome = 'allowed'
+    // 项目 Hook 的 allow 不参与聚合（只收紧）：记为 ignored 并注明，时间线与审计不显示一次没有生效的放行。continue: false 仍记 stopped。
+    if (hook.source === 'project' && result.decision === 'allow') {
+      message = PROJECT_ALLOW_IGNORED_TEXT
+      if (outcome === 'allowed') outcome = 'ignored'
+    }
     const payload: HookRunPayload = {
       event: hook.event,
       hookId: hook.hookId,
@@ -527,8 +531,43 @@ export class HookService {
   }
 
   /**
-   * Notification（Coko 发出桌面通知时；只观测）：matcher 对象为通知类别，输入 notification_type、title、message（已脱敏）。不等待结果，
-   * 失败只记录（hook_run error / timeout），不影响通知。
+   * SubagentStart（子 Run 开始之前；matcher 对象为子代理类型）：additionalContext 合并后并入子代理的首条消息（≤ 10 000 字符，redactText
+   * 替换登记值与凭据形态）。没有 Hook 或没有上下文时 undefined；失败只记 warn。
+   */
+  async subagentStart(scope: HookScope, agent: { type: string; id: string }): Promise<string | undefined> {
+    try {
+      const state = this.runState(scope)
+      const selected = selectHooks(await state.hooks, 'SubagentStart', { names: [agent.type] })
+      if (selected.length === 0) return undefined
+      const results = await this.run(scope, state, 'SubagentStart', selected, { agent_type: agent.type, agent_id: agent.id })
+      const context = results.flatMap((r) => (r.result.context ? [r.result.context] : []))
+      return context.length > 0 ? truncate(redactText(context.join('\n\n')), HOOK_CONTEXT_MAX_CHARS) : undefined
+    } catch (error) {
+      log.warn('SubagentStart hooks failed', { agentId: agent.id, error: errorMessage(error) })
+      return undefined
+    }
+  }
+
+  /** SubagentStop（子 Session 的 Run 正常结束之前）：block 时以 reason（≤ 10 000 字符，redactText）作为 user message 再请求一次。 */
+  async subagentStop(scope: HookScope, info: StopInfo, agent: { type: string; id: string }): Promise<StopContinue | undefined> {
+    const state = this.runState(scope)
+    state.runId = info.runId
+    const selected = selectHooks(await state.hooks, 'SubagentStop', { names: [agent.type] })
+    if (selected.length === 0) return undefined
+    const results = await this.run(scope, state, 'SubagentStop', selected, {
+      stop_hook_active: info.stopHookActive,
+      agent_type: agent.type,
+      agent_id: agent.id,
+    })
+    const blocked = results.find((r) => r.result.block)
+    if (!blocked) return undefined
+    const reason = truncate(redactText(blocked.result.reason ?? 'A SubagentStop hook asked the subagent to continue'), HOOK_CONTEXT_MAX_CHARS)
+    return { continue: [{ type: 'text', text: reason }] }
+  }
+
+  /**
+   * Notification（Coko 产生桌面通知时，不论设置是否关闭；只观测）：matcher 对象为通知类别，输入 notification_type、title、message（已脱敏）。
+   * 不等待结果，失败只记录（hook_run error / timeout），不影响通知。
    */
   notification(input: { kind: string; sessionId: string; title: string; body: string }): Promise<void> {
     const task = async () => {

@@ -34,8 +34,10 @@ export type RunErrorCode =
   | 'budget_exhausted'
   /** Stopped by the host before a request: a cost limit is set but the model has no price. */
   | 'cost_unpriced'
-  /** Stopped by a hook (continue: false), or a manual compaction a hook blocked. */
+  /** Stopped by a hook (continue: false). */
   | 'hook_stopped'
+  /** A manual compaction a PreCompact hook blocked (the Run ends with error; a Goal does not pause for it). */
+  | 'hook_blocked'
   /** A subagent used up its turn limit. */
   | 'max_turns'
 

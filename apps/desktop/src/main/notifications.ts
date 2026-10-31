@@ -1,6 +1,6 @@
 // 桌面通知（M5）：Sidecar 经控制通道发来 notify，main 在窗口不在前台时显示系统通知，点击时聚焦窗口并经 preload 的 onOpenSession
 // 打开该会话。测试构建不显示，只记日志 notification shown（E2E 按日志断言）。显示由装配方给出（index.ts 的 Electron Notification），
-// 这里只做前台判定、点击处理与日志，便于在 node 中单元测试。
+// 这里只做前台判定、点击处理与日志，便于在 node 中单元测试。每个 createNotifier() 实例持有自己的通知引用；main 只创建一个。
 import { getLogger } from '@coko/logging'
 import type { SidecarNotify } from '@coko/protocol'
 
@@ -24,11 +24,20 @@ export interface NotificationHost {
 /** 日志消息（测试按它断言）。 */
 export const NOTIFICATION_SHOWN = 'notification shown'
 
-/** 已显示、尚未点击或关闭的通知（防止被回收）。 */
-const live = new Set<ShownNotification>()
+export interface Notifier {
+  /** 处理一条 notify 控制消息；返回是否显示（测试构建中视为显示）。 */
+  notify(message: SidecarNotify): boolean
+  /** 仍持有引用的通知数（测试）。 */
+  liveCount(): number
+}
 
-/** 处理一条 notify 控制消息；返回是否显示（测试构建中视为显示）。 */
-export function handleNotify(message: SidecarNotify, host: NotificationHost): boolean {
+export function createNotifier(host: NotificationHost): Notifier {
+  /** 已显示、尚未点击或关闭的通知（防止被回收）。 */
+  const live = new Set<ShownNotification>()
+  return { notify: (message) => notify(message, host, live), liveCount: () => live.size }
+}
+
+function notify(message: SidecarNotify, host: NotificationHost, live: Set<ShownNotification>): boolean {
   const log = getLogger(['main', 'notifications'])
   if (host.focused()) {
     log.debug('notification skipped: window focused', { kind: message.kind, sessionId: message.sessionId })
@@ -52,6 +61,3 @@ export function handleNotify(message: SidecarNotify, host: NotificationHost): bo
   log.info(NOTIFICATION_SHOWN, { kind: message.kind, sessionId: message.sessionId })
   return true
 }
-
-/** 仍持有引用的通知数（测试）。 */
-export const liveNotifications = () => live.size

@@ -19,6 +19,7 @@ import {
   fauxScript,
   hookCommand,
   hookFixturePath,
+  pollUntil,
   sidecarDirs,
   startSidecar,
   tempDir,
@@ -241,10 +242,7 @@ describe('M5 harness 自测', () => {
     const exited = new Promise<NodeJS.Signals | null>((resolve) => sleeper.once('exit', (_code, signal) => resolve(signal)))
     sleeper.stdin.end('{}\n')
     // 记录文件出现时夹具已装好 SIGTERM 处理并进入 sleep：此后 SIGTERM 不结束它；随后 SIGKILL 结束它（只终止本测试启动的进程）。
-    for (const deadline = Date.now() + 10_000; !(await readFile(ready, 'utf8').catch(() => ''));) {
-      if (Date.now() > deadline) throw new Error('hook fixture did not start')
-      await new Promise((resolve) => setTimeout(resolve, 20))
-    }
+    await pollUntil(() => readFile(ready, 'utf8').catch(() => ''), { timeoutMs: 10_000, what: 'the hook fixture to start' })
     sleeper.kill('SIGTERM')
     const stillAlive = await Promise.race([exited.then(() => false), new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 300))])
     expect(stillAlive).toBe(true)

@@ -80,6 +80,21 @@ export const subagentOriginPayloadSchema = Type.Object(
 )
 export type SubagentOriginPayload = Static<typeof subagentOriginPayloadSchema>
 
+/** 条目的最小形状（宿主的存储条目与运行时条目都满足）。 */
+interface EntryLike {
+  kind: string
+  payload: unknown
+}
+type Typed<E extends EntryLike, P> = E & { payload: P }
+
+/** 父 Session 的 agent_start 条目（payload 已入库校验，按 schema 类型读取）。 */
+export const agentStarts = <E extends EntryLike>(entries: readonly E[]): Typed<E, AgentStartPayload>[] =>
+  entries.filter((e): e is Typed<E, AgentStartPayload> => e.kind === 'agent_start')
+
+/** 父 Session 的 agent_end 条目（payload 已入库校验，按 schema 类型读取）。 */
+export const agentEnds = <E extends EntryLike>(entries: readonly E[]): Typed<E, AgentEndPayload>[] =>
+  entries.filter((e): e is Typed<E, AgentEndPayload> => e.kind === 'agent_end')
+
 export interface AgentEntryPayloads {
   agent_start: AgentStartPayload
   agent_end: AgentEndPayload

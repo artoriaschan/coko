@@ -44,12 +44,12 @@ async function setup(goal: GoalPayload) {
       pause: async () => undefined,
     },
   })
-  const run = async (trigger: RunRequest['trigger'], runId: string) => {
+  const run = async (trigger: RunRequest['trigger'], runId: string, end: Omit<RunResult, 'runId'> = { status: 'completed' }) => {
     await store.sessions.appendEntries(session.id, [
       { kind: 'run_start', runId, payload: { trigger } },
-      { kind: 'run_end', runId, payload: { status: 'completed' } },
+      { kind: 'run_end', runId, payload: end as never },
     ])
-    const result: RunResult = { runId, status: 'completed' }
+    const result: RunResult = { runId, ...end }
     await service.runEnded({ sessionId: session.id, runId, trigger, result })
   }
   const phase = async () => {
@@ -66,6 +66,20 @@ describe('交接之后的源 Goal', () => {
     expect(t.started).toEqual([])
     await t.service.handedOff(t.session.id)
     expect(await t.phase()).toMatchObject({ phase: 'paused', reason: { code: 'handed-off' } })
+  })
+})
+
+describe('Hook 的停止与阻止', () => {
+  it('手动压缩被 PreCompact 阻止（error + hook_blocked）：running 的 Goal 不暂停', async () => {
+    const t = await setup(base)
+    await t.run('compact', 'c1', { status: 'error', error: { code: 'hook_blocked', message: 'compaction is frozen' } })
+    expect(await t.phase()).toMatchObject({ phase: 'running' })
+  })
+
+  it('continue: false（paused + hook_stopped）：running 的 Goal 暂停（hook-stopped）', async () => {
+    const t = await setup(base)
+    await t.run('submit', 's1', { status: 'paused', error: { code: 'hook_stopped', message: 'enough' } })
+    expect(await t.phase()).toMatchObject({ phase: 'paused', reason: { code: 'hook-stopped', message: 'enough' } })
   })
 })
 

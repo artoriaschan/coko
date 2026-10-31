@@ -46,6 +46,8 @@ const CREATE_ERRORS: Partial<Record<string, MessageKey>> = {
 export function WorkspaceWorktreeMenu({ workspace, onOpened }: { workspace: Workspace; onOpened: () => void }) {
   const { t } = useI18n()
   const [dialog, setDialog] = React.useState<'create' | 'list' | null>(null)
+  // 每次打开新建对话框换一个 key：输入、错误与提交状态从初始值开始（关闭动画期间保持同一实例）。
+  const [createKey, setCreateKey] = React.useState(0)
   const label = t('worktrees.workspaceMenu', { name: workspace.name })
   return (
     <>
@@ -56,7 +58,13 @@ export function WorkspaceWorktreeMenu({ workspace, onOpened }: { workspace: Work
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
-          <DropdownMenuItem data-action="new-worktree-session" onSelect={() => setDialog('create')}>
+          <DropdownMenuItem
+            data-action="new-worktree-session"
+            onSelect={() => {
+              setCreateKey((key) => key + 1)
+              setDialog('create')
+            }}
+          >
             <GitBranchPlusIcon />
             {t('worktrees.newSessionInWorktree')}
           </DropdownMenuItem>
@@ -66,7 +74,7 @@ export function WorkspaceWorktreeMenu({ workspace, onOpened }: { workspace: Work
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <CreateWorktreeDialog workspace={workspace} open={dialog === 'create'} onClose={() => setDialog(null)} onOpened={onOpened} />
+      <CreateWorktreeDialog key={createKey} workspace={workspace} open={dialog === 'create'} onClose={() => setDialog(null)} onOpened={onOpened} />
       <WorktreeListDialog workspace={workspace} open={dialog === 'list'} onClose={() => setDialog(null)} />
     </>
   )
@@ -79,12 +87,6 @@ function CreateWorktreeDialog({ workspace, open, onClose, onOpened }: { workspac
   const [name, setName] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
-  React.useEffect(() => {
-    if (!open) return
-    setName('')
-    setError(null)
-    setSubmitting(false)
-  }, [open])
 
   const submit = async () => {
     setSubmitting(true)
@@ -207,7 +209,7 @@ function WorktreeListDialog({ workspace, open, onClose }: { workspace: Workspace
           </div>
         </DialogContent>
       </Dialog>
-      <RemoveWorktreeDialog workspace={workspace} worktree={confirming} onClose={() => setConfirming(null)} />
+      <RemoveWorktreeDialog key={confirming?.id} workspace={workspace} worktree={confirming} onClose={() => setConfirming(null)} />
     </>
   )
 }
@@ -245,13 +247,13 @@ function WorktreeRow({ worktree, onRemove }: { worktree: Worktree; onRemove: () 
   )
 }
 
+/** 移除确认。提交状态属于这一个 worktree：调用方以 key={worktree?.id} 让换一个时重新挂载。 */
 function RemoveWorktreeDialog({ workspace, worktree, onClose }: { workspace: Workspace; worktree: Worktree | null; onClose: () => void }) {
   const { t } = useI18n()
   const store = useWorktreesStoreApi()
   const { load } = useChatActions()
   const [submitting, setSubmitting] = React.useState(false)
   const block = useWorktrees((s) => (worktree ? s.blocked[worktree.id] : undefined))
-  React.useEffect(() => setSubmitting(false), [worktree?.id])
 
   const confirm = async () => {
     if (!worktree) return

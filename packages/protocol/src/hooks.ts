@@ -27,7 +27,7 @@ export const HOOK_EVENTS: readonly HookEvent[] = HookEvent.anyOf.map((literal) =
 export const HookSource = Type.Union([Type.Literal('global'), Type.Literal('project')])
 export type HookSource = Static<typeof HookSource>
 
-/** 有结果的执行的结论。 */
+/** 有结果的执行的结论。ignored：项目 Hook 的 allow（只收紧，不参与判定）。 */
 export const HookOutcome = Type.Union([
   Type.Literal('blocked'),
   Type.Literal('asked'),
@@ -39,6 +39,7 @@ export const HookOutcome = Type.Union([
   Type.Literal('timeout'),
   Type.Literal('error'),
   Type.Literal('invalid-output'),
+  Type.Literal('ignored'),
 ])
 export type HookOutcome = Static<typeof HookOutcome>
 

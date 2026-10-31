@@ -448,4 +448,35 @@ describe('Notification', () => {
     expect(existsSync(other)).toBe(false)
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
+
+  it('通知总开关关闭时 Notification Hook 仍运行（stdin 有该通知），控制通道没有 notify', { timeout: 60_000 }, async () => {
+    const root = await realpath(await tempDir())
+    const record = join(root, 'notify.jsonl')
+    const h = await boot([{ content: 'scheduled done' }], {
+      root,
+      env: { COKO_TEST_CLOCK: '1' },
+      hooks: { Notification: [group(recording(record), 'schedule-run-ended')] },
+    })
+    const put = await h.api.put(`${API_ROUTES.settings}/notifications`, {
+      value: { enabled: false, scheduleRunEnded: true, approvalWaiting: true, agentFinished: true },
+      expectedRevision: 0,
+    })
+    expect(put.status).toBe(200)
+    expect(
+      (await h.api.post(schedulePaths.sessionSchedules(h.sessionId), { title: 'Quiet', prompt: 'ping', rule: { kind: 'after', seconds: 60 } })).status,
+    ).toBe(201)
+    await advanceClock(h.api, 60_000)
+    await h.stream.waitFor(() => h.runEnds().length >= 1, 30_000)
+    await poll(async () => (await records(record)).length >= 1, 'notification hook record')
+    expect(await records(record)).toEqual([
+      expect.objectContaining({
+        hook_event_name: 'Notification',
+        notification_type: 'schedule-run-ended',
+        title: 'Quiet',
+        message: 'Scheduled task run finished',
+      }),
+    ])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+    expect(notifyMessages(h.sidecar)).toEqual([])
+  })
 })

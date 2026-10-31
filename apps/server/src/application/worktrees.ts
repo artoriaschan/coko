@@ -66,12 +66,22 @@ function porcelainPaths(stdout: string): string[] {
     })
 }
 
+/** 不合规则的 worktree 名（创建与交接共用的 400 invalid-name）。 */
+export function invalidWorktreeNameError(): AppError {
+  return new AppError(
+    'invalid-name',
+    'Worktree names use lowercase letters, digits, ".", "_" and "-", start with a letter or digit and are at most 64 characters',
+  )
+}
+
 export class WorktreeService {
   readonly #store: SessionStore
   readonly #git: GitPort
   readonly #activity: WorktreeActivity
   /** 同一仓库的创建与移除串行（info/exclude、git worktree 的元数据）。 */
   readonly #repoLock = new KeyedMutex()
+  /** 正在移除的 worktree（锁内、busy 检查之前登记，结束或失败时撤销）：其会话的工作目录解析为 409 worktree-busy，不能开始 Run。 */
+  readonly #removing = new Set<string>()
 
   constructor(options: WorktreeServiceOptions) {
     this.#store = options.store
@@ -86,6 +96,7 @@ export class WorktreeService {
       const worktree = await this.#store.worktrees.get(session.worktreeId)
       if (!worktree) throw new AppError('not-found', `Worktree ${session.worktreeId} not found`)
       if (worktree.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; this session is read-only`)
+      if (this.#removing.has(worktree.id)) throw new AppError('worktree-busy', `Worktree ${worktree.name} is being removed`, { reasons: [] })
       return this.#sessionDir(worktree, workspace)
     },
   }
@@ -165,12 +176,7 @@ export class WorktreeService {
 
   async #create(workspaceId: string, requested: string | undefined, createdBy: WorktreeCreator, suffixOnConflict = false): Promise<Worktree> {
     const workspace = await this.#workspace(workspaceId)
-    if (requested !== undefined && !validWorktreeName(requested)) {
-      throw new AppError(
-        'invalid-name',
-        'Worktree names use lowercase letters, digits, ".", "_" and "-", start with a letter or digit and are at most 64 characters',
-      )
-    }
+    if (requested !== undefined && !validWorktreeName(requested)) throw invalidWorktreeNameError()
     const repoRoot = await this.#repoRoot(workspace)
     return this.#repoLock.run(repoRoot, async () => {
       const dir = await this.#worktreesDir(repoRoot)
@@ -267,24 +273,35 @@ export class WorktreeService {
     const worktree = await this.#require(id)
     if (worktree.status === 'removed') return
     await this.#repoLock.run(worktree.repoRoot, async () => {
-      const reasons = await this.#busy(worktree)
-      if (reasons.length > 0) throw new AppError('worktree-busy', 'Sessions in this worktree still have work in progress', { reasons })
-      const present = await stat(worktree.path).then(
-        () => true,
-        () => false,
-      )
-      if (present) {
-        const files = await this.#dirty(worktree.path)
-        if (files.length > 0) {
-          throw new AppError('worktree-dirty', 'The worktree has uncommitted changes', { files: files.slice(0, WORKTREE_DIRTY_FILES_MAX), count: files.length })
-        }
-        ok(await this.#git.run({ args: ['worktree', 'remove', worktree.path], cwd: worktree.repoRoot }), 'worktree remove')
-      } else {
-        await this.#git.run({ args: ['worktree', 'prune'], cwd: worktree.repoRoot })
+      // 先登记再检查 busy：此后开始的 Run 在解析工作目录时即 409（TOCTOU），此前已开始的由 busy 检查拦下。
+      this.#removing.add(id)
+      try {
+        await this.#removeLocked(worktree)
+      } finally {
+        this.#removing.delete(id)
       }
-      await this.#store.worktrees.markRemoved(id)
-      log.info('worktree removed', { worktreeId: id, workspaceId: worktree.workspaceId })
     })
+  }
+
+  async #removeLocked(worktree: WorktreeRecord): Promise<void> {
+    const id = worktree.id
+    const reasons = await this.#busy(worktree)
+    if (reasons.length > 0) throw new AppError('worktree-busy', 'Sessions in this worktree still have work in progress', { reasons })
+    const present = await stat(worktree.path).then(
+      () => true,
+      () => false,
+    )
+    if (present) {
+      const files = await this.#dirty(worktree.path)
+      if (files.length > 0) {
+        throw new AppError('worktree-dirty', 'The worktree has uncommitted changes', { files: files.slice(0, WORKTREE_DIRTY_FILES_MAX), count: files.length })
+      }
+      ok(await this.#git.run({ args: ['worktree', 'remove', worktree.path], cwd: worktree.repoRoot }), 'worktree remove')
+    } else {
+      await this.#git.run({ args: ['worktree', 'prune'], cwd: worktree.repoRoot })
+    }
+    await this.#store.worktrees.markRemoved(id)
+    log.info('worktree removed', { worktreeId: id, workspaceId: worktree.workspaceId })
   }
 
   /**

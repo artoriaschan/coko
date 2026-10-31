@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, goalPaths, handoffPaths, permissionPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, pollUntil, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 type Logged = { role: string; content: string | { type: string; text?: string }[] }[]
 const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
@@ -59,16 +59,16 @@ async function boot(responses: unknown[], options: { workspaceDir?: string; env?
    * 等待交接处理结束（Run 结束之后的目标创建或放弃）：处理中再次交接为 409 run-in-progress；结束之后以不存在的 worktree 为目标时 404，
    * 不开始 Run。
    */
-  const settled = async () => {
-    const deadline = Date.now() + 10_000
-    for (;;) {
-      const probe = await api.post(handoffPaths.handoff(sessionId), { instructions: 'probe', target: { kind: 'worktree', worktreeId: 'missing' } })
-      if (probe.status === 404) return
-      expect([probe.status, probe.body.error?.code]).toEqual([409, 'run-in-progress'])
-      if (Date.now() > deadline) throw new Error('handoff still pending')
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    }
-  }
+  const settled = () =>
+    pollUntil(
+      async () => {
+        const probe = await api.post(handoffPaths.handoff(sessionId), { instructions: 'probe', target: { kind: 'worktree', worktreeId: 'missing' } })
+        if (probe.status === 404) return true
+        expect([probe.status, probe.body.error?.code]).toEqual([409, 'run-in-progress'])
+        return false
+      },
+      { timeoutMs: 10_000, what: 'the handoff to settle', intervalMs: 50 },
+    )
   return { sidecar, api, stream, workspaceId, sessionId, requests, of, send, handedOff, subscribe, settled }
 }
 

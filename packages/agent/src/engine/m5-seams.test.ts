@@ -194,13 +194,13 @@ describe('beforeCompact', () => {
     expect(prompt.indexOf('HOOK WANTS manual')).toBeGreaterThan(prompt.indexOf('focus on tests'))
   })
 
-  it('手动压缩被 block：不发摘要请求，Run 以 error（hook_stopped）结束', async () => {
+  it('手动压缩被 block：不发摘要请求，Run 以 error（hook_blocked，与 continue: false 的 hook_stopped 区分）结束', async () => {
     const h = harness({ context: { beforeCompact: async () => ({ block: 'formatter failed' }) } })
     h.reply(ok(), ok(), ok('never'))
     await h.runtime.run(big(40_000, 'a'))
     await h.runtime.run(big(8_000, 'b'))
     const result = await h.runtime.compact()
-    expect(result).toMatchObject({ status: 'error', error: { code: 'hook_stopped', message: 'formatter failed' } })
+    expect(result).toMatchObject({ status: 'error', error: { code: 'hook_blocked', message: 'formatter failed' } })
     expect(h.requests).toHaveLength(2)
     expect(kinds(h.stored).includes('compaction')).toBe(false)
   })

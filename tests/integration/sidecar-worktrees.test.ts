@@ -6,9 +6,32 @@ import { lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs
 import { join } from 'node:path'
 import { rgPath } from '@vscode/ripgrep'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, jobPaths, permissionPaths, worktreePaths, type SessionEntryRecord } from '@coko/protocol'
+import {
+  API_ROUTES,
+  apiPaths,
+  checkpointPaths,
+  contextPaths,
+  hookPaths,
+  jobPaths,
+  permissionPaths,
+  worktreePaths,
+  type ContextUsageResponse,
+  type SessionEntryRecord,
+} from '@coko/protocol'
 import { createGitWorkspace, type GitWorkspace } from '../fixtures/git/index.ts'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs, type Stream } from './sidecar-harness.ts'
+import {
+  client,
+  connect,
+  exchange,
+  fauxScript,
+  pollUntil,
+  sidecarDirs,
+  startSidecar,
+  tempDir,
+  waitApproval,
+  type SidecarDirs,
+  type Stream,
+} from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
 type Message = { role: string; content: { type: string; text?: string }[]; toolCallId?: string; isError?: boolean; sections?: Record<string, string> }
@@ -103,6 +126,69 @@ describe('Worktree 创建', () => {
       [generated.body.name, 0],
     ])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+})
+
+const quote = (p: string) => `'${p.replaceAll("'", "'\\''")}'`
+
+describe('worktree 会话的作用域', () => {
+  it('上下文用量的指令分项来自 worktree 的 AGENTS.md；Hook 的 COKO_PROJECT_DIR 为会话工作目录；/<skill> 参数 时 UserPromptSubmit 的 prompt 为原文', async () => {
+    const fixture = await repo({ 'AGENTS.md': 'MAIN-RULE\n' })
+    const g = await boot(fixture, [{ content: 'skill done' }])
+    const scratch = await tempDir()
+    const [stdinFile, envFile] = [join(scratch, 'stdin.json'), join(scratch, 'env.txt')]
+    const command = `cat > ${quote(stdinFile)}; printf '%s' "$COKO_PROJECT_DIR" > ${quote(envFile)}`
+    expect((await g.api.put(hookPaths.hooks, { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] }, expectedRevision: 0 })).status).toBe(
+      200,
+    )
+    const workspaceId = await g.workspace(fixture.root)
+    const worktree = (await g.api.post(worktreePaths.workspaceWorktrees(workspaceId), { name: 'scoped' })).body as { id: string; path: string }
+    await writeFile(join(worktree.path, 'AGENTS.md'), 'WORKTREE-RULE\n')
+    await mkdir(join(worktree.path, '.coko', 'skills', 'demo'), { recursive: true })
+    await writeFile(join(worktree.path, '.coko', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\ndescription: Demo skill.\n---\nSKILL-BODY-TEXT\n')
+    const a = await g.session(workspaceId, worktree.id)
+
+    const usage = (await g.api.get(contextPaths.session(a.id))).body as ContextUsageResponse
+    expect(usage.instructions.filter((i) => i.scope === 'project').map((i) => i.path)).toEqual([join(worktree.path, 'AGENTS.md')])
+
+    expect((await g.api.post(apiPaths.sessionMessages(a.id), { text: '/demo do it' })).status).toBe(202)
+    await runEnds(g.stream, a.id, 1)
+    expect(JSON.stringify(await g.requests())).toContain('SKILL-BODY-TEXT')
+    await pollUntil(async () => (await readFile(envFile, 'utf8').catch(() => '')) !== '', { timeoutMs: 10_000, what: 'the hook record' })
+    expect(await readFile(envFile, 'utf8')).toBe(worktree.path)
+    const stdin = JSON.parse(await readFile(stdinFile, 'utf8')) as { prompt: string; cwd: string }
+    expect([stdin.prompt, stdin.cwd]).toEqual(['/demo do it', worktree.path])
+    expect(await g.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('回退边界：Workspace 为仓库子目录的 worktree 会话中 write 之后回退代码，文件内容恢复；越出该目录的路径列入 outside（ADR 0006：照常处理并警告）', async () => {
+    const fixture = await repo({ 'pkg/a.txt': 'a\n' })
+    // worktree 路径由名字确定（<repo>/.coko-worktrees/<name>）：脚本在创建之前写出。
+    const tree = join(fixture.root, '.coko-worktrees', 'rw')
+    const outside = join(tree, 'OUT.txt')
+    const g = await boot(fixture, [
+      { content: [call('w1', 'write', { path: 'a.txt', content: 'changed\n' }), call('w2', 'write', { path: outside, content: 'outside\n' })] },
+      { content: 'written' },
+    ])
+    const workspaceId = await g.workspace(join(fixture.root, 'pkg'))
+    const worktree = (await g.api.post(worktreePaths.workspaceWorktrees(workspaceId), { name: 'rw' })).body as { id: string; path: string }
+    expect(worktree.path).toBe(tree)
+    const a = await g.session(workspaceId, worktree.id)
+    expect((await g.api.put(permissionPaths.sessionPermissionMode(a.id), { mode: 'full-access' })).status).toBe(200)
+    expect((await g.api.post(apiPaths.sessionMessages(a.id), { text: 'edit' })).status).toBe(202)
+    // full-access：越出工作目录（worktree 根在 pkg 之外）的写入也免审批；回退只恢复工作目录之内的路径。
+    await runEnds(g.stream, a.id, 1)
+    expect([await readFile(join(tree, 'pkg', 'a.txt'), 'utf8'), await readFile(outside, 'utf8')]).toEqual(['changed\n', 'outside\n'])
+
+    const [checkpoint] = (await g.api.get(checkpointPaths.sessionCheckpoints(a.id))).body.checkpoints as { seq: number }[]
+    const done = await g.api.post(checkpointPaths.sessionRewind(a.id), { targetSeq: checkpoint!.seq, mode: 'code' })
+    expect(done.status).toBe(200)
+    // 边界为会话工作目录（worktree 中的 pkg）：其内的 a.txt 恢复；其外的 OUT.txt 列入 outside。ADR 0006 规定 outside 照常处理（确认对话框单独警告），
+    // 所以它与其他新建文件一样被删除。
+    expect(done.body).toMatchObject({ restored: [join(tree, 'pkg', 'a.txt')], deleted: [outside], outside: [outside], skipped: [] })
+    expect(await readFile(join(tree, 'pkg', 'a.txt'), 'utf8')).toBe('a\n')
+    expect(await exists(outside)).toBe(false)
+    expect(await g.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })
 

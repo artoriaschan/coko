@@ -363,6 +363,8 @@ export interface ScheduleRepository {
   update(id: string, revision: number, patch: SchedulePatch): Promise<ScheduleRecord>
   /** 不存在时 not-found。 */
   delete(id: string): Promise<void>
+  /** 按 id 读一条；不存在时 undefined（不扫描全表）。 */
+  get(id: string): Promise<ScheduleRecord | undefined>
   /** 按创建顺序；给出 sessionId 时只列该 Session。 */
   list(filter?: { sessionId?: string }): Promise<ScheduleRecord[]>
   /** active 且 nextAt ≤ now 的任务，按 nextAt 升序。 */

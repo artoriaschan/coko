@@ -12,6 +12,7 @@ import {
   exchange,
   fauxScript,
   notifyMessages,
+  pollUntil,
   sidecarDirs,
   startSidecar,
   tempDir,
@@ -497,10 +498,7 @@ describe('定时任务：通知', { timeout: 120_000 }, () => {
     const rule = { kind: 'after', seconds: 60 }
     await api.post(schedulePaths.sessionSchedules(sessionId), { title: 'Ends', prompt: 'prompt-ends', rule })
     const notified = async (n: number) => {
-      for (const deadline = Date.now() + 20_000; notifyMessages(sidecar).length < n;) {
-        if (Date.now() > deadline) throw new Error(`notify messages: ${JSON.stringify(notifyMessages(sidecar))}`)
-        await new Promise((resolve) => setTimeout(resolve, 20))
-      }
+      await pollUntil(() => notifyMessages(sidecar).length >= n, { timeoutMs: 20_000, what: `${n} notify messages` })
     }
     await advanceClock(api, 60_000)
     await waitKind(stream, sessionId, 'run_end', 1)

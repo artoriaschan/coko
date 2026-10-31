@@ -12,7 +12,7 @@ lifecycle: active
 
 - `packages/agent/src/agents/definitions.ts`：内置定义、frontmatter 解析与诊断、加载顺序、工具交集（`subagentTools`）与有效模式（`effectiveSubagentMode`）。
 - `packages/agent/src/agents/tools.ts`：三个工具、`<agent-result>` 与 `<agent-notification>` 的文本。
-- `apps/server/src/application/subagents.ts`：`SubagentService`（派发、等待、取消、通知、恢复，也是子 Session 的权限作用域）。
+- `apps/server/src/application/subagents.ts`：`SubagentService`（派发、等待、取消，也是子 Session 的权限作用域）；`subagent-notifications.ts`（`agent_update` 进度、桌面通知、结束通知的送达与挂起、`agent_wait`）；`subagent-recovery.ts`（`subagent_origin` / `agent_start` / `agent_end` 的记录、用量、isolation worktree 的回收与询问规则、启动恢复）。SubagentStart / SubagentStop 的输出由 `HookService.subagentStart` / `subagentStop` 解释（`redactText`，≤ 10 000 字符）。
 - `apps/server/src/application/context/subagents.ts`：工具注册、`<subagent>`、`filterTools`、max-turns 检查、SubagentStop。
 - `apps/server/src/http/routes/agents.ts`：HTTP 接口。
 - renderer：`stores/agents-store.ts`（列表、`agent_update` 合并、停止、子 Session 的审批回答、定义）、`features/conversation/{agents-button,agent-card,agent-notification-row,approval-panel}.tsx`、`features/right-panel/agents-tab.tsx`、`features/settings/agents-section.tsx`。
@@ -69,7 +69,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## isolation worktree
 
-`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加一条不入库的询问规则 `Read(<path>)`：父 Session 读取其中文件须审批（启动恢复时重新登记仍 active 的）。
+`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加两条不入库的询问规则 `Read(<path>)` 与 `Edit(<path>)`（Edit 规则组覆盖 write 与 edit）：父 Session 在任何模式下读取、写入或编辑其中的文件都须审批（启动恢复时重新登记仍 active 的；worktree 移除时去掉）。bash 不受这些规则保护：父 Session 的命令可以读写该目录（受模式与沙箱限制）。
 
 ## 重启
 
@@ -104,7 +104,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - `apps/server/src/application/subagents-recovery.test.ts`、`subagents-dispatch.test.ts`：重启时后台与 agent_start 之前的调用、派发失败的清理、max-turns 的计数。
 - `tests/integration/sidecar-subagents-permissions.test.ts`：审批在子 Session 回答、规则写入根、PermissionRequest Hook、定义不能放宽、根切到 read-only、工具表与固定排除、`Agent(general)` 拒绝。
 - `tests/integration/sidecar-subagents-budget.test.ts`、`sidecar-subagents-cancel.test.ts`、`sidecar-subagents-restart.test.ts`、`sidecar-subagents-isolation.test.ts`、`secrets-gate-subagents.test.ts`。
-- 界面：`apps/desktop/src/renderer/stores/agents-store.test.ts`（进度合并、较早的列表不覆盖结束状态、停止的 409、审批只回答一次）；Browser Mode 的 `features/conversation/agent-card.browser.test.tsx`（六种状态的中英文、进度随 `agent_update` 更新、用量、后台 chip、worktree、派发失败与打开请求）、`approval-bubbling.browser.test.tsx`（父会话与两个子代理的请求按时间顺序接管、来源标注、回答发往子 Session、草稿不丢）、`features/right-panel/agents-tab.browser.test.tsx`（列表、只读子时间线、键盘停止与选中、标题栏按钮）、`features/settings/agents-section.browser.test.tsx`；Electron E2E `apps/desktop/e2e/subagents.e2e.test.ts`（真实 Sidecar 与 faux：前台进度与结果、子时间线、写入审批在父会话中允许、后台子代理键盘停止为 cancelled、标题栏 running 数、明暗主题对比度与 390 px、设置 → Agents 的内置 / COKO_HOME / 项目定义与诊断）。
+- 界面：`apps/desktop/src/renderer/stores/agents-store.test.ts`（进度合并、较早的列表不覆盖结束状态、停止的 409、审批只回答一次）；Browser Mode 的 `features/conversation/agent-card.browser.test.tsx`（六种状态的中英文、进度随 `agent_update` 更新、用量、后台 chip、worktree、派发失败与打开请求）、`approval-bubbling.browser.test.tsx`（父会话与两个子代理的请求按时间顺序接管、来源标注、回答发往子 Session、草稿不丢；子代理结束或界面卸载后释放子 Session 的订阅）、`features/right-panel/agents-tab.browser.test.tsx`（列表、只读子时间线、键盘停止与选中、标题栏按钮）、`features/settings/agents-section.browser.test.tsx`；Electron E2E `apps/desktop/e2e/subagents.e2e.test.ts`（真实 Sidecar 与 faux：前台进度与结果、子时间线、写入审批在父会话中允许、后台子代理键盘停止为 cancelled、标题栏 running 数、明暗主题对比度与 390 px、设置 → Agents 的内置 / COKO_HOME / 项目定义与诊断）；`apps/desktop/e2e/subagent-notifications.e2e.test.ts`（接收侧：后台子代理等待审批时 desktop.jsonl 有 `notification shown { kind: approval-waiting }`，回答后结束时有 `agent-finished`，都属于父 Session）。
 
 ## 延伸阅读
 

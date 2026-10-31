@@ -37,11 +37,30 @@ function findCall(entries: readonly SessionEntry[], toolCallId: string): ToolCal
 export function useChildApproval(parentSessionId: string | null): ChildApproval | undefined {
   const agents = useSessionAgents(parentSessionId)
   const running = (agents?.agents ?? []).filter(isAgentRunning)
-  const ids = running.map((a) => a.agentId).join('\n')
+  // 排序后的 id 作为稳定键：列表顺序或快照引用变化而集合不变时不重新订阅。集合变化时只释放离开的、只订阅新加入的（仍在的不先退订
+  // 再订阅，条目不重新补发）；卸载时全部释放。
+  const ids = running
+    .map((a) => a.agentId)
+    .sort()
+    .join('\n')
   const { subscribeSession } = useChatActions()
+  const held = React.useRef(new Map<string, () => void>())
   React.useEffect(() => {
-    for (const id of ids === '' ? [] : ids.split('\n')) void subscribeSession(id)
+    const next = new Set(ids === '' ? [] : ids.split('\n'))
+    for (const [id, release] of held.current)
+      if (!next.has(id)) {
+        release()
+        held.current.delete(id)
+      }
+    for (const id of next) if (!held.current.has(id)) held.current.set(id, subscribeSession(id))
   }, [ids, subscribeSession])
+  React.useEffect(() => {
+    const map = held.current
+    return () => {
+      for (const release of map.values()) release()
+      map.clear()
+    }
+  }, [])
   const entry = useChat((s) => {
     let earliest: SessionEntryOf<'approval_request'> | undefined
     for (const id of ids === '' ? [] : ids.split('\n')) {

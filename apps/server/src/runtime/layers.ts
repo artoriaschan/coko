@@ -599,7 +599,7 @@ const AppLive = Layer.effect(
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
       config: capabilities,
-      context: new ContextService({ store, assembly: context, sessions }),
+      context: new ContextService({ store, assembly: context, sessions, cwd: worktrees.cwd }),
       memories: new MemoryService(store),
       mcp,
       secrets,

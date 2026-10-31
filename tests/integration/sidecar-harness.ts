@@ -338,6 +338,23 @@ export async function waitProcessesGone(pids: readonly number[], timeoutMs = 5_0
   }
 }
 
+/**
+ * 轮询一个不经 WS 到达的可观察条件（文件、进程表、数据库、控制通道消息或 HTTP 探测），直到 `fn` 返回真值，返回该值。
+ * 超时时抛出带 `what` 的错误；不用固定 sleep 代替等待。
+ */
+export async function pollUntil<T>(
+  fn: () => T | Promise<T>,
+  { timeoutMs, what = 'condition', intervalMs = 25 }: { timeoutMs: number; what?: string; intervalMs?: number },
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const value = await fn()
+    if (value) return value
+    if (Date.now() > deadline) throw new Error(`Timed out after ${timeoutMs} ms waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+}
+
 export interface HttpResult {
   status: number
   headers: IncomingHttpHeaders
