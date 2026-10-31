@@ -11,6 +11,11 @@ export type {
   MemoryInput,
   MemoryRepository,
   MemoryScope,
+  MemorySearchOptions,
+  PluginInput,
+  PluginRecord,
+  PluginRepository,
+  PluginSourceKind,
   NewSchedule,
   NewSession,
   NewSessionEntry,
@@ -43,7 +48,7 @@ export type {
   StoreOptions,
   Workspace,
 } from './types.ts'
-export { HOST_PROCESS_KINDS, SCHEDULE_STATUSES, THINKING_LEVELS, WORKTREE_CREATORS } from './types.ts'
+export { HOST_PROCESS_KINDS, PLUGIN_SOURCE_KINDS, SCHEDULE_STATUSES, THINKING_LEVELS, WORKTREE_CREATORS } from './types.ts'
 export type { ThinkingLevel } from './types.ts'
 export { createPayloadRegistry } from './payloads.ts'
 export type { PayloadDefinition, PayloadRegistry, PayloadUpgrade, PayloadVersion } from './payloads.ts'

@@ -1,7 +1,7 @@
 // Memory 与登记的 Secret 的 SQLite 仓库（迁移 v3；ADR 0003、0007）。
 import { randomUUID } from 'node:crypto'
-import { checkMemoryScope, notFound } from '../internal.ts'
-import type { Memory, MemoryInput, MemoryRepository, MemoryScope, SecretInfo, SecretRepository } from '../types.ts'
+import { checkMemoryScope, MEMORY_SEARCH_LIMIT, notFound, searchTerms } from '../internal.ts'
+import type { Memory, MemoryInput, MemoryRepository, MemoryScope, MemorySearchOptions, SecretInfo, SecretRepository } from '../types.ts'
 import type { Connection } from './connection.ts'
 
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
@@ -26,7 +26,43 @@ const toMemory = (r: MemoryRow): Memory => ({
   updatedAt: r.updated_at,
 })
 
-export function createMemoryRepository(conn: Connection): MemoryRepository {
+/** trigram 分词的最短可检索词；更短的词走 LIKE。 */
+const TRIGRAM_MIN = 3
+const ftsPhrase = (term: string) => `"${term.replaceAll('"', '""')}"`
+const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+
+/** fts：memories_fts 存在且可用（迁移 v9 在有 FTS5 的运行时建立）；false 时 search 走 LIKE。 */
+export function createMemoryRepository(conn: Connection, options: { fts: boolean } = { fts: false }): MemoryRepository {
+  const search = (query: string, filter: MemorySearchOptions = {}): Memory[] => {
+    const terms = searchTerms(query)
+    if (terms.length === 0) return []
+    const limit = Math.max(1, Math.trunc(filter.limit ?? MEMORY_SEARCH_LIMIT))
+    const scope = [filter.scope ?? null, filter.workspaceId ?? null]
+    const where = '(?1 IS NULL OR m.scope = ?1) AND (?2 IS NULL OR m.workspace_id = ?2)'
+    if (options.fts && terms.every((term) => [...term].length >= TRIGRAM_MIN)) {
+      return conn
+        .all<MemoryRow>(
+          `SELECT m.* FROM memories_fts f JOIN memories m ON m.rowid = f.rowid
+           WHERE memories_fts MATCH ?3 AND ${where}
+           ORDER BY bm25(memories_fts), m.updated_at DESC, m.rowid DESC LIMIT ?4`,
+          ...scope,
+          terms.map(ftsPhrase).join(' AND '),
+          limit,
+        )
+        .map(toMemory)
+    }
+    // LIKE 的大小写不敏感只覆盖 ASCII：两侧都转小写后比较。
+    const likes = terms.map((_, i) => `lower(m.content) LIKE ?${i + 4} ESCAPE '\\'`).join(' AND ')
+    return conn
+      .all<MemoryRow>(
+        `SELECT m.* FROM memories m WHERE ${where} AND ${likes} ORDER BY m.updated_at DESC, m.rowid DESC LIMIT ?3`,
+        ...scope,
+        limit,
+        ...terms.map((term) => likePattern(term.toLowerCase())),
+      )
+      .map(toMemory)
+  }
+
   const select = (id: string) => conn.get<MemoryRow>('SELECT * FROM memories WHERE id = ?', id)
   const requireMemory = (id: string): MemoryRow => {
     const row = select(id)
@@ -34,6 +70,7 @@ export function createMemoryRepository(conn: Connection): MemoryRepository {
     return row
   }
   return {
+    search: (query, filter) => later(() => conn.read(() => search(query, filter))),
     list: (filter = {}) =>
       later(() =>
         conn.read(() =>

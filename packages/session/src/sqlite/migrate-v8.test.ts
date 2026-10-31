@@ -30,8 +30,8 @@ describe('SQLite 迁移 v8', () => {
 
     const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS, onInvalidEntry: () => {} })
     onTestFinished(() => store.close())
-    expect(SQLITE_SCHEMA_VERSION).toBe(8)
-    expect(store.migration).toMatchObject({ from: 7, to: 8 })
+    expect(SQLITE_SCHEMA_VERSION).toBeGreaterThanOrEqual(8)
+    expect(store.migration).toMatchObject({ from: 7, to: SQLITE_SCHEMA_VERSION })
     const backup = store.migration.backupPath!
     expect(backup).toMatch(/coko\.db\.backup-v7-/)
     expect((await stat(backup)).mode & 0o777).toBe(0o600)

@@ -385,6 +385,82 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await memories.list()).toEqual([])
     })
 
+    it('Memory 检索：全部词出现才匹配（大小写不敏感，含中文），作用域过滤与 list 相同，limit 缺省 20，空查询为空', async () => {
+      const { sessions, memories } = await open()
+      const w1 = await sessions.registerWorkspace({ path: '/w1' })
+      const pnpm = await memories.create({ scope: 'user', content: 'Prefers PNPM over npm for installs', source: 'agent' })
+      tick()
+      const vitest = await memories.create({ scope: 'workspace', workspaceId: w1.id, content: 'Tests run with vitest; use pnpm test', source: 'user' })
+      tick()
+      const zh = await memories.create({ scope: 'user', content: '部署前先运行数据库迁移脚本', source: 'user' })
+      const ids = async (query: string, options?: Parameters<typeof memories.search>[1]) => (await memories.search(query, options)).map((m) => m.id).toSorted()
+      expect(await ids('pnpm')).toEqual([pnpm.id, vitest.id].toSorted())
+      expect(await ids('PNPM test')).toEqual([vitest.id])
+      expect(await ids('pnpm', { scope: 'user' })).toEqual([pnpm.id])
+      expect(await ids('pnpm', { scope: 'workspace', workspaceId: w1.id })).toEqual([vitest.id])
+      expect(await ids('数据库迁移')).toEqual([zh.id])
+      expect(await ids('np')).toEqual([pnpm.id, vitest.id].toSorted())
+      expect(await ids('yarn')).toEqual([])
+      expect(await memories.search('   ')).toEqual([])
+      expect(await memories.search('pnpm', { limit: 1 })).toHaveLength(1)
+      for (let i = 0; i < 25; i++) await memories.create({ scope: 'user', content: `note ${i} about caching`, source: 'agent' })
+      expect(await memories.search('caching')).toHaveLength(20)
+
+      // 改正文与删除后检索结果同步。
+      await memories.update(pnpm.id, { content: 'Prefers yarn now' })
+      expect(await ids('pnpm')).toEqual([vitest.id])
+      expect(await ids('yarn')).toEqual([pnpm.id])
+      await memories.delete(vitest.id)
+      expect(await ids('vitest')).toEqual([])
+    })
+
+    it('插件：upsert 新建为未批准、未启用；更新保留批准与启用；approve / setEnabled / delete；path 唯一，来源未知 invalid-input', async () => {
+      const { plugins } = await open()
+      const input = {
+        name: 'sample',
+        version: '1.0.0',
+        sourceKind: 'dir' as const,
+        sourceLocation: '/src/sample',
+        path: '/home/.coko/plugins/sample',
+        digest: 'd1',
+      }
+      const created = await plugins.upsert(input)
+      expect(created).toEqual({ ...input, sourceRef: null, commit: null, approvedDigest: null, enabled: false, installedAt: 1_000, updatedAt: 1_000 })
+      tick()
+      expect(await plugins.approve('sample', 'd1')).toMatchObject({ approvedDigest: 'd1', enabled: true, updatedAt: 1_010 })
+      tick()
+      const updated = await plugins.upsert({
+        ...input,
+        version: '1.1.0',
+        digest: 'd2',
+        sourceKind: 'git',
+        sourceLocation: 'https://x/y.git',
+        sourceRef: 'v1',
+        commit: 'abc',
+      })
+      expect(updated).toMatchObject({
+        version: '1.1.0',
+        digest: 'd2',
+        approvedDigest: 'd1',
+        enabled: true,
+        installedAt: 1_000,
+        updatedAt: 1_020,
+        commit: 'abc',
+        sourceRef: 'v1',
+      })
+      expect(await plugins.setEnabled('sample', false)).toMatchObject({ enabled: false })
+      await plugins.upsert({ ...input, name: 'another', path: '/home/.coko/plugins/another' })
+      expect((await plugins.list()).map((p) => p.name)).toEqual(['another', 'sample'])
+      await expectStoreError(plugins.upsert({ ...input, name: 'third' }), 'already-exists')
+      await expectStoreError(plugins.upsert({ ...input, name: 'bad', path: '/p/bad', sourceKind: 'npm' as never }), 'invalid-input')
+      await expectStoreError(plugins.approve('missing', 'd'), 'not-found')
+      await expectStoreError(plugins.setEnabled('missing', true), 'not-found')
+      await plugins.delete('sample')
+      expect(await plugins.get('sample')).toBeUndefined()
+      await expectStoreError(plugins.delete('sample'), 'not-found')
+      expect((await plugins.list()).map((p) => p.name)).toEqual(['another'])
+    })
+
     it('Secret：list 只返回 name 与 hint（不含密文），密文按字节读回，替换与删除', async () => {
       const { secrets } = await open()
       const ciphertext = new Uint8Array([9, 0, 255, 128])
@@ -637,13 +713,15 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect((await schedules.due(2_000)).map((x) => x.id)).toEqual([a.id])
     })
 
-    it('子进程登记接受 M5 的 hook 与 git 类别', async () => {
+    it('子进程登记接受 M5 的 hook 与 git、M6 的 lsp 类别', async () => {
       const { processes } = await open()
       await processes.register({ id: 'h', pid: 5, pgid: 5, startedAt: 'x', kind: 'hook', sessionId: 's', command: 'check.sh' })
       await processes.register({ id: 'g', pid: 6, startedAt: 'y', kind: 'git', command: 'git worktree add' })
+      await processes.register({ id: 'l', pid: 7, pgid: 7, startedAt: 'z', kind: 'lsp', command: 'typescript-language-server --stdio' })
       expect((await processes.list()).map((p) => [p.id, p.kind])).toEqual([
         ['h', 'hook'],
         ['g', 'git'],
+        ['l', 'lsp'],
       ])
     })
 
@@ -661,6 +739,8 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
         store.worktrees.list('w'),
         store.schedules.list(),
         store.sessions.listChildren('s'),
+        store.plugins.list(),
+        store.memories.search('x'),
       ]) {
         await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
       }

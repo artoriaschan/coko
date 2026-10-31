@@ -220,6 +220,17 @@ export interface MemoryRepository {
   update(id: string, patch: { content: string }): Promise<Memory>
   /** 不存在时 not-found。 */
   delete(id: string): Promise<void>
+  /**
+   * 按关键词检索（空白分隔的词全部出现）：FTS5 可用时按相关度（bm25），否则（或词短于 3 个字符时）大小写不敏感的子串匹配，按
+   * updatedAt 倒序。limit 缺省 20；给出 scope / workspaceId 时与 list 的过滤相同。查询为空时返回空数组。
+   */
+  search(query: string, options?: MemorySearchOptions): Promise<Memory[]>
+}
+
+export interface MemorySearchOptions {
+  scope?: MemoryScope
+  workspaceId?: string
+  limit?: number
 }
 
 /** 登记的 Secret：名称与提示（末四位）；密文只经 getCiphertext 读取（ADR 0007）。 */
@@ -239,10 +250,10 @@ export interface SecretRepository {
   delete(name: string): Promise<void>
 }
 
-/** 宿主启动的子进程的种类：前台 bash、后台 Job、PTY Job、stdio MCP Server、外部 Hook 命令、宿主执行的 git。 */
-export type HostProcessKind = 'bash' | 'job' | 'pty' | 'mcp' | 'hook' | 'git'
+/** 宿主启动的子进程的种类：前台 bash、后台 Job、PTY Job、stdio MCP Server、外部 Hook 命令、宿主执行的 git、语言服务器。 */
+export type HostProcessKind = 'bash' | 'job' | 'pty' | 'mcp' | 'hook' | 'git' | 'lsp'
 
-export const HOST_PROCESS_KINDS: readonly HostProcessKind[] = ['bash', 'job', 'pty', 'mcp', 'hook', 'git']
+export const HOST_PROCESS_KINDS: readonly HostProcessKind[] = ['bash', 'job', 'pty', 'mcp', 'hook', 'git', 'lsp']
 
 /** 登记的子进程（ADR 0012）：进程存活期间存在，退出时删除；宿主启动时据此清理上次留下的孤儿。 */
 export interface HostProcess {
@@ -376,6 +387,53 @@ export interface ScheduleRepository {
   recordFire(id: string, fire: ScheduleFire, entry: NewSessionEntry): Promise<{ schedule: ScheduleRecord; entry: SessionEntry }>
 }
 
+export type PluginSourceKind = 'dir' | 'git'
+export const PLUGIN_SOURCE_KINDS: readonly PluginSourceKind[] = ['dir', 'git']
+
+/** 已安装的插件（ADR 0017）：文件在 path（插件安装目录，全部记录中唯一），批准按 digest 保存。 */
+export interface PluginRecord {
+  name: string
+  version: string
+  sourceKind: PluginSourceKind
+  sourceLocation: string
+  sourceRef: string | null
+  commit: string | null
+  path: string
+  digest: string
+  approvedDigest: string | null
+  enabled: boolean
+  installedAt: number
+  updatedAt: number
+}
+
+export interface PluginInput {
+  name: string
+  version: string
+  sourceKind: PluginSourceKind
+  sourceLocation: string
+  sourceRef?: string | null
+  commit?: string | null
+  path: string
+  digest: string
+}
+
+export interface PluginRepository {
+  /** 按名字排序。 */
+  list(): Promise<PluginRecord[]>
+  get(name: string): Promise<PluginRecord | undefined>
+  /**
+   * 新建或更新（安装与"更新"）：新建时未批准、未启用；更新时保留已批准的 digest 与启用状态（digest 变化即回到待批准，由调用方派生）。
+   * path 被另一个插件使用时 already-exists；sourceKind 未知时 invalid-input。
+   */
+  upsert(input: PluginInput): Promise<PluginRecord>
+  /** 批准 digest 并启用；不存在时 not-found。digest 与当前不同由调用方判断。 */
+  approve(name: string, digest: string): Promise<PluginRecord>
+  /** 不存在时 not-found。 */
+  setEnabled(name: string, enabled: boolean): Promise<PluginRecord>
+  /** 不存在时 not-found。 */
+  delete(name: string): Promise<void>
+}
+
 /** 一组共享同一存储的仓库。 */
 export interface SessionStore {
   sessions: SessionRepository
@@ -389,6 +447,8 @@ export interface SessionStore {
   worktrees: WorktreeRepository
   /** 定时任务（ADR 0015）。 */
   schedules: ScheduleRepository
+  /** 已安装的插件（ADR 0017）。 */
+  plugins: PluginRepository
   /** 幂等；关闭后所有操作以 closed 拒绝。 */
   close(): Promise<void>
 }

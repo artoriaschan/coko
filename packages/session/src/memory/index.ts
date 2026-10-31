@@ -4,17 +4,22 @@ import {
   alreadyExists,
   checkHostProcess,
   checkMemoryScope,
+  checkPluginSourceKind,
   checkScheduleStatus,
   checkWorktreeCreator,
   closedError,
   defaultWorkspaceName,
   levelOf,
+  matchesTerms,
+  MEMORY_SEARCH_LIMIT,
   notFound,
   recordRevisionConflict,
   revisionConflict,
   sameWorkspace,
+  searchTerms,
   upgradeEntries,
 } from '../internal.ts'
+import { StoreError } from '../errors.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
   CredentialRecord,
@@ -24,7 +29,10 @@ import type {
   Memory,
   MemoryInput,
   MemoryScope,
+  MemorySearchOptions,
   NewSchedule,
+  PluginInput,
+  PluginRecord,
   NewSession,
   NewSessionEntry,
   NewWorktree,
@@ -66,6 +74,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   /** 插入顺序即创建顺序。 */
   const worktrees = new Map<string, WorktreeRecord>()
   const schedules = new Map<string, ScheduleRecord>()
+  const plugins = new Map<string, PluginRecord>()
 
   // 读写都复制，调用方修改返回值不影响已提交的状态。
   const copy = <T>(value: T): T => structuredClone(value)
@@ -82,6 +91,16 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
     if (!session) throw notFound('session', id)
     return session
   }
+  /** 按 updatedAt 倒序，同时间按插入顺序倒序（与 SQLite 的 rowid 一致）。 */
+  const listMemories = (filter: { scope?: MemoryScope; workspaceId?: string }) =>
+    [...memories.values()]
+      .map((memory, index) => ({ memory, index }))
+      .filter(
+        ({ memory }) =>
+          (filter.scope === undefined || memory.scope === filter.scope) && (filter.workspaceId === undefined || memory.workspaceId === filter.workspaceId),
+      )
+      .sort((a, b) => b.memory.updatedAt - a.memory.updatedAt || b.index - a.index)
+      .map(({ memory }) => memory)
   const requireSchedule = (id: string): ScheduleRecord => {
     const schedule = schedules.get(id)
     if (!schedule) throw notFound('schedule', id)
@@ -256,16 +275,16 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       }),
     },
     memories: {
-      list: op((filter: { scope?: MemoryScope; workspaceId?: string } = {}) =>
-        [...memories.values()]
-          .map((memory, index) => ({ memory, index }))
-          .filter(
-            ({ memory }) =>
-              (filter.scope === undefined || memory.scope === filter.scope) && (filter.workspaceId === undefined || memory.workspaceId === filter.workspaceId),
-          )
-          .sort((a, b) => b.memory.updatedAt - a.memory.updatedAt || b.index - a.index)
-          .map(({ memory }) => memory),
-      ),
+      list: op((filter: { scope?: MemoryScope; workspaceId?: string } = {}) => listMemories(filter)),
+      // 内存实现的检索为子串匹配（与 SQLite 的 LIKE 降级同一语义），按 updatedAt 倒序。
+      search: op((query: string, filter: MemorySearchOptions = {}) => {
+        const terms = searchTerms(query)
+        if (terms.length === 0) return []
+        const limit = Math.max(1, Math.trunc(filter.limit ?? MEMORY_SEARCH_LIMIT))
+        return listMemories(filter)
+          .filter((memory) => matchesTerms(memory.content, terms))
+          .slice(0, limit)
+      }),
       get: op((id: string) => memories.get(id)),
       create: op((input: MemoryInput) => {
         const workspaceId = checkMemoryScope(input)
@@ -400,6 +419,49 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           updatedAt: now(),
         })
         return { schedule, entry: added[0]! }
+      }),
+    },
+    plugins: {
+      list: op(() => [...plugins.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))),
+      get: op((name: string) => plugins.get(name)),
+      upsert: op((input: PluginInput) => {
+        checkPluginSourceKind(input.sourceKind)
+        const owner = [...plugins.values()].find((p) => p.path === input.path)
+        if (owner && owner.name !== input.name)
+          throw new StoreError('already-exists', `plugin path ${input.path} is used by ${owner.name}`, { entity: 'plugin-path', id: input.path })
+        const at = now()
+        const existing = plugins.get(input.name)
+        const record: PluginRecord = {
+          name: input.name,
+          version: input.version,
+          sourceKind: input.sourceKind,
+          sourceLocation: input.sourceLocation,
+          sourceRef: input.sourceRef ?? null,
+          commit: input.commit ?? null,
+          path: input.path,
+          digest: input.digest,
+          approvedDigest: existing?.approvedDigest ?? null,
+          enabled: existing?.enabled ?? false,
+          installedAt: existing?.installedAt ?? at,
+          updatedAt: at,
+        }
+        plugins.set(record.name, record)
+        return record
+      }),
+      approve: op((name: string, digest: string) => {
+        const plugin = plugins.get(name)
+        if (!plugin) throw notFound('plugin', name)
+        Object.assign(plugin, { approvedDigest: digest, enabled: true, updatedAt: now() })
+        return plugin
+      }),
+      setEnabled: op((name: string, enabled: boolean) => {
+        const plugin = plugins.get(name)
+        if (!plugin) throw notFound('plugin', name)
+        Object.assign(plugin, { enabled, updatedAt: now() })
+        return plugin
+      }),
+      delete: op((name: string) => {
+        if (!plugins.delete(name)) throw notFound('plugin', name)
       }),
     },
     async close() {

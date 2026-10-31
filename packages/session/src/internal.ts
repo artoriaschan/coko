@@ -2,6 +2,7 @@
 import { StoreError } from './errors.ts'
 import {
   HOST_PROCESS_KINDS,
+  PLUGIN_SOURCE_KINDS,
   SCHEDULE_STATUSES,
   THINKING_LEVELS,
   WORKTREE_CREATORS,
@@ -102,6 +103,23 @@ export function checkWorktreeCreator(createdBy: string): void {
 /** 新 Session 的父 Session 与 worktree 必须属于同一 Workspace。 */
 export function sameWorkspace(what: string, actual: string, expected: string): void {
   if (actual !== expected) throw new StoreError('invalid-input', `${what} belongs to another workspace`, { field: what })
+}
+
+export function checkPluginSourceKind(kind: string): void {
+  if (!(PLUGIN_SOURCE_KINDS as readonly string[]).includes(kind))
+    throw new StoreError('invalid-input', `unknown plugin source kind ${kind}`, { field: 'sourceKind' })
+}
+
+/** memories.search 的缺省条数。 */
+export const MEMORY_SEARCH_LIMIT = 20
+
+/** 检索词：按空白拆分，去掉空串；全部出现才算匹配。 */
+export const searchTerms = (query: string): string[] => query.split(/\s+/).filter((term) => term !== '')
+
+/** 子串匹配（大小写不敏感）：内存实现与 SQLite 的 LIKE 降级共用的语义。 */
+export const matchesTerms = (content: string, terms: readonly string[]) => {
+  const text = content.toLowerCase()
+  return terms.every((term) => text.includes(term.toLowerCase()))
 }
 
 export function closedError(): StoreError {
