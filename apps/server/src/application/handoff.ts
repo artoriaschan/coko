@@ -7,7 +7,7 @@ import type { HandoffTarget, Worktree } from '@coko/protocol'
 import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
 import type { RunRequest, SessionEntryAccess } from './context/types.ts'
 import { AppError, errorMessage } from './errors.ts'
-import { validWorktreeName } from './worktrees.ts'
+import { invalidWorktreeNameError, validWorktreeName } from './worktrees.ts'
 
 const log = getLogger(['application', 'handoff'])
 
@@ -108,12 +108,7 @@ export class HandoffService {
       if (worktree.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed`)
       return
     }
-    if (target.name !== undefined && !validWorktreeName(target.name)) {
-      throw new AppError(
-        'invalid-name',
-        'Worktree names use lowercase letters, digits, ".", "_" and "-", start with a letter or digit and are at most 64 characters',
-      )
-    }
+    if (target.name !== undefined && !validWorktreeName(target.name)) throw invalidWorktreeNameError()
     if (!(await worktrees.gitStatus(session)).repo) throw new AppError('not-a-git-repo', 'The workspace is not inside a git repository')
     if (target.name !== undefined && (await worktrees.list(session.workspaceId)).some((w) => w.name === target.name)) {
       throw new AppError('worktree-exists', `A worktree named ${target.name} already exists`)

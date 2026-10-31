@@ -66,6 +66,14 @@ function porcelainPaths(stdout: string): string[] {
     })
 }
 
+/** 不合规则的 worktree 名（创建与交接共用的 400 invalid-name）。 */
+export function invalidWorktreeNameError(): AppError {
+  return new AppError(
+    'invalid-name',
+    'Worktree names use lowercase letters, digits, ".", "_" and "-", start with a letter or digit and are at most 64 characters',
+  )
+}
+
 export class WorktreeService {
   readonly #store: SessionStore
   readonly #git: GitPort
@@ -165,12 +173,7 @@ export class WorktreeService {
 
   async #create(workspaceId: string, requested: string | undefined, createdBy: WorktreeCreator, suffixOnConflict = false): Promise<Worktree> {
     const workspace = await this.#workspace(workspaceId)
-    if (requested !== undefined && !validWorktreeName(requested)) {
-      throw new AppError(
-        'invalid-name',
-        'Worktree names use lowercase letters, digits, ".", "_" and "-", start with a letter or digit and are at most 64 characters',
-      )
-    }
+    if (requested !== undefined && !validWorktreeName(requested)) throw invalidWorktreeNameError()
     const repoRoot = await this.#repoRoot(workspace)
     return this.#repoLock.run(repoRoot, async () => {
       const dir = await this.#worktreesDir(repoRoot)

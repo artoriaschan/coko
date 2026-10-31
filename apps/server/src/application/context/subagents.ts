@@ -1,7 +1,7 @@
 // 子代理（ADR 0014）的上下文贡献：agent 工具（权限类 agent，规则组名 Agent），agent_wait（context-read）与 agent_cancel（session-state）只在本
 // Session 有子代理时注册；子 Session 的 <subagent> system section、工具交集（filterTools）、max-turns 的请求前检查与 SubagentStop（onStop）；
 // 父 Session 中后台子代理的结束通知（pendingInput）与没有送达的通知挂起（onRunEnd）。没有 SubagentService 时只有规则工具名。
-import { createAgentCancelTool, createAgentTool, createAgentWaitTool, SUBAGENT_EXCLUDED_TOOLS } from '@coko/agent'
+import { createAgentCancelTool, createAgentTool, createAgentWaitTool, isSubagentExcludedTool } from '@coko/agent'
 import type { ContextContribution, ContextContributionOptions, RuleTool } from './types.ts'
 
 const AGENT_RULE_TOOLS: readonly RuleTool[] = [
@@ -9,8 +9,6 @@ const AGENT_RULE_TOOLS: readonly RuleTool[] = [
   { name: 'agent_wait', permissionClass: 'context-read' },
   { name: 'agent_cancel', permissionClass: 'session-state' },
 ]
-
-const fixedExcluded = (name: string) => SUBAGENT_EXCLUDED_TOOLS.includes(name) || name.startsWith('schedule_')
 
 export function subagentsContribution(options: ContextContributionOptions): ContextContribution {
   const service = options.subagents
@@ -41,7 +39,7 @@ export function subagentsContribution(options: ContextContributionOptions): Cont
     filterTools(tools, scope) {
       if (!scope.parentSessionId) return tools
       const allowed = scope.subagent ? new Set(scope.subagent.tools) : undefined
-      return tools.filter((name) => !fixedExcluded(name) && (allowed === undefined || allowed.has(name)))
+      return tools.filter((name) => !isSubagentExcludedTool(name) && (allowed === undefined || allowed.has(name)))
     },
     async beforeRequest(state, scope) {
       return service.beforeRequest(state, scope)

@@ -7,6 +7,8 @@ export {
   BUILTIN_AGENTS,
   createAgentDefinitionLoader,
   effectiveSubagentMode,
+  isSubagentExcludedTool,
+  narrowerMode,
   parseAgentDefinition,
   PERMISSION_MODE_ORDER,
   SUBAGENT_EXCLUDED_TOOLS,
