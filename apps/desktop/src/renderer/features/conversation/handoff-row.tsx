@@ -9,12 +9,12 @@ import type { TimelineItem } from './timeline.ts'
 
 /**
  * 时间线的交接行：源会话的 handoff（"已交接到 <标题>"，可打开目标会话）与目标会话首条的 handoff_origin（"交接自 <标题>"，可跳回源会话）。
- * 标题取会话列表；不在列表中（已删除或尚未读取）时显示"未命名"。失败的 handoff（摘要之后目标没能创建）没有目标，显示失败与原因。
+ * 标题取会话列表；不在列表中（已删除或尚未读取）时显示"未命名"。handoff_failed（摘要之后目标没能创建）没有目标，显示失败与原因。
  */
 export function HandoffRow({ item }: { item: Extract<TimelineItem, { kind: 'handoff' }> }) {
   const { handoff } = item
-  const failure = handoff.kind === 'source' ? handoffFailure(handoff.payload) : undefined
-  return failure ? <FailedHandoffRow code={failure.error.code} /> : <LinkedHandoffRow item={item} />
+  if (handoff.kind === 'failed') return <FailedHandoffRow code={handoffFailure(handoff.payload)?.error.code ?? ''} />
+  return <LinkedHandoffRow item={{ ...item, handoff }} />
 }
 
 function FailedHandoffRow({ code }: { code: string }) {
@@ -31,7 +31,9 @@ function FailedHandoffRow({ code }: { code: string }) {
   )
 }
 
-function LinkedHandoffRow({ item }: { item: Extract<TimelineItem, { kind: 'handoff' }> }) {
+type LinkedHandoff = Exclude<Extract<TimelineItem, { kind: 'handoff' }>['handoff'], { kind: 'failed' }>
+
+function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: 'handoff' }>, 'handoff'> & { handoff: LinkedHandoff } }) {
   const { t } = useI18n()
   const chat = useOptionalChatStoreApi()
   const { handoff } = item

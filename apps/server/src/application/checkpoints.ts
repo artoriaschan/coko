@@ -14,6 +14,7 @@ import type { Checkpoint, RewindResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionRecovery } from './recovery.ts'
+import type { SessionCwd } from './session-runs.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -22,6 +23,8 @@ export interface SessionCheckpointsOptions {
   store: SessionStore
   runtimes: SessionRuntimes
   recovery: SessionRecovery
+  /** Session 的工作目录（回退的边界；worktree 会话为 worktree 中的目录）；缺省 Workspace 目录。 */
+  cwd?: SessionCwd
   /** 回退代码读取快照正文与当前文件摘要（Sidecar 为 <dataDir>/blobs）。缺省：回退代码以 internal 失败。 */
   files?: RewindFiles
 }
@@ -105,7 +108,9 @@ export class SessionCheckpoints {
           const session = await requireSession(store, sessionId)
           const workspace = await store.sessions.getWorkspace(session.workspaceId)
           if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
-          files = await restoreFiles(planned.files, this.#options.files, { workspace: await realLocation(workspace.path), dryRun })
+          // 边界为会话的工作目录（ADR 0016：Checkpoint 路径与会话目录一致）；Workspace 为仓库子目录时 worktree 不在 Workspace 目录之下。
+          const cwd = this.#options.cwd ? await this.#options.cwd.resolve(session, workspace) : workspace.path
+          files = await restoreFiles(planned.files, this.#options.files, { workspace: await realLocation(cwd), dryRun })
         }
         if (!dryRun && planned.entry) {
           await runtimes.commit(sessionId, planned.entry)

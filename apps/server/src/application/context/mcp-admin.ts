@@ -43,9 +43,9 @@ export class McpAdmin {
     const manager = this.#manager
     const workspace = workspaceId === undefined ? undefined : { id: workspaceId, path: await this.#workspacePath(workspaceId) }
     const loaded = await manager.load(workspace)
-    if (workspace) await manager.reconcile(workspace.id, loaded)
+    if (workspace) await manager.reconcile(workspace.id, workspace.path, loaded)
     const servers = loaded.entries.map((entry): McpServerInfo => {
-      const connection = workspace ? manager.connection(workspace.id, entry.name) : undefined
+      const connection = workspace ? manager.connection(workspace.id, workspace.path, entry.name) : undefined
       const status = staticMcpStatus(entry, loaded) ?? connection?.status ?? 'idle'
       const taken = new Set<string>()
       const disabled = new Set(entry.config.disabledTools ?? [])
@@ -100,7 +100,7 @@ export class McpAdmin {
     for (const id of manager.workspaceIds()) {
       const path = id === workspace?.id ? workspace.path : await this.#workspacePath(id).catch(() => undefined)
       if (path === undefined) continue
-      await manager.reconcile(id, await manager.load({ id, path }))
+      await manager.reconcile(id, path, await manager.load({ id, path }))
     }
     if (workspace) manager.connectInBackground(workspace.id, workspace.path, await manager.load(workspace))
     return this.view(request.workspaceId)
@@ -121,7 +121,7 @@ export class McpAdmin {
     await this.#store.settings.set(mcpApprovalsSettingKey(workspace.id), approvals, loaded.approvalsRevision)
     log.info(request.approve ? 'mcp project server approved' : 'mcp project server approval revoked', { workspaceId: workspace.id, server: entry.name })
     const next = await manager.load(workspace)
-    await manager.reconcile(workspace.id, next)
+    await manager.reconcile(workspace.id, workspace.path, next)
     if (request.approve) manager.connectInBackground(workspace.id, workspace.path, next)
     return this.view(workspace.id)
   }
@@ -135,7 +135,7 @@ export class McpAdmin {
     if (!entry) throw new AppError('not-found', `MCP server ${request.name} not found`)
     const status = staticMcpStatus(entry, loaded)
     if (status !== undefined) throw new AppError('bad-request', `MCP server ${request.name} is ${status}`)
-    await manager.reconcile(workspace.id, loaded)
+    await manager.reconcile(workspace.id, workspace.path, loaded)
     await manager.restart(workspace.id, workspace.path, entry)
     return this.view(workspace.id)
   }

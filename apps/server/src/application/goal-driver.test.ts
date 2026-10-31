@@ -5,7 +5,7 @@ import type { SessionEntry } from '@coko/session'
 import { describe, expect, it } from 'vitest'
 import type { ErrorCode } from '@coko/protocol'
 import { AppError } from './errors.ts'
-import { GoalDriver } from './goal-driver.ts'
+import { GoalDriver, hasUserSteering } from './goal-driver.ts'
 
 const goal: GoalPayload = {
   id: 'goal-1',
@@ -53,5 +53,18 @@ describe('Goal Round 没能开始', () => {
     const { d, committed } = driver(new AppError(code, code))
     expect(await d.advance('s')).toBeUndefined()
     expect(committed).toEqual([])
+  })
+})
+
+describe('Run 结束时退回的追加指令（hasUserSteering）', () => {
+  it.each([
+    ['没有退回', undefined, false],
+    ['只有 Job 通知', ['<job-notification>\n<job-id>j</job-id>\n</job-notification>'], false],
+    // 后台子代理的通知是宿主通知：Goal 照常推进（通知已由 SubagentService 重新挂起，不丢）。
+    ['只有子代理通知', ['<agent-notification agent-id="a" agent-type="general" status="completed">\nSubagent a\n</agent-notification>'], false],
+    ['用户写的追加指令', ['also run lint'], true],
+    ['通知与用户的追加指令', ['<agent-notification agent-id="a">x</agent-notification>', 'also run lint'], true],
+  ])('%s', (_name, undelivered, expected) => {
+    expect(hasUserSteering(undelivered)).toBe(expected)
   })
 })

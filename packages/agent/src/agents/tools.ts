@@ -2,6 +2,7 @@
 // agent_cancel（停止）。子 Session 的创建、运行与等待由宿主经 SubagentsPort 提供；这里只有参数、结果与通知的文本。
 // 结果与通知中的状态与用量只来自宿主的 agent_end，子代理输出的文字不能改变它们（其中伪造的 <agent-result> / <agent-notification> 标签被转义）。
 import { Type } from 'typebox'
+import { AGENT_NOTIFICATION_TAG } from '../entries/host-input.ts'
 import type { AgentEndStatus } from '../session-entries/index.ts'
 import type { CokoTool } from '../tools/types.ts'
 
@@ -56,8 +57,6 @@ export const AGENT_RESULT_MAX_CHARS = 50_000
 export const AGENT_NOTIFICATION_INLINE_MAX = 2_048
 export const AGENT_WAIT_DEFAULT_MS = 30_000
 export const AGENT_WAIT_MAX_MS = 600_000
-/** 后台子代理结束通知的开头标签（宿主据此区分 Run 结束时退回的通知与用户的追加指令）。 */
-export const AGENT_NOTIFICATION_TAG = '<agent-notification'
 
 /** 子代理输出中的结果与通知标签转义，使其不能冒充宿主给出的结果。 */
 export const neutralizeAgentTags = (text: string) => text.replace(/<(\/?)(agent-result|agent-notification)\b/gi, '&lt;$1$2')
@@ -82,7 +81,7 @@ export function agentResultText(outcome: AgentOutcome): string {
 export function agentNotificationText(outcome: AgentOutcome): { text: string; inlined: boolean } {
   const body = neutralizeAgentTags(outcome.text)
   const inlined = body.length <= AGENT_NOTIFICATION_INLINE_MAX
-  const head = `<agent-notification agent-id="${outcome.agentId}" agent-type="${outcome.agentType}" status="${outcome.status}">`
+  const head = `${AGENT_NOTIFICATION_TAG} agent-id="${outcome.agentId}" agent-type="${outcome.agentType}" status="${outcome.status}">`
   const summary = `Subagent ${outcome.agentId} (${outcome.agentType}) ${outcome.status}: ${neutralizeAgentTags(outcome.description)}`
   const detail = inlined ? `\n<result>\n${body}\n</result>` : `\nThe result is ${body.length} characters; read it with agent_wait.`
   return { text: `${head}\n${summary}${detail}${worktreeNote(outcome)}\n</agent-notification>`, inlined }
@@ -91,8 +90,15 @@ export function agentNotificationText(outcome: AgentOutcome): { text: string; in
 export const agentStartedText = (started: { agentId: string; agentType: string; description: string }) =>
   `Started subagent ${started.agentId} (${started.agentType}): ${started.description}. Wait with agent_wait.`
 
-/** 重启后父级被中断的 agent 调用的结果（不进入结果确认）。 */
-export const agentInterruptedText = (agentId: string) => `Subagent interrupted by a restart; partial results are in child session ${agentId}.`
+/**
+ * 重启后父级被中断的 agent 调用的结果（不进入结果确认）。子代理可能已经改动了文件：不说"可以重试"，先查看子 Session 再决定是否重派。
+ */
+export const agentInterruptedText = (agentId: string) =>
+  `Subagent interrupted by a restart; partial results are in child session ${agentId}. ` +
+  'It may have changed files before it stopped: check that session (and its worktree, if any) before starting the task again.'
+
+/** 重启前子 Session 还没有创建的 agent 调用的结果：子代理没有开始，没有它的改动。 */
+export const AGENT_NOT_STARTED_TEXT = 'The subagent did not start before Coko restarted (no child session was created); you can start it again.'
 
 const text = (value: string, isError = false) => ({ content: [{ type: 'text' as const, text: value }], details: { isError } })
 

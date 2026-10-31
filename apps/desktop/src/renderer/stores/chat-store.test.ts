@@ -368,18 +368,19 @@ describe('chat store：M5 的条目与进度', () => {
       ],
       ['schedule_fire', { scheduleId: 'sc', occurrence: 1, status: 'started', runId: 'r9' }],
       ['handoff', { targetSessionId: 's3', instructions: 'i', summary: 's', target: 'current' }],
+      ['handoff_failed', { instructions: 'i', summary: 's', error: { code: 'worktree-exists', message: 'taken' } }],
       ['handoff_origin', { sessionId: 's0', seq: 4 }],
     ]
     m5.forEach(([kind, payload], i) => stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', i + 1, payload, kind) }))
     stream.deliver({
       type: 'entry',
       sessionId: 's1',
-      entry: entry('s1', 9, { trigger: 'schedule', schedule: { scheduleId: 'sc', occurrence: 1 } }, 'run_start'),
+      entry: entry('s1', m5.length + 1, { trigger: 'schedule', schedule: { scheduleId: 'sc', occurrence: 1 } }, 'run_start'),
     })
-    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: 9, running: false })
+    stream.deliver({ type: 'subscribed', sessionId: 's1', lastSeq: m5.length + 1, running: false })
     const conversation = store.getState().conversations.s1!
     expect(conversation.entries.map((e) => e.kind)).toEqual([...m5.map(([kind]) => kind), 'run_start'])
-    expect(buildTimeline(conversation).map((i) => i.kind)).toEqual(['hook', 'agent-notification', 'schedule-fire', 'handoff', 'handoff'])
+    expect(buildTimeline(conversation).map((i) => i.kind)).toEqual(['hook', 'agent-notification', 'schedule-fire', 'handoff', 'handoff', 'handoff'])
   })
 
   it('agent_update 与 schedule_update 进度不使会话进入运行中，照常交给订阅者', async () => {

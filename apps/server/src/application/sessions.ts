@@ -13,7 +13,8 @@ import type {
   ThinkingLevel,
   UpdatePermissionsRequest,
 } from '@coko/protocol'
-import type { Session as StoredSession, SessionStore } from '@coko/session'
+import { AppError } from './errors.ts'
+import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
 import type { Model } from '@earendil-works/pi-ai'
 import { SessionCheckpoints } from './checkpoints.ts'
 import { emptyContextAssembly, type ActionResult, type ContextAssembly } from './context/index.ts'
@@ -95,6 +96,7 @@ export class SessionService {
       store,
       runtimes: this.#runtimes,
       ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
@@ -102,6 +104,7 @@ export class SessionService {
       runtimes: this.#runtimes,
       recovery: this.#recovery,
       ...(options.checkpoints ? { files: options.checkpoints } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
     })
     this.#models = new SessionModels({
       store,
@@ -239,7 +242,7 @@ export class SessionService {
   }): Promise<Session> {
     const { model, thinkingLevel } = await this.#models.initial(input)
     const mode = await this.permissions.defaultMode()
-    const session = await this.#store.sessions.createSession({
+    const session = await this.createRecord({
       workspaceId: input.workspaceId,
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
@@ -251,6 +254,18 @@ export class SessionService {
     await this.#runtimes.commit(session.id, { kind: 'permission_mode', payload: { mode } })
     log.info('session created', { sessionId: session.id, workspaceId: session.workspaceId, mode })
     return this.toDto(session)
+  }
+
+  /**
+   * 会话记录的唯一创建入口（根 Session、子代理的子 Session、交接的目标）：绑定的 worktree 已移除时 409 worktree-removed（ADR 0016：移除后
+   * 绑定的会话只读，新建一个一开始就只读的会话没有意义）。首条条目由调用方提交（permission_mode、subagent_origin 或 handoff_origin）。
+   */
+  async createRecord(input: NewSession): Promise<StoredSession> {
+    if (input.worktreeId) {
+      const worktree = await this.#store.worktrees.get(input.worktreeId)
+      if (worktree?.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; create the session elsewhere`)
+    }
+    return this.#store.sessions.createSession(input)
   }
 
   async detail(sessionId: string): Promise<SessionDetailResponse> {

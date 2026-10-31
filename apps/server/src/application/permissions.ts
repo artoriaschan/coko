@@ -216,9 +216,12 @@ export class PermissionService {
     return this.#defaultMode.value
   }
 
-  /** 全局、该 Workspace 与其项目（project 作用域，只有 deny / ask）的规则；调用前须已 load() 与 loadWorkspace()。 */
-  rulesFor(workspaceId: string): PermissionRule[] {
-    const path = this.#workspacePaths.get(workspaceId)
+  /**
+   * 全局、该 Workspace 与其项目（project 作用域，只有 deny / ask）的规则；调用前须已 load() 与 loadWorkspace()。项目规则从会话的工作目录读取
+   * （cwd；worktree 会话为 worktree 中的目录，缺省 Workspace 目录），批准与 Workspace 作用域的规则仍按 Workspace。
+   */
+  rulesFor(workspaceId: string, cwd?: string): PermissionRule[] {
+    const path = cwd ?? this.#workspacePaths.get(workspaceId)
     const project = path !== undefined && this.#project ? this.canonical(projectRules(this.#project.projectRules(path))) : []
     return [...this.#global.value, ...(this.#workspaceValues.get(workspaceId)?.value ?? []), ...project]
   }

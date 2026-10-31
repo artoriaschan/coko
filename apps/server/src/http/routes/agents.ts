@@ -5,13 +5,9 @@ import { AppError } from '../../application/errors.ts'
 import { domainRouter } from './shared.ts'
 
 export function agentsRoutes(app: Application) {
-  const { subagents, store } = app
+  const { subagents } = app
   const r = domainRouter()
-  r.get('/sessions/:id/agents', async (c) => {
-    const id = c.req.param('id')
-    if (!(await store.sessions.getSession(id))) throw new AppError('not-found', `Session ${id} not found`)
-    return c.json((await subagents.list(id)) satisfies SessionAgentsResponse)
-  })
+  r.get('/sessions/:id/agents', async (c) => c.json((await subagents.list(c.req.param('id'))) satisfies SessionAgentsResponse))
   r.post('/sessions/:id/agents/:agentId/cancel', async (c) => {
     await subagents.cancel(c.req.param('id'), c.req.param('agentId'))
     return c.body(null, 204)

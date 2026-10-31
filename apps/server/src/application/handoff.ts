@@ -4,7 +4,7 @@
 import { handoffPrompt, handoffSummaryText, handoffTargetEntries, hasUserMessage, type RunError, type RunResult } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import type { HandoffTarget, Worktree } from '@coko/protocol'
-import type { Session as StoredSession, SessionStore } from '@coko/session'
+import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
 import type { RunRequest, SessionEntryAccess } from './context/types.ts'
 import { AppError, errorMessage } from './errors.ts'
 import { validWorktreeName } from './worktrees.ts'
@@ -18,6 +18,8 @@ const TITLE_MAX = 60
 export interface HandoffRunHost {
   isRunning(sessionId: string): boolean
   startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }>
+  /** 会话记录的唯一创建入口（SessionService.createRecord：worktree 在校验之后被移除时 409 worktree-removed）。 */
+  createSession(input: NewSession): Promise<StoredSession>
 }
 
 /** 交接需要的 worktree 能力（WorktreeService）。 */
@@ -31,6 +33,8 @@ export interface HandoffWorktrees {
 /** Goal 的请求前检查（GoalService.beforeRequest）：交接条目提交之后重查。 */
 export interface HandoffGoalCheck {
   beforeRequest(sessionId: string, runId: string): Promise<RunError | undefined>
+  /** 交接完成：源 Session 的 running Goal 暂停（handed-off）。 */
+  handedOff(sessionId: string): Promise<void>
 }
 
 export interface HandoffServiceOptions {
@@ -146,7 +150,22 @@ export class HandoffService {
           ...(result.error ? { code: result.error.code } : {}),
         })
     } catch (error) {
+      // 摘要之后目标没能创建：提交 handoff_failed（带摘要请求的 usage，使 Goal 计入；带摘要，供用户复制），客户端据此离开"正在创建"。
+      // 在 pending.resolve 之前提交：等待中的请求按包含这次用量的预算重查。
       log.warn('handoff target creation failed', { sessionId: info.sessionId, runId: info.runId, error: errorMessage(error) })
+      const failure = error instanceof AppError ? { code: error.code, message: error.message } : { code: 'internal', message: errorMessage(error) }
+      await this.#options.entries
+        .commit(info.sessionId, {
+          kind: 'handoff_failed',
+          runId: info.runId,
+          payload: {
+            instructions: pending.instructions,
+            summary: handoffSummaryText(info.result.summary ?? ''),
+            error: failure,
+            ...(info.result.summaryUsage ? { usage: info.result.summaryUsage } : {}),
+          },
+        })
+        .catch((e: unknown) => log.error('handoff failure entry not committed', { sessionId: info.sessionId, error: errorMessage(e) }))
     } finally {
       this.#pending.delete(info.sessionId)
       pending.resolve()
@@ -163,7 +182,7 @@ export class HandoffService {
     if (target.kind === 'worktree') worktreeId = target.worktreeId
     else if (target.kind === 'new-worktree')
       worktreeId = (await worktrees.create(source.workspaceId, target.name === undefined ? {} : { name: target.name })).id
-    const created = await store.sessions.createSession({
+    const created = await this.#options.runs.createSession({
       workspaceId: source.workspaceId,
       title: handoffTitle(pending.instructions),
       model: source.model,
@@ -184,6 +203,7 @@ export class HandoffService {
     })
     const sourceEntries = await store.sessions.listEntries(sessionId)
     for (const entry of handoffTargetEntries(sourceEntries, sessionId, handoff.seq)) await entries.commit(created.id, entry)
+    await this.#options.goals?.handedOff(sessionId)
     log.info('handoff finished', { sessionId, runId, targetSessionId: created.id, target: target.kind, summaryChars: summary.length })
   }
 }

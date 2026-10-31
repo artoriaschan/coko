@@ -2,6 +2,7 @@
 // trigger subagent 的子 Run）、前台等待与后台通知、并行上限、取消传播（父 Run 停止、agent_cancel、取消 Goal）、agent_end 与用量、
 // agent_update 进度、等待审批与结束的桌面通知、isolation worktree 的清理，以及启动恢复（未结束的子代理补记 interrupted）。
 import {
+  AGENT_NOT_STARTED_TEXT,
   agentInterruptedText,
   agentNotificationText,
   createAgentDefinitionLoader,
@@ -16,6 +17,7 @@ import {
   type AgentEndStatus,
   type AgentOutcome,
   type AgentStarted,
+  type AgentStartPayload,
   type AgentStartRequest,
   type AgentUsageTotals,
   type AgentWaitItem,
@@ -29,9 +31,10 @@ import {
   type StopInfo,
   type SubagentsPort,
 } from '@coko/agent'
+import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretValues, redactText } from '@coko/logging'
 import { AGENT_ACTIVITY_SUMMARY_MAX, MAX_RUNNING_SUBAGENTS, type AgentDefinitionsResponse, type AgentSnapshot, type SessionModel } from '@coko/protocol'
-import type { Session as StoredSession, SessionEntry as StoredEntry, SessionStore } from '@coko/session'
+import type { NewSession, Session as StoredSession, SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import type { ConfigService } from './config.ts'
 import type { ContextScope, PendingInput, RequestVerdict, RunEndInfo, RunRequest, SessionEntryAccess } from './context/types.ts'
 import { AppError, errorMessage } from './errors.ts'
@@ -62,6 +65,10 @@ export interface SubagentSessionHost {
   scope(session: StoredSession): Promise<ContextScope>
   /** 规则与定义中接受的工具名（基础工具与贡献的规则工具）。 */
   toolNames(cwd: string): readonly string[]
+  /** 会话记录的唯一创建入口（SessionService.createRecord：绑定已移除的 worktree 时 409 worktree-removed）。 */
+  createSession(input: NewSession): Promise<StoredSession>
+  /** 父 Run 进行中重新取工具（第一次派发之后同一个 Run 就有 agent_wait / agent_cancel）。 */
+  refreshTools(sessionId: string): Promise<void>
 }
 
 export interface SubagentServiceOptions {
@@ -363,18 +370,20 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (running >= MAX_RUNNING_SUBAGENTS) throw new Error(`At most ${MAX_RUNNING_SUBAGENTS} subagents can run at once; wait for one with agent_wait`)
     const token = Symbol('reserve')
     this.#reserving.set(token, parentId)
-    let live: Live
+    let live: Live | undefined
+    let worktree: { id: string; path: string; branch: string } | undefined
     try {
       const tools = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
-      const worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
+      worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
       if (worktree) this.#isolate(parentId, worktree.path, true)
-      const child = await store.sessions.createSession({
+      const child = await sessions.createSession({
         workspaceId: parent.workspaceId,
         title: request.description,
         parentSessionId: parentId,
         model,
         thinkingLevel: (definition.thinking as StoredSession['thinkingLevel']) ?? parent.thinkingLevel,
-        ...(worktree ? { worktreeId: worktree.id } : {}),
+        // 没有 isolation 时继承父级的 worktree：子 Session 的工作目录取父级（worktree 会话中派发的子代理不在主 checkout 中工作）。
+        ...(worktree ? { worktreeId: worktree.id } : parent.worktreeId ? { worktreeId: parent.worktreeId } : {}),
       })
       const agentId = child.id
       let resolve!: (outcome: AgentOutcome) => void
@@ -428,10 +437,23 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
           ...(worktree ? { isolation: { worktreeId: worktree.id, path: worktree.path, branch: worktree.branch } } : {}),
         },
       })
+    } catch (error) {
+      // 派发没有完成（子 Session、subagent_origin 或 agent_start 提交失败）：不残留 running（不占并行上限、worktree 不判为 busy），
+      // isolation worktree 没有改动时回收，询问规则随之去掉。
+      if (live) this.#live.delete(live.agentId)
+      if (worktree) {
+        const created = worktree
+        const removed = await this.#worktrees!.removeIfUnchanged(created.id).catch(() => undefined)
+        if (removed?.removed) this.#isolate(parentId, created.path, false)
+      }
+      log.warn('subagent dispatch failed', { sessionId: parentId, error: errorMessage(error) })
+      throw error
     } finally {
       this.#reserving.delete(token)
     }
     log.info('subagent started', { sessionId: parentId, agentId: live.agentId, agentType: definition.name, background: request.background })
+    // agent_wait / agent_cancel 只在本 Session 有子代理时注册：第一次派发之后在同一个 Run 中补上（"Wait with agent_wait." 可以照做）。
+    await sessions.refreshTools(parentId).catch((error: unknown) => log.warn('tool refresh failed', { sessionId: parentId, error: errorMessage(error) }))
     this.#watch(live)
     const abort = () => void this.#sessions.abort(live.agentId).catch(() => undefined)
     // 前台：父 Run 被停止时 abort 子 Run（cancelled）；后台不随父 Run 停止。
@@ -439,10 +461,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     try {
       const child = await store.sessions.getSession(live.agentId)
       const context = await this.#subagentStart(child!, live)
-      const content = [
-        { type: 'text' as const, text: request.prompt },
-        ...(context ? [{ type: 'text' as const, text: `<hook-context>\n${context}\n</hook-context>` }] : []),
-      ]
+      const content = [{ type: 'text' as const, text: request.prompt }, ...(context ? [{ type: 'text' as const, text: hookContextText(context) }] : [])]
       if (signal?.aborted && !request.background) throw new Error('aborted')
       const { runId } = await sessions.startRun(live.agentId, { trigger: 'subagent', input: { text: request.prompt, content } })
       live.runId = runId
@@ -499,12 +518,15 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     return { continue: [{ type: 'text', text: reason }] }
   }
 
-  /** max-turns：子 Run 的每次请求前计数本 Run 已有的 assistant 消息，耗尽时以 max_turns 停止（不发出该请求）。 */
-  beforeRequest(state: BeforeRequestState, scope: ContextScope): RequestVerdict {
+  /**
+   * max-turns：子 Run 的每次请求前计数本 Run 已提交的 assistant 条目，耗尽时以 max_turns 停止（不发出该请求）。按条目计数：自动压缩把上下文
+   * 换成摘要之后，上下文中的 assistant 消息变少，不能据此重新计数。
+   */
+  async beforeRequest(state: BeforeRequestState, scope: ContextScope): Promise<RequestVerdict> {
     const max = scope.subagent?.maxTurns
-    if (max === undefined || !scope.parentSessionId) return undefined
-    // 子 Session 只有派发它的这一个 Run（SubagentStop 的继续在同一 Run 中）：上下文中的 assistant 消息数即已用轮次。
-    const turns = state.messages.filter((m) => (m as { role?: string }).role === 'assistant').length
+    if (max === undefined || !scope.parentSessionId || !scope.sessionId) return undefined
+    const entries = await this.#options.entries.list(scope.sessionId)
+    const turns = entries.filter((e) => e.runId === state.runId && e.kind === 'message' && (e.payload as { role?: string }).role === 'assistant').length
     if (turns < max) return undefined
     return { stop: { code: 'max_turns', message: `The subagent reached its turn limit (${max})` } }
   }
@@ -676,8 +698,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
 
   // ---- 用户的动作（HTTP）与 Goal ----
 
-  /** GET /api/sessions/:id/agents：父 Session 的 agent_start / agent_end 与进程内状态。 */
+  /** GET /api/sessions/:id/agents：父 Session 的 agent_start / agent_end 与进程内状态；Session 不存在时 not-found。 */
   async list(sessionId: string): Promise<AgentSnapshot[]> {
+    if (!(await this.#options.store.sessions.getSession(sessionId))) throw new AppError('not-found', `Session ${sessionId} not found`)
     const entries = await this.#options.store.sessions.listEntries(sessionId)
     const ends = new Map(entries.filter((e) => e.kind === 'agent_end').map((e) => [(e.payload as { agentId: string }).agentId, e]))
     return entries
@@ -726,8 +749,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
   // ---- 启动恢复与关闭 ----
 
   /**
-   * 启动恢复的第一步（Session 恢复之前）：被中断的父 Run 中仍在等待结果的 agent 调用先补 agent_end interrupted 与中断说明的结果，
-   * 使 Session 恢复不把它当作结果不明的调用（不进入结果确认，不重跑子代理）。
+   * 启动恢复的第一步（Session 恢复之前）：被中断的父 Run 中没有结果的 agent 调用（前台与后台）先补 agent_end interrupted 与中断说明的结果，
+   * 使 Session 恢复不把它当作结果不明的调用，也不给出 read 工具"没有副作用、可以重试"的文本（子代理可能已改动文件）。agent_start 之前
+   * 崩溃、子 Session 已创建时，从子 Session 的 subagent_origin 补记 agent_start；子 Session 还没创建时结果说明子代理没有开始。
    */
   async prepareRecovery(source: RecoverySource): Promise<number> {
     let count = 0
@@ -739,28 +763,77 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
           .map((e) => (e.payload as { toolCallId: string }).toolCallId),
       )
       const ended = new Set(entries.filter((e) => e.kind === 'agent_end').map((e) => (e.payload as { agentId: string }).agentId))
-      for (const start of entries.filter((e) => e.kind === 'agent_start' && e.runId === runId)) {
-        const payload = start.payload as { agentId: string; toolCallId: string; background: boolean }
+      const started = new Map(
+        entries
+          .filter((e) => e.kind === 'agent_start' && e.runId === runId)
+          .map((e) => [(e.payload as AgentStartPayload).toolCallId, e.payload as AgentStartPayload]),
+      )
+      const calls = new Map<string, { background: boolean }>()
+      for (const e of entries) {
+        if (e.kind !== 'message' || e.runId !== runId) continue
+        const m = e.payload as { role?: string; content?: unknown }
+        if (m.role !== 'assistant' || !Array.isArray(m.content)) continue
+        for (const b of m.content as { type?: string; name?: string; id?: string; arguments?: { run_in_background?: unknown } }[])
+          if (b.type === 'toolCall' && b.name === 'agent' && b.id) calls.set(b.id, { background: b.arguments?.run_in_background === true })
+      }
+      for (const toolCallId of new Set([...started.keys(), ...calls.keys()])) {
+        let start = started.get(toolCallId)
+        if (!start && answered.has(toolCallId)) continue
         const batch: RunEntry[] = []
-        if (!ended.has(payload.agentId)) batch.push(await this.#interruptedEnd(payload.agentId, runId))
-        if (!payload.background && !answered.has(payload.toolCallId))
+        if (!start) {
+          start = await this.#orphanStart(sessionId, runId, toolCallId, calls.get(toolCallId)?.background ?? false, entries)
+          if (start) batch.push({ kind: 'agent_start', runId, payload: start })
+        }
+        if (start && !ended.has(start.agentId)) batch.push(await this.#interruptedEnd(start, runId))
+        if (!answered.has(toolCallId))
           batch.push({
             kind: 'message',
             runId,
             payload: {
               role: 'toolResult',
-              toolCallId: payload.toolCallId,
+              toolCallId,
               toolName: 'agent',
-              content: [{ type: 'text', text: agentInterruptedText(payload.agentId) }],
+              content: [{ type: 'text', text: start ? agentInterruptedText(start.agentId) : AGENT_NOT_STARTED_TEXT }],
               isError: true,
               timestamp: Date.now(),
             },
           })
         for (const entry of batch) await this.#options.entries.commit(sessionId, entry)
         if (batch.length > 0) count++
+        if (start) log.warn('subagent call interrupted', { sessionId, agentId: start.agentId, background: start.background })
       }
     }
     return count
+  }
+
+  /** agent_start 之前崩溃时的子 Session（subagent_origin 指向该调用）：按派发时的形状重建 agent_start；没有时 undefined。 */
+  async #orphanStart(
+    parentId: string,
+    runId: string,
+    toolCallId: string,
+    background: boolean,
+    parentEntries: readonly StoredEntry[],
+  ): Promise<AgentStartPayload | undefined> {
+    const { store } = this.#options
+    for (const child of await store.sessions.listChildren(parentId)) {
+      const origin = (await store.sessions.listEntries(child.id, { limit: 1 }))[0]
+      const payload =
+        origin?.kind === 'subagent_origin' ? (origin.payload as { parentRunId: string; toolCallId: string; definition: { name: string } }) : undefined
+      if (!payload || payload.parentRunId !== runId || payload.toolCallId !== toolCallId) continue
+      const goal = currentGoal(parentEntries)
+      const goalId = goal && !isTerminalPhase(goal.phase) && goalRunIds(parentEntries, goal.id).has(runId) ? goal.id : undefined
+      const worktree = child.worktreeId ? await store.worktrees.get(child.worktreeId) : undefined
+      return {
+        agentId: child.id,
+        agentType: payload.definition.name,
+        description: child.title,
+        background,
+        toolCallId,
+        ...(goalId ? { goalId } : {}),
+        ...(worktree ? { isolation: { worktreeId: worktree.id, path: worktree.path, branch: worktree.branch } } : {}),
+      }
+    }
+    return undefined
   }
 
   /** 启动恢复（Session 恢复之后）：其余没有 agent_end 的子代理（后台）补记 interrupted；返回补记的数量。 */
@@ -770,27 +843,37 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       const entries = await this.#options.store.sessions.listEntries(latest.sessionId)
       const ended = new Set(entries.filter((e) => e.kind === 'agent_end').map((e) => (e.payload as { agentId: string }).agentId))
       for (const start of entries.filter((e) => e.kind === 'agent_start')) {
-        const agentId = (start.payload as { agentId: string }).agentId
+        const payload = start.payload as AgentStartPayload
+        if (!ended.has(payload.agentId)) {
+          await this.#options.entries.commit(latest.sessionId, await this.#interruptedEnd(payload))
+          log.warn('subagent marked interrupted', { sessionId: latest.sessionId, agentId: payload.agentId })
+          count++
+        }
         // 仍在的 isolation worktree：父 Session 读取它照样须审批。
-        const isolation = (start.payload as { isolation?: { worktreeId: string; path: string } }).isolation
-        if (isolation && (await this.#options.store.worktrees.get(isolation.worktreeId))?.status === 'active')
-          this.#isolate(latest.sessionId, isolation.path, true)
-        if (ended.has(agentId)) continue
-        await this.#options.entries.commit(latest.sessionId, await this.#interruptedEnd(agentId))
-        log.warn('subagent marked interrupted', { sessionId: latest.sessionId, agentId })
-        count++
+        if (payload.isolation && (await this.#options.store.worktrees.get(payload.isolation.worktreeId))?.status === 'active')
+          this.#isolate(latest.sessionId, payload.isolation.path, true)
       }
     }
     return count
   }
 
-  async #interruptedEnd(agentId: string, runId?: string): Promise<RunEntry> {
+  /** 被中断的子代理的 agent_end：用量取到子 Session 最后一条；isolation worktree 没有改动时回收（与正常结束同一规则），有改动时保留并注明。 */
+  async #interruptedEnd(start: AgentStartPayload, runId?: string): Promise<RunEntry> {
+    const { agentId } = start
     const entries = await this.#options.store.sessions.listEntries(agentId)
     const usage = childUsage(entries, entries.at(-1)?.createdAt ?? Date.now())
+    let worktree: AgentOutcome['worktree']
+    if (start.isolation && this.#worktrees) {
+      const removed = await this.#worktrees.removeIfUnchanged(start.isolation.worktreeId).catch((error: unknown) => {
+        log.warn('subagent worktree cleanup failed', { agentId, error: errorMessage(error) })
+        return undefined
+      })
+      if (removed && !removed.removed) worktree = { kept: true, path: removed.path, branch: removed.branch }
+    }
     return {
       kind: 'agent_end',
       ...(runId ? { runId } : {}),
-      payload: { agentId, status: 'interrupted', usage, resultChars: lastAssistantText(entries).length },
+      payload: { agentId, status: 'interrupted', usage, resultChars: lastAssistantText(entries).length, ...(worktree ? { worktree } : {}) },
     }
   }
 

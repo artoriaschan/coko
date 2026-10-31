@@ -43,6 +43,7 @@ M4 引入 Goal：用户给出一个跨多个 Run 的目标，Agent 在无人值�
 
 - 2026-10-30 Goal 核心（快照与 revision、转换表、授权、完成证据、轮次上限、推进与去重、wait_jobs、取消的停止传播、重启后暂停）已实现，当前行为见 [Goal](../subsystems/goal.md)。证据：`packages/agent/src/goals/goals.test.ts`（转换表、授权、证据、revision）、`tests/integration/sidecar-goal.test.ts`（创建与逐轮推进、revision 冲突、轮次耗尽、证据拒绝与接受、取消清理）、`tests/integration/sidecar-goal-restart.test.ts`（SIGKILL 后暂停且 30 秒内不推进）。其余预算维度当时尚未实现。
 - 2026-10-30 五维预算已实现：用量由 `packages/agent/src/goals/budget.ts` 的 `goalUsage` 从 `run_start`、assistant usage、toolResult、`compaction.usage`（compaction v2）与 `run_end` 派生，不另存计数器；检查点为 Goal Round 开始前、每次模型请求前与每次工具调用前；未定价模型遇到费用上限时 blocked（`cost-unpriced`），价格来自 Model Catalog 的 `price`。当前行为见 [Goal 的预算](../subsystems/goal.md#预算)。证据：`packages/agent/src/goals/budget.test.ts`（口径与子 Session 汇总）、`tests/integration/sidecar-goal-budget.test.ts`（每一维耗尽与恢复、超出的工具调用不执行、未定价时不发请求）、`tests/integration/sidecar-model-price.test.ts`（价格与 usage.cost）。连同上一条的 Goal 核心证据，"后果与验证"列出的条件均已满足，implementation 改为 implemented。
+- 2026-10-31 评审修复：后台子代理的结束通知与 Job 通知同为宿主通知（`HOST_NOTIFICATION_KINDS`），不授予用户权限、退回时不阻止推进；交接完成后源 Goal 暂停（`handed-off`），交接 Run 不推进；waiting-input 只由用户的 Run（submit、continue、retry）唤醒；交接失败的 `handoff_failed.usage` 计入预算。证据：`packages/agent/src/goals/goals.test.ts`、`apps/server/src/application/goal-driver.test.ts`、`goals-wake.test.ts`、`handoff.test.ts`、`tests/integration/sidecar-handoff.test.ts`。
 
 ## 来源与后继
 

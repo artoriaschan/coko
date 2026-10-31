@@ -37,6 +37,7 @@ describe('SessionEntry 按 kind 判别', () => {
         'subagent_origin',
         'schedule_fire',
         'handoff',
+        'handoff_failed',
         'handoff_origin',
       ].toSorted(),
     )
@@ -101,6 +102,7 @@ describe('SessionEntry 按 kind 判别', () => {
           ],
           ['schedule_fire', { scheduleId: 'sc1', occurrence: 1000, status: 'skipped', reason: 'budget', missed: 3 }],
           ['handoff', { targetSessionId: 's3', instructions: 'next', summary: '## Task', target: 'worktree' }],
+          ['handoff_failed', { instructions: 'next', summary: '## Task', error: { code: 'worktree-exists', message: 'taken' } }],
           ['handoff_origin', { sessionId: 's1', seq: 9 }],
         ] as [string, unknown][]
       ).map(([kind, payload]) => ({ kind, payload })),

@@ -1,7 +1,6 @@
 // Worktree（ADR 0016）的路由（路径相对 /api）：Workspace 的 worktree 列表与创建、移除、会话的 git 状态。
 import { CreateWorktreeRequest } from '@coko/protocol'
 import type { Application } from '../../application/index.ts'
-import { AppError } from '../../application/errors.ts'
 import { body, domainRouter } from './shared.ts'
 
 export function worktreesRoutes(app: Application) {
@@ -13,10 +12,6 @@ export function worktreesRoutes(app: Application) {
     await worktrees.remove(c.req.param('id'))
     return c.body(null, 204)
   })
-  r.get('/sessions/:id/git-status', async (c) => {
-    const session = await app.store.sessions.getSession(c.req.param('id'))
-    if (!session) throw new AppError('not-found', `Session ${c.req.param('id')} not found`)
-    return c.json(await worktrees.gitStatus(session))
-  })
+  r.get('/sessions/:id/git-status', async (c) => c.json(await worktrees.gitStatusOf(c.req.param('id'))))
   return r
 }

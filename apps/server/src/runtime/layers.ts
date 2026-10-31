@@ -19,6 +19,7 @@ import { createTestClock, systemClock, type ClockPort, type TestClock } from '..
 import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
 import { createGitRunner } from '../adapters/git.ts'
 import { HandoffService, type HandoffRunHost, type HandoffWorktrees } from '../application/handoff.ts'
+import { AppError } from '../application/errors.ts'
 import { HookService } from '../application/hooks.ts'
 import { NotificationService } from '../application/notifications.ts'
 import { m5RecoveryHooks } from '../application/recovery.ts'
@@ -136,6 +137,7 @@ function lateSessionRuns() {
   const handoff: HandoffRunHost = {
     isRunning: (sessionId) => sessions().isRunning(sessionId),
     startRun: (sessionId, request) => sessions().runs.startRun(sessionId, request),
+    createSession: (input) => sessions().createRecord(input),
   }
   const worktrees: HandoffWorktrees = {
     get: (id) => worktreeService().get(id),
@@ -307,6 +309,7 @@ const AssemblyLive = Layer.effect(
       config,
       notifications,
       runs: runs.schedules,
+      goals,
       ...(sidecar.testScheduleHold ? { holdAfterRecord: true } : {}),
     })
     // 测试工具另带 M5 seam 的测试贡献（beforeSubmit、onStop 等，按消息中的标记触发）。
@@ -522,6 +525,15 @@ const AppLive = Layer.effect(
       stopAfterBatch: (sessionId, error) => sessions.runs.stopAfterBatch(sessionId, error),
       permissionMode: async (sessionId) => (await sessions.sessionPermissions(sessionId)).mode,
       scope: async (sessionId) => sessions.runs.scope(await requireSession(store, sessionId)),
+      project: async (target) => {
+        if ('sessionId' in target) {
+          const { workspace, cwd } = await sessions.runs.cwd(await requireSession(store, target.sessionId))
+          return { workspaceId: workspace.id, cwd }
+        }
+        const workspace = await store.sessions.getWorkspace(target.workspaceId)
+        if (!workspace) throw new AppError('not-found', `Workspace ${target.workspaceId} not found`)
+        return { workspaceId: workspace.id, cwd: workspace.path }
+      },
     })
     notifications.observe((input) => hooks.notification(input))
     // 之后创建的运行时的 bash 可以 run_in_background；追加指令到达时唤醒等待中的 job_output。
@@ -539,6 +551,8 @@ const AppLive = Layer.effect(
         resolveModel: (model) => sessions.runs.resolveModel(model),
         sessionModel: async (session) => session.model ?? (await sessions.defaultModel()),
         scope: (session) => sessions.runs.scope(session),
+        createSession: (input) => sessions.createRecord(input),
+        refreshTools: (sessionId) => sessions.runs.refreshTools(sessionId),
         toolNames: (cwd) => [
           ...sessions
             .baseTools(cwd)

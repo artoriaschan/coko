@@ -175,12 +175,17 @@ export class SessionPermissions implements PlanHost {
    * 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。模式取 Session 模式与作用域上限中
    * 较窄者（capMode；缺省没有上限）。
    */
-  runtimePermissions(state: SessionPermissionState, workspaceId: string, sessionId: string): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
+  runtimePermissions(
+    state: SessionPermissionState,
+    workspaceId: string,
+    sessionId: string,
+    cwd?: string,
+  ): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
     // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
       mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : capMode(state.mode, this.#scopes.modeCap(sessionId))),
-      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
+      rules: () => [...state.rules, ...this.service.rulesFor(workspaceId, cwd), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
     }
   }
 

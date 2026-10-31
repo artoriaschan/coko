@@ -162,3 +162,31 @@
 | L9 界面部分 | openSession 跨通道 E2E | open-session.e2e.test.ts |
 | T2（handoff-store.test.ts:70、83） | 历史用例改为之后再推一条会被处理的 run_start 并等它生效；切走用例改为等 store 的 `onFinished`（切换决定已作出）再断言 | handoff-store.test.ts |
 | i18n | Goal 原因 `handed-off`、worktree 错误 `worktree-removed`（侧栏新建会话）、交接的 `unsafe-worktree-path` 的 zh / en | goal-card.browser.test.tsx（覆盖 handed-off，先红） |
+
+## 处理结果（票 11：运行时）
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| L1 | 同 Spec J1（afbcb8f） | goals-wake.test.ts |
+| L2 | 同 Spec H7（ce50db8）；`suggest` 的规则不区分 isolation 未改 | sidecar-subagents-isolation |
+| L3 | 同 Spec H5；(2) 未给工具加 `interruptedText`：宿主在 prepareRecovery 中给全部 agent 调用补结果，read 文本到不了 agent 调用（b845a14） | subagents-recovery.test.ts |
+| L4 | 票 12 | — |
+| L5 | 同 Spec H6 | — |
+| L6 | 同 Spec J5 | — |
+| L7 | 回退边界、恢复探测、项目规则、MCP 池键含 cwd（ffdd9f1）；上下文用量仍按 Workspace | session-cwd-scope.test.ts |
+| L8 | 票 12 | — |
+| L9 | 同 Spec J10 | — |
+| H1 | 同 Spec H1 / H2 | — |
+| H2 | 同 Spec J2 | — |
+| H3 | catch 中删 #live、回收 worktree 与询问规则（ea73731） | subagents-dispatch.test.ts |
+| H4 | 不处理：移除与开始 Run 之间的窗口需要跨服务的锁，改动面大，收益低（移除前已检查 busy） | — |
+| H5 | 不处理：只影响 hook_run 的 outcome 显示，留待后续 | — |
+| H6 | 同 Spec J5（createRecord 为唯一入口） | — |
+| H7 | agents / worktrees / hooks 路由经 `SubagentService.list`、`WorktreeService.gitStatusOf`、`HookService.projectFor`（957aa5e） | 现有集成测试 |
+| H8 | 不处理：把 Start / Stop 的解释移入 HookService 是结构调整，留待后续；现状两处仍是按登记值替换 | — |
+| T1 | describe 级 15 s 预算，mkdtemp 目录 onTestFinished 删除（a12649b） | hook-runner.test.ts |
+| T2 | handoff.test.ts 用 listEntries 屏障代替 10 ms sleep（a12649b）；handoff-store.test.ts 的 sleep 在 renderer，票 12 | — |
+| T3–T5 | 不处理（judgement，测试结构调整） | — |
+| S1 | 宿主输入标签收为 `entries/host-input.ts`（244ba1f）；renderer 改为导入（cfe03c7） | — |
+| S11 | recovery.ts 的过时注释已改（ffdd9f1） | — |
+| S2–S10 | 不处理：坏味道，非本票修复所需 | — |

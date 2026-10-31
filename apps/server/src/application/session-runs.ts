@@ -27,6 +27,7 @@ import {
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
+import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
@@ -59,14 +60,10 @@ function withPending(input: RunInput, pending: PendingInput | undefined): RunInp
   return { ...input, content, ...(before.length > 0 ? { before } : {}) }
 }
 
-/** 提交前检查给出的上下文：作为 user message 中单独标注的文本块（排在输入之后）。 */
-export const SUBMIT_CONTEXT_TAG = 'hook-context'
+/** 提交前检查给出的上下文：作为 user message 中单独标注的文本块（排在输入之后，hookContextText）。 */
 function withSubmitContext(input: RunInput, context: string | undefined): RunInput {
   if (context === undefined) return input
-  const content = [
-    ...(input.content ?? [{ type: 'text' as const, text: input.text }]),
-    { type: 'text' as const, text: `<${SUBMIT_CONTEXT_TAG}>\n${context}\n</${SUBMIT_CONTEXT_TAG}>` },
-  ]
+  const content = [...(input.content ?? [{ type: 'text' as const, text: input.text }]), { type: 'text' as const, text: hookContextText(context) }]
   return { ...input, content }
 }
 
@@ -280,6 +277,23 @@ export class SessionRuns {
     return true
   }
 
+  /**
+   * Run 进行中重新取贡献的工具（例如第一次派发后台子代理之后注册 agent_wait / agent_cancel）：下一次请求生效，不必等下一个 Run。
+   * 没有进行中的 Run 时什么也不做（下一个 Run 开始时照常取值）。
+   */
+  async refreshTools(sessionId: string): Promise<void> {
+    const runtime = this.#options.runtimes.get(sessionId)
+    const runContext = runtime && this.#runContexts.get(runtime)
+    if (!runtime?.isRunning || !runContext) return
+    const context = this.#options.context
+    const contributed = await context.tools(runContext.scope)
+    runContext.tools.set(contributed)
+    const names = [...this.baseTools(runContext.scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
+    const visible = context.filterTools(names, runContext.scope)
+    runContext.tools.allow(visible.length === names.length && visible.every((name, i) => name === names[i]) ? undefined : new Set(visible))
+    runtime.refreshTools()
+  }
+
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */
   baseTools(cwd: string): ToolRegistry {
     return this.#options.tools?.(cwd) ?? createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() })
@@ -301,7 +315,7 @@ export class SessionRuns {
     const { cwd } = await this.cwd(session)
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
-    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id).rules()
+    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id, cwd).rules()
     const subagent = session.parentSessionId ? this.#subagents?.definition(session.id) : undefined
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
@@ -558,7 +572,7 @@ export class SessionRuns {
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: {
-        ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id),
+        ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id, cwd),
         readRoots: () => runContext.readRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
         hooks: {

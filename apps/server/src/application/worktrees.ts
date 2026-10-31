@@ -307,7 +307,14 @@ export class WorktreeService {
     })
   }
 
-  /** GET /api/sessions/:id/git-status：会话工作目录的分支与未提交文件数；不在 git 仓库中时 repo false。 */
+  /** GET /api/sessions/:id/git-status：Session 不存在时 not-found。 */
+  async gitStatusOf(sessionId: string): Promise<GitStatusResponse> {
+    const session = await this.#store.sessions.getSession(sessionId)
+    if (!session) throw new AppError('not-found', `Session ${sessionId} not found`)
+    return this.gitStatus(session)
+  }
+
+  /** 会话工作目录的分支与未提交文件数；不在 git 仓库中时 repo false。 */
   async gitStatus(session: StoredSession): Promise<GitStatusResponse> {
     const workspace = await this.#workspace(session.workspaceId)
     let cwd: string
@@ -329,20 +336,32 @@ export class WorktreeService {
     return { repo: true, ...(branch ? { branch } : {}), dirtyFiles: status.exitCode === 0 ? porcelainPaths(status.stdout).length : 0 }
   }
 
-  /** 启动恢复：把路径已不存在的 active worktree 标为 removed；返回标记的数量。 */
+  /**
+   * 启动恢复：把路径已不存在的 active worktree 标为 removed；子代理派发时创建、崩溃前还没有子 Session 绑定的 worktree 按 removeIfUnchanged
+   * 回收（有改动时保留）。返回标记与回收的数量。
+   */
   async recover(_source: RecoverySource): Promise<number> {
     let marked = 0
     for (const workspace of await this.#store.sessions.listWorkspaces()) {
+      let sessions: StoredSession[] | undefined
       for (const worktree of await this.#store.worktrees.list(workspace.id)) {
         if (worktree.status !== 'active') continue
         const present = await lstat(worktree.path).then(
           () => true,
           () => false,
         )
-        if (present) continue
-        await this.#store.worktrees.markRemoved(worktree.id)
-        marked++
-        log.warn('worktree missing at startup; marked removed', { worktreeId: worktree.id, workspaceId: workspace.id })
+        if (!present) {
+          await this.#store.worktrees.markRemoved(worktree.id)
+          marked++
+          log.warn('worktree missing at startup; marked removed', { worktreeId: worktree.id, workspaceId: workspace.id })
+          continue
+        }
+        if (worktree.createdBy !== 'subagent') continue
+        sessions ??= await this.#sessions(workspace.id)
+        if (sessions.some((s) => s.worktreeId === worktree.id)) continue
+        const result = await this.removeIfUnchanged(worktree.id).catch(() => undefined)
+        if (result?.removed) marked++
+        log.warn(result?.removed ? 'orphan subagent worktree removed at startup' : 'orphan subagent worktree kept at startup', { worktreeId: worktree.id })
       }
     }
     return marked

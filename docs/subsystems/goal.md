@@ -50,7 +50,8 @@ lifecycle: active
 - Goal Round 以 error 结束 → failed（`reason.code` 为 Run 的错误码），不自动重试。
 - Goal 为 running 时 Run 被停止（aborted，或 paused 且没有 error）：Goal Round 停止时仍有等待回答的审批（`approval_decision` cancelled）→ waiting-input（`approval-unanswered`）；否则 → paused（`user-stopped`）。用户提交的 Run 被停止时同样暂停，避免停止后立即开始下一轮。
 - Goal 为 running 时外部 Hook 以 `continue: false` 停下 Run（paused 加 `hook_stopped`，见 [外部 Hook](hooks.md#continue-false-的停止)）→ paused（`hook-stopped`，`reason.message` 为脱敏后的 `stopReason`），不开始下一轮，用户恢复后照常推进。Goal 不是 running（如 waiting-input）时 Run 被 Hook 停下，Goal 不变。
-- Goal 为 waiting-input 时，用户提交（或回答审批之后）的 Run 正常结束 → running；Goal 在这个 Run 之中才进入 waiting-input（模型在用户的 Run 里调用了 `wait_input`）时不唤醒，等用户的下一次提交。
+- 交接完成后（源 Session 提交 handoff 条目）running 的 Goal → paused（`handed-off`）；交接 Run 结束不发起下一轮。
+- Goal 为 waiting-input 时，用户的 Run（submit、continue、retry；含回答审批之后的）正常结束 → running；定时任务、交接与子代理的 Run 不唤醒；Goal 在这个 Run 之中才进入 waiting-input（模型在用户的 Run 里调用了 `wait_input`）时不唤醒，等用户的下一次提交。
 - 预算停止（`run_end.error.code` 为 `budget_exhausted`、`cost_unpriced`）→ budget-exhausted（`reason.code` 为运行时交给宿主的 `RunError.dimension`，不解析消息文本）/ blocked（`cost-unpriced`），见 [预算](#预算)。
 
 **Goal Round 中的计划审阅。** Goal Round 中提交 kind plan 的审批请求（`exit_plan_mode`）时 Goal 进入 waiting-input（`plan-review`），界面显示在等用户；回答（批准或带反馈拒绝）后同一 Run 中回到 running。审阅被停止取消时保持 waiting-input，按上面的规则等用户提交。

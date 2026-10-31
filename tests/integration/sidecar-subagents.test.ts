@@ -3,6 +3,7 @@
 // agent_wait 与 agent_cancel；第 5 个 running 子代理为错误结果；子 Session 不在列表中、不能提交；GET …/agents；max-turns。等待用条目，不用固定 sleep。
 import { describe, expect, it } from 'vitest'
 import { agentPaths, API_ROUTES, apiPaths } from '@coko/protocol'
+import { notifyMessages } from './sidecar-harness.ts'
 import { bootAgents, byUser, call, ends, flat, of, runEnds, starts, texts, toolResults, waitKind } from './sidecar-subagents-harness.ts'
 
 describe('子代理：派发与结果', { timeout: 120_000 }, () => {
@@ -94,6 +95,53 @@ describe('子代理：派发与结果', { timeout: 120_000 }, () => {
     )
     const [[s1, e1], [s2, e2]] = windows as [readonly [number, number], readonly [number, number]]
     expect(s1 < e2 && s2 < e1).toBe(true)
+  })
+
+  it('后台子代理等待审批时发 approval-waiting、结束时发 agent-finished（经控制通道的 notify，按顺序）', async () => {
+    const env = await bootAgents([
+      {
+        match: 'PARENT-N',
+        content: [call('agent', 'a1', { description: 'notify me', prompt: 'CHILD-N write', subagent_type: 'general', run_in_background: true })],
+      },
+      { match: 'CHILD-N', content: [call('write', 'w1', { path: 'n.txt', content: 'N' })] },
+      { match: 'CHILD-N', content: 'wrote' },
+      { match: 'PARENT-N', content: 'parent done' },
+    ])
+    const { stream, open, submit, api, sidecar } = env
+    const parent = await open('default')
+    await submit(parent, 'PARENT-N go')
+    await expect.poll(() => starts(stream, parent).length, { timeout: 20_000 }).toBe(1)
+    const child = starts(stream, parent)[0]!.agentId
+    const pending = async () =>
+      ((await api.get(apiPaths.session(child))).body.entries as { kind: string; payload: { requestId: string } }[]).filter((e) => e.kind === 'approval_request')
+    await expect.poll(async () => (await pending()).length, { timeout: 20_000 }).toBe(1)
+    await expect.poll(() => notifyMessages(sidecar).length, { timeout: 20_000 }).toBe(1)
+    expect((await api.post(apiPaths.sessionApproval(child, (await pending())[0]!.payload.requestId), { decision: 'allow' })).status).toBe(204)
+    await expect.poll(() => ends(stream, parent).length, { timeout: 30_000 }).toBe(1)
+    await expect.poll(() => notifyMessages(sidecar).length, { timeout: 20_000 }).toBe(2)
+    expect(notifyMessages(sidecar)).toEqual([
+      { type: 'notify', kind: 'approval-waiting', sessionId: parent, title: 'Subagent is waiting for approval', body: 'general: notify me' },
+      { type: 'notify', kind: 'agent-finished', sessionId: parent, title: 'Subagent completed', body: 'general: notify me' },
+    ])
+  })
+
+  it('Session 第一次派发后台子代理之后，同一个 Run 的下一次请求就有 agent_wait（按返回文本调用不是未知工具）', async () => {
+    const env = await bootAgents([
+      {
+        match: 'PARENT-F',
+        content: [call('agent', 'a1', { description: 'first', prompt: 'CHILD-F quick', subagent_type: 'general', run_in_background: true })],
+      },
+      { match: 'CHILD-F', content: 'F-RESULT' },
+      { match: 'PARENT-F', content: [call('agent_wait', 'w1', { timeout_ms: 20000 })] },
+      { match: 'PARENT-F', content: 'done' },
+    ])
+    const { stream, open, submit } = env
+    const parent = await open('full-access')
+    await submit(parent, 'PARENT-F go')
+    await stream.waitFor(() => runEnds(stream, parent).length >= 1, 60_000)
+    expect(of(stream, parent, 'run_start')).toHaveLength(1)
+    const [waited] = toolResults(stream, parent, 'agent_wait')
+    expect(waited).toMatchObject({ isError: false, text: expect.stringContaining('F-RESULT') })
   })
 
   it('后台：立即返回；父 Run 进行中结束时作为追加指令送达（前置 agent_notification）；agent_wait 读到终态后不再通知', async () => {

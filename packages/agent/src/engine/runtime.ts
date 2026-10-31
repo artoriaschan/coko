@@ -178,8 +178,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 停止在 pi 开始请求之前到达时 agent.abort() 没有可停止的流：在这里扣下请求，不发出。
       if (run.aborted) return withhold(run)
       if (!(await admit(run, request.messages, model, signal))) return withhold(run)
+      // 宿主检查与自动压缩中有 await：停止在这期间到达时同样不发出请求。
+      if (run.aborted) return withhold(run)
       const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
       if (compacted && !(await admit(run, compacted, model, signal))) return withhold(run)
+      if (run.aborted) return withhold(run)
       return compacted ? { context: { ...request, messages: compacted } } : undefined
     },
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
@@ -187,7 +190,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     finishTurn: () => (current?.aborted || current?.rejected || current?.paused || current?.summary ? { action: 'end' } : undefined),
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
+    // 宿主在 Run 中改变了工具组成（refreshTools，例如第一次派发后台子代理后注册 agent_wait）：下一次请求按新的工具组成，变化照常
+    // 以 toolsAdded / toolsRemoved 的 system 消息告知模型。
+    prepareNextTurnWithContext: ({ context: turn }) => {
+      if (!toolsDirty) return undefined
+      toolsDirty = false
+      const next = effectiveTools()
+      agent.state.tools = next
+      return { context: { ...turn, tools: next } }
+    },
   })
+  let toolsDirty = false
 
   /** 宿主的请求前检查（RuntimeContext.beforeRequest）：返回 stop 时停止本 Run 并返回 false（调用方不发出请求）。 */
   const admit = async (run: RunState, messages: readonly AgentMessage[], model: AgentState['model'], signal?: AbortSignal): Promise<boolean> => {
@@ -514,6 +527,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       const run = current
       if (!run) throw new NoActiveRunError()
       halt(run, error)
+    },
+    refreshTools() {
+      if (current) toolsDirty = true
     },
     abort() {
       if (!current) return

@@ -23,7 +23,6 @@ export {
   createScheduleUpdateTool,
   describeRule,
   ruleFromArgs,
-  SCHEDULED_TASK_TAG,
   scheduledTaskText,
   scheduleCreateParameters,
   scheduleDeleteParameters,

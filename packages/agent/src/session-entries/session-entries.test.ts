@@ -45,6 +45,7 @@ describe('Session Entry payload 定义', () => {
         'subagent_origin',
         'schedule_fire',
         'handoff',
+        'handoff_failed',
         'handoff_origin',
       ].toSorted(),
     )

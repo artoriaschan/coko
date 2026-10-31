@@ -12,7 +12,7 @@ import {
   type GoalChange,
   type GoalPayload,
 } from '@coko/agent'
-import { JOB_NOTIFICATION_TAG } from '@coko/agent/entries'
+import { isHostNotificationText } from '@coko/agent/entries'
 import { getLogger } from '@coko/logging'
 import type { SessionEntry as StoredEntry } from '@coko/session'
 import { AppError } from './errors.ts'
@@ -33,10 +33,10 @@ export interface GoalDriverHost {
 }
 
 /**
- * Run 结束时退回的追加指令中是否有用户写的（有时不发起下一轮：它们回到输入区，等用户处理）。Job 的完成通知以 JOB_NOTIFICATION_TAG 开头，
- * 不算用户的追加指令。
+ * Run 结束时退回的追加指令中是否有用户写的（有时不发起下一轮：它们回到输入区，等用户处理）。宿主通知（Job 与后台子代理的结束通知）
+ * 不算用户的追加指令：它们由各自的服务重新挂起到下一个 Run。
  */
-export const hasUserSteering = (undelivered: readonly string[] | undefined) => (undelivered ?? []).some((text) => !text.startsWith(JOB_NOTIFICATION_TAG))
+export const hasUserSteering = (undelivered: readonly string[] | undefined) => (undelivered ?? []).some((text) => !isHostNotificationText(text))
 
 /** Goal Round 没能开始时的转换；undefined 表示 Goal 保持 running。 */
 function notStartedChange(error: AppError): GoalChange | undefined {

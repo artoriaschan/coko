@@ -47,13 +47,13 @@ lifecycle: active
 3. 源 Session 以摘要 Run 的 runId 提交 `handoff { targetSessionId, instructions, summary, target: current | worktree, usage? }`；`usage` 为摘要请求的 usage。
 4. 目标 Session 依次提交首条 `handoff_origin { sessionId, seq }`（指向源 handoff 条目）与源会话有效条目中的 `permission_mode`、`permission_rule`（去掉 runId，顺序不变）。
 
-Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 Session、不提交 handoff）。目标创建失败（例如校验之后 git 才发现分支已存在）只记 warn，源会话不变。
+Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 Session、不提交 handoff）。目标创建失败（例如校验之后 git 才发现分支已存在、绑定的 worktree 已被移除）时源 Session 以摘要 Run 的 runId 提交 `handoff_failed { instructions, summary, error, usage? }`：usage 照常计入 Goal，摘要供用户复制，客户端据此离开"正在创建"。
 
-不继承：消息、Goal、Todo、计划、后台任务、子代理、定时任务与 Checkpoint；源会话除摘要 Run 与 handoff 条目外不变，Goal 照常留在源会话。
+不继承：消息、Goal、Todo、计划、后台任务、子代理、定时任务与 Checkpoint；源会话除摘要 Run 与 handoff 条目外不变，Goal 留在源会话：交接完成后 running 的 Goal 暂停（`handed-off`），用户可以恢复。
 
 ## Goal 用量
 
-`handoff.usage` 与 `compaction.usage` 一样计入其 Run 所属 Goal 的 Token 与费用（摘要 Run 开始时 Goal 未终结且不是 paused 时属于该 Goal）。摘要 Run 结束后 Goal 可能立即开始下一轮；目标仍在创建时，该会话之后 Run 的模型请求先等 handoff 条目提交，再按 Goal 预算重查：交接的用量用尽预算时下一轮不发出请求，Goal 进入 budget-exhausted。
+`handoff.usage` 与 `compaction.usage` 一样计入其 Run 所属 Goal 的 Token 与费用（摘要 Run 开始时 Goal 未终结且不是 paused 时属于该 Goal）。交接 Run 结束不发起 Goal Round；其他来源的 Run（例如用户恰在此时提交）在目标仍在创建时，该会话之后 Run 的模型请求先等 handoff 条目提交，再按 Goal 预算重查：交接的用量用尽预算时下一轮不发出请求，Goal 进入 budget-exhausted。
 
 ## 界面
 
@@ -79,8 +79,7 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 
 ## 已知限制
 
-- 目标在摘要之后才创建：校验之后才出现的冲突（例如同名分支）使交接失败。界面收到失败的 `handoff` 条目后显示错误、复制摘要与重试（见 [界面](#界面)）；重试会重新写一次摘要。
-- 交接之后源会话的 Goal 照常推进（交接不暂停它）。
+- 目标在摘要之后才创建：校验之后才出现的冲突（例如同名分支）使交接失败。界面收到 `handoff_failed` 条目后显示错误、复制摘要与重试（见 [界面](#界面)）；重试会重新写一次摘要。
 - 模型可见的摘要质量没有用真实模型验证。
 
 ## 验证与相关设计

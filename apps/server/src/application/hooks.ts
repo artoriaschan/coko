@@ -71,6 +71,8 @@ export interface HookSessionHost {
   permissionMode(sessionId: string): Promise<PermissionMode>
   /** Session 的作用域（Notification 在 Run 之外触发时用）。 */
   scope(sessionId: string): Promise<HookScope>
+  /** 项目 Hook 的读取位置：Session 的 Workspace 与工作目录（worktree 会话为其 worktree），或 Workspace 目录；不存在时 not-found。 */
+  project(target: { sessionId: string } | { workspaceId: string }): Promise<{ workspaceId: string; cwd: string }>
 }
 
 /** UserPromptSubmit 的结论：reject 拒绝提交；context 作为 user message 中单独标注的文本块。 */
@@ -154,6 +156,12 @@ export class HookService {
   }
 
   // ---- 配置与批准（/api/hooks） ----
+
+  /** 项目 Hook 的读取位置（路由不直接访问存储）。 */
+  projectFor(target: { sessionId: string } | { workspaceId: string }): Promise<{ workspaceId: string; cwd: string }> {
+    if (!this.#host) throw new Error('HookService is not bound yet')
+    return this.#host.project(target)
+  }
 
   /** GET /api/hooks：给出 project（Workspace 与 Session 的工作目录）时含该目录的项目 Hook 与批准状态。 */
   async get(project?: { workspaceId: string; cwd: string }): Promise<HooksResponse> {

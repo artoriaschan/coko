@@ -149,6 +149,17 @@ export class GoalService {
     this.#subagents = subagents
   }
 
+  /**
+   * 该 Session 的当前 Goal（非终态、非 paused）已用尽的预算维度；没有时 undefined。用量与 Goal 预算同一口径（含子 Session，#usage）：
+   * 定时任务的准入（skipped budget）经它判定，不自行计算。
+   */
+  async exhaustedDimension(sessionId: string): Promise<string | undefined> {
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    if (!goal || isTerminalPhase(goal.phase) || goal.phase === 'paused') return undefined
+    return exhaustedDimension(goal.budget, await this.#usage(entries, goal.id))
+  }
+
   /** 该 Goal 的五维用量：根 Session 自己的 Run 加上它的 Run 派发的子 Session 的全部 Run（不计轮次，ADR 0014）。 */
   async #usage(entries: readonly StoredEntry[], goalId: string, extra: { now?: number } = {}) {
     const children = await Promise.all(childSessionIds(entries, goalId).map((id) => this.#entries(id)))
@@ -435,11 +446,27 @@ export class GoalService {
 
   // ---- Run 与 Job 结束（context/goal.ts 的 onRunEnd、job_end 订阅） ----
 
+  /**
+   * 交接完成（HandoffService 提交 handoff 条目之后）：源 Session 的 running Goal 以 handed-off 暂停，不与目标会话并行推进、不继续花费源 Goal 的
+   * 预算；用户随时可以恢复。其余阶段不变（waiting-* 只由各自的条件唤醒）。
+   */
+  async handedOff(sessionId: string): Promise<void> {
+    await this.#locks.run(sessionId, async () => {
+      const entries = await this.#entries(sessionId)
+      const goal = currentGoal(entries)
+      if (!goal || goal.phase !== 'running') return
+      const reason = { code: 'handed-off' satisfies KnownGoalReasonCode, message: 'The work was handed off to a new session' }
+      await this.#commit(sessionId, applyGoalChange(goal, { type: 'pause', reason }, 'system', goalRounds(entries, goal.id)))
+      log.info('goal paused after handoff', { sessionId, goalId: goal.id })
+    })
+  }
+
   /** Run 结束之后（run_end 已提交）：按规格转换阶段，Goal 为 running 时发起下一轮。 */
   async runEnded(info: RunEndInfo): Promise<void> {
     const { sessionId, result, trigger } = info
-    // 手动压缩的 Run 不推进 Goal；只有它在摘要请求前被预算检查停下时（paused 加 budget_exhausted / cost_unpriced）照常转换阶段。
-    if (trigger === 'compact' && !budgetStop(result)) return
+    // 手动压缩与交接的 Run 不推进 Goal；只有它在摘要请求前被预算检查停下时（paused 加 budget_exhausted / cost_unpriced）照常转换阶段。
+    // 交接完成后源 Goal 暂停（handedOff），之后的工作在目标会话中进行。
+    if ((trigger === 'compact' || trigger === 'handoff') && !budgetStop(result)) return
     await this.#locks.run(sessionId, async () => {
       if (this.#cancelling.has(sessionId)) return
       const entries = await this.#entries(sessionId)
@@ -601,7 +628,7 @@ function approvalCancelled(entries: readonly StoredEntry[], runId: string): bool
  * - Goal Round 以 error 结束 → failed（不自动重试）；
  * - running 时 Run 被停止（aborted，或 paused 且没有 error）→ Goal Round 停止时仍有等待回答的审批为 waiting-input，否则 paused（user-stopped）；
  * - running 时外部 Hook 以 continue: false 停下 Run（paused 加 hook_stopped）→ paused（hook-stopped，消息为 Hook 的 stopReason），等用户恢复；
- * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running；Goal 在本 Run 之中才进入 waiting-input 的（模型在这个 Run 里调用了
+ * - waiting-input 时用户的 Run（submit、continue、retry；含回答审批之后的）正常结束 → running；定时任务、交接与子代理的 Run 不唤醒；Goal 在本 Run 之中才进入 waiting-input 的（模型在这个 Run 里调用了
  *   wait_input）不唤醒：它等的用户输入还没有到来。
  */
 function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly StoredEntry[]): GoalChange | undefined {
@@ -621,7 +648,8 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
       return { type: 'wait-input', reason: { code: 'approval-unanswered', message: 'The goal round stopped while an approval was waiting for an answer' } }
     return { type: 'pause', reason: { code: 'user-stopped', message: 'The run was stopped by the user' } }
   }
-  if (goal.phase === 'waiting-input' && trigger !== 'goal' && result.status === 'completed' && waitingBefore(goal, info.runId, entries)) return { type: 'wake' }
+  if (goal.phase === 'waiting-input' && USER_TRIGGERS.has(trigger) && result.status === 'completed' && waitingBefore(goal, info.runId, entries))
+    return { type: 'wake' }
   return undefined
 }
 
@@ -638,6 +666,9 @@ function waitingBefore(goal: GoalPayload, runId: string, entries: readonly Store
   }
   return started !== undefined && entered !== undefined && entered < started
 }
+
+/** 用户发起的 Run：只有它们的结束能唤醒 waiting-input 的 Goal（无人值守与宿主派生的 Run 不扩大权限与花费）。 */
+const USER_TRIGGERS: ReadonlySet<string> = new Set(['submit', 'continue', 'retry'])
 
 /** Run 被请求前的预算检查停下（beforeRequest 返回 stop，或工具调用上限的 stopAfterBatch）。 */
 const budgetStop = (result: RunResult) => result.status === 'paused' && (result.error?.code === 'budget_exhausted' || result.error?.code === 'cost_unpriced')

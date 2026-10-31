@@ -334,6 +334,10 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const verdict = options.hooks ? await options.hooks.preToolUse(hookCall, signal) : {}
       if (verdict.decision === 'deny') return hookBlock(blockedByHookText(verdict.reason), verdict)
       if (decision.behavior === 'deny') return { block: true, reason: deniedByRule(decision.rule) }
+      // isolation worktree 在 plan / read-only 下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
+      const isolationMode = options.mode()
+      if (isolation && (isolationMode === 'plan' || isolationMode === 'read-only'))
+        return { block: true, reason: `isolation: worktree is not available in ${isolationMode} mode` }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
         if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)

@@ -1,9 +1,9 @@
 // Hook 执行端口（ADR 0013）：真实子进程（仓库内的 Hook 夹具），断言 stdin、退出码、输出上限、环境与超时后的进程组终止。
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { createHookRunner, HOOK_OUTPUT_MAX_BYTES } from './hook-runner.ts'
 import { processAlive } from './processes.ts'
 import type { TrackedProcess } from '../application/processes.ts'
@@ -13,10 +13,18 @@ const quote = (part: string) => `'${part.replaceAll("'", "'\\''")}'`
 const hook = (...args: string[]) => [process.execPath, fixture, ...args].map(quote).join(' ')
 // 夹具以 Node 运行：Electron 的 Node 需要 ELECTRON_RUN_AS_NODE。
 const baseEnv = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ELECTRON_RUN_AS_NODE: '1' }
+/** 临时目录在用例结束时删除。 */
+async function tempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  return dir
+}
+// 真实子进程：超时用例本身约 2.5 秒（500 ms 超时 + 2 秒宽限），全量负载下默认 5 秒不够。预算只限制等待上限。
+const REAL_PROCESS_BUDGET = { timeout: 15_000 }
 
-describe.skipIf(process.platform !== 'darwin')('createHookRunner（Hook 进程组与信号只在 darwin 上验证）', () => {
+describe.skipIf(process.platform !== 'darwin')('createHookRunner（Hook 进程组与信号只在 darwin 上验证）', REAL_PROCESS_BUDGET, () => {
   it('stdin 收到一行 JSON；退出码、stdout 与 stderr 原样；登记 kind hook，退出后释放', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'coko-hook-runner-'))
+    const dir = await tempDir('coko-hook-runner-')
     const record = join(dir, 'stdin.jsonl')
     const tracked: TrackedProcess[] = []
     let released = 0
@@ -38,7 +46,7 @@ describe.skipIf(process.platform !== 'darwin')('createHookRunner（Hook 进程�
   })
 
   it('环境：去掉 COKO_* 与凭据形态的变量，另有 COKO_PROJECT_DIR / COKO_SESSION_ID / COKO_HOOK_EVENT；cwd 为请求的目录', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'coko-hook-env-'))
+    const dir = await tempDir('coko-hook-env-')
     const runner = createHookRunner({ env: { ...baseEnv, COKO_SECRET_DB: 'sk-should-not-leak', OPENAI_API_KEY: 'k', GITHUB_TOKEN: 't', KEEP_ME: 'yes' } })
     const outcome = await runner.run({
       command: 'env | sort; pwd -P',

@@ -15,10 +15,10 @@ export {
 export type { AgentCatalog, AgentDefinition, AgentDefinitionLoader, AgentDefinitionsInput, ParseAgentOptions } from './definitions.ts'
 export {
   AGENT_NOTIFICATION_INLINE_MAX,
-  AGENT_NOTIFICATION_TAG,
   AGENT_RESULT_MAX_CHARS,
   AGENT_WAIT_DEFAULT_MS,
   AGENT_WAIT_MAX_MS,
+  AGENT_NOT_STARTED_TEXT,
   agentInterruptedText,
   agentNotificationText,
   agentResultText,

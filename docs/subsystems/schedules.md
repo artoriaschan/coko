@@ -45,7 +45,7 @@ lifecycle: active
 
 - **定时器。** `ClockPort.setTimer` 指向最早的 `next_at`（挂起的任务不计），另每 30 秒复查一次；任何增删改之后重排。启动恢复之后开始，有序关闭时最先停止（停止 HTTP 之后、中断 Run 之前），之后不再投递。扫描串行：同一时刻到期的任务按 `next_at` 与创建顺序处理。
 - **补跑。** 到期时从 `next_at` 起到此刻的全部发生次只投递最近一次，其余计入 `missed`；下一次为严格晚于此刻的发生时刻（间隔任务保持原对齐）。启动扫描、睡眠唤醒与挂起都走这一步。cron 的逐个计数以 10 000 封顶。
-- **准入**（按顺序）：有效配置 `schedules.enabled`（项目设置可关闭）→ 不是子 Session（`child-session`）→ 绑定的 worktree 未移除（`worktree-removed`）→ 工作目录存在（`workspace-missing`）→ Session 有模型或有默认模型（`model-not-configured`）→ Session 的 Goal 非终态、不是 paused 且没有维度耗尽（`budget`）。不通过时 `recordFire` 记下 `schedule_fire { status: skipped, reason }`，重复任务照常计算下一次，一次性任务 inactive。
+- **准入**（按顺序）：有效配置 `schedules.enabled`（项目设置可关闭）→ 不是子 Session（`child-session`）→ 绑定的 worktree 未移除（`worktree-removed`）→ 工作目录存在（`workspace-missing`）→ Session 有模型或有默认模型（`model-not-configured`）→ Session 的 Goal 非终态、不是 paused 且没有维度耗尽（`budget`；用量取 GoalService，与 Goal 预算同一口径，含子 Session）。不通过时 `recordFire` 记下 `schedule_fire { status: skipped, reason }`，重复任务照常计算下一次，一次性任务 inactive。
 - **至多一次。** 准入通过后先 `recordFire`（一个事务：`last_occurrence`、新的 `next_at`、一次性任务的 inactive 与 `schedule_fire { status: started, missed? }`），再以 `trigger: schedule`、`run_start.schedule { scheduleId, occurrence }` 开始 Run。两步之间崩溃时该发生次视为已投递，重启后不重投。Run 没能开始（例如同时有用户提交）时追加 `schedule_fire { status: skipped, reason: start-failed }`。
 - **挂起。** Session 有 Run 进行中时不记录、不投递，任务挂起；该 Run 的 `run_end` 之后（排在其他领域的 Run 结束处理之后）重新判定一次。挂起期间再次到期的合并为这一次（`missed` 计数）。挂起只在内存中；挂起期间重启时任务仍到期，启动扫描照常投递一次。
 - **输入。** `<scheduled_task schedule-id="…" title="…" occurrence="ISO">prompt</scheduled_task>`：prompt 原文，不经命令与 File Reference 展开（`/goal resume` 不展开为动作）；属性值转义 `& " < >`；各领域的待送达内容（例如后台任务通知）照常合并在前。
