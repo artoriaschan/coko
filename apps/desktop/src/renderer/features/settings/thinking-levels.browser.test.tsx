@@ -15,6 +15,10 @@ import { catalogModel, customProvider, type fakeSettingsBackend } from '../../te
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { settingsRegion } from '../../testing/settings-page.ts'
 
+// 每例在设置表单中连续点击、填写数十次（单独运行 0.6–2.2 秒）。全量运行时 Browser Mode 各文件共用一个 Chromium 并行执行，
+// 默认 5 秒曾在第 7 次"添加档位"时只剩 251 ms。预算只限制等待上限，单个操作的等待仍由 locator 自己判定。
+const MULTI_STEP_FORM_BUDGET = { timeout: 20_000 }
+
 afterEach(async () => {
   toast.dismiss()
   await vi.waitFor(() => {
@@ -83,66 +87,70 @@ async function startCreate(dialog: ReturnType<typeof settingsRegion>) {
   await page.elementLocator(id).fill('custom-model-1')
 }
 
-it('从无档位开始连续添加七次：顺序为 off 至 max，第七次后按钮禁用且仍为“添加档位”；off 参数禁用并显示“关闭思考”，其余默认等于档位名；连接字段仍在，随“创建供应商”一次提交', async () => {
-  const { dialog, backend } = await openModels('zh')
-  await startCreate(dialog)
-  await expand()
-  const model = page.elementLocator(modelRows()[0]!)
-  const toggle = model.getByRole('switch', { name: '推理等级' })
-  await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
-  await toggle.click()
-  await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
-  expect(levels()).toEqual([])
+it(
+  '从无档位开始连续添加七次：顺序为 off 至 max，第七次后按钮禁用且仍为“添加档位”；off 参数禁用并显示“关闭思考”，其余默认等于档位名；连接字段仍在，随“创建供应商”一次提交',
+  MULTI_STEP_FORM_BUDGET,
+  async () => {
+    const { dialog, backend } = await openModels('zh')
+    await startCreate(dialog)
+    await expand()
+    const model = page.elementLocator(modelRows()[0]!)
+    const toggle = model.getByRole('switch', { name: '推理等级' })
+    await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
+    await toggle.click()
+    await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(levels()).toEqual([])
 
-  const add = addLevelButton()
-  for (let i = 0; i < 7; i++) {
-    await expect.element(add).toBeEnabled()
-    await add.click()
-  }
-  expect(levels()).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
-  await expect.element(add).toBeDisabled()
-  expect(add.element().textContent).toBe('添加档位')
-  // 按钮旁没有顺序、下一档或“已添加全部档位”提示；禁用态几何不变（小按钮 H28）。
-  expect(add.element().parentElement!.textContent).toBe('添加档位')
-  expect(form().textContent).not.toContain('已添加全部档位')
-  expect(add.element().getBoundingClientRect().height).toBe(28)
-  // 焦点不因按钮禁用落到 body。
-  expect(document.activeElement).not.toBe(document.body)
+    const add = addLevelButton()
+    for (let i = 0; i < 7; i++) {
+      await expect.element(add).toBeEnabled()
+      await add.click()
+    }
+    expect(levels()).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    await expect.element(add).toBeDisabled()
+    expect(add.element().textContent).toBe('添加档位')
+    // 按钮旁没有顺序、下一档或“已添加全部档位”提示；禁用态几何不变（小按钮 H28）。
+    expect(add.element().parentElement!.textContent).toBe('添加档位')
+    expect(form().textContent).not.toContain('已添加全部档位')
+    expect(add.element().getBoundingClientRect().height).toBe(28)
+    // 焦点不因按钮禁用落到 body。
+    expect(document.activeElement).not.toBe(document.body)
 
-  const value = (level: string) => form().querySelector<HTMLInputElement>(`[data-thinking-level="${level}"] [name="thinkingValue"]`)!
-  expect(value('off').disabled).toBe(true)
-  expect(value('off').value).toBe('')
-  expect(value('off').placeholder).toBe('关闭思考')
-  for (const level of ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
-    expect(value(level).disabled).toBe(false)
-    expect(value(level).value).toBe(level)
-  }
-  await page.elementLocator(value('high')).fill('effort-high')
-  // 档位选择器 H36，参数输入 H32。
-  const select = page.elementLocator(levelRows()[1]!).getByRole('button', { name: '档位', exact: true })
-  expect(select.element().getBoundingClientRect().height).toBe(36)
-  await expect.element(select).toHaveTextContent('minimal')
-  expect(value('minimal').getBoundingClientRect().height).toBe(32)
+    const value = (level: string) => form().querySelector<HTMLInputElement>(`[data-thinking-level="${level}"] [name="thinkingValue"]`)!
+    expect(value('off').disabled).toBe(true)
+    expect(value('off').value).toBe('')
+    expect(value('off').placeholder).toBe('关闭思考')
+    for (const level of ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']) {
+      expect(value(level).disabled).toBe(false)
+      expect(value(level).value).toBe(level)
+    }
+    await page.elementLocator(value('high')).fill('effort-high')
+    // 档位选择器 H36，参数输入 H32。
+    const select = page.elementLocator(levelRows()[1]!).getByRole('button', { name: '档位', exact: true })
+    expect(select.element().getBoundingClientRect().height).toBe(36)
+    await expect.element(select).toHaveTextContent('minimal')
+    expect(value('minimal').getBoundingClientRect().height).toBe(32)
 
-  // 连接字段与 Key 仍完整展开，与目录共用“创建供应商”。
-  for (const name of ['providerId', 'name', 'baseUrl', 'credential']) expect(connection(name).checkVisibility()).toBe(true)
-  await dialog.getByRole('button', { name: '创建供应商', exact: true }).click()
-  await expect.poll(() => backend.saveProvider.mock.calls.length).toBe(1)
-  expect(backend.saveProvider.mock.calls[0]![0].provider.models).toEqual([
-    catalogModel('custom-model-1', {
-      reasoning: true,
-      thinkingLevels: [
-        { level: 'off' },
-        { level: 'minimal', value: 'minimal' },
-        { level: 'low', value: 'low' },
-        { level: 'medium', value: 'medium' },
-        { level: 'high', value: 'effort-high' },
-        { level: 'xhigh', value: 'xhigh' },
-        { level: 'max', value: 'max' },
-      ],
-    }),
-  ])
-})
+    // 连接字段与 Key 仍完整展开，与目录共用“创建供应商”。
+    for (const name of ['providerId', 'name', 'baseUrl', 'credential']) expect(connection(name).checkVisibility()).toBe(true)
+    await dialog.getByRole('button', { name: '创建供应商', exact: true }).click()
+    await expect.poll(() => backend.saveProvider.mock.calls.length).toBe(1)
+    expect(backend.saveProvider.mock.calls[0]![0].provider.models).toEqual([
+      catalogModel('custom-model-1', {
+        reasoning: true,
+        thinkingLevels: [
+          { level: 'off' },
+          { level: 'minimal', value: 'minimal' },
+          { level: 'low', value: 'low' },
+          { level: 'medium', value: 'medium' },
+          { level: 'high', value: 'effort-high' },
+          { level: 'xhigh', value: 'xhigh' },
+          { level: 'max', value: 'max' },
+        ],
+      }),
+    ])
+  },
+)
 
 /** 编辑已有 Provider 并展开第一个模型。 */
 async function openEdit(dialog: ReturnType<typeof settingsRegion>, id = 'custom-provider-2') {
@@ -155,7 +163,7 @@ async function openEdit(dialog: ReturnType<typeof settingsRegion>, id = 'custom-
   return edit
 }
 
-it('删除一个档位后再次添加补齐最早缺失档位；修改某行档位只能选尚未配置的档位，键盘可操作档位菜单', async () => {
+it('删除一个档位后再次添加补齐最早缺失档位；修改某行档位只能选尚未配置的档位，键盘可操作档位菜单', MULTI_STEP_FORM_BUDGET, async () => {
   const { dialog, backend } = await openModels('zh', (b) =>
     b.seedProvider(
       {
@@ -211,7 +219,7 @@ it('删除一个档位后再次添加补齐最早缺失档位；修改某行档�
   ])
 })
 
-it('推理等级开关关闭时已填档位仍随草稿保存；重新打开表单时仍在，开关仍为关闭；会话中该模型只有“关闭”', async () => {
+it('推理等级开关关闭时已填档位仍随草稿保存；重新打开表单时仍在，开关仍为关闭；会话中该模型只有“关闭”', MULTI_STEP_FORM_BUDGET, async () => {
   const { dialog, backend } = await openModels('zh', (b) =>
     b.seedProvider(
       {
@@ -248,7 +256,7 @@ it('推理等级开关关闭时已填档位仍随草稿保存；重新打开表�
   expect(levelRows()[1]!.querySelector<HTMLInputElement>('[name="thinkingValue"]')!.value).toBe('effort-high')
 })
 
-it('只打开开关或改档位算作未保存修改；深色主题下开关与 off 参数使用语义色', async () => {
+it('只打开开关或改档位算作未保存修改；深色主题下开关与 off 参数使用语义色', MULTI_STEP_FORM_BUDGET, async () => {
   const { dialog, appearance } = await openModels('zh', (b) =>
     b.seedProvider({ ...customProvider('custom-provider-2', []), name: '自定义供应商二', models: [catalogModel('custom-model-1')] }, 'sk-2222'),
   )
