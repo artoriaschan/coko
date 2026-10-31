@@ -33,3 +33,6 @@
   - **未验证**：真实模型（无凭据）；非 darwin 平台。
 
   - **运行的命令（main c9a88f4 已包含，git merge main 无新提交）**：`pnpm run typecheck` 0（第一次为 2：approval-bubbling 测试中替换 fixture 的 answerApproval 的参数类型，修正后 0）；`pnpm run lint` 0；`pnpm run format:check` 0；`pnpm run check:docs` 0（181 文件 0 问题）；取全量测试锁后 `pnpm run test` test=0（309 个测试文件全部通过；2520 通过、1 跳过（既有的真实模型用例）），开始时负载约 4，结束时约 10，日志中没有 Unhandled。E2E `subagents.e2e.test.ts` 单独 1/1。
+- 2026-10-31 lead：评审后合入 main（2142f77）。接受越界：agents-button.tsx、就近测试、两个注册表测试的固定值、删除 tabs.ts 与 header-actions.ts 中已无用的 Unavailable 占位、docs/README 一行、ADR 索引 0014。lead 更新了实施者指出的两处过时内容：ADR 0012 第 41 行（hook / git 执行器已交付）与 todo.md 第 41–42 行（Goal 卡已交付、时间线不再有待送达气泡）。浅色主题切换后 Stop 按钮一度显示为灰色——实施者判断为颜色过渡，未确认，记入 M5 评审。main 上在全量测试锁内复核：install、typecheck、lint、format:check 退出 0；全量 test 309 文件 2520 通过、1 跳过（真实模型），无页面重载、无未处理错误，运行期间没有其他全量重叠；check:docs 181 文件 0 问题。worktree 已清理。
+
+Closed: true
