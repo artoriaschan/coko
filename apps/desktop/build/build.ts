@@ -19,6 +19,11 @@ const viteConfigFile = fileURLToPath(new URL('../src/renderer/vite.config.ts', i
  */
 export const testBuildDefine = (): Record<string, string> => ({ __COKO_TEST_BUILD__: JSON.stringify(process.env.COKO_TEST_BUILD === '1') })
 
+/**
+ * 自动更新源（main 的 build-flags.ts 读取）：只来自构建期的 COKO_UPDATE_FEED_URL（更新源属于发布方，不是用户设置），缺省为空（不检查更新）。
+ */
+export const updateFeedDefine = (): Record<string, string> => ({ __COKO_UPDATE_FEED__: JSON.stringify(process.env.COKO_UPDATE_FEED_URL ?? '') })
+
 const electronBase: InlineConfig = {
   config: false,
   cwd: desktopRoot,
@@ -45,11 +50,12 @@ export const electronConfigs: InlineConfig[] = [
 /**
  * Sidecar：apps/server 的进程入口，ESM，以 ELECTRON_RUN_AS_NODE 运行，不得导入 electron。构建归属在 apps/desktop
  * （@coko/server 是本包的 workspace 依赖），apps/server 自身不输出产物，见 architecture.md 的构建与测试归属。
+ * headless 是无界面运行的入口（dist/sidecar/headless.mjs），与 Sidecar 共用同一组 chunk。
  */
 export const sidecarConfig: InlineConfig = {
   config: false,
   cwd: desktopRoot,
-  entry: { index: '../server/src/index.ts' },
+  entry: { index: '../server/src/index.ts', headless: '../server/src/headless/index.ts' },
   outDir: 'dist/sidecar',
   format: 'esm',
   fixedExtension: true,
@@ -64,7 +70,7 @@ export const sidecarConfig: InlineConfig = {
 
 export async function buildElectron(): Promise<void> {
   // 顺序执行：第一个配置负责清理 dist/electron。
-  for (const config of electronConfigs) await tsdown({ ...config, define: testBuildDefine() })
+  for (const config of electronConfigs) await tsdown({ ...config, define: { ...testBuildDefine(), ...updateFeedDefine() } })
 }
 
 export async function buildSidecar(): Promise<void> {
