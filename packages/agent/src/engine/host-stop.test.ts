@@ -152,6 +152,26 @@ describe('beforeRequest 返回 stop', () => {
     expect(h.requests()).toBe(1)
   })
 
+  it('停止在请求前检查的等待期间到达：检查放行之后也不发出请求，Run 以 aborted 结束', async () => {
+    let runtime: ReturnType<typeof harness>['runtime'] | undefined
+    const h = harness({
+      context: {
+        beforeRequest: async () => {
+          // 宿主检查中有 await（读库、等交接摘要）：停止在这期间到达。
+          runtime!.abort()
+          await Promise.resolve()
+          return undefined
+        },
+      },
+    })
+    runtime = h.runtime
+    h.respond(fauxAssistantMessage('never'))
+    const result = await h.runtime.run('hi')
+    expect(result.status).toBe('aborted')
+    expect(h.requests()).toBe(0)
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'run_end'])
+  })
+
   it('返回 undefined 时照常请求', async () => {
     const h = harness({ context: { beforeRequest: async () => undefined } })
     h.respond(fauxAssistantMessage('ok'))

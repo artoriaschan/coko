@@ -178,8 +178,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 停止在 pi 开始请求之前到达时 agent.abort() 没有可停止的流：在这里扣下请求，不发出。
       if (run.aborted) return withhold(run)
       if (!(await admit(run, request.messages, model, signal))) return withhold(run)
+      // 宿主检查与自动压缩中有 await：停止在这期间到达时同样不发出请求。
+      if (run.aborted) return withhold(run)
       const compacted: AgentMessage[] | undefined = driver ? await driver.autoCompact(run, request.messages, model, signal) : undefined
       if (compacted && !(await admit(run, compacted, model, signal))) return withhold(run)
+      if (run.aborted) return withhold(run)
       return compacted ? { context: { ...request, messages: compacted } } : undefined
     },
     // 停止、无反馈拒绝或暂停：本批完成后结束，不取追加指令、不发新请求（停止后追加指令不送达，退回宿主）。
