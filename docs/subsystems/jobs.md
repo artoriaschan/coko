@@ -36,6 +36,8 @@ bash 的 `run_in_background: true` 与前台 bash 经过同样的权限判定、
 
 状态：`running` → `completed`（退出码 0）/ `failed`（其他退出码，含被外部信号终止）；`running` → `stopping`（被要求停止）→ `killed`；`lost` 只由启动恢复补记。
 
+`job_end` 带退出码（被信号终止时按 shell 约定为 128 + 信号编号）；进程被信号终止时 `signal` 为该信号。被停止的 Job 可能以退出码而不是信号结束（外层 shell 或 sandbox-exec 把子进程的信号死亡转为退出码），这时 `signal` 取宿主最后发出的终止信号（`SIGTERM`，宽限后为 `SIGKILL`）；自然结束的 Job 只在进程本身被信号终止时带 `signal`。快照与 `job_output` / `job_kill` 末尾的 `[status: killed (signal …)]` 与 `job_end` 一致。
+
 输出（stdout 与 stderr 合并）按 UTF-8 解码后先经流式按值替换（登记的 Secret 与 Credential 明文，跨输出块的值也被替换），再进入三处，偏移都是替换后文本的字节偏移：
 
 - **环形缓冲**：内存中保留最近 256 KB，模型的游标在其上；游标落后于环形起点时丢弃的字节数在结果中注明。
@@ -112,6 +114,7 @@ faux 脚本中工具调用参数里的 `$LAST_JOB_ID` 在请求时替换为上�
 ## 验证
 
 - `packages/agent/src/tasks/jobs/jobs.test.ts`：环形缓冲与偏移、ANSI 去除、label、job_output 的游标、wait 的结束 / 超时 / 追加指令 / 取消、截断、未知 id、job_kill 与 job_list、状态机、通知文本（内联、超过 2 KB、转义）。
+- `apps/server/src/application/jobs.test.ts`：假 spawn 下停止后以退出码 143 / 137 结束且不带信号时，`job_end`、快照与 `job_kill` / `job_output` 的状态带宿主发出的 `SIGTERM` / `SIGKILL`；退出带信号时以退出的为准；自然结束的不带 `signal`。
 - `packages/agent/src/ports/local-exec.test.ts`、`tools/builtin/bash.test.ts`：`spawn` 的流式输出、进程组 kill 与退出码、启动失败；bash 经启动入口启动与没有入口时的错误。
 - `tests/integration/sidecar-jobs.test.ts`：真实 Sidecar 上的全部发起、输出、日志权限、上限、两种通知（requestLog）、HTTP 分页与 WS 帧偏移、符号链接需要审批；darwin 上 job_kill 与 HTTP 停止后进程组退出与登记行删除、停止 Run 后 Job 仍在、SIGKILL 重启后 lost 与孤儿清理。
 - `apps/desktop/src/renderer/features/right-panel/jobs-tab.browser.test.tsx`：输出组件的 SGR 颜色、长行横向滚动不撑开面板、跟随尾部与上滚暂停；列表的状态、时长、退出码与 key；键盘停止；store 的重叠、缺口补齐、末尾一页与加载更早的输出。`features/conversation/jobs-timeline.browser.test.tsx`：Job chip、通知行与通知文本不进入用户气泡。
