@@ -1,7 +1,10 @@
 // 切换明暗主题：按钮在切换的那一帧就是新主题的颜色，不经 transition-colors 在两套 token 之间插值（插值中途 primary 呈灰色）；
 // 切换之后 transition 照常生效（hover 等状态仍有过渡）。
+// 比较的是非 hover 的颜色：Browser Mode 共用一个页面，指针停在其他文件留下的位置，落在按钮上时 primary 读到 --primary-hover。
+// 被测按钮不参与命中测试，结果与指针位置无关；用例先把指针移到按钮上，确认这一点。
 import './theme.css'
 import { afterEach, describe, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { Button } from '../components/button.tsx'
 import { applyTheme } from '../lib/theme.ts'
@@ -28,7 +31,7 @@ describe('切换明暗主题', () => {
   it('切换后立即为新主题的颜色（default 与 outline 按钮），之后过渡恢复', async () => {
     applyTheme('light')
     await render(
-      <div>
+      <div style={{ pointerEvents: 'none' }}>
         <Button>Stop</Button>
         <Button variant="outline">Stop agent</Button>
       </div>,
@@ -37,6 +40,9 @@ describe('切换明暗主题', () => {
     const outline = document.querySelector<HTMLElement>('[data-variant="outline"]')!
     await expect.poll(() => getComputedStyle(primary).backgroundColor).toBe(tokenColor('--primary'))
     const lightPrimary = tokenColor('--primary')
+    // 指针停在按钮上方（命中落到外层容器）。
+    await userEvent.hover(primary, { force: true })
+    await expect.poll(() => primary.parentElement!.parentElement!.matches(':hover')).toBe(true)
 
     for (const theme of ['dark', 'light', 'dark'] as const) {
       applyTheme(theme)
