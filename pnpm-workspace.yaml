@@ -11,6 +11,10 @@ allowBuilds:
   electron: true
   # PTY 后端（apps/server）；安装脚本只在没有预编译产物时编译。spawn-helper 的可执行位由根 postinstall 恢复。
   node-pty: true
+  # DMG maker（apps/desktop 的 make，只在构建机运行，不进安装包）：appdmg 用 fs-xattr 写扩展属性、ds-store 用 macos-alias 写 Applications 别名，
+  # 两者都是只有 binding.gyp 的原生模块，安装时 node-gyp 编译；不放行时 make 加载失败。
+  fs-xattr: true
+  macos-alias: true
   koffi: false
   protobufjs: false
   '@google/genai': false
