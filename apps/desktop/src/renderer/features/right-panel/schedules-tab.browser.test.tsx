@@ -340,6 +340,25 @@ describe('暂停、恢复、删除', () => {
     expect(rows.has('b')).toBe(false)
   })
 
+  it('删除提交中关闭对话框、再打开另一个任务的删除：按钮为初始状态（对话框按任务重新挂载）', async () => {
+    const { api } = backend([schedule('a'), schedule('b')])
+    let finish!: () => void
+    api.remove = () => new Promise<void>((resolve) => (finish = resolve))
+    await mount(createSchedulesStore(api), <SchedulesTab sessionId="s-1" />)
+    await expect.poll(() => row('b')).not.toBeNull()
+    await userEvent.click(page.getByRole('button', { name: 'Delete Task b' }))
+    await userEvent.click(dialog().getByRole('button', { name: 'Delete' }))
+    await expect.element(dialog().getByRole('button', { name: 'Deleting…' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    await closed()
+    await userEvent.click(page.getByRole('button', { name: 'Delete Task a' }))
+    await expect.element(page.getByRole('heading', { name: 'Delete “Task a”?' })).toBeVisible()
+    await expect.element(dialog().getByRole('button', { name: 'Delete', exact: true })).toBeEnabled()
+    await userEvent.click(dialog().getByRole('button', { name: 'Cancel' }))
+    await closed()
+    finish()
+  })
+
   it('revision 冲突：暂停不生效并读回最新值（另一处的改名可见），再次暂停成功', async () => {
     const { api, external, rows } = backend([schedule('a')])
     await mount(createSchedulesStore(api), <SchedulesTab sessionId="s-1" />)

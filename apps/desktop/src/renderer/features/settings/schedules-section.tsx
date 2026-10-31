@@ -78,7 +78,7 @@ export function SchedulesSection() {
         <p className="text-ui-small text-muted-foreground">{t('schedules.settingsDescription')}</p>
       </div>
       {body}
-      <DeleteScheduleDialog schedule={deleting} onClose={() => setDeleting(null)} />
+      <DeleteScheduleDialog key={deleting?.id} schedule={deleting} onClose={() => setDeleting(null)} />
     </section>
   )
 }
