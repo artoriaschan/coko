@@ -74,7 +74,8 @@ describe('子代理：取消传播与 Hook', { timeout: 120_000 }, () => {
       { match: 'PARENT-K', content: 'ok' },
     ])
     const record = join(env.root, 'stop.jsonl')
-    const startOut = JSON.stringify({ hookSpecificOutput: { additionalContext: 'EXTRA-START-CONTEXT' } })
+    // 凭据形态的文本（没有登记为 Secret）也被替换：与其他 Hook 文本同一口径（redactText）。
+    const startOut = JSON.stringify({ hookSpecificOutput: { additionalContext: 'EXTRA-START-CONTEXT key sk-shapedSUBAGENT0123456789' } })
     const hooks = {
       SubagentStart: [{ matcher: 'explore', hooks: [{ type: 'command', command: hookCommand('--stdout', startOut) }] }],
       SubagentStop: [{ matcher: 'explore', hooks: [{ type: 'command', command: hookCommand('--record', record, '--exit', '2', '--stderr', 'KEEP-GOING') }] }],
@@ -86,7 +87,8 @@ describe('子代理：取消传播与 Hook', { timeout: 120_000 }, () => {
     const logged = await env.requests()
     const first = logged.find((r) => flat(r).includes('CHILD-K go'))!
     const firstUser = first.filter((m) => m.role === 'user').at(0)!
-    expect(JSON.stringify(firstUser.content)).toContain('EXTRA-START-CONTEXT')
+    expect(JSON.stringify(firstUser.content)).toContain('EXTRA-START-CONTEXT key [REDACTED')
+    expect(JSON.stringify(logged)).not.toContain('sk-shapedSUBAGENT0123456789')
     const childRequests = logged.filter((r) => flat(r).includes('CHILD-K go') && !flat(r).includes('PARENT-K'))
     expect(childRequests).toHaveLength(4)
     expect(flat(childRequests[1]!)).toContain('KEEP-GOING')

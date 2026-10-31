@@ -531,8 +531,43 @@ export class HookService {
   }
 
   /**
-   * Notification（Coko 发出桌面通知时；只观测）：matcher 对象为通知类别，输入 notification_type、title、message（已脱敏）。不等待结果，
-   * 失败只记录（hook_run error / timeout），不影响通知。
+   * SubagentStart（子 Run 开始之前；matcher 对象为子代理类型）：additionalContext 合并后并入子代理的首条消息（≤ 10 000 字符，redactText
+   * 替换登记值与凭据形态）。没有 Hook 或没有上下文时 undefined；失败只记 warn。
+   */
+  async subagentStart(scope: HookScope, agent: { type: string; id: string }): Promise<string | undefined> {
+    try {
+      const state = this.runState(scope)
+      const selected = selectHooks(await state.hooks, 'SubagentStart', { names: [agent.type] })
+      if (selected.length === 0) return undefined
+      const results = await this.run(scope, state, 'SubagentStart', selected, { agent_type: agent.type, agent_id: agent.id })
+      const context = results.flatMap((r) => (r.result.context ? [r.result.context] : []))
+      return context.length > 0 ? truncate(redactText(context.join('\n\n')), HOOK_CONTEXT_MAX_CHARS) : undefined
+    } catch (error) {
+      log.warn('SubagentStart hooks failed', { agentId: agent.id, error: errorMessage(error) })
+      return undefined
+    }
+  }
+
+  /** SubagentStop（子 Session 的 Run 正常结束之前）：block 时以 reason（≤ 10 000 字符，redactText）作为 user message 再请求一次。 */
+  async subagentStop(scope: HookScope, info: StopInfo, agent: { type: string; id: string }): Promise<StopContinue | undefined> {
+    const state = this.runState(scope)
+    state.runId = info.runId
+    const selected = selectHooks(await state.hooks, 'SubagentStop', { names: [agent.type] })
+    if (selected.length === 0) return undefined
+    const results = await this.run(scope, state, 'SubagentStop', selected, {
+      stop_hook_active: info.stopHookActive,
+      agent_type: agent.type,
+      agent_id: agent.id,
+    })
+    const blocked = results.find((r) => r.result.block)
+    if (!blocked) return undefined
+    const reason = truncate(redactText(blocked.result.reason ?? 'A SubagentStop hook asked the subagent to continue'), HOOK_CONTEXT_MAX_CHARS)
+    return { continue: [{ type: 'text', text: reason }] }
+  }
+
+  /**
+   * Notification（Coko 产生桌面通知时，不论设置是否关闭；只观测）：matcher 对象为通知类别，输入 notification_type、title、message（已脱敏）。
+   * 不等待结果，失败只记录（hook_run error / timeout），不影响通知。
    */
   notification(input: { kind: string; sessionId: string; title: string; body: string }): Promise<void> {
     const task = async () => {

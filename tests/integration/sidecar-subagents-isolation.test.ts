@@ -1,6 +1,7 @@
 // isolation worktree（ADR 0014、0016，git 夹具）：default 下询问、plan 下为错误结果；子代理不改文件时 worktree 与分支被移除；有提交时保留且结果给出路径与
 // 分支；父 Session 读取该 worktree 的文件须审批（它在 Workspace 的 .coko-worktrees/ 之内）。Coko 的 worktree 只在临时仓库中创建。
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, permissionPaths, worktreePaths } from '@coko/protocol'
@@ -96,7 +97,7 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     expect(await fixture.git('worktree', 'list')).not.toContain('.coko-worktrees')
   })
 
-  it('有提交时保留 worktree，结果给出路径与分支；父 Session 读取其中的文件须审批', async () => {
+  it('有提交时保留 worktree，结果给出路径与分支；父 Session（full-access）读取与写入其中的文件都须审批', async () => {
     const fixture = await repo()
     const env = await bootAgents(
       [
@@ -124,7 +125,14 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     // 父 Session（full-access）读取保留的 worktree 中的文件须审批；重启之后（启动恢复重新登记）同样。worktree 路径随机，第二个脚本在得知路径后写出。
     const script = await fauxScript(
       env.root,
-      { responses: [{ content: [call('read', 'r1', { path: join(kept.path, 'made.txt') })] }, { content: 'read' }] },
+      {
+        responses: [
+          { content: [call('read', 'r1', { path: join(kept.path, 'made.txt') })] },
+          { content: [call('write', 'w1', { path: join(kept.path, 'parent.txt'), content: 'from parent' })] },
+          { content: [call('edit', 'e1', { path: join(kept.path, 'made.txt'), edits: [{ oldText: 'changed', newText: 'edited' }] })] },
+          { content: 'done' },
+        ],
+      },
       'read.json',
     )
     const restarted = await killAndRestart(env.sidecar, { dirs: env.dirs, env: { ...fixture.env, COKO_FAUX_SCRIPT: script } })
@@ -136,7 +144,18 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     await stream.waitFor(() => stream.entries(parent).filter((e) => e.kind === 'approval_request').length >= 1, 20_000)
     const ask = stream.entries(parent).find((e) => e.kind === 'approval_request')!.payload as { requestId: string; toolName: string; subject: string }
     expect(ask).toMatchObject({ toolName: 'read', subject: join(kept.path, 'made.txt') })
-    expect((await api.post(apiPaths.sessionApproval(parent, ask.requestId), { decision: 'deny' })).status).toBe(204)
+    expect((await api.post(apiPaths.sessionApproval(parent, ask.requestId), { decision: 'allow' })).status).toBe(204)
+    // 写入与编辑同样询问（Edit 规则覆盖 write 与 edit）；bash 不受这些规则保护（见 docs/subsystems/subagents.md）。
+    for (const [n, toolName, decision] of [
+      [2, 'write', 'allow'],
+      [3, 'edit', 'deny'],
+    ] as const) {
+      await stream.waitFor(() => stream.entries(parent).filter((e) => e.kind === 'approval_request').length >= n, 20_000)
+      const next = stream.entries(parent).filter((e) => e.kind === 'approval_request')[n - 1]!.payload as { requestId: string; toolName: string }
+      expect(next.toolName).toBe(toolName)
+      expect((await api.post(apiPaths.sessionApproval(parent, next.requestId), { decision })).status).toBe(204)
+    }
     await stream.waitFor(() => stream.entries(parent).filter((e) => e.kind === 'run_end').length >= 2, 30_000)
+    expect(await readFile(join(kept.path, 'made.txt'), 'utf8')).toBe('changed\n')
   })
 })
