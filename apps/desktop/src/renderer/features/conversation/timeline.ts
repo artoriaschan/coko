@@ -6,6 +6,7 @@ import {
   type CommandPayload,
   type CompactionPayload,
   type GoalPayload,
+  type HandoffFailedPayload,
   type HandoffOriginPayload,
   type HandoffPayload,
   type HookRunPayload,
@@ -16,16 +17,8 @@ import {
   type ScheduleFirePayload,
   type SessionEntry,
 } from '@coko/protocol'
-import { JOB_NOTIFICATION_TAG, rewoundRanges } from '@coko/agent/entries'
+import { AGENT_NOTIFICATION_TAG, HOOK_CONTEXT_TAG, JOB_NOTIFICATION_TAG, rewoundRanges, SCHEDULED_TASK_TAG } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
-
-/** UserPromptSubmit 的 additionalContext 在 user message 中的文本块开头（服务端 session-runs.ts 的 SUBMIT_CONTEXT_TAG）。 */
-const HOOK_CONTEXT_TAG = '<hook-context>'
-// TODO(合并 main 后)：改为从 @coko/agent/entries 导入（entries/host-input.ts 的同名常量），删除这两个本地定义。
-/** 后台子代理结束通知在 user message 中的文本块开头。 */
-const AGENT_NOTIFICATION_TAG = '<agent-notification'
-/** 定时任务 Run 的输入的开头：`<scheduled_task schedule-id title occurrence>prompt</scheduled_task>`。 */
-const SCHEDULED_TASK_TAG = '<scheduled_task'
 
 const unescapeAttribute = (value: string) =>
   value.replace(/&(quot|lt|gt|apos|#39|amp);/g, (_, name: string) => ({ quot: '"', lt: '<', gt: '>', apos: "'", '#39': "'", amp: '&' })[name] ?? '')
@@ -109,7 +102,14 @@ export type TimelineItem =
   | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
   /** title：定时任务 Run 的输入包装中的标题（任务已删除、列表中找不到时的后备）。 */
   | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string }
-  | { kind: 'handoff'; key: string; handoff: { kind: 'source'; payload: HandoffPayload } | { kind: 'origin'; payload: HandoffOriginPayload } }
+  | {
+      kind: 'handoff'
+      key: string
+      handoff:
+        | { kind: 'source'; payload: HandoffPayload }
+        | { kind: 'failed'; payload: HandoffFailedPayload }
+        | { kind: 'origin'; payload: HandoffOriginPayload }
+    }
 
 interface Block {
   type?: unknown
@@ -248,8 +248,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       items.push(item)
       return
     }
-    if (entry.kind === 'handoff' || entry.kind === 'handoff_origin') {
-      const handoff = entry.kind === 'handoff' ? ({ kind: 'source', payload: entry.payload } as const) : ({ kind: 'origin', payload: entry.payload } as const)
+    if (entry.kind === 'handoff' || entry.kind === 'handoff_failed' || entry.kind === 'handoff_origin') {
+      const handoff =
+        entry.kind === 'handoff'
+          ? ({ kind: 'source', payload: entry.payload } as const)
+          : entry.kind === 'handoff_failed'
+            ? ({ kind: 'failed', payload: entry.payload } as const)
+            : ({ kind: 'origin', payload: entry.payload } as const)
       items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
       return
     }

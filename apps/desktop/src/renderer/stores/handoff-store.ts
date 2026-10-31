@@ -40,9 +40,9 @@ export type HandoffProgress =
   | { phase: 'stopped'; runId: string }
   | { phase: 'failed'; runId: string; error: HandoffFailure; summary?: string }
 
-/** 失败的 handoff 条目（status: 'failed'）的错误与摘要；成功的条目返回 undefined。字段按形状读取，缺失时取空。 */
+/** handoff_failed 条目（摘要之后目标没能创建）的错误与摘要；不是失败条目（没有 error）时 undefined。字段按形状读取，缺失时取空。 */
 export function handoffFailure(payload: unknown): { error: HandoffFailure; summary?: string } | undefined {
-  if (!payload || typeof payload !== 'object' || (payload as { status?: unknown }).status !== 'failed') return undefined
+  if (!payload || typeof payload !== 'object' || !('error' in payload)) return undefined
   const { error, summary } = payload as { error?: unknown; summary?: unknown }
   const code = error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : ''
   const message = error && typeof error === 'object' ? (error as { message?: unknown }).message : undefined
@@ -125,11 +125,13 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
               sessionId,
               entry.payload.status === 'completed' ? { phase: 'creating', runId: current.runId } : { phase: 'stopped', runId: current.runId },
             )
+          } else if (entry.kind === 'handoff_failed') {
+            if (entry.runId) ended.add(entry.runId)
+            const failure = handoffFailure(entry.payload)!
+            setProgress(sessionId, { phase: 'failed', runId: entry.runId ?? current?.runId ?? '', ...failure })
           } else if (entry.kind === 'handoff') {
             if (entry.runId) ended.add(entry.runId)
-            const failure = handoffFailure(entry.payload)
-            if (failure) setProgress(sessionId, { phase: 'failed', runId: entry.runId ?? current?.runId ?? '', ...failure })
-            else void finish(chat, sessionId, entry.payload.targetSessionId, entry.payload.summary)
+            void finish(chat, sessionId, entry.payload.targetSessionId, entry.payload.summary)
           }
         }
       }

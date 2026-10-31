@@ -19,13 +19,11 @@ const handoffEntry = (seq: number, target = 's-3', summary = '## Task\nnext') =>
   record('s-1', seq, 'handoff', { targetSessionId: target, instructions: 'next', summary, target: 'current' })
 
 const failedEntry = (seq: number) =>
-  record('s-1', seq, 'handoff', {
-    status: 'failed',
+  record('s-1', seq, 'handoff_failed', {
     error: { code: 'worktree-exists', message: 'fatal: a branch named coko/login already exists' },
     instructions: 'next',
     summary: '## Task\nnext',
-    target: 'worktree',
-    usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { total: 0 } },
+    usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
   })
 
 const backend = (extra: Partial<HandoffBackend> = {}): HandoffBackend => ({
@@ -135,12 +133,13 @@ describe('handoff store', () => {
     const last = h.chat.getState().conversations['s-1']!.lastSeq
     h.push(record('s-1', last + 1, 'run_start', { trigger: 'handoff' }))
     h.push(record('s-1', last + 2, 'run_end', { status: 'completed' }))
-    h.inject(record('s-1', last + 3, 'handoff', { status: 'failed', instructions: 'next', summary: '', target: 'current' }))
+    h.inject(record('s-1', last + 3, 'handoff_failed', { instructions: 'next', summary: '', error: {} }))
     expect(h.store.getState().progress['s-1']).toEqual({ phase: 'failed', runId: 'h1', error: { code: '' } })
   })
 
-  // 经 WebSocket 推送的条目先按协议的 SessionEntry 校验；协议的 handoff payload 收录 status: 'failed' 之前，失败条目会被丢弃，这一例跳过。
-  it.skipIf(!Value.Check(SessionEntry, failedEntry(1)))('失败的 handoff 条目经协议校验到达（推送）：同样离开 creating', async () => {
+  // 经 WebSocket 推送的条目先按协议的 SessionEntry 校验：handoff_failed 是协议收录的 kind。
+  it('handoff_failed 条目经协议校验到达（推送）：同样离开 creating', async () => {
+    expect(Value.Check(SessionEntry, failedEntry(1))).toBe(true)
     const h = await setup()
     const last = h.chat.getState().conversations['s-1']!.lastSeq
     h.push(record('s-1', last + 1, 'run_start', { trigger: 'handoff' }))

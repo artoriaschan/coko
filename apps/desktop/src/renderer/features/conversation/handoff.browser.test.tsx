@@ -182,14 +182,14 @@ describe('时间线的交接行', () => {
     expect(chat.getState().activeSessionId).toBe('s-4')
   })
 
-  it('失败的交接（status failed，没有目标）：显示没能创建与原因，不提供打开', async () => {
+  it('失败的交接（handoff_failed，没有目标）：显示没能创建与原因，不提供打开', async () => {
     const { chat } = createFixtureChat()
     await expect.poll(() => chat.getState().listStatus).toBe('ready')
-    const failed = record('handoff', { status: 'failed', error: { code: 'worktree-exists' }, instructions: 'i', summary: 's', target: 'worktree' })
+    const failed = record('handoff_failed', { error: { code: 'worktree-exists', message: 'taken' }, instructions: 'i', summary: 's' })
     const screen = await render(
       <I18nProvider locale="en">
         <ChatStoreProvider store={chat}>
-          <HandoffRow item={{ kind: 'handoff', key: '1', handoff: { kind: 'source', payload: failed.payload as never } }} />
+          <HandoffRow item={{ kind: 'handoff', key: '1', handoff: { kind: 'failed', payload: failed.payload as never } }} />
         </ChatStoreProvider>
       </I18nProvider>,
     )

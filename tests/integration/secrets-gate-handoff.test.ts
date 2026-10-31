@@ -5,8 +5,9 @@ import { randomBytes } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, handoffPaths } from '@coko/protocol'
+import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 import { leaksIn, persisted, recordingClient } from './secrets-gate-harness.ts'
 
@@ -71,6 +72,63 @@ describe('秘密不外泄总闸：交接', () => {
       ...bodies.map((body, i): [string, string] => ['http body ' + i, body]),
       ...rows.map((row, i): [string, string] => ['handoff row ' + i, JSON.stringify(row)]),
       ...titles.map((row, i): [string, string] => ['session title ' + i, row.title]),
+      ...files.map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
+      ['sidecar stderr', sidecar.stderr()],
+    ]
+    expect(leaksIn(channels, { 'registered secret': value })).toEqual([])
+  })
+
+  it('摘要之后目标没能创建（分支已存在）：handoff_failed 的摘要与指令带占位，WS、HTTP、库与日志中没有明文', { timeout: 90_000 }, async () => {
+    const value = 'deploy-token-' + randomBytes(12).toString('hex')
+    const fixture = await createGitWorkspace()
+    onTestFinished(() => fixture.dispose())
+    // 校验只看 Coko 的 worktree 记录：git 中已有同名分支时 git worktree add 在摘要之后才失败。
+    await fixture.git('branch', 'coko/late')
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const requestLog = join(root, 'requests.jsonl')
+    await writeFile(requestLog, '')
+    const script = await fauxScript(root, {
+      requestLog,
+      responses: [{ content: 'the deploy key is ' + value }, { content: '## Context\nuse key ' + value + '\n## Task\nrotate ' + value }],
+    })
+    const sidecar = await startSidecar({ dirs, ipc: false, env: { ...fixture.env, COKO_FAUX_SCRIPT: script, COKO_SECRET_DEPLOY_TOKEN: value } })
+    const cookie = await exchange(sidecar)
+    const bodies: string[] = []
+    const api = recordingClient(sidecar, cookie, bodies)
+    const stream = await connect(sidecar, cookie)
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: fixture.root })).body.id as string
+    const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+    expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'which key do we use' })).status).toBe(202)
+    await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'run_end'), 30_000)
+    const started = await api.post(handoffPaths.handoff(sessionId), {
+      instructions: 'rotate ' + value + ' next',
+      target: { kind: 'new-worktree', name: 'late' },
+    })
+    expect(started.status).toBe(202)
+    await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'handoff_failed'), 30_000)
+    await api.get(apiPaths.session(sessionId))
+    const failed = stream.entries(sessionId).find((e) => e.kind === 'handoff_failed')!
+    expect(failed.payload).toMatchObject({
+      instructions: 'rotate [REDACTED:secret] next',
+      summary: '## Context\nuse key [REDACTED:secret]\n## Task\nrotate [REDACTED:secret]',
+      error: { code: expect.any(String) },
+    })
+    expect(stream.entries(sessionId).some((e) => e.kind === 'handoff')).toBe(false)
+
+    sidecar.child.kill('SIGTERM')
+    expect(await sidecar.exited).toEqual({ code: 0, signal: null })
+    const db = new DatabaseSync(join(dirs.dataDir, 'coko.db'), { readOnly: true })
+    const rows = db.prepare("SELECT session_id, kind, payload FROM session_entries WHERE kind = 'handoff_failed'").all() as Record<string, string>[]
+    db.close()
+    expect(rows).toHaveLength(1)
+    const files = await persisted(dirs)
+    const channels: [string, string | Buffer][] = [
+      ...stream.frames.map((frame, i): [string, string] => ['ws frame ' + i, frame]),
+      ...bodies.map((body, i): [string, string] => ['http body ' + i, body]),
+      ...rows.map((row, i): [string, string] => ['handoff_failed row ' + i, JSON.stringify(row)]),
       ...files.map((f): [string, Buffer] => ['stopped ' + f.name, f.bytes]),
       ['sidecar stderr', sidecar.stderr()],
     ]
