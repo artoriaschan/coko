@@ -83,12 +83,9 @@ describe('agents store', () => {
         return new Promise(() => {})
       },
     })
-    const src = source()
-    store.getState().attach(src)
     const loading = store.getState().load('p1')
-    // 先有一个已结束的快照（例如上一次读到的），读取期间又有 agent_update cancelled。
-    store.setState({ sessions: { p1: { status: 'ready', agents: [snapshot('c1')] } } })
-    src.emit('p1', { type: 'agent_update', agentId: 'c1', status: 'cancelled' })
+    // 读取期间已经得知子代理结束（agent_update 合并的状态），之后才到达较早的"运行中"快照。
+    store.setState({ sessions: { p1: { status: 'ready', agents: [snapshot('c1', { status: 'cancelled' })] } } })
     gate.resolve([snapshot('c1')])
     await loading
     expect(store.getState().sessions.p1!.agents[0]!.status).toBe('cancelled')
