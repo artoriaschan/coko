@@ -340,6 +340,25 @@ describe('暂停、恢复、删除', () => {
     expect(rows.has('b')).toBe(false)
   })
 
+  it('编辑保存失败后关闭、再编辑另一个任务：没有上一次的错误，字段为该任务的值，保存可用', async () => {
+    const { api } = backend([schedule('a'), schedule('b')])
+    api.update = async () => Promise.reject(new ApiError('internal', 'disk full', 500))
+    await mount(createSchedulesStore(api), <SchedulesTab sessionId="s-1" />)
+    await expect.poll(() => row('b')).not.toBeNull()
+    await userEvent.click(row('b')!.querySelector<HTMLElement>('[data-action="edit-schedule"]')!)
+    await page.getByRole('textbox', { name: 'Title' }).fill('renamed b')
+    await userEvent.click(page.getByRole('button', { name: 'Save' }))
+    await expect.element(page.getByRole('alert').filter({ hasText: 'disk full' })).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await closed()
+    await userEvent.click(row('a')!.querySelector<HTMLElement>('[data-action="edit-schedule"]')!)
+    await expect.element(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Task a')
+    expect(page.getByRole('alert').filter({ hasText: 'disk full' }).elements()).toEqual([])
+    await expect.element(page.getByRole('button', { name: 'Save' })).toBeEnabled()
+    await userEvent.keyboard('{Escape}')
+    await closed()
+  })
+
   it('删除提交中关闭对话框、再打开另一个任务的删除：按钮为初始状态（对话框按任务重新挂载）', async () => {
     const { api } = backend([schedule('a'), schedule('b')])
     let finish!: () => void
