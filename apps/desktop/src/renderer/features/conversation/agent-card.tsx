@@ -17,6 +17,7 @@ const CARD_STATUS: Record<AgentStatus, ToolCardStatus> = {
   cancelled: 'pending',
   'max-turns': 'error',
   interrupted: 'pending',
+  dismissed: 'pending',
 }
 
 /** <agent-result …>文本</agent-result> 中的文本；不是这个形状时为原文。 */

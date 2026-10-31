@@ -33,6 +33,8 @@ export const McpServerStatus = Type.Union([
   Type.Literal('failed'),
   Type.Literal('disabled'),
   Type.Literal('pending-approval'),
+  /** HTTP Server 要求认证（401）：不自动重连，修改配置或手动重连后重试。由 MCP 认证状态接入。 */
+  Type.Literal('auth-required'),
 ])
 export type McpServerStatus = Static<typeof McpServerStatus>
 
@@ -126,4 +128,6 @@ export const mcpPaths = {
   approvals: '/api/mcp/approvals',
   /** POST */
   reconnect: '/api/mcp/reconnect',
+  /** GET：预设（如 Playwright 浏览器），由浏览器预设接入。 */
+  presets: '/api/mcp/presets',
 } as const

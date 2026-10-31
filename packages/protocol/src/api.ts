@@ -13,6 +13,14 @@ export const API_ROUTES = {
   providers: '/api/providers',
   /** GET：已注册 Provider 的可用模型与默认模型。 */
   models: '/api/models',
+  /** 插件（pluginPaths）。 */
+  plugins: '/api/plugins',
+  /** 代码智能（lspPaths）。 */
+  lsp: '/api/lsp',
+  /** GET：MCP 预设（如浏览器）。 */
+  mcpPresets: '/api/mcp/presets',
+  /** GET：Memory（?query=&scope=&workspaceId= 时为检索）。 */
+  memories: '/api/memories',
 } as const
 
 /** 只供 main 调用的路由前缀：renderer 经 coko-app:// 代理的任何请求都不得到达。 */
@@ -66,4 +74,17 @@ export const apiPaths = {
   provider: (id: string) => `${API_ROUTES.providers}/${encodeURIComponent(id)}`,
   /** GET：引用该 Provider 的 Session 数量（ProviderReferencesResponse），删除前确认用。 */
   providerReferences: (id: string) => `${apiPaths.provider(id)}/references`,
+  /** GET TeamSnapshot（teamPaths.team）。 */
+  sessionTeam: (id: string) => `${apiPaths.session(id)}/team`,
+  /** GET TraceResponse（tracePaths）。 */
+  sessionTrace: (id: string) => `${apiPaths.session(id)}/trace`,
+  sessionAudit: (id: string) => `${apiPaths.session(id)}/audit`,
+  sessionExport: (id: string, children = false) => `${apiPaths.session(id)}/export${children ? '?children=1' : ''}`,
+  /** GET：按关键词检索 Memory。 */
+  memorySearch: (query: string, options: { scope?: 'user' | 'workspace'; workspaceId?: string } = {}) => {
+    const params = new URLSearchParams({ query })
+    if (options.scope) params.set('scope', options.scope)
+    if (options.workspaceId) params.set('workspaceId', options.workspaceId)
+    return `${API_ROUTES.memories}?${params.toString()}`
+  },
 } as const

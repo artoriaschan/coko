@@ -19,6 +19,8 @@ export interface ProjectCapabilityValues {
   context?: { autoCompact?: false; trimOldToolResults?: false }
   agents?: { enabled?: false }
   schedules?: { enabled?: false }
+  lsp?: { enabled?: false }
+  teams?: { enabled?: false }
 }
 
 /** 项目的拒绝与询问规则（规则文本，如 Bash(rm *)），作为只读的 project 作用域参与判定。 */
@@ -45,6 +47,8 @@ export interface ParseProjectSettingsOptions {
 
 /** 项目文件中可以追加的列表键（commands.disabled 不在其中：项目不能禁用命令以外的写法，见规格）。 */
 const PROJECT_LISTS: Partial<Record<Section, readonly string[]>> = { skills: ['disabled'] }
+/** 项目文件中 enabled 以外的键都是授予类的分区（如 lsp 的服务器只能在全局与 Workspace 设置中配置）。 */
+const PROJECT_GRANT_ONLY_KEYS: ReadonlySet<Section> = new Set(['lsp'])
 const PERMISSION_RULE_KEYS = ['deny', 'ask'] as const
 const PERMISSION_GRANT_KEYS = ['allow', 'defaultMode']
 
@@ -89,7 +93,10 @@ export function parseProjectSettings(text: string, path: string, options: ParseP
           const { enabled: _ignored, ...events } = value
           result.hooks = events
         } else report('invalid-value', 'hooks must be an object of events')
-      }
+      } else if (isObject(value)) {
+        for (const name of Object.keys(value))
+          if (name !== 'enabled') report('project-cannot-grant', `${key}.${name} is ignored: ${key} can only be configured in global settings`)
+      } else report('project-cannot-grant', `${key} is ignored: ${key} can only be configured in global settings`)
       continue
     }
     if (!isObject(value)) {
@@ -104,6 +111,8 @@ export function parseProjectSettings(text: string, path: string, options: ParseP
         if (typeof item !== 'boolean') report('invalid-value', `${at} must be a boolean`)
         else if (item) report('project-cannot-grant', `${at}: true is ignored: project settings can only turn capabilities off`)
         else target[name] = false
+      } else if (PROJECT_GRANT_ONLY_KEYS.has(section)) {
+        report('project-cannot-grant', `${at} is ignored: project settings cannot configure ${key}`)
       } else if (PROJECT_LISTS[section]?.includes(name)) {
         if (isNameList(item)) target[name] = [...item]
         else report('invalid-value', `${at} must be an array of non-empty strings`)

@@ -20,6 +20,9 @@ export const ResourceDiagnostic = Type.Object(
       Type.Literal('config'),
       Type.Literal('memory'),
       Type.Literal('agents'),
+      /** 插件清单与插件资源（各加载器对插件根的诊断）。 */
+      Type.Literal('plugin'),
+      Type.Literal('lsp'),
     ]),
     path: Type.Optional(Type.String()),
     /** 稳定的机器可读代码（unknown-key、invalid-value、project-cannot-grant、invalid-json、read-failed 等）。 */
@@ -43,6 +46,9 @@ export const CapabilityConfig = Type.Object(
     hooks: Type.Object({ enabled: Type.Boolean() }, strict),
     agents: Type.Object({ enabled: Type.Boolean() }, strict),
     schedules: Type.Object({ enabled: Type.Boolean() }, strict),
+    plugins: Type.Object({ enabled: Type.Boolean() }, strict),
+    lsp: Type.Object({ enabled: Type.Boolean() }, strict),
+    teams: Type.Object({ enabled: Type.Boolean() }, strict),
   },
   strict,
 )
@@ -60,6 +66,9 @@ export const CapabilityConfigValues = Type.Object(
     hooks: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
     agents: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
     schedules: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
+    plugins: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
+    lsp: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
+    teams: Type.Optional(Type.Object({ enabled: Type.Optional(Type.Boolean()) }, strict)),
   },
   strict,
 )
@@ -68,8 +77,8 @@ export type CapabilityConfigValues = Static<typeof CapabilityConfigValues>
 const Off = Type.Optional(Type.Literal(false))
 
 /**
- * 项目文件中生效的值：关闭的开关、追加禁用的 Skill、拒绝与询问规则（规则文本）。被忽略的键只出现在诊断中；hooks.enabled 只能在全局设置
- * （项目文件的 hooks 键是项目 Hook 的配置）。
+ * 项目文件中生效的值：关闭的开关、追加禁用的 Skill、拒绝与询问规则（规则文本）。被忽略的键只出现在诊断中；hooks.enabled 与 plugins 只能在全局设置
+ * （项目文件的 hooks 键是项目 Hook 的配置），lsp 只有 enabled: false 生效。
  */
 export const ProjectConfigValues = Type.Object(
   {
@@ -81,6 +90,8 @@ export const ProjectConfigValues = Type.Object(
     context: Type.Optional(Type.Object({ autoCompact: Off, trimOldToolResults: Off }, strict)),
     agents: Type.Optional(Type.Object({ enabled: Off }, strict)),
     schedules: Type.Optional(Type.Object({ enabled: Off }, strict)),
+    lsp: Type.Optional(Type.Object({ enabled: Off }, strict)),
+    teams: Type.Optional(Type.Object({ enabled: Off }, strict)),
     permissions: Type.Optional(Type.Object({ deny: Type.Array(Type.String()), ask: Type.Array(Type.String()) }, strict)),
   },
   strict,

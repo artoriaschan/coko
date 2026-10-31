@@ -5,7 +5,7 @@ export const hooks = defineDomain(
   {
     title: 'Hook',
     row: 'Hook',
-    source: { global: '全局', project: '项目' },
+    source: { global: '全局', project: '项目', plugin: '插件' },
     outcome: {
       blocked: '已阻止',
       asked: '要求确认',
@@ -61,7 +61,7 @@ export const hooks = defineDomain(
   {
     title: 'Hooks',
     row: 'Hook',
-    source: { global: 'Global', project: 'Project' },
+    source: { global: 'Global', project: 'Project', plugin: 'Plugin' },
     outcome: {
       blocked: 'Blocked',
       asked: 'Asked to confirm',

@@ -15,6 +15,8 @@ export const AgentEndStatus = Type.Union([
   Type.Literal('cancelled'),
   Type.Literal('max-turns'),
   Type.Literal('interrupted'),
+  /** teammate 被解散（ADR 0018）。 */
+  Type.Literal('dismissed'),
 ])
 export type AgentEndStatus = Static<typeof AgentEndStatus>
 
@@ -24,7 +26,10 @@ export type AgentStatus = Static<typeof AgentStatus>
 export const AgentDefinitionSource = Type.Union([Type.Literal('builtin'), Type.Literal('user'), Type.Literal('project')])
 export type AgentDefinitionSource = Static<typeof AgentDefinitionSource>
 
-/** agent_start v1：agentId 即子 Session id。 */
+/** teammate 的名字：小写字母开头，至多 32 个字符；lead 保留给根 Session。 */
+export const TEAMMATE_NAME_PATTERN = '^[a-z][a-z0-9-]{0,31}$'
+
+/** agent_start v2：agentId 即子 Session id；teammate 另带 name；triggerRunId 为触发它的根 Run（Goal 预算按它归属）。 */
 export const AgentStartPayload = Type.Object(
   {
     agentId: Id,
@@ -34,6 +39,9 @@ export const AgentStartPayload = Type.Object(
     toolCallId: Id,
     goalId: Type.Optional(Id),
     isolation: Type.Optional(Type.Object({ worktreeId: Id, path: Type.String(), branch: Type.String() }, strict)),
+    name: Type.Optional(Type.String({ pattern: TEAMMATE_NAME_PATTERN })),
+    teammate: Type.Optional(Type.Boolean()),
+    triggerRunId: Type.Optional(Id),
   },
   strict,
 )
@@ -45,7 +53,7 @@ export type AgentUsage = Static<typeof AgentUsage>
 export const AgentWorktreeOutcome = Type.Object({ kept: Type.Boolean(), path: Type.String(), branch: Type.String() }, strict)
 export type AgentWorktreeOutcome = Static<typeof AgentWorktreeOutcome>
 
-/** agent_end v1。 */
+/** agent_end v2（status 增加 dismissed）。 */
 export const AgentEndPayload = Type.Object(
   { agentId: Id, status: AgentEndStatus, usage: AgentUsage, resultChars: Count, worktree: Type.Optional(AgentWorktreeOutcome) },
   strict,

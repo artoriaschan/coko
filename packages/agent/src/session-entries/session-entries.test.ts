@@ -13,7 +13,7 @@ const definition = (kind: string) => {
 const check = (kind: string, payload: unknown) => definition(kind).versions.at(-1)!.check(payload)
 
 describe('Session Entry payload 定义', () => {
-  it('预先定义规格表中全部 M2–M5 kind，每个 kind 只出现一次', () => {
+  it('预先定义规格表中全部 M2–M6 kind，每个 kind 只出现一次', () => {
     expect(SESSION_ENTRY_PAYLOADS.map((d) => d.kind).toSorted()).toEqual(
       [
         'run_start',
@@ -47,6 +47,9 @@ describe('Session Entry payload 定义', () => {
         'handoff',
         'handoff_failed',
         'handoff_origin',
+        'team_task',
+        'team_message',
+        'model_request',
       ].toSorted(),
     )
   })
@@ -70,7 +73,20 @@ describe('Session Entry payload 定义', () => {
       ])
       await runtime.run('read a missing file')
       await runtime.retry()
-      expect(entries.map((e) => e.kind)).toEqual(['run_start', 'message', 'message', 'message', 'message', 'run_end', 'run_start', 'message', 'run_end'])
+      expect(entries.map((e) => e.kind)).toEqual([
+        'run_start',
+        'message',
+        'message',
+        'model_request',
+        'message',
+        'message',
+        'model_request',
+        'run_end',
+        'run_start',
+        'message',
+        'model_request',
+        'run_end',
+      ])
       const reasons = entries.map((entry) => [entry.kind, check(entry.kind, JSON.parse(JSON.stringify(entry.payload)))])
       expect(reasons).toEqual(entries.map((entry) => [entry.kind, undefined]))
     } finally {
@@ -108,16 +124,95 @@ describe('Session Entry payload 定义', () => {
     expect(check('run_start', { trigger: 'schedule', schedule: { scheduleId: '', occurrence: 1000 } })).toEqual(expect.any(String))
   })
 
-  it('approval_decision v1 条目迁移为 v2（原样）；v2 接受 by user / hook', () => {
+  it('approval_decision v1 → v2 → v3（原样）；v2 接受 by user / hook，v3 另接受 headless', () => {
     const versions = definition('approval_decision').versions
-    expect(versions).toHaveLength(2)
+    expect(versions).toHaveLength(3)
     const v1 = { requestId: 'q', outcome: 'allowed', scope: 'session' }
     expect(versions[0]!.check(v1)).toBeUndefined()
     expect(versions[0]!.check({ ...v1, by: 'hook' })).toEqual(expect.any(String))
     expect(versions[1]!.migrate!(v1)).toEqual(v1)
+    expect(versions[1]!.check({ ...v1, by: 'hook' })).toBeUndefined()
+    expect(versions[1]!.check({ ...v1, by: 'headless' })).toEqual(expect.any(String))
+    expect(versions[2]!.migrate!({ ...v1, by: 'hook' })).toEqual({ ...v1, by: 'hook' })
     expect(check('approval_decision', v1)).toBeUndefined()
     expect(check('approval_decision', { ...v1, by: 'hook' })).toBeUndefined()
+    expect(check('approval_decision', { requestId: 'q', outcome: 'denied', by: 'headless' })).toBeUndefined()
     expect(check('approval_decision', { ...v1, by: 'script' })).toEqual(expect.any(String))
+  })
+
+  it.each([
+    [
+      'agent_start',
+      { agentId: 's2', agentType: 'explore', description: 'find', background: true, toolCallId: 't', goalId: 'g1' },
+      { name: 'alice', teammate: true, triggerRunId: 'r1' },
+    ],
+    [
+      'agent_end',
+      { agentId: 's2', status: 'completed', usage: { turns: 1, toolCalls: 0, tokens: 1, cost: 0, durationMs: 1 }, resultChars: 0 },
+      { status: 'dismissed' },
+    ],
+    [
+      'hook_run',
+      { event: 'PreToolUse', hookId: 'h', source: 'global', command: 'c', outcome: 'blocked', durationMs: 0 },
+      { source: 'plugin', plugin: 'sample', event: 'TaskCreated' },
+    ],
+  ])('%s v1 → v2 原样迁移；v2 字段在 v1 中被拒绝', (kind, v1, added) => {
+    const versions = definition(kind).versions
+    expect(versions).toHaveLength(2)
+    expect(versions[0]!.check(v1)).toBeUndefined()
+    expect(versions[1]!.migrate!(v1 as EntryJson)).toEqual(v1)
+    expect(versions[1]!.check(v1)).toBeUndefined()
+    expect(versions[0]!.check({ ...v1, ...added })).toEqual(expect.any(String))
+    expect(check(kind, { ...v1, ...added })).toBeUndefined()
+  })
+
+  it.each([
+    [
+      'team_task',
+      {
+        taskId: 't1',
+        revision: 2,
+        subject: 'fix',
+        description: '',
+        status: 'in_progress',
+        owner: 'alice',
+        blockedBy: ['t0'],
+        writeScopes: ['src/'],
+        by: 'alice',
+      },
+    ],
+    ['team_message', { messageId: 'm1', from: 'lead', to: 'alice', summary: 'hi' }],
+    [
+      'model_request',
+      {
+        runId: 'r1',
+        provider: 'faux',
+        model: 'faux-1',
+        startedAt: 1,
+        durationMs: 3,
+        ttftMs: 1,
+        usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, total: 3 },
+        cost: 0.01,
+        stopReason: 'stop',
+        retries: 0,
+        purpose: 'turn',
+      },
+    ],
+  ])('M6 kind %s 的示例 payload 合格，多余字段被拒绝', (kind, payload) => {
+    expect(check(kind as string, payload)).toBeUndefined()
+    expect(check(kind as string, { ...(payload as object), extra: 1 })).toEqual(expect.any(String))
+  })
+
+  it('M6 kind 越界的取值被拒绝', () => {
+    const task = { taskId: 't1', revision: 1, subject: 's', description: '', status: 'pending', blockedBy: [], writeScopes: [], by: 'lead' }
+    expect(check('team_task', { ...task, taskId: 'x1' })).toEqual(expect.any(String))
+    expect(check('team_task', { ...task, subject: 'x'.repeat(201) })).toEqual(expect.any(String))
+    expect(check('team_task', { ...task, description: 'x'.repeat(4001) })).toEqual(expect.any(String))
+    expect(check('team_task', { ...task, status: 'blocked' })).toEqual(expect.any(String))
+    expect(check('team_message', { messageId: 'm', from: 'a', to: 'b', summary: 'x'.repeat(121) })).toEqual(expect.any(String))
+    expect(check('agent_start', { agentId: 's', agentType: 't', description: '', background: true, toolCallId: 'c', name: 'Bad Name' })).toEqual(
+      expect.any(String),
+    )
   })
 
   it.each([

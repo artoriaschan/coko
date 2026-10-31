@@ -10,11 +10,13 @@ import { permissionEntryPayloadSchemas } from './permissions.ts'
 import { planningEntryPayloadSchemas } from './planning.ts'
 import { runEntryPayloadSchemas } from './runs.ts'
 import { scheduleEntryPayloadSchemas } from './schedules.ts'
+import { teamEntryPayloadSchemas } from './teams.ts'
 import { todoEntryPayloadSchemas } from './todo.ts'
+import { traceEntryPayloadSchemas } from './trace.ts'
 
 // Session Entry：线上信封（SessionEntryRecord，payload 未校验）与按 kind 判别的 SessionEntry。
 // 各 kind 的 payload schema 在领域文件（runs.ts、permissions.ts、checkpoints.ts、context-entries.ts、goal.ts、todo.ts、planning.ts、jobs.ts、hooks.ts、
-// agents.ts、schedules.ts、handoff.ts）中维护，
+// agents.ts、schedules.ts、handoff.ts、teams.ts、trace.ts）中维护，
 // 本文件不随 kind 的 schema 变化而修改。
 
 const strict = { additionalProperties: false } as const
@@ -48,6 +50,8 @@ export const SESSION_ENTRY_PAYLOAD_SCHEMAS = {
   ...agentEntryPayloadSchemas,
   ...scheduleEntryPayloadSchemas,
   ...handoffEntryPayloadSchemas,
+  ...teamEntryPayloadSchemas,
+  ...traceEntryPayloadSchemas,
 }
 type PayloadSchemas = typeof SESSION_ENTRY_PAYLOAD_SCHEMAS
 export type SessionEntryKind = keyof PayloadSchemas

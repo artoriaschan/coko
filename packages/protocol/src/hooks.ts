@@ -19,12 +19,16 @@ export const HookEvent = Type.Union([
   Type.Literal('SubagentStop'),
   Type.Literal('PreCompact'),
   Type.Literal('Notification'),
+  /** 团队事件（ADR 0018）：没有 matcher；分发由 Agent Teams 接入。 */
+  Type.Literal('TaskCreated'),
+  Type.Literal('TaskCompleted'),
+  Type.Literal('TeammateIdle'),
 ])
 export type HookEvent = Static<typeof HookEvent>
 export const HOOK_EVENTS: readonly HookEvent[] = HookEvent.anyOf.map((literal) => literal.const)
 
-/** Hook 的来源：全局设置或项目文件。 */
-export const HookSource = Type.Union([Type.Literal('global'), Type.Literal('project')])
+/** Hook 的来源：全局设置、项目文件或已批准的插件（与全局同级，ADR 0017）。 */
+export const HookSource = Type.Union([Type.Literal('global'), Type.Literal('project'), Type.Literal('plugin')])
 export type HookSource = Static<typeof HookSource>
 
 /** 有结果的执行的结论。ignored：项目 Hook 的 allow（只收紧，不参与判定）。 */
@@ -46,12 +50,13 @@ export type HookOutcome = Static<typeof HookOutcome>
 /** hook_run.message 的上限（字符）。 */
 export const HOOK_RUN_MESSAGE_MAX = 2048
 
-/** hook_run v1：一次有结果的 Hook 执行；command 已脱敏。 */
+/** hook_run v2：一次有结果的 Hook 执行；command 已脱敏；plugin 为来源插件的名字（source plugin）。 */
 export const HookRunPayload = Type.Object(
   {
     event: HookEvent,
     hookId: Id,
     source: HookSource,
+    plugin: Type.Optional(Id),
     command: Type.String(),
     outcome: HookOutcome,
     exitCode: Type.Optional(Type.Integer()),

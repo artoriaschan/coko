@@ -5,6 +5,8 @@ import { CompactionTrigger } from './context-entries.ts'
 import { AgentUpdate } from './agents.ts'
 import { JobSnapshot } from './jobs.ts'
 import { ScheduleUpdate } from './schedules.ts'
+import { TeamUpdate } from './teams.ts'
+import { LspUpdate } from './lsp.ts'
 import { RunStatus } from './runs.ts'
 
 // WebSocket 消息（JSON 文本帧）。entry 是已提交的 Session Entry，带 seq，可在重连时以 afterSeq 补齐；
@@ -89,6 +91,10 @@ export const ProgressEvent = Type.Union([
   AgentUpdate,
   /** 定时任务的公开快照（runId 为空串：不属于任何 Run）。 */
   ScheduleUpdate,
+  /** 根 Session 的团队快照（名册或任务变化时；不属于 Run）。 */
+  TeamUpdate,
+  /** 语言服务器的状态（变化时；runId 为空串：不属于任何 Run）。 */
+  LspUpdate,
   /** 每个 Run 的最后一个进度：run_end 条目已提交或提交失败之后发出；提交失败时客户端据此结束运行中状态。 */
   Type.Object(
     {
@@ -124,13 +130,16 @@ export const DETACHED_PROGRESS: Readonly<Record<ProgressEvent['type'], boolean>>
   job_output: true,
   agent_update: true,
   schedule_update: true,
+  team_update: true,
+  lsp_update: true,
   run_end: false,
 }
 
 /** 不属于 Run 生命周期的进度（DETACHED_PROGRESS）。 */
 export const isDetachedProgress = (
   event: ProgressEvent,
-): event is Extract<ProgressEvent, { type: 'job_update' | 'job_output' | 'agent_update' | 'schedule_update' }> => DETACHED_PROGRESS[event.type]
+): event is Extract<ProgressEvent, { type: 'job_update' | 'job_output' | 'agent_update' | 'schedule_update' | 'team_update' | 'lsp_update' }> =>
+  DETACHED_PROGRESS[event.type]
 
 export const ProgressMessage = Type.Object({ type: Type.Literal('progress'), sessionId: Type.String(), runId: Type.String(), event: ProgressEvent }, strict)
 

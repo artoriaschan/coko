@@ -16,6 +16,7 @@ export const agents = defineDomain(
       cancelled: '已停止',
       'max-turns': '达到轮次上限',
       interrupted: '已中断',
+      dismissed: '已解散',
     },
     card: {
       title: '子代理 {type}',
@@ -77,6 +78,7 @@ export const agents = defineDomain(
       cancelled: 'Stopped',
       'max-turns': 'Turn limit reached',
       interrupted: 'Interrupted',
+      dismissed: 'Dismissed',
     },
     card: {
       title: 'Subagent {type}',
