@@ -307,7 +307,14 @@ export class WorktreeService {
     })
   }
 
-  /** GET /api/sessions/:id/git-status：会话工作目录的分支与未提交文件数；不在 git 仓库中时 repo false。 */
+  /** GET /api/sessions/:id/git-status：Session 不存在时 not-found。 */
+  async gitStatusOf(sessionId: string): Promise<GitStatusResponse> {
+    const session = await this.#store.sessions.getSession(sessionId)
+    if (!session) throw new AppError('not-found', `Session ${sessionId} not found`)
+    return this.gitStatus(session)
+  }
+
+  /** 会话工作目录的分支与未提交文件数；不在 git 仓库中时 repo false。 */
   async gitStatus(session: StoredSession): Promise<GitStatusResponse> {
     const workspace = await this.#workspace(session.workspaceId)
     let cwd: string

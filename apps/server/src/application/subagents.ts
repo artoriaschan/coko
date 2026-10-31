@@ -698,8 +698,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
 
   // ---- 用户的动作（HTTP）与 Goal ----
 
-  /** GET /api/sessions/:id/agents：父 Session 的 agent_start / agent_end 与进程内状态。 */
+  /** GET /api/sessions/:id/agents：父 Session 的 agent_start / agent_end 与进程内状态；Session 不存在时 not-found。 */
   async list(sessionId: string): Promise<AgentSnapshot[]> {
+    if (!(await this.#options.store.sessions.getSession(sessionId))) throw new AppError('not-found', `Session ${sessionId} not found`)
     const entries = await this.#options.store.sessions.listEntries(sessionId)
     const ends = new Map(entries.filter((e) => e.kind === 'agent_end').map((e) => [(e.payload as { agentId: string }).agentId, e]))
     return entries

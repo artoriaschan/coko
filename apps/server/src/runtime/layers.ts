@@ -19,6 +19,7 @@ import { createTestClock, systemClock, type ClockPort, type TestClock } from '..
 import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
 import { createGitRunner } from '../adapters/git.ts'
 import { HandoffService, type HandoffRunHost, type HandoffWorktrees } from '../application/handoff.ts'
+import { AppError } from '../application/errors.ts'
 import { HookService } from '../application/hooks.ts'
 import { NotificationService } from '../application/notifications.ts'
 import { m5RecoveryHooks } from '../application/recovery.ts'
@@ -524,6 +525,15 @@ const AppLive = Layer.effect(
       stopAfterBatch: (sessionId, error) => sessions.runs.stopAfterBatch(sessionId, error),
       permissionMode: async (sessionId) => (await sessions.sessionPermissions(sessionId)).mode,
       scope: async (sessionId) => sessions.runs.scope(await requireSession(store, sessionId)),
+      project: async (target) => {
+        if ('sessionId' in target) {
+          const { workspace, cwd } = await sessions.runs.cwd(await requireSession(store, target.sessionId))
+          return { workspaceId: workspace.id, cwd }
+        }
+        const workspace = await store.sessions.getWorkspace(target.workspaceId)
+        if (!workspace) throw new AppError('not-found', `Workspace ${target.workspaceId} not found`)
+        return { workspaceId: workspace.id, cwd: workspace.path }
+      },
     })
     notifications.observe((input) => hooks.notification(input))
     // 之后创建的运行时的 bash 可以 run_in_background；追加指令到达时唤醒等待中的 job_output。
