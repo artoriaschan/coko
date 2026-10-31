@@ -2,7 +2,7 @@
 import type { SessionEntryRecord } from '@coko/protocol'
 import { describe, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
-import { ChatStoreProvider } from '../../app/chat.tsx'
+import { ChatStoreProvider, useChat } from '../../app/chat.tsx'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { useReloadOnEntryCount } from './use-reload-on-entry-count.ts'
 
@@ -28,8 +28,11 @@ describe('useReloadOnEntryCount', () => {
     const load = (sessionId: string) => void loads.push(sessionId)
     function Probe({ sessionId }: { sessionId: string | null }) {
       useReloadOnEntryCount(sessionId, 'schedule_fire', load)
-      return null
+      // 渲染出条目数：每条条目到达后先等这次渲染，再断言是否读取。
+      const count = useChat((s) => s.conversations['s-1']?.entries.length ?? 0)
+      return <span data-testid="count">{count}</span>
     }
+    const rendered = () => document.querySelector('[data-testid="count"]')?.textContent
     const node = (sessionId: string | null) => (
       <ChatStoreProvider store={fixture.chat}>
         <Probe sessionId={sessionId} />
@@ -38,8 +41,13 @@ describe('useReloadOnEntryCount', () => {
     const screen = await render(node('s-1'))
     await expect.poll(() => loads).toEqual(['s-1'])
     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: user('s-1') })
+    await expect.poll(rendered).toBe('1')
     fixture.sendServer({ type: 'entry', sessionId: 's-2', entry: fire('s-2') })
+    await expect.poll(() => fixture.chat.getState().conversations['s-2']?.entries.length).toBe(1)
+    await screen.rerender(node('s-1'))
+    expect(loads).toEqual(['s-1'])
     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: fire('s-1') })
+    await expect.poll(rendered).toBe('2')
     await expect.poll(() => loads).toEqual(['s-1', 's-1'])
     await screen.rerender(node('s-2'))
     await expect.poll(() => loads).toEqual(['s-1', 's-1', 's-2'])
