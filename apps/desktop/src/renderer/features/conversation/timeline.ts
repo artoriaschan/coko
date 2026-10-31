@@ -21,17 +21,18 @@ import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 /** UserPromptSubmit 的 additionalContext 在 user message 中的文本块开头（服务端 session-runs.ts 的 SUBMIT_CONTEXT_TAG）。 */
 const HOOK_CONTEXT_TAG = '<hook-context>'
-/** 后台子代理结束通知在 user message 中的文本块开头（@coko/agent 的 AGENT_NOTIFICATION_TAG）。 */
+// TODO(合并 main 后)：改为从 @coko/agent/entries 导入（entries/host-input.ts 的同名常量），删除这两个本地定义。
+/** 后台子代理结束通知在 user message 中的文本块开头。 */
 const AGENT_NOTIFICATION_TAG = '<agent-notification'
-/** 定时任务 Run 的输入包装的标签名（@coko/agent 的 SCHEDULED_TASK_TAG）：`<scheduled_task schedule-id title occurrence>prompt</scheduled_task>`。 */
-const SCHEDULED_TASK_TAG = 'scheduled_task'
+/** 定时任务 Run 的输入的开头：`<scheduled_task schedule-id title occurrence>prompt</scheduled_task>`。 */
+const SCHEDULED_TASK_TAG = '<scheduled_task'
 
 const unescapeAttribute = (value: string) =>
   value.replace(/&(quot|lt|gt|apos|#39|amp);/g, (_, name: string) => ({ quot: '"', lt: '<', gt: '>', apos: "'", '#39': "'", amp: '&' })[name] ?? '')
 
 /** <scheduled_task> 包装的 title 属性（属性值由宿主转义）；不是包装时 undefined。 */
 function scheduledTaskTitle(text: string): string | undefined {
-  if (!text.startsWith(`<${SCHEDULED_TASK_TAG}`)) return undefined
+  if (!text.startsWith(SCHEDULED_TASK_TAG)) return undefined
   const head = text.slice(0, text.indexOf('>') + 1)
   const match = / title="([^"]*)"/.exec(head)
   return match ? unescapeAttribute(match[1]!) : ''

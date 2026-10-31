@@ -1,7 +1,7 @@
 import type { MessageKey } from '@coko/i18n'
 import type { HandoffTarget } from '@coko/protocol'
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DropdownMenuItem, Input, Textarea, ToggleGroup, ToggleGroupItem } from '@coko/ui'
-import { ArrowRightLeftIcon, LoaderCircleIcon, TriangleAlertIcon } from 'lucide-react'
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DropdownMenuItem, Input, Textarea, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { ArrowRightLeftIcon, CopyIcon, LoaderCircleIcon, TriangleAlertIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -14,7 +14,8 @@ import { worktreesStore as defaultWorktreesStore, type WorktreesStore } from '..
 import { HeaderMenuActionContext, type HeaderActionProps } from './header-actions.ts'
 
 // 交接（docs/subsystems/handoff.md）：标题栏的"交接"按钮与对话框。对话框填写下一步目标与目标目录（当前目录 / 新 worktree / 已有 worktree），
-// 源会话有未提交改动时提示；提交后显示进行中（可停止），完成后由 handoff store 切到目标会话并把摘要写入其输入区草稿。
+// 源会话有未提交改动时提示；提交后显示进行中（可停止），完成后由 handoff store 切到目标会话并把摘要写入其输入区草稿。摘要之后目标没能创建时
+// 弹出 Toast，对话框显示错误与原因、可复制已写好的摘要，表单保留输入，可重试或关闭。
 
 const HandoffStoreContext = React.createContext<HandoffStore>(defaultHandoffStore)
 const WorktreeListContext = React.createContext<WorktreesStore>(defaultWorktreesStore)
@@ -28,7 +29,8 @@ export function HandoffStoresProvider({ handoff, worktrees, children }: { handof
   )
 }
 
-const ERRORS: Partial<Record<string, MessageKey>> = {
+/** 交接的错误码 → 原因文案：开始交接被拒绝，以及摘要之后目标没能创建（失败的 handoff 条目）。 */
+export const HANDOFF_ERRORS: Partial<Record<string, MessageKey>> = {
   'nothing-to-hand-off': 'handoff.errors.nothing',
   'run-in-progress': 'handoff.errors.running',
   'child-session': 'handoff.errors.childSession',
@@ -36,6 +38,7 @@ const ERRORS: Partial<Record<string, MessageKey>> = {
   'invalid-name': 'handoff.errors.invalidName',
   'worktree-exists': 'handoff.errors.exists',
   'worktree-removed': 'handoff.errors.removed',
+  'unsafe-worktree-path': 'handoff.errors.unsafePath',
 }
 
 type TargetKind = HandoffTarget['kind']
@@ -57,7 +60,7 @@ function useHandoffAction(sessionId: string) {
     const session = chat?.getState().sessions.find((s) => s.id === sessionId)
     return session?.parentSessionId !== undefined
   })
-  const active = progress !== undefined && progress.phase !== 'stopped'
+  const active = progress?.phase === 'summarizing' || progress?.phase === 'creating'
   const label = active ? t('handoff.headerActionRunning') : t('handoff.headerAction')
   const icon = active ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <ArrowRightLeftIcon />
   return { hidden: child, phase: progress?.phase, label, icon }
@@ -70,6 +73,18 @@ export function HandoffButton({ sessionId }: HeaderActionProps) {
   React.useEffect(() => (chat ? store.getState().attach(chat) : undefined), [chat, store])
   const { hidden, phase, label, icon } = useHandoffAction(sessionId)
   const [open, setOpen] = React.useState(false)
+  const { t } = useI18n()
+  // 目标没能创建：对话框可能已经关闭，用应用级 Toast 报告（每次失败一次，按摘要 Run 区分）；详情与重试在对话框中。
+  const failedRun = useStore(store, (s) => {
+    const progress = s.progress[sessionId]
+    return progress?.phase === 'failed' ? progress.runId : undefined
+  })
+  const reported = React.useRef<string | undefined>(undefined)
+  React.useEffect(() => {
+    if (failedRun === undefined || reported.current === failedRun) return
+    reported.current = failedRun
+    toast.error(t('handoff.failed'), { action: { label: t('handoff.retry'), onClick: () => show(false) } })
+  }, [failedRun, t])
   // 经"更多操作"菜单打开时，记下菜单按钮（菜单项已卸载），对话框关闭后焦点回到那里。标题栏按钮直接打开时保持 Radix 的默认行为。
   const opener = React.useRef<HTMLElement | null>(null)
   const show = (fromMenu: boolean) => {
@@ -164,7 +179,9 @@ export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: Ha
   const repo = git?.repo === true
   const effectiveKind: TargetKind = repo ? kind : 'current'
   const selected = effectiveKind === 'worktree' ? (available.find((w) => w.id === worktreeId) ?? available[0]) : undefined
-  const busy = progress !== undefined && progress.phase !== 'stopped'
+  const busy = progress?.phase === 'summarizing' || progress?.phase === 'creating'
+  const failure = progress?.phase === 'failed' ? progress : undefined
+  const failureReason = failure ? HANDOFF_ERRORS[failure.error.code] : undefined
   const canSubmit = instructions.trim() !== '' && !submitting && !busy && (effectiveKind !== 'worktree' || selected !== undefined)
 
   const submit = async () => {
@@ -181,10 +198,19 @@ export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: Ha
     try {
       await store.getState().start(sessionId, { instructions: instructions.trim(), target })
     } catch (e) {
-      const key = e instanceof ApiError ? ERRORS[e.code] : undefined
+      const key = e instanceof ApiError ? HANDOFF_ERRORS[e.code] : undefined
       setError(t(key ?? 'handoff.errors.failed'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const copySummary = async (summary: string) => {
+    try {
+      await navigator.clipboard.writeText(summary)
+      toast.success(t('handoff.summaryCopied'))
+    } catch {
+      toast.error(t('handoff.copyFailed'))
     }
   }
 
@@ -224,6 +250,20 @@ export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: Ha
               <p role="status" data-slot="handoff-stopped" className="text-ui-body text-muted-foreground">
                 {t('handoff.stopped')}
               </p>
+            )}
+            {failure && (
+              <div className="flex flex-wrap items-start gap-2">
+                <p role="alert" data-slot="handoff-failed" data-code={failure.error.code} className="min-w-0 flex-1 text-ui-body text-destructive">
+                  {t('handoff.failed')}
+                  {failureReason && <span className="block">{t(failureReason)}</span>}
+                </p>
+                {failure.summary !== undefined && (
+                  <Button type="button" size="sm" variant="outline" data-action="copy-handoff-summary" onClick={() => void copySummary(failure.summary!)}>
+                    <CopyIcon aria-hidden />
+                    {t('handoff.copySummary')}
+                  </Button>
+                )}
+              </div>
             )}
             <div className="flex flex-col gap-1.5 text-ui-body">
               <label htmlFor="handoff-instructions" className="font-medium">
@@ -328,7 +368,7 @@ export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: Ha
               </Button>
               <Button type="submit" data-action="submit-handoff" disabled={!canSubmit}>
                 {submitting && <LoaderCircleIcon aria-hidden className="animate-spin motion-reduce:animate-none" />}
-                {t('handoff.submit')}
+                {failure ? t('handoff.retry') : t('handoff.submit')}
               </Button>
             </div>
           </form>
