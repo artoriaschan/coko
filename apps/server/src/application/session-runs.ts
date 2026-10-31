@@ -77,7 +77,7 @@ function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInpu
     case 'schedule':
       return runtime.run({ ...withPending(request.input, pending), trigger: 'schedule', schedule: request.schedule })
     case 'subagent':
-      return runtime.run({ ...request.input, trigger: 'subagent' })
+      return runtime.run({ ...request.input, trigger: 'subagent', ...(request.triggerRunId ? { subagent: { triggerRunId: request.triggerRunId } } : {}) })
     case 'handoff':
       return runtime.run({ ...request.input, trigger: 'handoff' })
     case 'retry':
