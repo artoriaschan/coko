@@ -7,3 +7,4 @@
 - 2026-10-31：票 02 实施者在不属于本票的文件中发现间歇性缺陷（job_end 缺 signal），lead 先回复了"OK"；之后定位到 jobs.ts 的 #finish 只采用退出本身的 signal，另起修复票。
 - 2026-10-31：m6/fix-job-kill-signal 合入（dbad2c9）：job_end 的 signal 在进程退出不带信号时采用宿主最后发出的信号；5 例单元测试用假 spawn，不依赖时序，2 例先红。
 - 2026-10-31：本机负载多次到 80–92，没有其他全量重叠时也出现（DeepSeek Harness 自身的渲染进程常驻 100% CPU）。真实进程与 Browser Mode 的用例在这种负载下会超时；theme-switch 用例三次在负载下失败（读到过渡中的颜色），另开修复。票 01、02 与信号修复的 MERGE-READY 后 lead 都先回复了"OK"。
+- 2026-10-31：m6/fix-theme-switch 合入（4ddcaab）。lead 先判断为"过渡中的颜色"并据此写了 brief，实施者读实际值后确认是 hover 色：Browser Mode 共用页面，指针停在前一个文件留下的位置。applyTheme 没有问题。修复只改用例（测量区域 pointer-events: none，并强制 hover 确定性复现），testing.md 的"Browser Mode 共用页面"一条补了指针位置（f44cb6d）。main 上在锁内复核：全量 319 文件 2590 通过、1 跳过，typecheck、lint、format:check 退出 0。合入后 lead 又回复了一次"OK"。
