@@ -16,3 +16,4 @@
 - [ ] manual-verification.md 建立；ADR 0017、0018、0019 为 implemented，0003 为 implemented；`check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：发布构建 E2E 复跑时确认插件声明的 LSP 服务器被启动（票 04 移给票 05 的验收）。

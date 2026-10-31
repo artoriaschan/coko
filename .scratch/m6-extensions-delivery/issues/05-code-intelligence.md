@@ -23,3 +23,4 @@
 - [ ] lsp.md 建立并可达；docs/README 当前行为一行；`check:docs` 通过；真实语言服务器记为未验证（人工清单）
 
 ## Comments
+- 2026-10-31 lead：**新增验收（来自票 04）。** 插件声明的 LSP 服务器（经 PluginContributionsPort 的 lspServers，批准后）由 LspService 启动；在打包产物 smoke 中用票 03 的 LSP 假服务器夹具断言该进程被启动并登记为 kind lsp，退出后登记删除。若本票开始时票 04 尚未合入，先以 COKO_TEST_PLUGINS 测试端口提供插件声明完成这一项，合并 main 后用真实插件路径再跑一次。

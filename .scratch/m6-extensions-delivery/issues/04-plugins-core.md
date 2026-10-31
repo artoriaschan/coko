@@ -23,3 +23,4 @@
 - [ ] plugins.md 建立并可达（清单、来源、批准、命名空间、生命周期、与项目资源的区别）；ADR 0017 补服务端证据（implemented 由 12 改）；`check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：裁决（产物 smoke 中的插件 LSP）。本票验收"插件的 LSP 假服务器在打包产物中被启动"依赖票 05 的 LspService（main 上是票 03 的空存根）。本票的 smoke 改为断言：插件声明的 MCP Server 在打包产物中被启动（记录文件出现），且插件的 lspServers 出现在 GET /api/plugins 的 executables 中；该验收项按此读法勾选。"插件的 LSP 进程在打包产物中被启动"移到票 05 的验收（见票 05 Comments），票 14 的发布构建 E2E 复跑时一并确认。
