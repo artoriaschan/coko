@@ -232,3 +232,29 @@ H1、H2、H3、H5、H6、J6、J7。
 | H6 界面部分 | 失败的 handoff 条目（`status: 'failed'`）使进度离开 creating 为 failed：Toast（带重试）、对话框的错误与原因、复制摘要、"重试"；时间线失败行 | handoff-store.test.ts 2 例（注入条目；变异：去掉失败分支后 2 例红）＋1 例推送（协议收录 status 之前 skipIf 跳过）；handoff.browser.test.tsx 3 例（先红） |
 | Lead 点名项（Stop 按钮灰色） | 原因为主题切换时 transition-colors 在两套 token 之间插值（Tailwind 4 的 `hover:` 已在 `(hover: hover)` 内，不是 hover）。`@coko/ui` 的 `applyTheme` 在切换的那一帧关闭过渡并重算样式，App 改用它 | theme-switch.browser.test.tsx（先红：切换后读到旧主题颜色）；Electron 中运行中的 Stop 在明暗各两次切换后计算颜色等于 --primary |
 | J10 界面部分（openSession 跨通道） | 新 E2E：main 以 `IPC.openSession` 发送，preload → renderer 关闭设置页并打开该会话 | open-session.e2e.test.ts（变异：通道名改错后超时失败） |
+
+## 处理结果（票 11：运行时）
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| H1 | `runAuthority` 按 `HOST_NOTIFICATION_KINDS`（job / agent_notification）判定宿主通知（244ba1f） | goals.test.ts 两行表驱动 |
+| H2 | `hasUserSteering` 用 `isHostNotificationText`；标签收到 `entries/host-input.ts`（244ba1f） | goal-driver.test.ts |
+| H3 | 没有 isolation 的子 Session 继承 `parent.worktreeId`（ffdd9f1） | sidecar-subagents-isolation：worktree 会话中 pwd 为 worktree |
+| H4 | 项目规则按 `(workspaceId, cwd)`、恢复探测与回退边界按 SessionCwd（ffdd9f1）；上下文用量仍按 Workspace（登记为已知限制） | session-cwd-scope.test.ts（探测、deny 规则） |
+| H5 | 前台与后台都补中断说明（含"可能已改动文件"），agent_start 之前的孤儿子 Session 补记 start / end，worktree 回收（b845a14） | subagents-recovery.test.ts、sidecar-subagents-restart 后台用例、worktrees.test.ts |
+| H6 | 新 kind `handoff_failed { instructions, summary, error, usage? }`，usage 计入 Goal；renderer 据此离开 creating（034f8e5、cfe03c7） | handoff.test.ts、secrets-gate-handoff 失败用例、handoff-store.test.ts |
+| H7 | gate 在 Hook / 规则拒绝之后直接拒绝 plan / read-only 的 isolation（ce50db8） | sidecar-subagents-isolation：plan 下没有 approval_request |
+| H8 | 后台子代理的 approval-waiting 与 agent-finished 经控制通道 notify 按序断言（15676c3）；E2E 的 `notification shown` 未加（apps/desktop/e2e 不在写范围） | sidecar-subagents.test.ts（变异：去掉审批通知条件时失败） |
+| H9 | `AgentRuntime.refreshTools`（pi 的 prepareNextTurnWithContext）；agent_start 之后重新取工具（a556094） | sidecar-subagents：第一次派发后同一 Run 的 agent_wait |
+| J1 | 交接 Run 不推进；交接完成后 running 的 Goal 暂停 `handed-off`；waiting-input 只由 submit / continue / retry 唤醒（afbcb8f） | goals-wake.test.ts、sidecar-handoff 更新 |
+| J2 | ScheduleService 经 `GoalService.exhaustedDimension` 判定（f95eeea） | sidecar-schedules：子代理用尽预算后 skipped budget |
+| J3 | 不处理：设置关闭时是否仍触发 Notification Hook 属于规格语义，交 Lead 裁决 | — |
+| J4 | 不处理：给父 Session 加 `Edit(<path>)` 询问规则改变已采纳的隔离语义，交 Lead 裁决 | — |
+| J5 | 唯一入口 `SessionService.createRecord`，removed 时 409 `worktree-removed`；子代理与交接经它创建（6f83eaa） | session-cwd-scope.test.ts |
+| J6 | max-turns 按本 Run 已提交的 assistant 条目计数（bb3d625） | subagents-dispatch.test.ts |
+| J7 | admit 与自动压缩之后再查 `run.aborted`（6d0471c） | host-stop.test.ts（未修复时多一条 aborted assistant） |
+| J8 | 不处理：COKO_PROJECT_DIR 取 cwd 还是 Workspace 是规格选择，交 Lead 裁决 | — |
+| J9 | 不处理：UserPromptSubmit 收原文还是展开文本是规格选择，交 Lead 裁决 | — |
+| J10 | switch 加 never 穷尽、`DETACHED_PROGRESS` 按类型穷尽登记（a175172）；openSession 的跨通道 E2E 由票 12 在 main 上加入（open-session.e2e） | 变异：删去一个分支或一个键时 tsc 报错 |
+
+时间线显示 `<scheduled_task>` 与 `<agent-notification` 的问题由票 12 处理；本票只把 timeline 的本地常量改为从 `@coko/agent/entries` 导入（cfe03c7）。
