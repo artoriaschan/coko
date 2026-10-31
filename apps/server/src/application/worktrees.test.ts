@@ -170,4 +170,23 @@ describe('WorktreeService 创建与工作目录', REAL_GIT_BUDGET, () => {
     ])
     expect(kept.status).toBe('active')
   })
+
+  it('recover：子代理派发时创建、还没有子 Session 绑定就崩溃的 worktree 没有改动时回收；用户创建的与有改动的保留', async () => {
+    const { store, service, workspace } = await setup()
+    const user = await service.create(workspace.id, { name: 'mine' })
+    const orphan = await service.createForSubagent(workspace.id, 'orphan01')
+    const dirty = await service.createForSubagent(workspace.id, 'dirty002')
+    await writeFile(join(dirty.path, 'x.txt'), 'x\n')
+    const bound = await service.createForSubagent(workspace.id, 'bound001')
+    const parent = await store.sessions.createSession({ workspaceId: workspace.id })
+    await store.sessions.createSession({ workspaceId: workspace.id, parentSessionId: parent.id, worktreeId: bound.id })
+    await service.recover({ listUnfinishedRuns: async () => [], listLatestEntries: async () => [] })
+    expect(Object.fromEntries((await store.worktrees.list(workspace.id)).map((w) => [w.name, w.status]))).toEqual({
+      [user.name]: 'active',
+      [orphan.name]: 'removed',
+      [dirty.name]: 'active',
+      [bound.name]: 'active',
+    })
+    expect(await exists(orphan.path)).toBe(false)
+  })
 })

@@ -90,8 +90,15 @@ export function agentNotificationText(outcome: AgentOutcome): { text: string; in
 export const agentStartedText = (started: { agentId: string; agentType: string; description: string }) =>
   `Started subagent ${started.agentId} (${started.agentType}): ${started.description}. Wait with agent_wait.`
 
-/** 重启后父级被中断的 agent 调用的结果（不进入结果确认）。 */
-export const agentInterruptedText = (agentId: string) => `Subagent interrupted by a restart; partial results are in child session ${agentId}.`
+/**
+ * 重启后父级被中断的 agent 调用的结果（不进入结果确认）。子代理可能已经改动了文件：不说"可以重试"，先查看子 Session 再决定是否重派。
+ */
+export const agentInterruptedText = (agentId: string) =>
+  `Subagent interrupted by a restart; partial results are in child session ${agentId}. ` +
+  'It may have changed files before it stopped: check that session (and its worktree, if any) before starting the task again.'
+
+/** 重启前子 Session 还没有创建的 agent 调用的结果：子代理没有开始，没有它的改动。 */
+export const AGENT_NOT_STARTED_TEXT = 'The subagent did not start before Coko restarted (no child session was created); you can start it again.'
 
 const text = (value: string, isError = false) => ({ content: [{ type: 'text' as const, text: value }], details: { isError } })
 

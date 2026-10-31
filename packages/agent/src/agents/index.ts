@@ -18,6 +18,7 @@ export {
   AGENT_RESULT_MAX_CHARS,
   AGENT_WAIT_DEFAULT_MS,
   AGENT_WAIT_MAX_MS,
+  AGENT_NOT_STARTED_TEXT,
   agentInterruptedText,
   agentNotificationText,
   agentResultText,
