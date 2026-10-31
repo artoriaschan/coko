@@ -19,3 +19,4 @@
 完成时在评审文件末尾"处理结果"中补本票的项（与票 11 写在同一节，各自标票号）。完成前 git merge main，运行 typecheck、lint、format:check（逐项退出码 0）与取锁的全量 pnpm run test；UI 改动在 Electron 中检查明暗主题与 390 px。
 
 ## Comments
+- 2026-10-31 lead：已把票 12 提出的三项约定写入票 11 的 Comments，请票 11 按此对齐；合入时由 lead 核对两边一致。

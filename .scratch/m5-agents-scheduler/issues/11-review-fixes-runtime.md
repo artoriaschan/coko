@@ -32,3 +32,4 @@ Lead 裁决的 judgement 项：
 完成时：两份评审文件末尾追加"处理结果"（编号 → 处理 → 测试），同步 ADR 与 subsystems 文档。完成前 git merge main，运行 typecheck、lint、format:check（逐项退出码 0）与取锁的全量 pnpm run test。
 
 ## Comments
+- 2026-10-31 lead：票 11 与票 12 的约定（票 12 已按此实现界面，票 11 请按此对齐；不同时在本票 Comments 写明，lead 合入时协调）：(1) 交接失败——源 Session 提交 kind `handoff` 的条目，payload `status: 'failed'`、`error: { code: string, message?: string }`，`usage` 与 `summary` 照常写入，失败条目可省略 `targetSessionId`；不新增 progress 类型，renderer 只按条目判断。(2) 宿主通知标签——从 `@coko/agent/entries` 导出 `AGENT_NOTIFICATION_TAG`（'<agent-notification'）与 `SCHEDULED_TASK_TAG`（'scheduled_task'），收为一处常量，agent 与 server 同样使用。(3) Goal 暂停原因 `handed-off` 与错误码 `worktree-removed`：协议与 server 在票 11，zh / en 文案在票 12。
