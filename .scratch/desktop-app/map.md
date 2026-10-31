@@ -52,7 +52,7 @@ Status: open
 - M3：J4 Secrets 对 bash 的隐藏只靠环境变量名模式；接入 MCP 凭据时改为显式白名单或按来源隔离（M2 Standards 评审）。→ 已分配 M3 票 07，按来源隔离，见 ADR 0007。
 - M3：S2 条目派生逻辑在 server/agent 与 renderer 各一份、S3 SessionService 768 行，随 M3 改动 Session 时收敛（M2 Standards 评审）。→ 已分配 M3 票 01。
 
-- M6：MCP HTTP Server 返回 401 时没有专门的 auth-required 状态，目前显示为普通失败（M3 票 07）。
+- M6：MCP HTTP Server 返回 401 时没有专门的 auth-required 状态，目前显示为普通失败（M3 票 07）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
 
 - M4：M3 结构债 J1、J2、J4–J7（sessions.ts 535 行、runtime.ts 813 行、路由直接访问存储等）在引入 Goal / Plan 状态前收敛（M3 Standards 评审）。→ 已分配 M4 票 01。
 - M4：新增读取根或注入点的票须附符号链接越界用例，秘密总闸扫描 requestLog（M3 复盘）。→ 写入 M4 implementer-brief。
@@ -60,14 +60,14 @@ Status: open
 - M5：M4 评审未做的坏味道（B1–B12、B15，含三份 HTTP helper 与每 Session 锁的重复）；context-ring、mcp-section、rewind-dialog 中把 text-warning 用作文字的地方改为 text-warning-text；手动 /compact 不经预算检查（M4 评审修复票 12）。 → 已分配 M5 票 01。
 - M5：预算、权限或沙箱判定的票，验收固定加"对手用例"——模型或命令输出构造的输入不能改变判定结果（M4 复盘）。 → 写入 M5 implementer-brief。
 
-- M6：带 owner / 认领 / 锁的 Task、共享的 `blockedBy` 与 TaskCreated / TaskCompleted / TeammateIdle Hook 随 Agent Teams 交付（M5 规划裁决：M5 子代理是一次性派发，没有认领方）。
-- M6：Plugins 以同一 Hook schema 声明 Hook；prompt / http / agent 型 Hook 与 `updatedInput` 不在 M5（ADR 0013）。
-- M6：子代理的继续对话（send_message）；teammate 的 worktree 复用 ADR 0016 的机制。
+- M6：带 owner / 认领 / 锁的 Task、共享的 `blockedBy` 与 TaskCreated / TaskCompleted / TeammateIdle Hook 随 Agent Teams 交付（M5 规划裁决：M5 子代理是一次性派发，没有认领方）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
+- M6：Plugins 以同一 Hook schema 声明 Hook；prompt / http / agent 型 Hook 与 `updatedInput` 不在 M5（ADR 0013）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
+- M6：子代理的继续对话（send_message）；teammate 的 worktree 复用 ADR 0016 的机制。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
 
-- M6：M5 评审未处理的项——Spec J3（关闭通知时 Notification Hook 不运行）、J4（父 Session 写入 isolation worktree 不询问）、J8（COKO_PROJECT_DIR 与 grilling:109 不一致）、J9（UserPromptSubmit 收到展开前的原文）；Standards H4（worktree 移除的 TOCTOU）、H5（项目 PermissionRequest 的 allow 记为 allowed）、H8（SubagentStart/Stop 用 redactSecretValues 而非 redactText）、T3–T5、S2–S10。理由见 M5 两份评审的"处理结果"。
-- M6：worktree 会话的上下文用量仍按 Workspace 目录；checkpoint 回退边界的改动没有专门用例；子代理桌面通知在 Electron 中的显示没有 E2E（M5 票 11）。
-- M6：390 px 下输入区占位符逐词换行（M5 票 12）。
-- M6：凡新增宿主注入的消息种类，验收固定包含 runAuthority、Goal 的用户输入判断与时间线三处；跨进程功能至少一条在接收侧观察结果的用例；可并行票之间的接口在开票时定死（M5 复盘）。
+- M6：M5 评审未处理的项——Spec J3（关闭通知时 Notification Hook 不运行）、J4（父 Session 写入 isolation worktree 不询问）、J8（COKO_PROJECT_DIR 与 grilling:109 不一致）、J9（UserPromptSubmit 收到展开前的原文）；Standards H4（worktree 移除的 TOCTOU）、H5（项目 PermissionRequest 的 allow 记为 allowed）、H8（SubagentStart/Stop 用 redactSecretValues 而非 redactText）、T3–T5、S2–S10。理由见 M5 两份评审的"处理结果"。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
+- M6：worktree 会话的上下文用量仍按 Workspace 目录；checkpoint 回退边界的改动没有专门用例；子代理桌面通知在 Electron 中的显示没有 E2E（M5 票 11）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
+- M6：390 px 下输入区占位符逐词换行（M5 票 12）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
+- M6：凡新增宿主注入的消息种类，验收固定包含 runAuthority、Goal 的用户输入判断与时间线三处；跨进程功能至少一条在接收侧观察结果的用例；可并行票之间的接口在开票时定死（M5 复盘）。 → 已分配 M6（去向见 m6-extensions-delivery/spec.md 的"Carry-overs 去向"）。
 
 ## Route status
 
@@ -81,6 +81,8 @@ Status: open
 | M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | in progress（规划中，2026-10-31） |
 
 ## Out of scope
+
+- 插件市场与 npm 来源、OAuth 型 MCP 认证、用户直接给 teammate 发消息、带历史分叉的子代理（M6 规划裁决）。
 
 - Windows / Linux 构建与发布（TECH_STACK 首发范围仅 macOS arm64）。
 - 代码签名、公证与发布更新 feed：需要 Apple 开发者证书与发布目的地，见 [各能力的首发深度](issues/09-grill-capability-depth.md)；自动更新只做接线。
