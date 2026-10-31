@@ -6,8 +6,8 @@ import { writeSessionDraft } from './draft-store.ts'
 
 // 交接的 store（docs/subsystems/handoff.md）：开始交接（POST /api/sessions/:id/handoff）、源会话的 git 状态（未提交改动提示）、进行中的交接
 // 与停止。进行中的状态由条目派生：源会话的 trigger handoff 的 run_start 开始，run_end 正常结束后等 handoff 条目，其余结束为停止。
-// handoff 条目到达时把摘要写入目标会话的输入区草稿（不提交），用户仍在源会话时切到目标会话。只处理订阅完成之后到达的条目：打开会话时
-// 补发的历史不触发切换。
+// handoff 条目到达时把摘要写入目标会话的输入区草稿（不提交），用户仍在源会话时切到目标会话；失败的 handoff 条目（摘要之后目标没能创建）
+// 使进度变为 failed，带错误码与摘要（对话框显示错误、复制摘要与重试）。只处理订阅完成之后到达的条目：打开会话时补发的历史不触发切换。
 
 export interface HandoffBackend {
   start(sessionId: string, input: { instructions: string; target: HandoffTarget }): Promise<{ runId: string }>
@@ -25,8 +25,32 @@ export function httpHandoffBackend(fetchImpl?: Fetch): HandoffBackend {
   }
 }
 
-/** 会话的交接进度：summarizing（摘要 Run 进行中）→ creating（Run 正常结束，等目标）；停止或失败为 stopped。 */
-export type HandoffProgress = { phase: 'summarizing' | 'creating'; runId: string } | { phase: 'stopped'; runId: string }
+/** 交接没能创建目标时的错误：code 为协议错误码（缺失时为空串），message 为 Sidecar 给出的原文（诊断用）。 */
+export interface HandoffFailure {
+  code: string
+  message?: string
+}
+
+/**
+ * 会话的交接进度：summarizing（摘要 Run 进行中）→ creating（Run 正常结束，等目标）；摘要 Run 停止或出错为 stopped；
+ * 摘要之后目标没能创建为 failed（summary 为已写好的摘要，可复制）。
+ */
+export type HandoffProgress =
+  | { phase: 'summarizing' | 'creating'; runId: string }
+  | { phase: 'stopped'; runId: string }
+  | { phase: 'failed'; runId: string; error: HandoffFailure; summary?: string }
+
+/** 失败的 handoff 条目（status: 'failed'）的错误与摘要；成功的条目返回 undefined。字段按形状读取，缺失时取空。 */
+export function handoffFailure(payload: unknown): { error: HandoffFailure; summary?: string } | undefined {
+  if (!payload || typeof payload !== 'object' || (payload as { status?: unknown }).status !== 'failed') return undefined
+  const { error, summary } = payload as { error?: unknown; summary?: unknown }
+  const code = error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string' ? (error as { code: string }).code : ''
+  const message = error && typeof error === 'object' ? (error as { message?: unknown }).message : undefined
+  return {
+    error: { code, ...(typeof message === 'string' && message !== '' ? { message } : {}) },
+    ...(typeof summary === 'string' && summary !== '' ? { summary } : {}),
+  }
+}
 
 export interface HandoffState {
   /** 按源会话。完成（切到目标）后删除。 */
@@ -41,7 +65,7 @@ export interface HandoffActions {
   /** 停止进行中的摘要 Run（Sidecar 停止后不创建目标）。 */
   stop(sessionId: string): Promise<void>
   loadGitStatus(sessionId: string): Promise<void>
-  /** 清除已停止的提示。 */
+  /** 清除已停止或失败的提示。 */
   dismiss(sessionId: string): void
   /** 接到对话 store：按条目推进交接并在完成时切到目标会话。返回取消订阅。 */
   attach(chat: StoreApi<ChatState & ChatActions>): () => void
@@ -53,9 +77,11 @@ export interface HandoffStoreOptions {
   backend?: HandoffBackend
   /** 写入目标会话草稿（测试注入）；缺省为应用内的草稿存储。 */
   writeDraft?: (sessionId: string, text: string) => void
+  /** 交接完成的处理结束之后（草稿已写、会话列表已读取、已决定是否切换）调用；测试据此等待。 */
+  onFinished?: (result: { sourceId: string; targetSessionId: string; switched: boolean }) => void
 }
 
-export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft = writeSessionDraft }: HandoffStoreOptions = {}): HandoffStore {
+export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft = writeSessionDraft, onFinished }: HandoffStoreOptions = {}): HandoffStore {
   /** 每个会话已处理到的 seq；第一次见到已就绪的会话时从它当时的末尾开始（不处理历史）。 */
   const seen = new Map<string, number>()
   /** 已结束（或已完成交接）的摘要 Run：start 的响应晚于它们的条目到达时不再记为进行中。 */
@@ -72,7 +98,9 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
       setProgress(sourceId, undefined)
       writeDraft(targetSessionId, summary)
       await chat.getState().load()
-      if (chat.getState().activeSessionId === sourceId) chat.getState().openSession(targetSessionId)
+      const switched = chat.getState().activeSessionId === sourceId
+      if (switched) chat.getState().openSession(targetSessionId)
+      onFinished?.({ sourceId, targetSessionId, switched })
     }
 
     const observe = (chat: StoreApi<ChatState & ChatActions>) => {
@@ -99,7 +127,9 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
             )
           } else if (entry.kind === 'handoff') {
             if (entry.runId) ended.add(entry.runId)
-            void finish(chat, sessionId, entry.payload.targetSessionId, entry.payload.summary)
+            const failure = handoffFailure(entry.payload)
+            if (failure) setProgress(sessionId, { phase: 'failed', runId: entry.runId ?? current?.runId ?? '', ...failure })
+            else void finish(chat, sessionId, entry.payload.targetSessionId, entry.payload.summary)
           }
         }
       }
@@ -125,7 +155,8 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
         }
       },
       dismiss(sessionId) {
-        if (get().progress[sessionId]?.phase === 'stopped') setProgress(sessionId, undefined)
+        const phase = get().progress[sessionId]?.phase
+        if (phase === 'stopped' || phase === 'failed') setProgress(sessionId, undefined)
       },
       attach(chat) {
         // 多个按钮挂载时共用一次订阅（同一个对话 store）。

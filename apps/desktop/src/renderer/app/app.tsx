@@ -1,5 +1,5 @@
 import { createTranslator } from '@coko/i18n'
-import { AppFrame, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
+import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
 import * as React from 'react'
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
@@ -36,7 +36,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 
   // 主题类与文档语言属于 document 级外部状态，在绘制前同步。
   React.useLayoutEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    applyTheme(theme)
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
   }, [theme, locale])
 

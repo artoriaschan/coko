@@ -29,7 +29,6 @@ export const goal = defineDomain(
       'user-paused': '你暂停了目标',
       'user-stopped': '你停止了运行',
       'hook-stopped': 'Hook 停下了运行，恢复后继续',
-      'handed-off': '已交接到新会话，恢复后在这里继续',
       'approval-unanswered': '运行停止时仍有待回答的审批',
       'needs-input': '需要你的输入',
       'waiting-jobs': '等待后台任务结束',
@@ -48,6 +47,7 @@ export const goal = defineDomain(
       'model-required': '需要先选择模型',
       'confirmation-pending': '有待你确认的工具结果',
       'user-cancelled': '你取消了目标',
+      'handed-off': '已交接到新会话，恢复后在这里继续',
       error: '运行出错',
     },
     dimension: {
@@ -131,7 +131,6 @@ export const goal = defineDomain(
       'user-paused': 'You paused the goal',
       'user-stopped': 'You stopped the run',
       'hook-stopped': 'A hook stopped the run; resume to continue',
-      'handed-off': 'Handed off to a new session; resume to continue here',
       'approval-unanswered': 'The run stopped while an approval was waiting',
       'needs-input': 'Needs your input',
       'waiting-jobs': 'Waiting for background jobs to finish',
@@ -150,6 +149,7 @@ export const goal = defineDomain(
       'model-required': 'Choose a model first',
       'confirmation-pending': 'A tool result is waiting for your confirmation',
       'user-cancelled': 'You cancelled the goal',
+      'handed-off': 'Handed off to a new session; resume to continue here',
       error: 'The run failed',
     },
     dimension: {

@@ -39,6 +39,7 @@ const CREATE_ERRORS: Partial<Record<string, MessageKey>> = {
   'invalid-name': 'worktrees.errors.invalidName',
   'worktree-exists': 'worktrees.errors.exists',
   'unsafe-worktree-path': 'worktrees.errors.unsafePath',
+  'worktree-removed': 'worktrees.errors.removed',
 }
 
 /** Workspace 组标题的菜单按钮与它打开的两个对话框。 */

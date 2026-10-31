@@ -413,6 +413,13 @@
     -webkit-app-region: no-drag;
   }
 
+  /* 切换明暗主题的那一帧（applyTheme）：颜色直接落到新主题，不在两套 token 之间过渡。 */
+  [data-theme-switching] *,
+  [data-theme-switching] ::before,
+  [data-theme-switching] ::after {
+    transition: none !important;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,

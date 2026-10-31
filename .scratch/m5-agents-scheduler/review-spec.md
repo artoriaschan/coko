@@ -220,3 +220,15 @@ H1、H2、H3、H5、H6、J6、J7。
   - 全部 E2E
   - 除 subagents、restart、schedules 片段之外的集成用例
   - 票 01 的 B1–B15 细项
+
+
+## 处理结果
+
+### 票 12（界面，分支 m5/12-review-fixes-ui）
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| Lead 点名项（`<scheduled_task>` / `<agent-notification>` 原文气泡） | 时间线不再显示两种包装：`trigger: schedule` 的 Run 的第一条输入由 schedule_fire 行表示（列表中找不到任务时取包装的 title）；紧接 agent_notification 条目的 `<agent-notification` 文本块去掉，只有通知的消息不成气泡。只认宿主条目确定的位置，用户输入的同样文本照常显示 | timeline.test.ts 3 例（先红 2 例；对手用例 1 例）；schedules-tab.browser.test.tsx 后备标题 1 例 |
+| H6 界面部分 | 失败的 handoff 条目（`status: 'failed'`）使进度离开 creating 为 failed：Toast（带重试）、对话框的错误与原因、复制摘要、"重试"；时间线失败行 | handoff-store.test.ts 2 例（注入条目；变异：去掉失败分支后 2 例红）＋1 例推送（协议收录 status 之前 skipIf 跳过）；handoff.browser.test.tsx 3 例（先红） |
+| Lead 点名项（Stop 按钮灰色） | 原因为主题切换时 transition-colors 在两套 token 之间插值（Tailwind 4 的 `hover:` 已在 `(hover: hover)` 内，不是 hover）。`@coko/ui` 的 `applyTheme` 在切换的那一帧关闭过渡并重算样式，App 改用它 | theme-switch.browser.test.tsx（先红：切换后读到旧主题颜色）；Electron 中运行中的 Stop 在明暗各两次切换后计算颜色等于 --primary |
+| J10 界面部分（openSession 跨通道） | 新 E2E：main 以 `IPC.openSession` 发送，preload → renderer 关闭设置页并打开该会话 | open-session.e2e.test.ts（变异：通道名改错后超时失败） |

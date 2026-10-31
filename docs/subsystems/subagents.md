@@ -85,7 +85,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 ## 界面
 
 - **`agent` 工具卡。** 标题为"子代理 <类型>"，摘要为描述，状态取 `agent_end`（没有时取 `agent_update` 合并的列表，有 `agent_start` 时为运行中）：running / completed / failed / cancelled（已停止）/ max-turns（达到轮次上限）/ interrupted。卡片默认展开：运行中显示一行进度（`agent_update.activity` 的工具名与摘要；后台为"已在后台运行"，还没有工具调用时为"正在启动…"），结束后显示轮次、工具调用、Token 与时长；后台子代理在标题行有"后台"标记，保留的 worktree 显示分支。明细为结果文本（`<agent-result>` 的正文；后台的启动文本不显示）与"在右栏查看"。状态与用量不读结果文本中的标签。派发失败（没有 `agent_start`）时按工具调用的错误显示，不提供打开入口。
-- **`agent_notification` 行。** 紧凑行"子代理已结束"，每个子代理一项（状态点、类型 · 描述、状态），点击在右栏打开。
+- **`agent_notification` 行。** 紧凑行"子代理已结束"，每个子代理一项（状态点、类型 · 描述、状态），点击在右栏打开。紧随其后、送达通知的 user message 中的 `<agent-notification …>` 文本块不显示为用户气泡（只有通知的消息不成气泡，同一消息中的用户文字照常显示）；不在 `agent_notification` 条目之后的同样文本照常显示。
 - **标题栏"子代理"按钮。** 会话有子代理时显示，徽标为 running 数；点击打开右栏的 Agents tab。工具卡与通知行的打开请求经它打开右栏。按钮只显示状态，窄主区中也留在标题栏（没有"更多操作"菜单项）。
 - **右栏 Agents tab。** 列表（状态点、类型、描述，次行为状态 · 用量或已运行时长 · 后台，保留的 worktree 分支）；缺省选中最近派发的运行中子代理，选中后固定。选中项的明细订阅子 Session（不切换当前会话），以 TimelineView 显示只读时间线（没有输入区与消息动作，底部注明只读），运行中时有"停止"（`POST …/agents/:agentId/cancel`，已结束视为成功）。键盘：列表项 Enter 选中并打开其时间线，Tab 到达停止按钮。
 - **审批冒泡。** 父会话订阅其 running 子代理的子 Session；父会话与这些子 Session 中最早的待审批请求（按条目 `createdAt`）接管父会话输入区。来自子代理的卡片标出"来自子代理 <类型> · <描述>"，回答发往子 Session 的 `POST /api/sessions/<child>/approvals/<id>`（同一请求只发送一次）；"总是允许"照常写入根 Session。输入区在接管期间保持挂载，草稿不丢。
