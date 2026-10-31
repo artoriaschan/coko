@@ -1,5 +1,6 @@
 import * as React from 'react'
 import type { RightPanelTabId } from '../right-panel/tabs.ts'
+import { AgentsButton } from './agents-button.tsx'
 import { HandoffButton, HandoffMenuItem } from './handoff-dialog.tsx'
 import { JobsButton } from './jobs-button.tsx'
 import { SchedulesButton } from './schedules-button.tsx'
@@ -32,15 +33,10 @@ export interface HeaderActionDefinition {
  */
 export const HeaderMenuActionContext = React.createContext<(action: () => void) => void>((action) => action())
 
-/** 未交付操作的占位：available 为 false，不会挂载。 */
-function Unavailable() {
-  return null
-}
-
 export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'jobs', Component: JobsButton, available: true },
   { id: 'cost', Component: SessionCost, available: true },
-  { id: 'agents', Component: Unavailable, available: false },
+  { id: 'agents', Component: AgentsButton, available: true },
   { id: 'schedules', Component: SchedulesButton, available: true },
   { id: 'handoff', Component: HandoffButton, MenuItem: HandoffMenuItem, available: true },
 ]

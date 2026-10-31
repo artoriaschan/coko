@@ -1,4 +1,4 @@
-// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件、子代理）不出现在导航中，也不能经 show / setSection 打开。
+// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件）不出现在导航中，也不能经 show / setSection 打开。
 import '../../styles.css'
 import type { Locale } from '@coko/i18n'
 import { afterEach, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ it('菜单按个人、环境、插件、模型分组，关于不属于任何分�
   expect(ids(navigationGroups())).toEqual([
     { group: 'personal', sections: ['general', 'memory', 'notifications'] },
     { group: 'environment', sections: ['permissions', 'schedules'] },
-    { group: 'plugins', sections: ['skills', 'mcp', 'hooks'] },
+    { group: 'plugins', sections: ['skills', 'mcp', 'hooks', 'agents'] },
     { group: 'models', sections: ['models'] },
     { group: null, sections: ['about'] },
   ])
@@ -78,7 +78,7 @@ it.each([
     [
       { title: '个人', items: ['常规', '记忆', '通知'] },
       { title: '环境', items: ['权限', '定时任务'] },
-      { title: '插件', items: ['技能', 'MCP', 'Hook'] },
+      { title: '插件', items: ['技能', 'MCP', 'Hook', '子代理'] },
       { title: '模型', items: ['模型服务'] },
       { title: null, items: ['关于'] },
     ],
@@ -88,7 +88,7 @@ it.each([
     [
       { title: 'Personal', items: ['General', 'Memory', 'Notifications'] },
       { title: 'Environment', items: ['Permissions', 'Scheduled tasks'] },
-      { title: 'Plugins', items: ['Skills', 'MCP', 'Hooks'] },
+      { title: 'Plugins', items: ['Skills', 'MCP', 'Hooks', 'Agents'] },
       { title: 'Models', items: ['Model services'] },
       { title: null, items: ['About'] },
     ],
@@ -152,15 +152,27 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
     const active = document.activeElement as HTMLElement
     steps.push({ id: active.getAttribute('data-section'), ring: active.matches(':focus-visible') ? getComputedStyle(active).outlineStyle : 'none' })
   }
-  expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'notifications', 'permissions', 'schedules', 'skills', 'mcp', 'hooks', 'models', 'about'])
+  expect(steps.map((s) => s.id)).toEqual([
+    'general',
+    'memory',
+    'notifications',
+    'permissions',
+    'schedules',
+    'skills',
+    'mcp',
+    'hooks',
+    'agents',
+    'models',
+    'about',
+  ])
   expect(steps.slice(1).map((s) => s.ring)).toEqual(Array(rows.length - 1).fill('solid'))
   await userEvent.keyboard('{Enter}')
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
 })
 
-it('M5 尚未交付的注册表占位不显示：设置菜单中没有子代理，打开时回到常规；右栏 tab 与标题栏操作不含子代理', async () => {
-  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'schedules'])
-  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'schedules', 'handoff'])
+it('M5 的注册表行都已交付：设置菜单中有子代理并可打开；右栏 tab 与标题栏操作含子代理', async () => {
+  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'agents', 'schedules'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'agents', 'schedules', 'handoff'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
   const result = await screen
@@ -168,11 +180,9 @@ it('M5 尚未交付的注册表占位不显示：设置菜单中没有子代理�
   const dialog = settingsRegion()
   const nav = dialog.getByRole('navigation')
   await expect.element(nav).toBeVisible()
-  for (const id of ['agents'] as const) {
-    expect(nav.element().querySelector(`[data-section="${id}"]`)).toBeNull()
-    settingsPage.setSection(id)
-    await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()
-  }
+  expect(nav.element().querySelector('[data-section="agents"]')).not.toBeNull()
+  settingsPage.setSection('agents')
+  await expect.element(dialog.getByRole('heading', { name: 'Agents', level: 2 })).toBeVisible()
   await result.unmount()
 })
 

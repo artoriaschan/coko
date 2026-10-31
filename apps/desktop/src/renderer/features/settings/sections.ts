@@ -17,6 +17,7 @@ import {
 import type * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { AboutSection } from './about-section.tsx'
+import { AgentsSection } from './agents-section.tsx'
 import { GeneralSection } from './general-section.tsx'
 import { HooksSection } from './hooks-section.tsx'
 import { McpSection } from './mcp-section.tsx'
@@ -82,7 +83,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
   { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
   { id: 'hooks', label: 'settings.nav.hooks', icon: WebhookIcon, Component: HooksSection, group: 'plugins', available: true },
-  { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: Unavailable, group: 'plugins', available: false },
+  { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: AgentsSection, group: 'plugins', available: true },
   { id: 'models', label: 'settings.nav.models', icon: BoxIcon, Component: ModelsSection, group: 'models', available: true },
   { id: 'about', label: 'settings.nav.about', icon: InfoIcon, Component: AboutSection, available: true },
 ]
