@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的子代理（Subagent）契约：定义文件与诊断、agent / agent_wait / agent_cancel、子 Session、工具交集与有效权限、审批、预算汇入 Goal、并行上限与取消、后台通知、isolation worktree、重启中断与 HTTP 接口。修改子代理的派发、权限、审批、预算、恢复或接口前查阅。"
+description: "当前的子代理（Subagent）契约：定义文件与诊断、agent / agent_wait / agent_cancel、子 Session、工具交集与有效权限、审批、预算汇入 Goal、并行上限与取消、后台通知、isolation worktree、重启中断、HTTP 接口与界面（工具卡、Agents tab、审批冒泡、设置分区）。修改子代理的派发、权限、审批、预算、恢复、接口或界面前查阅。"
 lifecycle: active
 ---
 
 # 子代理
 
-本文说明 Coko 当前如何把一段独立工作派发给子代理：子代理在同一 Sidecar 的子 Session 中以独立上下文运行，只把结论交回父 Session。决定与备选方案见 [ADR 0014](../adr/0014-subagents-as-child-sessions.md)；权限类见 [权限判定与审批](permissions.md)；预算口径见 [Goal](goal.md)；worktree 的创建与移除见 [Worktree](worktrees.md)。界面（`agent` 工具卡、右栏 Agents tab、审批冒泡、设置分区）尚未交付。
+本文说明 Coko 当前如何把一段独立工作派发给子代理：子代理在同一 Sidecar 的子 Session 中以独立上下文运行，只把结论交回父 Session。决定与备选方案见 [ADR 0014](../adr/0014-subagents-as-child-sessions.md)；权限类见 [权限判定与审批](permissions.md)；预算口径见 [Goal](goal.md)；worktree 的创建与移除见 [Worktree](worktrees.md)。界面见下文 [界面](#界面)。
 
 ## 结构入口
 
@@ -15,6 +15,7 @@ lifecycle: active
 - `apps/server/src/application/subagents.ts`：`SubagentService`（派发、等待、取消、通知、恢复，也是子 Session 的权限作用域）。
 - `apps/server/src/application/context/subagents.ts`：工具注册、`<subagent>`、`filterTools`、max-turns 检查、SubagentStop。
 - `apps/server/src/http/routes/agents.ts`：HTTP 接口。
+- renderer：`stores/agents-store.ts`（列表、`agent_update` 合并、停止、子 Session 的审批回答、定义）、`features/conversation/{agents-button,agent-card,agent-notification-row,approval-panel}.tsx`、`features/right-panel/agents-tab.tsx`、`features/settings/agents-section.tsx`。
 
 ## 定义
 
@@ -81,11 +82,21 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - `GET /api/agents/definitions?workspaceId=` → `{ definitions, diagnostics }`（Workspace 目录的定义）。
 - Session DTO 的 `parentSessionId` 只出现在子 Session 上；进度 `agent_update { agentId, status, activity? }` 发给父 Session（activity 为最近一次工具调用的名字与 ≤ 120 字符的脱敏摘要）。
 
+## 界面
+
+- **`agent` 工具卡。** 标题为"子代理 <类型>"，摘要为描述，状态取 `agent_end`（没有时取 `agent_update` 合并的列表，有 `agent_start` 时为运行中）：running / completed / failed / cancelled（已停止）/ max-turns（达到轮次上限）/ interrupted。卡片默认展开：运行中显示一行进度（`agent_update.activity` 的工具名与摘要；后台为"已在后台运行"，还没有工具调用时为"正在启动…"），结束后显示轮次、工具调用、Token 与时长；后台子代理在标题行有"后台"标记，保留的 worktree 显示分支。明细为结果文本（`<agent-result>` 的正文；后台的启动文本不显示）与"在右栏查看"。状态与用量不读结果文本中的标签。派发失败（没有 `agent_start`）时按工具调用的错误显示，不提供打开入口。
+- **`agent_notification` 行。** 紧凑行"子代理已结束"，每个子代理一项（状态点、类型 · 描述、状态），点击在右栏打开。
+- **标题栏"子代理"按钮。** 会话有子代理时显示，徽标为 running 数；点击打开右栏的 Agents tab。工具卡与通知行的打开请求经它打开右栏。按钮只显示状态，窄主区中也留在标题栏（没有"更多操作"菜单项）。
+- **右栏 Agents tab。** 列表（状态点、类型、描述，次行为状态 · 用量或已运行时长 · 后台，保留的 worktree 分支）；缺省选中最近派发的运行中子代理，选中后固定。选中项的明细订阅子 Session（不切换当前会话），以 TimelineView 显示只读时间线（没有输入区与消息动作，底部注明只读），运行中时有"停止"（`POST …/agents/:agentId/cancel`，已结束视为成功）。键盘：列表项 Enter 选中并打开其时间线，Tab 到达停止按钮。
+- **审批冒泡。** 父会话订阅其 running 子代理的子 Session；父会话与这些子 Session 中最早的待审批请求（按条目 `createdAt`）接管父会话输入区。来自子代理的卡片标出"来自子代理 <类型> · <描述>"，回答发往子 Session 的 `POST /api/sessions/<child>/approvals/<id>`（同一请求只发送一次）；"总是允许"照常写入根 Session。输入区在接管期间保持挂载，草稿不丢。
+- **设置 → Agents。** 按当前会话（或草稿）的 Workspace 读取 `GET /api/agents/definitions`，按来源（内置、用户、项目）分组列出名称、描述、工具、模型、权限上限、轮次上限与文件路径；诊断折叠在"诊断（n）"中，可展开。只读，注明在 `~/.coko/agents/*.md` 与会话目录的 `.coko/agents/*.md` 中编辑。没有会话时只说明位置。
+
 ## 已知限制
 
 - 子代理的进程内状态（定义、根 Session、等待者）不跨重启保留；重启后的子 Session 按 parentSessionId 取根 Session 的权限，工具只去掉固定排除集。
 - plan / read-only 下 isolation 先询问再返回错误结果（判定在工具执行之前）。
 - 删除或归档父 Session 时不处理子 Session；子代理不能继续对话。
+- 界面只为 running 的子代理订阅子 Session 以冒泡审批；已结束的子代理不会再有待审批请求。Agents tab 的子时间线不显示 Run 用量行（用量在列表中）。
 
 ## 验证
 
@@ -93,6 +104,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - `tests/integration/sidecar-subagents.test.ts`：前台独立上下文、并行、后台的送达与挂起、agent_wait、cancel 与第 5 个、列表与 409、GET …/agents 与定义、max-turns 与伪造的结果标签。
 - `tests/integration/sidecar-subagents-permissions.test.ts`：审批在子 Session 回答、规则写入根、PermissionRequest Hook、定义不能放宽、根切到 read-only、工具表与固定排除、`Agent(general)` 拒绝。
 - `tests/integration/sidecar-subagents-budget.test.ts`、`sidecar-subagents-cancel.test.ts`、`sidecar-subagents-restart.test.ts`、`sidecar-subagents-isolation.test.ts`、`secrets-gate-subagents.test.ts`。
+- 界面：`apps/desktop/src/renderer/stores/agents-store.test.ts`（进度合并、较早的列表不覆盖结束状态、停止的 409、审批只回答一次）；Browser Mode 的 `features/conversation/agent-card.browser.test.tsx`（六种状态的中英文、进度随 `agent_update` 更新、用量、后台 chip、worktree、派发失败与打开请求）、`approval-bubbling.browser.test.tsx`（父会话与两个子代理的请求按时间顺序接管、来源标注、回答发往子 Session、草稿不丢）、`features/right-panel/agents-tab.browser.test.tsx`（列表、只读子时间线、键盘停止与选中、标题栏按钮）、`features/settings/agents-section.browser.test.tsx`；Electron E2E `apps/desktop/e2e/subagents.e2e.test.ts`（真实 Sidecar 与 faux：前台进度与结果、子时间线、写入审批在父会话中允许、后台子代理键盘停止为 cancelled、标题栏 running 数、明暗主题对比度与 390 px、设置 → Agents 的内置 / COKO_HOME / 项目定义与诊断）。
 
 ## 延伸阅读
 
