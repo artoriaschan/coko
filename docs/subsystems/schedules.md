@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的定时任务（Schedule）契约：四种规则与 cron 语法、时区与夏令时、下次时间与对齐、定时器与 30 秒复查、到期的准入与跳过原因、记录后开始 Run（至多一次）、挂起与只补最近一次、<scheduled_task> 输入、授权限制、四个工具与权限类、HTTP 接口与 schedule_update 进度、桌面通知、测试时钟与已知限制。修改定时任务的规则、投递、准入、工具、接口或通知前查阅。"
+description: "当前的定时任务（Schedule）契约：四种规则与 cron 语法、时区与夏令时、下次时间与对齐、定时器与 30 秒复查、到期的准入与跳过原因、记录后开始 Run（至多一次）、挂起与只补最近一次、<scheduled_task> 输入、授权限制、四个工具与权限类、HTTP 接口与 schedule_update 进度、桌面通知与通知设置、界面（标题栏按钮、Schedules tab、设置分区、投递行）、测试时钟与已知限制。修改定时任务的规则、投递、准入、工具、接口、通知或界面前查阅。"
 lifecycle: active
 ---
 
 # 定时任务
 
-本文说明 Coko 当前如何让 Agent（或用户）设定一次性、固定间隔或 cron 定时任务，到期时在原 Session 中开始一个 Run，以及应用关闭或睡眠后如何补跑。决定与备选方案见 [ADR 0015](../adr/0015-schedules-at-most-once-latest-catch-up.md)；权限类见 [权限判定与审批](permissions.md)；Goal 的授权与预算见 [Goal](goal.md)。界面（标题栏按钮、右栏 Schedules tab、设置分区与投递行）尚未交付。
+本文说明 Coko 当前如何让 Agent（或用户）设定一次性、固定间隔或 cron 定时任务，到期时在原 Session 中开始一个 Run，以及应用关闭或睡眠后如何补跑。决定与备选方案见 [ADR 0015](../adr/0015-schedules-at-most-once-latest-catch-up.md)；权限类见 [权限判定与审批](permissions.md)；Goal 的授权与预算见 [Goal](goal.md)。界面见下文 [界面](#界面)。
 
 ## 结构入口
 
@@ -22,6 +22,10 @@ lifecycle: active
 | `apps/server/src/http/routes/schedules.ts` | HTTP 接口 |
 | `apps/server/src/adapters/clock.ts`、`http/routes/test-clock.ts` | `ClockPort`：系统时钟与测试时钟 |
 | `apps/server/src/application/notifications.ts`、`apps/desktop/src/main/notifications.ts` | `NotificationService`（设置与 `notify` 控制消息）；main 的显示、点击打开会话与测试构建日志 |
+| `packages/agent/src/entries/index.ts` | 经 `@coko/agent/entries` 导出 `upcomingOccurrences`、`validateRule` 等纯函数：renderer 的表单校验与预览与 Sidecar 同一实现 |
+| renderer `stores/schedules-store.ts` | 按会话与全部会话的列表、增删改（按已知 revision，冲突时读回）、`schedule_update` 合并 |
+| renderer `features/conversation/{schedules-button,schedule-fire-row}.tsx`、`features/right-panel/schedules-tab.tsx` | 标题栏按钮与共用的文案函数、时间线投递行、右栏 Schedules tab（列表、表单、历史、行操作） |
+| renderer `features/settings/{schedules,notifications}-section.tsx` | 设置 → 定时任务（全部会话）与设置 → 通知 |
 
 ## 规则
 
@@ -88,6 +92,16 @@ lifecycle: active
 
 main 在主窗口聚焦且可见时不显示；否则显示 Electron `Notification`，点击时聚焦窗口并经 preload 的 `onOpenSession` 打开该会话，显示期间保留引用直到点击或关闭。测试构建不显示，只记日志 `notification shown`。
 
+## 界面
+
+- **标题栏按钮。** 会话有定时任务时标题栏显示"定时任务"按钮（与后台任务按钮相同的规则，390 px 下标题栏不溢出），徽标为 active 任务数（没有时不显示）；点击打开右栏的 Schedules tab。新建的入口是右栏的 Schedules tab（始终可见）。
+- **Schedules tab。** 会话的任务按创建顺序列出：状态点与状态名、标题、规则的本地化描述（after、at、every、cron）、下次时间与时区（cron 用规则的时区，其余用本机时区；暂停与已结束为"没有下次执行"）、最近结果（已开始，或已跳过与原因）。每行有暂停 / 恢复（已结束的任务没有，经编辑改规则后重新启用）、编辑与删除（确认框）。选中项（缺省为最后一个）下方为投递历史：该任务的 `schedule_fire` 条目，新的在前，含跳过原因与合并的错过次数。列表在打开会话与 `schedule_fire` 条目数变化时重读，其间由 `schedule_update` 进度更新；删除不推送，由本窗口从列表去掉（已不存在的 404 视为已删除）。
+- **新建与编辑。** 对话框：标题、指令、类型（一次：本机时区的日期时间，保存为 UTC 的 RFC 3339；间隔：整数分钟；cron：表达式与时区下拉，缺省本机时区，选项为本机时区、UTC 与运行时支持的 IANA 名）。cron 与间隔实时显示接下来 3 次。校验与预览用 `@coko/agent/entries` 的 `upcomingOccurrences`（与 Sidecar 的 `validateRule` 同一实现）：间隔小于 1 分钟、非整数分钟、一次性时刻在过去、cron 或时区非法时行内报错且不发请求；cron 与时区在输入时校验，其余在提交时。编辑只发送用户改过的字段（与对话框打开时的值比较），没改规则时不发 `rule`（不重新对齐）；revision 冲突时对话框内提示、保留输入并读回，再次保存以新的 revision 发送。超过每会话 20 个 active 时显示上限。
+- **行操作的冲突。** 暂停与恢复按已知 revision 发送；409 `revision-conflict` 时提示并读回该会话（与全部会话）的列表，不重试。
+- **时间线。** `schedule_fire` 为紧凑行：开始执行或已跳过（原因）、任务标题（已删除时为"已删除的定时任务"）、计划时刻与合并的错过次数。定时任务触发的 Run 照常显示。
+- **设置 → 定时任务**（环境分类）。全部会话的任务按会话分组（组标题为会话标题），每项可"打开会话"（返回应用、切到该会话并打开右栏的 Schedules tab）、暂停 / 恢复与删除；新建与编辑在会话的 tab 中。
+- **设置 → 通知**（个人分类）。总开关与三类开关（定时任务结束、等待审批、后台子代理结束），读写设置键 `notifications`（按已知 revision，冲突时读回并提示）；总开关关闭时三类开关不可改。已存值不合 schema 时按缺省（全开）显示，与 Sidecar 一致。
+
 ## 测试时钟
 
 测试构建且未 `--packaged` 时，`COKO_TEST_CLOCK=1` 使 `ClockPort` 为可控时钟并挂载 `POST /api/test/clock { advanceMs } | { setMs }`（到期的计时器按到期顺序触发）；`COKO_TEST_CLOCK_START=<UTC 毫秒>` 给出起点（重启测试的启动扫描）。`COKO_TEST_HOLD_SCHEDULE_FIRE=1` 使投递在 `recordFire` 之后、开始 Run 之前挂起（强杀测试）。打包的发布构建忽略这些变量。
@@ -97,7 +111,7 @@ main 在主窗口聚焦且可见时不显示；否则显示 Electron `Notificati
 - 只在应用运行时投递；应用关闭期间到期的任务在下次启动时只补最近一次。
 - 睡眠唤醒由 30 秒复查覆盖，未在真实睡眠中验证。
 - 挂起只在内存中，不跨重启。
-- 通知文案为英文；renderer 的本地化随界面交付。
+- 系统通知的标题与正文由 Sidecar 生成，为英文（任务标题原样）；应用内界面已本地化。
 
 ## 验证
 
@@ -106,6 +120,10 @@ main 在主窗口聚焦且可见时不显示；否则显示 Electron `Notificati
 - `tests/integration/sidecar-schedules-restart.test.ts`：停机跨越 5 个发生次后只投递 1 次且 `missed: 4`；`recordFire` 之后 SIGKILL，重启后不重投。
 - `tests/integration/secrets-gate-schedules.test.ts`、`secrets-gate-notifications.test.ts`：title 与 prompt 中登记的 Secret 不出现在表行、条目、HTTP、WebSocket、requestLog、`notify` 控制消息与日志中。
 - `apps/desktop/src/main/notifications.test.ts`：前台不显示、不在前台显示、点击打开会话、测试构建只记 `notification shown`。
+- `packages/agent/src/entries/entries.test.ts`：`upcomingOccurrences` 的四种规则、`Asia/Shanghai` 与 `America/New_York`（夏令时结束日取较早的一次）、非法输入抛 `ScheduleRuleError`；导入守卫逐一核对 entries/ 之外登记的纯模块。
+- `apps/desktop/src/renderer/stores/schedules-store.test.ts`：列表的过期响应丢弃、`schedule_update` 合并（较旧 revision 不覆盖）、冲突读回、删除的 404。
+- `apps/desktop/src/renderer/features/right-panel/schedules-tab.browser.test.tsx`、`features/settings/schedules-notifications.browser.test.tsx`：规则描述、下次时间与时区、状态与最近结果（中英文）；表单的行内校验、cron 的接下来 3 次与时区下拉；暂停 / 恢复 / 删除与冲突读回；编辑只发改动字段；投递历史与投递行；明暗主题对比度、390 px 与键盘；设置的全部会话列表、跳转与通知开关。
+- `apps/desktop/e2e/schedules.e2e.test.ts`：真实 Electron 与测试时钟上新建 cron 任务、下次时间、到期后的 Run、投递行与历史、暂停后不投递；设置跳转；关闭"定时任务结束"时没有 `notification shown`，开启时有。
 
 ## 延伸阅读
 

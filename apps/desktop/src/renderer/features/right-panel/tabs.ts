@@ -3,6 +3,7 @@ import type * as React from 'react'
 import { createStore } from 'zustand/vanilla'
 import { JobsTab } from './jobs-tab.tsx'
 import { PlanTab } from './plan-tab.tsx'
+import { SchedulesTab } from './schedules-tab.tsx'
 
 /** 右栏的 tab id，按 RIGHT_PANEL_TABS 的顺序显示。 */
 export type RightPanelTabId = 'plan' | 'jobs' | 'agents' | 'schedules'
@@ -29,7 +30,7 @@ export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
   { id: 'plan', label: 'plan.tab', Component: PlanTab, available: true },
   { id: 'jobs', label: 'jobs.tab', Component: JobsTab, available: true },
   { id: 'agents', label: 'agents.tab', Component: Unavailable, available: false },
-  { id: 'schedules', label: 'schedules.tab', Component: Unavailable, available: false },
+  { id: 'schedules', label: 'schedules.tab', Component: SchedulesTab, available: true },
 ]
 
 export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS) => tabs.filter((tab) => tab.available)

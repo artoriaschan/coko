@@ -4,7 +4,16 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { COMPACTION_SUMMARY_PREFIX, effectiveEntries, lastRunStatus, modelContext, unansweredConfirmations, type EntryLike } from './index.ts'
+import {
+  COMPACTION_SUMMARY_PREFIX,
+  effectiveEntries,
+  lastRunStatus,
+  modelContext,
+  ScheduleRuleError,
+  unansweredConfirmations,
+  upcomingOccurrences,
+  type EntryLike,
+} from './index.ts'
 
 let seq = 0
 const e = (kind: string, payload: unknown, runId: string | null = null): EntryLike => ({ seq: ++seq, kind, runId, payload })
@@ -140,6 +149,47 @@ describe('unansweredConfirmations', () => {
   })
 })
 
+describe('upcomingOccurrences：表单预览的接下来几次（UTC 毫秒）', () => {
+  const now = Date.parse('2026-11-02T00:30:00Z')
+  const iso = (list: number[]) => list.map((ms) => new Date(ms).toISOString())
+  it.each([
+    // Asia/Shanghai 为 UTC+8：工作日 09:00 = 01:00Z；2026-11-02 是周一。
+    [
+      'cron 按时区的本地时刻',
+      { kind: 'cron', expression: '0 9 * * 1-5', timeZone: 'Asia/Shanghai' },
+      ['2026-11-02T01:00:00.000Z', '2026-11-03T01:00:00.000Z', '2026-11-04T01:00:00.000Z'],
+    ],
+    // America/New_York 2026-11-01 夏令时结束：01:30 重复，只取较早的一次（EDT，05:30Z）；之后每天 06:30Z（EST）。
+    [
+      'cron 在夏令时结束日只取较早的一次',
+      { kind: 'cron', expression: '30 1 * * *', timeZone: 'America/New_York' },
+      ['2026-11-02T06:30:00.000Z', '2026-11-03T06:30:00.000Z', '2026-11-04T06:30:00.000Z'],
+    ],
+    ['every 从 now 对齐', { kind: 'every', seconds: 600 }, ['2026-11-02T00:40:00.000Z', '2026-11-02T00:50:00.000Z', '2026-11-02T01:00:00.000Z']],
+    ['after 只有一次', { kind: 'after', seconds: 90 }, ['2026-11-02T00:31:30.000Z']],
+    ['at 只有一次', { kind: 'at', at: '2026-11-03T09:00:00+08:00' }, ['2026-11-03T01:00:00.000Z']],
+  ] as const)('%s', (_name, rule, expected) => {
+    expect(iso(upcomingOccurrences(rule, now, 3))).toEqual(expected)
+  })
+
+  it('夏令时结束当天：01:30 的较晚一次（EST）不算', () => {
+    const before = Date.parse('2026-11-01T05:00:00Z')
+    expect(iso(upcomingOccurrences({ kind: 'cron', expression: '30 1 * * *', timeZone: 'America/New_York' }, before, 2))).toEqual([
+      '2026-11-01T05:30:00.000Z',
+      '2026-11-02T06:30:00.000Z',
+    ])
+  })
+
+  it.each([
+    ['间隔小于 60 秒', { kind: 'every', seconds: 30 }],
+    ['at 在过去', { kind: 'at', at: '2026-11-01T00:00:00Z' }],
+    ['cron 非法', { kind: 'cron', expression: '61 * * * *', timeZone: 'UTC' }],
+    ['时区非法', { kind: 'cron', expression: '* * * * *', timeZone: '+08:00' }],
+  ] as const)('不合要求时抛 ScheduleRuleError：%s', (_name, rule) => {
+    expect(() => upcomingOccurrences(rule, now, 3)).toThrow(ScheduleRuleError)
+  })
+})
+
 describe('导入守卫', () => {
   const root = dirname(fileURLToPath(import.meta.url))
   const IMPORT = /^\s*(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/gm
@@ -151,12 +201,15 @@ describe('导入守卫', () => {
     for (const specifier of specifiers) if (specifier.startsWith('.')) await walk(resolve(dirname(file), specifier), seen)
   }
 
-  it('子路径及其传递导入只用 typebox 与本目录内模块', async () => {
+  /** entries/ 之外允许的纯模块（定时任务的规则与 cron，只用 Intl）；它们的传递导入同样受检。 */
+  const ALLOWED_OUTSIDE = new Set(['cron.ts', 'rules.ts'].map((name) => resolve(root, '../tasks/schedules', name)))
+
+  it('子路径及其传递导入只用 typebox、本目录与登记的纯模块', async () => {
     const seen = new Map<string, string[]>()
     await walk(join(root, 'index.ts'), seen)
     const offending: string[] = []
     for (const [file, specifiers] of seen) {
-      if (!file.startsWith(root + '/')) offending.push(`${file} 在 entries/ 之外`)
+      if (!file.startsWith(root + '/') && !ALLOWED_OUTSIDE.has(file)) offending.push(`${file} 在 entries/ 之外`)
       for (const s of specifiers) {
         if (s.startsWith('.')) continue
         if (s.startsWith('node:') || s.startsWith('@earendil-works/') || !(s === 'typebox' || s.startsWith('typebox/'))) offending.push(`${file}: ${s}`)

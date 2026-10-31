@@ -1,4 +1,4 @@
-// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件）不出现在导航中，也不能经 show / setSection 打开。
+// 设置分区注册表与菜单分组：未交付（available: false）的分区（外观、插件、子代理）不出现在导航中，也不能经 show / setSection 打开。
 import '../../styles.css'
 import type { Locale } from '@coko/i18n'
 import { afterEach, expect, it } from 'vitest'
@@ -19,8 +19,8 @@ const ids = (groups: ReturnType<typeof navigationGroups>) => groups.map((g) => (
 
 it('菜单按个人、环境、插件、模型分组，关于不属于任何分类且在最后；未交付的外观、插件不出现', () => {
   expect(ids(navigationGroups())).toEqual([
-    { group: 'personal', sections: ['general', 'memory'] },
-    { group: 'environment', sections: ['permissions'] },
+    { group: 'personal', sections: ['general', 'memory', 'notifications'] },
+    { group: 'environment', sections: ['permissions', 'schedules'] },
     { group: 'plugins', sections: ['skills', 'mcp', 'hooks'] },
     { group: 'models', sections: ['models'] },
     { group: null, sections: ['about'] },
@@ -28,7 +28,7 @@ it('菜单按个人、环境、插件、模型分组，关于不属于任何分�
 })
 
 it('分类内没有可显示的菜单项时不显示该分类', () => {
-  const sections = SETTINGS_SECTIONS.map((s) => (s.id === 'permissions' ? { ...s, available: false } : s))
+  const sections = SETTINGS_SECTIONS.map((s) => (s.id === 'permissions' || s.id === 'schedules' ? { ...s, available: false } : s))
   expect(ids(navigationGroups(sections)).map((g) => g.group)).toEqual(['personal', 'plugins', 'models', null])
 })
 
@@ -76,8 +76,8 @@ it.each([
   [
     'zh',
     [
-      { title: '个人', items: ['常规', '记忆'] },
-      { title: '环境', items: ['权限'] },
+      { title: '个人', items: ['常规', '记忆', '通知'] },
+      { title: '环境', items: ['权限', '定时任务'] },
       { title: '插件', items: ['技能', 'MCP', 'Hook'] },
       { title: '模型', items: ['模型服务'] },
       { title: null, items: ['关于'] },
@@ -86,8 +86,8 @@ it.each([
   [
     'en',
     [
-      { title: 'Personal', items: ['General', 'Memory'] },
-      { title: 'Environment', items: ['Permissions'] },
+      { title: 'Personal', items: ['General', 'Memory', 'Notifications'] },
+      { title: 'Environment', items: ['Permissions', 'Scheduled tasks'] },
       { title: 'Plugins', items: ['Skills', 'MCP', 'Hooks'] },
       { title: 'Models', items: ['Model services'] },
       { title: null, items: ['About'] },
@@ -152,15 +152,15 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
     const active = document.activeElement as HTMLElement
     steps.push({ id: active.getAttribute('data-section'), ring: active.matches(':focus-visible') ? getComputedStyle(active).outlineStyle : 'none' })
   }
-  expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'permissions', 'skills', 'mcp', 'hooks', 'models', 'about'])
+  expect(steps.map((s) => s.id)).toEqual(['general', 'memory', 'notifications', 'permissions', 'schedules', 'skills', 'mcp', 'hooks', 'models', 'about'])
   expect(steps.slice(1).map((s) => s.ring)).toEqual(Array(rows.length - 1).fill('solid'))
   await userEvent.keyboard('{Enter}')
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
 })
 
-it('M5 的注册表占位不显示：设置菜单中没有子代理、定时任务与通知，打开时回到常规；右栏 tab 与标题栏操作不含它们', async () => {
-  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs'])
-  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'handoff'])
+it('M5 尚未交付的注册表占位不显示：设置菜单中没有子代理，打开时回到常规；右栏 tab 与标题栏操作不含子代理', async () => {
+  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'schedules'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'schedules', 'handoff'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
   const result = await screen
@@ -168,7 +168,7 @@ it('M5 的注册表占位不显示：设置菜单中没有子代理、定时任�
   const dialog = settingsRegion()
   const nav = dialog.getByRole('navigation')
   await expect.element(nav).toBeVisible()
-  for (const id of ['agents', 'schedules', 'notifications'] as const) {
+  for (const id of ['agents'] as const) {
     expect(nav.element().querySelector(`[data-section="${id}"]`)).toBeNull()
     settingsPage.setSection(id)
     await expect.element(dialog.getByRole('heading', { name: 'General' })).toBeVisible()

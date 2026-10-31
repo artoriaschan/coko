@@ -81,7 +81,7 @@ Goal、Task、授权和恢复等业务状态的含义与转换规则由 agent �
 
 logging 的文件 sink 通过独立导出入口由 main / server 引入。renderer 与 preload 只引入浏览器可用的接口或 IPC 适配；浏览器构建不会经公共聚合导出加载 node:fs、node:sqlite 或 Electron main 模块。
 
-renderer 唯一可以导入的 agent 代码是 `@coko/agent/entries`：有效条目（回退与压缩）、上一 Run 状态、未回答的结果确认与模型上下文的派生必须在 Sidecar 与界面上一致，写两份曾导致分歧（M2 评审 S2），因此只保留这一份实现。该子路径是纯函数，只导入 typebox 与本目录内模块；`packages/agent/src/entries/entries.test.ts` 的导入守卫沿传递导入断言它不引入 `node:*` 与 `@earendil-works/*`。renderer 不得经 `@coko/agent` 主入口导入。
+renderer 唯一可以导入的 agent 代码是 `@coko/agent/entries`：有效条目（回退与压缩）、上一 Run 状态、未回答的结果确认与模型上下文的派生，以及定时任务规则的校验与接下来几次的预览，必须在 Sidecar 与界面上一致，写两份曾导致分歧（M2 评审 S2），因此只保留这一份实现。该子路径是纯函数，只导入 typebox、本目录内模块与登记的纯模块（`tasks/schedules/{cron,rules}.ts`，只用 Intl）；`packages/agent/src/entries/entries.test.ts` 的导入守卫沿传递导入断言它不引入 `node:*` 与 `@earendil-works/*`。renderer 不得经 `@coko/agent` 主入口导入。
 
 ### 运行链路
 

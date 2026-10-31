@@ -121,7 +121,7 @@ export class SidecarProcess {
     return () => this.#exitListeners.delete(listener)
   }
 
-  /** ready 之后由其他模块处理的控制消息（provider.save.result、provider.models.result、credential.*、secret.*）。 */
+  /** ready 之后由其他模块处理的控制消息（provider.save.result、provider.models.result、credential.*、secret.*、notify）。 */
   onControlMessage(listener: (message: SidecarToMainMessage) => void): () => void {
     this.#controlListeners.add(listener)
     return () => this.#controlListeners.delete(listener)
@@ -208,6 +208,7 @@ export class SidecarProcess {
           case 'provider.models.result':
           case 'secret.decrypt':
           case 'secret.store.result':
+          case 'notify':
             if (this.#ready) for (const listener of this.#controlListeners) listener(message)
             return
         }
