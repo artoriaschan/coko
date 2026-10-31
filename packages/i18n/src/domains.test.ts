@@ -18,6 +18,10 @@ describe('分域字典', () => {
     for (const domain of Object.keys(zh) as (keyof typeof zh)[]) expect(keys(en[domain]).sort()).toEqual(keys(zh[domain]).sort())
   })
 
+  it('M6 的五个分域已登记', () => {
+    expect(Object.keys(domainDictionary('zh'))).toEqual(expect.arrayContaining(['plugins', 'lsp', 'teams', 'trace', 'update']))
+  })
+
   it('领域的顶层键不与基础字典重名（组合时不覆盖已有文案）', () => {
     const domainKeys = Object.keys(domainDictionary('zh'))
     expect(domainKeys.filter((key) => key in baseZh || key in baseEn)).toEqual([])

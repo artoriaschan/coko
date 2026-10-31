@@ -20,6 +20,7 @@ import type { SidecarControlChannel } from './control-channel.ts'
 import { createCredentialBridge } from './credentials.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
 import { createNotifier } from './notifications.ts'
+import { createUpdateCoordinator } from './update-coordinator.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
@@ -224,6 +225,24 @@ function run(): void {
   ipcMain.handle(IPC.openLogs, async (event) => {
     assertMainFrame(event)
     return openLogsFolder()
+  })
+
+  // 自动更新：状态推给主窗口；检查与安装只接受主窗口的请求。
+  const updates = createUpdateCoordinator()
+  updates.subscribe((status) => {
+    if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.updateStatus, status)
+  })
+  ipcMain.handle(IPC.getUpdateStatus, (event) => {
+    assertMainFrame(event)
+    return updates.status
+  })
+  ipcMain.handle(IPC.checkForUpdates, async (event) => {
+    assertMainFrame(event)
+    await updates.checkForUpdates()
+  })
+  ipcMain.handle(IPC.installUpdate, async (event) => {
+    assertMainFrame(event)
+    await updates.installUpdate()
   })
 
   // renderer 日志：fire-and-forget；只收主窗口主框架的消息，校验后由 main 标记来源写入 desktop.jsonl。

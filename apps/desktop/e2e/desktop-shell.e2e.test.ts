@@ -66,6 +66,13 @@ describe('桌面壳', () => {
         documentCookie: document.cookie,
         bridgeKeys: Object.keys(window.coko ?? {}),
         boot: await window.coko!.boot(),
+        // 自动更新存根：renderer 经 preload 收到 main 的状态（接收侧）。
+        update: await new Promise((resolve) => {
+          const off = window.coko!.onUpdateStatus((status) => {
+            off()
+            resolve(status)
+          })
+        }),
         echoSetCookie: echo.headers.get('set-cookie'),
         // sidecar 收到的 cookie（main 注入）；renderer 只经响应体看到它，用来确认响应头里没有。
         echoedCookie: echoed.headers.cookie,
@@ -78,10 +85,13 @@ describe('桌面壳', () => {
     expect(visible.bridgeKeys.sort()).toEqual([
       'boot',
       'cancelProviderModels',
+      'checkForUpdates',
       'fetchProviderModels',
+      'installUpdate',
       'log',
       'onOpenSession',
       'onSidecarState',
+      'onUpdateStatus',
       'openLogs',
       'pickDirectory',
       'saveProvider',
@@ -93,6 +103,7 @@ describe('桌面壳', () => {
     expect(exposed).not.toContain(token)
     expect(exposed).not.toContain('coko-session')
     expect(Object.keys((visible.boot as { info: object }).info).sort()).toEqual(['locale', 'platform', 'wsBaseUrl'])
+    expect(visible.update).toEqual({ state: 'disabled', reason: 'not-packaged' })
     // Chromium 的 cookie jar 中也没有 sidecar cookie。
     const cookies = await app.app.evaluate(({ session }) => session.defaultSession.cookies.get({}))
     expect(cookies).toEqual([])

@@ -6,6 +6,7 @@ import {
   BoxIcon,
   BrainIcon,
   ClockIcon,
+  CodeIcon,
   InfoIcon,
   PaletteIcon,
   PlugIcon,
@@ -39,6 +40,7 @@ export type SettingsSectionId =
   | 'plugins'
   | 'skills'
   | 'mcp'
+  | 'lsp'
   | 'hooks'
   | 'agents'
   | 'models'
@@ -82,6 +84,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: Unavailable, group: 'plugins', available: false },
   { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
   { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
+  { id: 'lsp', label: 'lsp.settings', icon: CodeIcon, Component: Unavailable, group: 'plugins', available: false },
   { id: 'hooks', label: 'settings.nav.hooks', icon: WebhookIcon, Component: HooksSection, group: 'plugins', available: true },
   { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: AgentsSection, group: 'plugins', available: true },
   { id: 'models', label: 'settings.nav.models', icon: BoxIcon, Component: ModelsSection, group: 'models', available: true },

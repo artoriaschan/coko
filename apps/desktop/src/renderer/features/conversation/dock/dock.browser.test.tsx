@@ -33,12 +33,15 @@ it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已
     ['agents', true],
     ['schedules', true],
     ['handoff', true],
+    ['team', false],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],
     ['jobs', true],
     ['agents', true],
     ['schedules', true],
+    ['team', false],
+    ['trace', false],
   ])
 })
 
