@@ -58,7 +58,7 @@ lifecycle: active
 
 ## 项目 Hook 的批准
 
-未批准的项目 Hook 不运行。批准按 Workspace 与 digest 保存在设置键 `hooks.approvals.<workspaceId>`（`{ digest, hookId }` 列表，hookId 为批准时的位置；早期只存 digest 字符串，照常读取）；项目文件中任一字段改动后 digest 变化，回到未批准，同一位置曾经批准过时 `changed: true`（界面显示"已改动"）。项目 Hook 的 allow 不参与聚合（只收紧），记录为 `allowed` 并注明 `Ignored: a project hook cannot allow a call`。
+未批准的项目 Hook 不运行。批准按 Workspace 与 digest 保存在设置键 `hooks.approvals.<workspaceId>`（`{ digest, hookId }` 列表，hookId 为批准时的位置；早期只存 digest 字符串，照常读取）；项目文件中任一字段改动后 digest 变化，回到未批准，同一位置曾经批准过时 `changed: true`（界面显示"已改动"）。项目 Hook 的 allow 不参与聚合（只收紧），`hook_run.outcome` 记为 `ignored`（PreToolUse 与 PermissionRequest；不是 `allowed`）并注明 `Ignored: a project hook cannot allow a call`，审批卡照常出现。
 
 ## 选择
 
@@ -73,11 +73,11 @@ lifecycle: active
 
 `/bin/bash -c <command>`，cwd 为 Session 的工作目录，独立进程组，登记为 kind `hook`（带 sessionId），进程组消失后删除登记。不经 Seatbelt：Hook 与已批准的 MCP stdio Server 处于同一信任级别。
 
-- **环境**：Sidecar 的基础环境去掉 `COKO_*` 与凭据形态的变量（与 bash 工具相同），另加 `COKO_PROJECT_DIR`（工作目录）、`COKO_SESSION_ID`、`COKO_HOOK_EVENT`；不注入 Secret。
+- **环境**：Sidecar 的基础环境去掉 `COKO_*` 与凭据形态的变量（与 bash 工具相同），另加 `COKO_PROJECT_DIR`（Session 的工作目录：worktree 会话为该 worktree 中的对应目录，不是原 Workspace）、`COKO_SESSION_ID`、`COKO_HOOK_EVENT`；不注入 Secret。
 - **stdin**：一行 JSON 后关闭。公共字段 `session_id`、`cwd`、`hook_event_name`、`permission_mode`；子 Session 另有 `parent_session_id`、`agent_type`。工具事件另有 `tool_name`（注册名）、`tool_input`、`tool_use_id`，PostToolUse(Failure) 另有 `tool_response`（`{ content, details? }`）与失败时的 `error`。整行按值替换登记明文后写入。
 - **输出**：stdout 与 stderr 各保留前 64 KB。
 - **超时**：缺省 60 秒（Notification 10 秒），配置上限 600 秒。超时或有序关闭时向进程组 SIGTERM，2 秒后仍有进程则 SIGKILL。
-- **生命周期事件的输入**：`permission_mode` 为 Session 当前模式；UserPromptSubmit 另有 `prompt`（用户提交的原文，按值脱敏），Stop 另有 `stop_hook_active`，PreCompact 另有 `trigger`（`manual` / `auto`）与 `custom_instructions`（`/compact` 的参数，自动压缩为空串），Notification 另有 `notification_type`、`title` 与 `message`。
+- **生命周期事件的输入**：`permission_mode` 为 Session 当前模式；UserPromptSubmit 另有 `prompt`（用户提交的原文，按值脱敏；`/<skill> 参数` 与命令不展开，不含 SKILL.md 或命令正文），Stop 另有 `stop_hook_active`，PreCompact 另有 `trigger`（`manual` / `auto`）与 `custom_instructions`（`/compact` 的参数，自动压缩为空串），Notification 另有 `notification_type`、`title` 与 `message`。
 
 结果的解释：
 
@@ -126,7 +126,7 @@ run the formatter
 
 ## UserPromptSubmit
 
-在 trigger submit 的输入展开之后、开始 Run 之前运行（`POST …/messages`；Run 进行中的追加指令、Goal Round、定时任务、子 Session 与动作不运行，`/compact` 等展开为动作的命令也不运行）。
+在 trigger submit 的输入展开之后、开始 Run 之前运行，收到的 `prompt` 是展开前的原文（`POST …/messages`；Run 进行中的追加指令、Goal Round、定时任务、子 Session 与动作不运行，`/compact` 等展开为动作的命令也不运行）。
 
 - **阻止**：任一 Hook exit 2 或 `decision: block` → HTTP 400 `hook-blocked`，`message` 与 `details.reason` 为原因（各 Hook 的原因以换行连接，按值脱敏，≤ 2 KB；没有原因时 `Blocked by a UserPromptSubmit hook`）。不提交 user message，不开始 Run；`hook_run { outcome: blocked }` 不属于任何 Run（runId 为 null）。
 - **追加上下文**：各 Hook 的 `additionalContext` 以空行连接，按值脱敏，至多 10 000 字符，作为同一条 user message 中用户原文之后的单独文本块：
@@ -151,13 +151,13 @@ branch is main
 
 在手动与自动压缩之前运行（有可摘要的内容时；溢出恢复不运行），matcher 对象为 `manual` / `auto`。
 
-- **手动**（`/compact [指示]`）：在开始 Run 之前运行。exit 2 → HTTP 400 `hook-blocked`（原因为 stderr），不开始 Run、不发摘要请求；`hook_run` 不属于任何 Run。没有可摘要的内容时先 400 `nothing-to-compact`，不运行 Hook。
+- **手动**（`/compact [指示]`）：在开始 Run 之前运行。exit 2 → HTTP 400 `hook-blocked`（原因为 stderr），不开始 Run、不发摘要请求；`hook_run` 不属于任何 Run。运行时内部的手动压缩被阻止时 Run 以 `error` 加 `RunError.code: hook_blocked` 结束（与 `continue: false` 的 `hook_stopped` 区分；Goal 不因此暂停）。没有可摘要的内容时先 400 `nothing-to-compact`，不运行 Hook。
 - **自动**：exit 2 → 跳过本次压缩，请求照常发出（用原上下文）；之后的请求越过阈值时再运行。
 - **摘要要求**：exit 0 的 stdout 按文本（不解析 JSON），各 Hook 以空行连接，按值脱敏，至多 4 000 字符，追加到摘要请求的额外要求（手动时排在用户的指示之后）；`hook_run { outcome: context }`。
 
 ## Notification
 
-Coko 发出桌面通知时运行（`NotificationService.notify` 按设置决定发出之后，不论窗口是否在前台、通知是否显示），matcher 对象为通知类别（`schedule-run-ended`、`approval-waiting`、`agent-finished`）。只观测：exit 2 与 stdout 没有作用，不等待结果，Hook 的失败不影响通知；只有失败（`error`、`timeout`）提交 `hook_run`（不属于任何 Run）。
+Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook，再按设置决定是否发出：关闭通知总开关或该类别不影响 Hook，不论窗口是否在前台、通知是否显示），matcher 对象为通知类别（`schedule-run-ended`、`approval-waiting`、`agent-finished`）。只观测：exit 2 与 stdout 没有作用，不等待结果，Hook 的失败不影响通知；只有失败（`error`、`timeout`）提交 `hook_run`（不属于任何 Run）。
 
 ## continue: false 的停止
 
@@ -169,7 +169,7 @@ Coko 发出桌面通知时运行（`NotificationService.notify` 按设置决定�
 
 ## 记录
 
-只有有结果的执行提交 `hook_run` v1：`{ event, hookId, source, command, outcome, exitCode?, durationMs, message? }`，`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `continued`（Stop 使 Run 继续）/ `stopped` / `timeout` / `error` / `invalid-output`。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。工具事件与 Stop 的条目归属当前 Run（runId 在第一次模型请求前得知）；UserPromptSubmit、手动 PreCompact 与 Notification 发生在 Run 之外，runId 为 null。
+只有有结果的执行提交 `hook_run` v1：`{ event, hookId, source, command, outcome, exitCode?, durationMs, message? }`，`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `continued`（Stop 使 Run 继续）/ `stopped` / `timeout` / `error` / `invalid-output` / `ignored`（项目 Hook 的 allow）。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。工具事件与 Stop 的条目归属当前 Run（runId 在第一次模型请求前得知）；UserPromptSubmit、手动 PreCompact 与 Notification 发生在 Run 之外，runId 为 null。
 
 ## 协议
 

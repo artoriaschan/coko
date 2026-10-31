@@ -47,6 +47,8 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 
 `DELETE /api/worktrees/:id` → 204。按顺序：
 
+移除在同一仓库的锁内先登记该 worktree 为"移除中"，再做下列检查；登记期间会话工作目录的解析（开始 Run、作用域）为 409 `worktree-busy`，因此检查之后、git 之前提交的消息不会开始 Run。移除结束或失败（含 git 失败）时撤销登记。
+
 1. 绑定的会话（含子 Session）有进行中的 Run（子 Session 记为 `agent`）、running 的后台任务或 active 的定时任务：409 `worktree-busy { reasons }`，`reasons` 为 `run` / `agent` / `job` / `schedule` 的集合。
 2. `git status --porcelain --untracked-files=all` 非空：409 `worktree-dirty { files, count }`（`files` 至多 200 个），不改动任何文件。被忽略的文件不算改动，移除时随目录删除。
 3. `git worktree remove <path>`（不加 `--force`），分支保留，记录标为 `removed`。目录已不存在时只 `git worktree prune` 并标记。已是 removed 时 204。
@@ -79,11 +81,10 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 - 移除先确认；busy 时显示原因，dirty 时显示文件数与文件列表，原因来自 409 的 details（按 schema 校验，不合格的按普通失败提示）。
 - 绑定 worktree 的会话在侧栏会话行与标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示。
 
-会话创建的唯一入口（`SessionService.createRecord`：新建、子代理、交接）拒绝绑定已移除的 worktree（409 `worktree-removed`）。worktree 会话的项目 deny / ask 规则、启动恢复的结果探测、回退的边界与 MCP 连接（池键含工作目录）都按会话的工作目录；批准与 Workspace 作用域规则仍按 Workspace。
+会话创建的唯一入口（`SessionService.createRecord`：新建、子代理、交接）拒绝绑定已移除的 worktree（409 `worktree-removed`）。worktree 会话的项目 deny / ask 规则、启动恢复的结果探测、回退的边界、上下文用量（`GET /api/sessions/:id/context` 的指令、Skills 分项）与 MCP 连接（池键含工作目录）都按会话的工作目录；批准与 Workspace 作用域规则仍按 Workspace。
 
 ## 已知限制
 
-- 上下文用量接口（`GET /api/sessions/:id/context`）仍按 Workspace 目录取作用域，worktree 会话的用量分项可能来自主 checkout 的指令文件。
 - 在新 worktree 中新建的会话没有标题，显示为"未命名"。
 
 ## 验证与相关设计
