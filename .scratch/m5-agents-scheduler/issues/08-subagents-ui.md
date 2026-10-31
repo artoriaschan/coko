@@ -32,4 +32,4 @@
   - **留给 Lead / 其他所有者**：`docs/adr/0012-host-process-registry.md:41` 仍写"登记 hook / git 的执行器尚未交付"；`docs/subsystems/todo.md:42` 仍写"Goal 卡尚未交付"；ADR 0015 实施记录中"界面未交付"是带日期的历史记录，保留。均不属本票。
   - **未验证**：真实模型（无凭据）；非 darwin 平台。
 
-  - **运行的命令（main c9a88f4 已包含，git merge main 无新提交）**：`pnpm run typecheck` 0（第一次为 2：approval-bubbling 测试中替换 fixture 的 answerApproval 的参数类型，修正后 0）；`pnpm run lint` 0；`pnpm run format:check` 0；`pnpm run check:docs` 0（181 文件 0 问题）；取全量测试锁后 `pnpm run test` test=0（%s；%s），开始时负载约 4，结束时约 10，日志中没有 Unhandled。E2E `subagents.e2e.test.ts` 单独 1/1。
+  - **运行的命令（main c9a88f4 已包含，git merge main 无新提交）**：`pnpm run typecheck` 0（第一次为 2：approval-bubbling 测试中替换 fixture 的 answerApproval 的参数类型，修正后 0）；`pnpm run lint` 0；`pnpm run format:check` 0；`pnpm run check:docs` 0（181 文件 0 问题）；取全量测试锁后 `pnpm run test` test=0（309 个测试文件全部通过；2520 通过、1 跳过（既有的真实模型用例）），开始时负载约 4，结束时约 10，日志中没有 Unhandled。E2E `subagents.e2e.test.ts` 单独 1/1。
