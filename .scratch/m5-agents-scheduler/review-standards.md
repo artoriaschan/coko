@@ -148,3 +148,17 @@
 - session 包：`sqlite/repositories.ts`（只看 `recordFire` 与 `createSession` 校验）、`memory/index.ts`、`repository-contract.ts`、v8 迁移测试。
 - 测试正文：多数集成测试与 E2E 只 grep 了预算、清理与 sleep，没有逐条核对断言。
 - 文档：除 handoff.md 与 ADR 0013–0016 外的 subsystem 页、包 README 与 GLOSSARY 没有核对。
+
+
+## 处理结果
+
+### 票 12（界面，分支 m5/12-review-fixes-ui）
+
+| 编号 | 处理 | 测试 |
+| --- | --- | --- |
+| L4 | 同 Spec 评审的点名项：schedule 输入由 schedule_fire 行表示，agent 通知块按位置去掉。renderer 暂用本地常量（值与 entries/host-input.ts 相同），票 11 合入后改为导入 | timeline.test.ts 3 例 |
+| L5 界面部分 | store 的 failed 阶段、Toast、对话框（原因、复制摘要、重试）、失败行 | handoff-store.test.ts、handoff.browser.test.tsx |
+| L8 | 原因与修复见 Spec 评审的处理结果；共享主题切换处临时 `[data-theme-switching] * { transition: none }`，组件中没有主题判断 | theme-switch.browser.test.tsx |
+| L9 界面部分 | openSession 跨通道 E2E | open-session.e2e.test.ts |
+| T2（handoff-store.test.ts:70、83） | 历史用例改为之后再推一条会被处理的 run_start 并等它生效；切走用例改为等 store 的 `onFinished`（切换决定已作出）再断言 | handoff-store.test.ts |
+| i18n | Goal 原因 `handed-off`、worktree 错误 `worktree-removed`（侧栏新建会话）、交接的 `unsafe-worktree-path` 的 zh / en | goal-card.browser.test.tsx（覆盖 handed-off，先红） |

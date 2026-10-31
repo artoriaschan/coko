@@ -60,6 +60,7 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 - 标题栏"交接"按钮（子 Session 不显示）打开对话框：下一步目标（⌘↩ 提交）、新会话的目录（当前目录 / 新 worktree（名称可选）/ 已有 worktree（列出 active 的）；不在 git 仓库时只能选当前目录）、源会话有未提交文件时的提示（按 `GET /api/sessions/:id/git-status` 的 `dirtyFiles`，按目标说明新会话是否看到这些改动）。被拒绝时在对话框内显示原因，输入保留。
 - 提交后对话框显示"正在写交接摘要…"与停止，摘要 Run 正常结束后为"正在创建新会话…"；按钮在进行中显示进度。停止后提示没有创建新会话。进度由源会话的条目派生：`trigger: handoff` 的 `run_start` 开始，`run_end` 结束，`handoff` 条目完成。
 - 收到 `handoff` 条目时把 `summary` 写入目标会话的输入区草稿（不发送），用户仍在源会话时切到目标会话（对话框随之关闭）。只处理订阅完成之后到达的条目，打开会话时补发的历史不触发切换。
+- 失败的 `handoff` 条目（`status: 'failed'`，摘要之后目标没能创建）使进度离开"正在创建新会话…"：弹出应用级 Toast（带"重试"，重新打开对话框）；对话框显示"交接摘要已写好，但没能创建新会话"与按错误码本地化的原因，有摘要时提供"复制摘要"，表单保留输入，提交按钮为"重试"，也可以直接关闭。时间线的交接行显示失败与原因，没有打开目标的按钮。界面只按条目判断失败，不依赖额外的进度事件。
 - 时间线：源会话的 `handoff` 行"已交接到 <标题>"（目标为 worktree 时注明）可打开目标；目标会话的 `handoff_origin` 行"交接自 <标题>"可跳回源会话。
 
 ## 与从此分叉的差异
@@ -78,7 +79,7 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 
 ## 已知限制
 
-- 目标在摘要之后才创建：校验之后才出现的冲突（例如同名分支）使交接失败，界面停在"正在创建新会话…"，关闭对话框即可；源会话有 warn 日志。
+- 目标在摘要之后才创建：校验之后才出现的冲突（例如同名分支）使交接失败。界面收到失败的 `handoff` 条目后显示错误、复制摘要与重试（见 [界面](#界面)）；重试会重新写一次摘要。
 - 交接之后源会话的 Goal 照常推进（交接不暂停它）。
 - 模型可见的摘要质量没有用真实模型验证。
 
@@ -87,5 +88,5 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 - `tests/integration/sidecar-handoff.test.ts`：摘要请求（requestLog）、目标继承与不继承、新 worktree 与工作目录、已有 worktree 复用、git-status、409 / 400、停止时不创建，对手用例（预算耗尽时不发请求、交接用量计入 Goal 且之后的请求先计入它）。
 - `tests/integration/secrets-gate-handoff.test.ts`：摘要请求、handoff 条目、目标标题与条目、HTTP、WS、库与日志中没有登记的 Secret 明文。
 - `apps/server/src/application/handoff.test.ts`、`packages/agent/src/agents/handoff.test.ts`：准入、目标校验、目标条目（与分叉同一规则）、请求等待。
-- `apps/desktop/src/renderer/stores/handoff-store.test.ts`、`features/conversation/handoff.browser.test.tsx`：进度、历史不切换、草稿、对话框与交接行。
+- `apps/desktop/src/renderer/stores/handoff-store.test.ts`、`features/conversation/handoff.browser.test.tsx`：进度、历史不切换、草稿、目标创建失败（failed、原因、复制摘要、重试）、对话框与交接行（含失败行）。
 - `apps/desktop/e2e/handoff.e2e.test.ts`：键盘操作的对话框、新 worktree、进行中、目标草稿、两边的交接行、明暗主题对比度。

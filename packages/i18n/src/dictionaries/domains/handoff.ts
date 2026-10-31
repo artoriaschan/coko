@@ -30,6 +30,11 @@ export const handoff = defineDomain(
     creating: '正在创建新会话…',
     stop: '停止',
     stopped: '交接已停止，没有创建新会话',
+    failed: '交接摘要已写好，但没能创建新会话',
+    copySummary: '复制摘要',
+    summaryCopied: '已复制交接摘要',
+    copyFailed: '没能复制交接摘要',
+    retry: '重试',
     errors: {
       nothing: '这个会话还没有可交接的内容',
       running: '会话正在运行，结束后再交接',
@@ -38,6 +43,7 @@ export const handoff = defineDomain(
       invalidName: '名称不可用：小写字母、数字、点、下划线与连字符，以字母或数字开头',
       exists: '同名的 worktree 已存在',
       removed: '这个 worktree 已移除',
+      unsafePath: '.coko-worktrees 是符号链接或不在仓库内，已拒绝创建',
       failed: '交接失败',
     },
     row: {
@@ -77,6 +83,11 @@ export const handoff = defineDomain(
     creating: 'Creating the new session…',
     stop: 'Stop',
     stopped: 'Handoff stopped. No session was created.',
+    failed: 'The summary was written, but the new session could not be created',
+    copySummary: 'Copy summary',
+    summaryCopied: 'Handoff summary copied',
+    copyFailed: "Couldn't copy the handoff summary",
+    retry: 'Retry',
     errors: {
       nothing: 'This session has nothing to hand off yet',
       running: 'The session is running. Hand off after it finishes.',
@@ -85,6 +96,7 @@ export const handoff = defineDomain(
       invalidName: 'Use lowercase letters, digits, ".", "_" and "-", starting with a letter or digit',
       exists: 'A worktree with this name already exists',
       removed: 'This worktree was removed',
+      unsafePath: '.coko-worktrees is a symbolic link or outside the repository; creation was refused',
       failed: 'Handoff failed',
     },
     row: {

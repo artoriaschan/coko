@@ -43,6 +43,7 @@ export { Switch } from './components/switch.tsx'
 export { Toaster, type ToasterProps } from './components/sonner.tsx'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/tooltip.tsx'
 export { ContextRing, type ContextRingLevel, type ContextRingProps } from './context-ring/context-ring.tsx'
+export { applyTheme, type Theme } from './lib/theme.ts'
 export { cn } from './lib/utils.ts'
 // MarkdownRenderer 经 @coko/ui/markdown 子路径导入，使消费方可以按需懒加载（Shiki、Mermaid、KaTeX 体积大）。
 export type { MarkdownRendererProps, MarkdownTranslations } from './markdown/markdown-renderer.tsx'

@@ -106,6 +106,42 @@ describe('交接对话框', () => {
     expect(plain.dialog().querySelector('[data-slot="handoff-dirty"]')).toBeNull()
   })
 
+  it('摘要之后目标没能创建（failed）：显示错误与原因、可复制摘要、以"重试"重新提交；不再停在创建中', async () => {
+    const h = await mountDialog()
+    await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'next')
+    h.handoff.setState({
+      progress: { 's-1': { phase: 'failed', runId: 'h1', error: { code: 'worktree-exists', message: 'fatal: exists' }, summary: '## Task\nnext' } },
+    })
+    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('failed')
+    expect(h.dialog().querySelector('[data-slot="handoff-progress"]')).toBeNull()
+    const alert = h.dialog().querySelector('[data-slot="handoff-failed"]')!
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(alert.textContent).toContain('The summary was written, but the new session could not be created')
+    expect(alert.textContent).toContain('A worktree with this name already exists')
+    await expect.element(page.getByRole('textbox', { name: 'Next goal' })).toHaveValue('next')
+
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    try {
+      await userEvent.click(page.getByRole('button', { name: 'Copy summary' }))
+      await expect.poll(() => writeText.mock.calls).toEqual([['## Task\nnext']])
+    } finally {
+      writeText.mockRestore()
+    }
+
+    await userEvent.click(page.getByRole('button', { name: 'Retry', exact: true }))
+    await expect.poll(() => h.starts.map((s) => s.instructions)).toEqual(['next'])
+    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('summarizing')
+  })
+
+  it('失败的错误码未知、没有摘要时只显示概括，不提供复制', async () => {
+    const h = await mountDialog()
+    h.handoff.setState({ progress: { 's-1': { phase: 'failed', runId: 'h1', error: { code: 'git-failed' } } } })
+    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('failed')
+    const alert = h.dialog().querySelector('[data-slot="handoff-failed"]')!
+    expect(alert.textContent).toBe('The summary was written, but the new session could not be created')
+    expect(h.dialog().querySelector('[data-action="copy-handoff-summary"]')).toBeNull()
+  })
+
   it('Sidecar 拒绝时显示本地化的原因，输入保留', async () => {
     await mountDialog({ backend: { start: async () => Promise.reject(new ApiError('nothing-to-hand-off', 'x', 400)) } })
     await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'next')
@@ -144,6 +180,24 @@ describe('时间线的交接行', () => {
     expect(chat.getState().activeSessionId).toBe('s-3')
     await userEvent.click(screen.getByRole('button', { name: 'Back to the original session' }))
     expect(chat.getState().activeSessionId).toBe('s-4')
+  })
+
+  it('失败的交接（status failed，没有目标）：显示没能创建与原因，不提供打开', async () => {
+    const { chat } = createFixtureChat()
+    await expect.poll(() => chat.getState().listStatus).toBe('ready')
+    const failed = record('handoff', { status: 'failed', error: { code: 'worktree-exists' }, instructions: 'i', summary: 's', target: 'worktree' })
+    const screen = await render(
+      <I18nProvider locale="en">
+        <ChatStoreProvider store={chat}>
+          <HandoffRow item={{ kind: 'handoff', key: '1', handoff: { kind: 'source', payload: failed.payload as never } }} />
+        </ChatStoreProvider>
+      </I18nProvider>,
+    )
+    const row = document.querySelector<HTMLElement>('[data-slot="handoff-row"]')!
+    expect(row.dataset.handoff).toBe('failed')
+    expect(row.textContent).toContain('The summary was written, but the new session could not be created')
+    expect(row.textContent).toContain('A worktree with this name already exists')
+    expect(screen.container.querySelector('button')).toBeNull()
   })
 })
 

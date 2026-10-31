@@ -47,6 +47,7 @@ export const goal = defineDomain(
       'model-required': '需要先选择模型',
       'confirmation-pending': '有待你确认的工具结果',
       'user-cancelled': '你取消了目标',
+      'handed-off': '已交接到新会话，恢复后在这里继续',
       error: '运行出错',
     },
     dimension: {
@@ -148,6 +149,7 @@ export const goal = defineDomain(
       'model-required': 'Choose a model first',
       'confirmation-pending': 'A tool result is waiting for your confirmation',
       'user-cancelled': 'You cancelled the goal',
+      'handed-off': 'Handed off to a new session; resume to continue here',
       error: 'The run failed',
     },
     dimension: {

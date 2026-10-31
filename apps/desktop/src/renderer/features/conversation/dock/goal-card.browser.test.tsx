@@ -158,10 +158,12 @@ for (const locale of ['en', 'zh'] as const) {
   })
 }
 
-it('reason.code 的每个已知取值在 zh / en 中都有文案（不落到"运行出错"）', () => {
+it('reason.code 的每个已知取值在 zh / en 中都有文案（不落到"运行出错"），含交接后源 Goal 的暂停原因 handed-off', () => {
+  // handed-off 由服务端在交接完成后暂停源 Goal 时给出；协议的 GOAL_REASON_CODES 收录它之后这里的显式项是重复的。
+  const codes = new Set<string>([...GOAL_REASON_CODES, 'handed-off'])
   for (const locale of ['zh', 'en'] as const) {
     const reasons: Record<string, string> = dictionaries[locale].goal.reason
-    expect({ locale, missing: GOAL_REASON_CODES.filter((code) => !(code in reasons)) }).toEqual({ locale, missing: [] })
+    expect({ locale, missing: [...codes].filter((code) => !(code in reasons)) }).toEqual({ locale, missing: [] })
   }
 })
 
