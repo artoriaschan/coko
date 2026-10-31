@@ -1,6 +1,6 @@
 // 桌面通知（M5）的应用服务：读取设置键 notifications（缺省全开），经控制通道发 notify 给 main（窗口不在前台时显示）。
-// 发出方：定时任务 Run 的结束与等待审批（application/schedules.ts）；后台子代理由其实现接入。发出后通知观察者（Notification Hook，
-// application/hooks.ts），观察者不影响通知。
+// 发出方：定时任务 Run 的结束与等待审批（application/schedules.ts）、后台子代理（application/subagent-notifications.ts）。先通知观察者
+// （Notification Hook，application/hooks.ts），再按设置决定是否发 notify：关闭通知不影响 Hook，观察者也不影响通知。
 import { DEFAULT_NOTIFICATION_SETTINGS, NOTIFICATIONS_SETTING, NotificationSettings, type NotificationKind, type SidecarNotify } from '@coko/protocol'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionStore } from '@coko/session'
@@ -32,7 +32,7 @@ export class NotificationService {
     this.#send = options.send
   }
 
-  /** 订阅发出的通知（脱敏后的值；不等待，抛错只记 warn）；返回取消订阅。 */
+  /** 订阅通知（不论设置是否关闭；脱敏后的值；不等待，抛错只记 warn）；返回取消订阅。 */
   observe(observer: (input: NotificationInput) => unknown): () => void {
     this.#observers.add(observer)
     return () => void this.#observers.delete(observer)
@@ -45,24 +45,24 @@ export class NotificationService {
     return Value.Check(NotificationSettings, merged) ? merged : { ...DEFAULT_NOTIFICATION_SETTINGS }
   }
 
-  /** 按设置发出一条通知；返回是否发出。title 与 body 按值脱敏后才离开 Sidecar。 */
+  /** 先通知观察者，再按设置发出一条通知；返回是否发出。title 与 body 按值脱敏后才离开 Sidecar（含观察者收到的值）。 */
   async notify(input: NotificationInput): Promise<boolean> {
+    const message = redactSecretsDeep({ type: 'notify' as const, ...input })
+    const { type: _type, ...redacted } = message
+    for (const observer of this.#observers) {
+      try {
+        void Promise.resolve(observer(redacted)).catch((error: unknown) => log.warn('notification observer failed', { error: String(error) }))
+      } catch (error) {
+        log.warn('notification observer failed', { error: String(error) })
+      }
+    }
     const settings = await this.settings()
     if (!settings.enabled || !settings[CATEGORY[input.kind]]) {
       log.info('notification not sent: disabled in settings', { kind: input.kind, sessionId: input.sessionId })
       return false
     }
-    const message = redactSecretsDeep({ type: 'notify' as const, ...input })
     this.#send?.(message)
     log.info('notification sent', { kind: input.kind, sessionId: input.sessionId })
-    const { type: _type, ...sent } = message
-    for (const observer of this.#observers) {
-      try {
-        void Promise.resolve(observer(sent)).catch((error: unknown) => log.warn('notification observer failed', { error: String(error) }))
-      } catch (error) {
-        log.warn('notification observer failed', { error: String(error) })
-      }
-    }
     return true
   }
 }
