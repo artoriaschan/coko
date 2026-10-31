@@ -37,5 +37,12 @@
   - 导出 / README 要点（交给票 08 汇总）：server README——HookService 的生命周期事件与 `bind(HookSessionHost)`、`NotificationService.observe`；agent README——`interpretHookResult` 对 Notification 只记失败。
 - 2026-10-31 lead：合入 main（da02884）后全量有 1 例失败：worktrees.test.ts 的 removeIfUnchanged（票 04 的用例，与本票无关）——每例多次运行真实 git，无竞争时约 2 秒，默认 5 秒在并行全量下不够（负载 40 时 4/4 失败）。lead 在 m5/fix-worktrees-test-budget 给两个 describe 设 30 秒预算（断言不变，git 自身超时由 adapters/git.ts 控制），合入（b6320fb）。之后的全量又与票 09、10 的全量重叠，10 例 Browser Mode 与导入用例超时；lead 加了全量测试锁，在锁内重跑（见下一条）。
 - 2026-10-31 lead：接受越界：layers.ts 约 9 行（hooks.bind、notifications.observe）、notifications.ts 的 observe()、renderer timeline.ts 隐藏 <hook-context>、configuration.md 一句、docs/README 一行；协议 ProjectHookEntry.changed?、GET /api/hooks 接受 ?workspaceId=、批准记录改为 {digest, hookId}（旧格式照读）。main 上在全量测试锁内复核：全量 test 283 文件 2369 通过、1 跳过（真实模型），无页面重载、无未处理错误；运行期间最多 1 个其他全量重叠，负载约 9–11。worktree 已清理。
+- 2026-10-31 implementer（m5/fix-goal-hook-stopped）：按 lead 裁决处理 Goal 与 hook_stopped。
+  - 行为：`apps/server/src/application/goals.ts` 的 Run 结束转换新增一条：Goal 为 running 且 Run 以 paused + `hook_stopped` 结束 → paused（`reason { code: 'hook-stopped', message: <脱敏后的 stopReason> }`，`satisfies KnownGoalReasonCode` 作编译期键断言），不开始下一轮，恢复后照常推进。规则不限 trigger（与 user-stopped 同：用户提交的 Run 在 Goal running 时被 Hook 停下也暂停，否则 Goal 停在 running 不推进）；对照用例取 Goal 不是 running（waiting-input）时用户 Run 被 Hook 停下：没有新 goal 快照、不开始 Goal Round。若 lead 意在"只有 Goal Round 才暂停"，把条件加上 `trigger === 'goal'` 即可。
+  - 协议 `GOAL_REASON_CODES` 加 `hook-stopped`；i18n goal 域 zh「Hook 停下了运行，恢复后继续」/ en「A hook stopped the run; resume to continue」（goal-card browser 测试遍历 `GOAL_REASON_CODES` 断言 zh / en 齐全，15 通过）。agent 侧 `goals/state.ts`、`goals/prompt.ts` 的 reason 是 string、没有按 code 的描述表（B6 的描述表只含预算维度），无需改。
+  - 测试：`tests/integration/sidecar-hooks-lifecycle.test.ts` 的 continue: false 用例改为断言 paused（hook-stopped、revision 2）、只有 ['submit', 'goal'] 两个 Run、3 次请求，再 resume → Goal Round 2 完成、轮次用尽（4 次请求）；新增对照用例（waiting-input 不变）。先红：改实现前主用例失败（实际 phase running、revision 1），对照用例通过（预期，它是对照）。
+  - 文档：goal.md"阶段与转换"一条与 reason 列表；hooks.md continue: false 一节一条。
+  - 命令与结果（git merge main：已是最新，基于 5f6d5ca）：`pnpm install --frozen-lockfile`=0、`pnpm run typecheck`=0、`pnpm run lint`=0（829 文件 0 问题）、`pnpm run format:check`=0、`pnpm run check:docs`=0（181 文件 0 问题）、取锁的 `pnpm run test`=0（309 文件，2521 通过、1 跳过）。
+  - 越出 Write scope：无（goals.ts、protocol goal.ts、i18n goal 域、goal.md 均为 lead 指定）。符号链接与秘密总闸：不适用，没有新的读取根或输出通道（reason.message 复用已脱敏的 stopReason）。
 
 Closed: true

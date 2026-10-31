@@ -49,6 +49,7 @@ lifecycle: active
 
 - Goal Round 以 error 结束 → failed（`reason.code` 为 Run 的错误码），不自动重试。
 - Goal 为 running 时 Run 被停止（aborted，或 paused 且没有 error）：Goal Round 停止时仍有等待回答的审批（`approval_decision` cancelled）→ waiting-input（`approval-unanswered`）；否则 → paused（`user-stopped`）。用户提交的 Run 被停止时同样暂停，避免停止后立即开始下一轮。
+- Goal 为 running 时外部 Hook 以 `continue: false` 停下 Run（paused 加 `hook_stopped`，见 [外部 Hook](hooks.md#continue-false-的停止)）→ paused（`hook-stopped`，`reason.message` 为脱敏后的 `stopReason`），不开始下一轮，用户恢复后照常推进。Goal 不是 running（如 waiting-input）时 Run 被 Hook 停下，Goal 不变。
 - Goal 为 waiting-input 时，用户提交（或回答审批之后）的 Run 正常结束 → running；Goal 在这个 Run 之中才进入 waiting-input（模型在用户的 Run 里调用了 `wait_input`）时不唤醒，等用户的下一次提交。
 - 预算停止（`run_end.error.code` 为 `budget_exhausted`、`cost_unpriced`）→ budget-exhausted（`reason.code` 为运行时交给宿主的 `RunError.dimension`，不解析消息文本）/ blocked（`cost-unpriced`），见 [预算](#预算)。
 
@@ -149,7 +150,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 - 暂停（running、waiting-*）、恢复（paused、blocked、failed、budget-exhausted；仍有维度达到上限时不可用并提示先调高预算）、编辑（目标与五维预算，留空为不设上限；时间以分钟输入）、标为完成、取消（确认框；请求在清理完成后返回，期间显示"正在停止"）。
 - 动作带当前快照的 revision；`revision-conflict` 时提示并重新读取，其他失败以 Toast 提示。
-- 原因按 `reason.code` 本地化：协议 `GoalReason.code` 为已知字面量（`GOAL_REASON_CODES`：预算维度与 `budget`、`cost-unpriced`、用户与系统的暂停、停止与取消、`restarted`、`approval-unanswered`、`plan-review`、模型的 update_goal 原因、Goal Round 没能开始的错误码）的联合，另以字符串兜底；每个已知值在 zh / en 中都有文案。needs-input、model-blocked、model-paused 另附模型给出的原文；其余代码（Run 的错误码）显示"运行出错"并附错误消息。
+- 原因按 `reason.code` 本地化：协议 `GoalReason.code` 为已知字面量（`GOAL_REASON_CODES`：预算维度与 `budget`、`cost-unpriced`、用户与系统的暂停、停止与取消、外部 Hook 停下 Run 的 `hook-stopped`、`restarted`、`approval-unanswered`、`plan-review`、模型的 update_goal 原因、Goal Round 没能开始的错误码）的联合，另以字符串兜底；每个已知值在 zh / en 中都有文案。needs-input、model-blocked、model-paused 另附模型给出的原文；其余代码（Run 的错误码）显示"运行出错"并附错误消息。
 
 展开状态、经 `/goal` 打开与关闭只在 renderer 内存中。`/goal`（无参数，独占整段输入）在 renderer 中直接展开 Goal 卡、不发送；没有 Goal 时显示空状态（如何用 `/goal <目标>` 建立），下一个 Run 开始或关闭后消失。Run 进行中的 `/goal pause`、`/goal cancel` 作为提交（Sidecar 的动作）发送，不作为追加指令；提交返回 204 时 renderer 不进入运行中、不报错。
 

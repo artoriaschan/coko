@@ -165,7 +165,7 @@ Coko 发出桌面通知时运行（`NotificationService.notify` 按设置决定�
 
 - 工具事件与 Stop：进行中的 Run 本批完成后停止（与 Goal 的工具调用上限相同的 stopAfterBatch，第一次为准）；本批的调用照常执行。
 - UserPromptSubmit：提交照常（user message 入库、Run 开始），Run 在第一次模型请求之前停止。
-- Goal Round 中发生时按 Goal 现有的 Run 结束规则：`hook_stopped` 不是预算停止也不是用户停止，Goal 保持 running，不开始下一轮（等用户提交或操作 Goal）。
+- Goal 为 running 时（Goal Round 或用户提交的 Run）发生：Goal 进入 paused（`reason.code` 为 `hook-stopped`），不开始下一轮，用户恢复后照常推进；见 [Goal 的 Run 结束规则](goal.md#阶段与转换)。
 
 ## 记录
 
