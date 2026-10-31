@@ -39,6 +39,7 @@ M5 让 Agent 把一段工作派发给子代理：子代理有独立的上下文�
 
 - 2026-10-31，子代理核心（服务端）：子 Session 与独立上下文、工具交集与固定排除、有效模式在每次判定时取根当前模式与定义的较窄者、审批在子 Session 等待并可由用户或 PermissionRequest Hook 回答、用量计入派发它的 Run 所属的 Goal 且子 Run 同样检查、停止与取消的传播、重启后记为中断且不重跑与不进入结果确认已实现，当前行为见 [子代理](../subsystems/subagents.md)。证据：`tests/integration/sidecar-subagents.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-subagents-budget.test.ts`、`sidecar-subagents-cancel.test.ts`、`sidecar-subagents-restart.test.ts`、`sidecar-subagents-isolation.test.ts`、`secrets-gate-subagents.test.ts`、`packages/agent/src/agents/definitions.test.ts`。与决定的差异：plan / read-only 下 `isolation` 先询问（判定在工具执行之前），允许后工具为错误结果。界面（父会话中的审批与子代理视图）在此时尚未交付。
 - 2026-10-31，子代理界面：子代理的审批在父会话输入区中按时间顺序接管并标出来源，回答发往子 Session，可从父会话打开子 Session 的只读时间线并停止子代理，implementation 改为 implemented；界面契约见 [子代理](../subsystems/subagents.md#界面)。证据：`apps/desktop/src/renderer/features/conversation/approval-bubbling.browser.test.tsx`、`features/right-panel/agents-tab.browser.test.tsx`、`apps/desktop/e2e/subagents.e2e.test.ts`（真实 Electron 与 Sidecar：子代理的写入审批在父会话中允许后继续，后台子代理停止后 `agent_end` 为 cancelled）。
+- 2026-10-31 评审修复：重启时后台调用与 `agent_start` 之前的调用同样得到中断说明（子 Session id、可能已改动文件），孤儿子 Session 补记 `agent_start` / `agent_end`，isolation worktree 按 removeIfUnchanged 回收；没有 isolation 的子 Session 继承父级 worktree；plan / read-only 下 isolation 在 gate 中直接拒绝；派发失败时回收 worktree 与询问规则；同一个 Run 中第一次派发后即有 agent_wait；max-turns 按 Run 的条目计数。证据：`apps/server/src/application/subagents-recovery.test.ts`、`subagents-dispatch.test.ts`、`tests/integration/sidecar-subagents{,-restart,-isolation}.test.ts`。
 
 ## 来源与后继
 

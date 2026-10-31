@@ -37,7 +37,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - `agent { description, prompt, subagent_type?, model?, run_in_background?, isolation?: 'worktree' }`：权限类 agent，规则组名 `Agent`、内容为子代理类型。同一批的多个调用并行（调度中按 read 共享执行槽；判定只看权限类）。前台等待子 Run 结束，结果为 `<agent-result agent-id status turns tool-calls tokens cost duration-ms>文本</agent-result>`：文本为子 Session 最后一条非空 assistant 文本，超过 50 000 字符截断并注明子 Session；状态不是 completed 时为错误结果。后台立即返回 `Started subagent <id> (<type>): <description>. Wait with agent_wait.`。
 - `agent_wait { agent_ids?, timeout_ms? }`（context-read，缺省 30 000 ms，上限 600 000 ms）：子代理结束、超时或追加指令到达时返回各自状态与结果；不给 id 时等待本 Session 全部 running 的子代理（没有时列出全部）。
 - `agent_cancel { agent_id }`（session-state）：abort 子 Run 并等待 `agent_end`。
-- `agent_wait`、`agent_cancel` 只在本 Session 有过子代理时注册；子 Session 中三个工具都不注册。
+- `agent_wait`、`agent_cancel` 只在本 Session 有过子代理时注册；第一次派发之后在同一个 Run 的下一次请求就注册（`agent_start` 之后宿主重新取工具，变化以 toolsAdded 告知模型）。子 Session 中三个工具都不注册。没有 isolation 的子 Session 继承父 Session 的 worktree（工作目录与父级相同）。
 
 派发失败（未知类型、模型不在 Catalog、并行上限、预算、隔离）时 `agent` 为错误结果，不创建子 Session。结果与通知中的状态与用量只来自宿主的 `agent_end`；子代理文本中的 `<agent-result` / `<agent-notification` 标签被转义。模型给出的 description 与 prompt 在派发时按值替换登记的 Secret（子 Session 的首条 user message、标题与通知不再经过替换）。
 
@@ -65,15 +65,15 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## 后台通知
 
-后台子代理结束时提交 `agent_end` 并发 `agent-finished` 桌面通知。模型没有用 `agent_wait` 读到终态时送达 `<agent-notification agent-id agent-type status>`（摘要；结果 ≤ 2 048 字符时内联在 `<result>` 中，否则提示用 agent_wait）：父 Session 有 Run 时作为追加指令（前置 `agent_notification` 条目），没有时挂起，合并到下一个 Run 的 user message 开头；作为追加指令却没有送达的，Run 结束后挂起。通知不唤醒空闲的 Session。
+后台子代理等待审批时发 `approval-waiting`、结束时提交 `agent_end` 并发 `agent-finished` 桌面通知（经控制通道的 `notify`）。通知文本是宿主通知：Goal Round 与 continue 中送达时不授予用户权限（`runAuthority`），Run 结束时退回的通知不算用户的追加指令（标签见 `@coko/agent/entries` 的 host-input）。模型没有用 `agent_wait` 读到终态时送达 `<agent-notification agent-id agent-type status>`（摘要；结果 ≤ 2 048 字符时内联在 `<result>` 中，否则提示用 agent_wait）：父 Session 有 Run 时作为追加指令（前置 `agent_notification` 条目），没有时挂起，合并到下一个 Run 的 user message 开头；作为追加指令却没有送达的，Run 结束后挂起。通知不唤醒空闲的 Session。
 
 ## isolation worktree
 
-`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：只有 full-access 直接放行，其余模式询问；plan / read-only 下询问允许后工具为错误结果，不创建 worktree。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加一条不入库的询问规则 `Read(<path>)`：父 Session 读取其中文件须审批（启动恢复时重新登记仍 active 的）。
+`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加一条不入库的询问规则 `Read(<path>)`：父 Session 读取其中文件须审批（启动恢复时重新登记仍 active 的）。
 
 ## 重启
 
-子 Session 的 Run 按现有中断恢复处理，不自动重跑。Session 恢复之前，被中断的父 Run 中仍在等待的前台 `agent` 调用先补 `agent_end { status: interrupted }` 与结果 `Subagent interrupted by a restart; partial results are in child session <id>.`，因此不进入结果确认；Session 恢复之后，其余没有 `agent_end` 的子代理（后台）补记 interrupted。正常关闭时 Run 被中断，子 Run 以 cancelled 结束。
+子 Session 的 Run 按现有中断恢复处理，不自动重跑。Session 恢复之前，被中断的父 Run 中没有结果的 `agent` 调用（前台与后台）先补 `agent_end { status: interrupted }` 与结果 `Subagent interrupted by a restart; partial results are in child session <id>. It may have changed files before it stopped: …`，因此不进入结果确认，也不得到 read 工具"没有副作用、可以重试"的文本。崩溃在 `agent_start` 之前、子 Session 已创建时，从子 Session 的 `subagent_origin` 补记 `agent_start`；子 Session 还没创建时结果说明子代理没有开始。被中断的子代理的 isolation worktree 按 `removeIfUnchanged` 回收（有改动时保留并记在 `agent_end.worktree`）；子代理派发时创建、还没有子 Session 绑定的 worktree 由 WorktreeService 的启动恢复同样回收。Session 恢复之后，其余没有 `agent_end` 的子代理（后台）补记 interrupted。正常关闭时 Run 被中断，子 Run 以 cancelled 结束。
 
 ## HTTP
 
@@ -94,14 +94,14 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 ## 已知限制
 
 - 子代理的进程内状态（定义、根 Session、等待者）不跨重启保留；重启后的子 Session 按 parentSessionId 取根 Session 的权限，工具只去掉固定排除集。
-- plan / read-only 下 isolation 先询问再返回错误结果（判定在工具执行之前）。
 - 删除或归档父 Session 时不处理子 Session；子代理不能继续对话。
 - 界面只为 running 的子代理订阅子 Session 以冒泡审批；已结束的子代理不会再有待审批请求。Agents tab 的子时间线不显示 Run 用量行（用量在列表中）。
 
 ## 验证
 
 - `packages/agent/src/agents/definitions.test.ts`：每种诊断、同名覆盖与符号链接、工具交集、有效模式、结果截断与标签转义、通知内联。
-- `tests/integration/sidecar-subagents.test.ts`：前台独立上下文、并行、后台的送达与挂起、agent_wait、cancel 与第 5 个、列表与 409、GET …/agents 与定义、max-turns 与伪造的结果标签。
+- `tests/integration/sidecar-subagents.test.ts`：前台独立上下文、并行、后台的送达与挂起、agent_wait（含第一次派发的同一个 Run）、approval-waiting 与 agent-finished 的 notify、cancel 与第 5 个、列表与 409、GET …/agents 与定义、max-turns 与伪造的结果标签。max-turns 按本 Run 已提交的 assistant 条目计数（自动压缩不重置）。
+- `apps/server/src/application/subagents-recovery.test.ts`、`subagents-dispatch.test.ts`：重启时后台与 agent_start 之前的调用、派发失败的清理、max-turns 的计数。
 - `tests/integration/sidecar-subagents-permissions.test.ts`：审批在子 Session 回答、规则写入根、PermissionRequest Hook、定义不能放宽、根切到 read-only、工具表与固定排除、`Agent(general)` 拒绝。
 - `tests/integration/sidecar-subagents-budget.test.ts`、`sidecar-subagents-cancel.test.ts`、`sidecar-subagents-restart.test.ts`、`sidecar-subagents-isolation.test.ts`、`secrets-gate-subagents.test.ts`。
 - 界面：`apps/desktop/src/renderer/stores/agents-store.test.ts`（进度合并、较早的列表不覆盖结束状态、停止的 409、审批只回答一次）；Browser Mode 的 `features/conversation/agent-card.browser.test.tsx`（六种状态的中英文、进度随 `agent_update` 更新、用量、后台 chip、worktree、派发失败与打开请求）、`approval-bubbling.browser.test.tsx`（父会话与两个子代理的请求按时间顺序接管、来源标注、回答发往子 Session、草稿不丢）、`features/right-panel/agents-tab.browser.test.tsx`（列表、只读子时间线、键盘停止与选中、标题栏按钮）、`features/settings/agents-section.browser.test.tsx`；Electron E2E `apps/desktop/e2e/subagents.e2e.test.ts`（真实 Sidecar 与 faux：前台进度与结果、子时间线、写入审批在父会话中允许、后台子代理键盘停止为 cancelled、标题栏 running 数、明暗主题对比度与 390 px、设置 → Agents 的内置 / COKO_HOME / 项目定义与诊断）。

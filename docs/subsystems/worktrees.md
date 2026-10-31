@@ -79,11 +79,11 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 - 移除先确认；busy 时显示原因，dirty 时显示文件数与文件列表，原因来自 409 的 details（按 schema 校验，不合格的按普通失败提示）。
 - 绑定 worktree 的会话在侧栏会话行与标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示。
 
+会话创建的唯一入口（`SessionService.createRecord`：新建、子代理、交接）拒绝绑定已移除的 worktree（409 `worktree-removed`）。worktree 会话的项目 deny / ask 规则、启动恢复的结果探测、回退的边界与 MCP 连接（池键含工作目录）都按会话的工作目录；批准与 Workspace 作用域规则仍按 Workspace。
+
 ## 已知限制
 
-- `POST /api/sessions` 不拒绝绑定已移除的 worktree：这样的会话一开始就是只读的。
-- 上下文用量接口（`GET /api/sessions/:id/context`）与启动恢复的结果探测仍按 Workspace 目录取作用域，worktree 会话的这两处可能读取主 checkout 的指令或路径。
-- 项目的 deny / ask 规则按 Workspace 目录读取（批准与 Workspace 作用域规则仍按 Workspace，见 ADR 0016）。
+- 上下文用量接口（`GET /api/sessions/:id/context`）仍按 Workspace 目录取作用域，worktree 会话的用量分项可能来自主 checkout 的指令文件。
 - 在新 worktree 中新建的会话没有标题，显示为"未命名"。
 
 ## 验证与相关设计

@@ -39,6 +39,7 @@ Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它
 - 2026-10-31，worktree 的绑定与移除：创建、会话绑定、工作目录（含 Workspace 为仓库子目录）、exclude、符号链接拒绝、busy / dirty / removed 与启动恢复、宿主 git 执行与侧栏入口已实现，当前行为见 [Worktree](../subsystems/worktrees.md)。证据：`tests/integration/sidecar-worktrees.test.ts`、`apps/server/src/application/worktrees.test.ts`、`apps/server/src/adapters/git.test.ts`、`apps/desktop/e2e/worktrees.e2e.test.ts`。子代理隔离 worktree 的自动移除与保留只有 `removeIfUnchanged` 的单元测试，接入子代理后补齐。
 - 2026-10-31，子代理的 isolation worktree：子代理不改文件时 worktree 与分支被移除、有提交时保留并在结果中给出路径与分支、父 Session 读取保留的 worktree 须审批（`.coko-worktrees/` 在 Workspace 之内，由不入库的询问规则保证，重启后重新登记），见 [子代理](../subsystems/subagents.md#isolation-worktree)。证据：`tests/integration/sidecar-subagents-isolation.test.ts`。implementation 改为 implemented。
 - 与上文"读取另一 checkout 须审批"一致的实现方式：worktree 会话的 Workspace 根就是其工作目录，主 checkout 的读取按越出 Workspace 处理。
+- 2026-10-31 评审修复：项目 deny / ask 规则、启动恢复的探测、回退边界与 MCP 连接池按会话的工作目录；会话创建的唯一入口拒绝绑定已移除的 worktree（409 `worktree-removed`）；没有子 Session 绑定的子代理 worktree 在启动时回收。证据：`apps/server/src/application/session-cwd-scope.test.ts`、`worktrees.test.ts`。
 
 ## 来源与后继
 
