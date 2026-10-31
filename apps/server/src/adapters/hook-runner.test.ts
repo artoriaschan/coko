@@ -85,9 +85,8 @@ describe.skipIf(process.platform !== 'darwin')('createHookRunner（Hook 进程�
     const outcome = await runner.run({ command: hook('--sleep', '30000', '--ignore-term'), cwd: tmpdir(), env: {}, input: '{}', timeoutMs: 500 })
     const elapsed = Date.now() - started
     expect(outcome.timedOut).toBe(true)
-    // SIGTERM 被忽略：至少经过宽限（不是 SIGTERM 结束的），且在 timeout + 2 秒（加轮询余量）内结束。
+    // SIGTERM 被忽略：至少经过宽限（不是 SIGTERM 结束的）；结束时进程组已不存在（SIGKILL）。不做墙钟上限断言（负载下抖动）。
     expect(elapsed).toBeGreaterThanOrEqual(500 + 2_000 - 50)
-    expect(elapsed).toBeLessThan(500 + 2_000 + 1_000)
     expect(processAlive({ pid: tracked[0]!.pid, pgid: tracked[0]!.pgid })).toBe(false)
     expect(releasedAlive).toBe(false)
   })

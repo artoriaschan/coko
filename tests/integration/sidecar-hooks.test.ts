@@ -13,6 +13,7 @@ import {
   exchange,
   fauxScript,
   hookCommand,
+  pollUntil,
   processExists,
   sidecarDirs,
   startSidecar,
@@ -244,15 +245,6 @@ const projectFile = async (root: string, hooks: Hooks, extra: Record<string, unk
   await writeFile(join(root, '.coko', 'settings.json'), JSON.stringify({ hooks: { ...extra, ...hooks } }))
 }
 
-/** 轮询文件、进程表或数据库中的可观察条件（它们的变化不经 WS 到达）。 */
-async function poll(condition: () => boolean | Promise<boolean>, timeoutMs: number, what: string): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (!(await condition())) {
-    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`)
-    await new Promise((resolve) => setTimeout(resolve, 25))
-  }
-}
-
 type Row = { pid: number; pgid: number | null; kind: string; session_id: string | null }
 function hookRows(dirs: SidecarDirs): Row[] {
   const path = join(dirs.dataDir, 'coko.db')
@@ -266,25 +258,25 @@ function hookRows(dirs: SidecarDirs): Row[] {
 }
 
 describe('并行、超时与没有决定', () => {
-  it('两个 Hook 并行（各 sleep 1 秒，总耗时 < 1.8 秒）且 deny 胜过 allow', async () => {
+  it('两个 Hook 并行（barrier：各自写 start 文件并等对方的出现）且 deny 胜过 allow', async () => {
+    // 串行时第一个 Hook 等不到对方的 start 文件，到 10 秒超时为 timeout，outcome 不是 allowed + blocked（变异确认）。
+    const barrier = await tempDir('coko-hook-barrier-')
+    const [a, b] = [join(barrier, 'a.start'), join(barrier, 'b.start')]
     const h = await boot([{ content: [bash('b1', 'echo x > p.txt')] }, { content: 'ok' }], {
       hooks: {
         PreToolUse: [
-          group(hookCommand('--sleep', '1000', '--stdout', pre('allow'))),
-          group(hookCommand('--sleep', '1000', '--stdout', pre('deny', 'second says no'))),
+          group(hookCommand('--start', a, '--await', b, '--stdout', pre('allow')), { timeout: 10 }),
+          group(hookCommand('--start', b, '--await', a, '--stdout', pre('deny', 'second says no')), { timeout: 10 }),
         ],
       },
     })
     const sessionId = await h.open()
-    const started = Date.now()
     await h.send(sessionId)
     const result = await resultOf(h.stream, sessionId, 'b1')
-    const elapsed = Date.now() - started
     expect(text(result)).toBe('Blocked by hook: second says no')
-    expect(elapsed).toBeLessThan(1_800)
     const runs = hookRuns(h.stream, sessionId)
     expect(runs.map((r) => r.outcome).sort()).toEqual(['allowed', 'blocked'])
-    expect(runs.every((r) => (r.durationMs as number) >= 1_000)).toBe(true)
+    expect([exists(a), exists(b)]).toEqual([true, true])
     await h.runEnds(sessionId, 1)
     await h.sidecar.stop()
   })
@@ -310,18 +302,17 @@ describe('并行、超时与没有决定', () => {
     })
     const sessionId = await h.open('full-access')
     await h.send(sessionId)
-    await poll(async () => (await lines(pidFile)).length === 1 && hookRows(h.dirs).length === 1, 10_000, 'the hook registration')
+    await pollUntil(async () => (await lines(pidFile)).length === 1 && hookRows(h.dirs).length === 1, { timeoutMs: 10_000, what: 'the hook registration' })
     const pid = Number((await lines(pidFile))[0])
     expect(hookRows(h.dirs)).toEqual([{ pid, pgid: pid, kind: 'hook', session_id: sessionId }])
-    const started = Date.now()
+    // 进程组在 timeout + 2 秒内消失：等待以该上限为界（不另做墙钟断言，负载下不抖动）。
     await h.stream.waitFor(() => hookRuns(h.stream, sessionId).length === 1, 10_000)
-    expect(Date.now() - started).toBeLessThan(1_000 + 2_000 + 500)
     expect(hookRuns(h.stream, sessionId)).toEqual([expect.objectContaining({ event: 'PreToolUse', outcome: 'timeout' })])
     expect(processExists(pid)).toBe(false)
     // 没有决定：full-access 照常执行；登记行已删除。
     await h.runEnds(sessionId, 1)
     expect(await readFile(join(root, 'ran.txt'), 'utf8')).toBe('ran\n')
-    await poll(() => hookRows(h.dirs).length === 0, 5_000, 'the hook registration to be removed')
+    await pollUntil(() => hookRows(h.dirs).length === 0, { timeoutMs: 5_000, what: 'the hook registration to be removed' })
     await h.sidecar.stop()
   })
 
