@@ -1,6 +1,7 @@
 // 交接 store：由条目推进进度（摘要中 → 创建中 → 切到目标会话并写入草稿；停止；目标创建失败）；打开会话时补发的历史 handoff 条目不触发切换；
 // 用户已离开源会话时只写草稿、不切换。
-import type { SessionEntryRecord } from '@coko/protocol'
+import { SessionEntry, type SessionEntryRecord } from '@coko/protocol'
+import { Value } from 'typebox/value'
 import { describe, expect, it, vi } from 'vitest'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 import { createHandoffStore, type HandoffBackend } from './handoff-store.ts'
@@ -16,6 +17,16 @@ const record = (sessionId: string, seq: number, kind: string, payload: unknown, 
 })
 const handoffEntry = (seq: number, target = 's-3', summary = '## Task\nnext') =>
   record('s-1', seq, 'handoff', { targetSessionId: target, instructions: 'next', summary, target: 'current' })
+
+const failedEntry = (seq: number) =>
+  record('s-1', seq, 'handoff', {
+    status: 'failed',
+    error: { code: 'worktree-exists', message: 'fatal: a branch named coko/login already exists' },
+    instructions: 'next',
+    summary: '## Task\nnext',
+    target: 'worktree',
+    usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { total: 0 } },
+  })
 
 const backend = (extra: Partial<HandoffBackend> = {}): HandoffBackend => ({
   start: async () => ({ runId: 'h1' }),
@@ -34,7 +45,18 @@ async function setup(options: { history?: SessionEntryRecord[]; backend?: Partia
   fixture.chat.getState().openSession('s-1')
   await vi.waitFor(() => expect(fixture.chat.getState().conversations['s-1']?.status).toBe('ready'))
   const push = (entry: SessionEntryRecord) => fixture.sendServer({ type: 'entry', sessionId: entry.sessionId, entry })
-  return { ...fixture, store, writeDraft, finished, off, push }
+  /** 直接追加到对话 store 的会话条目（不经协议校验）：交接 store 的输入就是这些条目。 */
+  const inject = (entry: SessionEntryRecord) =>
+    fixture.chat.setState((s) => {
+      const conversation = s.conversations[entry.sessionId]!
+      return {
+        conversations: {
+          ...s.conversations,
+          [entry.sessionId]: { ...conversation, entries: [...conversation.entries, entry as never], lastSeq: entry.seq },
+        },
+      }
+    })
+  return { ...fixture, store, writeDraft, finished, off, push, inject }
 }
 
 describe('handoff store', () => {
@@ -94,16 +116,7 @@ describe('handoff store', () => {
     h.push(record('s-1', last + 1, 'run_start', { trigger: 'handoff' }))
     h.push(record('s-1', last + 2, 'run_end', { status: 'completed' }))
     expect(h.store.getState().progress['s-1']).toEqual({ phase: 'creating', runId: 'h1' })
-    h.push(
-      record('s-1', last + 3, 'handoff', {
-        status: 'failed',
-        error: { code: 'worktree-exists', message: 'fatal: a branch named coko/login already exists' },
-        instructions: 'next',
-        summary: '## Task\nnext',
-        target: 'worktree',
-        usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { total: 0 } },
-      }),
-    )
+    h.inject(failedEntry(last + 3))
     expect(h.store.getState().progress['s-1']).toEqual({
       phase: 'failed',
       runId: 'h1',
@@ -122,8 +135,18 @@ describe('handoff store', () => {
     const last = h.chat.getState().conversations['s-1']!.lastSeq
     h.push(record('s-1', last + 1, 'run_start', { trigger: 'handoff' }))
     h.push(record('s-1', last + 2, 'run_end', { status: 'completed' }))
-    h.push(record('s-1', last + 3, 'handoff', { status: 'failed', instructions: 'next', summary: '', target: 'current' }))
+    h.inject(record('s-1', last + 3, 'handoff', { status: 'failed', instructions: 'next', summary: '', target: 'current' }))
     expect(h.store.getState().progress['s-1']).toEqual({ phase: 'failed', runId: 'h1', error: { code: '' } })
+  })
+
+  // 经 WebSocket 推送的条目先按协议的 SessionEntry 校验；协议的 handoff payload 收录 status: 'failed' 之前，失败条目会被丢弃，这一例跳过。
+  it.skipIf(!Value.Check(SessionEntry, failedEntry(1)))('失败的 handoff 条目经协议校验到达（推送）：同样离开 creating', async () => {
+    const h = await setup()
+    const last = h.chat.getState().conversations['s-1']!.lastSeq
+    h.push(record('s-1', last + 1, 'run_start', { trigger: 'handoff' }))
+    h.push(record('s-1', last + 2, 'run_end', { status: 'completed' }))
+    h.push(failedEntry(last + 3))
+    await vi.waitFor(() => expect(h.store.getState().progress['s-1']?.phase).toBe('failed'))
   })
 
   it('start：202 后立即为进行中；响应晚于 run_end 到达时不再记为进行中；失败时抛出且无进度', async () => {
