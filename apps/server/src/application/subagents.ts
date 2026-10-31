@@ -366,10 +366,11 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (running >= MAX_RUNNING_SUBAGENTS) throw new Error(`At most ${MAX_RUNNING_SUBAGENTS} subagents can run at once; wait for one with agent_wait`)
     const token = Symbol('reserve')
     this.#reserving.set(token, parentId)
-    let live: Live
+    let live: Live | undefined
+    let worktree: { id: string; path: string; branch: string } | undefined
     try {
       const tools = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
-      const worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
+      worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
       if (worktree) this.#isolate(parentId, worktree.path, true)
       const child = await store.sessions.createSession({
         workspaceId: parent.workspaceId,
@@ -432,6 +433,17 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
           ...(worktree ? { isolation: { worktreeId: worktree.id, path: worktree.path, branch: worktree.branch } } : {}),
         },
       })
+    } catch (error) {
+      // 派发没有完成（子 Session、subagent_origin 或 agent_start 提交失败）：不残留 running（不占并行上限、worktree 不判为 busy），
+      // isolation worktree 没有改动时回收，询问规则随之去掉。
+      if (live) this.#live.delete(live.agentId)
+      if (worktree) {
+        const created = worktree
+        const removed = await this.#worktrees!.removeIfUnchanged(created.id).catch(() => undefined)
+        if (removed?.removed) this.#isolate(parentId, created.path, false)
+      }
+      log.warn('subagent dispatch failed', { sessionId: parentId, error: errorMessage(error) })
+      throw error
     } finally {
       this.#reserving.delete(token)
     }
