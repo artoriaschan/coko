@@ -16,6 +16,8 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 
 桌面 E2E 与产物 smoke 默认以后台模式启动应用（`COKO_E2E_BACKGROUND=1`）：应用仍在真实 Electron 中渲染和交互，但不激活、不抢占前台焦点、不显示 Dock 图标，窗口透明；该开关只在未打包或测试构建中生效，发布构建忽略它。本地调试需要看到窗口时设置 `COKO_E2E_VISIBLE=1`。
 
+发布构建（不带 `COKO_TEST_BUILD`）的产物 E2E 是单独的 Vitest 项目 `desktop-release`（`apps/desktop/vitest.release.config.ts`），只在 `COKO_RELEASE_E2E=1` 时选中用例；未设置时选中 0 个文件、不打包，默认的 `pnpm run test` 不受影响。它的 globalSetup 以 `COKO_FORGE_OUT_DIR=out-release` 运行 `pnpm run make`，与测试构建的 `out/` 分开；因为会再打一次包，在全量测试锁内运行。发布构建忽略后台模式，用例以 `open -g -n` 启动应用（不激活）并经 CDP 连接，进程号从 CDP 的 `SystemInfo.getProcessInfo` 读取，只结束这些进程。对手用例：带 `COKO_FAUX_SCRIPT`、`COKO_TEST_CLOCK`、`COKO_E2E_BACKGROUND`、`COKO_TEST_UPDATE_FEED_URL` 启动时没有 Provider、日志 `test hooks ignored in a packaged build` 列出这些名字、`POST /api/test/clock` 404、测试更新源收不到请求且 `auto update disabled { reason: no-feed }`、随包 ripgrep 与 node-pty 被加载；dmg 经 `hdiutil attach -readonly -nobrowse` 挂载后有 `Coko.app`，记录 `codesign --verify` 的结果（adhoc，不断言 Developer ID）后卸载。当前做法见 [安装包、自动更新与发布构建](../subsystems/delivery.md)。
+
 ## 测试用例生成与维护
 
 新增功能、修复缺陷或改变已有行为时，按以下规则设计测试；框架版本见 [技术栈](../TECH_STACK.md#代码质量与测试工具)，运行时遵循下文“运行与编排”，测试位置遵循 [构建与测试归属](architecture.md#构建与测试归属)。
