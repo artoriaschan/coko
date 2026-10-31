@@ -39,6 +39,8 @@ export interface CompactionDriverOptions {
   /** 与对话请求共用的流（同样的重试策略与 retry 进度）。 */
   stream: StreamFn
   commit: (entry: RunEntry) => Promise<void>
+  /** 摘要请求结束后（成功或失败）提交它的 model_request（purpose compaction）。 */
+  recordRequest?: (run: CompactionRun) => Promise<void>
   progress: (event: ProgressEvent) => void
   /** agent 的状态：当前模型与对话记录（压缩后替换）。 */
   state: { model: Model<any>; messages: AgentMessage[] }
@@ -114,13 +116,19 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
    * 摘要请求：Session 当前模型、没有工具、maxTokens 20 000（不超过模型上限）、不写提示缓存。输入限制在窗口减去输出上限之内
    * （按 4 字符 / token 估算），超出时从最早处省略，摘要请求本身不会溢出。
    */
-  const summarize = async (plan: CompactionPlan, signal: AbortSignal, instructions?: string): Promise<{ text: string; usage: RequestUsage }> => {
+  const summarize = async (
+    run: CompactionRun,
+    plan: CompactionPlan,
+    signal: AbortSignal,
+    instructions?: string,
+  ): Promise<{ text: string; usage: RequestUsage }> => {
     const model = state.model
     const maxTokens = Math.min(SUMMARY_MAX_TOKENS, model.maxTokens > 0 ? model.maxTokens : SUMMARY_MAX_TOKENS)
     const window = model.contextWindow ?? 0
     const { systemPrompt, prompt } = summaryRequest(plan, instructions, window > maxTokens ? { maxInputChars: (window - maxTokens) * 4 } : {})
     const request = normalizeContext({ systemPrompt, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] })
     const response = await (await stream(model, request, { signal, maxTokens, cacheRetention: 'none' })).result()
+    await options.recordRequest?.(run)
     if (signal.aborted || response.stopReason === 'aborted') throw new SummaryAborted()
     if (response.stopReason === 'error') throw new Error(response.errorMessage || 'Summarization failed')
     if (response.stopReason === 'length') throw new Error('Summarization hit the output limit; the summary is incomplete')
@@ -153,7 +161,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     let summary: string
     let usage: RequestUsage
     try {
-      ;({ text: summary, usage } = await summarize(plan, signal, instructions))
+      ;({ text: summary, usage } = await summarize(run, plan, signal, instructions))
     } catch (error) {
       if (error instanceof SummaryAborted || signal.aborted) return { kind: 'aborted' }
       const message = error instanceof Error ? error.message : String(error)

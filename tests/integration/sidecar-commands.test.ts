@@ -51,7 +51,7 @@ describe('命令展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'run_end'])
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
     const runId = entries[1]!.runId
     expect(entries[2]).toMatchObject({ runId, payload: { name: 'review', args: 'src', source: 'project' } })
     const expanded = 'Review the code under src and report bugs. Focus: correctness.'
@@ -100,7 +100,19 @@ describe('命令展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'tool_exec', 'toolResult', 'command', 'user', 'assistant', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'model_request',
+      'tool_exec',
+      'toolResult',
+      'command',
+      'user',
+      'assistant',
+      'model_request',
+      'run_end',
+    ])
     expect(entries.find((e) => e.kind === 'command')!.payload).toEqual({ name: 'hello', args: 'Bob', source: 'user' })
     expect(userTexts(entries)).toEqual(['run it', 'Say hello to Bob in one short sentence.'])
     const sent = await requests()

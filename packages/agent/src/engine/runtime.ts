@@ -7,11 +7,12 @@ import { createBuiltinToolRegistry } from '../tools/builtin/index.ts'
 import { createToolScheduler, withScheduling, type SchedulingOptions } from '../tools/scheduler.ts'
 import { withTimeout } from '../tools/timeout.ts'
 import { DEFAULT_RETRY_POLICY, withRetry, type RetryPolicy } from './retry.ts'
+import { createRequestMeter, modelRequestPayload } from './model-requests.ts'
 import { createApprovalBroker } from '../policy/broker.ts'
 import { createCompactionDriver, requestUsage, type CompactionDriver, type CompactionRun } from './compaction-driver.ts'
 import { createSystemMessage, DEFAULT_SYSTEM_PROMPT } from './system-message.ts'
 import { createPermissionWiring, type PermissionRun } from './permission-wiring.ts'
-import type { RunStartPayload, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
+import type { ModelRequestPurpose, RunStartPayload, RunTrigger, ToolExecPayload } from '../session-entries/index.ts'
 import { NoActiveRunError, NothingToContinueError, NothingToRetryError, REQUEST_WITHHELD_TEXT, RuntimeBusyError } from './errors.ts'
 import type { AgentRuntime, AgentRuntimeOptions, ProgressEvent, RunEntry, RunError, RunInput, RunResult, RunStatus, RuntimeEvent } from './types.ts'
 
@@ -137,14 +138,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const after = composeAfterToolCall(hooks)
 
   const context = options.context
-  // 对话请求与摘要请求共用：同样的重试策略与 retry 进度。
-  const stream = withRetry(
-    (model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions),
-    retryPolicy,
-    (notice) => {
-      if (current) progress({ type: 'retry', runId: current.runId, ...notice })
-    },
+  // 对话请求与摘要请求共用：同样的重试策略与 retry 进度；每次请求（含重试）由 meter 测量，结束后提交 model_request。
+  const meter = createRequestMeter()
+  const stream = meter.wrap(
+    withRetry(
+      (model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions),
+      retryPolicy,
+      (notice) => {
+        meter.retried()
+        if (current) progress({ type: 'retry', runId: current.runId, ...notice })
+      },
+    ),
   )
+  /** 提交最近结束的请求的 model_request（没有发出请求时什么都不做）；提交失败时停止本 Run。 */
+  const recordRequest = async (run: { runId: string; commitError?: Error }, purpose: ModelRequestPurpose) => {
+    const measured = meter.take()
+    if (!measured || run.commitError) return
+    try {
+      await commit({ kind: 'model_request', runId: run.runId, payload: modelRequestPayload(run.runId, purpose, measured) })
+    } catch (error) {
+      run.commitError ??= error instanceof Error ? error : new Error(String(error))
+      agent.abort()
+    }
+  }
 
   const agent = new Agent({
     initialState: {
@@ -251,8 +267,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         return
       }
       case 'message_end':
-        // 摘要模式的消息不属于 Session 的对话记录：不提交（结束后恢复对话记录）。
-        if (run.summary || isWithheld(run, event.message)) return
+        // 摘要模式的消息不属于 Session 的对话记录：不提交（结束后恢复对话记录），只记录这次摘要请求。
+        if (run.summary) {
+          if (event.message.role === 'assistant') await recordRequest(run, 'summary')
+          return
+        }
+        if (isWithheld(run, event.message)) return
         try {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
@@ -267,6 +287,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           return
         }
         if (event.message.role === 'assistant') {
+          await recordRequest(run, 'turn')
+          if (run.commitError) return
           const usage = event.message.usage
           const tokens = usage ? usage.input + usage.cacheRead + usage.cacheWrite + usage.output : 0
           progress({ type: 'context_usage', runId: run.runId, tokens, contextWindow: agent.state.model.contextWindow ?? 0 })
@@ -300,6 +322,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         compaction: options.compaction,
         stream,
         commit,
+        recordRequest: (run) => recordRequest(run, 'compaction'),
         progress,
         state: agent.state,
         current: () => current,

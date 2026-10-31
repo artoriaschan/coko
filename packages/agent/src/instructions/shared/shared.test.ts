@@ -91,6 +91,9 @@ describe('能力配置默认值', () => {
       hooks: { enabled: true },
       agents: { enabled: true },
       schedules: { enabled: true },
+      plugins: { enabled: true },
+      lsp: { enabled: true },
+      teams: { enabled: true },
     })
     a.skills.disabled.push('x')
     expect(defaultCapabilityConfig().skills.disabled).toEqual([])

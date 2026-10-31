@@ -77,7 +77,7 @@ describe('stopAfterBatch', () => {
     const result = await run
 
     expect(result).toEqual({ runId: result.runId, status: 'paused', error: budget })
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'toolResult', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'run_end'])
     expect(h.entries.at(-1)?.payload).toEqual({ status: 'paused', error: budget })
     expect(h.requests()).toBe(1)
   })
@@ -148,7 +148,7 @@ describe('beforeRequest 返回 stop', () => {
     h.respond(fauxAssistantMessage(fauxToolCall('ls', { path: '.' }, { id: 'l1' }), { stopReason: 'toolUse' }), fauxAssistantMessage('never'))
     const result = await h.runtime.run('list')
     expect(result).toMatchObject({ status: 'paused', error: budget })
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'toolResult', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'run_end'])
     expect(h.requests()).toBe(1)
   })
 

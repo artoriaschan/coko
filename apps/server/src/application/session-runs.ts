@@ -605,6 +605,21 @@ export class SessionRuns {
       },
       commit: async (entry) => {
         await publish(entry)
+        if (entry.kind === 'model_request') {
+          const { runId, model, durationMs, ttftMs, usage, cost, retries, purpose, errorCode } = entry.payload
+          log.info('model request finished', {
+            sessionId: session.id,
+            runId,
+            model,
+            purpose,
+            durationMs,
+            ttftMs,
+            tokens: usage.total,
+            cost,
+            retries,
+            ...(errorCode ? { errorCode } : {}),
+          })
+        }
       },
     })
     this.#runContexts.set(runtime, runContext)

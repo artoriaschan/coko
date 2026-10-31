@@ -56,10 +56,12 @@ describe('运行控制', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'tool_exec',
       'toolResult',
       'user',
       'assistant',
+      'model_request',
       'run_end',
     ])
     expect(userTexts(entries)).toEqual(['run it', 'also mention the README'])
@@ -96,7 +98,7 @@ describe('运行控制', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'tool_exec', 'toolResult', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'tool_exec', 'toolResult', 'run_end'])
     const result = entries.find((e) => kindOf(e) === 'toolResult')!.payload as { isError: boolean; content: { text?: string }[] }
     expect(result.isError).toBe(false)
     expect(result.content.map((b) => b.text ?? '').join('')).toContain('slept')
@@ -109,7 +111,7 @@ describe('运行控制', () => {
     expect(continued.status).toBe(202)
     await stream.waitFor((m) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'run_end' && m.entry.runId === continued.body.runId)
     const second = stream.entries(sessionId).filter((e) => e.runId === continued.body.runId)
-    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'run_end'])
+    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'model_request', 'run_end'])
     expect(second[0]!.payload).toEqual({ trigger: 'continue' })
     expect(second.at(-1)!.payload).toEqual({ status: 'completed' })
     const sent = await requests()

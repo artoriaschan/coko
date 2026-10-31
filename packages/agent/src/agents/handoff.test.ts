@@ -20,6 +20,22 @@ const STATE_KINDS: [string, unknown][] = [
   ['agent_notification', { agentIds: ['s2'] }],
   ['handoff', { targetSessionId: 's3', instructions: 'next', summary: '## Task', target: 'worktree' }],
   ['handoff_origin', { sessionId: 's0', seq: 2 }],
+  ['team_task', { taskId: 't1', revision: 1, subject: 's', description: '', status: 'pending', blockedBy: [], writeScopes: [], by: 'lead' }],
+  ['team_message', { messageId: 'm1', from: 'alice', to: 'lead' }],
+  [
+    'model_request',
+    {
+      runId: 'r1',
+      provider: 'f',
+      model: 'm',
+      startedAt: 0,
+      durationMs: 1,
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      stopReason: 'stop',
+      retries: 0,
+      purpose: 'turn',
+    },
+  ],
 ]
 
 describe('handoffTargetEntries', () => {

@@ -93,11 +93,13 @@ describe('审批闭环（default 模式）', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'approval_request',
       'approval_decision',
       'tool_exec',
       'toolResult',
       'assistant',
+      'model_request',
       'run_end',
     ])
     expect(h.entries.find((e) => e.kind === 'approval_decision')).toEqual({

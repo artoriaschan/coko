@@ -95,7 +95,7 @@ describe('PreToolUse 与判定的组合', () => {
       { hostBlock: { by: 'hook', hookId: 'global:PreToolUse:0:0', command: 'guard.sh' } },
     ])
     expect(await exists(ws.path('out.txt'))).toBe(false)
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'toolResult', 'assistant', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'assistant', 'model_request', 'run_end'])
   })
 
   it('Hook deny 优先于规则拒绝；Hook 端口收到注册名、规则组名、参数与模式', async () => {

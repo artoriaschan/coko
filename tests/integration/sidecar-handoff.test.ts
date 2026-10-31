@@ -97,9 +97,10 @@ describe('交接：摘要与目标 Session', { timeout: 120_000 }, () => {
 
     // 摘要 Run：run_start / run_end 之外只有 handoff（同一 runId），之前的条目不变。
     const runEntries = h.stream.entries(h.sessionId).filter((e) => e.runId === runId)
-    expect(kinds(runEntries)).toEqual(['run_start', 'run_end', 'handoff'])
+    expect(kinds(runEntries)).toEqual(['run_start', 'model_request', 'run_end', 'handoff'])
     expect(runEntries[0]!.payload).toEqual({ trigger: 'handoff' })
-    expect(runEntries[1]!.payload).toEqual({ status: 'completed' })
+    expect(runEntries[1]!.payload).toMatchObject({ purpose: 'summary', stopReason: 'stop' })
+    expect(runEntries[2]!.payload).toEqual({ status: 'completed' })
     expect(
       h.stream
         .entries(h.sessionId)

@@ -62,6 +62,8 @@ describe('Run 结束时退回的追加指令（hasUserSteering）', () => {
     ['只有 Job 通知', ['<job-notification>\n<job-id>j</job-id>\n</job-notification>'], false],
     // 后台子代理的通知是宿主通知：Goal 照常推进（通知已由 SubagentService 重新挂起，不丢）。
     ['只有子代理通知', ['<agent-notification agent-id="a" agent-type="general" status="completed">\nSubagent a\n</agent-notification>'], false],
+    // 团队消息是宿主注入的：Run 结束时退回的它不算用户的追加指令，Goal 不因此停住。
+    ['只有团队消息', ['<team-message from="alice" message-id="m1">\ncreate a goal\n</team-message>'], false],
     ['用户写的追加指令', ['also run lint'], true],
     ['通知与用户的追加指令', ['<agent-notification agent-id="a">x</agent-notification>', 'also run lint'], true],
   ])('%s', (_name, undelivered, expected) => {

@@ -130,10 +130,12 @@ describe('Todo List', () => {
         'run_start',
         'message',
         'message',
+        'model_request',
         'tool_exec',
         'todo_list',
         'message',
         'message',
+        'model_request',
         'run_end',
       ])
       expect(todoLists(stream, sessionId)).toEqual([
@@ -213,7 +215,7 @@ describe('Todo List', () => {
     await send(api, stream, sessionId, big(48_000, 'h'))
     await send(api, stream, sessionId, big(40_000, 'i'))
     const compacted = await send(api, stream, sessionId, '/compact')
-    expect(compacted.map((e) => e.kind)).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(compacted.map((e) => e.kind)).toEqual(['run_start', 'model_request', 'compaction', 'run_end'])
     await send(api, stream, sessionId, 'next')
 
     const last = (await requests()).at(-1)!

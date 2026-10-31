@@ -17,6 +17,8 @@ export {
   hookContextText,
   isHostBlockText,
   isHostNotificationText,
+  TEAM_MESSAGE_TAG,
+  teamMessageText,
   JOB_NOTIFICATION_TAG,
   SCHEDULED_TASK_TAG,
 } from './host-input.ts'
