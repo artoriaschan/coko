@@ -40,3 +40,6 @@
   - **给票 08（agents 一行）。** 标题栏按钮照常放进 `Component`；如果它能在窄主区收进菜单，同一行再给 `MenuItem`（DropdownMenuItem）。菜单项要打开对话框或移动焦点时，经 `HeaderMenuActionContext` 包住动作；对话框由始终挂载的 `Component` 持有。只显示 running 数、点开右栏 tab 的按钮可以不给 `MenuItem`，留在标题栏。
   - **越出 Write scope（最小改动）。** `packages/i18n/src/dictionaries/{zh,en}.ts` 增加 `conversation.moreActions`（更多操作 / More actions）；`HandoffDialog` 增加可选 `onCloseAutoFocus` 属性（同文件，超出 HandoffButton 呈现）；`header-actions.ts` 改了注册表的类型（`MenuItem` 字段与 `HeaderMenuActionContext`），不只 handoff 一行；`HeaderActions` 从 conversation-pane.tsx 导出供测试。
   - **未处理与限制。** session-cost.tsx 不在写范围，未按容器宽度隐藏费用文字。过渡瞬时宽度约 110 px 时，若会话同时有 Job 与费用，留在标题栏的两者仍会短暂超出（约 300 ms，稳定的 390 px 下不超出）；要消除，可给 jobs 和 cost 提供 `MenuItem`，或在窄主区只显示费用图标。Electron E2E 未重跑（handoff.e2e 在 1280 px 下仍点击标题栏中的按钮，不受影响）。
+- 2026-10-31 lead：标题栏 390px 溢出由 m5/fix-header-narrow 修复（窄主区把可收起的操作收进"更多操作"菜单，交接仍可用键盘到达；首位实施者中途失败，留下 4 个提交与 1 处未提交的焦点修复，lead 验证后提交并合入 b83530d）。接受越界：agents barrel、context/types.ts 的 handoff 选项、layers.ts 接线、sidecar-m5-seams 占位用例的期望、两个注册表测试的固定值。来源 Session 的 Goal 在交接后继续推进是否应暂停——记入 M5 评审。已知限制：校验之后才出现的 git 冲突使交接失败，界面停在"正在创建新会话"（warn 日志）。main 上在全量测试锁内复核（b578e40，开始前负载约 12，运行期间没有其他全量重叠）：install、typecheck、lint、format:check 退出 0；全量 test 303 文件 2504 通过、1 跳过（真实模型），无页面重载、无未处理错误；check:docs 181 文件 0 问题。worktree 已清理。
+
+Closed: true
