@@ -78,6 +78,7 @@ describe('Session 协议', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'approval_request',
       'approval_decision',
       'file_backup',
@@ -85,6 +86,7 @@ describe('Session 协议', () => {
       'file_change',
       'toolResult',
       'assistant',
+      'model_request',
       'run_end',
     ])
     expect(entries[0]).toMatchObject({ runId: null, payload: { mode: 'default' } })
@@ -292,14 +294,17 @@ describe('Session 协议', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'run_end',
       'run_start',
       'assistant',
+      'model_request',
       'run_end',
     ])
     expect(entries.filter((e) => e.runId === runId).map((e) => [e.kind, e.payload])).toEqual([
       ['run_start', { trigger: 'retry' }],
       ['message', expect.objectContaining({ role: 'assistant' })],
+      ['model_request', expect.objectContaining({ runId, purpose: 'turn', retries: 0 })],
       ['run_end', { status: 'completed' }],
     ])
     expect(stream.invalidEntries).toEqual([])

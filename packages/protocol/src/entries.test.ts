@@ -5,7 +5,7 @@ import { SESSION_ENTRY_PAYLOAD_SCHEMAS, SessionEntry, SessionEntryRecord } from 
 const base = { sessionId: 's1', seq: 1, payloadVersion: 1, runId: 'r1', createdAt: 1 }
 
 describe('SessionEntry 按 kind 判别', () => {
-  it('预先声明规格表中全部 M2–M5 kind', () => {
+  it('预先声明规格表中全部 M2–M6 kind', () => {
     expect(Object.keys(SESSION_ENTRY_PAYLOAD_SCHEMAS).toSorted()).toEqual(
       [
         'approval_decision',
@@ -39,6 +39,9 @@ describe('SessionEntry 按 kind 判别', () => {
         'handoff',
         'handoff_failed',
         'handoff_origin',
+        'team_task',
+        'team_message',
+        'model_request',
       ].toSorted(),
     )
   })
