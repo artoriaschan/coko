@@ -84,13 +84,11 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     expect((await fixture.git('branch', '--list')).trim()).toBe('* main')
     expect(await fixture.git('worktree', 'list')).not.toContain('.coko-worktrees')
 
-    // plan：判定（agent 类带 isolation 只有 full-access 放行）先询问；允许之后工具以错误结果拒绝，不创建 worktree 与子 Session。
+    // plan：gate 直接以错误结果拒绝（不先询问一个注定失败的调用），不创建 worktree 与子 Session。
     const planned = await env.open('plan')
     await env.submit(planned, 'PARENT-PLAN go')
-    await env.stream.waitFor(() => of(env.stream, planned, 'approval_request').length >= 1, 20_000)
-    const ask = of(env.stream, planned, 'approval_request')[0]!.payload as { requestId: string }
-    expect((await env.api.post(apiPaths.sessionApproval(planned, ask.requestId), { decision: 'allow' })).status).toBe(204)
     await env.stream.waitFor(() => runEnds(env.stream, planned).length >= 1, 30_000)
+    expect(of(env.stream, planned, 'approval_request')).toHaveLength(0)
     expect(toolResults(env.stream, planned, 'agent')).toEqual([
       expect.objectContaining({ isError: true, text: expect.stringMatching(/not available in plan mode/) }),
     ])
