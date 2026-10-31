@@ -85,6 +85,8 @@ interface LiveJob {
   resolveEnded: () => void
   /** job_start 没能提交：不提交 job_end、不通知。 */
   discarded: boolean
+  /** 停止时宿主最后发出的终止信号（SIGTERM，宽限后 SIGKILL）；退出本身不带 signal 时 job_end 用它。 */
+  killSignal?: NodeJS.Signals
 }
 
 /** 已作为追加指令送出、等待 Run 结束确认的通知。 */
@@ -444,9 +446,14 @@ export class JobService {
     this.#options.hub.publishProgress(snapshot.sessionId, live.runId, { type: 'job_update', job: redactSecretsDeep(snapshot) })
   }
 
-  async #finish(live: LiveJob, exit: { exitCode: number; signal?: string }): Promise<void> {
+  async #finish(live: LiveJob, processExit: { exitCode: number; signal?: string }): Promise<void> {
     const { job } = live
     const { sessionId, jobId } = job.info
+    // 被停止的 Job 可能以退出码而不是信号结束（外层 shell 或 sandbox-exec 把子进程的信号死亡转为 128 + n）：
+    // 退出本身没有 signal 时取宿主发出的终止信号；自然结束的不加。
+    const stopped = job.status === 'stopping'
+    const signal = processExit.signal ?? (stopped ? live.killSignal : undefined)
+    const exit = { exitCode: processExit.exitCode, ...(signal ? { signal } : {}) }
     try {
       this.#emit(live, live.redactor.push(live.decoder.end()) + live.redactor.flush())
       this.#flushFrame(live)
@@ -514,11 +521,18 @@ export class JobService {
         ...(reason === undefined ? {} : { reason: redactSecretValues(reason) }),
       })
       this.#publishUpdate(live)
-      live.process.kill('SIGTERM')
-      const timer = setTimeout(() => live.process?.kill('SIGKILL'), this.#options.killGraceMs ?? JOB_KILL_GRACE_MS)
+      this.#signal(live, 'SIGTERM')
+      const timer = setTimeout(() => this.#signal(live, 'SIGKILL'), this.#options.killGraceMs ?? JOB_KILL_GRACE_MS)
       void live.ended.finally(() => clearTimeout(timer))
     }
     await live.ended
+  }
+
+  /** 向停止中的 Job 的进程组发出终止信号，并记下它（job_end 的 signal）。 */
+  #signal(live: LiveJob, signal: NodeJS.Signals): void {
+    if (!live.job.running || !live.process) return
+    live.killSignal = signal
+    live.process.kill(signal)
   }
 
   /** job_input：写入本 Session running 的 pty Job 的终端输入。日志只记字节数，不记文本。 */
