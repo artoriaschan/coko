@@ -1,5 +1,5 @@
 import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon, PlayIcon } from 'lucide-react'
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@coko/ui'
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
@@ -9,7 +9,9 @@ import { useSettings, useSettingsPage } from '../../app/settings.tsx'
 import type { ConnectionState } from '../../client/connection.ts'
 import { continueMode, conversationActivity, pendingApprovals, pendingConfirmations, sessionPermissionMode } from '../../stores/chat-store.ts'
 import { ConnectionFailure, ConnectionStatus } from '../connection/connection-status.tsx'
-import { ApprovalPanel } from './approval-panel.tsx'
+import { ApiError } from '../../client/api.ts'
+import { useAgentsStoreApi } from './agents-button.tsx'
+import { ApprovalPanel, useChildApproval } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
 import { Dock } from './dock/dock.tsx'
@@ -156,13 +158,28 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const canChangeMode = activeSessionId !== null || draftWorkspaceId !== null
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
   const running = conversation?.running ?? false
-  // 同一时刻只有一张审批卡：最早的待审批请求接管输入区。
-  const pending = React.useMemo(() => (conversation?.running ? pendingApprovals(conversation.entries)[0] : undefined), [conversation])
-  const pendingCall = React.useMemo(() => {
-    if (!pending) return undefined
-    const item = items.find((i) => i.kind === 'tool' && i.call.id === pending.payload.toolCallId)
+  // 同一时刻只有一张审批卡：父会话与其 running 子代理中最早的待审批请求（按条目 createdAt）接管输入区；子代理的请求回答发往子 Session。
+  const ownPending = React.useMemo(() => (conversation?.running ? pendingApprovals(conversation.entries)[0] : undefined), [conversation])
+  const childPending = useChildApproval(activeSessionId)
+  const fromChild = childPending !== undefined && (ownPending === undefined || childPending.entry.createdAt < ownPending.createdAt) ? childPending : undefined
+  const pending = fromChild ? fromChild.entry : ownPending
+  const ownCall = React.useMemo(() => {
+    if (!ownPending) return undefined
+    const item = items.find((i) => i.kind === 'tool' && i.call.id === ownPending.payload.toolCallId)
     return item?.kind === 'tool' ? item.call : undefined
-  }, [items, pending])
+  }, [items, ownPending])
+  const pendingCall = fromChild ? fromChild.call : ownCall
+  const agents = useAgentsStoreApi()
+  const answerPending = async (answer: Parameters<typeof answerApproval>[1]): Promise<boolean> => {
+    if (!pending) return false
+    if (!fromChild) return answerApproval(pending.payload.requestId, answer)
+    try {
+      return await agents.getState().answerApproval(fromChild.sessionId, pending.payload.requestId, answer)
+    } catch (error) {
+      toast.error(error instanceof ApiError && error.code === 'approval-not-pending' ? t('errors.approvalNotPending') : t('agents.approvalFailed'))
+      return false
+    }
+  }
   // 恢复时结果不明的调用：没有 Run 时由确认卡接管输入区，同一时刻一张（最早的）。
   const confirmation = React.useMemo(() => (conversation && !conversation.running ? pendingConfirmations(conversation.entries)[0] : undefined), [conversation])
   // 输入区被接管时焦点若在其中，移到卡片上；回答后回到输入区。
@@ -323,9 +340,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               call={pendingCall}
               autoFocus={focusCard}
               onOpenPlan={() => openTab('plan')}
-              onAllow={() => answerApproval(pending.payload.requestId, { decision: 'allow', scope: 'once' })}
-              onAllowAlways={(scope) => answerApproval(pending.payload.requestId, { decision: 'allow', scope })}
-              onReject={(feedback) => answerApproval(pending.payload.requestId, feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
+              {...(fromChild ? { source: { agentType: fromChild.agentType, description: fromChild.description } } : {})}
+              onAllow={() => answerPending({ decision: 'allow', scope: 'once' })}
+              onAllowAlways={(scope) => answerPending({ decision: 'allow', scope })}
+              onReject={(feedback) => answerPending(feedback === undefined ? { decision: 'deny' } : { decision: 'deny', feedback })}
             />
           )}
           {confirmation && !pending && (

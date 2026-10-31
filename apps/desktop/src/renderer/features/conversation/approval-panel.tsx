@@ -1,9 +1,61 @@
-import { formatPermissionRule, type ApprovalRequestPayload } from '@coko/protocol'
+import { formatPermissionRule, type ApprovalRequestPayload, type SessionEntry, type SessionEntryOf } from '@coko/protocol'
 import { ApprovalCard, DiffBlock, ToolOutput } from '@coko/ui'
+import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { isAgentRunning } from '../../stores/agents-store.ts'
+import { pendingApprovals } from '../../stores/chat-store.ts'
+import { useSessionAgents } from './agents-button.tsx'
 import { PlanReviewPanel } from './plan-review-panel.tsx'
 import type { ToolCallBlock } from './timeline.ts'
+
+/** 父会话输入区接管的子代理审批：子 Session、来源（类型与描述）与对应的工具调用。 */
+export interface ChildApproval {
+  entry: SessionEntryOf<'approval_request'>
+  sessionId: string
+  agentType: string
+  description: string
+  call: ToolCallBlock | undefined
+}
+
+const EMPTY: SessionEntry[] = []
+
+/** 条目中按 id 找到的工具调用（assistant 消息的 toolCall 块）。 */
+function findCall(entries: readonly SessionEntry[], toolCallId: string): ToolCallBlock | undefined {
+  for (const entry of entries) {
+    if (entry.kind !== 'message' || entry.payload.role !== 'assistant') continue
+    for (const block of entry.payload.content as { type: string; id?: unknown; name?: unknown; arguments?: unknown }[])
+      if (block.type === 'toolCall' && block.id === toolCallId) return { id: toolCallId, name: String(block.name), arguments: block.arguments }
+  }
+  return undefined
+}
+
+/**
+ * 父会话的 running 子代理中最早的待审批请求（docs/subsystems/subagents.md#界面）：订阅这些子 Session 的条目（不切换当前会话），
+ * 按请求条目的 createdAt 取最早的一个。子 Session 的审批照常在子 Session 中等待，回答经子 Session 的接口发出。
+ */
+export function useChildApproval(parentSessionId: string | null): ChildApproval | undefined {
+  const agents = useSessionAgents(parentSessionId)
+  const running = (agents?.agents ?? []).filter(isAgentRunning)
+  const ids = running.map((a) => a.agentId).join('\n')
+  const { subscribeSession } = useChatActions()
+  React.useEffect(() => {
+    for (const id of ids === '' ? [] : ids.split('\n')) void subscribeSession(id)
+  }, [ids, subscribeSession])
+  const entry = useChat((s) => {
+    let earliest: SessionEntryOf<'approval_request'> | undefined
+    for (const id of ids === '' ? [] : ids.split('\n')) {
+      const first = pendingApprovals(s.conversations[id]?.entries ?? EMPTY)[0]
+      if (first && (!earliest || first.createdAt < earliest.createdAt)) earliest = first
+    }
+    return earliest
+  })
+  const childEntries = useChat((s) => (entry ? (s.conversations[entry.sessionId]?.entries ?? EMPTY) : EMPTY))
+  const call = React.useMemo(() => (entry ? findCall(childEntries, entry.payload.toolCallId) : undefined), [childEntries, entry])
+  if (!entry) return undefined
+  const agent = running.find((a) => a.agentId === entry.sessionId)
+  return { entry, sessionId: entry.sessionId, agentType: agent?.agentType ?? '', description: agent?.description ?? '', call }
+}
 
 export interface ApprovalPanelProps {
   request: ApprovalRequestPayload
@@ -17,6 +69,8 @@ export interface ApprovalPanelProps {
   className?: string
   /** kind plan 的请求：打开右栏的 Plan tab（审阅卡的"在右栏查看"与新计划自动打开）。 */
   onOpenPlan?: () => void
+  /** 请求来自父会话的子代理：卡片标出"来自子代理 <类型> · <描述>"。 */
+  source?: { agentType: string; description: string }
 }
 
 export type AllowScope = 'session' | 'workspace' | 'global'
@@ -135,11 +189,12 @@ function PlanApproval({ request, autoFocus, className, onOpenPlan }: Pick<Approv
 }
 
 export function ApprovalPanel(props: ApprovalPanelProps) {
-  if (props.request.kind === 'plan') return <PlanApproval {...props} />
+  // 计划审阅只属于当前会话（子 Session 没有 exit_plan_mode）。
+  if (props.request.kind === 'plan' && !props.source) return <PlanApproval {...props} />
   return <ToolApproval {...props} />
 }
 
-function ToolApproval({ request, call, onAllow, onAllowAlways, onReject, autoFocus, className }: ApprovalPanelProps) {
+function ToolApproval({ request, call, onAllow, onAllowAlways, onReject, autoFocus, className, source }: ApprovalPanelProps) {
   const { t } = useI18n()
   const key = TITLE[request.toolName as keyof typeof TITLE]
   const accepted = async (sent: Promise<boolean>) => {
@@ -165,6 +220,7 @@ function ToolApproval({ request, call, onAllow, onAllowAlways, onReject, autoFoc
       {...(autoFocus ? { autoFocus } : {})}
       {...(allowAlways ? { allowAlways } : {})}
       requestKey={request.requestId}
+      {...(source ? { description: t('agents.approvalSource', { type: source.agentType, description: source.description }) } : {})}
       title={request.kind === 'escalation' ? t('approval.titleEscalation') : key ? t(key) : t('approval.titleTool', { name: request.toolName })}
       labels={{
         status: t('approval.status'),

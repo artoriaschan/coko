@@ -114,7 +114,7 @@ describe('agent 工具卡', () => {
     expect(cardOf('c0')!.textContent).toContain('read notes')
     expect(cardOf('c0')!.querySelector('[data-slot="agent-progress"]')?.textContent).toBe('Starting…')
     const done = cardOf('c1')!
-    expect(done.querySelector('[data-slot="agent-usage"]')?.textContent).toBe('3 turns · 2 tool calls · 1,234 tokens · 1m 5s')
+    expect(done.querySelector('[data-slot="agent-usage"]')?.textContent).toBe('Turns: 3 · Tool calls: 2 · 1,234 tokens · 1m 5s')
     expect(done.querySelector('[data-slot="agent-result"]')?.textContent).toBe('done text')
     expect(done.querySelector('[data-slot="agent-progress"]')).toBeNull()
   })
@@ -127,7 +127,7 @@ describe('agent 工具卡', () => {
     await expect.poll(() => cardOf('c1')).not.toBeNull()
     expect(cardOf('c1')!.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('达到轮次上限')
     expect(cardOf('c1')!.textContent).toContain('子代理 explore')
-    expect(cardOf('c1')!.querySelector('[data-slot="agent-usage"]')?.textContent).toMatch(/^3 轮 · 2 次工具调用 · /)
+    expect(cardOf('c1')!.querySelector('[data-slot="agent-usage"]')?.textContent).toMatch(/^轮次 3 · 工具调用 2 · /)
   })
 
   it('进度行随 agent_update 更新；结束时换成用量；后台 chip 与保留的 worktree', async () => {
@@ -159,7 +159,7 @@ describe('agent 工具卡', () => {
       sessionId: 'p1',
       entry: end('c1', 'completed', { worktree: { kept: true, path: '/r/.coko-worktrees/agent-c1', branch: 'coko/agent-c1' } }),
     })
-    await expect.poll(() => cardOf('c1')!.querySelector('[data-slot="agent-usage"]')?.textContent).toBe('3 turns · 2 tool calls · 1,234 tokens · 1m 5s')
+    await expect.poll(() => cardOf('c1')!.querySelector('[data-slot="agent-usage"]')?.textContent).toBe('Turns: 3 · Tool calls: 2 · 1,234 tokens · 1m 5s')
     expect(cardOf('c1')!.querySelector('[data-slot="agent-progress"]')).toBeNull()
     expect(cardOf('c1')!.querySelector('[data-slot="agent-worktree"]')?.textContent).toBe('Changes kept in worktree coko/agent-c1')
     expect(cardOf('c1')!.getAttribute('data-status')).toBe('done')
