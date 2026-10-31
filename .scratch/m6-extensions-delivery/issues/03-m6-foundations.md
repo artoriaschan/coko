@@ -59,3 +59,6 @@
 **新的读取根 / 注入点**：本票只建 seam。插件目录作为读取根（Skill 的 baseDir 进入 readRoots）与插件资源、插件 Hook stdin 的符号链接越界用例与 `secrets-gate-plugins.test.ts` 属于票 04；seam 已对 Skill / 子代理定义在插件根外的真实路径给 `path-outside-plugin` 并不加载。`model_request` 只含数字与模型名，不新增秘密通道（payload 经 toNewEntry 的 redactSecretsDeep）。
 
 **给 Lead 的合并事项**：`docs/README.md` 当前行为导航没有改动；TECH_STACK 未改。
+- 2026-10-31 lead：评审后合入 main（154ba40）。接受偏离：layers.ts 块标记为 `// ── <domain> ──` / `// ── end <domain> ──`（规格的"（票 NN）"后缀会被 source-references 检查拒绝）；插件的 Skill 与 agent 保持 source user、只加 `<plugin>:<name>` 前缀；memories_fts 只索引 content；PluginContributionsPort.snapshot() 返回 Promise；新错误码 not-implemented（501）。接受越界：config.ts 两个测试变量、errors.ts、session-runs.ts 一行日志、agent config/merge.ts、diagnostics.ts、gate.ts、mcp index 导出、三处 i18n 与三处 renderer 状态表各一项、desktop main/index.ts 与 desktop-shell.e2e。实施者报告的 sidecar-subagents.test.ts:243 的一次读取断言由 lead 在 m6/fix-subagent-cancel-wait 改为等待条目（合入 e60012d）。main 上在全量测试锁内复核（e60012d）：install、typecheck、lint、format:check 退出 0；全量 test 322 文件 2637 通过、3 失败、1 跳过——运行期间没有其他全量重叠，但本机负载最高到 425（DeepSeek Harness 渲染进程约 120% CPU 与两个终端安全扫描进程），3 例都是超时（cron 补跑 5 秒、两个设置表单 Browser Mode 用例）；负载回落到 13 后这 3 个文件各连跑 3 次全部通过（cron 用例约 0.4 秒）。没有在低负载下重跑整套全量。check:docs 208 文件 0 问题。worktree 已清理。
+
+Closed: true
