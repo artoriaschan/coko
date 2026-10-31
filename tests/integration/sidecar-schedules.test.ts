@@ -273,6 +273,32 @@ describe('定时任务：准入', { timeout: 120_000 }, () => {
     expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
+  it('跳过原因 budget 计入子代理的用量（与 Goal 预算同一口径）', async () => {
+    const env = await boot([
+      { match: 'start goal G2', content: [call('create_goal', 'cg', { objective: 'o', criteria: ['done'], budget: { max_tokens: 100 } })] },
+      { match: 'start goal G2', content: 'goal set' },
+      // Goal Round 1 派发前台子代理；子代理一次请求用掉预算，父级的下一次请求前停下（budget-exhausted）。
+      {
+        match: '<goal_round>',
+        content: [call('agent', 'a1', { description: 'spend', prompt: 'CHILD-SPEND', subagent_type: 'general' })],
+        usage: { input: 5, output: 1 },
+      },
+      { match: 'CHILD-SPEND', content: 'spent', usage: { input: 500, output: 1 } },
+    ])
+    const { api, stream, open, now } = env
+    const sessionId = await open(undefined, 'full-access')
+    expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'start goal G2' })).status).toBe(202)
+    await stream.waitFor(() => of(stream, sessionId, 'goal').some((e) => (e.payload as { phase: string }).phase === 'budget-exhausted'), 30_000)
+    const t0 = await now()
+    const id = (await api.post(schedulePaths.sessionSchedules(sessionId), { title: 'b', prompt: 'p', rule: { kind: 'every', seconds: 60 } })).body.id
+    const runs = of(stream, sessionId, 'run_start').length
+    await advanceClock(api, 60_000)
+    await waitKind(stream, sessionId, 'schedule_fire', 1)
+    expect(fires(stream, sessionId)).toEqual([{ scheduleId: id, occurrence: t0 + 60_000, status: 'skipped', reason: 'budget' }])
+    expect(of(stream, sessionId, 'run_start')).toHaveLength(runs)
+    expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('跳过原因 model-not-configured：没有 Provider 也没有默认模型', async () => {
     const env = await boot([], { faux: false })
     const { api, stream, open, now } = env

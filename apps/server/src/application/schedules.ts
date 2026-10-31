@@ -4,10 +4,6 @@
 import { access } from 'node:fs/promises'
 import {
   catchUp,
-  currentGoal,
-  exhaustedDimension,
-  goalUsage,
-  isTerminalPhase,
   nextOccurrence,
   parseAt,
   SCHEDULE_MAX_ACTIVE,
@@ -54,6 +50,8 @@ export interface ScheduleServiceOptions {
   config: Pick<ConfigService, 'effective'>
   notifications: Pick<NotificationService, 'notify'>
   runs: ScheduleRunHost
+  /** Goal 的预算判定（GoalService；含子 Session 的用量）：到期时任一维度已用尽为 skipped budget。 */
+  goals: { exhaustedDimension(sessionId: string): Promise<string | undefined> }
   /** 仅测试：recordFire 之后、开始 Run 之前挂起，直到 stop（集成测试在此 SIGKILL）。 */
   holdAfterRecord?: boolean
 }
@@ -241,9 +239,7 @@ export class ScheduleService {
     )
       return 'workspace-missing'
     if (!session.model && (session.modelCleared || !(await runs.defaultModel()))) return 'model-not-configured'
-    const entries = await store.sessions.listEntries(session.id)
-    const goal = currentGoal(entries)
-    if (goal && !isTerminalPhase(goal.phase) && goal.phase !== 'paused' && exhaustedDimension(goal.budget, goalUsage(entries, goal.id))) return 'budget'
+    if (await this.#options.goals.exhaustedDimension(session.id)) return 'budget'
     return undefined
   }
 

@@ -307,6 +307,7 @@ const AssemblyLive = Layer.effect(
       config,
       notifications,
       runs: runs.schedules,
+      goals,
       ...(sidecar.testScheduleHold ? { holdAfterRecord: true } : {}),
     })
     // 测试工具另带 M5 seam 的测试贡献（beforeSubmit、onStop 等，按消息中的标记触发）。

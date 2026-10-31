@@ -149,6 +149,17 @@ export class GoalService {
     this.#subagents = subagents
   }
 
+  /**
+   * 该 Session 的当前 Goal（非终态、非 paused）已用尽的预算维度；没有时 undefined。用量与 Goal 预算同一口径（含子 Session，#usage）：
+   * 定时任务的准入（skipped budget）经它判定，不自行计算。
+   */
+  async exhaustedDimension(sessionId: string): Promise<string | undefined> {
+    const entries = await this.#entries(sessionId)
+    const goal = currentGoal(entries)
+    if (!goal || isTerminalPhase(goal.phase) || goal.phase === 'paused') return undefined
+    return exhaustedDimension(goal.budget, await this.#usage(entries, goal.id))
+  }
+
   /** 该 Goal 的五维用量：根 Session 自己的 Run 加上它的 Run 派发的子 Session 的全部 Run（不计轮次，ADR 0014）。 */
   async #usage(entries: readonly StoredEntry[], goalId: string, extra: { now?: number } = {}) {
     const children = await Promise.all(childSessionIds(entries, goalId).map((id) => this.#entries(id)))
