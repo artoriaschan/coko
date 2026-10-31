@@ -1,5 +1,5 @@
 import type { AgentStatus } from '@coko/protocol'
-import { ToolCard, type ToolCardStatus } from '@coko/ui'
+import { cn, ToolCard, type ToolCardStatus } from '@coko/ui'
 import { BotIcon, GitBranchIcon, PanelRightOpenIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -81,7 +81,13 @@ export function AgentCard({ item }: { item: ToolItem }) {
         {(progress !== undefined || usage !== undefined) && (
           <div className="flex min-w-0 items-center gap-2 px-3 py-2 text-ui-small text-muted-foreground">
             {progress !== undefined && (
-              <span data-slot="agent-progress" data-user-content className="min-w-0 flex-1 truncate font-mono" title={progress} aria-live="polite">
+              <span
+                data-slot="agent-progress"
+                {...(running && activity ? { 'data-user-content': '' } : {})}
+                className={cn('min-w-0 flex-1 truncate', running && activity && 'font-mono')}
+                title={progress}
+                aria-live="polite"
+              >
                 {progress}
               </span>
             )}

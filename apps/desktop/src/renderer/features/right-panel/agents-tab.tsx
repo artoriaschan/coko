@@ -32,6 +32,7 @@ const duration = (agent: AgentSnapshot, now: number) => agent.usage?.durationMs 
 function AgentListItem({ agent, selected, now, onSelect }: { agent: AgentSnapshot; selected: boolean; now: number; onSelect: () => void }) {
   const { t, locale } = useI18n()
   const detail = agent.usage && !isAgentRunning(agent) ? agentUsageText(t, locale, agent.usage) : formatJobDuration(t, duration(agent, now))
+  const summary = [t(`agents.status.${agent.status}`), detail, agent.background ? t('agents.card.background') : undefined].filter(Boolean).join(' · ')
   return (
     <li>
       <button
@@ -50,8 +51,8 @@ function AgentListItem({ agent, selected, now, onSelect }: { agent: AgentSnapsho
               {agent.description}
             </span>
           </span>
-          <span className="truncate text-ui-small text-muted-foreground tabular-nums">
-            {[t(`agents.status.${agent.status}`), detail, agent.background ? t('agents.card.background') : undefined].filter(Boolean).join(' · ')}
+          <span className="truncate text-ui-small text-muted-foreground tabular-nums" title={summary}>
+            {summary}
           </span>
           {agent.worktree && (
             <span className="flex min-w-0 items-center gap-1 text-ui-small text-muted-foreground">
