@@ -10,6 +10,7 @@ import type {
   PermissionClass,
   PermissionHookPort,
   PermissionRule,
+  PluginContributionsSnapshot,
   RunError,
   RunEntry,
   RunInput,
@@ -43,6 +44,8 @@ export interface ContextScope {
   subagent?: { name: string; tools: readonly string[]; permissionMode?: StandardPermissionMode; maxTurns: number }
   /** Session 创建时绑定的 worktree（ADR 0016）；cwd 为其中的工作目录。 */
   worktreeId?: string
+  /** 已启用插件的贡献（ADR 0017）：取值时读一次 PluginContributionsPort.snapshot()；没有插件时各项为空。 */
+  plugins: PluginContributionsSnapshot
 }
 
 /** beforeSubmit 的结果：reject 拒绝提交（HTTP 400 hook-blocked，不提交 user message）；context 作为 user message 中单独的文本块。 */

@@ -6,6 +6,7 @@ import { isAbsolute, join, relative } from 'node:path'
 import { createNodeFiles, diagnostic, parseFrontmatter, type ReadOnlyFiles, type ResourceDiagnostic } from '../instructions/shared/index.ts'
 import { THINKING_LEVELS } from '../models/registry.ts'
 import type { AgentDefinitionSource, PermissionMode, StandardPermissionMode } from '../session-entries/index.ts'
+import { pluginResourceName, type PluginRoot } from '../extensions/plugins/types.ts'
 
 /** 一个已加载的子代理定义。tools 省略时为父级本 Run 的全部可用工具（再减去固定排除集）。 */
 export interface AgentDefinition {
@@ -195,6 +196,11 @@ export interface AgentDefinitionsInput {
   cokoHome: string
   knownTool?: (name: string) => boolean
   knownModel?: (model: string) => boolean
+  /**
+   * 已启用插件的 agents 目录（ADR 0017）：定义以 <plugin>:<name> 登记、source 为 user（插件是用户级资源）；真实路径须在插件目录之内
+   * （path-outside-plugin），诊断的 source 为 plugin。
+   */
+  plugins?: readonly PluginRoot[]
 }
 
 export interface AgentCatalog {
@@ -235,17 +241,26 @@ export function createAgentDefinitionLoader(files: ReadOnlyFiles = createNodeFil
       const byName = new Map<string, AgentDefinition>()
       for (const builtin of BUILTIN_AGENTS) byName.set(builtin.name, builtin)
       const root = await realpath(input.cwd).catch(() => input.cwd)
-      const sources: { source: 'user' | 'project'; dir: string }[] = [
+      const sources: { source: 'user' | 'project'; dir: string; plugin?: PluginRoot }[] = [
         { source: 'user', dir: join(input.cokoHome, 'agents') },
         { source: 'project', dir: join(input.cwd, '.coko', 'agents') },
+        ...(input.plugins ?? []).map((plugin) => ({ source: 'user' as const, dir: plugin.path, plugin })),
       ]
-      for (const { source, dir } of sources) {
+      for (const { source, dir, plugin } of sources) {
         const seen = new Set<string>()
+        const boundary = plugin ? await realpath(plugin.path).catch(() => plugin.path) : undefined
         for (const path of (await list(dir)).sort()) {
           if (source === 'project') {
             const real = await realpath(path).catch(() => undefined)
             if (!real || !inside(root, real)) {
               diagnostics.push(diagnostic('agents', 'agent-outside-workspace', 'The definition resolves outside the workspace and was not loaded', path))
+              continue
+            }
+          }
+          if (boundary !== undefined) {
+            const real = await realpath(path).catch(() => undefined)
+            if (!real || !inside(boundary, real)) {
+              diagnostics.push(diagnostic('plugin', 'path-outside-plugin', `The definition of plugin ${plugin!.plugin} resolves outside the plugin`, path))
               continue
             }
           }
@@ -262,8 +277,9 @@ export function createAgentDefinitionLoader(files: ReadOnlyFiles = createNodeFil
             ...(input.knownTool ? { knownTool: input.knownTool } : {}),
             ...(input.knownModel ? { knownModel: input.knownModel } : {}),
           })
-          diagnostics.push(...parsed.diagnostics)
-          const definition = parsed.definition
+          diagnostics.push(...(plugin ? parsed.diagnostics.map((d) => ({ ...d, source: 'plugin' as const })) : parsed.diagnostics))
+          const definition =
+            parsed.definition && plugin ? { ...parsed.definition, name: pluginResourceName(plugin.plugin, parsed.definition.name) } : parsed.definition
           if (!definition) continue
           if (seen.has(definition.name)) {
             diagnostics.push(diagnostic('agents', 'invalid-frontmatter', `Another ${source} definition already uses the name ${definition.name}`, path))

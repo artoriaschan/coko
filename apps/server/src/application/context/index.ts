@@ -4,6 +4,8 @@ import {
   composeAfterToolCall,
   composeBeforeToolCall,
   createToolRegistry,
+  emptyPluginContributions,
+  type PluginContributionsPort,
   type BeforeRequestState,
   type CompactInfo,
   type CompactVerdict,
@@ -89,7 +91,8 @@ const ordered = (contributions: readonly ContextContribution[], order: readonly 
 
 /** 组合后的上下文：SessionService 每个 Run 开始时取值并交给运行时。单个领域取值失败只记 warn，不阻止 Run。 */
 export interface ContextAssembly {
-  scope(input: Omit<ContextScope, 'config' | 'cokoHome'>): Promise<ContextScope>
+  /** 取值：有效配置与已启用插件的贡献快照（plugins.enabled 为 false 时为空）。 */
+  scope(input: Omit<ContextScope, 'config' | 'cokoHome' | 'plugins'>): Promise<ContextScope>
   systemSections(scope: ContextScope): Promise<SystemSection[]>
   tools(scope: ContextScope): Promise<ContributedTool[]>
   readRoots(scope: ContextScope): Promise<string[]>
@@ -130,6 +133,8 @@ export function createContextAssembly(options: {
   contributions: readonly ContextContribution[]
   config: Pick<ConfigService, 'effective'>
   cokoHome: string
+  /** 插件消费 seam（ADR 0017）；省略时没有插件。 */
+  plugins?: Pick<PluginContributionsPort, 'snapshot'>
 }): ContextAssembly {
   const { contributions, config, cokoHome } = options
   const guarded = async <T>(contribution: ContextContribution, what: string, fallback: T, task: () => Promise<T>): Promise<T> => {
@@ -199,7 +204,9 @@ export function createContextAssembly(options: {
           },
     filterTools: (tools, scope) => contributions.reduce((current, c) => (c.filterTools ? c.filterTools(current, scope) : current), tools),
     async scope(input) {
-      return { ...input, config: await config.effective(input.cwd), cokoHome }
+      const effective = await config.effective(input.cwd)
+      const plugins = effective.plugins.enabled && options.plugins ? await options.plugins.snapshot() : emptyPluginContributions()
+      return { ...input, config: effective, cokoHome, plugins }
     },
     systemSections: (scope) =>
       collect('systemSections', (c) => (c.systemSections ? () => c.systemSections!(scope) : undefined), ordered(contributions, SECTION_ORDER)),

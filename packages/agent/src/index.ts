@@ -83,6 +83,11 @@ export * from './instructions/index.ts'
 export * from './context/index.ts'
 export * from './config/index.ts'
 export * from './extensions/mcp/index.ts'
+// M6 领域（类型与 seam；各领域的实现在其目录中补全）：插件、语言服务器、Agent Teams、观测。
+export * from './extensions/plugins/index.ts'
+export * from './tools/lsp/index.ts'
+export * from './agents/teams/index.ts'
+export * from './observability/index.ts'
 
 // M4：目标与任务（各子目录有自己的 barrel）。
 export * from './goals/index.ts'
@@ -100,6 +105,7 @@ export {
   hookDigest,
   hookTimeoutMs,
   interpretHookResult,
+  MATCHERLESS_HOOK_EVENTS,
   matcherMatches,
   parseHooksConfig,
   selectHooks,

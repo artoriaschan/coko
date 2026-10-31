@@ -3,6 +3,7 @@
 // Adapted in part from pi coding-agent 1.4.0 core/mcp-servers.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { createHash } from 'node:crypto'
 import { diagnostic, type ResourceDiagnostic } from '../../instructions/shared/diagnostics.ts'
+import { pluginMcpServerName, type PluginMcpServer } from '../plugins/types.ts'
 import { MAX_MCP_SERVER_NAME_LENGTH, serverNameKey, serverNamesConflict } from './naming.ts'
 
 /** Default per-request timeout in seconds; progress notifications reset it. */
@@ -202,6 +203,45 @@ export function parseMcpServers(raw: Record<string, unknown>, options: ParseOpti
       continue
     }
     entries.push({ name, scope: options.scope, config: result.config, digest: digestMcpServer(result.config) })
+  }
+  return { entries, diagnostics }
+}
+
+/**
+ * 已启用插件的 MCP Server（ADR 0017）：与全局同级（scope global，不经项目批准），名字为 plugin-<plugin>-<server>。引用 ${…}（Secret）的
+ * 不加载（plugin-secret-reference，ADR 0007：需要凭据的由用户在全局 MCP 中配置）；与已有名字冲突的不加载。
+ */
+export function parsePluginMcpServers(
+  servers: readonly PluginMcpServer[],
+  existing: readonly string[],
+): { entries: McpServerEntry[]; diagnostics: ResourceDiagnostic[] } {
+  const entries: McpServerEntry[] = []
+  const diagnostics: ResourceDiagnostic[] = []
+  const names = [...existing]
+  for (const server of servers) {
+    const name = pluginMcpServerName(server.plugin, server.name)
+    const result = validateMcpServerConfig(name, server.config)
+    if (!result.ok) {
+      diagnostics.push(diagnostic('plugin', 'invalid-server', result.message))
+      continue
+    }
+    if (hasPlaceholder(result.config)) {
+      diagnostics.push(
+        diagnostic(
+          'plugin',
+          'plugin-secret-reference',
+          `server "${name}": plugin servers cannot reference Secrets (\${…}); configure it in the global MCP settings`,
+        ),
+      )
+      continue
+    }
+    const clash = names.find((other) => serverNamesConflict(other, name))
+    if (clash !== undefined) {
+      diagnostics.push(diagnostic('plugin', 'name-conflict', `server "${name}" conflicts with "${clash}"`))
+      continue
+    }
+    names.push(name)
+    entries.push({ name, scope: 'global', config: result.config, digest: digestMcpServer(result.config) })
   }
   return { entries, diagnostics }
 }

@@ -49,7 +49,7 @@ export function skillsContribution(options: SkillsContributionOptions): SkillsCo
     let found = catalogs.get(scope)
     if (!found) {
       found = (async () => {
-        const { skills, diagnostics } = await loader.discover(skillLocations({ cwd: scope.cwd, cokoHome: scope.cokoHome }))
+        const { skills, diagnostics } = await loader.discover(skillLocations({ cwd: scope.cwd, cokoHome: scope.cokoHome, plugins: scope.plugins.skillRoots }))
         const disabled = new Set(scope.config.skills.disabled)
         const enabled = scope.config.skills.enabled ? skills.filter((s) => !disabled.has(s.name)) : []
         return { skills, enabled, diagnostics }

@@ -1,5 +1,6 @@
 // Skill 的形状（ADR 0009：用户编写的资源为文件；ADR 0008：allowed-tools 只展示，不放行任何调用）。
 import { dirname, join } from 'node:path'
+import type { PluginRoot } from '../../extensions/plugins/types.ts'
 
 /** project：<Workspace>/.coko/skills、<Workspace>/.agents/skills；user：COKO_HOME/skills 与其同级的 .agents/skills。 */
 export type SkillScope = 'project' | 'user'
@@ -13,6 +14,8 @@ export interface SkillLocation {
    * 符号链接不能把 Workspace 之外的目录变成读取根（ADR 0008）。用户位置省略。
    */
   boundary?: string
+  /** 插件的 Skill 目录（ADR 0017）：Skill 以 <plugin>:<name> 登记，诊断的 source 为 plugin；boundary 为插件安装目录。 */
+  plugin?: string
 }
 
 /** 一个已发现且合规的 Skill（含 SKILL.md 的目录）。 */
@@ -31,6 +34,8 @@ export interface Skill {
   disableModelInvocation: boolean
   /** frontmatter 的 argument-hint（/ 菜单显示）。 */
   argumentHint?: string | undefined
+  /** 来自插件时为插件名（scope 为 user：插件是用户级资源）。 */
+  plugin?: string
 }
 
 /** skill 工具与 /<name> 展开需要的内容：去掉 frontmatter 的正文与 Skill 目录下的文件清单。 */
@@ -42,12 +47,19 @@ export interface SkillContent {
 }
 
 /** 用户级 .agents/skills 是 COKO_HOME 的同级目录：缺省 COKO_HOME=~/.coko 时即 ~/.agents/skills；测试的临时 COKO_HOME 不读真实家目录。 */
-export function skillLocations(input: { cwd: string; cokoHome: string }): SkillLocation[] {
+export function skillLocations(input: { cwd: string; cokoHome: string; plugins?: readonly PluginRoot[] }): SkillLocation[] {
   const project: SkillLocation[] = [
     { dir: join(input.cwd, '.coko', 'skills'), scope: 'project', boundary: input.cwd },
     { dir: join(input.cwd, '.agents', 'skills'), scope: 'project', boundary: input.cwd },
   ]
+  // 插件的 Skill 排在最后：名字带插件前缀，不覆盖用户与项目的同名 Skill。
+  const plugins: SkillLocation[] = (input.plugins ?? []).map((root) => ({ dir: root.path, scope: 'user', boundary: root.path, plugin: root.plugin }))
   // COKO_HOME 为空时不读用户级（避免把相对路径解析到进程目录）。
-  if (input.cokoHome === '') return project
-  return [...project, { dir: join(input.cokoHome, 'skills'), scope: 'user' }, { dir: join(dirname(input.cokoHome), '.agents', 'skills'), scope: 'user' }]
+  if (input.cokoHome === '') return [...project, ...plugins]
+  return [
+    ...project,
+    { dir: join(input.cokoHome, 'skills'), scope: 'user' },
+    { dir: join(dirname(input.cokoHome), '.agents', 'skills'), scope: 'user' },
+    ...plugins,
+  ]
 }

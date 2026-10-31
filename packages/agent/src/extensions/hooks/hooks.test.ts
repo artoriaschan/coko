@@ -26,11 +26,32 @@ describe('parseHooksConfig', () => {
       expect(hookDigest({ ...base, ...change })).not.toBe(parsed.hooks[0]!.digest)
   })
 
+  it('插件来源（ADR 0017）：hookId 带插件名，LoadedHook 记 plugin，诊断的 source 为 plugin', () => {
+    const parsed = parseHooksConfig({ PreToolUse: [{ matcher: 'Bash', hooks: [cmd('guard.sh')] }], Bogus: [] }, 'plugin', {
+      plugin: 'sample',
+      path: '/p/hooks.json',
+    })
+    expect(parsed.hooks.map((h) => [h.hookId, h.source, h.plugin])).toEqual([['plugin:sample:PreToolUse:0:0', 'plugin', 'sample']])
+    expect(parsed.diagnostics).toEqual([expect.objectContaining({ source: 'plugin', code: 'unknown-event', path: '/p/hooks.json' })])
+  })
+
   it.each([
     ['未知 type 被忽略，其余照常加载', { PreToolUse: [{ hooks: [{ type: 'prompt', prompt: 'x' }, cmd('ok.sh')] }] }, ['unsupported-hook-type'], 1],
     ['未知事件', { SessionStart: [{ hooks: [cmd('x')] }] }, ['unknown-event'], 0],
     ['非法正则 matcher：整组忽略', { PreToolUse: [{ matcher: '(', hooks: [cmd('x')] }] }, ['invalid-matcher'], 0],
     ['非字符串 matcher', { PreToolUse: [{ matcher: 3, hooks: [cmd('x')] }] }, ['invalid-matcher'], 0],
+    [
+      '团队事件（TaskCreated / TaskCompleted / TeammateIdle）照常加载',
+      { TaskCreated: [{ hooks: [cmd('a')] }], TaskCompleted: [{ hooks: [cmd('b')] }], TeammateIdle: [{ hooks: [cmd('c')] }] },
+      [],
+      3,
+    ],
+    [
+      '团队事件写了 matcher：整组忽略',
+      { TaskCreated: [{ matcher: 'x', hooks: [cmd('x')] }], TeammateIdle: [{ matcher: '*', hooks: [cmd('y')] }] },
+      ['invalid-matcher', 'invalid-matcher'],
+      0,
+    ],
     ['非法 if', { PreToolUse: [{ hooks: [cmd('x', { if: 'Bash(' })] }] }, ['invalid-if'], 0],
     ['空命令', { PreToolUse: [{ hooks: [cmd('  ')] }] }, ['invalid-value'], 0],
     ['超时越界', { PreToolUse: [{ hooks: [cmd('x', { timeout: 601 })] }] }, ['invalid-value'], 0],

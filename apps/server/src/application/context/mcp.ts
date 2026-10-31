@@ -23,6 +23,7 @@ import {
   type CokoTool,
   type McpPrompt,
   parseMcpServers,
+  parsePluginMcpServers,
   parseProjectMcpFile,
   secretRefsOf,
   serverNamesConflict,
@@ -30,6 +31,7 @@ import {
   type McpServerConfig,
   type McpServerEntry,
   type McpTransportHandle,
+  type PluginContributionsPort,
   type ResourceDiagnostic,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -54,6 +56,11 @@ export interface McpManagerOptions {
   clientInfo?: { name: string; version: string }
   /** 读取项目 .mcp.json（测试计数）；缺省 node:fs。 */
   readFile?: (path: string) => Promise<string>
+  /**
+   * 插件消费 seam（ADR 0017）：已启用插件的 MCP Server 并入全局一级（不经项目批准，引用 Secret 的不加载）；plugins.enabled 为 false 时没有。
+   * onChange 时 reconcile 由 MCP 认证状态与插件核心接入。
+   */
+  plugins?: Pick<PluginContributionsPort, 'snapshot'>
 }
 
 interface Pooled {
@@ -132,9 +139,15 @@ export class McpManager {
   async load(workspace?: { id: string; path: string }): Promise<LoadedMcpConfig> {
     const global = await this.#global()
     const parsedGlobal = parseMcpServers(global.raw, { scope: 'global' })
-    const entries = [...parsedGlobal.entries]
-    const diagnostics = [...parsedGlobal.diagnostics]
     const effective = await this.#options.config.effective(workspace?.path)
+    const pluginServers = effective.plugins.enabled && this.#options.plugins ? (await this.#options.plugins.snapshot()).mcpServers : []
+    const parsedPlugins = parsePluginMcpServers(
+      pluginServers,
+      parsedGlobal.entries.map((e) => e.name),
+    )
+    const globalLevel = [...parsedGlobal.entries, ...parsedPlugins.entries]
+    const entries = [...globalLevel]
+    const diagnostics = [...parsedGlobal.diagnostics, ...parsedPlugins.diagnostics]
     let approvals: Record<string, string> = {}
     let approvalsRevision = 0
     let project: Loaded['project']
@@ -145,10 +158,10 @@ export class McpManager {
       project = { path, exists: text !== undefined }
       if (text instanceof Error) diagnostics.push(diagnostic('mcp', 'read-failed', `Cannot read file: ${text.message}`, path))
       else if (text !== undefined) {
-        const parsed = parseProjectMcpFile(text, { path, globalNames: parsedGlobal.entries.map((e) => e.name) })
+        const parsed = parseProjectMcpFile(text, { path, globalNames: globalLevel.map((e) => e.name) })
         diagnostics.push(...parsed.diagnostics)
         for (const entry of parsed.entries) {
-          const clash = parsedGlobal.entries.find((g) => serverNamesConflict(g.name, entry.name))
+          const clash = globalLevel.find((g) => serverNamesConflict(g.name, entry.name))
           if (clash) diagnostics.push(diagnostic('mcp', 'name-conflict', `server "${entry.name}" conflicts with global server "${clash.name}"`, path))
           else entries.push(entry)
         }

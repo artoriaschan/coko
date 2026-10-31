@@ -1,5 +1,5 @@
 // 时间裁剪的贡献：transformMessages 受 context.trimOldToolResults 控制，时钟可注入；只返回新数组，不改输入。
-import { defaultCapabilityConfig, OLD_TOOL_RESULT_CLEARED } from '@coko/agent'
+import { defaultCapabilityConfig, emptyPluginContributions, OLD_TOOL_RESULT_CLEARED } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'
 import type { ContextScope } from './types.ts'
@@ -9,7 +9,7 @@ const MIN = 60_000
 const scope = (trim: boolean): ContextScope => {
   const config = defaultCapabilityConfig()
   config.context.trimOldToolResults = trim
-  return { workspaceId: 'w', cwd: '/w', config, cokoHome: '/h' }
+  return { workspaceId: 'w', cwd: '/w', config, cokoHome: '/h', plugins: emptyPluginContributions() }
 }
 const conversation = (): AgentMessage[] => {
   const messages: AgentMessage[] = [{ role: 'user', content: [{ type: 'text', text: 'go' }], timestamp: 0 }]

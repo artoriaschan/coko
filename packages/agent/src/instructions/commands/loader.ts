@@ -40,23 +40,34 @@ function parseTemplate(text: string): Parsed {
   return { ok: true, description, ...(argumentHint === undefined ? {} : { argumentHint }), content, problems }
 }
 
+export interface CommandTemplateLoadOptions {
+  /** 插件的命令目录（ADR 0017）：命令以 <plugin>:<name> 登记（source 为 user），诊断的 source 为 plugin。 */
+  plugin?: string
+}
+
 export interface CommandTemplateLoader {
   /** root 下的模板（按名字排序）与诊断；root 不存在时为空。文件未变（mtime 与大小）时复用上次的解析结果。 */
-  load(root: string, source: CommandTemplate['source']): Promise<{ templates: CommandTemplate[]; diagnostics: ResourceDiagnostic[] }>
+  load(
+    root: string,
+    source: CommandTemplate['source'],
+    options?: CommandTemplateLoadOptions,
+  ): Promise<{ templates: CommandTemplate[]; diagnostics: ResourceDiagnostic[] }>
 }
 
 export function createCommandTemplateLoader(files: ReadOnlyFiles = createNodeFiles()): CommandTemplateLoader {
   const cache: MtimeCache<Parsed> = createMtimeCache(files, parseTemplate)
   return {
-    async load(root, source) {
+    async load(root, source, options = {}) {
       const templates: CommandTemplate[] = []
       const diagnostics: ResourceDiagnostic[] = []
+      const origin = options.plugin === undefined ? 'commands' : 'plugin'
+      const prefix = options.plugin === undefined ? [] : [options.plugin]
       const visit = async (dir: string, segments: string[]) => {
         let entries
         try {
           entries = await files.list(dir)
         } catch (error) {
-          diagnostics.push(diagnostic('commands', 'read-failed', `Cannot list directory: ${message(error)}`, dir))
+          diagnostics.push(diagnostic(origin, 'read-failed', `Cannot list directory: ${message(error)}`, dir))
           return
         }
         for (const entry of entries) {
@@ -69,26 +80,24 @@ export function createCommandTemplateLoader(files: ReadOnlyFiles = createNodeFil
           if (entry.kind !== 'file' || !entry.name.endsWith('.md')) continue
           const parts = [...segments, entry.name.slice(0, -'.md'.length)]
           if (parts.some((part) => !COMMAND_NAME_SEGMENT.test(part))) {
-            diagnostics.push(
-              diagnostic('commands', 'invalid-name', `"${parts.join(':')}" is not a valid command name (letters, digits, ".", "_" and "-")`, path),
-            )
+            diagnostics.push(diagnostic(origin, 'invalid-name', `"${parts.join(':')}" is not a valid command name (letters, digits, ".", "_" and "-")`, path))
             continue
           }
           let parsed: Parsed | undefined
           try {
             parsed = await cache.load(path)
           } catch (error) {
-            diagnostics.push(diagnostic('commands', 'read-failed', `Cannot read the command template: ${message(error)}`, path))
+            diagnostics.push(diagnostic(origin, 'read-failed', `Cannot read the command template: ${message(error)}`, path))
             continue
           }
           if (!parsed) continue
           if (!parsed.ok) {
-            diagnostics.push(diagnostic('commands', parsed.code, parsed.message, path))
+            diagnostics.push(diagnostic(origin, parsed.code, parsed.message, path))
             continue
           }
-          for (const problem of parsed.problems) diagnostics.push(diagnostic('commands', 'invalid-value', problem, path))
+          for (const problem of parsed.problems) diagnostics.push(diagnostic(origin, 'invalid-value', problem, path))
           templates.push({
-            name: parts.join(':'),
+            name: [...prefix, ...parts].join(':'),
             description: parsed.description,
             argumentHint: parsed.argumentHint,
             source,

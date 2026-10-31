@@ -15,6 +15,7 @@ import {
   type BeforeRequestState,
   type PermissionMode,
   type PermissionRule,
+  type PluginRoot,
   type RunInput,
   type RunResult,
   type StandardPermissionMode,
@@ -176,11 +177,13 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
 
   // ---- 定义 ----
 
-  async catalog(cwd: string): Promise<AgentCatalog> {
+  /** plugins：已启用插件的 agents 目录（ContextScope.plugins.agentRoots），定义以 <plugin>:<name> 登记。 */
+  async catalog(cwd: string, plugins: readonly PluginRoot[] = []): Promise<AgentCatalog> {
     const known = new Set(this.#sessions.toolNames(cwd))
     return this.#loader.load({
       cwd,
       cokoHome: this.#options.cokoHome,
+      plugins,
       knownTool: (name) => known.has(name) || name === 'skill' || name.startsWith('mcp__'),
       knownModel: (text) => {
         const model = parseModel(text)
@@ -243,7 +246,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (parentRunId === undefined) throw new Error('Subagents can only be started from a running turn')
     const scope = await sessions.scope(parent)
     if (!scope.config.agents.enabled) throw new Error('Subagents are disabled in the settings')
-    const { definitions } = await this.catalog(scope.cwd)
+    const { definitions } = await this.catalog(scope.cwd, scope.plugins.agentRoots)
     const definition = definitions.find((d) => d.name === request.subagentType)
     if (!definition) throw new Error(`Unknown subagent type ${request.subagentType}; available: ${definitions.map((d) => d.name).join(', ')}`)
     const modelText = request.model ?? definition.model

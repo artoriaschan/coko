@@ -33,6 +33,10 @@ export interface SidecarConfig {
   testScheduleHold?: boolean
   /** COKO_TEST_HOLD_AFTER_TOOL / COKO_TEST_HOLD_BEFORE_CHECKPOINT（需 COKO_TEST_TOOLS=1）：工具执行后挂起，仅测试使用。 */
   testHold?: { tool: string; beforeCheckpoint: boolean }
+  /** COKO_TEST_NO_FTS=1：Memory 检索不用 FTS5（降级为 LIKE），仅测试使用。 */
+  testNoFts?: boolean
+  /** COKO_TEST_PLUGINS=<绝对路径>：把该目录当作一个已批准的插件提供贡献（插件消费 seam 的接线用例），仅测试使用。 */
+  testPlugins?: string
   /** 打包的发布构建中被忽略的测试钩子变量名（只记名字，用于启动日志）。 */
   ignoredTestHooks?: string[]
   /** COKO_LOG_LEVEL，默认 info。 */
@@ -66,7 +70,10 @@ type Env = Readonly<Record<string, string | undefined>>
 /** 测试钩子：faux provider、替换 sandbox-exec、测试工具与挂起。格式错误时抛 ConfigError。 */
 function testHooks(
   env: Env,
-): Pick<SidecarConfig, 'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock' | 'testClockStart' | 'testScheduleHold'> {
+): Pick<
+  SidecarConfig,
+  'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock' | 'testClockStart' | 'testScheduleHold' | 'testNoFts' | 'testPlugins'
+> {
   const testClock = env.COKO_TEST_CLOCK
   if (testClock !== undefined && testClock !== '1') throw new ConfigError('COKO_TEST_CLOCK must be 1 when set')
   const clockStart = testClock ? env.COKO_TEST_CLOCK_START : undefined
@@ -80,7 +87,13 @@ function testHooks(
   const testTools = env.COKO_TEST_TOOLS
   if (testTools !== undefined && testTools !== '1') throw new ConfigError('COKO_TEST_TOOLS must be 1 when set')
   const hold = testTools ? env.COKO_TEST_HOLD_AFTER_TOOL : undefined
+  const noFts = env.COKO_TEST_NO_FTS
+  if (noFts !== undefined && noFts !== '1') throw new ConfigError('COKO_TEST_NO_FTS must be 1 when set')
+  const testPlugins = env.COKO_TEST_PLUGINS
+  if (testPlugins !== undefined && !isAbsolute(testPlugins)) throw new ConfigError('COKO_TEST_PLUGINS must be an absolute path')
   return {
+    ...(noFts ? { testNoFts: true } : {}),
+    ...(testPlugins ? { testPlugins } : {}),
     ...(fauxScript ? { fauxScript } : {}),
     ...(sandboxExec ? { sandboxExec } : {}),
     ...(testTools ? { testTools: true } : {}),
