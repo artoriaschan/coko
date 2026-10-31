@@ -512,12 +512,15 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     return { continue: [{ type: 'text', text: reason }] }
   }
 
-  /** max-turns：子 Run 的每次请求前计数本 Run 已有的 assistant 消息，耗尽时以 max_turns 停止（不发出该请求）。 */
-  beforeRequest(state: BeforeRequestState, scope: ContextScope): RequestVerdict {
+  /**
+   * max-turns：子 Run 的每次请求前计数本 Run 已提交的 assistant 条目，耗尽时以 max_turns 停止（不发出该请求）。按条目计数：自动压缩把上下文
+   * 换成摘要之后，上下文中的 assistant 消息变少，不能据此重新计数。
+   */
+  async beforeRequest(state: BeforeRequestState, scope: ContextScope): Promise<RequestVerdict> {
     const max = scope.subagent?.maxTurns
-    if (max === undefined || !scope.parentSessionId) return undefined
-    // 子 Session 只有派发它的这一个 Run（SubagentStop 的继续在同一 Run 中）：上下文中的 assistant 消息数即已用轮次。
-    const turns = state.messages.filter((m) => (m as { role?: string }).role === 'assistant').length
+    if (max === undefined || !scope.parentSessionId || !scope.sessionId) return undefined
+    const entries = await this.#options.entries.list(scope.sessionId)
+    const turns = entries.filter((e) => e.runId === state.runId && e.kind === 'message' && (e.payload as { role?: string }).role === 'assistant').length
     if (turns < max) return undefined
     return { stop: { code: 'max_turns', message: `The subagent reached its turn limit (${max})` } }
   }

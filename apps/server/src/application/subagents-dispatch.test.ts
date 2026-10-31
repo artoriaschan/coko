@@ -7,6 +7,31 @@ import { describe, expect, it } from 'vitest'
 import { SessionHub } from './hub.ts'
 import { SubagentService } from './subagents.ts'
 
+describe('子代理的 max-turns', () => {
+  it('按本 Run 已提交的 assistant 条目计数：自动压缩后上下文中没有 assistant 消息也照样停止', async () => {
+    const store = createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
+    const workspace = await store.sessions.registerWorkspace({ path: '/tmp/coko-max-turns' })
+    const child = await store.sessions.createSession({ workspaceId: workspace.id, model: null })
+    const assistant = (runId: string) => ({
+      kind: 'message',
+      runId,
+      payload: { role: 'assistant', content: [{ type: 'text', text: 'x' }], stopReason: 'stop', timestamp: 1 },
+    })
+    await store.sessions.appendEntries(child.id, [assistant('old'), assistant('r1'), assistant('r1')] as never)
+    const service = new SubagentService({
+      store,
+      hub: new SessionHub(),
+      entries: { list: (id) => store.sessions.listEntries(id), commit: async () => undefined as never },
+      config: { effective: async () => ({}) } as never,
+      cokoHome: '/tmp/coko-home-unused',
+    })
+    const scope = { sessionId: child.id, parentSessionId: 'p', subagent: { name: 'general', tools: [], maxTurns: 2 } } as never
+    const compacted = [{ role: 'user', content: 'summary' }] as never
+    expect(await service.beforeRequest({ runId: 'r1', messages: compacted, model: {} as never }, scope)).toMatchObject({ stop: { code: 'max_turns' } })
+    expect(await service.beforeRequest({ runId: 'r2', messages: compacted, model: {} as never }, scope)).toBeUndefined()
+  })
+})
+
 describe('子代理派发失败', () => {
   it('worktree 创建之后 agent_start 提交失败：回收 worktree 与询问规则，没有残留的 running 子代理', async () => {
     const store = createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
