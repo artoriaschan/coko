@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import type { SidecarNotify } from '@coko/protocol'
 import { DESKTOP_LOG_FILE, startDesktopLogging } from './logging.ts'
-import { handleNotify, liveNotifications, NOTIFICATION_SHOWN, type NotificationHost, type ShownNotification } from './notifications.ts'
+import { createNotifier, NOTIFICATION_SHOWN, type NotificationHost, type ShownNotification } from './notifications.ts'
 
 const message: SidecarNotify = { type: 'notify', kind: 'schedule-run-ended', sessionId: 's1', title: 'Nightly check', body: 'Scheduled task run finished' }
 
@@ -47,23 +47,24 @@ async function logged(task: () => void): Promise<{ message: string; properties: 
 describe('桌面通知（main）', () => {
   it('窗口在前台时不显示、不记 notification shown', async () => {
     const fake = fakeHost({ focused: true })
+    const notifier = createNotifier(fake.host)
     let result: boolean | undefined
-    const records = await logged(() => (result = handleNotify(message, fake.host)))
+    const records = await logged(() => (result = notifier.notify(message)))
     expect([result, fake.shown]).toEqual([false, []])
     expect(records.filter((r) => r.message === NOTIFICATION_SHOWN)).toEqual([])
   })
 
   it('不在前台时显示标题与正文；点击调用 openSession（该会话），之后不再持有引用', async () => {
     const fake = fakeHost({ focused: false })
-    const before = liveNotifications()
+    const notifier = createNotifier(fake.host)
     let result: boolean | undefined
-    const records = await logged(() => (result = handleNotify(message, fake.host)))
+    const records = await logged(() => (result = notifier.notify(message)))
     expect([result, fake.shown]).toEqual([true, [{ title: 'Nightly check', body: 'Scheduled task run finished' }]])
-    expect(liveNotifications()).toBe(before + 1)
+    expect(notifier.liveCount()).toBe(1)
     expect(fake.opened).toEqual([])
     fake.click()
     expect(fake.opened).toEqual(['s1'])
-    expect(liveNotifications()).toBe(before)
+    expect(notifier.liveCount()).toBe(0)
     expect(records.filter((r) => r.message === NOTIFICATION_SHOWN).map((r) => r.properties)).toEqual([
       expect.objectContaining({ kind: 'schedule-run-ended', sessionId: 's1' }),
     ])
@@ -71,19 +72,39 @@ describe('桌面通知（main）', () => {
 
   it('关闭后不再持有引用；系统不支持时不记 notification shown', async () => {
     const fake = fakeHost({ focused: false })
-    const before = liveNotifications()
-    handleNotify(message, fake.host)
+    const notifier = createNotifier(fake.host)
+    notifier.notify(message)
+    expect(notifier.liveCount()).toBe(1)
     fake.close()
-    expect(liveNotifications()).toBe(before)
-    const unsupported = fakeHost({ focused: false, supported: false })
-    const records = await logged(() => expect(handleNotify(message, unsupported.host)).toBe(false))
+    expect(notifier.liveCount()).toBe(0)
+    const unsupported = createNotifier(fakeHost({ focused: false, supported: false }).host)
+    const records = await logged(() => expect(unsupported.notify(message)).toBe(false))
     expect(records.filter((r) => r.message === NOTIFICATION_SHOWN)).toEqual([])
+    expect(unsupported.liveCount()).toBe(0)
+  })
+
+  it('两个实例各自持有引用，互不影响', () => {
+    const first = fakeHost({ focused: false })
+    const second = fakeHost({ focused: false })
+    const a = createNotifier(first.host)
+    const b = createNotifier(second.host)
+    a.notify(message)
+    a.notify({ ...message, sessionId: 's2' })
+    b.notify(message)
+    expect([a.liveCount(), b.liveCount()]).toEqual([2, 1])
+    second.click()
+    expect([a.liveCount(), b.liveCount()]).toEqual([2, 0])
+    expect([first.opened, second.opened]).toEqual([[], ['s1']])
+    first.close()
+    expect([a.liveCount(), b.liveCount()]).toEqual([0, 0])
   })
 
   it('测试构建不显示，只记 notification shown（带类别与会话）', async () => {
     const fake = fakeHost({ focused: false, testBuild: true })
-    const records = await logged(() => expect(handleNotify(message, fake.host)).toBe(true))
+    const notifier = createNotifier(fake.host)
+    const records = await logged(() => expect(notifier.notify(message)).toBe(true))
     expect(fake.shown).toEqual([])
+    expect(notifier.liveCount()).toBe(0)
     expect(records.filter((r) => r.message === NOTIFICATION_SHOWN).map((r) => r.properties)).toEqual([
       expect.objectContaining({ kind: 'schedule-run-ended', sessionId: 's1', title: 'Nightly check' }),
     ])
