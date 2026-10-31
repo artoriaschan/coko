@@ -25,7 +25,7 @@ export type HookEvent = Static<typeof hookEventSchema>
 export const hookSourceSchema = Type.Union([Type.Literal('global'), Type.Literal('project')])
 export type HookSource = Static<typeof hookSourceSchema>
 
-/** 一次有结果的 Hook 执行的结论；没有决定的成功执行不提交条目。 */
+/** 一次有结果的 Hook 执行的结论；没有决定的成功执行不提交条目。ignored：项目 Hook 的 allow（只收紧，不参与判定）。 */
 export const hookOutcomeSchema = Type.Union([
   Type.Literal('blocked'),
   Type.Literal('asked'),
@@ -37,6 +37,7 @@ export const hookOutcomeSchema = Type.Union([
   Type.Literal('timeout'),
   Type.Literal('error'),
   Type.Literal('invalid-output'),
+  Type.Literal('ignored'),
 ])
 export type HookOutcome = Static<typeof hookOutcomeSchema>
 

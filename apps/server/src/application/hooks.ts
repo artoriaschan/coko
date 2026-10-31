@@ -60,6 +60,8 @@ export const HOOK_BLOCK_REASON_MAX_CHARS = 2_048
 export const STOP_FEEDBACK_PREFIX = 'Stop hook feedback:'
 /** continue: false 没有 stopReason 时 run_end 的 message。 */
 export const HOOK_STOPPED_TEXT = 'Stopped by a hook'
+/** 项目 Hook 的 allow 被忽略时 hook_run.message 的文本。 */
+export const PROJECT_ALLOW_IGNORED_TEXT = 'Ignored: a project hook cannot allow a call'
 /** Stop 达到每 Run 的继续上限后，block 被忽略时 hook_run.message 的文本。 */
 export const STOP_LIMIT_TEXT = `Ignored: the run already continued ${ONSTOP_CONTINUE_LIMIT} times because of Stop hooks`
 
@@ -350,9 +352,11 @@ export class HookService {
     const { hook, result } = run
     let outcome: HookOutcome = result.outcome!
     let message = run.message ?? messageOf(result)
-    // 项目 Hook 的 allow 不参与聚合（只收紧）：记录为放行但注明被忽略。
-    if (hook.source === 'project' && result.decision === 'allow') message = 'Ignored: a project hook cannot allow a call'
-    if (hook.event === 'PermissionRequest' && result.decision === 'allow') outcome = 'allowed'
+    // 项目 Hook 的 allow 不参与聚合（只收紧）：记为 ignored 并注明，时间线与审计不显示一次没有生效的放行。continue: false 仍记 stopped。
+    if (hook.source === 'project' && result.decision === 'allow') {
+      message = PROJECT_ALLOW_IGNORED_TEXT
+      if (outcome === 'allowed') outcome = 'ignored'
+    }
     const payload: HookRunPayload = {
       event: hook.event,
       hookId: hook.hookId,

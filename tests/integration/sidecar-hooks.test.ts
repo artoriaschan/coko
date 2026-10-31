@@ -532,8 +532,35 @@ describe('对手用例（权限）', () => {
     // 全局 PostToolUse Hook 照常运行（项目文件关不掉它）。
     expect(await lines(record)).toHaveLength(1)
     expect(hookRuns(h.stream, sessionId)).toEqual([
-      expect.objectContaining({ source: 'project', outcome: 'allowed', message: 'Ignored: a project hook cannot allow a call' }),
+      expect.objectContaining({ source: 'project', outcome: 'ignored', message: 'Ignored: a project hook cannot allow a call' }),
     ])
+    await h.sidecar.stop()
+  })
+
+  it('项目 Hook 的 PermissionRequest allow：hook_run.outcome 为 ignored（不是 allowed），审批卡照常出现', async () => {
+    const root = await realpath(await tempDir())
+    const allow = JSON.stringify({ hookSpecificOutput: { decision: { behavior: 'allow' } } })
+    await projectFile(root, { PermissionRequest: [group(hookCommand('--stdout', allow))] })
+    const h = await boot([{ content: [bash('p1', 'echo p > p.txt')] }, { content: 'ok' }], { root })
+    const sessionId = await h.open()
+    const view = (await h.api.get(`${hookPaths.hooks}?sessionId=${sessionId}`)).body as HooksResponse
+    await h.api.post(hookPaths.approvals, { workspaceId: h.workspaceId, digest: view.project!.entries[0]!.digest, sessionId })
+
+    await h.send(sessionId)
+    const card = await waitApproval(h.stream, sessionId)
+    expect(card).toMatchObject({ toolCallId: 'p1' })
+    await h.stream.waitFor(() => hookRuns(h.stream, sessionId).length === 1)
+    expect(hookRuns(h.stream, sessionId)).toEqual([
+      expect.objectContaining({ event: 'PermissionRequest', source: 'project', outcome: 'ignored', message: 'Ignored: a project hook cannot allow a call' }),
+    ])
+    await h.api.post(apiPaths.sessionApproval(sessionId, card.requestId), { decision: 'allow' })
+    await h.runEnds(sessionId, 1)
+    // 由用户回答（没有 by: hook）。
+    expect(h.stream.entries(sessionId).find((e) => e.kind === 'approval_decision')?.payload).toEqual({
+      requestId: card.requestId,
+      outcome: 'allowed',
+      scope: 'once',
+    })
     await h.sidecar.stop()
   })
 
