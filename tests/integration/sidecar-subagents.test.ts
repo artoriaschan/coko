@@ -238,8 +238,11 @@ describe('子代理：派发与结果', { timeout: 120_000 }, () => {
     await expect.poll(async () => (await api.get(apiPaths.session(parent))).body.session.activity).toBe('awaiting-approval')
     // HTTP 停止一个；其余用 agent_cancel 不能（脚本里的 id 是占位），这里只断言 HTTP 与已结束的 409。
     expect((await api.post(agentPaths.cancel(parent, children[1]!), {})).status).toBe(204)
+    // 204 在 agent_end 经 WebSocket 到达之前返回：等条目本身，再断言。
+    await stream.waitFor(() => ends(stream, parent).some((e) => e.agentId === children[1]), 20_000)
     expect(ends(stream, parent).find((e) => e.agentId === children[1])).toMatchObject({ status: 'cancelled' })
     for (const child of [children[0]!, children[2]!, children[3]!]) expect((await api.post(agentPaths.cancel(parent, child), {})).status).toBe(204)
+    await stream.waitFor(() => ends(stream, parent).length >= 4, 20_000)
     expect(ends(stream, parent).map((e) => e.status)).toEqual(['cancelled', 'cancelled', 'cancelled', 'cancelled'])
     await stream.waitFor(() => runEnds(stream, parent).length >= 1, 60_000)
     expect(toolResults(stream, parent, 'agent_cancel')[0]!.isError).toBe(true)
