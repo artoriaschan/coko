@@ -5,18 +5,21 @@ import type { TimelineItem } from './timeline.ts'
 
 /**
  * 时间线的定时任务投递（schedule_fire）行：紧凑行。开始执行或已跳过（与原因）、任务标题、计划时刻与合并的错过次数。
- * 标题来自 schedules store（标题栏按钮读取会话的列表）；任务已删除时显示"已删除的定时任务"。
+ * 标题来自 schedules store（标题栏按钮读取会话的列表），其次取该 Run 输入包装中的标题；都没有时显示"已删除的定时任务"。
+ * 定时任务 Run 的输入（<scheduled_task> 包装）不成用户气泡，这一行即是该 Run 的开头。
  */
 export function ScheduleFireRow({ item }: { item: Extract<TimelineItem, { kind: 'schedule-fire' }> }) {
   const { t, locale } = useI18n()
   const { fire } = item
-  const title = useSchedules((s) => {
+  const listed = useSchedules((s) => {
     for (const list of Object.values(s.lists)) {
       const found = list.schedules.find((x) => x.id === fire.scheduleId)
       if (found) return found.title
     }
     return undefined
   })
+  // 列表中找不到（已删除或尚未读取）时，取该 Run 输入包装中的标题。
+  const title = listed ?? item.title
   const skipped = fire.status === 'skipped'
   const details = [
     t('schedules.occurrence', { time: formatScheduleTime(locale, fire.occurrence) }),

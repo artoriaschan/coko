@@ -21,6 +21,21 @@ import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 /** UserPromptSubmit 的 additionalContext 在 user message 中的文本块开头（服务端 session-runs.ts 的 SUBMIT_CONTEXT_TAG）。 */
 const HOOK_CONTEXT_TAG = '<hook-context>'
+/** 后台子代理结束通知在 user message 中的文本块开头（@coko/agent 的 AGENT_NOTIFICATION_TAG）。 */
+const AGENT_NOTIFICATION_TAG = '<agent-notification'
+/** 定时任务 Run 的输入包装的标签名（@coko/agent 的 SCHEDULED_TASK_TAG）：`<scheduled_task schedule-id title occurrence>prompt</scheduled_task>`。 */
+const SCHEDULED_TASK_TAG = 'scheduled_task'
+
+const unescapeAttribute = (value: string) =>
+  value.replace(/&(quot|lt|gt|apos|#39|amp);/g, (_, name: string) => ({ quot: '"', lt: '<', gt: '>', apos: "'", '#39': "'", amp: '&' })[name] ?? '')
+
+/** <scheduled_task> 包装的 title 属性（属性值由宿主转义）；不是包装时 undefined。 */
+function scheduledTaskTitle(text: string): string | undefined {
+  if (!text.startsWith(`<${SCHEDULED_TASK_TAG}`)) return undefined
+  const head = text.slice(0, text.indexOf('>') + 1)
+  const match = / title="([^"]*)"/.exec(head)
+  return match ? unescapeAttribute(match[1]!) : ''
+}
 
 export interface ToolCallBlock {
   id: string
@@ -91,7 +106,8 @@ export type TimelineItem =
   /** M5 的条目：各自的组件在对应功能交付前不渲染（返回 null）。agent_start / agent_end / subagent_origin 不单独成行（由工具卡表示）。 */
   | { kind: 'hook'; key: string; hook: HookRunPayload }
   | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
-  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload }
+  /** title：定时任务 Run 的输入包装中的标题（任务已删除、列表中找不到时的后备）。 */
+  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string }
   | { kind: 'handoff'; key: string; handoff: { kind: 'source'; payload: HandoffPayload } | { kind: 'origin'; payload: HandoffOriginPayload } }
 
 interface Block {
@@ -137,6 +153,11 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
   let pendingCommand: CommandPayload | null = null
   const ranges = rewoundRanges(conversation.entries)
+  /** trigger schedule 的 Run 中尚未出现的输入消息（按 runId），及开始它的 schedule_fire 行。 */
+  const scheduleInputs = new Set<string>()
+  const fireItems = new Map<string, Extract<TimelineItem, { kind: 'schedule-fire' }>>()
+  /** 紧接在当前条目之前的宿主通知条目（job_notification / agent_notification）的 kind。 */
+  let notices = new Set<string>()
 
   /**
    * 一层条目：被该层最外层回退区间覆盖的条目收进一个 rewound 项（在其中递归，内层回退照样折叠），其余逐条转换。
@@ -171,10 +192,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   }
 
   const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
+    const preceding = notices
+    notices = entry.kind === 'job_notification' || entry.kind === 'agent_notification' ? new Set([...preceding, entry.kind]) : new Set()
     if (entry.runId) lastRunId = entry.runId
     if (entry.kind === 'run_start') {
       pendingCommand = null
       if (entry.payload.trigger === 'compact' && entry.runId) compactRuns.add(entry.runId)
+      if (entry.payload.trigger === 'schedule' && entry.runId) scheduleInputs.add(entry.runId)
     }
     if (entry.kind === 'compaction') {
       const { summary, trigger, tokensBefore, tokensAfter } = entry.payload
@@ -218,7 +242,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       return
     }
     if (entry.kind === 'schedule_fire') {
-      items.push({ kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload })
+      const item: Extract<TimelineItem, { kind: 'schedule-fire' }> = { kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload }
+      if (entry.payload.runId) fireItems.set(entry.payload.runId, item)
+      items.push(item)
       return
     }
     if (entry.kind === 'handoff' || entry.kind === 'handoff_origin') {
@@ -269,18 +295,33 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       const references: string[] = []
       // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
       // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
-      const blocks = blocksOf(message.content)
-      const own = blocks.filter((b) => {
-        if (b.type === 'text' && typeof b.text === 'string' && (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG))) return false
-        const path = b.type === 'text' && typeof b.text === 'string' ? fileReferencePath(b.text) : undefined
+      // 后台子代理的结束通知（<agent-notification> 文本块，紧接在 agent_notification 条目之后）由该行显示；定时任务 Run 的输入
+      // （该 Run 的第一条 user message，<scheduled_task> 包装）由 schedule_fire 行表示。两者都只认宿主条目确定的位置，用户输入的同样文本照常显示。
+      const scheduleInput = entry.runId !== null && scheduleInputs.delete(entry.runId)
+      const agentNotice = preceding.has('agent_notification')
+      const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice
+      const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
+      const own = blocks.filter((b, index) => {
+        if (b.type !== 'text' || typeof b.text !== 'string') return true
+        if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
+        if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
+        if (scheduleInput && index === 0) {
+          const title = scheduledTaskTitle(b.text)
+          if (title !== undefined) {
+            const fire = fireItems.get(entry.runId!)
+            if (fire && title !== '') fire.title = title
+            return false
+          }
+        }
+        const path = fileReferencePath(b.text)
         if (path !== undefined) references.push(path)
         return path === undefined
       })
-      if (typeof message.content !== 'string' && blocks.length > 0 && own.length === 0 && references.length === 0) return
+      if (!plain && blocks.length > 0 && own.length === 0 && references.length === 0) return
       items.push({
         kind: 'user',
         key: `${entry.seq}`,
-        text: typeof message.content === 'string' ? message.content : contentText(own),
+        text: plain ? (message.content as string) : contentText(own),
         ...(references.length > 0 ? { references } : {}),
         seq: entry.seq,
         checkpoint: !hidden,

@@ -421,4 +421,18 @@ describe('时间线的 schedule_fire 行', () => {
     expect(rows[1]!.textContent).toContain('the working directory is missing')
     expect(rows[1]!.textContent).toContain('2 missed runs merged')
   })
+
+  it('任务不在列表中时，开始的 Run 显示其输入包装中的标题', async () => {
+    const store = createSchedulesStore(backend([]).api)
+    await store.getState().load('s-1')
+    await mount(
+      store,
+      <ScheduleFireRow
+        item={{ kind: 'schedule-fire', key: '1', title: 'Weekly report', fire: { scheduleId: 'gone', occurrence: NOV2_9_UTC, status: 'started', runId: 'r1' } }}
+      />,
+    )
+    const row = document.querySelector<HTMLElement>('[data-slot="schedule-fire"]')!
+    expect(row.textContent).toContain('Weekly report')
+    expect(row.textContent).not.toContain('Deleted scheduled task')
+  })
 })
