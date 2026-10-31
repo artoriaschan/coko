@@ -21,7 +21,7 @@
 - [x] `check:docs` 通过
 
 ## Comments
-
+- 2026-10-31 lead：实施者报告的全量失败（sidecar-jobs.test.ts:289，job_end 缺 signal: SIGTERM）是 apps/server 的间歇性缺陷，与本票无关：#finish 只在进程退出带 signal 时写 signal，进程以退出码 143 结束时就缺。由 m6/fix-job-kill-signal 修复（lead 另起实施者）。本票不用改；若全量只剩这一例失败，照实报告并注明，lead 合入修复后在 main 上复核。
 - 2026-10-31 实施者（m6/02-ui-leftovers）：
   - **T5**（f50b47c）。`main/notifications.ts` 改为 `createNotifier(host): { notify, liveCount }`，`live` 是实例字段；`main/index.ts` 只创建一个，notify 控制消息调用 `notifier.notify`。删除 `handleNotify` 与 `liveNotifications`（仓库中没有其他引用）。`notifications.test.ts` 每例创建自己的实例，断言绝对值（不再用前后差值），新增"两个实例各自持有引用，互不影响"。先红：改测试后 5/5 失败（createNotifier is not a function）。
   - **S9**（e305d5d）。`subscribeSession(sessionId): () => void`（跨票接口形状不变）：按会话引用计数，同一会话多次订阅只发一次 WS subscribe；最后一个 release 发 `unsubscribe`、结束等待中的订阅并移除该会话的对话记录（之后的条目被忽略，重连不再订阅它，再次 subscribeSession 从 afterSeq 0 重新订阅）。openSession 与草稿首条消息打开的会话被固定，release 不退订它们。release 幂等。`useChildApproval` 以排序后的 id 作为稳定键，按差集只释放离开的、只订阅新加入的（仍在的不先退订再订阅），卸载时全部释放；`AgentTimeline`（agents-tab.tsx）的 effect 返回 release。chat-store.test.ts 新增 2 例（引用计数与 unsubscribe、打开的会话不被退订），approval-bubbling.browser 新增 1 例（子代理 B 结束 → 只退订 child-b；卸载 → child-a 也退订、对话记录移除）。先红：chat-store 3 例 "is not a function"；冒泡用例在旧实现下 `[]` ≠ `['child-b']`；第一版"cleanup 全部释放再订阅"使仍在的 child-a 被退订，用例失败于 `['child-a','child-b']`，改为差集后通过。
