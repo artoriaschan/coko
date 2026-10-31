@@ -5,7 +5,7 @@ import { realpath } from 'node:fs/promises'
 import { isAbsolute, join, relative } from 'node:path'
 import { createNodeFiles, diagnostic, parseFrontmatter, type ReadOnlyFiles, type ResourceDiagnostic } from '../instructions/shared/index.ts'
 import { THINKING_LEVELS } from '../models/registry.ts'
-import type { AgentDefinitionSource, StandardPermissionMode } from '../session-entries/index.ts'
+import type { AgentDefinitionSource, PermissionMode, StandardPermissionMode } from '../session-entries/index.ts'
 
 /** 一个已加载的子代理定义。tools 省略时为父级本 Run 的全部可用工具（再减去固定排除集）。 */
 export interface AgentDefinition {
@@ -31,9 +31,15 @@ const NAME = /^[a-z0-9-]{1,64}$/
 const MODEL = /^[^/\s]+\/[^\s]+$/
 const THINKING = new Set<string>(THINKING_LEVELS)
 
-/** 模式的宽窄：read-only < default < accept-edits < full-access。 */
+/** 模式的宽窄：read-only < default < accept-edits < full-access；plan 按 read-only 计（ADR 0014）。 */
 export const PERMISSION_MODE_ORDER: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 const MODES = new Set<string>(PERMISSION_MODE_ORDER)
+const modeRank = (mode: PermissionMode) => PERMISSION_MODE_ORDER.indexOf(mode === 'plan' ? 'read-only' : mode)
+
+/** 模式与上限中较窄者（唯一的宽窄比较）；没有上限或上限不更窄时原样返回 mode（plan 不被同样窄的上限改成其他模式）。 */
+export function narrowerMode<M extends PermissionMode>(mode: M, cap: StandardPermissionMode | undefined): M | StandardPermissionMode {
+  return cap !== undefined && modeRank(cap) < modeRank(mode) ? cap : mode
+}
 
 /**
  * 子 Session 固定排除的工具：不能再派发子代理（深度 1）、不能读写 Goal、退出规划、定时任务、后台任务与 Memory 的写入。
@@ -54,7 +60,8 @@ export const SUBAGENT_EXCLUDED_TOOLS: readonly string[] = [
   'memory_write',
   'memory_delete',
 ]
-const excluded = (name: string) => SUBAGENT_EXCLUDED_TOOLS.includes(name) || name.startsWith('schedule_')
+/** 子 Session 固定排除的工具（SUBAGENT_EXCLUDED_TOOLS 与 schedule_* 前缀）：定义的 tools 也不能加回。 */
+export const isSubagentExcludedTool = (name: string) => SUBAGENT_EXCLUDED_TOOLS.includes(name) || name.startsWith('schedule_')
 
 export const BUILTIN_AGENTS: readonly AgentDefinition[] = [
   {
@@ -280,7 +287,7 @@ export function createAgentDefinitionLoader(files: ReadOnlyFiles = createNodeFil
 export function subagentTools(parentTools: readonly string[], definition: Pick<AgentDefinition, 'tools' | 'disallowedTools'>): string[] {
   const allowed = definition.tools ? new Set(definition.tools) : undefined
   const denied = new Set(definition.disallowedTools)
-  return parentTools.filter((name) => !excluded(name) && !denied.has(name) && (allowed === undefined || allowed.has(name)))
+  return parentTools.filter((name) => !isSubagentExcludedTool(name) && !denied.has(name) && (allowed === undefined || allowed.has(name)))
 }
 
 /**
@@ -288,7 +295,5 @@ export function subagentTools(parentTools: readonly string[], definition: Pick<A
  * 每次判定时调用（根中途收紧，子级的下一次调用即按新模式）。
  */
 export function effectiveSubagentMode(rootMode: StandardPermissionMode | 'plan', cap: StandardPermissionMode | undefined): StandardPermissionMode {
-  const root: StandardPermissionMode = rootMode === 'plan' ? 'read-only' : rootMode
-  if (cap === undefined) return root
-  return PERMISSION_MODE_ORDER.indexOf(cap) < PERMISSION_MODE_ORDER.indexOf(root) ? cap : root
+  return narrowerMode(rootMode === 'plan' ? 'read-only' : rootMode, cap)
 }

@@ -205,7 +205,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       const outcome = await tracked(run, 'manual', instructions)
       if (outcome.kind === 'compacted') return { status: 'completed' }
       if (outcome.kind === 'aborted') return { status: 'aborted' }
-      if (outcome.kind === 'blocked') return { status: 'error', error: { code: 'hook_stopped', message: outcome.reason } }
+      if (outcome.kind === 'blocked') return { status: 'error', error: { code: 'hook_blocked', message: outcome.reason } }
       return { status: 'error', error: { code: 'model_error', message: outcome.kind === 'nothing' ? NOTHING_TO_COMPACT_TEXT : outcome.message } }
     },
     async autoCompact(run, messages, model, signal) {

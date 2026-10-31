@@ -62,8 +62,12 @@ export const RunEndPayload = Type.Object(
 )
 export type RunEndPayload = Static<typeof RunEndPayload>
 
-/** run_end.error.code 中宿主写入的 M5 取值：hook_stopped（Hook 输出 continue: false）、max_turns（子代理的轮次上限）。 */
+/**
+ * run_end.error.code 中宿主写入的取值：hook_stopped（Hook 输出 continue: false）、hook_blocked（PreCompact Hook 阻止了手动压缩）、
+ * max_turns（子代理的轮次上限）。
+ */
 export const RUN_ERROR_HOOK_STOPPED = 'hook_stopped'
+export const RUN_ERROR_HOOK_BLOCKED = 'hook_blocked'
 export const RUN_ERROR_MAX_TURNS = 'max_turns'
 
 const ContentBlocks = Type.Array(Type.Object({ type: Type.String() }))

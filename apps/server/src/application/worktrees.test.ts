@@ -1,4 +1,5 @@
-// WorktreeService：真实 git（夹具仓库）与内存存储。removeIfUnchanged（供子代理）、name 校验、仓库根经符号链接时拒绝、子目录 Workspace 的工作目录。
+// WorktreeService：真实 git（夹具仓库）与内存存储。removeIfUnchanged（供子代理）、name 校验、仓库根经符号链接时拒绝、子目录 Workspace 的工作目录、
+// 移除期间的 worktree-busy（对手用例：并发开始 Run）。
 import { execFile } from 'node:child_process'
 import { access, mkdir, mkdtemp, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -188,5 +189,57 @@ describe('WorktreeService 创建与工作目录', REAL_GIT_BUDGET, () => {
       [bound.name]: 'active',
     })
     expect(await exists(orphan.path)).toBe(false)
+  })
+})
+
+describe('WorktreeService.remove 与并发开始的 Run', REAL_GIT_BUDGET, () => {
+  /** git worktree remove 停在 gate 上（busy 检查之后、git 之前）；fail 为真时该次 git 失败。 */
+  const gated = () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    let reached!: () => void
+    const atGit = new Promise<void>((resolve) => (reached = resolve))
+    const state = { fail: false }
+    const git = (real: GitPort): GitPort => ({
+      run: async (request) => {
+        if (request.args[0] === 'worktree' && request.args[1] === 'remove') {
+          reached()
+          await gate
+          if (state.fail) return { exitCode: 1, stdout: '', stderr: 'fatal: simulated failure' }
+        }
+        return real.run(request)
+      },
+    })
+    return { git, release, atGit, state }
+  }
+
+  it('对手用例：移除停在 busy 检查之后、git 之前时，会话的工作目录解析为 409 worktree-busy（开始 Run 前即失败）；移除后为 worktree-removed', async () => {
+    const g = gated()
+    const { store, service, workspace } = await setup({ git: g.git })
+    const created = await service.create(workspace.id, { name: 'racing' })
+    const session = await store.sessions.createSession({ workspaceId: workspace.id, worktreeId: created.id })
+    const removing = service.remove(created.id)
+    await g.atGit
+    const busy = await service.cwd.resolve(session, workspace).catch((e: unknown) => e)
+    expect(busy).toBeInstanceOf(AppError)
+    expect((busy as AppError).code).toBe('worktree-busy')
+    g.release()
+    await removing
+    const removed = await service.cwd.resolve(session, workspace).catch((e: unknown) => e)
+    expect((removed as AppError).code).toBe('worktree-removed')
+  })
+
+  it('git 失败时撤销登记：会话的工作目录照常解析（可以再提交），记录仍为 active', async () => {
+    const g = gated()
+    g.state.fail = true
+    const { store, service, workspace } = await setup({ git: g.git })
+    const created = await service.create(workspace.id, { name: 'fails' })
+    const session = await store.sessions.createSession({ workspaceId: workspace.id, worktreeId: created.id })
+    const removing = service.remove(created.id).catch((e: unknown) => e)
+    await g.atGit
+    g.release()
+    expect(await removing).toBeInstanceOf(Error)
+    expect(await service.cwd.resolve(session, workspace)).toBe(created.path)
+    expect((await store.worktrees.get(created.id))?.status).toBe('active')
   })
 })

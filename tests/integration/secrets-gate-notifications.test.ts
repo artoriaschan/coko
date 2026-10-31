@@ -5,7 +5,19 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, permissionPaths, schedulePaths } from '@coko/protocol'
-import { advanceClock, client, connect, exchange, fauxScript, notifyMessages, sidecarDirs, startSidecar, tempDir, testCipher } from './sidecar-harness.ts'
+import {
+  advanceClock,
+  client,
+  connect,
+  exchange,
+  fauxScript,
+  notifyMessages,
+  pollUntil,
+  sidecarDirs,
+  startSidecar,
+  tempDir,
+  testCipher,
+} from './sidecar-harness.ts'
 import { leaksIn, persisted } from './secrets-gate-harness.ts'
 
 describe('秘密不外泄总闸：桌面通知', () => {
@@ -47,10 +59,7 @@ describe('秘密不外泄总闸：桌面通知', () => {
     await runEnds(1)
     await advanceClock(api, 60_000)
     await runEnds(2)
-    for (const deadline = Date.now() + 20_000; notifyMessages(sidecar).length < 1;) {
-      if (Date.now() > deadline) throw new Error('no notify message')
-      await new Promise((resolve) => setTimeout(resolve, 20))
-    }
+    await pollUntil(() => notifyMessages(sidecar).length >= 1, { timeoutMs: 20_000, what: 'a notify message' })
     // 前置：通道确实被驱动，通知的 title 带脱敏占位。
     expect(notifyMessages(sidecar)).toEqual([
       { type: 'notify', kind: 'schedule-run-ended', sessionId, title: 'ping [REDACTED:secret]', body: 'Scheduled task run finished' },

@@ -12,7 +12,7 @@ lifecycle: active
 
 - `packages/agent/src/agents/definitions.ts`：内置定义、frontmatter 解析与诊断、加载顺序、工具交集（`subagentTools`）与有效模式（`effectiveSubagentMode`）。
 - `packages/agent/src/agents/tools.ts`：三个工具、`<agent-result>` 与 `<agent-notification>` 的文本。
-- `apps/server/src/application/subagents.ts`：`SubagentService`（派发、等待、取消、通知、恢复，也是子 Session 的权限作用域）。
+- `apps/server/src/application/subagents.ts`：`SubagentService`（派发、等待、取消，也是子 Session 的权限作用域）；`subagent-notifications.ts`（`agent_update` 进度、桌面通知、结束通知的送达与挂起、`agent_wait`）；`subagent-recovery.ts`（`subagent_origin` / `agent_start` / `agent_end` 的记录、用量、isolation worktree 的回收与询问规则、启动恢复）。SubagentStart / SubagentStop 的输出由 `HookService.subagentStart` / `subagentStop` 解释（`redactText`，≤ 10 000 字符）。
 - `apps/server/src/application/context/subagents.ts`：工具注册、`<subagent>`、`filterTools`、max-turns 检查、SubagentStop。
 - `apps/server/src/http/routes/agents.ts`：HTTP 接口。
 - renderer：`stores/agents-store.ts`（列表、`agent_update` 合并、停止、子 Session 的审批回答、定义）、`features/conversation/{agents-button,agent-card,agent-notification-row,approval-panel}.tsx`、`features/right-panel/agents-tab.tsx`、`features/settings/agents-section.tsx`。
@@ -69,7 +69,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 ## isolation worktree
 
-`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加一条不入库的询问规则 `Read(<path>)`：父 Session 读取其中文件须审批（启动恢复时重新登记仍 active 的）。
+`isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加两条不入库的询问规则 `Read(<path>)` 与 `Edit(<path>)`（Edit 规则组覆盖 write 与 edit）：父 Session 在任何模式下读取、写入或编辑其中的文件都须审批（启动恢复时重新登记仍 active 的；worktree 移除时去掉）。bash 不受这些规则保护：父 Session 的命令可以读写该目录（受模式与沙箱限制）。
 
 ## 重启
 

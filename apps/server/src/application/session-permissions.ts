@@ -1,6 +1,7 @@
 import {
   ApprovalNotPendingError,
   effectiveSubagentMode,
+  narrowerMode,
   nextPlanRef,
   type AgentRuntime,
   type PermissionMode,
@@ -22,7 +23,7 @@ import type { ContextContribution } from './context/index.ts'
 import { bindPlanHost, type PlanHost } from './context/plan.ts'
 import { AppError } from './errors.ts'
 import { KeyedMutex } from './keyed-mutex.ts'
-import { capMode, PermissionService, sameRule, withRules } from './permissions.ts'
+import { PermissionService, sameRule, withRules } from './permissions.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -58,9 +59,6 @@ export interface PermissionScopeResolver {
 }
 
 export const ownPermissionScope: PermissionScopeResolver = { rootSessionId: (sessionId) => sessionId, modeCap: () => undefined }
-
-/** 批准计划时模式的宽窄（plan 不会作为批准后的模式）。 */
-const MODE_RANK: Record<Exclude<PermissionMode, 'plan'>, number> = { 'read-only': 0, default: 1, 'accept-edits': 2, 'full-access': 3 }
 
 /** 待批准的计划没有审阅记录（状态不一致）：internal，记一条 error。 */
 function missingPlan(sessionId: string, toolCallId: string): AppError {
@@ -173,7 +171,7 @@ export class SessionPermissions implements PlanHost {
 
   /**
    * 运行时每次调用现算的模式与规则：Session 规则在前，其后是全局与 Workspace 规则（判定不依赖顺序）。模式取 Session 模式与作用域上限中
-   * 较窄者（capMode；缺省没有上限）。
+   * 较窄者（narrowerMode；缺省没有上限）。
    */
   runtimePermissions(
     state: SessionPermissionState,
@@ -184,7 +182,7 @@ export class SessionPermissions implements PlanHost {
     // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
-      mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : capMode(state.mode, this.#scopes.modeCap(sessionId))),
+      mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : narrowerMode(state.mode, this.#scopes.modeCap(sessionId))),
       rules: () => [...state.rules, ...this.service.rulesFor(workspaceId, cwd), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
     }
   }
@@ -375,7 +373,7 @@ export class SessionPermissions implements PlanHost {
       // 用户故事：批准后回到进入规划前的模式，或用户选择的较窄模式；不借批准放宽设置。
       const state = await this.state(await requireSession(this.#store, sessionId))
       const restores = state.mode === 'plan' ? (state.prior ?? 'default') : state.mode
-      if (MODE_RANK[answer.mode] > MODE_RANK[restores])
+      if (narrowerMode(answer.mode, restores) !== answer.mode)
         throw new AppError('bad-request', `mode ${answer.mode} is wider than ${restores}, the mode before planning`, { mode: answer.mode, restores })
     }
     const pending = this.#plans.get(`${sessionId}:${toolCallId}`)

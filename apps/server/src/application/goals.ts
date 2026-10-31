@@ -2,6 +2,7 @@
 // 完成、取消与停止传播）、模型的 Goal 工具端口、Run 结束与 Job 结束后的阶段转换与推进（goal-driver.ts），以及启动恢复（重启后暂停）。
 // 同一 Session 的 Goal 变化与推进经同一把锁串行；等待 Run 结束（取消）不持锁。runtime/layers.ts 装配一次。
 import {
+  agentStarts,
   applyGoalChange,
   COST_UNPRICED_MESSAGE,
   currentGoal,
@@ -77,9 +78,9 @@ export interface GoalSubagents {
 /** 根 Session 的 agent_start 条目给出的、属于该 Goal 的子 Session（派发它的 Run 属于该 Goal）。 */
 function childSessionIds(entries: readonly StoredEntry[], goalId: string): string[] {
   const runs = goalRunIds(entries, goalId)
-  return entries
-    .filter((e) => e.kind === 'agent_start' && ((e.payload as { goalId?: string }).goalId === goalId || (e.runId !== null && runs.has(e.runId))))
-    .map((e) => (e.payload as { agentId: string }).agentId)
+  return agentStarts(entries)
+    .filter((e) => e.payload.goalId === goalId || (e.runId !== null && runs.has(e.runId)))
+    .map((e) => e.payload.agentId)
 }
 
 export interface GoalServiceOptions {
