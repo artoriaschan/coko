@@ -8,12 +8,16 @@ import { goalsRoutes } from './goals.ts'
 import { handoffRoutes } from './handoff.ts'
 import { hooksRoutes } from './hooks.ts'
 import { jobsRoutes } from './jobs.ts'
+import { lspRoutes } from './lsp.ts'
 import { mcpRoutes } from './mcp.ts'
+import { pluginsRoutes } from './plugins.ts'
 import { schedulesRoutes } from './schedules.ts'
 import { memoriesRoutes } from './memories.ts'
 import { secretsRoutes } from './secrets.ts'
 import type { DomainRoutes } from './shared.ts'
 import { skillsRoutes } from './skills.ts'
+import { teamsRoutes } from './teams.ts'
+import { traceRoutes } from './trace.ts'
 import { worktreesRoutes } from './worktrees.ts'
 
 export const DOMAIN_ROUTES: readonly DomainRoutes[] = [
@@ -32,4 +36,8 @@ export const DOMAIN_ROUTES: readonly DomainRoutes[] = [
   schedulesRoutes,
   worktreesRoutes,
   handoffRoutes,
+  pluginsRoutes,
+  lspRoutes,
+  teamsRoutes,
+  traceRoutes,
 ]

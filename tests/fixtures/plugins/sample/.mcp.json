@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "echo": {
+      "command": "${NODE}",
+      "args": ["${MCP_FIXTURE}"],
+      "env": {
+        "MCP_FIXTURE_LOG": "${MCP_LOG}",
+        "MCP_FIXTURE_NAME": "plugin-echo"
+      }
+    }
+  }
+}

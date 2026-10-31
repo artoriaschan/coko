@@ -138,7 +138,7 @@ describe('M5 装配接入点', () => {
     const dirs = await sidecarDirs()
     const sidecar = await startSidecar({ dirs })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
-    expect(await logSteps(dirs)).toEqual(['timers', 'runs', 'jobs', 'contributions', 'processes', 'storage'])
+    expect(await logSteps(dirs)).toEqual(['timers', 'runs', 'jobs', 'contributions', 'lsp', 'processes', 'storage'])
   })
 
   it('POST /api/test/clock：开启测试时钟时拨快并返回时刻；未开启或 --packaged 时 404', async () => {

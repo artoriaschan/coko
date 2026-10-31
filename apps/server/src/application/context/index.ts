@@ -27,6 +27,7 @@ import { handoffContribution } from './handoff.ts'
 import { hooksContribution } from './hooks.ts'
 import { instructionsContribution } from './instructions.ts'
 import { jobsContribution } from './jobs.ts'
+import { lspContribution } from './lsp.ts'
 import { mcpContribution } from './mcp.ts'
 import { memoryContribution } from './memory.ts'
 import { planContribution } from './plan.ts'
@@ -34,6 +35,7 @@ import { referencesContribution } from './references.ts'
 import { schedulesContribution } from './schedules.ts'
 import { skillsContribution } from './skills.ts'
 import { subagentsContribution } from './subagents.ts'
+import { teamsContribution } from './teams.ts'
 import { todoContribution } from './todo.ts'
 import type {
   ContextAction,
@@ -81,6 +83,8 @@ export function createContributions(options: ContextContributionOptions): Contex
     subagentsContribution(options),
     schedulesContribution(options),
     handoffContribution(options),
+    lspContribution(options),
+    teamsContribution(options),
     ...(options.extra ?? []),
   ]
   return contributions

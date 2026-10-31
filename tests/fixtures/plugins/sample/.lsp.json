@@ -1,0 +1,11 @@
+{
+  "lspServers": {
+    "ts": {
+      "command": "${NODE}",
+      "args": ["${LSP_FIXTURE}"],
+      "extensionToLanguage": {
+        ".ts": "typescript"
+      }
+    }
+  }
+}
