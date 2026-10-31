@@ -28,6 +28,36 @@ afterEach(async () => {
 
 const store = () => createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
 
+describe('会话创建的唯一入口', () => {
+  it('绑定已移除的 worktree 时 409 worktree-removed，不写入；active 的照常创建', async () => {
+    const s = store()
+    const workspace = await s.sessions.registerWorkspace({ path: workspaceDir })
+    const wt = (name: string) =>
+      s.worktrees.create({
+        workspaceId: workspace.id,
+        name,
+        path: join(base, name),
+        branch: `coko/${name}`,
+        baseCommit: 'b',
+        repoRoot: base,
+        createdBy: 'user',
+      })
+    const removed = await wt('gone')
+    await s.worktrees.markRemoved(removed.id)
+    const active = await wt('live')
+    const service = new SessionService({
+      store: s,
+      registry: createModelRegistry({ credentials: new InMemoryCredentialStore() }),
+      hub: new SessionHub(),
+      runs: { launch: () => undefined },
+    })
+    await expect(service.create({ workspaceId: workspace.id, worktreeId: removed.id })).rejects.toMatchObject({ code: 'worktree-removed' })
+    await expect(service.createRecord({ workspaceId: workspace.id, worktreeId: removed.id })).rejects.toMatchObject({ code: 'worktree-removed' })
+    expect(await s.sessions.listSessions({ workspaceId: workspace.id })).toEqual([])
+    expect((await service.create({ workspaceId: workspace.id, worktreeId: active.id })).worktree).toMatchObject({ id: active.id })
+  })
+})
+
 describe('worktree 会话的作用域', () => {
   it('启动恢复对照会话的工作目录探测已执行的 write（worktree 中已写入 → applied，不对照主 checkout）', async () => {
     const s = store()

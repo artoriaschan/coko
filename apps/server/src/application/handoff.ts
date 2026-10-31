@@ -4,7 +4,7 @@
 import { handoffPrompt, handoffSummaryText, handoffTargetEntries, hasUserMessage, type RunError, type RunResult } from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import type { HandoffTarget, Worktree } from '@coko/protocol'
-import type { Session as StoredSession, SessionStore } from '@coko/session'
+import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
 import type { RunRequest, SessionEntryAccess } from './context/types.ts'
 import { AppError, errorMessage } from './errors.ts'
 import { validWorktreeName } from './worktrees.ts'
@@ -18,6 +18,8 @@ const TITLE_MAX = 60
 export interface HandoffRunHost {
   isRunning(sessionId: string): boolean
   startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }>
+  /** 会话记录的唯一创建入口（SessionService.createRecord：worktree 在校验之后被移除时 409 worktree-removed）。 */
+  createSession(input: NewSession): Promise<StoredSession>
 }
 
 /** 交接需要的 worktree 能力（WorktreeService）。 */
@@ -178,7 +180,7 @@ export class HandoffService {
     if (target.kind === 'worktree') worktreeId = target.worktreeId
     else if (target.kind === 'new-worktree')
       worktreeId = (await worktrees.create(source.workspaceId, target.name === undefined ? {} : { name: target.name })).id
-    const created = await store.sessions.createSession({
+    const created = await this.#options.runs.createSession({
       workspaceId: source.workspaceId,
       title: handoffTitle(pending.instructions),
       model: source.model,

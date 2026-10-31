@@ -38,6 +38,7 @@ async function setup(options: { worktrees?: Partial<HandoffWorktrees>; goalStop?
     entries: { list: (id) => store.sessions.listEntries(id), commit },
     runs: {
       isRunning: () => running,
+      createSession: (input) => store.sessions.createSession(input),
       async startRun(sessionId, request) {
         started.push({ sessionId, request })
         const runId = `r${++next}`

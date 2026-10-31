@@ -34,7 +34,7 @@ import {
 import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretValues, redactText } from '@coko/logging'
 import { AGENT_ACTIVITY_SUMMARY_MAX, MAX_RUNNING_SUBAGENTS, type AgentDefinitionsResponse, type AgentSnapshot, type SessionModel } from '@coko/protocol'
-import type { Session as StoredSession, SessionEntry as StoredEntry, SessionStore } from '@coko/session'
+import type { NewSession, Session as StoredSession, SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import type { ConfigService } from './config.ts'
 import type { ContextScope, PendingInput, RequestVerdict, RunEndInfo, RunRequest, SessionEntryAccess } from './context/types.ts'
 import { AppError, errorMessage } from './errors.ts'
@@ -65,6 +65,8 @@ export interface SubagentSessionHost {
   scope(session: StoredSession): Promise<ContextScope>
   /** 规则与定义中接受的工具名（基础工具与贡献的规则工具）。 */
   toolNames(cwd: string): readonly string[]
+  /** 会话记录的唯一创建入口（SessionService.createRecord：绑定已移除的 worktree 时 409 worktree-removed）。 */
+  createSession(input: NewSession): Promise<StoredSession>
 }
 
 export interface SubagentServiceOptions {
@@ -372,7 +374,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       const tools = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
       worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
       if (worktree) this.#isolate(parentId, worktree.path, true)
-      const child = await store.sessions.createSession({
+      const child = await sessions.createSession({
         workspaceId: parent.workspaceId,
         title: request.description,
         parentSessionId: parentId,

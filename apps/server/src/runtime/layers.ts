@@ -136,6 +136,7 @@ function lateSessionRuns() {
   const handoff: HandoffRunHost = {
     isRunning: (sessionId) => sessions().isRunning(sessionId),
     startRun: (sessionId, request) => sessions().runs.startRun(sessionId, request),
+    createSession: (input) => sessions().createRecord(input),
   }
   const worktrees: HandoffWorktrees = {
     get: (id) => worktreeService().get(id),
@@ -540,6 +541,7 @@ const AppLive = Layer.effect(
         resolveModel: (model) => sessions.runs.resolveModel(model),
         sessionModel: async (session) => session.model ?? (await sessions.defaultModel()),
         scope: (session) => sessions.runs.scope(session),
+        createSession: (input) => sessions.createRecord(input),
         toolNames: (cwd) => [
           ...sessions
             .baseTools(cwd)
