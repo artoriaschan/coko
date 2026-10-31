@@ -31,6 +31,9 @@ export default defineProject({
     include: ['src/renderer/**/*.browser.test.{ts,tsx}'],
     // 恢复 localStorage、卸载组件并断言没有遗留的模态层（aria-hidden、pointer-events）。
     setupFiles: ['src/renderer/testing/browser-setup.ts'],
+    // 每例在同一个 Chromium 中连续点击、填写（单独运行时多在 2 秒内）。全量运行时 Browser Mode 各文件与集成、E2E 并行，
+    // 默认 5 秒曾在设置表单用例中只剩 50–251 ms（testing.md"尊重平台与执行预算"）。单个操作的等待仍由 locator 判定。
+    testTimeout: 20_000,
     browser: {
       enabled: true,
       headless: true,
