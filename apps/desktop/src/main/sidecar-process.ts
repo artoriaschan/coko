@@ -211,6 +211,11 @@ export class SidecarProcess {
           case 'notify':
             if (this.#ready) for (const listener of this.#controlListeners) listener(message)
             return
+          default: {
+            // 穷尽检查：新增的 SidecarToMainMessage 必须在这里处理（转发或忽略），不被静默丢弃。
+            const unhandled: never = message
+            void unhandled
+          }
         }
       })
 

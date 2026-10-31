@@ -105,11 +105,32 @@ export type ProgressEvent = Static<typeof ProgressEvent>
 export const isJobProgress = (event: ProgressEvent): event is Extract<ProgressEvent, { type: 'job_update' | 'job_output' }> =>
   event.type === 'job_update' || event.type === 'job_output'
 
-/** 不属于 Run 生命周期的进度（后台任务、子代理、定时任务）：不使客户端进入运行中状态。 */
+/**
+ * 每种进度是否不属于 Run 的生命周期（后台任务、子代理、定时任务）：不使客户端进入运行中状态。按类型穷尽登记，新增进度时编译器要求在这里
+ * 表明它是否属于 Run。
+ */
+export const DETACHED_PROGRESS: Readonly<Record<ProgressEvent['type'], boolean>> = {
+  run_start: false,
+  assistant_delta: false,
+  tool_start: false,
+  tool_update: false,
+  tool_end: false,
+  retry: false,
+  context_usage: false,
+  compaction_start: false,
+  compaction_end: false,
+  compaction_failed: false,
+  job_update: true,
+  job_output: true,
+  agent_update: true,
+  schedule_update: true,
+  run_end: false,
+}
+
+/** 不属于 Run 生命周期的进度（DETACHED_PROGRESS）。 */
 export const isDetachedProgress = (
   event: ProgressEvent,
-): event is Extract<ProgressEvent, { type: 'job_update' | 'job_output' | 'agent_update' | 'schedule_update' }> =>
-  isJobProgress(event) || event.type === 'agent_update' || event.type === 'schedule_update'
+): event is Extract<ProgressEvent, { type: 'job_update' | 'job_output' | 'agent_update' | 'schedule_update' }> => DETACHED_PROGRESS[event.type]
 
 export const ProgressMessage = Type.Object({ type: Type.Literal('progress'), sessionId: Type.String(), runId: Type.String(), event: ProgressEvent }, strict)
 
