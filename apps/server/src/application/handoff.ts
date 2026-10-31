@@ -146,7 +146,22 @@ export class HandoffService {
           ...(result.error ? { code: result.error.code } : {}),
         })
     } catch (error) {
+      // 摘要之后目标没能创建：提交 handoff_failed（带摘要请求的 usage，使 Goal 计入；带摘要，供用户复制），客户端据此离开"正在创建"。
+      // 在 pending.resolve 之前提交：等待中的请求按包含这次用量的预算重查。
       log.warn('handoff target creation failed', { sessionId: info.sessionId, runId: info.runId, error: errorMessage(error) })
+      const failure = error instanceof AppError ? { code: error.code, message: error.message } : { code: 'internal', message: errorMessage(error) }
+      await this.#options.entries
+        .commit(info.sessionId, {
+          kind: 'handoff_failed',
+          runId: info.runId,
+          payload: {
+            instructions: pending.instructions,
+            summary: handoffSummaryText(info.result.summary ?? ''),
+            error: failure,
+            ...(info.result.summaryUsage ? { usage: info.result.summaryUsage } : {}),
+          },
+        })
+        .catch((e: unknown) => log.error('handoff failure entry not committed', { sessionId: info.sessionId, error: errorMessage(e) }))
     } finally {
       this.#pending.delete(info.sessionId)
       pending.resolve()

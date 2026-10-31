@@ -56,7 +56,8 @@ function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | 
       }
       // 摘要请求的 usage：压缩与交接（trigger handoff 的 Run 不提交消息，只在 handoff 条目上记 usage）。
       case 'compaction':
-      case 'handoff': {
+      case 'handoff':
+      case 'handoff_failed': {
         const usage = (entry.payload as { usage?: UsageLike }).usage
         if (usage) {
           totals.tokens += tokensOf(usage)

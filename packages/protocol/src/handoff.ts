@@ -22,6 +22,18 @@ export const HandoffPayload = Type.Object(
 )
 export type HandoffPayload = Static<typeof HandoffPayload>
 
+/** handoff_failed v1：摘要之后目标没能创建；usage 计入 Goal 的预算，summary 供用户复制。客户端据此离开"正在创建"。 */
+export const HandoffFailedPayload = Type.Object(
+  {
+    instructions: Type.String(),
+    summary: Type.String(),
+    error: Type.Object({ code: Type.String(), message: Type.String() }, strict),
+    usage: Type.Optional(RequestUsage),
+  },
+  strict,
+)
+export type HandoffFailedPayload = Static<typeof HandoffFailedPayload>
+
 /** handoff_origin v1：指向源 Session 中 handoff 条目的 seq。 */
 export const HandoffOriginPayload = Type.Object({ sessionId: Id, seq: Type.Integer({ minimum: 1 }) }, strict)
 export type HandoffOriginPayload = Static<typeof HandoffOriginPayload>
@@ -44,5 +56,6 @@ export const handoffPaths = {
 /** 本领域的 kind → payload schema。 */
 export const handoffEntryPayloadSchemas = {
   handoff: HandoffPayload,
+  handoff_failed: HandoffFailedPayload,
   handoff_origin: HandoffOriginPayload,
 }

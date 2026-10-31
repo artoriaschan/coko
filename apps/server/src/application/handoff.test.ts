@@ -202,6 +202,36 @@ describe('HandoffService.runEnded', () => {
   })
 })
 
+describe('交接目标在摘要之后没能创建', () => {
+  it('worktree 名在校验之后被占用：提交带 usage 与摘要的 handoff_failed，不创建目标；之后可以再交接', async () => {
+    const h = await setup({
+      worktrees: {
+        create: async () => {
+          throw new AppError('worktree-exists', 'A worktree named late already exists')
+        },
+      },
+    })
+    await h.commit(h.session.id, user('hello'))
+    await h.service.start(h.session.id, { instructions: 'next', target: { kind: 'new-worktree', name: 'late' } })
+    await h.service.runEnded({ sessionId: h.session.id, runId: 'r1', trigger: 'handoff', result: completed('## Task') })
+    const entries = await h.store.sessions.listEntries(h.session.id)
+    expect(entries.some((e) => e.kind === 'handoff')).toBe(false)
+    expect(entries.filter((e) => e.kind === 'handoff_failed').map((e) => [e.runId, e.payload])).toEqual([
+      [
+        'r1',
+        expect.objectContaining({
+          instructions: 'next',
+          error: { code: 'worktree-exists', message: expect.any(String) },
+          usage: expect.objectContaining({ input: 5 }),
+        }),
+      ],
+    ])
+    expect((entries.find((e) => e.kind === 'handoff_failed')!.payload as { summary: string }).summary).toContain('## Task')
+    expect((await h.store.sessions.listSessions({})).map((s) => s.id)).toEqual([h.session.id])
+    expect(await code(h.service.start(h.session.id, { instructions: 'again', target: { kind: 'current' } }))).toBe('ok')
+  })
+})
+
 describe('HandoffService.beforeRequest', () => {
   it('摘要 Run 自身不等待、不重查；之后的 Run 等到 handoff 条目提交再按 Goal 预算重查（对手用例：之后的请求不能先于交接用量）', async () => {
     const h = await setup({ goalStop: true })
