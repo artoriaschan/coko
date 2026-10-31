@@ -28,6 +28,7 @@ export const goal = defineDomain(
     reason: {
       'user-paused': '你暂停了目标',
       'user-stopped': '你停止了运行',
+      'hook-stopped': 'Hook 停下了运行，恢复后继续',
       'approval-unanswered': '运行停止时仍有待回答的审批',
       'needs-input': '需要你的输入',
       'waiting-jobs': '等待后台任务结束',
@@ -128,6 +129,7 @@ export const goal = defineDomain(
     reason: {
       'user-paused': 'You paused the goal',
       'user-stopped': 'You stopped the run',
+      'hook-stopped': 'A hook stopped the run; resume to continue',
       'approval-unanswered': 'The run stopped while an approval was waiting',
       'needs-input': 'Needs your input',
       'waiting-jobs': 'Waiting for background jobs to finish',

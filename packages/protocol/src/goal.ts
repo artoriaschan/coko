@@ -48,7 +48,7 @@ export const GOAL_BUDGET_DIMENSION_KEYS = ['rounds', 'tool-calls', 'tokens', 'co
 export type GoalBudgetDimension = (typeof GOAL_BUDGET_DIMENSION_KEYS)[number]
 
 /**
- * reason.code 的已知取值：预算维度（与没有维度时的 budget）、用户与系统的暂停或停止、模型的 update_goal、等待、取消，以及 Goal Round
+ * reason.code 的已知取值：预算维度（与没有维度时的 budget）、用户与系统的暂停或停止、外部 Hook 停下 Run（hook-stopped）、模型的 update_goal、等待、取消，以及 Goal Round
  * 没能开始的错误码。Goal Round 以 error 结束时 code 为 Run 的错误码（任意字符串），由 schema 的 String 兜底。
  */
 export const GOAL_REASON_CODES = [
@@ -58,6 +58,7 @@ export const GOAL_REASON_CODES = [
   'user-paused',
   'user-stopped',
   'user-cancelled',
+  'hook-stopped',
   'restarted',
   'approval-unanswered',
   'plan-review',

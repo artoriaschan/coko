@@ -31,7 +31,7 @@ import {
   type ToolHooks,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { GoalActionRequest, GoalBudgetDimension, GoalResponse } from '@coko/protocol'
+import type { GoalActionRequest, GoalBudgetDimension, GoalResponse, KnownGoalReasonCode } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError, errorMessage } from './errors.ts'
 import type { RunEndInfo, RunRequest } from './context/types.ts'
@@ -600,6 +600,7 @@ function approvalCancelled(entries: readonly StoredEntry[], runId: string): bool
  * - 预算停止（budget_exhausted、cost_unpriced）→ budget-exhausted / blocked；
  * - Goal Round 以 error 结束 → failed（不自动重试）；
  * - running 时 Run 被停止（aborted，或 paused 且没有 error）→ Goal Round 停止时仍有等待回答的审批为 waiting-input，否则 paused（user-stopped）；
+ * - running 时外部 Hook 以 continue: false 停下 Run（paused 加 hook_stopped）→ paused（hook-stopped，消息为 Hook 的 stopReason），等用户恢复；
  * - waiting-input 时用户提交（或回答审批）之后的 Run 正常结束 → running；Goal 在本 Run 之中才进入 waiting-input 的（模型在这个 Run 里调用了
  *   wait_input）不唤醒：它等的用户输入还没有到来。
  */
@@ -611,6 +612,8 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
   }
   if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'cost_unpriced')
     return { type: 'block', reason: { code: 'cost-unpriced', message: error.message } }
+  if (goal.phase === 'running' && result.status === 'paused' && error?.code === 'hook_stopped')
+    return { type: 'pause', reason: { code: 'hook-stopped' satisfies KnownGoalReasonCode, message: error.message } }
   if (trigger === 'goal' && goal.phase === 'running' && result.status === 'error')
     return { type: 'fail', reason: { code: error?.code ?? 'internal', message: error?.message ?? 'The goal round failed' } }
   if (goal.phase === 'running' && stopped(result)) {
