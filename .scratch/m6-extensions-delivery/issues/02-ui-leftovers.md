@@ -21,3 +21,4 @@
 - [ ] `check:docs` 通过
 
 ## Comments
+- 2026-10-31 lead：实施者报告的全量失败（sidecar-jobs.test.ts:289，job_end 缺 signal: SIGTERM）是 apps/server 的间歇性缺陷，与本票无关：#finish 只在进程退出带 signal 时写 signal，进程以退出码 143 结束时就缺。由 m6/fix-job-kill-signal 修复（lead 另起实施者）。本票不用改；若全量只剩这一例失败，照实报告并注明，lead 合入修复后在 main 上复核。
