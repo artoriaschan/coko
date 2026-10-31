@@ -70,26 +70,29 @@ export function HandoffButton({ sessionId }: HeaderActionProps) {
   React.useEffect(() => (chat ? store.getState().attach(chat) : undefined), [chat, store])
   const { hidden, phase, label, icon } = useHandoffAction(sessionId)
   const [open, setOpen] = React.useState(false)
-  // 对话框没有 DialogTrigger：自己记下打开它的元素（标题栏按钮，或窄主区中的"更多操作"按钮），关闭后焦点回到那里。
+  // 经"更多操作"菜单打开时，记下菜单按钮（菜单项已卸载），对话框关闭后焦点回到那里。标题栏按钮直接打开时保持 Radix 的默认行为。
   const opener = React.useRef<HTMLElement | null>(null)
-  const show = () => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const show = (fromMenu: boolean) => {
+    opener.current = fromMenu && document.activeElement instanceof HTMLElement ? document.activeElement : null
     setOpen(true)
   }
-  // 对话框属于打开它的会话：切换会话（包括交接完成后切到目标会话）时关闭。
-  React.useEffect(() => setOpen(false), [sessionId])
+  // 对话框属于打开它的会话：切换会话（包括交接完成后切到目标会话）时关闭，焦点不回到另一个会话的标题栏。
+  React.useEffect(() => {
+    opener.current = null
+    setOpen(false)
+  }, [sessionId])
   // 菜单项的打开请求：只响应本会话在挂载（或切换到本会话）之后的新请求；计数按会话记，切换会话不算新请求。
   const request = useStore(openRequests, (s) => s[sessionId] ?? 0)
   const seen = React.useRef({ sessionId, request })
   React.useEffect(() => {
     const last = seen.current
     seen.current = { sessionId, request }
-    if (last.sessionId === sessionId && last.request !== request) show()
+    if (last.sessionId === sessionId && last.request !== request) show(true)
   }, [sessionId, request])
   if (hidden) return null
   return (
     <>
-      <IconButton label={label} data-action="open-handoff" data-handoff-phase={phase} onClick={show}>
+      <IconButton label={label} data-action="open-handoff" data-handoff-phase={phase} onClick={() => show(false)}>
         {icon}
       </IconButton>
       <HandoffDialog
