@@ -19,3 +19,5 @@
 完成时在评审文件末尾"处理结果"中补本票的项（与票 11 写在同一节，各自标票号）。完成前 git merge main，运行 typecheck、lint、format:check（逐项退出码 0）与取锁的全量 pnpm run test；UI 改动在 Electron 中检查明暗主题与 390 px。
 
 ## Comments
+- 2026-10-31 lead：已把票 12 提出的三项约定写入票 11 的 Comments，请票 11 按此对齐；合入时由 lead 核对两边一致。
+- 2026-10-31 lead：票 11 已在分支 m5/11-review-fixes-runtime 提交 244ba1f，宿主输入标签收为 `packages/agent/src/entries/host-input.ts`，经 `@coko/agent/entries` 导出：`JOB_NOTIFICATION_TAG`（'<job-notification>'）、`AGENT_NOTIFICATION_TAG`（'<agent-notification'）、`HOOK_CONTEXT_TAG`（'<hook-context>'）、`SCHEDULED_TASK_TAG`（**'<scheduled_task'，带 <**，与约定中的 'scheduled_task' 不同）、`HOST_NOTIFICATION_KINDS`、`isHostNotificationText(text)`、`isHostBlockText(text)`（通知或 hook-context，用于时间线过滤）、`hookContextText(ctx)`。旧的 `entries/job-notification.ts` 已删除；`AGENT_NOTIFICATION_TAG` 不再从 agents/index.ts 导出。renderer 的时间线过滤请用 `isHostBlockText`，本地临时常量按上述值写（尤其 SCHEDULED_TASK_TAG 带 <）；票 11 合入后 git merge main 改为导入，删除本地定义。
