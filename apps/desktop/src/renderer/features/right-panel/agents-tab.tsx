@@ -68,15 +68,13 @@ function AgentListItem({ agent, selected, now, onSelect }: { agent: AgentSnapsho
   )
 }
 
-/** 子 Session 的只读时间线：首次选中时订阅子 Session；没有输入区与消息动作（子 Session 不能提交）。 */
+/** 子 Session 的只读时间线：显示时订阅子 Session、卸载时释放；没有输入区与消息动作（子 Session 不能提交）。 */
 function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
   const { t } = useI18n()
   const theme = useDocumentTheme()
   const { subscribeSession } = useChatActions()
   const conversation = useChat((s) => s.conversations[agent.agentId])
-  React.useEffect(() => {
-    void subscribeSession(agent.agentId)
-  }, [subscribeSession, agent.agentId])
+  React.useEffect(() => subscribeSession(agent.agentId), [subscribeSession, agent.agentId])
   // 用量行按当前会话的条目汇总（不是子 Session）：子代理的用量在列表中，这里不显示。
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation).filter((item) => item.kind !== 'run-usage') : []), [conversation])
   const scroller = React.useRef<HTMLDivElement>(null)
