@@ -33,6 +33,7 @@ lifecycle: active
 
 - **全局**：设置键 `mcp.servers`，只能经 `PUT /api/mcp/servers` 修改（通用设置接口对 `mcp.servers` 与 `mcp.approvals.*` 返回 400）。
 - **项目**：`<Workspace>/.mcp.json` 的 `mcpServers`（受保护路径，Agent 写入须审批）。每次 `GET /api/mcp` 与每个 Run 开始时读取。
+- **插件**：已启用插件的 Server（ADR 0017）并入全局一级（`scope` 为 global），名字为 `plugin-<插件名>-<server>`，不经项目批准；任意字符串含 `${` 的不加载（诊断 `plugin-secret-reference`，source `plugin`，需要凭据的在全局 MCP 中配置）。插件的安装与批准尚未接入，当前只有测试构建的 `COKO_TEST_PLUGINS` 提供插件。
 
 | 字段 | 适用 | 含义 |
 | --- | --- | --- |
@@ -54,7 +55,7 @@ lifecycle: active
 
 - **池化**：`McpManager` 按 (Workspace, Server 名) 保存连接，同一 Workspace 的 Session 共用。全局 Server 在每个 Workspace 各有一条连接。
 - **何时连接**：Workspace 的 Run 开始时并发连接所有应当连接、状态为 idle 的 Server 并等待其结束（单个连接 30 秒超时）；失败不阻止 Run，该 Server 的工具缺席。经 `PUT /api/mcp/servers`（带 `workspaceId`）或批准之后也在后台连接，界面可立即看到结果。已 failed 的连接不在 Run 开始时自动重试。
-- **状态**：idle、connecting、connected、failed（`error`，stdio 另有最后 20 行 stderr `stderrTail`）、disabled、pending-approval。错误与 stderr 尾部先把已解密的 Secret 值替换为 `[REDACTED:secret]`，再按凭据形态脱敏（`redactText`）。
+- **状态**：idle、connecting、connected、failed（`error`，stdio 另有最后 20 行 stderr `stderrTail`）、disabled、pending-approval；协议另有 `auth-required`（HTTP Server 要求认证，由 MCP 认证状态接入，当前不会出现）。错误与 stderr 尾部先把已解密的 Secret 值替换为 `[REDACTED:secret]`，再按凭据形态脱敏（`redactText`）。
 - **崩溃与重连**：已连接的传输意外关闭时状态为 failed（`Connection closed` 与 stderr 尾部），之后按 1、2、4 秒退避自动重连至多 3 次；用尽后停在 failed，需 `POST /api/mcp/reconnect`（或界面的重新连接）。`tools/list_changed` 时刷新工具列表；`prompts/list_changed`、`resources/list_changed` 与每次建立连接时，连接的列表版本（`listRevision`）前进，缓存的提示模板列表随之失效。
 - **关闭**：配置改变（摘要不同）、Server 或能力被关闭、批准被撤销、引用的 Secret 被登记、替换或删除时关闭受影响的连接。Sidecar 有序关闭时在 Run 结束之后、存储关闭之前关闭全部连接；stdio 由 pi-mcp 先关 stdin，0.5 秒后 SIGTERM，再 2 秒后 SIGKILL（进程组）。Sidecar 被强杀时 stdio 子进程可能残留（地图 M4 的孤儿进程 Carry-over）。
 - **stdio 的环境**：Sidecar 自身环境经与 bash 相同的 `HOST_ENV_EXCLUSIONS` 过滤（去掉 `COKO_*`、`ELECTRON_RUN_AS_NODE`、各 Provider 的密钥变量与凭据形态的名字），再叠加配置 `env`（Secret 已展开）。stdio 进程不套 Seatbelt。客户端声明的 roots 只有 Workspace。

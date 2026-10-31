@@ -8,7 +8,7 @@ lifecycle: active
 
 本文说明 Coko 当前如何在工具调用前后、提交、Run 结束、压缩与桌面通知时运行用户配置的命令：Hook 可以拒绝、要求确认或放行一次调用，拒绝一次提交或压缩，让 Run 继续或停止，也可以追加给模型的文本。Hook 只能收紧判定，放行越不过规则、受保护路径、沙箱提权与计划审阅，取舍见 [ADR 0013](../adr/0013-external-hooks-tighten-only.md)。判定顺序见 [权限判定与审批](permissions.md#判定)；进程登记见 [命令执行与子进程登记](execution.md)。
 
-当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact、Notification、SubagentStart 与 SubagentStop；后两者在子代理派发与结束时运行（见 [子代理](subagents.md)）。
+当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact、Notification、SubagentStart 与 SubagentStop；后两者在子代理派发与结束时运行（见 [子代理](subagents.md)）。配置校验另接受团队事件 TaskCreated、TaskCompleted 与 TeammateIdle（没有 matcher），分发由 Agent Teams 接入，在此之前它们不会运行。
 
 ## 结构入口
 
@@ -42,6 +42,7 @@ lifecycle: active
 
 - **全局**：设置键 `hooks`，只能经 `PUT /api/hooks` 修改（通用设置接口对 `hooks` 及其下的键 400）。
 - **项目**：`<cwd>/.coko/settings.json` 的 `hooks` 键（与项目设置同一文件、同样按 mtime 读取，见 [分层配置](configuration.md#项目设置文件)）。worktree 会话读该 worktree 中的文件，批准按其 Workspace 判定。
+- **插件**：已启用插件的 Hook（来源 `plugin`，ADR 0017）与全局同级参与加载与聚合（allow 与全局 Hook 相同对待，仍越不过判定前四步）；`hookId` 为 `plugin:<插件名>:<event>:<组序号>:<序号>`，诊断的 source 为 `plugin`。插件的安装与批准尚未接入，当前只有测试构建的 `COKO_TEST_PLUGINS` 提供插件。
 - **能力开关** `hooks.enabled`（缺省 true）只在全局设置生效，关闭后全局与项目 Hook 都不运行；项目文件中的 `hooks.enabled` 以 `project-cannot-grant` 忽略，关不掉全局 Hook。
 
 解析不抛出，问题作为诊断 `{ source: 'config', code, message, path? }` 返回，其余 Hook 照常加载：
@@ -50,7 +51,7 @@ lifecycle: active
 | --- | --- | --- |
 | `unsupported-hook-type` | `type` 不是 `command` | 忽略该 Hook |
 | `unknown-event` | 不是支持的事件名 | 忽略该事件 |
-| `invalid-matcher` | matcher 不是字符串，或不是名字、名字列表也不能编译为正则 | 忽略该组 |
+| `invalid-matcher` | matcher 不是字符串，或不是名字、名字列表也不能编译为正则；TaskCreated、TaskCompleted、TeammateIdle 写了 matcher | 忽略该组 |
 | `invalid-if` | `if` 不是合法的权限规则文本（`Tool` 或 `Tool(content)`） | 忽略该 Hook |
 | `invalid-value` | 根、事件值、组或 Hook 的形状不对；命令为空；超时不是 1–600 的整数 | 忽略该项 |
 
@@ -169,7 +170,7 @@ Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook�
 
 ## 记录
 
-只有有结果的执行提交 `hook_run` v1：`{ event, hookId, source, command, outcome, exitCode?, durationMs, message? }`，`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `continued`（Stop 使 Run 继续）/ `stopped` / `timeout` / `error` / `invalid-output` / `ignored`（项目 Hook 的 allow）。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。工具事件与 Stop 的条目归属当前 Run（runId 在第一次模型请求前得知）；UserPromptSubmit、手动 PreCompact 与 Notification 发生在 Run 之外，runId 为 null。
+只有有结果的执行提交 `hook_run` v2：`{ event, hookId, source, plugin?, command, outcome, exitCode?, durationMs, message? }`（v2 的 `source` 增加 `plugin`、另带插件名 `plugin`，`event` 增加三个团队事件；v1 条目原样迁移），`outcome` 为 `blocked` / `asked` / `allowed` / `denied`（PermissionRequest 的拒绝）/ `context` / `continued`（Stop 使 Run 继续）/ `stopped` / `timeout` / `error` / `invalid-output` / `ignored`（项目 Hook 的 allow）。`command` 与 `message`（原因、`systemMessage` 或追加的文本，≤ 2 KB）按值与凭据形态脱敏，条目入库与推送前再经同一脱敏。没有决定的成功执行只记 debug 日志。工具事件与 Stop 的条目归属当前 Run（runId 在第一次模型请求前得知）；UserPromptSubmit、手动 PreCompact 与 Notification 发生在 Run 之外，runId 为 null。
 
 ## 协议
 

@@ -115,6 +115,6 @@ sidecar 产物由 apps/desktop 构建：`build/build.ts` 以 tsdown 把 apps/ser
 
 设置、Session 与相关业务状态保存在 sidecar 独占的单个 SQLite 库，入库范围、提交、迁移、租约与损坏处理见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。记录封装、schema 版本与事务边界由 session 定义；agent 定义业务状态恢复规则。不调用 pi-durable 的 JSONL 或 lease 实现。
 
-M5 的应用服务（Hook、子代理、定时任务、worktree、Handoff、桌面通知）与时钟在 `runtime/layers.ts` 中和其余服务一起装配。有序关闭的顺序：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 终止登记进程 → 关闭存储。
+M5 的应用服务（Hook、子代理、定时任务、worktree、Handoff、桌面通知）与时钟在 `runtime/layers.ts` 中和其余服务一起装配。M6 的服务（插件、语言服务器、Agent Teams、追踪）同样在这里装配，每个领域在 `layers.ts` 中有一个以 `// ── <domain> ──` 与 `// ── end <domain> ──` 注释界定的块；插件经 `PluginContributionsPort` 向 Skills、命令、子代理定义、Hook 与 MCP 的加载提供贡献快照。无界面运行的入口是 `apps/server/src/headless/`，构建为 `dist/sidecar/headless.mjs`。有序关闭的顺序：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 关闭语言服务器进程 → 终止登记进程 → 关闭存储。
 
 Effect 管理服务生命周期、唤醒任务与宿主资源，agent 定义执行策略并调用 pi-agent-core 循环。server 通过协议向客户端输出业务事件，前端不直接持有 Agent 实例。

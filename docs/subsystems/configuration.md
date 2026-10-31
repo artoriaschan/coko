@@ -29,6 +29,8 @@ lifecycle: active
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
 | `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
+| `lsp.enabled`、`teams.enabled`（M6） | true | 只有 false 生效；项目文件中 `lsp` 的其他键（例如 `lsp.servers`）以 `project-cannot-grant` 忽略：语言服务器只在全局与 Workspace 设置中配置 |
+| `plugins.enabled`（M6） | true | 只能在全局设置：项目文件中的 `plugins` 键不论取值都以 `project-cannot-grant` 忽略；关闭后所有插件的贡献为空 |
 | `hooks.enabled`（M5） | true | 只能在全局设置：项目文件中的 `hooks.enabled` 不论取值都以 `project-cannot-grant` 忽略，关不掉全局 Hook；关闭后全局与项目 Hook 都不运行 |
 | `hooks`（M5，项目 Hook） | — | 项目 Hook 的配置：`parseProjectSettings` 原样交出（去掉 `enabled`，`ProjectSettings.hooks`），由 Hook 的加载解析与诊断、逐条批准后才运行，见 [外部 Hook](hooks.md#配置)；不是对象时 `invalid-value`。能力配置不对其中的事件键报诊断 |
 | `skills.disabled` | [] | 追加（与全局取并集） |
@@ -36,7 +38,7 @@ lifecycle: active
 | `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
 | `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
 
-`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled` 由 [子代理](subagents.md) 读取（关闭时不注册 agent 工具，派发被拒绝）；`schedules.enabled` 由 [定时任务](schedules.md) 读取（关闭时不注册 schedule 工具，到期的任务按 disabled 跳过）。`hooks.enabled` 的开关在设置 → Hooks 分区，其余两个在设置界面中还没有开关。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
+`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled` 由 [子代理](subagents.md) 读取（关闭时不注册 agent 工具，派发被拒绝）；`schedules.enabled` 由 [定时任务](schedules.md) 读取（关闭时不注册 schedule 工具，到期的任务按 disabled 跳过）。`hooks.enabled` 的开关在设置 → Hooks 分区，其余两个在设置界面中还没有开关。`plugins.enabled` 由上下文装配与 MCP 读取（为 false 时插件消费 seam 的快照为空）；`lsp.enabled` 与 `teams.enabled` 已进入有效配置，读取它们的功能尚未接入。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
 
 有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
 
@@ -51,7 +53,7 @@ lifecycle: active
 | `invalid-json` | JSON 解析失败 | 整个文件被忽略 |
 | `invalid-value` | 顶层不是对象；分区不是对象；开关不是布尔值；列表不是非空字符串数组；单条规则不是合法的规则文本 | 顶层问题时整个文件被忽略，否则只忽略该键或该条规则 |
 | `unknown-key` | 不认识的键（含项目中的 `commands.disabled`） | 忽略该键 |
-| `project-cannot-grant` | 值为 true 的开关、`permissions.allow`、`permissions.defaultMode` | 忽略该键 |
+| `project-cannot-grant` | 值为 true 的开关、`permissions.allow`、`permissions.defaultMode`、`plugins` 键、`lsp` 中 `enabled` 以外的键 | 忽略该键 |
 | `read-failed` | 文件存在但无法读取 | 按空文件处理，记 warn `project settings unreadable` |
 
 规则文本按 `parsePermissionRule` 的语法校验（`Tool` 或 `Tool(content)`）；工具名在判定与显示时归一为规范名（`bash` → `Bash`），不检查是否为已注册的工具。
