@@ -33,6 +33,8 @@ export interface HandoffWorktrees {
 /** Goal 的请求前检查（GoalService.beforeRequest）：交接条目提交之后重查。 */
 export interface HandoffGoalCheck {
   beforeRequest(sessionId: string, runId: string): Promise<RunError | undefined>
+  /** 交接完成：源 Session 的 running Goal 暂停（handed-off）。 */
+  handedOff(sessionId: string): Promise<void>
 }
 
 export interface HandoffServiceOptions {
@@ -201,6 +203,7 @@ export class HandoffService {
     })
     const sourceEntries = await store.sessions.listEntries(sessionId)
     for (const entry of handoffTargetEntries(sourceEntries, sessionId, handoff.seq)) await entries.commit(created.id, entry)
+    await this.#options.goals?.handedOff(sessionId)
     log.info('handoff finished', { sessionId, runId, targetSessionId: created.id, target: target.kind, summaryChars: summary.length })
   }
 }

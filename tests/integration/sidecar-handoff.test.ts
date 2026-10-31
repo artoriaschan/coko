@@ -269,16 +269,20 @@ describe('交接：Goal 预算', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('正常交接的 handoff.usage 计入 Goal 的 tokens；之后的 Goal Round 先计入交接用量再检查（不发出请求）', async () => {
+  it('正常交接的 handoff.usage 计入 Goal 的 tokens；交接完成后源 Goal 暂停（handed-off），不再发起 Goal Round', async () => {
     const h = await idleGoal([1, 1], [{ content: SUMMARY, ...usage(1000, 98) }, { content: 'MUST-NOT-BE-REQUESTED' }])
     await h.send('/handoff 接着实现登录页')
     await h.handedOff()
     expect(h.of(h.sessionId, 'handoff')[0]!.payload).toMatchObject({ usage: { input: 1000, output: 98 } })
-    await h.stream.waitFor(() => h.of(h.sessionId, 'goal').some((e) => (e.payload as { phase: string }).phase === 'budget-exhausted'), 30_000)
+    await h.stream.waitFor(() => h.of(h.sessionId, 'goal').some((e) => (e.payload as { phase: string }).phase === 'paused'), 30_000)
     const state = (await h.api.get(goalPaths.sessionGoal(h.sessionId))).body
     expect(state.usage.tokens).toBe(1100)
-    expect(state.goal.reason).toEqual({ code: 'tokens', message: 'Goal budget exhausted: tokens (1100 / 1000)' })
-    // 交接之后的 Goal Round 没有发出请求：只有建 Goal、两次失败与摘要请求。
+    expect(state.goal).toMatchObject({ phase: 'paused', reason: { code: 'handed-off' } })
+    // 交接之后没有 Goal Round：只有建 Goal、两次失败与摘要请求。
+    expect(h.of(h.sessionId, 'run_start').filter((e) => (e.payload as { trigger: string }).trigger === 'goal').length).toBe(
+      h.of(h.sessionId, 'run_start').filter((e) => (e.payload as { trigger: string }).trigger === 'goal' && e.seq < h.of(h.sessionId, 'handoff')[0]!.seq)
+        .length,
+    )
     expect(await h.requests()).toHaveLength(4)
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })

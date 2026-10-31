@@ -69,6 +69,7 @@ async function setup(options: { worktrees?: Partial<HandoffWorktrees>; goalStop?
       ...options.worktrees,
     },
     goals: {
+      handedOff: async () => undefined,
       beforeRequest: async (sessionId, runId) => {
         goalChecks.push(`${sessionId}:${runId}`)
         return options.goalStop ? { code: 'budget_exhausted', message: 'Goal budget exhausted: tokens', dimension: 'tokens' } : undefined
