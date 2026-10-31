@@ -58,6 +58,8 @@ export interface McpManagerOptions {
 
 interface Pooled {
   workspaceId: string
+  /** 连接的工作目录（stdio Server 的 cwd）：worktree 会话与主 checkout 的同名 Server 是不同的连接。 */
+  cwd: string
   entry: McpServerEntry
   connection: McpConnection
   /** prompts/list 的缓存：取得时连接的列表版本（listRevision('prompts')）。 */
@@ -80,7 +82,7 @@ export interface LoadedMcpConfig {
 type Loaded = LoadedMcpConfig
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-const keyOf = (workspaceId: string, name: string) => `${workspaceId}\0${name}`
+const keyOf = (workspaceId: string, cwd: string, name: string) => `${workspaceId}\0${cwd}\0${name}`
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const timeoutMsOf = (config: McpServerConfig) => (config.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 
@@ -170,11 +172,11 @@ export class McpManager {
     }
   }
 
-  /** 关闭该 Workspace 中不再应当连接或配置已改变的连接。 */
-  async reconcile(workspaceId: string, loaded: Loaded): Promise<void> {
+  /** 关闭该 Workspace 在该目录（loaded 读取的目录）中不再应当连接或配置已改变的连接。 */
+  async reconcile(workspaceId: string, cwd: string, loaded: Loaded): Promise<void> {
     const closing: Promise<void>[] = []
     for (const [key, pooled] of this.#pool) {
-      if (pooled.workspaceId !== workspaceId) continue
+      if (pooled.workspaceId !== workspaceId || pooled.cwd !== cwd) continue
       const entry = loaded.entries.find((e) => e.name === pooled.entry.name && e.scope === pooled.entry.scope)
       if (!entry || entry.digest !== pooled.entry.digest || !desired(entry, loaded)) closing.push(this.#drop(key))
       else pooled.entry = entry
@@ -191,7 +193,7 @@ export class McpManager {
   }
 
   #pooled(workspaceId: string, cwd: string, entry: McpServerEntry): Pooled {
-    const key = keyOf(workspaceId, entry.name)
+    const key = keyOf(workspaceId, cwd, entry.name)
     const existing = this.#pool.get(key)
     if (existing) return existing
     const { secrets } = this.#options
@@ -218,7 +220,7 @@ export class McpManager {
       if (connection.status === 'failed') log.warn('mcp server failed', { workspaceId, server: entry.name, error: connection.error ?? '' })
       else if (connection.status === 'connected') log.info('mcp server connected', { workspaceId, server: entry.name, tools: connection.tools.length })
     })
-    const pooled: Pooled = { workspaceId, entry, connection, runtimeDiagnostics: new Map() }
+    const pooled: Pooled = { workspaceId, cwd, entry, connection, runtimeDiagnostics: new Map() }
     this.#pool.set(key, pooled)
     return pooled
   }
@@ -249,18 +251,18 @@ export class McpManager {
    */
   async runTools(scope: { workspaceId: string; cwd: string }): Promise<McpRunTools> {
     const loaded = await this.load({ id: scope.workspaceId, path: scope.cwd })
-    await this.reconcile(scope.workspaceId, loaded)
+    await this.reconcile(scope.workspaceId, scope.cwd, loaded)
     if (!loaded.enabled) return { tools: [], resources: [], diagnostics: loaded.diagnostics }
     await this.#ensure(scope.workspaceId, scope.cwd, loaded)
     const tools: CokoTool[] = []
     for (const entry of loaded.entries) {
-      const pooled = this.#pool.get(keyOf(scope.workspaceId, entry.name))
+      const pooled = this.#pool.get(keyOf(scope.workspaceId, scope.cwd, entry.name))
       if (pooled?.connection.status === 'connected') tools.push(...createMcpTools(pooled.connection, { config: entry.config }))
     }
     const entries = loaded.entries.filter((entry) => desired(entry, loaded))
     const servers = () =>
       entries.flatMap((entry) => {
-        const pooled = this.#pool.get(keyOf(scope.workspaceId, entry.name))
+        const pooled = this.#pool.get(keyOf(scope.workspaceId, scope.cwd, entry.name))
         return pooled?.connection.status === 'connected' ? [{ connection: pooled.connection, timeoutMs: timeoutMsOf(entry.config) }] : []
       })
     const resources = servers().some((s) => s.connection.capabilities?.resources) ? createMcpResourceTools({ servers }) : []
@@ -302,24 +304,24 @@ export class McpManager {
    */
   async promptCommands(scope: { workspaceId: string; cwd: string }): Promise<SourcedCommand[]> {
     const loaded = await this.load({ id: scope.workspaceId, path: scope.cwd })
-    await this.reconcile(scope.workspaceId, loaded)
+    await this.reconcile(scope.workspaceId, scope.cwd, loaded)
     if (!loaded.enabled) return []
     await this.#ensure(scope.workspaceId, scope.cwd, loaded)
     const commands: SourcedCommand[] = []
     for (const entry of loaded.entries) {
-      const pooled = this.#pool.get(keyOf(scope.workspaceId, entry.name))
+      const pooled = this.#pool.get(keyOf(scope.workspaceId, scope.cwd, entry.name))
       if (pooled?.connection.status !== 'connected' || !pooled.connection.capabilities?.prompts) continue
       const taken = new Set<string>()
       for (const prompt of await this.#prompts(pooled)) {
         const name = createMcpToolName(entry.name, prompt.name, (candidate) => taken.has(candidate))
         taken.add(name)
-        commands.push(this.#promptCommand(scope.workspaceId, entry.name, name, prompt))
+        commands.push(this.#promptCommand(scope.workspaceId, scope.cwd, entry.name, name, prompt))
       }
     }
     return commands
   }
 
-  #promptCommand(workspaceId: string, server: string, name: string, prompt: McpPrompt): SourcedCommand {
+  #promptCommand(workspaceId: string, cwd: string, server: string, name: string, prompt: McpPrompt): SourcedCommand {
     const args = prompt.arguments ?? []
     const argumentHint = args.map((a) => (a.required ? `<${a.name}>` : `[${a.name}]`)).join(' ')
     return {
@@ -331,7 +333,7 @@ export class McpManager {
         const mapped = mapPromptArguments(prompt, text)
         if (mapped.missing.length > 0)
           throw new AppError('bad-request', `/${name} requires ${mapped.missing.join(', ')}`, { reason: 'missing-arguments', missing: mapped.missing })
-        const pooled = this.#pool.get(keyOf(workspaceId, server))
+        const pooled = this.#pool.get(keyOf(workspaceId, cwd, server))
         if (pooled?.connection.status !== 'connected') throw new AppError('bad-request', `MCP server ${server} is not connected`, { reason: 'not-connected' })
         try {
           const result = await getMcpPrompt(pooled.connection, prompt.name, mapped.arguments, { timeoutMs: timeoutMsOf(pooled.entry.config) })
@@ -361,9 +363,9 @@ export class McpManager {
     return [...(await this.load({ id: scope.workspaceId, path: scope.cwd })).diagnostics, ...this.runtimeDiagnostics(scope.workspaceId)]
   }
 
-  /** 池中该 Server 的连接（没有时 undefined）。 */
-  connection(workspaceId: string, name: string): McpConnection | undefined {
-    return this.#pool.get(keyOf(workspaceId, name))?.connection
+  /** 池中该目录的该 Server 的连接（没有时 undefined）。 */
+  connection(workspaceId: string, cwd: string, name: string): McpConnection | undefined {
+    return this.#pool.get(keyOf(workspaceId, cwd, name))?.connection
   }
 
   /** 关闭并重新连接一个应当连接的 Server（不在池中时先建立），等待连接结束。 */

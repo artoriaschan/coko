@@ -95,6 +95,7 @@ export class SessionService {
       store,
       runtimes: this.#runtimes,
       ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
@@ -102,6 +103,7 @@ export class SessionService {
       runtimes: this.#runtimes,
       recovery: this.#recovery,
       ...(options.checkpoints ? { files: options.checkpoints } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
     })
     this.#models = new SessionModels({
       store,

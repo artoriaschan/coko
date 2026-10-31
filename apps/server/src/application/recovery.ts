@@ -14,6 +14,7 @@ import { getLogger } from '@coko/logging'
 import type { ConfirmationAnswer } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
+import type { SessionCwd } from './session-runs.ts'
 import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -34,8 +35,8 @@ export interface RecoveryReport {
 }
 
 /**
- * M5 的领域恢复钩子（在 Job 与 Goal 之前）：子代理补记 interrupted（父 Session 的 agent_end）、worktree 把已不存在的路径标为 removed。
- * 两者由各自的服务实现（当前为空实现）。
+ * M5 的领域恢复钩子（在 Job 与 Goal 之前）：子代理补记 interrupted（父 Session 的 agent_end）、worktree 把已不存在的路径标为 removed
+ * 并回收没有子 Session 绑定的子代理 worktree。由 SubagentService 与 WorktreeService 实现。
  */
 export function m5RecoveryHooks(services: {
   subagents: { recover(source: RecoverySource): Promise<number> }
@@ -58,6 +59,8 @@ export interface SessionRecoveryOptions {
   runtimes: SessionRuntimes
   /** Workspace 的工具集；缺省内置工具。用于判定被中断调用的工具类别与探测结果。 */
   tools?: (cwd: string) => ToolRegistry
+  /** Session 的工作目录（worktree 会话为 worktree 中的目录）；缺省 Workspace 目录。探测与工具类别按它取。 */
+  cwd?: SessionCwd
   /** 与权限修改共用的 Session 锁（结果确认与权限条目串行）。 */
   locked: <T>(sessionId: string, task: () => Promise<T>) => Promise<T>
 }
@@ -137,11 +140,21 @@ export class SessionRecovery {
       const session = await requireSession(store, sessionId)
       const workspace = await store.sessions.getWorkspace(session.workspaceId)
       if (!workspace) throw new Error(`workspace ${session.workspaceId} not found`)
-      const tools = this.#options.tools?.(workspace.path) ?? createBuiltinToolRegistry({ cwd: workspace.path, exec: createLocalExecPort() })
+      // 探测对照会话自己的工作目录（worktree 会话中的 edit / write 不对照主 checkout 的同名文件）。
+      const cwd = this.#options.cwd
+        ? await this.#options.cwd.resolve(session, workspace).catch((error: unknown) => {
+            log.warn('session directory unavailable for recovery; probing the workspace', {
+              sessionId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return workspace.path
+          })
+        : workspace.path
+      const tools = this.#options.tools?.(cwd) ?? createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() })
       for (const runId of runIds) {
         const entries = await store.sessions.listEntries(sessionId)
         if (entries.some((e) => e.kind === 'run_end' && e.runId === runId)) continue
-        const planned = await planRecovery(entries, { runId, tool: (name) => tools.get(name), cwd: workspace.path })
+        const planned = await planRecovery(entries, { runId, tool: (name) => tools.get(name), cwd })
         await this.commitBatch(sessionId, planned)
         const confirmations = planned.filter((e) => e.kind === 'confirmation_request').length
         result.runs++

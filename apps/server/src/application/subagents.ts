@@ -377,7 +377,8 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
         parentSessionId: parentId,
         model,
         thinkingLevel: (definition.thinking as StoredSession['thinkingLevel']) ?? parent.thinkingLevel,
-        ...(worktree ? { worktreeId: worktree.id } : {}),
+        // 没有 isolation 时继承父级的 worktree：子 Session 的工作目录取父级（worktree 会话中派发的子代理不在主 checkout 中工作）。
+        ...(worktree ? { worktreeId: worktree.id } : parent.worktreeId ? { worktreeId: parent.worktreeId } : {}),
       })
       const agentId = child.id
       let resolve!: (outcome: AgentOutcome) => void

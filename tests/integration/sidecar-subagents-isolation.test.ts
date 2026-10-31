@@ -3,7 +3,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { apiPaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, permissionPaths, worktreePaths } from '@coko/protocol'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { client, connect, exchange, fauxScript, killAndRestart } from './sidecar-harness.ts'
 import { bootAgents, call, ends, of, runEnds, starts, toolResults } from './sidecar-subagents-harness.ts'
@@ -15,6 +15,31 @@ async function repo() {
 }
 
 describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
+  it('worktree 会话中派发不带 isolation 的子代理：子 Session 继承父级的 worktree，bash 的 pwd 为 worktree 路径', async () => {
+    const fixture = await repo()
+    const env = await bootAgents(
+      [
+        { match: 'PARENT-W', content: [call('agent', 'a1', { description: 'where', prompt: 'CHILD-W where', subagent_type: 'general' })] },
+        { match: 'CHILD-W', content: [call('bash', 'b1', { command: 'pwd -P' })] },
+        { match: 'CHILD-W', content: 'here' },
+        { match: 'PARENT-W', content: 'ok' },
+      ],
+      { env: fixture.env, workspace: fixture.root },
+    )
+    const worktree = (await env.api.post(worktreePaths.workspaceWorktrees(env.workspaceId), { name: 'feat-w' })).body as { id: string; path: string }
+    const parent = (await env.api.post(API_ROUTES.sessions, { workspaceId: env.workspaceId, worktreeId: worktree.id })).body.id as string
+    expect((await env.api.put(permissionPaths.sessionPermissionMode(parent), { mode: 'full-access' })).status).toBe(200)
+    await env.subscribe(parent)
+    await env.submit(parent, 'PARENT-W go')
+    await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
+    const child = starts(env.stream, parent)[0]!.agentId
+    expect((await env.api.get(apiPaths.session(child))).body.session.worktree).toMatchObject({ id: worktree.id })
+    const result = ((await env.api.get(apiPaths.session(child))).body.entries as { payload: { role?: string; content?: unknown } }[]).find(
+      (e) => e.payload.role === 'toolResult',
+    )
+    expect(JSON.stringify(result?.payload.content)).toContain(worktree.path)
+  })
+
   it('default 下询问；不改文件时 worktree 与分支被移除；plan 下为错误结果', async () => {
     const fixture = await repo()
     const env = await bootAgents(

@@ -298,7 +298,7 @@ export class SessionRuns {
     const { cwd } = await this.cwd(session)
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
-    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id).rules()
+    const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id, cwd).rules()
     const subagent = session.parentSessionId ? this.#subagents?.definition(session.id) : undefined
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
@@ -555,7 +555,7 @@ export class SessionRuns {
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: {
-        ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id),
+        ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id, cwd),
         readRoots: () => runContext.readRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
         hooks: {
