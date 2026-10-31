@@ -78,7 +78,7 @@ Status: open
 | M3 上下文与指令 | `.scratch/m3-context-instructions/` | delivered（[复盘](../m3-context-instructions/retro.md)） |
 | M4 目标与任务 | `.scratch/m4-goal-plan-tasks/` | delivered（[复盘](../m4-goal-plan-tasks/retro.md)） |
 | M5 多代理与调度 | `.scratch/m5-agents-scheduler/` | delivered（[复盘](../m5-agents-scheduler/retro.md)） |
-| M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | next |
+| M6 扩展与交付 | `.scratch/m6-extensions-delivery/` | in progress（规划中，2026-10-31） |
 
 ## Out of scope
 
