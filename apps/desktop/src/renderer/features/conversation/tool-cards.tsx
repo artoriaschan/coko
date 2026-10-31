@@ -3,6 +3,7 @@ import { DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
 import { BrainIcon, FilePenIcon, FilePlusIcon, FileTextIcon, FolderSearchIcon, FolderTreeIcon, SearchIcon, TerminalIcon, WrenchIcon } from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { AgentCard } from './agent-card.tsx'
 import { JobChip } from './job-row.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 
@@ -221,6 +222,12 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
 }
 
 export function ToolCardView({ item }: { item: ToolItem }) {
+  // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
+  if (item.call.name === 'agent') return <AgentCard item={item} />
+  return <ToolCallCard item={item} />
+}
+
+function ToolCallCard({ item }: { item: ToolItem }) {
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
   const view = VIEWS[item.call.name]
