@@ -96,6 +96,25 @@ describe('子代理：派发与结果', { timeout: 120_000 }, () => {
     expect(s1 < e2 && s2 < e1).toBe(true)
   })
 
+  it('Session 第一次派发后台子代理之后，同一个 Run 的下一次请求就有 agent_wait（按返回文本调用不是未知工具）', async () => {
+    const env = await bootAgents([
+      {
+        match: 'PARENT-F',
+        content: [call('agent', 'a1', { description: 'first', prompt: 'CHILD-F quick', subagent_type: 'general', run_in_background: true })],
+      },
+      { match: 'CHILD-F', content: 'F-RESULT' },
+      { match: 'PARENT-F', content: [call('agent_wait', 'w1', { timeout_ms: 20000 })] },
+      { match: 'PARENT-F', content: 'done' },
+    ])
+    const { stream, open, submit } = env
+    const parent = await open('full-access')
+    await submit(parent, 'PARENT-F go')
+    await stream.waitFor(() => runEnds(stream, parent).length >= 1, 60_000)
+    expect(of(stream, parent, 'run_start')).toHaveLength(1)
+    const [waited] = toolResults(stream, parent, 'agent_wait')
+    expect(waited).toMatchObject({ isError: false, text: expect.stringContaining('F-RESULT') })
+  })
+
   it('后台：立即返回；父 Run 进行中结束时作为追加指令送达（前置 agent_notification）；agent_wait 读到终态后不再通知', async () => {
     const env = await bootAgents([
       {

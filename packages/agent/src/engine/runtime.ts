@@ -190,7 +190,17 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     finishTurn: () => (current?.aborted || current?.rejected || current?.paused || current?.summary ? { action: 'end' } : undefined),
     // 一次送达全部已发送的追加指令（按发送顺序）。
     steeringMode: 'all',
+    // 宿主在 Run 中改变了工具组成（refreshTools，例如第一次派发后台子代理后注册 agent_wait）：下一次请求按新的工具组成，变化照常
+    // 以 toolsAdded / toolsRemoved 的 system 消息告知模型。
+    prepareNextTurnWithContext: ({ context: turn }) => {
+      if (!toolsDirty) return undefined
+      toolsDirty = false
+      const next = effectiveTools()
+      agent.state.tools = next
+      return { context: { ...turn, tools: next } }
+    },
   })
+  let toolsDirty = false
 
   /** 宿主的请求前检查（RuntimeContext.beforeRequest）：返回 stop 时停止本 Run 并返回 false（调用方不发出请求）。 */
   const admit = async (run: RunState, messages: readonly AgentMessage[], model: AgentState['model'], signal?: AbortSignal): Promise<boolean> => {
@@ -517,6 +527,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       const run = current
       if (!run) throw new NoActiveRunError()
       halt(run, error)
+    },
+    refreshTools() {
+      if (current) toolsDirty = true
     },
     abort() {
       if (!current) return

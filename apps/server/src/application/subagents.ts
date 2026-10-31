@@ -67,6 +67,8 @@ export interface SubagentSessionHost {
   toolNames(cwd: string): readonly string[]
   /** 会话记录的唯一创建入口（SessionService.createRecord：绑定已移除的 worktree 时 409 worktree-removed）。 */
   createSession(input: NewSession): Promise<StoredSession>
+  /** 父 Run 进行中重新取工具（第一次派发之后同一个 Run 就有 agent_wait / agent_cancel）。 */
+  refreshTools(sessionId: string): Promise<void>
 }
 
 export interface SubagentServiceOptions {
@@ -450,6 +452,8 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       this.#reserving.delete(token)
     }
     log.info('subagent started', { sessionId: parentId, agentId: live.agentId, agentType: definition.name, background: request.background })
+    // agent_wait / agent_cancel 只在本 Session 有子代理时注册：第一次派发之后在同一个 Run 中补上（"Wait with agent_wait." 可以照做）。
+    await sessions.refreshTools(parentId).catch((error: unknown) => log.warn('tool refresh failed', { sessionId: parentId, error: errorMessage(error) }))
     this.#watch(live)
     const abort = () => void this.#sessions.abort(live.agentId).catch(() => undefined)
     // 前台：父 Run 被停止时 abort 子 Run（cancelled）；后台不随父 Run 停止。

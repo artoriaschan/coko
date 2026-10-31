@@ -277,6 +277,23 @@ export class SessionRuns {
     return true
   }
 
+  /**
+   * Run 进行中重新取贡献的工具（例如第一次派发后台子代理之后注册 agent_wait / agent_cancel）：下一次请求生效，不必等下一个 Run。
+   * 没有进行中的 Run 时什么也不做（下一个 Run 开始时照常取值）。
+   */
+  async refreshTools(sessionId: string): Promise<void> {
+    const runtime = this.#options.runtimes.get(sessionId)
+    const runContext = runtime && this.#runContexts.get(runtime)
+    if (!runtime?.isRunning || !runContext) return
+    const context = this.#options.context
+    const contributed = await context.tools(runContext.scope)
+    runContext.tools.set(contributed)
+    const names = [...this.baseTools(runContext.scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
+    const visible = context.filterTools(names, runContext.scope)
+    runContext.tools.allow(visible.length === names.length && visible.every((name, i) => name === names[i]) ? undefined : new Set(visible))
+    runtime.refreshTools()
+  }
+
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */
   baseTools(cwd: string): ToolRegistry {
     return this.#options.tools?.(cwd) ?? createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() })

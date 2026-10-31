@@ -75,6 +75,7 @@ describe('子代理派发失败', () => {
         scope: async () => ({ cwd: '/tmp/coko-dispatch', config: { agents: { enabled: true } } }) as never,
         toolNames: () => ['read'],
         createSession: (input) => store.sessions.createSession(input),
+        refreshTools: async () => undefined,
       },
       {
         createForSubagent: async () => worktree as never,

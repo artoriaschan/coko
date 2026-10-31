@@ -246,6 +246,8 @@ export interface RuntimePermissions {
 }
 
 export interface AgentRuntime {
+  /** The host changed the tool registry during a Run: the next request of that Run uses the new tools (no-op when idle). */
+  refreshTools(): void
   /**
    * Submit a user message and resolve when the Run ended and its run_end entry was committed. `before` entries of a RunInput
    * are committed after run_start and before the user message; `trigger` and `goal` go into run_start.

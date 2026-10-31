@@ -542,6 +542,7 @@ const AppLive = Layer.effect(
         sessionModel: async (session) => session.model ?? (await sessions.defaultModel()),
         scope: (session) => sessions.runs.scope(session),
         createSession: (input) => sessions.createRecord(input),
+        refreshTools: (sessionId) => sessions.runs.refreshTools(sessionId),
         toolNames: (cwd) => [
           ...sessions
             .baseTools(cwd)
