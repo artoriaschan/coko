@@ -271,7 +271,7 @@ describe('回退与分叉', () => {
     const api = client(sidecar, await exchange(sidecar))
     const entries = await entriesOf(api, first.sessionId)
     const kinds = entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))
-    expect(kinds.slice(2)).toEqual(['run_start', 'user', 'assistant', 'file_backup', 'tool_exec', 'toolResult', 'run_end'])
+    expect(kinds.slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'file_backup', 'tool_exec', 'toolResult', 'run_end'])
     expect(textOf(entries.find((e) => role(e) === 'toolResult')!.payload)).toMatch(/^Applied: /)
     const [target] = userSeqs(entries)
 

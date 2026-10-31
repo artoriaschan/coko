@@ -95,6 +95,7 @@ const DOT: Record<AgentStatus, string> = {
   cancelled: 'bg-warning',
   'max-turns': 'bg-warning',
   interrupted: 'bg-warning',
+  dismissed: 'bg-muted-foreground',
 }
 
 /** 状态点：颜色之外另有无障碍名称（状态名）。 */

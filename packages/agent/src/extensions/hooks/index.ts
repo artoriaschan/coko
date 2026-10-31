@@ -7,6 +7,7 @@ export {
   HOOK_EVENTS,
   HOOK_MAX_TIMEOUT_S,
   HOOK_NOTIFICATION_TIMEOUT_S,
+  MATCHERLESS_HOOK_EVENTS,
   hookDigest,
   hookTimeoutMs,
   parseHooksConfig,

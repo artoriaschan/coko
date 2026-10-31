@@ -16,7 +16,13 @@ export const HOOK_EVENTS: readonly HookEvent[] = [
   'SubagentStop',
   'PreCompact',
   'Notification',
+  'TaskCreated',
+  'TaskCompleted',
+  'TeammateIdle',
 ]
+
+/** 没有 matcher 的事件（团队事件，ADR 0018；与 claude-code 相同）：配置中写了 matcher 为 invalid-matcher。 */
+export const MATCHERLESS_HOOK_EVENTS: ReadonlySet<HookEvent> = new Set(['TaskCreated', 'TaskCompleted', 'TeammateIdle'])
 
 /** 以工具为对象的事件：matcher 匹配工具注册名或规则组名，if 按权限规则匹配。 */
 export const TOOL_HOOK_EVENTS: ReadonlySet<HookEvent> = new Set(['PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest'])
@@ -45,6 +51,8 @@ export interface LoadedHook {
   /** 配置中的超时（秒）；省略时按事件取缺省值。 */
   timeout?: number
   digest: string
+  /** source plugin：插件名（hookId 带它，hook_run 记录它）。 */
+  plugin?: string
 }
 
 export interface ParseHooksOptions {
@@ -52,6 +60,8 @@ export interface ParseHooksOptions {
   parseRule?: (text: string) => HookCondition | undefined
   /** 诊断中的文件路径（项目文件）。 */
   path?: string
+  /** source plugin 时的插件名（ADR 0017）：hookId 为 plugin:<name>:…，诊断的 source 为 plugin。 */
+  plugin?: string
 }
 
 export interface ParsedHooks {
@@ -108,7 +118,9 @@ export function hookTimeoutMs(hook: Pick<LoadedHook, 'event' | 'timeout'>): numb
 export function parseHooksConfig(value: unknown, source: HookSource, options: ParseHooksOptions = {}): ParsedHooks {
   const parseRule = options.parseRule ?? defaultParseRule
   const result: ParsedHooks = { hooks: [], diagnostics: [] }
-  const report = (code: string, message: string) => result.diagnostics.push(diagnostic('config', code, message, options.path))
+  const report = (code: string, message: string) =>
+    result.diagnostics.push(diagnostic(options.plugin === undefined ? 'config' : 'plugin', code, message, options.path))
+  const idPrefix = options.plugin === undefined ? source : `${source}:${options.plugin}`
   if (value === undefined) return result
   if (!isObject(value)) {
     report('invalid-value', 'hooks must be an object of events')
@@ -131,6 +143,10 @@ export function parseHooksConfig(value: unknown, source: HookSource, options: Pa
         return
       }
       const matcher = group.matcher
+      if (matcher !== undefined && MATCHERLESS_HOOK_EVENTS.has(event as HookEvent)) {
+        report('invalid-matcher', `${at}.matcher is not supported: ${event} hooks have no matcher`)
+        return
+      }
       if (matcher !== undefined && (typeof matcher !== 'string' || !validMatcher(matcher))) {
         report('invalid-matcher', `${at}.matcher is not a tool name, a list of names or a valid regular expression`)
         return
@@ -163,8 +179,9 @@ export function parseHooksConfig(value: unknown, source: HookSource, options: Pa
           }
         }
         const loaded: LoadedHook = {
-          hookId: `${source}:${event}:${g}:${h}`,
+          hookId: `${idPrefix}:${event}:${g}:${h}`,
           source,
+          ...(options.plugin === undefined ? {} : { plugin: options.plugin }),
           event: event as HookEvent,
           ...(matcher === undefined ? {} : { matcher }),
           ...(typeof hook.if === 'string' ? { if: hook.if } : {}),

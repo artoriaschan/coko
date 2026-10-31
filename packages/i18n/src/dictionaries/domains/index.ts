@@ -7,14 +7,19 @@ import { goal } from './goal.ts'
 import { handoff } from './handoff.ts'
 import { hooks } from './hooks.ts'
 import { jobs } from './jobs.ts'
+import { lsp } from './lsp.ts'
 import { mcp } from './mcp.ts'
 import { notifications } from './notifications.ts'
 import { memory } from './memory.ts'
 import { plan } from './plan.ts'
+import { plugins } from './plugins.ts'
 import { references } from './references.ts'
 import { schedules } from './schedules.ts'
 import { skills } from './skills.ts'
+import { teams } from './teams.ts'
 import { todo } from './todo.ts'
+import { trace } from './trace.ts'
+import { update } from './update.ts'
 import { usage } from './usage.ts'
 import { worktrees } from './worktrees.ts'
 
@@ -37,6 +42,11 @@ const DOMAINS = {
   worktrees,
   handoff,
   notifications,
+  plugins,
+  lsp,
+  teams,
+  trace,
+  update,
 }
 
 type Domains = typeof DOMAINS

@@ -67,8 +67,10 @@ describe('自动压缩', () => {
     const result = await h.runtime.run(big(40_000, 'b'))
     expect(result.status).toBe('completed')
     const second = h.stored.slice(before)
-    expect(kinds(second)).toEqual(['run_start', 'message:user', 'compaction', 'message:assistant', 'run_end'])
-    const compaction = second[2]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
+    expect(kinds(second)).toEqual(['run_start', 'message:user', 'model_request', 'compaction', 'message:assistant', 'model_request', 'run_end'])
+    // 摘要请求的 model_request 在 compaction 之前（purpose compaction），对话请求的在其 assistant 之后（purpose turn）。
+    expect([second[2]!.payload, second[5]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
+    const compaction = second[3]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
     expect(compaction.trigger).toBe('auto')
     expect(compaction.firstKeptSeq).toBe(second[1]!.seq)
     expect(compaction.summary).toBe('SUMMARY BODY')
@@ -255,9 +257,10 @@ describe('熔断与手动压缩', () => {
     const manual = await h.runtime.compact('只保留接口设计')
     expect(manual.status).toBe('completed')
     const run = h.stored.slice(before)
-    expect(kinds(run)).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(kinds(run)).toEqual(['run_start', 'model_request', 'compaction', 'run_end'])
     expect(run[0]!.payload).toEqual({ trigger: 'compact' })
-    expect((run[1]!.payload as { trigger: string }).trigger).toBe('manual')
+    expect(run[1]!.payload).toMatchObject({ purpose: 'compaction', runId: manual.runId, retries: 0 })
+    expect((run[2]!.payload as { trigger: string }).trigger).toBe('manual')
     expect(text(h.requests.at(-1)!.messages[1])).toContain('Additional requirements from the user: 只保留接口设计')
     expect(h.runtime.compaction).toEqual({ consecutiveFailures: 0, paused: false })
   })

@@ -74,13 +74,15 @@ export function commandsContribution(options: CommandsContributionOptions): Comm
     const entries: CatalogEntry[] = builtins
       .filter((b) => actions.has(b.action))
       .map((b) => ({ name: b.name, description: b.description, argumentHint: b.argumentHint, source: 'builtin', action: b.action }))
-    const [project, user] = await Promise.all([
+    const [project, user, ...plugins] = await Promise.all([
       loader.load(join(scope.cwd, PROJECT_COMMANDS_DIR), 'project'),
       // COKO_HOME 为空时不读（避免把相对路径解析到进程目录）。
       scope.cokoHome === '' ? { templates: [], diagnostics: [] } : loader.load(join(scope.cokoHome, USER_COMMANDS_DIR), 'user'),
+      // 插件的命令（ADR 0017）：以 <plugin>:<name> 登记、source 为 user，不覆盖用户与项目的同名命令。
+      ...scope.plugins.commandRoots.map((root) => loader.load(root.path, 'user', { plugin: root.plugin })),
     ])
-    entries.push(...project.templates, ...user.templates)
-    diagnostics.push(...project.diagnostics, ...user.diagnostics)
+    entries.push(...project.templates, ...user.templates, ...plugins.flatMap((p) => p.templates))
+    diagnostics.push(...project.diagnostics, ...user.diagnostics, ...plugins.flatMap((p) => p.diagnostics))
     for (const contribution of others) {
       for (const source of contribution.commandSources ?? []) {
         try {

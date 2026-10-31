@@ -14,7 +14,24 @@ export const IPC = {
   sidecarState: 'coko:sidecar-state',
   /** main → renderer：打开某个会话（用户点击了桌面通知）；参数为 sessionId。 */
   openSession: 'coko:open-session',
+  /** main → renderer：自动更新的状态（UpdateStatus）。 */
+  updateStatus: 'coko:update-status',
+  /** renderer → main：读取当前更新状态（订阅时先给出一次）。 */
+  getUpdateStatus: 'coko:get-update-status',
+  checkForUpdates: 'coko:check-for-updates',
+  installUpdate: 'coko:install-update',
 } as const
+
+/**
+ * 自动更新的状态：disabled 带原因（not-packaged：源码或测试运行；no-feed：构建时没有更新源）；available / downloading / downloaded 带
+ * 版本；error 带说明（已脱敏）。
+ */
+export interface UpdateStatus {
+  readonly state: 'idle' | 'disabled' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error'
+  readonly reason?: string
+  readonly version?: string
+  readonly message?: string
+}
 
 /** boot 信息：不含启动令牌或 cookie。 */
 export interface BootInfo {
@@ -130,6 +147,12 @@ export interface CokoBridge {
   onSidecarState(listener: (event: SidecarStateEvent) => void): () => void
   /** main 要求打开某个会话（用户点击了桌面通知）；返回取消订阅。 */
   onOpenSession(listener: (sessionId: string) => void): () => void
+  /** 订阅自动更新的状态：先给出当前状态，之后每次变化；返回取消订阅。 */
+  onUpdateStatus(listener: (status: UpdateStatus) => void): () => void
+  /** 检查更新（disabled 时不做任何事）；结果经 onUpdateStatus 给出。 */
+  checkForUpdates(): Promise<void>
+  /** 已下载时经退出确认后重启并安装；其他状态不做任何事。 */
+  installUpdate(): Promise<void>
 }
 
 // 声明放在契约旁：renderer 与 E2E（经 page.evaluate 访问 window.coko）分属不同 tsconfig 项目，都导入本文件。

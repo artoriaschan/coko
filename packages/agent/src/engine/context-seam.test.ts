@@ -112,6 +112,7 @@ describe('RunInput', () => {
       'command',
       'message:user',
       'message:assistant',
+      'model_request',
       'run_end',
     ])
     expect(h.entries.every((e) => e.runId === result.runId)).toBe(true)
@@ -134,7 +135,18 @@ describe('RunInput', () => {
     await h.runtime.run('go')
     unsubscribe()
     const kinds = h.entries.map((e) => (e.kind === 'message' ? `message:${e.payload.role}` : e.kind))
-    expect(kinds).toEqual(['run_start', 'message:user', 'message:assistant', 'message:toolResult', 'command', 'message:user', 'message:assistant', 'run_end'])
+    expect(kinds).toEqual([
+      'run_start',
+      'message:user',
+      'message:assistant',
+      'model_request',
+      'message:toolResult',
+      'command',
+      'message:user',
+      'message:assistant',
+      'model_request',
+      'run_end',
+    ])
 
     // 停止时未送达：退回 text。
     const stopped = harness()

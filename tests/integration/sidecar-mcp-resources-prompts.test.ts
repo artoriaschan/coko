@@ -229,7 +229,7 @@ describe('MCP 提示模板', () => {
       expect((await api.post(apiPaths.sessionMessages(sessionId), { text: '/mcp__srv__greet Alice' })).status).toBe(202)
       await waitRunEnds(stream, sessionId, 1)
       const entries = stream.entries(sessionId)
-      expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'run_end'])
+      expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
       expect(entries[2]!.payload).toEqual({ name: 'mcp__srv__greet', args: 'Alice', source: 'mcp' })
       const expanded = 'Say hello to Alice.\n\n<resource uri="fixture://style">\nKeep it to one sentence.\n</resource>'
       expect(contentText((entries[3]!.payload as { content: unknown }).content)).toBe(expanded)

@@ -1,37 +1,55 @@
 // 子代理（ADR 0014）的条目 payload：父 Session 的 agent_start / agent_end / agent_notification 与子 Session 首条的 subagent_origin
 // （与 @coko/protocol 的 agents.ts 一致）。
 import { Type, type Static } from 'typebox'
-import { definePayloads } from './define.ts'
+import { definePayloads, type EntryJson } from './define.ts'
 import { standardPermissionModeSchema } from './permissions.ts'
 
 const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 const Count = Type.Integer({ minimum: 0 })
 
-/** 子代理的结束状态；interrupted：Sidecar 重启时仍在运行，父 Session 的恢复补记。 */
-export const agentEndStatusSchema = Type.Union([
+const agentEndStatusV1 = [
   Type.Literal('completed'),
   Type.Literal('failed'),
   Type.Literal('cancelled'),
   Type.Literal('max-turns'),
   Type.Literal('interrupted'),
-])
+] as const
+
+/** 子代理的结束状态；interrupted：Sidecar 重启时仍在运行，父 Session 的恢复补记；dismissed：teammate 被解散（ADR 0018）。 */
+export const agentEndStatusSchema = Type.Union([...agentEndStatusV1, Type.Literal('dismissed')])
 export type AgentEndStatus = Static<typeof agentEndStatusSchema>
 
 /** 子代理定义的来源；同名时 project > user > builtin。 */
 export const agentDefinitionSourceSchema = Type.Union([Type.Literal('builtin'), Type.Literal('user'), Type.Literal('project')])
 export type AgentDefinitionSource = Static<typeof agentDefinitionSourceSchema>
 
+const agentStartFields = {
+  agentId: Id,
+  agentType: Id,
+  description: Type.String(),
+  background: Type.Boolean(),
+  toolCallId: Id,
+  goalId: Type.Optional(Id),
+  isolation: Type.Optional(Type.Object({ worktreeId: Id, path: Type.String(), branch: Type.String() }, strict)),
+}
+
 /** agent_start v1：agentId 即子 Session id；isolation 为子代理专用的 worktree。 */
+const agentStartV1Schema = Type.Object(agentStartFields, strict)
+
+/** teammate 的名字（ADR 0018）：小写字母开头，至多 32 个字符；lead 保留给根 Session。 */
+export const TEAMMATE_NAME_PATTERN = '^[a-z][a-z0-9-]{0,31}$'
+
+/**
+ * agent_start v2：另带 teammate 的名字（name、teammate）与触发它的根 Run（triggerRunId，Goal 预算按它归属）。v1 原样迁移：
+ * 旧条目没有 triggerRunId，预算按 toolCallId 所在的 Run 归属。
+ */
 export const agentStartPayloadSchema = Type.Object(
   {
-    agentId: Id,
-    agentType: Id,
-    description: Type.String(),
-    background: Type.Boolean(),
-    toolCallId: Id,
-    goalId: Type.Optional(Id),
-    isolation: Type.Optional(Type.Object({ worktreeId: Id, path: Type.String(), branch: Type.String() }, strict)),
+    ...agentStartFields,
+    name: Type.Optional(Type.String({ pattern: TEAMMATE_NAME_PATTERN })),
+    teammate: Type.Optional(Type.Boolean()),
+    triggerRunId: Type.Optional(Id),
   },
   strict,
 )
@@ -41,17 +59,18 @@ export type AgentStartPayload = Static<typeof agentStartPayloadSchema>
 export const agentUsageSchema = Type.Object({ turns: Count, toolCalls: Count, tokens: Count, cost: Type.Number({ minimum: 0 }), durationMs: Count }, strict)
 export type AgentUsage = Static<typeof agentUsageSchema>
 
+const agentEndFields = {
+  agentId: Id,
+  usage: agentUsageSchema,
+  resultChars: Count,
+  worktree: Type.Optional(Type.Object({ kept: Type.Boolean(), path: Type.String(), branch: Type.String() }, strict)),
+}
+
 /** agent_end v1：resultChars 为交回结果的字符数；worktree 为结束时 isolation worktree 的去留。 */
-export const agentEndPayloadSchema = Type.Object(
-  {
-    agentId: Id,
-    status: agentEndStatusSchema,
-    usage: agentUsageSchema,
-    resultChars: Count,
-    worktree: Type.Optional(Type.Object({ kept: Type.Boolean(), path: Type.String(), branch: Type.String() }, strict)),
-  },
-  strict,
-)
+const agentEndV1Schema = Type.Object({ ...agentEndFields, status: Type.Union([...agentEndStatusV1]) }, strict)
+
+/** agent_end v2：status 增加 dismissed（v1 原样迁移）。 */
+export const agentEndPayloadSchema = Type.Object({ ...agentEndFields, status: agentEndStatusSchema }, strict)
 export type AgentEndPayload = Static<typeof agentEndPayloadSchema>
 
 /** agent_notification v1：紧接在送达后台子代理结束通知的 user message 之前。 */
@@ -103,8 +122,8 @@ export interface AgentEntryPayloads {
 }
 
 export const agentEntryPayloads = definePayloads({
-  agent_start: [{ schema: agentStartPayloadSchema }],
-  agent_end: [{ schema: agentEndPayloadSchema }],
+  agent_start: [{ schema: agentStartV1Schema }, { schema: agentStartPayloadSchema, migrate: (previous: EntryJson) => previous }],
+  agent_end: [{ schema: agentEndV1Schema }, { schema: agentEndPayloadSchema, migrate: (previous: EntryJson) => previous }],
   agent_notification: [{ schema: agentNotificationPayloadSchema }],
   subagent_origin: [{ schema: subagentOriginPayloadSchema }],
 } satisfies Record<keyof AgentEntryPayloads, unknown>)

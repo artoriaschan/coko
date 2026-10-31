@@ -55,11 +55,13 @@ describe('审批闭环', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'approval_request',
       'approval_decision',
       'tool_exec',
       'toolResult',
       'assistant',
+      'model_request',
       'run_end',
     ])
     expect(entries.find((e) => e.kind === 'approval_decision')?.payload).toEqual({ requestId: request.requestId, outcome: 'allowed', scope: 'once' })
@@ -98,8 +100,8 @@ describe('审批闭环', () => {
       outcome: 'denied',
       feedback: 'write under notes/ please',
     })
-    expect(entries.map(kindOf).slice(-2)).toEqual(['assistant', 'run_end'])
-    expect(JSON.stringify(entries.at(-2)?.payload)).toContain('trying notes/ instead')
+    expect(entries.map(kindOf).slice(-3)).toEqual(['assistant', 'model_request', 'run_end'])
+    expect(JSON.stringify(entries.at(-3)?.payload)).toContain('trying notes/ instead')
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
     expect(await exists(join(root, 'out.txt'))).toBe(false)
   })

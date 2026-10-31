@@ -82,11 +82,14 @@ const approvalDecisionFields = {
 /** approval_decision v1：没有回答者。 */
 const approvalDecisionV1Schema = Type.Object(approvalDecisionFields, strict)
 
-/** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）。缺省为用户。 */
-export const approvalDeciderSchema = Type.Union([Type.Literal('user'), Type.Literal('hook')])
+/** approval_decision v2：另带回答者 by（user 或 hook；v1 原样迁移）。 */
+const approvalDecisionV2Schema = Type.Object({ ...approvalDecisionFields, by: Type.Optional(Type.Union([Type.Literal('user'), Type.Literal('hook')])) }, strict)
+
+/** 回答审批的一方：用户、PermissionRequest Hook（ADR 0013）或无界面运行的自动拒绝（ADR 0019）。缺省为用户。 */
+export const approvalDeciderSchema = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])
 export type ApprovalDecider = Static<typeof approvalDeciderSchema>
 
-/** approval_decision v2：另带回答者 by（v1 原样迁移）。 */
+/** approval_decision v3：by 增加 headless（v2 原样迁移）。 */
 export const approvalDecisionPayloadSchema = Type.Object({ ...approvalDecisionFields, by: Type.Optional(approvalDeciderSchema) }, strict)
 export type ApprovalDecisionPayload = Static<typeof approvalDecisionPayloadSchema>
 
@@ -101,5 +104,9 @@ export const permissionEntryPayloads = definePayloads({
   permission_mode: [{ schema: permissionModeV1Schema }, { schema: permissionModePayloadSchema, migrate: (previous: EntryJson) => previous }],
   permission_rule: [{ schema: permissionRulePayloadSchema }],
   approval_request: [{ schema: approvalRequestPayloadSchema }],
-  approval_decision: [{ schema: approvalDecisionV1Schema }, { schema: approvalDecisionPayloadSchema, migrate: (previous: EntryJson) => previous }],
+  approval_decision: [
+    { schema: approvalDecisionV1Schema },
+    { schema: approvalDecisionV2Schema, migrate: (previous: EntryJson) => previous },
+    { schema: approvalDecisionPayloadSchema, migrate: (previous: EntryJson) => previous },
+  ],
 } satisfies Record<keyof PermissionEntryPayloads, unknown>)

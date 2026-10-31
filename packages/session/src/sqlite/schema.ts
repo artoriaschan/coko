@@ -258,4 +258,70 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    // M6：已安装的插件（ADR 0017）、Memory 的全文索引（ADR 0003：FTS5 只作可重建的派生索引）、子进程登记增加 lsp 类别（ADR 0012）。
+    // host_processes 按原样复制登记行后重建。运行时没有编译 FTS5 时不建 memories_fts（检索降级为 LIKE，宿主记 warn）。
+    version: 9,
+    up(db) {
+      db.exec(`
+        CREATE TABLE plugins (
+          name            TEXT PRIMARY KEY,
+          version         TEXT NOT NULL,
+          source_kind     TEXT NOT NULL CHECK (source_kind IN ('dir', 'git')),
+          source_location TEXT NOT NULL,
+          source_ref      TEXT,
+          "commit"        TEXT,
+          path            TEXT NOT NULL UNIQUE,
+          digest          TEXT NOT NULL,
+          approved_digest TEXT,
+          enabled         INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          installed_at    INTEGER NOT NULL,
+          updated_at      INTEGER NOT NULL
+        ) STRICT;
+
+        CREATE TABLE host_processes_v9 (
+          id         TEXT PRIMARY KEY,
+          pid        INTEGER NOT NULL CHECK (pid > 0),
+          pgid       INTEGER CHECK (pgid IS NULL OR pgid > 0),
+          started_at TEXT NOT NULL,
+          kind       TEXT NOT NULL CHECK (kind IN ('bash', 'job', 'pty', 'mcp', 'hook', 'git', 'lsp')),
+          session_id TEXT,
+          job_id     TEXT,
+          command    TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        ) STRICT;
+        INSERT INTO host_processes_v9 (rowid, id, pid, pgid, started_at, kind, session_id, job_id, command, created_at)
+          SELECT rowid, id, pid, pgid, started_at, kind, session_id, job_id, command, created_at FROM host_processes;
+        DROP TABLE host_processes;
+        ALTER TABLE host_processes_v9 RENAME TO host_processes;
+      `)
+      createMemoryFts(db)
+    },
+  },
 ]
+
+/**
+ * memories 的 FTS5 索引（外部内容表，trigram 分词：子串匹配、大小写不敏感，中文同样可检索）与同步触发器；建好后按现有行重建。
+ * 运行时没有 FTS5（或 trigram）时什么都不建，返回 false。Memory 只有正文，索引只有 content 一列。
+ */
+export function createMemoryFts(db: DatabaseSync): boolean {
+  try {
+    db.exec("CREATE VIRTUAL TABLE memories_fts USING fts5(content, content='memories', content_rowid='rowid', tokenize='trigram')")
+  } catch {
+    return false
+  }
+  db.exec(`
+    CREATE TRIGGER memories_fts_insert AFTER INSERT ON memories BEGIN
+      INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+    END;
+    CREATE TRIGGER memories_fts_delete AFTER DELETE ON memories BEGIN
+      INSERT INTO memories_fts(memories_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+    END;
+    CREATE TRIGGER memories_fts_update AFTER UPDATE OF content ON memories BEGIN
+      INSERT INTO memories_fts(memories_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+      INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+    END;
+    INSERT INTO memories_fts(memories_fts) VALUES ('rebuild');
+  `)
+  return true
+}

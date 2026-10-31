@@ -58,8 +58,33 @@ export const ErrorCode = Type.Union([
   Type.Literal('worktree-removed'),
   /** 会话没有用户消息，没有可交接的内容。 */
   Type.Literal('nothing-to-hand-off'),
-  /** 要批准的 digest 不在当前项目文件中。 */
+  /** 要批准的 digest 不在当前项目文件中（或与插件的当前 digest 不同）。 */
   Type.Literal('digest-mismatch'),
+  /** 同名插件已安装。 */
+  Type.Literal('plugin-exists'),
+  /** 插件清单无效（details.diagnostics）。 */
+  Type.Literal('plugin-invalid'),
+  /** 插件超过文件数或大小上限。 */
+  Type.Literal('plugin-too-large'),
+  /** 插件来源不可读（目录不存在或 git 克隆失败）。 */
+  Type.Literal('plugin-source-unreachable'),
+  Type.Literal('plugin-not-found'),
+  /** 根 Session 中已有同名的未解散 teammate。 */
+  Type.Literal('teammate-exists'),
+  /** 根 Session 的 teammate 已达上限。 */
+  Type.Literal('team-full'),
+  /** 消息的目标已解散、已取消或被中断，不能继续。 */
+  Type.Literal('agent-not-reachable'),
+  /** 任务的 expected_revision 与当前不一致（details 带当前快照）。 */
+  Type.Literal('stale-revision'),
+  /** 任务不能认领（details.reason：owned、blocked、not-pending）。 */
+  Type.Literal('task-not-claimable'),
+  Type.Literal('not-owner'),
+  Type.Literal('task-not-found'),
+  Type.Literal('team-task-limit'),
+  Type.Literal('lsp-server-not-found'),
+  /** 该接口的实现尚未接入（501）。 */
+  Type.Literal('not-implemented'),
   /** 存储不可继续使用（租约丢失、状态未知等）。 */
   Type.Literal('storage-unavailable'),
   Type.Literal('internal'),

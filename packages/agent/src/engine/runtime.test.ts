@@ -121,7 +121,7 @@ describe('Agent 运行时：内置工具闭环', () => {
     const deltas = h.progress.flatMap((event) => (event.type === 'assistant_delta' && event.kind === 'text' ? [event.delta] : []))
     expect(deltas.join('')).toBe('hello streaming world')
     expect(deltas.length).toBeGreaterThan(1)
-    expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'message', 'run_end'])
+    expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'message', 'model_request', 'run_end'])
   })
 
   it('以已提交条目恢复上下文后继续对话', async () => {
@@ -374,6 +374,50 @@ describe('Agent 运行时：模型错误与重试', () => {
     })
   })
 
+  it('model_request：两轮的 Run 提交两条，各在对应 assistant 之后；耗时 > 0，usage 与 assistant 一致，purpose turn', async () => {
+    const h = harness({ tokensPerSecond: 2_000 })
+    h.faux.setResponses([fauxAssistantMessage(fauxToolCall('ls', { path: '.' }, { id: 'l1' }), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
+    const result = await h.runtime.run('list')
+    const kinds = h.entries.map((e) => (e.kind === 'message' ? e.payload.role : e.kind))
+    expect(kinds).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'assistant', 'model_request', 'run_end'])
+    const pairs = h.entries.flatMap((entry, i) => (entry.kind === 'model_request' ? [[h.entries[i - 1]!, entry] as const] : []))
+    for (const [assistant, request] of pairs) {
+      if (assistant.kind !== 'message' || assistant.payload.role !== 'assistant' || request.kind !== 'model_request') throw new Error('unexpected order')
+      const usage = assistant.payload.usage
+      expect(request.runId).toBe(result.runId)
+      expect(request.payload).toMatchObject({
+        runId: result.runId,
+        provider: assistant.payload.provider,
+        model: assistant.payload.model,
+        stopReason: assistant.payload.stopReason,
+        retries: 0,
+        purpose: 'turn',
+        usage: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, total: usage.totalTokens },
+        cost: usage.cost.total,
+      })
+      expect(request.payload.durationMs).toBeGreaterThan(0)
+      expect(request.payload.ttftMs).toBeGreaterThanOrEqual(0)
+      expect(request.payload.errorCode).toBeUndefined()
+    }
+  })
+
+  it('model_request：重试后成功记 retries，最终失败记 errorCode；失败的尝试不单独记录', async () => {
+    const h = harness()
+    h.faux.setResponses([unavailable(), fauxAssistantMessage('recovered')])
+    await h.runtime.run('hi')
+    const requests = () => h.entries.flatMap((e) => (e.kind === 'model_request' ? [e.payload] : []))
+    expect(requests()).toEqual([expect.objectContaining({ retries: 1, stopReason: 'stop', purpose: 'turn' })])
+    expect(requests()[0]!.errorCode).toBeUndefined()
+
+    h.faux.setResponses([unavailable(), unavailable(), unavailable()])
+    await h.runtime.run('again')
+    expect(requests().at(-1)).toMatchObject({ retries: 2, stopReason: 'error', errorCode: 'model_error' })
+    h.faux.setResponses([fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Invalid API key' })])
+    await h.runtime.run('third')
+    expect(requests().at(-1)).toMatchObject({ retries: 0, stopReason: 'error', errorCode: 'model_error' })
+    expect(requests()).toHaveLength(3)
+  })
+
   it('不可重试的流错误立即转为 Run 错误条目', async () => {
     const h = harness()
     h.faux.setResponses([fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Invalid API key' }), fauxAssistantMessage('never')])
@@ -399,7 +443,12 @@ describe('Agent 运行时：模型错误与重试', () => {
     expect(retried.status).toBe('completed')
     expect(retried.runId).not.toBe(failed.runId)
     const retriedEntries = h.entries.filter((entry) => entry.runId === retried.runId)
-    expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual(['run_start', 'assistant', 'run_end'])
+    expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual([
+      'run_start',
+      'assistant',
+      'model_request',
+      'run_end',
+    ])
     expect(retriedEntries[0]).toEqual({ kind: 'run_start', runId: retried.runId, payload: { trigger: 'retry' } })
     expect(contexts[0]?.split('do the thing')).toHaveLength(2)
     expect(h.runtime.messages.filter((message) => message.role === 'user')).toHaveLength(1)

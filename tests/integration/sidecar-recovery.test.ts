@@ -67,7 +67,7 @@ describe('启动恢复与结果确认', () => {
     expect((await api.get(API_ROUTES.sessions)).body.sessions[0]).toMatchObject({ id: first.sessionId, running: false, activity: 'awaiting-confirmation' })
     const detail = await api.get(apiPaths.session(first.sessionId))
     const entries = detail.body.entries as SessionEntryRecord[]
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'tool_exec', 'confirmation_request', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'tool_exec', 'confirmation_request', 'run_end'])
     const runId = entries.find((e) => e.kind === 'run_start')!.runId
     expect(entries.slice(-2).every((e) => e.runId === runId)).toBe(true)
     expect(entries.at(-2)!.payload).toEqual({ toolCallId: 'b1' })
@@ -102,7 +102,7 @@ describe('启动恢复与结果确认', () => {
     expect(continued.status).toBe(202)
     await stream.waitFor(isRunEnd(first.sessionId))
     const second = stream.entries(first.sessionId).filter((e) => e.runId === continued.body.runId)
-    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'run_end'])
+    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'model_request', 'run_end'])
     expect(second[0]!.payload).toEqual({ trigger: 'continue' })
     const sent = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
     expect(sent).toHaveLength(2)
@@ -126,7 +126,16 @@ describe('启动恢复与结果确认', () => {
     expect((await api.get(API_ROUTES.sessions)).body.sessions[0]).toMatchObject({ id: first.sessionId, activity: 'interrupted' })
     const entries = (await api.get(apiPaths.session(first.sessionId))).body.entries as SessionEntryRecord[]
     // 默认模式：只有创建时的一条 permission_mode。
-    expect(entries.map(kindOf).slice(1)).toEqual(['run_start', 'user', 'assistant', 'approval_request', 'approval_decision', 'toolResult', 'run_end'])
+    expect(entries.map(kindOf).slice(1)).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'model_request',
+      'approval_request',
+      'approval_decision',
+      'toolResult',
+      'run_end',
+    ])
     expect(entries.find((e) => e.kind === 'approval_decision')!.payload).toEqual({ requestId: request.requestId, outcome: 'expired' })
     const result = entries.find((e) => kindOf(e) === 'toolResult')!
     expect(result.payload).toMatchObject({ toolCallId: 'b1', isError: true })
@@ -153,7 +162,17 @@ describe('启动恢复与结果确认', () => {
 
     const { api } = await killAndRestart(first.sidecar, dirs, { COKO_FAUX_SCRIPT: script })
     const entries = (await api.get(apiPaths.session(first.sessionId))).body.entries as SessionEntryRecord[]
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'file_backup', 'tool_exec', 'file_change', 'toolResult', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual([
+      'run_start',
+      'user',
+      'assistant',
+      'model_request',
+      'file_backup',
+      'tool_exec',
+      'file_change',
+      'toolResult',
+      'run_end',
+    ])
     const result = entries.find((e) => kindOf(e) === 'toolResult')!
     expect(result.payload).toMatchObject({ toolCallId: 'w1', toolName: 'write', isError: false })
     expect(textOf(result)).toMatch(/^Applied: /)
@@ -219,8 +238,8 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    // 当前版本 8（v8：子 Session、worktrees、schedules，host_processes 增加 hook / git）。
-    expect(version(db)).toBe(8)
+    // 当前版本 9（v9：plugins、memories_fts，host_processes 增加 lsp）。
+    expect(version(db)).toBe(9)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
     // 备份保留旧 Provider。
     const backup = new DatabaseSync(join(dirs.dataDir, backups[0]!), { readOnly: true })

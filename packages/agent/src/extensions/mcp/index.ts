@@ -6,6 +6,7 @@ export {
   hasPlaceholder,
   MCP_SERVER_NAME,
   parseMcpServers,
+  parsePluginMcpServers,
   parseProjectMcpFile,
   SECRET_NAME,
   secretRefsOf,

@@ -16,8 +16,10 @@ import {
   type PlanPayload,
   type ScheduleFirePayload,
   type SessionEntry,
+  type TeamMessagePayload,
+  type TeamTaskPayload,
 } from '@coko/protocol'
-import { AGENT_NOTIFICATION_TAG, HOOK_CONTEXT_TAG, JOB_NOTIFICATION_TAG, rewoundRanges, SCHEDULED_TASK_TAG } from '@coko/agent/entries'
+import { AGENT_NOTIFICATION_TAG, HOOK_CONTEXT_TAG, JOB_NOTIFICATION_TAG, rewoundRanges, SCHEDULED_TASK_TAG, TEAM_MESSAGE_TAG } from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 const unescapeAttribute = (value: string) =>
@@ -100,6 +102,10 @@ export type TimelineItem =
   /** M5 的条目：各自的组件在对应功能交付前不渲染（返回 null）。agent_start / agent_end / subagent_origin 不单独成行（由工具卡表示）。 */
   | { kind: 'hook'; key: string; hook: HookRunPayload }
   | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
+  /** 团队消息（ADR 0018）：送达它的 user message 中的 <team-message> 块不成气泡，由该行显示。 */
+  | { kind: 'team-message'; key: string; message: TeamMessagePayload }
+  /** 任务板的一次变更（根 Session）。 */
+  | { kind: 'team-task'; key: string; task: TeamTaskPayload }
   /** title：定时任务 Run 的输入包装中的标题（任务已删除、列表中找不到时的后备）。 */
   | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string }
   | {
@@ -194,7 +200,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
 
   const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
     const preceding = notices
-    notices = entry.kind === 'job_notification' || entry.kind === 'agent_notification' ? new Set([...preceding, entry.kind]) : new Set()
+    notices =
+      entry.kind === 'job_notification' || entry.kind === 'agent_notification' || entry.kind === 'team_message'
+        ? new Set([...preceding, entry.kind])
+        : new Set()
     if (entry.runId) lastRunId = entry.runId
     if (entry.kind === 'run_start') {
       pendingCommand = null
@@ -236,6 +245,14 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     }
     if (entry.kind === 'hook_run') {
       items.push({ kind: 'hook', key: `${entry.seq}`, hook: entry.payload })
+      return
+    }
+    if (entry.kind === 'team_message') {
+      items.push({ kind: 'team-message', key: `${entry.seq}`, message: entry.payload })
+      return
+    }
+    if (entry.kind === 'team_task') {
+      items.push({ kind: 'team-task', key: `${entry.seq}`, task: entry.payload })
       return
     }
     if (entry.kind === 'agent_notification') {
@@ -305,12 +322,15 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       // （该 Run 的第一条 user message，<scheduled_task> 包装）由 schedule_fire 行表示。两者都只认宿主条目确定的位置，用户输入的同样文本照常显示。
       const scheduleInput = entry.runId !== null && scheduleInputs.delete(entry.runId)
       const agentNotice = preceding.has('agent_notification')
-      const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice
+      // 团队消息（<team-message> 文本块，紧接在 team_message 条目之后）同样只按条目确定的位置去掉。
+      const teamNotice = preceding.has('team_message')
+      const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice && !teamNotice
       const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
       const own = blocks.filter((b, index) => {
         if (b.type !== 'text' || typeof b.text !== 'string') return true
         if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
         if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
+        if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) return false
         if (scheduleInput && index === 0) {
           const title = scheduledTaskTitle(b.text)
           if (title !== undefined) {

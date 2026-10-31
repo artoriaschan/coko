@@ -259,7 +259,8 @@ describe('摘要模式（trigger handoff）', () => {
       ['user', 'Write a handoff summary'],
     ])
     expect(checked).toEqual([h.stored[0]!.runId, result.runId])
-    expect(kinds(h.stored.slice(before))).toEqual(['run_start', 'run_end'])
+    expect(kinds(h.stored.slice(before))).toEqual(['run_start', 'model_request', 'run_end'])
+    expect(h.stored[before + 1]!.payload).toMatchObject({ purpose: 'summary', runId: result.runId })
     expect(h.stored[before]!.payload).toEqual({ trigger: 'handoff' })
     expect(h.runtime.messages).toEqual(messages)
     // 之后的 Run 照常有工具。
@@ -329,7 +330,7 @@ describe('新的 trigger 与停止原因', () => {
     slow.release()
     const result = await run
     expect(result).toEqual({ runId: result.runId, status: 'paused', error })
-    expect(kinds(h.stored)).toEqual(['run_start', 'message:user', 'message:assistant', 'message:toolResult', 'run_end'])
+    expect(kinds(h.stored)).toEqual(['run_start', 'message:user', 'message:assistant', 'model_request', 'message:toolResult', 'run_end'])
     expect(h.stored.at(-1)!.payload).toEqual({ status: 'paused', error })
     expect(h.requests).toHaveLength(1)
   })

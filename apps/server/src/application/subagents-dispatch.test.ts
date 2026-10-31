@@ -1,6 +1,6 @@
 // 派发失败的清理（SubagentService 的 agent 工具端口）：isolation worktree 创建之后 agent_start 提交失败时，worktree 按 removeIfUnchanged 回收、
 // 父 Session 的 Read 询问规则去掉、#live 不残留 running（不占并行上限）。
-import { BUILTIN_AGENTS, SESSION_ENTRY_PAYLOADS, type RunEntry } from '@coko/agent'
+import { BUILTIN_AGENTS, emptyPluginContributions, SESSION_ENTRY_PAYLOADS, type RunEntry } from '@coko/agent'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it } from 'vitest'
@@ -72,7 +72,7 @@ describe('子代理派发失败', () => {
         mode: async () => 'default',
         resolveModel: () => ({ priced: true }),
         sessionModel: async () => ({ providerId: 'p', modelId: 'm' }),
-        scope: async () => ({ cwd: '/tmp/coko-dispatch', config: { agents: { enabled: true } } }) as never,
+        scope: async () => ({ cwd: '/tmp/coko-dispatch', config: { agents: { enabled: true } }, plugins: emptyPluginContributions() }) as never,
         toolNames: () => ['read'],
         createSession: (input) => store.sessions.createSession(input),
         refreshTools: async () => undefined,

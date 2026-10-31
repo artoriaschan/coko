@@ -85,8 +85,9 @@ describe('自动压缩、回退与分叉', () => {
     const sessionId = await openSession(api, stream, workspace.id)
     for (const c of ['a', 'b', 'c']) expect(kinds(await send(api, stream, sessionId, big(40_000, c)))).not.toContain('compaction')
     const fourth = await send(api, stream, sessionId, big(60_000, 'd'))
-    expect(kinds(fourth)).toEqual(['run_start', 'message:user', 'compaction', 'message:assistant', 'run_end'])
-    const compaction = fourth[2]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
+    expect(kinds(fourth)).toEqual(['run_start', 'message:user', 'model_request', 'compaction', 'message:assistant', 'model_request', 'run_end'])
+    expect([fourth[2]!.payload, fourth[5]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
+    const compaction = fourth[3]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
     const users = stream.entries(sessionId).filter((e) => e.kind === 'message' && (e.payload as Message).role === 'user')
     expect(compaction).toMatchObject({ trigger: 'auto', firstKeptSeq: users[2]!.seq, summary: '## Goal\nSUMMARY-AUTO' })
     expect(compaction.tokensBefore).toBeGreaterThanOrEqual(48_000)
@@ -175,10 +176,11 @@ describe('/compact 与停止', () => {
     await send(api, stream, sessionId, big(48_000, 'h'))
     await send(api, stream, sessionId, big(40_000, 'i'))
     const run = await send(api, stream, sessionId, '/compact 只保留接口设计')
-    expect(kinds(run)).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(kinds(run)).toEqual(['run_start', 'model_request', 'compaction', 'run_end'])
     expect(run[0]!.payload).toEqual({ trigger: 'compact' })
-    expect(run[1]!.payload).toMatchObject({ trigger: 'manual', summary: 'MANUAL' })
-    expect(run[2]!.payload).toEqual({ status: 'completed' })
+    expect(run[1]!.payload).toMatchObject({ purpose: 'compaction', stopReason: 'stop' })
+    expect(run[2]!.payload).toMatchObject({ trigger: 'manual', summary: 'MANUAL' })
+    expect(run[3]!.payload).toEqual({ status: 'completed' })
     const log = await requests()
     expect(isSummaryRequest(log[3]!)).toBe(true)
     expect(textOf(log[3]![1])).toContain('Additional requirements from the user: 只保留接口设计')
@@ -231,7 +233,7 @@ describe('熔断与溢出', () => {
     const count = (await requests()).length
     await send(api, stream, sessionId, 't')
     expect((await requests()).length).toBe(count + 1)
-    expect(kinds(await send(api, stream, sessionId, '/compact'))).toEqual(['run_start', 'compaction', 'run_end'])
+    expect(kinds(await send(api, stream, sessionId, '/compact'))).toEqual(['run_start', 'model_request', 'compaction', 'run_end'])
     expect(((await api.get(contextPaths.session(sessionId))).body as ContextUsageResponse).autoCompact.paused).toBe(false)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -251,8 +253,19 @@ describe('熔断与溢出', () => {
     await send(api, stream, sessionId, big(48_000, 'y'))
     await send(api, stream, sessionId, big(40_000, 'w'))
     const run = await send(api, stream, sessionId, 'z')
-    expect(kinds(run)).toEqual(['run_start', 'message:user', 'message:assistant', 'compaction', 'message:assistant', 'run_end'])
-    expect(run[3]!.payload).toMatchObject({ trigger: 'overflow', summary: 'S-OVERFLOW' })
+    expect(kinds(run)).toEqual([
+      'run_start',
+      'message:user',
+      'message:assistant',
+      'model_request',
+      'model_request',
+      'compaction',
+      'message:assistant',
+      'model_request',
+      'run_end',
+    ])
+    expect([run[3]!.payload, run[4]!.payload]).toMatchObject([{ purpose: 'turn', errorCode: 'context_overflow' }, { purpose: 'compaction' }])
+    expect(run[5]!.payload).toMatchObject({ trigger: 'overflow', summary: 'S-OVERFLOW' })
     expect(run.at(-1)!.payload).toEqual({ status: 'completed' })
     const log = await requests()
     expect(isSummaryRequest(log[4]!)).toBe(true)

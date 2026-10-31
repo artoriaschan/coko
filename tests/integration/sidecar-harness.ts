@@ -2,7 +2,7 @@
 // 每个 Sidecar 用独立临时目录与端口 0；onTestFinished 登记 teardown，等待进程实际退出。
 import { spawn, type ChildProcess } from 'node:child_process'
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -18,6 +18,8 @@ import {
   SidecarToMainMessage,
   type CatalogModel,
   type MainToSidecarMessage,
+  type ModelRequestPayload,
+  type TeamMessagePayload,
   type ProviderFields,
   type ProviderSaveMode,
   type SidecarProviderModelsResult,
@@ -510,6 +512,16 @@ export class Stream {
     return this.messages.flatMap((m) => (m.type === 'entry' && m.sessionId === sessionId ? [m.entry] : []))
   }
 
+  /** 该 Session 的 team_message 条目（payload）。 */
+  teamMessages(sessionId: string): TeamMessagePayload[] {
+    return this.entries(sessionId).flatMap((e) => (e.kind === 'team_message' ? [e.payload as TeamMessagePayload] : []))
+  }
+
+  /** 该 Session 的 model_request 条目（payload）。 */
+  modelRequests(sessionId: string): ModelRequestPayload[] {
+    return this.entries(sessionId).flatMap((e) => (e.kind === 'model_request' ? [e.payload as ModelRequestPayload] : []))
+  }
+
   close(): Promise<number> {
     if (this.#ws.readyState === WebSocket.OPEN || this.#ws.readyState === WebSocket.CONNECTING) this.#ws.close()
     return this.closed
@@ -556,3 +568,49 @@ export const notifyMessages = (sidecar: Pick<SidecarProcess, 'messages'>) => sid
 /** Hook 测试夹具（tests/fixtures/hooks/hook.mjs）的绝对路径与命令拼装（node 取当前进程的可执行文件）。 */
 export const hookFixturePath = fileURLToPath(new URL('../fixtures/hooks/hook.mjs', import.meta.url))
 export const hookCommand = (...args: string[]) => [process.execPath, hookFixturePath, ...args].map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ')
+
+/** 语言服务器测试夹具（tests/fixtures/lsp/server.mjs）的绝对路径。 */
+export const lspFixturePath = fileURLToPath(new URL('../fixtures/lsp/server.mjs', import.meta.url))
+/** 插件测试夹具（tests/fixtures/plugins/sample/）。 */
+export const pluginFixturePath = fileURLToPath(new URL('../fixtures/plugins/sample', import.meta.url))
+const mcpFixturePath = fileURLToPath(new URL('../fixtures/mcp/stdio-server.ts', import.meta.url))
+
+export interface PreparedPlugin {
+  /** 复制后的插件目录（COKO_TEST_PLUGINS 的值）。 */
+  root: string
+  /** 插件 PreToolUse Hook 记录 stdin 的文件。 */
+  hookRecord: string
+  /** 插件 MCP Server 的日志（MCP_FIXTURE_LOG）。 */
+  mcpLog: string
+}
+
+/**
+ * 把插件夹具复制到临时目录，并把夹具占位（${NODE}、${HOOK_FIXTURE}、${HOOK_RECORD}、${MCP_FIXTURE}、${MCP_LOG}、${LSP_FIXTURE}）替换为
+ * 绝对路径；${COKO_PLUGIN_ROOT} 留给插件的加载。extraMcp 追加到 .mcp.json 的 mcpServers（例如引用 Secret 的对手用例）。
+ */
+export async function preparePluginFixture(options: { extraMcp?: Record<string, unknown> } = {}): Promise<PreparedPlugin> {
+  const base = await tempDir('coko-plugin-')
+  const root = join(base, 'sample')
+  await cp(pluginFixturePath, root, { recursive: true })
+  const hookRecord = join(base, 'hook-stdin.jsonl')
+  const mcpLog = join(base, 'mcp.jsonl')
+  const values: Record<string, string> = {
+    NODE: process.execPath,
+    HOOK_FIXTURE: hookFixturePath,
+    HOOK_RECORD: hookRecord,
+    MCP_FIXTURE: mcpFixturePath,
+    MCP_LOG: mcpLog,
+    LSP_FIXTURE: lspFixturePath,
+  }
+  const files = ['hooks/hooks.json', '.mcp.json', '.lsp.json']
+  for (const file of files) {
+    let text = await readFile(join(root, file), 'utf8')
+    for (const [name, value] of Object.entries(values)) text = text.replaceAll('${' + name + '}', value)
+    if (file === '.mcp.json' && options.extraMcp) {
+      const parsed = JSON.parse(text) as { mcpServers: Record<string, unknown> }
+      text = JSON.stringify({ mcpServers: { ...parsed.mcpServers, ...options.extraMcp } }, null, 2)
+    }
+    await writeFile(join(root, file), text)
+  }
+  return { root, hookRecord, mcpLog }
+}

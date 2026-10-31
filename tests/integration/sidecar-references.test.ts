@@ -59,7 +59,7 @@ describe('File Reference 展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'user', 'assistant', 'run_end'])
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'user', 'assistant', 'model_request', 'run_end'])
     const expected = [
       { type: 'text', text: '看看 @src/a.ts' },
       { type: 'text', text: '<file_reference path="src/a.ts">\nexport const a = 1\n\n</file_reference>' },
@@ -99,7 +99,7 @@ describe('File Reference 展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'run_end'])
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
     expect(entries[2]!.payload).toEqual({ name: 'explain', args: '@src/a.ts', source: 'project' })
     const expected = [
       { type: 'text', text: 'Explain @src/a.ts in one paragraph.' },

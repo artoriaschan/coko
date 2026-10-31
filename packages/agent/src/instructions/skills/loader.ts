@@ -3,6 +3,7 @@
 // 做法参照 pi coding-agent 的 core/skills.ts（v1.4.0，Copyright (c) 2025 Mario Zechner，MIT License）。
 import { realpath as nodeRealpath } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pluginResourceName } from '../../extensions/plugins/types.ts'
 import { pathContains } from '../../policy/rules.ts'
 import { createMtimeCache } from '../shared/cache.ts'
 import { diagnostic, type ResourceDiagnostic } from '../shared/diagnostics.ts'
@@ -72,10 +73,20 @@ export function createSkillLoader(options: SkillLoaderOptions = {}): SkillLoader
         const info = await files.stat(location.dir).catch(() => undefined)
         if (info?.kind !== 'directory') continue
         const boundary = location.boundary === undefined ? undefined : await realpath(location.boundary).catch(() => location.boundary!)
+        const source = location.plugin === undefined ? 'skills' : 'plugin'
         for (const path of await findSkillFiles(location.dir, 0, diagnostics, true)) {
           const real = await realpath(path).catch(() => path)
           if (boundary !== undefined && !pathContains(boundary, real)) {
-            diagnostics.push(diagnostic('skills', 'skill-outside-workspace', `Skill resolves outside the Workspace and was not loaded: ${real}`, path))
+            diagnostics.push(
+              location.plugin === undefined
+                ? diagnostic('skills', 'skill-outside-workspace', `Skill resolves outside the Workspace and was not loaded: ${real}`, path)
+                : diagnostic(
+                    'plugin',
+                    'path-outside-plugin',
+                    `Skill of plugin ${location.plugin} resolves outside the plugin and was not loaded: ${real}`,
+                    path,
+                  ),
+            )
             continue
           }
           if (seen.has(real)) continue
@@ -84,23 +95,23 @@ export function createSkillLoader(options: SkillLoaderOptions = {}): SkillLoader
           try {
             parsed = await cache.load(path)
           } catch (error) {
-            diagnostics.push(diagnostic('skills', 'read-failed', `Cannot read SKILL.md: ${message(error)}`, path))
+            diagnostics.push(diagnostic(source, 'read-failed', `Cannot read SKILL.md: ${message(error)}`, path))
             continue
           }
           if (!parsed) continue
           if (!parsed.ok) {
-            diagnostics.push(diagnostic('skills', parsed.code, parsed.message, path))
+            diagnostics.push(diagnostic(source, parsed.code, parsed.message, path))
             continue
           }
-          const winner = byName.get(parsed.name)
+          const name = location.plugin === undefined ? parsed.name : pluginResourceName(location.plugin, parsed.name)
+          const winner = byName.get(name)
           if (winner) {
-            diagnostics.push(
-              diagnostic('skills', 'shadowed', `Skill "${parsed.name}" (${location.scope}) is shadowed by ${winner.path} (${winner.scope})`, path),
-            )
+            diagnostics.push(diagnostic(source, 'shadowed', `Skill "${name}" (${location.scope}) is shadowed by ${winner.path} (${winner.scope})`, path))
             continue
           }
           const skill: Skill = {
-            name: parsed.name,
+            name,
+            ...(location.plugin === undefined ? {} : { plugin: location.plugin }),
             description: parsed.description,
             path,
             baseDir: join(path, '..'),

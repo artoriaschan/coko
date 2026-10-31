@@ -39,6 +39,7 @@ bash 以独立进程组（detached）启动命令，以便超时与停止时终�
 - git 子进程（2026-10-31，M5 票 04）：以独立进程组登记为 kind `git`（命令为脱敏后的 `git <参数>`），结束后删除；超时时对进程组 SIGTERM、2 秒后 SIGKILL。证据：`apps/server/src/adapters/git.test.ts`（忽略 SIGTERM 的假 git 在注入的时限内被终止）。
 - Hook 子进程（2026-10-31，M5 票 03）：command 型 Hook 以独立进程组登记为 kind `hook`，结束后删除；超时时对进程组 SIGTERM、宽限后 SIGKILL。证据：`tests/integration/sidecar-hooks.test.ts`（darwin，忽略 SIGTERM 的 Hook 夹具：运行中登记行存在、超时后删除、进程组消失、hook_run 记 timeout）。
 - M5 的类别（2026-10-31）：迁移 v8 重建 `host_processes`，kind 增加 hook（外部 Hook 命令，独立进程组）与 git（宿主执行的 git）。登记表与契约见 `packages/session/src/sqlite/migrate-v8.test.ts`、`repository-contract.ts`；两类的执行器与证据见上两条。
+- M6 的类别（2026-10-31）：迁移 v9 重建 `host_processes`，kind 增加 lsp（语言服务器进程）。登记表与契约见 `packages/session/src/sqlite/migrate-v9.test.ts`、`repository-contract.ts`；执行器（按服务器名与工作目录启动、关闭序列）由代码智能接入，有序关闭在"关闭上下文贡献"之后、"终止登记进程"之前停止它们。
 
 ## 来源与后继
 

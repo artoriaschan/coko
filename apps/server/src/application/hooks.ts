@@ -19,6 +19,7 @@ import {
   type LoadedHook,
   type PermissionHookPort,
   type PermissionMode,
+  type PluginHookConfig,
   type ResourceDiagnostic,
   type RunError,
   type SourcedHookResult,
@@ -88,6 +89,8 @@ export interface HookScope {
   config: CapabilityConfig
   parentSessionId?: string
   subagent?: { name: string }
+  /** 已启用插件的 Hook 配置（ContextScope.plugins.hooks，ADR 0017）：与全局同级；省略时没有插件 Hook。 */
+  plugins?: { hooks: readonly PluginHookConfig[] }
 }
 
 export interface HookServiceOptions {
@@ -235,11 +238,18 @@ export class HookService {
 
   // ---- 运行 ----
 
-  /** 该作用域生效的 Hook：能力关闭时没有；全局 Hook 加上已批准的项目 Hook（未批准的不运行）。 */
-  async load(scope: Pick<HookScope, 'workspaceId' | 'cwd' | 'config'>): Promise<LoadedHook[]> {
+  /**
+   * 该作用域生效的 Hook：能力关闭时没有；全局 Hook、已启用插件的 Hook（与全局同级，ADR 0017）加上已批准的项目 Hook（未批准的不运行）。
+   */
+  async load(scope: Pick<HookScope, 'workspaceId' | 'cwd' | 'config' | 'plugins'>): Promise<LoadedHook[]> {
     if (!scope.config.hooks.enabled) return []
     const [global, project] = await Promise.all([this.#global(), this.#project(scope.workspaceId, scope.cwd)])
-    return [...global.parsed, ...project.hooks.filter((hook) => project.approvals.some((a) => a.digest === hook.digest))]
+    const plugins = (scope.plugins?.hooks ?? []).flatMap((config) => {
+      const parsed = parseHooksConfig(config.hooks, 'plugin', { parseRule, plugin: config.plugin, path: config.root })
+      for (const diagnostic of parsed.diagnostics) log.warn('plugin hook ignored', { plugin: config.plugin, code: diagnostic.code })
+      return parsed.hooks
+    })
+    return [...global.parsed, ...plugins, ...project.hooks.filter((hook) => project.approvals.some((a) => a.digest === hook.digest))]
   }
 
   /** 新的 Run 状态（Hook 在第一次需要时加载）。 */
@@ -361,6 +371,7 @@ export class HookService {
       event: hook.event,
       hookId: hook.hookId,
       source: hook.source,
+      ...(hook.plugin === undefined ? {} : { plugin: hook.plugin }),
       command: run.command,
       outcome,
       ...(run.exitCode === null ? {} : { exitCode: run.exitCode }),

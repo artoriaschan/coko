@@ -2,6 +2,7 @@
 import type { SessionStore, StoreOptions } from '../types.ts'
 import { openDatabase, type MigrationReport } from './open.ts'
 import { createMemoryRepository, createSecretRepository } from './memory-secrets.ts'
+import { createPluginRepository } from './plugins.ts'
 import { createProcessRepository } from './processes.ts'
 import { createRecoveryQueries, type RecoveryQueries } from './recovery.ts'
 import {
@@ -28,13 +29,15 @@ export interface SqliteStoreOptions extends StoreOptions {
   heartbeatMs?: number
   /** 等待写锁的上限。默认 5s。 */
   busyTimeoutMs?: number
+  /** false 时 Memory 检索不用 FTS5（测试以 COKO_TEST_NO_FTS 强制降级）。默认 true。 */
+  fts?: boolean
 }
 
 export interface SqliteStore extends SessionStore {
   /** 本实例的租约标识。 */
   readonly instanceId: string
   readonly migration: MigrationReport
-  /** 运行时是否支持 FTS5；不支持时搜索降级为普通查询。 */
+  /** Memory 检索是否使用 FTS5（运行时支持、索引已建立且未被关闭）；否则降级为 LIKE。 */
   readonly capabilities: { fts5: boolean }
   /** 启动恢复用的跨 Session 查询（未完成的 Run、每个 Session 某 kind 的最后一条）。 */
   readonly recovery: RecoveryQueries
@@ -53,15 +56,17 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     busyTimeoutMs: options.busyTimeoutMs ?? 5_000,
   })
   const conn = opened.connection
+  const fts = options.fts !== false && opened.fts5 && conn.get('SELECT 1 FROM sqlite_master WHERE name = ?', 'memories_fts') !== undefined
   let closing: Promise<void> | undefined
   return {
     instanceId: conn.instanceId,
     migration: opened.migration,
-    capabilities: { fts5: opened.fts5 },
+    capabilities: { fts5: fts },
     sessions: createSessionRepository(conn, options),
     settings: createSettingsRepository(conn),
     providers: createProviderRepository(conn),
-    memories: createMemoryRepository(conn),
+    memories: createMemoryRepository(conn, { fts }),
+    plugins: createPluginRepository(conn),
     secrets: createSecretRepository(conn),
     processes: createProcessRepository(conn),
     worktrees: createWorktreeRepository(conn),

@@ -6,6 +6,10 @@ import type { NotificationService } from './notifications.ts'
 import type { ScheduleService } from './schedules.ts'
 import type { SubagentService } from './subagents.ts'
 import type { WorktreeService } from './worktrees.ts'
+import type { LspService } from './lsp.ts'
+import type { PluginService } from './plugins.ts'
+import type { TeamService } from './teams.ts'
+import type { TraceService } from './trace.ts'
 import type { ConfigService } from './config.ts'
 import type { ContextService } from './context-service.ts'
 import type { GoalService } from './goals.ts'
@@ -51,4 +55,12 @@ export interface Application {
   worktrees: WorktreeService
   handoff: HandoffService
   notifications: NotificationService
+  /** M6：插件（/api/plugins）与插件消费 seam 的提供方。 */
+  plugins: PluginService
+  /** 代码智能（/api/lsp）。 */
+  lsp: LspService
+  /** Agent Teams（/api/sessions/:id/team）。 */
+  teams: TeamService
+  /** 追踪、审计与导出（/api/sessions/:id/{trace,audit,export}）。 */
+  trace: TraceService
 }

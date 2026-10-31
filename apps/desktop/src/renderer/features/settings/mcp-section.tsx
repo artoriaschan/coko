@@ -21,6 +21,7 @@ const STATUS_TONE: Record<McpServerStatus, string> = {
   failed: 'text-destructive',
   disabled: 'text-muted-foreground',
   'pending-approval': 'text-warning-text',
+  'auth-required': 'text-warning-text',
 }
 
 const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {

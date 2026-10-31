@@ -2,7 +2,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SESSION_ENTRY_PAYLOADS } from '@coko/agent'
+import { emptyPluginContributions, SESSION_ENTRY_PAYLOADS } from '@coko/agent'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -43,7 +43,7 @@ describe('MCP 贡献', () => {
       },
     })
     const contribution = mcpContribution({ cokoHome: '', mcp: manager })
-    const scope = { workspaceId: workspace.id, cwd: dir, config: await config.effective(dir), cokoHome: '' }
+    const scope = { workspaceId: workspace.id, cwd: dir, config: await config.effective(dir), cokoHome: '', plugins: emptyPluginContributions() }
     // 项目 Server 未批准：不连接，没有工具。
     expect(await contribution.tools!(scope)).toEqual([])
     expect(reads).toEqual([join(dir, '.mcp.json')])

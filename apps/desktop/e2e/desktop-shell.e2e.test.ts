@@ -1,7 +1,10 @@
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, launchSecondInstance, processExists, waitFor, type LaunchedApp, type LaunchOptions } from './harness.ts'
+import { electronPath } from '../tests/sidecar-fixture.ts'
+import { launchApp, launchSecondInstance, processExists, realSidecarEntry, waitFor, type LaunchedApp, type LaunchOptions } from './harness.ts'
 import { readLogRecords } from './logs.ts'
 
 const apps: LaunchedApp[] = []
@@ -16,6 +19,18 @@ async function launch(extra: Record<string, string> = {}, options: LaunchOptions
 }
 
 const status = (app: LaunchedApp) => app.window.locator('[role="status"]')
+
+describe('构建产物', () => {
+  it('dist/sidecar 中有无界面运行的入口 headless.mjs；存根以 4 退出', async () => {
+    const entry = join(dirname(realSidecarEntry), 'headless.mjs')
+    expect(existsSync(entry)).toBe(true)
+    const child = spawn(electronPath, [entry], { env: { PATH: process.env.PATH ?? '', ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
+    const code = await new Promise<number | null>((resolve) => child.once('exit', (c) => resolve(c)))
+    expect([code, stderr]).toEqual([4, 'coko headless: not implemented\n'])
+  })
+})
 
 describe('桌面壳', () => {
   it('窗口加载 coko-app://app 并显示 Sidecar 已连接', async () => {
@@ -66,6 +81,13 @@ describe('桌面壳', () => {
         documentCookie: document.cookie,
         bridgeKeys: Object.keys(window.coko ?? {}),
         boot: await window.coko!.boot(),
+        // 自动更新存根：renderer 经 preload 收到 main 的状态（接收侧）。
+        update: await new Promise((resolve) => {
+          const off = window.coko!.onUpdateStatus((status) => {
+            off()
+            resolve(status)
+          })
+        }),
         echoSetCookie: echo.headers.get('set-cookie'),
         // sidecar 收到的 cookie（main 注入）；renderer 只经响应体看到它，用来确认响应头里没有。
         echoedCookie: echoed.headers.cookie,
@@ -78,10 +100,13 @@ describe('桌面壳', () => {
     expect(visible.bridgeKeys.sort()).toEqual([
       'boot',
       'cancelProviderModels',
+      'checkForUpdates',
       'fetchProviderModels',
+      'installUpdate',
       'log',
       'onOpenSession',
       'onSidecarState',
+      'onUpdateStatus',
       'openLogs',
       'pickDirectory',
       'saveProvider',
@@ -93,6 +118,7 @@ describe('桌面壳', () => {
     expect(exposed).not.toContain(token)
     expect(exposed).not.toContain('coko-session')
     expect(Object.keys((visible.boot as { info: object }).info).sort()).toEqual(['locale', 'platform', 'wsBaseUrl'])
+    expect(visible.update).toEqual({ state: 'disabled', reason: 'not-packaged' })
     // Chromium 的 cookie jar 中也没有 sidecar cookie。
     const cookies = await app.app.evaluate(({ session }) => session.defaultSession.cookies.get({}))
     expect(cookies).toEqual([])

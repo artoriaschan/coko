@@ -13,11 +13,24 @@ export { pathContains } from './rules.ts'
  * accept-edits 与 full-access 放行；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
  * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。M5：agent（派发子代理，
  * 规则组名 Agent，内容为子代理类型）所有模式放行，带 isolation 时只有 full-access 放行；automation（创建或修改定时任务，规则组名
- * Schedule）只在 full-access 放行。
+ * Schedule）只在 full-access 放行。M6：lsp（语言服务器查询，规则组名 Lsp）按 file_path 与 read 同样判定（Read 的路径规则同样适用）；
+ * team（团队消息与任务板，规则组名 Team）所有模式放行。
  */
-export type PermissionClass = 'read' | 'edit' | 'bash' | 'context-read' | 'memory-write' | 'external' | 'session-state' | 'plan-exit' | 'agent' | 'automation'
+export type PermissionClass =
+  | 'read'
+  | 'edit'
+  | 'bash'
+  | 'context-read'
+  | 'memory-write'
+  | 'external'
+  | 'session-state'
+  | 'plan-exit'
+  | 'agent'
+  | 'automation'
+  | 'lsp'
+  | 'team'
 
-/** 判定分组；规则以组名（Read、Edit、Bash、Memory、Agent、Schedule）书写，skill 工具为 Skill，其余工具按原名。 */
+/** 判定分组；规则以组名（Read、Edit、Bash、Memory、Agent、Schedule、Lsp、Team）书写，skill 工具为 Skill，其余工具按原名。 */
 export type ToolCategory =
   | 'read'
   | 'write'
@@ -29,6 +42,8 @@ export type ToolCategory =
   | 'plan-exit'
   | 'agent'
   | 'automation'
+  | 'lsp'
+  | 'team'
   | 'other'
 
 const CATEGORY: Record<string, ToolCategory> = { read: 'read', grep: 'read', find: 'read', ls: 'read', write: 'write', edit: 'write', bash: 'command' }
@@ -43,6 +58,8 @@ const CLASS_CATEGORY: Record<PermissionClass, ToolCategory> = {
   'plan-exit': 'plan-exit',
   agent: 'agent',
   automation: 'automation',
+  lsp: 'lsp',
+  team: 'team',
 }
 const RULE_TOOL: Partial<Record<ToolCategory, string>> = {
   read: 'Read',
@@ -51,7 +68,12 @@ const RULE_TOOL: Partial<Record<ToolCategory, string>> = {
   'memory-write': 'Memory',
   agent: 'Agent',
   automation: 'Schedule',
+  lsp: 'Lsp',
+  team: 'Team',
 }
+
+/** 按路径读取判定的分组：lsp 的 file_path 与 read 同样判定。 */
+const readsPath = (category: ToolCategory) => category === 'read' || category === 'lsp'
 
 /** MCP 工具名的前缀：`mcp__<server>__<tool>`。 */
 export const MCP_TOOL_PREFIX = 'mcp__'
@@ -200,7 +222,7 @@ function restrictiveMatch(content: string, facts: Facts): boolean {
     if (!command) return false
     return [command.whole, ...command.subcommands.flatMap((s) => [s.raw, s.command])].some((candidate) => commandMatches(content, candidate))
   }
-  if (category === 'read' || category === 'write') {
+  if (readsPath(category) || category === 'write') {
     const target = call.target
     return target !== undefined && [target.resolved, target.real].some((path) => pathMatches(content, path, context.workspace, facts.home))
   }
@@ -219,7 +241,7 @@ function allowedByRules(allows: readonly PermissionRule[], facts: Facts): boolea
     if (!command || command.complex || command.subcommands.length === 0) return false
     return command.subcommands.every((s) => commandAllowed(s.command, allows))
   }
-  if (category === 'read' || category === 'write') {
+  if (readsPath(category) || category === 'write') {
     const target = call.target
     return target !== undefined && allows.some((rule) => pathMatches(rule.content!, target.real, context.workspace, facts.home))
   }
@@ -232,12 +254,12 @@ const readable = (real: string, context: PermissionContext) =>
 
 function modeAllows(facts: Facts): boolean {
   const { category, call, context } = facts
-  if (category === 'context-read' || category === 'session-state') return true
+  if (category === 'context-read' || category === 'session-state' || category === 'team') return true
   if (category === 'plan-exit') return false
   if (category === 'agent') return call.isolation !== true || context.mode === 'full-access'
   if (category === 'automation') return context.mode === 'full-access'
   const target = call.target
-  const readInside = category === 'read' && target !== undefined && readable(target.real, context)
+  const readInside = readsPath(category) && target !== undefined && readable(target.real, context)
   switch (context.mode) {
     // plan（Plan Mode）的模式放行与 read-only 相同：只调研，写入、命令、MCP 与 memory-write 照常询问。
     case 'read-only':
@@ -265,7 +287,7 @@ function suggest(facts: Facts, allows: readonly PermissionRule[]): PermissionRul
   }
   // 子代理的允许规则按类型建议（Agent(general)），不放行全部类型。
   if (category === 'agent' && call.subject !== undefined) return [{ behavior: 'allow', tool, content: call.subject }]
-  if (category !== 'read' && category !== 'write') return [{ behavior: 'allow', tool }]
+  if (!readsPath(category) && category !== 'write') return [{ behavior: 'allow', tool }]
   const target = call.target
   if (!target) return []
   if (!pathContains(context.workspace, target.real)) return [{ behavior: 'allow', tool, content: literalPathPattern(target.resolved) }]
@@ -312,7 +334,8 @@ export function decideWithStep(call: PermissionCall, context: PermissionContext)
     command: category === 'command' && call.subject !== undefined ? analyzeCommand(call.subject) : undefined,
   }
   const tool = ruleToolName(call.toolName, call.permissionClass)
-  const own = context.rules.filter((rule) => matchesTool(rule, tool))
+  // lsp 的路径同时按 Read 规则判定：Read 的拒绝、询问与允许规则同样适用。
+  const own = context.rules.filter((rule) => matchesTool(rule, tool) || (category === 'lsp' && matchesTool(rule, 'Read')))
   const restrictive = (behavior: 'deny' | 'ask') =>
     own.find((rule) => rule.behavior === behavior && (rule.content === undefined || restrictiveMatch(rule.content, facts)))
 
@@ -336,6 +359,6 @@ export function decideWithStep(call: PermissionCall, context: PermissionContext)
   const allows = own.filter((rule) => rule.behavior === 'allow')
   if (allowedByRules(allows, facts)) return at('allow-rule', { behavior: 'allow' })
 
-  const outside = category === 'read' && target !== undefined && !readable(target.real, context)
+  const outside = readsPath(category) && target !== undefined && !readable(target.real, context)
   return at('default', { behavior: 'ask', reason: outside ? 'outside-workspace' : 'approval-required', suggestions: suggest(facts, allows) })
 }

@@ -34,6 +34,7 @@ export const mcp = defineDomain(
       failed: '连接失败',
       disabled: '已停用',
       'pending-approval': '等待批准',
+      'auth-required': '需要认证',
     },
     stderr: 'stderr 最后几行',
     form: {
@@ -137,6 +138,7 @@ export const mcp = defineDomain(
       failed: 'Failed',
       disabled: 'Disabled',
       'pending-approval': 'Awaiting approval',
+      'auth-required': 'Authentication required',
     },
     stderr: 'Last stderr lines',
     form: {

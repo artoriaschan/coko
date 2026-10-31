@@ -159,7 +159,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       ...(isolation ? { isolation } : {}),
     }
     const category = categoryOf(name)
-    if (subject !== undefined && (category === 'read' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
+    if (subject !== undefined && (category === 'read' || category === 'lsp' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
     const readRoots = await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path)))
     const context = {
       mode,

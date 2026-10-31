@@ -7,6 +7,7 @@ import {
   type SaveProviderResult,
   type SetSecretResult,
   type SidecarStateEvent,
+  type UpdateStatus,
 } from '../shared/bridge.ts'
 
 // 只在 coko-app://app 文档中暴露；不暴露令牌、cookie 或任意 IPC。saveProvider、fetchProviderModels 与 setSecret 只把值交给 main，不返回值。
@@ -34,6 +35,14 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
       ipcRenderer.on(IPC.openSession, handler)
       return () => void ipcRenderer.removeListener(IPC.openSession, handler)
     },
+    onUpdateStatus: (listener) => {
+      const handler = (_event: IpcRendererEvent, status: UpdateStatus) => listener(status)
+      ipcRenderer.on(IPC.updateStatus, handler)
+      void (ipcRenderer.invoke(IPC.getUpdateStatus) as Promise<UpdateStatus>).then(listener)
+      return () => void ipcRenderer.removeListener(IPC.updateStatus, handler)
+    },
+    checkForUpdates: () => ipcRenderer.invoke(IPC.checkForUpdates) as Promise<void>,
+    installUpdate: () => ipcRenderer.invoke(IPC.installUpdate) as Promise<void>,
   }
   contextBridge.exposeInMainWorld('coko', bridge)
 }

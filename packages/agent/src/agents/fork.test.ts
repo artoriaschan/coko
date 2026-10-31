@@ -69,8 +69,27 @@ const M5_KINDS: [string, unknown][] = [
   ['handoff_origin', { sessionId: 's1', seq: 9 }],
 ]
 
-describe('forkEntries 不复制 M4 与 M5 条目', () => {
-  it.each([...M4_KINDS, ...M5_KINDS])('%s 不出现在分叉后的条目中；消息与权限条目照常复制', (kind, payload) => {
+const M6_KINDS: [string, unknown][] = [
+  ['team_task', { taskId: 't1', revision: 1, subject: 's', description: '', status: 'pending', blockedBy: [], writeScopes: [], by: 'lead' }],
+  ['team_message', { messageId: 'm1', from: 'alice', to: 'lead' }],
+  [
+    'model_request',
+    {
+      runId: 'r1',
+      provider: 'faux',
+      model: 'm',
+      startedAt: 0,
+      durationMs: 1,
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      stopReason: 'stop',
+      retries: 0,
+      purpose: 'turn',
+    },
+  ],
+]
+
+describe('forkEntries 不复制 M4、M5 与 M6 条目', () => {
+  it.each([...M4_KINDS, ...M5_KINDS, ...M6_KINDS])('%s 不出现在分叉后的条目中；消息与权限条目照常复制', (kind, payload) => {
     seq = 0
     const entries = [entry('permission_mode', { mode: 'default' }, null), user('one'), entry(kind, payload), user('two')]
     const forked = forkEntries(entries, 's', 4)

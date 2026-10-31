@@ -66,7 +66,7 @@ export const ApprovalScope = Type.Union([Type.Literal('once'), Type.Literal('ses
 export type ApprovalScope = Static<typeof ApprovalScope>
 
 /** 回答审批的一方：用户，或 PermissionRequest Hook（ADR 0013）；缺省为用户。 */
-export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook')])
+export const ApprovalDecider = Type.Union([Type.Literal('user'), Type.Literal('hook'), Type.Literal('headless')])
 export type ApprovalDecider = Static<typeof ApprovalDecider>
 
 /** approval_decision v2：另带回答者 by（v1 原样迁移）。 */

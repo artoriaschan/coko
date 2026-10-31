@@ -440,3 +440,64 @@ describe('权限类（M5）：agent 与 automation', () => {
       expect(MODES.map((mode) => decide({ toolName: name, permissionClass }, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
   })
 })
+
+describe('权限类（M6）：lsp 与 team', () => {
+  const MODES = ['read-only', 'plan', 'default', 'accept-edits', 'full-access'] as const
+  const allIn = (mode: (typeof MODES)[number]) =>
+    ctx({ mode, writableRoots: mode === 'read-only' || mode === 'plan' ? [] : mode === 'full-access' ? ['/'] : [WS, TMP] })
+  const lsp = (subject: string, resolved: string, real = resolved): PermissionCall => ({
+    toolName: 'lsp',
+    permissionClass: 'lsp',
+    subject,
+    target: { resolved, real },
+  })
+  const asRead = (call: PermissionCall): PermissionCall => ({ ...call, toolName: 'read', permissionClass: undefined })
+
+  it('lsp：file_path 按读取判定（Workspace 内放行、外询问、受保护路径与符号链接与 read 相同），五种模式一致', () => {
+    const calls = [
+      lsp('src/a.ts', `${WS}/src/a.ts`),
+      lsp('/etc/hosts', '/etc/hosts'),
+      lsp('.git/config', `${WS}/.git/config`),
+      lsp('link/k.ts', `${WS}/link/k.ts`, '/Users/me/.ssh/k.ts'),
+    ]
+    for (const mode of MODES)
+      for (const call of calls) {
+        const reasonOf = (d: ReturnType<typeof decide>) => (d.behavior === 'ask' ? d.reason : d.behavior)
+        expect(reasonOf(decide(call, allIn(mode)))).toBe(reasonOf(decide(asRead(call), allIn(mode))))
+      }
+    expect(MODES.map((mode) => decide(calls[0]!, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+    expect(decide(calls[1]!, allIn('default'))).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Lsp', content: '/etc/hosts' }] })
+    expect(decide(calls[1]!, { ...allIn('default'), readRoots: ['/etc'] }).behavior).toBe('allow')
+  })
+
+  it('lsp：规则组名 Lsp；Read 的路径规则同样适用（拒绝、询问、允许）', () => {
+    expect(canonicalRuleTool('lsp')).toBe('Lsp')
+    const inside = lsp('src/secret.ts', `${WS}/src/secret.ts`)
+    expect(decide(inside, { ...allIn('full-access'), rules: [rule('deny', 'Read', 'src/secret.ts')] })).toMatchObject({ behavior: 'deny' })
+    expect(decide(inside, { ...allIn('full-access'), rules: [rule('deny', 'Lsp')] })).toMatchObject({ behavior: 'deny' })
+    expect(decide(inside, { ...allIn('default'), rules: [rule('ask', 'Read', 'src/**')] })).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+    const outside = lsp('/opt/lib/x.ts', '/opt/lib/x.ts')
+    expect(decide(outside, { ...allIn('default'), rules: [rule('allow', 'Read', '/opt/lib/**')] }).behavior).toBe('allow')
+    expect(decide(outside, { ...allIn('default'), rules: [rule('allow', 'Lsp', '/opt/lib/**')] }).behavior).toBe('allow')
+    // Read 的规则对 lsp 生效，Lsp 的规则不影响 read。
+    expect(decide(asRead(inside), { ...allIn('default'), rules: [rule('deny', 'Lsp')] }).behavior).toBe('allow')
+  })
+
+  it('team：send_message 与 task_* 在五种模式放行；规则组名 Team，拒绝规则生效', () => {
+    const team = (name: string): PermissionCall => ({ toolName: name, permissionClass: 'team' })
+    for (const name of ['send_message', 'task_create', 'task_update', 'task_list'])
+      expect(MODES.map((mode) => decide(team(name), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+    expect(canonicalRuleTool('team')).toBe('Team')
+    expect(decide(team('send_message'), { ...allIn('full-access'), rules: [rule('deny', 'Team')] })).toMatchObject({
+      behavior: 'deny',
+      rule: { tool: 'Team' },
+    })
+    expect(decide(team('task_list'), { ...allIn('read-only'), rules: [rule('ask', 'team')] })).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
+  })
+
+  it('agent 带 name（teammate）与 agent 相同', () => {
+    const teammate: PermissionCall = { toolName: 'agent', permissionClass: 'agent', subject: 'general' }
+    expect(MODES.map((mode) => decide(teammate, allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow', 'allow'])
+    expect(MODES.map((mode) => decide({ ...teammate, isolation: true }, allIn(mode)).behavior)).toEqual(['ask', 'ask', 'ask', 'ask', 'allow'])
+  })
+})

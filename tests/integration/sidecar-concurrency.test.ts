@@ -43,12 +43,14 @@ describe('工具调度与执行记录', () => {
       'run_start',
       'user',
       'assistant',
+      'model_request',
       'approval_request',
       'approval_decision',
       'tool_exec',
       'toolResult',
       'toolResult',
       'assistant',
+      'model_request',
       'run_end',
     ])
     const execs = entries.filter((e) => e.kind === 'tool_exec')

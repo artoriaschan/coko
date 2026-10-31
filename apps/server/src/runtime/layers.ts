@@ -18,6 +18,11 @@ import { createSecretProbeTool, createTestSeamContribution } from '../adapters/t
 import { createTestClock, systemClock, type ClockPort, type TestClock } from '../adapters/clock.ts'
 import { createM5SeamContribution } from '../adapters/m5-test-seams.ts'
 import { createGitRunner } from '../adapters/git.ts'
+import { createTestPluginPort } from '../adapters/plugin-test-port.ts'
+import { LspService } from '../application/lsp.ts'
+import { PluginService } from '../application/plugins.ts'
+import { TeamService } from '../application/teams.ts'
+import { TraceService } from '../application/trace.ts'
 import { HandoffService, type HandoffRunHost, type HandoffWorktrees } from '../application/handoff.ts'
 import { AppError } from '../application/errors.ts'
 import { HookService } from '../application/hooks.ts'
@@ -95,6 +100,9 @@ export class Assembly extends Context.Service<
     handoff: HandoffService
     /** AppLive 创建 SessionService 之后调用一次：Job、Goal、定时任务与交接的 Run 能力（交接另有 worktree）从此生效。 */
     bindSessions: (sessions: SessionService, worktrees: WorktreeService) => void
+    /** M6：插件（消费 seam 的提供方，MCP 与上下文装配读取它）与语言服务器（关闭在上下文贡献之后、登记进程之前）。 */
+    plugins: PluginService
+    lsp: LspService
   }
 >()('coko/Assembly') {}
 export class App extends Context.Service<App, Application>()('coko/App') {}
@@ -158,7 +166,7 @@ function lateSessionRuns() {
   }
 }
 
-/** 有序关闭的每一步记一行（按释放顺序：定时器 → Run → Job → 上下文贡献 → 登记进程 → 存储），便于从日志核对顺序。 */
+/** 有序关闭的每一步记一行（按释放顺序：定时器 → Run → Job → 上下文贡献 → LSP 进程 → 登记进程 → 存储），便于从日志核对顺序。 */
 const shutdownStep = (step: string) => Effect.sync(() => getLogger(['runtime']).info('shutdown step {step}', { step }))
 
 /** 文件日志：最先建立、最后释放。目录不可写时退回 console 诊断，不阻止启动。 */
@@ -229,7 +237,17 @@ const StoreLive = Layer.effect(
     const payloads = createPayloadRegistry(SESSION_ENTRY_PAYLOADS)
     return yield* Effect.acquireRelease(
       Effect.tryPromise({
-        try: () => openSqliteStore({ path: config.dbPath, payloads, onInvalidEntry: (entry) => log.warn('session entry skipped', { ...entry }) }),
+        try: async () => {
+          const store = await openSqliteStore({
+            path: config.dbPath,
+            payloads,
+            onInvalidEntry: (entry) => log.warn('session entry skipped', { ...entry }),
+            ...(config.testNoFts ? { fts: false } : {}),
+          })
+          // Memory 检索在没有 FTS5 时降级为 LIKE（ADR 0003：FTS5 只作可重建的派生索引）。
+          if (!store.capabilities.fts5) log.warn('memory search falls back to LIKE', { reason: config.testNoFts ? 'disabled-for-tests' : 'fts5-unavailable' })
+          return store
+        },
         catch: (error) => new StartupError(isStoreError(error) ? `storage-${error.code}` : 'storage-open-failed', errorMessage(error), { cause: error }),
       }),
       (store) => shutdownStep('storage').pipe(Effect.andThen(Effect.promise(() => store.close()))),
@@ -268,16 +286,27 @@ const AssemblyLive = Layer.effect(
     const store = yield* Store
     const processes = yield* Processes
     const config = new ConfigService({ store })
+
+    // ── plugins ──
+    // 插件消费 seam（ADR 0017）：已启用插件的贡献快照，Skills、命令、子代理定义、Hook、MCP 与语言服务器读取它。没有安装插件时为空；测试构建
+    // （未 --packaged）可由 COKO_TEST_PLUGINS 把一个目录当作已批准的插件。
+    const testPlugins = sidecar.testPlugins && !sidecar.packaged ? sidecar.testPlugins : undefined
+    if (testPlugins) getLogger(['runtime']).warn('test plugins enabled', { path: testPlugins })
+    const plugins = new PluginService(testPlugins ? { contributions: createTestPluginPort(testPlugins) } : {})
+    // ── end plugins ──
+
     // Secret 只来自登记条目（ADR 0007）：IPC 模式为库中密文（经 main 解密），独立运行只读 COKO_SECRET_<NAME>。
     const secrets = new SecretService({
       store,
       source: control.mode === 'ipc' ? createIpcSecretSource({ control, secrets: store.secrets }) : createEnvSecretSource(env),
       ...(control.mode === 'ipc' ? { control } : {}),
     })
+    // ── mcp ──
     const mcp = new McpManager({
       store,
       config,
       secrets,
+      plugins,
       // stdio Server 登记为 mcp（ADR 0012），传输关闭后删除。pi-mcp 在 POSIX 上以独立进程组（detached，pgid = pid）启动它，登记进程组使
       // 孤儿清理覆盖 Server 派生的子进程（例如经 npx 启动的 Server）；Windows 没有进程组。
       createTransport: (server, { cwd }) =>
@@ -288,6 +317,13 @@ const AssemblyLive = Layer.effect(
         }),
       ...(sidecar.appVersion ? { clientInfo: { name: 'coko', version: sidecar.appVersion } } : {}),
     })
+    // ── end mcp ──
+
+    // ── lsp ──
+    // 语言服务器：按（服务器名，cwd）管理进程，登记为 lsp（ADR 0012）。关闭在上下文贡献之后、终止登记进程之前（见下方的 finalizer 顺序）。
+    const lsp = new LspService({ config })
+    // ── end lsp ──
+
     // 后台任务与 Goal 先于贡献创建（贡献读取它们）；它们的 Run 能力在 AppLive 创建 SessionService 后接上（lateSessionRuns）。
     // Job 的进程登记为 job（PTY Job 为 pty，ADR 0012），退出后删除。
     const hub = new SessionHub()
@@ -342,9 +378,11 @@ const AssemblyLive = Layer.effect(
       handoff,
       extra,
     })
-    const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome })
+    const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome, plugins })
     // 关闭各领域（含 MCP 子进程）在 Run 结束之后、存储关闭之前。
     const admin = new McpAdmin({ store, manager: mcp })
+    // 后加的先释放：LSP 进程在上下文贡献之后关闭（Run 已结束，不再有查询），之后才终止登记进程。
+    yield* Effect.addFinalizer(() => shutdownStep('lsp').pipe(Effect.andThen(Effect.promise(() => lsp.close()))))
     yield* Effect.addFinalizer(() => shutdownStep('contributions').pipe(Effect.andThen(Effect.promise(() => context.close()))))
     // 后加的先释放：Job 在上下文贡献之前关闭（Job 结束时可能还要经贡献送达通知）。
     yield* Effect.addFinalizer(() => shutdownStep('jobs').pipe(Effect.andThen(Effect.promise(() => jobs.close()))))
@@ -364,6 +402,8 @@ const AssemblyLive = Layer.effect(
       testClock,
       handoff,
       bindSessions: runs.bind,
+      plugins,
+      lsp,
     }
   }),
 )
@@ -470,6 +510,8 @@ const AppLive = Layer.effect(
       testClock,
       handoff,
       bindSessions,
+      plugins,
+      lsp,
     } = yield* Assembly
     const log = getLogger(['runtime'])
     const credentials =
@@ -585,6 +627,20 @@ const AppLive = Layer.effect(
     // 关闭时子代理不再发通知（随后 Run 被中断，子 Run 以 cancelled 结束）。
     yield* Effect.addFinalizer(() => Effect.promise(() => subagents.close()))
 
+    // ── teams ──
+    // Agent Teams（ADR 0018）：名册与任务板由根 Session 的条目派生。
+    const teams = new TeamService({ store })
+    // ── end teams ──
+
+    // ── trace ──
+    // 追踪、审计与导出：由已提交的条目派生（model_request 由运行时提交）。
+    const trace = new TraceService({ store })
+    // ── end trace ──
+
+    // ── memory ──
+    const memories = new MemoryService(store)
+    // ── end memory ──
+
     // Provider 只经 main 的一次提交保存（ADR 0010）；HTTP 只提供列表与删除。
     serveProviderSave({ control, providers })
 
@@ -600,7 +656,7 @@ const AppLive = Layer.effect(
       workspaces: new WorkspaceService(store),
       config: capabilities,
       context: new ContextService({ store, assembly: context, sessions, cwd: worktrees.cwd }),
-      memories: new MemoryService(store),
+      memories,
       mcp,
       secrets,
       jobs,
@@ -613,6 +669,10 @@ const AppLive = Layer.effect(
       worktrees,
       handoff,
       notifications,
+      plugins,
+      lsp,
+      teams,
+      trace,
     } satisfies Application
   }),
 )
@@ -629,9 +689,9 @@ const HttpLive = Layer.effect(
 )
 
 /**
- * 装配顺序：Host → Logging → Tools → Store → Processes（孤儿清理）→ Assembly（上下文贡献、Job、Goal）→ Runs → App（M5 服务、启动恢复、
- * 定时器）→ Http；释放顺序相反：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 终止登记进程 →
- * 关闭存储 → 刷新日志。
+ * 装配顺序：Host → Logging → Tools → Store → Processes（孤儿清理）→ Assembly（插件、上下文贡献、LSP、Job、Goal）→ Runs → App（M5 服务、
+ * 启动恢复、定时器）→ Http；释放顺序相反：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 关闭 LSP 进程
+ * → 终止登记进程 → 关闭存储 → 刷新日志。
  */
 export function sidecarLayer(host: HostShape) {
   return HttpLive.pipe(
@@ -645,3 +705,13 @@ export function sidecarLayer(host: HostShape) {
     Layer.provideMerge(Layer.succeed(Host, host)),
   )
 }
+
+// ── headless ──
+/**
+ * 无界面运行（ADR 0019）的装配：与 sidecarLayer 相同的应用层，去掉 HTTP 与控制通道，Secret 与 Credential 为环境变量模式，审批由 headless
+ * 回答者自动拒绝。尚未接入：入口（headless/index.ts）在此之前以 4 退出。
+ */
+export function headlessLayer(_host: HostShape): never {
+  throw new StartupError('headless-not-implemented', 'Headless runs are not implemented')
+}
+// ── end headless ──

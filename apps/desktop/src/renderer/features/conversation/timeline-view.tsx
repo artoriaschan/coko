@@ -10,6 +10,8 @@ import { AgentNotificationRow } from './agent-notification-row.tsx'
 import { HandoffRow } from './handoff-row.tsx'
 import { HookRow } from './hook-row.tsx'
 import { ScheduleFireRow } from './schedule-fire-row.tsx'
+import { TeamMessageRow } from './team-message-row.tsx'
+import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
 import { PlanCard } from './plan-card.tsx'
 import { RunUsageRow } from './run-usage-row.tsx'
@@ -253,6 +255,10 @@ export function TimelineView(props: TimelineViewProps) {
             return <ScheduleFireRow key={item.key} item={item} />
           case 'handoff':
             return <HandoffRow key={item.key} item={item} />
+          case 'team-message':
+            return <TeamMessageRow key={item.key} item={item} />
+          case 'team-task':
+            return <TeamTaskRow key={item.key} item={item} />
         }
       })}
     </>
