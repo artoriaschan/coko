@@ -53,8 +53,35 @@ function chromeStrings(root: ParentNode = document.body): string[] {
 
 const CJK = /[\u3400-\u9fff]/
 
-function renderApp(locale: Locale = 'zh', options: { providers?: boolean } = {}) {
-  const store = createAppearanceStore({ theme: 'light', locale })
+const rgb = (value: string) =>
+  value
+    .match(/[\d.]+/g)!
+    .slice(0, 3)
+    .map(Number) as [number, number, number]
+const luminance = ([r, g, b]: [number, number, number]) => {
+  const f = (c: number) => ((c /= 255) <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+const transparent = (color: string) => color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color)
+/** 文字颜色对其最近的不透明背景（向上找祖先，最后是根元素）的对比度。 */
+function contrastOf(el: Element): number {
+  let node: Element | null = el
+  let background = ''
+  while (node) {
+    const color = getComputedStyle(node).backgroundColor
+    if (!transparent(color)) {
+      background = color
+      break
+    }
+    node = node.parentElement
+  }
+  if (background === '') background = getComputedStyle(document.documentElement).backgroundColor
+  const [x, y] = [luminance(rgb(getComputedStyle(el).color)), luminance(rgb(background))].sort((p, q) => q - p)
+  return (x! + 0.05) / (y! + 0.05)
+}
+
+function renderApp(locale: Locale = 'zh', options: { providers?: boolean; theme?: 'light' | 'dark' } = {}) {
+  const store = createAppearanceStore({ theme: options.theme ?? 'light', locale })
   const connection = createConnectionStore()
   const { chat, settings, backend, api } = createFixtureChat(options)
   const settingsPage = createSettingsPageStore()
@@ -439,6 +466,30 @@ describe('窄窗口', () => {
       expect(rect.left).toBeGreaterThanOrEqual(0)
       expect(rect.right).toBeLessThanOrEqual(390)
     }
+  })
+
+  it.each(['light', 'dark'] as const)('390px（%s）：输入区占位符为一行、以省略号截断，对比度 ≥ 4.5:1', async (theme) => {
+    await page.viewport(390, 700)
+    await renderApp('en', { theme }).screen
+    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('rail')
+    await expect.poll(() => document.documentElement.classList.contains('dark')).toBe(theme === 'dark')
+    const editor = page.getByRole('textbox', { name: 'Give Coko a task' }).element() as HTMLElement
+    const placeholder = () => document.querySelector<HTMLElement>('[data-slot="composer-placeholder"]')
+    await expect.poll(() => placeholder()?.textContent).toBe('Give Coko a task')
+    // 一行：元素高度等于行高（逐词换行时为数倍）。Lexical 会重建占位符元素，每次重新查询。
+    const lines = () => {
+      const current = placeholder()
+      return current ? Math.round(current.getBoundingClientRect().height / parseFloat(getComputedStyle(current).lineHeight)) : 0
+    }
+    await expect.poll(lines).toBe(1)
+    const el = placeholder()!
+    const style = getComputedStyle(el)
+    expect(el.getBoundingClientRect().height).toBeCloseTo(parseFloat(style.lineHeight), 0)
+    expect([style.whiteSpace, style.textOverflow, style.overflow]).toEqual(['nowrap', 'ellipsis', 'hidden'])
+    // 放不下时在编辑区内截断，不越出编辑区。
+    expect(el.scrollWidth).toBeGreaterThan(el.clientWidth)
+    expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(editor.getBoundingClientRect().right + 0.5)
+    expect(contrastOf(el)).toBeGreaterThanOrEqual(4.5)
   })
 
   it('390px：交接收进标题栏的"更多操作"菜单，键盘可以到达并打开交接对话框，关闭后焦点回到菜单按钮', async () => {
