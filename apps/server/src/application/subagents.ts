@@ -16,12 +16,22 @@ import {
   type PermissionMode,
   type PermissionRule,
   type PluginRoot,
+  type RunEntry,
   type RunInput,
   type RunResult,
   type StandardPermissionMode,
   type StopContinue,
   type StopInfo,
   type SubagentsPort,
+  type SubagentOriginPayload,
+  agentStarts,
+  memberStatus,
+  TEAMMATES_MAX,
+  teammateNameProblem,
+  teamRoster,
+  TeamMessageError,
+  type AgentOutcome,
+  type AgentStartPayload,
 } from '@coko/agent'
 import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretValues } from '@coko/logging'
@@ -36,7 +46,7 @@ import type { NotificationService } from './notifications.ts'
 import type { RecoverySource } from './recovery.ts'
 import type { PermissionScopeResolver } from './session-permissions.ts'
 import type { SessionSubagents } from './session-runs.ts'
-import { newLiveSubagent, SubagentNotifications, type LiveSubagent } from './subagent-notifications.ts'
+import { newLiveSubagent, rearmLiveSubagent, SubagentNotifications, type LiveSubagent } from './subagent-notifications.ts'
 import { agentSnapshots, endStatus, SubagentRecovery } from './subagent-recovery.ts'
 import type { WorktreeService } from './worktrees.ts'
 
@@ -79,6 +89,23 @@ export interface SubagentServiceOptions {
   loader?: AgentDefinitionLoader
 }
 
+/** teammate 子 Session 另有的团队工具（ADR 0018）：子代理工具集 + send_message + task_*。 */
+export const TEAM_TOOL_NAMES: readonly string[] = ['send_message', 'task_create', 'task_update', 'task_list']
+
+/** 团队对子代理的接线（TeamService，装配时 useTeams）：名册或成员状态变化时推送 team_update。 */
+export interface SubagentTeamHooks {
+  changed(rootId: string): void
+}
+
+/** 送达一个子 Session 的团队消息（宿主生成的文本与前置的 team_message 条目）。 */
+export interface ChildDelivery {
+  agentId: string
+  text: string
+  before: RunEntry[]
+  /** 触发它的根 Run（Goal 预算按它归属）；没有时不属于任何 Goal。 */
+  triggerRunId?: string
+}
+
 const parseModel = (text: string): SessionModel | undefined => {
   const at = text.indexOf('/')
   return at > 0 && at < text.length - 1 ? { providerId: text.slice(0, at), modelId: text.slice(at + 1) } : undefined
@@ -93,6 +120,11 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
   #host: SubagentSessionHost | undefined
   /** 并行上限的占位（同一批的并行派发）。 */
   readonly #reserving = new Map<symbol, string>()
+  /** teammate 名字的占位（同一批的同名派发）：token → 根 Session 与名字。 */
+  readonly #naming = new Map<symbol, { rootId: string; name: string }>()
+  /** 并行上限已满时排队的团队消息（每个根 Session；不跨进程保留）。 */
+  readonly #queued = new Map<string, ChildDelivery[]>()
+  #teams: SubagentTeamHooks | undefined
 
   constructor(options: SubagentServiceOptions) {
     this.#options = options
@@ -110,6 +142,19 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       entries: options.entries,
       worktrees: () => this.#worktrees,
     })
+  }
+
+  /** 装配时接上团队（ADR 0018）。 */
+  useTeams(teams: SubagentTeamHooks & import('./teams.ts').TeamService): void {
+    this.#teams = teams
+    this.#teamService = teams
+  }
+
+  #teamService: import('./teams.ts').TeamService | undefined
+
+  /** 团队服务（context/teams.ts 的工具与 <team> section）；未装配时 undefined。 */
+  teams(): import('./teams.ts').TeamService | undefined {
+    return this.#teamService
   }
 
   /** AppLive 创建 SessionService 与 WorktreeService 之后调用一次。 */
@@ -225,6 +270,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       start: (request, signal) => this.#start(sessionId, request, signal),
       wait: (ids, timeoutMs, signal) => this.#wait(sessionId, ids, timeoutMs, signal),
       cancel: async (agentId) => {
+        // teammate（agentId 或成员名）的 agent_cancel 为解散（ADR 0018）。
+        const member = await this.#member(sessionId, agentId)
+        if (member) return this.dismiss(sessionId, member.agentId)
         const live = this.#live.get(agentId)
         if (!live || live.rootId !== sessionId) throw new Error(`No subagent ${agentId} in this session`)
         live.observed = true
@@ -246,6 +294,12 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (parentRunId === undefined) throw new Error('Subagents can only be started from a running turn')
     const scope = await sessions.scope(parent)
     if (!scope.config.agents.enabled) throw new Error('Subagents are disabled in the settings')
+    if (request.name !== undefined) {
+      if (!scope.config.teams.enabled) throw new Error('Agent teams are disabled in the settings')
+      const problem = teammateNameProblem(request.name)
+      if (problem) throw new Error(`invalid-name: ${problem}`)
+      if (!request.background) throw new Error('A teammate (name) always runs in the background')
+    }
     const { definitions } = await this.catalog(scope.cwd, scope.plugins.agentRoots)
     const definition = definitions.find((d) => d.name === request.subagentType)
     if (!definition) throw new Error(`Unknown subagent type ${request.subagentType}; available: ${definitions.map((d) => d.name).join(', ')}`)
@@ -269,15 +323,24 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       if (mode === 'plan' || mode === 'read-only') throw new Error(`isolation: worktree is not available in ${mode} mode`)
       if (!this.#worktrees) throw new Error('Worktrees are not available')
     }
+    // teammate 的名字与人数：读条目之后、第一个 await 之前与占位一起检查（同一批的同名调用不会同时越过）。
+    const teamEntries = request.name !== undefined ? await store.sessions.listEntries(parentId) : undefined
+    if (request.name !== undefined) {
+      const active = this.#activeTeammates(parentId, teamEntries!)
+      if (active.has(request.name)) throw new Error(`teammate-exists: A teammate named ${request.name} already exists in this team`)
+      if (active.size >= TEAMMATES_MAX) throw new Error(`team-full: A team has at most ${TEAMMATES_MAX} teammates; dismiss one with agent_cancel first`)
+    }
     // 上限在第一个 await 之后、创建之前检查并占位（同一批的并行调用不会同时越过）。
-    const running = this.runningChildren(parentId).length + [...this.#reserving.values()].filter((id) => id === parentId).length
+    const running = this.#runningCount(parentId)
     if (running >= MAX_RUNNING_SUBAGENTS) throw new Error(`At most ${MAX_RUNNING_SUBAGENTS} subagents can run at once; wait for one with agent_wait`)
     const token = Symbol('reserve')
     this.#reserving.set(token, parentId)
+    if (request.name !== undefined) this.#naming.set(token, { rootId: parentId, name: request.name })
     let live: LiveSubagent | undefined
     let worktree: { id: string; path: string; branch: string } | undefined
     try {
-      const tools = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
+      const base = subagentTools(sessions.visibleTools(parentId) ?? [], definition)
+      const tools = request.name !== undefined ? [...base, ...TEAM_TOOL_NAMES.filter((t) => !base.includes(t))] : base
       worktree = request.isolation === 'worktree' ? await this.#worktrees!.createForSubagent(parent.workspaceId, parentId) : undefined
       if (worktree) this.#recovery.isolate(parentId, worktree.path, true)
       const child = await sessions.createSession({
@@ -301,6 +364,8 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
         background: request.background,
         startedAt: Date.now(),
         ...(worktree ? { worktreeId: worktree.id, worktreePath: worktree.path } : {}),
+        ...(request.name !== undefined ? { name: request.name } : {}),
+        triggerRunId: parentRunId,
       })
       this.#live.set(live.agentId, live)
       await this.#recovery.started(live, worktree)
@@ -313,7 +378,9 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       throw error
     } finally {
       this.#reserving.delete(token)
+      this.#naming.delete(token)
     }
+    if (live.name) this.#teams?.changed(parentId)
     log.info('subagent started', { sessionId: parentId, agentId: live.agentId, agentType: definition.name, background: request.background })
     // agent_wait / agent_cancel 只在本 Session 有子代理时注册：第一次派发之后在同一个 Run 中补上（"Wait with agent_wait." 可以照做）。
     await sessions.refreshTools(parentId).catch((error: unknown) => log.warn('tool refresh failed', { sessionId: parentId, error: errorMessage(error) }))
@@ -328,13 +395,20 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
         : undefined
       const content = [{ type: 'text' as const, text: request.prompt }, ...(context ? [{ type: 'text' as const, text: hookContextText(context) }] : [])]
       if (signal?.aborted && !request.background) throw new Error('aborted')
-      const { runId } = await sessions.startRun(live.agentId, { trigger: 'subagent', input: { text: request.prompt, content } })
+      const { runId } = await sessions.startRun(live.agentId, { trigger: 'subagent', input: { text: request.prompt, content }, triggerRunId: parentRunId })
       live.runId = runId
     } catch (error) {
       log.warn('subagent run did not start', { agentId: live.agentId, error: errorMessage(error) })
       await this.#finish(live, undefined)
     }
-    if (request.background) return { kind: 'background', agentId: live.agentId, agentType: definition.name, description: request.description }
+    if (request.background)
+      return {
+        kind: 'background',
+        agentId: live.agentId,
+        agentType: definition.name,
+        description: request.description,
+        ...(live.name ? { name: live.name } : {}),
+      }
     try {
       return { kind: 'foreground', outcome: await live.ended }
     } finally {
@@ -346,7 +420,10 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
   async subagentStop(scope: ContextScope, info: StopInfo): Promise<StopContinue | undefined> {
     const live = scope.sessionId ? this.#live.get(scope.sessionId) : undefined
     if (!this.#options.hooks || !live) return undefined
-    return this.#options.hooks.subagentStop(scope, info, { type: live.definition.name, id: live.agentId })
+    const verdict = await this.#options.hooks.subagentStop(scope, info, { type: live.definition.name, id: live.agentId })
+    // TeammateIdle 在 SubagentStop 之后（同一个继续上限，ADR 0018）。
+    if (verdict || !live.name) return verdict
+    return this.#options.hooks.teammateIdle(scope, info, { name: live.name, team: live.rootId })
   }
 
   /**
@@ -391,11 +468,195 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     log.info('subagent ended', { sessionId: live.rootId, agentId: live.agentId, status, ...outcome.usage })
     live.resolve(outcome)
     this.#notes.ended(live)
+    if (live.name) this.#teams?.changed(live.rootId)
+    this.#flush(live.rootId)
   }
 
   #wait(sessionId: string, ids: readonly string[] | undefined, timeoutMs: number, signal?: AbortSignal): Promise<AgentWaitItem[]> {
     const mine = [...this.#live.values()].filter((l) => l.rootId === sessionId)
     return this.#notes.wait(sessionId, mine, ids, timeoutMs, signal)
+  }
+
+  // ---- 团队（ADR 0018）：名册、继续对话、排队与解散 ----
+
+  /** 根 Session 正在运行（含占位）的子代理数（teammate 与子代理共用上限）。 */
+  #runningCount(rootId: string): number {
+    return this.runningChildren(rootId).length + [...this.#reserving.values()].filter((id) => id === rootId).length
+  }
+
+  /** 未解散的 teammate 名字：条目给出的名册、进程内的 teammate 与派发中的占位。 */
+  #activeTeammates(rootId: string, entries: Parameters<typeof teamRoster>[0]): Set<string> {
+    const names = new Set<string>()
+    for (const member of teamRoster(entries)) {
+      const live = this.#live.get(member.agentId)
+      const status = live?.status === 'dismissed' ? 'dismissed' : memberStatus(member, live?.status === 'running')
+      if (status !== 'dismissed') names.add(member.name)
+    }
+    for (const n of this.#naming.values()) if (n.rootId === rootId) names.add(n.name)
+    return names
+  }
+
+  /** 根 Session 的 teammate（agentId 或名字）；不是 teammate 时 undefined。 */
+  async #member(rootId: string, ref: string) {
+    const roster = teamRoster(await this.#options.store.sessions.listEntries(rootId))
+    return roster.find((m) => m.agentId === ref) ?? roster.findLast((m) => m.name === ref)
+  }
+
+  /** 进程内的子代理状态（团队名册：running 与当前活动）。 */
+  liveInfo(agentId: string): { running: boolean; dismissed: boolean; activity?: { toolName: string; summary: string } } | undefined {
+    const live = this.#live.get(agentId)
+    if (!live) return undefined
+    return { running: live.status === 'running', dismissed: live.status === 'dismissed', ...(live.activity ? { activity: live.activity } : {}) }
+  }
+
+  /** 子 Session 的 teammate 名字与根 Session（send_message 与 task_* 的发起者）；不是 teammate 时 undefined。 */
+  teammateOf(sessionId: string): { name: string; rootId: string; triggerRunId?: string } | undefined {
+    const live = this.#live.get(sessionId)
+    return live?.name ? { name: live.name, rootId: live.rootId, ...(live.triggerRunId ? { triggerRunId: live.triggerRunId } : {}) } : undefined
+  }
+
+  /** 团队消息送给 lead（根 Session）：Run 中为追加指令，空闲时挂起到下一个 Run（不唤醒，与后台子代理通知相同）。 */
+  leadNote(rootId: string, text: string, before: RunEntry[]): void {
+    this.#notes.hostNote(rootId, { text, before })
+  }
+
+  /**
+   * 团队消息送给子 Session（teammate 或已结束的一次性子代理，C3 / C8）：运行中为追加指令；空闲时以 trigger subagent 开始新的 Run（输入为该消息，
+   * 结束时父级收到 agent_notification）；根 Session 已有 MAX_RUNNING_SUBAGENTS 个 running 时排队，有空位后开始（不是错误）。可达性由调用方判定。
+   */
+  async deliverMessage(rootId: string, delivery: ChildDelivery): Promise<'steered' | 'started' | 'queued'> {
+    const live = this.#live.get(delivery.agentId) ?? (await this.#revive(rootId, delivery.agentId))
+    if (!live) throw new TeamMessageError('agent-not-reachable', `No subagent ${delivery.agentId} in this team`)
+    const input = { text: delivery.text, content: [{ type: 'text' as const, text: delivery.text }], before: delivery.before }
+    if (live.status === 'running') {
+      if (this.#sessions.deliver(live.agentId, input)) return 'steered'
+      // Run 刚结束、#finish 还没执行：排队，结束后开始。
+      this.#enqueue(rootId, delivery)
+      return 'queued'
+    }
+    if (this.#runningCount(rootId) >= MAX_RUNNING_SUBAGENTS) {
+      this.#enqueue(rootId, delivery)
+      return 'queued'
+    }
+    await this.#continue(live, delivery)
+    return 'started'
+  }
+
+  #enqueue(rootId: string, delivery: ChildDelivery): void {
+    this.#queued.set(rootId, [...(this.#queued.get(rootId) ?? []), delivery])
+    log.info('team message queued', { sessionId: rootId, agentId: delivery.agentId })
+  }
+
+  /** 有子代理结束（或解散）后：按顺序送达排队的消息，直到并行上限。 */
+  #flush(rootId: string): void {
+    const queue = this.#queued.get(rootId)
+    if (!queue || queue.length === 0) return
+    this.#queued.delete(rootId)
+    for (const delivery of queue)
+      void this.deliverMessage(rootId, delivery).catch((error: unknown) =>
+        log.warn('queued team message not delivered', { sessionId: rootId, agentId: delivery.agentId, error: errorMessage(error) }),
+      )
+  }
+
+  /** 已结束的子代理开始新的 Run（继续对话）：用量按 triggerRunId 归属 Goal；没能开始时记为 failed。 */
+  async #continue(live: LiveSubagent, delivery: ChildDelivery): Promise<void> {
+    rearmLiveSubagent(live, delivery.triggerRunId)
+    const entries = await this.#options.store.sessions.listEntries(live.rootId)
+    const goal = currentGoal(entries)
+    const inGoal = goal && !isTerminalPhase(goal.phase) && delivery.triggerRunId !== undefined && goalRunIds(entries, goal.id).has(delivery.triggerRunId)
+    if (inGoal) live.goalId = goal.id
+    else delete live.goalId
+    this.#notes.watch(live)
+    this.#teams?.changed(live.rootId)
+    try {
+      const input = { text: delivery.text, content: [{ type: 'text' as const, text: delivery.text }], before: delivery.before }
+      const { runId } = await this.#sessions.startRun(live.agentId, {
+        trigger: 'subagent',
+        input,
+        ...(delivery.triggerRunId ? { triggerRunId: delivery.triggerRunId } : {}),
+      })
+      live.runId = runId
+      log.info('subagent continued', { sessionId: live.rootId, agentId: live.agentId, ...(live.name ? { name: live.name } : {}) })
+    } catch (error) {
+      log.warn('subagent continuation did not start', { agentId: live.agentId, error: errorMessage(error) })
+      await this.#finish(live, undefined)
+    }
+  }
+
+  /** 重启后（不在进程内）的子代理：从 agent_start 与子 Session 的 subagent_origin 恢复定义与工具（不改条目）。 */
+  async #revive(rootId: string, agentId: string): Promise<LiveSubagent | undefined> {
+    const { store } = this.#options
+    const entries = await store.sessions.listEntries(rootId)
+    const start = agentStarts(entries).find((e) => e.payload.agentId === agentId)
+    if (!start) return undefined
+    const root = await store.sessions.getSession(rootId)
+    const origin = (await store.sessions.listEntries(agentId, { limit: 1 }))[0]
+    if (!root || origin?.kind !== 'subagent_origin') return undefined
+    if (this.#live.has(agentId)) return this.#live.get(agentId)
+    const saved = (origin.payload as unknown as SubagentOriginPayload).definition
+    const scope = await this.#sessions.scope(root)
+    const { definitions } = await this.catalog(scope.cwd, scope.plugins.agentRoots)
+    const found = definitions.find((d) => d.name === saved.name)
+    const definition = {
+      ...(found ?? { name: saved.name, description: '', source: saved.source, disallowedTools: [], prompt: '' }),
+      maxTurns: saved.maxTurns,
+      ...(saved.permissionMode ? { permissionMode: saved.permissionMode } : {}),
+    }
+    const payload: AgentStartPayload = start.payload
+    const worktree = payload.isolation ? await store.worktrees.get(payload.isolation.worktreeId) : undefined
+    const live = newLiveSubagent({
+      agentId,
+      rootId,
+      parentRunId: start.runId ?? '',
+      toolCallId: payload.toolCallId,
+      definition,
+      tools: [...saved.tools],
+      description: payload.description,
+      background: true,
+      startedAt: start.createdAt,
+      ...(payload.isolation && worktree?.status === 'active' ? { worktreeId: payload.isolation.worktreeId, worktreePath: payload.isolation.path } : {}),
+      ...(payload.name ? { name: payload.name } : {}),
+    })
+    const ends = entries.filter((e) => e.kind === 'agent_end' && (e.payload as { agentId?: string }).agentId === agentId)
+    live.status = ((ends.at(-1)?.payload as { status?: AgentOutcome['status'] } | undefined)?.status ?? 'interrupted') as LiveSubagent['status']
+    live.observed = true
+    this.#live.set(agentId, live)
+    return live
+  }
+
+  /**
+   * 解散 teammate（agent_cancel，ADR 0018）：运行中先 abort 并等待该 Run 结束，再提交 agent_end { status: dismissed }；isolation worktree 没有改动时
+   * 移除、有改动时保留并注明；排队给它的消息丢弃。已解散的为 agent-not-reachable。
+   */
+  async dismiss(rootId: string, ref: string): Promise<AgentOutcome> {
+    const member = await this.#member(rootId, ref)
+    if (!member) throw new Error(`No teammate ${ref} in this team`)
+    const live = this.#live.get(member.agentId)
+    if (live?.status === 'dismissed' || (!live && member.lastEnd?.status === 'dismissed'))
+      throw new TeamMessageError('agent-not-reachable', `Teammate ${member.name} was already dismissed`)
+    this.#queued.set(
+      rootId,
+      (this.#queued.get(rootId) ?? []).filter((d) => d.agentId !== member.agentId),
+    )
+    if (live?.status === 'running') {
+      live.observed = true
+      await this.#sessions.abort(live.agentId)
+      await live.ended
+    }
+    // worktree 已在之前回收（进程内记录已去掉）时不再处理 isolation；否则按 agent_start 的 isolation 回收或保留。
+    const { isolation: _isolation, ...withoutIsolation } = member.start
+    const start: AgentStartPayload = live && !live.worktreeId ? withoutIsolation : member.start
+    const outcome = await this.#recovery.dismissed(rootId, start, this.#sessions.activeRunId(rootId))
+    if (live) {
+      live.status = 'dismissed'
+      live.outcome = outcome
+      live.observed = true
+      live.unsubscribe?.()
+    }
+    log.info('teammate dismissed', { sessionId: rootId, agentId: member.agentId, name: member.name })
+    this.#teams?.changed(rootId)
+    this.#flush(rootId)
+    return outcome
   }
 
   // ---- 用户的动作（HTTP）与 Goal ----

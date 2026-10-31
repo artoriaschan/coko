@@ -35,9 +35,13 @@ export interface AgentStartRequest {
   model?: string
   background: boolean
   isolation?: 'worktree'
+  /** teammate 的名字（ADR 0018）：带 name 时创建 teammate（必为后台）。 */
+  name?: string
 }
 
-export type AgentStarted = { kind: 'background'; agentId: string; agentType: string; description: string } | { kind: 'foreground'; outcome: AgentOutcome }
+export type AgentStarted =
+  | { kind: 'background'; agentId: string; agentType: string; description: string; name?: string }
+  | { kind: 'foreground'; outcome: AgentOutcome }
 
 /** agent_wait 的一项：结束的带 outcome。 */
 export type AgentWaitItem = { agentId: string; agentType: string; description: string; status: 'running' } | { status: AgentEndStatus; outcome: AgentOutcome }
@@ -87,8 +91,10 @@ export function agentNotificationText(outcome: AgentOutcome): { text: string; in
   return { text: `${head}\n${summary}${detail}${worktreeNote(outcome)}\n</agent-notification>`, inlined }
 }
 
-export const agentStartedText = (started: { agentId: string; agentType: string; description: string }) =>
-  `Started subagent ${started.agentId} (${started.agentType}): ${started.description}. Wait with agent_wait.`
+export const agentStartedText = (started: { agentId: string; agentType: string; description: string; name?: string }) =>
+  started.name
+    ? `Started teammate ${started.name} (${started.agentId}, ${started.agentType}): ${started.description}. Message it with send_message; you are notified when it goes idle.`
+    : `Started subagent ${started.agentId} (${started.agentType}): ${started.description}. Wait with agent_wait.`
 
 /**
  * 重启后父级被中断的 agent 调用的结果（不进入结果确认）。子代理可能已经改动了文件：不说"可以重试"，先查看子 Session 再决定是否重派。
@@ -109,6 +115,9 @@ export const agentParameters = Type.Object({
   model: Type.Optional(Type.String({ minLength: 1, description: '<providerId>/<modelId>; default: the definition, then this session' })),
   run_in_background: Type.Optional(Type.Boolean({ description: 'Return immediately; you are notified when it ends' })),
   isolation: Type.Optional(Type.Literal('worktree', { description: 'Run in a new git worktree of this repository' })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 32, description: 'Create a named teammate (always in the background) that stays reachable with send_message' }),
+  ),
 })
 
 const failed = (status: AgentEndStatus) => status !== 'completed'
@@ -128,15 +137,17 @@ export function createAgentTool(port: SubagentsPort): CokoTool<typeof agentParam
     timeoutMs: 0,
     permissionSubject: (args) => args.subagent_type ?? 'general',
     async execute(toolCallId, args, signal) {
+      if (args.name && args.run_in_background === false) throw new Error('A teammate (name) always runs in the background; omit run_in_background')
       const started = await port.start(
         {
           toolCallId,
           description: args.description,
           prompt: args.prompt,
           subagentType: args.subagent_type ?? 'general',
-          background: args.run_in_background === true,
+          background: args.run_in_background === true || args.name !== undefined,
           ...(args.model ? { model: args.model } : {}),
           ...(args.isolation ? { isolation: args.isolation } : {}),
+          ...(args.name ? { name: args.name } : {}),
         },
         signal,
       )

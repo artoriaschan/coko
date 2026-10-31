@@ -58,8 +58,8 @@ export type * from './types.ts'
 const log = getLogger(['application', 'context'])
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → todo → 子代理（子 Session 的 <subagent>）。 */
-const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo', 'subagents']
+/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → todo → 子代理（子 Session 的 <subagent>）→ 团队（teammate 的 <team>）。 */
+const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo', 'subagents', 'teams']
 /** 输入展开的顺序：命令 → File Reference。 */
 const EXPAND_ORDER = ['commands', 'references']
 
