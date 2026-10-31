@@ -211,10 +211,22 @@ describe('HandoffService.beforeRequest', () => {
     expect(h.goalChecks).toEqual([])
     // Goal 的下一轮在 handoff 条目提交之前开始。
     await h.commit(h.session.id, { kind: 'run_start', runId: 'r2', payload: { trigger: 'goal', goal: { goalId: 'g1', round: 1 } } })
+    // 屏障：beforeRequest 读完条目（之后才等待 pending.done）时放行断言，不用固定 sleep。
+    const listEntries = h.store.sessions.listEntries.bind(h.store.sessions)
+    let listed!: () => void
+    const read = new Promise<void>((r) => (listed = r))
+    h.store.sessions.listEntries = async (...args) => {
+      const entries = await listEntries(...args)
+      listed()
+      return entries
+    }
     let settled: unknown = 'pending'
     const verdict = h.service.beforeRequest(h.session.id, 'r2').then((v) => (settled = v))
-    await new Promise((r) => setTimeout(r, 10))
+    await read
+    for (let i = 0; i < 5; i++) await Promise.resolve()
+    h.store.sessions.listEntries = listEntries
     expect(settled).toBe('pending')
+    expect(h.goalChecks).toEqual([])
     await h.service.runEnded({ sessionId: h.session.id, runId: 'r1', trigger: 'handoff', result: completed('## Task') })
     await verdict
     expect(settled).toMatchObject({ code: 'budget_exhausted' })
