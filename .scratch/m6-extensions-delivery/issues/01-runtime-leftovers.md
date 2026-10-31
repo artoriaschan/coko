@@ -35,3 +35,6 @@
   - **秘密总闸。** 本票没有新增输出通道，SubagentStart 文本已在现有 requestLog 中扫描。没有新增读取根与注入点，所以不需要符号链接用例。
   - **文档。** hooks.md、subagents.md、worktrees.md、两份 README；`check:docs` 0 个问题。导航行与 TECH_STACK 不变。
   - **验证（merge main 8673d55 之后）。** `pnpm run typecheck` 0、`pnpm run lint` 0（0 warnings、0 errors）、`pnpm run format:check` 0、`pnpm run check:docs` 0（207 个文件，0 个问题）；在 /tmp/coko-full-test.lock 内运行 `pnpm run test`：test=0，315 个文件，2573 passed、1 skipped（2574），其中含全部 `secrets-gate*`。没有需要真实凭据的项。
+- 2026-10-31 lead：评审后合入 main（6212524）。接受越界：session-entries/hooks.ts 的 ignored、engine/types.ts 的 RunErrorCode、agents 的 narrowerMode 与 isSubagentExcludedTool、goals.ts 与 handoff.ts（S4、S5）、两个既有测试文件。接受做法：H4 在 WorktreeService 层以 deferred git 测（真实 Sidecar 没有可注入的接缝）；PreToolUse 的项目 allow 同样记为 ignored。合入后第一次全量在负载 82–92 下有 5 例失败（3 例超时、pty.test 的信号与 theme-switch 的颜色），5 个文件在正常负载下各连跑 3 次全部通过。main 上在全量测试锁内复核（dbad2c9，含票 01、02 与 m6/fix-job-kill-signal）：install、typecheck、lint、format:check 退出 0；全量 test 319 文件 2590 通过、1 跳过（真实模型），无页面重载、无未处理错误，运行期间没有其他全量重叠（负载最高约 80，来自本套件与本机其他进程）；check:docs 208 文件 0 问题。worktree 已清理。
+
+Closed: true

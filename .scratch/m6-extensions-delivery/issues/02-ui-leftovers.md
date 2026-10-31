@@ -34,3 +34,6 @@
   - **不适用项**：本票不新增输出通道、读取根或宿主注入的消息种类（通知的 kind 与文本在 M5 已有，本票只在接收侧断言），所以没有新增 secrets-gate 用例与符号链接用例；不新增依赖。
   - **越出 Write scope**：`features/right-panel/agents-tab.tsx`（AgentTimeline 返回 release，否则子时间线的订阅仍不释放）、`features/settings/schedules-section.tsx`（DeleteScheduleDialog 的另一个调用方加 key）、`app/app.browser.test.tsx`（390 px 用例，需要整个 App 的输入区控件才能复现）。都在 `apps/desktop/src/renderer/` 内。`packages/ui/src/composer/composer-editor.tsx` 在"占位符样式需要共享组件改动时"的允许范围内。
   - **文档**：`docs/subsystems/subagents.md` 的"验证"一行补充冒泡用例的订阅释放与新 E2E。没有导航行或导出需要 Lead 合并。
+- 2026-10-31 lead：评审后合入 main（d7608ba）。接受越界：agents-tab.tsx、schedules-section.tsx 的 key、app.browser.test.tsx 的 390 px 用例；useReloadOnEntryCount 多一个 sessionId 参数。390 px 下编辑区约 81 px、只显示"Give C…"——输入区控件布局记入 M6 复盘的遗留项。main 上在全量测试锁内复核（dbad2c9，含票 01、02 与 m6/fix-job-kill-signal）：install、typecheck、lint、format:check 退出 0；全量 test 319 文件 2590 通过、1 跳过（真实模型），无页面重载、无未处理错误，运行期间没有其他全量重叠（负载最高约 80，来自本套件与本机其他进程）；check:docs 208 文件 0 问题。worktree 已清理。
+
+Closed: true
