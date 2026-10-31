@@ -29,7 +29,7 @@ Session 中一条已提交、不可修改的记录，例如用户消息、模型
 _Avoid_: event、record、message（泛指时）
 
 **Run**：
-从一次用户提交、重试、继续、Goal Round、定时任务到期或子代理派发开始，到 Agent 停止为止的一次执行。
+从一次用户提交、重试、继续、Goal Round、定时任务到期、子代理派发或 Teammate 收到消息开始，到 Agent 停止为止的一次执行；Headless Run 中的提交同样开始一个 Run。
 _Avoid_: turn（turn 指一次模型请求与其工具调用）
 
 **Steering**：
@@ -136,7 +136,7 @@ _Avoid_: proposal、spec
 
 **Todo List**：
 Agent 为当前 Session 维护的一张可见步骤清单，每次整体替换。
-_Avoid_: task list、checklist、Task（Task 留给多代理共享的任务）
+_Avoid_: task list、checklist、Team Task（Team Task 是团队共享、带负责人的任务）
 
 **Background Job**：
 在 Run 之外继续运行、输出可随时读取或停止的命令，属于发起它的 Session。
@@ -145,8 +145,8 @@ _Avoid_: task、daemon、background process
 ## 多代理与调度
 
 **Subagent**：
-Agent 在 Run 中派发、在独立的子 Session 中执行一段工作并把结论交回的代理；权限不宽于派发它的 Session。
-_Avoid_: worker、child agent、teammate（teammate 留给 Agent Teams）
+Agent 在 Run 中派发、在独立的子 Session 中执行一段工作并把结论交回的代理；权限不宽于派发它的 Session，结束后可以经消息继续对话。
+_Avoid_: worker、child agent、Teammate（Teammate 是带名字、长期保留的团队成员）
 
 **Subagent Definition**：
 描述一类 Subagent 的角色提示、可用工具、模型与权限上限的条目，内置或由用户以文件编写。
@@ -160,9 +160,35 @@ _Avoid_: callback、trigger、plugin
 绑定一个 Session、在一次性时刻、固定间隔或 cron 时刻到期时在该 Session 中开始 Run 的定时任务。
 _Avoid_: cron job、reminder、automation（泛指时）
 
+**Agent Team**：
+一个根 Session 的 Agent（lead）与它创建的 Teammate 组成的协作单位，共享一张任务板并互相发消息；团队就是该根 Session，不另有实体。
+_Avoid_: swarm、crew、group
+
+**Teammate**：
+Agent Team 中带名字、Run 结束后仍保留、可以再接收消息的 Subagent。
+_Avoid_: worker、member（泛指时）、helper
+
+**Team Task**：
+Agent Team 任务板上的一项工作，带负责人、前置任务与修订号，成员认领后独占。
+_Avoid_: todo、ticket、job
+
 **Worktree**：
 Workspace 所在 git 仓库的另一个检出目录，带自己的分支，供 Session 隔离地工作。
 _Avoid_: checkout、branch（分支只是其一部分）
+
+## 扩展与交付
+
+**Plugin**：
+用户安装的一组资源（Skills、命令、Subagent Definition、Hook、MCP Server 与语言服务器声明），按其会执行的内容整体批准后启用，不含在 Coko 进程内运行的代码。
+_Avoid_: extension、package、add-on
+
+**Headless Run**：
+不经桌面界面、由命令行入口提交并输出结构化结果的 Run；其中的审批请求没有人回答，被自动拒绝。
+_Avoid_: CLI mode、batch run、print mode
+
+**Eval Case**：
+一个带初始 Workspace、提示与按文件结果判定的期望的回归评测用例。
+_Avoid_: benchmark、test fixture（泛指时）
 
 ## 工具
 
