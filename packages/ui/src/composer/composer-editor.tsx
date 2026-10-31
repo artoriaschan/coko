@@ -106,9 +106,11 @@ export function ComposerEditor({
               aria-multiline
               aria-placeholder={placeholder}
               placeholder={
+                // 单行：编辑区很窄（390 px 窗口中与模型、模式选择并排）时以省略号截断，不逐词换行；全文在 aria-placeholder 中。
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute top-2 left-3 text-ui-body-lg text-muted-foreground select-none pointer-coarse:text-ui-title"
+                  data-slot="composer-placeholder"
+                  className="pointer-events-none absolute top-2 right-3 left-3 truncate text-ui-body-lg text-muted-foreground select-none pointer-coarse:text-ui-title"
                 >
                   {placeholder}
                 </div>

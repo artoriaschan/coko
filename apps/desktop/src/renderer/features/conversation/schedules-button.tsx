@@ -1,5 +1,5 @@
 import type { Locale, Translator } from '@coko/i18n'
-import type { Schedule, ScheduleRule, ScheduleStatus, SessionEntry } from '@coko/protocol'
+import type { Schedule, ScheduleRule, ScheduleStatus } from '@coko/protocol'
 import { cn } from '@coko/ui'
 import { AlarmClockIcon } from 'lucide-react'
 import * as React from 'react'
@@ -7,7 +7,6 @@ import { useStore } from 'zustand'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
-import type { ChatStore } from '../../stores/chat-store.ts'
 import {
   ALL_SESSIONS,
   schedulesStore,
@@ -17,6 +16,7 @@ import {
   type SchedulesStore,
 } from '../../stores/schedules-store.ts'
 import type { HeaderActionProps } from './header-actions.ts'
+import { useReloadOnEntryCount } from './use-reload-on-entry-count.ts'
 
 // 定时任务视图共用的接线（docs/subsystems/schedules.md#界面）：schedules store 的 context（测试可换成自己的 store）、按会话与全部会话读取与订阅、
 // 规则与时间的本地化文案、状态点，以及会话标题栏的"定时任务"按钮。
@@ -33,21 +33,6 @@ export function useSchedules<T>(selector: (state: SchedulesState & SchedulesActi
   return useStore(useSchedulesStoreApi(), selector)
 }
 
-const EMPTY_ENTRIES: SessionEntry[] = []
-const fireCounts = new WeakMap<readonly SessionEntry[], number>()
-/** 会话中 schedule_fire 条目的数量：变化时（包括重连后补发）重新读取列表。 */
-function fireCount(entries: readonly SessionEntry[]): number {
-  let count = fireCounts.get(entries)
-  if (count === undefined) {
-    count = entries.reduce((n, e) => (e.kind === 'schedule_fire' ? n + 1 : n), 0)
-    fireCounts.set(entries, count)
-  }
-  return count
-}
-
-/** chat store 不在 provider 之内（组件测试）时使用的空来源。 */
-const noChat = { getState: () => undefined, subscribe: () => () => {} }
-
 /** 把 schedules store 接到对话 store 的 progress（schedule_update）。 */
 function useScheduleProgress(store: SchedulesStore) {
   const chat = useOptionalChatStoreApi()
@@ -58,13 +43,8 @@ function useScheduleProgress(store: SchedulesStore) {
 /** 会话的定时任务：打开会话与 schedule_fire 条目数变化时重新读取；之间由 schedule_update 进度更新。 */
 export function useSessionSchedules(sessionId: string | null): ScheduleList | undefined {
   const store = useSchedulesStoreApi()
-  const chat = useScheduleProgress(store)
-  const marker = React.useSyncExternalStore((chat ?? noChat).subscribe, () =>
-    fireCount((sessionId === null ? undefined : (chat as ChatStore | null)?.getState().conversations[sessionId]?.entries) ?? EMPTY_ENTRIES),
-  )
-  React.useEffect(() => {
-    if (sessionId !== null) void store.getState().load(sessionId)
-  }, [store, sessionId, marker])
+  useScheduleProgress(store)
+  useReloadOnEntryCount(sessionId, 'schedule_fire', store.getState().load)
   return useStore(store, (s) => (sessionId === null ? undefined : s.lists[sessionId]))
 }
 

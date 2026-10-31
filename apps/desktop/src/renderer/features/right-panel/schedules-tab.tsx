@@ -422,11 +422,11 @@ function ScheduleForm({ onClose, sessionId, schedule, onCreated }: ScheduleFormP
 
 // ---- 删除确认与行操作 ----
 
+/** 删除确认。提交状态属于这一个任务：调用方以 key={schedule?.id} 让换一个任务时重新挂载。 */
 export function DeleteScheduleDialog({ schedule, onClose }: { schedule: Schedule | null; onClose: () => void }) {
   const { t } = useI18n()
   const store = useSchedulesStoreApi()
   const [submitting, setSubmitting] = React.useState(false)
-  React.useEffect(() => setSubmitting(false), [schedule?.id])
   const confirm = async () => {
     if (!schedule) return
     setSubmitting(true)
@@ -694,7 +694,7 @@ export function SchedulesTab({ sessionId }: RightPanelTabProps) {
         schedule={form?.schedule}
         onCreated={(created) => select(created.id)}
       />
-      <DeleteScheduleDialog schedule={deleting} onClose={() => setDeleting(null)} />
+      <DeleteScheduleDialog key={deleting?.id} schedule={deleting} onClose={() => setDeleting(null)} />
     </div>
   )
 }

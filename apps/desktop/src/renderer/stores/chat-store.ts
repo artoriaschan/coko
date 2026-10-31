@@ -197,10 +197,11 @@ export interface ChatActions {
   load(): Promise<void>
   openSession(sessionId: string): void
   /**
-   * 订阅一个会话的条目而不切换当前会话（右栏 Agents tab 查看子 Session）：没有对话记录时建立并订阅，已有时不变。
-   * 返回订阅完成（subscribed 到达或超时）。
+   * 订阅一个会话的条目而不切换当前会话（右栏 Agents tab 查看子 Session、父会话接管子代理审批）：按引用计数，同一会话多次订阅只建立
+   * 一次 WebSocket 订阅；返回 release，最后一个 release 后退订并移除其对话记录。打开过的会话（openSession、草稿首条消息）始终保持订阅，
+   * release 不退订它。release 可重复调用，只生效一次。
    */
-  subscribeSession(sessionId: string): Promise<void>
+  subscribeSession(sessionId: string): () => void
   startDraft(workspaceId?: string): void
   /** 选择目录并登记；登记成功后在其中开始新会话草稿。 */
   addWorkspace(pickDirectory: () => Promise<string | null>): Promise<void>
@@ -301,6 +302,10 @@ export function titleFromText(text: string): string {
  */
 export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 10_000, forkTitle }: ChatStoreOptions): ChatStore {
   const subscribed = new Map<string, Set<() => void>>()
+  /** 打开过的会话：保持订阅直到 store 结束。 */
+  const pinned = new Set<string>()
+  /** subscribeSession 的持有数（按会话）。 */
+  const holders = new Map<string, number>()
   /** 已发出或已被接受的审批回答（requestId 唯一）。 */
   const answering = new Set<string>()
   /** 已发出或已被接受的结果确认（按 Session 与 toolCallId）。 */
@@ -335,6 +340,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     }
 
     const ensureConversation = (sessionId: string) => {
+      pinned.add(sessionId)
       if (get().conversations[sessionId]) return
       const running = get().sessions.find((s) => s.id === sessionId)?.running ?? false
       set((state) => ({ conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running, live: null } } }))
@@ -397,9 +403,28 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       },
 
       subscribeSession(sessionId) {
-        if (get().conversations[sessionId]) return Promise.resolve()
-        set((state) => ({ conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } } }))
-        return subscribe(sessionId)
+        holders.set(sessionId, (holders.get(sessionId) ?? 0) + 1)
+        if (!get().conversations[sessionId]) {
+          set((state) => ({
+            conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } },
+          }))
+          void subscribe(sessionId)
+        }
+        let released = false
+        return () => {
+          if (released) return
+          released = true
+          const left = (holders.get(sessionId) ?? 1) - 1
+          if (left > 0) return void holders.set(sessionId, left)
+          holders.delete(sessionId)
+          if (pinned.has(sessionId)) return
+          stream.send({ type: 'unsubscribe', sessionId })
+          for (const finish of subscribed.get(sessionId) ?? []) finish()
+          set((state) => {
+            const { [sessionId]: _removed, ...rest } = state.conversations
+            return { conversations: rest }
+          })
+        }
       },
 
       startDraft(workspaceId) {
@@ -444,6 +469,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         // 用户在等待期间切换到别处时不抢焦点。
         if (get().draftWorkspaceId === draftWorkspaceId && get().activeSessionId === null) set({ activeSessionId: session.id, draftWorkspaceId: null })
         // 先确认订阅再提交，使首个 Run 的进度不丢。
+        pinned.add(session.id)
         set((state) => ({
           conversations: { ...state.conversations, [session.id]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } },
         }))

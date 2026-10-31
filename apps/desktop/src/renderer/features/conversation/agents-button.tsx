@@ -13,6 +13,7 @@ import { agentsStore, isAgentRunning, type AgentsActions, type AgentsState, type
 import type { HeaderActionProps } from './header-actions.ts'
 import { formatJobDuration } from './jobs-button.tsx'
 import { formatCount } from './session-cost.tsx'
+import { useReloadOnEntryCount } from './use-reload-on-entry-count.ts'
 
 // 子代理视图共用的接线（docs/subsystems/subagents.md#界面）：agents store 的 context（测试可换成自己的 store）、按父会话读取与订阅、
 // 工具调用与子代理的对应（agent_start / agent_end 条目）、状态点与用量文案，以及会话标题栏的"子代理"按钮。
@@ -64,8 +65,8 @@ export function agentRecords(entries: readonly SessionEntry[]): AgentRecord[] {
   return list
 }
 
-/** 会话中 agent_start 与 agent_end 条目的数量：变化时（包括重连后补发）重新读取列表。 */
-const agentEntryCount = (entries: readonly SessionEntry[]) => agentRecords(entries).reduce((n, r) => n + (r.end ? 2 : 1), 0)
+/** 这些条目的数量变化时（包括重连后补发）重新读取列表。 */
+const AGENT_ENTRY_KINDS = ['agent_start', 'agent_end'] as const
 
 /**
  * 父会话的子代理列表：把 agents store 接到对话 store 的 progress（agent_update），打开会话与子代理条目数变化时重新读取。
@@ -74,10 +75,7 @@ export function useSessionAgents(sessionId: string | null): SessionAgents | unde
   const store = useAgentsStoreApi()
   const chat = useOptionalChatStoreApi()
   React.useEffect(() => (chat ? store.getState().attach(chat.getState()) : undefined), [chat, store])
-  const marker = useStore(chat ?? noChat, (s) => agentEntryCount((sessionId === null ? undefined : s.conversations[sessionId]?.entries) ?? EMPTY_ENTRIES))
-  React.useEffect(() => {
-    if (sessionId !== null) void store.getState().load(sessionId)
-  }, [store, sessionId, marker])
+  useReloadOnEntryCount(sessionId, AGENT_ENTRY_KINDS, store.getState().load)
   return useStore(store, (s) => (sessionId === null ? undefined : s.sessions[sessionId]))
 }
 
