@@ -27,6 +27,7 @@ import {
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
+import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
@@ -59,14 +60,10 @@ function withPending(input: RunInput, pending: PendingInput | undefined): RunInp
   return { ...input, content, ...(before.length > 0 ? { before } : {}) }
 }
 
-/** 提交前检查给出的上下文：作为 user message 中单独标注的文本块（排在输入之后）。 */
-export const SUBMIT_CONTEXT_TAG = 'hook-context'
+/** 提交前检查给出的上下文：作为 user message 中单独标注的文本块（排在输入之后，hookContextText）。 */
 function withSubmitContext(input: RunInput, context: string | undefined): RunInput {
   if (context === undefined) return input
-  const content = [
-    ...(input.content ?? [{ type: 'text' as const, text: input.text }]),
-    { type: 'text' as const, text: `<${SUBMIT_CONTEXT_TAG}>\n${context}\n</${SUBMIT_CONTEXT_TAG}>` },
-  ]
+  const content = [...(input.content ?? [{ type: 'text' as const, text: input.text }]), { type: 'text' as const, text: hookContextText(context) }]
   return { ...input, content }
 }
 

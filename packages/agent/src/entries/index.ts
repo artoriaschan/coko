@@ -10,7 +10,16 @@ export {
   unansweredConfirmations,
 } from './derive.ts'
 export type { EffectiveOptions } from './derive.ts'
-export { JOB_NOTIFICATION_TAG } from './job-notification.ts'
+export {
+  AGENT_NOTIFICATION_TAG,
+  HOOK_CONTEXT_TAG,
+  HOST_NOTIFICATION_KINDS,
+  hookContextText,
+  isHostBlockText,
+  isHostNotificationText,
+  JOB_NOTIFICATION_TAG,
+  SCHEDULED_TASK_TAG,
+} from './host-input.ts'
 // 定时任务的规则校验与预览（renderer 的表单与列表）：cron.ts 与 rules.ts 只用 Intl，导入守卫逐一核对它们的传递导入。
 export { CronError, isValidTimeZone } from '../tasks/schedules/cron.ts'
 export { parseAt, SCHEDULE_MIN_EVERY_SECONDS, ScheduleRuleError, upcomingOccurrences, validateRule } from '../tasks/schedules/rules.ts'

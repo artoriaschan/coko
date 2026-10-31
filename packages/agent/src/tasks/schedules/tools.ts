@@ -2,6 +2,7 @@
 // 提供）。权限类由宿主注册时给出：schedule_create / schedule_update 为 automation（规则组名 Schedule，只有 full-access 放行），schedule_list
 // 为 context-read，schedule_delete 为 session-state。定时任务触发的 Run 与子 Session 中不能创建或修改任务（schedulesAllowed）。
 import { Type, type Static } from 'typebox'
+import { SCHEDULED_TASK_TAG } from '../../entries/host-input.ts'
 import type { CokoTool } from '../../tools/types.ts'
 import { SCHEDULE_PROMPT_MAX_CHARS, SCHEDULE_TITLE_MAX_CHARS, ScheduleRuleError, type ScheduleRuleSpec } from './rules.ts'
 
@@ -66,12 +67,10 @@ export function schedulesAllowed(
 
 const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
-export const SCHEDULED_TASK_TAG = 'scheduled_task'
-
 /** 定时任务 Run 的输入文本：prompt 原文（不经命令展开）包在 <scheduled_task> 中；属性值转义。 */
 export function scheduledTaskText(schedule: { id: string; title: string; prompt: string }, occurrence: number): string {
   const attributes = `schedule-id="${escapeAttribute(schedule.id)}" title="${escapeAttribute(schedule.title)}" occurrence="${new Date(occurrence).toISOString()}"`
-  return `<${SCHEDULED_TASK_TAG} ${attributes}>${schedule.prompt}</${SCHEDULED_TASK_TAG}>`
+  return `${SCHEDULED_TASK_TAG} ${attributes}>${schedule.prompt}</scheduled_task>`
 }
 
 /** 规则的一行描述（工具结果与日志）。 */

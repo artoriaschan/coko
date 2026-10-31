@@ -29,6 +29,7 @@ import {
   type StopInfo,
   type SubagentsPort,
 } from '@coko/agent'
+import { hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretValues, redactText } from '@coko/logging'
 import { AGENT_ACTIVITY_SUMMARY_MAX, MAX_RUNNING_SUBAGENTS, type AgentDefinitionsResponse, type AgentSnapshot, type SessionModel } from '@coko/protocol'
 import type { Session as StoredSession, SessionEntry as StoredEntry, SessionStore } from '@coko/session'
@@ -439,10 +440,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     try {
       const child = await store.sessions.getSession(live.agentId)
       const context = await this.#subagentStart(child!, live)
-      const content = [
-        { type: 'text' as const, text: request.prompt },
-        ...(context ? [{ type: 'text' as const, text: `<hook-context>\n${context}\n</hook-context>` }] : []),
-      ]
+      const content = [{ type: 'text' as const, text: request.prompt }, ...(context ? [{ type: 'text' as const, text: hookContextText(context) }] : [])]
       if (signal?.aborted && !request.background) throw new Error('aborted')
       const { runId } = await sessions.startRun(live.agentId, { trigger: 'subagent', input: { text: request.prompt, content } })
       live.runId = runId

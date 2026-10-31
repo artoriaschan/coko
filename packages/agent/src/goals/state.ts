@@ -1,5 +1,6 @@
 // Goal 的状态机（ADR 0011，docs/subsystems/goal.md）：快照与 revision、九阶段的转换表、创建与编辑的校验、完成证据与 Run 的授权。
 // 全部是纯函数：输入当前快照与条目（EntryLike），输出下一份快照或抛出 GoalError；宿主（apps/server application/goals.ts）负责加锁与提交。
+import { HOST_NOTIFICATION_KINDS } from '../entries/host-input.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalBudget, GoalCriterion, GoalEvidence, GoalPayload, GoalPhase } from '../session-entries/goals.ts'
 
@@ -390,7 +391,7 @@ export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
       skipFirst = false
       continue
     }
-    if (entries[i - 1]?.kind !== 'job_notification') return { kind: 'user' }
+    if (!HOST_NOTIFICATION_KINDS.has(entries[i - 1]?.kind ?? '')) return { kind: 'user' }
   }
   if (payload.trigger === 'goal' && payload.goal) return { kind: 'goal-round', goalId: payload.goal.goalId, round: payload.goal.round }
   return { kind: 'none' }
