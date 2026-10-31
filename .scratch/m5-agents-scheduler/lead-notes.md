@@ -13,3 +13,4 @@
 - 2026-10-31：票 07、10 的 MERGE-READY 后各先回复了"OK"；main 变红（sidecar-handoff）时又回复了一次。sidecar-handoff 的失败不是负载：停止早于第一次请求时被忽略，所有 Run 都有这个窗口。票 09 实施者两次指出 lead 的问题（390px 溢出、锁脚本的 PID 行）——后者是 lead 用 String.replace 插入规则时把 `$$` 替换成了 `$`。
 - 2026-10-31：票 09 的 BLOCKED 报告后、修 configuration.md 的过程中，lead 两次中途回复"OK"而没有继续。
 - 2026-10-31：标题栏修复的实施者没有报告就结束，lead 读提交与票 Comments 后验证、提交剩余的焦点修复并合入。之后 main 连续三次全量各有 1 例 Browser Mode 或导入用例超时，都不是重叠（overlap-max=0）而是本套件自身的负载（约 40）：先逐个加预算，第二个文件失败后改为项目级 testTimeout。教训同 M4：先确认失败签名是否同一类，同一类的按配置处理，不按文件修补。本轮多次在中途回复"OK"。
+- 2026-10-31：fix-goal-hook-stopped 的 MERGE-READY 后合入复核通过，lead 又回复了一次"OK"才关闭。

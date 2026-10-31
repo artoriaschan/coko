@@ -46,3 +46,4 @@
   - 越出 Write scope：无（goals.ts、protocol goal.ts、i18n goal 域、goal.md 均为 lead 指定）。符号链接与秘密总闸：不适用，没有新的读取根或输出通道（reason.message 复用已脱敏的 stopReason）。
 
 Closed: true
+- 2026-10-31 lead：m5/fix-goal-hook-stopped 合入 main（7a5419b）。确认实施者的取舍：规则不区分 trigger，与 user-stopped 一致——Goal 为 running 时，任何被 Hook 以 continue: false 停下的 Run 都使 Goal 进入 paused（hook-stopped），否则 Goal 会停在 running 不推进。main 上在全量测试锁内复核：install、typecheck、lint、format:check 退出 0；全量 test 309 文件 2521 通过、1 跳过（真实模型），无页面重载、无未处理错误，运行期间没有其他全量重叠；check:docs 181 文件 0 问题。
