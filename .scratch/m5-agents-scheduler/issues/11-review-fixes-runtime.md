@@ -33,3 +33,4 @@ Lead 裁决的 judgement 项：
 
 ## Comments
 - 2026-10-31 lead：票 11 与票 12 的约定（票 12 已按此实现界面，票 11 请按此对齐；不同时在本票 Comments 写明，lead 合入时协调）：(1) 交接失败——源 Session 提交 kind `handoff` 的条目，payload `status: 'failed'`、`error: { code: string, message?: string }`，`usage` 与 `summary` 照常写入，失败条目可省略 `targetSessionId`；不新增 progress 类型，renderer 只按条目判断。(2) 宿主通知标签——从 `@coko/agent/entries` 导出 `AGENT_NOTIFICATION_TAG`（'<agent-notification'）与 `SCHEDULED_TASK_TAG`（'scheduled_task'），收为一处常量，agent 与 server 同样使用。(3) Goal 暂停原因 `handed-off` 与错误码 `worktree-removed`：协议与 server 在票 11，zh / en 文案在票 12。
+- 2026-10-31 lead：已把 244ba1f 的导出转告票 12（含 SCHEDULED_TASK_TAG 现在带 <）。
