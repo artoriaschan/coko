@@ -43,7 +43,12 @@ describe('审批冒泡', () => {
   it('父会话与两个子代理的请求按时间顺序接管输入区；子代理的卡片标出来源，回答发往子 Session；草稿不丢', async () => {
     const fixture = createFixtureChat({ entries: { 's-2': [], 'child-a': [], 'child-b': [] } })
     const parentAnswers: { sessionId: string; requestId: string; answer: AnswerApprovalRequest }[] = []
-    fixture.api.answerApproval = async (sessionId, requestId, answer) => void parentAnswers.push({ sessionId, requestId, answer })
+    // fixture 的 answerApproval 不读参数；这里换成记录参数的实现（与 ApiClient 的签名相同）。
+    ;(fixture.api as { answerApproval: (sessionId: string, requestId: string, answer: AnswerApprovalRequest) => Promise<undefined> }).answerApproval = async (
+      sessionId,
+      requestId,
+      answer,
+    ) => void parentAnswers.push({ sessionId, requestId, answer })
     const childAnswers: { sessionId: string; requestId: string; answer: AnswerApprovalRequest }[] = []
     const agents = createAgentsStore({
       list: async (sessionId) => (sessionId === 's-2' ? [running('child-a', 'general', 'write docs'), running('child-b', 'explore', 'scan repo')] : []),
