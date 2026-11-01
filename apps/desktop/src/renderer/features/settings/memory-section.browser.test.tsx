@@ -19,6 +19,7 @@ const memory = (id: string, content: string): MemoryEntry => ({ id, scope: 'user
 const all = [memory('a', 'Prefers tabs'), memory('b', 'Uses docker compose')]
 
 afterEach(async () => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   memoryStore.setState({ query: '', memories: [], status: 'idle', workspaceId: null })
 })
@@ -64,7 +65,14 @@ it('搜索框：防抖后检索一次、没有结果的提示、清空恢复列�
 
   const search = region.getByRole('searchbox', { name: 'Search memories' })
   await search.click()
+  // 只替换页面的 setTimeout：按键间隔不再受负载影响，防抖只在推进时钟时到期（expect.poll 用 vitest 保存的真实计时器）。
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   await userEvent.keyboard('docker')
+  await expect.element(search).toHaveValue('docker')
+  vi.advanceTimersByTime(199)
+  expect(requests.slice(listRequests)).toEqual([])
+  vi.advanceTimersByTime(1)
+  vi.useRealTimers()
   await expect.poll(items).toEqual(['b'])
   // 连续输入 6 个字符只发出一次检索，带完整的词。
   expect(requests.slice(listRequests)).toEqual(['/api/memories?query=docker&workspaceId=w-coko'])
