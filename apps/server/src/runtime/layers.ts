@@ -659,8 +659,8 @@ const AppLive = Layer.effect(
     // ── end teams ──
 
     // ── trace ──
-    // 追踪、审计与导出：由已提交的条目派生（model_request 由运行时提交）。
-    const trace = new TraceService({ store })
+    // 追踪、审计与导出：由已提交的条目派生（model_request 由运行时提交）；导出的 exportedAt 取 Sidecar 的时钟（测试时钟可控）。
+    const trace = new TraceService({ store, now: () => clock.now() })
     // ── end trace ──
 
     // ── memory ──

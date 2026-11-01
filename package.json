@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "check:docs": "node scripts/check-docs.ts",
+    "eval": "vitest run --project evals",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint",

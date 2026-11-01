@@ -1,0 +1,41 @@
+{
+  "prompt": "add() in math.mjs returns the wrong result. Fix it, then run `node check.mjs` and make sure it passes. Do not change check.mjs.",
+  "faux": [
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "write",
+          "id": "w1",
+          "arguments": {
+            "path": "math.mjs",
+            "content": "export function add(a, b) {\n  return a + b\n}\n"
+          }
+        }
+      ]
+    },
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "bash",
+          "id": "b1",
+          "arguments": {
+            "command": "node check.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "content": "Fixed add() and the check passes."
+    }
+  ],
+  "expect": {
+    "files": {
+      "math.mjs": "/return a \\+ b/",
+      "check.ok": "ok\n"
+    },
+    "unchanged": ["check.mjs"],
+    "maxToolCalls": 6
+  }
+}

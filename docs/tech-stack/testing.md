@@ -18,6 +18,8 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 
 发布构建（不带 `COKO_TEST_BUILD`）的产物 E2E 是单独的 Vitest 项目 `desktop-release`（`apps/desktop/vitest.release.config.ts`），只在 `COKO_RELEASE_E2E=1` 时选中用例；未设置时选中 0 个文件、不打包，默认的 `pnpm run test` 不受影响。它的 globalSetup 以 `COKO_FORGE_OUT_DIR=out-release` 运行 `pnpm run make`，与测试构建的 `out/` 分开；因为会再打一次包，在全量测试锁内运行。发布构建忽略后台模式，用例以 `open -g -n` 启动应用（不激活）并经 CDP 连接，进程号从 CDP 的 `SystemInfo.getProcessInfo` 读取，只结束这些进程。对手用例：带 `COKO_FAUX_SCRIPT`、`COKO_TEST_CLOCK`、`COKO_E2E_BACKGROUND`、`COKO_TEST_UPDATE_FEED_URL` 启动时没有 Provider、日志 `test hooks ignored in a packaged build` 列出这些名字、`POST /api/test/clock` 404、测试更新源收不到请求且 `auto update disabled { reason: no-feed }`、随包 ripgrep 与 node-pty 被加载；dmg 经 `hdiutil attach -readonly -nobrowse` 挂载后有 `Coko.app`，记录 `codesign --verify` 的结果（adhoc，不断言 Developer ID）后卸载。当前做法见 [安装包、自动更新与发布构建](../subsystems/delivery.md)。
 
+回归评测是 Vitest 项目 `evals`（`tests/evals/vitest.config.ts`），随 `pnpm run test` 运行，`pnpm run eval` 只运行它。每个 Eval Case 为 `cases/<name>/` 中的 `case.json`（提示、权限模式、faux 脚本与期望）与初始 `workspace/`；运行器复用集成测试的 sidecar-harness 启动真实 Sidecar，在临时目录中运行后只按外部事实判定（文件内容、应不变的文件、工具调用数与 Run 状态），报告写到 git 忽略的 `tests/evals/reports/<ISO>.json`（每例 pass / fail、原因、tokens、cost、durationMs）。默认只跑 faux；`COKO_EVAL_PROVIDER_CONFIG` 与对应的 `COKO_CREDENTIAL_<ID>` 都存在时同一组用例另用真实模型运行，缺一时报告记 `skipped: no-credentials`，按上文“真实模型测试单独报告”列为未验证。用例格式与真实模式见 [追踪、审计、导出与评测](../subsystems/tracing.md#评测)。
+
 ## 测试用例生成与维护
 
 新增功能、修复缺陷或改变已有行为时，按以下规则设计测试；框架版本见 [技术栈](../TECH_STACK.md#代码质量与测试工具)，运行时遵循下文“运行与编排”，测试位置遵循 [构建与测试归属](architecture.md#构建与测试归属)。
