@@ -245,6 +245,11 @@ export interface RuntimePermissions {
   readRoots?: () => readonly string[]
   /** 外部 Hook 的 PreToolUse / PermissionRequest（ADR 0013）；缺省无。 */
   hooks?: PermissionHookPort
+  /**
+   * No one can answer approvals (headless runs, ADR 0019): a call that needs approval is denied right after the PermissionRequest
+   * hooks, recorded as approval_decision { outcome: denied, by: headless }; the model sees `deniedText` and the Run continues.
+   */
+  unattended?: { deniedText: string }
 }
 
 export interface AgentRuntime {
