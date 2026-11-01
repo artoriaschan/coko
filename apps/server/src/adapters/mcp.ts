@@ -5,7 +5,7 @@
 // 传输关闭后释放。
 import { resolve } from 'node:path'
 import { filterEnv, type McpServerConfig, type McpTransportHandle } from '@coko/agent'
-import { StdioTransport, StreamableHttpTransport } from '@earendil-works/pi-mcp'
+import { StdioTransport, StreamableHttpTransport, type AuthProvider } from '@earendil-works/pi-mcp'
 import { HOST_ENV_EXCLUSIONS } from './credentials.ts'
 
 export interface McpTransportOptions {
@@ -15,6 +15,8 @@ export interface McpTransportOptions {
   env: Readonly<Record<string, string | undefined>>
   /** stdio Server 启动后调用（pid 与可执行文件），返回的函数在传输关闭后调用一次。 */
   onProcess?: (process: { pid: number; command: string }) => () => void
+  /** HTTP：连接给出的 authProvider（401 时连接进入 auth-required）；stdio 不用。 */
+  authProvider?: AuthProvider
 }
 
 /** 启动成功后报告 pid、关闭后释放的 stdio 传输。 */
@@ -39,7 +41,14 @@ class TrackedStdioTransport extends StdioTransport {
 }
 
 export function createMcpTransport(config: McpServerConfig, options: McpTransportOptions): McpTransportHandle {
-  if ('url' in config) return { transport: new StreamableHttpTransport({ url: config.url, ...(config.headers ? { headers: config.headers } : {}) }) }
+  if ('url' in config)
+    return {
+      transport: new StreamableHttpTransport({
+        url: config.url,
+        ...(config.headers ? { headers: config.headers } : {}),
+        ...(options.authProvider ? { authProvider: options.authProvider } : {}),
+      }),
+    }
   const env: Record<string, string> = {}
   for (const [name, value] of Object.entries(filterEnv(options.env, HOST_ENV_EXCLUSIONS))) if (value !== undefined) env[name] = value
   Object.assign(env, config.env)

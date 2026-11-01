@@ -1,4 +1,4 @@
-// MCP Server：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
+// MCP Server：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect、GET /api/mcp/presets。
 // 配置的逐项校验在 @coko/agent 的 extensions/mcp/config.ts，
 // 这里只约束外形（坏项由 Sidecar 以 400 拒绝并写明原因）。
 import { Type, type Static } from 'typebox'
@@ -119,6 +119,23 @@ export type McpApprovalRequest = Static<typeof McpApprovalRequest>
 export const McpReconnectRequest = Type.Object({ workspaceId: Type.String({ minLength: 1 }), name: Type.String({ minLength: 1 }) }, strict)
 export type McpReconnectRequest = Static<typeof McpReconnectRequest>
 
+/**
+ * 一个 MCP 预设（GET /api/mcp/presets）：id 为稳定标识（界面按它取本地化的名称），name 为添加时的缺省 Server 名，label 为英文后备名称，
+ * config 为写入全局配置的 stdio 配置（经 PUT /api/mcp/servers 保存，与手动添加相同）。
+ */
+export const McpPreset = Type.Object(
+  {
+    id: Type.String({ minLength: 1 }),
+    name: Type.String({ minLength: 1 }),
+    label: Type.String(),
+    config: Type.Object({ command: Type.String({ minLength: 1 }), args: Type.Array(Type.String()) }, strict),
+  },
+  strict,
+)
+export type McpPreset = Static<typeof McpPreset>
+export const McpPresetsResponse = Type.Object({ presets: Type.Array(McpPreset) }, strict)
+export type McpPresetsResponse = Static<typeof McpPresetsResponse>
+
 export const mcpPaths = {
   /** GET ?workspaceId */
   mcp: '/api/mcp',
@@ -128,6 +145,6 @@ export const mcpPaths = {
   approvals: '/api/mcp/approvals',
   /** POST */
   reconnect: '/api/mcp/reconnect',
-  /** GET：预设（如 Playwright 浏览器），由浏览器预设接入。 */
+  /** GET：预设（如 Playwright 浏览器）→ McpPresetsResponse。 */
   presets: '/api/mcp/presets',
 } as const

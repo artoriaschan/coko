@@ -2,7 +2,7 @@
 // 可展开的技术详情中；删除 Secret 失败时 toast 只有本地化文案。fetch 在测试中替换（mcpStore 每次调用时取全局 fetch）。
 import '../../styles.css'
 import { afterEach, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
@@ -148,4 +148,117 @@ it('保存被拒绝与删除 Secret 失败：界面只显示本地化文案，�
   await dialog.element().querySelector<HTMLButtonElement>('[data-secret="MY_SERVICE_DSN"] button')!.click()
   await expect.element(page.getByText("Couldn't delete secret MY_SERVICE_DSN; try again later")).toBeVisible()
   expect(document.body.textContent).not.toContain(RAW_DELETE)
+})
+
+// 认证与浏览器预设（docs/subsystems/mcp.md#界面）：auth-required 的徽标（明暗主题对比度）、说明与"编辑请求头"（打开表单并聚焦 headers）、
+// 本地化的诊断；"添加浏览器"菜单从 /api/mcp/presets 读取，确认后经全局保存接口写入，名字冲突时提示改名（键盘完成）。
+const PRESET = {
+  id: 'playwright',
+  name: 'playwright',
+  label: 'Browser (Playwright)',
+  config: { command: 'npx', args: ['-y', '@playwright/mcp@0.0.83', '--isolated'] },
+}
+
+async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 'light') {
+  const puts: { servers: Record<string, unknown> }[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      if (input.startsWith('/api/mcp/presets')) return json(200, { presets: [PRESET] })
+      if (input.startsWith('/api/mcp/servers') && method === 'PUT') {
+        const body = JSON.parse(String(init!.body)) as { servers: Record<string, unknown> }
+        puts.push(body)
+        return json(200, { ...mcp, global: body.servers, globalRevision: 1 })
+      }
+      if (input.startsWith('/api/mcp')) return json(200, mcp)
+      if (input.startsWith('/api/secrets')) return json(200, { source: 'stored', secrets: [] })
+      return json(404, { error: { code: 'not-found', message: 'not found' } })
+    }),
+  )
+  const store = createAppearanceStore({ theme, locale: 'en' })
+  const { chat, settings } = createFixtureChat()
+  const settingsPage = createSettingsPageStore()
+  const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
+  await render(
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <App
+        store={store}
+        connection={createConnectionStore()}
+        chat={chat}
+        settings={settings}
+        preferences={preferences}
+        settingsPage={settingsPage}
+        pickDirectory={async () => null}
+      />
+    </div>,
+  )
+  settingsPage.open('mcp')
+  return { dialog: settingsRegion(), puts }
+}
+
+const AUTH_MCP = {
+  enabled: true,
+  servers: [
+    {
+      name: 'remote',
+      scope: 'global',
+      transport: 'http',
+      enabled: true,
+      status: 'auth-required',
+      error: 'MCP server "remote" requires authentication (HTTP 401)',
+      tools: [],
+    },
+  ],
+  global: { remote: { url: 'https://mcp.example/mcp', headers: { Authorization: 'Bearer ${OLD_TOKEN}' } } },
+  globalRevision: 3,
+  diagnostics: [{ source: 'mcp', code: 'mcp-auth-required', message: 'MCP server "remote" requires authentication: check the credentials' }],
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  it(`需要认证（${theme}）：徽标对比度 ≥ 4.5:1，说明与本地化诊断；"编辑请求头"打开表单并聚焦 headers`, async () => {
+    const { dialog } = await mountMcp(AUTH_MCP, theme)
+    const card = () => dialog.element().querySelector('[data-mcp-server="remote"]')!
+    await expect.element(dialog.getByText('Authentication required', { exact: true })).toBeVisible()
+    expect(contrastOf(card().querySelector('[data-mcp-status]')!)).toBeGreaterThanOrEqual(4.5)
+    expect(card().querySelector('[data-mcp-auth]')?.textContent).toContain('reference a registered secret as ${NAME}')
+    expect(dialog.element().querySelector('[data-diagnostic="mcp-auth-required"]')?.textContent).toContain('The server requires authentication')
+    const edit = page.elementLocator(card()).getByRole('button', { name: 'Edit headers' })
+    await edit.click()
+    const headers = dialog.element().querySelector<HTMLTextAreaElement>('[data-mcp-form] textarea[name="headers"]')!
+    await expect.poll(() => document.activeElement).toBe(headers)
+    expect(headers.value).toBe('Authorization: Bearer ${OLD_TOKEN}')
+  })
+}
+
+it('添加浏览器（键盘）：菜单列出预设 → 确认对话框显示完整命令 → 写入全局配置；名字冲突时提示改名，改名后保存', async () => {
+  const existing = { enabled: true, servers: [], global: { Playwright: { command: 'node', args: ['other.js'] } }, globalRevision: 1, diagnostics: [] }
+  const { dialog, puts } = await mountMcp(existing)
+  const trigger = dialog.getByRole('button', { name: 'Add browser' })
+  await expect.element(trigger).toBeEnabled()
+  trigger.element().focus()
+  await userEvent.keyboard('{Enter}')
+  const item = page.getByRole('menuitem', { name: 'Browser (Playwright)' })
+  await expect.element(item).toBeVisible()
+  await expect.poll(() => document.activeElement?.getAttribute('role')).toBe('menuitem')
+  await userEvent.keyboard('{Enter}')
+  const confirm = page.getByRole('dialog', { name: 'Add a browser' })
+  await expect.element(confirm).toBeVisible()
+  await expect.poll(() => document.querySelector('[role=menu]')).toBeNull()
+  expect(confirm.element().querySelector('[data-preset-command]')?.textContent).toBe('npx -y @playwright/mcp@0.0.83 --isolated')
+  const name = page.elementLocator(confirm.element()).getByLabelText('Name', { exact: true })
+  expect((name.element() as HTMLInputElement).value).toBe('playwright')
+
+  // 与已有的 Playwright 只差大小写：不保存，提示改名并回到名称输入框。
+  await page.elementLocator(confirm.element()).getByRole('button', { name: 'Add', exact: true }).click()
+  await expect
+    .element(page.elementLocator(confirm.element()).getByRole('alert'))
+    .toHaveTextContent('A server named playwright already exists; choose another name')
+  expect(puts).toEqual([])
+  await expect.poll(() => document.activeElement).toBe(name.element())
+  await name.fill('browser')
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => puts.length).toBe(1)
+  expect(puts[0]!.servers).toEqual({ Playwright: { command: 'node', args: ['other.js'] }, browser: PRESET.config })
+  await expect.poll(() => document.querySelector('[role=dialog]')).toBeNull()
 })

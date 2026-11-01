@@ -2,16 +2,29 @@
 // failed；连接超时 30 秒；连接后意外断开时按 1、2、4 秒退避自动重连至多 3 次，之后停在 failed，需手动 reconnect()。
 // 失败原因带 stderr 最后 20 行，经宿主给出的 redact 脱敏。tools/list_changed 时刷新工具；prompts / resources 的 list_changed 与每次
 // 建立连接时使 listRevision 前进（缓存列表的宿主据此刷新）。
+// 认证：HTTP 传输由宿主装配 authProvider（createTransport 的参数），401（或 403 insufficient_scope）时 onUnauthorized 立即结束该请求；
+// 连接或任一请求因此失败时状态为 auth-required，不按退避重连（修改配置或手动 reconnect() 后重试）。错误文本固定，不含响应体与
+// WWW-Authenticate（其中可能有令牌）。
 // Connection handling adapted in part from pi coding-agent 1.4.0 extensions/mcp/runtime.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { pathToFileURL } from 'node:url'
 import { basename } from 'node:path'
-import { McpClient, type CallToolResult, type McpRequestOptions, type McpTransport, type ServerCapabilities, type Tool } from '@earendil-works/pi-mcp'
+import {
+  McpAuthRequiredError,
+  McpClient,
+  McpHttpError,
+  type AuthProvider,
+  type CallToolResult,
+  type McpRequestOptions,
+  type McpTransport,
+  type ServerCapabilities,
+  type Tool,
+} from '@earendil-works/pi-mcp'
 
 export const MCP_CONNECT_TIMEOUT_MS = 30_000
 export const MCP_RECONNECT_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000]
 export const MCP_STDERR_TAIL_LINES = 20
 
-export type McpConnectionStatus = 'idle' | 'connecting' | 'connected' | 'failed'
+export type McpConnectionStatus = 'idle' | 'connecting' | 'connected' | 'failed' | 'auth-required'
 
 /** Lists the server can change (`notifications/<kind>/list_changed`). */
 export type McpListKind = 'prompts' | 'resources'
@@ -23,13 +36,29 @@ export interface McpTransportHandle {
   pid?: () => number | undefined
 }
 
+/** What the connection hands the host's transport factory. */
+export interface McpTransportContext {
+  /** No token of its own (credentials come from the configured headers); a 401 rejects the request with McpAuthRequiredError. */
+  authProvider: AuthProvider
+}
+
+/** A 401, or a 403 whose challenge asks for more scope: the server wants (other) credentials. */
+export function isMcpAuthError(error: unknown): boolean {
+  if (error instanceof McpAuthRequiredError) return true
+  if (error instanceof McpHttpError) return error.status === 401
+  return false
+}
+
 export interface McpConnectionOptions {
   /** Server name (diagnostics, tool names). */
   name: string
   /** Workspace directory, declared to the server as the only root. */
   root: string
-  /** Build the transport; may reject (for example a Secret is not registered), which fails the connection without retry. */
-  createTransport: () => McpTransportHandle | Promise<McpTransportHandle>
+  /**
+   * Build the transport; may reject (for example a Secret is not registered), which fails the connection without retry. An HTTP transport
+   * passes `authProvider` on, so a 401 ends the connection in auth-required at once (stdio ignores it).
+   */
+  createTransport: (context: McpTransportContext) => McpTransportHandle | Promise<McpTransportHandle>
   /** Default 30 000. */
   connectTimeoutMs?: number
   /** Default 1, 2, 4 seconds. */
@@ -42,6 +71,7 @@ export interface McpConnectionOptions {
 }
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const authMessage = (name: string) => `MCP server "${name}" requires authentication (HTTP 401)`
 
 function tail(text: string, lines: number): string | undefined {
   const trimmed = text.trimEnd()
@@ -157,7 +187,9 @@ export class McpConnection {
     const client = this.#client
     if (!client || this.#status !== 'connected') throw new Error(`MCP server "${this.name}" is not connected (${this.#status})`)
     const { meta, ...requestOptions } = options
-    const result = await client.request<unknown>('tools/call', { name, arguments: args, ...(meta ? { _meta: meta } : {}) }, requestOptions)
+    const result = await this.#guard(client, () =>
+      client.request<unknown>('tools/call', { name, arguments: args, ...(meta ? { _meta: meta } : {}) }, requestOptions),
+    )
     if (typeof result !== 'object' || result === null || ('content' in result && !Array.isArray((result as { content: unknown }).content)))
       throw new Error(`MCP server "${this.name}" returned an invalid tools/call result`)
     const value = result as Partial<CallToolResult>
@@ -168,7 +200,32 @@ export class McpConnection {
   async request<T = unknown>(method: string, params?: Record<string, unknown>, options: McpRequestOptions = {}): Promise<T> {
     const client = this.#client
     if (!client || this.#status !== 'connected') throw new Error(`MCP server "${this.name}" is not connected (${this.#status})`)
-    return client.request<T>(method, params, options)
+    return this.#guard(client, () => client.request<T>(method, params, options))
+  }
+
+  /** A request rejected for authentication puts the connection in auth-required; the caller sees a fixed message (no response text). */
+  async #guard<T>(client: McpClient, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run()
+    } catch (error) {
+      if (!isMcpAuthError(error)) throw error
+      void this.#authRequired(client)
+      throw new Error(authMessage(this.name))
+    }
+  }
+
+  /** The server asked for credentials while connected: close this client (no retry) and report auth-required. */
+  async #authRequired(client: McpClient): Promise<void> {
+    if (this.#client !== client) return
+    this.#client = undefined
+    this.#closedByUs.add(client)
+    this.#tools = []
+    this.#pid = undefined
+    this.#status = 'auth-required'
+    this.#error = authMessage(this.name)
+    this.#stderrTail = undefined
+    this.#changed()
+    await client.close().catch(() => undefined)
   }
 
   #bumpList(client: McpClient, kind: McpListKind): void {
@@ -189,8 +246,17 @@ export class McpConnection {
     })
     const timeoutMs = this.#options.connectTimeoutMs ?? MCP_CONNECT_TIMEOUT_MS
     let timer: NodeJS.Timeout | undefined
+    // onUnauthorized ends the rejected request at once (no second attempt with the same headers). While connected, a request's rejection
+    // reaches #guard first; requests without a caller (the server-to-client stream) close the client on the next tick.
+    const authProvider: AuthProvider = {
+      token: async () => undefined,
+      onUnauthorized: async ({ response }) => {
+        if (this.#client === client) setTimeout(() => void this.#authRequired(client), 0).unref?.()
+        throw new McpAuthRequiredError(response)
+      },
+    }
     try {
-      handle = await this.#options.createTransport()
+      handle = await this.#options.createTransport({ authProvider })
       const opened = (async () => {
         await client.connect(handle.transport)
         const tools = client.serverCapabilities?.tools ? await client.listTools() : []
@@ -222,10 +288,22 @@ export class McpConnection {
       this.#closedByUs.add(client)
       await client.close().catch(() => undefined)
       if (this.#shutdown) return
-      this.#fail(`${message(error)}`, handle)
+      if (isMcpAuthError(error)) this.#authFailed()
+      else this.#fail(`${message(error)}`, handle)
     } finally {
       clearTimeout(timer)
     }
+  }
+
+  /** Connecting was rejected for authentication: auth-required, no retry. */
+  #authFailed(): void {
+    this.#client = undefined
+    this.#tools = []
+    this.#pid = undefined
+    this.#status = 'auth-required'
+    this.#error = authMessage(this.name)
+    this.#stderrTail = undefined
+    this.#changed()
   }
 
   #fail(reason: string, handle: McpTransportHandle | undefined): void {

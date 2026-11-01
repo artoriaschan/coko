@@ -1,4 +1,5 @@
-// MCP 的 HTTP 视图与管理（docs/subsystems/mcp.md）：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect。
+// MCP 的 HTTP 视图与管理（docs/subsystems/mcp.md）：GET /api/mcp、PUT /api/mcp/servers、POST /api/mcp/approvals、POST /api/mcp/reconnect、
+// GET /api/mcp/presets（MCP_PRESETS）。
 // 连接池与运行时在 mcp.ts 的 McpManager；这里只读取配置、写设置并让 McpManager 关闭或建立受影响的连接。
 import { createMcpToolName, serverNamesConflict, transportOf, validateMcpServerConfig, type McpServerConfig } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -7,6 +8,8 @@ import {
   mcpApprovalsSettingKey,
   type McpApprovalRequest,
   type McpLaunchDetails,
+  type McpPreset,
+  type McpPresetsResponse,
   type McpResponse,
   type McpServerInfo,
   type UpdateMcpServersRequest,
@@ -22,6 +25,14 @@ function launchOf(config: McpServerConfig): McpLaunchDetails {
   if ('url' in config) return { url: config.url, ...(config.headers ? { headers: { ...config.headers } } : {}) }
   return { command: config.command, args: config.args ?? [], ...(config.cwd ? { cwd: config.cwd } : {}), ...(config.env ? { env: { ...config.env } } : {}) }
 }
+
+/**
+ * 预设：浏览器经 Playwright MCP（精确版本，经 npx 按需下载，不进 manifest；--isolated 使每次连接用临时的浏览器配置，不读写用户的浏览器
+ * 资料）。界面确认后经 PUT /api/mcp/servers 写入全局配置，之后与手动添加的 Server 相同（权限类 external，调用需审批）。
+ */
+export const MCP_PRESETS: readonly McpPreset[] = [
+  { id: 'playwright', name: 'playwright', label: 'Browser (Playwright)', config: { command: 'npx', args: ['-y', '@playwright/mcp@0.0.83', '--isolated'] } },
+]
 
 export class McpAdmin {
   readonly #store: SessionStore
@@ -65,7 +76,7 @@ export class McpAdmin {
         transport: transportOf(entry.config),
         enabled: entry.config.enabled !== false,
         status,
-        ...(status === 'failed' && connection?.error ? { error: connection.error } : {}),
+        ...((status === 'failed' || status === 'auth-required') && connection?.error ? { error: connection.error } : {}),
         ...(status === 'failed' && connection?.stderrTail ? { stderrTail: connection.stderrTail } : {}),
         tools,
         ...(entry.scope === 'project'
@@ -124,6 +135,11 @@ export class McpAdmin {
     await manager.reconcile(workspace.id, workspace.path, next)
     if (request.approve) manager.connectInBackground(workspace.id, workspace.path, next)
     return this.view(workspace.id)
+  }
+
+  /** GET /api/mcp/presets。 */
+  presets(): McpPresetsResponse {
+    return { presets: structuredClone([...MCP_PRESETS]) }
   }
 
   /** POST /api/mcp/reconnect：关闭并重新连接，等待连接结束。 */

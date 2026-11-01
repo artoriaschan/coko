@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { JsonRpcMessage } from '@earendil-works/pi-mcp'
+import { StreamableHttpTransport, type JsonRpcMessage } from '@earendil-works/pi-mcp'
 import { createInMemoryTransportPair, type InMemoryTransport } from '@earendil-works/pi-mcp/testing'
 import { McpConnection, type McpTransportHandle } from './connection.ts'
 import { createMcpTools } from './tool.ts'
@@ -43,6 +43,36 @@ function fakeServer(options: { silent?: boolean; tools?: FakeServer['tools'] } =
 }
 
 const handleOf = (transport: InMemoryTransport, stderr = ''): McpTransportHandle => ({ transport, stderr: () => stderr })
+
+/** 401 响应体与 WWW-Authenticate 中的令牌：不得出现在连接的错误中。 */
+const LEAKED = 'srv-issued-token-9d1f2c'
+
+/**
+ * streamable HTTP 的假 fetch：authorized(method, request) 为 false 时 401（响应体与 WWW-Authenticate 带令牌）；
+ * 其余 JSON-RPC 请求回 application/json，通知 202，GET 405。requests 记录每次 POST 的方法。
+ */
+function httpServer(authorized: (method: string, headers: Headers) => boolean) {
+  const requests: string[] = []
+  const fetch = async (_input: string | URL, init?: RequestInit): Promise<Response> => {
+    if ((init?.method ?? 'GET') !== 'POST') return new Response(null, { status: 405 })
+    const message = JSON.parse(String(init!.body)) as { id?: number; method: string }
+    requests.push(message.method)
+    if (!authorized(message.method, new Headers(init!.headers)))
+      return new Response(`invalid token; expected ${LEAKED}`, {
+        status: 401,
+        headers: { 'www-authenticate': `Bearer realm="mcp", error="invalid_token", error_description="${LEAKED}"` },
+      })
+    if (message.id === undefined) return new Response(null, { status: 202 })
+    const result =
+      message.method === 'initialize'
+        ? { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'http', version: '1' } }
+        : message.method === 'tools/list'
+          ? { tools: [{ name: 'echo', inputSchema: { type: 'object' } }] }
+          : { content: [{ type: 'text', text: 'ok' }] }
+    return new Response(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  return { fetch, requests }
+}
 
 const waitStatus = async (connection: McpConnection, status: string, timeoutMs = 2000) => {
   const deadline = Date.now() + timeoutMs
@@ -166,5 +196,94 @@ describe('MCP 连接状态机', () => {
     while (connection.tools.length < 2 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5))
     expect(connection.tools.map((t) => t.name)).toEqual(['echo', 'second'])
     await connection.close()
+  })
+})
+
+describe('MCP 认证：auth-required', () => {
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it('initialize 得到 401（经宿主装配的 authProvider）：auth-required，不自动重连；错误不含响应中的令牌；reconnect() 重试', async () => {
+    const server = httpServer(() => false)
+    const connection = new McpConnection({
+      name: 'remote',
+      root: '/w',
+      reconnectDelaysMs: [5, 5, 5],
+      createTransport: ({ authProvider }) => ({ transport: new StreamableHttpTransport({ url: 'http://mcp.test/mcp', fetch: server.fetch, authProvider }) }),
+    })
+    await connection.connect()
+    expect(connection.status).toBe('auth-required')
+    expect(connection.error).toBe('MCP server "remote" requires authentication (HTTP 401)')
+    expect(connection.tools).toEqual([])
+    // onUnauthorized 立即结束本次连接：只发出一次 initialize，之后不按退避重试。
+    expect(server.requests).toEqual(['initialize'])
+    await pause(60)
+    expect(server.requests).toEqual(['initialize'])
+    expect(connection.status).toBe('auth-required')
+
+    await connection.reconnect()
+    expect(server.requests).toEqual(['initialize', 'initialize'])
+    expect(connection.status).toBe('auth-required')
+  })
+
+  it('传输没有 authProvider 时连接错误中的 HTTP 401 同样进入 auth-required', async () => {
+    const server = httpServer(() => false)
+    const connection = new McpConnection({
+      name: 'remote',
+      root: '/w',
+      reconnectDelaysMs: [5, 5, 5],
+      createTransport: () => ({ transport: new StreamableHttpTransport({ url: 'http://mcp.test/mcp', fetch: server.fetch }) }),
+    })
+    await connection.connect()
+    expect(connection.status).toBe('auth-required')
+    expect(connection.error).not.toContain(LEAKED)
+    await pause(60)
+    expect(server.requests).toEqual(['initialize'])
+  })
+
+  it('401 只发生在 tools/call：调用失败（不含令牌），连接进入 auth-required、工具清空，不自动重连', async () => {
+    const server = httpServer((method) => method !== 'tools/call')
+    const connection = new McpConnection({
+      name: 'remote',
+      root: '/w',
+      reconnectDelaysMs: [5, 5, 5],
+      createTransport: ({ authProvider }) => ({ transport: new StreamableHttpTransport({ url: 'http://mcp.test/mcp', fetch: server.fetch, authProvider }) }),
+    })
+    await connection.connect()
+    expect(connection.status).toBe('connected')
+    const error = await connection.callTool('echo', {}).catch((e: unknown) => e as Error)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('MCP server "remote" requires authentication (HTTP 401)')
+    expect(connection.status).toBe('auth-required')
+    expect(connection.tools).toEqual([])
+    const before = server.requests.filter((m) => m === 'initialize').length
+    await pause(60)
+    expect(server.requests.filter((m) => m === 'initialize').length).toBe(before)
+    await expect(connection.callTool('echo', {})).rejects.toThrow(/not connected \(auth-required\)/)
+  })
+
+  it('403 insufficient_scope 同样是 auth-required；其他 HTTP 错误仍为 failed', async () => {
+    const scoped = async (_input: string | URL, init?: RequestInit): Promise<Response> =>
+      (init?.method ?? 'GET') !== 'POST'
+        ? new Response(null, { status: 405 })
+        : new Response(LEAKED, { status: 403, headers: { 'www-authenticate': `Bearer error="insufficient_scope", scope="${LEAKED}"` } })
+    const connection = new McpConnection({
+      name: 'remote',
+      root: '/w',
+      createTransport: ({ authProvider }) => ({ transport: new StreamableHttpTransport({ url: 'http://mcp.test/mcp', fetch: scoped, authProvider }) }),
+    })
+    await connection.connect()
+    expect(connection.status).toBe('auth-required')
+    expect(connection.error).not.toContain(LEAKED)
+
+    const broken = async (_input: string | URL, init?: RequestInit): Promise<Response> =>
+      (init?.method ?? 'GET') !== 'POST' ? new Response(null, { status: 405 }) : new Response('boom', { status: 500 })
+    const failing = new McpConnection({
+      name: 'remote',
+      root: '/w',
+      reconnectDelaysMs: [],
+      createTransport: ({ authProvider }) => ({ transport: new StreamableHttpTransport({ url: 'http://mcp.test/mcp', fetch: broken, authProvider }) }),
+    })
+    await failing.connect()
+    expect(failing.status).toBe('failed')
   })
 })
