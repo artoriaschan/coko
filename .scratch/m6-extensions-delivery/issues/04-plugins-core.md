@@ -40,3 +40,11 @@
   - **README 要点（交 14 汇总）**：server 的 `PluginService`（安装 / 批准 / 启停 / 更新 / 卸载，`PluginContributionsPort` 的实现）、`/api/plugins`、`adapters/git.ts` 的 `gitClone`；agent 的 `loadPlugin`、`listPluginContributions`、`copyPluginTree`、`PLUGIN_LIMITS`；Skill 与命令展开时文件正文按值脱敏。
   - **秘密通道**：新增的外发通道是插件 Hook 的 stdin（总闸扫描 Hook 记录的 stdin）；插件目录本身是用户安装的文件，不在扫描范围内。
 
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的改动全部接受：`context/skills.ts` 与 `context/commands.ts` 在展开前按值脱敏文件正文（修复秘密总闸发现的泄漏，用户自己的 Skill 与命令同样受益）；`context/mcp.ts` 增加 `reconcileAll`，插件 `onChange` 时关闭不再提供的 Server（完成报告没有列出这项，合入前由 diff 发现）；`sidecar-m6-seams.test.ts` 去掉了已经接入的插件 501 断言；`docs/README.md` 加一行；`docs/adr/README.md` 中 0017 改为 partial。
+- 卸载路径安全：没有先红的记录，以变异检查代替（去掉 `#owned` 中两处拒绝后用例变红）。接受。
+- 以 ed9f069 合入 main（负载约 25）：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check` 退出 0，`check:docs` 210 个文件 0 个问题；插件、context、secrets-gate*、sidecar-m6-seams 与 scripts 共 34 个文件 127 例通过。分支合并 main（cc78e01）之后的全量由实施者在锁内运行：2728 例中 7 例超时（负载 20–130），单独重跑通过，不记为"全量通过"。
+- 留给其他票：`hooks.md:45`、`mcp.md:36` 与 `apps/server/README.md:62` 中"插件未接入"的说法已经过时（见票 14 Comments）。插件 LSP 进程在打包产物中被启动的验收由票 05 负责。
+
+Closed: true
