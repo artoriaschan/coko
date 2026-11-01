@@ -1,6 +1,17 @@
 import type { MessageKey } from '@coko/i18n'
 import { DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
-import { BrainIcon, FilePenIcon, FilePlusIcon, FileTextIcon, FolderSearchIcon, FolderTreeIcon, SearchIcon, TerminalIcon, WrenchIcon } from 'lucide-react'
+import {
+  BrainIcon,
+  CodeIcon,
+  FilePenIcon,
+  FilePlusIcon,
+  FileTextIcon,
+  FolderSearchIcon,
+  FolderTreeIcon,
+  SearchIcon,
+  TerminalIcon,
+  WrenchIcon,
+} from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { AgentCard } from './agent-card.tsx'
@@ -57,6 +68,42 @@ function BashBody({ item }: { item: ToolItem }) {
   )
 }
 
+/** lsp 的结果计数（LspToolDetails）。 */
+function lspCounts(item: ToolItem): { count: number; total: number; received?: false } | undefined {
+  const details = item.result?.details as { count?: unknown; total?: unknown; received?: unknown } | undefined
+  if (item.result?.isError || typeof details?.count !== 'number' || typeof details.total !== 'number') return undefined
+  return { count: details.count, total: details.total, ...(details.received === false ? { received: false as const } : {}) }
+}
+
+const LSP_TITLES = {
+  diagnostics: 'lsp.tool.diagnostics',
+  definition: 'lsp.tool.definition',
+  references: 'lsp.tool.references',
+  hover: 'lsp.tool.hover',
+} as const
+
+/** lsp 的明细：结果计数在输出之上。 */
+function LspBody({ item }: { item: ToolItem }) {
+  const { t } = useI18n()
+  const counts = lspCounts(item)
+  return (
+    <div className="flex flex-col">
+      {counts && (
+        <p data-lsp-count={counts.count} className="px-3 pt-2 text-ui-small text-muted-foreground">
+          {counts.received === false
+            ? t('lsp.tool.notReceived')
+            : counts.total === 0
+              ? t('lsp.tool.none')
+              : counts.count < counts.total
+                ? t('lsp.tool.truncated', { count: counts.count, total: counts.total })
+                : t('lsp.tool.count', { count: counts.count })}
+        </p>
+      )}
+      <TextBody text={output(item)} />
+    </div>
+  )
+}
+
 /** 按工具名分发的专属展示；未登记的工具使用通用展示。 */
 const VIEWS: Record<string, ToolView> = {
   bash: {
@@ -101,6 +148,19 @@ const VIEWS: Record<string, ToolView> = {
     title: (item) => (memoryAction(item) === 'deleted' ? 'memory.tool.deleted' : 'memory.tool.delete'),
     summary: (a) => str(a.id),
     body: (item) => <TextBody text={output(item)} />,
+  },
+  lsp: {
+    icon: <CodeIcon />,
+    title: (item) => {
+      const operation = (item.call.arguments as { operation?: unknown } | undefined)?.operation
+      return typeof operation === 'string' && operation in LSP_TITLES ? LSP_TITLES[operation as keyof typeof LSP_TITLES] : 'lsp.tool.diagnostics'
+    },
+    summary: (a) => {
+      const file = str(a.file_path)
+      if (file === undefined) return undefined
+      return typeof a.line === 'number' && typeof a.character === 'number' ? `${file}:${a.line}:${a.character}` : file
+    },
+    body: (item) => <LspBody item={item} />,
   },
 }
 

@@ -239,4 +239,46 @@ describe('工具卡：外部 Hook', () => {
     })
     expect(document.querySelector('[data-approval-outcome="allowed"]')?.textContent).toBe('Allowed by hook')
   })
+
+  it('lsp：标题为操作，摘要为文件与位置，明细先显示结果计数；截断时注明总数；诊断超时注明没有收到', async () => {
+    const lsp = (id: string, args: Record<string, unknown>, text: string, details: Record<string, unknown>): ToolItem => ({
+      kind: 'tool',
+      key: `tool:${id}`,
+      call: { id, name: 'lsp', arguments: args },
+      result: { isError: false, text, details },
+      status: 'done',
+      live: null,
+    })
+    const refs = await renderCard(
+      lsp('r', { operation: 'references', file_path: 'src/a.ts', line: 3, character: 7 }, 'src/a.ts:3:7 foo()\nsrc/b.ts:1:1 foo', {
+        operation: 'references',
+        count: 2,
+        total: 2,
+        truncated: false,
+      }),
+    )
+    const header = page.getByRole('button', { name: /Find references/ })
+    await expect.element(header).toBeVisible()
+    expect(header.element().textContent).toContain('src/a.ts:3:7')
+    await header.click()
+    const body = () => document.querySelector('[data-slot="tool-card-body"]')!
+    expect(body().querySelector('[data-lsp-count]')!.textContent).toBe('2 items')
+    expect(body().textContent).toContain('src/b.ts:1:1 foo')
+    await refs.unmount()
+
+    const truncated = await renderCard(
+      lsp('d', { operation: 'diagnostics', file_path: 'src/a.ts' }, 'x', { operation: 'diagnostics', count: 200, total: 250, truncated: true }),
+      'zh',
+    )
+    await page.getByRole('button', { name: /查询诊断/ }).click()
+    expect(body().querySelector('[data-lsp-count]')!.textContent).toBe('显示 200 项，共 250 项')
+    await truncated.unmount()
+
+    const timeout = await renderCard(
+      lsp('t', { operation: 'diagnostics', file_path: 'a.ts' }, 'No diagnostics received', { count: 0, total: 0, received: false }),
+    )
+    await page.getByRole('button', { name: /Diagnostics/ }).click()
+    expect(body().querySelector('[data-lsp-count]')!.textContent).toBe('No diagnostics received')
+    await timeout.unmount()
+  })
 })

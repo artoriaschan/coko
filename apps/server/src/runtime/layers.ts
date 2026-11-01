@@ -327,8 +327,21 @@ const AssemblyLive = Layer.effect(
     // ── end mcp ──
 
     // ── lsp ──
-    // 语言服务器：按（服务器名，cwd）管理进程，登记为 lsp（ADR 0012）。关闭在上下文贡献之后、终止登记进程之前（见下方的 finalizer 顺序）。
-    const lsp = new LspService({ config })
+    // 语言服务器：按（服务器名，cwd）管理进程，登记为 lsp（ADR 0012，进程组）。关闭在上下文贡献之后、终止登记进程之前（见下方的 finalizer 顺序）。
+    // 仅测试（未 --packaged）：COKO_TEST_LSP_IDLE_MS 缩短空闲关闭的时长。
+    const lspIdle = !sidecar.packaged ? env.COKO_TEST_LSP_IDLE_MS : undefined
+    if (lspIdle !== undefined && !/^\d+$/.test(lspIdle)) throw new StartupError('config-invalid', 'COKO_TEST_LSP_IDLE_MS must be a number of milliseconds')
+    if (lspIdle) getLogger(['runtime']).warn('test language server idle timeout', { idleMs: Number(lspIdle) })
+    // hub 在下方创建；lsp_update 只在查询之后发出，那时它已存在。
+    const lsp = new LspService({
+      config,
+      store,
+      plugins,
+      hub: { publishProgress: (...args) => hub.publishProgress(...args) },
+      env,
+      track: processes.track,
+      ...(lspIdle ? { idleMs: Number(lspIdle) } : {}),
+    })
     // ── end lsp ──
 
     // 后台任务与 Goal 先于贡献创建（贡献读取它们）；它们的 Run 能力在 AppLive 创建 SessionService 后接上（lateSessionRuns）。
@@ -383,6 +396,7 @@ const AssemblyLive = Layer.effect(
       hooks,
       subagents,
       handoff,
+      lsp,
       extra,
     })
     const context = createContextAssembly({ contributions, config, cokoHome: sidecar.cokoHome, plugins })
@@ -569,6 +583,11 @@ const AppLive = Layer.effect(
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
     bindSessions(sessions, worktrees)
+    // 代码智能：GET /api/lsp?sessionId= 按该 Session 的工作目录给出状态。
+    lsp.bindSessions(async (sessionId) => {
+      const { workspace, cwd } = await sessions.runs.cwd(await requireSession(store, sessionId))
+      return { workspaceId: workspace.id, cwd }
+    })
     // 外部 Hook 的生命周期事件：continue: false 的停止、输入的 permission_mode、Notification 的作用域；Notification Hook 订阅发出的通知。
     hooks.bind({
       stopAfterBatch: (sessionId, error) => sessions.runs.stopAfterBatch(sessionId, error),
