@@ -1,4 +1,5 @@
 import {
+  apiPaths,
   ConfigResponse,
   configPaths,
   ErrorResponse,
@@ -47,6 +48,9 @@ export function createMemoryClient(fetchImpl: Fetch = (input, init) => fetch(inp
   const scoped = (path: string, workspaceId?: string) => (workspaceId === undefined ? path : `${path}?workspaceId=${encodeURIComponent(workspaceId)}`)
   return {
     list: async (workspaceId?: string) => (await call(MemoryListResponse, 'GET', scoped(memoryPaths.memories, workspaceId))).memories,
+    /** 按关键词检索用户级与该 Workspace 的条目（至多 20 条，按相关度）。 */
+    search: async (query: string, workspaceId?: string) =>
+      (await call(MemoryListResponse, 'GET', apiPaths.memorySearch(query, workspaceId === undefined ? {} : { workspaceId }))).memories,
     create: (input: { scope: MemoryScope; workspaceId?: string; content: string }) => call(MemoryEntry, 'POST', memoryPaths.memories, input),
     update: (id: string, content: string, workspaceId?: string) => call(MemoryEntry, 'PUT', scoped(memoryPaths.memory(id), workspaceId), { content }),
     remove: (id: string, workspaceId?: string) => call(Type.Undefined(), 'DELETE', scoped(memoryPaths.memory(id), workspaceId)),
@@ -69,13 +73,17 @@ export interface MemoryState {
   status: 'idle' | 'loading' | 'ready' | 'error'
   /** 最近一次读取对应的 Workspace；null 时只有用户级。 */
   workspaceId: string | null
-  /** 用户级与该 Workspace 的条目，updatedAt 倒序（Sidecar 的次序）。 */
+  /** 当前的检索词；空串时 memories 为完整列表。 */
+  query: string
+  /** 用户级与该 Workspace 的条目：列表为 updatedAt 倒序，检索为相关度次序（都是 Sidecar 的次序）。 */
   memories: MemoryEntry[]
 }
 
 export interface MemoryActions {
-  /** 读取用户级与该 Workspace 的条目；较早发出的请求晚到时被丢弃。 */
+  /** 读取用户级与该 Workspace 的条目（有检索词时为检索结果）；较早发出的请求晚到时被丢弃。 */
   load(workspaceId?: string): Promise<void>
+  /** 设置检索词并按当前 Workspace 重新读取；只有空白时恢复完整列表。 */
+  search(query: string): Promise<void>
   /** 以下操作成功后重新读取；失败时抛出 MemoryRequestError，列表不变。 */
   create(input: { scope: MemoryScope; content: string }): Promise<void>
   update(id: string, content: string): Promise<void>
@@ -93,6 +101,7 @@ export function createMemoryStore(client: MemoryClient = createMemoryClient()): 
     return {
       status: 'idle',
       workspaceId: null,
+      query: '',
       memories: [],
       async load(workspaceId) {
         const request = ++latest
@@ -101,11 +110,16 @@ export function createMemoryStore(client: MemoryClient = createMemoryClient()): 
           workspaceId: workspaceId ?? null,
         }))
         try {
-          const memories = await client.list(workspaceId)
+          const query = get().query.trim()
+          const memories = query === '' ? await client.list(workspaceId) : await client.search(query, workspaceId)
           if (request === latest) set({ status: 'ready', memories })
         } catch {
           if (request === latest) set({ status: 'error', memories: [] })
         }
+      },
+      async search(query) {
+        set({ query })
+        await reload()
       },
       async create({ scope, content }) {
         const workspaceId = current()

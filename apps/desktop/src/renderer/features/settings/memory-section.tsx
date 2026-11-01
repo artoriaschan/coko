@@ -1,6 +1,6 @@
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope } from '@coko/protocol'
-import { Button, Checkbox, cn, toast, Textarea } from '@coko/ui'
-import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
+import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
@@ -11,9 +11,12 @@ import { createMemoryClient, memoryStore } from '../../stores/memory-store.ts'
 import { SettingsCard } from './settings-page.tsx'
 
 const memoryClient = createMemoryClient()
+/** 搜索框输入后等待的时长（毫秒），之后才发出检索。 */
+const SEARCH_DEBOUNCE_MS = 200
 
 /**
- * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；用户级与当前 Workspace 两组条目，查看、添加、编辑与删除。
+ * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；按关键词搜索；用户级与当前 Workspace 两组条目，
+ * 查看、添加、编辑与删除。
  */
 export function MemorySection() {
   const { t } = useI18n()
@@ -24,6 +27,7 @@ export function MemorySection() {
   const status = useStore(memoryStore, (s) => s.status)
   const loadedFor = useStore(memoryStore, (s) => s.workspaceId)
   const memories = useStore(memoryStore, (s) => s.memories)
+  const query = useStore(memoryStore, (s) => s.query)
 
   React.useEffect(() => {
     void memoryStore.getState().load(workspaceId)
@@ -32,6 +36,7 @@ export function MemorySection() {
 
   const current = loadedFor === (workspaceId ?? null) ? memories : []
   const of = (scope: MemoryScope) => current.filter((m) => m.scope === scope)
+  const emptyText = query.trim() === '' ? t('memory.empty') : t('memory.noMatches')
 
   return (
     <section aria-labelledby="settings-memory" className="flex flex-col gap-4">
@@ -42,19 +47,60 @@ export function MemorySection() {
         <p className="text-ui-small text-muted-foreground">{t('memory.description')}</p>
       </div>
       <MemoryToggle workspaceId={workspaceId} />
+      <MemorySearch />
       {status === 'error' ? (
         <p className="text-ui-body text-muted-foreground">{t('memory.loadFailed')}</p>
       ) : (
         <>
-          <MemoryGroup scope="user" title={t('memory.user')} memories={of('user')} />
+          <MemoryGroup scope="user" title={t('memory.user')} memories={of('user')} emptyText={emptyText} />
           {workspaceId !== undefined ? (
-            <MemoryGroup scope="workspace" title={t('memory.workspace', { name: workspace?.name ?? '' })} memories={of('workspace')} />
+            <MemoryGroup scope="workspace" title={t('memory.workspace', { name: workspace?.name ?? '' })} memories={of('workspace')} emptyText={emptyText} />
           ) : (
             <p className="text-ui-small text-muted-foreground">{t('memory.noWorkspace')}</p>
           )}
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * 关键词搜索：输入停止 SEARCH_DEBOUNCE_MS 后检索，清空时立即恢复列表；有内容时 Escape 只清空（不关闭设置）。
+ * 检索词保存在 store 中，重新打开分区时沿用。
+ */
+function MemorySearch() {
+  const { t } = useI18n()
+  const [text, setText] = React.useState(() => memoryStore.getState().query)
+  React.useEffect(() => {
+    if (text === memoryStore.getState().query) return
+    if (text.trim() === '') {
+      void memoryStore.getState().search('')
+      return
+    }
+    const timer = setTimeout(() => void memoryStore.getState().search(text), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [text])
+  return (
+    <div className="relative">
+      <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        data-memory-search
+        aria-label={t('memory.search')}
+        placeholder={t('memory.searchPlaceholder')}
+        value={text}
+        autoComplete="off"
+        spellCheck={false}
+        className="ps-8 [&::-webkit-search-cancel-button]:hidden"
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || event.nativeEvent.isComposing || text === '') return
+          event.preventDefault()
+          event.stopPropagation()
+          setText('')
+        }}
+      />
+    </div>
   )
 }
 
@@ -101,7 +147,7 @@ function MemoryToggle({ workspaceId }: { workspaceId: string | undefined }) {
 
 const failed = (t: ReturnType<typeof useI18n>['t']) => toast.error(t('memory.saveFailed'))
 
-function MemoryGroup({ scope, title, memories }: { scope: MemoryScope; title: string; memories: readonly MemoryEntry[] }) {
+function MemoryGroup({ scope, title, memories, emptyText }: { scope: MemoryScope; title: string; memories: readonly MemoryEntry[]; emptyText: string }) {
   const { t } = useI18n()
   const headingId = `memory-${scope}`
   return (
@@ -111,7 +157,9 @@ function MemoryGroup({ scope, title, memories }: { scope: MemoryScope; title: st
       </h3>
       <SettingsCard>
         {memories.length === 0 ? (
-          <p className="px-4 py-3 text-ui-body text-muted-foreground">{t('memory.empty')}</p>
+          <p data-memory-empty className="px-4 py-3 text-ui-body text-muted-foreground">
+            {emptyText}
+          </p>
         ) : (
           <ul aria-labelledby={headingId}>
             {memories.map((memory) => (
