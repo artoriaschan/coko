@@ -2,7 +2,7 @@
 kind: decision
 description: "Agent Teams 在一个根 Session 中进行：teammate 是根 Session 下具名、可继续对话的子 Session；共享任务板是根 Session 的条目，变更以 revision 做 compare-and-set，认领即独占，不做文件锁；成员之间的消息是宿主注入的输入，不带用户权限。修改团队成员、消息送达、任务板或其并发控制时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -37,6 +37,7 @@ category: architecture
 ## 实施记录
 
 - 2026-11-01，Agent Teams 核心（服务端）：具名 teammate 的创建与解散、消息在运行中与空闲时的送达与 lead 空闲时不唤醒、消息不授予 Goal 权限且不算用户追加指令、任务板的 compare-and-set 与认领规则、三个 Hook 的 exit 2 语义、teammate 的 worktree 与解散时的回收、按触发 Run 的 Goal 预算、重启后空闲的 teammate 仍可接收消息、已结束的子代理经消息继续已实现，当前行为见 [Agent Teams](../subsystems/teams.md)。证据：`tests/integration/sidecar-teams.test.ts`、`sidecar-teams-tasks.test.ts`、`sidecar-teams-hooks.test.ts`、`sidecar-teams-budget.test.ts`、`sidecar-teams-restart.test.ts`、`secrets-gate-teams.test.ts`、`apps/server/src/application/teams.test.ts`、`packages/agent/src/agents/teams/teams.test.ts`。与决定的细化：预算归属记在子 Session 的 `run_start.subagent.triggerRunId`（run_start v4），teammate 之间的消息沿用发送方当前 Run 的触发 Run；排队的消息只在进程内。界面（名册、任务板与消息行）尚未交付，implementation 为 partial。
+- 2026-11-01，团队界面：标题栏团队按钮（running 成员数）、右栏 Team tab（名册、按状态分组的任务板与可认领、阻塞关系、写入范围重叠警告、成员的只读时间线）、时间线的 `team_message` / `team_task` 紧凑行与 `send_message`、`task_*` 工具卡已实现，implementation 改为 implemented，当前行为见 [Agent Teams](../subsystems/teams.md#界面)。证据：`apps/desktop/e2e/teams.e2e.test.ts`、`apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx`、`features/conversation/team-rows.browser.test.tsx`、`stores/team-store.test.ts`。
 
 ## 来源与后继
 
