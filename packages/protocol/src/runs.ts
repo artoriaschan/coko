@@ -41,12 +41,16 @@ export const RunTrigger = Type.Union([
 ])
 export type RunTrigger = Static<typeof RunTrigger>
 
-/** run_start v3：Goal Round 另带所属 Goal 与轮次，定时任务的 Run 另带任务与到期时刻（v1、v2 原样迁移）。 */
+/**
+ * run_start v4：Goal Round 另带所属 Goal 与轮次，定时任务的 Run 另带任务与到期时刻，子 Session 的 Run 另带触发它的根 Run
+ * （subagent.triggerRunId，Goal 预算按它归属）；v1–v3 原样迁移。
+ */
 export const RunStartPayload = Type.Object(
   {
     trigger: RunTrigger,
     goal: Type.Optional(Type.Object({ goalId: Id, round: Type.Integer({ minimum: 1 }) }, strict)),
     schedule: Type.Optional(Type.Object({ scheduleId: Id, occurrence: Type.Integer({ minimum: 0 }) }, strict)),
+    subagent: Type.Optional(Type.Object({ triggerRunId: Id }, strict)),
   },
   strict,
 )

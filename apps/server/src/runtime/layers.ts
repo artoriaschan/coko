@@ -654,8 +654,27 @@ const AppLive = Layer.effect(
     yield* Effect.addFinalizer(() => Effect.promise(() => subagents.close()))
 
     // ── teams ──
-    // Agent Teams（ADR 0018）：名册与任务板由根 Session 的条目派生。
-    const teams = new TeamService({ store })
+    // Agent Teams（ADR 0018）：名册与任务板由根 Session 的条目派生；team_task 与 Hook 的提交与其他领域条目同样脱敏后入库并推送。
+    // 消息送达、排队与解散在 SubagentService（useTeams 接上 team_update 与 context/teams.ts 的工具）。
+    const teams = new TeamService({
+      store,
+      hub,
+      hooks,
+      subagents,
+      entries: {
+        list: (sessionId) => store.sessions.listEntries(sessionId),
+        async commit(sessionId, entry) {
+          const [committed] = await store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+          hub.publishEntry(committed!)
+          return committed!
+        },
+      },
+    })
+    teams.bind({
+      activeRunId: (sessionId) => sessions.runs.activeRunId(sessionId),
+      scope: async (sessionId) => sessions.runs.scope(await requireSession(store, sessionId)),
+    })
+    subagents.useTeams(teams)
     // ── end teams ──
 
     // ── trace ──

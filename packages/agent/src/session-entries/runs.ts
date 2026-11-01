@@ -48,12 +48,18 @@ const runStartV2Schema = Type.Object(
   strict,
 )
 
+const scheduleRefSchema = Type.Object({ scheduleId: Id, occurrence: Type.Integer({ minimum: 0 }) }, strict)
+
 /** run_start v3：定时任务的 Run 另带任务与本次到期时刻（UTC 毫秒）。 */
+const runStartV3Schema = Type.Object({ trigger: runTriggerSchema, goal: Type.Optional(goalRefSchema), schedule: Type.Optional(scheduleRefSchema) }, strict)
+
+/** run_start v4：子 Session 的 Run 另带触发它的根 Run（subagent.triggerRunId，Goal 预算按它归属；ADR 0018）。v3 原样迁移。 */
 export const runStartPayloadSchema = Type.Object(
   {
     trigger: runTriggerSchema,
     goal: Type.Optional(goalRefSchema),
-    schedule: Type.Optional(Type.Object({ scheduleId: Id, occurrence: Type.Integer({ minimum: 0 }) }, strict)),
+    schedule: Type.Optional(scheduleRefSchema),
+    subagent: Type.Optional(Type.Object({ triggerRunId: Id }, strict)),
   },
   strict,
 )
@@ -109,6 +115,7 @@ export const runEntryPayloads = definePayloads({
   run_start: [
     { schema: runStartV1Schema },
     { schema: runStartV2Schema, migrate: (previous: EntryJson) => previous },
+    { schema: runStartV3Schema, migrate: (previous: EntryJson) => previous },
     { schema: runStartPayloadSchema, migrate: (previous: EntryJson) => previous },
   ],
   message: [{ schema: messagePayloadSchema }],

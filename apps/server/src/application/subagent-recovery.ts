@@ -88,7 +88,8 @@ export function agentSnapshots(entries: readonly StoredEntry[], running: (agentI
       agentId: start.agentId,
       agentType: start.agentType,
       description: start.description,
-      status: payload?.status ?? (running(start.agentId) ? 'running' : 'interrupted'),
+      // 继续对话中的子代理（teammate 或 send_message 继续的）已有上一个 Run 的 agent_end：进程内运行时为 running。
+      status: running(start.agentId) ? 'running' : (payload?.status ?? 'interrupted'),
       background: start.background,
       startedAt: e.createdAt,
       ...(end ? { endedAt: end.createdAt } : {}),
@@ -171,6 +172,8 @@ export class SubagentRecovery {
         background: live.background,
         toolCallId: live.toolCallId,
         ...(live.goalId ? { goalId: live.goalId } : {}),
+        ...(live.name ? { name: live.name, teammate: true } : {}),
+        ...(live.triggerRunId ? { triggerRunId: live.triggerRunId } : {}),
         ...(worktree ? { isolation: { worktreeId: worktree.id, path: worktree.path, branch: worktree.branch } } : {}),
       },
     })
@@ -186,10 +189,12 @@ export class SubagentRecovery {
       const entries = await this.#options.store.sessions.listEntries(live.agentId)
       const text = lastAssistantText(entries)
       let worktree: AgentOutcome['worktree']
-      if (live.worktreeId) {
+      // teammate 的 worktree 保留到解散（它还会收到消息，ADR 0018）；一次性子代理在第一次结束时回收。
+      if (live.worktreeId && (!live.name || status === 'dismissed')) {
         const released = await this.#releaseWorktree(live.agentId, live.worktreeId)
         if (released.removed) {
           if (live.worktreePath) this.isolate(live.rootId, live.worktreePath, false)
+          delete live.worktreeId
         } else worktree = released.worktree
       }
       const ended = { ...outcome, usage: childUsage(entries), text, ...(worktree ? { worktree } : {}) }
@@ -203,6 +208,36 @@ export class SubagentRecovery {
     } catch (error) {
       log.error('subagent end failed', { agentId: live.agentId, error: errorMessage(error) })
       return outcome
+    }
+  }
+
+  /**
+   * 解散 teammate（不在进程内运行时，例如重启之后）：用量取子 Session 全部条目，isolation worktree 没有改动时回收、有改动时保留并注明，
+   * 父级 agent_end { status: dismissed }。
+   */
+  async dismissed(rootId: string, start: AgentStartPayload, runId: string | undefined): Promise<AgentOutcome> {
+    const entries = await this.#options.store.sessions.listEntries(start.agentId)
+    const text = lastAssistantText(entries)
+    let worktree: AgentOutcome['worktree']
+    if (start.isolation) {
+      const released = await this.#releaseWorktree(start.agentId, start.isolation.worktreeId)
+      if (released.removed) this.isolate(rootId, start.isolation.path, false)
+      else worktree = released.worktree
+    }
+    const usage = childUsage(entries)
+    await this.#options.entries.commit(rootId, {
+      kind: 'agent_end',
+      ...(runId ? { runId } : {}),
+      payload: { agentId: start.agentId, status: 'dismissed', usage, resultChars: text.length, ...(worktree ? { worktree } : {}) },
+    })
+    return {
+      agentId: start.agentId,
+      agentType: start.agentType,
+      description: start.description,
+      status: 'dismissed',
+      usage,
+      text,
+      ...(worktree ? { worktree } : {}),
     }
   }
 
@@ -338,7 +373,8 @@ export class SubagentRecovery {
     const { agentId } = start
     const entries = await this.#options.store.sessions.listEntries(agentId)
     const usage = childUsage(entries, entries.at(-1)?.createdAt ?? Date.now())
-    const released = start.isolation ? await this.#releaseWorktree(agentId, start.isolation.worktreeId) : undefined
+    // teammate 被中断后仍在名册中（idle），worktree 保留到解散。
+    const released = start.isolation && !start.teammate ? await this.#releaseWorktree(agentId, start.isolation.worktreeId) : undefined
     const worktree = released && !released.removed ? released.worktree : undefined
     return {
       kind: 'agent_end',

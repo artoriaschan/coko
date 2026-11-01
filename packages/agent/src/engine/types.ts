@@ -114,6 +114,8 @@ export interface RunInput {
   goal?: { goalId: string; round: number }
   /** run() only: the scheduled task and its occurrence (UTC ms) of a trigger schedule Run, written to run_start. */
   schedule?: { scheduleId: string; occurrence: number }
+  /** run() only: the root Run that triggered a trigger subagent Run (Goal budget attribution), written to run_start. */
+  subagent?: { triggerRunId: string }
 }
 
 /** State passed to `RuntimeContext.onStop`. */
