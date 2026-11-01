@@ -4,9 +4,10 @@
 // 的工具经审批调用成功（pi-mcp 与 cross-spawn 进入 sidecar 产物）。
 // M4：Resources/sidecar/node_modules/node-pty 的 spawn-helper 可执行，打包应用中一个 tty 后台任务输出 ok（node-pty 从随包位置加载）。
 // M6：从仓库夹具目录（tests/fixtures/plugins/sample）安装插件，批准后插件声明的 stdio MCP Server 在打包产物中被启动（夹具日志出现），
-// 插件的语言服务器出现在 GET /api/plugins 的 executables 中（语言服务器进程的启动由代码智能的用例覆盖）。
+// 插件的语言服务器出现在 GET /api/plugins 的 executables 中；另一用例中批准后的插件语言服务器在产物中被 lsp 调用启动并登记为 kind lsp。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -387,5 +388,99 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
       expect(text).not.toContain('sk-smokeSecretValue1')
       expect(text).not.toMatch(TOKEN_SHAPED)
     }
+  })
+
+  // 插件声明的语言服务器：安装、批准仓库夹具插件后，lsp 调用在打包产物中启动它（接收侧：假服务器的记录），进程登记为 kind lsp；应用退出后
+  // 进程退出、登记删除。
+  it('插件的语言服务器：批准后 lsp 调用在产物中启动它并登记为 kind lsp；退出后登记删除', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'coko-packaged-lsp-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    await writeFile(join(workspace, 'a.ts'), 'export const value = 1\n')
+    const plugin = join(root, 'sample')
+    await cp(pluginFixture, plugin, { recursive: true })
+    const record = join(root, 'lsp.jsonl')
+    const values: Record<string, string> = {
+      NODE: process.execPath,
+      HOOK_FIXTURE: hookFixture,
+      HOOK_RECORD: join(root, 'hook-stdin.jsonl'),
+      MCP_FIXTURE: stdioServerEntry,
+      MCP_LOG: join(root, 'mcp.jsonl'),
+      LSP_FIXTURE: lspFixture,
+    }
+    for (const file of ['hooks/hooks.json', '.mcp.json', '.lsp.json']) {
+      let text = await readFile(join(plugin, file), 'utf8')
+      for (const [name, value] of Object.entries(values)) text = text.replaceAll('${' + name + '}', value)
+      await writeFile(join(plugin, file), text)
+    }
+    // 夹具服务器记录收到的请求并回答 hover（安装前写入：digest 覆盖这一声明）。
+    const lsp = JSON.parse(await readFile(join(plugin, '.lsp.json'), 'utf8')) as { lspServers: { ts: { args: string[] } } }
+    lsp.lspServers.ts.args.push('--record', record, '--hover', 'plugin hover')
+    await writeFile(join(plugin, '.lsp.json'), JSON.stringify(lsp))
+    const script = join(root, 'faux.json')
+    await writeFile(
+      script,
+      JSON.stringify({
+        responses: [
+          { content: [{ type: 'toolCall', name: 'lsp', id: 'l1', arguments: { operation: 'hover', file_path: 'a.ts', line: 1, character: 14 } }] },
+          { content: 'hovered' },
+        ],
+      }),
+    )
+    const userData = join(root, 'user-data')
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, COKO_HOME: join(root, 'coko-home') })
+    const { page } = app
+    await waitConnected(page)
+    const sessionId = await page.evaluate(
+      async ({ path, pluginPath }) => {
+        const call = async (url: string, body: unknown, method: 'POST' | 'PUT' = 'POST') => {
+          const res = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+          return (await res.json().catch(() => null)) as Record<string, unknown>
+        }
+        const installed = (await call('/api/plugins', { source: { kind: 'dir', path: pluginPath } })) as { name: string; digest: string }
+        await call(`/api/plugins/${installed.name}/approve`, { digest: installed.digest })
+        const workspaceId = (await call('/api/workspaces', { path })).id as string
+        const id = (await call('/api/sessions', { workspaceId })).id as string
+        await call(`/api/sessions/${id}/permission-mode`, { mode: 'full-access' }, 'PUT')
+        await call(`/api/sessions/${id}/messages`, { text: 'hover' })
+        return id
+      },
+      { path: workspace, pluginPath: plugin },
+    )
+    const status = () =>
+      page.evaluate(
+        async (id) =>
+          (
+            (await (await fetch(`/api/lsp?sessionId=${encodeURIComponent(id)}`)).json()) as {
+              status: { name: string; source: string; state: string; pid?: number }[]
+            }
+          ).status,
+        sessionId,
+      )
+    await expect.poll(async () => (await status())[0], { timeout: 30_000 }).toMatchObject({ name: 'sample:ts', source: 'plugin', state: 'running' })
+    const pid = (await status())[0]!.pid!
+    onTestFinished(() => {
+      if (processExists(pid)) process.kill(pid, 'SIGKILL')
+    })
+    // 接收侧：假服务器收到 initialize（rootUri 为 Workspace）与 hover。
+    await expect.poll(async () => (await readFile(record, 'utf8').catch(() => '')).includes('"method":"textDocument/hover"'), { timeout: 30_000 }).toBe(true)
+    expect(await readFile(record, 'utf8')).toContain(`"rootUri":"file://${workspace}"`)
+    const db = join(userData, 'data', 'coko.db')
+    const lspRows = () => {
+      const handle = new DatabaseSync(db, { readOnly: true })
+      try {
+        return handle.prepare("SELECT pid, kind FROM host_processes WHERE kind = 'lsp'").all() as { pid: number; kind: string }[]
+      } finally {
+        handle.close()
+      }
+    }
+    await expect.poll(lspRows, { timeout: 10_000 }).toEqual([{ pid, kind: 'lsp' }])
+
+    await app.browser.close()
+    app.child.kill('SIGTERM')
+    expect(await app.exited).toBe(0)
+    await waitFor(() => !processExists(pid), 10_000, 'language server exit')
+    expect(lspRows()).toEqual([])
   })
 })
