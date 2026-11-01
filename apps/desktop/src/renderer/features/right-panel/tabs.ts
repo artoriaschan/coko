@@ -30,7 +30,7 @@ export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
   { id: 'agents', label: 'agents.tab', Component: AgentsTab, available: true },
   { id: 'schedules', label: 'schedules.tab', Component: SchedulesTab, available: true },
   { id: 'team', label: 'teams.tab', Component: TeamTab, available: false },
-  { id: 'trace', label: 'trace.tab', Component: TraceTab, available: false },
+  { id: 'trace', label: 'trace.tab', Component: TraceTab, available: true },
 ]
 
 export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS) => tabs.filter((tab) => tab.available)

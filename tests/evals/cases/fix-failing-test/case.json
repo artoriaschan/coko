@@ -1,0 +1,53 @@
+{
+  "prompt": "`node run-tests.mjs` fails. Run it, fix the code (not the test), and run it again until it passes.",
+  "faux": [
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "bash",
+          "id": "b1",
+          "arguments": {
+            "command": "node run-tests.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "write",
+          "id": "w1",
+          "arguments": {
+            "path": "slug.mjs",
+            "content": "export const slugify = (text) => text.toLowerCase().replace(/ /g, '-')\n"
+          }
+        }
+      ]
+    },
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "bash",
+          "id": "b2",
+          "arguments": {
+            "command": "node run-tests.mjs"
+          }
+        }
+      ]
+    },
+    {
+      "content": "The test passes now."
+    }
+  ],
+  "expect": {
+    "files": {
+      "slug.mjs": "/replace\\(/ /g, '-'\\)/",
+      "test-passed": "pass\n"
+    },
+    "unchanged": ["run-tests.mjs"],
+    "maxToolCalls": 8
+  }
+}

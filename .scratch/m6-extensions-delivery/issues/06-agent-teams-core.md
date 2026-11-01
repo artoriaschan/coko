@@ -81,3 +81,4 @@
 
 **导航行（已在本分支加入，合并时核对）：** `docs/README.md` 当前行为的"Agent Teams"一行。
 
+- 2026-11-01 lead：暂不合入。实施者报告 BLOCKED（21e49c7）：本用户进程数约 2640，上限 2666（kern.maxprocperuid），其中约 2190 个是 `~/.git-ai/bin/git-ai bg run`（父进程为 launchd，不是本项目启动的）。14:48 lead 在本分支上单独运行 5 个 git 夹具文件，仍然失败（spawn EAGAIN），其中包括本票自己的 `sidecar-teams-restart`。这些进程不是 Coko 或测试启动的，lead 不按名字结束它们，交由用户处理。处理后：本分支先 `git merge main`（main 之后又合入了 07），再单独运行这 5 个文件，然后在锁内跑一次全量，之后合入。越出写范围的改动（`agents/tools.ts`；run_start v4 的 `subagent.triggerRunId` 涉及 03 独有的文件；`docs/adr/README.md`；只读导入 `buildTimeline`）在合入时裁决。

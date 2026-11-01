@@ -18,6 +18,8 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 
 发布构建（不带 `COKO_TEST_BUILD`）的产物 E2E 是单独的 Vitest 项目 `desktop-release`（`apps/desktop/vitest.release.config.ts`），只在 `COKO_RELEASE_E2E=1` 时选中用例；未设置时选中 0 个文件、不打包，默认的 `pnpm run test` 不受影响。它的 globalSetup 以 `COKO_FORGE_OUT_DIR=out-release` 运行 `pnpm run make`，与测试构建的 `out/` 分开；因为会再打一次包，在全量测试锁内运行。发布构建忽略后台模式，用例以 `open -g -n` 启动应用（不激活）并经 CDP 连接，进程号从 CDP 的 `SystemInfo.getProcessInfo` 读取，只结束这些进程。对手用例：带 `COKO_FAUX_SCRIPT`、`COKO_TEST_CLOCK`、`COKO_E2E_BACKGROUND`、`COKO_TEST_UPDATE_FEED_URL` 启动时没有 Provider、日志 `test hooks ignored in a packaged build` 列出这些名字、`POST /api/test/clock` 404、测试更新源收不到请求且 `auto update disabled { reason: no-feed }`、随包 ripgrep 与 node-pty 被加载；dmg 经 `hdiutil attach -readonly -nobrowse` 挂载后有 `Coko.app`，记录 `codesign --verify` 的结果（adhoc，不断言 Developer ID）后卸载。当前做法见 [安装包、自动更新与发布构建](../subsystems/delivery.md)。
 
+回归评测是 Vitest 项目 `evals`（`tests/evals/vitest.config.ts`），随 `pnpm run test` 运行，`pnpm run eval` 只运行它。每个 Eval Case 为 `cases/<name>/` 中的 `case.json`（提示、权限模式、faux 脚本与期望）与初始 `workspace/`；运行器复用集成测试的 sidecar-harness 启动真实 Sidecar，在临时目录中运行后只按外部事实判定（文件内容、应不变的文件、工具调用数与 Run 状态），报告写到 git 忽略的 `tests/evals/reports/<ISO>.json`（每例 pass / fail、原因、tokens、cost、durationMs）。默认只跑 faux；`COKO_EVAL_PROVIDER_CONFIG` 与对应的 `COKO_CREDENTIAL_<ID>` 都存在时同一组用例另用真实模型运行，缺一时报告记 `skipped: no-credentials`，按上文“真实模型测试单独报告”列为未验证。用例格式与真实模式见 [追踪、审计、导出与评测](../subsystems/tracing.md#评测)。
+
 ## 测试用例生成与维护
 
 新增功能、修复缺陷或改变已有行为时，按以下规则设计测试；框架版本见 [技术栈](../TECH_STACK.md#代码质量与测试工具)，运行时遵循下文“运行与编排”，测试位置遵循 [构建与测试归属](architecture.md#构建与测试归属)。
@@ -38,6 +40,7 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 - **恢复全局状态。** 优先依赖注入；确需修改环境变量、cwd、时区、locale、全局 mock、注册表或 fake timers 时，立即登记清理，并在最小作用域的 `try/finally` 中恢复原值，包括原先不存在的状态。
 - **等待可观察状态。** 通过就绪事件、握手、状态变化、受控 promise 或外部条件同步。固定 sleep 不能代表准备或清理完成；timeout 只限制等待上限。测试时间行为时注入或模拟时钟，并恢复真实时钟。
 - **Browser Mode 共用页面。** 同一 Browser Mode 项目的文件共用一个页面源。desktop renderer 的共用 setup（`apps/desktop/src/renderer/testing/browser-setup.ts`）在每个用例前快照 localStorage、结束后恢复，卸载渲染的组件，并在 body 的子节点留有 `aria-hidden` / `data-aria-hidden` 或 body 的 `pointer-events` 未复原时让该用例失败：打开 Radix 菜单或对话框的用例要等它关闭后再结束，不要清空 `document.body` 代替卸载，`unmount()` 要 await。 指针位置同样不在文件之间重置：断言颜色、hover 或命中区域的用例自己设定指针状态（例如测量区域 `pointer-events: none`，或先显式移动指针），不依赖前一个文件留下的位置。
+- **测试中的 git 不经过包装。** git 夹具为每个测试设一个新的临时 HOME。PATH 上的 `git` 若是包装程序（例如 git-ai 的 `~/.git-ai/bin/git -> git-ai`），包装会为每个 HOME 起一个后台进程，临时目录删除后进程仍在，累积后耗尽 `kern.maxprocperuid`，git、hook 与 vitest worker 都会 `spawn EAGAIN`。根 `vitest.config.ts` 在 worker 启动前用 `scripts/test-path.ts` 去掉这类目录，worker、Sidecar 与 Electron 子进程继承清理后的 PATH；`scripts/test-path.test.ts` 断言测试进程中的 `git` 解析到名为 git 的程序。从仓库根运行 `pnpm run test` 或 `pnpm exec vitest run <文件>` 时生效。
 - **清理到真正结束。** 获取资源后立即登记 teardown，确保断言失败、超时或重试时也释放资源。停止新任务、解除监听并等待子进程退出、server close、worker termination 等完成信号；仅调用 `abort()`、`close()` 或 `kill()` 不算清理完成。迟到的回调不得污染其他测试。
 - **尊重平台与执行预算。** 用实际读回值验证操作系统管理的时间戳等数据；确属平台专有行为时显式跳过并说明原因。测试和 hooks 的超时预算应匹配执行环境；测试内部 deadline 必须明显短于外层等待上限。
 - **按风险验证隔离。** 全局状态变更验证恢复，生命周期变更验证清理完成，跨进程资源隔离修复使用独立测试进程并发验证。只在单独运行时通过应视为测试缺陷；不要用整个套件串行化掩盖资源冲突。
