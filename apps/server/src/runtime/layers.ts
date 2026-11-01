@@ -68,6 +68,8 @@ export interface HostShape {
   config: SidecarConfig
   control: ControlChannel
   env: Readonly<Record<string, string | undefined>>
+  /** 无界面运行（headlessLayer）：需要审批的调用立即拒绝，模型看到 deniedText（ADR 0019）。 */
+  headless?: { deniedText: string }
 }
 
 export class Host extends Context.Service<Host, HostShape>()('coko/Host') {}
@@ -509,7 +511,7 @@ function withTestHold(
 const AppLive = Layer.effect(
   App,
   Effect.gen(function* () {
-    const { config, control, env } = yield* Host
+    const { config, control, env, headless } = yield* Host
     const store = yield* Store
     const runs = yield* Runs
     const processes = yield* Processes
@@ -579,6 +581,8 @@ const AppLive = Layer.effect(
       // 子 Session 的根 Session 与模式上限（ADR 0014）。
       permissionScopes: subagents,
       ...(fallbackModel ? { fallbackModel } : {}),
+      // 无界面运行：审批立即拒绝（含子代理），见 headlessLayer。
+      ...(headless ? { unattendedApprovals: headless } : {}),
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
@@ -734,10 +738,28 @@ export function sidecarLayer(host: HostShape) {
 
 // ── headless ──
 /**
- * 无界面运行（ADR 0019）的装配：与 sidecarLayer 相同的应用层，去掉 HTTP 与控制通道，Secret 与 Credential 为环境变量模式，审批由 headless
- * 回答者自动拒绝。尚未接入：入口（headless/index.ts）在此之前以 4 退出。
+ * 无界面运行（ADR 0019）的装配：与 sidecarLayer 相同的应用层，去掉 HTTP；控制通道为不输出的 standalone 通道（stdout 只给运行结果），
+ * 因此 Secret 与 Credential 为环境变量模式（COKO_SECRET_<NAME>、COKO_CREDENTIAL_<ID>）。host.headless 给出时需要审批的调用在
+ * PermissionRequest Hook 之后立即以 approval_decision { by: headless } 拒绝。释放顺序与 sidecarLayer 相同（没有 HTTP 一步）。
  */
-export function headlessLayer(_host: HostShape): never {
-  throw new StartupError('headless-not-implemented', 'Headless runs are not implemented')
+export function headlessLayer(host: HostShape & { headless: { deniedText: string } }) {
+  return AppLive.pipe(
+    Layer.provideMerge(RunsLive),
+    Layer.provideMerge(AssemblyLive),
+    Layer.provideMerge(ProcessesLive),
+    Layer.provideMerge(StoreLive),
+    Layer.provideMerge(ToolsLive),
+    Layer.provideMerge(LoggingLive),
+    Layer.provideMerge(Layer.succeed(Host, host)),
+  )
+}
+
+/** headlessLayer 的控制通道：standalone，不写 stdout、不接收消息。 */
+export const silentControl: ControlChannel = {
+  mode: 'standalone',
+  send: async () => undefined,
+  onMessage: () => () => {},
+  onDisconnect: () => {},
+  close: () => {},
 }
 // ── end headless ──
