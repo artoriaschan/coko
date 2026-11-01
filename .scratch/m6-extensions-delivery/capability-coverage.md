@@ -1,54 +1,54 @@
-# M6 能力覆盖表：能力表逐行 → 已交付位置或 M6 票号
+# M6 能力覆盖表：能力表逐行 → 已交付位置与证据
 
-依据：[Agent 执行约定](../../docs/tech-stack/agent-runtime.md#框架能力分工) 的"框架能力分工"表（35 行）与 [桌面构建与交付约定](../../docs/tech-stack/desktop-delivery.md)。2026-10-31 planner 在 main 27f55ca 上核对（读 subsystem 页、包 README、测试文件名与代码）。状态：**已交付**＝主体行为有当前行为文档与经真实应用入口的测试；**部分**＝主体已交付、能力表所列的某一项缺失；**未开始**。M6 交付后每行都应为已交付；票 14 把"证据"列补成 M6 的实际测试文件。
+依据：[Agent 执行约定](../../docs/tech-stack/agent-runtime.md#框架能力分工) 的"框架能力分工"表（35 行）与 [桌面构建与交付约定](../../docs/tech-stack/desktop-delivery.md)。2026-10-31 planner 在 main 27f55ca 上建立本表（"M6 前"列）；2026-11-01 票 14 在 main 7f1438f（01–13 全部合入）上逐行核对：读 subsystem 页、包 README 与测试文件，"证据"列只列仓库中存在的测试文件。状态：**已交付**＝主体行为有当前行为文档与经真实应用入口（真实 Sidecar 或 Electron）的测试。需要真实凭据或外部条件的验证见 [manual-verification.md](manual-verification.md)，不影响行的状态判定（行为由无密钥的 faux 回放、假服务器与真实 Sidecar 测试证明）。
 
-| # | 能力 | main 上的状态 | 已交付位置（当前行为 / 主要证据） | M6 票 |
-| --- | --- | --- | --- | --- |
-| 1 | Agent Loop | 已交付（M1） | [@coko/agent](../../packages/agent/README.md) 运行控制；`engine/runtime.test.ts`、`sidecar-session.test.ts` | — |
-| 2 | Tool Calling | 已交付（M1） | agent README 工具契约；`tools/registry.test.ts`、`timeout.test.ts`、`sidecar-ripgrep.test.ts`（宿主覆盖） | 05、06 新增工具沿用 |
-| 3 | 流式事件 | 已交付（M1） | [apps/server](../../apps/server/README.md) WebSocket；`chat.e2e.test.ts` | 08 文档化（protocol README） |
-| 4 | 模型适配层 | 已交付（M1、模型服务设置） | `models/*.test.ts`、`sidecar-provider-models.test.ts`、`sidecar-thinking-level.test.ts`、ADR 0010 | — |
-| 5 | 并发执行 | 已交付（M2） | agent README 调度；`tools/scheduler.test.ts`、`sidecar-concurrency.test.ts` | — |
-| 6 | Rules / Instructions | 已交付（M3） | [指令文件](../../docs/subsystems/instructions.md)；`sidecar-instructions.test.ts` | — |
-| 7 | Skills | 已交付（M3） | [Skills](../../docs/subsystems/skills.md)；`sidecar-skills.test.ts` | 03、04（插件来源） |
-| 8 | Commands / Prompt Templates | 已交付（M3） | [命令](../../docs/subsystems/commands.md)；`sidecar-commands.test.ts` | 03、04（插件来源） |
-| 9 | MCP | 已交付（M3），401 无专门状态 | [MCP](../../docs/subsystems/mcp.md)；`sidecar-mcp*.test.ts` | 09（auth-required） |
-| 10 | Hooks | 已交付（M5），团队事件与插件声明缺 | [外部 Hook](../../docs/subsystems/hooks.md)；`sidecar-hooks*.test.ts`、ADR 0013 | 01（J3、J8、J9、H5、H8）、03、04、06 |
-| 11 | Plugins | **未开始** | 设置注册表只有占位 | 03 → 04 → 12（ADR 0017） |
-| 12 | Goal | 已交付（M4） | [Goal](../../docs/subsystems/goal.md)；`sidecar-goal*.test.ts`、ADR 0011 | 06（teammate 用量归属） |
-| 13 | Plan Mode | 已交付（M4） | [Plan Mode](../../docs/subsystems/plan-mode.md)；`sidecar-plan.test.ts` | — |
-| 14 | Task / Todo | **部分**：拆分、依赖、状态、结果已交付；负责人、认领与共享 Task 缺 | [Todo List](../../docs/subsystems/todo.md)；`sidecar-todo.test.ts` | 03 → 06 → 13（Team Task） |
-| 15 | Scheduler / Automation | 已交付（M5） | [定时任务](../../docs/subsystems/schedules.md)；`sidecar-schedules*.test.ts`、ADR 0015 | 01（S6） |
-| 16 | Background Jobs | 已交付（M4） | [后台任务](../../docs/subsystems/jobs.md)；`sidecar-jobs.test.ts`、`sidecar-pty.test.ts` | — |
-| 17 | Subagents | **部分**：派发、等待、取消、汇总已交付；继续对话（send_message）缺 | [子代理](../../docs/subsystems/subagents.md)；`sidecar-subagents*.test.ts`、ADR 0014 | 01（J4、S5、S7）、02（通知 E2E）、06（继续对话） |
-| 18 | Agent Teams | **未开始** | — | 03 → 06 → 13（ADR 0018） |
-| 19 | Fork / Handoff | 已交付（M2 Fork、M5 Handoff） | [交接](../../docs/subsystems/handoff.md)；`agents/fork.test.ts`、`sidecar-handoff.test.ts` | — |
-| 20 | Context Management | 已交付（M3），worktree 会话的上下文用量按 Workspace | [上下文管理](../../docs/subsystems/context.md)；`sidecar-context.test.ts`、`sidecar-references.test.ts` | 01（用量按 SessionCwd） |
-| 21 | Compaction | 已交付（M3） | 上下文管理"压缩"；`sidecar-compaction.test.ts` | 01（S10 hook_blocked） |
-| 22 | Memory | **部分**：作用域、来源、更新、删除已交付；检索（FTS）缺 | [Memory](../../docs/subsystems/memory.md)；`sidecar-memory.test.ts`；ADR 0003 partial | 03（FTS 表）→ 11 |
-| 23 | Session Persistence | 已交付（M1–M2） | [启动恢复](../../docs/subsystems/recovery.md)；`sidecar-storage.test.ts`、`sidecar-recovery.test.ts`、ADR 0003 | 03（迁移 v9） |
-| 24 | Checkpoint / Rewind | 已交付（M2），worktree 子目录的回退边界没有专门用例 | ADR 0006；`sidecar-checkpoints.test.ts`、`sidecar-rewind.test.ts` | 01（边界用例） |
-| 25 | Workspace / Worktree | 已交付（M5），移除的 TOCTOU 未修 | [Worktree](../../docs/subsystems/worktrees.md)；`sidecar-worktrees.test.ts`、ADR 0016 | 01（H4）、06（teammate 复用） |
-| 26 | Execution Runtime | 已交付（M1 shell、M4 PTY 与 stdin） | [命令执行与子进程登记](../../docs/subsystems/execution.md)；`sidecar-pty.test.ts`、`sidecar-orphans.test.ts` | 03（lsp 登记类别） |
-| 27 | Code Intelligence | **未开始** | — | 03 → 05 |
-| 28 | Browser / Computer Use | **未开始**（MCP 通用适配已有，没有预设与图像证据） | — | 09（Playwright MCP 预设、图像结果；Computer Use 经用户配置的 MCP） |
-| 29 | Permissions / Approvals | 已交付（M2，M4–M5 扩展） | [权限判定与审批](../../docs/subsystems/permissions.md)；`sidecar-permissions.test.ts`、`sidecar-approvals.test.ts` | 03（lsp、team 权限类）、08（headless 审批） |
-| 30 | Sandbox / Secrets | 已交付（M2 Seatbelt、M3 Secrets） | ADR 0005、0007；`sidecar-sandbox.test.ts`、`secrets-gate*.test.ts` | 各票新增 secrets-gate |
-| 31 | Steering / Interrupt | 已交付（M2） | agent README 运行控制；`sidecar-run-control.test.ts`、`run-control.e2e.test.ts` | 06（teammate 的 steering 送达） |
-| 32 | Recovery / Idempotency | 已交付（M2） | [启动恢复与结果确认](../../docs/subsystems/recovery.md)；`sidecar-recovery.test.ts` | 06（teammate 重启） |
-| 33 | SDK / Headless / Protocol | **部分**：Sidecar 可独立运行、协议 DTO 有 TypeBox 定义；无界面运行入口、库用法说明、协议文档缺 | apps/server README（standalone）；`sidecar-boot.test.ts` | 03（入口存根）→ 08（ADR 0019） |
-| 34 | Observability / Evals | **部分**：用量与费用在条目与日志中；延迟、追踪、审计、回放接口与 evals 缺 | [日志与诊断约定](../../docs/tech-stack/observability.md)；`sidecar-model-price.test.ts` | 03（model_request）→ 07 |
-| 35 | Configuration | 已交付（M3） | [分层配置](../../docs/subsystems/configuration.md)；`sidecar-config.test.ts` | 03（新开关与 lsp 键） |
+| # | 能力 | M6 前 | 交付后 | 当前行为 | 证据（测试文件） | M6 票 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Agent Loop | 已交付（M1） | 已交付 | [@coko/agent](../../packages/agent/README.md) 运行控制 | `packages/agent/src/engine/runtime.test.ts`、`tests/integration/sidecar-session.test.ts` | — |
+| 2 | Tool Calling | 已交付（M1） | 已交付 | agent README 工具契约 | `packages/agent/src/tools/{registry,timeout}.test.ts`、`tests/integration/sidecar-ripgrep.test.ts`；M6 新工具：`tools/lsp/lsp.test.ts`、`agents/teams/teams.test.ts` | 05、06 |
+| 3 | 流式事件 | 已交付（M1） | 已交付 | [apps/server](../../apps/server/README.md) WebSocket、[协议](../../packages/protocol/README.md) | `apps/desktop/e2e/chat.e2e.test.ts`、`packages/protocol/src/readme.test.ts`、`tests/integration/sdk-standalone-client.test.ts` | 08 |
+| 4 | 模型适配层 | 已交付（M1） | 已交付 | ADR 0010 | `packages/agent/src/models/models.test.ts`、`tests/integration/sidecar-provider-models.test.ts`、`sidecar-thinking-level.test.ts` | — |
+| 5 | 并发执行 | 已交付（M2） | 已交付 | agent README 调度 | `packages/agent/src/tools/scheduler.test.ts`、`tests/integration/sidecar-concurrency.test.ts` | — |
+| 6 | Rules / Instructions | 已交付（M3） | 已交付 | [指令文件](../../docs/subsystems/instructions.md) | `tests/integration/sidecar-instructions.test.ts` | — |
+| 7 | Skills | 已交付（M3） | 已交付（含插件来源） | [Skills](../../docs/subsystems/skills.md)、[插件](../../docs/subsystems/plugins.md) | `tests/integration/sidecar-skills.test.ts`、`sidecar-plugins.test.ts`、`secrets-gate-plugins.test.ts`（正文脱敏） | 03、04 |
+| 8 | Commands / Prompt Templates | 已交付（M3） | 已交付（含插件来源） | [命令](../../docs/subsystems/commands.md)、[插件](../../docs/subsystems/plugins.md) | `tests/integration/sidecar-commands.test.ts`、`sidecar-plugins.test.ts`、`apps/desktop/e2e/plugins.e2e.test.ts`（`/sample:hello`） | 03、04 |
+| 9 | MCP | 已交付（M3），401 无专门状态 | 已交付（auth-required、浏览器预设） | [MCP](../../docs/subsystems/mcp.md) | `tests/integration/sidecar-mcp.test.ts`、`sidecar-mcp-resources-prompts.test.ts`、`sidecar-mcp-auth.test.ts`、`sidecar-mcp-presets.test.ts`、`packages/agent/src/extensions/mcp/connection.test.ts`、`apps/desktop/e2e/mcp.e2e.test.ts` | 09 |
+| 10 | Hooks | 已交付（M5），团队事件与插件声明缺 | 已交付 | [外部 Hook](../../docs/subsystems/hooks.md)、ADR 0013 | `tests/integration/sidecar-hooks.test.ts`、`sidecar-hooks-lifecycle.test.ts`（J3、J9）、`sidecar-teams-hooks.test.ts`（三个团队事件）、`sidecar-plugins-trust.test.ts`（插件 Hook 越不过判定）、`sidecar-m6-seams.test.ts` | 01、03、04、06 |
+| 11 | Plugins | **未开始** | 已交付 | [插件](../../docs/subsystems/plugins.md)、ADR 0017（implemented） | `packages/agent/src/extensions/plugins/{manifest,copy}.test.ts`、`apps/server/src/application/plugins.test.ts`、`tests/integration/sidecar-plugins.test.ts`、`sidecar-plugins-trust.test.ts`、`secrets-gate-plugins.test.ts`、`apps/desktop/src/renderer/features/settings/plugins-section.browser.test.tsx`、`apps/desktop/e2e/plugins.e2e.test.ts`、`package-smoke.e2e.test.ts`（打包产物中插件的 MCP 与 LSP 进程） | 03、04、12 |
+| 12 | Goal | 已交付（M4） | 已交付（teammate 用量按触发 Run 归属） | [Goal](../../docs/subsystems/goal.md)、ADR 0011 | `tests/integration/sidecar-goal.test.ts`、`sidecar-goal-budget.test.ts`、`sidecar-goal-restart.test.ts`、`sidecar-teams-budget.test.ts` | 06 |
+| 13 | Plan Mode | 已交付（M4） | 已交付 | [Plan Mode](../../docs/subsystems/plan-mode.md) | `tests/integration/sidecar-plan.test.ts` | — |
+| 14 | Task / Todo | **部分**：负责人、认领与共享 Task 缺 | 已交付（Team Task 的负责人、认领、共享前置） | [Todo List](../../docs/subsystems/todo.md)、[Agent Teams](../../docs/subsystems/teams.md) | `tests/integration/sidecar-todo.test.ts`、`sidecar-teams-tasks.test.ts`、`packages/agent/src/agents/teams/teams.test.ts`、`apps/server/src/application/teams.test.ts`、`apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx` | 03、06、13 |
+| 15 | Scheduler / Automation | 已交付（M5） | 已交付 | [定时任务](../../docs/subsystems/schedules.md)、ADR 0015 | `tests/integration/sidecar-schedules.test.ts`、`sidecar-schedules-restart.test.ts` | 01 |
+| 16 | Background Jobs | 已交付（M4） | 已交付 | [后台任务](../../docs/subsystems/jobs.md) | `tests/integration/sidecar-jobs.test.ts`、`sidecar-pty.test.ts` | — |
+| 17 | Subagents | **部分**：继续对话缺 | 已交付（send_message 继续已结束的子代理） | [子代理](../../docs/subsystems/subagents.md)、ADR 0014 | `tests/integration/sidecar-subagents.test.ts`、`sidecar-subagents-isolation.test.ts`、`sidecar-teams.test.ts`（第 4 例：重启后继续）、`apps/desktop/e2e/subagent-notifications.e2e.test.ts` | 01、02、06 |
+| 18 | Agent Teams | **未开始** | 已交付 | [Agent Teams](../../docs/subsystems/teams.md)、ADR 0018（implemented） | `tests/integration/sidecar-teams{,-tasks,-hooks,-budget,-restart}.test.ts`、`secrets-gate-teams.test.ts`、`apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx`、`features/conversation/team-rows.browser.test.tsx`、`apps/desktop/e2e/teams.e2e.test.ts` | 03、06、13 |
+| 19 | Fork / Handoff | 已交付（M2、M5） | 已交付 | [交接](../../docs/subsystems/handoff.md) | `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-handoff.test.ts` | — |
+| 20 | Context Management | 已交付（M3），worktree 会话用量按 Workspace | 已交付（用量按 SessionCwd） | [上下文管理](../../docs/subsystems/context.md) | `tests/integration/sidecar-context.test.ts`、`sidecar-references.test.ts`、`sidecar-worktrees.test.ts`（worktree 会话的作用域） | 01 |
+| 21 | Compaction | 已交付（M3） | 已交付 | 上下文管理"压缩" | `tests/integration/sidecar-compaction.test.ts`、`packages/agent/src/engine/m5-seams.test.ts`（hook_blocked） | 01 |
+| 22 | Memory | **部分**：检索缺 | 已交付（FTS5 检索与 LIKE 降级） | [Memory](../../docs/subsystems/memory.md#检索)、ADR 0003（implemented） | `tests/integration/sidecar-memory.test.ts`、`sidecar-memory-search.test.ts`、`secrets-gate-memory-search.test.ts`、`packages/agent/src/context/memory/memory.test.ts`、`packages/session/src/sqlite/migrate-v9.test.ts`、`apps/desktop/e2e/memory.e2e.test.ts` | 03、11 |
+| 23 | Session Persistence | 已交付（M1–M2） | 已交付（迁移 v9） | [启动恢复](../../docs/subsystems/recovery.md)、ADR 0003 | `tests/integration/sidecar-storage.test.ts`、`sidecar-recovery.test.ts`、`packages/session/src/sqlite/migrate-v9.test.ts` | 03 |
+| 24 | Checkpoint / Rewind | 已交付（M2），worktree 子目录的回退边界没有用例 | 已交付 | ADR 0006 | `tests/integration/sidecar-checkpoints.test.ts`、`sidecar-rewind.test.ts`、`sidecar-worktrees.test.ts`（回退边界） | 01 |
+| 25 | Workspace / Worktree | 已交付（M5），移除的 TOCTOU 未修 | 已交付（移除先登记 removing） | [Worktree](../../docs/subsystems/worktrees.md)、ADR 0016 | `tests/integration/sidecar-worktrees.test.ts`、`apps/server/src/application/worktrees.test.ts`（移除与并发开始的 Run）、`sidecar-teams-restart.test.ts`（teammate worktree） | 01、06 |
+| 26 | Execution Runtime | 已交付（M1、M4） | 已交付（lsp 登记类别） | [命令执行与子进程登记](../../docs/subsystems/execution.md) | `tests/integration/sidecar-pty.test.ts`、`sidecar-orphans.test.ts`、`sidecar-lsp-process.test.ts`（kind lsp、孤儿清理） | 03、05 |
+| 27 | Code Intelligence | **未开始** | 已交付 | [代码智能](../../docs/subsystems/lsp.md) | `packages/agent/src/tools/lsp/lsp.test.ts`、`apps/server/src/adapters/lsp-client.test.ts`、`tests/integration/sidecar-lsp.test.ts`、`sidecar-lsp-process.test.ts`、`secrets-gate-lsp.test.ts`、`apps/desktop/e2e/lsp.e2e.test.ts`、`package-smoke.e2e.test.ts`（插件的 LSP 进程在打包产物中启动） | 03、05 |
+| 28 | Browser / Computer Use | **未开始** | 已交付（Playwright MCP 预设与图像结果；Computer Use 经用户配置的 MCP） | [MCP](../../docs/subsystems/mcp.md) 浏览器预设一节 | `tests/integration/sidecar-mcp-presets.test.ts`（真实 Playwright 为 skipIf）、`apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx`、`apps/desktop/e2e/mcp-browser.e2e.test.ts` | 09 |
+| 29 | Permissions / Approvals | 已交付（M2，M4–M5 扩展） | 已交付（lsp、team 权限类；headless 审批） | [权限判定与审批](../../docs/subsystems/permissions.md)、ADR 0019 | `tests/integration/sidecar-permissions.test.ts`、`sidecar-approvals.test.ts`、`sidecar-lsp.test.ts`（Read 规则与 Workspace 外）、`headless-approvals.test.ts`、`packages/agent/src/policy/gate-unattended.test.ts` | 03、08 |
+| 30 | Sandbox / Secrets | 已交付（M2、M3） | 已交付（M6 新通道各有总闸） | ADR 0005、0007 | `tests/integration/sidecar-sandbox.test.ts`、`secrets-gate.test.ts`、`secrets-gate-{plugins,lsp,teams,trace,headless,memory-search}.test.ts` | 各票 |
+| 31 | Steering / Interrupt | 已交付（M2） | 已交付（teammate 运行中 steering） | agent README 运行控制 | `tests/integration/sidecar-run-control.test.ts`、`apps/desktop/e2e/run-control.e2e.test.ts`、`sidecar-teams.test.ts`（运行中送达） | 06 |
+| 32 | Recovery / Idempotency | 已交付（M2） | 已交付（teammate 重启） | [启动恢复与结果确认](../../docs/subsystems/recovery.md) | `tests/integration/sidecar-recovery.test.ts`、`sidecar-teams-restart.test.ts` | 06 |
+| 33 | SDK / Headless / Protocol | **部分** | 已交付 | [无界面运行](../../docs/subsystems/headless.md)、[协议](../../packages/protocol/README.md)、agent README"作为库使用"、ADR 0019（implemented） | `tests/integration/sdk-library.test.ts`、`sdk-standalone-client.test.ts`、`headless.test.ts`、`headless-approvals.test.ts`、`secrets-gate-headless.test.ts`、`packages/protocol/src/readme.test.ts`、`apps/desktop/e2e/package-smoke.e2e.test.ts`（打包产物的 headless） | 03、08 |
+| 34 | Observability / Evals | **部分** | 已交付 | [追踪、审计、导出与评测](../../docs/subsystems/tracing.md)、[日志与诊断约定](../../docs/tech-stack/observability.md) | `packages/agent/src/observability/trace.test.ts`、`tests/integration/sidecar-trace.test.ts`、`secrets-gate-trace.test.ts`、`sidecar-model-price.test.ts`、`apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx`、`apps/desktop/e2e/trace.e2e.test.ts`、`tests/evals/evals.test.ts`（真实模式为 skipIf） | 03、07 |
+| 35 | Configuration | 已交付（M3） | 已交付（plugins / lsp / teams 开关） | [分层配置](../../docs/subsystems/configuration.md) | `tests/integration/sidecar-config.test.ts`、`sidecar-lsp.test.ts`（项目 `lsp` 键 project-cannot-grant） | 03 |
 
 ## 桌面交付
 
-| 项 | main 上的状态 | M6 票 |
-| --- | --- | --- |
-| DMG / ZIP 安装包 | 未开始（`makers: []`） | 10 |
-| 自动更新接线（autoUpdater、feed 可配置、未配置时关闭） | 未开始 | 03（bridge 与存根）→ 10 |
-| 发布构建（不带 COKO_TEST_BUILD）的产物 E2E | 未开始（只有测试构建的 package-smoke） | 03（骨架）→ 10 → 14（复跑） |
-| 签名与公证 | 不在本地图范围（需 Apple 开发者证书） | — |
+| 项 | M6 前 | 交付后 | 当前行为 | 证据 | M6 票 |
+| --- | --- | --- | --- | --- | --- |
+| DMG / ZIP 安装包 | 未开始（`makers: []`） | 已交付 | [安装包、自动更新与发布构建](../../docs/subsystems/delivery.md) | `apps/desktop/e2e-release/release.e2e.test.ts`（make 产出 .zip 与 .dmg，dmg 只读挂载后有 Coko.app） | 10 |
+| 自动更新接线 | 未开始 | 已交付（feed 未配置时 disabled） | 同上、[desktop-delivery](../../docs/tech-stack/desktop-delivery.md) 自动更新一节 | `apps/desktop/src/main/{update-coordinator,build-flags}.test.ts`、`src/renderer/features/settings/about-section.browser.test.tsx`、`apps/desktop/e2e/update.e2e.test.ts`（本地 feed，接收侧） | 03、10 |
+| 发布构建的产物 E2E | 未开始 | 已交付；票 14 在 7f1438f 复跑通过（2/2） | 同上 | `apps/desktop/e2e-release/release.e2e.test.ts`（测试钩子被忽略、没有可用模型、测试 feed 收不到请求、随包 ripgrep 与 node-pty） | 03、10、14 |
+| 签名与公证 | 不在本地图范围 | 不在范围（adhoc 签名，`codesign --verify --deep --strict` 失败） | [desktop-delivery](../../docs/tech-stack/desktop-delivery.md) | 人工验证清单 | — |
 
 ## 结论
 
-M6 的 14 张票覆盖全部"部分"与"未开始"行：Plugins（04、12）、Task / Todo 的负责人（06、13）、Subagents 的继续对话（06）、Agent Teams（06、13）、Memory 检索（11）、Code Intelligence（05）、Browser / Computer Use（09）、SDK / Headless / Protocol（08）、Observability / Evals（03、07），以及桌面交付三项（10）。已交付行的遗留缺口（Hooks、MCP 401、Context 的 worktree 用量、Checkpoint 边界、Worktree TOCTOU）由 01、03、09 处理。交付后不应再有"部分"或"未开始"行；需要真实凭据才能完成的验证列在 [规格的人工验证清单](spec.md#人工验证清单交付前需要真实凭据或外部条件)，不影响行的状态判定（行为由无密钥的回放与真实 Sidecar 测试证明）。
+35 行与桌面交付前三项均为已交付，没有"部分"或"未开始"行。M6 前的"部分 / 未开始"行由以下票补齐：Plugins（04、12）、Task / Todo 的负责人与认领（06、13）、Subagents 的继续对话（06）、Agent Teams（06、13）、Memory 检索（11）、Code Intelligence（05）、Browser / Computer Use（09）、SDK / Headless / Protocol（08）、Observability / Evals（03、07）、桌面交付（10）。已交付行的遗留缺口（Hooks 的团队事件与插件声明、MCP 401、Context 的 worktree 用量、Checkpoint 边界、Worktree TOCTOU）由 01、03、04、06、09 补齐。发布构建 E2E 没有"插件的 LSP 进程被启动"一项；该行为由测试构建的产物 smoke `package-smoke.e2e.test.ts` 中插件 LSP 一例证明（票 05）。签名与公证、真实凭据与外部条件下的验证见 [manual-verification.md](manual-verification.md)。
