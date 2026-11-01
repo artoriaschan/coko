@@ -40,6 +40,7 @@ Vitest 测试运行在开发机 Node.js，UI 组件通过 Browser Mode 在真实
 - **恢复全局状态。** 优先依赖注入；确需修改环境变量、cwd、时区、locale、全局 mock、注册表或 fake timers 时，立即登记清理，并在最小作用域的 `try/finally` 中恢复原值，包括原先不存在的状态。
 - **等待可观察状态。** 通过就绪事件、握手、状态变化、受控 promise 或外部条件同步。固定 sleep 不能代表准备或清理完成；timeout 只限制等待上限。测试时间行为时注入或模拟时钟，并恢复真实时钟。
 - **Browser Mode 共用页面。** 同一 Browser Mode 项目的文件共用一个页面源。desktop renderer 的共用 setup（`apps/desktop/src/renderer/testing/browser-setup.ts`）在每个用例前快照 localStorage、结束后恢复，卸载渲染的组件，并在 body 的子节点留有 `aria-hidden` / `data-aria-hidden` 或 body 的 `pointer-events` 未复原时让该用例失败：打开 Radix 菜单或对话框的用例要等它关闭后再结束，不要清空 `document.body` 代替卸载，`unmount()` 要 await。 指针位置同样不在文件之间重置：断言颜色、hover 或命中区域的用例自己设定指针状态（例如测量区域 `pointer-events: none`，或先显式移动指针），不依赖前一个文件留下的位置。
+- **测试中的 git 不经过包装。** git 夹具为每个测试设一个新的临时 HOME。PATH 上的 `git` 若是包装程序（例如 git-ai 的 `~/.git-ai/bin/git -> git-ai`），包装会为每个 HOME 起一个后台进程，临时目录删除后进程仍在，累积后耗尽 `kern.maxprocperuid`，git、hook 与 vitest worker 都会 `spawn EAGAIN`。根 `vitest.config.ts` 在 worker 启动前用 `scripts/test-path.ts` 去掉这类目录，worker、Sidecar 与 Electron 子进程继承清理后的 PATH；`scripts/test-path.test.ts` 断言测试进程中的 `git` 解析到名为 git 的程序。从仓库根运行 `pnpm run test` 或 `pnpm exec vitest run <文件>` 时生效。
 - **清理到真正结束。** 获取资源后立即登记 teardown，确保断言失败、超时或重试时也释放资源。停止新任务、解除监听并等待子进程退出、server close、worker termination 等完成信号；仅调用 `abort()`、`close()` 或 `kill()` 不算清理完成。迟到的回调不得污染其他测试。
 - **尊重平台与执行预算。** 用实际读回值验证操作系统管理的时间戳等数据；确属平台专有行为时显式跳过并说明原因。测试和 hooks 的超时预算应匹配执行环境；测试内部 deadline 必须明显短于外层等待上限。
 - **按风险验证隔离。** 全局状态变更验证恢复，生命周期变更验证清理完成，跨进程资源隔离修复使用独立测试进程并发验证。只在单独运行时通过应视为测试缺陷；不要用整个套件串行化掩盖资源冲突。
