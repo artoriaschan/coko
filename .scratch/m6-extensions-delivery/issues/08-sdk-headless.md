@@ -56,3 +56,16 @@
 **给 14 的要点（agent / server README）：** `RuntimePermissions.unattended`；`ProviderService.upsertFromConfig`；`headlessLayer` 与 `silentControl`；headless 入口参数与退出码见 `docs/subsystems/headless.md`。
 - 2026-11-01 lead：暂不合入。实施者报告 BLOCKED（4fd0454，已合并 main 9ab1def）：锁内全量在 globalSetup 处 spawn pnpm EAGAIN，没有运行任何用例（进程表被约 2250 个 `git-ai bg run` 占满）。逐文件运行全部通过；package-smoke 的 headless 用例、desktop-shell E2E 的改动与全量没有验证。9f6cc1a、ea5c102 两个提交以 HUSKY=0 提交（hook 无法 spawn），实施者手动运行了 oxfmt、oxlint 与 commitlint，合入前 lead 在 main 上复核这三项。越出写范围的改动（policy/{gate,broker}.ts、engine/{types,permission-wiring}.ts、sessions.ts、session-permissions.ts、layers.ts 块外两处、headless-harness.ts、seams 与 desktop-shell 的 headless 存根用例、docs/README.md、docs/adr/README.md）在合入时裁决。
 - 2026-11-01 lead（第 2 轮，合入前预审）：接受 `policy/{gate,broker}.ts`、`engine/{types,permission-wiring}.ts`、`session-permissions.ts`、`sessions.ts` 的越界改动。这些文件属于"只有 03 改"，但改动都是新增的可选项：`RuntimePermissions.unattended`、`ApprovalBroker.recordUnattendedDenied`、`ApprovalResolution.by: 'headless'` 与新的 `RunErrorCode` `approval_denied`。未设置 `unattended` 时，三种请求（tool、escalation、plan）仍经 `broker.request` 等待；子 Session 继承同一设置。没有改变跨票接口表中的形状。待进程表恢复后，在 main 上复核 oxfmt、oxlint 与 commitlint（9f6cc1a、ea5c102 跳过了 hook），并运行全量与 package-smoke。
+
+### Lead 合入（2026-11-01）
+
+- 阻塞解除：git-ai 后台进程泄漏已修复（m6/fix-git-ai-leak，295cb69）。
+- 第一次锁内全量（a223df4，负载最高 28，没有 EAGAIN）：`test=1`，3 例失败，正是实施者未能验证的三个文件：`sidecar-m6-seams` 的 headless 无参数用例、`desktop-shell.e2e` 的 headless.mjs 用例、`package-smoke.e2e` 的 headless 对话用例。实际值：Electron 内置 Node 首次加载 `node:sqlite` 时向 stderr 写 `ExperimentalWarning: SQLite is an experimental feature`，用例期望 stderr 为空或以用法说明开头。
+- 修复（lead，9ab8d63）：新增 `headless/warnings.ts`，只丢弃 SQLite 的 ExperimentalWarning，其他警告照常；`headless/index.ts` 先安装过滤再动态导入 `run.ts`（静态导入先于本文件语句执行）。就近单元测试 2 例；seams 12 例；`desktop-shell.e2e` 与 `package-smoke.e2e` 共 19 例通过（锁内）。Sidecar 自身仍按 apps/server README 输出这条警告，不变。
+- 合并 main（含 06、12）时 `docs/adr/README.md` 冲突：0017 implemented、0018 partial（取 main），0019 implemented（取本票）（7d99a57）。
+- 第二次锁内全量（7d99a57，负载最高 46，git-ai 后台进程始终 1 个）：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；`test=0`，368 个文件、2923 例通过、4 例跳过，没有 EAGAIN。
+- 裁决：越出写范围的改动全部接受（见上方第 2 轮预审；另有 `headless-harness.ts`、seams 与 desktop-shell 的 headless 存根用例、`docs/README.md` 一行、`docs/adr/README.md` 0019 implemented）。9f6cc1a、ea5c102 跳过 hook 的两个提交已由上面的 `lint`、`format:check` 覆盖。
+- 以合并提交合入 main，树与复核过的分支相同，`typecheck` 退出 0。
+- 留给票 14：实施者回执中的 agent / server README 要点。
+
+Closed: true
