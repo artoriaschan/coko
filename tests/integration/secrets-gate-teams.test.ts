@@ -18,9 +18,14 @@ describe('秘密不外泄总闸：Agent Teams', () => {
     const workspaceDir = join(root, 'ws')
     await mkdir(workspaceDir)
     const gate = join(root, 'gate')
+    const gate2 = join(root, 'gate2')
     const dirs = await sidecarDirs()
     const requestLog = join(root, 'requests.jsonl')
     await writeFile(requestLog, '')
+    const waitFor = (path: string) => "until [ -f '" + path + "' ]; do sleep 0.05; done"
+    // 每条回复都带 match：lead 的三个 Run（LEAD-S / LEAD-MSG / LEAD-NEXT）与 mate 的两个 Run（MATE-S / MSG-S）各取自己的回复。
+    // <team> section 只在 Run 开始时读取一次，所以 mate 必须在任务创建之后以新 Run 接收消息：它的第一个 Run 等 gate（lead 的 Run 结束、任务已提交）
+    // 后结束，lead 在下一个 Run 中才 send_message，消息以新 Run 送达空闲的 mate。mate 的回复等 gate2（lead 的第二个 Run 已结束），挂起到 lead 的第三个 Run。
     const script = await fauxScript(root, {
       requestLog,
       responses: [
@@ -29,18 +34,18 @@ describe('秘密不外泄总闸：Agent Teams', () => {
           content: [call('agent', 'a1', { description: 'mate', prompt: 'MATE-S wait', subagent_type: 'general', name: 'mate' })],
         },
         {
-          content: [
-            call('task_create', 't1', { subject: 'Rotate ' + value, description: 'Use ' + value + ' for the deploy', write_scopes: ['src'] }),
-            call('send_message', 's1', { to: 'mate', message: 'MSG-S the key is ' + value, summary: 'key ' + value }),
-          ],
+          match: 'LEAD-S',
+          content: [call('task_create', 't1', { subject: 'Rotate ' + value, description: 'Use ' + value + ' for the deploy', write_scopes: ['src'] })],
         },
-        { content: 'lead idle' },
-        { match: 'MATE-S', content: [call('bash', 'g', { command: "until [ -f '" + gate + "' ]; do sleep 0.05; done" })] },
+        { match: 'LEAD-S', content: 'lead idle' },
+        { match: 'MATE-S', content: [call('bash', 'g', { command: waitFor(gate) })] },
+        { match: 'MATE-S', content: 'mate ready' },
+        { match: 'LEAD-MSG', content: [call('send_message', 's1', { to: 'mate', message: 'MSG-S the key is ' + value, summary: 'key ' + value })] },
+        { match: 'LEAD-MSG', content: 'lead sent' },
+        { match: 'MSG-S', content: [call('bash', 'g2', { command: waitFor(gate2) })] },
         { match: 'MSG-S', content: [call('send_message', 'm1', { to: 'lead', message: 'REPLY-S echo ' + value })] },
         { match: 'MSG-S', content: 'mate done ' + value },
         { match: 'LEAD-NEXT', content: 'lead read the reply' },
-        { content: 'lead spare' },
-        { content: 'lead spare' },
       ],
     })
     const sidecar = await startSidecar({ dirs, ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', COKO_SECRET_TEAM_TOKEN: value } })
@@ -54,17 +59,23 @@ describe('秘密不外泄总闸：Agent Teams', () => {
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
     const runEnds = () => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
+    const ended = async () => ((await api.get(apiPaths.session(sessionId))).body.entries as { kind: string }[]).filter((e) => e.kind === 'agent_end').length
+    // lead 的第一个 Run：派出 mate、创建任务。Run 结束（任务已提交）后才放行 mate 的第一个 Run，等它结束。
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'LEAD-S go' })
     await stream.waitFor(() => runEnds() >= 1, 60_000)
-    // 任务与消息都在 lead 的 Run 中提交之后放行 mate：它的 <team> section 含任务标题，它的消息挂起到 lead 的下一个 Run。
-    await writeFile(gate, 'open')
     const mate = (stream.entries(sessionId).find((e) => e.kind === 'agent_start')!.payload as { agentId: string }).agentId
-    const ended = async () => ((await api.get(apiPaths.session(sessionId))).body.entries as { kind: string }[]).filter((e) => e.kind === 'agent_end').length
+    await writeFile(gate, 'open')
     await expect.poll(ended, { timeout: 60_000 }).toBeGreaterThanOrEqual(1)
-    await api.post(apiPaths.sessionMessages(sessionId), { text: 'LEAD-NEXT go' })
+    // lead 的第二个 Run：send_message 给空闲的 mate，mate 以新 Run 接收（section 在任务之后读取）。lead 的 Run 结束后放行 mate 的回复。
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'LEAD-MSG go' })
     await stream.waitFor(() => runEnds() >= 2, 60_000)
+    await writeFile(gate2, 'open')
+    await expect.poll(ended, { timeout: 60_000 }).toBeGreaterThanOrEqual(2)
+    // lead 的第三个 Run：挂起的 <team-message> 随 user message 送达。
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'LEAD-NEXT go' })
+    await stream.waitFor(() => runEnds() >= 3, 60_000)
     const team = (await api.get(teamPaths.team(sessionId))).body as { tasks: { subject: string; description: string }[] }
-    await api.get(apiPaths.session(mate))
+    const mateEntries = (await api.get(apiPaths.session(mate))).body.entries as { kind: string; payload: unknown }[]
     await api.get(apiPaths.session(sessionId))
 
     // 前置：通道确实被驱动，保存的值带占位。
@@ -75,10 +86,19 @@ describe('秘密不外泄总闸：Agent Teams', () => {
         .filter((e) => e.kind === 'team_message')
         .map((e) => e.payload),
     ).toEqual([expect.objectContaining({ from: 'mate', to: 'lead' })])
+    // lead 的消息在 mate 的第二个 Run 送达（不是第一个 Run 中的追加指令），前置 team_message 条目。
+    expect(mateEntries.filter((e) => e.kind === 'run_start')).toHaveLength(2)
+    expect(mateEntries.filter((e) => e.kind === 'team_message').map((e) => e.payload)).toEqual([
+      expect.objectContaining({ from: 'lead', to: 'mate', summary: 'key [REDACTED:secret]' }),
+    ])
     expect(stream.messages.some((m) => m.type === 'progress' && m.event.type === 'team_update')).toBe(true)
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
-    expect(requests.some((line) => line.includes('<team name=\\"mate\\">') && line.includes('Rotate [REDACTED:secret]'))).toBe(true)
-    expect(requests.some((line) => line.includes('MSG-S the key is [REDACTED:secret]'))).toBe(true)
+    // 送达消息的请求同时含任务标题的 <team> section 与脱敏后的消息正文。
+    expect(
+      requests.some(
+        (line) => line.includes('<team name=\\"mate\\">') && line.includes('Rotate [REDACTED:secret]') && line.includes('MSG-S the key is [REDACTED:secret]'),
+      ),
+    ).toBe(true)
     expect(requests.some((line) => line.includes('<team-message from=\\"mate\\"'))).toBe(true)
 
     sidecar.child.kill('SIGTERM')
