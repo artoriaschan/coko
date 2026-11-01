@@ -26,6 +26,6 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0014](0014-subagents-as-child-sessions.md) | 子代理是同一 Sidecar 中的子 Session | accepted | implemented |
 | [0015](0015-schedules-at-most-once-latest-catch-up.md) | 定时任务至多一次投递，只补最近一次 | accepted | implemented |
 | [0016](0016-session-cwd-fixed-worktrees.md) | Session 的工作目录创建时固定，worktree 只在干净时移除 | accepted | implemented |
-| [0017](0017-plugins-declarative-user-installed.md) | 插件只声明资源，用户级安装，按可执行声明批准 | accepted | not-started |
+| [0017](0017-plugins-declarative-user-installed.md) | 插件只声明资源，用户级安装，按可执行声明批准 | accepted | partial |
 | [0018](0018-agent-teams-in-root-session.md) | Agent Teams 在根 Session 中进行，任务板以 compare-and-set 协调 | accepted | not-started |
 | [0019](0019-headless-runs-deny-approvals.md) | 无界面运行的审批自动拒绝，Provider 来自启动配置 | accepted | not-started |

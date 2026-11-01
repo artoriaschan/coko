@@ -20,3 +20,5 @@
 - [ ] mcp.md 更新（auth-required、预设、"尚未实现"一节改写）；TECH_STACK 一行；`check:docs` 通过；真实 Playwright MCP 与真实 401 服务记为未验证（人工清单）
 
 ## Comments
+
+- 2026-11-01 lead（来自票 04）：票 04 已在 `apps/server/src/application/context/mcp.ts` 增加 `McpManager.reconcileAll()`，并订阅 `plugins.onChange`（插件变更后关闭不再提供的 Server），已在 main 上。`docs/subsystems/mcp.md:36` 中"插件未接入、只有 COKO_TEST_PLUGINS"的说法已过时，本票改 mcp.md 时一并修正。
