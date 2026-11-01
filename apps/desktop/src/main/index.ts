@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path'
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -24,7 +25,7 @@ import { createUpdateCoordinator } from './update-coordinator.ts'
 import { QuitCoordinator } from './quit-coordinator.ts'
 import { DESKTOP_LOG_FILE, parseRendererLog, startDesktopLogging, writeRendererLog } from './logging.ts'
 import { exchangeLaunchToken } from './sidecar-auth.ts'
-import { TEST_BUILD } from './build-flags.ts'
+import { ignoredTestHooks, resolveUpdateFeed, TEST_BUILD, UPDATE_FEED } from './build-flags.ts'
 import { sidecarArgs, sidecarEnvironment } from './sidecar-env.ts'
 import { createSecretBridge } from './secrets.ts'
 import { SidecarProcess } from './sidecar-process.ts'
@@ -158,6 +159,9 @@ function run(): void {
         platform: process.platform,
         ripgrep: ripgrepPath,
       })
+      // 发布构建不读测试钩子（main 不把它们交给 Sidecar，后台模式与测试更新源同样关闭）；只记名字。
+      const ignored = ignoredTestHooks(process.env, { packaged: !development, testBuild: TEST_BUILD })
+      if (ignored.length > 0) log.warn('test hooks ignored in a packaged build', { variables: ignored })
       const state = await supervisor.start()
       await app.whenReady()
       if (state.phase !== 'ready') {
@@ -227,8 +231,16 @@ function run(): void {
     return openLogsFolder()
   })
 
-  // 自动更新：状态推给主窗口；检查与安装只接受主窗口的请求。
-  const updates = createUpdateCoordinator()
+  // 自动更新：状态推给主窗口；检查与安装只接受主窗口的请求。安装经与普通退出相同的确认，收尾之后 quitAndInstall。
+  const updates = createUpdateCoordinator({
+    packaged: !development,
+    feedUrl: resolveUpdateFeed(process.env, { testBuild: TEST_BUILD, buildFeed: UPDATE_FEED }),
+    updater: autoUpdater,
+    confirmQuit: () => quitCoordinator.decide(),
+    prepareQuit: () => prepareQuit(),
+  })
+  // 日志就绪后启用（或记 auto update disabled { reason }）；定时检查从此时起算。
+  void logging.then(() => updates.start()).catch(() => undefined)
   updates.subscribe((status) => {
     if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.updateStatus, status)
   })
@@ -349,13 +361,19 @@ function run(): void {
     },
   }))
 
-  const finishQuit = async (): Promise<void> => {
+  /** 退出前的收尾；之后的 before-quit（app.quit 或 quitAndInstall 触发）直接放行。 */
+  const prepareQuit = async (): Promise<void> => {
     quitApproved = true
+    updates.dispose()
     for (const window of BrowserWindow.getAllWindows()) window.hide()
     await supervisor.stop().catch((error: unknown) => console.error('[coko] sidecar stop failed', error))
     log.info('app quitting', { sidecar: supervisor.state.phase })
     await logging.then((handle) => handle.dispose()).catch(() => undefined)
     readyToExit = true
+  }
+
+  const finishQuit = async (): Promise<void> => {
+    await prepareQuit()
     app.quit()
   }
 

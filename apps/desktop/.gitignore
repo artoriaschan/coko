@@ -1,2 +1,4 @@
 # electron-forge package / make 输出
 out/
+# 发布构建 E2E（COKO_FORGE_OUT_DIR=out-release）
+out-release/

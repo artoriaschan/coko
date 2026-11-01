@@ -45,6 +45,7 @@ lifecycle: active
 - [交接](subsystems/handoff.md)：/handoff 与对话框、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
 - [插件](subsystems/plugins.md)：清单与诊断、目录与 git 来源的安装与复制、digest 与批准、启用 / 禁用 / 更新 / 卸载、贡献的命名空间与加载时机、/api/plugins、与项目资源的区别。
 - [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、会话绑定与固定的工作目录、宿主执行的 git、移除的 busy / dirty 检查与只读会话、HTTP 接口与侧栏入口。
+- [安装包、自动更新与发布构建](subsystems/delivery.md)：ZIP / DMG makers 与 make、构建期更新源与 UpdateCoordinator、设置 → 关于、发布构建与测试构建的差异、两类 E2E 入口。
 - [@coko/agent](../packages/agent/README.md)：运行时入口、工具契约、工具调度与执行记录。
 
 当前行为文档随实际实现逐步建立。尚不存在的架构、子系统或接口页面不作为可用资料列入导航。
