@@ -29,7 +29,7 @@ export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
   { id: 'jobs', label: 'jobs.tab', Component: JobsTab, available: true },
   { id: 'agents', label: 'agents.tab', Component: AgentsTab, available: true },
   { id: 'schedules', label: 'schedules.tab', Component: SchedulesTab, available: true },
-  { id: 'team', label: 'teams.tab', Component: TeamTab, available: false },
+  { id: 'team', label: 'teams.tab', Component: TeamTab, available: true },
   { id: 'trace', label: 'trace.tab', Component: TraceTab, available: true },
 ]
 

@@ -33,19 +33,19 @@ it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已
     ['agents', true],
     ['schedules', true],
     ['handoff', true],
-    ['team', false],
+    ['team', true],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
     ['plan', true],
     ['jobs', true],
     ['agents', true],
     ['schedules', true],
-    ['team', false],
+    ['team', true],
     ['trace', true],
   ])
 })
 
-it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan、Tasks、Agents、Schedules 与 Trace', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan、Tasks、Agents、Schedules、Team 与 Trace', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -75,6 +75,7 @@ it('应用中：会话打开后 dock 没有内容时不占位；没有后台任�
     'jobs',
     'agents',
     'schedules',
+    'team',
     'trace',
   ])
 })

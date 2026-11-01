@@ -40,7 +40,7 @@ export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'agents', Component: AgentsButton, available: true },
   { id: 'schedules', Component: SchedulesButton, available: true },
   { id: 'handoff', Component: HandoffButton, MenuItem: HandoffMenuItem, available: true },
-  { id: 'team', Component: TeamButton, available: false },
+  { id: 'team', Component: TeamButton, available: true },
 ]
 
 export const visibleHeaderActions = (actions: readonly HeaderActionDefinition[] = HEADER_ACTIONS) => actions.filter((action) => action.available)
