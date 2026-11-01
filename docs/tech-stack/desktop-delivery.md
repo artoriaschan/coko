@@ -66,6 +66,8 @@ PTY 后台任务（[命令执行与子进程登记](../subsystems/execution.md#p
 
 ### 自动更新
 
-macOS 使用已签名、公证的应用和 ZIP 更新产物，DMG 用于首次安装。自动更新的客户端使用 Electron `autoUpdater`，服务端提供与其兼容的更新 feed；Forge 负责生成和发布更新所需产物。仅生成 DMG/ZIP 不等于更新链路已经可用。[Forge 自动更新说明](https://www.electronforge.io/advanced/auto-update)
+`electron-forge make` 生成 ZIP（`MakerZIP`，仅 darwin，自动更新下载的格式）与 DMG（`MakerDMG`，ULFO，首次安装）；`COKO_FORGE_OUT_DIR` 改变产物目录（缺省 `out`）。客户端使用 Electron `autoUpdater`（macOS 为 Squirrel.Mac），由 main 的 `UpdateCoordinator` 接线：更新源只来自构建期的 `COKO_UPDATE_FEED_URL`（`build.ts` 定义为 `__COKO_UPDATE_FEED__`，缺省空），不是用户设置；未打包或更新源为空时 disabled（`not-packaged` / `no-feed`），否则启动 30 秒后与每 6 小时检查一次，状态经 preload 推给设置 → 关于，已下载时经退出确认后 `quitAndInstall`。测试构建另读 `COKO_TEST_UPDATE_FEED_URL`，发布构建忽略。当前做法、状态映射与验证入口见 [安装包、自动更新与发布构建](../subsystems/delivery.md)。[Forge 自动更新说明](https://www.electronforge.io/advanced/auto-update)
+
+当前产物为 adhoc 签名，E2E 只验证到"请求到达 feed、204 为已是最新、下载内容不是合法应用时为 error"，没有验证一次成功的下载与安装。Developer ID 签名、公证与更新 feed 服务端（发布目的地）尚未接入，接入前更新链路不能交付给用户。
 
 保留原清单的首发范围：本地 macOS arm64 构建。Windows、Linux 的 Makers 与更新策略在扩展平台时另行选定；发布目的地确定后，再加入精确锁定为 8.0.1 的对应 Forge Publisher。
