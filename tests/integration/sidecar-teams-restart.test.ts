@@ -197,7 +197,8 @@ describe('Agent Teams：teammate 的 worktree（git 夹具）', { timeout: 180_0
       [dirty.agentId]: expect.objectContaining({ kept: true, path: dirty.isolation.path, branch: dirty.isolation.branch }),
     })
     expect(existsSync(clean.isolation.path)).toBe(false)
-    const branches = await fixture.git('branch', '--list')
+    // 分支名按行精确比较（两个 worktree 的名字可能互为前缀，如 coko/agent-x 与 coko/agent-x-1416）。
+    const branches = (await fixture.git('branch', '--list', '--format=%(refname:short)')).split('\n').filter(Boolean)
     expect(branches).not.toContain(clean.isolation.branch)
     expect(branches).toContain(dirty.isolation.branch)
     expect(await statuses(api, lead)).toEqual({ clean: 'dismissed', dirty: 'dismissed' })
