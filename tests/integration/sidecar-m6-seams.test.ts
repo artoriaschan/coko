@@ -202,13 +202,15 @@ describe('M6 装配接入点', { timeout: 60_000 }, () => {
       await h.api.post(pluginPaths.approve('x'), { digest: 'd' }),
       await h.api.put(lspPaths.lsp, { scope: 'global', servers: {}, expectedRevision: 0 }),
       await h.api.post(lspPaths.restart, { name: 'x' }),
-      await h.api.get(tracePaths.export(sessionId)),
     ])
       expect([response.status, (response.body as { error?: { code: string } }).error?.code]).toEqual([501, 'not-implemented'])
     expect((await h.api.get(lspPaths.status(sessionId))).body).toEqual({ enabled: true, global: { servers: {}, revision: 0, diagnostics: [] }, status: [] })
     expect((await h.api.get(teamPaths.team(sessionId))).body).toEqual({ members: [], tasks: [], warnings: [] })
-    expect((await h.api.get(tracePaths.trace(sessionId))).body).toEqual({ runs: [], totals: { requests: 0, tokens: 0, cost: 0, durationMs: 0 } })
-    expect((await h.api.get(tracePaths.audit(sessionId))).body).toEqual([])
+    expect((await h.api.get(tracePaths.trace(sessionId))).body).toEqual({
+      runs: [],
+      totals: { runs: 0, requests: 0, toolCalls: 0, tokens: 0, cost: 0, durationMs: 0 },
+    })
+    expect((await h.api.get(tracePaths.audit(sessionId))).body).toEqual([expect.objectContaining({ kind: 'permission_mode', mode: 'default' })])
     expect((await h.api.get(teamPaths.team('missing'))).status).toBe(404)
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
