@@ -36,7 +36,7 @@ category: architecture
 - 保持 `RunAsNode` 开启意味着本机任意进程都可以把已签名的应用当作 Node 解释器运行，并带上应用的签名身份。用户于 2026-10-28 确认接受这一安全代价。若之后的安全要求需要关闭该 fuse，应重新评估 `utilityProcess`。
 - 用户于 2026-10-28 确认 `node:sqlite` 在 Electron 41.0.3 中可用。首个切片的 `ELECTRON_RUN_AS_NODE` 集成测试仍须覆盖打开数据库和写者互斥，作为本项目的实现证据；升级 Electron 时重新确认。
 - implementation 变为 implemented 前需要：以 `ELECTRON_RUN_AS_NODE` 启动真实 sidecar 的集成测试，以及已签名安装包中 sidecar 启动与退出的产物 smoke。
-- 当前为 partial：apps/server 的 sidecar 已在 Electron 41.0.3 内置 Node 中以 `ELECTRON_RUN_AS_NODE=1` 经集成测试验证启动、Node IPC 控制消息、打开数据库、写者互斥（第二个实例 fatal）与分级关闭，见 [apps/server](../../apps/server/README.md)。Electron main 启动 sidecar、分级退出、意外退出后的重启，以及 `electron-forge package` 产物（adhoc 签名）中 sidecar 的启动、一次对话与退出，均由 apps/desktop 的 Electron E2E 覆盖。剩余的只有已签名（Developer ID）安装包上的同一 smoke；签名与公证不在 M1 范围内。
+- 当前为 partial：apps/server 的 sidecar 已在 Electron 41.0.3 内置 Node 中以 `ELECTRON_RUN_AS_NODE=1` 经集成测试验证启动、Node IPC 控制消息、打开数据库、写者互斥（第二个实例 fatal）与分级关闭，见 [apps/server](../../apps/server/README.md)。Electron main 启动 sidecar、分级退出、意外退出后的重启，以及 `electron-forge package` 产物（adhoc 签名）中 sidecar 的启动、一次对话与退出，均由 apps/desktop 的 Electron E2E 覆盖。剩余的只有已签名（Developer ID）安装包上的同一 smoke；签名与公证不在 M1 范围内。M6 起发布构建（不带测试钩子）的 `electron-forge make` 产物也经端到端验证：打包应用由 main 以 `ELECTRON_RUN_AS_NODE` 启动随包 sidecar（带 `--packaged`）并加载随包 ripgrep 与 node-pty，见 [安装包、自动更新与发布构建](../subsystems/delivery.md#验证入口)。
 
 ## 来源与后继
 

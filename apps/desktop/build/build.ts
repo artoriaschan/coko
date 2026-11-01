@@ -1,5 +1,6 @@
 // 桌面构建编排：tsdown 构建 main / preload 与 sidecar（node-pty 复制到 sidecar 的 node_modules），Vite 构建或服务 renderer，复制随包 ripgrep。
 // Forge hooks、E2E globalSetup 与 `pnpm run build` 共用这里的函数；各任务只清理自己的输出目录。
+import { execFileSync } from 'node:child_process'
 import { chmod, copyFile, cp, mkdir, rm } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { createRequire } from 'node:module'
@@ -23,6 +24,24 @@ export const testBuildDefine = (): Record<string, string> => ({ __COKO_TEST_BUIL
  * 自动更新源（main 的 build-flags.ts 读取）：只来自构建期的 COKO_UPDATE_FEED_URL（更新源属于发布方，不是用户设置），缺省为空（不检查更新）。
  */
 export const updateFeedDefine = (): Record<string, string> => ({ __COKO_UPDATE_FEED__: JSON.stringify(process.env.COKO_UPDATE_FEED_URL ?? '') })
+
+/**
+ * 随包的 Electron 与其 Node 版本（renderer 的设置 → 关于）：以 ELECTRON_RUN_AS_NODE 运行本包依赖的 Electron 读取 process.versions，
+ * 与打包进应用的二进制一致；renderer 在沙箱中没有 process。
+ */
+export const runtimeVersionsDefine = (): Record<string, string> => {
+  const electronBinary = createRequire(import.meta.url)('electron') as string
+  const output = execFileSync(
+    electronBinary,
+    ['-e', 'process.stdout.write(JSON.stringify({ electron: process.versions.electron, node: process.versions.node }))'],
+    {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      encoding: 'utf8',
+    },
+  )
+  const versions = JSON.parse(output) as { electron: string; node: string }
+  return { __COKO_RUNTIME_VERSIONS__: JSON.stringify({ electron: versions.electron, node: versions.node }) }
+}
 
 const electronBase: InlineConfig = {
   config: false,
@@ -112,7 +131,7 @@ export async function prepareRipgrep(): Promise<string> {
 }
 
 export async function buildRenderer(): Promise<void> {
-  await viteBuild({ configFile: viteConfigFile, logLevel: 'warn' })
+  await viteBuild({ configFile: viteConfigFile, logLevel: 'warn', define: runtimeVersionsDefine() })
 }
 
 export interface RendererDevServer {
@@ -129,6 +148,7 @@ export async function startRendererDevServer(): Promise<RendererDevServer> {
   if (address === null || typeof address === 'string') throw new Error('Unexpected dev server address')
   const vite = await createViteServer({
     configFile: viteConfigFile,
+    define: runtimeVersionsDefine(),
     appType: 'spa',
     server: { middlewareMode: true, hmr: { server: http, host: '127.0.0.1', clientPort: address.port, protocol: 'ws' } },
   })

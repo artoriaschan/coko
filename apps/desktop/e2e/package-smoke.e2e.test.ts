@@ -3,10 +3,12 @@
 // M3：临时 COKO_HOME 的 AGENTS.md 出现在 faux requestLog 的系统提示中（产物同样读取 COKO_HOME）；仓库内的 stdio MCP 测试 Server
 // 的工具经审批调用成功（pi-mcp 与 cross-spawn 进入 sidecar 产物）。
 // M4：Resources/sidecar/node_modules/node-pty 的 spawn-helper 可执行，打包应用中一个 tty 后台任务输出 ok（node-pty 从随包位置加载）。
+// M6：从仓库夹具目录（tests/fixtures/plugins/sample）安装插件，批准后插件声明的 stdio MCP Server 在打包产物中被启动（夹具日志出现），
+// 插件的语言服务器出现在 GET /api/plugins 的 executables 中（语言服务器进程的启动由代码智能的用例覆盖）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +20,10 @@ import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 /** 仓库内的 stdio MCP 测试 Server（tests/fixtures/mcp/），以测试进程的 node 启动。 */
 const stdioServerEntry = fileURLToPath(new URL('../../../tests/fixtures/mcp/stdio-server.ts', import.meta.url))
+/** 插件夹具（文件中的 ${NODE} 等占位在临时副本中替换为绝对路径，见夹具 README）与它引用的 Hook / LSP 夹具。 */
+const pluginFixture = fileURLToPath(new URL('../../../tests/fixtures/plugins/sample', import.meta.url))
+const hookFixture = fileURLToPath(new URL('../../../tests/fixtures/hooks/hook.mjs', import.meta.url))
+const lspFixture = fileURLToPath(new URL('../../../tests/fixtures/lsp/server.mjs', import.meta.url))
 const outDir = join(desktopRoot, 'out', `Coko-${process.platform}-${process.arch}`)
 const executable = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'MacOS', 'Coko') : join(outDir, 'Coko')
 const resources = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'Resources') : join(outDir, 'resources')
@@ -147,6 +153,102 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
       backend: 'node-pty',
       path: join(ptyRoot, 'package.json'),
     })
+  })
+
+  it('插件：从仓库夹具目录安装、批准后插件的 MCP Server 在产物中启动；语言服务器列在 executables 中', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'coko-packaged-plugin-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    const plugin = join(root, 'sample')
+    await cp(pluginFixture, plugin, { recursive: true })
+    const mcpLog = join(root, 'mcp.jsonl')
+    const values: Record<string, string> = {
+      NODE: process.execPath,
+      HOOK_FIXTURE: hookFixture,
+      HOOK_RECORD: join(root, 'hook-stdin.jsonl'),
+      MCP_FIXTURE: stdioServerEntry,
+      MCP_LOG: mcpLog,
+      LSP_FIXTURE: lspFixture,
+    }
+    for (const file of ['hooks/hooks.json', '.mcp.json', '.lsp.json']) {
+      let text = await readFile(join(plugin, file), 'utf8')
+      for (const [name, value] of Object.entries(values)) text = text.replaceAll('${' + name + '}', value)
+      await writeFile(join(plugin, file), text)
+    }
+    const cokoHome = join(root, 'coko-home')
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: join(root, 'user-data'), COKO_HOME: cokoHome })
+    const { page } = app
+    await waitConnected(page)
+
+    type Info = {
+      name: string
+      status: string
+      digest: string
+      executables: { mcpServers: { name: string }[]; lspServers: { name: string; command: string }[] }
+    }
+    const installed = await page.evaluate(async (path) => {
+      const res = await fetch('/api/plugins', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source: { kind: 'dir', path } }),
+      })
+      return { status: res.status, body: (await res.json()) as Info }
+    }, plugin)
+    expect([installed.status, installed.body.status]).toEqual([201, 'needs-approval'])
+    expect(existsSync(join(cokoHome, 'plugins', 'sample', '.coko-plugin', 'plugin.json'))).toBe(true)
+    // 批准前不启动：先登记 Workspace 并读一次 MCP 视图，夹具日志不存在。
+    const workspaceId = await page.evaluate(
+      async (path) =>
+        (
+          (await (
+            await fetch('/api/workspaces', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) })
+          ).json()) as { id: string }
+        ).id,
+      workspace,
+    )
+    const servers = () =>
+      page.evaluate(
+        async (id) => ((await (await fetch('/api/mcp?workspaceId=' + id)).json()) as { servers: { name: string; status: string }[] }).servers,
+        workspaceId,
+      )
+    expect(await servers()).toEqual([])
+    expect(existsSync(mcpLog)).toBe(false)
+
+    const approved = await page.evaluate(
+      async ({ name, digest }) => {
+        const res = await fetch('/api/plugins/' + name + '/approve', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ digest }),
+        })
+        return { status: res.status, body: (await res.json()) as Info }
+      },
+      { name: installed.body.name, digest: installed.body.digest },
+    )
+    expect([approved.status, approved.body.status]).toEqual([200, 'enabled'])
+    // 接收侧：读命令目录（/ 菜单的来源）时连接应当连接的 Server；产物中的 Sidecar 启动了插件声明的 MCP Server（夹具日志的 start 事件），
+    // 状态 connected。
+    const commands = await page.evaluate(
+      async (id) => ((await (await fetch('/api/commands?workspaceId=' + id)).json()) as { commands: { name: string }[] }).commands.map((c) => c.name),
+      workspaceId,
+    )
+    expect(commands).toContain('sample:hello')
+    await expect.poll(servers, { timeout: 30_000 }).toEqual([expect.objectContaining({ name: 'plugin-sample-echo', status: 'connected' })])
+    await waitFor(() => existsSync(mcpLog), 10_000, 'plugin mcp log')
+    expect(await readFile(mcpLog, 'utf8')).toContain('"event":"start"')
+    const listed = await page.evaluate(async () => (await (await fetch('/api/plugins')).json()) as Info[])
+    expect(listed).toEqual([
+      expect.objectContaining({
+        name: 'sample',
+        status: 'enabled',
+        executables: expect.objectContaining({ lspServers: [expect.objectContaining({ name: 'sample:ts', command: process.execPath })] }),
+      }),
+    ])
+
+    await app.browser.close()
+    app.child.kill('SIGTERM')
+    expect(await app.exited).toBe(0)
   })
 
   it('启动并完成一次 faux 对话；Sidecar 与 grep 使用随包资源；日志落盘且已脱敏', async () => {

@@ -1,4 +1,6 @@
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
+import { MakerDMG } from '@electron-forge/maker-dmg'
+import { MakerZIP } from '@electron-forge/maker-zip'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import type { ForgeConfig } from '@electron-forge/shared-types'
 import { createHash } from 'node:crypto'
@@ -17,6 +19,8 @@ const ignore = (file: string): boolean => {
 }
 
 const config: ForgeConfig = {
+  // COKO_FORGE_OUT_DIR 改变产物目录（缺省 out）：发布构建 E2E 打到 out-release/，不覆盖测试构建 E2E 使用的 out/。
+  outDir: process.env.COKO_FORGE_OUT_DIR || 'out',
   packagerConfig: {
     name: 'Coko',
     executableName: 'Coko',
@@ -35,7 +39,8 @@ const config: ForgeConfig = {
           .slice(0, 12),
     ),
   },
-  makers: [],
+  // ZIP 是自动更新（Squirrel.Mac）下载的格式，DMG 供首次安装；只做 darwin。签名与公证不在当前范围。
+  makers: [new MakerZIP({}, ['darwin']), new MakerDMG({ format: 'ULFO' })],
   plugins: [
     new FusesPlugin({
       version: FuseVersion.V1,
