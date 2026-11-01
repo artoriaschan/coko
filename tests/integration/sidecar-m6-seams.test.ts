@@ -1,6 +1,6 @@
 // M6 的装配接入点：真实 Sidecar（faux）。插件消费 seam（COKO_TEST_PLUGINS 把夹具目录当作已批准的插件）：插件的 Skill、命令、子代理定义、
 // PreToolUse Hook 与 MCP Server 接入各自的加载，未设置时都不存在；引用 Secret 的插件 MCP Server 不加载。model_request 的逐请求记录与日志；
-// 新路由的空结果与 501 占位；headless 入口的参数错误；有序关闭（定时器 → Run → Job → 贡献 → LSP → 登记进程 → 存储）。harness 自测：LSP 假服务器与插件夹具。
+// 新路由在没有数据时的空结果；headless 入口的参数错误；有序关闭（定时器 → Run → Job → 贡献 → LSP → 登记进程 → 存储）。harness 自测：LSP 假服务器与插件夹具。
 // 新的读取根（插件目录）与注入点（插件资源、插件 Hook 的 stdin）的符号链接越界与秘密总闸用例由插件核心给出；这里只验证接线。
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'

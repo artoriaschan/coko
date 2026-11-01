@@ -62,7 +62,7 @@ lifecycle: active
 
 - `DatabaseSync` 是同步 API，等待写锁时会阻塞事件循环，前提是单写者。
 - 每个进程第一次加载 `node:sqlite` 时，会向 stderr 输出一次 `ExperimentalWarning`。
-- FTS5：2026-10-28 在 Electron 41.0.3（内置 Node 24.14.0、SQLite 3.51.2）中实测已编译（`ENABLE_FTS5`），`capabilities.fts5` 为 true。目前只做探测，还没有建立索引。
+- FTS5：2026-10-28 在 Electron 41.0.3（内置 Node 24.14.0、SQLite 3.51.2）中实测已编译（`ENABLE_FTS5`），`capabilities.fts5` 为 true，迁移 v9 建立 `memories_fts` 索引（见上文"插件与 Memory 检索（v9）"）。
 
 ## 验证与相关设计
 
