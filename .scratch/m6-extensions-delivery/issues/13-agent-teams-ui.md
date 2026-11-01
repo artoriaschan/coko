@@ -60,3 +60,12 @@
 - 导航：`docs/subsystems/teams.md` 已在 `docs/README.md` 中，无需新增行。
 - 导出：无新增共享导出。renderer 新文件 `stores/team-store.ts`；`team-button.tsx` 导出 `TeamStoreProvider`、`useTeamStoreApi`、`useTeam`、`useSessionTeam`、`MemberStatusDot`、`TeamButton`；`team-task-row.tsx` 导出 `taskChange`。
 - 已知限制：teammate 同时出现在 Agents tab 与 Team tab；任务行只按快照判断动作，指派他人与改标题显示为"更新了任务"。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的 `sections.browser.test.tsx`、`dock.browser.test.tsx`（team 改为可见的注册表断言）接受；`team-rows.browser.test.tsx` 是就近测试。E2E 早期的间歇失败来自用例假设（两个 teammate 首轮同时 running、名册顺序随并行启动变化），已改为等待可观察状态，修复后连续 6 次通过，接受。
+- 实施者在合并 main（ce7134d）之后跑了锁内全量：`test=0`，372 个文件、2936 例通过、4 例跳过，没有 EAGAIN。报告末尾的 git-ai 后台进程有 4 个；lead 合入前复查只剩用户自己 HOME 的 1 个（59317），多出的 3 个是正常退出前的短暂进程。
+- 以 331fa8a 合入 main，树与分支相同。合入后 `pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；right-panel、conversation、sections、team-store、sidecar-teams 与 scripts 共 30 个文件、190 例通过。
+- 未验证：390px 宽度下的 Team tab（留给票 14 的人工验证清单）、真实模型、非 darwin。
+
+Closed: true
