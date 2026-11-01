@@ -53,3 +53,14 @@
 **越出写范围的改动**：`apps/desktop/src/renderer/features/settings/sections.browser.test.tsx`。plugins 分区变为可见，该测试原先断言插件分区不可见、菜单与 Tab 顺序不含 plugins，因此一并更新。合并 main 时与票 05 的 lsp 改动冲突，已合并为两者都可见，并更正文件头注释。
 
 **需要 Lead 处理**：`docs/README.md` 第 46 行（票 04 加的插件一行）建议在末尾补"设置中的插件分区与批准对话框"，本票没有改它。没有新增导出。不新增读取根、注入点或外发通道：界面只调用票 04 的 `/api/plugins`，秘密总闸与符号链接用例不适用。
+
+### Lead 合入（2026-11-01）
+
+- 阻塞解除：git-ai 后台进程泄漏已修复（m6/fix-git-ai-leak，295cb69）。
+- 裁决：越出写范围的 `sections.browser.test.tsx` 接受。"不兼容"与"无效"状态使用前景色文字加破坏性颜色图标，接受，与票 10 关于页的做法一致；共用 token 的对比度由票 14 复核。
+- lead 在分支上复核（03d2751，负载最高 23，git-ai 后台进程始终 1 个）：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；锁内全量 `test=0`，352 个文件、2843 例通过、4 例跳过。
+- 之后又合并 main（含票 06），`docs/adr/README.md` 冲突：0017 取本票的 implemented，0018 取 main 的 partial（dea75d7）。合并后复核：静态检查全部退出 0；settings、stores、sidecar-plugins、sidecar-teams、seams、scripts 与 `plugins.e2e` 共 48 个文件 299 例通过。
+- 以合并提交合入 main，树与分支相同，`typecheck` 退出 0。
+- 留给票 14：`docs/README.md` 插件一行补"设置中的插件分区与批准对话框"。
+
+Closed: true
