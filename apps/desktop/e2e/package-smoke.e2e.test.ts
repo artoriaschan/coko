@@ -5,6 +5,7 @@
 // M4：Resources/sidecar/node_modules/node-pty 的 spawn-helper 可执行，打包应用中一个 tty 后台任务输出 ok（node-pty 从随包位置加载）。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -18,6 +19,8 @@ import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 /** 仓库内的 stdio MCP 测试 Server（tests/fixtures/mcp/），以测试进程的 node 启动。 */
 const stdioServerEntry = fileURLToPath(new URL('../../../tests/fixtures/mcp/stdio-server.ts', import.meta.url))
+/** 仓库内的 LSP 假服务器（tests/fixtures/lsp/），以测试进程的 node 启动。 */
+const lspServerEntry = fileURLToPath(new URL('../../../tests/fixtures/lsp/server.mjs', import.meta.url))
 const outDir = join(desktopRoot, 'out', `Coko-${process.platform}-${process.arch}`)
 const executable = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'MacOS', 'Coko') : join(outDir, 'Coko')
 const resources = process.platform === 'darwin' ? join(outDir, 'Coko.app', 'Contents', 'Resources') : join(outDir, 'resources')
@@ -285,5 +288,79 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
       expect(text).not.toContain('sk-smokeSecretValue1')
       expect(text).not.toMatch(TOKEN_SHAPED)
     }
+  })
+
+  // 插件声明的语言服务器在产物中经插件核心的安装与批准提供（COKO_TEST_PLUGINS 在 --packaged 时被忽略）；这里用全局配置的服务器验证产物中的
+  // 语言服务器客户端与进程登记：lsp 调用经假服务器回答（接收侧：假服务器的记录），进程登记为 kind lsp，应用退出后进程退出、登记删除。
+  it('语言服务器：lsp 调用经假服务器回答，进程登记为 kind lsp；退出后进程退出、登记删除', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'coko-packaged-lsp-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    await writeFile(join(workspace, 'a.ts'), 'export const value = 1\n')
+    const record = join(root, 'lsp.jsonl')
+    const script = join(root, 'faux.json')
+    await writeFile(
+      script,
+      JSON.stringify({
+        responses: [
+          { content: [{ type: 'toolCall', name: 'lsp', id: 'l1', arguments: { operation: 'hover', file_path: 'a.ts', line: 1, character: 14 } }] },
+          { content: 'hovered' },
+        ],
+      }),
+    )
+    const userData = join(root, 'user-data')
+    const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_FAUX_SCRIPT: script, COKO_HOME: join(root, 'coko-home') })
+    const { page } = app
+    await waitConnected(page)
+    const sessionId = await page.evaluate(
+      async ({ path, server }) => {
+        const call = (url: string, body: unknown, method: 'POST' | 'PUT' = 'POST') =>
+          fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json().catch(() => null))
+        await call('/api/lsp', { scope: 'global', servers: { ts: server }, expectedRevision: 0 }, 'PUT')
+        const workspaceId = ((await call('/api/workspaces', { path })) as { id: string }).id
+        const id = ((await call('/api/sessions', { workspaceId })) as { id: string }).id
+        await call(`/api/sessions/${id}/permission-mode`, { mode: 'full-access' }, 'PUT')
+        await call(`/api/sessions/${id}/messages`, { text: 'hover' })
+        return id
+      },
+      {
+        path: workspace,
+        server: {
+          command: process.execPath,
+          args: [lspServerEntry, '--record', record, '--hover', 'packaged hover'],
+          extensionToLanguage: { '.ts': 'typescript' },
+        },
+      },
+    )
+    const status = () =>
+      page.evaluate(
+        async (id) => ((await (await fetch(`/api/lsp?sessionId=${encodeURIComponent(id)}`)).json()) as { status: { state: string; pid?: number }[] }).status,
+        sessionId,
+      )
+    await expect.poll(async () => (await status())[0]?.state, { timeout: 30_000 }).toBe('running')
+    const pid = (await status())[0]!.pid!
+    onTestFinished(() => {
+      if (processExists(pid)) process.kill(pid, 'SIGKILL')
+    })
+    // 接收侧：假服务器收到 initialize（rootUri 为 Workspace）与 hover。
+    await expect.poll(async () => (await readFile(record, 'utf8').catch(() => '')).includes('"method":"textDocument/hover"'), { timeout: 30_000 }).toBe(true)
+    expect(await readFile(record, 'utf8')).toContain(`"rootUri":"file://${workspace}"`)
+    const db = join(userData, 'data', 'coko.db')
+    const lspRows = () => {
+      const handle = new DatabaseSync(db, { readOnly: true })
+      try {
+        return handle.prepare("SELECT pid, kind FROM host_processes WHERE kind = 'lsp'").all() as { pid: number; kind: string }[]
+      } finally {
+        handle.close()
+      }
+    }
+    await expect.poll(lspRows, { timeout: 10_000 }).toEqual([{ pid, kind: 'lsp' }])
+
+    await app.browser.close()
+    app.child.kill('SIGTERM')
+    expect(await app.exited).toBe(0)
+    await waitFor(() => !processExists(pid), 10_000, 'language server exit')
+    expect(lspRows()).toEqual([])
   })
 })
