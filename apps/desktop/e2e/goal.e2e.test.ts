@@ -145,8 +145,9 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect.poll(phase, { timeout: 30_000 }).toBe('budget-exhausted')
     expect(await rounds()).toBe('3')
     expect(await card.locator('[data-slot="goal-reason"]').textContent()).toMatch(/No tool calls left|工具调用次数已用尽/)
-    expect(await card.locator('[data-budget="tool-calls"]').getAttribute('data-level')).toBe('exhausted')
-    expect(await card.locator('[data-action="resume-goal"]').isDisabled()).toBe(true)
+    // 预算条与恢复按钮取自 GET …/goal 的已用量：goal 条目到达后下一帧才重新读取，阶段先于用量更新，所以轮询到用量读回。
+    await expect.poll(() => card.locator('[data-budget="tool-calls"]').getAttribute('data-level'), { timeout: 10_000 }).toBe('exhausted')
+    await expect.poll(() => card.locator('[data-action="resume-goal"]').isDisabled(), { timeout: 10_000 }).toBe(true)
     await shot('exhausted-light-1280')
 
     // 明暗主题与 390 px 窗口：卡片在视口内、操作可达、没有整页横向滚动。
@@ -256,7 +257,9 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
       afterCreate.reduce((a, b) => a + b.cost, 0),
       9,
     )
-    expect(Number(await card.locator('[data-goal-cost]').getAttribute('data-goal-cost'))).toBeCloseTo(goal.usage.cost, 9)
+    await expect
+      .poll(async () => Number(await card.locator('[data-goal-cost]').getAttribute('data-goal-cost')), { timeout: 10_000 })
+      .toBeCloseTo(goal.usage.cost, 9)
     // HoverCard 分项：键盘聚焦打开。
     await header.focus()
     await win.locator('[data-slot="session-cost-detail"]').waitFor()
