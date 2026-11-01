@@ -1,7 +1,15 @@
 // 子代理（ADR 0014，docs/subsystems/subagents.md）的进度与通知：父 Session 的 agent_update 进度、后台子代理等待审批与结束的桌面通知、
 // 后台子代理结束的通知（父 Session 有 Run 时作为追加指令送达，否则挂起到下一个 Run 的 user message 开头，都前置 agent_notification），
 // 以及 agent_wait 的等待与追加指令的唤醒。进程内的子代理状态由 SubagentService 持有，本模块只投递。
-import { agentNotificationText, type AgentDefinition, type AgentEndStatus, type AgentOutcome, type AgentWaitItem, type RunInput } from '@coko/agent'
+import {
+  agentNotificationText,
+  type AgentDefinition,
+  type AgentEndStatus,
+  type AgentOutcome,
+  type AgentWaitItem,
+  type RunEntry,
+  type RunInput,
+} from '@coko/agent'
 import { getLogger, redactText } from '@coko/logging'
 import { AGENT_ACTIVITY_SUMMARY_MAX } from '@coko/protocol'
 import type { PendingInput, RunEndInfo } from './context/types.ts'
@@ -37,15 +45,42 @@ export interface LiveSubagent {
   waiters: number
   /** 子 Session 条目的订阅（结束时取消）。 */
   unsubscribe?: () => void
+  /** teammate 的名字（ADR 0018）；一次性子代理没有。 */
+  name?: string
+  /** 当前 Run 的触发 Run（根 Session 的 runId；Goal 预算按它归属）。 */
+  triggerRunId?: string
+  /** 最近一次工具调用（团队名册的 activity）。 */
+  activity?: { toolName: string; summary: string }
 }
 
 /** 新派发的子代理：running，前台的结果由调用方读到（observed），后台的等结束通知。 */
 export function newLiveSubagent(
-  fields: Omit<LiveSubagent, 'status' | 'ended' | 'resolve' | 'observed' | 'waiters' | 'outcome' | 'runId' | 'unsubscribe'>,
+  fields: Omit<LiveSubagent, 'status' | 'ended' | 'resolve' | 'observed' | 'waiters' | 'outcome' | 'runId' | 'unsubscribe' | 'activity'>,
 ): LiveSubagent {
   let resolve!: (outcome: AgentOutcome) => void
   const ended = new Promise<AgentOutcome>((r) => (resolve = r))
   return { ...fields, status: 'running', ended, resolve, observed: !fields.background, waiters: 0 }
+}
+
+/** 继续对话（send_message，ADR 0018）：同一个子代理开始新的 Run——回到 running、新的 ended，结束时照常通知父级（后台语义）。 */
+export function rearmLiveSubagent(live: LiveSubagent, triggerRunId: string | undefined): void {
+  let resolve!: (outcome: AgentOutcome) => void
+  live.ended = new Promise<AgentOutcome>((r) => (resolve = r))
+  live.resolve = resolve
+  live.status = 'running'
+  live.background = true
+  live.observed = false
+  delete live.outcome
+  delete live.runId
+  delete live.activity
+  if (triggerRunId) live.triggerRunId = triggerRunId
+  else delete live.triggerRunId
+}
+
+/** 宿主送给父 Session 的一条通知（团队消息）：文本与紧接在 user message 之前的条目。 */
+interface HostNote {
+  text: string
+  before: RunEntry[]
 }
 
 /** 工具调用的一行摘要（已脱敏、≤ 120 字符）。 */
@@ -68,10 +103,12 @@ export interface SubagentNotificationsOptions {
 
 export class SubagentNotifications {
   readonly #options: SubagentNotificationsOptions
-  /** 每个父 Session 待送达的通知（Session 空闲时结束的后台子代理）。 */
-  readonly #pending = new Map<string, string[]>()
+  /** 每个父 Session 待送达的通知（Session 空闲时结束的后台子代理；teammate 每个 Run 一条，按结束时的 outcome）。 */
+  readonly #pending = new Map<string, { agentId: string; outcome: AgentOutcome }[]>()
+  /** 每个父 Session 待送达的宿主通知（团队消息，lead 空闲时挂起到下一个 Run）。 */
+  readonly #notes = new Map<string, HostNote[]>()
   /** 作为追加指令送出的通知（Run 结束时没有送达的挂起）。 */
-  readonly #sent = new Map<string, { text: string; agentIds: string[] }[]>()
+  readonly #sent = new Map<string, { text: string; agents?: { agentId: string; outcome: AgentOutcome }[]; note?: HostNote }[]>()
   /** agent_wait 的唤醒（追加指令到达）。 */
   readonly #interrupts = new Map<string, AbortController>()
   #closing = false
@@ -104,7 +141,9 @@ export class SubagentNotifications {
       const m = entry.payload as { role?: string; content?: unknown }
       if (m.role !== 'assistant' || !Array.isArray(m.content)) return
       const call = (m.content as { type?: string; name?: string; arguments?: unknown }[]).filter((b) => b.type === 'toolCall').at(-1)
-      if (call?.name) this.progress(live, { toolName: call.name, summary: activitySummary(call.arguments) })
+      if (!call?.name) return
+      live.activity = { toolName: call.name, summary: activitySummary(call.arguments) }
+      this.progress(live, live.activity)
     })
   }
 
@@ -135,10 +174,11 @@ export class SubagentNotifications {
       content: [{ type: 'text', text }],
       before: [{ kind: 'agent_notification', payload: { agentIds: [live.agentId] } }],
     })
+    const item = { agentId: live.agentId, outcome: live.outcome! }
     if (delivered) {
       live.observed = true
-      this.#sent.set(live.rootId, [...(this.#sent.get(live.rootId) ?? []), { text, agentIds: [live.agentId] }])
-    } else this.#pending.set(live.rootId, [...(this.#pending.get(live.rootId) ?? []), live.agentId])
+      this.#sent.set(live.rootId, [...(this.#sent.get(live.rootId) ?? []), { text, agents: [item] }])
+    } else this.#pending.set(live.rootId, [...(this.#pending.get(live.rootId) ?? []), item])
     log.info(delivered ? 'subagent notification sent' : 'subagent notification pending', { sessionId: live.rootId, agentId: live.agentId })
   }
 
@@ -148,25 +188,54 @@ export class SubagentNotifications {
     if (!sent) return
     this.#sent.delete(info.sessionId)
     const undelivered = new Set(info.result.undeliveredSteering ?? [])
-    for (const note of sent) if (undelivered.has(note.text)) this.#pending.set(info.sessionId, [...(this.#pending.get(info.sessionId) ?? []), ...note.agentIds])
+    for (const item of sent) {
+      if (!undelivered.has(item.text)) continue
+      if (item.agents) this.#pending.set(info.sessionId, [...(this.#pending.get(info.sessionId) ?? []), ...item.agents])
+      if (item.note) this.#notes.set(info.sessionId, [...(this.#notes.get(info.sessionId) ?? []), item.note])
+    }
+  }
+
+  /**
+   * 宿主通知送给父 Session（团队消息给 lead，ADR 0018）：有 Run 时作为追加指令送达（前置 before 条目），没有时挂起到下一个 Run 的 user message
+   * 开头（与后台子代理通知相同：lead 空闲时不唤醒）。
+   */
+  hostNote(rootId: string, note: HostNote): boolean {
+    const delivered = this.#options.deliver(rootId, { text: note.text, content: [{ type: 'text', text: note.text }], before: note.before })
+    if (delivered) this.#sent.set(rootId, [...(this.#sent.get(rootId) ?? []), { text: note.text, note }])
+    else this.#notes.set(rootId, [...(this.#notes.get(rootId) ?? []), note])
+    return delivered
   }
 
   /** 父 Session 空闲时结束的后台子代理的通知：合并到下一个 Run 的 user message 开头，前置 agent_notification。 */
   pendingInput(sessionId: string): PendingInput | undefined {
-    const ids = (this.#pending.get(sessionId) ?? []).filter((id) => {
-      const live = this.#options.live(id)
-      return live?.outcome && !live.observed
+    // 模型已经读到的（agent_wait）不再通知：outcome 仍是当时的且已 observed。
+    const items = (this.#pending.get(sessionId) ?? []).filter((item) => {
+      const live = this.#options.live(item.agentId)
+      return !(live?.observed && live.outcome === item.outcome)
     })
-    if (ids.length === 0) return undefined
-    const notes = ids.map((id) => agentNotificationText(this.#options.live(id)!.outcome!).text)
+    const notes = this.#notes.get(sessionId) ?? []
+    if (items.length === 0 && notes.length === 0) {
+      this.#pending.delete(sessionId)
+      return undefined
+    }
+    const texts = [...items.map((item) => agentNotificationText(item.outcome).text), ...notes.map((n) => n.text)]
     return {
-      content: notes.map((text) => ({ type: 'text' as const, text: text + '\n\n' })),
-      before: [{ kind: 'agent_notification', payload: { agentIds: ids } }],
+      content: texts.map((text) => ({ type: 'text' as const, text: text + '\n\n' })),
+      before: [
+        ...(items.length > 0 ? [{ kind: 'agent_notification' as const, payload: { agentIds: [...new Set(items.map((i) => i.agentId))] } }] : []),
+        ...notes.flatMap((n) => n.before),
+      ],
       delivered: () => {
-        const left = (this.#pending.get(sessionId) ?? []).filter((id) => !ids.includes(id))
+        const left = (this.#pending.get(sessionId) ?? []).filter((item) => !items.includes(item))
         if (left.length > 0) this.#pending.set(sessionId, left)
         else this.#pending.delete(sessionId)
-        for (const id of ids) this.#options.live(id)!.observed = true
+        const leftNotes = (this.#notes.get(sessionId) ?? []).filter((n) => !notes.includes(n))
+        if (leftNotes.length > 0) this.#notes.set(sessionId, leftNotes)
+        else this.#notes.delete(sessionId)
+        for (const item of items) {
+          const live = this.#options.live(item.agentId)
+          if (live?.outcome === item.outcome) live.observed = true
+        }
       },
     }
   }

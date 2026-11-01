@@ -2,7 +2,7 @@
 kind: decision
 description: "插件只声明 Skills、命令、子代理定义、Hook、MCP 与 LSP Server，不在 Sidecar 中执行插件代码；只有用户级安装，文件复制到 ~/.coko/plugins；按清单与可执行声明的 digest 批准，批准后插件的 Hook、MCP 与 LSP 与全局配置同级。修改插件的来源、清单、批准或贡献的加载时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -40,6 +40,7 @@ category: architecture
 ## 实施记录
 
 - 2026-11-01，插件核心（服务端）：清单与诊断、目录与 git（`file://` / `https://` 浅克隆）来源的安装与复制（拒绝逃出插件根的符号链接，≤ 5 000 文件、≤ 50 MB）、按 digest 批准、启用 / 禁用 / 更新 / 卸载（删除前确认真实路径在插件根下）、`PluginContributionsPort` 的快照与变更通知以及 `/api/plugins` 已实现，当前行为见 [插件](../subsystems/plugins.md)。证据：`tests/integration/sidecar-plugins.test.ts`（未批准时 Skill 不在索引、Hook 不运行、MCP 与语言服务器进程不启动；批准后带插件名可用；更新改动 Hook 命令后回到待批准；卸载停止进程并删除目录）、`sidecar-plugins-trust.test.ts`（插件 Hook 的 allow 越不过询问规则、`.git/config` 与越出可写根；路径与符号链接逃出插件根；MCP 引用 Secret；`engines.coko` 不满足）、`secrets-gate-plugins.test.ts`、`packages/agent/src/extensions/plugins/{manifest,copy}.test.ts`、`apps/server/src/application/plugins.test.ts`、`apps/desktop/e2e/package-smoke.e2e.test.ts`（打包应用中插件的 MCP Server 被启动）。插件的语言服务器只进入贡献快照与批准内容，进程由代码智能启动；界面中的批准对话框尚未交付，implementation 为 partial。
+- 2026-11-01，插件界面：设置 → 插件分区（文件夹与 git 安装、状态、来源与 commit、贡献计数、诊断、启用开关、更新、卸载确认）与批准对话框（每条 Hook 的事件、matcher 与完整命令，每个 MCP / 语言服务器的命令、参数、地址与环境变量的键，资源名字；只有点"批准"才批准，内容变化时提示并换成最新内容）已交付，当前行为见 [插件](../subsystems/plugins.md#界面)。证据：`apps/desktop/e2e/plugins.e2e.test.ts`（真实 Electron 与 Sidecar：安装 → 待批准 → 对话框中的完整 Hook 命令 → 批准 → `/` 菜单出现 `sample:hello`，禁用后消失；更新改动 Hook 命令后回到待批准；卸载）、`apps/desktop/src/renderer/features/settings/plugins-section.browser.test.tsx`、`apps/desktop/src/renderer/stores/plugins-store.test.ts`。implementation 改为 implemented。
 - 实施中补齐的一处：`/<skill>` 与 `/<command>` 展开时文件正文先按值替换登记的 Secret 再进入 user message 条目（此前只有发给模型的请求被脱敏），插件与用户自己的文件都适用。
 
 ## 来源与后继

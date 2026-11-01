@@ -21,3 +21,4 @@
 - 2026-11-01 lead（来自票 04）：以下几处仍写着插件"未接入"或"只有 COKO_TEST_PLUGINS"，合入时已过时：`docs/subsystems/hooks.md:45`、`docs/subsystems/mcp.md:36`（票 09 先改，未改则由本票修正）、`apps/server/README.md:62`（PluginService 与 routes/plugins.ts 已实现，不再是空存根或 501）。
 - 2026-11-01 lead（来自票 05、10）：共用的 `text-destructive` 在卡片背景上的对比度为 4.50（浅色）与 4.24（深色），不高于 4.5。票 10 的关于页已经改为中性色文字加 destructive 图标。本票复核时确认各处错误文字的对比度，不达标的由 lead 另开修复票（改 `packages/ui` 的 token，按 ui-design-system.md 处理）。
 - 2026-11-01 lead（来自票 07）：`apps/server/README.md` 中"TraceService 为空 / 501"的说法已过时；`tests/integration/sidecar-m6-seams.test.ts` 文件头注释的"501 占位"同样过时（合并 05 与 07 后已不剩 501 断言）；agent README 的 observability 导出要点见票 07 的实施者回执。
+- 2026-11-01 lead（来自票 12）：`docs/README.md` 当前行为导航中插件一行（票 04 加入）补"设置中的插件分区与批准对话框"。

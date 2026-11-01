@@ -7,6 +7,7 @@ import {
   exhaustedDimension,
   exhaustedMessage,
   GOAL_BUDGET_EXHAUSTED_PREFIX,
+  goalChildRuns,
   goalSection,
   goalUsage,
   type BudgetEntry,
@@ -214,5 +215,41 @@ describe('耗尽的维度', () => {
     expect(text).toContain('- tokens: 5000 / 9000')
     expect(text).toContain('- cost: 0.25 / 1.5')
     expect(text).toContain('- time: 60000 ms / 120000 ms')
+  })
+})
+
+describe('子 Session 的 Run 按触发 Run 归属（ADR 0018）', () => {
+  // 根：r0 没有 Goal（之前派发 teammate），之后创建 Goal，r2 为 Goal Round。
+  const g = goal('running', 1)
+  const root = [
+    start(0, 'r0'),
+    at(
+      1,
+      'agent_start',
+      { agentId: 'tm', agentType: 'general', description: '', background: true, toolCallId: 'c', name: 'tm', teammate: true, triggerRunId: 'r0' },
+      'r0',
+    ),
+    end(2, 'r0'),
+    goalEntry(3, g),
+    start(4, 'r2', 1),
+  ]
+  const child = [
+    at(1, 'run_start', { trigger: 'subagent', subagent: { triggerRunId: 'r0' } }, 'c0'),
+    assistant(2, 'c0', usage(500, 0, 0)),
+    end(2, 'c0'),
+    at(5, 'run_start', { trigger: 'subagent', subagent: { triggerRunId: 'r2' } }, 'c1'),
+    assistant(6, 'c1', usage(70, 0, 0)),
+    end(6, 'c1'),
+  ]
+  it('没有 Goal 的根 Run 触发的 Run 不计入之后创建的 Goal；Goal Round 触发的计入', () => {
+    const runs = goalChildRuns(root, 'tm', child, g.id)
+    expect([...runs]).toEqual(['c1'])
+    expect(goalUsage(root, g.id, { now: 10, children: [{ entries: child, runs }] }).tokens).toBe(70)
+  })
+  it('没有 triggerRunId 的旧条目：派发它的 agent_start 属于 Goal 时全部计入，否则不计', () => {
+    const legacyChild = child.map((e) => (e.kind === 'run_start' ? { ...e, payload: { trigger: 'subagent' } } : e))
+    expect(goalChildRuns(root, 'tm', legacyChild, g.id).size).toBe(0)
+    const inGoal = root.map((e) => (e.kind === 'agent_start' ? { ...e, runId: 'r2' } : e))
+    expect([...goalChildRuns(inGoal, 'tm', legacyChild, g.id)]).toEqual(['c0', 'c1'])
   })
 })

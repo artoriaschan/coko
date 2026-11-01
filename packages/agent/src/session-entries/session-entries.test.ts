@@ -109,7 +109,7 @@ describe('Session Entry payload 定义', () => {
 
   it('run_start v2 条目迁移为 v3（原样）；v3 接受 schedule / subagent / handoff 与 schedule 字段，v2 不接受', () => {
     const versions = definition('run_start').versions
-    expect(versions).toHaveLength(3)
+    expect(versions).toHaveLength(4)
     for (const payload of [{ trigger: 'submit' }, { trigger: 'goal', goal: { goalId: 'g1', round: 2 } }] as EntryJson[]) {
       expect(versions[1]!.check(payload)).toBeUndefined()
       const migrated = versions[2]!.migrate!(payload)
@@ -122,6 +122,15 @@ describe('Session Entry payload 定义', () => {
     }
     expect(check('run_start', { trigger: 'schedule', schedule: { scheduleId: 'sc1', occurrence: 1000 } })).toBeUndefined()
     expect(check('run_start', { trigger: 'schedule', schedule: { scheduleId: '', occurrence: 1000 } })).toEqual(expect.any(String))
+  })
+
+  it('run_start v3 条目迁移为 v4（原样）；v4 另接受 subagent.triggerRunId，v3 不接受', () => {
+    const versions = definition('run_start').versions
+    const payload = { trigger: 'subagent', subagent: { triggerRunId: 'r1' } } as EntryJson
+    expect(versions[2]!.check(payload)).toEqual(expect.any(String))
+    expect(versions[3]!.migrate!({ trigger: 'subagent' })).toEqual({ trigger: 'subagent' })
+    expect(check('run_start', payload)).toBeUndefined()
+    expect(check('run_start', { trigger: 'subagent', subagent: { triggerRunId: '' } })).toEqual(expect.any(String))
   })
 
   it('approval_decision v1 → v2 → v3（原样）；v2 接受 by user / hook，v3 另接受 headless', () => {

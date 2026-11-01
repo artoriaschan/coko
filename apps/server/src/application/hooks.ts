@@ -576,6 +576,67 @@ export class HookService {
     return { continue: [{ type: 'text', text: reason }] }
   }
 
+  // ---- Agent Teams 的事件（ADR 0018）：没有 matcher；项目 Hook 照常只在批准后运行 ----
+
+  /**
+   * TaskCreated（task_create 提交之前）/ TaskCompleted（任务变为 completed 之前）：exit 2 或 decision: block 时阻止，返回给模型的原因
+   * （stderr 或 reason，≤ 2 KB，redactText）；没有 Hook 或放行时 undefined。scope 为发起者的 Session。
+   */
+  async taskEvent(
+    scope: HookScope,
+    event: 'TaskCreated' | 'TaskCompleted',
+    input: { taskId: string; subject: string; description: string; teammateName: string; teamName: string },
+    runId?: string,
+  ): Promise<{ block: string } | undefined> {
+    const state = this.runState(scope)
+    if (runId) state.runId = runId
+    const selected = selectHooks(await state.hooks, event)
+    if (selected.length === 0) return undefined
+    const results = await this.run(scope, state, event, selected, {
+      ...(await this.#mode(scope)),
+      task_id: input.taskId,
+      task_subject: input.subject,
+      task_description: input.description,
+      teammate_name: input.teammateName,
+      team_name: input.teamName,
+    })
+    const blocked = results.filter((r) => r.result.block)
+    if (blocked.length === 0) return undefined
+    const reasons = blocked.flatMap((r) => (r.result.reason ? [r.result.reason] : []))
+    return { block: truncate(redactText(reasons.join('\n') || `Blocked by a ${event} hook`), HOOK_BLOCK_REASON_MAX_CHARS) }
+  }
+
+  /**
+   * TeammateIdle（teammate 的 Run 正常结束之前、SubagentStop 之后）：exit 2 或 decision: block 时 stderr / reason 作为 user message 送达、Run 继续
+   * （hook_run continued）；与 SubagentStop 共用每 Run ONSTOP_CONTINUE_LIMIT 次的继续上限，之后的 block 被忽略（记 STOP_LIMIT_TEXT）。
+   */
+  async teammateIdle(scope: HookScope, info: StopInfo, teammate: { name: string; team: string }): Promise<StopContinue | undefined> {
+    const state = this.runState(scope)
+    state.runId = info.runId
+    const selected = selectHooks(await state.hooks, 'TeammateIdle')
+    if (selected.length === 0) return undefined
+    const limited = info.continuations >= ONSTOP_CONTINUE_LIMIT
+    const results = await this.run(
+      scope,
+      state,
+      'TeammateIdle',
+      selected,
+      { ...(await this.#mode(scope)), teammate_name: teammate.name, team_name: teammate.team },
+      undefined,
+      (result) =>
+        !result.block || result.stop ? { result } : limited ? { result, message: STOP_LIMIT_TEXT } : { result: { ...result, outcome: 'continued' } },
+    )
+    const blocked = results.filter((r) => r.result.block && !r.result.stop)
+    if (blocked.length === 0) return undefined
+    if (limited) {
+      log.warn('teammate idle continuation ignored: limit reached', { sessionId: scope.sessionId, runId: info.runId, limit: ONSTOP_CONTINUE_LIMIT })
+      return undefined
+    }
+    const reasons = blocked.flatMap((r) => (r.result.reason ? [r.result.reason] : []))
+    const text = truncate(redactText(reasons.join('\n\n') || 'A TeammateIdle hook asked the teammate to keep working'), HOOK_CONTEXT_MAX_CHARS)
+    return { continue: [{ type: 'text', text }] }
+  }
+
   /**
    * Notification（Coko 产生桌面通知时，不论设置是否关闭；只观测）：matcher 对象为通知类别，输入 notification_type、title、message（已脱敏）。
    * 不等待结果，失败只记录（hook_run error / timeout），不影响通知。

@@ -97,7 +97,7 @@ export type RunRequest =
   /** 定时任务到期（ADR 0015）：输入不经命令展开，pendingInput 照常合并在前。 */
   | { trigger: 'schedule'; input: RunInput; schedule: { scheduleId: string; occurrence: number } }
   /** 子 Session 的 Run（ADR 0014）。 */
-  | { trigger: 'subagent'; input: RunInput }
+  | { trigger: 'subagent'; input: RunInput; triggerRunId?: string }
   /** 交接的摘要 Run：只发一次请求、没有工具（运行时的摘要模式），input 为摘要提示。 */
   | { trigger: 'handoff'; input: RunInput }
 

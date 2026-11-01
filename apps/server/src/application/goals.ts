@@ -10,6 +10,7 @@ import {
   exhaustedMessage,
   expectRevision,
   GoalError,
+  goalChildRuns,
   goalRounds,
   goalRunIds,
   goalSection,
@@ -75,13 +76,8 @@ export interface GoalSubagents {
   stopForGoal(sessionId: string, goalId: string): Promise<number>
 }
 
-/** 根 Session 的 agent_start 条目给出的、属于该 Goal 的子 Session（派发它的 Run 属于该 Goal）。 */
-function childSessionIds(entries: readonly StoredEntry[], goalId: string): string[] {
-  const runs = goalRunIds(entries, goalId)
-  return agentStarts(entries)
-    .filter((e) => e.payload.goalId === goalId || (e.runId !== null && runs.has(e.runId)))
-    .map((e) => e.payload.agentId)
-}
+/** 根 Session 的 agent_start 给出的子 Session（每个 agentId 一次）。 */
+const childSessionIds = (entries: readonly StoredEntry[]): string[] => [...new Set(agentStarts(entries).map((e) => e.payload.agentId))]
 
 export interface GoalServiceOptions {
   store: SessionStore
@@ -163,12 +159,22 @@ export class GoalService {
 
   /** 该 Goal 的五维用量：根 Session 自己的 Run 加上它的 Run 派发的子 Session 的全部 Run（不计轮次，ADR 0014）。 */
   async #usage(entries: readonly StoredEntry[], goalId: string, extra: { now?: number } = {}) {
-    const children = await Promise.all(childSessionIds(entries, goalId).map((id) => this.#entries(id)))
+    const children = (await this.#children(entries, goalId)).filter((c) => c.runs.size > 0)
     return goalUsage(entries, goalId, { ...extra, ...(children.length > 0 ? { children } : {}) })
   }
 
+  /** 各子 Session 的条目与其中属于该 Goal 的 Run（按 run_start.subagent.triggerRunId 归属，goalChildRuns）。 */
+  async #children(entries: readonly StoredEntry[], goalId: string) {
+    return Promise.all(
+      childSessionIds(entries).map(async (agentId) => {
+        const child = await this.#entries(agentId)
+        return { agentId, entries: child, runs: goalChildRuns(entries, agentId, child, goalId) }
+      }),
+    )
+  }
+
   /**
-   * 子 Session 的 Run 所属的 Goal（ADR 0014）：父 Session 当前 Goal 为 running，且派发它的 agent_start 属于该 Goal。根 Session 自己时为
+   * 子 Session 的 Run 所属的 Goal（ADR 0014 / 0018）：父 Session 当前 Goal 为 running，且该 Run 的触发 Run 属于该 Goal（goalChildRuns）。根 Session 自己时为
    * 该 Session 的 Goal 与它的 Run 是否属于 Goal（own）。
    */
   async #governing(
@@ -186,7 +192,7 @@ export class GoalService {
     const entries = await this.#entries(root)
     const goal = currentGoal(entries)
     if (!goal) return undefined
-    return { goal, root, entries, member: childSessionIds(entries, goal.id).includes(sessionId) }
+    return { goal, root, entries, member: goalChildRuns(entries, sessionId, await this.#entries(sessionId), goal.id).has(runId) }
   }
 
   // ---- 读取 ----

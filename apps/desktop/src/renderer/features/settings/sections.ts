@@ -27,6 +27,7 @@ import { MemorySection } from './memory-section.tsx'
 import { ModelsSection } from './models-section.tsx'
 import { NotificationsSection } from './notifications-section.tsx'
 import { PermissionsSection } from './permissions-section.tsx'
+import { PluginsSection } from './plugins-section.tsx'
 import { SchedulesSection } from './schedules-section.tsx'
 import { SkillsSection } from './skills-section.tsx'
 
@@ -82,7 +83,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'notifications', label: 'notifications.settings', icon: BellIcon, Component: NotificationsSection, group: 'personal', available: true },
   { id: 'permissions', label: 'settings.nav.permissions', icon: ShieldIcon, Component: PermissionsSection, group: 'environment', available: true },
   { id: 'schedules', label: 'schedules.settings', icon: ClockIcon, Component: SchedulesSection, group: 'environment', available: true },
-  { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: Unavailable, group: 'plugins', available: false },
+  { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: PluginsSection, group: 'plugins', available: true },
   { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
   { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
   { id: 'lsp', label: 'lsp.settings', icon: CodeIcon, Component: LspSection, group: 'plugins', available: true },
