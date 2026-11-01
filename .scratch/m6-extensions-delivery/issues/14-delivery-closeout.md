@@ -19,3 +19,4 @@
 - 2026-10-31 lead：发布构建 E2E 复跑时确认插件声明的 LSP 服务器被启动（票 04 移给票 05 的验收）。
 
 - 2026-11-01 lead（来自票 04）：以下几处仍写着插件"未接入"或"只有 COKO_TEST_PLUGINS"，合入时已过时：`docs/subsystems/hooks.md:45`、`docs/subsystems/mcp.md:36`（票 09 先改，未改则由本票修正）、`apps/server/README.md:62`（PluginService 与 routes/plugins.ts 已实现，不再是空存根或 501）。
+- 2026-11-01 lead（来自票 05、10）：共用的 `text-destructive` 在卡片背景上的对比度为 4.50（浅色）与 4.24（深色），不高于 4.5。票 10 的关于页已经改为中性色文字加 destructive 图标。本票复核时确认各处错误文字的对比度，不达标的由 lead 另开修复票（改 `packages/ui` 的 token，按 ui-design-system.md 处理）。
