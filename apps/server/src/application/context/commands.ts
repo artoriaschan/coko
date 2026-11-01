@@ -16,7 +16,7 @@ import {
   type ResourceDiagnostic,
   type RunInput,
 } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactSecretValues } from '@coko/logging'
 import { PROJECT_COMMANDS_DIR, USER_COMMANDS_DIR, type CommandInfo, type CommandListResponse } from '@coko/protocol'
 import type { ContextContribution, ContextContributionOptions, ContextScope, ExpandResult, SourcedCommand } from './types.ts'
 
@@ -116,8 +116,11 @@ export function commandsContribution(options: CommandsContributionOptions): Comm
       // 未知或停用的命令：原样作为普通消息。
       if (!command?.enabled) return undefined
       if (command.source === 'builtin') return { kind: 'action', name: command.action, args: invocation.args }
+      // 模板正文来自文件（含插件的命令），替换已登记 Secret 的明文后再代入用户写的参数（ADR 0007）；expand 型来源自行脱敏。
       const text =
-        'expand' in command ? await command.expand(invocation.args, scope) : substituteArgs(command.content, parseCommandArgs(invocation.args), invocation.args)
+        'expand' in command
+          ? await command.expand(invocation.args, scope)
+          : substituteArgs(redactSecretValues(command.content), parseCommandArgs(invocation.args), invocation.args)
       log.info('command expanded', { name: command.name, source: command.source })
       return {
         kind: 'input',

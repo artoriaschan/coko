@@ -192,16 +192,13 @@ describe('M6 装配接入点', { timeout: 60_000 }, () => {
     expect(logged.map((r) => r.properties)).toEqual(requests.map((r) => expect.objectContaining({ sessionId, runId: r.runId, model: r.model, retries: 0 })))
   })
 
-  it('新路由：插件列表与 LSP 为空、团队与追踪为空、未接入的操作为 501；不存在的 Session 404', async () => {
+  it('新路由：插件列表与 LSP 为空、团队与追踪为空、未接入的操作为 501（插件与代码智能的管理接口见 sidecar-plugins、sidecar-lsp）；不存在的 Session 404', async () => {
     const root = await tempDir()
     const h = await boot(root, [])
     const sessionId = await h.open('default')
     expect((await h.api.get(pluginPaths.plugins)).body).toEqual([])
-    for (const response of [
-      await h.api.post(pluginPaths.plugins, { source: { kind: 'dir', path: root } }),
-      await h.api.post(pluginPaths.approve('x'), { digest: 'd' }),
-      await h.api.get(tracePaths.export(sessionId)),
-    ])
+    expect((await h.api.post(pluginPaths.approve('x'), { digest: 'd' })).status).toBe(404)
+    for (const response of [await h.api.get(tracePaths.export(sessionId))])
       expect([response.status, (response.body as { error?: { code: string } }).error?.code]).toEqual([501, 'not-implemented'])
     expect((await h.api.get(lspPaths.status(sessionId))).body).toEqual({
       enabled: true,

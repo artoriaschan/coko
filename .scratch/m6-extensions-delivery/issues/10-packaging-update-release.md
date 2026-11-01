@@ -57,3 +57,13 @@
 **未验证（需真实凭据 / 外部条件）**：Developer ID 签名与公证；真实更新 feed 上的一次成功下载与 `quitAndInstall`（adhoc 签名下 Squirrel.Mac 只能验证到 error）；非 darwin 平台（E2E 以 `describe.skipIf` 跳过）。
 
 **给 Lead 的合并事项**：docs/README.md 当前行为导航加了 delivery.md 一行；TECH_STACK 接入状态只在 apps/desktop 一行末尾追加"安装包切片"。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：接受实施者列出的偏离：`update-available` 映射为 `downloading`；`UpdateCoordinator` 增加 `start()` 并改为由参数构造（bridge 与 `UpdateStatus` 形状未变）；发布构建中的 `test hooks ignored in a packaged build` 由 main 记录；DMG 产物路径是 `out/make/dmg/<arch>/*.dmg`。也接受越出写范围的改动：`main/index.ts` 的装配、`.gitignore`、`tsconfig.json` 的 include、就近测试、`docs/README.md` 一行。
+- 分支上的复核（合入前，负载 18–50）：`typecheck`、`lint`、`format:check` 退出 0，`check:docs` 209 个文件 0 个问题；6 个就近文件 27 例通过（含 source-references、browser-deps）；`update.e2e.test.ts` 1 例通过。
+- 以 a4e0f64 合入 main；`pnpm install --frozen-lockfile` 退出 0。
+- main 全量（锁内）：`test=1`，327 个文件中 3 个失败，2657 例通过、7 例失败、1 例跳过；负载最高 356（并行实施者的安装与构建）。失败的是 `sidecar-process.test.ts` 的 5 例（真实进程，5000ms 超时）以及 `model-catalog`、`model-price` 两个 Browser Mode 文件（locator.click 超时），都不在本票改动范围内。负载 23–26 时单独重跑这 3 个文件，19 例全部通过。依照 lead 记录中的规则，本次不记为"全量通过"。
+- 发布构建 E2E 没有在 main 上复跑，留给票 14 复核。
+
+Closed: true

@@ -10,7 +10,7 @@ import {
   type Skill,
   type SkillLoader,
 } from '@coko/agent'
-import { getLogger } from '@coko/logging'
+import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { SkillListResponse } from '@coko/protocol'
 import { AppError } from '../errors.ts'
 import type { ContextContribution, ContextContributionOptions, ContextScope, SourcedCommand } from './types.ts'
@@ -71,7 +71,8 @@ export function skillsContribution(options: SkillsContributionOptions): SkillsCo
     enabled,
     async expand(args) {
       try {
-        return expandSkillInvocation(skill, await loader.content(skill), args)
+        // 正文来自文件（含插件安装的 Skill），进入 user message 条目前替换已登记 Secret 的明文；用户写的参数原样保留（ADR 0007）。
+        return expandSkillInvocation(skill, redactSecretsDeep(await loader.content(skill)), args)
       } catch (error) {
         throw new AppError('bad-request', `Cannot load skill "${skill.name}": ${message(error)}`)
       }

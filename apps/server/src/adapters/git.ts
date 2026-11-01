@@ -1,6 +1,7 @@
 // 宿主执行的 git（ADR 0016）：argv（不经 shell）、GIT_TERMINAL_PROMPT=0、LC_ALL=C、超时 60 秒、登记 kind git（ADR 0012）；输出只记日志摘要。
 // git 以独立进程组启动：超时对整组 SIGTERM，宽限后 SIGKILL（git 派生的 ssh、hook 等一并结束）。
 import { spawn } from 'node:child_process'
+import { dirname } from 'node:path'
 import { filterEnv } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type { TrackProcess } from '../application/processes.ts'
@@ -124,4 +125,35 @@ export function createGitRunner(options: GitRunnerOptions): GitPort {
       })
     },
   }
+}
+
+export interface GitCloneRequest {
+  /** https:// 或 file:// 地址（调用方已校验）。 */
+  url: string
+  /** 分支或标签；省略时为远端的缺省分支。 */
+  ref?: string
+  /** 克隆到的目录（不存在）；git 在其父目录中运行。 */
+  dest: string
+  timeoutMs?: number
+}
+
+/** 克隆失败（退出码非 0）；message 只含 git 的 stderr 摘要。 */
+export class GitCloneError extends Error {
+  override readonly name = 'GitCloneError'
+}
+
+/**
+ * 浅克隆（插件安装与更新，ADR 0017）：clone --depth 1 [--branch ref] -- <url> <dest>，返回 HEAD 的 commit。不初始化子模块；
+ * 只允许 https 与 file 传输（protocol.allow），ext:: 等传输即使出现在重定向中也不执行。
+ */
+export async function gitClone(git: GitPort, request: GitCloneRequest): Promise<{ commit: string }> {
+  const args = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.file.allow=always', 'clone', '--depth', '1', '--quiet']
+  if (request.ref !== undefined) args.push('--branch', request.ref)
+  args.push('--', request.url, request.dest)
+  const cloned = await git.run({ args, cwd: dirname(request.dest), ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs }) })
+  if (cloned.exitCode !== 0)
+    throw new GitCloneError(cloned.stderr.trim().split('\n').slice(-3).join(' ').slice(0, 500) || `git clone exited with ${cloned.exitCode}`)
+  const head = await git.run({ args: ['rev-parse', 'HEAD'], cwd: request.dest })
+  if (head.exitCode !== 0) throw new GitCloneError('git rev-parse HEAD failed after clone')
+  return { commit: head.stdout.trim() }
 }
