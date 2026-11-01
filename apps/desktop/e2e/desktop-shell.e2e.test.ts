@@ -21,14 +21,14 @@ async function launch(extra: Record<string, string> = {}, options: LaunchOptions
 const status = (app: LaunchedApp) => app.window.locator('[role="status"]')
 
 describe('构建产物', () => {
-  it('dist/sidecar 中有无界面运行的入口 headless.mjs；存根以 4 退出', async () => {
+  it('dist/sidecar 中有无界面运行的入口 headless.mjs；没有参数时以 4 退出', async () => {
     const entry = join(dirname(realSidecarEntry), 'headless.mjs')
     expect(existsSync(entry)).toBe(true)
     const child = spawn(electronPath, [entry], { env: { PATH: process.env.PATH ?? '', ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'ignore', 'pipe'] })
     let stderr = ''
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
     const code = await new Promise<number | null>((resolve) => child.once('exit', (c) => resolve(c)))
-    expect([code, stderr]).toEqual([4, 'coko headless: not implemented\n'])
+    expect([code, stderr]).toEqual([4, expect.stringMatching(/^coko headless: Missing --data-dir\nUsage: headless\.mjs /)])
   })
 })
 

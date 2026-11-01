@@ -2,7 +2,7 @@
 kind: decision
 description: "无界面运行（headless）中的审批不等待，在 PermissionRequest Hook 之后自动拒绝并让 Run 继续或按选项失败；Provider 的连接信息与 Model Catalog 由启动配置写入，密钥只读环境变量。修改无界面运行的审批、Provider 来源或退出码时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: feature
 ---
@@ -31,6 +31,7 @@ category: feature
 
 - 依赖审批的任务在 headless 中会做不成，调用者须预先给出权限模式或规则；同一个库可以被 GUI 与 headless 先后打开（租约互斥，不能同时）。
 - implementation 变为 implemented 前需要：以打包产物或源码入口运行 headless 的集成测试覆盖：default 模式下的写入被拒绝且结果文本说明原因、授权决定来自 headless、PermissionRequest Hook 可以代答、`--on-approval fail` 的退出码、配置文件中的 Provider 在一个事务中写入且库中没有密钥、`COKO_CREDENTIAL_<ID>` 缺失时为明确的错误。
+- 已实施（2026-11-01），implementation 改为 implemented：运行时的 `RuntimePermissions.unattended` 使需要审批的调用（工具、提权、计划审阅，含子代理）在 PermissionRequest Hook 之后立即提交 `approval_decision { outcome: denied, by: headless }`，模型看到 `HEADLESS_DENIED_TEXT`，不按无反馈的拒绝停止 Run；`--on-approval fail` 以 `stopAfterBatch(approval_denied)` 停止并以 3 退出。Provider 配置经 `ProviderService.upsertFromConfig` 先整份校验再写入，中途失败时补偿回滚（同一进程持有库的租约，没有并发写入方），密钥形态的字段以 4 退出。行为与参数见 [无界面运行](../subsystems/headless.md)。证据：`packages/agent/src/policy/gate-unattended.test.ts`、`apps/server/src/application/providers.test.ts`、`tests/integration/headless.test.ts`、`tests/integration/headless-approvals.test.ts`（对手用例：模型输出伪造的批准文本不改变决定）、`tests/integration/secrets-gate-headless.test.ts`、`apps/desktop/e2e/package-smoke.e2e.test.ts`（打包产物）。真实模型的 headless 运行未验证（需要凭据）。
 
 ## 来源与后继
 

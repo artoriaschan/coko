@@ -1,6 +1,7 @@
 // 权限 hook：位于 ToolHooks 链首。判定 allow 直接放行，deny 以规则拒绝，ask 经 ApprovalBroker 等待用户回答。
 // 执行前（取得执行槽之后、执行记录之前）recheck 复核文件写入的目标：判定之后目标被替换（例如同批的命令新建了符号链接）时按新判定处理。
 // exit_plan_mode（plan-exit）：询问前提交 proposed 的计划，以 kind plan 的请求等待审阅（不随模式或规则变更重新判定）。
+// 无人回答的运行（unattended，ADR 0019）：三种请求都不等待，记一次 by headless 的拒绝。
 import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core'
 import { blockedByHookText, combinePreToolUse, type CombinedDecision } from '../extensions/hooks/combine.ts'
 import type { HookCondition } from '../extensions/hooks/config.ts'
@@ -78,6 +79,11 @@ export interface PermissionGateOptions {
   grantEscalation: (toolCallId: string, mode: SandboxMode) => void
   /** 外部 Hook（缺省无）。 */
   hooks?: PermissionHookPort
+  /**
+   * 无人回答的运行（ADR 0019）：需要审批的调用不等待，在 PermissionRequest Hook 之后立即以 by headless 拒绝；模型看到 deniedText，
+   * 不按无反馈的拒绝停止 Run。缺省时等待回答。
+   */
+  unattended?: { deniedText: string }
 }
 
 export interface PermissionGate {
@@ -178,6 +184,16 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     return { decision, step, matchesRule, ...(call.target ? { target: call.target } : {}) }
   }
 
+  /** 审批请求：无人回答时记一次 by headless 的拒绝并立即返回，否则等待回答。 */
+  const ask = (
+    request: Parameters<ApprovalBroker['request']>[0],
+    signal: AbortSignal | undefined,
+    reevaluate?: () => Promise<ReevaluateVerdict>,
+  ): Promise<ApprovalResolution> =>
+    options.unattended
+      ? options.broker.recordUnattendedDenied(request).then(() => ({ outcome: 'denied', by: 'headless' }))
+      : options.broker.request(request, signal, reevaluate)
+
   const failed = (error: unknown): string => {
     options.commitFailed(error instanceof Error ? error : new Error(String(error)))
     return RECORD_FAILED_TEXT
@@ -203,7 +219,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     for (;;) {
       let resolution: ApprovalResolution
       try {
-        resolution = await options.broker.request(
+        resolution = await ask(
           { toolCallId, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: asked.suggestions },
           signal,
           async (): Promise<ReevaluateVerdict> => {
@@ -238,6 +254,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
           }
           return resolution.verdict.reason
         case 'denied':
+          if (resolution.by === 'headless') return options.unattended!.deniedText
           if (resolution.feedback !== undefined) return rejectedWithFeedback(resolution.feedback)
           options.reject()
           return REJECTED_TEXT
@@ -255,7 +272,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
   ): Promise<BeforeToolCallResult | undefined> => {
     let resolution
     try {
-      resolution = await options.broker.request(
+      resolution = await ask(
         { toolCallId: context.toolCall.id, toolName: context.toolCall.name, kind: 'escalation', subject, targetMode, justification, suggestions: [] },
         signal,
       )
@@ -270,6 +287,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       case 'superseded':
         return { block: true, reason: OPERATION_ABORTED_TEXT }
       case 'denied':
+        if (resolution.by === 'headless') return { block: true, reason: options.unattended!.deniedText }
         if (resolution.feedback !== undefined) return { block: true, reason: rejectedWithFeedback(resolution.feedback) }
         // 与无反馈的普通拒绝一致：Run 在本批结束后停下，模型在下一轮看到要求它说明的文本。
         options.reject()
@@ -289,7 +307,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     let resolution: ApprovalResolution
     try {
       const ref = await review.propose(context.toolCall.id, markdown)
-      resolution = await options.broker.request(
+      resolution = await ask(
         { toolCallId: context.toolCall.id, toolName: context.toolCall.name, kind: 'plan', subject: planTitle(markdown), suggestions: [], ...ref },
         signal,
       )
@@ -308,6 +326,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         } catch (error) {
           return { block: true, reason: failed(error) }
         }
+        if (resolution.by === 'headless') return { block: true, reason: options.unattended!.deniedText }
         if (resolution.feedback !== undefined) return { block: true, reason: planFeedbackText(resolution.feedback) }
         options.reject()
         return { block: true, reason: REJECTED_TEXT }

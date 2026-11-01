@@ -28,7 +28,8 @@ export type ReevaluateVerdict = { behavior: 'allow' } | { behavior: 'deny'; reas
 /** 请求的结局（等待方据此继续或停止）。 */
 export type ApprovalResolution =
   | { outcome: 'allowed'; scope: ApprovalScope }
-  | { outcome: 'denied'; feedback?: string }
+  /** by headless：无人回答的运行中立即拒绝（recordUnattendedDenied），不是用户的回答。 */
+  | { outcome: 'denied'; feedback?: string; by?: 'headless' }
   | { outcome: 'cancelled' }
   | { outcome: 'superseded'; verdict: Exclude<ReevaluateVerdict, undefined> }
 
@@ -53,6 +54,10 @@ export interface ApprovalBroker {
    * by: hook }；不进入等待表。提交失败时 reject。
    */
   recordHookAllowed(request: Omit<ApprovalRequestPayload, 'requestId'>): Promise<void>
+  /**
+   * 无人回答的运行（ADR 0019）：依次提交 approval_request 与 approval_decision { outcome: denied, by: headless }；不进入等待表。提交失败时 reject。
+   */
+  recordUnattendedDenied(request: Omit<ApprovalRequestPayload, 'requestId'>): Promise<void>
 }
 
 /** 反馈交给模型，限制长度。 */
@@ -125,6 +130,12 @@ export function createApprovalBroker(commit: (entry: ApprovalBrokerEntry) => Pro
       const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
       await commit({ kind: 'approval_request', payload })
       await commit({ kind: 'approval_decision', payload: { requestId: payload.requestId, outcome: 'allowed', scope: 'once', by: 'hook' } })
+    },
+
+    async recordUnattendedDenied(request) {
+      const payload: ApprovalRequestPayload = { requestId: randomUUID(), ...request }
+      await commit({ kind: 'approval_request', payload })
+      await commit({ kind: 'approval_decision', payload: { requestId: payload.requestId, outcome: 'denied', by: 'headless' } })
     },
   }
 }

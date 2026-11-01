@@ -88,6 +88,8 @@ export class SessionPermissions implements PlanHost {
   #scopes: PermissionScopeResolver
   /** 已解析过的子 Session（重启后作用域中没有的子 Session 同样按子级计算模式）。 */
   readonly #children = new Set<string>()
+  /** 无人回答的运行（headless，ADR 0019）：交给每个运行时，需要审批的调用立即拒绝。 */
+  readonly #unattended: { deniedText: string } | undefined
   readonly service: PermissionService
 
   /** contributions：上下文装配的贡献；其中的 plan 贡献（context/plan.ts）经它读写模式与计划审阅。 */
@@ -97,7 +99,9 @@ export class SessionPermissions implements PlanHost {
     service: PermissionService
     contributions?: readonly ContextContribution[]
     scopes?: PermissionScopeResolver
+    unattended?: { deniedText: string }
   }) {
+    this.#unattended = options.unattended
     this.#store = options.store
     this.#runtimes = options.runtimes
     this.service = options.service
@@ -178,12 +182,14 @@ export class SessionPermissions implements PlanHost {
     workspaceId: string,
     sessionId: string,
     cwd?: string,
-  ): { mode: () => PermissionMode; rules: () => PermissionRule[] } {
+  ): { mode: () => PermissionMode; rules: () => PermissionRule[]; unattended?: { deniedText: string } } {
     // 子 Session：state 是根 Session 的状态；模式在每次判定时取根当前模式（plan 按 read-only）与定义上限中较窄者。
     const child = this.#scopes.rootSessionId(sessionId) !== sessionId || this.#children.has(sessionId)
     return {
       mode: () => (child ? effectiveSubagentMode(state.mode, this.#scopes.modeCap(sessionId)) : narrowerMode(state.mode, this.#scopes.modeCap(sessionId))),
       rules: () => [...state.rules, ...this.service.rulesFor(workspaceId, cwd), ...(child ? [] : (this.#scopes.extraRules?.(sessionId) ?? []))],
+      // 子 Session 与根 Session 相同：无人回答时子代理的审批同样立即拒绝。
+      ...(this.#unattended ? { unattended: this.#unattended } : {}),
     }
   }
 

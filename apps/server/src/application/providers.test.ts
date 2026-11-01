@@ -1,5 +1,5 @@
 import { createModelRegistry, InMemoryCredentialStore } from '@coko/agent'
-import type { CatalogModel, ProviderFields } from '@coko/protocol'
+import { DEFAULT_MODEL_SETTING, type CatalogModel, type ProviderFields } from '@coko/protocol'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it } from 'vitest'
@@ -203,5 +203,69 @@ describe('provider.save 控制消息', () => {
     deliver({ type: 'provider.save', requestId: 5, mode: 'create', provider: request() })
     await expect.poll(() => sent.length).toBe(1)
     expect(sent[0]).toEqual({ type: 'provider.save.result', requestId: 5, ok: false, error: { code: 'internal', message: 'Internal error' } })
+  })
+})
+
+describe('ProviderService.upsertFromConfig：无界面运行的启动配置（ADR 0019）', () => {
+  const second = (extra: Partial<ProviderFields> = {}) => request({ id: 'second', name: 'Second', baseUrl: 'https://second.example', ...extra })
+
+  it('新建与更新一起写入并注册；defaultModel 写入设置；库中没有密钥', async () => {
+    const { store, registry, service } = setup()
+    await service.save('create', request({ name: 'old' }))
+    const result = await service.upsertFromConfig({ providers: [request({ name: 'new' }), second()], defaultModel: 'second/custom-model-1' })
+    expect(result).toEqual({ created: ['second'], updated: ['custom-provider-1'], defaultModel: { providerId: 'second', modelId: 'custom-model-1' } })
+    expect((await service.list()).map((p) => [p.id, p.name, p.credential])).toEqual([
+      ['custom-provider-1', 'new', null],
+      ['second', 'Second', null],
+    ])
+    expect(registry.models.getModel('second', 'custom-model-1')).toBeDefined()
+    expect((await store.settings.get(DEFAULT_MODEL_SETTING))?.value).toEqual({ providerId: 'second', modelId: 'custom-model-1' })
+    expect(await store.providers.getCredentialCiphertext('second')).toBeUndefined()
+  })
+
+  it('第二个 Provider 的配置无效时整个文件都不写入：库中没有任何 Provider，registry 不变', async () => {
+    const { registry, service } = setup()
+    const error = await service
+      .upsertFromConfig({ providers: [request(), second({ models: [catalogModel('m', { maxTokens: 999_999, contextWindow: 1000 })] })] })
+      .catch((e: unknown) => e)
+    expect(error).toMatchObject({ code: 'bad-request' })
+    expect(await service.list()).toEqual([])
+    expect(registry.models.getProviders().map((p) => p.id)).toEqual([])
+  })
+
+  it('写入中途失败时已写入的回滚（新建的删除、更新的恢复）', async () => {
+    const { store, service } = setup()
+    await service.save('create', request({ name: 'before' }))
+    const original = store.providers.create.bind(store.providers)
+    store.providers.create = async (input, credential) => {
+      if (input.id === 'third') throw new Error('disk full')
+      return original(input, credential)
+    }
+    const error = await service.upsertFromConfig({ providers: [request({ name: 'after' }), second(), second({ id: 'third' })] }).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect((await service.list()).map((p) => [p.id, p.name])).toEqual([['custom-provider-1', 'before']])
+  })
+
+  it.each([
+    ['顶层 apiKey', { providers: [{ ...request(), apiKey: 'sk-should-not-be-here' }] }],
+    ['嵌套 api_key', { providers: [request({ models: [{ ...catalogModel('m'), api_key: 'x' } as CatalogModel] })] }],
+    ['token', { providers: [{ ...request(), token: 'x' }] }],
+  ])('配置中带密钥字段（%s）：bad-request 带 reason secret-in-config，不写入，消息不含值', async (_name, config) => {
+    const { service } = setup()
+    const error = (await service.upsertFromConfig(config as never).catch((e: unknown) => e)) as Error & { code?: string; details?: unknown }
+    expect([error.code, error.details]).toEqual(['bad-request', expect.objectContaining({ reason: 'secret-in-config' })])
+    expect(error.message).not.toContain('sk-should-not-be-here')
+    expect(await service.list()).toEqual([])
+  })
+
+  it('不合 schema 或 defaultModel 指向不存在的模型：bad-request，不写入', async () => {
+    const { service } = setup()
+    expect(await service.upsertFromConfig({ providers: [{ ...request(), api: 'nope' }] } as never).catch((e: unknown) => e)).toMatchObject({
+      code: 'bad-request',
+    })
+    expect(await service.upsertFromConfig({ providers: [request()], defaultModel: 'custom-provider-1/missing' }).catch((e: unknown) => e)).toMatchObject({
+      code: 'bad-request',
+    })
+    expect(await service.list()).toEqual([])
   })
 })
