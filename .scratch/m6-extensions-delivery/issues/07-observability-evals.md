@@ -72,3 +72,13 @@
 - `apps/server/README.md` 的"M6 接缝"仍写 `TraceService` 与 `routes/trace.ts` 为空结果或 501，按规格由 14 汇总。要点：TraceService 已实现 trace / audit / export（ndjson、`?children=1`、返回前再脱敏）。
 - `packages/agent/README.md`（14）：`observability/` 导出 `deriveTrace`、`traceTotals`、`deriveAudit`、`formatExport`、`sessionExportHeader`、`loadExport`、`SESSION_EXPORT_FORMAT` / `VERSION` 及类型；`@coko/agent/testing` 导出 `loadExport`。
 - `docs/tech-stack/agent-runtime.md` 能力表的 Observability / Evals 行（规格写"不改"）：交付位置为 tracing.md，供 capability-coverage 更新。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的改动全部接受：`sidecar-m6-seams.test.ts`（去掉 export 501 断言、trace 空合计换成新形状、audit 含 permission_mode 一项）、`sections.browser.test.tsx` 与 `dock.browser.test.tsx`（Trace tab 可见）、`docs/README.md` 一行。tracing.md 记录的限制也接受：Hook 记录没有工具调用 id，只有一个工具调用未结束时才归到该工具，否则列在 Run 一级。
+- 合并冲突：分支基于 4279a81，main 之后合入了票 05。lead 在分支上 `git merge main` 解决了两处冲突（adb754d）：`sections.browser.test.tsx` 用 main 的代码智能断言，同时保留本票去掉的 Trace 占位断言，标题改为"Team tab、团队按钮"；`sidecar-m6-seams.test.ts` 中两边各自删掉自己的 501 项，合并后循环为空，连同标题里的"501"一起删除。文件头注释中"501 占位"的说法留给票 14 修正。
+- 分支上的复核（负载 70–143）：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check` 退出 0，`check:docs` 212 个文件 0 个问题；seams、trace、secrets-gate-trace、sidecar-lsp、observability、trace 服务、settings sections、dock、right-panel、stores 与 scripts 共 36 个文件 230 例通过。
+- 以合并提交合入 main，树与分支相同，typecheck 退出 0。实施者在锁内跑了两次全量：第一次发现 `dock.browser.test.tsx` 的真实回归并修复（f9d07f6）；第二次 2 例为 locator.click 负载超时（负载 43–206），单独重跑通过。没有 `test=0` 的记录，不记为"全量通过"。
+- 留给票 14：`apps/server/README.md` 中"TraceService 为空 / 501"的说法；`sidecar-m6-seams.test.ts` 文件头注释中的"501 占位"；agent README 的 observability 导出要点（见上方实施者回执）。
+
+Closed: true
