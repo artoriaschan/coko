@@ -4,7 +4,7 @@ import { Type } from 'typebox'
 import type { PermissionClass } from '../../policy/decide.ts'
 import { DEFAULT_MAX_BYTES, truncateHead } from '../../tools/truncate.ts'
 import type { CokoTool } from '../../tools/types.ts'
-import { formatMemoryEntry, MEMORY_MAX_CHARS, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
+import { formatMemoryEntry, MEMORY_MAX_CHARS, MEMORY_SEARCH_LIMIT, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
 
 /** 可预期的失败（条目不存在、作用域不符、正文为空）：作为工具错误回给模型。 */
 export class MemoryToolError extends Error {
@@ -17,6 +17,11 @@ export class MemoryToolError extends Error {
  */
 export interface MemoryPort {
   list(filter?: { scope?: MemoryScope }): Promise<MemoryEntry[]>
+  /**
+   * 按关键词检索可见的条目，按相关度排序（次序由宿主决定，工具不重排），至多 limit 条。query 已去掉首尾空白且非空；
+   * 其中的引号、星号、括号与 NEAR 等按字面匹配。
+   */
+  search(query: string, options: { scope?: MemoryScope; limit: number }): Promise<MemoryEntry[]>
   create(input: { scope: MemoryScope; content: string }): Promise<MemoryEntry>
   update(id: string, content: string): Promise<MemoryEntry>
   /** 返回被删除的条目。 */
@@ -32,6 +37,9 @@ const scopeSchema = (description: string) => Type.Union([Type.Literal('user'), T
 
 export const memoryListParameters = Type.Object({
   scope: Type.Optional(scopeSchema('Only list entries of this scope (default: both)')),
+  query: Type.Optional(
+    Type.String({ description: `Keywords to search for; entries containing every word are returned, most relevant first, at most ${MEMORY_SEARCH_LIMIT}` }),
+  ),
 })
 
 export const memoryWriteParameters = Type.Object({
@@ -55,12 +63,21 @@ function createListTool(port: MemoryPort): CokoTool<typeof memoryListParameters,
   return {
     name: 'memory_list',
     label: 'memory_list',
-    description: 'List saved memories (user-level and this workspace) with their ids, newest first.',
+    description:
+      'List saved memories (user-level and this workspace) with their ids, newest first. ' +
+      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}).`,
     parameters: memoryListParameters,
     effect: 'read',
-    async execute(_toolCallId, { scope }) {
-      const entries = sortMemories(await port.list(scope ? { scope } : {}))
-      if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
+    async execute(_toolCallId, { scope, query }) {
+      const keywords = query?.trim() ?? ''
+      let entries: MemoryEntry[]
+      if (keywords !== '') {
+        entries = (await port.search(keywords, { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT })).slice(0, MEMORY_SEARCH_LIMIT)
+        if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
+      } else {
+        entries = sortMemories(await port.list(scope ? { scope } : {}))
+        if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
+      }
       const truncation = truncateHead(entries.map(formatMemoryEntry).join('\n'))
       const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
       return { content: [{ type: 'text', text }], details: undefined }

@@ -6,7 +6,7 @@ lifecycle: active
 
 # @coko/session
 
-提供 Session、设置与 Provider 的 Repository 接口，以及 SQLite 实现和内存实现。决定依据见 [ADR 0003](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)；Credential 的加解密边界见 [ADR 0004](../../docs/adr/0004-model-credentials-safe-storage.md)。尚未提供 Memory、Goal / Task 等业务状态与 FTS5 搜索索引。
+提供 Session、设置与 Provider 的 Repository 接口，以及 SQLite 实现和内存实现。决定依据见 [ADR 0003](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)；Credential 的加解密边界见 [ADR 0004](../../docs/adr/0004-model-credentials-safe-storage.md)。Memory 检索（FTS5 派生索引与 LIKE 降级）由宿主经 `memories.search` 接入工具与 `/api/memories?query=`，当前行为见 [Memory](../../docs/subsystems/memory.md#检索)。
 
 ## 使用或结构入口
 
