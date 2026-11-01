@@ -25,6 +25,6 @@ lifecycle: active
 
 采用按大小轮转，默认单文件上限 10 MiB，最多保留 5 份备份。正常退出时等待日志 sink 刷新和释放；日志目录创建、写入或轮转失败通过独立的 Console 诊断路径报告，避免递归写入同一个故障 sink。[文件与轮转支持](https://logtape.org/sinks/file)
 
-日志记录模型与工具的耗时、token 用量、执行状态和错误摘要。API key、Authorization、Cookie、sidecar 启动令牌、密码等字段在转发和输出前脱敏；完整提示词、模型回复和工具正文保存在 Session 数据中。脱敏同时覆盖结构化字段和可能包含敏感信息的自由文本。[脱敏支持](https://logtape.org/manual/redaction)
+日志记录模型与工具的耗时、token 用量、执行状态和错误摘要；每次模型请求另作为 `model_request` 条目保存在 Session 中（耗时、首个增量时间、usage、费用、重试次数与用途），追踪、审计与导出由条目派生，见 [追踪、审计、导出与评测](../subsystems/tracing.md)。API key、Authorization、Cookie、sidecar 启动令牌、密码等字段在转发和输出前脱敏；完整提示词、模型回复和工具正文保存在 Session 数据中。脱敏同时覆盖结构化字段和可能包含敏感信息的自由文本。[脱敏支持](https://logtape.org/manual/redaction)
 
 运行日志使用独立目录和保留策略，Session 与执行检查点保存在 SQLite，按服务端持久化规则管理。清理日志不影响会话恢复。
