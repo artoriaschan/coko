@@ -49,7 +49,7 @@ Session 恢复之前，子代理先为被中断的父 Run 中仍在等待结果�
 - edit：只能按"旧 → 新"套用（与执行时相同的唯一、不重叠匹配）为 not-applied；只能按"新 → 旧"反向套用为 applied；两个方向都成立（例如新文本包含旧文本）、都不成立或文件不可读为 unknown。含删除（新文本为空）的调用不做反向套用。
 - bash 与宿主工具没有探测，总是交给用户确认。
 
-**团队。** teammate 与子代理的子 Session 同样按上表处理；被中断的 teammate 在根 Session 补记 `agent_end { status: interrupted }`，名册中为 idle，isolation worktree 保留到解散（一次性子代理的按 `removeIfUnchanged` 回收）。重启后 teammate 与已结束的子代理仍可经 `send_message` 开始新 Run；排队的团队消息与挂起给 lead 的通知只在进程内，不保留。见 [Agent Teams](teams.md#重启)。
+**团队。** teammate 与子代理的子 Session 同样按上表处理；被中断的 teammate 在根 Session 补记 `agent_end { status: interrupted }`，名册中为 idle，isolation worktree 保留到解散（一次性子代理的按 `removeIfUnchanged` 回收）。重启后 teammate 与已结束的子代理仍可经 `send_message` 开始新 Run（子 Session 等待结果确认时为 `agent-not-reachable`，回答后可以）；排队的团队消息与挂起给 lead 的通知只在进程内，不保留。见 [Agent Teams](teams.md#重启)。
 
 ## 结果确认
 

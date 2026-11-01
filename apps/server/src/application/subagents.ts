@@ -33,7 +33,7 @@ import {
   type AgentOutcome,
   type AgentStartPayload,
 } from '@coko/agent'
-import { hookContextText } from '@coko/agent/entries'
+import { hookContextText, unansweredConfirmations } from '@coko/agent/entries'
 import { getLogger, redactSecretValues } from '@coko/logging'
 import { MAX_RUNNING_SUBAGENTS, type AgentDefinitionsResponse, type AgentSnapshot, type SessionModel } from '@coko/protocol'
 import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
@@ -523,6 +523,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
   /**
    * 团队消息送给子 Session（teammate 或已结束的一次性子代理，C3 / C8）：运行中为追加指令；空闲时以 trigger subagent 开始新的 Run（输入为该消息，
    * 结束时父级收到 agent_notification）；根 Session 已有 MAX_RUNNING_SUBAGENTS 个 running 时排队，有空位后开始（不是错误）。可达性由调用方判定。
+   * 子 Session 有未回答的结果确认（重启时工具执行中被中断）时不能开始 Run：agent-not-reachable，不改变它的状态。
    */
   async deliverMessage(rootId: string, delivery: ChildDelivery): Promise<'steered' | 'started' | 'queued'> {
     const live = this.#live.get(delivery.agentId) ?? (await this.#revive(rootId, delivery.agentId))
@@ -534,6 +535,11 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       this.#enqueue(rootId, delivery)
       return 'queued'
     }
+    if (unansweredConfirmations(await this.#options.store.sessions.listEntries(live.agentId)).length > 0)
+      throw new TeamMessageError(
+        'agent-not-reachable',
+        `${live.name ?? live.agentId} is waiting for an outcome confirmation of an interrupted tool call; the user must answer it in that session first`,
+      )
     if (this.#runningCount(rootId) >= MAX_RUNNING_SUBAGENTS) {
       this.#enqueue(rootId, delivery)
       return 'queued'

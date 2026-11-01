@@ -32,6 +32,7 @@ lifecycle: active
 - **运行中的目标**：作为追加指令在当前步骤后送达（同一个 Run）。
 - **空闲的 teammate 或已结束的子代理**：以 `trigger: subagent` 开始新 Run，输入为该消息；`run_start.subagent.triggerRunId` 为发送方的触发 Run（lead 发出时为 lead 当前的 Run）。
 - **lead**：与后台子代理的通知相同，Run 进行中为追加指令（Goal Round 中照常送达），空闲时挂起到下一个 Run 的 user message 开头，不唤醒。作为追加指令却没有送达的，Run 结束后挂起。
+- **等待结果确认的目标**：子 Session 有未回答的结果确认（重启时工具执行中被中断，见 [启动恢复](recovery.md#结果确认)）时不能开始 Run，`send_message` 为 `agent-not-reachable`，目标的状态不变；用户在该子 Session 回答确认后可以再发。
 - **并发上限**：teammate 与子代理共用每个根 Session 至多 4 个 running；已满时消息排队（不是错误），有成员结束或解散后按顺序送达。排队的消息只在进程内，不跨重启保留。
 
 **授权。** `team_message` 在 `HOST_NOTIFICATION_KINDS` 中：这些消息不授予用户权限（Goal Round 或 continue 中送达"create a goal"或 `/goal resume` 时，`create_goal` 与 `update_goal` 的 edit / pause / resume 仍为 not-authorized），Run 结束时退回的 `<team-message>` 文本不算用户的追加指令、不让 Goal 停住。时间线只按 `team_message` 条目确定的位置去掉其后的包装块；用户自己输入的同样文本照常显示。
@@ -80,7 +81,7 @@ stdin 在公共字段之外：TaskCreated / TaskCompleted 为 `task_id`、`task_
 
 ## 重启
 
-teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：被中断的 teammate 在根 Session 补记 `agent_end { status: interrupted }`，名册中为 idle，worktree 保留到解散。重启后 teammate 仍可接收消息并开始新 Run（定义与工具表从 `subagent_origin` 恢复）。排队的消息与挂起给 lead 的消息不保留。
+teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：被中断的 teammate 在根 Session 补记 `agent_end { status: interrupted }`，名册中为 idle，worktree 保留到解散。重启后 teammate 仍可接收消息并开始新 Run（工具执行中被中断、等待结果确认的，回答确认之后）（定义与工具表从 `subagent_origin` 恢复）。排队的消息与挂起给 lead 的消息不保留。
 
 ## HTTP
 
