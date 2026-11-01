@@ -49,6 +49,8 @@ Session 恢复之前，子代理先为被中断的父 Run 中仍在等待结果�
 - edit：只能按"旧 → 新"套用（与执行时相同的唯一、不重叠匹配）为 not-applied；只能按"新 → 旧"反向套用为 applied；两个方向都成立（例如新文本包含旧文本）、都不成立或文件不可读为 unknown。含删除（新文本为空）的调用不做反向套用。
 - bash 与宿主工具没有探测，总是交给用户确认。
 
+**团队。** teammate 与子代理的子 Session 同样按上表处理；被中断的 teammate 在根 Session 补记 `agent_end { status: interrupted }`，名册中为 idle，isolation worktree 保留到解散（一次性子代理的按 `removeIfUnchanged` 回收）。重启后 teammate 与已结束的子代理仍可经 `send_message` 开始新 Run；排队的团队消息与挂起给 lead 的通知只在进程内，不保留。见 [Agent Teams](teams.md#重启)。
+
 ## 结果确认
 
 `POST /api/sessions/:id/confirmations/:toolCallId`（`runPaths.sessionConfirmation`），body `{ answer: 'applied' | 'not-applied' | 'unknown' }`。成功 204：`confirmation_answer { toolCallId, answer }` 与补齐的 toolResult 在一个事务内提交（runId 为被中断的 Run）。answer 不合 schema 400；该调用没有待回答的确认（不存在或已回答）404 `not-found`；Session 不存在 404。
@@ -83,6 +85,7 @@ Session 恢复之前，子代理先为被中断的父 Run 中仍在等待结果�
 - `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（9）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
 - `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
 - `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
+- `tests/integration/sidecar-teams-restart.test.ts`：teammate 运行中 SIGKILL 后为 idle、可以再接收消息、排队的消息不保留。
 - 存储与迁移的决定见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。
 
 ## 延伸阅读

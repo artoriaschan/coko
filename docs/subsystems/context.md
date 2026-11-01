@@ -195,6 +195,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 子 Session 的 system sections 照常有指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
 
+## 团队的 `<team>` 与 `<team-message>`
+
+teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自己的名字、lead 与其他未解散成员的状态、任务板的使用要求与当前任务（至多 30 行，标题来自已脱敏的 `team_task` 条目），每个 Run 重新生成。成员之间的消息以 user message `<team-message from="…" message-id="…">正文</team-message>` 送达，前一条为 `team_message` 条目；运行中为追加指令，空闲的 teammate 以它为输入开始新 Run，lead 空闲时挂起到下一个 Run 的开头。它是宿主注入的输入：不授予 Goal 的用户权限，Run 结束时退回的不算用户的追加指令，时间线按条目位置去掉包装。见 [Agent Teams](teams.md#消息)。
+
 ## 忽略规则
 
 内置 grep、find 与 @ 文件候选共用 `walkTree`，桌面端的 ripgrep grep 用 `--no-require-git` 读取同样的来源，两者结果一致（同一组契约用例）：
@@ -231,3 +235,4 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - [指令文件](instructions.md)：用量接口中指令文件与截断的来源。
 - [定时任务](schedules.md)：`<scheduled_task>` 输入的来源与授权。
 - [外部 Hook](hooks.md)：追加上下文、继续与压缩前 Hook 的来源与规则。
+- [Agent Teams](teams.md)：`<team>` section 与团队消息的送达规则。

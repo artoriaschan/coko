@@ -2,7 +2,7 @@
 kind: decision
 description: "Agent Teams 在一个根 Session 中进行：teammate 是根 Session 下具名、可继续对话的子 Session；共享任务板是根 Session 的条目，变更以 revision 做 compare-and-set，认领即独占，不做文件锁；成员之间的消息是宿主注入的输入，不带用户权限。修改团队成员、消息送达、任务板或其并发控制时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -33,6 +33,10 @@ category: architecture
 
 - 同一 checkout 中两个 teammate 仍可能改到同一文件，只有警告；teammate 与子代理共用并行上限，超出时消息排队而不是失败。排队的消息不跨进程保留。
 - implementation 变为 implemented 前需要：真实 Sidecar 集成测试覆盖具名 teammate 的创建与解散、消息在运行中与空闲时的送达、lead 空闲时不被唤醒、消息不授予 Goal 权限（runAuthority）且不算用户追加指令、两个成员以同一 revision 认领时只有一个成功、前置未完成时不能认领、teammate 不能指派他人、三个 Hook 的 exit 2 语义、teammate 的 worktree 与解散时的回收、teammate 用量计入 Goal、重启后空闲的 teammate 仍可接收消息、已结束的子代理经消息继续；界面中名册、任务板与消息行。
+
+## 实施记录
+
+- 2026-11-01，Agent Teams 核心（服务端）：具名 teammate 的创建与解散、消息在运行中与空闲时的送达与 lead 空闲时不唤醒、消息不授予 Goal 权限且不算用户追加指令、任务板的 compare-and-set 与认领规则、三个 Hook 的 exit 2 语义、teammate 的 worktree 与解散时的回收、按触发 Run 的 Goal 预算、重启后空闲的 teammate 仍可接收消息、已结束的子代理经消息继续已实现，当前行为见 [Agent Teams](../subsystems/teams.md)。证据：`tests/integration/sidecar-teams.test.ts`、`sidecar-teams-tasks.test.ts`、`sidecar-teams-hooks.test.ts`、`sidecar-teams-budget.test.ts`、`sidecar-teams-restart.test.ts`、`secrets-gate-teams.test.ts`、`apps/server/src/application/teams.test.ts`、`packages/agent/src/agents/teams/teams.test.ts`。与决定的细化：预算归属记在子 Session 的 `run_start.subagent.triggerRunId`（run_start v4），teammate 之间的消息沿用发送方当前 Run 的触发 Run；排队的消息只在进程内。界面（名册、任务板与消息行）尚未交付，implementation 为 partial。
 
 ## 来源与后继
 

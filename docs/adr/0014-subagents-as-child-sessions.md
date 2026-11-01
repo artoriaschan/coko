@@ -44,4 +44,5 @@ M5 让 Agent 把一段工作派发给子代理：子代理有独立的上下文�
 ## 来源与后继
 
 - 参考实现：claude-code 社区还原版 `packages/builtin-tools/src/tools/AgentTool`；deepseek-harness `packages/subagent`；pi v1.4.0 `packages/coding-agent/examples/extensions/subagent`。本页已提炼所需结论。
+- 后继细化：具名、可继续对话的子 Session（teammate）、已结束子代理的继续对话与按触发 Run 的预算归属见 [ADR 0018](0018-agent-teams-in-root-session.md)。
 - 判定与沙箱见 [ADR 0005](0005-permission-mode-and-sandbox.md)；Goal 预算口径见 [ADR 0011](0011-goal-state-as-session-entries.md)；子代理定义文件见 [ADR 0009](0009-user-authored-resources-as-files.md)。

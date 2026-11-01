@@ -67,6 +67,10 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 后台子代理等待审批时发 `approval-waiting`、结束时提交 `agent_end` 并发 `agent-finished` 桌面通知（经控制通道的 `notify`）。通知文本是宿主通知：Goal Round 与 continue 中送达时不授予用户权限（`runAuthority`），Run 结束时退回的通知不算用户的追加指令（标签见 `@coko/agent/entries` 的 host-input）。模型没有用 `agent_wait` 读到终态时送达 `<agent-notification agent-id agent-type status>`（摘要；结果 ≤ 2 048 字符时内联在 `<result>` 中，否则提示用 agent_wait）：父 Session 有 Run 时作为追加指令（前置 `agent_notification` 条目），没有时挂起，合并到下一个 Run 的 user message 开头；作为追加指令却没有送达的，Run 结束后挂起。通知不唤醒空闲的 Session。
 
+## 团队与继续对话
+
+`agent` 带 `name` 时创建 teammate：后台运行、Run 结束后保留，可以经 `send_message` 再接收消息，另有 `send_message` 与 `task_*` 工具和 `<team>` section；`agent_cancel` 对 teammate 为解散（`agent_end { status: dismissed }`），isolation worktree 保留到解散。lead 也可以用 `send_message { to: <agentId> }` 继续已结束（completed、max-turns、failed）的一次性子代理：在其子 Session 开始新 Run，结束时父级收到 `agent_notification`；cancelled、interrupted 与 dismissed 的为 `agent-not-reachable`。消息送达时已有 4 个 running 则排队。子 Session 的 Run 记录 `run_start.subagent.triggerRunId`，预算按它归属 Goal（没有它的旧条目按 `agent_start` 所在 Run）。规则见 [Agent Teams](teams.md)。
+
 ## isolation worktree
 
 `isolation: 'worktree'` 时经 WorktreeService 的 `createForSubagent` 在 `.coko-worktrees/` 创建 worktree 并绑定子 Session。判定：plan / read-only 下 gate 直接给出错误结果（`isolation: worktree is not available in <mode> mode`，在 Hook 与规则的拒绝之后、询问之前），不询问、不创建 worktree；full-access 直接放行，其余模式询问。派发没有完成（子 Session 或条目提交失败）时没有改动的 worktree 被回收、询问规则去掉，不残留 running 的子代理。子 Session 结束时 HEAD 仍为 base 且工作区干净则移除 worktree 并删除分支；否则保留，`agent_end.worktree { kept: true, path, branch }`，结果末尾注明。保留的 worktree 在父 Session 中加两条不入库的询问规则 `Read(<path>)` 与 `Edit(<path>)`（Edit 规则组覆盖 write 与 edit）：父 Session 在任何模式下读取、写入或编辑其中的文件都须审批（启动恢复时重新登记仍 active 的；worktree 移除时去掉）。bash 不受这些规则保护：父 Session 的命令可以读写该目录（受模式与沙箱限制）。
@@ -94,7 +98,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 ## 已知限制
 
 - 子代理的进程内状态（定义、根 Session、等待者）不跨重启保留；重启后的子 Session 按 parentSessionId 取根 Session 的权限，工具只去掉固定排除集。
-- 删除或归档父 Session 时不处理子 Session；子代理不能继续对话。
+- 删除或归档父 Session 时不处理子 Session。
 - 界面只为 running 的子代理订阅子 Session 以冒泡审批；已结束的子代理不会再有待审批请求。Agents tab 的子时间线不显示 Run 用量行（用量在列表中）。
 
 ## 验证
@@ -111,3 +115,4 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 - [Goal](goal.md)：子 Session 用量的汇入与预算检查点。
 - [启动恢复](recovery.md)：被中断的 Run 与领域恢复钩子的顺序。
 - [外部 Hook](hooks.md)：SubagentStart / SubagentStop 之外的事件。
+- [Agent Teams](teams.md)：具名 teammate、消息、任务板与继续对话。
