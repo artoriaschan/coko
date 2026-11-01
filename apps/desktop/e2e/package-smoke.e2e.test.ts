@@ -5,6 +5,8 @@
 // M4：Resources/sidecar/node_modules/node-pty 的 spawn-helper 可执行，打包应用中一个 tty 后台任务输出 ok（node-pty 从随包位置加载）。
 // M6：从仓库夹具目录（tests/fixtures/plugins/sample）安装插件，批准后插件声明的 stdio MCP Server 在打包产物中被启动（夹具日志出现），
 // 插件的语言服务器出现在 GET /api/plugins 的 executables 中；另一用例中批准后的插件语言服务器在产物中被 lsp 调用启动并登记为 kind lsp。
+// 无界面运行：以产物中的可执行文件（ELECTRON_RUN_AS_NODE=1）运行 Resources/sidecar/headless.mjs --output stream-json，最后一行 result 为
+// completed、退出 0，grep 使用随包 ripgrep（headless.jsonl）。不开窗口。
 // 打包产物关闭了 Node 调试参数（Fuses），Playwright 的 _electron.launch 不可用：直接启动可执行文件并经 CDP 连接窗口。
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
@@ -482,5 +484,50 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     expect(await app.exited).toBe(0)
     await waitFor(() => !processExists(pid), 10_000, 'language server exit')
     expect(lspRows()).toEqual([])
+  })
+
+  // 接收侧：打包产物的 stdout 与退出码。测试构建接受 COKO_FAUX_SCRIPT；grep 调用经随包 ripgrep（日志）。
+  it('无界面运行：产物中的 headless.mjs 以 stream-json 完成一次 faux 对话，最后一行 completed、退出 0、使用随包 ripgrep', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'coko-packaged-headless-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const workspace = join(root, 'workspace')
+    await mkdir(workspace)
+    await writeFile(join(workspace, 'notes.txt'), 'needle\n')
+    const script = join(root, 'faux.json')
+    await writeFile(
+      script,
+      JSON.stringify({ responses: [{ content: [{ type: 'toolCall', name: 'grep', id: 'g1', arguments: { pattern: 'needle' } }] }, { content: 'found it' }] }),
+    )
+    const data = join(root, 'data')
+    const base: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) if (value !== undefined && !STRIPPED.test(key)) base[key] = value
+    const child = spawn(
+      executable,
+      [join(resources, 'sidecar', 'headless.mjs'), '--data-dir', data, '--workspace', workspace, '--prompt', 'find the needle', '--output', 'stream-json'],
+      { env: { ...base, ELECTRON_RUN_AS_NODE: '1', COKO_FAUX_SCRIPT: script, COKO_HOME: join(root, 'coko-home') }, stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)))
+    onTestFinished(async () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      await exited
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout!.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk))
+    child.stderr!.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
+    expect({ code: await exited, stderr }).toEqual({ code: 0, stderr: '' })
+    const lines = stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(lines.at(-1)).toMatchObject({ type: 'result', status: 'completed', text: 'found it', sessionId: expect.any(String), runId: expect.any(String) })
+    expect(lines.slice(0, -1).every((line) => line.type === 'entry' || line.type === 'progress')).toBe(true)
+    const log = await readLogRecords(join(data, 'logs', 'headless.jsonl'))
+    expect(log.find((r) => r.message === 'grep implementation selected')?.properties).toMatchObject({
+      implementation: 'ripgrep',
+      path: join(resources, 'ripgrep', 'rg'),
+    })
+    const grepResult = lines.find((line) => line.type === 'entry' && JSON.stringify(line).includes('notes.txt:1: needle'))
+    expect(grepResult).toBeDefined()
   })
 })

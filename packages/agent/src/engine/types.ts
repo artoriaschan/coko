@@ -38,8 +38,10 @@ export type RunErrorCode =
   | 'hook_stopped'
   /** A manual compaction a PreCompact hook blocked (the Run ends with error; a Goal does not pause for it). */
   | 'hook_blocked'
-  /** A subagent used up its turn limit. */
+  /** A subagent used up its turn limit (also a headless run's --max-turns). */
   | 'max_turns'
+  /** A headless run with --on-approval fail stopped after a call was denied for lack of an approver (ADR 0019). */
+  | 'approval_denied'
 
 export interface RunError {
   code: RunErrorCode
@@ -247,6 +249,11 @@ export interface RuntimePermissions {
   readRoots?: () => readonly string[]
   /** 外部 Hook 的 PreToolUse / PermissionRequest（ADR 0013）；缺省无。 */
   hooks?: PermissionHookPort
+  /**
+   * No one can answer approvals (headless runs, ADR 0019): a call that needs approval is denied right after the PermissionRequest
+   * hooks, recorded as approval_decision { outcome: denied, by: headless }; the model sees `deniedText` and the Run continues.
+   */
+  unattended?: { deniedText: string }
 }
 
 export interface AgentRuntime {

@@ -28,4 +28,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0016](0016-session-cwd-fixed-worktrees.md) | Session 的工作目录创建时固定，worktree 只在干净时移除 | accepted | implemented |
 | [0017](0017-plugins-declarative-user-installed.md) | 插件只声明资源，用户级安装，按可执行声明批准 | accepted | implemented |
 | [0018](0018-agent-teams-in-root-session.md) | Agent Teams 在根 Session 中进行，任务板以 compare-and-set 协调 | accepted | partial |
-| [0019](0019-headless-runs-deny-approvals.md) | 无界面运行的审批自动拒绝，Provider 来自启动配置 | accepted | not-started |
+| [0019](0019-headless-runs-deny-approvals.md) | 无界面运行的审批自动拒绝，Provider 来自启动配置 | accepted | implemented |

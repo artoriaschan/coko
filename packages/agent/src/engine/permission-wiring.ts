@@ -79,6 +79,7 @@ export function createPermissionWiring(options: {
         },
         grantEscalation: (toolCallId, mode) => void escalations.set(toolCallId, mode),
         ...(permissions.hooks ? { hooks: permissions.hooks } : {}),
+        ...(permissions.unattended ? { unattended: permissions.unattended } : {}),
       })
     : undefined
 
