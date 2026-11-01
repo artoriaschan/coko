@@ -94,3 +94,6 @@
 - lead 修正 `docs/subsystems/configuration.md:41`：`teams.enabled` 已由 `context/teams.ts` 与 `subagents.ts` 读取（实施者发现，不在本票写范围）。
 - `--destructive` 的对比度：浅色 4.498（白色卡片）与 4.304（muted），深色设置卡片 4.238，均低于 4.5；59 处使用、31 个文件。改 token 牵涉设计系统规格，不在 M6 范围；另立 `.scratch/destructive-text-contrast/` 的待分拣票。
 - M6 收尾的最后一项是 main 上的锁内全量，在 m6/fix-team-goal-flakes 合入之后由 lead 运行，结果记在本段之后。
+- 2026-11-01 lead：m6/fix-team-goal-flakes 合入（b0a08fb，只改 `secrets-gate-teams.test.ts` 与 `goal.e2e.test.ts`；各连续 6/6 通过，三处变异都变红）。之后在 main（b0a08fb）上锁内运行：`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；全量 `test=0`，381 个文件、2961 例通过、5 例跳过；`COKO_RELEASE_E2E=1` 的 `desktop-release` 2/2 通过；没有 EAGAIN，负载最高 23，git-ai 后台进程 1 个，没有重叠的全量。
+
+Closed: true
