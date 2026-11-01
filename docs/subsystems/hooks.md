@@ -42,7 +42,7 @@ lifecycle: active
 
 - **全局**：设置键 `hooks`，只能经 `PUT /api/hooks` 修改（通用设置接口对 `hooks` 及其下的键 400）。
 - **项目**：`<cwd>/.coko/settings.json` 的 `hooks` 键（与项目设置同一文件、同样按 mtime 读取，见 [分层配置](configuration.md#项目设置文件)）。worktree 会话读该 worktree 中的文件，批准按其 Workspace 判定。
-- **插件**：已启用插件的 Hook（来源 `plugin`，ADR 0017）与全局同级参与加载与聚合（allow 与全局 Hook 相同对待，仍越不过判定前四步）；`hookId` 为 `plugin:<插件名>:<event>:<组序号>:<序号>`，诊断的 source 为 `plugin`。插件的安装与批准尚未接入，当前只有测试构建的 `COKO_TEST_PLUGINS` 提供插件。
+- **插件**：已启用插件的 Hook（来源 `plugin`，ADR 0017）与全局同级参与加载与聚合（allow 与全局 Hook 相同对待，仍越不过判定前四步）；`hookId` 为 `plugin:<插件名>:<event>:<组序号>:<序号>`，诊断的 source 为 `plugin`。插件 Hook 在插件被批准并启用后才加载，插件变化后的下一个 Run 生效；安装、批准与 digest 见 [插件](plugins.md)。测试构建另可由 `COKO_TEST_PLUGINS` 提供一个插件。
 - **能力开关** `hooks.enabled`（缺省 true）只在全局设置生效，关闭后全局与项目 Hook 都不运行；项目文件中的 `hooks.enabled` 以 `project-cannot-grant` 忽略，关不掉全局 Hook。
 
 解析不抛出，问题作为诊断 `{ source: 'config', code, message, path? }` 返回，其余 Hook 照常加载：
