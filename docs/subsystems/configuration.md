@@ -38,7 +38,7 @@ lifecycle: active
 | `permissions.deny`、`permissions.ask` | — | 规则文本数组，作为 project 作用域参与判定 |
 | `permissions.allow`、`permissions.defaultMode` | — | 忽略（`project-cannot-grant`） |
 
-`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled` 由 [子代理](subagents.md) 读取（关闭时不注册 agent 工具，派发被拒绝）；`schedules.enabled` 由 [定时任务](schedules.md) 读取（关闭时不注册 schedule 工具，到期的任务按 disabled 跳过）。`hooks.enabled` 的开关在设置 → Hooks 分区，其余两个在设置界面中还没有开关。`plugins.enabled` 由上下文装配与 MCP 读取（为 false 时插件消费 seam 的快照为空）；`lsp.enabled` 与 `teams.enabled` 已进入有效配置，读取它们的功能尚未接入。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
+`hooks.enabled` 由 [外部 Hook](hooks.md) 读取；`agents.enabled` 由 [子代理](subagents.md) 读取（关闭时不注册 agent 工具，派发被拒绝）；`schedules.enabled` 由 [定时任务](schedules.md) 读取（关闭时不注册 schedule 工具，到期的任务按 disabled 跳过）。`hooks.enabled` 的开关在设置 → Hooks 分区，其余两个在设置界面中还没有开关。`plugins.enabled` 由上下文装配与 MCP 读取（为 false 时插件消费 seam 的快照为空）；`lsp.enabled` 由 [代码智能](lsp.md) 读取（为 false 时不注册 lsp 工具），开关在设置 → 代码智能分区；`teams.enabled` 已进入有效配置，读取它的功能尚未接入。全局 Hook 配置不在设置键 `config` 中，而在设置键 `hooks`（经 `/api/hooks` 修改）。
 
 有效值 = 默认 ← 全局 ← 项目：全局的开关替换默认值，项目的开关与之取"与"；禁用列表取并集。全局值保存在设置键 `config`，形状为每个分区的部分键（省略的取默认）；读入时不合 schema 按空处理并记 warn `capability config ignored`。`config` 及其下的键只能经 `/api/config` 修改，通用设置接口 400。
 

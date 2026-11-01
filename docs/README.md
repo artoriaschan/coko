@@ -43,6 +43,7 @@ lifecycle: active
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
 - [交接](subsystems/handoff.md)：/handoff 与对话框、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
+- [代码智能](subsystems/lsp.md)：语言服务器的配置来源与合并、lsp 工具的四个操作与结果格式、权限与脱敏、进程生命周期与失败、/api/lsp 与 lsp_update、设置 → 代码智能分区与工具卡。
 - [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、会话绑定与固定的工作目录、宿主执行的 git、移除的 busy / dirty 检查与只读会话、HTTP 接口与侧栏入口。
 - [安装包、自动更新与发布构建](subsystems/delivery.md)：ZIP / DMG makers 与 make、构建期更新源与 UpdateCoordinator、设置 → 关于、发布构建与测试构建的差异、两类 E2E 入口。
 - [@coko/agent](../packages/agent/README.md)：运行时入口、工具契约、工具调度与执行记录。
