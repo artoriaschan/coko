@@ -61,3 +61,12 @@
 - 未改 `runtime/layers.ts`，memory 块无需改动：03 已在 StoreLive 中按 `testNoFts` 传入 `fts: false` 并记 warn。未改 `sections.browser.test.tsx`。
 
 **导航与导出：** `@coko/agent` 新增导出 `MEMORY_SEARCH_LIMIT`（经 context barrel，无需改 index.ts），`MemoryPort` 新增必选的 `search`（仓库内唯一实现是 server 的 `memoryPort`）。给票 14 的 README 要点：agent README 的 Memory 段可补一句"memory_list 的 query 经 MemoryPort.search，至多 MEMORY_SEARCH_LIMIT 条"；server README 可补"GET /api/memories 的 query / scope"。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的改动全部接受：三个就近测试（`context/memory.test.ts`、`memory-section.browser.test.tsx`、`memory-store.test.ts`）；`secrets-gate-memory-search.test.ts`（检索结果是新的注入点，须习惯要求新增总闸用例）；`docs/README.md` 本票的 Memory 一行；`docs/adr/README.md` 中 0003 改为 implemented。
+- 实施者在合并 main（含票 08）后跑了锁内全量：`test=0`，373 个文件、2936 例通过、4 例跳过，没有 EAGAIN。之后再合并 main（44c875a，含票 13），只跑了相关文件与 `memory.e2e`，没有再跑全量。
+- 以 8f8aff3 合入 main，树与分支相同。合入后 `pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；memory、context、sidecar-memory-search、secrets-gate*、settings、stores 与 scripts 共 80 个文件、346 例通过；git-ai 后台进程 1 个。
+- 未验证：真实模型对"先检索"提示的反应、没有 FTS5 的运行时（只经 `COKO_TEST_NO_FTS=1` 强制降级）、非 darwin。
+
+Closed: true
