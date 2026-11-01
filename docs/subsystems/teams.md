@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的 Agent Teams 契约：具名 teammate 的创建与解散、send_message 的送达与排队、子代理继续对话、共享任务板（team_task、revision 的 compare-and-set、认领规则、重叠警告）、TaskCreated / TaskCompleted / TeammateIdle、worktree、Goal 预算归属、重启与 GET /api/sessions/:id/team。修改团队成员、消息、任务板、团队 Hook 或其接口前查阅。"
+description: "当前的 Agent Teams 契约：具名 teammate 的创建与解散、send_message 的送达与排队、子代理继续对话、共享任务板（team_task、revision 的 compare-and-set、认领规则、重叠警告）、TaskCreated / TaskCompleted / TeammateIdle、worktree、Goal 预算归属、重启与 GET /api/sessions/:id/team，以及团队界面（标题栏按钮、Team tab、时间线的消息与任务行、工具卡）。修改团队成员、消息、任务板、团队 Hook、其接口或界面前查阅。"
 lifecycle: active
 ---
 
 # Agent Teams
 
-本文说明 Coko 当前如何让一个会话的 Agent（lead）带领几个具名的 teammate 协作：teammate 是根 Session 下可以继续对话的子 Session，成员之间以消息沟通，在根 Session 的共享任务板上认领任务。团队没有独立实体，团队 id 就是根 Session 的 id。决定与备选方案见 [ADR 0018](../adr/0018-agent-teams-in-root-session.md)；teammate 沿用的子代理规则（有效权限、审批、工具交集、取消）见 [子代理](subagents.md)。团队界面（名册、任务板、消息行）尚未交付。
+本文说明 Coko 当前如何让一个会话的 Agent（lead）带领几个具名的 teammate 协作：teammate 是根 Session 下可以继续对话的子 Session，成员之间以消息沟通，在根 Session 的共享任务板上认领任务。团队没有独立实体，团队 id 就是根 Session 的 id。决定与备选方案见 [ADR 0018](../adr/0018-agent-teams-in-root-session.md)；teammate 沿用的子代理规则（有效权限、审批、工具交集、取消）见 [子代理](subagents.md)。界面见 [界面](#界面)。
 
 ## 结构入口
 
@@ -14,6 +14,7 @@ lifecycle: active
 - `apps/server/src/application/teams.ts`：`TeamService`：快照、`team_update`、消息的目标解析、任务变更（同一根 Session 经 `KeyedMutex` 串行）与 TaskCreated / TaskCompleted。
 - `apps/server/src/application/subagents.ts`：teammate 的派发（`agent { name }`）、消息送达（追加指令、开始新 Run 或排队）、继续对话、解散；`subagent-notifications.ts`：给 lead 的消息与空闲通知的挂起；`subagent-recovery.ts`：`agent_start` v2 的记录、解散时的 worktree 回收。
 - `apps/server/src/application/hooks.ts`：`taskEvent`、`teammateIdle`。`application/context/teams.ts`：工具注册与 `<team>`。`http/routes/teams.ts`：HTTP 接口。
+- `apps/desktop/src/renderer/stores/team-store.ts`：按根 Session 的 `TeamSnapshot`（读取加 `team_update`）。`features/conversation/team-button.tsx`：store 的接线、成员状态点与标题栏按钮；`team-message-row.tsx`、`team-task-row.tsx`：时间线的紧凑行；`tool-cards.tsx` 的 `send_message` / `task_*` 分支。`features/right-panel/team-tab.tsx`：Team tab。
 
 ## teammate
 
@@ -88,11 +89,22 @@ teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：
 - `GET /api/sessions/:id/team` → `TeamSnapshot { members: [{ agentId, name, status, activity?, usage, worktree? }], tasks: [TeamTaskView], warnings }`；子 Session id 时返回其根的快照；Session 不存在为 404。`activity` 只在 running 时出现（最近一次工具调用的名字与脱敏摘要）。
 - 用户不能直接给 teammate 发消息：子 Session 的提交仍为 409 `child-session`。
 
+## 界面
+
+- **数据。** renderer 按根 Session 读取 `GET /api/sessions/:id/team`，`team_update` 到达时整体替换快照；读取期间到达的 `team_update` 不被较早的响应覆盖，读取失败保留已有快照。打开会话与 `agent_start`、`agent_end`、`team_task` 条目数变化时（含重连后补发）重新读取。运行中成员的活动优先取 `agent_update.activity`（快照只在名册或任务变化时推送）。
+- **标题栏"团队"按钮。** 会话有 teammate 时显示，徽标为 running 成员数（没有时不显示徽标，无障碍名称为"团队（n 个运行中）"）；点击打开右栏的 Team tab。只显示状态，窄主区中留在标题栏。
+- **Team tab：名册。** 每个成员一行：状态点（running / idle / dismissed / failed，带状态名）、名字，次行为状态 · 当前活动（运行中，工具名 · 摘要）或用量（轮次、工具调用、Token、时长），保留的 worktree 显示分支。
+- **Team tab：任务板。** 按待处理、进行中、已完成分组（已删除的不显示），每项为编号、标题、owner；pending、前置全部完成且没有 owner 的标"可认领"；有未完成前置任务时显示"等待 t…"。`writeScopes` 重叠时板顶有警告（列出任务编号），重叠的任务带"范围重叠"标记。
+- **Team tab：成员时间线。** 点名册中的成员（键盘 Enter）在任务板下方打开其只读时间线：订阅该成员的子 Session（不切换当前会话），复用 TimelineView，没有输入区与消息动作，底部注明不能直接给成员发消息、需经 lead 转达。切到另一成员或关闭（标题行的关闭按钮）时释放订阅；缺省不选中成员。
+- **时间线的紧凑行。** `team_message`：发送方 → 接收方（无障碍名称"lead 发给 alice"）与 summary；送达它的 `<team-message …>` 块按条目位置去掉，正文不显示。`team_task`（根 Session）：按快照判断"创建 / 认领 / 完成 / 删除 / 更新了任务"，带变更者、编号与标题。
+- **工具卡。** `send_message`：标题"发送消息"，摘要为接收方 · summary，明细为发出的正文与结果；`task_create`：摘要为标题；`task_update`：摘要为编号 · 新状态（或 owner）；`task_list`：明细为结果。错误结果默认展开。
+- **审批。** teammate 是子代理：它的待审批请求按 [子代理的审批冒泡](subagents.md#界面) 接管父会话输入区，卡片标出"来自子代理 <类型> · <描述>"。
+
 ## 已知限制
 
 - 同一 checkout 中两个 teammate 仍可能改到同一文件，只有警告；需要隔离的使用 worktree。
 - 排队的消息不跨进程保留；重启后 lead 只能从名册看到成员状态并重新发送。
-- 团队界面尚未交付：时间线按 `team_message` / `team_task` 分发紧凑行，名册与任务板还没有视图。
+- 时间线的任务行只由变更后的快照判断动作，指派他人与修改标题都显示为"更新了任务"。teammate 同时出现在 Agents tab（作为子代理）与 Team tab 中。
 
 ## 验证
 
@@ -100,6 +112,7 @@ teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：
 - `apps/server/src/application/teams.test.ts`：两次认领的读取交叠（deferred）时只有一个成功、另一个 stale-revision 带快照（去掉 `KeyedMutex` 时两个都成功）。
 - `tests/integration/sidecar-teams.test.ts`：创建（`agent_start.name`、`<team>`、trigger subagent 与 triggerRunId）、空闲通知与 lead 不被唤醒、消息唤醒 teammate、运行中的 steering、teammate 给空闲 lead 的消息挂起到下一个 Run、广播、`teammate-exists` 与 `team-full`、子代理继续对话（含重启后）与 `agent-not-reachable`、并发上限时排队；时间线经 renderer 的 `buildTimeline` 读回条目。
 - `tests/integration/sidecar-teams-tasks.test.ts`、`sidecar-teams-hooks.test.ts`、`sidecar-teams-budget.test.ts`（预算，以及 Goal Round 中的消息不授权）、`sidecar-teams-restart.test.ts`（SIGKILL 与 git 夹具的 worktree）、`secrets-gate-teams.test.ts`。
+- 界面：`apps/desktop/src/renderer/stores/team-store.test.ts`（快照替换与较早响应的丢弃、订阅计数）、`features/right-panel/team-tab.browser.test.tsx`（名册、任务板分组与可认领、阻塞、重叠警告、`team_update`、按钮的 running 数、选中成员的订阅与释放）、`features/conversation/team-rows.browser.test.tsx`（消息行不显示包装原文、用户输入的同样文本照常显示、任务行、工具卡）；`apps/desktop/e2e/teams.e2e.test.ts`（真实 Electron 与 Sidecar：两个 teammate 认领与完成时 Team tab 与按钮实时变化、teammate 的写入审批在父会话中允许、成员只读时间线、明暗主题与键盘）。
 - Goal 的用户输入判断：`apps/server/src/application/goal-driver.test.ts`（只有团队消息时 `hasUserSteering` 为 false）；runAuthority：`packages/agent/src/goals/goals.test.ts` 的 `team_message` 行。
 
 ## 延伸阅读

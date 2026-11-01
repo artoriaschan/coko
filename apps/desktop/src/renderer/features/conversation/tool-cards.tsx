@@ -8,8 +8,12 @@ import {
   FileTextIcon,
   FolderSearchIcon,
   FolderTreeIcon,
+  ListChecksIcon,
+  ListPlusIcon,
+  ListTodoIcon,
   Maximize2Icon,
   SearchIcon,
+  SendIcon,
   TerminalIcon,
   WrenchIcon,
 } from 'lucide-react'
@@ -164,6 +168,40 @@ const VIEWS: Record<string, ToolView> = {
     },
     body: (item) => <LspBody item={item} />,
   },
+  // Agent Teams：消息与任务板工具（docs/subsystems/teams.md）。
+  send_message: {
+    icon: <SendIcon />,
+    title: 'teams.tool.sendMessage',
+    summary: (a) => {
+      const to = str(a.to)
+      const summary = str(a.summary)
+      return to === undefined ? undefined : summary ? `${to} · ${summary}` : to
+    },
+    body: (item, a) => <TeamMessageBody item={item} message={str(a.message)} />,
+  },
+  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <TextBody text={output(item)} /> },
+  task_update: {
+    icon: <ListTodoIcon />,
+    title: 'teams.tool.taskUpdate',
+    summary: (a) => {
+      const id = str(a.id)
+      const status = str(a.status) ?? str(a.owner)
+      return id === undefined ? undefined : status ? `${id} · ${status}` : id
+    },
+    body: (item) => <TextBody text={output(item)} />,
+  },
+  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <TextBody text={output(item)} /> },
+}
+
+/** send_message 的明细：发出的正文（模型输出，原样）与结果。 */
+function TeamMessageBody({ item, message }: { item: ToolItem; message: string | undefined }) {
+  if (item.result?.isError || message === undefined) return <TextBody text={output(item)} />
+  return (
+    <div className="flex flex-col">
+      <ToolOutput>{message}</ToolOutput>
+      <p className="border-t-hairline border-border px-3 py-2 text-ui-small text-muted-foreground">{output(item)}</p>
+    </div>
+  )
 }
 
 const json = (value: unknown) => {

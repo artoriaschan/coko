@@ -1,5 +1,6 @@
 // Memory：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式审批），工具卡显示"已记住"；
 // 设置的 Memory 分区按用户级与当前工作区分组列出它，删除、手动添加与编辑生效，记忆开关写入全局配置；重新打开后读到 Sidecar 中的条目。
+// 搜索框按关键词过滤列表、Escape 清空恢复，明暗主题与键盘操作。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -95,5 +96,67 @@ describe('Memory', () => {
     await dialog.locator('[data-section="memory"]').click()
     await expect.poll(() => dialog.locator('[data-memory-list="user"] [data-memory-id] p').first().textContent()).toBe('Answer in Chinese, briefly')
     expect(await dialog.locator('[data-memory-list="workspace"] [data-memory-id]').count()).toBe(0)
+  })
+  it('Memory 分区的搜索框：键盘输入后只列出匹配的条目，Escape 清空恢复列表；明暗主题下文字可读', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'coko-memory-search-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
+    const app = await launchApp({}, { dir: root })
+    apps.push(app)
+    const { window } = app
+    await waitConnected(window)
+    for (const content of ['Prefers tabs over spaces', 'Run docker compose before tests', 'Deploy with docker swarm'])
+      expect(
+        await window.evaluate(
+          async (body) => (await fetch('/api/memories', { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status,
+          JSON.stringify({ scope: 'user', content }),
+        ),
+      ).toBe(201)
+
+    await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
+    const dialog = window.locator('[data-settings-page]')
+    await dialog.locator('[data-section="memory"]').click()
+    const userList = dialog.locator('[data-memory-list="user"]')
+    const contents = () => userList.locator('[data-memory-id] p').allTextContents()
+    await expect.poll(contents).toEqual(['Deploy with docker swarm', 'Run docker compose before tests', 'Prefers tabs over spaces'])
+
+    // 键盘：聚焦搜索框后输入，列表只剩匹配的条目（FTS 按相关度，集合与次序无关地比较）。
+    const search = dialog.locator('[data-memory-search]')
+    await search.focus()
+    await window.keyboard.type('docker')
+    await expect.poll(async () => (await contents()).toSorted()).toEqual(['Deploy with docker swarm', 'Run docker compose before tests'])
+    await window.keyboard.type(' compose')
+    await expect.poll(contents).toEqual(['Run docker compose before tests'])
+    await window.keyboard.type(' yarn')
+    await expect.poll(() => userList.locator('[data-memory-empty]').textContent()).toMatch(/^(No matching memories|没有匹配的记忆)$/)
+
+    // 明暗主题：搜索框文字与"没有匹配"提示不与背景同色（检索词保留在分区中）。
+    for (const theme of ['dark', 'light'] as const) {
+      await dialog.locator('[data-section="general"]').click()
+      await dialog.locator(`[data-theme-option="${theme}"]`).click()
+      await expect.poll(() => window.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
+      await dialog.locator('[data-section="memory"]').click()
+      await expect.poll(() => search.inputValue()).toBe('docker compose yarn')
+      for (const target of [search, userList.locator('[data-memory-empty]')]) {
+        const [color, background] = await target.evaluate((el) => {
+          let node: Element | null = el
+          let bg = 'rgba(0, 0, 0, 0)'
+          while (node && /rgba\(.*,\s*0\)$|transparent/.test(bg)) {
+            bg = getComputedStyle(node).backgroundColor
+            node = node.parentElement
+          }
+          return [getComputedStyle(el).color, bg]
+        })
+        expect(color).not.toBe(background)
+      }
+    }
+
+    // Escape 清空并恢复完整列表，设置仍打开；再按 Escape 返回应用。
+    await search.focus()
+    await window.keyboard.press('Escape')
+    await expect.poll(() => search.inputValue()).toBe('')
+    await expect.poll(async () => (await contents()).length).toBe(3)
+    expect(await dialog.isVisible()).toBe(true)
+    await window.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
   })
 })

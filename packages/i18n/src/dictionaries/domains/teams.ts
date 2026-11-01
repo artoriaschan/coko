@@ -1,25 +1,116 @@
-// Agent Teams（ADR 0018）：Team tab、标题栏按钮与时间线紧凑行的文案由团队界面补全。
+// Agent Teams（ADR 0018）：标题栏的团队按钮、右栏 Team tab（名册、任务板、成员的只读时间线）、时间线的消息与任务紧凑行，以及
+// send_message 与 task_* 的工具卡。
 import { defineDomain } from './define.ts'
 
 export const teams = defineDomain(
   {
     tab: '团队',
     headerAction: '团队',
+    headerActionRunning: '团队（{count} 个运行中）',
     member: {
       running: '运行中',
       idle: '空闲',
       dismissed: '已解散',
       failed: '失败',
     },
+    tabView: {
+      roster: '成员',
+      empty: '这个会话还没有团队',
+      loading: '正在读取…',
+      loadFailed: '读取团队失败',
+      retry: '重试',
+      openMember: '查看 {name} 的过程',
+      timeline: '{name} 的过程',
+      timelineEmpty: '还没有内容',
+      close: '关闭成员过程',
+      readOnly: '只读：不能直接给成员发消息，请经 lead 转达',
+    },
+    board: {
+      title: '任务板',
+      empty: '还没有任务',
+      count: '{count} 项',
+      status: {
+        pending: '待处理',
+        in_progress: '进行中',
+        completed: '已完成',
+      },
+      claimable: '可认领',
+      blockedBy: '等待 {tasks}',
+      owner: '负责人 {owner}',
+      overlap: '{tasks} 的写入范围重叠',
+      overlapBadge: '范围重叠',
+    },
+    message: {
+      route: '{from} 发给 {to}',
+      arrow: '发给',
+    },
+    task: {
+      created: '{by} 创建了任务',
+      claimed: '{by} 认领了任务',
+      completed: '{by} 完成了任务',
+      deleted: '{by} 删除了任务',
+      updated: '{by} 更新了任务',
+    },
+    tool: {
+      sendMessage: '发送消息',
+      taskCreate: '创建任务',
+      taskUpdate: '更新任务',
+      taskList: '查看任务板',
+    },
   },
   {
     tab: 'Team',
     headerAction: 'Team',
+    headerActionRunning: 'Team ({count} running)',
     member: {
       running: 'Running',
       idle: 'Idle',
       dismissed: 'Dismissed',
       failed: 'Failed',
+    },
+    tabView: {
+      roster: 'Members',
+      empty: 'This session has no team yet',
+      loading: 'Loading…',
+      loadFailed: 'Could not load the team',
+      retry: 'Retry',
+      openMember: 'View the work of {name}',
+      timeline: 'Work of {name}',
+      timelineEmpty: 'Nothing yet',
+      close: 'Close member view',
+      readOnly: 'Read-only: you cannot message a member directly; ask the lead',
+    },
+    board: {
+      title: 'Task board',
+      empty: 'No tasks yet',
+      count: '{count}',
+      status: {
+        pending: 'Pending',
+        in_progress: 'In progress',
+        completed: 'Completed',
+      },
+      claimable: 'Claimable',
+      blockedBy: 'Waiting for {tasks}',
+      owner: 'Owner {owner}',
+      overlap: 'Write scopes of {tasks} overlap',
+      overlapBadge: 'Scope overlap',
+    },
+    message: {
+      route: '{from} to {to}',
+      arrow: 'to',
+    },
+    task: {
+      created: '{by} created a task',
+      claimed: '{by} claimed a task',
+      completed: '{by} completed a task',
+      deleted: '{by} deleted a task',
+      updated: '{by} updated a task',
+    },
+    tool: {
+      sendMessage: 'Send message',
+      taskCreate: 'Create task',
+      taskUpdate: 'Update task',
+      taskList: 'View task board',
     },
   },
 )

@@ -5,6 +5,8 @@ import type { SystemSection } from '../../engine/types.ts'
 export const MEMORY_MAX_CHARS = 2000
 /** 注入的条目合计上限（字符，含每条的标签）。 */
 export const MEMORY_SECTION_BUDGET = 12_000
+/** memory_list 带 query 时至多返回的条数。 */
+export const MEMORY_SEARCH_LIMIT = 20
 /** system section 名（不像整数的稳定名）。 */
 export const MEMORY_SECTION_NAME = 'memory'
 
@@ -34,7 +36,7 @@ const HEADER =
 
 /**
  * 组成 <memory> section：按 updatedAt 倒序逐条加入，加入下一条会使条目合计超过预算时停止（不跳过较新的去放较旧的），
- * 其余注明数量与 memory_list。没有条目时 undefined（不注入）。
+ * 其余注明数量，并提示用 memory_list 的 query 检索。没有条目时 undefined（不注入）。
  */
 export function memorySection(entries: readonly MemoryEntry[], budget = MEMORY_SECTION_BUDGET): SystemSection | undefined {
   if (entries.length === 0) return undefined
@@ -48,7 +50,7 @@ export function memorySection(entries: readonly MemoryEntry[], budget = MEMORY_S
   }
   const omitted = entries.length - blocks.length
   const lines = ['<memory>', HEADER, ...blocks]
-  if (omitted > 0) lines.push(`${omitted} more ${omitted === 1 ? 'entry' : 'entries'} not shown; use memory_list to see them.`)
+  if (omitted > 0) lines.push(`${omitted} more ${omitted === 1 ? 'entry' : 'entries'} not shown; use memory_list with a query to search them.`)
   lines.push('</memory>')
   return { name: MEMORY_SECTION_NAME, text: lines.join('\n') }
 }

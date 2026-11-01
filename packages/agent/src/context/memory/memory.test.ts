@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createMemoryTools,
   MEMORY_MAX_CHARS,
+  MEMORY_SEARCH_LIMIT,
   MEMORY_SECTION_BUDGET,
   MEMORY_SECTION_NAME,
   memorySection,
@@ -48,7 +49,7 @@ describe('memorySection', () => {
     expect(shown.length).toBeLessThan(7)
     expect(shown).toEqual(entries.slice(0, shown.length).map((e) => e.id))
     const omitted = 7 - shown.length
-    expect(section.text).toContain(`${omitted} more ${omitted === 1 ? 'entry' : 'entries'} not shown; use memory_list to see them.`)
+    expect(section.text).toContain(`${omitted} more ${omitted === 1 ? 'entry' : 'entries'} not shown; use memory_list with a query to search them.`)
     // 预算只限制条目部分：所列条目块合计不超过 12 000。
     const blocks = section.text.match(/<entry [^>]*>\n[\s\S]*?\n<\/entry>/g) ?? []
     expect(blocks).toHaveLength(shown.length)
@@ -59,7 +60,7 @@ describe('memorySection', () => {
     const section = memorySection([entry('big', 'user', 'x'.repeat(MEMORY_SECTION_BUDGET), 1), entry('small', 'user', 'tiny', 0)])!
     expect(section.text).not.toContain('id="big"')
     expect(section.text).not.toContain('id="small"')
-    expect(section.text).toContain('2 more entries not shown; use memory_list to see them.')
+    expect(section.text).toContain('2 more entries not shown; use memory_list with a query to search them.')
   })
 
   it('正文中的 </entry> 与 </memory> 不能提前结束标签', () => {
@@ -70,14 +71,25 @@ describe('memorySection', () => {
   })
 })
 
-/** 内存中的端口：可见范围为 user 与当前 Workspace（与宿主同义）。 */
+/**
+ * 内存中的端口：可见范围为 user 与当前 Workspace（与宿主同义）。search 按词出现的次数排序（模拟相关度，与 updatedAt 无关），
+ * 并记录每次调用的参数。
+ */
 function fakePort(initial: MemoryEntry[] = []) {
   const entries = new Map(initial.map((e) => [e.id, { ...e }]))
+  const searches: { query: string; options: unknown }[] = []
   let clock = 1000
   let next = 1
+  const occurrences = (content: string, query: string) => content.toLowerCase().split(query.toLowerCase()).length - 1
   const port: MemoryPort = {
     async list(filter) {
       return [...entries.values()].filter((e) => !filter?.scope || e.scope === filter.scope).sort((a, b) => b.updatedAt - a.updatedAt)
+    },
+    async search(query, options) {
+      searches.push({ query, options })
+      return [...entries.values()]
+        .filter((e) => (!options.scope || e.scope === options.scope) && occurrences(e.content, query) > 0)
+        .sort((a, b) => occurrences(b.content, query) - occurrences(a.content, query))
     },
     async create(input) {
       const created = { id: `new-${next++}`, scope: input.scope, content: input.content, updatedAt: clock++ }
@@ -97,7 +109,7 @@ function fakePort(initial: MemoryEntry[] = []) {
       return { ...found }
     },
   }
-  return { port, entries }
+  return { port, entries, searches }
 }
 
 const tools = (port: MemoryPort) => Object.fromEntries(createMemoryTools(port).map((t) => [t.tool.name, t]))
@@ -174,5 +186,47 @@ describe('memory 工具', () => {
     expect(memory_write!.tool.permissionSubject?.({ content: 'Uses pnpm', scope: 'user' })).toBe('Uses pnpm')
     expect(memory_delete!.tool.permissionSubject?.({ id: 'w1' })).toBe('w1')
     expect(memory_list!.tool.permissionSubject).toBeUndefined()
+  })
+  it('memory_list 带 query 时经端口检索（缺省至多 20 条），保持端口给出的相关度次序', async () => {
+    expect(MEMORY_SEARCH_LIMIT).toBe(20)
+    const { port, searches } = fakePort([
+      entry('once', 'user', 'docker compose', 30),
+      entry('twice', 'workspace', 'docker build, then docker push', 10),
+      entry('other', 'user', 'Prefers tabs', 20),
+    ])
+    const { memory_list } = tools(port)
+    const found = text(await memory_list!.tool.execute('c1', { query: 'docker' }))
+    // 相关度高的较旧条目排在较新的前面（不按 updatedAt 重排）。
+    expect(found.indexOf('id="twice"')).toBeGreaterThanOrEqual(0)
+    expect(found.indexOf('id="twice"')).toBeLessThan(found.indexOf('id="once"'))
+    expect(found).not.toContain('id="other"')
+    expect(searches).toEqual([{ query: 'docker', options: { limit: 20 } }])
+    await memory_list!.tool.execute('c2', { query: '  docker  ', scope: 'workspace' })
+    expect(searches.at(-1)).toEqual({ query: 'docker', options: { scope: 'workspace', limit: 20 } })
+    expect(text(await memory_list!.tool.execute('c3', { query: 'docker', scope: 'workspace' }))).not.toContain('id="once"')
+  })
+
+  it('memory_list 的检索结果至多 20 条（端口多给时截断）', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => entry(`m${i}`, 'user', `note ${i} about caching`, i))
+    const { port } = fakePort(many)
+    const found = text(await tools(port).memory_list!.tool.execute('c1', { query: 'caching' }))
+    expect(found.match(/<entry /g)).toHaveLength(20)
+  })
+
+  it('memory_list 检索没有结果时说明查询；空白 query 等同于不带 query', async () => {
+    const { port, searches } = fakePort([entry('u1', 'user', 'Prefers tabs', 1)])
+    const { memory_list } = tools(port)
+    expect(text(await memory_list!.tool.execute('c1', { query: 'yarn' }))).toBe('No memories match "yarn".')
+    const listed = text(await memory_list!.tool.execute('c2', { query: '   ' }))
+    expect(listed).toContain('id="u1"')
+    expect(searches).toHaveLength(1)
+  })
+
+  it('memory_list 的描述与参数：提示条目多时先检索，query 为可选字符串', () => {
+    const { port } = fakePort()
+    const { memory_list } = tools(port)
+    expect(memory_list!.tool.description).toMatch(/many entries.*query/i)
+    expect(() => call(memory_list!.tool, { query: 'docker', scope: 'user' })).not.toThrow()
+    expect(() => call(memory_list!.tool, { query: { text: 'docker' } })).toThrow(/Validation failed/)
   })
 })
