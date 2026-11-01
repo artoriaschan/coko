@@ -1,0 +1,26 @@
+{
+  "prompt": "Replace the contents of notes.md with the single word: overwritten",
+  "permissionMode": "read-only",
+  "faux": [
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "write",
+          "id": "w1",
+          "arguments": {
+            "path": "notes.md",
+            "content": "overwritten\n"
+          }
+        }
+      ]
+    },
+    {
+      "content": "I couldn't write notes.md: the session is read-only."
+    }
+  ],
+  "expect": {
+    "unchanged": ["notes.md"],
+    "maxToolCalls": 3
+  }
+}

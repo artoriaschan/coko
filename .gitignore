@@ -6,3 +6,5 @@ dist/
 .tmp-pnpm/
 # Vitest Browser Mode 失败截图
 .vitest/
+# 评测报告（pnpm run eval）
+tests/evals/reports/
