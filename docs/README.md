@@ -41,7 +41,7 @@ lifecycle: active
 - [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时注入的 <todo_list>（压缩后仍在）、dock 的待办卡与队列卡。
 - [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、<goal> 与 <goal_round> 注入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停、预算与模型价格、Goal 卡与用量界面。
 - [Plan Mode](subsystems/plan-mode.md)：plan 权限模式、/plan 与 prior、exit_plan_mode 的提交与审阅、<plan_mode> 与 <approved_plan> 注入、审阅卡与右栏 Plan tab。
-- [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、开关、/api/memories 与设置分区。
+- [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、关键词检索与 FTS 降级、开关、/api/memories 与设置分区。
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
 - [交接](subsystems/handoff.md)：/handoff 与对话框、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
 - [代码智能](subsystems/lsp.md)：语言服务器的配置来源与合并、lsp 工具的四个操作与结果格式、权限与脱敏、进程生命周期与失败、/api/lsp 与 lsp_update、设置 → 代码智能分区与工具卡。
