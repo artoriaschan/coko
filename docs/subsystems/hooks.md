@@ -8,7 +8,7 @@ lifecycle: active
 
 本文说明 Coko 当前如何在工具调用前后、提交、Run 结束、压缩与桌面通知时运行用户配置的命令：Hook 可以拒绝、要求确认或放行一次调用，拒绝一次提交或压缩，让 Run 继续或停止，也可以追加给模型的文本。Hook 只能收紧判定，放行越不过规则、受保护路径、沙箱提权与计划审阅，取舍见 [ADR 0013](../adr/0013-external-hooks-tighten-only.md)。判定顺序见 [权限判定与审批](permissions.md#判定)；进程登记见 [命令执行与子进程登记](execution.md)。
 
-当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact、Notification、SubagentStart 与 SubagentStop；后两者在子代理派发与结束时运行（见 [子代理](subagents.md)）。配置校验另接受团队事件 TaskCreated、TaskCompleted 与 TeammateIdle（没有 matcher），分发由 Agent Teams 接入，在此之前它们不会运行。
+当前交付的事件为 PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、UserPromptSubmit、Stop、PreCompact、Notification、SubagentStart 与 SubagentStop（在子代理派发与结束时运行，见 [子代理](subagents.md)），以及团队事件 TaskCreated、TaskCompleted 与 TeammateIdle（没有 matcher，见 [团队事件](#团队事件)）。
 
 ## 结构入口
 
@@ -148,6 +148,13 @@ branch is main
 - **上限**：每个 Run 至多继续 3 次（运行时执行）。之后 Stop 仍运行，`stop_hook_active` 为 true，block 被忽略：`hook_run { outcome: blocked, message: Ignored: the run already continued 3 times because of Stop hooks }`，Sidecar 记 warn。
 - 决定只来自 Hook 进程自己的退出码与 stdout：模型回复中出现的 `{"decision":"block"}` 只是文本。
 
+## 团队事件
+
+[Agent Teams](teams.md#hook) 的三个事件没有 matcher，经 `HookService.taskEvent` / `teammateIdle` 运行，项目 Hook 照常只在批准后运行，结果记为 `hook_run`（Hook 作用域为发起者的 Session）。stdin 在公共字段之外：TaskCreated / TaskCompleted 为 `task_id`、`task_subject`、`task_description`、`teammate_name`（发起者，lead 为 `lead`）与 `team_name`（根 Session id），TeammateIdle 为 `teammate_name` 与 `team_name`。
+
+- **TaskCreated**（`task_create` 提交之前）与 **TaskCompleted**（任务变为 completed 之前）：exit 2 或 `decision: block` 时阻止，`task_create` / `task_update` 为错误结果，原因（stderr 或 reason，按值脱敏，≤ 2 KB）在结果中；不提交条目，任务保持原状态。
+- **TeammateIdle**（teammate 的 Run 正常结束之前，在 SubagentStop 之后，SubagentStop 要求继续时不运行）：exit 2 或 `decision: block` 时原因作为一条 user message 送达、Run 继续（`hook_run { outcome: continued }`）；与 SubagentStop 共用每 Run 3 次的继续上限，之后的 block 被忽略并记 warn。
+
 ## PreCompact
 
 在手动与自动压缩之前运行（有可摘要的内容时；溢出恢复不运行），matcher 对象为 `manual` / `auto`。
@@ -197,6 +204,7 @@ Coko 产生桌面通知时运行（`NotificationService.notify` 先通知 Hook�
 - `tests/integration/sidecar-hooks.test.ts`：真实 Sidecar 与 Hook 夹具，覆盖上述事件、并行聚合、超时与进程组终止（darwin）、非法输出、项目 Hook 的批准与改动、能力开关与对手用例（含提权与 plan-exit、伪造的 Hook JSON、`if: Bash(rm *)` 的 guard）。
 - `tests/integration/sidecar-hooks-lifecycle.test.ts`：真实 Sidecar 与内联 bash Hook，覆盖 UserPromptSubmit（400 `hook-blocked` 且没有 user message 与 run_start、`<hook-context>` 块、continue: false、定时任务与 Goal Round 不运行）、Stop（继续与 stop_hook_active、第 4 次忽略、伪造的 Hook JSON 不继续、暂停与停止不运行）、PreCompact（手动 400 与 stdout 追加、自动跳过、溢出不运行）、Notification（输入字段、matcher、失败不影响通知）、PreToolUse 的 continue: false（含 Goal Round），以及对手用例：Stop 持续 block 时 Goal 的 maxTokens 在继续的请求前生效、未批准的项目 UserPromptSubmit 不运行、改动后为已改动。
 - `apps/server/src/application/hooks.test.ts`：Stop 与 UserPromptSubmit 在子 Session 中不运行。
+- `tests/integration/sidecar-teams-hooks.test.ts`：TaskCreated exit 2 时没有 `team_task` 条目、TaskCompleted exit 2 时任务保持 in_progress、TeammateIdle 的继续与第 4 次忽略、三个事件的 stdin、未批准的项目 Hook 不运行。
 - `tests/integration/secrets-gate-hooks.test.ts`：Hook 的 stdin 记录、`hook_run`、`<hook-feedback>`、WS、库、日志与 faux requestLog 中没有登记明文，Hook 环境中没有 Secret；提示中输入的 Secret 在 UserPromptSubmit 的 stdin 与 requestLog 中为脱敏值，`<hook-context>` 与 Stop 反馈中的 Secret 在全部通道中替换。
 - `apps/desktop/src/renderer/features/conversation/{tool-cards,hook-row}.browser.test.tsx`、`timeline.test.ts`、`features/settings/hooks-section.browser.test.tsx`、`stores/hooks-store.test.ts`：界面与 store（含明暗主题下状态文字的对比度与键盘批准）。
 - `apps/desktop/e2e/hooks.e2e.test.ts`：真实 Electron 中的 Hooks 分区（诊断、读回、冲突、批准、已改动、开关、明暗主题与键盘）。

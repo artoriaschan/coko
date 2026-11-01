@@ -1,7 +1,7 @@
 // Goal 预算的派生（ADR 0011：用量从条目计算，不另存计数器；docs/subsystems/goal.md#预算）。属于 Goal 的 Run：Goal 处于非终态且非 paused 时
 // 开始的 Run（含用户提交的），以及该 Goal 的 Goal Round。轮次 = Goal Round 数；工具调用 = 这些 Run 的 toolResult 数（工具调用上限拦下的错误
 // 结果除外，按 details.hostBlock 识别）；Token = assistant usage 的 input + output + cacheRead + cacheWrite 加 compaction.usage；费用 = 同一组 usage 的 cost.total；
-// 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。handoff 条目的 usage 与 compaction 相同，计入其 Run。子 Session 的条目（M5 接入）整体计入，不计轮次。
+// 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。handoff 条目的 usage 与 compaction 相同，计入其 Run。子 Session 的 Run 按触发它的根 Run 归属（goalChildRuns），不计轮次。
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
 import { goalRounds, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
@@ -89,11 +89,34 @@ function isBudgetBlocked(message: { details?: unknown }): boolean {
   return mark?.by === 'goal-budget'
 }
 
+/** 子 Session 的条目与其中计入该 Goal 的 Run（goalChildRuns）；只给条目时全部 Run 计入。 */
+export type GoalChildEntries = readonly BudgetEntry[] | { entries: readonly BudgetEntry[]; runs: ReadonlySet<string> }
+
+const isEntryList = (child: GoalChildEntries): child is readonly BudgetEntry[] => Array.isArray(child)
+
 export interface GoalUsageOptions {
   /** 进行中的 Run 计到这一时刻；缺省 Date.now()。 */
   now?: number
-  /** 子 Session 的条目（M5 接入；M4 没有调用方）：全部 Run 计入，不计轮次。 */
-  children?: readonly (readonly BudgetEntry[])[]
+  /** 子 Session（子代理与 teammate）：计入的 Run 不计轮次。 */
+  children?: readonly GoalChildEntries[]
+}
+
+/**
+ * 子 Session 中属于该 Goal 的 Run（ADR 0014 / 0018）：run_start.subagent.triggerRunId（触发它的根 Run：派发或送达消息时根 Session 的 Run，
+ * teammate 之间转发时沿用发送方当前 Run 的触发 Run）属于该 Goal 时计入。没有 triggerRunId 的旧条目按 M5 口径：派发它的 agent_start 属于该
+ * Goal（goalId 或其 runId 在 Goal 的 Run 中）则全部计入。没有 Goal 的根 Run 触发的 Run 不计入之后创建的 Goal。
+ */
+export function goalChildRuns(root: readonly EntryLike[], agentId: string, child: readonly EntryLike[], goalId: string): Set<string> {
+  const rootRuns = goalRunIds(root, goalId)
+  const start = root.find((e) => e.kind === 'agent_start' && (e.payload as { agentId?: string }).agentId === agentId)
+  const legacy = start !== undefined && ((start.payload as { goalId?: string }).goalId === goalId || (start.runId != null && rootRuns.has(start.runId)))
+  const runs = new Set<string>()
+  for (const entry of child) {
+    if (entry.kind !== 'run_start' || !entry.runId) continue
+    const trigger = (entry.payload as { subagent?: { triggerRunId?: string } }).subagent?.triggerRunId
+    if (trigger ? rootRuns.has(trigger) : legacy) runs.add(entry.runId)
+  }
+  return runs
 }
 
 /** 该 Goal 的五维用量。 */
@@ -102,7 +125,7 @@ export function goalUsage(entries: readonly BudgetEntry[], goalId: string, optio
   const own = runTotals(entries, goalRunIds(entries, goalId), now)
   const usage: GoalUsageTotals = { rounds: goalRounds(entries, goalId), ...own }
   for (const child of options.children ?? []) {
-    const part = runTotals(child, undefined, now)
+    const part = isEntryList(child) ? runTotals(child, undefined, now) : runTotals(child.entries, child.runs, now)
     usage.toolCalls += part.toolCalls
     usage.tokens += part.tokens
     usage.cost += part.cost

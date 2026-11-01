@@ -503,7 +503,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     run(raw) {
       const input = toInput(raw)
       const trigger = input.trigger ?? 'submit'
-      const start = { ...(input.goal ? { goal: input.goal } : {}), ...(input.schedule ? { schedule: input.schedule } : {}) }
+      const start = {
+        ...(input.goal ? { goal: input.goal } : {}),
+        ...(input.schedule ? { schedule: input.schedule } : {}),
+        ...(input.subagent ? { subagent: input.subagent } : {}),
+      }
       if (trigger === 'handoff') return execute(trigger, summaryDrive(input), input.before ?? [], start)
       return execute(trigger, withStop(recoverOverflow(() => agent.prompt(userMessage(input)))), input.before ?? [], start)
     },
