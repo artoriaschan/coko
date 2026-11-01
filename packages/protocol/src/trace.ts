@@ -106,7 +106,8 @@ export const TraceResponse = Type.Object({ runs: Type.Array(RunTrace), totals: T
 export type TraceResponse = Static<typeof TraceResponse>
 
 const auditBase = { seq: Type.Integer({ minimum: 1 }), at: Count, runId: Type.Optional(Id) }
-const audit = <P extends Record<string, TSchema>>(kind: string, fields: P) => Type.Object({ ...auditBase, kind: Type.Literal(kind), ...fields }, strict)
+const audit = <K extends string, P extends Record<string, TSchema>>(kind: K, fields: P) =>
+  Type.Object({ ...auditBase, kind: Type.Literal(kind), ...fields }, strict)
 
 /**
  * 审计时间序列中的一项（按提交顺序）。approval 在回答时给出（seq 为决定条目，requestedAt 为请求时刻；by 为 user、hook 或 headless），
