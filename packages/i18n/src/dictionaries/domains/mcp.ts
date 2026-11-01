@@ -37,6 +37,26 @@ export const mcp = defineDomain(
       'auth-required': '需要认证',
     },
     stderr: 'stderr 最后几行',
+    auth: {
+      hint: '服务器要求认证：检查请求头中的凭据，可引用登记的 Secret ${NAME}',
+      editHeaders: '编辑请求头',
+    },
+    browser: {
+      add: '添加浏览器',
+      presets: { playwright: '浏览器（Playwright）' },
+      dialogTitle: '添加浏览器',
+      dialogDescription: 'Agent 可以经 Playwright MCP 打开网页、操作并截图，每次调用同样需要审批。首次连接时经 npx 下载，需要 Node.js',
+      command: '命令',
+      confirm: '添加',
+      added: '已添加 {name}',
+      nameTaken: '已有名为 {name} 的 Server，请换一个名称',
+      loadFailed: '未能读取浏览器预设',
+    },
+    image: {
+      alt: '工具返回的图片 {index}',
+      open: '查看大图',
+      close: '关闭',
+    },
     form: {
       name: '名称',
       transport: '传输方式',
@@ -79,6 +99,8 @@ export const mcp = defineDomain(
       'invalid-json': '.mcp.json 不是有效的 JSON',
       'invalid-value': '.mcp.json 的格式不对',
       'read-failed': '无法读取 .mcp.json',
+      'mcp-auth-required': '服务器要求认证：检查请求头中的凭据，可引用登记的 Secret ${NAME}',
+      'mcp-npx-missing': '找不到 npx：需要安装 Node.js（npx）',
       other: '配置有问题',
     },
     secrets: {
@@ -141,6 +163,27 @@ export const mcp = defineDomain(
       'auth-required': 'Authentication required',
     },
     stderr: 'Last stderr lines',
+    auth: {
+      hint: 'The server requires authentication. Check the credentials in its headers; you can reference a registered secret as ${NAME}',
+      editHeaders: 'Edit headers',
+    },
+    browser: {
+      add: 'Add browser',
+      presets: { playwright: 'Browser (Playwright)' },
+      dialogTitle: 'Add a browser',
+      dialogDescription:
+        'With Playwright MCP the agent can open web pages, operate them and take screenshots; each call still needs approval. It is downloaded with npx on first connection, which needs Node.js',
+      command: 'Command',
+      confirm: 'Add',
+      added: 'Added {name}',
+      nameTaken: 'A server named {name} already exists; choose another name',
+      loadFailed: "Couldn't load the browser presets",
+    },
+    image: {
+      alt: 'Image {index} returned by the tool',
+      open: 'View full size',
+      close: 'Close',
+    },
     form: {
       name: 'Name',
       transport: 'Transport',
@@ -184,6 +227,8 @@ export const mcp = defineDomain(
       'invalid-json': '.mcp.json is not valid JSON',
       'invalid-value': '.mcp.json has the wrong shape',
       'read-failed': "Couldn't read .mcp.json",
+      'mcp-auth-required': 'The server requires authentication. Check the credentials in its headers; you can reference a registered secret as ${NAME}',
+      'mcp-npx-missing': 'npx was not found: install Node.js (npx)',
       other: 'Configuration issue',
     },
     secrets: {

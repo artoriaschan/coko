@@ -1,9 +1,36 @@
 // MCP 与 Secrets 分区：全局与当前工作区的 Server（状态、工具数、启停、增改删、项目 Server 批准、重连）与 Secrets 子区。
 // 状态来自 GET /api/mcp（分区打开期间轮询）；Secret 的值只经 preload setSecret 交给 main（ADR 0007），界面只显示末四位。
+// 认证：auth-required 显示"需要认证"与说明，全局 HTTP Server 另有"编辑请求头"（打开编辑表单并聚焦 headers）。
+// "添加浏览器"菜单列出 GET /api/mcp/presets 的预设，确认后经全局保存接口写入（名字与已有 Server 冲突时提示改名）。
 import type { MessageKey } from '@coko/i18n'
-import type { McpServerInfo, McpServerStatus, McpServersConfig, ResourceDiagnostic } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
-import { ChevronDownIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
+import {
+  McpPresetsResponse,
+  mcpPaths,
+  type McpPreset,
+  type McpServerInfo,
+  type McpServerStatus,
+  type McpServersConfig,
+  type ResourceDiagnostic,
+} from '@coko/protocol'
+import {
+  Button,
+  cn,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
+  Textarea,
+  toast,
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@coko/ui'
+import { ChevronDownIcon, GlobeIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
+import { Value } from 'typebox/value'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
@@ -32,6 +59,33 @@ const DIAGNOSTIC_KEYS: Record<string, MessageKey> = {
   'invalid-json': 'mcp.diagnostics.invalid-json',
   'invalid-value': 'mcp.diagnostics.invalid-value',
   'read-failed': 'mcp.diagnostics.read-failed',
+  'mcp-auth-required': 'mcp.diagnostics.mcp-auth-required',
+  'mcp-npx-missing': 'mcp.diagnostics.mcp-npx-missing',
+}
+
+/** 预设的本地化名称（按 id）；未知的预设用接口给出的 label。 */
+const PRESET_LABELS: Record<string, MessageKey> = { playwright: 'mcp.browser.presets.playwright' }
+
+/** 名字按服务端的规则比较：不区分大小写，- 等于 _（serverNameKey）。 */
+const nameKey = (name: string) => name.toLowerCase().replaceAll('-', '_')
+
+/** GET /api/mcp/presets（分区打开时读取一次，响应按 schema 校验）。 */
+function usePresets(): McpPreset[] | null | 'error' {
+  const [presets, setPresets] = React.useState<McpPreset[] | null | 'error'>(null)
+  React.useEffect(() => {
+    let live = true
+    fetch(mcpPaths.presets)
+      .then(async (response) => {
+        const body: unknown = await response.json()
+        if (!live) return
+        setPresets(response.ok && Value.Check(McpPresetsResponse, body) ? body.presets : 'error')
+      })
+      .catch(() => live && setPresets('error'))
+    return () => {
+      live = false
+    }
+  }, [])
+  return presets
 }
 
 export function McpSection() {
@@ -41,7 +95,8 @@ export function McpSection() {
   const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
   const status = useStore(mcpStore, (s) => s.status)
   const data = useStore(mcpStore, (s) => s.data)
-  const [editing, setEditing] = React.useState<{ name?: string } | null>(null)
+  const [editing, setEditing] = React.useState<{ name?: string; focus?: 'headers' } | null>(null)
+  const [adding, setAdding] = React.useState<McpPreset | null>(null)
 
   React.useEffect(() => {
     const load = () => void mcpStore.getState().load(workspaceId)
@@ -64,11 +119,15 @@ export function McpSection() {
           </h2>
           <p className="text-ui-small text-muted-foreground">{t('mcp.description')}</p>
         </div>
-        <Button variant="outline" size="sm" disabled={!data || editing !== null} onClick={() => setEditing({})}>
-          <PlusIcon />
-          {t('mcp.add')}
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-1">
+          <BrowserPresetMenu disabled={!data || editing !== null} onPick={setAdding} />
+          <Button variant="outline" size="sm" disabled={!data || editing !== null} onClick={() => setEditing({})}>
+            <PlusIcon />
+            {t('mcp.add')}
+          </Button>
+        </div>
       </div>
+      {adding && <AddPresetDialog preset={adding} onClose={() => setAdding(null)} />}
       <SettingsCard>
         <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} />
       </SettingsCard>
@@ -76,13 +135,18 @@ export function McpSection() {
       {workspaceId === undefined && <p className="text-ui-small text-muted-foreground">{t('mcp.noWorkspace')}</p>}
       {status === 'error' && !data && <p className="text-ui-body text-muted-foreground">{t('mcp.loadFailed')}</p>}
 
-      {editing && <ServerForm key={editing.name ?? 'new'} name={editing.name} onDone={() => setEditing(null)} />}
+      {editing && <ServerForm key={editing.name ?? 'new'} name={editing.name} focus={editing.focus} onDone={() => setEditing(null)} />}
 
       {data && global.length === 0 && project.length === 0 && !editing && <p className="py-2 text-ui-body text-muted-foreground">{t('mcp.empty')}</p>}
       {global
         .filter((s) => s.name !== editing?.name)
         .map((s) => (
-          <ServerCard key={`global:${s.name}`} server={s} busy={editing !== null} onEdit={() => setEditing({ name: s.name })} />
+          <ServerCard
+            key={`global:${s.name}`}
+            server={s}
+            busy={editing !== null}
+            onEdit={(focus) => setEditing({ name: s.name, ...(focus ? { focus } : {}) })}
+          />
         ))}
 
       {project.length > 0 && (
@@ -102,7 +166,117 @@ export function McpSection() {
   )
 }
 
-function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boolean; onEdit?: () => void }) {
+/** "添加浏览器"：列出预设的菜单；预设读取失败时菜单中显示提示。 */
+function BrowserPresetMenu({ disabled, onPick }: { disabled: boolean; onPick: (preset: McpPreset) => void }) {
+  const { t } = useI18n()
+  const presets = usePresets()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" data-action="add-browser" disabled={disabled || presets === null}>
+          <GlobeIcon />
+          {t('mcp.browser.add')}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {presets === 'error' ? (
+          <DropdownMenuItem disabled>{t('mcp.browser.loadFailed')}</DropdownMenuItem>
+        ) : (
+          (presets ?? []).map((preset) => (
+            <DropdownMenuItem key={preset.id} data-preset={preset.id} onSelect={() => onPick(preset)}>
+              {PRESET_LABELS[preset.id] ? t(PRESET_LABELS[preset.id]!) : preset.label}
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** 确认添加预设：显示完整命令，名称可改；与已有 Server 同名（按服务端规则）时不保存并提示改名。 */
+function AddPresetDialog({ preset, onClose }: { preset: McpPreset; onClose: () => void }) {
+  const { t } = useI18n()
+  const id = React.useId()
+  const nameRef = React.useRef<HTMLInputElement>(null)
+  const [name, setName] = React.useState(preset.name)
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const trimmed = name.trim()
+    const data = mcpStore.getState().data
+    const taken = [...Object.keys(data?.global ?? {}), ...(data?.servers ?? []).filter((s) => s.scope === 'global').map((s) => s.name)]
+    if (trimmed === '' || taken.some((other) => nameKey(other) === nameKey(trimmed))) {
+      setError(trimmed === '' ? t('mcp.form.nameRequired') : t('mcp.browser.nameTaken', { name: trimmed }))
+      nameRef.current?.focus()
+      return
+    }
+    setError(null)
+    setSaving(true)
+    const result = await mcpStore.getState().updateServers((current) => ({ ...current, [trimmed]: structuredClone(preset.config) }))
+    setSaving(false)
+    if (result.ok) {
+      toast.success(t('mcp.browser.added', { name: trimmed }))
+      onClose()
+      return
+    }
+    setError(result.code === 'revision-conflict' ? t('mcp.conflict') : t('mcp.saveFailed'))
+  }
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        closeLabel={t('mcp.cancel')}
+        className="max-w-[560px] flex-col gap-3 p-5"
+        data-mcp-preset={preset.id}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          nameRef.current?.focus()
+        }}
+      >
+        <DialogTitle>{t('mcp.browser.dialogTitle')}</DialogTitle>
+        <DialogDescription>{t('mcp.browser.dialogDescription')}</DialogDescription>
+        <form className="flex flex-col gap-3" onSubmit={(event) => void submit(event)} noValidate>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${id}-name`} className="text-ui-small text-muted-foreground">
+              {t('mcp.form.name')}
+            </label>
+            <Input
+              ref={nameRef}
+              id={`${id}-name`}
+              name="presetName"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={error !== null}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-ui-small text-muted-foreground">{t('mcp.browser.command')}</span>
+            <code data-user-content data-preset-command className="font-mono text-ui-small break-all whitespace-pre-wrap select-text">
+              {[preset.config.command, ...preset.config.args].join(' ')}
+            </code>
+          </div>
+          {error !== null && (
+            <p role="alert" className="text-ui-small break-words text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={onClose}>
+              {t('mcp.cancel')}
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {t('mcp.browser.confirm')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boolean; onEdit?: (focus?: 'headers') => void }) {
   const { t } = useI18n()
   const [showTools, setShowTools] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
@@ -133,7 +307,8 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
         }),
       'mcp.saveFailed',
     )
-  const canReconnect = server.status === 'failed' || server.status === 'connected' || server.status === 'idle'
+  const canReconnect = server.status === 'failed' || server.status === 'connected' || server.status === 'idle' || server.status === 'auth-required'
+  const authRequired = server.status === 'auth-required'
   return (
     <SettingsCard
       data-mcp-server={server.name}
@@ -188,6 +363,12 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
               {t('mcp.project.revoke')}
             </Button>
           )}
+          {authRequired && server.scope === 'global' && server.transport === 'http' && onEdit && (
+            <Button variant="outline" size="sm" data-action="edit-headers" disabled={busy || working} onClick={() => onEdit('headers')}>
+              <KeyRoundIcon />
+              {t('mcp.auth.editHeaders')}
+            </Button>
+          )}
           {canReconnect && server.status !== 'idle' && (
             <Button
               variant="ghost"
@@ -215,7 +396,7 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
                 <Button variant="outline" size="sm" data-action="toggle" disabled={busy || working} onClick={() => void toggle()}>
                   {server.enabled ? t('mcp.disable') : t('mcp.enable')}
                 </Button>
-                <Button variant="outline" size="sm" data-action="edit" disabled={busy || working} onClick={onEdit}>
+                <Button variant="outline" size="sm" data-action="edit" disabled={busy || working} onClick={() => onEdit?.()}>
                   {t('mcp.edit')}
                 </Button>
                 <Button variant="ghost" size="sm" data-action="delete" disabled={busy || working} onClick={() => setConfirming(true)}>
@@ -240,6 +421,11 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
             </li>
           ))}
         </ul>
+      )}
+      {authRequired && (
+        <p data-mcp-auth className="rounded-lg bg-muted/50 px-3 py-2 text-ui-small break-words text-muted-foreground">
+          {t('mcp.auth.hint')}
+        </p>
       )}
       {server.status === 'failed' && (server.error || server.stderrTail) && (
         <div className="flex flex-col gap-1 rounded-lg bg-muted/50 px-3 py-2" data-mcp-error>
@@ -342,9 +528,14 @@ const toLines = (record: unknown, sep: string) =>
         .join('\n')
     : ''
 
-function ServerForm({ name: initialName, onDone }: { name?: string | undefined; onDone: () => void }) {
+function ServerForm({ name: initialName, focus, onDone }: { name?: string | undefined; focus?: 'headers' | undefined; onDone: () => void }) {
   const { t } = useI18n()
   const id = React.useId()
+  const headersRef = React.useRef<HTMLTextAreaElement>(null)
+  // "编辑请求头"：表单打开后聚焦请求头（auth-required 的修复入口）。
+  React.useEffect(() => {
+    if (focus === 'headers') headersRef.current?.focus()
+  }, [focus])
   const existing = (initialName ? mcpStore.getState().data?.global[initialName] : undefined) as Record<string, unknown> | undefined
   const [name, setName] = React.useState(initialName ?? '')
   const [transport, setTransport] = React.useState<'stdio' | 'http'>(typeof existing?.url === 'string' ? 'http' : 'stdio')
@@ -474,7 +665,15 @@ function ServerForm({ name: initialName, onDone }: { name?: string | undefined; 
             {field(
               'headers',
               'mcp.form.headers',
-              <Textarea id={`${id}-headers`} name="headers" variant="mono" value={headers} onChange={(e) => setHeaders(e.target.value)} spellCheck={false} />,
+              <Textarea
+                ref={headersRef}
+                id={`${id}-headers`}
+                name="headers"
+                variant="mono"
+                value={headers}
+                onChange={(e) => setHeaders(e.target.value)}
+                spellCheck={false}
+              />,
             )}
           </>
         )}
