@@ -288,11 +288,18 @@ const AssemblyLive = Layer.effect(
     const config = new ConfigService({ store })
 
     // ── plugins ──
-    // 插件消费 seam（ADR 0017）：已启用插件的贡献快照，Skills、命令、子代理定义、Hook、MCP 与语言服务器读取它。没有安装插件时为空；测试构建
-    // （未 --packaged）可由 COKO_TEST_PLUGINS 把一个目录当作已批准的插件。
+    // 插件（ADR 0017）：安装在 <COKO_HOME>/plugins，记录在 plugins 表；已启用插件的贡献快照供 Skills、命令、子代理定义、Hook、MCP 与语言服务器
+    // 读取。git 来源经宿主 git 浅克隆（登记 kind git）。测试构建（未 --packaged）可由 COKO_TEST_PLUGINS 另把一个目录当作已批准的插件。
     const testPlugins = sidecar.testPlugins && !sidecar.packaged ? sidecar.testPlugins : undefined
     if (testPlugins) getLogger(['runtime']).warn('test plugins enabled', { path: testPlugins })
-    const plugins = new PluginService(testPlugins ? { contributions: createTestPluginPort(testPlugins) } : {})
+    const plugins = new PluginService({
+      store,
+      cokoHome: sidecar.cokoHome,
+      git: createGitRunner({ env, track: processes.track }),
+      ...(sidecar.appVersion ? { appVersion: sidecar.appVersion } : {}),
+      ...(testPlugins ? { contributions: createTestPluginPort(testPlugins) } : {}),
+    })
+    yield* Effect.promise(() => plugins.cleanupStaging().catch(() => undefined))
     // ── end plugins ──
 
     // Secret 只来自登记条目（ADR 0007）：IPC 模式为库中密文（经 main 解密），独立运行只读 COKO_SECRET_<NAME>。

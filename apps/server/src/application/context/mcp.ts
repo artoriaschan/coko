@@ -58,9 +58,10 @@ export interface McpManagerOptions {
   readFile?: (path: string) => Promise<string>
   /**
    * 插件消费 seam（ADR 0017）：已启用插件的 MCP Server 并入全局一级（不经项目批准，引用 Secret 的不加载）；plugins.enabled 为 false 时没有。
-   * onChange 时 reconcile 由 MCP 认证状态与插件核心接入。
+   * 提供 onChange 时，插件启用、禁用、批准、更新或卸载之后对池中的每个（Workspace, 目录）重新读取配置并 reconcile：不再提供的插件 Server 的
+   * 连接关闭（进程退出、登记行删除）。
    */
-  plugins?: Pick<PluginContributionsPort, 'snapshot'>
+  plugins?: Pick<PluginContributionsPort, 'snapshot'> & Partial<Pick<PluginContributionsPort, 'onChange'>>
 }
 
 interface Pooled {
@@ -121,6 +122,23 @@ export class McpManager {
     options.secrets.onChange((name) => {
       for (const [key, pooled] of this.#pool) if (secretRefsOf(pooled.entry.config).includes(name)) void this.#drop(key)
     })
+    // 插件变更：返回 Promise，卸载等待连接关闭之后才删除插件目录。
+    options.plugins?.onChange?.((() => this.reconcileAll()) as () => void)
+  }
+
+  /** 对池中每个（Workspace, 目录）重新读取配置并 reconcile（插件变更之后）。 */
+  async reconcileAll(): Promise<void> {
+    const scopes = new Map<string, { workspaceId: string; cwd: string }>()
+    for (const pooled of this.#pool.values()) scopes.set(keyOf(pooled.workspaceId, pooled.cwd, ''), { workspaceId: pooled.workspaceId, cwd: pooled.cwd })
+    await Promise.all(
+      [...scopes.values()].map(async ({ workspaceId, cwd }) => {
+        try {
+          await this.reconcile(workspaceId, cwd, await this.load({ id: workspaceId, path: cwd }))
+        } catch (error) {
+          log.warn('mcp reconcile after plugin change failed', { workspaceId, error: message(error) })
+        }
+      }),
+    )
   }
 
   // ---- 读取配置 ----

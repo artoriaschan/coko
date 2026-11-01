@@ -2,7 +2,7 @@
 kind: decision
 description: "插件只声明 Skills、命令、子代理定义、Hook、MCP 与 LSP Server，不在 Sidecar 中执行插件代码；只有用户级安装，文件复制到 ~/.coko/plugins；按清单与可执行声明的 digest 批准，批准后插件的 Hook、MCP 与 LSP 与全局配置同级。修改插件的来源、清单、批准或贡献的加载时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -36,6 +36,11 @@ category: architecture
 - 依赖进程内扩展的 pi package 与依赖市场、用户配置项（`userConfig`）的 claude-code 插件不能在 Coko 中使用；只声明资源的 claude-code 插件可以直接安装。
 - 卸载会删除 `~/.coko/plugins/<name>`；删除前确认真实路径在 plugins 根下。
 - implementation 变为 implemented 前需要：真实 Sidecar 集成测试覆盖目录与 git 来源的安装、未批准时不加载任何资源（Hook 不运行、MCP / LSP 进程不启动、Skill 不在索引中）、批准后各类资源可用且以插件名作命名空间、更新改动 Hook 命令后回到待批准、插件 Hook 的 allow 越不过询问规则与受保护路径、清单路径或符号链接逃出插件根时拒绝、插件 MCP 引用 Secret 时不加载、`engines.coko` 不满足时不加载、卸载停止其进程并删除目录；界面中批准对话框显示完整命令。
+
+## 实施记录
+
+- 2026-11-01，插件核心（服务端）：清单与诊断、目录与 git（`file://` / `https://` 浅克隆）来源的安装与复制（拒绝逃出插件根的符号链接，≤ 5 000 文件、≤ 50 MB）、按 digest 批准、启用 / 禁用 / 更新 / 卸载（删除前确认真实路径在插件根下）、`PluginContributionsPort` 的快照与变更通知以及 `/api/plugins` 已实现，当前行为见 [插件](../subsystems/plugins.md)。证据：`tests/integration/sidecar-plugins.test.ts`（未批准时 Skill 不在索引、Hook 不运行、MCP 与语言服务器进程不启动；批准后带插件名可用；更新改动 Hook 命令后回到待批准；卸载停止进程并删除目录）、`sidecar-plugins-trust.test.ts`（插件 Hook 的 allow 越不过询问规则、`.git/config` 与越出可写根；路径与符号链接逃出插件根；MCP 引用 Secret；`engines.coko` 不满足）、`secrets-gate-plugins.test.ts`、`packages/agent/src/extensions/plugins/{manifest,copy}.test.ts`、`apps/server/src/application/plugins.test.ts`、`apps/desktop/e2e/package-smoke.e2e.test.ts`（打包应用中插件的 MCP Server 被启动）。插件的语言服务器只进入贡献快照与批准内容，进程由代码智能启动；界面中的批准对话框尚未交付，implementation 为 partial。
+- 实施中补齐的一处：`/<skill>` 与 `/<command>` 展开时文件正文先按值替换登记的 Secret 再进入 user message 条目（此前只有发给模型的请求被脱敏），插件与用户自己的文件都适用。
 
 ## 来源与后继
 
