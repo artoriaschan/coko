@@ -85,3 +85,12 @@
 **未验证**：签名与公证、真实更新 feed、真实模型 / 语言服务器 / Playwright MCP / 要求认证的 HTTP MCP / GET 流 401 / 无 FTS5 运行时 / 390px Team tab：未验证（需真实凭据或外部条件），列在 manual-verification.md。非 darwin：不在范围。main 上合入后的锁内全量：由 Lead 运行。
 
 **越出 Write scope 的改动**：`docs/subsystems/hooks.md`（第 45 行一句，本票 Comments 授权）；`tests/integration/sidecar-m6-seams.test.ts`（文件头注释一行）。其余都在写范围内：两个 README、`packages/session/README.md`、`docs/README.md` 一行、`capability-coverage.md`、`manual-verification.md`（新）与本票文件。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的 `docs/subsystems/hooks.md:45`（按 Comments 授权）与 `sidecar-m6-seams.test.ts` 文件头注释一行接受。
+- 实施者在锁内（分支等于 main 7f1438f）：`COKO_RELEASE_E2E=1` 的 `desktop-release` 2/2 通过；全量 `test=0`，381 个文件、2961 例通过、5 例跳过，没有 EAGAIN，没有重叠。dmg 中 Coko.app 的 codesign：`invalid Info.plist`，adhoc 签名、没有 TeamIdentifier，签名与公证按规格不在范围，列入人工验证清单。发布构建 E2E 没有插件 LSP 的用例，证据是票 05 的 package-smoke 用例（同一次全量中通过），接受。
+- 以 45f9eea 合入 main，树与分支相同；`typecheck`、`lint`、`format:check` 退出 0，`check:docs` 216 个文件 0 个问题；scripts、seams 与 protocol README 共 39 例通过。
+- lead 修正 `docs/subsystems/configuration.md:41`：`teams.enabled` 已由 `context/teams.ts` 与 `subagents.ts` 读取（实施者发现，不在本票写范围）。
+- `--destructive` 的对比度：浅色 4.498（白色卡片）与 4.304（muted），深色设置卡片 4.238，均低于 4.5；59 处使用、31 个文件。改 token 牵涉设计系统规格，不在 M6 范围；另立 `.scratch/destructive-text-contrast/` 的待分拣票。
+- M6 收尾的最后一项是 main 上的锁内全量，在 m6/fix-team-goal-flakes 合入之后由 lead 运行，结果记在本段之后。
