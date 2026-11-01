@@ -82,3 +82,17 @@
 **导航行（已在本分支加入，合并时核对）：** `docs/README.md` 当前行为的"Agent Teams"一行。
 
 - 2026-11-01 lead：暂不合入。实施者报告 BLOCKED（21e49c7）：本用户进程数约 2640，上限 2666（kern.maxprocperuid），其中约 2190 个是 `~/.git-ai/bin/git-ai bg run`（父进程为 launchd，不是本项目启动的）。14:48 lead 在本分支上单独运行 5 个 git 夹具文件，仍然失败（spawn EAGAIN），其中包括本票自己的 `sidecar-teams-restart`。这些进程不是 Coko 或测试启动的，lead 不按名字结束它们，交由用户处理。处理后：本分支先 `git merge main`（main 之后又合入了 07），再单独运行这 5 个文件，然后在锁内跑一次全量，之后合入。越出写范围的改动（`agents/tools.ts`；run_start v4 的 `subagent.triggerRunId` 涉及 03 独有的文件；`docs/adr/README.md`；只读导入 `buildTimeline`）在合入时裁决。
+
+### Lead 合入（2026-11-01）
+
+- 阻塞解除：进程表耗尽的原因是测试本身。git 夹具每次设新的临时 HOME，PATH 上的 git 是 git-ai 包装，每个 HOME 留下一个后台进程。用户同意后 lead 结束了 2250 个残留，并以 m6/fix-git-ai-leak（295cb69）修复：根 vitest.config.ts 在 worker 启动前把 git 包装目录移出 PATH。
+- 裁决：越出写范围的改动全部接受。
+  - `run_start` v4 的 `subagent.triggerRunId`（`protocol/src/runs.ts`、`session-entries/runs.ts` 的 v3 → v4 原样迁移、`engine/{types,runtime}.ts`、`context/types.ts`、`session-runs.ts`）：规格要求 Goal 预算按触发 Run 归属，03 没有声明这个字段。改动只增加可选字段，旧条目原样迁移。票 13 读取的 `agent_start` / `agent_end` / `team_*` 形状没有改。
+  - `agents/tools.ts` 的 `name` 参数（带 name 时必为后台）。
+  - `docs/adr/README.md` 的 0018 一行（partial）。
+  - `sidecar-teams.test.ts` 只读导入 renderer 的 `buildTimeline`。
+- 合并 main（0b388bd，只有本票文件末尾的 lead 记录与回执冲突，两边都保留）后，lead 在分支上复核（负载最高 57，git-ai 后台进程始终 1 个）：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0；锁内全量 `test=0`，357 个文件、2876 例通过、4 例跳过，没有 EAGAIN。
+- 以 9b186cf 合入 main，树与复核过的分支相同，`typecheck` 退出 0。
+- 留给票 14：实施者回执中的 agent / server README 要点。
+
+Closed: true
