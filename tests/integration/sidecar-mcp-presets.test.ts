@@ -120,3 +120,17 @@ describe('MCP 预设与图像结果', () => {
     expect(await ctx.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })
+
+// 真实 Playwright MCP（经 npx 从网络下载）：只在 COKO_REAL_PLAYWRIGHT_MCP=1 时运行，默认跳过，报告为未验证（人工验证清单）。
+describe('真实 Playwright MCP', () => {
+  it.skipIf(process.env.COKO_REAL_PLAYWRIGHT_MCP !== '1')('预设经 npx 启动真实的 @playwright/mcp 并列出浏览器工具', { timeout: 180_000 }, async () => {
+    const ctx = await setup([], { PATH: process.env.PATH ?? '' })
+    const { api, workspace } = ctx
+    const preset = ((await api.get(mcpPaths.presets)).body as McpPresetsResponse).presets[0]!
+    expect((await api.put(mcpPaths.servers, { servers: { [preset.name]: preset.config }, expectedRevision: 0, workspaceId: workspace.id })).status).toBe(200)
+    const server = await ctx.waitServer('playwright', (s) => s.status === 'connected' || s.status === 'failed')
+    expect(server.status).toBe('connected')
+    expect(server.tools.map((t) => t.name)).toEqual(expect.arrayContaining(['mcp__playwright__browser_navigate', 'mcp__playwright__browser_take_screenshot']))
+    expect(await ctx.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+})
