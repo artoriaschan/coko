@@ -170,12 +170,11 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
   await expect.element(settingsRegion().getByRole('heading', { name: 'About' })).toBeVisible()
 })
 
-it('M6 的占位（代码智能分区、Team 与 Trace tab、团队按钮）已登记但不显示；打开代码智能分区回到通用分区', async () => {
+it('M6 的占位（代码智能分区、Team tab、团队按钮）已登记但不显示；打开代码智能分区回到通用分区', async () => {
   expect(SETTINGS_SECTIONS.find((s) => s.id === 'lsp')).toMatchObject({ group: 'plugins', available: false })
   expect(visibleSections().map((s) => s.id)).not.toContain('lsp')
   expect(resolveSection('lsp').id).toBe('general')
   expect(visibleRightPanelTabs().map((tab) => tab.id)).not.toEqual(expect.arrayContaining(['team']))
-  expect(visibleRightPanelTabs().map((tab) => tab.id)).not.toContain('trace')
   expect(visibleHeaderActions().map((action) => action.id)).not.toContain('team')
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
@@ -187,7 +186,7 @@ it('M6 的占位（代码智能分区、Team 与 Trace tab、团队按钮）已�
 })
 
 it('M5 的注册表行都已交付：设置菜单中有子代理并可打开；右栏 tab 与标题栏操作含子代理', async () => {
-  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'agents', 'schedules'])
+  expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'agents', 'schedules', 'trace'])
   expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'agents', 'schedules', 'handoff'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
