@@ -65,7 +65,7 @@ export class McpAdmin {
         transport: transportOf(entry.config),
         enabled: entry.config.enabled !== false,
         status,
-        ...(status === 'failed' && connection?.error ? { error: connection.error } : {}),
+        ...((status === 'failed' || status === 'auth-required') && connection?.error ? { error: connection.error } : {}),
         ...(status === 'failed' && connection?.stderrTail ? { stderrTail: connection.stderrTail } : {}),
         tools,
         ...(entry.scope === 'project'

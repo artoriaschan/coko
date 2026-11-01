@@ -4,8 +4,10 @@
 // HTTP 视图与管理（view、updateServers、approve、reconnect）在 mcp-admin.ts。
 // 资源与提示模板：有已连接的 Server 声明 resources 时注册三个资源工具（权限类 context-read）；声明 prompts 的 Server 的提示模板以
 // /mcp__<server>__<prompt> 登记到命令目录（列表按连接缓存，prompts/list_changed 或重连后重新列出；列命令目录与提交消息时同样先连接）。
+// 认证：HTTP Server 回 401 时连接为 auth-required（不自动重连，Run 开始时也不重试），诊断 mcp-auth-required；command 为 npx 而找不到它时
+// 诊断 mcp-npx-missing（需要安装 Node.js）。两者都随连接状态派生，状态改变后消失。
 import { readFile as readFileFs } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import {
   createMcpResourceTools,
   DEFAULT_MCP_TIMEOUT_SECONDS,
@@ -30,6 +32,7 @@ import {
   type CapabilityConfig,
   type McpServerConfig,
   type McpServerEntry,
+  type McpTransportContext,
   type McpTransportHandle,
   type PluginContributionsPort,
   type ResourceDiagnostic,
@@ -48,8 +51,8 @@ export interface McpManagerOptions {
   /** 有效能力配置（mcp.enabled，含项目 .coko/settings.json 的收紧）。 */
   config: { effective(workspacePath?: string): Promise<CapabilityConfig> }
   secrets: Pick<SecretService, 'resolve' | 'redact' | 'redactValues' | 'onChange'>
-  /** 建立传输（adapters/mcp.ts）；config 中的 ${NAME} 已展开。 */
-  createTransport: (config: McpServerConfig, options: { cwd: string }) => McpTransportHandle
+  /** 建立传输（adapters/mcp.ts）；config 中的 ${NAME} 已展开。HTTP 传输装配 authProvider（401 时连接为 auth-required）。 */
+  createTransport: (config: McpServerConfig, options: { cwd: string } & McpTransportContext) => McpTransportHandle
   /** 测试覆盖（缺省 30 秒、1/2/4 秒）。 */
   connectTimeoutMs?: number
   reconnectDelaysMs?: readonly number[]
@@ -93,6 +96,23 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const keyOf = (workspaceId: string, cwd: string, name: string) => `${workspaceId}\0${cwd}\0${name}`
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const timeoutMsOf = (config: McpServerConfig) => (config.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
+
+/** 连接状态派生的诊断：auth-required；npx 启动的 Server 因找不到 npx 而失败。 */
+function connectionDiagnostics(pooled: Pooled): ResourceDiagnostic[] {
+  const { connection, entry } = pooled
+  if (connection.status === 'auth-required')
+    return [
+      diagnostic(
+        'mcp',
+        'mcp-auth-required',
+        `MCP server "${entry.name}" requires authentication: check the credentials in its headers; reference a registered Secret as \${NAME}`,
+      ),
+    ]
+  const command = 'command' in entry.config ? entry.config.command : undefined
+  if (connection.status === 'failed' && command !== undefined && /^npx(\.cmd)?$/.test(basename(command)) && /ENOENT/.test(connection.error ?? ''))
+    return [diagnostic('mcp', 'mcp-npx-missing', `MCP server "${entry.name}" runs npx, which was not found: install Node.js (npx)`)]
+  return []
+}
 
 /** 该 Server 的静态状态：能力或 Server 停用为 disabled，项目 Server 未按当前摘要批准为 pending-approval；应当连接时 undefined。 */
 export function staticMcpStatus(entry: McpServerEntry, loaded: LoadedMcpConfig): McpServerStatus | undefined {
@@ -235,12 +255,12 @@ export class McpManager {
       ...(this.#options.reconnectDelaysMs ? { reconnectDelaysMs: this.#options.reconnectDelaysMs } : {}),
       ...(this.#options.clientInfo ? { clientInfo: this.#options.clientInfo } : {}),
       redact: (text) => secrets.redact(text),
-      createTransport: async () => {
+      createTransport: async ({ authProvider }) => {
         // 启动或连接时才展开 Secret；未登记的名字使该 Server 失败，不回退到进程环境（ADR 0007）。
         const current = this.#pool.get(key)?.entry ?? entry
         const expanded = await expandSecretRefs(current.config, (name) => secrets.resolve(name))
         if (!expanded.ok) throw new Error(`Secret ${expanded.missing.join(', ')} is not registered; add it under Settings → MCP → Secrets`)
-        return this.#options.createTransport(expanded.config, { cwd })
+        return this.#options.createTransport(expanded.config, { cwd, authProvider })
       },
     })
     let lastStatus = connection.status
@@ -249,6 +269,8 @@ export class McpManager {
       if (connection.status === lastStatus) return
       lastStatus = connection.status
       if (connection.status === 'failed') log.warn('mcp server failed', { workspaceId, server: entry.name, error: connection.error ?? '' })
+      // 只记名字：401 的响应体与 WWW-Authenticate 不进入日志。
+      else if (connection.status === 'auth-required') log.warn('mcp server requires authentication', { workspaceId, server: entry.name })
       else if (connection.status === 'connected') log.info('mcp server connected', { workspaceId, server: entry.name, tools: connection.tools.length })
     })
     const pooled: Pooled = { workspaceId, cwd, entry, connection, runtimeDiagnostics: new Map() }
@@ -384,9 +406,9 @@ export class McpManager {
     }
   }
 
-  /** 该 Workspace 各连接最近的结果诊断（提示模板列表与调用）。 */
+  /** 该 Workspace 各连接最近的结果诊断（提示模板列表与调用）与连接状态的诊断（auth-required、找不到 npx）。 */
   runtimeDiagnostics(workspaceId: string): ResourceDiagnostic[] {
-    return [...this.#pool.values()].filter((p) => p.workspaceId === workspaceId).flatMap((p) => [...p.runtimeDiagnostics.values()])
+    return [...this.#pool.values()].filter((p) => p.workspaceId === workspaceId).flatMap((p) => [...p.runtimeDiagnostics.values(), ...connectionDiagnostics(p)])
   }
 
   /** 配置诊断与结果诊断（上下文用量接口）；不连接。 */
