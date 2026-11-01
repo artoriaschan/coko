@@ -21,6 +21,7 @@ import { AboutSection } from './about-section.tsx'
 import { AgentsSection } from './agents-section.tsx'
 import { GeneralSection } from './general-section.tsx'
 import { HooksSection } from './hooks-section.tsx'
+import { LspSection } from './lsp-section.tsx'
 import { McpSection } from './mcp-section.tsx'
 import { MemorySection } from './memory-section.tsx'
 import { ModelsSection } from './models-section.tsx'
@@ -84,7 +85,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: Unavailable, group: 'plugins', available: false },
   { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
   { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
-  { id: 'lsp', label: 'lsp.settings', icon: CodeIcon, Component: Unavailable, group: 'plugins', available: false },
+  { id: 'lsp', label: 'lsp.settings', icon: CodeIcon, Component: LspSection, group: 'plugins', available: true },
   { id: 'hooks', label: 'settings.nav.hooks', icon: WebhookIcon, Component: HooksSection, group: 'plugins', available: true },
   { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: AgentsSection, group: 'plugins', available: true },
   { id: 'models', label: 'settings.nav.models', icon: BoxIcon, Component: ModelsSection, group: 'models', available: true },
