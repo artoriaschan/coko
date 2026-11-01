@@ -1,6 +1,6 @@
 // M6 的装配接入点：真实 Sidecar（faux）。插件消费 seam（COKO_TEST_PLUGINS 把夹具目录当作已批准的插件）：插件的 Skill、命令、子代理定义、
 // PreToolUse Hook 与 MCP Server 接入各自的加载，未设置时都不存在；引用 Secret 的插件 MCP Server 不加载。model_request 的逐请求记录与日志；
-// 新路由的空结果与 501 占位；headless 存根；有序关闭（定时器 → Run → Job → 贡献 → LSP → 登记进程 → 存储）。harness 自测：LSP 假服务器与插件夹具。
+// 新路由的空结果与 501 占位；headless 入口的参数错误；有序关闭（定时器 → Run → Job → 贡献 → LSP → 登记进程 → 存储）。harness 自测：LSP 假服务器与插件夹具。
 // 新的读取根（插件目录）与注入点（插件资源、插件 Hook 的 stdin）的符号链接越界与秘密总闸用例由插件核心给出；这里只验证接线。
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -223,14 +223,14 @@ describe('M6 装配接入点', { timeout: 60_000 }, () => {
     expect(steps).toEqual(['timers', 'runs', 'jobs', 'contributions', 'lsp', 'processes', 'storage'])
   })
 
-  it('headless 存根：打印说明并以 4 退出', async () => {
+  it('headless 入口：没有参数时以 4（参数错误）退出并打印用法', async () => {
     const electron = createRequire(import.meta.url)('electron') as string
     const entry = fileURLToPath(new URL('../../apps/server/src/headless/index.ts', import.meta.url))
     const child = spawn(electron, [entry], { env: { PATH: process.env.PATH ?? '', ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
     let stderr = ''
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
     const code = await new Promise<number | null>((resolve) => child.once('exit', (c) => resolve(c)))
-    expect([code, stderr]).toEqual([4, 'coko headless: not implemented\n'])
+    expect([code, stderr]).toEqual([4, expect.stringMatching(/^coko headless: Missing --data-dir\nUsage: headless\.mjs /)])
   })
 })
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createAgentRuntime, createBuiltinToolRegistry, createLocalExecPort, SESSION_ENTRY_PAYLOADS, type RunEntry, type RuntimeEvent } from '@coko/agent'
 import { createFauxModels, createTempWorkspace, fauxAssistantMessage, fauxToolCall, type TempWorkspace } from '@coko/agent/testing'
-import { createPayloadRegistry } from '@coko/session'
+import { createPayloadRegistry, type NewSessionEntry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 
 let ws: TempWorkspace | undefined
@@ -35,7 +35,8 @@ describe('SDK：@coko/agent 作为库', () => {
       sessionId: session.id,
       tools: createBuiltinToolRegistry({ cwd: ws.dir, exec: createLocalExecPort() }),
       // 每条条目先入库，Run 才继续。
-      commit: async (entry) => void (await store.sessions.appendEntries(session.id, [entry])),
+      // payload 是 JSON 值（条目 schema 保证），Repository 的输入类型为 NewSessionEntry。
+      commit: async (entry) => void (await store.sessions.appendEntries(session.id, [entry as NewSessionEntry])),
       permissions: { mode: () => 'default', rules: () => [] },
     })
     const events: RuntimeEvent[] = []

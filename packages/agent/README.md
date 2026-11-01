@@ -20,6 +20,40 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 `src/engine/` 的划分：`runtime.ts`（`createAgentRuntime`：Run 生命周期、事件到条目与进度、运行控制）、`types.ts`（`AgentRuntimeOptions`、`AgentRuntime` 与 Run 的类型）、`compaction-driver.ts`（压缩编排：摘要请求、熔断、手动 / 自动 / 溢出三个触发点，运行时只在 `prepareRequest` 与 `compact()` 接线）、`system-message.ts`（基础提示与 system sections 组成的开头系统消息）、`permission-wiring.ts`（权限判定在运行时的接线：链首判定、执行前准备、沙箱拒绝记录）、`retry.ts`（模型请求的重试）。
 
+## 作为库使用
+
+`@coko/agent` 的主入口就是 SDK：在本 monorepo 中以 `"@coko/agent": "workspace:*"` 依赖，不需要 Sidecar。不做 dist 构建与 npm 发布（理由见 [架构](../../docs/tech-stack/architecture.md#构建与测试归属)）。最小装配：
+
+```ts
+import { createAgentRuntime, createBuiltinToolRegistry, createLocalExecPort, createModelRegistry, InMemoryCredentialStore, resolveModel, SESSION_ENTRY_PAYLOADS } from '@coko/agent'
+import { createPayloadRegistry, type NewSessionEntry } from '@coko/session'
+import { createMemoryStore } from '@coko/session/memory'
+
+const store = createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) }) // 或 @coko/session/sqlite
+const workspace = await store.sessions.registerWorkspace({ path: cwd })
+const session = await store.sessions.createSession({ workspaceId: workspace.id, title: 'run', model: null })
+const credentials = new InMemoryCredentialStore() // 宿主自己的 CredentialStore
+const registry = createModelRegistry({ credentials, providers: [providerConfig] })
+const runtime = createAgentRuntime({
+  models: registry.models,
+  model: resolveModel(registry, providerConfig.id, modelId),
+  cwd,
+  sessionId: session.id,
+  tools: createBuiltinToolRegistry({ cwd, exec: createLocalExecPort() }),
+  commit: async (entry) => void (await store.sessions.appendEntries(session.id, [entry as NewSessionEntry])),
+  permissions: { mode: () => 'default', rules: () => [] },
+})
+runtime.subscribe((event) => {
+  if (event.kind === 'entry' && event.entry.kind === 'approval_request') void runtime.answerApproval(event.entry.payload.requestId, { decision: 'allow' })
+})
+const result = await runtime.run('…') // RunResult { runId, status, error? }
+```
+
+- **条目。** 每个已提交事实经 `commit` 交给宿主（提交完成后 Run 才继续），条目也以 `{ kind: 'entry' }` 事件发出；`progress` 事件是临时显示状态。用 `SESSION_ENTRY_PAYLOADS` 注册 payload 校验，读回时由 `@coko/session` 迁移旧版本。
+- **权限。** 省略 `permissions` 时不判定、不设命令沙箱。给出时需要审批的调用以 `approval_request` 等待 `answerApproval`；没有人能回答时给 `unattended: { deniedText }`，这些调用立即以 `approval_decision { by: headless }` 拒绝（[ADR 0019](../../docs/adr/0019-headless-runs-deny-approvals.md)）。
+- **测试。** `@coko/agent/testing` 的 `createFauxModels`（无密钥的脚本化模型）与 `createTempWorkspace`。可运行的例子：`tests/integration/sdk-library.test.ts`（只经公共入口与内存实现，断言结果、事件顺序与条目）。
+- 需要完整的应用层（上下文贡献、Hook、子代理、存储与恢复）而不写 UI 时，用无界面运行（[headless](../../docs/subsystems/headless.md)）或作为客户端连接 standalone Sidecar（[协议](../protocol/README.md)）。
+
 ## 契约与生命周期
 
 ### 运行控制
