@@ -22,3 +22,4 @@
 - 2026-11-01 lead（来自票 05、10）：共用的 `text-destructive` 在卡片背景上的对比度为 4.50（浅色）与 4.24（深色），不高于 4.5。票 10 的关于页已经改为中性色文字加 destructive 图标。本票复核时确认各处错误文字的对比度，不达标的由 lead 另开修复票（改 `packages/ui` 的 token，按 ui-design-system.md 处理）。
 - 2026-11-01 lead（来自票 07）：`apps/server/README.md` 中"TraceService 为空 / 501"的说法已过时；`tests/integration/sidecar-m6-seams.test.ts` 文件头注释的"501 占位"同样过时（合并 05 与 07 后已不剩 501 断言）；agent README 的 observability 导出要点见票 07 的实施者回执。
 - 2026-11-01 lead（来自票 12）：`docs/README.md` 当前行为导航中插件一行（票 04 加入）补"设置中的插件分区与批准对话框"。
+- 2026-11-01 lead（来自票 06、09）：两处间歇失败另由 m6/fix-team-goal-flakes 修复，本票的锁内全量在它合入之后运行：`secrets-gate-teams.test.ts` 第 80 行（teammate 的 `<team>` section 只在 Run 开始时读一次，任务可能在 mate 的 Run 开始之后才创建）；`apps/desktop/e2e/goal.e2e.test.ts`（期望预算 exhausted，实际 normal，只读一次状态）。

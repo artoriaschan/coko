@@ -67,3 +67,15 @@
     - agent 新导出 `isMcpAuthError` 与类型 `McpTransportContext`；`McpConnectionStatus` 增加 `auth-required`。
     - protocol 新增 `McpPreset` 与 `McpPresetsResponse`。
     - server 的路由增加 `GET /api/mcp/presets`。
+
+### Lead 合入（2026-11-01）
+
+- 裁决：越出写范围的改动接受：`apps/server/src/adapters/mcp.ts` 增加可选 `authProvider`，只传给 HTTP 传输，stdio 不变；`tool-card-images.browser.test.tsx` 是就近测试。与票 13 在 `tool-cards.tsx` 的 lucide 导入冲突，两边都保留，接受。
+- 实施者在合并 main（a3aee6b）后跑了锁内全量：第一次 `goal.e2e` 有 1 例失败（期望预算 exhausted，实际 normal），单独运行 2/2 通过；第二次 `test=0`，381 个文件、2961 例通过、5 例跳过。
+- 以 2ca23c3 合入 main，树与分支相同；`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check`、`check:docs` 退出 0。
+- 合入后的相关文件集（84 个文件、373 例）三次运行中暴露了两处与本票无关的间歇失败：
+  - 票 11 的 `memory-section.browser.test.tsx`：用真实时钟连续按键，负载下按键间隔超过 200 ms 的防抖，`dock`、`docke` 也被检索。lead 改为只替换 `setTimeout` 的假时钟（068b342，以 8417e52 合入 main）；单独运行 5/5 通过，把防抖改成 0 或 100 时用例变红。
+  - 票 06 的 `secrets-gate-teams.test.ts` 第 80 行：teammate 的 `<team>` section 只在它的 Run 开始时读一次（`engine/types.ts`），mate 在 lead 的第一个回复中创建，任务在第二个回复中创建，mate 的 section 是否带任务标题取决于时序。lead 试过把 `task_create` 移到 `agent` 之前，6/6 失败（team 工具在有 teammate 之前不注册），已还原，交给修复票。
+- 未验证：真实的 Playwright MCP（`COKO_REAL_PLAYWRIGHT_MCP=1` 的 skipIf）、要求认证的真实 HTTP 服务、GET 流上的 401。
+
+Closed: true
