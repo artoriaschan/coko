@@ -10,7 +10,7 @@ import {
   type ThinkingLevel as AgentThinkingLevel,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import { DEFAULT_MODEL_SETTING, SessionModel as SessionModelSchema } from '@coko/protocol'
+import { DEFAULT_MODEL_SETTING, ProviderFields as ProviderFieldsSchema, SessionModel as SessionModelSchema } from '@coko/protocol'
 import type {
   AvailableModel,
   CatalogModel,
@@ -20,6 +20,7 @@ import type {
   ProviderFields,
   ProviderReferencesResponse,
   ProviderSaveMode,
+  SessionModel,
   SidecarToMainMessage,
   ThinkingLevel,
 } from '@coko/protocol'
@@ -75,6 +76,41 @@ function validate(config: ProviderConfig): void {
     if (error instanceof ModelConfigError) throw new AppError('bad-request', error.message)
     throw error
   }
+}
+
+/**
+ * 无界面运行的 Provider 配置文件（ADR 0019）：连接信息与 Model Catalog，不含密钥；defaultModel 为 `<providerId>/<modelId>`。
+ * 字段在 upsertFromConfig 中校验（文件内容是不可信输入）。
+ */
+export interface ProviderConfigFile {
+  providers: ProviderFields[]
+  defaultModel?: string
+}
+
+export interface ProviderConfigResult {
+  created: string[]
+  updated: string[]
+  defaultModel?: SessionModel
+}
+
+/** 密钥形态的字段名（任意深度）：配置文件只放连接信息，密钥只读 COKO_CREDENTIAL_<ID>。 */
+const SECRET_FIELD = /^(?:api[-_]?key|apikey|secret|token|access[-_]?token|password|credentials?|authorization)$/i
+
+function secretField(value: unknown, path: string): string | undefined {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const found = secretField(value[i], `${path}[${i}]`)
+      if (found) return found
+    }
+    return undefined
+  }
+  if (typeof value !== 'object' || value === null) return undefined
+  for (const [key, child] of Object.entries(value)) {
+    if (SECRET_FIELD.test(key)) return `${path}.${key}`
+    const found = secretField(child, `${path}.${key}`)
+    if (found) return found
+  }
+  return undefined
 }
 
 export interface ProviderServiceOptions {
@@ -142,6 +178,72 @@ export class ProviderService {
     if (secret) this.#options.invalidateCredential(id)
     log.info('provider saved', { providerId: id, mode, api, credential: secret ? 'replaced' : 'kept' })
     return toProviderDto(saved)
+  }
+
+  /**
+   * 无界面运行的启动配置（ADR 0019：ADR 0010 之外、只在 headless 装配中可用，不经 HTTP 与控制消息）：整份文件先校验（密钥形态的字段、
+   * 协议 schema、registry 能否构造、defaultModel 是否指向文件或库中的模型），全部通过后才写入；写入中途失败时把已写入的新建删除、更新
+   * 恢复原值，库中不留下半份配置。只写连接信息与 Model Catalog，已有的 Credential 不变；没有任何密钥进入库。
+   */
+  async upsertFromConfig(config: ProviderConfigFile): Promise<ProviderConfigResult> {
+    if (typeof config !== 'object' || config === null || !Array.isArray(config.providers))
+      throw new AppError('bad-request', 'The provider config must be an object with a providers array')
+    const leaked = secretField(config, 'config')
+    if (leaked)
+      throw new AppError('bad-request', `The provider config must not contain secrets (${leaked}); pass keys in COKO_CREDENTIAL_<ID>`, {
+        reason: 'secret-in-config',
+        field: leaked,
+      })
+    const unknownKeys = Object.keys(config).filter((key) => key !== 'providers' && key !== 'defaultModel')
+    if (unknownKeys.length > 0) throw new AppError('bad-request', `Unknown provider config field: ${unknownKeys[0]}`)
+    const ids = new Set<string>()
+    for (const [index, fields] of config.providers.entries()) {
+      if (!Value.Check(ProviderFieldsSchema, fields)) {
+        const first = [...Value.Errors(ProviderFieldsSchema, fields)][0]
+        throw new AppError('bad-request', `providers[${index}] is invalid${first ? `: ${first.instancePath || '/'} ${first.message}` : ''}`)
+      }
+      if (ids.has(fields.id)) throw new AppError('bad-request', `Provider ${fields.id} appears twice in the config`)
+      ids.add(fields.id)
+      validate(toProviderConfig(fields))
+    }
+    const { providers, settings } = this.#options.store
+    let defaultModel: SessionModel | undefined
+    if (config.defaultModel !== undefined) {
+      const [providerId, modelId, extra] = typeof config.defaultModel === 'string' ? config.defaultModel.split('/') : []
+      const inFile = config.providers.find((p) => p.id === providerId)
+      const models = inFile ? inFile.models : providerId ? ((await providers.get(providerId))?.models as CatalogModel[] | undefined) : undefined
+      if (!providerId || !modelId || extra !== undefined || !models?.some((m) => m.id === modelId))
+        throw new AppError('bad-request', 'defaultModel must be <providerId>/<modelId> of a configured model')
+      defaultModel = { providerId, modelId }
+    }
+
+    const existing = new Map((await providers.list()).map((p) => [p.id, p]))
+    const created: string[] = []
+    const updated: StoredProvider[] = []
+    const previousDefault = await settings.get(DEFAULT_MODEL_SETTING)
+    try {
+      for (const { id, name, api, baseUrl, models } of config.providers) {
+        const before = existing.get(id)
+        if (before) {
+          await providers.update(id, { name, api, baseUrl, models })
+          updated.push(before)
+        } else {
+          await providers.create({ id, name, api, baseUrl, models })
+          created.push(id)
+        }
+      }
+      if (defaultModel) await settings.set(DEFAULT_MODEL_SETTING, defaultModel, previousDefault?.revision ?? 0)
+    } catch (error) {
+      // 补偿：同一进程持有库的租约，没有并发写入方；按相反顺序撤销。
+      for (const id of created.reverse()) await providers.delete(id).catch(() => undefined)
+      for (const before of updated.reverse())
+        await providers.update(before.id, { name: before.name, api: before.api, baseUrl: before.baseUrl, models: before.models }).catch(() => undefined)
+      log.error('provider config rolled back', { error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+    for (const fields of config.providers) this.#options.registry.setProvider(toProviderConfig(fields))
+    log.info('provider config applied', { created, updated: updated.map((p) => p.id), ...(defaultModel ? { defaultModel } : {}) })
+    return { created, updated: updated.map((p) => p.id), ...(defaultModel ? { defaultModel } : {}) }
   }
 
   /** 引用该 Provider 的 Session 数量；不存在时 not-found。 */

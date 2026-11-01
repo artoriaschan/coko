@@ -47,5 +47,6 @@ ADR 0004 的其余约束不变：加解密只在 main，库中只有密文，sid
 ## 来源与后继
 
 - 扩展 [ADR 0004](0004-model-credentials-safe-storage.md) 的密钥写入与使用路径，不替代其加密与存储决定。
+- 被 [ADR 0019](0019-headless-runs-deny-approvals.md) 细化：无界面运行中 Provider 的连接信息与 Model Catalog 可由启动配置文件写入（只在 headless 装配中，不经 HTTP），密钥仍只读 `COKO_CREDENTIAL_<ID>`、不入库。
 - 存储边界见 [ADR 0003](0003-settings-and-sessions-in-sqlite.md)。
 - Thinking Level 与 Model Catalog 的含义见 [术语表](../../GLOSSARY.md)。

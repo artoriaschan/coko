@@ -103,7 +103,7 @@ sidecar 的服务即使只监听 loopback 也强制认证，没有关闭开关�
 
 ### 构建与测试归属
 
-共享包以 TypeScript 源码为导出入口：`package.json` 的 `exports` 指向 `src/index.ts`，由消费方的 tsdown、Vite 或 Vitest 直接编译，不单独输出 dist；apps/server 与 apps/desktop 的 tsdown 构建把所用 workspace 包打进各自产物。ui 由 renderer 的 Vite 构建消费，React 保持 peer 依赖。这是对各共享包独立输出 dist 的简化，于 2026-10-28 随 M1 规格批准；需要独立发布 SDK 时（M6）再为 agent 增加 dist 构建。
+共享包以 TypeScript 源码为导出入口：`package.json` 的 `exports` 指向 `src/index.ts`，由消费方的 tsdown、Vite 或 Vitest 直接编译，不单独输出 dist；apps/server 与 apps/desktop 的 tsdown 构建把所用 workspace 包打进各自产物。ui 由 renderer 的 Vite 构建消费，React 保持 peer 依赖。这是对各共享包独立输出 dist 的简化，于 2026-10-28 随 M1 规格批准。M6 的 SDK 仍是 `@coko/agent` 的源码主入口，不加 dist 构建与 npm 发布：仓库没有 remote 与发布目的地，库调用方在本 monorepo 中以 workspace 依赖使用（[agent README](../../packages/agent/README.md#作为库使用)）；有独立发布的目的地时再为 agent 增加 dist。
 
 消费方以 `"@coko/<pkg>": "workspace:*"` 声明依赖，并在自身 tsconfig 的 `references` 中引用该包。TypeScript 类型检查统一使用 tsc -b：各 workspace 是 composite 项目，只输出声明文件到被忽略的根 `.tsbuild/` 供增量检查，根 tsconfig 引用全部 workspace。
 
@@ -115,6 +115,6 @@ sidecar 产物由 apps/desktop 构建：`build/build.ts` 以 tsdown 把 apps/ser
 
 设置、Session 与相关业务状态保存在 sidecar 独占的单个 SQLite 库，入库范围、提交、迁移、租约与损坏处理见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)。记录封装、schema 版本与事务边界由 session 定义；agent 定义业务状态恢复规则。不调用 pi-durable 的 JSONL 或 lease 实现。
 
-M5 的应用服务（Hook、子代理、定时任务、worktree、Handoff、桌面通知）与时钟在 `runtime/layers.ts` 中和其余服务一起装配。M6 的服务（插件、语言服务器、Agent Teams、追踪）同样在这里装配，每个领域在 `layers.ts` 中有一个以 `// ── <domain> ──` 与 `// ── end <domain> ──` 注释界定的块；插件经 `PluginContributionsPort` 向 Skills、命令、子代理定义、Hook 与 MCP 的加载提供贡献快照。无界面运行的入口是 `apps/server/src/headless/`，构建为 `dist/sidecar/headless.mjs`。有序关闭的顺序：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 关闭语言服务器进程 → 终止登记进程 → 关闭存储。
+M5 的应用服务（Hook、子代理、定时任务、worktree、Handoff、桌面通知）与时钟在 `runtime/layers.ts` 中和其余服务一起装配。M6 的服务（插件、语言服务器、Agent Teams、追踪）同样在这里装配，每个领域在 `layers.ts` 中有一个以 `// ── <domain> ──` 与 `// ── end <domain> ──` 注释界定的块；插件经 `PluginContributionsPort` 向 Skills、命令、子代理定义、Hook 与 MCP 的加载提供贡献快照。无界面运行的入口是 `apps/server/src/headless/`，构建为 `dist/sidecar/headless.mjs`，以 `headlessLayer`（与 Sidecar 相同的应用层，去掉 HTTP，控制通道不输出）装配，见 [无界面运行](../subsystems/headless.md)。有序关闭的顺序：停止 HTTP → 停止定时器 → 中断并等待 Run（含子 Run）→ 关闭 Job → 关闭上下文贡献 → 关闭语言服务器进程 → 终止登记进程 → 关闭存储。
 
 Effect 管理服务生命周期、唤醒任务与宿主资源，agent 定义执行策略并调用 pi-agent-core 循环。server 通过协议向客户端输出业务事件，前端不直接持有 Agent 实例。

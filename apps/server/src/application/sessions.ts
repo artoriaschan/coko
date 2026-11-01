@@ -58,6 +58,11 @@ export interface SessionServiceOptions {
   cwd?: SessionCwd
   /** M5：子 Session 的权限作用域（ADR 0014）。缺省每个 Session 是自己的根、没有上限。 */
   permissionScopes?: PermissionScopeResolver
+  /**
+   * 无人回答的运行（headless，ADR 0019）：需要审批的调用（含子代理的）在 PermissionRequest Hook 之后立即以 by headless 拒绝，模型看到
+   * deniedText。缺省等待回答。
+   */
+  unattendedApprovals?: { deniedText: string }
 }
 
 /**
@@ -91,6 +96,7 @@ export class SessionService {
       service: this.permissions,
       contributions: this.#context.contributions,
       ...(options.permissionScopes ? { scopes: options.permissionScopes } : {}),
+      ...(options.unattendedApprovals ? { unattended: options.unattendedApprovals } : {}),
     })
     this.#recovery = new SessionRecovery({
       store,

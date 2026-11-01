@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的插件契约（服务端）：清单位置、字段与诊断，资源路径与符号链接检查，${COKO_PLUGIN_ROOT} 替换，engines.coko，目录与 git 来源的安装与复制上限，digest 与批准，状态派生，启用 / 禁用 / 更新 / 卸载，贡献的命名空间与加载时机，/api/plugins 接口，以及与项目资源的区别。修改插件的安装、批准、贡献或接口前查阅。"
+description: "当前的插件契约：清单位置、字段与诊断，资源路径与符号链接检查，${COKO_PLUGIN_ROOT} 替换，engines.coko，目录与 git 来源的安装与复制上限，digest 与批准，状态派生，启用 / 禁用 / 更新 / 卸载，贡献的命名空间与加载时机，/api/plugins 接口，设置中的插件分区与批准对话框，以及与项目资源的区别。修改插件的安装、批准、贡献、接口或界面前查阅。"
 lifecycle: active
 ---
 
 # 插件
 
-本文说明 Coko 当前如何安装、批准和加载 [Plugin](../../GLOSSARY.md)：插件是用户安装的一组资源（Skills、命令、子代理定义、Hook、MCP Server 与语言服务器声明），复制到 `<COKO_HOME>/plugins/<name>`，按会执行的声明整体批准后才加载。只声明、不执行插件代码、只有用户级安装与按 digest 批准的理由见 [ADR 0017](../adr/0017-plugins-declarative-user-installed.md)。本页只覆盖服务端；设置中的插件分区与批准对话框尚未接入。
+本文说明 Coko 当前如何安装、批准和加载 [Plugin](../../GLOSSARY.md)：插件是用户安装的一组资源（Skills、命令、子代理定义、Hook、MCP Server 与语言服务器声明），复制到 `<COKO_HOME>/plugins/<name>`，按会执行的声明整体批准后才加载。只声明、不执行插件代码、只有用户级安装与按 digest 批准的理由见 [ADR 0017](../adr/0017-plugins-declarative-user-installed.md)。服务端行为见前几节，设置中的插件分区与批准对话框见 [界面](#界面)。
 
 ## 结构入口
 
@@ -21,6 +21,8 @@ lifecycle: active
 | `apps/server/src/adapters/git.ts` | `gitClone`：宿主 git 的浅克隆 |
 | `apps/server/src/http/routes/plugins.ts` | `/api/plugins` 路由 |
 | `packages/session` 的 `plugins` 表 | 安装记录：来源、ref、commit、版本、安装目录、digest、已批准的 digest、启用状态 |
+| `apps/desktop/src/renderer/stores/plugins-store.ts` | renderer 的插件 store：经 `requestJson` 调用 `/api/plugins` |
+| `apps/desktop/src/renderer/features/settings/{plugins-section,plugin-approval-dialog}.tsx` | 设置 → 插件分区与批准对话框 |
 
 ## 清单
 
@@ -116,6 +118,17 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 
 路径见 `pluginPaths`：`GET /api/plugins` → `PluginInfo[]`；`POST /api/plugins`；`PATCH` 与 `DELETE /api/plugins/:name`；`POST /api/plugins/:name/approve`；`POST /api/plugins/:name/update`。日志：`plugin installed`、`plugin approved`、`plugin enabled` / `plugin disabled`、`plugin updated`（带 `digestChanged`）、`plugin uninstalled`、`plugin clone failed`、`plugin path outside the plugins directory refused`。
 
+## 界面
+
+设置 → 插件分区（插件分类下第一项）读取 `GET /api/plugins`，打开分区时读一次，每次操作后用返回的 `PluginInfo` 更新列表。store 经 `requestJson`：响应按 `PluginInfo` 校验，错误体按 `ErrorResponse` 校验，不合规的错误体不信任其中的 code（界面显示通用提示，原文放在"技术详情"中）。
+
+- **安装。** "从文件夹安装…"经现有的目录选择 IPC（`pickDirectory`）取得绝对路径，发 `{ kind: 'dir', path }`；git 安装填写地址与可选的分支或标签，发 `{ kind: 'git', url, ref? }`。成功后插件为待批准，批准对话框自动打开。失败时在安装卡内行内提示（按错误码本地化），`plugin-invalid` 另列 `details.diagnostics`，已填的地址保留。
+- **列表。** 每个插件一张卡：名字、版本、状态、描述、来源（目录或 git，git 另带 ref 与 commit 的前 7 位，悬停看全文）、贡献计数（Skill、命令、子代理、Hook、MCP Server、语言服务器，为 0 的不显示）与诊断（按 code 本地化标题，原文作为细节）。状态文字在明暗主题下对卡片背景不低于 4.5:1；不兼容与无效为前景色文字加破坏性颜色的图标。
+- **按状态的操作。** 待批准：查看并批准；启用 / 停用：启用开关（`PATCH`）；不兼容与无效：没有开关，附一行原因。所有状态都有更新与卸载。
+- **批准对话框。** 列出每条 Hook 的事件、matcher 与完整命令，每个 MCP Server 的命令、参数、地址与环境变量的键，每个语言服务器的命令、参数与扩展名，以及 Skills、命令、子代理的名字。命令换行显示，不截断、不横向滚动。只有点"批准"才发 `approve`，digest 取所显示内容的 digest；取消、Esc 与关闭都不发请求。打开期间内容变了（409 `digest-mismatch` 后读回）时对话框不关闭，提示已变化并换成最新内容，需要再次批准。初始焦点不在"批准"上。
+- **更新。** `POST /api/plugins/:name/update` 后 digest 变化且回到待批准时显示警示 Toast，卡片换回"查看并批准"。
+- **卸载。** 先弹确认框（说明会停止进程并删除安装目录中的副本，来源不受影响），确认后发 `DELETE`，列表移除该卡；列表为空时显示空状态。
+
 ## 验证
 
 - `packages/agent/src/extensions/plugins/manifest.test.ts`：两种清单位置、每种诊断、路径数组与缺省目录、符号链接与 `../` 逃出插件根、根目录替换、`engines.coko`、digest 不受键顺序与 Skill 正文影响而随 Hook 命令、MCP 参数与 env、LSP 命令、version、engines 与安装目录变化、贡献名字。
@@ -125,6 +138,9 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 - `tests/integration/sidecar-plugins-trust.test.ts`：插件 Hook 的 allow 越不过询问规则、`.git/config` 写入与越出可写根；deny 在 full-access 下生效；符号链接与清单路径逃出插件根；MCP 引用 Secret；`engines.coko` 不满足；超过体积上限。
 - `tests/integration/secrets-gate-plugins.test.ts`：插件 Skill、命令与子代理定义的正文和插件 Hook 输出含登记 Secret 时，requestLog、条目、WS、HTTP、库、日志与 Hook 的 stdin 中没有明文。
 - `apps/desktop/e2e/package-smoke.e2e.test.ts`：打包应用中从仓库夹具目录安装、批准后插件的 MCP Server 被启动，语言服务器列在 `executables` 中。
+- `apps/desktop/src/renderer/stores/plugins-store.test.ts`：六个接口的路径与请求体、更新后的 `digestChanged`、错误体按 `ErrorResponse` 校验（不合规与响应不符 schema 为 `bad-response`）、`digest-mismatch` 后读回。
+- `apps/desktop/src/renderer/features/settings/plugins-section.browser.test.tsx`：五种状态、来源与 commit、贡献计数与诊断，明暗主题下状态文字的对比度；批准对话框的全部命令（长命令换行不截断），取消与 Esc 不发 approve，Tab 到"批准"后 Enter 才发；409 后提示已变化并用新 digest 再批准；开关、更新回到待批准、卸载确认；文件夹与 git 安装、诊断与不合规错误体。
+- `apps/desktop/e2e/plugins.e2e.test.ts`：真实 Electron 与 Sidecar。夹具副本经目录选择安装 → 待批准 → 对话框显示 Hook 完整命令（Esc 不批准）→ 键盘批准 → 启用；新会话的 `/` 菜单出现 `sample:hello`，禁用后消失；改动副本中的 Hook 命令后更新回到待批准、对话框显示新命令；明暗主题下状态文字的对比度；卸载后列表为空、安装目录被删除。
 
 ## 延伸阅读
 
