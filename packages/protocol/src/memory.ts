@@ -28,7 +28,11 @@ export const MemoryEntry = Type.Object(
 )
 export type MemoryEntry = Static<typeof MemoryEntry>
 
-/** GET /api/memories?workspaceId=…：用户级条目，给出 workspaceId 时另加该 Workspace 的条目；updatedAt 倒序。Workspace 不存在 404。 */
+/**
+ * GET /api/memories?workspaceId=…：用户级条目，给出 workspaceId 时另加该 Workspace 的条目；updatedAt 倒序。Workspace 不存在 404。
+ * 另有 scope=user|workspace 只留一种（workspace 须给出 workspaceId，否则 400），query=… 非空时为检索（apiPaths.memorySearch）：
+ * 空白分隔的词全部出现才匹配（大小写不敏感、按字面），至多 20 条，FTS5 可用时按相关度，否则按 updatedAt 倒序。
+ */
 export const MemoryListResponse = Type.Object({ memories: Type.Array(MemoryEntry) }, strict)
 export type MemoryListResponse = Static<typeof MemoryListResponse>
 
