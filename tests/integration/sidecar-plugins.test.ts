@@ -202,7 +202,7 @@ describe('插件：目录来源', { timeout: 120_000 }, () => {
       await pollUntil(async () => ((await h.mcp()).servers.some((s) => s.name === 'plugin-sample-echo' && s.status === 'connected') ? true : undefined), {
         timeoutMs: 30_000,
       })
-      return pollUntil(() => (h.mcpRows().length === 1 ? h.mcpRows() : undefined), { timeoutMs: 10_000 })
+      return (await pollUntil(() => (h.mcpRows().length === 1 ? h.mcpRows() : undefined), { timeoutMs: 10_000 }))!
     }
     const gone = (pids: number[]) => pollUntil(() => (h.mcpRows().length === 0 ? true : undefined), { timeoutMs: 10_000 }).then(() => waitProcessesGone(pids))
     await h.approve((await h.install({ kind: 'dir', path: plugin.root })).body as PluginInfo)

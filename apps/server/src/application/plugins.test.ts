@@ -99,9 +99,9 @@ describe('PluginService', () => {
 
   it('无效清单 400 plugin-invalid（details.diagnostics）；超出上限 400 plugin-too-large；都不留下安装目录', async () => {
     await put('.coko-plugin/plugin.json', { name: 'Bad Name', version: '1.0.0' })
-    const error = await service()
+    const error = (await service()
       .install({ kind: 'dir', path: source })
-      .catch((e: AppError) => e)
+      .catch((e: unknown) => e)) as AppError
     expect([error.code, (error.details!.diagnostics as { code: string }[]).map((d) => d.code)]).toEqual(['plugin-invalid', ['invalid-name']])
     await put('.coko-plugin/plugin.json', { name: 'demo', version: '1.0.0' })
     expect(await codeOf(service({ limits: { maxFiles: 2, maxBytes: 1_000_000 } }).install({ kind: 'dir', path: source }))).toEqual(['plugin-too-large', 400])
