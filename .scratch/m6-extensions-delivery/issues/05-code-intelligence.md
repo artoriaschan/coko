@@ -56,3 +56,14 @@
   - **Lead 合并时处理**：
     - `docs/README.md` 当前行为加了"代码智能"一行，与 04 的"插件"一行已在合并中并存。
     - README 要点交给 14：agent 导出 `createLspTool`、`formatLspResult`、`toLspPosition` / `fromLspPosition`、`encodeFrame` / `decodeFrames`；server 新增 `LspService` 与测试钩子 `COKO_TEST_LSP_IDLE_MS`（仅非 --packaged）。`LspQuery` 的形状为本票所定（03 只有存根）。
+
+### Lead 合入（2026-11-01）
+
+- 裁决（偏离规格）：位置结果中的行文本只在文件处于工作目录内、不是受保护路径且不受 `Read` 拒绝规则覆盖时附带，否则只给位置。这项偏离收紧了规格，服务器报告的位置不能把外部文件内容带进结果，接受。
+- 裁决（对手用例）：`.git/config` 没有扩展名，在权限判定之前就因扩展名不匹配失败，改用 `.git/hook.ts` 验证 `lsp` 与 `read` 的判定一致，接受。
+- 从票 04 移来的验收（插件的 LSP 进程在打包产物中被启动并登记）：实施者在合并 main（含票 04）之后运行 package-smoke，5/5 通过，按真实的插件路径完成。
+- 越出写范围的改动全部接受：`context/types.ts` 的 `lsp?`、`layers.ts` 块外的 `createContributions` 参数与 `lsp.bindSessions`、`sidecar-m6-seams.test.ts`、`package-smoke.e2e.test.ts`、`sections.browser.test.tsx`、`permissions.md` 与 `configuration.md` 各一句、`docs/README.md` 一行。
+- 以 64461ad 合入 main：`pnpm install --frozen-lockfile`、`typecheck`、`lint`、`format:check` 退出 0，`check:docs` 211 个文件 0 个问题。目标文件集（54 个文件，267 例：LSP、context、secrets-gate*、seams、插件、设置界面、scripts）第一次在负载 306 时 7 例超时（都是 20 秒预算），第二次在负载 230 时只剩 `model-catalog` 与 `models-section` 两个 Browser Mode 文件失败，负载 172 时单独重跑这两个文件 16 例通过。分支上锁内的全量 `test=1`（2 例真实 git 超时，单独重跑通过），不记为"全量通过"。
+- 送往票 14 处理：共用的 `text-destructive` 在卡片背景上的对比度为 4.50（浅色）与 4.24（深色），不高于 4.5（票 10 已在关于页改用中性色文字绕开）。
+
+Closed: true
