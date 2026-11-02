@@ -587,6 +587,19 @@ const AppLive = Layer.effect(
       // 无界面运行：审批立即拒绝（含子代理），见 headlessLayer。
       ...(headless ? { unattendedApprovals: headless } : {}),
     })
+    sessions.useLifecycle({
+      runningJobs: async (id) => (await jobs.list(id)).some((job) => job.status === 'running' || job.status === 'stopping'),
+      quiesce: (ids, task) =>
+        schedules.quiesceSessions(ids, async () => {
+          await jobs.settleSessions(ids)
+          return task()
+        }),
+      forget: (ids) => {
+        jobs.forgetSessions(ids)
+        subagents.forgetSessions(ids)
+        goals.forgetSessions(ids)
+      },
+    })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
     bindSessions(sessions, worktrees)

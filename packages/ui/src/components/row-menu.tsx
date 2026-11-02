@@ -35,6 +35,8 @@ export function RowMenu({
           {...rowOverlayPosition}
           sideOffset={point ? 0 : rowOverlayPosition.sideOffset}
           aria-label={label}
+          // Reserve a pixel for Popper rounding when hairline separators make the height fractional.
+          collisionPadding={9}
           hideWhenDetached
           onCloseAutoFocus={onCloseAutoFocus}
         >

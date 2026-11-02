@@ -118,6 +118,10 @@ export interface SubagentRecoveryOptions {
 export class SubagentRecovery {
   readonly #options: SubagentRecoveryOptions
   /** 每个根 Session 的子代理 isolation worktree（派发时与启动恢复时登记；已移除的去掉）。 */
+  forgetSessions(ids: string[]): void {
+    for (const id of ids) this.#isolated.delete(id)
+  }
+
   readonly #isolated = new Map<string, Set<string>>()
 
   constructor(options: SubagentRecoveryOptions) {

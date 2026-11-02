@@ -3,6 +3,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, T
 import { FolderClosedIcon, FolderPlusIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { IconButton } from '../../app/icon-button.tsx'
 import { ApiError, projectApi } from '../../client/api.ts'
 
 export type ProjectFormResult = CreateProjectResponse | { status: 'updated'; project: Project }
@@ -100,7 +101,6 @@ export function ProjectFormDialog({
         <DialogContent
           data-project-form
           className="max-w-[520px] gap-5 p-6"
-          closeLabel={t('projectForm.close')}
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => {
             event.preventDefault()
@@ -113,6 +113,9 @@ export function ProjectFormDialog({
           onInteractOutside={(event) => event.preventDefault()}
         >
           <DialogTitle className="h-6 pr-8">{t(mode === 'create' ? 'projectForm.create' : 'projectForm.edit')}</DialogTitle>
+          <IconButton label={t('projectForm.close')} type="button" disabled={pending || picking} className="absolute top-3 right-3" onClick={requestClose}>
+            <XIcon aria-hidden className="size-4" strokeWidth={1.1} />
+          </IconButton>
           <form
             aria-busy={pending}
             className="flex min-h-0 flex-col gap-5"

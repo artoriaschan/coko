@@ -193,6 +193,7 @@ export interface ChatActions {
    * release 不退订它。release 可重复调用，只生效一次。
    */
   subscribeSession(sessionId: string): () => void
+  deleteSession(sessionId: string): Promise<void>
   startDraft(workspaceId?: string): void
   /** 返回同一份已保存的新对话草稿，保留项目与 Git 配置（历史导航）。 */
   resumeDraft(): void
@@ -408,6 +409,22 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             return { conversations: rest }
           })
         }
+      },
+
+      async deleteSession(sessionId) {
+        const { sessionIds } = await api.deleteSession(sessionId)
+        for (const id of sessionIds) {
+          stream.send({ type: 'unsubscribe', sessionId: id })
+          pinned.delete(id)
+          holders.delete(id)
+          for (const finish of subscribed.get(id) ?? []) finish()
+          subscribed.delete(id)
+          modeChains.delete(id)
+          for (const key of confirming.keys()) if (key.startsWith(`${id}:`)) confirming.delete(key)
+        }
+        lists.getState().removeSessions(sessionIds)
+        set((state) => ({ conversations: Object.fromEntries(Object.entries(state.conversations).filter(([id]) => !sessionIds.includes(id))) }))
+        if (get().activeSessionId !== null && sessionIds.includes(get().activeSessionId!)) get().startDraft()
       },
 
       startDraft(workspaceId) {

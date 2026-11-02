@@ -336,3 +336,7 @@ export type AvailableModel = Static<typeof AvailableModel>
 /** 已注册 Provider 的模型（按 Provider 登记顺序）与新建 Session 的默认模型；没有可用模型时 defaultModel 为 null。 */
 export const ModelListResponse = Type.Object({ models: Type.Array(AvailableModel), defaultModel: Type.Union([SessionModel, Type.Null()]) }, strict)
 export type ModelListResponse = Static<typeof ModelListResponse>
+
+/** DELETE /api/sessions/:id: authoritative removed tree identities. */
+export const DeleteSessionResponse = Type.Object({ sessionIds: Type.Array(Type.String()) }, { additionalProperties: false })
+export type DeleteSessionResponse = Static<typeof DeleteSessionResponse>

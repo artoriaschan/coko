@@ -97,6 +97,11 @@ export class SessionRuntimes {
     return created
   }
 
+  forget(sessionId: string): void {
+    this.discard(sessionId)
+    this.#lastStatus.delete(sessionId)
+  }
+
   /** 丢弃未在运行的运行时：之后开始 Run 时从条目重建（有效上下文、锚点与权限状态）。 */
   discard(sessionId: string): void {
     const runtime = this.#runtimes.get(sessionId)

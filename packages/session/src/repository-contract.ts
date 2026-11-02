@@ -47,6 +47,39 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await store.sessions.getWorkspace(w.id)).toBeUndefined()
     })
 
+    it('删除树清理所有层级的条目、定时任务与进程登记，保留共享目录、worktree 和其他会话', async () => {
+      const store = await open()
+      const workspace = await store.sessions.registerWorkspace({ path: '/repo' })
+      const worktree = await store.worktrees.create({
+        workspaceId: workspace.id,
+        name: 'keep',
+        path: '/repo/.coko-worktrees/keep',
+        branch: 'coko/keep',
+        baseCommit: 'abc',
+        repoRoot: '/repo',
+        createdBy: 'user',
+      })
+      const root = await store.sessions.createSession({ workspaceId: workspace.id, worktreeId: worktree.id })
+      const child = await store.sessions.createSession({ workspaceId: workspace.id, parentSessionId: root.id })
+      const grandchild = await store.sessions.createSession({ workspaceId: workspace.id, parentSessionId: child.id })
+      const retained = await store.sessions.createSession({ workspaceId: workspace.id })
+      for (const session of [root, child, grandchild, retained]) {
+        await store.sessions.appendEntries(session.id, [{ kind: 'note', payload: 'keep only unrelated' }])
+        await store.schedules.create({ sessionId: session.id, title: 'future', prompt: 'work', rule: { kind: 'every', seconds: 600 }, nextAt: 100000 })
+        await store.processes.register({ id: session.id, sessionId: session.id, pid: 10, startedAt: 'x', kind: 'job', command: 'done' })
+      }
+      expect(new Set(await store.sessions.deleteSession(root.id))).toEqual(new Set([root.id, child.id, grandchild.id]))
+      for (const session of [root, child, grandchild]) {
+        expect(await store.sessions.getSession(session.id)).toBeUndefined()
+        expect(await store.sessions.listEntries(session.id)).toEqual([])
+      }
+      expect((await store.schedules.list()).map((schedule) => schedule.sessionId)).toEqual([retained.id])
+      expect((await store.processes.list()).map((process) => process.sessionId)).toEqual([retained.id])
+      expect(await store.worktrees.get(worktree.id)).toEqual(worktree)
+      expect(await store.sessions.getWorkspace(workspace.id)).toEqual(workspace)
+      expect(await store.sessions.listEntries(retained.id)).toHaveLength(1)
+    })
+
     it('登记 Workspace，同一路径重复登记返回已有记录', async () => {
       const { sessions } = await open()
       const a = await sessions.registerWorkspace({ path: '/work/alpha' })

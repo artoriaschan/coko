@@ -54,6 +54,36 @@ describeRepositoryContract('SQLite 实现', async (options) => {
 })
 
 describe('SQLite 打开与持久化', () => {
+  it('删除树的最后一步失败时，全部会话、条目和定时任务回滚', async () => {
+    const dir = await tempDir()
+    const store = await openIn(dir)
+    const workspace = await store.sessions.registerWorkspace({ path: '/w' })
+    const root = await store.sessions.createSession({ workspaceId: workspace.id })
+    const child = await store.sessions.createSession({ workspaceId: workspace.id, parentSessionId: root.id })
+    const before = new Map<string, Awaited<ReturnType<typeof store.sessions.listEntries>>>()
+    for (const session of [root, child]) {
+      await store.sessions.appendEntries(session.id, [{ kind: 'note', payload: 'retained' }])
+      before.set(session.id, await store.sessions.listEntries(session.id))
+      await store.schedules.create({ sessionId: session.id, title: 'future', prompt: 'work', rule: { kind: 'every', seconds: 600 }, nextAt: 100000 })
+    }
+    const savedRoot = await store.sessions.getSession(root.id)
+    const savedChild = await store.sessions.getSession(child.id)
+    const schedules = await store.schedules.list()
+    const raw = new DatabaseSync(join(dir, 'coko.db'))
+    try {
+      raw.exec(
+        `CREATE TRIGGER fail_session_delete BEFORE DELETE ON sessions WHEN OLD.parent_session_id IS NULL BEGIN SELECT RAISE(ABORT, 'delete unavailable'); END;`,
+      )
+    } finally {
+      raw.close()
+    }
+    await expect(store.sessions.deleteSession(root.id)).rejects.toThrow('delete unavailable')
+    expect(await store.sessions.getSession(root.id)).toEqual(savedRoot)
+    expect(await store.sessions.getSession(child.id)).toEqual(savedChild)
+    for (const session of [root, child]) expect(await store.sessions.listEntries(session.id)).toEqual(before.get(session.id))
+    expect(await store.schedules.list()).toEqual(schedules)
+  })
+
   it('库中不是七档之一的 Thinking Level 读回为 off', async () => {
     const dir = await tempDir()
     const path = join(dir, 'coko.db')

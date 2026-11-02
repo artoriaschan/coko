@@ -115,6 +115,13 @@ export class GoalService {
   /** 同一 Session 的 Goal 变化串行（前一个失败不影响后一个）。 */
   readonly #locks = new KeyedMutex()
   /** 正在取消的 Session：Run 结束、Job 结束与模型的工具调用都不再改变 Goal。 */
+  forgetSessions(ids: string[]): void {
+    for (const id of ids) {
+      this.#watches.get(id)?.()
+      this.#watches.delete(id)
+      this.#admitted.delete(id)
+    }
+  }
   readonly #cancelling = new Set<string>()
   /** 有推进中（running / waiting-*）Goal 的 Session 的 job_end 订阅。 */
   readonly #watches = new Map<string, () => void>()
