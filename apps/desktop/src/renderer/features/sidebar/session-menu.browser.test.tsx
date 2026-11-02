@@ -354,3 +354,75 @@ it.each(['light', 'dark'])('%s Chinese delete confirmation matches desktop geome
     document.documentElement.className = original
   }
 })
+
+it.each(['light', 'dark'])('%s generated title updates the visible row and already-open details card', async (theme) => {
+  const original = document.documentElement.className
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  try {
+    const fixture = await setup()
+    await userEvent.hover(page.getByRole('button', { name: 'Original title', exact: true }))
+    const details = page.getByRole('region', { name: 'Conversation details' })
+    await expect.element(details.getByText('Original title', { exact: true })).toBeVisible()
+    fixture.sendServer({ type: 'session_title', sessionId: fixtureSessions[0]!.id, title: 'Generated intent' })
+    await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+    await expect.element(details.getByText('Generated intent', { exact: true })).toBeVisible()
+    await expect.element(details.getByText('Original title', { exact: true })).not.toBeInTheDocument()
+    await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
+  } finally {
+    document.documentElement.className = original
+  }
+})
+
+it('a list refresh cannot restore a title snapshot older than a received generated title', async () => {
+  const fixture = await setup()
+  let resolve!: (sessions: typeof fixtureSessions) => void
+  fixture.api.listSessions = () =>
+    new Promise((done) => {
+      resolve = done
+    })
+  const loading = fixture.chat.lists.getState().load()
+  fixture.sendServer({ type: 'session_title', sessionId: fixtureSessions[0]!.id, title: 'Generated intent' })
+  resolve([{ ...fixtureSessions[0]!, title: 'Original title' }])
+  await loading
+  await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+})
+
+it('a first-send response cannot replace an already generated title with its older placeholder', async () => {
+  const fixture = await setup()
+  const firstSend = fixture.api.firstSend
+  fixture.api.firstSend = async (input) => {
+    const response = await firstSend(input)
+    await fixture.api.renameSession(response.session.id, 'Generated intent')
+    fixture.sendServer({ type: 'session_title', sessionId: response.session.id, title: 'Generated intent' })
+    return response
+  }
+  fixture.chat.getState().startDraft()
+  expect(await fixture.chat.getState().send('Old placeholder')).toBe(true)
+  await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+  await expect.element(page.getByRole('button', { name: 'Old placeholder', exact: true })).not.toBeInTheDocument()
+})
+
+it.each(['pin', 'move'] as const)('%s responses preserve a generated title received while the action was in flight', async (action) => {
+  const fixture = await setup()
+  const id = fixtureSessions[0]!.id
+  if (action === 'pin') {
+    const update = fixture.api.setSessionPinned
+    fixture.api.setSessionPinned = async (...args) => {
+      const stale = await update(...args)
+      fixture.sendServer({ type: 'session_title', sessionId: id, title: 'Generated intent' })
+      return stale
+    }
+  } else {
+    const update = fixture.api.moveSession
+    fixture.api.moveSession = async (...args) => {
+      const stale = await update(...args)
+      fixture.sendServer({ type: 'session_title', sessionId: id, title: 'Generated intent' })
+      return stale
+    }
+  }
+  const lists = fixture.chat.lists.getState()
+  const result = action === 'pin' ? await lists.setPinned(id, true) : await lists.moveSession(id, null)
+  expect(result).toBe(true)
+  expect(fixture.chat.lists.getState().sessions.find((session) => session.id === id)?.title).toBe('Generated intent')
+  await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+})

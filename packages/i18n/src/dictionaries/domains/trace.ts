@@ -39,6 +39,7 @@ export const trace = defineDomain(
     hooks: 'Hook',
     noTools: '没有工具调用',
     purpose: {
+      title: '标题',
       turn: '对话',
       compaction: '压缩摘要',
       summary: '交接摘要',
@@ -96,6 +97,7 @@ export const trace = defineDomain(
     hooks: 'Hooks',
     noTools: 'No tool calls',
     purpose: {
+      title: 'Title',
       turn: 'Turn',
       compaction: 'Compaction summary',
       summary: 'Handoff summary',

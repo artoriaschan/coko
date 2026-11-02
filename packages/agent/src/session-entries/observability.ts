@@ -6,8 +6,8 @@ const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 const Count = Type.Integer({ minimum: 0 })
 
-/** turn：Run 中的一轮；compaction：压缩的摘要请求；summary：交接的摘要请求。 */
-export const modelRequestPurposeSchema = Type.Union([Type.Literal('turn'), Type.Literal('compaction'), Type.Literal('summary')])
+/** turn：Run 中的一轮；compaction：压缩的摘要请求；summary：交接的摘要请求；title：Run 之外的会话标题请求（runId 为 null）。 */
+export const modelRequestPurposeSchema = Type.Union([Type.Literal('turn'), Type.Literal('compaction'), Type.Literal('summary'), Type.Literal('title')])
 export type ModelRequestPurpose = Static<typeof modelRequestPurposeSchema>
 
 export const modelRequestUsageSchema = Type.Object({ input: Count, output: Count, cacheRead: Count, cacheWrite: Count, total: Count }, strict)
@@ -19,7 +19,7 @@ export type ModelRequestUsage = Static<typeof modelRequestUsageSchema>
  */
 export const modelRequestPayloadSchema = Type.Object(
   {
-    runId: Id,
+    runId: Type.Union([Id, Type.Null()]),
     provider: Type.String(),
     model: Type.String(),
     startedAt: Count,

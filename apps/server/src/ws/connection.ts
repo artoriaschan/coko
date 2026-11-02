@@ -14,6 +14,7 @@ export interface StreamContext {
  * 最后冲刷缓冲中更新的条目：既不漏也不重复。
  */
 export class StreamConnection {
+  readonly #offTitles: () => void
   readonly #context: StreamContext
   readonly #send: (message: ServerMessage) => void
   readonly #subscriptions = new Map<string, () => void>()
@@ -21,6 +22,7 @@ export class StreamConnection {
   constructor(context: StreamContext, send: (message: ServerMessage) => void) {
     this.#context = context
     this.#send = send
+    this.#offTitles = context.hub.subscribeTitles(send)
   }
 
   async receive(data: unknown): Promise<void> {
@@ -36,6 +38,7 @@ export class StreamConnection {
   }
 
   close(): void {
+    this.#offTitles()
     for (const sessionId of this.#subscriptions.keys()) this.#unsubscribe(sessionId)
   }
 

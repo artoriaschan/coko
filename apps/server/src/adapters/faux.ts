@@ -1,3 +1,4 @@
+import { systemClock, type ClockPort } from './clock.ts'
 import { appendFile, readFile } from 'node:fs/promises'
 import {
   calculateCost,
@@ -33,6 +34,7 @@ export interface FauxScript {
   responses: FauxScriptResponse[]
   /** 测试观察用：每次模型请求前把其上下文消息作为一行 JSON 追加到该文件。 */
   requestLog?: string
+  requestDetailsLog?: string
   /**
    * faux 模型的价格（每百万 token，同 Model Catalog 的 price）：省略时未定价。有价格时，usage 未给出 cost 的回复按价格计算费用
    * （pi-ai calculateCost，与真实 Provider 相同）。
@@ -52,6 +54,8 @@ export interface FauxScriptResponse {
   usage?: FauxScriptUsage
   /** 只在最后一条 user message 或系统提示含该子串时取用；没有 match 的回复按顺序取用。 */
   match?: string
+  /** Controlled model-boundary latency; uses the Sidecar clock and respects cancellation. */
+  delayMs?: number
 }
 
 export interface FauxScriptUsage {
@@ -181,7 +185,8 @@ export function pickResponse(
 ): number | undefined {
   const texts = matchTexts(context)
   const matched = responses.findIndex((r, i) => !used[i] && r.match !== undefined && texts.some((t) => t.includes(r.match!)))
-  const index = matched >= 0 ? matched : responses.findIndex((r, i) => !used[i] && r.match === undefined)
+  const title = texts.some((text) => text.includes('COKO_SESSION_TITLE'))
+  const index = matched >= 0 ? matched : title ? -1 : responses.findIndex((r, i) => !used[i] && r.match === undefined)
   if (index < 0) return undefined
   used[index] = true
   return index
@@ -190,7 +195,7 @@ export function pickResponse(
 const stripMatch = ({ match: _match, ...response }: FauxScriptResponse): FauxScriptResponse => response
 
 /** 读取脚本并把 faux provider 注册进 registry；返回其模型，作为没有默认设置时的 Session 模型。 */
-export async function installFauxProvider(registry: ModelRegistry, path: string): Promise<SessionModel> {
+export async function installFauxProvider(registry: ModelRegistry, path: string, clock: ClockPort = systemClock()): Promise<SessionModel> {
   const script = JSON.parse(await readFile(path, 'utf8')) as FauxScript
   if (!script || !Array.isArray(script.responses)) throw new Error('Faux script must have a responses array')
   for (const key of ['contextWindow', 'maxTokens'] as const) {
@@ -222,39 +227,51 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
   })
   const log = script.requestLog
   const scripted = script.responses
-  if (scripted.some((response) => response.match !== undefined)) {
-    // 带 match 的脚本：每次请求按上下文选回复（调用次数仍为回复数）。
-    const used = scripted.map(() => false)
-    core.setResponses(
-      scripted.map(() => async (context) => {
-        if (log) await appendFile(log, JSON.stringify(context.messages) + '\n')
-        const index = pickResponse(scripted, used, context)
-        if (index === undefined) return fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Faux script has no response for this request' })
-        const response = stripMatch(scripted[index]!)
-        return toStep(withLastJobId(response, lastJobId(context.messages))) as Exclude<FauxResponseStep, (...args: never[]) => unknown>
-      }),
-    )
-  } else
-    core.setResponses(
-      scripted.map((response) => {
-        const placeholder = JSON.stringify(response).includes(LAST_JOB_ID)
-        const step = toStep(response)
-        if (!log && !placeholder) return step
-        return async (context) => {
-          if (log) await appendFile(log, JSON.stringify(context.messages) + '\n')
-          const resolved = placeholder ? toStep(withLastJobId(response, lastJobId(context.messages))) : step
-          return resolved as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+  const used = scripted.map(() => false)
+  const dispatch: StreamFunction<string, import('@earendil-works/pi-ai').SimpleStreamOptions> = (model, context, options) => {
+    // One callback per actual request; unmatched background title calls never steal an ordinary reply.
+    core.appendResponses([
+      async (current) => {
+        const record = () => (log ? appendFile(log, JSON.stringify(current.messages) + '\n') : Promise.resolve())
+        const index = pickResponse(scripted, used, current)
+        if (index === undefined) {
+          await record()
+          return fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Faux script has no response for this request' })
         }
-      }),
-    )
+        const response = stripMatch(scripted[index]!)
+        const delayed =
+          response.delayMs && !options?.signal?.aborted
+            ? new Promise<void>((resolve) => {
+                const finish = () => {
+                  cancel()
+                  options?.signal?.removeEventListener('abort', finish)
+                  resolve()
+                }
+                const cancel = clock.setTimer(clock.now() + response.delayMs!, finish)
+                options?.signal?.addEventListener('abort', finish, { once: true })
+              })
+            : undefined
+        // Logging after arming lets protocol tests observe a deterministic model-boundary barrier.
+        if (script.requestDetailsLog)
+          await appendFile(
+            script.requestDetailsLog,
+            JSON.stringify({ ...current, options: { reasoning: options?.reasoning ?? 'off', toolChoice: options?.toolChoice } }) + '\n',
+          )
+        await record()
+        await delayed
+        return toStep(withLastJobId(response, lastJobId(current.messages))) as Exclude<FauxResponseStep, (...args: never[]) => unknown>
+      },
+    ])
+    return core.streamSimple(model, context, options)
+  }
   registry.models.setProvider(
     createProvider({
       id: core.provider,
       auth: { apiKey: { name: 'Faux', resolve: async () => ({ auth: {} }) } },
       models: core.models,
       api: {
-        stream: withScriptedUsage(core.stream),
-        streamSimple: withScriptedUsage(core.streamSimple),
+        stream: withScriptedUsage(dispatch),
+        streamSimple: withScriptedUsage(dispatch),
         fetchDeferred: core.fetchDeferred,
         cancelDeferred: core.cancelDeferred,
       },

@@ -1,4 +1,5 @@
 import { lastRunStatus, type AgentRuntime, type ProgressEvent as AgentProgress, type RunEntry, type RunStatus } from '@coko/agent'
+import { HOST_NOTIFICATION_KINDS } from '@coko/agent/entries'
 import { redactSecretsDeep, redactText } from '@coko/logging'
 import type { ProgressEvent } from '@coko/protocol'
 import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
@@ -57,6 +58,7 @@ export class SessionRuntimes {
   readonly #pending = new Map<string, Promise<AgentRuntime>>()
   readonly #runtimes = new Map<string, AgentRuntime>()
   /** 运行时的条目发布（含扩展的 onEntry）；没有运行时的 Session 直接提交并发布。 */
+  readonly #inputMarkers = new Map<string, { done: Promise<void>; release: () => void }>()
   readonly #publishers = new Map<string, (entry: RunEntry) => Promise<StoredEntry>>()
   readonly #lastStatus = new Map<string, RunStatus>()
 
@@ -109,6 +111,7 @@ export class SessionRuntimes {
     this.#runtimes.delete(sessionId)
     this.#pending.delete(sessionId)
     this.#publishers.delete(sessionId)
+    this.#releaseInput(sessionId)
   }
 
   /**
@@ -117,7 +120,21 @@ export class SessionRuntimes {
    */
   publisher(sessionId: string, onEntry: () => ((entry: StoredEntry) => void) | undefined): (entry: RunEntry) => Promise<StoredEntry> {
     const publish = async (entry: RunEntry): Promise<StoredEntry> => {
-      const [committed] = await this.#store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+      if (HOST_NOTIFICATION_KINDS.has(entry.kind) && !this.#inputMarkers.has(sessionId)) {
+        let release!: () => void
+        const done = new Promise<void>((resolve) => {
+          release = resolve
+        })
+        this.#inputMarkers.set(sessionId, { done, release })
+      }
+      let committed: StoredEntry | undefined
+      try {
+        ;[committed] = await this.#store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+      } catch (error) {
+        this.#releaseInput(sessionId)
+        throw error
+      }
+      if ((entry.kind === 'message' && entry.payload.role === 'user') || entry.kind === 'run_end') this.#releaseInput(sessionId)
       if (entry.kind === 'run_end') this.#lastStatus.set(sessionId, entry.payload.status)
       this.#hub.publishEntry(committed!)
       onEntry()?.(committed!)
@@ -125,6 +142,18 @@ export class SessionRuntimes {
     }
     this.#publishers.set(sessionId, publish)
     return publish
+  }
+
+  #releaseInput(sessionId: string): void {
+    this.#inputMarkers.get(sessionId)?.release()
+    this.#inputMarkers.delete(sessionId)
+  }
+
+  /** Detached telemetry cannot split a host notification marker from its user message or invoke Run extensions. */
+  async commitDetached(sessionId: string, entry: RunEntry): Promise<void> {
+    while (this.#inputMarkers.has(sessionId)) await this.#inputMarkers.get(sessionId)!.done
+    const [committed] = await this.#store.sessions.appendEntries(sessionId, [toNewEntry(entry)])
+    this.#hub.publishEntry(committed!)
   }
 
   /** 提交并发布一条条目：有运行时时经其发布函数（扩展能观察到），否则直接提交并发布。 */

@@ -159,6 +159,18 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       await expectStoreError(sessions.setSessionModel('missing', { model: null }), 'not-found')
     })
 
+    it('conditionally replaces an unchanged placeholder and respects manual renames and deletion', async () => {
+      const { sessions } = await open()
+      const workspace = await sessions.registerWorkspace({ path: '/title-workspace' })
+      const session = await sessions.createSession({ workspaceId: workspace.id, title: 'placeholder' })
+      expect((await sessions.replaceSessionTitle(session.id, 'placeholder', 'generated'))?.title).toBe('generated')
+      await sessions.setSessionTitle(session.id, 'manual')
+      expect(await sessions.replaceSessionTitle(session.id, 'placeholder', 'late')).toBeUndefined()
+      expect((await sessions.getSession(session.id))?.title).toBe('manual')
+      await sessions.deleteSession(session.id)
+      expect(await sessions.replaceSessionTitle(session.id, 'manual', 'late')).toBeUndefined()
+    })
+
     it('Thinking Level 与模型一起保存：新建默认 off；换模型时写入给定档位，未给出或清空模型时回到 off', async () => {
       const { sessions } = await open()
       const w = await sessions.registerWorkspace({ path: '/w' })

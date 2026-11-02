@@ -31,8 +31,8 @@ export function firstMessageTitle(text: string, images: ImageAttachment[] = []):
 /** 首次发送拥有目录、会话与首条消息的创建；后续发送仍由 SessionService 处理。 */
 export class FirstSendService {
   readonly #pending = new Map<string, Promise<FirstSendResponse>>()
-  readonly #options: { store: SessionStore; sessions: SessionService; chatsRoot: string }
-  constructor(options: { store: SessionStore; sessions: SessionService; chatsRoot: string }) {
+  readonly #options: { store: SessionStore; sessions: SessionService; chatsRoot: string; titles?: import('./session-titles.ts').SessionTitles }
+  constructor(options: { store: SessionStore; sessions: SessionService; chatsRoot: string; titles?: import('./session-titles.ts').SessionTitles }) {
     this.#options = options
   }
 
@@ -88,6 +88,7 @@ export class FirstSendService {
       const result = await sessions.submitFirst(session.id, input.text, input.images)
       if (!('runId' in result)) throw new AppError('bad-request', 'A message is required')
       accepted = true
+      this.#options.titles?.start(id, firstMessageTitle(input.text, input.images), input.text, input.images ?? [])
       return { session: await sessions.toDto((await store.sessions.getSession(id))!), runId: result.runId }
     } catch (error) {
       if (accepted) throw error

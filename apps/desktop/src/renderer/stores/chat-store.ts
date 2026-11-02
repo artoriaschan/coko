@@ -468,7 +468,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),
           })
           await lists.getState().load()
-          lists.getState().upsertSession(session)
+          // A title can finish while the first-send response or list refresh is in flight.
+          lists.getState().upsertSession(lists.getState().sessions.find((current) => current.id === session.id) ?? session)
           newChat.getState().accepted(draft.draftId)
           // 后端已接受首条消息；订阅补齐条目，不再重复提交消息。
           if (get().activeSessionId === null) get().openSession(session.id)
@@ -698,6 +699,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     const patchSession = (sessionId: string, patch: Partial<Session>) => lists.getState().patchSession(sessionId, patch)
 
     switch (message.type) {
+      case 'session_title': {
+        patchSession(message.sessionId, { title: message.title })
+        return
+      }
       case 'subscribed': {
         patchConversation(message.sessionId, (c) => ({
           ...c,

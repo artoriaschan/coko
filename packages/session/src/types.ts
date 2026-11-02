@@ -134,6 +134,8 @@ export interface SessionRepository {
   /** 仅在没有任何会话、项目、worktree 或记忆引用时移除登记，不操作文件系统。 */
   deleteWorkspaceIfUnused(id: string): Promise<boolean>
   setSessionTitle(id: string, title: string): Promise<Session>
+  /** Atomically replace an unchanged placeholder; missing/deleted sessions return undefined. */
+  replaceSessionTitle(id: string, expected: string, title: string): Promise<Session | undefined>
   setSessionOrganization(id: string, patch: Partial<SessionOrganization>): Promise<Session>
   /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */
   setSessionModel(id: string, choice: SessionModelChoice): Promise<Session>

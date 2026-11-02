@@ -79,6 +79,7 @@ export interface SessionServiceOptions {
  * recovery.ts、checkpoints.ts，这里只转交。
  */
 export class SessionService {
+  readonly #hub: SessionHub
   readonly #store: SessionStore
   readonly #runtimes: SessionRuntimes
   readonly #permissions: SessionPermissions
@@ -95,6 +96,7 @@ export class SessionService {
   constructor(options: SessionServiceOptions) {
     const { store } = options
     this.#store = store
+    this.#hub = options.hub
     this.#context = options.context ?? emptyContextAssembly()
     // 规则工具名：宿主工具集与各贡献声明的 ruleTools（skill 由 policy 固定为 Skill，mcp__ 前缀由 policy 原样接受）。
     this.permissions =
@@ -162,6 +164,16 @@ export class SessionService {
       if (left) this.#mutations.set(id, left)
       else this.#mutations.delete(id)
     }
+  }
+
+  /** Short detached writes share deletion admission without making the whole request a running Run. */
+  async completeTitle(sessionId: string, expected: string, title: string | undefined, payload: import('@coko/agent').ModelRequestPayload): Promise<void> {
+    await this.#mutate(sessionId, async () => {
+      if (!(await this.#store.sessions.getSession(sessionId))) return
+      const updated = title ? await this.#store.sessions.replaceSessionTitle(sessionId, expected, title) : undefined
+      if (updated) this.#hub.publishTitle(sessionId, updated.title)
+      await this.#runtimes.commitDetached(sessionId, { kind: 'model_request', payload })
+    })
   }
 
   assertAdmission(sessionId: string): void {

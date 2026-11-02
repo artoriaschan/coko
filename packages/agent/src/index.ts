@@ -141,3 +141,5 @@ export { InMemoryCredentialStore } from './ports/credentials.ts'
 export type { ApiKeyCredential, Credential, CredentialInfo, CredentialStore } from './ports/credentials.ts'
 
 export { MAX_IMAGE_BYTES, detectImageMimeType } from './tools/builtin/read.ts'
+
+export { modelRequestPayload } from './engine/model-requests.ts'

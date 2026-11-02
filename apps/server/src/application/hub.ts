@@ -4,6 +4,7 @@ type Listener = (message: ServerMessage) => void
 
 /** 按 Session 分发已提交的 entry 与临时 progress。entry 只在提交完成后发布。 */
 export class SessionHub {
+  readonly #titleListeners = new Set<Listener>()
   readonly #listeners = new Map<string, Set<Listener>>()
 
   subscribe(sessionId: string, listener: Listener): () => void {
@@ -13,6 +14,25 @@ export class SessionHub {
     return () => {
       set.delete(listener)
       if (set.size === 0) this.#listeners.delete(sessionId)
+    }
+  }
+
+  subscribeTitles(listener: Listener): () => void {
+    this.#titleListeners.add(listener)
+    return () => {
+      this.#titleListeners.delete(listener)
+    }
+  }
+
+  publishTitle(sessionId: string, title: string): void {
+    // Every connected list must observe title changes, including clients viewing another Session.
+    const message: ServerMessage = { type: 'session_title', sessionId, title }
+    for (const listener of this.#titleListeners) {
+      try {
+        listener(message)
+      } catch {
+        /* A disconnected observer cannot fail a committed title. */
+      }
     }
   }
 

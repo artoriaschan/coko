@@ -21,7 +21,9 @@ lifecycle: active
 
 ## 逐请求记录
 
-运行时在每次模型请求结束时提交一条 `model_request`（v1，与 assistant 消息同一提交链，错误结束的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（含重试之间的等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（之前失败的次数）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`）。同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
+运行时在每次模型请求结束时提交一条 `model_request`（v1，与 assistant 消息同一提交链，错误结束的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（含重试之间的等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（之前失败的次数）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
+
+标题请求在 Run 之外，信封与 payload 的 `runId` 均为 `null`，不创建虚构的 Run，也不提交 assistant / user 消息。其失败与超时同样记录；超时 `errorCode` 为 `timeout`。日志为 `title request finished { durationMs, usage, outcome }`，不包含标题、用户文字或模型错误原文。实现见[标题服务](../../apps/server/src/application/session-titles.ts)。
 
 ## 追踪
 
@@ -31,7 +33,7 @@ lifecycle: active
 - **工具耗时。** 每个工具调用从所在 assistant 消息的 `createdAt` 起算，到结果消息的 `createdAt`（`durationMs`，含审批等待与 Hook）；side-effect 调用另有 `execMs`（`tool_exec` 到结果）。并行执行的一批调用的结果一起提交，各自的 `durationMs` 约等于整批的时间。没有结果的调用（Run 被中断）没有 `durationMs`。不新增条目。
 - **审批等待。** `approval_request` 到 `approval_decision` 的 `createdAt` 差，同一调用的多次审批相加；`approval` 为最后一次的结果（没有回答时 `pending`），`approvalBy` 为 `user`、`hook`（PermissionRequest Hook）或 `headless`（[ADR 0019](../adr/0019-headless-runs-deny-approvals.md)）。决定按 `requestId` 找到请求，不依赖决定条目的 runId。
 - **Hook 归属。** `hook_run` 不带 toolCallId：工具 Hook（PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure）只在本 Run 恰有一个调用尚未得到结果时记在该调用的 `hooks` 上；多个调用同时未结束（并行的一批或顺序执行时尚未开始的调用）时无法确定归属，与 UserPromptSubmit、Stop、PreCompact 等一起记在 Run 的 `hooks` 上。
-- **合计。** `traceTotals` 为 Run 数、请求数、工具调用数、Token、费用与已结束 Run 的时长之和；只含本 Session 的条目（子 Session 的追踪单独读取，Goal 用量另计入子 Session，见 [子代理](subagents.md)）。
+- **合计。** `traceTotals` 为 Run 数、请求数、工具调用数、Token、费用与已结束 Run 的时长之和；HTTP 的 Session 合计另外加上 `runId: null` 的 `title` 请求数、Token 与费用，Run 行不包含这些独立请求；只含本 Session 的条目（子 Session 的追踪单独读取，Goal 用量另计入子 Session，见 [子代理](subagents.md)）。
 
 ## 审计
 

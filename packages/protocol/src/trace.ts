@@ -7,16 +7,16 @@ const strict = { additionalProperties: false } as const
 const Id = Type.String({ minLength: 1 })
 const Count = Type.Integer({ minimum: 0 })
 
-export const ModelRequestPurpose = Type.Union([Type.Literal('turn'), Type.Literal('compaction'), Type.Literal('summary')])
+export const ModelRequestPurpose = Type.Union([Type.Literal('turn'), Type.Literal('compaction'), Type.Literal('summary'), Type.Literal('title')])
 export type ModelRequestPurpose = Static<typeof ModelRequestPurpose>
 
 export const ModelRequestUsage = Type.Object({ input: Count, output: Count, cacheRead: Count, cacheWrite: Count, total: Count }, strict)
 export type ModelRequestUsage = Static<typeof ModelRequestUsage>
 
-/** model_request v1：一次模型请求结束（含错误与摘要请求）；retries 为之前失败的次数。 */
+/** model_request v1：一次模型请求结束（含错误、摘要与 Run 外标题请求；标题的 runId 为 null）；retries 为之前失败的次数。 */
 export const ModelRequestPayload = Type.Object(
   {
-    runId: Id,
+    runId: Type.Union([Id, Type.Null()]),
     provider: Type.String(),
     model: Type.String(),
     startedAt: Count,
