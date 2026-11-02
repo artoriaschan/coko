@@ -1,0 +1,26 @@
+docs/adr/0021-new-chat-worktree-base-branch.md
+  s_64e2ce1bfde668::t_8eba3788cae745 37
+.scratch/conversation-workbench/evidence/23-closeout.md
+  s_64e2ce1bfde668::t_daefe397534a7d 230-242
+  s_64e2ce1bfde668::t_c70af3372e98ce 39
+.scratch/conversation-workbench/issues/23-closeout.md
+  s_64e2ce1bfde668::t_c70af3372e98ce 28
+apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts
+  s_64e2ce1bfde668::t_fe0458a9f9ac75 133-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9b680d890fa26d7aef1b6a0d4f221422d2c63c10",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
