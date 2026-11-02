@@ -1,4 +1,4 @@
-import { mkdir, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, hookPaths } from '@coko/protocol'
@@ -107,4 +107,31 @@ it('只有文件引用时标题为附件文件名，并校验空消息与草稿�
   expect((await api.post(API_ROUTES.firstSend, { draftId: '', text: 'hello' })).status).toBe(400)
   expect((await api.post(API_ROUTES.firstSend, { draftId: 'blank', text: '  ' })).status).toBe(400)
   expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(1)
+})
+
+it('项目首次发送固定使用主要文件夹，拒绝后保留项目和源文件，同草稿并发只创建一个归属会话', async () => {
+  const root = await tempDir()
+  const folder = join(root, 'project')
+  await mkdir(folder)
+  await writeFile(join(folder, 'keep.txt'), 'untouched')
+  const script = await fauxScript(root, { responses: [{ content: 'Project ready.' }] })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: join(root, 'chats') } })
+  const api = client(sidecar, await exchange(sidecar))
+  const workspace = (await api.post(API_ROUTES.workspaces, { path: folder, name: 'Project' })).body
+  const project = (await api.get(API_ROUTES.projects)).body.projects[0]
+  const input = { draftId: 'project-draft', projectId: project.id, text: 'Project task' }
+  await api.put(hookPaths.hooks, { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'exit 2' }] }] }, expectedRevision: 0 })
+  expect((await api.post(API_ROUTES.firstSend, input)).body.error.code).toBe('hook-blocked')
+  expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(0)
+  expect((await api.get(API_ROUTES.workspaces)).body.workspaces).toHaveLength(1)
+  expect(await readFile(join(folder, 'keep.txt'), 'utf8')).toBe('untouched')
+  await api.put(hookPaths.hooks, { hooks: {}, expectedRevision: 1 })
+  const [a, b] = await Promise.all([api.post(API_ROUTES.firstSend, input), api.post(API_ROUTES.firstSend, input)])
+  expect(a.status).toBe(201)
+  expect(a.body.session).toMatchObject({ projectId: project.id, workspaceId: workspace.id })
+  expect(b.body.session.id).toBe(a.body.session.id)
+  expect((await api.get(API_ROUTES.projects)).body.projects[0].sessionCount).toBe(1)
+  expect((await api.post(API_ROUTES.firstSend, { draftId: 'missing-project', projectId: 'missing', text: 'hello' })).status).toBe(404)
+  expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(1)
+  expect((await api.get(API_ROUTES.workspaces)).body.workspaces[0].path).toBe(await realpath(folder))
 })

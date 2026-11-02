@@ -83,6 +83,13 @@ export const zh = {
     en: 'English',
   },
   conversation: {
+    destination: '对话归属',
+    destinationCurrent: '选择对话归属：{name}',
+    destinationChat: '对话',
+    destinationSearch: '搜索项目',
+    destinationNone: '不在项目中工作',
+    destinationClear: '清除项目归属',
+    destinationEmpty: '没有匹配的项目',
     welcomeTitle: '今天我们来做些什么？',
     welcomeBody: '从一个想法开始，一起完成工作',
     attach: '添加附件',

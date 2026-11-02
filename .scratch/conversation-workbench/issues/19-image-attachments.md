@@ -55,3 +55,12 @@
 合入后 `pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 实际 5 文件 / 32 用例，31 通过、1 失败：08 的 pointer-menu viewport-edge 用例在 session-menu.browser.test.tsx:143 已可见菜单于 left 边界轮询期间消失。图片与首次发送的 4 文件全部通过。只读保留 08 实现，随后隔离运行 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 仍为 9 通过 / 1 相同失败，已向集成负责人报告，不将它标为通过。
 
 另补充同一挂载 Composer 在两个草稿键间切换的真实 Browser 用例，验证图片和文字各自恢复、不复制到另一草稿；`pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx` 退出 0，13 用例通过。该额外验证未改产品代码。`pnpm run check:docs` 246 / 0 与 diff 检查通过；本票图片能力的验收完成，08 的继承失败单独保留上述证据。
+
+
+### 合入 12 归属栏
+
+再合入最新集成 `9f650408`（12 归属栏）。五处冲突按两票来源合并：FirstSendRequest 同时保留 projectId / images 与可空文字；FirstSendService 使用 12 的主要 Workspace / 独立目录分支与受限回滚，同时传递图片和图片标题；NewChatStore 保留 projectId / branch / newWorktree / imageRefs 的默认值、旧配置兼容恢复和持久化，selectProject / resumeDraft 保留。workbench 与导航同时表达归属和图片能力，未把工作目录随归属切换。
+
+合入后的当前证据：`pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/stores/chat-store.test.ts` 退出 0，5 文件 / 47 用例通过。`pnpm run test apps/desktop/e2e/images.e2e.test.ts` 退出 0，当前构建真实 Electron 1 文件 / 1 用例通过，包含两个作用域重启恢复与实际 image-only 提交。lint、check:docs（246 / 0）、diff 检查退出 0。
+
+08 菜单的隔离失败由集成负责人在不包含本票代码的 `9f650408` 重现，确认为继承问题，另行修复；本票未修改 08 代码或断言。最终只提交本地，无推送。

@@ -85,6 +85,13 @@ export const en: typeof zh = {
     en: 'English',
   },
   conversation: {
+    destination: 'Chat destination',
+    destinationCurrent: 'Choose chat destination: {name}',
+    destinationChat: 'Chat',
+    destinationSearch: 'Search projects',
+    destinationNone: 'Work outside a project',
+    destinationClear: 'Clear project destination',
+    destinationEmpty: 'No matching projects',
     welcomeTitle: 'What shall we work on today?',
     welcomeBody: 'Start with an idea. Let’s build it together.',
     attach: 'Add attachment',

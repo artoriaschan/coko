@@ -3,7 +3,7 @@ import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
-import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession } from '../../app/chat.tsx'
+import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession, useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsPage } from '../../app/settings.tsx'
@@ -15,6 +15,7 @@ import { useAgentsStoreApi } from './agents-button.tsx'
 import { ApprovalPanel, useChildApproval } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
+import { DestinationBar } from './destination-bar.tsx'
 import { NewChatWelcome } from './new-chat-welcome.tsx'
 import { NEW_CHAT_EDITOR_KEY } from '../../stores/new-chat-store.ts'
 import { Dock } from './dock/dock.tsx'
@@ -137,8 +138,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   }
   const sendOrOpen = async (text: string, images?: ImageAttachment[]) => (!images?.length && openGoalCard(text)) || send(text, images)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
-  const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
-  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
+  const activeWorkspaceId = useActiveWorkspaceId()
+  const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
+  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -204,7 +206,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const rewound = React.useRef(false)
   const actionsDisabled = running || takenOver
   // / 命令菜单的作用域；对象随 id 变化才重建。
-  const commandTarget = React.useMemo(() => (activeSessionId !== null ? { sessionId: activeSessionId } : undefined), [activeSessionId])
+  const commandTarget = React.useMemo(
+    () => (activeSessionId !== null ? { sessionId: activeSessionId } : activeWorkspaceId ? { workspaceId: activeWorkspaceId } : undefined),
+    [activeSessionId, activeWorkspaceId],
+  )
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
   const composer = React.useRef<ComposerHandle | null>(null)
@@ -374,6 +379,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           {readOnlyWorktree && <WorktreeReadOnlyNotice worktree={readOnlyWorktree} className={composerColumn} />}
           {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
           <div ref={composerArea} hidden={takenOver || readOnlyWorktree !== undefined}>
+            {activeSessionId === null && <DestinationBar className={composerColumn} />}
             <Composer
               ref={setComposer}
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
@@ -382,7 +388,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               disabled={false}
               commandTarget={commandTarget}
               draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
-              fileWorkspaceId={session?.workspaceId}
+              fileWorkspaceId={activeWorkspaceId}
               fileWorkspacePath={attachmentRoot}
               needsSetup={needsSetup}
               onSend={sendOrOpen}

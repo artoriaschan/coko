@@ -63,19 +63,23 @@ export class FirstSendService {
       if (message?.runId) return { session: await sessions.toDto(existing), runId: message.runId }
       throw new AppError('session-busy', 'An earlier first send has not been accepted')
     }
-    await mkdir(chatsRoot, { recursive: true })
-    const today = new Date()
-    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const folder = await mkdtemp(join(chatsRoot, `${date}-`))
-    let workspaceId: string | undefined
+    const project = input.projectId ? await store.projects.get(input.projectId) : undefined
+    if (input.projectId && !project) throw new AppError('not-found', 'Project not found')
+    let folder: string | undefined
+    let workspaceId: string | undefined = project?.primaryWorkspaceId
     let accepted = false
     try {
-      const workspace = await store.sessions.registerWorkspace({ path: await realpath(folder) })
-      workspaceId = workspace.id
+      if (!workspaceId) {
+        await mkdir(chatsRoot, { recursive: true })
+        const today = new Date()
+        const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        folder = await mkdtemp(join(chatsRoot, `${date}-`))
+        workspaceId = (await store.sessions.registerWorkspace({ path: await realpath(folder) })).id
+      }
       const session = await sessions.create({
         id,
-        workspaceId: workspace.id,
-        projectId: null,
+        workspaceId,
+        projectId: project?.id ?? null,
         title: firstMessageTitle(input.text, input.images),
         ...(input.model ? { model: input.model } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
@@ -89,7 +93,7 @@ export class FirstSendService {
       if (accepted) throw error
       if (await store.sessions.getSession(id)) await sessions.rollbackFirst(id)
       // 其他调用方已经引用这个 Workspace 时，不删除它仍在使用的目录。
-      if (!workspaceId || (await store.sessions.deleteWorkspaceIfUnused(workspaceId))) await rm(folder, { recursive: true, force: true })
+      if (folder && (!workspaceId || (await store.sessions.deleteWorkspaceIfUnused(workspaceId)))) await rm(folder, { recursive: true, force: true })
       throw error
     }
   }

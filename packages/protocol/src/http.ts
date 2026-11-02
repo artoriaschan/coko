@@ -128,6 +128,7 @@ export type ImageAttachment = Static<typeof ImageAttachment>
 export const FirstSendRequest = Type.Object(
   {
     draftId: Type.String({ minLength: 1, maxLength: 200 }),
+    projectId: Type.Optional(Id),
     text: Type.String(),
     images: Type.Optional(Type.Array(ImageAttachment)),
     model: Type.Optional(SessionModel),
