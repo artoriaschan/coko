@@ -1,0 +1,23 @@
+apps/desktop/src/renderer/features/sidebar/conversation-search.tsx
+  s_64e2ce1bfde668::t_6c593f8f7cf6f9 4,170,178,201
+packages/ui/src/guards/style-guard-exceptions.ts
+  s_64e2ce1bfde668::t_6c593f8f7cf6f9 13-21
+.scratch/conversation-workbench/issues/22-conversation-search.md
+  s_64e2ce1bfde668::t_a5b85a98d5876a 30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "2d69e8cd3ab8a500fe80d638ad2513086ca8bf15",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
