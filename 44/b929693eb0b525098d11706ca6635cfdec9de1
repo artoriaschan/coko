@@ -1,0 +1,52 @@
+apps/desktop/src/renderer/features/sidebar/sidebar-rail.tsx
+  s_64e2ce1bfde668::t_1a92ff29a48d09 23
+.scratch/conversation-workbench/evidence/22-conversation-search.md
+  s_64e2ce1bfde668::t_a8e0ea1f458aea 1-44
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_fe6b23edef62c7 15,23-28,30-31
+  s_64e2ce1bfde668::t_1a92ff29a48d09 29
+apps/desktop/e2e/conversation-search.e2e.test.ts
+  s_64e2ce1bfde668::t_1a92ff29a48d09 1-41
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_64e2ce1bfde668::t_dede9b0189d80e 1,11,90
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_dede9b0189d80e 92-98
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_64e2ce1bfde668::t_1a92ff29a48d09 335-337,339-344,346-348,350-353
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_dede9b0189d80e 95-101
+packages/ui/src/guards/style-guard-exceptions.ts
+  s_64e2ce1bfde668::t_6c593f8f7cf6f9 13-21
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_dede9b0189d80e 13,146
+apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx
+  s_64e2ce1bfde668::t_1a92ff29a48d09 1-275
+.scratch/conversation-workbench/issues/22-conversation-search.md
+  s_64e2ce1bfde668::t_b91b190c389af8 37-38
+  s_64e2ce1bfde668::t_a8e0ea1f458aea 17-19,32-36,39
+  s_64e2ce1bfde668::t_69c5c0c68d7697 20-29
+  s_64e2ce1bfde668::t_a5b85a98d5876a 30-31
+docs/README.md
+  s_64e2ce1bfde668::t_fe6b23edef62c7 28
+apps/desktop/src/renderer/features/sidebar/conversation-search.tsx
+  s_64e2ce1bfde668::t_1a92ff29a48d09 1-284
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_64e2ce1bfde668::t_fe6b23edef62c7 55,58,60,77
+  s_64e2ce1bfde668::t_9e4ef3a461c3e4 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "44b929693eb0b525098d11706ca6635cfdec9de1",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
