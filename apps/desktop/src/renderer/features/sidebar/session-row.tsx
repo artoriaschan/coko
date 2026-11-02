@@ -2,6 +2,7 @@ import * as React from 'react'
 import type { Session } from '@coko/protocol'
 import {
   Button,
+  DropdownMenuItem,
   FadingTitle,
   type FadingTitleHandle,
   HoverCard,
@@ -15,10 +16,11 @@ import {
   TooltipTrigger,
   toast,
 } from '@coko/ui'
-import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon } from 'lucide-react'
+import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon, Trash2Icon } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
-import { SessionMenu, type SessionMenuSlots } from './session-menu.tsx'
+import { SessionDeleteDialog } from './session-delete-dialog.tsx'
+import { SessionMenuIcon, SessionMenu, type SessionMenuSlots } from './session-menu.tsx'
 
 export function SessionRow({
   session,
@@ -40,6 +42,7 @@ export function SessionRow({
   const [details, setDetails] = React.useState(false)
   const [menu, setMenu] = React.useState(false)
   const [menuPoint, setMenuPoint] = React.useState<RowMenuPoint | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
   const [renaming, setRenaming] = React.useState(false)
   const card = React.useRef<HTMLDivElement>(null)
   const row = React.useRef<HTMLButtonElement>(null)
@@ -58,18 +61,19 @@ export function SessionRow({
   }
   React.useEffect(() => {
     if (!menu) return
+    const source = row.current?.getBoundingClientRect()
+    const viewport = { width: window.innerWidth, height: window.innerHeight }
     const close = () => setMenu(false)
-    const width = window.innerWidth
-    const height = window.innerHeight
     const resize = () => {
       // A resize queued before opening may arrive after the menu mounts.
-      if (window.innerWidth !== width || window.innerHeight !== height) close()
+      if (window.innerWidth !== viewport.width || window.innerHeight !== viewport.height) close()
     }
     window.addEventListener('resize', resize)
     // A pointer anchor is fixed in the viewport; close it when its source row moves.
     const scroll = (event: Event) => {
       if (event.target instanceof Element && event.target.closest('[role="menu"]')) return
-      close()
+      const rect = row.current?.getBoundingClientRect()
+      if (!source || !rect || source.top !== rect.top || source.left !== rect.left) close()
     }
     window.addEventListener('scroll', scroll, true)
     return () => {
@@ -90,7 +94,7 @@ export function SessionRow({
     <HoverCard
       open={details}
       onOpenChange={(open) => {
-        if (!open || (allowOpen.current && !menu && !renaming)) setDetails(open)
+        if (!open || (allowOpen.current && !menu && !renaming && !deleting)) setDetails(open)
       }}
     >
       <HoverCardTrigger asChild>
@@ -106,7 +110,7 @@ export function SessionRow({
             if (event.pointerType !== 'touch') allowOpen.current = true
           }}
           onFocusCapture={() => {
-            if (!suppressFocus.current && !menu && !renaming) {
+            if (!suppressFocus.current && !menu && !renaming && !deleting) {
               allowOpen.current = true
               setDetails(true)
             }
@@ -188,12 +192,44 @@ export function SessionRow({
               </Tooltip>
             </div>
           )}
+          <SessionDeleteDialog
+            sessionId={session.id}
+            open={deleting}
+            onOpenChange={setDeleting}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              suppressFocus.current = true
+              row.current?.focus()
+              queueMicrotask(() => {
+                suppressFocus.current = false
+              })
+            }}
+          />
           <SessionMenu
             session={session}
             open={menu}
             point={menuPoint}
             pending={pending}
-            slots={menuSlots}
+            slots={{
+              ...menuSlots,
+              delete: menuSlots?.delete ?? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={pending}
+                  onSelect={() => {
+                    allowOpen.current = false
+                    setDetails(false)
+                    setMenu(false)
+                    setDeleting(true)
+                  }}
+                >
+                  <SessionMenuIcon>
+                    <Trash2Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                  </SessionMenuIcon>
+                  {t('sidebar.deleteConversation')}
+                </DropdownMenuItem>
+              ),
+            }}
             onOpenChange={setMenu}
             onPin={() => void togglePin()}
             onRename={() => {
@@ -204,7 +240,7 @@ export function SessionRow({
             }}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              if (!renaming) {
+              if (!renaming && !deleting) {
                 suppressFocus.current = true
                 row.current?.focus()
                 queueMicrotask(() => {

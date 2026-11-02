@@ -6,15 +6,16 @@ import { render } from 'vitest-browser-react'
 import { Toaster, TooltipProvider, toast } from '@coko/ui'
 import { ChatStoreProvider } from '../../app/chat.tsx'
 import { I18nProvider } from '../../app/i18n.tsx'
+import { ApiError } from '../../client/api.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 import { SidebarLists } from './sidebar-lists.tsx'
 
-async function setup(sessions = [{ ...fixtureSessions[0]!, title: 'Original title' }]) {
+async function setup(sessions = [{ ...fixtureSessions[0]!, title: 'Original title' }], locale: 'en' | 'zh' = 'en') {
   await page.viewport(1000, 800)
   const fixture = createFixtureChat({ sessions })
   await fixture.chat.getState().load()
   await render(
-    <I18nProvider locale="en">
+    <I18nProvider locale={locale}>
       <ChatStoreProvider store={fixture.chat}>
         <TooltipProvider>
           <div style={{ width: 280 }}>
@@ -47,7 +48,7 @@ it('more replaces details with the row menu2px right and top aligned; rename sel
   const rect = row.element().getBoundingClientRect()
   await expect.poll(() => menu.element().getBoundingClientRect().left - rect.right).toBe(2)
   expect(menu.element().getBoundingClientRect().top).toBe(rect.top)
-  expect([...menu.element().querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual(['Rename', 'Pin conversation'])
+  expect([...menu.element().querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual(['Rename', 'Pin conversation', 'Delete conversation'])
   await userEvent.click(page.getByRole('menuitem', { name: 'Rename', exact: true }))
   const input = page.getByRole('textbox', { name: 'Conversation title' })
   await expect.element(input).toHaveFocus()
@@ -71,7 +72,7 @@ it.each(['light', 'dark'])('%s menus retain centered14px icon slots and identica
     const menu = page.getByRole('menu', { name: 'Conversation actions' })
     await expect.element(page.getByRole('menuitem', { name: 'Unpin conversation', exact: true })).toBeVisible()
     const slots = [...menu.element().querySelectorAll<HTMLElement>('[data-session-menu-icon]')]
-    expect(slots).toHaveLength(2)
+    expect(slots).toHaveLength(3)
     await expect.poll(() => slots[0]!.getBoundingClientRect().width).toBe(14)
     const boxes = slots.map((slot) => slot.getBoundingClientRect())
     expect(boxes[0]!.width).toBe(14)
@@ -144,6 +145,7 @@ it('pointer menus remain fully usable near the viewport edge and dismiss on outs
   window.dispatchEvent(new Event('resize'))
   await expect.poll(() => menu.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(8)
   await expect.poll(() => menu.element().getBoundingClientRect().right).toBeLessThanOrEqual(382)
+  await expect.poll(() => menu.element().getBoundingClientRect().bottom).toBeLessThanOrEqual(292)
   const rect = menu.element().getBoundingClientRect()
   expect(rect.left).toBeGreaterThanOrEqual(8)
   expect(rect.right).toBeLessThanOrEqual(382)
@@ -253,4 +255,97 @@ it('failed saves retain the input and focus, show a Toast and allow retry', asyn
   await expect.element(page.getByRole('button', { name: 'Retry title', exact: true })).toBeVisible()
   toast.dismiss()
   await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
+})
+
+it.each(['cancel', 'close', 'escape'])('delete confirmation protects %s and restores its row context', async (action) => {
+  const fixture = await setup()
+  await userEvent.hover(page.getByRole('button', { name: 'Original title', exact: true }))
+  await userEvent.click(page.getByRole('button', { name: 'More conversation actions' }))
+  await userEvent.click(page.getByRole('menuitem', { name: 'Delete conversation', exact: true }))
+  const dialog = page.getByRole('alertdialog', { name: 'Delete conversation?' })
+  await expect.element(dialog).toBeVisible()
+  await expect.element(dialog.getByRole('button', { name: 'Cancel', exact: true })).toHaveFocus()
+  await expect.poll(() => dialog.element().getBoundingClientRect().width).toBe(480)
+  expect(dialog.element().getBoundingClientRect().height).toBe(184)
+  expect(getComputedStyle(dialog.element()).borderRadius).toBe('28px')
+  await expect.element(dialog.getByText('This will permanently delete this conversation and its subagent conversations. This cannot be undone.')).toBeVisible()
+  if (action === 'escape') await userEvent.keyboard('{Escape}')
+  else await userEvent.click(dialog.getByRole('button', { name: action === 'cancel' ? 'Cancel' : 'Close', exact: true }))
+  await expect.element(dialog).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', { name: 'Original title', exact: true })).toHaveFocus()
+  expect(fixture.chat.lists.getState().sessions).toHaveLength(1)
+})
+
+it('pending delete stays bound to the selected identity, busy failure retains data and retry removes every list occurrence and returns to a draft', async () => {
+  const target = { ...fixtureSessions[0]!, title: 'Original title', pinnedAt: 10 }
+  const other = { ...fixtureSessions[0]!, id: 'other-session', title: 'Other title', pinnedAt: null }
+  const fixture = await setup([target, other])
+  const apiDelete = fixture.api.deleteSession
+  const calls: string[] = []
+  let reject!: (error: unknown) => void
+  fixture.api.deleteSession = async (id) => {
+    calls.push(id)
+    await new Promise((_resolve, fail) => {
+      reject = fail
+    })
+    return { sessionIds: [id] }
+  }
+  const row = page.getByRole('button', { name: 'Original title', exact: true }).first()
+  await userEvent.click(row, { button: 'right' })
+  await userEvent.click(page.getByRole('menuitem', { name: 'Delete conversation', exact: true }))
+  const dialog = page.getByRole('alertdialog', { name: 'Delete conversation?' })
+  const confirm = dialog.getByRole('button', { name: 'Delete', exact: true })
+  await userEvent.click(confirm)
+  await expect.element(confirm).toBeDisabled()
+  await expect.element(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled()
+  await userEvent.keyboard('{Enter}{Escape}')
+  expect(calls).toEqual([target.id])
+  await expect.element(dialog).toBeVisible()
+  expect(fixture.chat.lists.getState().sessions).toHaveLength(2)
+  reject(new ApiError('session-busy', 'busy', 409, { reasons: ['run', 'agent', 'job'], sessions: [{ id: target.id, title: target.title }] }))
+  await expect
+    .element(dialog.getByRole('alert'))
+    .toHaveTextContent('Finish the ongoing work in Original title before deleting this conversation: Run, subagent, background job.')
+  expect(fixture.chat.lists.getState().sessions).toHaveLength(2)
+  fixture.api.deleteSession = apiDelete
+  await userEvent.click(confirm)
+  await expect.element(dialog).not.toBeInTheDocument()
+  expect(fixture.chat.lists.getState().sessions.map((session) => session.id)).toEqual([other.id])
+  expect(fixture.chat.getState().activeSessionId).toBeNull()
+  await expect.element(page.getByRole('button', { name: 'Original title', exact: true })).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', { name: 'Other title', exact: true })).toBeVisible()
+})
+
+it.each(['light', 'dark'])('%s Chinese delete confirmation matches desktop geometry and remains usable at390px', async (theme) => {
+  const original = document.documentElement.className
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  try {
+    await setup(undefined, 'zh')
+    await userEvent.hover(page.getByRole('button', { name: 'Original title', exact: true }))
+    await userEvent.click(page.getByRole('button', { name: '查看更多' }))
+    await userEvent.click(page.getByRole('menuitem', { name: '删除对话', exact: true }))
+    const dialog = page.getByRole('alertdialog', { name: '要删除对话吗？' })
+    await expect.poll(() => dialog.element().getBoundingClientRect().width).toBe(480)
+    expect(dialog.element().getBoundingClientRect().height).toBe(184)
+    expect(getComputedStyle(dialog.element()).padding).toBe('24px')
+    const title = dialog.getByRole('heading', { name: '要删除对话吗？' })
+    expect(getComputedStyle(title.element()).fontSize).toBe('20px')
+    expect(getComputedStyle(title.element()).lineHeight).toBe('28px')
+    await expect.element(dialog.getByRole('button', { name: '取消', exact: true })).toHaveFocus()
+    await expect.element(dialog.getByText('此操作将永久删除该对话及其子智能体对话，且无法撤销。')).toBeVisible()
+    const confirm = dialog.getByRole('button', { name: '删除', exact: true })
+    expect(confirm.element().getBoundingClientRect().height).toBe(36)
+    expect(getComputedStyle(confirm.element()).borderRadius).toBe('12px')
+    await page.screenshot({ path: `../../../../../../.vitest/cw09-delete-zh-${theme}.png` })
+    await page.viewport(390, 400)
+    await expect.poll(() => dialog.element().getBoundingClientRect().width).toBe(358)
+    expect(dialog.element().getBoundingClientRect().left).toBe(16)
+    expect(dialog.element().getBoundingClientRect().right).toBe(374)
+    await expect.element(confirm).toBeVisible()
+    await page.screenshot({ path: `../../../../../../.vitest/cw09-delete-zh-${theme}-390.png` })
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog).not.toBeInTheDocument()
+  } finally {
+    document.documentElement.className = original
+  }
 })

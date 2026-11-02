@@ -64,6 +64,7 @@ export interface ListActions {
   toggleCategory(key: string): void
   showMore(key: string): void
   showLess(key: string): void
+  removeSessions(ids: string[]): void
   upsertSession(session: Session): void
   patchSession(id: string, patch: Partial<Session>): void
 }
@@ -72,6 +73,7 @@ export type ListStore = StoreApi<ListState & ListActions>
 /** 列表与组织关系独立于会话内容，业务事件只更新这里的一份数据。 */
 export function createListStore(api: ApiClient): ListStore {
   const initial = readDisplay()
+  const removed = new Set<string>()
   return createStore<ListState & ListActions>()((set, get) => {
     const save = (patch: Partial<ListDisplay>) => {
       set(patch)
@@ -118,7 +120,7 @@ export function createListStore(api: ApiClient): ListStore {
         if (get().listStatus === 'idle') set({ listStatus: 'loading' })
         try {
           const [workspaces, projects, sessions] = await Promise.all([api.listWorkspaces(), api.listProjects(), api.listSessions()])
-          set({ workspaces, projects, sessions, listStatus: 'ready' })
+          set({ workspaces, projects, sessions: sessions.filter((session) => !removed.has(session.id)), listStatus: 'ready' })
           return true
         } catch {
           if (get().listStatus !== 'ready') set({ listStatus: 'error' })
@@ -141,7 +143,12 @@ export function createListStore(api: ApiClient): ListStore {
           return false
         }
       },
+      removeSessions(ids) {
+        for (const id of ids) removed.add(id)
+        set((state) => ({ sessions: state.sessions.filter((session) => !removed.has(session.id)) }))
+      },
       upsertSession(session) {
+        if (removed.has(session.id)) return
         set((state) => ({ sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)] }))
       },
       patchSession(id, patch) {

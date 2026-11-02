@@ -104,3 +104,12 @@ export const ErrorResponse = Type.Object(
   { additionalProperties: false },
 )
 export type ErrorResponse = Static<typeof ErrorResponse>
+
+/** Lifecycle refusals share this optional detail shape; rewind may omit it. */
+export const SessionBusyReason = Type.Union([Type.Literal('run'), Type.Literal('agent'), Type.Literal('job'), Type.Literal('schedule')])
+export type SessionBusyReason = Static<typeof SessionBusyReason>
+export const SessionBusyDetails = Type.Object({
+  reasons: Type.Array(SessionBusyReason),
+  sessions: Type.Array(Type.Object({ id: Type.String(), title: Type.String() })),
+})
+export type SessionBusyDetails = Static<typeof SessionBusyDetails>

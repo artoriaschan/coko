@@ -339,8 +339,30 @@ export class SessionRuns {
    * 开始一个 Run 并立即返回 runId（统一入口）。submit 与 goal 的 user message 开头合并各领域的待送达内容（pendingInput），
    * 其 before 条目排在输入自身的 before 之前；Run 开始之后才确认送达，没能开始时内容留到下一次。Run 结束后通知各领域（onRunEnd）。
    */
+  readonly #admitting = new Map<string, number>()
+  readonly #settling = new Map<string, number>()
+  #assertAdmission: (id: string) => void = () => {}
+
+  useAdmission(assert: (id: string) => void): void {
+    this.#assertAdmission = assert
+  }
+  busy(sessionId: string): boolean {
+    return this.#admitting.has(sessionId) || this.#settling.has(sessionId) || this.#options.runtimes.isRunning(sessionId)
+  }
+  async #admit<T>(id: string, task: () => Promise<T>): Promise<T> {
+    this.#assertAdmission(id)
+    this.#admitting.set(id, (this.#admitting.get(id) ?? 0) + 1)
+    try {
+      return await task()
+    } finally {
+      const left = this.#admitting.get(id)! - 1
+      if (left) this.#admitting.set(id, left)
+      else this.#admitting.delete(id)
+    }
+  }
+
   startRun(sessionId: string, request: RunRequest, waitForInput = false): Promise<{ runId: string }> {
-    return this.#start(sessionId, request, waitForInput)
+    return this.#admit(sessionId, () => this.#start(sessionId, request, waitForInput))
   }
 
   async #start(sessionId: string, request: RunRequest, waitForInput: boolean): Promise<{ runId: string }> {
@@ -426,6 +448,7 @@ export class SessionRuns {
     })
     const goal = request.trigger === 'goal' ? request.goal : undefined
     const schedule = request.trigger === 'schedule' ? request.schedule : undefined
+    this.#settling.set(sessionId, (this.#settling.get(sessionId) ?? 0) + 1)
     const done = run.then(
       async (result) => {
         if (this.#activeRuns.get(sessionId) === started) this.#activeRuns.delete(sessionId)
@@ -451,7 +474,12 @@ export class SessionRuns {
         log.error('run failed', { sessionId, runId: started, error: String(error) })
       },
     )
-    this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
+    const completed = done.finally(() => {
+      const left = this.#settling.get(sessionId)! - 1
+      if (left) this.#settling.set(sessionId, left)
+      else this.#settling.delete(sessionId)
+    })
+    this.#options.runs.launch(`${sessionId}:${started}`, completed, () => runtime.abort())
     if (accepted) {
       try {
         await Promise.race([
@@ -473,7 +501,11 @@ export class SessionRuns {
    * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
    * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
    */
-  async submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = []): Promise<ActionResult> {
+  submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = []): Promise<ActionResult> {
+    return this.#admit(sessionId, () => this.#submit(sessionId, text, waitForInput, images))
+  }
+
+  async #submit(sessionId: string, text: string, waitForInput: boolean, images: ImageAttachment[]): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
     if (session.parentSessionId !== null) throw childSession()

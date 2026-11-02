@@ -8,6 +8,7 @@ import type {
   PermissionsResponse,
   RewindResponse,
   Session,
+  SessionBusyReason,
   SessionDetailResponse,
   SessionModel,
   SessionPermissionsResponse,
@@ -32,6 +33,12 @@ export type { RunLauncher, SessionCwd, SessionExtension, SessionExtensionContext
 export type { PermissionScopeResolver } from './session-permissions.ts'
 
 const log = getLogger(['application', 'sessions'])
+
+export interface SessionLifecycle {
+  runningJobs(id: string): Promise<boolean>
+  forget(ids: string[]): void
+  quiesce<T>(ids: string[], task: () => Promise<T>): Promise<T>
+}
 
 export interface SessionServiceOptions {
   store: SessionStore
@@ -80,6 +87,9 @@ export class SessionService {
   readonly #models: SessionModels
   readonly #runs: SessionRuns
   readonly #context: ContextAssembly
+  readonly #deleting = new Set<string>()
+  readonly #mutations = new Map<string, number>()
+  #lifecycle: SessionLifecycle | undefined
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
@@ -135,6 +145,71 @@ export class SessionService {
       models: this.#models,
       ...(options.cwd ? { cwd: options.cwd } : {}),
     })
+    this.#runs.useAdmission((id) => this.assertAdmission(id))
+  }
+
+  useLifecycle(lifecycle: SessionLifecycle): void {
+    this.#lifecycle = lifecycle
+  }
+
+  async #mutate<T>(id: string, task: () => Promise<T>): Promise<T> {
+    this.assertAdmission(id)
+    this.#mutations.set(id, (this.#mutations.get(id) ?? 0) + 1)
+    try {
+      return await task()
+    } finally {
+      const left = this.#mutations.get(id)! - 1
+      if (left) this.#mutations.set(id, left)
+      else this.#mutations.delete(id)
+    }
+  }
+
+  assertAdmission(sessionId: string): void {
+    if (this.#deleting.has(sessionId)) throw new AppError('session-busy', 'The conversation is being deleted')
+  }
+
+  async delete(sessionId: string): Promise<{ sessionIds: string[] }> {
+    this.assertAdmission(sessionId)
+    this.#deleting.add(sessionId)
+    const tree: StoredSession[] = []
+    try {
+      const visit = async (id: string) => {
+        this.#deleting.add(id)
+        tree.push(await requireSession(this.#store, id))
+        for (const child of await this.#store.sessions.listChildren(id)) await visit(child.id)
+      }
+      await visit(sessionId)
+      const reasons = new Set<SessionBusyReason>()
+      const busy: { id: string; title: string }[] = []
+      for (const session of tree) {
+        let involved = false
+        if (this.#runs.busy(session.id) || this.#mutations.has(session.id)) {
+          reasons.add(session.id === sessionId ? 'run' : 'agent')
+          involved = true
+        }
+        if (await this.#lifecycle?.runningJobs(session.id)) {
+          reasons.add('job')
+          involved = true
+        }
+        if (involved) busy.push({ id: session.id, title: session.title })
+      }
+      if (reasons.size) throw new AppError('session-busy', 'The conversation has ongoing work', { reasons: [...reasons], sessions: busy })
+      const ids = tree.map((session) => session.id)
+      const remove = async () => {
+        const sessionIds = await this.#store.sessions.deleteSession(sessionId)
+        for (const id of sessionIds) {
+          this.#runtimes.forget(id)
+          this.#permissions.forget(id)
+          this.#recovery.forget(id)
+        }
+        this.#lifecycle?.forget(sessionIds)
+        return { sessionIds }
+      }
+      return this.#lifecycle ? await this.#lifecycle.quiesce(ids, remove) : await remove()
+    } finally {
+      this.#deleting.delete(sessionId)
+      for (const session of tree) this.#deleting.delete(session.id)
+    }
   }
 
   /** 开始 Run 的统一入口与运行控制（session-runs.ts）；Goal 与后台任务经它开始 Goal Round、送达通知。 */
@@ -222,11 +297,11 @@ export class SessionService {
   }
 
   rewind(sessionId: string, input: { targetSeq: number; mode: RewindMode; dryRun?: boolean }): Promise<RewindResponse> {
-    return this.#checkpoints.rewind(sessionId, input)
+    return this.#mutate(sessionId, () => this.#checkpoints.rewind(sessionId, input))
   }
 
   fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
-    return this.#checkpoints.fork(sessionId, targetSeq, title)
+    return this.#mutate(sessionId, () => this.#checkpoints.fork(sessionId, targetSeq, title))
   }
 
   // ---- DTO 与模型（session-models.ts） ----
@@ -297,7 +372,9 @@ export class SessionService {
       const worktree = await this.#store.worktrees.get(input.worktreeId)
       if (worktree?.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; create the session elsewhere`)
     }
-    return this.#store.sessions.createSession(input)
+    if (!input.parentSessionId) return this.#store.sessions.createSession(input)
+    const parent = input.parentSessionId
+    return this.#mutate(parent, () => this.#store.sessions.createSession(input))
   }
 
   async detail(sessionId: string): Promise<SessionDetailResponse> {
