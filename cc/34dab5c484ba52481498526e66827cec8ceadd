@@ -1,0 +1,57 @@
+docs/ui/session-sidebar-preview.html
+  s_47be7d432a6e87::t_977cc79a251782 1-6,175,177-180,189-194,199,202,204-207,209-220,222,224-229,232-233,235,237-238,240,243,286-287
+  s_47be7d432a6e87::t_26aa3d3e920e47 256
+  s_47be7d432a6e87::t_aa894c01d6650b 200
+  s_47be7d432a6e87::t_9eded8d9883a47 230-231,236,249
+  s_47be7d432a6e87::t_ea2a1cdc3a353f 195
+  s_47be7d432a6e87::t_6319be2b3f4bd3 185-186,198,221,239,274-275,277-280
+  s_47be7d432a6e87::t_b5c701fb3f8ab9 183-184,197,203,223,246,253,258-264
+  s_47be7d432a6e87::t_7a25c2abba956a 242
+  s_47be7d432a6e87::t_15e4ef92c84c35 241
+  s_47be7d432a6e87::t_40a3b799b88708 181-182,244-245,247-248,250-252,254-255,257,284-285
+  s_47be7d432a6e87::t_04f0ea4e36c862 187-188,196,265-273,276,281-283
+  s_47be7d432a6e87::t_346efea70338ff 208
+  s_47be7d432a6e87::t_8e857587c1e7f2 7-174
+  s_47be7d432a6e87::t_58cb2e1633e323 176,201
+  s_47be7d432a6e87::t_653a82fb6b02ea 234
+docs/ui/session-title-fade.glsl
+  s_47be7d432a6e87::t_0fb69497ac9386 1-19
+docs/ui/composer-plan-preview.html
+  s_47be7d432a6e87::t_ac235172963ea9 1-6,135-154,156,159,161-181,196-199,201-204,206-209,211-214,217-225,234-236
+  s_47be7d432a6e87::t_5772ec2ccabb9e 7-134
+  s_47be7d432a6e87::t_008fefe68b8a26 232
+  s_47be7d432a6e87::t_bbb47f05f794e1 216
+  s_47be7d432a6e87::t_ccaa09fe1cffbf 160,188-195,200,210
+  s_47be7d432a6e87::t_51aab71cb3d5ab 155,157-158,182-187,205,215,226-231,233
+docs/ui/thinking-slider.glsl
+  s_47be7d432a6e87::t_a19182291dd76d 26-32
+  s_47be7d432a6e87::t_707d055f6b3a48 36
+  s_47be7d432a6e87::t_3d6bb4c8b4d32c 23-25,33,35
+  s_47be7d432a6e87::t_10765a8b18869f 37,41
+  s_47be7d432a6e87::t_a82ded81cddc6c 1-22,34,38-40,42-45
+docs/ui/thinking-slider-preview.html
+  s_47be7d432a6e87::t_174b1257fb27eb 201,217
+  s_47be7d432a6e87::t_27a33fcc102a39 112
+  s_47be7d432a6e87::t_6f1689c97c0b1c 177,187-188,205
+  s_47be7d432a6e87::t_597fc9e687ece6 204
+  s_47be7d432a6e87::t_acfa02ec6ad03a 7-111,113-172
+  s_47be7d432a6e87::t_16c18d79618f31 200,218
+  s_47be7d432a6e87::t_78a18868f44c15 206
+  s_47be7d432a6e87::t_a82ded81cddc6c 1-6,173-176,178-186,189-199,202-203,207-216,219-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "cc34dab5c484ba52481498526e66827cec8ceadd",
+  "prompts": {},
+  "sessions": {
+    "s_47be7d432a6e87": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19b0e-cc3e-7d43-9fac-5fca5291fa73",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
