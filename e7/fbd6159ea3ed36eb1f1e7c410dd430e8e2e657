@@ -1,0 +1,63 @@
+packages/ui/src/context-ring/context-ring.tsx
+  s_64e2ce1bfde668::t_e9438981fe433a 15-16,21-22,27,40
+apps/server/src/application/context/usage.test.ts
+  s_64e2ce1bfde668::t_d8439d5c15b362 104,116-117,129-130,180
+  s_64e2ce1bfde668::t_c8261e506c6fc2 2,4,10,61,71-74,79,97-102
+  s_64e2ce1bfde668::t_836d86e4701a76 5,163-166,174-176
+  s_64e2ce1bfde668::t_3d3efe412dc9a3 8-9,133-135,144-149,155-162
+  s_64e2ce1bfde668::t_4c632994fa5ec6 62-70,75-78,80-96,111-115,119-128,136-143,150-154,167-173
+  s_64e2ce1bfde668::t_e5f49e7ee6d5c9 105-110,118,131-132
+  s_64e2ce1bfde668::t_c049a327ef7eb7 178-179
+  s_64e2ce1bfde668::t_48d3f228b097dc 177
+tests/integration/sidecar-context.test.ts
+  s_64e2ce1bfde668::t_4c632994fa5ec6 73-85,92-96
+  s_64e2ce1bfde668::t_f50e7efbb49e84 126-128,131-134,156-158
+  s_64e2ce1bfde668::t_48d3f228b097dc 19,72,86-91,97-104
+apps/desktop/src/renderer/features/conversation/context-ring.tsx
+  s_64e2ce1bfde668::t_ea510f67863211 63,106
+  s_64e2ce1bfde668::t_523f6074bf063d 7,9,14-15,45,78,81-82,128,135-136,138,140,142-144,147,157,159-161,163,171-173,179-187,192,201-206,210-215
+  s_64e2ce1bfde668::t_4c632994fa5ec6 72-75,107-127,158,162,165-168,174-177,188-190,193-200,207-209,216-218
+  s_64e2ce1bfde668::t_7efb9de39670ab 139,141
+docs/README.md
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 36
+docs/subsystems/context.md
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 107-108,117-121
+apps/desktop/src/renderer/stores/context-store.test.ts
+  s_64e2ce1bfde668::t_72a2eb43f51d16 11
+packages/protocol/src/context.ts
+  s_64e2ce1bfde668::t_9aa0e9da332124 9-10
+packages/i18n/src/dictionaries/domains/context.ts
+  s_64e2ce1bfde668::t_72a2eb43f51d16 11,13-23,44,46-56
+apps/desktop/e2e/context.e2e.test.ts
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 1-2,28,33,47-49,51,59,62,64,66,69,71-73
+apps/server/src/application/context/usage.ts
+  s_64e2ce1bfde668::t_9aa0e9da332124 56,100,128-142,144
+  s_64e2ce1bfde668::t_4c632994fa5ec6 82,121-127
+  s_64e2ce1bfde668::t_01c1bd640808e9 77-81,83-92,162
+apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx
+  s_64e2ce1bfde668::t_f50e7efbb49e84 5
+  s_64e2ce1bfde668::t_45844a26e8d71c 133-161
+  s_64e2ce1bfde668::t_72a2eb43f51d16 63-64,88-89,109
+  s_64e2ce1bfde668::t_d36a647e0d7d22 21,62,65,67-73,77,87,91,95,97-103,106-108
+  s_64e2ce1bfde668::t_4c632994fa5ec6 36-40,57-59,104-105,124-126
+apps/desktop/src/renderer/features/conversation/warning-text.browser.test.tsx
+  s_64e2ce1bfde668::t_ea510f67863211 2,4,94,105,107-109
+  s_64e2ce1bfde668::t_72a2eb43f51d16 72
+  s_64e2ce1bfde668::t_4c632994fa5ec6 98-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "e7fbd6159ea3ed36eb1f1e7c410dd430e8e2e657",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
