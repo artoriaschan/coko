@@ -1,0 +1,272 @@
+apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 41
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_d0ee15e1775697 7-11
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_64e2ce1bfde668::t_054d059a08309b 578
+  s_64e2ce1bfde668::t_460fd79b170b92 283-284
+  s_64e2ce1bfde668::t_342433128a0c28 382,410,420,425
+packages/session/src/repository-contract.ts
+  s_64e2ce1bfde668::t_2f7c44d4286192 60-64
+  s_64e2ce1bfde668::t_5d2bef6e764af4 45-59,65-66,92,97,103,122
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 155-160,164
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_2f7c44d4286192 21-24,37,40-44
+  s_64e2ce1bfde668::t_ec5aaa4be7c2e9 1-20,25-36,38-39,45-47
+tests/integration/sidecar-projects.test.ts
+  s_64e2ce1bfde668::t_1c2a385828ec6e 1
+  s_64e2ce1bfde668::t_2f7c44d4286192 12,14,17,19,24-32,35-37,39-40,43-48,50,52
+  s_64e2ce1bfde668::t_d0bc6f082bf442 2-11,13,15-16,18,20-23,33-34,38,41-42,49,51,53-54
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 52,708
+packages/session/src/sqlite/repositories.ts
+  s_64e2ce1bfde668::t_2f7c44d4286192 182-187,216,231-247
+  s_64e2ce1bfde668::t_7653d65d46fe60 3,58-60,100-102,138,188,193-194,203,215,252,261
+packages/session/src/sqlite/migrate-v10.test.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 1-30,33-40,44
+  s_64e2ce1bfde668::t_2f7c44d4286192 31-32,41-43
+apps/server/src/application/index.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 1,35
+packages/ui/src/components/sidebar-list-row.tsx
+  s_64e2ce1bfde668::t_d0ee15e1775697 1-5,15
+  s_64e2ce1bfde668::t_2f7c44d4286192 6-14
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_ec5aaa4be7c2e9 13,97
+.scratch/conversation-workbench/issues/01-project-model-and-list.md
+  s_64e2ce1bfde668::t_92b6c4e973726f 21-40
+  s_64e2ce1bfde668::t_a5888a83ad3ceb 41-63
+apps/server/src/application/handoff.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 182
+apps/server/src/application/context/usage.test.ts
+  s_64e2ce1bfde668::t_3d3efe412dc9a3 8-9,133-135,144-149,155-162
+  s_64e2ce1bfde668::t_4c632994fa5ec6 62-70,75-78,80-96,111-115,119-128,136-143,150-154,167-173
+  s_64e2ce1bfde668::t_e5f49e7ee6d5c9 105-110,118,131-132
+  s_64e2ce1bfde668::t_d8439d5c15b362 104,116-117,129-130,180
+  s_64e2ce1bfde668::t_48d3f228b097dc 177
+  s_64e2ce1bfde668::t_c049a327ef7eb7 178-179
+  s_64e2ce1bfde668::t_836d86e4701a76 5,163-166,174-176
+  s_64e2ce1bfde668::t_c8261e506c6fc2 2,4,10,61,71-74,79,97-102
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 103
+apps/desktop/e2e/open-session.e2e.test.ts
+  s_64e2ce1bfde668::t_add26e46398b23 56
+apps/server/src/application/context/usage.ts
+  s_64e2ce1bfde668::t_01c1bd640808e9 77-81,83-92,162
+  s_64e2ce1bfde668::t_4c632994fa5ec6 82,121-127
+  s_64e2ce1bfde668::t_9aa0e9da332124 56,100,128-142,144
+apps/server/src/application/handoff.test.ts
+  s_64e2ce1bfde668::t_4d32e4e3bcbf5d 153-160,162-166
+  s_64e2ce1bfde668::t_2f7c44d4286192 161
+apps/desktop/src/renderer/stores/chat-store-permissions.test.ts
+  s_64e2ce1bfde668::t_74d54f3e309059 30-32,59
+apps/desktop/e2e/provider-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_a42070e562d776 80
+apps/desktop/src/renderer/features/conversation/handoff-row.tsx
+  s_64e2ce1bfde668::t_2f7c44d4286192 41-44
+apps/desktop/src/renderer/features/settings/hooks-section.tsx
+  s_64e2ce1bfde668::t_342433128a0c28 8,44
+apps/desktop/src/renderer/features/conversation/warning-text.browser.test.tsx
+  s_64e2ce1bfde668::t_4c632994fa5ec6 98-102
+  s_64e2ce1bfde668::t_72a2eb43f51d16 72
+  s_64e2ce1bfde668::t_ea510f67863211 2,4,94,105,107-109
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_4ece1bbd703b58 1-39
+packages/session/src/memory/index.ts
+  s_64e2ce1bfde668::t_ccabe44ebbbf08 25-28,70,147,151-157,159-160,162-169,171-182,202,214-215,232,237-242
+  s_64e2ce1bfde668::t_2f7c44d4286192 158,170,208-213
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 5,107,109-110,140
+  s_64e2ce1bfde668::t_52dca7542e39d3 141
+apps/desktop/src/renderer/features/settings/lsp-section.tsx
+  s_64e2ce1bfde668::t_342433128a0c28 7,27
+apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx
+  s_64e2ce1bfde668::t_d36a647e0d7d22 21,62,65,67-73,77,87,91,95,97-103,106-108
+  s_64e2ce1bfde668::t_f50e7efbb49e84 5
+  s_64e2ce1bfde668::t_4c632994fa5ec6 36-40,57-59,104-105,124-126
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 60
+  s_64e2ce1bfde668::t_45844a26e8d71c 133-161
+  s_64e2ce1bfde668::t_72a2eb43f51d16 63-64,88-89,109
+docs/adr/README.md
+  s_64e2ce1bfde668::t_4ece1bbd703b58 32
+apps/desktop/src/renderer/app/chat.tsx
+  s_64e2ce1bfde668::t_342433128a0c28 42-45,47-48
+  s_64e2ce1bfde668::t_ec5aaa4be7c2e9 3,33-39
+  s_64e2ce1bfde668::t_2f7c44d4286192 40-41,46
+apps/desktop/src/renderer/testing/fixture-chat.ts
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 13-15
+  s_64e2ce1bfde668::t_2f7c44d4286192 137-147
+apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 64
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_ec5aaa4be7c2e9 23,254,314,343,381-382,421-422,431-432,454,670,785
+  s_64e2ce1bfde668::t_2f7c44d4286192 378,646-647,689
+apps/desktop/src/renderer/features/settings/general-section.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 8,72,100
+apps/desktop/src/renderer/app/workbench-navigation.ts
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 99
+  s_64e2ce1bfde668::t_11466215d35b49 19-20,95-96
+  s_64e2ce1bfde668::t_24af8767456191 17-18,24,79-80,82,84-88,94,97,100
+packages/session/src/sqlite/index.ts
+  s_64e2ce1bfde668::t_7653d65d46fe60 15,67
+apps/desktop/e2e/context.e2e.test.ts
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 1-2,28,33,47-49,51,59,62,64,66,69,71-73
+  s_64e2ce1bfde668::t_b036c9e4b1a15c 92
+  s_64e2ce1bfde668::t_2d4d686236fccf 86-87,91
+  s_64e2ce1bfde668::t_a98ef2a9126cdf 42,88
+packages/session/src/index.ts
+  s_64e2ce1bfde668::t_ccabe44ebbbf08 3-7
+docs/README.md
+  s_64e2ce1bfde668::t_4ece1bbd703b58 29
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 37
+  s_64e2ce1bfde668::t_460fd79b170b92 52
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_d0ee15e1775697 9-13
+apps/desktop/src/renderer/features/conversation/context-ring.tsx
+  s_64e2ce1bfde668::t_4c632994fa5ec6 72-75,107-127,162,165-168,174-177,188-190,193-200,207-209,216-218
+  s_64e2ce1bfde668::t_a98ef2a9126cdf 7,158
+  s_64e2ce1bfde668::t_7efb9de39670ab 139,141
+  s_64e2ce1bfde668::t_ea510f67863211 63,106
+  s_64e2ce1bfde668::t_523f6074bf063d 9,14-15,45,78,81-82,128,135-136,138,140,142-144,147,157,159-161,163,171-173,179-187,192,201-206,210-215
+apps/desktop/src/renderer/stores/chat-store-run-control.test.ts
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 86
+  s_64e2ce1bfde668::t_74d54f3e309059 25-27,69
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 1-162
+docs/subsystems/worktrees.md
+  s_64e2ce1bfde668::t_460fd79b170b92 3,21,80-82,88,95
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_64e2ce1bfde668::t_2f7c44d4286192 3,8,22,111-115,117-119
+  s_64e2ce1bfde668::t_076506c3dec3ac 1-2
+  s_64e2ce1bfde668::t_d268f17fd08e32 116
+apps/desktop/src/renderer/stores/chat-store-m4-entries.test.ts
+  s_64e2ce1bfde668::t_74d54f3e309059 33-35,58
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 116
+apps/desktop/src/renderer/stores/chat-store-approvals.test.ts
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 7,88
+  s_64e2ce1bfde668::t_64ab2dc2ec34ee 89
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 76
+  s_64e2ce1bfde668::t_74d54f3e309059 26-28,62
+apps/desktop/src/renderer/features/settings/memory-section.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 6,23,26
+apps/server/src/application/projects.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 1-5,10-12,16,20,29-32
+  s_64e2ce1bfde668::t_2f7c44d4286192 7-9,13-15,17-19,21-28
+  s_64e2ce1bfde668::t_74d54f3e309059 6
+apps/server/src/application/checkpoints.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 150
+apps/desktop/src/renderer/features/settings/skills-section.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 8,46
+packages/ui/src/index.ts
+  s_64e2ce1bfde668::t_d0ee15e1775697 66
+apps/desktop/src/renderer/features/conversation/agent-card.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 57
+apps/desktop/src/renderer/stores/chat-store-recovery.test.ts
+  s_64e2ce1bfde668::t_74d54f3e309059 24-26,79
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 91
+.scratch/conversation-workbench/issues/04-context-ring-breakdown.md
+  s_64e2ce1bfde668::t_b56cc60580aa83 14-15,20-38
+apps/desktop/src/renderer/features/conversation/handoff.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 34,166,187
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 188,292,331,356,366,420
+  s_64e2ce1bfde668::t_74d54f3e309059 39-41,68
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 128-138
+packages/ui/src/styles/theme.css
+  s_64e2ce1bfde668::t_d0ee15e1775697 515-521
+apps/desktop/src/renderer/features/conversation/handoff-dialog.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 59-60,157-158
+apps/desktop/e2e/recovery.e2e.test.ts
+  s_64e2ce1bfde668::t_460fd79b170b92 60,68
+apps/desktop/src/renderer/features/settings/mcp-section.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 36,93
+apps/desktop/src/renderer/features/conversation/header-actions.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 90
+apps/desktop/e2e/projects-migration.e2e.test.ts
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 1-59
+apps/desktop/src/renderer/stores/context-store.test.ts
+  s_64e2ce1bfde668::t_72a2eb43f51d16 11
+packages/session/src/sqlite/migrate-v8.test.ts
+  s_64e2ce1bfde668::t_4ece1bbd703b58 54
+apps/desktop/e2e/schedules.e2e.test.ts
+  s_64e2ce1bfde668::t_add26e46398b23 181
+apps/desktop/src/renderer/features/settings/agents-section.tsx
+  s_64e2ce1bfde668::t_342433128a0c28 50
+  s_64e2ce1bfde668::t_460fd79b170b92 7
+packages/session/src/types.ts
+  s_64e2ce1bfde668::t_ccabe44ebbbf08 14-38,59-62,76,84-85,128,472
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 113
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 1-57
+packages/ui/src/context-ring/context-ring.tsx
+  s_64e2ce1bfde668::t_e9438981fe433a 15-16,21-22,27,40
+apps/desktop/src/renderer/stores/chat-store-rewind.test.ts
+  s_64e2ce1bfde668::t_74d54f3e309059 29-31,87
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 116,146
+apps/desktop/src/renderer/features/settings/permissions-section.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 17,40,43
+docs/subsystems/recovery.md
+  s_64e2ce1bfde668::t_460fd79b170b92 71
+apps/desktop/src/renderer/stores/handoff-store.test.ts
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 42
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_4ece1bbd703b58 5,46-48
+apps/desktop/e2e/approvals.e2e.test.ts
+  s_64e2ce1bfde668::t_add26e46398b23 100
+  s_64e2ce1bfde668::t_460fd79b170b92 92,108-109,111
+packages/i18n/src/dictionaries/domains/context.ts
+  s_64e2ce1bfde668::t_72a2eb43f51d16 11,13-23,44,46-56
+packages/protocol/src/api.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 11
+apps/desktop/src/renderer/features/settings/agents-section.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 46
+apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 94,250
+apps/desktop/src/renderer/features/sidebar/sidebar-rail.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 3
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 13
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_2f7c44d4286192 26-38
+  s_64e2ce1bfde668::t_d89a7bafa80da3 24-25,39-42,72-74
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_9fd27d9b8e94b0 81
+packages/session/src/sqlite/projects.ts
+  s_64e2ce1bfde668::t_2f7c44d4286192 15-20,22,33,37-59,61-85
+  s_64e2ce1bfde668::t_7653d65d46fe60 1-14,21,23-32,34-36,60,86-87
+packages/session/src/sqlite/schema.ts
+  s_64e2ce1bfde668::t_ccabe44ebbbf08 301-323
+.scratch/conversation-workbench/issues/05-model-picker-thinking-slider.md
+  s_64e2ce1bfde668::t_ea3c923211e85b 13-14,19-21,36-42
+apps/desktop/src/renderer/features/conversation/approval-bubbling.browser.test.tsx
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 78
+packages/protocol/src/context.ts
+  s_64e2ce1bfde668::t_9aa0e9da332124 9-10
+apps/server/src/application/workspaces.ts
+  s_64e2ce1bfde668::t_d89a7bafa80da3 1,21-22,25,27-29
+  s_64e2ce1bfde668::t_2f7c44d4286192 26
+tests/integration/sidecar-context.test.ts
+  s_64e2ce1bfde668::t_f50e7efbb49e84 126-128,131-134,156-158
+  s_64e2ce1bfde668::t_48d3f228b097dc 19,72,86-91,97-104
+  s_64e2ce1bfde668::t_4c632994fa5ec6 73-85,92-96
+docs/subsystems/context.md
+  s_64e2ce1bfde668::t_2210d0e70ee6b3 107-108,117-121
+apps/desktop/src/renderer/features/settings/schedules-section.tsx
+  s_64e2ce1bfde668::t_460fd79b170b92 5
+  s_64e2ce1bfde668::t_e95d6ce2464cdc 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b9811b25a9aa5d010a2dc396198c6df112228bd0",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
