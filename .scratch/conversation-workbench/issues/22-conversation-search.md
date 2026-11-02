@@ -17,3 +17,13 @@
 - [ ] Browser Mode：默认 10 个最近对话，没有 Tabs、建议与快捷键；标题片段命中并高亮，只有项目标签或正文含该词时不返回；置顶与项目内会话各只一行、项目标签正确；无匹配与清空后的状态；长列表内部滚动、输入框可见；方向键与 Enter 打开同一个会话；中文输入法组合期间不确认；未选择而关闭时焦点回到搜索按钮；结果的右键菜单对应正确的 Session，删除确认在浮层之上，取消后保留关键词（CW-46 至 CW-53、CW-55 与 CW-57 的搜索部分、CW-74）。
 - [ ] Electron E2E：有多个对话时搜索并打开其中一个，打开的是同一个已有会话，没有新建会话。
 - [ ] workbench.md 的搜索一节；`check:docs` 通过。
+
+
+## Comments
+
+- 2026-11-03：在 `codex/cw-22-search` 实施。已读取完整票、SEARCH-01～11、NAV-06、CHAT-12/14 与测试约定；规格第 18 节已授权 renderer Browser Mode 与真实 Electron/Sidecar HTTP 的可观察边界，不再次询问 seam。
+- TDD：先新增搜索 Browser 用例，`pnpm run test apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx` 因搜索组件不存在失败；随后实现并绿。扩展右键编辑用例暴露菜单关闭抢走 inline rename 焦点，使用动作引用保留编辑焦点后通过。窄窗口右键用例暴露模态 transform 对 fixed 鼠标锚点的影响，菜单 portal 到 body 且保留 DialogContent 的 React 事件祖先后通过；没有修改共享菜单定位业务。
+- 已替换过渡侧栏过滤，sidebar/rail 共用 640×432 搜索 Dialog，默认最近 10 条、全部标题命中、身份去重、归档过滤、项目标签/时间/完整标题可访问名称、IME/方向键/Enter/Escape/外部关闭和焦点恢复；复用 SessionMenu、SessionMoveMenu、SessionDeleteDialog，删除取消保留查询与结果，目标身份不随列表重排改变。
+- 当前验证：`pnpm run test apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx packages/i18n/src/index.test.ts` 4 文件 52 例通过；`pnpm run test apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx apps/desktop/e2e/conversation-search.e2e.test.ts` 2 文件 6 例通过（当时搜索 Browser 5 例 + 原生 1 例，后增加到 Browser 7 例）；`pnpm run typecheck`、受影响源码 `oxlint`、`git diff --check` 均退出 0。
+- 文档归属：当前搜索行为原地更新 `docs/subsystems/workbench.md`，同步 `docs/README.md` 摘要。已搜索“标题过滤”“完整的搜索浮层”、`searchSessions/noMatches/searchPlaceholder` 消费者；旧 M1 证据与已关闭 02 票保留历史含义。`pnpm run check:docs` 检查 247 Markdown、0 问题。无正式文档反向依赖任务材料。
+- 归档菜单槽位待 10 的共享 SessionArchiveMenuItem 合入后接入，再执行最终合并后检查；本票此时尚未关闭。

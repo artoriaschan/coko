@@ -10,6 +10,7 @@ import type { ComposerHandle } from '../features/conversation/composer.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { SettingsPage } from '../features/settings/settings-page.tsx'
+import { ConversationSearch } from '../features/sidebar/conversation-search.tsx'
 import { Sidebar } from '../features/sidebar/sidebar.tsx'
 import { SidebarRail } from '../features/sidebar/sidebar-rail.tsx'
 import { ProjectDialogsProvider, useCreateProject } from '../features/projects/project-dialogs.tsx'
@@ -142,6 +143,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                       {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
                     </Frame>
                   </div>
+                  <ConversationSearch open={search !== null} onOpenChange={(open) => setSearch(open ? '' : null)} />
                   <SettingsPage theme={theme} />
                 </div>
                 <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />

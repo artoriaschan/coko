@@ -1,4 +1,4 @@
-import { Button, Input, SidebarAccount, useAppFrame } from '@coko/ui'
+import { Button, SidebarAccount, useAppFrame } from '@coko/ui'
 import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, PanelLeftCloseIcon, PuzzleIcon, SearchIcon, SettingsIcon, SquarePenIcon, UserRoundIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
@@ -8,7 +8,7 @@ import { SidebarLists } from './sidebar-lists.tsx'
 
 export interface SidebarProps {
   onAddWorkspace: () => void
-  /** 搜索：null 为关闭；字符串为当前查询词（按会话标题过滤，不区分大小写）。由 App 持有，rail 也能打开。 */
+  /** 搜索：null 为关闭；非 null 为搜索浮层打开。由 App 持有，rail 也能打开。 */
   search: string | null
   onSearchChange: (query: string | null) => void
 }
@@ -84,30 +84,10 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
           {t('schedules.settings')}
         </Button>
       </nav>
-      {search !== null && (
-        <div className="flex h-9 shrink-0 items-center gap-2 px-4">
-          <SearchIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <Input
-            type="search"
-            autoFocus
-            aria-label={t('sidebar.searchSessions')}
-            placeholder={t('sidebar.searchPlaceholder')}
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
-              event.preventDefault()
-              event.stopPropagation()
-              onSearchChange(null)
-            }}
-            className="h-7"
-          />
-        </div>
-      )}
 
       <SidebarLists
         onAddWorkspace={onAddWorkspace}
-        search={search}
+        search={null}
         onNewSession={newSession}
         onSelect={(id) => {
           navigation.openSession(id)
