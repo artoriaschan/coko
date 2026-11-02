@@ -533,3 +533,22 @@ describe('定时任务：通知', { timeout: 120_000 }, () => {
     expect(log).toContain('notification not sent: disabled in settings')
   })
 })
+
+it('a paused schedule resumed externally after archive records session-archived and starts no Run', async () => {
+  const env = await boot([{ content: 'Should never run.' }])
+  const id = await env.open()
+  const schedule = (
+    await env.api.post(schedulePaths.sessionSchedules(id), { title: 'Archived reminder', prompt: 'stay idle', rule: { kind: 'every', seconds: 60 } })
+  ).body
+  expect((await env.api.patch(schedulePaths.schedule(schedule.id), { revision: schedule.revision, status: 'paused' })).status).toBe(200)
+  expect((await env.api.post(apiPaths.sessionArchive(id), {})).status).toBe(200)
+  expect((await env.api.patch(schedulePaths.schedule(schedule.id), { revision: schedule.revision + 1, status: 'active' })).status).toBe(200)
+  const resumed = (await env.api.get(schedulePaths.list(id))).body[0]
+  const now = await env.now()
+  await advanceClock(env.api, resumed.nextAt - now)
+  await expect
+    .poll(async () => (await env.api.get(apiPaths.session(id))).body.entries.filter((entry: { kind: string }) => entry.kind === 'schedule_fire'))
+    .toEqual([expect.objectContaining({ payload: expect.objectContaining({ scheduleId: schedule.id, status: 'skipped', reason: 'session-archived' }) })])
+  expect((await env.api.get(apiPaths.session(id))).body.entries.some((entry: { kind: string }) => entry.kind === 'run_start')).toBe(false)
+  expect(await env.requests()).toEqual([])
+})

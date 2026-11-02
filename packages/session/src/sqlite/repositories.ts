@@ -229,6 +229,18 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return row ? toSession(row) : undefined
         }),
       ),
+    setSessionArchived: (id, archivedAt) =>
+      later(() =>
+        conn.write(() => {
+          requireSession(id)
+          conn.run(
+            'WITH RECURSIVE tree(id) AS (SELECT id FROM sessions WHERE id = ? UNION ALL SELECT s.id FROM sessions s JOIN tree t ON s.parent_session_id = t.id) UPDATE sessions SET archived_at = ?, pinned_at = NULL WHERE id IN (SELECT id FROM tree)',
+            id,
+            archivedAt,
+          )
+          return toSession(requireSession(id))
+        }),
+      ),
     setSessionOrganization: (id, patch) =>
       later(() =>
         conn.write(() => {

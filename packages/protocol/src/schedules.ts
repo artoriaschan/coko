@@ -25,6 +25,7 @@ export const ScheduleStatus = Type.Union([Type.Literal('active'), Type.Literal('
 export type ScheduleStatus = Static<typeof ScheduleStatus>
 
 export const ScheduleSkipReason = Type.Union([
+  Type.Literal('session-archived'),
   Type.Literal('disabled'),
   Type.Literal('child-session'),
   Type.Literal('workspace-missing'),
