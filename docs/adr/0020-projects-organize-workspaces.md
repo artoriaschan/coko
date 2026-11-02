@@ -45,7 +45,7 @@ category: architecture
 
 ## 当前实施范围
 
-已实现项目与会话组织字段、SQLite v10 的 Workspace 迁移、主要 Workspace 唯一约束、列表协议及两类基础列表。根会话在项目主要 Workspace 中创建时默认归入项目，子会话的协议归属从根会话派生，分叉与交接继承来源归属。当前行为与验证入口见 [项目与会话列表](../subsystems/projects.md)。附加文件夹的权限范围、项目完整管理与独立对话首次发送目录仍待实施，因此 implementation 为 partial。
+已实现项目与会话组织字段、SQLite v10 的 Workspace 迁移、主要 Workspace 唯一约束、列表协议、分类交互与会话置顶。根会话在项目主要 Workspace 中创建时默认归入项目，子会话的协议归属从根会话派生，分叉与交接继承来源归属，置顶保持归属与执行目录不变。当前行为与验证入口见 [项目与会话列表](../subsystems/projects.md)。附加文件夹的权限范围、项目完整管理与独立对话首次发送目录仍待实施，因此 implementation 为 partial。
 
 ## 后果与验证
 

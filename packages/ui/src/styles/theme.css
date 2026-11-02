@@ -10,6 +10,11 @@
 @source '../';
 @source '../../../../node_modules/streamdown/dist/*.js';
 
+/* 单行可滚动标题由渐隐表达边缘，不让横向滚动条占用正文行高。 */
+.fading-title {
+  scrollbar-width: none;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------- 原始色板：只供下方语义 token 引用 ---------- */

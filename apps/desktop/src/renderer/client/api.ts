@@ -98,6 +98,7 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     listWorkspaces: async () => (await call(WorkspaceListResponse, 'GET', API_ROUTES.workspaces)).workspaces,
     registerWorkspace: (path: string) => call(Workspace, 'POST', API_ROUTES.workspaces, { path }),
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
+    setSessionPinned: (id: string, pinned: boolean) => call(Session, 'PUT', apiPaths.sessionPin(id), { pinned }),
     createSession: (input: CreateSessionRequest) => call(Session, 'POST', API_ROUTES.sessions, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     /** 202 返回新 runId；不开始 Run 的动作（例如 /goal pause）为 204，返回 { done: true }。 */

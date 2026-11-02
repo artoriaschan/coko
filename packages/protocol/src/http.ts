@@ -115,6 +115,9 @@ export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
 export type SessionListResponse = Static<typeof SessionListResponse>
 
+export const SetSessionPinRequest = Type.Object({ pinned: Type.Boolean() }, strict)
+export type SetSessionPinRequest = Static<typeof SetSessionPinRequest>
+
 /** entries 为线上信封；客户端逐条按 SessionEntry 校验。 */
 export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>

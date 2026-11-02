@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "项目的持久化模型、Workspace 迁移、会话归属与侧栏交互及本地恢复；项目组织与固定执行目录的边界。"
+description: "项目模型、Workspace 迁移、会话归属、侧栏交互与恢复，以及会话详情、长标题滚动和置顶。"
 lifecycle: active
 ---
 
 # 项目与会话列表
 
-项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移和工作台列表的行为。项目的编辑、归档、置顶和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
+项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移、工作台列表及会话置顶的行为。项目的编辑、项目置顶、归档和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
 
 ## 数据与迁移
 
@@ -28,7 +28,17 @@ GET /api/projects 返回项目及源文件夹的主要标记、未归档根会�
 
 renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 持有项目、Workspace、根会话列表与加载状态；chat-store 保留会话内容、草稿及 Run 控制，通过独立列表 store 更新组织视图。React 的 useLists 订阅列表数据，useCurrentSession 结合当前会话标识查询列表。
 
-侧栏基础列表分为“对话”和“项目”：独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示运行状态点或分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
+侧栏包含“置顶”“对话”和“项目”：置顶分类仅在有置顶会话时显示；独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起未单独置顶的所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示运行状态点或分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
+
+## 会话详情、长标题与置顶
+
+会话行在 hover 或键盘焦点进入时提供斜图钉与查看更多按钮。针尖朝左下，图标采用 14px 槽并在 24px 点击框中居中。查看更多当前只关闭详情，完整菜单由会话菜单能力接入；它不触发会话切换。
+
+详情通过共享 HoverCard 脱离侧栏裁剪，以整行为锚点，首选位于行右侧 2px、顶部对齐；窗口边缘按 Radix 的可用空间避让，较长内容在卡片内部滚动。指针可跨过间距移入卡片，焦点进入卡片时保持打开。详情展示完整标题、最后记录时间的相对值与原有项目归属，置顶不改变归属。时间在一分钟内显示“刚刚”，之后为分钟、小时、天，超过七天展示本地化日期。点击更多、外部点击、离开或 Escape 关闭；已关闭的内容立即卸载，避免退场动画层拦截其他页面的 Escape。
+
+共享 FadingTitle 保持单行，支持触控板、滚轮、拖动与所在行的方向键、Home、End 横向滚动。起点仅右侧渐隐，中间两侧渐隐，终点仅左侧渐隐，无溢出时无遮罩；渐隐不包含前导图标或行尾按钮。拖动不会打开或置顶会话。完整标题始终保留在行的可访问名称与详情卡中。
+
+PUT /api/sessions/:id/pin 接受布尔值 pinned，返回更新后的 Session；只允许根会话。置顶写入 pinnedAt，重复置顶保留已有时间，取消置顶清空该值，不改变最后记录时间、工作目录或项目归属。失败保留原列表位置并给出 Toast。置顶会话在独立分类中按置顶时间降序排列，与活动时间无关；始终全部显示，不分页、不参与分类拖拽，标题栏没有右端操作。取消后回到原项目或独立分类，当前对话内容与编辑区不重建。
 
 ## 列表交互与本地恢复
 
@@ -49,4 +59,7 @@ renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 
 - [Sidecar 协议](../../tests/integration/sidecar-projects.test.ts)：真实目录判重、项目列表、创建会话、分叉和重启读回。
 - [列表浏览器用例](../../apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx)：分类箭头与焦点、拖拽、独立分页、排序、重启偏好与实际几何。
 - [列表 Electron 用例](../../apps/desktop/e2e/sidebar-lists.e2e.test.ts)：真实重启后恢复顺序、展开、排序与上次会话，以及目标已删除或归档时的新对话回退。
+- [置顶 Sidecar 用例](../../tests/integration/sidecar-session-pinning.test.ts)：置顶、取消与重启读回，项目归属和最后记录时间不变。
+- [会话行浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx)：浮层几何、滚动渐隐、固定操作、焦点、失败和窄窗口；[应用用例](../../apps/desktop/src/renderer/app/app.browser.test.tsx) 验证置顶不重建当前对话或草稿。
+- [置顶 Electron 用例](../../apps/desktop/e2e/session-pinning.e2e.test.ts)：置顶项目会话后重启，详情保留归属，取消置顶回到原项目。
 - [ADR 0020](../adr/0020-projects-organize-workspaces.md)：组织关系与执行目录分离的理由。

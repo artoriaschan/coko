@@ -20,6 +20,8 @@ export { ThinkingSlider, type ThinkingSliderValue } from './components/thinking-
 export { Checkbox } from './components/checkbox.tsx'
 export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from './components/dialog.tsx'
 export { HoverCard, HoverCardContent, HoverCardTrigger } from './components/hover-card.tsx'
+export { RowHoverCardContent, rowOverlayPosition } from './components/row-hover-card.tsx'
+export { FadingTitle, type FadingTitleHandle } from './components/fading-title.tsx'
 export { Input } from './components/input.tsx'
 export { Textarea } from './components/textarea.tsx'
 export { ToggleGroup, ToggleGroupItem } from './components/toggle-group.tsx'
