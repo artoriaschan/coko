@@ -1,5 +1,13 @@
 import { resolve } from 'node:path'
-import { branchNameError, WORKTREE_DIRTY_FILES_MAX, type BranchListResponse, type CheckoutBranchRequest } from '@coko/protocol'
+import {
+  branchNameError,
+  WORKTREE_DIRTY_FILES_MAX,
+  type BranchListResponse,
+  type GitDirtyDetails,
+  type SessionBusyDetails,
+  type SessionBusyReason,
+  type CheckoutBranchRequest,
+} from '@coko/protocol'
 import type { Session, SessionStore } from '@coko/session'
 import type { GitPort } from '../adapters/git.ts'
 import { AppError } from './errors.ts'
@@ -26,7 +34,7 @@ export class BranchService {
 
   /** Called synchronously immediately before Run launch, including future sessions and subagents. */
   assertAdmission = (cwd: string): void => {
-    if (this.#changing.has(resolve(cwd))) throw new AppError('session-busy', 'The working directory is changing branches', { reasons: ['run'], sessions: [] })
+    if (this.#changing.has(resolve(cwd))) throw new AppError('session-busy', 'The working directory is changing branches', { reasons: [], sessions: [] })
   }
 
   async #primary(id: string): Promise<string> {
@@ -86,7 +94,7 @@ export class BranchService {
     }
     for (const root of await this.#store.sessions.listSessions()) await walk(root)
     const schedules = await this.#store.schedules.list()
-    const reasons = new Set<string>()
+    const reasons = new Set<SessionBusyReason>()
     const sessions: { id: string; title: string }[] = []
     for (const session of all) {
       const actual = await this.#activity.cwd(session).catch((error: unknown) => {
@@ -94,7 +102,7 @@ export class BranchService {
         throw error
       })
       if (!actual || resolve(actual.cwd) !== resolve(cwd)) continue
-      const found: string[] = []
+      const found: SessionBusyReason[] = []
       if (this.#activity.busy(session.id)) found.push(session.parentSessionId ? 'agent' : 'run')
       if (await this.#activity.runningJobs(session.id)) found.push('job')
       if (schedules.some((s) => s.sessionId === session.id && s.status === 'active')) found.push('schedule')
@@ -103,7 +111,10 @@ export class BranchService {
         for (const reason of found) reasons.add(reason)
       }
     }
-    if (reasons.size) throw new AppError('session-busy', 'Sessions in the primary folder still have work in progress', { reasons: [...reasons], sessions })
+    if (reasons.size) {
+      const details: SessionBusyDetails = { reasons: [...reasons], sessions }
+      throw new AppError('session-busy', 'Sessions in the primary folder still have work in progress', details)
+    }
   }
 
   async checkout(id: string, input: CheckoutBranchRequest): Promise<BranchListResponse> {
@@ -122,11 +133,17 @@ export class BranchService {
           .split('\n')
           .filter((line) => line.length > 3)
           .map((line) => line.slice(3).split(' -> ').at(-1)!)
-        if (files.length)
-          throw new AppError('git-dirty', 'The repository has uncommitted changes', { files: files.slice(0, WORKTREE_DIRTY_FILES_MAX), count: files.length })
+        if (files.length) {
+          const details: GitDirtyDetails = { files: files.slice(0, WORKTREE_DIRTY_FILES_MAX), count: files.length }
+          throw new AppError('git-dirty', 'The repository has uncommitted changes', details)
+        }
         const exists = await this.#git.run({ cwd, args: ['show-ref', '--verify', '--quiet', `refs/heads/${input.name}`] })
         if (input.create && exists.exitCode === 0) throw new AppError('already-exists', 'A branch with this name already exists')
         if (!input.create && exists.exitCode !== 0) throw new AppError('not-found', 'Local branch not found')
+        if (input.create) {
+          const head = await this.#git.run({ cwd, args: ['rev-parse', '--verify', 'HEAD'] })
+          if (head.exitCode !== 0) throw new AppError('invalid-transition', 'The repository needs a HEAD commit before creating a branch')
+        }
         const result = await this.#git.run({ cwd, args: input.create ? ['switch', '-c', input.name] : ['switch', '--no-guess', input.name] })
         if (result.exitCode !== 0) throw new AppError('invalid-transition', 'Git could not switch branches; the original selection is kept')
         return await this.list(id)

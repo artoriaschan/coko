@@ -1,4 +1,9 @@
 import { Type, type Static } from 'typebox'
+import { WorktreeDirtyDetails } from './worktrees.ts'
+
+/** Branch checkout and worktree removal use the same capped dirty-file detail shape. */
+export const GitDirtyDetails = WorktreeDirtyDetails
+export type GitDirtyDetails = Static<typeof GitDirtyDetails>
 
 /** Global user branch prefix; unrelated to the fixed coko/ worktree namespace. */
 export const BRANCH_PREFIX_SETTING = 'git.branchPrefix'

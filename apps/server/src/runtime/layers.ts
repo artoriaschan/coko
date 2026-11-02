@@ -607,7 +607,7 @@ const AppLive = Layer.effect(
       store,
       git: createGitRunner({ env, track: processes.track }),
       activity: {
-        busy: (id) => sessions.isRunning(id),
+        busy: (id) => sessions.runs.busy(id),
         cwd: (session) => sessions.runs.cwd(session),
         runningJobs: async (id) => (await jobs.list(id)).some((job) => job.status === 'running'),
       },

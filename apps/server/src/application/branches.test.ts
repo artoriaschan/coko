@@ -3,10 +3,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { SESSION_ENTRY_PAYLOADS } from '@coko/agent'
+import { createModelRegistry, InMemoryCredentialStore, SESSION_ENTRY_PAYLOADS } from '@coko/agent'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { expect, it, onTestFinished } from 'vitest'
+import { installFauxProvider } from '../adapters/faux.ts'
+import { SessionService } from './sessions.ts'
+import { SessionHub } from './hub.ts'
 import { createGitRunner } from '../adapters/git.ts'
 import { BranchService } from './branches.ts'
 
@@ -60,13 +63,36 @@ it('directory admission lease covers async Git and releases after failure; prima
     },
     activity: { cwd: async () => ({ cwd }), busy: () => false, runningJobs: async () => false },
   })
+  const registry = createModelRegistry({ credentials: new InMemoryCredentialStore() })
+  const script = join(base, 'faux.json')
+  await writeFile(script, JSON.stringify({ responses: [{ content: 'Accepted after lease.' }] }))
+  const fallbackModel = await installFauxProvider(registry, script)
+  const finished: Promise<unknown>[] = []
+  const sessionService = new SessionService({
+    store,
+    registry,
+    fallbackModel,
+    hub: new SessionHub(),
+    runs: {
+      launch: (_key, done) => {
+        finished.push(done)
+      },
+    },
+  })
+  sessionService.runs.useDirectoryAdmission(service.assertAdmission)
   const changing = service.checkout(project.id, { name: 'target' })
   await reached
   expect(() => service.assertAdmission(cwd)).toThrow('changing branches')
+  const future = await sessionService.createRecord({ workspaceId: workspace.id })
+  await expect(sessionService.submit(future.id, 'During checkout')).rejects.toMatchObject({ code: 'session-busy' })
+  expect(await store.sessions.listEntries(future.id)).toEqual([])
   expect(() => service.assertAdmission(join(base, 'other'))).not.toThrow()
   release()
   await expect(changing).rejects.toMatchObject({ code: 'invalid-transition' })
   expect(() => service.assertAdmission(cwd)).not.toThrow()
+  await sessionService.submit(future.id, 'After checkout failure')
+  await Promise.all(finished)
+  expect((await store.sessions.listEntries(future.id)).some((entry) => entry.kind === 'run_end')).toBe(true)
   expect((await git('branch', '--show-current')).trim()).toBe('main')
   hold = false
   await service.checkout(project.id, { name: 'target' })
@@ -83,4 +109,14 @@ it('directory admission lease covers async Git and releases after failure; prima
     details: { reasons: ['agent'], sessions: [{ id: child.id, title: '' }] },
   })
   expect((await git('branch', '--show-current')).trim()).toBe('target')
-})
+  const missing = new BranchService({
+    store,
+    git: {
+      run: async () => {
+        throw Object.assign(new Error('missing Git'), { code: 'ENOENT' })
+      },
+    },
+    activity: { cwd: async () => ({ cwd }), busy: () => false, runningJobs: async () => false },
+  })
+  expect(await missing.list(project.id)).toEqual({ available: false, reason: 'git-unavailable', branches: [] })
+}, 20_000)

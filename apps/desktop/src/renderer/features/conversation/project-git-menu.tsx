@@ -31,7 +31,13 @@ export function BranchesProvider({ store, children }: { store: BranchesStore; ch
 }
 
 /** The worktree slot precedes Branch. Base-branch mode selects draft configuration without changing the primary checkout. */
-export function ProjectGitMenu({ project, worktreeSlot }: { project: Project | undefined; worktreeSlot?: React.ReactNode }) {
+export function ProjectGitMenu({
+  project,
+  worktreeSlot,
+}: {
+  project: Project | undefined
+  worktreeSlot?: React.ReactNode | ((state: { available: boolean; pending: boolean; loading: boolean }) => React.ReactNode)
+}) {
   const { t } = useI18n()
   const store = React.useContext(BranchContext)
   const git = useStore(store, (state) => (project ? state.projects[project.id] : undefined))
@@ -165,7 +171,9 @@ export function ProjectGitMenu({ project, worktreeSlot }: { project: Project | u
             }
           }}
         >
-          {worktreeSlot}
+          {typeof worktreeSlot === 'function'
+            ? worktreeSlot({ available: Boolean(project && git?.available), pending: pending || sending, loading })
+            : worktreeSlot}
           <DropdownMenuSub
             open={subOpen}
             onOpenChange={(next) => {
@@ -252,11 +260,6 @@ export function ProjectGitMenu({ project, worktreeSlot }: { project: Project | u
                   </DropdownMenuItem>
                 </>
               )}
-              {error && (
-                <p role="alert" className="px-2 py-2 text-ui-body text-destructive">
-                  {error}
-                </p>
-              )}
             </DropdownMenuStackedSubContent>
           </DropdownMenuSub>
           {(!project || !git?.available || loading) && (
@@ -272,7 +275,7 @@ export function ProjectGitMenu({ project, worktreeSlot }: { project: Project | u
                       : error}
             </p>
           )}
-          {error && git?.available && !subOpen && (
+          {error && git?.available && (
             <p role="alert" className="px-2 py-1 text-ui-body text-destructive">
               {error}
             </p>
