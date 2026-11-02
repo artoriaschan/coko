@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { cokoHomeOf, launchApp, processExists, stubDirectoryPicker, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
+import { cokoHomeOf, createProjectDraft, launchApp, processExists, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
 
 const fixtures = fileURLToPath(new URL('../../../tests/fixtures/skills/', import.meta.url))
 
@@ -46,11 +46,7 @@ describe('Skills & Commands 分区', () => {
     apps.push(app)
     const { window } = app
     await waitConnected(window)
-    await stubDirectoryPicker(app.app, [workspace])
-    await window
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     const openSection = async () => {

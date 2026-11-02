@@ -182,3 +182,23 @@ export async function stubDirectoryPicker(app: ElectronApplication, paths: strin
 }
 
 export { processExists }
+
+/** Arrange a project through the current UI; creating it selects a draft and writes no Session. */
+export async function createProjectDraft(launched: LaunchedApp, path: string): Promise<void> {
+  await stubDirectoryPicker(launched.app, [path])
+  await completeProjectDraft(launched.window)
+}
+
+/** Complete the project form with a picker already arranged by a multi-pick fixture. */
+export async function completeProjectDraft(page: Page): Promise<void> {
+  await page
+    .getByRole('button', { name: /^(Add project|创建项目)$/ })
+    .first()
+    .click()
+  const dialog = page.getByRole('dialog', { name: /^(Create project|创建项目)$/ })
+  await dialog.getByRole('textbox', { name: /^(Project name|项目名称)$/ }).fill('Example project')
+  await dialog.getByRole('button', { name: /Add folder|添加文件夹/ }).click()
+  await dialog.getByRole('button', { name: /^(Create project|创建项目)$/ }).click()
+  await dialog.waitFor({ state: 'detached' })
+  await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
+}

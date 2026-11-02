@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, waitFor, processExists, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, waitFor, processExists, type LaunchedApp } from './harness.ts'
 import { readLogRecords, TOKEN_SHAPED } from './logs.ts'
 
 const apps: LaunchedApp[] = []
@@ -49,11 +49,7 @@ describe('随包 ripgrep', () => {
     apps.push(app)
     await waitConnected(app.window)
 
-    await stubDirectoryPicker(app.app, [workspace])
-    await app.window
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     const composer = app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     await composer.click()
     await composer.fill('find the needle')

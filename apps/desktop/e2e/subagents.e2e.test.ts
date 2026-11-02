@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Locator, Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -128,11 +128,7 @@ describe('子代理界面', () => {
       await writeCokoHome(root, 'agents/reviewer.md', '---\nname: reviewer\ndescription: Reviews diffs for the user\nmax-turns: 20\n---\nReview.\n')
       const win = app.window
       await waitConnected(win)
-      await stubDirectoryPicker(app.app, [workspace])
-      await win
-        .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-        .first()
-        .click()
+      await createProjectDraft(app, workspace)
       await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
       const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
       const send = async (text: string) => {

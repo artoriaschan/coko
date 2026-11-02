@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -75,11 +75,7 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   const app = await launchApp({}, { dir: root })
   apps.push(app)
   await waitConnected(app.window)
-  await stubDirectoryPicker(app.app, [workspace])
-  await app.window
-    .getByRole('button', { name: /^(Add project|创建项目)$/ })
-    .first()
-    .click()
+  await createProjectDraft(app, workspace)
 
   // 没有 Provider：Enter 引导到设置的模型服务分区，在那里新建两个供应商。
   await composer(app).click()

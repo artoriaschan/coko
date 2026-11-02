@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { cokoHomeOf, launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { cokoHomeOf, completeProjectDraft, launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
 
 const pluginFixture = fileURLToPath(new URL('../../../tests/fixtures/plugins/sample', import.meta.url))
 const hookFixture = fileURLToPath(new URL('../../../tests/fixtures/hooks/hook.mjs', import.meta.url))
@@ -95,10 +95,7 @@ describe('插件分区', () => {
     await waitConnected(page)
     // 第一次选择用于登记 Workspace，第二次用于"从文件夹安装"。
     await stubDirectoryPicker(app.app, [workspace, plugin])
-    await page
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await completeProjectDraft(page)
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     // 安装前：/ 菜单没有插件命令。
     expect(await hasSampleHello(page)).toBe(false)

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -66,11 +66,7 @@ async function filesUnder(dir: string): Promise<string[]> {
 }
 
 async function addWorkspace(app: LaunchedApp, path: string) {
-  await stubDirectoryPicker(app.app, [path])
-  await app.window
-    .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-    .first()
-    .click()
+  await createProjectDraft(app, path)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 }
 

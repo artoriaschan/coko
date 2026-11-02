@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, notificationsShown, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, notificationsShown, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -42,11 +42,7 @@ describe('子代理通知', () => {
     apps.push(app)
     const win = app.window
     await waitConnected(win)
-    await stubDirectoryPicker(app.app, [workspace])
-    await win
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     // 后台模式：窗口不在前台（main 的判定依据），通知不因前台被跳过。
     expect(await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused())).toBe(false)

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -37,11 +37,7 @@ describe('上下文环', () => {
     apps.push(app)
     const page = app.window
     await waitConnected(page)
-    await stubDirectoryPicker(app.app, [workspace])
-    await page
-      .getByRole('button', { name: /^(Add project|创建项目)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     // 草稿：底栏入口只显示环，低于预警线。

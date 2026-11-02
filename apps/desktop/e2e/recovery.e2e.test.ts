@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, processExists, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, processExists, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -29,11 +29,7 @@ describe('启动恢复', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: script }, { dir: root })
     apps.push(app)
     await waitConnected(app.window)
-    await stubDirectoryPicker(app.app, [workspace])
-    await app.window
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await app.window.locator('[data-permission-mode]').click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()

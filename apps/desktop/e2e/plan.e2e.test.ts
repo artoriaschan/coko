@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -23,12 +23,20 @@ async function setup(script: unknown) {
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
   await waitConnected(app.window)
-  await stubDirectoryPicker(app.app, [workspace])
-  await app.window
-    .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-    .first()
-    .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
+  await createProjectDraft(app, workspace)
+  // Plan commands act on an existing Session; draft creation intentionally creates none.
+  const session = await app.window.evaluate(async () => {
+    const { projects } = await (await fetch('/api/projects')).json()
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId: projects[0].primaryWorkspaceId, title: 'Example plan conversation' }),
+    })
+    if (!response.ok) throw new Error(`Plan fixture failed: ${response.status}`)
+    return response.json()
+  })
+  await app.window.reload()
+  await waitConnected(app.window)
+  await app.window.locator(`[data-session-id="${session.id}"]`).click()
   return { app, workspace }
 }
 

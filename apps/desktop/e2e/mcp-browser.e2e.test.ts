@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
 
 /** 仓库内的 stdio MCP 测试 Server（tests/fixtures/mcp/）。 */
 const stdioServerEntry = fileURLToPath(new URL('../../../tests/fixtures/mcp/stdio-server.ts', import.meta.url))
@@ -61,11 +61,7 @@ describe('MCP 浏览器预设与认证', () => {
     apps.push(app)
     const { window } = app
     await waitConnected(window)
-    await stubDirectoryPicker(app.app, [workspace])
-    await window
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-      .first()
-      .click()
+    await createProjectDraft(app, workspace)
     await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     const dialog = window.locator('[data-settings-page]')

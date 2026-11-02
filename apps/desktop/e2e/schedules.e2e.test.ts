@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, notificationsShown, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, notificationsShown, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -26,11 +26,7 @@ async function setup(script: unknown) {
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json'), COKO_TEST_CLOCK: '1', COKO_TEST_CLOCK_START: String(CLOCK_START) }, { dir: root })
   apps.push(app)
   await waitConnected(app.window)
-  await stubDirectoryPicker(app.app, [workspace])
-  await app.window
-    .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-    .first()
-    .click()
+  await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, root }
 }

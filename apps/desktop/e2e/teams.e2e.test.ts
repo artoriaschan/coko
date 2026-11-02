@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Locator, Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -118,11 +118,7 @@ describe('团队界面', () => {
       apps.push(app)
       const win = app.window
       await waitConnected(win)
-      await stubDirectoryPicker(app.app, [workspace])
-      await win
-        .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
-        .first()
-        .click()
+      await createProjectDraft(app, workspace)
       await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
       const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
       await composer.click()
