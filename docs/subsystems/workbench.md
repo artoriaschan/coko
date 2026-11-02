@@ -125,4 +125,3 @@ Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加�
 
 - [界面约定](../tech-stack/ui.md)与[设计系统规格](../tech-stack/ui-design-system.md)：共享组件、布局与交互规则。
 - [插件](plugins.md)与[定时任务](schedules.md)：所复用分区的业务行为。
-

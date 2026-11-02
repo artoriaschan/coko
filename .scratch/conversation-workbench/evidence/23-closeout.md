@@ -36,7 +36,7 @@ Pencil只读打开仓库`docs/ui/双栏布局.pen`，读取/查看`Y5Oqw`、`B1e
 
 | 项目 | 本次核查 |
 | --- | --- |
-| 基准工作台 | Y5Oqw1440×1200、侧栏280；E-closeout同尺寸实测侧栏280、安全区48、导航和列表H32、文字13/20、R28、欢迎输入框768×120、工具栏32、归属28+8间距=36。输入框首次测774.398px，局部修欢迎页轴后精确通过；已有Session轴保持。 |
+| 基准工作台 | Y5Oqw1440×1200、侧栏280；Electron请求1440×1200后系统实际viewport为1440×1130（DPR2截图2880×2260，规格不固定真实窗口高度），实测侧栏280、安全区48、导航和列表H32、文字13/20、R28、欢迎输入框768×120、工具栏32、归属28+8间距=36。输入框首次测774.398px，局部修欢迎页轴后精确通过；已有Session轴保持。 |
 | 上下文 | B1eglK/z5wvj源稿348×384/R16、top-end/8，B-context实测几何与避让。z5wvj示例5K+35K+100K+60K+40K=240K，240K/1M=24%；分项分母240K：2.08/14.58/41.67/25/16.67%；容量条分母1M。E-closeout图像/plan明细确认。 |
 | 删除 | Z0KqK480×184、zG8uB480×208、padding24；B-menu/B-delete-project验证两主题/390px、文案、焦点、取消/关闭/Escape、提交失败重试。 |
 | 搜索 | nQAM6源稿640×432/R28/p12、输入40、结果H32/R8；元数据及截图标题示例对话A01～B10，项目canvas-demo/orbit-demo/studio-demo。E-closeout实测640×432，21长标题仅结果滚动；B-search390×300实测358×268且菜单边缘可达。 |
@@ -227,3 +227,16 @@ Pencil只读打开仓库`docs/ui/双栏布局.pen`，读取/查看`Y5Oqw`、`B1e
 搜索包含隐藏目录的 `0020.*partial`、`项目删除仍待实施`、`均未实施`、`生产界面尚未实施`、`本轮交付为画布 UI`、运行时统计尚未实施等结论：当前ADR0020、ADR索引、规格intro/CTX04/15/16.2/20.2、desktop-app/map与08均已同步。01/06/07/12已关闭票的partial是当时历史交付记录，保留；其他ADR的历史分阶段实施记录与本任务无关，保留，不把历史条目改写为当前结论。
 
 从AGENTS→docs/README→projects/workbench→GLOSSARY/ADR索引/0020～0022读回：路径与引用、语义同步、归属与权威、引用方向、生命周期、当前入口、新会话读入、历史保留八项均通过。没有新正式目录，没有改变历史批准主体或ADR局部替代范围，0021/0022仍为implemented；正式正文独立引用代码和测试。规格和tracker继续指向本任务证据，正式正文无具体scratch反向依赖。
+
+
+## 继承原生矩阵的失败与修复
+
+只读隔离快照`7c2fde5a`：A组16文件31用例，22通过/8失败/1真实模型凭据用例跳过；B组16文件26用例，20通过/6失败。合计32文件57用例，42通过/14失败/1跳过；该运行明确是失败，未作为最终通过证据。失败为settings/commands/provider-delete的标题请求计数、goal的Session费用包含title、open-session/schedules/subagents/subagent-notifications的faux标题匹配抢占普通回复、chat首条流式观察，以及permissions/references-drafts/teams的旧夹具假设。
+
+UI夹具修复`aa647da0`，仅改3份测试，无产品改动或放宽断言：
+
+- permissions先等实际首条Coko回复，确保已有Session已建立后再测四步Shift+Tab；每步等待预期模式，保留焦点、full-access告警、协议模式与无审批写入断言。
+- references-drafts的临时根与选择文件使用realpath；第二条Session从项目的新对话入口创建，保留README所在Workspace。保留picker/preload/粘贴/协议请求/切换重启/清空/损坏JSON断言。
+- teams在单次Escape返回设置前，等已经closed的portalled Tooltip退出动画卸载，避免它的DismissableLayer消费该按键。保留团队状态、审批、运行计数、真实文件、成员只读、明暗对比及键盘断言。
+
+`COKO_E2E_BACKGROUND=1 pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/permissions.e2e.test.ts apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/teams.e2e.test.ts --reporter=default`：修复前3文件7用例4失败/3通过；修复后同命令7/7通过，当前源码globalSetup重建Electron测试产物。该局部修复通过不替代合并后的32文件矩阵。

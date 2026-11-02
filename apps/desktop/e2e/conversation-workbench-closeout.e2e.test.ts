@@ -130,6 +130,10 @@ it('CW-23/42/43: final five actions from standalone, project, pinned and search 
       const session = await (await fetch('/api/sessions', { method: 'POST', body: JSON.stringify({ workspaceId: workspace.id, title }) })).json()
       if (!project) await fetch(`/api/sessions/${session.id}/project`, { method: 'PUT', body: JSON.stringify({ projectId: null }) })
       if (pinned) await fetch(`/api/sessions/${session.id}/pin`, { method: 'PUT', body: JSON.stringify({ pinned: true }) })
+      const saved = await (await fetch(`/api/sessions/${session.id}`)).json()
+      if ((saved.session.projectId !== null) !== project || (saved.session.pinnedAt !== null) !== pinned) {
+        throw new Error('Menu fixture ownership or pin did not persist')
+      }
       result.push({ id: session.id, title, pinned })
     }
     return result
