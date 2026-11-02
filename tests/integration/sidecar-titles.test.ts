@@ -176,3 +176,19 @@ it('normalizes a multiline title and caps Unicode characters at20', async () => 
   await stream.waitFor((message) => message.type === 'session_title')
   expect((await api.get(apiPaths.session(id))).body.session.title).toBe('一二三四五六七八九十一二三四五六七八九十')
 })
+
+it('archive cancels a pending title and prevents late title or trace writes after restore', async () => {
+  const { api, stream, id } = await controlled({})
+  await stream.waitFor(isRunEnd(id))
+  await expect.poll(async () => (await api.post(apiPaths.sessionArchive(id), {})).status).toBe(200)
+  const before = (await api.get(apiPaths.session(id))).body
+  await advanceClock(api, 1000)
+  expect((await api.get(apiPaths.session(id))).body).toEqual(before)
+  expect(before.session.title).toBe('Original first line')
+  expect(
+    before.entries.filter((entry: { kind: string; payload: { purpose?: string } }) => entry.kind === 'model_request' && entry.payload.purpose === 'title'),
+  ).toEqual([])
+  await api.post(apiPaths.sessionRestore(id), {})
+  await advanceClock(api, 15_000)
+  expect((await api.get(apiPaths.session(id))).body.session.title).toBe('Original first line')
+})

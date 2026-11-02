@@ -264,6 +264,13 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           return false
         return workspaces.delete(id)
       }),
+      setSessionArchived: op((id: string, archivedAt: number | null) => {
+        requireSession(id)
+        const ids = [id]
+        for (let i = 0; i < ids.length; i++) for (const child of sessions.values()) if (child.parentSessionId === ids[i]) ids.push(child.id)
+        for (const current of ids) touch(requireSession(current), { archivedAt, pinnedAt: null })
+        return requireSession(id)
+      }),
       setSessionOrganization: op((id: string, patch: Partial<SessionOrganization>) => {
         const session = requireSession(id)
         if (patch.projectId != null) requireProject(patch.projectId)

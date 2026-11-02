@@ -30,10 +30,19 @@ it('removes project organization after stopping root and background child, prese
   await expect.poll(async () => (await env.requests()).length, { timeout: 20_000 }).toBeGreaterThanOrEqual(3)
   const child = starts(env.stream, parent)[0]!.agentId
   const before = (await env.api.get(apiPaths.session(child))).body
+  const archived = (
+    await env.api.post(API_ROUTES.sessions, { workspaceId: env.workspaceId, worktreeId: before.session.worktree.id, title: 'Archived retained' })
+  ).body
+  const archiveResponse = await env.api.post(apiPaths.sessionArchive(archived.id))
+  expect(archiveResponse.status).toBe(200)
+  const archivedAt = archiveResponse.body.archivedAt
   const isolation = (await env.api.get(apiPaths.session(parent))).body.entries.find((entry: { kind: string }) => entry.kind === 'agent_start').payload.isolation
   expect(existsSync(isolation.path)).toBe(true)
   expect((await env.api.delete(apiPaths.project(project.id))).status).toBe(200)
   expect((await env.api.get(API_ROUTES.projects)).body.projects).toEqual([])
+  expect((await env.api.get(`${API_ROUTES.sessions}?archived=true`)).body.sessions).toEqual([
+    expect.objectContaining({ id: archived.id, projectId: null, archivedAt, worktree: before.session.worktree }),
+  ])
   for (const id of [parent, child]) {
     const detail = (await env.api.get(apiPaths.session(id))).body
     expect(detail.session).toMatchObject({ id, projectId: null, running: false })
@@ -51,6 +60,9 @@ it('removes project organization after stopping root and background child, prese
   const restarted = await startSidecar({ dirs: env.dirs, env: fixture.env })
   const api = client(restarted, await exchange(restarted))
   expect((await api.get(API_ROUTES.projects)).body.projects).toEqual([])
+  expect((await api.get(`${API_ROUTES.sessions}?archived=true`)).body.sessions).toEqual([
+    expect.objectContaining({ id: archived.id, projectId: null, archivedAt, worktree: before.session.worktree }),
+  ])
   expect((await api.get(apiPaths.session(child))).body.session).toMatchObject({ parentSessionId: parent, projectId: null, worktree: before.session.worktree })
   expect(existsSync(isolation.path)).toBe(true)
 })

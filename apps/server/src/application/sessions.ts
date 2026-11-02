@@ -166,7 +166,11 @@ export class SessionService {
   async #mutate<T>(id: string, task: () => Promise<T>): Promise<T> {
     this.assertAdmission(id)
     this.#mutations.set(id, (this.#mutations.get(id) ?? 0) + 1)
-    const pending = (async () => task())()
+    const pending = (async () => {
+      const session = await requireSession(this.#store, id)
+      if (session.archivedAt !== null) throw new AppError('session-archived', 'Restore this conversation before changing it')
+      return task()
+    })()
     const tasks = this.#mutationTasks.get(id) ?? new Set<Promise<unknown>>()
     tasks.add(pending)
     this.#mutationTasks.set(id, tasks)
@@ -248,7 +252,8 @@ export class SessionService {
   /** Short detached writes share deletion admission without making the whole request a running Run. */
   async completeTitle(sessionId: string, expected: string, title: string | undefined, payload: import('@coko/agent').ModelRequestPayload): Promise<void> {
     await this.#mutate(sessionId, async () => {
-      if (!(await this.#store.sessions.getSession(sessionId))) return
+      const current = await this.#store.sessions.getSession(sessionId)
+      if (!current || current.archivedAt !== null) return
       const updated = title ? await this.#store.sessions.replaceSessionTitle(sessionId, expected, title) : undefined
       if (updated) this.#hub.publishTitle(sessionId, updated.title)
       await this.#runtimes.commitDetached(sessionId, { kind: 'model_request', payload })
@@ -257,6 +262,58 @@ export class SessionService {
 
   assertAdmission(sessionId: string): void {
     if (this.#deleting.has(sessionId)) throw new AppError('session-busy', 'The conversation is being deleted')
+  }
+
+  async setArchived(sessionId: string, archived: boolean): Promise<Session> {
+    this.assertAdmission(sessionId)
+    this.#deleting.add(sessionId)
+    const tree: StoredSession[] = []
+    try {
+      const visit = async (id: string) => {
+        this.#deleting.add(id)
+        tree.push(await requireSession(this.#store, id))
+        for (const child of await this.#store.sessions.listChildren(id)) await visit(child.id)
+      }
+      await visit(sessionId)
+      if (tree[0]!.parentSessionId !== null) throw new AppError('bad-request', 'Only root sessions can be archived or restored')
+      const checkBusy = async () => {
+        const reasons = new Set<SessionBusyReason>()
+        const busy: { id: string; title: string }[] = []
+        const schedules = archived ? await this.#store.schedules.list() : []
+        for (const session of tree) {
+          let involved = false
+          if (this.#runs.busy(session.id) || this.#mutations.has(session.id)) {
+            reasons.add(session.id === sessionId ? 'run' : 'agent')
+            involved = true
+          }
+          if (await this.#lifecycle?.runningJobs(session.id)) {
+            reasons.add('job')
+            involved = true
+          }
+          if (schedules.some((schedule) => schedule.sessionId === session.id && schedule.status === 'active')) {
+            reasons.add('schedule')
+            involved = true
+          }
+          if (involved) busy.push({ id: session.id, title: session.title })
+        }
+        if (reasons.size) throw new AppError('session-busy', 'The conversation has ongoing work', { reasons: [...reasons], sessions: busy })
+      }
+      await checkBusy()
+      const change = async () => {
+        await checkBusy()
+        const stored = await this.#store.sessions.setSessionArchived(sessionId, archived ? (tree[0]!.archivedAt ?? Date.now()) : null)
+        return this.toDto(stored)
+      }
+      return this.#lifecycle
+        ? await this.#lifecycle.quiesce(
+            tree.map((session) => session.id),
+            change,
+          )
+        : await change()
+    } finally {
+      this.#deleting.delete(sessionId)
+      for (const session of tree) this.#deleting.delete(session.id)
+    }
   }
 
   async delete(sessionId: string): Promise<{ sessionIds: string[] }> {
@@ -398,10 +455,10 @@ export class SessionService {
 
   // ---- DTO 与模型（session-models.ts） ----
 
-  async list(workspaceId?: string): Promise<Session[]> {
+  async list(workspaceId?: string, archived = false): Promise<Session[]> {
     // 子 Session 不在列表中（store 的 listSessions 只列根 Session）。
     const sessions = await this.#store.sessions.listSessions(workspaceId ? { workspaceId } : {})
-    return Promise.all(sessions.map((session) => this.toDto(session)))
+    return Promise.all(sessions.filter((session) => (session.archivedAt !== null) === archived).map((session) => this.toDto(session)))
   }
 
   async moveToProject(sessionId: string, projectId: string | null): Promise<Session> {

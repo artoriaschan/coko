@@ -16,6 +16,7 @@ const STATUS: Record<ErrorCode, number> = {
   'confirmation-pending': 409,
   'recovery-failed': 409,
   'session-busy': 409,
+  'session-archived': 409,
   'already-exists': 409,
   'revision-conflict': 409,
   'invalid-transition': 409,

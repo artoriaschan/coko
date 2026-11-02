@@ -67,6 +67,8 @@ export const apiPaths = {
   projectName: (id: string) => `${apiPaths.project(id)}/name`,
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
   sessionProject: (id: string) => `${apiPaths.session(id)}/project`,
+  sessionArchive: (id: string) => `${apiPaths.session(id)}/archive`,
+  sessionRestore: (id: string) => `${apiPaths.session(id)}/restore`,
   sessionPin: (id: string) => `${apiPaths.session(id)}/pin`,
   sessionTitle: (id: string) => `${apiPaths.session(id)}/title`,
   /** POST：提交用户消息并开始 Run。 */

@@ -68,6 +68,48 @@ it('CW-72/73/86/87: cancellation restores focus; deletion retains current conten
   await view.unmount()
 })
 
+it('deleted project references stay cleared in normal and archived lists when earlier loads, DTOs and title updates arrive late', async () => {
+  const normal = { ...fixtureSessions[0]!, title: 'Normal retained' }
+  const archived = { ...fixtureSessions[0]!, id: 'archived-kept', title: 'Archived retained', archivedAt: 55 }
+  const fixture = createFixtureChat({ sessions: [normal, archived] })
+  await fixture.chat.getState().load()
+  const lists = fixture.chat.lists
+  await lists.getState().loadArchived()
+  const project = lists.getState().projects[0]!
+  const oldProjects = [...lists.getState().projects]
+  let releaseNormal!: () => void
+  let releaseArchived!: () => void
+  fixture.api.listProjects = async () => oldProjects
+  fixture.api.listSessions = async () => {
+    await new Promise<void>((resolve) => {
+      releaseNormal = resolve
+    })
+    return [normal]
+  }
+  fixture.api.listArchivedSessions = async () => {
+    await new Promise<void>((resolve) => {
+      releaseArchived = resolve
+    })
+    return [archived]
+  }
+  const loading = lists.getState().load()
+  const loadingArchived = lists.getState().loadArchived()
+  await fixture.chat.getState().deleteProject(project.id)
+  expect(lists.getState().sessions[0]).toMatchObject({ id: normal.id, projectId: null })
+  expect(lists.getState().archivedSessions[0]).toMatchObject({ id: archived.id, projectId: null, archivedAt: 55 })
+  lists.getState().patchSession(normal.id, { title: 'Generated normal' })
+  lists.getState().patchSession(archived.id, { title: 'Generated archived' })
+  releaseNormal()
+  releaseArchived()
+  await Promise.all([loading, loadingArchived])
+  lists.getState().upsertProject(project)
+  lists.getState().upsertSession(archived)
+  lists.getState().patchSession(archived.id, { projectId: project.id })
+  expect(lists.getState().projects.some((item) => item.id === project.id)).toBe(false)
+  expect(lists.getState().sessions[0]).toMatchObject({ id: normal.id, projectId: null, title: 'Generated normal' })
+  expect(lists.getState().archivedSessions[0]).toMatchObject({ id: archived.id, projectId: null, title: 'Generated archived', archivedAt: 55 })
+})
+
 it.each(['light', 'dark'])(
   '%s: pending confirmation survives project reorder, prevents duplicates, reports stop failure and retries the original target at390px',
   async (theme) => {

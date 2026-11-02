@@ -193,6 +193,8 @@ export interface ChatActions {
    * release 不退订它。release 可重复调用，只生效一次。
    */
   subscribeSession(sessionId: string): () => void
+  archiveSession(sessionId: string): Promise<void>
+  restoreSession(sessionId: string): Promise<void>
   deleteSession(sessionId: string): Promise<void>
   deleteProject(projectId: string): Promise<void>
   startDraft(workspaceId?: string): void
@@ -412,6 +414,13 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
+      async archiveSession(sessionId) {
+        lists.getState().setArchiveState(await api.archiveSession(sessionId))
+        // Keep the current conversation and its editor mounted, now read-only.
+      },
+      async restoreSession(sessionId) {
+        lists.getState().setArchiveState(await api.restoreSession(sessionId))
+      },
       async deleteSession(sessionId) {
         const { sessionIds } = await api.deleteSession(sessionId)
         for (const id of sessionIds) {

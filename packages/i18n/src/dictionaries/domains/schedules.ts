@@ -92,6 +92,7 @@ export const schedules = defineDomain(
       skipped: '最近一次：已跳过，{reason}',
     },
     skipReasons: {
+      'session-archived': '对话已归档',
       disabled: '定时任务已在设置中关闭',
       'child-session': '子代理会话不执行定时任务',
       'workspace-missing': '工作目录不存在',
@@ -205,6 +206,7 @@ export const schedules = defineDomain(
       skipped: 'Last run: skipped, {reason}',
     },
     skipReasons: {
+      'session-archived': 'Conversation archived',
       disabled: 'scheduled tasks are turned off in settings',
       'child-session': "subagent sessions don't run scheduled tasks",
       'workspace-missing': 'the working directory is missing',

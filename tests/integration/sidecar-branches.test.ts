@@ -115,3 +115,18 @@ it('running background Job rejects checkout after its Run ends', async () => {
   await h.api.post(jobPaths.kill(jobs[0].jobId))
   expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
 })
+
+it('an archived root with a schedule enabled externally still blocks checkout of its fixed cwd', async () => {
+  const h = await boot()
+  await h.fixture.git('branch', 'other')
+  const session = (await h.api.post(API_ROUTES.sessions, { workspaceId: h.workspace.id })).body
+  expect((await h.api.post(`/api/sessions/${session.id}/archive`, {})).status).toBe(200)
+  expect((await h.api.get(API_ROUTES.sessions)).body.sessions).toEqual([])
+  expect(
+    (await h.api.post(`/api/sessions/${session.id}/schedules`, { title: 'legacy schedule', prompt: 'later', rule: { kind: 'every', seconds: 600 } })).status,
+  ).toBe(201)
+  const busy = await h.api.post(h.path, { name: 'other' })
+  expect(busy.status).toBe(409)
+  expect(busy.body.error).toMatchObject({ code: 'session-busy', details: { reasons: ['schedule'] } })
+  expect((await h.fixture.git('branch', '--show-current')).trim()).toBe('main')
+})

@@ -4,6 +4,18 @@ export const zh = {
     name: 'Coko',
   },
   sidebar: {
+    archiveConversation: '归档',
+    archivedConversations: '已归档对话',
+    archivedReadOnly: '恢复后可继续',
+    archiveFailed: '归档失败，请重试。',
+    archiveBusy: '有进行中的工作，无法归档：{reasons}。{sessions}',
+    restore: '恢复',
+    restoreFailed: '恢复失败，请重试。',
+    openArchived: '打开对话',
+    archiveEmpty: '暂无已归档对话。',
+    archiveLoadFailed: '无法加载已归档对话。',
+    archiveRetry: '重试',
+
     openFinderFailed: '无法打开主要文件夹，请检查目录是否仍然存在。',
     openFinder: '在 Finder 中打开',
     projectCount: '{count} 个对话',

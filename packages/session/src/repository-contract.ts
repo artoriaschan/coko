@@ -29,6 +29,26 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       clock += ms
     }
 
+    it('archive updates the whole tree atomically, preserves raw root enumeration and entries, and restore never repins', async () => {
+      const store = await open()
+      const workspace = await store.sessions.registerWorkspace({ path: '/archive' })
+      const root = await store.sessions.createSession({ workspaceId: workspace.id })
+      const child = await store.sessions.createSession({ workspaceId: workspace.id, parentSessionId: root.id })
+      await store.sessions.setSessionOrganization(root.id, { pinnedAt: 123 })
+      await store.sessions.appendEntries(child.id, [{ kind: 'note', payload: 'retained' }])
+      const entries = await store.sessions.listEntries(child.id)
+      await store.sessions.setSessionArchived(root.id, 456)
+      expect(await store.sessions.getSession(root.id)).toMatchObject({ archivedAt: 456, pinnedAt: null, updatedAt: root.updatedAt })
+      expect(await store.sessions.getSession(child.id)).toMatchObject({ archivedAt: 456, pinnedAt: null })
+      expect(await store.sessions.listSessions()).toEqual([expect.objectContaining({ id: root.id, archivedAt: 456 })])
+      expect(await store.sessions.listEntries(child.id)).toEqual(entries)
+      await expectStoreError(store.sessions.setSessionArchived('missing', null), 'not-found')
+      expect((await store.sessions.getSession(root.id))!.archivedAt).toBe(456)
+      await store.sessions.setSessionArchived(root.id, null)
+      expect(await store.sessions.getSession(root.id)).toMatchObject({ archivedAt: null, pinnedAt: null })
+      expect(await store.sessions.getSession(child.id)).toMatchObject({ archivedAt: null, pinnedAt: null })
+    })
+
     it('宿主幂等身份不覆盖已有会话；删除会话树清理记录并保留工作目录登记直到显式移除', async () => {
       const store = await open()
       const w = await store.sessions.registerWorkspace({ path: '/standalone' })

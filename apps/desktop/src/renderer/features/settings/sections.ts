@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
+import { ArchivedSection } from './archived-section.tsx'
 import { AboutSection } from './about-section.tsx'
 import { AgentsSection } from './agents-section.tsx'
 import { GeneralSection } from './general-section.tsx'
@@ -33,6 +34,7 @@ import { SkillsSection } from './skills-section.tsx'
 
 /** 设置分区的 id；新分区在 SETTINGS_SECTIONS 登记一次；分区组件在各自的文件中，交付后把 available 设为 true。 */
 export type SettingsSectionId =
+  | 'archived'
   | 'general'
   | 'appearance'
   | 'memory'
@@ -78,6 +80,7 @@ function Unavailable() {
 /** 分区注册表，分类内按菜单顺序。 */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   { id: 'general', label: 'settings.nav.general', icon: SlidersHorizontalIcon, Component: GeneralSection, group: 'personal', available: true },
+  { id: 'archived', label: 'sidebar.archivedConversations', icon: BoxIcon, Component: ArchivedSection, group: 'personal', available: true },
   { id: 'appearance', label: 'settings.nav.appearance', icon: PaletteIcon, Component: Unavailable, group: 'personal', available: false },
   { id: 'memory', label: 'settings.nav.memory', icon: BrainIcon, Component: MemorySection, group: 'personal', available: true },
   { id: 'notifications', label: 'notifications.settings', icon: BellIcon, Component: NotificationsSection, group: 'personal', available: true },

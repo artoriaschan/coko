@@ -133,6 +133,8 @@ export interface SessionRepository {
   deleteSession(id: string): Promise<string[]>
   /** 仅在没有任何会话、项目、worktree 或记忆引用时移除登记，不操作文件系统。 */
   deleteWorkspaceIfUnused(id: string): Promise<boolean>
+  /** Archive/restore a complete Session tree atomically; pins are always cleared. */
+  setSessionArchived(id: string, archivedAt: number | null): Promise<Session>
   setSessionTitle(id: string, title: string): Promise<Session>
   /** Atomically replace an unchanged placeholder; missing/deleted sessions return undefined. */
   replaceSessionTitle(id: string, expected: string, title: string): Promise<Session | undefined>

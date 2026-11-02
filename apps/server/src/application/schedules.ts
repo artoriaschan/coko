@@ -249,6 +249,7 @@ export class ScheduleService {
 
   /** 准入（按顺序）；通过时 undefined。 */
   async #admission(session: StoredSession): Promise<ScheduleSkipReason | undefined> {
+    if (session.archivedAt !== null) return 'session-archived'
     const { store, config, runs } = this.#options
     let cwd: string | undefined
     try {

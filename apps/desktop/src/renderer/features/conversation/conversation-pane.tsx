@@ -204,7 +204,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const [rewindRequest, setRewindRequest] = React.useState<{ sessionId: string; seq: number; text: string; opened: number; open: boolean } | null>(null)
   const rewindTarget = rewindRequest?.open === true && rewindRequest.sessionId === activeSessionId ? rewindRequest : null
   const rewound = React.useRef(false)
-  const actionsDisabled = running || takenOver
+  const archived = session?.archivedAt != null
+  const actionsDisabled = running || takenOver || archived
   // / 命令菜单的作用域；对象随 id 变化才重建。
   const commandTarget = React.useMemo(
     () => (activeSessionId !== null ? { sessionId: activeSessionId } : activeWorkspaceId ? { workspaceId: activeWorkspaceId } : undefined),
@@ -310,7 +311,9 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         </h1>
         {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
         <ConnectionStatus state={connection} />
-        {activeSessionId !== null && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
+        {activeSessionId !== null && !archived && headerActions.length > 0 && (
+          <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />
+        )}
         <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
           {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
         </IconButton>
@@ -367,7 +370,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               className={`${composerColumn} mb-2 flex items-center gap-3 rounded-panel border-hairline border-border bg-background px-3 py-2 text-ui-body`}
             >
               <p className="min-w-0 flex-1 text-muted-foreground">{t(banner === 'paused' ? 'conversation.pausedBanner' : 'conversation.interruptedBanner')}</p>
-              {continuable && (
+              {continuable && !archived && (
                 <Button size="sm" data-action="continue" data-continue-mode={resumeMode} onClick={() => void continueRun(t('conversation.continuePrompt'))}>
                   <PlayIcon />
                   {t('conversation.continue')}
@@ -375,10 +378,15 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               )}
             </div>
           )}
-          {!takenOver && <Dock sessionId={activeSessionId} className={composerColumn} />}
+          {!takenOver && !archived && <Dock sessionId={activeSessionId} className={composerColumn} />}
+          {archived && (
+            <p role="status" className={`${composerColumn} py-4 text-ui-body text-muted-foreground`}>
+              {t('sidebar.archivedReadOnly')}
+            </p>
+          )}
           {readOnlyWorktree && <WorktreeReadOnlyNotice worktree={readOnlyWorktree} className={composerColumn} />}
           {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
-          <div ref={composerArea} hidden={takenOver || readOnlyWorktree !== undefined}>
+          <div ref={composerArea} hidden={takenOver || archived || readOnlyWorktree !== undefined}>
             {activeSessionId === null && <DestinationBar className={composerColumn} />}
             <Composer
               ref={setComposer}

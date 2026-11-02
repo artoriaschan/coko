@@ -39,7 +39,7 @@ export function useLists<T>(selector: (state: ListState & ListActions) => T): T 
 
 export function useCurrentSession() {
   const active = useChat((state) => state.activeSessionId)
-  return useLists((state) => state.sessions.find((session) => session.id === active))
+  return useLists((state) => state.sessions.find((session) => session.id === active) ?? state.archivedSessions.find((session) => session.id === active))
 }
 
 export function useActiveWorkspaceId() {

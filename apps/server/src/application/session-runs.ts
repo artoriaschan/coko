@@ -389,7 +389,11 @@ export class SessionRuns {
   async #admit<T>(id: string, task: () => Promise<T>): Promise<T> {
     this.#assertAdmission(id)
     this.#admitting.set(id, (this.#admitting.get(id) ?? 0) + 1)
-    const pending = (async () => task())()
+    const pending = (async () => {
+      const session = await requireSession(this.#options.store, id)
+      if (session.archivedAt !== null) throw new AppError('session-archived', 'Restore this conversation before starting a Run')
+      return task()
+    })()
     const tasks = this.#admissionTasks.get(id) ?? new Set<Promise<unknown>>()
     tasks.add(pending)
     this.#admissionTasks.set(id, tasks)

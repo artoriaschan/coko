@@ -130,7 +130,9 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(API_ROUTES.workspaces, async (c) => c.json({ workspaces: await app.workspaces.list() }))
   http.post(API_ROUTES.workspaces, async (c) => c.json(await app.workspaces.register(await body(c, RegisterWorkspaceRequest)), 201))
 
-  http.get(API_ROUTES.sessions, async (c) => c.json({ sessions: await app.sessions.list(c.req.query('workspaceId')) }))
+  http.get(API_ROUTES.sessions, async (c) => c.json({ sessions: await app.sessions.list(c.req.query('workspaceId'), c.req.query('archived') === 'true') }))
+  http.post(`${API_ROUTES.sessions}/:id/archive`, async (c) => c.json(await app.sessions.setArchived(c.req.param('id'), true)))
+  http.post(`${API_ROUTES.sessions}/:id/restore`, async (c) => c.json(await app.sessions.setArchived(c.req.param('id'), false)))
   http.post(API_ROUTES.firstSend, async (c) => c.json(await app.firstSend.send(await body(c, FirstSendRequest)), 201))
   http.post(API_ROUTES.sessions, async (c) => c.json(await app.sessions.create(await body(c, CreateSessionRequest)), 201))
   http.get(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.detail(c.req.param('id'))))
