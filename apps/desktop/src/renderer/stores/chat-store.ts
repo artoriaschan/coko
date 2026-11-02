@@ -381,9 +381,13 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         const { activeSessionId, draftWorkspaceId } = get()
         const { sessions, workspaces } = lists.getState()
         if (activeSessionId !== null || draftWorkspaceId !== null) return
-        const recent = sessions[0]
-        if (recent) get().openSession(recent.id)
-        else if (workspaces[0]) set({ draftWorkspaceId: workspaces[0].id })
+        const lastSessionId = lists.getState().lastSessionId
+        const target =
+          lastSessionId === undefined
+            ? sessions.find((session) => session.archivedAt === null)
+            : sessions.find((session) => session.id === lastSessionId && session.archivedAt === null)
+        if (target) get().openSession(target.id)
+        else get().startDraft(workspaces[0]?.id)
       },
 
       openSession(sessionId) {
@@ -417,6 +421,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       },
 
       startDraft(workspaceId) {
+        if (get().activeSessionId === null) lists.getState().rememberSession(null)
         const state = get()
         const active = lists.getState().sessions.find((s) => s.id === state.activeSessionId)
         const target = workspaceId ?? state.draftWorkspaceId ?? active?.workspaceId ?? lists.getState().workspaces[0]?.id ?? null
@@ -780,6 +785,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       stream.send({ type: 'subscribe', sessionId, afterSeq: conversation.lastSeq })
     }
     void store.getState().load()
+  })
+  // 首次发送和交接等入口直接选中 Session 时也记录；内容流式更新不写偏好。
+  store.subscribe((state, previous) => {
+    if (state.activeSessionId !== previous.activeSessionId) lists.getState().rememberSession(state.activeSessionId)
   })
 
   return Object.assign(store, { lists })

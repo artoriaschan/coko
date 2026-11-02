@@ -1,8 +1,30 @@
 import * as React from 'react'
+import type { SidebarCategory } from '../../stores/list-store.ts'
 import type { Project, Session } from '@coko/protocol'
-import { Button, SidebarListRow, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { ChevronDownIcon, ChevronRightIcon, FolderClosedIcon, FolderOpenIcon, PlusIcon } from 'lucide-react'
-import { useChat, useChatActions, useLists } from '../../app/chat.tsx'
+import {
+  Button,
+  SidebarListRow,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@coko/ui'
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FolderClosedIcon,
+  FolderOpenIcon,
+  PlusIcon,
+  MoreHorizontalIcon,
+  GripVerticalIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
+} from 'lucide-react'
+import { useChat, useChatActions, useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 
 export interface SidebarListsProps {
@@ -19,6 +41,13 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
   const sessions = useLists((state) => state.sessions)
   const projects = useLists((state) => state.projects)
   const status = useLists((state) => state.listStatus)
+  const order = useLists((state) => state.categoryOrder)
+  const dragged = React.useRef<SidebarCategory | null>(null)
+  const expanded = useLists((state) => state.categoryExpanded)
+  const listActions = useChatStoreApi().lists.getState()
+  const projectSort = useLists((state) => state.projectSort)
+  const expandedProjects = useLists((state) => state.expandedProjects)
+  const counts = useLists((state) => state.visibleCounts)
   const active = useChat((state) => state.activeSessionId)
   const { load } = useChatActions()
   const needle = search?.trim().toLocaleLowerCase() ?? ''
@@ -26,7 +55,20 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
     sessions.filter((session) => session.archivedAt === null && session.pinnedAt === null && session.title.toLocaleLowerCase().includes(needle)),
   )
   const standalone = visible.filter((session) => session.projectId === null)
-  const ordered = projects.toSorted((a, b) => b.lastUsedAt - a.lastUsedAt || b.createdAt - a.createdAt || a.id.localeCompare(b.id))
+  const lastUsed = new Map(projects.map((project) => [project.id, project.lastUsedAt]))
+  for (const session of sessions) {
+    if (session.projectId !== null) lastUsed.set(session.projectId, Math.max(lastUsed.get(session.projectId) ?? 0, session.updatedAt))
+  }
+  const ordered = projects
+    .filter((project) => project.pinnedAt === null)
+    .toSorted(
+      (a, b) =>
+        (projectSort === 'created' ? b.createdAt - a.createdAt : (lastUsed.get(b.id) ?? b.createdAt) - (lastUsed.get(a.id) ?? a.createdAt)) ||
+        b.createdAt - a.createdAt ||
+        a.id.localeCompare(b.id),
+    )
+  const shownProjects = ordered.filter((project) => !needle || visible.some((session) => session.projectId === project.id))
+  const anyExpanded = ordered.some((project) => expandedProjects[project.id] ?? true)
   return (
     <nav aria-label={t('sidebar.sessions')} aria-busy={status === 'loading' || undefined} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
       {status === 'loading' && (
@@ -45,45 +87,146 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
         </div>
       )}
       {needle && visible.length === 0 && <p className="px-2 text-ui-body text-muted-foreground">{t('sidebar.noMatches')}</p>}
-      <section className="mb-3" aria-labelledby="standalone-heading">
-        <h2 id="standalone-heading" className="flex h-8 items-center px-2 text-ui-body font-normal">
-          {t('sidebar.conversations')}
-        </h2>
-        <div className="flex flex-col gap-0.5">
-          {standalone.map((session) => (
-            <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} />
-          ))}
-        </div>
-      </section>
-      <section aria-labelledby="projects-heading">
-        <div className="flex h-8 items-center px-2">
-          <h2 id="projects-heading" className="flex-1 text-ui-body font-normal">
-            {t('sidebar.projects')}
-          </h2>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="toolbar" size="icon-xs" aria-label={t('sidebar.addProject')} onClick={onAddWorkspace}>
-                <PlusIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t('sidebar.addProject')}</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          {ordered
-            .filter((project) => !needle || visible.some((session) => session.projectId === project.id))
-            .map((project) => (
-              <ProjectTree
-                key={project.id}
-                project={project}
-                sessions={visible.filter((session) => session.projectId === project.id)}
-                active={active}
-                onSelect={onSelect}
-                onNewSession={onNewSession}
-              />
-            ))}
-        </div>
-      </section>
+      {order.map((category) =>
+        category === 'conversations' ? (
+          <section
+            key="conversations"
+            data-category="conversations"
+            onDragOver={(event) => {
+              if (dragged.current && dragged.current !== 'conversations') event.preventDefault()
+            }}
+            onDrop={(event) => {
+              if (!dragged.current || dragged.current === 'conversations') return
+              event.preventDefault()
+              listActions.reorderCategories(order[0] === dragged.current ? 'conversations' : dragged.current)
+              dragged.current = null
+            }}
+            className="mb-3"
+            aria-labelledby="standalone-heading"
+          >
+            <SidebarCategoryHeader
+              id="standalone-heading"
+              name={t('sidebar.conversations')}
+              expanded={expanded.conversations ?? true}
+              onToggle={() => listActions.toggleCategory('conversations')}
+              actions={
+                <CategoryDrag
+                  category="conversations"
+                  onStart={(category) => {
+                    dragged.current = category
+                  }}
+                  onEnd={() => {
+                    dragged.current = null
+                  }}
+                  onMove={(first) => listActions.reorderCategories(first)}
+                />
+              }
+            />
+            {(expanded.conversations ?? true) && (
+              <>
+                <div className="flex flex-col gap-0.5">
+                  {standalone.slice(0, counts.conversations ?? 5).map((session) => (
+                    <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} />
+                  ))}
+                </div>
+                <ListPaging listKey="conversations" total={standalone.length} />
+              </>
+            )}
+          </section>
+        ) : (
+          <section
+            key="projects"
+            className="mb-3"
+            data-category="projects"
+            onDragOver={(event) => {
+              if (dragged.current && dragged.current !== 'projects') event.preventDefault()
+            }}
+            onDrop={(event) => {
+              if (!dragged.current || dragged.current === 'projects') return
+              event.preventDefault()
+              listActions.reorderCategories(order[0] === dragged.current ? 'projects' : dragged.current)
+              dragged.current = null
+            }}
+            aria-labelledby="projects-heading"
+          >
+            <SidebarCategoryHeader
+              id="projects-heading"
+              name={t('sidebar.projects')}
+              expanded={expanded.projects ?? true}
+              onToggle={() => listActions.toggleCategory('projects')}
+              actions={
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="toolbar"
+                        size="icon-xs"
+                        className="size-6 rounded-sm [&_svg]:size-3.5"
+                        aria-label={t(anyExpanded ? 'sidebar.collapseAllProjects' : 'sidebar.expandAllProjects')}
+                        onClick={() =>
+                          listActions.expandProjects(
+                            ordered.map((project) => project.id),
+                            !anyExpanded,
+                          )
+                        }
+                      >
+                        {anyExpanded ? (
+                          <ChevronsDownUpIcon className="size-3.5" strokeWidth={1.1} />
+                        ) : (
+                          <ChevronsUpDownIcon className="size-3.5" strokeWidth={1.1} />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t(anyExpanded ? 'sidebar.collapseAllProjects' : 'sidebar.expandAllProjects')}</TooltipContent>
+                  </Tooltip>
+                  <CategoryDrag
+                    category="projects"
+                    onStart={(category) => {
+                      dragged.current = category
+                    }}
+                    onEnd={() => {
+                      dragged.current = null
+                    }}
+                    onMove={(first) => listActions.reorderCategories(first)}
+                  />
+                  <ProjectSortMenu value={projectSort} onChange={listActions.sortProjects} />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="toolbar"
+                        size="icon-xs"
+                        className="size-6 rounded-sm [&_svg]:size-3.5"
+                        aria-label={t('sidebar.addProject')}
+                        onClick={onAddWorkspace}
+                      >
+                        <PlusIcon className="size-3.5" strokeWidth={1.1} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('sidebar.addProject')}</TooltipContent>
+                  </Tooltip>
+                </>
+              }
+            />
+            {(expanded.projects ?? true) && (
+              <>
+                <div className="flex flex-col gap-0.5">
+                  {shownProjects.slice(0, counts.projects ?? 5).map((project) => (
+                    <ProjectTree
+                      key={project.id}
+                      project={project}
+                      sessions={visible.filter((session) => session.projectId === project.id)}
+                      active={active}
+                      onSelect={onSelect}
+                      onNewSession={onNewSession}
+                    />
+                  ))}
+                </div>
+                <ListPaging listKey="projects" total={shownProjects.length} />
+              </>
+            )}
+          </section>
+        ),
+      )}
     </nav>
   )
 }
@@ -125,11 +268,13 @@ function ProjectTree({
   onNewSession: (workspaceId?: string) => void
 }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = React.useState(true)
+  const count = useLists((state) => state.visibleCounts[`project:${project.id}`] ?? 5)
+  const expanded = useLists((state) => state.expandedProjects[project.id] ?? true)
+  const listActions = useChatStoreApi().lists.getState()
   return (
     <div data-project-id={project.id} className="flex flex-col gap-0.5">
       <div className="group relative">
-        <SidebarListRow aria-label={project.name} aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        <SidebarListRow aria-label={project.name} aria-expanded={expanded} onClick={() => listActions.toggleProject(project.id)}>
           {expanded ? <FolderOpenIcon aria-hidden className="size-4 shrink-0" /> : <FolderClosedIcon aria-hidden className="size-4 shrink-0" />}
           <span data-user-content className="min-w-0 flex-1 truncate">
             {project.name}
@@ -153,10 +298,161 @@ function ProjectTree({
       </div>
       {expanded &&
         (sessions.length ? (
-          sessions.map((session) => <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} nested />)
+          <>
+            <div className="flex flex-col gap-0.5">
+              {sessions.slice(0, count).map((session) => (
+                <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} nested />
+              ))}
+            </div>
+            <ListPaging listKey={`project:${project.id}`} total={sessions.length} nested />
+          </>
         ) : (
           <p className="px-2 py-1 pl-8 text-ui-body text-muted-foreground">{t('sidebar.noConversations')}</p>
         ))}
     </div>
+  )
+}
+
+function ListPaging({ listKey, total, nested = false }: { listKey: string; total: number; nested?: boolean }) {
+  const { t } = useI18n()
+  const count = useLists((state) => state.visibleCounts[listKey] ?? 5)
+  const actions = useChatStoreApi().lists.getState()
+  if (total <= 5) return null
+  return (
+    <div className={`flex h-7 items-center gap-5 text-ui-small text-muted-foreground ${nested ? 'pl-8' : 'px-2'}`}>
+      {count < total && (
+        <button type="button" className="focus-ring hover:text-foreground" onClick={() => actions.showMore(listKey)}>
+          {t('sidebar.expandList')}
+        </button>
+      )}
+      {count > 5 && (
+        <button type="button" className="focus-ring hover:text-foreground" onClick={() => actions.showLess(listKey)}>
+          {t('sidebar.collapseList')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** 分类标题的固定布局；右端 actions 按分类规则传入，置顶不传操作。 */
+export function SidebarCategoryHeader({
+  id,
+  name,
+  expanded,
+  onToggle,
+  actions,
+  muted = false,
+}: {
+  id: string
+  name: string
+  expanded: boolean
+  onToggle: () => void
+  actions?: React.ReactNode
+  muted?: boolean
+}) {
+  const { t } = useI18n()
+  const Arrow = expanded ? ChevronDownIcon : ChevronRightIcon
+  return (
+    <div data-category-header className="group/category flex h-8 items-center px-2">
+      <h2 id={id} aria-label={name} className="min-w-0 flex-1 text-ui-body font-normal">
+        <button
+          type="button"
+          aria-label={t(expanded ? 'sidebar.collapseCategory' : 'sidebar.expandCategory', { name })}
+          aria-expanded={expanded}
+          onClick={onToggle}
+          className={`flex max-w-full items-center gap-1 rounded-xs focus-ring ${muted ? 'text-muted-foreground' : ''}`}
+        >
+          <span data-category-label className="truncate">
+            {name}
+          </span>
+          <Arrow
+            aria-hidden
+            data-category-arrow
+            className={`size-3 shrink-0 ${expanded ? 'opacity-0 group-hover/category:opacity-100 group-focus-within/category:opacity-100' : ''}`}
+          />
+        </button>
+      </h2>
+      {actions && (
+        <div
+          data-category-actions
+          className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/category:opacity-100 group-focus-within/category:opacity-100"
+        >
+          {actions}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProjectSortMenu({ value, onChange }: { value: 'recent' | 'created'; onChange: (value: 'recent' | 'created') => void }) {
+  const { t } = useI18n()
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="toolbar" size="icon-xs" className="size-6 rounded-sm [&_svg]:size-3.5" aria-label={t('sidebar.sortProjects')}>
+              <MoreHorizontalIcon className="size-3.5" strokeWidth={1.1} />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t('sidebar.sortProjects')}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(value) => {
+            if (value === 'recent' || value === 'created') onChange(value)
+          }}
+        >
+          <DropdownMenuRadioItem value="created">{t('sidebar.byCreated')}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="recent">{t('sidebar.byRecent')}</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function CategoryDrag({
+  category,
+  onStart,
+  onEnd,
+  onMove,
+}: {
+  category: SidebarCategory
+  onStart: (category: SidebarCategory) => void
+  onEnd: () => void
+  onMove: (first: SidebarCategory) => void
+}) {
+  const { t } = useI18n()
+  const label = t('sidebar.dragCategory', { name: t(category === 'projects' ? 'sidebar.projects' : 'sidebar.conversations') })
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="toolbar"
+          size="icon-xs"
+          aria-label={label}
+          draggable
+          className="size-6 cursor-grab rounded-sm active:cursor-grabbing [&_svg]:size-3.5"
+          onDragStart={(event) => {
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('text/plain', category)
+            onStart(category)
+          }}
+          onDragEnd={onEnd}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+            event.preventDefault()
+            const handle = event.currentTarget
+            onMove(event.key === 'ArrowUp' ? category : category === 'projects' ? 'conversations' : 'projects')
+            requestAnimationFrame(() => handle.focus())
+          }}
+        >
+          <GripVerticalIcon className="size-3.5" strokeWidth={1.1} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }

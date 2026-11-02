@@ -4,6 +4,17 @@ export const zh = {
     name: 'Coko',
   },
   sidebar: {
+    dragCategory: '拖拽调整{name}分类顺序',
+    collapseAllProjects: '收起所有项目',
+    expandAllProjects: '展开所有项目',
+    sortProjects: '项目排序',
+    byCreated: '按创建时间',
+    byRecent: '按最近使用',
+
+    collapseCategory: '收起{name}分类',
+    expandCategory: '展开{name}分类',
+    expandList: '展开',
+    collapseList: '折叠',
     conversations: '对话',
     projects: '项目',
     addProject: '创建项目',

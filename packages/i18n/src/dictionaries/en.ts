@@ -6,6 +6,17 @@ export const en: typeof zh = {
     name: 'Coko',
   },
   sidebar: {
+    dragCategory: 'Drag {name} category',
+    collapseAllProjects: 'Collapse all projects',
+    expandAllProjects: 'Expand all projects',
+    sortProjects: 'Sort projects',
+    byCreated: 'By creation time',
+    byRecent: 'By recent use',
+
+    collapseCategory: 'Collapse {name} category',
+    expandCategory: 'Expand {name} category',
+    expandList: 'Expand',
+    collapseList: 'Collapse',
     conversations: 'Conversations',
     projects: 'Projects',
     addProject: 'Add project',
