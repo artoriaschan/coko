@@ -6,6 +6,7 @@ import type { FirstSendRequest, FirstSendResponse, ImageAttachment } from '@coko
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionService } from './sessions.ts'
+import type { WorktreeService } from './worktrees.ts'
 
 /** 固定草稿身份对应固定的记录键，提交结果本身就是重启后的幂等凭证。 */
 function sessionIdFor(draftId: string): string {
@@ -31,8 +32,20 @@ export function firstMessageTitle(text: string, images: ImageAttachment[] = []):
 /** 首次发送拥有目录、会话与首条消息的创建；后续发送仍由 SessionService 处理。 */
 export class FirstSendService {
   readonly #pending = new Map<string, Promise<FirstSendResponse>>()
-  readonly #options: { store: SessionStore; sessions: SessionService; chatsRoot: string; titles?: import('./session-titles.ts').SessionTitles }
-  constructor(options: { store: SessionStore; sessions: SessionService; chatsRoot: string; titles?: import('./session-titles.ts').SessionTitles }) {
+  readonly #options: {
+    store: SessionStore
+    sessions: SessionService
+    chatsRoot: string
+    worktrees: WorktreeService
+    titles?: import('./session-titles.ts').SessionTitles
+  }
+  constructor(options: {
+    store: SessionStore
+    sessions: SessionService
+    chatsRoot: string
+    worktrees: WorktreeService
+    titles?: import('./session-titles.ts').SessionTitles
+  }) {
     this.#options = options
   }
 
@@ -65,6 +78,8 @@ export class FirstSendService {
     }
     const project = input.projectId ? await store.projects.get(input.projectId) : undefined
     if (input.projectId && !project) throw new AppError('not-found', 'Project not found')
+    if (input.newWorktree && !project) throw new AppError('bad-request', 'A project is required for a new worktree')
+    let worktreeId: string | undefined
     let folder: string | undefined
     let workspaceId: string | undefined = project?.primaryWorkspaceId
     let accepted = false
@@ -76,9 +91,11 @@ export class FirstSendService {
         folder = await mkdtemp(join(chatsRoot, `${date}-`))
         workspaceId = (await store.sessions.registerWorkspace({ path: await realpath(folder) })).id
       }
+      if (input.newWorktree) worktreeId = (await this.#options.worktrees.create(workspaceId, input.baseBranch ? { baseBranch: input.baseBranch } : {})).id
       const session = await sessions.create({
         id,
         workspaceId,
+        ...(worktreeId ? { worktreeId } : {}),
         projectId: project?.id ?? null,
         title: firstMessageTitle(input.text, input.images),
         ...(input.model ? { model: input.model } : {}),
@@ -93,6 +110,7 @@ export class FirstSendService {
     } catch (error) {
       if (accepted) throw error
       if (await store.sessions.getSession(id)) await sessions.rollbackFirst(id)
+      if (worktreeId) await this.#options.worktrees.removeIfUnchanged(worktreeId)
       // 其他调用方已经引用这个 Workspace 时，不删除它仍在使用的目录。
       if (folder && (!workspaceId || (await store.sessions.deleteWorkspaceIfUnused(workspaceId)))) await rm(folder, { recursive: true, force: true })
       throw error

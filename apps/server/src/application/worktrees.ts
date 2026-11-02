@@ -6,7 +6,15 @@ import { randomBytes } from 'node:crypto'
 import { appendFile, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { getLogger } from '@coko/logging'
-import { WORKTREE_DIRTY_FILES_MAX, WORKTREES_DIR, type GitStatusResponse, type Worktree, type WorktreeBusyReason, type WorktreeCreator } from '@coko/protocol'
+import {
+  WORKTREE_DIRTY_FILES_MAX,
+  WORKTREES_DIR,
+  branchNameError,
+  type GitStatusResponse,
+  type Worktree,
+  type WorktreeBusyReason,
+  type WorktreeCreator,
+} from '@coko/protocol'
 import type { Session as StoredSession, SessionStore, Workspace, WorktreeRecord } from '@coko/session'
 import type { GitPort, GitResult } from '../adapters/git.ts'
 import { AppError } from './errors.ts'
@@ -159,8 +167,8 @@ export class WorktreeService {
   }
 
   /** 创建 worktree（POST /api/workspaces/:id/worktrees）。name 省略时生成。 */
-  create(workspaceId: string, input: { name?: string } = {}): Promise<Worktree> {
-    return this.#create(workspaceId, input.name, 'user')
+  create(workspaceId: string, input: { name?: string; baseBranch?: string } = {}): Promise<Worktree> {
+    return this.#create(workspaceId, input.name, 'user', false, input.baseBranch)
   }
 
   /** 供子代理的 isolation：以子 Session id 派生的名字创建。 */
@@ -174,23 +182,37 @@ export class WorktreeService {
     return this.#create(workspaceId, base, 'subagent', true)
   }
 
-  async #create(workspaceId: string, requested: string | undefined, createdBy: WorktreeCreator, suffixOnConflict = false): Promise<Worktree> {
+  async #create(
+    workspaceId: string,
+    requested: string | undefined,
+    createdBy: WorktreeCreator,
+    suffixOnConflict = false,
+    baseBranch?: string,
+  ): Promise<Worktree> {
     const workspace = await this.#workspace(workspaceId)
     if (requested !== undefined && !validWorktreeName(requested)) throw invalidWorktreeNameError()
     const repoRoot = await this.#repoRoot(workspace)
     return this.#repoLock.run(repoRoot, async () => {
+      // Resolve the branch at send time, before creating directories or modifying exclude.
+      let base = 'HEAD'
+      if (baseBranch !== undefined) {
+        if (branchNameError(baseBranch)) throw new AppError('bad-request', 'Invalid base branch')
+        const resolved = await this.#git.run({ args: ['rev-parse', '--verify', `refs/heads/${baseBranch}^{commit}`], cwd: repoRoot })
+        if (resolved.exitCode !== 0) throw new AppError('bad-request', 'Base branch does not exist')
+        base = resolved.stdout.trim()
+      }
       const dir = await this.#worktreesDir(repoRoot)
       let name = requested ?? `wt-${randomBytes(3).toString('hex')}`
       // 生成的名字与子代理的名字在冲突时换一个；用户给出的名字冲突时 worktree-exists。
       for (let attempt = 0; await this.#taken(repoRoot, dir, name); attempt++) {
         if (requested !== undefined && !suffixOnConflict) throw new AppError('worktree-exists', `A worktree or branch named ${name} already exists`)
         if (attempt >= 5) throw new AppError('worktree-exists', `A worktree or branch named ${name} already exists`)
-        name = `${requested ?? 'wt'}-${randomBytes(2).toString('hex')}`
+        name = requested ? `${requested}-${randomBytes(2).toString('hex')}` : `wt-${randomBytes(3).toString('hex')}`
       }
       const path = join(dir, name)
       const branch = `${BRANCH_PREFIX}${name}`
       await this.#ensureExcluded(repoRoot)
-      const added = await this.#git.run({ args: ['worktree', 'add', '-b', branch, path, 'HEAD'], cwd: repoRoot })
+      const added = await this.#git.run({ args: ['worktree', 'add', '-b', branch, path, base], cwd: repoRoot })
       if (added.exitCode !== 0) {
         // 并发的外部改动（同名分支或目录刚出现）或仓库没有提交（HEAD 无效）。
         const exists = await this.#taken(repoRoot, dir, name)
@@ -305,7 +327,7 @@ export class WorktreeService {
   }
 
   /**
-   * 子代理结束时：HEAD 仍为 base 且没有未提交的文件时移除 worktree 并删除分支（git branch -d），返回 removed；否则保留，返回其路径与分支。
+   * 子代理结束时：HEAD 仍为 base 且没有未提交的文件时移除 worktree 并按 baseCommit 比较后删除分支（git update-ref -d），返回 removed；否则保留，返回其路径与分支。
    */
   async removeIfUnchanged(id: string): Promise<{ removed: true } | { removed: false; path: string; branch: string }> {
     const worktree = await this.#require(id)
@@ -317,7 +339,10 @@ export class WorktreeService {
       if ((await this.#dirty(worktree.path)).length > 0) return kept
       const removed = await this.#git.run({ args: ['worktree', 'remove', worktree.path], cwd: worktree.repoRoot })
       if (removed.exitCode !== 0) return kept
-      await this.#git.run({ args: ['branch', '-d', worktree.branch], cwd: worktree.repoRoot })
+      ok(
+        await this.#git.run({ args: ['update-ref', '-d', `refs/heads/${worktree.branch}`, worktree.baseCommit], cwd: worktree.repoRoot }),
+        'delete unchanged branch',
+      )
       await this.#store.worktrees.markRemoved(id)
       log.info('worktree removed unchanged', { worktreeId: id })
       return { removed: true as const }

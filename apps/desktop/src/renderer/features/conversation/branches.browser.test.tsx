@@ -186,3 +186,71 @@ it('local branch search, busy refusal preserves selection, successful checkout e
   await userEvent.keyboard('{Escape}')
   await screen.unmount()
 })
+
+it('CW-37: worktree toggle is draft-only, hides branch creation, echoes base, and clears on off/ownership reset/category entry', async () => {
+  const fixture = createFixtureChat({ sessions: [] })
+  let mutations = 0
+  const branches = createBranchesStore({
+    list: async () => ({
+      available: true,
+      current: 'main',
+      branches: [
+        { name: 'main', committedAt: 2 },
+        { name: 'feature', committedAt: 1 },
+      ],
+    }),
+    checkout: async () => {
+      mutations++
+      throw new Error('must not checkout')
+    },
+  })
+  fixture.api.firstSend = async () => {
+    mutations++
+    throw new Error('must not send')
+  }
+  const appearance = createAppearanceStore({ locale: 'zh', theme: 'light' })
+  const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict() {}, onFailure() {} })
+  const screen = await render(
+    <div style={{ width: 1200, height: 900 }}>
+      <BranchesProvider store={branches}>
+        <App
+          store={appearance}
+          connection={createConnectionStore()}
+          chat={fixture.chat}
+          settings={fixture.settings}
+          preferences={preferences}
+          settingsPage={createSettingsPageStore()}
+          pickDirectory={async () => null}
+        />
+      </BranchesProvider>
+    </div>,
+  )
+  await page.getByRole('button', { name: '项目配置', exact: true }).click()
+  await expect.element(page.getByRole('switch', { name: '新建工作树' })).toBeDisabled()
+  await userEvent.keyboard('{Escape}')
+  fixture.chat.newChat.getState().selectProject('project-w-coko')
+  const configuration = page.getByRole('button', { name: '项目配置', exact: true })
+  await configuration.click()
+  const toggle = page.getByRole('switch', { name: '新建工作树' })
+  await toggle.click()
+  await expect.element(toggle).toBeChecked()
+  await page.getByRole('menuitem', { name: '分支 main', exact: true }).click()
+  await expect.element(page.getByRole('menuitem', { name: '创建并检出新分支…' })).not.toBeInTheDocument()
+  await page.getByRole('menuitemradio', { name: 'feature', exact: true }).click()
+  await expect.element(page.getByRole('menuitem', { name: '分支 feature', exact: true })).toBeVisible()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ newWorktree: true, branch: 'feature' })
+  expect(mutations).toBe(0)
+  await page.screenshot({ element: page.getByRole('menu', { name: '项目配置' }).element() as HTMLElement, path: '../../../../../../.vitest/cw21-toggle.png' })
+  await toggle.click()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ newWorktree: false, branch: null })
+  await toggle.click()
+  await userEvent.keyboard('{Escape}')
+  await page.getByRole('button', { name: '清除项目归属' }).click()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ projectId: null, newWorktree: false, branch: null })
+  fixture.chat.newChat.getState().selectProject('project-w-coko')
+  fixture.chat.newChat.getState().configure({ newWorktree: true, branch: 'feature' })
+  await page.getByRole('button', { name: '新对话', exact: true }).click()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ projectId: null, newWorktree: false, branch: null })
+  expect(mutations).toBe(0)
+  await screen.unmount()
+})

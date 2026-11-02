@@ -5,6 +5,7 @@ export const worktrees = defineDomain(
   {
     title: 'Worktree',
     projectConfiguration: '项目配置',
+    newWorktree: '新建工作树',
     selectProject: '选择项目后可配置分支',
     branchLabel: '分支',
     branchSearch: '搜索本地分支',
@@ -78,6 +79,7 @@ export const worktrees = defineDomain(
   {
     title: 'Worktree',
     projectConfiguration: 'Project configuration',
+    newWorktree: 'New worktree',
     selectProject: 'Choose a project to configure branches',
     branchLabel: 'Branch',
     branchSearch: 'Search local branches',

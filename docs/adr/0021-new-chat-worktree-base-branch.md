@@ -2,7 +2,7 @@
 kind: decision
 description: "新对话的 worktree 在首次发送时创建：开启“新建工作树”时，所选分支是基础分支，worktree 从它的最新提交创建；首次发送失败时不留会话，并自动移除刚创建且未改动的 worktree，这是 ADR 0016“只由用户移除”的例外；不开工作树时，选择分支立即在主要文件夹切换，有未提交改动或进行中的工作时拒绝。修改新对话的 Git 配置、worktree 的创建时机或分支切换时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: feature
 ---
@@ -35,6 +35,13 @@ category: feature
 - 在主要文件夹切换分支会影响所有使用这个目录的会话和用户的编辑器，所以忙碌检查沿用移除 worktree 的原因（run / agent / job / schedule）。
 - 新界面没有 worktree 列表与移除入口，用户只能在 Coko 之外用 git 移除 worktree；Coko 启动恢复时把路径已不存在的 worktree 标为 removed，绑定的会话变为只读。
 - implementation 变为 implemented 前需要验证：开启“新建工作树”首次发送后，worktree 与分支从所选分支的最新提交创建，主要文件夹仍在原分支；首次发送失败时没有 Session，未改动的 worktree 与分支被移除；选择分支立即切换，有未提交改动或会话忙碌时拒绝，原分支不变；创建并检出已存在的分支时报错，不重置。
+
+## 实施记录
+
+2026-11-03，新对话 worktree 入口与项目分支入口均已接入，当前契约见 [Worktree](../subsystems/worktrees.md#新对话首次发送)。首次发送时解析基础分支最新提交并创建绑定 Session，失败删除未接受的 Session，未改动的 worktree 及分支自动清理；基础分支未合并到主分支也可清理，删除引用时使用创建时提交作比较，发生后续引用变化时拒绝误删。Hook 已写入文件的 worktree 保留。
+
+- 首次发送与回滚证据：[Sidecar 协议](../../tests/integration/sidecar-first-send-worktree.test.ts)、[浏览器开关、分支与草稿](../../apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx)、[真实 Electron 首次发送](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。
+- 项目主要文件夹立即切换、dirty / busy 拒绝、同名分支不重置的证据：[Sidecar 分支协议](../../tests/integration/sidecar-branches.test.ts)、[目录准入屏障](../../apps/server/src/application/branches.test.ts)、[真实 Electron 前缀与检出](../../apps/desktop/e2e/branches.e2e.test.ts)。
 
 ## 来源与后继
 
