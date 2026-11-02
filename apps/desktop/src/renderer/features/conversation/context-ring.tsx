@@ -4,7 +4,7 @@ import { CirclePauseIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
-import { useChat, useOptionalChatStoreApi } from '../../app/chat.tsx'
+import { useChat, useLists, useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
 import { targetKey } from '../../stores/commands-store.ts'
@@ -155,7 +155,7 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
 }
 
 function CurrentModelLabel({ target }: { target: ContextTarget }) {
-  const session = useChat((state) => ('sessionId' in target ? state.sessions.find((item) => item.id === target.sessionId) : undefined))
+  const session = useLists((state) => ('sessionId' in target ? state.sessions.find((item) => item.id === target.sessionId) : undefined))
   const draft = useChat((state) => state.draftModel)
   const models = useSettings((state) => state.models)
   const fallback = useSettings((state) => state.defaultModel)
