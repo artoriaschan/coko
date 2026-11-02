@@ -1,6 +1,7 @@
 // 作文字的警告色（ui-design-system.md：--warning 用于图标与填充，作文字时用 --warning-text）：回退对话框的两条警告与上下文卡的
-// 截断标注、诊断码，在明暗两种主题下按计算样式断言对比度 ≥ 4.5:1；警告图标仍为 --warning。
+// 五类明细，在明暗两种主题下按计算样式断言对比度 ≥ 4.5:1；警告图标仍为 --warning。
 import '../../styles.css'
+import { TooltipProvider } from '@coko/ui'
 import type { ContextUsageResponse, RewindResponse } from '@coko/protocol'
 import { afterEach, expect, it } from 'vitest'
 import { render } from 'vitest-browser-react'
@@ -68,7 +69,7 @@ const usage: ContextUsageResponse = {
   warning: 3_000,
   tokens: 1_000,
   estimated: false,
-  breakdown: { system: 1, instructions: 1, skills: 1, memory: 1, tools: 1, messages: 1 },
+  breakdown: { system: 200, prompt: 200, assistant: 200, thinking: 200, tools: 200 },
   instructions: [{ path: '/w/AGENTS.md', scope: 'project', chars: 40_000, truncated: true }],
   diagnostics: [{ source: 'skills', code: 'name-mismatch', path: '/w/.coko/skills/x/SKILL.md', message: 'Name does not match' }],
   autoCompact: { enabled: true, paused: false },
@@ -90,22 +91,22 @@ for (const theme of ['light', 'dark'] as const) {
     }
   })
 
-  it(`上下文卡的截断标注与诊断码对比度 ≥ 4.5:1（${theme}）`, async () => {
+  it(`上下文卡的分类明细与压缩点对比度 ≥ 4.5:1（${theme}）`, async () => {
     if (theme === 'dark') document.documentElement.classList.add('dark')
     await render(
       <I18nProvider locale="en">
-        <div style={{ padding: 200 }}>
-          <ContextRingControl target={{ sessionId: 's1' }} store={createContextStore(async () => usage)} />
-        </div>
+        <TooltipProvider>
+          <div style={{ padding: 200 }}>
+            <ContextRingControl target={{ sessionId: 's1' }} store={createContextStore(async () => usage)} />
+          </div>
+        </TooltipProvider>
       </I18nProvider>,
     )
-    await expect.poll(() => document.querySelector('[data-context-ring]')?.textContent).toBe('2%')
+    await expect.poll(() => document.querySelector('[data-context-ring]')).not.toBeNull()
     document.querySelector<HTMLButtonElement>('[data-context-ring]')!.click()
-    await expect.poll(() => document.querySelector('[data-diagnostic="name-mismatch"]')).not.toBeNull()
-    const truncated = [...document.querySelectorAll('[data-instruction-file] span span')].find((s) => s.textContent?.includes('Truncated'))!
-    const code = document.querySelector('[data-diagnostic="name-mismatch"] > span')!
-    expect(code.textContent).toBe('name-mismatch')
-    expect([contrastOf(truncated) >= 4.5, contrastOf(code) >= 4.5]).toEqual([true, true])
+    await expect.poll(() => document.querySelectorAll('[data-part-value]').length).toBe(5)
+    for (const el of document.querySelectorAll('[data-part-value], [data-slot="context-card"] dt')) expect(contrastOf(el)).toBeGreaterThanOrEqual(4.5)
+    expect(document.querySelector('[data-diagnostic], [data-instruction-file]')).toBeNull()
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   })
 }

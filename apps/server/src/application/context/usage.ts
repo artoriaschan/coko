@@ -53,7 +53,7 @@ export function usageContribution(options: UsageContributionOptions): ContextCon
 }
 
 export interface ContextUsageInput {
-  context: Pick<ContextAssembly, 'report' | 'tools'>
+  context: Pick<ContextAssembly, 'report' | 'tools' | 'systemSections'>
   scope: ContextScope
   /** 基础工具集（与运行时相同的工厂）。 */
   baseTools: ToolRegistry
@@ -74,6 +74,22 @@ const lastAssistantTimestamp = (messages: readonly AgentMessage[]) => {
   return undefined
 }
 
+/** 最大余数法：固定键顺序用于相同余数的分配，确保整数分项合计等于实际用量。 */
+function allocateUsage(breakdown: ContextBreakdown, tokens: number): ContextBreakdown {
+  const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0)
+  if (total === 0) return { system: tokens, prompt: 0, assistant: 0, thinking: 0, tools: 0 }
+  const parts = (Object.keys(breakdown) as (keyof ContextBreakdown)[]).map((key) => {
+    const share = (breakdown[key] * tokens) / total
+    return { key, value: Math.floor(share), remainder: share - Math.floor(share) }
+  })
+  let remaining = tokens - parts.reduce((sum, part) => sum + part.value, 0)
+  for (const part of [...parts].sort((a, b) => b.remainder - a.remainder)) {
+    if (remaining-- <= 0) break
+    part.value++
+  }
+  return Object.fromEntries(parts.map(({ key, value }) => [key, value])) as ContextBreakdown
+}
+
 /**
  * 上下文用量（docs/subsystems/context.md#上下文用量）：分项一律 chars/4；tokens 为最后一次 assistant usage 加其后消息的 chars/4，没有 usage
  * （或时间裁剪将改变下一次请求、usage 已不代表它）时为分项之和。
@@ -81,13 +97,11 @@ const lastAssistantTimestamp = (messages: readonly AgentMessage[]) => {
 export async function contextUsage(input: ContextUsageInput): Promise<ContextUsageResponse> {
   const { scope, model } = input
   const now = (input.now ?? Date.now)()
-  const [reports, contributed] = await Promise.all([input.context.report(scope), input.context.tools(scope)])
+  const [reports, contributed, sections] = await Promise.all([input.context.report(scope), input.context.tools(scope), input.context.systemSections(scope)])
 
-  const chars = { instructions: 0, skills: 0, memory: 0 }
   const instructions: ContextUsageResponse['instructions'] = []
   const diagnostics: ContextUsageResponse['diagnostics'] = []
   for (const report of reports) {
-    for (const key of Object.keys(chars) as (keyof typeof chars)[]) chars[key] += report.breakdown?.[key] ?? 0
     instructions.push(...(report.instructions ?? []))
     diagnostics.push(...(report.diagnostics ?? []))
   }
@@ -104,14 +118,30 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
   const raw = effectiveMessages(input.entries)
   const trim = scope.config.context.trimOldToolResults
   const messages = trim ? trimOldToolResults(raw, { now }) : raw
-  const breakdown: ContextBreakdown = {
-    system: charsToTokens(DEFAULT_SYSTEM_PROMPT.length),
-    instructions: charsToTokens(chars.instructions),
-    skills: charsToTokens(chars.skills),
-    memory: charsToTokens(chars.memory),
-    tools: charsToTokens(tools),
-    messages: messages.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(message)), 0),
+  const chars: ContextBreakdown = {
+    system: DEFAULT_SYSTEM_PROMPT.length + sections.reduce((sum, section) => sum + section.text.length, 0),
+    prompt: 0,
+    assistant: 0,
+    thinking: 0,
+    tools,
   }
+  for (const message of messages) {
+    if (message.role === 'user') chars.prompt += estimateMessageChars(message)
+    else if (message.role === 'toolResult') chars.tools += estimateMessageChars(message)
+    else if (message.role === 'assistant') {
+      for (const block of message.content) {
+        if (block.type === 'text') chars.assistant += block.text.length
+        else if (block.type === 'thinking') chars.thinking += block.thinking.length
+        else if (block.type === 'toolCall') chars.assistant += block.name.length + JSON.stringify(block.arguments).length
+      }
+    } else if (message.role === 'system') {
+      const system = message as { toolsAdded?: unknown[] }
+      const declarations = system.toolsAdded?.length ? JSON.stringify(system.toolsAdded).length : 0
+      chars.system += estimateMessageChars(message) - declarations
+      chars.tools += declarations
+    }
+  }
+  const breakdown = Object.fromEntries(Object.entries(chars).map(([key, value]) => [key, charsToTokens(value)])) as ContextBreakdown
   const sum = Object.values(breakdown).reduce((a, b) => a + b, 0)
 
   // 最后一次 usage 之后才出现的裁剪点会改变下一次请求：此时 usage 不再代表它，按分项估算。
@@ -129,7 +159,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     warning: budget?.warning ?? 0,
     tokens: fromUsage ? estimate.tokens : sum,
     estimated: fromUsage ? estimate.estimated : true,
-    breakdown,
+    breakdown: fromUsage ? allocateUsage(breakdown, estimate.tokens) : breakdown,
     instructions,
     diagnostics,
     autoCompact: { enabled: scope.config.context.autoCompact, paused: input.autoCompactPaused ?? false },

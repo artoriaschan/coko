@@ -8,7 +8,7 @@ const usage = (tokens: number, extra: Partial<ContextUsageResponse> = {}): Conte
   warning: 3_000,
   tokens,
   estimated: false,
-  breakdown: { system: 120, instructions: 10_001, skills: 30, memory: 12, tools: 900, messages: 40 },
+  breakdown: { system: 120, prompt: 1000, assistant: 400, thinking: 80, tools: 400 },
   instructions: [
     { path: '/home/u/.coko/AGENTS.md', scope: 'user', chars: 10, truncated: false },
     { path: '/w/AGENTS.md', scope: 'project', chars: 40_000, truncated: true },

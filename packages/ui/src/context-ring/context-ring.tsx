@@ -12,20 +12,19 @@ export interface ContextRingProps extends Omit<React.ComponentProps<'button'>, '
   label: string
 }
 
-const SIZE = 16
-const STROKE = 2
+const SIZE = 12
+const STROKE = 1.8
 const RADIUS = (SIZE - STROKE) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 const LEVEL_CLASS: Record<ContextRingLevel, string> = {
-  normal: 'text-muted-foreground',
-  warning: 'text-warning',
+  normal: 'text-link',
+  warning: 'text-warning-text',
   critical: 'text-destructive',
 }
 
 /**
- * 上下文用量环：小号环形进度与百分比数字，作为按钮（HoverCard 的触发器）。颜色只由 level 决定；数字使用等宽数字，
- * 宽度随百分比变化很小，不推动相邻控件。
+ * 上下文用量环：24px 入口只画 12px 轨道；百分比由调用方的 Tooltip 与详情展示。
  */
 function ContextRing({ percent, level, label, className, ...props }: ContextRingProps) {
   const value = percent === undefined ? 0 : Math.max(0, Math.min(100, percent))
@@ -38,7 +37,7 @@ function ContextRing({ percent, level, label, className, ...props }: ContextRing
       data-level={level}
       aria-label={label}
       className={cn(
-        'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-ui-small tabular-nums outline-hidden transition-colors focus-visible:focus-ring [@media(hover:hover)]:hover:bg-accent',
+        'inline-flex size-6 shrink-0 items-center justify-center rounded-sm outline-hidden transition-colors focus-visible:focus-ring hover:bg-accent aria-expanded:bg-accent',
         LEVEL_CLASS[level],
         className,
       )}
@@ -59,7 +58,6 @@ function ContextRing({ percent, level, label, className, ...props }: ContextRing
           strokeDashoffset={CIRCUMFERENCE * (1 - value / 100)}
         />
       </svg>
-      {percent !== undefined && <span aria-hidden>{value}%</span>}
     </button>
   )
 }

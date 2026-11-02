@@ -16,6 +16,7 @@ export {
 } from './app-frame/frame-layout.ts'
 export { Button, buttonVariants } from './components/button.tsx'
 export { PlanModePill } from './components/plan-mode-pill.tsx'
+export { ThinkingSlider, type ThinkingSliderValue } from './components/thinking-slider.tsx'
 export { Checkbox } from './components/checkbox.tsx'
 export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from './components/dialog.tsx'
 export { HoverCard, HoverCardContent, HoverCardTrigger } from './components/hover-card.tsx'

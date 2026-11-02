@@ -122,6 +122,7 @@ it('确认删除：列表移除、提示已删除、焦点移到下一个供应�
   // 选择模型后提示消失。
   await picker.click()
   await page.getByRole('menuitemradio', { name: 'custom-model-1' }).click()
+  await userEvent.keyboard('{Escape}')
   await expect.poll(() => document.querySelector('[data-slot="model-required"]')).toBeNull()
 })
 

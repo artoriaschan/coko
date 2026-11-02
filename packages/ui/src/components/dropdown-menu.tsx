@@ -89,10 +89,19 @@ function DropdownMenuRadioGroup({ ...props }: React.ComponentProps<typeof Dropdo
   return <DropdownMenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />
 }
 
-function DropdownMenuRadioItem({ className, children, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+function DropdownMenuRadioItem({
+  className,
+  children,
+  indicatorAlign = 'start',
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem> & { indicatorAlign?: 'start' | 'end' }) {
   return (
-    <DropdownMenuPrimitive.RadioItem data-slot="dropdown-menu-radio-item" className={cn(menuItem, 'pl-8', className)} {...props}>
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(menuItem, indicatorAlign === 'end' ? 'pr-8' : 'pl-8', className)}
+      {...props}
+    >
+      <span className={cn('pointer-events-none absolute flex size-4 items-center justify-center', indicatorAlign === 'end' ? 'right-2' : 'left-2')}>
         <DropdownMenuPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />
         </DropdownMenuPrimitive.ItemIndicator>

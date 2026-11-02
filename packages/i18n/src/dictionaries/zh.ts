@@ -327,7 +327,7 @@ export const zh = {
     pickerCurrent: '选择模型：{model}',
     configure: '配置模型',
     thinkingLevel: '推理档位',
-    thinkingLevels: { off: '关闭', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
+    thinkingLevels: { off: '关闭', minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '极高', max: '最大' },
   },
   permissions: {
     mode: '权限模式',
