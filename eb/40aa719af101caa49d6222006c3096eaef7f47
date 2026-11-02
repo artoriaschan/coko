@@ -1,0 +1,29 @@
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_9bef2eeeb7e53d 53
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_db62cf32fd11a8 143-144
+  s_64e2ce1bfde668::t_9bef2eeeb7e53d 156-182
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_64e2ce1bfde668::t_c8ddbd0e93de99 62-68,76
+.scratch/conversation-workbench/issues/08-session-menu-rename.md
+  s_64e2ce1bfde668::t_b30400747495ee 66-67
+  s_64e2ce1bfde668::t_49fe6f035e6f65 49-65
+.scratch/conversation-workbench/issues/19-image-attachments.md
+  s_64e2ce1bfde668::t_49fe6f035e6f65 67-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "eb40aa719af101caa49d6222006c3096eaef7f47",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
