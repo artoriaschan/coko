@@ -1,0 +1,23 @@
+.scratch/conversation-workbench/issues/20-branch-select-create-checkout.md
+  s_64e2ce1bfde668::t_d931ad658e487e 17-39
+tests/integration/sidecar-branches.test.ts
+  s_64e2ce1bfde668::t_ce207aea8159c5 49
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_a651f5f3c8ef36 205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "2ca3b5755c9e251c5666df1e0f6aba72b218ea9d",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
