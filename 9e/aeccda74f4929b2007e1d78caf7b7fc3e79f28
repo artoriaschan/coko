@@ -1,0 +1,52 @@
+GLOSSARY.md
+  s_ddfb4220ad6810::t_b96b7a233e3b09 19-21,23
+  s_ddfb4220ad6810::t_6a587a2f78e1bc 31,33-34
+  s_ddfb4220ad6810::t_4350c1d6a60f9f 22
+  s_ddfb4220ad6810::t_109549fc861c52 32
+  s_ddfb4220ad6810::t_fa8a2be7d98d5c 18
+docs/adr/0016-session-cwd-fixed-worktrees.md
+  s_ddfb4220ad6810::t_de53a93565f1fd 49
+docs/adr/0020-projects-organize-workspaces.md
+  s_ddfb4220ad6810::t_7ddae0bf2e1237 1-2,4-21,23-24,26,29,35-42,45-48,51,53-57
+  s_47be7d432a6e87::t_e08f44dfe81207 3,32,44,52,58-59
+  s_ddfb4220ad6810::t_dabcb9e1479f00 22
+  s_ddfb4220ad6810::t_61594bc449dc82 27
+  s_ddfb4220ad6810::t_2aaec3641c9766 28,31,33-34
+  s_ddfb4220ad6810::t_a83b1e9495d58b 30
+  s_ddfb4220ad6810::t_40bb075037b565 25
+  s_ddfb4220ad6810::t_35434786220fd7 49-50
+  s_ddfb4220ad6810::t_6525873db73469 43
+docs/adr/0005-permission-mode-and-sandbox.md
+  s_ddfb4220ad6810::t_3ff9a1ed8b86b5 59
+docs/adr/README.md
+  s_ddfb4220ad6810::t_2ef4e9b4d14396 32-33
+  s_47be7d432a6e87::t_e08f44dfe81207 34
+docs/adr/0022-project-removal-preserves-sessions.md
+  s_47be7d432a6e87::t_e08f44dfe81207 1-37
+docs/adr/0021-new-chat-worktree-base-branch.md
+  s_ddfb4220ad6810::t_00eee4cab1e855 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9eaeccda74f4929b2007e1d78caf7b7fc3e79f28",
+  "prompts": {},
+  "sessions": {
+    "s_47be7d432a6e87": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19b0e-cc3e-7d43-9fac-5fca5291fa73",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    },
+    "s_ddfb4220ad6810": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_dcrt4xndij58",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
