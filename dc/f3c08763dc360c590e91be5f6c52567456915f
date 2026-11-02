@@ -1,0 +1,88 @@
+docs/README.md
+  s_64e2ce1bfde668::t_de86a159850fab 29
+apps/desktop/src/renderer/features/projects/project-form.tsx
+  s_64e2ce1bfde668::t_0cb350f47adf8d 21-29,61-64,92-115,124-209,211-249,251-252,255-256
+  s_64e2ce1bfde668::t_0a0f4fe4155179 1-20,30-60,65-91,210,250,253-254,257
+  s_64e2ce1bfde668::t_16906f625df9ca 116-123
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_d0a202dffc63af 15-16,119-123
+apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx
+  s_64e2ce1bfde668::t_7dd27849a174d3 7-8,74-75
+  s_64e2ce1bfde668::t_0cb350f47adf8d 14-29,76-152
+  s_64e2ce1bfde668::t_553614d9b17b8a 33-36,66-69
+  s_64e2ce1bfde668::t_e368eab4223809 2-6,9-10,12-13,30-32,37-65,70-73
+  s_64e2ce1bfde668::t_00c8261beae25a 11
+  s_64e2ce1bfde668::t_5a549ab9ff7c16 1
+packages/session/src/sqlite/schema.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 324-329
+packages/session/src/sqlite/migrate-v11.test.ts
+  s_64e2ce1bfde668::t_b5ec84a2d94c0b 1-22,28-32
+  s_64e2ce1bfde668::t_0cb350f47adf8d 23-27
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 51-56
+  s_64e2ce1bfde668::t_0cb350f47adf8d 44-50
+packages/session/src/sqlite/migrate-v10.test.ts
+  s_64e2ce1bfde668::t_0f3256af471b21 28-29
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_f5177989a100a7 65-90
+apps/desktop/src/renderer/features/projects/project-dialogs.tsx
+  s_64e2ce1bfde668::t_0cb350f47adf8d 13-15,23-42
+  s_64e2ce1bfde668::t_1876aeab4f18f8 1-12,16-22,43
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_0cb350f47adf8d 114-125,127-145,147
+  s_64e2ce1bfde668::t_1876aeab4f18f8 15,113,148,157-163
+apps/desktop/e2e/create-project.e2e.test.ts
+  s_64e2ce1bfde668::t_faf87d8f45e896 1-26,28-56
+  s_64e2ce1bfde668::t_7dd27849a174d3 27
+packages/session/src/types.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 20-21,29,31
+apps/server/src/application/projects.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 34-35,41-43
+  s_64e2ce1bfde668::t_d0a202dffc63af 1-4,6,15-33,36-40,44-55,65-66,71
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_2993ca77c93992 15-16,32
+  s_64e2ce1bfde668::t_8aa16dd5e3260c 163-168
+packages/session/src/sqlite/projects.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 11,20,45,50,71,75
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_f5177989a100a7 67-92
+.scratch/conversation-workbench/issues/13-create-project.md
+  s_64e2ce1bfde668::t_c4cededab323fe 21-34
+apps/desktop/src/renderer/features/conversation/destination-bar.tsx
+  s_64e2ce1bfde668::t_0cb350f47adf8d 135-149
+  s_64e2ce1bfde668::t_1876aeab4f18f8 5,13,17,22
+tests/integration/sidecar-create-project.test.ts
+  s_64e2ce1bfde668::t_0f3256af471b21 70-73
+  s_64e2ce1bfde668::t_0cb350f47adf8d 18-21,25-31,33-39,54-56,58-66
+  s_64e2ce1bfde668::t_dc4b470a792f40 5,15-16
+  s_64e2ce1bfde668::t_d5447bdb8457f7 1-4,6-14,17,22-24,32,40-53,57,67-69,74
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_66cadf599f5ff7 48
+packages/protocol/src/api.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 12
+packages/session/src/repository-contract.ts
+  s_64e2ce1bfde668::t_0f3256af471b21 66-67
+packages/session/src/memory/index.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 165-172
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_66cadf599f5ff7 3,9,13,17-29,87-90
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 94-104
+  s_64e2ce1bfde668::t_8f512eeec04e86 56,91-93,105-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "dcf3c08763dc360c590e91be5f6c52567456915f",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
