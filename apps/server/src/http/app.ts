@@ -24,6 +24,7 @@ import {
   SetSessionModelRequest,
   SubmitMessageRequest,
   SetSessionPinRequest,
+  MoveSessionRequest,
   RenameSessionRequest,
   UpdateSettingRequest,
 } from '@coko/protocol'
@@ -136,6 +137,10 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.put(`${API_ROUTES.sessions}/:id/pin`, async (c) => {
     const { pinned } = await body(c, SetSessionPinRequest)
     return c.json(await app.sessions.setPinned(c.req.param('id'), pinned))
+  })
+  http.put(`${API_ROUTES.sessions}/:id/project`, async (c) => {
+    const { projectId } = await body(c, MoveSessionRequest)
+    return c.json(await app.sessions.moveToProject(c.req.param('id'), projectId))
   })
   http.post(`${API_ROUTES.sessions}/:id/messages`, async (c) => {
     const { text, images } = await body(c, SubmitMessageRequest)

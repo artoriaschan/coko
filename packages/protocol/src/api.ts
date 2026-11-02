@@ -63,6 +63,7 @@ export type HealthResponse = Static<typeof HealthResponse>
 /** 带参数的业务路径。 */
 export const apiPaths = {
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
+  sessionProject: (id: string) => `${apiPaths.session(id)}/project`,
   sessionPin: (id: string) => `${apiPaths.session(id)}/pin`,
   sessionTitle: (id: string) => `${apiPaths.session(id)}/title`,
   /** POST：提交用户消息并开始 Run。 */

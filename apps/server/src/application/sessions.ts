@@ -324,6 +324,13 @@ export class SessionService {
     return Promise.all(sessions.map((session) => this.toDto(session)))
   }
 
+  async moveToProject(sessionId: string, projectId: string | null): Promise<Session> {
+    const session = await requireSession(this.#store, sessionId)
+    if (session.parentSessionId !== null) throw new AppError('bad-request', 'Only root sessions can be moved')
+    if (projectId !== null && !(await this.#store.projects.get(projectId))) throw new AppError('not-found', 'Project not found')
+    return this.toDto(await this.#store.sessions.setSessionOrganization(sessionId, { projectId }))
+  }
+
   async setPinned(sessionId: string, pinned: boolean): Promise<Session> {
     const session = await requireSession(this.#store, sessionId)
     if (session.parentSessionId !== null) throw new AppError('bad-request', 'Only root sessions can be pinned')

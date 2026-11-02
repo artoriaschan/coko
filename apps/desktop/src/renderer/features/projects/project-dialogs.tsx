@@ -7,7 +7,7 @@ import { useWorkbenchNavigation } from '../../app/workbench.tsx'
 import { projectApi } from '../../client/api.ts'
 import { ProjectFormDialog } from './project-form.tsx'
 
-type CreateRequest = { onComplete?: (project: Project) => void }
+type CreateRequest = { onComplete?: (project: Project, status: 'created' | 'existing' | 'updated') => void }
 const ProjectDialogsContext = React.createContext<((request?: CreateRequest) => void) | null>(null)
 
 export function useCreateProject() {
@@ -32,7 +32,7 @@ export function ProjectDialogsProvider({ pickDirectory, children }: { pickDirect
           onComplete={(result) => {
             chat.lists.getState().upsertProject(result.project)
             setRequest(null)
-            if (request.onComplete) request.onComplete(result.project)
+            if (request.onComplete) request.onComplete(result.project, result.status)
             else navigation.newChat(result.project.primaryWorkspaceId)
             if (result.status === 'existing') toast.info(t('projectForm.existing', { name: result.project.name }))
           }}
