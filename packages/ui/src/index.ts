@@ -59,3 +59,5 @@ export {
 export { $createFileReferenceNode, $isFileReferenceNode, FileReferenceNode, formatFileReference } from './composer/file-reference-node.ts'
 export { DiffBlock, ToolCard, ToolOutput, type ToolCardProps, type ToolCardStatus } from './tool-card/tool-card.tsx'
 export { toast } from 'sonner'
+
+export { SidebarAccount } from './sidebar/sidebar-account.tsx'

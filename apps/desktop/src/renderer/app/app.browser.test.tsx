@@ -129,7 +129,7 @@ describe('界面语言', () => {
     await page.viewport(1280, 800)
     const { screen, backend } = renderApp('zh')
     await screen
-    await expect.element(page.getByRole('button', { name: '新会话' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: '新对话' })).toBeVisible()
 
     const dialog = await openSettings('设置')
     await dialog.getByRole('radio', { name: 'English' }).click()
@@ -138,7 +138,7 @@ describe('界面语言', () => {
     await expect.element(settingsRegion()).not.toBeInTheDocument()
     await vi.waitFor(() => expect(backend.settings.get('locale')?.value).toBe('en'))
 
-    await expect.element(page.getByRole('button', { name: 'New session' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'New chat' })).toBeVisible()
     await expect.element(page.getByRole('textbox', { name: 'Give Coko a task' })).toBeVisible()
     await expect.element(page.getByText('Interface language switched to English')).toBeVisible()
     expect(document.documentElement.lang).toBe('en')
@@ -188,7 +188,7 @@ describe('Sidecar 连接状态', () => {
     await expect.element(status).toHaveTextContent('Sidecar 已连接')
     store.setLocale('en')
     await expect.element(status).toHaveTextContent('Sidecar connected')
-    await expect.element(page.getByRole('button', { name: 'New session' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'New chat' })).toBeVisible()
   })
 
   it('启动失败时覆盖对话区，显示失败说明与原样的错误详情', async () => {
@@ -210,7 +210,7 @@ describe('Sidecar 连接状态', () => {
     expect(composer.contains(hit(composer))).toBe(false)
     const statusEl = page.getByRole('status').element()
     expect(statusEl.contains(hit(statusEl))).toBe(true)
-    const newSession = page.getByRole('button', { name: 'New session' }).element()
+    const newSession = page.getByRole('button', { name: 'New chat' }).element()
     expect(newSession.contains(hit(newSession))).toBe(true)
   })
 })
@@ -461,7 +461,7 @@ describe('窄窗口', () => {
         .map((el) => el.outerHTML.slice(0, 80))
     await expect.poll(overflowing, { timeout: 5000 }).toEqual([])
 
-    for (const name of ['Expand sidebar', 'New session', 'Send']) {
+    for (const name of ['Expand sidebar', 'New chat', 'Send']) {
       const rect = page.getByRole('button', { name }).element().getBoundingClientRect()
       expect(rect.left).toBeGreaterThanOrEqual(0)
       expect(rect.right).toBeLessThanOrEqual(390)
@@ -531,5 +531,89 @@ describe('窄窗口', () => {
     await drawer.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
     await expect.element(drawer).not.toBeInTheDocument()
     await expect.element(page.getByRole('heading', { level: 1, name: 'Sidecar startup handshake' })).toBeVisible()
+  })
+})
+
+describe('双栏工作台导航', () => {
+  it('H32 三项导航、左上历史按钮与固定用户区；插件和定时任务保留侧栏', async () => {
+    await page.viewport(1280, 800)
+    await renderApp('en').screen
+    const back = page.getByRole('button', { name: 'Go back', exact: true })
+    const forward = page.getByRole('button', { name: 'Go forward', exact: true })
+    await expect.element(back).toBeDisabled()
+    await expect.element(forward).toBeDisabled()
+    const navigation = page.getByRole('navigation', { name: 'Main navigation' })
+    const rows = navigation.element().querySelectorAll('[data-workbench-nav]')
+    expect(rows).toHaveLength(3)
+    expect([...rows].map((row) => row.getBoundingClientRect().height)).toEqual([32, 32, 32])
+    const controls = [...document.querySelectorAll('[data-workbench-window-controls] button')].map((button) => button.getAttribute('aria-label'))
+    expect(controls).toEqual(['Collapse sidebar', 'Go back', 'Go forward'])
+    await navigation.getByRole('button', { name: 'Plugins', exact: true }).click()
+    await expect.element(page.getByRole('heading', { name: 'Plugins', exact: true })).toBeVisible()
+    await expect.element(page.getByRole('complementary', { name: 'Sidebar' })).toBeVisible()
+    expect(document.querySelector('[data-settings-page]')).toBeNull()
+    await navigation.getByRole('button', { name: 'Scheduled tasks', exact: true }).click()
+    await expect.element(page.getByRole('heading', { name: 'Scheduled tasks', exact: true })).toBeVisible()
+    await back.click()
+    await expect.element(page.getByRole('heading', { name: 'Plugins', exact: true })).toBeVisible()
+    await forward.click()
+    await expect.element(page.getByRole('heading', { name: 'Scheduled tasks', exact: true })).toBeVisible()
+    const footer = document.querySelector('[data-workbench-account]')!
+    const sidebar = document.querySelector('[data-slot="app-frame-sidebar"]')!
+    expect(footer.getBoundingClientRect().bottom).toBe(sidebar.getBoundingClientRect().bottom)
+    expect(footer.getBoundingClientRect().height).toBe(46)
+    expect(footer.querySelector('[data-workbench-avatar]')?.getBoundingClientRect().width).toBe(22)
+  })
+})
+
+describe('内容区历史与草稿', () => {
+  it('会话、新对话和页面参与历史，设置不占历史；列表移除的会话自动跳过', async () => {
+    await page.viewport(1280, 800)
+    const { chat, api, screen } = renderApp('en')
+    await screen
+    const back = page.getByRole('button', { name: 'Go back', exact: true })
+    const forward = page.getByRole('button', { name: 'Go forward', exact: true })
+    await page.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
+    await expect.element(page.getByRole('heading', { level: 1, name: 'Sidecar startup handshake' })).toBeVisible()
+    await page.getByRole('button', { name: 'New chat', exact: true }).click()
+    const editor = page.getByRole('textbox', { name: 'Give Coko a task' })
+    await editor.fill('a draft kept across pages')
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Plugins', exact: true }).click()
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await expect.element(settingsRegion()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(settingsRegion()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('heading', { name: 'Plugins', exact: true })).toBeVisible()
+    await back.click()
+    await expect.element(editor).toHaveTextContent('a draft kept across pages')
+    // 模拟协议列表刷新：被移除的会话不应再成为前进、后退的目标。
+    const remaining = chat.getState().sessions.filter((session) => session.id !== 's-2')
+    vi.spyOn(api, 'listSessions').mockResolvedValue(remaining)
+    await chat.getState().load()
+    await back.click()
+    await expect.element(page.getByRole('heading', { level: 1, name: '设计 token 与三栏骨架' })).toBeVisible()
+    await forward.click()
+    await expect.element(editor).toHaveTextContent('a draft kept across pages')
+    await forward.click()
+    await expect.element(page.getByRole('heading', { name: 'Plugins', exact: true })).toBeVisible()
+    await expect.element(forward).toBeDisabled()
+    // 矩形子表面不能覆盖 AppFrame 的四个圆角。
+    const frame = document.querySelector<HTMLElement>('[data-slot="app-frame"]')!
+    const style = getComputedStyle(frame)
+    expect([style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius]).toEqual([
+      '28px',
+      '28px',
+      '28px',
+      '28px',
+    ])
+    for (const [x, y] of [
+      [1, 1],
+      [1279, 1],
+      [1, 799],
+      [1279, 799],
+    ]) {
+      const target = document.elementFromPoint(x!, y!)
+      expect(target === frame || !frame.contains(target)).toBe(true)
+    }
   })
 })

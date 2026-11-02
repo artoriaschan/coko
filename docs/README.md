@@ -25,6 +25,8 @@ lifecycle: active
 
 ## 当前行为
 
+- [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史与设置返回。
+
 - [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。
 - [启动恢复与结果确认](subsystems/recovery.md)：崩溃后被中断 Run 的判定、结果探测、待确认与继续。
 - [分层配置](subsystems/configuration.md)：默认、全局与项目设置的合并（项目只收紧）、诊断与配置接口。
