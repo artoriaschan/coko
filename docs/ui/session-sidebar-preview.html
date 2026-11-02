@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>会话悬浮与置顶交互预览</title>
+<style>
+/* Snapshot of packages/ui/src/styles/theme.css; interactive design preview only. */
+:root {
+  --palette-white: #ffffff;
+  --palette-gray-25: rgb(250 250 250);
+  --palette-gray-50: rgb(249 250 251);
+  --palette-gray-100: rgb(235 238 242);
+  --palette-gray-300: rgb(207 211 214);
+  --palette-gray-400: rgb(173 178 184);
+  --palette-gray-500: rgb(129 133 140);
+  --palette-gray-600: rgb(97 102 107);
+  --palette-gray-700: rgb(67 69 74);
+  --palette-gray-750: rgb(53 54 56);
+  --palette-gray-800: rgb(44 44 46);
+  --palette-gray-830: rgb(41 41 41);
+  --palette-gray-850: rgb(35 35 36);
+  --palette-gray-900: rgb(27 27 28);
+  --palette-gray-950: rgb(21 21 23);
+  --palette-ink: rgb(15 17 21);
+  --palette-blue-50: rgb(237 243 254);
+  --palette-blue-500: rgb(65 118 230);
+  --palette-blue-300: rgb(122 170 255);
+  --palette-red-500: rgb(236 19 19);
+  --palette-red-300: rgb(242 90 90);
+  --palette-green-500: rgb(34 197 94);
+  --palette-amber-500: rgb(245 158 11);
+  /* 文字用的深色（亮色主题，对白色约 5:1 以上）与浅色（暗色主题）：成功、警告文字与终端的 ANSI 颜色。 */
+  --palette-red-700: rgb(185 28 28);
+  --palette-red-400: rgb(248 113 113);
+  --palette-green-700: rgb(21 128 61);
+  --palette-green-400: rgb(74 222 128);
+  --palette-amber-700: rgb(180 83 9);
+  --palette-amber-400: rgb(251 191 36);
+  --palette-yellow-700: rgb(161 98 7);
+  --palette-yellow-400: rgb(250 204 21);
+  --palette-blue-700: rgb(29 78 216);
+  --palette-blue-400: rgb(96 165 250);
+  --palette-fuchsia-700: rgb(162 28 175);
+  --palette-fuchsia-400: rgb(232 121 249);
+  --palette-cyan-700: rgb(14 116 144);
+  --palette-cyan-400: rgb(34 211 238);
+  --palette-green-bg-light: rgb(230 244 231);
+  --palette-green-bg-dark: rgb(31 49 36);
+  --palette-red-bg-light: rgb(252 230 226);
+  --palette-red-bg-dark: rgb(60 31 27);
+  --palette-ink-a04: rgb(0 0 0 / 0.04);
+  --palette-ink-a10: rgb(0 0 0 / 0.1);
+  --palette-ink-a12: rgb(0 0 0 / 0.12);
+  --palette-ink-a16: rgb(0 0 0 / 0.16);
+  --palette-ink-a24: rgb(0 0 0 / 0.24);
+  --palette-ink-a50: rgb(0 0 0 / 0.5);
+  --palette-slate-a06: rgb(38 49 72 / 0.06);
+  --palette-slate-a10: rgb(38 49 72 / 0.1);
+  --palette-white-a06: rgb(255 255 255 / 0.06);
+  --palette-white-a08: rgb(255 255 255 / 0.08);
+  --palette-white-a12: rgb(255 255 255 / 0.12);
+  --palette-white-a14: rgb(255 255 255 / 0.14);
+  --palette-white-a16: rgb(255 255 255 / 0.16);
+  --palette-white-a20: rgb(255 255 255 / 0.2);
+  --palette-menu-light: rgb(248 249 250 / 0.94);
+  --palette-menu-dark: rgb(48 49 54 / 0.94);
+  --palette-shadow-a02: rgb(0 0 0 / 0.02);
+  --palette-shadow-a03: rgb(0 0 0 / 0.03);
+  --palette-shadow-a04: rgb(0 0 0 / 0.04);
+  --palette-shadow-a05: rgb(0 0 0 / 0.05);
+
+  color-scheme: light;
+  --background: var(--palette-white);
+  --foreground: var(--palette-ink);
+  --card: var(--palette-white);
+  --card-foreground: var(--palette-ink);
+  --card-fill: var(--palette-white);
+  --card-stroke: var(--palette-ink-a16);
+  --popover: var(--palette-white);
+  --popover-foreground: var(--palette-ink);
+  --primary: var(--palette-ink);
+  --primary-hover: var(--palette-gray-700);
+  --primary-foreground: var(--palette-white);
+  --secondary: var(--palette-slate-a06);
+  --secondary-foreground: var(--palette-ink);
+  --muted: var(--palette-gray-50);
+  --muted-foreground: var(--palette-gray-600);
+  --accent: var(--palette-slate-a06);
+  --accent-active: var(--palette-slate-a10);
+  --accent-foreground: var(--palette-ink);
+  --destructive: var(--palette-red-500);
+  --destructive-foreground: var(--palette-white);
+  --success: var(--palette-green-500);
+  --warning: var(--palette-amber-500);
+  /* 正文大小的成功、警告文字（--success / --warning 用于图标与填充，作文字时对比度不足）。 */
+  --success-text: var(--palette-green-700);
+  --warning-text: var(--palette-amber-700);
+  /* 终端输出的 ANSI 前景色（两套主题下对背景都不低于 4.5:1）。 */
+  --terminal-red: var(--palette-red-700);
+  --terminal-green: var(--palette-green-700);
+  --terminal-yellow: var(--palette-yellow-700);
+  --terminal-blue: var(--palette-blue-700);
+  --terminal-magenta: var(--palette-fuchsia-700);
+  --terminal-cyan: var(--palette-cyan-700);
+  --terminal-muted: var(--palette-gray-600);
+  --border: var(--palette-ink-a10);
+  --border-subtle: var(--palette-ink-a04);
+  --input: var(--palette-ink-a12);
+  --ring: var(--palette-blue-500);
+  --link: var(--palette-blue-500);
+  --overlay: var(--palette-ink-a24);
+  --menu-fill: var(--palette-white);
+  --elevation-stroke-color: var(--palette-ink-a16);
+  --sidebar: var(--palette-gray-50);
+  --sidebar-foreground: var(--palette-ink);
+  --sidebar-accent: var(--palette-gray-100);
+  --sidebar-accent-foreground: var(--palette-ink);
+  --sidebar-border: var(--palette-ink-a10);
+  --bubble: var(--palette-blue-50);
+  --tooltip: var(--palette-gray-800);
+  --tooltip-foreground: var(--palette-gray-50);
+  --toast: var(--palette-gray-750);
+  --toast-foreground: var(--palette-gray-50);
+  --code-block: var(--palette-gray-50);
+  --inline-code: var(--palette-gray-25);
+  --diff-added: var(--palette-green-bg-light);
+  --diff-deleted: var(--palette-red-bg-light);
+  --skeleton: var(--palette-ink-a04);
+  --scrollbar-thumb: var(--palette-ink-a16);
+  --shadow-color-1: var(--palette-shadow-a03);
+  --shadow-color-2: var(--palette-shadow-a02);
+  --shadow-color-3: var(--palette-shadow-a04);
+  --shadow-color-4: var(--palette-shadow-a05);
+
+  --hairline: 0.5px;
+  --frame-top-clearance: 48px;
+  --frame-leading-clearance: 0px;
+  --focus-ring-width: 2px;
+  --menu-backdrop-filter: blur(40px) saturate(150%);
+  --elevation-stroke: 0 0 0 var(--hairline) var(--elevation-stroke-color);
+
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-panel: 28px;
+
+  --text-ui-caption: 11px;
+  --text-ui-caption--line-height: 14px;
+  --text-ui-small: 12px;
+  --text-ui-small--line-height: 18px;
+  --text-ui-body: 13px;
+  --text-ui-body--line-height: 20px;
+  --text-ui-body-lg: 14px;
+  --text-ui-body-lg--line-height: 22px;
+  --text-ui-title: 16px;
+  --text-ui-title--line-height: 24px;
+  --text-ui-heading: 20px;
+  --text-ui-heading--line-height: 28px;
+  --text-ui-display: 24px;
+  --text-ui-display--line-height: 32px;
+
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* 代码栈以 CJK 字体收尾，避免回退到宋体。 */
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei';
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration: 0.2s;
+  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);  --shadow-panel: var(--elevation-stroke), 0 3px 8px 0 var(--shadow-color-1), 0 0 16px 0 var(--shadow-color-2);
+  --shadow-prominent: var(--elevation-stroke), 0 3px 8px 0 var(--shadow-color-3), 0 0 20px 0 var(--shadow-color-4);
+  --shadow-soft: var(--elevation-stroke), 0 4px 16px 0 var(--shadow-color-1), 0 0 24px 0 var(--shadow-color-1);
+}
+*{box-sizing:border-box}body{margin:0;padding:24px;background:var(--background);color:var(--foreground);font:var(--text-ui-body)/var(--text-ui-body--line-height) var(--font-sans)}button,input{font:inherit}button{border:0;color:inherit;background:transparent;cursor:pointer}button:focus-visible,[tabindex]:focus-visible{outline:var(--focus-ring-width) solid var(--ring);outline-offset:2px}svg{width:14px;height:14px;flex:none;stroke:currentColor;stroke-width:1.1;fill:none;stroke-linecap:round;stroke-linejoin:round}h1{margin:0 0 8px;font-size:var(--text-ui-title);line-height:var(--text-ui-title--line-height);font-weight:500}.intro{margin:0 0 20px;color:var(--muted-foreground);font-size:var(--text-ui-small)}
+.window{display:grid;grid-template-columns:280px 1fr;width:min(1040px,100%);height:720px;border-radius:var(--radius-panel);corner-shape:superellipse(1.5);overflow:hidden;box-shadow:var(--elevation-stroke)}aside{padding:16px 8px;background:var(--sidebar);overflow:auto}.section{margin-bottom:16px}.category{display:flex;align-items:center;gap:4px;width:100%;height:32px;padding:0 8px;font-weight:500;text-align:left}.category.pinned{padding-left:8px;color:var(--muted-foreground);font-weight:400}.section[data-section=pinned] .row>svg{color:var(--foreground)}.disclosure{width:20px;height:24px;display:grid;place-items:center;color:var(--muted-foreground);visibility:hidden}.category:hover .disclosure,.category:focus-visible .disclosure,.category[aria-expanded=false] .disclosure{visibility:visible}.category .disclosure svg{width:12px;height:12px}.children[hidden]{display:none}.row{height:32px;display:flex;gap:8px;align-items:center;padding:0 8px;margin-bottom:2px;border-radius:var(--radius-sm);color:var(--foreground);position:relative}.row.project-session{padding-left:28px}.row.pinned-session{gap:10px}.row>svg{width:12px;height:12px;color:var(--muted-foreground)}.row:hover,.row:focus-within{background:var(--accent)}.project-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.project-row{cursor:pointer}.project-body[hidden]{display:none}.empty{height:32px;display:flex;align-items:center;padding-left:28px;color:var(--muted-foreground)}
+.title-scroll{flex:1;min-width:0;overflow:hidden;white-space:nowrap;touch-action:pan-y;cursor:grab;mask-image:linear-gradient(to right,transparent,black var(--fade-left,0px),black calc(100% - var(--fade-right,0px)),transparent);height:20px}.title-scroll.dragging{cursor:grabbing}.title-scroll span{white-space:nowrap;user-select:none}.actions{display:none;flex:none;gap:2px;align-items:center;height:24px}.row:hover .actions,.row:focus-within .actions{display:flex}.icon-button{width:24px;height:24px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--muted-foreground)}.icon-button:hover{background:var(--accent)}.main{padding:40px;display:grid;place-content:center;text-align:center}.main h2{font-size:var(--text-ui-heading);font-weight:500}.main p{max-width:420px;color:var(--muted-foreground)}
+.float{position:fixed;z-index:50;background:var(--menu-fill);border-radius:var(--radius-lg);corner-shape:superellipse(1.5);padding:4px;box-shadow:var(--elevation-stroke),0 3px 8px var(--shadow-color-1),0 0 16px var(--shadow-color-2)}.hover-card{width:336px}.card-heading{display:flex;gap:12px;padding:4px 8px;align-items:flex-start}.card-title{flex:1;min-width:0;font-size:var(--text-ui-title);line-height:var(--text-ui-title--line-height);font-weight:500;overflow-wrap:anywhere}.age{color:var(--muted-foreground);font-size:var(--text-ui-small);white-space:nowrap;line-height:24px}.origin,.folder-path{display:flex;gap:8px;align-items:center;min-height:32px;padding:0 8px}.origin svg,.folder-path svg{color:var(--muted-foreground)}.folder-path span{overflow-wrap:anywhere}.menu{width:224px}.submenu{width:248px;z-index:60}.menu-item{display:flex;gap:8px;align-items:center;width:100%;height:32px;padding:0 8px;border-radius:var(--radius-md);text-align:left;white-space:nowrap}.menu-item:hover,.menu-item:focus-visible,.menu-item.selected{background:var(--accent)}.menu-item .tail{margin-left:auto}.danger{color:var(--destructive)}hr{border:0;height:var(--hairline);background:var(--border);margin:4px 8px}.search{display:flex;gap:8px;align-items:center;height:36px;padding:0 8px;color:var(--muted-foreground)}.search input{border:0;background:transparent;min-width:0;width:100%;outline:none;color:var(--foreground)}.tooltip{position:fixed;z-index:80;padding:4px 8px;border-radius:var(--radius-sm);background:var(--tooltip);color:var(--tooltip-foreground);font-size:var(--text-ui-small);line-height:var(--text-ui-small--line-height);pointer-events:none}.status{margin-top:16px;color:var(--muted-foreground);font-size:var(--text-ui-small)}dialog{border:0;border-radius:var(--radius-panel);corner-shape:superellipse(1.5);padding:24px;width:420px;color:var(--foreground);background:var(--background);box-shadow:var(--shadow-prominent)}dialog::backdrop{background:var(--overlay)}dialog h2{margin:0 0 20px;font-size:var(--text-ui-title);font-weight:500}dialog input{width:100%;height:36px;border:var(--hairline) solid var(--input);border-radius:var(--radius-md);padding:0 12px;background:var(--background);color:var(--foreground)}.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}.dialog-actions button{padding:0 16px;height:36px;border-radius:var(--radius-md)}.primary{background:var(--primary);color:var(--primary-foreground)}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+@media(max-width:620px){body{padding:16px}.window{grid-template-columns:280px 1fr}.main{padding:16px}.main h2{font-size:var(--text-ui-title)}}
+
+.search-nav{display:flex;align-items:center;gap:8px;height:32px;margin-bottom:16px;padding:0 8px}.search-nav .nav-label{flex:1;text-align:left;padding:0;display:flex;align-items:center;gap:8px}.search-dialog{width:min(640px,calc(100vw - 32px));height:432px;max-height:calc(100vh - 32px);padding:12px;background:var(--menu-fill)}.search-dialog[open]{display:flex;flex-direction:column;gap:12px}.search-field{display:flex;align-items:center;gap:10px;flex:none;height:40px;padding:0 12px;border:var(--hairline) solid var(--input);border-radius:var(--radius-md);color:var(--muted-foreground)}.search-field:focus-within{box-shadow:0 0 0 2px var(--ring)}.search-dialog .search-field input{height:38px;border:0;border-radius:0;padding:0;outline:none;flex:1;min-width:0;background:transparent;caret-color:var(--foreground)}.search-dialog input::placeholder{color:var(--muted-foreground)}.search-field svg{width:16px;height:16px}.search-results-region{display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}.search-section-title{margin:0;color:var(--muted-foreground);font-size:var(--text-ui-small);line-height:var(--text-ui-small--line-height);font-weight:400}.search-results{overflow:auto;min-height:0;flex:1}.search-result{display:flex;align-items:center;gap:10px;width:100%;height:32px;padding:0 8px;border-radius:var(--radius-sm);corner-shape:round;text-align:left}.search-result[aria-selected=true]{background:var(--accent)}.search-result>svg{color:var(--muted-foreground)}.search-result-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.search-result mark{background:var(--bubble);color:var(--foreground);border-radius:var(--radius-xs)}.search-project{flex:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--accent);color:var(--muted-foreground);border-radius:var(--radius-xs);padding:0 6px;font-size:var(--text-ui-small);line-height:20px}.search-age{flex:none;width:28px;text-align:right;color:var(--muted-foreground);font-size:var(--text-ui-small)}.search-empty{height:100%;min-height:120px;display:grid;place-content:center;text-align:center;gap:4px}.search-empty p{margin:0}.search-empty .help{color:var(--muted-foreground);font-size:var(--text-ui-small)}@media(hover:hover){.search-result:hover{background:var(--accent)}}@media(max-width:480px){.search-project{max-width:88px}}
+
+.delete-confirm{width:min(480px,calc(100vw - 32px));min-height:184px}.delete-confirm[open]{display:flex;flex-direction:column;gap:12px}.delete-header{display:flex;gap:12px;align-items:center}.delete-confirm h2{margin:0;flex:1;font-size:var(--text-ui-heading);line-height:var(--text-ui-heading--line-height);font-weight:500}.delete-description{margin:0;color:var(--muted-foreground)}.delete-confirm .dialog-actions{margin-top:auto;gap:12px}.delete-cancel{border:var(--hairline) solid var(--input)}.delete-confirm-button{background:var(--diff-deleted);color:var(--destructive);font-weight:500}
+
+.move-create{width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}.move-create form{display:flex;flex-direction:column;gap:20px}.move-create h2{margin:0;font-size:var(--text-ui-title);line-height:24px;font-weight:500}.move-create header{display:flex;align-items:center;gap:12px}.move-create header h2{flex:1}.project-name-field{display:flex;align-items:center;gap:10px;height:36px;border:var(--hairline) solid var(--input);border-radius:var(--radius-md);padding:0 12px;color:var(--muted-foreground)}.project-name-field:focus-within{box-shadow:0 0 0 2px var(--ring)}.move-create .project-name-field input{height:34px;outline:none;border:0;padding:0;min-width:0;flex:1;background:transparent}.source-section{display:flex;flex-direction:column;gap:8px}.source-section-label{font-weight:500}.source-list{border:var(--hairline) solid var(--card-stroke);border-radius:var(--radius-lg);overflow:hidden}.source-folder{display:flex;align-items:center;gap:12px;padding:0 12px;min-height:56px;border-bottom:var(--hairline) solid var(--border)}.source-folder>.folder-info{flex:1;min-width:0;display:flex;flex-direction:column}.folder-path-text{font-size:var(--text-ui-small);color:var(--muted-foreground);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-primary{font-size:var(--text-ui-small);background:var(--sidebar);border-radius:10px;padding:0 8px;line-height:20px;color:var(--muted-foreground)}.make-primary-slot{width:68px;height:28px;flex:none}.make-primary{height:28px;width:68px;padding:0 8px;border-radius:var(--radius-sm);background:var(--accent);visibility:hidden}.source-folder:focus-within .make-primary{visibility:visible}@media(hover:hover){.source-folder:hover .make-primary{visibility:visible}}.add-source{display:flex;align-items:center;gap:12px;padding:0 12px;height:36px;width:100%;text-align:left;background:var(--muted)}.add-source-empty{min-height:112px;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--input);border-radius:var(--radius-lg);color:var(--muted-foreground)}.move-create .dialog-actions{margin:0}.move-create button:disabled{opacity:.4;cursor:default}.move-error{margin:0;color:var(--destructive);font-size:var(--text-ui-small)}
+
+.project-delete-confirm{min-height:208px}.project-delete-confirm .delete-cancel{border:0;color:var(--muted-foreground)}.project-delete-confirm button:disabled{opacity:.5;cursor:wait}.project-delete-error{margin:0;color:var(--destructive);font-size:var(--text-ui-small)}
+</style>
+<h1>会话悬浮与置顶交互预览</h1>
+<p class="intro">悬停查看详情；横向滚动或拖动长标题；点击置顶后观察分类变化。</p>
+<div class="window"><aside id="sidebar" aria-label="会话与项目"></aside><section class="main"><div><h2 id="main-title">查看左侧会话与项目</h2><p id="main-copy">置顶后项目或对话会从原分类移入置顶分类。项目内对话的项目归属继续保留。</p></div></section></div>
+<p class="status" id="status" role="status">示例数据仅在当前预览中变化</p>
+<dialog id="rename"><form method="dialog"><h2>重命名会话</h2><input name="title" aria-label="会话名称" required><div class="dialog-actions"><button value="cancel" formnovalidate>取消</button><button value="save" class="primary">保存</button></div></form></dialog>
+<dialog id="conversation-search" class="search-dialog" aria-label="搜索对话"><label class="search-field"><span id="search-field-icon" aria-hidden="true"></span><input id="conversation-query" type="text" placeholder="搜索对话…" aria-label="搜索对话标题" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="conversation-results" autocomplete="off"></label><section class="search-results-region"><h2 id="search-section-title" class="search-section-title">最近对话</h2><div id="conversation-results" class="search-results" role="listbox" aria-labelledby="search-section-title"></div><span id="search-count" role="status" aria-live="polite" style="position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden"></span></section></dialog>
+<dialog id="project-delete" class="delete-confirm project-delete-confirm" aria-labelledby="delete-project-title" aria-describedby="delete-project-description"><header class="delete-header"><h2 id="delete-project-title">删除项目？</h2><button type="button" class="icon-button delete-close" aria-label="关闭删除确认"></button></header><p id="delete-project-description" class="delete-description">项目会从列表中移除，正在运行的对话会被停止。对话记录会保留，移到「对话」下；项目文件夹里的文件不会被删除。</p><p class="project-delete-error" role="alert" hidden></p><footer class="dialog-actions"><button type="button" class="delete-cancel">取消</button><button type="button" class="delete-confirm-button">删除</button></footer></dialog>
+<dialog id="session-delete" class="delete-confirm" aria-labelledby="delete-session-title" aria-describedby="delete-session-description"><header class="delete-header"><h2 id="delete-session-title">要删除对话吗？</h2><button type="button" class="icon-button delete-close" aria-label="关闭删除确认"></button></header><p id="delete-session-description" class="delete-description">此操作将永久删除该对话及其子智能体对话，且无法撤销。</p><footer class="dialog-actions"><button type="button" class="delete-cancel">取消</button><button type="button" class="delete-confirm-button">删除</button></footer></dialog>
+<dialog id="move-create-project" class="move-create" aria-labelledby="move-create-title"><form><header><h2 id="move-create-title">创建项目</h2><button type="button" class="icon-button move-create-close" aria-label="关闭创建项目"></button></header><label class="project-name-field"><span class="project-name-icon"></span><input id="move-project-name" aria-label="项目名称" placeholder="项目名称" required></label><section class="source-section"><span class="source-section-label">源文件夹</span><div id="move-source-folders"></div></section><p id="move-create-error" class="move-error" hidden></p><footer class="dialog-actions"><button type="button" class="move-create-cancel">取消</button><button type="submit" class="primary move-create-submit" disabled>创建项目</button></footer></form></dialog>
+<script>
+const icons={"message-circle":"M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719","folder-closed":"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z M2 10h20","folder-open":"M0 0 m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2","chevron-down":"M0 0 m6 9 6 6 6-6","chevron-right":"M0 0 m9 18 6-6-6-6","pin":"M12 17v5 M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z","pin-off":"M12 17v5 M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89 M0 0 m2 2 20 20 M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11","ellipsis":"M11.0 12.0 a1.0 1.0 0 1 0 2.0 0 a1.0 1.0 0 1 0 -2.0 0 M18.0 12.0 a1.0 1.0 0 1 0 2.0 0 a1.0 1.0 0 1 0 -2.0 0 M4.0 12.0 a1.0 1.0 0 1 0 2.0 0 a1.0 1.0 0 1 0 -2.0 0","pencil":"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z M0 0 m15 5 4 4","archive":"M3 3 H21 Q22 3 22 4 V7 Q22 8 21 8 H3 Q2 8 2 7 V4 Q2 3 3 3 Z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8 M10 12h4","download":"M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M0 0 m7 10 5 5 5-5","trash-2":"M10 11v6 M14 11v6 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2","search":"M0 0 m21 21-4.34-4.34 M3.0 11.0 a8.0 8.0 0 1 0 16.0 0 a8.0 8.0 0 1 0 -16.0 0"};
+const icon=name=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[name]||''}" ${['pin','pin-off'].includes(name)?'transform="rotate(45 12 12)"':''}></path></svg>`;
+const safe=text=>String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sessions=[{id:'brief',title:'示例对话 · A01',age:'5天',project:null,pinned:false},{id:'long',title:'示例对话 · B02（仅用于演示较长标题横向滚动的脱敏占位内容）',age:'1天',project:null,pinned:false},{id:'structure',title:'示例对话 · A03',age:'4时',project:'canvas',pinned:false},{id:'boundary',title:'示例对话 · B04',age:'2天',project:'canvas',pinned:false}];
+const projects=[{id:'canvas',name:'canvas-demo',pinned:false,expanded:true,folders:['/Users/demo/Projects/app-demo','/Users/demo/Projects/shared-demo','/Users/demo/Projects/docs-demo']},{id:'orbit',name:'orbit-demo',pinned:false,expanded:false,folders:['/Users/demo/Projects/orbit-demo']}];
+const sections={pinned:true,conversations:true,projects:true};
+const sidebar=document.querySelector('#sidebar'),status=document.querySelector('#status');
+let card=null,menu=null,submenu=null,closeCardTimer=null,tooltip=null,tipTimer=null,renameId=null;
+const titleObserver=new ResizeObserver(entries=>entries.forEach(({target})=>syncFade(target)));
+function say(text){status.textContent=text}
+function closeFloats(){card?.remove();card=null;menu?.remove();menu=null;submenu?.remove();submenu=null;tooltip?.remove();tooltip=null;clearTimeout(closeCardTimer);clearTimeout(tipTimer)}
+function category(key,label){const section=document.createElement('section');section.className='section';section.dataset.section=key;section.innerHTML=`<button class="category ${key==='pinned'?'pinned':''}" aria-expanded="${sections[key]}"><span>${label}</span><span class="disclosure">${icon(sections[key]?'chevron-down':'chevron-right')}</span></button><div class="children" ${sections[key]?'':'hidden'}></div>`;section.querySelector('.category').onclick=()=>{sections[key]=!sections[key];render()};return section}
+function syncFade(view){const max=view.scrollWidth-view.clientWidth;view.style.setProperty('--fade-left',view.scrollLeft>.5?'12px':'0px');view.style.setProperty('--fade-right',view.scrollLeft<max-.5?'12px':'0px')}
+function bindScroll(view){
+ view.addEventListener('scroll',()=>syncFade(view));
+ view.addEventListener('wheel',event=>{if(view.scrollWidth<=view.clientWidth)return;event.preventDefault();view.scrollLeft+=event.deltaX||event.deltaY;syncFade(view)},{passive:false});
+ let drag=null;view.addEventListener('pointerdown',event=>{if(event.button!==0)return;drag={x:event.clientX,scroll:view.scrollLeft,moved:false};view.setPointerCapture(event.pointerId);view.classList.add('dragging')});
+ view.addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x;if(Math.abs(dx)>3)drag.moved=true;view.scrollLeft=drag.scroll-dx;syncFade(view)});
+ view.addEventListener('pointerup',event=>{if(drag?.moved)event.stopPropagation();drag=null;view.classList.remove('dragging')});view.addEventListener('pointercancel',()=>{drag=null;view.classList.remove('dragging')});
+ view.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();view.scrollLeft=event.key==='Home'?0:event.key==='End'?view.scrollWidth:view.scrollLeft+(event.key==='ArrowRight'?48:-48);syncFade(view)});
+}
+function tip(button,label){button.setAttribute('aria-label',label);button.addEventListener('pointerenter',()=>{clearTimeout(tipTimer);tipTimer=setTimeout(()=>{tooltip?.remove();tooltip=document.createElement('div');tooltip.className='tooltip';tooltip.role='tooltip';tooltip.textContent=label;(button.closest('dialog[open]')||document.body).append(tooltip);const r=button.getBoundingClientRect();tooltip.style.left=Math.min(innerWidth-tooltip.offsetWidth-8,Math.max(8,r.left))+'px';tooltip.style.top=Math.max(8,r.top-tooltip.offsetHeight-6)+'px'},300)});button.addEventListener('pointerleave',()=>{clearTimeout(tipTimer);tooltip?.remove();tooltip=null})}
+function rowFor(session){
+ const row=document.createElement('div');row.className='row'+(session.pinned?' pinned-session':session.project?' project-session':'');row.dataset.session=session.id;row.tabIndex=-1;bindSessionContextMenu(row,session);
+ row.innerHTML=`${session.pinned?icon('message-circle'):''}<div class="title-scroll" tabindex="0" aria-label="${safe(session.title)}"><span>${safe(session.title)}</span></div><div class="actions"><button class="icon-button pin-session">${icon(session.pinned?'pin-off':'pin')}</button><button class="icon-button more-session">${icon('ellipsis')}</button></div>`;
+ const view=row.querySelector('.title-scroll');bindScroll(view);row.addEventListener('pointerenter',()=>{clearTimeout(closeCardTimer);if(!menu)showSessionCard(session,row);requestAnimationFrame(()=>syncFade(view))});row.addEventListener('pointerleave',scheduleCardClose);row.addEventListener('focusin',()=>{if(!menu)showSessionCard(session,row);requestAnimationFrame(()=>syncFade(view))});
+ const pin=row.querySelector('.pin-session');tip(pin,session.pinned?'取消置顶对话':'置顶对话');pin.onclick=event=>{event.stopPropagation();toggleSessionPin(session)};
+ const more=row.querySelector('.more-session');tip(more,'查看更多');more.onclick=event=>{event.stopPropagation();showMenu(session,more)};
+ view.addEventListener('click',()=>{document.querySelector('#main-title').textContent=session.title;document.querySelector('#main-copy').textContent='会话归属：'+(projects.find(p=>p.id===session.project)?.name||'对话')});return row;
+}
+function projectGroup(project){const group=document.createElement('div');group.dataset.project=project.id;const row=document.createElement('div');row.className='row project-row';row.innerHTML=`${icon(project.expanded?'folder-open':'folder-closed')}<span class="project-name">${safe(project.name)}</span>`;const actions=document.createElement('div');actions.className='actions';const more=document.createElement('button');more.className='icon-button more-project';more.innerHTML=icon('ellipsis');tip(more,'查看更多项目操作');more.onclick=event=>{event.stopPropagation();showProjectMenu(project,row)};const create=document.createElement('button');create.className='icon-button';create.innerHTML=icon('pencil');tip(create,'在此项目下新建对话');create.onclick=event=>{event.stopPropagation();newChatInProject(project)};actions.append(more,create);row.append(actions);row.tabIndex=0;row.onclick=()=>{project.expanded=!project.expanded;render()};row.onkeydown=event=>{if(event.target!==row)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();project.expanded=!project.expanded;render()}};row.onpointerenter=()=>{clearTimeout(closeCardTimer);if(!menu)showProjectCard(project,row)};row.onpointerleave=scheduleCardClose;group.append(row);if(project.expanded){const children=document.createElement('div');children.className='project-body';const own=sessions.filter(s=>s.project===project.id&&!s.pinned&&!s.archived&&!s.parentSessionId);for(const session of own)children.append(rowFor(session));if(!own.length&&!sessions.some(s=>s.project===project.id&&!s.archived))children.innerHTML='<div class="empty">暂无对话</div>';group.append(children)}return group}
+function render(){closeFloats();titleObserver.disconnect();sidebar.replaceChildren();const nav=document.createElement('div');nav.className='search-nav';nav.innerHTML=`<button class="nav-label">${icon('pencil')}<span>新对话</span></button><button class="icon-button search-trigger">${icon('search')}</button>`;nav.querySelector('.nav-label').onclick=()=>{document.querySelector('#main-title').textContent='新对话';document.querySelector('#main-copy').textContent='会话归属：对话'};const searchButton=nav.querySelector('.search-trigger');tip(searchButton,'搜索对话');searchButton.onclick=()=>openConversationSearch(searchButton);sidebar.append(nav);const pinned=category('pinned','置顶'),conversations=category('conversations','对话'),projectSection=category('projects','项目');for(const p of projects.filter(p=>p.pinned))pinned.querySelector('.children').append(projectGroup(p));for(const s of sessions.filter(s=>s.pinned&&!s.archived&&!s.parentSessionId))pinned.querySelector('.children').append(rowFor(s));for(const s of sessions.filter(s=>!s.project&&!s.pinned&&!s.archived&&!s.parentSessionId))conversations.querySelector('.children').append(rowFor(s));for(const p of projects.filter(p=>!p.pinned))projectSection.querySelector('.children').append(projectGroup(p));sidebar.append(pinned,conversations,projectSection);document.querySelectorAll('.title-scroll').forEach(view=>titleObserver.observe(view));requestAnimationFrame(()=>document.querySelectorAll('.title-scroll').forEach(syncFade))}
+function toggleSessionPin(session){session.pinned=!session.pinned;sections.pinned=true;render();say(session.pinned?'已移入置顶分类，原分类不再显示此对话':'已取消置顶并恢复原分类');document.querySelector(`[data-session="${session.id}"] .pin-session`)?.focus()}
+function toggleProjectPin(project){project.pinned=!project.pinned;sections.pinned=true;render();say(project.pinned?'项目已从项目分类移入置顶分类':'项目已恢复到项目分类')}
+function placeCard(element,row){const r=row.getBoundingClientRect();element.style.left=Math.max(8,Math.min(innerWidth-element.offsetWidth-8,r.right+2))+'px';element.style.top=Math.max(8,Math.min(innerHeight-element.offsetHeight-8,r.top))+'px'}
+function showSessionCard(session,row){card?.remove();const project=projects.find(p=>p.id===session.project);card=document.createElement('div');card.className='float hover-card';card.dataset.kind='session-card';card.innerHTML=`<div class="card-heading"><div class="card-title">${safe(session.title)}</div><span class="age">${safe(session.age)}</span></div><div class="origin">${icon(project?'folder-closed':'message-circle')}<span>${safe(project?.name||'对话')}</span></div>`;document.body.append(card);placeCard(card,row);card.onpointerenter=()=>clearTimeout(closeCardTimer);card.onpointerleave=scheduleCardClose}
+function showProjectCard(project,row){card?.remove();card=document.createElement('div');card.className='float hover-card';card.dataset.kind='project-card';card.innerHTML=`<div class="card-heading"><div class="card-title">${safe(project.name)}</div><button class="icon-button project-pin">${icon(project.pinned?'pin-off':'pin')}</button></div><div class="origin">${icon('message-circle')}<span>${sessions.filter(s=>s.project===project.id&&!s.archived&&!s.parentSessionId).length} 个对话</span></div><hr>${project.folders.map(path=>`<div class="folder-path">${icon('folder-closed')}<span>${safe(path)}</span></div>`).join('')}`;document.body.append(card);placeCard(card,row);const pin=card.querySelector('.project-pin');tip(pin,project.pinned?'取消置顶项目':'置顶项目');pin.onclick=()=>toggleProjectPin(project);card.onpointerenter=()=>clearTimeout(closeCardTimer);card.onpointerleave=scheduleCardClose}
+function scheduleCardClose(){clearTimeout(closeCardTimer);closeCardTimer=setTimeout(()=>{card?.remove();card=null},150)}
+function item(label,name,action,danger=false){const button=document.createElement('button');button.className='menu-item'+(danger?' danger':'');button.innerHTML=icon(name)+`<span>${label}</span>`;button.onclick=event=>{event.stopPropagation();action()};return button}
+function showMenu(session,button,point=null){closeFloats();const anchor=button.closest('.row')||button.closest('.search-result')||button;menu=document.createElement('div');menu.className='float menu';menu._sessionOrigin=anchor;menu.setAttribute('role','menu');
+ const rename=item('重命名','pencil',()=>{renameId=session.id;closeFloats();const d=document.querySelector('#rename');d.querySelector('input').value=session.title;d.showModal()});menu.append(rename,item(session.pinned?'取消置顶':'置顶',session.pinned?'pin-off':'pin',()=>toggleSessionPin(session)),item('归档','archive',()=>{session.archived=true;render();say('示例会话已归档')}));
+ const move=item('移到项目','folder-closed',()=>showMoveMenu(session,move));move.innerHTML+='<span class="tail">'+icon('chevron-right')+'</span>';menu.append(move);menu.append(document.createElement('hr'),item('删除对话','trash-2',()=>openSessionDelete(session,button),true));(conversationSearch.open?conversationSearch:document.body).append(menu);menu.dataset.trigger=point?'contextmenu':'more';if(point){menu.style.left=Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,point.x))+'px';menu.style.top=Math.max(8,Math.min(innerHeight-menu.offsetHeight-8,point.y))+'px'}else placeCard(menu,anchor);rename.focus()}
+function showMoveMenu(session,trigger){submenu?.remove();submenu=document.createElement('div');submenu.className='float submenu';submenu.innerHTML=`<label class="search">${icon('search')}<input placeholder="搜索项目" aria-label="搜索项目"></label><div class="project-options"></div>`;const options=submenu.querySelector('.project-options');const fill=()=>{options.replaceChildren();const q=submenu.querySelector('input').value.toLowerCase();const filtered=projects.filter(p=>p.name.toLowerCase().includes(q));for(const p of filtered){const button=item(p.name,'folder-closed',()=>{session.project=p.id;render();if(conversationSearch.open)renderConversationResults();say('会话已移动到 '+p.name)});if(session.project===p.id)button.classList.add('selected');options.append(button)}if(!filtered.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='未找到匹配项目';options.append(empty)}options.append(document.createElement('hr'),item('选择文件夹…','folder-open',()=>openMoveProjectCreate(session,menu?._sessionOrigin)));if(session.project)options.append(item('移出项目','message-circle',()=>{session.project=null;render();if(conversationSearch.open)renderConversationResults();say('已移出项目，置顶状态保持不变')}))};fill();submenu.querySelector('input').oninput=fill;(menu.parentElement||document.body).append(submenu);const m=menu.getBoundingClientRect(),r=trigger.getBoundingClientRect();const preferred=r.right;const left=preferred+submenu.offsetWidth<=innerWidth-8?preferred:r.left-submenu.offsetWidth;submenu.style.left=Math.max(8,Math.min(innerWidth-submenu.offsetWidth-8,left))+'px';submenu.style.top=Math.max(8,Math.min(innerHeight-submenu.offsetHeight-8,r.top))+'px';submenu.querySelector('input').focus()}
+document.querySelector('#rename').addEventListener('close',event=>{if(event.target.returnValue==='save'){const value=event.target.querySelector('input').value.trim();if(value)sessions.find(s=>s.id===renameId).title=value;render();say('示例会话名称已更新')}});
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('.float')&&!event.target.closest('.more-session')&&!event.target.closest('.row'))closeFloats()});document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(submenu){submenu.remove();submenu=null;menu?.querySelectorAll('button')[3]?.focus()}else closeFloats()}});window.addEventListener('resize',closeFloats);
+const conversationSearch=document.querySelector('#conversation-search'),conversationQuery=document.querySelector('#conversation-query'),conversationResults=document.querySelector('#conversation-results');
+const searchExamples=[{id:'search-05',title:'示例对话 · A05',age:'1分',project:'canvas'},{id:'search-06',title:'示例对话 · B06',age:'5时',project:'orbit'},{id:'search-07',title:'示例对话 · A07',age:'3天',project:'orbit'},{id:'search-08',title:'示例对话 · B08',age:'4天',project:'canvas'},{id:'search-09',title:'示例对话 · A09',age:'4天',project:null},{id:'search-10',title:'示例对话 · B10',age:'4天',project:'canvas'}];
+let searchTrigger=null,searchActive=0,searchMatches=[],searchComposing=false;
+function searchAgeOrder(age){const n=parseInt(age,10)||0;return n*(age.includes('天')?1440:age.includes('时')?60:1)}
+function searchCorpus(){return [...new Map([...sessions,...searchExamples].filter(s=>!s.archived&&!s.parentSessionId).map(s=>[s.id,s])).values()].sort((a,b)=>searchAgeOrder(a.age)-searchAgeOrder(b.age))}
+function highlightSearchTitle(title,query){if(!query)return safe(title);let result='',from=0;const normalized=title.toLocaleLowerCase(),needle=query.toLocaleLowerCase();for(let at=normalized.indexOf(needle);at!==-1;at=normalized.indexOf(needle,from)){result+=safe(title.slice(from,at))+'<mark>'+safe(title.slice(at,at+query.length))+'</mark>';from=at+query.length}return result+safe(title.slice(from))}
+function selectSearchResult(session){conversationSearch.close();document.querySelector('#main-title').textContent=session.title;document.querySelector('#main-copy').textContent='会话归属：'+(projects.find(p=>p.id===session.project)?.name||'对话');say('已打开示例对话：'+session.title)}
+function activateSearchResult(index){if(!searchMatches.length)return;searchActive=Math.max(0,Math.min(searchMatches.length-1,index));conversationResults.querySelectorAll('[role=option]').forEach((el,i)=>el.setAttribute('aria-selected',String(i===searchActive)));conversationQuery.setAttribute('aria-activedescendant','search-result-'+searchActive);document.querySelector('#search-result-'+searchActive)?.scrollIntoView({block:'nearest'})}
+function renderConversationResults(){const query=conversationQuery.value.trim();searchMatches=searchCorpus().filter(s=>!query||s.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));searchActive=0;document.querySelector('#search-section-title').textContent=query?'对话':'最近对话';conversationResults.replaceChildren();conversationQuery.removeAttribute('aria-activedescendant');document.querySelector('#search-count').textContent=searchMatches.length+' 个对话';for(const [index,session] of searchMatches.entries()){const row=document.createElement('button');row.className='search-result';row.id='search-result-'+index;row.role='option';row.tabIndex=-1;row.dataset.sessionId=session.id;row.setAttribute('aria-selected',String(index===0));row.setAttribute('aria-label',session.title);const project=projects.find(p=>p.id===session.project);row.innerHTML=icon('message-circle')+'<span class="search-result-title">'+highlightSearchTitle(session.title,query)+'</span>'+(project?'<span class="search-project">'+safe(project.name)+'</span>':'')+'<span class="search-age">'+safe(session.age)+'</span>';row.onclick=()=>selectSearchResult(session);bindSessionContextMenu(row,session);row.onpointermove=()=>activateSearchResult(index);conversationResults.append(row)}if(!searchMatches.length)conversationResults.innerHTML=query?'<div class="search-empty"><p>未找到匹配的对话</p><p class="help">试试其他关键词</p></div>':'<div class="search-empty"><p>暂无最近对话</p></div>';else conversationQuery.setAttribute('aria-activedescendant','search-result-0');conversationResults.scrollTop=0}
+function openConversationSearch(trigger){closeFloats();searchTrigger=trigger;conversationQuery.value='';renderConversationResults();conversationSearch.showModal();conversationQuery.focus()}
+document.querySelector('#search-field-icon').innerHTML=icon('search');
+conversationQuery.oninput=event=>{if(!event.isComposing&&!searchComposing)renderConversationResults()};conversationQuery.addEventListener('compositionstart',()=>searchComposing=true);conversationQuery.addEventListener('compositionend',()=>{searchComposing=false;renderConversationResults()});conversationQuery.onkeydown=event=>{if(event.isComposing||searchComposing||event.keyCode===229)return;if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();activateSearchResult(searchActive+(event.key==='ArrowDown'?1:-1))}if(event.key==='Enter'){event.preventDefault();if(searchMatches[searchActive])selectSearchResult(searchMatches[searchActive])}};
+conversationSearch.addEventListener('click',event=>{if(event.target!==conversationSearch)return;const r=conversationSearch.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)conversationSearch.close()});conversationSearch.addEventListener('close',()=>searchTrigger?.focus());
+
+const deleteDialog=document.querySelector('#session-delete');let pendingDelete=null,deleteReturnFocus=null;
+icons.x='M18 6 6 18 M6 6l12 12';deleteDialog.querySelector('.delete-close').innerHTML=icon('x');tip(deleteDialog.querySelector('.delete-close'),'关闭删除确认');
+function bindSessionContextMenu(row,session){row.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();showMenu(session,row,{x:event.clientX,y:event.clientY})})}
+function openSessionDelete(session,origin){closeFloats();pendingDelete=session;deleteReturnFocus=origin;deleteDialog.querySelector('.delete-confirm-button').disabled=false;deleteDialog.showModal();deleteDialog.querySelector('.delete-cancel').focus()}
+function confirmSessionDelete(){if(!pendingDelete)return;const target=pendingDelete;deleteDialog.querySelector('.delete-confirm-button').disabled=true;const ids=new Set([target.id]);let changed=true;while(changed){changed=false;for(const s of [...sessions,...searchExamples])if(s.parentSessionId&&ids.has(s.parentSessionId)&&!ids.has(s.id)){ids.add(s.id);changed=true}}for(const collection of [sessions,searchExamples])for(let i=collection.length-1;i>=0;i--)if(ids.has(collection[i].id))collection.splice(i,1);if(document.querySelector('#main-title').textContent===target.title){document.querySelector('#main-title').textContent='新对话';document.querySelector('#main-copy').textContent='会话归属：对话'}render();if(conversationSearch.open)renderConversationResults();deleteDialog.close('deleted');say('示例对话及其子智能体对话已删除')}
+deleteDialog.querySelector('.delete-confirm-button').onclick=confirmSessionDelete;deleteDialog.querySelector('.delete-cancel').onclick=()=>deleteDialog.close('cancel');deleteDialog.querySelector('.delete-close').onclick=()=>deleteDialog.close('cancel');deleteDialog.addEventListener('close',()=>{pendingDelete=null;const origin=deleteReturnFocus;deleteReturnFocus=null;if(origin?.isConnected)origin.focus();else if(conversationSearch.open)conversationQuery.focus();else document.querySelector('.search-trigger')?.focus()});
+
+
+function newChatInProject(project){closeFloats();document.querySelector('#main-title').textContent='新对话';document.querySelector('#main-copy').textContent='会话归属：'+project.name}
+function showProjectMenu(project,row){closeFloats();menu=document.createElement('div');menu.className='float menu';menu.role='menu';menu.dataset.kind='project-menu';menu.append(item('重命名','pencil',()=>openProjectEdit(project,row)),item('编辑项目…','folder-closed',()=>openProjectEdit(project,row)),item(project.pinned?'取消置顶':'置顶',project.pinned?'pin-off':'pin',()=>toggleProjectPin(project)),item('在此项目下新建对话','pencil',()=>newChatInProject(project)),item('在 Finder 中打开','folder-open',()=>{closeFloats();say('脱敏预览不访问本机文件夹')}),document.createElement('hr'),item('删除项目','trash-2',()=>openProjectDelete(project,row),true));document.body.append(menu);placeCard(menu,row);menu.querySelector('button').focus()}
+const projectDeleteDialog=document.querySelector('#project-delete');let pendingProjectDelete=null,projectDeleteOrigin=null,projectDeleteBusy=false;
+projectDeleteDialog.querySelector('.delete-close').innerHTML=icon('x');tip(projectDeleteDialog.querySelector('.delete-close'),'关闭删除确认');
+function openProjectDelete(project,origin){closeFloats();pendingProjectDelete=project;projectDeleteOrigin=origin;projectDeleteBusy=false;projectDeleteDialog.querySelector('.project-delete-error').hidden=true;projectDeleteDialog.querySelectorAll('button').forEach(b=>b.disabled=false);projectDeleteDialog.showModal();projectDeleteDialog.querySelector('.delete-cancel').focus()}
+async function confirmProjectDelete(){if(!pendingProjectDelete||projectDeleteBusy)return;projectDeleteBusy=true;projectDeleteDialog.querySelectorAll('button').forEach(b=>b.disabled=true);const project=pendingProjectDelete;try{const all=[...sessions,...searchExamples],affected=new Set(all.filter(s=>s.project===project.id).map(s=>s.id));let expanded=true;while(expanded){expanded=false;for(const session of all)if(session.parentSessionId&&affected.has(session.parentSessionId)&&!affected.has(session.id)){affected.add(session.id);expanded=true}}const records=all.filter(s=>affected.has(s.id));await Promise.resolve();if(records.some(s=>s.stopFails))throw new Error('未能停止项目中的对话，请重试。项目和对话记录均已保留。');for(const session of records){if(session.running)session.running=false;session.project=null}projects.splice(projects.indexOf(project),1);sections.conversations=true;render();if(conversationSearch.open)renderConversationResults();if(records.some(s=>s.title===document.querySelector('#main-title').textContent)||document.querySelector('#main-copy').textContent==='会话归属：'+project.name)document.querySelector('#main-copy').textContent='会话归属：对话';projectDeleteDialog.close('deleted');say('示例项目已删除，运行中的对话已停止；对话记录和源文件夹均已保留')}catch(error){const message=projectDeleteDialog.querySelector('.project-delete-error');message.textContent=error.message;message.hidden=false;projectDeleteDialog.querySelectorAll('button').forEach(b=>b.disabled=false)}finally{projectDeleteBusy=false}}
+projectDeleteDialog.querySelector('.delete-confirm-button').onclick=confirmProjectDelete;for(const selector of ['.delete-cancel','.delete-close'])projectDeleteDialog.querySelector(selector).onclick=()=>{if(!projectDeleteBusy)projectDeleteDialog.close('cancel')};projectDeleteDialog.addEventListener('cancel',event=>{if(projectDeleteBusy)event.preventDefault()});projectDeleteDialog.addEventListener('close',()=>{pendingProjectDelete=null;if(projectDeleteOrigin?.isConnected)projectDeleteOrigin.focus();else document.querySelector('.search-trigger')?.focus();projectDeleteOrigin=null});
+
+const moveCreateDialog=document.querySelector('#move-create-project'),moveProjectName=document.querySelector('#move-project-name'),moveSourceList=document.querySelector('#move-source-folders');
+const demoSourceFolders=['/Users/demo/Projects/new-project-demo','/Users/demo/Projects/shared-sample','/Users/demo/Projects/docs-sample'];let moveSourceSession=null,moveCreateOrigin=null,moveFolderDraft=[],movePrimaryPath=null,editingProject=null;
+moveCreateDialog.querySelector('.move-create-close').innerHTML=icon('x');moveCreateDialog.querySelector('.project-name-icon').innerHTML=icon('folder-closed');tip(moveCreateDialog.querySelector('.move-create-close'),'关闭创建项目');
+function updateMoveCreateValidity(){moveCreateDialog.querySelector('.move-create-submit').disabled=!moveProjectName.value.trim()||!moveFolderDraft.length||!movePrimaryPath}
+function addDemoSourceFolder(){const next=demoSourceFolders.find(p=>!moveFolderDraft.includes(p));if(!next)return;moveFolderDraft.push(next);if(!movePrimaryPath)movePrimaryPath=next;renderMoveSourceFolders()}
+function renderMoveSourceFolders(){moveSourceList.replaceChildren();if(!moveFolderDraft.length){const empty=document.createElement('button');empty.type='button';empty.className='add-source-empty';empty.innerHTML=icon('folder-open')+'<span>添加可读取和编辑的文件夹</span>';empty.onclick=addDemoSourceFolder;moveSourceList.append(empty)}else{const list=document.createElement('div');list.className='source-list';for(const path of moveFolderDraft){const row=document.createElement('div');row.className='source-folder';const primary=path===movePrimaryPath;row.innerHTML=icon('folder-closed')+'<div class="folder-info"><span>'+safe(path.split('/').pop())+'</span><span class="folder-path-text">'+safe(path)+'</span></div>'+(primary?'<span class="source-primary">主要</span>':'<span class="make-primary-slot"><button type="button" class="make-primary">设为主要</button></span>')+'<button type="button" class="icon-button remove-source">'+icon('x')+'</button>';const set=row.querySelector('.make-primary');if(set)set.onclick=()=>{movePrimaryPath=path;renderMoveSourceFolders()};const remove=row.querySelector('.remove-source');tip(remove,'移除文件夹');remove.onclick=()=>{moveFolderDraft=moveFolderDraft.filter(p=>p!==path);if(movePrimaryPath===path)movePrimaryPath=moveFolderDraft[0]||null;renderMoveSourceFolders()};list.append(row)}const add=document.createElement('button');add.type='button';add.className='add-source';add.innerHTML=icon('folder-open')+'<span>添加文件夹</span>';add.disabled=moveFolderDraft.length===demoSourceFolders.length;add.onclick=addDemoSourceFolder;list.append(add);moveSourceList.append(list)}updateMoveCreateValidity()}
+function openMoveProjectCreate(session,origin){closeFloats();editingProject=null;document.querySelector('#move-create-title').textContent='创建项目';moveCreateDialog.querySelector('.move-create-submit').textContent='创建项目';moveSourceSession=session;moveCreateOrigin=origin;moveFolderDraft=[];movePrimaryPath=null;moveProjectName.value='';document.querySelector('#move-create-error').hidden=true;renderMoveSourceFolders();moveCreateDialog.showModal();moveProjectName.focus()}
+function openProjectEdit(project,origin){closeFloats();editingProject=project;moveSourceSession=null;moveCreateOrigin=origin;moveFolderDraft=[...project.folders];movePrimaryPath=project.primaryFolder||project.folders[0];moveProjectName.value=project.name;document.querySelector('#move-create-title').textContent='编辑项目';moveCreateDialog.querySelector('.move-create-submit').textContent='保存';document.querySelector('#move-create-error').hidden=true;renderMoveSourceFolders();moveCreateDialog.showModal();moveProjectName.focus()}
+moveProjectName.oninput=updateMoveCreateValidity;moveCreateDialog.querySelector('.move-create-close').onclick=()=>moveCreateDialog.close('cancel');moveCreateDialog.querySelector('.move-create-cancel').onclick=()=>moveCreateDialog.close('cancel');moveCreateDialog.querySelector('form').onsubmit=event=>{event.preventDefault();if(editingProject){if(!moveProjectName.value.trim()||!moveFolderDraft.length)return;editingProject.name=moveProjectName.value.trim();editingProject.folders=[...moveFolderDraft];editingProject.primaryFolder=movePrimaryPath;render();moveCreateDialog.close('saved');say('示例项目已更新');return}if(!moveSourceSession||!moveProjectName.value.trim()||!moveFolderDraft.length)return;const source=moveSourceSession;moveCreateDialog.querySelector('.move-create-submit').disabled=true;let target=projects.find(p=>(p.primaryFolder||p.folders[0])===movePrimaryPath);const reused=!!target;if(!target){target={id:'created-demo-'+(projects.length+1),name:moveProjectName.value.trim(),folders:[...moveFolderDraft],primaryFolder:movePrimaryPath,pinned:false,expanded:true};projects.push(target)}source.project=target.id;render();if(conversationSearch.open)renderConversationResults();if(document.querySelector('#main-title').textContent===source.title)document.querySelector('#main-copy').textContent='会话归属：'+target.name;moveCreateDialog.close('created');say((reused?'已移入已有项目：':'项目已创建，原对话已移入：')+target.name+'，置顶状态保持不变')};moveCreateDialog.addEventListener('close',()=>{moveSourceSession=null;editingProject=null;const origin=moveCreateOrigin;moveCreateOrigin=null;if(origin?.isConnected)origin.focus();else if(conversationSearch.open)conversationQuery.focus();else document.querySelector('.search-trigger')?.focus()});
+
+render();
+</script>
+</html>

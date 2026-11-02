@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>计划模式交互预览</title>
+<style>
+:root {
+  --palette-white: #ffffff;
+  --palette-gray-25: rgb(250 250 250);
+  --palette-gray-50: rgb(249 250 251);
+  --palette-gray-100: rgb(235 238 242);
+  --palette-gray-300: rgb(207 211 214);
+  --palette-gray-400: rgb(173 178 184);
+  --palette-gray-500: rgb(129 133 140);
+  --palette-gray-600: rgb(97 102 107);
+  --palette-gray-700: rgb(67 69 74);
+  --palette-gray-750: rgb(53 54 56);
+  --palette-gray-800: rgb(44 44 46);
+  --palette-gray-830: rgb(41 41 41);
+  --palette-gray-850: rgb(35 35 36);
+  --palette-gray-900: rgb(27 27 28);
+  --palette-gray-950: rgb(21 21 23);
+  --palette-ink: rgb(15 17 21);
+  --palette-blue-50: rgb(237 243 254);
+  --palette-blue-500: rgb(65 118 230);
+  --palette-blue-300: rgb(122 170 255);
+  --palette-red-500: rgb(236 19 19);
+  --palette-red-300: rgb(242 90 90);
+  --palette-green-500: rgb(34 197 94);
+  --palette-amber-500: rgb(245 158 11);
+  /* 文字用的深色（亮色主题，对白色约 5:1 以上）与浅色（暗色主题）：成功、警告文字与终端的 ANSI 颜色。 */
+  --palette-red-700: rgb(185 28 28);
+  --palette-red-400: rgb(248 113 113);
+  --palette-green-700: rgb(21 128 61);
+  --palette-green-400: rgb(74 222 128);
+  --palette-amber-700: rgb(180 83 9);
+  --palette-amber-400: rgb(251 191 36);
+  --palette-yellow-700: rgb(161 98 7);
+  --palette-yellow-400: rgb(250 204 21);
+  --palette-blue-700: rgb(29 78 216);
+  --palette-blue-400: rgb(96 165 250);
+  --palette-fuchsia-700: rgb(162 28 175);
+  --palette-fuchsia-400: rgb(232 121 249);
+  --palette-cyan-700: rgb(14 116 144);
+  --palette-cyan-400: rgb(34 211 238);
+  --palette-green-bg-light: rgb(230 244 231);
+  --palette-green-bg-dark: rgb(31 49 36);
+  --palette-red-bg-light: rgb(252 230 226);
+  --palette-red-bg-dark: rgb(60 31 27);
+  --palette-ink-a04: rgb(0 0 0 / 0.04);
+  --palette-ink-a10: rgb(0 0 0 / 0.1);
+  --palette-ink-a12: rgb(0 0 0 / 0.12);
+  --palette-ink-a16: rgb(0 0 0 / 0.16);
+  --palette-ink-a24: rgb(0 0 0 / 0.24);
+  --palette-ink-a50: rgb(0 0 0 / 0.5);
+  --palette-slate-a06: rgb(38 49 72 / 0.06);
+  --palette-slate-a10: rgb(38 49 72 / 0.1);
+  --palette-white-a06: rgb(255 255 255 / 0.06);
+  --palette-white-a08: rgb(255 255 255 / 0.08);
+  --palette-white-a12: rgb(255 255 255 / 0.12);
+  --palette-white-a14: rgb(255 255 255 / 0.14);
+  --palette-white-a16: rgb(255 255 255 / 0.16);
+  --palette-white-a20: rgb(255 255 255 / 0.2);
+  --palette-menu-light: rgb(248 249 250 / 0.94);
+  --palette-menu-dark: rgb(48 49 54 / 0.94);
+  --palette-shadow-a02: rgb(0 0 0 / 0.02);
+  --palette-shadow-a03: rgb(0 0 0 / 0.03);
+  --palette-shadow-a04: rgb(0 0 0 / 0.04);
+  --palette-shadow-a05: rgb(0 0 0 / 0.05);
+}
+:root {
+  color-scheme: light;
+  --background: var(--palette-white);
+  --foreground: var(--palette-ink);
+  --card: var(--palette-white);
+  --card-foreground: var(--palette-ink);
+  --card-fill: var(--palette-white);
+  --card-stroke: var(--palette-ink-a16);
+  --popover: var(--palette-white);
+  --popover-foreground: var(--palette-ink);
+  --primary: var(--palette-ink);
+  --primary-hover: var(--palette-gray-700);
+  --primary-foreground: var(--palette-white);
+  --secondary: var(--palette-slate-a06);
+  --secondary-foreground: var(--palette-ink);
+  --muted: var(--palette-gray-50);
+  --muted-foreground: var(--palette-gray-600);
+  --accent: var(--palette-slate-a06);
+  --accent-active: var(--palette-slate-a10);
+  --accent-foreground: var(--palette-ink);
+  --destructive: var(--palette-red-500);
+  --destructive-foreground: var(--palette-white);
+  --success: var(--palette-green-500);
+  --warning: var(--palette-amber-500);
+  /* 正文大小的成功、警告文字（--success / --warning 用于图标与填充，作文字时对比度不足）。 */
+  --success-text: var(--palette-green-700);
+  --warning-text: var(--palette-amber-700);
+  /* 终端输出的 ANSI 前景色（两套主题下对背景都不低于 4.5:1）。 */
+  --terminal-red: var(--palette-red-700);
+  --terminal-green: var(--palette-green-700);
+  --terminal-yellow: var(--palette-yellow-700);
+  --terminal-blue: var(--palette-blue-700);
+  --terminal-magenta: var(--palette-fuchsia-700);
+  --terminal-cyan: var(--palette-cyan-700);
+  --terminal-muted: var(--palette-gray-600);
+  --border: var(--palette-ink-a10);
+  --border-subtle: var(--palette-ink-a04);
+  --input: var(--palette-ink-a12);
+  --ring: var(--palette-blue-500);
+  --link: var(--palette-blue-500);
+  --overlay: var(--palette-ink-a24);
+  --menu-fill: var(--palette-white);
+  --elevation-stroke-color: var(--palette-ink-a16);
+  --sidebar: var(--palette-gray-50);
+  --sidebar-foreground: var(--palette-ink);
+  --sidebar-accent: var(--palette-gray-100);
+  --sidebar-accent-foreground: var(--palette-ink);
+  --sidebar-border: var(--palette-ink-a10);
+  --bubble: var(--palette-blue-50);
+  --tooltip: var(--palette-gray-800);
+  --tooltip-foreground: var(--palette-gray-50);
+  --toast: var(--palette-gray-750);
+  --toast-foreground: var(--palette-gray-50);
+  --code-block: var(--palette-gray-50);
+  --inline-code: var(--palette-gray-25);
+  --diff-added: var(--palette-green-bg-light);
+  --diff-deleted: var(--palette-red-bg-light);
+  --skeleton: var(--palette-ink-a04);
+  --scrollbar-thumb: var(--palette-ink-a16);
+  --shadow-color-1: var(--palette-shadow-a03);
+  --shadow-color-2: var(--palette-shadow-a02);
+  --shadow-color-3: var(--palette-shadow-a04);
+  --shadow-color-4: var(--palette-shadow-a05);
+}
+:root{--font-sans:"Noto Sans SC",system-ui,sans-serif;--text-ui-body:13px;--text-ui-title:16px;--text-ui-small:12px;--radius-panel:28px;--radius-sm:8px}
+*{box-sizing:border-box;corner-shape:superellipse(1.5)}
+[hidden]{display:none!important}
+body{margin:0;background:var(--background);color:var(--foreground);font:var(--text-ui-body)/20px var(--font-sans)}
+main{max-width:832px;margin:100px auto;padding:32px}
+h1{font-size:var(--text-ui-title);line-height:24px;font-weight:500;margin:0 0 8px}
+p{color:var(--muted-foreground);margin:0 0 32px}
+button,textarea{font:inherit;color:inherit}
+button{border:0;background:transparent;cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+button:disabled{cursor:default}
+svg{display:block;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+.composer{width:100%;height:120px;padding:12px;display:flex;flex-direction:column;gap:12px;background:var(--background);border-radius:var(--radius-panel);box-shadow:0 0 0 .5px var(--elevation-stroke-color),0 8px 24px var(--palette-shadow-a05)}
+textarea{resize:none;width:100%;flex:1;min-height:0;border:0;outline:none!important;background:transparent;padding:0 8px}
+textarea::placeholder{color:var(--muted-foreground)}
+.toolbar{height:32px;display:flex;gap:8px;align-items:center}
+.left,.right{display:flex;align-items:center;gap:8px;height:32px}
+.right{margin-left:auto;min-width:0}
+.icon-button{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--radius-sm);flex:none}
+.icon-button svg{width:16px;height:16px}
+.permission{height:32px;padding:0 4px 0 8px;display:flex;align-items:center;gap:6px;color:var(--warning-text);white-space:nowrap}
+.permission span,.plan-label{transform:translateY(-1px)}
+.permission[data-mode="default"],.permission[data-mode="accept-edits"]{color:var(--muted-foreground)}
+.plan-group{display:flex;align-items:center;gap:4px;height:28px;flex:none}
+.separator{width:.5px;height:16px;background:var(--border)}
+.plan-pill{width:max-content;min-width:72px;flex:none;height:28px;padding:0 12px 0 4px;display:flex;gap:4px;align-items:center;border-radius:14px;corner-shape:round;color:var(--muted-foreground)}
+.plan-close{width:24px;height:24px;display:grid;place-items:center;padding:0;position:relative;flex:none}
+.plan-close .close-state{display:none;width:14px;height:14px;background:var(--muted-foreground);color:var(--background);border-radius:50%;corner-shape:round;place-items:center}
+.close-state svg{width:8px;height:8px}
+.plan-pill:focus-within{background:var(--accent)}
+.plan-pill:focus-within .bulb-state{display:none}
+.plan-pill:focus-within .close-state{display:grid}
+.plan-label{line-height:20px;white-space:nowrap}
+.model{display:flex;align-items:center;gap:4px;height:32px;padding:0 10px;white-space:nowrap;min-width:0}
+.model-name{overflow:hidden;text-overflow:ellipsis}
+.secondary{color:var(--muted-foreground)}
+.context{width:24px;height:24px;display:grid;place-items:center;flex:none}
+.context svg{width:12px;height:12px;transform:rotate(-90deg);stroke-width:3}
+.context .track{stroke:var(--border)}
+.context .progress{stroke:var(--link);stroke-dasharray:7.54 31.42}
+.send{color:var(--muted-foreground);opacity:.4;background:var(--muted);border-radius:50%;corner-shape:round}
+.preview-actions{margin-top:24px;height:32px;display:flex;align-items:center;gap:12px}
+.enable{height:28px;padding:0 12px;border-radius:var(--radius-sm);background:var(--accent)}
+.status{font-size:var(--text-ui-small);line-height:18px;color:var(--muted-foreground)}
+.tooltip{position:fixed;padding:4px 8px;background:var(--foreground);color:var(--background);font-size:var(--text-ui-small);line-height:18px;border-radius:var(--radius-sm);z-index:10;pointer-events:none}
+::selection{background:var(--accent-active);color:var(--foreground)}
+@media(hover:hover){.plan-pill:hover{background:var(--accent)}.plan-pill:hover .bulb-state{display:none}.plan-pill:hover .close-state{display:grid}.icon-button:hover{background:var(--accent)}}
+@media(max-width:620px){main{padding:16px;margin:64px auto}.composer{height:160px}.toolbar{height:72px;flex-wrap:wrap;row-gap:8px;flex:none}.left{width:100%}.right{height:32px}.permission{padding:0 4px 0 8px}.model{max-width:220px}}
+
+.permission{border-radius:16px;corner-shape:round}.permission:focus-visible{outline:2px solid var(--ring)}
+.permission-menu{position:fixed;z-index:8;width:324px;padding:4px;border-radius:16px;background:var(--menu-fill);box-shadow:0 0 0 .5px var(--elevation-stroke-color),0 3px 8px var(--palette-shadow-a03),0 0 16px var(--palette-shadow-a04)}
+.permission-option{height:44px;width:100%;display:flex;align-items:center;gap:8px;padding:0 8px;text-align:left;border-radius:12px}.permission-option>.option-copy{flex:1;display:flex;flex-direction:column}.permission-option .description{font-size:12px;line-height:18px;color:var(--muted-foreground)}.permission-option[aria-checked="true"]{background:var(--accent)}.permission-option:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}.permission-option .check{width:16px;height:16px}.permission-option[data-mode="full-access"]{color:var(--warning-text)}
+@media(hover:hover){.permission:hover{background:var(--accent)}.permission[data-mode="full-access"]:hover{background:color-mix(in srgb,var(--warning-text) 8%,transparent)}.permission-option:hover{background:var(--accent)}}
+
+.composer-shell{width:100%;background:var(--muted);border-radius:var(--radius-panel)}
+.destination-bar{height:36px;padding:0 8px;display:flex;align-items:center;gap:8px}
+.destination-selector{height:28px;padding:0 8px;display:flex;align-items:center;gap:6px;border-radius:14px;corner-shape:round;flex:none}
+.destination-selector>i{display:grid;place-items:center;flex:none}.destination-selector>i svg{width:14px;height:14px;color:var(--muted-foreground)}.destination-selector>.destination-chevron svg{width:12px;height:12px}
+.destination-label{height:28px;padding-bottom:2px;display:flex;align-items:center;justify-content:center;line-height:20px;white-space:nowrap}
+.destination-settings{margin-left:auto;width:24px;height:24px}.destination-settings svg{width:14px;height:14px}
+@media(hover:hover){.destination-selector:hover{background:var(--accent)}}
+</style>
+<main>
+<h1>计划模式交互预览</h1>
+<p>将鼠标移到“计划”胶囊，点击关闭按钮。</p>
+<div class="composer-shell"><div class="destination-bar" aria-label="会话归属栏"><button type="button" class="destination-selector" data-tip="对话" aria-label="选择对话归属"><i data-icon="message-circle"></i><span class="destination-label">对话</span><i class="destination-chevron" data-icon="chevron-down"></i></button><button type="button" class="icon-button destination-settings" data-tip="分支与工作树设置" aria-label="分支与工作树设置"><i data-icon="settings"></i></button></div><section class="composer" aria-label="主输入框">
+<textarea aria-label="对话内容" placeholder="试试：生成一份项目周报"></textarea>
+<div class="toolbar">
+<div class="left">
+<button class="icon-button" aria-label="添加附件" data-tip="添加附件" type="button"><i data-icon="plus"></i></button>
+<button type="button" class="permission" data-mode="full-access" aria-haspopup="menu" aria-expanded="false" aria-label="选择权限模式"><i data-icon="shield-alert"></i><span>完全访问权限</span></button>
+<div class="plan-group" id="plan-group"><div class="separator"></div><div class="plan-pill"><button type="button" class="plan-close" aria-label="关闭计划模式" data-tip="关闭计划模式"><i class="bulb-state" data-icon="lightbulb"></i><i class="close-state" data-icon="x"></i></button><span class="plan-label">计划</span></div></div>
+</div>
+<div class="right"><span class="context" role="img" aria-label="上下文已用24%"><svg viewBox="0 0 12 12"><circle class="track" cx="6" cy="6" r="5"/><circle class="progress" cx="6" cy="6" r="5"/></svg></span><span class="model"><span class="model-name">GPT 示例模型</span><span class="secondary">· 关闭</span><i data-icon="chevron-down"></i></span><button class="icon-button send" disabled aria-label="发送" type="button"><i data-icon="arrow-up"></i></button></div>
+</div>
+</section></div>
+<div class="preview-actions"><button type="button" class="enable" hidden>开启计划模式</button><span class="status" role="status" aria-live="polite">计划模式已开启</span></div>
+</main>
+<script>
+const paths={"shield-alert":"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z M12 8v4 M12 16h.01","plus":"M5 12h14 M12 5v14","chevron-down":"M0 0 m6 9 6 6 6-6","arrow-up":"M0 0 m5 12 7-7 7 7 M12 19V5","x":"M18 6 6 18 M0 0 m6 6 12 12","lightbulb":"M9 18h6 M10 22h4 M15.09 14a6 6 0 1 0-6.18 0c.9.8 1.6 1.5 1.6 3h2.98c0-1.5.7-2.2 1.6-3"};
+Object.assign(paths,{hand:'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2 M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2 M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8 M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15','shield-terminal':paths['shield-alert'].split(' M12 8')[0]+' M9 9l2 3-2 3 M13 15h2'});
+Object.assign(paths,{"message-circle": "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719", "settings": "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915 M9.0 12.0 a3.0 3.0 0 1 0 6.0 0 a3.0 3.0 0 1 0 -6.0 0"});
+document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+paths[el.dataset.icon]+'"/></svg>');
+const group=document.querySelector('#plan-group'),editor=document.querySelector('textarea'),enable=document.querySelector('.enable'),status=document.querySelector('.status');
+let planEnabled=true,tipTimer,tooltip;
+function closeTooltip(){clearTimeout(tipTimer);tooltip?.remove();tooltip=null}
+function setPlanEnabled(value){planEnabled=value;group.hidden=!value;enable.hidden=value;status.textContent=value?'计划模式已开启':'计划模式已关闭';closeTooltip();if(!value)editor.focus();else document.querySelector('.plan-close').focus()}
+document.querySelector('.plan-close').onclick=()=>setPlanEnabled(false);
+enable.onclick=()=>setPlanEnabled(true);
+document.querySelectorAll('[data-tip]').forEach(button=>{function openTip(){clearTimeout(tipTimer);tipTimer=setTimeout(()=>{closeTooltip();tooltip=document.createElement('div');tooltip.className='tooltip';tooltip.role='tooltip';tooltip.textContent=button.dataset.tip;document.body.append(tooltip);const r=button.getBoundingClientRect();tooltip.style.left=Math.max(8,Math.min(innerWidth-tooltip.offsetWidth-8,r.left))+'px';tooltip.style.top=Math.max(8,r.top-tooltip.offsetHeight-6)+'px'},300)}button.addEventListener('pointerenter',event=>{if(event.pointerType!=='touch')openTip()});button.addEventListener('pointerleave',closeTooltip);button.addEventListener('focus',openTip);button.addEventListener('blur',closeTooltip)});
+window.addEventListener('resize',closeTooltip);window.addEventListener('scroll',closeTooltip);
+
+const permission=document.querySelector('.permission');let permissionMenu=null;
+const permissionModes=[{id:'default',label:'请求批准',icon:'hand',description:'编辑文件和执行命令通常需要批准'},{id:'accept-edits',label:'帮我批准',icon:'shield-terminal',description:'自动批准工作区内编辑'},{id:'full-access',label:'完全访问权限',icon:'shield-alert',description:'按完全访问权限模式处理操作'}];
+function permissionSvg(key){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+paths[key]+'"/></svg>'}
+function closePermissionMenu(restore=false){permissionMenu?.remove();permissionMenu=null;permission.setAttribute('aria-expanded','false');if(restore)permission.focus()}
+function selectPermissionMode(id){const mode=permissionModes.find(x=>x.id===id);permission.dataset.mode=id;permission.innerHTML='<i>'+permissionSvg(mode.icon)+'</i><span>'+mode.label+'</span>';if(planEnabled)setPlanEnabled(false);closePermissionMenu(true)}
+permission.onclick=()=>{if(permissionMenu){closePermissionMenu(true);return}closeTooltip();permissionMenu=document.createElement('div');permissionMenu.className='permission-menu';permissionMenu.role='menu';for(const mode of permissionModes){const option=document.createElement('button');option.type='button';option.className='permission-option';option.role='menuitemradio';option.dataset.mode=mode.id;option.setAttribute('aria-checked',String(mode.id===permission.dataset.mode));option.innerHTML=permissionSvg(mode.icon)+'<span class="option-copy"><span>'+mode.label+'</span><span class="description">'+mode.description+'</span></span><span class="check">'+(mode.id===permission.dataset.mode?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>':'')+'</span>';option.onclick=()=>selectPermissionMode(mode.id);permissionMenu.append(option)}document.body.append(permissionMenu);const r=permission.getBoundingClientRect();permissionMenu.style.left=Math.max(8,Math.min(innerWidth-permissionMenu.offsetWidth-8,r.left))+'px';permissionMenu.style.top=Math.max(8,r.top-permissionMenu.offsetHeight-6)+'px';permission.setAttribute('aria-expanded','true');permissionMenu.querySelector('[aria-checked="true"]').focus()};
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('.permission-menu')&&!event.target.closest('.permission'))closePermissionMenu()});document.addEventListener('keydown',event=>{if(!permissionMenu)return;if(event.key==='Escape'){event.preventDefault();closePermissionMenu(true)}if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const options=[...permissionMenu.querySelectorAll('button')],index=options.indexOf(document.activeElement);options[(index+(event.key==='ArrowDown'?1:-1)+options.length)%options.length].focus()}});window.addEventListener('resize',()=>closePermissionMenu());
+</script>
+</html>
+
