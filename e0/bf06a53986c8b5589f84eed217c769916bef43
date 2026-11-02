@@ -1,0 +1,116 @@
+apps/server/src/application/subagents.ts
+  s_64e2ce1bfde668::t_9343444ee94271 147,153-154,156-157
+  s_64e2ce1bfde668::t_69552c555212f3 148-152
+  s_64e2ce1bfde668::t_f2f6857bda54cb 155
+.scratch/conversation-workbench/issues/09-delete-session.md
+  s_64e2ce1bfde668::t_4de8c3460d6fbb 17-55
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_0f019b82d7e538 11,37-42,90-92,148-212,300,304,375-377
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 7-13,15-19
+  s_64e2ce1bfde668::t_f2f6857bda54cb 14
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_6b40a51256f3b2 591,597
+  s_64e2ce1bfde668::t_69552c555212f3 592-596,598-601
+  s_64e2ce1bfde668::t_9343444ee94271 590,602
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_4862ec94780604 124
+packages/session/src/sqlite/sqlite.test.ts
+  s_64e2ce1bfde668::t_e75d67127dcc9b 57-73,80-86
+  s_64e2ce1bfde668::t_ccb7133e7395fc 74-79
+apps/server/src/application/session-delete.test.ts
+  s_64e2ce1bfde668::t_69552c555212f3 11-13,20-25,30-38,49-55,67-78
+  s_64e2ce1bfde668::t_19802cb1ddf769 1-10,14-19,26-29,39-48,56-66,79-88
+packages/session/src/repository-contract.ts
+  s_64e2ce1bfde668::t_6b40a51256f3b2 50-52,62-82
+  s_64e2ce1bfde668::t_ccb7133e7395fc 53-61
+apps/server/src/application/subagent-recovery.ts
+  s_64e2ce1bfde668::t_f2f6857bda54cb 124
+  s_64e2ce1bfde668::t_69552c555212f3 121-123
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_0f019b82d7e538 3,55,87-96
+  s_64e2ce1bfde668::t_ed90b6bdcdbead 53
+apps/desktop/src/renderer/testing/fixture-chat.ts
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 150-153
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_4f673d516ff9f5 351
+  s_64e2ce1bfde668::t_0f019b82d7e538 9,13,18,51,75,148,259-350
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_ed90b6bdcdbead 421-423
+  s_64e2ce1bfde668::t_69552c555212f3 418-419
+  s_64e2ce1bfde668::t_d0973d3777e404 425
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 196,414-417,420,424,426-427
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_5bf2c54ef0c559 499-500,503
+  s_64e2ce1bfde668::t_0f019b82d7e538 338-359,361,446,472-477,501-502
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_4862ec94780604 326-329
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_f2f6857bda54cb 16
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 9-15,17-21
+packages/protocol/src/errors.ts
+  s_64e2ce1bfde668::t_4862ec94780604 105-113
+apps/server/src/application/subagent-notifications.ts
+  s_64e2ce1bfde668::t_69552c555212f3 107-111
+  s_64e2ce1bfde668::t_9343444ee94271 105-106,112-113
+apps/server/src/application/goals.ts
+  s_64e2ce1bfde668::t_69552c555212f3 119-123
+  s_64e2ce1bfde668::t_f2f6857bda54cb 118,124
+tests/integration/sidecar-delete-session.test.ts
+  s_64e2ce1bfde668::t_0125bfd89f7394 1,10-27
+  s_64e2ce1bfde668::t_6938285bb38d5a 3-7,31-36,41-50,54-73,77-86,90-97,99-109
+  s_64e2ce1bfde668::t_69552c555212f3 37-40,51-53,74-76,87-89,98
+  s_64e2ce1bfde668::t_1f26a74bc11f53 2,8-9,28-30,110
+docs/README.md
+  s_64e2ce1bfde668::t_0f019b82d7e538 29
+packages/ui/src/components/row-menu.tsx
+  s_64e2ce1bfde668::t_b0e30240ccf813 38-39
+apps/desktop/src/renderer/stores/chat-store-delete.test.ts
+  s_64e2ce1bfde668::t_59a91910fed81e 20-31
+  s_64e2ce1bfde668::t_af2d76c119540d 1-8,13-19
+  s_64e2ce1bfde668::t_ccb7133e7395fc 9-12
+apps/server/src/application/recovery.ts
+  s_64e2ce1bfde668::t_f2f6857bda54cb 85-89
+apps/server/src/application/session-runtimes.ts
+  s_64e2ce1bfde668::t_f2f6857bda54cb 100-104
+apps/server/src/application/session-permissions.ts
+  s_64e2ce1bfde668::t_4862ec94780604 112-117
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 22,106
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_64e2ce1bfde668::t_0f019b82d7e538 5,19,22-23,45,64-65,69,75-76,97,113,195-207,213-232,243
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_d0973d3777e404 67,76,123,146-149,151
+apps/desktop/src/renderer/features/sidebar/session-delete-dialog.tsx
+  s_64e2ce1bfde668::t_69552c555212f3 10-15,27-29,40-51,53-56,58-97
+  s_64e2ce1bfde668::t_6afbc5ea2047ce 1-9,16-26,30-39,52,57,98
+apps/server/src/application/schedules.ts
+  s_64e2ce1bfde668::t_6035d15d5da1ea 107-108,111,117-119
+  s_64e2ce1bfde668::t_69552c555212f3 122-125
+  s_64e2ce1bfde668::t_d3b82dd93adb72 109-110,112-116
+  s_64e2ce1bfde668::t_9343444ee94271 103-106,120-121,126-132,191,204
+apps/desktop/e2e/session-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_1ec38475c72632 1-12,28-29,31-33,35-37,41,54-56,59-64,66-70,74-75
+  s_64e2ce1bfde668::t_0125bfd89f7394 13,27,30,38-40,42,45-53
+  s_64e2ce1bfde668::t_69552c555212f3 14-26,34,43-44,71-73
+  s_64e2ce1bfde668::t_ed90b6bdcdbead 57-58,65
+apps/server/src/application/jobs.ts
+  s_64e2ce1bfde668::t_9343444ee94271 115-119,126-127
+  s_64e2ce1bfde668::t_69552c555212f3 120-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "e0bf06a53986c8b5589f84eed217c769916bef43",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
