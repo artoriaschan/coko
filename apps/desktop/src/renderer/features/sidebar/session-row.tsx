@@ -7,6 +7,8 @@ import {
   HoverCard,
   HoverCardTrigger,
   RowHoverCardContent,
+  InlineRename,
+  type RowMenuPoint,
   SidebarListRow,
   Tooltip,
   TooltipContent,
@@ -16,6 +18,7 @@ import {
 import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { SessionMenu, type SessionMenuSlots } from './session-menu.tsx'
 
 export function SessionRow({
   session,
@@ -23,16 +26,21 @@ export function SessionRow({
   onSelect,
   nested = false,
   pinned = false,
+  menuSlots,
 }: {
   session: Session
   active: string | null
   onSelect: (id: string) => void
   nested?: boolean
   pinned?: boolean
+  menuSlots?: SessionMenuSlots
 }) {
   const { t } = useI18n()
   const [pending, setPending] = React.useState(false)
   const [details, setDetails] = React.useState(false)
+  const [menu, setMenu] = React.useState(false)
+  const [menuPoint, setMenuPoint] = React.useState<RowMenuPoint | null>(null)
+  const [renaming, setRenaming] = React.useState(false)
   const card = React.useRef<HTMLDivElement>(null)
   const row = React.useRef<HTMLButtonElement>(null)
   const scrolling = React.useRef<FadingTitleHandle>(null)
@@ -42,6 +50,27 @@ export function SessionRow({
   const title = session.title.trim() || t('sidebar.untitled')
   const pinLabel = t(session.pinnedAt === null ? 'sidebar.pinConversation' : 'sidebar.unpinConversation')
   const Pin = session.pinnedAt === null ? PinIcon : PinOffIcon
+  function openMenu(point: RowMenuPoint | null) {
+    allowOpen.current = false
+    setDetails(false)
+    setMenuPoint(point)
+    setMenu(true)
+  }
+  React.useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(false)
+    window.addEventListener('resize', close)
+    // A pointer anchor is fixed in the viewport; close it when its source row moves.
+    const scroll = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest('[role="menu"]')) return
+      close()
+    }
+    window.addEventListener('scroll', scroll, true)
+    return () => {
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', scroll, true)
+    }
+  }, [menu])
   async function togglePin() {
     if (pending) return
     allowOpen.current = false
@@ -55,18 +84,23 @@ export function SessionRow({
     <HoverCard
       open={details}
       onOpenChange={(open) => {
-        if (!open || allowOpen.current) setDetails(open)
+        if (!open || (allowOpen.current && !menu && !renaming)) setDetails(open)
       }}
     >
       <HoverCardTrigger asChild>
         <div
           data-session-row={session.id}
           className="group/session relative"
+          onContextMenu={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!renaming) openMenu({ x: event.clientX, y: event.clientY })
+          }}
           onPointerOverCapture={(event) => {
             if (event.pointerType !== 'touch') allowOpen.current = true
           }}
           onFocusCapture={() => {
-            if (!suppressFocus.current) {
+            if (!suppressFocus.current && !menu && !renaming) {
               allowOpen.current = true
               setDetails(true)
             }
@@ -78,56 +112,101 @@ export function SessionRow({
             }
           }}
         >
-          <SidebarListRow
-            ref={row}
-            data-session-id={session.id}
-            aria-label={title}
-            aria-current={active === session.id ? 'page' : undefined}
-            onKeyDown={(event) => scrolling.current?.handleKeyDown(event)}
-            onClick={() => onSelect(session.id)}
-          >
-            <span className={nested ? 'flex min-w-0 flex-1 items-center gap-2 pl-6 pr-12' : 'flex min-w-0 flex-1 items-center gap-2 pr-12'}>
-              {pinned && <MessageCircleIcon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.1} />}
-              <FadingTitle ref={scrolling}>{title}</FadingTitle>
-            </span>
-          </SidebarListRow>
-          <div
-            data-session-actions
-            className="absolute right-1 top-1 flex h-6 items-center opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 pointer-coarse:opacity-100"
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="toolbar"
-                  size="icon-xs"
-                  className="size-6 rounded-sm"
-                  disabled={pending}
-                  aria-label={pinLabel}
-                  onClick={() => void togglePin()}
-                >
-                  <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{pinLabel}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="toolbar"
-                  size="icon-xs"
-                  className="size-6 rounded-sm"
-                  aria-label={t('sidebar.moreConversation')}
-                  onClick={() => {
-                    allowOpen.current = false
-                    setDetails(false)
-                  }}
-                >
-                  <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('sidebar.moreConversation')}</TooltipContent>
-            </Tooltip>
-          </div>
+          {renaming ? (
+            <div className={nested ? 'flex h-8 items-center pl-8 pr-2' : 'flex h-8 items-center px-2'}>
+              <InlineRename
+                value={session.title}
+                label={t('sidebar.conversationTitle')}
+                maxLength={200}
+                onSave={async (title) => {
+                  const success = await lists.getState().renameSession(session.id, title)
+                  if (!success) toast.error(t('sidebar.renameFailed'))
+                  return success
+                }}
+                onComplete={() => {
+                  allowOpen.current = false
+                  setRenaming(false)
+                }}
+              />
+            </div>
+          ) : (
+            <SidebarListRow
+              ref={row}
+              data-session-id={session.id}
+              aria-label={title}
+              aria-current={active === session.id ? 'page' : undefined}
+              onKeyDown={(event) => scrolling.current?.handleKeyDown(event)}
+              onClick={() => onSelect(session.id)}
+            >
+              <span className={nested ? 'flex min-w-0 flex-1 items-center gap-2 pl-6 pr-12' : 'flex min-w-0 flex-1 items-center gap-2 pr-12'}>
+                {pinned && <MessageCircleIcon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.1} />}
+                <FadingTitle ref={scrolling}>{title}</FadingTitle>
+              </span>
+            </SidebarListRow>
+          )}
+          {!renaming && (
+            <div
+              data-session-actions
+              className="absolute right-1 top-1 flex h-6 items-center opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 pointer-coarse:opacity-100"
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="toolbar"
+                    size="icon-xs"
+                    className="size-6 rounded-sm"
+                    disabled={pending}
+                    aria-label={pinLabel}
+                    onClick={() => void togglePin()}
+                  >
+                    <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{pinLabel}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="toolbar"
+                    size="icon-xs"
+                    className="size-6 rounded-sm"
+                    aria-label={t('sidebar.moreConversation')}
+                    aria-haspopup="menu"
+                    aria-expanded={menu}
+                    onClick={() => openMenu(null)}
+                  >
+                    <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('sidebar.moreConversation')}</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          <SessionMenu
+            session={session}
+            open={menu}
+            point={menuPoint}
+            pending={pending}
+            slots={menuSlots}
+            onOpenChange={setMenu}
+            onPin={() => void togglePin()}
+            onRename={() => {
+              allowOpen.current = false
+              setDetails(false)
+              setMenu(false)
+              setRenaming(true)
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              if (!renaming) {
+                suppressFocus.current = true
+                row.current?.focus()
+                queueMicrotask(() => {
+                  suppressFocus.current = false
+                })
+              }
+            }}
+          />
         </div>
       </HoverCardTrigger>
       {details && (

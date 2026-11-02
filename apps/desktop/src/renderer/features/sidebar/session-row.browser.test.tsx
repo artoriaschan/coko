@@ -239,6 +239,8 @@ it('keyboard focus keeps the card readable; Escape returns focus and more closes
   await expect.element(details).toBeVisible()
   await userEvent.click(page.getByRole('button', { name: 'More conversation actions', exact: true }))
   await expect.element(details).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('menu', { name: 'Conversation actions' })).not.toBeInTheDocument()
 })
 
 it('failed pin preserves ownership and list location and reports a retryable error', async () => {

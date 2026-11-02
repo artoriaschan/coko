@@ -147,6 +147,13 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       })),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => sessionList,
+    renameSession: async (id, title) => {
+      const current = sessionList.find((session) => session.id === id)
+      if (!current) throw new Error('Session not found')
+      const updated = { ...current, title: title.trim() }
+      sessionList = sessionList.map((session) => (session.id === id ? updated : session))
+      return updated
+    },
     setSessionPinned: async (id, pinned) => {
       const current = sessionList.find((session) => session.id === id)
       if (!current) throw new Error('Session not found')

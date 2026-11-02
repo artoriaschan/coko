@@ -118,6 +118,9 @@ export type SessionListResponse = Static<typeof SessionListResponse>
 export const SetSessionPinRequest = Type.Object({ pinned: Type.Boolean() }, strict)
 export type SetSessionPinRequest = Static<typeof SetSessionPinRequest>
 
+export const RenameSessionRequest = Type.Object({ title: Type.String({ minLength: 1, maxLength: 200 }) }, strict)
+export type RenameSessionRequest = Static<typeof RenameSessionRequest>
+
 /** entries 为线上信封；客户端逐条按 SessionEntry 校验。 */
 export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>

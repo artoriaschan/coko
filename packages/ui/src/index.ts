@@ -22,6 +22,8 @@ export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, Dia
 export { HoverCard, HoverCardContent, HoverCardTrigger } from './components/hover-card.tsx'
 export { RowHoverCardContent, rowOverlayPosition } from './components/row-hover-card.tsx'
 export { FadingTitle, type FadingTitleHandle } from './components/fading-title.tsx'
+export { InlineRename } from './components/inline-rename.tsx'
+export { RowMenu, type RowMenuPoint } from './components/row-menu.tsx'
 export { Input } from './components/input.tsx'
 export { Textarea } from './components/textarea.tsx'
 export { ToggleGroup, ToggleGroupItem } from './components/toggle-group.tsx'
