@@ -18,6 +18,7 @@ import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
 import { HeaderMenuActionContext, visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
+import { restoredMode } from './plan-review-panel.tsx'
 import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
@@ -137,6 +138,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const sendOrOpen = async (text: string) => openGoalCard(text) || send(text)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const workspacePath = useChat((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
+  const attachmentRoot = useChat((s) => s.workspaces.find((w) => w.id === (session?.workspaceId ?? draftWorkspaceId))?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -386,11 +388,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             <Composer
               ref={setComposer}
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
-              className={`${composerColumn} flex flex-wrap items-end gap-2 rounded-panel bg-background p-2 shadow-soft`}
+              className={composerColumn}
               running={running}
               disabled={activeSessionId === null && draftWorkspaceId === null}
               commandTarget={commandTarget}
               fileWorkspaceId={session?.workspaceId ?? draftWorkspaceId ?? undefined}
+              fileWorkspacePath={attachmentRoot}
               needsSetup={needsSetup}
               onSend={sendOrOpen}
               onSteer={steerOrAct}
@@ -399,11 +402,18 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               pausing={conversation?.pausing ?? false}
               onSetup={() => settingsPage.open('models')}
               onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
-              planChip={<PlanChip sessionId={activeSessionId} />}
+              planChip={<PlanChip sessionId={activeSessionId} onExit={() => composer.current?.focus()} />}
+              permissionControl={
+                <ModePicker
+                  value={permissionMode}
+                  prior={conversation ? restoredMode(conversation.entries) : 'default'}
+                  disabled={!canChangeMode}
+                  onChange={(m) => void setPermissionMode(m)}
+                />
+              }
               accessory={
                 <>
                   {/* 模式在 Run 中也可切换：立即作用于下一次调用，等待中的审批按新模式重新判定。 */}
-                  <ModePicker value={permissionMode} disabled={!canChangeMode} onChange={(m) => void setPermissionMode(m)} />
                   {models.length > 0 && (
                     <ModelPicker
                       models={models}

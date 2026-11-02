@@ -118,9 +118,8 @@ describe('输入区底栏在 390px 宽度', () => {
     render(
       <I18nProvider locale="en">
         <TooltipProvider>
-          <div style={{ width: 390 }}>
+          <div className="@container/main" style={{ width: 390 }}>
             <Composer
-              className="flex flex-wrap items-end gap-2 rounded-panel bg-background p-2 shadow-soft"
               running={false}
               disabled={false}
               needsSetup={false}
@@ -130,9 +129,9 @@ describe('输入区底栏在 390px 宽度', () => {
               onPause={() => {}}
               onSetup={() => {}}
               commandTarget={{ workspaceId: 'w-390' }}
+              permissionControl={<ModePicker value="default" onChange={() => {}} />}
               accessory={
                 <>
-                  <ModePicker value="default" onChange={() => {}} />
                   <ModelPicker
                     models={[
                       { providerId: 'p', providerName: 'Provider', modelId: 'm', name: 'A model with a fairly long display name', thinkingLevels: ['off'] },

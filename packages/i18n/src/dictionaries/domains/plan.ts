@@ -5,10 +5,10 @@ export const plan = defineDomain(
   {
     title: '计划',
     tab: '计划',
-    chip: '规划',
+    chip: '计划',
     mode: '规划',
     modeDescription: '只调研与设计：读取放行，写入与命令需要批准，命令只读；提交计划后由你审阅',
-    exit: '退出规划',
+    exit: '关闭计划模式',
     exitHint: '回到{mode}',
     status: {
       proposed: '待审阅',

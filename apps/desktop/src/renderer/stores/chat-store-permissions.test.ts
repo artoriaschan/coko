@@ -77,6 +77,23 @@ async function setup(overrides: Partial<ApiClient> = {}) {
 }
 
 describe('Permission Mode（store）', () => {
+  it('退出计划在服务端接受前保持 plan，拒绝后也不移除计划状态', async () => {
+    let reject!: (error: Error) => void
+    const { store, send, mode, failures } = await setup({
+      setPermissionMode: () =>
+        new Promise((_resolve, no) => {
+          reject = no
+        }),
+    })
+    send('s1', 'permission_mode', { mode: 'plan', prior: 'accept-edits' })
+    const changing = store.getState().setPermissionMode('accept-edits')
+    expect(mode()).toBe('plan')
+    await vi.waitFor(() => expect(reject).toBeTypeOf('function'))
+    reject(new Error('offline'))
+    await changing
+    expect(mode()).toBe('plan')
+    expect(failures[0]?.kind).toBe('permissions')
+  })
   it('模式取最后一条 permission_mode 条目，没有时为 default', async () => {
     const { send, mode } = await setup()
     expect(mode()).toBe('default')

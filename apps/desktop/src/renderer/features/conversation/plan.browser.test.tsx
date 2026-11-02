@@ -1,5 +1,5 @@
 // Plan Mode 的界面：审阅卡（批准并执行、只在更窄时给出"批准并允许编辑"、继续规划、右栏中的编辑随批准提交、新计划自动打开一次）、右栏 Plan tab
-// （修订、状态、编辑）、Plan chip（plan 模式时显示，点击回到进入前的模式）与模式菜单的"规划"项。多个含 Radix 菜单的界面在同一文件中依次渲染：
+// （修订、状态、编辑）、Plan chip（plan 模式时显示，点击回到进入前的模式）与三项权限快捷菜单。多个含 Radix 菜单的界面在同一文件中依次渲染：
 // 每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
 import '../../styles.css'
 import type { AnswerApprovalRequest, ApprovalRequestPayload, SessionEntry } from '@coko/protocol'
@@ -311,6 +311,36 @@ describe('plan-chip', () => {
   }
 
   describe('Plan chip 与模式菜单', () => {
+    it.each(['', 'dark'])('权限按钮的图文字形居中、三项菜单可关闭并返回焦点（%s）', async (theme) => {
+      const picked: string[] = []
+      const screen = await wrap(
+        <div className={theme}>
+          <ModePicker value="default" onChange={(mode) => picked.push(mode)} />
+        </div>,
+      )
+      const button = screen.getByRole('button', { name: /Ask for approval/ })
+      const element = button.element()
+      const before = element.getBoundingClientRect()
+      expect(before.height).toBe(32)
+      const icon = element.querySelector('svg')!.getBoundingClientRect()
+      const range = document.createRange()
+      range.selectNodeContents(element.querySelector('span')!)
+      const text = range.getBoundingClientRect()
+      expect(Math.abs((icon.top + icon.bottom - text.top - text.bottom) / 2)).toBeLessThanOrEqual(1)
+      await userEvent.click(button)
+      expect(element.getBoundingClientRect().width).toBe(before.width)
+      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
+      await expect.element(page.getByRole('menuitemradio', { name: /Ask for approval/ })).toHaveAttribute('aria-checked', 'true')
+      await userEvent.keyboard('{Escape}')
+      await menuClosed()
+      expect(picked).toEqual([])
+      expect(document.activeElement).toBe(element)
+      await userEvent.click(button)
+      await userEvent.click(page.getByRole('menuitemradio', { name: /Accept edits/ }))
+      await menuClosed()
+      expect(picked).toEqual(['accept-edits'])
+      expect(document.activeElement).toBe(element)
+    })
     it('plan 模式时显示 chip，点击回到 prior；其他模式不显示', async () => {
       seq = 0
       const { chat } = createFixtureChat({
@@ -320,19 +350,30 @@ describe('plan-chip', () => {
       const screen = await wrap(<PlanChip sessionId="s-1" />, chat)
       const chip = screen.getByRole('button', { name: /Exit planning/ })
       await expect.element(chip).toBeVisible()
-      await expect.element(chip).toHaveAttribute('title', 'Back to Accept edits')
+      const before = chip.element().getBoundingClientRect()
+      const label = chip.element().querySelector('[data-slot="plan-label"]')!
+      const labelBefore = label.getBoundingClientRect()
+      expect(before.height).toBe(28)
+      expect(before.right - labelBefore.right).toBeGreaterThanOrEqual(12)
+      await userEvent.hover(chip)
+      expect(chip.element().getBoundingClientRect().width).toBe(before.width)
+      expect(label.getBoundingClientRect().x).toBe(labelBefore.x)
+      expect(getComputedStyle(chip.element().querySelector('.lucide-circle-x')!).display).not.toBe('none')
       await userEvent.click(chip)
       await expect.poll(() => chat.getState().conversations['s-1']?.pendingMode).toBe('accept-edits')
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
-    it('模式菜单另列"规划"，选中时回调 plan；当前为 plan 时按钮显示规划', async () => {
+    it('plan 按钮显示 prior，菜单只有三个选项且无勾选，选择可直接退出 plan', async () => {
       const picked: string[] = []
-      const screen = await wrap(<ModePicker value="plan" onChange={(m) => picked.push(m)} />)
-      expect(screen.container.querySelector('[data-permission-mode="plan"]')?.textContent).toContain('Plan')
-      await userEvent.click(screen.getByRole('button', { name: /Plan/ }))
-      await expect.element(page.getByRole('menuitemradio', { name: /Plan/ })).toHaveAttribute('aria-checked', 'true')
-      await userEvent.click(page.getByRole('menuitemradio', { name: /Default/ }))
+      const screen = await wrap(<ModePicker value="plan" prior="accept-edits" onChange={(m) => picked.push(m)} />)
+      const button = screen.getByRole('button', { name: /Accept edits/ })
+      await expect.element(button).toBeVisible()
+      expect(button.element().querySelector('.lucide-chevron-down')).toBeNull()
+      await userEvent.click(button)
+      expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
+      expect(document.querySelectorAll('[role="menuitemradio"][aria-checked="true"]')).toHaveLength(0)
+      await userEvent.click(page.getByRole('menuitemradio', { name: /Ask for approval/ }))
       await menuClosed()
       expect(picked).toEqual(['default'])
     })
