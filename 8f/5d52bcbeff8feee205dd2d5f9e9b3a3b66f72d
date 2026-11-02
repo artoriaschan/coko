@@ -1,0 +1,175 @@
+.scratch/conversation-workbench/issues/08-session-menu-rename.md
+  s_ddfb4220ad6810::t_a08366e9bff25b 1-20
+.scratch/conversation-workbench/issues/18-title-generation.md
+  s_ddfb4220ad6810::t_4b1aecde3a816d 1-22
+.scratch/model-service-settings/spec.md
+  s_ddfb4220ad6810::t_116be4fc9e7135 24
+  s_ddfb4220ad6810::t_026492c2a1c7a9 394
+  s_ddfb4220ad6810::t_389665abcec604 102-103
+.scratch/conversation-workbench/issues/22-conversation-search.md
+  s_ddfb4220ad6810::t_9640412636df98 1-19
+.scratch/conversation-workbench/issues/06-sidebar-list-interactions.md
+  s_ddfb4220ad6810::t_028b21b812adab 1-20
+.scratch/conversation-workbench/issues/12-destination-bar-project-chat.md
+  s_ddfb4220ad6810::t_b2e2a16a38026a 1-20
+.scratch/desktop-app/issues/08-grill-desktop-information-architecture.md
+  s_47be7d432a6e87::t_5a8a67ba3a3383 31
+  s_ddfb4220ad6810::t_15790dc19c726f 34
+  s_ddfb4220ad6810::t_fa66b886d9525b 32
+  s_ddfb4220ad6810::t_fdf7174ccb5c55 33
+.scratch/conversation-workbench/issues/14-project-card-edit-menu.md
+  s_ddfb4220ad6810::t_1126fffa43c525 1-20
+.scratch/conversation-workbench/issues/03-composer-toolbar.md
+  s_ddfb4220ad6810::t_9de64e76a8dd57 1-20
+.scratch/conversation-workbench/issues/17-project-folder-permission-scope.md
+  s_ddfb4220ad6810::t_1e86b72751a437 1-19
+.scratch/conversation-workbench/issues/19-image-attachments.md
+  s_ddfb4220ad6810::t_aff501d88e9054 1-20
+.scratch/conversation-workbench/issues/16-move-session-between-projects.md
+  s_ddfb4220ad6810::t_af797d68c6999a 1-20
+.scratch/conversation-workbench/issues/13-create-project.md
+  s_ddfb4220ad6810::t_73b555e4aab2ce 1-20
+.scratch/conversation-workbench/issues/05-model-picker-thinking-slider.md
+  s_ddfb4220ad6810::t_c89011e20f4495 1-19
+.scratch/conversation-workbench/issues/10-archive-sessions.md
+  s_ddfb4220ad6810::t_cb1161c1c3b04e 1-20
+.scratch/conversation-workbench/issues/20-branch-select-create-checkout.md
+  s_ddfb4220ad6810::t_fa1b61e4231d2b 1-20
+.scratch/conversation-workbench/issues/02-workbench-shell-navigation.md
+  s_ddfb4220ad6810::t_b62c5d54eebe6e 1-21
+.scratch/conversation-workbench/issues/07-session-row-pinning.md
+  s_ddfb4220ad6810::t_ccafd2ab89ea9d 1-20
+.scratch/conversation-workbench/issues/04-context-ring-breakdown.md
+  s_ddfb4220ad6810::t_4a6a3310387705 1-21
+.scratch/desktop-app/map.md
+  s_ddfb4220ad6810::t_fa9773a367e89f 32
+  s_47be7d432a6e87::t_5a8a67ba3a3383 88
+.scratch/conversation-workbench/issues/21-new-worktree-first-send.md
+  s_ddfb4220ad6810::t_e946acd76f7a46 1-18
+.scratch/conversation-workbench/issues/11-new-chat-standalone-first-send.md
+  s_ddfb4220ad6810::t_4bd503caeef834 1-17,19-21
+  s_ddfb4220ad6810::t_b4ef11c902723b 18
+.scratch/conversation-workbench/issues/09-delete-session.md
+  s_ddfb4220ad6810::t_e311317cc53b2b 1-20
+.scratch/conversation-workbench/spec.md
+  s_ddfb4220ad6810::t_82db4ed59df172 348
+  s_ddfb4220ad6810::t_8fd9525bc978b6 589
+  s_ddfb4220ad6810::t_09d284cfa5a791 4
+  s_ddfb4220ad6810::t_adb73681d6b5e3 74-75
+  s_ddfb4220ad6810::t_a8b6edd1da2ea1 609
+  s_47be7d432a6e87::t_bbb47f05f794e1 491,493,575,636,781
+  s_ddfb4220ad6810::t_3924fc4009abaf 154-183
+  s_ddfb4220ad6810::t_314ca328fb1df1 565-566
+  s_ddfb4220ad6810::t_664365a5bfdea5 337
+  s_47be7d432a6e87::t_15e4ef92c84c35 404,710
+  s_ddfb4220ad6810::t_1d1c651fbdf1b0 931-939
+  s_ddfb4220ad6810::t_a94ee16f0d36fe 784-787,789-802,814,816
+  s_ddfb4220ad6810::t_133fb46ddf1251 277
+  s_ddfb4220ad6810::t_2f3b6777be6879 307
+  s_ddfb4220ad6810::t_8180e610931de3 815
+  s_47be7d432a6e87::t_90bbaf2b0af2b6 221,235-244,246-254,256-258,638,733-739,913
+  s_ddfb4220ad6810::t_972a4e61145525 223-224
+  s_ddfb4220ad6810::t_ff39cc11ef0716 817
+  s_ddfb4220ad6810::t_0b320c79be03f2 39,41
+  s_47be7d432a6e87::t_0d4411f41fece2 315,354-355,754-755,803,902
+  s_ddfb4220ad6810::t_e7825572ad77d6 123,125-153
+  s_ddfb4220ad6810::t_35234b1eaa6c8d 192
+  s_ddfb4220ad6810::t_a4c377234f2738 863-889
+  s_ddfb4220ad6810::t_5f73f0e3740480 14
+  s_ddfb4220ad6810::t_0ba5224388318d 356
+  s_ddfb4220ad6810::t_ed9eff8ad3b08f 587
+  s_ddfb4220ad6810::t_46eb67afd94352 285
+  s_ddfb4220ad6810::t_eddf4af0bd9423 811
+  s_ddfb4220ad6810::t_b6a6a71096de19 3
+  s_ddfb4220ad6810::t_76f6128ec7eb8f 352-353
+  s_ddfb4220ad6810::t_03a1d178aab2a6 255
+  s_47be7d432a6e87::t_f376e76cc67895 547
+  s_ddfb4220ad6810::t_8fda0449f0136a 194
+  s_ddfb4220ad6810::t_b64a4ae23f549d 782
+  s_ddfb4220ad6810::t_cc22ae06330a54 813
+  s_ddfb4220ad6810::t_85090b74893db8 40
+  s_ddfb4220ad6810::t_9e5f6e45070ff9 567
+  s_ddfb4220ad6810::t_b92321d02ac6b3 398,400-401
+  s_ddfb4220ad6810::t_b06da9ad4bb601 213
+  s_ddfb4220ad6810::t_3e1854a78ff36f 364-365
+  s_ddfb4220ad6810::t_7e5c0714971737 245
+  s_ddfb4220ad6810::t_5e84a0f6843ab6 426-427
+  s_47be7d432a6e87::t_ebcb598132e494 1-2,5-9,12-13,15-38,42-51,53-66,68-72,76-80,184-186,188-191,195-204,206-212,214-220,222,225-232,234,261-274,276,278-284,286,288-294,302-306,308-314,316,318,320,322-336,338-340,343-347,349-351,366-371,373-393,395-397,399,403,405,425,436-446,448-458,460-462,464,468,499-500,502-506,508-512,514,517-546,548-564,568-574,576-580,582-586,588,590-596,598-600,602-608,610,612-630,637,639-643,645-659,661-669,675-692,694-695,697-709,712-713,715-732,818,820,894-901,903-911,919,921-922,925-929
+  s_47be7d432a6e87::t_82df904b4ff2a0 428-435,765-769,804,912
+  s_ddfb4220ad6810::t_003023fcb6ff70 463
+  s_ddfb4220ad6810::t_fe6bfe77f626a7 670-671
+  s_ddfb4220ad6810::t_178e682b9dfdaf 295
+  s_47be7d432a6e87::t_da2adbb2103693 67,259-260,394,407-417,632-633,740-745,914
+  s_ddfb4220ad6810::t_f6845ffb18cb5f 597
+  s_ddfb4220ad6810::t_4eaab16f5e2f56 459
+  s_ddfb4220ad6810::t_e5dec024660334 357-359,361
+  s_47be7d432a6e87::t_d8ec0824c4522a 467,489-490,492,494-498,513,775,778-779,812,917
+  s_ddfb4220ad6810::t_0196eb1c5aa845 321
+  s_ddfb4220ad6810::t_aaba96cc5b125a 611
+  s_47be7d432a6e87::t_87f339f22cd13c 73,631,711,770
+  s_ddfb4220ad6810::t_52774b4907f10c 660
+  s_ddfb4220ad6810::t_7386258343de67 372
+  s_ddfb4220ad6810::t_6c26f3b813cf26 601
+  s_ddfb4220ad6810::t_e7da913a713bd1 674
+  s_ddfb4220ad6810::t_8f5ca3b18e78ee 187,193
+  s_ddfb4220ad6810::t_9de1a150e20125 805,808-810
+  s_47be7d432a6e87::t_e08f44dfe81207 360,362-363,634,672-673,759-760,773-774,783,806-807,915,924
+  s_ddfb4220ad6810::t_58a4d300bf20dd 296-301
+  s_47be7d432a6e87::t_008fefe68b8a26 501,507,515-516,644,714,780,918
+  s_ddfb4220ad6810::t_1572b7d2acaf26 233
+  s_ddfb4220ad6810::t_7b2cc6d3986d3a 406
+  s_ddfb4220ad6810::t_50d9f1e8cb3dab 205
+  s_ddfb4220ad6810::t_5aac76f09b7935 341-342
+  s_ddfb4220ad6810::t_76ec7222804292 287
+  s_ddfb4220ad6810::t_b0b8f7b10f96ba 920
+  s_ddfb4220ad6810::t_3cfc35909849d9 419,421-424
+  s_ddfb4220ad6810::t_6784cc561b2233 402,418,420
+  s_ddfb4220ad6810::t_a16830e4aaa4e6 581
+  s_ddfb4220ad6810::t_6147187b515888 475-485
+  s_ddfb4220ad6810::t_5d42bc014aec26 788
+  s_ddfb4220ad6810::t_d88ea5c8fd0d07 465-466
+  s_ddfb4220ad6810::t_1693d49fcbb22b 447
+  s_ddfb4220ad6810::t_8d5e0c57774dde 317
+  s_ddfb4220ad6810::t_853364db18d182 756-758,761-764
+  s_ddfb4220ad6810::t_2f65572847ce76 771-772
+  s_ddfb4220ad6810::t_6de38d30646d16 693
+  s_ddfb4220ad6810::t_8e15b27aab0859 819,821-836,890-893
+  s_ddfb4220ad6810::t_68a5c1fac05301 746-753
+  s_ddfb4220ad6810::t_bdbc5ab7e01e89 930
+  s_ddfb4220ad6810::t_f578c4782e3684 10-11
+  s_47be7d432a6e87::t_5a8a67ba3a3383 52,275,319,696
+  s_ddfb4220ad6810::t_69e8507f692763 837-862
+  s_ddfb4220ad6810::t_7842583256f4f9 923
+  s_47be7d432a6e87::t_14ad2aede42243 469-474,486-488,635,776-777,916
+  s_ddfb4220ad6810::t_1d18d57cfa7150 81-122,124
+.scratch/conversation-workbench/issues/23-closeout.md
+  s_ddfb4220ad6810::t_009cc2c68efd78 1-19
+.scratch/conversation-workbench/issues/15-delete-project-keep-sessions.md
+  s_ddfb4220ad6810::t_06b63f9204c407 1-18
+.scratch/conversation-workbench/issues/01-project-model-and-list.md
+  s_ddfb4220ad6810::t_6c873a9c756df4 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "8f5d52bcbeff8feee205dd2d5f9e9b3a3b66f72d",
+  "prompts": {},
+  "sessions": {
+    "s_47be7d432a6e87": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19b0e-cc3e-7d43-9fac-5fca5291fa73",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    },
+    "s_ddfb4220ad6810": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_dcrt4xndij58",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
