@@ -56,3 +56,4 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 - 参考实现：claude-code 社区还原版的 `src/utils/permissions`（判定流水线、权限模式、规则语法与作用域）；deepseek-harness 的 `packages/sandbox`（Seatbelt 档位、可写根、提权阶梯、拒绝标记）与 `packages/interaction/permission-presets`。本页已提炼所需结论。
 - 能力归属见 [Agent 执行约定](../tech-stack/agent-runtime.md)；记录存储见 [ADR 0003](0003-settings-and-sessions-in-sqlite.md)。
+- [ADR 0020](0020-projects-organize-workspaces.md)（2026-11-02）扩大了“Workspace 内”的范围：项目的附加文件夹对该项目的会话来说在 Workspace 内，读取不需要审批，workspace-write 的可写根也包含它们。本页的判定顺序、受保护路径与拒绝规则不变。

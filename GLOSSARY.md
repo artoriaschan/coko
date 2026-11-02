@@ -15,14 +15,22 @@ Coko 是在本机工作区中运行 coding agent 的桌面应用。本表只定�
 _Avoid_: backend、server 进程、host
 
 **Workspace**：
-用户登记给 Coko 的本机目录，Agent 在其中读写文件和执行命令。
-_Avoid_: project、folder、repo
+Agent 在其中读写文件和执行命令的本机目录。Project 的主要文件夹和 Coko 为新建的 Standalone Session 创建的目录都是 Workspace。
+_Avoid_: project（Project 是组织会话的单位）、folder、repo
+
+**Project**：
+用户命名的一组本机文件夹，其中恰好一个主要文件夹（在所有 Project 中唯一），其余为附加文件夹；项目内的 Session 按 Workspace 的规则读写这些文件夹；用于在侧栏组织 Session，一个 Session 最多属于一个 Project。界面称“项目”。
+_Avoid_: workspace、folder、repo
 
 ## 会话
 
 **Session**：
 一个 Workspace（或其某个 Worktree）中与 Agent 的一段持续对话及其全部执行记录；工作目录在创建时确定。
 _Avoid_: chat、thread、conversation
+
+**Standalone Session**：
+不属于任何 Project 的 Session，界面称“独立对话”；新建时由 Coko 为它创建专属目录作为工作目录。
+_Avoid_: 临时会话、无目录会话
 
 **Session Entry**：
 Session 中一条已提交、不可修改的记录，例如用户消息、模型回复或工具结果。

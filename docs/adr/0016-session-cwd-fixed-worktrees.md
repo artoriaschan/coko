@@ -46,3 +46,4 @@ Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它
 
 - 参考实现：claude-code 社区还原版 `src/utils/worktree.ts`、`packages/builtin-tools/src/tools/EnterWorktreeTool`；deepseek-harness `packages/experimental/worktree`。本页已提炼所需结论。
 - 受保护路径与可写根见 [ADR 0005](0005-permission-mode-and-sandbox.md)；进程登记见 [ADR 0012](0012-host-process-registry.md)；Checkpoint 见 [ADR 0006](0006-file-checkpoints-and-rewind.md)。
+- [ADR 0021](0021-new-chat-worktree-base-branch.md)（2026-11-02）改变了新对话入口的两点：可以选择基础分支，首次发送失败时自动移除未改动的 worktree。本页的其他决定不变，交接与子代理的 worktree 仍从当前 HEAD 创建。
