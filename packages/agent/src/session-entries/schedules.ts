@@ -7,6 +7,7 @@ const Id = Type.String({ minLength: 1 })
 
 /** 到期时没有开始 Run 的原因（按准入顺序）；start-failed：准入通过但 Run 没能开始。 */
 export const scheduleSkipReasonSchema = Type.Union([
+  Type.Literal('session-archived'),
   Type.Literal('disabled'),
   Type.Literal('child-session'),
   Type.Literal('workspace-missing'),

@@ -51,6 +51,7 @@ it('more replaces details with the row menu2px right and top aligned; rename sel
   expect([...menu.element().querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
     'Rename',
     'Pin conversation',
+    'Archive conversation',
     'Move to project',
     'Delete conversation',
   ])
@@ -77,7 +78,7 @@ it.each(['light', 'dark'])('%s menus retain centered14px icon slots and identica
     const menu = page.getByRole('menu', { name: 'Conversation actions' })
     await expect.element(page.getByRole('menuitem', { name: 'Unpin conversation', exact: true })).toBeVisible()
     const slots = [...menu.element().querySelectorAll<HTMLElement>('[data-session-menu-icon]')]
-    expect(slots).toHaveLength(4)
+    expect(slots).toHaveLength(5)
     await expect.poll(() => slots[0]!.getBoundingClientRect().width).toBe(14)
     const boxes = slots.map((slot) => slot.getBoundingClientRect())
     expect(boxes[0]!.width).toBe(14)

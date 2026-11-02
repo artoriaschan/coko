@@ -148,7 +148,18 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
         ...projectPatches.get(`project-${workspace.id}`),
       })),
     listWorkspaces: async () => fixtureWorkspaces,
-    listSessions: async () => sessionList,
+    listSessions: async () => sessionList.filter((session) => session.archivedAt === null),
+    listArchivedSessions: async () => sessionList.filter((session) => session.archivedAt !== null),
+    archiveSession: async (id) => {
+      const updated = { ...sessionList.find((session) => session.id === id)!, archivedAt: Date.now(), pinnedAt: null }
+      sessionList = sessionList.map((session) => (session.id === id ? updated : session))
+      return updated
+    },
+    restoreSession: async (id) => {
+      const updated = { ...sessionList.find((session) => session.id === id)!, archivedAt: null, pinnedAt: null }
+      sessionList = sessionList.map((session) => (session.id === id ? updated : session))
+      return updated
+    },
     deleteSession: async (id) => {
       sessionList = sessionList.filter((session) => session.id !== id && session.parentSessionId !== id)
       return { sessionIds: [id] }

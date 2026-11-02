@@ -6,6 +6,18 @@ export const en: typeof zh = {
     name: 'Coko',
   },
   sidebar: {
+    archiveConversation: 'Archive conversation',
+    archivedConversations: 'Archived conversations',
+    archivedReadOnly: 'Restore this conversation to continue.',
+    archiveFailed: 'Could not archive the conversation. Try again.',
+    archiveBusy: 'Cannot archive while work is ongoing: {reasons}. {sessions}',
+    restore: 'Restore',
+    restoreFailed: 'Could not restore the conversation. Try again.',
+    openArchived: 'Open conversation',
+    archiveEmpty: 'No archived conversations.',
+    archiveLoadFailed: 'Could not load archived conversations.',
+    archiveRetry: 'Try again',
+
     openFinderFailed: 'Could not open the primary folder. Check that it still exists.',
     openFinder: 'Open in Finder',
     projectCount: 'Conversations: {count}',

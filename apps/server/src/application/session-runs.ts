@@ -388,6 +388,8 @@ export class SessionRuns {
     this.#assertAdmission(id)
     this.#admitting.set(id, (this.#admitting.get(id) ?? 0) + 1)
     try {
+      const session = await requireSession(this.#options.store, id)
+      if (session.archivedAt !== null) throw new AppError('session-archived', 'Restore this conversation before starting a Run')
       return await task()
     } finally {
       const left = this.#admitting.get(id)! - 1

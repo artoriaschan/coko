@@ -20,6 +20,7 @@ export const ErrorCode = Type.Union([
   Type.Literal('nothing-to-continue'),
   /** Run 进行中或等待审批：不能回退或分叉。 */
   Type.Literal('session-busy'),
+  Type.Literal('session-archived'),
   /** 有未回答的结果确认（恢复时结果不明的调用）。 */
   Type.Literal('confirmation-pending'),
   /** 启动恢复没能处理该 Session 中被中断的 Run：在恢复成功之前不能开始 Run、回退或分叉。 */

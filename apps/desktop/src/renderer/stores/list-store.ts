@@ -49,12 +49,15 @@ export interface ListState extends ListDisplay {
   workspaces: Workspace[]
   projects: Project[]
   sessions: Session[]
+  archivedSessions: Session[]
   listStatus: 'idle' | 'loading' | 'ready' | 'error'
   visibleCounts: Record<string, number>
 }
 export interface ListActions {
   upsertProject(project: Project): void
   load(): Promise<boolean>
+  loadArchived(): Promise<void>
+  setArchiveState(session: Session): void
   setProjectPinned(id: string, pinned: boolean): Promise<boolean>
   renameProject(id: string, name: string): Promise<boolean>
   moveSession(id: string, projectId: string | null): Promise<boolean>
@@ -78,6 +81,9 @@ export type ListStore = StoreApi<ListState & ListActions>
 export function createListStore(api: ApiClient): ListStore {
   const initial = readDisplay()
   const removed = new Set<string>()
+  const organization = new Map<string, Partial<Session>>()
+  let archiveRevision = 0
+  const archiveChanges = new Map<string, number>()
   let loadRevision = 0
   let titleRevision = 0
   const titleChanges = new Map<string, { revision: number; title: string }>()
@@ -96,6 +102,24 @@ export function createListStore(api: ApiClient): ListStore {
       workspaces: [],
       projects: [],
       sessions: [],
+      archivedSessions: [],
+      async loadArchived() {
+        const before = archiveRevision
+        const sessions = await api.listArchivedSessions()
+        sessions.push(
+          ...get().archivedSessions.filter((session) => (archiveChanges.get(session.id) ?? 0) > before && !sessions.some((item) => item.id === session.id)),
+        )
+        set({
+          archivedSessions: sessions
+            .map((session) => ({ ...session, ...organization.get(session.id) }))
+            .filter((session) => !removed.has(session.id) && session.archivedAt !== null),
+        })
+      },
+      setArchiveState(session) {
+        archiveChanges.set(session.id, ++archiveRevision)
+        organization.set(session.id, { ...organization.get(session.id), archivedAt: session.archivedAt, pinnedAt: null })
+        get().upsertSession(session)
+      },
       upsertProject(project) {
         set((state) => ({
           projects: [...state.projects.filter((item) => item.id !== project.id), project],
@@ -142,11 +166,17 @@ export function createListStore(api: ApiClient): ListStore {
       async load() {
         const request = ++loadRevision
         const titlesAtStart = titleRevision
+        const archivesAtStart = archiveRevision
         if (get().listStatus === 'idle') set({ listStatus: 'loading' })
         try {
           const [workspaces, projects, sessions] = await Promise.all([api.listWorkspaces(), api.listProjects(), api.listSessions()])
           if (request !== loadRevision) return false
+          sessions.push(
+            ...get().sessions.filter((session) => (archiveChanges.get(session.id) ?? 0) > archivesAtStart && !sessions.some((item) => item.id === session.id)),
+          )
           const current = sessions
+            .map((session) => ({ ...session, ...organization.get(session.id) }))
+            .filter((session) => session.archivedAt === null)
             .filter((session) => !removed.has(session.id))
             .map((session) => {
               const title = titleChanges.get(session.id)
@@ -191,6 +221,8 @@ export function createListStore(api: ApiClient): ListStore {
       async setPinned(id, pinned) {
         try {
           const updated = await api.setSessionPinned(id, pinned)
+          if (organization.get(id)?.archivedAt != null) return false
+          if (organization.has(id)) organization.set(id, { ...organization.get(id), pinnedAt: updated.pinnedAt })
           get().patchSession(id, { pinnedAt: updated.pinnedAt })
           return true
         } catch {
@@ -199,7 +231,8 @@ export function createListStore(api: ApiClient): ListStore {
       },
       async renameSession(id, title) {
         try {
-          get().patchSession(id, await api.renameSession(id, title))
+          const updated = await api.renameSession(id, title)
+          get().patchSession(id, { title: updated.title })
           return true
         } catch {
           return false
@@ -210,17 +243,29 @@ export function createListStore(api: ApiClient): ListStore {
           removed.add(id)
           titleChanges.delete(id)
         }
-        set((state) => ({ sessions: state.sessions.filter((session) => !removed.has(session.id)) }))
+        set((state) => ({
+          sessions: state.sessions.filter((session) => !removed.has(session.id)),
+          archivedSessions: state.archivedSessions.filter((session) => !removed.has(session.id)),
+        }))
       },
       upsertSession(session) {
         if (removed.has(session.id)) return
+        session = { ...session, ...organization.get(session.id) }
         const observed = titleChanges.get(session.id)
         if (observed) session = { ...session, title: observed.title }
-        set((state) => ({ sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)] }))
+        set((state) => ({
+          sessions:
+            session.archivedAt === null ? [session, ...state.sessions.filter((s) => s.id !== session.id)] : state.sessions.filter((s) => s.id !== session.id),
+          archivedSessions:
+            session.archivedAt !== null
+              ? [session, ...state.archivedSessions.filter((s) => s.id !== session.id)]
+              : state.archivedSessions.filter((s) => s.id !== session.id),
+        }))
       },
       patchSession(id, patch) {
         if (typeof patch.title === 'string') titleChanges.set(id, { title: patch.title, revision: ++titleRevision })
         set((state) => ({
+          archivedSessions: state.archivedSessions.map((session) => (session.id === id ? { ...session, ...patch, ...organization.get(id) } : session)),
           sessions: state.sessions.map((session) =>
             session.id === id ? { ...session, ...patch, updatedAt: Math.max(session.updatedAt, patch.updatedAt ?? session.updatedAt) } : session,
           ),

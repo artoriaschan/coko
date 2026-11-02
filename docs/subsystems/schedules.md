@@ -45,7 +45,7 @@ lifecycle: active
 
 - **定时器。** `ClockPort.setTimer` 指向最早的 `next_at`（挂起的任务不计），另每 30 秒复查一次；任何增删改之后重排。启动恢复之后开始，有序关闭时最先停止（停止 HTTP 之后、中断 Run 之前），之后不再投递。扫描串行：同一时刻到期的任务按 `next_at` 与创建顺序处理。
 - **补跑。** 到期时从 `next_at` 起到此刻的全部发生次只投递最近一次，其余计入 `missed`；下一次为严格晚于此刻的发生时刻（间隔任务保持原对齐）。启动扫描、睡眠唤醒与挂起都走这一步。cron 的逐个计数以 10 000 封顶。
-- **准入**（按顺序）：有效配置 `schedules.enabled`（项目设置可关闭）→ 不是子 Session（`child-session`）→ 绑定的 worktree 未移除（`worktree-removed`）→ 工作目录存在（`workspace-missing`）→ Session 有模型或有默认模型（`model-not-configured`）→ Session 的 Goal 非终态、不是 paused 且没有维度耗尽（`budget`；用量取 GoalService，与 Goal 预算同一口径，含子 Session）。不通过时 `recordFire` 记下 `schedule_fire { status: skipped, reason }`，重复任务照常计算下一次，一次性任务 inactive。
+- **准入**（按顺序）：Session 未归档（`session-archived`）→ 有效配置 `schedules.enabled`（项目设置可关闭）→ 不是子 Session（`child-session`）→ 绑定的 worktree 未移除（`worktree-removed`）→ 工作目录存在（`workspace-missing`）→ Session 有模型或有默认模型（`model-not-configured`）→ Session 的 Goal 非终态、不是 paused 且没有维度耗尽（`budget`；用量取 GoalService，与 Goal 预算同一口径，含子 Session）。不通过时 `recordFire` 记下 `schedule_fire { status: skipped, reason }`，重复任务照常计算下一次，一次性任务 inactive。
 - **至多一次。** 准入通过后先 `recordFire`（一个事务：`last_occurrence`、新的 `next_at`、一次性任务的 inactive 与 `schedule_fire { status: started, missed? }`），再以 `trigger: schedule`、`run_start.schedule { scheduleId, occurrence }` 开始 Run。两步之间崩溃时该发生次视为已投递，重启后不重投。Run 没能开始（例如同时有用户提交）时追加 `schedule_fire { status: skipped, reason: start-failed }`。
 - **挂起。** Session 有 Run 进行中时不记录、不投递，任务挂起；该 Run 的 `run_end` 之后（排在其他领域的 Run 结束处理之后）重新判定一次。挂起期间再次到期的合并为这一次（`missed` 计数）。挂起只在内存中；挂起期间重启时任务仍到期，启动扫描照常投递一次。
 - **输入。** `<scheduled_task schedule-id="…" title="…" occurrence="ISO">prompt</scheduled_task>`：prompt 原文，不经命令与 File Reference 展开（`/goal resume` 不展开为动作）；属性值转义 `& " < >`；各领域的待送达内容（例如后台任务通知）照常合并在前。
@@ -116,7 +116,7 @@ main 在主窗口聚焦且可见时不显示；否则显示 Electron `Notificati
 ## 验证
 
 - `packages/agent/src/tasks/schedules/schedules.test.ts`：cron 每段语法与拒绝项、日 / 周的任一匹配、`Asia/Shanghai` 与 `America/New_York` 的下次时间（夏令时跳过与重复取较早）、时区校验、every 的对齐、at 必须在将来、补跑只取最近一次并计 missed（含封顶）、工具参数与授权（伪造的 `<scheduled_task>` 不改变判定）。
-- `tests/integration/sidecar-schedules.test.ts`：四种规则到期的 `trigger: schedule` Run 与 requestLog 中的 `<scheduled_task>`、一次性任务 inactive、`lastFire` 与进度；暂停与恢复；挂起与只投递一次；准入跳过原因（disabled、workspace-missing、budget、model-not-configured）；对手用例（定时 Run 中 `schedule_create` 与 `create_goal` 为错误结果、`/goal resume` 不恢复 Goal、伪造的标签不改变 trigger、read-only 与 plan 询问、full-access 放行、`Schedule` 拒绝规则）；HTTP；`notify` 与设置关闭。
+- `tests/integration/sidecar-schedules.test.ts`：四种规则到期的 `trigger: schedule` Run 与 requestLog 中的 `<scheduled_task>`、一次性任务 inactive、`lastFire` 与进度；暂停与恢复；挂起与只投递一次；准入跳过原因（session-archived、disabled、workspace-missing、budget、model-not-configured），包括归档后从外部恢复启用的任务仍只记录跳过、不请求模型；对手用例（定时 Run 中 `schedule_create` 与 `create_goal` 为错误结果、`/goal resume` 不恢复 Goal、伪造的标签不改变 trigger、read-only 与 plan 询问、full-access 放行、`Schedule` 拒绝规则）；HTTP；`notify` 与设置关闭。
 - `tests/integration/sidecar-schedules-restart.test.ts`：停机跨越 5 个发生次后只投递 1 次且 `missed: 4`；`recordFire` 之后 SIGKILL，重启后不重投。
 - `tests/integration/secrets-gate-schedules.test.ts`、`secrets-gate-notifications.test.ts`：title 与 prompt 中登记的 Secret 不出现在表行、条目、HTTP、WebSocket、requestLog、`notify` 控制消息与日志中。
 - `apps/desktop/src/main/notifications.test.ts`：前台不显示、不在前台显示、点击打开会话、测试构建只记 `notification shown`。
