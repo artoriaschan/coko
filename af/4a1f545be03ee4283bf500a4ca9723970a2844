@@ -1,0 +1,65 @@
+apps/desktop/src/renderer/features/conversation/destination-bar.tsx
+  s_64e2ce1bfde668::t_e97fbc3f7d6bd8 1-34,42-51,64-83,85-89,91-105,111-113,118-120,126-136
+  s_64e2ce1bfde668::t_165c1539bf0961 35-41,52-63,106-110,114-117,121-125
+  s_64e2ce1bfde668::t_770755398652d6 84,90
+apps/desktop/src/renderer/stores/new-chat-store.ts
+  s_64e2ce1bfde668::t_165c1539bf0961 35-44
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 9-11,19-21,28-29,51,64-66,72,74
+apps/desktop/src/renderer/app/workbench-navigation.ts
+  s_64e2ce1bfde668::t_c7e88cd4452968 42,46-49,58
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_c7e88cd4452968 196-197,414-417
+  s_64e2ce1bfde668::t_770755398652d6 376-379
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 412-413,445
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 84-90
+apps/server/src/application/first-send.ts
+  s_64e2ce1bfde668::t_a8616d8d5509c1 62-65,68-74,77-78,92
+tests/integration/sidecar-first-send.test.ts
+  s_64e2ce1bfde668::t_f33cd8bc2802f7 1,111-130,132-136
+  s_64e2ce1bfde668::t_ee4656ac9d74de 131
+apps/desktop/src/renderer/app/chat.tsx
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 48-49
+  s_64e2ce1bfde668::t_770755398652d6 47,50
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 5,17,140-142,381,390
+  s_64e2ce1bfde668::t_165c1539bf0961 208-211
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_a8616d8d5509c1 120
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_8951bd11b4f6d6 82-88
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_8b624766692bad 39-40
+apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx
+  s_64e2ce1bfde668::t_c7e88cd4452968 153,166-167,174
+  s_64e2ce1bfde668::t_b8b1e8b74c6213 156
+  s_64e2ce1bfde668::t_ee4656ac9d74de 90-94,129-130,144-147,149-152,154-155,157-165,168-173,175-193,207-215,217-218,222-225
+  s_64e2ce1bfde668::t_770755398652d6 148
+  s_64e2ce1bfde668::t_4382ff091a83f8 216,219-221
+  s_64e2ce1bfde668::t_165c1539bf0961 95-128,131-143,194-206
+apps/desktop/e2e/destination.e2e.test.ts
+  s_64e2ce1bfde668::t_b9554e474edb89 1-12,27-30,35-73
+  s_64e2ce1bfde668::t_165c1539bf0961 13-26,31-34
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_8b624766692bad 48
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_85dd0aba19f1d7 27
+  s_64e2ce1bfde668::t_b8b1e8b74c6213 21,29,37-42,44-47
+  s_64e2ce1bfde668::t_c7e88cd4452968 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "af4a1f545be03ee4283bf500a4ca9723970a2844",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
