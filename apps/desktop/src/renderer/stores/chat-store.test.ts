@@ -125,6 +125,17 @@ describe('chat store', () => {
     expect(stream.sent.at(-1)).toEqual({ type: 'subscribe', sessionId: 's1', afterSeq: 7 })
   })
 
+  it('订阅补发旧条目不倒退最后记录时间，新条目仍刷新列表', async () => {
+    const stream = new FakeStream()
+    const api = fakeApi({ listSessions: async () => [session('s1', { updatedAt: 100 })] })
+    const store = createChatStore({ api, stream })
+    await store.getState().load()
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('older')) })
+    expect(store.lists.getState().sessions[0]?.updatedAt).toBe(100)
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: { ...entry('s1', 2, user('newer')), createdAt: 101 } })
+    expect(store.lists.getState().sessions[0]?.updatedAt).toBe(101)
+  })
+
   it('重连后按 lastSeq 重新订阅；中断期间缺头的文本增量不显示，下一条 assistant 条目后恢复接收', async () => {
     const stream = new FakeStream()
     const store = createChatStore({ api: fakeApi({ listSessions: vi.fn<Api['listSessions']>(async () => [session('s1', { running: true })]) }), stream })

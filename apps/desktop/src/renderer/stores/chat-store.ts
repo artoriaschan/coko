@@ -579,10 +579,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
         const current = get().conversations[sessionId]
         if (current && (current.pendingMode ?? sessionPermissionMode(current.entries)) === mode) return Promise.resolve()
-        updateConversation(sessionId, (c) => ({ ...c, pendingMode: mode }))
+        const leavingPlan = current && (current.pendingMode ?? sessionPermissionMode(current.entries)) === 'plan'
+        if (!leavingPlan) updateConversation(sessionId, (c) => ({ ...c, pendingMode: mode }))
         const send = async () => {
           try {
             await api.setPermissionMode(sessionId, mode)
+            if (leavingPlan) updateConversation(sessionId, (c) => ({ ...c, pendingMode: sessionPermissionMode(c.entries) === mode ? undefined : mode }))
             // 条目可能先于响应到达，也可能没有条目（与当时模式相同）：此时按条目即可。
             updateConversation(sessionId, (c) => (c.pendingMode === mode && sessionPermissionMode(c.entries) === mode ? { ...c, pendingMode: undefined } : c))
           } catch (error) {

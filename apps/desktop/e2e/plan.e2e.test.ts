@@ -1,4 +1,4 @@
-// Plan Mode：真实 Electron + 真实 Sidecar（faux）。模式菜单选"规划"、Plan chip 出现且 × 退出；提交计划后审阅接管输入区、右栏自动打开一次；
+// Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后恢复 prior；提交计划后审阅接管输入区、右栏自动打开一次；
 // "继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式恢复且时间线有计划卡。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -18,6 +18,7 @@ async function setup(script: unknown) {
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const workspace = join(root, 'workspace')
   await mkdir(workspace)
+  await writeFile(join(workspace, 'notes.txt'), 'keep this attachment')
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
@@ -28,7 +29,7 @@ async function setup(script: unknown) {
     .first()
     .click()
   await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
-  return { app }
+  return { app, workspace }
 }
 
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
@@ -37,31 +38,43 @@ const chip = (app: LaunchedApp) => app.window.locator('[data-slot="plan-chip"]')
 const review = (app: LaunchedApp) => app.window.locator('[data-slot="plan-review"]')
 const planTab = (app: LaunchedApp) => app.window.locator('[data-slot="plan-tab"]')
 /**
- * 打开模式菜单并选"规划"。点击前等上一次的菜单完全关闭：Radix 在退出动画结束前保留 [role=menu]，body 的 pointer-events 仍为 none，
+ * /plan 进入。输入前等上一次的菜单完全关闭：Radix 在退出动画结束前保留 [role=menu]，body 的 pointer-events 仍为 none，
  * 这时的点击会被吞掉（与 goal.e2e 等命令菜单 detached 相同）。
  */
 async function choosePlan(app: LaunchedApp) {
   await app.window.locator('[role="menu"]').waitFor({ state: 'detached' })
   await expect.poll(() => app.window.evaluate(() => document.body.style.pointerEvents)).not.toBe('none')
-  await modeButton(app).click()
-  const item = app.window.getByRole('menuitemradio', { name: /^(Plan|规划)/ })
-  await item.waitFor()
-  await item.click()
+  await composer(app).fill('/plan ')
+  await composer(app).press('Enter')
   await chip(app).waitFor()
 }
 
 describe('Plan Mode', () => {
   it('规划 → chip × 退出 → 提交计划、右栏自动打开 → 继续规划 → 右栏编辑后批准并执行：模式恢复、计划卡', { timeout: 120_000 }, async () => {
-    const { app } = await setup({
+    const { app, workspace } = await setup({
       responses: [exit('e1', '# Plan A\n\n- read the code'), exit('e2', '# Plan B\n\n- add tests\n- fix it'), { content: 'Implementing the plan.' }],
     })
     await expect.poll(() => modeButton(app).getAttribute('data-permission-mode')).toBe('default')
     await choosePlan(app)
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('plan')
+    await composer(app).fill('keep this draft ')
+    await stubDirectoryPicker(app.app, [join(workspace, 'notes.txt')])
+    await app.window.locator('[data-action="attach"]').click()
+    await composer(app).locator('[data-file-reference="notes.txt"]').waitFor()
+    const selectedModel = await app.window.locator('[data-model-picker]').textContent()
     // chip 的 × 回到进入前的模式。
     await chip(app).click()
     await expect.poll(() => chip(app).count()).toBe(0)
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('default')
+    expect(await composer(app).evaluate((element) => document.activeElement === element)).toBe(true)
+    expect(await composer(app).textContent()).toContain('keep this draft @notes.txt')
+    expect(await app.window.locator('[data-model-picker]').textContent()).toBe(selectedModel)
+    expect(
+      await app.window.evaluate(async () => {
+        const { sessions } = (await (await fetch('/api/sessions')).json()) as { sessions: { id: string }[] }
+        return ((await (await fetch(`/api/sessions/${sessions[0]!.id}/permission-rules`)).json()) as { mode: string }).mode
+      }),
+    ).toBe('default')
 
     await choosePlan(app)
     await composer(app).click()

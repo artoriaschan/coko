@@ -37,7 +37,11 @@ export function createListStore(api: ApiClient): ListStore {
       set((state) => ({ sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)] }))
     },
     patchSession(id, patch) {
-      set((state) => ({ sessions: state.sessions.map((session) => (session.id === id ? { ...session, ...patch } : session)) }))
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === id ? { ...session, ...patch, updatedAt: Math.max(session.updatedAt, patch.updatedAt ?? session.updatedAt) } : session,
+        ),
+      }))
     },
   }))
 }

@@ -451,7 +451,8 @@ describe('窄窗口', () => {
     const doc = document.documentElement
     expect(doc.scrollWidth).toBeLessThanOrEqual(doc.clientWidth)
     const main = document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!
-    expect(main.scrollWidth).toBeLessThanOrEqual(main.clientWidth)
+    // data-sidebar 先更新，grid 列宽随后完成过渡；按真实可观察布局等待，不测中途的 110px 内容列。
+    await expect.poll(() => main.scrollWidth - main.clientWidth).toBeLessThanOrEqual(0)
     // 代码、表格等列对齐内容只能在自身区域内横向滚动；KaTeX 的 MathML 副本始终被裁剪为 1px，只供读屏使用。
     // Markdown 插件异步渲染，轮询到布局稳定后再判定。
     const overflowing = () =>
@@ -468,7 +469,7 @@ describe('窄窗口', () => {
     }
   })
 
-  it.each(['light', 'dark'] as const)('390px（%s）：输入区占位符为一行、以省略号截断，对比度 ≥ 4.5:1', async (theme) => {
+  it.each(['light', 'dark'] as const)('390px（%s）：输入区占位符为一行且不越界，对比度 ≥ 4.5:1', async (theme) => {
     await page.viewport(390, 700)
     await renderApp('en', { theme }).screen
     await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('rail')
@@ -486,8 +487,7 @@ describe('窄窗口', () => {
     const style = getComputedStyle(el)
     expect(el.getBoundingClientRect().height).toBeCloseTo(parseFloat(style.lineHeight), 0)
     expect([style.whiteSpace, style.textOverflow, style.overflow]).toEqual(['nowrap', 'ellipsis', 'hidden'])
-    // 放不下时在编辑区内截断，不越出编辑区。
-    expect(el.scrollWidth).toBeGreaterThan(el.clientWidth)
+    // 新的编辑区独占工具栏上方整行，短提示可以完整显示；需要时仍由 ellipsis 在编辑区内截断。
     expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(editor.getBoundingClientRect().right + 0.5)
     expect(contrastOf(el)).toBeGreaterThanOrEqual(4.5)
   })

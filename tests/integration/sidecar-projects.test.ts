@@ -1,7 +1,7 @@
 import { mkdir, realpath, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, checkpointPaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths, handoffPaths } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 it('登记目录创建单文件夹项目，符号链接不重复，Session 与分叉继承归属，重启后完整读回', async () => {
@@ -9,7 +9,7 @@ it('登记目录创建单文件夹项目，符号链接不重复，Session 与�
   const folder = join(root, 'project')
   await mkdir(folder)
   await symlink(folder, join(root, 'alias'))
-  const script = await fauxScript(root, { responses: [{ content: 'Ready.', match: 'hello' }] })
+  const script = await fauxScript(root, { responses: [{ content: 'Ready.', match: 'hello' }, { content: '## Task\nContinue the project.' }] })
   const dirs = await sidecarDirs()
   const first = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(first)
@@ -41,9 +41,14 @@ it('登记目录创建单文件夹项目，符号链接不重复，Session 与�
   expect(fork.status).toBe(201)
   expect((await api.get(apiPaths.session(fork.body.sessionId as string))).body.session.projectId).toBe(project.id)
   expect((await api.get(API_ROUTES.projects)).body.projects[0]).toMatchObject({ sessionCount: 2 })
+  expect((await api.post(handoffPaths.handoff(id), { instructions: 'continue', target: { kind: 'current' } })).status).toBe(202)
+  const handoff = await stream.waitFor((message) => message.type === 'entry' && message.entry.kind === 'handoff')
+  if (handoff.type !== 'entry') throw new Error('Expected handoff entry')
+  const targetId = (handoff.entry.payload as { targetSessionId: string }).targetSessionId
+  expect((await api.get(apiPaths.session(targetId))).body.session.projectId).toBe(project.id)
   await first.stop()
   const second = await startSidecar({ dirs })
   const after = client(second, await exchange(second))
-  expect((await after.get(API_ROUTES.projects)).body.projects[0]).toMatchObject({ id: project.id, sessionCount: 2 })
-  expect((await after.get(API_ROUTES.sessions)).body.sessions).toHaveLength(2)
+  expect((await after.get(API_ROUTES.projects)).body.projects[0]).toMatchObject({ id: project.id, sessionCount: 3 })
+  expect((await after.get(API_ROUTES.sessions)).body.sessions).toHaveLength(3)
 })

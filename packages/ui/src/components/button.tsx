@@ -25,6 +25,8 @@ const buttonVariants = cva(
         icon: 'size-9 rounded-md',
         'icon-sm': 'size-7 rounded-sm',
         'icon-xs': "size-5 rounded-xs [&_svg:not([class*='size-'])]:size-3",
+        toolbar: "h-8 gap-1.5 rounded-sm pl-2 pr-1 text-ui-body [&_svg:not([class*='size-'])]:size-3.5",
+        'icon-toolbar': 'size-8 rounded-sm',
       },
     },
     defaultVariants: {

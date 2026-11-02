@@ -9,6 +9,8 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $getSelection,
+  $isRangeSelection,
   CLEAR_HISTORY_COMMAND,
   COMMAND_PRIORITY_HIGH,
   KEY_ENTER_COMMAND,
@@ -19,7 +21,7 @@ import {
 } from 'lexical'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
-import { FileReferenceNode } from './file-reference-node.ts'
+import { $createFileReferenceNode, FileReferenceNode } from './file-reference-node.ts'
 
 export interface ComposerEditorHandle {
   focus(): void
@@ -27,6 +29,8 @@ export interface ComposerEditorHandle {
   submit(): Promise<void>
   /** 替换编辑区内容并把光标放到末尾（例如退回未送达的追加指令）。 */
   setText(text: string): void
+  /** 在当前光标插入引用或路径；引用与 @ 菜单使用同一种节点并随草稿保存。 */
+  insertAttachments(items: readonly ({ fileReference: string } | { text: string })[]): void
   /** 当前文本（未去首尾空白）；File Reference 节点为 @path。 */
   getText(): string
   /** 当前内容的 EditorState JSON（草稿持久化）。 */
@@ -228,6 +232,22 @@ function ComposerBridge({
       focus: () => editor.focus(),
       submit,
       setText,
+      insertAttachments: (items) => {
+        editor.update(
+          () => {
+            let selection = $getSelection()
+            if (!$isRangeSelection(selection)) selection = $getRoot().selectEnd()
+            if (!$isRangeSelection(selection)) return
+            const nodes = items.flatMap((item) => [
+              'fileReference' in item ? $createFileReferenceNode(item.fileReference) : $createTextNode(item.text),
+              $createTextNode(' '),
+            ])
+            selection.insertNodes(nodes)
+          },
+          { discrete: true },
+        )
+        editor.focus()
+      },
       getText: () => readText(editor),
       getEditorState: () => editor.getEditorState().toJSON(),
       setEditorState,

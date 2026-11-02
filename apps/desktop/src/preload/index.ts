@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import {
   IPC,
   type BootResult,
@@ -15,6 +15,8 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
   const bridge: CokoBridge = {
     boot: () => ipcRenderer.invoke(IPC.boot) as Promise<BootResult>,
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
+    pickFiles: () => ipcRenderer.invoke(IPC.pickFiles) as Promise<string[]>,
+    getFilePath: (file) => webUtils.getPathForFile(file),
     saveProvider: (input) => ipcRenderer.invoke(IPC.saveProvider, input) as Promise<SaveProviderResult>,
     fetchProviderModels: (input) => ipcRenderer.invoke(IPC.fetchProviderModels, input) as Promise<FetchProviderModelsResult>,
     cancelProviderModels: (requestKey) => ipcRenderer.send(IPC.cancelProviderModels, requestKey),
