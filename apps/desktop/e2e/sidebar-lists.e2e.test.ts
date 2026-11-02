@@ -96,6 +96,6 @@ it.each(['deleted', 'archived'])('remembered %s session falls back to new chat a
   const restarted = await launchApp({}, { dir: root })
   onTestFinished(() => restarted.dispose())
   await waitConnected(restarted.window)
-  await expect.poll(() => restarted.window.locator('[data-slot="app-frame-main"] h1').textContent()).toMatch(/^(新建会话|New session)$/)
+  await expect.poll(() => restarted.window.locator('[data-slot="app-frame-main"] h1').textContent()).toMatch(/^(新对话|New chat)$/)
   expect(await restarted.window.locator(`[data-session-id="${id}"]`).count()).toBe(0)
 })

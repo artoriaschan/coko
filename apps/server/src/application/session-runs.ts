@@ -332,11 +332,11 @@ export class SessionRuns {
    * 开始一个 Run 并立即返回 runId（统一入口）。submit 与 goal 的 user message 开头合并各领域的待送达内容（pendingInput），
    * 其 before 条目排在输入自身的 before 之前；Run 开始之后才确认送达，没能开始时内容留到下一次。Run 结束后通知各领域（onRunEnd）。
    */
-  startRun(sessionId: string, request: RunRequest): Promise<{ runId: string }> {
-    return this.#start(sessionId, request)
+  startRun(sessionId: string, request: RunRequest, waitForInput = false): Promise<{ runId: string }> {
+    return this.#start(sessionId, request, waitForInput)
   }
 
-  async #start(sessionId: string, request: RunRequest): Promise<{ runId: string }> {
+  async #start(sessionId: string, request: RunRequest, waitForInput: boolean): Promise<{ runId: string }> {
     const { store, recovery, models, context, checkpoints } = this.#options
     let session = await requireSession(store, sessionId)
     // 子 Session 只由派发它的 agent 调用开始 Run（ADR 0014）：用户提交、重试、继续、压缩与其他来源都拒绝。
@@ -384,12 +384,20 @@ export class SessionRuns {
 
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
     let runId: string | undefined
+    let acceptInput: (() => void) | undefined
+    const accepted = waitForInput
+      ? new Promise<void>((resolve) => {
+          acceptInput = resolve
+        })
+      : undefined
     const off = runtime.subscribe((event) => {
       if (event.kind === 'progress' && event.event.type === 'run_start') runId ??= event.event.runId
+      if (event.kind === 'entry' && event.entry.kind === 'message' && event.entry.payload.role === 'user') acceptInput?.()
     })
     const run = launch(runtime, request, pending)
-    off()
+    if (!waitForInput) off()
     if (runId === undefined) {
+      off()
       const error = await run.then(
         () => undefined,
         (e: unknown) => e,
@@ -436,6 +444,18 @@ export class SessionRuns {
       },
     )
     this.#options.runs.launch(`${sessionId}:${started}`, done, () => runtime.abort())
+    if (accepted) {
+      try {
+        await Promise.race([
+          accepted,
+          run.then(() => {
+            throw new AppError('internal', 'First message was not accepted')
+          }),
+        ])
+      } finally {
+        off()
+      }
+    }
     return { runId: started }
   }
 
@@ -445,7 +465,7 @@ export class SessionRuns {
    * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
    * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
    */
-  async submit(sessionId: string, text: string): Promise<ActionResult> {
+  async submit(sessionId: string, text: string, waitForInput = false): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
     if (session.parentSessionId !== null) throw childSession()
@@ -462,8 +482,9 @@ export class SessionRuns {
       // 提交前检查（UserPromptSubmit 等）：reject 时不提交 user message、不开始 Run。
       const verdict = await context.beforeSubmit(scope, text)
       if (verdict && 'reject' in verdict) throw new AppError('hook-blocked', verdict.reject.slice(0, 2048), { reason: verdict.reject.slice(0, 2048) })
-      return this.startRun(sessionId, { trigger: 'submit', input: withSubmitContext(expanded.input, verdict?.context) })
+      return this.startRun(sessionId, { trigger: 'submit', input: withSubmitContext(expanded.input, verdict?.context) }, waitForInput)
     }
+    if (waitForInput) throw new AppError('bad-request', 'Send a message to start a new conversation')
     const action = context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
     if (runtimes.isRunning(sessionId) && !action.whileRunning?.(expanded.args)) throw new AppError('run-in-progress', 'A Run is in progress')

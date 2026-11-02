@@ -34,7 +34,7 @@ describe('启动恢复', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await app.window.locator('[data-permission-mode]').click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
     const composer = app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })

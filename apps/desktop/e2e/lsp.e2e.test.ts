@@ -41,7 +41,7 @@ describe('代码智能分区', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     const openSection = async () => {
       await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()

@@ -48,6 +48,7 @@ import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
 import { requireSession, toNewEntry } from '../application/session-runtimes.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
+import { FirstSendService } from '../application/first-send.ts'
 import { SettingsService } from '../application/settings.ts'
 import { ProjectService } from '../application/projects.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
@@ -703,6 +704,7 @@ const AppLive = Layer.effect(
       hub,
       sessions,
       providers,
+      firstSend: new FirstSendService({ store, sessions, chatsRoot: config.chatsRoot }),
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
       projects: new ProjectService(store),

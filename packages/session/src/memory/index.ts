@@ -190,6 +190,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       listWorkspaces: op(() => [...workspaces.values()]),
       getWorkspace: op((id: string) => workspaces.get(id)),
       createSession: op((input: NewSession) => {
+        if (input.id && sessions.has(input.id)) throw alreadyExists('session', input.id)
         if (!workspaces.has(input.workspaceId)) throw notFound('workspace', input.workspaceId)
         const parentSessionId = input.parentSessionId ?? null
         const worktreeId = input.worktreeId ?? null
@@ -202,7 +203,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         if (input.projectId != null) requireProject(input.projectId)
         const at = now()
         const session: Session = {
-          id: randomUUID(),
+          id: input.id ?? randomUUID(),
           workspaceId: input.workspaceId,
           title: input.title ?? '',
           projectId:
@@ -234,6 +235,28 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
       ),
       listChildren: op((parentSessionId: string) => [...sessions.values()].filter((session) => session.parentSessionId === parentSessionId)),
       getSession: op((id: string) => sessions.get(id)),
+      deleteSession: op((id: string) => {
+        requireSession(id)
+        const ids = [id]
+        for (let i = 0; i < ids.length; i++) for (const child of sessions.values()) if (child.parentSessionId === ids[i]) ids.push(child.id)
+        for (const current of ids) {
+          sessions.delete(current)
+          entries.delete(current)
+          for (const schedule of schedules.values()) if (schedule.sessionId === current) schedules.delete(schedule.id)
+          for (const process of processes.values()) if (process.sessionId === current) processes.delete(process.id)
+        }
+        return ids
+      }),
+      deleteWorkspaceIfUnused: op((id: string) => {
+        if (
+          [...sessions.values()].some((s) => s.workspaceId === id) ||
+          [...projects.values()].some((p) => p.primaryWorkspaceId === id) ||
+          [...worktrees.values()].some((w) => w.workspaceId === id) ||
+          [...memories.values()].some((m) => m.workspaceId === id)
+        )
+          return false
+        return workspaces.delete(id)
+      }),
       setSessionOrganization: op((id: string, patch: Partial<SessionOrganization>) => {
         const session = requireSession(id)
         if (patch.projectId != null) requireProject(patch.projectId)

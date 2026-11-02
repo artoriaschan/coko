@@ -309,7 +309,7 @@ describe('键盘', () => {
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     ;(document.activeElement as HTMLElement | null)?.blur()
     await userEvent.keyboard('{Meta>}n{/Meta}')
-    await expect.element(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { level: 1, name: 'New chat' })).toBeVisible()
     expect(chat.getState().activeSessionId).toBeNull()
     await expect.poll(() => document.activeElement === page.getByRole('textbox', { name: 'Give Coko a task' }).element()).toBe(true)
   })

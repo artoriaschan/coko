@@ -1,4 +1,4 @@
-import { Button, cn, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
+import { Button, cn, ComposerEditor, ContextRing, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
 import { ArrowUpIcon, LoaderCircleIcon, PaperclipIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -44,6 +44,8 @@ export interface ComposerProps {
   getFilePath?: (file: File) => string
   /** 草稿持久化（测试注入）；缺省为应用内共用的 localStorage store。草稿按 commandTarget 区分，省略 commandTarget 时不持久化。 */
   drafts?: DraftStore
+  /** 新对话使用独立且唯一的草稿键，不需要虚构 Workspace 或启用命令。 */
+  draftStorageKey?: string
   /** 上下文用量与压缩进度（测试注入）；缺省为应用内共用的 store。 */
   contextStore?: ContextStore
   /** 外部聚焦编辑区（⌘N 新建会话后）或放回文本（退回的追加指令）。 */
@@ -81,6 +83,7 @@ export function Composer({
   pickFiles = () => window.coko?.pickFiles() ?? Promise.resolve([]),
   getFilePath = (file) => window.coko?.getFilePath(file) ?? '',
   drafts: injectedDrafts,
+  draftStorageKey,
   contextStore = defaultContextStore,
   ref,
 }: ComposerProps) {
@@ -119,11 +122,10 @@ export function Composer({
       setAttachmentError(t('conversation.attachmentFailed'))
     }
   }
-  const key = commandTarget ? draftKey(commandTarget) : undefined
+  const key = draftStorageKey ?? (commandTarget ? draftKey(commandTarget) : undefined)
   const drafts = React.useMemo(() => (key === undefined ? undefined : (injectedDrafts ?? appDraftStore())), [key === undefined, injectedDrafts])
-  // 编辑区当前内容所属的草稿键；提交等待期间切换作用域时内容随之带到新键（不替换为新键的草稿）。
+  // 编辑区当前内容所属的草稿键；作用域改变时读目标草稿，不复制已提交的消息。
   const loadedKey = React.useRef<string | undefined>(undefined)
-  const submitting = React.useRef(0)
   const persist = React.useCallback(() => {
     const target = loadedKey.current
     const handle = editor.current
@@ -138,17 +140,12 @@ export function Composer({
       loadedKey.current = undefined
       return
     }
-    if (submitting.current > 0 && loadedKey.current !== undefined) {
-      loadedKey.current = key
-      persist()
-    } else {
-      loadedKey.current = key
-      const saved = drafts.load(key)
-      if (saved === undefined) handle.clear()
-      else if (!handle.setEditorState(saved)) {
-        drafts.discard(key, 'rejected-by-editor')
-        handle.clear()
-      }
+    loadedKey.current = key
+    const saved = drafts.load(key)
+    if (saved === undefined) handle.clear()
+    else if (!handle.setEditorState(saved)) {
+      drafts.discard(key, 'rejected-by-editor')
+      handle.clear()
     }
     return () => drafts.flush()
   }, [key, drafts, persist])
@@ -156,14 +153,9 @@ export function Composer({
   const withDraft = React.useCallback(
     (submit: (text: string) => Promise<boolean>) => async (text: string) => {
       const at = loadedKey.current
-      submitting.current++
-      try {
-        const accepted = await submit(text)
-        if (accepted && at !== undefined && at !== loadedKey.current) drafts?.remove(at)
-        return accepted
-      } finally {
-        submitting.current--
-      }
+      const accepted = await submit(text)
+      if (accepted && at !== undefined && at !== loadedKey.current) drafts?.remove(at)
+      return accepted
     },
     [drafts],
   )
@@ -283,7 +275,16 @@ export function Composer({
         {planChip}
         <span className="min-w-0 flex-1" />
         {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
-        {commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
+        {commandTarget ? (
+          <ContextRingControl target={commandTarget} store={contextStore} />
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <ContextRing percent={undefined} level="normal" label={t('context.ring.unknown')} />
+            </TooltipTrigger>
+            <TooltipContent>{t('context.ring.unknown')}</TooltipContent>
+          </Tooltip>
+        )}
         {accessory}
         {setup ? (
           <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">

@@ -26,7 +26,7 @@ async function setup(script: unknown) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await app.window.locator('[data-permission-mode]').click()
   await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
   await expect.poll(() => app.window.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('full-access')

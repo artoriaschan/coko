@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
 describe('Sidecar 启动参数', () => {
+  it('独立对话根缺省为用户可见目录，覆盖值必须为绝对路径，发布构建同样读取', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l', '--packaged']
+    expect(parseConfig(argv, { COKO_CHATS_ROOT: '/work/chats' }, { testBuild: false }).chatsRoot).toBe('/work/chats')
+    expect(() => parseConfig(argv, { COKO_CHATS_ROOT: 'relative' })).toThrow(ConfigError)
+  })
   it('解析 desktop main 传入的目录，派生库与日志文件路径', () => {
     expect(parseConfig(['--data-dir', '/d', '--log-dir=/l'], {})).toEqual({
       dataDir: '/d',
@@ -12,6 +17,7 @@ describe('Sidecar 启动参数', () => {
       logPath: '/l/sidecar.jsonl',
       logLevel: 'info',
       cokoHome: join(homedir(), '.coko'),
+      chatsRoot: join(homedir(), 'Coko', 'chats'),
     })
   })
 

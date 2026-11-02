@@ -203,7 +203,14 @@ export function spawnSidecar(options: SpawnOptions): SidecarProcess {
   const ipc = options.ipc ?? true
   const args = options.args ?? ['--data-dir', options.dirs.dataDir, '--log-dir', options.dirs.logDir]
   const child = spawn(electronPath, [entry, ...args], {
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ELECTRON_RUN_AS_NODE: '1', COKO_HOME: options.dirs.cokoHome, ...options.env },
+    env: {
+      PATH: process.env.PATH ?? '',
+      HOME: process.env.HOME ?? '',
+      ELECTRON_RUN_AS_NODE: '1',
+      COKO_HOME: options.dirs.cokoHome,
+      COKO_CHATS_ROOT: join(options.dirs.dataDir, '..', 'chats'),
+      ...options.env,
+    },
     stdio: ipc ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'pipe', 'pipe'],
   })
   const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) =>

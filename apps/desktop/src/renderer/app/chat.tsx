@@ -2,6 +2,7 @@ import * as React from 'react'
 import { useStore } from 'zustand'
 import type { ListActions, ListState } from '../stores/list-store.ts'
 import type { ChatActions, ChatState, ChatStore } from '../stores/chat-store.ts'
+import type { NewChatActions, NewChatState } from '../stores/new-chat-store.ts'
 
 const ChatStoreContext = React.createContext<ChatStore | null>(null)
 
@@ -43,6 +44,9 @@ export function useCurrentSession() {
 
 export function useActiveWorkspaceId() {
   const session = useCurrentSession()
-  const draft = useChat((state) => state.draftWorkspaceId)
-  return session?.workspaceId ?? draft ?? undefined
+  return session?.workspaceId
+}
+
+export function useNewChat<T>(selector: (state: NewChatState & NewChatActions) => T): T {
+  return useStore(useChatStoreApi().newChat, selector)
 }

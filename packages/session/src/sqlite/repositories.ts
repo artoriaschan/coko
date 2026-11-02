@@ -188,7 +188,8 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           if (projectId !== null && !conn.get('SELECT 1 FROM projects WHERE id = ?', projectId)) throw notFound('project', projectId)
           const at = conn.now()
           const model = input.model ?? null
-          const id = randomUUID()
+          const id = input.id ?? randomUUID()
+          if (getSession(id)) throw alreadyExists('session', id)
           conn.run(
             `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, project_id, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -243,6 +244,37 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
             id,
           )
           return toSession(requireSession(id))
+        }),
+      ),
+    deleteSession: (id) =>
+      later(() =>
+        conn.write(() => {
+          requireSession(id)
+          const rows = conn.all<{ id: string }>(
+            'WITH RECURSIVE tree(id) AS (SELECT id FROM sessions WHERE id = ? UNION ALL SELECT s.id FROM sessions s JOIN tree t ON s.parent_session_id = t.id) SELECT id FROM tree',
+            id,
+          )
+          for (const row of rows) {
+            conn.run('DELETE FROM session_entries WHERE session_id = ?', row.id)
+            conn.run('DELETE FROM schedules WHERE session_id = ?', row.id)
+            conn.run('DELETE FROM host_processes WHERE session_id = ?', row.id)
+          }
+          for (const row of rows.reverse()) conn.run('DELETE FROM sessions WHERE id = ?', row.id)
+          return rows.map((row) => row.id)
+        }),
+      ),
+    deleteWorkspaceIfUnused: (id) =>
+      later(() =>
+        conn.write(() => {
+          for (const [table, column] of [
+            ['sessions', 'workspace_id'],
+            ['projects', 'primary_workspace_id'],
+            ['worktrees', 'workspace_id'],
+            ['memories', 'workspace_id'],
+          ]) {
+            if (conn.get(`SELECT 1 FROM ${table} WHERE ${column} = ?`, id)) return false
+          }
+          return conn.run('DELETE FROM workspaces WHERE id = ?', id) > 0
         }),
       ),
     setSessionTitle: (id, title) =>

@@ -44,11 +44,14 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 
   const navigation = React.useMemo(() => createWorkbenchNavigation(chat), [chat])
   React.useEffect(() => navigation.connect(), [navigation])
-  const { location } = React.useSyncExternalStore(navigation.subscribe, navigation.getSnapshot)
+  const { location, focusRevision } = React.useSyncExternalStore(navigation.subscribe, navigation.getSnapshot)
   const contentPage = location.kind === 'plugins' || location.kind === 'schedules' ? location.kind : null
 
   const composer = React.useRef<ComposerHandle>(null)
   const { visible: settingsVisible } = React.useSyncExternalStore(settingsPage.subscribe, settingsPage.getSnapshot)
+  React.useEffect(() => {
+    if (location.kind === 'new-chat' && !settingsVisible) composer.current?.focus()
+  }, [location.kind, focusRevision, settingsVisible])
 
   // 打开设置前记下焦点所在（store 通知先于渲染，应用尚未 inert），返回应用后焦点回到那里。
   const returnFocus = React.useRef<HTMLElement | null>(null)
@@ -78,10 +81,6 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
         settingsPage.toggle()
       } else if (command && event.key.toLowerCase() === 'n') {
         event.preventDefault()
-        if (chat.lists.getState().workspaces.length === 0) {
-          void chat.getState().addWorkspace(pickDirectory)
-          return
-        }
         settingsPage.back()
         navigation.newChat()
         // 草稿渲染后再聚焦。

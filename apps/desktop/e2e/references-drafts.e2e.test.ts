@@ -38,7 +38,7 @@ async function addWorkspace(app: LaunchedApp, workspace: string) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 }
 
 const composerOf = (page: Page) => page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
@@ -153,7 +153,7 @@ describe('草稿持久化', () => {
     await expect.poll(() => sessions.count()).toBe(1)
     const first = (await sessions.first().getAttribute('data-session-id'))!
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+N' : 'Control+N')
-    await page.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await sendAndWait(page, 'second session', 1)
     await expect.poll(() => sessions.count()).toBe(2)
     const second = (await page.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id'))!

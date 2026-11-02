@@ -117,7 +117,7 @@ describe('交接', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await win.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     await composer.click()
     await composer.fill('draft the login form')

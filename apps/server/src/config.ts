@@ -46,6 +46,8 @@ export interface SidecarConfig {
    * Sidecar 不把它传给 Agent 的命令环境。
    */
   cokoHome: string
+  /** 用户可见的独立对话目录根；COKO_CHATS_ROOT，可用于隔离测试。 */
+  chatsRoot: string
 }
 
 export class ConfigError extends Error {
@@ -138,6 +140,8 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
   if (!LEVELS.has(level)) throw new ConfigError(`Unknown COKO_LOG_LEVEL: ${level}`)
   const cokoHome = env.COKO_HOME || join(homedir(), '.coko')
   if (!isAbsolute(cokoHome)) throw new ConfigError('COKO_HOME must be an absolute path')
+  const chatsRoot = env.COKO_CHATS_ROOT || join(homedir(), 'Coko', 'chats')
+  if (!isAbsolute(chatsRoot)) throw new ConfigError('COKO_CHATS_ROOT must be an absolute path')
   return {
     dataDir,
     dbPath: join(dataDir, 'coko.db'),
@@ -150,5 +154,6 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
     ...(ignored.length > 0 ? { ignoredTestHooks: ignored } : {}),
     logLevel: level as SidecarConfig['logLevel'],
     cokoHome,
+    chatsRoot,
   }
 }

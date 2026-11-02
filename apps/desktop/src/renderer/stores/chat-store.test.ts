@@ -66,10 +66,15 @@ type Api = ApiClient
 function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
   return {
     listProjects: async () => [],
+    listModels: async () => ({ models: [], defaultModel: null }),
     listWorkspaces: vi.fn<Api['listWorkspaces']>(async () => [workspace]),
     listSessions: vi.fn<Api['listSessions']>(async () => [session('s1')]),
     registerWorkspace: vi.fn<Api['registerWorkspace']>(async () => workspace),
     createSession: vi.fn<Api['createSession']>(async (input) => session('s-new', { title: input.title ?? '' })),
+    firstSend: vi.fn<Api['firstSend']>(async (input) => ({
+      session: session('s-new', { title: input.text.split('\n')[0]!, model: input.model ?? null, thinkingLevel: input.thinkingLevel ?? 'off' }),
+      runId: 'r2',
+    })),
     sessionDetail: vi.fn<Api['sessionDetail']>(),
     submitMessage: vi.fn<Api['submitMessage']>(async () => ({ runId: 'r2' })),
     abortRun: vi.fn<Api['abortRun']>(async () => ({ aborted: true })),
@@ -78,6 +83,40 @@ function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+it('首次发送等待中不重复提交，失败保留同一草稿身份和配置，重试成功才清空', async () => {
+  let reject!: (error: Error) => void
+  const blocked = new Promise<never>((_resolve, fail) => {
+    reject = fail
+  })
+  const firstSend = vi
+    .fn<ApiClient['firstSend']>()
+    .mockReturnValueOnce(blocked)
+    .mockResolvedValue({ session: session('accepted'), runId: 'r1' })
+  const failures: ChatFailure[] = []
+  const store = createChatStore({ api: fakeApi({ firstSend }), stream: new FakeStream(), onFailure: (failure) => failures.push(failure) })
+  store.getState().startDraft()
+  await store.getState().selectModel({ providerId: 'p', modelId: 'm' }, 'high')
+  await store.getState().setPermissionMode('accept-edits')
+  const draft = store.newChat.getState()
+  const sending = store.getState().send('preserve this')
+  expect(await store.getState().send('duplicate')).toBe(false)
+  expect(firstSend).toHaveBeenCalledTimes(1)
+  reject(new ApiError('hook-blocked', 'blocked', 400))
+  expect(await sending).toBe(false)
+  expect(store.newChat.getState()).toMatchObject({
+    draftId: draft.draftId,
+    model: draft.model,
+    thinkingLevel: 'high',
+    permissionMode: 'accept-edits',
+    sending: false,
+  })
+  expect(failures[0]?.error.code).toBe('hook-blocked')
+  expect(await store.getState().send('preserve this')).toBe(true)
+  expect(firstSend.mock.calls.map(([request]) => request.draftId)).toEqual([draft.draftId, draft.draftId])
+  expect(store.newChat.getState()).toMatchObject({ model: null, thinkingLevel: 'off', permissionMode: null })
+  expect(store.newChat.getState().draftId).not.toBe(draft.draftId)
+})
 
 describe('chat store', () => {
   it('加载后打开最近的会话并以 afterSeq 0 订阅；补发与实时条目按 seq 去重', async () => {
@@ -193,18 +232,18 @@ describe('chat store', () => {
     const api = fakeApi({ listSessions: vi.fn<Api['listSessions']>(async () => []) })
     const store = createChatStore({ api, stream })
     await store.getState().load()
-    expect(store.getState().draftWorkspaceId).toBe('w1')
+    expect(store.getState().activeSessionId).toBeNull()
 
     const sent = store.getState().send('write a file\nwith details')
     await flush()
-    expect(api.createSession).toHaveBeenCalledWith({ workspaceId: 'w1', title: 'write a file' })
+    expect(api.firstSend).toHaveBeenCalledWith(expect.objectContaining({ text: 'write a file\nwith details' }))
     expect(stream.sent).toEqual([{ type: 'subscribe', sessionId: 's-new', afterSeq: 0 }])
     expect(api.submitMessage).not.toHaveBeenCalled()
     stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: false })
     expect(await sent).toBe(true)
-    expect(api.submitMessage).toHaveBeenCalledWith('s-new', 'write a file\nwith details')
+    expect(api.submitMessage).not.toHaveBeenCalled()
     expect(store.getState().activeSessionId).toBe('s-new')
-    expect(store.getState().conversations['s-new']?.running).toBe(true)
+    expect(store.getState().conversations['s-new']?.running).toBe(false)
   })
 
   it('Run 在 202 返回前已结束（run_end 先到）时不再显示运行中', async () => {
@@ -314,14 +353,14 @@ describe('chat store', () => {
     })
     const store = createChatStore({ api, stream })
     await store.getState().load()
-    expect(store.getState().draftWorkspaceId).toBe('w1')
+    expect(store.getState().activeSessionId).toBeNull()
     await store.getState().selectModel(deepseek)
-    expect(store.getState().draftModel).toEqual(deepseek)
+    expect(store.newChat.getState().model).toEqual(deepseek)
     expect(api.setSessionModel).not.toHaveBeenCalled()
 
     const sending = store.getState().send('hello')
     await flush()
-    expect(api.createSession).toHaveBeenCalledWith({ workspaceId: 'w1', title: 'hello', model: deepseek })
+    expect(api.firstSend).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello', model: deepseek }))
     stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: false })
     await sending
 
@@ -340,14 +379,14 @@ describe('chat store', () => {
     })
     const store = createChatStore({ api, stream })
     await store.getState().load()
-    expect(store.getState().draftThinkingLevel).toBe('off')
+    expect(store.newChat.getState().thinkingLevel).toBe('off')
     await store.getState().selectModel(thinker, 'high')
-    expect(store.getState()).toMatchObject({ draftModel: thinker, draftThinkingLevel: 'high' })
+    expect(store.newChat.getState()).toMatchObject({ model: thinker, thinkingLevel: 'high' })
     expect(api.setSessionModel).not.toHaveBeenCalled()
 
     const sending = store.getState().send('hello')
     await flush()
-    expect(api.createSession).toHaveBeenCalledWith({ workspaceId: 'w1', title: 'hello', model: thinker, thinkingLevel: 'high' })
+    expect(api.firstSend).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello', model: thinker, thinkingLevel: 'high' }))
     stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: false })
     await sending
 

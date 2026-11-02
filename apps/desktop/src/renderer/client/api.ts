@@ -5,6 +5,7 @@ import {
   checkpointPaths,
   CheckpointListResponse,
   ForkResponse,
+  FirstSendResponse,
   RewindResponse,
   ErrorResponse,
   ModelListResponse,
@@ -26,6 +27,7 @@ import {
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
   type CreateSessionRequest,
+  type FirstSendRequest,
   type ErrorCode,
   type PermissionMode,
   type PermissionRule,
@@ -99,6 +101,7 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     registerWorkspace: (path: string) => call(Workspace, 'POST', API_ROUTES.workspaces, { path }),
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
     createSession: (input: CreateSessionRequest) => call(Session, 'POST', API_ROUTES.sessions, input),
+    firstSend: (input: FirstSendRequest) => call(FirstSendResponse, 'POST', API_ROUTES.firstSend, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     /** 202 返回新 runId；不开始 Run 的动作（例如 /goal pause）为 204，返回 { done: true }。 */
     submitMessage: async (id: string, text: string): Promise<SubmitMessageResponse | { done: true }> =>

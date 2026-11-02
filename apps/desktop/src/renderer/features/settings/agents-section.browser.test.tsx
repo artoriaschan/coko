@@ -45,7 +45,7 @@ async function mount(options: { open?: boolean; fail?: number; locale?: 'zh' | '
   })
   await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   if (options.open !== false) fixture.chat.getState().openSession('s-1')
-  else fixture.chat.setState({ activeSessionId: null, draftWorkspaceId: null })
+  else fixture.chat.setState({ activeSessionId: null })
   await render(
     <I18nProvider locale={options.locale ?? 'en'}>
       <ChatStoreProvider store={fixture.chat}>

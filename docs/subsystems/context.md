@@ -84,9 +84,9 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ## 草稿
 
-- composer 的内容以 Lexical EditorState JSON 存 renderer 的 `localStorage`：会话为 `coko.draft.<sessionId>`，还没有会话的 Workspace 草稿为 `coko.draft.workspace.<workspaceId>`。用户编辑后 300 ms 防抖写入；切换会话与窗口关闭（`pagehide` / `beforeunload`）前立即写入；内容为空时删除该键。
+- composer 的内容以 Lexical EditorState JSON 存 renderer 的 `localStorage`：会话为 `coko.draft.<sessionId>`，新对话只有一份草稿，键为 `coko.draft.new-chat`（旧的 `coko.draft.workspace.*` 初始化时清除）。用户编辑后 300 ms 防抖写入；切换会话与窗口关闭（`pagehide` / `beforeunload`）前立即写入；内容为空时删除该键。
 - 切换会话或草稿时载入目标的草稿，撤销历史随之清空。读出的值不是 JSON、不是 EditorState 形状或含未知节点（例如 File Reference 节点没有 path）时删除该键、记 renderer warn `draft discarded`，输入区为空。
-- 提交被接受后编辑区清空，草稿随之删除。提交等待期间切换到新会话（草稿发送时创建会话）时，编辑区内容不被替换，随作用域带到新键；提交被接受后提交时所属的键也被删除。
+- 提交被接受后编辑区清空，草稿随之删除。提交等待期间切换作用域时载入目标草稿；成功后只清除提交时所属草稿，不把已提交的第一条消息复制到已有会话草稿。
 - composer 是纯文本编辑器，File Reference 是其中唯一的非文本节点，因此不需要 Markdown 导入导出。
 
 ## 上下文用量
@@ -115,7 +115,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ### 上下文环
 
 - 输入区底栏、模型选择左侧为 24 × 24px 入口，其中只显示 12px 环（内外半径比 0.7）；百分比出现在 Tooltip 和详情，占 contextWindow、向下取整。常态为 link 色，tokens 达到预警线为 warning-text，达到阈值为 destructive；没有有效窗口或首次读取失败时只画轨道，不显示虚假的 0%。hover / open 使用共享 accent 表面，入口几何不变。
-- 作用域（会话或 Workspace 草稿）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早请求晚到时丢弃。同作用域刷新失败时保留上次有效数据。
+- 作用域（会话或已选择的 Workspace 上下文）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早请求晚到时丢弃。同作用域刷新失败时保留上次有效数据。
 - `autoCompact.paused` 为 true 时环之前保留暂停标记（`data-slot="auto-compact-paused"`，warning 色），名称与 Tooltip 提示可以输入 `/compact` 手动压缩。
 - 点击、Enter 或空格打开 HoverCard（`role="dialog"`，名称“上下文用量”）；hover 只显示 Tooltip。详情首选在入口上方右对齐、间距 8px，基准 348 × 384px、R16，使用共享菜单表面与 portal；空间不足时翻转或平移，并限制可用宽高、允许内部滚动。指针可进入卡片阅读；离开入口与卡片、外部点击或 Escape 关闭，点击外部与 Escape 后焦点返回入口。
 - 内容为当前模型与窗口、占用比例与 Token 数、以模型窗口为分母的五类容量条、各类 Token 与占已用 Token 比例、分类说明和压缩点。数值使用等宽字体、右对齐；正文遵守共享明暗主题。不展示旧的六项、指令文件、诊断或“含估算”标记；这些协议元数据仍由接口提供。

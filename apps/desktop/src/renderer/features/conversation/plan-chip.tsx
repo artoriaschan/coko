@@ -1,6 +1,6 @@
 import { PlanModePill } from '@coko/ui'
 import * as React from 'react'
-import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
+import { useNewChat, useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { sessionPermissionMode } from '../../stores/chat-store.ts'
 import { restoredMode } from './plan-review-panel.tsx'
@@ -12,7 +12,7 @@ export function PlanChip({ sessionId, onExit }: { sessionId: string | null; onEx
   const [exiting, setExiting] = React.useState(false)
   const { setPermissionMode } = useChatActions()
   const conversation = useChat((s) => (sessionId === null ? undefined : s.conversations[sessionId]))
-  const draftMode = useChat((s) => s.draftPermissionMode)
+  const draftMode = useNewChat((s) => s.permissionMode)
   const mode = conversation ? (conversation.pendingMode ?? sessionPermissionMode(conversation.entries)) : sessionId === null ? draftMode : undefined
   if (mode !== 'plan') return null
   const back = conversation ? restoredMode(conversation.entries) : 'default'
@@ -27,7 +27,7 @@ export function PlanChip({ sessionId, onExit }: { sessionId: string | null; onEx
         try {
           await setPermissionMode(restore)
           const current = sessionId === null ? undefined : store.getState().conversations[sessionId]
-          if ((current ? (current.pendingMode ?? sessionPermissionMode(current.entries)) : store.getState().draftPermissionMode) !== 'plan') onExit?.()
+          if ((current ? (current.pendingMode ?? sessionPermissionMode(current.entries)) : store.newChat.getState().permissionMode) !== 'plan') onExit?.()
         } finally {
           setExiting(false)
         }

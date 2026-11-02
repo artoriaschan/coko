@@ -277,7 +277,7 @@ describe('桌面壳', () => {
     // WebSocket 连向新 Sidecar：发送后看到回复。
     await app.window.reload()
     await expect.poll(() => status(app).getAttribute('data-connection'), { timeout: 30_000 }).toBe('connected')
-    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     const composer = app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     await composer.click()
     await composer.fill('still there?')

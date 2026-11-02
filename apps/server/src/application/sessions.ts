@@ -246,7 +246,10 @@ export class SessionService {
    * （子代理，ADR 0014）。两者必须属于同一 Workspace，否则 400。
    */
   async create(input: {
+    id?: string
     workspaceId: string
+    projectId?: string | null
+    permissionMode?: PermissionMode
     title?: string
     model?: SessionModel
     thinkingLevel?: ThinkingLevel
@@ -254,9 +257,11 @@ export class SessionService {
     parentSessionId?: string
   }): Promise<Session> {
     const { model, thinkingLevel } = await this.#models.initial(input)
-    const mode = await this.permissions.defaultMode()
+    const mode = input.permissionMode ?? (await this.permissions.defaultMode())
     const session = await this.createRecord({
+      ...(input.id === undefined ? {} : { id: input.id }),
       workspaceId: input.workspaceId,
+      ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
       thinkingLevel,
@@ -318,6 +323,17 @@ export class SessionService {
   /** 提交一条消息：开始 Run（{ runId }）或执行不开始 Run 的动作（{ done: true }）；见 SessionRuns.submit。 */
   submit(sessionId: string, text: string): Promise<ActionResult> {
     return this.#runs.submit(sessionId, text)
+  }
+
+  /** 首次发送的成功边界是首条用户消息提交，而不是同步的 Run 进度。 */
+  submitFirst(sessionId: string, text: string): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text, true)
+  }
+
+  /** 首次发送的预接受失败：Run 尚未提交用户输入，释放运行时后回滚新建记录。 */
+  async rollbackFirst(sessionId: string): Promise<void> {
+    this.#runtimes.discard(sessionId)
+    await this.#store.sessions.deleteSession(sessionId)
   }
 
   /** 自动压缩是否因连续失败暂停（运行时内存；还没有运行时的 Session 为 false）。 */

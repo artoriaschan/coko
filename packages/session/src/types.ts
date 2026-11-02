@@ -79,6 +79,8 @@ export interface Session {
 
 /** 新建 Session 的输入。parentSessionId、worktreeId 必须指向同一 Workspace 中已有的记录。 */
 export interface NewSession extends Partial<SessionModelChoice> {
+  /** 宿主创建的幂等会话标识；未给时分配随机 ID。不是用户可设置的协议字段。 */
+  id?: string
   workspaceId: string
   title?: string
   /** 未给时继承主要 Workspace 对应的项目；null 明确表示独立对话。 */
@@ -124,6 +126,10 @@ export interface SessionRepository {
   /** 该 Session 的子 Session，按创建顺序。 */
   listChildren(parentSessionId: string): Promise<Session[]>
   getSession(id: string): Promise<Session | undefined>
+  /** 原子删除会话树及条目、定时任务和进程登记；保留 Workspace 与 worktree。调用方先停止运行。 */
+  deleteSession(id: string): Promise<string[]>
+  /** 仅在没有任何会话、项目、worktree 或记忆引用时移除登记，不操作文件系统。 */
+  deleteWorkspaceIfUnused(id: string): Promise<boolean>
   setSessionTitle(id: string, title: string): Promise<Session>
   setSessionOrganization(id: string, patch: Partial<SessionOrganization>): Promise<Session>
   /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */

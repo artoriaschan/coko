@@ -31,7 +31,7 @@ describe('项目设置', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     const dialog = app.window.locator('[data-settings-page]')
@@ -81,7 +81,7 @@ describe('项目设置', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     const config = () =>
       app.window.evaluate(async () => (await fetch('/api/config')).json() as Promise<{ global: Record<string, unknown>; globalRevision: number }>)
 

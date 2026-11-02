@@ -1,6 +1,5 @@
 import { Button, Input, SidebarAccount, useAppFrame } from '@coko/ui'
 import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, PanelLeftCloseIcon, PuzzleIcon, SearchIcon, SettingsIcon, SquarePenIcon, UserRoundIcon } from 'lucide-react'
-import { useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
@@ -19,11 +18,9 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
   const navigation = useWorkbenchNavigation()
   const { open: openSettings } = useSettingsPage()
   const { toggleSidebar, closeSidebarDrawer } = useAppFrame()
-  const workspaces = useLists((state) => state.workspaces)
 
   const newSession = (workspaceId?: string) => {
-    if (workspaces.length === 0) onAddWorkspace()
-    else navigation.newChat(workspaceId)
+    navigation.newChat(workspaceId)
     closeSidebarDrawer()
   }
 

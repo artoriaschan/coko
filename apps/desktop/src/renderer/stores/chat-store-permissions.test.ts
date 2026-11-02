@@ -57,6 +57,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   const calls: string[] = []
   const api = {
     listProjects: async () => [],
+    listModels: async () => ({ models: [], defaultModel: null }),
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => [session('s1')],
     setPermissionMode: vi.fn<ApiClient['setPermissionMode']>(async (id, mode) => {
@@ -64,6 +65,10 @@ async function setup(overrides: Partial<ApiClient> = {}) {
       return { mode, rules: [] }
     }),
     createSession: vi.fn<ApiClient['createSession']>(async () => session('s-new')),
+    firstSend: async (input: Parameters<ApiClient['firstSend']>[0]) => {
+      calls.push(`first:${input.permissionMode}`)
+      return { session: session('s-new'), runId: 'r1' }
+    },
     submitMessage: vi.fn<ApiClient['submitMessage']>(async (id) => {
       calls.push(`submit:${id}`)
       return { runId: 'r1' }
@@ -135,15 +140,15 @@ describe('Permission Mode（store）', () => {
     expect(mode()).toBe('default')
   })
 
-  it('草稿中选的模式在创建 Session 后、提交消息前切换', async () => {
+  it('草稿中选的模式随首次发送原子提交', async () => {
     const { store, calls } = await setup()
     store.getState().startDraft('w1')
     await store.getState().setPermissionMode('accept-edits')
-    expect(store.getState().draftPermissionMode).toBe('accept-edits')
+    expect(store.newChat.getState().permissionMode).toBe('accept-edits')
     expect(calls).toEqual([])
     expect(await store.getState().send('hello')).toBe(true)
-    expect(calls).toEqual(['mode:s-new:accept-edits', 'submit:s-new'])
-    expect(store.getState().draftPermissionMode).toBeNull()
+    expect(calls).toEqual(['first:accept-edits'])
+    expect(store.newChat.getState().permissionMode).toBeNull()
   })
 
   it('Session 规则按 permission_rule 条目回放', () => {

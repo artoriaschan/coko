@@ -43,7 +43,7 @@ async function addWorkspace(app: LaunchedApp, path: string) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 }
 
 async function sendMessage(app: LaunchedApp, text: string) {
@@ -150,7 +150,7 @@ describe('对话闭环', () => {
     await app.window.locator('[data-run-status="aborted"]').waitFor({ timeout: 15_000 })
 
     await app.window.keyboard.press(process.platform === 'darwin' ? 'Meta+N' : 'Control+N')
-    await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await expect.poll(() => app.window.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '')).toMatch(/Give Coko a task|向 Coko 布置任务/)
   })
 
