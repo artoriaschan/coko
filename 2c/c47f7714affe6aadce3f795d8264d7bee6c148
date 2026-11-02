@@ -1,0 +1,62 @@
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_64e2ce1bfde668::t_973df8fe0168e0 4-13,15,152-158,192,207-209,213-224,273,277,385-388,401-403,405-412
+  s_64e2ce1bfde668::t_92aa8e7609a6b2 139,447,449
+  s_64e2ce1bfde668::t_f5212a1ec88b9e 202,395,452
+  s_64e2ce1bfde668::t_b94275007b03c1 2,16-24,26,45,91-94,96-97,99-114,116-120,122-124,135-138,140,142-143,145-151,182-183,185-189,191,227,229,414-419,421-428,445-446,448
+  s_64e2ce1bfde668::t_3b5ac1cebfb468 59-62,64-67,69
+  s_64e2ce1bfde668::t_719dbdb36da3ef 47,126,133,211,225,333-343,345-354,356,358-374,376-381
+  s_64e2ce1bfde668::t_89c3d021097ca3 27,128-132,301-302,304,306-308,315-317,319-320,322,324-326,329-331,383
+  s_64e2ce1bfde668::t_9d15bb9a375f78 173-177
+  s_64e2ce1bfde668::t_edc44dd34d5219 357
+  s_64e2ce1bfde668::t_e7ba7f6a46facb 159-167,170-172,178-181,195-201,390-394,396-400,430-437,439-443,450-451,453-456
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_b94275007b03c1 384-386,389-390,789-791
+  s_64e2ce1bfde668::t_dda20006ac7bcc 424
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_b94275007b03c1 7
+  s_64e2ce1bfde668::t_89c3d021097ca3 16-17
+  s_64e2ce1bfde668::t_719dbdb36da3ef 14-15
+  s_64e2ce1bfde668::t_973df8fe0168e0 8-13
+apps/desktop/e2e/sidebar-lists.e2e.test.ts
+  s_64e2ce1bfde668::t_839ff5a8f5a2c9 1,61-62,64-70,74-83,96-100
+  s_64e2ce1bfde668::t_69f446551d5911 2-11,13-15,17-18,20-21,23-24,26-41,43-49,51,53-60,101
+  s_64e2ce1bfde668::t_cbd43da851277d 84-91,93,95
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx
+  s_64e2ce1bfde668::t_febb2c0a88c048 182-185,187-195,197-199,201-213,215,217-221,223-233
+  s_64e2ce1bfde668::t_92aa8e7609a6b2 54
+  s_64e2ce1bfde668::t_839ff5a8f5a2c9 234-237,239-250,252,254-263,265-269,271-273,275-281
+  s_64e2ce1bfde668::t_0128b6d8acfd2b 59-65,67-78,80-92
+  s_64e2ce1bfde668::t_9d15bb9a375f78 131-134
+  s_64e2ce1bfde668::t_cbd43da851277d 282-294,296,298-307,310-311,313-314
+  s_64e2ce1bfde668::t_7bfce861e39903 93-100,103-113,115-130,135-142
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_b94275007b03c1 9
+  s_64e2ce1bfde668::t_973df8fe0168e0 10-15
+  s_64e2ce1bfde668::t_719dbdb36da3ef 16-17
+  s_64e2ce1bfde668::t_89c3d021097ca3 18-19
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_22d4c037bd0422 3,9,33-44,50-51
+docs/README.md
+  s_64e2ce1bfde668::t_e7ba7f6a46facb 29
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_89c3d021097ca3 53,63-64
+  s_64e2ce1bfde668::t_973df8fe0168e0 59-61
+  s_64e2ce1bfde668::t_719dbdb36da3ef 62
+  s_64e2ce1bfde668::t_b94275007b03c1 5-23,25-48,57-58,72-76,78-79,81,83-89,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "2cc47f7714affe6aadce3f795d8264d7bee6c148",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
