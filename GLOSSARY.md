@@ -29,7 +29,7 @@ _Avoid_: workspace、folder、repo
 _Avoid_: chat、thread、conversation
 
 **Standalone Session**：
-不属于任何 Project 的 Session，界面称“独立对话”；新建时由 Coko 为它创建专属目录作为工作目录。
+不属于任何 Project 的 Session，界面称“独立对话”；新建时由 Coko 为它创建专属目录作为工作目录；从项目移出或删除项目后保留的 Session 也属于独立对话，并继续使用原有固定工作目录。
 _Avoid_: 临时会话、无目录会话
 
 **Session Entry**：

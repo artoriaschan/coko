@@ -2,7 +2,7 @@
 kind: decision
 description: "项目（Project）是组织会话的容器：一组源文件夹，其中唯一的主要文件夹对应一个 Workspace，主要文件夹在项目间不能重复、名称可以重复；会话最多属于一个项目，移入或移出项目只改归属、不改工作目录；附加文件夹在权限上算项目会话的 Workspace 内部；删除项目保留会话的修订规则见 ADR 0022；独立对话在 Coko 首次发送时创建的专属目录中工作；现有 Workspace 迁移为单文件夹项目。修改项目与 Workspace 的映射、归属变更的语义或独立对话的目录时回看。"
 status: accepted
-implementation: partial
+implementation: implemented
 lifecycle: active
 category: architecture
 ---
@@ -45,7 +45,7 @@ category: architecture
 
 ## 当前实施范围
 
-已实现项目与会话组织字段、SQLite v10 的 Workspace 迁移、主要 Workspace 唯一约束、列表协议、分类交互与会话置顶。根会话在项目主要 Workspace 中创建时默认归入项目，子会话的协议归属从根会话派生，分叉与交接继承来源归属，置顶保持归属与执行目录不变。当前行为与验证入口见 [项目与会话列表](../subsystems/projects.md)。独立对话首次发送目录与项目草稿的主要 Workspace 首次发送已实现，入口与验证见[工作台归属栏](../subsystems/workbench.md#新对话归属栏)。多文件夹创建、真实路径唯一检查与已有项目复用也已实现，SQLite v11 保存主要目录在完整列表中的位置。项目详情、编辑、主要冲突、重命名、整棵项目树置顶与宿主打开主要目录也已接入，且不改变已有会话工作目录。附加文件夹权限已按每个 Run 的根快照接入，行为与证据见[权限范围](../subsystems/permissions.md#每个-run-的-workspace-根)。项目删除仍待实施，因此 implementation 为 partial。
+已实现项目与会话组织字段、SQLite v10 的 Workspace 迁移、主要 Workspace 唯一约束、列表协议、分类交互与会话置顶。根会话在项目主要 Workspace 中创建时默认归入项目，子会话的协议归属从根会话派生，分叉与交接继承来源归属，置顶保持归属与执行目录不变。当前行为与验证入口见 [项目与会话列表](../subsystems/projects.md)。独立对话首次发送目录与项目草稿的主要 Workspace 首次发送已实现，入口与验证见[工作台归属栏](../subsystems/workbench.md#新对话归属栏)。多文件夹创建、真实路径唯一检查与已有项目复用也已实现，SQLite v11 保存主要目录在完整列表中的位置。项目详情、编辑、主要冲突、重命名、整棵项目树置顶与宿主打开主要目录也已接入，且不改变已有会话工作目录。附加文件夹权限已按每个 Run 的根快照接入，行为与证据见[权限范围](../subsystems/permissions.md#每个-run-的-workspace-根)。项目删除已按 [ADR 0022](0022-project-removal-preserves-sessions.md) 实现停止运行、保留记录并清空归属；会话移动也已实现且保留原 Workspace 与 worktree。上述映射的 implementation 为 implemented；批准、源码实施与本地验证不表示已发布。
 
 ## 后果与验证
 
@@ -53,7 +53,18 @@ category: architecture
 - 专属目录会随独立对话增多而积累，Coko 不自动清理。
 - 附加文件夹扩大了 [ADR 0005](0005-permission-mode-and-sandbox.md) 中“Workspace 内”的范围与可写根；判定顺序、受保护路径与拒绝规则不变。
 - Workspace 的含义扩展到 Coko 为独立对话创建的目录，术语表已同步。
-- implementation 变为 implemented 前需要验证：项目内新建会话的工作目录是主要文件夹；以重复的主要文件夹创建项目时打开已有项目、不新增项目；独立对话的专属目录在首次发送时才创建，之后不变；会话在项目之间移动后，工作目录与 worktree 绑定不变；修改项目的文件夹列表不改变已有会话的工作目录；升级后每个 Workspace 成为一个单文件夹项目，原有会话都在其中；附加文件夹的读取不询问、写入按模式询问，Seatbelt 允许写入它们，修改列表从下一个 Run 生效；移除主要文件夹时由下一个接替，冲突时保存失败；删除项目的停止、保留和移出验收按 [ADR 0022](0022-project-removal-preserves-sessions.md)；独立对话删除后专属目录仍在。
+- 已实施的验收边界：项目内新建会话的工作目录是主要文件夹；以重复的主要文件夹创建项目时打开已有项目、不新增项目；独立对话的专属目录在首次发送时才创建，之后不变；会话在项目之间移动后，工作目录与 worktree 绑定不变；修改项目的文件夹列表不改变已有会话的工作目录；升级后每个 Workspace 成为一个单文件夹项目，原有会话都在其中；附加文件夹的读取不询问、写入按模式询问，Seatbelt 允许写入它们，修改列表从下一个 Run 生效；移除主要文件夹时由下一个接替，冲突时保存失败；删除项目的停止、保留和移出验收按 [ADR 0022](0022-project-removal-preserves-sessions.md)；独立对话删除后专属目录仍在。
+
+## 实施证据
+
+2026-11-03 本地集成完成，按当前真实 Sidecar 协议、持久化/文件/Git 读回与 Electron 测试构建验证。各切片的可执行证据如下，正式正文独立保存当前约束，不依赖任务材料：
+
+- 模型、迁移与列表：[SQLite v10 迁移](../../packages/session/src/sqlite/migrate-v10.test.ts)、[有序主要目录迁移](../../packages/session/src/sqlite/migrate-v11.test.ts)、[内存契约](../../packages/session/src/memory/memory.test.ts)、[SQLite 契约](../../packages/session/src/sqlite/sqlite.test.ts)、[项目协议](../../tests/integration/sidecar-projects.test.ts)、[真实旧库升级](../../apps/desktop/e2e/projects-migration.e2e.test.ts)。
+- 创建、编辑、主要目录唯一与固定 cwd：[创建协议](../../tests/integration/sidecar-create-project.test.ts)、[编辑协议](../../tests/integration/sidecar-edit-project.test.ts)、[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx)、[项目卡片](../../apps/desktop/src/renderer/features/sidebar/project-row.browser.test.tsx)。
+- 独立/项目首次发送与可重试原子性：[首次发送协议](../../tests/integration/sidecar-first-send.test.ts)、[新对话交互](../../apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx)、[真实 Electron 首次发送和重启](../../apps/desktop/e2e/first-send.e2e.test.ts)、[创建到模型标题的跨功能链路](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts)。Worktree 入口与失败清理见 [ADR 0021](0021-new-chat-worktree-base-branch.md#实施记录)。
+- 归属与执行目录分离：[移动协议](../../tests/integration/sidecar-session-move.test.ts)、[移入/移出交互](../../apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx)、[真实 Electron 移动并重启](../../apps/desktop/e2e/session-move.e2e.test.ts)。
+- 权限快照、附加目录、拒绝与保护路径、符号链接及真实 Seatbelt 写入：[项目权限协议](../../tests/integration/sidecar-project-permissions.test.ts)。
+- 删除项目停止与保留、直接删除会话保留专属目录：[项目删除协议](../../tests/integration/sidecar-delete-project.test.ts)、[会话删除协议](../../tests/integration/sidecar-delete-session.test.ts)、[真实 Electron 项目删除并重启](../../apps/desktop/e2e/project-delete.e2e.test.ts)；后继决定的完整证据继续由 [ADR 0022](0022-project-removal-preserves-sessions.md#后果与验证) 维护。
 
 ## 来源与后继
 

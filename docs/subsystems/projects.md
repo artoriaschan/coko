@@ -172,3 +172,5 @@ DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代�
 有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
 
 [SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
+
+[跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts) 从创建项目后的首次发送读回项目身份、主要 Workspace 与标题，并验证独立、项目、置顶和搜索来源使用同一套最终五项会话菜单。

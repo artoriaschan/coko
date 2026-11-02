@@ -29,6 +29,6 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0017](0017-plugins-declarative-user-installed.md) | 插件只声明资源，用户级安装，按可执行声明批准 | accepted | implemented |
 | [0018](0018-agent-teams-in-root-session.md) | Agent Teams 在根 Session 中进行，任务板以 compare-and-set 协调 | accepted | implemented |
 | [0019](0019-headless-runs-deny-approvals.md) | 无界面运行的审批自动拒绝，Provider 来自启动配置 | accepted | implemented |
-| [0020](0020-projects-organize-workspaces.md) | 项目是组织容器，执行边界仍是 Workspace | accepted | partial |
+| [0020](0020-projects-organize-workspaces.md) | 项目是组织容器，执行边界仍是 Workspace | accepted | implemented |
 | [0021](0021-new-chat-worktree-base-branch.md) | 新对话的 worktree 在首次发送时从所选分支创建 | accepted | implemented |
 | [0022](0022-project-removal-preserves-sessions.md) | 删除项目保留会话，局部替代 ADR 0020 的删除条款 | accepted | implemented |

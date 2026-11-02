@@ -17,3 +17,19 @@
 - [ ] 横切验收与画布核对记录在 Comments
 - [ ] 文档与 ADR 状态更新；`check:docs` 通过
 - [ ] 检查结果按测试约定报告
+
+
+## Comments
+
+### 2026-11-03 — 收尾验证进行中
+
+- 在指定worktree的`codex/cw-23-closeout`从最新集成`44b9296`开始，依赖01～22均核对为已关闭并实际交付。使用tdd、coko-docs、coko-verify、domain-modeling与Impeccable；测试seam沿用规格18已批准的Browser、真实Sidecar与Electron，不增加确认步骤。CodeGraph明确返回本managed worktree未索引后改用直接源码，不重建索引。
+- [收尾证据](../evidence/23-closeout.md) 已逐条列出CW-01～95的具体测试/人工观测与精确可复现命令，包含CW66/88同一已有Session中计划胶囊、上下文warning/五类与auto compaction、pill关闭和`/plan off`恢复prior的联合实际链路。必需四条Electron跨票链路已通过，未将旧票复选框当证明。
+- 已读Pencil实际源稿与渲染：Y5Oqw双栏工作台、B1eglK/z5wvj上下文、zG8uB删除项目、Z0KqK删除对话、Y2uwiG Tooltip、nQAM6搜索。1440×1200实际Electron核对侧栏280、安全48、导航/行32、标题13/20、R28、欢迎框768×120、工具栏32、归属28+8间距=36；删除确认480×184/208、详情348×384/R16与top-end/8由源稿和当前Browser核对。搜索640×432/R28/p12、输入40、结果32/R8，21长标题内部滚动；Browser390px与真实最小520px窗口(主内容≥390)均可用。读回明暗、窄深色reduce、图片上下文与plan/context截图，无操作裁断。中性示例及240K/24%五类算术已核对，细项与本机截图位置见证据。
+- 红绿：原生移动子菜单Escape后因迟到hover重新打开，先两次失败，再局部修复停留指针的重开抑制，最终四来源菜单五项/焦点及既有B-move14项通过；精确欢迎框宽度先测774.398px失败，再仅欢迎页max768后通过，保留已有Session原宽度轴。错误测试标题超过20字符、错误`/entries`路径仅修正输入和合法协议路径，不放宽产品断言。
+- 当前通过：17文件206Browser；宽度修复后相关3文件54；当前重建Electron的closeout/plan/context/workbench4文件9用例；当前Sidecar/存储/迁移/宿主注入24文件163用例；归档设置/上下文对比度/双语4文件21用例。`pnpm run typecheck`、Impeccable目标detector(`[]`)、`pnpm run check:docs`(249 Markdown/0问题)通过。完整命令见证据，最终机械检查随合并后的范围重验。
+- 继承原生夹具仍使用已移除“添加工作区”入口：33份前置改用共享当前项目表单，保留原有断言；plugins保留队列，plan明确已有Session和规范文件路径。另有32份继承native矩阵在7c2fde5a只读隔离运行，发现标题匹配/用量/旧交互假设失败，正在由独立修复分支处理；本票此时不标Closed，不把部分通过表述全通过。
+- 文档：ADR0020及索引implemented，以源码和各切片测试保存证据，0021/0022 implemented保持；GLOSSARY明确移出后的独立会话沿用原cwd；projects/workbench/README补当前验证入口与欢迎宽度适用范围；规格intro/CTX04/15/16.2/20.2、desktop-app/map和08后续摘要同步当前实施状态，同时保留历史Answer。正式正文不反向依赖具体scratch。
+
+- 补充当前构建原生验收：`pnpm run test`显式选择projects-migration/create-project/project-edit/session-move/first-send/branches/destination/titles/session-archive/session-delete/model-picker/session-pinning/sidebar-lists的13个e2e完整路径（见证据命令），退出0、16用例通过。
+- 已从AGENTS→docs/README→projects/workbench→GLOSSARY/ADR索引/0020～0022独立读回；生命周期八项（路径引用、语义、归属权威、引用方向、生命周期、当前入口、新会话读入、历史保留）通过。消费者搜索中旧01/06/07/12票的partial为历史交付事实予以保留，其他当前摘要已迁移，无正式反向scratch依赖。

@@ -78,7 +78,7 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 ## 主输入区
 
-`apps/desktop/src/renderer/features/conversation/composer.tsx` 组合共享 Lexical `ComposerEditor` 与底部工具栏。主输入框基准高 120px、内边距 12px、R28 与 soft elevation；编辑区独立滚动，底部工具栏高 32px。压缩进度与图片缩略图各占一行，显示时输入框允许增高。
+`apps/desktop/src/renderer/features/conversation/composer.tsx` 组合共享 Lexical `ComposerEditor` 与底部工具栏。欢迎页的输入区基准最大宽 768px；已有会话继续沿用消息列与输入列的原有宽度轴。主输入框基准高 120px、内边距 12px、R28 与 soft elevation；编辑区独立滚动，底部工具栏高 32px。压缩进度与图片缩略图各占一行，显示时输入框允许增高。
 
 工具栏依次为附件、权限、仅计划模式出现的计划状态组、弹性间距、上下文环、模型与档位、发送。权限和模型分别有独立插槽；上下文环与模型选择保持其原接口。窄窗口中权限可仅显示图标，名称仍由 Tooltip 与可访问名称提供。
 
@@ -119,7 +119,10 @@ Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加�
 - [权限判定与审批](permissions.md#界面)、[计划模式](plan-mode.md#界面)：权限选择与计划胶囊。
 - [上下文管理](context.md)、[会话模型协议](../../packages/protocol/src/http.ts)：上下文统计与模型选择接口。
 
+- [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts)：创建项目到首次发送与模型标题、只发图片到提示词估算、归档到搜索排除、全部来源最终五项菜单、两主题窄窗口与已有会话的计划和自动压缩。
+
 ## 延伸阅读
 
 - [界面约定](../tech-stack/ui.md)与[设计系统规格](../tech-stack/ui-design-system.md)：共享组件、布局与交互规则。
 - [插件](plugins.md)与[定时任务](schedules.md)：所复用分区的业务行为。
+
