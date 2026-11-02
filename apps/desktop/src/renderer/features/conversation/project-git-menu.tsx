@@ -189,7 +189,15 @@ export function ProjectGitMenu({
               if (next) setSearch('')
             }}
           >
-            <DropdownMenuSubTrigger ref={branchTrigger} disabled={!project || !git?.available || loading || pending} onClick={() => setSubOpen(true)}>
+            <DropdownMenuSubTrigger
+              ref={branchTrigger}
+              disabled={!project || !git?.available || loading || pending}
+              onClick={() => setSubOpen(true)}
+              onPointerLeave={(event) => {
+                // The stacked child overlaps vertically; Radix's horizontal grace must not refocus its parent.
+                if (event.relatedTarget instanceof Node && searchInput.current?.closest('[role="menu"]')?.contains(event.relatedTarget)) event.preventDefault()
+              }}
+            >
               <GitBranchIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
               <span>{t('worktrees.branchLabel')}</span>
               <span data-user-content className="ml-auto max-w-32 truncate text-muted-foreground">
@@ -200,7 +208,7 @@ export function ProjectGitMenu({
               alignEnd
               aria-label={t('worktrees.branchSearch')}
               aria-labelledby={undefined}
-              className="w-72 max-w-[calc(100vw-16px)]"
+              className="w-72 max-w-[calc(100vw-16px)] data-[state=closed]:pointer-events-none!"
               onEscapeKeyDown={(event) => {
                 if (!subOpen) return
                 event.preventDefault()

@@ -66,7 +66,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 
 | 文件 | 导出 | 范围 |
 | --- | --- | --- |
-| `src/api.ts` | `apiPaths` | Session 的消息、重试、停止、审批、模型；设置；Provider；团队、追踪、审计、导出；Memory 检索 |
+| `src/api.ts` | `apiPaths` | Session 的消息、重试、停止、审批、模型、重命名、归属、置顶、归档恢复与永久删除；项目操作；设置；Provider；团队、追踪、审计、导出；Memory 检索 |
 | `src/runs.ts` | `runPaths` | 追加指令、暂停、继续、结果确认 |
 | `src/permissions.ts` | `permissionPaths` | 全局 / Workspace 规则、Session 模式与规则 |
 | `src/checkpoints.ts` | `checkpointPaths` | Checkpoint 列表、回退、分叉 |
@@ -90,7 +90,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `src/teams.ts` | `teamPaths` | 团队 |
 | `src/trace.ts` | `tracePaths` | 追踪、审计、导出 |
 
-提交消息：`POST apiPaths.sessionMessages(id) { text }` → 202 `{ runId }`（开始 Run）或 `{ done: true }`（动作，例如 `/compact` 之外的命令）。回答审批：`POST apiPaths.sessionApproval(id, requestId)`（`AnswerApprovalRequest`）→ 204。
+提交消息：`POST apiPaths.sessionMessages(id) SubmitMessageRequest { text, images? }`（含图片时文字可为空，服务端重新校验图片格式、字节上限及所选模型能力） → 202 `{ runId }`（开始 Run）或 `{ done: true }`（动作，例如 `/compact` 之外的命令）。回答审批：`POST apiPaths.sessionApproval(id, requestId)`（`AnswerApprovalRequest`）→ 204。
 
 ## 进度事件
 
@@ -137,9 +137,9 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `nothing-to-continue` | 409 | 上一 Run 不是 paused / interrupted |
 | `confirmation-pending` | 409 | 有未回答的结果确认 |
 | `recovery-failed` | 409 | 启动恢复没能处理该 Session |
-| `session-busy` | 409 | Run 或审批进行中，不能回退或分叉 |
+| `session-busy` | 409 | 会话或工作目录有阻止本次操作的执行、后台任务或定时任务，或项目删除时停止失败；`details` 区分原因与资源 |
 | `session-archived` | 409 | Session 已归档，恢复后才能运行或修改 |
-| `already-exists` | 409 | ID 已被使用 |
+| `already-exists` | 409 | 标识或唯一约束冲突，例如分支同名、编辑项目的主要文件夹已属于其他项目；创建项目命中主要目录按 existing 结果处理 |
 | `revision-conflict` | 409 | expectedRevision 不一致 |
 | `invalid-transition` | 409 | 当前阶段不允许该动作 |
 | `job-not-running` | 409 | 后台任务已结束 |

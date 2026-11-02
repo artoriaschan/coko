@@ -13,10 +13,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] 跨票 E2E 通过
-- [ ] 横切验收与画布核对记录在 Comments
-- [ ] 文档与 ADR 状态更新；`check:docs` 通过
-- [ ] 检查结果按测试约定报告
+- [x] 跨票 E2E 通过
+- [x] 横切验收与画布核对记录在 Comments
+- [x] 文档与 ADR 状态更新；`check:docs` 通过
+- [x] 检查结果按测试约定报告
 
 
 ## Comments
@@ -33,3 +33,15 @@
 
 - 补充当前构建原生验收：`pnpm run test`显式选择projects-migration/create-project/project-edit/session-move/first-send/branches/destination/titles/session-archive/session-delete/model-picker/session-pinning/sidebar-lists的13个e2e完整路径（见证据命令），退出0、16用例通过。
 - 已从AGENTS→docs/README→projects/workbench→GLOSSARY/ADR索引/0020～0022独立读回；生命周期八项（路径引用、语义、归属权威、引用方向、生命周期、当前入口、新会话读入、历史保留）通过。消费者搜索中旧01/06/07/12票的partial为历史交付事实予以保留，其他当前摘要已迁移，无正式反向scratch依赖。
+
+
+### 最终联合验收与关闭
+
+- 已合入最新集成`6babb1b4`形成`c1f59f3b`，解决faux标题匹配抢占、实际请求日志/费用计数，以及首条流式回复的完整前缀和脱敏偏移安全问题。源码/对手回归15文件101通过，协议README完整性2文件6通过；正式workbench/protocol说明已同步。
+- 两个新只读验证者在精确干净`c1f59f3b`各重建测试产物并分别跑16份继承native文件，一次运行无重试：A为30通过/1跳过，B为26通过/0跳过；合计32文件56通过/1跳过/0失败。唯一跳过为无`DEEPSEEK_API_KEY`的真实模型用例，不计为通过。分组完整路径、旧失败和日志/报告位置已保存到[收尾证据](../evidence/23-closeout.md)。
+- 当前核心24文件163、收尾/plan/context/workbench原生4文件9均通过。随后Browser两次205/206暴露分支子层退出焦点问题，未以隔离或加日志通过掩盖。确定性CSS动画暂停+CDP鼠标回归先红，确认旧radio在退出中夺回焦点后卸载为BODY；同时trace确认叠加子层进入路径被横向grace误关。最终只在ProjectGitMenu添加自身子层relatedTarget包含判断和closed pointer-events important守卫，保留其他离开、所有键盘/检出/失败断言，原用例数量不变。
+- 最终无诊断的完整Browser原17文件206/206通过；当前重新package的closeout/branches/first-send-worktree/session-move为4文件9/9通过。旧32矩阵在c1f59f3b的证据不改写成新整仓运行；最后局部delta的直接消费者按此范围重验，其他数据/执行/权限/stream源未改。
+- 最终`pnpm run typecheck`、目标`oxlint`、格式整理、固定基线`git diff 44b9296 --check`退出0，ProjectGitMenu detector为`[]`。全部临时DEBUG/重复探针撤销；保留确定性退出指针回归。文档从入口及protocol README读回，路径/语义/权威/引用方向/生命周期/导航/新会话读入/历史八项通过。最终`pnpm run check:docs`退出0，检查249个Markdown文件、0问题。
+- 本地实施与全部既定验收完成；尚未进行最终独立评审、main合并、远端push/PR、发布产物或CI。真实模型、实际OS选择器/剪贴板/Finder与跨平台验证范围按证据限制明确区分。
+
+Closed: true

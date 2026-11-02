@@ -1,6 +1,6 @@
 import '../../styles.css'
 import { expect, it } from 'vitest'
-import { page, userEvent } from 'vitest/browser'
+import { cdp, page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
@@ -156,6 +156,13 @@ it('local branch search, busy refusal preserves selection, successful checkout e
   const configuration = page.getByRole('button', { name: '项目配置', exact: true })
   await configuration.click()
   await page.getByRole('menuitem', { name: '分支 main', exact: true }).click()
+  const initialSubmenu = page.getByRole('menu', { name: '搜索本地分支' })
+  await expect.element(initialSubmenu).toBeVisible()
+  await userEvent.hover(page.getByRole('menuitem', { name: '分支 main', exact: true }))
+  await userEvent.hover(page.getByRole('switch', { name: '新建工作树' }))
+  await expect.element(initialSubmenu).not.toBeInTheDocument()
+  await expect.element(page.getByRole('menu', { name: '项目配置' })).toBeVisible()
+  await page.getByRole('menuitem', { name: '分支 main', exact: true }).click()
   const search = page.getByRole('textbox', { name: '搜索本地分支' })
   await expect.element(page.getByRole('menuitemradio', { name: 'main', exact: true })).toHaveAttribute('aria-checked', 'true')
   await search.fill('absent')
@@ -167,9 +174,26 @@ it('local branch search, busy refusal preserves selection, successful checkout e
   expect(fixture.chat.newChat.getState().branch).toBe(null)
   refused = false
   await page.getByRole('menuitem', { name: '分支 main', exact: true }).click()
+  const exiting = page.getByRole('menu', { name: '搜索本地分支' }).element() as HTMLElement
+  await Promise.all(exiting.getAnimations().map((animation) => animation.finished))
+  // Hold the actual CSS exit to deterministically move the pointer over its old radio item.
+  exiting.style.animationPlayState = 'paused'
   await page.getByRole('menuitemradio', { name: 'feature', exact: true }).click()
   const parentItem = page.getByRole('menuitem', { name: '分支 feature', exact: true })
   await expect.element(parentItem).toBeVisible()
+  try {
+    await expect.element(parentItem).toHaveFocus()
+    expect(exiting.dataset.state).toBe('closed')
+    expect(getComputedStyle(exiting).pointerEvents).toBe('none')
+    const oldItem = exiting.querySelector<HTMLElement>('[role="menuitemradio"]')!
+    const box = oldItem.getBoundingClientRect()
+    await cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 })
+    await cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  } finally {
+    for (const animation of exiting.getAnimations()) animation.finish()
+    exiting.style.animationPlayState = ''
+    await expect.element(page.getByRole('menu', { name: '搜索本地分支' })).not.toBeInTheDocument()
+  }
   await expect.element(parentItem).toHaveFocus()
   expect(current).toBe('feature')
   expect(fixture.chat.newChat.getState().branch).toBe('feature')

@@ -211,7 +211,7 @@ Pencil只读打开仓库`docs/ui/双栏布局.pen`，读取/查看`Y5Oqw`、`B1e
 
 ## 结论与限制
 
-本地源码/测试构建证据不表示真实模型API、生产签名发布包、CI、远端推送、PR、合并main、Windows/Linux或实际OS选择器/剪贴板/Finder通过。当前无CI工作流；测试未向子进程传入真实外部模型凭据。32份继承原生矩阵的修复/重验、最终机械检查和关闭状态将在后续章节明确记录。
+本地源码/测试构建证据不表示真实模型API、生产签名发布包、CI、远端推送、PR、合并main、Windows/Linux或实际OS选择器/剪贴板/Finder通过。当前无CI工作流；测试未向子进程传入真实外部模型凭据。32份继承原生矩阵的修复/重验、最终机械检查和关闭状态见后续章节。
 
 ## 补充检查
 
@@ -240,3 +240,47 @@ UI夹具修复`aa647da0`，仅改3份测试，无产品改动或放宽断言：
 - teams在单次Escape返回设置前，等已经closed的portalled Tooltip退出动画卸载，避免它的DismissableLayer消费该按键。保留团队状态、审批、运行计数、真实文件、成员只读、明暗对比及键盘断言。
 
 `COKO_E2E_BACKGROUND=1 pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/permissions.e2e.test.ts apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/teams.e2e.test.ts --reporter=default`：修复前3文件7用例4失败/3通过；修复后同命令7/7通过，当前源码globalSetup重建Electron测试产物。该局部修复通过不替代合并后的32文件矩阵。
+
+
+## 联合提交的最终原生矩阵
+
+两个新只读验证者在干净的精确提交`c1f59f3b9f03820206c128c63614e27c3c2b16df`分别运行16份分组，构建前后确认SHA及工作区未变；每组一次调用，无重试、断言修改或新增超时。globalSetup各自重新执行测试构建package。A为16文件30通过/1跳过/0失败，B为16文件26通过/0跳过/0失败；合计32文件56通过/1跳过/0失败。唯一跳过是settings中的真实DeepSeek凭据场景，`DEEPSEEK_API_KEY`未配置，明确未验证真实模型。
+
+精确可复现选择：
+
+```sh
+COKO_E2E_BACKGROUND=1 pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/commands.e2e.test.ts apps/desktop/e2e/config.e2e.test.ts apps/desktop/e2e/dock.e2e.test.ts apps/desktop/e2e/handoff.e2e.test.ts apps/desktop/e2e/jobs.e2e.test.ts apps/desktop/e2e/mcp-browser.e2e.test.ts apps/desktop/e2e/memory.e2e.test.ts apps/desktop/e2e/permissions.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/ripgrep-logging.e2e.test.ts apps/desktop/e2e/sandbox.e2e.test.ts apps/desktop/e2e/settings.e2e.test.ts apps/desktop/e2e/subagent-notifications.e2e.test.ts apps/desktop/e2e/teams.e2e.test.ts
+COKO_E2E_BACKGROUND=1 pnpm exec vitest run --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/compaction.e2e.test.ts apps/desktop/e2e/context.e2e.test.ts apps/desktop/e2e/goal.e2e.test.ts apps/desktop/e2e/hooks.e2e.test.ts apps/desktop/e2e/lsp.e2e.test.ts apps/desktop/e2e/mcp.e2e.test.ts apps/desktop/e2e/open-session.e2e.test.ts apps/desktop/e2e/plugins.e2e.test.ts apps/desktop/e2e/recovery.e2e.test.ts apps/desktop/e2e/rewind.e2e.test.ts apps/desktop/e2e/run-control.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/skills.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts
+```
+
+本机保留`/tmp/coko-native-final-results-a.md`、`/tmp/coko-native-final-results-b.md`、两组`/tmp/coko-native-final-{a,b}.{log,json}`及原失败报告；逐文件选择与分组文件表一致，无零选中。当前收尾分支在同一联合源码另跑E-closeout/plan/context/workbench：4文件9通过；当前Sidecar/存储/迁移/Finder注入24文件163通过。
+
+## 标题与首次发送流式修复
+
+联合提交包含`6babb1b4`：faux标题请求只消费显式`match: COKO_SESSION_TITLE`，不消费正文中同词的普通回复；所有实际标题调用仍写入requestLog/requestDetailsLog。命令/凭据用例分别断言实际title和普通请求；Goal额外显式15 tokens标题费用，Session合计包含title，Run和Goal原断言保留。
+
+首次发送保留接受Run身份，并以每块offset0及连续UTF-16偏移证明完整前缀；不同Run、迟到缺头和偏移缺口等待完整assistant条目。正常中途打开和重连保留安全行为，Secret流脱敏器按实际发出的替换后文本重算偏移。新增晚订阅、缺口、多块、emoji、旧Run及脱敏偏移回归均先红后绿；当前原生chat仍断言首条回复至少两份不同partial、Markdown、工具卡、实际文件和会话身份，没有放宽流式断言。
+
+修复者最终聚焦门禁：`pnpm exec vitest run apps/desktop/src/renderer/stores/chat-store*.test.ts packages/agent/src/engine/runtime.test.ts packages/protocol/src/ws.test.ts packages/protocol/src/readme.test.ts apps/server/src/adapters/faux.test.ts apps/server/src/application/secret-redaction.test.ts`，15文件101通过；标题与秘密Sidecar2文件12通过。最初协议README完整性2失败后按真实API_ROUTES/ErrorCode补表，未修改完整性守卫。协议README与workbench当前正文补充可选图片提交、操作原因及偏移的安全边界，最终读回和机械检查另记。
+
+
+## 最后分支焦点回归
+
+联合`c1f59f3b`上的17文件Browser先两次为205通过/1失败，均在`branches.browser.test.tsx`的异步检出后`toHaveFocus`断言，最终焦点为BODY。之前206通过属于先前快照；不能覆盖这两次失败。隔离原例、受控checkout完成点、8次诊断重复以及加日志的整组分别通过，均只作诊断，不作为修复证明；所有临时重复/日志已撤销，最终仍为原4个分支用例/全组206个。
+
+因果回归沿用原Browser seam：暂停实际CSS退出动画，等父触发项焦点返回，以CDP真实鼠标移动经过仍在退出的旧radio，再完成动画，保留原焦点断言。修复前稳定重现旧radio重新获得焦点、卸载后BODY。Radix子层退出时仍挂载且不执行默认焦点恢复；普通pointer utility被DismissableLayer的inline auto覆盖。加入important guard后，还捕获到叠加布局中从trigger移入portal子层触发横向grace失配，父menu被聚焦并过早关闭子层，原本退出中的内容仍可被点击掩盖了该路径。
+
+最终仅`ProjectGitMenu`局部修复：直接移入自身portal子层的pointerleave保留上下文；其他父项或外部目标仍走Radix原处理。`data-[state=closed]:pointer-events-none!`使已关闭子层退出期间不接收指针，并在回归中断言实际computed pointerEvents=none。保留全部检出、dirty/busy、失败、base branch与键盘断言；补普通离开到父worktree项仍关闭子层且保留父菜单。未修改共享UI/全局CSS、超时、守卫或断言标准。
+
+32份native矩阵保留精确`c1f59f3b`结果；最终新增产品delta只在分支配置子菜单命中/离开，不修改这32份矩阵所测的数据、权限、Run/stream等源代码。该delta的直接消费者另用当前构建的branches、first-send-worktree、session-move及E-closeout验证，最终结果在下行/票Comments记录，不将旧矩阵改称新的整仓运行。
+
+
+## 最终结果与读回
+
+- 上述分支局部修复完成后，按原始17文件完整命令运行，退出0，17文件206用例通过（含原4个分支用例，新增确定性时序步骤与原断言并存）。普通离开/键盘/移到项目/搜索/菜单消费者全部在此组。日志本机`/tmp/cw23-browser-verified.log`。调试重复、加日志的绿灯不替代本次无诊断运行，临时DEBUG代码已全部移除。
+- `pnpm run test apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts apps/desktop/e2e/branches.e2e.test.ts apps/desktop/e2e/first-send-worktree.e2e.test.ts apps/desktop/e2e/session-move.e2e.test.ts`：按最终源码重新package，4文件9用例通过，退出0。E-closeout包含全部必需跨票、画布关键几何、明暗窄窗口reduce与CW66/88联合链路；直接分支/工作树/移动入口通过。
+- `pnpm run typecheck`、两份分支TS/TSX的`oxlint`与格式整理、最终固定基线`git diff 44b9296 --check`均退出0；Impeccable对最终ProjectGitMenu运行一次返回`[]`。最终`pnpm run check:docs`退出0，检查249个Markdown文件、0问题。
+- `pnpm run test packages/protocol/src/readme.test.ts packages/protocol/src/ws.test.ts`：2文件6用例通过。补入的图片提交、项目/Session操作、归档/Git错误和UTF-16脱敏偏移与真实schema/registry一致；没有更改守卫。AGENTS→docs/README→workbench/projects→ADR索引/0020～0022/GLOSSARY，以及所链接protocol README已读回；八项生命周期检查通过，正式正文不依赖具体scratch。0021已实施边界的旧将来时语句同步为当前实施表述，保留决定本义。
+- 所有95条CW验收均有本记录中的具体测试或实际人工观测。票23关闭只表示本地实施与既定验收已完成，后续独立评审、集成分支合入、main合并、推送、PR与发布仍分别报告。
+
+保留限制：真实外部模型因无凭据跳过，实际OS选择器/剪贴板/Finder不在已证明范围；Electron为测试构建而非发布签名产物；无CI工作流、未进行Windows/Linux或远端发布验证。历史失败均保留并与最终有效通过区分。
