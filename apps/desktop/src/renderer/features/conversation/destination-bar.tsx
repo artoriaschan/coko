@@ -1,3 +1,4 @@
+import { ProjectGitMenu } from './project-git-menu.tsx'
 import {
   Button,
   DropdownMenu,
@@ -149,6 +150,7 @@ export function DestinationBar({ className }: { className?: string }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <ProjectGitMenu project={project} />
     </div>
   )
 }

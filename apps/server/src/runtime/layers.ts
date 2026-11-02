@@ -1,3 +1,4 @@
+import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
 import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type SnapshotPort, type ToolHooks, type ToolRegistry } from '@coko/agent'
 import { getLogger, REDACTED, registerSecretValues } from '@coko/logging'
@@ -602,6 +603,16 @@ const AppLive = Layer.effect(
     })
     // 项目 .coko/settings.json 的 deny / ask 规则作为只读的 project 作用域参与判定（ADR 0008）。
     sessions.permissions.useProjectRules(capabilities)
+    const branches = new BranchService({
+      store,
+      git: createGitRunner({ env, track: processes.track }),
+      activity: {
+        busy: (id) => sessions.runs.busy(id),
+        cwd: (session) => sessions.runs.cwd(session),
+        runningJobs: async (id) => (await jobs.list(id)).some((job) => job.status === 'running'),
+      },
+    })
+    sessions.runs.useDirectoryAdmission(branches.assertAdmission)
     bindSessions(sessions, worktrees)
     // 代码智能：GET /api/lsp?sessionId= 按该 Session 的工作目录给出状态。
     lsp.bindSessions(async (sessionId) => {
@@ -734,6 +745,7 @@ const AppLive = Layer.effect(
       subagents,
       schedules,
       worktrees,
+      branches,
       handoff,
       notifications,
       plugins,

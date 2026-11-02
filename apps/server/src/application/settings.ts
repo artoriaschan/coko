@@ -18,6 +18,7 @@ export class SettingsService {
 
   async put(key: string, value: unknown, expectedRevision: number): Promise<Setting> {
     if (!KEY.test(key)) throw new AppError('bad-request', `Invalid setting key: ${key}`)
+    if (key === 'git.branchPrefix' && typeof value !== 'string') throw new AppError('bad-request', 'Branch prefix must be a string')
     if (value === undefined) throw new AppError('bad-request', 'value is required')
     // 权限设置有 schema 与重新判定，只能经 /api/permissions 修改。
     if (isPermissionSettingKey(key)) throw new AppError('bad-request', `Setting ${key} can only be changed through /api/permissions`)
