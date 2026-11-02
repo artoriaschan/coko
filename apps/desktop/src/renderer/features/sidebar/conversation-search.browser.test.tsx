@@ -213,3 +213,14 @@ it('pointer menus avoid viewport edges and delete stays bound to the original Se
   await userEvent.keyboard('{Escape}')
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
 })
+
+it('highlights every case-insensitive title occurrence and keeps older timestamps relative', async () => {
+  await setup([{ ...fixtureSessions[0]!, title: 'Example EXAMPLE example', updatedAt: Date.now() - 10 * 86400000 }])
+  const input = page.getByRole('combobox')
+  await input.fill('example')
+  const row = page.getByRole('option', { name: 'Example EXAMPLE example' })
+  expect([...row.element().querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['Example', 'EXAMPLE', 'example'])
+  await expect.element(row.getByText('10d ago')).toBeVisible()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+})

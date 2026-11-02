@@ -64,8 +64,9 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
     if (minutes < 1) return t('sidebar.justNow')
     if (minutes < 60) return t('sidebar.minutesAgo', { count: minutes })
     if (minutes < 1440) return t('sidebar.hoursAgo', { count: Math.floor(minutes / 60) })
-    if (minutes <= 10080) return t('sidebar.daysAgo', { count: Math.floor(minutes / 1440) })
-    return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(at)
+    const days = Math.floor(minutes / 1440)
+    if (days < 30) return t('sidebar.daysAgo', { count: days })
+    return new Intl.RelativeTimeFormat(locale).format(days < 365 ? -Math.floor(days / 30) : -Math.floor(days / 365), days < 365 ? 'month' : 'year')
   }
   const target = menu ? (sessions.find((session) => session.id === menu.session.id) ?? menu.session) : null
   return (
@@ -132,7 +133,20 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
           {results.map((session, index) => {
             const title = session.title.trim() || t('sidebar.untitled')
             const project = projects.find((project) => project.id === session.projectId)
-            const start = needle ? title.toLowerCase().indexOf(needle) : -1
+            const highlighted: React.ReactNode[] = []
+            let offset = 0
+            let start = needle ? title.toLowerCase().indexOf(needle) : -1
+            while (start >= 0) {
+              highlighted.push(
+                title.slice(offset, start),
+                <mark key={start} className="rounded-xs bg-primary/15 text-foreground">
+                  {title.slice(start, start + needle.length)}
+                </mark>,
+              )
+              offset = start + needle.length
+              start = title.toLowerCase().indexOf(needle, offset)
+            }
+            highlighted.push(title.slice(offset))
             return (
               <div key={session.id}>
                 {renaming === session.id ? (
@@ -174,15 +188,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                   >
                     <MessageCircleIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.1} />
                     <span data-user-content className="min-w-0 flex-1 truncate">
-                      {start < 0 ? (
-                        title
-                      ) : (
-                        <>
-                          {title.slice(0, start)}
-                          <mark className="rounded-xs bg-primary/15 text-foreground">{title.slice(start, start + needle.length)}</mark>
-                          {title.slice(start + needle.length)}
-                        </>
-                      )}
+                      {highlighted}
                     </span>
                     {project && (
                       <span data-user-content className="max-w-32 truncate rounded-xs bg-muted px-1.5 text-ui-small text-muted-foreground">
