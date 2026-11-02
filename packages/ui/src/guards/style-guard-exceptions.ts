@@ -10,4 +10,12 @@ export interface StyleGuardException {
 }
 
 /** 修改例外需要在评审中说明原因。 */
-export const styleGuardExceptions: StyleGuardException[] = []
+export const styleGuardExceptions: StyleGuardException[] = [
+  {
+    file: 'apps/desktop/src/renderer/features/sidebar/conversation-search.tsx',
+    rule: 'menu',
+    match: 'role="listbox"',
+    reason:
+      'The searchable modal uses shared Dialog material and SidebarListRow results; its combobox requires listbox semantics without a second menu surface.',
+  },
+]

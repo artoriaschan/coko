@@ -332,36 +332,25 @@ describe('设置页', () => {
 })
 
 describe('侧栏搜索', () => {
-  const visibleTitles = () => [...document.querySelectorAll('[data-session-id]')].map((el) => el.textContent?.trim())
-
-  it('搜索按钮打开输入框，按标题过滤会话（不区分大小写），无结果时说明；Escape 清除并关闭', async () => {
-    await page.viewport(1280, 800)
-    const { screen } = renderApp('en')
+  it.each([1280, 800])('search opens a shared modal at %spx without creating or replacing the current Session', async (width) => {
+    await page.viewport(width, 800)
+    const { chat, screen } = renderApp('en')
     await screen
-    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
-    await page.getByRole('button', { name: 'Search', exact: true }).click()
-    const input = page.getByRole('searchbox', { name: 'Search sessions' })
+    await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    const before = chat.lists.getState().sessions
+    const trigger = page.getByRole('button', { name: 'Search', exact: true })
+    await trigger.click()
+    const dialog = page.getByRole('dialog', { name: 'Search conversations' })
+    const input = dialog.getByRole('combobox')
     await expect.element(input).toHaveFocus()
-    await userEvent.keyboard('SIDECAR')
-    await expect.poll(visibleTitles).toEqual(['Sidecar startup handshake'])
-    // 没有命中会话的项目不显示。
-    expect(document.querySelector('[data-project-id="project-w-pi"]')).toBeNull()
-    await input.fill('no such session')
-    await expect.poll(visibleTitles).toEqual([])
-    await expect.element(page.getByText('No matching sessions')).toBeVisible()
+    await input.fill('SIDECAR')
+    await expect.element(dialog.getByRole('option', { name: 'Sidecar startup handshake' })).toBeVisible()
+    await expect.poll(() => dialog.element().querySelectorAll('[role=option]').length).toBe(1)
     await userEvent.keyboard('{Escape}')
-    await expect.element(input).not.toBeInTheDocument()
-    await expect.poll(() => visibleTitles().length).toBeGreaterThan(3)
-  })
-
-  it('rail 中的搜索按钮展开侧栏并聚焦搜索框', async () => {
-    await page.viewport(800, 700)
-    await renderApp('en').screen
-    await page.getByRole('button', { name: 'Search', exact: true }).click()
-    const drawer = page.getByRole('dialog', { name: 'Sidebar' })
-    await expect.element(drawer.getByRole('searchbox', { name: 'Search sessions' })).toHaveFocus()
-    await userEvent.keyboard('ripgrep')
-    await expect.poll(visibleTitles).toEqual(['ripgrep contract tests'])
+    await expect.element(dialog).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveFocus()
+    expect(chat.getState().activeSessionId).toBe('s-1')
+    expect(chat.lists.getState().sessions).toEqual(before)
   })
 })
 

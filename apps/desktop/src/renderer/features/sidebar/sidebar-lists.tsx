@@ -38,7 +38,7 @@ export function SidebarLists(props: SidebarListsProps) {
   )
 }
 
-function SidebarListsContent({ onAddWorkspace, search, onSelect, onNewSession }: SidebarListsProps) {
+function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: SidebarListsProps) {
   const { t } = useI18n()
   const sessions = useLists((state) => state.sessions)
   const projects = useLists((state) => state.projects)
@@ -52,19 +52,12 @@ function SidebarListsContent({ onAddWorkspace, search, onSelect, onNewSession }:
   const counts = useLists((state) => state.visibleCounts)
   const active = useChat((state) => state.activeSessionId)
   const { load } = useChatActions()
-  const needle = search?.trim().toLocaleLowerCase() ?? ''
-  const visible = sortSessions(
-    sessions.filter((session) => session.archivedAt === null && session.pinnedAt === null && session.title.toLocaleLowerCase().includes(needle)),
-  )
+  const visible = sortSessions(sessions.filter((session) => session.archivedAt === null && session.pinnedAt === null))
   const standalone = visible.filter((session) => session.projectId === null)
   const pinned = sessions
-    .filter((session) => session.archivedAt === null && session.pinnedAt !== null && session.title.toLocaleLowerCase().includes(needle))
+    .filter((session) => session.archivedAt === null && session.pinnedAt !== null)
     .toSorted((a, b) => b.pinnedAt! - a.pinnedAt! || a.id.localeCompare(b.id))
-  const pinnedProjects = projects.filter(
-    (project) =>
-      project.pinnedAt !== null &&
-      (!needle || project.name.toLocaleLowerCase().includes(needle) || visible.some((session) => session.projectId === project.id)),
-  )
+  const pinnedProjects = projects.filter((project) => project.pinnedAt !== null)
   const pinnedItems = [
     ...pinned.map((session) => ({ kind: 'session' as const, item: session })),
     ...pinnedProjects.map((project) => ({ kind: 'project' as const, item: project })),
@@ -81,7 +74,7 @@ function SidebarListsContent({ onAddWorkspace, search, onSelect, onNewSession }:
         b.createdAt - a.createdAt ||
         a.id.localeCompare(b.id),
     )
-  const shownProjects = ordered.filter((project) => !needle || visible.some((session) => session.projectId === project.id))
+  const shownProjects = ordered
   const anyExpanded = ordered.some((project) => expandedProjects[project.id] ?? true)
   return (
     <nav aria-label={t('sidebar.sessions')} aria-busy={status === 'loading' || undefined} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -100,7 +93,6 @@ function SidebarListsContent({ onAddWorkspace, search, onSelect, onNewSession }:
           </Button>
         </div>
       )}
-      {needle && visible.length === 0 && <p className="px-2 text-ui-body text-muted-foreground">{t('sidebar.noMatches')}</p>}
       {pinnedItems.length > 0 && (
         <section data-category="pinned" className="mb-3" aria-labelledby="pinned-heading">
           <SidebarCategoryHeader

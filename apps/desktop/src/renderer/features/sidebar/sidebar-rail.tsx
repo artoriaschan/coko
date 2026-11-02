@@ -20,14 +20,7 @@ export function SidebarRail({ onSearch }: { onAddWorkspace: () => void; onSearch
         <IconButton label={t('sidebar.newSession')} onClick={() => navigation.newChat()}>
           <SquarePenIcon />
         </IconButton>
-        <IconButton
-          label={t('sidebar.search')}
-          onClick={() => {
-            // 展开侧栏（窄窗口下为抽屉）并打开其中的搜索框。
-            onSearch()
-            if (!sidebarVisible) toggleSidebar()
-          }}
-        >
+        <IconButton label={t('sidebar.search')} onClick={onSearch}>
           <SearchIcon />
         </IconButton>
         <IconButton label={t('sidebar.back')} disabled={!navigation.canBack} onClick={navigation.back}>
