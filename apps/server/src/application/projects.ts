@@ -8,8 +8,14 @@ import { AppError } from './errors.ts'
 /** Project 的持久化组织关系与当前列表视图。 */
 export class ProjectService {
   readonly #store: SessionStore
-  constructor(store: SessionStore) {
+  readonly #removal: { removeProject(id: string): Promise<{ sessionIds: string[] }> }
+  constructor(store: SessionStore, removal: { removeProject(id: string): Promise<{ sessionIds: string[] }> }) {
     this.#store = store
+    this.#removal = removal
+  }
+
+  delete(id: string): Promise<{ sessionIds: string[] }> {
+    return this.#removal.removeProject(id)
   }
 
   async checkFolder(path: string): Promise<{ path: string }> {

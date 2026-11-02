@@ -29,10 +29,12 @@ import {
   PinOffIcon,
   PlusIcon,
   FolderInputIcon,
+  Trash2Icon,
 } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useEditProject } from '../projects/project-dialogs.tsx'
+import { useDeleteProject } from '../projects/project-delete-dialog.tsx'
 import { SessionMenuIcon } from './session-menu.tsx'
 
 /** Lifecycle ticket 15 supplies the destructive item after the common commands. */
@@ -54,10 +56,13 @@ export function ProjectRow({
   const sessionCount = useLists((state) => state.sessions.filter((session) => session.projectId === project.id && session.archivedAt === null).length)
   const expanded = useLists((state) => state.expandedProjects[project.id] ?? true)
   const edit = useEditProject()
+  const remove = useDeleteProject()
   const [details, setDetails] = React.useState(false)
   const [menu, setMenu] = React.useState(false)
   const [renaming, setRenaming] = React.useState(false)
   const [pending, setPending] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  const more = React.useRef<HTMLButtonElement>(null)
   const row = React.useRef<HTMLButtonElement>(null)
   const card = React.useRef<HTMLDivElement>(null)
   const scrolling = React.useRef<FadingTitleHandle>(null)
@@ -120,7 +125,7 @@ export function ProjectRow({
     <HoverCard
       open={details}
       onOpenChange={(open) => {
-        if (!open || (allowOpen.current && !menu && !renaming)) setDetails(open)
+        if (!open || (allowOpen.current && !menu && !renaming && !deleting)) setDetails(open)
       }}
     >
       <HoverCardTrigger asChild>
@@ -132,7 +137,7 @@ export function ProjectRow({
             if (event.pointerType !== 'touch') allowOpen.current = true
           }}
           onFocusCapture={() => {
-            if (!suppressFocus.current && !menu && !renaming) {
+            if (!suppressFocus.current && !menu && !renaming && !deleting) {
               allowOpen.current = true
               setDetails(true)
             }
@@ -185,6 +190,7 @@ export function ProjectRow({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      ref={more}
                       variant="toolbar"
                       size="icon-xs"
                       className="size-6 rounded-sm"
@@ -277,12 +283,40 @@ export function ProjectRow({
               </SessionMenuIcon>
               {t('sidebar.openFinder')}
             </DropdownMenuItem>
-            {menuSlots.delete && (
+            {
               <>
                 <DropdownMenuSeparator />
-                {menuSlots.delete}
+                {menuSlots.delete ?? (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={!remove}
+                    onSelect={() => {
+                      closeDetails()
+                      skipMenuFocus.current = true
+                      setMenu(false)
+                      setDeleting(true)
+                      remove?.({
+                        projectId: project.id,
+                        restoreFocus: () => {
+                          setDeleting(false)
+                          suppressFocus.current = true
+                          if (more.current?.isConnected) more.current.focus()
+                          else document.querySelector<HTMLButtonElement>('[data-category="conversations"] button')?.focus()
+                          queueMicrotask(() => {
+                            suppressFocus.current = false
+                          })
+                        },
+                      })
+                    }}
+                  >
+                    <SessionMenuIcon>
+                      <Trash2Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                    </SessionMenuIcon>
+                    {t('sidebar.deleteProject')}
+                  </DropdownMenuItem>
+                )}
               </>
-            )}
+            }
           </RowMenu>
         </div>
       </HoverCardTrigger>

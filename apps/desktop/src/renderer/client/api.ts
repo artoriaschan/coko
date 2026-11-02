@@ -14,6 +14,7 @@ import {
   PermissionsResponse,
   ProjectListResponse,
   CreateProjectResponse,
+  DeleteProjectResponse,
   UpdateProjectResponse,
   Project,
   CheckProjectFolderResponse,
@@ -104,6 +105,7 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
 
   return {
     listProjects: async () => (await call(ProjectListResponse, 'GET', API_ROUTES.projects)).projects,
+    deleteProject: (id: string) => call(DeleteProjectResponse, 'DELETE', apiPaths.project(id)),
     listWorkspaces: async () => (await call(WorkspaceListResponse, 'GET', API_ROUTES.workspaces)).workspaces,
     registerWorkspace: (path: string) => call(Workspace, 'POST', API_ROUTES.workspaces, { path }),
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,

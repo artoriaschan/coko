@@ -31,4 +31,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0019](0019-headless-runs-deny-approvals.md) | 无界面运行的审批自动拒绝，Provider 来自启动配置 | accepted | implemented |
 | [0020](0020-projects-organize-workspaces.md) | 项目是组织容器，执行边界仍是 Workspace | accepted | partial |
 | [0021](0021-new-chat-worktree-base-branch.md) | 新对话的 worktree 在首次发送时从所选分支创建 | accepted | not-started |
-| [0022](0022-project-removal-preserves-sessions.md) | 删除项目保留会话，局部替代 ADR 0020 的删除条款 | accepted | not-started |
+| [0022](0022-project-removal-preserves-sessions.md) | 删除项目保留会话，局部替代 ADR 0020 的删除条款 | accepted | implemented |

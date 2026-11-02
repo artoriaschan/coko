@@ -574,6 +574,7 @@ const AppLive = Layer.effect(
     yield* Effect.promise(() => providers.load())
     const sessions: SessionService = new SessionService({
       store,
+      clock,
       registry,
       hub,
       runs,
@@ -592,6 +593,8 @@ const AppLive = Layer.effect(
     const titles = new SessionTitles({ store, sessions, registry, clock })
     yield* Effect.addFinalizer(() => Effect.promise(() => titles.close()))
     sessions.useLifecycle({
+      retainProjectWorktrees: (id) => subagents.retainProjectWorktrees(id),
+      retainWorktrees: (ids, task) => subagents.retainWorktrees(ids, task),
       runningJobs: async (id) => (await jobs.list(id)).some((job) => job.status === 'running' || job.status === 'stopping'),
       quiesce: (ids, task) =>
         schedules.quiesceSessions(ids, async () => {
@@ -735,7 +738,7 @@ const AppLive = Layer.effect(
       firstSend: new FirstSendService({ store, sessions, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
-      projects: new ProjectService(store),
+      projects: new ProjectService(store, sessions),
       config: capabilities,
       context: new ContextService({ store, assembly: context, sessions, cwd: worktrees.cwd }),
       memories,

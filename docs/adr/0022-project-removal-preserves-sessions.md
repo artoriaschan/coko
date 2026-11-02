@@ -2,7 +2,7 @@
 kind: decision
 description: "删除项目前确认影响：停止运行中的对话，移除项目组织关系，保留会话记录与源文件。局部替代 ADR 0020 的删除项目决定；修改项目删除或会话归属时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: feature
 ---
@@ -28,7 +28,9 @@ category: feature
 
 ## 后果与验证
 
-本页记录目标需求，尚未实施生产行为。实施时需验证：取消与关闭无副作用；运行中的对话停止后才移除项目；失败不删除记录、不虚报成功；对话及子智能体记录、源文件与 worktree 保留；普通列表、置顶、搜索与当前打开对话的项目引用同步更新；直接删除对话的原约束保持不变。
+已由 [项目删除服务](../../apps/server/src/application/sessions.ts)、[确认弹窗](../../apps/desktop/src/renderer/features/projects/project-delete-dialog.tsx) 和列表状态同步实现，当前契约见[项目与会话列表](../subsystems/projects.md#删除项目并保留会话)。删除期间阻止新 Run、子会话及归属变更，等待根会话和后台子代理的实际结束，再执行原子项目删除；停止超时或结束处理失败保留项目并允许重试，不重启已停止的执行。
+
+[Sidecar 协议用例](../../tests/integration/sidecar-delete-project.test.ts) 验证记录、父子关系、未改动的隔离 worktree 跨重启保留、取消超时的失败与重试、真实后台 Job 在删除后继续写入、定时任务继续触发、Workspace 记忆和批准保留。[浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx) 验证确认几何与指定文案、取消/关闭/Escape 的无副作用及焦点、提交锁定和目标稳定、失败重试、当前记录及草稿附件保留。[真实 Electron 用例](../../apps/desktop/e2e/project-delete.e2e.test.ts) 验证删除项目后原会话在“对话”下保留，并跨应用重启继续发送。直接删除会话的独立约束继续由其[生命周期用例](../../apps/server/src/application/session-delete.test.ts)验证。
 
 ## 来源与后继
 

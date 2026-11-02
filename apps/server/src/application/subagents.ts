@@ -693,6 +693,14 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     await live.ended
   }
 
+  retainWorktrees<T>(ids: string[], task: () => Promise<T>): Promise<T> {
+    return this.#recovery.retainWorktrees(ids, task)
+  }
+
+  retainProjectWorktrees(projectId: string): () => void {
+    return this.#recovery.retainProject(projectId)
+  }
+
   /** 取消 Goal：停止该 Goal 的 Run 派发的全部 running 子代理（前台与后台），等待各自的 agent_end。 */
   async stopForGoal(sessionId: string, goalId: string): Promise<number> {
     const targets = [...this.#live.values()].filter((l) => l.rootId === sessionId && l.goalId === goalId && l.status === 'running')

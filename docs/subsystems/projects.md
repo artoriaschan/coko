@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、多文件夹创建与编辑、项目详情与置顶、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
+description: "项目模型、Workspace 迁移、多文件夹创建与编辑、项目详情与置顶、删除项目保留会话，以及会话归属、列表、菜单和永久删除。"
 lifecycle: active
 ---
 
@@ -32,13 +32,23 @@ SQLite v11 追加主要目录位置字段，旧项目默认为列表第一项；
 
 [ProjectRow](../../apps/desktop/src/renderer/features/sidebar/project-row.tsx) 在整行 hover 或焦点进入时显示更多、新对话按钮和详情。卡片与更多菜单共用整行锚点，在空间足够时位于右侧 2px、顶部对齐；窗口边缘按共享浮层规则避让。指针可穿过间距进入卡片，卡片内的完整名称、未归档根会话数量、全部有序路径和主要标记均可读取，长路径换行并在卡片内部滚动。计数包含单独置顶的项目会话，不重复计数；点击更多先卸载详情，再打开菜单。
 
-菜单依次提供重命名、编辑项目…、置顶 / 取消置顶、项目内新对话和在 Finder 中打开；ProjectMenuSlots.delete 为后续删除操作保留分隔线下的入口，不显示空项目。重命名复用 InlineRename，最多 50 字符，Enter 或失焦提交，Escape 取消，输入法组合期间不提交，空白及未变输入不发送请求。保存失败保留输入、焦点并显示 Toast，成功后列表、项目归属引用和详情同步。
+菜单依次提供重命名、编辑项目…、置顶 / 取消置顶、项目内新对话和在 Finder 中打开；分隔线下显示危险色的“删除项目”。重命名复用 InlineRename，最多 50 字符，Enter 或失焦提交，Escape 取消，输入法组合期间不提交，空白及未变输入不发送请求。保存失败保留输入、焦点并显示 Toast，成功后列表、项目归属引用和详情同步。
 
 卡片和菜单中的编辑打开同一个应用级项目表单，回填名称、全部有序文件夹和主要标记。可以添加、移除及更换主要文件夹；移除主要时由下一项接替，末项被移除时取新的末项。PUT /api/projects/:id 更新原项目并返回 `{ status: updated, project }`，不创建副本，不改变既有会话的 Workspace 或 worktree。文件夹按真实路径再次验证；新主要目录与另一个项目冲突时以 409 already-exists、details.reason 为 primary-conflict、details.project 为冲突项目拒绝，表单显示项目名并保留草稿。手动切换与移除后的接替均走同一约束；名称、目录和主要位置可重启读回。
 
 PUT /api/projects/:id/name 只更新规范化名称；PUT /api/projects/:id/pin 接受布尔 pinned 并返回 Project。重复置顶保留原 pinnedAt，取消置顶清空。置顶分类混合项目树与单独置顶会话，按置顶时间降序排列，不分页；项目树从原分类移出，单独置顶会话继续独立显示且不会在树内复制。取消项目置顶恢复原分类、展开和分页状态，当前会话内容和草稿不重建。两个新对话入口使用已有的工作台导航，预选项目并聚焦输入框，不改变项目展开状态；菜单关闭不会把焦点抢回来源行。
 
 Finder 通过受控 preload IPC 调用 [openDirectory](../../apps/desktop/src/main/open-directory.ts)。main 校验来源主 frame，再验证绝对路径存在且为目录后交给 shell.openPath，文件、不存在的路径及宿主打开失败返回 false；界面显示失败 Toast。打开目标为当前主要文件夹，已有会话仍使用自己的固定工作目录。
+
+## 删除项目并保留会话
+
+“删除项目”先关闭菜单，再打开 [ProjectDeleteDialog](../../apps/desktop/src/renderer/features/projects/project-delete-dialog.tsx)。普通桌面几何为 W480/H208/R28、24px 内边距；标题为“删除项目？”，说明为“项目会从列表中移除，正在运行的对话会被停止。对话记录会保留，移到「对话」下；项目文件夹里的文件不会被删除。”。首次焦点在无描边的 muted“取消”，确认按钮为浅危险色背景。取消、右上关闭和 Escape 不发请求，并把焦点还给原入口。确认目标由列表外的弹窗宿主持有，项目排序、置顶或列表刷新不会更换目标。提交期间阻止重复确认及关闭；错误保留在弹窗中，可直接重试。
+
+DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及后代身份。[SessionService.removeProject](../../apps/server/src/application/sessions.ts) 先阻止目标项目的新建、移入、移出、分叉及成员会话的新 Run/子会话准入，等待已开始的归属写入，再递归读取成员并停止执行。[SessionRuns.stopAndWait](../../apps/server/src/application/session-runs.ts) 等待 Run 准备完成、请求取消，并等待实际 Run 及领域结束处理；前台和后台子代理都在目标集合中。此路径在子代理结束时保留未改动的 isolation worktree，不触发普通一次性子代理的自动目录回收。
+
+全部执行停止后，ProjectRepository 在一个事务中清空成员根会话的 projectId 并删除项目。Session 身份、全部条目和父子关系、置顶时间、Workspace、固定工作目录与 worktree 绑定、源文件与工作文件、Workspace 记忆及批准均保留；此操作不调用直接删除 Session 的清理路径。后台 Job 不被停止，仍可继续输出及写入文件；Schedule 的记录、启用状态和后续触发保留。
+
+取消不能在 10 秒内完成，或结束处理失败时返回 409 session-busy、details.reason 为 stop-failed，项目和会话归属保留，已停止的执行不自动重启；准入锁释放，可重试。持久化删除失败也不提前更新界面。成功后列表 store 只移除项目和更新归属，保留会话内容、当前会话及独立置顶；普通列表、置顶、搜索和归属栏消费同一份状态。旧的列表响应不能重新引入被删除项目。新对话草稿若选择了该项目，只清除项目与依赖的 Git 选择，保留文字、模型及附件。
 
 ## 独立对话专属目录
 
@@ -105,6 +115,10 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 列表 store 将分类顺序、分类和项目展开状态、项目排序、上次打开会话保存到本地浏览器存储。重启后恢复这些偏好，上次会话不存在或已归档时进入新对话；首次使用尚无记录时沿用最近会话的初始选择。偏好损坏或浏览器存储不可用时采用默认值，本窗口仍可操作。分页条数、菜单和浮层不保存。置顶、项目归属和归档仍由 Sidecar 持久化。
 
 ## 验证与相关设计
+
+- [删除项目 Sidecar 用例](../../tests/integration/sidecar-delete-project.test.ts)：根 Run 与后台子代理停止后才删除、未改动 isolation worktree 与父子记录跨重启保留、模型取消延迟导致的超时失败与重试、归属准入竞态、真实 Job 在删除后继续写入、Schedule 继续触发、Workspace 记忆与批准保留。
+- [删除项目浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx)：指定文案与480×208几何、取消/关闭/Escape、焦点返回、待提交锁定、稳定目标、明暗主题和390px窗口、错误重试、当前会话与草稿附件保留。
+- [删除项目 Electron 用例](../../apps/desktop/e2e/project-delete.e2e.test.ts)：真实应用中删除项目、当前记录保留并回到“对话”、原身份跨重启继续发送与源文件保留。决定见 [ADR 0022](../adr/0022-project-removal-preserves-sessions.md)。
 
 - [主要目录位置迁移](../../packages/session/src/sqlite/migrate-v11.test.ts)：v10 升级、旧数据默认位置、重启读回与备份。
 - [项目编辑 Sidecar 用例](../../tests/integration/sidecar-edit-project.test.ts)：编辑及主要目录冲突、原会话 Workspace 固定、置顶时间、归档与置顶计数、非法输入及重启读回。

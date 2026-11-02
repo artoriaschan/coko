@@ -117,6 +117,27 @@ export interface SubagentRecoveryOptions {
 
 export class SubagentRecovery {
   readonly #options: SubagentRecoveryOptions
+  readonly #retainedRoots = new Map<string, number>()
+  readonly #retainedProjects = new Set<string>()
+
+  retainProject(projectId: string): () => void {
+    this.#retainedProjects.add(projectId)
+    return () => this.#retainedProjects.delete(projectId)
+  }
+
+  /** Project removal stops execution without reclaiming bound isolated directories. */
+  async retainWorktrees<T>(ids: string[], task: () => Promise<T>): Promise<T> {
+    for (const id of ids) this.#retainedRoots.set(id, (this.#retainedRoots.get(id) ?? 0) + 1)
+    try {
+      return await task()
+    } finally {
+      for (const id of ids) {
+        const count = this.#retainedRoots.get(id)! - 1
+        if (count) this.#retainedRoots.set(id, count)
+        else this.#retainedRoots.delete(id)
+      }
+    }
+  }
   /** 每个根 Session 的子代理 isolation worktree（派发时与启动恢复时登记；已移除的去掉）。 */
   forgetSessions(ids: string[]): void {
     for (const id of ids) this.#isolated.delete(id)
@@ -194,7 +215,10 @@ export class SubagentRecovery {
       const text = lastAssistantText(entries)
       let worktree: AgentOutcome['worktree']
       // teammate 的 worktree 保留到解散（它还会收到消息，ADR 0018）；一次性子代理在第一次结束时回收。
-      if (live.worktreeId && (!live.name || status === 'dismissed')) {
+      const root = this.#retainedProjects.size ? await this.#options.store.sessions.getSession(live.rootId) : undefined
+      const retained =
+        this.#retainedRoots.has(live.rootId) || (root?.projectId !== null && root?.projectId !== undefined && this.#retainedProjects.has(root.projectId))
+      if (live.worktreeId && !retained && (!live.name || status === 'dismissed')) {
         const released = await this.#releaseWorktree(live.agentId, live.worktreeId)
         if (released.removed) {
           if (live.worktreePath) this.isolate(live.rootId, live.worktreePath, false)

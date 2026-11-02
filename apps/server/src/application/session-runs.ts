@@ -341,6 +341,8 @@ export class SessionRuns {
    */
   readonly #admitting = new Map<string, number>()
   readonly #settling = new Map<string, number>()
+  readonly #admissionTasks = new Map<string, Set<Promise<unknown>>>()
+  readonly #completions = new Map<string, Set<Promise<unknown>>>()
   #assertAdmission: (id: string) => void = () => {}
 
   useAdmission(assert: (id: string) => void): void {
@@ -352,13 +354,26 @@ export class SessionRuns {
   async #admit<T>(id: string, task: () => Promise<T>): Promise<T> {
     this.#assertAdmission(id)
     this.#admitting.set(id, (this.#admitting.get(id) ?? 0) + 1)
+    const pending = (async () => task())()
+    const tasks = this.#admissionTasks.get(id) ?? new Set<Promise<unknown>>()
+    tasks.add(pending)
+    this.#admissionTasks.set(id, tasks)
     try {
-      return await task()
+      return await pending
     } finally {
+      tasks.delete(pending)
+      if (!tasks.size) this.#admissionTasks.delete(id)
       const left = this.#admitting.get(id)! - 1
       if (left) this.#admitting.set(id, left)
       else this.#admitting.delete(id)
     }
+  }
+
+  /** Caller holds Session admission. Wait for preparation, then abort and await domain completion too. */
+  async stopAndWait(sessionId: string): Promise<void> {
+    await Promise.allSettled(this.#admissionTasks.get(sessionId) ?? [])
+    await this.abort(sessionId)
+    await Promise.all(this.#completions.get(sessionId) ?? [])
   }
 
   startRun(sessionId: string, request: RunRequest, waitForInput = false): Promise<{ runId: string }> {
@@ -412,6 +427,7 @@ export class SessionRuns {
     runtime.setThinkingLevel(models.effectiveLevel(session))
 
     this.#directoryAdmission?.(scope.cwd)
+    this.#assertAdmission(sessionId)
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
     let runId: string | undefined
     let acceptInput: (() => void) | undefined
@@ -478,7 +494,12 @@ export class SessionRuns {
       const left = this.#settling.get(sessionId)! - 1
       if (left) this.#settling.set(sessionId, left)
       else this.#settling.delete(sessionId)
+      completions.delete(completed)
+      if (!completions.size) this.#completions.delete(sessionId)
     })
+    const completions = this.#completions.get(sessionId) ?? new Set<Promise<unknown>>()
+    completions.add(completed)
+    this.#completions.set(sessionId, completions)
     this.#options.runs.launch(`${sessionId}:${started}`, completed, () => runtime.abort())
     if (accepted) {
       try {

@@ -194,6 +194,7 @@ export interface ChatActions {
    */
   subscribeSession(sessionId: string): () => void
   deleteSession(sessionId: string): Promise<void>
+  deleteProject(projectId: string): Promise<void>
   startDraft(workspaceId?: string): void
   /** 返回同一份已保存的新对话草稿，保留项目与 Git 配置（历史导航）。 */
   resumeDraft(): void
@@ -425,6 +426,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         lists.getState().removeSessions(sessionIds)
         set((state) => ({ conversations: Object.fromEntries(Object.entries(state.conversations).filter(([id]) => !sessionIds.includes(id))) }))
         if (get().activeSessionId !== null && sessionIds.includes(get().activeSessionId!)) get().startDraft()
+      },
+
+      async deleteProject(projectId) {
+        const { sessionIds } = await api.deleteProject(projectId)
+        lists.getState().removeProject(projectId, sessionIds)
+        if (newChat.getState().projectId === projectId) newChat.getState().selectProject(null)
       },
 
       startDraft(workspaceId) {

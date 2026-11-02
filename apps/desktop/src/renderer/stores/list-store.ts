@@ -53,6 +53,7 @@ export interface ListState extends ListDisplay {
   visibleCounts: Record<string, number>
 }
 export interface ListActions {
+  removeProject(id: string, sessionIds: string[]): void
   upsertProject(project: Project): void
   load(): Promise<boolean>
   setProjectPinned(id: string, pinned: boolean): Promise<boolean>
@@ -78,6 +79,7 @@ export type ListStore = StoreApi<ListState & ListActions>
 export function createListStore(api: ApiClient): ListStore {
   const initial = readDisplay()
   const removed = new Set<string>()
+  const removedProjects = new Set<string>()
   let loadRevision = 0
   let titleRevision = 0
   const titleChanges = new Map<string, { revision: number; title: string }>()
@@ -97,6 +99,7 @@ export function createListStore(api: ApiClient): ListStore {
       projects: [],
       sessions: [],
       upsertProject(project) {
+        if (removedProjects.has(project.id)) return
         set((state) => ({
           projects: [...state.projects.filter((item) => item.id !== project.id), project],
           workspaces: state.workspaces.some((workspace) => workspace.id === project.primaryWorkspaceId)
@@ -150,13 +153,14 @@ export function createListStore(api: ApiClient): ListStore {
             .filter((session) => !removed.has(session.id))
             .map((session) => {
               const title = titleChanges.get(session.id)
+              if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
               if (!title) return session
               if (title.revision > titlesAtStart) return { ...session, title: title.title }
               titleChanges.delete(session.id)
               return session
             })
           for (const [id, change] of titleChanges) if (change.revision <= titlesAtStart) titleChanges.delete(id)
-          set({ workspaces, projects, sessions: current, listStatus: 'ready' })
+          set({ workspaces, projects: projects.filter((project) => !removedProjects.has(project.id)), sessions: current, listStatus: 'ready' })
           return true
         } catch {
           if (get().listStatus !== 'ready') set({ listStatus: 'error' })
@@ -178,6 +182,13 @@ export function createListStore(api: ApiClient): ListStore {
         } catch {
           return false
         }
+      },
+      removeProject(id, sessionIds) {
+        removedProjects.add(id)
+        set((state) => ({
+          projects: state.projects.filter((project) => project.id !== id),
+          sessions: state.sessions.map((session) => (session.projectId === id || sessionIds.includes(session.id) ? { ...session, projectId: null } : session)),
+        }))
       },
       async moveSession(id, projectId) {
         try {
@@ -214,11 +225,13 @@ export function createListStore(api: ApiClient): ListStore {
       },
       upsertSession(session) {
         if (removed.has(session.id)) return
+        if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
         const observed = titleChanges.get(session.id)
         if (observed) session = { ...session, title: observed.title }
         set((state) => ({ sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)] }))
       },
       patchSession(id, patch) {
+        if (patch.projectId && removedProjects.has(patch.projectId)) patch = { ...patch, projectId: null }
         if (typeof patch.title === 'string') titleChanges.set(id, { title: patch.title, revision: ++titleRevision })
         set((state) => ({
           sessions: state.sessions.map((session) =>

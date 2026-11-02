@@ -19,6 +19,7 @@ import { useChat, useChatActions, useChatStoreApi, useLists } from '../../app/ch
 import { useI18n } from '../../app/i18n.tsx'
 import { ProjectRow } from './project-row.tsx'
 import { SessionRow } from './session-row.tsx'
+import { ProjectDeleteProvider } from '../projects/project-delete-dialog.tsx'
 
 export interface SidebarListsProps {
   onAddWorkspace: () => void
@@ -29,7 +30,15 @@ export interface SidebarListsProps {
 
 export const sortSessions = (sessions: readonly Session[]) => sessions.toSorted((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
 
-export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }: SidebarListsProps) {
+export function SidebarLists(props: SidebarListsProps) {
+  return (
+    <ProjectDeleteProvider>
+      <SidebarListsContent {...props} />
+    </ProjectDeleteProvider>
+  )
+}
+
+function SidebarListsContent({ onAddWorkspace, search, onSelect, onNewSession }: SidebarListsProps) {
   const { t } = useI18n()
   const sessions = useLists((state) => state.sessions)
   const projects = useLists((state) => state.projects)

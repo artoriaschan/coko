@@ -27,6 +27,7 @@ import { SessionModels } from './session-models.ts'
 import { SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
+import { systemClock, type ClockPort } from '../adapters/clock.ts'
 
 export type { RecoveryHook, RecoveryReport, RecoverySource } from './recovery.ts'
 export type { RunLauncher, SessionCwd, SessionExtension, SessionExtensionContext } from './session-runs.ts'
@@ -38,9 +39,12 @@ export interface SessionLifecycle {
   runningJobs(id: string): Promise<boolean>
   forget(ids: string[]): void
   quiesce<T>(ids: string[], task: () => Promise<T>): Promise<T>
+  retainWorktrees?<T>(ids: string[], task: () => Promise<T>): Promise<T>
+  retainProjectWorktrees?(id: string): () => void
 }
 
 export interface SessionServiceOptions {
+  clock?: ClockPort
   store: SessionStore
   registry: ModelRegistry
   hub: SessionHub
@@ -90,12 +94,17 @@ export class SessionService {
   readonly #context: ContextAssembly
   readonly #deleting = new Set<string>()
   readonly #mutations = new Map<string, number>()
+  readonly #mutationTasks = new Map<string, Set<Promise<unknown>>>()
+  readonly #removingProjects = new Set<string>()
+  readonly #organizationTasks = new Map<string, Set<Promise<unknown>>>()
+  readonly #clock: ClockPort
   #lifecycle: SessionLifecycle | undefined
   readonly permissions: PermissionService
 
   constructor(options: SessionServiceOptions) {
     const { store } = options
     this.#store = store
+    this.#clock = options.clock ?? systemClock()
     this.#hub = options.hub
     this.#context = options.context ?? emptyContextAssembly()
     // 规则工具名：宿主工具集与各贡献声明的 ruleTools（skill 由 policy 固定为 Skill，mcp__ 前缀由 policy 原样接受）。
@@ -157,12 +166,82 @@ export class SessionService {
   async #mutate<T>(id: string, task: () => Promise<T>): Promise<T> {
     this.assertAdmission(id)
     this.#mutations.set(id, (this.#mutations.get(id) ?? 0) + 1)
+    const pending = (async () => task())()
+    const tasks = this.#mutationTasks.get(id) ?? new Set<Promise<unknown>>()
+    tasks.add(pending)
+    this.#mutationTasks.set(id, tasks)
     try {
-      return await task()
+      return await pending
     } finally {
+      tasks.delete(pending)
+      if (!tasks.size) this.#mutationTasks.delete(id)
       const left = this.#mutations.get(id)! - 1
       if (left) this.#mutations.set(id, left)
       else this.#mutations.delete(id)
+    }
+  }
+
+  async #organize<T>(projectId: string | null | undefined, task: () => Promise<T>): Promise<T> {
+    if (!projectId) return task()
+    if (this.#removingProjects.has(projectId)) throw new AppError('session-busy', 'The project is being removed')
+    const pending = task()
+    const tasks = this.#organizationTasks.get(projectId) ?? new Set<Promise<unknown>>()
+    tasks.add(pending)
+    this.#organizationTasks.set(projectId, tasks)
+    try {
+      return await pending
+    } finally {
+      tasks.delete(pending)
+      if (!tasks.size) this.#organizationTasks.delete(projectId)
+    }
+  }
+
+  /** ADR 0022: execution is stopped first; the repository only removes organization. */
+  async removeProject(projectId: string): Promise<{ sessionIds: string[] }> {
+    if (this.#removingProjects.has(projectId)) throw new AppError('session-busy', 'The project is being removed')
+    this.#removingProjects.add(projectId)
+    // Protect naturally finishing children during the asynchronous membership snapshot too.
+    const releaseWorktrees = this.#lifecycle?.retainProjectWorktrees?.(projectId)
+    const ids: string[] = []
+    let cancelDeadline: (() => void) | undefined
+    try {
+      if (!(await this.#store.projects.get(projectId))) throw new AppError('not-found', 'Project not found')
+      await Promise.allSettled(this.#organizationTasks.get(projectId) ?? [])
+      const visit = async (id: string): Promise<void> => {
+        this.assertAdmission(id)
+        this.#deleting.add(id)
+        ids.push(id)
+        await Promise.allSettled(this.#mutationTasks.get(id) ?? [])
+        for (const child of await this.#store.sessions.listChildren(id)) await visit(child.id)
+      }
+      for (const session of await this.#store.sessions.listSessions()) if (session.projectId === projectId) await visit(session.id)
+      const stop = async () => {
+        const results = await Promise.allSettled(ids.map((id) => this.#runs.stopAndWait(id)))
+        const failed = results.find((result) => result.status === 'rejected')
+        if (failed?.status === 'rejected') throw failed.reason
+      }
+      // Retention remains active until late cancellation finishes, even if the deadline fails this request.
+      const stopped = this.#lifecycle?.retainWorktrees ? this.#lifecycle.retainWorktrees(ids, stop) : stop()
+      const timeout = new Promise<never>((_resolve, reject) => {
+        cancelDeadline = this.#clock.setTimer(this.#clock.now() + 10_000, () =>
+          reject(new AppError('session-busy', 'Conversations did not stop in time', { reason: 'stop-failed' })),
+        )
+      })
+      try {
+        await Promise.race([stopped, timeout])
+      } catch (error) {
+        if (error instanceof AppError && error.details?.reason === 'stop-failed') throw error
+        throw new AppError('session-busy', 'Could not stop all conversations', { reason: 'stop-failed' })
+      }
+      cancelDeadline?.()
+      // This is a single atomic membership-clear + Project delete; no Session cleanup runs.
+      await this.#store.projects.delete(projectId)
+      return { sessionIds: ids }
+    } finally {
+      cancelDeadline?.()
+      this.#removingProjects.delete(projectId)
+      releaseWorktrees?.()
+      for (const id of ids) this.#deleting.delete(id)
     }
   }
 
@@ -312,8 +391,9 @@ export class SessionService {
     return this.#mutate(sessionId, () => this.#checkpoints.rewind(sessionId, input))
   }
 
-  fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
-    return this.#mutate(sessionId, () => this.#checkpoints.fork(sessionId, targetSeq, title))
+  async fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
+    const source = await requireSession(this.#store, sessionId)
+    return this.#organize(source.projectId, () => this.#mutate(sessionId, () => this.#checkpoints.fork(sessionId, targetSeq, title)))
   }
 
   // ---- DTO 与模型（session-models.ts） ----
@@ -327,8 +407,14 @@ export class SessionService {
   async moveToProject(sessionId: string, projectId: string | null): Promise<Session> {
     const session = await requireSession(this.#store, sessionId)
     if (session.parentSessionId !== null) throw new AppError('bad-request', 'Only root sessions can be moved')
-    if (projectId !== null && !(await this.#store.projects.get(projectId))) throw new AppError('not-found', 'Project not found')
-    return this.toDto(await this.#store.sessions.setSessionOrganization(sessionId, { projectId }))
+    return this.#organize(session.projectId, () =>
+      this.#organize(projectId, () =>
+        this.#mutate(sessionId, async () => {
+          if (projectId !== null && !(await this.#store.projects.get(projectId))) throw new AppError('not-found', 'Project not found')
+          return this.toDto(await this.#store.sessions.setSessionOrganization(sessionId, { projectId }))
+        }),
+      ),
+    )
   }
 
   async setPinned(sessionId: string, pinned: boolean): Promise<Session> {
@@ -391,7 +477,13 @@ export class SessionService {
       const worktree = await this.#store.worktrees.get(input.worktreeId)
       if (worktree?.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; create the session elsewhere`)
     }
-    if (!input.parentSessionId) return this.#store.sessions.createSession(input)
+    if (!input.parentSessionId) {
+      const projectId =
+        input.projectId === undefined
+          ? (await this.#store.projects.list()).find((project) => project.primaryWorkspaceId === input.workspaceId)?.id
+          : input.projectId
+      return this.#organize(projectId, () => this.#store.sessions.createSession(input))
+    }
     const parent = input.parentSessionId
     return this.#mutate(parent, () => this.#store.sessions.createSession(input))
   }

@@ -35,6 +35,8 @@ export interface FauxScript {
   /** 测试观察用：每次模型请求前把其上下文消息作为一行 JSON 追加到该文件。 */
   requestLog?: string
   requestDetailsLog?: string
+  /** Model adapter cancellation observations for fixtures that wait for the abort boundary. */
+  abortLog?: string
   /**
    * faux 模型的价格（每百万 token，同 Model Catalog 的 price）：省略时未定价。有价格时，usage 未给出 cost 的回复按价格计算费用
    * （pi-ai calculateCost，与真实 Provider 相同）。
@@ -56,6 +58,8 @@ export interface FauxScriptResponse {
   match?: string
   /** Controlled model-boundary latency; uses the Sidecar clock and respects cancellation. */
   delayMs?: number
+  /** Controlled cancellation latency models a provider that acknowledges abort slowly. */
+  abortDelayMs?: number
 }
 
 export interface FauxScriptUsage {
@@ -244,11 +248,19 @@ export async function installFauxProvider(registry: ModelRegistry, path: string,
             ? new Promise<void>((resolve) => {
                 const finish = () => {
                   cancel()
-                  options?.signal?.removeEventListener('abort', finish)
+                  options?.signal?.removeEventListener('abort', abort)
                   resolve()
                 }
-                const cancel = clock.setTimer(clock.now() + response.delayMs!, finish)
-                options?.signal?.addEventListener('abort', finish, { once: true })
+                let cancel = clock.setTimer(clock.now() + response.delayMs!, finish)
+                const abort = () => {
+                  if (script.abortLog) void appendFile(script.abortLog, JSON.stringify({ at: clock.now() }) + '\n')
+                  if (!response.abortDelayMs) finish()
+                  else {
+                    cancel()
+                    cancel = clock.setTimer(clock.now() + response.abortDelayMs, finish)
+                  }
+                }
+                options?.signal?.addEventListener('abort', abort, { once: true })
               })
             : undefined
         // Logging after arming lets protocol tests observe a deterministic model-boundary barrier.

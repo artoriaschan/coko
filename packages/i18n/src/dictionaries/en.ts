@@ -17,6 +17,12 @@ export const en: typeof zh = {
     projectDetails: 'Project details',
     projectActions: 'Project actions',
     moreProject: 'More project actions',
+    deleteProject: 'Delete project',
+    deleteProjectTitle: 'Delete project?',
+    deleteProjectDescription:
+      'The project will be removed from the list and running conversations will be stopped. Conversation history will be kept under Conversations. Files in the project folders will not be deleted.',
+    deleteProjectFailed: 'Could not delete this project. Try again.',
+    deleteProjectStopFailed: 'Some conversations could not stop, so the project was kept. Stopped runs will not restart automatically. Try again.',
     deleteConversation: 'Delete conversation',
     deleteTitle: 'Delete conversation?',
     deleteDescription: 'This will permanently delete this conversation and its subagent conversations. This cannot be undone.',

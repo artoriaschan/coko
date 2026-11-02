@@ -128,6 +128,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   const backend = fakeSettingsBackend()
   if (options.providers !== false) backend.seedProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
   const projectPatches = new Map<string, Partial<import('@coko/protocol').Project>>()
+  const removedProjects = new Set<string>()
   const api: ApiClient = {
     ...backend.api,
     setSessionModel: async (id: string, model, thinkingLevel) => ({
@@ -136,19 +137,27 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       thinkingLevel: thinkingLevel ?? 'off',
     }),
     listProjects: async () =>
-      fixtureWorkspaces.map((workspace) => ({
-        id: `project-${workspace.id}`,
-        name: workspace.name,
-        primaryWorkspaceId: workspace.id,
-        folders: [{ path: workspace.path, primary: true }],
-        pinnedAt: null,
-        createdAt: workspace.createdAt,
-        lastUsedAt: Math.max(workspace.createdAt, ...sessionList.filter((s) => s.projectId === `project-${workspace.id}`).map((s) => s.updatedAt)),
-        sessionCount: sessionList.filter((s) => s.projectId === `project-${workspace.id}` && s.archivedAt === null).length,
-        ...projectPatches.get(`project-${workspace.id}`),
-      })),
+      fixtureWorkspaces
+        .filter((workspace) => !removedProjects.has(`project-${workspace.id}`))
+        .map((workspace) => ({
+          id: `project-${workspace.id}`,
+          name: workspace.name,
+          primaryWorkspaceId: workspace.id,
+          folders: [{ path: workspace.path, primary: true }],
+          pinnedAt: null,
+          createdAt: workspace.createdAt,
+          lastUsedAt: Math.max(workspace.createdAt, ...sessionList.filter((s) => s.projectId === `project-${workspace.id}`).map((s) => s.updatedAt)),
+          sessionCount: sessionList.filter((s) => s.projectId === `project-${workspace.id}` && s.archivedAt === null).length,
+          ...projectPatches.get(`project-${workspace.id}`),
+        })),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => sessionList,
+    deleteProject: async (id) => {
+      const sessionIds = sessionList.filter((session) => session.projectId === id).map((session) => session.id)
+      sessionList = sessionList.map((session) => (session.projectId === id ? { ...session, projectId: null } : session))
+      removedProjects.add(id)
+      return { sessionIds }
+    },
     deleteSession: async (id) => {
       sessionList = sessionList.filter((session) => session.id !== id && session.parentSessionId !== id)
       return { sessionIds: [id] }
