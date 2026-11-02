@@ -25,4 +25,6 @@
 - 项目配置通过 20 的前置插槽接入共享开关，只更新本地草稿；开启时基础分支不检出且隐藏创建分支入口，关闭 / 清除归属 / 独立对话入口清空工作树草稿。
 - [精确命令、数量、red/green 和文档读回](../evidence/21-new-worktree-first-send.md)：Sidecar 3 例、分支 Browser 4 例、真实 Electron 1 例、既有回归 60 例、样式与新对话 Browser 46 例通过；类型、文档、lint 与界面 detector 通过。ADR 0021 implemented，索引、Worktree / 工作台 / 总导航已同步；正式 ADR 以当前源码与本票 / 20 所属测试保存证据，不链接 scratch。
 
+- 交付前以 a1b6add1 合入最新集成分支 a9d09dda，无冲突。合入后 8 文件 113 例、重新构建的真实 Electron 1 例、typecheck 和 check:docs（247 文档）均通过。
+
 **Closed:** true

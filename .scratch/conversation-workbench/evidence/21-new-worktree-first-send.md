@@ -37,3 +37,11 @@ Worktree 记录基础分支、首次发送、失败边界与提交比较删除�
 ## 结论与限制
 
 本票的 Sidecar、Browser Mode 与真实 Electron 验收有证据；未运行全仓测试、真实模型、CI、发布构建矩阵。本地提交，无推送或 PR。
+
+## 合入后验证
+
+任务分支以 `a1b6add1` 合入最新集成分支 `a9d09dda`，无冲突。合入后执行：
+
+- `rtk pnpm run test tests/integration/sidecar-first-send-worktree.test.ts tests/integration/sidecar-first-send.test.ts tests/integration/sidecar-worktrees.test.ts apps/server/src/application/worktrees.test.ts apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/stores/chat-store.test.ts packages/ui/src/guards/style-guard.test.ts`：8 文件，113 例通过。
+- `rtk pnpm run test apps/desktop/e2e/first-send-worktree.e2e.test.ts`：当次重新构建，真实 Electron 1 例通过。
+- `rtk pnpm run typecheck`：退出 0；`rtk pnpm run check:docs`：247 个 Markdown，0 个问题。
