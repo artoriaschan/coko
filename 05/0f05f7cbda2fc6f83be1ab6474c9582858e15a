@@ -1,0 +1,21 @@
+.scratch/conversation-workbench/issues/15-delete-project-keep-sessions.md
+  s_64e2ce1bfde668::t_bfb489f17750e8 13-14,17-20,24,34-44
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_bfb489f17750e8 49,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "050f05f7cbda2fc6f83be1ab6474c9582858e15a",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
