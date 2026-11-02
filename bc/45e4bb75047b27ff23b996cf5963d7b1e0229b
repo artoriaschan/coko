@@ -1,0 +1,32 @@
+docs/subsystems/worktrees.md
+  s_64e2ce1bfde668::t_446a560d6b652d 35,37,120
+tests/integration/sidecar-first-send-worktree.test.ts
+  s_64e2ce1bfde668::t_a48ee33e88a0cf 134-136
+  s_64e2ce1bfde668::t_6e74d79151741a 1,122-133,137-140
+.scratch/conversation-workbench/evidence/21-new-worktree-first-send.md
+  s_64e2ce1bfde668::t_eacf8236cf9964 52-53
+  s_64e2ce1bfde668::t_446a560d6b652d 48-51
+.scratch/conversation-workbench/issues/21-new-worktree-first-send.md
+  s_64e2ce1bfde668::t_eacf8236cf9964 32-33
+  s_64e2ce1bfde668::t_446a560d6b652d 30-31
+apps/server/src/application/worktrees.ts
+  s_64e2ce1bfde668::t_a48ee33e88a0cf 198-201,203-206,357-360,369-372
+  s_64e2ce1bfde668::t_446f37cbf34822 197,202,207,219-220,222-223,230-237,348,355-356,361-363,365-368,373
+  s_64e2ce1bfde668::t_446a560d6b652d 364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "bc45e4bb75047b27ff23b996cf5963d7b1e0229b",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
