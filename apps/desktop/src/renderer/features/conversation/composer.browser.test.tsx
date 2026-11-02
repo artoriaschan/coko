@@ -261,3 +261,42 @@ it('selecting and dropping images adds removable attachments; oversized images a
   await page.getByRole('button', { name: 'Remove picked.png' }).click()
   await expect.poll(() => document.querySelectorAll('[data-slot="image-drafts"] img').length).toBe(1)
 })
+
+it('switching draft scopes restores each session image without copying it to another draft', async () => {
+  const key = 'coko.draft.switch-images.' + crypto.randomUUID()
+  const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC1cAAAAASUVORK5CYII='
+  const onSend = vi.fn<Submit>(async () => false)
+  const node = (draftStorageKey: string) => (
+    <I18nProvider locale="en">
+      <TooltipProvider>
+        <Composer
+          running={false}
+          disabled={false}
+          needsSetup={false}
+          supportsImages
+          draftStorageKey={draftStorageKey}
+          onSend={onSend}
+          onSteer={async () => false}
+          onStop={() => {}}
+          onPause={() => {}}
+          onSetup={() => {}}
+          pickFiles={async () => ['/picked.png']}
+          readPickedImage={async () => ({ name: 'picked.png', mimeType: 'image/png', data })}
+        />
+      </TooltipProvider>
+    </I18nProvider>
+  )
+  const screen = await render(node(key))
+  await page.getByRole('button', { name: 'Add attachment' }).click()
+  await expect.element(page.getByRole('img', { name: 'picked.png' })).toBeVisible()
+  await editor().fill('scope one')
+  await screen.rerender(node(key + '.second'))
+  await expect.poll(() => document.querySelectorAll('[data-slot="image-drafts"] img').length).toBe(0)
+  await editor().fill('scope two')
+  await screen.rerender(node(key))
+  await expect.element(page.getByRole('img', { name: 'picked.png' })).toBeVisible()
+  await expect.poll(() => editorElement().textContent).toBe('scope one')
+  await screen.rerender(node(key + '.second'))
+  await expect.poll(() => editorElement().textContent).toBe('scope two')
+  expect(document.querySelectorAll('[data-slot="image-drafts"] img')).toHaveLength(0)
+})

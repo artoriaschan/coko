@@ -243,6 +243,13 @@ export class SessionService {
     return this.toDto(await this.#store.sessions.setSessionOrganization(sessionId, { pinnedAt: pinned ? (session.pinnedAt ?? Date.now()) : null }))
   }
 
+  async rename(sessionId: string, input: string): Promise<Session> {
+    const title = input.trim()
+    if (!title || Array.from(title).length > 200) throw new AppError('bad-request', 'Session title must contain 1 to 200 characters')
+    await requireSession(this.#store, sessionId)
+    return this.toDto(await this.#store.sessions.setSessionTitle(sessionId, title))
+  }
+
   /** 子 Session（子代理）按创建顺序。 */
   async children(parentSessionId: string): Promise<Session[]> {
     return Promise.all((await this.#store.sessions.listChildren(parentSessionId)).map((session) => this.toDto(session)))

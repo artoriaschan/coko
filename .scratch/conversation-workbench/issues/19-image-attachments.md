@@ -46,3 +46,12 @@
 文档归属与读回：更新 workbench.md 的首次发送、单份草稿、主输入区与附件正文，以及 docs/README.md 的导航摘要。搜索“图片当前”“图片拒绝”“不把文件内容经 IPC”“只有 File Reference”消费者：当前 workbench 说明已同步；其他子系统中对各自图片能力的描述未改动。按 AGENTS → docs/README → workbench.md 读回，路径、语义、权威、引用方向、生命周期、当前入口与历史保留通过，没有正式正文依赖具体任务材料。
 
 未验证真实外部模型、发布构建或 CI；faux 请求观察、Browser Mode 与真实 Electron 的范围分别如上。仅本地提交，不推送。
+
+
+### 合入最新集成后的验证
+
+实现提交 `b6a7256` 后合入最新集成 `33acb84`（08 菜单与重命名）。仅 docs/README.md 有冲突，保留图片附件与菜单重命名两项摘要。协议、HTTP、SessionService 与字典自动合并保留两票字段。
+
+合入后 `pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 实际 5 文件 / 32 用例，31 通过、1 失败：08 的 pointer-menu viewport-edge 用例在 session-menu.browser.test.tsx:143 已可见菜单于 left 边界轮询期间消失。图片与首次发送的 4 文件全部通过。只读保留 08 实现，随后隔离运行 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 仍为 9 通过 / 1 相同失败，已向集成负责人报告，不将它标为通过。
+
+另补充同一挂载 Composer 在两个草稿键间切换的真实 Browser 用例，验证图片和文字各自恢复、不复制到另一草稿；`pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx` 退出 0，13 用例通过。该额外验证未改产品代码。`pnpm run check:docs` 246 / 0 与 diff 检查通过；本票图片能力的验收完成，08 的继承失败单独保留上述证据。
