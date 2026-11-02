@@ -1,5 +1,6 @@
 // SessionStore 的 SQLite 实现：每个写入方法一个 BEGIN IMMEDIATE 事务。
 import { randomUUID } from 'node:crypto'
+import { StoreError } from '../errors.ts'
 import {
   alreadyExists,
   checkScheduleStatus,
@@ -54,6 +55,9 @@ interface SessionRow {
   model_cleared: number
   parent_session_id: string | null
   worktree_id: string | null
+  project_id: string | null
+  pinned_at: number | null
+  archived_at: number | null
   created_at: number
   updated_at: number
 }
@@ -93,6 +97,9 @@ const toSession = (r: SessionRow): Session => ({
   modelCleared: r.model_cleared === 1,
   parentSessionId: r.parent_session_id,
   worktreeId: r.worktree_id,
+  projectId: r.project_id,
+  pinnedAt: r.pinned_at,
+  archivedAt: r.archived_at,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -128,7 +135,7 @@ const toProvider = (r: ProviderRow): Provider => ({
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
 const SESSION_SELECT =
-  'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, created_at, updated_at FROM sessions'
+  'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, project_id, pinned_at, archived_at, created_at, updated_at FROM sessions'
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
@@ -172,12 +179,19 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
             if (!worktree) throw notFound('worktree', worktreeId)
             sameWorkspace('worktreeId', worktree.workspace_id, input.workspaceId)
           }
+          const projectId =
+            parentSessionId !== null
+              ? null
+              : input.projectId === undefined
+                ? (conn.get<{ id: string }>('SELECT id FROM projects WHERE primary_workspace_id = ?', input.workspaceId)?.id ?? null)
+                : input.projectId
+          if (projectId !== null && !conn.get('SELECT 1 FROM projects WHERE id = ?', projectId)) throw notFound('project', projectId)
           const at = conn.now()
           const model = input.model ?? null
           const id = randomUUID()
           conn.run(
-            `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, project_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.workspaceId,
             input.title ?? '',
@@ -186,6 +200,7 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
             levelOf(input),
             parentSessionId,
             worktreeId,
+            projectId,
             at,
             at,
           )
@@ -197,11 +212,8 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
         conn.read(() => {
           const rows =
             filter?.workspaceId === undefined
-              ? conn.all<SessionRow>(`${SESSION_SELECT} WHERE parent_session_id IS NULL ORDER BY updated_at DESC, rowid DESC`)
-              : conn.all<SessionRow>(
-                  `${SESSION_SELECT} WHERE parent_session_id IS NULL AND workspace_id = ? ORDER BY updated_at DESC, rowid DESC`,
-                  filter.workspaceId,
-                )
+              ? conn.all<SessionRow>(`${SESSION_SELECT} WHERE parent_session_id IS NULL ORDER BY updated_at DESC, id`)
+              : conn.all<SessionRow>(`${SESSION_SELECT} WHERE parent_session_id IS NULL AND workspace_id = ? ORDER BY updated_at DESC, id`, filter.workspaceId)
           return rows.map(toSession)
         }),
       ),
@@ -216,11 +228,28 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return row ? toSession(row) : undefined
         }),
       ),
+    setSessionOrganization: (id, patch) =>
+      later(() =>
+        conn.write(() => {
+          const current = requireSession(id)
+          if (patch.projectId != null && !conn.get('SELECT 1 FROM projects WHERE id = ?', patch.projectId)) throw notFound('project', patch.projectId)
+          if (current.parent_session_id !== null && patch.projectId != null)
+            throw new StoreError('invalid-input', 'Only root sessions store project membership')
+          conn.run(
+            'UPDATE sessions SET project_id = ?, pinned_at = ?, archived_at = ? WHERE id = ?',
+            patch.projectId === undefined ? current.project_id : patch.projectId,
+            patch.pinnedAt === undefined ? current.pinned_at : patch.pinnedAt,
+            patch.archivedAt === undefined ? current.archived_at : patch.archivedAt,
+            id,
+          )
+          return toSession(requireSession(id))
+        }),
+      ),
     setSessionTitle: (id, title) =>
       later(() =>
         conn.write(() => {
           requireSession(id)
-          conn.run('UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?', title, conn.now(), id)
+          conn.run('UPDATE sessions SET title = ? WHERE id = ?', title, id)
           return toSession(requireSession(id))
         }),
       ),
@@ -229,11 +258,10 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
         conn.write(() => {
           requireSession(id)
           conn.run(
-            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, model_cleared = 0, updated_at = ? WHERE id = ?',
+            'UPDATE sessions SET model_provider_id = ?, model_id = ?, thinking_level = ?, model_cleared = 0 WHERE id = ?',
             choice.model?.providerId ?? null,
             choice.model?.modelId ?? null,
             levelOf(choice),
-            conn.now(),
             id,
           )
           return toSession(requireSession(id))

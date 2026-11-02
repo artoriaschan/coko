@@ -280,8 +280,8 @@ describe('侧栏搜索', () => {
     await expect.element(input).toHaveFocus()
     await userEvent.keyboard('SIDECAR')
     await expect.poll(visibleTitles).toEqual(['Sidecar startup handshake'])
-    // 没有命中会话的工作区不显示。
-    expect(document.querySelector('[aria-labelledby="workspace-w-pi"]')).toBeNull()
+    // 没有命中会话的项目不显示。
+    expect(document.querySelector('[data-project-id="project-w-pi"]')).toBeNull()
     await input.fill('no such session')
     await expect.poll(visibleTitles).toEqual([])
     await expect.element(page.getByText('No matching sessions')).toBeVisible()
@@ -379,7 +379,7 @@ describe('模型选择', () => {
     await page.getByRole('menuitemradio', { name: 'big-model' }).click()
     await userEvent.keyboard('{Escape}')
     await expect.element(picker).toHaveTextContent('big-model')
-    expect(chat.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
+    expect(chat.lists.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
   })
 
   it('推理档位：会话默认“关闭”；推理开关打开的模型列出“关闭”与已配置档位；选择写入会话；换到未配置该档位的模型回到“关闭”', async () => {
@@ -407,7 +407,7 @@ describe('模型选择', () => {
       }
       await page.getByRole('menuitem', { name: /^选择模型：/ }).click()
       await page.getByRole('menuitemradio', { name, exact: true }).click()
-      await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')?.model?.modelId).toBe(name)
+      await expect.poll(() => chat.lists.getState().sessions.find((s) => s.id === 's-1')?.model?.modelId).toBe(name)
     }
     await picker.click()
     await expect.element(page.getByRole('slider', { name: '推理档位' })).toHaveAttribute('aria-disabled', 'true')
@@ -417,12 +417,12 @@ describe('模型选择', () => {
     await expect.element(slider).toHaveAttribute('aria-valuemax', '2')
     await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
     await userEvent.keyboard('{Tab}{End}')
-    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
+    await expect.poll(() => chat.lists.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
     await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('thinker高')
     await choose('low-only')
     await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
     await expect.element(slider).toHaveAttribute('aria-valuemax', '1')
-    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ thinkingLevel: 'off' })
+    await expect.poll(() => chat.lists.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ thinkingLevel: 'off' })
     await choose('switched-off')
     await expect.element(slider).toHaveAttribute('aria-disabled', 'true')
     await userEvent.keyboard('{Escape}')
@@ -575,7 +575,7 @@ describe('内容区历史与草稿', () => {
     await back.click()
     await expect.element(editor).toHaveTextContent('a draft kept across pages')
     // 模拟协议列表刷新：被移除的会话不应再成为前进、后退的目标。
-    const remaining = chat.getState().sessions.filter((session) => session.id !== 's-2')
+    const remaining = chat.lists.getState().sessions.filter((session) => session.id !== 's-2')
     vi.spyOn(api, 'listSessions').mockResolvedValue(remaining)
     await chat.getState().load()
     await back.click()

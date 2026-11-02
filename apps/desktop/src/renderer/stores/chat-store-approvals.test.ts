@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { buildTimeline } from '../features/conversation/timeline.ts'
-import { groupSessions } from '../features/sidebar/sidebar.tsx'
+import { sortSessions } from '../features/sidebar/sidebar-lists.tsx'
 import { createChatStore, type ChatFailure } from './chat-store.ts'
 
 function fakeStream() {
@@ -23,6 +23,9 @@ function fakeStream() {
 const session = (id: string, patch: Partial<Session> = {}): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: null,
   thinkingLevel: 'off',
@@ -56,6 +59,7 @@ async function setup(answerApproval: ApiClient['answerApproval'] = vi.fn<ApiClie
   const { stream, deliver } = fakeStream()
   const failures: ChatFailure[] = []
   const api = {
+    listProjects: async () => [],
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => [
       session('s1', { running: true, activity: 'running', updatedAt: 1 }),
@@ -69,7 +73,7 @@ async function setup(answerApproval: ApiClient['answerApproval'] = vi.fn<ApiClie
   send('run_start', { trigger: 'submit' })
   send('message', toolCall('b1'))
   deliver({ type: 'subscribed', sessionId: 's1', lastSeq: seq, running: true })
-  const activity = () => store.getState().sessions.find((s) => s.id === 's1')!.activity
+  const activity = () => store.lists.getState().sessions.find((s) => s.id === 's1')!.activity
   const tool = () => buildTimeline(store.getState().conversations.s1!).find((i) => i.kind === 'tool')
   return { store, send, failures, activity, tool, answerApproval }
 }
@@ -81,8 +85,8 @@ describe('chat store：审批', () => {
     h.send('approval_request', request('q1', 'b1'))
     expect(h.activity()).toBe('awaiting-approval')
     expect(h.tool()).toMatchObject({ status: 'awaiting', approval: { request: { requestId: 'q1' }, decision: null } })
-    // 侧栏：等待审批的会话位于组首（s2 更新更晚但只是运行中）。
-    expect(groupSessions(h.store.getState().workspaces, h.store.getState().sessions)[0]!.sessions.map((s) => s.id)).toEqual(['s1', 's2'])
+    // 侧栏按最后记录时间排序，审批状态不再使会话上浮。
+    expect(sortSessions(h.store.lists.getState().sessions).map((s) => s.id)).toEqual(['s2', 's1'])
 
     h.send('approval_decision', { requestId: 'q1', outcome: 'allowed', scope: 'once' })
     expect(h.activity()).toBe('running')

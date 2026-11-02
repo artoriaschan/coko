@@ -104,8 +104,8 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ### 估算
 
 - tokens = 最后一次有效的 assistant usage（input + cacheRead + cacheWrite + output，跳过出错、中止与为 0 的回复）加其后消息的 chars/4（向上取整）；最后一条就是该回复时 `estimated` 为 false。
-- 分项一律 chars/4：`system`（基础系统提示）、`instructions`、`skills`、`memory`（各贡献 `report()` 的字符数，与注入的 system section 相同）、`tools`（基础工具与本作用域贡献工具的 name、description、parameters 的 JSON）、`messages`（有效对话记录，已应用回退与时间裁剪）。没有 usage，或时间裁剪会改变下一次请求而 usage 已不代表它，或最后一次 usage 早于最后一个有效的压缩（它量的是被摘要替代的历史）时，tokens 为分项之和，`estimated` 为 true。
-- 字符计法沿用 pi coding-agent：文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。
+- `breakdown` 固定为五类：`system` 包含基础系统提示与装配的全部章节（指令、Skills、Memory、计划、Goal、待办及其他贡献）；`prompt` 为用户消息、图片与压缩摘要；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为工具声明和工具结果。同名工具声明只计一次。
+- 各类先以 chars/4 向上取整；文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。没有有效 usage，或时间裁剪改变了下一次请求、usage 已不代表它，或最后一次 usage 早于有效压缩时，tokens 为这五类之和、`estimated` 为 true。有有效 usage 时保留上文的 tokens 计算，按五类估算的比例分配，用最大余数法补齐取整余数（同余数按上述键顺序），所以五类整数合计始终等于 tokens。窗口、阈值、预警与压缩触发的计算不变。
 - 每条 assistant 消息提交后 Sidecar 发 progress `context_usage { tokens, contextWindow }`，位于该 assistant 条目之后。
 
 ### 接口
@@ -114,10 +114,11 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 上下文环
 
-- 输入区底栏、模型选择之后显示环与百分比（占 contextWindow，向下取整）。tokens 达到预警线为 warning 色，达到阈值为 destructive 色；没有窗口或读取失败时只画轨道，名称为"上下文用量"。环固定宽度、不收缩，窄输入区中先收缩模式与模型选择。
-- 作用域（会话或草稿）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早发出的请求晚到时丢弃。
-- `autoCompact.paused` 为 true 时环之前显示暂停标记（`data-slot="auto-compact-paused"`，warning 色），名称与 Tooltip 提示可以输入 `/compact` 手动压缩。
-- 点击（或 Enter / 空格）打开 HoverCard（`role="dialog"`，名称"上下文"）；只悬停不打开，以免布局变化把环移到静止的指针下时卡片遮住输入区上方的横幅。指针离开环与卡片、外部点击或 Esc 关闭。内容：用量与是否含估算、阈值与预警（或自动压缩已关闭 / 已暂停）、六个分项、指令文件（作用域与截断）与诊断。Esc 关闭后焦点留在环上。
+- 输入区底栏、模型选择左侧为 24 × 24px 入口，其中只显示 12px 环（内外半径比 0.7）；百分比出现在 Tooltip 和详情，占 contextWindow、向下取整。常态为 link 色，tokens 达到预警线为 warning-text，达到阈值为 destructive；没有有效窗口或首次读取失败时只画轨道，不显示虚假的 0%。hover / open 使用共享 accent 表面，入口几何不变。
+- 作用域（会话或 Workspace 草稿）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早请求晚到时丢弃。同作用域刷新失败时保留上次有效数据。
+- `autoCompact.paused` 为 true 时环之前保留暂停标记（`data-slot="auto-compact-paused"`，warning 色），名称与 Tooltip 提示可以输入 `/compact` 手动压缩。
+- 点击、Enter 或空格打开 HoverCard（`role="dialog"`，名称“上下文用量”）；hover 只显示 Tooltip。详情首选在入口上方右对齐、间距 8px，基准 348 × 384px、R16，使用共享菜单表面与 portal；空间不足时翻转或平移，并限制可用宽高、允许内部滚动。指针可进入卡片阅读；离开入口与卡片、外部点击或 Escape 关闭，点击外部与 Escape 后焦点返回入口。
+- 内容为当前模型与窗口、占用比例与 Token 数、以模型窗口为分母的五类容量条、各类 Token 与占已用 Token 比例、分类说明和压缩点。数值使用等宽字体、右对齐；正文遵守共享明暗主题。不展示旧的六项、指令文件、诊断或“含估算”标记；这些协议元数据仍由接口提供。
 
 ## 时间裁剪
 

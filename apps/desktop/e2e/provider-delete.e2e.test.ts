@@ -77,7 +77,7 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   await waitConnected(app.window)
   await stubDirectoryPicker(app.app, [workspace])
   await app.window
-    .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
+    .getByRole('button', { name: /^(Add project|创建项目)$/ })
     .first()
     .click()
 

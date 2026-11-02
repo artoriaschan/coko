@@ -2,7 +2,7 @@ import '../../styles.css'
 import type { ContextUsageResponse } from '@coko/protocol'
 import { TooltipProvider } from '@coko/ui'
 import * as React from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { I18nProvider } from '../../app/i18n.tsx'
@@ -18,7 +18,7 @@ const usage = (tokens: number, extra: Partial<ContextUsageResponse> = {}): Conte
   warning: 3_000,
   tokens,
   estimated: false,
-  breakdown: { system: 120, instructions: 10_001, skills: 30, memory: 12, tools: 900, messages: 40 },
+  breakdown: { system: 120, prompt: 1000, assistant: 400, thinking: 80, tools: 400 },
   instructions: [
     { path: '/home/u/.coko/AGENTS.md', scope: 'user', chars: 10, truncated: false },
     { path: '/w/AGENTS.md', scope: 'project', chars: 40_000, truncated: true },
@@ -33,9 +33,11 @@ function renderRing(response: ContextUsageResponse, target: ContextTarget = { se
   const store = createContextStore(fetchUsage)
   render(
     <I18nProvider locale="en">
-      <div style={{ padding: 200 }}>
-        <ContextRingControl target={target} store={store} />
-      </div>
+      <TooltipProvider>
+        <div style={{ paddingTop: 450, paddingLeft: 400 }}>
+          <ContextRingControl target={target} store={store} />
+        </div>
+      </TooltipProvider>
     </I18nProvider>,
   )
   return { fetchUsage, store }
@@ -52,16 +54,27 @@ const colorOf = (className: string) => {
   return color
 }
 
+beforeEach(async () => {
+  await page.viewport(1280, 900)
+})
+
 describe('上下文环', () => {
-  it('显示百分比；低于预警线为 normal，越过预警线为 warning 色，达到阈值为 destructive 色', async () => {
-    renderRing(usage(2_000))
-    await expect.poll(() => ring()?.textContent).toBe('5%')
+  it('24px 入口只显示 12px 环；百分比在名称与 Tooltip，低于预警线为 link 色', async () => {
+    const { store } = renderRing(usage(2_000))
+    await expect.poll(() => store.getState().status).toBe('ready')
+    expect(ring()?.textContent).toBe('')
     expect(ring().dataset.level).toBe('normal')
-    expect(ring().getAttribute('aria-label')).toBe('Context 5% used')
+    expect(ring().getBoundingClientRect().width).toBe(24)
+    expect(ring().getBoundingClientRect().height).toBe(24)
+    expect(ring().querySelector('svg')!.getBoundingClientRect().width).toBe(12)
+    await expect.poll(() => getComputedStyle(ring()).color).toBe(colorOf('text-link'))
+    await userEvent.hover(ring())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Context 5% used')
+    expect(card()).toBeNull()
   })
 
   it.each([
-    [3_000, 'warning', 'text-warning'],
+    [3_000, 'warning', 'text-warning-text'],
     [23_000, 'critical', 'text-destructive'],
   ] as const)('tokens %i：%s', async (tokens, level, className) => {
     renderRing(usage(tokens))
@@ -71,30 +84,35 @@ describe('上下文环', () => {
     expect(colorOf(className)).not.toBe(colorOf('text-muted-foreground'))
   })
 
-  it('点击打开 HoverCard：用量、分项、指令文件（截断）与诊断；Esc 关闭且焦点回到环', async () => {
-    const { fetchUsage } = renderRing(usage(2_000, { estimated: true }))
-    await expect.poll(() => ring()?.textContent).toBe('5%')
-    // 只悬停不打开（布局变化把环移到静止的指针下时不能弹出卡片挡住上方的按钮）；等过 openDelay（300 ms）的上限。
+  it('点击打开五类明细；分母与几何正确，不展示指令、诊断与估算；Esc 返回环', async () => {
+    const { fetchUsage, store } = renderRing(usage(2_000, { estimated: true }))
+    await expect.poll(() => store.getState().status).toBe('ready')
     await userEvent.hover(ring())
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Context 5% used')
     expect(card()).toBeNull()
     await userEvent.click(ring())
     await expect.poll(() => card()).not.toBeNull()
-    const dialog = page.getByRole('dialog', { name: 'Context' })
+    const dialog = page.getByRole('dialog', { name: 'Context usage' })
     await expect.element(dialog).toBeVisible()
-    expect(card()!.querySelector('[data-slot="context-usage"]')!.textContent).toBe('2,000 / 40,000 tokens · includes estimates')
-    expect([...card()!.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(['System prompt', 'Instructions', 'Skills', 'Memory', 'Tools', 'Messages'])
-    expect(card()!.querySelector('[data-instruction-file="/w/AGENTS.md"]')!.textContent).toContain('Truncated')
-    expect(card()!.querySelector('[data-diagnostic="name-mismatch"]')).not.toBeNull()
+    expect(card()!.querySelector('[data-slot="context-usage"]')!.textContent).toBe('2,000 / 40,000 tokens')
+    expect([...card()!.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(['System', 'Prompts', 'Assistant', 'Thinking', 'Tools'])
+    expect(card()!.querySelector('[data-part-value="prompt"]')!.textContent).toBe('1,000 · 50.00%')
+    expect(card()!.querySelector('[data-capacity-part="prompt"]')!.getBoundingClientRect().width).toBeCloseTo(7.9, 0)
+    expect(card()!.querySelector('[data-instruction-file], [data-diagnostic]')).toBeNull()
+    expect(card()!.textContent).not.toMatch(/includes estimates|Instruction files|Diagnostics/)
+    await expect.poll(() => card()!.getBoundingClientRect().width).toBe(348)
+    const bounds = card()!.getBoundingClientRect(),
+      anchor = ring().getBoundingClientRect()
+    expect(bounds.height).toBe(384)
+    expect(bounds.right).toBeCloseTo(anchor.right, 0)
+    expect(anchor.top - bounds.bottom).toBeCloseTo(8, 0)
+    for (const value of card()!.querySelectorAll('[data-part-value]')) expect(getComputedStyle(value).textAlign).toBe('right')
     // 打开时刷新：挂载时一次，之后至少一次。
     expect(fetchUsage.mock.calls.length).toBeGreaterThanOrEqual(2)
 
     await userEvent.keyboard('{Escape}')
     await expect.poll(() => card()).toBeNull()
     expect(document.activeElement).toBe(ring())
-    // 断言"不会再打开"只能等过计时器的上限：openDelay 300 ms，这里等 600 ms。
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    expect(card()).toBeNull()
   })
 
   it('读取失败且没有旧值时环只画轨道，名称为"Context usage"', async () => {
@@ -103,12 +121,43 @@ describe('上下文环', () => {
     })
     render(
       <I18nProvider locale="en">
-        <ContextRingControl target={{ workspaceId: 'w' }} store={store} />
+        <TooltipProvider>
+          <ContextRingControl target={{ workspaceId: 'w' }} store={store} />
+        </TooltipProvider>
       </I18nProvider>,
     )
     await expect.poll(() => store.getState().status).toBe('error')
     expect(ring().getAttribute('aria-label')).toBe('Context usage')
     expect(ring().textContent).toBe('')
+  })
+
+  it('没有有效窗口时只有轨道，不伪造 0%；键盘可打开，外部点击返回入口焦点', async () => {
+    const { store } = renderRing(usage(0, { contextWindow: 0, threshold: 0, warning: 0 }))
+    await expect.poll(() => store.getState().status).toBe('ready')
+    ring().focus()
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => card()).not.toBeNull()
+    expect(ring().textContent).toBe('')
+    expect(card()!.textContent).not.toContain('0% used')
+    await userEvent.click(document.body, { position: { x: 20, y: 20 } })
+    await expect.poll(() => card()).toBeNull()
+    expect(document.activeElement).toBe(ring())
+  })
+
+  it('靠窗口边缘时详情仍在视口内，移动指针进卡片后保持可读', async () => {
+    const { store } = renderRing(usage(2000))
+    await expect.poll(() => store.getState().status).toBe('ready')
+    const wrapper = ring().parentElement!
+    wrapper.style.paddingLeft = '0px'
+    await userEvent.click(ring())
+    await expect.poll(() => card()).not.toBeNull()
+    await userEvent.hover(card()!)
+    await expect.element(page.getByRole('dialog', { name: 'Context usage' })).toBeVisible()
+    const bounds = card()!.getBoundingClientRect()
+    expect(bounds.left).toBeGreaterThanOrEqual(8)
+    expect(bounds.right).toBeLessThanOrEqual(window.innerWidth - 8)
+    await userEvent.keyboard('{Escape}')
+    await expect.poll(() => card()).toBeNull()
   })
 })
 

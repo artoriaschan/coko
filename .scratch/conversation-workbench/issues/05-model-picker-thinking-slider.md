@@ -10,13 +10,15 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 **Write scope:** renderer 的 model-picker；packages/ui 的推理档位拉条部件；i18n；workbench.md 的模型选择一节（文件不存在时按 coko-docs 新建）。
 
 **跨票接口：** 模型选择组件的对外 props 不变，03 把它原样放入工具栏；会话与草稿的模型选择沿用 chat-store 现有的选择入口（11 保持其签名）。
 
-- [ ] Browser Mode：先出现详情，内容完整、没有两角按钮；点击名称区打开分组列表，选择后回到详情，任何时候只有一个模型浮层；拉条只停在有效档位，松开吸附、详情保持展开、按钮摘要同步、覆盖的节点隐藏；七档的粒子数量与单轮时长与 MODEL-09 的表一致，方向从右向左；关闭菜单、切到关闭或开启减少动态效果时粒子停止而选择正常；没有模型、模型被清空、切到不支持当前档位的模型三种情形（CW-29 至 CW-33）。
-- [ ] Electron E2E：在已有对话中切到另一个供应商的模型并选一个档位，Sidecar 读回的模型与档位一致。
-- [ ] 文档按 Write scope 更新；`check:docs` 通过。
+- [x] Browser Mode：先出现详情，内容完整、没有两角按钮；点击名称区打开分组列表，选择后回到详情，任何时候只有一个模型浮层；拉条只停在有效档位，松开吸附、详情保持展开、按钮摘要同步、覆盖的节点隐藏；七档的粒子数量与单轮时长与 MODEL-09 的表一致，方向从右向左；关闭菜单、切到关闭或开启减少动态效果时粒子停止而选择正常；没有模型、模型被清空、切到不支持当前档位的模型三种情形（CW-29 至 CW-33）。
+- [x] Electron E2E：在已有对话中切到另一个供应商的模型并选一个档位，Sidecar 读回的模型与档位一致。
+- [x] 文档按 Write scope 更新；`check:docs` 通过。
 
 
 ## Comments
@@ -31,3 +33,10 @@
 - 文档影响：模型流程与状态 → `docs/subsystems/workbench.md` 增加模型/档位及验证入口；总入口 → `docs/README.md` 同步摘要。搜索隐藏目录中的 `workbench.md`、模型选择与旧菜单描述；历史任务保留当时事实，当前正文没有重复维护模型菜单的其他入口。AGENTS → docs/README → workbench 正文读回：路径、语义、归属与权威、引用方向、生命周期、当前入口、新会话读入、历史保留均通过。
 - 集成同步前验证：`rtk pnpm run test apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/settings/delete-provider.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：4 文件、76 项通过；之后关闭时清空预览的局部修正重跑模型文件 6 项通过。`rtk pnpm run test apps/desktop/e2e/model-picker.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts`：2 文件、2 项通过（本次 Forge 测试构建、真实 Electron/Sidecar；更换供应商/档位后重新读回持久化会话）。`rtk pnpm run typecheck`、`rtk pnpm run lint`、`rtk pnpm run check:docs`（245 Markdown、0 问题）、`rtk git diff --check` 通过；Impeccable detector 结果 `[]`。真实外部模型与 CI 未运行；本票不改变模型适配协议。
 - 尚需合入最新集成分支并核对相关检查，完成记录随后追加。
+
+2026-11-03（集成同步完成）：
+
+- 合入集成起点 `9ff565a`（已含 01 至 04）。冲突仅在 `app.browser.test.tsx` 与 `docs/README.md`：模型场景保留本票的新详情/滑条断言，并改用 01 的独立列表读取；导航同时保留模型摘要与项目入口。上下文环、输入框插槽和 `ModelPickerProps` 的接口保持一致。
+- `rtk pnpm run test apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/settings/delete-provider.browser.test.tsx apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：5 文件、84 项通过，退出 0。包括浅色/深色 390px 边缘几何、指针拖动预览、焦点、七档粒子与生命周期，以及 04 的上下文消费方。
+- `rtk pnpm run test apps/desktop/e2e/model-picker.e2e.test.ts apps/desktop/e2e/provider-delete.e2e.test.ts`：新模型/档位 E2E 通过 1 项；既有供应商删除 E2E 因 01 更名后的英文入口使用 `Add project` 而非 `Create project` 失败 1 项。修正 fixture 的实际 zh/en 名称后，`rtk pnpm run test apps/desktop/e2e/provider-delete.e2e.test.ts` 重跑 1 项通过，退出 0；不改运行时、不加等待或放宽断言。两个实际 Electron 场景均有当前实现的通过证据。
+- 合并后 `rtk pnpm run typecheck`、`rtk pnpm run lint`、`rtk pnpm run check:docs`（246 Markdown、0 问题）通过；冲突内容与活动导航已读回，文档维护无缺口。票据关闭，本地已提交，未推送；真实外部模型、发布产物和 CI 仍未验证。

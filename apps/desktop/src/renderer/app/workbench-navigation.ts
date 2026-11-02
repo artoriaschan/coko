@@ -14,11 +14,14 @@ export function createWorkbenchNavigation(chat: ChatStore) {
   }
   let history: WorkbenchLocation[] = [observed()]
   let cursor = 0
-  let initialized = chat.getState().listStatus === 'ready'
+  const ready = () =>
+    chat.lists.getState().listStatus === 'ready' &&
+    (chat.getState().activeSessionId !== null || chat.getState().draftWorkspaceId !== null || chat.lists.getState().sessions.length === 0)
+  let initialized = ready()
   let applying = false
   const listeners = new Set<() => void>()
   const available = (location: WorkbenchLocation) =>
-    location.kind !== 'session' || chat.getState().sessions.some((session) => session.id === location.sessionId)
+    location.kind !== 'session' || chat.lists.getState().sessions.some((session) => session.id === location.sessionId)
   const find = (direction: -1 | 1) => {
     for (let i = cursor + direction; i >= 0 && i < history.length; i += direction) if (available(history[i]!)) return i
     return null
@@ -72,32 +75,29 @@ export function createWorkbenchNavigation(chat: ChatStore) {
     forward: () => move(1),
     /** App 拥有订阅；卸载时停止观察，不把历史保存到本地。 */
     connect() {
-      let active = true
       let previous = observed()
-      let previousSessions = chat.getState().sessions
-      let initialQueued = false
-      const release = chat.subscribe(() => {
+      let previousSessions = chat.lists.getState().sessions
+      const observe = () => {
         const current = observed()
-        const sessions = chat.getState().sessions
+        const sessions = chat.lists.getState().sessions
         if (!initialized) {
-          if (chat.getState().listStatus === 'ready' && !initialQueued) {
-            initialQueued = true
-            queueMicrotask(() => {
-              if (!active || initialized) return
-              initialized = true
-              history = [observed()]
-              cursor = 0
-              notify()
-            })
+          if (ready()) {
+            initialized = true
+            history = [current]
+            cursor = 0
+            notify()
           }
         } else if (!applying && !sameLocation(previous, current)) record(current)
         if (sessions !== previousSessions) notify()
         previous = current
         previousSessions = sessions
-      })
+      }
+      const releaseChat = chat.subscribe(observe)
+      const releaseLists = chat.lists.subscribe(observe)
+      observe()
       return () => {
-        active = false
-        release()
+        releaseChat()
+        releaseLists()
       }
     },
   }

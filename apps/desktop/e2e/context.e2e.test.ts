@@ -1,5 +1,5 @@
-// 上下文环：真实 Electron + 真实 Sidecar（faux 模型，40k 窗口）。底栏显示百分比；faux 回复使用量越过预警线后环为 warning 色；
-// 点击打开 HoverCard 看到分项与 COKO_HOME 的指令文件，Esc 关闭且焦点回到环；窗口最窄时环不挤压模式与模型选择。
+// 上下文环：真实 Electron + 真实 Sidecar（faux 模型，40k 窗口）。底栏入口只显示环；faux 回复使用量越过预警线后环为 warning 色；
+// 点击打开 HoverCard 看到五类分项，Esc 关闭且焦点回到环；窗口最窄时环不挤压模式与模型选择。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -25,12 +25,12 @@ const colorOf = (page: Page, className: string) =>
   }, className)
 
 describe('上下文环', () => {
-  it('百分比、越过预警线变色、HoverCard 的分项与指令文件、Esc 关闭回到环、最窄窗口不挤压选择器', { timeout: 120_000 }, async () => {
+  it('环入口、越过预警线变色、HoverCard 的五类分项、Esc 关闭回到环、最窄窗口不挤压选择器', { timeout: 120_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'coko-context-'))
     onTestFinished(() => rm(root, { recursive: true, force: true }))
     const workspace = join(root, 'workspace')
     await mkdir(workspace, { recursive: true })
-    const agents = await writeCokoHome(root, 'AGENTS.md', 'Prefer short answers.\n')
+    await writeCokoHome(root, 'AGENTS.md', 'Prefer short answers.\n')
     // 回复约 3500 output tokens：越过预警线（3 000），低于阈值（23 000）。
     await writeFile(join(root, 'faux.json'), JSON.stringify({ contextWindow: 40_000, maxTokens: 4_000, responses: [{ content: 'R'.repeat(14_000) }] }))
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
@@ -39,15 +39,16 @@ describe('上下文环', () => {
     await waitConnected(page)
     await stubDirectoryPicker(app.app, [workspace])
     await page
-      .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
+      .getByRole('button', { name: /^(Add project|创建项目)$/ })
       .first()
       .click()
     await page.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
 
-    // 草稿：底栏显示百分比，低于预警线。
-    await expect.poll(() => ring(page).textContent(), { timeout: 15_000 }).toMatch(/^\d+%$/)
+    // 草稿：底栏入口只显示环，低于预警线。
+    await expect.poll(() => ring(page).getAttribute('aria-label'), { timeout: 15_000 }).toMatch(/^(Context usage|上下文用量)$/)
+    expect(await ring(page).textContent()).toBe('')
     expect(await ring(page).getAttribute('data-level')).toBe('normal')
-    expect(await ring(page).getAttribute('aria-label')).toMatch(/^(Context \d+% used|上下文已使用 \d+%)$/)
+    expect(await ring(page).getAttribute('aria-label')).toMatch(/^(Context usage|上下文用量)$/)
 
     await composerOf(page).click()
     await page.keyboard.type('hello')
@@ -55,20 +56,21 @@ describe('上下文环', () => {
     await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 20_000 }).toBe(1)
     await expect.poll(() => ring(page).getAttribute('data-level'), { timeout: 15_000 }).toBe('warning')
     // 颜色有过渡动画：等其停在 warning 色。
-    const warning = await colorOf(page, 'text-warning')
+    const warning = await colorOf(page, 'text-warning-text')
     await expect.poll(() => ring(page).evaluate((el) => getComputedStyle(el).color)).toBe(warning)
     expect(warning).not.toBe(await colorOf(page, 'text-muted-foreground'))
-    expect(Number((await ring(page).textContent())!.replace('%', ''))).toBeGreaterThanOrEqual(8)
+    expect(await ring(page).textContent()).toBe('')
 
-    // 点击打开 HoverCard：分项与指令文件。
+    // 点击打开 HoverCard：五类与当前模型，不展示原来的指令文件。
     await ring(page).click()
-    const card = page.getByRole('dialog', { name: /^(Context|上下文)$/ })
+    const card = page.getByRole('dialog', { name: /^(Context usage|上下文用量)$/ })
     await card.waitFor()
     expect(await card.locator('dt').allTextContents()).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^(System prompt|系统提示)$/), expect.stringMatching(/^(Messages|消息)$/)]),
+      expect.arrayContaining([expect.stringMatching(/^(System|系统)$/), expect.stringMatching(/^(Prompts|提示词)$/)]),
     )
-    expect(await card.locator('dt').count()).toBe(6)
-    await expect.poll(() => card.locator(`[data-instruction-file="${agents}"]`).count()).toBe(1)
+    expect(await card.locator('dt').count()).toBe(5)
+    expect(await card.locator('[data-instruction-file], [data-diagnostic]').count()).toBe(0)
+    expect(await card.textContent()).toContain('Faux')
     await page.keyboard.press('Escape')
     await card.waitFor({ state: 'detached' })
     const focused = () =>
@@ -81,9 +83,13 @@ describe('上下文环', () => {
       })
     expect(await focused()).toBe('ring')
 
-    // 窗口最窄（minWidth 520）：环、模式与模型选择、发送按钮都在输入区内且互不重叠，模型名只截断。
+    // 窗口最窄（minWidth 520）先收起 280px 侧栏，让主内容仍满足 390px 验收下限。
+    // 环、模式与模型选择、发送按钮都在输入区内且互不重叠，模型名只截断。
+    await page.getByRole('button', { name: /^(Collapse sidebar|收起侧栏)$/ }).click()
     await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(520, 820))
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(520)
+    await expect.poll(() => page.getByRole('button', { name: /^(Expand sidebar|展开侧栏)$/ }).count()).toBe(1)
+    await expect.poll(() => page.locator('[data-slot="app-frame-main"]').evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(390)
     const geometry = await page.evaluate(() => {
       const form = document.querySelector('form')!
       const rect = (selector: string) => {

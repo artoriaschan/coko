@@ -10,6 +10,9 @@ const ws = (id: string, name: string): Workspace => ({ id, path: `/Users/me/${na
 const session = (id: string, workspaceId: string, title: string, updatedAt: number, running = false): Session => ({
   id,
   workspaceId,
+  projectId: `project-${workspaceId}`,
+  pinnedAt: null,
+  archivedAt: null,
   title,
   model: { providerId: 'faux', modelId: 'faux-1' },
   thinkingLevel: 'off',
@@ -131,6 +134,17 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       model,
       thinkingLevel: thinkingLevel ?? 'off',
     }),
+    listProjects: async () =>
+      fixtureWorkspaces.map((workspace) => ({
+        id: `project-${workspace.id}`,
+        name: workspace.name,
+        primaryWorkspaceId: workspace.id,
+        folders: [{ path: workspace.path, primary: true }],
+        pinnedAt: null,
+        createdAt: workspace.createdAt,
+        lastUsedAt: Math.max(workspace.createdAt, ...sessionList.filter((s) => s.projectId === `project-${workspace.id}`).map((s) => s.updatedAt)),
+        sessionCount: sessionList.filter((s) => s.projectId === `project-${workspace.id}` && s.archivedAt === null).length,
+      })),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => sessionList,
     registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),

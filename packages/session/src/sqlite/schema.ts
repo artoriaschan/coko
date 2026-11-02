@@ -298,6 +298,29 @@ export const MIGRATIONS: readonly Migration[] = [
       createMemoryFts(db)
     },
   },
+  {
+    version: 10,
+    up(db) {
+      db.exec(`
+        CREATE TABLE projects (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          primary_workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(id),
+          additional_folders TEXT NOT NULL DEFAULT '[]',
+          pinned_at INTEGER,
+          created_at INTEGER NOT NULL
+        ) STRICT;
+        ALTER TABLE sessions ADD COLUMN project_id TEXT REFERENCES projects(id);
+        ALTER TABLE sessions ADD COLUMN pinned_at INTEGER;
+        ALTER TABLE sessions ADD COLUMN archived_at INTEGER;
+        CREATE INDEX sessions_by_project ON sessions(project_id, updated_at);
+        INSERT INTO projects (id, name, primary_workspace_id, created_at)
+          SELECT 'project-' || id, name, id, created_at FROM workspaces;
+        UPDATE sessions SET project_id = (SELECT id FROM projects WHERE primary_workspace_id = sessions.workspace_id)
+          WHERE parent_session_id IS NULL;
+      `)
+    },
+  },
 ]
 
 /**

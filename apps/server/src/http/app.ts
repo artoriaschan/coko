@@ -110,6 +110,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     }),
   )
 
+  http.get(API_ROUTES.projects, async (c) => c.json({ projects: await app.projects.list() }))
   http.get(API_ROUTES.workspaces, async (c) => c.json({ workspaces: await app.workspaces.list() }))
   http.post(API_ROUTES.workspaces, async (c) => c.json(await app.workspaces.register(await body(c, RegisterWorkspaceRequest)), 201))
 

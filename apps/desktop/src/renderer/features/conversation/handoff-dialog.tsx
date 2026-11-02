@@ -56,8 +56,8 @@ function useHandoffAction(sessionId: string) {
   const store = React.useContext(HandoffStoreContext)
   const chat = useOptionalChatStoreApi()
   const progress = useStore(store, (s) => s.progress[sessionId])
-  const child = React.useSyncExternalStore(chat?.subscribe ?? (() => () => {}), () => {
-    const session = chat?.getState().sessions.find((s) => s.id === sessionId)
+  const child = React.useSyncExternalStore(chat?.lists.subscribe ?? (() => () => {}), () => {
+    const session = chat?.lists.getState().sessions.find((s) => s.id === sessionId)
     return session?.parentSessionId !== undefined
   })
   const active = progress?.phase === 'summarizing' || progress?.phase === 'creating'
@@ -154,8 +154,8 @@ export function HandoffDialog({ sessionId, open, onClose, onCloseAutoFocus }: Ha
   const worktrees = React.useContext(WorktreeListContext)
   const chat = useOptionalChatStoreApi()
   const workspaceId = React.useSyncExternalStore(
-    chat?.subscribe ?? (() => () => {}),
-    () => chat?.getState().sessions.find((s) => s.id === sessionId)?.workspaceId,
+    chat?.lists.subscribe ?? (() => () => {}),
+    () => chat?.lists.getState().sessions.find((s) => s.id === sessionId)?.workspaceId,
   )
   const progress = useStore(store, (s) => s.progress[sessionId])
   const git = useStore(store, (s) => s.gitStatus[sessionId])

@@ -2,7 +2,7 @@ import type { Schedule } from '@coko/protocol'
 import { Button } from '@coko/ui'
 import { ExternalLinkIcon } from 'lucide-react'
 import * as React from 'react'
-import { useChat, useChatActions } from '../../app/chat.tsx'
+import { useChatActions, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettingsPage } from '../../app/settings.tsx'
 import { useAllSchedules, useSchedulesStoreApi } from '../conversation/schedules-button.tsx'
@@ -17,7 +17,7 @@ export function SchedulesSection() {
   const { t } = useI18n()
   const store = useSchedulesStoreApi()
   const list = useAllSchedules()
-  const sessions = useChat((s) => s.sessions)
+  const sessions = useLists((s) => s.sessions)
   const [deleting, setDeleting] = React.useState<Schedule | null>(null)
   const groups = React.useMemo(() => {
     const bySession = new Map<string, Schedule[]>()

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 Worktree 契约：在仓库根的 .coko-worktrees/<name> 创建 git worktree 与分支 coko/<name>，Session 创建时绑定、工作目录固定（Workspace 为仓库子目录时为对应子目录），宿主执行 git（argv、无提示、超时、登记 kind git），info/exclude，符号链接检查，移除的 busy / dirty 检查与只读会话，启动恢复，供子代理的 createForSubagent / removeIfUnchanged，HTTP 接口与侧栏界面。修改 worktree 的创建、绑定、移除或 git 执行前查阅。"
+description: "当前的 Worktree 契约：在仓库根的 .coko-worktrees/<name> 创建 git worktree 与分支 coko/<name>，Session 创建时绑定、工作目录固定（Workspace 为仓库子目录时为对应子目录），宿主执行 git（argv、无提示、超时、登记 kind git），info/exclude，符号链接检查，移除的 busy / dirty 检查与只读会话，启动恢复，供子代理的 createForSubagent / removeIfUnchanged，HTTP 接口与会话界面。修改 worktree 的创建、绑定、移除或 git 执行前查阅。"
 lifecycle: active
 ---
 
@@ -18,7 +18,7 @@ lifecycle: active
 | `packages/protocol/src/worktrees.ts` | `Worktree`、`SessionWorktree`、`CreateWorktreeRequest`、`GitStatusResponse`、`WorktreeBusyDetails`、`WorktreeDirtyDetails`、`worktreePaths` |
 | `packages/session` | `worktrees` 表与仓库；`sessions.worktree_id`（迁移 v8） |
 | `apps/desktop/src/renderer/stores/worktrees-store.ts` | renderer 的 worktree 列表、新建会话与移除 |
-| `apps/desktop/src/renderer/features/sidebar/worktrees.tsx`、`features/conversation/worktree-chip.tsx` | Workspace 菜单与对话框、分支 chip、只读提示 |
+| `apps/desktop/src/renderer/features/conversation/worktree-chip.tsx` | 标题栏分支 chip、只读提示 |
 
 Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具。
 
@@ -77,19 +77,19 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 
 ## 界面
 
-- 侧栏 Workspace 组标题的"更多操作"菜单：在新 worktree 中新建会话（对话框，名称可选；校验失败在对话框内提示），worktree…（列表：名称、分支、会话数、移除）。
-- 移除先确认；busy 时显示原因，dirty 时显示文件数与文件列表，原因来自 409 的 details（按 schema 校验，不合格的按普通失败提示）。
-- 绑定 worktree 的会话在侧栏会话行与标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示。
+- 侧栏按项目组织会话，不再提供 worktree 列表、创建与移除入口，也不在会话行显示分支 chip。
+- 绑定 worktree 的已有会话继续在标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示。
+- worktree 的创建、列表与移除协议仍可用，交接与子代理继续使用原有服务。新对话的 worktree 首次发送入口仍待接入。
 
 会话创建的唯一入口（`SessionService.createRecord`：新建、子代理、交接）拒绝绑定已移除的 worktree（409 `worktree-removed`）。worktree 会话的项目 deny / ask 规则、启动恢复的结果探测、回退的边界、上下文用量（`GET /api/sessions/:id/context` 的指令、Skills 分项）与 MCP 连接（池键含工作目录）都按会话的工作目录；批准与 Workspace 作用域规则仍按 Workspace。
 
 ## 已知限制
 
-- 在新 worktree 中新建的会话没有标题，显示为"未命名"。
+- 工作台尚未提供新的首次发送 worktree 入口；外部移除后仍通过启动恢复标记只读。
 
 ## 验证与相关设计
 
 - `tests/integration/sidecar-worktrees.test.ts`：创建、exclude、校验、重名；bash `pwd -P`、write、Seatbelt、指令文件、子目录 Workspace；grep / find / ls（内置与 ripgrep）；busy / dirty / removed、重启标记；读取主 checkout 须审批与 `.coko-worktrees` 为符号链接时拒绝。
 - `apps/server/src/application/worktrees.test.ts`：`removeIfUnchanged`、名字校验、仓库根经符号链接、子目录工作目录、启动恢复。
 - `apps/server/src/adapters/git.test.ts`：argv、环境、登记与超时终止。
-- `apps/desktop/e2e/worktrees.e2e.test.ts`：侧栏菜单（键盘）、分支 chip、dirty 提示、移除后只读、明暗主题对比度。
+- 侧栏旧 worktree 菜单的 Browser Mode 与 E2E 已随入口删除；服务端生命周期仍由上述协议测试覆盖。

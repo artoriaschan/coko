@@ -31,7 +31,7 @@ const worktree: Worktree = {
 
 async function mountDialog(options: { backend?: Partial<HandoffBackend>; repo?: boolean; dirty?: number } = {}) {
   const fixture = createFixtureChat()
-  await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   const starts: { sessionId: string; instructions: string; target: HandoffTarget }[] = []
   const stops: string[] = []
   const handoff = createHandoffStore({
@@ -163,7 +163,7 @@ describe('时间线的交接行', () => {
   })
   it('源：已交接到 <目标标题>（worktree），打开目标；目标：交接自 <源标题>，跳回源', async () => {
     const { chat } = createFixtureChat()
-    await expect.poll(() => chat.getState().listStatus).toBe('ready')
+    await expect.poll(() => chat.lists.getState().listStatus).toBe('ready')
     const source = record('handoff', { targetSessionId: 's-3', instructions: 'i', summary: 's', target: 'worktree' })
     const origin = record('handoff_origin', { sessionId: 's-4', seq: 2 })
     const screen = await render(
@@ -184,7 +184,7 @@ describe('时间线的交接行', () => {
 
   it('失败的交接（handoff_failed，没有目标）：显示没能创建与原因，不提供打开', async () => {
     const { chat } = createFixtureChat()
-    await expect.poll(() => chat.getState().listStatus).toBe('ready')
+    await expect.poll(() => chat.lists.getState().listStatus).toBe('ready')
     const failed = record('handoff_failed', { error: { code: 'worktree-exists', message: 'taken' }, instructions: 'i', summary: 's' })
     const screen = await render(
       <I18nProvider locale="en">

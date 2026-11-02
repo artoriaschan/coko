@@ -38,7 +38,10 @@ function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: '
   const chat = useOptionalChatStoreApi()
   const { handoff } = item
   const otherId = handoff.kind === 'source' ? handoff.payload.targetSessionId : handoff.payload.sessionId
-  const title = React.useSyncExternalStore(chat?.subscribe ?? (() => () => {}), () => chat?.getState().sessions.find((s) => s.id === otherId)?.title)
+  const title = React.useSyncExternalStore(
+    chat?.lists.subscribe ?? (() => () => {}),
+    () => chat?.lists.getState().sessions.find((s) => s.id === otherId)?.title,
+  )
   const name = title?.trim() || t('sidebar.untitled')
   const text =
     handoff.kind === 'source'

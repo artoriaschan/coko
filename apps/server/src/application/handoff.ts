@@ -179,6 +179,7 @@ export class HandoffService {
       worktreeId = (await worktrees.create(source.workspaceId, target.name === undefined ? {} : { name: target.name })).id
     const created = await this.#options.runs.createSession({
       workspaceId: source.workspaceId,
+      projectId: source.projectId,
       title: handoffTitle(pending.instructions),
       model: source.model,
       thinkingLevel: source.thinkingLevel,

@@ -2,7 +2,7 @@ import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
-import { useChat, useChatActions, useChatStoreApi } from '../../app/chat.tsx'
+import { useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsPage } from '../../app/settings.tsx'
@@ -104,10 +104,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const { t } = useI18n()
   const activeSessionId = useChat((s) => s.activeSessionId)
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
-  const session = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId))
+  const session = useCurrentSession()
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
-  const hasWorkspace = useChat((s) => s.workspaces.length > 0)
-  const listStatus = useChat((s) => s.listStatus)
+  const hasWorkspace = useLists((s) => s.workspaces.length > 0)
+  const listStatus = useLists((s) => s.listStatus)
   const draftModel = useChat((s) => s.draftModel)
   const draftThinkingLevel = useChat((s) => s.draftThinkingLevel)
   const draftPermissionMode = useChat((s) => s.draftPermissionMode)
@@ -137,8 +137,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   }
   const sendOrOpen = async (text: string) => openGoalCard(text) || send(text)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
-  const workspacePath = useChat((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
-  const attachmentRoot = useChat((s) => s.workspaces.find((w) => w.id === (session?.workspaceId ?? draftWorkspaceId))?.path)
+  const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
+  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === (session?.workspaceId ?? draftWorkspaceId))?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)

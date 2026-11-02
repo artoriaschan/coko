@@ -22,6 +22,10 @@ import {
 import { StoreError } from '../errors.ts'
 import { checkNewEntries } from '../payloads.ts'
 import type {
+  Project,
+  NewProject,
+  ProjectPatch,
+  SessionOrganization,
   CredentialRecord,
   HostProcess,
   HostProcessInput,
@@ -63,6 +67,7 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   let closed = false
   const workspaces = new Map<string, Workspace>()
   const sessions = new Map<string, Session>()
+  const projects = new Map<string, Project>()
   const entries = new Map<string, SessionEntry[]>()
   const settings = new Map<string, Setting>()
   const providers = new Map<string, ProviderRow>()
@@ -139,11 +144,42 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
   const copyCredential = (credential: CredentialRecord): CredentialRecord => ({ ciphertext: new Uint8Array(credential.ciphertext), hint: credential.hint })
   const toProvider = (row: ProviderRow): Provider => ({ ...row.provider, credential: row.credential ? { hint: row.credential.hint } : null })
   const touch = (session: Session, patch: Partial<Session>): Session => {
-    Object.assign(session, patch, { updatedAt: now() })
+    Object.assign(session, patch)
     return session
   }
 
+  const requireProject = (id: string): Project => {
+    const project = projects.get(id)
+    if (!project) throw notFound('project', id)
+    return project
+  }
+  const checkPrimary = (workspaceId: string, except?: string) => {
+    if (!workspaces.has(workspaceId)) throw notFound('workspace', workspaceId)
+    if ([...projects.values()].some((p) => p.primaryWorkspaceId === workspaceId && p.id !== except)) throw alreadyExists('project workspace', workspaceId)
+  }
+
   return {
+    projects: {
+      create: op((input: NewProject) => {
+        checkPrimary(input.primaryWorkspaceId)
+        const project: Project = { ...copy(input), id: randomUUID(), additionalFolders: copy(input.additionalFolders ?? []), pinnedAt: null, createdAt: now() }
+        projects.set(project.id, project)
+        return project
+      }),
+      get: op((id: string) => projects.get(id)),
+      list: op(() => [...projects.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))),
+      update: op((id: string, patch: ProjectPatch) => {
+        const project = requireProject(id)
+        if (patch.primaryWorkspaceId !== undefined) checkPrimary(patch.primaryWorkspaceId, id)
+        Object.assign(project, copy(patch))
+        return project
+      }),
+      delete: op((id: string) => {
+        requireProject(id)
+        for (const session of sessions.values()) if (session.projectId === id) session.projectId = null
+        projects.delete(id)
+      }),
+    },
     sessions: {
       registerWorkspace: op((input: { path: string; name?: string }) => {
         for (const w of workspaces.values()) if (w.path === input.path) return w
@@ -163,11 +199,20 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           if (!worktree) throw notFound('worktree', worktreeId)
           sameWorkspace('worktreeId', worktree.workspaceId, input.workspaceId)
         }
+        if (input.projectId != null) requireProject(input.projectId)
         const at = now()
         const session: Session = {
           id: randomUUID(),
           workspaceId: input.workspaceId,
           title: input.title ?? '',
+          projectId:
+            parentSessionId === null
+              ? input.projectId === undefined
+                ? ([...projects.values()].find((p) => p.primaryWorkspaceId === input.workspaceId)?.id ?? null)
+                : input.projectId
+              : null,
+          pinnedAt: null,
+          archivedAt: null,
           model: input.model ?? null,
           thinkingLevel: levelOf(input),
           modelCleared: false,
@@ -184,11 +229,17 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         [...sessions.values()]
           .map((session, index) => ({ session, index }))
           .filter(({ session }) => session.parentSessionId === null && (filter?.workspaceId === undefined || session.workspaceId === filter.workspaceId))
-          .sort((a, b) => b.session.updatedAt - a.session.updatedAt || b.index - a.index)
+          .sort((a, b) => b.session.updatedAt - a.session.updatedAt || a.session.id.localeCompare(b.session.id))
           .map(({ session }) => session),
       ),
       listChildren: op((parentSessionId: string) => [...sessions.values()].filter((session) => session.parentSessionId === parentSessionId)),
       getSession: op((id: string) => sessions.get(id)),
+      setSessionOrganization: op((id: string, patch: Partial<SessionOrganization>) => {
+        const session = requireSession(id)
+        if (patch.projectId != null) requireProject(patch.projectId)
+        if (session.parentSessionId !== null && patch.projectId != null) throw new StoreError('invalid-input', 'Only root sessions store project membership')
+        return touch(session, copy(patch))
+      }),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
       setSessionModel: op((id: string, choice: SessionModelChoice) =>
         touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),

@@ -1,9 +1,13 @@
 // 时间裁剪的贡献：transformMessages 受 context.trimOldToolResults 控制，时钟可注入；只返回新数组，不改输入。
-import { defaultCapabilityConfig, emptyPluginContributions, OLD_TOOL_RESULT_CLEARED } from '@coko/agent'
+import { createToolRegistry, defaultCapabilityConfig, emptyPluginContributions, OLD_TOOL_RESULT_CLEARED } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { JsonValue, SessionEntry } from '@coko/session'
+import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 import type { ContextScope } from './types.ts'
-import { usageContribution } from './usage.ts'
+import { ConfigService } from '../config.ts'
+import { createContextAssembly, emptyContextAssembly } from './index.ts'
+import { contextUsage, usageContribution } from './usage.ts'
 
 const MIN = 60_000
 const scope = (trim: boolean): ContextScope => {
@@ -52,5 +56,126 @@ describe('usageContribution.transformMessages', () => {
     const usage = usageContribution({ cokoHome: '/h', now: () => 120 * MIN })
     const messages = conversation()
     expect(usage.transformMessages!(messages, scope(false))).toBe(messages)
+  })
+})
+
+const entry = (seq: number, payload: JsonValue): SessionEntry => ({
+  sessionId: 's',
+  seq,
+  kind: 'message',
+  payloadVersion: 1,
+  payload,
+  runId: null,
+  createdAt: 0,
+})
+
+describe('contextUsage five categories', () => {
+  it('classifies text, images, thinking, tool calls and tool results without usage', async () => {
+    const result = await contextUsage({
+      context: emptyContextAssembly(),
+      scope: scope(false),
+      baseTools: createToolRegistry(),
+      model: undefined,
+      entries: [
+        entry(1, {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'abcd' },
+            { type: 'image', data: 'AA==', mimeType: 'image/png' },
+          ],
+          timestamp: 0,
+        }),
+        entry(2, {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'abcd' },
+            { type: 'thinking', thinking: 'abcdefgh' },
+            { type: 'toolCall', name: 'read', id: 'c', arguments: {} },
+          ],
+          timestamp: 1,
+        }),
+        entry(3, { role: 'toolResult', toolCallId: 'c', toolName: 'read', content: [{ type: 'text', text: 'abcd' }], timestamp: 2 }),
+      ],
+    })
+    expect(result.breakdown).toEqual({ system: 37, prompt: 1201, assistant: 3, thinking: 2, tools: 1 })
+    expect(result.tokens).toBe(1244)
+    expect(result.estimated).toBe(true)
+  })
+
+  it.each([
+    [100, { system: 90, prompt: 3, assistant: 3, thinking: 2, tools: 2 }],
+    [1, { system: 1, prompt: 0, assistant: 0, thinking: 0, tools: 0 }],
+    [41, { system: 37, prompt: 1, assistant: 1, thinking: 1, tools: 1 }],
+    [42, { system: 38, prompt: 1, assistant: 1, thinking: 1, tools: 1 }],
+  ])('allocates usage %i proportionally with deterministic rounding', async (tokens, expected) => {
+    const result = await contextUsage({
+      context: emptyContextAssembly(),
+      scope: scope(false),
+      baseTools: createToolRegistry(),
+      model: undefined,
+      entries: [
+        entry(1, { role: 'user', content: 'abcd', timestamp: 0 }),
+        entry(2, { role: 'toolResult', toolCallId: 'c', toolName: 'read', content: [{ type: 'text', text: 'abcd' }], timestamp: 1 }),
+        entry(3, {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'abcd' },
+            { type: 'thinking', thinking: 'abcd' },
+          ],
+          usage: { input: tokens, output: 0, cacheRead: 0, cacheWrite: 0 },
+          timestamp: 2,
+          stopReason: 'stop',
+        }),
+      ],
+    })
+    expect(result.tokens).toBe(tokens)
+    expect(result.breakdown).toEqual(expected)
+  })
+
+  it('counts every assembled system section, including plan, goal and todo', async () => {
+    const context = createContextAssembly({
+      cokoHome: '/h',
+      config: new ConfigService(),
+      contributions: ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo'].map((name) => ({
+        name,
+        systemSections: async () => [{ name, text: 'abcd' }],
+      })),
+    })
+    const result = await contextUsage({ context, scope: scope(false), baseTools: createToolRegistry(), model: undefined, entries: [] })
+    expect(result.breakdown).toEqual({ system: 43, prompt: 0, assistant: 0, thinking: 0, tools: 0 })
+    expect(result.tokens).toBe(43)
+  })
+
+  it('counts compaction summaries as prompts and discards usage from summarized history', async () => {
+    const result = await contextUsage({
+      context: emptyContextAssembly(),
+      scope: scope(false),
+      baseTools: createToolRegistry(),
+      model: undefined,
+      entries: [
+        entry(1, { role: 'assistant', content: [{ type: 'text', text: 'old' }], usage: { input: 9999, output: 1, cacheRead: 0, cacheWrite: 0 }, timestamp: 0 }),
+        entry(2, { role: 'user', content: 'abcd', timestamp: 1 }),
+        { ...entry(3, { summary: 'abcdefgh', firstKeptSeq: 2 }), kind: 'compaction' },
+      ],
+    })
+    expect(result.breakdown).toEqual({ system: 37, prompt: 30, assistant: 0, thinking: 0, tools: 0 })
+    expect(result.tokens).toBe(67)
+  })
+
+  it('counts tool declarations with results in tools, with duplicate declarations ignored', async () => {
+    const baseTools = createToolRegistry()
+    const tool = {
+      name: 'read',
+      label: 'Read',
+      description: 'Read',
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [{ type: 'text' as const, text: 'done' }], details: {} }),
+    }
+    baseTools.register(tool)
+    const context = createContextAssembly({ cokoHome: '/h', config: new ConfigService(), contributions: [{ name: 'mcp', tools: async () => [{ tool }] }] })
+    const result = await contextUsage({ context, scope: scope(false), baseTools, model: undefined, entries: [] })
+    // The declaration JSON has 83 characters, rounded up to 21 tokens.
+    expect(result.breakdown.tools).toBe(21)
+    expect(result.tokens).toBe(58)
   })
 })

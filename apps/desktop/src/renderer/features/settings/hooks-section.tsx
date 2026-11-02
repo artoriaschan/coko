@@ -5,7 +5,7 @@ import { HOOK_EVENTS } from '@coko/protocol'
 import { Button, Checkbox, cn, Textarea, toast } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useChat } from '../../app/chat.tsx'
+import { useChat, useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { ApiError } from '../../client/api.ts'
 import { createConfigClient } from '../../stores/config-store.ts'
@@ -41,7 +41,7 @@ function loadedByEvent(view: HooksResponse): [HookEvent, LoadedRow[]][] {
 export function HooksSection() {
   const { t } = useI18n()
   const sessionId = useChat((s) => s.activeSessionId ?? undefined)
-  const workspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId ?? s.draftWorkspaceId ?? undefined)
+  const workspaceId = useActiveWorkspaceId()
   const target: HooksTarget | undefined = sessionId !== undefined ? { sessionId } : workspaceId !== undefined ? { workspaceId } : undefined
   const status = useStore(hooksStore, (s) => s.status)
   const view = useStore(hooksStore, (s) => s.view)
