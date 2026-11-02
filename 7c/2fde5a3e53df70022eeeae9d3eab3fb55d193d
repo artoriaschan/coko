@@ -1,0 +1,20 @@
+apps/desktop/src/renderer/features/sidebar/session-move-menu.tsx
+  s_64e2ce1bfde668::t_97634c22574537 47-55
+  s_64e2ce1bfde668::t_d47a2a8847eeb1 29,40,45-46,56,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "7c2fde5a3e53df70022eeeae9d3eab3fb55d193d",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
