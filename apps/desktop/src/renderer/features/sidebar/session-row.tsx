@@ -19,6 +19,7 @@ import {
 import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon, Trash2Icon } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { SessionMoveMenu } from './session-move-menu.tsx'
 import { SessionDeleteDialog } from './session-delete-dialog.tsx'
 import { SessionMenuIcon, SessionMenu, type SessionMenuSlots } from './session-menu.tsx'
 
@@ -212,6 +213,7 @@ export function SessionRow({
             pending={pending}
             slots={{
               ...menuSlots,
+              moveToProject: menuSlots?.moveToProject ?? <SessionMoveMenu session={session} close={() => setMenu(false)} />,
               delete: menuSlots?.delete ?? (
                 <DropdownMenuItem
                   variant="destructive"

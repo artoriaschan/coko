@@ -64,11 +64,21 @@ PUT /api/sessions/:id/pin 接受布尔值 pinned，返回更新后的 Session；
 
 独立、项目内及置顶会话复用 [SessionMenu](../../apps/desktop/src/renderer/features/sidebar/session-menu.tsx)。点击更多以整行为锚点，首选位于行右侧 2px、顶部对齐；右键先关闭详情并阻止原生菜单，改用鼠标的视口坐标作为首选左上角。右键本身不会进入会话、置顶或新建。共享 RowMenu 通过 Radix portal、翻转、平移、至少 8px 窗口边距及可用高度内滚动（实际避让预留 1px，以容纳发丝分隔线引起的浮点取整）保持菜单可操作；外部点击、Escape、来源滚动或打开后窗口大小变化关闭菜单；打开前已发生、随后才送达的 resize 通知不关闭菜单。未进入改名时，菜单关闭后回到来源行的焦点，不重新打开详情。
 
-菜单目前包含“重命名”“置顶 / 取消置顶”和分隔线下的危险色“删除对话”，根据当前置顶状态切换置顶文案。归档和移到项目通过具名插槽填入，未交付的项目不展示空菜单行。不展示导出为 MD、在飞书中继续、小窗打开或快捷键。所有前导图标使用居中的 14px 固定槽，斜图钉绕槽中心旋转，文字起点一致。
+菜单包含“重命名”“置顶 / 取消置顶”“移到项目”和分隔线下的危险色“删除对话”，根据当前置顶状态切换置顶文案。归档等生命周期能力通过具名插槽填入，未交付的项目不展示空菜单行。不展示导出为 MD、在飞书中继续、小窗打开或快捷键。所有前导图标使用居中的 14px 固定槽，斜图钉绕槽中心旋转，文字起点一致。
 
 重命名将行标题替换为共享 [InlineRename](../../packages/ui/src/components/inline-rename.tsx)，聚焦并全选原始标题。Enter 或失焦提交，输入法组合期间 Enter 不提交，Escape 取消；保存前去除首尾空白，空值或没有变化时恢复原行、不发送请求。输入最多 200 字符，名称可以重复。保存期间输入只读，重复 Enter 或失焦不会重复提交；保存失败保留输入和焦点并显示应用级 Toast，可直接重试。成功响应更新列表 store 的同一份 Session，列表、当前会话引用与详情卡片同步，不重建会话内容。
 
 PUT /api/sessions/:id/title 接受 title，校验字符串类型、非空及最多 200 字符，去掉首尾空白后调用存储标题写入能力，返回更新后的 Session。改名不追加记录、不改变最后记录时间、项目归属、置顶或工作目录，重启后仍可从列表与详情读回。
+
+## 移到项目与移出项目
+
+PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回更新后的 Session；仅允许根会话，目标项目不存在时拒绝。接口只写入项目归属，不追加条目，不改变最后记录时间、Workspace、工作目录、worktree 绑定和置顶时间。子会话的归属仍沿根会话派生。新的归属供后续 Run 查询；执行目录继续固定。
+
+会话菜单的“移到项目”保留右箭头。共享 DropdownMenuStackedSubContent 经 portal 叠在父菜单上方，默认紧贴触发项右侧、顶部对齐；父表面的 4px 右内边距形成窄幅重叠。窗口边缘才翻转或平移，内容在可用高度内滚动。Escape 先关闭子菜单并把焦点还给父触发项，再次 Escape 关闭父菜单。子菜单支持项目名称搜索与当前项勾选；同名项目附带主要文件夹的目录名，搜索仍只匹配项目名称。
+
+分隔线后的“选择文件夹…”关闭菜单并打开同一套创建项目表单，完成动作捕获原会话 ID。新建成功或主要文件夹命中已有项目后，只把来源会话移入目标，不创建新 Session、不进入新对话页。取消或创建失败不改归属；项目已创建但移动失败时，Toast 明确说明项目已创建、对话未能移入及原归属不变。移动失败保留数据，可重试。
+
+“移出项目”只在会话实际有项目归属时出现，置顶不影响条件。移出后普通项目会话回到“对话”，已置顶会话留在置顶区，详情归属显示“对话”。移动后列表及详情使用列表 store 中同一份 Session，每个会话仅显示一次。
 
 ## 列表交互与本地恢复
 
@@ -110,3 +120,7 @@ DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代�
 有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
 
 [SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
+
+- [移动 Sidecar 用例](../../tests/integration/sidecar-session-move.test.ts)：归属移动与移出、非法目标、固定时间戳、worktree 绑定和重启读回。
+- [移动浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx)：叠加几何与逐层焦点、搜索、同名区分、四种归属与置顶组合、创建与已有项目完成动作及失败保护。
+- [移动 Electron 用例](../../apps/desktop/e2e/session-move.e2e.test.ts)：从独立会话选择文件夹创建项目并移入，重启后身份和专属工作目录不变。

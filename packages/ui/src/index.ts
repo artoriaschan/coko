@@ -41,6 +41,7 @@ export {
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
+  DropdownMenuStackedSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './components/dropdown-menu.tsx'

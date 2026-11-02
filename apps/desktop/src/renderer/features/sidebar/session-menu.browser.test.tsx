@@ -48,7 +48,12 @@ it('more replaces details with the row menu2px right and top aligned; rename sel
   const rect = row.element().getBoundingClientRect()
   await expect.poll(() => menu.element().getBoundingClientRect().left - rect.right).toBe(2)
   expect(menu.element().getBoundingClientRect().top).toBe(rect.top)
-  expect([...menu.element().querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual(['Rename', 'Pin conversation', 'Delete conversation'])
+  expect([...menu.element().querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
+    'Rename',
+    'Pin conversation',
+    'Move to project',
+    'Delete conversation',
+  ])
   await userEvent.click(page.getByRole('menuitem', { name: 'Rename', exact: true }))
   const input = page.getByRole('textbox', { name: 'Conversation title' })
   await expect.element(input).toHaveFocus()
@@ -72,7 +77,7 @@ it.each(['light', 'dark'])('%s menus retain centered14px icon slots and identica
     const menu = page.getByRole('menu', { name: 'Conversation actions' })
     await expect.element(page.getByRole('menuitem', { name: 'Unpin conversation', exact: true })).toBeVisible()
     const slots = [...menu.element().querySelectorAll<HTMLElement>('[data-session-menu-icon]')]
-    expect(slots).toHaveLength(3)
+    expect(slots).toHaveLength(4)
     await expect.poll(() => slots[0]!.getBoundingClientRect().width).toBe(14)
     const boxes = slots.map((slot) => slot.getBoundingClientRect())
     expect(boxes[0]!.width).toBe(14)

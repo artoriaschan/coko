@@ -55,6 +55,7 @@ export interface ListState extends ListDisplay {
 export interface ListActions {
   upsertProject(project: Project): void
   load(): Promise<boolean>
+  moveSession(id: string, projectId: string | null): Promise<boolean>
   setPinned(id: string, pinned: boolean): Promise<boolean>
   renameSession(id: string, title: string): Promise<boolean>
   reorderCategories(first: SidebarCategory): void
@@ -141,6 +142,14 @@ export function createListStore(api: ApiClient): ListStore {
           return true
         } catch {
           if (get().listStatus !== 'ready') set({ listStatus: 'error' })
+          return false
+        }
+      },
+      async moveSession(id, projectId) {
+        try {
+          get().patchSession(id, await api.moveSession(id, projectId))
+          return true
+        } catch {
           return false
         }
       },
