@@ -1,0 +1,52 @@
+.scratch/conversation-workbench/spec.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 14,487,684,817,930
+docs/README.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 28
+.scratch/desktop-app/issues/08-grill-desktop-information-architecture.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 34
+GLOSSARY.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 32
+.scratch/desktop-app/map.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 32
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 81,128
+  s_64e2ce1bfde668::t_c79a501b5b2f96 122-123
+.scratch/conversation-workbench/evidence/23-closeout.md
+  s_64e2ce1bfde668::t_89a7c35312d51b 158-159,215-217
+  s_64e2ce1bfde668::t_c79a501b5b2f96 219-229
+  s_64e2ce1bfde668::t_dfeb4b7409c09c 1-157,160-214
+  s_64e2ce1bfde668::t_40b4b0ce12cb8f 218
+docs/adr/README.md
+  s_64e2ce1bfde668::t_89a7c35312d51b 32
+apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts
+  s_64e2ce1bfde668::t_d47a2a8847eeb1 38,41
+  s_64e2ce1bfde668::t_f6334aec97f927 26-28,93-95,109-111,126-128,162-165,187-189,191-197,219-220,223-234,243-249,264-268,298-307
+  s_64e2ce1bfde668::t_c156daeb7b3477 33,153-154
+  s_64e2ce1bfde668::t_fb3a2945622172 49-50,57
+  s_64e2ce1bfde668::t_3fb193f5dda2b2 183-186,190,198-218,221-222,235-242,250-261
+  s_64e2ce1bfde668::t_0f2683ca006f73 1-25,29-32,34-37,39-40,42-48,51-56,58-92,96-108,112-125,129-152,155-161,166-182
+  s_64e2ce1bfde668::t_5b1547e788fe32 262-263,269-297,308-318
+.scratch/conversation-workbench/issues/23-closeout.md
+  s_64e2ce1bfde668::t_c79a501b5b2f96 33-35
+  s_64e2ce1bfde668::t_40b4b0ce12cb8f 20-32
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_f0ec63b8a96a85 175-176
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_89a7c35312d51b 5,48,56-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "fe20799577477fc6804a7f866b478ac200b9b824",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
