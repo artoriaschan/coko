@@ -1,0 +1,59 @@
+apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx
+  s_64e2ce1bfde668::t_7e2dabd820bbc4 1-209
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 127-129
+  s_64e2ce1bfde668::t_accd4b32dd1fc5 87
+  s_64e2ce1bfde668::t_0d581b3dae6fc5 79
+  s_64e2ce1bfde668::t_eb92243af67668 85-86,88-94
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 28,145-147
+tests/integration/sidecar-session-move.test.ts
+  s_64e2ce1bfde668::t_7e2dabd820bbc4 1-50
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_aa3133aa732c73 42-46
+packages/protocol/src/api.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 69
+apps/desktop/src/renderer/testing/fixture-chat.ts
+  s_64e2ce1bfde668::t_68901a896ecc9e 178
+  s_64e2ce1bfde668::t_55986f21fa0e37 174-177,179-180
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 60,166-168
+  s_64e2ce1bfde668::t_5acd6c7b9c8fce 169-172
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 112
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_aa3133aa732c73 40-44
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_85e481862c63cb 80
+  s_64e2ce1bfde668::t_68901a896ecc9e 51-56
+apps/desktop/e2e/session-move.e2e.test.ts
+  s_64e2ce1bfde668::t_7e2dabd820bbc4 1-55
+.scratch/conversation-workbench/issues/16-move-session-between-projects.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 17-42
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 162-164
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_55986f21fa0e37 315-321
+apps/desktop/src/renderer/features/sidebar/session-move-menu.tsx
+  s_64e2ce1bfde668::t_7e2dabd820bbc4 1-138
+docs/README.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 29
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_64e2ce1bfde668::t_aa3133aa732c73 22,216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b88e5beb112ba802f31496c8fb8b6bdbdc58490d",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
