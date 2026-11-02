@@ -46,9 +46,9 @@ Finder 通过受控 preload IPC 调用 [openDirectory](../../apps/desktop/src/ma
 
 DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及后代身份。[SessionService.removeProject](../../apps/server/src/application/sessions.ts) 先阻止目标项目的新建、移入、移出、分叉及成员会话的新 Run/子会话准入，等待已开始的归属写入，再递归读取成员并停止执行。[SessionRuns.stopAndWait](../../apps/server/src/application/session-runs.ts) 等待 Run 准备完成、请求取消，并等待实际 Run 及领域结束处理；前台和后台子代理都在目标集合中。此路径在子代理结束时保留未改动的 isolation worktree，不触发普通一次性子代理的自动目录回收。
 
-全部执行停止后，ProjectRepository 在一个事务中清空成员根会话的 projectId 并删除项目。Session 身份、全部条目和父子关系、置顶时间、Workspace、固定工作目录与 worktree 绑定、源文件与工作文件、Workspace 记忆及批准均保留；此操作不调用直接删除 Session 的清理路径。后台 Job 不被停止，仍可继续输出及写入文件；Schedule 的记录、启用状态和后续触发保留。
+全部执行停止后，ProjectRepository 在一个事务中清空成员根会话的 projectId 并删除项目，包括已归档的成员。Session 身份、全部条目和父子关系、置顶及归档时间、Workspace、固定工作目录与 worktree 绑定、源文件与工作文件、Workspace 记忆及批准均保留；此操作不调用直接删除 Session 的清理路径。后台 Job 不被停止，仍可继续输出及写入文件；Schedule 的记录、启用状态和后续触发保留。
 
-取消不能在 10 秒内完成，或结束处理失败时返回 409 session-busy、details.reason 为 stop-failed，项目和会话归属保留，已停止的执行不自动重启；准入锁释放，可重试。持久化删除失败也不提前更新界面。成功后列表 store 只移除项目和更新归属，保留会话内容、当前会话及独立置顶；普通列表、置顶、搜索和归属栏消费同一份状态。旧的列表响应不能重新引入被删除项目。新对话草稿若选择了该项目，只清除项目与依赖的 Git 选择，保留文字、模型及附件。
+取消不能在 10 秒内完成，或结束处理失败时返回 409 session-busy、details.reason 为 stop-failed，项目和会话归属保留，已停止的执行不自动重启；准入锁释放，可重试。持久化删除失败也不提前更新界面。成功后列表 store 只移除项目和更新普通及归档会话的归属，保留会话内容、当前会话及独立置顶；普通列表、归档列表、置顶、搜索和归属栏消费同一份状态。旧的列表响应及晚到的 DTO 不能重新引入被删除项目，生成标题不被归属补丁覆盖。新对话草稿若选择了该项目，只清除项目与依赖的 Git 选择，保留文字、模型及附件。
 
 ## 权限范围
 
