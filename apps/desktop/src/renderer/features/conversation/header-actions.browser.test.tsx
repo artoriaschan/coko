@@ -87,7 +87,7 @@ describe('标题栏操作的窄主区呈现', () => {
 
   it('交接：经菜单打开过对话框后切换会话，新会话的对话框不会自行打开', async () => {
     const fixture = createFixtureChat()
-    await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+    await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
     const handoff = createHandoffStore({
       backend: { start: async () => ({ runId: 'h1' }), gitStatus: async () => ({ repo: false, dirtyFiles: 0 }), stop: async () => {} },
       writeDraft: () => {},

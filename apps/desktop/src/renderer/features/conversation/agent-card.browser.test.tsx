@@ -54,7 +54,7 @@ async function mount(entries: SessionEntryRecord[], options: { locale?: 'zh' | '
     definitions: async () => ({ definitions: [], diagnostics: [] }),
     answer: async () => {},
   })
-  await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   fixture.chat.getState().openSession('p1')
   await expect.poll(() => fixture.chat.getState().conversations.p1?.status).toBe('ready')
   const Timeline = () => {

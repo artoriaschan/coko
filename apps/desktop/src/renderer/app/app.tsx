@@ -78,7 +78,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
         settingsPage.toggle()
       } else if (command && event.key.toLowerCase() === 'n') {
         event.preventDefault()
-        if (chat.getState().workspaces.length === 0) {
+        if (chat.lists.getState().workspaces.length === 0) {
           void chat.getState().addWorkspace(pickDirectory)
           return
         }

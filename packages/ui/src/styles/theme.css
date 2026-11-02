@@ -512,3 +512,10 @@
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
+
+/* 侧栏分类列表项与它的绘制表面统一使用 R8 圆弧。 */
+.sidebar-list-row,
+.sidebar-list-row::before,
+.sidebar-list-row::after {
+  corner-shape: round;
+}

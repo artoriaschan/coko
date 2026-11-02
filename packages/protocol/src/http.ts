@@ -21,6 +21,25 @@ export type RegisterWorkspaceRequest = Static<typeof RegisterWorkspaceRequest>
 export const WorkspaceListResponse = Type.Object({ workspaces: Type.Array(Workspace) }, strict)
 export type WorkspaceListResponse = Static<typeof WorkspaceListResponse>
 
+// ---- Project ----
+
+export const Project = Type.Object(
+  {
+    id: Id,
+    name: Type.String(),
+    primaryWorkspaceId: Id,
+    folders: Type.Array(Type.Object({ path: Type.String(), primary: Type.Boolean() }, strict)),
+    pinnedAt: Type.Union([Timestamp, Type.Null()]),
+    createdAt: Timestamp,
+    lastUsedAt: Timestamp,
+    sessionCount: Type.Integer({ minimum: 0 }),
+  },
+  strict,
+)
+export type Project = Static<typeof Project>
+export const ProjectListResponse = Type.Object({ projects: Type.Array(Project) }, strict)
+export type ProjectListResponse = Static<typeof ProjectListResponse>
+
 // ---- Thinking Level ----
 
 /** 除 off 外的六档，按固定顺序。 */
@@ -50,6 +69,9 @@ export const Session = Type.Object(
   {
     id: Id,
     workspaceId: Id,
+    projectId: Type.Union([Id, Type.Null()]),
+    pinnedAt: Type.Union([Timestamp, Type.Null()]),
+    archivedAt: Type.Union([Timestamp, Type.Null()]),
     title: Type.String(),
     model: Type.Union([SessionModel, Type.Null()]),
     /** 与模型一起按 Session 保存的 Thinking Level；新建为 off。当前模型不支持该档位（例如目录已修改）时为 off。 */

@@ -27,6 +27,9 @@ function fakeStream() {
 const session = (id: string): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: null,
   thinkingLevel: 'off',
@@ -53,6 +56,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   const failures: ChatFailure[] = []
   const calls: string[] = []
   const api = {
+    listProjects: async () => [],
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => [session('s1')],
     setPermissionMode: vi.fn<ApiClient['setPermissionMode']>(async (id, mode) => {

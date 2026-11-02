@@ -57,7 +57,7 @@ describe('启动恢复', () => {
     expect(await card.getAttribute('data-confirmation-key')).toBe('b1')
     expect(await card.textContent()).toContain('touch started && sleep 30 && touch done')
     expect(await composer.isVisible()).toBe(false)
-    expect(await app.window.locator('[data-session-id] [data-activity="awaiting-confirmation"]').count()).toBe(1)
+    expect(await app.window.locator('[data-session-id] [data-activity="awaiting-confirmation"]').count()).toBe(0)
     expect(await app.window.locator('[data-run-status="interrupted"]').count()).toBe(1)
 
     await card.locator('[data-answer="not-applied"]').click()
@@ -65,7 +65,7 @@ describe('启动恢复', () => {
     await banner.waitFor({ timeout: 30_000 })
     expect(await card.count()).toBe(0)
     expect(await composer.isVisible()).toBe(true)
-    expect(await app.window.locator('[data-session-id] [data-activity="interrupted"]').count()).toBe(1)
+    expect(await app.window.locator('[data-session-id] [data-activity="interrupted"]').count()).toBe(0)
     expect(await app.window.locator('[data-slot="tool-card"][data-tool="bash"]').getAttribute('data-status')).toBe('error')
 
     await banner.locator('[data-action="continue"]').click()

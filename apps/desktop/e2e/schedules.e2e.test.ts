@@ -178,7 +178,7 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     await send(app, 'first session')
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('First ready.')
     await window
-      .getByRole('button', { name: /^(New session|新会话)$/ })
+      .getByRole('button', { name: /^(New chat|新对话)$/ })
       .first()
       .click()
     await send(app, 'second session')

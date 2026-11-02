@@ -53,7 +53,7 @@ describe('通知点击打开会话（main → preload → renderer）', { timeou
     const first = await currentSession(app)
     expect(first).toBeTruthy()
     await window
-      .getByRole('button', { name: /^(New session|新会话)$/ })
+      .getByRole('button', { name: /^(New chat|新对话)$/ })
       .first()
       .click()
     await send(app, 'second session')

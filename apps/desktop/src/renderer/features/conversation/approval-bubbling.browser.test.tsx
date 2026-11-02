@@ -75,7 +75,7 @@ describe('审批冒泡', () => {
         </AgentsStoreProvider>
       </div>,
     )
-    await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+    await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
     fixture.chat.getState().openSession('s-2')
     // 两个 running 子代理被订阅（不切换当前会话）；标题栏按钮显示 running 数。
     await expect

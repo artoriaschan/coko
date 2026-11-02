@@ -38,7 +38,7 @@ const result = (id: string, name: string, content: unknown[]) =>
 
 async function mount(entries: SessionEntryRecord[]) {
   const fixture = createFixtureChat({ entries: { p1: entries } })
-  await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   fixture.chat.getState().openSession('p1')
   await expect.poll(() => fixture.chat.getState().conversations.p1?.status).toBe('ready')
   const Timeline = () => {

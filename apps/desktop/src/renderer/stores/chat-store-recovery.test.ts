@@ -21,6 +21,9 @@ function fakeStream() {
 const session = (id: string, patch: Partial<Session> = {}): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: null,
   thinkingLevel: 'off',
@@ -73,6 +76,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   const { stream, deliver } = fakeStream()
   const failures: ChatFailure[] = []
   const api = {
+    listProjects: async () => [],
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => [session('s1', { activity: 'awaiting-confirmation' })],
     answerConfirmation: vi.fn<ApiClient['answerConfirmation']>(async () => undefined),
@@ -84,7 +88,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   for (const e of recovered()) deliver({ type: 'entry', sessionId: 's1', entry: e })
   deliver({ type: 'subscribed', sessionId: 's1', lastSeq: seq, running: false })
   const conversation = () => store.getState().conversations.s1!
-  const activity = () => store.getState().sessions.find((s) => s.id === 's1')!.activity
+  const activity = () => store.lists.getState().sessions.find((s) => s.id === 's1')!.activity
   const send = (kind: string, payload: unknown) => deliver({ type: 'entry', sessionId: 's1', entry: entry(kind, payload) })
   return { store, api, failures, conversation, activity, send }
 }

@@ -150,6 +150,20 @@ describe('HandoffService.start 准入', () => {
 })
 
 describe('HandoffService.runEnded', () => {
+  it('交接继承组织归属，不根据来源固定 Workspace 重新归入项目', async () => {
+    const h = await setup()
+    const other = await h.store.sessions.registerWorkspace({ path: '/other-project' })
+    const project = await h.store.projects.create({ name: 'Other', primaryWorkspaceId: other.id })
+    await h.store.sessions.setSessionOrganization(h.session.id, { projectId: project.id })
+    await h.commit(h.session.id, user('hello'))
+    await h.service.start(h.session.id, { instructions: 'next', target: { kind: 'current' } })
+    await h.service.runEnded({ sessionId: h.session.id, runId: 'r1', trigger: 'handoff', result: completed('summary') })
+    const handoff = (await h.store.sessions.listEntries(h.session.id)).find((entry) => entry.kind === 'handoff')!
+    const targetId = (handoff.payload as { targetSessionId: string }).targetSessionId
+    expect(await h.store.sessions.getSession(targetId)).toMatchObject({ workspaceId: h.workspace.id, projectId: project.id })
+    await h.store.close()
+  })
+
   it('正常结束：目标 Session 同 Workspace、模型与档位，首条 handoff_origin 指向源 handoff 条目，之后为权限条目；源 handoff 带同一 runId 与 usage', async () => {
     const h = await setup()
     await h.commit(h.session.id, user('hello'))

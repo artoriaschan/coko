@@ -61,7 +61,7 @@ async function mount() {
     definitions: async () => ({ definitions: [], diagnostics: [] }),
     answer: async () => {},
   })
-  await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   fixture.chat.getState().openSession('s-1')
   const opened: string[] = []
   const screen = await render(

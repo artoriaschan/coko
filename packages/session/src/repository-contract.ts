@@ -42,6 +42,28 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await sessions.getWorkspace('missing')).toBeUndefined()
     })
 
+    it('项目保存完整组织字段，主要 Workspace 唯一，根会话继承项目而子会话不单独保存归属', async () => {
+      const store = await open()
+      const w = await store.sessions.registerWorkspace({ path: '/project' })
+      const project = await store.projects.create({ name: 'Project', primaryWorkspaceId: w.id, additionalFolders: ['/extra', '/more'] })
+      expect(await store.projects.get(project.id)).toEqual({ ...project, pinnedAt: null, additionalFolders: ['/extra', '/more'] })
+      await expectStoreError(store.projects.create({ name: 'duplicate', primaryWorkspaceId: w.id }), 'already-exists')
+      const root = await store.sessions.createSession({ workspaceId: w.id })
+      expect(root).toMatchObject({ projectId: project.id, pinnedAt: null, archivedAt: null })
+      const child = await store.sessions.createSession({ workspaceId: w.id, parentSessionId: root.id })
+      expect(child.projectId).toBeNull()
+      tick()
+      const changed = await store.sessions.setSessionOrganization(root.id, { projectId: null, pinnedAt: 123, archivedAt: 456 })
+      expect(await store.sessions.getSession(root.id)).toMatchObject({ projectId: null, pinnedAt: 123, archivedAt: 456, updatedAt: root.updatedAt })
+      expect(changed.workspaceId).toBe(w.id)
+      expect(await store.projects.list()).toEqual([project])
+      expect(await store.projects.update(project.id, { name: 'Renamed', additionalFolders: ['/more'], pinnedAt: 789 })).toMatchObject({
+        name: 'Renamed',
+        additionalFolders: ['/more'],
+        pinnedAt: 789,
+      })
+    })
+
     it('在不存在的 Workspace 下创建 Session 以 not-found 拒绝', async () => {
       const { sessions } = await open()
       await expectStoreError(sessions.createSession({ workspaceId: 'missing' }), 'not-found')
@@ -67,18 +89,18 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await sessions.getSession(s1.id)).toMatchObject({ title: '第一个', updatedAt: 1_030 })
     })
 
-    it('修改标题与模型后读回，并刷新 updatedAt', async () => {
+    it('修改标题与模型后读回，不改变最后记录时间', async () => {
       const { sessions } = await open()
       const w = await sessions.registerWorkspace({ path: '/w' })
       const s = await sessions.createSession({ workspaceId: w.id })
       tick()
-      expect(await sessions.setSessionTitle(s.id, '修复登录')).toMatchObject({ title: '修复登录', updatedAt: 1_010 })
+      expect(await sessions.setSessionTitle(s.id, '修复登录')).toMatchObject({ title: '修复登录', updatedAt: 1_000 })
       tick()
       await sessions.setSessionModel(s.id, { model: { providerId: 'deepseek', modelId: 'deepseek-chat' } })
       expect(await sessions.getSession(s.id)).toMatchObject({
         title: '修复登录',
         model: { providerId: 'deepseek', modelId: 'deepseek-chat' },
-        updatedAt: 1_020,
+        updatedAt: 1_000,
       })
       await sessions.setSessionModel(s.id, { model: null })
       expect((await sessions.getSession(s.id))?.model).toBeNull()
@@ -97,7 +119,7 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       tick()
       expect(await sessions.setSessionModel(s.id, { model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })).toMatchObject({
         thinkingLevel: 'high',
-        updatedAt: 1_010,
+        updatedAt: 1_000,
       })
       expect(await sessions.getSession(s.id)).toMatchObject({ model: { providerId: 'p', modelId: 'm' }, thinkingLevel: 'high' })
       await sessions.setSessionModel(s.id, { model: { providerId: 'p', modelId: 'm2' } })

@@ -30,6 +30,9 @@ const workspace: Workspace = { id: 'w1', path: '/tmp/w1', name: 'w1', createdAt:
 const session: Session = {
   id: 's1',
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: 's1',
   model: { providerId: 'faux', modelId: 'faux-1' },
   thinkingLevel: 'off',
@@ -52,6 +55,7 @@ const record = (seq: number, kind: string, payload: unknown, runId: string | nul
 async function openStore() {
   const stream = new FakeStream()
   const api = {
+    listProjects: async () => [],
     listWorkspaces: vi.fn<ApiClient['listWorkspaces']>(async () => [workspace]),
     listSessions: vi.fn<ApiClient['listSessions']>(async () => [session]),
   } as unknown as ApiClient
@@ -109,7 +113,7 @@ describe('chat store：onProgress', () => {
     const job = { type: 'job_output', jobId: 'j1', offset: 0, chunk: 'ok\n' } as const
     stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r0', event: job })
     expect(store.getState().conversations.s1!.running).toBe(false)
-    expect(store.getState().sessions[0]!.running).toBe(false)
+    expect(store.lists.getState().sessions[0]!.running).toBe(false)
 
     stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event: { type: 'run_start' } })
     expect(store.getState().conversations.s1!.running).toBe(true)

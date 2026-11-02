@@ -4,7 +4,7 @@ import type { AgentDefinitionInfo, AgentDefinitionSource } from '@coko/protocol'
 import { Button } from '@coko/ui'
 import { ChevronRightIcon, LoaderCircleIcon } from 'lucide-react'
 import * as React from 'react'
-import { useChat } from '../../app/chat.tsx'
+import { useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useAgents, useAgentsStoreApi } from '../conversation/agents-button.tsx'
 import { SettingsCard } from './settings-page.tsx'
@@ -47,7 +47,7 @@ function Definition({ definition }: { definition: AgentDefinitionInfo }) {
 export function AgentsSection() {
   const { t } = useI18n()
   const store = useAgentsStoreApi()
-  const workspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId ?? s.draftWorkspaceId ?? undefined)
+  const workspaceId = useActiveWorkspaceId()
   const view = useAgents((s) => (workspaceId === undefined ? undefined : s.definitions[workspaceId]))
   const load = React.useCallback(() => (workspaceId === undefined ? Promise.resolve() : store.getState().loadDefinitions(workspaceId)), [store, workspaceId])
   React.useEffect(() => void load(), [load])

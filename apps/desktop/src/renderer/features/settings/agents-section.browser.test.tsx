@@ -43,7 +43,7 @@ async function mount(options: { open?: boolean; fail?: number; locale?: 'zh' | '
       return response
     },
   })
-  await expect.poll(() => fixture.chat.getState().listStatus).toBe('ready')
+  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
   if (options.open !== false) fixture.chat.getState().openSession('s-1')
   else fixture.chat.setState({ activeSessionId: null, draftWorkspaceId: null })
   await render(

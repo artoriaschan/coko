@@ -61,3 +61,4 @@ export { DiffBlock, ToolCard, ToolOutput, type ToolCardProps, type ToolCardStatu
 export { toast } from 'sonner'
 
 export { SidebarAccount } from './sidebar/sidebar-account.tsx'
+export { SidebarListRow } from './components/sidebar-list-row.tsx'

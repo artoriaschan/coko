@@ -4,7 +4,7 @@ import type { LspResponse, LspServersConfig, LspServerStatus, ResourceDiagnostic
 import { Button, Checkbox, cn, Textarea, toast } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useChat, useOptionalChatStoreApi } from '../../app/chat.tsx'
+import { useChat, useOptionalChatStoreApi, useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { ApiError } from '../../client/api.ts'
 import { createConfigClient } from '../../stores/config-store.ts'
@@ -24,7 +24,7 @@ const STATE_TONE: Record<LspServerStatus['state'], string> = {
 export function LspSection() {
   const { t } = useI18n()
   const sessionId = useChat((s) => s.activeSessionId ?? undefined)
-  const workspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId ?? s.draftWorkspaceId ?? undefined)
+  const workspaceId = useActiveWorkspaceId()
   const chat = useOptionalChatStoreApi()
   const status = useStore(lspStore, (s) => s.status)
   const view = useStore(lspStore, (s) => s.view)

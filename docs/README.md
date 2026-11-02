@@ -26,6 +26,7 @@ lifecycle: active
 ## 当前行为
 
 - [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史与设置返回。
+- [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、根会话归属、项目列表协议与侧栏基础列表。
 
 - [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。
 - [启动恢复与结果确认](subsystems/recovery.md)：崩溃后被中断 Run 的判定、结果探测、待确认与继续。
@@ -48,7 +49,7 @@ lifecycle: active
 - [交接](subsystems/handoff.md)：/handoff 与对话框、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
 - [代码智能](subsystems/lsp.md)：语言服务器的配置来源与合并、lsp 工具的四个操作与结果格式、权限与脱敏、进程生命周期与失败、/api/lsp 与 lsp_update、设置 → 代码智能分区与工具卡。
 - [插件](subsystems/plugins.md)：清单与诊断、目录与 git 来源的安装与复制、digest 与批准、启用 / 禁用 / 更新 / 卸载、贡献的命名空间与加载时机、/api/plugins、与项目资源的区别、设置中的插件分区与批准对话框。
-- [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、会话绑定与固定的工作目录、宿主执行的 git、移除的 busy / dirty 检查与只读会话、HTTP 接口与侧栏入口。
+- [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、会话绑定与固定的工作目录、宿主执行的 git、移除的 busy / dirty 检查与只读会话、HTTP 接口与会话只读提示。
 - [追踪、审计、导出与评测](subsystems/tracing.md)：model_request 逐请求记录、每个 Run 的追踪（工具耗时、审批等待、Hook 归属）、审计序列、/api/sessions/:id/{trace,audit,export}、ndjson 导出与 loadExport 回放、右栏 Trace tab、tests/evals 的用例格式、报告与真实模式。
 - [无界面运行](subsystems/headless.md)：headless 入口的参数、装配与输出（text / json / stream-json）、退出码与信号、审批自动拒绝（by headless）、--provider-config 与密钥变量、日志与已知限制。
 - [安装包、自动更新与发布构建](subsystems/delivery.md)：开发运行的 watch 与重启、ZIP / DMG makers 与 make、构建期更新源与 UpdateCoordinator、设置 → 关于、发布构建与测试构建的差异、两类 E2E 入口。

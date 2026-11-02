@@ -1,3 +1,4 @@
+import type { ProjectService } from './projects.ts'
 import type { SessionStore } from '@coko/session'
 import type { ClockPort, TestClock } from '../adapters/clock.ts'
 import type { HandoffService } from './handoff.ts'
@@ -31,6 +32,7 @@ export interface Application {
   providers: ProviderService
   settings: SettingsService
   workspaces: WorkspaceService
+  projects: ProjectService
   /** 有效能力配置（docs/subsystems/configuration.md）。 */
   config: ConfigService
   /** 上下文的查询入口：作用域、用量、命令、Skill 与文件候选（装配本身为 context.assembly）。 */

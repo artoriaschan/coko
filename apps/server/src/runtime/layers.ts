@@ -49,6 +49,7 @@ import { SecretService } from '../application/secrets.ts'
 import { requireSession, toNewEntry } from '../application/session-runtimes.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { SettingsService } from '../application/settings.ts'
+import { ProjectService } from '../application/projects.ts'
 import { WorkspaceService } from '../application/workspaces.ts'
 import type { SidecarConfig } from '../config.ts'
 import type { ControlChannel } from '../control/channel.ts'
@@ -704,6 +705,7 @@ const AppLive = Layer.effect(
       providers,
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
+      projects: new ProjectService(store),
       config: capabilities,
       context: new ContextService({ store, assembly: context, sessions, cwd: worktrees.cwd }),
       memories,

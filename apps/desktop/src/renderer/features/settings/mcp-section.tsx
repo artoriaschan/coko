@@ -33,7 +33,7 @@ import { ChevronDownIcon, GlobeIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } fro
 import { Value } from 'typebox/value'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useChat } from '../../app/chat.tsx'
+import { useChat, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { mcpStore } from '../../stores/mcp-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
@@ -90,7 +90,7 @@ function usePresets(): McpPreset[] | null | 'error' {
 
 export function McpSection() {
   const { t } = useI18n()
-  const activeWorkspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId)
+  const activeWorkspaceId = useCurrentSession()?.workspaceId
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
   const status = useStore(mcpStore, (s) => s.status)

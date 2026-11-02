@@ -12,6 +12,7 @@ import {
   createSettingsRepository,
   createWorktreeRepository,
 } from './repositories.ts'
+import { createProjectRepository } from './projects.ts'
 import { MIGRATIONS } from './schema.ts'
 
 export type { MigrationReport } from './open.ts'
@@ -63,6 +64,7 @@ export async function openSqliteStore(options: SqliteStoreOptions): Promise<Sqli
     migration: opened.migration,
     capabilities: { fts5: fts },
     sessions: createSessionRepository(conn, options),
+    projects: createProjectRepository(conn),
     settings: createSettingsRepository(conn),
     providers: createProviderRepository(conn),
     memories: createMemoryRepository(conn, { fts }),

@@ -11,6 +11,31 @@ export interface Workspace {
   createdAt: number
 }
 
+/** Project 只组织会话；主要目录对应唯一的 Workspace，附加目录保持用户给定顺序。 */
+export interface Project {
+  id: string
+  name: string
+  primaryWorkspaceId: string
+  additionalFolders: string[]
+  pinnedAt: number | null
+  createdAt: number
+}
+export interface NewProject {
+  name: string
+  primaryWorkspaceId: string
+  additionalFolders?: string[]
+}
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'primaryWorkspaceId' | 'additionalFolders' | 'pinnedAt'>>
+export interface ProjectRepository {
+  create(input: NewProject): Promise<Project>
+  get(id: string): Promise<Project | undefined>
+  list(): Promise<Project[]>
+  update(id: string, patch: ProjectPatch): Promise<Project>
+  /** 只移除组织关系，保留会话与执行资源；调用方先停止运行。 */
+  delete(id: string): Promise<void>
+}
+export type SessionOrganization = Pick<Session, 'projectId' | 'pinnedAt' | 'archivedAt'>
+
 /** Session 当前使用的模型。 */
 export interface SessionModel {
   providerId: string
@@ -31,6 +56,10 @@ export interface Session {
   id: string
   workspaceId: string
   title: string
+  /** 只在根 Session 保存；子 Session 的归属由根会话派生。 */
+  projectId: string | null
+  pinnedAt: number | null
+  archivedAt: number | null
   model: SessionModel | null
   /** 与模型一起保存的 Thinking Level；新建默认 off，清空模型时回到 off。库中不是七档之一的值读回为 off。 */
   thinkingLevel: ThinkingLevel
@@ -44,7 +73,7 @@ export interface Session {
   /** 创建时绑定的 worktree（ADR 0016）；没有绑定为 null。 */
   worktreeId: string | null
   createdAt: number
-  /** 创建、追加条目、改标题或换模型时更新；列表按它倒序。 */
+  /** 创建或追加条目时更新；组织、标题与模型修改不改变最后记录时间。 */
   updatedAt: number
 }
 
@@ -52,6 +81,8 @@ export interface Session {
 export interface NewSession extends Partial<SessionModelChoice> {
   workspaceId: string
   title?: string
+  /** 未给时继承主要 Workspace 对应的项目；null 明确表示独立对话。 */
+  projectId?: string | null
   parentSessionId?: string | null
   worktreeId?: string | null
 }
@@ -94,6 +125,7 @@ export interface SessionRepository {
   listChildren(parentSessionId: string): Promise<Session[]>
   getSession(id: string): Promise<Session | undefined>
   setSessionTitle(id: string, title: string): Promise<Session>
+  setSessionOrganization(id: string, patch: Partial<SessionOrganization>): Promise<Session>
   /** 模型与 Thinking Level 一起写入；thinkingLevel 缺省或 model 为 null 时为 off。 */
   setSessionModel(id: string, choice: SessionModelChoice): Promise<Session>
   /**
@@ -437,6 +469,7 @@ export interface PluginRepository {
 /** 一组共享同一存储的仓库。 */
 export interface SessionStore {
   sessions: SessionRepository
+  projects: ProjectRepository
   settings: SettingsRepository
   providers: ProviderRepository
   memories: MemoryRepository

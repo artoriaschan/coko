@@ -89,7 +89,7 @@ describe('审批卡', () => {
     expect(await exists(join(workspace, 'out.txt'))).toBe(false)
   })
 
-  it('等待审批的会话在侧栏带徽标并位于组首，回答后徽标消失', async () => {
+  it('等待审批的会话不改变最后记录排序，侧栏不显示状态徽标', async () => {
     const { app } = await setup({ responses: [{ content: [bashWrite('b1', 'a.txt')] }, { content: 'Second session reply.' }, { content: 'done' }] })
     await send(app, 'first session')
     await card(app).waitFor({ timeout: 30_000 })
@@ -97,7 +97,7 @@ describe('审批卡', () => {
 
     // 第二个会话更新更晚，按更新时间本应排在前面。
     await app.window
-      .getByRole('button', { name: /^(New session|新会话)$/ })
+      .getByRole('button', { name: /^(New chat|新对话)$/ })
       .first()
       .click()
     await send(app, 'second session')
@@ -105,11 +105,10 @@ describe('审批卡', () => {
     await expect.poll(() => app.window.locator('[data-session-id]').count()).toBe(2)
 
     const rows = app.window.locator('[data-session-id]')
-    expect(await rows.first().getAttribute('data-session-id')).toBe(first)
-    const badge = rows.first().locator('[data-activity="awaiting-approval"]')
-    expect(await badge.getAttribute('aria-label')).toMatch(/^(Waiting for approval|等待审批)$/)
+    expect(await rows.last().getAttribute('data-session-id')).toBe(first)
+    expect(await rows.locator('[data-activity="awaiting-approval"]').count()).toBe(0)
 
-    await rows.first().click()
+    await rows.last().click()
     await card(app)
       .getByRole('button', { name: /^(Allow once|允许一次)$/ })
       .click()
