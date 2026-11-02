@@ -1,0 +1,74 @@
+packages/agent/src/engine/types.ts
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 246-247
+packages/agent/src/policy/sandbox.ts
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 41,44,48
+  s_64e2ce1bfde668::t_b4ce822c357114 39
+tests/integration/sidecar-project-permissions.test.ts
+  s_64e2ce1bfde668::t_559ded2a9c56f2 8
+  s_64e2ce1bfde668::t_e8ef5e6531aa13 2,293,295-298,307-308,310-312,314-317,319-320,328,354
+  s_64e2ce1bfde668::t_203c261cbfae22 3,6,23-24,26-28,36-39,56
+  s_64e2ce1bfde668::t_d1ed6b0ad2b247 13,15,18,20-21,25,30,34-35,48-49,55,63,106,114,120,130-132,144,153,166,194,200,211-212,233-234,240,242,247,267,271,276,284-285,304-305,313,318,329,331,338,371,406-407,425
+  s_64e2ce1bfde668::t_9b091cb09b559e 5,7,75,79-92,94-95,385,387,392
+  s_64e2ce1bfde668::t_ce3f5b8f4d3ef2 378-379,381,386
+  s_64e2ce1bfde668::t_a30f679f66c0a5 357-361,363-370,372-377,382-384,388-391,393-405,408-410
+  s_64e2ce1bfde668::t_c3105ecba724f6 255-260
+  s_64e2ce1bfde668::t_4bf0ae4c94c083 343-350,362,380
+  s_64e2ce1bfde668::t_2b18b5aabe18a4 411-424,426
+  s_64e2ce1bfde668::t_f52e97be2da8e6 74,76-78,93,96-105,107-113,115-119,121-129,133-143,145-152,154-165,167-193,195-199,201-210,213-216
+  s_64e2ce1bfde668::t_626d3ee0bd0487 262-266,268-270,272-275,277-283,286-290,292,294,299-303,306,321-327,332-337,339,341-342,351-353,355-356
+  s_64e2ce1bfde668::t_0e7f98cd450288 217-232,235-239,241,243-246,248-254,261
+  s_64e2ce1bfde668::t_c3b4b10748ce01 291,309,330
+  s_64e2ce1bfde668::t_73fbece1723f19 340
+  s_64e2ce1bfde668::t_e3e7e347a60e44 1,4,9-12,14,16-17,19,22,29,31-33,40-47,50-54,57-62,64-73
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_c85ec487e8b579 48
+packages/agent/src/engine/permission-wiring.ts
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 66,123
+  s_64e2ce1bfde668::t_9c7241999798b4 122
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_080fc94edbd11a 2,345
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 1,200,324-334,340-344,346-355,423-427,444,685,709
+  s_64e2ce1bfde668::t_56fa9b1e7e3c93 335-339
+docs/subsystems/worktrees.md
+  s_64e2ce1bfde668::t_b4ce822c357114 42,104
+.scratch/conversation-workbench/issues/17-project-folder-permission-scope.md
+  s_64e2ce1bfde668::t_34e35b436f8d2f 15-51
+apps/server/src/adapters/seatbelt.ts
+  s_64e2ce1bfde668::t_b4ce822c357114 2
+  s_64e2ce1bfde668::t_56fa9b1e7e3c93 17,32,34-35
+docs/adr/0016-session-cwd-fixed-worktrees.md
+  s_64e2ce1bfde668::t_b4ce822c357114 50-51
+packages/agent/src/policy/gate.ts
+  s_64e2ce1bfde668::t_9c7241999798b4 161
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 70-71,171-172,177
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_c85ec487e8b579 9
+  s_64e2ce1bfde668::t_d1ed6b0ad2b247 43-47
+packages/agent/src/policy/paths.ts
+  s_64e2ce1bfde668::t_b4ce822c357114 40
+  s_64e2ce1bfde668::t_8f3b77d3faec0d 43
+docs/adr/0005-permission-mode-and-sandbox.md
+  s_64e2ce1bfde668::t_b4ce822c357114 60-61
+docs/subsystems/permissions.md
+  s_64e2ce1bfde668::t_b4ce822c357114 44,66-75,78,116,119,228
+apps/server/src/adapters/seatbelt.test.ts
+  s_64e2ce1bfde668::t_d1ed6b0ad2b247 110,116
+  s_64e2ce1bfde668::t_56fa9b1e7e3c93 29,32
+  s_64e2ce1bfde668::t_efda772769023d 102-109,111-115,117-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "7c45c122319730f76e1421eca662d7bf103245c5",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
