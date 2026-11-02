@@ -6,8 +6,8 @@ import { LoadedInstructionFile } from './instructions.ts'
 const strict = { additionalProperties: false } as const
 const Tokens = Type.Integer({ minimum: 0 })
 
-/** 分项（一律 chars/4 的 token 数）：基础系统提示、指令、Skills 索引、Memory、工具定义、对话消息。 */
-export const ContextBreakdown = Type.Object({ system: Tokens, instructions: Tokens, skills: Tokens, memory: Tokens, tools: Tokens, messages: Tokens }, strict)
+/** 五类分项：chars/4 估算，有 usage 时按比例分配，合计总是等于 tokens。 */
+export const ContextBreakdown = Type.Object({ system: Tokens, prompt: Tokens, assistant: Tokens, thinking: Tokens, tools: Tokens }, strict)
 export type ContextBreakdown = Static<typeof ContextBreakdown>
 
 /**
