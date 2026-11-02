@@ -1,0 +1,72 @@
+apps/desktop/e2e/chat.e2e.test.ts
+  s_64e2ce1bfde668::t_6184489853c97a 77-80,101-102,112
+  s_64e2ce1bfde668::t_ead654a010910c 81-88,103-106,109-111,113-124
+  s_64e2ce1bfde668::t_80458526b57970 107-108
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_258d5681fbc140 335,482,496-498
+  s_64e2ce1bfde668::t_8c4bb08ac26d68 339-341,343-344
+  s_64e2ce1bfde668::t_753ac2ce168a07 342,835-836,840-841,843
+  s_64e2ce1bfde668::t_065902f56bbe7c 837
+packages/protocol/README.md
+  s_64e2ce1bfde668::t_dfb2b28941ec40 53-55,119-120,141,156-157
+  s_64e2ce1bfde668::t_0a688a974dfb85 102
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_64e2ce1bfde668::t_3c97d1c55384a9 132,156-165,172-173,179-190,193,196
+  s_64e2ce1bfde668::t_f41c94ab515f0c 134-139,141-146,150-155,166-171,174-178,191-192,194-195,197-202
+  s_64e2ce1bfde668::t_8837668ef08dd9 121-127,140,147-149,203-205
+  s_64e2ce1bfde668::t_8c4bb08ac26d68 128-131,133
+apps/desktop/e2e/settings.e2e.test.ts
+  s_64e2ce1bfde668::t_ead654a010910c 166
+  s_64e2ce1bfde668::t_c3a4aa2edf5719 163-165
+packages/protocol/src/ws.test.ts
+  s_64e2ce1bfde668::t_0a688a974dfb85 3,12-18
+packages/agent/src/engine/types.ts
+  s_64e2ce1bfde668::t_753ac2ce168a07 76
+packages/agent/src/engine/runtime.ts
+  s_64e2ce1bfde668::t_753ac2ce168a07 80,262-264,269-271
+apps/desktop/e2e/commands.e2e.test.ts
+  s_64e2ce1bfde668::t_c3a4aa2edf5719 25,88-89,93-94
+  s_64e2ce1bfde668::t_ead654a010910c 83-87
+  s_64e2ce1bfde668::t_80458526b57970 90-91
+apps/server/src/adapters/faux.ts
+  s_64e2ce1bfde668::t_80458526b57970 245
+  s_64e2ce1bfde668::t_edd96287776259 57,241-244,246-248
+  s_64e2ce1bfde668::t_a10ca5369830f9 192-194
+apps/server/src/application/secret-redaction.test.ts
+  s_64e2ce1bfde668::t_4c9252e278995d 23-34,43-44
+  s_64e2ce1bfde668::t_f41c94ab515f0c 35-42
+apps/server/src/application/secret-redaction.ts
+  s_64e2ce1bfde668::t_9c7bf4c393f7e7 30,37-43
+apps/desktop/e2e/goal.e2e.test.ts
+  s_64e2ce1bfde668::t_c3a4aa2edf5719 28,221,244-249
+apps/desktop/e2e/provider-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_c3a4aa2edf5719 24,26-27,29,97-102,131,142-144
+packages/agent/src/engine/runtime.test.ts
+  s_64e2ce1bfde668::t_3c97d1c55384a9 127-131,135-146
+  s_64e2ce1bfde668::t_f41c94ab515f0c 132-134
+apps/server/src/adapters/faux.test.ts
+  s_64e2ce1bfde668::t_1563355dd12627 7-20,64
+  s_64e2ce1bfde668::t_8c4bb08ac26d68 43-48,52-59
+  s_64e2ce1bfde668::t_ead654a010910c 22-25
+  s_64e2ce1bfde668::t_7e44ee3234f637 1-6,31-42,49-51,60-61,63
+  s_64e2ce1bfde668::t_83a5fc2c846637 21,26-30
+  s_64e2ce1bfde668::t_80458526b57970 62
+packages/protocol/src/ws.ts
+  s_64e2ce1bfde668::t_753ac2ce168a07 44-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "6babb1b4cf893433b60a0569beb58d73b4c72dc8",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
