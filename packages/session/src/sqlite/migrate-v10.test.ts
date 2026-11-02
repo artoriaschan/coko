@@ -25,8 +25,8 @@ it('v9 升级：每个 Workspace 成为项目，根会话含 worktree 归入项�
   const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
   onTestFinished(() => store.close())
   expect(await store.projects.list()).toEqual([
-    { id: 'project-w1', name: 'One', primaryWorkspaceId: 'w1', additionalFolders: [], pinnedAt: null, createdAt: 10 },
-    { id: 'project-w2', name: 'Two', primaryWorkspaceId: 'w2', additionalFolders: [], pinnedAt: null, createdAt: 20 },
+    { id: 'project-w1', name: 'One', primaryWorkspaceId: 'w1', additionalFolders: [], primaryFolderIndex: 0, pinnedAt: null, createdAt: 10 },
+    { id: 'project-w2', name: 'Two', primaryWorkspaceId: 'w2', additionalFolders: [], primaryFolderIndex: 0, pinnedAt: null, createdAt: 20 },
   ])
   for (const id of ['root', 'isolated'])
     expect(await store.sessions.getSession(id)).toMatchObject({ projectId: 'project-w1', pinnedAt: null, archivedAt: null })

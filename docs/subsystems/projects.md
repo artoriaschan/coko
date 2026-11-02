@@ -1,20 +1,32 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
+description: "项目模型、Workspace 迁移、多文件夹创建与主要目录、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
 lifecycle: active
 ---
 
 # 项目与会话列表
 
-项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移、工作台列表及会话置顶的行为。项目的编辑、项目置顶、归档和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
+项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移、多文件夹创建、工作台列表及会话置顶的行为。项目的编辑、项目置顶、归档和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
 
 ## 数据与迁移
 
-[SessionStore](../../packages/session/src/types.ts) 提供独立的 ProjectRepository。Project 保存名称、主要 Workspace、有序的附加文件夹路径、置顶时间与创建时间；主要 Workspace 在项目间唯一，项目名称可重复。内存和 SQLite 实现共享契约测试。
+[SessionStore](../../packages/session/src/types.ts) 提供独立的 ProjectRepository。Project 保存名称、主要 Workspace、有序的附加文件夹路径、主要目录在完整列表中的位置、置顶时间与创建时间；主要 Workspace 在项目间唯一，项目名称可重复。内存和 SQLite 实现共享契约测试。
 
 SQLite v10 在一次前向迁移中建立 projects 表，并给 sessions 增加 project_id、pinned_at、archived_at。每个已有 Workspace 迁移为一个单文件夹项目，沿用名称和创建时间；其中的根会话（包括绑定 worktree 的会话）归入该项目，置顶与归档为空。子会话不单独保存项目归属。升级沿用现有迁移前 VACUUM INTO 备份及失败处理。
 
-经 Workspace 登记接口添加目录时，服务端验证目录存在并解析为真实路径，再登记 Workspace 与单文件夹项目。相同目录经符号链接登记不会产生第二个 Workspace 或项目。此入口暂时作为创建项目的过渡入口。
+经 Workspace 登记接口添加目录时，服务端验证目录存在并解析为真实路径，再登记 Workspace 与单文件夹项目。相同目录经符号链接登记不会产生第二个 Workspace 或项目。此兼容入口保留，界面创建走下面的项目接口。
+
+SQLite v11 追加主要目录位置字段，旧项目默认为列表第一项；不重写 v10，迁移前备份仍保留旧格式。这样用户把列表中间的目录设为主要时，其他目录和主要目录的顺序均可重启读回。
+
+## 创建项目与主要文件夹
+
+项目分类的“+”与新对话归属菜单底部的“新建项目”打开同一个[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.tsx)。名称首次聚焦、最多 50 字符，非空名称及至少一个目录才可提交。空表单提供虚线添加区域，目录由 Electron 宿主选择；取消选择不改草稿。添加前通过 Sidecar 校验存在、可读取及可遍历，并取真实路径，同一目录经符号链接、末尾斜杠或 `..` 添加会提示“已添加”。失败说明保留在表单中，不新增目录行。
+
+源文件夹保留添加顺序。第一个缺省为主要，非主要行在 hover 或焦点进入时显示“设为主要”，隐藏时保留按钮位置；点击只改草稿中的唯一主要标记。移除主要目录时由列表中的下一项接替，末项没有后继时取新的末项。名称、文件夹或主要标记改动后，取消、右上关闭与 Escape 均先询问“放弃更改？”，取消确认保留输入。提交期间锁定表单并阻止重复提交，保存失败保留草稿。
+
+`POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
+
+应用级[弹窗宿主](../../apps/desktop/src/renderer/features/projects/project-dialogs.tsx) 更新同一份列表数据。分类创建或命中已有项目后进入新对话，预选该项目并聚焦输入区；归属菜单创建后只选择目标项目，保留同一份新对话草稿。已有项目结果通过应用级 Toast 告知项目名。表单也接受编辑初值和外部提交/完成回调，完成动作由调用方拥有，表单本身不创建会话或改变归属；项目编辑入口和保存接口仍待接入。
 
 ## 独立对话专属目录
 
@@ -72,6 +84,10 @@ PUT /api/sessions/:id/title 接受 title，校验字符串类型、非空及最�
 
 ## 验证与相关设计
 
+- [主要目录位置迁移](../../packages/session/src/sqlite/migrate-v11.test.ts)：v10 升级、旧数据默认位置、重启读回与备份。
+- [创建项目 Sidecar 用例](../../tests/integration/sidecar-create-project.test.ts)：多目录顺序、真实路径判重、已有结果、名称与目录拒绝及重启读回。
+- [项目表单浏览器用例](../../apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx)：主要标记与接替、hover/focus 几何、目录取消/失败、放弃确认、保存锁定、明暗主题与窄窗口。
+- [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建与首次发送归属。
 - [存储契约](../../packages/session/src/repository-contract.ts)：主要 Workspace 唯一、完整组织字段的读写和最后记录时间。
 - [迁移用例](../../packages/session/src/sqlite/migrate-v10.test.ts)：v9 升级、根会话和 worktree 归属、子会话字段及备份读回。
 - [Sidecar 协议](../../tests/integration/sidecar-projects.test.ts)：真实目录判重、项目列表、创建会话、分叉和重启读回。

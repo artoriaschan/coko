@@ -162,7 +162,14 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
     projects: {
       create: op((input: NewProject) => {
         checkPrimary(input.primaryWorkspaceId)
-        const project: Project = { ...copy(input), id: randomUUID(), additionalFolders: copy(input.additionalFolders ?? []), pinnedAt: null, createdAt: now() }
+        const project: Project = {
+          ...copy(input),
+          id: randomUUID(),
+          additionalFolders: copy(input.additionalFolders ?? []),
+          primaryFolderIndex: input.primaryFolderIndex ?? 0,
+          pinnedAt: null,
+          createdAt: now(),
+        }
         projects.set(project.id, project)
         return project
       }),

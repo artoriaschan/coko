@@ -1,3 +1,4 @@
+import type { BranchService } from './branches.ts'
 import type { ProjectService } from './projects.ts'
 import type { FirstSendService } from './first-send.ts'
 import type { SessionStore } from '@coko/session'
@@ -56,6 +57,7 @@ export interface Application {
   hooks: HookService
   subagents: SubagentService
   schedules: ScheduleService
+  branches: BranchService
   worktrees: WorktreeService
   handoff: HandoffService
   notifications: NotificationService

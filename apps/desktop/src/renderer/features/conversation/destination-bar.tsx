@@ -1,7 +1,9 @@
+import { ProjectGitMenu } from './project-git-menu.tsx'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -9,14 +11,16 @@ import {
   Input,
   cn,
 } from '@coko/ui'
-import { ChevronDownIcon, FolderClosedIcon, MessageCircleIcon, XIcon } from 'lucide-react'
+import { ChevronDownIcon, FolderClosedIcon, MessageCircleIcon, PlusIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useLists, useNewChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { useCreateProject } from '../projects/project-dialogs.tsx'
 
 /** 只配置尚未创建的 Session；已有 Session 的工作目录不会经此入口改变。 */
 export function DestinationBar({ className }: { className?: string }) {
   const { t } = useI18n()
+  const createProject = useCreateProject()
   const projects = useLists((state) => state.projects)
   const projectId = useNewChat((state) => state.projectId)
   const selectProject = useNewChat((state) => state.selectProject)
@@ -129,8 +133,24 @@ export function DestinationBar({ className }: { className?: string }) {
               {t('conversation.destinationNone')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
+          {createProject && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  setOpen(false)
+                  // 等菜单释放焦点约束后再打开模态表单。
+                  requestAnimationFrame(() => createProject({ onComplete: (created) => selectProject(created.id) }))
+                }}
+              >
+                <PlusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                {t('projectForm.newProject')}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <ProjectGitMenu project={project} />
     </div>
   )
 }
