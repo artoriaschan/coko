@@ -1,0 +1,87 @@
+packages/i18n/src/dictionaries/domains/worktrees.ts
+  s_64e2ce1bfde668::t_51081e4589da68 7-32,80-105
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 593-601
+  s_64e2ce1bfde668::t_709078d780fb9f 1,602,735
+packages/ui/src/styles/theme.css
+  s_64e2ce1bfde668::t_51081e4589da68 22-23
+apps/desktop/e2e/branches.e2e.test.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 11-23,28-29,38-40,56-60,64
+  s_64e2ce1bfde668::t_0eb51d54486670 5-9,31-37,41-55,61-63,65-71
+  s_64e2ce1bfde668::t_2450afc52bd52c 1-4,10,24-27,30
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_ef58eb3d75f5db 49-58
+packages/ui/src/components/dropdown-menu.tsx
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 3,171-178
+  s_64e2ce1bfde668::t_51081e4589da68 12,164,190-191,216
+  s_64e2ce1bfde668::t_a4d94d14195798 165-170,179-189
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 211
+  s_64e2ce1bfde668::t_a4d94d14195798 212-214
+  s_64e2ce1bfde668::t_eeb3260c8c7e5c 392
+packages/protocol/src/index.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 33-34
+tests/integration/sidecar-branches.test.ts
+  s_64e2ce1bfde668::t_2450afc52bd52c 15-16,19,71,105
+  s_64e2ce1bfde668::t_42ffad68ca3b13 45
+  s_64e2ce1bfde668::t_c3b20966c8a5d6 70
+  s_64e2ce1bfde668::t_0eb51d54486670 6,8,10,14,64-69,72,74-76,82-83,90-97,102-104,106,108,110-114
+  s_64e2ce1bfde668::t_7b2b70ff3d560e 3-5,7,9,11-13,17-18,20-24,31,37-41,43-44,46,49-63,115-116
+  s_64e2ce1bfde668::t_a4d94d14195798 26-29,32-36,73,77-81,84-89,98-101,107,109
+  s_64e2ce1bfde668::t_62720f05c2b12b 1-2,25,30,42,47-48
+apps/server/src/application/index.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 1,60
+apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx
+  s_64e2ce1bfde668::t_3e1993706e90e8 1-19,35-37,54-59,61,63,71-80,87-90,92-105
+  s_64e2ce1bfde668::t_a4d94d14195798 20-34,38-52,64-70,81-86,91
+  s_64e2ce1bfde668::t_c3b20966c8a5d6 60
+  s_64e2ce1bfde668::t_9d025ae7ae9589 53,62
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_a4d94d14195798 2-18,29-31,37-43,62-71,75-81,83-94,96-103,112-114,120-126,128-363
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 1,19-28,32-36,44-61,72-74,82,95,104-111,115-119,127,364
+apps/desktop/src/renderer/features/conversation/destination-bar.tsx
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 1,135
+docs/subsystems/worktrees.md
+  s_64e2ce1bfde668::t_ef58eb3d75f5db 69-80
+apps/server/src/application/branches.test.ts
+  s_64e2ce1bfde668::t_68737059b5a759 1-15,30-31,37-40,47-48,63-75,85-86
+  s_64e2ce1bfde668::t_a4d94d14195798 16-29,32-36,41-46,49-62,76-84
+apps/server/src/application/errors.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 33-34
+apps/server/src/http/routes/worktrees.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 9-10
+  s_64e2ce1bfde668::t_709078d780fb9f 2
+apps/server/src/application/settings.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 21
+apps/server/src/application/branches.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 54-58,63-66,70-76,100-104,121-126,133-135
+  s_64e2ce1bfde668::t_51081e4589da68 90
+  s_64e2ce1bfde668::t_709078d780fb9f 1-53,59-62,67-69,77-89,91-99,105-120,127-132,136-138
+packages/ui/src/index.ts
+  s_64e2ce1bfde668::t_9215e7a690a631 44
+apps/desktop/src/renderer/stores/branches-store.ts
+  s_64e2ce1bfde668::t_51081e4589da68 1-8,15-20,27-29,36-40
+  s_64e2ce1bfde668::t_a4d94d14195798 9-14,21-26,30-35
+packages/protocol/src/branches.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 5-13,15-18,26-33,35-37
+  s_64e2ce1bfde668::t_709078d780fb9f 1-4,14,19-25,38-39
+  s_64e2ce1bfde668::t_42ffad68ca3b13 34
+packages/protocol/src/errors.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "92ffed58f61f1a27740824a35dd52db06104c8c0",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
