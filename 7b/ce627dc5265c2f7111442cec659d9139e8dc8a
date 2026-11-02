@@ -1,0 +1,157 @@
+apps/server/src/application/index.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 1,60
+apps/server/src/application/errors.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 33-34
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 1,19-28,32-33,41-42,50-67,78-80,88,109,118-125,129-133,141,376
+  s_64e2ce1bfde668::t_c9f6025b74f065 100-107
+  s_64e2ce1bfde668::t_afa80b7d54fc47 287
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 34-40,182-184
+  s_64e2ce1bfde668::t_a651f5f3c8ef36 205
+  s_64e2ce1bfde668::t_a4d94d14195798 2-18,29-31,43-49,68-77,81-87,89-99,108,110-117,126-128,134-140,142-181,185-204,206-286,288-375
+packages/ui/src/components/dropdown-menu.tsx
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 3,171-178
+  s_64e2ce1bfde668::t_a4d94d14195798 165-170,179-189
+  s_64e2ce1bfde668::t_51081e4589da68 12,164,190-191,216
+packages/session/src/sqlite/migrate-v10.test.ts
+  s_64e2ce1bfde668::t_0f3256af471b21 28-29
+.scratch/conversation-workbench/issues/20-branch-select-create-checkout.md
+  s_64e2ce1bfde668::t_d931ad658e487e 17-39
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_d0a202dffc63af 15-16,119-123
+apps/desktop/src/renderer/features/projects/project-dialogs.tsx
+  s_64e2ce1bfde668::t_1876aeab4f18f8 1-12,16-22,43
+  s_64e2ce1bfde668::t_0cb350f47adf8d 13-15,23-42
+tests/integration/sidecar-create-project.test.ts
+  s_64e2ce1bfde668::t_162774f5a2df50 1-74
+packages/session/src/sqlite/migrate-v11.test.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 23-27
+  s_64e2ce1bfde668::t_b5ec84a2d94c0b 1-22,28-32
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_ef58eb3d75f5db 59-68
+apps/desktop/src/renderer/features/projects/project-form.tsx
+  s_64e2ce1bfde668::t_16906f625df9ca 119-126
+  s_64e2ce1bfde668::t_0cb350f47adf8d 22-30,62-65,93-115,127-212,214-252,254-255,258-259
+  s_64e2ce1bfde668::t_83465b6754ccab 6,116-118
+  s_64e2ce1bfde668::t_0a0f4fe4155179 1-5,7-21,31-61,66-92,213,253,256-257,260
+apps/server/src/http/routes/worktrees.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 2
+  s_64e2ce1bfde668::t_a4d94d14195798 9-10
+apps/server/src/application/branches.ts
+  s_64e2ce1bfde668::t_162774f5a2df50 1-155
+.scratch/conversation-workbench/issues/13-create-project.md
+  s_64e2ce1bfde668::t_c4cededab323fe 23-36
+  s_64e2ce1bfde668::t_3141198c4982ae 13-14,19-22,46-47
+  s_64e2ce1bfde668::t_ac0f459a206e30 37-45
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 211
+  s_64e2ce1bfde668::t_a4d94d14195798 212-214
+  s_64e2ce1bfde668::t_eeb3260c8c7e5c 414
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 96-106
+  s_64e2ce1bfde668::t_8f512eeec04e86 56,93-95,107-108
+packages/protocol/src/api.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 12
+apps/desktop/src/renderer/stores/branches-store.ts
+  s_64e2ce1bfde668::t_a4d94d14195798 9-14,21-26,30-35
+  s_64e2ce1bfde668::t_51081e4589da68 1-8,15-20,27-29,36-40
+packages/session/src/types.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 20-21,29,31
+docs/adr/0020-projects-organize-workspaces.md
+  s_64e2ce1bfde668::t_66cadf599f5ff7 48
+tests/integration/sidecar-branches.test.ts
+  s_64e2ce1bfde668::t_162774f5a2df50 1-117
+packages/ui/src/index.ts
+  s_64e2ce1bfde668::t_9215e7a690a631 44
+docs/subsystems/worktrees.md
+  s_64e2ce1bfde668::t_ef58eb3d75f5db 69-80
+packages/session/src/repository-contract.ts
+  s_64e2ce1bfde668::t_0f3256af471b21 99-100
+packages/session/src/sqlite/projects.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 11,20,45,50,71,75
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 1,619,752
+  s_64e2ce1bfde668::t_a4d94d14195798 610-613,615-618
+  s_64e2ce1bfde668::t_ef77abb7deb220 614
+apps/desktop/src/renderer/features/conversation/destination-bar.tsx
+  s_64e2ce1bfde668::t_1876aeab4f18f8 6,14,18,23
+  s_64e2ce1bfde668::t_0cb350f47adf8d 136-150
+  s_64e2ce1bfde668::t_8cfc8e97d2f984 1,153
+apps/server/src/application/settings.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 21
+packages/session/src/sqlite/schema.ts
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 324-329
+docs/README.md
+  s_64e2ce1bfde668::t_6f532044ffeead 52
+  s_64e2ce1bfde668::t_0f019b82d7e538 29
+apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx
+  s_64e2ce1bfde668::t_0cb350f47adf8d 14-29,76-152
+  s_64e2ce1bfde668::t_5a549ab9ff7c16 1
+  s_64e2ce1bfde668::t_553614d9b17b8a 33-36,66-69
+  s_64e2ce1bfde668::t_7dd27849a174d3 7-8,74-75
+  s_64e2ce1bfde668::t_00c8261beae25a 11
+  s_64e2ce1bfde668::t_e368eab4223809 2-6,9-10,12-13,30-32,37-65,70-73
+packages/session/src/memory/index.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 165-172
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_f5177989a100a7 80-105
+packages/i18n/src/dictionaries/domains/worktrees.ts
+  s_64e2ce1bfde668::t_51081e4589da68 7-32,80-105
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 44-50
+  s_64e2ce1bfde668::t_ce7c4a5d7bcac6 51-56
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_1876aeab4f18f8 15,113,148,157-163
+  s_64e2ce1bfde668::t_0cb350f47adf8d 114-125,127-145,147
+packages/protocol/src/branches.ts
+  s_64e2ce1bfde668::t_42ffad68ca3b13 39
+  s_64e2ce1bfde668::t_a4d94d14195798 10-18,20-23,31-38,40-42
+  s_64e2ce1bfde668::t_709078d780fb9f 1,7-9,19,24-30,43-44
+  s_64e2ce1bfde668::t_d177f9ee1f9fe2 2-6
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_0f019b82d7e538 3
+  s_64e2ce1bfde668::t_66cadf599f5ff7 9,13,17-29,87-90
+apps/server/src/application/projects.ts
+  s_64e2ce1bfde668::t_0cb350f47adf8d 34-35,41-43
+  s_64e2ce1bfde668::t_d0a202dffc63af 1-4,6,15-33,36-40,44-55,65-66,71
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_f5177989a100a7 78-103
+apps/desktop/e2e/branches.e2e.test.ts
+  s_64e2ce1bfde668::t_2450afc52bd52c 1-4,10,24-27,30
+  s_64e2ce1bfde668::t_0eb51d54486670 5-9,31-37,41-55,61-63,65-71
+  s_64e2ce1bfde668::t_a4d94d14195798 11-23,28-29,38-40,56-60,64
+apps/server/src/application/branches.test.ts
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 71-81,95,112-120
+  s_64e2ce1bfde668::t_68737059b5a759 1-5,7-9,13-18,33-34,40-43,50-51,83-85,89-92,96-101,111
+  s_64e2ce1bfde668::t_a4d94d14195798 19-32,35-39,44-49,52-65,102-110
+  s_64e2ce1bfde668::t_ef77abb7deb220 6,10-12,66-70,82,86-88,93-94,121-122
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_8aa16dd5e3260c 168-173
+  s_64e2ce1bfde668::t_2993ca77c93992 16-17,34
+packages/ui/src/styles/theme.css
+  s_64e2ce1bfde668::t_51081e4589da68 22-23
+packages/protocol/src/errors.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 57-58
+packages/protocol/src/index.ts
+  s_64e2ce1bfde668::t_709078d780fb9f 33-34
+apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx
+  s_64e2ce1bfde668::t_162774f5a2df50 1-188
+apps/desktop/e2e/create-project.e2e.test.ts
+  s_64e2ce1bfde668::t_162774f5a2df50 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "7bce627dc5265c2f7111442cec659d9139e8dc8a",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
