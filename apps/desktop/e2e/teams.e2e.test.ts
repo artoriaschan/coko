@@ -60,6 +60,8 @@ async function setTheme(win: Page, theme: 'dark' | 'light') {
   await win.getByRole('button', { name: /^(Settings|设置)$/ }).click()
   await win.locator(`[data-settings-page] [data-theme-option="${theme}"]`).click()
   await expect.poll(() => win.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
+  // 设置入口的 Tooltip 退场动画结束后，Escape 才属于设置页。
+  await expect.poll(() => win.locator('[data-slot="tooltip-content"][data-state="closed"]').count()).toBe(0)
   await win.keyboard.press('Escape')
   await win.locator('[data-settings-page]').waitFor({ state: 'detached' })
 }
