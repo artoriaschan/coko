@@ -5,7 +5,11 @@ export const zh = {
   },
   sidebar: {
     label: '侧栏',
-    newSession: '新会话',
+    navigation: '主导航',
+    back: '后退',
+    forward: '前进',
+    localUser: '本地用户',
+    newSession: '新对话',
     search: '搜索',
     searchSessions: '搜索会话',
     searchPlaceholder: '按标题搜索',

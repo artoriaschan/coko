@@ -16,6 +16,8 @@ import { I18nProvider, useI18n } from './i18n.tsx'
 import type { Preferences } from './preferences.ts'
 import type { SettingsPageStore } from './settings-page-store.ts'
 import { SettingsProvider } from './settings.tsx'
+import { createWorkbenchNavigation } from './workbench-navigation.ts'
+import { WorkbenchNavigationContext, WorkbenchPage } from './workbench.tsx'
 
 export interface AppProps {
   store: AppearanceStore
@@ -39,6 +41,11 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
     applyTheme(theme)
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
   }, [theme, locale])
+
+  const navigation = React.useMemo(() => createWorkbenchNavigation(chat), [chat])
+  React.useEffect(() => navigation.connect(), [navigation])
+  const { location } = React.useSyncExternalStore(navigation.subscribe, navigation.getSnapshot)
+  const contentPage = location.kind === 'plugins' || location.kind === 'schedules' ? location.kind : null
 
   const composer = React.useRef<ComposerHandle>(null)
   const { visible: settingsVisible } = React.useSyncExternalStore(settingsPage.subscribe, settingsPage.getSnapshot)
@@ -76,7 +83,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
           return
         }
         settingsPage.back()
-        chat.getState().startDraft()
+        navigation.newChat()
         // 草稿渲染后再聚焦。
         requestAnimationFrame(() => composer.current?.focus())
       } else if (event.key === 'Escape' && !command && !event.defaultPrevented) {
@@ -90,7 +97,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [settingsPage, chat, pickDirectory])
+  }, [settingsPage, chat, pickDirectory, navigation])
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
@@ -103,35 +110,44 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
     <I18nProvider locale={locale}>
       <ChatStoreProvider store={chat}>
         <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
-          <TooltipProvider>
-            <div className="relative h-full w-full">
-              {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
-              <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
-                <Frame
-                  sidebarWidth={sidebarWidth}
-                  onSidebarWidthChange={setSidebarWidth}
-                  sidebarCollapsed={sidebarCollapsed}
-                  onSidebarCollapsedChange={setSidebarCollapsed}
-                  rightOpen={rightOpen}
-                  sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
-                  rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
-                  rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
-                >
-                  <ConversationPane
-                    theme={theme}
-                    rightOpen={rightOpen}
-                    onToggleRight={() => setRightOpen((open) => !open)}
-                    connection={connectionState}
-                    onAddWorkspace={onAddWorkspace}
-                    onOpenLogs={openLogs}
-                    composerRef={composer}
-                  />
-                </Frame>
+          <WorkbenchNavigationContext.Provider value={navigation}>
+            <TooltipProvider>
+              <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
+                {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
+                <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
+                  <Frame
+                    sidebarWidth={sidebarWidth}
+                    onSidebarWidthChange={setSidebarWidth}
+                    sidebarCollapsed={sidebarCollapsed}
+                    onSidebarCollapsedChange={setSidebarCollapsed}
+                    rightOpen={rightOpen && contentPage === null}
+                    sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
+                    rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
+                    rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
+                  >
+                    <div
+                      hidden={contentPage !== null}
+                      inert={contentPage !== null || undefined}
+                      className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+                    >
+                      <ConversationPane
+                        theme={theme}
+                        rightOpen={rightOpen && contentPage === null}
+                        onToggleRight={() => setRightOpen((open) => !open)}
+                        connection={connectionState}
+                        onAddWorkspace={onAddWorkspace}
+                        onOpenLogs={openLogs}
+                        composerRef={composer}
+                      />
+                    </div>
+                    {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
+                  </Frame>
+                </div>
+                <SettingsPage theme={theme} />
               </div>
-              <SettingsPage theme={theme} />
-            </div>
-            <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
-          </TooltipProvider>
+              <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+            </TooltipProvider>
+          </WorkbenchNavigationContext.Provider>
         </SettingsProvider>
       </ChatStoreProvider>
     </I18nProvider>

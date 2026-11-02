@@ -45,7 +45,7 @@ export function useAppFrame(): AppFrameContextValue {
 const RESIZE_STEP = 16
 
 /**
- * 三栏应用框架：侧栏（可拖动 264–420，收起为 56px rail，帧宽 <1024 自动收起）、中栏、右栏。
+ * 应用框架：侧栏（可拖动 264–420，收起为 56px rail，帧宽 <1024 自动收起）、主内容和可选右栏。
  * 帧宽通过 ResizeObserver 测量：收起与右栏让位依赖实际像素宽度和侧栏状态，CSS 断点无法表达。
  */
 export function AppFrame({
@@ -169,7 +169,7 @@ export function AppFrame({
         data-right={layout.right}
         style={frameStyle}
         className={cn(
-          'relative grid h-full w-full min-w-0 overflow-hidden bg-background text-foreground',
+          'relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-background text-foreground',
           'grid-cols-[var(--local-sidebar-column)_minmax(0,1fr)_var(--local-right-column)]',
           !dragging && frameWidth !== null && 'transition-[grid-template-columns] duration-300 motion-reduce:transition-none',
           className,

@@ -38,3 +38,8 @@ Closed: true
 - `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`、`git diff --check` 均退出 0；文档检查 245 个 Markdown 文件、0 问题。Impeccable detector 对四个改动 UI 目标返回空发现。
 - coko-docs：新增 workbench.md 输入区与文件附件正文及 docs/README 导航；更新 permissions.md、plan-mode.md 的现有界面与进入说明，并登记共享工具栏尺寸。已按 AGENTS → docs/README → 正文读回；路径、语义、归属、引用方向、生命周期、当前入口、新会话读入与历史保留均通过。
 - 未验证真实模型服务、生产签名发布包、CI；没有推送或创建 PR。当前为本地任务分支，等待汇入集成分支。
+
+- 合入集成分支 `d74d831`（02 号外壳导航）：仅 workbench.md 与 docs/README 文档冲突，已保留外壳导航、输入区与附件正文及两组验证入口；没有丢弃任一票行为。
+- 集成后的旧 app.browser 窄窗口断言同步：侧栏 data-sidebar 已为 rail 时 grid 列宽仍可能在过渡，改为轮询可观察的无溢出布局；编辑区现在独占上方整行，短 placeholder 不再必然溢出，保留单行、ellipsis 样式、边界和对比度断言，去掉旧横排布局的“必须溢出”要求。没有延长 timeout 或固定 sleep。
+- 原生明暗主题截图确认完成；主输入框内层浏览器描边已消失，暗色键盘 focus 显示胶囊圆形关闭图标与 Tooltip，几何与文字位置保持。临时截图保存在仓库外，不加入产品资产。
+- 与 02 集成后的复核：`pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs` 退出 0；`pnpm run test apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx packages/ui/src/app-frame/app-frame.browser.test.tsx` 为 4 文件、62 用例通过；`pnpm run test apps/desktop/e2e/plan.e2e.test.ts apps/desktop/e2e/workbench.e2e.test.ts` 为 2 文件、2 用例通过。文档合并后已从导航读回，外壳和输入区两节均可达。

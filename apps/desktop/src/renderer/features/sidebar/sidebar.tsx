@@ -1,12 +1,24 @@
 import type { Session, Workspace } from '@coko/protocol'
-import { Button, cn, Input, useAppFrame } from '@coko/ui'
-import { FolderPlusIcon, PanelLeftCloseIcon, PlusIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
+import { Button, cn, Input, SidebarAccount, useAppFrame } from '@coko/ui'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ClockIcon,
+  PanelLeftCloseIcon,
+  PlusIcon,
+  PuzzleIcon,
+  SearchIcon,
+  SettingsIcon,
+  SquarePenIcon,
+  UserRoundIcon,
+} from 'lucide-react'
 import * as React from 'react'
 import { useChat, useChatActions } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
+import { useWorkbenchNavigation } from '../../app/workbench.tsx'
 import { WorktreeChip } from '../conversation/worktree-chip.tsx'
-import { SettingsButton } from '../settings/settings-button.tsx'
+import { useSettingsPage } from '../../app/settings.tsx'
 import { WorkspaceWorktreeMenu } from './worktrees.tsx'
 
 const GROUP_PAGE = 5
@@ -58,66 +70,104 @@ export function groupSessions(workspaces: readonly Workspace[], sessions: readon
 
 export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps) {
   const { t } = useI18n()
+  const navigation = useWorkbenchNavigation()
+  const { open: openSettings } = useSettingsPage()
   const { toggleSidebar, closeSidebarDrawer } = useAppFrame()
   const workspaces = useChat((s) => s.workspaces)
   const sessions = useChat((s) => s.sessions)
   const activeSessionId = useChat((s) => s.activeSessionId)
   const listStatus = useChat((s) => s.listStatus)
-  const { openSession, startDraft, load } = useChatActions()
+  const { load } = useChatActions()
   const grouped = React.useMemo(() => groupSessions(workspaces, sessions), [workspaces, sessions])
   const groups = React.useMemo(() => (search === null ? grouped : filterGroups(grouped, search)), [grouped, search])
   const filtering = search !== null && search.trim() !== ''
 
   const newSession = (workspaceId?: string) => {
     if (workspaces.length === 0) onAddWorkspace()
-    else startDraft(workspaceId)
+    else navigation.newChat(workspaceId)
     closeSidebarDrawer()
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center justify-end ps-[max(8px,var(--frame-leading-clearance))] pe-2">
-        <IconButton label={t('sidebar.collapse')} onClick={toggleSidebar}>
+      <div
+        data-window-drag
+        data-workbench-window-controls
+        className="flex h-(--frame-top-clearance) shrink-0 items-start gap-1 ps-[max(8px,calc(var(--frame-leading-clearance)_+_12px))] pt-[7px]"
+      >
+        <IconButton label={t('sidebar.collapse')} size="icon-sm" onClick={toggleSidebar}>
           <PanelLeftCloseIcon />
+        </IconButton>
+        <IconButton label={t('sidebar.back')} size="icon-sm" disabled={!navigation.canBack} onClick={navigation.back}>
+          <ArrowLeftIcon />
+        </IconButton>
+        <IconButton label={t('sidebar.forward')} size="icon-sm" disabled={!navigation.canForward} onClick={navigation.forward}>
+          <ArrowRightIcon />
         </IconButton>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-0.5 px-2 pb-2">
-        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={() => newSession()}>
-          <SquarePenIcon />
-          {t('sidebar.newSession')}
-        </Button>
-        {search === null ? (
-          <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={() => onSearchChange('')}>
-            <SearchIcon />
-            {t('sidebar.search')}
+      <nav aria-label={t('sidebar.navigation')} className="flex shrink-0 flex-col gap-0.5 px-2 pt-1 pb-2">
+        <div data-workbench-nav className="flex h-8 items-center gap-1 rounded-md hover:bg-accent">
+          <Button
+            variant="ghost"
+            className="h-8 min-w-0 flex-1 justify-start gap-2 px-2 has-[>svg]:px-2"
+            aria-current={navigation.location.kind === 'new-chat' ? 'page' : undefined}
+            onClick={() => newSession()}
+          >
+            <SquarePenIcon />
+            {t('sidebar.newSession')}
           </Button>
-        ) : (
-          <div className="flex h-9 items-center gap-2 px-2">
-            <SearchIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <Input
-              type="search"
-              autoFocus
-              aria-label={t('sidebar.searchSessions')}
-              placeholder={t('sidebar.searchPlaceholder')}
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
-                // 只关闭搜索：不关闭侧栏抽屉，也不触发全局 Escape（停止 Run）。
-                event.preventDefault()
-                event.stopPropagation()
-                onSearchChange(null)
-              }}
-              className="h-7"
-            />
-          </div>
-        )}
-        <Button variant="ghost" className="justify-start gap-2 px-2 has-[>svg]:px-2" onClick={onAddWorkspace}>
-          <FolderPlusIcon />
-          {t('sidebar.addWorkspace')}
+          <IconButton label={t('sidebar.search')} size="icon-sm" onClick={() => onSearchChange(search === null ? '' : null)}>
+            <SearchIcon />
+          </IconButton>
+        </div>
+        <Button
+          data-workbench-nav
+          variant="ghost"
+          className="h-8 justify-start gap-2 px-2 has-[>svg]:px-2"
+          aria-current={navigation.location.kind === 'plugins' ? 'page' : undefined}
+          onClick={() => {
+            navigation.visit({ kind: 'plugins' })
+            closeSidebarDrawer()
+          }}
+        >
+          <PuzzleIcon />
+          {t('settings.nav.plugins')}
         </Button>
-      </div>
+        <Button
+          data-workbench-nav
+          variant="ghost"
+          className="h-8 justify-start gap-2 px-2 has-[>svg]:px-2"
+          aria-current={navigation.location.kind === 'schedules' ? 'page' : undefined}
+          onClick={() => {
+            navigation.visit({ kind: 'schedules' })
+            closeSidebarDrawer()
+          }}
+        >
+          <ClockIcon />
+          {t('schedules.settings')}
+        </Button>
+      </nav>
+      {search !== null && (
+        <div className="flex h-9 shrink-0 items-center gap-2 px-4">
+          <SearchIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          <Input
+            type="search"
+            autoFocus
+            aria-label={t('sidebar.searchSessions')}
+            placeholder={t('sidebar.searchPlaceholder')}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              event.stopPropagation()
+              onSearchChange(null)
+            }}
+            className="h-7"
+          />
+        </div>
+      )}
 
       <nav aria-label={t('sidebar.sessions')} aria-busy={listStatus === 'loading' || undefined} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {listStatus === 'loading' && <SessionSkeleton />}
@@ -139,16 +189,20 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             onNewSession={() => newSession(workspace.id)}
             onOpened={closeSidebarDrawer}
             onSelect={(id) => {
-              openSession(id)
+              navigation.openSession(id)
               closeSidebarDrawer()
             }}
           />
         ))}
       </nav>
 
-      <div className="flex shrink-0 items-center gap-1 border-t-hairline border-sidebar-border px-2 py-2">
-        <SettingsButton />
-      </div>
+      <SidebarAccount
+        username={t('sidebar.localUser')}
+        label={t('sidebar.settings')}
+        avatar={<UserRoundIcon aria-hidden className="size-4" />}
+        icon={<SettingsIcon aria-hidden className="size-4" />}
+        onClick={() => openSettings()}
+      />
     </div>
   )
 }

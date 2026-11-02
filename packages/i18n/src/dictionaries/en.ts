@@ -7,7 +7,11 @@ export const en: typeof zh = {
   },
   sidebar: {
     label: 'Sidebar',
-    newSession: 'New session',
+    navigation: 'Main navigation',
+    back: 'Go back',
+    forward: 'Go forward',
+    localUser: 'Local user',
+    newSession: 'New chat',
     search: 'Search',
     searchSessions: 'Search sessions',
     searchPlaceholder: 'Search by title',
