@@ -1,0 +1,20 @@
+apps/desktop/e2e/context.e2e.test.ts
+  s_64e2ce1bfde668::t_2d4d686236fccf 86-87,90-91
+  s_64e2ce1bfde668::t_b036c9e4b1a15c 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "8c48767d44dddc02760bf44b110b2c138cdfeb05",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
