@@ -41,7 +41,10 @@ export const SessionWorktree = Type.Object({ id: Id, name: Type.String(), branch
 export type SessionWorktree = Static<typeof SessionWorktree>
 
 /** POST /api/workspaces/:id/worktrees → 201 Worktree。 */
-export const CreateWorktreeRequest = Type.Object({ name: Type.Optional(Type.String({ minLength: 1 })) }, strict)
+export const CreateWorktreeRequest = Type.Object(
+  { name: Type.Optional(Type.String({ minLength: 1 })), baseBranch: Type.Optional(Type.String({ minLength: 1 })) },
+  strict,
+)
 export type CreateWorktreeRequest = Static<typeof CreateWorktreeRequest>
 
 /** 移除被拒绝的原因：绑定的会话有 Run、running 子代理、running Job 或 active 定时任务（409 worktree-busy 的 details.reasons）。 */

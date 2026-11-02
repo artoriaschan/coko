@@ -58,7 +58,7 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 ## 项目配置菜单
 
-归属栏右侧的 [项目配置菜单](../../apps/desktop/src/renderer/features/conversation/project-git-menu.tsx) 在栏上方打开。独立状态仍可打开，分支项显示等待选择项目的说明；非 Git 主要文件夹与 Git 缺失分别说明原因。菜单为新建工作树开关保留前置插槽。
+归属栏右侧的 [项目配置菜单](../../apps/desktop/src/renderer/features/conversation/project-git-menu.tsx) 在栏上方打开。独立状态仍可打开，分支项显示等待选择项目的说明；非 Git 主要文件夹与 Git 缺失分别说明原因。“新建工作树”开关位于分支项之前，仅更新本地草稿。关闭开关、清除归属与独立对话入口会清空工作树配置，首次发送时创建与失败清理的边界见 [Worktree](worktrees.md#新对话首次发送)。
 
 分支子菜单保留父层，使用共享 `DropdownMenuStackedSubContent`：子层高于父层，从触发项边缘零间距展开，父菜单内边距保留几何重叠；新对话入口将子层底部与触发项对齐，使菜单位于归属栏上方。搜索只匹配本地分支名，当前分支勾选；选中成功回显，失败保留原选择并区分 dirty 与忙碌。关闭子层时焦点返回分支触发项。
 

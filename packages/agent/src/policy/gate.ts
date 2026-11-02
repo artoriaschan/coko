@@ -67,6 +67,8 @@ export interface PermissionGateOptions {
   permissionClass?: (name: string) => PermissionClass | undefined
   /** 额外读取根（例如 Skill 目录）；按调用时的真实路径判定。 */
   readRoots?: () => readonly string[]
+  /** 宿主在 Run 开始时冻结的真实 Workspace 根（含 cwd）。 */
+  workspaceRoots?: () => readonly string[]
   broker: ApprovalBroker
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
@@ -156,7 +158,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     isolation = false,
   ): Promise<{ decision: PermissionDecision; step: DecisionStep; target?: PermissionTarget; matchesRule: (condition: HookCondition) => boolean }> => {
     const mode = options.mode()
-    const root = await realWorkspace()
+    const root = options.workspaceRoots?.()[0] ?? (await realWorkspace())
     const permissionClass = classOf(name)
     const call: PermissionCall = {
       toolName: name,
@@ -166,12 +168,13 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     }
     const category = categoryOf(name)
     if (subject !== undefined && (category === 'read' || category === 'lsp' || category === 'write')) call.target = await resolveTarget(subject, options.cwd)
-    const readRoots = await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path)))
+    const workspaceRoots = options.workspaceRoots?.() ?? [root]
+    const readRoots = [...workspaceRoots, ...(await Promise.all((options.readRoots?.() ?? []).map((path) => realLocation(path))))]
     const context = {
       mode,
       rules: options.rules(),
       workspace: root,
-      writableRoots: await writableRootsFor(mode, root),
+      writableRoots: await writableRootsFor(mode, workspaceRoots),
       ...(readRoots.length > 0 ? { readRoots } : {}),
     }
     const { decision, step } = decideWithStep(call, context)

@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Switch,
   cn,
 } from '@coko/ui'
 import { ChevronDownIcon, FolderClosedIcon, MessageCircleIcon, PlusIcon, XIcon } from 'lucide-react'
@@ -24,6 +25,8 @@ export function DestinationBar({ className }: { className?: string }) {
   const projects = useLists((state) => state.projects)
   const projectId = useNewChat((state) => state.projectId)
   const selectProject = useNewChat((state) => state.selectProject)
+  const newWorktree = useNewChat((state) => state.newWorktree)
+  const configure = useNewChat((state) => state.configure)
   const sending = useNewChat((state) => state.sending)
   const project = projects.find((item) => item.id === projectId)
   const [open, setOpen] = React.useState(false)
@@ -150,7 +153,24 @@ export function DestinationBar({ className }: { className?: string }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <ProjectGitMenu project={project} />
+      <ProjectGitMenu
+        project={project}
+        worktreeSlot={({ available, pending, loading }) => (
+          <DropdownMenuItem
+            role="switch"
+            aria-label={t('worktrees.newWorktree')}
+            aria-checked={newWorktree}
+            disabled={!available || pending || loading}
+            onSelect={(event) => {
+              event.preventDefault()
+              configure({ newWorktree: !newWorktree, branch: null })
+            }}
+          >
+            <span>{t('worktrees.newWorktree')}</span>
+            <Switch aria-hidden tabIndex={-1} checked={newWorktree} disabled={!available || pending || loading} className="pointer-events-none ml-auto" />
+          </DropdownMenuItem>
+        )}
+      />
     </div>
   )
 }

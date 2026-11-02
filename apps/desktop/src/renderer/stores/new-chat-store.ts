@@ -63,7 +63,7 @@ export function createNewChatStore(storage: Storage | undefined = typeof localSt
   }
   const store = createStore<NewChatState & NewChatActions>()((set, get) => ({
     ...initial,
-    configure: (patch) => set(patch),
+    configure: (patch) => set(patch.newWorktree === false ? { ...patch, branch: null } : patch),
     selectProject(projectId) {
       if (get().projectId !== projectId || projectId === null) set({ projectId, branch: null, newWorktree: false })
     },

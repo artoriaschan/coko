@@ -146,6 +146,8 @@ export const FirstSendRequest = Type.Object(
   {
     draftId: Type.String({ minLength: 1, maxLength: 200 }),
     projectId: Type.Optional(Id),
+    newWorktree: Type.Optional(Type.Boolean()),
+    baseBranch: Type.Optional(Type.String({ minLength: 1 })),
     text: Type.String(),
     images: Type.Optional(Type.Array(ImageAttachment)),
     model: Type.Optional(SessionModel),
