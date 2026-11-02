@@ -470,6 +470,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           const { session } = await api.firstSend({
             draftId: draft.draftId,
             ...(draft.projectId ? { projectId: draft.projectId } : {}),
+            ...(draft.newWorktree ? { newWorktree: true, ...(draft.branch ? { baseBranch: draft.branch } : {}) } : {}),
             text,
             ...(images?.length ? { images } : {}),
             ...(model ? { model } : {}),
