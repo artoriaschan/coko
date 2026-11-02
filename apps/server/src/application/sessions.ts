@@ -158,6 +158,8 @@ export class SessionService {
     this.assertAdmission(id)
     this.#mutations.set(id, (this.#mutations.get(id) ?? 0) + 1)
     try {
+      const session = await requireSession(this.#store, id)
+      if (session.archivedAt !== null) throw new AppError('session-archived', 'Restore this conversation before changing it')
       return await task()
     } finally {
       const left = this.#mutations.get(id)! - 1

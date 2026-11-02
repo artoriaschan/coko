@@ -83,6 +83,7 @@ export function createListStore(api: ApiClient): ListStore {
   const removed = new Set<string>()
   const organization = new Map<string, Partial<Session>>()
   let archiveRevision = 0
+  let archiveLoadRevision = 0
   const archiveChanges = new Map<string, number>()
   let loadRevision = 0
   let titleRevision = 0
@@ -104,14 +105,20 @@ export function createListStore(api: ApiClient): ListStore {
       sessions: [],
       archivedSessions: [],
       async loadArchived() {
+        const request = ++archiveLoadRevision
+        const titlesAtStart = titleRevision
         const before = archiveRevision
         const sessions = await api.listArchivedSessions()
+        if (request !== archiveLoadRevision) return
         sessions.push(
           ...get().archivedSessions.filter((session) => (archiveChanges.get(session.id) ?? 0) > before && !sessions.some((item) => item.id === session.id)),
         )
         set({
           archivedSessions: sessions
-            .map((session) => ({ ...session, ...organization.get(session.id) }))
+            .map((session) => {
+              const title = titleChanges.get(session.id)
+              return { ...session, ...organization.get(session.id), ...(title && title.revision > titlesAtStart ? { title: title.title } : {}) }
+            })
             .filter((session) => !removed.has(session.id) && session.archivedAt !== null),
         })
       },
@@ -185,7 +192,8 @@ export function createListStore(api: ApiClient): ListStore {
               titleChanges.delete(session.id)
               return session
             })
-          for (const [id, change] of titleChanges) if (change.revision <= titlesAtStart) titleChanges.delete(id)
+          for (const [id, change] of titleChanges)
+            if (change.revision <= titlesAtStart && !get().archivedSessions.some((session) => session.id === id)) titleChanges.delete(id)
           set({ workspaces, projects, sessions: current, listStatus: 'ready' })
           return true
         } catch {
@@ -219,9 +227,10 @@ export function createListStore(api: ApiClient): ListStore {
         }
       },
       async setPinned(id, pinned) {
+        const beforeArchive = archiveChanges.get(id) ?? 0
         try {
           const updated = await api.setSessionPinned(id, pinned)
-          if (organization.get(id)?.archivedAt != null) return false
+          if ((archiveChanges.get(id) ?? 0) !== beforeArchive || organization.get(id)?.archivedAt != null) return false
           if (organization.has(id)) organization.set(id, { ...organization.get(id), pinnedAt: updated.pinnedAt })
           get().patchSession(id, { pinnedAt: updated.pinnedAt })
           return true

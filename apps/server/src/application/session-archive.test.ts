@@ -54,6 +54,7 @@ it('archive excludes concurrent admissions, rolls back on failure and rejects ev
   ]
   for (const request of requests) await expect(service.runs.startRun(session.id, request)).rejects.toMatchObject({ code: 'session-archived' })
   await expect(service.submit(session.id, '/goal start')).rejects.toMatchObject({ code: 'session-archived' })
+  await expect(service.createRecord({ workspaceId: workspace.id, parentSessionId: session.id })).rejects.toMatchObject({ code: 'session-archived' })
   await service.setArchived(session.id, false)
   service.useLifecycle({
     runningJobs: async () => false,

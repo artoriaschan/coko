@@ -36,6 +36,7 @@ it('archives, opens read-only from Settings, restores to the project, then resta
   await page.getByRole('button', { name: /^(已归档对话|Archived conversations)$/ }).click()
   const archived = page.locator(`[data-archived-session="${seeded.session.id}"]`)
   await archived.getByText('Archive project', { exact: true }).waitFor()
+  await page.screenshot({ path: '/tmp/coko-archive-settings-e2e.png' })
   await archived.getByRole('button', { name: /^(打开对话|Open conversation)$/ }).click()
   await page.getByRole('heading', { name: 'Archive current', exact: true }).waitFor()
   expect(await page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ }).isVisible()).toBe(false)
