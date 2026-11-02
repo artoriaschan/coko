@@ -1,0 +1,21 @@
+.scratch/conversation-workbench/evidence/21-new-worktree-first-send.md
+  s_64e2ce1bfde668::t_df3aa4dab06990 40-47
+.scratch/conversation-workbench/issues/21-new-worktree-first-send.md
+  s_64e2ce1bfde668::t_df3aa4dab06990 28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9b992d0743f5240aea0b180d2d8ee29b5fc19f23",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
