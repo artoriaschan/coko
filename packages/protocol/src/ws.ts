@@ -41,6 +41,8 @@ export const ProgressEvent = Type.Union([
       kind: Type.Union([Type.Literal('text'), Type.Literal('thinking'), Type.Literal('toolcall')]),
       contentIndex: Type.Integer({ minimum: 0 }),
       delta: Type.String(),
+      /** UTF-16 code units already emitted in this contentIndex; optional for older progress producers. */
+      offset: Type.Optional(Type.Integer({ minimum: 0 })),
     },
     strict,
   ),

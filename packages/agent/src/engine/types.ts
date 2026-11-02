@@ -73,7 +73,7 @@ export interface RunResult {
 /** Temporary display state. Never persisted; a client that reconnects rebuilds from entries. */
 export type ProgressEvent =
   | { type: 'run_start'; runId: string }
-  | { type: 'assistant_delta'; runId: string; kind: 'text' | 'thinking' | 'toolcall'; contentIndex: number; delta: string }
+  | { type: 'assistant_delta'; runId: string; kind: 'text' | 'thinking' | 'toolcall'; contentIndex: number; delta: string; offset?: number }
   | { type: 'tool_start'; runId: string; toolCallId: string; toolName: string; args: unknown }
   | { type: 'tool_update'; runId: string; toolCallId: string; toolName: string; partialResult: AgentToolResult<unknown> }
   /** In tool completion order; the committed toolResult entries keep the model's call order. */

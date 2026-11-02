@@ -332,11 +332,16 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       return done
     }
 
-    const ensureConversation = (sessionId: string) => {
+    const ensureConversation = (sessionId: string, firstRunId?: string) => {
       pinned.add(sessionId)
       if (get().conversations[sessionId]) return
       const running = lists.getState().sessions.find((s) => s.id === sessionId)?.running ?? false
-      set((state) => ({ conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running, live: null } } }))
+      set((state) => ({
+        conversations: {
+          ...state.conversations,
+          [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running, live: firstRunId ? emptyLive(firstRunId, false) : null },
+        },
+      }))
       void subscribe(sessionId)
     }
 
@@ -474,7 +479,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         try {
           const available = draft.model ? undefined : (await api.listModels()).models[0]
           const model = draft.model ?? (available ? { providerId: available.providerId, modelId: available.modelId } : undefined)
-          const { session } = await api.firstSend({
+          const { session, runId } = await api.firstSend({
             draftId: draft.draftId,
             ...(draft.projectId ? { projectId: draft.projectId } : {}),
             ...(draft.newWorktree ? { newWorktree: true, ...(draft.branch ? { baseBranch: draft.branch } : {}) } : {}),
@@ -488,9 +493,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           // A title can finish while the first-send response or list refresh is in flight.
           lists.getState().upsertSession(lists.getState().sessions.find((current) => current.id === session.id) ?? session)
           newChat.getState().accepted(draft.draftId)
+          // 首次发送已接受的 Run 是本客户端发起的：订阅时保留它的身份以显示首条回复增量。
+          // 普通打开与重连仍等待完整 assistant 条目，避免展示缺头的历史增量。
+          ensureConversation(session.id, runId)
           // 后端已接受首条消息；订阅补齐条目，不再重复提交消息。
           if (get().activeSessionId === null) get().openSession(session.id)
-          else ensureConversation(session.id)
           return true
         } catch (error) {
           onFailure?.({ kind: 'send', error: toApiError(error) })
@@ -825,11 +832,15 @@ export function reduceProgress(live: LiveRun | null, runId: string, event: Exclu
   const current = live ?? emptyLive(runId, false)
   switch (event.type) {
     case 'assistant_delta': {
-      if (!current.accepting || event.kind === 'toolcall') return current
+      if ((current.runId !== null && current.runId !== runId) || event.kind === 'toolcall') return current
+      // Only an offset-zero block proves that a known first-send Run has no missing prefix.
+      if (!current.accepting && !(live?.runId === runId && event.offset === 0)) return current
       const blocks = [...current.blocks]
       const existing = blocks[event.contentIndex]
+      if (event.offset !== undefined && event.offset !== (existing?.kind === event.kind ? existing.text.length : 0))
+        return { ...current, accepting: false, blocks: [] }
       blocks[event.contentIndex] = { kind: event.kind, text: (existing?.kind === event.kind ? existing.text : '') + event.delta }
-      return { ...current, blocks, retry: undefined }
+      return { ...current, accepting: true, blocks, retry: undefined }
     }
     case 'tool_start':
       return {

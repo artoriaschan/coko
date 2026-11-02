@@ -20,6 +20,28 @@ describe('登记明文的替换点', () => {
     })
   })
 
+  it('按脱敏后实际发出的 UTF-16 文本重算 offset，不把原始密钥长度作为 UI 偏移', () => {
+    disposers.push(registerSecretValues(() => [SECRET]))
+    const redactor = createProgressRedactor()
+    let rawOffset = 0
+    const chunks = ['see svc-', 'dsn-01234', '56789 🦜 ok'].flatMap((delta) => {
+      const event = redactor.redact({ type: 'assistant_delta', runId: 'r', kind: 'text', contentIndex: 0, offset: rawOffset, delta })
+      rawOffset += delta.length
+      return event?.type === 'assistant_delta' ? [event] : []
+    })
+    expect(chunks.map((event) => event.delta).join('')).toBe(`see ${SECRET_REDACTED} 🦜 ok`)
+    expect(chunks.map((event) => event.offset)).toEqual([0, 4])
+    redactor.reset()
+    expect(redactor.redact({ type: 'assistant_delta', runId: 'r', kind: 'text', contentIndex: 0, offset: 0, delta: '🦜' })).toMatchObject({
+      offset: 0,
+      delta: '🦜',
+    })
+    expect(redactor.redact({ type: 'assistant_delta', runId: 'r', kind: 'text', contentIndex: 0, offset: 2, delta: ' next' })).toMatchObject({
+      offset: 2,
+      delta: ' next',
+    })
+  })
+
   it('进度：assistant 增量按内容块缓冲，跨增量的值被替换；其余事件整体替换；新消息开始时 reset', () => {
     disposers.push(registerSecretValues(() => [SECRET]))
     const redactor = createProgressRedactor()

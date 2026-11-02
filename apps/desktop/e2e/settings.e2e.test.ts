@@ -160,8 +160,10 @@ describe('设置：Provider 与 Credential', () => {
     await composer(app).press('Enter')
 
     await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('Hello from the fake model.')
-    expect(model.requests).toHaveLength(1)
-    expect(model.requests[0]).toMatchObject({ path: '/v1/chat/completions', headers: { authorization: `Bearer ${secret}` } })
+    await expect.poll(() => model.requests.length).toBe(2)
+    expect(model.requests.filter((request) => request.body.includes('COKO_SESSION_TITLE'))).toHaveLength(1)
+    expect(model.requests.filter((request) => !request.body.includes('COKO_SESSION_TITLE'))).toHaveLength(1)
+    for (const request of model.requests) expect(request).toMatchObject({ path: '/v1/chat/completions', headers: { authorization: `Bearer ${secret}` } })
 
     // 设置接口不回传密钥；HTTP 不再提供 Provider 的创建与更新（ADR 0010）。
     const providers = await app.window.evaluate(() => fetch('/api/providers').then((r) => r.text()))
