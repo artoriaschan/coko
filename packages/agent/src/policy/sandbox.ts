@@ -36,16 +36,16 @@ async function tempRoots(): Promise<string[]> {
 
 /**
  * 档位的可写根（真实路径），文件工具的写入边界与 Seatbelt profile 共用这一处推导：read-only 没有；workspace-write 为
- * Workspace、`/tmp` 与 `os.tmpdir()`（与 DSH 的默认集合相同，不含 ~/.npm、~/.cache 等用户目录）；danger-full-access 为根目录。
+ * 本 Run 的 Workspace 根集合、`/tmp` 与 `os.tmpdir()`（与 DSH 的默认集合相同，不含 ~/.npm、~/.cache 等用户目录）；danger-full-access 为根目录。
  */
-export async function writableRootsForSandbox(mode: SandboxMode, workspace: string): Promise<string[]> {
+export async function writableRootsForSandbox(mode: SandboxMode, workspace: string | readonly string[]): Promise<string[]> {
   if (mode === 'read-only') return []
   if (mode === 'danger-full-access') return ['/']
-  return [...new Set([workspace, ...(await tempRoots())])]
+  return [...new Set([...(typeof workspace === 'string' ? [workspace] : workspace), ...(await tempRoots())])]
 }
 
 /** 一次命令执行的沙箱策略：workspace-write 下可写根中的受保护路径（.git、.coko 等）仍不可写。 */
-export async function sandboxPolicyFor(mode: SandboxMode, workspace: string): Promise<SandboxPolicy> {
+export async function sandboxPolicyFor(mode: SandboxMode, workspace: string | readonly string[]): Promise<SandboxPolicy> {
   const writableRoots = await writableRootsForSandbox(mode, workspace)
   return mode === 'workspace-write' ? { mode, writableRoots, protectedNames: PROTECTED_PATH_NAMES } : { mode, writableRoots }
 }

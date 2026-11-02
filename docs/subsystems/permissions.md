@@ -41,7 +41,7 @@ lifecycle: active
 | 模式 | 模式放行 | 命令的沙箱档位 | 可写根（write / edit 与命令共用） |
 | --- | --- | --- | --- |
 | read-only | Workspace 内的 read 组调用 | read-only | 无：文件写入都按越出可写根询问，命令不能写任何位置 |
-| default | Workspace 内的 read 组调用 | workspace-write | Workspace、`/tmp`、`os.tmpdir()` 的真实路径 |
+| default | Workspace 内的 read 组调用 | workspace-write | 本 Run 的 Workspace 根集合、`/tmp`、`os.tmpdir()` 的真实路径 |
 | accept-edits | 另加可写根内的 write / edit | workspace-write | 同 default |
 | full-access | 全部调用 | danger-full-access（不包裹） | `/` |
 | plan（M4） | 与 read-only 相同 | read-only | 无 |
@@ -63,9 +63,19 @@ lifecycle: active
 
 M5 的 agent_wait、schedule_list 按 context-read，agent_cancel、schedule_delete 按 session-state 注册（子代理与定时任务）。M6 的 lsp 与 team 两类已进入判定与规则名的归一（`canonicalRuleTool('lsp')` 为 `Lsp`）；`lsp` 工具由代码智能在有语言服务器时注册（见 [代码智能](lsp.md#权限与脱敏)），team 的工具尚未注册；带 `name` 的 agent 调用（teammate）与 agent 同类。子 Session（子代理）没有自己的模式与规则：每次判定时取根 Session 当前模式（plan 按 read-only）与定义 `permission-mode` 中较窄者，规则为根 Session 的规则加全局、Workspace 与 project 规则；根切换模式时子级的待审批请求重新判定，"本会话总是允许"写入根 Session，子 Session 的模式与规则接口返回 409 `child-session`。子代理保留的 isolation worktree 在父 Session 中另有不入库的询问规则 `Read(<path>)`。见 [子代理](subagents.md#有效权限与审批)。没有权限类的其他宿主工具照旧只在 full-access 放行。拒绝与询问规则对所有类照常生效。MCP Server 的工具由上下文装配以 external 注册（effect 一律 side-effect），规则可写全名或 `mcp__<server>`；连接与工具适配见 [MCP Server 连接与工具](mcp.md#工具)。session-state 的工具由 Todo、Goal 与后台任务注册；plan-exit 的 `exit_plan_mode` 只在 plan 模式的 Run 中注册，询问不受允许规则免除，拒绝规则照常生效，审批为 kind plan（见下文与 [Plan Mode](plan-mode.md)）。
 
+## 每个 Run 的 Workspace 根
+
+[SessionRuns](../../apps/server/src/application/session-runs.ts) 在 Run 准入时读取根 Session 的当前项目归属，取固定工作目录与该项目全部源文件夹的真实路径，去重并冻结为本次 Run 的 Workspace 根集合。子 Session 沿持久化父链取根会话归属；独立对话没有附加根，从别处移入项目的对话还包含项目主要文件夹。项目文件夹编辑或会话移入、移出仅影响下一个 Run，正在运行的工具和已经启动的 Job 保留自己的范围。
+
+`RuntimePermissions.workspaceRoots()` 把同一份快照同时交给读取判定、文件写入边界与命令准备阶段的 Seatbelt 可写根；default 的读取免审批、写入仍询问，accept-edits 允许可写根内普通写入，read-only / plan 仍无可写根。模式和规则继续在每次调用时读取，目录集合不随待审批请求的重新判定改变。执行目录、相对规则锚点及按 Workspace 保存的批准和记忆保持原绑定。
+
+worktree 会话始终排除其来源主检出；项目移动、主要文件夹更换以及包含来源主检出的重叠附加根不会重新授予主检出。固定 cwd 仍属于根集合，其他与来源仓库相交的项目根不加入。此行为见 [Worktree](worktrees.md#会话绑定与工作目录)。指令文件、项目设置、Hook、MCP 与 Skills 仍只由 cwd 发现，附加文件夹只授予文件能力。
+
+拒绝和询问规则仍先于模式；受保护路径照常询问，受限命令仍不能写入。文件目标每次经真实路径解析，附加根中指向外部的符号链接不扩大权限；批准后目标被换成链接时仍执行写入前复核。配置发现与 Skill 读取根不因此成为可写根。
+
 **额外读取根。** `RuntimePermissions.readRoots()`（每次判定现取，按真实路径比较）给出 Workspace 之外的读取根（Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理（各模式放行，不报 `outside-workspace`）。它不放开写入与命令，Read 拒绝规则仍生效。
 
-workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
+workspace-write 在本 Run 的 Workspace 根集合之外，还允许 DSH `packages/sandbox` 的系统临时目录：不含主目录及其下的包管理缓存（`~/.npm`、`~/.cache` 等），写这些位置的命令被拒绝后需要提权或切换模式。
 
 **plan（Plan Mode）。** 判定与 read-only 相同，命令沙箱 read-only；进入时 `permission_mode`（v2）带 `prior`（进入前的模式，已在 plan 时不变），`/plan off`、Plan chip 与批准计划回到它；从 plan 选择其他模式即退出。默认模式只能是四档之一；Shift+Tab 循环不含 plan。完整契约见 [Plan Mode](plan-mode.md)。
 
@@ -103,10 +113,10 @@ workspace-write 的可写根与 DSH `packages/sandbox` 的默认集合相同：�
 
 ```text
 (version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "<root>") …)
-(deny file-write* (regex #"^<root>/(.*/)?([.][gG][iI][tT]|…)(/|$)") …)
+(deny file-write* (regex #"^/(.*/)?([.][gG][iI][tT]|…)(/|$)") …)
 ```
 
-SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每个可写根下任意深度的受保护路径段（与判定相同的集合 `PROTECTED_PATH_NAMES`，不区分大小写）追加 deny，被拒后走提权。read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件写入，不限制网络与读取。经审批或允许规则放行的命令同样在本档位内运行。
+SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝对路径任意深度的受保护路径段（与判定相同的集合 `PROTECTED_PATH_NAMES`，不区分大小写）追加 deny，被拒后走提权。受保护段的正则不拼入用户提供的根路径，因此带引号、反斜杠、`]` 或 `^` 的文件夹仍受保护。read-only 没有 subpath；danger-full-access 不包裹。沙箱只约束文件写入，不限制网络与读取。经审批或允许规则放行的命令同样在本档位内运行。
 
 **拒绝。** 受限命令非零退出且输出含 `operation not permitted`（大小写不敏感）时视为被沙箱拒绝：结果在退出码之前追加拒绝标记 `[sandbox: file access denied under <mode> mode]` 与提权提示（文本沿用 DSH，属于模型可见契约），`details.sandbox = { mode, denied: true }`；工具卡标题行显示"被沙箱拦截（档位）"。
 
@@ -214,6 +224,8 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对每�
 网络与读取的沙箱限制、Windows / Linux 沙箱不在 M2 范围。Sidecar 在等待审批时退出，重启后请求以 expired 结束，见 [启动恢复与结果确认](recovery.md)。
 
 ## 验证
+
+- [项目根的 Sidecar 协议用例](../../tests/integration/sidecar-project-permissions.test.ts)：附加根读取、模式写入、Run 快照、归属移动、子代理、worktree 来源排除、拒绝过滤、符号链接及 cwd 资源发现；其中 Seatbelt 用例仅在 darwin 运行。
 
 - `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
