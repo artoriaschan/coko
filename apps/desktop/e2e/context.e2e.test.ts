@@ -83,9 +83,13 @@ describe('上下文环', () => {
       })
     expect(await focused()).toBe('ring')
 
-    // 窗口最窄（minWidth 520）：环、模式与模型选择、发送按钮都在输入区内且互不重叠，模型名只截断。
+    // 窗口最窄（minWidth 520）先收起 280px 侧栏，让主内容仍满足 390px 验收下限。
+    // 环、模式与模型选择、发送按钮都在输入区内且互不重叠，模型名只截断。
     await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(520, 820))
     await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(520)
+    await page.getByRole('button', { name: /^(Collapse sidebar|收起侧栏)$/ }).click()
+    await expect.poll(() => page.getByRole('button', { name: /^(Expand sidebar|展开侧栏)$/ }).count()).toBe(1)
+    await expect.poll(() => page.locator('[data-slot="app-frame-main"]').evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(390)
     const geometry = await page.evaluate(() => {
       const form = document.querySelector('form')!
       const rect = (selector: string) => {
