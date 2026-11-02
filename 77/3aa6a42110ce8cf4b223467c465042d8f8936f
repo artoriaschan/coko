@@ -1,0 +1,103 @@
+apps/desktop/src/renderer/features/sidebar/project-row.tsx
+  s_64e2ce1bfde668::t_94feaaac9fd563 37,59
+  s_64e2ce1bfde668::t_6200747dc2d5bc 286,289-317,319
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 32,64-65,128,140,193
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_bad7a9f9efeca9 218-222
+  s_64e2ce1bfde668::t_619a761bc3e74d 209,214
+  s_64e2ce1bfde668::t_0d192bdfc01e20 169
+  s_64e2ce1bfde668::t_2d1433f964cefb 30,42,47,97-100,107,170-172,174,176-177,184-202,205-208,210-213,215-217,223-242,244-247,480,485
+  s_64e2ce1bfde668::t_c2688be2a19686 43,203-204,243
+  s_64e2ce1bfde668::t_6200747dc2d5bc 410-417,481-484
+  s_64e2ce1bfde668::t_419dd547e479de 394-396
+apps/server/src/application/projects.ts
+  s_64e2ce1bfde668::t_2d1433f964cefb 11-12,14-18
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_2d1433f964cefb 577,597,741
+  s_64e2ce1bfde668::t_c2688be2a19686 596
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_2d1433f964cefb 121
+apps/server/src/application/subagents.ts
+  s_64e2ce1bfde668::t_6ac4bfeddaba54 696-699
+  s_64e2ce1bfde668::t_c2688be2a19686 700-703
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_6200747dc2d5bc 22-23
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 20-21,24-25
+apps/server/src/adapters/faux.ts
+  s_64e2ce1bfde668::t_402a38bca4f7b4 38-39,61-62,251,254-263
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_64e2ce1bfde668::t_9e4ef3a461c3e4 33,39-41
+  s_64e2ce1bfde668::t_0dab5fcde83e86 34-38
+  s_64e2ce1bfde668::t_94feaaac9fd563 22
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_5009dad0cb6bf9 3,35,43-52,119-121
+apps/desktop/src/renderer/testing/fixture-chat.ts
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 131,155-156,158-160
+  s_64e2ce1bfde668::t_6200747dc2d5bc 140-152,157
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 56,82,102,156,163,186-189,191-192,228,234
+  s_64e2ce1bfde668::t_6200747dc2d5bc 190
+docs/README.md
+  s_64e2ce1bfde668::t_5009dad0cb6bf9 29
+docs/adr/0022-project-removal-preserves-sessions.md
+  s_64e2ce1bfde668::t_bad7a9f9efeca9 5,31-33
+docs/adr/README.md
+  s_64e2ce1bfde668::t_bad7a9f9efeca9 34
+.scratch/conversation-workbench/issues/15-delete-project-keep-sessions.md
+  s_64e2ce1bfde668::t_d0c8999dde1010 19-31
+apps/server/src/application/subagent-recovery.ts
+  s_64e2ce1bfde668::t_be14375d70ffbd 219-220
+  s_64e2ce1bfde668::t_c2688be2a19686 121,123-127,218,221
+  s_64e2ce1bfde668::t_bad7a9f9efeca9 120,130,134-138
+  s_64e2ce1bfde668::t_6ac4bfeddaba54 122,128-129,131-133,139-140
+apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx
+  s_64e2ce1bfde668::t_619a761bc3e74d 21
+  s_64e2ce1bfde668::t_419dd547e479de 43
+  s_64e2ce1bfde668::t_6200747dc2d5bc 23-31,47-49,71-132,134-135
+  s_64e2ce1bfde668::t_800e4464dc5042 10,69-70,133
+  s_64e2ce1bfde668::t_ef088258da9897 1-9,11-20,22,32-42,44-46,50-68
+apps/desktop/e2e/project-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_6200747dc2d5bc 14-22,62
+  s_64e2ce1bfde668::t_5dbaf377b94d5b 1-13,23-61,63-66
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 18-22
+tests/integration/sidecar-delete-project.test.ts
+  s_64e2ce1bfde668::t_7ffd4871ca3354 5,56-58,77,84-85,90-96,98,100-104,112-113
+  s_64e2ce1bfde668::t_6902647a7e81fb 139-140,148
+  s_64e2ce1bfde668::t_9040660f0b6b17 1,3-4,6,8-12,26-39,43-55,169
+  s_64e2ce1bfde668::t_94feaaac9fd563 97
+  s_64e2ce1bfde668::t_8758baf80e2c88 7,78-83,86,99
+  s_64e2ce1bfde668::t_6200747dc2d5bc 13-25,40-42,59-76,87-89,105-111,122-126,128-130
+  s_64e2ce1bfde668::t_402a38bca4f7b4 2,114-121,131-137,141-144,146-147,149-157,161-168
+  s_64e2ce1bfde668::t_887bfd49f8ca2e 127,138,145,158-160
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_0d192bdfc01e20 357
+  s_64e2ce1bfde668::t_619a761bc3e74d 374,376
+  s_64e2ce1bfde668::t_6ac4bfeddaba54 344-345,358-360,362,364-365,372-373,375,377-378,430,497-498,500-502
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_2d1433f964cefb 54-55
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 197,431-434
+apps/desktop/src/renderer/features/projects/project-delete-dialog.tsx
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 1-6,31,33-53,95
+  s_64e2ce1bfde668::t_94feaaac9fd563 7-13,29-30
+  s_64e2ce1bfde668::t_6200747dc2d5bc 14-28,32,54-94
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 17,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "773aa6a42110ce8cf4b223467c465042d8f8936f",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
