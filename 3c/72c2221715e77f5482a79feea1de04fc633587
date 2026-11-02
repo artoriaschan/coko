@@ -1,0 +1,41 @@
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 34-40,174-176
+  s_64e2ce1bfde668::t_afa80b7d54fc47 278
+apps/server/src/application/branches.test.ts
+  s_64e2ce1bfde668::t_ef77abb7deb220 6,10-12,66-70,82,86-88,93-94,121-122
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 71-81,95,112-120
+apps/server/src/application/branches.ts
+  s_64e2ce1bfde668::t_5cfca8eeaa0144 37
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 2-5,8-10
+  s_64e2ce1bfde668::t_d177f9ee1f9fe2 136-139,143-146
+  s_64e2ce1bfde668::t_ef77abb7deb220 97,105,114-117
+  s_64e2ce1bfde668::t_55780717ea910a 6-7
+apps/server/src/runtime/layers.ts
+  s_64e2ce1bfde668::t_ef77abb7deb220 610
+packages/protocol/src/branches.ts
+  s_64e2ce1bfde668::t_d177f9ee1f9fe2 2-6
+apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx
+  s_64e2ce1bfde668::t_baa5b3a6aa2c7a 15-17,20-71,73-115,117-135
+  s_64e2ce1bfde668::t_55780717ea910a 19
+  s_64e2ce1bfde668::t_a9469a615ed0ff 18,116
+  s_64e2ce1bfde668::t_5cfca8eeaa0144 156-168,170-185
+  s_64e2ce1bfde668::t_9cb5e895e2c165 169
+docs/README.md
+  s_64e2ce1bfde668::t_6f532044ffeead 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "3c72c2221715e77f5482a79feea1de04fc633587",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
