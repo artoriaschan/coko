@@ -1,0 +1,19 @@
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_c9f6025b74f065 100-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "e6b149681b3dac153053a12c93e97fac15b1ce69",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
