@@ -102,10 +102,20 @@ export function TimelineView(props: TimelineViewProps) {
                     </div>
                   </details>
                 ) : (
-                  <p data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
+                  <p hidden={!item.text} data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
                     {item.text}
                   </p>
                 )}
+                {item.images
+                  ?.filter((image) => /^image\/(png|jpeg|gif|webp)$/.test(image.mimeType) && /^[A-Za-z0-9+/]+={0,2}$/.test(image.data))
+                  .map((image, index) => (
+                    <img
+                      key={index}
+                      src={`data:${image.mimeType};base64,${image.data}`}
+                      alt={t('conversation.imageAttachment')}
+                      className="max-h-80 max-w-full rounded-lg object-contain"
+                    />
+                  ))}
                 {item.references && (
                   // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
                   <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-1">

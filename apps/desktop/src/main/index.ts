@@ -1,4 +1,6 @@
-import { join, resolve } from 'node:path'
+import { open } from 'node:fs/promises'
+import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
+import { basename, extname, join, resolve } from 'node:path'
 import {
   app,
   autoUpdater,
@@ -285,11 +287,34 @@ function run(): void {
 
   let picking: Promise<string | null> | undefined
   let pickingFiles: Promise<string[]> | undefined
+  const pickedImages = new Set<string>()
+  ipcMain.handle(IPC.readPickedImage, async (event, path: unknown) => {
+    assertMainFrame(event)
+    if (typeof path !== 'string' || !pickedImages.has(path)) throw new Error('Choose the image first')
+    const handle = await open(path, 'r')
+    try {
+      if ((await handle.stat()).size > IMAGE_ATTACHMENT_MAX_BYTES) throw new Error('Image exceeds the 4.5 MB limit')
+      const buffer = Buffer.alloc(IMAGE_ATTACHMENT_MAX_BYTES + 1)
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+      if (bytesRead > IMAGE_ATTACHMENT_MAX_BYTES) throw new Error('Image exceeds the 4.5 MB limit')
+      const mimeType = (
+        { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' } as Record<string, string>
+      )[extname(path).toLowerCase()]
+      if (!mimeType) throw new Error('Unsupported image format')
+      return { name: basename(path), mimeType, data: buffer.subarray(0, bytesRead).toString('base64') }
+    } finally {
+      await handle.close()
+    }
+  })
   ipcMain.handle(IPC.pickFiles, async (event) => {
     const window = assertMainFrame(event)
     pickingFiles ??= dialog
       .showOpenDialog(window, { properties: ['openFile', 'multiSelections'] })
-      .then(({ canceled, filePaths }) => (canceled ? [] : filePaths))
+      .then(({ canceled, filePaths }) => {
+        if (canceled) return []
+        for (const path of filePaths) pickedImages.add(path)
+        return filePaths
+      })
       .finally(() => {
         pickingFiles = undefined
       })

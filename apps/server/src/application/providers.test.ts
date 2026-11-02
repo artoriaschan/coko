@@ -75,6 +75,7 @@ describe('ProviderService：自定义 Provider', () => {
         providerName: '自定义供应商一',
         modelId: 'custom-model-1',
         name: '自定义模型一',
+        input: ['text', 'image'],
         thinkingLevels: ['off', 'medium', 'high'],
       },
     ])

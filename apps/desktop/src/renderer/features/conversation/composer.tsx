@@ -1,11 +1,13 @@
+import { IMAGE_ATTACHMENT_MAX_BYTES, type ImageAttachment } from '@coko/protocol'
 import { Button, cn, ComposerEditor, ContextRing, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, LoaderCircleIcon, PaperclipIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
+import { ArrowUpIcon, LoaderCircleIcon, PaperclipIcon, PauseIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
 import type { CommandTarget } from '../../stores/commands-store.ts'
 import { contextStore as defaultContextStore, type ContextStore } from '../../stores/context-store.ts'
 import { appDraftStore, draftKey, type DraftStore } from '../../stores/draft-store.ts'
+import { imageDrafts, imageFromFile, type DraftImage } from '../../stores/image-drafts.ts'
 import { CommandMenu } from './command-menu.tsx'
 import { ContextRingControl } from './context-ring.tsx'
 import { FileMenu } from './file-menu.tsx'
@@ -16,7 +18,11 @@ export interface ComposerProps {
   disabled: boolean
   /** 没有可用模型：发送入口改为引导到设置，草稿保留。 */
   needsSetup: boolean
-  onSend: (text: string) => Promise<boolean>
+  onSend: (text: string, images?: ImageAttachment[]) => Promise<boolean>
+  supportsImages?: boolean
+  imageRefs?: string[]
+  onImageRefsChange?: (refs: string[]) => void
+  readPickedImage?: (path: string) => Promise<ImageAttachment>
   /** Run 进行中提交：作为追加指令送进当前 Run（返回 false 时保留输入）。 */
   onSteer: (text: string) => Promise<boolean>
   onStop: () => void
@@ -67,6 +73,14 @@ export function Composer({
   disabled,
   needsSetup,
   onSend,
+  supportsImages = false,
+  imageRefs,
+  onImageRefsChange,
+  readPickedImage = async (path) => {
+    const result = await window.coko?.readPickedImage(path)
+    if (!result) throw new Error('Image read unavailable')
+    return { ...result, mimeType: result.mimeType as ImageAttachment['mimeType'] }
+  },
   onSteer,
   onStop,
   onPause,
@@ -94,14 +108,70 @@ export function Composer({
   const [empty, setEmpty] = React.useState(true)
   const [attachmentError, setAttachmentError] = React.useState<string | null>(null)
   const [picking, setPicking] = React.useState(false)
-  // 图片分支由图片附件能力接入；当前明确拒绝，不能把图片当普通路径发送。
-  const attach = (items: readonly { path: string; type?: string }[]) => {
-    if (disabled) return
+  const key = draftStorageKey ?? (commandTarget ? draftKey(commandTarget) : undefined)
+  const [imagesReady, setImagesReady] = React.useState(false)
+  const [images, setImages] = React.useState<DraftImage[]>([])
+  const imageState = React.useRef<{ key: string | undefined; images: DraftImage[] }>({ key, images: [] })
+  const refsChanged = React.useRef(onImageRefsChange)
+  refsChanged.current = onImageRefsChange
+  const rememberImages = (target: string | undefined, next: DraftImage[]) => {
+    const refs = next.map((image) => image.id)
+    if (target !== undefined) {
+      if (target === draftStorageKey && refsChanged.current) refsChanged.current(refs)
+      else imageDrafts.remember(target, refs)
+    }
+    if (imageState.current.key === target) {
+      imageState.current.images = next
+      setImages(next)
+    }
+  }
+  React.useLayoutEffect(() => {
+    imageState.current = { key, images: [] }
+    setImages([])
+    const refs = key === undefined ? [] : (imageRefs ?? imageDrafts.refs(key))
+    setImagesReady(refs.length === 0)
+    setAttachmentError(null)
+    let active = true
+    if (refs.length > 0)
+      void imageDrafts
+        .load(refs)
+        .then((loaded) => {
+          if (active) {
+            imageState.current.images = loaded
+            setImages(loaded)
+            setImagesReady(true)
+          }
+        })
+        .catch(() => {
+          if (active) setAttachmentError(t('conversation.attachmentFailed'))
+        })
+    return () => {
+      active = false
+    }
+  }, [key])
+  const attach = async (items: readonly { path: string; type?: string; file?: File }[]) => {
+    if (disabled || !imagesReady) return
+    const target = imageState.current.key
     let error: string | null = null
     const additions: ({ fileReference: string } | { text: string })[] = []
     for (const item of items) {
       if (item.type?.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|bmp|svg|heic|avif|tiff?)$/i.test(item.path)) {
-        error = t('conversation.imagesUnavailable')
+        if (!supportsImages) {
+          error = t('conversation.imagesUnavailable')
+          continue
+        }
+        try {
+          const image = item.file ? await imageFromFile(item.file) : await readPickedImage(item.path)
+          if (image.data.length > Math.ceil(IMAGE_ATTACHMENT_MAX_BYTES / 3) * 4) throw new Error('image-too-large')
+          const saved = await imageDrafts.save(image)
+          if (imageState.current.key !== target) {
+            await imageDrafts.remove([saved.id])
+            continue
+          }
+          rememberImages(target, [...imageState.current.images, saved])
+        } catch (reason) {
+          error = t(reason instanceof Error && /4.5|image-too-large/.test(reason.message) ? 'conversation.imageTooLarge' : 'conversation.imageInvalid')
+        }
         continue
       }
       if (!item.path.startsWith('/')) {
@@ -112,17 +182,16 @@ export function Composer({
       const relative = root && item.path.startsWith(root + '/') ? item.path.slice(root.length + 1) : undefined
       additions.push(relative ? { fileReference: relative } : { text: item.path })
     }
-    if (additions.length > 0) editor.current?.insertAttachments(additions)
-    setAttachmentError(error)
+    if (imageState.current.key === target && additions.length > 0) editor.current?.insertAttachments(additions)
+    if (imageState.current.key === target) setAttachmentError(error)
   }
   const attachTransfer = (files: FileList) => {
     try {
-      attach(Array.from(files, (file) => ({ path: getFilePath(file), type: file.type })))
+      void attach(Array.from(files, (file) => ({ path: getFilePath(file) || file.name, type: file.type, file })))
     } catch {
       setAttachmentError(t('conversation.attachmentFailed'))
     }
   }
-  const key = draftStorageKey ?? (commandTarget ? draftKey(commandTarget) : undefined)
   const drafts = React.useMemo(() => (key === undefined ? undefined : (injectedDrafts ?? appDraftStore())), [key === undefined, injectedDrafts])
   // 编辑区当前内容所属的草稿键；作用域改变时读目标草稿，不复制已提交的消息。
   const loadedKey = React.useRef<string | undefined>(undefined)
@@ -151,13 +220,42 @@ export function Composer({
   }, [key, drafts, persist])
   /** 提交被接受后清除提交时所属作用域的草稿（编辑区随后被清空，persist 再处理当前作用域）。 */
   const withDraft = React.useCallback(
-    (submit: (text: string) => Promise<boolean>) => async (text: string) => {
+    (submit: (text: string, images?: ImageAttachment[]) => Promise<boolean>) => async (text: string) => {
+      if (!imagesReady) return false
       const at = loadedKey.current
-      const accepted = await submit(text)
+      const submitted = [...imageState.current.images]
+      if (submitted.length && !supportsImages) {
+        setAttachmentError(t('conversation.imagesUnavailable'))
+        return false
+      }
+      if (submitted.length && running) {
+        setAttachmentError(t('conversation.imagesWhileRunning'))
+        return false
+      }
+      const accepted = await (submitted.length
+        ? submit(
+            text,
+            submitted.map(({ id: _id, ...image }) => image),
+          )
+        : submit(text))
+      if (accepted && submitted.length) {
+        const removed = new Set(submitted.map((image) => image.id))
+        if (imageState.current.key === at)
+          rememberImages(
+            at,
+            imageState.current.images.filter((image) => !removed.has(image.id)),
+          )
+        else if (at !== undefined)
+          imageDrafts.remember(
+            at,
+            imageDrafts.refs(at).filter((id) => !removed.has(id)),
+          )
+        await imageDrafts.remove([...removed])
+      }
       if (accepted && at !== undefined && at !== loadedKey.current) drafts?.remove(at)
       return accepted
     },
-    [drafts],
+    [drafts, supportsImages, running, imagesReady],
   )
   const send = React.useMemo(() => withDraft(onSend), [withDraft, onSend])
   const steer = React.useMemo(() => withDraft(onSteer), [withDraft, onSteer])
@@ -178,7 +276,11 @@ export function Composer({
   return (
     <form
       data-slot="composer"
-      className={cn('relative flex h-30 flex-col gap-2 rounded-panel bg-background p-3 shadow-soft', compacting && 'h-auto min-h-30', className)}
+      className={cn(
+        'relative flex h-30 flex-col gap-2 rounded-panel bg-background p-3 shadow-soft',
+        (compacting || images.length > 0) && 'h-auto min-h-30',
+        className,
+      )}
       onPasteCapture={(event) => {
         if (event.clipboardData.files.length === 0) return
         event.preventDefault()
@@ -220,7 +322,37 @@ export function Composer({
           </Button>
         </div>
       )}
+      {images.length > 0 && (
+        <ul data-slot="image-drafts" className="flex shrink-0 gap-2 overflow-x-auto" aria-label={t('conversation.imageAttachments')}>
+          {images.map((image) => (
+            <li key={image.id} className="relative shrink-0">
+              <img
+                src={`data:${image.mimeType};base64,${image.data}`}
+                alt={image.name}
+                className="size-16 rounded-sm border-hairline border-border bg-muted object-contain"
+              />
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="outline"
+                className="absolute top-1 right-1 bg-background"
+                aria-label={t('conversation.removeImage', { name: image.name })}
+                onClick={() => {
+                  rememberImages(
+                    key,
+                    images.filter((item) => item.id !== image.id),
+                  )
+                  void imageDrafts.remove([image.id])
+                }}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
       <ComposerEditor
+        allowEmpty={images.length > 0}
         ref={editor}
         // 编辑区独立滚动，内边距由主输入框统一提供，长草稿不挤压工具栏。
         className="min-h-0 [&_[contenteditable]]:h-full [&_[contenteditable]]:min-h-0 [&_[contenteditable]]:max-h-full [&_[contenteditable]]:p-0 [&_[contenteditable]]:outline-hidden [&_[data-slot=composer-placeholder]]:inset-x-0 [&_[data-slot=composer-placeholder]]:top-0"
@@ -254,11 +386,11 @@ export function Composer({
               variant="toolbar"
               data-action="attach"
               aria-label={t('conversation.attach')}
-              disabled={disabled || picking}
+              disabled={disabled || picking || !imagesReady}
               onClick={async () => {
                 setPicking(true)
                 try {
-                  attach((await pickFiles()).map((path) => ({ path })))
+                  await attach((await pickFiles()).map((path) => ({ path })))
                 } catch {
                   setAttachmentError(t('conversation.attachmentFailed'))
                 } finally {
@@ -296,7 +428,13 @@ export function Composer({
             {(!running || !empty) && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button type="submit" size="icon-toolbar" aria-label={sendLabel} data-action={running ? 'steer' : 'send'} disabled={disabled || empty}>
+                  <Button
+                    type="submit"
+                    size="icon-toolbar"
+                    aria-label={sendLabel}
+                    data-action={running ? 'steer' : 'send'}
+                    disabled={disabled || !imagesReady || (empty && images.length === 0)}
+                  >
                     <ArrowUpIcon />
                   </Button>
                 </TooltipTrigger>
