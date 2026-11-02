@@ -193,6 +193,8 @@ export interface ChatActions {
    */
   subscribeSession(sessionId: string): () => void
   startDraft(workspaceId?: string): void
+  /** 返回同一份已保存的新对话草稿，保留项目与 Git 配置（历史导航）。 */
+  resumeDraft(): void
   /** 选择目录并登记；登记成功后在其中开始新会话草稿。 */
   addWorkspace(pickDirectory: () => Promise<string | null>): Promise<void>
   /** 在当前会话（或草稿）中发送；返回是否被接受（失败时保留输入）。 */
@@ -371,7 +373,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             ? sessions.find((session) => session.archivedAt === null)
             : sessions.find((session) => session.id === lastSessionId && session.archivedAt === null)
         if (target) get().openSession(target.id)
-        else get().startDraft()
+        else {
+          lists.getState().rememberSession(null)
+          set({ activeSessionId: null })
+        }
       },
 
       openSession(sessionId) {
@@ -404,7 +409,12 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      startDraft() {
+      startDraft(workspaceId) {
+        newChat.getState().selectProject(lists.getState().projects.find((project) => project.primaryWorkspaceId === workspaceId)?.id ?? null)
+        get().resumeDraft()
+      },
+
+      resumeDraft() {
         lists.getState().rememberSession(null)
         set({ activeSessionId: null })
       },
@@ -432,6 +442,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           const model = draft.model ?? (available ? { providerId: available.providerId, modelId: available.modelId } : undefined)
           const { session } = await api.firstSend({
             draftId: draft.draftId,
+            ...(draft.projectId ? { projectId: draft.projectId } : {}),
             text,
             ...(model ? { model } : {}),
             thinkingLevel: draft.thinkingLevel,

@@ -87,3 +87,139 @@ it.each(['light', 'dark'] as const)('单份草稿在 %s 窄主区重新挂载后
   await page.screenshot({ element: main, path: `../../../../../../.vitest/cw11-${theme}.png` })
   await second.screen.unmount()
 })
+
+it.each(['light', 'dark'] as const)('%s：归属菜单在上方 6px，搜索区分同名项目；关闭不打开菜单且清除 Git 草稿', async (theme) => {
+  await page.viewport(1200, 900)
+  const fixture = createFixtureChat({ sessions: [] })
+  await fixture.chat.getState().load()
+  fixture.chat.lists.setState({
+    projects: [
+      {
+        id: 'p-a',
+        name: 'web',
+        primaryWorkspaceId: 'w-coko',
+        folders: [{ path: '/work/shop-web', primary: true }],
+        pinnedAt: null,
+        createdAt: 1,
+        lastUsedAt: 1,
+        sessionCount: 0,
+      },
+      {
+        id: 'p-b',
+        name: 'web',
+        primaryWorkspaceId: 'w-pi',
+        folders: [{ path: '/work/admin-web', primary: true }],
+        pinnedAt: null,
+        createdAt: 2,
+        lastUsedAt: 2,
+        sessionCount: 0,
+      },
+      {
+        id: 'p-c',
+        name: 'unique',
+        primaryWorkspaceId: 'w-coko',
+        folders: [{ path: '/work/hidden-folder', primary: true }],
+        pinnedAt: null,
+        createdAt: 3,
+        lastUsedAt: 3,
+        sessionCount: 0,
+      },
+    ],
+  })
+  const store = createAppearanceStore({ locale: 'zh', theme })
+  const preferences = createPreferences({ appearance: store, settings: fixture.settings, onConflict() {}, onFailure() {} })
+  const screen = await render(
+    <div style={{ width: 1200, height: 900 }}>
+      <App
+        store={store}
+        connection={createConnectionStore()}
+        chat={fixture.chat}
+        settings={fixture.settings}
+        preferences={preferences}
+        settingsPage={createSettingsPageStore()}
+        pickDirectory={async () => null}
+      />
+    </div>,
+  )
+  const trigger = page.getByRole('button', { name: '选择对话归属：对话', exact: true })
+  await trigger.click()
+  const menu = page.getByRole('menu', { name: '对话归属' })
+  const bar = document.querySelector<HTMLElement>('[data-slot="destination-bar"]')!
+  await expect.poll(() => Math.abs(bar.getBoundingClientRect().top - menu.element().getBoundingClientRect().bottom - 6)).toBeLessThan(1)
+  await expect.element(page.getByRole('menuitemradio', { name: '不在项目中工作', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await expect.element(page.getByRole('menuitemradio', { name: 'web · shop-web', exact: true })).toBeVisible()
+  await expect.element(page.getByRole('menuitemradio', { name: 'web · admin-web', exact: true })).toBeVisible()
+  await expect.element(page.getByRole('menuitemradio', { name: 'unique', exact: true })).toBeVisible()
+  await page.screenshot({ element: menu.element() as HTMLElement, path: `../../../../../../.vitest/cw12-menu-${theme}.png` })
+  expect(menu.element().textContent).not.toContain('hidden-folder')
+  const search = page.getByRole('textbox', { name: '搜索项目' })
+  await expect.element(search).toHaveFocus()
+  await userEvent.type(search, 'unique')
+  await expect.element(page.getByRole('menuitemradio', { name: 'web · shop-web', exact: true })).not.toBeInTheDocument()
+  await userEvent.clear(search)
+  await page.getByRole('menuitemradio', { name: 'web · shop-web', exact: true }).click()
+  await expect.element(menu).not.toBeInTheDocument()
+  const selected = page.getByRole('button', { name: '选择对话归属：web', exact: true })
+  await expect.element(selected).toBeVisible()
+  const label = document.querySelector<HTMLElement>('[data-destination-name]')!
+  const before = label.getBoundingClientRect().left
+  expect(selected.element().querySelectorAll('svg')[0]!.getBoundingClientRect().width).toBe(14)
+  expect(selected.element().querySelectorAll('svg')[1]!.getBoundingClientRect().width).toBe(12)
+  expect(selected.element().getBoundingClientRect().height).toBe(28)
+  expect(getComputedStyle(label).paddingBottom).toBe('2px')
+  await userEvent.hover(selected)
+  const close = page.getByRole('button', { name: '清除项目归属' })
+  await expect.element(close).toBeVisible()
+  expect(label.getBoundingClientRect().left).toBe(before)
+  await page.screenshot({ element: bar, path: `../../../../../../.vitest/cw12-hover-${theme}.png` })
+  fixture.chat.newChat.getState().configure({ branch: 'feature', newWorktree: true })
+  await close.click()
+  await expect.element(trigger).toBeVisible()
+  await expect.element(menu).not.toBeInTheDocument()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ projectId: null, branch: null, newWorktree: false })
+  await trigger.click()
+  await page.getByRole('menuitemradio', { name: 'unique', exact: true }).click()
+  await page.getByRole('button', { name: '选择对话归属：unique' }).click()
+  await expect.element(page.getByRole('menuitemradio', { name: 'unique', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('menuitemradio', { name: '不在项目中工作', exact: true }).click()
+  await expect.element(trigger).toBeVisible()
+  await page.screenshot({ element: document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!, path: `../../../../../../.vitest/cw12-${theme}.png` })
+  await screen.unmount()
+})
+
+it('项目行新对话进入欢迎页并聚焦，保留项目展开状态；独立入口清除归属，已有会话不显示归属栏', async () => {
+  const fixture = createFixtureChat()
+  const store = createAppearanceStore({ locale: 'zh', theme: 'light' })
+  const preferences = createPreferences({ appearance: store, settings: fixture.settings, onConflict() {}, onFailure() {} })
+  const screen = await render(
+    <div style={{ width: 1200, height: 900 }}>
+      <App
+        store={store}
+        connection={createConnectionStore()}
+        chat={fixture.chat}
+        settings={fixture.settings}
+        preferences={preferences}
+        settingsPage={createSettingsPageStore()}
+        pickDirectory={async () => null}
+      />
+    </div>,
+  )
+  const project = page.getByRole('button', { name: 'coko', exact: true })
+  await project.click()
+  await expect.element(project).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.hover(project)
+  await page.getByRole('button', { name: '在 coko 中新建会话' }).click()
+  await expect.element(page.getByText('今天我们来做些什么？')).toBeVisible()
+  await expect.element(page.getByRole('button', { name: '选择对话归属：coko' })).toBeVisible()
+  await expect.element(page.getByRole('textbox', { name: '向 Coko 布置任务' })).toHaveFocus()
+  await expect.element(project).toHaveAttribute('aria-expanded', 'false')
+  fixture.chat.newChat.getState().configure({ branch: 'keep-branch', newWorktree: true })
+  fixture.chat.getState().openSession('s-1')
+  await expect.poll(() => document.querySelector('[data-slot="destination-bar"]')).toBeNull()
+  await page.getByRole('button', { name: '后退', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: '选择对话归属：coko' })).toBeVisible()
+  expect(fixture.chat.newChat.getState()).toMatchObject({ branch: 'keep-branch', newWorktree: true })
+  await page.getByRole('button', { name: '新对话', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: '选择对话归属：对话' })).toBeVisible()
+  await screen.unmount()
+})

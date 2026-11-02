@@ -117,6 +117,7 @@ export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 export const FirstSendRequest = Type.Object(
   {
     draftId: Type.String({ minLength: 1, maxLength: 200 }),
+    projectId: Type.Optional(Id),
     text: Type.String({ minLength: 1 }),
     model: Type.Optional(SessionModel),
     thinkingLevel: Type.Optional(ThinkingLevel),

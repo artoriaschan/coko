@@ -44,7 +44,10 @@ export function useCurrentSession() {
 
 export function useActiveWorkspaceId() {
   const session = useCurrentSession()
-  return session?.workspaceId
+  const activeSessionId = useChat((state) => state.activeSessionId)
+  const projectId = useNewChat((state) => state.projectId)
+  const primaryWorkspaceId = useLists((state) => state.projects.find((project) => project.id === projectId)?.primaryWorkspaceId)
+  return activeSessionId === null ? primaryWorkspaceId : session?.workspaceId
 }
 
 export function useNewChat<T>(selector: (state: NewChatState & NewChatActions) => T): T {

@@ -39,11 +39,14 @@ export function createWorkbenchNavigation(chat: ChatStore) {
     cursor = history.length - 1
     notify()
   }
-  const apply = (location: WorkbenchLocation, workspaceId?: string) => {
+  const apply = (location: WorkbenchLocation, workspaceId?: string, newDestination = false) => {
     applying = true
     try {
       if (location.kind === 'session') chat.getState().openSession(location.sessionId)
-      else if (location.kind === 'new-chat') chat.getState().startDraft(workspaceId)
+      else if (location.kind === 'new-chat') {
+        if (newDestination) chat.getState().startDraft(workspaceId)
+        else chat.getState().resumeDraft()
+      }
     } finally {
       applying = false
     }
@@ -52,7 +55,7 @@ export function createWorkbenchNavigation(chat: ChatStore) {
     if (!available(location)) return
     initialized = true
     record(location)
-    apply(location, workspaceId)
+    apply(location, workspaceId, true)
     if (location.kind === 'new-chat') {
       focusRevision++
       notify()
