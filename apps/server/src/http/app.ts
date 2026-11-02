@@ -13,6 +13,7 @@ import {
   isMainOnlyPath,
   CreateSessionRequest,
   ProjectFields,
+  RenameProjectRequest,
   CheckProjectFolderRequest,
   FirstSendRequest,
   permissionPaths,
@@ -120,6 +121,9 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     const result = await app.projects.create(await body(c, ProjectFields))
     return c.json(result, result.status === 'created' ? 201 : 200)
   })
+  http.put(`${API_ROUTES.projects}/:id`, async (c) => c.json(await app.projects.update(c.req.param('id'), await body(c, ProjectFields))))
+  http.put(`${API_ROUTES.projects}/:id/name`, async (c) => c.json(await app.projects.rename(c.req.param('id'), (await body(c, RenameProjectRequest)).name)))
+  http.put(`${API_ROUTES.projects}/:id/pin`, async (c) => c.json(await app.projects.setPinned(c.req.param('id'), (await body(c, SetSessionPinRequest)).pinned)))
   http.post(API_ROUTES.projectFolderCheck, async (c) => c.json(await app.projects.checkFolder((await body(c, CheckProjectFolderRequest)).path)))
   http.get(API_ROUTES.workspaces, async (c) => c.json({ workspaces: await app.workspaces.list() }))
   http.post(API_ROUTES.workspaces, async (c) => c.json(await app.workspaces.register(await body(c, RegisterWorkspaceRequest)), 201))

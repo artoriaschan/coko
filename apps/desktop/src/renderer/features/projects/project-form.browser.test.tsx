@@ -150,3 +150,46 @@ for (const theme of ['light', 'dark'] as const)
     await page.viewport(1200, 900)
     applyTheme('light')
   })
+
+it('CW-71：更换主要与移除后接替冲突均具名提示并保留编辑草稿', async () => {
+  const initial = {
+    name: 'Saved project',
+    folders: [
+      { path: '/work/current', primary: true },
+      { path: '/work/conflict', primary: false },
+    ],
+  }
+  const submitted: import('@coko/protocol').ProjectFields[] = []
+  const view = await render(
+    <I18nProvider locale="zh">
+      <ProjectFormDialog
+        mode="edit"
+        initial={initial}
+        pickDirectory={async () => null}
+        onClose={() => {}}
+        onComplete={() => {}}
+        onSubmit={async (fields) => {
+          submitted.push(fields)
+          throw new ApiError('already-exists', 'Primary folder conflict', 409, { reason: 'primary-conflict', project: { id: 'owner', name: '另一个项目' } })
+        }}
+      />
+    </I18nProvider>,
+  )
+  const dialog = page.getByRole('dialog', { name: '编辑项目', exact: true })
+  const name = dialog.getByRole('textbox', { name: '项目名称' })
+  await name.fill('Draft name')
+  await userEvent.hover(dialog.getByText('/work/conflict', { exact: true }))
+  await dialog.getByRole('button', { name: '设为主要' }).click()
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect.element(dialog.getByRole('alert')).toHaveTextContent('该主要文件夹已属于“另一个项目”，请选择其他主要文件夹。')
+  await expect.element(name).toHaveValue('Draft name')
+  expect(document.querySelectorAll('[data-project-folder]')).toHaveLength(2)
+  await userEvent.hover(dialog.getByText('/work/current', { exact: true }))
+  await dialog.getByRole('button', { name: '设为主要' }).click()
+  await dialog.getByRole('button', { name: '移除 current', exact: true }).click()
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect.poll(() => submitted.length).toBe(2)
+  expect(submitted[1]).toEqual({ name: 'Draft name', folders: [{ path: '/work/conflict', primary: true }] })
+  await expect.element(dialog.getByRole('alert')).toHaveTextContent('该主要文件夹已属于“另一个项目”，请选择其他主要文件夹。')
+  await view.unmount()
+})

@@ -53,6 +53,48 @@ export class ProjectService {
     }
   }
 
+  async rename(id: string, name: string): Promise<Project> {
+    name = name.trim()
+    if (!name || [...name].length > 50) throw new AppError('bad-request', 'Project name must contain 1–50 characters')
+    await this.#store.projects.update(id, { name })
+    return (await this.list()).find((project) => project.id === id)!
+  }
+
+  async setPinned(id: string, pinned: boolean): Promise<Project> {
+    const current = await this.#store.projects.get(id)
+    if (!current) throw new AppError('not-found', 'Project not found')
+    await this.#store.projects.update(id, { pinnedAt: pinned ? (current.pinnedAt ?? Date.now()) : null })
+    return (await this.list()).find((project) => project.id === id)!
+  }
+
+  async update(id: string, input: ProjectFields): Promise<{ status: 'updated'; project: Project }> {
+    if (!(await this.#store.projects.get(id))) throw new AppError('not-found', 'Project not found')
+    const name = input.name.trim()
+    if (!name || [...name].length > 50) throw new AppError('bad-request', 'Project name must contain 1–50 characters')
+    if (input.folders.filter((folder) => folder.primary).length !== 1) throw new AppError('bad-request', 'Choose exactly one primary folder')
+    const folders = await Promise.all(input.folders.map(async (folder) => ({ ...(await this.checkFolder(folder.path)), primary: folder.primary })))
+    if (new Set(folders.map((folder) => folder.path)).size !== folders.length)
+      throw new AppError('bad-request', 'Folder already added', { reason: 'duplicate' })
+    const workspace = await this.#store.sessions.registerWorkspace({ path: folders.find((folder) => folder.primary)!.path })
+    const rejectConflict = async () => {
+      const conflict = (await this.list()).find((project) => project.id !== id && project.primaryWorkspaceId === workspace.id)
+      if (conflict) throw new AppError('already-exists', 'Primary folder belongs to another project', { reason: 'primary-conflict', project: conflict })
+    }
+    await rejectConflict()
+    try {
+      await this.#store.projects.update(id, {
+        name,
+        primaryWorkspaceId: workspace.id,
+        additionalFolders: folders.filter((folder) => !folder.primary).map((folder) => folder.path),
+        primaryFolderIndex: folders.findIndex((folder) => folder.primary),
+      })
+    } catch (error) {
+      await rejectConflict()
+      throw error
+    }
+    return { status: 'updated', project: (await this.list()).find((project) => project.id === id)! }
+  }
+
   async list(): Promise<Project[]> {
     const [projects, workspaces, sessions] = await Promise.all([
       this.#store.projects.list(),

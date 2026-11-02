@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、多文件夹创建与主要目录、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
+description: "项目模型、Workspace 迁移、多文件夹创建与编辑、项目详情与置顶、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
 lifecycle: active
 ---
 
 # 项目与会话列表
 
-项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移、多文件夹创建、工作台列表及会话置顶的行为。项目的编辑、项目置顶、归档和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
+项目是组织会话的容器，主要文件夹对应一个 Workspace。本文描述项目数据、升级迁移、多文件夹创建、工作台列表及会话置顶的行为。归档和多文件夹权限尚未接入界面，不把存储字段等同于这些能力已经交付。
 
 ## 数据与迁移
 
@@ -26,7 +26,19 @@ SQLite v11 追加主要目录位置字段，旧项目默认为列表第一项；
 
 `POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
 
-应用级[弹窗宿主](../../apps/desktop/src/renderer/features/projects/project-dialogs.tsx) 更新同一份列表数据。分类创建或命中已有项目后进入新对话，预选该项目并聚焦输入区；归属菜单创建后只选择目标项目，保留同一份新对话草稿。已有项目结果通过应用级 Toast 告知项目名。表单也接受编辑初值和外部提交/完成回调，完成动作由调用方拥有，表单本身不创建会话或改变归属；项目编辑入口和保存接口仍待接入。
+应用级[弹窗宿主](../../apps/desktop/src/renderer/features/projects/project-dialogs.tsx) 更新同一份列表数据。分类创建或命中已有项目后进入新对话，预选该项目并聚焦输入区；归属菜单创建后只选择目标项目，保留同一份新对话草稿。已有项目结果通过应用级 Toast 告知项目名。表单也接受编辑初值和外部提交/完成回调，完成动作由调用方拥有，表单本身不创建会话或改变归属。编辑完成只更新同一份列表引用，不进入新对话或切换当前会话。
+
+## 项目详情、编辑与菜单
+
+[ProjectRow](../../apps/desktop/src/renderer/features/sidebar/project-row.tsx) 在整行 hover 或焦点进入时显示更多、新对话按钮和详情。卡片与更多菜单共用整行锚点，在空间足够时位于右侧 2px、顶部对齐；窗口边缘按共享浮层规则避让。指针可穿过间距进入卡片，卡片内的完整名称、未归档根会话数量、全部有序路径和主要标记均可读取，长路径换行并在卡片内部滚动。计数包含单独置顶的项目会话，不重复计数；点击更多先卸载详情，再打开菜单。
+
+菜单依次提供重命名、编辑项目…、置顶 / 取消置顶、项目内新对话和在 Finder 中打开；ProjectMenuSlots.delete 为后续删除操作保留分隔线下的入口，不显示空项目。重命名复用 InlineRename，最多 50 字符，Enter 或失焦提交，Escape 取消，输入法组合期间不提交，空白及未变输入不发送请求。保存失败保留输入、焦点并显示 Toast，成功后列表、项目归属引用和详情同步。
+
+卡片和菜单中的编辑打开同一个应用级项目表单，回填名称、全部有序文件夹和主要标记。可以添加、移除及更换主要文件夹；移除主要时由下一项接替，末项被移除时取新的末项。PUT /api/projects/:id 更新原项目并返回 `{ status: updated, project }`，不创建副本，不改变既有会话的 Workspace 或 worktree。文件夹按真实路径再次验证；新主要目录与另一个项目冲突时以 409 already-exists、details.reason 为 primary-conflict、details.project 为冲突项目拒绝，表单显示项目名并保留草稿。手动切换与移除后的接替均走同一约束；名称、目录和主要位置可重启读回。
+
+PUT /api/projects/:id/name 只更新规范化名称；PUT /api/projects/:id/pin 接受布尔 pinned 并返回 Project。重复置顶保留原 pinnedAt，取消置顶清空。置顶分类混合项目树与单独置顶会话，按置顶时间降序排列，不分页；项目树从原分类移出，单独置顶会话继续独立显示且不会在树内复制。取消项目置顶恢复原分类、展开和分页状态，当前会话内容和草稿不重建。两个新对话入口使用已有的工作台导航，预选项目并聚焦输入框，不改变项目展开状态；菜单关闭不会把焦点抢回来源行。
+
+Finder 通过受控 preload IPC 调用 [openDirectory](../../apps/desktop/src/main/open-directory.ts)。main 校验来源主 frame，再验证绝对路径存在且为目录后交给 shell.openPath，文件、不存在的路径及宿主打开失败返回 false；界面显示失败 Toast。打开目标为当前主要文件夹，已有会话仍使用自己的固定工作目录。
 
 ## 独立对话专属目录
 
@@ -46,7 +58,7 @@ GET /api/projects 返回项目及源文件夹的主要标记、未归档根会�
 
 renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 持有项目、Workspace、根会话列表与加载状态；chat-store 保留会话内容与 Run 控制，新对话配置由独立 new-chat-store 持有，通过独立列表 store 更新组织视图。React 的 useLists 订阅列表数据，useCurrentSession 结合当前会话标识查询列表。
 
-侧栏包含“置顶”“对话”和“项目”：置顶分类仅在有置顶会话时显示；独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起未单独置顶的所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示运行状态点或分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
+侧栏包含“置顶”“对话”和“项目”：置顶分类在有置顶会话或项目时显示；独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起未单独置顶的所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示运行状态点或分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
 
 项目行的新对话入口打开欢迎页、预选该项目并聚焦主输入框，不切换项目展开状态。归属选择与首次发送的主要 Workspace 行为见[工作台归属栏](workbench.md#新对话归属栏)。
 
@@ -85,6 +97,9 @@ PUT /api/sessions/:id/title 接受 title，校验字符串类型、非空及最�
 ## 验证与相关设计
 
 - [主要目录位置迁移](../../packages/session/src/sqlite/migrate-v11.test.ts)：v10 升级、旧数据默认位置、重启读回与备份。
+- [项目编辑 Sidecar 用例](../../tests/integration/sidecar-edit-project.test.ts)：编辑及主要目录冲突、原会话 Workspace 固定、置顶时间、归档与置顶计数、非法输入及重启读回。
+- [项目行浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-row.browser.test.tsx)：详情与菜单 2px 顶对齐、指针跨间距、完整路径、混合置顶树、失败与展开状态；[应用浏览器用例](../../apps/desktop/src/renderer/app/app.browser.test.tsx) 验证内容和草稿 DOM 稳定及共用编辑入口。
+- [Finder 宿主单元用例](../../apps/desktop/src/main/open-directory.test.ts)：注入 shell 验证目录准入与失败；[项目编辑 Electron 用例](../../apps/desktop/e2e/project-edit.e2e.test.ts) 验证真实 preload/main 装配、编辑、重启及项目内新对话。
 - [创建项目 Sidecar 用例](../../tests/integration/sidecar-create-project.test.ts)：多目录顺序、真实路径判重、已有结果、名称与目录拒绝及重启读回。
 - [项目表单浏览器用例](../../apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx)：主要标记与接替、hover/focus 几何、目录取消/失败、放弃确认、保存锁定、明暗主题与窄窗口。
 - [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建与首次发送归属。
