@@ -28,3 +28,7 @@ Map: [Coko 桌面应用](../map.md)
 ## 后续需求修订
 
 2026-10-30，用户要求设置从 modal 改为占满窗口的整页，外壳按模型服务视觉稿实现：左侧设置导航含“返回应用”与菜单名称搜索，会话界面隐藏但不卸载。本票 Answer 中“设置。modal”保留为当时的决定；当前要求见 [模型服务 PRD](../../model-service-settings/spec.md) 2.1。
+
+2026-11-02，用户要求按本轮双栏设计讨论汇总对话列表与新对话界面完整 PRD，UI 以仓库中的“双栏布局.pen”为依据。后续目标正文见 [对话列表与新对话界面 PRD](../../conversation-workbench/spec.md)（当时为 draft），覆盖分类与列表、项目与会话管理、置顶、悬浮层、新对话输入区、权限、模型与推理档位、归属、分支和工作树。早期三栏 Answer 保留为历史规划，不覆盖新稿所列双栏页面；未涉及的消息流和其他能力仍由所属规格维护。新稿的关键待决项未获确认，不把本票原有 resolved 状态当作新稿整体批准或功能已交付。
+
+同日稍后，用户在需求澄清中逐条确认了项目与 Workspace 的映射、独立对话的目录，以及新对话的 worktree 与分支语义，分别记录为 [ADR 0020](../../../docs/adr/0020-projects-organize-workspaces.md) 与 [ADR 0021](../../../docs/adr/0021-new-chat-worktree-base-branch.md)；其余已确认规则写入 PRD 第 16.1 节；删除项目保留会话的修订见 [ADR 0022](../../../docs/adr/0022-project-removal-preserves-sessions.md)。全部待决项确认后，PRD 于同日改为 approved；2026-11-03 按 to-spec 补齐用户故事、实施决定、测试决定与非目标，标记为 ready-for-agent，并拆为 23 张实施票。以上均未实施。
