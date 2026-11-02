@@ -129,7 +129,7 @@ export const FirstSendRequest = Type.Object(
   {
     draftId: Type.String({ minLength: 1, maxLength: 200 }),
     text: Type.String(),
-    images: Type.Optional(Type.Array(ImageAttachment, { maxItems: 20 })),
+    images: Type.Optional(Type.Array(ImageAttachment)),
     model: Type.Optional(SessionModel),
     thinkingLevel: Type.Optional(ThinkingLevel),
     permissionMode: Type.Optional(PermissionMode),
@@ -153,7 +153,7 @@ export type RenameSessionRequest = Static<typeof RenameSessionRequest>
 export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>
 
-export const SubmitMessageRequest = Type.Object({ text: Type.String(), images: Type.Optional(Type.Array(ImageAttachment, { maxItems: 20 })) }, strict)
+export const SubmitMessageRequest = Type.Object({ text: Type.String(), images: Type.Optional(Type.Array(ImageAttachment)) }, strict)
 export type SubmitMessageRequest = Static<typeof SubmitMessageRequest>
 
 /** 202：Run 已开始；结果经 WebSocket 的 entry / progress 推送。 */
