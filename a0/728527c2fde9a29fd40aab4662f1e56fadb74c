@@ -1,0 +1,123 @@
+apps/desktop/src/renderer/features/sidebar/session-archive-menu-item.tsx
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-62
+tests/integration/sidecar-archive-session.test.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-112
+packages/session/src/sqlite/repositories.ts
+  s_64e2ce1bfde668::t_14a6a63314becf 232-243
+packages/protocol/src/api.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 70-71
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_64e2ce1bfde668::t_24a9d048c85687 207-208,373,381,389
+  s_64e2ce1bfde668::t_14a6a63314becf 314-316,382-386
+apps/server/src/application/errors.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 19
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 54
+  s_64e2ce1bfde668::t_2d8d38d280feb6 81
+docs/README.md
+  s_64e2ce1bfde668::t_5009dad0cb6bf9 29
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_0d192bdfc01e20 392-396
+tests/integration/sidecar-branches.test.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 126
+  s_64e2ce1bfde668::t_1856f22edcea99 118-125,127-132
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 196-197,417-423
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 7-18
+apps/server/src/application/session-archive.test.ts
+  s_64e2ce1bfde668::t_14a6a63314becf 19-24,29-37,46-49,52-53,59-65
+  s_64e2ce1bfde668::t_dbc68fdc8c5a5a 57
+  s_64e2ce1bfde668::t_4491d7680ad6b5 1-18,25-28,38-45,50-51,54-56,58,66-69
+packages/agent/src/session-entries/schedules.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 10
+apps/desktop/src/renderer/features/settings/sections.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 20,37,83
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 22,54-55,218-221,223,227
+  s_64e2ce1bfde668::t_14a6a63314becf 222,224-226
+packages/session/src/repository-contract.ts
+  s_64e2ce1bfde668::t_4491d7680ad6b5 32-51
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_0d192bdfc01e20 169-173
+  s_64e2ce1bfde668::t_14a6a63314becf 289-312
+.scratch/conversation-workbench/issues/10-archive-sessions.md
+  s_64e2ce1bfde668::t_2a613928af797e 13-14,19-22,36-40
+  s_64e2ce1bfde668::t_848aceaf02658c 23-35
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 133-135
+apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx
+  s_64e2ce1bfde668::t_7e8e442f215b3c 84-86,90-92
+  s_64e2ce1bfde668::t_6d66508e2ed977 71-83,87-89,93-112
+apps/desktop/src/renderer/testing/fixture-chat.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 160-163,165-168,170
+  s_64e2ce1bfde668::t_14a6a63314becf 164,169
+  s_64e2ce1bfde668::t_2beb9d8fedcdc8 171
+apps/desktop/src/renderer/features/settings/archived-section.tsx
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-20,124
+  s_64e2ce1bfde668::t_14a6a63314becf 21-123
+tests/integration/sidecar-schedules.test.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 546-548
+  s_64e2ce1bfde668::t_4491d7680ad6b5 536-539,543-545,552-554
+  s_64e2ce1bfde668::t_14a6a63314becf 540-542,549-551
+packages/i18n/src/dictionaries/domains/schedules.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 95,209
+apps/server/src/application/schedules.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 252
+apps/desktop/src/renderer/features/settings/archived.browser.test.tsx
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-114
+packages/protocol/src/schedules.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 28
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 52,60-61,86-89,108-113,127-132,190,258-259,278,281,288
+  s_64e2ce1bfde668::t_14a6a63314becf 115-126,185-187,189,249,270-273,282-287,294
+  s_64e2ce1bfde668::t_4fa344a42cdeff 200-201
+apps/desktop/src/renderer/stores/chat-store-archive.test.ts
+  s_64e2ce1bfde668::t_fb47af84bc8230 53-56,62-84
+  s_64e2ce1bfde668::t_7a2fe65bd6392e 85-91,96-101
+  s_64e2ce1bfde668::t_4fa344a42cdeff 57-61,92-95
+  s_64e2ce1bfde668::t_14a6a63314becf 9-24,43-46
+  s_64e2ce1bfde668::t_2d8d38d280feb6 28
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-8,25-27,29-42,47-52
+tests/integration/sidecar-delete-project.test.ts
+  s_64e2ce1bfde668::t_7e8e442f215b3c 33-35
+  s_64e2ce1bfde668::t_6d66508e2ed977 36-38,43-45,63-65
+tests/integration/sidecar-titles.test.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 179-187,191-194
+  s_64e2ce1bfde668::t_14a6a63314becf 188-190
+apps/desktop/e2e/session-archive.e2e.test.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 1-64
+docs/subsystems/schedules.md
+  s_64e2ce1bfde668::t_347a72419827bd 48,119
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_347a72419827bd 9,95,111-123
+  s_64e2ce1bfde668::t_5009dad0cb6bf9 3
+packages/session/src/types.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 136-137
+packages/session/src/memory/index.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 267-273
+packages/protocol/src/errors.ts
+  s_64e2ce1bfde668::t_a0f69154d8ab9d 23
+apps/desktop/src/renderer/app/chat.tsx
+  s_64e2ce1bfde668::t_24a9d048c85687 42
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 112-114
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_24a9d048c85687 9-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "a0728527c2fde9a29fd40aab4662f1e56fadb74c",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
