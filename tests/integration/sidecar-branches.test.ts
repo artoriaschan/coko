@@ -46,6 +46,7 @@ it('CW-77: local branches current first, safe create/checkout, duplicate preserv
   }
   expect((await h.api.post(h.path, { name: 'older' })).status).toBe(200)
   expect((await h.fixture.git('branch', '--show-current')).trim()).toBe('older')
+  expect((await h.api.put('/api/settings/git.branchPrefix', { value: 42, expectedRevision: 0 })).status).toBe(400)
   expect((await h.api.put('/api/settings/git.branchPrefix', { value: 'team/', expectedRevision: 0 })).status).toBe(200)
   expect((await h.api.get('/api/settings')).body.settings).toContainEqual(expect.objectContaining({ key: 'git.branchPrefix', value: 'team/' }))
   expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })

@@ -202,6 +202,7 @@ export function ProjectGitMenu({
               aria-labelledby={undefined}
               className="w-72 max-w-[calc(100vw-16px)]"
               onEscapeKeyDown={(event) => {
+                if (!subOpen) return
                 event.preventDefault()
                 setSubOpen(false)
                 branchTrigger.current?.focus()
