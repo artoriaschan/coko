@@ -24,7 +24,7 @@ lifecycle: active
 
 ## 开发运行
 
-`pnpm --filter @coko/desktop start`（`electron-forge start`）的 preStart 依次：复制 ripgrep；启动 main / preload 与 Sidecar 的 tsdown watch 构建，两者首次构建都成功后启动 renderer 的 Vite 开发服务器（middleware 模式，HMR 复用同一端口），再由 Forge 启动 Electron。首次构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
+`pnpm dev:desktop`（根脚本，等价 `pnpm --filter @coko/desktop run start`；`electron-forge start`）的 preStart 依次：复制 ripgrep；启动 main / preload 与 Sidecar 的 tsdown watch 构建，两者首次构建都成功后启动 renderer 的 Vite 开发服务器（middleware 模式，HMR 复用同一端口），再由 Forge 启动 Electron。首次构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
 
 | 改动范围 | 结果 |
 | --- | --- |
@@ -38,7 +38,7 @@ lifecycle: active
 
 ## 安装包
 
-`pnpm --filter @coko/desktop run make`（`electron-forge make`）先运行与 `package` 相同的 prePackage 构建与打包，再生成：
+`pnpm make:desktop`（根脚本，等价 `pnpm --filter @coko/desktop run make`；`electron-forge make`）先运行与 `package` 相同的 prePackage 构建与打包，再生成：
 
 - `out/make/zip/darwin/<arch>/Coko-darwin-<arch>-<version>.zip`：自动更新（Squirrel.Mac）下载的格式。
 - `out/make/dmg/<arch>/Coko-<version>-<arch>.dmg`：首次安装，ULFO 格式，内含 `Coko.app` 与 Applications 别名。

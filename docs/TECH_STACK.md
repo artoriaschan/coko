@@ -46,7 +46,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | 根 `package.json`（集成测试） | electron、ws、@types/ws、typebox、@coko/protocol、@vscode/ripgrep（devDependencies，供 `tests/integration` 启动真实 Sidecar 并校验协议；ripgrep 用于 `--ripgrep` 场景） |
 | 其余 packages | vitest |
 
-根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
+根脚本：`typecheck`（`tsc -b`）、`lint`（`oxlint`）、`format` / `format:check`（`oxfmt`）、`test`（`vitest run`，含 ui 的 Browser Mode 项目）、`check:docs`；桌面应用的开发运行、构建与打包由根脚本 `dev:desktop`、`build:desktop`、`package:desktop`、`make:desktop` 代理 `@coko/desktop` 的 `start`、`build`、`package`、`make`。husky 的 pre-commit 运行 lint-staged（oxfmt、oxlint），commit-msg 运行 commitlint。Browser Mode 使用 Playwright 的 Chromium，缺少时运行 `pnpm exec playwright install chromium`。Agent 宿主环境可能带 `ELECTRON_RUN_AS_NODE=1`，`pnpm install` 和启动 GUI Electron 前须清除。
 
 ## 仓库架构
 
