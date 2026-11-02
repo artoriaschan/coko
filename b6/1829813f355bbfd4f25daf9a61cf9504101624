@@ -1,0 +1,111 @@
+apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx
+  s_64e2ce1bfde668::t_4bfa447e5f58a7 232-236,244-246,248-263
+  s_64e2ce1bfde668::t_472e3209dad407 204-208,237-243,247
+  s_64e2ce1bfde668::t_9e086ebe5964f2 62,75,201-203,209-231,264-301
+apps/desktop/src/renderer/stores/new-chat-store.ts
+  s_64e2ce1bfde668::t_a481f16725f172 16,26,30,45,75,77
+apps/server/src/application/providers.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 155
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_9bef2eeeb7e53d 65
+apps/desktop/src/preload/index.ts
+  s_64e2ce1bfde668::t_a481f16725f172 20
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_7236c0a2a56d5f 125
+  s_64e2ce1bfde668::t_9e086ebe5964f2 128
+  s_64e2ce1bfde668::t_6ce90419c349f3 124,126-127,129-130
+packages/agent/src/tools/builtin/read.ts
+  s_64e2ce1bfde668::t_560caf207fd1d4 29
+.scratch/conversation-workbench/issues/08-session-menu-rename.md
+  s_64e2ce1bfde668::t_49fe6f035e6f65 49-65
+  s_64e2ce1bfde668::t_b30400747495ee 66-67
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_64e2ce1bfde668::t_9e086ebe5964f2 1,139,398-399
+  s_64e2ce1bfde668::t_472e3209dad407 395-397
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_db62cf32fd11a8 143-144
+  s_64e2ce1bfde668::t_9bef2eeeb7e53d 156-182
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_7236c0a2a56d5f 123
+  s_64e2ce1bfde668::t_9e086ebe5964f2 126
+  s_64e2ce1bfde668::t_6ce90419c349f3 122,124-125,127-128
+packages/ui/src/composer/composer-editor.tsx
+  s_64e2ce1bfde668::t_a481f16725f172 57,90,136,151,155,160,162,169
+apps/desktop/e2e/images.e2e.test.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 1-73
+apps/desktop/src/renderer/client/api.ts
+  s_64e2ce1bfde668::t_472e3209dad407 114-116
+  s_64e2ce1bfde668::t_a481f16725f172 1,113
+apps/server/src/adapters/faux.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 28,206
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_64e2ce1bfde668::t_c8ddbd0e93de99 62-68,76
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_64e2ce1bfde668::t_9e086ebe5964f2 105
+  s_64e2ce1bfde668::t_472e3209dad407 109-118
+apps/desktop/src/renderer/stores/image-drafts.ts
+  s_64e2ce1bfde668::t_472e3209dad407 4-6,14,18-22,48-53
+  s_64e2ce1bfde668::t_7236c0a2a56d5f 1-2,7-11,41-42
+  s_64e2ce1bfde668::t_6ce90419c349f3 3,12-13,15-17,23-40,43-47,54-70
+packages/protocol/src/http.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 129
+  s_64e2ce1bfde668::t_472e3209dad407 130-139,145,324-331
+  s_64e2ce1bfde668::t_56b0a17895f389 146,170
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_9e086ebe5964f2 73
+  s_64e2ce1bfde668::t_c12fe3f5e57ef2 27,29,51,69,71-72,74-77
+apps/desktop/src/main/index.ts
+  s_64e2ce1bfde668::t_472e3209dad407 300-302,305-307
+  s_64e2ce1bfde668::t_a481f16725f172 1-3,290-299,303-304,308,313-317
+apps/server/src/http/app.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 140-141
+apps/desktop/src/renderer/features/conversation/timeline.ts
+  s_64e2ce1bfde668::t_472e3209dad407 64-74,132-133,363-368
+docs/README.md
+  s_64e2ce1bfde668::t_1d1b491a66bfd9 28
+tests/integration/sidecar-images.test.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 1-60
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_a481f16725f172 1,202,435,437,439,448
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 1,338-339,343-344
+packages/agent/src/index.ts
+  s_64e2ce1bfde668::t_560caf207fd1d4 142-143
+.scratch/conversation-workbench/issues/19-image-attachments.md
+  s_64e2ce1bfde668::t_49fe6f035e6f65 67-71
+  s_64e2ce1bfde668::t_9e086ebe5964f2 49-66
+  s_64e2ce1bfde668::t_b9be1f0588f593 17-48
+apps/server/src/application/providers.test.ts
+  s_64e2ce1bfde668::t_9e086ebe5964f2 78
+apps/server/src/application/first-send.ts
+  s_64e2ce1bfde668::t_472e3209dad407 15-18
+  s_64e2ce1bfde668::t_9e086ebe5964f2 5,14,23,51,83,88
+apps/desktop/src/shared/bridge.ts
+  s_64e2ce1bfde668::t_a481f16725f172 8,134
+apps/desktop/src/renderer/features/conversation/composer.tsx
+  s_64e2ce1bfde668::t_472e3209dad407 123-126,136,138-141,143-150,159-162,167-170,190,227-240,243-252,279-283,325-331,333-352,431-435,437
+  s_64e2ce1bfde668::t_9e086ebe5964f2 112,133,142,224,258,332,436
+  s_64e2ce1bfde668::t_6ce90419c349f3 1,3,10,21-25,76-83,111,113-122,127-130,134,151-154,163-166,171-174,185-186,223,226,241-242,253-254,355,389,393
+  s_64e2ce1bfde668::t_04337a067df067 131-132,135,137
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_472e3209dad407 489-492,494,499-517
+  s_64e2ce1bfde668::t_560caf207fd1d4 1,8-9,519
+  s_64e2ce1bfde668::t_9e086ebe5964f2 471,483-488
+  s_64e2ce1bfde668::t_b9be1f0588f593 476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b61829813f355bbfd4f25daf9a61cf9504101624",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
