@@ -251,6 +251,9 @@ importers:
       '@electron-forge/cli':
         specifier: 8.0.1
         version: 8.0.1(@types/react@19.3.0)
+      '@electron-forge/core-utils':
+        specifier: 8.0.1
+        version: 8.0.1
       '@electron-forge/maker-dmg':
         specifier: 8.0.1
         version: 8.0.1

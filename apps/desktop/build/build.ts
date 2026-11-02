@@ -1,13 +1,13 @@
 // 桌面构建编排：tsdown 构建 main / preload 与 sidecar（node-pty 复制到 sidecar 的 node_modules），Vite 构建或服务 renderer，复制随包 ripgrep。
 // Forge hooks、E2E globalSetup 与 `pnpm run build` 共用这里的函数；各任务只清理自己的输出目录。
 import { execFileSync } from 'node:child_process'
-import { chmod, copyFile, cp, mkdir, rm } from 'node:fs/promises'
+import { chmod, copyFile, cp, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { createRequire } from 'node:module'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rgPath } from '@vscode/ripgrep'
-import { build as tsdown, type InlineConfig } from 'tsdown'
+import { build as tsdown, type InlineConfig, type TsdownBundle } from 'tsdown'
 import { build as viteBuild, createServer as createViteServer } from 'vite'
 
 export const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -95,6 +95,95 @@ export async function buildElectron(): Promise<void> {
 export async function buildSidecar(): Promise<void> {
   await tsdown({ ...sidecarConfig, define: testBuildDefine() })
   await copyNodePty()
+}
+
+/** 开发时的 watch 构建：首次构建成功后 ready 完成；之后每次成功重建调用 onRebuild。 */
+export interface DevWatcher {
+  readonly ready: Promise<void>
+  close(): Promise<void>
+}
+
+/**
+ * tsdown watch：build() 在 watcher 建立后即返回，首次构建由 build:done 判断。构建失败时 tsdown 记录错误并继续监听，
+ * 修复后的下一次成功构建同样算作首次。
+ */
+function watchConfig(
+  config: InlineConfig,
+  onFirst: () => void | Promise<void>,
+  onRebuild: () => void,
+): { started: Promise<TsdownBundle[]>; ready: Promise<void> } {
+  let built = false
+  let resolveReady!: () => void
+  let rejectReady!: (error: unknown) => void
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve
+    rejectReady = reject
+  })
+  const started = tsdown({
+    ...config,
+    watch: true,
+    hooks: {
+      'build:done': async () => {
+        if (built) return onRebuild()
+        built = true
+        try {
+          await onFirst()
+          resolveReady()
+        } catch (error) {
+          rejectReady(error)
+        }
+      },
+    },
+  })
+  started.catch(rejectReady)
+  return { started, ready }
+}
+
+const closeBundles = async (bundles: readonly Promise<TsdownBundle[]>[]): Promise<void> => {
+  for (const started of bundles) {
+    const list = await started.catch(() => [])
+    for (const bundle of list) await bundle[Symbol.asyncDispose]()
+  }
+}
+
+/** main / preload 的 watch 构建（首次构建由 main 的配置清理 dist/electron）；两者的重建在 200 毫秒内合并为一次 onRebuild。 */
+export function watchElectron(onRebuild: () => void): DevWatcher {
+  let timer: NodeJS.Timeout | undefined
+  const rebuilt = () => {
+    clearTimeout(timer)
+    timer = setTimeout(onRebuild, 200)
+  }
+  const define = { ...testBuildDefine(), ...updateFeedDefine() }
+  const [mainConfig, preloadConfig] = electronConfigs as [InlineConfig, InlineConfig]
+  const main = watchConfig({ ...mainConfig, define }, () => undefined, rebuilt)
+  // 顺序与一次性构建相同：main 的首次构建清理目录之后再开始 preload。
+  const preloadStarted = main.ready.then(() => watchConfig({ ...preloadConfig, define }, () => undefined, rebuilt))
+  return {
+    ready: preloadStarted.then((preload) => preload.ready),
+    close: async () => {
+      clearTimeout(timer)
+      await closeBundles([main.started, preloadStarted.then((preload) => preload.started)])
+    },
+  }
+}
+
+/** Sidecar 的 watch 构建：首次构建后复制 node-pty（重建只清理上一次的 chunk，不动 node_modules）；之后每次重建调用 onRebuild。 */
+export function watchSidecar(onRebuild: () => void): DevWatcher {
+  const sidecar = watchConfig({ ...sidecarConfig, define: testBuildDefine() }, () => copyNodePty().then(() => undefined), onRebuild)
+  return { ready: sidecar.ready, close: () => closeBundles([sidecar.started]) }
+}
+
+/**
+ * 开发时 Sidecar 重建的通知文件（dist/dev，不进安装包）：每次重建后原子替换，main 监视所在目录并计划重启 Sidecar
+ * （见 main 的 dev-reload.ts）。经环境变量 COKO_SIDECAR_RELOAD_FILE 交给 main。
+ */
+export const sidecarReloadFile = join(desktopRoot, 'dist', 'dev', 'sidecar-build')
+
+export async function writeSidecarReloadStamp(): Promise<void> {
+  await mkdir(dirname(sidecarReloadFile), { recursive: true })
+  const temporary = `${sidecarReloadFile}.${process.pid}.tmp`
+  await writeFile(temporary, String(Date.now()))
+  await rename(temporary, sidecarReloadFile)
 }
 
 /**

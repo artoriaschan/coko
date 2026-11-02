@@ -1,15 +1,49 @@
 import { FuseV1Options, FuseVersion } from '@electron/fuses'
 import { MakerDMG } from '@electron-forge/maker-dmg'
 import { MakerZIP } from '@electron-forge/maker-zip'
+import { requestAppRestart } from '@electron-forge/core-utils/restart'
 import { FusesPlugin } from '@electron-forge/plugin-fuses'
 import type { ForgeConfig } from '@electron-forge/shared-types'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildElectron, buildRenderer, buildSidecar, prepareRipgrep, startRendererDevServer, type RendererDevServer } from './build/build.ts'
+import {
+  buildElectron,
+  buildRenderer,
+  buildSidecar,
+  prepareRipgrep,
+  sidecarReloadFile,
+  startRendererDevServer,
+  watchElectron,
+  watchSidecar,
+  writeSidecarReloadStamp,
+  type DevWatcher,
+  type RendererDevServer,
+} from './build/build.ts'
 
 let devServer: RendererDevServer | undefined
+let devWatchers: DevWatcher[] = []
+
+/** main / preload 重建后经 Forge 重启 Electron（与终端里的 rs / r 相同）；renderer 由 Vite HMR 更新。 */
+const restartElectron = () => {
+  console.info('[coko] main / preload rebuilt, restarting Electron')
+  if (!requestAppRestart()) console.warn('[coko] Electron is not running; restart it from the Forge terminal')
+}
+
+/** Sidecar 重建后写通知文件，main 计划重启 Sidecar，窗口保留。 */
+const reloadSidecar = () => {
+  console.info('[coko] sidecar rebuilt, restarting the sidecar')
+  writeSidecarReloadStamp().catch((error: unknown) => console.error('[coko] failed to signal the sidecar rebuild', error))
+}
+
+const closeDevSession = async () => {
+  const watchers = devWatchers
+  devWatchers = []
+  const server = devServer
+  devServer = undefined
+  await Promise.all([...watchers.map((watcher) => watcher.close()), server?.close()])
+}
 
 /** 应用文件只含 package.json 与 main / preload / renderer 产物；sidecar 与 rg 经 extraResource 放在 Resources/sidecar、Resources/ripgrep。 */
 const KEEP = ['/package.json', '/dist', '/dist/electron', '/dist/renderer']
@@ -56,17 +90,22 @@ const config: ForgeConfig = {
   hooks: {
     preStart: async () => {
       // Forge 启动 Electron 时会删除 ELECTRON_RUN_AS_NODE；sidecar 由 main 单独设置。
+      // 首次构建与 watch：main / preload 重建后重启 Electron，Sidecar 重建后由 main 重启 Sidecar。首次构建都成功且
+      // 开发服务器就绪后 Forge 才启动 Electron；构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
       await prepareRipgrep()
-      await buildSidecar()
-      await buildElectron()
+      await writeSidecarReloadStamp()
+      const sidecar = watchSidecar(reloadSidecar)
+      const electron = watchElectron(restartElectron)
+      devWatchers = [sidecar, electron]
+      await Promise.all([sidecar.ready, electron.ready])
       devServer = await startRendererDevServer()
       process.env.COKO_RENDERER_DEV_URL = devServer.url
+      process.env.COKO_SIDECAR_RELOAD_FILE = sidecarReloadFile
     },
     postStart: async (_config, appProcess) => {
       appProcess.once('exit', () => {
         if (appProcess.restarted) return
-        void devServer?.close()
-        devServer = undefined
+        void closeDevSession()
       })
     },
     prePackage: async () => {

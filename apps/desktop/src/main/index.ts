@@ -19,6 +19,7 @@ import { IPC, type BootFailure, type BootResult, type SidecarStateEvent } from '
 import { APP_HOST, APP_SCHEME, createAppProtocolHandler, type RendererSource } from './app-protocol.ts'
 import type { SidecarControlChannel } from './control-channel.ts'
 import { createCredentialBridge } from './credentials.ts'
+import { watchSidecarReload } from './dev-reload.ts'
 import { createProviderModelsBridge } from './provider-models.ts'
 import { createNotifier } from './notifications.ts'
 import { createUpdateCoordinator } from './update-coordinator.ts'
@@ -143,6 +144,20 @@ function run(): void {
       }),
     exchange: exchangeLaunchToken,
   })
+  // 开发时（electron-forge start）Sidecar 重建后计划重启它；首次启动失败时只能重启 Electron。
+  const sidecarReloadFile = development ? process.env.COKO_SIDECAR_RELOAD_FILE : undefined
+  if (sidecarReloadFile !== undefined && sidecarReloadFile !== '') {
+    const reloadWatcher = watchSidecarReload(sidecarReloadFile, () => {
+      const state = supervisor.state
+      if (state.phase === 'failed' && state.reason === 'startup') {
+        console.warn('[coko] sidecar rebuilt, but its first start failed; restart Electron from the Forge terminal')
+        return
+      }
+      log.info('sidecar rebuilt, reloading')
+      void supervisor.reload()
+    })
+    app.once('will-quit', () => reloadWatcher.close())
+  }
   supervisor.onUnexpectedExit((info) => {
     log.error('sidecar exited unexpectedly', { code: info.code, signal: info.signal })
     logDiagnostic(info.diagnostic)
@@ -290,7 +305,7 @@ function run(): void {
     isReady: () => supervisor.isReady,
     send: (message) => supervisor.send(message),
     onMessage: (listener) => supervisor.onControlMessage(listener),
-    onUnavailable: (listener) => supervisor.onUnexpectedExit(() => listener()),
+    onUnavailable: (listener) => supervisor.onUnavailable(listener),
   }
   // Sidecar 的 notify 控制消息：窗口不在前台时显示桌面通知（main/notifications.ts；测试构建只记日志）。
   const notifier = createNotifier({

@@ -9,7 +9,8 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-async function supervise(mode: string, extra: Record<string, string> = {}) {
+/** mode 为函数时每次 spawn 重新读取，用于让之后的进程改变行为。 */
+async function supervise(mode: string | (() => string), extra: Record<string, string> = {}) {
   const fixture = await createFixtureDir()
   cleanups.push(fixture.dispose)
   const states: SupervisorState[] = []
@@ -18,7 +19,7 @@ async function supervise(mode: string, extra: Record<string, string> = {}) {
       new SidecarProcess({
         execPath: electronPath,
         entry: placeholderSidecarEntry,
-        env: { ...process.env, COKO_FIXTURE_MODE: mode, COKO_FIXTURE_EVENTS: fixture.eventsPath, ...extra },
+        env: { ...process.env, COKO_FIXTURE_MODE: typeof mode === 'function' ? mode() : mode, COKO_FIXTURE_EVENTS: fixture.eventsPath, ...extra },
         timeouts: { readyMs: 15_000, shutdownMs: 1_000, terminateMs: 1_000, killMs: 2_000 },
       }),
     exchange: exchangeLaunchToken,
@@ -103,6 +104,72 @@ describe('SidecarSupervisor', { timeout: 30_000 }, () => {
     const pids = await spawned(fixture.eventsPath)
     for (const pid of pids) expect(processExists(pid)).toBe(false)
     expect(supervisor.endpoint).toBeUndefined()
+  })
+
+  it('reload：分级停止旧进程、启动新进程并重新交换 cookie，不计入故障，也不触发意外退出', async () => {
+    const { supervisor, states, fixture } = await supervise('normal')
+    const first = await supervisor.start()
+    const pid = supervisor.pid!
+    const before = supervisor.endpoint!
+    let unexpected = 0
+    let unavailable = 0
+    supervisor.onUnexpectedExit(() => unexpected++)
+    supervisor.onUnavailable(() => unavailable++)
+    await supervisor.reload()
+    expect(states.map((s) => s.phase)).toEqual(['starting', 'ready', 'restarting', 'ready'])
+    expect(supervisor.pid).not.toBe(pid)
+    expect(processExists(pid)).toBe(false)
+    expect(unexpected).toBe(0)
+    expect(unavailable).toBe(1)
+    // 旧进程经 shutdown 正常退出，而不是被信号终止。
+    expect((await readFixtureEvents(fixture.eventsPath)).some((e) => e.pid === pid && e.event === 'shutdown')).toBe(true)
+    expect(supervisor.endpoint).not.toEqual(before)
+    expect(supervisor.state).toMatchObject({ phase: 'ready' })
+    expect(supervisor.state.phase === 'ready' && first.phase === 'ready' && supervisor.state.port !== first.port).toBe(true)
+    const health = await fetch(new URL('/api/health', supervisor.endpoint!.origin), { headers: { cookie: supervisor.endpoint!.cookie } })
+    expect(health.status).toBe(200)
+  })
+
+  it('reload 的新进程启动失败时进入 failed（不重试），下一次 reload 恢复到 ready', async () => {
+    let mode = 'normal'
+    const { supervisor, states, fixture } = await supervise(() => mode)
+    await supervisor.start()
+    mode = 'fatal'
+    await supervisor.reload()
+    expect(supervisor.state).toMatchObject({ phase: 'failed', reason: 'crashed', error: { code: 'fixture-fatal' } })
+    expect(await spawned(fixture.eventsPath)).toHaveLength(2)
+    mode = 'normal'
+    await supervisor.reload()
+    expect(states.map((s) => s.phase)).toEqual(['starting', 'ready', 'restarting', 'failed', 'restarting', 'ready'])
+    expect(await spawned(fixture.eventsPath)).toHaveLength(3)
+  })
+
+  it('reload 期间再次 reload 合并为之后的一次；首次启动失败后 reload 不做任何事', async () => {
+    const { supervisor, states, fixture } = await supervise('normal')
+    await supervisor.start()
+    await Promise.all([supervisor.reload(), supervisor.reload(), supervisor.reload()])
+    expect(states.map((s) => s.phase)).toEqual(['starting', 'ready', 'restarting', 'ready', 'restarting', 'ready'])
+    expect(await spawned(fixture.eventsPath)).toHaveLength(3)
+    for (const pid of (await spawned(fixture.eventsPath)).slice(0, 2)) expect(processExists(pid)).toBe(false)
+
+    const failing = await supervise('fatal')
+    await failing.supervisor.start()
+    await failing.supervisor.reload()
+    expect(failing.states.map((s) => s.phase)).toEqual(['starting', 'failed'])
+    expect(await spawned(failing.fixture.eventsPath)).toHaveLength(1)
+  })
+
+  it('stop 发生在 reload 途中：不留下进程，状态停在 stopped', async () => {
+    const { supervisor, fixture } = await supervise('normal')
+    await supervisor.start()
+    const restarting = settled(supervisor, (s) => s.phase === 'restarting')
+    const reloading = supervisor.reload()
+    await restarting
+    await supervisor.stop()
+    await reloading
+    expect(supervisor.state.phase).toBe('stopped')
+    expect(supervisor.endpoint).toBeUndefined()
+    for (const pid of await spawned(fixture.eventsPath)) expect(processExists(pid)).toBe(false)
   })
 
   it('stop 发生在 cookie 交换途中：先中止交换并等它结束，再停止进程', async () => {
