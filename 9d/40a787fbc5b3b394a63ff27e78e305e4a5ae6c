@@ -1,0 +1,27 @@
+apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx
+  s_64e2ce1bfde668::t_56c2b8629c4efb 126-130
+apps/desktop/src/renderer/features/sidebar/project-row.tsx
+  s_64e2ce1bfde668::t_dfd32ef65da088 194
+  s_64e2ce1bfde668::t_7f744df26d87b7 304-307
+apps/server/src/application/session-runs.ts
+  s_64e2ce1bfde668::t_525e3a23bbf220 409,411,413
+apps/desktop/e2e/project-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_2646cbfc627aa2 50,55
+  s_64e2ce1bfde668::t_7f744df26d87b7 51-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9d40a787fbc5b3b394a63ff27e78e305e4a5ae6c",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
