@@ -16,7 +16,7 @@ lifecycle: active
 | [Agent 执行](agent-runtime.md) | 使用 pi、设计执行机制、权限、Goal 或恢复 |
 | [桌面构建与交付](desktop-delivery.md) | 开发接线、资源打包、签名或更新 |
 | [界面约定](ui.md) | 新增或修改界面：技术接入、设计系统、交互与布局、UI 状态与验收、Markdown 渲染 |
-| [设计系统规格](ui-design-system.md) | 改动样式、token 或组件几何：token 分层、圆角档位、材质与边框、状态写法、样式守卫 |
+| [设计系统规格](ui-design-system.md) | 改动样式、token 或组件几何：token 分层、圆角档位、侧栏列表悬停与底部用户入口、材质、边框与菜单叠加、状态写法、样式守卫 |
 | [日志与诊断](observability.md) | 进程日志、关联、轮转、脱敏和故障处理 |
 | [测试约定](testing.md) | 设计、编写或运行测试，选择验证范围并报告结果 |
 

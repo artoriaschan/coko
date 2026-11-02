@@ -120,7 +120,7 @@
   --ring: var(--palette-blue-500);
   --link: var(--palette-blue-500);
   --overlay: var(--palette-ink-a24);
-  --menu-fill: var(--palette-menu-light);
+  --menu-fill: var(--palette-white);
   --elevation-stroke-color: var(--palette-ink-a16);
   --sidebar: var(--palette-gray-50);
   --sidebar-foreground: var(--palette-ink);
