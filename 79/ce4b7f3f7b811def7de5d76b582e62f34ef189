@@ -1,0 +1,76 @@
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 19-20,45-49,86,100,113,123-146,148-150
+  s_64e2ce1bfde668::t_d233157ca83582 114,116-122
+  s_64e2ce1bfde668::t_7345259f5e4ece 115
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 19,73,80,87,93-98,101-106,109,111-118,120-129,131-135,137-142,144-170,192
+  s_64e2ce1bfde668::t_076506c3dec3ac 2-12,14,21,74,199-205
+  s_64e2ce1bfde668::t_adb5a3adb94fe7 110
+  s_64e2ce1bfde668::t_d233157ca83582 13,130,143
+apps/desktop/src/renderer/app/workbench-navigation.ts
+  s_64e2ce1bfde668::t_d233157ca83582 99
+  s_64e2ce1bfde668::t_24af8767456191 1-98,100-106
+apps/desktop/src/renderer/features/sidebar/sidebar-rail.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 2-3,6,14,22,35-45
+.scratch/conversation-workbench/issues/02-workbench-shell-navigation.md
+  s_64e2ce1bfde668::t_26744997e5a238 22-39
+  s_ddfb4220ad6810::t_b62c5d54eebe6e 19-21,40
+docs/README.md
+  s_64e2ce1bfde668::t_93d47789d67c33 28
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_24af8767456191 10-13
+  s_64e2ce1bfde668::t_054d059a08309b 14
+apps/desktop/src/renderer/app/workbench.tsx
+  s_64e2ce1bfde668::t_24af8767456191 1,4-12,28
+  s_64e2ce1bfde668::t_d268f17fd08e32 2-3,13-27
+.scratch/conversation-workbench/issues/03-composer-toolbar.md
+  s_ddfb4220ad6810::t_9de64e76a8dd57 45
+  s_64e2ce1bfde668::t_3186923df13900 43-44
+packages/ui/src/sidebar/sidebar-account.tsx
+  s_64e2ce1bfde668::t_d233157ca83582 1-46
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_64e2ce1bfde668::t_054d059a08309b 132,141,191,213,465,555-556,560,566-606,608
+  s_64e2ce1bfde668::t_d9dd8adcce1be7 536-554,557-559,561-565,618-619
+  s_64e2ce1bfde668::t_d233157ca83582 607,613
+  s_64e2ce1bfde668::t_304acb2bc46711 616
+  s_64e2ce1bfde668::t_b424b517f56794 609-612,614-615,617
+  s_64e2ce1bfde668::t_8bea6d17c7dd42 454-455,472,490
+packages/ui/src/app-frame/app-frame.tsx
+  s_64e2ce1bfde668::t_b40737b7d02b8a 48
+  s_64e2ce1bfde668::t_7345259f5e4ece 172
+apps/desktop/e2e/workbench.e2e.test.ts
+  s_64e2ce1bfde668::t_d233157ca83582 18,71
+  s_64e2ce1bfde668::t_adb5a3adb94fe7 1-17,19-70,72-79
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_93d47789d67c33 3,7,9-10,37-38
+  s_64e2ce1bfde668::t_80c648940d5a91 11-21,39-41,47-51
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_054d059a08309b 12
+  s_64e2ce1bfde668::t_24af8767456191 8-11
+packages/ui/src/index.ts
+  s_64e2ce1bfde668::t_076506c3dec3ac 63-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "79ce4b7f3f7b811def7de5d76b582e62f34ef189",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    },
+    "s_ddfb4220ad6810": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_dcrt4xndij58",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
