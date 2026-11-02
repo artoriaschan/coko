@@ -1,0 +1,25 @@
+apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx
+  s_64e2ce1bfde668::t_37d9bb4d81ae42 370-398
+.scratch/conversation-workbench/issues/18-title-generation.md
+  s_64e2ce1bfde668::t_2a539effdec0cd 35,38-42
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_528a70ed5f4491 155
+tests/integration/secrets-gate-titles.test.ts
+  s_64e2ce1bfde668::t_c68f010ac5f177 80,82-84,86-93,95-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "389d46f936a85843b0d7623d6485003f46cc4aa7",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
