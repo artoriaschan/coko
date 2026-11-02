@@ -74,7 +74,18 @@ const WRITE_SCRIPT = {
 
 describe('对话闭环', () => {
   it('登记临时目录 → 新建会话 → 发送 → 流式回复与 write 工具卡 → 文件实际存在', async () => {
-    const { root, workspace, env } = await setup(WRITE_SCRIPT)
+    const { root, workspace, env } = await setup()
+    const requestLog = join(root, 'requests.jsonl')
+    env.COKO_FAUX_SCRIPT = join(root, 'faux.json')
+    env.COKO_TEST_CLOCK = '1'
+    await writeFile(
+      env.COKO_FAUX_SCRIPT,
+      JSON.stringify({
+        ...WRITE_SCRIPT,
+        requestDetailsLog: requestLog,
+        responses: [{ ...WRITE_SCRIPT.responses[0], delayMs: 1 }, WRITE_SCRIPT.responses[1]],
+      }),
+    )
     const app = await launch(env, root)
     await addWorkspace(app, workspace)
 
@@ -87,6 +98,30 @@ describe('对话闭环', () => {
       }).observe(document.body, { subtree: true, childList: true, characterData: true })
     })
     await sendMessage(app, 'write a greeting')
+    // First-send starts the Run before the renderer opens/subscribes to the new Session.
+    // Hold the model on the test clock until its timer is armed and the live Run is rendered.
+    await expect
+      .poll(async () =>
+        (await readFile(requestLog, 'utf8').catch(() => '')).split('\n').some((line) => {
+          if (!line) return false
+          const request = JSON.parse(line) as { messages: unknown[] }
+          return !JSON.stringify(request.messages).includes('COKO_SESSION_TITLE')
+        }),
+      )
+      .toBe(true)
+    await app.window.locator('[data-generating]').waitFor()
+    expect(
+      await app.window.evaluate(
+        async () =>
+          (
+            await fetch('/api/test/clock', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ advanceMs: 1 }),
+            })
+          ).status,
+      ),
+    ).toBe(200)
     await allowOnce(app)
 
     await expect.poll(() => toolCard(app, 'write').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')

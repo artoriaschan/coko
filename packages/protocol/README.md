@@ -50,6 +50,9 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `health` | `/api/health` | GET → `{ status: 'ok' }` |
 | `stream` | `/api/ws` | WebSocket 升级入口（见下文） |
 | `workspaces` | `/api/workspaces` | GET 列表；POST `{ path, name? }` 登记目录（同一路径返回已有的） |
+| `projects` | `/api/projects` | GET 项目列表；POST `ProjectFields { name, folders }` 创建，已有项目返回 200 / existing，新建返回 201 / created；更新、重命名、置顶与删除见 `apiPaths` |
+| `projectFolderCheck` | `/api/projects/check-folder` | POST `{ path }` 校验目录并返回规范化的 `{ path }`，不创建项目 |
+| `firstSend` | `/api/chats/first-send` | POST `FirstSendRequest` 首次发送；同一 `draftId` 幂等创建一个 Session，接受后返回 201 `{ session, runId }`，首条用户消息已持久化；支持项目或独立目录、可选 Worktree、模型、推理档位、权限模式与图片 |
 | `sessions` | `/api/sessions` | GET 列表（`?workspaceId=`）；POST 新建；带参数的路径见 `apiPaths` |
 | `settings` | `/api/settings` | GET 全部设置；`apiPaths.setting(key)` 按 revision 写入 |
 | `providers` | `/api/providers` | GET Provider 列表（只有末四位提示）；删除走 `apiPaths.provider(id)`。HTTP 不创建、不更新 Provider（ADR 0010） |
@@ -96,7 +99,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | type | 含义 | 不属于 Run |
 | --- | --- | --- |
 | `run_start` | Run 开始（第一个进度） | 否 |
-| `assistant_delta` | 模型输出的增量（text / thinking / toolcall） | 否 |
+| `assistant_delta` | 模型输出的增量（text / thinking / toolcall）；可选 `offset` 为同一 `contentIndex` 中此前已发出的 UTF-16 码元数，供客户端发现缺头或缺失的增量 | 否 |
 | `tool_start` | 工具调用开始执行 | 否 |
 | `tool_update` | 工具的中间结果 | 否 |
 | `tool_end` | 工具调用结束（按完成顺序；最终内容以 toolResult 条目为准） | 否 |
@@ -112,6 +115,8 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `team_update` | 根 Session 的团队快照 | 是 |
 | `lsp_update` | 语言服务器状态（runId 为空串） | 是 |
 | `run_end` | Run 的最后一个进度，在 run_end 条目提交（或提交失败）之后 | 否 |
+
+`assistant_delta.offset` 在每条 assistant 消息、每个 `contentIndex` 内从 0 开始；Sidecar 按脱敏后实际推送的文本计数。客户端已知首次发送的 Run 身份时，可在 offset 为 0 后开始接收完整前缀；中途加入或发现偏移缺口时等待完整 assistant 条目，避免显示孤立后缀。
 
 ## 错误码
 
@@ -133,6 +138,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `confirmation-pending` | 409 | 有未回答的结果确认 |
 | `recovery-failed` | 409 | 启动恢复没能处理该 Session |
 | `session-busy` | 409 | Run 或审批进行中，不能回退或分叉 |
+| `session-archived` | 409 | Session 已归档，恢复后才能运行或修改 |
 | `already-exists` | 409 | ID 已被使用 |
 | `revision-conflict` | 409 | expectedRevision 不一致 |
 | `invalid-transition` | 409 | 当前阶段不允许该动作 |
@@ -147,6 +153,8 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `worktree-exists` | 409 | 同名分支或路径已存在 |
 | `worktree-busy` | 409 | 绑定的会话仍在运行 |
 | `worktree-dirty` | 409 | 有未提交的改动 |
+| `git-dirty` | 409 | 仓库有未提交或未跟踪的改动，拒绝切换分支；details 为 `{ files, count }` |
+| `git-unavailable` | 409 | Git 未安装或无法启动 |
 | `worktree-removed` | 409 | 绑定的 worktree 已移除 |
 | `nothing-to-hand-off` | 400 | 没有可交接的内容 |
 | `digest-mismatch` | 409 | 要批准的 digest 已变化 |

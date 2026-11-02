@@ -25,6 +25,7 @@ const script = {
   // 每百万 token：输入 1、输出 2 → 每次回复 0.001 + 0.0004。
   price: { input: 1, output: 2 },
   responses: [
+    { match: 'COKO_SESSION_TITLE', content: 'Fix the tests', usage: { input: 10, output: 5 } },
     // 用户提交的 Run：待办与 Goal（工具调用上限 3）。
     {
       content: [
@@ -217,7 +218,7 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect.poll(async () => (await detail()).session.running, { timeout: 10_000 }).toBe(false)
     await shot('complete-light-1280')
 
-    // 用量：每个 Run 的用量行与条目中的 usage 一致；标题栏累计为全部 Run 之和；Goal 的用量为 Goal 建立之后的 Run 之和。
+    // 用量：每个 Run 的用量行与条目中的 usage 一致；标题栏累计为全部 Run 加标题请求；Goal 的用量为 Goal 建立之后的 Run 之和。
     const { entries } = await detail()
     const perRun = new Map<string, { tokens: number; cost: number }>()
     for (const e of entries) {
@@ -240,7 +241,12 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     }
     expect(await win.locator('[data-slot="run-usage"]').first().textContent()).toMatch(/\$0\.0028/)
     const header = win.locator('[data-slot="session-cost"]')
-    const total = [...perRun.values()].reduce((a, b) => ({ tokens: a.tokens + b.tokens, cost: a.cost + b.cost }), { tokens: 0, cost: 0 })
+    const titles = entries.filter((entry) => entry.kind === 'model_request' && entry.payload.purpose === 'title')
+    expect(titles).toHaveLength(1)
+    expect(titles[0]!.runId).toBeNull()
+    expect(titles[0]!.payload.usage).toMatchObject({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0 })
+    expect(titles[0]!.payload.cost).toBeCloseTo(0.00002, 9)
+    const total = [...perRun.values()].reduce((a, b) => ({ tokens: a.tokens + b.tokens, cost: a.cost + b.cost }), { tokens: 15, cost: 0.00002 })
     expect(Number(await header.getAttribute('data-tokens'))).toBe(total.tokens)
     expect(Number(await header.getAttribute('data-cost'))).toBeCloseTo(total.cost, 9)
     const goal = (await win.evaluate(async (id) => fetch(`/api/sessions/${id}/goal`).then((r) => r.json()), sessionId)) as {

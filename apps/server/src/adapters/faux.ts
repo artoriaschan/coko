@@ -54,7 +54,7 @@ export interface FauxScriptResponse {
    * 这条回复的 usage（替换 faux 按字符估算的值）；省略的字段为 0，totalTokens 为四项之和。用量、预算与费用测试用。
    */
   usage?: FauxScriptUsage
-  /** 只在最后一条 user message 或系统提示含该子串时取用；没有 match 的回复按顺序取用。 */
+  /** 只在最后一条 user message 或系统提示含该子串时取用；标题请求只取精确 match COKO_SESSION_TITLE；没有 match 的回复按顺序取用。 */
   match?: string
   /** Controlled model-boundary latency; uses the Sidecar clock and respects cancellation. */
   delayMs?: number
@@ -188,8 +188,10 @@ export function pickResponse(
   context: { systemPrompt?: string; messages: readonly unknown[] },
 ): number | undefined {
   const texts = matchTexts(context)
-  const matched = responses.findIndex((r, i) => !used[i] && r.match !== undefined && texts.some((t) => t.includes(r.match!)))
   const title = texts.some((text) => text.includes('COKO_SESSION_TITLE'))
+  const matched = responses.findIndex(
+    (r, i) => !used[i] && r.match !== undefined && (title ? r.match === 'COKO_SESSION_TITLE' : texts.some((t) => t.includes(r.match!))),
+  )
   const index = matched >= 0 ? matched : title ? -1 : responses.findIndex((r, i) => !used[i] && r.match === undefined)
   if (index < 0) return undefined
   used[index] = true
@@ -236,7 +238,14 @@ export async function installFauxProvider(registry: ModelRegistry, path: string,
     // One callback per actual request; unmatched background title calls never steal an ordinary reply.
     core.appendResponses([
       async (current) => {
-        const record = () => (log ? appendFile(log, JSON.stringify(current.messages) + '\n') : Promise.resolve())
+        const record = async () => {
+          if (script.requestDetailsLog)
+            await appendFile(
+              script.requestDetailsLog,
+              JSON.stringify({ ...current, options: { reasoning: options?.reasoning ?? 'off', toolChoice: options?.toolChoice } }) + '\n',
+            )
+          if (log) await appendFile(log, JSON.stringify(current.messages) + '\n')
+        }
         const index = pickResponse(scripted, used, current)
         if (index === undefined) {
           await record()
@@ -264,11 +273,6 @@ export async function installFauxProvider(registry: ModelRegistry, path: string,
               })
             : undefined
         // Logging after arming lets protocol tests observe a deterministic model-boundary barrier.
-        if (script.requestDetailsLog)
-          await appendFile(
-            script.requestDetailsLog,
-            JSON.stringify({ ...current, options: { reasoning: options?.reasoning ?? 'off', toolChoice: options?.toolChoice } }) + '\n',
-          )
         await record()
         await delayed
         return toStep(withLastJobId(response, lastJobId(current.messages))) as Exclude<FauxResponseStep, (...args: never[]) => unknown>

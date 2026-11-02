@@ -1,12 +1,21 @@
 import { Value } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
-import { ClientMessage, ServerMessage } from './ws.ts'
+import { ClientMessage, ProgressEvent, ServerMessage } from './ws.ts'
 
 describe('WebSocket 消息', () => {
   it('subscribe 必须带 sessionId 与非负 afterSeq', () => {
     expect(Value.Check(ClientMessage, { type: 'subscribe', sessionId: 's1', afterSeq: 0 })).toBe(true)
     expect(Value.Check(ClientMessage, { type: 'subscribe', sessionId: 's1' })).toBe(false)
     expect(Value.Check(ClientMessage, { type: 'subscribe', sessionId: 's1', afterSeq: -1 })).toBe(false)
+  })
+
+  it('assistant_delta 的 offset 可省略；给出时是非负 UTF-16 偏移', () => {
+    const event = { type: 'assistant_delta', kind: 'text', contentIndex: 0, delta: '🦜' }
+    expect(Value.Check(ProgressEvent, event)).toBe(true)
+    expect(Value.Check(ProgressEvent, { ...event, offset: 0 })).toBe(true)
+    expect(Value.Check(ProgressEvent, { ...event, offset: 2 })).toBe(true)
+    expect(Value.Check(ProgressEvent, { ...event, offset: -1 })).toBe(false)
+    expect(Value.Check(ProgressEvent, { ...event, offset: 0.5 })).toBe(false)
   })
 
   it('entry 带 seq，progress 带 runId，两者是不同的消息类型', () => {

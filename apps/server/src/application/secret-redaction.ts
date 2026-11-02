@@ -27,16 +27,20 @@ export const redactModelMessages = (messages: AgentMessage[]): AgentMessage[] =>
  * 下一条 assistant 消息的 contentIndex 从 0 重新开始；留在缓冲中的结尾由已提交的完整条目取代，不再单独发出。
  */
 export function createProgressRedactor(): { redact(event: AgentProgress): AgentProgress | undefined; reset(): void } {
-  let streams = new Map<string, SecretStreamRedactor>()
+  let streams = new Map<string, { redactor: SecretStreamRedactor; offset: number }>()
   return {
     redact(event) {
       if (event.type === 'run_start' || event.type === 'run_end') streams = new Map()
       if (event.type !== 'assistant_delta') return redactSecretsDeep(event)
       const key = `${event.kind}:${event.contentIndex}`
       let stream = streams.get(key)
-      if (!stream) streams.set(key, (stream = createSecretStreamRedactor()))
-      const delta = stream.push(event.delta)
-      return delta === '' ? undefined : { ...event, delta }
+      if (!stream) streams.set(key, (stream = { redactor: createSecretStreamRedactor(), offset: 0 }))
+      const delta = stream.redactor.push(event.delta)
+      if (delta === '') return undefined
+      // The renderer counts only emitted, redacted text; buffering and replacements change its length.
+      const offset = stream.offset
+      stream.offset += delta.length
+      return { ...event, delta, offset }
     },
     reset() {
       streams = new Map()

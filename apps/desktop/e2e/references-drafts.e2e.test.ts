@@ -1,6 +1,6 @@
 // @ 文件引用与草稿持久化：真实 Electron + 真实 Sidecar（faux 模型）。断言窗口中实际渲染的 @ 菜单与引用 chip、faux requestLog
 // 中的 <file_reference> 块，以及草稿在切换会话、重启应用后的保留、提交后的清除与损坏时的处理（localStorage 中实际的键）。
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright'
@@ -13,7 +13,7 @@ afterEach(async () => {
 })
 
 async function prepare(responses: unknown[]) {
-  const root = await mkdtemp(join(tmpdir(), 'coko-refs-'))
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'coko-refs-')))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const workspace = join(root, 'workspace')
   await mkdir(join(workspace, 'src'), { recursive: true })
@@ -148,7 +148,9 @@ describe('草稿持久化', () => {
     const sessions = page.locator('[data-session-id]')
     await expect.poll(() => sessions.count()).toBe(1)
     const first = (await sessions.first().getAttribute('data-session-id'))!
-    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+N' : 'Control+N')
+    // 新对话快捷键创建独立对话；本例需要同一项目中的 README.md。
+    await page.getByRole('button', { name: 'Example project', exact: true }).hover()
+    await page.getByRole('button', { name: /^(New session in Example project|在 Example project 中新建会话)$/ }).click()
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await sendAndWait(page, 'second session', 1)
     await expect.poll(() => sessions.count()).toBe(2)

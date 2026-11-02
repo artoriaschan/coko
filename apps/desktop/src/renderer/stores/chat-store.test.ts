@@ -118,6 +118,91 @@ it('首次发送等待中不重复提交，失败保留同一草稿身份和配�
   expect(store.newChat.getState().draftId).not.toBe(draft.draftId)
 })
 
+it('首次发送用接受的 Run 身份接收首条回复增量，错误 Run 与重连后的缺头增量仍不显示', async () => {
+  const stream = new FakeStream()
+  const store = createChatStore({ api: fakeApi(), stream })
+  store.getState().startDraft()
+  expect(await store.getState().send('write a greeting')).toBe(true)
+  stream.deliver({ type: 'entry', sessionId: 's-new', entry: entry('s-new', 1, user('write a greeting'), 'message', 'r2') })
+  stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 1, running: true })
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'other-run',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, offset: 0, delta: 'wrong' },
+  })
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'r2',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, offset: 0, delta: 'I will' },
+  })
+  expect(buildTimeline(store.getState().conversations['s-new']!).at(-1)).toMatchObject({ kind: 'text', text: 'I will', streaming: true })
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'r2',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, offset: 6, delta: ' write' },
+  })
+  expect(buildTimeline(store.getState().conversations['s-new']!).at(-1)).toMatchObject({ kind: 'text', text: 'I will write', streaming: true })
+  stream.reopen()
+  stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 1, running: true })
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'r2',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, offset: 20, delta: 'tail only' },
+  })
+  expect(buildTimeline(store.getState().conversations['s-new']!).at(-1)).toMatchObject({ kind: 'generating' })
+})
+
+it('首次订阅错过回复前缀时不显示后缀，完整 assistant 条目仍补齐全文', async () => {
+  const stream = new FakeStream()
+  const store = createChatStore({ api: fakeApi(), stream })
+  store.getState().startDraft()
+  await store.getState().send('greet')
+  // The provider already emitted "hel" before the first-send response and subscription.
+  stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: true })
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'r2',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, offset: 3, delta: 'lo' },
+  })
+  expect(buildTimeline(store.getState().conversations['s-new']!).at(-1)).toMatchObject({ kind: 'generating' })
+  stream.deliver({ type: 'entry', sessionId: 's-new', entry: entry('s-new', 1, assistant([{ type: 'text', text: 'hello' }]), 'message', 'r2') })
+  expect(buildTimeline(store.getState().conversations['s-new']!).find((item) => item.kind === 'text')).toMatchObject({
+    kind: 'text',
+    text: 'hello',
+    streaming: false,
+  })
+})
+
+it('首条回复逐块保留非 BMP 文本，增量 offset 有缺口时暂停到完整条目', async () => {
+  const stream = new FakeStream()
+  const store = createChatStore({ api: fakeApi(), stream })
+  store.getState().startDraft()
+  await store.getState().send('describe a bird')
+  stream.deliver({ type: 'subscribed', sessionId: 's-new', lastSeq: 0, running: true })
+  for (const event of [
+    { contentIndex: 0, offset: 0, delta: '🦜' },
+    { contentIndex: 0, offset: 2, delta: ' flies' },
+    { contentIndex: 1, offset: 0, delta: 'Second block' },
+  ])
+    stream.deliver({ type: 'progress', sessionId: 's-new', runId: 'r2', event: { type: 'assistant_delta', kind: 'text', ...event } })
+  expect(buildTimeline(store.getState().conversations['s-new']!).filter((item) => item.kind === 'text')).toMatchObject([
+    { text: '🦜 flies', streaming: true },
+    { text: 'Second block', streaming: true },
+  ])
+  stream.deliver({
+    type: 'progress',
+    sessionId: 's-new',
+    runId: 'r2',
+    event: { type: 'assistant_delta', kind: 'text', contentIndex: 1, offset: 20, delta: 'suffix' },
+  })
+  expect(buildTimeline(store.getState().conversations['s-new']!).at(-1)).toMatchObject({ kind: 'generating' })
+})
+
 describe('chat store', () => {
   it('加载后打开最近的会话并以 afterSeq 0 订阅；补发与实时条目按 seq 去重', async () => {
     const stream = new FakeStream()

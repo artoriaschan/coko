@@ -124,6 +124,26 @@ describe('Agent 运行时：内置工具闭环', () => {
     expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'message', 'model_request', 'run_end'])
   })
 
+  it('文本增量带每个 contentIndex 的 UTF-16 offset，含多块与非 BMP 字符', async () => {
+    const h = harness()
+    const blocks = ['🦜 hello streaming world', 'Second text block']
+    h.faux.setResponses([fauxAssistantMessage(blocks.map((text) => ({ type: 'text', text })))])
+    await h.runtime.run('hi')
+    const deltas = h.progress.filter(
+      (event): event is Extract<ProgressEvent, { type: 'assistant_delta' }> => event.type === 'assistant_delta' && event.kind === 'text',
+    )
+    expect(new Set(deltas.map((event) => event.contentIndex))).toEqual(new Set([0, 1]))
+    for (const index of [0, 1]) {
+      const part = deltas.filter((event) => event.contentIndex === index)
+      expect(part[0]!.offset).toBe(0)
+      expect(part.map((event) => event.delta).join('')).toBe(blocks[index])
+      for (const event of part) {
+        expect(event.offset).toBeTypeOf('number')
+        expect(blocks[index]!.slice(event.offset, event.offset! + event.delta.length)).toBe(event.delta)
+      }
+    }
+  })
+
   it('以已提交条目恢复上下文后继续对话', async () => {
     const first = harness()
     first.faux.setResponses([fauxAssistantMessage('first answer')])

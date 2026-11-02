@@ -21,11 +21,12 @@ async function tempDir(prefix: string): Promise<string> {
 
 /** OpenAI Chat Completions 的流式假服务：记录请求头，回复固定文本。 */
 async function fakeOpenAI(reply: string) {
-  const requests: { headers: IncomingHttpHeaders }[] = []
+  const requests: { headers: IncomingHttpHeaders; body: string }[] = []
   const server = createServer((req, res) => {
-    req.resume()
+    let body = ''
+    req.setEncoding('utf8').on('data', (chunk: string) => (body += chunk))
     req.on('end', () => {
-      requests.push({ headers: req.headers })
+      requests.push({ headers: req.headers, body })
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
       const chunk = (delta: object, finish: string | null) =>
         `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', created: 0, model: 'm', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`
@@ -93,6 +94,12 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   const [session] = (await api<Sessions>(app, '/api/sessions')).sessions
   expect(session?.model).toEqual({ providerId: 'local-one', modelId: 'm1' })
 
+  // First send makes one conversation request and one detached title request, both with the original credential.
+  await expect.poll(() => model.requests.length).toBe(2)
+  expect(model.requests.filter((request) => request.body.includes('COKO_SESSION_TITLE'))).toHaveLength(1)
+  expect(model.requests.filter((request) => !request.body.includes('COKO_SESSION_TITLE'))).toHaveLength(1)
+  for (const request of model.requests) expect(request.headers.authorization).toBe('Bearer sk-e2e-one-key-1111')
+
   // 删除 local-one：确认框写明 1 个会话在使用它。
   await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
   await dialog(app).locator('[data-section="models"]').click()
@@ -121,7 +128,7 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   await composer(app).fill('again')
   await composer(app).press('Enter')
   await app.window.getByText(/^(Choose a model for this session first|请先为这个会话选择模型)$/).waitFor()
-  expect(model.requests).toHaveLength(1)
+  expect(model.requests).toHaveLength(2)
 
   // 选择模型后提示消失，可以运行，请求使用所选供应商的 Key。
   await app.window.locator('[data-model-picker]').click()
@@ -132,6 +139,7 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   await composer(app).click()
   await composer(app).fill('again')
   await composer(app).press('Enter')
-  await expect.poll(() => model.requests.length, { timeout: 30_000 }).toBe(2)
-  expect(model.requests[1]?.headers.authorization).toBe('Bearer sk-e2e-two-key-2222')
+  await expect.poll(() => model.requests.length, { timeout: 30_000 }).toBe(3)
+  expect(model.requests[2]?.body).not.toContain('COKO_SESSION_TITLE')
+  expect(model.requests[2]?.headers.authorization).toBe('Bearer sk-e2e-two-key-2222')
 })

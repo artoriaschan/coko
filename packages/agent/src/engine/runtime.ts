@@ -77,6 +77,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const hooks = options.hooks ?? []
   const retryPolicy: RetryPolicy = { ...DEFAULT_RETRY_POLICY, ...options.retry }
 
+  const assistantOffsets = new Map<number, number>()
   let current = undefined as RunState | undefined
   let lastStatus: RunStatus | undefined = options.lastRunStatus
 
@@ -258,11 +259,16 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     const run = current
     if (!run || run.commitError) return
     switch (event.type) {
+      case 'message_start':
+        assistantOffsets.clear()
+        return
       case 'message_update': {
         const update = event.assistantMessageEvent
         if (update.type === 'text_delta' || update.type === 'thinking_delta' || update.type === 'toolcall_delta') {
           const kind = update.type === 'text_delta' ? 'text' : update.type === 'thinking_delta' ? 'thinking' : 'toolcall'
-          progress({ type: 'assistant_delta', runId: run.runId, kind, contentIndex: update.contentIndex, delta: update.delta })
+          const offset = assistantOffsets.get(update.contentIndex) ?? 0
+          assistantOffsets.set(update.contentIndex, offset + update.delta.length)
+          progress({ type: 'assistant_delta', runId: run.runId, kind, contentIndex: update.contentIndex, delta: update.delta, offset })
         }
         return
       }
