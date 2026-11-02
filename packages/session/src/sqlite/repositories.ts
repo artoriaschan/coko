@@ -277,6 +277,13 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           return conn.run('DELETE FROM workspaces WHERE id = ?', id) > 0
         }),
       ),
+    replaceSessionTitle: (id, expected, title) =>
+      later(() =>
+        conn.write(() => {
+          if (!conn.run('UPDATE sessions SET title = ? WHERE id = ? AND title = ?', title, id, expected)) return undefined
+          return toSession(requireSession(id))
+        }),
+      ),
     setSessionTitle: (id, title) =>
       later(() =>
         conn.write(() => {

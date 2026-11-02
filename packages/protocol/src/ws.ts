@@ -148,5 +148,6 @@ export const StreamErrorMessage = Type.Object(
   strict,
 )
 
-export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage])
+export const SessionTitleMessage = Type.Object({ type: Type.Literal('session_title'), sessionId: Type.String(), title: Type.String() }, strict)
+export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage, SessionTitleMessage])
 export type ServerMessage = Static<typeof ServerMessage>

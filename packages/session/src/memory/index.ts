@@ -263,6 +263,10 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         if (session.parentSessionId !== null && patch.projectId != null) throw new StoreError('invalid-input', 'Only root sessions store project membership')
         return touch(session, copy(patch))
       }),
+      replaceSessionTitle: op((id: string, expected: string, title: string) => {
+        const session = sessions.get(id)
+        return session?.title === expected ? touch(session, { title }) : undefined
+      }),
       setSessionTitle: op((id: string, title: string) => touch(requireSession(id), { title })),
       setSessionModel: op((id: string, choice: SessionModelChoice) =>
         touch(requireSession(id), { model: copy(choice.model), thinkingLevel: levelOf(choice), modelCleared: false }),

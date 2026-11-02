@@ -33,8 +33,18 @@ export class TraceService {
   }
 
   async trace(sessionId: string): Promise<TraceResponse> {
-    const runs = deriveTrace(await this.#entries(sessionId))
-    return redactSecretsDeep({ runs, totals: traceTotals(runs) }) satisfies TraceResponse
+    const entries = await this.#entries(sessionId)
+    const runs = deriveTrace(entries)
+    const totals = traceTotals(runs)
+    for (const entry of entries) {
+      if (entry.kind !== 'model_request') continue
+      const payload = entry.payload as unknown as import('@coko/protocol').ModelRequestPayload
+      if (payload.purpose !== 'title' || payload.runId !== null) continue
+      totals.requests++
+      totals.tokens += payload.usage.total
+      totals.cost += payload.cost ?? 0
+    }
+    return redactSecretsDeep({ runs, totals }) satisfies TraceResponse
   }
 
   async audit(sessionId: string): Promise<AuditResponse> {

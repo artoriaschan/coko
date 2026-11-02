@@ -79,7 +79,7 @@ function errorCodeOf(final: AssistantMessage, model: Model<any>): string | undef
 }
 
 /** model_request 的 payload：usage 与该请求的 assistant 消息一致。 */
-export function modelRequestPayload(runId: string, purpose: ModelRequestPurpose, m: RequestMeasurement): ModelRequestPayload {
+export function modelRequestPayload(runId: string | null, purpose: ModelRequestPurpose, m: RequestMeasurement): ModelRequestPayload {
   const usage = m.final.usage
   const cost = usage?.cost?.total
   const errorCode = errorCodeOf(m.final, m.model)

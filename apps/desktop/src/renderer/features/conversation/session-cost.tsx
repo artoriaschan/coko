@@ -58,6 +58,18 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'] as const) totals.cost[key] += usage.cost[key]
   }
   for (const entry of entries) {
+    if (entry.kind === 'model_request' && entry.payload.purpose === 'title') {
+      if (runId !== undefined) continue
+      const request = entry.payload
+      totals.input += request.usage.input
+      totals.output += request.usage.output
+      totals.cacheRead += request.usage.cacheRead
+      totals.cacheWrite += request.usage.cacheWrite
+      totals.cost.total += request.cost ?? 0
+      if (priced(request.provider, request.model, request.cost ?? 0)) totals.priced++
+      else totals.unpriced++
+      continue
+    }
     if (entry.runId === null || (runId !== undefined && entry.runId !== runId)) continue
     if (entry.kind === 'compaction') {
       if (entry.payload.usage) add(entry.payload.usage)

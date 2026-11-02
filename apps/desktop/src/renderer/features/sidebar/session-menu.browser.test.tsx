@@ -349,3 +349,21 @@ it.each(['light', 'dark'])('%s Chinese delete confirmation matches desktop geome
     document.documentElement.className = original
   }
 })
+
+it.each(['light', 'dark'])('%s generated title updates the visible row and already-open details card', async (theme) => {
+  const original = document.documentElement.className
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  try {
+    const fixture = await setup()
+    await userEvent.hover(page.getByRole('button', { name: 'Original title', exact: true }))
+    const details = page.getByRole('region', { name: 'Conversation details' })
+    await expect.element(details.getByText('Original title', { exact: true })).toBeVisible()
+    fixture.sendServer({ type: 'session_title', sessionId: fixtureSessions[0]!.id, title: 'Generated intent' })
+    await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+    await expect.element(details.getByText('Generated intent', { exact: true })).toBeVisible()
+    await expect.element(details.getByText('Original title', { exact: true })).not.toBeInTheDocument()
+    await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
+  } finally {
+    document.documentElement.className = original
+  }
+})

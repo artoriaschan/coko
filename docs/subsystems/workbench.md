@@ -34,6 +34,16 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 验证：[Sidecar 首次发送](../../tests/integration/sidecar-first-send.test.ts)、[新对话 Browser Mode](../../apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx)、[真实 Electron 首次发送与重启](../../apps/desktop/e2e/first-send.e2e.test.ts)。
 
+## 首条消息的标题
+
+首条用户消息持久化后，[标题服务](../../apps/server/src/application/session-titles.ts)在 Run 之外使用会话当前模型发一次请求。系统提示要求按用户语言概括意图、约 12 个字符；用户原始文字与附件文件名作为 JSON 数据传入，不展开 File Reference，不发送图片内容，不传工具，推理关闭。入请求之前替换登记的 Secret 值。结果取首行、去引号和首尾标点，按 Unicode 字符最多 20 个。
+
+15 秒截止时间使用 Sidecar 时钟。停止 Run 不取消标题；失败、空结果与超时保留首条消息生成的标题。SQLite 与内存存储都以原占位标题作为原子条件更新，生成期间手动改名不会被覆盖。提交后的 `session_title` WebSocket 消息通知所有连接，使列表及已打开的详情卡片同步。删除会话先禁止新写入，再取消并收尾标题请求；不会向已删除的会话追加迟到条目。退出 Sidecar 同样取消标题工作。交接、分叉、子代理和同草稿重复提交不启动标题请求。
+
+标题请求写为 `purpose: title`、`runId: null` 的 `model_request`，会话费用增加一次该请求的用量与总费用；Run 费用及普通回复的汇总口径不变。日志只记录耗时、用量与结果状态，不记录生成标题或消息正文。追踪的 Session 合计与 Run 列表的区别见[追踪](tracing.md#追踪)。
+
+验证：[标题协议与失败路径](../../tests/integration/sidecar-titles.test.ts)、[标题秘密总闸](../../tests/integration/secrets-gate-titles.test.ts)、[列表与详情 Browser Mode](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx)、[费用 Browser Mode](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)、[真实 Electron 标题更新](../../apps/desktop/e2e/titles.e2e.test.ts)。
+
 ## 新对话归属栏
 
 [归属栏](../../apps/desktop/src/renderer/features/conversation/destination-bar.tsx) 只在欢迎页主输入框顶部显示；已有 Session 没有此入口。独立状态使用统一聊天气泡、“对话”和箭头；选中项目后显示文件夹与项目名。按钮高 28px，前导图标 14px、箭头 12px，名称沿用 13/20 与下内边距 2px 的光学居中容器。hover 或键盘焦点时，在原文件夹槽显示关闭按钮，名称起点保持不变；关闭只清除归属。

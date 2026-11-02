@@ -698,6 +698,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     const patchSession = (sessionId: string, patch: Partial<Session>) => lists.getState().patchSession(sessionId, patch)
 
     switch (message.type) {
+      case 'session_title': {
+        patchSession(message.sessionId, { title: message.title })
+        return
+      }
       case 'subscribed': {
         patchConversation(message.sessionId, (c) => ({
           ...c,

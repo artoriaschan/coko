@@ -47,6 +47,7 @@ import { serveProviderModels } from '../application/provider-models.ts'
 import { ProviderService, serveProviderSave } from '../application/providers.ts'
 import { SecretService } from '../application/secrets.ts'
 import { requireSession, toNewEntry } from '../application/session-runtimes.ts'
+import { SessionTitles } from '../application/session-titles.ts'
 import { SessionService, type RunLauncher, type SessionExtension, type SessionExtensionContext } from '../application/sessions.ts'
 import { FirstSendService } from '../application/first-send.ts'
 import { SettingsService } from '../application/settings.ts'
@@ -562,7 +563,7 @@ const AppLive = Layer.effect(
     if (config.fauxScript) {
       const script = config.fauxScript
       fallbackModel = yield* Effect.tryPromise({
-        try: () => installFauxProvider(registry, script),
+        try: () => installFauxProvider(registry, script, clock),
         catch: (error) => new StartupError('faux-script-invalid', errorMessage(error), { cause: error }),
       })
       log.warn('faux provider enabled for tests', { providerId: fallbackModel.providerId })
@@ -587,10 +588,13 @@ const AppLive = Layer.effect(
       // 无界面运行：审批立即拒绝（含子代理），见 headlessLayer。
       ...(headless ? { unattendedApprovals: headless } : {}),
     })
+    const titles = new SessionTitles({ store, sessions, registry, clock })
+    yield* Effect.addFinalizer(() => Effect.promise(() => titles.close()))
     sessions.useLifecycle({
       runningJobs: async (id) => (await jobs.list(id)).some((job) => job.status === 'running' || job.status === 'stopping'),
       quiesce: (ids, task) =>
         schedules.quiesceSessions(ids, async () => {
+          await titles.settle(ids)
           await jobs.settleSessions(ids)
           return task()
         }),
@@ -717,7 +721,7 @@ const AppLive = Layer.effect(
       hub,
       sessions,
       providers,
-      firstSend: new FirstSendService({ store, sessions, chatsRoot: config.chatsRoot }),
+      firstSend: new FirstSendService({ store, sessions, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
       projects: new ProjectService(store),
