@@ -171,6 +171,13 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       projectPatches.set(id, updated)
       return updated
     },
+    moveSession: async (id, projectId) => {
+      const current = sessionList.find((session) => session.id === id)
+      if (!current) throw new Error('Session not found')
+      const updated = { ...current, projectId }
+      sessionList = sessionList.map((session) => (session.id === id ? updated : session))
+      return updated
+    },
     setSessionPinned: async (id, pinned) => {
       const current = sessionList.find((session) => session.id === id)
       if (!current) throw new Error('Session not found')

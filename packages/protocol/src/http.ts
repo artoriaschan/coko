@@ -159,6 +159,9 @@ export type FirstSendResponse = Static<typeof FirstSendResponse>
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
 export type SessionListResponse = Static<typeof SessionListResponse>
 
+export const MoveSessionRequest = Type.Object({ projectId: Type.Union([Id, Type.Null()]) }, strict)
+export type MoveSessionRequest = Static<typeof MoveSessionRequest>
+
 export const SetSessionPinRequest = Type.Object({ pinned: Type.Boolean() }, strict)
 export type SetSessionPinRequest = Static<typeof SetSessionPinRequest>
 

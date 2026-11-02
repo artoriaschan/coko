@@ -109,6 +109,7 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
     setProjectPinned: (id: string, pinned: boolean) => call(Project, 'PUT', apiPaths.projectPin(id), { pinned }),
     renameProject: (id: string, name: string) => call(Project, 'PUT', apiPaths.projectName(id), { name }),
+    moveSession: (id: string, projectId: string | null) => call(Session, 'PUT', apiPaths.sessionProject(id), { projectId }),
     setSessionPinned: (id: string, pinned: boolean) => call(Session, 'PUT', apiPaths.sessionPin(id), { pinned }),
     deleteSession: (id: string) => call(DeleteSessionResponse, 'DELETE', apiPaths.session(id)),
     renameSession: (id: string, title: string) => call(Session, 'PUT', apiPaths.sessionTitle(id), { title }),
