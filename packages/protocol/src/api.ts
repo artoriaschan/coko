@@ -9,6 +9,7 @@ export const API_ROUTES = {
   stream: '/api/ws',
   workspaces: '/api/workspaces',
   projects: '/api/projects',
+  projectFolderCheck: '/api/projects/check-folder',
   sessions: '/api/sessions',
   firstSend: '/api/chats/first-send',
   settings: '/api/settings',

@@ -17,6 +17,8 @@ export interface Project {
   name: string
   primaryWorkspaceId: string
   additionalFolders: string[]
+  /** 主要文件夹在完整有序列表中的位置；旧项目为 0。 */
+  primaryFolderIndex: number
   pinnedAt: number | null
   createdAt: number
 }
@@ -24,8 +26,9 @@ export interface NewProject {
   name: string
   primaryWorkspaceId: string
   additionalFolders?: string[]
+  primaryFolderIndex?: number
 }
-export type ProjectPatch = Partial<Pick<Project, 'name' | 'primaryWorkspaceId' | 'additionalFolders' | 'pinnedAt'>>
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'primaryWorkspaceId' | 'additionalFolders' | 'primaryFolderIndex' | 'pinnedAt'>>
 export interface ProjectRepository {
   create(input: NewProject): Promise<Project>
   get(id: string): Promise<Project | undefined>

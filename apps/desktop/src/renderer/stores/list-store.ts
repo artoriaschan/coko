@@ -53,6 +53,7 @@ export interface ListState extends ListDisplay {
   visibleCounts: Record<string, number>
 }
 export interface ListActions {
+  upsertProject(project: Project): void
   load(): Promise<boolean>
   setPinned(id: string, pinned: boolean): Promise<boolean>
   renameSession(id: string, title: string): Promise<boolean>
@@ -89,6 +90,22 @@ export function createListStore(api: ApiClient): ListStore {
       workspaces: [],
       projects: [],
       sessions: [],
+      upsertProject(project) {
+        set((state) => ({
+          projects: [...state.projects.filter((item) => item.id !== project.id), project],
+          workspaces: state.workspaces.some((workspace) => workspace.id === project.primaryWorkspaceId)
+            ? state.workspaces
+            : [
+                ...state.workspaces,
+                {
+                  id: project.primaryWorkspaceId,
+                  path: project.folders.find((folder) => folder.primary)!.path,
+                  name: project.name,
+                  createdAt: project.createdAt,
+                },
+              ],
+        }))
+      },
       listStatus: 'idle',
       ...initial,
       reorderCategories(first) {

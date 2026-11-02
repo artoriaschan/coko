@@ -41,6 +41,19 @@ export type Project = Static<typeof Project>
 export const ProjectListResponse = Type.Object({ projects: Type.Array(Project) }, strict)
 export type ProjectListResponse = Static<typeof ProjectListResponse>
 
+export const ProjectFields = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 50 }),
+    folders: Type.Array(Type.Object({ path: Type.String({ minLength: 1 }), primary: Type.Boolean() }, strict), { minItems: 1 }),
+  },
+  strict,
+)
+export type ProjectFields = Static<typeof ProjectFields>
+export const CreateProjectResponse = Type.Object({ status: Type.Union([Type.Literal('created'), Type.Literal('existing')]), project: Project }, strict)
+export type CreateProjectResponse = Static<typeof CreateProjectResponse>
+export const CheckProjectFolderRequest = Type.Object({ path: Type.String({ minLength: 1 }) }, strict)
+export const CheckProjectFolderResponse = Type.Object({ path: Type.String() }, strict)
+
 // ---- Thinking Level ----
 
 /** 除 off 外的六档，按固定顺序。 */

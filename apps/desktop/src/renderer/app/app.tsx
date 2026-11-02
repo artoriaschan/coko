@@ -12,6 +12,7 @@ import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { SettingsPage } from '../features/settings/settings-page.tsx'
 import { Sidebar } from '../features/sidebar/sidebar.tsx'
 import { SidebarRail } from '../features/sidebar/sidebar-rail.tsx'
+import { ProjectDialogsProvider, useCreateProject } from '../features/projects/project-dialogs.tsx'
 import { I18nProvider, useI18n } from './i18n.tsx'
 import type { Preferences } from './preferences.ts'
 import type { SettingsPageStore } from './settings-page-store.ts'
@@ -103,54 +104,63 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
   const [rightOpen, setRightOpen] = React.useState(false)
   const [search, setSearch] = React.useState<string | null>(null)
 
-  const onAddWorkspace = () => void chat.getState().addWorkspace(pickDirectory)
-
   return (
     <I18nProvider locale={locale}>
       <ChatStoreProvider store={chat}>
         <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
           <WorkbenchNavigationContext.Provider value={navigation}>
             <TooltipProvider>
-              <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
-                {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
-                <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
-                  <Frame
-                    sidebarWidth={sidebarWidth}
-                    onSidebarWidthChange={setSidebarWidth}
-                    sidebarCollapsed={sidebarCollapsed}
-                    onSidebarCollapsedChange={setSidebarCollapsed}
-                    rightOpen={rightOpen && contentPage === null}
-                    sidebar={<Sidebar onAddWorkspace={onAddWorkspace} search={search} onSearchChange={setSearch} />}
-                    rail={<SidebarRail onAddWorkspace={onAddWorkspace} onSearch={() => setSearch((current) => current ?? '')} />}
-                    rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
-                  >
-                    <div
-                      hidden={contentPage !== null}
-                      inert={contentPage !== null || undefined}
-                      className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+              <ProjectDialogsProvider pickDirectory={pickDirectory}>
+                <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
+                  {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
+                  <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
+                    <Frame
+                      sidebarWidth={sidebarWidth}
+                      onSidebarWidthChange={setSidebarWidth}
+                      sidebarCollapsed={sidebarCollapsed}
+                      onSidebarCollapsedChange={setSidebarCollapsed}
+                      rightOpen={rightOpen && contentPage === null}
+                      sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
+                      rail={<ProjectRail onSearch={() => setSearch((current) => current ?? '')} />}
+                      rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
                     >
-                      <ConversationPane
-                        theme={theme}
-                        rightOpen={rightOpen && contentPage === null}
-                        onToggleRight={() => setRightOpen((open) => !open)}
-                        connection={connectionState}
-                        onAddWorkspace={onAddWorkspace}
-                        onOpenLogs={openLogs}
-                        composerRef={composer}
-                      />
-                    </div>
-                    {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
-                  </Frame>
+                      <div
+                        hidden={contentPage !== null}
+                        inert={contentPage !== null || undefined}
+                        className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+                      >
+                        <ConversationPane
+                          theme={theme}
+                          rightOpen={rightOpen && contentPage === null}
+                          onToggleRight={() => setRightOpen((open) => !open)}
+                          connection={connectionState}
+                          onAddWorkspace={() => {}}
+                          onOpenLogs={openLogs}
+                          composerRef={composer}
+                        />
+                      </div>
+                      {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
+                    </Frame>
+                  </div>
+                  <SettingsPage theme={theme} />
                 </div>
-                <SettingsPage theme={theme} />
-              </div>
-              <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+                <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+              </ProjectDialogsProvider>
             </TooltipProvider>
           </WorkbenchNavigationContext.Provider>
         </SettingsProvider>
       </ChatStoreProvider>
     </I18nProvider>
   )
+}
+
+function ProjectSidebar(props: Omit<React.ComponentProps<typeof Sidebar>, 'onAddWorkspace'>) {
+  const createProject = useCreateProject()
+  return <Sidebar {...props} onAddWorkspace={() => createProject?.()} />
+}
+function ProjectRail({ onSearch }: { onSearch: () => void }) {
+  const createProject = useCreateProject()
+  return <SidebarRail onAddWorkspace={() => createProject?.()} onSearch={onSearch} />
 }
 
 /** 注入已本地化的框架无障碍名称。 */
