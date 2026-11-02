@@ -1,0 +1,22 @@
+.scratch/conversation-workbench/issues/14-project-card-edit-menu.md
+  s_64e2ce1bfde668::t_5558cbe416cfde 17-48
+  s_64e2ce1bfde668::t_6705bed15b0760 49
+packages/i18n/src/index.test.ts
+  s_64e2ce1bfde668::t_4fabb52332fb32 35-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "a9d09ddabe4457a27053d9b1808a51ee7741dc8a",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
