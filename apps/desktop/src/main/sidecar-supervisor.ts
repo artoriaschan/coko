@@ -40,12 +40,16 @@ export class SidecarSupervisor {
   #failures = 0
   #stopped = false
   #restarting: Promise<void> | undefined
+  /** 进行中的计划重启（reload）；期间收到的 reload 合并为它结束后的一次。 */
+  #reloading: Promise<void> | undefined
+  #reloadPending = false
   /** 进行中的启动（spawn → ready → 交换）；stop 先中止它的交换请求并等它结束，再停止进程。 */
   #launching: { readonly abort: AbortController; readonly done: Promise<unknown> } | undefined
   #startPromise: Promise<SupervisorState> | undefined
   readonly #stateListeners = new Set<(state: SupervisorState) => void>()
   readonly #exitListeners = new Set<(info: SidecarExitInfo & { diagnostic: string }) => void>()
   readonly #controlListeners = new Set<(message: SidecarToMainMessage) => void>()
+  readonly #unavailableListeners = new Set<() => void>()
 
   constructor(options: SupervisorOptions) {
     this.#options = { maxRestarts: 3, restartDelaysMs: [250, 1000, 3000], stableMs: 60_000, ...options }
@@ -77,6 +81,12 @@ export class SidecarSupervisor {
   onUnexpectedExit(listener: (info: SidecarExitInfo & { diagnostic: string }) => void): () => void {
     this.#exitListeners.add(listener)
     return () => this.#exitListeners.delete(listener)
+  }
+
+  /** 当前进程不再回答控制请求：ready 之后的意外退出，或计划重启（reload）停止它之前。 */
+  onUnavailable(listener: () => void): () => void {
+    this.#unavailableListeners.add(listener)
+    return () => this.#unavailableListeners.delete(listener)
   }
 
   /** 当前及之后每个 sidecar 进程的控制消息（credential.*）。 */
@@ -111,6 +121,46 @@ export class SidecarSupervisor {
     return this.#startPromise
   }
 
+  /**
+   * 计划重启（开发时 Sidecar 重新构建后）：分级停止当前进程，启动新进程并重新交换 cookie，状态经 restarting 回到 ready。
+   * 不计入故障次数；新进程启动失败时直接进入 failed（reason crashed），不按退避重试，下一次 reload 可以从 failed 恢复。
+   * 首次启动完成前调用时等它结束；首次启动失败（reason startup）或已 stop 时不做任何事。
+   */
+  reload(): Promise<void> {
+    if (this.#reloading) {
+      this.#reloadPending = true
+      return this.#reloading
+    }
+    const run = this.#runReloads().finally(() => {
+      if (this.#reloading === run) this.#reloading = undefined
+    })
+    this.#reloading = run
+    return run
+  }
+
+  async #runReloads(): Promise<void> {
+    do {
+      this.#reloadPending = false
+      await this.#startPromise
+      await this.#restarting
+      const state = this.#state
+      if (this.#stopped || state.phase === 'idle' || (state.phase === 'failed' && state.reason === 'startup')) return
+      const previous = this.#process
+      // 先解除当前进程：它在停止途中的退出不再触发崩溃重启。
+      this.#process = undefined
+      this.#endpoint = undefined
+      this.#set({ phase: 'restarting', attempt: 1 })
+      for (const listener of this.#unavailableListeners) listener()
+      await previous?.stop().catch(() => undefined)
+      if (this.#stopped) return
+      const outcome = await this.#launch()
+      if (this.#stopped) return
+      this.#failures = 0
+      if (outcome.ok) this.#set({ phase: 'ready', port: outcome.port })
+      else this.#set({ phase: 'failed', reason: 'crashed', error: outcome.error, diagnostic: outcome.diagnostic })
+    } while (this.#reloadPending && !this.#stopped)
+  }
+
   /** 停止当前进程（分级退出）并中断进行中的重启。可重复调用。 */
   async stop(): Promise<void> {
     this.#stopped = true
@@ -123,6 +173,7 @@ export class SidecarSupervisor {
     }
     await this.#process?.stop().catch(() => undefined)
     await this.#restarting
+    await this.#reloading
     await this.#process?.stop().catch(() => undefined)
     if (this.#state.phase !== 'stopped') this.#set({ phase: 'stopped' })
   }
@@ -173,6 +224,7 @@ export class SidecarSupervisor {
     if (sidecar !== this.#process) return
     this.#endpoint = undefined
     for (const listener of this.#exitListeners) listener({ ...info, diagnostic: sidecar.stderrTail })
+    for (const listener of this.#unavailableListeners) listener()
     if (this.#stopped) return
     // 稳定运行过一段时间再退出：视为新的一次故障。
     if (Date.now() - this.#readyAt >= this.#options.stableMs) this.#failures = 0

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的桌面交付：Forge 的 ZIP / DMG makers 与 make 脚本、COKO_FORGE_OUT_DIR、appdmg 链的安装脚本裁决，main 的 UpdateCoordinator（构建期更新源、disabled 原因、autoUpdater 事件到 UpdateStatus 的映射、检查调度、经退出确认的安装），设置 → 关于，发布构建与测试构建的差异，以及两类 E2E 入口（测试构建的本地 feed、COKO_RELEASE_E2E 的发布构建）。修改打包、更新或发布构建前查阅。"
+description: "当前的桌面交付：开发运行（electron-forge start 的 watch、Electron 与 Sidecar 的重启），Forge 的 ZIP / DMG makers 与 make 脚本、COKO_FORGE_OUT_DIR、appdmg 链的安装脚本裁决，main 的 UpdateCoordinator（构建期更新源、disabled 原因、autoUpdater 事件到 UpdateStatus 的映射、检查调度、经退出确认的安装），设置 → 关于，发布构建与测试构建的差异，以及两类 E2E 入口（测试构建的本地 feed、COKO_RELEASE_E2E 的发布构建）。修改打包、更新或发布构建前查阅。"
 lifecycle: active
 ---
 
@@ -12,14 +12,29 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `apps/desktop/forge.config.ts` | `outDir`（`COKO_FORGE_OUT_DIR`，缺省 `out`）、`MakerZIP({}, ['darwin'])`、`MakerDMG({ format: 'ULFO' })`、Fuses、prePackage 构建 |
-| `apps/desktop/build/build.ts` | 构建期定义：`__COKO_TEST_BUILD__`、`__COKO_UPDATE_FEED__`（main）、`__COKO_RUNTIME_VERSIONS__`（renderer 的关于页） |
+| `apps/desktop/forge.config.ts` | `outDir`（`COKO_FORGE_OUT_DIR`，缺省 `out`）、`MakerZIP({}, ['darwin'])`、`MakerDMG({ format: 'ULFO' })`、Fuses、preStart 的 watch 与开发服务器、prePackage 构建 |
+| `apps/desktop/build/build.ts` | 构建期定义：`__COKO_TEST_BUILD__`、`__COKO_UPDATE_FEED__`（main）、`__COKO_RUNTIME_VERSIONS__`（renderer 的关于页）；`watchElectron`、`watchSidecar`、Sidecar 重建通知文件 |
+| `apps/desktop/src/main/dev-reload.ts`、`sidecar-supervisor.ts` 的 `reload` | 开发时 Sidecar 重建后的计划重启 |
 | `apps/desktop/src/main/build-flags.ts` | `TEST_BUILD`、`UPDATE_FEED`、`resolveUpdateFeed`、`ignoredTestHooks` |
 | `apps/desktop/src/main/update-coordinator.ts` | `createUpdateCoordinator`：状态、调度、日志与安装；autoUpdater 与退出流程由 `index.ts` 注入 |
 | `apps/desktop/src/shared/bridge.ts`、`src/preload/` | `UpdateStatus`；`onUpdateStatus`（订阅时先给出当前状态）、`checkForUpdates`、`installUpdate` |
 | `apps/desktop/src/renderer/stores/update-store.ts`、`features/settings/about-section.tsx` | 关于页的更新状态与操作 |
 | `apps/desktop/e2e/update.e2e.test.ts` | 测试构建的打包产物 + 本地 feed |
 | `apps/desktop/vitest.release.config.ts`、`e2e-release/` | `desktop-release` 项目：发布构建 + make + 产物断言 |
+
+## 开发运行
+
+`pnpm --filter @coko/desktop start`（`electron-forge start`）的 preStart 依次：复制 ripgrep；启动 main / preload 与 Sidecar 的 tsdown watch 构建，两者首次构建都成功后启动 renderer 的 Vite 开发服务器（middleware 模式，HMR 复用同一端口），再由 Forge 启动 Electron。首次构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
+
+| 改动范围 | 结果 |
+| --- | --- |
+| renderer（`src/renderer` 及其引入的共享模块） | Vite HMR，窗口与 Sidecar 不重启 |
+| main / preload（`src/main`、`src/preload` 及其引入的模块） | 重建后经 Forge 的 `requestAppRestart` 重启 Electron（与在终端输入 `rs` 或在 Forge 界面按 `r` 相同）；旧 main 退出时按正常退出收尾并停止它的 Sidecar。main 与 preload 在 200 毫秒内的重建合并为一次重启 |
+| Sidecar（`apps/server` 及其引入的 packages） | 重建后 `build.ts` 原子替换 `dist/dev/sidecar-build`（经 `COKO_SIDECAR_RELOAD_FILE` 交给 main，不进安装包）；main 监视所在目录，内容变化时调用 `SidecarSupervisor.reload()` |
+
+`reload()` 是计划重启：先通知控制通道当前进程不可用（等待中的请求被拒绝），分级停止当前进程（不触发意外退出与崩溃重启），启动新进程并重新交换 cookie。状态经 `restarting` 回到 `ready`，renderer 与崩溃重启时一样连向新地址并以 afterSeq 补齐；不计入连续故障次数。新进程启动失败时直接进入 `failed { reason: crashed }`，不按退避重试，修复后的下一次重建可以从这里恢复到 `ready`。进行中的 reload 期间的重建合并为它结束后的一次。Sidecar 首次启动失败（`reason: startup`）时 reload 不做任何事，需要重启 Electron。
+
+已知限制：tsdown 的 watch 在 stdin 上注册了自己的快捷键（`r`、`c`、`q` 加回车；`q` 会直接结束 Forge 进程）。只对未打包的运行生效：main 只在 `!app.isPackaged` 时读取 `COKO_SIDECAR_RELOAD_FILE`。
 
 ## 安装包
 
@@ -71,6 +86,7 @@ lifecycle: active
 
 ## 验证入口
 
+- 开发运行：`sidecar-supervisor.test.ts`（reload 换进程且旧进程经 shutdown 退出、不触发意外退出；新进程失败进入 failed 后再次 reload 恢复；并发 reload 合并；首次启动失败后不动作；reload 途中 stop）、`dev-reload.test.ts`（原子替换触发、内容未变与其他文件不触发、close 后不触发）。`electron-forge start` 的整条链路没有自动化测试，2026-11-02 本机手动验证：改 `apps/server/src/index.ts` 后 Electron 进程不变、Sidecar 约 0.3 秒后重新 ready；改 `src/main` 后 Electron 重启、旧 Sidecar 退出、新 Sidecar ready；结束 Electron 后 Forge 退出，没有残留进程。
 - main 单元：`update-coordinator.test.ts`（两种 disabled、事件映射、调度、去重、同步抛出、脱敏、经确认的安装与取消）、`build-flags.test.ts`（发布构建不读 `COKO_TEST_UPDATE_FEED_URL`、被忽略的名字）。
 - renderer：`update-store.test.ts`、`about-section.browser.test.tsx`（各状态文案、键盘、明暗主题对比度）。
 - 测试构建 E2E `update.e2e.test.ts`（darwin）：本地 feed（loopback 端口 0）收到 main 的请求；204 → 已是最新；返回一个更新（下载内容不是签名应用）→ `error`，应用与 Sidecar 仍在，按钮与键盘触发新请求，明暗主题。
