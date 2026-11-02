@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import type { Session } from '@coko/protocol'
-import { Dialog, DialogContent, DialogTitle, DropdownMenuItem, InlineRename, Input, toast, type RowMenuPoint } from '@coko/ui'
+import { Dialog, DialogContent, DialogTitle, DropdownMenuItem, InlineRename, Input, SidebarListRow, toast, type RowMenuPoint } from '@coko/ui'
 import { MessageCircleIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -167,7 +167,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                     />
                   </div>
                 ) : (
-                  <button
+                  <SidebarListRow
                     type="button"
                     id={`${listId}-${session.id}`}
                     role="option"
@@ -175,7 +175,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                     aria-selected={selected?.id === session.id}
                     aria-label={title}
                     data-search-session={session.id}
-                    className="focus-ring flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-ui-body hover:bg-accent aria-selected:bg-accent"
+                    className="aria-selected:bg-accent"
                     onPointerMove={() => setCurrent(index)}
                     onClick={() => choose(session)}
                     onContextMenu={(event) => {
@@ -198,7 +198,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                     <time dateTime={new Date(session.updatedAt).toISOString()} className="shrink-0 text-ui-small text-muted-foreground">
                       {relativeTime(session.updatedAt)}
                     </time>
-                  </button>
+                  </SidebarListRow>
                 )}
               </div>
             )
