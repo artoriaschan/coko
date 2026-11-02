@@ -26,10 +26,10 @@ describe('Seatbelt profile', () => {
 })
 
 describe('受保护路径', () => {
-  it('可写根之后对每个根下任意深度的受保护名字追加 deny（不区分大小写，根中的正则字符按字面匹配）', () => {
+  it('可写根之后对任意深度的受保护名字追加 deny（不区分大小写，不插入根路径）', () => {
     const profile = seatbeltProfile({ mode: 'workspace-write', writableRoots: ['/w/a.b'], protectedNames: ['.git'] })
     expect(profile).toBe(
-      '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "/w/a.b")) (deny file-write* (regex #"^/w/a[.]b/(.*/)?([.][gG][iI][tT])(/|$)"))',
+      '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "/w/a.b")) (deny file-write* (regex #"^/(.*/)?([.][gG][iI][tT])(/|$)"))',
     )
   })
 
@@ -97,6 +97,25 @@ describe.skipIf(!darwin)('真实 sandbox-exec（只在 darwin 运行：其他平
     expect(await exists(join(workspace, '.git', 'hooks', 'pre-commit'))).toBe(false)
     expect(await exists(join(workspace, '.coko'))).toBe(false)
     expect((await run('echo ok > .gitignore && mkdir -p src/git && echo ok > src/git/x', 'workspace-write')).outcome).toEqual({ kind: 'exited', exitCode: 0 })
+  })
+
+  it.each(['quote"', 'back\\slash', 'close]', 'caret^'])('特殊字符附加根 %s：普通写入成功，受保护文件保持不变', async (name) => {
+    const extra = join(workspace, name)
+    await mkdir(join(extra, '.git'), { recursive: true })
+    const port = createLocalExecPort({ sandbox: createSeatbeltSandbox(await probeSeatbelt()) })
+    const quote = (text: string) => "'" + text.replaceAll("'", "'\\''") + "'"
+    const policy = { mode: 'workspace-write' as const, writableRoots: [extra], protectedNames: PROTECTED_PATH_NAMES }
+    expect(await port.exec({ command: `printf ok > ${quote(join(extra, 'ok'))}`, cwd: workspace, onData() {}, sandbox: policy })).toEqual({
+      kind: 'exited',
+      exitCode: 0,
+    })
+    expect(await readFile(join(extra, 'ok'), 'utf8')).toBe('ok')
+    expect(await port.exec({ command: `printf bad > ${quote(join(extra, '.git', 'config'))}`, cwd: workspace, onData() {}, sandbox: policy })).toEqual({
+      kind: 'exited',
+      exitCode: 1,
+      sandboxDenied: true,
+    })
+    expect(await exists(join(extra, '.git', 'config'))).toBe(false)
   })
 
   it('read-only：Workspace 内也不能写；/dev/null 可写', async () => {

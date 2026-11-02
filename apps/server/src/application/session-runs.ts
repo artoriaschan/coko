@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises'
+import { isAbsolute, relative, sep } from 'node:path'
 import { type ImageAttachment } from '@coko/protocol'
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
 // 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
@@ -195,6 +197,7 @@ interface RunContext {
   /** 观察 hook，排在登记明文替换之后（收到已脱敏的结果）。 */
   observe: ReturnType<typeof dynamicHooks>
   readRoots: readonly string[]
+  workspaceRoots: readonly string[]
   /** 该 Run 的外部 Hook 权限端口；没有时 gate 与没有 Hook 时相同。 */
   permissionHooks: PermissionHookPort | undefined
 }
@@ -318,6 +321,38 @@ export class SessionRuns {
     return { workspace, cwd: await (this.#options.cwd ?? workspaceCwd).resolve(session, workspace) }
   }
 
+  /** 只拓宽文件能力；配置发现始终只接收固定 cwd。子 Session 从持久化父链取根归属。 */
+  async #workspaceRoots(session: StoredSession, cwd: string): Promise<readonly string[]> {
+    const store = this.#options.store
+    let root = session
+    const visited = new Set<string>()
+    while (root.parentSessionId && !visited.has(root.id)) {
+      visited.add(root.id)
+      root = await requireSession(store, root.parentSessionId)
+    }
+    const project = root.projectId ? await store.projects.get(root.projectId) : undefined
+    const primary = project ? await store.sessions.getWorkspace(project.primaryWorkspaceId) : undefined
+    const roots = await Promise.all(
+      [cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
+        realpath(path).catch(() => (index === 0 ? cwd : undefined)),
+      ),
+    )
+    // Worktree 的来源不随项目移动/更换主要文件夹而改变。拒绝重叠根，避免祖先目录重新授予主检出。
+    const worktree = session.worktreeId ? await store.worktrees.get(session.worktreeId) : undefined
+    const original = worktree ? await realpath(worktree.repoRoot).catch(() => worktree.repoRoot) : undefined
+    const contains = (a: string, b: string) => {
+      const rel = relative(a, b)
+      return rel === '' || (!rel.startsWith('..' + sep) && rel !== '..' && !isAbsolute(rel))
+    }
+    return Object.freeze([
+      ...new Set(
+        roots.filter(
+          (path, index): path is string => path !== undefined && (index === 0 || !original || (!contains(path, original) && !contains(original, path))),
+        ),
+      ),
+    ])
+  }
+
   async scope(session: StoredSession): Promise<ContextScope> {
     const { cwd } = await this.cwd(session)
     const permissions = this.#options.permissions
@@ -385,7 +420,11 @@ export class SessionRuns {
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 每个 Run 开始时向上下文装配取值（工具、读取根、hook）；取值之后再检查，检查与开始 Run 之间没有 await。
     const scope = await this.scope(session)
-    const [contributed, readRoots] = await Promise.all([context.tools(scope), context.readRoots(scope)])
+    const [contributed, readRoots, workspaceRoots] = await Promise.all([
+      context.tools(scope),
+      context.readRoots(scope),
+      this.#workspaceRoots(session, scope.cwd),
+    ])
     const hooks = context.hooks(scope)
     const admission = context.admissionHooks(scope)
     const observe = context.observeHooks(scope)
@@ -402,6 +441,7 @@ export class SessionRuns {
       runContext.admission.set(admission)
       runContext.observe.set(observe)
       runContext.readRoots = readRoots
+      runContext.workspaceRoots = workspaceRoots
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
       const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
@@ -642,6 +682,7 @@ export class SessionRuns {
       admission: dynamicHooks(),
       observe: dynamicHooks(),
       readRoots: [],
+      workspaceRoots: [],
       permissionHooks: undefined,
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
@@ -665,6 +706,7 @@ export class SessionRuns {
       permissions: {
         ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id, cwd),
         readRoots: () => runContext.readRoots,
+        workspaceRoots: () => runContext.workspaceRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
         hooks: {
           preToolUse: (call, signal) => runContext.permissionHooks?.preToolUse(call, signal) ?? NO_VERDICT,
