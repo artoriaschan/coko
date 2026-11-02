@@ -1,0 +1,90 @@
+apps/desktop/e2e/open-session.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 9,44
+apps/desktop/e2e/rewind.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,35
+apps/desktop/e2e/ripgrep-logging.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 6,52
+apps/desktop/e2e/plan.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,26
+  s_64e2ce1bfde668::t_d47a2a8847eeb1 27-29,34-39
+  s_64e2ce1bfde668::t_9aadeb9e12c82d 30-33
+apps/desktop/e2e/subagents.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 9,131
+apps/desktop/e2e/memory.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,34
+apps/desktop/e2e/chat.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 6,41
+apps/desktop/e2e/lsp.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,39
+apps/desktop/e2e/provider-delete.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 9,78
+apps/desktop/e2e/harness.ts
+  s_64e2ce1bfde668::t_9aadeb9e12c82d 194-197
+  s_64e2ce1bfde668::t_7b73699bdf1c59 185-193,198-199,201-204
+  s_64e2ce1bfde668::t_c156daeb7b3477 200
+apps/desktop/e2e/recovery.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,32
+apps/desktop/e2e/schedules.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 9,29
+apps/desktop/e2e/trace.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 9,87
+apps/desktop/e2e/jobs.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,29
+apps/desktop/e2e/approvals.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 6,22
+apps/desktop/e2e/references-drafts.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,36
+apps/desktop/e2e/goal.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 10,69
+apps/desktop/e2e/commands.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,29
+apps/desktop/e2e/skills.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 9,49
+apps/desktop/e2e/sandbox.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,25
+apps/desktop/e2e/hooks.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,30
+apps/desktop/e2e/run-control.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,23
+apps/desktop/e2e/context.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 8,40
+apps/desktop/e2e/config.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 7,29,75
+apps/desktop/e2e/permissions.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,24
+apps/desktop/e2e/subagent-notifications.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 8,45
+apps/desktop/e2e/compaction.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 9,69
+apps/desktop/e2e/mcp-browser.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 10,64
+apps/desktop/e2e/settings.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 10,69
+apps/desktop/e2e/plugins.e2e.test.ts
+  s_64e2ce1bfde668::t_8c199a27453f9c 98
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 11
+apps/desktop/e2e/dock.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,24
+apps/desktop/e2e/handoff.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 11,115
+apps/desktop/e2e/teams.e2e.test.ts
+  s_64e2ce1bfde668::t_d7a3656ebd63d5 11,121
+apps/desktop/e2e/mcp.e2e.test.ts
+  s_64e2ce1bfde668::t_7b73699bdf1c59 8,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "7dc10a146e533057baccfed9ad61c584f9f52225",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
