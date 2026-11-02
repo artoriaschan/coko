@@ -140,6 +140,8 @@ it('pointer menus remain fully usable near the viewport edge and dismiss on outs
   row.element().dispatchEvent(event)
   const menu = page.getByRole('menu', { name: 'Conversation actions' })
   await expect.element(menu).toBeVisible()
+  // A resize notification queued before the context click can arrive after opening.
+  window.dispatchEvent(new Event('resize'))
   await expect.poll(() => menu.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(8)
   await expect.poll(() => menu.element().getBoundingClientRect().right).toBeLessThanOrEqual(382)
   const rect = menu.element().getBoundingClientRect()
@@ -149,6 +151,33 @@ it('pointer menus remain fully usable near the viewport edge and dismiss on outs
   expect(rect.bottom).toBeLessThanOrEqual(292)
   await userEvent.click(document.body, { position: { x: 10, y: 10 } })
   await expect.element(menu).not.toBeInTheDocument()
+})
+
+it.each(['pointer', 'more'])('%s menus ignore late resize notifications, retain keyboard navigation and close on a new viewport size', async (anchor) => {
+  await setup()
+  const row = page.getByRole('button', { name: 'Original title', exact: true })
+  const menu = page.getByRole('menu', { name: 'Conversation actions' })
+  const open = async () => {
+    if (anchor === 'pointer') {
+      const box = row.element().getBoundingClientRect()
+      row.element().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.left + 24, clientY: box.top + 15, button: 2 }))
+    } else {
+      await userEvent.hover(row)
+      await userEvent.click(page.getByRole('button', { name: 'More conversation actions' }))
+    }
+    await expect.element(menu).toBeVisible()
+  }
+  await open()
+  window.dispatchEvent(new Event('resize'))
+  await userEvent.keyboard('{ArrowDown}')
+  await expect.element(page.getByRole('menuitem', { name: 'Rename', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(menu).not.toBeInTheDocument()
+  await expect.element(row).toHaveFocus()
+  await open()
+  await page.viewport(960, 740)
+  await expect.element(menu).not.toBeInTheDocument()
+  await expect.element(row).toHaveFocus()
 })
 
 async function rename() {

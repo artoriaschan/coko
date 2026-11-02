@@ -64,3 +64,8 @@
 合入后的当前证据：`pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/stores/chat-store.test.ts` 退出 0，5 文件 / 47 用例通过。`pnpm run test apps/desktop/e2e/images.e2e.test.ts` 退出 0，当前构建真实 Electron 1 文件 / 1 用例通过，包含两个作用域重启恢复与实际 image-only 提交。lint、check:docs（246 / 0）、diff 检查退出 0。
 
 08 菜单的隔离失败由集成负责人在不包含本票代码的 `9f650408` 重现，确认为继承问题，另行修复；本票未修改 08 代码或断言。最终只提交本地，无推送。
+
+
+### 08 继承菜单失败已解决
+
+08 的后续修复已定位窗口缩放通知晚于菜单打开送达，SessionRow 原本无条件关闭；改为仅在打开后 viewport 尺寸真正变化时关闭。保留原边缘几何断言，并以尺寸不变的迟到 resize 固定回归，修复前失败、修复后通过；另验证两种入口的键盘和真实缩放关闭 / 焦点恢复。相关 Browser / 样式守卫 4 文件 / 68 项，以及真实 Electron 右键重命名与重启读回 1 项全部通过。详见 [08 后续修复证据](08-session-menu-rename.md#2026-11-03-后续修复窗口边缘菜单被迟到-resize-关闭)；上文 19 合并时的失败保留为历史记录，不再是当前已知问题。
