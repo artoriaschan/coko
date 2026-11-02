@@ -1,0 +1,60 @@
+packages/session/src/types.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 134-135
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 701-704
+apps/desktop/e2e/titles.e2e.test.ts
+  s_64e2ce1bfde668::t_1f725382cacf4c 16
+  s_64e2ce1bfde668::t_cd66365e68cbcd 1-10,12-15,17-31
+packages/protocol/src/trace.ts
+  s_64e2ce1bfde668::t_4f10dee4411c23 16
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 10,19
+tests/integration/sidecar-titles.test.ts
+  s_64e2ce1bfde668::t_6c8e313a17dd41 36-41
+  s_64e2ce1bfde668::t_27f6f477456005 5,43-49,51-64,66-85,88-89,91-97,104,108
+  s_64e2ce1bfde668::t_46c6792a7e3e7e 86-87,90
+  s_64e2ce1bfde668::t_69644de6337066 4,109-124,128-131,133-151,154-159,161-173
+docs/README.md
+  s_64e2ce1bfde668::t_4f10dee4411c23 28
+.scratch/conversation-workbench/issues/18-title-generation.md
+  s_64e2ce1bfde668::t_4f10dee4411c23 17-37
+apps/server/src/ws/connection.ts
+  s_64e2ce1bfde668::t_d6f75544d96256 17,25,41
+apps/server/src/application/first-send.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 34-35,91
+packages/protocol/src/ws.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 151-152
+apps/server/src/application/sessions.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 82,99,169-176
+packages/agent/src/engine/model-requests.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 82
+packages/session/src/sqlite/repositories.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 280-284,286
+apps/server/src/application/hub.ts
+  s_64e2ce1bfde668::t_d6f75544d96256 7,20-26,30-36
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 27-29,37-38
+packages/agent/src/index.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 144-145
+packages/session/src/memory/index.ts
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 266-269
+packages/agent/src/session-entries/observability.ts
+  s_64e2ce1bfde668::t_4f10dee4411c23 9
+  s_64e2ce1bfde668::t_8ebf724bbc23f0 10,22
+apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx
+  s_64e2ce1bfde668::t_cd66365e68cbcd 1-4,8-22,24-31,33-38,40-45,47-62,64,66-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "c6f335bd931ab3733420a41abefaee3b7e570433",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
