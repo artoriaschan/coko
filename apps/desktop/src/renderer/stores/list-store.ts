@@ -163,7 +163,8 @@ export function createListStore(api: ApiClient): ListStore {
       },
       async moveSession(id, projectId) {
         try {
-          get().patchSession(id, await api.moveSession(id, projectId))
+          const updated = await api.moveSession(id, projectId)
+          get().patchSession(id, { projectId: updated.projectId })
           return true
         } catch {
           return false
@@ -171,7 +172,8 @@ export function createListStore(api: ApiClient): ListStore {
       },
       async setPinned(id, pinned) {
         try {
-          get().patchSession(id, await api.setSessionPinned(id, pinned))
+          const updated = await api.setSessionPinned(id, pinned)
+          get().patchSession(id, { pinnedAt: updated.pinnedAt })
           return true
         } catch {
           return false

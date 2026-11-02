@@ -401,3 +401,28 @@ it('a first-send response cannot replace an already generated title with its old
   await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
   await expect.element(page.getByRole('button', { name: 'Old placeholder', exact: true })).not.toBeInTheDocument()
 })
+
+it.each(['pin', 'move'] as const)('%s responses preserve a generated title received while the action was in flight', async (action) => {
+  const fixture = await setup()
+  const id = fixtureSessions[0]!.id
+  if (action === 'pin') {
+    const update = fixture.api.setSessionPinned
+    fixture.api.setSessionPinned = async (...args) => {
+      const stale = await update(...args)
+      fixture.sendServer({ type: 'session_title', sessionId: id, title: 'Generated intent' })
+      return stale
+    }
+  } else {
+    const update = fixture.api.moveSession
+    fixture.api.moveSession = async (...args) => {
+      const stale = await update(...args)
+      fixture.sendServer({ type: 'session_title', sessionId: id, title: 'Generated intent' })
+      return stale
+    }
+  }
+  const lists = fixture.chat.lists.getState()
+  const result = action === 'pin' ? await lists.setPinned(id, true) : await lists.moveSession(id, null)
+  expect(result).toBe(true)
+  expect(fixture.chat.lists.getState().sessions.find((session) => session.id === id)?.title).toBe('Generated intent')
+  await expect.element(page.getByRole('button', { name: 'Generated intent', exact: true })).toBeVisible()
+})

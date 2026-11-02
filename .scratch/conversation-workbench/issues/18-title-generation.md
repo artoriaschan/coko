@@ -10,6 +10,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 **Write scope:** apps/server 的标题服务（请求、超时、条件写入、日志）与首次发送中的触发点；packages/session 的条件写入标题；packages/protocol 的 ModelRequestPurpose；费用汇总；`docs/subsystems/tracing.md`（新用途）与 workbench.md 的标题一节。
 
 **跨票接口：** `model_request` 在时间线、runAuthority 与 Goal 的用户输入判断中的现有处理不变；在 Comments 写明用途为 `title` 时这三处的结果。
@@ -40,3 +42,6 @@
 - 最后检查补充两个可重复的Browser竞态：列表HTTP快照早于实时标题事件、首次发送返回值的占位标题早于列表当前标题。修复前 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx -t 'a list refresh|a first-send response'` 2失败/20跳过，修复后2通过/20跳过。列表store保留刷新期间收到的标题变化，只采纳最新一次列表请求；首次发送不再用旧响应覆盖已载入会话。待确认标题变化在权威刷新后清理，会话删除同步清理。
 - 追加秘密字符边界：带引号与反斜线的非凭据Secret，在标题JSON数据经解码后仍为 `[REDACTED:secret]`；复用logging既有的JSON转义值脱敏能力，没有另建脱敏实现。Sidecar成功用例另验证没有Session订阅的列表连接也收到session_title。
 - 最终变更后的 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx apps/desktop/src/renderer/stores/chat-store-delete.test.ts tests/integration/secrets-gate-titles.test.ts tests/integration/sidecar-titles.test.ts`：6文件42例通过；`pnpm run typecheck` 退出0；`pnpm run test apps/desktop/e2e/titles.e2e.test.ts` 再次从当前源码构建，1例通过。已查看 `/tmp/coko-title-e2e.png`，生成标题在行与已打开详情卡片一致。
+
+- 已合并最终集成分支518b3e6，保留项目移入移出的完整实现。并在模型标题到达后、pin / move HTTP应答返回前的受控窗口补两例Browser：旧全量Session应答曾覆盖生成标题，修复前两例均失败；只提交操作拥有的 pinnedAt / projectId 后均通过，生成标题保持不变。该调整不改变服务端项目归属或权限语义。
+- 最终合并与这两处补丁后的命令：`pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx apps/desktop/src/renderer/stores/chat-store-delete.test.ts tests/integration/sidecar-titles.test.ts tests/integration/secrets-gate-titles.test.ts`：5文件51例全部通过；`pnpm run typecheck` 退出0。本票所需Sidecar/Browser/Electron、秘密总闸、条件存储、费用与文档要求均完成，Closed true。仅本地提交，未推送；此前已通过的未受最终两字段补丁影响的Electron/费用/仓库/Goal/Trace证据沿用。
