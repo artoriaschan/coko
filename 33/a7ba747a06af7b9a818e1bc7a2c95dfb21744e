@@ -1,0 +1,43 @@
+.scratch/conversation-workbench/evidence/23-closeout.md
+  s_64e2ce1bfde668::t_793783c5e6c0c6 214,282
+  s_64e2ce1bfde668::t_5bb85caa576b24 265-275
+  s_64e2ce1bfde668::t_23a2c647712485 276-281,283-286
+  s_64e2ce1bfde668::t_e46df011f393ae 243-264
+apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx
+  s_64e2ce1bfde668::t_c6a57978386922 159-165
+  s_64e2ce1bfde668::t_afce2166b48f78 187
+  s_64e2ce1bfde668::t_dabe013d17ce96 3,177-180,184-186,188-196
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_5bb85caa576b24 75
+  s_64e2ce1bfde668::t_563666a6cb62f0 45-46
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_64e2ce1bfde668::t_a562645949ace5 192-200
+  s_64e2ce1bfde668::t_afce2166b48f78 211
+.scratch/conversation-workbench/issues/23-closeout.md
+  s_64e2ce1bfde668::t_23a2c647712485 16-19,36-43,45-47
+  s_64e2ce1bfde668::t_793783c5e6c0c6 44
+.scratch/conversation-workbench/spec.md
+  s_64e2ce1bfde668::t_23a2c647712485 817
+.scratch/desktop-app/issues/08-grill-desktop-information-architecture.md
+  s_64e2ce1bfde668::t_23a2c647712485 34
+packages/protocol/README.md
+  s_64e2ce1bfde668::t_563666a6cb62f0 69,93,140,142
+.scratch/desktop-app/map.md
+  s_64e2ce1bfde668::t_23a2c647712485 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "33a7ba747a06af7b9a818e1bc7a2c95dfb21744e",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
