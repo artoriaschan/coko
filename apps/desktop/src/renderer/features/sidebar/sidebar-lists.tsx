@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { useChat, useChatActions, useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { SessionRow } from './session-row.tsx'
 
 export interface SidebarListsProps {
   onAddWorkspace: () => void
@@ -57,6 +58,9 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
     sessions.filter((session) => session.archivedAt === null && session.pinnedAt === null && session.title.toLocaleLowerCase().includes(needle)),
   )
   const standalone = visible.filter((session) => session.projectId === null)
+  const pinned = sessions
+    .filter((session) => session.archivedAt === null && session.pinnedAt !== null && session.title.toLocaleLowerCase().includes(needle))
+    .toSorted((a, b) => b.pinnedAt! - a.pinnedAt! || a.id.localeCompare(b.id))
   const lastUsed = new Map(projects.map((project) => [project.id, project.lastUsedAt]))
   for (const session of sessions) {
     if (session.projectId !== null) lastUsed.set(session.projectId, Math.max(lastUsed.get(session.projectId) ?? 0, session.updatedAt))
@@ -89,6 +93,24 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
         </div>
       )}
       {needle && visible.length === 0 && <p className="px-2 text-ui-body text-muted-foreground">{t('sidebar.noMatches')}</p>}
+      {pinned.length > 0 && (
+        <section data-category="pinned" className="mb-3" aria-labelledby="pinned-heading">
+          <SidebarCategoryHeader
+            id="pinned-heading"
+            name={t('sidebar.pinned')}
+            expanded={expanded.pinned ?? true}
+            onToggle={() => listActions.toggleCategory('pinned')}
+            muted
+          />
+          {(expanded.pinned ?? true) && (
+            <div className="flex flex-col gap-0.5">
+              {pinned.map((session) => (
+                <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} pinned />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
       {order.map((category) =>
         category === 'conversations' ? (
           <section
@@ -123,8 +145,13 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
                     }}
                     onMove={(first) => listActions.reorderCategories(first)}
                   />
-                  <IconButton label={t('sidebar.createConversation')} size="icon-sm" onClick={() => onNewSession()}>
-                    <SquarePenIcon />
+                  <IconButton
+                    label={t('sidebar.createConversation')}
+                    size="icon-xs"
+                    className="size-6 rounded-sm [&_svg]:size-3.5"
+                    onClick={() => onNewSession()}
+                  >
+                    <SquarePenIcon className="size-3.5" strokeWidth={1.1} />
                   </IconButton>
                 </>
               }
@@ -235,29 +262,6 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
         ),
       )}
     </nav>
-  )
-}
-
-function SessionRow({
-  session,
-  active,
-  onSelect,
-  nested = false,
-}: {
-  session: Session
-  active: string | null
-  onSelect: (id: string) => void
-  nested?: boolean
-}) {
-  const { t } = useI18n()
-  return (
-    <SidebarListRow data-session-id={session.id} aria-current={active === session.id ? 'page' : undefined} onClick={() => onSelect(session.id)}>
-      <span className={nested ? 'flex min-w-0 flex-1 items-center gap-2 pl-6' : 'flex min-w-0 flex-1 items-center gap-2'}>
-        <span data-user-content className="truncate">
-          {session.title.trim() || t('sidebar.untitled')}
-        </span>
-      </span>
-    </SidebarListRow>
   )
 }
 

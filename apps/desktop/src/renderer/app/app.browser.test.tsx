@@ -13,6 +13,29 @@ import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 import { settingsRegion } from '../testing/settings-page.ts'
 
+it('pinning and unpinning the open conversation preserve its content and editor DOM', async () => {
+  await page.viewport(1200, 900)
+  const fixture = renderApp('en')
+  await fixture.screen
+  await expect.element(page.getByRole('heading', { name: '设计 token 与三栏骨架', exact: true })).toBeVisible()
+  const heading = page.getByRole('heading', { name: '设计 token 与三栏骨架', exact: true }).element()
+  const editor = document.querySelector<HTMLElement>('[contenteditable="true"]')!
+  await userEvent.type(editor, 'Example retained draft')
+  const row = page.getByRole('button', { name: '设计 token 与三栏骨架', exact: true })
+  await userEvent.hover(row)
+  await userEvent.click(page.getByRole('button', { name: 'Pin conversation', exact: true }).first())
+  await expect.element(page.getByRole('heading', { name: 'Pinned', exact: true })).toBeVisible()
+  expect(page.getByRole('heading', { name: '设计 token 与三栏骨架', exact: true }).element()).toBe(heading)
+  expect(document.querySelector('[contenteditable="true"]')).toBe(editor)
+  expect(editor.textContent).toContain('Example retained draft')
+  await userEvent.hover(row)
+  await userEvent.click(page.getByRole('button', { name: 'Unpin conversation', exact: true }))
+  await expect.element(page.getByRole('heading', { name: 'Pinned', exact: true })).not.toBeInTheDocument()
+  expect(document.querySelector('[contenteditable="true"]')).toBe(editor)
+  expect(editor.textContent).toContain('Example retained draft')
+  expect(fixture.chat.getState().activeSessionId).toBe('s-1')
+})
+
 function leaves(value: unknown): string[] {
   return Object.values(value as Record<string, unknown>).flatMap((child) => (typeof child === 'string' ? [child] : leaves(child)))
 }

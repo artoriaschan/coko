@@ -1,0 +1,9 @@
+.fading-title[data-fade='right'] {
+  mask-image: linear-gradient(to right, var(--foreground) calc(100% - 12px), transparent);
+}
+.fading-title[data-fade='left'] {
+  mask-image: linear-gradient(to right, transparent, var(--foreground) 12px);
+}
+.fading-title[data-fade='both'] {
+  mask-image: linear-gradient(to right, transparent, var(--foreground) 12px, var(--foreground) calc(100% - 12px), transparent);
+}

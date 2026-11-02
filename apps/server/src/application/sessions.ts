@@ -236,6 +236,12 @@ export class SessionService {
     return Promise.all(sessions.map((session) => this.toDto(session)))
   }
 
+  async setPinned(sessionId: string, pinned: boolean): Promise<Session> {
+    const session = await requireSession(this.#store, sessionId)
+    if (session.parentSessionId !== null) throw new AppError('bad-request', 'Only root sessions can be pinned')
+    return this.toDto(await this.#store.sessions.setSessionOrganization(sessionId, { pinnedAt: pinned ? (session.pinnedAt ?? Date.now()) : null }))
+  }
+
   /** 子 Session（子代理）按创建顺序。 */
   async children(parentSessionId: string): Promise<Session[]> {
     return Promise.all((await this.#store.sessions.listChildren(parentSessionId)).map((session) => this.toDto(session)))

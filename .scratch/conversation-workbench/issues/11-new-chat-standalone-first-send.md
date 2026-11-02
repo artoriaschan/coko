@@ -52,3 +52,10 @@ TDD 与回归依据：首个 Sidecar 测试先因路由 404 失败；实现后�
 文档影响：首次发送与单份草稿 → workbench.md；专属目录与清理 → projects.md；EditorState 键与作用域切换 → context.md；上层导航摘要 → docs/README.md。搜索 coko.draft.workspace / Workspace 草稿 / titleFromText 消费者，修正被本票推翻的当前说明；工作目录相关 API 的 Workspace 参数仍为其他调用方保留。按 AGENTS → docs/README → 三篇正文读回：权威、生命周期、引用方向与保留原有章节通过，无正式文档反向依赖任务材料。
 
 未运行真实外部模型、发布构建 smoke 或 CI；faux 的真实 Electron/Sidecar 链路不代表外部模型验证。代码与证据仅本地提交，未推送。
+
+
+### 合入 07 后的验证
+
+实现提交 `5a85869` 后合入最新集成分支 `77b79d4`（07 会话详情与置顶）。文档导航与 zh/en 字典的新增项保留两票意图；新分类创建入口继续存在，置顶区和 SessionRow 使用 07 的共享实现。联合 Browser 用例捕获创建按钮 28px 与分类操作 24px 约定不符，已改为 24px 点击框、14px 图标和 1.1px 线宽，保留原几何断言。
+
+合入后的当前证据：`pnpm run test apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx` 的 SessionRow、welcome 与 app 三文件 37 用例通过，分类按钮几何的 1 例失败后只修改该按钮的尺寸；`pnpm run test apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx` 退出 0，8 用例通过（原 24px / 14px 断言保留）。`pnpm run test apps/desktop/e2e/first-send.e2e.test.ts apps/desktop/e2e/session-pinning.e2e.test.ts` 退出 0，真实 Electron 2 文件 / 3 用例通过，覆盖首次发送、失败重试和置顶后重启。合入后的 typecheck、lint、check:docs（246 / 0）、diff 检查均通过；无其他未解决冲突。
