@@ -1,5 +1,5 @@
-import { Button, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, LoaderCircleIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
+import { Button, cn, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
+import { ArrowUpIcon, LoaderCircleIcon, PaperclipIcon, PauseIcon, SettingsIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
@@ -27,6 +27,8 @@ export interface ComposerProps {
   onSetup: () => void
   /** 编辑区与发送按钮之间的控件（模型选择）。 */
   accessory?: React.ReactNode
+  /** 权限选择，位于计划状态之前。模型选择继续使用 accessory。 */
+  permissionControl?: React.ReactNode
   /** 底栏最前的 Plan chip 槽（plan 模式时显示）；没有内容时不占位。 */
   planChip?: React.ReactNode
   /** 焦点在编辑区时 Shift+Tab：切换到下一档 Permission Mode（不移动焦点）。 */
@@ -36,6 +38,10 @@ export interface ComposerProps {
   commandTarget?: CommandTarget | undefined
   /** @ 文件菜单的 Workspace（当前会话的或草稿的）。省略时没有文件菜单。 */
   fileWorkspaceId?: string | undefined
+  /** 固定的执行目录，仅用于将所选路径转换为与 @ 一致的相对引用。 */
+  fileWorkspacePath?: string | undefined
+  pickFiles?: () => Promise<readonly string[]>
+  getFilePath?: (file: File) => string
   /** 草稿持久化（测试注入）；缺省为应用内共用的 localStorage store。草稿按 commandTarget 区分，省略 commandTarget 时不持久化。 */
   drafts?: DraftStore
   /** 上下文用量与压缩进度（测试注入）；缺省为应用内共用的 store。 */
@@ -65,11 +71,15 @@ export function Composer({
   pausing = false,
   onSetup,
   accessory,
+  permissionControl,
   planChip,
   onCycleMode,
   className,
   commandTarget,
   fileWorkspaceId,
+  fileWorkspacePath,
+  pickFiles = () => window.coko?.pickFiles() ?? Promise.resolve([]),
+  getFilePath = (file) => window.coko?.getFilePath(file) ?? '',
   drafts: injectedDrafts,
   contextStore = defaultContextStore,
   ref,
@@ -79,6 +89,36 @@ export function Composer({
   const compacting = useStore(contextStore, (s) => sessionId !== undefined && s.compacting[sessionId] === true)
   const editor = React.useRef<ComposerEditorHandle>(null)
   const [empty, setEmpty] = React.useState(true)
+  const [attachmentError, setAttachmentError] = React.useState<string | null>(null)
+  const [picking, setPicking] = React.useState(false)
+  // 图片分支由图片附件能力接入；当前明确拒绝，不能把图片当普通路径发送。
+  const attach = (items: readonly { path: string; type?: string }[]) => {
+    if (disabled) return
+    let error: string | null = null
+    const additions: ({ fileReference: string } | { text: string })[] = []
+    for (const item of items) {
+      if (item.type?.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|bmp|svg|heic|avif|tiff?)$/i.test(item.path)) {
+        error = t('conversation.imagesUnavailable')
+        continue
+      }
+      if (!item.path.startsWith('/')) {
+        error = t('conversation.attachmentFailed')
+        continue
+      }
+      const root = fileWorkspacePath?.replace(/\/+$/, '')
+      const relative = root && item.path.startsWith(root + '/') ? item.path.slice(root.length + 1) : undefined
+      additions.push(relative ? { fileReference: relative } : { text: item.path })
+    }
+    if (additions.length > 0) editor.current?.insertAttachments(additions)
+    setAttachmentError(error)
+  }
+  const attachTransfer = (files: FileList) => {
+    try {
+      attach(Array.from(files, (file) => ({ path: getFilePath(file), type: file.type })))
+    } catch {
+      setAttachmentError(t('conversation.attachmentFailed'))
+    }
+  }
   const key = commandTarget ? draftKey(commandTarget) : undefined
   const drafts = React.useMemo(() => (key === undefined ? undefined : (injectedDrafts ?? appDraftStore())), [key === undefined, injectedDrafts])
   // 编辑区当前内容所属的草稿键；提交等待期间切换作用域时内容随之带到新键（不替换为新键的草稿）。
@@ -145,7 +185,21 @@ export function Composer({
   const sendLabel = running ? t('conversation.steeringHint') : setup ? t('models.configure') : t('conversation.send')
   return (
     <form
-      className={className}
+      data-slot="composer"
+      className={cn('relative flex h-30 flex-col gap-2 rounded-panel bg-background p-3 shadow-soft', compacting && 'h-auto min-h-30', className)}
+      onPasteCapture={(event) => {
+        if (event.clipboardData.files.length === 0) return
+        event.preventDefault()
+        attachTransfer(event.clipboardData.files)
+      }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+      }}
+      onDropCapture={(event) => {
+        if (event.dataTransfer.files.length === 0) return
+        event.preventDefault()
+        attachTransfer(event.dataTransfer.files)
+      }}
       // 只在编辑区内拦截 Shift+Tab；按钮等其他控件上的 Shift+Tab 仍按常规移动焦点。
       onKeyDownCapture={(event) => {
         if (!onCycleMode || event.key !== 'Tab' || !event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
@@ -159,6 +213,11 @@ export function Composer({
         else void editor.current?.submit()
       }}
     >
+      {attachmentError && (
+        <p role="alert" className="absolute bottom-full left-3 mb-2 text-ui-body text-destructive">
+          {attachmentError}
+        </p>
+      )}
       {compacting && (
         // 压缩进行中（自动或 /compact）：独占一行，排在编辑区之上；停止不提交 compaction 条目。
         <div role="status" data-slot="compaction-status" className="order-first flex w-full items-center gap-2 px-1 text-ui-body text-muted-foreground">
@@ -171,8 +230,8 @@ export function Composer({
       )}
       <ComposerEditor
         ref={editor}
-        // basis-0：长草稿不会把控件挤到下一行；只有控件本身放不下时才换行。
-        className="basis-0"
+        // 编辑区独立滚动，内边距由主输入框统一提供，长草稿不挤压工具栏。
+        className="min-h-0 [&_[contenteditable]]:h-full [&_[contenteditable]]:min-h-0 [&_[contenteditable]]:max-h-full [&_[contenteditable]]:p-0 [&_[contenteditable]]:outline-hidden [&_[data-slot=composer-placeholder]]:inset-x-0 [&_[data-slot=composer-placeholder]]:top-0"
         label={t('conversation.composerPlaceholder')}
         placeholder={t('conversation.composerPlaceholder')}
         disabled={disabled}
@@ -194,58 +253,87 @@ export function Composer({
         {commandTarget && <CommandMenu target={commandTarget} />}
         {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
       </ComposerEditor>
-      {planChip}
-      {accessory}
-      {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
-      {commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
-      {setup ? (
-        <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
-          <SettingsIcon />
-          {t('models.configure')}
-        </Button>
-      ) : (
-        <>
-          {(!running || !empty) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button type="submit" size="icon" aria-label={sendLabel} data-action={running ? 'steer' : 'send'} disabled={disabled || empty}>
-                  <ArrowUpIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{sendLabel}</TooltipContent>
-            </Tooltip>
-          )}
-          {running && (
-            <>
+      <div data-slot="composer-toolbar" className="flex h-8 shrink-0 items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon-toolbar"
+              variant="toolbar"
+              data-action="attach"
+              aria-label={t('conversation.attach')}
+              disabled={disabled || picking}
+              onClick={async () => {
+                setPicking(true)
+                try {
+                  attach((await pickFiles()).map((path) => ({ path })))
+                } catch {
+                  setAttachmentError(t('conversation.attachmentFailed'))
+                } finally {
+                  setPicking(false)
+                }
+              }}
+            >
+              <PaperclipIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('conversation.attach')}</TooltipContent>
+        </Tooltip>
+        {permissionControl}
+        {planChip}
+        <span className="min-w-0 flex-1" />
+        {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
+        {commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
+        {accessory}
+        {setup ? (
+          <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
+            <SettingsIcon />
+            {t('models.configure')}
+          </Button>
+        ) : (
+          <>
+            {(!running || !empty) && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    aria-label={pausing ? t('conversation.pausing') : t('conversation.pause')}
-                    data-action="pause"
-                    data-pausing={pausing || undefined}
-                    disabled={disabled || pausing}
-                    onClick={onPause}
-                  >
-                    <PauseIcon className="fill-current" />
+                  <Button type="submit" size="icon-toolbar" aria-label={sendLabel} data-action={running ? 'steer' : 'send'} disabled={disabled || empty}>
+                    <ArrowUpIcon />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">{pausing ? t('conversation.pausing') : t('conversation.pause')}</TooltipContent>
+                <TooltipContent side="top">{sendLabel}</TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button type="button" size="icon" aria-label={t('conversation.stop')} data-action="stop" disabled={disabled} onClick={onStop}>
-                    <SquareIcon className="fill-current" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">{t('conversation.stop')}</TooltipContent>
-              </Tooltip>
-            </>
-          )}
-        </>
-      )}
+            )}
+            {running && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon-toolbar"
+                      variant="outline"
+                      aria-label={pausing ? t('conversation.pausing') : t('conversation.pause')}
+                      data-action="pause"
+                      data-pausing={pausing || undefined}
+                      disabled={disabled || pausing}
+                      onClick={onPause}
+                    >
+                      <PauseIcon className="fill-current" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{pausing ? t('conversation.pausing') : t('conversation.pause')}</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" size="icon-toolbar" aria-label={t('conversation.stop')} data-action="stop" disabled={disabled} onClick={onStop}>
+                      <SquareIcon className="fill-current" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{t('conversation.stop')}</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </form>
   )
 }

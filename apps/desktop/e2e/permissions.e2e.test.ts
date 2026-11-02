@@ -76,6 +76,15 @@ describe('权限模式选择', () => {
     await modePicker(app).click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
     await expect.poll(() => modePicker(app).getAttribute('data-permission-mode')).toBe('full-access')
+    // 按真实协议读回，不以乐观按钮状态替代服务端保存的事实。
+    await expect
+      .poll(() =>
+        app.window.evaluate(async () => {
+          const { sessions } = (await (await fetch('/api/sessions')).json()) as { sessions: { id: string }[] }
+          return ((await (await fetch(`/api/sessions/${sessions[0]!.id}/permission-rules`)).json()) as { mode: string }).mode
+        }),
+      )
+      .toBe('full-access')
     expect(await modePicker(app).getAttribute('data-warning')).toBe('true')
     // 按钮有颜色过渡：等过渡结束后的计算值。
     await expect.poll(() => modePicker(app).evaluate((el) => getComputedStyle(el).color)).not.toBe(normalColor)

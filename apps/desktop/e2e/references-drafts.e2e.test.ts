@@ -70,6 +70,43 @@ async function sendAndWait(page: Page, text: string, replies: number) {
 }
 
 describe('@ 文件引用', () => {
+  it('主输入框的系统附件选择插入 Workspace 引用，发送后协议记录与模型均收到引用', async () => {
+    const { root, workspace, requestLog } = await prepare([{ content: 'ready' }, { content: 'attached' }])
+    const app = await start(root)
+    await addWorkspace(app, workspace)
+    const page = app.window
+    await sendAndWait(page, 'start', 1)
+    await stubDirectoryPicker(app.app, [join(workspace, 'src/a.ts')])
+    await page.getByRole('button', { name: /^(Add attachment|添加附件)$/ }).click()
+    await composerOf(page).locator('[data-file-reference="src/a.ts"]').waitFor()
+    expect(await composerOf(page).evaluate((element) => document.activeElement === element)).toBe(true)
+    // 真实磁盘 File，经 preload 的 webUtils 解析路径；不在 renderer 伪造 path 属性。
+    await page.evaluate(() => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.dataset.attachmentFixture = ''
+      document.body.append(input)
+    })
+    await page.locator('input[data-attachment-fixture]').setInputFiles(join(workspace, 'README.md'))
+    await page.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>('input[data-attachment-fixture]')!
+      const clipboardData = new DataTransfer()
+      clipboardData.items.add(input.files![0]!)
+      document.querySelector('[contenteditable="true"]')!.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }))
+      input.remove()
+    })
+    await composerOf(page).locator('[data-file-reference="README.md"]').waitFor()
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 15_000 }).toBe(2)
+    const entries = await page.evaluate(async () => {
+      const { sessions } = (await (await fetch('/api/sessions')).json()) as { sessions: { id: string }[] }
+      const detail = (await (await fetch(`/api/sessions/${sessions[0]!.id}`)).json()) as { entries: { kind: string; payload: { role?: string } }[] }
+      return detail.entries.filter((entry) => entry.kind === 'message' && entry.payload.role === 'user')
+    })
+    expect(JSON.stringify(entries.at(-1))).toContain('@src/a.ts')
+    expect(JSON.stringify(entries.at(-1))).toContain('@README.md')
+    expect(await readFile(requestLog, 'utf8')).toContain('export const a = 1')
+  })
   it('@ 菜单搜索并插入文件（chip），发送后时间线显示引用 chip，模型收到 <file_reference> 块', async () => {
     const { root, workspace, requestLog } = await prepare([{ content: 'seen' }])
     const app = await start(root)

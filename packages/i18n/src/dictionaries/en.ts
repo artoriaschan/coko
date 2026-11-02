@@ -54,6 +54,9 @@ export const en: typeof zh = {
     en: 'English',
   },
   conversation: {
+    attach: 'Add attachment',
+    imagesUnavailable: 'Image attachments are not available yet',
+    attachmentFailed: 'Could not add the file. Choose it again.',
     you: 'You',
     assistant: 'Coko',
     composerPlaceholder: 'Give Coko a task',
@@ -315,10 +318,9 @@ export const en: typeof zh = {
   permissions: {
     mode: 'Permission mode',
     modeCurrent: 'Permission mode: {mode}',
-    modeCycleHint: 'Shift+Tab switches between Read only, Default and Accept edits',
     modes: {
       'read-only': 'Read only',
-      default: 'Default',
+      default: 'Ask for approval',
       'accept-edits': 'Accept edits',
       'full-access': 'Full access',
     },
@@ -326,9 +328,9 @@ export const en: typeof zh = {
       'read-only': 'Reads in the workspace run without asking. Commands cannot write anywhere.',
       default: 'Reads in the workspace run without asking. Writes and commands ask first; commands can only write to the workspace and temp folders.',
       'accept-edits': 'Also accepts file writes in the workspace and temp folders',
-      'full-access': 'Allows everything except deny rules and protected paths. Commands run without a sandbox.',
+      'full-access': 'Accesses external files and runs commands while respecting deny rules, ask rules and protected paths.',
     },
-    fullAccessWarning: 'Full access stops asking before writes and commands. Use it only in workspaces you trust.',
+    fullAccessWarning: 'Use only in workspaces you trust. Deny rules, ask rules and protected paths still apply.',
     description: 'Write rules as Tool or Tool(content), for example Bash(npm test), Bash(git *), Edit(src/**), Read(~/notes). Deny rules apply in every mode.',
     defaultMode: 'Default mode for new sessions',
     global: 'Global rules',

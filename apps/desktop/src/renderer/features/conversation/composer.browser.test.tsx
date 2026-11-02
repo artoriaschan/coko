@@ -43,6 +43,63 @@ const editor = () => page.getByRole('textbox', { name: 'Give Coko a task' })
 const editorElement = () => editor().element() as HTMLElement
 const action = (name: string) => document.querySelector('[data-action="' + name + '"]') as HTMLButtonElement | null
 
+describe('Composer：双层输入区', () => {
+  it('粘贴与拖入文件沿用引用节点，工作目录前缀相似的外部路径不误判', async () => {
+    const h = renderComposer({ fileWorkspacePath: '/work', getFilePath: (file) => (file.name === 'a.ts' ? '/work/a.ts' : '/workspace/b.txt') })
+    await h.result
+    const paste = new DataTransfer()
+    paste.items.add(new File(['a'], 'a.ts', { type: 'text/plain' }))
+    editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: paste }))
+    await expect.poll(() => editorElement().textContent).toContain('@a.ts')
+    const drop = new DataTransfer()
+    drop.items.add(new File(['b'], 'b.txt', { type: 'text/plain' }))
+    editorElement().dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: drop }))
+    await expect.poll(() => editorElement().textContent).toContain('/workspace/b.txt')
+    expect(editorElement().querySelectorAll('[data-file-reference]')).toHaveLength(1)
+    const image = new DataTransfer()
+    image.items.add(new File(['png'], 'paste.png', { type: 'image/png' }))
+    editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: image }))
+    await expect.element(page.getByRole('alert')).toHaveTextContent('Image attachments are not available yet')
+    expect(editorElement().textContent).not.toContain('paste.png')
+  })
+  it('系统选择插入 Workspace 内 File Reference 与外部绝对路径，图片拒绝并保留草稿', async () => {
+    const picks = ['/work/src/a.ts', '/outside/notes.txt', '/work/image.png']
+    const h = renderComposer({ fileWorkspacePath: '/work', pickFiles: async () => picks })
+    await h.result
+    await editor().fill('check ')
+    await userEvent.click(page.getByRole('button', { name: 'Add attachment' }))
+    await expect.poll(() => editorElement().textContent).toContain('@src/a.ts')
+    expect(editorElement().querySelector('[data-file-reference="src/a.ts"]')).not.toBeNull()
+    expect(editorElement().textContent).toContain('/outside/notes.txt')
+    expect(editorElement().textContent).not.toContain('image.png')
+    await expect.element(page.getByRole('alert')).toHaveTextContent('Image attachments are not available yet')
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => h.onSend.mock.calls.length).toBe(1)
+    expect(h.onSend.mock.calls[0]?.[0]).toContain('@src/a.ts')
+  })
+  it('主输入框基准高 120px，控件依序位于底部的 32px 工具栏', async () => {
+    const screen = await renderComposer({
+      permissionControl: <button data-test="permission">Permissions</button>,
+      planChip: <span data-test="plan">Plan</span>,
+      accessory: <button data-test="model">Model</button>,
+    }).result
+    const form = screen.container.querySelector('form')!
+    const toolbar = form.querySelector('[data-slot="composer-toolbar"]')!
+    expect(form.getBoundingClientRect().height).toBe(120)
+    const placeholder = form.querySelector('[data-slot="composer-placeholder"]')!.getBoundingClientRect()
+    expect(placeholder.left - form.getBoundingClientRect().left).toBe(12)
+    expect(placeholder.top - form.getBoundingClientRect().top).toBe(12)
+    expect(toolbar?.getBoundingClientRect().height).toBe(32)
+    const controls = ['[data-action="attach"]', '[data-test="permission"]', '[data-test="plan"]', '[data-test="model"]', '[data-action="send"]'].map(
+      (selector) => toolbar.querySelector(selector)!,
+    )
+    expect(controls.every(Boolean)).toBe(true)
+    const x = controls.map((node) => node.getBoundingClientRect().x)
+    expect(x).toEqual([...x].sort((a, b) => a - b))
+    expect(editorElement().getBoundingClientRect().bottom).toBeLessThanOrEqual(toolbar.getBoundingClientRect().top)
+  })
+})
+
 describe('Composer：Run 进行中', () => {
   it('编辑区可输入，Enter 调用 steer 而非 submit，成功后清空；暂停与停止并列', async () => {
     const h = renderComposer({ running: true })

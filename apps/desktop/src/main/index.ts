@@ -284,6 +284,17 @@ function run(): void {
   })
 
   let picking: Promise<string | null> | undefined
+  let pickingFiles: Promise<string[]> | undefined
+  ipcMain.handle(IPC.pickFiles, async (event) => {
+    const window = assertMainFrame(event)
+    pickingFiles ??= dialog
+      .showOpenDialog(window, { properties: ['openFile', 'multiSelections'] })
+      .then(({ canceled, filePaths }) => (canceled ? [] : filePaths))
+      .finally(() => {
+        pickingFiles = undefined
+      })
+    return pickingFiles
+  })
   ipcMain.handle(IPC.pickDirectory, async (event) => {
     const window = assertMainFrame(event)
     picking ??= dialog

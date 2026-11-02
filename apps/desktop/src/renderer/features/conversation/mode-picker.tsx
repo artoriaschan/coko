@@ -4,26 +4,24 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { ChevronDownIcon, ClipboardListIcon, EyeIcon, FilePenLineIcon, ShieldAlertIcon, ShieldIcon } from 'lucide-react'
+import { ClipboardListIcon, EyeIcon, HandIcon, ShieldAlertIcon, ShieldIcon, TerminalIcon } from 'lucide-react'
 import type * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
-/** 四档（默认模式也只能是其一）；plan（规划）在菜单中另列一项。 */
+/** 设置中的默认模式仍为四档；输入区快捷菜单只展示三档。 */
 export const PERMISSION_MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 
 export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?: string }>> = {
   'read-only': EyeIcon,
-  default: ShieldIcon,
-  'accept-edits': FilePenLineIcon,
+  default: HandIcon,
+  'accept-edits': ShieldTerminalIcon,
   'full-access': ShieldAlertIcon,
   plan: ClipboardListIcon,
 }
@@ -34,18 +32,29 @@ export function nextCycledMode(mode: PermissionMode): PermissionMode {
   return CYCLED_PERMISSION_MODES[(index + 1) % CYCLED_PERMISSION_MODES.length]!
 }
 
+function ShieldTerminalIcon({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn('relative inline-flex size-3.5 shrink-0', className)}>
+      <ShieldIcon className="size-3.5" />
+      <TerminalIcon className="absolute inset-1 size-1.5" />
+    </span>
+  )
+}
+
 export interface ModePickerProps {
   value: PermissionMode
+  prior?: PermissionMode
   disabled?: boolean
   onChange: (mode: PermissionMode) => void
 }
 
 /** 输入区的 Permission Mode 选择（模型选择旁）。full-access 只能在此显式选择，选中时以警示色显示。 */
-export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
+export function ModePicker({ value, prior = 'default', disabled, onChange }: ModePickerProps) {
   const { t } = useI18n()
-  const Icon = MODE_ICONS[value]
-  const label = value === 'plan' ? t('plan.mode') : t(`permissions.modes.${value}`)
-  const warning = value === 'full-access'
+  const shown = value === 'plan' ? (prior === 'plan' ? 'default' : prior) : value
+  const Icon = MODE_ICONS[shown]
+  const label = t(`permissions.modes.${shown}`)
+  const warning = shown === 'full-access'
   return (
     <DropdownMenu>
       <Tooltip>
@@ -54,30 +63,30 @@ export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
             <Button
               type="button"
               variant="toolbar"
-              size="sm"
+              size="toolbar"
               disabled={disabled}
               data-permission-mode={value}
               data-warning={warning || undefined}
               aria-label={t('permissions.modeCurrent', { mode: label })}
-              className={cn('min-w-0 shrink', warning && 'text-destructive [&_svg]:text-destructive')}
+              className={cn(
+                'min-w-0 shrink data-[state=open]:bg-accent hover:text-muted-foreground',
+                warning && 'text-destructive [&_svg]:text-destructive hover:bg-destructive/10 hover:text-destructive data-[state=open]:bg-destructive/10',
+              )}
             >
-              <Icon />
+              <Icon className="size-3.5" />
               {/* 窄主区中只显示图标（名称在 aria-label 与菜单中），让编辑区保留宽度。 */}
               <span className="truncate @max-[560px]/main:hidden">{label}</span>
-              <ChevronDownIcon className="@max-[560px]/main:hidden" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="top">
           {/* 窄宽度下按钮只有图标：Tooltip 同时给出当前模式。 */}
           <span className="block">{label}</span>
-          <span className="block text-ui-small opacity-80">{t('permissions.modeCycleHint')}</span>
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent side="top" align="start" className="w-80">
-        <DropdownMenuLabel>{t('permissions.mode')}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as PermissionMode)}>
-          {PERMISSION_MODES.map((mode) => {
+          {(['default', 'accept-edits', 'full-access'] as const).map((mode) => {
             const ModeIcon = MODE_ICONS[mode]
             return (
               <DropdownMenuRadioItem key={mode} value={mode} data-mode={mode} className={cn('h-auto py-1.5', mode === 'full-access' && 'text-destructive')}>
@@ -91,24 +100,11 @@ export function ModePicker({ value, disabled, onChange }: ModePickerProps) {
               </DropdownMenuRadioItem>
             )
           })}
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioItem value="plan" data-mode="plan" className="h-auto py-1.5">
-            <span className="flex min-w-0 flex-col">
-              <span className="flex items-center gap-2">
-                <ClipboardListIcon className="text-link" />
-                {t('plan.mode')}
-              </span>
-              <span className="text-ui-small text-muted-foreground">{t('plan.modeDescription')}</span>
-            </span>
-          </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         {warning && (
-          <>
-            <DropdownMenuSeparator />
-            <p role="note" className="px-2 py-1 text-ui-small text-destructive">
-              {t('permissions.fullAccessWarning')}
-            </p>
-          </>
+          <p role="note" className="px-2 py-1 text-ui-small text-destructive">
+            {t('permissions.fullAccessWarning')}
+          </p>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
