@@ -71,7 +71,7 @@ async function addWorkspace(app: LaunchedApp, path: string) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 }
 
 const composer = (app: LaunchedApp) => app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })

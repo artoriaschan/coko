@@ -334,12 +334,12 @@ describe('plan-chip', () => {
       await userEvent.keyboard('{Escape}')
       await menuClosed()
       expect(picked).toEqual([])
-      expect(document.activeElement).toBe(element)
+      await expect.poll(() => document.activeElement).toBe(element)
       await userEvent.click(button)
       await userEvent.click(page.getByRole('menuitemradio', { name: /Accept edits/ }))
       await menuClosed()
       expect(picked).toEqual(['accept-edits'])
-      expect(document.activeElement).toBe(element)
+      await expect.poll(() => document.activeElement).toBe(element)
     })
     it('plan 模式时显示 chip，点击回到 prior；其他模式不显示', async () => {
       seq = 0

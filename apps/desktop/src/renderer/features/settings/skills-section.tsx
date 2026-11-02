@@ -5,7 +5,7 @@ import type { CommandInfo, ResourceDiagnostic, SkillInfo } from '@coko/protocol'
 import { Checkbox, toast } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useChat, useCurrentSession } from '../../app/chat.tsx'
+import { useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { skillsStore } from '../../stores/skills-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
@@ -43,9 +43,7 @@ function useSaving() {
 
 export function SkillsSection() {
   const { t } = useI18n()
-  const activeWorkspaceId = useCurrentSession()?.workspaceId
-  const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
-  const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
+  const workspaceId = useActiveWorkspaceId()
   const status = useStore(skillsStore, (s) => s.status)
   const loadedFor = useStore(skillsStore, (s) => s.workspaceId)
   const skills = useStore(skillsStore, (s) => s.skills)

@@ -16,6 +16,12 @@ SQLite v10 在一次前向迁移中建立 projects 表，并给 sessions 增加 
 
 经 Workspace 登记接口添加目录时，服务端验证目录存在并解析为真实路径，再登记 Workspace 与单文件夹项目。相同目录经符号链接登记不会产生第二个 Workspace 或项目。此入口暂时作为创建项目的过渡入口。
 
+## 独立对话专属目录
+
+独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `~/Coko/chats`，启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。日期加随机后缀通过独占创建分配，不覆盖既有文件。
+
+首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，其工作文件仍应保留。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
+
 ## 会话归属与列表协议
 
 根会话在有项目的主要 Workspace 中创建时默认归入该项目；明确传入 projectId: null 时为独立会话。子会话的存储记录不单独保存归属，协议 DTO 沿父会话链读取根会话归属。分叉和交接显式继承来源的归属；它们不会重新根据工作目录决定归属。
@@ -26,7 +32,7 @@ GET /api/projects 返回项目及源文件夹的主要标记、未归档根会�
 
 ## 工作台列表
 
-renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 持有项目、Workspace、根会话列表与加载状态；chat-store 保留会话内容、草稿及 Run 控制，通过独立列表 store 更新组织视图。React 的 useLists 订阅列表数据，useCurrentSession 结合当前会话标识查询列表。
+renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 持有项目、Workspace、根会话列表与加载状态；chat-store 保留会话内容与 Run 控制，新对话配置由独立 new-chat-store 持有，通过独立列表 store 更新组织视图。React 的 useLists 订阅列表数据，useCurrentSession 结合当前会话标识查询列表。
 
 侧栏包含“置顶”“对话”和“项目”：置顶分类仅在有置顶会话时显示；独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起未单独置顶的所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示运行状态点或分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
 

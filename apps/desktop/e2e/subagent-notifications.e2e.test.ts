@@ -47,7 +47,7 @@ describe('子代理通知', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await win.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     // 后台模式：窗口不在前台（main 的判定依据），通知不因前台被跳过。
     expect(await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused())).toBe(false)
 

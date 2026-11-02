@@ -25,7 +25,7 @@ lifecycle: active
 
 ## 当前行为
 
-- [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史、设置返回、主输入框、模型与推理档位、文件附件。
+- [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史、设置返回、主输入框、独立对话首次发送与单份草稿、模型与推理档位、文件附件。
 - [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、根会话归属、列表交互与恢复、会话详情、长标题、置顶、菜单与重命名。
 
 - [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。

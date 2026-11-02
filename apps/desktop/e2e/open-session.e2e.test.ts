@@ -46,7 +46,7 @@ describe('通知点击打开会话（main → preload → renderer）', { timeou
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     await send(app, 'first session')
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('First ready.')

@@ -25,7 +25,7 @@ async function setup(script: unknown) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   // 草稿中选 full-access：命令不经审批。
   await app.window.locator('[data-permission-mode]').click()
   await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()

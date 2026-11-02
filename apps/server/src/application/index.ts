@@ -1,4 +1,5 @@
 import type { ProjectService } from './projects.ts'
+import type { FirstSendService } from './first-send.ts'
 import type { SessionStore } from '@coko/session'
 import type { ClockPort, TestClock } from '../adapters/clock.ts'
 import type { HandoffService } from './handoff.ts'
@@ -29,6 +30,7 @@ export interface Application {
   store: SessionStore
   hub: SessionHub
   sessions: SessionService
+  firstSend: FirstSendService
   providers: ProviderService
   settings: SettingsService
   workspaces: WorkspaceService

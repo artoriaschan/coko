@@ -4,6 +4,7 @@ export const zh = {
     name: 'Coko',
   },
   sidebar: {
+    createConversation: '创建新对话',
     pinned: '置顶',
     pinConversation: '置顶对话',
     unpinConversation: '取消置顶对话',
@@ -82,6 +83,8 @@ export const zh = {
     en: 'English',
   },
   conversation: {
+    welcomeTitle: '今天我们来做些什么？',
+    welcomeBody: '从一个想法开始，一起完成工作',
     attach: '添加附件',
     imagesUnavailable: '暂不支持图片附件',
     attachmentFailed: '无法添加文件，请重新选择',
@@ -90,7 +93,7 @@ export const zh = {
     composerPlaceholder: '向 Coko 布置任务',
     send: '发送',
     stop: '停止',
-    newSession: '新会话',
+    newSession: '新对话',
     moreActions: '更多操作',
     noWorkspaceTitle: '添加一个工作区',
     noWorkspaceBody: '选择本机目录作为工作区，Coko 在其中读写文件和运行命令',

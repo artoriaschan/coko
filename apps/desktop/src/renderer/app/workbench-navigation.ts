@@ -14,9 +14,10 @@ export function createWorkbenchNavigation(chat: ChatStore) {
   }
   let history: WorkbenchLocation[] = [observed()]
   let cursor = 0
+  let focusRevision = 0
   const ready = () =>
     chat.lists.getState().listStatus === 'ready' &&
-    (chat.getState().activeSessionId !== null || chat.getState().draftWorkspaceId !== null || chat.lists.getState().sessions.length === 0)
+    (chat.getState().activeSessionId !== null || chat.lists.getState().lastSessionId === null || chat.lists.getState().sessions.length === 0)
   let initialized = ready()
   let applying = false
   const listeners = new Set<() => void>()
@@ -26,7 +27,7 @@ export function createWorkbenchNavigation(chat: ChatStore) {
     for (let i = cursor + direction; i >= 0 && i < history.length; i += direction) if (available(history[i]!)) return i
     return null
   }
-  const snapshot = () => ({ location: history[cursor]!, canBack: find(-1) !== null, canForward: find(1) !== null })
+  const snapshot = () => ({ focusRevision, location: history[cursor]!, canBack: find(-1) !== null, canForward: find(1) !== null })
   let state = snapshot()
   const notify = () => {
     state = snapshot()
@@ -52,6 +53,10 @@ export function createWorkbenchNavigation(chat: ChatStore) {
     initialized = true
     record(location)
     apply(location, workspaceId)
+    if (location.kind === 'new-chat') {
+      focusRevision++
+      notify()
+    }
   }
   const move = (direction: -1 | 1) => {
     const next = find(direction)

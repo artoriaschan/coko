@@ -163,6 +163,16 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
     },
     registerWorkspace: async (path: string) => ws('w-new', path.split('/').at(-1) ?? path),
     createSession: async (input) => session('s-new', input.workspaceId, input.title ?? '', 200),
+    firstSend: async (input) => {
+      const created = {
+        ...session('s-new', 'w-coko', input.text.split('\n')[0]!.slice(0, 20), 200),
+        projectId: null,
+        model: input.model ?? null,
+        thinkingLevel: input.thinkingLevel ?? 'off',
+      }
+      sessionList = [...sessionList.filter((s) => s.id !== created.id), created]
+      return { session: created, runId: 'run-2' }
+    },
     sessionDetail: async () => {
       throw new Error('unused')
     },

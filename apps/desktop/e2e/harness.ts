@@ -34,7 +34,7 @@ export interface LaunchedApp {
 
 /** 宿主可能带有的真实模型凭据；测试只用 faux provider，不向应用传递它们。 */
 const CREDENTIAL_ENV =
-  /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_RIPGREP_PATH$|COKO_FAUX_SCRIPT$|COKO_HOME$|ELECTRON_RUN_AS_NODE$)/
+  /^(?:COKO_CREDENTIAL_|DEEPSEEK_API_KEY$|OPENAI_API_KEY$|ANTHROPIC_API_KEY$|COKO_SIDECAR_ENTRY$|COKO_RIPGREP_PATH$|COKO_FAUX_SCRIPT$|COKO_HOME$|COKO_CHATS_ROOT$|ELECTRON_RUN_AS_NODE$)/
 
 /** 测试目录下的临时用户级资源目录（经 COKO_HOME 传给 Sidecar；测试不读写真实的 ~/.coko）。 */
 export const cokoHomeOf = (dir: string) => join(dir, 'coko-home')
@@ -62,6 +62,7 @@ function testEnv(extra: Record<string, string>, dir: string, eventsPath: string,
     ...BACKGROUND_ENV,
     COKO_USER_DATA_DIR: join(dir, 'user-data'),
     COKO_HOME: cokoHomeOf(dir),
+    COKO_CHATS_ROOT: join(dir, 'chats'),
     ...(sidecar === 'placeholder' ? { COKO_SIDECAR_ENTRY: placeholderSidecarEntry, COKO_FIXTURE_EVENTS: eventsPath } : {}),
     ...extra,
   }

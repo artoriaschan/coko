@@ -41,7 +41,7 @@ describe('MCP 分区', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     const dialog = window.locator('[data-settings-page]')
     await dialog.locator('[data-section="mcp"]').click()

@@ -2,6 +2,7 @@ import { Type, type Static } from 'typebox'
 import { SessionEntryRecord } from './entries.ts'
 import { SessionActivity } from './runs.ts'
 import { SessionWorktree } from './worktrees.ts'
+import { PermissionMode } from './permissions.ts'
 
 // HTTP 请求与响应 DTO。时间戳为毫秒；id 为不透明字符串。
 
@@ -111,6 +112,21 @@ export const CreateSessionRequest = Type.Object(
   strict,
 )
 export type CreateSessionRequest = Static<typeof CreateSessionRequest>
+
+/** 首次发送：同一草稿身份只创建一个会话；成功时首条用户消息已经持久化。 */
+export const FirstSendRequest = Type.Object(
+  {
+    draftId: Type.String({ minLength: 1, maxLength: 200 }),
+    text: Type.String({ minLength: 1 }),
+    model: Type.Optional(SessionModel),
+    thinkingLevel: Type.Optional(ThinkingLevel),
+    permissionMode: Type.Optional(PermissionMode),
+  },
+  strict,
+)
+export type FirstSendRequest = Static<typeof FirstSendRequest>
+export const FirstSendResponse = Type.Object({ session: Session, runId: Id }, strict)
+export type FirstSendResponse = Static<typeof FirstSendResponse>
 
 export const SessionListResponse = Type.Object({ sessions: Type.Array(Session) }, strict)
 export type SessionListResponse = Static<typeof SessionListResponse>

@@ -14,10 +14,12 @@
 
 **跨票接口：** 会话菜单按上述顺序预留菜单项插槽，09、10、16 只填自己那一项；行内重命名部件供 14 的项目重命名复用；22 的搜索结果右键复用本菜单。
 
-- [ ] Sidecar 协议：改名后读回标题；超过 200 个字符被拒绝；改名不改变最后记录时间。
-- [ ] Browser Mode：点击更多时菜单在行右侧、2px、顶对齐；在同一行的不同位置右键，锚点随鼠标变化，靠近窗口边缘时仍可操作，不出现原生菜单、不切换会话；菜单图标槽对齐；行内重命名的全选、Enter、失焦、Escape、空白恢复原名与失败提示（CW-54、CW-83）。
-- [ ] Electron E2E：右键一个项目内会话并重命名，重启后列表与详情卡片中都是新标题。
-- [ ] projects.md 的相应一节；`check:docs` 通过。
+- [x] Sidecar 协议：改名后读回标题；超过 200 个字符被拒绝；改名不改变最后记录时间。
+- [x] Browser Mode：点击更多时菜单在行右侧、2px、顶对齐；在同一行的不同位置右键，锚点随鼠标变化，靠近窗口边缘时仍可操作，不出现原生菜单、不切换会话；菜单图标槽对齐；行内重命名的全选、Enter、失焦、Escape、空白恢复原名与失败提示（CW-54、CW-83）。
+- [x] Electron E2E：右键一个项目内会话并重命名，重启后列表与详情卡片中都是新标题。
+- [x] projects.md 的相应一节；`check:docs` 通过。
+
+Closed: true
 
 ## Comments
 
@@ -35,4 +37,12 @@
 - `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`（246 个 Markdown，0 问题）通过；Impeccable 对四个变更 UI 源文件的机械检查返回 `[]`。
 - 07 的旧 browser 用例在更多菜单打开后增加 Escape 关闭，保留原详情关闭断言，遵守共享页面清理规则；fixture-chat 增加完整协议形状的标题响应。
 
-文档变化：会话菜单、鼠标位置、行内改名与协议 → projects.md 新增一节并修正“更多仅关闭详情”的旧结论 → docs/README 同步摘要与测试入口。搜索 projects.md、旧结论和新章节，已关闭票保留历史证据，后继票保留自己的目标义务。按 AGENTS → docs/README → projects 正文读回，路径与引用、语义同步、归属与权威、引用方向、生命周期、当前入口、新会话读入、历史保留均通过。没有正式文档依赖具体任务材料。待合入最新集成并完成最后回归后设置 Closed。
+文档变化：会话菜单、鼠标位置、行内改名与协议 → projects.md 新增一节并修正“更多仅关闭详情”的旧结论 → docs/README 同步摘要与测试入口。搜索 projects.md、旧结论和新章节，已关闭票保留历史证据，后继票保留自己的目标义务。按 AGENTS → docs/README → projects 正文读回，路径与引用、语义同步、归属与权威、引用方向、生命周期、当前入口、新会话读入、历史保留均通过。没有正式文档依赖具体任务材料。
+
+最终集成验证：合入最新 `defd472`（含 11 的首次发送与 new-chat-store），只有 docs/README 导航摘要冲突，合并保留双方入口；没有覆盖新对话字段、存储清理和首次发送逻辑。再次按入口读回 projects.md，单份新对话草稿与菜单/重命名描述同时成立。全部退出码为 0：
+
+- `pnpm run test tests/integration/sidecar-session-rename.test.ts tests/integration/sidecar-session-pinning.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：9 文件、101 项通过。
+- `pnpm run test apps/desktop/e2e/session-rename.e2e.test.ts apps/desktop/e2e/session-pinning.e2e.test.ts apps/desktop/e2e/first-send.e2e.test.ts`：3 文件、4 项真实 Electron 通过，globalSetup 使用本次合并源码构建测试产物。
+- `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`（246 文件，0 问题）、`git diff --check` 通过，无未解决冲突。
+
+本票全部验收完成，设置 Closed；仅本地提交，未推送。未运行真实外部模型、发布构建 smoke 或 CI，这些不属于本票菜单与改名的本地验收范围。

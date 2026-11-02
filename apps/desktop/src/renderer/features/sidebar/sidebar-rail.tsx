@@ -1,16 +1,14 @@
 import { useAppFrame } from '@coko/ui'
 import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, PanelLeftOpenIcon, PuzzleIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
-import { useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
 import { SettingsButton } from '../settings/settings-button.tsx'
 
 /** 收起后的 56px rail：主要操作保持可达。 */
-export function SidebarRail({ onAddWorkspace, onSearch }: { onAddWorkspace: () => void; onSearch: () => void }) {
+export function SidebarRail({ onSearch }: { onAddWorkspace: () => void; onSearch: () => void }) {
   const { t } = useI18n()
   const { toggleSidebar, sidebarVisible } = useAppFrame()
-  const hasWorkspace = useLists((s) => s.workspaces.length > 0)
   const navigation = useWorkbenchNavigation()
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center">
@@ -19,7 +17,7 @@ export function SidebarRail({ onAddWorkspace, onSearch }: { onAddWorkspace: () =
         <IconButton label={t('sidebar.expand')} aria-expanded={sidebarVisible} onClick={toggleSidebar}>
           <PanelLeftOpenIcon />
         </IconButton>
-        <IconButton label={t('sidebar.newSession')} onClick={() => (hasWorkspace ? navigation.newChat() : onAddWorkspace())}>
+        <IconButton label={t('sidebar.newSession')} onClick={() => navigation.newChat()}>
           <SquarePenIcon />
         </IconButton>
         <IconButton

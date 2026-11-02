@@ -12,6 +12,7 @@ import {
   RewindRequest,
   isMainOnlyPath,
   CreateSessionRequest,
+  FirstSendRequest,
   permissionPaths,
   SessionPermissionRuleRequest,
   SetPermissionModeRequest,
@@ -117,6 +118,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.post(API_ROUTES.workspaces, async (c) => c.json(await app.workspaces.register(await body(c, RegisterWorkspaceRequest)), 201))
 
   http.get(API_ROUTES.sessions, async (c) => c.json({ sessions: await app.sessions.list(c.req.query('workspaceId')) }))
+  http.post(API_ROUTES.firstSend, async (c) => c.json(await app.firstSend.send(await body(c, FirstSendRequest)), 201))
   http.post(API_ROUTES.sessions, async (c) => c.json(await app.sessions.create(await body(c, CreateSessionRequest)), 201))
   http.get(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.detail(c.req.param('id'))))
   http.put(`${API_ROUTES.sessions}/:id/title`, async (c) => {

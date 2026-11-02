@@ -1,4 +1,6 @@
+import { SquarePenIcon } from 'lucide-react'
 import * as React from 'react'
+import { IconButton } from '../../app/icon-button.tsx'
 import type { SidebarCategory } from '../../stores/list-store.ts'
 import type { Project, Session } from '@coko/protocol'
 import {
@@ -132,16 +134,26 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
               expanded={expanded.conversations ?? true}
               onToggle={() => listActions.toggleCategory('conversations')}
               actions={
-                <CategoryDrag
-                  category="conversations"
-                  onStart={(category) => {
-                    dragged.current = category
-                  }}
-                  onEnd={() => {
-                    dragged.current = null
-                  }}
-                  onMove={(first) => listActions.reorderCategories(first)}
-                />
+                <>
+                  <CategoryDrag
+                    category="conversations"
+                    onStart={(category) => {
+                      dragged.current = category
+                    }}
+                    onEnd={() => {
+                      dragged.current = null
+                    }}
+                    onMove={(first) => listActions.reorderCategories(first)}
+                  />
+                  <IconButton
+                    label={t('sidebar.createConversation')}
+                    size="icon-xs"
+                    className="size-6 rounded-sm [&_svg]:size-3.5"
+                    onClick={() => onNewSession()}
+                  >
+                    <SquarePenIcon className="size-3.5" strokeWidth={1.1} />
+                  </IconButton>
+                </>
               }
             />
             {(expanded.conversations ?? true) && (

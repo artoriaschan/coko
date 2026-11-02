@@ -29,6 +29,24 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       clock += ms
     }
 
+    it('宿主幂等身份不覆盖已有会话；删除会话树清理记录并保留工作目录登记直到显式移除', async () => {
+      const store = await open()
+      const w = await store.sessions.registerWorkspace({ path: '/standalone' })
+      const root = await store.sessions.createSession({ id: 'stable-draft-session', workspaceId: w.id })
+      const child = await store.sessions.createSession({ workspaceId: w.id, parentSessionId: root.id })
+      await store.sessions.appendEntries(root.id, [{ kind: 'note', payload: 'root' }])
+      await store.sessions.appendEntries(child.id, [{ kind: 'note', payload: 'child' }])
+      await expectStoreError(store.sessions.createSession({ id: root.id, workspaceId: w.id, title: 'overwrite' }), 'already-exists')
+      expect(await store.sessions.deleteWorkspaceIfUnused(w.id)).toBe(false)
+      await store.sessions.deleteSession(root.id)
+      expect(await store.sessions.getSession(root.id)).toBeUndefined()
+      expect(await store.sessions.getSession(child.id)).toBeUndefined()
+      expect(await store.sessions.listEntries(child.id)).toEqual([])
+      expect(await store.sessions.getWorkspace(w.id)).toEqual(w)
+      expect(await store.sessions.deleteWorkspaceIfUnused(w.id)).toBe(true)
+      expect(await store.sessions.getWorkspace(w.id)).toBeUndefined()
+    })
+
     it('登记 Workspace，同一路径重复登记返回已有记录', async () => {
       const { sessions } = await open()
       const a = await sessions.registerWorkspace({ path: '/work/alpha' })

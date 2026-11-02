@@ -71,7 +71,7 @@ describe('压缩', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await page.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await composerOf(page).click()
     await page.keyboard.type('start')
     await page.keyboard.press('Enter')

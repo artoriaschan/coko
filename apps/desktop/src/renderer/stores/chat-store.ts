@@ -21,6 +21,7 @@ import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
 import { createListStore, type ListStore } from './list-store.ts'
+import { createNewChatStore, type NewChatStore } from './new-chat-store.ts'
 import type { StreamClient } from '../client/connection.ts'
 
 /** 进行中的工具：由 progress 维护，最终内容以 toolResult 条目为准。 */
@@ -176,16 +177,8 @@ export function continueMode(conversation: Pick<Conversation, 'entries' | 'runni
 }
 
 export interface ChatState {
-  /** 当前会话；与 draftWorkspaceId 互斥。 */
+  /** 当前会话；null 为单份新对话草稿。 */
   activeSessionId: string | null
-  /** 新会话草稿所在的 Workspace：首条消息提交时才创建 Session。 */
-  draftWorkspaceId: string | null
-  /** 草稿中选择的模型；创建 Session 时使用，null 表示用默认模型。 */
-  draftModel: SessionModel | null
-  /** 草稿中选择的 Thinking Level；新会话默认 off。 */
-  draftThinkingLevel: ThinkingLevel
-  /** 草稿中选择的 Permission Mode；null 表示用设置中的默认模式。 */
-  draftPermissionMode: PermissionMode | null
   conversations: Record<string, Conversation>
 }
 
@@ -251,7 +244,7 @@ export interface ChatActions {
 
 export type ProgressListener = (progress: { sessionId: string; runId: string; event: ProgressEvent }) => void
 
-export type ChatStore = StoreApi<ChatState & ChatActions> & { lists: ListStore }
+export type ChatStore = StoreApi<ChatState & ChatActions> & { lists: ListStore; newChat: NewChatStore }
 
 export interface ChatStoreOptions {
   api: ApiClient
@@ -287,12 +280,6 @@ function endRun(c: Conversation): Conversation {
 
 const toApiError = (error: unknown) => (error instanceof ApiError ? error : new ApiError('network', error instanceof Error ? error.message : String(error), 0))
 
-/** 首条消息的首行作为会话标题。 */
-export function titleFromText(text: string): string {
-  const line = text.trim().split('\n')[0]!.trim()
-  return line.length > 60 ? line.slice(0, 59) + '…' : line
-}
-
 /**
  * 对话状态（Zustand vanilla store，无 React 依赖）。HTTP 提交命令，WebSocket 订阅条目与进度；
  * 打开过的会话保持订阅，重连后以各自的 lastSeq 补齐。
@@ -312,6 +299,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   const progressListeners = new Set<ProgressListener>()
   let loadedOnce = false
   const lists = createListStore(api)
+  const newChat = createNewChatStore()
 
   const store = createStore<ChatState & ChatActions>()((set, get) => {
     const updateConversation = (sessionId: string, update: (c: Conversation) => Conversation) =>
@@ -368,30 +356,26 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
 
     return {
       activeSessionId: null,
-      draftWorkspaceId: null,
-      draftModel: null,
-      draftThinkingLevel: 'off',
-      draftPermissionMode: null,
       conversations: {},
 
       async load() {
         if (!(await lists.getState().load())) return
         if (loadedOnce) return
         loadedOnce = true
-        const { activeSessionId, draftWorkspaceId } = get()
-        const { sessions, workspaces } = lists.getState()
-        if (activeSessionId !== null || draftWorkspaceId !== null) return
+        const { activeSessionId } = get()
+        const { sessions } = lists.getState()
+        if (activeSessionId !== null) return
         const lastSessionId = lists.getState().lastSessionId
         const target =
           lastSessionId === undefined
             ? sessions.find((session) => session.archivedAt === null)
             : sessions.find((session) => session.id === lastSessionId && session.archivedAt === null)
         if (target) get().openSession(target.id)
-        else get().startDraft(workspaces[0]?.id)
+        else get().startDraft()
       },
 
       openSession(sessionId) {
-        set({ activeSessionId: sessionId, draftWorkspaceId: null })
+        set({ activeSessionId: sessionId })
         ensureConversation(sessionId)
       },
 
@@ -420,62 +404,52 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      startDraft(workspaceId) {
-        if (get().activeSessionId === null) lists.getState().rememberSession(null)
-        const state = get()
-        const active = lists.getState().sessions.find((s) => s.id === state.activeSessionId)
-        const target = workspaceId ?? state.draftWorkspaceId ?? active?.workspaceId ?? lists.getState().workspaces[0]?.id ?? null
-        set({ activeSessionId: null, draftWorkspaceId: target })
+      startDraft() {
+        lists.getState().rememberSession(null)
+        set({ activeSessionId: null })
       },
 
       async addWorkspace(pickDirectory) {
         const path = await pickDirectory()
         if (path === null) return
         try {
-          const workspace = await api.registerWorkspace(path)
+          await api.registerWorkspace(path)
           await lists.getState().load()
-          set({ activeSessionId: null, draftWorkspaceId: workspace.id })
+          get().startDraft()
         } catch (error) {
           onFailure?.({ kind: 'workspace', error: toApiError(error) })
         }
       },
 
       async send(text) {
-        const { activeSessionId, draftWorkspaceId, draftModel, draftThinkingLevel, draftPermissionMode } = get()
+        const { activeSessionId } = get()
         if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text), 'send')
-        if (draftWorkspaceId === null) return false
-        let session: Session
+        const draft = newChat.getState()
+        if (draft.sending || !text.trim()) return false
+        newChat.getState().setSending(true)
         try {
-          session = await api.createSession({
-            workspaceId: draftWorkspaceId,
-            title: titleFromText(text),
-            ...(draftModel ? { model: draftModel } : {}),
-            ...(draftThinkingLevel === 'off' ? {} : { thinkingLevel: draftThinkingLevel }),
+          const available = draft.model ? undefined : (await api.listModels()).models[0]
+          const model = draft.model ?? (available ? { providerId: available.providerId, modelId: available.modelId } : undefined)
+          const { session } = await api.firstSend({
+            draftId: draft.draftId,
+            text,
+            ...(model ? { model } : {}),
+            thinkingLevel: draft.thinkingLevel,
+            ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),
           })
+          await lists.getState().load()
+          lists.getState().upsertSession(session)
+          newChat.getState().accepted(draft.draftId)
+          // 后端已接受首条消息；订阅补齐条目，不再重复提交消息。
+          if (get().activeSessionId === null) get().openSession(session.id)
+          else ensureConversation(session.id)
+          return true
         } catch (error) {
           onFailure?.({ kind: 'send', error: toApiError(error) })
           return false
+        } finally {
+          newChat.getState().setSending(false)
         }
-        lists.getState().upsertSession(session)
-        // 用户在等待期间切换到别处时不抢焦点。
-        if (get().draftWorkspaceId === draftWorkspaceId && get().activeSessionId === null) set({ activeSessionId: session.id, draftWorkspaceId: null })
-        // 先确认订阅再提交，使首个 Run 的进度不丢。
-        pinned.add(session.id)
-        set((state) => ({
-          conversations: { ...state.conversations, [session.id]: { status: 'loading', entries: [], lastSeq: 0, running: false, live: null } },
-        }))
-        await subscribe(session.id)
-        // 草稿中选过模式：新 Session 以默认模式创建，提交前切换（两条 permission_mode 条目）。
-        if (draftPermissionMode !== null) {
-          set({ draftPermissionMode: null })
-          try {
-            await api.setPermissionMode(session.id, draftPermissionMode)
-          } catch (error) {
-            onFailure?.({ kind: 'permissions', error: toApiError(error) })
-            return false
-          }
-        }
-        return submit(session.id, () => api.submitMessage(session.id, text), 'send')
       },
 
       async stop() {
@@ -579,7 +553,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       setPermissionMode(mode) {
         const sessionId = get().activeSessionId
         if (sessionId === null) {
-          set({ draftPermissionMode: mode })
+          newChat.getState().configure({ permissionMode: mode })
           return Promise.resolve()
         }
         const current = get().conversations[sessionId]
@@ -667,7 +641,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       async selectModel(model, thinkingLevel) {
         const sessionId = get().activeSessionId
         if (sessionId === null) {
-          set({ draftModel: model, draftThinkingLevel: thinkingLevel ?? 'off' })
+          newChat.getState().configure({ model, thinkingLevel: thinkingLevel ?? 'off' })
           return
         }
         try {
@@ -791,7 +765,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     if (state.activeSessionId !== previous.activeSessionId) lists.getState().rememberSession(state.activeSessionId)
   })
 
-  return Object.assign(store, { lists })
+  return Object.assign(store, { lists, newChat })
 }
 
 export function reduceProgress(live: LiveRun | null, runId: string, event: Exclude<ProgressEvent, { type: 'run_end' }>): LiveRun {

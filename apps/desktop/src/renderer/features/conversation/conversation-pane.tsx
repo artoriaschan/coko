@@ -1,8 +1,8 @@
-import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, FolderPlusIcon, PlayIcon } from 'lucide-react'
+import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
-import { useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession } from '../../app/chat.tsx'
+import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsPage } from '../../app/settings.tsx'
@@ -14,6 +14,8 @@ import { useAgentsStoreApi } from './agents-button.tsx'
 import { ApprovalPanel, useChildApproval } from './approval-panel.tsx'
 import { ConfirmationPanel } from './confirmation-panel.tsx'
 import { Composer, type ComposerHandle } from './composer.tsx'
+import { NewChatWelcome } from './new-chat-welcome.tsx'
+import { NEW_CHAT_EDITOR_KEY } from '../../stores/new-chat-store.ts'
 import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
 import { HeaderMenuActionContext, visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
@@ -100,17 +102,14 @@ export function HeaderActions({ actions, ...props }: { actions: readonly HeaderA
   )
 }
 
-export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onAddWorkspace, onOpenLogs, composerRef }: ConversationPaneProps) {
+export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onOpenLogs, composerRef }: ConversationPaneProps) {
   const { t } = useI18n()
   const activeSessionId = useChat((s) => s.activeSessionId)
-  const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const session = useCurrentSession()
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
-  const hasWorkspace = useLists((s) => s.workspaces.length > 0)
-  const listStatus = useLists((s) => s.listStatus)
-  const draftModel = useChat((s) => s.draftModel)
-  const draftThinkingLevel = useChat((s) => s.draftThinkingLevel)
-  const draftPermissionMode = useChat((s) => s.draftPermissionMode)
+  const draftModel = useNewChat((s) => s.model)
+  const draftThinkingLevel = useNewChat((s) => s.thinkingLevel)
+  const draftPermissionMode = useNewChat((s) => s.permissionMode)
   const {
     send,
     stop,
@@ -138,7 +137,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const sendOrOpen = async (text: string) => openGoalCard(text) || send(text)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
-  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === (session?.workspaceId ?? draftWorkspaceId))?.path)
+  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === session?.workspaceId)?.path)
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -147,7 +146,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   // 会话记录了模型时显示它；草稿显示已选的或默认模型。只有确认没有任何可用模型时才引导到设置。
   // 会话的模型被清空（Provider 被删除或升级时清除）时不代填默认模型：Sidecar 要求运行前重新选择。从未设置时显示默认模型，
   // 运行时 Sidecar 同样取默认模型。
-  const model = session ? (session.model ?? (session.modelCleared ? null : defaultModel)) : (draftModel ?? defaultModel)
+  const firstModel = React.useMemo(() => (models[0] ? { providerId: models[0].providerId, modelId: models[0].modelId } : null), [models])
+  const model = session ? (session.model ?? (session.modelCleared ? null : defaultModel)) : (draftModel ?? firstModel)
   const thinkingLevel = session ? session.thinkingLevel : draftThinkingLevel
   const needsSetup = settingsStatus === 'ready' && models.length === 0
   const modelRequired = session !== undefined && session.model === null && session.modelCleared && !needsSetup && models.length > 0
@@ -157,7 +157,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     : session
       ? 'default'
       : (draftPermissionMode ?? defaultPermissionMode)
-  const canChangeMode = activeSessionId !== null || draftWorkspaceId !== null
+  const canChangeMode = true
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation) : []), [conversation])
   const running = conversation?.running ?? false
   // 同一时刻只有一张审批卡：父会话与其 running 子代理中最早的待审批请求（按条目 createdAt）接管输入区；子代理的请求回答发往子 Session。
@@ -203,10 +203,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const rewound = React.useRef(false)
   const actionsDisabled = running || takenOver
   // / 命令菜单的作用域；对象随 id 变化才重建。
-  const commandTarget = React.useMemo(
-    () => (activeSessionId !== null ? { sessionId: activeSessionId } : draftWorkspaceId !== null ? { workspaceId: draftWorkspaceId } : undefined),
-    [activeSessionId, draftWorkspaceId],
-  )
+  const commandTarget = React.useMemo(() => (activeSessionId !== null ? { sessionId: activeSessionId } : undefined), [activeSessionId])
 
   // 外部 ref（⌘N 聚焦）与本组件的 ref（退回追加指令）指向同一个 composer。
   const composer = React.useRef<ComposerHandle | null>(null)
@@ -239,7 +236,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const resumeMode = conversation !== undefined && banner !== undefined ? continueMode(conversation) : undefined
   const continuable = resumeMode !== undefined
 
-  const title = session ? session.title || t('sidebar.untitled') : draftWorkspaceId !== null ? t('conversation.newSession') : ''
+  const title = session ? session.title || t('sidebar.untitled') : t('conversation.newSession')
   // 标题栏操作（后台任务、费用）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
   const headerActions = visibleHeaderActions()
   const openTab = (tab: RightPanelTabId) => {
@@ -259,17 +256,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   }, [activeSessionId])
 
   let body: React.ReactNode
-  if (listStatus === 'ready' && !hasWorkspace) {
-    body = (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-ui-title font-medium">{t('conversation.noWorkspaceTitle')}</p>
-        <p className="max-w-100 text-ui-body text-muted-foreground">{t('conversation.noWorkspaceBody')}</p>
-        <Button onClick={onAddWorkspace}>
-          <FolderPlusIcon />
-          {t('sidebar.addWorkspace')}
-        </Button>
-      </div>
-    )
+  if (activeSessionId === null) {
+    body = <NewChatWelcome />
   } else if (conversation?.status === 'error') {
     body = (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -285,7 +273,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
       </div>
     )
-  } else if (items.length === 0 && (draftWorkspaceId !== null || conversation)) {
+  } else if (items.length === 0 && conversation) {
     body = <div className="flex flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('conversation.emptySession')}</div>
   } else {
     body = (
@@ -322,10 +310,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         </IconButton>
       </header>
 
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className={`relative flex min-h-0 flex-1 flex-col ${activeSessionId === null ? 'justify-center overflow-y-auto' : ''}`}>
         <div
           ref={scroller}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4"
+          className={activeSessionId === null ? 'shrink-0 px-4' : 'flex min-h-0 flex-1 flex-col overflow-y-auto px-4'}
           onScroll={(event) => {
             const el = event.currentTarget
             pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
@@ -390,9 +378,10 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
               className={composerColumn}
               running={running}
-              disabled={activeSessionId === null && draftWorkspaceId === null}
+              disabled={false}
               commandTarget={commandTarget}
-              fileWorkspaceId={session?.workspaceId ?? draftWorkspaceId ?? undefined}
+              draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
+              fileWorkspaceId={session?.workspaceId}
               fileWorkspacePath={attachmentRoot}
               needsSetup={needsSetup}
               onSend={sendOrOpen}
@@ -412,13 +401,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 />
               }
               accessory={
-                <ModelPicker
-                  models={models}
-                  value={model}
-                  thinkingLevel={thinkingLevel}
-                  disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                  onChange={(m, level) => selectModel(m, level)}
-                />
+                <ModelPicker models={models} value={model} thinkingLevel={thinkingLevel} disabled={running} onChange={(m, level) => selectModel(m, level)} />
               }
             />
           </div>

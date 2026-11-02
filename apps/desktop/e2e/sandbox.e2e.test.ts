@@ -27,7 +27,7 @@ async function setup(script: (outside: string) => unknown) {
     .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
     .first()
     .click()
-  await app.window.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, workspace, outside }
 }
 

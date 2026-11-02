@@ -42,7 +42,7 @@ describe('上下文环', () => {
       .getByRole('button', { name: /^(Add project|创建项目)$/ })
       .first()
       .click()
-    await page.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
     // 草稿：底栏入口只显示环，低于预警线。
     await expect.poll(() => ring(page).getAttribute('aria-label'), { timeout: 15_000 }).toMatch(/^(Context usage|上下文用量)$/)

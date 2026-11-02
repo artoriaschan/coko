@@ -10,6 +10,7 @@ export const API_ROUTES = {
   workspaces: '/api/workspaces',
   projects: '/api/projects',
   sessions: '/api/sessions',
+  firstSend: '/api/chats/first-send',
   settings: '/api/settings',
   providers: '/api/providers',
   /** GET：已注册 Provider 的可用模型与默认模型。 */

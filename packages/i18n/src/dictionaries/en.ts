@@ -6,6 +6,7 @@ export const en: typeof zh = {
     name: 'Coko',
   },
   sidebar: {
+    createConversation: 'Create new chat',
     pinned: 'Pinned',
     pinConversation: 'Pin conversation',
     unpinConversation: 'Unpin conversation',
@@ -84,6 +85,8 @@ export const en: typeof zh = {
     en: 'English',
   },
   conversation: {
+    welcomeTitle: 'What shall we work on today?',
+    welcomeBody: 'Start with an idea. Let’s build it together.',
     attach: 'Add attachment',
     imagesUnavailable: 'Image attachments are not available yet',
     attachmentFailed: 'Could not add the file. Choose it again.',
@@ -92,7 +95,7 @@ export const en: typeof zh = {
     composerPlaceholder: 'Give Coko a task',
     send: 'Send',
     stop: 'Stop',
-    newSession: 'New session',
+    newSession: 'New chat',
     moreActions: 'More actions',
     noWorkspaceTitle: 'Add a workspace',
     noWorkspaceBody: 'Choose a local folder as a workspace. Coko reads and writes files and runs commands there.',

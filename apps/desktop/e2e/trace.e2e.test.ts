@@ -89,7 +89,7 @@ describe('Trace tab', () => {
       .getByRole('button', { name: /^(Add workspace|添加工作区)$/ })
       .first()
       .click()
-    await win.getByRole('heading', { level: 1, name: /^(New session|新会话)$/ }).waitFor()
+    await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await win.locator('[data-permission-mode]').click()
     await win.locator('[role="menuitemradio"][data-mode="full-access"]').click()
     await expect.poll(() => win.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('full-access')
