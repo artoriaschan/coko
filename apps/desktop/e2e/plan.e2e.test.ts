@@ -1,6 +1,6 @@
 // Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后恢复 prior；提交计划后审阅接管输入区、右栏自动打开一次；
 // "继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式恢复且时间线有计划卡。
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
@@ -66,7 +66,7 @@ describe('Plan Mode', () => {
     await choosePlan(app)
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('plan')
     await composer(app).fill('keep this draft ')
-    await stubDirectoryPicker(app.app, [join(workspace, 'notes.txt')])
+    await stubDirectoryPicker(app.app, [await realpath(join(workspace, 'notes.txt'))])
     await app.window.locator('[data-action="attach"]').click()
     await composer(app).locator('[data-file-reference="notes.txt"]').waitFor()
     const selectedModel = await app.window.locator('[data-model-picker]').textContent()

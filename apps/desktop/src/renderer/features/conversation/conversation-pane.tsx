@@ -44,7 +44,7 @@ export interface ConversationPaneProps {
 
 // 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
-const composerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
+const sessionComposerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
 
 /**
  * 标题栏操作（docs/tech-stack/ui.md 的"先重排，再截断"）：主列不窄于 560 px 时全部留在标题栏；更窄时（包括 390 px 与侧栏收起过渡中的
@@ -107,6 +107,7 @@ export function HeaderActions({ actions, ...props }: { actions: readonly HeaderA
 export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onOpenLogs, composerRef }: ConversationPaneProps) {
   const { t } = useI18n()
   const activeSessionId = useChat((s) => s.activeSessionId)
+  const composerColumn = activeSessionId === null ? 'mx-auto w-full max-w-[768px]' : sessionComposerColumn
   const session = useCurrentSession()
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
   const draftModel = useNewChat((s) => s.model)
