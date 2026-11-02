@@ -26,6 +26,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
   const trigger = React.useRef<HTMLDivElement>(null)
+  const dismissedUnderPointer = React.useRef(false)
   const names = new Map<string, number>()
   for (const project of projects) names.set(project.name, (names.get(project.name) ?? 0) + 1)
   const matches = projects.filter((project) => project.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
@@ -36,11 +37,23 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
     <DropdownMenuSub
       open={open}
       onOpenChange={(next) => {
+        if (next && dismissedUnderPointer.current) return
         setOpen(next)
         if (next) setSearch('')
       }}
     >
-      <DropdownMenuSubTrigger ref={trigger}>
+      <DropdownMenuSubTrigger
+        ref={trigger}
+        onPointerLeave={() => {
+          dismissedUnderPointer.current = false
+        }}
+        onPointerDown={() => {
+          dismissedUnderPointer.current = false
+        }}
+        onKeyDown={() => {
+          dismissedUnderPointer.current = false
+        }}
+      >
         <SessionMenuIcon>
           <FolderInputIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
         </SessionMenuIcon>
@@ -54,6 +67,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
         onEscapeKeyDown={(event) => {
           if (!open) return
           event.preventDefault()
+          dismissedUnderPointer.current = true
           setOpen(false)
           requestAnimationFrame(() => trigger.current?.focus())
         }}
