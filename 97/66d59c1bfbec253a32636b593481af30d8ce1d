@@ -1,0 +1,46 @@
+apps/desktop/src/renderer/features/sidebar/conversation-search.tsx
+  s_64e2ce1bfde668::t_fe6b23edef62c7 70-206,259-266,268-274
+  s_64e2ce1bfde668::t_4ac95b79b9b1de 2,207-258
+  s_64e2ce1bfde668::t_dede9b0189d80e 1,3-29,31-69,267,275
+.scratch/conversation-workbench/issues/22-conversation-search.md
+  s_64e2ce1bfde668::t_69c5c0c68d7697 20-29
+apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx
+  s_64e2ce1bfde668::t_71ef290c5e71ae 167-200,202-215
+  s_64e2ce1bfde668::t_66cf5abca218fd 201
+  s_64e2ce1bfde668::t_550f8516731b61 61
+  s_64e2ce1bfde668::t_469d6aa0f3c071 1-14,26-31,38,50-60,62-82
+  s_64e2ce1bfde668::t_fe6b23edef62c7 15-25,32-37,39-49,163-165
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_dede9b0189d80e 77-83
+apps/desktop/e2e/conversation-search.e2e.test.ts
+  s_64e2ce1bfde668::t_1be90e4dd5fc91 1-41
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_dede9b0189d80e 75-81
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_64e2ce1bfde668::t_dede9b0189d80e 1,11,90
+docs/README.md
+  s_64e2ce1bfde668::t_fe6b23edef62c7 28
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_dede9b0189d80e 13,146
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_64e2ce1bfde668::t_dede9b0189d80e 32
+  s_64e2ce1bfde668::t_fe6b23edef62c7 46,49,51,68
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_fe6b23edef62c7 15,23-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9766d59c1bfbec253a32636b593481af30d8ce1d",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
