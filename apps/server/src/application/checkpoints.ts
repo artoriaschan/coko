@@ -147,6 +147,7 @@ export class SessionCheckpoints {
       const forked = plan(() => forkEntries(entries, sessionId, targetSeq))
       const session = await store.sessions.createSession({
         workspaceId: source.workspaceId,
+        projectId: source.projectId,
         title: title?.trim() || source.title,
         model: source.model,
         thinkingLevel: source.thinkingLevel,

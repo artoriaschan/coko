@@ -14,7 +14,7 @@ import {
 } from '@coko/ui'
 import { ChevronDownIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
-import { useChat, useChatActions } from '../../app/chat.tsx'
+import { useChat, useChatActions, useLists, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsActions } from '../../app/settings.tsx'
@@ -37,10 +37,10 @@ export function PermissionsSection() {
   const { t } = useI18n()
   const permissions = useSettings((s) => s.permissions)
   const { loadPermissions, savePermissions } = useSettingsActions()
-  const activeSession = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId))
+  const activeSession = useCurrentSession()
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const workspaceId = activeSession?.workspaceId ?? draftWorkspaceId ?? undefined
-  const workspace = useChat((s) => s.workspaces.find((w) => w.id === workspaceId))
+  const workspace = useLists((s) => s.workspaces.find((w) => w.id === workspaceId))
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
   const { removeSessionRule } = useChatActions()
   const ownRules = React.useMemo(() => (conversation ? sessionRules(conversation.entries) : []), [conversation])

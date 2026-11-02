@@ -6,6 +6,11 @@ export const en: typeof zh = {
     name: 'Coko',
   },
   sidebar: {
+    conversations: 'Conversations',
+    projects: 'Projects',
+    addProject: 'Add project',
+    noConversations: 'No conversations',
+
     label: 'Sidebar',
     navigation: 'Main navigation',
     back: 'Go back',

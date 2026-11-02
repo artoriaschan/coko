@@ -2,7 +2,7 @@
 kind: decision
 description: "项目（Project）是组织会话的容器：一组源文件夹，其中唯一的主要文件夹对应一个 Workspace，主要文件夹在项目间不能重复、名称可以重复；会话最多属于一个项目，移入或移出项目只改归属、不改工作目录；附加文件夹在权限上算项目会话的 Workspace 内部；删除项目保留会话的修订规则见 ADR 0022；独立对话在 Coko 首次发送时创建的专属目录中工作；现有 Workspace 迁移为单文件夹项目。修改项目与 Workspace 的映射、归属变更的语义或独立对话的目录时回看。"
 status: accepted
-implementation: not-started
+implementation: partial
 lifecycle: active
 category: architecture
 ---
@@ -42,6 +42,10 @@ category: architecture
 - **允许主要文件夹在项目间重复。** 两个项目会共用一个 Workspace 及其批准与记忆，所以用户要求主要文件夹唯一。
 - **附加文件夹只作引用、读写都要审批。** 更保守，但与界面“添加可读取和编辑的文件夹”的承诺不符。附加文件夹是用户在应用中授予的，不是仓库里的项目文件授予的，所以与 [ADR 0008](0008-project-files-only-tighten.md)“项目文件只能收紧”不冲突。
 - **删除项目时把会话改为独立对话。** 第二轮曾因归属与工作目录不一致而未采用；用户在后续弹窗确认中明确要求保留记录，现由 [ADR 0022](0022-project-removal-preserves-sessions.md) 采用此方案。归属变化继续遵守固定工作目录的决定。
+
+## 当前实施范围
+
+已实现项目与会话组织字段、SQLite v10 的 Workspace 迁移、主要 Workspace 唯一约束、列表协议及两类基础列表。根会话在项目主要 Workspace 中创建时默认归入项目，子会话的协议归属从根会话派生，分叉与交接继承来源归属。当前行为与验证入口见 [项目与会话列表](../subsystems/projects.md)。附加文件夹的权限范围、项目完整管理与独立对话首次发送目录仍待实施，因此 implementation 为 partial。
 
 ## 后果与验证
 

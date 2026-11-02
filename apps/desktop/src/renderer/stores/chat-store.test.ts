@@ -36,6 +36,9 @@ const workspace: Workspace = { id: 'w1', path: '/tmp/w1', name: 'w1', createdAt:
 const session = (id: string, patch: Partial<Session> = {}): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: { providerId: 'faux', modelId: 'faux-1' },
   thinkingLevel: 'off',
@@ -62,6 +65,7 @@ type Api = ApiClient
 
 function fakeApi(overrides: Partial<ApiClient> = {}): ApiClient {
   return {
+    listProjects: async () => [],
     listWorkspaces: vi.fn<Api['listWorkspaces']>(async () => [workspace]),
     listSessions: vi.fn<Api['listSessions']>(async () => [session('s1')]),
     registerWorkspace: vi.fn<Api['registerWorkspace']>(async () => workspace),
@@ -121,6 +125,17 @@ describe('chat store', () => {
     expect(stream.sent.at(-1)).toEqual({ type: 'subscribe', sessionId: 's1', afterSeq: 7 })
   })
 
+  it('订阅补发旧条目不倒退最后记录时间，新条目仍刷新列表', async () => {
+    const stream = new FakeStream()
+    const api = fakeApi({ listSessions: async () => [session('s1', { updatedAt: 100 })] })
+    const store = createChatStore({ api, stream })
+    await store.getState().load()
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('older')) })
+    expect(store.lists.getState().sessions[0]?.updatedAt).toBe(100)
+    stream.deliver({ type: 'entry', sessionId: 's1', entry: { ...entry('s1', 2, user('newer')), createdAt: 101 } })
+    expect(store.lists.getState().sessions[0]?.updatedAt).toBe(101)
+  })
+
   it('重连后按 lastSeq 重新订阅；中断期间缺头的文本增量不显示，下一条 assistant 条目后恢复接收', async () => {
     const stream = new FakeStream()
     const store = createChatStore({ api: fakeApi({ listSessions: vi.fn<Api['listSessions']>(async () => [session('s1', { running: true })]) }), stream })
@@ -170,7 +185,7 @@ describe('chat store', () => {
 
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 5, { status: 'completed' }, 'run_end') })
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
-    expect(store.getState().sessions[0]?.running).toBe(false)
+    expect(store.lists.getState().sessions[0]?.running).toBe(false)
   })
 
   it('草稿首条消息：创建会话（标题取首行）→ 订阅确认后再提交', async () => {
@@ -274,7 +289,7 @@ describe('chat store', () => {
       event: { type: 'run_end', status: 'error', error: { code: 'commit_failed', message: 'host lease was taken over' } },
     })
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
-    expect(store.getState().sessions[0]?.running).toBe(false)
+    expect(store.lists.getState().sessions[0]?.running).toBe(false)
     expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', message: 'host lease was taken over', retryable: false })
   })
 
@@ -313,7 +328,7 @@ describe('chat store', () => {
     const other = { providerId: 'p1', modelId: 'deepseek-v4-pro' }
     await store.getState().selectModel(other)
     expect(api.setSessionModel).toHaveBeenCalledWith('s-new', other)
-    expect(store.getState().sessions.find((s) => s.id === 's-new')?.model).toEqual(other)
+    expect(store.lists.getState().sessions.find((s) => s.id === 's-new')?.model).toEqual(other)
   })
 
   it('Thinking Level 与模型一起选择：草稿默认 off，选择的档位用于创建会话；打开的会话切换档位经协议写入并按回复更新', async () => {
@@ -338,7 +353,7 @@ describe('chat store', () => {
 
     await store.getState().selectModel(thinker, 'medium')
     expect(api.setSessionModel).toHaveBeenLastCalledWith('s-new', thinker, 'medium')
-    expect(store.getState().sessions.find((s) => s.id === 's-new')).toMatchObject({ model: thinker, thinkingLevel: 'medium' })
+    expect(store.lists.getState().sessions.find((s) => s.id === 's-new')).toMatchObject({ model: thinker, thinkingLevel: 'medium' })
   })
 
   it('切换模型失败时报告 model 失败，会话模型不变', async () => {
@@ -348,7 +363,7 @@ describe('chat store', () => {
     await store.getState().load()
     await store.getState().selectModel({ providerId: 'p1', modelId: 'm' })
     expect(failures.map((f) => [f.kind, f.error.code])).toEqual([['model', 'run-in-progress']])
-    expect(store.getState().sessions[0]?.model).toEqual({ providerId: 'faux', modelId: 'faux-1' })
+    expect(store.lists.getState().sessions[0]?.model).toEqual({ providerId: 'faux', modelId: 'faux-1' })
   })
 })
 
@@ -402,7 +417,7 @@ describe('chat store：M5 的条目与进度', () => {
     })
     expect(seen).toEqual(['agent_update', 'schedule_update'])
     expect(store.getState().conversations.s1!.running).toBe(false)
-    expect(store.getState().sessions.find((s) => s.id === 's1')?.running).toBe(false)
+    expect(store.lists.getState().sessions.find((s) => s.id === 's1')?.running).toBe(false)
   })
 
   it('subscribeSession 订阅子 Session 而不切换当前会话；已订阅的不重复订阅', async () => {

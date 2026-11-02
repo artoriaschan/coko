@@ -22,6 +22,9 @@ function fakeStream() {
 const session = (id: string, patch: Partial<Session> = {}): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: null,
   thinkingLevel: 'off',
@@ -63,6 +66,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   const { stream, deliver } = fakeStream()
   const failures: ChatFailure[] = []
   const api = {
+    listProjects: async () => [],
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => [session('s1', { running: true, activity: 'running' })],
     steerRun: vi.fn<ApiClient['steerRun']>(async () => undefined),
@@ -79,7 +83,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   deliver({ type: 'subscribed', sessionId: 's1', lastSeq: seq, running: true })
   const conversation = () => store.getState().conversations.s1!
   const timeline = () => buildTimeline(conversation())
-  const activity = () => store.getState().sessions.find((s) => s.id === 's1')!.activity
+  const activity = () => store.lists.getState().sessions.find((s) => s.id === 's1')!.activity
   return { store, send, deliver, failures, api, conversation, timeline, activity }
 }
 

@@ -26,6 +26,9 @@ function fakeStream() {
 const session = (id: string, patch: Partial<Session> = {}): Session => ({
   id,
   workspaceId: 'w1',
+  projectId: null,
+  pinnedAt: null,
+  archivedAt: null,
   title: id,
   model: null,
   thinkingLevel: 'off',
@@ -81,6 +84,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
   const failures: ChatFailure[] = []
   let sessions = [session('s1', { activity: 'paused' })]
   const api = {
+    listProjects: async () => [],
     listWorkspaces: async () => [{ id: 'w1', path: '/w1', name: 'w1', createdAt: 1 }],
     listSessions: async () => sessions,
     rewind: vi.fn<ApiClient['rewind']>(async (_id, request) => response({ mode: request.mode, dryRun: request.dryRun ?? false })),
@@ -109,7 +113,7 @@ describe('chat store：回退与分叉', () => {
     expect(visibleEntries(h.conversation().entries).map((e) => e.seq)).toEqual([1, 2, 3, 4, 5])
     expect(conversationActivity(h.conversation())).toBe('idle')
     expect(canContinue(h.conversation())).toBe(false)
-    expect(h.store.getState().sessions[0]!.activity).toBe('idle')
+    expect(h.store.lists.getState().sessions[0]!.activity).toBe('idle')
   })
 
   it('回退对话或两者：经协议发送，目标文本作为退回的草稿；只回退代码时不退回文本', async () => {
@@ -139,7 +143,7 @@ describe('chat store：回退与分叉', () => {
     expect(await h.store.getState().fork(6)).toBe(true)
     expect(h.api.fork).toHaveBeenCalledWith('s1', 6, 's1 (fork)')
     expect(h.store.getState().activeSessionId).toBe('s2')
-    expect(h.store.getState().sessions.map((s) => s.id)).toEqual(['s2', 's1'])
+    expect(h.store.lists.getState().sessions.map((s) => s.id)).toEqual(['s2', 's1'])
     expect(h.conversation('s2').returnedDraft).toBe('two')
     expect(h.sent).toContainEqual({ type: 'subscribe', sessionId: 's2', afterSeq: 0 })
     expect(h.conversation('s1').entries).toHaveLength(before)

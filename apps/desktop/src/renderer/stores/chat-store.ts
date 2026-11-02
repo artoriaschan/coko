@@ -15,12 +15,12 @@ import {
   type SessionEntryOf,
   type SessionModel,
   type ThinkingLevel,
-  type Workspace,
 } from '@coko/protocol'
 import { effectiveEntries, lastRunStatus, unansweredConfirmations } from '@coko/agent/entries'
 import { Value } from 'typebox/value'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
+import { createListStore, type ListStore } from './list-store.ts'
 import type { StreamClient } from '../client/connection.ts'
 
 /** 进行中的工具：由 progress 维护，最终内容以 toolResult 条目为准。 */
@@ -176,9 +176,6 @@ export function continueMode(conversation: Pick<Conversation, 'entries' | 'runni
 }
 
 export interface ChatState {
-  workspaces: Workspace[]
-  sessions: Session[]
-  listStatus: 'idle' | 'loading' | 'ready' | 'error'
   /** 当前会话；与 draftWorkspaceId 互斥。 */
   activeSessionId: string | null
   /** 新会话草稿所在的 Workspace：首条消息提交时才创建 Session。 */
@@ -254,7 +251,7 @@ export interface ChatActions {
 
 export type ProgressListener = (progress: { sessionId: string; runId: string; event: ProgressEvent }) => void
 
-export type ChatStore = StoreApi<ChatState & ChatActions>
+export type ChatStore = StoreApi<ChatState & ChatActions> & { lists: ListStore }
 
 export interface ChatStoreOptions {
   api: ApiClient
@@ -314,6 +311,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
   const modeChains = new Map<string, Promise<unknown>>()
   const progressListeners = new Set<ProgressListener>()
   let loadedOnce = false
+  const lists = createListStore(api)
 
   const store = createStore<ChatState & ChatActions>()((set, get) => {
     const updateConversation = (sessionId: string, update: (c: Conversation) => Conversation) =>
@@ -342,7 +340,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     const ensureConversation = (sessionId: string) => {
       pinned.add(sessionId)
       if (get().conversations[sessionId]) return
-      const running = get().sessions.find((s) => s.id === sessionId)?.running ?? false
+      const running = lists.getState().sessions.find((s) => s.id === sessionId)?.running ?? false
       set((state) => ({ conversations: { ...state.conversations, [sessionId]: { status: 'loading', entries: [], lastSeq: 0, running, live: null } } }))
       void subscribe(sessionId)
     }
@@ -369,9 +367,6 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     }
 
     return {
-      workspaces: [],
-      sessions: [],
-      listStatus: 'idle',
       activeSessionId: null,
       draftWorkspaceId: null,
       draftModel: null,
@@ -380,17 +375,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       conversations: {},
 
       async load() {
-        if (get().listStatus === 'idle') set({ listStatus: 'loading' })
-        try {
-          const [workspaces, sessions] = await Promise.all([api.listWorkspaces(), api.listSessions()])
-          set({ workspaces, sessions, listStatus: 'ready' })
-        } catch {
-          if (get().listStatus !== 'ready') set({ listStatus: 'error' })
-          return
-        }
+        if (!(await lists.getState().load())) return
         if (loadedOnce) return
         loadedOnce = true
-        const { activeSessionId, draftWorkspaceId, sessions, workspaces } = get()
+        const { activeSessionId, draftWorkspaceId } = get()
+        const { sessions, workspaces } = lists.getState()
         if (activeSessionId !== null || draftWorkspaceId !== null) return
         const recent = sessions[0]
         if (recent) get().openSession(recent.id)
@@ -429,8 +418,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
 
       startDraft(workspaceId) {
         const state = get()
-        const active = state.sessions.find((s) => s.id === state.activeSessionId)
-        const target = workspaceId ?? state.draftWorkspaceId ?? active?.workspaceId ?? state.workspaces[0]?.id ?? null
+        const active = lists.getState().sessions.find((s) => s.id === state.activeSessionId)
+        const target = workspaceId ?? state.draftWorkspaceId ?? active?.workspaceId ?? lists.getState().workspaces[0]?.id ?? null
         set({ activeSessionId: null, draftWorkspaceId: target })
       },
 
@@ -439,11 +428,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         if (path === null) return
         try {
           const workspace = await api.registerWorkspace(path)
-          set((state) => ({
-            workspaces: state.workspaces.some((w) => w.id === workspace.id) ? state.workspaces : [...state.workspaces, workspace],
-            activeSessionId: null,
-            draftWorkspaceId: workspace.id,
-          }))
+          await lists.getState().load()
+          set({ activeSessionId: null, draftWorkspaceId: workspace.id })
         } catch (error) {
           onFailure?.({ kind: 'workspace', error: toApiError(error) })
         }
@@ -465,7 +451,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
           onFailure?.({ kind: 'send', error: toApiError(error) })
           return false
         }
-        set((state) => ({ sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)] }))
+        lists.getState().upsertSession(session)
         // 用户在等待期间切换到别处时不抢焦点。
         if (get().draftWorkspaceId === draftWorkspaceId && get().activeSessionId === null) set({ activeSessionId: session.id, draftWorkspaceId: null })
         // 先确认订阅再提交，使首个 Run 的进度不丢。
@@ -657,7 +643,8 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         let forked: { sessionId: string; text: string }
         try {
           const source =
-            get()
+            lists
+              .getState()
               .sessions.find((s) => s.id === sessionId)
               ?.title.trim() ?? ''
           forked = forkTitle ? await api.fork(sessionId, targetSeq, forkTitle(source)) : await api.fork(sessionId, targetSeq)
@@ -680,9 +667,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
         try {
           const updated = thinkingLevel === undefined ? await api.setSessionModel(sessionId, model) : await api.setSessionModel(sessionId, model, thinkingLevel)
-          set((state) => ({
-            sessions: state.sessions.map((s) => (s.id === updated.id ? { ...s, model: updated.model, thinkingLevel: updated.thinkingLevel } : s)),
-          }))
+          lists.getState().patchSession(updated.id, { model: updated.model, thinkingLevel: updated.thinkingLevel })
         } catch (error) {
           onFailure?.({ kind: 'model', error: toApiError(error) })
         }
@@ -701,8 +686,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       const current = store.getState().conversations[sessionId]
       if (current) store.setState({ conversations: { ...store.getState().conversations, [sessionId]: update(current) } })
     }
-    const patchSession = (sessionId: string, patch: Partial<Session>) =>
-      store.setState({ sessions: store.getState().sessions.map((s) => (s.id === sessionId ? { ...s, ...patch } : s)) })
+    const patchSession = (sessionId: string, patch: Partial<Session>) => lists.getState().patchSession(sessionId, patch)
 
     switch (message.type) {
       case 'subscribed': {
@@ -798,7 +782,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     void store.getState().load()
   })
 
-  return store
+  return Object.assign(store, { lists })
 }
 
 export function reduceProgress(live: LiveRun | null, runId: string, event: Exclude<ProgressEvent, { type: 'run_end' }>): LiveRun {

@@ -3,7 +3,7 @@ import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
 import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useChat } from '../../app/chat.tsx'
+import { useChat, useLists, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { configStore } from '../../stores/config-store.ts'
@@ -20,10 +20,10 @@ const SEARCH_DEBOUNCE_MS = 200
  */
 export function MemorySection() {
   const { t } = useI18n()
-  const activeWorkspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId)
+  const activeWorkspaceId = useCurrentSession()?.workspaceId
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
-  const workspace = useChat((s) => s.workspaces.find((w) => w.id === workspaceId))
+  const workspace = useLists((s) => s.workspaces.find((w) => w.id === workspaceId))
   const status = useStore(memoryStore, (s) => s.status)
   const loadedFor = useStore(memoryStore, (s) => s.workspaceId)
   const memories = useStore(memoryStore, (s) => s.memories)

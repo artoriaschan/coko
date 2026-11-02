@@ -8,6 +8,7 @@ export const API_ROUTES = {
   /** WebSocket 升级入口。 */
   stream: '/api/ws',
   workspaces: '/api/workspaces',
+  projects: '/api/projects',
   sessions: '/api/sessions',
   settings: '/api/settings',
   providers: '/api/providers',

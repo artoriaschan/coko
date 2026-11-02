@@ -39,7 +39,7 @@ async function setup(options: { history?: SessionEntryRecord[]; backend?: Partia
   const finished = vi.fn<(result: { sourceId: string; targetSessionId: string; switched: boolean }) => void>()
   const store = createHandoffStore({ backend: backend(options.backend), writeDraft, onFinished: finished })
   const off = store.getState().attach(fixture.chat)
-  await vi.waitFor(() => expect(fixture.chat.getState().listStatus).toBe('ready'))
+  await vi.waitFor(() => expect(fixture.chat.lists.getState().listStatus).toBe('ready'))
   fixture.chat.getState().openSession('s-1')
   await vi.waitFor(() => expect(fixture.chat.getState().conversations['s-1']?.status).toBe('ready'))
   const push = (entry: SessionEntryRecord) => fixture.sendServer({ type: 'entry', sessionId: entry.sessionId, entry })

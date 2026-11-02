@@ -5,7 +5,7 @@ import { ChevronDownIcon, MoonIcon, SunIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import type { Theme } from '../../app/appearance-store.ts'
-import { useChat } from '../../app/chat.tsx'
+import { useChat, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { usePreferences } from '../../app/settings.tsx'
 import { configStore } from '../../stores/config-store.ts'
@@ -69,7 +69,7 @@ export function GeneralSection({ theme }: { theme: Theme }) {
 /** 指令文件、自动压缩与时间裁剪的全局开关。 */
 function ContextSwitches() {
   const { t } = useI18n()
-  const activeWorkspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId)
+  const activeWorkspaceId = useCurrentSession()?.workspaceId
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
   return (
@@ -97,7 +97,7 @@ const DIAGNOSTIC_TITLES: Record<string, MessageKey> = {
 /** 当前会话所在 Workspace 的 .coko/settings.json：路径、是否存在与诊断数，展开看每条诊断。 */
 function ProjectSettingsRow() {
   const { t } = useI18n()
-  const activeWorkspaceId = useChat((s) => s.sessions.find((x) => x.id === s.activeSessionId)?.workspaceId)
+  const activeWorkspaceId = useCurrentSession()?.workspaceId
   const draftWorkspaceId = useChat((s) => s.draftWorkspaceId)
   const workspaceId = activeWorkspaceId ?? draftWorkspaceId ?? undefined
   const status = useStore(configStore, (s) => s.status)

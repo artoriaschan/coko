@@ -51,7 +51,7 @@ describe('SQLite 迁移 v8', () => {
     const raw = new DatabaseSync(path, { readOnly: true })
     try {
       for (const table of ['worktrees', 'schedules', 'host_processes']) expect(ddl(raw, table)).toMatch(/STRICT$/)
-      expect(columns(raw, 'sessions').slice(-2)).toEqual(['parent_session_id', 'worktree_id'])
+      expect(columns(raw, 'sessions')).toEqual(expect.arrayContaining(['parent_session_id', 'worktree_id']))
       expect(columns(raw, 'host_processes')).toEqual(['id', 'pid', 'pgid', 'started_at', 'kind', 'session_id', 'job_id', 'command', 'created_at'])
       expect(columns(raw, 'worktrees')).toEqual([
         'id',

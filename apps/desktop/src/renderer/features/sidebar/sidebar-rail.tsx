@@ -1,6 +1,6 @@
 import { useAppFrame } from '@coko/ui'
 import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, PanelLeftOpenIcon, PuzzleIcon, SearchIcon, SquarePenIcon } from 'lucide-react'
-import { useChat } from '../../app/chat.tsx'
+import { useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
@@ -10,7 +10,7 @@ import { SettingsButton } from '../settings/settings-button.tsx'
 export function SidebarRail({ onAddWorkspace, onSearch }: { onAddWorkspace: () => void; onSearch: () => void }) {
   const { t } = useI18n()
   const { toggleSidebar, sidebarVisible } = useAppFrame()
-  const hasWorkspace = useChat((s) => s.workspaces.length > 0)
+  const hasWorkspace = useLists((s) => s.workspaces.length > 0)
   const navigation = useWorkbenchNavigation()
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center">

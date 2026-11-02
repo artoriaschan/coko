@@ -152,9 +152,16 @@ export class SessionService {
   /** 协议 DTO：parentSessionId 只在子 Session 上出现，worktree 为创建时绑定的 worktree（含已移除的）。 */
   async toDto(stored: StoredSession): Promise<Session> {
     const { parentSessionId, worktreeId, ...rest } = stored
+    let root = stored
+    while (root.parentSessionId !== null) {
+      const parent = await this.#store.sessions.getSession(root.parentSessionId)
+      if (!parent) break
+      root = parent
+    }
     const worktree = worktreeId === null ? undefined : await this.#store.worktrees.get(worktreeId)
     const session = {
       ...rest,
+      projectId: root.projectId,
       thinkingLevel: this.#models.effectiveLevel(stored),
       ...(parentSessionId === null ? {} : { parentSessionId }),
       ...(worktree ? { worktree: { id: worktree.id, name: worktree.name, branch: worktree.branch, status: worktree.status } } : {}),

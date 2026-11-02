@@ -4,6 +4,11 @@ export const zh = {
     name: 'Coko',
   },
   sidebar: {
+    conversations: '对话',
+    projects: '项目',
+    addProject: '创建项目',
+    noConversations: '暂无对话',
+
     label: '侧栏',
     navigation: '主导航',
     back: '后退',

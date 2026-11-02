@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useStore } from 'zustand'
+import type { ListActions, ListState } from '../stores/list-store.ts'
 import type { ChatActions, ChatState, ChatStore } from '../stores/chat-store.ts'
 
 const ChatStoreContext = React.createContext<ChatStore | null>(null)
@@ -28,4 +29,20 @@ export function useChat<T>(selector: (state: ChatState & ChatActions) => T): T {
 /** 操作函数在 store 生命周期内不变。 */
 export function useChatActions(): ChatActions {
   return useChatStoreApi().getState()
+}
+
+/** 组织与列表的独立订阅。 */
+export function useLists<T>(selector: (state: ListState & ListActions) => T): T {
+  return useStore(useChatStoreApi().lists, selector)
+}
+
+export function useCurrentSession() {
+  const active = useChat((state) => state.activeSessionId)
+  return useLists((state) => state.sessions.find((session) => session.id === active))
+}
+
+export function useActiveWorkspaceId() {
+  const session = useCurrentSession()
+  const draft = useChat((state) => state.draftWorkspaceId)
+  return session?.workspaceId ?? draft ?? undefined
 }
