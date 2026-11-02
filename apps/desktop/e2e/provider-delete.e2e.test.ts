@@ -130,6 +130,8 @@ it('删除被会话引用的供应商：确认框写明引用数量，确认后�
   // 选择模型后提示消失，可以运行，请求使用所选供应商的 Key。
   await app.window.locator('[data-model-picker]').click()
   await app.window.getByRole('menuitemradio', { name: 'm2' }).click()
+  await app.window.keyboard.press('Escape')
+  await app.window.getByRole('menu').waitFor({ state: 'detached' })
   await app.window.locator('[data-slot="model-required"]').waitFor({ state: 'detached' })
   await composer(app).click()
   await composer(app).fill('again')

@@ -7,13 +7,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
+  DropdownMenuItem,
+  ThinkingSlider,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { ChevronDownIcon } from 'lucide-react'
+import { BotIcon, ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -34,28 +35,38 @@ export interface ModelPickerProps {
   onChange: (model: SessionModel, thinkingLevel: ThinkingLevel) => void
 }
 
-/**
- * 输入区的模型选择：按 Provider 分组。会话的模型已不在可用列表中时仍显示其 id。当前模型除 off 外还有可选档位时（推理开关打开且
- * 配置了档位），菜单末尾列出推理档位。
- */
+/** 同一共享菜单表面在当前详情和供应商列表之间替换，选择后保留详情。 */
 export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }: ModelPickerProps) {
   const { t } = useI18n()
+  const [open, setOpen] = React.useState(false)
+  const [view, setView] = React.useState<'detail' | 'list'>('detail')
+  const content = React.useRef<HTMLDivElement>(null)
+  const current = value ? models.find((m) => keyOf(m) === keyOf(value)) : undefined
+  const label = current?.name ?? t('models.picker')
+  const [preview, setPreview] = React.useState<ThinkingLevel | null>(null)
+  const level = current ? levelForModel(current, preview ?? thinkingLevel) : 'off'
   const groups = React.useMemo(() => {
-    const byProvider = new Map<string, { name: string; models: AvailableModel[] }>()
+    const result = new Map<string, { name: string; models: AvailableModel[] }>()
     for (const model of models) {
-      const group = byProvider.get(model.providerId) ?? { name: model.providerName, models: [] }
+      const group = result.get(model.providerId) ?? { name: model.providerName, models: [] }
       group.models.push(model)
-      byProvider.set(model.providerId, group)
+      result.set(model.providerId, group)
     }
-    return [...byProvider.entries()]
+    return [...result.entries()]
   }, [models])
-  const current = value ? models.find((m) => m.providerId === value.providerId && m.modelId === value.modelId) : undefined
-  const label = current?.name ?? value?.modelId ?? t('models.picker')
-  const levels = current && current.thinkingLevels.length > 1 ? current.thinkingLevels : []
-  const level = current ? levelForModel(current, thinkingLevel) : 'off'
-
+  const detail = view === 'detail' && current !== undefined
+  React.useLayoutEffect(() => {
+    content.current?.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"], [role="menuitemradio"], [role="menuitem"]')?.focus()
+  }, [view, detail])
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setView(current ? 'detail' : 'list')
+        else setPreview(null)
+      }}
+    >
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
@@ -63,63 +74,106 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
               type="button"
               variant="toolbar"
               size="sm"
-              disabled={disabled}
+              disabled={disabled || models.length === 0}
               data-model-picker
-              data-model={value ? `${value.providerId}/${value.modelId}` : undefined}
-              data-thinking-level-current={levels.length > 0 ? level : undefined}
+              data-model={current ? `${current.providerId}/${current.modelId}` : undefined}
+              data-thinking-level-current={level}
               aria-label={t('models.pickerCurrent', { model: label })}
-              // 窄输入区中可收缩并截断（完整名称在菜单中）。
-              className="max-w-48 min-w-0 shrink"
+              className="max-w-48 min-w-0 shrink data-[state=open]:bg-accent"
             >
-              <span data-user-content={value ? '' : undefined} className="truncate">
+              <span data-user-content={current ? '' : undefined} className="truncate">
                 {label}
               </span>
-              {levels.length > 0 && level !== 'off' && <span className="shrink-0 text-muted-foreground">{t(`models.thinkingLevels.${level}`)}</span>}
+              {level !== 'off' && <span className="shrink-0 text-muted-foreground">{t(`models.thinkingLevels.${level}`)}</span>}
               <ChevronDownIcon />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="top">{t('models.picker')}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent side="top" align="end" className="max-w-72">
-        <DropdownMenuRadioGroup
-          value={value ? keyOf(value) : ''}
-          onValueChange={(key) => {
-            const model = models.find((m) => keyOf(m) === key)
-            if (model) onChange({ providerId: model.providerId, modelId: model.modelId }, levelForModel(model, level))
-          }}
-        >
-          {groups.map(([providerId, group]) => (
-            <DropdownMenuGroup key={providerId}>
-              <DropdownMenuLabel data-user-content className="truncate">
-                {group.name}
-              </DropdownMenuLabel>
-              {group.models.map((model) => (
-                <DropdownMenuRadioItem key={model.modelId} value={keyOf(model)}>
-                  <span data-user-content className="truncate">
-                    {model.name}
-                  </span>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuGroup>
-          ))}
-        </DropdownMenuRadioGroup>
-        {current && levels.length > 0 && (
+      <DropdownMenuContent
+        ref={content}
+        side="top"
+        align="end"
+        className="w-70 max-w-[calc(100vw-16px)]"
+        data-model-view={detail ? 'detail' : 'list'}
+        onKeyDownCapture={(event) => {
+          if (detail && event.key === 'Tab') event.stopPropagation()
+        }}
+      >
+        {detail ? (
           <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>{t('models.thinkingLevel')}</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
+            <DropdownMenuItem
+              aria-label={t('models.pickerCurrent', { model: label })}
+              className="mx-auto mt-2 mb-3 h-12 w-fit min-w-36 flex-col justify-center gap-0 px-3"
+              onSelect={(event) => {
+                event.preventDefault()
+                setView('list')
+              }}
+            >
+              <span className="text-ui-title">{t(`models.thinkingLevels.${level}`)}</span>
+              <span className="flex max-w-full items-center gap-1.5 text-muted-foreground">
+                <BotIcon className="size-3.5" aria-hidden />
+                <span data-user-content className="truncate">
+                  {label}
+                </span>
+                <ChevronRightIcon className="size-3" aria-hidden />
+              </span>
+            </DropdownMenuItem>
+            <div className="mx-2 mb-2">
+              <ThinkingSlider
+                levels={current.thinkingLevels}
                 value={level}
-                onValueChange={(next) => onChange({ providerId: current.providerId, modelId: current.modelId }, next as ThinkingLevel)}
-              >
-                {levels.map((option) => (
-                  <DropdownMenuRadioItem key={option} value={option} data-thinking-level={option}>
-                    {t(`models.thinkingLevels.${option}`)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
+                labels={{
+                  off: t('models.thinkingLevels.off'),
+                  minimal: t('models.thinkingLevels.minimal'),
+                  low: t('models.thinkingLevels.low'),
+                  medium: t('models.thinkingLevels.medium'),
+                  high: t('models.thinkingLevels.high'),
+                  xhigh: t('models.thinkingLevels.xhigh'),
+                  max: t('models.thinkingLevels.max'),
+                }}
+                label={t('models.thinkingLevel')}
+                active={open}
+                onValueChange={setPreview}
+                onValueCommit={async (next) => {
+                  try {
+                    await onChange({ providerId: current.providerId, modelId: current.modelId }, next)
+                  } finally {
+                    setPreview(null)
+                  }
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <DropdownMenuLabel>{t('models.picker')}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={current ? keyOf(current) : ''}>
+              {groups.map(([providerId, group]) => (
+                <DropdownMenuGroup key={providerId}>
+                  <DropdownMenuLabel data-user-content>{group.name}</DropdownMenuLabel>
+                  {group.models.map((model) => (
+                    <DropdownMenuRadioItem
+                      key={model.modelId}
+                      value={keyOf(model)}
+                      indicatorAlign="end"
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        setPreview(null)
+                        onChange({ providerId: model.providerId, modelId: model.modelId }, levelForModel(model, level))
+                        setView('detail')
+                      }}
+                    >
+                      <BotIcon aria-hidden className="size-3.5" />
+                      <span data-user-content className="truncate">
+                        {model.name}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuGroup>
+              ))}
+            </DropdownMenuRadioGroup>
           </>
         )}
       </DropdownMenuContent>

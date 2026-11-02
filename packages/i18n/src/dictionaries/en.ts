@@ -313,7 +313,7 @@ export const en: typeof zh = {
     pickerCurrent: 'Choose model: {model}',
     configure: 'Set up a model',
     thinkingLevel: 'Thinking level',
-    thinkingLevels: { off: 'Off', minimal: 'minimal', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
+    thinkingLevels: { off: 'Off', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Maximum' },
   },
   permissions: {
     mode: 'Permission mode',

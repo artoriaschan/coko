@@ -369,12 +369,15 @@ describe('模型选择', () => {
     backend.seedProvider(customProvider('p2', ['big-model'], { name: 'Second' }))
     await settings.getState().load()
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    await chat.getState().selectModel({ providerId: 'p1', modelId: 'faux-1' })
     const picker = page.getByRole('button', { name: /^Choose model: / })
     await expect.element(picker).toHaveTextContent('faux-1')
     await picker.click()
+    await page.getByRole('menuitem', { name: /^Choose model: / }).click()
     await expect.element(page.getByRole('menu').getByText('Fixture')).toBeVisible()
     await expect.element(page.getByRole('menu').getByText('Second')).toBeVisible()
     await page.getByRole('menuitemradio', { name: 'big-model' }).click()
+    await userEvent.keyboard('{Escape}')
     await expect.element(picker).toHaveTextContent('big-model')
     expect(chat.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
   })
@@ -396,48 +399,33 @@ describe('模型选择', () => {
     )
     await settings.getState().load()
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
+    await chat.getState().selectModel({ providerId: 'p1', modelId: 'faux-1' })
     const picker = page.getByRole('button', { name: /^选择模型：/ })
-    const levelItems = () => [...document.querySelectorAll('[data-thinking-level]')].map((el) => [el.textContent, el.getAttribute('aria-checked')])
     const choose = async (name: string) => {
-      await picker.click()
+      if (!document.querySelector('[role="menu"][data-state="open"]')) {
+        await picker.click()
+      }
+      await page.getByRole('menuitem', { name: /^选择模型：/ }).click()
       await page.getByRole('menuitemradio', { name, exact: true }).click()
+      await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')?.model?.modelId).toBe(name)
     }
-
-    // 没有推理档位的模型（faux-1）不显示档位选项。
     await picker.click()
-    await expect.element(page.getByRole('menu')).toBeVisible()
-    expect(levelItems()).toEqual([])
+    await expect.element(page.getByRole('slider', { name: '推理档位' })).toHaveAttribute('aria-disabled', 'true')
     await userEvent.keyboard('{Escape}')
-
     await choose('thinker')
-    await picker.click()
-    await expect.element(page.getByRole('menu').getByText('推理档位')).toBeVisible()
-    // 固定顺序；新会话的档位为“关闭”；未配置的档位不出现。
-    expect(levelItems()).toEqual([
-      ['关闭', 'true'],
-      ['medium', 'false'],
-      ['high', 'false'],
-    ])
-    await page.getByRole('menuitemradio', { name: 'high', exact: true }).click()
+    const slider = page.getByRole('slider', { name: '推理档位' })
+    await expect.element(slider).toHaveAttribute('aria-valuemax', '2')
+    await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
+    await userEvent.keyboard('{Tab}{End}')
     await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
-    // 触发按钮显示模型名称与当前档位。
-    await expect.poll(() => picker.element().textContent).toBe('thinkerhigh')
-
-    // 换到未配置 high 的模型：回到“关闭”。
+    await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('thinker高')
     await choose('low-only')
-    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'low-only' }, thinkingLevel: 'off' })
-    await picker.click()
-    await expect.poll(levelItems).toEqual([
-      ['关闭', 'true'],
-      ['low', 'false'],
-    ])
-    await userEvent.keyboard('{Escape}')
-
-    // 推理开关关闭的模型只有“关闭”，不显示档位选项。
+    await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
+    await expect.element(slider).toHaveAttribute('aria-valuemax', '1')
+    await expect.poll(() => chat.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ thinkingLevel: 'off' })
     await choose('switched-off')
-    await picker.click()
-    await expect.element(page.getByRole('menu')).toBeVisible()
-    expect(levelItems()).toEqual([])
+    await expect.element(slider).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
   })
 })
 

@@ -412,18 +412,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 />
               }
               accessory={
-                <>
-                  {/* 模式在 Run 中也可切换：立即作用于下一次调用，等待中的审批按新模式重新判定。 */}
-                  {models.length > 0 && (
-                    <ModelPicker
-                      models={models}
-                      value={model}
-                      thinkingLevel={thinkingLevel}
-                      disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
-                      onChange={(m, level) => void selectModel(m, level)}
-                    />
-                  )}
-                </>
+                <ModelPicker
+                  models={models}
+                  value={model}
+                  thinkingLevel={thinkingLevel}
+                  disabled={running || (activeSessionId === null && draftWorkspaceId === null)}
+                  onChange={(m, level) => selectModel(m, level)}
+                />
               }
             />
           </div>
