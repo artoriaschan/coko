@@ -127,7 +127,8 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
   }
   const backend = fakeSettingsBackend()
   if (options.providers !== false) backend.seedProvider(customProvider('p1', ['faux-1'], { name: 'Fixture' }))
-  const api = {
+  const projectPatches = new Map<string, Partial<import('@coko/protocol').Project>>()
+  const api: ApiClient = {
     ...backend.api,
     setSessionModel: async (id: string, model, thinkingLevel) => ({
       ...(fixtureSessions.find((s) => s.id === id) ?? fixtureSessions[0]!),
@@ -144,6 +145,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
         createdAt: workspace.createdAt,
         lastUsedAt: Math.max(workspace.createdAt, ...sessionList.filter((s) => s.projectId === `project-${workspace.id}`).map((s) => s.updatedAt)),
         sessionCount: sessionList.filter((s) => s.projectId === `project-${workspace.id}` && s.archivedAt === null).length,
+        ...projectPatches.get(`project-${workspace.id}`),
       })),
     listWorkspaces: async () => fixtureWorkspaces,
     listSessions: async () => sessionList,
@@ -156,6 +158,17 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       if (!current) throw new Error('Session not found')
       const updated = { ...current, title: title.trim() }
       sessionList = sessionList.map((session) => (session.id === id ? updated : session))
+      return updated
+    },
+    setProjectPinned: async (id, pinned) => {
+      const project = (await api.listProjects()).find((project) => project.id === id)!
+      const updated = { ...project, pinnedAt: pinned ? (project.pinnedAt ?? Date.now()) : null }
+      projectPatches.set(id, updated)
+      return updated
+    },
+    renameProject: async (id, name) => {
+      const updated = { ...(await api.listProjects()).find((project) => project.id === id)!, name: name.trim() }
+      projectPatches.set(id, updated)
       return updated
     },
     moveSession: async (id, projectId) => {

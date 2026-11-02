@@ -83,8 +83,11 @@ export function ProjectFormDialog({
     try {
       const result = await onSubmit({ name: name.trim(), folders })
       onComplete(result)
-    } catch {
-      setFeedback({ error: true, text: t('projectForm.failed') })
+    } catch (error) {
+      const conflict = error instanceof ApiError && error.details?.reason === 'primary-conflict' ? error.details.project : undefined
+      const conflictName =
+        typeof conflict === 'object' && conflict !== null && 'name' in conflict && typeof conflict.name === 'string' ? conflict.name : undefined
+      setFeedback({ error: true, text: conflictName ? t('projectForm.primaryConflict', { name: conflictName }) : t('projectForm.failed') })
     } finally {
       busy.current = false
       setPending(false)

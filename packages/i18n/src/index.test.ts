@@ -32,8 +32,8 @@ describe('zh / en 字典', () => {
 
 describe('createTranslator', () => {
   it('按键返回当前语言的文案', () => {
-    expect(createTranslator('zh')('sidebar.newSession')).toBe('新会话')
-    expect(createTranslator('en')('sidebar.newSession')).toBe('New session')
+    expect(createTranslator('zh')('sidebar.newSession')).toBe('新对话')
+    expect(createTranslator('en')('sidebar.newSession')).toBe('New chat')
   })
 
   it('替换插值参数，数字按原值输出', () => {

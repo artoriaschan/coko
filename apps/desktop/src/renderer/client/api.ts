@@ -14,6 +14,8 @@ import {
   PermissionsResponse,
   ProjectListResponse,
   CreateProjectResponse,
+  UpdateProjectResponse,
+  Project,
   CheckProjectFolderResponse,
   ProviderListResponse,
   ProviderReferencesResponse,
@@ -105,6 +107,8 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     listWorkspaces: async () => (await call(WorkspaceListResponse, 'GET', API_ROUTES.workspaces)).workspaces,
     registerWorkspace: (path: string) => call(Workspace, 'POST', API_ROUTES.workspaces, { path }),
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
+    setProjectPinned: (id: string, pinned: boolean) => call(Project, 'PUT', apiPaths.projectPin(id), { pinned }),
+    renameProject: (id: string, name: string) => call(Project, 'PUT', apiPaths.projectName(id), { name }),
     moveSession: (id: string, projectId: string | null) => call(Session, 'PUT', apiPaths.sessionProject(id), { projectId }),
     setSessionPinned: (id: string, pinned: boolean) => call(Session, 'PUT', apiPaths.sessionPin(id), { pinned }),
     deleteSession: (id: string) => call(DeleteSessionResponse, 'DELETE', apiPaths.session(id)),
@@ -169,6 +173,7 @@ export type ApiClient = ReturnType<typeof createApiClient>
 
 /** 项目表单的协议边界；不依赖会话生命周期。 */
 export const projectApi = {
+  update: (id: string, input: ProjectFields) => requestJson(UpdateProjectResponse, 'PUT', apiPaths.project(id), input),
   create: (input: ProjectFields) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
   checkFolder: (path: string) => requestJson(CheckProjectFolderResponse, 'POST', API_ROUTES.projectFolderCheck, { path }),
 }

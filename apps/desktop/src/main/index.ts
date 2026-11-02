@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises'
+import { openDirectory } from './open-directory.ts'
 import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
 import { basename, extname, join, resolve } from 'node:path'
 import {
@@ -319,6 +320,10 @@ function run(): void {
         pickingFiles = undefined
       })
     return pickingFiles
+  })
+  ipcMain.handle(IPC.openDirectory, async (event, path: unknown) => {
+    assertMainFrame(event)
+    return openDirectory(path, shell)
   })
   ipcMain.handle(IPC.pickDirectory, async (event) => {
     const window = assertMainFrame(event)

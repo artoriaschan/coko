@@ -62,6 +62,9 @@ export type HealthResponse = Static<typeof HealthResponse>
 
 /** 带参数的业务路径。 */
 export const apiPaths = {
+  project: (id: string) => `${API_ROUTES.projects}/${encodeURIComponent(id)}`,
+  projectPin: (id: string) => `${apiPaths.project(id)}/pin`,
+  projectName: (id: string) => `${apiPaths.project(id)}/name`,
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
   sessionProject: (id: string) => `${apiPaths.session(id)}/project`,
   sessionPin: (id: string) => `${apiPaths.session(id)}/pin`,

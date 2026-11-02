@@ -5,7 +5,6 @@ import type { SidebarCategory } from '../../stores/list-store.ts'
 import type { Project, Session } from '@coko/protocol'
 import {
   Button,
-  SidebarListRow,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -15,19 +14,10 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@coko/ui'
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FolderClosedIcon,
-  FolderOpenIcon,
-  PlusIcon,
-  MoreHorizontalIcon,
-  GripVerticalIcon,
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
-} from 'lucide-react'
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, MoreHorizontalIcon, GripVerticalIcon, ChevronsDownUpIcon, ChevronsUpDownIcon } from 'lucide-react'
 import { useChat, useChatActions, useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { ProjectRow } from './project-row.tsx'
 import { SessionRow } from './session-row.tsx'
 
 export interface SidebarListsProps {
@@ -61,6 +51,15 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
   const pinned = sessions
     .filter((session) => session.archivedAt === null && session.pinnedAt !== null && session.title.toLocaleLowerCase().includes(needle))
     .toSorted((a, b) => b.pinnedAt! - a.pinnedAt! || a.id.localeCompare(b.id))
+  const pinnedProjects = projects.filter(
+    (project) =>
+      project.pinnedAt !== null &&
+      (!needle || project.name.toLocaleLowerCase().includes(needle) || visible.some((session) => session.projectId === project.id)),
+  )
+  const pinnedItems = [
+    ...pinned.map((session) => ({ kind: 'session' as const, item: session })),
+    ...pinnedProjects.map((project) => ({ kind: 'project' as const, item: project })),
+  ].toSorted((a, b) => b.item.pinnedAt! - a.item.pinnedAt! || a.item.id.localeCompare(b.item.id))
   const lastUsed = new Map(projects.map((project) => [project.id, project.lastUsedAt]))
   for (const session of sessions) {
     if (session.projectId !== null) lastUsed.set(session.projectId, Math.max(lastUsed.get(session.projectId) ?? 0, session.updatedAt))
@@ -93,7 +92,7 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
         </div>
       )}
       {needle && visible.length === 0 && <p className="px-2 text-ui-body text-muted-foreground">{t('sidebar.noMatches')}</p>}
-      {pinned.length > 0 && (
+      {pinnedItems.length > 0 && (
         <section data-category="pinned" className="mb-3" aria-labelledby="pinned-heading">
           <SidebarCategoryHeader
             id="pinned-heading"
@@ -104,9 +103,20 @@ export function SidebarLists({ onAddWorkspace, search, onSelect, onNewSession }:
           />
           {(expanded.pinned ?? true) && (
             <div className="flex flex-col gap-0.5">
-              {pinned.map((session) => (
-                <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} pinned />
-              ))}
+              {pinnedItems.map(({ kind, item }) =>
+                kind === 'session' ? (
+                  <SessionRow key={item.id} session={item} active={active} onSelect={onSelect} pinned />
+                ) : (
+                  <ProjectTree
+                    key={item.id}
+                    project={item}
+                    sessions={visible.filter((session) => session.projectId === item.id)}
+                    active={active}
+                    onSelect={onSelect}
+                    onNewSession={onNewSession}
+                  />
+                ),
+              )}
             </div>
           )}
         </section>
@@ -281,32 +291,9 @@ function ProjectTree({
   const { t } = useI18n()
   const count = useLists((state) => state.visibleCounts[`project:${project.id}`] ?? 5)
   const expanded = useLists((state) => state.expandedProjects[project.id] ?? true)
-  const listActions = useChatStoreApi().lists.getState()
   return (
     <div data-project-id={project.id} className="flex flex-col gap-0.5">
-      <div className="group relative">
-        <SidebarListRow aria-label={project.name} aria-expanded={expanded} onClick={() => listActions.toggleProject(project.id)}>
-          {expanded ? <FolderOpenIcon aria-hidden className="size-4 shrink-0" /> : <FolderClosedIcon aria-hidden className="size-4 shrink-0" />}
-          <span data-user-content className="min-w-0 flex-1 truncate">
-            {project.name}
-          </span>
-          {expanded ? <ChevronDownIcon aria-hidden className="mr-5 size-3 shrink-0" /> : <ChevronRightIcon aria-hidden className="mr-5 size-3 shrink-0" />}
-        </SidebarListRow>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-              variant="toolbar"
-              size="icon-xs"
-              aria-label={t('sidebar.newSessionIn', { name: project.name })}
-              onClick={() => onNewSession(project.primaryWorkspaceId)}
-            >
-              <PlusIcon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t('sidebar.newSessionIn', { name: project.name })}</TooltipContent>
-        </Tooltip>
-      </div>
+      <ProjectRow project={project} onNewSession={onNewSession} />
       {expanded &&
         (sessions.length ? (
           <>

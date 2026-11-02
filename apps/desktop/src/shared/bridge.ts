@@ -4,6 +4,7 @@ import type { ErrorCode, ModelProtocol, Provider, ProviderFields, ProviderModels
 export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
+  openDirectory: 'coko:open-directory',
   pickFiles: 'coko:pick-files',
   readPickedImage: 'coko:read-picked-image',
   saveProvider: 'coko:save-provider',
@@ -127,6 +128,7 @@ export interface CokoBridge {
   boot(): Promise<BootResult>
   /** 打开目录选择对话框；取消时为 null。 */
   pickDirectory(): Promise<string | null>
+  openDirectory(path: string): Promise<boolean>
   /** 系统文件选择；取消返回空数组。 */
   pickFiles(): Promise<string[]>
   /** 只解析用户选择、粘贴或拖入的 File，不开放任意文件读取。 */

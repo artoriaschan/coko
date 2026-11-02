@@ -55,6 +55,8 @@ export interface ListState extends ListDisplay {
 export interface ListActions {
   upsertProject(project: Project): void
   load(): Promise<boolean>
+  setProjectPinned(id: string, pinned: boolean): Promise<boolean>
+  renameProject(id: string, name: string): Promise<boolean>
   moveSession(id: string, projectId: string | null): Promise<boolean>
   setPinned(id: string, pinned: boolean): Promise<boolean>
   renameSession(id: string, title: string): Promise<boolean>
@@ -158,6 +160,22 @@ export function createListStore(api: ApiClient): ListStore {
           return true
         } catch {
           if (get().listStatus !== 'ready') set({ listStatus: 'error' })
+          return false
+        }
+      },
+      async setProjectPinned(id, pinned) {
+        try {
+          get().upsertProject(await api.setProjectPinned(id, pinned))
+          return true
+        } catch {
+          return false
+        }
+      },
+      async renameProject(id, name) {
+        try {
+          get().upsertProject(await api.renameProject(id, name))
+          return true
+        } catch {
           return false
         }
       },
