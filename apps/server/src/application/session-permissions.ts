@@ -109,6 +109,12 @@ export class SessionPermissions implements PlanHost {
     if (options.contributions) bindPlanHost(options.contributions, this)
   }
 
+  forget(id: string): void {
+    this.#states.delete(id)
+    this.#children.delete(id)
+    for (const key of this.#plans.keys()) if (key.startsWith(`${id}:`)) this.#plans.delete(key)
+  }
+
   /** 装配时接上子代理的作用域（之后每次判定现取）。 */
   useScopes(scopes: PermissionScopeResolver): void {
     this.#scopes = scopes

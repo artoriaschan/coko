@@ -144,6 +144,17 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     })
   }
 
+  forgetSessions(ids: string[]): void {
+    for (const [id, live] of this.#live)
+      if (ids.includes(id) || ids.includes(live.rootId)) {
+        live.unsubscribe?.()
+        this.#live.delete(id)
+      }
+    for (const id of ids) this.#queued.delete(id)
+    this.#notes.forgetSessions(ids)
+    this.#recovery.forgetSessions(ids)
+  }
+
   /** 装配时接上团队（ADR 0018）。 */
   useTeams(teams: SubagentTeamHooks & import('./teams.ts').TeamService): void {
     this.#teams = teams

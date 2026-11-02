@@ -102,6 +102,15 @@ export interface SubagentNotificationsOptions {
 }
 
 export class SubagentNotifications {
+  forgetSessions(ids: string[]): void {
+    for (const id of ids) {
+      this.#pending.delete(id)
+      this.#notes.delete(id)
+      this.#sent.delete(id)
+      this.#interrupts.get(id)?.abort()
+      this.#interrupts.delete(id)
+    }
+  }
   readonly #options: SubagentNotificationsOptions
   /** 每个父 Session 待送达的通知（Session 空闲时结束的后台子代理；teammate 每个 Run 一条，按结束时的 outcome）。 */
   readonly #pending = new Map<string, { agentId: string; outcome: AgentOutcome }[]>()

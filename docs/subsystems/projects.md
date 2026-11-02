@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名和置顶。"
+description: "项目模型、Workspace 迁移、会话归属、侧栏交互与恢复，以及会话详情、菜单、重命名、置顶和永久删除。"
 lifecycle: active
 ---
 
@@ -50,9 +50,9 @@ PUT /api/sessions/:id/pin 接受布尔值 pinned，返回更新后的 Session；
 
 ## 会话菜单与行内重命名
 
-独立、项目内及置顶会话复用 [SessionMenu](../../apps/desktop/src/renderer/features/sidebar/session-menu.tsx)。点击更多以整行为锚点，首选位于行右侧 2px、顶部对齐；右键先关闭详情并阻止原生菜单，改用鼠标的视口坐标作为首选左上角。右键本身不会进入会话、置顶或新建。共享 RowMenu 通过 Radix portal、翻转、平移、8px 窗口边距及可用高度内滚动保持菜单可操作；外部点击、Escape、来源滚动或打开后窗口大小变化关闭菜单；打开前已发生、随后才送达的 resize 通知不关闭菜单。未进入改名时，菜单关闭后回到来源行的焦点，不重新打开详情。
+独立、项目内及置顶会话复用 [SessionMenu](../../apps/desktop/src/renderer/features/sidebar/session-menu.tsx)。点击更多以整行为锚点，首选位于行右侧 2px、顶部对齐；右键先关闭详情并阻止原生菜单，改用鼠标的视口坐标作为首选左上角。右键本身不会进入会话、置顶或新建。共享 RowMenu 通过 Radix portal、翻转、平移、至少 8px 窗口边距及可用高度内滚动（实际避让预留 1px，以容纳发丝分隔线引起的浮点取整）保持菜单可操作；外部点击、Escape、来源滚动或打开后窗口大小变化关闭菜单；打开前已发生、随后才送达的 resize 通知不关闭菜单。未进入改名时，菜单关闭后回到来源行的焦点，不重新打开详情。
 
-菜单目前包含“重命名”和“置顶 / 取消置顶”，根据当前置顶状态切换文案。后续生命周期能力通过具名插槽依次填入归档、移到项目、分隔线和删除，未交付的项目不展示空菜单行。不展示导出为 MD、在飞书中继续、小窗打开或快捷键。所有前导图标使用居中的 14px 固定槽，斜图钉绕槽中心旋转，文字起点一致。
+菜单目前包含“重命名”“置顶 / 取消置顶”和分隔线下的危险色“删除对话”，根据当前置顶状态切换置顶文案。归档和移到项目通过具名插槽填入，未交付的项目不展示空菜单行。不展示导出为 MD、在飞书中继续、小窗打开或快捷键。所有前导图标使用居中的 14px 固定槽，斜图钉绕槽中心旋转，文字起点一致。
 
 重命名将行标题替换为共享 [InlineRename](../../packages/ui/src/components/inline-rename.tsx)，聚焦并全选原始标题。Enter 或失焦提交，输入法组合期间 Enter 不提交，Escape 取消；保存前去除首尾空白，空值或没有变化时恢复原行、不发送请求。输入最多 200 字符，名称可以重复。保存期间输入只读，重复 Enter 或失焦不会重复提交；保存失败保留输入和焦点并显示应用级 Toast，可直接重试。成功响应更新列表 store 的同一份 Session，列表、当前会话引用与详情卡片同步，不重建会话内容。
 
@@ -84,3 +84,13 @@ PUT /api/sessions/:id/title 接受 title，校验字符串类型、非空及最�
 - [菜单浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx)：整行与鼠标定位、窗口避让、图标对齐、全选、提交、取消、空白与失败重试。
 - [重命名 Electron 用例](../../apps/desktop/e2e/session-rename.e2e.test.ts)：真实右键菜单改名，重启后列表与项目详情卡片保持新标题。
 - [ADR 0020](../adr/0020-projects-organize-workspaces.md)：组织关系与执行目录分离的理由。
+
+## 永久删除对话
+
+普通、项目内和置顶会话共用删除入口。选择“删除对话”先关闭菜单，再打开 [SessionDeleteDialog](../../apps/desktop/src/renderer/features/sidebar/session-delete-dialog.tsx)，它接收固定的 sessionId，也可由归档列表和搜索结果复用。确认弹窗为 W480、最小 H184、R28，狭窄窗口按可用宽度收缩；初始焦点在取消。取消、右上关闭和 Escape 保留会话并恢复来源行的焦点；确认期间禁止重复提交和关闭。失败留在弹窗显示原因，成功响应后才移除列表与内容订阅。删除当前打开会话时进入新对话，其他会话保持当前选择。
+
+DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代的身份。存储在一个事务中删除会话树、它们的条目、绑定定时任务和进程登记；保留 Workspace、worktree 记录及目录、记忆、项目源目录和用户工作文件，独立对话的专属目录也保留。直接删除不会执行 worktree 清理或删除文件系统路径。
+
+有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
+
+[SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。

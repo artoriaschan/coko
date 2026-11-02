@@ -100,6 +100,36 @@ export class ScheduleService {
     this.#options = options
   }
 
+  readonly #blockedSessions = new Set<string>()
+  async quiesceSessions<T>(ids: string[], task: () => Promise<T>): Promise<T> {
+    for (const id of ids) this.#blockedSessions.add(id)
+    try {
+      // Match CRUD lock order and wait only for this tree's deliveries, not unrelated schedules.
+      const sessionIds = [...ids].sort()
+      const withSessions = (at: number): Promise<T> =>
+        at === sessionIds.length ? lockSchedules() : this.#sessionLocks.run(sessionIds[at]!, () => withSessions(at + 1))
+      const lockSchedules = async (): Promise<T> => {
+        const scheduleIds = (await this.#options.store.schedules.list())
+          .filter((schedule) => ids.includes(schedule.sessionId))
+          .map((schedule) => schedule.id)
+          .sort()
+        const lock = (at: number): Promise<T> => (at === scheduleIds.length ? task() : this.#locks.run(scheduleIds[at]!, () => lock(at + 1)))
+        return lock(0)
+      }
+      const result = await withSessions(0)
+      for (const [id, sessionId] of this.#suspended) if (ids.includes(sessionId)) this.#suspended.delete(id)
+      for (const [id, run] of this.#scheduledRuns) if (ids.includes(run.sessionId)) this.#scheduledRuns.delete(id)
+      for (const id of ids) {
+        this.#watches.get(id)?.()
+        this.#watches.delete(id)
+      }
+      return result
+    } finally {
+      for (const id of ids) this.#blockedSessions.delete(id)
+      this.#schedule()
+    }
+  }
+
   get started(): boolean {
     return this.#started
   }
@@ -158,7 +188,7 @@ export class ScheduleService {
     if (!this.#started) return
     const { store, clock } = this.#options
     const next = (await store.schedules.list())
-      .filter((s) => s.status === 'active' && s.nextAt !== null && !this.#suspended.has(s.id))
+      .filter((s) => !this.#blockedSessions.has(s.sessionId) && s.status === 'active' && s.nextAt !== null && !this.#suspended.has(s.id))
       .reduce<number | undefined>((min, s) => (min === undefined || s.nextAt! < min ? s.nextAt! : min), undefined)
     this.#cancelTimer?.()
     this.#cancelTimer = next === undefined ? undefined : clock.setTimer(Math.max(next, clock.now()), () => this.#started && this.#schedule())
@@ -171,6 +201,7 @@ export class ScheduleService {
     const record = await store.schedules.get(scheduleId)
     const now = clock.now()
     if (!record || record.status !== 'active' || record.nextAt === null || record.nextAt > now) return
+    if (this.#blockedSessions.has(record.sessionId)) return
     const rule = toRule(record)
     const plan = catchUp(rule, record.nextAt, record.nextAt, now)!
     const session = await store.sessions.getSession(record.sessionId)

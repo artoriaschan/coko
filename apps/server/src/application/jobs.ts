@@ -112,6 +112,19 @@ export class JobService {
     this.#options = options
   }
 
+  async settleSessions(ids: string[]): Promise<void> {
+    await Promise.all([...this.#live.values()].filter((live) => ids.includes(live.job.info.sessionId)).map((live) => live.ended))
+  }
+  forgetSessions(ids: string[]): void {
+    for (const [id, live] of this.#live) if (ids.includes(live.job.info.sessionId)) this.#live.delete(id)
+    for (const id of ids) {
+      this.#pending.delete(id)
+      this.#sent.delete(id)
+      this.#interrupts.get(id)?.abort()
+      this.#interrupts.delete(id)
+    }
+  }
+
   /** GoalService 装配时调用：之后启动的 Job 记下所属的 Goal（取消 Goal 时只终结它们）。 */
   useGoals(goalOf: (sessionId: string) => Promise<string | undefined>): void {
     this.#goalOf = goalOf

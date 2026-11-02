@@ -82,6 +82,11 @@ export class SessionRecovery {
     this.#options = options
   }
 
+  forget(id: string): void {
+    this.#awaitingConfirmation.delete(id)
+    this.#failed.delete(id)
+  }
+
   /** 是否有未回答的结果确认（单一来源）。 */
   awaitsConfirmation(sessionId: string): boolean {
     return this.#awaitingConfirmation.has(sessionId)
