@@ -14,7 +14,9 @@ it('titles a first accepted message outside its Run with a text-only, tool-free 
     responses: [{ match: 'COKO_SESSION_TITLE', content: '修复登录流程', usage: { input: 10, output: 5, cost: { total: 0.25 } } }, { content: 'Ready.' }],
   })
   const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script } })
-  const api = client(sidecar, await exchange(sidecar))
+  const cookie = await exchange(sidecar)
+  const api = client(sidecar, cookie)
+  const observer = await connect(sidecar, cookie)
   const accepted = await api.post('/api/chats/first-send', { draftId: 'title-basic', text: '帮我修复登录流程' })
   expect(accepted.status).toBe(201)
   const id = accepted.body.session.id
@@ -26,6 +28,8 @@ it('titles a first accepted message outside its Run with a text-only, tool-free 
     { timeoutMs: 5000, what: 'title request persisted' },
   )
   expect(detail.session.title).toBe('修复登录流程')
+  // A list-only connection receives the title even without a Session subscription.
+  await observer.waitFor((message) => message.type === 'session_title' && message.sessionId === id)
   const title = detail.entries.find((entry: any) => entry.kind === 'model_request' && entry.payload.purpose === 'title')
   expect(title.runId).toBeNull()
   expect(title.payload).toMatchObject({ runId: null, usage: { input: 10, output: 5 }, cost: 0.25 })

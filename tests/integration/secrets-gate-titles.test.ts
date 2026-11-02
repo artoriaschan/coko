@@ -77,3 +77,23 @@ it('title requests exclude referenced file contents, image bytes and registered 
     ),
   ).toEqual([])
 })
+
+it('redacts registered secret values containing JSON escape characters in first-message text', async () => {
+  const secret = `ordinary-quote-"-slash-\\-${randomBytes(8).toString('hex')}`
+  const root = await tempDir()
+  const requestLog = join(root, 'requests.jsonl')
+  const script = await fauxScript(root, { requestLog, responses: [{ match: 'COKO_SESSION_TITLE', content: 'Summarize input' }, { content: 'Ready.' }] })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), ipc: false, env: { COKO_FAUX_SCRIPT: script, COKO_SECRET_ESCAPED: secret } })
+  const api = client(sidecar, await exchange(sidecar))
+  expect((await api.post(API_ROUTES.firstSend, { draftId: 'escaped-secret-title', text: `Summarize this literal: ${secret}` })).status).toBe(201)
+  const titleRequest = await pollUntil(
+    async () => {
+      const lines = (await readFile(requestLog, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean)
+      return lines.map((line) => JSON.parse(line)).find((messages) => JSON.stringify(messages).includes('COKO_SESSION_TITLE'))
+    },
+    { timeoutMs: 5000 },
+  )
+  const data = JSON.parse(titleRequest.find((message: any) => message.role === 'user').content)
+  expect(data.text).toBe('Summarize this literal: [REDACTED:secret]')
+  expect(data.text).not.toContain(secret)
+})
