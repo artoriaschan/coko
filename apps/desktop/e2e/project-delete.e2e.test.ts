@@ -47,6 +47,12 @@ it('Electron: removing a project keeps the open conversation under Conversations
   await expect.poll(() => dialog.getByRole('button', { name: /^(取消|Cancel)$/ }).evaluate((element) => document.activeElement === element)).toBe(true)
   await dialog.getByRole('button', { name: /^(删除|Delete)$/ }).click()
   await expect.poll(() => page.locator('[data-project-id]').count()).toBe(0)
+  await page.getByRole('button', { name: 'Keep conversation', exact: true }).hover()
+  await page
+    .getByRole('region', { name: /^(对话详情|Conversation details)$/ })
+    .getByText(/^(对话|Conversations)$/)
+    .waitFor()
+  await page.mouse.move(600, 400)
   await page.getByRole('article', { name: 'Coko' }).filter({ hasText: 'Original conversation retained.' }).waitFor()
   expect(await page.locator('[data-category="conversations"] [data-session-id]').getAttribute('data-session-id')).toBe(id)
   await app.dispose()

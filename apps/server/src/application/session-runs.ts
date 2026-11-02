@@ -406,9 +406,11 @@ export class SessionRuns {
 
   /** Caller holds Session admission. Wait for preparation, then abort and await domain completion too. */
   async stopAndWait(sessionId: string): Promise<void> {
+    const completions = new Set(this.#completions.get(sessionId))
     await Promise.allSettled(this.#admissionTasks.get(sessionId) ?? [])
+    for (const completion of this.#completions.get(sessionId) ?? []) completions.add(completion)
     await this.abort(sessionId)
-    await Promise.all(this.#completions.get(sessionId) ?? [])
+    await Promise.all(completions)
   }
 
   startRun(sessionId: string, request: RunRequest, waitForInput = false): Promise<{ runId: string }> {

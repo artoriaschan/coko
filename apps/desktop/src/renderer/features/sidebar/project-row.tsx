@@ -191,6 +191,7 @@ export function ProjectRow({
                   <TooltipTrigger asChild>
                     <Button
                       ref={more}
+                      data-project-more
                       variant="toolbar"
                       size="icon-xs"
                       className="size-6 rounded-sm"
@@ -300,7 +301,10 @@ export function ProjectRow({
                         restoreFocus: () => {
                           setDeleting(false)
                           suppressFocus.current = true
-                          if (more.current?.isConnected) more.current.focus()
+                          const trigger = more.current?.isConnected
+                            ? more.current
+                            : document.querySelector<HTMLButtonElement>(`[data-project-row="${CSS.escape(project.id)}"] [data-project-more]`)
+                          if (trigger) trigger.focus()
                           else document.querySelector<HTMLButtonElement>('[data-category="conversations"] button')?.focus()
                           queueMicrotask(() => {
                             suppressFocus.current = false

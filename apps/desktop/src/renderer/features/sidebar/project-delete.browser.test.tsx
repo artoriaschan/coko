@@ -123,6 +123,11 @@ it.each(['light', 'dark'])(
       await expect.element(confirm).toBeVisible()
       await page.screenshot({ element: dialog.element(), path: `../../../../../../.vitest/cw15-project-${theme}-error-390.png` })
       fixture.api.deleteProject = remove
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect.element(dialog).not.toBeInTheDocument()
+      await expect.poll(() => document.activeElement === document.querySelector(`[data-project-row="${target.id}"] [data-project-more]`)).toBe(true)
+      await page.getByRole('button', { name: 'More project actions' }).first().click()
+      await page.getByRole('menuitem', { name: 'Delete project', exact: true }).click()
       await confirm.click()
       await expect.element(dialog).not.toBeInTheDocument()
       expect(fixture.chat.lists.getState().sessions[0]).toMatchObject({ title: 'Generated while pending', pinnedAt: 12, projectId: null })
