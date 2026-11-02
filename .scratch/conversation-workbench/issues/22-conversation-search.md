@@ -14,9 +14,9 @@
 
 **跨票接口：** 数据来自 01 的列表 store，默认不含已归档会话；右键菜单复用 08，删除复用 09；打开会话经 02 的导航。
 
-- [ ] Browser Mode：默认 10 个最近对话，没有 Tabs、建议与快捷键；标题片段命中并高亮，只有项目标签或正文含该词时不返回；置顶与项目内会话各只一行、项目标签正确；无匹配与清空后的状态；长列表内部滚动、输入框可见；方向键与 Enter 打开同一个会话；中文输入法组合期间不确认；未选择而关闭时焦点回到搜索按钮；结果的右键菜单对应正确的 Session，删除确认在浮层之上，取消后保留关键词（CW-46 至 CW-53、CW-55 与 CW-57 的搜索部分、CW-74）。
-- [ ] Electron E2E：有多个对话时搜索并打开其中一个，打开的是同一个已有会话，没有新建会话。
-- [ ] workbench.md 的搜索一节；`check:docs` 通过。
+- [x] Browser Mode：默认 10 个最近对话，没有 Tabs、建议与快捷键；标题片段命中并高亮，只有项目标签或正文含该词时不返回；置顶与项目内会话各只一行、项目标签正确；无匹配与清空后的状态；长列表内部滚动、输入框可见；方向键与 Enter 打开同一个会话；中文输入法组合期间不确认；未选择而关闭时焦点回到搜索按钮；结果的右键菜单对应正确的 Session，删除确认在浮层之上，取消后保留关键词（CW-46 至 CW-53、CW-55 与 CW-57 的搜索部分、CW-74）。
+- [x] Electron E2E：有多个对话时搜索并打开其中一个，打开的是同一个已有会话，没有新建会话。
+- [x] workbench.md 的搜索一节；`check:docs` 通过。
 
 
 ## Comments
@@ -29,3 +29,11 @@
 - 归档菜单槽位待 10 的共享 SessionArchiveMenuItem 合入后接入，再执行最终合并后检查；本票此时尚未关闭。
 
 - 边界补强：重复标题片段逐处高亮、超过 7 天仍使用相对时间。新增 Browser 用例先因只高亮首处失败，再修复到 8 例通过。结果行改用共享 `SidebarListRow` 保持 H32/R8 圆弧。样式守卫首次运行 39 通过/1 失败，原因是可访问 combobox 必须配套 `role="listbox"` 而规则默认仅允许 dropdown-menu.tsx；按正式例外机制仅登记搜索组件的精确文件与该角色，理由为已批准的共享 Dialog 搜索列表，不叠加另一菜单材质，没有修改守卫逻辑或扩大豁免。`pnpm run test packages/ui/src/guards/style-guard.test.ts apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx` 2 文件 48 例通过。
+
+- 最终归档接入：已合并 integration `411cb244`（合并提交 `7c3bfe6`），直接复用 `SessionArchiveMenuItem`；成功从结果移除、繁忙失败保留结果和关键词，普通列表与搜索均排除归档，异常注入归档 DTO 也不会显示。10 的列表语义调整后，身份测试改为断言 2 个普通会话 + 1 个归档会话，保留总身份数量。
+- 最终搜索 Browser 10/10 通过。最后组合命令含 6 文件 96 例，其余 5 文件 86 例（含真实 Electron 1 例）通过；搜索的曲线断言首次收到 Chromium 规范化的 `superellipse(1)` 而非别名 `round`，与既有列表用例一致地改为实际计算值后重跑 10/10 通过。未修改实现来迎合该别名。完整命令、真实窗口边界、截图与限制见 [验收证据](../evidence/22-conversation-search.md)。
+- 文档读回：AGENTS → docs/README → workbench.md 搜索节重新读回，路径、语义同步、归属、引用方向、生命周期、当前入口与历史保留均通过，无缺口。本地实现与证据已完成；无 push/PR。
+
+- 最终机械检查：`pnpm run check:docs` 检查 248 个 Markdown、0 问题；最终受影响搜索源码/测试与精确样式例外 `oxlint`、`git diff --check` 均退出 0。
+
+Closed: true

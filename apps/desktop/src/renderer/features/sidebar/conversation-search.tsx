@@ -8,6 +8,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
 import { SessionMenu, SessionMenuIcon } from './session-menu.tsx'
 import { SessionDeleteDialog } from './session-delete-dialog.tsx'
+import { SessionArchiveMenuItem } from './session-archive-menu-item.tsx'
 import { SessionMoveMenu } from './session-move-menu.tsx'
 import { sortSessions } from './sidebar-lists.tsx'
 
@@ -210,6 +211,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
             </div>
           )}
         </div>
+        {/* Keep the pointer anchor outside the transformed modal while retaining its React focus ancestry. */}
         {target &&
           menu &&
           createPortal(
@@ -241,6 +243,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                   })
               }}
               slots={{
+                archive: <SessionArchiveMenuItem sessionId={target.id} onSelect={() => setMenu(null)} onPendingChange={setPending} />,
                 moveToProject: <SessionMoveMenu session={target} close={() => setMenu(null)} />,
                 delete: (
                   <DropdownMenuItem

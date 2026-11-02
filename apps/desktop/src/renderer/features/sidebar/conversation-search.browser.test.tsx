@@ -4,12 +4,13 @@ import * as React from 'react'
 import { expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { TooltipProvider } from '@coko/ui'
+import { Toaster, toast, TooltipProvider } from '@coko/ui'
 import { ChatStoreProvider } from '../../app/chat.tsx'
 import { I18nProvider } from '../../app/i18n.tsx'
 import { WorkbenchNavigationContext } from '../../app/workbench.tsx'
 import { createWorkbenchNavigation } from '../../app/workbench-navigation.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
+import { ApiError } from '../../client/api.ts'
 import { ConversationSearch } from './conversation-search.tsx'
 
 async function setup(
@@ -42,6 +43,7 @@ async function setup(
         <WorkbenchNavigationContext.Provider value={navigation}>
           <TooltipProvider>
             <Harness />
+            <Toaster containerAriaLabel="Notifications" />
           </TooltipProvider>
         </WorkbenchNavigationContext.Provider>
       </ChatStoreProvider>
@@ -61,11 +63,16 @@ it('opens ten recent conversations then searches all titles, highlights, dedupli
   await expect.poll(() => dialog.element().getBoundingClientRect().width).toBe(640)
   expect(dialog.element().getBoundingClientRect().height).toBe(432)
   expect(dialog.element().querySelector('[role=tab]')).toBeNull()
+  const firstRow = dialog.getByRole('option').first().element()
+  expect(firstRow.getBoundingClientRect().height).toBe(32)
+  expect(getComputedStyle(firstRow).borderRadius).toBe('8px')
+  expect(getComputedStyle(firstRow).getPropertyValue('corner-shape')).toBe('superellipse(1)')
   await userEvent.fill(input, '  CONVERSATION  ')
   expect(dialog.element().querySelectorAll('[role=option]')).toHaveLength(16)
   expect(dialog.element().querySelector('mark')?.textContent).toBe('conversation')
   const results = dialog.getByRole('listbox').element()
   expect(results.scrollHeight).toBeGreaterThan(results.clientHeight)
+  await page.screenshot({ path: '../../../../../../.vitest/cw22-search-results.png' })
   const inputTop = input.element().getBoundingClientRect().top
   results.scrollTop = results.scrollHeight
   expect(input.element().getBoundingClientRect().top).toBe(inputTop)
@@ -91,18 +98,21 @@ it('composition waits until commit and keyboard selection opens the same existin
   const original = fixture.chat.getState().activeSessionId
   const input = page.getByRole('combobox')
   input.element().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
-  await input.fill('中文')
+  await input.fill('中文 pinned')
+  expect(document.querySelectorAll('[data-search-session]')).toHaveLength(2)
   input.element().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true }))
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).toBeVisible()
   expect(fixture.chat.getState().activeSessionId).toBe(original)
-  input.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '中文' }))
+  input.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '中文 pinned' }))
   await expect.element(page.getByRole('option', { name: '中文 pinned project' })).toBeVisible()
-  expect(document.querySelectorAll('[data-search-session]')).toHaveLength(2)
+  expect(document.querySelectorAll('[data-search-session]')).toHaveLength(1)
+  await input.fill('中文')
   await userEvent.keyboard('{ArrowDown}{Enter}')
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
   expect(fixture.chat.getState().activeSessionId).toBe('two')
   expect(fixture.chat.lists.getState().sessions.find((session) => session.id === 'two')).toEqual(sessions[1])
-  expect(await fixture.api.listSessions()).toHaveLength(3)
+  expect(await fixture.api.listSessions()).toHaveLength(2)
+  expect(await fixture.api.listArchivedSessions()).toHaveLength(1)
 })
 
 it('right-click targets the selected result, keeps the query behind delete cancellation and reuses rename and pin', async () => {
@@ -115,6 +125,8 @@ it('right-click targets the selected result, keeps the query behind delete cance
   const confirm = page.getByRole('alertdialog', { name: 'Delete conversation?' })
   await expect.element(confirm).toBeVisible()
   await expect.element(confirm.getByRole('button', { name: 'Cancel', exact: true })).toHaveFocus()
+  await expect.poll(() => getComputedStyle(confirm.element()).opacity).toBe('1')
+  await page.screenshot({ path: '../../../../../../.vitest/cw22-search-delete.png' })
   await userEvent.click(confirm.getByRole('button', { name: 'Cancel', exact: true }))
   await expect.element(confirm).not.toBeInTheDocument()
   await expect.element(input).toHaveValue('conversation 1')
@@ -221,6 +233,43 @@ it('highlights every case-insensitive title occurrence and keeps older timestamp
   const row = page.getByRole('option', { name: 'Example EXAMPLE example' })
   expect([...row.element().querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['Example', 'EXAMPLE', 'example'])
   await expect.element(row.getByText('10d ago')).toBeVisible()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+})
+
+it('the shared archive action removes its original result, excludes archives even if injected into normal data and keeps the query', async () => {
+  const fixture = await setup()
+  const input = page.getByRole('combobox')
+  await input.fill('conversation 0')
+  const row = page.getByRole('option', { name: 'Example conversation 0', exact: true })
+  await userEvent.click(row, { button: 'right' })
+  await userEvent.click(page.getByRole('menuitem', { name: 'Archive conversation', exact: true }))
+  await expect.element(page.getByText('No matching conversations')).toBeVisible()
+  await expect.element(input).toHaveValue('conversation 0')
+  const archived = fixture.chat.lists.getState().archivedSessions.find((session) => session.id === 'search-0')!
+  expect(archived.archivedAt).not.toBeNull()
+  expect(archived.pinnedAt).toBeNull()
+  fixture.chat.lists.setState({ sessions: [...fixture.chat.lists.getState().sessions, archived] })
+  await expect.element(row).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+})
+
+it('failed archive retains the query and result and reports the shared busy reason', async () => {
+  const fixture = await setup()
+  fixture.api.archiveSession = async () => {
+    throw new ApiError('session-busy', 'busy', 409, { reasons: ['run'], sessions: [{ id: 'search-0', title: 'Example conversation 0' }] })
+  }
+  const input = page.getByRole('combobox')
+  await input.fill('conversation 0')
+  const row = page.getByRole('option', { name: 'Example conversation 0', exact: true })
+  await userEvent.click(row, { button: 'right' })
+  await userEvent.click(page.getByRole('menuitem', { name: 'Archive conversation', exact: true }))
+  await expect.element(page.getByText('Cannot archive while work is ongoing: Run. Example conversation 0')).toBeVisible()
+  await expect.element(input).toHaveValue('conversation 0')
+  await expect.element(row).toBeVisible()
+  toast.dismiss()
+  await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
   await userEvent.keyboard('{Escape}')
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
 })
