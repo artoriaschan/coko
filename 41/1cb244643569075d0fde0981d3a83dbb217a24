@@ -1,0 +1,27 @@
+apps/server/src/application/session-archive.test.ts
+  s_64e2ce1bfde668::t_dbc68fdc8c5a5a 57
+.scratch/conversation-workbench/issues/10-archive-sessions.md
+  s_64e2ce1bfde668::t_2a613928af797e 13-14,19-22,36-40
+apps/desktop/src/renderer/stores/list-store.ts
+  s_64e2ce1bfde668::t_4fa344a42cdeff 195-196
+apps/desktop/src/renderer/stores/chat-store-archive.test.ts
+  s_64e2ce1bfde668::t_4fa344a42cdeff 57-61,92-95
+  s_64e2ce1bfde668::t_fb47af84bc8230 53-56,62-84
+  s_64e2ce1bfde668::t_7a2fe65bd6392e 85-91,96-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "411cb244643569075d0fde0981d3a83dbb217a24",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
