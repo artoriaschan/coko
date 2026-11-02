@@ -12,6 +12,8 @@ import {
   permissionPaths,
   PermissionsResponse,
   ProjectListResponse,
+  CreateProjectResponse,
+  CheckProjectFolderResponse,
   ProviderListResponse,
   ProviderReferencesResponse,
   runPaths,
@@ -27,6 +29,7 @@ import {
   type AnswerApprovalRequest,
   type ConfirmationAnswer,
   type CreateSessionRequest,
+  type ProjectFields,
   type FirstSendRequest,
   type ErrorCode,
   type PermissionMode,
@@ -157,3 +160,9 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>
+
+/** 项目表单的协议边界；不依赖会话生命周期。 */
+export const projectApi = {
+  create: (input: ProjectFields) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
+  checkFolder: (path: string) => requestJson(CheckProjectFolderResponse, 'POST', API_ROUTES.projectFolderCheck, { path }),
+}

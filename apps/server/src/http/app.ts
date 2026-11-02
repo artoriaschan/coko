@@ -12,6 +12,8 @@ import {
   RewindRequest,
   isMainOnlyPath,
   CreateSessionRequest,
+  ProjectFields,
+  CheckProjectFolderRequest,
   FirstSendRequest,
   permissionPaths,
   SessionPermissionRuleRequest,
@@ -114,6 +116,11 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   )
 
   http.get(API_ROUTES.projects, async (c) => c.json({ projects: await app.projects.list() }))
+  http.post(API_ROUTES.projects, async (c) => {
+    const result = await app.projects.create(await body(c, ProjectFields))
+    return c.json(result, result.status === 'created' ? 201 : 200)
+  })
+  http.post(API_ROUTES.projectFolderCheck, async (c) => c.json(await app.projects.checkFolder((await body(c, CheckProjectFolderRequest)).path)))
   http.get(API_ROUTES.workspaces, async (c) => c.json({ workspaces: await app.workspaces.list() }))
   http.post(API_ROUTES.workspaces, async (c) => c.json(await app.workspaces.register(await body(c, RegisterWorkspaceRequest)), 201))
 

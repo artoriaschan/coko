@@ -63,8 +63,8 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
     it('项目保存完整组织字段，主要 Workspace 唯一，根会话继承项目而子会话不单独保存归属', async () => {
       const store = await open()
       const w = await store.sessions.registerWorkspace({ path: '/project' })
-      const project = await store.projects.create({ name: 'Project', primaryWorkspaceId: w.id, additionalFolders: ['/extra', '/more'] })
-      expect(await store.projects.get(project.id)).toEqual({ ...project, pinnedAt: null, additionalFolders: ['/extra', '/more'] })
+      const project = await store.projects.create({ name: 'Project', primaryWorkspaceId: w.id, additionalFolders: ['/extra', '/more'], primaryFolderIndex: 1 })
+      expect(await store.projects.get(project.id)).toEqual({ ...project, pinnedAt: null, additionalFolders: ['/extra', '/more'], primaryFolderIndex: 1 })
       await expectStoreError(store.projects.create({ name: 'duplicate', primaryWorkspaceId: w.id }), 'already-exists')
       const root = await store.sessions.createSession({ workspaceId: w.id })
       expect(root).toMatchObject({ projectId: project.id, pinnedAt: null, archivedAt: null })

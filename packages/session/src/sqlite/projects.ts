@@ -8,6 +8,7 @@ interface ProjectRow {
   name: string
   primary_workspace_id: string
   additional_folders: string
+  primary_folder_index: number
   pinned_at: number | null
   created_at: number
 }
@@ -16,6 +17,7 @@ const projectOf = (row: ProjectRow): Project => ({
   name: row.name,
   primaryWorkspaceId: row.primary_workspace_id,
   additionalFolders: JSON.parse(row.additional_folders) as string[],
+  primaryFolderIndex: row.primary_folder_index,
   pinnedAt: row.pinned_at,
   createdAt: row.created_at,
 })
@@ -40,11 +42,12 @@ export function createProjectRepository(conn: Connection): ProjectRepository {
           checkPrimary(input.primaryWorkspaceId)
           const id = randomUUID()
           conn.run(
-            'INSERT INTO projects (id, name, primary_workspace_id, additional_folders, created_at) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO projects (id, name, primary_workspace_id, additional_folders, primary_folder_index, created_at) VALUES (?, ?, ?, ?, ?, ?)',
             id,
             input.name,
             input.primaryWorkspaceId,
             JSON.stringify(input.additionalFolders ?? []),
+            input.primaryFolderIndex ?? 0,
             conn.now(),
           )
           return projectOf(requireProject(id))
@@ -65,10 +68,11 @@ export function createProjectRepository(conn: Connection): ProjectRepository {
           if (patch.primaryWorkspaceId !== undefined) checkPrimary(patch.primaryWorkspaceId, id)
           const next = { ...current, ...patch }
           conn.run(
-            'UPDATE projects SET name = ?, primary_workspace_id = ?, additional_folders = ?, pinned_at = ? WHERE id = ?',
+            'UPDATE projects SET name = ?, primary_workspace_id = ?, additional_folders = ?, primary_folder_index = ?, pinned_at = ? WHERE id = ?',
             next.name,
             next.primaryWorkspaceId,
             JSON.stringify(next.additionalFolders),
+            next.primaryFolderIndex,
             next.pinnedAt,
             id,
           )
