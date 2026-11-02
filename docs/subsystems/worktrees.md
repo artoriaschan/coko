@@ -32,9 +32,9 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 4. 安全位置：git 报告的仓库根的真实路径必须与报告相同（祖先没有经过符号链接）；`<仓库根>/.coko-worktrees` 不存在时创建；存在时不能是符号链接、必须是目录、真实路径必须就是它自己。否则 400 `unsafe-worktree-path`，不写任何文件、不建分支。
 5. 分支 `coko/<name>` 或目录 `.coko-worktrees/<name>` 已存在：用户给出的名字 409 `worktree-exists`；生成的名字换一个后重试。
 6. 向 `git rev-parse --git-common-dir` 的 `info/exclude` 追加 `/.coko-worktrees/`（已有这一行时不追加）。
-7. `git worktree add -b coko/<name> <path> <基础提交或 HEAD>`（不复制未提交的改动），记录 `base_commit`（worktree 的 HEAD）。
+7. `git worktree add -b coko/<name> <path> <解析后的基础提交>`（不复制未提交的改动），记录 `base_commit`（worktree 的 HEAD）。
 
-同一仓库的创建、移除与 `removeIfUnchanged` 串行执行。
+同一仓库的创建、移除与 `removeIfUnchanged` 串行执行。Git 已创建检出目录但 post-checkout Hook 返回失败，或随后写入 worktree 记录失败时，在记录存在之前也使用同样的未改动清理条件：路径确为该 worktree、仍在创建的分支和基础提交且干净时移除目录并比较删除分支；已被修改的检出或引用保留。
 
 ## 新对话首次发送
 
@@ -117,5 +117,5 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 - `tests/integration/sidecar-worktrees.test.ts`：创建、exclude、校验、重名；bash `pwd -P`、write、Seatbelt、指令文件、子目录 Workspace；grep / find / ls（内置与 ripgrep）；busy / dirty / removed、重启标记；读取主 checkout 须审批与 `.coko-worktrees` 为符号链接时拒绝。
 - `apps/server/src/application/worktrees.test.ts`：`removeIfUnchanged`、名字校验、仓库根经符号链接、子目录工作目录、启动恢复。
 - `apps/server/src/adapters/git.test.ts`：argv、环境、登记与超时终止。
-- `tests/integration/sidecar-first-send-worktree.test.ts`：所选分支最新提交、自动命名、源文件与分支不变、运行 cwd、并发与重启去重、Hook 与模型校验失败清理、缺失基础分支不留痕迹，以及修改过的 worktree 保留。
+- `tests/integration/sidecar-first-send-worktree.test.ts`：所选分支最新提交、自动命名、源文件与分支不变、运行 cwd、并发与重启去重、Hook 与模型校验失败清理、缺失基础分支不留痕迹、git post-checkout 失败清理，以及修改过的 worktree 保留。
 - `apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx`：草稿开关、基础分支选择、隐藏创建入口与草稿清理；`apps/desktop/e2e/first-send-worktree.e2e.test.ts`：真实 Electron 从菜单配置到首次发送和磁盘工作目录。

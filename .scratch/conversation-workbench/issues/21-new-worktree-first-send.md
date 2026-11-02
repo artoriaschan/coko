@@ -27,4 +27,8 @@
 
 - 交付前以 a1b6add1 合入最新集成分支 a9d09dda，无冲突。合入后 8 文件 113 例、重新构建的真实 Electron 1 例、typecheck 和 check:docs（247 文档）均通过。
 
+- 额外真实 Git post-checkout Hook 返回失败用例先红，暴露“目录与分支已创建但尚无 worktreeId”的遗留路径；创建服务现于记录写入前复用未改动回滚，并覆盖记录初始化错误。清理核对实际检出路径、分支、提交与干净状态。
+
+- 最终合入权限隔离 7c45c122 后，新增 git post-checkout 失败路径使 worktree 首次发送用例为 4 例。受影响 Sidecar / 真实 Git / 权限回归 4 文件 52 例、重新构建 Electron 1 例、typecheck、check:docs（247）和目标 lint 通过；此前 Browser / 草稿通过结果仍适用。
+
 **Closed:** true

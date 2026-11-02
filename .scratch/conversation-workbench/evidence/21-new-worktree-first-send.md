@@ -45,3 +45,9 @@ Worktree 记录基础分支、首次发送、失败边界与提交比较删除�
 - `rtk pnpm run test tests/integration/sidecar-first-send-worktree.test.ts tests/integration/sidecar-first-send.test.ts tests/integration/sidecar-worktrees.test.ts apps/server/src/application/worktrees.test.ts apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/stores/chat-store.test.ts packages/ui/src/guards/style-guard.test.ts`：8 文件，113 例通过。
 - `rtk pnpm run test apps/desktop/e2e/first-send-worktree.e2e.test.ts`：当次重新构建，真实 Electron 1 例通过。
 - `rtk pnpm run typecheck`：退出 0；`rtk pnpm run check:docs`：247 个 Markdown，0 个问题。
+
+进一步合入权限隔离集成 `7c45c122` 为 `ccdf1f53`；合入后 `rtk pnpm run test tests/integration/sidecar-first-send-worktree.test.ts tests/integration/sidecar-project-permissions.test.ts tests/integration/sidecar-worktrees.test.ts` 3 文件 26 例通过，重新构建的 Electron 首次发送 1 例、typecheck 与 check:docs 也通过。
+
+额外失败路径审查以真实 `.git/hooks/post-checkout` 返回 1 复现：Git 已创建目录和分支，却在返回失败时未交付 worktreeId，原有 FirstSend 回滚无法覆盖，测试先因残留目录失败。创建服务改为在写入记录前同样执行未改动清理，并在存储初始化失败时复用；基础提交在创建前固定，清理还核验路径确为目标 worktree、分支和提交不变。修改过的检出或后来改变的引用保留。
+
+最终新增失败路径后的验证：`rtk pnpm run test tests/integration/sidecar-first-send-worktree.test.ts tests/integration/sidecar-project-permissions.test.ts tests/integration/sidecar-worktrees.test.ts apps/server/src/application/worktrees.test.ts` 4 文件 52 例通过（首次发送 worktree 已为 4 例）；`rtk pnpm run test apps/desktop/e2e/first-send-worktree.e2e.test.ts` 当次重新构建 1 例通过；`rtk pnpm run typecheck`、`rtk pnpm run check:docs`（247 文件）、`rtk pnpm exec oxlint apps/server/src/application/worktrees.ts tests/integration/sidecar-first-send-worktree.test.ts` 均退出 0。Browser 与草稿回归的源代码未再改变，复用上述通过结果。

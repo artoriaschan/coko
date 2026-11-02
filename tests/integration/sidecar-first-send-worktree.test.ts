@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { chmod, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, hookPaths, worktreePaths } from '@coko/protocol'
@@ -118,4 +118,24 @@ it('a rejecting Hook that changes its new worktree keeps those files and branch 
   expect(await readFile(join(tree.path, 'keep.txt'), 'utf8')).toBe('changed')
   expect(await fixture.git('branch', '--list', tree.branch)).toContain(tree.branch)
   expect(await fixture.git('status', '--porcelain')).toBe('')
+})
+
+it('a git post-checkout failure removes the checkout and branch created before git returned an error', async () => {
+  const fixture = await createGitWorkspace()
+  onTestFinished(() => fixture.dispose())
+  const hook = join(fixture.root, '.git', 'hooks', 'post-checkout')
+  await writeFile(hook, '#!/bin/sh\nexit 1\n')
+  await chmod(hook, 0o755)
+  const root = await tempDir()
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { ...fixture.env, COKO_FAUX_SCRIPT: await fauxScript(root, { responses: [] }) } })
+  const api = client(sidecar, await exchange(sidecar))
+  const workspace = (await api.post(API_ROUTES.workspaces, { path: fixture.root })).body
+  const project = (await api.get(API_ROUTES.projects)).body.projects[0]
+  expect(
+    (await api.post(API_ROUTES.firstSend, { draftId: 'git-failure', projectId: project.id, newWorktree: true, text: 'hello' })).status,
+  ).toBeGreaterThanOrEqual(400)
+  expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(0)
+  expect((await api.get(worktreePaths.workspaceWorktrees(workspace.id))).body).toHaveLength(0)
+  expect(await readdir(join(fixture.root, '.coko-worktrees'))).toEqual([])
+  expect((await fixture.git('branch', '--list', 'coko/*')).trim()).toBe('')
 })
