@@ -22,6 +22,7 @@ import {
   SetSessionModelRequest,
   SubmitMessageRequest,
   SetSessionPinRequest,
+  RenameSessionRequest,
   UpdateSettingRequest,
 } from '@coko/protocol'
 import { AppError, toAppError } from '../application/errors.ts'
@@ -120,6 +121,10 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.post(API_ROUTES.firstSend, async (c) => c.json(await app.firstSend.send(await body(c, FirstSendRequest)), 201))
   http.post(API_ROUTES.sessions, async (c) => c.json(await app.sessions.create(await body(c, CreateSessionRequest)), 201))
   http.get(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.detail(c.req.param('id'))))
+  http.put(`${API_ROUTES.sessions}/:id/title`, async (c) => {
+    const { title } = await body(c, RenameSessionRequest)
+    return c.json(await app.sessions.rename(c.req.param('id'), title))
+  })
   http.put(`${API_ROUTES.sessions}/:id/pin`, async (c) => {
     const { pinned } = await body(c, SetSessionPinRequest)
     return c.json(await app.sessions.setPinned(c.req.param('id'), pinned))

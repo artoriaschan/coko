@@ -55,6 +55,7 @@ export interface ListState extends ListDisplay {
 export interface ListActions {
   load(): Promise<boolean>
   setPinned(id: string, pinned: boolean): Promise<boolean>
+  renameSession(id: string, title: string): Promise<boolean>
   reorderCategories(first: SidebarCategory): void
   rememberSession(id: string | null): void
   sortProjects(sort: 'recent' | 'created'): void
@@ -127,6 +128,14 @@ export function createListStore(api: ApiClient): ListStore {
       async setPinned(id, pinned) {
         try {
           get().patchSession(id, await api.setSessionPinned(id, pinned))
+          return true
+        } catch {
+          return false
+        }
+      },
+      async renameSession(id, title) {
+        try {
+          get().patchSession(id, await api.renameSession(id, title))
           return true
         } catch {
           return false

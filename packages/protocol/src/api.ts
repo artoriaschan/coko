@@ -63,6 +63,7 @@ export type HealthResponse = Static<typeof HealthResponse>
 export const apiPaths = {
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
   sessionPin: (id: string) => `${apiPaths.session(id)}/pin`,
+  sessionTitle: (id: string) => `${apiPaths.session(id)}/title`,
   /** POST：提交用户消息并开始 Run。 */
   sessionMessages: (id: string) => `${apiPaths.session(id)}/messages`,
   /** POST：重新执行出错的上一轮（不追加用户消息），202 返回新 runId。 */

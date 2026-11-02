@@ -101,6 +101,7 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     registerWorkspace: (path: string) => call(Workspace, 'POST', API_ROUTES.workspaces, { path }),
     listSessions: async () => (await call(SessionListResponse, 'GET', API_ROUTES.sessions)).sessions,
     setSessionPinned: (id: string, pinned: boolean) => call(Session, 'PUT', apiPaths.sessionPin(id), { pinned }),
+    renameSession: (id: string, title: string) => call(Session, 'PUT', apiPaths.sessionTitle(id), { title }),
     createSession: (input: CreateSessionRequest) => call(Session, 'POST', API_ROUTES.sessions, input),
     firstSend: (input: FirstSendRequest) => call(FirstSendResponse, 'POST', API_ROUTES.firstSend, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
