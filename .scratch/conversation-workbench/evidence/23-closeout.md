@@ -284,3 +284,57 @@ COKO_E2E_BACKGROUND=1 pnpm exec vitest run --project desktop-e2e apps/desktop/e2
 - 所有95条CW验收均有本记录中的具体测试或实际人工观测。票23关闭只表示本地实施与既定验收已完成，后续独立评审、集成分支合入、main合并、推送、PR与发布仍分别报告。
 
 保留限制：真实外部模型因无凭据跳过，实际OS选择器/剪贴板/Finder不在已证明范围；Electron为测试构建而非发布签名产物；无CI工作流、未进行Windows/Linux或远端发布验证。历史失败均保留并与最终有效通过区分。
+
+## 最终独立评审后的修复（33a7ba74 基线）
+
+两个独立只读报告审查 `8f5d52bc…33a7ba74` 的 01～23 工作，本身未执行测试。原始结果为 Standards 三项规范问题（P2 两项、P3 一项）及一项 P3 可能的重复代码气味，Spec 三项行为问题（P2 两项、P3 一项）；即六项明确问题加一项气味。原始报告保留在本机 `/tmp/coko-final-review-standards.md`、`/tmp/coko-final-review-spec.md` 及合并副本 `/tmp/coko-final-review.md`，不改写为“原评审没有问题”。本轮由新修复者在独立 managed worktree `cw-final-review-fixes/coko`、分支 `codex/cw-final-review-fixes` 完成全部七项：
+
+| 原始发现 | 修复与可观察证据 |
+| --- | --- |
+| Standards P2：聚焦搜索框时无法进入当前结果的上下文操作 | ContextMenu 与 Shift+F10 打开当前选择行左下角锚定的共享菜单；实际键盘移动到另一结果后验证锚点。Browser 键盘路径执行改名、置顶、移动、归档及确认删除，并覆盖子层 Escape、删除取消、查询保留与搜索框焦点归还；原指针路径保留。Electron 验证两种命令与删除取消后打开同一 Session。 |
+| Standards P2：分支搜索的 ArrowDown 在 IME 期间夺焦点 | 跟踪真实 composition 状态，兼顾原生 isComposing 与 229 哨兵，组合期间阻止菜单快捷键冒泡及 Escape 关闭，完成后恢复方向导航。同样修复直接相邻的归属与移到项目搜索框，并有先红后绿 Browser 证明。原确定性 CSS 退出暂停、CDP 指针穿越、closed pointer-events 与普通离开回归保持。Electron 覆盖组合期间 ArrowDown/Escape 与结束后的普通导航。 |
+| Standards P3：项目配置与清除归属图标缺 Tooltip | 复用共享 Tooltip，内容与既有本地化 aria-label 相同，不增加布局节点；保留触发按钮几何和 DropdownMenu 组合。明暗 Browser 覆盖两 Tooltip，配置菜单在 Tooltip 显示后点击、单次 Escape 关闭并归还焦点；Electron 也覆盖该单次 Escape 路径。 |
+| Standards P3 气味：ProjectService 创建/编辑重复规范化不变量 | 私有 `#normalize` 共用名称修剪与上限、恰好一个主要目录、真实可访问目录及去重、有序附加目录和主要位置转换。创建复用已有项目与编辑拒绝冲突仍各自保留，原真实 Sidecar 创建/编辑/重启用例通过。 |
+| Spec P2 NEW-07：worktree 附件误指向其他文件 | Session DTO 可选 cwd 来自服务端只读目录描述，与 Worktree Run 准入共用路径计算但不执行准入；包含仓库子目录映射，移除中和已移除会话仍可列出。界面以 cwd 分类已有 Session 附件，旧 DTO 回退原 Workspace；尚未创建 worktree 的项目草稿仍取主要 Workspace。App 五种目录场景及真实 Git busy/removed 列表通过。Electron 选择主检出 README 保留绝对路径、选择 worktree 同名 README 生成唯一 `@README.md`；实际 faux requestLog 含 `WORKTREE_SELECTED_CONTENT`，不含主检出内容，主检出原字节不变。 |
+| Spec P2 PROJ-01：项目创建时间覆盖旧成员活动 | 有成员时精确取成员最后记录最大值，只有空项目取创建时间。内存公开服务先红（1000 而非 100）后绿；Electron 通过公开 GET 获取初始配置条目提交后的 Session 时间，证明移动不改时间，recent 项目排在较新创建但只有旧成员的目标之前，切换创建时间排序则目标在前。 |
+| Spec P3 LIST-12：搜索七天后仍显示天数 | 搜索与详情卡共用 `sessionTime`、同一 timestamp/now/locale/translator 输入。原“10d ago”错误验收替换为八个明确边界（刚刚、1/59 分钟、1 小时、1 天、恰好 7 天、7 天加 1 分钟、8 天），保留全部命中高亮断言；超过七天显示本地化日期。 |
+
+### 红绿与失败分类
+
+- ProjectService 新例修前 1 失败，修后 1 通过；共享规范化重构过程中一次过宽变量替换使原 4 文件 4 失败，修正变量后同 4 文件 4 通过，未修改契约断言。该编写错误不计作新的独立评审问题。
+- App 附件最初聚焦四例为 2 失败/2 通过（worktree/standalone 的错误根），服务端子目录与移除中元数据新增断言为 2 失败/1 通过（另 22 未选中）；修复后相关完整两文件 35 通过。随后补入 worktree 创建前草稿场景，最终 App 文件为 11 例，进入下述 219 联合门禁。
+- 搜索时间八边界修前 2 失败/6 通过，修后 8 通过；键盘入口修前 1 失败（无菜单），修后完整操作路径通过。测试编写时改为等待真实 Dialog 动画完成再测行锚点，逐步等待 Radix 已聚焦下一菜单项后提交；无固定等待。一次错误插入到原组合选择例中的断言已撤销并恢复原断言，最终完整 Browser 通过。
+- 分支 composition 两主题先 2 失败；两 Tooltip 两主题先 4 失败；直接相邻项目搜索的组合与 Escape 先 3 失败。修复后当前完整 3 文件 33 通过，最终原 17 文件联合门禁 219 通过（下述精确命令），无超时/守卫放宽或强制点击。
+
+### 当前执行门禁
+
+| 执行范围 | 实际结果与边界 |
+| --- | --- |
+| 原 17 文件 Browser/样式组，保留全部旧断言并新增附件/时间/键盘步骤 | 最终退出 0，17 文件 219 通过。206 原用例增加 App 五场景与搜索八场景为 219；没有通过删旧断言降数。 |
+| Server/Sidecar/协议文档组（下面命令的 11 个筛选路径） | 实际选中 10 文件 47 通过，退出 0；`packages/protocol/src/http.test.ts` 不存在，未被计作文件或通过，Session schema 另由后续真实 index 消费者覆盖。 |
+| 协议 schema、内存/SQLite 契约、真实 worktree 与引用 Sidecar | 5 文件 99 通过，退出 0。 |
+| 首次当前 Electron 8 文件组 | 16 例中 13 通过/3 失败；明确是失败运行，失败原因与修正见下段。 |
+| 当前 Electron 四文件聚焦重验 | search/first-send-worktree/project-edit/branches 共 5 例，4 通过/1 失败；项目时间夹具问题单独修正后该文件 2/2 通过。 |
+| 当前 Electron 有效覆盖合并 | 原组未失效的 destination/references-drafts/create-project/closeout 四文件 11 通过，加聚焦重验的 search/worktree/branches 三文件 3 通过及最后 project-edit 两例通过，覆盖八文件全部 16 例。是有依据的分组证据复用，不宣称一次八文件全绿。 |
+| 机械检查 | `rtk pnpm run typecheck`、`rtk pnpm run lint`、21 个改动 TS/TSX 的 `rtk pnpm run format:check`、`rtk git diff 33a7ba747a06af7b9a818e1bc7a2c95dfb21744e --check` 均退出 0；Impeccable 对六个改动界面文件一次 detector 返回 `[]`。lint 最初发现测试 conditional-expect，改为表格中独立的明确期望，断言没有减少，最终通过。 |
+
+Electron 初次三项失败与产品修复分开记录：项目排序新增 locator 错用了大小写（实际字典是 `By recent use`）；附件的共享 `stubDirectoryPicker` 是每次对话框消费一个路径的队列，因此改为两次真实点击附件选择；搜索删除等待弹窗可见后即发 Escape，改为等待实际取消按钮获得初始焦点后发同一次 Escape，无多按 Escape 或等待 Tooltip 卸载的绕过。四文件重验仅项目新例失败：创建响应返回的是初始 permission_mode 条目之前的时间，移动后读回相差 1ms。核对 SessionService.create 后，夹具改为在移动前公开 GET 读回稳定 Session，保留精确时间不变、成员早于目标创建和实际两种 UI 排序断言；COKO_TEST_CLOCK 不管理存储时间，移除了无关测试时钟，不修改产品时间戳、不加 sleep。
+
+精确可复现命令（从本修复工作树根执行）：
+
+```sh
+rtk pnpm run test apps/desktop/src/renderer/app/app.browser.test.tsx packages/ui/src/app-frame/app-frame.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/project-row.browser.test.tsx apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx packages/ui/src/guards/style-guard.test.ts
+rtk pnpm run test apps/server/src/application/projects.test.ts apps/server/src/application/worktrees.test.ts apps/server/src/application/session-cwd-scope.test.ts tests/integration/sidecar-projects.test.ts tests/integration/sidecar-create-project.test.ts tests/integration/sidecar-edit-project.test.ts tests/integration/sidecar-first-send-worktree.test.ts tests/integration/sidecar-first-send.test.ts tests/integration/sidecar-session-move.test.ts packages/protocol/src/readme.test.ts packages/protocol/src/http.test.ts
+rtk pnpm run test packages/protocol/src/index.test.ts tests/integration/sidecar-worktrees.test.ts tests/integration/sidecar-references.test.ts packages/session/src/memory/memory.test.ts packages/session/src/sqlite/sqlite.test.ts
+rtk pnpm run test apps/desktop/e2e/conversation-search.e2e.test.ts apps/desktop/e2e/first-send-worktree.e2e.test.ts apps/desktop/e2e/project-edit.e2e.test.ts apps/desktop/e2e/branches.e2e.test.ts apps/desktop/e2e/destination.e2e.test.ts apps/desktop/e2e/references-drafts.e2e.test.ts apps/desktop/e2e/create-project.e2e.test.ts apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts
+rtk pnpm run test apps/desktop/e2e/conversation-search.e2e.test.ts apps/desktop/e2e/first-send-worktree.e2e.test.ts apps/desktop/e2e/project-edit.e2e.test.ts apps/desktop/e2e/branches.e2e.test.ts
+rtk pnpm run test apps/desktop/e2e/project-edit.e2e.test.ts
+```
+
+### 文档、历史矩阵与读回边界
+
+正式当前行为归属仍为 workbench（搜索键盘/时间、IME、Tooltip、附件）、projects（有成员时不用创建时间）、worktrees（cwd 元数据与准入分离）、protocol README/schema（可选 cwd 与旧客户端回退）。搜索相同结论的消费者覆盖 `.scratch/`、docs 与源代码；旧票中先前运行的历史结果保留，不把历史报告改写成当前通过。导航仍由 AGENTS → docs/README 到达现有正文，无新文档类别/目录；ADR 0016/0020～0022 的批准及实施状态不变，正式正文没有具体 scratch 反向依赖。
+
+前文精确 `c1f59f3b9f03820206c128c63614e27c3c2b16df` 的 32 文件 56 通过/1 无凭据跳过继续只证明该快照。此次新增 cwd DTO/附件根、项目派生时间、键盘/IME/Tooltip/格式化的变化由上列当前消费者验证；未改动的 Run、流式、权限、工具及其他功能保留旧矩阵证据，不称为新提交 32 文件重跑。真实模型仍因无凭据未验证；picker 是真实 preload/main 通道与受控系统对话框返回，faux requestLog 证明实际引用展开，不宣称实际 OS 选择器、外部模型、签名发布包或 CI 通过。
+
+最终 `rtk pnpm run check:docs` 退出 0，检查 249 个 Markdown、0 问题。独立从 AGENTS → docs/README → workbench/projects/worktrees → protocol README 读回，并核对 ADR 与 GLOSSARY 无变更：路径引用、语义同步、归属权威、引用方向、生命周期、当前入口、新会话读入、历史保留八项均通过。不存在新增目录、重复权威正文或批准状态变化。消费者搜索旧 `10d ago`、`days < 30`、旧创建时间 Math.max 仅命中本节的历史问题说明，无活动代码/正式正文冲突。七项均已修复，01～23 的 Closed 保留 true；当前修复本地完成，提交与后续集成状态另行报告。

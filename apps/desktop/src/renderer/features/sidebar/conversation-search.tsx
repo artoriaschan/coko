@@ -10,6 +10,7 @@ import { SessionMenu, SessionMenuIcon } from './session-menu.tsx'
 import { SessionDeleteDialog } from './session-delete-dialog.tsx'
 import { SessionArchiveMenuItem } from './session-archive-menu-item.tsx'
 import { SessionMoveMenu } from './session-move-menu.tsx'
+import { sessionTime } from './session-time.ts'
 import { sortSessions } from './sidebar-lists.tsx'
 
 /** Search owns presentation only; the list store and workbench keep Session identity. */
@@ -60,15 +61,6 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
       setCurrent(0)
     }
   }
-  function relativeTime(at: number) {
-    const minutes = Math.max(0, Math.floor((now - at) / 60_000))
-    if (minutes < 1) return t('sidebar.justNow')
-    if (minutes < 60) return t('sidebar.minutesAgo', { count: minutes })
-    if (minutes < 1440) return t('sidebar.hoursAgo', { count: Math.floor(minutes / 60) })
-    const days = Math.floor(minutes / 1440)
-    if (days < 30) return t('sidebar.daysAgo', { count: days })
-    return new Intl.RelativeTimeFormat(locale).format(days < 365 ? -Math.floor(days / 30) : -Math.floor(days / 365), days < 365 ? 'month' : 'year')
-  }
   const target = menu ? (sessions.find((session) => session.id === menu.session.id) ?? menu.session) : null
   return (
     <Dialog
@@ -91,7 +83,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
           returnFocus.current?.focus()
         }}
         onEscapeKeyDown={(event) => {
-          if (composing.current || deleting || menu) event.preventDefault()
+          if (composing.current || event.isComposing || event.keyCode === 229 || deleting || menu) event.preventDefault()
         }}
       >
         <DialogTitle className="sr-only">{t('sidebar.searchConversations')}</DialogTitle>
@@ -117,11 +109,23 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
               update(event.currentTarget.value)
             }}
             onKeyDown={(event) => {
-              if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+              if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                event.stopPropagation()
+                return
+              }
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault()
                 if (results.length)
                   setCurrent((index) => (Math.min(index, results.length - 1) + (event.key === 'ArrowDown' ? 1 : results.length - 1)) % results.length)
+              } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                event.preventDefault()
+                event.stopPropagation()
+                const row = selected && document.getElementById(`${listId}-${selected.id}`)
+                if (selected && row) {
+                  const bounds = row.getBoundingClientRect()
+                  menuAction.current = false
+                  setMenu({ session: selected, point: { x: bounds.left, y: bounds.bottom } })
+                }
               } else if (event.key === 'Enter') {
                 event.preventDefault()
                 if (selected) choose(selected)
@@ -197,7 +201,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                       </span>
                     )}
                     <time dateTime={new Date(session.updatedAt).toISOString()} className="shrink-0 text-ui-small text-muted-foreground">
-                      {relativeTime(session.updatedAt)}
+                      {sessionTime(session.updatedAt, now, locale, t)}
                     </time>
                   </SidebarListRow>
                 )}

@@ -15,6 +15,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
 } from '@coko/ui'
 import { GitBranchIcon, Settings2Icon } from 'lucide-react'
 import * as React from 'react'
@@ -63,6 +66,7 @@ export function ProjectGitMenu({
   const settingsTrigger = React.useRef<HTMLButtonElement>(null)
   const branchTrigger = React.useRef<HTMLDivElement>(null)
   const searchInput = React.useRef<HTMLInputElement>(null)
+  const composing = React.useRef(false)
   const nameInput = React.useRef<HTMLInputElement>(null)
   const id = React.useId()
   const failure = (error: unknown) =>
@@ -151,19 +155,24 @@ export function ProjectGitMenu({
           }
         }}
       >
-        <DropdownMenuTrigger asChild>
-          <Button
-            ref={settingsTrigger}
-            type="button"
-            variant="toolbar"
-            size="icon-sm"
-            disabled={sending}
-            aria-label={t('worktrees.projectConfiguration')}
-            className="ml-auto size-7 [&_svg]:size-3.5"
-          >
-            <Settings2Icon aria-hidden strokeWidth={1.1} />
-          </Button>
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                ref={settingsTrigger}
+                type="button"
+                variant="toolbar"
+                size="icon-sm"
+                disabled={sending}
+                aria-label={t('worktrees.projectConfiguration')}
+                className="ml-auto size-7 [&_svg]:size-3.5"
+              >
+                <Settings2Icon aria-hidden strokeWidth={1.1} />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t('worktrees.projectConfiguration')}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent
           side="top"
           sideOffset={6}
@@ -186,7 +195,10 @@ export function ProjectGitMenu({
             open={subOpen}
             onOpenChange={(next) => {
               setSubOpen(next)
-              if (next) setSearch('')
+              if (next) {
+                setSearch('')
+                composing.current = false
+              }
             }}
           >
             <DropdownMenuSubTrigger
@@ -211,6 +223,10 @@ export function ProjectGitMenu({
               className="w-72 max-w-[calc(100vw-16px)] data-[state=closed]:pointer-events-none!"
               onEscapeKeyDown={(event) => {
                 if (!subOpen) return
+                if (composing.current || event.isComposing || event.keyCode === 229) {
+                  event.preventDefault()
+                  return
+                }
                 event.preventDefault()
                 setSubOpen(false)
                 branchTrigger.current?.focus()
@@ -223,7 +239,17 @@ export function ProjectGitMenu({
                   placeholder={t('worktrees.branchSearch')}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
+                  onCompositionStart={() => {
+                    composing.current = true
+                  }}
+                  onCompositionEnd={() => {
+                    composing.current = false
+                  }}
                   onKeyDown={(event) => {
+                    if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                      event.stopPropagation()
+                      return
+                    }
                     if (event.key === 'ArrowDown') {
                       event.preventDefault()
                       event.currentTarget.closest('[role="menu"]')?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus()

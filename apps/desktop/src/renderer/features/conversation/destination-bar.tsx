@@ -10,6 +10,9 @@ import {
   DropdownMenuTrigger,
   Input,
   Switch,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
   cn,
 } from '@coko/ui'
 import { ChevronDownIcon, FolderClosedIcon, MessageCircleIcon, PlusIcon, XIcon } from 'lucide-react'
@@ -31,6 +34,7 @@ export function DestinationBar({ className }: { className?: string }) {
   const project = projects.find((item) => item.id === projectId)
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const composing = React.useRef(false)
   const searchInput = React.useRef<HTMLInputElement>(null)
   const label = project?.name ?? t('conversation.destinationChat')
   const names = new Map<string, number>()
@@ -43,7 +47,10 @@ export function DestinationBar({ className }: { className?: string }) {
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
-          if (next) setSearch('')
+          if (next) {
+            setSearch('')
+            composing.current = false
+          }
         }}
       >
         <div data-destination-control className="group/destination relative flex h-7 min-w-0 max-w-full items-center">
@@ -72,18 +79,26 @@ export function DestinationBar({ className }: { className?: string }) {
             </Button>
           </DropdownMenuTrigger>
           {project && (
-            <button
-              type="button"
-              aria-label={t('conversation.destinationClear')}
-              disabled={sending}
-              className="absolute left-1 flex size-6 items-center justify-center rounded-sm opacity-0 focus-ring hover:bg-accent group-hover/destination:opacity-100 group-focus-within/destination:opacity-100"
-              onClick={() => selectProject(null)}
-            >
-              <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('conversation.destinationClear')}
+                  disabled={sending}
+                  className="absolute left-1 flex size-6 items-center justify-center rounded-sm opacity-0 focus-ring hover:bg-accent group-hover/destination:opacity-100 group-focus-within/destination:opacity-100"
+                  onClick={() => selectProject(null)}
+                >
+                  <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t('conversation.destinationClear')}</TooltipContent>
+            </Tooltip>
           )}
         </div>
         <DropdownMenuContent
+          onEscapeKeyDown={(event) => {
+            if (composing.current || event.isComposing || event.keyCode === 229) event.preventDefault()
+          }}
           side="top"
           sideOffset={6}
           align="start"
@@ -99,8 +114,18 @@ export function DestinationBar({ className }: { className?: string }) {
               placeholder={t('conversation.destinationSearch')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onCompositionStart={() => {
+                composing.current = true
+              }}
+              onCompositionEnd={() => {
+                composing.current = false
+              }}
               onKeyDown={(event) => {
-                if (event.key === 'ArrowDown' && !event.nativeEvent.isComposing) {
+                if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                  event.stopPropagation()
+                  return
+                }
+                if (event.key === 'ArrowDown') {
                   event.preventDefault()
                   event.currentTarget.closest('[role="menu"]')?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus()
                 }

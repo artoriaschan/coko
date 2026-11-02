@@ -104,3 +104,46 @@ it('项目编辑保存、主要冲突保留、置顶和改名重启，真实 pre
   const editor = restarted.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
   await expect.poll(() => editor.evaluate((element) => element === document.activeElement)).toBe(true)
 })
+
+it('recent project sorting follows an old moved Session rather than its newer destination creation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-project-sort-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const paths = ['source', 'recent', 'destination'].map((name) => join(root, name))
+  await Promise.all(paths.map((path) => mkdir(path)))
+  const app = await launchApp({}, { dir: root })
+  onTestFinished(() => app.dispose())
+  const page = app.window
+  await waitConnected(page)
+  const facts = await page.evaluate(async (paths) => {
+    const post = async (route: string, body: unknown) => {
+      const response = await fetch(route, { method: 'POST', body: JSON.stringify(body) })
+      if (!response.ok) throw new Error(`${route}: ${response.status}`)
+      return response.json()
+    }
+    const project = async (name: string, path: string) => (await post('/api/projects', { name, folders: [{ path, primary: true }] })).project
+    const source = await project('Source', paths[0]!)
+    const createdOld = await post('/api/sessions', { workspaceId: source.primaryWorkspaceId, title: 'Old moved Session' })
+    const old = (await (await fetch(`/api/sessions/${createdOld.id}`)).json()).session
+    const recent = await project('Recently active', paths[1]!)
+    const createdRecent = await post('/api/sessions', { workspaceId: recent.primaryWorkspaceId, title: 'Recent Session' })
+    const newer = (await (await fetch(`/api/sessions/${createdRecent.id}`)).json()).session
+    const destination = await project('New destination', paths[2]!)
+    const move = await fetch(`/api/sessions/${old.id}/project`, { method: 'PUT', body: JSON.stringify({ projectId: destination.id }) })
+    if (!move.ok) throw new Error(`move: ${move.status}`)
+    const moved = await move.json()
+    const projects = (await (await fetch('/api/projects')).json()).projects
+    return { source, recent, destination, old, newer, moved, projects }
+  }, paths)
+  expect(facts.moved.updatedAt).toBe(facts.old.updatedAt)
+  expect(facts.projects.find((p: { id: string }) => p.id === facts.destination.id).lastUsedAt).toBe(facts.old.updatedAt)
+  expect(facts.newer.updatedAt).toBeGreaterThan(facts.old.updatedAt)
+  expect(facts.destination.createdAt).toBeGreaterThan(facts.old.updatedAt)
+  await page.reload()
+  await waitConnected(page)
+  await page.getByRole('button', { name: /^(Sort projects|项目排序)$/ }).click()
+  await page.getByRole('menuitemradio', { name: /By recent use|按最近使用/ }).click()
+  await expect.poll(() => page.locator('[data-category="projects"] [data-project-id]').first().getAttribute('data-project-id')).toBe(facts.recent.id)
+  await page.getByRole('button', { name: /^(Sort projects|项目排序)$/ }).click()
+  await page.getByRole('menuitemradio', { name: /By creation time|按创建时间/ }).click()
+  await expect.poll(() => page.locator('[data-category="projects"] [data-project-id]').first().getAttribute('data-project-id')).toBe(facts.destination.id)
+})

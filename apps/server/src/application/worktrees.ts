@@ -4,7 +4,7 @@
 // 会话的工作目录 = worktree 路径 + Workspace 相对仓库根的路径（SessionCwd），创建后不变；worktree 已移除时开始 Run 以 worktree-removed 拒绝。
 import { randomBytes } from 'node:crypto'
 import { appendFile, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { getLogger } from '@coko/logging'
 import {
   WORKTREE_DIRTY_FILES_MAX,
@@ -18,6 +18,7 @@ import {
 import type { Session as StoredSession, SessionStore, Workspace, WorktreeRecord } from '@coko/session'
 import type { GitPort, GitResult } from '../adapters/git.ts'
 import { AppError } from './errors.ts'
+import { sessionDirectory } from './session-directory.ts'
 import { KeyedMutex } from './keyed-mutex.ts'
 import type { RecoverySource } from './recovery.ts'
 import type { SessionCwd } from './session-runs.ts'
@@ -105,16 +106,8 @@ export class WorktreeService {
       if (!worktree) throw new AppError('not-found', `Worktree ${session.worktreeId} not found`)
       if (worktree.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; this session is read-only`)
       if (this.#removing.has(worktree.id)) throw new AppError('worktree-busy', `Worktree ${worktree.name} is being removed`, { reasons: [] })
-      return this.#sessionDir(worktree, workspace)
+      return sessionDirectory(workspace, worktree)
     },
-  }
-
-  /** worktree 路径 + Workspace 相对仓库根的路径（Workspace 为仓库子目录时为 worktree 中的对应子目录）。 */
-  async #sessionDir(worktree: WorktreeRecord, workspace: Workspace): Promise<string> {
-    const real = await realpath(workspace.path).catch(() => workspace.path)
-    const rel = relative(worktree.repoRoot, real)
-    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return worktree.path
-    return join(worktree.path, rel)
   }
 
   async #workspace(workspaceId: string): Promise<Workspace> {

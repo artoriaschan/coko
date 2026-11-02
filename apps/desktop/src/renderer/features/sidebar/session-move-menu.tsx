@@ -25,6 +25,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
   const createProject = useCreateProject()
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
+  const composing = React.useRef(false)
   const trigger = React.useRef<HTMLDivElement>(null)
   const dismissedUnderPointer = React.useRef(false)
   const names = new Map<string, number>()
@@ -39,7 +40,10 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
       onOpenChange={(next) => {
         if (next && dismissedUnderPointer.current) return
         setOpen(next)
-        if (next) setSearch('')
+        if (next) {
+          setSearch('')
+          composing.current = false
+        }
       }}
     >
       <DropdownMenuSubTrigger
@@ -66,6 +70,10 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
         className="w-70 max-w-(--radix-dropdown-menu-content-available-width) max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto"
         onEscapeKeyDown={(event) => {
           if (!open) return
+          if (composing.current || event.isComposing || event.keyCode === 229) {
+            event.preventDefault()
+            return
+          }
           event.preventDefault()
           dismissedUnderPointer.current = true
           setOpen(false)
@@ -79,8 +87,18 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
             placeholder={t('conversation.destinationSearch')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            onCompositionStart={() => {
+              composing.current = true
+            }}
+            onCompositionEnd={() => {
+              composing.current = false
+            }}
             onKeyDown={(event) => {
-              if (event.key === 'ArrowDown' && !event.nativeEvent.isComposing) {
+              if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                event.stopPropagation()
+                return
+              }
+              if (event.key === 'ArrowDown') {
                 event.preventDefault()
                 event.currentTarget.closest('[role="menu"]')?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus()
               }

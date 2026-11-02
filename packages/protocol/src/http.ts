@@ -87,6 +87,8 @@ export const Session = Type.Object(
   {
     id: Id,
     workspaceId: Id,
+    /** Fixed Session directory, including the Workspace's subdirectory inside a worktree; absent in legacy DTOs. */
+    cwd: Type.Optional(Type.String()),
     projectId: Type.Union([Id, Type.Null()]),
     pinnedAt: Type.Union([Timestamp, Type.Null()]),
     archivedAt: Type.Union([Timestamp, Type.Null()]),

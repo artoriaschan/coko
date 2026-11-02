@@ -44,4 +44,15 @@
 - 最终`pnpm run typecheck`、目标`oxlint`、格式整理、固定基线`git diff 44b9296 --check`退出0，ProjectGitMenu detector为`[]`。全部临时DEBUG/重复探针撤销；保留确定性退出指针回归。文档从入口及protocol README读回，路径/语义/权威/引用方向/生命周期/导航/新会话读入/历史八项通过。最终`pnpm run check:docs`退出0，检查249个Markdown文件、0问题。
 - 本地实施与全部既定验收完成；尚未进行最终独立评审、main合并、远端push/PR、发布产物或CI。真实模型、实际OS选择器/剪贴板/Finder与跨平台验证范围按证据限制明确区分。
 
+
+### 最终独立评审修复完成（基线 33a7ba74）
+
+- 原始两个只读评审结论单独保留：Standards 三项明确问题与一项重复代码气味，Spec 三项行为问题，共六项明确问题加一项气味，原报告并非无发现。本轮新修复者在独立 `codex/cw-final-review-fixes` 工作树完成全部七项，具体原始发现、修复与证据见[当前修复章节](../evidence/23-closeout.md#最终独立评审后的修复33a7ba74-基线)。
+- 搜索支持聚焦 combobox 的 ContextMenu/Shift+F10、当前行锚点与五项共享操作及焦点归还；分支与直接相邻项目搜索按 composition/isComposing/229 保护导航与逐层关闭；配置与清除归属复用本地化 Tooltip。原 33a 确定性分支退出/离开回归和原有指针断言完整保留。
+- Session DTO 的可选 cwd 来自权威只读目录映射，保留子目录、移除中/已移除元数据读取，Run 准入拒绝不变；已有会话附件按实际 cwd，旧 DTO 与新 worktree 尚未创建的草稿仍取原 Workspace。App 五场景与实际 Electron 同名源文件/worktree 文件、请求内容及主检出字节读回通过。ProjectService 私有规范化共用不变量，创建复用与编辑冲突语义保持；成员早于目标创建时最近使用严格取成员时间。搜索/详情共用七天日期边界，原错误 10d 验收改为八个明确边界并保留高亮断言。
+- 最终原 17 文件 Browser/样式门禁 219/219 通过；源码/Sidecar/协议文档实际 10 文件 47 通过（命令中的不存在 http.test.ts 未计作通过），另协议 schema/存储/真实 worktree/引用 Sidecar 5 文件 99 通过。精确命令在证据，无零选中或全跳过冒充通过。
+- 当前重新构建 Electron 的初次八文件运行 13 通过/3 失败，四文件定位重验 4 通过/1 失败，最后 project-edit 两例通过；失败原因分别为新增 locator 大小写、picker 队列需两次点击、等待初始取消焦点、创建响应早于初始配置条目的时间。均按公开状态与实际接口纠正夹具，未变更产品时间戳、强制点击、额外 Escape、sleep 或放宽断言。有效分组覆盖八文件全部 16 例，原失败与有效范围单独记录，不称为一次八文件全绿。
+- 正式 workbench/projects/worktrees/protocol 行为与 schema 同步，不改 ADR 批准/实施状态，不建立正式到具体 scratch 的依赖。原 c1f59f3b 的 32 native 文件 56 通过/1 无凭据跳过仍限定原快照，当前变化由直接消费者重验；未宣称新的 32 文件运行或真实模型通过。真实 OS 选择器/剪贴板/Finder、签名发布包、CI、远端推送/PR/main 仍不在证明范围。
+- 最终机械门禁与 AGENTS→docs/README→当前正文的八项语义/导航读回见证据尾部；Closed 仅表示此次七项修复及本地验收完成，后续独立集成和交付分别报告。
+
 Closed: true

@@ -1,5 +1,5 @@
 import '../../styles.css'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
@@ -7,7 +7,7 @@ import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
-import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 
 it('新对话显示品牌欢迎页，所有入口保留同份文字草稿，输入区聚焦且上下文只有轨道', async () => {
   const fixture = createFixtureChat()
@@ -154,6 +154,11 @@ it.each(['light', 'dark'] as const)('%s：归属菜单在上方 6px，搜索区�
   expect(menu.element().textContent).not.toContain('hidden-folder')
   const search = page.getByRole('textbox', { name: '搜索项目' })
   await expect.element(search).toHaveFocus()
+  search.element().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+  await userEvent.keyboard('{ArrowDown}{Escape}')
+  await expect.element(search).toHaveFocus()
+  await expect.element(menu).toBeVisible()
+  search.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
   await userEvent.type(search, 'unique')
   await expect.element(page.getByRole('menuitemradio', { name: 'web · shop-web', exact: true })).not.toBeInTheDocument()
   await userEvent.clear(search)
@@ -170,6 +175,8 @@ it.each(['light', 'dark'] as const)('%s：归属菜单在上方 6px，搜索区�
   await userEvent.hover(selected)
   const close = page.getByRole('button', { name: '清除项目归属' })
   await expect.element(close).toBeVisible()
+  await userEvent.hover(close)
+  await expect.element(page.getByRole('tooltip', { name: '清除项目归属' })).toBeVisible()
   expect(label.getBoundingClientRect().left).toBe(before)
   await page.screenshot({ element: bar, path: `../../../../../../.vitest/cw12-hover-${theme}.png` })
   fixture.chat.newChat.getState().configure({ branch: 'feature', newWorktree: true })
@@ -222,4 +229,64 @@ it('项目行新对话进入欢迎页并聚焦，保留项目展开状态；独�
   await page.getByRole('button', { name: '新对话', exact: true }).click()
   await expect.element(page.getByRole('button', { name: '选择对话归属：对话' })).toBeVisible()
   await screen.unmount()
+})
+
+it.each([
+  {
+    label: 'worktree',
+    cwd: '/Users/me/coko/.coko-worktrees/wt-123456',
+    projectId: 'project-w-coko',
+    references: ['selected.ts'],
+    source: '/Users/me/coko/README.md',
+  },
+  { label: 'primary', cwd: '/Users/me/coko', projectId: 'project-w-coko', references: ['README.md', 'selected.ts'], source: '@README.md' },
+  { label: 'standalone', cwd: '/Users/me/standalone', projectId: null, references: ['selected.ts'], source: '/Users/me/coko/README.md' },
+  { label: 'legacy Workspace fallback', cwd: undefined, projectId: null, references: ['README.md', 'selected.ts'], source: '@README.md' },
+  {
+    label: 'worktree draft before creation',
+    cwd: undefined,
+    projectId: 'project-w-coko',
+    draft: true,
+    references: ['README.md', 'selected.ts'],
+    source: '@README.md',
+  },
+])('$label attachments use the correct directory at the App/composer boundary', async (config) => {
+  const { cwd, projectId } = config
+  const draft = 'draft' in config && config.draft === true
+  await page.viewport(1200, 900)
+  const session = { ...fixtureSessions[0]!, cwd, projectId }
+  const fixture = createFixtureChat({ sessions: draft ? [] : [session] })
+  const root = cwd ?? '/Users/me/coko'
+  vi.stubGlobal('coko', { pickFiles: async () => ['/Users/me/coko/README.md', `${root}/selected.ts`, '/outside/notes.txt'] })
+  try {
+    const appearance = createAppearanceStore({ locale: 'en', theme: 'light' })
+    const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict() {}, onFailure() {} })
+    const screen = await render(
+      <div style={{ width: 1200, height: 900 }}>
+        <App
+          store={appearance}
+          connection={createConnectionStore()}
+          chat={fixture.chat}
+          settings={fixture.settings}
+          preferences={preferences}
+          settingsPage={createSettingsPageStore()}
+          pickDirectory={async () => null}
+        />
+      </div>,
+    )
+    if (draft) {
+      fixture.chat.newChat.getState().selectProject('project-w-coko')
+      fixture.chat.newChat.getState().configure({ newWorktree: true, branch: 'main' })
+    } else await fixture.chat.getState().openSession(session.id)
+    const editor = page.getByRole('textbox', { name: 'Give Coko a task' })
+    await expect.element(editor).toBeVisible()
+    await page.getByRole('button', { name: 'Add attachment' }).click()
+    await expect.poll(() => editor.element().querySelector('[data-file-reference="selected.ts"]')).not.toBeNull()
+    expect(editor.element().textContent).toContain('/outside/notes.txt')
+    expect(editor.element().textContent).toContain(config.source)
+    expect([...editor.element().querySelectorAll<HTMLElement>('[data-file-reference]')].map((node) => node.dataset.fileReference)).toEqual(config.references)
+    await screen.unmount()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

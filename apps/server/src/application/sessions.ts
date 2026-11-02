@@ -16,6 +16,7 @@ import type {
   UpdatePermissionsRequest,
 } from '@coko/protocol'
 import { AppError } from './errors.ts'
+import { sessionDirectory } from './session-directory.ts'
 import type { NewSession, Session as StoredSession, SessionStore } from '@coko/session'
 import type { Model } from '@earendil-works/pi-ai'
 import { SessionCheckpoints } from './checkpoints.ts'
@@ -383,8 +384,10 @@ export class SessionService {
       root = parent
     }
     const worktree = worktreeId === null ? undefined : await this.#store.worktrees.get(worktreeId)
+    const workspace = await this.#store.sessions.getWorkspace(stored.workspaceId)
     const session = {
       ...rest,
+      ...(workspace ? { cwd: await sessionDirectory(workspace, worktree) } : {}),
       projectId: root.projectId,
       thinkingLevel: this.#models.effectiveLevel(stored),
       ...(parentSessionId === null ? {} : { parentSessionId }),

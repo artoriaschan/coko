@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createModelRegistry, InMemoryCredentialStore } from '@coko/agent'
+import { SessionService } from './sessions.ts'
+import { SessionHub } from './hub.ts'
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { createGitRunner, type GitPort } from '../adapters/git.ts'
@@ -72,7 +75,14 @@ async function setup(options: { git?: (real: GitPort) => GitPort; workspaceDir?:
   })
   const workspace = await store.sessions.registerWorkspace({ path: options.workspaceDir ? join(repo.root, options.workspaceDir) : repo.root })
   const inWorktree = (path: string, ...args: string[]) => run('git', args, { cwd: path, env: { PATH: process.env.PATH ?? '', ...repo.env } })
-  return { repo, store, service, workspace, inWorktree }
+  const sessions = new SessionService({
+    store,
+    registry: createModelRegistry({ credentials: new InMemoryCredentialStore() }),
+    hub: new SessionHub(),
+    runs: { launch: () => undefined },
+    cwd: service.cwd,
+  })
+  return { repo, store, service, workspace, inWorktree, sessions }
 }
 
 const branches = async (repo: GitWorkspace) => (await repo.git('branch', '--format=%(refname:short)')).trim().split('\n').sort()
@@ -134,10 +144,11 @@ describe('WorktreeService 创建与工作目录', REAL_GIT_BUDGET, () => {
   })
 
   it('Workspace 为仓库子目录：工作目录为 worktree 中的对应子目录', async () => {
-    const { store, service, workspace } = await setup({ workspaceDir: 'pkg' })
+    const { store, service, workspace, sessions } = await setup({ workspaceDir: 'pkg' })
     const created = await service.create(workspace.id, { name: 'sub' })
     const session = await store.sessions.createSession({ workspaceId: workspace.id, worktreeId: created.id })
     expect(await service.cwd.resolve(session, workspace)).toBe(join(created.path, 'pkg'))
+    expect(await sessions.list()).toEqual([expect.objectContaining({ id: session.id, cwd: join(created.path, 'pkg') })])
     expect(await readdir(join(created.path, 'pkg'))).toEqual(['a.txt'])
   })
 
@@ -215,16 +226,23 @@ describe('WorktreeService.remove 与并发开始的 Run', REAL_GIT_BUDGET, () =>
 
   it('对手用例：移除停在 busy 检查之后、git 之前时，会话的工作目录解析为 409 worktree-busy（开始 Run 前即失败）；移除后为 worktree-removed', async () => {
     const g = gated()
-    const { store, service, workspace } = await setup({ git: g.git })
+    const { store, service, workspace, sessions } = await setup({ git: g.git })
     const created = await service.create(workspace.id, { name: 'racing' })
     const session = await store.sessions.createSession({ workspaceId: workspace.id, worktreeId: created.id })
     const removing = service.remove(created.id)
     await g.atGit
-    const busy = await service.cwd.resolve(session, workspace).catch((e: unknown) => e)
-    expect(busy).toBeInstanceOf(AppError)
-    expect((busy as AppError).code).toBe('worktree-busy')
-    g.release()
-    await removing
+    try {
+      const busy = await service.cwd.resolve(session, workspace).catch((e: unknown) => e)
+      expect(busy).toBeInstanceOf(AppError)
+      expect((busy as AppError).code).toBe('worktree-busy')
+      expect(await sessions.list()).toEqual([expect.objectContaining({ id: session.id, cwd: created.path })])
+    } finally {
+      g.release()
+      await removing
+    }
+    expect(await sessions.list()).toEqual([
+      expect.objectContaining({ id: session.id, cwd: created.path, worktree: expect.objectContaining({ status: 'removed' }) }),
+    ])
     const removed = await service.cwd.resolve(session, workspace).catch((e: unknown) => e)
     expect((removed as AppError).code).toBe('worktree-removed')
   })

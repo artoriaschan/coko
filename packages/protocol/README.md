@@ -31,6 +31,10 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 - `progress { sessionId, runId, event }`：不持久化的临时显示状态，断线丢失后由条目重建。
 - `error { code, message, sessionId? }`：订阅失败（例如 Session 不存在）或客户端消息不合 schema。
 
+### Session 工作目录
+
+`Session.cwd` 为可选的绝对路径：当前服务端返回创建时固定的会话工作目录，worktree 会话包含 Workspace 在仓库中的相对子目录。它是只读元数据，移除中或已移除的 worktree 仍可列出会话与原目录；开始 Run 的 busy/removed 错误另行判定。旧 DTO 可缺省此字段，客户端回退到该 Session 的 Workspace 路径。附件按该目录区分相对 File Reference 与目录外绝对路径，不根据当前项目归属重新定位。
+
 ## 认证
 
 1. 启动 Sidecar（standalone 时 `ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/index.mjs --data-dir <dir> --log-dir <dir>`），读 stdout 的第一条 `ready`，得到端口与一次性启动令牌（43 个字符的 base64url）。

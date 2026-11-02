@@ -54,9 +54,14 @@ it.each(['light', 'dark'] as const)(
       </div>,
     )
     await page.getByRole('button', { name: '新对话', exact: true }).click()
-    await page.getByRole('button', { name: '项目配置', exact: true }).click()
+    const configurationButton = page.getByRole('button', { name: '项目配置', exact: true })
+    await userEvent.hover(configurationButton)
+    await expect.element(page.getByRole('tooltip', { name: '项目配置' })).toBeVisible()
+    await configurationButton.click()
     await expect.element(page.getByText('选择项目后可配置分支')).toBeVisible()
     await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('menu', { name: '项目配置' })).not.toBeInTheDocument()
+    await expect.element(configurationButton).toHaveFocus()
     fixture.chat.newChat.getState().selectProject('project-w-coko')
     await page.getByRole('button', { name: '项目配置', exact: true }).click()
     const parent = page.getByRole('menu', { name: '项目配置' })
@@ -64,6 +69,21 @@ it.each(['light', 'dark'] as const)(
     await trigger.click()
     const sub = page.getByRole('menu', { name: '搜索本地分支' })
     await expect.element(page.getByRole('textbox', { name: '搜索本地分支' })).toHaveFocus()
+    const composingSearch = page.getByRole('textbox', { name: '搜索本地分支' })
+    composingSearch.element().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(composingSearch).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(composingSearch).toHaveFocus()
+    await expect.element(sub).toBeVisible()
+    composingSearch.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    for (const guard of [{ isComposing: true }, { keyCode: 229 }]) {
+      composingSearch.element().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', ...guard, bubbles: true, cancelable: true }))
+      await expect.element(composingSearch).toHaveFocus()
+    }
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(page.getByRole('menuitemradio', { name: 'main', exact: true })).toHaveFocus()
+
     await expect
       .poll(() => {
         const a = parent.element().getBoundingClientRect(),

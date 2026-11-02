@@ -1,7 +1,7 @@
 import '../../styles.css'
 import type {} from '@vitest/browser-playwright'
 import * as React from 'react'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { Toaster, toast, TooltipProvider } from '@coko/ui'
@@ -226,15 +226,30 @@ it('pointer menus avoid viewport edges and delete stays bound to the original Se
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
 })
 
-it('highlights every case-insensitive title occurrence and keeps older timestamps relative', async () => {
-  await setup([{ ...fixtureSessions[0]!, title: 'Example EXAMPLE example', updatedAt: Date.now() - 10 * 86400000 }])
-  const input = page.getByRole('combobox')
-  await input.fill('example')
-  const row = page.getByRole('option', { name: 'Example EXAMPLE example' })
-  expect([...row.element().querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['Example', 'EXAMPLE', 'example'])
-  await expect.element(row.getByText('10d ago')).toBeVisible()
-  await userEvent.keyboard('{Escape}')
-  await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+it.each([
+  [0, 'Just now'],
+  [60_000, '1m ago'],
+  [59 * 60_000, '59m ago'],
+  [60 * 60_000, '1h ago'],
+  [86400000, '1d ago'],
+  [7 * 86400000, '7d ago'],
+  [7 * 86400000 + 60_000, '10/26/26'],
+  [8 * 86400000, '10/25/26'],
+])('highlights every title occurrence and formats age %i with the card seven-day boundary', async (age, expected) => {
+  const now = Date.UTC(2026, 10, 2, 12)
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+  try {
+    await setup([{ ...fixtureSessions[0]!, title: 'Example EXAMPLE example', updatedAt: now - age }])
+    const input = page.getByRole('combobox')
+    await input.fill('example')
+    const row = page.getByRole('option', { name: 'Example EXAMPLE example' })
+    expect([...row.element().querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['Example', 'EXAMPLE', 'example'])
+    await expect.element(row.getByText(expected)).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+  } finally {
+    clock.mockRestore()
+  }
 })
 
 it('the shared archive action removes its original result, excludes archives even if injected into normal data and keeps the query', async () => {
@@ -270,6 +285,113 @@ it('failed archive retains the query and result and reports the shared busy reas
   await expect.element(row).toBeVisible()
   toast.dismiss()
   await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
+})
+
+it('the focused combobox opens row-anchored actions by keyboard, keeps child layers, and operates all five shared actions', async () => {
+  const fixture = await setup()
+  const searchDialog = page.getByRole('dialog', { name: 'Search conversations' })
+  await Promise.all(
+    searchDialog
+      .element()
+      .getAnimations()
+      .map((animation) => animation.finished),
+  )
+  const input = page.getByRole('combobox')
+  await input.fill('conversation 1')
+  input.element().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+  await userEvent.keyboard('{ContextMenu}')
+  expect(document.querySelector('[role="menu"]')).toBeNull()
+  input.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+  await userEvent.keyboard('{ArrowDown}')
+  await expect.element(page.getByRole('option', { name: 'Example conversation 10', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{ContextMenu}')
+  const menu = page.getByRole('menu', { name: 'Conversation actions' })
+  await expect.element(menu).toBeVisible()
+  const selected = page.getByRole('option', { name: 'Example conversation 10', exact: true })
+  const anchor = document.querySelector<HTMLElement>('[data-slot=dropdown-menu-trigger][aria-hidden=true]')!
+  expect(anchor.style.left).toBe(`${selected.element().getBoundingClientRect().left}px`)
+  expect(anchor.style.top).toBe(`${selected.element().getBoundingClientRect().bottom}px`)
+  await userEvent.keyboard('{Escape}')
+  await expect.element(menu).not.toBeInTheDocument()
+  await expect.element(input).toHaveFocus()
+  await userEvent.keyboard('{ArrowUp}')
+  const open = async () => {
+    await userEvent.keyboard('{Shift>}{F10}{/Shift}')
+    await expect.element(menu).toBeVisible()
+    await userEvent.keyboard('{Home}')
+    await expect.element(page.getByRole('menuitem', { name: 'Rename', exact: true })).toHaveFocus()
+  }
+  const down = async (name: string) => {
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(page.getByRole('menuitem', { name, exact: true })).toHaveFocus()
+  }
+  await open()
+  await down('Pin conversation')
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => fixture.chat.lists.getState().sessions.find((s) => s.id === 'search-1')?.pinnedAt).not.toBeNull()
+  await expect.element(input).toHaveFocus()
+  await open()
+  await userEvent.keyboard('{Enter}')
+  const rename = page.getByRole('textbox', { name: 'Conversation title' })
+  await expect.element(rename).toHaveFocus()
+  await rename.fill('Example conversation 1 keyboard')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(input).toHaveFocus()
+  await open()
+  const move = page.getByRole('menuitem', { name: 'Move to project', exact: true })
+  await down('Unpin conversation')
+  await down('Archive conversation')
+  await down('Move to project')
+  await userEvent.keyboard('{ArrowRight}')
+  const child = page.getByRole('menu', { name: 'Move to project', exact: true })
+  await expect.element(child).toBeVisible()
+  const projectSearch = page.getByRole('textbox', { name: 'Search projects' })
+  await expect.element(projectSearch).toHaveFocus()
+  projectSearch.element().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+  await userEvent.keyboard('{ArrowDown}{Escape}')
+  await expect.element(projectSearch).toHaveFocus()
+  await expect.element(child).toBeVisible()
+  projectSearch.element().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+  await userEvent.keyboard('{Escape}')
+  await expect.element(child).not.toBeInTheDocument()
+  await expect.element(menu).toBeVisible()
+  await expect.element(move).toHaveFocus()
+  await userEvent.keyboard('{ArrowRight}')
+  await expect.element(child).toBeVisible()
+  await userEvent.keyboard('{ArrowDown}')
+  await expect.element(page.getByRole('menuitemradio', { name: 'coko', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => fixture.chat.lists.getState().sessions.find((s) => s.id === 'search-1')?.projectId).toBe('project-w-coko')
+  await expect.element(input).toHaveFocus()
+  await open()
+  await userEvent.keyboard('{End}')
+  await expect.element(page.getByRole('menuitem', { name: 'Delete conversation', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  const deleting = page.getByRole('alertdialog', { name: 'Delete conversation?' })
+  await expect.element(deleting.getByRole('button', { name: 'Cancel', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(deleting).not.toBeInTheDocument()
+  await expect.element(input).toHaveFocus()
+  await expect.element(input).toHaveValue('conversation 1')
+  await open()
+  await down('Unpin conversation')
+  await down('Archive conversation')
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => fixture.chat.lists.getState().archivedSessions.some((s) => s.id === 'search-1')).toBe(true)
+  await expect.element(input).toHaveFocus()
+  await open()
+  await userEvent.keyboard('{End}')
+  await expect.element(page.getByRole('menuitem', { name: 'Delete conversation', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  await expect.element(deleting.getByRole('button', { name: 'Cancel', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Tab}')
+  await expect.element(deleting.getByRole('button', { name: 'Delete', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
+  await expect.element(deleting).not.toBeInTheDocument()
+  expect(fixture.chat.lists.getState().sessions.some((s) => s.id === 'search-10')).toBe(false)
+  await expect.element(input).toHaveFocus()
   await userEvent.keyboard('{Escape}')
   await expect.element(page.getByRole('dialog', { name: 'Search conversations' })).not.toBeInTheDocument()
 })

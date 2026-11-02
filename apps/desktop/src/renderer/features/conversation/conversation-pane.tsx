@@ -141,7 +141,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const activeWorkspaceId = useActiveWorkspaceId()
   const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
-  const attachmentRoot = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
+  const attachmentRoot = session?.cwd ?? workspacePath
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)

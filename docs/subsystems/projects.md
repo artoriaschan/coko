@@ -68,7 +68,7 @@ DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及�
 
 归属和执行目录分离。组织字段的修改不改变 Workspace 或 worktree 绑定。会话的 updatedAt 表示最后记录时间：创建和追加条目会刷新，标题、模型及组织字段的修改不刷新。根会话列表按该时间降序、相同时间按 id 排列，子会话经子列表查询。
 
-GET /api/projects 返回项目及源文件夹的主要标记、未归档根会话数、最近使用时间。最近使用取项目中根会话最后记录时间，没有会话时取项目创建时间。Session DTO 带项目归属、置顶和归档时间。
+GET /api/projects 返回项目及源文件夹的主要标记、未归档根会话数、最近使用时间。最近使用取项目中根会话最后记录时间，只有没有会话时取项目创建时间；有成员时不把项目创建时间并入最大值，即使移入的旧会话早于目标项目创建时间，也按旧会话最后记录时间参与最近使用排序。[服务回归](../../apps/server/src/application/projects.test.ts)与[真实 Electron 排序](../../apps/desktop/e2e/project-edit.e2e.test.ts)覆盖该区别。Session DTO 带项目归属、置顶和归档时间。
 
 ## 工作台列表
 
