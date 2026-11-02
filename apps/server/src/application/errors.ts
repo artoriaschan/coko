@@ -30,6 +30,8 @@ const STATUS: Record<ErrorCode, number> = {
   'worktree-exists': 409,
   'worktree-busy': 409,
   'worktree-dirty': 409,
+  'git-dirty': 409,
+  'git-unavailable': 409,
   'worktree-removed': 409,
   'nothing-to-hand-off': 400,
   'digest-mismatch': 409,

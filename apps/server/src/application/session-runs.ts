@@ -208,6 +208,10 @@ export class SessionRuns {
   /** 每个 Session 进行中的 Run（后台任务的进度带发起它的 runId）。 */
   readonly #activeRuns = new Map<string, string>()
   #jobs: SessionJobs | undefined
+  #directoryAdmission: ((cwd: string) => void) | undefined
+  useDirectoryAdmission(assert: (cwd: string) => void): void {
+    this.#directoryAdmission = assert
+  }
   #subagents: SessionSubagents | undefined
 
   constructor(options: SessionRunsOptions) {
@@ -385,6 +389,7 @@ export class SessionRuns {
     runtime.setModel(model)
     runtime.setThinkingLevel(models.effectiveLevel(session))
 
+    this.#directoryAdmission?.(scope.cwd)
     // run() 在第一个 await 之前同步发出 run_start，借此在 Run 结束前拿到 runId。
     let runId: string | undefined
     let acceptInput: (() => void) | undefined

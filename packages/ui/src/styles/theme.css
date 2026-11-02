@@ -19,6 +19,8 @@
 
 /* ---------- 原始色板：只供下方语义 token 引用 ---------- */
 :root {
+  --layer-menu: 50;
+  --layer-menu-submenu: 51;
   --palette-white: #ffffff;
   --palette-gray-25: rgb(250 250 250);
   --palette-gray-50: rgb(249 250 251);

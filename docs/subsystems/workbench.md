@@ -46,6 +46,16 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 验证：[归属 Browser Mode](../../apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx)、[项目首次发送协议](../../tests/integration/sidecar-first-send.test.ts)、[真实 Electron 项目入口、草稿重启与主要目录写入](../../apps/desktop/e2e/destination.e2e.test.ts)。
 
+## 项目配置菜单
+
+归属栏右侧的 [项目配置菜单](../../apps/desktop/src/renderer/features/conversation/project-git-menu.tsx) 在栏上方打开。独立状态仍可打开，分支项显示等待选择项目的说明；非 Git 主要文件夹与 Git 缺失分别说明原因。菜单为新建工作树开关保留前置插槽。
+
+分支子菜单保留父层，使用共享 `DropdownMenuStackedSubContent`：子层高于父层，从触发项边缘零间距展开，父菜单内边距保留几何重叠；新对话入口将子层底部与触发项对齐，使菜单位于归属栏上方。搜索只匹配本地分支名，当前分支勾选；选中成功回显，失败保留原选择并区分 dirty 与忙碌。关闭子层时焦点返回分支触发项。
+
+“创建并检出新分支…”关闭菜单再打开模态表单并聚焦名称，每次预填全局前缀。设置前缀在表单内编辑并保存；引用名校验预留固定高度，报错不改变弹窗和按钮几何。提交期间防止重复，失败保留名称与错误原因；关闭不操作 Git。成功后关闭表单并保存新分支草稿。开启新建工作树的配置使用基础分支选择，不切换主要文件夹并隐藏创建分支入口。
+
+验证：[分支 Browser Mode](../../apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx)、[真实 Electron 前缀、预填与 Git 读回](../../apps/desktop/e2e/branches.e2e.test.ts)。
+
 ## 主输入区
 
 `apps/desktop/src/renderer/features/conversation/composer.tsx` 组合共享 Lexical `ComposerEditor` 与底部工具栏。主输入框基准高 120px、内边距 12px、R28 与 soft elevation；编辑区独立滚动，底部工具栏高 32px。压缩进度与图片缩略图各占一行，显示时输入框允许增高。

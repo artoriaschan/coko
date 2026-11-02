@@ -30,3 +30,5 @@ export * from './todo.ts'
 export * from './trace.ts'
 export * from './worktrees.ts'
 export * from './ws.ts'
+
+export * from './branches.ts'

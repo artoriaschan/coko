@@ -1,6 +1,6 @@
 import { CheckIcon, ChevronRightIcon } from 'lucide-react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
-import type * as React from 'react'
+import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 
 // 由 shadcn CLI 4.21.4 生成后按设计系统改写：
@@ -9,7 +9,7 @@ import { cn } from '../lib/utils.ts'
 // - 业务与平台样式不覆盖菜单背景与模糊。
 /** 菜单材质（composer 的 typeahead 菜单同样使用）。 */
 export const menuSurface =
-  'relative isolate z-50 rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
+  'relative isolate z-(--layer-menu) rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
 
 const menuMotion =
   'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95'
@@ -161,6 +161,34 @@ function DropdownMenuSubTrigger({
   )
 }
 
+/** The submenu starts at the item edge; the parent's 4px surface padding stays visible behind it. */
+function DropdownMenuStackedSubContent({
+  className,
+  sideOffset = 0,
+  alignEnd = false,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent> & { alignEnd?: boolean }) {
+  const [content, setContent] = React.useState<HTMLDivElement | null>(null)
+  const [height, setHeight] = React.useState(0)
+  React.useLayoutEffect(() => {
+    if (!content || !alignEnd) return
+    const observer = new ResizeObserver(() => setHeight(content.getBoundingClientRect().height))
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [content, alignEnd])
+  return (
+    <DropdownMenuPortal>
+      <DropdownMenuSubContent
+        ref={setContent}
+        sideOffset={sideOffset}
+        alignOffset={alignEnd ? 32 - height : 0}
+        className={cn('z-(--layer-menu-submenu)', className)}
+        {...props}
+      />
+    </DropdownMenuPortal>
+  )
+}
+
 function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
   return (
     <DropdownMenuPrimitive.SubContent
@@ -185,6 +213,7 @@ export {
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
+  DropdownMenuStackedSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 }

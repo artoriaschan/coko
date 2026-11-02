@@ -54,6 +54,8 @@ export const ErrorCode = Type.Union([
   Type.Literal('worktree-busy'),
   /** worktree 有未提交的改动（details.files）。 */
   Type.Literal('worktree-dirty'),
+  Type.Literal('git-dirty'),
+  Type.Literal('git-unavailable'),
   /** 会话绑定的 worktree 已被移除。 */
   Type.Literal('worktree-removed'),
   /** 会话没有用户消息，没有可交接的内容。 */

@@ -66,6 +66,18 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 
 `createGitRunner` 以 argv 运行系统 `git`（经 `PATH` 解析，不经 shell）：环境为 Sidecar 环境剔除 `HOST_ENV_EXCLUSIONS`（与 bash 相同），再设 `GIT_TERMINAL_PROMPT=0`、`LC_ALL=C`；独立进程组，登记为 kind `git`（命令为 `git <参数>`，按值脱敏后入库），结束后删除。超时缺省 60 秒：对进程组 SIGTERM，2 秒后 SIGKILL，以 `GitTimeoutError` 失败。日志只记子命令、退出码、时长与输出字节数，不记参数与输出文本。
 
+## 项目分支
+
+[BranchService](../../apps/server/src/application/branches.ts) 通过项目的 `primaryWorkspaceId` 解析主要文件夹，不依赖文件夹显示顺序。`GET /api/projects/:id/branches` 返回 `{ available, reason?, current?, branches }`；只列本地 `refs/heads`，当前分支在前，其余按最近提交时间排序。主要文件夹非 Git 仓库或 Git 不可用时返回可解释的不可用状态。
+
+`POST /api/projects/:id/branches { name, create? }` 在主要文件夹立即切换；`create: true` 从当前 HEAD 创建并检出。名称先按 Git 引用名规则校验，再由宿主 `git check-ref-format --branch` 核验；拒绝前导 `-`、`HEAD`、非法引用，不经过 shell。普通切换只接受已存在的本地分支且不猜测远端；创建遇到同名分支为 `already-exists`，不会重置引用，也不强制切换。
+
+切换按仓库根串行，主要文件夹的目录准入屏障覆盖忙碌检查、dirty 检查到 Git 完成。任何工作目录正好是主要文件夹的根或子 Session 有进行中 Run、后台任务或启用的定时任务时，返回 `session-busy { reasons, sessions }`；归属已改变也不绕过固定 cwd。后到的 Run 在真正启动前同步检查目录屏障，失败或成功后解除。仓库有未提交或未跟踪文件时返回 `git-dirty { files, count }`，与 `worktree-dirty` 使用相同的文件上限；两种拒绝均保留原分支和文件。
+
+全局设置 `git.branchPrefix` 默认为空字符串，沿用设置 revision 的乐观并发，只接受字符串。该前缀只预填用户创建分支的名称，不改变 worktree 的 `coko/<name>` 命名。
+
+验证：[Sidecar 分支协议](../../tests/integration/sidecar-branches.test.ts)、[目录准入与失败释放](../../apps/server/src/application/branches.test.ts)、[真实 Electron 前缀与检出](../../apps/desktop/e2e/branches.e2e.test.ts)。
+
 ## HTTP 接口
 
 | 接口 | 结果 |
