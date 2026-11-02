@@ -1,0 +1,23 @@
+.scratch/conversation-workbench/issues/16-move-session-between-projects.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 17-42
+docs/README.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 29
+docs/subsystems/projects.md
+  s_64e2ce1bfde668::t_dd59ccb9f9a70e 112-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "518b3e6391036ccad02a317ceed1615638ec9dab",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
