@@ -59,7 +59,13 @@ export function SessionRow({
   React.useEffect(() => {
     if (!menu) return
     const close = () => setMenu(false)
-    window.addEventListener('resize', close)
+    const width = window.innerWidth
+    const height = window.innerHeight
+    const resize = () => {
+      // A resize queued before opening may arrive after the menu mounts.
+      if (window.innerWidth !== width || window.innerHeight !== height) close()
+    }
+    window.addEventListener('resize', resize)
     // A pointer anchor is fixed in the viewport; close it when its source row moves.
     const scroll = (event: Event) => {
       if (event.target instanceof Element && event.target.closest('[role="menu"]')) return
@@ -67,7 +73,7 @@ export function SessionRow({
     }
     window.addEventListener('scroll', scroll, true)
     return () => {
-      window.removeEventListener('resize', close)
+      window.removeEventListener('resize', resize)
       window.removeEventListener('scroll', scroll, true)
     }
   }, [menu])

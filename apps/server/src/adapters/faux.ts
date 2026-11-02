@@ -25,6 +25,7 @@ import type { SessionModel } from '@coko/protocol'
  * { "tokensPerSecond": 200, "contextWindow": 40000, "responses": [{ "content": [{ "type": "toolCall", "name": "write", "arguments": {...} }] }, { "content": "done" }] }
  */
 export interface FauxScript {
+  input?: ('text' | 'image')[]
   tokensPerSecond?: number
   /** faux 模型的上下文窗口与最大输出（缺省 128 000 / 16 384）；上下文用量与压缩测试用小窗口。 */
   contextWindow?: number
@@ -202,6 +203,7 @@ export async function installFauxProvider(registry: ModelRegistry, path: string)
       {
         id: FAUX_MODEL_ID,
         name: 'Faux',
+        input: script.input ?? ['text'],
         ...(script.contextWindow === undefined ? {} : { contextWindow: script.contextWindow }),
         ...(script.maxTokens === undefined ? {} : { maxTokens: script.maxTokens }),
         ...(script.price

@@ -5,6 +5,7 @@ export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
   pickFiles: 'coko:pick-files',
+  readPickedImage: 'coko:read-picked-image',
   saveProvider: 'coko:save-provider',
   fetchProviderModels: 'coko:fetch-provider-models',
   cancelProviderModels: 'coko:cancel-provider-models',
@@ -130,6 +131,7 @@ export interface CokoBridge {
   pickFiles(): Promise<string[]>
   /** 只解析用户选择、粘贴或拖入的 File，不开放任意文件读取。 */
   getFilePath(file: File): string
+  readPickedImage(path: string): Promise<{ name: string; mimeType: string; data: string }>
   /**
    * 一次提交 Provider（ADR 0010）：main 用 safeStorage 加密 Key 后，配置与密文经一条控制消息交给 Sidecar，在一个事务中写入；
    * 加密不可用时整次拒绝、不发送任何消息。Key 不经 HTTP，也不返回 renderer（ADR 0004）。

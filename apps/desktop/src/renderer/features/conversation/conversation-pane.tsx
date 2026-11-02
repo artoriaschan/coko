@@ -1,3 +1,4 @@
+import type { ImageAttachment } from '@coko/protocol'
 import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
@@ -135,7 +136,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     goals.getState().open(activeSessionId, conversation?.entries.at(-1)?.seq ?? 0)
     return true
   }
-  const sendOrOpen = async (text: string) => openGoalCard(text) || send(text)
+  const sendOrOpen = async (text: string, images?: ImageAttachment[]) => (!images?.length && openGoalCard(text)) || send(text, images)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const activeWorkspaceId = useActiveWorkspaceId()
   const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
@@ -391,6 +392,11 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               fileWorkspacePath={attachmentRoot}
               needsSetup={needsSetup}
               onSend={sendOrOpen}
+              supportsImages={
+                models.find((item) => item.providerId === model?.providerId && item.modelId === model?.modelId)?.input?.includes('image') === true
+              }
+              imageRefs={activeSessionId === null ? chatStore.newChat.getState().imageRefs : undefined}
+              onImageRefsChange={activeSessionId === null ? (imageRefs) => chatStore.newChat.getState().configure({ imageRefs }) : undefined}
               onSteer={steerOrAct}
               onStop={() => void stop()}
               onPause={() => void pause()}

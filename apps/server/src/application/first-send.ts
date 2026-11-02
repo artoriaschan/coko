@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { parseFileReferences } from '@coko/agent'
-import type { FirstSendRequest, FirstSendResponse } from '@coko/protocol'
+import type { FirstSendRequest, FirstSendResponse, ImageAttachment } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionService } from './sessions.ts'
@@ -11,12 +11,16 @@ import type { SessionService } from './sessions.ts'
 function sessionIdFor(draftId: string): string {
   return `chat-${createHash('sha256').update(draftId).digest('hex')}`
 }
-export function firstMessageTitle(text: string): string {
+export function firstMessageTitle(text: string, images: ImageAttachment[] = []): string {
+  if (!text.trim() && images.length)
+    return Array.from(`附件：${images.map((image) => image.name).join('、')}`)
+      .slice(0, 20)
+      .join('')
   const references = parseFileReferences(text)
   let remaining = text
   for (const reference of references.toReversed()) remaining = remaining.slice(0, reference.start) + remaining.slice(reference.end)
   if (references.length > 0 && remaining.trim() === '')
-    return Array.from(`附件：${references.map((reference) => basename(reference.path)).join('、')}`)
+    return Array.from(`附件：${[...references.map((reference) => basename(reference.path)), ...images.map((image) => image.name)].join('、')}`)
       .slice(0, 20)
       .join('')
   return Array.from((text.trim().split(/\r?\n/, 1)[0] ?? '').trim())
@@ -44,7 +48,7 @@ export class FirstSendService {
 
   async #send(id: string, input: FirstSendRequest): Promise<FirstSendResponse> {
     const { store, sessions, chatsRoot } = this.#options
-    if (!input.text.trim()) throw new AppError('bad-request', 'A message is required')
+    if (!input.text.trim() && !input.images?.length) throw new AppError('bad-request', 'A message is required')
     const existing = await store.sessions.getSession(id)
     if (existing) {
       const entries = await store.sessions.listEntries(id)
@@ -76,12 +80,12 @@ export class FirstSendService {
         id,
         workspaceId,
         projectId: project?.id ?? null,
-        title: firstMessageTitle(input.text),
+        title: firstMessageTitle(input.text, input.images),
         ...(input.model ? { model: input.model } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
         ...(input.permissionMode ? { permissionMode: input.permissionMode } : {}),
       })
-      const result = await sessions.submitFirst(session.id, input.text)
+      const result = await sessions.submitFirst(session.id, input.text, input.images)
       if (!('runId' in result)) throw new AppError('bad-request', 'A message is required')
       accepted = true
       return { session: await sessions.toDto((await store.sessions.getSession(id))!), runId: result.runId }

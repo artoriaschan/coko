@@ -152,6 +152,7 @@ export class ProviderService {
         providerName: provider.name,
         modelId: model.id,
         name: model.name,
+        input: model.input,
         thinkingLevels: selectableThinkingLevels(model),
       })),
     )

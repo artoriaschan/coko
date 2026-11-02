@@ -1,3 +1,4 @@
+import type { ImageAttachment } from '@coko/protocol'
 import {
   SessionEntry,
   isDetachedProgress,
@@ -198,7 +199,7 @@ export interface ChatActions {
   /** 选择目录并登记；登记成功后在其中开始新会话草稿。 */
   addWorkspace(pickDirectory: () => Promise<string | null>): Promise<void>
   /** 在当前会话（或草稿）中发送；返回是否被接受（失败时保留输入）。 */
-  send(text: string): Promise<boolean>
+  send(text: string, images?: ImageAttachment[]): Promise<boolean>
   stop(): Promise<void>
   /** 重新执行当前会话出错的上一轮（不追加用户消息）。 */
   retry(): Promise<boolean>
@@ -431,11 +432,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      async send(text) {
+      async send(text, images) {
         const { activeSessionId } = get()
-        if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text), 'send')
+        if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text, images), 'send')
         const draft = newChat.getState()
-        if (draft.sending || !text.trim()) return false
+        if (draft.sending || (!text.trim() && !images?.length)) return false
         newChat.getState().setSending(true)
         try {
           const available = draft.model ? undefined : (await api.listModels()).models[0]
@@ -444,6 +445,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             draftId: draft.draftId,
             ...(draft.projectId ? { projectId: draft.projectId } : {}),
             text,
+            ...(images?.length ? { images } : {}),
             ...(model ? { model } : {}),
             thinkingLevel: draft.thinkingLevel,
             ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),

@@ -1,3 +1,4 @@
+import type { ImageAttachment } from '@coko/protocol'
 import {
   AbortRunResponse,
   API_ROUTES,
@@ -109,8 +110,10 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     firstSend: (input: FirstSendRequest) => call(FirstSendResponse, 'POST', API_ROUTES.firstSend, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     /** 202 返回新 runId；不开始 Run 的动作（例如 /goal pause）为 204，返回 { done: true }。 */
-    submitMessage: async (id: string, text: string): Promise<SubmitMessageResponse | { done: true }> =>
-      (await call(Type.Union([SubmitMessageResponse, NoContent]), 'POST', apiPaths.sessionMessages(id), { text })) ?? { done: true as const },
+    submitMessage: async (id: string, text: string, images?: ImageAttachment[]): Promise<SubmitMessageResponse | { done: true }> =>
+      (await call(Type.Union([SubmitMessageResponse, NoContent]), 'POST', apiPaths.sessionMessages(id), { text, ...(images?.length ? { images } : {}) })) ?? {
+        done: true as const,
+      },
     /** 重新执行出错的上一轮，不追加用户消息。 */
     retryRun: (id: string) => call(SubmitMessageResponse, 'POST', apiPaths.sessionRetry(id), {}),
     abortRun: (id: string) => call(AbortRunResponse, 'POST', apiPaths.sessionAbort(id), {}),

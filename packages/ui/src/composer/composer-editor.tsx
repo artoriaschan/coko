@@ -54,6 +54,7 @@ export interface ComposerEditorProps {
   onEmptyChange?: (empty: boolean) => void
   /** 用户编辑了内容（输入、删除、选择候选、提交后清空）；setEditorState 与 clear 不调用。 */
   onDraftChange?: () => void
+  allowEmpty?: boolean
   disabled?: boolean
   className?: string
   ref?: React.Ref<ComposerEditorHandle>
@@ -86,6 +87,7 @@ export function ComposerEditor({
   onEmptyChange,
   onDraftChange,
   disabled = false,
+  allowEmpty = false,
   className,
   ref,
   children,
@@ -131,6 +133,7 @@ export function ComposerEditor({
           onEmptyChange={onEmptyChange}
           onDraftChange={onDraftChange}
           disabled={disabled}
+          allowEmpty={allowEmpty}
           handleRef={ref}
         />
         {children}
@@ -145,23 +148,25 @@ function ComposerBridge({
   onEmptyChange,
   onDraftChange,
   disabled,
+  allowEmpty,
   handleRef,
 }: Pick<ComposerEditorProps, 'onSubmit' | 'onEscape' | 'onEmptyChange' | 'onDraftChange'> & {
   disabled: boolean
+  allowEmpty: boolean
   handleRef: React.Ref<ComposerEditorHandle> | undefined
 }) {
   const [editor] = useLexicalComposerContext()
   // 回调经 ref 读取最新值，命令只注册一次。
-  const callbacks = React.useRef({ onSubmit, onEscape, onEmptyChange, onDraftChange })
+  const callbacks = React.useRef({ onSubmit, onEscape, onEmptyChange, onDraftChange, allowEmpty })
   React.useLayoutEffect(() => {
-    callbacks.current = { onSubmit, onEscape, onEmptyChange, onDraftChange }
+    callbacks.current = { onSubmit, onEscape, onEmptyChange, onDraftChange, allowEmpty }
   })
   const pending = React.useRef(false)
 
   const submit = React.useCallback(async () => {
     if (pending.current) return
     const text = readText(editor).trim()
-    if (text === '') return
+    if (text === '' && !callbacks.current.allowEmpty) return
     pending.current = true
     try {
       const accepted = await callbacks.current.onSubmit(text)

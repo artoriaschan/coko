@@ -126,12 +126,24 @@ export const CreateSessionRequest = Type.Object(
 )
 export type CreateSessionRequest = Static<typeof CreateSessionRequest>
 
+export const IMAGE_ATTACHMENT_MAX_BYTES = 4.5 * 1024 * 1024
+export const ImageAttachment = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 255 }),
+    mimeType: Type.Union([Type.Literal('image/png'), Type.Literal('image/jpeg'), Type.Literal('image/gif'), Type.Literal('image/webp')]),
+    data: Type.String({ minLength: 4, maxLength: Math.ceil(IMAGE_ATTACHMENT_MAX_BYTES / 3) * 4, pattern: '^[A-Za-z0-9+/]+={0,2}$' }),
+  },
+  strict,
+)
+export type ImageAttachment = Static<typeof ImageAttachment>
+
 /** 首次发送：同一草稿身份只创建一个会话；成功时首条用户消息已经持久化。 */
 export const FirstSendRequest = Type.Object(
   {
     draftId: Type.String({ minLength: 1, maxLength: 200 }),
     projectId: Type.Optional(Id),
-    text: Type.String({ minLength: 1 }),
+    text: Type.String(),
+    images: Type.Optional(Type.Array(ImageAttachment)),
     model: Type.Optional(SessionModel),
     thinkingLevel: Type.Optional(ThinkingLevel),
     permissionMode: Type.Optional(PermissionMode),
@@ -155,7 +167,7 @@ export type RenameSessionRequest = Static<typeof RenameSessionRequest>
 export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>
 
-export const SubmitMessageRequest = Type.Object({ text: Type.String({ minLength: 1 }) }, strict)
+export const SubmitMessageRequest = Type.Object({ text: Type.String(), images: Type.Optional(Type.Array(ImageAttachment)) }, strict)
 export type SubmitMessageRequest = Static<typeof SubmitMessageRequest>
 
 /** 202：Run 已开始；结果经 WebSocket 的 entry / progress 推送。 */
@@ -309,7 +321,14 @@ export type ProviderSaveMode = Static<typeof ProviderSaveMode>
  * 目录中已配置的档位。
  */
 export const AvailableModel = Type.Object(
-  { providerId: Id, providerName: Type.String(), modelId: Id, name: Type.String(), thinkingLevels: Type.Array(ThinkingLevel, { minItems: 1 }) },
+  {
+    providerId: Id,
+    providerName: Type.String(),
+    modelId: Id,
+    name: Type.String(),
+    input: Type.Optional(Type.Array(Type.Union([Type.Literal('text'), Type.Literal('image')]))),
+    thinkingLevels: Type.Array(ThinkingLevel, { minItems: 1 }),
+  },
   strict,
 )
 export type AvailableModel = Static<typeof AvailableModel>

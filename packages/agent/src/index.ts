@@ -139,3 +139,5 @@ export { createLocalExecPort, filterEnv } from './ports/local-exec.ts'
 export type { EnvExclusion, LocalExecOptions } from './ports/local-exec.ts'
 export { InMemoryCredentialStore } from './ports/credentials.ts'
 export type { ApiKeyCredential, Credential, CredentialInfo, CredentialStore } from './ports/credentials.ts'
+
+export { MAX_IMAGE_BYTES, detectImageMimeType } from './tools/builtin/read.ts'

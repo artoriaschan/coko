@@ -59,7 +59,7 @@ describe('Composer：双层输入区', () => {
     const image = new DataTransfer()
     image.items.add(new File(['png'], 'paste.png', { type: 'image/png' }))
     editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: image }))
-    await expect.element(page.getByRole('alert')).toHaveTextContent('Image attachments are not available yet')
+    await expect.element(page.getByRole('alert')).toHaveTextContent('This model does not support images. Choose an image-capable model.')
     expect(editorElement().textContent).not.toContain('paste.png')
   })
   it('系统选择插入 Workspace 内 File Reference 与外部绝对路径，图片拒绝并保留草稿', async () => {
@@ -72,7 +72,7 @@ describe('Composer：双层输入区', () => {
     expect(editorElement().querySelector('[data-file-reference="src/a.ts"]')).not.toBeNull()
     expect(editorElement().textContent).toContain('/outside/notes.txt')
     expect(editorElement().textContent).not.toContain('image.png')
-    await expect.element(page.getByRole('alert')).toHaveTextContent('Image attachments are not available yet')
+    await expect.element(page.getByRole('alert')).toHaveTextContent('This model does not support images. Choose an image-capable model.')
     await userEvent.keyboard('{Enter}')
     await expect.poll(() => h.onSend.mock.calls.length).toBe(1)
     expect(h.onSend.mock.calls[0]?.[0]).toContain('@src/a.ts')
@@ -197,4 +197,106 @@ describe('Composer：压缩状态行', () => {
     contextStore.setState({ compacting: {} })
     await expect.poll(() => document.querySelector('[data-slot="compaction-status"]')).toBeNull()
   })
+})
+
+it('image drafts survive switching and remount, unsupported model preserves them, accepted image-only send clears them', async () => {
+  const key = 'coko.draft.image-test.' + crypto.randomUUID()
+  const image = new File(
+    [Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC1cAAAAASUVORK5CYII='), (c) => c.charCodeAt(0))],
+    'pixel.png',
+    { type: 'image/png' },
+  )
+  const onSend = vi.fn<Submit>(async () => true)
+  const h = renderComposer({ draftStorageKey: key, supportsImages: true, onSend })
+  await h.result
+  const paste = new DataTransfer()
+  paste.items.add(image)
+  editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: paste }))
+  await expect.element(page.getByRole('img', { name: 'pixel.png' })).toBeVisible()
+  await (await h.result).unmount()
+  const unsupported = renderComposer({ draftStorageKey: key, supportsImages: false, onSend })
+  await unsupported.result
+  await expect.element(page.getByRole('img', { name: 'pixel.png' })).toBeVisible()
+  action('send')!.click()
+  await expect.element(page.getByRole('alert')).toHaveTextContent('This model does not support images. Choose an image-capable model.')
+  expect(onSend).not.toHaveBeenCalled()
+  await (await unsupported.result).unmount()
+  await renderComposer({ draftStorageKey: key, supportsImages: true, onSend }).result
+  await expect.element(page.getByRole('img', { name: 'pixel.png' })).toBeVisible()
+  action('send')!.click()
+  await expect.poll(() => onSend.mock.calls.length).toBe(1)
+  expect(onSend.mock.calls[0]?.[0]).toBe('')
+  expect(onSend.mock.calls[0]?.[1]?.[0]).toMatchObject({ name: 'pixel.png', mimeType: 'image/png' })
+  await expect.poll(() => document.querySelectorAll('[data-slot="image-drafts"] img').length).toBe(0)
+})
+
+it('selecting and dropping images adds removable attachments; oversized images and failed sends preserve the draft', async () => {
+  const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC1cAAAAASUVORK5CYII='
+  const key = 'coko.draft.image-input.' + crypto.randomUUID()
+  const onSend = vi.fn<Submit>(async () => false)
+  await renderComposer({
+    supportsImages: true,
+    draftStorageKey: key,
+    pickFiles: async () => ['/picked.png'],
+    readPickedImage: async () => ({ name: 'picked.png', mimeType: 'image/png', data }),
+    onSend,
+  }).result
+  await page.getByRole('button', { name: 'Add attachment' }).click()
+  await expect.element(page.getByRole('img', { name: 'picked.png' })).toBeVisible()
+  const drop = new DataTransfer()
+  drop.items.add(new File([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], 'dropped.png', { type: 'image/png' }))
+  editorElement().dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: drop }))
+  await expect.element(page.getByRole('img', { name: 'dropped.png' })).toBeVisible()
+  expect(localStorage.getItem(key + '.images')).not.toContain(data)
+  const oversized = new DataTransfer()
+  oversized.items.add(new File([new Uint8Array(4.5 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' }))
+  editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: oversized }))
+  await expect.element(page.getByRole('alert')).toHaveTextContent('Each image must be 4.5 MB or smaller.')
+  expect(document.querySelectorAll('[data-slot="image-drafts"] img')).toHaveLength(2)
+  await editor().fill('preserve my text')
+  action('send')!.click()
+  await expect.poll(() => onSend.mock.calls.length).toBe(1)
+  expect(editorElement().textContent).toBe('preserve my text')
+  expect(document.querySelectorAll('[data-slot="image-drafts"] img')).toHaveLength(2)
+  await page.getByRole('button', { name: 'Remove picked.png' }).click()
+  await expect.poll(() => document.querySelectorAll('[data-slot="image-drafts"] img').length).toBe(1)
+})
+
+it('switching draft scopes restores each session image without copying it to another draft', async () => {
+  const key = 'coko.draft.switch-images.' + crypto.randomUUID()
+  const data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC1cAAAAASUVORK5CYII='
+  const onSend = vi.fn<Submit>(async () => false)
+  const node = (draftStorageKey: string) => (
+    <I18nProvider locale="en">
+      <TooltipProvider>
+        <Composer
+          running={false}
+          disabled={false}
+          needsSetup={false}
+          supportsImages
+          draftStorageKey={draftStorageKey}
+          onSend={onSend}
+          onSteer={async () => false}
+          onStop={() => {}}
+          onPause={() => {}}
+          onSetup={() => {}}
+          pickFiles={async () => ['/picked.png']}
+          readPickedImage={async () => ({ name: 'picked.png', mimeType: 'image/png', data })}
+        />
+      </TooltipProvider>
+    </I18nProvider>
+  )
+  const screen = await render(node(key))
+  await page.getByRole('button', { name: 'Add attachment' }).click()
+  await expect.element(page.getByRole('img', { name: 'picked.png' })).toBeVisible()
+  await editor().fill('scope one')
+  await screen.rerender(node(key + '.second'))
+  await expect.poll(() => document.querySelectorAll('[data-slot="image-drafts"] img').length).toBe(0)
+  await editor().fill('scope two')
+  await screen.rerender(node(key))
+  await expect.element(page.getByRole('img', { name: 'picked.png' })).toBeVisible()
+  await expect.poll(() => editorElement().textContent).toBe('scope one')
+  await screen.rerender(node(key + '.second'))
+  await expect.poll(() => editorElement().textContent).toBe('scope two')
+  expect(document.querySelectorAll('[data-slot="image-drafts"] img')).toHaveLength(0)
 })

@@ -13,6 +13,7 @@ const SavedDraft = Type.Object({
   model: Type.Union([SessionModel, Type.Null()]),
   thinkingLevel: ThinkingLevel,
   permissionMode: Type.Union([PermissionMode, Type.Null()]),
+  imageRefs: Type.Optional(Type.Array(Type.String())),
 })
 export interface NewChatState {
   draftId: string
@@ -22,10 +23,11 @@ export interface NewChatState {
   model: SessionModel | null
   thinkingLevel: ThinkingLevel
   permissionMode: PermissionMode | null
+  imageRefs: string[]
   sending: boolean
 }
 export interface NewChatActions {
-  configure(patch: Partial<Pick<NewChatState, 'model' | 'thinkingLevel' | 'permissionMode' | 'branch' | 'newWorktree'>>): void
+  configure(patch: Partial<Pick<NewChatState, 'model' | 'thinkingLevel' | 'permissionMode' | 'branch' | 'newWorktree' | 'imageRefs'>>): void
   selectProject(projectId: string | null): void
   setSending(sending: boolean): void
   accepted(draftId: string): void
@@ -40,6 +42,7 @@ const fresh = (): NewChatState => ({
   model: null,
   thinkingLevel: 'off',
   permissionMode: null,
+  imageRefs: [],
   sending: false,
 })
 
@@ -69,9 +72,9 @@ export function createNewChatStore(storage: Storage | undefined = typeof localSt
       if (get().draftId === draftId) set(fresh())
     },
   }))
-  store.subscribe(({ draftId, model, thinkingLevel, permissionMode, projectId, branch, newWorktree }) => {
+  store.subscribe(({ draftId, model, thinkingLevel, permissionMode, projectId, branch, newWorktree, imageRefs }) => {
     try {
-      storage?.setItem(NEW_CHAT_CONFIG_KEY, JSON.stringify({ draftId, model, thinkingLevel, permissionMode, projectId, branch, newWorktree }))
+      storage?.setItem(NEW_CHAT_CONFIG_KEY, JSON.stringify({ draftId, model, thinkingLevel, permissionMode, projectId, branch, newWorktree, imageRefs }))
     } catch {
       /* 配额不足不丢失当前草稿。 */
     }

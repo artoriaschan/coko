@@ -1,9 +1,12 @@
+import { type ImageAttachment } from '@coko/protocol'
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
 // 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
   BUILTIN_COMMANDS,
+  MAX_IMAGE_BYTES,
+  detectImageMimeType,
   createAgentRuntime,
   createBuiltinToolRegistry,
   createLocalExecPort,
@@ -465,25 +468,55 @@ export class SessionRuns {
    * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
    * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
    */
-  async submit(sessionId: string, text: string, waitForInput = false): Promise<ActionResult> {
+  async submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = []): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
     if (session.parentSessionId !== null) throw childSession()
     if (runtimes.isRunning(sessionId)) {
+      if (images.length) throw new AppError('run-in-progress', 'Wait for the current Run to finish before sending images')
       const invocation = parseCommandInvocation(text)
       const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
       const action = builtin ? context.action(builtin.action) : undefined
       if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
+    if (!text.trim() && !images.length) throw new AppError('bad-request', 'A message is required')
+    if (images.length) {
+      const model = await this.#options.models.contextModel(session.model)
+      if (!model?.input.includes('image')) throw new AppError('bad-request', 'The selected model does not support image input')
+      for (const image of images) {
+        const bytes = Buffer.from(image.data, 'base64')
+        if (detectImageMimeType(bytes) !== image.mimeType || bytes.length > MAX_IMAGE_BYTES || bytes.toString('base64') !== image.data)
+          throw new AppError('bad-request', 'Invalid image or image exceeds the 4.5 MB limit')
+      }
+    }
     const scope = await this.scope(session)
-    const expanded = await context.expandInput(text, scope)
+    const expanded = text.trim() ? await context.expandInput(text, scope) : { kind: 'input' as const, input: { text: '' } }
     if (expanded.kind === 'input') {
       // 提交前检查（UserPromptSubmit 等）：reject 时不提交 user message、不开始 Run。
       const verdict = await context.beforeSubmit(scope, text)
       if (verdict && 'reject' in verdict) throw new AppError('hook-blocked', verdict.reject.slice(0, 2048), { reason: verdict.reject.slice(0, 2048) })
-      return this.startRun(sessionId, { trigger: 'submit', input: withSubmitContext(expanded.input, verdict?.context) }, waitForInput)
+      return this.startRun(
+        sessionId,
+        {
+          trigger: 'submit',
+          input: withSubmitContext(
+            images.length
+              ? {
+                  ...expanded.input,
+                  content: [
+                    ...(expanded.input.content ?? (expanded.input.text ? [{ type: 'text' as const, text: expanded.input.text }] : [])),
+                    ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })),
+                  ],
+                }
+              : expanded.input,
+            verdict?.context,
+          ),
+        },
+        waitForInput,
+      )
     }
+    if (images.length) throw new AppError('bad-request', 'Images require a message, not an action command')
     if (waitForInput) throw new AppError('bad-request', 'Send a message to start a new conversation')
     const action = context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)

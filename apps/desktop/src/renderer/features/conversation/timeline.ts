@@ -61,7 +61,17 @@ export type TimelineItem =
    * command：这条消息由命令展开而来（text 为展开后的全文），invocation 为原始调用 "/name 参数"（回退时放回输入区）。
    * references：随消息附上的 File Reference（<file_reference> 文本块的 path，按出现顺序）；块本身不进入 text。
    */
-  | { kind: 'user'; key: string; text: string; seq: number; checkpoint: boolean; command?: CommandPayload; invocation?: string; references?: string[] }
+  | {
+      kind: 'user'
+      key: string
+      text: string
+      seq: number
+      checkpoint: boolean
+      command?: CommandPayload
+      invocation?: string
+      references?: string[]
+      images?: { data: string; mimeType: string }[]
+    }
   /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
   | { kind: 'rewound'; key: string; items: TimelineItem[] }
   /** 压缩分隔条：之前的消息仍在时间线中；saved 为约节省的 tokens（没有 tokensAfter 时省略）。 */
@@ -119,6 +129,8 @@ export type TimelineItem =
 
 interface Block {
   type?: unknown
+  data?: unknown
+  mimeType?: unknown
   text?: unknown
   thinking?: unknown
   id?: unknown
@@ -348,6 +360,12 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         kind: 'user',
         key: `${entry.seq}`,
         text: plain ? (message.content as string) : contentText(own),
+        images: own
+          .filter(
+            (block): block is Block & { type: 'image'; data: string; mimeType: string } =>
+              block.type === 'image' && typeof block.data === 'string' && typeof block.mimeType === 'string',
+          )
+          .map(({ data, mimeType }) => ({ data, mimeType })),
         ...(references.length > 0 ? { references } : {}),
         seq: entry.seq,
         checkpoint: !hidden,

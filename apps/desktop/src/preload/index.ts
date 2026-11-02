@@ -17,6 +17,7 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
     pickFiles: () => ipcRenderer.invoke(IPC.pickFiles) as Promise<string[]>,
     getFilePath: (file) => webUtils.getPathForFile(file),
+    readPickedImage: (path) => ipcRenderer.invoke(IPC.readPickedImage, path),
     saveProvider: (input) => ipcRenderer.invoke(IPC.saveProvider, input) as Promise<SaveProviderResult>,
     fetchProviderModels: (input) => ipcRenderer.invoke(IPC.fetchProviderModels, input) as Promise<FetchProviderModelsResult>,
     cancelProviderModels: (requestKey) => ipcRenderer.send(IPC.cancelProviderModels, requestKey),

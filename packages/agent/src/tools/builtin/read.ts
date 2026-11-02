@@ -26,7 +26,7 @@ export interface ReadToolDetails {
 /** Images above this size are not attached; M1 has no image resizing (pi uses photon wasm). */
 export const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024
 
-function detectImageMimeType(buffer: Buffer): string | undefined {
+export function detectImageMimeType(buffer: Buffer): string | undefined {
   if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png'
   if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
   const head = buffer.subarray(0, 6).toString('latin1')

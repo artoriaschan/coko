@@ -14,7 +14,58 @@
 
 **跨票接口：** 附件处理由 03 提供，本票实现图片分支；新对话草稿 store 由 11 提供，本票加图片引用；首次发送请求由本票加图片字段。
 
-- [ ] Sidecar 协议：只有图片的消息被接受，条目中有图片内容块，faux requestLog 中实际发给模型的消息带图片；超过上限被拒绝；模型不支持图片输入时被拒绝；只有图片的首次发送，标题为“附件：”加文件名（CW-63）。
-- [ ] Browser Mode：选择、粘贴与拖入图片；不支持的模型拒绝并说明原因；草稿图片在切换会话与重新挂载后恢复，发送成功后清空；草稿有图片时切到不支持的模型，发送被拒绝且图片保留。
-- [ ] Electron E2E：在支持图片的模型下只发一张图片，时间线显示该图片；重启后草稿中的图片仍在。
-- [ ] 文档按 Write scope 更新；`check:docs` 通过。
+- [x] Sidecar 协议：只有图片的消息被接受，条目中有图片内容块，faux requestLog 中实际发给模型的消息带图片；超过上限被拒绝；模型不支持图片输入时被拒绝；只有图片的首次发送，标题为“附件：”加文件名（CW-63）。
+- [x] Browser Mode：选择、粘贴与拖入图片；不支持的模型拒绝并说明原因；草稿图片在切换会话与重新挂载后恢复，发送成功后清空；草稿有图片时切到不支持的模型，发送被拒绝且图片保留。
+- [x] Electron E2E：在支持图片的模型下只发一张图片，时间线显示该图片；重启后草稿中的图片仍在。
+- [x] 文档按 Write scope 更新；`check:docs` 通过。
+
+
+**Closed: true**
+
+## Comments
+
+### 2026-11-03 实施与验证
+
+基于已交付 03 / 11 的集成点 `defd472` 实施；使用规格第 18 节已批准的真实 Sidecar 协议、Browser Mode 与真实 Electron 接口作为测试 seam。使用 TDD、coko-docs、coko-verify 和 Impeccable，未重新申请测试 seam。
+
+- 首次发送与已有 Session 提交都增加 `images`（文件名、raster MIME、base64），允许只有图片而文字为空；两者都在消息与 Run 产生前由 Sidecar 校验解析后的模型输入能力与图片字节。复用 Agent read 的 `MAX_IMAGE_BYTES` / `detectImageMimeType`，单张 4.5 × 1024 × 1024 字节，协议与 renderer 同步该上限。Agent 已有 RunInput.content 通道负责把图片块送给模型，本票没有另造消息类型。只有图片时标题为“附件：”加文件名；图片与 File Reference 混合时一起用于附件标题。
+- renderer 的原选择 / 粘贴 / 拖入入口实现图片分支；不支持的模型明确拒绝添加，已有图片切换到不支持模型时拒绝发送并保留图片。只有图片可用 Enter 或发送按钮提交；原文字 Enter、IME、追加指令与 File Reference 行为保留。当前 Run 进行中仍只接收文字追加指令，带图片时明确提示等待运行结束，附件不丢弃；动作命令带图片拒绝，避免忽略图片。
+- 图片草稿 bytes 只进入 IndexedDB `coko.image-drafts`；新对话 store 增加 imageRefs，已有 Session 的 `<draft key>.images` 只保存不透明引用，不把图片嵌入 localStorage 或 EditorState。切换作用域或重新挂载加载所属图片，恢复期间等待完成才允许发送，避免文字先于图片发送。发送失败保持文字和附件；接受后清除本次图片引用与 bytes。时间线按 raster MIME / base64 渲染用户图片。
+- 原生桥增加 `readPickedImage`：主窗口主框架校验，且只允许系统选择器本次窗口已经选出的路径，stat 与有界读取均限制 4.5 MB；不开放任意路径读取。浏览器 File 粘贴 / 拖入直接读 File bytes，不要求图片有磁盘路径。真实 Electron 测试同时检查未选择路径拒绝、超大图片反馈、当前构建 preload→main→renderer 路径。
+- TDD 红灯：Sidecar image-only firstSend 在实现前因 400 而非 201 失败；Browser 新图片草稿测试在实现前因找不到 pixel.png、旧“图片尚不可用”反馈失败。接入后变绿，随后补齐选择 / 拖入、超限、失败保留和原生重启证据。
+
+实际验证命令与范围：
+
+- `pnpm run test tests/integration/sidecar-images.test.ts apps/server/src/application/providers.test.ts packages/agent/src/tools/builtin/file-tools.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：退出 0，5 文件 / 81 用例通过。包含 Sidecar 3 场景：image-only 接受、用户条目图片块与 faux requestLog 实际图片；支持图片模型的非法内容 / 超限拒绝；不支持图片模型在首次发送与已有 Session 都拒绝且不写消息 / Run。
+- `pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx`：退出 0，12 用例通过，补充选择、粘贴、拖入、删除、4.5 MB、失败保留和仅引用持久化。
+- `pnpm run test tests/integration/sidecar-first-send.test.ts tests/integration/sidecar-images.test.ts apps/desktop/src/renderer/stores/chat-store.test.ts apps/desktop/src/renderer/stores/chat-store-permissions.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts packages/agent/src/tools/builtin/read.test.ts packages/protocol/src/providers.test.ts`：退出 0，实际选中 6 文件 / 50 用例。read.test.ts 不存在，因此未选中；read 的真实回归随后通过上面的 file-tools.test.ts 执行，未把未选中路径当通过。
+- `pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx packages/ui/src/composer/composer-editor.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：退出 0，5 文件 / 88 用例通过。
+- `pnpm run test apps/desktop/e2e/images.e2e.test.ts apps/desktop/e2e/first-send.e2e.test.ts`：退出 0，真实 Electron / 当前构建 2 文件 / 3 用例通过。实际系统选择路径的有界读取；新对话图片草稿重启恢复、image-only 首次发送、标题、时间线图片 naturalWidth=1；已有 Session 图片草稿重启恢复与再次发送、接受后清空；独立首次发送文字 / 权限 / 模型 / 档位原回归。
+- `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`（246 Markdown / 0 问题）、`git diff --check`：退出 0。Impeccable detector `[]`；查看真实 Electron 的 1100px 浅色与 390px 深色截图，缩略图 / 删除按钮 / 工具栏可达，无横向溢出；白色测试图片在浅色中加共享发丝线显示边界。
+
+文档归属与读回：更新 workbench.md 的首次发送、单份草稿、主输入区与附件正文，以及 docs/README.md 的导航摘要。搜索“图片当前”“图片拒绝”“不把文件内容经 IPC”“只有 File Reference”消费者：当前 workbench 说明已同步；其他子系统中对各自图片能力的描述未改动。按 AGENTS → docs/README → workbench.md 读回，路径、语义、权威、引用方向、生命周期、当前入口与历史保留通过，没有正式正文依赖具体任务材料。
+
+未验证真实外部模型、发布构建或 CI；faux 请求观察、Browser Mode 与真实 Electron 的范围分别如上。仅本地提交，不推送。
+
+
+### 合入最新集成后的验证
+
+实现提交 `b6a7256` 后合入最新集成 `33acb84`（08 菜单与重命名）。仅 docs/README.md 有冲突，保留图片附件与菜单重命名两项摘要。协议、HTTP、SessionService 与字典自动合并保留两票字段。
+
+合入后 `pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 实际 5 文件 / 32 用例，31 通过、1 失败：08 的 pointer-menu viewport-edge 用例在 session-menu.browser.test.tsx:143 已可见菜单于 left 边界轮询期间消失。图片与首次发送的 4 文件全部通过。只读保留 08 实现，随后隔离运行 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx` 仍为 9 通过 / 1 相同失败，已向集成负责人报告，不将它标为通过。
+
+另补充同一挂载 Composer 在两个草稿键间切换的真实 Browser 用例，验证图片和文字各自恢复、不复制到另一草稿；`pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx` 退出 0，13 用例通过。该额外验证未改产品代码。`pnpm run check:docs` 246 / 0 与 diff 检查通过；本票图片能力的验收完成，08 的继承失败单独保留上述证据。
+
+
+### 合入 12 归属栏
+
+再合入最新集成 `9f650408`（12 归属栏）。五处冲突按两票来源合并：FirstSendRequest 同时保留 projectId / images 与可空文字；FirstSendService 使用 12 的主要 Workspace / 独立目录分支与受限回滚，同时传递图片和图片标题；NewChatStore 保留 projectId / branch / newWorktree / imageRefs 的默认值、旧配置兼容恢复和持久化，selectProject / resumeDraft 保留。workbench 与导航同时表达归属和图片能力，未把工作目录随归属切换。
+
+合入后的当前证据：`pnpm run typecheck` 退出 0；`pnpm run test tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx apps/desktop/src/renderer/stores/chat-store.test.ts` 退出 0，5 文件 / 47 用例通过。`pnpm run test apps/desktop/e2e/images.e2e.test.ts` 退出 0，当前构建真实 Electron 1 文件 / 1 用例通过，包含两个作用域重启恢复与实际 image-only 提交。lint、check:docs（246 / 0）、diff 检查退出 0。
+
+08 菜单的隔离失败由集成负责人在不包含本票代码的 `9f650408` 重现，确认为继承问题，另行修复；本票未修改 08 代码或断言。最终只提交本地，无推送。
+
+
+### 08 继承菜单失败已解决
+
+08 的后续修复已定位窗口缩放通知晚于菜单打开送达，SessionRow 原本无条件关闭；改为仅在打开后 viewport 尺寸真正变化时关闭。保留原边缘几何断言，并以尺寸不变的迟到 resize 固定回归，修复前失败、修复后通过；另验证两种入口的键盘和真实缩放关闭 / 焦点恢复。相关 Browser / 样式守卫 4 文件 / 68 项，以及真实 Electron 右键重命名与重启读回 1 项全部通过。详见 [08 后续修复证据](08-session-menu-rename.md#2026-11-03-后续修复窗口边缘菜单被迟到-resize-关闭)；上文 19 合并时的失败保留为历史记录，不再是当前已知问题。

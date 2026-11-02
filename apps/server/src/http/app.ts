@@ -137,8 +137,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     return c.json(await app.sessions.setPinned(c.req.param('id'), pinned))
   })
   http.post(`${API_ROUTES.sessions}/:id/messages`, async (c) => {
-    const { text } = await body(c, SubmitMessageRequest)
-    const result = await app.sessions.submit(c.req.param('id'), text)
+    const { text, images } = await body(c, SubmitMessageRequest)
+    const result = await app.sessions.submit(c.req.param('id'), text, images)
     // 不开始 Run 的动作（例如 /goal pause）：204。
     return 'runId' in result ? c.json(result, 202) : c.body(null, 204)
   })

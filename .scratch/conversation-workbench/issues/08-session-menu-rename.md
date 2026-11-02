@@ -46,3 +46,22 @@ Closed: true
 - `pnpm run typecheck`、`pnpm run lint`、`pnpm run check:docs`（246 文件，0 问题）、`git diff --check` 通过，无未解决冲突。
 
 本票全部验收完成，设置 Closed；仅本地提交，未推送。未运行真实外部模型、发布构建 smoke 或 CI，这些不属于本票菜单与改名的本地验收范围。
+
+
+### 2026-11-03 后续修复：窗口边缘菜单被迟到 resize 关闭
+
+基于集成 `a057e45`，定位 19 合并验证中记录的继承失败；没有改变 RowMenu、SessionMenuSlots 或点锚定 API。首次隔离运行 10/10，通过不作为故障不存在的依据；随后以仅记录关闭事件的临时探针运行原命令，稳定捕获同一 `:143` 失败（9 通过 / 1 失败），关闭前唯一事件为 `resize`，尺寸已是菜单打开时的 390×300。原因是此前 `page.viewport` 的浏览器 resize 通知可能晚于菜单挂载，SessionRow 对任何 resize 都关闭菜单；不是 Radix 边缘避让、零尺寸锚点、焦点或滚动关闭。
+
+- 最小回归：保留原 viewport-edge 用例所有真实几何与外部点击断言，在菜单可见后派发尺寸不变的 resize，固定迟到通知的送达顺序。修复前 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx -t 'pointer menus remain'` 退出 1，1 失败 / 9 跳过，仍在 left 轮询期间找不到菜单；修复后同命令退出 0，1 通过 / 9 跳过。没有增加重试、等待预算、固定 sleep 或放宽断言。
+- 修复：菜单挂载时记录 viewport 宽高；resize 到达时仅在尺寸实际不同后关闭。来源滚动和清理保持原样，点锚定、整行右侧 2px / 顶对齐、共享避让和具名菜单插槽没有变化。
+- 补充两个 Browser 用例分别通过右键与更多打开：尺寸不变通知后 ArrowDown 仍能聚焦重命名，Escape 关闭并恢复来源行焦点；再次打开后真实 `page.viewport(960, 740)` 会关闭菜单并恢复焦点。原浅深色几何、菜单内容与改名路径一起通过。
+
+当前验证（均退出 0）：
+
+- `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：4 文件 / 68 项通过，菜单文件增加为 12 项。
+- `pnpm run test apps/desktop/e2e/session-rename.e2e.test.ts`：1 文件 / 1 项真实 Electron 通过；globalSetup 从当前源码构建，实际右键项目会话、改名并重启读回列表与详情。
+- `pnpm run typecheck`、`pnpm run lint` 通过；Impeccable detector 对唯一产品代码变更返回 `[]`。临时事件探针已经移除。
+
+文档归属保持 projects.md 的会话菜单正文，明确“打开后尺寸变化才关闭”；导航摘要仍准确，无需修改。19 的继承失败记录追加已解决提示并保留历史原文。未运行外部模型、发布产物或 CI，这些不受本次事件时序修复影响。
+
+文档检查 `pnpm run check:docs` 退出 0（246 Markdown / 0 问题）；从 AGENTS → docs/README → projects.md 读回，语义与导航一致，归属 / 权威 / 引用方向 / 生命周期 / 当前入口 / 历史保留均通过。`git diff --check` 退出 0。最终再运行最初的完整隔离命令 `pnpm run test apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx`：退出 0，1 文件 / 12 项通过。
