@@ -109,6 +109,9 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 - [重命名 Sidecar 用例](../../tests/integration/sidecar-session-rename.test.ts)：标题修剪、重复、200 字符边界、非法请求、时间戳不变与重启读回。
 - [菜单浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx)：整行与鼠标定位、窗口避让、图标对齐、全选、提交、取消、空白与失败重试。
 - [重命名 Electron 用例](../../apps/desktop/e2e/session-rename.e2e.test.ts)：真实右键菜单改名，重启后列表与项目详情卡片保持新标题。
+- [移动 Sidecar 用例](../../tests/integration/sidecar-session-move.test.ts)：归属移动与移出、非法目标、固定时间戳、worktree 绑定和重启读回。
+- [移动浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx)：叠加几何与逐层焦点、搜索、同名区分、四种归属与置顶组合、创建与已有项目完成动作及失败保护。
+- [移动 Electron 用例](../../apps/desktop/e2e/session-move.e2e.test.ts)：从独立会话选择文件夹创建项目并移入，重启后身份和专属工作目录不变。
 - [ADR 0020](../adr/0020-projects-organize-workspaces.md)：组织关系与执行目录分离的理由。
 
 ## 永久删除对话
@@ -120,7 +123,3 @@ DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代�
 有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
 
 [SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
-
-- [移动 Sidecar 用例](../../tests/integration/sidecar-session-move.test.ts)：归属移动与移出、非法目标、固定时间戳、worktree 绑定和重启读回。
-- [移动浏览器用例](../../apps/desktop/src/renderer/features/sidebar/session-move.browser.test.tsx)：叠加几何与逐层焦点、搜索、同名区分、四种归属与置顶组合、创建与已有项目完成动作及失败保护。
-- [移动 Electron 用例](../../apps/desktop/e2e/session-move.e2e.test.ts)：从独立会话选择文件夹创建项目并移入，重启后身份和专属工作目录不变。
