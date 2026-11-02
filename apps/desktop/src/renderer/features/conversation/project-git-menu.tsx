@@ -97,6 +97,14 @@ export function ProjectGitMenu({
     const frame = requestAnimationFrame(() => searchInput.current?.focus())
     return () => cancelAnimationFrame(frame)
   }, [subOpen])
+  const previousSubOpen = React.useRef(false)
+  React.useEffect(() => {
+    const closed = previousSubOpen.current && !subOpen
+    previousSubOpen.current = subOpen
+    if (!closed || !open || requestedDialog.current) return
+    const frame = requestAnimationFrame(() => branchTrigger.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [subOpen, open])
   const selected = newWorktree ? (draftBranch ?? git?.current) : git?.current
   const validation = branchNameError(name)
   const validationText =
