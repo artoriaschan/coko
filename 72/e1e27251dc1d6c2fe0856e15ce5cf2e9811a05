@@ -1,0 +1,29 @@
+packages/ui/src/styles/theme.css
+  s_47be7d432a6e87::t_27a33fcc102a39 123
+docs/tech-stack/ui.md
+  s_47be7d432a6e87::t_936ca48031c48c 27
+  s_47be7d432a6e87::t_2c7a37fa577cd1 36
+docs/tech-stack/README.md
+  s_47be7d432a6e87::t_2c7a37fa577cd1 19
+docs/tech-stack/ui-design-system.md
+  s_47be7d432a6e87::t_bdb9564dd5216b 53,73-78,81
+  s_47be7d432a6e87::t_2c7a37fa577cd1 3,114
+  s_47be7d432a6e87::t_27a33fcc102a39 113
+  s_47be7d432a6e87::t_01e2e166a55be8 51-52,65-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "72e1e27251dc1d6c2fe0856e15ce5cf2e9811a05",
+  "prompts": {},
+  "sessions": {
+    "s_47be7d432a6e87": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19b0e-cc3e-7d43-9fac-5fca5291fa73",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
