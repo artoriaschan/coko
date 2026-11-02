@@ -1,0 +1,58 @@
+docs/subsystems/workbench.md
+  s_64e2ce1bfde668::t_80c648940d5a91 1-32
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_64e2ce1bfde668::t_b424b517f56794 609-612,614-615,617
+  s_64e2ce1bfde668::t_054d059a08309b 132,141,191,213,464,555-556,560,566-606,608
+  s_64e2ce1bfde668::t_d9dd8adcce1be7 536-554,557-559,561-565,618-619
+  s_64e2ce1bfde668::t_304acb2bc46711 616
+packages/ui/src/app-frame/app-frame.tsx
+  s_64e2ce1bfde668::t_b40737b7d02b8a 48
+  s_64e2ce1bfde668::t_7345259f5e4ece 172
+packages/i18n/src/dictionaries/zh.ts
+  s_64e2ce1bfde668::t_24af8767456191 8-11
+  s_64e2ce1bfde668::t_054d059a08309b 12
+apps/desktop/e2e/workbench.e2e.test.ts
+  s_64e2ce1bfde668::t_adb5a3adb94fe7 1-17,19-70,72-79
+apps/desktop/src/renderer/app/app.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 19-20,45-49,86,100,113,123-146,148-150
+  s_64e2ce1bfde668::t_7345259f5e4ece 115
+apps/desktop/src/renderer/features/sidebar/sidebar-rail.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 2-3,6,14,22,35-45
+docs/README.md
+  s_64e2ce1bfde668::t_80c648940d5a91 28-29
+packages/i18n/src/dictionaries/en.ts
+  s_64e2ce1bfde668::t_054d059a08309b 14
+  s_64e2ce1bfde668::t_24af8767456191 10-13
+packages/ui/src/index.ts
+  s_64e2ce1bfde668::t_076506c3dec3ac 62-63
+apps/desktop/src/renderer/app/workbench.tsx
+  s_64e2ce1bfde668::t_d268f17fd08e32 2-3,13-27
+  s_64e2ce1bfde668::t_24af8767456191 1,4-12,28
+packages/ui/src/sidebar/sidebar-account.tsx
+  s_64e2ce1bfde668::t_adb5a3adb94fe7 26-31
+  s_64e2ce1bfde668::t_076506c3dec3ac 1-10,12-25,32-46
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_64e2ce1bfde668::t_adb5a3adb94fe7 110
+  s_64e2ce1bfde668::t_d268f17fd08e32 19,73,80,87,93-98,101-106,109,111-118,120-129,131-135,137-142,144-170,192
+  s_64e2ce1bfde668::t_076506c3dec3ac 2-12,14,21,74,199-205
+apps/desktop/src/renderer/app/workbench-navigation.ts
+  s_64e2ce1bfde668::t_24af8767456191 1-98,100-106
+.scratch/conversation-workbench/issues/02-workbench-shell-navigation.md
+  s_64e2ce1bfde668::t_26744997e5a238 19-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "d74d8313143e587896877cd60f3fffdbc5b08eff",
+  "prompts": {},
+  "sessions": {
+    "s_64e2ce1bfde668": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19d29-7791-7683-8e86-e8287ee0f693",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "ZhengChen <zchen31@trip.com>"
+    }
+  }
+}
