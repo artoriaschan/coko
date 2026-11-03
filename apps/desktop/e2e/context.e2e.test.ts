@@ -31,8 +31,12 @@ describe('上下文环', () => {
     const workspace = join(root, 'workspace')
     await mkdir(workspace, { recursive: true })
     await writeCokoHome(root, 'AGENTS.md', 'Prefer short answers.\n')
-    // 回复约 3500 output tokens：越过预警线（3 000），低于阈值（23 000）。
-    await writeFile(join(root, 'faux.json'), JSON.stringify({ contextWindow: 40_000, maxTokens: 4_000, responses: [{ content: 'R'.repeat(14_000) }] }))
+    // Current 40k budget: warning 12k, compaction 32k. Pin provider-reported
+    // usage above warning so tool-schema/prompt text changes cannot move this fixture below it.
+    await writeFile(
+      join(root, 'faux.json'),
+      JSON.stringify({ contextWindow: 40_000, maxTokens: 4_000, responses: [{ content: 'R'.repeat(14_000), usage: { input: 13_000, output: 3_500 } }] }),
+    )
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const page = app.window
@@ -48,6 +52,12 @@ describe('上下文环', () => {
     await page.keyboard.press('Enter')
     await waitConnected(page)
     await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 20_000 }).toBe(1)
+    await page.locator('[data-action="send"]').waitFor()
+    const usage = await page.evaluate(async () => {
+      const { sessions } = await (await fetch('/api/sessions')).json()
+      return (await fetch(`/api/sessions/${sessions[0].id}/context`)).json()
+    })
+    expect(usage).toMatchObject({ contextWindow: 40_000, threshold: 32_000, warning: 12_000, tokens: 16_500, estimated: false })
     await expect.poll(() => ring(page).getAttribute('data-level'), { timeout: 15_000 }).toBe('warning')
     // 颜色有过渡动画：等其停在 warning 色。
     const warning = await colorOf(page, 'text-warning-text')
