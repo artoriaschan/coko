@@ -67,6 +67,7 @@ Session 恢复之前，子代理先为被中断的父 Run 中仍在等待结果�
 
 - **activity**：没有 Run 时，有未回答的确认为 `awaiting-confirmation`，否则按最后一条 `run_end`（`interrupted` / `paused` / `idle`）。renderer 对已打开的会话按条目派生同样的值。
 - **确认卡**：没有 Run 且有待确认时，最早的一项接管输入区（输入区保持挂载并隐藏，草稿不丢），显示中断的命令或路径与三个回答（已生效 / 未生效 / 不确定，让 Coko 核实）。三个回答没有默认项，Enter 与 Esc 不代替用户作答；同一调用只回答一次，失败后可重答，404 后不再重发。
+- **过程与工具行**：只有实际 `confirmation_request` 才标为“结果不明”；普通无结果调用显示“没有已记录的结果”，不能由缺少结果猜测副作用是否生效。请求与回答按 toolCallId 关联到工具行，整轮与历史组收起时仍保留关键状态摘要；回答仅标注用户确认了什么，工具完成/失败继续由真实 toolResult 决定，不在 renderer 补造结果。确认卡在过程座位外保持可达；卡片接管和结束时沿用审批相同的焦点归属规则。
 - **中断横幅**：上一 Run 为 interrupted 且没有待确认时，输入区上方显示"上次运行已中断"；带"继续"：对话末尾是用户消息或工具结果时调用 `continue`；以 assistant 文本结束时（运行时的 continue 不能从 assistant 消息开始）"继续"提交一条本地化的"继续"用户消息，开始普通的新 Run。时间线在该 Run 末尾显示"已中断"，补齐结果的工具卡按结果显示完成或失败。
 - **侧栏**：会话按最后记录时间排序，不显示运行、审批或中断徽标，也不按这些状态上浮；审批、结果确认与中断仍在当前对话内展示。
 
@@ -82,7 +83,7 @@ Session 恢复之前，子代理先为被中断的父 Run 中仍在等待结果�
 - `packages/session/src/sqlite/recovery.test.ts`：v1 库迁移到当前版本、v2 库迁移到 3（备份、索引、数据可读）；`listUnfinishedRuns` 与 `listLatestEntries`（读取迁移）。
 - `packages/session/src/sqlite/migrate-v9.test.ts`：v8 库升级到 9（`.backup-v8-*` 0600、原数据与登记行可读、`plugins` 为 STRICT、可登记 `lsp` 进程、`memories_fts` 随写入同步）；库版本 9 起子进程登记的 kind 增加 `lsp`，启动的孤儿清理同样覆盖它。
 - `packages/agent/src/recovery/plan.test.ts`：真实内置工具与临时 Workspace 上的每种分类、write 与 edit 的探测（含新文本包含旧文本）、乱序与其他 Run 的条目、未注册工具与探测失败、确认结果文本。
-- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（9）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
+- `tests/integration/sidecar-recovery.test.ts`：真实 Sidecar 上 bash 执行中 SIGKILL 后的确认、409、回答与继续的上下文；等待审批时 SIGKILL 后 expired；write 执行后、toolResult 前被杀时探测为已生效；正常关闭不产生 interrupted；v1 库启动迁移到当前版本（11）。以已提交条目与文件同步，不用固定 sleep。`secrets-gate.test.ts` 驱动崩溃恢复与确认通道。
 - `apps/server/src/application/sessions-recovery.test.ts`：恢复失败的 Session 以 `recovery-failed` 拒绝 Run、继续、回退与分叉，重试成功后补齐 `run_end`。
 - `apps/desktop/src/renderer/stores/chat-store-recovery.test.ts`（含以 assistant 文本结束时的"继续"）、`packages/ui/src/approval/confirmation-card.browser.test.tsx`、`apps/desktop/e2e/recovery.e2e.test.ts`（真实 Electron 中 SIGKILL Sidecar，supervisor 重启后确认卡、回答、横幅与继续）。
 - `tests/integration/sidecar-teams-restart.test.ts`：teammate 运行中 SIGKILL 后为 idle、可以再接收消息、排队的消息不保留。

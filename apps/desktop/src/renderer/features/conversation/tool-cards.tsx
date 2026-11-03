@@ -2,6 +2,7 @@ import type { MessageKey } from '@coko/i18n'
 import { Button, Dialog, DialogContent, DialogTitle, ToolCard, ToolOutput } from '@coko/ui'
 import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, Maximize2Icon, SendIcon } from 'lucide-react'
 import * as React from 'react'
+import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
@@ -179,7 +180,7 @@ function HookBlockNote({ item }: { item: ToolItem }) {
   return (
     <p data-slot="hook-block" className="flex min-w-0 items-baseline gap-2 px-3 pt-2 text-ui-small text-muted-foreground">
       <span className="shrink-0">{t('hooks.blockedBy')}</span>
-      <code data-user-content className="min-w-0 truncate font-mono text-foreground" title={hook.command}>
+      <code data-user-content className="min-w-0 break-all font-mono text-foreground" title={hook.command}>
         {hook.command}
       </code>
     </p>
@@ -210,81 +211,6 @@ function GenericBody({ item }: { item: ToolItem }) {
   )
 }
 
-type SandboxModeKey = 'read-only' | 'workspace-write' | 'danger-full-access'
-
-/** bash 结果 details 中的沙箱拒绝（BashToolDetails.sandbox）。 */
-function sandboxDenial(item: ToolItem): SandboxModeKey | undefined {
-  const sandbox = (item.result?.details as { sandbox?: { mode?: unknown; denied?: unknown } } | undefined)?.sandbox
-  return sandbox?.denied === true && typeof sandbox.mode === 'string' ? (sandbox.mode as SandboxModeKey) : undefined
-}
-
-/** 外部 Hook 拦下的调用（toolResult details.hostBlock { by: hook }，运行时写入，工具自身不能声明）。 */
-export function hookBlock(item: ToolItem): { command: string } | undefined {
-  const mark = (item.result?.details as { hostBlock?: { by?: unknown; command?: unknown } } | undefined)?.hostBlock
-  return mark?.by === 'hook' && typeof mark.command === 'string' ? { command: mark.command } : undefined
-}
-
-/** 标题行的元信息：Hook 拦截、沙箱拒绝与已结束审批的决定。 */
-function ToolMeta({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const denied = sandboxDenial(item)
-  const hook = hookBlock(item)
-  return (
-    <>
-      {hook && (
-        <span
-          data-hook-blocked
-          className="max-w-60 shrink truncate text-ui-small text-destructive"
-          title={t('hooks.blockedCommand', { command: hook.command })}
-        >
-          {t('hooks.blockedBy')}
-        </span>
-      )}
-      {denied && (
-        <span data-sandbox-denied={denied} className="max-w-60 shrink truncate text-ui-small text-destructive">
-          {t('sandbox.denied', { mode: t(`sandbox.shortModes.${denied}`) })}
-        </span>
-      )}
-      <ApprovalMeta item={item} />
-    </>
-  )
-}
-
-/** 已结束审批的决定，显示在工具卡标题行。 */
-function ApprovalMeta({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const decision = item.approval?.decision
-  if (!decision) return null
-  const target = item.approval?.request.kind === 'escalation' ? item.approval.request.targetMode : undefined
-  let label: string
-  switch (decision.outcome) {
-    case 'allowed':
-      label =
-        decision.by === 'hook'
-          ? t('hooks.allowedBy')
-          : target
-            ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
-            : decision.scope === 'session'
-              ? t('approval.allowedSession')
-              : decision.scope === 'workspace'
-                ? t('approval.allowedWorkspace')
-                : decision.scope === 'global'
-                  ? t('approval.allowedGlobal')
-                  : t('approval.allowedOnce')
-      break
-    case 'denied':
-      label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
-      break
-    default:
-      label = t(`approval.${decision.outcome}`)
-  }
-  return (
-    <span data-approval-outcome={decision.outcome} className="max-w-60 shrink truncate text-ui-small text-muted-foreground" title={label}>
-      {label}
-    </span>
-  )
-}
-
 export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
   if (item.call.name === 'agent') return <AgentCard item={item} />
@@ -309,7 +235,13 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
   const view = VIEWS[item.call.name]
-  const statusLabel = t(`tool.${item.status}`)
+  const statusLabel = t(
+    item.confirmation?.answer === null
+      ? 'confirmation.status'
+      : item.status === 'pending' && item.result === null
+        ? 'tool.noRecordedResult'
+        : `tool.${item.status}`,
+  )
   if (!view) {
     return (
       <ToolCard
@@ -322,9 +254,10 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         summary={item.call.name}
         status={item.status}
         statusLabel={statusLabel}
-        meta={<ToolMeta item={item} />}
+        meta={<ToolStateMeta item={item} />}
       >
         <HookBlockNote item={item} />
+        <ToolStateDetail item={item} />
         <GenericBody item={item} />
         <ToolImages item={item} />
         <Inspect onInspect={onInspect} />
@@ -348,8 +281,9 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       summary={item.status === 'error' && output(item).trim() !== '' ? output(item).split('\n')[0] : view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
-      meta={<ToolMeta item={item} />}
+      meta={<ToolStateMeta item={item} />}
     >
+      <ToolStateDetail item={item} />
       {hookBlock(item) ? (
         <div className="flex flex-col">
           <HookBlockNote item={item} />

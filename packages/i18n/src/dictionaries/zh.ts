@@ -539,6 +539,8 @@ export const zh = {
       '写文件、运行命令和读取工作区之外的文件前都会请你审批。命令在沙箱中运行，只能写工作区与临时目录（只读模式下不能写任何位置）；沙箱不限制网络与读取，只应在你信任的工作区中使用',
   },
   tool: {
+    noRecordedResult: '没有已记录的结果',
+    sandboxDenied: '沙箱已拒绝',
     running: '运行中',
     done: '已完成',
     error: '失败',
@@ -588,6 +590,7 @@ export const zh = {
     fileShowAll: '显示全部 {count} 行',
   },
   confirmation: {
+    recorded: { applied: '用户确认已生效', 'not-applied': '用户确认未生效', unknown: '用户无法确认结果' },
     status: '结果不明',
     detail: '中断的操作',
     titleBash: '这条命令生效了吗？',

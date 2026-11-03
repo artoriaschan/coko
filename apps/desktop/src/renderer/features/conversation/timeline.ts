@@ -4,6 +4,7 @@ import {
   type ApprovalDecisionPayload,
   type ApprovalRequestPayload,
   type CommandPayload,
+  type ConfirmationAnswer,
   type CompactionPayload,
   type GoalPayload,
   type HandoffFailedPayload,
@@ -97,6 +98,8 @@ type TimelineContent =
       live: LiveTool | null
       /** 没有审批（免审批或旧记录）时省略或为 null。 */
       approval?: ToolApproval | null
+      /** Recovery facts; never inferred from a missing result or from assistant text. */
+      confirmation?: { answer: ConfirmationAnswer | null }
     }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
@@ -165,6 +168,9 @@ export function resultText(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) return contentText((result as { content: unknown }).content)
   return typeof result === 'string' ? result : ''
 }
+
+const approvalStopped = (approval: ToolApproval | null | undefined) =>
+  approval?.decision?.outcome === 'denied' || approval?.decision?.outcome === 'cancelled' || approval?.decision?.outcome === 'expired'
 
 const resultStructured = (result: unknown) => (result && typeof result === 'object' && 'structuredContent' in result ? result.structuredContent : undefined)
 
@@ -335,8 +341,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const tool = requests.get(entry.payload.requestId)
         if (tool?.approval) {
           tool.approval = { ...tool.approval, decision: entry.payload }
-          if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
+          if (tool.result === null && tool.status === 'awaiting') tool.status = approvalStopped(tool.approval) ? 'pending' : 'running'
         }
+        return
+      }
+      if (entry.kind === 'confirmation_request' || entry.kind === 'confirmation_answer') {
+        const tool = tools.get(entry.payload.toolCallId)
+        if (tool) tool.confirmation = { answer: entry.kind === 'confirmation_answer' ? entry.payload.answer : null }
         return
       }
       if (entry.kind !== 'message') return
@@ -449,7 +460,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         if (tool.result === null) {
           tool.live = liveTool
           // 等待审批时进度仍报告 running（pi 在审批前发出 tool_start）；以条目中的审批状态为准。
-          if (!(tool.status === 'awaiting' && liveTool.status === 'running')) tool.status = liveTool.status
+          if (!(liveTool.status === 'running' && (tool.status === 'awaiting' || approvalStopped(tool.approval)))) tool.status = liveTool.status
           if (liveTool.status !== 'running')
             tool.result = {
               isError: liveTool.status === 'error',
