@@ -24,7 +24,7 @@ lifecycle: active
 
 ## 最终检查
 
-原始聚合输出如下，均通过 `rtk proxy` 保存。范围是与本票及合入 07 共享边界有关的最小集合，没有运行全仓测试：
+原始聚合输出如下，均通过 `rtk proxy` 保存，仅移除末尾额外空行以通过 Git whitespace 检查。范围是与本票及合入 07 共享边界有关的最小集合，没有运行全仓测试：
 
 - [renderer-final.log](renderer-final.log)：`pnpm run test` 后依次传入 conversation 目录中的 `permission-states.browser.test.tsx`、`approval-bubbling.browser.test.tsx`、`process-groups.browser.test.tsx`、`tool-cards.browser.test.tsx`、`plan.browser.test.tsx`、`timeline.test.ts`、`tool-card-images.browser.test.tsx` 的完整路径。7 文件 79/79、退出 0，精确命令保留在日志首行。包含本票实际 App 10 条，Plan 接管、原审批顺序和图片门户焦点等共享消费者。
 - [electron-final.log](electron-final.log)：`pnpm run test apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/recovery.e2e.test.ts apps/desktop/e2e/sandbox.e2e.test.ts`，3 文件 5/5、退出 0。实际批准后文件内容为 hi；拒绝后文件不存在；实际 macOS Seatbelt 越界拒绝后只有审批提权才写入；SIGKILL 真实 Sidecar 后等待 supervisor 新 PID/重连，确认未生效后继续，done 文件仍不存在。setup 先等真实工作台，Session 建立后才检查连接；恢复用例补上既有完全访问风险确认对话框的明确点击，没有绕过产品确认。

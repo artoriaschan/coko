@@ -7,4 +7,3 @@ $ vitest run apps/desktop/src/renderer/features/conversation/permission-states.b
       Tests  79 passed (79)
    Start at  23:17:59
    Duration  8.37s (tests 77%, import 12%, transform 7%, setup 3%, worker 2%)
-

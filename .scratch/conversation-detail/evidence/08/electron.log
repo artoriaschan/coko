@@ -7,4 +7,3 @@ $ vitest run apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/recovery.e2
       Tests  5 passed (5)
    Start at  23:14:27
    Duration  16.69s (tests 97%, import 3%)
-
