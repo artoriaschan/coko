@@ -238,8 +238,14 @@ it('actual App: child Session detail growth follows its own tail, child switchin
     agents,
     entries: { 'child-a': childEntries('child-a'), 'child-b': childEntries('child-b') },
   })
+  await expect.poll(() => outer().scrollHeight - outer().clientHeight).toBeGreaterThan(800)
   outer().scrollTop = 400
   outer().dispatchEvent(new Event('scroll'))
+  expect(outer().scrollTop).toBe(400)
+  const parentMarker = [...outer().querySelectorAll<HTMLElement>('.conversation-assistant-message')].find(
+    (row) => row.getBoundingClientRect().bottom > outer().getBoundingClientRect().top,
+  )!
+  const parentTop = parentMarker.getBoundingClientRect().top
   agents.getState().open('s-1', 'child-a')
   await expect.poll(() => document.querySelector('[data-slot="agent-timeline"]')?.getAttribute('data-session-id')).toBe('child-a')
   const child = document.querySelector<HTMLElement>('[data-slot="agent-timeline"]')!
@@ -253,15 +259,12 @@ it('actual App: child Session detail growth follows its own tail, child switchin
   )
   await expect.poll(() => child.scrollHeight).toBeLessThan(5000)
   await expect.poll(() => distance(child)).toBeLessThanOrEqual(1)
-  const parentMarker = [...outer().querySelectorAll<HTMLElement>('.conversation-assistant-message')].find(
-    (row) => row.getBoundingClientRect().bottom > outer().getBoundingClientRect().top,
-  )!
-  const parentTop = parentMarker.getBoundingClientRect().top
+  await expect.poll(() => Math.abs(parentMarker.getBoundingClientRect().top - parentTop)).toBeLessThanOrEqual(1)
   const before = child.scrollTop
   child.querySelector<HTMLButtonElement>('[data-slot="tool-card"] button')!.click()
   await expect.poll(() => child.scrollTop).toBeGreaterThan(before + 100)
-  expect(distance(child)).toBeLessThanOrEqual(1)
-  expect(Math.abs(parentMarker.getBoundingClientRect().top - parentTop)).toBeLessThanOrEqual(1)
+  await expect.poll(() => distance(child)).toBeLessThanOrEqual(1)
+  await expect.poll(() => Math.abs(parentMarker.getBoundingClientRect().top - parentTop)).toBeLessThanOrEqual(1)
   child.scrollTop = 100
   child.dispatchEvent(new Event('scroll'))
   await page.elementLocator(document.querySelector('li [data-agent-id="child-b"]')!).click()

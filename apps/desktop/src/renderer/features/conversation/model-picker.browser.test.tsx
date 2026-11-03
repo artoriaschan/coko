@@ -188,6 +188,12 @@ it.each(['light', 'dark'])('%s detail retains canvas geometry near a narrow wind
         return { width: rect.width, height: rect.height, visible: rect.left >= 8 && rect.right <= 382 }
       })
       .toEqual({ width: 280, height: 112, visible: true })
+    await Promise.all(
+      document
+        .querySelector('[role="menu"]')!
+        .getAnimations()
+        .map((animation) => animation.finished),
+    )
     const slider = document.querySelector('[role="slider"]')!.getBoundingClientRect()
     expect(slider.width).toBe(256)
     expect(slider.height).toBe(28)
