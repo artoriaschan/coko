@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -30,7 +30,7 @@ describe('Memory', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const { window } = app
-    await waitConnected(window)
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
@@ -48,6 +48,10 @@ describe('Memory', () => {
     await expect.poll(() => card.textContent()).toMatch(/(Remembered|已记住)/)
     expect(await card.textContent()).toContain('This project uses pnpm')
     await window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+    for (const control of await window.locator('[data-slot="run-process-control"][aria-expanded="false"]:not(:disabled)').all()) await control.click()
+    for (const header of await window.locator('[data-slot="process-group-header"][aria-expanded="false"]').all()) await header.click()
+    await card.locator('button').first().click()
+    expect(await card.locator('[data-structured-detail="memory_write"]').textContent()).toContain('This project uses pnpm')
 
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     const dialog = window.locator('[data-settings-page]')
@@ -99,7 +103,7 @@ describe('Memory', () => {
     const app = await launchApp({}, { dir: root })
     apps.push(app)
     const { window } = app
-    await waitConnected(window)
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     for (const content of ['Prefers tabs over spaces', 'Run docker compose before tests', 'Deploy with docker swarm'])
       expect(
         await window.evaluate(
