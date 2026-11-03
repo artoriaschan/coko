@@ -131,7 +131,7 @@ function ImageTile({
       {open && (
         <Dialog open onOpenChange={(value) => !value && setOpen(false)}>
           <DialogContent
-            className="tool-image-lightbox"
+            className="tool-image-lightbox translate-x-0 translate-y-0"
             aria-describedby={undefined}
             data-tool-image-dialog
             onPointerDown={(event) => {

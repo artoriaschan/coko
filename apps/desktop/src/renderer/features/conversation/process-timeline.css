@@ -10,11 +10,11 @@
 .conversation-process-group-header[aria-expanded='true'] .conversation-process-icon, .conversation-process-group-header:focus-visible .conversation-process-icon { opacity: 0; }
 .conversation-process-group-header[aria-expanded='true'] .conversation-process-chevron, .conversation-process-group-header:focus-visible .conversation-process-chevron { opacity: 1; }
 .conversation-process-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-process-body { max-height: min(400px, 50vh); overflow-y: auto; overscroll-behavior-y: auto; scrollbar-gutter: stable; }
-.conversation-process-body[data-running] { max-height: none; overflow: visible; scrollbar-gutter: auto; }
-.conversation-process-body[data-scroll-up] { mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 100%); }
-.conversation-process-body[data-scroll-down] { mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 24px), transparent 100%); }
-.conversation-process-body[data-scroll-up][data-scroll-down] { mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); }
+.conversation-process-body { max-height: min(400px, 50vh); overflow-y: auto; overscroll-behavior-y: auto; }
+.conversation-process-body[data-running] { max-height: none; overflow: visible; }
+.conversation-process-body[data-scroll-up] { mask-image: linear-gradient(to bottom, transparent 0, currentColor 24px, currentColor 100%); }
+.conversation-process-body[data-scroll-down] { mask-image: linear-gradient(to bottom, currentColor 0, currentColor calc(100% - 24px), transparent 100%); }
+.conversation-process-body[data-scroll-up][data-scroll-down] { mask-image: linear-gradient(to bottom, transparent 0, currentColor 24px, currentColor calc(100% - 24px), transparent 100%); }
 @media (hover: hover) {
   .conversation-process-group-header:hover { color: var(--conversation-process-secondary, var(--foreground)); }
   .conversation-process-group-header:hover .conversation-process-icon { opacity: 0; }

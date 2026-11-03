@@ -9,7 +9,7 @@ lifecycle: active
 ## 验证对象
 
 - [规格](../spec.md)：AC-10、AC-11、AC-12、AC-24；[实施票](../issues/07-tool-images-and-preview.md)。
-- 初始基线 `7610b5d0da2c2b1d0f7896b6c10cd1a58158cd7e`；首个实现 `55f60d4`；合入搜索详情 `694b27ed8fe56817fe821865676d742dc3f0da4e` 的本票合并提交 `adde7d9`。最终过程焦点锁集成与验证正在进行，本记录此时不表示票已关闭。
+- 初始基线 `7610b5d0da2c2b1d0f7896b6c10cd1a58158cd7e`；首个实现 `55f60d4`；合入搜索详情 `694b27ed8fe56817fe821865676d742dc3f0da4e` 的本票合并提交 `adde7d9`。后续合入过程分组 `38bd45b4b600a0e18a7f7efa896e2f06668fdc78`（本票合并 `6f677e9`）及证据整理 `9b3f0015ec1fee7484d363f45ee9d6b5321511b7`；最终交付基于这些集成能力完成。
 - 参考仓库 `/Users/artorias_chan/Workspaces/agent/deepseek-harness`，锁定提交 `8bd073392eef6f54e921a093b95076248eb08cbb`；未修改参考源，状态仍仅有既存未跟踪 `codebase-guide/`。
 - macOS arm64；Node `26.10.0`、pnpm `12.15.0`、Vitest `5.0.3`、Electron `41.0.3`、agent-browser `0.38.2`。Browser Mode 真实无头 Chromium；手动 Electron 后台 CDP，显式 DPR 1；中文/英文、亮/暗主题、390px 与正常主内容。
 
@@ -38,14 +38,25 @@ lifecycle: active
 | `rtk pnpm run check:docs` | 268 Markdown | exit 0，0问题（正式正文变更后；最终证据另记） |
 | `rtk pnpm run build:desktop` | main/preload/Sidecar/renderer | 首次失败：Electron 安装缺 binary；`rtk proxy /Users/artorias_chan/.nvm/versions/node/v24.15.0/bin/node node_modules/electron/install.js` exit0 后构建 exit0；有既存大于500kB chunk提示 |
 
-浏览器测试只替换协议外端的内存后端，真实 App、Chat Store、投影、工具卡、Radix modal、图片解码和布局均运行。覆盖：重复位图、不同数组对象、已提交前新增文本、同一 DOM image/preview、输入选区、空最终结果清除旧图、损坏 PNG、SVG、字符串 URL 与 URL 字段拒绝、四种主题/语言组合在390px、自然160×100的单图和只读子 Session。最终 Run 完成时的 scoped focus lock 检查等待03集成。
+浏览器测试只替换协议外端的内存后端，真实 App、Chat Store、投影、工具卡、Radix modal、图片解码和布局均运行。覆盖：重复位图、不同数组对象、已提交前新增文本、同一 DOM image/preview、输入选区、空最终结果清除旧图、损坏 PNG、SVG、字符串 URL 与 URL 字段拒绝、四种主题/语言组合在390px、自然160×100的单图和只读子 Session。Run 完成时 scoped focus lock 已接入：实际 App 断言同一预览 DOM、整轮和所属组仍展开，Escape 返回仍可见的第二张缩略图。没有绕过 Radix inert 层点击背景折叠控件。
 
 ## 视觉、交互与清理
 
-- 命名会话 `coko-gallery-reference-07` 用真实源组件；初步8张参考PNG和4份CSS几何记录在上述外部 harness。参考服务监听实际分配的52203端口，agent-browser close exit0，服务 Ctrl-C exit130、`lsof` 无监听；无参考源改动。
-- 命名会话 `coko-gallery-electron-07` 经真实 Electron / Sidecar / 自有 stdio MCP 夹具返回两张640×400 PNG；主应用创建 Session 后 Connected、审批一次后工具完成。手动 Enter/Escape/关闭按钮和焦点恢复通过。初步截图因发现预览位移已作废，最终截图待重建后重拍。
+- 命名会话 `coko-gallery-reference-07` 用真实源组件；8张参考PNG和4份CSS几何记录已保存到 [07产物目录](07/)。参考服务监听实际分配的52203端口，agent-browser close exit0，服务 Ctrl-C exit130、`lsof` 无监听；无参考源改动。
+- 命名会话 `coko-gallery-electron-07` 经真实 Electron / Sidecar / 自有 stdio MCP 夹具返回两张640×400 PNG；主应用创建 Session 后 Connected、审批一次后工具完成。手动 Enter/Escape/关闭按钮和焦点恢复通过。早期位移截图已作废，最终8张截图和4份CSS几何记录已覆盖保存到 [07产物目录](07/)。`rtk proxy python3 /tmp/coko-conversation-detail/capture-gallery-07.py` exit0；源码夹具和捕获脚本保留在外部目录。四种捕获状态为 light/en、dark/zh × 1280×900与390×900、DPR1；实际 App 自动化另覆盖全部四种主题/语言组合。正常窗口 main1000px，窄窗口 main390px；参考组件调用夹具 main748/390px。逐项比较固定尺寸控件、颜色、圆角与字体，不声称外围壳层或全部聊天列像素等同。
 - 初次手动实例在 E2E 重构建产物期间触发旧动态chunk找不到：这是同时覆盖dist造成的验证环境失效，不作产品失败/通过证据。关闭后在固定产物上重启。已关闭手动实例与对应 CDP 会话；`ps` 未发现本票 Electron、Sidecar、MCP 或参考服务器残留。最终实例将单独记录PID与退出证据。
+- 最终进程 Electron PID36181、Sidecar36206、MCP39200；agent-browser close exit0，launcher观测 Electron SIGTERM退出、命令exit130。退出后精确PID检查与60737端口监听检查均无结果；进程命令检查只有检查自身，没有本票应用/Sidecar/MCP。4个本票临时userData根已删除，24个最终PNG/JSON产物保留。
 - 仅静默CDP交互；没有占用前台、真实鼠标、拖拽导出或原生标题栏验证。
+
+### 最终增量与交付检查
+
+- 编译产物专属回归：增加真实 Electron 的预览边界断言后，修复前明确失败 `[-640,-410,1280,820]`，期望 `[0,0,1280,820]`。压缩后的CSS把 `translate:none` 合并到 transform，不能抵消共享Tailwind位移；以 DialogContent `translate-x-0 translate-y-0` 通过 `cn` 覆盖原位移类后，同一 `rtk pnpm run test apps/desktop/e2e/mcp-browser.e2e.test.ts` 1/1 passed、exit0（23:10:36）。实际编译产物截图确认390px时dialog `[0,0,390,900]`、原图左边40px，图片实际640×400。
+- `rtk pnpm run test apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx apps/desktop/src/renderer/features/conversation/tool-rows.browser.test.tsx apps/desktop/src/renderer/features/conversation/structured-tool-details.browser.test.tsx packages/ui/src/guards/style-guard.test.ts packages/i18n/src/index.test.ts packages/i18n/src/domains.test.ts`：11 files、124/124 passed、exit0（23:09:34）。
+- 上述聚合前曾选中10 files /103 tests，102通过、1样式守卫失败，来自03本地gutter及3个`#000`mask。经集成负责人明确授权，仅将mask改为opaque `currentColor`、将historical group gutter接到共享 `data-scroll-stable`（running不设），不新增守卫例外；随后124全通过。没有修改测试规则、限高、跟随或mask方向。
+- 位移类最终修改后，`rtk pnpm run test apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：3 files、68/68 passed、exit0（23:10:38）。之后将自然尺寸/空最终结果的场景改为真实 `read` 参数调用，`rtk pnpm run test apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx`：7/7 passed、exit0（23:11:20）。
+- `rtk pnpm run typecheck` 最终exit0（23:11）；相关TS/TSX `rtk proxy pnpm exec oxlint apps/desktop/src/renderer/features/conversation/tool-image-details.tsx apps/desktop/src/renderer/features/conversation/tool-cards.tsx apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx apps/desktop/src/renderer/features/conversation/timeline.ts apps/desktop/src/renderer/features/conversation/process-timeline.tsx apps/desktop/e2e/mcp-browser.e2e.test.ts packages/i18n/src/dictionaries/domains/mcp.ts` exit0；最终 `rtk pnpm run check:docs` 271份、0问题、exit0。保存提交状态见Comments。一次E2E局部变量遮蔽Node `process`被类型与真实运行同时捕获，已更名并通过；不把该失败算产品通过证据。合并冲突标记未处理时误启动的测试选中0用例、失败退出，仅为无效验证，不用于任何通过结论。
+
+最终视觉例子：[亮色390图库](07/coko-light-390-gallery.png)、[亮色390大图](07/coko-light-390-preview.png)、[暗色390图库与失败格](07/coko-dark-390-gallery.png)、[暗色正常宽大图](07/coko-dark-1280-preview.png)、[真实源多图基线](07/reference-light-454-gallery.png)。同目录JSON记录实际viewport、DPR、main、dialog/图片矩形、tile尺寸/R20/描边与背景及根scrollWidth，390px无整页横向溢出。
 
 ## 文档影响
 
@@ -59,4 +70,4 @@ lifecycle: active
 
 ## 结论与限制
 
-本票仍在最终03集成与截图复验阶段，尚不关闭。所有已列通过均为本地证据；没有真实模型、真实外部 Playwright MCP 服务、CI、推送、PR、发布或原生指针验证。参考是实际源组件消费者baseline，不冒称完整参考应用验收。
+本票验收已满足，07关闭。所有已列通过均为本地证据；没有真实模型、真实外部 Playwright MCP 服务、CI、推送、PR、发布或原生指针验证。参考是实际源组件消费者baseline，不冒称完整参考应用验收。

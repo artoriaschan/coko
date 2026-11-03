@@ -114,6 +114,7 @@ function Group({
         id={bodyId}
         hidden={!open}
         data-slot="process-group-body"
+        data-scroll-stable={!running || undefined}
         data-running={running || undefined}
         data-scroll-up={(!running && edges.up) || undefined}
         data-scroll-down={(!running && edges.down) || undefined}

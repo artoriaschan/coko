@@ -163,6 +163,12 @@ describe('MCP 浏览器预设与认证', () => {
     await window.keyboard.press('Enter')
     const preview = window.locator('[data-tool-image-dialog]')
     await preview.waitFor()
+    expect(
+      await preview.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        return [rect.x, rect.y, rect.width, rect.height]
+      }),
+    ).toEqual(await window.evaluate(() => [0, 0, innerWidth, innerHeight]))
     await expect.poll(() => preview.locator('img').evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(160)
     await window.keyboard.press('Escape')
     await preview.waitFor({ state: 'detached' })

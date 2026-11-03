@@ -25,15 +25,15 @@ const entry = (seq: number, kind: string, payload: unknown): SessionEntryRecord 
   runId: 'run-1',
   createdAt: seq,
 })
-const call = (seq: number, id = 'image') =>
+const call = (seq: number, id = 'image', toolName = name, args: Record<string, unknown> = { url: 'https://example.test' }) =>
   entry(seq, 'message', {
     role: 'assistant',
-    content: [{ type: 'toolCall', id, name, arguments: { url: 'https://example.test' } }],
+    content: [{ type: 'toolCall', id, name: toolName, arguments: args }],
     stopReason: 'toolUse',
     timestamp: 0,
   })
-const result = (seq: number, content: unknown[]) =>
-  entry(seq, 'message', { role: 'toolResult', toolCallId: 'image', toolName: name, content, isError: false, timestamp: 0 })
+const result = (seq: number, content: unknown[], toolName = name) =>
+  entry(seq, 'message', { role: 'toolResult', toolCallId: 'image', toolName, content, isError: false, timestamp: 0 })
 let viewport = { width: 0, height: 0 }
 beforeEach(() => {
   viewport = { width: innerWidth, height: innerHeight }
@@ -205,22 +205,27 @@ it('actual App: single bitmap measures its natural size; final empty content rem
   canvas.height = 100
   canvas.getContext('2d')!.fillRect(0, 0, 160, 100)
   const image = { type: 'image', mimeType: 'image/png', data: canvas.toDataURL('image/png').split(',')[1]! }
-  const fixture = await open([entry(1, 'run_start', { trigger: 'submit' }), call(2)])
-  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'tool_start', toolCallId: 'image', toolName: name, args: {} } })
+  const fixture = await open([entry(1, 'run_start', { trigger: 'submit' }), call(2, 'image', 'read', { path: '/fixture.png' })])
   fixture.sendServer({
     type: 'progress',
     sessionId: 's-1',
     runId: 'run-1',
-    event: { type: 'tool_update', toolCallId: 'image', toolName: name, partialResult: { content: [image] } },
+    event: { type: 'tool_start', toolCallId: 'image', toolName: 'read', args: { path: '/fixture.png' } },
   })
-  await page.getByRole('button', { name: /Tool call/ }).click()
+  fixture.sendServer({
+    type: 'progress',
+    sessionId: 's-1',
+    runId: 'run-1',
+    event: { type: 'tool_update', toolCallId: 'image', toolName: 'read', partialResult: { content: [image] } },
+  })
+  await page.getByRole('button', { name: /Read/ }).click()
   const opener = document.querySelector<HTMLButtonElement>('[data-action="open-image"]')!
   await expect.poll(() => opener.getBoundingClientRect().width).toBe(160)
   expect(opener.getBoundingClientRect().height).toBe(100)
   expect(document.querySelector('.tool-image-meta')!.textContent).toBe('Decoded size: 160 × 100')
   await page.elementLocator(opener).click()
   await expect.element(page.getByRole('dialog')).toBeVisible()
-  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: result(3, [{ type: 'text', text: 'final result intentionally contains no image' }]) })
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: result(3, [{ type: 'text', text: 'final result intentionally contains no image' }], 'read') })
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull()
   expect(document.querySelector('[data-tool-image]')).toBeNull()
   await expect.element(page.getByText('final result intentionally contains no image', { exact: true })).toBeVisible()
