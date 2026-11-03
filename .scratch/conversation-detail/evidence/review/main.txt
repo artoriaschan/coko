@@ -1,0 +1,38 @@
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat} from '/tmp/coko-conversation-detail/review-fix/apps/desktop/src/renderer/testing/fixture-chat.ts'
+const query=new URLSearchParams(location.search)
+const state=query.get('state')??'completed'
+const record=(seq,payload,kind='message')=>({sessionId:'s-1',seq,kind,payloadVersion:1,payload,runId:'process-run',createdAt:(state==='running'?Date.now()-12000:0)+seq*1000})
+const call=(seq,id,name,args)=>record(seq,{role:'assistant',content:[{type:'toolCall',id,name,arguments:args}],stopReason:'toolUse',timestamp:0})
+const result=(seq,id,text)=>record(seq,{role:'toolResult',toolCallId:id,toolName:'custom',content:[{type:'text',text}],isError:false,timestamp:0})
+const text=(seq,text)=>record(seq,{role:'assistant',content:[{type:'text',text}],stopReason:'toolUse',timestamp:0})
+const entries=[record(1,{trigger:'submit'},'run_start'),
+ record(2,{role:'user',content:'请检查这个项目并运行测试。',timestamp:0}),
+ text(3,'我会先检查项目文件，然后运行相关测试。'),
+ record(4,{role:'assistant',content:[{type:'thinking',thinking:'**检查项目结构**\n先读取入口，再查看测试配置。'}],stopReason:'toolUse',timestamp:0}),
+ call(5,'read','read',{path:'src/app.ts'}), result(6,'read',Array.from({length:15},(_,i)=>'export const value'+i+' = '+i+';').join('\n')),
+ call(7,'bash','bash',{command:'pnpm test'}), {...result(8,'bash','2 tests passed\n'),payload:{...result(8,'bash','2 tests passed\n').payload,structuredContent:{output:'2 tests passed\n',exit_code:0}}},
+ call(9,'edit','edit',{path:'src/app.ts',edits:[{oldText:"export const greeting = 'Hello';",newText:"export const greeting = '你好';"}]}),
+ {...result(10,'edit','Successfully replaced 1 block(s) in src/app.ts.'),payload:{...result(10,'edit','Successfully replaced 1 block(s) in src/app.ts.').payload,details:{diff:"-1 export const greeting = 'Hello';\n+1 export const greeting = '你好';"}}},
+ call(11,'grep','grep',{pattern:'greeting'}),result(12,'grep',"src/app.ts:1:export const greeting = 'Hello';\nsrc/app.ts:2:console.log(greeting);"),
+ call(13,'generic','mcp__demo__lookup',{query:'project'}),result(14,'generic','{"items":["src/app.ts","src/app.test.ts"]}'),
+ text(15,'## 检查结果\n项目入口和测试配置正常。\n\n- 读取了源文件\n- 运行了相关测试\n\n完成。'),
+ ...(state==='running'?[]:[record(16,{status:state==='failed'?'error':state==='stopped'?'cancelled':'completed'},'run_end')])]
+const fixture=createFixtureChat({entries:{'s-1':entries}})
+const appearance=createAppearanceStore({theme:query.get('theme')==='dark'?'dark':'light',locale:query.get('lang')==='en'?'en':'zh'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+document.body.style.margin='0';document.getElementById('root').style.height='100vh'
+createRoot(document.getElementById('root')).render(<App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/>);
+window.fixture=fixture
+
+fixture.chat.subscribe(state=>{if(state.conversations['s-1']?.status==='ready' && window.started!==true){window.started=true;if(new URLSearchParams(location.search).get('state')==='running')fixture.sendServer({type:'progress',sessionId:'s-1',runId:'process-run',event:{type:'run_start'}})}})
+
+window.finish=()=>fixture.sendServer({type:'entry',sessionId:'s-1',entry:record(68,{status:'completed'},'run_end')})
+window.append=()=>fixture.sendServer({type:'entry',sessionId:'s-1',entry:text(69,'Appended original answer.\n\n'+'Actual next paragraph. '.repeat(80))})

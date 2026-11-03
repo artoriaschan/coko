@@ -1,0 +1,26 @@
+{
+  "browser": "coko-review-fix: Browser closed",
+  "servers": [
+    {
+      "pid": 16948,
+      "exit": 143
+    },
+    {
+      "pid": 53585,
+      "exit": 143
+    }
+  ],
+  "ports": {
+    "64581": {
+      "exit": 1,
+      "listeners": ""
+    },
+    "65461": {
+      "exit": 1,
+      "listeners": ""
+    }
+  },
+  "remainingOwnedProcessMatches": [],
+  "native": "Vitest command exit0; harness dispose waits app exit and removes temporary per-test dirs; no owned Electron/Sidecar matching worktree remains",
+  "worktreeRetained": true
+}

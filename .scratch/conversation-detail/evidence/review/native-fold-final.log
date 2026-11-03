@@ -1,0 +1,9 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts -t 'compiled read folding'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/review-fix
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 7 skipped (8)
+   Start at  00:55:37
+   Duration  7.60s (tests 95%, import 4%, transform 1%)

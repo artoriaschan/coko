@@ -1,0 +1,151 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/file-tool-details.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/review-fix
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx (9 tests | 2 failed) 3191ms
+   × actual App: read keeps actual offset, raw copy and recovery locator; eight-line preview expands with keyboard 756ms
+   × actual App: edit preserves actual multi-hunk numbered diff and counts; missing diff keeps full arguments and details 159ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: read keeps actual offset, raw copy and recovery locator; eight-line preview expands with keyboard
+VitestBrowserElementError: Cannot find element with locator: getByRole('button', { name: 'Collapse' })
+
+ARIA tree:
+- main "Conversation":
+  - button "Expand sidebar"
+  - button "Go back" [disabled]
+  - button "Go forward" [disabled]
+  - button "New chat"
+  - heading "设计 token 与三栏骨架" [level=1]
+  - status "Connecting to Sidecar"
+  - button "More actions"
+  - button "Open right panel"
+  - status: Done
+  - button "Read src/原文.ts" [expanded]
+  - text: ts src/原文.ts
+  - button "Wrap lines"
+  - button "Copy"
+  - region "src/原文.ts": one two three four five six seven eight nine ten eleven twelve
+  - text: "[5 more lines in file. Use offset=33 to continue.]"
+  - button "Inspect"
+  - textbox "Give Coko a task":
+    - paragraph
+  - button "Add attachment"
+  - button "Permission mode: Ask for approval"
+  - button "Context usage"
+  - button "Choose model: Choose model": Choose model
+  - button "Send" [disabled]
+- region "Notifications alt+T"
+
+HTML:
+[36m<body>[39m
+  [0m
+  
+
+[0m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mstyle[39m=[32m"width: 100vw; height: 100vh;"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"h-full w-full"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-transparent text-foreground grid-cols-[var(--local-sidebar-column)_minmax(0,1fr)_var(--local-right-column)] transition-[grid-template-columns] duration-300 motion-reduce:transition-none"[39m
+            [33mdata-narrow[39m=[32m"true"[39m
+            [33mdata-right[39m=[32m"closed"[39m
+            [33mdata-sidebar[39m=[32m"hidden"[39m
+            [33mdata-slot[39m=[32m"app-frame"[39m
+            [33mstyle[39m=[32m"--local-sidebar-column: 0px; --local-right-column: 0px; --local-right-overlay: 0px; --local-header-leading: 0px;"[39m
+          [36m>[39m
+            [36m<main[39m
+              [33maria-label[39m=[32m"Conversation"[39m
+              [33mclass[39m=[32m"@container/main relative col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-hairline before:bg-sidebar-border before:content-['']"[39m
+              [33mdata-slot[39m=[32m"app-frame-main"[39m
+            [36m>[39m
+              [36m<div[39m …[36m />[39m
+            [36m</main>[39m
+            [36m<section[39m
+              [33maria-label[39m=[32m"Right panel"[39m
+              [33mclass[39m=[32m"col-start-3 min-h-0 min-w-0 flex-col overflow-hidden bg-background"[39m
+              [33mdata-slot[39m=[32m"app-frame-right"[39m
+              [33mhidden[39m=[32m""[39m
+            [36m>[39m
+              [36m<header[39m …[36m />[39m
+              [36m<div[39m …[36m />[39m
+              [36m<div[39m …[36m />[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mdata-react-aria-top-layer[39m=[32m"true"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33maria-label[39m=[32m"Commands"[39m
+    [33mclass[39m=[32m"coko-typeahead-_r_36_"[39m
+    [33mrole[39m=[32m"listbox"[39m
+    [33mstyle[39m=[32m"display: block; position: absolute;"[39m
+  [36m/>[39m
+  [36m<div[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33maria-label[39m=[32m"Files"[39m
+    [33mclass[39m=[32m"coko-typeahead-_r_37_"[39m
+    [33mrole[39m=[32m"listbox"[39m
+    [33mstyle[39m=[32m"display: block; position: absolute;"[39m
+  [36m/>[39m
+[36m</body>[39m...
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--read-keeps-actual-offset--raw-copy-and-recovery-locator--eight-line-preview-expands-with-keyboard.png
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:73:48
+     71|   expect(card.textContent).toContain('five')
+     72|   const collapse = page.getByRole('button', { name: 'Collapse' })
+     73|   expect(document.activeElement).toBe(collapse.element())
+       |                                                ^
+     74|   await userEvent.keyboard('{Enter}')
+     75|   expect(card.textContent).not.toContain('five')
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=37526dde:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: edit preserves actual multi-hunk numbered diff and counts; missing diff keeps full arguments and details
+AssertionError: expected 'DoneEdita.ts' to contain '+2'
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--edit-preserves-actual-multi-hunk-numbered-diff-and-counts--missing-diff-keeps-full-arguments-and-details.png
+
+Expected: [32m"+2"[39m
+Received: [31m"DoneEdita.ts"[39m
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:118:32
+    116|   ])
+    117|   const rows = document.querySelectorAll('[data-tool="edit"]')
+    118|   expect(rows[0]!.textContent).toContain('+2')
+       |                                ^
+    119|   expect(rows[0]!.textContent).toContain('−2')
+    120|   expect(rows[1]!.querySelector('[data-slot="file-diff-totals"]')).toB…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=37526dde:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 7 passed (9)
+   Start at  00:51:53
+   Duration  4.39s (tests 80%, worker 12%, setup 5%, import 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

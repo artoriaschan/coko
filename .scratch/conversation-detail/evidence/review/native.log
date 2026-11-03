@@ -1,0 +1,9 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/mcp-browser.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/review-fix
+
+
+ Test Files  5 passed (5)
+      Tests  13 passed (13)
+   Start at  00:53:17
+   Duration  57.30s (tests 99%, import 1%)

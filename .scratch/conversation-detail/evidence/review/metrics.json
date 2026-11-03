@@ -1,0 +1,98 @@
+[
+  {
+    "case": "light-en-1000",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 1000,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "light-en-390",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 390,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "light-zh-1000",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 1000,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "light-zh-390",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 390,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "dark-en-1000",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 1000,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "dark-en-390",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 390,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "dark-zh-1000",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 1000,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  },
+  {
+    "case": "dark-zh-390",
+    "expanded": {
+      "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+      "header": "11px / 18px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "focused": true,
+      "totals": "+1−1",
+      "mainWidth": 390,
+      "overflow": false
+    },
+    "reclosedFocus": true
+  }
+]

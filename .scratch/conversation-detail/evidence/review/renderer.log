@@ -1,0 +1,45 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/review-fix
+
+ ❯ |desktop-renderer (chromium)| src/renderer/app/app.browser.test.tsx (28 tests | 1 failed) 21156ms
+   ❯ 界面语言 (5)
+     × zh：界面 chrome 中的每条文案都来自该语言的字典 497ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/app/app.browser.test.tsx > 界面语言 > zh：界面 chrome 中的每条文案都来自该语言的字典
+AssertionError: expected [ '+', '1', '−', '1' ] to deeply equal []
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/app.browser.test.tsx/-------zh----chrome----------------.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- [][39m
+[31m+ [[39m
+[31m+   "+",[39m
+[31m+   "1",[39m
+[31m+   "−",[39m
+[31m+   "1",[39m
+[31m+ ][39m
+
+ ❯ src/renderer/app/app.browser.test.tsx:219:53
+    217|     const strings = chromeStrings()
+    218|     expect(strings.length).toBeGreaterThan(10)
+    219|     expect(strings.filter((s) => !inDictionary(s))).toEqual([])
+       |                                                     ^
+    220|   })
+    221|
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=d8390029:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 40 passed (41)
+      Tests  1 failed | 353 passed (354)
+   Start at  00:52:31
+   Duration  23.90s (worker 64%, tests 33%, import 2%)
+
+[ELIFECYCLE] Test failed. See above for more details.

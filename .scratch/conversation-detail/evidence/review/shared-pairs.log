@@ -1,0 +1,17 @@
+$ vitest run packages/ui/src/guards/style-guard.test.ts packages/ui/src/app-frame/app-frame.browser.test.tsx packages/ui/src/tool-card/tool-card.browser.test.tsx packages/ui/src/markdown/markdown-renderer.browser.test.tsx packages/i18n/src/index.test.ts packages/i18n/src/domains.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts apps/desktop/src/renderer/features/conversation/process-groups.test.ts scripts/browser-deps.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/review-fix
+
+
+ Test Files  9 passed (9)
+      Tests  91 passed (91)
+   Start at  00:57:42
+   Duration  4.76s (transform 46%, tests 43%, import 8%, worker 3%)
+
+  Transform  |desktop| transforming modules took 2.12s · 90% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+  Transform  |i18n| transforming modules took 2.18s · 97% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
