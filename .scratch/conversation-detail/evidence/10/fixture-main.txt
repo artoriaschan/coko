@@ -1,0 +1,36 @@
+import {createAgentsStore} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/stores/agents-store.ts'
+import {AgentsStoreProvider} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/features/conversation/agents-button.tsx'
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat} from '/tmp/coko-conversation-detail/ticket-10/apps/desktop/src/renderer/testing/fixture-chat.ts'
+const query=new URLSearchParams(location.search)
+
+const record=(seq,payload,kind='message')=>({sessionId:'s-1',seq,kind,payloadVersion:1,payload,runId:'process-run',createdAt:seq*1000})
+const call=(seq,id,name,args)=>record(seq,{role:'assistant',content:[{type:'toolCall',id,name,arguments:args}],stopReason:'toolUse',timestamp:0})
+const result=(seq,id,text)=>record(seq,{role:'toolResult',toolCallId:id,toolName:'agent',content:[{type:'text',text}],isError:false,timestamp:0})
+const entries=[record(1,{trigger:'schedule',schedule:{scheduleId:'schedule-1',occurrence:1000}},'run_start'),
+record(2,{scheduleId:'schedule-1',occurrence:1000,status:'started',runId:'process-run'},'schedule_fire'),
+record(3,{role:'user',content:'<scheduled_task title="Repository review" schedule-id="schedule-1">Review repository status. 保留真实来源。</scheduled_task>',timestamp:0}),
+call(4,'agent-1','agent',{description:'Review module boundaries',prompt:'Read source and report risks. 请检查模块边界。',subagent_type:'explore'}),
+record(5,{agentId:'child-a',toolCallId:'agent-1',agentType:'explore',description:'Review module boundaries',background:false},'agent_start'),
+result(6,'agent-1','<agent-result status="completed">Reviewed source; original report retained. 发现结果按原文保留。</agent-result>'),
+record(7,{agentId:'child-a',status:'completed',usage:{turns:2,toolCalls:1,tokens:1024,cost:0,durationMs:3200},resultChars:70,worktree:{kept:true,path:'/workspace/.coko-worktrees/review',branch:'coko/review'}},'agent_end'),
+record(8,{messageId:'message-1',from:'alice',to:'lead',summary:'Review findings / 检查结果'},'team_message'),
+record(9,{role:'user',content:'<team-message from="alice" message-id="message-1">\nKeep the public interface stable. 保持公开接口稳定。\n</team-message>',timestamp:0}),
+record(10,{taskId:'t1',revision:2,subject:'Document module boundaries / 记录模块边界',description:'Retain the original source and scope. 保留原始来源与范围。',status:'in_progress',owner:'alice',blockedBy:[],writeScopes:['src/'],by:'alice'},'team_task'),
+record(11,{agentIds:['child-a']},'agent_notification'),
+record(12,{targetSessionId:'s-2',instructions:'Continue the review',summary:'Read the original findings before editing.',target:'current'},'handoff'),
+record(13,{status:'completed'},'run_end')]
+const fixture=createFixtureChat({entries:{'s-1':entries}})
+const appearance=createAppearanceStore({theme:query.get('theme')==='dark'?'dark':'light',locale:query.get('lang')==='en'?'en':'zh'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+document.body.style.margin='0';document.getElementById('root').style.height='100vh'
+const agents=createAgentsStore({list:async()=>[{agentId:'child-a',agentType:'explore',description:'Review module boundaries',status:'completed',background:false,startedAt:1,endedAt:2}],cancel:async()=>{},definitions:async()=>({definitions:[],diagnostics:[]}),answer:async()=>{}})
+createRoot(document.getElementById('root')).render(<AgentsStoreProvider store={agents}><App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/></AgentsStoreProvider>);
+window.fixture=fixture

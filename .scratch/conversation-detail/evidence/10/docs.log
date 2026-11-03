@@ -1,0 +1,2 @@
+$ node scripts/check-docs.ts
+检查 273 个 Markdown 文件，发现 0 个问题。
