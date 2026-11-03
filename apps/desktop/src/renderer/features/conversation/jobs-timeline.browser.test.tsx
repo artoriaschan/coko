@@ -69,7 +69,9 @@ function entries(): SessionEntryRecord[] {
 }
 
 async function mount(chat: ChatStore, jobs: JobsStore, items: () => TimelineItem[]) {
-  const View = () => <TimelineView items={items()} theme="light" onRetry={() => {}} />
+  const View = () => (
+    <TimelineView sessionId="s-1" entries={chat.getState().conversations['s-1']?.entries ?? []} items={items()} theme="light" onRetry={() => {}} />
+  )
   const wrap = (node: React.ReactNode) => (
     <I18nProvider locale="en">
       <ChatStoreProvider store={chat}>

@@ -34,7 +34,7 @@ export function AgentNotificationRow({ item }: { item: Extract<TimelineItem, { k
   const { sessionId, entries } = useTimelineSession()
   const byId = React.useMemo(() => new Map(agentRecords(entries).map((r) => [r.start.agentId, r])), [entries])
   return (
-    <div data-slot="agent-notification" className="flex min-w-0 items-start gap-2 text-conversation-row text-muted-foreground">
+    <div data-slot="agent-notification" className="flex min-w-0 items-start gap-2 conversation-business-row text-muted-foreground">
       <BellIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="shrink-0">{t('agents.notification')}</span>

@@ -155,7 +155,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 展开状态、经 `/goal` 打开与关闭只在 renderer 内存中。`/goal`（无参数，独占整段输入）在 renderer 中直接展开 Goal 卡、不发送；没有 Goal 时显示空状态（如何用 `/goal <目标>` 建立），下一个 Run 开始或关闭后消失。Run 进行中的 `/goal pause`、`/goal cancel` 作为提交（Sidecar 的动作）发送，不作为追加指令；提交返回 204 时 renderer 不进入运行中、不报错。
 
-**时间线**。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。每个 Run 结束后（该 Run 有带 usage 的 assistant 消息时）一行用量：Token 合计（input + output + cacheRead + cacheWrite，含该 Run 的 `compaction.usage`）与费用（`usage.cost.total` 之和）。
+**时间线**。Goal 行与 Run 用量行采用对话区局部的 13px/20px 排版，长目标与原因完整换行，均在过程折叠外。Goal 仍只按 `goal` 快照显示阶段；Run 正常结束不会把目标标为 complete，预算、证据与控制仍由原有 dock 卡负责。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。每个 Run 结束后（该 Run 有带 usage 的 assistant 消息时）一行用量：Token 合计（input + output + cacheRead + cacheWrite，含该 Run 的 `compaction.usage`）与费用（`usage.cost.total` 之和）。用量从当前渲染 Session 的真实条目与 Run ID 汇总；回退历史沿用同一口径，不读取别的活动会话。Agents / Team 子会话阅读器继续省略逐轮用量行，保留其原有汇总呈现。
 
 **Session 费用**（会话标题栏）。汇总本 Session 所有带 runId 的 assistant 消息与 compaction 的 usage（分叉复制来的消息没有 runId，不计）；HoverCard 分项为输入、输出、缓存读取、缓存写入的 Token 与费用。会话没有用量时不显示。
 

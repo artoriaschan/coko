@@ -19,7 +19,7 @@ export function HookRow({ item }: { item: Extract<TimelineItem, { kind: 'hook' }
       data-event={hook.event}
       data-outcome={hook.outcome}
       data-source={hook.source}
-      className="flex min-w-0 items-start gap-2 text-ui-body text-muted-foreground"
+      className="flex min-w-0 items-start gap-1.5 conversation-business-row text-muted-foreground"
     >
       <WebhookIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -38,7 +38,7 @@ export function HookRow({ item }: { item: Extract<TimelineItem, { kind: 'hook' }
           </code>
         </p>
         {hook.message !== undefined && (
-          <p data-slot="hook-message" data-user-content className="min-w-0 break-words whitespace-pre-wrap">
+          <p data-slot="hook-message" data-user-content className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">
             {hook.message}
           </p>
         )}

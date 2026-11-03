@@ -22,7 +22,10 @@ async function setup(script: unknown) {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window
+    .getByRole('button', { name: /^(Add project|创建项目)$/ })
+    .first()
+    .waitFor()
   await createProjectDraft(app, workspace)
   // Plan commands act on an existing Session; draft creation intentionally creates none.
   const session = await app.window.evaluate(async () => {
@@ -35,8 +38,8 @@ async function setup(script: unknown) {
     return response.json()
   })
   await app.window.reload()
-  await waitConnected(app.window)
   await app.window.locator(`[data-session-id="${session.id}"]`).click()
+  await waitConnected(app.window)
   return { app, workspace }
 }
 

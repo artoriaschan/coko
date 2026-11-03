@@ -18,13 +18,13 @@ export function GoalRow({ item }: { item: Extract<TimelineItem, { kind: 'goal' }
       data-goal-id={goal.id}
       data-revision={goal.revision}
       data-phase={goal.phase}
-      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-ui-body text-muted-foreground"
+      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 conversation-business-row text-muted-foreground"
     >
       <TargetIcon aria-hidden className="size-4 shrink-0" />
       <span className="shrink-0">{created ? t('goal.row.created') : t('goal.title')}</span>
       <GoalPhaseBadge phase={goal.phase} />
       {reason ? (
-        <span className="min-w-0 break-words">
+        <span className="min-w-0 [overflow-wrap:anywhere]">
           {reason.text}
           {reason.detail !== undefined && (
             <>
@@ -34,7 +34,7 @@ export function GoalRow({ item }: { item: Extract<TimelineItem, { kind: 'goal' }
           )}
         </span>
       ) : (
-        <span data-user-content className="min-w-0 break-words">
+        <span data-user-content className="min-w-0 [overflow-wrap:anywhere]">
           {goal.objective}
         </span>
       )}

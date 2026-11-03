@@ -5,6 +5,7 @@ import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, Loade
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
+import './business-timeline.css'
 import { GoalRow } from './goal-row.tsx'
 import { JobRow } from './job-row.tsx'
 import { AgentNotificationRow } from './agent-notification-row.tsx'
@@ -25,6 +26,8 @@ import { TimelineSessionContext } from './timeline-session.tsx'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
+  historical?: boolean
+  readOnly?: boolean
   sessionId?: string
   /** Actual caller-owned entries; never inferred from the active parent Session. */
   entries?: readonly SessionEntry[]
@@ -232,7 +235,16 @@ export function TimelineView(props: TimelineViewProps) {
               {t('conversation.rewound', { count: item.items.length })}
             </summary>
             <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
-              <TimelineView sessionId={props.sessionId} entries={props.entries} items={item.items} theme={theme} onRetry={onRetry} actionsDisabled />
+              <TimelineView
+                sessionId={props.sessionId}
+                entries={props.entries}
+                items={item.items}
+                theme={theme}
+                onRetry={onRetry}
+                actionsDisabled
+                historical
+                readOnly
+              />
             </div>
           </details>
         )
@@ -327,7 +339,15 @@ export function TimelineView(props: TimelineViewProps) {
     }
   }
   return (
-    <TimelineSessionContext.Provider value={{ sessionId: props.sessionId ?? null, entries: props.entries ?? [], actionsDisabled }}>
+    <TimelineSessionContext.Provider
+      value={{
+        sessionId: props.sessionId ?? null,
+        entries: props.entries ?? [],
+        actionsDisabled,
+        historical: props.historical ?? false,
+        readOnly: props.readOnly ?? false,
+      }}
+    >
       <ProcessTimeline
         key={props.sessionId}
         items={items}

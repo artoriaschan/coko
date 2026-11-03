@@ -41,6 +41,7 @@ export const plan = defineDomain(
     card: {
       label: '计划',
       open: '在右栏查看',
+      inspect: '展开或收起此计划快照',
     },
   },
   {
@@ -82,6 +83,7 @@ export const plan = defineDomain(
     card: {
       label: 'Plan',
       open: 'View in right panel',
+      inspect: 'Expand or collapse this plan snapshot',
     },
   },
 )

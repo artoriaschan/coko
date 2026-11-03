@@ -4,7 +4,8 @@ import * as React from 'react'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { selectRightPanelTab } from '../right-panel/tabs.ts'
-import { planHistory } from './plan-review-panel.tsx'
+import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
+import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 /**
@@ -15,12 +16,11 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
   const { t } = useI18n()
   const { plan } = item
   const seq = Number(item.key)
-  const sessionId = useChat((s) => s.activeSessionId)
-  const superseded = useChat((s) => {
-    if (plan.status !== 'proposed' || sessionId === null) return false
-    const entries = s.conversations[sessionId]?.entries
-    return (planHistory(entries ?? []).get(plan.planId) ?? []).some((p) => p.seq > seq)
-  })
+  const { sessionId, entries, historical, readOnly } = useTimelineSession()
+  const activeSessionId = useChat((s) => s.activeSessionId)
+  const superseded = plan.status === 'proposed' && (planHistory(entries).get(plan.planId) ?? []).some((p) => p.seq > seq)
+  const inline = historical || readOnly || sessionId !== activeSessionId
+  const [expanded, setExpanded] = React.useState(false)
   const title = React.useMemo(() => planTitle(plan.markdown), [plan.markdown])
   if (superseded) return null
   return (
@@ -30,16 +30,17 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
       data-revision={plan.revision}
       data-status={plan.status}
       aria-label={t('plan.card.label')}
-      className="flex flex-col gap-1 rounded-panel border-hairline border-border bg-background px-3 py-2"
+      className="conversation-business-card conversation-business-row"
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <ClipboardListIcon aria-hidden className="size-4 shrink-0 text-link" />
         <button
           type="button"
           data-action="open-plan"
-          title={t('plan.card.open')}
-          className="min-w-0 flex-1 truncate text-start text-ui-body font-medium focus-ring [@media(hover:hover)]:hover:underline"
-          onClick={() => selectRightPanelTab('plan')}
+          title={t(inline ? 'plan.card.inspect' : 'plan.card.open')}
+          className="min-w-0 flex-1 basis-40 break-words text-start font-normal focus-ring [@media(hover:hover)]:hover:underline"
+          aria-expanded={inline ? expanded : undefined}
+          onClick={() => (inline ? setExpanded((open) => !open) : selectRightPanelTab('plan'))}
         >
           <span data-user-content>{title}</span>
         </button>
@@ -49,10 +50,11 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
         </span>
       </div>
       {plan.feedback !== undefined && (
-        <p className="text-ui-body text-muted-foreground">
+        <p className="break-words whitespace-pre-wrap text-muted-foreground">
           {t('plan.feedback')}：<span data-user-content>{plan.feedback}</span>
         </p>
       )}
+      {inline && expanded && <PlanMarkdown text={plan.markdown} className="conversation-plan-snapshot" />}
     </section>
   )
 }
