@@ -92,7 +92,7 @@
 .tool-row-shimmer-highlight {
   animation-duration: var(--conversation-process-shimmer-duration);
   animation-delay: var(--conversation-process-shimmer-delay);
-  animation-timing-function: steps(48, end);
+  animation-timing-function: var(--conversation-process-shimmer-easing);
   animation-iteration-count: infinite;
 }
 .tool-row-shimmer [data-shimmer-text]::after {
@@ -209,7 +209,7 @@
   color: var(--conversation-process-secondary);
   font-family: var(--font-conversation-sans);
   font-size: var(--text-ui-caption);
-  line-height: 16px;
+  line-height: var(--text-ui-code-small--line-height);
   opacity: 0;
   transition: opacity var(--conversation-process-transition);
   cursor: pointer;

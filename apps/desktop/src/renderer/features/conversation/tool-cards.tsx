@@ -4,7 +4,7 @@ import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, List
 import * as React from 'react'
 import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
-import { FileToolBody } from './file-tool-details.tsx'
+import { FileToolBody, fileDiffTotals } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
 import { OriginalIO, OriginalToolIO, ToolInspect } from './original-tool-io.tsx'
 import { AgentCard } from './agent-card.tsx'
@@ -259,6 +259,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       </ToolCard>
     )
   }
+  const totals = fileDiffTotals(item)
   const hasBody =
     item.call.name === 'bash' ||
     item.result !== null ||
@@ -276,7 +277,17 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       summary={item.status === 'error' && output(item).trim() !== '' ? output(item).split('\n')[0] : view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
-      meta={<ToolStateMeta item={item} />}
+      meta={
+        <>
+          {totals && (
+            <span data-slot="file-diff-totals" className="inline-flex shrink-0 gap-1">
+              <span className="text-success-text">{t('tool.fileAdded', { count: totals.added })}</span>
+              <span className="text-destructive">{t('tool.fileDeleted', { count: totals.deleted })}</span>
+            </span>
+          )}
+          <ToolStateMeta item={item} />
+        </>
+      }
     >
       <ToolStateDetail item={item} />
       {hookBlock(item) ? (

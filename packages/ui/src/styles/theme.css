@@ -138,6 +138,12 @@
   --conversation-image-stroke: var(--palette-ink-a10);
   --conversation-image-surface: var(--palette-white);
   --conversation-inspect-hover: var(--palette-gray-75);
+  --conversation-flow-duration: 160;
+  --conversation-flow-collapse-delay: 50;
+  --conversation-flow-fade-duration: 70;
+  --conversation-flow-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --conversation-flow-close-easing: linear;
+  --conversation-process-shimmer-easing: steps(48, end);
   --conversation-process-transition: 100ms ease;
   --conversation-process-shimmer-duration: 1.5s;
   --conversation-process-shimmer-delay: 0.3s;
@@ -343,6 +349,12 @@
   --text-ui-small--line-height: 18px;
   --text-ui-body: 13px;
   --text-ui-body--line-height: 20px;
+  --text-ui-process-heading: 14px;
+  --text-ui-process-heading--line-height: 24px;
+  --text-ui-file-code: 11px;
+  --text-ui-file-code--line-height: 19px;
+  --text-ui-detail-caption: 12px;
+  --text-ui-detail-caption--line-height: 20px;
   --text-ui-process: 13px;
   --text-ui-process--line-height: 24px;
   --text-ui-code-small: 11px;

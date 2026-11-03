@@ -35,7 +35,7 @@ lifecycle: active
 
 - 字号与行高成对登记为 `text-ui-*`，例如 `--text-ui-body` 与 `--text-ui-body--line-height`。业务组件在已有角色匹配时选用对应档位，不为单个元素新造字号；同一页面的字号种类保持少量。行与明细的常用档位为 13px（`text-ui-body`）；完整档位为 `caption` 11/14、`small` 12/18、`body` 13/20、`body-lg` 14/22、`title` 16/24、`heading` 20/28、`display` 24/32，登记于主题样式表。
 - 业务界面字重上限为 500，使用 `font-normal` 与 `font-medium`。Markdown 正文的排版字重由 `MarkdownRenderer` 管理，是唯一例外。
-- 对话消息区域的详细过程使用局部语义档位 `text-ui-process`（13px/24px）、`text-ui-code-small`（11px/16px）及终端专用 `text-ui-terminal`（11px/18px）；字体取 `font-conversation-sans` 与 `font-conversation-mono`，对应参考项目默认的系统文字与 SF Mono 优先代码字体栈，不更改设置、侧栏或输入区字体。过程文字、输入/输出发丝线和 Inspect 使用 `--conversation-process-*`、`--conversation-detail-stroke` 与 `--conversation-inspect-*`，明暗映射及动效参数集中在主题表；共享 ToolCard 仅在显式 `row` 变体中消费这些值。
+- 对话消息区域的详细过程使用局部语义档位 `text-ui-process`（13px/24px）、`text-ui-code-small`（11px/16px）及终端专用 `text-ui-terminal`（11px/18px）、文件代码 `text-ui-file-code`（11px/19px）、过程标题 `text-ui-process-heading`（14px/24px）和明细说明 `text-ui-detail-caption`（12px/20px）；字体取 `font-conversation-sans` 与 `font-conversation-mono`，对应参考项目默认的系统文字与 SF Mono 优先代码字体栈，不更改设置、侧栏或输入区字体。过程文字、输入/输出发丝线和 Inspect 使用 `--conversation-process-*`、`--conversation-detail-stroke` 与 `--conversation-inspect-*`，明暗映射及动效参数集中在主题表；共享 ToolCard 仅在显式 `row` 变体中消费这些值。
 - 文件读取代码使用 `--file-code-*` 语义 token 承载参考语法色：只供文件详情的 CSS-variable 高亮主题消费，明暗映射集中于主题表；不会改变 Markdown、终端或其他代码消费者。未知路径类型保持纯文本，增删行仍由既有 diff 语义色表达。
 - 可点击的产物链接（Markdown 链接、文件提及、来源链接、产物文件标签）使用 `text-link` 与 `font-medium`，静止时无下划线；hover 与键盘焦点时显示点状下划线，偏移 3px。
 - 代码、终端和 diff 中需要保持列对齐的内容不换行，在所属区域内横向滚动，滚动条使用共享样式。
@@ -194,6 +194,7 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 - selected、expanded、pressed 状态使用 `data-[state=…]:`、`aria-selected:`、`aria-expanded:`、`aria-pressed:` 等变体，键盘焦点使用 `focus-visible:`，都不放在 hover 条件内。
 - 依赖指针精度的表现使用 `pointer-coarse:`：粗指针下文本输入框字号不低于 16px，精细指针保持紧凑尺寸。
 - JS 悬停预览在 `(any-hover: hover)` 下接受鼠标进入，忽略 `pointerType === "touch"` 的事件。
+- 详细过程的 WAAPI 开合从所属元素读取 `--conversation-flow-*`（毫秒数值 160，总收起延迟 50、淡出 70）和 easing；CSS 共享 `--conversation-process-transition` 与 shimmer 时长、延迟及阶梯缓动，不改变原有几何或反向清理。
 - 动效时长与缓动使用主题登记的值，并提供 `motion-reduce:` 下的替代或关闭。
 - **可点击文案不可选中。** 按钮与菜单选项属于界面文案：主题统一为 `button`、`[role=button]` 和菜单选项（含 listbox `option`）设置 `user-select: none`，菜单表面整块沿用该规则，避免点击、双击时选中文案；按钮内以 `data-user-content` 标记的用户内容保持可选择。共享 Button 的基础类同样带 `select-none`，覆盖 `asChild` 渲染的非 `<button>` 元素。
 

@@ -108,6 +108,40 @@ describe('对话闭环', () => {
     expect(await readFile(join(workspace, 'untouched.bin'))).toEqual(sibling)
   })
 
+  it('compiled read folding retains keyboard focus and successful real edit totals stay in the compact row', async () => {
+    const { root, workspace, env } = await setup({
+      responses: [
+        { content: [{ type: 'toolCall', name: 'read', id: 'r', arguments: { path: 'long.ts' } }] },
+        { content: [{ type: 'toolCall', name: 'edit', id: 'e', arguments: { path: 'long.ts', edits: [{ oldText: 'value0 = 0', newText: 'value0 = 100' }] } }] },
+        { content: 'Actual edit completed.' },
+      ],
+    })
+    const source = Array.from({ length: 15 }, (_, i) => `export const value${i} = ${i};`).join('\n')
+    await writeFile(join(workspace, 'long.ts'), source)
+    const app = await launch(env, root)
+    await addWorkspace(app, workspace)
+    await sendMessage(app, 'read and edit the recorded file')
+    await allowOnce(app)
+    await app.window.getByText('Actual edit completed.', { exact: true }).waitFor()
+    await app.window.locator('[data-action="send"]').waitFor()
+    await app.window.locator('[data-slot="run-process-control"]').click()
+    await app.window.locator('[data-slot="process-group-header"]').click()
+    const edit = toolCard(app, 'edit')
+    expect(await edit.locator('[data-slot="file-diff-totals"]').textContent()).toBe('+1−1')
+    expect(await edit.locator('button').first().getAttribute('aria-expanded')).toBe('false')
+    const read = toolCard(app, 'read')
+    await read.locator('button').first().click()
+    const fold = read.locator('.file-detail-expand')
+    await fold.focus()
+    await app.window.keyboard.press('Enter')
+    expect(await fold.getAttribute('aria-expanded')).toBe('true')
+    expect(await fold.evaluate((button) => document.activeElement === button)).toBe(true)
+    await app.window.keyboard.press('Enter')
+    expect(await fold.getAttribute('aria-expanded')).toBe('false')
+    expect(await fold.evaluate((button) => document.activeElement === button)).toBe(true)
+    expect(await readFile(join(workspace, 'long.ts'), 'utf8')).toBe(source.replace('value0 = 0', 'value0 = 100'))
+  })
+
   it('登记临时目录 → 新建会话 → 发送 → 流式回复与 write 工具卡 → 文件实际存在', async () => {
     const { root, workspace, env } = await setup()
     const requestLog = join(root, 'requests.jsonl')

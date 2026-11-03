@@ -1,7 +1,7 @@
 .conversation-business-row {
   font-family: var(--font-conversation-sans, var(--font-sans));
   font-size: var(--text-ui-body);
-  line-height: 20px;
+  line-height: var(--text-ui-body--line-height);
   overflow-wrap: anywhere;
 }
 

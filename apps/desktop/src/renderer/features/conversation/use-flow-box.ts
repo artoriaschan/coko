@@ -56,6 +56,12 @@ export function useFlowBox(
     const closing = hidden
     const opening = before.hidden && from === 0
     const ending = { height: `${target}px`, marginTop: `${hidden ? 0 : marginTop}px`, marginBottom: `${hidden && seatGap ? -4 : 0}px`, opacity: hidden ? 0 : 1 }
+    const theme = getComputedStyle(element)
+    const duration = Number(theme.getPropertyValue('--conversation-flow-duration'))
+    const collapseDelay = Number(theme.getPropertyValue('--conversation-flow-collapse-delay'))
+    const fadeDuration = Number(theme.getPropertyValue('--conversation-flow-fade-duration'))
+    const easing = theme.getPropertyValue('--conversation-flow-easing').trim()
+    const closeEasing = theme.getPropertyValue('--conversation-flow-close-easing').trim()
     const animation = element.animate(
       [
         {
@@ -66,13 +72,13 @@ export function useFlowBox(
         },
         ...(closing
           ? [
-              { height: `${from}px`, marginTop: `${fromMargin}px`, marginBottom: '0px', offset: 50 / 160, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
-              { opacity: 0, offset: 70 / 160 },
+              { height: `${from}px`, marginTop: `${fromMargin}px`, marginBottom: '0px', offset: collapseDelay / duration, easing },
+              { opacity: 0, offset: fadeDuration / duration },
             ]
           : []),
         ending,
       ],
-      { duration: 160, easing: closing ? 'linear' : 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' },
+      { duration, easing: closing ? closeEasing : easing, fill: 'both' },
     )
     const restore = () => {
       active.current = false

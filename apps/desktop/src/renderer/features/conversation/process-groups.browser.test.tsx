@@ -393,3 +393,20 @@ it('actual App: completion protects only the focused group while other historica
   expect([...heads].map((head) => head.getAttribute('aria-expanded'))).toEqual(['false', 'true'])
   expect(document.activeElement).toBe(tool)
 })
+
+it.each(['en', 'zh'] as const)('actual App: %s composes completed activity labels without rewriting translated words', async (locale) => {
+  await open(
+    [
+      entry(1, 'run_start', { trigger: 'submit' }),
+      call(2, 'r', 'read', { path: 'a.ts' }),
+      result(3, 'r', 'content'),
+      call(4, 'w', 'write', { path: 'b.ts', content: 'saved' }),
+      result(5, 'w', 'Saved'),
+      entry(6, 'run_end', { status: 'completed' }),
+    ],
+    'light',
+    locale,
+  )
+  await page.getByRole('button', { name: locale === 'en' ? 'Work steps' : '工作步骤', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: locale === 'en' ? 'Read files and wrote files' : '已读取文件并写入文件', exact: true })).toBeVisible()
+})

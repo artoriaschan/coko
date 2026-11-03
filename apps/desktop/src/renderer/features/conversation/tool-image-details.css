@@ -47,15 +47,15 @@
 }
 .tool-image-frame[data-failed] {
   color: var(--conversation-process-muted);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--text-ui-small);
+  line-height: var(--text-ui-terminal--line-height);
   cursor: default;
   padding: 4px;
 }
 .tool-image-meta {
   margin-top: 4px;
   color: var(--conversation-process-muted);
-  font: 11px/16px var(--font-conversation-mono);
+  font: var(--text-ui-code-small)/var(--text-ui-code-small--line-height) var(--font-conversation-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-width: 240px;

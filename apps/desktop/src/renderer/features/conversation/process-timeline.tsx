@@ -14,9 +14,10 @@ import { ProcessToolStates } from './tool-states.tsx'
 function summary(group: ProcessGroup, t: Translator, locale: string): string {
   const activities = processActivities(group.members)
   if (activities.length === 0) return t('process.thinking')
-  const titles = activities.slice(0, 3).map((kind) => t(`process.${kind}`))
-  if (locale === 'en') for (let i = 1; i < titles.length; i++) titles[i] = titles[i]![0]!.toLowerCase() + titles[i]!.slice(1)
-  if (locale === 'zh' && titles.length === 2 && titles.every((title) => title.startsWith('已'))) titles[1] = titles[1]!.slice(1)
+  const kinds = activities.slice(0, 3)
+  const completedPrefix = new Set(['thinking', 'read', 'readImage', 'search', 'write', 'webSearch', 'webFetch', 'subagents', 'tools'])
+  const combineChinese = locale === 'zh' && kinds.length === 2 && kinds.every((kind) => completedPrefix.has(kind))
+  const titles = kinds.map((kind, index) => t(index > 0 && (locale === 'en' || combineChinese) ? `process.continuation.${kind}` : `process.${kind}`))
   return titles.join(t(titles.length === 2 ? 'process.joinTwo' : 'process.joinMany')) + (activities.length > 3 ? t('process.more') : '')
 }
 

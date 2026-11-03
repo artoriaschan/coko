@@ -35,12 +35,34 @@ export function FileToolBody({ item, args, fallback }: { item: ToolItem; args: R
   return diff === undefined || diff === '' ? fallback : <FileCodeCard kind="edit" path={path} text={diff} offset={1} note={item.result.text} />
 }
 
+export function fileDiffTotals(item: ToolItem) {
+  const diff =
+    item.status === 'done' && !item.result?.isError && item.call.name === 'edit'
+      ? string((item.result?.details as { diff?: unknown } | undefined)?.diff)
+      : undefined
+  if (!diff) return undefined
+  return diffTotals(diff)
+}
+
+function diffTotals(diff: string) {
+  const lines = diff.split('\n')
+  return { added: lines.filter((line) => line.startsWith('+')).length, deleted: lines.filter((line) => line.startsWith('-')).length }
+}
+
 function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'write' | 'edit'; path: string; text: string; offset: number; note?: string }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = React.useState(false)
   const { copied, copy } = useToolDetailCopy(text)
   const [wrap, setWrap] = React.useState(false)
   const codeRef = React.useRef<HTMLDivElement>(null)
+  const foldRef = React.useRef<HTMLButtonElement>(null)
+  const returnFocus = React.useRef(false)
+  React.useLayoutEffect(() => {
+    if (returnFocus.current) {
+      foldRef.current?.focus({ preventScroll: true })
+      returnFocus.current = false
+    }
+  }, [expanded])
   const pendingSelection = React.useRef<{ anchor: number; focus: number } | undefined>(undefined)
   const language = kind === 'read' ? readLanguageForPath(path) : languageForPath(path)
   const [highlighted, setHighlighted] = React.useState<{ text: string; language: string; lines: FileToken[][] }>()
@@ -103,8 +125,22 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
   const head = Math.ceil(cap / 2)
   const tail = Math.floor(cap / 2)
   const collapsed = !expanded && lines.length > cap
-  const added = kind === 'edit' ? lines.filter((line) => line.startsWith('+')).length : 0
-  const deleted = kind === 'edit' ? lines.filter((line) => line.startsWith('-')).length : 0
+  const { added, deleted } = diffTotals(kind === 'edit' ? text : '')
+  const fold = lines.length > cap && (
+    <button
+      key="fold"
+      ref={foldRef}
+      type="button"
+      className="file-detail-expand focus-ring"
+      aria-expanded={expanded}
+      onClick={() => {
+        returnFocus.current = true
+        setExpanded(!expanded)
+      }}
+    >
+      {expanded ? t('tool.fileCollapse') : t('tool.fileShowAll', { count: lines.length })}
+    </button>
+  )
   return (
     <div data-file-detail={kind} className="file-detail" data-wrap={wrap || undefined}>
       <div className="file-detail-header">
@@ -150,13 +186,7 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
       <div ref={codeRef} className="file-detail-code" tabIndex={0} role="region" aria-label={path}>
         {lines.length === 0 && <span className="file-detail-empty">{t('tool.fileEmpty')}</span>}
         {lines.map((line, index) => {
-          if (collapsed && index >= head && index < lines.length - tail) {
-            return index === head ? (
-              <button type="button" className="file-detail-expand focus-ring" key="expand" onClick={() => setExpanded(true)}>
-                {t('tool.fileShowAll', { count: lines.length })}
-              </button>
-            ) : null
-          }
+          if (collapsed && index >= head && index < lines.length - tail) return index === head ? fold : null
           const diff = kind === 'edit' ? (line.startsWith('+') ? 'added' : line.startsWith('-') ? 'deleted' : undefined) : undefined
           return (
             <div className="file-detail-line" data-diff={diff} key={index}>
@@ -176,6 +206,7 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
             </div>
           )
         })}
+        {expanded && fold}
       </div>
       {note && (
         <div data-user-content className="file-detail-note">

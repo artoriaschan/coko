@@ -65,10 +65,10 @@
   background: none;
   color: inherit;
   font-size: var(--text-ui-body);
-  line-height: 24px;
+  line-height: var(--text-ui-process--line-height);
   text-align: left;
   cursor: pointer;
-  transition: color 100ms ease;
+  transition: color var(--conversation-process-transition);
 }
 
 .conversation-reasoning-leading {
@@ -89,7 +89,7 @@
 
 .conversation-reasoning-icon {
   display: inline-flex;
-  transition: opacity 100ms ease;
+  transition: opacity var(--conversation-process-transition);
 }
 
 .conversation-reasoning-chevron {
@@ -98,8 +98,8 @@
   margin: auto;
   opacity: 0;
   transition:
-    opacity 100ms ease,
-    transform 100ms ease;
+    opacity var(--conversation-process-transition),
+    transform var(--conversation-process-transition);
 }
 
 .conversation-reasoning[data-expanded] .conversation-reasoning-chevron {
@@ -138,7 +138,7 @@
   color: var(--conversation-process-shimmer, var(--foreground));
   mask-image: var(--conversation-process-shimmer-mask);
   transform: translateX(-100%);
-  animation: conversation-reasoning-sweep var(--conversation-process-shimmer-duration, 1.5s) steps(48, end) var(--conversation-process-shimmer-delay, 0.3s)
+  animation: conversation-reasoning-sweep var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing) var(--conversation-process-shimmer-delay)
     infinite;
 }
 
@@ -148,7 +148,7 @@
   width: 100%;
   height: 100%;
   transform: translateX(100%);
-  animation: conversation-reasoning-highlight var(--conversation-process-shimmer-duration, 1.5s) steps(48, end) var(--conversation-process-shimmer-delay, 0.3s)
+  animation: conversation-reasoning-highlight var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing) var(--conversation-process-shimmer-delay)
     infinite;
 }
 
@@ -193,7 +193,7 @@
   min-width: 0;
   overflow: hidden;
   flex: 1 1 auto;
-  line-height: 20px;
+  line-height: var(--text-ui-body--line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -317,7 +317,7 @@
   background: var(--conversation-code-banner);
   color: var(--foreground);
   font-size: var(--text-ui-caption);
-  line-height: 18px;
+  line-height: var(--text-ui-terminal--line-height);
 }
 
 .conversation-markdown.coko-markdown [data-streamdown='code-block-header'] > span {
@@ -352,7 +352,7 @@
   margin: 0;
   font-family: var(--font-conversation-mono, var(--font-mono));
   font-size: var(--text-ui-caption);
-  line-height: 19px;
+  line-height: var(--text-ui-file-code--line-height);
   white-space: pre;
 }
 
@@ -381,7 +381,7 @@
 .conversation-markdown-compact.coko-markdown {
   color: inherit;
   font-size: var(--text-ui-body);
-  line-height: 20px;
+  line-height: var(--text-ui-body--line-height);
 }
 
 .conversation-markdown-compact.coko-markdown [data-streamdown='code-block-header'] {

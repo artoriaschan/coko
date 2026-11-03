@@ -69,6 +69,11 @@ it('actual App: read keeps actual offset, raw copy and recovery locator; eight-l
   expand.element().focus()
   await userEvent.keyboard('{Enter}')
   expect(card.textContent).toContain('five')
+  const collapse = page.getByRole('button', { name: 'Collapse' })
+  expect(document.activeElement).toBe(collapse.element())
+  await userEvent.keyboard('{Enter}')
+  expect(card.textContent).not.toContain('five')
+  expect(document.activeElement).toBe(page.getByRole('button', { name: 'Show all 12 lines' }).element())
   await expect.element(page.getByRole('button', { name: 'Copy' })).toBeVisible()
 })
 
@@ -110,13 +115,24 @@ it('actual App: edit preserves actual multi-hunk numbered diff and counts; missi
     { ...result(4, 'missing', 'Legacy receipt'), payload: { ...(result(4, 'missing', 'Legacy receipt').payload as object), details: { receipt: 'kept' } } },
   ])
   const rows = document.querySelectorAll('[data-tool="edit"]')
+  expect(rows[0]!.textContent).toContain('+2')
+  expect(rows[0]!.textContent).toContain('−2')
+  expect(rows[1]!.querySelector('[data-slot="file-diff-totals"]')).toBeNull()
   for (const row of rows) await page.elementLocator(row).getByRole('button').click()
   expect(rows[0]!.textContent).toContain('+2')
   expect(rows[0]!.textContent).toContain('−2')
   expect(rows[0]!.textContent).toContain('+9 final')
   expect(rows[0]!.textContent).not.toContain(' 5 keep')
-  await page.getByRole('button', { name: 'Show all 11 lines' }).click()
+  await page.elementLocator(rows[0]!).getByRole('button', { name: 'Wrap lines' }).click()
+  const expandDiff = page.getByRole('button', { name: 'Show all 11 lines' })
+  expandDiff.element().focus()
+  await userEvent.keyboard('{Enter}')
   expect(rows[0]!.textContent).toContain(' 5 keep')
+  expect(document.activeElement).toBe(page.getByRole('button', { name: 'Collapse' }).element())
+  await userEvent.keyboard('{Enter}')
+  expect(rows[0]!.textContent).not.toContain(' 5 keep')
+  expect(rows[0]!.querySelector('[data-file-detail]')!.getAttribute('data-wrap')).toBe('true')
+  expect(document.activeElement).toBe(expandDiff.element())
   expect(rows[1]!.querySelector('[data-file-detail]')).toBeNull()
   expect(rows[1]!.textContent).toContain('before')
   expect(rows[1]!.textContent).toContain('after')
@@ -247,4 +263,14 @@ it('actual App: selecting the initial read text survives lazy syntax coloring an
   } finally {
     observer.disconnect()
   }
+})
+
+it('actual App: error edit data cannot masquerade as compact successful diff totals', async () => {
+  await open([
+    call(1, 'failed', 'edit', { path: 'failed.ts', edits: [{ oldText: 'a', newText: 'b' }] }),
+    { ...result(2, 'failed', 'Conflict', true), payload: { ...(result(2, 'failed', 'Conflict', true).payload as object), details: { diff: '-1 a\n+1 b' } } },
+  ])
+  const row = document.querySelector('[data-tool="edit"]')!
+  expect(row.querySelector('[data-slot="file-diff-totals"]')).toBeNull()
+  expect(row.textContent).toContain('Conflict')
 })

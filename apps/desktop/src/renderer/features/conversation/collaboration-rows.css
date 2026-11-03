@@ -1,7 +1,7 @@
 .conversation-collaboration-row {
   min-width: 0;
   color: var(--conversation-process-secondary);
-  font: 14px/24px var(--font-conversation-sans);
+  font: var(--text-ui-process-heading)/var(--text-ui-process-heading--line-height) var(--font-conversation-sans);
 }
 .conversation-collaboration-trigger {
   display: flex;
@@ -32,7 +32,7 @@
   align-self: center;
   width: 14px;
   height: 14px;
-  transition: transform 100ms ease;
+  transition: transform var(--conversation-process-transition);
 }
 .conversation-collaboration-trigger[aria-expanded='true'] .conversation-collaboration-chevron {
   transform: rotate(180deg);
@@ -45,7 +45,7 @@
   padding: 10px 14px;
   border-radius: var(--radius-lg);
   background: var(--code-block);
-  font: 13px/20px var(--font-conversation-sans);
+  font: var(--text-ui-body)/var(--text-ui-body--line-height) var(--font-conversation-sans);
   color: var(--conversation-process-secondary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -53,7 +53,7 @@
 .conversation-collaboration-source {
   white-space: pre-wrap;
   margin-top: 4px;
-  font: 11px/16px var(--font-conversation-mono);
+  font: var(--text-ui-code-small)/var(--text-ui-code-small--line-height) var(--font-conversation-mono);
   overflow-wrap: anywhere;
 }
 @media (hover: hover) {
