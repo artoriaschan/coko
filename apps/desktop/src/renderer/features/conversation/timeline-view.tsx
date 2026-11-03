@@ -1,6 +1,6 @@
-import type * as React from 'react'
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import * as React from 'react'
+import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from '@coko/ui'
+import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
@@ -13,12 +13,15 @@ import { ScheduleFireRow } from './schedule-fire-row.tsx'
 import { TeamMessageRow } from './team-message-row.tsx'
 import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
+import { ReasoningRow } from './reasoning-row.tsx'
+import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
 import { RunUsageRow } from './run-usage-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
+  sessionId?: string
   items: TimelineItem[]
   theme: Theme
   onRetry: () => void
@@ -58,10 +61,47 @@ function MessageAction({
   )
 }
 
+function CopyMessage({ text }: { text: string }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = React.useState(false)
+  React.useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return (
+    <MessageAction
+      label={t(copied ? 'conversation.messageCopied' : 'conversation.copyMessage')}
+      action="copy-message"
+      disabled={false}
+      onClick={() => {
+        void navigator.clipboard.writeText(text).then(
+          () => setCopied(true),
+          () => toast.error(t('conversation.copyMessageFailed')),
+        )
+      }}
+    >
+      {copied ? (
+        <CheckIcon />
+      ) : (
+        <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+          <rect x="1.52075" y="4.07373" width="10.3932" height="10.3932" rx="2" />
+          <path
+            stroke="none"
+            fill="currentColor"
+            d="M11.9792 1.53296C13.36 1.53296 14.4792 2.65225 14.4792 4.03296V9.42847C14.4792 10.3756 13.9521 11.1987 13.1755 11.6228V10.3298C13.3652 10.0787 13.4792 9.7674 13.4792 9.42847V4.03296C13.4792 3.20453 12.8077 2.53296 11.9792 2.53296H6.58374C6.27966 2.53301 5.99684 2.6235 5.7605 2.77905H4.42358C4.85652 2.03463 5.66056 1.53304 6.58374 1.53296H11.9792Z"
+          />
+        </svg>
+      )}
+    </MessageAction>
+  )
+}
+
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
 export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, onFork, actionsDisabled = false } = props
   const { t } = useI18n()
+  const messageIdentities = useMessageIdentities(items, props.sessionId)
   return (
     <>
       {items.map((item) => {
@@ -75,14 +115,16 @@ export function TimelineView(props: TimelineViewProps) {
                 aria-label={t('conversation.you')}
                 data-seq={item.seq}
                 tabIndex={actions ? 0 : undefined}
-                className="group ms-auto flex w-fit max-w-[85%] flex-col items-end gap-1 rounded-xl focus-ring"
+                data-slot="user-message"
+                className="conversation-user-message group ms-auto flex w-fit min-w-0 flex-col items-end rounded-xl focus-ring"
               >
                 {item.command ? (
                   // 命令消息：显示命令名与参数，可展开看展开后的全文。
                   <details data-slot="command-message" data-command={item.command.name} className="group/command flex flex-col items-end">
                     <summary
                       aria-label={t('commands.chipLabel', { name: `/${item.command.name}` })}
-                      className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
+                      data-slot="user-bubble"
+                      className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
                     >
                       <SquareSlashIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                       <span className="font-medium">/{item.command.name}</span>
@@ -104,7 +146,12 @@ export function TimelineView(props: TimelineViewProps) {
                     </div>
                   </details>
                 ) : (
-                  <p hidden={!item.text} data-user-content className="rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap">
+                  <p
+                    hidden={!item.text}
+                    data-slot="user-bubble"
+                    data-user-content
+                    className="max-w-full rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap"
+                  >
                     {item.text}
                   </p>
                 )}
@@ -120,29 +167,36 @@ export function TimelineView(props: TimelineViewProps) {
                   ))}
                 {item.references && (
                   // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
-                  <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-1">
+                  <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-2">
                     {item.references.map((path) => (
                       <li
                         key={path}
                         data-slot="file-reference-chip"
                         data-path={path}
                         aria-label={t('references.chipLabel', { path })}
-                        className="flex h-6 max-w-full min-w-0 items-center gap-1 rounded-sm border-hairline border-border px-2 text-ui-small text-muted-foreground"
+                        className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
                       >
-                        {path.endsWith('/') ? <FolderIcon aria-hidden className="size-3.5 shrink-0" /> : <FileIcon aria-hidden className="size-3.5 shrink-0" />}
-                        <span className="truncate">{path}</span>
+                        {path.endsWith('/') ? (
+                          <FolderIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <FileIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                        )}
+                        <span data-user-content className="min-w-0 break-all">
+                          {path}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 )}
-                {actions && (
+                {(item.text !== '' || actions) && (
                   <div
                     role="group"
                     aria-label={t('conversation.messageActions')}
                     data-slot="message-actions"
-                    className="flex gap-0.5 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                    className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                   >
-                    {onRewind && (
+                    {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
+                    {actions && onRewind && (
                       <MessageAction
                         label={t('conversation.rewindHere')}
                         action="rewind"
@@ -153,7 +207,7 @@ export function TimelineView(props: TimelineViewProps) {
                         <Undo2Icon />
                       </MessageAction>
                     )}
-                    {onFork && (
+                    {actions && onFork && (
                       <MessageAction label={t('conversation.forkHere')} action="fork" disabled={actionsDisabled} onClick={() => onFork(item.seq)}>
                         <GitBranchIcon />
                       </MessageAction>
@@ -181,24 +235,22 @@ export function TimelineView(props: TimelineViewProps) {
           case 'text':
             return (
               <article
-                key={item.key}
+                key={messageIdentities.get(item.key) ?? item.key}
                 aria-label={t('conversation.assistant')}
                 data-user-content
                 data-streaming={item.streaming || undefined}
-                className="min-w-0"
+                className="conversation-assistant-message min-w-0"
               >
                 <Markdown text={item.text} streaming={item.streaming} theme={theme} />
+                {!item.streaming && item.finalResponse && (
+                  <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
+                    <CopyMessage text={item.text} />
+                  </div>
+                )}
               </article>
             )
           case 'thinking':
-            return (
-              <details key={item.key} className="min-w-0 text-ui-body text-muted-foreground">
-                <summary className="cursor-pointer select-none">{t('conversation.thinking')}</summary>
-                <p data-user-content className="mt-1 border-l-hairline border-border ps-3 break-words whitespace-pre-wrap">
-                  {item.text}
-                </p>
-              </details>
-            )
+            return <ReasoningRow key={messageIdentities.get(item.key) ?? item.key} text={item.text} streaming={item.streaming} theme={theme} />
           case 'tool':
             return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} />
           case 'generating':

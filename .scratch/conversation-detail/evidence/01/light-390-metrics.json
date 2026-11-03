@@ -1,0 +1,90 @@
+{
+  "documentMode": "CSS1Compat",
+  "viewport": {
+    "width": 390,
+    "height": 900,
+    "dpr": 1
+  },
+  "mainWidth": 390,
+  "columnWidth": 326,
+  "overflow": false,
+  "reducedMotion": false,
+  "parts": [
+    {
+      "selector": "[data-slot=\"user-bubble\"]",
+      "rect": {
+        "x": 144,
+        "y": 64,
+        "width": 214,
+        "height": 42
+      },
+      "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "fontSize": "14px",
+      "lineHeight": "22px",
+      "color": "rgb(15, 17, 21)",
+      "background": "rgb(237, 243, 254)",
+      "padding": "10px 16px",
+      "radius": "20px",
+      "cornerShape": "superellipse(1.5)",
+      "transition": "0s"
+    },
+    {
+      "selector": ".conversation-reasoning-toggle",
+      "rect": {
+        "x": 32,
+        "y": 188,
+        "width": 326,
+        "height": 24
+      },
+      "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "fontSize": "13px",
+      "lineHeight": "24px",
+      "color": "rgb(129, 133, 140)",
+      "background": "rgb(255, 255, 255)",
+      "padding": "0px",
+      "radius": "8px",
+      "cornerShape": "superellipse(1.5)",
+      "transition": "0.1s"
+    },
+    {
+      "selector": ".conversation-reasoning-summary"
+    },
+    {
+      "selector": ".conversation-reasoning-body .coko-markdown",
+      "rect": {
+        "x": 54,
+        "y": 216,
+        "width": 304,
+        "height": 20
+      },
+      "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "fontSize": "13px",
+      "lineHeight": "20px",
+      "color": "rgb(129, 133, 140)",
+      "background": "rgba(0, 0, 0, 0)",
+      "padding": "0px",
+      "radius": "0px",
+      "cornerShape": "superellipse(1.5)",
+      "transition": "0s"
+    },
+    {
+      "selector": ".conversation-assistant-message .coko-markdown",
+      "rect": {
+        "x": 32,
+        "y": 152,
+        "width": 326,
+        "height": 24
+      },
+      "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "fontSize": "14px",
+      "lineHeight": "24px",
+      "color": "rgb(15, 17, 21)",
+      "background": "rgba(0, 0, 0, 0)",
+      "padding": "0px",
+      "radius": "0px",
+      "cornerShape": "superellipse(1.5)",
+      "transition": "0s"
+    }
+  ],
+  "animations": []
+}

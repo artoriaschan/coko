@@ -55,6 +55,13 @@ export interface ToolApproval {
 
 export type ToolItemStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
 
+/** Display-only association across progress and its committed assistant block. */
+export interface AssistantBlockSource {
+  sessionId: string
+  runId: string | null
+  contentIndex: number
+}
+
 export type TimelineItem =
   /**
    * seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。
@@ -76,8 +83,8 @@ export type TimelineItem =
   | { kind: 'rewound'; key: string; items: TimelineItem[] }
   /** 压缩分隔条：之前的消息仍在时间线中；saved 为约节省的 tokens（没有 tokensAfter 时省略）。 */
   | { kind: 'compaction'; key: string; summary: string; trigger: CompactionPayload['trigger']; saved?: number }
-  | { kind: 'text'; key: string; text: string; streaming: boolean }
-  | { kind: 'thinking'; key: string; text: string; streaming: boolean }
+  | { kind: 'text'; key: string; text: string; streaming: boolean; source?: AssistantBlockSource; finalResponse?: boolean }
+  | { kind: 'thinking'; key: string; text: string; streaming: boolean; source?: AssistantBlockSource }
   | {
       kind: 'tool'
       key: string
@@ -169,6 +176,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   const compactRuns = new Set<string>()
   /** assistant 消息带 usage 的 Run：结束后显示用量行。 */
   const usageRuns = new Set<string>()
+  const lastAssistantSeq = new Map<string, number>()
   // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
   let pendingCommand: CommandPayload | null = null
   const ranges = rewoundRanges(conversation.entries)
@@ -372,13 +380,22 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),
       })
     } else if (message.role === 'assistant') {
+      if (entry.runId) lastAssistantSeq.set(entry.runId, entry.seq)
       if (entry.runId && 'usage' in message && message.usage) usageRuns.add(entry.runId)
       blocksOf(message.content).forEach((block, index) => {
         const key = `${entry.seq}:${index}`
+        const source = { sessionId: entry.sessionId, runId: entry.runId, contentIndex: index }
         if (block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')
-          items.push({ kind: 'text', key, text: block.text, streaming: false })
+          items.push({
+            kind: 'text',
+            key,
+            text: block.text,
+            streaming: false,
+            source,
+            finalResponse: message.stopReason === 'stop' || message.stopReason === 'length',
+          })
         else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '')
-          items.push({ kind: 'thinking', key, text: block.thinking, streaming: false })
+          items.push({ kind: 'thinking', key, text: block.thinking, streaming: false, source })
         else if (block.type === 'toolCall' && typeof block.id === 'string') {
           const item: Extract<TimelineItem, { kind: 'tool' }> = {
             kind: 'tool',
@@ -435,9 +452,15 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     }
     let visible = false
     live.blocks.forEach((block, index) => {
-      if (!block || block.text === '') return
+      if (!block || block.text.trim() === '') return
       visible = true
-      items.push({ kind: block.kind, key: `live:${index}`, text: block.text, streaming: true })
+      items.push({
+        kind: block.kind,
+        key: `live:${live.runId}:${lastAssistantSeq.get(live.runId ?? '') ?? 'start'}:${index}`,
+        text: block.text,
+        streaming: true,
+        source: { sessionId: conversation.entries[0]?.sessionId ?? '', runId: live.runId, contentIndex: index },
+      })
     })
     // 以合并后的工具项判断：断线期间错过的 tool_end 由已提交的 toolResult 补上。
     const toolRunning = items.some((i) => i.kind === 'tool' && (i.status === 'running' || i.status === 'awaiting'))

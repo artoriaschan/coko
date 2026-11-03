@@ -12,6 +12,13 @@ export interface StyleGuardException {
 /** 修改例外需要在评审中说明原因。 */
 export const styleGuardExceptions: StyleGuardException[] = [
   {
+    file: 'apps/desktop/src/renderer/features/conversation/messages.css',
+    rule: 'menu',
+    match: 'backdrop-filter: none',
+    reason:
+      'The conversation Markdown code toolbar is inline code chrome, not a menu; remove Streamdown floating toolbar blur to match the approved code banner.',
+  },
+  {
     file: 'apps/desktop/src/renderer/features/sidebar/conversation-search.tsx',
     rule: 'menu',
     match: 'role="listbox"',

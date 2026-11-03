@@ -108,7 +108,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('agents.tabView.timelineEmpty')}</p>
       ) : (
-        <TimelineView items={items} theme={theme} onRetry={() => {}} actionsDisabled />
+        <TimelineView sessionId={agent.agentId} items={items} theme={theme} onRetry={() => {}} actionsDisabled />
       )}
     </div>
   )

@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "桌面工作台的外壳、导航与输入区当前行为。"
+description: "桌面工作台的外壳、导航、对话消息与输入区当前行为。"
 lifecycle: active
 ---
 
 # 桌面工作台
 
-本文说明桌面工作台外壳、内容区导航与主输入区。会话数据与执行状态由对应的 store 和 Sidecar 持有；窗口内的导航历史不持久化。
+本文说明桌面工作台外壳、内容区导航、对话消息与主输入区。会话数据与执行状态由对应的 store 和 Sidecar 持有；窗口内的导航历史不持久化。
 
 ## 外壳与导航
 
@@ -31,6 +31,18 @@ lifecycle: active
 方向键移动当前结果，Enter 或点击通过工作台导航打开同一个已有 Session，保留其项目和置顶状态。输入法组合期间不确认且不刷新匹配，组合结束后更新。Escape 与外部点击关闭浮层，未选择时原内容不变，焦点返回搜索入口；再次打开没有旧关键词。搜索框保持焦点时，ContextMenu 或 Shift+F10 为当前结果打开同一菜单，以结果行左下角定位并沿用窗口避让；关闭后返回搜索框。子菜单先关闭子层，删除取消和行内改名完成后保留查询并归还焦点。组合输入期间这些菜单命令不触发。右键复用会话菜单的鼠标定位和边缘避让，菜单动作保留目标身份，重命名、置顶、归档、移入移出项目和删除沿用同一套操作；归档成功从当前结果移除，失败保留查询与结果并反馈原因。删除确认使用共享会话删除弹窗并叠在搜索之上，取消后保留关键词与结果。
 
 验证：[搜索 Browser Mode](../../apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx)、[工作台入口 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[真实 Electron 会话身份](../../apps/desktop/e2e/conversation-search.e2e.test.ts)。
+
+## 对话消息与思考
+
+[消息时间线](../../apps/desktop/src/renderer/features/conversation/timeline-view.tsx)保持原始用户文本、命令调用和展开全文、文件引用、有效图片附件及原有回退/分叉回调。用户气泡为 14px/22px、10px/16px 内边距、R20，最大宽度取聊天列的 70.2% 与当前可用列的 82% 中较小者；消息区左右各留 32px，聊天列仍沿用 `clamp(680px, 64cqi, 920px)`，输入区、标题栏和侧栏不随消息样式改变。附件引用显示完整路径并可换行，不伪造文件尺寸或其他元数据。
+
+用户消息及正常最终回复提供原文复制和成功/失败反馈；阶段回复保持可见，不另加最终回复操作栏。回退与分叉仍由原 Checkpoint、Run、审批和只读条件决定。助手正文使用现有 Streamdown 渲染器，消息局部样式适配 14px/24px 正文、标题与列表节奏、11px/19px 代码和行内代码、代码工具栏；静态文档的排版不受影响。
+
+[思考行](../../apps/desktop/src/renderer/features/conversation/reasoning-row.tsx)只显示非空白内容，流式与历史内容初始均收起。流式预览取最近一个首行已以换行结束的段落的首行；尚未完成的单行不产生预览。结算后预览显示首行，仅预览去掉 `**`，展开后的紧凑 Markdown 保持原文。标题行高 24px，展开正文从标题起点缩进 22px；悬停和键盘焦点显示开合箭头，运行中的文字扫光在 reduced-motion 下关闭。
+
+[显示身份映射](../../apps/desktop/src/renderer/features/conversation/message-identities.ts)仅保存在当前视图内，已提交内容仍以条目序号和内容块索引标识。仅在同一 Session、同一真实 Run 和内容块索引能唯一对应时，把流式块的 React 身份延续到新提交块；不从文本推测归属，不因结算、增量或主题变化重置思考开合与选区。主区和右栏子 Session 均传递 Session 身份，历史条目 key 不依赖已经加载的消息数量。此映射不写入数据库或协议。
+
+验证：[真实 App 消息 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)覆盖预览、流式结算的 DOM/开合/选区、原文复制、外围几何、命令与附件、明暗主题和中英文的 390px 主内容区，以及 Markdown 排版；右栏现有[子代理](../../apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx)和[团队成员](../../apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx)验证共用时间线消费者。
 
 ## 新对话与首次发送
 

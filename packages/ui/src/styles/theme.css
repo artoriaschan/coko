@@ -168,6 +168,7 @@
   --toast: var(--palette-gray-750);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-50);
+  --conversation-code-banner: var(--palette-gray-50);
   --inline-code: var(--palette-gray-25);
   --diff-added: var(--palette-green-bg-light);
   --diff-deleted: var(--palette-red-bg-light);
@@ -248,6 +249,7 @@
   --toast: var(--palette-gray-700);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-900);
+  --conversation-code-banner: var(--palette-gray-800);
   --inline-code: var(--palette-gray-830);
   --diff-added: var(--palette-green-bg-dark);
   --diff-deleted: var(--palette-red-bg-dark);
