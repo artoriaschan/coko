@@ -1,0 +1,76 @@
+{
+  "activeSweepAnimations": 0,
+  "reduced": true,
+  "runningHeader": "Tool callmcp__sample__stream_query",
+  "shimmerDisplay": "none",
+  "sourceCommit": "2e1f0ed",
+  "sweepAnimation": "none",
+  "theme": "dark",
+  "transitions": [
+    {
+      "className": "tool-row-header focus-ring",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-business-icon",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-chevron",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-header focus-ring",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-business-icon",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-chevron",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-inspect rounded-round focus-ring",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-header focus-ring",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-business-icon",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-chevron",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-header focus-ring",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-business-icon",
+      "duration": "1e-05s",
+      "property": "none"
+    },
+    {
+      "className": "tool-row-chevron",
+      "duration": "1e-05s",
+      "property": "none"
+    }
+  ]
+}

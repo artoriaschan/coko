@@ -1,0 +1,15 @@
+{
+  "cardClientWidth": 348,
+  "cardScrollWidth": 348,
+  "documentWidth": 390,
+  "mainWidth": 390,
+  "reduced": true,
+  "rowRight": 370,
+  "sourceCommit": "2e1f0ed",
+  "theme": "dark",
+  "viewport": {
+    "dpr": 1,
+    "height": 900,
+    "width": 390
+  }
+}

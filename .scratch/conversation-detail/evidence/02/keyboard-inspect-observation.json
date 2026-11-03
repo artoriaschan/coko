@@ -1,0 +1,12 @@
+{
+  "afterMessages": [
+    "subscribe"
+  ],
+  "beforeMessages": [
+    "subscribe"
+  ],
+  "expanded": "true",
+  "input": "keyboard Enter on focused Inspect",
+  "sourceCommit": "2e1f0ed",
+  "traceSelected": "true"
+}
