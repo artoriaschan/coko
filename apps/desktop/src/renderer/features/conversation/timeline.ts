@@ -48,6 +48,8 @@ export interface ToolResultView {
   details: unknown
   /** 工具原有结构化输出；展示层不补造缺失字段。 */
   structuredContent?: unknown
+  /** 原始结果块属于该调用自身，供图片等非文本消费者读取。 */
+  content?: unknown
 }
 
 /** 工具调用的审批：请求，以及（已结束时）决定。 */
@@ -164,6 +166,10 @@ export function contentText(content: unknown): string {
 }
 
 /** 工具结果的文本：AgentToolResult 或 toolResult 条目的 content。 */
+function resultContent(value: unknown): unknown {
+  return typeof value === 'object' && value !== null ? (value as { content?: unknown }).content : undefined
+}
+
 export function resultText(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) return contentText((result as { content: unknown }).content)
   return typeof result === 'string' ? result : ''
@@ -435,6 +441,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const result: ToolResultView = {
           isError: message.isError,
           text: contentText(message.content),
+          content: message.content,
           details: message.details,
           structuredContent: resultStructured(message),
         }
@@ -465,6 +472,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             tool.result = {
               isError: liveTool.status === 'error',
               text: resultText(liveTool.result),
+              content: resultContent(liveTool.result),
               details: resultDetails(liveTool.result),
               structuredContent: resultStructured(liveTool.result),
             }
@@ -482,6 +490,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
               : {
                   isError: liveTool.status === 'error',
                   text: resultText(liveTool.result),
+                  content: resultContent(liveTool.result),
                   details: resultDetails(liveTool.result),
                   structuredContent: resultStructured(liveTool.result),
                 },
