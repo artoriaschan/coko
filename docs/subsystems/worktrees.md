@@ -103,7 +103,7 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 ## 界面
 
 - 侧栏按项目组织会话，不再提供 worktree 列表、创建与移除入口，也不在会话行显示分支 chip。
-- 绑定 worktree 的已有会话继续在标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示。
+- 绑定 worktree 的已有会话继续在标题栏显示分支 chip；worktree 已移除时 chip 加删除线，输入区换成只读提示，历史消息的回退、分叉、错误重试和暂停后的继续不可用。历史过程与工具仍可展开和复制；[历史 App 用例](../../apps/desktop/src/renderer/features/conversation/history.browser.test.tsx)覆盖该边界。
 - worktree 的创建、列表与移除协议仍可用，交接与子代理继续使用原有服务。新对话通过归属栏开关在首次发送时创建 worktree。
 
 会话创建的唯一入口（`SessionService.createRecord`：新建、子代理、交接）拒绝绑定已移除的 worktree（409 `worktree-removed`）。worktree 会话的项目 deny / ask 规则、启动恢复的结果探测、回退的边界、上下文用量（`GET /api/sessions/:id/context` 的指令、Skills 分项）与 MCP 连接（池键含工作目录）都按会话的工作目录；批准与 Workspace 作用域规则仍按 Workspace。

@@ -223,10 +223,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   // opened 每次打开递增，作为对话框的 key，使其本地状态随每次打开重置。
   // 关闭时保留请求只清 open，key 不变，关闭动画与焦点归还照常进行。
   const [rewindRequest, setRewindRequest] = React.useState<{ sessionId: string; seq: number; text: string; opened: number; open: boolean } | null>(null)
-  const rewindTarget = rewindRequest?.open === true && rewindRequest.sessionId === activeSessionId ? rewindRequest : null
   const rewound = React.useRef(false)
   const archived = session?.archivedAt != null
-  const actionsDisabled = running || takenOver || archived
+  const actionsDisabled = running || takenOver || archived || readOnlyWorktree !== undefined
+  const rewindTarget = !actionsDisabled && rewindRequest?.open === true && rewindRequest.sessionId === activeSessionId ? rewindRequest : null
+  React.useEffect(() => {
+    if (actionsDisabled) setRewindRequest((request) => (request?.open ? { ...request, open: false } : request))
+  }, [actionsDisabled])
   // / 命令菜单的作用域；对象随 id 变化才重建。
   const commandTarget = React.useMemo(
     () => (activeSessionId !== null ? { sessionId: activeSessionId } : activeWorkspaceId ? { workspaceId: activeWorkspaceId } : undefined),
@@ -404,7 +407,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               className={`${composerColumn} mb-2 flex items-center gap-3 rounded-panel border-hairline border-border bg-background px-3 py-2 text-ui-body`}
             >
               <p className="min-w-0 flex-1 text-muted-foreground">{t(banner === 'paused' ? 'conversation.pausedBanner' : 'conversation.interruptedBanner')}</p>
-              {continuable && !archived && (
+              {continuable && !archived && readOnlyWorktree === undefined && (
                 <Button size="sm" data-action="continue" data-continue-mode={resumeMode} onClick={() => void continueRun(t('conversation.continuePrompt'))}>
                   <PlayIcon />
                   {t('conversation.continue')}

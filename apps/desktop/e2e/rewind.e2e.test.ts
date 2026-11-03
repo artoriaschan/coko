@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -14,12 +14,16 @@ afterEach(async () => {
 const write = (id: string, path: string, content: string) => ({ type: 'toolCall', name: 'write', id, arguments: { path, content } })
 
 /** 两条消息：第一条改 notes.txt，第二条再改它并新建 extra.txt（accept-edits，不经审批）。 */
-async function setup() {
+async function setup(command = false) {
   const root = await mkdtemp(join(tmpdir(), 'coko-rewind-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const workspace = join(root, 'workspace')
   await mkdir(workspace)
   await writeFile(join(workspace, 'notes.txt'), 'original\n')
+  if (command) {
+    await mkdir(join(workspace, '.coko', 'commands'), { recursive: true })
+    await writeFile(join(workspace, '.coko', 'commands', 'review.md'), 'Review $ARGUMENTS and report findings.')
+  }
   const script = {
     responses: [
       { content: [write('w1', 'notes.txt', 'after one\n')] },
@@ -31,14 +35,14 @@ async function setup() {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await app.window.locator('[data-permission-mode]').click()
   await app.window.locator('[role="menuitemradio"][data-mode="accept-edits"]').click()
   await expect.poll(() => app.window.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('accept-edits')
   await send(app, 'first change')
-  await send(app, 'second change')
+  await send(app, command ? '/review second change' : 'second change')
   expect(await readFile(join(workspace, 'notes.txt'), 'utf8')).toBe('after two\n')
   return { app, workspace }
 }
@@ -109,6 +113,8 @@ describe('回退与分叉', () => {
     const actions = first.locator('[data-slot="message-actions"]')
     await expect.poll(() => opacity(actions)).toBe('1')
     await app.window.keyboard.press('Tab')
+    expect(await app.window.evaluate(() => document.activeElement?.getAttribute('data-action'))).toBe('copy-message')
+    await app.window.keyboard.press('Tab')
     expect(await app.window.evaluate(() => document.activeElement?.getAttribute('data-action'))).toBe('rewind')
     await app.window.keyboard.press('Enter')
     const dialog = app.window.locator('[data-slot="rewind-dialog"]')
@@ -121,7 +127,11 @@ describe('回退与分叉', () => {
   })
 
   it('从这里分叉 → 侧栏出现新会话并打开，输入区为原消息；原会话不变', async () => {
-    const { app } = await setup()
+    const { app, workspace } = await setup()
+    const sourceEntries = await app.window.evaluate(async () => {
+      const { sessions } = await (await fetch('/api/sessions')).json()
+      return (await (await fetch(`/api/sessions/${sessions[0].id}`)).json()).entries
+    })
     const sessions = app.window.locator('[data-session-id]')
     expect(await sessions.count()).toBe(1)
     const original = await sessions.first().getAttribute('data-session-id')
@@ -141,5 +151,28 @@ describe('回退与分叉', () => {
 
     await app.window.locator(`[data-session-id="${original}"]`).click()
     await expect.poll(() => app.window.locator('article[data-seq]').allTextContents()).toEqual(['first change', 'second change'])
+    expect(await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, original)).toEqual(sourceEntries)
+    expect(await readFile(join(workspace, 'notes.txt'), 'utf8')).toBe('after two\n')
+    expect(await readFile(join(workspace, 'extra.txt'), 'utf8')).toBe('extra\n')
+  })
+
+  it('命令回退保留原始调用与现有草稿，旧条目原样保留且文件按真实 Checkpoint 恢复', async () => {
+    const { app, workspace } = await setup(true)
+    const original = await app.window.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id')
+    const before = await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, original)
+    await composer(app).fill('unsent draft')
+    const command = app.window.locator('article[data-seq]', { hasText: '/review' })
+    await command.hover()
+    await command.locator('[data-action="rewind"]').click()
+    const dialog = app.window.locator('[data-slot="rewind-dialog"]')
+    await expect.poll(() => dialog.locator('[data-action="confirm-rewind"]').isEnabled()).toBe(true)
+    await dialog.locator('[data-action="confirm-rewind"]').click()
+    await dialog.waitFor({ state: 'detached' })
+    await expect.poll(() => composer(app).innerText()).toBe('/review second change\nunsent draft')
+    const after = await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, original)
+    expect(after.slice(0, before.length)).toEqual(before)
+    expect(after.at(-1)).toMatchObject({ kind: 'rewind', payload: { targetSeq: Number(await command.getAttribute('data-seq')) } })
+    expect(await readFile(join(workspace, 'notes.txt'), 'utf8')).toBe('after one\n')
+    expect(await exists(join(workspace, 'extra.txt'))).toBe(false)
   })
 })
