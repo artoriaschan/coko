@@ -1,0 +1,25 @@
+{
+  "inspect": {
+    "background": "rgb(53, 54, 56)",
+    "border": "rgba(255, 255, 255, 0.16)",
+    "opacity": "1",
+    "transition": "0.1s"
+  },
+  "reduced": false,
+  "rowHeight": 24,
+  "shimmer": {
+    "afterTime": 8999.699000151722,
+    "afterTransform": "matrix(1, 0, 0, 1, 248.969, 0)",
+    "animation": "1.5s steps(48) 0.3s infinite tool-row-shimmer-sweep",
+    "beforeTime": 8633.005000151727,
+    "beforeTransform": "matrix(1, 0, 0, 1, 155.605, 0)",
+    "color": "color(srgb 1 1 1 / 0.45)"
+  },
+  "sourceCommit": "2e1f0ed",
+  "theme": "dark",
+  "viewport": {
+    "dpr": 1,
+    "height": 900,
+    "width": 1280
+  }
+}
