@@ -1,0 +1,31 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 900
+  },
+  "mainWidth": 390,
+  "dpr": 1,
+  "theme": "",
+  "locale": "zh-CN",
+  "font": "11px / 18px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+  "fontSize": "11px",
+  "lineHeight": "18px",
+  "width": 322,
+  "background": "rgb(249, 250, 251)",
+  "radius": "16px",
+  "border": "rgba(0, 0, 0, 0.04)",
+  "headerPadding": "9px 14px 9px 30px",
+  "headerDivider": "rgba(0, 0, 0, 0.1)",
+  "outputPadding": "12px 14px 12px 0px",
+  "outputFont": "11px / 16px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+  "outputLineHeight": 18,
+  "output": {
+    "width": 290,
+    "height": 42,
+    "scrollWidth": 290,
+    "scrollHeight": 42
+  },
+  "pageWidth": 390,
+  "command": "pnpm test",
+  "outputText": "2 tests passed\n"
+}

@@ -90,4 +90,5 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
   await expect.poll(() => app.window.locator('[role="tab"][data-tab="jobs"]').getAttribute('aria-selected')).toBe('true')
   await expect.poll(() => app.window.locator('[data-slot="job-detail"]').getAttribute('data-job-id')).toBe(jobId)
   await expect.poll(() => app.window.locator('[data-slot="job-output"]').textContent()).toBe('background-real\n')
+  await expect.poll(() => app.window.locator('[data-slot="job-detail"]').getAttribute('data-status')).toBe('completed')
 })

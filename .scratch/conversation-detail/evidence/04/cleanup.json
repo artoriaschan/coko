@@ -1,0 +1,55 @@
+{
+  "browserSessionsClosed": [
+    "coko-ticket04-visual",
+    "coko-ticket04-reference",
+    "coko-ticket04-visual-final",
+    "coko-ticket04-reference-final"
+  ],
+  "serverCommands": [
+    {
+      "execSession": 55369,
+      "port": 64229,
+      "exitCode": 130
+    },
+    {
+      "execSession": 70355,
+      "port": 64369,
+      "exitCode": 130
+    },
+    {
+      "execSession": 64061,
+      "port": 49836,
+      "exitCode": 130
+    },
+    {
+      "execSession": 53200,
+      "port": 49678,
+      "exitCode": 130
+    }
+  ],
+  "portChecks": [
+    {
+      "port": 64229,
+      "listeners": "",
+      "exitCode": 1
+    },
+    {
+      "port": 64369,
+      "listeners": "",
+      "exitCode": 1
+    },
+    {
+      "port": 49836,
+      "listeners": "",
+      "exitCode": 1
+    },
+    {
+      "port": 49678,
+      "listeners": "",
+      "exitCode": 1
+    }
+  ],
+  "temporaryPagesRemoved": true,
+  "electronAndSidecarExit": "asserted by terminal-details.e2e.test.ts teardown",
+  "unrelatedReferenceProcesses": "preserved; matched shared harness path alone is not ownership evidence"
+}

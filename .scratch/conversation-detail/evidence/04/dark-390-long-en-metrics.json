@@ -1,0 +1,31 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 900
+  },
+  "mainWidth": 390,
+  "dpr": 1,
+  "theme": "dark",
+  "locale": "en",
+  "font": "11px / 18px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+  "fontSize": "11px",
+  "lineHeight": "18px",
+  "width": 322,
+  "background": "rgb(27, 27, 28)",
+  "radius": "16px",
+  "border": "rgba(255, 255, 255, 0.06)",
+  "headerPadding": "9px 14px 9px 30px",
+  "headerDivider": "rgba(255, 255, 255, 0.12)",
+  "outputPadding": "12px 14px 12px 0px",
+  "outputFont": "11px / 16px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+  "outputLineHeight": 18,
+  "output": {
+    "width": 290,
+    "height": 224,
+    "scrollWidth": 8778,
+    "scrollHeight": 1140
+  },
+  "pageWidth": 390,
+  "command": "pnpm test",
+  "outputText": "2 tests passed\noriginal long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line original long line \noutput line 1\noutput line 2\noutput line 3\noutput line 4\noutput line 5\noutput line 6\noutput line 7\noutput line 8\noutput line 9\noutput line 10\noutput line 11\noutput line 12\noutput line 13\noutput line 14\noutput line 15\noutput line 16\noutput line 17\noutput line 18\noutput line 19\noutput line 20\noutput line 21\noutput line 22\noutput line 23\noutput line 24\noutput line 25\noutput line 26\noutput line 27\noutput line 28\noutput line 29\noutput line 30\noutput line 31\noutput line 32\noutput line 33\noutput line 34\noutput line 35\noutput line 36\noutput line 37\noutput line 38\noutput line 39\noutput line 40\noutput line 41\noutput line 42\noutput line 43\noutput line 44\noutput line 45\noutput line 46\noutput line 47\noutput line 48\noutput line 49\noutput line 50\noutput line 51\noutput line 52\noutput line 53\noutput line 54\noutput line 55\noutput line 56\noutput line 57\noutput line 58\noutput line 59\noutput line 60"
+}
