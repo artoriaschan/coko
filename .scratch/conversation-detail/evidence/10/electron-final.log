@@ -7,4 +7,3 @@ $ vitest run apps/desktop/e2e/subagents.e2e.test.ts apps/desktop/e2e/teams.e2e.t
       Tests  5 passed (5)
    Start at  23:27:52
    Duration  35.58s (tests 98%, import 2%)
-
