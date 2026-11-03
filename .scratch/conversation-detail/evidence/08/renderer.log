@@ -1,0 +1,10 @@
+$ vitest run apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx apps/desktop/src/renderer/features/conversation/approval-bubbling.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx apps/desktop/src/renderer/features/conversation/tool-cards.browser.test.tsx apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx apps/desktop/src/renderer/features/conversation/timeline.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-08
+
+
+ Test Files  6 passed (6)
+      Tests  71 passed (71)
+   Start at  23:16:09
+   Duration  8.10s (tests 76%, import 9%, transform 8%, setup 5%, worker 2%)
+

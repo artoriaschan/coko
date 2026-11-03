@@ -1,0 +1,10 @@
+$ vitest run tests/integration/sidecar-recovery.test.ts tests/integration/sidecar-hooks.test.ts tests/integration/sidecar-subagents-permissions.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-08
+
+
+ Test Files  3 passed (3)
+      Tests  25 passed (25)
+   Start at  23:14:50
+   Duration  12.89s (tests 97%, import 2%, transform 1%)
+

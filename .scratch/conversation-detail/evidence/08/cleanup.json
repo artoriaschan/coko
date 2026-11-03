@@ -1,0 +1,19 @@
+{
+  "browser": {
+    "session": "coko-approval-08",
+    "closeExitCode": 0,
+    "result": "Browser closed"
+  },
+  "fixture": {
+    "pid": 86738,
+    "command": "/opt/homebrew/bin/node /tmp/coko-conversation-detail/ticket-08-visual/serve.mjs",
+    "port": 61571,
+    "termination": "SIGTERM after exact ps/lsof identity check",
+    "execExitCode": 143,
+    "pidAbsent": true,
+    "listenerAbsent": true
+  },
+  "electron": "All five final E2E cases awaited harness dispose; selected Vitest command exited 0",
+  "sidecar": "All 25 targeted integration cases completed; registered teardown waits for real processes",
+  "preserved": "No unrelated user Electron instance or data touched; external fixture source retained and copied into evidence"
+}
