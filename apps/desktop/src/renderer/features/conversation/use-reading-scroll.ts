@@ -27,6 +27,7 @@ export function useReadingScroll(
     let sampledHeight = element.clientHeight
     let sampledContent = element.scrollHeight
     let pendingGesture = false
+    let touchY: number | undefined
     let anchors: Anchor[] = []
     const originalAnchoring = element.style.overflowAnchor
     element.style.overflowAnchor = 'none'
@@ -103,12 +104,14 @@ export function useReadingScroll(
       }
       const editing = target?.closest('button, [role="button"], input, textarea, [contenteditable="true"]')
       if (event instanceof KeyboardEvent && editing && event.key === ' ') return
+      const previousTouchY = touchY
+      if (event instanceof TouchEvent) touchY = event.touches[0]?.clientY
       const upward =
         event instanceof WheelEvent
           ? event.deltaY < 0
           : event instanceof KeyboardEvent
             ? ['ArrowUp', 'PageUp', 'Home'].includes(event.key) || (event.key === ' ' && event.shiftKey)
-            : event.type === 'touchmove'
+            : event.type === 'touchmove' && touchY !== undefined && previousTouchY !== undefined && touchY > previousTouchY
       if (upward) following = false
       pendingGesture = true
       // A gesture cancels a pending old reading position before the browser applies its movement.

@@ -507,6 +507,12 @@ it('actual App: keyboard Space opens detail at the tail and a downward wheel at 
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: reply(20, 'Tail after downward gesture.\n\n' + 'Actual paragraph. '.repeat(100)) })
   await expect.element(page.getByText(/Tail after downward gesture/)).toBeInTheDocument()
   await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  const touch = (clientY: number) => new Touch({ identifier: 1, target: outer(), clientX: 100, clientY })
+  outer().dispatchEvent(new TouchEvent('touchstart', { touches: [touch(200)], bubbles: true }))
+  outer().dispatchEvent(new TouchEvent('touchmove', { touches: [touch(150)], bubbles: true }))
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: reply(21, 'Tail after downward touch.\n\n' + 'Next actual paragraph. '.repeat(100)) })
+  await expect.element(page.getByText(/Tail after downward touch/)).toBeInTheDocument()
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
 })
 
 it('actual App: an upward reading gesture during an active completion fold interrupts tail follow and retains the answer anchor', async () => {
