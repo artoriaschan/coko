@@ -1,0 +1,25 @@
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat,fixtureSessions} from '/tmp/coko-conversation-detail/ticket-11/apps/desktop/src/renderer/testing/fixture-chat.ts'
+const query=new URLSearchParams(location.search)
+const rec=(seq,kind,payload,runId='old-run')=>({sessionId:'s-1',seq,kind,payloadVersion:1,payload,runId,createdAt:seq*1000})
+const user=(seq,text,runId='old-run')=>rec(seq,'message',{role:'user',content:text,timestamp:0},runId)
+const call=(seq,id,runId='old-run')=>rec(seq,'message',{role:'assistant',content:[{type:'toolCall',id,name:'custom',arguments:{query:id}}],stopReason:'toolUse',timestamp:0},runId)
+const result=(seq,id,runId='old-run')=>rec(seq,'message',{role:'toolResult',toolCallId:id,toolName:'custom',content:[{type:'text',text:`Original retained output ${id}\n`+'Historical detail remains complete.\n'.repeat(16)}],isError:false,timestamp:0},runId)
+const entries=[rec(1,'run_start',{trigger:'submit'}),user(2,'Earlier checkpoint'),user(3,'Inspect the original historical request'),
+...Array.from({length:20},(_,i)=>[call(4+i*2,`historical-${i}`),result(5+i*2,`historical-${i}`)]).flat(),
+{...rec(44,'compaction',{summary:'## Retained summary\nOriginal decisions and file facts remain available.',firstKeptSeq:3,tokensBefore:2200,tokensAfter:900,trigger:'manual',readFiles:[],modifiedFiles:[]},null),payloadVersion:2},
+rec(45,'run_end',{status:'completed'}),rec(46,'rewind',{targetSeq:3},null),user(47,'Replacement request','second'),call(48,'second','second'),result(49,'second','second'),rec(50,'run_end',{status:'error'},'second'),rec(51,'rewind',{targetSeq:2},null),
+user(52,'Current request in a read-only worktree','current'),call(53,'active','current'),result(54,'active','current'),rec(55,'run_end',{status:'error'},'current')]
+const fixture=createFixtureChat({entries:{'s-1':entries},sessions:[{...fixtureSessions[0],title:'History and read-only inspection',worktree:{id:'removed',name:'removed',branch:'coko/removed',status:'removed'}}]})
+const appearance=createAppearanceStore({theme:query.get('theme')==='dark'?'dark':'light',locale:'en'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+document.body.style.margin='0';document.getElementById('root').style.height='100vh'
+createRoot(document.getElementById('root')).render(<App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/>);
+window.fixture=fixture
