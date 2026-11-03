@@ -527,6 +527,12 @@ export const zh = {
     input: '输入',
     output: '输出',
     inspect: '查看',
+    fileCopy: '复制',
+    fileCopied: '复制成功',
+    fileCopyFailed: '复制失败',
+    fileWrap: '自动换行',
+    fileEmpty: '空文件',
+    fileShowAll: '显示全部 {count} 行',
   },
   confirmation: {
     status: '结果不明',

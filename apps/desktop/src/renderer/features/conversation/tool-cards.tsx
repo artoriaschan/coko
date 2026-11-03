@@ -1,8 +1,9 @@
 import type { MessageKey } from '@coko/i18n'
-import { Button, Dialog, DialogContent, DialogTitle, DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
+import { Button, Dialog, DialogContent, DialogTitle, ToolCard, ToolOutput } from '@coko/ui'
 import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, Maximize2Icon, SendIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
+import { FileToolBody } from './file-tool-details.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { useActiveEntries } from './agents-button.tsx'
 import { JobChip } from './job-row.tsx'
@@ -101,21 +102,23 @@ const VIEWS: Record<string, ToolView> = {
     summary: (a) => str(a.command),
     body: (item) => <BashBody item={item} />,
   },
-  read: { icon: <ToolIcon kind="read" />, title: 'tool.read', summary: (a) => str(a.path), body: (item) => <TextBody text={output(item)} /> },
+  read: {
+    icon: <ToolIcon kind="read" />,
+    title: 'tool.read',
+    summary: (a) => str(a.path),
+    body: (item, a) => <FileToolBody item={item} args={a} fallback={<GenericBody item={item} />} />,
+  },
   write: {
     icon: <ToolIcon kind="edit" />,
     title: 'tool.write',
     summary: (a) => str(a.path),
-    body: (item, a) => (item.result?.isError ? <TextBody text={output(item)} /> : <ToolOutput>{str(a.content) ?? ''}</ToolOutput>),
+    body: (item, a) => <FileToolBody item={item} args={a} fallback={<GenericBody item={item} />} />,
   },
   edit: {
     icon: <ToolIcon kind="edit" />,
     title: 'tool.edit',
     summary: (a) => str(a.path),
-    body: (item) => {
-      const diff = str((item.result?.details as { diff?: unknown } | undefined)?.diff)
-      return diff && !item.result?.isError ? <DiffBlock diff={diff} /> : <TextBody text={output(item)} />
-    },
+    body: (item, a) => <FileToolBody item={item} args={a} fallback={<GenericBody item={item} />} />,
   },
   grep: { icon: <ToolIcon kind="search" />, title: 'tool.grep', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
   find: { icon: <ToolIcon kind="search" />, title: 'tool.find', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },

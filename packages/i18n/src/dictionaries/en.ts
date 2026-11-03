@@ -530,6 +530,12 @@ export const en: typeof zh = {
     input: 'IN',
     output: 'OUT',
     inspect: 'Inspect',
+    fileCopy: 'Copy',
+    fileCopied: 'Copied',
+    fileCopyFailed: 'Could not copy',
+    fileWrap: 'Wrap lines',
+    fileEmpty: 'Empty file',
+    fileShowAll: 'Show all {count} lines',
   },
   confirmation: {
     status: 'Outcome unknown',
