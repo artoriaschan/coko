@@ -30,7 +30,7 @@ lifecycle: active
 | `rtk proxy pnpm run typecheck` | [最终类型](types-last.log)退出0 |
 | `rtk proxy pnpm run test --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts -t 'compiled read folding'` | [最终当次构建](native-pairs.log)1通过/7明确跳过，非8全绿；真实read→edit审批、紧凑统计/双向Enter及文件字节通过 |
 
-最初R为353/354，新增统计把+、数字分为未登记的界面文本节点，真实本地化检查报错，见 [原失败](renderer.log)。改用字典格式化+{count}/−{count}，不改断言，后续完整R全绿。该问题与13历史IME/settings/wheel异常没有证明关系；未声称修复其原因。日志原字节保存在仓库外，仅规范化归档日志EOF。
+最初R为353/354，新增统计把+、数字分为未登记的界面文本节点，真实本地化检查报错，见 [原失败](renderer.log)。改用字典格式化+{count}/−{count}，不改断言，后续完整R全绿。该问题与13历史IME/settings/wheel异常没有证明关系；未声称修复其原因。日志原字节保存在仓库外，仅规范化归档日志EOF及红例日志中一个纯空白行尾空格。
 
 原1194当次编译的完整原生组合命令为 `rtk proxy pnpm run test --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/mcp-browser.e2e.test.ts`，实际 [5文件14/14](native-final.log)，退出0。最终0cfe只替换相同数值字号/行高角色引用，原生流程逻辑没有改变；最终重构建1条上述native read/edit用例复核真实消费者，不把不同命令数量相加或称为全仓通过。
 
