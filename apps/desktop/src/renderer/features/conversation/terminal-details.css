@@ -114,6 +114,11 @@
   overflow: auto;
   white-space: pre;
   font: inherit;
+  line-height: var(--text-ui-code-small--line-height);
+}
+.conversation-terminal-output [data-terminal-line] {
+  display: block;
+  min-height: var(--text-ui-terminal--line-height);
 }
 .conversation-terminal-job {
   margin: 4px 0 4px 4px;

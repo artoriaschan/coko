@@ -61,6 +61,7 @@ function AnsiOutput({ text }: { text: string }) {
         if (index < fragments.length - 1) lines.push([])
       })
     }
+    if (display.endsWith('\n')) lines.pop()
     return lines
   }, [text])
   return lines.map((line, index) => (
