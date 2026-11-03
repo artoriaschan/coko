@@ -28,6 +28,7 @@ import { ToolCardView } from './tool-cards.tsx'
 export interface TimelineViewProps {
   historical?: boolean
   readOnly?: boolean
+  onOpenPlan?: () => void
   sessionId?: string
   /** Actual caller-owned entries; never inferred from the active parent Session. */
   entries?: readonly SessionEntry[]
@@ -349,6 +350,7 @@ export function TimelineView(props: TimelineViewProps) {
         actionsDisabled,
         historical: props.historical ?? false,
         readOnly: props.readOnly ?? false,
+        openPlan: props.onOpenPlan,
       }}
     >
       <ProcessTimeline

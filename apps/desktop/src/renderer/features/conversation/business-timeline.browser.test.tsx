@@ -189,6 +189,7 @@ it('actual App: Plan settlement preserves the real review boundary and focused e
 })
 
 it('actual App: rewound usage uses the rendered Run entries and historical Plan inspection shows its snapshot without changing the active Plan tab', async () => {
+  await page.viewport(1280, 900)
   await open([
     entry(1, 'run_start', { trigger: 'submit' }),
     plan(2, 'rejected'),

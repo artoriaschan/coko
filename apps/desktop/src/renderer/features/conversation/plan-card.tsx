@@ -1,9 +1,7 @@
 import { planTitle } from '@coko/protocol'
 import { ClipboardListIcon } from 'lucide-react'
 import * as React from 'react'
-import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
-import { selectRightPanelTab } from '../right-panel/tabs.ts'
 import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
 import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -16,10 +14,9 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
   const { t } = useI18n()
   const { plan } = item
   const seq = Number(item.key)
-  const { sessionId, entries, historical, readOnly } = useTimelineSession()
-  const activeSessionId = useChat((s) => s.activeSessionId)
+  const { entries, historical, readOnly, openPlan } = useTimelineSession()
   const superseded = plan.status === 'proposed' && (planHistory(entries).get(plan.planId) ?? []).some((p) => p.seq > seq)
-  const inline = historical || readOnly || sessionId !== activeSessionId
+  const inline = historical || readOnly || openPlan === undefined
   const [expanded, setExpanded] = React.useState(false)
   const title = React.useMemo(() => planTitle(plan.markdown), [plan.markdown])
   if (superseded) return null
@@ -40,7 +37,7 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
           title={t(inline ? 'plan.card.inspect' : 'plan.card.open')}
           className="min-w-0 flex-1 basis-40 break-words text-start font-normal focus-ring [@media(hover:hover)]:hover:underline"
           aria-expanded={inline ? expanded : undefined}
-          onClick={() => (inline ? setExpanded((open) => !open) : selectRightPanelTab('plan'))}
+          onClick={() => (inline ? setExpanded((open) => !open) : openPlan?.())}
         >
           <span data-user-content>{title}</span>
         </button>

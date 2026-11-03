@@ -10,6 +10,8 @@ export interface TimelineSessionFacts {
   historical?: boolean
   /** Caller-owned Session restriction, independent of Run activity. */
   readOnly?: boolean
+  /** Existing Plan-panel route, provided only by its actual owner. */
+  openPlan?: () => void
 }
 const EMPTY: TimelineSessionFacts = { sessionId: null, entries: [], actionsDisabled: true }
 export const TimelineSessionContext = React.createContext<TimelineSessionFacts>(EMPTY)
