@@ -44,6 +44,7 @@ export function useActiveEntries(): { sessionId: string | null; entries: readonl
 
 /** 会话中的子代理记录：agent_start 与（结束后）agent_end，按派发顺序；同一条目数组只计算一次。 */
 export interface AgentRecord {
+  runId?: string | null
   start: AgentStartPayload
   end?: AgentEndPayload
 }
@@ -53,7 +54,7 @@ export function agentRecords(entries: readonly SessionEntry[]): AgentRecord[] {
   if (list === undefined) {
     const byId = new Map<string, AgentRecord>()
     for (const entry of entries) {
-      if (entry.kind === 'agent_start') byId.set(entry.payload.agentId, { start: entry.payload })
+      if (entry.kind === 'agent_start') byId.set(entry.payload.agentId, { start: entry.payload, runId: entry.runId })
       else if (entry.kind === 'agent_end') {
         const record = byId.get(entry.payload.agentId)
         if (record) record.end = entry.payload

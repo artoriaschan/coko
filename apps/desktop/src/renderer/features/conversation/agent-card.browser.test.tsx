@@ -59,7 +59,9 @@ async function mount(entries: SessionEntryRecord[], options: { locale?: 'zh' | '
   await expect.poll(() => fixture.chat.getState().conversations.p1?.status).toBe('ready')
   const Timeline = () => {
     const conversation = useChat((s) => s.conversations.p1)
-    return conversation ? <TimelineView items={buildTimeline(conversation)} theme="light" onRetry={() => {}} /> : null
+    return conversation ? (
+      <TimelineView sessionId="p1" entries={conversation.entries} items={buildTimeline(conversation)} theme="light" onRetry={() => {}} />
+    ) : null
   }
   const screen = await render(
     <I18nProvider locale={options.locale ?? 'en'}>
@@ -74,6 +76,11 @@ async function mount(entries: SessionEntryRecord[], options: { locale?: 'zh' | '
       </ChatStoreProvider>
     </I18nProvider>,
   )
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-tool="agent"] > button')) {
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    button.click()
+  }
+  await expect.poll(() => document.querySelectorAll('[data-slot="agent-card"]').length).toBe(document.querySelectorAll('[data-tool="agent"]').length)
   return { ...fixture, store, screen }
 }
 
@@ -108,7 +115,7 @@ describe('agent 工具卡', () => {
     }
     for (const [id, [label, cardStatus]] of Object.entries(expected)) {
       const card = cardOf(id)!
-      expect([id, card.getAttribute('data-status'), card.querySelector('[role="img"]')?.getAttribute('aria-label')]).toEqual([id, cardStatus, label])
+      expect([id, card.getAttribute('data-status'), card.querySelector('[role="status"]')?.textContent]).toEqual([id, cardStatus, label])
     }
     expect(cardOf('c0')!.textContent).toContain('Subagent explore')
     expect(cardOf('c0')!.textContent).toContain('read notes')
@@ -125,7 +132,7 @@ describe('agent 工具卡', () => {
       { locale: 'zh' },
     )
     await expect.poll(() => cardOf('c1')).not.toBeNull()
-    expect(cardOf('c1')!.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('达到轮次上限')
+    expect(cardOf('c1')!.querySelector('[role="status"]')?.textContent).toBe('达到轮次上限')
     expect(cardOf('c1')!.textContent).toContain('子代理 explore')
     expect(cardOf('c1')!.querySelector('[data-slot="agent-usage"]')?.textContent).toMatch(/^轮次 3 · 工具调用 2 · /)
   })

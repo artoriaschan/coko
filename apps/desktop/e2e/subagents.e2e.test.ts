@@ -127,7 +127,7 @@ describe('子代理界面', () => {
       apps.push(app)
       await writeCokoHome(root, 'agents/reviewer.md', '---\nname: reviewer\ndescription: Reviews diffs for the user\nmax-turns: 20\n---\nReview.\n')
       const win = app.window
-      await waitConnected(win)
+      await win.getByRole('button', { name: /^(Settings|设置)$/ }).waitFor()
       await createProjectDraft(app, workspace)
       await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
       const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
@@ -141,7 +141,9 @@ describe('子代理界面', () => {
 
       // 1. 前台 explore：运行中显示进度（最近一次工具调用）与标题栏的 running 数；结束后显示用量与结果。
       await send('PARENT-1 explore the notes')
+      await waitConnected(win)
       const first = agentCards.nth(0)
+      await first.locator(':scope > button').click()
       await expect.poll(() => first.locator('[data-slot="agent-progress"]').textContent(), { timeout: 30_000 }).toBe('read · {"path":"notes.txt"}')
       expect(await first.getAttribute('data-status')).toBe('running')
       expect(await first.textContent()).toMatch(/(Subagent|子代理) explore/)
@@ -181,6 +183,13 @@ describe('子代理界面', () => {
       // 3. 后台子代理：父 Run 结束后仍在运行；Agents tab 中键盘停止。
       await send('PARENT-3 survey in the background')
       const third = agentCards.nth(2)
+      await third.waitFor({ state: 'attached' })
+      for (const control of await win.locator('main [data-slot="run-process-control"]').all())
+        if ((await control.getAttribute('aria-expanded')) === 'false') await control.click()
+      const thirdGroup = third.locator('xpath=ancestor::*[@data-slot="process-group"]')
+      const thirdHeader = thirdGroup.locator('[data-slot="process-group-header"]')
+      if ((await thirdHeader.getAttribute('aria-expanded')) === 'false') await thirdHeader.click()
+      await third.locator(':scope > button').click()
       await expect.poll(() => third.locator('[data-slot="agent-background"]').count(), { timeout: 30_000 }).toBe(1)
       await win.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
       await expect.poll(() => headerButton.getAttribute('data-running'), { timeout: 15_000 }).toBe('1')

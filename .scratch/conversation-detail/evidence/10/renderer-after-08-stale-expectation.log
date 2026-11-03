@@ -1,0 +1,145 @@
+$ vitest run apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx apps/desktop/src/renderer/features/conversation/agent-card.browser.test.tsx apps/desktop/src/renderer/features/conversation/team-rows.browser.test.tsx apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx apps/desktop/src/renderer/features/conversation/handoff.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx apps/desktop/src/renderer/features/conversation/approval-bubbling.browser.test.tsx apps/desktop/src/renderer/features/conversation/tool-rows.browser.test.tsx apps/desktop/src/renderer/features/conversation/structured-tool-details.browser.test.tsx packages/ui/src/guards/style-guard.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-10
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/tool-rows.browser.test.tsx (6 tests | 1 failed) 22958ms
+   × actual App: streaming settlement keeps one call, expanded content, selection and scroll; identical arguments do not merge different calls 20010ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/tool-rows.browser.test.tsx > actual App: streaming settlement keeps one call, expanded content, selection and scroll; identical arguments do not merge different calls
+VitestBrowserElementError: Cannot find element with locator: getByRole('status').filter({ hasText: 'Not finished' })
+
+ARIA tree:
+- main "Conversation":
+  - button "Expand sidebar"
+  - button "Go back" [disabled]
+  - button "Go forward" [disabled]
+  - button "New chat"
+  - heading "设计 token 与三栏骨架" [level=1]
+  - status "Connecting to Sidecar"
+  - button "More actions"
+  - button "Open right panel"
+  - status: Interrupted
+  - button "Work steps" [disabled]: Interrupted
+  - button "Called tools" [expanded]
+  - text: No recorded result
+  - status: Done
+  - button "Tool call custom" [expanded]
+  - text: "IN { \"query\": \"select this unchanged input\" } OUT line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line line { \"receipt\": \"actual-detail\" }"
+  - button "Inspect"
+  - status: No recorded result
+  - button "Tool call custom No recorded result"
+  - paragraph: Interrupted
+  - status:
+    - paragraph: The last run was interrupted (the app or its service quit unexpectedly)
+    - button "Continue"
+  - textbox "Give Coko a task":
+    - paragraph
+  - button "Add attachment"
+  - button "Permission mode: Ask for approval"
+  - button "Context usage"
+  - button "Choose model: Choose model": Choose model
+  - button "Send" [disabled]
+- region "Notifications alt+T"
+
+HTML:
+[36m<body>[39m
+  [0m
+
+
+[0m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mstyle[39m=[32m"width: 100vw; height: 100vh;"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"h-full w-full"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-transparent text-foreground grid-cols-[var(--local-sidebar-column)_minmax(0,1fr)_var(--local-right-column)] transition-[grid-template-columns] duration-300 motion-reduce:transition-none"[39m
+            [33mdata-narrow[39m=[32m"true"[39m
+            [33mdata-right[39m=[32m"closed"[39m
+            [33mdata-sidebar[39m=[32m"hidden"[39m
+            [33mdata-slot[39m=[32m"app-frame"[39m
+            [33mstyle[39m=[32m"--local-sidebar-column: 0px; --local-right-column: 0px; --local-right-overlay: 0px; --local-header-leading: 0px;"[39m
+          [36m>[39m
+            [36m<main[39m
+              [33maria-label[39m=[32m"Conversation"[39m
+              [33mclass[39m=[32m"@container/main relative col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-hairline before:bg-sidebar-border before:content-['']"[39m
+              [33mdata-slot[39m=[32m"app-frame-main"[39m
+            [36m>[39m
+              [36m<div[39m …[36m />[39m
+            [36m</main>[39m
+            [36m<section[39m
+              [33maria-label[39m=[32m"Right panel"[39m
+              [33mclass[39m=[32m"col-start-3 min-h-0 min-w-0 flex-col overflow-hidden bg-background"[39m
+              [33mdata-slot[39m=[32m"app-frame-right"[39m
+              [33mhidden[39m=[32m""[39m
+            [36m>[39m
+              [36m<header[39m …[36m />[39m
+              [36m<div[39m …[36m />[39m
+              [36m<div[39m …[36m />[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mdata-react-aria-top-layer[39m=[32m"true"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33maria-label[39m=[32m"Commands"[39m
+    [33mclass[39m=[32m"coko-typeahead-_r_ke_"[39m
+    [33mrole[39m=[32m"listbox"[39m
+    [33mstyle[39m=[32m"display: block; position: absolute;"[39m
+  [36m/>[39m
+  [36m<div[39m
+    [33maria-hidden[39m=[32m"true"[39m
+    [33maria-label[39m=[32m"Files"[39m
+    [33mclass[39m=[32m"coko-typeahead-_r_kf_"[39m
+    [33mrole[39m=[32m"listbox"[39m
+    [33mstyle[39m=[32m"display: block; position: absolute;"[39m
+  [36m/>[39m
+[36m</body>[39m...
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--streaming-settlement-keeps-one-call--expanded-content--selection-and-scroll--identical-arguments-do-not-merge-different-calls.png
+
+ ❯ Proxy.__VITEST_POLL_CHAIN__ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=181a761a:5779:47
+ ❯ src/renderer/features/conversation/tool-rows.browser.test.tsx:157:86
+    155|   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(4,…
+    156|   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(5…
+    157|   await expect.element(page.getByRole('status').filter({ hasText: 'Not…
+       |                                                                                      ^
+    158| })
+    159|
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=181a761a:5206:20
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ throwWithCause node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=181a761a:5759:34
+ ❯ promise node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=181a761a:5844:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 12 passed (13)
+      Tests  1 failed | 132 passed (133)
+   Start at  23:27:54
+   Duration  24.98s (tests 77%, import 16%, transform 4%, setup 2%, worker 2%)
+
+  Transform  |desktop| transforming modules took 2.56s · 96% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+[ELIFECYCLE] Test failed. See above for more details.

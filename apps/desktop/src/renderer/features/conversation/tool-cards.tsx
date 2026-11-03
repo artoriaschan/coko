@@ -6,6 +6,7 @@ import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
+import { OriginalIO, OriginalToolIO, ToolInspect } from './original-tool-io.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { ToolImages } from './tool-image-details.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
@@ -136,9 +137,16 @@ const VIEWS: Record<string, ToolView> = {
       const summary = str(a.summary)
       return to === undefined ? undefined : summary ? `${to} · ${summary}` : to
     },
-    body: (item, a) => <TeamMessageBody item={item} message={str(a.message)} />,
+    body: (item, a) => (
+      <>
+        <TeamMessageBody item={item} message={str(a.message)} />
+        <OriginalIO>
+          <OriginalToolIO item={item} />
+        </OriginalIO>
+      </>
+    ),
   },
-  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <TextBody text={output(item)} /> },
+  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <OriginalToolIO item={item} /> },
   task_update: {
     icon: <ListTodoIcon />,
     title: 'teams.tool.taskUpdate',
@@ -147,9 +155,9 @@ const VIEWS: Record<string, ToolView> = {
       const status = str(a.status) ?? str(a.owner)
       return id === undefined ? undefined : status ? `${id} · ${status}` : id
     },
-    body: (item) => <TextBody text={output(item)} />,
+    body: (item) => <OriginalToolIO item={item} />,
   },
-  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <TextBody text={output(item)} /> },
+  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <OriginalToolIO item={item} /> },
 }
 
 /** send_message 的明细：发出的正文（模型输出，原样）与结果。 */
@@ -213,21 +221,8 @@ function GenericBody({ item }: { item: ToolItem }) {
 
 export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
-  if (item.call.name === 'agent') return <AgentCard item={item} />
+  if (item.call.name === 'agent') return <AgentCard item={item} onInspect={onInspect} />
   return <ToolCallCard item={item} onInspect={onInspect} />
-}
-
-function Inspect({ onInspect }: { onInspect?: () => void }) {
-  const { t } = useI18n()
-  if (!onInspect) return null
-  return (
-    <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
-      <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
-        <path d="M4.67398 4.25061L1.36094 7.86484C1.29085 7.9413 1.29085 8.05866 1.36094 8.13513L4.67398 11.7494M11.3262 4.25061L14.6392 7.86484C14.7093 7.9413 14.7093 8.05866 14.6392 8.13513L11.3262 11.7494M9.56222 3.62573L6.43774 12.3743" />
-      </svg>
-      {t('tool.inspect')}
-    </button>
-  )
 }
 
 function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
@@ -260,7 +255,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         <ToolStateDetail item={item} />
         <GenericBody item={item} />
         <ToolImages item={item} />
-        <Inspect onInspect={onInspect} />
+        <ToolInspect onInspect={onInspect} />
       </ToolCard>
     )
   }
@@ -295,7 +290,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         <GenericBody item={item} />
       )}
       <ToolImages item={item} />
-      <Inspect onInspect={onInspect} />
+      <ToolInspect onInspect={onInspect} />
     </ToolCard>
   )
 }

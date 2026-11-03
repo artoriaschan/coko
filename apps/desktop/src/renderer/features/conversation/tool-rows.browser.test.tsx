@@ -154,5 +154,5 @@ it('actual App: streaming settlement keeps one call, expanded content, selection
   expect(document.querySelectorAll('[data-slot="tool-card-body"]')).toHaveLength(1)
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(4, 'two', 'custom', args) })
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(5, 'run_end', { status: 'interrupted' }) })
-  await expect.element(page.getByRole('status').filter({ hasText: 'Not finished' })).toBeVisible()
+  await expect.element(page.getByRole('status').filter({ hasText: 'No recorded result' })).toBeVisible()
 })

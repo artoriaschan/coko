@@ -1,6 +1,7 @@
 import type { TeamTaskPayload } from '@coko/protocol'
 import { ListTodoIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
+import { CollaborationRow } from './collaboration-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 type TaskChange = 'created' | 'claimed' | 'completed' | 'deleted' | 'updated'
@@ -20,23 +21,26 @@ export function TeamTaskRow({ item }: { item: Extract<TimelineItem, { kind: 'tea
   const { task } = item
   const change = taskChange(task)
   return (
-    <div
+    <CollaborationRow
       data-slot="team-task"
       data-task-id={task.taskId}
       data-task-change={change}
       data-revision={task.revision}
-      className="flex min-w-0 items-start gap-2 text-ui-body text-muted-foreground"
+      icon={<ListTodoIcon aria-hidden />}
+      label={
+        <>
+          <span>{t(`teams.task.${change}`, { by: task.by })}</span> <span className="font-mono">{task.taskId}</span>{' '}
+          <span data-user-content>{task.subject}</span>
+        </>
+      }
     >
-      <ListTodoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="shrink-0">{t(`teams.task.${change}`, { by: task.by })}</span>
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="shrink-0 font-mono text-ui-small">{task.taskId}</span>
-          <span data-user-content className="min-w-0 truncate text-foreground" title={task.subject}>
-            {task.subject}
-          </span>
-        </span>
-      </div>
-    </div>
+      <p data-user-content>{task.description}</p>
+      <p>{task.status === 'deleted' ? t('teams.task.deleted', { by: task.by }) : t(`teams.board.status.${task.status}`)}</p>
+      {task.owner !== undefined && <p>{t('teams.board.owner', { owner: task.owner })}</p>}
+      {task.blockedBy.length > 0 && <p>{t('teams.board.blockedBy', { tasks: task.blockedBy.join(', ') })}</p>}
+      <pre data-user-content className="conversation-collaboration-source">
+        {JSON.stringify(task, null, 2)}
+      </pre>
+    </CollaborationRow>
   )
 }

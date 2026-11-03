@@ -1,6 +1,8 @@
 import { AlarmClockIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { formatScheduleTime, useSchedules } from './schedules-button.tsx'
+import { CollaborationRow } from './collaboration-row.tsx'
+import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 /**
@@ -11,13 +13,8 @@ import type { TimelineItem } from './timeline.ts'
 export function ScheduleFireRow({ item }: { item: Extract<TimelineItem, { kind: 'schedule-fire' }> }) {
   const { t, locale } = useI18n()
   const { fire } = item
-  const listed = useSchedules((s) => {
-    for (const list of Object.values(s.lists)) {
-      const found = list.schedules.find((x) => x.id === fire.scheduleId)
-      if (found) return found.title
-    }
-    return undefined
-  })
+  const { sessionId } = useTimelineSession()
+  const listed = useSchedules((s) => (sessionId === null ? undefined : s.lists[sessionId]?.schedules.find((x) => x.id === fire.scheduleId)?.title))
   // 列表中找不到（已删除或尚未读取）时，取该 Run 输入包装中的标题。
   const title = listed ?? item.title
   const skipped = fire.status === 'skipped'
@@ -27,23 +24,30 @@ export function ScheduleFireRow({ item }: { item: Extract<TimelineItem, { kind: 
     fire.missed === undefined ? undefined : t('schedules.missed', { count: fire.missed }),
   ].filter(Boolean)
   return (
-    <div
+    <CollaborationRow
       data-slot="schedule-fire"
       data-status={fire.status}
       data-reason={fire.reason}
       data-schedule-id={fire.scheduleId}
-      className="flex min-w-0 items-start gap-2 text-ui-body text-muted-foreground"
+      icon={<AlarmClockIcon aria-hidden />}
+      label={
+        <>
+          <span className={skipped ? 'text-warning-text' : undefined}>{t(skipped ? 'schedules.fireRow.skipped' : 'schedules.fireRow.started')}</span>
+          {' · '}
+          <span data-user-content={title === undefined ? undefined : ''}>{title ?? t('schedules.unknownTask')}</span>
+          {' · '}
+          <span>{details.join(' · ')}</span>
+        </>
+      }
     >
-      <AlarmClockIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-      <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className={skipped ? 'shrink-0 text-warning-text' : 'shrink-0 text-foreground'}>
-          {t(skipped ? 'schedules.fireRow.skipped' : 'schedules.fireRow.started')}
-        </span>
-        <span data-user-content={title === undefined ? undefined : ''} className="min-w-0 truncate" title={title}>
-          {title ?? t('schedules.unknownTask')}
-        </span>
-        <span className="text-ui-small">{details.join(' · ')}</span>
-      </p>
-    </div>
+      {item.prompt !== undefined && (
+        <p data-user-content data-slot="schedule-prompt">
+          {item.prompt}
+        </p>
+      )}
+      <pre data-user-content className="conversation-collaboration-source">
+        {JSON.stringify(fire, null, 2)}
+      </pre>
+    </CollaborationRow>
   )
 }

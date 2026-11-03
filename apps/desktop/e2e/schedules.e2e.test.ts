@@ -25,7 +25,7 @@ async function setup(script: unknown) {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json'), COKO_TEST_CLOCK: '1', COKO_TEST_CLOCK_START: String(CLOCK_START) }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, root }
@@ -36,6 +36,7 @@ async function send(app: LaunchedApp, text: string) {
   await composer(app).click()
   await composer(app).fill(text)
   await composer(app).press('Enter')
+  await waitConnected(app.window)
 }
 const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
 
@@ -125,6 +126,9 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     await expect.poll(() => fireRows.count()).toBe(1)
     expect(await fireRows.first().getAttribute('data-status')).toBe('started')
     expect(await fireRows.first().textContent()).toContain('Morning check')
+    await fireRows.first().locator(':scope > button').focus()
+    await window.keyboard.press('Enter')
+    await expect.poll(() => fireRows.first().locator('[data-slot="schedule-prompt"]').textContent()).toBe('Check the build status')
     await expect.poll(() => window.locator('[data-slot="schedule-history-item"]').count()).toBe(1)
     await expect.poll(() => item.locator('[data-slot="schedule-last"]').getAttribute('data-last-status')).toBe('started')
     await expect.poll(() => item.locator('[data-slot="schedule-next"]').textContent()).toMatch(/Nov 3, 2026|2026年11月3日/)

@@ -127,11 +127,11 @@ type TimelineContent =
   | { kind: 'hook'; key: string; hook: HookRunPayload }
   | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
   /** 团队消息（ADR 0018）：送达它的 user message 中的 <team-message> 块不成气泡，由该行显示。 */
-  | { kind: 'team-message'; key: string; message: TeamMessagePayload }
+  | { kind: 'team-message'; key: string; message: TeamMessagePayload; body?: string }
   /** 任务板的一次变更（根 Session）。 */
   | { kind: 'team-task'; key: string; task: TeamTaskPayload }
   /** title：定时任务 Run 的输入包装中的标题（任务已删除、列表中找不到时的后备）。 */
-  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string }
+  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string; prompt?: string }
   | {
       kind: 'handoff'
       key: string
@@ -202,8 +202,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   /** trigger schedule 的 Run 中尚未出现的输入消息（按 runId），及开始它的 schedule_fire 行。 */
   const scheduleInputs = new Set<string>()
   const fireItems = new Map<string, Extract<TimelineItem, { kind: 'schedule-fire' }>>()
+  const scheduleOccurrences = new Map<string, Extract<TimelineItem, { kind: 'schedule-fire' }>>()
   /** 紧接在当前条目之前的宿主通知条目（job_notification / agent_notification）的 kind。 */
   let notices = new Set<string>()
+  let teamMessages: Extract<TimelineItem, { kind: 'team-message' }>[] = []
 
   /**
    * 一层条目：被该层最外层回退区间覆盖的条目收进一个 rewound 项（在其中递归，内层回退照样折叠），其余逐条转换。
@@ -241,15 +243,24 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     const first = items.length
     try {
       const preceding = notices
+      const precedingTeams = teamMessages
       notices =
         entry.kind === 'job_notification' || entry.kind === 'agent_notification' || entry.kind === 'team_message'
           ? new Set([...preceding, entry.kind])
           : new Set()
+      if (notices.size === 0) teamMessages = []
       if (entry.runId) lastRunId = entry.runId
       if (entry.kind === 'run_start') {
         pendingCommand = null
         if (entry.payload.trigger === 'compact' && entry.runId) compactRuns.add(entry.runId)
-        if (entry.payload.trigger === 'schedule' && entry.runId) scheduleInputs.add(entry.runId)
+        if (entry.payload.trigger === 'schedule' && entry.runId) {
+          scheduleInputs.add(entry.runId)
+          const schedule = entry.payload.schedule
+          if (schedule) {
+            const fire = scheduleOccurrences.get(JSON.stringify([schedule.scheduleId, schedule.occurrence]))
+            if (fire) fireItems.set(entry.runId, fire)
+          }
+        }
       }
       if (entry.kind === 'compaction') {
         const { summary, trigger, tokensBefore, tokensAfter } = entry.payload
@@ -289,7 +300,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         return
       }
       if (entry.kind === 'team_message') {
-        items.push({ kind: 'team-message', key: `${entry.seq}`, message: entry.payload })
+        const item: Extract<TimelineItem, { kind: 'team-message' }> = { kind: 'team-message', key: `${entry.seq}`, message: entry.payload }
+        items.push(item)
+        teamMessages.push(item)
         return
       }
       if (entry.kind === 'team_task') {
@@ -303,6 +316,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       if (entry.kind === 'schedule_fire') {
         const item: Extract<TimelineItem, { kind: 'schedule-fire' }> = { kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload }
         if (entry.payload.runId) fireItems.set(entry.payload.runId, item)
+        if (entry.payload.status === 'started') scheduleOccurrences.set(JSON.stringify([entry.payload.scheduleId, entry.payload.occurrence]), item)
         items.push(item)
         return
       }
@@ -376,12 +390,34 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           if (b.type !== 'text' || typeof b.text !== 'string') return true
           if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
           if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
-          if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) return false
+          if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) {
+            // Association is proven by the preceding host entry, never by a user's text alone.
+            const headEnd = b.text.indexOf('>')
+            const head = b.text.slice(0, headEnd + 1)
+            const messageId = / message-id="([^"]*)"/.exec(head)?.[1]
+            const from = / from="([^"]*)"/.exec(head)?.[1]
+            const row = precedingTeams.find(
+              (item) =>
+                messageId !== undefined &&
+                from !== undefined &&
+                item.message.messageId === unescapeAttribute(messageId) &&
+                item.message.from === unescapeAttribute(from),
+            )
+            if (!row) return true
+            const raw = b.text.slice(headEnd + 1)
+            const end = raw.lastIndexOf('</team-message>')
+            row.body = end < 0 ? b.text : raw.slice(0, end).replace(/^\n/, '').replace(/\n$/, '')
+            return false
+          }
           if (scheduleInput && index === 0) {
             const title = scheduledTaskTitle(b.text)
             if (title !== undefined) {
               const fire = fireItems.get(entry.runId!)
-              if (fire && title !== '') fire.title = title
+              if (fire) {
+                if (title !== '') fire.title = title
+                const end = b.text.lastIndexOf('</scheduled_task>')
+                fire.prompt = end < 0 ? b.text : b.text.slice(b.text.indexOf('>') + 1, end)
+              }
               return false
             }
           }

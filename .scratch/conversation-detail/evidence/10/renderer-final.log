@@ -1,0 +1,13 @@
+$ vitest run apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx apps/desktop/src/renderer/features/conversation/agent-card.browser.test.tsx apps/desktop/src/renderer/features/conversation/team-rows.browser.test.tsx apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx apps/desktop/src/renderer/features/conversation/handoff.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx apps/desktop/src/renderer/features/conversation/approval-bubbling.browser.test.tsx apps/desktop/src/renderer/features/conversation/tool-rows.browser.test.tsx apps/desktop/src/renderer/features/conversation/structured-tool-details.browser.test.tsx packages/ui/src/guards/style-guard.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-10
+
+
+ Test Files  13 passed (13)
+      Tests  133 passed (133)
+   Start at  23:28:36
+   Duration  9.23s (tests 68%, import 21%, transform 6%, setup 3%, worker 3%)
+
+  Transform  |desktop| transforming modules took 2.42s · 96% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

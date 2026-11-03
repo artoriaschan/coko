@@ -1,0 +1,442 @@
+[
+  {
+    "theme": "light",
+    "locale": "en",
+    "width": 1280,
+    "data": {
+      "viewport": 1280,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1280,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(15, 17, 21)",
+          "width": 676
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "light",
+    "locale": "en",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(15, 17, 21)",
+          "width": 322
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "en",
+    "width": 1280,
+    "data": {
+      "viewport": 1280,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1280,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(249, 250, 251)",
+          "width": 676
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "en",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(249, 250, 251)",
+          "width": 322
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "light",
+    "locale": "zh",
+    "width": 1280,
+    "data": {
+      "viewport": 1280,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1280,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(15, 17, 21)",
+          "width": 676
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 680
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "light",
+    "locale": "zh",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(15, 17, 21)",
+          "width": 322
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(97, 102, 107)",
+          "width": 326
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "zh",
+    "width": 1280,
+    "data": {
+      "viewport": 1280,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1280,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(249, 250, 251)",
+          "width": 676
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 680
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "zh",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "rows": [
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "tool-card",
+          "font": "\"Noto Sans SC\", -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", sans-serif",
+          "fontSize": "13px",
+          "lineHeight": "20px",
+          "color": "rgb(249, 250, 251)",
+          "width": 322
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        },
+        {
+          "slot": "business",
+          "font": "-apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "fontSize": "14px",
+          "lineHeight": "24px",
+          "color": "rgb(207, 211, 214)",
+          "width": 326
+        }
+      ],
+      "agentExpanded": "true",
+      "keyboardSource": "Review repository status. \u4fdd\u7559\u771f\u5b9e\u6765\u6e90\u3002"
+    }
+  }
+]

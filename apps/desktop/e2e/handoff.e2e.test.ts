@@ -111,13 +111,14 @@ describe('交接', () => {
     )
     apps.push(app)
     const win = app.window
-    await waitConnected(win)
+    await win.getByRole('button', { name: /^(Settings|设置)$/ }).waitFor()
     await createProjectDraft(app, repo)
     await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     await composer.click()
     await composer.fill('draft the login form')
     await composer.press('Enter')
+    await waitConnected(win)
     await win.getByRole('article', { name: 'Coko' }).waitFor({ timeout: 30_000 })
     await win.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     const sourceTitle = (await win.getByRole('heading', { level: 1 }).textContent())!.trim()
@@ -167,6 +168,9 @@ describe('交接', () => {
     const source = win.locator('[data-slot="handoff-row"][data-handoff="source"]')
     await expect.poll(() => source.textContent()).toContain('continue with the login page')
     expect(await source.textContent()).toMatch(/worktree/)
+    await source.locator('.conversation-collaboration-trigger').click()
+    expect(JSON.parse((await source.locator('pre').textContent())!).summary).toBe(summary)
+    expect(await source.locator('pre').textContent()).toContain('continue with the login page')
 
     for (const theme of ['dark', 'light'] as const) {
       await setTheme(win, theme)

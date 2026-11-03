@@ -40,7 +40,7 @@ lifecycle: active
 
 [思考行](../../apps/desktop/src/renderer/features/conversation/reasoning-row.tsx)只显示非空白内容，流式与历史内容初始均收起。流式预览取最近一个首行已以换行结束的段落的首行；尚未完成的单行不产生预览。结算后预览显示首行，仅预览去掉 `**`，展开后的紧凑 Markdown 保持原文。标题行高 24px，展开正文从标题起点缩进 22px；悬停和键盘焦点显示开合箭头，运行中的文字扫光在 reduced-motion 下关闭。
 
-[显示身份映射](../../apps/desktop/src/renderer/features/conversation/message-identities.ts)仅保存在当前视图内，已提交内容仍以条目序号和内容块索引标识。仅在同一 Session、同一真实 Run 和内容块索引能唯一对应时，把流式块的 React 身份延续到新提交块；不从文本推测归属，不因结算、增量或主题变化重置思考开合与选区。主区和右栏子 Session 均传递 Session 身份，历史条目 key 不依赖已经加载的消息数量。此映射不写入数据库或协议。
+[显示身份映射](../../apps/desktop/src/renderer/features/conversation/message-identities.ts)仅保存在当前视图内，已提交内容仍以条目序号和内容块索引标识。仅在同一 Session、同一真实 Run 和内容块索引能唯一对应时，把流式块的 React 身份延续到新提交块；不从文本推测归属，不因结算、增量或主题变化重置思考开合与选区。主区和右栏子 Session 均显式传递 Session 身份与真实条目（`TimelineSessionContext`）；业务行从这些调用方事实读取自己的来源，历史条目 key 不依赖已经加载的消息数量。此映射不写入数据库或协议。
 
 验证：[真实 App 消息 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)覆盖预览、流式结算的 DOM/开合/选区、原文复制、外围几何、命令与附件、明暗主题和中英文的 390px 主内容区，以及 Markdown 排版；右栏现有[子代理](../../apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx)和[团队成员](../../apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx)验证共用时间线消费者。
 
@@ -54,7 +54,7 @@ lifecycle: active
 
 [稳定过程容器](../../apps/desktop/src/renderer/features/conversation/process-timeline.tsx)从首次运行显示起保持父子结构，先解析整份时间线的 live→committed 消息身份，再按成员重叠保留组身份。普通增量、结算和生命周期变化不重置详情；显式收起整轮才通过局部 reset 清空内部开合。自动完成不会隐藏当前键盘焦点；手动收起先聚焦对应控制项，焦点保留例外不阻止之后的手动组收起。
 
-Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点时不显示已结束耗时。运行计时在连接断开时冻结、重连后追平，数字不参与持续状态播报。右栏子代理和团队成员使用相同分组投影与独立 Session 身份。完整长内容、尺寸变化和历史锚点协调不由此处的基本分组实现替代。
+Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点时不显示已结束耗时。运行计时在连接断开时冻结、重连后追平，数字不参与持续状态播报。右栏子代理和团队成员使用相同分组投影与独立 Session 身份。完整长内容、尺寸变化和历史锚点协调不由此处的基本分组实现替代。 协作来源、Agent 手动详情与整轮重置、团队批量送达、定时指令、交接及父子 Session 隔离由[真实 App 协作用例](../../apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx)验证。
 
 消息区、Agents 与 Team 子 Session 的外层滚动共用按 Session 隔离的阅读策略。贴底时跟随条目与实际尺寸增长，包括展开通用详情、流式正文和结算后的尺寸；用户滚轮、触摸或键盘向上阅读后保留可见内容，回到物理底部恢复跟随；主消息区另有“返回底部”，主动返回时将焦点交回消息区。限高过程组有自己的跟随状态，手动展开总从顶部开始；组内到达边缘后允许滚轮继续传给外层。
 
