@@ -289,6 +289,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
       <div data-slot="conversation-messages" className={`${chatColumn} flex min-w-0 flex-col gap-1 py-4`}>
         <TimelineView
           sessionId={activeSessionId ?? undefined}
+          entries={conversation?.entries}
           items={items}
           runs={conversation ? displayRuns(conversation) : undefined}
           connected={connection.phase === 'connected'}

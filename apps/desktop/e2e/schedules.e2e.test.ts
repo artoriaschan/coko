@@ -25,7 +25,7 @@ async function setup(script: unknown) {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json'), COKO_TEST_CLOCK: '1', COKO_TEST_CLOCK_START: String(CLOCK_START) }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('button', { name: /^(Settings|设置)$/ }).waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, root }
@@ -36,6 +36,7 @@ async function send(app: LaunchedApp, text: string) {
   await composer(app).click()
   await composer(app).fill(text)
   await composer(app).press('Enter')
+  await waitConnected(app.window)
 }
 const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
 

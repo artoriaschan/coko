@@ -1,7 +1,8 @@
 import { BellIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
-import { agentRecords, AgentStatusDot, useActiveEntries, useAgentStatus, useAgentsStoreApi, type AgentRecord } from './agents-button.tsx'
+import { agentRecords, AgentStatusDot, useAgentStatus, useAgentsStoreApi, type AgentRecord } from './agents-button.tsx'
+import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 function NotifiedAgent({ agentId, record, sessionId }: { agentId: string; record: AgentRecord | undefined; sessionId: string | null }) {
@@ -30,10 +31,10 @@ function NotifiedAgent({ agentId, record, sessionId }: { agentId: string; record
 /** 时间线的后台子代理结束通知（agent_notification）：紧凑行，"子代理已结束"与每个子代理的类型、描述与状态，点击在右栏打开。 */
 export function AgentNotificationRow({ item }: { item: Extract<TimelineItem, { kind: 'agent-notification' }> }) {
   const { t } = useI18n()
-  const { sessionId, entries } = useActiveEntries()
+  const { sessionId, entries } = useTimelineSession()
   const byId = React.useMemo(() => new Map(agentRecords(entries).map((r) => [r.start.agentId, r])), [entries])
   return (
-    <div data-slot="agent-notification" className="flex min-w-0 items-start gap-2 text-ui-body text-muted-foreground">
+    <div data-slot="agent-notification" className="flex min-w-0 items-start gap-2 text-conversation-row text-muted-foreground">
       <BellIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="shrink-0">{t('agents.notification')}</span>

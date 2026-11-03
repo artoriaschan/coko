@@ -1,5 +1,5 @@
 // 时间线中的团队紧凑行与工具卡（docs/subsystems/teams.md#界面）：team_message 行显示发送方 → 接收方与 summary，送达它的 <team-message>
-// 包装不成气泡、DOM 中没有原文；用户自己输入的同样文本照常显示为气泡；team_task 行按快照显示创建、认领、完成与删除；send_message 与
+// 包装不成气泡、正文可手动展开；用户自己输入的同样文本照常显示为气泡；team_task 行按快照显示创建、认领、完成与删除；send_message 与
 // task_* 的工具卡标题、摘要与明细。
 import '../../styles.css'
 import type { SessionEntryRecord } from '@coko/protocol'
@@ -73,6 +73,8 @@ describe('团队的时间线行', () => {
     const text = document.body.textContent ?? ''
     expect(text).not.toContain('HIDDEN-BODY')
     expect(text).not.toContain('HIDDEN-SECOND')
+    await page.getByRole('button', { name: 'lead to alice', exact: true }).click()
+    expect(document.querySelector('[data-slot="team-message-body"]')?.textContent).toBe('HIDDEN-BODY build it')
     // 只有一个气泡：用户自己输入的伪造标签原样显示。
     const bubbles = [...document.querySelectorAll('p.bg-bubble[data-user-content]')]
     expect(bubbles).toHaveLength(1)
@@ -89,7 +91,7 @@ describe('团队的时间线行', () => {
     ])
     const rows = [...document.querySelectorAll('[data-slot="team-task"]')]
     expect(rows.map((r) => r.getAttribute('data-task-change'))).toEqual(['created', 'claimed', 'updated', 'completed', 'deleted'])
-    expect(rows[0]!.textContent).toBe('lead created a taskt1Build the API')
+    expect(rows[0]!.textContent).toBe('lead created a task t1 Build the API')
     expect(rows[1]!.textContent).toContain('alice claimed a task')
     expect(rows[3]!.textContent).toContain('alice completed a task')
     expect(rows[3]!.textContent).toContain('Build the API v2')

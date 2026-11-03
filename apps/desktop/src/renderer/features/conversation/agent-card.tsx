@@ -3,7 +3,10 @@ import { cn, ToolCard, type ToolCardStatus } from '@coko/ui'
 import { BotIcon, GitBranchIcon, PanelRightOpenIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
-import { agentRecords, agentUsageText, useActiveEntries, useAgents, useAgentStatus, useAgentsStoreApi, useSessionAgents } from './agents-button.tsx'
+import { agentRecords, agentUsageText, useAgents, useAgentStatus, useAgentsStoreApi, useSessionAgents } from './agents-button.tsx'
+import { OriginalIO, OriginalToolIO } from './original-tool-io.tsx'
+import { useTimelineSession } from './timeline-session.tsx'
+import { ToolImages } from './tool-image-details.tsx'
 import { useProcessDisclosure } from './process-disclosure.tsx'
 import type { TimelineItem } from './timeline.ts'
 
@@ -33,13 +36,16 @@ function resultBody(text: string): string {
  * 后台 chip 与保留的 worktree；明细为结果文本与"在右栏查看"。状态与用量只来自宿主的 agent_start / agent_end 与 agent_update，
  * 不读结果文本中的标签。
  */
-export function AgentCard({ item }: { item: ToolItem }) {
-  const [expanded, onExpandedChange] = useProcessDisclosure(true)
+export function AgentCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
+  const [expanded, onExpandedChange] = useProcessDisclosure()
   const { t, locale } = useI18n()
   const agents = useAgentsStoreApi()
-  const { sessionId, entries } = useActiveEntries()
+  const { sessionId, entries } = useTimelineSession()
   useSessionAgents(sessionId)
-  const record = React.useMemo(() => agentRecords(entries).find((r) => r.start.toolCallId === item.call.id), [entries, item.call.id])
+  const record = React.useMemo(
+    () => agentRecords(entries).find((r) => r.start.toolCallId === item.call.id && (item.origin?.runId === undefined || r.runId === item.origin.runId)),
+    [entries, item.call.id, item.origin?.runId],
+  )
   const status = useAgentStatus(record, sessionId)
   const activity = useAgents((s) => (record ? s.activity[record.start.agentId] : undefined))
   const args = (item.call.arguments && typeof item.call.arguments === 'object' ? item.call.arguments : {}) as Record<string, unknown>
@@ -65,6 +71,7 @@ export function AgentCard({ item }: { item: ToolItem }) {
   const result = item.result && !background ? resultBody(item.result.text) : failedToStart ? (item.result?.text ?? '') : undefined
   return (
     <ToolCard
+      variant="row"
       data-tool="agent"
       icon={<BotIcon />}
       title={t('agents.card.title', { type })}
@@ -131,6 +138,15 @@ export function AgentCard({ item }: { item: ToolItem }) {
               {t('agents.card.open')}
             </button>
           </div>
+        )}
+        <OriginalIO>
+          <OriginalToolIO item={item} />
+        </OriginalIO>
+        <ToolImages item={item} />
+        {onInspect && (
+          <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
+            {t('tool.inspect')}
+          </button>
         )}
       </div>
     </ToolCard>

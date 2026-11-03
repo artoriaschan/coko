@@ -124,11 +124,11 @@ type TimelineContent =
   | { kind: 'hook'; key: string; hook: HookRunPayload }
   | { kind: 'agent-notification'; key: string; notification: AgentNotificationPayload }
   /** 团队消息（ADR 0018）：送达它的 user message 中的 <team-message> 块不成气泡，由该行显示。 */
-  | { kind: 'team-message'; key: string; message: TeamMessagePayload }
+  | { kind: 'team-message'; key: string; message: TeamMessagePayload; body?: string }
   /** 任务板的一次变更（根 Session）。 */
   | { kind: 'team-task'; key: string; task: TeamTaskPayload }
   /** title：定时任务 Run 的输入包装中的标题（任务已删除、列表中找不到时的后备）。 */
-  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string }
+  | { kind: 'schedule-fire'; key: string; fire: ScheduleFirePayload; title?: string; prompt?: string }
   | {
       kind: 'handoff'
       key: string
@@ -365,12 +365,26 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           if (b.type !== 'text' || typeof b.text !== 'string') return true
           if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
           if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
-          if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) return false
+          if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) {
+            // Association is proven by the preceding host entry, never by a user's text alone.
+            const row = items.findLast((item) => item.kind === 'team-message')
+            if (row?.kind === 'team-message') {
+              const headEnd = b.text.indexOf('>')
+              const raw = b.text.slice(headEnd + 1)
+              const end = raw.lastIndexOf('</team-message>')
+              row.body = end < 0 ? b.text : raw.slice(0, end).replace(/^\n/, '').replace(/\n$/, '')
+            }
+            return false
+          }
           if (scheduleInput && index === 0) {
             const title = scheduledTaskTitle(b.text)
             if (title !== undefined) {
               const fire = fireItems.get(entry.runId!)
-              if (fire && title !== '') fire.title = title
+              if (fire) {
+                if (title !== '') fire.title = title
+                const end = b.text.lastIndexOf('</scheduled_task>')
+                fire.prompt = end < 0 ? b.text : b.text.slice(b.text.indexOf('>') + 1, end)
+              }
               return false
             }
           }

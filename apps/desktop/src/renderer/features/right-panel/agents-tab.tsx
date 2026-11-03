@@ -111,6 +111,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
       ) : (
         <TimelineView
           sessionId={agent.agentId}
+          entries={conversation?.entries}
           items={items}
           runs={conversation ? displayRuns(conversation) : undefined}
           theme={theme}

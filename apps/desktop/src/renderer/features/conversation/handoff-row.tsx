@@ -5,6 +5,7 @@ import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { handoffFailure } from '../../stores/handoff-store.ts'
 import { HANDOFF_ERRORS } from './handoff-dialog.tsx'
+import { CollaborationRow } from './collaboration-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 /**
@@ -13,20 +14,30 @@ import type { TimelineItem } from './timeline.ts'
  */
 export function HandoffRow({ item }: { item: Extract<TimelineItem, { kind: 'handoff' }> }) {
   const { handoff } = item
-  if (handoff.kind === 'failed') return <FailedHandoffRow code={handoffFailure(handoff.payload)?.error.code ?? ''} />
+  if (handoff.kind === 'failed') return <FailedHandoffRow code={handoffFailure(handoff.payload)?.error.code ?? ''} payload={handoff.payload} />
   return <LinkedHandoffRow item={{ ...item, handoff }} />
 }
 
-function FailedHandoffRow({ code }: { code: string }) {
+function FailedHandoffRow({ code, payload }: { code: string; payload: unknown }) {
   const { t } = useI18n()
   const reason = HANDOFF_ERRORS[code]
   return (
-    <div data-slot="handoff-row" data-handoff="failed" data-code={code} className="flex min-w-0 items-start gap-2 text-ui-body text-muted-foreground">
+    <div
+      data-slot="handoff-row"
+      data-handoff="failed"
+      data-code={code}
+      className="flex min-w-0 flex-wrap items-start gap-2 text-conversation-row text-muted-foreground"
+    >
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="min-w-0 flex-1">
         {t('handoff.failed')}
         {reason && <span className="block text-ui-small">{t(reason)}</span>}
       </p>
+      <CollaborationRow className="basis-full" icon={<TriangleAlertIcon aria-hidden />} label={t('tool.originalIO')}>
+        <pre data-user-content className="conversation-collaboration-source">
+          {JSON.stringify(payload, null, 2)}
+        </pre>
+      </CollaborationRow>
     </div>
   )
 }
@@ -53,12 +64,19 @@ function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: '
       data-slot="handoff-row"
       data-handoff={handoff.kind}
       data-session-id={otherId}
-      className="flex min-w-0 items-center gap-2 text-ui-body text-muted-foreground"
+      className="flex min-w-0 flex-wrap items-center gap-2 text-conversation-row text-muted-foreground"
     >
       <ArrowRightLeftIcon aria-hidden className="size-4 shrink-0" />
-      <p data-user-content className="min-w-0 flex-1 truncate" title={text}>
+      <p data-user-content className="min-w-0 flex-1 break-words" title={text}>
         {text}
       </p>
+      {handoff.kind === 'source' && (
+        <CollaborationRow className="order-last basis-full" icon={<ArrowRightLeftIcon aria-hidden />} label={t('tool.originalIO')}>
+          <pre data-user-content className="conversation-collaboration-source">
+            {JSON.stringify(handoff.payload, null, 2)}
+          </pre>
+        </CollaborationRow>
+      )}
       {chat && (
         <Button
           size="sm"

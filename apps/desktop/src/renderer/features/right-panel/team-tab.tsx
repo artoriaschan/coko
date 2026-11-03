@@ -209,6 +209,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
       ) : (
         <TimelineView
           sessionId={member.agentId}
+          entries={conversation?.entries}
           items={items}
           runs={conversation ? displayRuns(conversation) : undefined}
           theme={theme}

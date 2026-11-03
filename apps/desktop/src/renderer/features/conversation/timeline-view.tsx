@@ -1,3 +1,4 @@
+import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from '@coko/ui'
 import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
@@ -20,10 +21,13 @@ import { RunUsageRow } from './run-usage-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ProcessTimeline } from './process-timeline.tsx'
 import type { DisplayRun } from './process-groups.ts'
+import { TimelineSessionContext } from './timeline-session.tsx'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
   sessionId?: string
+  /** Actual caller-owned entries; never inferred from the active parent Session. */
+  entries?: readonly SessionEntry[]
   runs?: ReadonlyMap<string, DisplayRun>
   connected?: boolean
   items: TimelineItem[]
@@ -228,7 +232,7 @@ export function TimelineView(props: TimelineViewProps) {
               {t('conversation.rewound', { count: item.items.length })}
             </summary>
             <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
-              <TimelineView items={item.items} theme={theme} onRetry={onRetry} />
+              <TimelineView sessionId={props.sessionId} entries={props.entries} items={item.items} theme={theme} onRetry={onRetry} actionsDisabled />
             </div>
           </details>
         )
@@ -292,7 +296,7 @@ export function TimelineView(props: TimelineViewProps) {
                 {item.message}
               </p>
             )}
-            {item.retryable && (
+            {item.retryable && !actionsDisabled && (
               <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
                 <RotateCcwIcon />
                 {t('conversation.retry')}
@@ -323,6 +327,15 @@ export function TimelineView(props: TimelineViewProps) {
     }
   }
   return (
-    <ProcessTimeline key={props.sessionId} items={items} identities={messageIdentities} runs={props.runs} connected={props.connected} renderItem={renderItem} />
+    <TimelineSessionContext.Provider value={{ sessionId: props.sessionId ?? null, entries: props.entries ?? [], actionsDisabled }}>
+      <ProcessTimeline
+        key={props.sessionId}
+        items={items}
+        identities={messageIdentities}
+        runs={props.runs}
+        connected={props.connected}
+        renderItem={renderItem}
+      />
+    </TimelineSessionContext.Provider>
   )
 }

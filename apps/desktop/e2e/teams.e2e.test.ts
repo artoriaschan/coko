@@ -119,13 +119,14 @@ describe('团队界面', () => {
       const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
       apps.push(app)
       const win = app.window
-      await waitConnected(win)
+      await win.getByRole('button', { name: /^(Settings|设置)$/ }).waitFor()
       await createProjectDraft(app, workspace)
       await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
       const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
       await composer.click()
       await composer.fill('Split the work between two teammates')
       await composer.press('Enter')
+      await waitConnected(win)
 
       // 标题栏团队按钮在有 teammate 后出现；打开 Team tab。两人先各跑一轮"待命"（running 会短暂为 2 再回到 0），所以 running 数在
       // 两人都认领了任务、停在写入审批上之后再断言（审批回答之前它们一直 running）。
@@ -182,9 +183,12 @@ describe('团队界面', () => {
       await expect.poll(() => timeline.locator('[data-slot="team-message"]').count(), { timeout: 15_000 }).toBe(1)
       expect(await timeline.locator('[data-slot="team-message"]').getAttribute('data-from')).toBe('lead')
       expect(await timeline.locator('[data-slot="team-message-summary"]').textContent()).toBe('take t1')
+      for (const header of await timeline.locator('[data-slot="process-group-header"][aria-expanded="false"]').all()) await header.click()
       await expect.poll(() => timeline.locator('[data-slot="tool-card"][data-tool="write"]').count(), { timeout: 15_000 }).toBe(1)
       expect(await timeline.textContent()).toContain('MATE-ALICE stand by')
       expect(await timeline.textContent()).not.toContain('ALICE-GO')
+      await timeline.locator('[data-slot="team-message"] > button').click()
+      expect(await timeline.locator('[data-slot="team-message-body"]').textContent()).toContain('ALICE-GO')
       expect(await timeline.textContent()).not.toContain('<team-message')
       expect(await panel.getByRole('textbox').count()).toBe(0)
 

@@ -5,6 +5,7 @@ import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
+import { OriginalIO, OriginalToolIO } from './original-tool-io.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { ToolImages } from './tool-image-details.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
@@ -135,9 +136,16 @@ const VIEWS: Record<string, ToolView> = {
       const summary = str(a.summary)
       return to === undefined ? undefined : summary ? `${to} · ${summary}` : to
     },
-    body: (item, a) => <TeamMessageBody item={item} message={str(a.message)} />,
+    body: (item, a) => (
+      <>
+        <TeamMessageBody item={item} message={str(a.message)} />
+        <OriginalIO>
+          <OriginalToolIO item={item} />
+        </OriginalIO>
+      </>
+    ),
   },
-  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <TextBody text={output(item)} /> },
+  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <OriginalToolIO item={item} /> },
   task_update: {
     icon: <ListTodoIcon />,
     title: 'teams.tool.taskUpdate',
@@ -146,9 +154,9 @@ const VIEWS: Record<string, ToolView> = {
       const status = str(a.status) ?? str(a.owner)
       return id === undefined ? undefined : status ? `${id} · ${status}` : id
     },
-    body: (item) => <TextBody text={output(item)} />,
+    body: (item) => <OriginalToolIO item={item} />,
   },
-  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <TextBody text={output(item)} /> },
+  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <OriginalToolIO item={item} /> },
 }
 
 /** send_message 的明细：发出的正文（模型输出，原样）与结果。 */
@@ -287,7 +295,7 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
 
 export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
-  if (item.call.name === 'agent') return <AgentCard item={item} />
+  if (item.call.name === 'agent') return <AgentCard item={item} onInspect={onInspect} />
   return <ToolCallCard item={item} onInspect={onInspect} />
 }
 
