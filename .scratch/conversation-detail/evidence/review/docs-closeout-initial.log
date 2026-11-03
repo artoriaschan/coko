@@ -1,0 +1,4 @@
+$ node scripts/check-docs.ts
+.scratch/conversation-detail/evidence/review/delivery.md:22  link-target  链接目标不存在：docs-closeout.log
+检查 288 个 Markdown 文件，发现 1 个问题。
+[ELIFECYCLE] Command failed with exit code 1.

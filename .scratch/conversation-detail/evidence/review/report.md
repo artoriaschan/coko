@@ -47,3 +47,7 @@ lifecycle: active
 命名agent-browser `coko-review-fix` 已实际 Browser closed；两个独立Vite PID16948/53585先核对完整命令再SIGTERM，操作等待返回exit143。64581/65461 listener已消失，当前工作树路径匹配的Electron/Sidecar/Vitest运行资源为空，见 [清理](cleanup.json)。原生测试使用现有harness.dispose等待应用退出并删除独立用户目录；未退出用户原有Coko。工作树和忽略测试产物保留给root合入/最终清理。
 
 最终 `rtk proxy pnpm run check:docs` 283个Markdown、0问题；`rtk proxy git diff 6e57ed0a7605996ec96173c897b1546c57ed42aa...HEAD --check` 与工作区diffcheck通过。源码lint/format与提交hooks通过。此前归档评审的源行链接被错误当Markdown锚点，机械检查报错，已把Markdown链接改回正文路径、保留旁边原行号说明，未改检查器。全部结论仍以最终root复核为准。
+
+## 最终独立复核与交付
+
+上述“等待复核”是本轮修复提交时的状态。两名全新代理随后以实际集成 `28f9b22a` 复核，Standards 与 Spec 各自原2项均解决、剩余0、新增0；只读复核未运行额外测试。当前交付与最后工作树清理见 [最终回执](delivery.md)、[Standards](standards-final.md)、[Spec](spec-final.md) 和 [清理](cleanup-final.md)。原修复过程、失败及证据对象保持。

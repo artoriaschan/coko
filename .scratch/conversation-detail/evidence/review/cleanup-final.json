@@ -1,0 +1,190 @@
+{
+  "previousCleanupFile": "cleanup-completed.json",
+  "previousCleanupIntegration": "e7efe155912791f51647b9bcf9f965d0b2362c75",
+  "previousRemovedWorktrees": 16,
+  "reviewFixCleanup": {
+    "path": "/tmp/coko-conversation-detail/review-fix",
+    "canonical": "/private/tmp/coko-conversation-detail/review-fix",
+    "branch": "codex/conversation-detail-review-fix",
+    "head": "28f9b22ab4160cb56682e686c5b1cb9f56d9bb59",
+    "status": {
+      "code": 0,
+      "out": "",
+      "err": ""
+    },
+    "ignored": {
+      "code": 0,
+      "out": "!! .husky/_/\n!! .tsbuild/\n!! .vitest/\n!! apps/desktop/dist/\n!! apps/desktop/node_modules/\n!! apps/desktop/out/\n!! apps/server/node_modules/\n!! node_modules/\n!! packages/agent/node_modules/\n!! packages/ui/node_modules/\n!! tsconfig.tsbuildinfo\n",
+      "err": ""
+    },
+    "ancestry": {
+      "code": 0,
+      "out": "",
+      "err": ""
+    },
+    "processAudit": {
+      "psCode": 0,
+      "lsofCode": 0,
+      "lsofErrors": "",
+      "excludedAuditorPids": [
+        0,
+        1,
+        9253,
+        10897,
+        27092,
+        27097
+      ],
+      "commandMatches": [],
+      "cwdMatches": []
+    },
+    "archive": {
+      "path": "/tmp/coko-conversation-detail/worktree-backups/review-fix-vitest.tar.gz",
+      "sha256": "4fd96c687d637e286828382ac053ed4b42ebb9c23d92b2b02a35be52a93d5a44",
+      "files": 28,
+      "bytes": 897597,
+      "readbackVerified": true,
+      "manifest": {
+        ".vitest/cw20-submenu-light.png": {
+          "size": 61755,
+          "sha256": "3ea193da4d44b33280bcfde11b46cdd69f01036a64720c6756039028ae0bc73d"
+        },
+        ".vitest/cw21-toggle.png": {
+          "size": 4762,
+          "sha256": "f79cb54c271998efef0d0f58b679b0ea659aa391d0488c69cd1443d5dc1e22c0"
+        },
+        ".vitest/cw20-create-error-dark.png": {
+          "size": 19339,
+          "sha256": "c813561df92f12f3356c7f18cec1a03897d6384e02164f7362f2274f04b50a50"
+        },
+        ".vitest/cw12-hover-dark.png": {
+          "size": 1935,
+          "sha256": "83b3a9d825d3a8db8ce5f4950d5e242d3f9d3d0f03a32f48c109f4fff1f5c77c"
+        },
+        ".vitest/cw22-search-delete.png": {
+          "size": 43152,
+          "sha256": "f60c45086fa6d17ff81e2374f737a8d77a8b1692d7629586721247805b131d3a"
+        },
+        ".vitest/cw22-search-light.png": {
+          "size": 16274,
+          "sha256": "f9bed85b379540bced56ad07e3b4cd36d46f4b0690044716ffcad52bbf9e7948"
+        },
+        ".vitest/cw05-light.png": {
+          "size": 4865,
+          "sha256": "c40252ca282c624fcc980e84123f369de4dcb16e399a244e466a9342fdc966b4"
+        },
+        ".vitest/cw11-light.png": {
+          "size": 46193,
+          "sha256": "53576252d4e7463fdcfd2ab673768b6e4daeab0b7dc2ce8ea20529cd2ad0843f"
+        },
+        ".vitest/cw12-hover-light.png": {
+          "size": 1835,
+          "sha256": "1b3482beb4da54478557d62c9dc79dae3e7bdfbf840608546a9adbe00b0fd303"
+        },
+        ".vitest/model-long-list.png": {
+          "size": 8627,
+          "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+        },
+        ".vitest/cw22-search-results.png": {
+          "size": 53154,
+          "sha256": "dccac5944b179f8b152ae829b8921c82f96944113bd48b91adbb6f840dc1fe98"
+        },
+        ".vitest/model-long-detail.png": {
+          "size": 8203,
+          "sha256": "4ac0a36a692f651d73b10ab822b5675a23366a3012f07dc917b58d6588c7419d"
+        },
+        ".vitest/cw12-dark.png": {
+          "size": 79658,
+          "sha256": "8164201d6fa73f26bca86a98e77a4eb14714da1b0b37cf9ba67cb5d3fd5b1fd0"
+        },
+        ".vitest/cw12-menu-dark.png": {
+          "size": 14224,
+          "sha256": "67260c856c92cefc9b5ba519231aaee2b2c5f2328582939b67be0cb5f01f9bdd"
+        },
+        ".vitest/cw20-submenu-dark.png": {
+          "size": 65224,
+          "sha256": "02b31b2f4a100900fdd08464298bfb89bce975d8d2215c767fd4745750cce3e8"
+        },
+        ".vitest/cw05-dark.png": {
+          "size": 5096,
+          "sha256": "d6906a3a73422a7b182b78ccfe22def77ef5b96544d8a8f258e6e4d4c99fcc15"
+        },
+        ".vitest/model-long-name.png": {
+          "size": 5139,
+          "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+        },
+        ".vitest/cw22-search-dark.png": {
+          "size": 15856,
+          "sha256": "a129a085a19866bd3085000effdaaca781d1450ad7108a7ea4e6b7231db365d5"
+        },
+        ".vitest/cw12-light.png": {
+          "size": 78459,
+          "sha256": "78664230b90caa853c91984ff206a748d9cf233c1a84aade557f30495a9bf0f8"
+        },
+        ".vitest/cw12-menu-light.png": {
+          "size": 9792,
+          "sha256": "80b77d772117b5565dfeb2431a0ab52eabb5d71e0137a38a2268fac348dfd28c"
+        },
+        ".vitest/cw11-dark.png": {
+          "size": 46733,
+          "sha256": "6068d7c49baaeb77a30f7152d3b7de1df18548c5831c47ec7e75d9748507237c"
+        },
+        ".vitest/cw20-create-error-light.png": {
+          "size": 19050,
+          "sha256": "94a66243e6e4c2e86deca38c50e58c899b07598a0b66794b653296c18d75d176"
+        },
+        ".vitest/attachments/c23ffc8afea0851ef9480c166012987b30c125a6.png": {
+          "size": 29969,
+          "sha256": "c103bfa7fea171743e465da0cfb0b1a0bc9b2cdba131a9ba85fbcb8e8fcf2bd5"
+        },
+        ".vitest/attachments/e31ffdeb92deef9fdf1e5bf2498fa3c9852be87d.png": {
+          "size": 14134,
+          "sha256": "fa2a32f43d58a3244b9d23cba228862f644b5eda53df29b96147ffa2a94c3385"
+        },
+        ".vitest/attachments/d414cd8dc8236c06d08273c76461838410d72eab.png": {
+          "size": 100033,
+          "sha256": "c93b200e14cba5ee302ad3ffd6f6048ab832120879176076bf2310d01079ad33"
+        },
+        ".vitest/attachments/failure-screenshots/app.browser.test.tsx/-------zh----chrome----------------.png": {
+          "size": 100033,
+          "sha256": "c93b200e14cba5ee302ad3ffd6f6048ab832120879176076bf2310d01079ad33"
+        },
+        ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--read-keeps-actual-offset--raw-copy-and-recovery-locator--eight-line-preview-expands-with-keyboard.png": {
+          "size": 29969,
+          "sha256": "c103bfa7fea171743e465da0cfb0b1a0bc9b2cdba131a9ba85fbcb8e8fcf2bd5"
+        },
+        ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--edit-preserves-actual-multi-hunk-numbered-diff-and-counts--missing-diff-keeps-full-arguments-and-details.png": {
+          "size": 14134,
+          "sha256": "fa2a32f43d58a3244b9d23cba228862f644b5eda53df29b96147ffa2a94c3385"
+        }
+      }
+    },
+    "preflightAt": "2026-11-03T17:01:05.607985+00:00",
+    "removed": {
+      "code": 0,
+      "pathExists": false,
+      "reason": "Clean, fully merged worktree; all ignored files classified; unique .vitest archive readback verified"
+    },
+    "branchDisposition": {
+      "action": "deleted via ordinary git branch -d",
+      "refExists": false
+    }
+  },
+  "completedAt": "2026-11-03T17:01:28.213821+00:00",
+  "totalRemovedWorktrees": 17,
+  "remainingWorktrees": {
+    "code": 0,
+    "out": "worktree /Users/artorias_chan/Workspaces/person/coko\nHEAD 6e57ed0a7605996ec96173c897b1546c57ed42aa\nbranch refs/heads/main\n\nworktree /Users/artorias_chan/.codex/worktrees/0898/coko\nHEAD 28f9b22ab4160cb56682e686c5b1cb9f56d9bb59\nbranch refs/heads/codex/conversation-detail\n\n",
+    "err": ""
+  },
+  "remainingTaskBranches": {
+    "code": 0,
+    "out": "* codex/conversation-detail\n  codex/conversation-detail-reopen-diagnosis\n",
+    "err": ""
+  },
+  "mainHead": "6e57ed0a7605996ec96173c897b1546c57ed42aa",
+  "rootStatusBeforeCloseout": {
+    "code": 0,
+    "out": "",
+    "err": ""
+  }
+}

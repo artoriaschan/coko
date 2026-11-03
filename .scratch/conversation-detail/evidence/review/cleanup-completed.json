@@ -1,0 +1,2718 @@
+{
+  "startedAt": "2026-11-03T16:52:25.786278+00:00",
+  "integration": "e7efe155912791f51647b9bcf9f965d0b2362c75",
+  "worktrees": [
+    {
+      "name": "baseline-types",
+      "path": "/private/tmp/coko-conversation-detail/baseline-types",
+      "head": "4ce92d9db68e16b9378e702eb2fdd1788b88095f",
+      "branch": "codex/conversation-detail-types",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "4ce92d9db68e16b9378e702eb2fdd1788b88095f",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/baseline-types-vitest.tar.gz",
+        "sha256": "58fa1ef1b63a5519d31f63c6ecbb7206bdb1165b11dfa4a1a0c9ebe23406983a",
+        "files": 5,
+        "bytes": 31966,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/cw05-dark.png",
+            "bytes": 5151,
+            "sha256": "1905d4324a44970a98b2f124449001805347715649640166679b6cff77e62582"
+          },
+          {
+            "path": ".vitest/cw05-light.png",
+            "bytes": 4842,
+            "sha256": "250f1cbc3e9d790a1236048c682a1d5c1b13d6200b1022d8f0b20a1999bfd1fd"
+          },
+          {
+            "path": ".vitest/model-long-detail.png",
+            "bytes": 8207,
+            "sha256": "f2e9686f2669423db79138d87b95adb425dec9af80252d477d254e496f6ddbe3"
+          },
+          {
+            "path": ".vitest/model-long-list.png",
+            "bytes": 8627,
+            "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+          },
+          {
+            "path": ".vitest/model-long-name.png",
+            "bytes": 5139,
+            "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-types (was 4ce92d9d).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-01",
+      "path": "/private/tmp/coko-conversation-detail/ticket-01",
+      "head": "3f853817f6b0286c0d53329afac3e0c54450db63",
+      "branch": "codex/conversation-detail-01",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "3f853817f6b0286c0d53329afac3e0c54450db63",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-01-vitest.tar.gz",
+        "sha256": "fe6beddbfa98e659743a382bc95838e7caeb6a4c994e20c93e945cb6b37490fb",
+        "files": 18,
+        "bytes": 902750,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/0973999bd84c7e09f677a42079e5ea2dfe1f3cde.png",
+            "bytes": 48615,
+            "sha256": "10ddefe0809ca9e0442fefdea86e2a0ce5d91adcff6e41c32a957ccd7ccebcd8"
+          },
+          {
+            "path": ".vitest/attachments/5d7e76a8935a3fe923e6a15b7271628eaff458cc.png",
+            "bytes": 23405,
+            "sha256": "19bd2fa22a47b868be8d0a2e90408c1452fa60b0486480f9264d15f4519e9013"
+          },
+          {
+            "path": ".vitest/attachments/7b5ea98284feb83bcb4add093d530d2b7889b9a8.png",
+            "bytes": 68001,
+            "sha256": "db413945d266b09ab0c57dd24aff92e8ab86f9ad69ca2c8e9c8d4a71b8cceb5c"
+          },
+          {
+            "path": ".vitest/attachments/91a3e0e0b26fe29fec682aa9ce602decdce1417d.png",
+            "bytes": 49483,
+            "sha256": "005c829db125ef9fd18e97de6d7830d4ed23b5cd78cdecac6399d84f9eaf800a"
+          },
+          {
+            "path": ".vitest/attachments/943f8952842782645dc6aed34cfdb481066ddb1c.png",
+            "bytes": 48638,
+            "sha256": "1d90d2b69332847c3a5dad5282c0458c4a85759b0d9ff07fc1f7016d65392eaf"
+          },
+          {
+            "path": ".vitest/attachments/9a0bc6aa1f04920ba8d9f78d04bfb7d367a1a7ba.png",
+            "bytes": 49463,
+            "sha256": "7666c0aa6d46f18834916788c6f09674d00f1f5369b7f88e715cd5ee30bef499"
+          },
+          {
+            "path": ".vitest/attachments/b0c281f47617d041d4e3306c88a36bc0dc757c93.png",
+            "bytes": 21927,
+            "sha256": "b56de813a05becd963c97d8dbbd8c42b7c4686daf65e87d20cc5235a69679ee1"
+          },
+          {
+            "path": ".vitest/attachments/c81a8e4e8da6ded990e9c6a298716e080438583e.png",
+            "bytes": 68589,
+            "sha256": "1464627287aae8f762fc1cf26f151216323ccaa55df96cbd9ffa1b54d0472968"
+          },
+          {
+            "path": ".vitest/attachments/ed36aabbefda1f65cc6d87ac097dc72f6fbb2c92.png",
+            "bytes": 73254,
+            "sha256": "5ee173533fb862d6590ab31b931f17183c5a583cf876ed144d837d16766976cf"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/assistant-Markdown-follows-the-reference-paragraph-list-rhythm-and-compact-code-banner-without-overflowing-the-message-column.png",
+            "bytes": 73254,
+            "sha256": "5ee173533fb862d6590ab31b931f17183c5a583cf876ed144d837d16766976cf"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/committing-a-streamed-reasoning-block-preserves-its-open-disclosure--body-DOM-and-text-selection.png",
+            "bytes": 21927,
+            "sha256": "b56de813a05becd963c97d8dbbd8c42b7c4686daf65e87d20cc5235a69679ee1"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/dark-en--commands--original-attachments-and-compact-reasoning-remain-keyboard-accessible-in-a-390px-content-pane.png",
+            "bytes": 48638,
+            "sha256": "1d90d2b69332847c3a5dad5282c0458c4a85759b0d9ff07fc1f7016d65392eaf"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/dark-zh--commands--original-attachments-and-compact-reasoning-remain-keyboard-accessible-in-a-390px-content-pane.png",
+            "bytes": 49463,
+            "sha256": "7666c0aa6d46f18834916788c6f09674d00f1f5369b7f88e715cd5ee30bef499"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/light-en--commands--original-attachments-and-compact-reasoning-remain-keyboard-accessible-in-a-390px-content-pane.png",
+            "bytes": 48615,
+            "sha256": "10ddefe0809ca9e0442fefdea86e2a0ce5d91adcff6e41c32a957ccd7ccebcd8"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/light-zh--commands--original-attachments-and-compact-reasoning-remain-keyboard-accessible-in-a-390px-content-pane.png",
+            "bytes": 49483,
+            "sha256": "005c829db125ef9fd18e97de6d7830d4ed23b5cd78cdecac6399d84f9eaf800a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/message-bubbles-and-actions-use-the-reference-geometry-and-copy-original-user-assistant-content.png",
+            "bytes": 68001,
+            "sha256": "db413945d266b09ab0c57dd24aff92e8ab86f9ad69ca2c8e9c8d4a71b8cceb5c"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/phase-replies-stay-visible-while-the-assistant-action-footer-belongs-to-the-final-response.png",
+            "bytes": 68589,
+            "sha256": "1464627287aae8f762fc1cf26f151216323ccaa55df96cbd9ffa1b54d0472968"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/streaming-reasoning-previews-only-the-latest-paragraph-with-a-completed-first-line-and-opens-compact-Markdown-manually.png",
+            "bytes": 23405,
+            "sha256": "19bd2fa22a47b868be8d0a2e90408c1452fa60b0486480f9264d15f4519e9013"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-01 (was 3f853817).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-02",
+      "path": "/private/tmp/coko-conversation-detail/ticket-02",
+      "head": "2e1f0eda90801773d3231e9bbdb19da017db0278",
+      "branch": "codex/conversation-detail-02",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "2e1f0eda90801773d3231e9bbdb19da017db0278",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-02-vitest.tar.gz",
+        "sha256": "3e35d9626a496ef3281ebd5fec97ef6aa1d377202fb31fec8dd94ff0a7f22694",
+        "files": 6,
+        "bytes": 119128,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/15d7d7a45e92109ecb4206d5770d8b70ade5ce40.png",
+            "bytes": 24628,
+            "sha256": "a774b393d8f33f24abf0e64687a20c1dad4b8cadaa65f67920cf2aefb0dbd77c"
+          },
+          {
+            "path": ".vitest/attachments/44bf9017a72d05ea0e61b314034ad3252e7fc656.png",
+            "bytes": 13707,
+            "sha256": "00ee4eab080eaed84dee0dfb68421bb3ddfdc6125526238eac9ef9ec2745ac20"
+          },
+          {
+            "path": ".vitest/attachments/cb3702fd945e51a2144cf7b5288fc42575fd87bf.png",
+            "bytes": 21229,
+            "sha256": "523ea446e129e30cd962914ddee6998c7c57d81f11b3ab1eb66244a49dac3828"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/team-rows.browser.test.tsx/----------send_message---task_---------------.png",
+            "bytes": 13707,
+            "sha256": "00ee4eab080eaed84dee0dfb68421bb3ddfdc6125526238eac9ef9ec2745ac20"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--commands--edits-and-failures-start-collapsed--generic-input-output-and-Inspect-remain-reachable-with-the-keyboard.png",
+            "bytes": 21229,
+            "sha256": "523ea446e129e30cd962914ddee6998c7c57d81f11b3ab1eb66244a49dac3828"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--streaming-settlement-keeps-one-call--expanded-content--selection-and-scroll--identical-arguments-do-not-merge-different-calls.png",
+            "bytes": 24628,
+            "sha256": "a774b393d8f33f24abf0e64687a20c1dad4b8cadaa65f67920cf2aefb0dbd77c"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-02 (was 2e1f0eda).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-03",
+      "path": "/private/tmp/coko-conversation-detail/ticket-03",
+      "head": "38bd45b4b600a0e18a7f7efa896e2f06668fdc78",
+      "branch": "codex/conversation-detail-03",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "packages/ui/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "38bd45b4b600a0e18a7f7efa896e2f06668fdc78",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "packages/ui/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-03-vitest.tar.gz",
+        "sha256": "afed7489e0171407cf66cade952a13aa08fc844e56402d42e53120a6a46aadba",
+        "files": 46,
+        "bytes": 1158393,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/0e5889b93458046f947295556da4c4104fbab65d.png",
+            "bytes": 20784,
+            "sha256": "7ba4d3cfb3a7903bbac9896934bbe927b5e40841a62ede1f530b595a7ad5cc6a"
+          },
+          {
+            "path": ".vitest/attachments/2833f8308895bb7b98f303c86f51b62a968f97de.png",
+            "bytes": 25649,
+            "sha256": "b51e8669d2686b08d7da50943b08efeaa3a4844dd763b6579af3b1ea5085fefe"
+          },
+          {
+            "path": ".vitest/attachments/2d0639fcdaa27697a9bd026e737f41ca9e0bcb5e.png",
+            "bytes": 24878,
+            "sha256": "ca558651bb0c67978a6d15a5e97349ef6432a9cbd954101b40a923cb38712681"
+          },
+          {
+            "path": ".vitest/attachments/52f4b1bfadaa1e0a01ed400fb1583cdb0334a338.png",
+            "bytes": 24752,
+            "sha256": "6dd681fb1d6402cfefff9277fb0e2f723db449975264041bace01619a559e6b4"
+          },
+          {
+            "path": ".vitest/attachments/8dce5f5fc3b870b92f055b45cb85ce8696901611.png",
+            "bytes": 23782,
+            "sha256": "c464e2ac8fb8ae172d5874f37c7d551500b30dd72232b92d66b851108ca5e946"
+          },
+          {
+            "path": ".vitest/attachments/b4fe0ae5934acae92d3232267490013e207848b7.png",
+            "bytes": 26272,
+            "sha256": "11ed850c398f4f1253ecaf5f10c528f5bbcca6feea623623a01c3defa030b040"
+          },
+          {
+            "path": ".vitest/attachments/bb5327b85419026efe28e8298772cc0513bf69fd.png",
+            "bytes": 21323,
+            "sha256": "d9ff1241feb39f5bd1e2ad1424ac7e1fd461eca8fe15abd935b661c3c07cc970"
+          },
+          {
+            "path": ".vitest/attachments/cfb3b9f5a44532b053c4f2b06c06c160a70cc95f.png",
+            "bytes": 24232,
+            "sha256": "cc70b501e99b4e3f37df4f6a508c858d6118ccad8ed899eb547f6b7123064455"
+          },
+          {
+            "path": ".vitest/attachments/de6ce4a80f8bc41acce0a64d8f1129c4c3938b16.png",
+            "bytes": 20494,
+            "sha256": "ce458ff60037b41c02e77c819276412dcddd54407c53b606c8a063e74a2adcfc"
+          },
+          {
+            "path": ".vitest/attachments/dfff732d55011d800811db0ec933508ff8e0646d.png",
+            "bytes": 25311,
+            "sha256": "9c2cf1e15ae62c8c8fbc894fdf54638b24e3e006464fcaa835585c87039e0493"
+          },
+          {
+            "path": ".vitest/attachments/e4b2350ffedbd73c5be6bacea64325cf915d9d4a.png",
+            "bytes": 16796,
+            "sha256": "7b2234f9260cf6a52ed51fb9bd2b05bfdcdf2db1b5fb737c7db1611cd41d689c"
+          },
+          {
+            "path": ".vitest/attachments/e5c6ca142238eb4aa0b5281267de45356d1e59df.png",
+            "bytes": 16121,
+            "sha256": "103ad882210242382027f1e4702ebe7fe023066fb2bf258f93a3cde4c8610111"
+          },
+          {
+            "path": ".vitest/attachments/eaeb5c4735f10d5545838cafd9f6592c73c6e264.png",
+            "bytes": 47580,
+            "sha256": "24ac6b335dc3f85980f6621f838313c71598d0d5f965c7d806e2c40ca920106b"
+          },
+          {
+            "path": ".vitest/attachments/f75e8fa8d987dc7b9a2dfc602d6cbf42b8bad3c9.png",
+            "bytes": 20784,
+            "sha256": "7ba4d3cfb3a7903bbac9896934bbe927b5e40841a62ede1f530b595a7ad5cc6a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/jobs-timeline.browser.test.tsx/------------Job-chip------------------------Job------------.png",
+            "bytes": 16121,
+            "sha256": "103ad882210242382027f1e4702ebe7fe023066fb2bf258f93a3cde4c8610111"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--a-running-Run-keeps-mixed-process-rows-flat-across-phase-replies.png",
+            "bytes": 21323,
+            "sha256": "d9ff1241feb39f5bd1e2ad1424ac7e1fd461eca8fe15abd935b661c3c07cc970"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--completed-process-folds-across-replies--then-opens-three-disclosure-levels-and-resets-them-on-explicit-collapse.png",
+            "bytes": 26272,
+            "sha256": "11ed850c398f4f1253ecaf5f10c528f5bbcca6feea623623a01c3defa030b040"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--completing-while-a-process-control-has-keyboard-focus-preserves-DOM-and-disclosure-until-manual-collapse.png",
+            "bytes": 23782,
+            "sha256": "c464e2ac8fb8ae172d5874f37c7d551500b30dd72232b92d66b851108ca5e946"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--completion-protects-only-the-focused-group-while-other-historical-group-bodies-start-collapsed.png",
+            "bytes": 24878,
+            "sha256": "ca558651bb0c67978a6d15a5e97349ef6432a9cbd954101b40a923cb38712681"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--restoring-a-focused-running-group-height-cap-preserves-its-reading-position.png",
+            "bytes": 47580,
+            "sha256": "24ac6b335dc3f85980f6621f838313c71598d0d5f965c7d806e2c40ca920106b"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--blocked-commands-show-real-arguments-and-rejection--without-a-terminal-claiming-execution.png",
+            "bytes": 20784,
+            "sha256": "7ba4d3cfb3a7903bbac9896934bbe927b5e40841a62ede1f530b595a7ad5cc6a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--dark-en-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png",
+            "bytes": 25649,
+            "sha256": "b51e8669d2686b08d7da50943b08efeaa3a4844dd763b6579af3b1ea5085fefe"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--dark-zh-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png",
+            "bytes": 24752,
+            "sha256": "6dd681fb1d6402cfefff9277fb0e2f723db449975264041bace01619a559e6b4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--light-en-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png",
+            "bytes": 25311,
+            "sha256": "9c2cf1e15ae62c8c8fbc894fdf54638b24e3e006464fcaa835585c87039e0493"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--light-zh-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png",
+            "bytes": 24232,
+            "sha256": "cc70b501e99b4e3f37df4f6a508c858d6118ccad8ed899eb547f6b7123064455"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--terminal-preserves-the-real-command--ANSI-output-and-recorded-exit--copy-uses-raw-output-and-long-output-scrolls-inside-the-terminal.png",
+            "bytes": 20784,
+            "sha256": "7ba4d3cfb3a7903bbac9896934bbe927b5e40841a62ede1f530b595a7ad5cc6a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--commands--edits-and-failures-start-collapsed--generic-input-output-and-Inspect-remain-reachable-with-the-keyboard.png",
+            "bytes": 16796,
+            "sha256": "7b2234f9260cf6a52ed51fb9bd2b05bfdcdf2db1b5fb737c7db1611cd41d689c"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--light-en-keeps-long-generic-input-output-and-failure-readable-at-390px.png",
+            "bytes": 20494,
+            "sha256": "ce458ff60037b41c02e77c819276412dcddd54407c53b606c8a063e74a2adcfc"
+          },
+          {
+            "path": ".vitest/cw05-dark.png",
+            "bytes": 5088,
+            "sha256": "19bda556bec6fa8ee37781a9c4c8fd12cace8a82d74249e3450a452a4638e25a"
+          },
+          {
+            "path": ".vitest/cw05-light.png",
+            "bytes": 4845,
+            "sha256": "5d6ba6e4c6a902186658a94fbeea56bf380a925f838cd9adc177925a41049193"
+          },
+          {
+            "path": ".vitest/cw11-dark.png",
+            "bytes": 46733,
+            "sha256": "6068d7c49baaeb77a30f7152d3b7de1df18548c5831c47ec7e75d9748507237c"
+          },
+          {
+            "path": ".vitest/cw11-light.png",
+            "bytes": 46193,
+            "sha256": "53576252d4e7463fdcfd2ab673768b6e4daeab0b7dc2ce8ea20529cd2ad0843f"
+          },
+          {
+            "path": ".vitest/cw12-dark.png",
+            "bytes": 79664,
+            "sha256": "e9965c1e3b41d9780de3130b49106fe760f5e81057979954c597a4d18878a04a"
+          },
+          {
+            "path": ".vitest/cw12-hover-dark.png",
+            "bytes": 1935,
+            "sha256": "83b3a9d825d3a8db8ce5f4950d5e242d3f9d3d0f03a32f48c109f4fff1f5c77c"
+          },
+          {
+            "path": ".vitest/cw12-hover-light.png",
+            "bytes": 1835,
+            "sha256": "1b3482beb4da54478557d62c9dc79dae3e7bdfbf840608546a9adbe00b0fd303"
+          },
+          {
+            "path": ".vitest/cw12-light.png",
+            "bytes": 78459,
+            "sha256": "78664230b90caa853c91984ff206a748d9cf233c1a84aade557f30495a9bf0f8"
+          },
+          {
+            "path": ".vitest/cw12-menu-dark.png",
+            "bytes": 14224,
+            "sha256": "67260c856c92cefc9b5ba519231aaee2b2c5f2328582939b67be0cb5f01f9bdd"
+          },
+          {
+            "path": ".vitest/cw12-menu-light.png",
+            "bytes": 9792,
+            "sha256": "80b77d772117b5565dfeb2431a0ab52eabb5d71e0137a38a2268fac348dfd28c"
+          },
+          {
+            "path": ".vitest/cw20-create-error-dark.png",
+            "bytes": 19348,
+            "sha256": "07da7390fbd97988fc114292cf370c7ca1908e105ec2d26230a1f9a68b380e55"
+          },
+          {
+            "path": ".vitest/cw20-create-error-light.png",
+            "bytes": 19034,
+            "sha256": "0b6e6d3e21f3082cfe14e0a750dc3d4e37f25d6e8dd68dbd6016d709b0edc263"
+          },
+          {
+            "path": ".vitest/cw20-submenu-dark.png",
+            "bytes": 65224,
+            "sha256": "02b31b2f4a100900fdd08464298bfb89bce975d8d2215c767fd4745750cce3e8"
+          },
+          {
+            "path": ".vitest/cw20-submenu-light.png",
+            "bytes": 61755,
+            "sha256": "3ea193da4d44b33280bcfde11b46cdd69f01036a64720c6756039028ae0bc73d"
+          },
+          {
+            "path": ".vitest/cw21-toggle.png",
+            "bytes": 4774,
+            "sha256": "de93e267ec0b1122e33b55dfe65ffc7775709bf0d8af9fefe8ff453a1979880c"
+          },
+          {
+            "path": ".vitest/model-long-detail.png",
+            "bytes": 8208,
+            "sha256": "4187b0472a19b9e6c7443ef3da4bbb4d890a8f940272f97fc5fcd8c0623af985"
+          },
+          {
+            "path": ".vitest/model-long-list.png",
+            "bytes": 8627,
+            "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+          },
+          {
+            "path": ".vitest/model-long-name.png",
+            "bytes": 5139,
+            "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-03 (was 38bd45b4).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-04",
+      "path": "/private/tmp/coko-conversation-detail/ticket-04",
+      "head": "7610b5d0da2c2b1d0f7896b6c10cd1a58158cd7e",
+      "branch": "codex/conversation-detail-04",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "7610b5d0da2c2b1d0f7896b6c10cd1a58158cd7e",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-04-vitest.tar.gz",
+        "sha256": "244ab50377382eb13c4334a80bf88a35a1537005c6c4eadeb01542fe85e2ed5f",
+        "files": 8,
+        "bytes": 156630,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/019b0fa87a528ce4d23251a0acb0d4c039919465.png",
+            "bytes": 31033,
+            "sha256": "b1d51df95bdf35eb76e54b11b7b0feefaeb81915081f6b8dfc73a90d19cc627d"
+          },
+          {
+            "path": ".vitest/attachments/7cee929360b9e7321a1d35a2ec99ea8e83976b4f.png",
+            "bytes": 16107,
+            "sha256": "1828609d0e5ea6594f5b31b6d18645860a18f1e20f86929473a01863adbe291c"
+          },
+          {
+            "path": ".vitest/attachments/80b5b5ef6044f91d2ab02947b4a46445dba73eb1.png",
+            "bytes": 24079,
+            "sha256": "708cc5f39d5b16cdb01b7c2615e598a7cd2a016d07dfed3f331b9e2b484266ee"
+          },
+          {
+            "path": ".vitest/attachments/f9fe2187af3facf9b6ded43f7ecb00c28ff48654.png",
+            "bytes": 7096,
+            "sha256": "29a10fa978fd559456e1ef8e401978b8da7fccade16b766d097cd0a327a42a78"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/jobs-timeline.browser.test.tsx/------------Job-chip------------------------Job------------.png",
+            "bytes": 16107,
+            "sha256": "1828609d0e5ea6594f5b31b6d18645860a18f1e20f86929473a01863adbe291c"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--selecting-an-earlier-output-line-survives-appended-output-and-settlement.png",
+            "bytes": 24079,
+            "sha256": "708cc5f39d5b16cdb01b7c2615e598a7cd2a016d07dfed3f331b9e2b484266ee"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--terminal-preserves-the-real-command--ANSI-output-and-recorded-exit--copy-uses-raw-output-and-long-output-scrolls-inside-the-terminal.png",
+            "bytes": 31033,
+            "sha256": "b1d51df95bdf35eb76e54b11b7b0feefaeb81915081f6b8dfc73a90d19cc627d"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-cards.browser.test.tsx/------bash----------------.png",
+            "bytes": 7096,
+            "sha256": "29a10fa978fd559456e1ef8e401978b8da7fccade16b766d097cd0a327a42a78"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-04 (was 7610b5d0).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-05",
+      "path": "/private/tmp/coko-conversation-detail/ticket-05",
+      "head": "11ca74172dfe2662eafcd7c72b9a9fffaa7064cf",
+      "branch": "codex/conversation-detail-05",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "11ca74172dfe2662eafcd7c72b9a9fffaa7064cf",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-05-vitest.tar.gz",
+        "sha256": "3df6822e9b6a2a273eaaeb4f3764be687652f041f5f9c37d6d2b986639ac6ee1",
+        "files": 6,
+        "bytes": 159486,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/3595196acb861125a88b3c952a2285a6fccb1a19.png",
+            "bytes": 27865,
+            "sha256": "98321bc5de595e4333bea9f27185645514f65bd798ae551394238bc10613c362"
+          },
+          {
+            "path": ".vitest/attachments/42a46a021405c647026aeec35f199802e0e46fdb.png",
+            "bytes": 26603,
+            "sha256": "a504e7d08bd3df7d8f2afdb6b7fb0f5a3262a70680f1c61a782d6027f46e0a6e"
+          },
+          {
+            "path": ".vitest/attachments/7357c9a91891c1107803277854ce33f00ff689dc.png",
+            "bytes": 25275,
+            "sha256": "f6b81442a529928dd7ddc032dbccbd4fce5e56057a003e368ed1c3f695caa7f4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--dark-file-details-keep-long-paths--local-scrolling-and-keyboard-actions-at-390px.png",
+            "bytes": 27865,
+            "sha256": "98321bc5de595e4333bea9f27185645514f65bd798ae551394238bc10613c362"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--light-file-details-keep-long-paths--local-scrolling-and-keyboard-actions-at-390px.png",
+            "bytes": 25275,
+            "sha256": "f6b81442a529928dd7ddc032dbccbd4fce5e56057a003e368ed1c3f695caa7f4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--read-keeps-actual-offset--raw-copy-and-recovery-locator--eight-line-preview-expands-with-keyboard.png",
+            "bytes": 26603,
+            "sha256": "a504e7d08bd3df7d8f2afdb6b7fb0f5a3262a70680f1c61a782d6027f46e0a6e"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-05 (was 11ca7417).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-06",
+      "path": "/private/tmp/coko-conversation-detail/ticket-06",
+      "head": "694b27ed8fe56817fe821865676d742dc3f0da4e",
+      "branch": "codex/conversation-detail-06",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "694b27ed8fe56817fe821865676d742dc3f0da4e",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-06-vitest.tar.gz",
+        "sha256": "c2d2b041badc37ac49fa7b14593f5814f58d00f821bf391201bf5dc8820a979e",
+        "files": 4,
+        "bytes": 110070,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/8f1e2088973d7ad231b1e28cdb242ebf9dd5e9f1.png",
+            "bytes": 26169,
+            "sha256": "ed61774c37f0c00525e44d12308d71e46b7a03d5fc0f46b9f2bdc543c75971fc"
+          },
+          {
+            "path": ".vitest/attachments/e2b6871b0a068e5638ef833e429cde42aa996b3e.png",
+            "bytes": 28866,
+            "sha256": "9fe0b0fb443ee4c2e412c4224e9f74e7aaedcfccf2b1e9a2479916e4527a57aa"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/structured-tool-details.browser.test.tsx/actual-App--LSP-distinguishes-request-fields-from-returned-locations--preserves-actual-counts-and-opens-the-existing-Trace-view.png",
+            "bytes": 28866,
+            "sha256": "9fe0b0fb443ee4c2e412c4224e9f74e7aaedcfccf2b1e9a2479916e4527a57aa"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/structured-tool-details.browser.test.tsx/actual-App--search-retains-raw-results--caps-at-eight-lines--expands-by-keyboard-and-copies-the-whole-original-output.png",
+            "bytes": 26169,
+            "sha256": "ed61774c37f0c00525e44d12308d71e46b7a03d5fc0f46b9f2bdc543c75971fc"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-06 (was 694b27ed).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-07",
+      "path": "/private/tmp/coko-conversation-detail/ticket-07",
+      "head": "42ced886e0475ce4741a5e836868f70d0ca7cd6d",
+      "branch": "codex/conversation-detail-07",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "42ced886e0475ce4741a5e836868f70d0ca7cd6d",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-07-vitest.tar.gz",
+        "sha256": "2f9f315ed73757bee3f58ae42e39d76fcce0568342409d5a024e7cffe4cfde35",
+        "files": 12,
+        "bytes": 390594,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/0eaa08e4f0471596ef658fdc89b283e4df8419a6.png",
+            "bytes": 33961,
+            "sha256": "80a590bd6adbd1f67952c1679056c74d411a88f01fafdac6d31d7cbd4aa290f9"
+          },
+          {
+            "path": ".vitest/attachments/3c912cdfe89183f0d0187626ff5dc74805e90ba4.png",
+            "bytes": 34366,
+            "sha256": "7f62c7bc45d920b8f4a1a9f10b2cd218400191d443a2930c22481612af7cdc82"
+          },
+          {
+            "path": ".vitest/attachments/5d26da5fa99fbcd82c3fadbc4735c91f81cafaaf.png",
+            "bytes": 33020,
+            "sha256": "bcfc3c3282600efc50755a9c014ac1008687a81876ffd5cd577039b06fa3716f"
+          },
+          {
+            "path": ".vitest/attachments/683fa02d86e6bd91fdcea223ce813e11f0016f70.png",
+            "bytes": 30257,
+            "sha256": "cce332776da8d62253824d154580911bb7f7e697df6b1e5484d59e212dc9a71e"
+          },
+          {
+            "path": ".vitest/attachments/ba8640fee583430d9a625b5f7acd4e3406ddd25a.png",
+            "bytes": 32706,
+            "sha256": "4c89abbd0179d3baf045b2bb66faa635ad7b5db1eb27e48c3b79bb503518a5bc"
+          },
+          {
+            "path": ".vitest/attachments/e60e1001383a00deff42ac2f58e6b05fed49aab0.png",
+            "bytes": 30987,
+            "sha256": "3a63b0ea28325a4085e8365e4843c6de08fccbf27cac09363fbaf724ac70c605"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--a-child-Session-gallery-reads-the-child-result-while-the-parent-remains-active.png",
+            "bytes": 30987,
+            "sha256": "3a63b0ea28325a4085e8365e4843c6de08fccbf27cac09363fbaf724ac70c605"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--dark-en-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png",
+            "bytes": 33020,
+            "sha256": "bcfc3c3282600efc50755a9c014ac1008687a81876ffd5cd577039b06fa3716f"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--dark-zh-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png",
+            "bytes": 34366,
+            "sha256": "7f62c7bc45d920b8f4a1a9f10b2cd218400191d443a2930c22481612af7cdc82"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--light-en-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png",
+            "bytes": 32706,
+            "sha256": "4c89abbd0179d3baf045b2bb66faa635ad7b5db1eb27e48c3b79bb503518a5bc"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--light-zh-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png",
+            "bytes": 33961,
+            "sha256": "80a590bd6adbd1f67952c1679056c74d411a88f01fafdac6d31d7cbd4aa290f9"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--partial-bitmap-becomes-committed-without-duplicating--remounting-or-resetting-the-open-preview.png",
+            "bytes": 30257,
+            "sha256": "cce332776da8d62253824d154580911bb7f7e697df6b1e5484d59e212dc9a71e"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-07 (was 42ced886).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-08",
+      "path": "/private/tmp/coko-conversation-detail/ticket-08",
+      "head": "59552fdb08e1a1ce87010cd60087f56a2856c8fe",
+      "branch": "codex/conversation-detail-08",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "59552fdb08e1a1ce87010cd60087f56a2856c8fe",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-08-vitest.tar.gz",
+        "sha256": "0dca1ce152c066954b5e3bfecc1d4051fefbcd93ed2dfea646fa8944af920249",
+        "files": 14,
+        "bytes": 618966,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/67894bd6cdfaf475beeffe6e5ae1c24fa628cf69.png",
+            "bytes": 27081,
+            "sha256": "51c67365423d35e08d2a72ee9afeda140d4a8c7312c8dbc4f133ebfcbbbdddf6"
+          },
+          {
+            "path": ".vitest/attachments/72831f9fbad6dd362b48412a6c1ffdcd70a11fd3.png",
+            "bytes": 20898,
+            "sha256": "7976bc120a8445954baf31cf6a414fa9b3efe185c73f1973654b14cd8c0feea4"
+          },
+          {
+            "path": ".vitest/attachments/83367471ffa04d58b5cb4c2ddad4abc11813acf3.png",
+            "bytes": 54218,
+            "sha256": "058e66f93e59dec1bd7d18b982fe4facc2f11c0aa3a823f436bd052f31502de3"
+          },
+          {
+            "path": ".vitest/attachments/9808a866e097257fab7626a1a04ca396b51256d2.png",
+            "bytes": 39557,
+            "sha256": "4a09d987720fc95dd09c0c0e2897b02a90edb2f02e85c4dec63b4befb02d344a"
+          },
+          {
+            "path": ".vitest/attachments/b7ffd02929f465925ef15a86711630edaf226ea4.png",
+            "bytes": 56847,
+            "sha256": "f2c1970f7ea17d5c29b321eccdac201867d1e575d7071dd585de9b9d94fdae6f"
+          },
+          {
+            "path": ".vitest/attachments/fa2effeefd9c677ebf18e8f06c6ad89bbcbab594.png",
+            "bytes": 55358,
+            "sha256": "7dc3b519bca67bfacef7803cbd505f0ecf3a7247ed1138dbef4b222a3de1f9ed"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--a-rejected-request-does-not-claim-execution-while-its-result-has-not-been-committed--even-if-old-running-progress-remains.png",
+            "bytes": 20898,
+            "sha256": "7976bc120a8445954baf31cf6a414fa9b3efe185c73f1973654b14cd8c0feea4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--an-interrupted-call-distinguishes-Outcome-Confirmation-from-an-ordinary-missing-result--and-keeps-both-visible-through-group-folding.png",
+            "bytes": 39557,
+            "sha256": "4a09d987720fc95dd09c0c0e2897b02a90edb2f02e85c4dec63b4befb02d344a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--approval-takeover-supports-keyboard-answering-once--then-returns-focus-and-the-draft-without-authorizing-through-tool-disclosure.png",
+            "bytes": 27081,
+            "sha256": "51c67365423d35e08d2a72ee9afeda140d4a8c7312c8dbc4f133ebfcbbbdddf6"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--dark-en-preserves-distinct-rejection--expiry--sandbox-and-Hook-facts-through-both-folds-at-390px.png",
+            "bytes": 55358,
+            "sha256": "7dc3b519bca67bfacef7803cbd505f0ecf3a7247ed1138dbef4b222a3de1f9ed"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--dark-zh-preserves-distinct-rejection--expiry--sandbox-and-Hook-facts-through-both-folds-at-390px.png",
+            "bytes": 56847,
+            "sha256": "f2c1970f7ea17d5c29b321eccdac201867d1e575d7071dd585de9b9d94fdae6f"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--light-en-preserves-distinct-rejection--expiry--sandbox-and-Hook-facts-through-both-folds-at-390px.png",
+            "bytes": 54218,
+            "sha256": "058e66f93e59dec1bd7d18b982fe4facc2f11c0aa3a823f436bd052f31502de3"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/permission-states.browser.test.tsx/actual-App--light-zh-preserves-distinct-rejection--expiry--sandbox-and-Hook-facts-through-both-folds-at-390px.png",
+            "bytes": 55524,
+            "sha256": "3eeea6f3dccddc4dbd50bb5ac87d5a244d0abed073c077036847533132df7fed"
+          },
+          {
+            "path": ".vitest/attachments/fef71f91d38afd1a2ea9c134fffb0b1c873cd6c0.png",
+            "bytes": 55524,
+            "sha256": "3eeea6f3dccddc4dbd50bb5ac87d5a244d0abed073c077036847533132df7fed"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-08 (was 59552fdb).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-09",
+      "path": "/private/tmp/coko-conversation-detail/ticket-09",
+      "head": "85bf9df2359f251f0a72d661e1fa2d1fcff4ebd4",
+      "branch": "codex/conversation-detail-09",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "85bf9df2359f251f0a72d661e1fa2d1fcff4ebd4",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-09-vitest.tar.gz",
+        "sha256": "225e1cf5f574d309e14a8a0431b988f75f61a1914524ae2ce691b066d97c78e8",
+        "files": 22,
+        "bytes": 789474,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/2374bff85b65acf30ecdc150f1a8db1a32652459.png",
+            "bytes": 96750,
+            "sha256": "6d6c64f09fd5cd2fd3abee4c38e6c563f7b7be00ad319f12417d24f1d052ca99"
+          },
+          {
+            "path": ".vitest/attachments/31b4f30bda10c445a179670fe75a0fc280f65601.png",
+            "bytes": 26065,
+            "sha256": "631b85854d6118f9cedd734402e4872342f6b99a429cd1584d1aae499c774db2"
+          },
+          {
+            "path": ".vitest/attachments/41bcb5f9314cd46c6e09c08bba72845ecbff5ea1.png",
+            "bytes": 26842,
+            "sha256": "b2e29f5909770d5d9ac21138a7f423ebdcf6629bad5284890574b14b45f5cd90"
+          },
+          {
+            "path": ".vitest/attachments/611413f650bada7afa03db75d254482af49cf9f0.png",
+            "bytes": 19721,
+            "sha256": "a53d4c103fbf925b4e30eafc66407773107349c1242b0561166be89832022da4"
+          },
+          {
+            "path": ".vitest/attachments/701313ced3edc2fdd4536c8fd6ecdcb040179733.png",
+            "bytes": 32997,
+            "sha256": "0efafe1d548e8310fcf355e2ba8c00fa099366cf089d770480b55f31d7f2f1ee"
+          },
+          {
+            "path": ".vitest/attachments/7cc73b0b343f3d75bd71727efb98d48f34051f73.png",
+            "bytes": 34825,
+            "sha256": "413f4a31140871f7df94b775a6ffd6730a168a3ccd6c0ddf9494f9b46d61800e"
+          },
+          {
+            "path": ".vitest/attachments/8a5c999610783ebab9f91bf3b83651efb3a21a45.png",
+            "bytes": 28596,
+            "sha256": "98f3f9dceaab449bf81a73270a69f62fe2a2c0a57a33981cf8609a8572c379b1"
+          },
+          {
+            "path": ".vitest/attachments/dd9a769eda1c5ba253b4cc1468a9af6d5f776dea.png",
+            "bytes": 38999,
+            "sha256": "d416b9fc34b5dd870518d210f2f93470fb230d353b378d42b26c10423d7c7e3a"
+          },
+          {
+            "path": ".vitest/attachments/de82390d39e41f78a444eee13ac3335c8cf99703.png",
+            "bytes": 28908,
+            "sha256": "89919a502e7c8551ebd153b45734c29336df67df01e87d564c173bad5e4a1e22"
+          },
+          {
+            "path": ".vitest/attachments/eaf59b8c23221b063035233be6c1f4c28bba32c1.png",
+            "bytes": 35093,
+            "sha256": "ec169baa32b2330802bed7d020ffce37a93910837cb28cd2e823e07e9b3738a8"
+          },
+          {
+            "path": ".vitest/attachments/efa78650eb0d44d3c687c01721dae15838ed1cf9.png",
+            "bytes": 25941,
+            "sha256": "b8bbf9611d7009e0f46c789983b5bdb73c8ddb2b61bc33235243c24a36409640"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--a-pending-Plan-review-keeps-the-active-Plan-tab-route-available-independently-of-disabled-checkpoint-actions.png",
+            "bytes": 32997,
+            "sha256": "0efafe1d548e8310fcf355e2ba8c00fa099366cf089d770480b55f31d7f2f1ee"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--archived-Session-keeps-Plan-and-Job-inspection-readable-without-execution-controls.png",
+            "bytes": 26842,
+            "sha256": "b2e29f5909770d5d9ac21138a7f423ebdcf6629bad5284890574b14b45f5cd90"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--business-facts-remain-readable-and-keyboard-reachable-in-dark-zh-390.png",
+            "bytes": 34825,
+            "sha256": "413f4a31140871f7df94b775a6ffd6730a168a3ccd6c0ddf9494f9b46d61800e"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--business-facts-remain-readable-and-keyboard-reachable-in-light-en-390.png",
+            "bytes": 38999,
+            "sha256": "d416b9fc34b5dd870518d210f2f93470fb230d353b378d42b26c10423d7c7e3a"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--business-facts-remain-readable-and-keyboard-reachable-in-light-zh-390.png",
+            "bytes": 35093,
+            "sha256": "ec169baa32b2330802bed7d020ffce37a93910837cb28cd2e823e07e9b3738a8"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--child-Plan-revisions--usage-and-Job-navigation-use-rendered-Session-facts-even-when-parent-IDs-coincide.png",
+            "bytes": 96750,
+            "sha256": "6d6c64f09fd5cd2fd3abee4c38e6c563f7b7be00ad319f12417d24f1d052ca99"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--finishing-the-dispatch-Run-does-not-complete-its-independent-Job--later-Job-failure-updates-the-same-chip.png",
+            "bytes": 19721,
+            "sha256": "a53d4c103fbf925b4e30eafc66407773107349c1242b0561166be89832022da4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--invisible-Job-lifecycle-and-superseded-Plan-snapshots-do-not-split-adjacent-process--visible-business-conclusions-stay-outside-folding.png",
+            "bytes": 26065,
+            "sha256": "631b85854d6118f9cedd734402e4872342f6b99a429cd1584d1aae499c774db2"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--invisible-Job-lifecycle-do-not-split-adjacent-process--visible-business-conclusions-stay-outside-folding.png",
+            "bytes": 25941,
+            "sha256": "b8bbf9611d7009e0f46c789983b5bdb73c8ddb2b61bc33235243c24a36409640"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--removed-Session-keeps-Plan-and-Job-inspection-readable-without-execution-controls.png",
+            "bytes": 28908,
+            "sha256": "89919a502e7c8551ebd153b45734c29336df67df01e87d564c173bad5e4a1e22"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/business-timeline.browser.test.tsx/actual-App--rewound-usage-uses-the-rendered-Run-entries-and-historical-Plan-inspection-shows-its-snapshot-without-changing-the-active-Plan-tab.png",
+            "bytes": 28596,
+            "sha256": "98f3f9dceaab449bf81a73270a69f62fe2a2c0a57a33981cf8609a8572c379b1"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-09 (was 85bf9df2).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-10",
+      "path": "/private/tmp/coko-conversation-detail/ticket-10",
+      "head": "7c6495166a455504c4245df7536f75780c3767ef",
+      "branch": "codex/conversation-detail-10",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "7c6495166a455504c4245df7536f75780c3767ef",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-10-vitest.tar.gz",
+        "sha256": "37ca0d9e96927a60590cec83f9dca20b84d8d0b580f461a01baf096d5c36fcd1",
+        "files": 36,
+        "bytes": 1348598,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/0e13108df477eff79fae3c6be1b49573a5808c8c.png",
+            "bytes": 13656,
+            "sha256": "39759e2a0c2311d48ee9ab84cc67bbedd19495f21e471ddfac9066328cbab151"
+          },
+          {
+            "path": ".vitest/attachments/1543a235f1a34c5a49aeddadc61a6f44d1b7f63c.png",
+            "bytes": 5931,
+            "sha256": "9321e39152cc1a4adf6ba2e8d8b36ba2989727afd31d71ead522f39dfc8c58d9"
+          },
+          {
+            "path": ".vitest/attachments/30f09cdcbe0236b274851b2292fbdb3d89cc9866.png",
+            "bytes": 25708,
+            "sha256": "eaed6e638e849e8225f6e8fc88855141163476dcf383aec4881e66af359d534f"
+          },
+          {
+            "path": ".vitest/attachments/415c75e8d2cfaa4de4bf80f8bc78a269aeb7cca5.png",
+            "bytes": 100630,
+            "sha256": "45a8292977cb2cf882ee259d07c795f2f6e584ba421fdcf010d6b7eb2255ef35"
+          },
+          {
+            "path": ".vitest/attachments/5925fae9d4b5a4603e1d4f9a6a93f118741607c0.png",
+            "bytes": 24770,
+            "sha256": "2779c0e98f5bf238be1bbb9ff131bddedf0bbe9d8d555ea3d299320b231843c8"
+          },
+          {
+            "path": ".vitest/attachments/6b4d2117b1a3357c502b801d9102a49b4e1acb1d.png",
+            "bytes": 12519,
+            "sha256": "7cd45752633e4ca1505f813333df3f1d5e33dd314e5f74ad76284cd124895888"
+          },
+          {
+            "path": ".vitest/attachments/7335f8b1c040d3af8f0f81a3cb1a67b69e6dcd8c.png",
+            "bytes": 22555,
+            "sha256": "35aa26576c7b2e7fa9737f0d446fce3380a34e1ce47beac590a0626615fad604"
+          },
+          {
+            "path": ".vitest/attachments/96c35f836df466628acecbc283a1337cdc15eb1f.png",
+            "bytes": 28020,
+            "sha256": "5cf187129b3a3a3d25dd8abdfca4e36e973bec39163987cde1bb27cec06a6285"
+          },
+          {
+            "path": ".vitest/attachments/9853ae7e92695e78e02cb24000431e1c95b6a9c0.png",
+            "bytes": 79576,
+            "sha256": "a7a824bfdc5fdcd810ce73282ba8e11023e67d16e2809cbe20eb6f66ae38b5f2"
+          },
+          {
+            "path": ".vitest/attachments/a1bc2a8983c8474f980ab377bc11c3e9ee561f0d.png",
+            "bytes": 25532,
+            "sha256": "87e0bec479e05ef0b794557d1bc38b4f6d084d0d32711b1b2e0a00777eff59ad"
+          },
+          {
+            "path": ".vitest/attachments/aff9a3bb9a720b77b18d2c4f87eee26171dfa286.png",
+            "bytes": 13931,
+            "sha256": "8b1f52c26154c8f5b6269655d548e7f720a2cdaab80e81b3d773ce1968597a94"
+          },
+          {
+            "path": ".vitest/attachments/b263ca736f5fc5dc32025bf7a64921ce4a263b07.png",
+            "bytes": 75229,
+            "sha256": "4f20abdfe1c892ee9f59479ce5413565a49c901daed8a81f9febd5f19216bb05"
+          },
+          {
+            "path": ".vitest/attachments/b9000b0595811fa046f47008cc69e9d697379346.png",
+            "bytes": 11686,
+            "sha256": "6dbe48d48b80e57acc3ad3ea692823aa353927ccf3a7385cc0f17ef3eaaa49a7"
+          },
+          {
+            "path": ".vitest/attachments/c627026c5d0de32ccf3ccb1d9068cfc791c27965.png",
+            "bytes": 21660,
+            "sha256": "0af861a9a90c39148d318f05eabe7bcd6471231f4a31b4263c17693b1b260d3b"
+          },
+          {
+            "path": ".vitest/attachments/c80f654875fb71df52f87d1b307fc49229d7deb0.png",
+            "bytes": 36318,
+            "sha256": "293e3d1ad028f616f54f59ce75da4a0cc34acd2d683dcc22e39168ac620aee5a"
+          },
+          {
+            "path": ".vitest/attachments/d21ee814029ded149c750c7460dc7c7b0565648e.png",
+            "bytes": 63264,
+            "sha256": "3df5f18376f08611ac463d40940424c290afb8b53349779b369f4200899d2086"
+          },
+          {
+            "path": ".vitest/attachments/ebd0a02e0cc309204838e7c6fe2077b137232a68.png",
+            "bytes": 46126,
+            "sha256": "41827fb8315b1ac370d519afa3951d4428f90b2e4ad243424d4bbaa5d4c46cff"
+          },
+          {
+            "path": ".vitest/attachments/f0ff06e43a57c765219262e68937d18cb7ce138a.png",
+            "bytes": 67188,
+            "sha256": "373b97029fb62b1353d5ec93b8b910a2bf59f8168c45d80fc1d400e4590308eb"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/agent-card.browser.test.tsx/agent----------------.png",
+            "bytes": 12519,
+            "sha256": "7cd45752633e4ca1505f813333df3f1d5e33dd314e5f74ad76284cd124895888"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/agent-card.browser.test.tsx/agent----------------Session--------------------------------------.png",
+            "bytes": 11686,
+            "sha256": "6dbe48d48b80e57acc3ad3ea692823aa353927ccf3a7385cc0f17ef3eaaa49a7"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/agent-card.browser.test.tsx/agent------------agent_update---------------chip------worktree.png",
+            "bytes": 5931,
+            "sha256": "9321e39152cc1a4adf6ba2e8d8b36ba2989727afd31d71ead522f39dfc8c58d9"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/agent-card.browser.test.tsx/agent------------en---------------------------status------.png",
+            "bytes": 46126,
+            "sha256": "41827fb8315b1ac370d519afa3951d4428f90b2e4ad243424d4bbaa5d4c46cff"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--agent-details-are-manual-and-retain-complete-original-input-and-output-through-live-completion.png",
+            "bytes": 25532,
+            "sha256": "87e0bec479e05ef0b794557d1bc38b4f6d084d0d32711b1b2e0a00777eff59ad"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--batched-host-messages-retain-each-sender-and-body-by-recorded-message-identity.png",
+            "bytes": 24770,
+            "sha256": "2779c0e98f5bf238be1bbb9ff131bddedf0bbe9d8d555ea3d299320b231843c8"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--child-timelines-use-their-own-agent-facts-and-preserve-Session-isolation-with-colliding-Run-and-call-identities.png",
+            "bytes": 100630,
+            "sha256": "45a8292977cb2cf882ee259d07c795f2f6e584ba421fdcf010d6b7eb2255ef35"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--dark-en-at-390px-preserves-schedule--task-and-handoff-sources-and-actions-outside-folded-process.png",
+            "bytes": 63264,
+            "sha256": "3df5f18376f08611ac463d40940424c290afb8b53349779b369f4200899d2086"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--dark-zh-at-1000px-preserves-schedule--task-and-handoff-sources-and-actions-outside-folded-process.png",
+            "bytes": 79576,
+            "sha256": "a7a824bfdc5fdcd810ce73282ba8e11023e67d16e2809cbe20eb6f66ae38b5f2"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--explicit-whole-collapse-resets-agent-detail-and-Trace-remains-the-existing-root-route.png",
+            "bytes": 25708,
+            "sha256": "eaed6e638e849e8225f6e8fc88855141163476dcf383aec4881e66af359d534f"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--host-team-delivery-retains-its-full-body-outside-folding-and-metadata-never-becomes-a-user-bubble.png",
+            "bytes": 28020,
+            "sha256": "5cf187129b3a3a3d25dd8abdfca4e36e973bec39163987cde1bb27cec06a6285"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--light-en-at-1000px-preserves-schedule--task-and-handoff-sources-and-actions-outside-folded-process.png",
+            "bytes": 75229,
+            "sha256": "4f20abdfe1c892ee9f59479ce5413565a49c901daed8a81f9febd5f19216bb05"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/collaboration.browser.test.tsx/actual-App--light-zh-at-390px-preserves-schedule--task-and-handoff-sources-and-actions-outside-folded-process.png",
+            "bytes": 67188,
+            "sha256": "373b97029fb62b1353d5ec93b8b910a2bf59f8168c45d80fc1d400e4590308eb"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/handoff.browser.test.tsx/----------------handoff_failed----------------------.png",
+            "bytes": 13656,
+            "sha256": "39759e2a0c2311d48ee9ab84cc67bbedd19495f21e471ddfac9066328cbab151"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--a-host-delivered-team-input-cuts-process-groups--stays-outside-folding-and-does-not-expose-hidden-model-context.png",
+            "bytes": 22555,
+            "sha256": "35aa26576c7b2e7fa9737f0d446fce3380a34e1ce47beac590a0626615fad604"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/team-rows.browser.test.tsx/----------team_message------------summary-----------------------.png",
+            "bytes": 13931,
+            "sha256": "8b1f52c26154c8f5b6269655d548e7f720a2cdaab80e81b3d773ce1968597a94"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/team-rows.browser.test.tsx/----------team_task-----------------------------.png",
+            "bytes": 21660,
+            "sha256": "0af861a9a90c39148d318f05eabe7bcd6471231f4a31b4263c17693b1b260d3b"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-rows.browser.test.tsx/actual-App--streaming-settlement-keeps-one-call--expanded-content--selection-and-scroll--identical-arguments-do-not-merge-different-calls.png",
+            "bytes": 36318,
+            "sha256": "293e3d1ad028f616f54f59ce75da4a0cc34acd2d683dcc22e39168ac620aee5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-10 (was 7c649516).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-11",
+      "path": "/private/tmp/coko-conversation-detail/ticket-11",
+      "head": "86167276d62b3e06620e5ba942d06f57933ca04a",
+      "branch": "codex/conversation-detail-11",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "86167276d62b3e06620e5ba942d06f57933ca04a",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-11-vitest.tar.gz",
+        "sha256": "4f5b5d779b657e5de403cb5f9bbccc60c5441b2b27a6d11141390ee1457ca9cf",
+        "files": 10,
+        "bytes": 520154,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/1b37f6edd7b31be1df6896d298c189ac4ebef818.png",
+            "bytes": 54947,
+            "sha256": "f3e143160ac2318fece153b18e5e8b56236d75d3ec227a814c252120fb8009e9"
+          },
+          {
+            "path": ".vitest/attachments/1ba9c14a996a1b9195f70872658f1049d8a77d19.png",
+            "bytes": 24794,
+            "sha256": "61b8be78b86ea403a006aa96e72cab32701a0bb2f4f93c488ab284c5b18ab993"
+          },
+          {
+            "path": ".vitest/attachments/62b33f4bf912234b135bb0357d001defcd215f28.png",
+            "bytes": 75391,
+            "sha256": "f943d85d4d28a4ea2d027b4bd5e9bd7af8bd19d050d91afceffd8df8fa2065a7"
+          },
+          {
+            "path": ".vitest/attachments/d43b886a768a8c073bb85b29462fadb8b123c872.png",
+            "bytes": 17287,
+            "sha256": "9ac489c3b833f2f1cecd5a852ec102787dda17898e9349bb6ac6bf5e47912a1c"
+          },
+          {
+            "path": ".vitest/attachments/d69dcf4c75d2d29d547f12d99e5c7591f8e32b9e.png",
+            "bytes": 87658,
+            "sha256": "659d8bcbec97d9764aaec04b293440433e177d47405fb33d8fbbb945d76f3433"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/history.browser.test.tsx/actual-App--a-Run-starting-while-rewind-confirmation-is-open-closes-the-forbidden-action.png",
+            "bytes": 87658,
+            "sha256": "659d8bcbec97d9764aaec04b293440433e177d47405fb33d8fbbb945d76f3433"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/history.browser.test.tsx/actual-App--a-paused-removed-worktree-Session-cannot-resume-through-the-historical-Run-banner.png",
+            "bytes": 24794,
+            "sha256": "61b8be78b86ea403a006aa96e72cab32701a0bb2f4f93c488ab284c5b18ab993"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/history.browser.test.tsx/actual-App--a-removed-worktree-keeps-history-inspectable-while-rewind--fork-and-retry-cannot-execute.png",
+            "bytes": 17287,
+            "sha256": "9ac489c3b833f2f1cecd5a852ec102787dda17898e9349bb6ac6bf5e47912a1c"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/history.browser.test.tsx/actual-App--approval-restricts-checkpoint-actions-while-history-remains-readable.png",
+            "bytes": 54947,
+            "sha256": "f3e143160ac2318fece153b18e5e8b56236d75d3ec227a814c252120fb8009e9"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/history.browser.test.tsx/actual-App--nested-rewound-history-retains-compaction--historical-folding-and-harmless-inspection-without-joining-the-active-Run.png",
+            "bytes": 75391,
+            "sha256": "f943d85d4d28a4ea2d027b4bd5e9bd7af8bd19d050d91afceffd8df8fa2065a7"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-11 (was 86167276).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-12",
+      "path": "/private/tmp/coko-conversation-detail/ticket-12",
+      "head": "22a17fb1f1e288adc9e687ce816bec715316ba28",
+      "branch": "codex/conversation-detail-12",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "packages/ui/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "22a17fb1f1e288adc9e687ce816bec715316ba28",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "packages/ui/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-12-vitest.tar.gz",
+        "sha256": "bb200baead9ac13574b57c11a649f963e36d74d70a4f0ac9da0c9801e4762c44",
+        "files": 60,
+        "bytes": 3810499,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/0f5d50465f834436a3c01413cff65142258f49ef.png",
+            "bytes": 71420,
+            "sha256": "ffbf2f06254d8d6f59cdf65e9dc9bf7bfee700a7fd31edcb81b579a99c8b5f1b"
+          },
+          {
+            "path": ".vitest/attachments/13eb50c6e4841eed92950310d1de23ea805f3e0f.png",
+            "bytes": 100013,
+            "sha256": "53adcae1b13ee587d07ce8cbf76a972216b95a845fcd61ff7593c53a8f5c6bb9"
+          },
+          {
+            "path": ".vitest/attachments/1d15e812490ccb3114954b13df1147941b97e1a5.png",
+            "bytes": 21419,
+            "sha256": "3ea98ca5606a8a8aa41e3f7b6f00b31cb689251df1d332a2cea546c7bd9445be"
+          },
+          {
+            "path": ".vitest/attachments/228a4825b8829a5acee2edfb31c12261f8c96af2.png",
+            "bytes": 72725,
+            "sha256": "78cae3c8a83ce8e726924d3568358949f24efb4d5aaaa0f4cefaaa1a1f61b913"
+          },
+          {
+            "path": ".vitest/attachments/23b7eee361012aeac4ded54788c98e2810c3f430.png",
+            "bytes": 66668,
+            "sha256": "64f8c976e2d439848a470d2d4c9f13d9ca5db82edd502d7fff7d098c03c34cb4"
+          },
+          {
+            "path": ".vitest/attachments/48734afd2041689f3a341d7aa948a58fe2ea8fcb.png",
+            "bytes": 9788,
+            "sha256": "39d66f42c5d3b764bb5b53a36150e361f49457d1a773293e1c035909217ba5ac"
+          },
+          {
+            "path": ".vitest/attachments/73779cbfffdffc5fcee31c11f44003eec5b10002.png",
+            "bytes": 112744,
+            "sha256": "7fa5982ab5349910ad5f9d1956618c81de3518494b5c7155ac36c79da5620689"
+          },
+          {
+            "path": ".vitest/attachments/8274de23f413d6b2ed9f62d1a1219ff9d17d99e8.png",
+            "bytes": 112689,
+            "sha256": "e98891330aa996ebf8b6d36592368556a32e7ca7c2f18edacdcf3eb0041b69a4"
+          },
+          {
+            "path": ".vitest/attachments/85129349b64286a720e541e6fc63cc0e44a46752.png",
+            "bytes": 60259,
+            "sha256": "d7495b924216a9020e752a78568a34258bafd743764b3a0c375ad6cc0b6d4d28"
+          },
+          {
+            "path": ".vitest/attachments/8f42a230938e9ca5238cbbf5877b1b98561cc0b5.png",
+            "bytes": 22742,
+            "sha256": "49811c87e7b755b4443fd85052ef3c728d11df0728efe72b1a233c85fe7416d7"
+          },
+          {
+            "path": ".vitest/attachments/928db8852bdb3789212ef680eebf0f5c0e77dc1d.png",
+            "bytes": 221998,
+            "sha256": "9b200e3a014d6568755e3d0ba882ca767bb060e2950360048772211aff8f395b"
+          },
+          {
+            "path": ".vitest/attachments/9945113150c09495ce1f71b94d733984b680a9b2.png",
+            "bytes": 75312,
+            "sha256": "ad807584005c68b95d9752a1474adfdf5986ffe76cef3e35a4085941b55b1880"
+          },
+          {
+            "path": ".vitest/attachments/ae3fe29b77bc65574ec2603f4653feaa8e4d4c76.png",
+            "bytes": 89616,
+            "sha256": "47f8f6fa9c8cf423c90767123b7839c6877f6584751ef08fcba9400669f450c6"
+          },
+          {
+            "path": ".vitest/attachments/aec842258759a905a047cf2dbb3f1fbf365d5d5c.png",
+            "bytes": 71398,
+            "sha256": "f4f5137cdc1a27364db86e90b6767a4e2cf2ff775f2382f632b75e17ae505afd"
+          },
+          {
+            "path": ".vitest/attachments/b41d7faf4fc1b73f09783d62bad13cf7762314c4.png",
+            "bytes": 67874,
+            "sha256": "64bcf0bd7c2c0634ea3e756ae39e4db84bb4a47aa1b20dd3c8c7f8fd1870e7d1"
+          },
+          {
+            "path": ".vitest/attachments/b70664d1fbe73f4efed4fd6f5720d78be1ccb1fd.png",
+            "bytes": 28172,
+            "sha256": "0c95e5667803e7cb12263b3d86cd119fdbb80c1a4ad228202f02e96dcabfb7d9"
+          },
+          {
+            "path": ".vitest/attachments/bd28a92b2cdd5aa5c82c14cd9b095f9b88db0d69.png",
+            "bytes": 60219,
+            "sha256": "381dd742e4f43bc7f144cb62766dd00122b9fe0855a3e62b7be6a70b43b908f7"
+          },
+          {
+            "path": ".vitest/attachments/dab0692e374a5800deae7c7e1a706f9b12d6cdcb.png",
+            "bytes": 112870,
+            "sha256": "d5a363120de7758ef8dc1c04f369d07847bcdff947dafa6ab29c407b79237fbb"
+          },
+          {
+            "path": ".vitest/attachments/dc5a0243a3a631cb628b4eb20fbc03a2f95e5704.png",
+            "bytes": 65702,
+            "sha256": "152773ada49ce45753edde774405b635297baf1f6d381ca0d44fdfa35ef84a40"
+          },
+          {
+            "path": ".vitest/attachments/f1c4d66b2af435cf33ec501ca2f72b5cf082978a.png",
+            "bytes": 121009,
+            "sha256": "9a7848cadc07eb6b2d1eaa814687d1c030475bb5f7042c437d263a527a52bf77"
+          },
+          {
+            "path": ".vitest/attachments/f640d12c173d03b6e07b47a6a8c850a82d858e6c.png",
+            "bytes": 100129,
+            "sha256": "85c9ecc955f7cce6e66f60415f0b527d0be681861e61d291b16812fab0eb60ee"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/messages.browser.test.tsx/streaming-reasoning-previews-only-the-latest-paragraph-with-a-completed-first-line-and-opens-compact-Markdown-manually.png",
+            "bytes": 21419,
+            "sha256": "3ea98ca5606a8a8aa41e3f7b6f00b31cb689251df1d332a2cea546c7bd9445be"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/model-picker.browser.test.tsx/light-detail-retains-canvas-geometry-near-a-narrow-window-edge.png",
+            "bytes": 9788,
+            "sha256": "39d66f42c5d3b764bb5b53a36150e361f49457d1a773293e1c035909217ba5ac"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/new-chat.browser.test.tsx/light---------6px---------------------Git---.png",
+            "bytes": 75312,
+            "sha256": "ad807584005c68b95d9752a1474adfdf5986ffe76cef3e35a4085941b55b1880"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--dark-en-keeps-historical-groups-capped--directional-masks-and-keyboard-controls-reachable-at-390px.png",
+            "bytes": 60219,
+            "sha256": "381dd742e4f43bc7f144cb62766dd00122b9fe0855a3e62b7be6a70b43b908f7"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--dark-zh-keeps-historical-groups-capped--directional-masks-and-keyboard-controls-reachable-at-390px.png",
+            "bytes": 66668,
+            "sha256": "64f8c976e2d439848a470d2d4c9f13d9ca5db82edd502d7fff7d098c03c34cb4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--a-capped-group-follows-detail-growth-independently-while-the-outer-reader-remains-held--manual-reopen-starts-at-the-top.png",
+            "bytes": 112689,
+            "sha256": "e98891330aa996ebf8b6d36592368556a32e7ca7c2f18edacdcf3eb0041b69a4"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--a-portaled-preview-retains-its-scoped-tail-return-target-through-cap-restoration-and-Escape.png",
+            "bytes": 71398,
+            "sha256": "f4f5137cdc1a27364db86e90b6767a4e2cf2ff775f2382f632b75e17ae505afd"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--cap-restoration-keeps-a-focused-code-action-visible-inside-a-reasoning-row-taller-than-the-cap.png",
+            "bytes": 67874,
+            "sha256": "64bcf0bd7c2c0634ea3e756ae39e4db84bb4a47aa1b20dd3c8c7f8fd1870e7d1"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--child-Session-detail-growth-follows-its-own-tail--child-switching-resets-reading--and-the-parent-stays-held.png",
+            "bytes": 221998,
+            "sha256": "9b200e3a014d6568755e3d0ba882ca767bb060e2950360048772211aff8f395b"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--completion-folds-real-process-geometry-on-one-160ms-clock-and-leaves-no-tail-reservation-or-second-landing.png",
+            "bytes": 100013,
+            "sha256": "53adcae1b13ee587d07ce8cbf76a972216b95a845fcd61ff7593c53a8f5c6bb9"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--dark-held-reading-survives-output--settlement-and-Run-end--and-return-to-bottom-resumes-follow-at-390px.png",
+            "bytes": 65702,
+            "sha256": "152773ada49ce45753edde774405b635297baf1f6d381ca0d44fdfa35ef84a40"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--expanded-historical-snapshot-preserves-the-current-visible-row-and-manual-disclosure-after-a-later-reading-gesture.png",
+            "bytes": 112870,
+            "sha256": "d5a363120de7758ef8dc1c04f369d07847bcdff947dafa6ab29c407b79237fbb"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--folding-offscreen-process-rows-preserves-the-visible-answer-while-a-reading-gesture-interrupts-tail-follow.png",
+            "bytes": 112744,
+            "sha256": "7fa5982ab5349910ad5f9d1956618c81de3518494b5c7155ac36c79da5620689"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--follows-measured-generic-detail-growth-at-the-tail-without-a-new-Session-entry.png",
+            "bytes": 100129,
+            "sha256": "85c9ecc955f7cce6e66f60415f0b527d0be681861e61d291b16812fab0eb60ee"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--keyboard-Space-opens-detail-at-the-tail-and-a-downward-wheel-at-the-floor-retains-following.png",
+            "bytes": 121009,
+            "sha256": "9a7848cadc07eb6b2d1eaa814687d1c030475bb5f7042c437d263a527a52bf77"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--light-held-reading-survives-output--settlement-and-Run-end--and-return-to-bottom-resumes-follow-at-390px.png",
+            "bytes": 60259,
+            "sha256": "d7495b924216a9020e752a78568a34258bafd743764b3a0c375ad6cc0b6d4d28"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--restoring-a-focused-group-animates-the-historical-header-and-cap-together-without-hiding-its-focused-tool.png",
+            "bytes": 71420,
+            "sha256": "ffbf2f06254d8d6f59cdf65e9dc9bf7bfee700a7fd31edcb81b579a99c8b5f1b"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--restoring-the-cap-keeps-a-focused-tail-tool-inside-the-visible-group-and-outer-viewport.png",
+            "bytes": 72725,
+            "sha256": "78cae3c8a83ce8e726924d3568358949f24efb4d5aaaa0f4cefaaa1a1f61b913"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--reversing-a-manual-fold-continues-from-the-displayed-height-and-retains-the-mounted-process-seat.png",
+            "bytes": 22742,
+            "sha256": "49811c87e7b755b4443fd85052ef3c728d11df0728efe72b1a233c85fe7416d7"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--the-focused-sticky-thinking-control-remains-in-the-outer-viewport-throughout-cap-restoration.png",
+            "bytes": 89616,
+            "sha256": "47f8f6fa9c8cf423c90767123b7839c6877f6584751ef08fcba9400669f450c6"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/schedules-tab.browser.test.tsx/-----schedule_fire-----------------------------------------.png",
+            "bytes": 28172,
+            "sha256": "0c95e5667803e7cb12263b3d86cd119fdbb80c1a4ad228202f02e96dcabfb7d9"
+          },
+          {
+            "path": ".vitest/cw05-dark.png",
+            "bytes": 5123,
+            "sha256": "99631d97cec807f3a566b91ec60ce580d6aa2a101b0504e211ef6539ec9ad6cd"
+          },
+          {
+            "path": ".vitest/cw05-light.png",
+            "bytes": 4866,
+            "sha256": "0a48accfb8c0f8cf316f1619b530135c1b0781faba7c5352a0f679716d9a3d8e"
+          },
+          {
+            "path": ".vitest/cw11-dark.png",
+            "bytes": 46733,
+            "sha256": "6068d7c49baaeb77a30f7152d3b7de1df18548c5831c47ec7e75d9748507237c"
+          },
+          {
+            "path": ".vitest/cw11-light.png",
+            "bytes": 46193,
+            "sha256": "53576252d4e7463fdcfd2ab673768b6e4daeab0b7dc2ce8ea20529cd2ad0843f"
+          },
+          {
+            "path": ".vitest/cw12-dark.png",
+            "bytes": 79661,
+            "sha256": "70133ed82524391a38942b4c42594debec74137299ce2b16f0f12743c0f9f787"
+          },
+          {
+            "path": ".vitest/cw12-hover-dark.png",
+            "bytes": 1935,
+            "sha256": "83b3a9d825d3a8db8ce5f4950d5e242d3f9d3d0f03a32f48c109f4fff1f5c77c"
+          },
+          {
+            "path": ".vitest/cw12-hover-light.png",
+            "bytes": 1835,
+            "sha256": "1b3482beb4da54478557d62c9dc79dae3e7bdfbf840608546a9adbe00b0fd303"
+          },
+          {
+            "path": ".vitest/cw12-light.png",
+            "bytes": 78459,
+            "sha256": "78664230b90caa853c91984ff206a748d9cf233c1a84aade557f30495a9bf0f8"
+          },
+          {
+            "path": ".vitest/cw12-menu-dark.png",
+            "bytes": 14224,
+            "sha256": "67260c856c92cefc9b5ba519231aaee2b2c5f2328582939b67be0cb5f01f9bdd"
+          },
+          {
+            "path": ".vitest/cw12-menu-light.png",
+            "bytes": 9792,
+            "sha256": "80b77d772117b5565dfeb2431a0ab52eabb5d71e0137a38a2268fac348dfd28c"
+          },
+          {
+            "path": ".vitest/cw20-create-error-dark.png",
+            "bytes": 19348,
+            "sha256": "07da7390fbd97988fc114292cf370c7ca1908e105ec2d26230a1f9a68b380e55"
+          },
+          {
+            "path": ".vitest/cw20-create-error-light.png",
+            "bytes": 19034,
+            "sha256": "76cfd096b1eb7fda676a0ea564af0972aba0021e36f1f21d5ca0439196b77140"
+          },
+          {
+            "path": ".vitest/cw20-submenu-dark.png",
+            "bytes": 65224,
+            "sha256": "02b31b2f4a100900fdd08464298bfb89bce975d8d2215c767fd4745750cce3e8"
+          },
+          {
+            "path": ".vitest/cw20-submenu-light.png",
+            "bytes": 61755,
+            "sha256": "3ea193da4d44b33280bcfde11b46cdd69f01036a64720c6756039028ae0bc73d"
+          },
+          {
+            "path": ".vitest/cw21-toggle.png",
+            "bytes": 4762,
+            "sha256": "f79cb54c271998efef0d0f58b679b0ea659aa391d0488c69cd1443d5dc1e22c0"
+          },
+          {
+            "path": ".vitest/model-long-detail.png",
+            "bytes": 8257,
+            "sha256": "7d91b0a6465823d955e90b5ceb80a93df3f60392861ccf93edbf3a38899dd572"
+          },
+          {
+            "path": ".vitest/model-long-list.png",
+            "bytes": 8627,
+            "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+          },
+          {
+            "path": ".vitest/model-long-name.png",
+            "bytes": 5139,
+            "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-12 (was 22a17fb1).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ticket-13",
+      "path": "/private/tmp/coko-conversation-detail/ticket-13",
+      "head": "e7efe155912791f51647b9bcf9f965d0b2362c75",
+      "branch": "codex/conversation-detail-13",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/dist/",
+        "apps/desktop/node_modules/",
+        "apps/desktop/out/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "packages/ui/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "e7efe155912791f51647b9bcf9f965d0b2362c75",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/dist/",
+          "apps/desktop/node_modules/",
+          "apps/desktop/out/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "packages/ui/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ticket-13-vitest.tar.gz",
+        "sha256": "0d5bf919ccc814c25318f85cadc9c90dc54d040938dc09b067dd7840a4c9cc4a",
+        "files": 50,
+        "bytes": 2276143,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/05ad6eb2116cd3d38af2f37e2c0b2c4f023e8dc2.png",
+            "bytes": 88835,
+            "sha256": "3231485733d00b979e9b51f1860b90ad5cfd768756ca5bc583c2c265e279d79c"
+          },
+          {
+            "path": ".vitest/attachments/0f4920b9925e96faf5336ace92835f28f94c6f8e.png",
+            "bytes": 36444,
+            "sha256": "368e9fd85c17a9ec11b13baa487087bb0265f2769119d9aaa3d9e486f47dde14"
+          },
+          {
+            "path": ".vitest/attachments/20cc35b4c1b7ad722cc05a80f47397de2af19644.png",
+            "bytes": 76903,
+            "sha256": "e843c6c18d3f6e8acf6c59b4400a4adae988afcfe36ca75eae9bd76e727c5082"
+          },
+          {
+            "path": ".vitest/attachments/20fb4e299cd01dc0315f0c72a19f94cdda357ff0.png",
+            "bytes": 28963,
+            "sha256": "f38a736cd6849f0332725bd8fb874d19aaf89975dec6435b642aa21834231243"
+          },
+          {
+            "path": ".vitest/attachments/36499510cc4d660b0aff8635a29d80ab836e2702.png",
+            "bytes": 37146,
+            "sha256": "c4a47be7db5d7924dec8ebd74950c7a36f17efd936bfb24c97a46c3911c6217d"
+          },
+          {
+            "path": ".vitest/attachments/370f98fac6334748cc0cb055fcb6edea322572da.png",
+            "bytes": 35834,
+            "sha256": "66c81de7b375d6a3335744db45c45284fae83cc0e761747279b808eeef8fce62"
+          },
+          {
+            "path": ".vitest/attachments/72e8142f0ed428c5864c8d5629aa139be9ac166c.png",
+            "bytes": 88157,
+            "sha256": "92dc0ddc6cd5e679ebd6d75131524b2edd3fd307a974580470e40b751336f0e5"
+          },
+          {
+            "path": ".vitest/attachments/809b8d9f41b9ddd8b9b84ffa392236b0ce152ba9.png",
+            "bytes": 88879,
+            "sha256": "f64ee9934cd41aa2086d0b4efd505add61f10a914884426c41a07d96c43d01cd"
+          },
+          {
+            "path": ".vitest/attachments/81d64c7d72be534064a070f3d4880b243e73972e.png",
+            "bytes": 31435,
+            "sha256": "3d48731179dab46574b0bca4e286cadfbbdf48e42446ff82f40eb576de546c62"
+          },
+          {
+            "path": ".vitest/attachments/b02b6a45910a938a0490a1a3467bda0824623e34.png",
+            "bytes": 87153,
+            "sha256": "0efb5213984027414e3c1edb09894c89fb6f7d8ff9e1d565b12485c4e8e3ef75"
+          },
+          {
+            "path": ".vitest/attachments/b62fb56ee2d69498eadf960b924979d396fcf370.png",
+            "bytes": 82335,
+            "sha256": "13d086c5c44f368e2bc4c47e518d286dbace67ab6594331c704ce34ed02b41ee"
+          },
+          {
+            "path": ".vitest/attachments/d757ee8bcad5204aff62c68ee7486e9d497bb81a.png",
+            "bytes": 28992,
+            "sha256": "466f4ec9ef1961f04dc5b5547f42e440a6b84316bd5b2d4d0900f1f5a74277b7"
+          },
+          {
+            "path": ".vitest/attachments/d769aa7fcbbea957ecf8edd5925b22366cd87f6b.png",
+            "bytes": 88536,
+            "sha256": "7e780855636005c7078bc5d2a99a8916c4d9761e8d2155bd1a80a85d01f6fa12"
+          },
+          {
+            "path": ".vitest/attachments/dce17c2543fff11f01433f812a2eb14701669cc0.png",
+            "bytes": 33788,
+            "sha256": "a5bc5ee82fa564cc85ef92604f803998d2623995b5215b6707fe5a7ac3227d1f"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/app.browser.test.tsx/-----------------------------------Toast.png",
+            "bytes": 82335,
+            "sha256": "13d086c5c44f368e2bc4c47e518d286dbace67ab6594331c704ce34ed02b41ee"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--dark-known-file-suffixes-supply-reference-syntax-and-mutation-language-labels-without-inventing-file-facts.png",
+            "bytes": 37146,
+            "sha256": "c4a47be7db5d7924dec8ebd74950c7a36f17efd936bfb24c97a46c3911c6217d"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--known-file-suffixes-supply-read-syntax-and-mutation-language-labels-without-inventing-file-facts.png",
+            "bytes": 35834,
+            "sha256": "66c81de7b375d6a3335744db45c45284fae83cc0e761747279b808eeef8fce62"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--light-known-file-suffixes-supply-reference-syntax-and-mutation-language-labels-without-inventing-file-facts.png",
+            "bytes": 36444,
+            "sha256": "368e9fd85c17a9ec11b13baa487087bb0265f2769119d9aaa3d9e486f47dde14"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--selecting-the-initial-read-text-survives-lazy-syntax-coloring-and-committed-settlement-without-remounting-its-body.png",
+            "bytes": 31435,
+            "sha256": "3d48731179dab46574b0bca4e286cadfbbdf48e42446ff82f40eb576de546c62"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--bash-height-changes-follow-the-group--retain-the-held-outer-reader-and-survive-earlier-history.png",
+            "bytes": 88536,
+            "sha256": "7e780855636005c7078bc5d2a99a8916c4d9761e8d2155bd1a80a85d01f6fa12"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--edit-height-changes-follow-the-group--retain-the-held-outer-reader-and-survive-earlier-history.png",
+            "bytes": 88835,
+            "sha256": "3231485733d00b979e9b51f1860b90ad5cfd768756ca5bc583c2c265e279d79c"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--grep-height-changes-follow-the-group--retain-the-held-outer-reader-and-survive-earlier-history.png",
+            "bytes": 88879,
+            "sha256": "f64ee9934cd41aa2086d0b4efd505add61f10a914884426c41a07d96c43d01cd"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--live-terminal-commits-through-phase-reply-and-image-portal-without-losing-entities--selection-or-focus--reduce-false-.png",
+            "bytes": 28992,
+            "sha256": "466f4ec9ef1961f04dc5b5547f42e440a6b84316bd5b2d4d0900f1f5a74277b7"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--live-terminal-commits-through-phase-reply-and-image-portal-without-losing-entities--selection-or-focus--reduce-true-.png",
+            "bytes": 28963,
+            "sha256": "f38a736cd6849f0332725bd8fb874d19aaf89975dec6435b642aa21834231243"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--mcp__playwright__screenshot-height-changes-follow-the-group--retain-the-held-outer-reader-and-survive-earlier-history.png",
+            "bytes": 87153,
+            "sha256": "0efb5213984027414e3c1edb09894c89fb6f7d8ff9e1d565b12485c4e8e3ef75"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/integrated-detail.browser.test.tsx/actual-App-joint--read-height-changes-follow-the-group--retain-the-held-outer-reader-and-survive-earlier-history.png",
+            "bytes": 88157,
+            "sha256": "92dc0ddc6cd5e679ebd6d75131524b2edd3fd307a974580470e40b751336f0e5"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--a-capped-group-follows-detail-growth-independently-while-the-outer-reader-remains-held--manual-reopen-starts-at-the-top.png",
+            "bytes": 76903,
+            "sha256": "e843c6c18d3f6e8acf6c59b4400a4adae988afcfe36ca75eae9bd76e727c5082"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--light-en-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png",
+            "bytes": 33788,
+            "sha256": "a5bc5ee82fa564cc85ef92604f803998d2623995b5215b6707fe5a7ac3227d1f"
+          },
+          {
+            "path": ".vitest/cw05-dark.png",
+            "bytes": 5094,
+            "sha256": "1856b9d1d54db23ddb690993b0c0ae02f089ea604a19f3a661b7f01555e85391"
+          },
+          {
+            "path": ".vitest/cw05-light.png",
+            "bytes": 4862,
+            "sha256": "5587de547a4bbfb620278a5a9bdd984bad27aa912cd8ee908f1cfa9bdc75147a"
+          },
+          {
+            "path": ".vitest/cw11-dark.png",
+            "bytes": 46733,
+            "sha256": "6068d7c49baaeb77a30f7152d3b7de1df18548c5831c47ec7e75d9748507237c"
+          },
+          {
+            "path": ".vitest/cw11-light.png",
+            "bytes": 46193,
+            "sha256": "53576252d4e7463fdcfd2ab673768b6e4daeab0b7dc2ce8ea20529cd2ad0843f"
+          },
+          {
+            "path": ".vitest/cw12-dark.png",
+            "bytes": 79658,
+            "sha256": "8164201d6fa73f26bca86a98e77a4eb14714da1b0b37cf9ba67cb5d3fd5b1fd0"
+          },
+          {
+            "path": ".vitest/cw12-hover-dark.png",
+            "bytes": 1935,
+            "sha256": "83b3a9d825d3a8db8ce5f4950d5e242d3f9d3d0f03a32f48c109f4fff1f5c77c"
+          },
+          {
+            "path": ".vitest/cw12-hover-light.png",
+            "bytes": 1835,
+            "sha256": "1b3482beb4da54478557d62c9dc79dae3e7bdfbf840608546a9adbe00b0fd303"
+          },
+          {
+            "path": ".vitest/cw12-light.png",
+            "bytes": 78459,
+            "sha256": "78664230b90caa853c91984ff206a748d9cf233c1a84aade557f30495a9bf0f8"
+          },
+          {
+            "path": ".vitest/cw12-menu-dark.png",
+            "bytes": 14224,
+            "sha256": "67260c856c92cefc9b5ba519231aaee2b2c5f2328582939b67be0cb5f01f9bdd"
+          },
+          {
+            "path": ".vitest/cw12-menu-light.png",
+            "bytes": 9792,
+            "sha256": "80b77d772117b5565dfeb2431a0ab52eabb5d71e0137a38a2268fac348dfd28c"
+          },
+          {
+            "path": ".vitest/cw20-create-error-dark.png",
+            "bytes": 19339,
+            "sha256": "c813561df92f12f3356c7f18cec1a03897d6384e02164f7362f2274f04b50a50"
+          },
+          {
+            "path": ".vitest/cw20-create-error-light.png",
+            "bytes": 19034,
+            "sha256": "76cfd096b1eb7fda676a0ea564af0972aba0021e36f1f21d5ca0439196b77140"
+          },
+          {
+            "path": ".vitest/cw20-submenu-dark.png",
+            "bytes": 65224,
+            "sha256": "02b31b2f4a100900fdd08464298bfb89bce975d8d2215c767fd4745750cce3e8"
+          },
+          {
+            "path": ".vitest/cw20-submenu-light.png",
+            "bytes": 61755,
+            "sha256": "3ea193da4d44b33280bcfde11b46cdd69f01036a64720c6756039028ae0bc73d"
+          },
+          {
+            "path": ".vitest/cw21-toggle.png",
+            "bytes": 4762,
+            "sha256": "f79cb54c271998efef0d0f58b679b0ea659aa391d0488c69cd1443d5dc1e22c0"
+          },
+          {
+            "path": ".vitest/cw22-search-dark.png",
+            "bytes": 15856,
+            "sha256": "a129a085a19866bd3085000effdaaca781d1450ad7108a7ea4e6b7231db365d5"
+          },
+          {
+            "path": ".vitest/cw22-search-delete.png",
+            "bytes": 43118,
+            "sha256": "251248d42706eac98dbb13336ceaddc7a9fbaa22b0c38c4063cf0db900d8558e"
+          },
+          {
+            "path": ".vitest/cw22-search-light.png",
+            "bytes": 16274,
+            "sha256": "f9bed85b379540bced56ad07e3b4cd36d46f4b0690044716ffcad52bbf9e7948"
+          },
+          {
+            "path": ".vitest/cw22-search-results.png",
+            "bytes": 53154,
+            "sha256": "dccac5944b179f8b152ae829b8921c82f96944113bd48b91adbb6f840dc1fe98"
+          },
+          {
+            "path": ".vitest/model-long-detail.png",
+            "bytes": 8276,
+            "sha256": "5e4d93cf9a82ada4d640dac1e972e68f504c2c7357c461677ca329b1621aa409"
+          },
+          {
+            "path": ".vitest/model-long-list.png",
+            "bytes": 8627,
+            "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+          },
+          {
+            "path": ".vitest/model-long-name.png",
+            "bytes": 5139,
+            "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-13 (was e7efe155).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "ime-diagnosis",
+      "path": "/private/tmp/coko-conversation-detail/ime-diagnosis",
+      "head": "d3108d05673adbe3725160b3486e7897f958ffe5",
+      "branch": "codex/conversation-detail-ime-diagnosis",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/"
+      ],
+      "ancestor": true,
+      "processes": [],
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "d3108d05673adbe3725160b3486e7897f958ffe5",
+        "ignored": [
+          ".husky/_/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/ime-diagnosis-vitest.tar.gz",
+        "sha256": "649e302e2067d077e82cf48637e3980e8e5a334a91b18954a4e7bb9a3905869e",
+        "files": 20,
+        "bytes": 629882,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/68f62b78181d5238f12da3ed24bcabbc36705886.png",
+            "bytes": 74526,
+            "sha256": "9b7967bdb14f22eaf35db714eb973cf9d87a26d685a1dd5da41611629d784f47"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/new-chat.browser.test.tsx/light---------6px---------------------Git---.png",
+            "bytes": 74526,
+            "sha256": "9b7967bdb14f22eaf35db714eb973cf9d87a26d685a1dd5da41611629d784f47"
+          },
+          {
+            "path": ".vitest/cw05-dark.png",
+            "bytes": 5081,
+            "sha256": "107c97828564b658e16eea38b23aa01e074f57a7a78a08d9b9ccd8d1b4bdb2a5"
+          },
+          {
+            "path": ".vitest/cw05-light.png",
+            "bytes": 4853,
+            "sha256": "5959c63689a227c924515297c57d43fecfbbd3ef3979b8e5ec4f56a5a2c8b0aa"
+          },
+          {
+            "path": ".vitest/cw11-dark.png",
+            "bytes": 46733,
+            "sha256": "6068d7c49baaeb77a30f7152d3b7de1df18548c5831c47ec7e75d9748507237c"
+          },
+          {
+            "path": ".vitest/cw11-light.png",
+            "bytes": 46193,
+            "sha256": "53576252d4e7463fdcfd2ab673768b6e4daeab0b7dc2ce8ea20529cd2ad0843f"
+          },
+          {
+            "path": ".vitest/cw12-dark.png",
+            "bytes": 79658,
+            "sha256": "8164201d6fa73f26bca86a98e77a4eb14714da1b0b37cf9ba67cb5d3fd5b1fd0"
+          },
+          {
+            "path": ".vitest/cw12-hover-dark.png",
+            "bytes": 1935,
+            "sha256": "83b3a9d825d3a8db8ce5f4950d5e242d3f9d3d0f03a32f48c109f4fff1f5c77c"
+          },
+          {
+            "path": ".vitest/cw12-hover-light.png",
+            "bytes": 1835,
+            "sha256": "1b3482beb4da54478557d62c9dc79dae3e7bdfbf840608546a9adbe00b0fd303"
+          },
+          {
+            "path": ".vitest/cw12-light.png",
+            "bytes": 78459,
+            "sha256": "78664230b90caa853c91984ff206a748d9cf233c1a84aade557f30495a9bf0f8"
+          },
+          {
+            "path": ".vitest/cw12-menu-dark.png",
+            "bytes": 14224,
+            "sha256": "67260c856c92cefc9b5ba519231aaee2b2c5f2328582939b67be0cb5f01f9bdd"
+          },
+          {
+            "path": ".vitest/cw12-menu-light.png",
+            "bytes": 9792,
+            "sha256": "80b77d772117b5565dfeb2431a0ab52eabb5d71e0137a38a2268fac348dfd28c"
+          },
+          {
+            "path": ".vitest/cw20-create-error-dark.png",
+            "bytes": 19339,
+            "sha256": "c813561df92f12f3356c7f18cec1a03897d6384e02164f7362f2274f04b50a50"
+          },
+          {
+            "path": ".vitest/cw20-create-error-light.png",
+            "bytes": 19050,
+            "sha256": "94a66243e6e4c2e86deca38c50e58c899b07598a0b66794b653296c18d75d176"
+          },
+          {
+            "path": ".vitest/cw20-submenu-dark.png",
+            "bytes": 65224,
+            "sha256": "02b31b2f4a100900fdd08464298bfb89bce975d8d2215c767fd4745750cce3e8"
+          },
+          {
+            "path": ".vitest/cw20-submenu-light.png",
+            "bytes": 61755,
+            "sha256": "3ea193da4d44b33280bcfde11b46cdd69f01036a64720c6756039028ae0bc73d"
+          },
+          {
+            "path": ".vitest/cw21-toggle.png",
+            "bytes": 4762,
+            "sha256": "f79cb54c271998efef0d0f58b679b0ea659aa391d0488c69cd1443d5dc1e22c0"
+          },
+          {
+            "path": ".vitest/model-long-detail.png",
+            "bytes": 8171,
+            "sha256": "d891721f941ab0bf1fbc9b583bbb4b0ddd21f8d095b16ffc7f562e13d1acbb13"
+          },
+          {
+            "path": ".vitest/model-long-list.png",
+            "bytes": 8627,
+            "sha256": "5dddb6085b56378f073580fc3ab5dd43a4c4e3207656bcff350eda04564a3472"
+          },
+          {
+            "path": ".vitest/model-long-name.png",
+            "bytes": 5139,
+            "sha256": "928a43850acfb9d7f56fd93a2403b7a4e026b490943b1950f56a3f8adcfe7d5a"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean merged worktree",
+      "branchDelete": {
+        "code": 0,
+        "out": "Deleted branch codex/conversation-detail-ime-diagnosis (was d3108d05).\n",
+        "err": ""
+      },
+      "branchExists": false
+    },
+    {
+      "name": "reopen-diagnosis",
+      "path": "/private/tmp/coko-conversation-detail/reopen-diagnosis",
+      "head": "1b6d4070ebfdc8afaa5dd7da7840c9065e1b00bd",
+      "branch": "codex/conversation-detail-reopen-diagnosis",
+      "clean": true,
+      "status": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "ignored": [
+        ".husky/_/",
+        ".tsbuild/",
+        ".vitest/",
+        "apps/desktop/node_modules/",
+        "apps/server/node_modules/",
+        "node_modules/",
+        "packages/agent/node_modules/",
+        "tsconfig.tsbuildinfo"
+      ],
+      "ancestor": false,
+      "processes": [],
+      "equivalence": {
+        "original": "1b6d4070ebfdc8afaa5dd7da7840c9065e1b00bd",
+        "copied": "f9e34e87a2d3cec4e3061d45614d9ed7c036e0d5",
+        "originalPatchId": "b776ce5d20e513e69cf706ad5346e6046179ab9f",
+        "copiedPatchId": "b776ce5d20e513e69cf706ad5346e6046179ab9f",
+        "sourceDiff": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        }
+      },
+      "removalPreflight": {
+        "status": {
+          "code": 0,
+          "out": "",
+          "err": ""
+        },
+        "head": "1b6d4070ebfdc8afaa5dd7da7840c9065e1b00bd",
+        "ignored": [
+          ".husky/_/",
+          ".tsbuild/",
+          ".vitest/",
+          "apps/desktop/node_modules/",
+          "apps/server/node_modules/",
+          "node_modules/",
+          "packages/agent/node_modules/",
+          "tsconfig.tsbuildinfo"
+        ],
+        "processes": []
+      },
+      "backup": {
+        "archive": "/private/tmp/coko-conversation-detail/worktree-backups/reopen-diagnosis-vitest.tar.gz",
+        "sha256": "a4b8e1cff9e8984af2fbc25a7d59c441acbbec9f77ba55edc711f8ee7179ebfc",
+        "files": 2,
+        "bytes": 153806,
+        "readbackVerified": true,
+        "manifest": [
+          {
+            "path": ".vitest/attachments/16531143a1879972070c2882c6a6459dce14b209.png",
+            "bytes": 76903,
+            "sha256": "e843c6c18d3f6e8acf6c59b4400a4adae988afcfe36ca75eae9bd76e727c5082"
+          },
+          {
+            "path": ".vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--a-capped-group-follows-detail-growth-independently-while-the-outer-reader-remains-held--manual-reopen-starts-at-the-top.png",
+            "bytes": 76903,
+            "sha256": "e843c6c18d3f6e8acf6c59b4400a4adae988afcfe36ca75eae9bd76e727c5082"
+          }
+        ]
+      },
+      "removeResult": {
+        "code": 0,
+        "out": "",
+        "err": ""
+      },
+      "pathGone": true,
+      "disposition": "removed clean patch-equivalent diagnostic worktree; original branch retained",
+      "branchDelete": {
+        "code": null,
+        "out": "",
+        "err": "retained original diagnostic commit by instruction"
+      },
+      "branchExists": true
+    }
+  ],
+  "lsofCode": 0,
+  "lsofErrors": "",
+  "rootStatus": {
+    "code": 0,
+    "out": "",
+    "err": ""
+  },
+  "finishedAt": "2026-11-03T16:53:52.478141+00:00",
+  "remainingWorktrees": {
+    "code": 0,
+    "out": "worktree /Users/artorias_chan/Workspaces/person/coko\nHEAD 6e57ed0a7605996ec96173c897b1546c57ed42aa\nbranch refs/heads/main\n\nworktree /private/tmp/coko-conversation-detail/review-fix\nHEAD e7efe155912791f51647b9bcf9f965d0b2362c75\nbranch refs/heads/codex/conversation-detail-review-fix\n\nworktree /Users/artorias_chan/.codex/worktrees/0898/coko\nHEAD e7efe155912791f51647b9bcf9f965d0b2362c75\nbranch refs/heads/codex/conversation-detail\n\n",
+    "err": ""
+  },
+  "rootStatusFinal": {
+    "code": 0,
+    "out": "",
+    "err": ""
+  },
+  "rootHeadFinal": "e7efe155912791f51647b9bcf9f965d0b2362c75",
+  "remainingTaskBranches": {
+    "code": 0,
+    "out": "* codex/conversation-detail\n  codex/conversation-detail-reopen-diagnosis\n+ codex/conversation-detail-review-fix\n",
+    "err": ""
+  }
+}

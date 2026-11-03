@@ -1,0 +1,67 @@
+28f9b22a docs(chat): normalize review evidence spacing
+9384967c docs(chat): record review fixes and proof
+0cfe838b style(chat): consume complete font roles
+1194b316 fix(chat): close fidelity review gaps
+e7efe155 docs(chat): record integrated acceptance
+f9e34e87 fix(conversation): reset reading after reveal
+925abb63 test(context): pin warning usage fixture
+f31dd346 fix(chat): verify integrated file fidelity
+22a17fb1 docs(chat): close reading transition evidence
+7a3c5cf1 Merge branch 'codex/conversation-detail' into codex/conversation-detail-12
+5d9dadf7 fix(chat): retain focused content through cap
+85bf9df2 docs(conversation): close business row ticket
+d3108d05 test(chat): observe settled viewport positions
+362798ac fix(conversation): reopen the owned plan panel
+67ef84a2 fix(conversation): preserve active review navigation
+1e87d6ac fix(chat): preserve follow on downward touch
+a845dd54 fix(conversation): skip nonvisual job boundaries
+1d417d4b Merge branch 'codex/conversation-detail' into codex/conversation-detail-09
+b26c4750 feat(conversation): adapt business timeline rows
+65249bfb chore(chat): merge history reading contracts
+ab2cf687 test(chat): await settled reading geometry
+e838f43e fix(conversation): skip nonvisual job boundaries
+86167276 docs(history): close rewind and readonly ticket
+74b52262 fix(history): preserve rewind and readonly facts
+bbca355e fix(chat): retain follow for disclosure keys
+7dd24a82 Merge branch 'codex/conversation-detail' into codex/conversation-detail-12
+7a4363ce docs: normalize collaboration evidence logs
+05b10de9 fix(chat): coordinate fold motion and reading focus
+7c649516 docs(conversation): close collaboration ticket
+3b787884 fix(conversation): retain collaboration sources
+56366455 chore(chat): merge permission focus updates
+7109852d Merge branch 'codex/conversation-detail' into codex/conversation-detail-10
+d980c0cb feat(conversation): adapt collaboration rows
+7b0182c3 feat(chat): preserve reading through folds
+59552fdb docs(chat): trim validation log endings
+c24133b0 docs(chat): close approval and recovery ticket
+b67cd822 Merge branch 'codex/conversation-detail' into codex/conversation-detail-08
+0481ad26 fix(chat): preserve permission and recovery states
+42ced886 fix(conversation): preserve compiled image previews
+b1297ae6 Merge branch 'codex/conversation-detail' into codex/conversation-detail-07
+6f677e94 Merge branch 'codex/conversation-detail' into codex/conversation-detail-07
+9b3f0015 docs: normalize process evidence log endings
+78268294 fix(conversation): bound image previews to viewport
+38bd45b4 docs(chat): record final process validation
+3ad5caa8 fix(chat): preserve process reading and focus
+adde7d97 Merge branch 'codex/conversation-detail' into codex/conversation-detail-07
+55f60d4b feat(conversation): add tool image galleries
+27ac49fd Merge branch 'codex/conversation-detail' into codex/conversation-detail-03
+52131ecb test(chat): follow outer process disclosures
+694b27ed feat(conversation): add search detail views
+65420e82 chore(chat): merge terminal and file details
+9ce7f99a feat(conversation): group detailed processes
+7610b5d0 docs(chat): record terminal fidelity evidence
+583d3b9b fix(chat): align terminal output line boxes
+36f67ee2 chore(chat): merge file details
+48e0fee5 feat(chat): render command terminal details
+11ca7417 feat(chat): match file toolbar and verify views
+78981072 Merge branch 'codex/conversation-detail' into codex/conversation-detail-05
+6b936aa8 feat(chat): add recorded file detail views
+3f853817 docs(chat): record message fidelity evidence
+d08a6bdc Merge branch 'codex/conversation-detail' into codex/conversation-detail-01
+6a8de905 fix(chat): align transcript geometry and states
+d50e3937 docs: refresh tool row browser evidence
+40cd4a99 Merge branch 'codex/conversation-detail' into codex/conversation-detail-01
+8c59ec24 feat(chat): mirror messages and reasoning
+2e1f0eda feat(conversation): add compact tool rows
+4ce92d9d test: fix model picker fixture typing

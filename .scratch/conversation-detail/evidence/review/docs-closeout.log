@@ -1,0 +1,4 @@
+Command: rtk proxy pnpm run check:docs
+Exit: 0
+$ node scripts/check-docs.ts
+检查 288 个 Markdown 文件，发现 0 个问题。
