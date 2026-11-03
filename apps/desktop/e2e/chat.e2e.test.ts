@@ -246,8 +246,11 @@ describe('对话闭环', () => {
   })
 
   it('document 带有平台标记；macOS 收起侧栏后控制条与标题避开红绿灯', async () => {
-    const { root } = await setup()
-    const app = await launch({}, root)
+    const { root, workspace, env } = await setup({ responses: [{ content: 'Ready for geometry verification.' }] })
+    const app = await launch(env, root)
+    await addWorkspace(app, workspace)
+    await sendMessage(app, 'verify the conversation header')
+    await app.window.locator('[data-action="send"]').waitFor()
     const platform = await app.app.evaluate(() => process.platform)
     expect(await app.window.evaluate(() => document.documentElement.dataset.platform)).toBe(platform)
     if (platform !== 'darwin') return

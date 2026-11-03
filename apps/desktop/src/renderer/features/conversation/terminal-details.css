@@ -1,0 +1,130 @@
+.conversation-terminal {
+  position: relative;
+  min-width: 0;
+  margin: 4px 0 4px 4px;
+  padding-left: 30px;
+  overflow: hidden;
+  border: 0.5px solid var(--conversation-detail-stroke);
+  color: var(--foreground);
+  background: var(--muted);
+}
+.conversation-terminal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-left: -30px;
+  padding: 9px 14px 9px 30px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.conversation-terminal[data-body] .conversation-terminal-header {
+  border-bottom: 0.5px solid var(--border);
+}
+.conversation-terminal-prompt {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+.conversation-terminal-prompt pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.conversation-terminal-command-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.conversation-terminal-dollar {
+  flex: none;
+  color: var(--conversation-process-muted);
+}
+.conversation-terminal-command-line > span:last-child {
+  min-width: 0;
+}
+.conversation-terminal-state {
+  position: absolute;
+  left: -22px;
+  top: 9px;
+  transform: translateY(-50%);
+  color: var(--conversation-process-muted);
+}
+.conversation-terminal[data-terminal-state='done'] .conversation-terminal-state {
+  color: var(--success);
+}
+.conversation-terminal[data-terminal-state='error'] .conversation-terminal-state {
+  color: var(--destructive);
+}
+.conversation-terminal-state svg {
+  display: block;
+}
+.conversation-terminal-track,
+.conversation-terminal-arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.conversation-terminal-track {
+  opacity: 0.25;
+}
+.conversation-terminal-arc {
+  stroke-dasharray: 12 150;
+}
+.conversation-terminal[data-terminal-state='running'] .conversation-terminal-state svg {
+  animation: conversation-terminal-spin var(--conversation-process-shimmer-duration) linear infinite;
+}
+@keyframes conversation-terminal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.conversation-terminal-exit {
+  position: sticky;
+  top: 0;
+  flex: none;
+  height: 18px;
+  padding: 0 8px;
+  font-family: var(--font-conversation-sans);
+  font-size: var(--text-ui-small);
+  line-height: var(--text-ui-small--line-height);
+  color: var(--destructive);
+  background: var(--popover);
+}
+.conversation-terminal-copy {
+  position: sticky;
+  top: 0;
+  flex: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--conversation-process-secondary);
+  background: var(--muted);
+  font-family: var(--font-conversation-sans);
+  font-size: var(--text-ui-body);
+  line-height: var(--text-ui-terminal--line-height);
+  cursor: pointer;
+}
+.conversation-terminal-output {
+  margin: 0;
+  max-height: 224px;
+  padding: 12px 14px 12px 0;
+  overflow: auto;
+  white-space: pre;
+  font: inherit;
+  line-height: var(--text-ui-code-small--line-height);
+}
+.conversation-terminal-output [data-terminal-line] {
+  display: block;
+  min-height: var(--text-ui-terminal--line-height);
+}
+.conversation-terminal-job {
+  margin: 4px 0 4px 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .conversation-terminal[data-terminal-state='running'] .conversation-terminal-state svg {
+    animation: none;
+  }
+}

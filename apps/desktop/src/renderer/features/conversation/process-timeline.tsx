@@ -3,7 +3,7 @@ import type { Translator } from '@coko/i18n'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { processActivities, processSeats, wholeFoldEligible, type DisplayRun, type ProcessGroup } from './process-groups.ts'
-import { ProcessDisclosureReset, useProcessDisclosure } from './process-disclosure.tsx'
+import { ProcessDisclosureReset, ProcessFocusLock, useProcessDisclosure } from './process-disclosure.tsx'
 import { ProcessActivityIcon } from './process-icon.tsx'
 import { useNow } from './jobs-button.tsx'
 import './process-timeline.css'
@@ -237,6 +237,8 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
   const [choices, setChoices] = React.useState<Record<string, { open?: boolean; epoch: number }>>({})
   const focusedRuns = React.useRef(new Set<string>())
   const focusHeld = React.useRef(new Set<string>())
+  const locks = React.useRef(new Map<string, Set<symbol>>())
+  const acquisitions = React.useRef(new Map<string, () => () => void>())
   const first = new Set<string>()
   const eligibility = new Map<string, boolean>()
   const nodes: React.ReactNode[] = []
@@ -251,7 +253,18 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
       eligible = run !== undefined && wholeFoldEligible(items, run)
       eligibility.set(seat.runId, eligible)
     }
-    if (eligible && focusedRuns.current.has(seat.runId)) focusHeld.current.add(seat.runId)
+    const focused = focusedRuns.current.has(seat.runId) || (locks.current.get(seat.runId)?.size ?? 0) > 0
+    if (!acquisitions.current.has(seat.runId))
+      acquisitions.current.set(seat.runId, () => {
+        const token = Symbol()
+        const held = locks.current.get(seat.runId) ?? new Set<symbol>()
+        locks.current.set(seat.runId, held)
+        held.add(token)
+        return () => {
+          held.delete(token)
+        }
+      })
+    if (eligible && focused) focusHeld.current.add(seat.runId)
     const choice = choices[seat.runId]
     const open = !eligible || (choice?.open ?? focusHeld.current.has(seat.runId))
     if (!first.has(seat.runId)) {
@@ -273,22 +286,24 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
     }
     nodes.push(
       <ProcessDisclosureReset.Provider key={seat.id} value={choice?.epoch ?? 0}>
-        <div
-          data-slot="process-seat"
-          hidden={!open}
-          onFocusCapture={() => focusedRuns.current.add(seat.runId)}
-          onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) focusedRuns.current.delete(seat.runId)
-          }}
-        >
-          <Group
-            group={seat}
-            running={!run || run.status === 'unknown' || run.status === 'running'}
+        <ProcessFocusLock.Provider value={acquisitions.current.get(seat.runId)!}>
+          <div
+            data-slot="process-seat"
             hidden={!open}
-            focused={focusedRuns.current.has(seat.runId)}
-            renderItem={renderItem}
-          />
-        </div>
+            onFocusCapture={() => focusedRuns.current.add(seat.runId)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) focusedRuns.current.delete(seat.runId)
+            }}
+          >
+            <Group
+              group={seat}
+              running={!run || run.status === 'unknown' || run.status === 'running'}
+              hidden={!open}
+              focused={focused}
+              renderItem={renderItem}
+            />
+          </div>
+        </ProcessFocusLock.Provider>
       </ProcessDisclosureReset.Provider>,
     )
   }

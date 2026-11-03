@@ -1,0 +1,4 @@
+Space collapse: "false"
+Enter expand: "true"
+Enter wrap: "true"
+"{\"mode\":\"CSS1Compat\",\"focused\":\"true\",\"codeFont\":\"11px / 19px \\\"JetBrains Mono\\\", \\\"SF Mono\\\", Menlo, Consolas, \\\"PingFang SC\\\", \\\"Microsoft YaHei\\\"\",\"headerPadding\":\"10px 18px 8px 22px\",\"buttonSize\":24,\"cardWidth\":386}"

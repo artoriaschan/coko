@@ -1,0 +1,15 @@
+{
+  "viewport": 1000,
+  "dpr": 1,
+  "width": 676,
+  "rootFont": "16px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif, -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+  "outputFont": "11px / 16px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\", \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+  "outputLineHeight": 18,
+  "radius": "16px",
+  "background": "rgb(27, 27, 28)",
+  "border": "rgba(255, 255, 255, 0.06)",
+  "headerPadding": "9px 14px 9px 30px",
+  "divider": "rgba(255, 255, 255, 0.12)",
+  "outputHeight": 42,
+  "outputPadding": "12px 14px 12px 0px"
+}
