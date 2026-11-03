@@ -1,0 +1,23 @@
+import {mkdir,mkdtemp,readFile,writeFile,rm} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {launchApp,createProjectDraft,waitConnected} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/e2e/harness.ts'
+const root=await mkdtemp(join(tmpdir(),'coko09-native-'))
+let app
+const cleanup=async()=>{if(app) await app.dispose();await rm(root,{recursive:true,force:true})}
+try {
+await mkdir(join(root,'workspace'))
+await writeFile(join(root,'faux.json'),JSON.stringify({responses:[{content:[{type:'toolCall',id:'plan-1',name:'exit_plan_mode',arguments:{plan:'# Verify business rows / 核对业务条目\n\n1. Preserve the recorded facts.\n2. Keep review controls outside process folding.'}}]},{content:'The approved plan is retained. 已批准计划按原始记录保留。'}]}))
+app=await launchApp({COKO_FAUX_SCRIPT:join(root,'faux.json')},{dir:root})
+await app.window.getByRole('button',{name:/^(Add project|创建项目)$/}).first().waitFor()
+await createProjectDraft(app,join(root,'workspace'))
+const id=await app.window.evaluate(async()=>{const {projects}=await(await fetch('/api/projects')).json();const r=await fetch('/api/sessions',{method:'POST',body:JSON.stringify({workspaceId:projects[0].primaryWorkspaceId,title:'Ticket 09 native inspection'})});const session=await r.json();await fetch(`/api/sessions/${session.id}/permission-mode`,{method:'PUT',body:JSON.stringify({mode:'plan'})});return session.id})
+await app.window.reload()
+await app.window.locator(`[data-session-id="${id}"]`).click()
+await waitConnected(app.window)
+await app.window.evaluate(async(id)=>{const r=await fetch(`/api/sessions/${id}/messages`,{method:'POST',body:JSON.stringify({text:'Plan the verification; preserve review controls.'})});if(!r.ok)throw Error(await r.text())},id)
+await app.window.locator('[data-slot="plan-review"]').waitFor()
+const [port,path]=String(await readFile(join(root,'user-data','DevToolsActivePort'))).trim().split('\n')
+console.log(JSON.stringify({event:'native-ready',port,root,electronPid:app.app.process().pid,sidecarPids:await app.sidecarPids()}))
+await new Promise(resolve=>{process.once('SIGTERM',resolve);process.stdin.once('data',resolve)})
+}finally{await cleanup();console.log('NATIVE09_CLEAN_EXIT')}

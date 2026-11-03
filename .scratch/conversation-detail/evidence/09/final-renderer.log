@@ -1,0 +1,17 @@
+$ vitest run apps/desktop/src/renderer/features/conversation/business-timeline.browser.test.tsx apps/desktop/src/renderer/features/conversation/history.browser.test.tsx apps/desktop/src/renderer/features/conversation/jobs-timeline.browser.test.tsx apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx apps/desktop/src/renderer/features/conversation/hook-row.browser.test.tsx apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx apps/desktop/src/renderer/features/conversation/dock/todo-cards.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx apps/desktop/src/renderer/features/conversation/process-groups.test.ts apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx apps/desktop/src/renderer/features/right-panel/jobs-tab.browser.test.tsx packages/ui/src/guards/style-guard.test.ts packages/i18n/src/domains.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-09
+
+
+ Test Files  13 passed (13)
+      Tests  151 passed (151)
+   Start at  23:47:46
+   Duration  9.78s (tests 73%, import 14%, transform 9%, setup 2%, worker 2%)
+
+  Transform  |desktop| transforming modules took 2.30s · 93% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+  Transform  |i18n| transforming modules took 2.30s · 98% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns

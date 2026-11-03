@@ -1,0 +1,19 @@
+Final source 362798ac3fe1eb764d9d2774a4769802434051f9
+rtk proxy node /tmp/coko-conversation-detail/ticket-09-visual/native.mjs   # tty=true
+Ready: port54186, Electron11957, Sidecar11992, isolated coko09-native-qRQD24
+rtk agent-browser --session coko09-native connect 54186
+rtk agent-browser --session coko09-native get attr '[data-slot="plan-card"] [data-action="open-plan"]' title
+Observed: 在右栏查看
+rtk agent-browser --session coko09-native screenshot /tmp/coko-conversation-detail/ticket-09-visual/native-plan-review.png
+rtk agent-browser --session coko09-native snapshot -i
+rtk agent-browser --session coko09-native click @e43
+rtk agent-browser --session coko09-native wait --fn 'document.querySelector("[data-slot=plan-card]")?.getAttribute("data-status") === "approved"'
+rtk agent-browser --session coko09-native click '[data-slot="app-frame-right"] button[aria-label="关闭右栏"]'
+rtk agent-browser --session coko09-native focus '[data-slot="plan-card"] [data-action="open-plan"]'
+rtk agent-browser --session coko09-native press Enter
+rtk agent-browser --session coko09-native wait --fn '!document.querySelector("[data-slot=app-frame-right]").hidden && document.querySelector("[data-slot=plan-tab]")?.getAttribute("data-status") === "approved"'
+Observed true
+rtk agent-browser --session coko09-native screenshot /tmp/coko-conversation-detail/ticket-09-visual/native-plan-approved.png
+rtk agent-browser --session coko09-native close
+write_stdin native process: done then EOF; NATIVE09_CLEAN_EXIT; exit0
+ps11957/11992: no processes; own temporary directory absent

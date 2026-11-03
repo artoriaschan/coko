@@ -1,0 +1,32 @@
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/testing/fixture-chat.ts'
+import {createGoalStore} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/stores/goal-store.ts'
+import {GoalStoreProvider} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/features/conversation/dock/goal-card.tsx'
+import {createJobsStore} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/stores/jobs-store.ts'
+import {JobsStoreProvider} from '/tmp/coko-conversation-detail/ticket-09/apps/desktop/src/renderer/features/conversation/jobs-button.tsx'
+const q=new URLSearchParams(location.search)
+const row=(seq,kind,payload)=>({sessionId:'s-1',runId:'run-1',seq,kind,payloadVersion:1,payload,createdAt:seq*1000})
+const goal={id:'g1',revision:1,objective:'Verify the workspace / 核对工作区',criteria:[{id:'c1',text:'Tests pass / 测试通过'}],budget:{maxRounds:3,maxTokens:1000},phase:'running',resumedAtRound:0,source:'model'}
+const entries=[row(1,'run_start',{trigger:'submit'}),row(2,'message',{role:'user',content:'Review the plan and keep the background job output. 请保留后台输出。',timestamp:0}),
+row(3,'message',{role:'assistant',content:[{type:'toolCall',id:'read-1',name:'custom',arguments:{path:'src/index.ts'}}],stopReason:'toolUse',timestamp:0}),
+row(4,'message',{role:'toolResult',toolCallId:'read-1',toolName:'custom',content:[{type:'text',text:'Original output / 原始输出'}],isError:false,timestamp:0}),
+row(5,'plan',{planId:'p1',revision:2,markdown:'# Verify the workspace / 核对工作区\n\n1. Read source\n2. Run checks',status:'rejected',feedback:'Include regression evidence / 补充回归证据'}),row(6,'goal',goal),
+row(7,'job_start',{jobId:'job_0123456789ab',kind:'bash',label:'node worker.js',command:'node worker.js',toolCallId:'bash-1',logPath:'/tmp/worker.log'}),
+row(8,'job_end',{jobId:'job_0123456789ab',status:'failed',exitCode:7,outputBytes:0,truncated:false}),row(9,'job_notification',{jobIds:['job_0123456789ab']}),
+row(10,'hook_run',{hookId:'h1',event:'PostToolUse',source:'global',command:'./scripts/check-output.sh',outcome:'error',durationMs:3,exitCode:9,message:'Check failed. Original details retained.\n检查失败，保留原始详情。'}),
+row(11,'message',{role:'assistant',content:[{type:'text',text:'Review complete; Goal remains running. 本轮结束，目标仍在进行。'}],stopReason:'stop',timestamp:0,usage:{input:32,output:10,cacheRead:0,cacheWrite:0,totalTokens:42,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}}}),
+row(12,'run_end',{status:'completed'}),row(13,'todo_list',{items:[{id:'t1',content:'Check evidence / 核对证据',status:'in_progress'}]})]
+const fixture=createFixtureChat({entries:{'s-1':entries}})
+const appearance=createAppearanceStore({theme:q.get('theme')==='dark'?'dark':'light',locale:q.get('lang')==='zh'?'zh':'en'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+const goals=createGoalStore({get:async()=>({goal,usage:{rounds:2,tokens:800,cost:0,costUnpriced:true}}),act:async()=>{throw Error('Read only visual fixture')}})
+const jobs=createJobsStore({list:async()=>[],output:async()=>({offset:0,chunk:'',nextOffset:0,done:true}),kill:async()=>{throw Error('Read only visual fixture')}})
+createRoot(document.getElementById('root')).render(<GoalStoreProvider store={goals}><JobsStoreProvider store={jobs}><App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/></JobsStoreProvider></GoalStoreProvider>)
+window.fixture=fixture

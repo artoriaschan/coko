@@ -1,0 +1,25 @@
+{
+  "source": "362798ac3fe1eb764d9d2774a4769802434051f9",
+  "finalNativeElectronPid": 11957,
+  "finalNativeSidecarPids": [
+    11992
+  ],
+  "alive": {
+    "11957": false,
+    "11992": false,
+    "56189": false,
+    "56217": false,
+    "56143": false,
+    "58095": false
+  },
+  "finalNativeFixtureRemoved": true,
+  "initialNativeFixtureRemoved": true,
+  "browserSessions": [
+    "coko09-business closed",
+    "coko09-native closed"
+  ],
+  "finalNativeExit": "NATIVE09_CLEAN_EXIT, exit0",
+  "sourceHarnessExit": 130,
+  "initialNativeExit": 13,
+  "initialNativeCleanup": "Main Inspector app.quit gracefully stopped Electron and Sidecar; parent then exited13 due closed stdin; own temporary directory removed only after PID exit."
+}
