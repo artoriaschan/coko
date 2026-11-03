@@ -38,12 +38,14 @@ function Group({
   group,
   running,
   hidden,
+  collapsing,
   focused,
   renderItem,
 }: {
   group: ProcessGroup
   running: boolean
   hidden: boolean
+  collapsing: boolean
   focused: boolean
   renderItem: (item: TimelineItem) => React.ReactNode
 }) {
@@ -56,6 +58,8 @@ function Group({
     if (!running && focused) setKeepFocused(true)
   }
   const open = running || opened || keepFocused
+  const header = React.useRef<HTMLDivElement>(null)
+  const headerHidden = useFlowBox(header, running || collapsing, open)
   const bodyId = React.useId()
   const body = React.useRef<HTMLDivElement>(null)
   const bodyHidden = useFlowBox(body, !open, running)
@@ -77,28 +81,30 @@ function Group({
   const activity = processActivities(group.members)[0]
   return (
     <section hidden={hidden} data-slot="process-group" data-run-id={group.runId} className="conversation-process-group">
-      <button
-        type="button"
-        hidden={running}
-        data-slot="process-group-header"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        className="conversation-process-group-header focus-ring rounded-sm"
-        onClick={(event) => {
-          event.currentTarget.focus({ preventScroll: true })
-          if (!open) initializeTop.current = true
-          setKeepFocused(false)
-          setOpened(!open)
-        }}
-      >
-        <span aria-hidden className="conversation-process-leading">
-          <span className="conversation-process-icon">{<ProcessActivityIcon activity={activity ?? 'thinking'} />}</span>
-          <span className="conversation-process-chevron">
-            <Chevron open={open} />
+      <div ref={header} hidden={headerHidden}>
+        <button
+          type="button"
+          hidden={headerHidden}
+          data-slot="process-group-header"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          className="conversation-process-group-header focus-ring rounded-sm"
+          onClick={(event) => {
+            event.currentTarget.focus({ preventScroll: true })
+            if (!open) initializeTop.current = true
+            setKeepFocused(false)
+            setOpened(!open)
+          }}
+        >
+          <span aria-hidden className="conversation-process-leading">
+            <span className="conversation-process-icon">{<ProcessActivityIcon activity={activity ?? 'thinking'} />}</span>
+            <span className="conversation-process-chevron">
+              <Chevron open={open} />
+            </span>
           </span>
-        </span>
-        <span className="conversation-process-label">{summary(group, t, locale)}</span>
-      </button>
+          <span className="conversation-process-label">{summary(group, t, locale)}</span>
+        </button>
+      </div>
       {!running && <ProcessToolStates members={group.members} />}
       <div
         ref={bodyRef}
@@ -324,6 +330,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
                 group={seat}
                 running={!run || run.status === 'unknown' || run.status === 'running'}
                 hidden={seatHidden}
+                collapsing={!open}
                 focused={groupFocused}
                 renderItem={renderItem}
               />

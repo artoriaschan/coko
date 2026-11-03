@@ -122,6 +122,7 @@ it.each(['light', 'dark'] as const)(
     expect(Math.abs(marker.getBoundingClientRect().top - top)).toBeLessThanOrEqual(1)
     expect(distance(scroller)).toBeGreaterThan(100)
     await page.getByRole('button', { name: 'Return to bottom', exact: true }).click()
+    expect(document.activeElement === scroller).toBe(true)
     await expect.poll(() => distance(scroller)).toBeLessThanOrEqual(1)
     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: reply(21, 'New tail\n\n' + 'Real next answer. '.repeat(80)) })
     await expect.element(page.getByText(/New tail/)).toBeInTheDocument()
@@ -425,4 +426,65 @@ it('actual App: pausing and continuing with a new Run retain the held answer unt
   expect(Math.abs(marker.getBoundingClientRect().top - top)).toBeLessThanOrEqual(1)
   await page.getByRole('button', { name: 'Return to bottom', exact: true }).click()
   await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+})
+
+it('actual App: restoring a focused group animates the historical header and cap together without hiding its focused tool', async () => {
+  await page.viewport(1000, 800)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 24 }, (_, i) => call(2 + i, `cap-motion-${i}`, 'custom', {})),
+  ])
+  const tool = document.querySelector<HTMLButtonElement>('[data-slot="tool-card"] button')!
+  tool.focus({ preventScroll: true })
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(26, 'run_end', { status: 'completed' }) })
+  const header = document.querySelector<HTMLElement>('[data-slot="process-group-header"]')!
+  await expect.poll(() => header.parentElement!.getAnimations().length).toBeGreaterThan(0)
+  const animation = header.parentElement!.getAnimations()[0]!
+  animation.pause()
+  animation.currentTime = 80
+  await new Promise(requestAnimationFrame)
+  expect(header.parentElement!.getBoundingClientRect().height).toBeGreaterThan(0)
+  expect(header.parentElement!.getBoundingClientRect().height).toBeLessThan(32)
+  animation.finish()
+  await animation.finished
+  await expect.poll(() => header.parentElement!.getAnimations().length).toBe(0)
+  expect(header.getBoundingClientRect().height).toBe(32)
+  expect(document.activeElement).toBe(tool)
+  expect(tool.closest('[hidden]')).toBeNull()
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => group.clientHeight).toBe(400)
+  expect(group.scrollTop).toBe(0)
+})
+
+it('actual App: reversing a manual fold continues from the displayed height and retains the mounted process seat', async () => {
+  await page.viewport(1000, 800)
+  await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 24 }, (_, i) => call(2 + i, `reverse-${i}`, 'custom', {})),
+    entry(26, 'run_end', { status: 'completed' }),
+  ])
+  const whole = page.getByRole('button', { name: 'Work steps', exact: true })
+  await whole.click()
+  await page.getByRole('button', { name: 'Called tools', exact: true }).click()
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
+  const seat = document.querySelector<HTMLElement>('[data-slot="process-seat"]')!
+  await whole.click()
+  const closing = seat.getAnimations()[0]!
+  closing.pause()
+  closing.currentTime = 100
+  await new Promise(requestAnimationFrame)
+  const mid = seat.getBoundingClientRect().height
+  expect(mid).toBeGreaterThan(30)
+  await whole.click()
+  await expect.poll(() => seat.getAnimations()[0] !== closing).toBe(true)
+  const opening = seat.getAnimations()[0]!
+  opening.pause()
+  opening.currentTime = 0
+  await new Promise(requestAnimationFrame)
+  expect(Math.abs(seat.getBoundingClientRect().height - mid)).toBeLessThanOrEqual(1)
+  opening.finish()
+  await expect.poll(() => seat.getAnimations().length).toBe(0)
+  expect(document.querySelector('[data-slot="process-seat"]')).toBe(seat)
+  expect(seat.hidden).toBe(false)
 })

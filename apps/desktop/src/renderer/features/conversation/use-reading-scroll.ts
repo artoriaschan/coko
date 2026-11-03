@@ -134,6 +134,7 @@ export function useReadingScroll(
     control.current = {
       sync,
       bottom: () => {
+        element.focus({ preventScroll: true })
         following = true
         anchors = []
         sync()
