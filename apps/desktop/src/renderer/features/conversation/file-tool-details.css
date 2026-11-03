@@ -14,6 +14,10 @@
   font: 11px/18px var(--font-sans);
   color: var(--muted-foreground);
 }
+.file-detail-language {
+  flex: none;
+  font-family: var(--font-mono);
+}
 .file-detail-path {
   min-width: 0;
   overflow-wrap: anywhere;

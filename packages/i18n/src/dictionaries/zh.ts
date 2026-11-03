@@ -530,6 +530,7 @@ export const zh = {
     input: '输入',
     output: '输出',
     inspect: '查看',
+    fileCode: 'code',
     fileCopy: '复制',
     fileCopied: '复制成功',
     fileCopyFailed: '复制失败',

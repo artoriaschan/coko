@@ -533,6 +533,7 @@ export const en: typeof zh = {
     input: 'IN',
     output: 'OUT',
     inspect: 'Inspect',
+    fileCode: 'code',
     fileCopy: 'Copy',
     fileCopied: 'Copied',
     fileCopyFailed: 'Could not copy',
