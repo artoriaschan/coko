@@ -530,6 +530,15 @@ export const zh = {
     input: '输入',
     output: '输出',
     inspect: '查看',
+    terminal: {
+      copy: '复制',
+      copied: '复制成功',
+      copyCommand: '复制命令',
+      copyFailed: '复制失败',
+      exitCode: '退出码 {code}',
+      command: '命令',
+      output: '命令输出',
+    },
   },
   confirmation: {
     status: '结果不明',

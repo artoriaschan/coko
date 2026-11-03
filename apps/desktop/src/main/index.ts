@@ -1,5 +1,6 @@
 import { open } from 'node:fs/promises'
 import { openDirectory } from './open-directory.ts'
+import { allowPermission } from './permissions.ts'
 import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
 import { basename, extname, join, resolve } from 'node:path'
 import {
@@ -458,7 +459,17 @@ function run(): void {
     if (development && process.platform === 'darwin') app.dock?.setIcon(join(appRoot, '..', '..', 'brand', 'rukie-app-icon.png'))
     const handler = createAppProtocolHandler({ renderer, endpoint: () => supervisor.endpoint })
     protocol.handle(APP_SCHEME, handler)
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) =>
+      callback(
+        allowPermission({
+          mainWebContentsId: mainWindow?.isDestroyed() === false ? mainWindow.webContents.id : undefined,
+          webContentsId: contents.id,
+          permission,
+          isMainFrame: details.isMainFrame,
+          requestingUrl: details.requestingUrl,
+        }),
+      ),
+    )
     session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*'] }, (details, callback) => {
       callback(
         decideWebSocketHeaders({

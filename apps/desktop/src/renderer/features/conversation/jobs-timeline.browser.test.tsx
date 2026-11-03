@@ -92,6 +92,7 @@ describe('时间线中的后台任务', () => {
     const jobs = createJobsStore(noBackend)
     const screen = await mount(chat, jobs, () => buildTimeline(chat.getState().conversations['s-1']!))
 
+    await userEvent.click(screen.container.querySelector('[data-slot="tool-card"] button')!)
     const chip = screen.container.querySelector('[data-slot="job-chip"]') as HTMLElement
     expect(chip.getAttribute('data-job-id')).toBe('job_0123456789ab')
     expect(chip.textContent).toBe('npm run dev')

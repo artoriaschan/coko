@@ -533,6 +533,15 @@ export const en: typeof zh = {
     input: 'IN',
     output: 'OUT',
     inspect: 'Inspect',
+    terminal: {
+      copy: 'Copy',
+      copied: 'Copied',
+      copyCommand: 'Copy command',
+      copyFailed: "Couldn't copy",
+      exitCode: 'Exit {code}',
+      command: 'Command',
+      output: 'Command output',
+    },
   },
   confirmation: {
     status: 'Outcome unknown',

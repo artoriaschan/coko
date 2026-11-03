@@ -5,7 +5,7 @@ import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { useActiveEntries } from './agents-button.tsx'
-import { JobChip } from './job-row.tsx'
+import { TerminalDetails } from './terminal-details.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 import { ToolIcon } from './tool-icon.tsx'
 
@@ -41,20 +41,6 @@ const STARTED_JOB = /^Started background job (job_[0-9a-f]+):/
 export function backgroundJobId(item: ToolItem): string | undefined {
   if (item.status !== 'done' || !item.result || item.result.isError) return undefined
   return STARTED_JOB.exec(item.result.text)?.[1]
-}
-
-/** bash 的明细：后台 bash 在输出之上显示 Job chip（点击在右栏打开该 Job）。 */
-function BashBody({ item }: { item: ToolItem }) {
-  const jobId = backgroundJobId(item)
-  if (!jobId) return <TextBody text={output(item)} />
-  return (
-    <div className="flex flex-col">
-      <div className="px-3 pt-2">
-        <JobChip jobId={jobId} />
-      </div>
-      <TextBody text={output(item)} />
-    </div>
-  )
 }
 
 /** lsp 的结果计数（LspToolDetails）。 */
@@ -99,7 +85,7 @@ const VIEWS: Record<string, ToolView> = {
     icon: <ToolIcon kind="command" />,
     title: 'tool.bash',
     summary: (a) => str(a.command),
-    body: (item) => <BashBody item={item} />,
+    body: (item, args) => <TerminalDetails item={item} args={args} jobId={backgroundJobId(item)} />,
   },
   read: { icon: <ToolIcon kind="read" />, title: 'tool.read', summary: (a) => str(a.path), body: (item) => <TextBody text={output(item)} /> },
   write: {
@@ -351,7 +337,12 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       </ToolCard>
     )
   }
-  const hasBody = item.result !== null || item.live?.partialResult !== undefined || item.call.name === 'write' || item.call.name === 'memory_write'
+  const hasBody =
+    item.call.name === 'bash' ||
+    item.result !== null ||
+    item.live?.partialResult !== undefined ||
+    item.call.name === 'write' ||
+    item.call.name === 'memory_write'
   return (
     <ToolCard
       variant="row"

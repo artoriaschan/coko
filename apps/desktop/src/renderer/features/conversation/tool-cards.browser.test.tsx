@@ -150,7 +150,7 @@ describe('工具卡', () => {
     await expect.element(header).toBeVisible()
     expect(header.element().textContent).toContain('ls -la')
     await header.click()
-    expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).toBe('total 0')
+    expect(document.querySelector('[data-terminal-output]')?.textContent).toBe('total 0')
   })
   it('Memory 工具卡：按结果显示"已记住 / 已更新记忆 / 已删除记忆"，失败与等待时为动作名', async () => {
     const memory = { id: 'm1', scope: 'workspace', content: 'Uses pnpm', updatedAt: 1 }

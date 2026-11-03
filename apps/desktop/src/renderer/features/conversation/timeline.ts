@@ -45,6 +45,8 @@ export interface ToolResultView {
   /** 结果的文本内容。 */
   text: string
   details: unknown
+  /** 工具原有结构化输出；展示层不补造缺失字段。 */
+  structuredContent?: unknown
 }
 
 /** 工具调用的审批：请求，以及（已结束时）决定。 */
@@ -160,6 +162,8 @@ export function resultText(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) return contentText((result as { content: unknown }).content)
   return typeof result === 'string' ? result : ''
 }
+
+const resultStructured = (result: unknown) => (result && typeof result === 'object' && 'structuredContent' in result ? result.structuredContent : undefined)
 
 const resultDetails = (result: unknown) => (result && typeof result === 'object' && 'details' in result ? (result as { details: unknown }).details : undefined)
 
@@ -412,7 +416,12 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
       })
     } else if (message.role === 'toolResult') {
       const tool = tools.get(message.toolCallId)
-      const result: ToolResultView = { isError: message.isError, text: contentText(message.content), details: message.details }
+      const result: ToolResultView = {
+        isError: message.isError,
+        text: contentText(message.content),
+        details: message.details,
+        structuredContent: resultStructured(message),
+      }
       if (tool) {
         tool.result = result
         tool.status = result.isError ? 'error' : 'done'
@@ -427,12 +436,19 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     for (const liveTool of Object.values(live.tools)) {
       const tool = tools.get(liveTool.toolCallId)
       if (tool) {
+        // The committed message may omit structured output; the matched live result remains an actual source while this Run is active.
+        if (tool.result !== null && tool.result.structuredContent === undefined) tool.result.structuredContent = resultStructured(liveTool.result)
         if (tool.result === null) {
           tool.live = liveTool
           // 等待审批时进度仍报告 running（pi 在审批前发出 tool_start）；以条目中的审批状态为准。
           if (!(tool.status === 'awaiting' && liveTool.status === 'running')) tool.status = liveTool.status
           if (liveTool.status !== 'running')
-            tool.result = { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) }
+            tool.result = {
+              isError: liveTool.status === 'error',
+              text: resultText(liveTool.result),
+              details: resultDetails(liveTool.result),
+              structuredContent: resultStructured(liveTool.result),
+            }
         }
       } else {
         // 中途订阅时可能先看到工具进度、后补到调用条目。
@@ -443,7 +459,12 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
           result:
             liveTool.status === 'running'
               ? null
-              : { isError: liveTool.status === 'error', text: resultText(liveTool.result), details: resultDetails(liveTool.result) },
+              : {
+                  isError: liveTool.status === 'error',
+                  text: resultText(liveTool.result),
+                  details: resultDetails(liveTool.result),
+                  structuredContent: resultStructured(liveTool.result),
+                },
           status: liveTool.status,
           live: liveTool,
           approval: null,

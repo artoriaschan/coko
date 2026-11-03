@@ -301,6 +301,8 @@
   --text-ui-process--line-height: 24px;
   --text-ui-code-small: 11px;
   --text-ui-code-small--line-height: 16px;
+  --text-ui-terminal: 11px;
+  --text-ui-terminal--line-height: 18px;
   --text-ui-body-lg: 14px;
   --text-ui-body-lg--line-height: 22px;
   --text-ui-title: 16px;
