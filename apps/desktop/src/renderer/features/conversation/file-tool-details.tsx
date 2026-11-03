@@ -1,8 +1,9 @@
 import './file-tool-details.css'
-import { toast, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
+import { useToolDetailCopy } from './tool-detail-copy.ts'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 const string = (value: unknown) => (typeof value === 'string' ? value : undefined)
@@ -35,7 +36,7 @@ export function FileToolBody({ item, args, fallback }: { item: ToolItem; args: R
 function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'write' | 'edit'; path: string; text: string; offset: number; note?: string }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = React.useState(false)
-  const [copied, setCopied] = React.useState(false)
+  const { copied, copy } = useToolDetailCopy(text)
   const [wrap, setWrap] = React.useState(false)
   const lines = text === '' ? [] : text.split('\n')
   const cap = kind === 'edit' ? 9 : 8
@@ -44,15 +45,6 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
   const collapsed = !expanded && lines.length > cap
   const added = kind === 'edit' ? lines.filter((line) => line.startsWith('+')).length : 0
   const deleted = kind === 'edit' ? lines.filter((line) => line.startsWith('-')).length : 0
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      toast.success(t('tool.fileCopied'))
-    } catch {
-      toast.error(t('tool.fileCopyFailed'))
-    }
-  }
   return (
     <div data-file-detail={kind} className="file-detail" data-wrap={wrap || undefined}>
       <div className="file-detail-header">
