@@ -98,7 +98,7 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
           <span data-user-content>{current.feedback}</span>
         </p>
       )}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">
+      <div data-scroll-stable className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">
         {editing && reviewing ? (
           <>
             <Textarea

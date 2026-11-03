@@ -42,7 +42,7 @@ export function DestinationBar({ className }: { className?: string }) {
   const needle = search.trim().toLocaleLowerCase()
   const matches = projects.filter((item) => item.name.toLocaleLowerCase().includes(needle))
   return (
-    <div data-slot="destination-bar" className={cn('mb-2 flex h-7 items-center', className)}>
+    <div data-slot="destination-bar" className={cn('flex h-9 items-center px-2', className)}>
       <DropdownMenu
         open={open}
         onOpenChange={(next) => {
@@ -61,21 +61,23 @@ export function DestinationBar({ className }: { className?: string }) {
               size="sm"
               disabled={sending}
               aria-label={t('conversation.destinationCurrent', { name: label })}
-              className="h-7 min-w-0 gap-1.5 px-2 has-[>svg]:px-2 [&_svg]:size-3.5"
+              className="h-7 min-w-0 gap-1.5 rounded-round px-2 has-[>svg]:px-2 [&_svg]:size-3.5"
             >
               {project ? (
-                <FolderClosedIcon
+                <span
                   aria-hidden
-                  className="size-3.5 shrink-0 group-hover/destination:invisible group-focus-within/destination:invisible"
-                  strokeWidth={1.1}
-                />
+                  className="flex size-6 shrink-0 items-center justify-center group-hover/destination:invisible group-focus-within/destination:invisible"
+                >
+                  <FolderClosedIcon className="size-3.5" strokeWidth={1.1} />
+                </span>
               ) : (
                 <MessageCircleIcon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.1} />
               )}
               <span data-destination-name data-user-content={project ? '' : undefined} className="flex h-7 min-w-0 items-center truncate pb-0.5 text-ui-body">
                 {label}
               </span>
-              <ChevronDownIcon aria-hidden className="size-3! shrink-0" strokeWidth={1.1} />
+              {/* 项目归属的箭头在悬停时让位给清除按钮；视觉稿只保留文件夹/清除图标。 */}
+              {!project && <ChevronDownIcon aria-hidden className="size-3! shrink-0" strokeWidth={1.1} />}
             </Button>
           </DropdownMenuTrigger>
           {project && (
@@ -85,7 +87,7 @@ export function DestinationBar({ className }: { className?: string }) {
                   type="button"
                   aria-label={t('conversation.destinationClear')}
                   disabled={sending}
-                  className="absolute left-1 flex size-6 items-center justify-center rounded-sm opacity-0 focus-ring hover:bg-accent group-hover/destination:opacity-100 group-focus-within/destination:opacity-100"
+                  className="absolute left-2 flex size-6 items-center justify-center rounded-sm opacity-0 focus-ring group-hover/destination:opacity-100 group-focus-within/destination:opacity-100"
                   onClick={() => selectProject(null)}
                 >
                   <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
@@ -178,24 +180,27 @@ export function DestinationBar({ className }: { className?: string }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <ProjectGitMenu
-        project={project}
-        worktreeSlot={({ available, pending, loading }) => (
-          <DropdownMenuItem
-            role="switch"
-            aria-label={t('worktrees.newWorktree')}
-            aria-checked={newWorktree}
-            disabled={!available || pending || loading}
-            onSelect={(event) => {
-              event.preventDefault()
-              configure({ newWorktree: !newWorktree, branch: null })
-            }}
-          >
-            <span>{t('worktrees.newWorktree')}</span>
-            <Switch aria-hidden tabIndex={-1} checked={newWorktree} disabled={!available || pending || loading} className="pointer-events-none ml-auto" />
-          </DropdownMenuItem>
-        )}
-      />
+      {/* 独立对话没有分支与工作树可配置，右侧设置按钮只在归属项目时出现。 */}
+      {project && (
+        <ProjectGitMenu
+          project={project}
+          worktreeSlot={({ available, pending, loading }) => (
+            <DropdownMenuItem
+              role="switch"
+              aria-label={t('worktrees.newWorktree')}
+              aria-checked={newWorktree}
+              disabled={!available || pending || loading}
+              onSelect={(event) => {
+                event.preventDefault()
+                configure({ newWorktree: !newWorktree, branch: null })
+              }}
+            >
+              <span>{t('worktrees.newWorktree')}</span>
+              <Switch aria-hidden tabIndex={-1} checked={newWorktree} disabled={!available || pending || loading} className="pointer-events-none ml-auto" />
+            </DropdownMenuItem>
+          )}
+        />
+      )}
     </div>
   )
 }

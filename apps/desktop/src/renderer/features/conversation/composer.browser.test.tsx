@@ -77,7 +77,7 @@ describe('Composer：双层输入区', () => {
     await expect.poll(() => h.onSend.mock.calls.length).toBe(1)
     expect(h.onSend.mock.calls[0]?.[0]).toContain('@src/a.ts')
   })
-  it('主输入框基准高 120px，控件依序位于底部的 32px 工具栏', async () => {
+  it('主输入框基准高 120px，控件依序位于底部的 40px 工具栏', async () => {
     const screen = await renderComposer({
       permissionControl: <button data-test="permission">Permissions</button>,
       planChip: <span data-test="plan">Plan</span>,
@@ -89,7 +89,7 @@ describe('Composer：双层输入区', () => {
     const placeholder = form.querySelector('[data-slot="composer-placeholder"]')!.getBoundingClientRect()
     expect(placeholder.left - form.getBoundingClientRect().left).toBe(12)
     expect(placeholder.top - form.getBoundingClientRect().top).toBe(12)
-    expect(toolbar?.getBoundingClientRect().height).toBe(32)
+    expect(toolbar?.getBoundingClientRect().height).toBe(40)
     const controls = ['[data-action="attach"]', '[data-test="permission"]', '[data-test="plan"]', '[data-test="model"]', '[data-action="send"]'].map(
       (selector) => toolbar.querySelector(selector)!,
     )

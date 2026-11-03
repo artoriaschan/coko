@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@coko/ui'
-import { GitBranchIcon, Settings2Icon } from 'lucide-react'
+import { GitBranchIcon, SettingsIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useNewChat } from '../../app/chat.tsx'
@@ -165,9 +165,9 @@ export function ProjectGitMenu({
                 size="icon-sm"
                 disabled={sending}
                 aria-label={t('worktrees.projectConfiguration')}
-                className="ml-auto size-7 [&_svg]:size-3.5"
+                className="ml-auto size-6 [&_svg]:size-3.5"
               >
-                <Settings2Icon aria-hidden strokeWidth={1.1} />
+                <SettingsIcon aria-hidden strokeWidth={1.1} />
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>

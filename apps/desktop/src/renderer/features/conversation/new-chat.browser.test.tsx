@@ -9,7 +9,7 @@ import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 
-it('新对话显示品牌欢迎页，所有入口保留同份文字草稿，输入区聚焦且上下文只有轨道', async () => {
+it('新对话显示品牌欢迎页，所有入口保留同份文字草稿，输入区聚焦且不显示上下文环', async () => {
   const fixture = createFixtureChat()
   const store = createAppearanceStore({ locale: 'zh', theme: 'light' })
   const preferences = createPreferences({ appearance: store, settings: fixture.settings, onConflict() {}, onFailure() {} })
@@ -36,8 +36,7 @@ it('新对话显示品牌欢迎页，所有入口保留同份文字草稿，输�
   await page.getByRole('button', { name: '新对话', exact: true }).click()
   await expect.element(editor).toHaveTextContent('保留这份草稿')
   await expect.element(page.getByRole('img', { name: 'Coko' })).toBeVisible()
-  expect(document.querySelector('[data-context-ring]')).not.toBeNull()
-  expect(document.querySelector('[data-context-ring]')?.textContent).not.toContain('%')
+  expect(document.querySelector('[data-context-ring]')).toBeNull()
   await screen.unmount()
 })
 
@@ -142,10 +141,13 @@ it.each(['light', 'dark'] as const)('%s：归属菜单在上方 6px，搜索区�
     </div>,
   )
   const trigger = page.getByRole('button', { name: '选择对话归属：对话', exact: true })
+  const anchor = trigger.element().getBoundingClientRect()
   await trigger.click()
   const menu = page.getByRole('menu', { name: '对话归属' })
   const bar = document.querySelector<HTMLElement>('[data-slot="destination-bar"]')!
-  await expect.poll(() => Math.abs(bar.getBoundingClientRect().top - menu.element().getBoundingClientRect().bottom - 6)).toBeLessThan(1)
+  // 归属栏 36px 高、按钮在其中垂直居中：菜单与触发按钮保持 6px 间距。
+  await expect.poll(() => Math.abs(anchor.top - menu.element().getBoundingClientRect().bottom - 6)).toBeLessThan(1)
+  expect(Math.round(bar.getBoundingClientRect().height)).toBe(36)
   await expect.element(page.getByRole('menuitemradio', { name: '不在项目中工作', exact: true })).toHaveAttribute('aria-checked', 'true')
   await expect.element(page.getByRole('menuitemradio', { name: 'web · shop-web', exact: true })).toBeVisible()
   await expect.element(page.getByRole('menuitemradio', { name: 'web · admin-web', exact: true })).toBeVisible()
@@ -169,7 +171,8 @@ it.each(['light', 'dark'] as const)('%s：归属菜单在上方 6px，搜索区�
   const label = document.querySelector<HTMLElement>('[data-destination-name]')!
   const before = label.getBoundingClientRect().left
   expect(selected.element().querySelectorAll('svg')[0]!.getBoundingClientRect().width).toBe(14)
-  expect(selected.element().querySelectorAll('svg')[1]!.getBoundingClientRect().width).toBe(12)
+  // 项目归属不显示展开箭头：只有文件夹/清除图标与设置图标。
+  expect(selected.element().querySelectorAll('svg')).toHaveLength(1)
   expect(selected.element().getBoundingClientRect().height).toBe(28)
   expect(getComputedStyle(label).paddingBottom).toBe('2px')
   await userEvent.hover(selected)

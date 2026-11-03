@@ -34,10 +34,18 @@ it('list categories, project expansion, sort and last session survive real Elect
   await first.window.getByRole('button', { name: /^(项目排序|Sort projects)$/ }).click()
   await first.window.getByRole('menuitemradio', { name: /^(按创建时间|By creation time)$/ }).click()
   await first.window.getByRole('button', { name: /^(收起项目分类|Collapse Projects category)$/ }).click()
-  await first.window.getByRole('heading', { name: /^(对话|Conversations)$/ }).hover()
-  await first.window
-    .getByRole('button', { name: /^(拖拽调整对话分类顺序|Drag Conversations category)$/ })
-    .dragTo(first.window.getByRole('heading', { name: /^(项目|Projects)$/ }))
+  const handle = first.window.getByRole('button', { name: /^(拖拽调整对话分类顺序|Drag Conversations category)$/ })
+  const target = first.window.getByRole('heading', { name: /^(项目|Projects)$/ })
+  // 前面的悬停触发的 Tooltip 仍覆盖在侧栏上，移开指针等它卸载后再开始拖拽。
+  await first.window.mouse.move(2, 2)
+  await expect.poll(() => first.window.locator('[data-radix-popper-content-wrapper]').count(), { timeout: 5000 }).toBe(0)
+  const handleBox = (await handle.boundingBox())!
+  const targetBox = (await target.boundingBox())!
+  await first.window.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+  await first.window.mouse.down()
+  await first.window.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 8 })
+  await expect.poll(() => first.window.locator('[data-category-drag-card]').count(), { timeout: 5000 }).toBe(1)
+  await first.window.mouse.up()
   await expect
     .poll(() => first.window.locator('[data-category]').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-category'))))
     .toEqual(['projects', 'conversations'])

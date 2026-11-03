@@ -149,7 +149,11 @@ describe.skipIf(process.platform !== 'darwin')('自动更新（打包的测试�
     const userData = join(root, 'user-data')
     const app = await launchPackaged({ COKO_USER_DATA_DIR: userData, COKO_HOME: join(root, 'coko-home'), COKO_TEST_UPDATE_FEED_URL: `${feed.base}/feed` })
     const { page } = app
-    await waitFor(async () => (await page.locator('[role="status"]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
+    await waitFor(
+      async () => (await page.locator('[role="status"][data-connection]').getAttribute('data-connection')) === 'connected',
+      30_000,
+      'sidecar connected',
+    )
 
     await page.getByRole('button', { name: /^(Settings|设置)$/ }).click()
     await openSection(page, 'about')

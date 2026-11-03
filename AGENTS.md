@@ -23,6 +23,16 @@
 
 采用 single-context：根 GLOSSARY.md 与 docs/adr/；探索领域、编写规格或修改代码前，按 [领域文档配置](docs/agents/domain.md) 读取已存在的相关术语和决定。
 
+### UI debugging
+
+桌面窗口的交互调试与视觉验收使用 [agent-browser 技能](.agents/skills/agent-browser/SKILL.md)。默认静默调试，不抢用户焦点：
+
+- agent-browser 自身默认无头，只有显式 `--headed`（或 `AGENT_BROWSER_HEADED`）才显示浏览器；`connect 9222` 只连接 CDP，不会把 Electron 窗口带到前台，静默与否取决于应用如何启动。
+- 先退出已有实例，用 `COKO_E2E_BACKGROUND=1 pnpm --filter @coko/desktop exec electron-forge start -- --remote-debugging-port=9222` 启动。未打包构建会进入后台模式：不激活、不显示 Dock、窗口透明且不接收鼠标。
+- `agent-browser connect 9222` 后用 snapshot / hover / click / screenshot 调试；截图走 CDP 渲染帧，不依赖窗口可见。结束时关闭 agent-browser 会话和应用进程。
+- 后台模式下真实鼠标和原生层（红绿灯、原生标题栏）不可用；需要这两类验证时才加 `COKO_E2E_VISIBLE=1` 显示窗口，并先告知用户会短暂占用前台。不要用 `open -a` 或默认前台启动。
+- 除非用户要求查看窗口，交付时说明哪些交互在静默 CDP 中验证、哪些因需要真实指针或原生层而未验证。它通过 CDP 连接，不引入新的浏览器自动化依赖。
+
 ## UI 与设计系统
 
 新增或修改界面前，先阅读 [界面约定](docs/tech-stack/ui.md)：技术接入、设计系统、交互与布局、UI 状态与验收，并检查目标页面、相邻页面及 `packages/ui` 中已有的组件和样式；改动样式、token 或组件几何时，再读 [设计系统规格](docs/tech-stack/ui-design-system.md)。

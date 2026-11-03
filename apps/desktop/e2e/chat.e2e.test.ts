@@ -227,28 +227,30 @@ describe('对话闭环', () => {
     expect(await app.window.getByRole('article', { name: /^(You|你)$/ }).count()).toBe(1)
   })
 
-  it('document 带有平台标记；macOS 收起为 rail 时标题避开红绿灯', async () => {
+  it('document 带有平台标记；macOS 收起侧栏后控制条与标题避开红绿灯', async () => {
     const { root } = await setup()
     const app = await launch({}, root)
     const platform = await app.app.evaluate(() => process.platform)
     expect(await app.window.evaluate(() => document.documentElement.dataset.platform)).toBe(platform)
     if (platform !== 'darwin') return
     await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(800, 820))
-    await expect.poll(() => app.window.locator('[data-slot="app-frame"]').getAttribute('data-sidebar')).toBe('rail')
+    await expect.poll(() => app.window.locator('[data-slot="app-frame"]').getAttribute('data-sidebar')).toBe('hidden')
     const geometry = () =>
       app.window.evaluate(() => {
         const heading = document.querySelector('h1')!.getBoundingClientRect()
-        const expand = document.querySelector('[data-slot="app-frame-sidebar"] button')!.getBoundingClientRect()
+        const expand = document.querySelector('[data-sidebar-expand]')!.getBoundingClientRect()
         return {
           headingLeft: heading.left,
+          expandLeft: expand.left,
           expandTop: expand.top,
           clearance: getComputedStyle(document.documentElement).getPropertyValue('--frame-leading-clearance').trim(),
         }
       })
-    // 红绿灯位于 x=16、宽约 52px；rail 56px + 标题内边距 16 + (72 − 56) = 88。栏宽有过渡动画，等其结束。
-    await expect.poll(async () => (await geometry()).headingLeft).toBe(88)
-    expect((await geometry()).clearance).toBe('72px')
-    // rail 中的按钮在 48px 顶部安全区之下。
-    expect((await geometry()).expandTop).toBeGreaterThanOrEqual(48)
+    // 红绿灯位于 x=16、宽约 52px；控制条按钮从 72 + 12 = 84 开始，标题让到 216 之后。
+    await expect.poll(async () => (await geometry()).headingLeft).toBe(216)
+    const box = await geometry()
+    expect(box.expandLeft).toBe(84)
+    expect(box.expandTop).toBeLessThan(48)
+    expect(box.clearance).toBe('72px')
   })
 })

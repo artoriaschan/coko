@@ -18,7 +18,7 @@ async function launch(extra: Record<string, string> = {}, options: LaunchOptions
   return launched
 }
 
-const status = (app: LaunchedApp) => app.window.locator('[role="status"]')
+const status = (app: LaunchedApp) => app.window.locator('[role="status"][data-connection]')
 
 describe('构建产物', () => {
   it('dist/sidecar 中有无界面运行的入口 headless.mjs；没有参数时以 4 退出', async () => {
@@ -258,7 +258,7 @@ describe('桌面壳', () => {
     await app.window.evaluate(() => {
       const g = window as unknown as { __phases: string[] }
       g.__phases = []
-      const el = document.querySelector('[role="status"]')!
+      const el = document.querySelector('[role="status"][data-connection]')!
       new MutationObserver(() => g.__phases.push(el.getAttribute('data-connection') ?? '')).observe(el, { attributes: true })
     })
     const [pid] = await app.sidecarPids()

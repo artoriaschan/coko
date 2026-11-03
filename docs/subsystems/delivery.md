@@ -12,7 +12,7 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `apps/desktop/forge.config.ts` | `outDir`（`COKO_FORGE_OUT_DIR`，缺省 `out`）、`MakerZIP({}, ['darwin'])`、`MakerDMG({ format: 'ULFO' })`、Fuses、preStart 的 watch 与开发服务器、prePackage 构建 |
+| `apps/desktop/forge.config.ts` | `outDir`（`COKO_FORGE_OUT_DIR`，缺省 `out`）、`packagerConfig.icon`（仓库根 `brand/rukie-app-icon`）、`MakerZIP({}, ['darwin'])`、`MakerDMG({ format: 'ULFO' })`、Fuses、preStart 的 watch 与开发服务器、prePackage 构建 |
 | `apps/desktop/build/build.ts` | 构建期定义：`__COKO_TEST_BUILD__`、`__COKO_UPDATE_FEED__`（main）、`__COKO_RUNTIME_VERSIONS__`（renderer 的关于页）；`watchElectron`、`watchSidecar`、Sidecar 重建通知文件 |
 | `apps/desktop/src/main/dev-reload.ts`、`sidecar-supervisor.ts` 的 `reload` | 开发时 Sidecar 重建后的计划重启 |
 | `apps/desktop/src/main/build-flags.ts` | `TEST_BUILD`、`UPDATE_FEED`、`resolveUpdateFeed`、`ignoredTestHooks` |

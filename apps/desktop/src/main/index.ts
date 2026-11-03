@@ -454,6 +454,8 @@ function run(): void {
   })
 
   void app.whenReady().then(() => {
+    // 开发模式没有应用包的 icns，Dock 使用品牌图标；打包版本由 packagerConfig.icon 生成。
+    if (development && process.platform === 'darwin') app.dock?.setIcon(join(appRoot, '..', '..', 'brand', 'rukie-app-icon.png'))
     const handler = createAppProtocolHandler({ renderer, endpoint: () => supervisor.endpoint })
     protocol.handle(APP_SCHEME, handler)
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))

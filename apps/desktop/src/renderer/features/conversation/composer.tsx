@@ -1,6 +1,6 @@
 import { IMAGE_ATTACHMENT_MAX_BYTES, type ImageAttachment } from '@coko/protocol'
-import { Button, cn, ComposerEditor, ContextRing, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, LoaderCircleIcon, PaperclipIcon, PauseIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react'
+import { Button, cn, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
+import { ArrowUpIcon, LoaderCircleIcon, PauseIcon, PlusIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
@@ -277,7 +277,7 @@ export function Composer({
     <form
       data-slot="composer"
       className={cn(
-        'relative flex h-30 flex-col gap-2 rounded-panel bg-background p-3 shadow-soft',
+        'relative flex min-h-30 flex-col rounded-panel bg-background shadow-soft',
         (compacting || images.length > 0) && 'h-auto min-h-30',
         className,
       )}
@@ -314,7 +314,7 @@ export function Composer({
       )}
       {compacting && (
         // 压缩进行中（自动或 /compact）：独占一行，排在编辑区之上；停止不提交 compaction 条目。
-        <div role="status" data-slot="compaction-status" className="order-first flex w-full items-center gap-2 px-1 text-ui-body text-muted-foreground">
+        <div role="status" data-slot="compaction-status" className="order-first flex w-full items-center gap-2 px-3 pt-3 text-ui-body text-muted-foreground">
           <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
           <span className="min-w-0 flex-1">{t('context.compaction.inProgress')}</span>
           <Button type="button" size="sm" variant="ghost" data-action="stop-compaction" onClick={onStop}>
@@ -323,7 +323,7 @@ export function Composer({
         </div>
       )}
       {images.length > 0 && (
-        <ul data-slot="image-drafts" className="flex shrink-0 gap-2 overflow-x-auto" aria-label={t('conversation.imageAttachments')}>
+        <ul data-slot="image-drafts" className="flex shrink-0 gap-2 overflow-x-auto px-3 pt-3" aria-label={t('conversation.imageAttachments')}>
           {images.map((image) => (
             <li key={image.id} className="relative shrink-0">
               <img
@@ -351,33 +351,35 @@ export function Composer({
           ))}
         </ul>
       )}
-      <ComposerEditor
-        allowEmpty={images.length > 0}
-        ref={editor}
-        // 编辑区独立滚动，内边距由主输入框统一提供，长草稿不挤压工具栏。
-        className="min-h-0 [&_[contenteditable]]:h-full [&_[contenteditable]]:min-h-0 [&_[contenteditable]]:max-h-full [&_[contenteditable]]:p-0 [&_[contenteditable]]:outline-hidden [&_[data-slot=composer-placeholder]]:inset-x-0 [&_[data-slot=composer-placeholder]]:top-0"
-        label={t('conversation.composerPlaceholder')}
-        placeholder={t('conversation.composerPlaceholder')}
-        disabled={disabled}
-        // 未配置模型时 Enter 也引导到设置；返回 false 保留草稿。Run 进行中 Enter 发送追加指令。
-        onSubmit={
-          setup
-            ? async () => {
-                onSetup()
-                return false
-              }
-            : running
-              ? steer
-              : send
-        }
-        onEscape={running ? onStop : undefined}
-        onEmptyChange={setEmpty}
-        onDraftChange={persist}
-      >
-        {commandTarget && <CommandMenu target={commandTarget} />}
-        {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
-      </ComposerEditor>
-      <div data-slot="composer-toolbar" className="flex h-8 shrink-0 items-center gap-2">
+      <div className="flex min-h-0 flex-1 flex-col px-3 pt-3 pb-2">
+        <ComposerEditor
+          allowEmpty={images.length > 0}
+          ref={editor}
+          // 输入框自身不留内边距，编辑区与工具栏各自留白；编辑区独立滚动，长草稿不挤压工具栏。
+          className="min-h-0 [&_[contenteditable]]:h-full [&_[contenteditable]]:min-h-0 [&_[contenteditable]]:max-h-full [&_[contenteditable]]:p-0 [&_[contenteditable]]:outline-hidden [&_[data-slot=composer-placeholder]]:inset-x-0 [&_[data-slot=composer-placeholder]]:top-0"
+          label={t('conversation.composerPlaceholder')}
+          placeholder={t('conversation.composerPlaceholder')}
+          disabled={disabled}
+          // 未配置模型时 Enter 也引导到设置；返回 false 保留草稿。Run 进行中 Enter 发送追加指令。
+          onSubmit={
+            setup
+              ? async () => {
+                  onSetup()
+                  return false
+                }
+              : running
+                ? steer
+                : send
+          }
+          onEscape={running ? onStop : undefined}
+          onEmptyChange={setEmpty}
+          onDraftChange={persist}
+        >
+          {commandTarget && <CommandMenu target={commandTarget} />}
+          {fileWorkspaceId !== undefined && <FileMenu workspaceId={fileWorkspaceId} />}
+        </ComposerEditor>
+      </div>
+      <div data-slot="composer-toolbar" className="relative flex h-10 shrink-0 items-center gap-2 px-3 pb-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -398,7 +400,7 @@ export function Composer({
                 }
               }}
             >
-              <PaperclipIcon />
+              <PlusIcon />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('conversation.attach')}</TooltipContent>
@@ -406,17 +408,8 @@ export function Composer({
         {permissionControl}
         {planChip}
         <span className="min-w-0 flex-1" />
-        {/* 上下文用量环：与命令目录同一作用域；固定宽度不收缩，模型与模式选择先收缩。 */}
-        {commandTarget ? (
-          <ContextRingControl target={commandTarget} store={contextStore} />
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <ContextRing percent={undefined} level="normal" label={t('context.ring.unknown')} />
-            </TooltipTrigger>
-            <TooltipContent>{t('context.ring.unknown')}</TooltipContent>
-          </Tooltip>
-        )}
+        {/* 上下文用量环：只属于已发送过请求的会话；新对话草稿与无会话作用域不显示。 */}
+        {commandTarget && 'sessionId' in commandTarget && <ContextRingControl target={commandTarget} store={contextStore} />}
         {accessory}
         {setup ? (
           <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
@@ -434,6 +427,7 @@ export function Composer({
                     aria-label={sendLabel}
                     data-action={running ? 'steer' : 'send'}
                     disabled={disabled || !imagesReady || (empty && images.length === 0)}
+                    className="rounded-round [&_svg]:size-4 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:[&_svg]:opacity-35"
                   >
                     <ArrowUpIcon />
                   </Button>

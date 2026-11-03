@@ -233,7 +233,7 @@ it('CW-43/44: current Electron workbench geometry, long-list search, both themes
     rowFont: ['13px', '20px'],
     composer: 120,
     composerWidth: 768,
-    toolbar: 32,
+    toolbar: 40,
     destination: 36,
   })
   for (const theme of ['light', 'dark']) {

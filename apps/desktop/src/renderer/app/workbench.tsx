@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { AppFrameCollapsedControls } from '@coko/ui'
 import type { Theme } from './appearance-store.ts'
 import { resolveSection } from '../features/settings/sections.ts'
 import type { WorkbenchNavigation } from './workbench-navigation.ts'
@@ -17,8 +18,10 @@ export function WorkbenchPage({ section, theme }: { section: 'plugins' | 'schedu
   const Current = resolveSection(section).Component
   return (
     <div data-workbench-page={section} className="flex min-h-0 flex-1 flex-col bg-background">
-      <div data-window-drag className="h-(--frame-top-clearance) shrink-0" />
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-8">
+      <div data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center">
+        <AppFrameCollapsedControls />
+      </div>
+      <div data-scroll-stable className="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-8">
         <div className="mx-auto w-full max-w-[800px]">
           <Current theme={theme} />
         </div>

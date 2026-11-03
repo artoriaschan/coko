@@ -79,7 +79,7 @@ it.each(['light', 'dark'])('%s long titles scroll by keyboard, wheel and drag wi
     await expect.poll(() => scroll.dataset.fade).toBe('left')
     await userEvent.keyboard('{Home}')
     scroll.dispatchEvent(new WheelEvent('wheel', { deltaY: 60, bubbles: true, cancelable: true }))
-    await expect.poll(() => scroll.scrollLeft).toBe(60)
+    await expect.poll(() => Number(scroll.dataset.offset)).toBe(60)
     expect(controls.getBoundingClientRect().left).toBe(fixed)
     const pin = controls.querySelector<SVGSVGElement>('svg.lucide-pin')!
     expect(getComputedStyle(pin).width).toBe('14px')
@@ -100,19 +100,39 @@ it.each(['light', 'dark'])('%s long titles scroll by keyboard, wheel and drag wi
     } finally {
       await mouse.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x - 40, y, button: 'left', buttons: 0, clickCount: 1 })
     }
-    await expect.poll(() => scroll.scrollLeft).toBeGreaterThan(60)
+    await expect.poll(() => Number(scroll.dataset.offset)).toBeGreaterThan(60)
     expect(selected).toBe(0)
     expect(fixture.chat.lists.getState().sessions.every((session) => session.pinnedAt === null)).toBe(true)
     expect(controls.getBoundingClientRect().left).toBe(fixed)
     const short = page.getByRole('button', { name: 'Short', exact: true }).element().querySelector<HTMLElement>('[data-scrollable-title]')!
     expect(short.dataset.fade).toBe('none')
     expect(getComputedStyle(short).maskImage).toBe('none')
+    // 离开后重新悬停：重新开始自动滚动（拖动期间手动接管会暂停）。
+    await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
     await userEvent.hover(page.getByRole('button', { name: title, exact: true }))
     const details = page.getByRole('region', { name: 'Conversation details', exact: true })
     await expect.element(details).toBeVisible()
-    await expect.poll(() => details.element().getBoundingClientRect().width).toBe(336)
+    // 悬停时操作按钮出现、标题区域为按钮让位并自动滚到最右后停止。
+    await expect.poll(() => getComputedStyle(scroll.parentElement!).paddingRight).toBe('48px')
+    expect(getComputedStyle(controls).opacity).toBe('1')
+    await expect.poll(() => Number(scroll.dataset.offset)).toBeGreaterThan(0)
+    await expect.poll(() => Math.abs(Number(scroll.dataset.offset) - Number(scroll.dataset.max)) <= 1, { timeout: 15_000 }).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(Math.abs(Number(scroll.dataset.offset) - Number(scroll.dataset.max))).toBeLessThanOrEqual(1)
+    await expect.poll(() => details.element().getBoundingClientRect().width).toBe(280)
+    // 长标题不省略：在卡片宽度内折行，内容不横向溢出。
+    const heading = details.element().querySelector<HTMLElement>('[data-user-content]')!
+    expect(heading.scrollWidth).toBeLessThanOrEqual(heading.clientWidth + 1)
+    expect(heading.getBoundingClientRect().height).toBeGreaterThan(24)
     await page.screenshot({ path: `../../../../../../.vitest/cw07-${theme}.png` })
+    ;(document.activeElement as HTMLElement | null)?.blur()
     await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
+    // 移出悬停后停止滚动并回到最左，按钮与让位一起消失。
+    await expect.poll(() => Number(scroll.dataset.offset)).toBe(0)
+    const content = scroll.querySelector<HTMLElement>('span')!
+    await expect.poll(() => getComputedStyle(content).transform).toBe('none')
+    await expect.poll(() => getComputedStyle(scroll.parentElement!).paddingRight).toBe('0px')
+    await expect.poll(() => getComputedStyle(controls).opacity).toBe('0')
   } finally {
     document.documentElement.className = original
   }
@@ -136,16 +156,17 @@ it('conversation details are right of the entire row by2px, top aligned and reta
   )
   const row = page.getByRole('button', { name: session.title, exact: true })
   await userEvent.hover(row)
-  const details = page.getByRole('region', { name: 'Conversation details', exact: true })
+  const details = page.getByRole('region', { name: 'Conversation details', exact: true }).filter({ hasText: session.title })
   await expect.element(details).toBeVisible()
   await expect.element(details.getByText('coko', { exact: true })).toBeVisible()
   const box = row.element().getBoundingClientRect()
-  await expect.poll(() => details.element().getBoundingClientRect().left - box.right).toBe(2)
-  expect(details.element().getBoundingClientRect().top).toBe(box.top)
+  await expect.poll(() => details.element().getBoundingClientRect().left - box.right).toBeCloseTo(2, 0)
+  expect(details.element().getBoundingClientRect().top).toBeCloseTo(box.top, 0)
   await userEvent.hover(details)
   await expect.element(details).toBeVisible()
+  const standalone = page.getByRole('region', { name: 'Conversation details', exact: true }).filter({ hasText: 'Standalone example' })
   await userEvent.hover(page.getByRole('button', { name: 'Standalone example', exact: true }))
-  await expect.element(details.getByText('Conversations', { exact: true })).toBeVisible()
+  await expect.element(standalone.getByText('Conversations', { exact: true })).toBeVisible()
   await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
   await expect.element(details).not.toBeInTheDocument()
 })
@@ -211,7 +232,7 @@ it('all pinned sessions stay above reorderable categories in pin-time order desp
   expect(page.getByRole('region', { name: 'Pinned', exact: true }).element().textContent).not.toContain('Expand')
 })
 
-it('keyboard focus keeps the card readable; Escape returns focus and more closes details immediately', async () => {
+it('keyboard focus does not open details; Escape returns focus and more closes details immediately', async () => {
   await page.viewport(1000, 800)
   const fixture = createFixtureChat({ sessions: [{ ...fixtureSessions[0]!, title: 'Focus example', updatedAt: Date.now() }] })
   await fixture.chat.getState().load()
@@ -227,20 +248,34 @@ it('keyboard focus keeps the card readable; Escape returns focus and more closes
     </I18nProvider>,
   )
   const row = page.getByRole('button', { name: 'Focus example', exact: true })
-  ;(row.element() as HTMLElement).focus()
+  row.element().focus()
   const details = page.getByRole('region', { name: 'Conversation details', exact: true })
+  // 详情只由悬停触发：键盘焦点不展示卡片。
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  await expect.element(details).not.toBeInTheDocument()
+  await userEvent.hover(row)
+  await expect.element(details).toBeVisible()
   await expect.element(details.getByText('Just now', { exact: true })).toBeVisible()
   ;(details.element() as HTMLElement).focus()
   await expect.element(details).toHaveFocus()
   await userEvent.keyboard('{Escape}')
   await expect.element(details).not.toBeInTheDocument()
   await expect.element(row).toHaveFocus()
+  // 同一次悬停只展示一次：先移出再进入才重新计时。
+  await userEvent.hover(document.body)
   await userEvent.hover(row)
   await expect.element(details).toBeVisible()
-  await userEvent.click(page.getByRole('button', { name: 'More conversation actions', exact: true }))
+  const more = page.getByRole('button', { name: 'More conversation actions', exact: true })
+  await userEvent.click(more)
   await expect.element(details).not.toBeInTheDocument()
-  await userEvent.keyboard('{Escape}')
-  await expect.element(page.getByRole('menu', { name: 'Conversation actions' })).not.toBeInTheDocument()
+  const menu = page.getByRole('menu', { name: 'Conversation actions' })
+  await expect.element(menu).toBeVisible()
+  // 菜单已展示时再次点击更多：按下可能先被菜单的外部关闭处理，click 仍应关闭而不是重开。
+  more.element().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0 }))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  more.element().dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+  await expect.element(menu).not.toBeInTheDocument()
+  await expect.element(details).not.toBeInTheDocument()
 })
 
 it('failed pin preserves ownership and list location and reports a retryable error', async () => {
@@ -269,4 +304,40 @@ it('failed pin preserves ownership and list location and reports a retryable err
   await expect.element(page.getByRole('button', { name: 'Pin conversation', exact: true })).toBeEnabled()
   toast.dismiss()
   await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
+})
+
+it('the same hover shows details once', async () => {
+  await page.viewport(1000, 800)
+  const fixture = createFixtureChat({ sessions: [{ ...fixtureSessions[0]!, title: 'Delayed example' }] })
+  await fixture.chat.getState().load()
+  await render(
+    <I18nProvider locale="en">
+      <ChatStoreProvider store={fixture.chat}>
+        <TooltipProvider>
+          <div style={{ width: 280 }}>
+            <SidebarLists search={null} onAddWorkspace={() => {}} onNewSession={() => {}} onSelect={() => {}} />
+          </div>
+        </TooltipProvider>
+      </ChatStoreProvider>
+    </I18nProvider>,
+  )
+  const row = page.getByRole('button', { name: 'Delayed example', exact: true })
+  const details = page.getByRole('region', { name: 'Conversation details', exact: true })
+  await userEvent.hover(row)
+  await expect.element(details).toBeVisible()
+  // 指针在卡片与行之间往返：仍保持已展示，不在同一次悬停内重复弹出。
+  await userEvent.hover(details)
+  await userEvent.hover(row)
+  await expect.element(details).toBeVisible()
+  // 在行内打开菜单会收起卡片；指针未离开行时同一次悬停不再自动弹出。
+  await userEvent.click(page.getByRole('button', { name: 'More conversation actions', exact: true }))
+  await expect.element(details).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('menu', { name: 'Conversation actions' })).not.toBeInTheDocument()
+  await new Promise((resolve) => setTimeout(resolve, 800))
+  expect(document.querySelector('[aria-label="Conversation details"]')).toBeNull()
+  // 离开行与卡片后再悬停是新的悬停，重新计时并展示。
+  await userEvent.hover(document.body)
+  await userEvent.hover(row)
+  await expect.element(details).toBeVisible()
 })

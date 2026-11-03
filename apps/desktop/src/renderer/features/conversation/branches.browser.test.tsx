@@ -54,17 +54,19 @@ it.each(['light', 'dark'] as const)(
       </div>,
     )
     await page.getByRole('button', { name: '新对话', exact: true }).click()
+    // 独立对话没有项目归属：归属栏不显示项目配置按钮。
+    await expect.element(page.getByRole('button', { name: '项目配置', exact: true })).not.toBeInTheDocument()
+    fixture.chat.newChat.getState().selectProject('project-w-coko')
     const configurationButton = page.getByRole('button', { name: '项目配置', exact: true })
     await userEvent.hover(configurationButton)
     await expect.element(page.getByRole('tooltip', { name: '项目配置' })).toBeVisible()
     await configurationButton.click()
-    await expect.element(page.getByText('选择项目后可配置分支')).toBeVisible()
-    await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('menu', { name: '项目配置' })).not.toBeInTheDocument()
-    await expect.element(configurationButton).toHaveFocus()
-    fixture.chat.newChat.getState().selectProject('project-w-coko')
-    await page.getByRole('button', { name: '项目配置', exact: true }).click()
     const parent = page.getByRole('menu', { name: '项目配置' })
+    await expect.element(parent).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(parent).not.toBeInTheDocument()
+    await expect.element(configurationButton).toHaveFocus()
+    await configurationButton.click()
     const trigger = page.getByRole('menuitem', { name: '分支 main', exact: true })
     await trigger.click()
     const sub = page.getByRole('menu', { name: '搜索本地分支' })
@@ -269,9 +271,8 @@ it('CW-37: worktree toggle is draft-only, hides branch creation, echoes base, an
       </BranchesProvider>
     </div>,
   )
-  await page.getByRole('button', { name: '项目配置', exact: true }).click()
-  await expect.element(page.getByRole('switch', { name: '新建工作树' })).toBeDisabled()
-  await userEvent.keyboard('{Escape}')
+  // 独立对话没有项目归属：不显示项目配置按钮；选中项目后才出现。
+  await expect.element(page.getByRole('button', { name: '项目配置', exact: true })).not.toBeInTheDocument()
   fixture.chat.newChat.getState().selectProject('project-w-coko')
   const configuration = page.getByRole('button', { name: '项目配置', exact: true })
   await configuration.click()

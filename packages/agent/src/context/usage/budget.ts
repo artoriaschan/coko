@@ -4,19 +4,14 @@
 export const OUTPUT_RESERVE_MAX = 20_000
 /** 阈值与预警线之间的距离。 */
 export const WARNING_MARGIN = 20_000
-
-/** 阈值 = 有效窗口 − buffer；buffer 按 contextWindow：≥ 800k 为 50k，≥ 400k 为 30k，其余 13k。 */
-export function compactionBuffer(contextWindow: number): number {
-  if (contextWindow >= 800_000) return 50_000
-  if (contextWindow >= 400_000) return 30_000
-  return 13_000
-}
+/** 自动压缩阈值占上下文窗口的比例。 */
+export const COMPACTION_THRESHOLD_RATIO = 0.8
 
 export interface ContextBudget {
   contextWindow: number
   /** contextWindow − min(maxTokens, 20 000)。 */
   effectiveWindow: number
-  /** 自动压缩阈值：有效窗口 − buffer。 */
+  /** 自动压缩阈值：上下文窗口的 80%。 */
   threshold: number
   /** 预警线：阈值 − 20 000。 */
   warning: number
@@ -26,7 +21,7 @@ export interface ContextBudget {
 export function contextBudget(model: { contextWindow: number; maxTokens: number }): ContextBudget {
   const contextWindow = Math.max(0, model.contextWindow)
   const effectiveWindow = Math.max(0, contextWindow - Math.min(Math.max(0, model.maxTokens), OUTPUT_RESERVE_MAX))
-  const threshold = Math.max(0, effectiveWindow - compactionBuffer(contextWindow))
+  const threshold = Math.max(0, Math.floor(contextWindow * COMPACTION_THRESHOLD_RATIO))
   const warning = Math.max(0, threshold - WARNING_MARGIN)
   return { contextWindow, effectiveWindow, threshold, warning }
 }

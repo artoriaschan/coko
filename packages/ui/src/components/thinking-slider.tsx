@@ -14,35 +14,60 @@ const motion: Record<ThinkingSliderValue, readonly [number, number]> = {
 }
 
 function Particle({ index, duration, playing }: { index: number; duration: number; playing: boolean }) {
-  const ref = React.useRef<HTMLSpanElement>(null)
-  const animation = React.useRef<Animation | null>(null)
+  const outer = React.useRef<HTMLSpanElement>(null)
+  const inner = React.useRef<HTMLSpanElement>(null)
+  const animations = React.useRef<Animation[]>([])
+  /** 半径 1.08 / 1.51 / 1.94px，按粒子序号分三组（原型 arc 半径）。 */
+  const diameter = 2 * (1.08 + 0.43 * (index % 3))
   React.useEffect(() => {
-    const instance = ref.current!.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(calc(-1 * var(--local-particle-span)))' }], {
+    // 水平位移在 fill 内从右向左循环；相位按黄金比例分布，速度按序号差 4%。
+    const horizontal = outer.current!.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(calc(-1 * var(--local-particle-span)))' }], {
       duration: 4000,
       iterations: Infinity,
       delay: -((index * 0.618034) % 1) * 4000,
     })
-    animation.current = instance
+    // 垂直正弦摆动：中心 12px、振幅 6.72px、周期 9s，相位随序号错开。
+    const drift = Array.from({ length: 9 }, (_, step) => ({
+      transform: `translateY(${(Math.sin((step / 8) * Math.PI * 2) * 6.72).toFixed(2)}px)`,
+    }))
+    const vertical = inner.current!.animate(drift, {
+      duration: 9000,
+      iterations: Infinity,
+      delay: -(((index * 2.41) % (Math.PI * 2)) / (Math.PI * 2)) * 9000,
+    })
+    // 透明度在 0.35–0.55 之间呼吸，周期约 5.7s。
+    const pulse = inner.current!.animate([{ opacity: 0.35 }, { opacity: 0.55 }, { opacity: 0.35 }], {
+      duration: 5712,
+      iterations: Infinity,
+      easing: 'ease-in-out',
+      delay: -((index % (Math.PI * 2)) / (Math.PI * 2)) * 5712,
+    })
+    animations.current = [horizontal, vertical, pulse]
     return () => {
-      instance.cancel()
-      animation.current = null
+      horizontal.cancel()
+      vertical.cancel()
+      pulse.cancel()
+      animations.current = []
     }
   }, [index])
   React.useEffect(() => {
-    const instance = animation.current
-    if (!instance) return
-    // updatePlaybackRate 保留当前相位；切档不会把已有光点重置到起点。
-    instance.updatePlaybackRate(4000 / duration)
-    if (playing) instance.play()
-    else instance.pause()
-  }, [duration, playing])
+    for (const animation of animations.current) {
+      if (playing) animation.play()
+      else animation.pause()
+    }
+    // 基准周期 4s；实际每轮 = duration / (1 + 4% × 组号)。updatePlaybackRate 保留当前相位，切档不重置。
+    animations.current[0]?.updatePlaybackRate((4000 * (1 + 0.04 * (index % 3))) / duration)
+  }, [duration, playing, index])
   return (
     <span
-      ref={ref}
+      ref={outer}
       data-slot="thinking-particle"
-      className="absolute left-full size-0.5 rounded-round bg-primary-foreground opacity-60"
-      style={{ top: `${22 + ((index * 23) % 56)}%` }}
-    />
+      aria-hidden
+      className="absolute left-full"
+      style={{ top: 12 - diameter / 2, width: diameter, height: diameter }}
+    >
+      <span ref={inner} className="block size-full rounded-round bg-background" />
+    </span>
   )
 }
 

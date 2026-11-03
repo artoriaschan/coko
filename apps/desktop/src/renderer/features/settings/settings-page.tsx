@@ -120,7 +120,7 @@ function SettingsPageContent({ theme }: { theme: Theme }) {
           })}
         </nav>
       </div>
-      <div data-settings-detail className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-8 sm:px-16 sm:pt-18 sm:pb-16">
+      <div data-settings-detail data-scroll-stable className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-8 sm:px-16 sm:pt-18 sm:pb-16">
         <div className="mx-auto w-full max-w-[800px]">
           <Current theme={theme} />
         </div>

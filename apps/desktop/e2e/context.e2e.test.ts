@@ -40,11 +40,8 @@ describe('上下文环', () => {
     await createProjectDraft(app, workspace)
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
-    // 草稿：底栏入口只显示环，低于预警线。
-    await expect.poll(() => ring(page).getAttribute('aria-label'), { timeout: 15_000 }).toMatch(/^(Context usage|上下文用量)$/)
-    expect(await ring(page).textContent()).toBe('')
-    expect(await ring(page).getAttribute('data-level')).toBe('normal')
-    expect(await ring(page).getAttribute('aria-label')).toMatch(/^(Context usage|上下文用量)$/)
+    // 草稿：尚未发送请求，不显示上下文环。
+    expect(await ring(page).count()).toBe(0)
 
     await composerOf(page).click()
     await page.keyboard.type('hello')

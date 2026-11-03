@@ -8,7 +8,7 @@ import { render } from 'vitest-browser-react'
 import { I18nProvider } from '../../app/i18n.tsx'
 import { createContextStore, type ContextTarget } from '../../stores/context-store.ts'
 import { Composer } from './composer.tsx'
-import { ContextRingControl } from './context-ring.tsx'
+import { ContextRingControl, formatCompactTokens } from './context-ring.tsx'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker } from './mode-picker.tsx'
 
@@ -34,7 +34,7 @@ function renderRing(response: ContextUsageResponse, target: ContextTarget = { se
   render(
     <I18nProvider locale="en">
       <TooltipProvider>
-        <div style={{ paddingTop: 450, paddingLeft: 400 }}>
+        <div style={{ paddingTop: 600, paddingLeft: 700 }}>
           <ContextRingControl target={target} store={store} />
         </div>
       </TooltipProvider>
@@ -84,6 +84,15 @@ describe('上下文环', () => {
     expect(colorOf(className)).not.toBe(colorOf('text-muted-foreground'))
   })
 
+  it('上下文数量使用 K/M 简短展示', () => {
+    expect([formatCompactTokens(980), formatCompactTokens(2_000), formatCompactTokens(98_616), formatCompactTokens(1_200_000)]).toEqual([
+      '980',
+      '2K',
+      '99K',
+      '1M',
+    ])
+  })
+
   it('点击打开五类明细；分母与几何正确，不展示指令、诊断与估算；Esc 返回环', async () => {
     const { fetchUsage, store } = renderRing(usage(2_000, { estimated: true }))
     await expect.poll(() => store.getState().status).toBe('ready')
@@ -94,16 +103,18 @@ describe('上下文环', () => {
     await expect.poll(() => card()).not.toBeNull()
     const dialog = page.getByRole('dialog', { name: 'Context usage' })
     await expect.element(dialog).toBeVisible()
-    expect(card()!.querySelector('[data-slot="context-usage"]')!.textContent).toBe('2,000 / 40,000 tokens')
+    expect(card()!.querySelector('[data-slot="context-usage"]')!.textContent).toBe('2K / 40K · share of used')
+    expect(card()!.textContent).toContain('Compact at23K (57%)')
     expect([...card()!.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(['System', 'Prompts', 'Assistant', 'Thinking', 'Tools'])
-    expect(card()!.querySelector('[data-part-value="prompt"]')!.textContent).toBe('1,000 · 50.00%')
-    expect(card()!.querySelector('[data-capacity-part="prompt"]')!.getBoundingClientRect().width).toBeCloseTo(7.9, 0)
+    expect(card()!.querySelector('[data-part-value="prompt"]')!.textContent).toBe('1K · 50.00%')
+    const capacity = card()!.querySelector('[data-slot="context-capacity"]')!.getBoundingClientRect().width
+    expect(card()!.querySelector('[data-capacity-part="prompt"]')!.getBoundingClientRect().width).toBeCloseTo(capacity * 0.025, 0)
     expect(card()!.querySelector('[data-instruction-file], [data-diagnostic]')).toBeNull()
     expect(card()!.textContent).not.toMatch(/includes estimates|Instruction files|Diagnostics/)
-    await expect.poll(() => card()!.getBoundingClientRect().width).toBe(348)
+    await expect.poll(() => card()!.getBoundingClientRect().width).toBe(320)
     const bounds = card()!.getBoundingClientRect(),
       anchor = ring().getBoundingClientRect()
-    expect(bounds.height).toBe(384)
+    expect(bounds.height).toBe(320)
     expect(bounds.right).toBeCloseTo(anchor.right, 0)
     expect(anchor.top - bounds.bottom).toBeCloseTo(8, 0)
     for (const value of card()!.querySelectorAll('[data-part-value]')) expect(getComputedStyle(value).textAlign).toBe('right')
@@ -113,6 +124,18 @@ describe('上下文环', () => {
     await userEvent.keyboard('{Escape}')
     await expect.poll(() => card()).toBeNull()
     expect(document.activeElement).toBe(ring())
+  })
+
+  it('指针移出后仍保留浮层，再次点击上下文环隐藏', async () => {
+    const { store } = renderRing(usage(2_000))
+    await expect.poll(() => store.getState().status).toBe('ready')
+    await userEvent.click(ring())
+    await expect.poll(() => card()).not.toBeNull()
+    await userEvent.hover(document.body)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    await expect.element(page.getByRole('dialog', { name: 'Context usage' })).toBeVisible()
+    await userEvent.click(ring())
+    await expect.poll(() => card()).toBeNull()
   })
 
   it('读取失败且没有旧值时环只画轨道，名称为"Context usage"', async () => {
@@ -177,7 +200,8 @@ describe('输入区底栏在 390px 宽度', () => {
               onStop={() => {}}
               onPause={() => {}}
               onSetup={() => {}}
-              commandTarget={{ workspaceId: 'w-390' }}
+              commandTarget={{ sessionId: 's-390' }}
+              contextStore={createContextStore(async () => usage(2_000))}
               permissionControl={<ModePicker value="default" onChange={() => {}} />}
               accessory={
                 <>

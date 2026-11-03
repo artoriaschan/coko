@@ -1,6 +1,6 @@
 import type { ImageAttachment } from '@coko/protocol'
 import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
+import { AppFrameCollapsedControls, Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession, useActiveWorkspaceId } from '../../app/chat.tsx'
@@ -302,27 +302,31 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
 
   return (
     <>
-      {/* 窄主区中间距从 8 px 收到 4 px：侧栏收起过渡中主列可短暂窄到约 110 px，标题与连接文案已截断，剩下的固定宽度控件仍需放下。 */}
-      <header
-        data-window-drag
-        className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-[calc(16px_+_max(0px,_var(--frame-leading-clearance)_-_var(--local-sidebar-column)))] pe-2 @max-[560px]/main:gap-1"
-      >
-        <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
-          {title}
-        </h1>
-        {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
-        <ConnectionStatus state={connection} />
-        {activeSessionId !== null && !archived && headerActions.length > 0 && (
-          <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />
+      {/* 收起侧栏时标题栏左侧显示控制条；它在标题栏内，沿用标题栏的拖拽区排除规则。 */}
+      <header data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-(--local-header-leading) pe-2 @max-[560px]/main:gap-1">
+        <AppFrameCollapsedControls />
+        {activeSessionId === null ? (
+          // 新对话顶部不展示标题与连接状态；标题只作为页面名称提供给辅助技术。
+          <h1 className="sr-only">{title}</h1>
+        ) : (
+          <>
+            <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
+              {title}
+            </h1>
+            {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
+            <ConnectionStatus state={connection} />
+            {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
+            <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
+              {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
+            </IconButton>
+          </>
         )}
-        <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
-          {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
-        </IconButton>
       </header>
 
       <div className={`relative flex min-h-0 flex-1 flex-col ${activeSessionId === null ? 'justify-center overflow-y-auto' : ''}`}>
         <div
           ref={scroller}
+          data-scroll-stable
           className={activeSessionId === null ? 'shrink-0 px-4' : 'flex min-h-0 flex-1 flex-col overflow-y-auto px-4'}
           onScroll={(event) => {
             const el = event.currentTarget
@@ -388,43 +392,49 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           {readOnlyWorktree && <WorktreeReadOnlyNotice worktree={readOnlyWorktree} className={composerColumn} />}
           {/* 被审批卡或确认卡接管时保持挂载（隐藏），草稿与选区不丢。 */}
           <div ref={composerArea} hidden={takenOver || archived || readOnlyWorktree !== undefined}>
-            {activeSessionId === null && <DestinationBar className={composerColumn} />}
-            <Composer
-              ref={setComposer}
-              // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
-              className={composerColumn}
-              running={running}
-              disabled={false}
-              commandTarget={commandTarget}
-              draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
-              fileWorkspaceId={activeWorkspaceId}
-              fileWorkspacePath={attachmentRoot}
-              needsSetup={needsSetup}
-              onSend={sendOrOpen}
-              supportsImages={
-                models.find((item) => item.providerId === model?.providerId && item.modelId === model?.modelId)?.input?.includes('image') === true
-              }
-              imageRefs={activeSessionId === null ? chatStore.newChat.getState().imageRefs : undefined}
-              onImageRefsChange={activeSessionId === null ? (imageRefs) => chatStore.newChat.getState().configure({ imageRefs }) : undefined}
-              onSteer={steerOrAct}
-              onStop={() => void stop()}
-              onPause={() => void pause()}
-              pausing={conversation?.pausing ?? false}
-              onSetup={() => settingsPage.open('models')}
-              onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
-              planChip={<PlanChip sessionId={activeSessionId} onExit={() => composer.current?.focus()} />}
-              permissionControl={
-                <ModePicker
-                  value={permissionMode}
-                  prior={conversation ? restoredMode(conversation.entries) : 'default'}
-                  disabled={!canChangeMode}
-                  onChange={(m) => void setPermissionMode(m)}
-                />
-              }
-              accessory={
-                <ModelPicker models={models} value={model} thinkingLevel={thinkingLevel} disabled={running} onChange={(m, level) => selectModel(m, level)} />
-              }
-            />
+            {/* 新对话的归属栏与输入框共用一块 muted 外壳：顶部 36px 归属栏，下方是白色输入卡片。 */}
+            <div
+              data-slot={activeSessionId === null ? 'composer-shell' : undefined}
+              className={activeSessionId === null ? cn(composerColumn, 'rounded-panel bg-muted') : undefined}
+            >
+              {activeSessionId === null && <DestinationBar />}
+              <Composer
+                ref={setComposer}
+                // 放不下时控件换到编辑区下方（例如侧栏过渡中的瞬时窄宽度），不撑出横向滚动。
+                className={activeSessionId === null ? 'w-full' : composerColumn}
+                running={running}
+                disabled={false}
+                commandTarget={commandTarget}
+                draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
+                fileWorkspaceId={activeWorkspaceId}
+                fileWorkspacePath={attachmentRoot}
+                needsSetup={needsSetup}
+                onSend={sendOrOpen}
+                supportsImages={
+                  models.find((item) => item.providerId === model?.providerId && item.modelId === model?.modelId)?.input?.includes('image') === true
+                }
+                imageRefs={activeSessionId === null ? chatStore.newChat.getState().imageRefs : undefined}
+                onImageRefsChange={activeSessionId === null ? (imageRefs) => chatStore.newChat.getState().configure({ imageRefs }) : undefined}
+                onSteer={steerOrAct}
+                onStop={() => void stop()}
+                onPause={() => void pause()}
+                pausing={conversation?.pausing ?? false}
+                onSetup={() => settingsPage.open('models')}
+                onCycleMode={canChangeMode ? () => void setPermissionMode(nextCycledMode(permissionMode)) : undefined}
+                planChip={<PlanChip sessionId={activeSessionId} onExit={() => composer.current?.focus()} />}
+                permissionControl={
+                  <ModePicker
+                    value={permissionMode}
+                    prior={conversation ? restoredMode(conversation.entries) : 'default'}
+                    disabled={!canChangeMode}
+                    onChange={(m) => void setPermissionMode(m)}
+                  />
+                }
+                accessory={
+                  <ModelPicker models={models} value={model} thinkingLevel={thinkingLevel} disabled={running} onChange={(m, level) => selectModel(m, level)} />
+                }
+              />
+            </div>
           </div>
         </div>
         <RewindDialog

@@ -33,16 +33,16 @@ const resultText = (m: AgentMessage) => (m as { content: { text: string }[] }).c
 describe('contextBudget', () => {
   it.each([
     // [contextWindow, maxTokens, effective, threshold, warning]
-    [128_000, 16_384, 111_616, 98_616, 78_616],
-    [128_000, 64_000, 108_000, 95_000, 75_000],
-    [400_000, 128_000, 380_000, 350_000, 330_000],
-    [1_000_000, 32_000, 980_000, 930_000, 910_000],
+    [128_000, 16_384, 111_616, 102_400, 82_400],
+    [128_000, 64_000, 108_000, 102_400, 82_400],
+    [400_000, 128_000, 380_000, 320_000, 300_000],
+    [1_000_000, 32_000, 980_000, 800_000, 780_000],
   ])('窗口 %i、maxTokens %i：有效窗口 %i，阈值 %i，预警 %i', (contextWindow, maxTokens, effective, threshold, warning) => {
     expect(contextBudget({ contextWindow, maxTokens })).toEqual({ contextWindow, effectiveWindow: effective, threshold, warning })
   })
 
-  it('窗口过小时各值不为负', () => {
-    expect(contextBudget({ contextWindow: 10_000, maxTokens: 4_000 })).toEqual({ contextWindow: 10_000, effectiveWindow: 6_000, threshold: 0, warning: 0 })
+  it('小窗口仍按窗口的 80% 计算阈值，且各值不为负', () => {
+    expect(contextBudget({ contextWindow: 10_000, maxTokens: 4_000 })).toEqual({ contextWindow: 10_000, effectiveWindow: 6_000, threshold: 8_000, warning: 0 })
     expect(contextBudget({ contextWindow: 0, maxTokens: 0 })).toEqual({ contextWindow: 0, effectiveWindow: 0, threshold: 0, warning: 0 })
   })
 })

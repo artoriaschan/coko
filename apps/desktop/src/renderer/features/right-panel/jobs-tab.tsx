@@ -314,7 +314,7 @@ export function JobsTab({ sessionId }: RightPanelTabProps) {
   const current = jobs.find((j) => j.jobId === selectedId) ?? defaultJob(jobs)!
   return (
     <div data-slot="jobs-tab" className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ul aria-label={t('jobs.list')} className="flex max-h-[40%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+      <ul aria-label={t('jobs.list')} data-scroll-stable className="flex max-h-[40%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
         {jobs.map((job) => (
           <JobListItem key={job.jobId} job={job} selected={job === current} now={now} onSelect={() => store.getState().select(sessionId, job.jobId)} />
         ))}

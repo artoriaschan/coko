@@ -1,5 +1,5 @@
 import { contextUsageLevel, contextUsagePercent, type ContextBreakdown, type ContextUsageResponse } from '@coko/protocol'
-import { ContextRing, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip, TooltipContent, TooltipTrigger, type ContextRingLevel } from '@coko/ui'
+import { ContextRing, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger, type ContextRingLevel } from '@coko/ui'
 import { CirclePauseIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -14,6 +14,13 @@ import { contextStore as defaultStore, type ContextStore, type ContextTarget } f
 const PARTS = ['system', 'prompt', 'assistant', 'thinking', 'tools'] as const satisfies readonly (keyof ContextBreakdown)[]
 const PART_COLOR = { system: 'bg-muted-foreground', prompt: 'bg-success', assistant: 'bg-link', thinking: 'bg-terminal-magenta', tools: 'bg-warning' } as const
 const RING_LEVEL = { normal: 'normal', warning: 'warning', critical: 'critical' } as const satisfies Record<string, ContextRingLevel>
+
+/** 上下文数量的简短展示：1K 以上用 K、1M 以上用 M，均取整；不足 1K 原样显示。 */
+export function formatCompactTokens(tokens: number): string {
+  if (tokens < 1_000) return String(tokens)
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
+  return `${Math.round(tokens / 1_000)}K`
+}
 
 /** 没有对话 store（composer 的组件测试）时的空 store：刷新信号恒定。 */
 const NO_CHAT = createStore(() => ({ conversations: {} }) as unknown as ChatState & ChatActions) as ChatStore
@@ -41,11 +48,11 @@ export interface ContextRingControlProps {
 }
 
 /**
- * 输入区底栏的上下文环：百分比与颜色（越过预警线为 warning，达到自动压缩阈值为 destructive）。点击打开 HoverCard，
- * 显示用量与五类分项；Esc 关闭并把焦点留在环上。作用域变化、assistant 条目提交、Run 结束与打开卡片时刷新。
+ * 输入区底栏的上下文环：百分比与颜色（越过预警线为 warning，达到自动压缩阈值为 destructive）。点击打开详情浮层，
+ * 再次点击或外部点击、Escape 关闭；指针移出环与浮层不关闭。作用域变化、assistant 条目提交、Run 结束与打开时刷新。
  */
 export function ContextRingControl({ target, store = defaultStore }: ContextRingControlProps) {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const key = targetKey(target)
   const usage = useStore(store, (s) => (s.key === key ? s.usage : null))
   const failed = useStore(store, (s) => s.key === key && s.status === 'error' && s.usage === null)
@@ -62,12 +69,8 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
   const [open, setOpen] = React.useState(false)
   const [tooltipOpen, setTooltipOpen] = React.useState(false)
   const trigger = React.useRef<HTMLButtonElement>(null)
-  // 只由点击（含 Enter / 空格）打开：悬停打开会在布局变化把环移到静止的指针下时弹出卡片，遮住输入区上方的横幅与按钮。
-  // Radix 的悬停关闭（指针离开环与卡片）、外部点击与 Esc 照常关闭。
+  // 点击（含 Enter / 空格）切换：指针移出不关闭，外部点击、Escape 或再次点击环关闭。
   const onOpenChange = (next: boolean) => {
-    if (!next) setOpen(false)
-  }
-  const toggle = (next: boolean) => {
     setOpen(next)
     if (next) {
       setTooltipOpen(false)
@@ -80,7 +83,6 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
   const level = usage ? RING_LEVEL[contextUsageLevel(usage)] : 'normal'
   const label = t('context.ring.unknown')
   const hint = percent === undefined ? label : t('context.ring.label', { percent: String(percent) })
-  const number = React.useMemo(() => new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US'), [locale])
 
   const paused = usage?.autoCompact.enabled === true && usage.autoCompact.paused
   return (
@@ -102,54 +104,52 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
           <TooltipContent side="top">{t('context.compaction.pausedHint')}</TooltipContent>
         </Tooltip>
       )}
-      <HoverCard open={open} onOpenChange={onOpenChange}>
+      <Popover open={open} onOpenChange={onOpenChange}>
         <Tooltip open={!open && tooltipOpen} onOpenChange={setTooltipOpen}>
           <TooltipTrigger asChild>
-            <HoverCardTrigger asChild>
+            <PopoverTrigger asChild>
               <ContextRing
                 ref={trigger}
                 percent={percent}
                 level={level}
                 label={label}
-                aria-expanded={open}
                 aria-haspopup="dialog"
-                onClick={() => toggle(!open)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape' && open) {
                     event.preventDefault()
                     event.stopPropagation()
-                    toggle(false)
+                    setOpen(false)
                   }
                 }}
               />
-            </HoverCardTrigger>
+            </PopoverTrigger>
           </TooltipTrigger>
           <TooltipContent side="top">{hint}</TooltipContent>
         </Tooltip>
-        <HoverCardContent
+        <PopoverContent
           side="top"
           align="end"
           role="dialog"
           aria-label={t('context.card.title')}
           data-slot="context-card"
           sideOffset={8}
-          className="h-96 w-[348px] max-h-(--radix-hover-card-content-available-height) overflow-y-auto px-4 py-3"
+          className="h-80 w-80 max-h-(--radix-popover-content-available-height) max-w-(--radix-popover-content-available-width) overflow-y-auto p-3 pb-3.5"
           onEscapeKeyDown={() => trigger.current?.focus()}
           onPointerDownOutside={(event) => {
             // 阻止 pointerdown 默认的焦点移动；随后的 click 仍可激活外部操作。
             event.preventDefault()
             event.detail.originalEvent.preventDefault()
-            toggle(false)
+            setOpen(false)
             trigger.current?.focus()
           }}
         >
           {usage ? (
-            <ContextDetails usage={usage} format={(n) => number.format(n)} model={hasChat ? <CurrentModelLabel target={target} /> : null} />
+            <ContextDetails usage={usage} compact={formatCompactTokens} model={hasChat ? <CurrentModelLabel target={target} /> : null} />
           ) : (
             <p className="text-ui-small text-muted-foreground">{failed ? t('context.card.loadFailed') : '…'}</p>
           )}
-        </HoverCardContent>
-      </HoverCard>
+        </PopoverContent>
+      </Popover>
     </>
   )
 }
@@ -168,7 +168,7 @@ function CurrentModelLabel({ target }: { target: ContextTarget }) {
   )
 }
 
-function ContextDetails({ usage, format, model }: { usage: ContextUsageResponse; format: (n: number) => string; model: React.ReactNode }) {
+function ContextDetails({ usage, compact, model }: { usage: ContextUsageResponse; compact: (n: number) => string; model: React.ReactNode }) {
   const { t, locale } = useI18n()
   const percent = contextUsagePercent(usage)
   const percentage = (tokens: number, total: number) =>
@@ -177,19 +177,19 @@ function ContextDetails({ usage, format, model }: { usage: ContextUsageResponse;
     )
   return (
     <div className="flex h-full flex-col">
-      <p className="font-medium">{t('context.card.title')}</p>
-      <p className="mt-1.5 flex min-w-0 items-center gap-1 text-ui-small text-muted-foreground">
+      <p className="text-ui-body leading-5 font-medium">{t('context.card.title')}</p>
+      <p className="mt-0.5 flex min-w-0 items-center gap-1 text-ui-small leading-[18px] text-muted-foreground">
         {model}
         {model && <span aria-hidden>·</span>}
-        <span>{t('context.card.window', { window: format(usage.contextWindow) })}</span>
+        <span className="truncate">{t('context.card.window', { window: compact(usage.contextWindow) })}</span>
       </p>
-      <div className="mt-4 flex items-baseline justify-between gap-2">
-        <p className="shrink-0 font-medium">{percent === undefined ? '—' : t('context.card.used', { percent: String(percent) })}</p>
-        <p data-slot="context-usage" className="text-right font-mono text-ui-small text-muted-foreground">
-          {t('context.card.usage', { tokens: format(usage.tokens), window: format(usage.contextWindow) })}
+      <div className="mt-2 flex h-5 items-center justify-between gap-2">
+        <p className="shrink-0 text-ui-body leading-5 font-medium">{percent === undefined ? '—' : t('context.card.used', { percent: String(percent) })}</p>
+        <p data-slot="context-usage" className="min-w-0 truncate text-right font-mono text-ui-small leading-[18px] text-muted-foreground">
+          {t('context.card.usage', { tokens: compact(usage.tokens), window: compact(usage.contextWindow) })}
         </p>
       </div>
-      <div aria-hidden data-slot="context-capacity" className="mt-4 flex h-1.5 shrink-0 overflow-hidden rounded-round bg-accent">
+      <div aria-hidden data-slot="context-capacity" className="mt-2 flex h-1.5 shrink-0 overflow-hidden rounded-round bg-border">
         {PARTS.map((part) => (
           <span
             key={part}
@@ -199,22 +199,26 @@ function ContextDetails({ usage, format, model }: { usage: ContextUsageResponse;
           />
         ))}
       </div>
-      <dl aria-label={t('context.card.breakdown')} className="mt-3 flex flex-1 flex-col justify-between">
+      <dl aria-label={t('context.card.breakdown')} className="mt-2 mb-2 flex flex-col gap-0.5">
         {PARTS.map((part) => (
-          <div key={part} className="grid grid-cols-[12px_1fr_auto] items-center gap-x-2">
-            <span aria-hidden className={`size-2 rounded-round ${PART_COLOR[part]}`} />
-            <dt data-part={part}>{t(`context.card.parts.${part}`)}</dt>
-            <dd data-part-value={part} className="text-right font-mono text-ui-small">
-              {format(usage.breakdown[part])} · {percentage(usage.breakdown[part], usage.tokens)}%
-            </dd>
-            <dd className="col-span-2 col-start-2 mt-0.5 text-ui-caption text-muted-foreground">{t(`context.card.descriptions.${part}`)}</dd>
+          <div key={part}>
+            <div className="flex h-[18px] items-center gap-2.5">
+              <span aria-hidden className={`size-2 shrink-0 rounded-round ${PART_COLOR[part]}`} />
+              <dt data-part={part} className="min-w-0 flex-1 truncate text-ui-small leading-[18px] text-muted-foreground">
+                {t(`context.card.parts.${part}`)}
+              </dt>
+              <dd data-part-value={part} className="w-[132px] shrink-0 text-right font-mono text-ui-small leading-[18px]">
+                {compact(usage.breakdown[part])} · {percentage(usage.breakdown[part], usage.tokens)}%
+              </dd>
+            </div>
+            <dd className="ms-[18px] truncate text-ui-caption leading-[14px] text-muted-foreground">{t(`context.card.descriptions.${part}`)}</dd>
           </div>
         ))}
       </dl>
-      <div className="mt-3 flex items-baseline justify-between gap-2 border-t-hairline border-border pt-2 text-ui-small">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t-hairline border-border pt-2 text-ui-small leading-[18px]">
         <p className="text-muted-foreground">{t('context.card.compactAt')}</p>
-        <p className="text-right font-mono">
-          {format(usage.threshold)} ({usage.contextWindow > 0 ? Math.floor((usage.threshold / usage.contextWindow) * 100) : 0}%)
+        <p className="w-[132px] shrink-0 text-right font-mono">
+          {compact(usage.threshold)} ({usage.contextWindow > 0 ? Math.floor((usage.threshold / usage.contextWindow) * 100) : 0}%)
         </p>
       </div>
     </div>

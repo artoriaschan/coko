@@ -122,7 +122,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                       onSidebarCollapsedChange={setSidebarCollapsed}
                       rightOpen={rightOpen && contentPage === null}
                       sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
-                      rail={<ProjectRail onSearch={() => setSearch((current) => current ?? '')} />}
+                      rail={<SidebarRail />}
                       rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
                     >
                       <div
@@ -159,10 +159,6 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 function ProjectSidebar(props: Omit<React.ComponentProps<typeof Sidebar>, 'onAddWorkspace'>) {
   const createProject = useCreateProject()
   return <Sidebar {...props} onAddWorkspace={() => createProject?.()} />
-}
-function ProjectRail({ onSearch }: { onSearch: () => void }) {
-  const createProject = useCreateProject()
-  return <SidebarRail onAddWorkspace={() => createProject?.()} onSearch={onSearch} />
 }
 
 /** 注入已本地化的框架无障碍名称。 */

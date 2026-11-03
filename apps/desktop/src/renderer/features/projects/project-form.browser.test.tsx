@@ -41,12 +41,23 @@ it('CW-11/12/67/68：空状态、唯一主要、重复与取消选择、放弃�
   await expect.element(page.getByText('主要', { exact: true })).toBeVisible()
   const second = document.querySelector<HTMLElement>('[data-project-folder="/work/two"]')!
   const primaryButton = second.querySelector<HTMLButtonElement>('[data-make-primary]')!
+  const pathText = second.querySelector<HTMLElement>('[data-folder-copy] p:last-child')!
+  expect([getComputedStyle(pathText).textOverflow, getComputedStyle(pathText).whiteSpace, getComputedStyle(pathText).overflow]).toEqual([
+    'ellipsis',
+    'nowrap',
+    'hidden',
+  ])
   await userEvent.hover(name)
   await expect.poll(() => getComputedStyle(primaryButton).opacity).toBe('0')
   const before = second.querySelector('[data-folder-copy]')!.getBoundingClientRect()
-  await userEvent.hover(page.getByText('/work/two', { exact: true }))
+  await userEvent.hover(pathText)
   await expect.poll(() => getComputedStyle(primaryButton).opacity).toBe('1')
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('/work/two')
   expect(second.querySelector('[data-folder-copy]')!.getBoundingClientRect().x).toBe(before.x)
+  // 设为主要按钮常态无背景，悬停到按钮上才显示 hover 背景。
+  expect(getComputedStyle(primaryButton).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+  await userEvent.hover(primaryButton)
+  await expect.poll(() => getComputedStyle(primaryButton).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
   await page.getByRole('button', { name: '设为主要', exact: true }).click()
   expect(second.textContent).toContain('主要')
   expect(document.querySelectorAll('[data-primary-folder="true"]')).toHaveLength(1)
@@ -192,4 +203,51 @@ it('CW-71：更换主要与移除后接替冲突均具名提示并保留编辑�
   expect(submitted[1]).toEqual({ name: 'Draft name', folders: [{ path: '/work/conflict', primary: true }] })
   await expect.element(dialog.getByRole('alert')).toHaveTextContent('该主要文件夹已属于“另一个项目”，请选择其他主要文件夹。')
   await view.unmount()
+})
+
+it('创建项目时名称为空，选择文件夹后用文件夹名回填；编辑模式不回填', async () => {
+  await page.viewport(1000, 800)
+  const picks = ['/Users/demo/Projects/example-app', '/Users/demo/Projects/second-app']
+  const created = await render(
+    <I18nProvider locale="zh">
+      <ProjectFormDialog
+        mode="create"
+        onClose={() => {}}
+        pickDirectory={async () => picks.shift() ?? null}
+        checkFolder={async (path) => ({ path })}
+        onSubmit={async () => {
+          throw new Error('unavailable')
+        }}
+        onComplete={() => {}}
+      />
+    </I18nProvider>,
+  )
+  const name = page.getByRole('textbox', { name: '项目名称' })
+  await expect.element(name).toHaveValue('')
+  await page.getByRole('button', { name: /添加文件夹/ }).click()
+  await expect.element(name).toHaveValue('example-app')
+  // 已有名称时不再覆盖。
+  await page.getByRole('button', { name: '添加文件夹', exact: true }).click()
+  await expect.element(name).toHaveValue('example-app')
+  await created.unmount()
+
+  const edited = await render(
+    <I18nProvider locale="zh">
+      <ProjectFormDialog
+        mode="edit"
+        initial={{ name: 'Existing project', folders: [] }}
+        onClose={() => {}}
+        pickDirectory={async () => '/Users/demo/Projects/another-app'}
+        checkFolder={async (path) => ({ path })}
+        onSubmit={async () => {
+          throw new Error('unavailable')
+        }}
+        onComplete={() => {}}
+      />
+    </I18nProvider>,
+  )
+  const editedName = page.getByRole('textbox', { name: '项目名称' })
+  await page.getByRole('button', { name: /添加文件夹/ }).click()
+  await expect.element(editedName).toHaveValue('Existing project')
+  await edited.unmount()
 })

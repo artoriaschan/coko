@@ -64,7 +64,7 @@ it('opens current detail first, replaces it with provider groups, and returns to
   expect(document.querySelector('[role="slider"]')).toBeNull()
   await page.getByRole('menuitemradio', { name: 'Example B' }).click()
   await expect.element(page.getByRole('slider', { name: 'Thinking level' })).toHaveAttribute('aria-valuetext', 'Off')
-  await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('Example B')
+  await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('Example B·Off')
   expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1)
   await userEvent.keyboard('{Escape}')
   await expect.element(page.getByRole('button', { name: 'Choose model: Example B' })).toHaveFocus()
@@ -83,8 +83,8 @@ it('keyboard reaches slider; all seven levels render the specified particle coun
     ['Low', 6, 3000],
     ['Medium', 10, 2200],
     ['High', 15, 1600],
-    ['Extra high', 21, 1100],
-    ['Maximum', 28, 750],
+    ['Xhigh', 21, 1100],
+    ['Max', 28, 750],
   ] as const
   await expect.element(slider).toHaveAttribute('aria-valuetext', 'Off')
   expect(particles()).toHaveLength(0)
@@ -115,7 +115,7 @@ it('reduced motion and hidden page pause particles while level selection remains
     await page.getByRole('button', { name: 'Choose model: Example A' }).click()
     await expect.poll(() => particles()[0]?.getAnimations()[0]?.playState).toBe('paused')
     await userEvent.keyboard('{Tab}{End}')
-    await expect.element(page.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Maximum')
+    await expect.element(page.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Max')
     matches.mockReturnValue(false)
     motion.dispatchEvent(new Event('change'))
     await expect.poll(() => particles()[0]?.getAnimations()[0]?.playState).toBe('running')
@@ -150,7 +150,7 @@ it('drag previews detail and trigger together, then snaps to a valid level on re
     await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x + dx, y: y + dy, button: 'left', buttons: 1, clickCount: 1 })
     await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + dx, y: y + dy, button: 'left', buttons: 1 })
     await expect.poll(() => slider.getAttribute('aria-valuetext')).toBe('Medium')
-    expect(document.querySelector('[data-model-picker]')?.textContent).toBe('Example AMedium')
+    expect(document.querySelector('[data-model-picker]')?.textContent).toBe('Example A·Medium')
     const thumb = document.querySelector('[data-slot="thinking-thumb"]')!.getBoundingClientRect()
     expect(thumb.left + thumb.width / 2).toBeCloseTo(x, 0)
   } finally {
@@ -163,7 +163,7 @@ it('drag previews detail and trigger together, then snaps to a valid level on re
       return Math.abs(thumb.left + thumb.width / 2 - (settled.left + settled.width / 2))
     })
     .toBeLessThan(1)
-  expect(document.querySelector('[data-model-picker]')?.textContent).toBe('Example AMedium')
+  expect(document.querySelector('[data-model-picker]')?.textContent).toBe('Example A·Medium')
   await userEvent.keyboard('{Escape}')
 })
 
@@ -198,4 +198,88 @@ it.each(['light', 'dark'])('%s detail retains canvas geometry near a narrow wind
   } finally {
     document.documentElement.className = original
   }
+})
+
+const brandedModels: AvailableModel[] = [
+  {
+    providerId: 'anthropic',
+    providerName: 'Anthropic',
+    modelId: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
+    thinkingLevels: ['off', 'high'],
+  },
+  { providerId: 'deepseek', providerName: 'DeepSeek', modelId: 'deepseek-chat', name: 'DeepSeek Chat', thinkingLevels: ['off'] },
+]
+
+it('长模型名视觉检查', async () => {
+  const long = [
+    {
+      providerId: 'anthropic',
+      providerName: 'Anthropic',
+      modelId: 'claude-sonnet-4-5-extended-thinking',
+      name: 'Claude Sonnet 4.5 Extended Thinking Ultra Long Name',
+      thinkingLevels: ['off', 'high'] as const,
+    },
+  ]
+  await render(
+    <I18nProvider locale="zh">
+      <TooltipProvider>
+        <div style={{ width: 330, display: 'flex' }}>
+          <ModelPicker
+            models={long}
+            value={{ providerId: 'anthropic', modelId: 'claude-sonnet-4-5-extended-thinking' }}
+            thinkingLevel="high"
+            disabled={false}
+            onChange={() => {}}
+          />
+        </div>
+      </TooltipProvider>
+    </I18nProvider>,
+  )
+  const trigger = document.querySelector<HTMLElement>('[data-model-picker]')!
+  console.log('SIZE', trigger.scrollWidth, Math.ceil(trigger.getBoundingClientRect().width))
+  await page.screenshot({ element: trigger, path: '../../../../../../.vitest/model-long-name.png' })
+  await page.elementLocator(trigger).click()
+  await expect.element(page.getByRole('menu')).toBeVisible()
+  await page.screenshot({ element: document.querySelector('[role="menu"]') as HTMLElement, path: '../../../../../../.vitest/model-long-detail.png' })
+  await page.getByRole('menuitem').first().click()
+  await page.screenshot({ element: document.querySelector('[role="menu"]') as HTMLElement, path: '../../../../../../.vitest/model-long-list.png' })
+  await userEvent.keyboard('{Escape}')
+})
+
+it('触发按钮不带模型图标；供应商分组不配图标，模型行按模型名称显示单色品牌图标', async () => {
+  await render(
+    <I18nProvider locale="en">
+      <TooltipProvider>
+        <div style={{ padding: 240 }}>
+          <ModelPicker
+            models={brandedModels}
+            value={{ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' }}
+            thinkingLevel="off"
+            disabled={false}
+            onChange={() => {}}
+          />
+        </div>
+      </TooltipProvider>
+    </I18nProvider>,
+  )
+  const trigger = document.querySelector<HTMLElement>('[data-model-picker]')!
+  // 按钮只显示模型名与推理档位，不带模型图标。
+  expect(trigger.querySelector('svg title')).toBeNull()
+  await page.elementLocator(trigger).click()
+  // 详情浮层的当前模型行按模型名称显示 Claude 单色图标。
+  expect([...document.querySelectorAll('[role="menu"] svg title')].map((title) => title.textContent)).toEqual(['Claude'])
+  await page.getByRole('menuitem', { name: 'Choose model: Claude Sonnet 4.5' }).click()
+  const menu = document.querySelector('[role="menu"]')!
+  await expect.element(page.getByRole('menu')).toBeVisible()
+  // 图标的 <title> 也在 textContent 中，分组名按文本节点断言，避免与图标标题混淆。
+  const groupNames = [...menu.querySelectorAll('[data-slot="dropdown-menu-label"] span')].map((span) => span.textContent)
+  expect(groupNames).toEqual(['Anthropic', 'DeepSeek'])
+  for (const label of menu.querySelectorAll('[data-slot="dropdown-menu-label"]')) expect(label.querySelector('svg')).toBeNull()
+  const titles = [...menu.querySelectorAll('[role="menuitemradio"] svg title')].map((title) => title.textContent)
+  expect(titles).toEqual(['Claude', 'DeepSeek'])
+  // 单色图标跟随前景色，而不是品牌色。
+  const modelIcon = [...menu.querySelectorAll('[role="menuitemradio"] svg')].find((svg) => svg.querySelector('title'))
+  expect(modelIcon?.getAttribute('class')).toContain('text-foreground')
+  await userEvent.keyboard('{Escape}')
 })

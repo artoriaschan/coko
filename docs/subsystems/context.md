@@ -27,7 +27,7 @@ lifecycle: active
 | `packages/protocol/src/context.ts`、`instructions.ts` | `ContextUsageResponse`、`contextUsageLevel`、`contextUsagePercent`、`contextPaths`；已加载指令文件 `LoadedInstructionFile` |
 | `apps/server/src/application/context/usage.ts` | 时间裁剪的 `transformMessages`；`contextUsage` 汇总各贡献的 `report()` |
 | `apps/server/src/http/routes/context.ts` | `GET /api/sessions/:id/context`、`GET /api/workspaces/:id/context` |
-| `packages/ui/src/context-ring/`、`components/hover-card.tsx` | 上下文环与 HoverCard |
+| `packages/ui/src/context-ring/`、`components/popover.tsx` | 上下文环与详情浮层 |
 | `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片；压缩进度（`trackCompaction`）与熔断暂停标记 |
 | `packages/agent/src/context/compaction/` | `planCompaction`（切点、要摘要的消息、文件与 Skill 汇总）、`summaryRequest` / `formatCompactionSummary`（摘要提示）、`estimateCompactedTokens`、`createCompactionBreaker` |
 | `packages/agent/src/engine/compaction-driver.ts`、`runtime.ts` | `compaction` 选项：请求前的自动压缩、溢出后压缩并重试、`compact()`（trigger compact 的 Run）、熔断状态（编排在 driver，运行时只接线） |
@@ -96,10 +96,10 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 | 值 | 计算 |
 | --- | --- |
 | 有效窗口 | contextWindow − min(maxTokens, 20 000) |
-| 自动压缩阈值 | 有效窗口 − buffer；buffer 按 contextWindow：≥ 800k 为 50 000，≥ 400k 为 30 000，其余 13 000 |
+| 自动压缩阈值 | contextWindow × 80%（向下取整） |
 | 预警线 | 阈值 − 20 000 |
 
-窗口过小时各值取 0。例如 128k / maxTokens 16 384 → 阈值 98 616、预警 78 616；400k / 128k → 350 000、330 000；1M / 32k → 930 000、910 000。[压缩](#压缩)复用这里的阈值。
+窗口过小时各值取 0。例如 128k → 阈值 102 400、预警 82 400；400k → 320 000、300 000；1M → 800 000、780 000。有效窗口只用于展示可输入空间，不参与阈值计算。[压缩](#压缩)复用这里的阈值。
 
 ### 估算
 
@@ -114,11 +114,11 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 上下文环
 
-- 输入区底栏、模型选择左侧为 24 × 24px 入口，其中只显示 12px 环（内外半径比 0.7）；百分比出现在 Tooltip 和详情，占 contextWindow、向下取整。常态为 link 色，tokens 达到预警线为 warning-text，达到阈值为 destructive；没有有效窗口或首次读取失败时只画轨道，不显示虚假的 0%。hover / open 使用共享 accent 表面，入口几何不变。
+- 输入区底栏、模型选择左侧为 24 × 24px 入口，其中只显示 12px 环（内外半径比 0.7）；百分比出现在 Tooltip 和详情，占 contextWindow、向下取整。常态为 link 色，tokens 达到预警线为 warning-text，达到阈值为 destructive；没有有效窗口或首次读取失败时只画轨道，不显示虚假的 0%。入口只在已发送过请求的会话中出现：新对话草稿（尚未创建 Session）与没有作用域时不渲染，发送第一条消息、会话创建后才出现。hover / open 使用共享 accent 表面，入口几何不变。
 - 作用域（会话或已选择的 Workspace 上下文）变化、会话中每条 assistant 条目提交、Run 结束、每次压缩结束（成功或失败）与打开卡片时重新读取；较早请求晚到时丢弃。同作用域刷新失败时保留上次有效数据。
 - `autoCompact.paused` 为 true 时环之前保留暂停标记（`data-slot="auto-compact-paused"`，warning 色），名称与 Tooltip 提示可以输入 `/compact` 手动压缩。
-- 点击、Enter 或空格打开 HoverCard（`role="dialog"`，名称“上下文用量”）；hover 只显示 Tooltip。详情首选在入口上方右对齐、间距 8px，基准 348 × 384px、R16，使用共享菜单表面与 portal；空间不足时翻转或平移，并限制可用宽高、允许内部滚动。指针可进入卡片阅读；离开入口与卡片、外部点击或 Escape 关闭，点击外部与 Escape 后焦点返回入口。
-- 内容为当前模型与窗口、占用比例与 Token 数、以模型窗口为分母的五类容量条、各类 Token 与占已用 Token 比例、分类说明和压缩点。数值使用等宽字体、右对齐；正文遵守共享明暗主题。不展示旧的六项、指令文件、诊断或“含估算”标记；这些协议元数据仍由接口提供。
+- 点击、Enter 或空格打开详情的共享 Popover（`role="dialog"`，名称“上下文用量”）；hover 只显示 Tooltip。再次点击上下文环、外部点击或 Escape 关闭，指针移出环与浮层时不关闭；关闭后焦点返回入口。详情首选在入口上方右对齐、间距 8px，320 × 320px、内边距 12px（底部 14px）、R16，使用共享菜单表面与 portal；压缩点分隔线与上方分类、下方压缩点各留 8px；空间不足时翻转或平移，并限制可用宽高、允许内部滚动。
+- 内容为当前模型与窗口、占用比例与 Token 数、以模型窗口为分母的五类容量条、各类 Token 与占已用 Token 比例、分类说明和压缩点。标题与“已用”为 13/20，模型与窗口、用量、分类、压缩点为 12/18，分类说明为 11/14；容量条 6px 高，分类圆点 8px，分类数值列宽 132px 右对齐。所有 Token 数使用 K/M 简短展示（1K 以上用 K、1M 以上用 M，均取整，不足 1K 原样）；用量行右侧注明“占比按已用”，分类比例保留两位小数。数值使用等宽字体；正文遵守共享明暗主题。不展示旧的六项、指令文件、诊断或“含估算”标记；这些协议元数据仍由接口提供。
 
 ## 时间裁剪
 

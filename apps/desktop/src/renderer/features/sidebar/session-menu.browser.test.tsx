@@ -212,7 +212,7 @@ it('blur saves, Escape cancels, blank titles restore the original and the input 
   expect(fixture.chat.lists.getState().sessions[0]!.title).toBe('Original title')
   await rename()
   await userEvent.fill(input, '  Saved on blur  ')
-  await userEvent.click(page.getByRole('heading', { name: 'Projects', exact: true }))
+  await userEvent.click(document.body, { position: { x: 900, y: 700 } })
   await expect.element(page.getByRole('button', { name: 'Saved on blur', exact: true })).toBeVisible()
 })
 
@@ -237,7 +237,7 @@ it('composition Enter keeps editing and pending saves cannot be submitted twice'
   await userEvent.keyboard('{Enter}')
   await expect.element(input).toHaveAttribute('aria-busy', 'true')
   await userEvent.keyboard('{Enter}')
-  await userEvent.click(page.getByRole('heading', { name: 'Projects', exact: true }))
+  await userEvent.click(document.body, { position: { x: 900, y: 700 } })
   expect(requests).toBe(1)
   resolve()
   await expect.element(page.getByRole('button', { name: 'Composed title', exact: true })).toBeVisible()

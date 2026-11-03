@@ -97,7 +97,7 @@ async function launchPackaged(env: Record<string, string>): Promise<Packaged> {
 }
 
 const waitConnected = (page: Page) =>
-  waitFor(async () => (await page.locator('[role="status"]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
+  waitFor(async () => (await page.locator('[role="status"][data-connection]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
 
 describe('打包产物 smoke', { timeout: 180_000 }, () => {
   it('globalSetup 已产出可执行文件', () => {

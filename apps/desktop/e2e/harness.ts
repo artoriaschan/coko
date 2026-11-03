@@ -167,7 +167,11 @@ export function launchSecondInstance(env: Record<string, string>): Promise<numbe
 
 /** 等待 renderer 报告 Sidecar 已连接。 */
 export async function waitConnected(window: Page): Promise<void> {
-  await waitFor(async () => (await window.locator('[role="status"]').getAttribute('data-connection')) === 'connected', 30_000, 'sidecar connected')
+  await waitFor(
+    async () => (await window.locator('[role="status"][data-connection]').getAttribute('data-connection')) === 'connected',
+    30_000,
+    'sidecar connected',
+  )
 }
 
 /** 替换目录选择对话框：依次返回给定路径。 */

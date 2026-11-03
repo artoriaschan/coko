@@ -1,13 +1,14 @@
 export { ApprovalCard, type ApprovalAllowAlways, type ApprovalCardLabels, type ApprovalCardProps } from './approval/approval-card.tsx'
 export { ConfirmationCard, type ConfirmationAnswer, type ConfirmationCardLabels, type ConfirmationCardProps } from './approval/confirmation-card.tsx'
-export { AppFrame, useAppFrame, type AppFrameContextValue, type AppFrameLabels, type AppFrameProps } from './app-frame/app-frame.tsx'
+export { AppFrame, AppFrameCollapsedControls, useAppFrame, type AppFrameContextValue, type AppFrameLabels, type AppFrameProps } from './app-frame/app-frame.tsx'
 export {
   AUTO_COLLAPSE_BELOW,
   CENTER_MIN_WIDTH,
   clampSidebarWidth,
+  COLLAPSED_CONTROLS_WIDTH,
   computeFrameLayout,
-  RAIL_WIDTH,
   RIGHT_MIN_WIDTH,
+  SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
@@ -15,11 +16,14 @@ export {
   type FrameLayoutInput,
 } from './app-frame/frame-layout.ts'
 export { Button, buttonVariants } from './components/button.tsx'
+export { BrandIcon, ProviderIcon, type BrandIconProps, type ProviderIconProps } from './brand/provider-icon.tsx'
+export { brandOf, type BrandHints, type BrandId } from './brand/brands.ts'
 export { PlanModePill } from './components/plan-mode-pill.tsx'
 export { ThinkingSlider, type ThinkingSliderValue } from './components/thinking-slider.tsx'
 export { Checkbox } from './components/checkbox.tsx'
 export { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from './components/dialog.tsx'
 export { HoverCard, HoverCardContent, HoverCardTrigger } from './components/hover-card.tsx'
+export { Popover, PopoverContent, PopoverTrigger } from './components/popover.tsx'
 export { RowHoverCardContent, rowOverlayPosition } from './components/row-hover-card.tsx'
 export { FadingTitle, type FadingTitleHandle } from './components/fading-title.tsx'
 export { InlineRename } from './components/inline-rename.tsx'
@@ -67,5 +71,5 @@ export { $createFileReferenceNode, $isFileReferenceNode, FileReferenceNode, form
 export { DiffBlock, ToolCard, ToolOutput, type ToolCardProps, type ToolCardStatus } from './tool-card/tool-card.tsx'
 export { toast } from 'sonner'
 
-export { SidebarAccount } from './sidebar/sidebar-account.tsx'
+export { SidebarSettings } from './sidebar/sidebar-settings.tsx'
 export { SidebarListRow } from './components/sidebar-list-row.tsx'

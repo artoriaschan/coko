@@ -1,5 +1,5 @@
 import { USAGE_CURRENCIES, USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider } from '@coko/protocol'
-import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, ProviderIcon, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { LoaderCircleIcon, PlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -262,6 +262,7 @@ function ProviderRow({
     >
       <div className={cn('flex min-w-0 items-center justify-between gap-4 px-3', expanded ? 'min-h-10' : 'flex-1')}>
         <div className="flex min-w-0 items-center gap-2">
+          <ProviderIcon id={provider.id} name={provider.name} baseUrl={provider.baseUrl} />
           <span data-user-content className="truncate text-ui-body font-medium" title={provider.name}>
             {provider.name}
           </span>

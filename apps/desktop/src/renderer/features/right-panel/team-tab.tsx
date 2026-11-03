@@ -124,6 +124,7 @@ function TaskBoard({ team, compact }: { team: TeamSnapshot; compact: boolean }) 
     <section
       data-slot="team-board"
       aria-labelledby="team-board-title"
+      data-scroll-stable
       className={compact ? 'flex max-h-[35%] shrink-0 flex-col overflow-y-auto px-2 pb-2' : 'flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-2'}
     >
       <h3 id="team-board-title" className="px-2 pt-1 pb-1 text-ui-small text-muted-foreground">
@@ -195,6 +196,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
       data-slot="team-member-timeline"
       data-session-id={member.agentId}
       tabIndex={0}
+      data-scroll-stable
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3 focus-ring"
       onScroll={(event) => {
         const el = event.currentTarget
@@ -277,7 +279,12 @@ export function TeamTab({ sessionId }: RightPanelTabProps) {
   return (
     <div data-slot="team-tab" className="flex min-h-0 min-w-0 flex-1 flex-col">
       {team.members.length > 0 && (
-        <ul data-slot="team-roster" aria-label={t('teams.tabView.roster')} className="flex max-h-[30%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <ul
+          data-slot="team-roster"
+          aria-label={t('teams.tabView.roster')}
+          data-scroll-stable
+          className="flex max-h-[30%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2"
+        >
           {team.members.map((member) => (
             <MemberItem
               key={member.agentId}

@@ -36,6 +36,7 @@ export function SessionRow({
   session: Session
   active: string | null
   onSelect: (id: string) => void
+  /** 项目展开后的会话：没有前导图标时保留项目图标的空位，与项目名称对齐。 */
   nested?: boolean
   pinned?: boolean
   menuSlots?: SessionMenuSlots
@@ -52,6 +53,12 @@ export function SessionRow({
   const scrolling = React.useRef<FadingTitleHandle>(null)
   const suppressFocus = React.useRef(false)
   const allowOpen = React.useRef(true)
+  /** 本次悬停是否已经展示过详情：离开行与卡片之前不再重复弹出。 */
+  const hoverShown = React.useRef(false)
+  /** 行悬停时长标题自动横向滚动。 */
+  const [hovered, setHovered] = React.useState(false)
+  /** 按下时菜单是否已打开：外部关闭可能先于 click 发生，点击仍应关闭而不是重新打开。 */
+  const menuWasOpen = React.useRef(false)
   const chat = useChatStoreApi()
   const lists = chat.lists
   const title = session.title.trim() || t('sidebar.untitled')
@@ -98,7 +105,13 @@ export function SessionRow({
     <HoverCard
       open={details}
       onOpenChange={(open) => {
-        if (!open || (allowOpen.current && !menu && !renaming && !deleting)) setDetails(open)
+        if (!open) {
+          setDetails(false)
+          return
+        }
+        if (!allowOpen.current || menu || renaming || deleting || hoverShown.current) return
+        hoverShown.current = true
+        setDetails(true)
       }}
     >
       <HoverCardTrigger asChild>
@@ -113,21 +126,30 @@ export function SessionRow({
           onPointerOverCapture={(event) => {
             if (event.pointerType !== 'touch') allowOpen.current = true
           }}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch') setHovered(true)
+          }}
           onFocusCapture={() => {
-            if (!suppressFocus.current && !menu && !renaming && !deleting) {
-              allowOpen.current = true
-              setDetails(true)
-            }
+            // 详情只由悬停触发：焦点来自点击或键盘时不打开（Radix 默认会用焦点打开 HoverCard）。
+            allowOpen.current = false
+          }}
+          onPointerLeave={(event) => {
+            setHovered(false)
+            // 指针移入详情卡片时保持"已展示"，回到行内也不重新计时。
+            const next = event.relatedTarget instanceof Node ? event.relatedTarget : null
+            if (card.current?.contains(next)) return
+            hoverShown.current = false
           }}
           onBlurCapture={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget) && !card.current?.contains(event.relatedTarget)) {
+              hoverShown.current = false
               allowOpen.current = false
               setDetails(false)
             }
           }}
         >
           {renaming ? (
-            <div className={nested ? 'flex h-8 items-center pl-8 pr-2' : 'flex h-8 items-center px-2'}>
+            <div className={nested ? 'flex h-8 items-center ps-8 pe-2' : 'flex h-8 items-center px-2'}>
               <InlineRename
                 value={session.title}
                 label={t('sidebar.conversationTitle')}
@@ -152,16 +174,22 @@ export function SessionRow({
               onKeyDown={(event) => scrolling.current?.handleKeyDown(event)}
               onClick={() => onSelect(session.id)}
             >
-              <span className={nested ? 'flex min-w-0 flex-1 items-center gap-2 pl-6 pr-12' : 'flex min-w-0 flex-1 items-center gap-2 pr-12'}>
-                {pinned && <MessageCircleIcon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.1} />}
-                <FadingTitle ref={scrolling}>{title}</FadingTitle>
+              <span className="flex min-w-0 flex-1 items-center gap-2 pe-0 group-hover/session:pe-12 group-focus-within/session:pe-12">
+                {pinned ? (
+                  <MessageCircleIcon aria-hidden className="size-3 shrink-0" strokeWidth={1.1} />
+                ) : nested ? (
+                  <span aria-hidden className="size-4 shrink-0" />
+                ) : null}
+                <FadingTitle ref={scrolling} autoScroll={hovered}>
+                  {title}
+                </FadingTitle>
               </span>
             </SidebarListRow>
           )}
           {!renaming && (
             <div
               data-session-actions
-              className="absolute right-1 top-1 flex h-6 items-center opacity-0 group-hover/session:opacity-100 group-focus-within/session:opacity-100 pointer-coarse:opacity-100"
+              className="absolute right-2 top-1 flex h-6 items-center opacity-0 transition-opacity duration-150 group-hover/session:opacity-100 group-focus-within/session:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
             >
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -181,13 +209,24 @@ export function SessionRow({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    data-menu-toggle
                     variant="toolbar"
                     size="icon-xs"
                     className="size-6 rounded-sm"
                     aria-label={t('sidebar.moreConversation')}
                     aria-haspopup="menu"
                     aria-expanded={menu}
-                    onClick={() => openMenu(null)}
+                    onPointerDownCapture={() => {
+                      menuWasOpen.current = menu
+                    }}
+                    onClick={() => {
+                      if (menuWasOpen.current) {
+                        menuWasOpen.current = false
+                        setMenu(false)
+                        return
+                      }
+                      openMenu(null)
+                    }}
                   >
                     <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
                   </Button>
@@ -269,10 +308,16 @@ export function SessionRow({
       {details && (
         <RowHoverCardContent
           ref={card}
+          className="w-70"
           role="region"
           tabIndex={0}
           aria-label={t('sidebar.conversationDetails')}
           onFocusCapture={() => setDetails(true)}
+          onPointerLeave={(event) => {
+            const next = event.relatedTarget instanceof Node ? event.relatedTarget : null
+            if (row.current?.closest('[data-session-row]')?.contains(next)) return
+            hoverShown.current = false
+          }}
           onBlurCapture={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget) && !row.current?.closest('[data-session-row]')?.contains(event.relatedTarget))
               setDetails(false)
@@ -286,8 +331,12 @@ export function SessionRow({
             allowOpen.current = false
             setDetails(false)
           }}
-          onEscapeKeyDown={() => {
-            allowOpen.current = false
+          onEscapeKeyDown={(event) => {
+            // 由行接管关闭与焦点返回，避免与 Radix 的默认关闭竞争。
+            event.preventDefault()
+            // 主动关闭后允许再次悬停展示；指针在卡片与行之间往返仍只算一次。
+            allowOpen.current = true
+            hoverShown.current = false
             setDetails(false)
             suppressFocus.current = true
             row.current?.focus()
@@ -315,8 +364,8 @@ function SessionDetails({ session, title }: { session: Session; title: string })
   const Ownership = project ? FolderClosedIcon : MessageCircleIcon
   return (
     <>
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-1 px-2 py-1">
-        <span data-user-content className="min-w-0 flex-1 basis-40 break-words text-ui-title font-medium">
+      <div className="flex items-start gap-x-3 px-2 py-1">
+        <span data-user-content className="min-w-0 flex-1 break-words text-ui-body font-medium">
           {title}
         </span>
         <time data-user-content dateTime={new Date(session.updatedAt).toISOString()} className="shrink-0 pt-0.5 text-ui-small text-muted-foreground">

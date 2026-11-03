@@ -17,7 +17,9 @@ export function mainWindowOptions(preload: string, mode: MainWindowMode = { back
     title: 'Coko',
     ...(process.platform === 'darwin'
       ? {
-          titleBarStyle: 'hiddenInset' as const,
+          // 使用 hidden 而非 hiddenInset：不保留覆盖在内容之上的原生标题栏条带，
+          // 左上角自绘的控制按钮才能收到鼠标事件；拖拽区由 data-window-drag 显式提供。
+          titleBarStyle: 'hidden' as const,
           trafficLightPosition: { x: 16, y: 18 },
           vibrancy: 'sidebar' as const,
           // 失焦时保持材质稳定。

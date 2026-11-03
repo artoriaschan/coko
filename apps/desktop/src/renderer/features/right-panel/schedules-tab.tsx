@@ -576,7 +576,7 @@ function ScheduleHistory({ sessionId, schedule }: { sessionId: string; schedule:
       {fires.length === 0 ? (
         <p className="px-3 py-2 text-ui-body text-muted-foreground">{t('schedules.historyEmpty')}</p>
       ) : (
-        <ol className="flex min-h-0 flex-col gap-1 overflow-y-auto px-3 pb-2">
+        <ol data-scroll-stable className="flex min-h-0 flex-col gap-1 overflow-y-auto px-3 pb-2">
           {fires.map((entry) => {
             const fire = entry.payload
             const skipped = fire.status === 'skipped'
@@ -649,7 +649,7 @@ export function SchedulesTab({ sessionId }: RightPanelTabProps) {
   else
     body = (
       <>
-        <ul aria-label={t('schedules.list')} className="flex max-h-[55%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <ul aria-label={t('schedules.list')} data-scroll-stable className="flex max-h-[55%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
           {schedules.map((schedule) => (
             <li
               key={schedule.id}

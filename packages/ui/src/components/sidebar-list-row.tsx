@@ -6,7 +6,7 @@ export function SidebarListRow({ className, ...props }: React.ComponentProps<'bu
   return (
     <button
       className={cn(
-        'sidebar-list-row flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 text-left text-ui-body focus-ring hover:bg-sidebar-accent aria-[current=page]:bg-sidebar-accent',
+        'sidebar-list-row flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 text-left text-ui-body focus-ring hover:bg-accent aria-[current=page]:bg-accent [corner-shape:round]',
         className,
       )}
       {...props}

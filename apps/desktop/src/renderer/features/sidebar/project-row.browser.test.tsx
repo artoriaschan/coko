@@ -48,8 +48,14 @@ it('CW-13/14/21/22：项目详情完整路径、2px顶对齐、更多先关闭�
   await expect.element(details).toBeVisible()
   const anchor = row.element().getBoundingClientRect()
   const rect = details.element().getBoundingClientRect()
+  expect(details.element().className).toContain('w-80')
+  expect(rect.width).toBeLessThanOrEqual(320)
+  expect(rect.width).toBeGreaterThanOrEqual(300)
   expect(rect.left - anchor.right).toBe(2)
   expect(rect.top - anchor.top).toBe(0)
+  const title = details.element().querySelector<HTMLElement>('[data-user-content]')!
+  expect(getComputedStyle(title).fontSize).toBe('13px')
+  expect(getComputedStyle(title).fontWeight).toBe('500')
   await userEvent.hover(details)
   await expect.element(details).toBeVisible()
   await expect.element(details.getByText('/very/long/source/path/that/remains/fully/readable/for/the/project/shared/resources')).toBeVisible()
@@ -112,6 +118,17 @@ it.each(['light', 'dark'] as const)('%s：项目置顶失败保留原位，折�
   await expect.element(row).toHaveAttribute('aria-expanded', 'false')
   await userEvent.hover(row)
   await expect.element(page.getByRole('region', { name: 'Project details' }).getByText('Conversations: 1')).toBeVisible()
+  // 悬停时长项目名自动横向滚动。
+  const rowTitle = row.element().querySelector<HTMLElement>('[data-scrollable-title]')!
+  await expect.poll(() => Number(rowTitle.dataset.offset), { timeout: 5_000 }).toBeGreaterThan(0)
+  // 长项目名与源文件夹地址都不省略，在卡片宽度内折行。
+  const card = page.getByRole('region', { name: 'Project details' }).element()
+  const longTitle = card.querySelector<HTMLElement>('[data-user-content]')!
+  expect(longTitle.scrollWidth).toBeLessThanOrEqual(longTitle.clientWidth + 1)
+  expect(longTitle.getBoundingClientRect().height).toBeGreaterThan(20)
+  for (const item of card.querySelectorAll<HTMLElement>('li[data-user-content]')) {
+    expect(item.scrollWidth).toBeLessThanOrEqual(item.clientWidth + 1)
+  }
   await expect.poll(() => document.querySelectorAll('[aria-label="Project details"]').length).toBe(1)
   await page.screenshot({
     element: page.getByRole('region', { name: 'Project details' }).element(),
@@ -141,4 +158,33 @@ it.each(['light', 'dark'] as const)('%s：项目置顶失败保留原位，折�
     .toHaveAttribute('aria-expanded', 'false')
   await view.unmount()
   applyTheme('light')
+})
+
+it('clicking more again closes the project menu instead of leaving it open', async () => {
+  await page.viewport(1100, 800)
+  const fixture = createFixtureChat({ sessions: [fixtureSessions[0]!] })
+  await fixture.chat.getState().load()
+  await render(
+    <I18nProvider locale="en">
+      <ChatStoreProvider store={fixture.chat}>
+        <TooltipProvider>
+          <div style={{ width: 280 }}>
+            <SidebarLists search={null} onAddWorkspace={() => {}} onNewSession={() => {}} onSelect={() => {}} />
+          </div>
+        </TooltipProvider>
+      </ChatStoreProvider>
+    </I18nProvider>,
+  )
+  const row = page.getByRole('button', { name: 'coko', exact: true })
+  const details = page.getByRole('region', { name: 'Project details' })
+  await userEvent.hover(row)
+  await expect.element(details).toBeVisible()
+  const more = page.getByRole('button', { name: 'More project actions' }).first()
+  await userEvent.click(more)
+  await expect.element(details).not.toBeInTheDocument()
+  const menu = page.getByRole('menu', { name: 'Project actions' })
+  await expect.element(menu).toBeVisible()
+  await userEvent.click(more)
+  await expect.element(menu).not.toBeInTheDocument()
+  await expect.element(details).not.toBeInTheDocument()
 })

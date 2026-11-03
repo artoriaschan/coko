@@ -9,7 +9,7 @@ import { cn } from '../lib/utils.ts'
 // - 业务与平台样式不覆盖菜单背景与模糊。
 /** 菜单材质（composer 的 typeahead 菜单同样使用）。 */
 export const menuSurface =
-  'relative isolate z-(--layer-menu) rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
+  'relative isolate z-(--layer-menu) select-none rounded-lg border-0 p-1 text-popover-foreground shadow-panel before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:bg-menu-fill before:menu-backdrop before:content-[""]'
 
 const menuMotion =
   'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95'
@@ -17,19 +17,50 @@ const menuMotion =
 const menuItem =
   "relative flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-ui-body outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground"
 
+/** 菜单触发器的共享引用；指针关闭后只清理该节点上的焦点环，不碰业务随后聚焦的控件。 */
+const TriggerRef = React.createContext<React.RefObject<HTMLElement | null> | null>(null)
+
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+  return (
+    <TriggerRef.Provider value={triggerRef}>
+      <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+    </TriggerRef.Provider>
+  )
 }
 
 function DropdownMenuPortal({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
   return <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
 }
 
-function DropdownMenuTrigger({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-  return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
+function DropdownMenuTrigger({ onPointerDown, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+  const triggerRef = React.useContext(TriggerRef)
+  return (
+    <DropdownMenuPrimitive.Trigger
+      data-slot="dropdown-menu-trigger"
+      onPointerDown={(event) => {
+        if (triggerRef) triggerRef.current = event.currentTarget
+        onPointerDown?.(event)
+      }}
+      {...props}
+    />
+  )
 }
 
-function DropdownMenuContent({ className, sideOffset = 4, collisionPadding = 8, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+function DropdownMenuContent({
+  className,
+  sideOffset = 4,
+  collisionPadding = 8,
+  onCloseAutoFocus,
+  onPointerDown,
+  onKeyDown,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  // 指针点选菜单项后 Radix 会把焦点还给触发器；Chromium 把这次程序化聚焦判成
+  // :focus-visible，于是鼠标操作也留下焦点环。保持 Radix 的焦点归还，再在指针关闭时
+  // 去掉触发器这一次的 focus-visible 标记；键盘关闭按原样保留焦点环。
+  const triggerRef = React.useContext(TriggerRef)
+  const pointerSelect = React.useRef(false)
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -42,6 +73,25 @@ function DropdownMenuContent({ className, sideOffset = 4, collisionPadding = 8, 
           'max-h-(--radix-dropdown-menu-content-available-height) min-w-40 origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto',
           className,
         )}
+        onPointerDown={(event) => {
+          pointerSelect.current = true
+          onPointerDown?.(event)
+        }}
+        onKeyDown={(event) => {
+          pointerSelect.current = false
+          onKeyDown?.(event)
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          if (!pointerSelect.current) return
+          pointerSelect.current = false
+          queueMicrotask(() => {
+            const target = triggerRef?.current
+            if (!target || document.activeElement !== target || !target.matches(':focus-visible')) return
+            target.blur()
+            target.focus({ focusVisible: false })
+          })
+        }}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>

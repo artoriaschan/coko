@@ -134,7 +134,14 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
           />
         </div>
         <h2 className="shrink-0 px-2 text-ui-small text-muted-foreground">{t(needle ? 'sidebar.searchResults' : 'sidebar.recentConversations')}</h2>
-        <div id={listId} role="listbox" aria-label={t('sidebar.searchResults')} className="min-h-0 flex-1 overflow-y-auto" onScroll={() => setMenu(null)}>
+        <div
+          id={listId}
+          role="listbox"
+          aria-label={t('sidebar.searchResults')}
+          data-scroll-stable
+          className="min-h-0 flex-1 overflow-y-auto"
+          onScroll={() => setMenu(null)}
+        >
           {results.map((session, index) => {
             const title = session.title.trim() || t('sidebar.untitled')
             const project = projects.find((project) => project.id === session.projectId)

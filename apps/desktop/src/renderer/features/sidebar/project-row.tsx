@@ -11,6 +11,7 @@ import {
   RowHoverCardContent,
   InlineRename,
   RowMenu,
+  type RowMenuPoint,
   SidebarListRow,
   Tooltip,
   TooltipContent,
@@ -18,8 +19,6 @@ import {
   toast,
 } from '@coko/ui'
 import {
-  ChevronDownIcon,
-  ChevronRightIcon,
   FolderClosedIcon,
   FolderOpenIcon,
   FolderPenIcon,
@@ -27,7 +26,7 @@ import {
   PencilIcon,
   PinIcon,
   PinOffIcon,
-  PlusIcon,
+  SquarePenIcon,
   FolderInputIcon,
   Trash2Icon,
 } from 'lucide-react'
@@ -59,6 +58,7 @@ export function ProjectRow({
   const remove = useDeleteProject()
   const [details, setDetails] = React.useState(false)
   const [menu, setMenu] = React.useState(false)
+  const [menuPoint, setMenuPoint] = React.useState<RowMenuPoint | null>(null)
   const [renaming, setRenaming] = React.useState(false)
   const [pending, setPending] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
@@ -67,13 +67,24 @@ export function ProjectRow({
   const card = React.useRef<HTMLDivElement>(null)
   const scrolling = React.useRef<FadingTitleHandle>(null)
   const allowOpen = React.useRef(true)
+  /** 本次悬停是否已经展示过详情：离开行与卡片之前不再重复弹出。 */
+  const hoverShown = React.useRef(false)
+  /** 行悬停时长标题自动横向滚动。 */
+  const [hovered, setHovered] = React.useState(false)
   const suppressFocus = React.useRef(false)
   const skipMenuFocus = React.useRef(false)
+  /** 按下时菜单是否已打开：外部关闭可能先于 click 发生，点击仍应关闭而不是重新打开。 */
+  const menuWasOpen = React.useRef(false)
   const Pin = project.pinnedAt === null ? PinIcon : PinOffIcon
   const pinLabel = t(project.pinnedAt === null ? 'sidebar.pinProject' : 'sidebar.unpinProject')
   function closeDetails() {
     allowOpen.current = false
     setDetails(false)
+  }
+  function openMenu(point: RowMenuPoint | null) {
+    closeDetails()
+    setMenuPoint(point)
+    setMenu(true)
   }
   function focusRow() {
     suppressFocus.current = true
@@ -125,29 +136,51 @@ export function ProjectRow({
     <HoverCard
       open={details}
       onOpenChange={(open) => {
-        if (!open || (allowOpen.current && !menu && !renaming && !deleting)) setDetails(open)
+        if (!open) {
+          setDetails(false)
+          return
+        }
+        if (!allowOpen.current || menu || renaming || deleting || hoverShown.current) return
+        hoverShown.current = true
+        setDetails(true)
       }}
     >
       <HoverCardTrigger asChild>
         <div
           data-project-row={project.id}
-          className="group/project relative rounded-sm hover:bg-sidebar-accent focus-within:bg-sidebar-accent"
+          className="group/project relative rounded-sm hover:bg-accent focus-within:bg-accent"
           data-menu-open={menu || undefined}
           onPointerOverCapture={(event) => {
             if (event.pointerType !== 'touch') allowOpen.current = true
           }}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch') setHovered(true)
+          }}
           onFocusCapture={() => {
-            if (!suppressFocus.current && !menu && !renaming && !deleting) {
-              allowOpen.current = true
-              setDetails(true)
-            }
+            // 详情只由悬停触发：焦点来自点击或键盘时不打开（Radix 默认会用焦点打开 HoverCard）。
+            allowOpen.current = false
+          }}
+          onPointerLeave={(event) => {
+            setHovered(false)
+            // 指针移入详情卡片时保持"已展示"，回到行内也不重新计时。
+            const next = event.relatedTarget instanceof Node ? event.relatedTarget : null
+            if (card.current?.contains(next)) return
+            hoverShown.current = false
           }}
           onBlurCapture={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget) && !card.current?.contains(event.relatedTarget)) closeDetails()
+            if (!event.currentTarget.contains(event.relatedTarget) && !card.current?.contains(event.relatedTarget)) {
+              hoverShown.current = false
+              closeDetails()
+            }
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!renaming) openMenu({ x: event.clientX, y: event.clientY })
           }}
         >
           {renaming ? (
-            <div className="flex h-8 items-center px-2">
+            <div className="flex h-8 items-center ps-8 pe-2">
               <InlineRename
                 value={project.name}
                 label={t('sidebar.projectName')}
@@ -169,38 +202,45 @@ export function ProjectRow({
                 ref={row}
                 aria-label={project.name}
                 aria-expanded={expanded}
-                className={menu ? 'bg-sidebar-accent' : undefined}
+                className={menu ? 'bg-accent' : undefined}
                 onKeyDown={(event) => scrolling.current?.handleKeyDown(event)}
                 onClick={() => lists.getState().toggleProject(project.id)}
               >
-                {expanded ? (
-                  <FolderOpenIcon aria-hidden className="size-4 shrink-0" strokeWidth={1.1} />
-                ) : (
-                  <FolderClosedIcon aria-hidden className="size-4 shrink-0" strokeWidth={1.1} />
-                )}
-                <span className="flex min-w-0 flex-1 items-center gap-2 pr-12">
-                  <FadingTitle ref={scrolling}>{project.name}</FadingTitle>
-                  {expanded ? <ChevronDownIcon aria-hidden className="size-3 shrink-0" /> : <ChevronRightIcon aria-hidden className="size-3 shrink-0" />}
+                <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
+                  {expanded ? <FolderOpenIcon className="size-3" strokeWidth={1.1} /> : <FolderClosedIcon className="size-3" strokeWidth={1.1} />}
+                </span>
+                <span className="flex min-w-0 flex-1 items-center gap-2 pe-0 group-hover/project:pe-12 group-focus-within/project:pe-12">
+                  <FadingTitle ref={scrolling} autoScroll={hovered}>
+                    {project.name}
+                  </FadingTitle>
                 </span>
               </SidebarListRow>
               <div
                 data-project-actions
-                className="absolute right-1 top-1 flex h-6 items-center opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100 pointer-coarse:opacity-100"
+                className="absolute right-2 top-1 flex h-6 items-center opacity-0 transition-opacity duration-150 group-hover/project:opacity-100 group-focus-within/project:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       ref={more}
                       data-project-more
+                      data-menu-toggle
                       variant="toolbar"
                       size="icon-xs"
                       className="size-6 rounded-sm"
                       aria-label={t('sidebar.moreProject')}
                       aria-haspopup="menu"
                       aria-expanded={menu}
+                      onPointerDownCapture={() => {
+                        menuWasOpen.current = menu
+                      }}
                       onClick={() => {
-                        closeDetails()
-                        setMenu(true)
+                        if (menuWasOpen.current) {
+                          menuWasOpen.current = false
+                          setMenu(false)
+                          return
+                        }
+                        openMenu(null)
                       }}
                     >
                       <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
@@ -217,7 +257,7 @@ export function ProjectRow({
                       aria-label={t('sidebar.newSessionIn', { name: project.name })}
                       onClick={newChat}
                     >
-                      <PlusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                      <SquarePenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{t('sidebar.newSessionIn', { name: project.name })}</TooltipContent>
@@ -228,7 +268,7 @@ export function ProjectRow({
           <RowMenu
             open={menu}
             onOpenChange={setMenu}
-            point={null}
+            point={menuPoint}
             label={t('sidebar.projectActions')}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
@@ -262,7 +302,7 @@ export function ProjectRow({
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={newChat}>
               <SessionMenuIcon>
-                <PlusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <SquarePenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
               </SessionMenuIcon>
               {t('sidebar.newSessionIn', { name: project.name })}
             </DropdownMenuItem>
@@ -327,10 +367,16 @@ export function ProjectRow({
       {details && (
         <RowHoverCardContent
           ref={card}
+          className="w-80"
           role="region"
           tabIndex={0}
           aria-label={t('sidebar.projectDetails')}
           onFocusCapture={() => setDetails(true)}
+          onPointerLeave={(event) => {
+            const next = event.relatedTarget instanceof Node ? event.relatedTarget : null
+            if (row.current?.closest('[data-project-row]')?.contains(next)) return
+            hoverShown.current = false
+          }}
           onBlurCapture={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget) && !row.current?.parentElement?.contains(event.relatedTarget)) closeDetails()
           }}
@@ -339,14 +385,19 @@ export function ProjectRow({
               event.preventDefault()
             else closeDetails()
           }}
-          onEscapeKeyDown={() => {
+          onEscapeKeyDown={(event) => {
+            // 由行接管关闭与焦点返回，避免与 Radix 的默认关闭竞争。
+            event.preventDefault()
+            // 主动关闭后允许再次悬停展示；指针在卡片与行之间往返仍只算一次。
             closeDetails()
+            allowOpen.current = true
+            hoverShown.current = false
             focusRow()
           }}
         >
-          <div className="flex items-start gap-2 px-2 py-1">
-            <FolderClosedIcon aria-hidden className="mt-1 size-4 shrink-0" strokeWidth={1.1} />
-            <span data-user-content className="min-w-0 flex-1 break-words text-ui-title font-medium">
+          <div className="flex items-center gap-2 px-2 py-1">
+            <FolderClosedIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+            <span data-user-content className="min-w-0 flex-1 break-words text-ui-body font-medium">
               {project.name}
             </span>
             <Button size="icon-xs" variant="toolbar" className="size-6 rounded-sm" disabled={pending} aria-label={pinLabel} onClick={() => void togglePin()}>

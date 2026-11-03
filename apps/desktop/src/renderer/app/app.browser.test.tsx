@@ -243,7 +243,7 @@ describe('Sidecar 连接状态', () => {
     await page.viewport(1280, 800)
     const { store, connection, screen } = renderApp('zh')
     await screen
-    const status = page.getByRole('status')
+    const status = page.getByRole('status', { name: /Sidecar/i })
     await expect.element(status).toHaveAttribute('data-connection', 'connecting')
     await expect.element(status).toHaveTextContent('正在连接 Sidecar')
 
@@ -260,8 +260,8 @@ describe('Sidecar 连接状态', () => {
     const { connection, screen } = renderApp('en')
     await screen
     connection.set({ phase: 'failed', code: 'fixture-fatal', message: 'boom' })
-    await expect.element(page.getByRole('status')).toHaveAttribute('data-connection', 'failed')
-    await expect.element(page.getByRole('status')).toHaveTextContent('Sidecar failed to start')
+    await expect.element(page.getByRole('status', { name: /Sidecar/i })).toHaveAttribute('data-connection', 'failed')
+    await expect.element(page.getByRole('status', { name: /Sidecar/i })).toHaveTextContent('Sidecar failed to start')
     const detail = document.querySelector('[data-error-code]')
     expect(detail?.getAttribute('data-error-code')).toBe('fixture-fatal')
     expect(detail?.textContent).toBe('boom (fixture-fatal)')
@@ -272,7 +272,7 @@ describe('Sidecar 连接状态', () => {
     }
     const composer = page.getByRole('textbox', { name: 'Give Coko a task' }).element()
     expect(composer.contains(hit(composer))).toBe(false)
-    const statusEl = page.getByRole('status').element()
+    const statusEl = page.getByRole('status', { name: /Sidecar/i }).element()
     expect(statusEl.contains(hit(statusEl))).toBe(true)
     const newSession = page.getByRole('button', { name: 'New chat' }).element()
     expect(newSession.contains(hit(newSession))).toBe(true)
@@ -293,7 +293,8 @@ describe('主题', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(21, 21, 23)')
     const sidebar = document.querySelector('[data-slot="app-frame-sidebar"]')!
-    expect(getComputedStyle(sidebar).backgroundColor).toBe('rgb(27, 27, 28)')
+    expect(getComputedStyle(sidebar).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(getComputedStyle(sidebar, '::before').backgroundImage).toContain('linear-gradient')
   })
 })
 
@@ -338,6 +339,8 @@ describe('侧栏搜索', () => {
     await screen
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     const before = chat.lists.getState().sessions
+    // 收起侧栏后搜索入口在抽屉中；窄窗口先展开抽屉。
+    if (width < 1024) await page.getByRole('button', { name: 'Expand sidebar' }).click()
     const trigger = page.getByRole('button', { name: 'Search', exact: true })
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: 'Search conversations' })
@@ -424,14 +427,14 @@ describe('模型选择', () => {
     await expect.poll(() => chat.getState().activeSessionId).toBe('s-1')
     await chat.getState().selectModel({ providerId: 'p1', modelId: 'faux-1' })
     const picker = page.getByRole('button', { name: /^Choose model: / })
-    await expect.element(picker).toHaveTextContent('faux-1')
+    await expect.element(picker).toHaveTextContent('faux-1·Off')
     await picker.click()
     await page.getByRole('menuitem', { name: /^Choose model: / }).click()
     await expect.element(page.getByRole('menu').getByText('Fixture')).toBeVisible()
     await expect.element(page.getByRole('menu').getByText('Second')).toBeVisible()
     await page.getByRole('menuitemradio', { name: 'big-model' }).click()
     await userEvent.keyboard('{Escape}')
-    await expect.element(picker).toHaveTextContent('big-model')
+    await expect.element(picker).toHaveTextContent('big-model·Off')
     expect(chat.lists.getState().sessions.find((s) => s.id === 's-1')?.model).toEqual({ providerId: 'p2', modelId: 'big-model' })
   })
 
@@ -468,12 +471,12 @@ describe('模型选择', () => {
     await choose('thinker')
     const slider = page.getByRole('slider', { name: '推理档位' })
     await expect.element(slider).toHaveAttribute('aria-valuemax', '2')
-    await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
+    await expect.element(slider).toHaveAttribute('aria-valuetext', 'Off')
     await userEvent.keyboard('{Tab}{End}')
     await expect.poll(() => chat.lists.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ model: { modelId: 'thinker' }, thinkingLevel: 'high' })
-    await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('thinker高')
+    await expect.poll(() => document.querySelector('[data-model-picker]')?.textContent).toBe('thinker·High')
     await choose('low-only')
-    await expect.element(slider).toHaveAttribute('aria-valuetext', '关闭')
+    await expect.element(slider).toHaveAttribute('aria-valuetext', 'Off')
     await expect.element(slider).toHaveAttribute('aria-valuemax', '1')
     await expect.poll(() => chat.lists.getState().sessions.find((s) => s.id === 's-1')).toMatchObject({ thinkingLevel: 'off' })
     await choose('switched-off')
@@ -483,10 +486,10 @@ describe('模型选择', () => {
 })
 
 describe('窄窗口', () => {
-  it('390px：无整页横向滚动，rail 与发送入口在视口内', async () => {
+  it('390px：无整页横向滚动，控制条与发送入口在视口内', async () => {
     await page.viewport(390, 700)
     await renderApp('en').screen
-    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('rail')
+    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('hidden')
     await expect.poll(() => document.querySelector('[data-streamdown="table"]') !== null).toBe(true)
 
     const doc = document.documentElement
@@ -513,7 +516,7 @@ describe('窄窗口', () => {
   it.each(['light', 'dark'] as const)('390px（%s）：输入区占位符为一行且不越界，对比度 ≥ 4.5:1', async (theme) => {
     await page.viewport(390, 700)
     await renderApp('en', { theme }).screen
-    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('rail')
+    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('hidden')
     await expect.poll(() => document.documentElement.classList.contains('dark')).toBe(theme === 'dark')
     const editor = page.getByRole('textbox', { name: 'Give Coko a task' }).element() as HTMLElement
     const placeholder = () => document.querySelector<HTMLElement>('[data-slot="composer-placeholder"]')
@@ -536,7 +539,9 @@ describe('窄窗口', () => {
   it('390px：交接收进标题栏的"更多操作"菜单，键盘可以到达并打开交接对话框，关闭后焦点回到菜单按钮', async () => {
     await page.viewport(390, 700)
     await renderApp('en').screen
-    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('rail')
+    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('hidden')
+    // 收起过渡完成后主内容才拿到完整宽度；在此之前标题栏仍在 280 列内布局。
+    await expect.poll(() => document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!.getBoundingClientRect().width).toBe(390)
     const header = document.querySelector<HTMLElement>('[data-slot="app-frame-main"] header')!
     const more = page.getByRole('button', { name: 'More actions' })
     await expect.element(more).toBeVisible()
@@ -563,7 +568,7 @@ describe('窄窗口', () => {
     await expect.poll(() => document.activeElement).toBe(more.element())
   })
 
-  it('rail 展开的抽屉中可以选择会话，选择后抽屉关闭', async () => {
+  it('控制条展开的抽屉中可以选择会话，选择后抽屉关闭', async () => {
     await page.viewport(800, 700)
     await renderApp('en').screen
     await page.getByRole('button', { name: 'Expand sidebar' }).click()
@@ -576,7 +581,7 @@ describe('窄窗口', () => {
 })
 
 describe('双栏工作台导航', () => {
-  it('H32 三项导航、左上历史按钮与固定用户区；插件和定时任务保留侧栏', async () => {
+  it('H32 三项导航、左上历史按钮与固定设置入口；插件和定时任务保留侧栏', async () => {
     await page.viewport(1280, 800)
     await renderApp('en').screen
     const back = page.getByRole('button', { name: 'Go back', exact: true })
@@ -599,11 +604,30 @@ describe('双栏工作台导航', () => {
     await expect.element(page.getByRole('heading', { name: 'Plugins', exact: true })).toBeVisible()
     await forward.click()
     await expect.element(page.getByRole('heading', { name: 'Scheduled tasks', exact: true })).toBeVisible()
-    const footer = document.querySelector('[data-workbench-account]')!
+    const footer = document.querySelector('[data-workbench-settings]')!
     const sidebar = document.querySelector('[data-slot="app-frame-sidebar"]')!
     expect(footer.getBoundingClientRect().bottom).toBe(sidebar.getBoundingClientRect().bottom)
     expect(footer.getBoundingClientRect().height).toBe(46)
-    expect(footer.querySelector('[data-workbench-avatar]')?.getBoundingClientRect().width).toBe(22)
+    const settings = page.getByRole('button', { name: 'Settings', exact: true })
+    expect(settings.element().getBoundingClientRect().height).toBe(36)
+    expect(getComputedStyle(settings.element()).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await userEvent.hover(settings.element())
+    await expect.poll(() => getComputedStyle(settings.element()).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+  })
+
+  it('新对话常态透明；hover 行铺满整行，hover 搜索只亮按钮', async () => {
+    await page.viewport(1280, 800)
+    await renderApp('en').screen
+    const group = document.querySelector<HTMLElement>('[data-workbench-nav]')!
+    const newChat = page.getByRole('button', { name: 'New chat', exact: true }).element() as HTMLElement
+    const search = page.getByRole('button', { name: 'Search', exact: true }).element() as HTMLElement
+    expect(getComputedStyle(group).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await userEvent.hover(newChat)
+    await expect.poll(() => getComputedStyle(group).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    expect(getComputedStyle(newChat).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await userEvent.hover(search)
+    await expect.poll(() => getComputedStyle(group).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    await expect.poll(() => getComputedStyle(search).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
   })
 })
 

@@ -8,17 +8,30 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuItem,
+  ProviderIcon,
   ThinkingSlider,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  type ThinkingSliderValue,
 } from '@coko/ui'
-import { BotIcon, ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
 const keyOf = (model: SessionModel) => `${model.providerId}\u0000${model.modelId}`
+
+/** 推理等级名称与设置中登记的档位一致（off / minimal / …）；英文档位首字母大写。 */
+const LEVEL_NAMES: Record<ThinkingSliderValue, string> = {
+  off: 'Off',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Xhigh',
+  max: 'Max',
+}
 
 /** 换模型时的档位：新模型能选当前档位时保留，否则回到 off（与 Sidecar 的规则一致）。 */
 export const levelForModel = (model: Pick<AvailableModel, 'thinkingLevels'>, level: ThinkingLevel): ThinkingLevel =>
@@ -79,12 +92,20 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
               data-model={current ? `${current.providerId}/${current.modelId}` : undefined}
               data-thinking-level-current={level}
               aria-label={t('models.pickerCurrent', { model: label })}
-              className="max-w-48 min-w-0 shrink data-[state=open]:bg-accent"
+              className="h-auto min-h-7 min-w-0 shrink gap-1 rounded-round px-2.5 py-0.5 text-left whitespace-normal data-[state=open]:bg-accent"
             >
-              <span data-user-content={current ? '' : undefined} className="truncate">
+              {/* 模型名与档位完整展示：放不下时模型名换行，按钮高度随内容增长。 */}
+              <span data-user-content={current ? '' : undefined} className="min-w-0 break-words">
                 {label}
               </span>
-              {level !== 'off' && <span className="shrink-0 text-muted-foreground">{t(`models.thinkingLevels.${level}`)}</span>}
+              {current !== undefined && (
+                <>
+                  <span aria-hidden className="shrink-0 text-muted-foreground">
+                    ·
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-muted-foreground">{LEVEL_NAMES[level]}</span>
+                </>
+              )}
               <ChevronDownIcon />
             </Button>
           </DropdownMenuTrigger>
@@ -102,37 +123,30 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
         }}
       >
         {detail ? (
-          <>
+          <div className="flex flex-col items-center gap-3 p-2">
             <DropdownMenuItem
               aria-label={t('models.pickerCurrent', { model: label })}
-              className="mx-auto mt-2 mb-3 h-12 w-fit min-w-36 flex-col justify-center gap-0 px-3"
+              className="min-h-12 w-fit min-w-36 flex-col justify-center gap-0 px-3 py-1.5"
               onSelect={(event) => {
                 event.preventDefault()
                 setView('list')
               }}
             >
-              <span className="text-ui-title">{t(`models.thinkingLevels.${level}`)}</span>
-              <span className="flex max-w-full items-center gap-1.5 text-muted-foreground">
-                <BotIcon className="size-3.5" aria-hidden />
-                <span data-user-content className="truncate">
+              <span className="text-ui-title leading-6 font-medium text-link">{LEVEL_NAMES[level]}</span>
+              <span className="flex min-h-5 max-w-full items-center gap-1.5 text-muted-foreground">
+                <ProviderIcon variant="mono" modelId={current.modelId} name={current.name} id={current.providerId} />
+                {/* 当前模型名完整展示，不省略。 */}
+                <span data-user-content className="min-w-0 break-words">
                   {label}
                 </span>
-                <ChevronRightIcon className="size-3" aria-hidden />
+                <ChevronRightIcon className="size-3 shrink-0" aria-hidden />
               </span>
             </DropdownMenuItem>
-            <div className="mx-2 mb-2">
+            <div className="w-full">
               <ThinkingSlider
                 levels={current.thinkingLevels}
                 value={level}
-                labels={{
-                  off: t('models.thinkingLevels.off'),
-                  minimal: t('models.thinkingLevels.minimal'),
-                  low: t('models.thinkingLevels.low'),
-                  medium: t('models.thinkingLevels.medium'),
-                  high: t('models.thinkingLevels.high'),
-                  xhigh: t('models.thinkingLevels.xhigh'),
-                  max: t('models.thinkingLevels.max'),
-                }}
+                labels={LEVEL_NAMES}
                 label={t('models.thinkingLevel')}
                 active={open}
                 onValueChange={setPreview}
@@ -145,19 +159,23 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
                 }}
               />
             </div>
-          </>
+          </div>
         ) : (
           <>
-            <DropdownMenuLabel>{t('models.picker')}</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex h-7 items-center px-2 pt-0 pb-0 text-ui-small">{t('models.picker')}</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={current ? keyOf(current) : ''}>
-              {groups.map(([providerId, group]) => (
-                <DropdownMenuGroup key={providerId}>
-                  <DropdownMenuLabel data-user-content>{group.name}</DropdownMenuLabel>
+              {groups.map(([providerId, group], index) => (
+                <DropdownMenuGroup key={providerId} className={index === 0 ? undefined : 'pt-2'}>
+                  {/* 供应商名称不配图标；模型行按模型名称/ID 显示品牌图标。 */}
+                  <DropdownMenuLabel data-user-content className="flex h-6 items-center px-2 pt-0 pb-0 text-ui-body font-medium">
+                    <span className="truncate">{group.name}</span>
+                  </DropdownMenuLabel>
                   {group.models.map((model) => (
                     <DropdownMenuRadioItem
                       key={model.modelId}
                       value={keyOf(model)}
                       indicatorAlign="end"
+                      className="h-auto min-h-8 py-1 data-[state=checked]:bg-accent"
                       onSelect={(event) => {
                         event.preventDefault()
                         setPreview(null)
@@ -165,8 +183,9 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
                         setView('detail')
                       }}
                     >
-                      <BotIcon aria-hidden className="size-3.5" />
-                      <span data-user-content className="truncate">
+                      <ProviderIcon variant="mono" modelId={model.modelId} name={model.name} id={model.providerId} />
+                      {/* 模型名完整展示：放不下时换行，行高随内容增长。 */}
+                      <span data-user-content className="min-w-0 break-words">
                         {model.name}
                       </span>
                     </DropdownMenuRadioItem>

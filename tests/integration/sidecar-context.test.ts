@@ -95,7 +95,7 @@ describe('上下文用量接口', () => {
       content: expect.arrayContaining([expect.objectContaining({ type: 'image' })]),
     })
     const result = (await api.get(contextPaths.session(sessionId))).body as ContextUsageResponse
-    expect(result).toMatchObject({ tokens: 12_300, contextWindow: 40_000, threshold: 23_000, warning: 3_000, estimated: false })
+    expect(result).toMatchObject({ tokens: 12_300, contextWindow: 40_000, threshold: 32_000, warning: 12_000, estimated: false })
     expect(Object.keys(result.breakdown).sort()).toEqual(['assistant', 'prompt', 'system', 'thinking', 'tools'])
     for (const value of Object.values(result.breakdown)) expect(value).toBeGreaterThan(0)
     expect(Object.values(result.breakdown).reduce((sum, value) => sum + value, 0)).toBe(12_300)
@@ -121,7 +121,7 @@ describe('上下文用量接口', () => {
 
     const draft = (await api.get(contextPaths.workspace(workspace.id))).body as ContextUsageResponse
     // 有效窗口 = 40 000 − 4 000；阈值 = 36 000 − 13 000；预警 = 阈值 − 20 000。
-    expect(draft).toMatchObject({ contextWindow: 40_000, threshold: 23_000, warning: 3_000, estimated: true, autoCompact: { enabled: true, paused: false } })
+    expect(draft).toMatchObject({ contextWindow: 40_000, threshold: 32_000, warning: 12_000, estimated: true, autoCompact: { enabled: true, paused: false } })
     const b = draft.breakdown
     expect(Object.keys(b).sort()).toEqual(['assistant', 'prompt', 'system', 'thinking', 'tools'])
     // 指令、Skills 与 Memory 已合入系统；单文件截断后的系统至少 10k。

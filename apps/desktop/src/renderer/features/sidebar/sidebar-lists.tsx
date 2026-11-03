@@ -15,6 +15,23 @@ import {
   DropdownMenuRadioItem,
 } from '@coko/ui'
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, MoreHorizontalIcon, GripVerticalIcon, ChevronsDownUpIcon, ChevronsUpDownIcon } from 'lucide-react'
+import {
+  DndContext,
+  DragOverlay,
+  MeasuringStrategy,
+  PointerSensor,
+  closestCenter,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+  type Modifier,
+  type UniqueIdentifier,
+} from '@dnd-kit/core'
 import { useChat, useChatActions, useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { ProjectRow } from './project-row.tsx'
@@ -30,6 +47,25 @@ export interface SidebarListsProps {
 
 export const sortSessions = (sessions: readonly Session[]) => sessions.toSorted((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
 
+const isSidebarCategory = (id: UniqueIdentifier): id is SidebarCategory => id === 'conversations' || id === 'projects'
+
+/** 指针落在分类区域之间或窗口边缘时，仍取最近的分类作为落点。 */
+const categoryCollisionDetection: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  return hits.length > 0 ? hits : closestCenter(args)
+}
+
+/** 浮层按手柄抓取点跟随指针：卡片 32px 高，16px 处是卡片垂直中心；与卡片内边距对应。 */
+const followPointer: Modifier = ({ transform, activatorEvent, activeNodeRect }) => {
+  if (!activeNodeRect || !activatorEvent || !('clientX' in activatorEvent)) return transform
+  const pointer = activatorEvent as PointerEvent
+  return {
+    ...transform,
+    x: transform.x + (pointer.clientX - activeNodeRect.left) - 16,
+    y: transform.y + (pointer.clientY - activeNodeRect.top) - 16,
+  }
+}
+
 export function SidebarLists(props: SidebarListsProps) {
   return (
     <ProjectDeleteProvider>
@@ -44,7 +80,8 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
   const projects = useLists((state) => state.projects)
   const status = useLists((state) => state.listStatus)
   const order = useLists((state) => state.categoryOrder)
-  const dragged = React.useRef<SidebarCategory | null>(null)
+  const [activeCategory, setActiveCategory] = React.useState<SidebarCategory | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const expanded = useLists((state) => state.categoryExpanded)
   const listActions = useChatStoreApi().lists.getState()
   const projectSort = useLists((state) => state.projectSort)
@@ -76,8 +113,39 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
     )
   const shownProjects = ordered
   const anyExpanded = ordered.some((project) => expandedProjects[project.id] ?? true)
+  const categoryName = (id: UniqueIdentifier) =>
+    id === 'projects' ? t('sidebar.projects') : id === 'conversations' ? t('sidebar.conversations') : t('sidebar.sessions')
+  const handleDragStart = (event: DragStartEvent) => {
+    if (!isSidebarCategory(event.active.id)) return
+    setActiveCategory(event.active.id)
+  }
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveCategory(null)
+    const { active, over } = event
+    if (!over || !isSidebarCategory(active.id) || !isSidebarCategory(over.id) || active.id === over.id) return
+    const from = order.indexOf(active.id)
+    const to = order.indexOf(over.id)
+    if (from < 0 || to < 0) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved!)
+    listActions.reorderCategories(next[0]!)
+  }
+  React.useEffect(() => {
+    if (!activeCategory) return
+    const previous = document.body.style.cursor
+    document.body.style.cursor = 'grabbing'
+    return () => {
+      document.body.style.cursor = previous
+    }
+  }, [activeCategory])
   return (
-    <nav aria-label={t('sidebar.sessions')} aria-busy={status === 'loading' || undefined} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+    <nav
+      aria-label={t('sidebar.sessions')}
+      aria-busy={status === 'loading' || undefined}
+      data-scroll-stable
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-4 pb-2"
+    >
       {status === 'loading' && (
         <div aria-hidden className="flex flex-col gap-0.5">
           {[0, 1, 2].map((i) => (
@@ -94,7 +162,7 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
         </div>
       )}
       {pinnedItems.length > 0 && (
-        <section data-category="pinned" className="mb-3" aria-labelledby="pinned-heading">
+        <section data-category="pinned" className="flex flex-col gap-0.5" aria-labelledby="pinned-heading">
           <SidebarCategoryHeader
             id="pinned-heading"
             name={t('sidebar.pinned')}
@@ -122,40 +190,37 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
           )}
         </section>
       )}
-      {order.map((category) =>
-        category === 'conversations' ? (
-          <section
-            key="conversations"
-            data-category="conversations"
-            onDragOver={(event) => {
-              if (dragged.current && dragged.current !== 'conversations') event.preventDefault()
-            }}
-            onDrop={(event) => {
-              if (!dragged.current || dragged.current === 'conversations') return
-              event.preventDefault()
-              listActions.reorderCategories(order[0] === dragged.current ? 'conversations' : dragged.current)
-              dragged.current = null
-            }}
-            className="mb-3"
-            aria-labelledby="standalone-heading"
-          >
-            <SidebarCategoryHeader
-              id="standalone-heading"
-              name={t('sidebar.conversations')}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={categoryCollisionDetection}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        accessibility={{
+          screenReaderInstructions: { draggable: t('sidebar.dragInstructions') },
+          announcements: {
+            onDragStart: ({ active }) => t('sidebar.dragStartAnnouncement', { name: categoryName(active.id) }),
+            onDragOver: ({ active, over }) =>
+              over ? t('sidebar.dragOverAnnouncement', { name: categoryName(active.id), over: categoryName(over.id) }) : undefined,
+            onDragEnd: ({ active, over }) =>
+              over && over.id !== active.id ? t('sidebar.dragEndAnnouncement', { name: categoryName(active.id), over: categoryName(over.id) }) : undefined,
+            onDragCancel: ({ active }) => t('sidebar.dragCancelAnnouncement', { name: categoryName(active.id) }),
+          },
+        }}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveCategory(null)}
+      >
+        {order.map((category) =>
+          category === 'conversations' ? (
+            <CategorySection
+              key="conversations"
+              category="conversations"
+              headingId="standalone-heading"
               expanded={expanded.conversations ?? true}
               onToggle={() => listActions.toggleCategory('conversations')}
-              actions={
+              activeCategory={activeCategory}
+              renderActions={(dragHandle) => (
                 <>
-                  <CategoryDrag
-                    category="conversations"
-                    onStart={(category) => {
-                      dragged.current = category
-                    }}
-                    onEnd={() => {
-                      dragged.current = null
-                    }}
-                    onMove={(first) => listActions.reorderCategories(first)}
-                  />
+                  {dragHandle}
                   <IconButton
                     label={t('sidebar.createConversation')}
                     size="icon-xs"
@@ -165,41 +230,31 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                     <SquarePenIcon className="size-3.5" strokeWidth={1.1} />
                   </IconButton>
                 </>
-              }
-            />
-            {(expanded.conversations ?? true) && (
-              <>
-                <div className="flex flex-col gap-0.5">
-                  {standalone.slice(0, counts.conversations ?? 5).map((session) => (
-                    <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} />
-                  ))}
-                </div>
-                <ListPaging listKey="conversations" total={standalone.length} />
-              </>
-            )}
-          </section>
-        ) : (
-          <section
-            key="projects"
-            className="mb-3"
-            data-category="projects"
-            onDragOver={(event) => {
-              if (dragged.current && dragged.current !== 'projects') event.preventDefault()
-            }}
-            onDrop={(event) => {
-              if (!dragged.current || dragged.current === 'projects') return
-              event.preventDefault()
-              listActions.reorderCategories(order[0] === dragged.current ? 'projects' : dragged.current)
-              dragged.current = null
-            }}
-            aria-labelledby="projects-heading"
-          >
-            <SidebarCategoryHeader
-              id="projects-heading"
-              name={t('sidebar.projects')}
+              )}
+            >
+              {(expanded.conversations ?? true) &&
+                (standalone.length === 0 ? (
+                  <SidebarEmpty label={t('sidebar.noConversations')} />
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-0.5">
+                      {standalone.slice(0, counts.conversations ?? 5).map((session) => (
+                        <SessionRow key={session.id} session={session} active={active} onSelect={onSelect} />
+                      ))}
+                    </div>
+                    <ListPaging listKey="conversations" total={standalone.length} />
+                  </>
+                ))}
+            </CategorySection>
+          ) : (
+            <CategorySection
+              key="projects"
+              category="projects"
+              headingId="projects-heading"
               expanded={expanded.projects ?? true}
               onToggle={() => listActions.toggleCategory('projects')}
-              actions={
+              activeCategory={activeCategory}
+              renderActions={(dragHandle) => (
                 <>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -224,16 +279,7 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                     </TooltipTrigger>
                     <TooltipContent>{t(anyExpanded ? 'sidebar.collapseAllProjects' : 'sidebar.expandAllProjects')}</TooltipContent>
                   </Tooltip>
-                  <CategoryDrag
-                    category="projects"
-                    onStart={(category) => {
-                      dragged.current = category
-                    }}
-                    onEnd={() => {
-                      dragged.current = null
-                    }}
-                    onMove={(first) => listActions.reorderCategories(first)}
-                  />
+                  {dragHandle}
                   <ProjectSortMenu value={projectSort} onChange={listActions.sortProjects} />
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -250,28 +296,40 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                     <TooltipContent>{t('sidebar.addProject')}</TooltipContent>
                   </Tooltip>
                 </>
-              }
-            />
-            {(expanded.projects ?? true) && (
-              <>
-                <div className="flex flex-col gap-0.5">
-                  {shownProjects.slice(0, counts.projects ?? 5).map((project) => (
-                    <ProjectTree
-                      key={project.id}
-                      project={project}
-                      sessions={visible.filter((session) => session.projectId === project.id)}
-                      active={active}
-                      onSelect={onSelect}
-                      onNewSession={onNewSession}
-                    />
-                  ))}
-                </div>
-                <ListPaging listKey="projects" total={shownProjects.length} />
-              </>
-            )}
-          </section>
-        ),
-      )}
+              )}
+            >
+              {(expanded.projects ?? true) &&
+                (shownProjects.length === 0 ? (
+                  <SidebarEmpty label={t('sidebar.noProjects')} />
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-0.5">
+                      {shownProjects.slice(0, counts.projects ?? 5).map((project) => (
+                        <ProjectTree
+                          key={project.id}
+                          project={project}
+                          sessions={visible.filter((session) => session.projectId === project.id)}
+                          active={active}
+                          onSelect={onSelect}
+                          onNewSession={onNewSession}
+                        />
+                      ))}
+                    </div>
+                    <ListPaging listKey="projects" total={shownProjects.length} />
+                  </>
+                ))}
+            </CategorySection>
+          ),
+        )}
+        <DragOverlay
+          modifiers={[followPointer]}
+          dropAnimation={null}
+          // 默认浮层沿用拖拽节点（手柄）的 24px 矩形，这里让卡片按内容宽度展开。
+          style={{ width: 'max-content', height: 'max-content' }}
+        >
+          {activeCategory && <CategoryDragCard category={activeCategory} />}
+        </DragOverlay>
+      </DndContext>
     </nav>
   )
 }
@@ -306,9 +364,22 @@ function ProjectTree({
             <ListPaging listKey={`project:${project.id}`} total={sessions.length} nested />
           </>
         ) : (
-          <p className="px-2 py-1 pl-8 text-ui-body text-muted-foreground">{t('sidebar.noConversations')}</p>
+          <SidebarEmpty label={t('sidebar.noConversations')} indent />
         ))}
     </div>
+  )
+}
+
+/** 分类或项目内的空状态：H32、左对齐；项目内保留前导图标空槽。 */
+function SidebarEmpty({ label, indent = false }: { label: string; indent?: boolean }) {
+  return (
+    <p
+      data-slot="sidebar-empty"
+      data-indent={indent || undefined}
+      className={`flex h-8 items-center text-ui-body text-muted-foreground ${indent ? 'ps-8 pe-2' : 'px-2'}`}
+    >
+      {label}
+    </p>
   )
 }
 
@@ -318,7 +389,7 @@ function ListPaging({ listKey, total, nested = false }: { listKey: string; total
   const actions = useChatStoreApi().lists.getState()
   if (total <= 5) return null
   return (
-    <div className={`flex h-7 items-center gap-5 text-ui-small text-muted-foreground ${nested ? 'pl-8' : 'px-2'}`}>
+    <div className={`flex h-7 items-center gap-5 text-ui-small text-muted-foreground ${nested ? 'ps-8 pe-2' : 'px-2'}`}>
       {count < total && (
         <button type="button" className="focus-ring hover:text-foreground" onClick={() => actions.showMore(listKey)}>
           {t('sidebar.expandList')}
@@ -352,10 +423,20 @@ export function SidebarCategoryHeader({
   const { t } = useI18n()
   const Arrow = expanded ? ChevronDownIcon : ChevronRightIcon
   return (
-    <div data-category-header className="group/category flex h-8 items-center px-2">
-      <h2 id={id} aria-label={name} className="min-w-0 flex-1 text-ui-body font-normal">
+    <div
+      data-category-header
+      className="group/category flex h-8 cursor-pointer items-center px-2"
+      onClick={(event) => {
+        // 整行可切换分类，但右侧操作（新建、排序、拖拽）保持各自功能，不触发切换。
+        const target = event.target instanceof Element ? event.target : null
+        if (target?.closest('[data-category-toggle]') || target?.closest('[data-category-actions]')) return
+        onToggle()
+      }}
+    >
+      <h2 id={id} aria-label={name} className="min-w-0 flex-1 text-ui-body font-medium">
         <button
           type="button"
+          data-category-toggle
           aria-label={t(expanded ? 'sidebar.collapseCategory' : 'sidebar.expandCategory', { name })}
           aria-expanded={expanded}
           onClick={onToggle}
@@ -374,6 +455,7 @@ export function SidebarCategoryHeader({
       {actions && (
         <div
           data-category-actions
+          onClick={(event) => event.stopPropagation()}
           className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/category:opacity-100 group-focus-within/category:opacity-100"
         >
           {actions}
@@ -412,15 +494,84 @@ function ProjectSortMenu({ value, onChange }: { value: 'recent' | 'created'; onC
   )
 }
 
+type CategoryDragListeners = ReturnType<typeof useDraggable>['listeners']
+
+/**
+ * 分类 section 同时是排序项与放置区：手柄是唯一激活入口，section 的矩形用于判断指针落在哪个分类。
+ * 不应用 sortable 的位移变换，落点改由蓝色指示线表达，避免整段分类内容跳动。
+ */
+function CategorySection({
+  category,
+  headingId,
+  expanded,
+  onToggle,
+  activeCategory,
+  renderActions,
+  children,
+}: {
+  category: SidebarCategory
+  headingId: string
+  expanded: boolean
+  onToggle: () => void
+  activeCategory: SidebarCategory | null
+  renderActions: (dragHandle: React.ReactNode) => React.ReactNode
+  children: React.ReactNode
+}) {
+  const { t } = useI18n()
+  const listActions = useChatStoreApi().lists.getState()
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: category })
+  const { setNodeRef: setDragRef, listeners } = useDraggable({ id: category })
+  return (
+    <section
+      ref={setDroppableRef}
+      data-category={category}
+      data-dragging={activeCategory === category || undefined}
+      aria-labelledby={headingId}
+      className="relative flex flex-col gap-0.5 data-[dragging]:opacity-50"
+    >
+      {isOver && activeCategory !== null && activeCategory !== category && <CategoryDropIndicator />}
+      <SidebarCategoryHeader
+        id={headingId}
+        name={t(category === 'projects' ? 'sidebar.projects' : 'sidebar.conversations')}
+        expanded={expanded}
+        onToggle={onToggle}
+        actions={renderActions(
+          <CategoryDrag category={category} handleRef={setDragRef} listeners={listeners} onMove={(first) => listActions.reorderCategories(first)} />,
+        )}
+      />
+      {children}
+    </section>
+  )
+}
+
+/** 拖到另一分类表示两者交换，指示线画在目标分类的起始边界，即拖动项将要占据的位置。 */
+function CategoryDropIndicator() {
+  return (
+    <div aria-hidden data-category-drop-indicator className="pointer-events-none absolute inset-x-2 -top-1 z-1 h-0.5 rounded-round bg-ring">
+      <span className="absolute left-0 top-1/2 size-2 -translate-x-1 -translate-y-1/2 rounded-round bg-popover inset-ring-1 inset-ring-ring" />
+    </div>
+  )
+}
+
+function CategoryDragCard({ category }: { category: SidebarCategory }) {
+  const { t } = useI18n()
+  return (
+    <div data-category-drag-card className="flex h-8 items-center gap-2 rounded-md bg-popover px-3 text-foreground shadow-panel">
+      <GripVerticalIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+      <span className="truncate text-ui-body font-medium">{t(category === 'projects' ? 'sidebar.projects' : 'sidebar.conversations')}</span>
+    </div>
+  )
+}
+
 function CategoryDrag({
   category,
-  onStart,
-  onEnd,
+  handleRef,
+  listeners,
   onMove,
 }: {
   category: SidebarCategory
-  onStart: (category: SidebarCategory) => void
-  onEnd: () => void
+  handleRef: (node: HTMLElement | null) => void
+  listeners: CategoryDragListeners
   onMove: (first: SidebarCategory) => void
 }) {
   const { t } = useI18n()
@@ -429,17 +580,12 @@ function CategoryDrag({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          ref={handleRef}
           variant="toolbar"
           size="icon-xs"
           aria-label={label}
-          draggable
+          {...listeners}
           className="size-6 cursor-grab rounded-sm active:cursor-grabbing [&_svg]:size-3.5"
-          onDragStart={(event) => {
-            event.dataTransfer.effectAllowed = 'move'
-            event.dataTransfer.setData('text/plain', category)
-            onStart(category)
-          }}
-          onDragEnd={onEnd}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
             event.preventDefault()

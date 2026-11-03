@@ -35,6 +35,15 @@ export function RowMenu({
           {...rowOverlayPosition}
           sideOffset={point ? 0 : rowOverlayPosition.sideOffset}
           aria-label={label}
+          // 触发按钮自己负责切换关闭：按下或因此获得焦点时都不先关闭，避免随后又被重新打开。
+          onPointerDownOutside={(event) => {
+            const target = event.detail.originalEvent.target
+            if (target instanceof Element && target.closest('[data-menu-toggle]')) event.preventDefault()
+          }}
+          onFocusOutside={(event) => {
+            const target = event.target
+            if (target instanceof Element && target.closest('[data-menu-toggle]')) event.preventDefault()
+          }}
           // Reserve a pixel for Popper rounding when hairline separators make the height fractional.
           collisionPadding={9}
           hideWhenDetached

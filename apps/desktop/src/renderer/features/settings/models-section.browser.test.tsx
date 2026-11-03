@@ -486,3 +486,13 @@ it('编辑目录：修改协议并添加模型后保存，已有模型的能力�
   await expect.element(dialog.getByText('No providers yet. Add one to start a conversation.')).toBeVisible()
   expect(backend.providers).toEqual([])
 })
+
+it('供应商行显示品牌 logo；未收录的供应商使用通用图标且不显示品牌标题', async () => {
+  await openModels('zh', (backend) => {
+    backend.seedProvider(customProvider('zhipu-main', [], { name: '智谱 GLM' }))
+    backend.seedProvider(customProvider('custom-provider-1', [], { name: '自定义供应商一' }))
+  })
+  await expect.poll(() => rows().map((r) => r.dataset.providerId)).toEqual(['zhipu-main', 'custom-provider-1'])
+  expect(row('zhipu-main').element().querySelector('svg title')?.textContent).toBe('Zhipu')
+  expect(row('custom-provider-1').element().querySelector('svg title')).toBeNull()
+})

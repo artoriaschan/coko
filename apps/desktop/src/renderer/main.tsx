@@ -1,16 +1,18 @@
 import './styles.css'
-import { createTranslator } from '@coko/i18n'
+import { createTranslator, locales, type Locale } from '@coko/i18n'
 import { toast } from '@coko/ui'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import * as React from 'react'
 import { App } from './app/app.tsx'
-import { createAppearanceStore, defaultAppearance } from './app/appearance-store.ts'
+import { createAppearanceStore, defaultAppearance, type Theme } from './app/appearance-store.ts'
 import { notifyFailure } from './app/chat-failure.ts'
 import { createConnectionStore } from './app/connection-store.ts'
-import { createPreferences } from './app/preferences.ts'
+import { createPreferences, LOCALE_SETTING, THEME_SETTING } from './app/preferences.ts'
 import { createSettingsPageStore } from './app/settings-page-store.ts'
 import { createRendererLog } from './app/renderer-log.ts'
 import { bindOpenSession } from './app/open-session.ts'
+import { StartupScreen, STARTUP_AVATAR_URL } from './app/startup-screen.tsx'
 import { createApiClient } from './client/api.ts'
 import { connect } from './client/connection.ts'
 import { createChatStore } from './stores/chat-store.ts'
@@ -87,8 +89,44 @@ const openLogs = bridge
       })
   : undefined
 
-createRoot(root).render(
-  <StrictMode>
+/** 等设置就绪并应用已保存的语言与主题后再渲染工作台，避免首帧语言闪烁。 */
+function Bootstrap() {
+  const [ready, setReady] = React.useState(false)
+  React.useEffect(() => {
+    let cancelled = false
+    let finished = false
+    const finish = () => {
+      if (finished || cancelled) return
+      finished = true
+      const values = settings.getState().values
+      const locale = values[LOCALE_SETTING]?.value
+      if (locales.includes(locale as Locale)) appearance.setLocale(locale as Locale)
+      const theme = values[THEME_SETTING]?.value
+      if (theme === 'light' || theme === 'dark') appearance.setTheme(theme as Theme)
+      void Promise.all([document.fonts.ready, decodeStartupAvatar(), new Promise((resolve) => setTimeout(resolve, 300))]).then(() => {
+        if (!cancelled) setReady(true)
+      })
+    }
+    const check = () => {
+      const status = settings.getState().status
+      if (status === 'ready' || status === 'error') finish()
+    }
+    check()
+    const unsubscribeSettings = settings.subscribe(check)
+    const unsubscribeConnection = connection.subscribe(() => {
+      if (connection.getSnapshot().phase === 'failed') finish()
+    })
+    // Sidecar 启动失败时不要永久停在加载屏；交给工作台展示连接错误。
+    const timeout = window.setTimeout(finish, 10_000)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+      unsubscribeSettings()
+      unsubscribeConnection()
+    }
+  }, [])
+  if (!ready) return <StartupScreen label={createTranslator(appearance.getSnapshot().locale)('startup.loading')} />
+  return (
     <App
       store={appearance}
       connection={connection}
@@ -99,5 +137,17 @@ createRoot(root).render(
       pickDirectory={pickDirectory}
       openLogs={openLogs}
     />
+  )
+}
+
+function decodeStartupAvatar(): Promise<void> {
+  const image = new Image()
+  image.src = STARTUP_AVATAR_URL
+  return image.decode().catch(() => undefined)
+}
+
+createRoot(root).render(
+  <StrictMode>
+    <Bootstrap />
   </StrictMode>,
 )

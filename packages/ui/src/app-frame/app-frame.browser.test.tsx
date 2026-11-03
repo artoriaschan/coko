@@ -3,7 +3,7 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { AppFrame, useAppFrame } from './app-frame.tsx'
+import { AppFrame, AppFrameCollapsedControls, useAppFrame } from './app-frame.tsx'
 
 const labels = { sidebar: 'Sidebar', main: 'Main', rightPanel: 'Right panel', resizeSidebar: 'Resize sidebar' }
 
@@ -13,6 +13,15 @@ function Toggle() {
     <button type="button" aria-expanded={sidebarVisible} onClick={toggleSidebar}>
       toggle
     </button>
+  )
+}
+
+function Rail() {
+  const { peekSidebar } = useAppFrame()
+  return (
+    <div data-sidebar-expand onPointerEnter={peekSidebar}>
+      <Toggle />
+    </div>
   )
 }
 
@@ -29,7 +38,7 @@ function Harness({ rightOpen = false, initialWidth = 280 }: { rightOpen?: boolea
             <a href="#s1">session one</a>
           </div>
         }
-        rail={<Toggle />}
+        rail={<Rail />}
         rightOpen={rightOpen}
         rightPanel={<div>preview</div>}
         sidebarWidth={width}
@@ -37,8 +46,13 @@ function Harness({ rightOpen = false, initialWidth = 280 }: { rightOpen?: boolea
         sidebarCollapsed={collapsed}
         onSidebarCollapsedChange={setCollapsed}
       >
-        <div data-testid="content" style={{ width: 'min(100%, clamp(680px, 64cqi, 920px))' }}>
-          content
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div data-window-drag className="flex h-12 shrink-0 items-center">
+            <AppFrameCollapsedControls />
+          </div>
+          <div data-testid="content" style={{ width: 'min(100%, clamp(680px, 64cqi, 920px))' }}>
+            content
+          </div>
         </div>
       </AppFrame>
     </div>
@@ -47,6 +61,8 @@ function Harness({ rightOpen = false, initialWidth = 280 }: { rightOpen?: boolea
 
 const widthOf = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().width
 const sidebarWidth = () => widthOf('[data-slot="app-frame-sidebar"]')
+const sidebarState = () => document.querySelector('[data-slot="app-frame"]')!.getAttribute('data-sidebar')
+const controlsVisible = () => document.querySelector('[data-slot="app-frame-collapsed-controls"]') !== null
 
 async function settle(predicate: () => boolean) {
   await expect.poll(predicate, { timeout: 2000 }).toBe(true)
@@ -96,32 +112,55 @@ describe('AppFrame 侧栏宽度', () => {
     expect(sidebarWidth()).toBe(420)
   })
 
-  it('宽窗口下切换按钮在展开与 56px rail 之间切换', async () => {
+  it('宽窗口下切换按钮在展开与整列收起之间切换', async () => {
     await page.viewport(1280, 800)
     await render(<Harness />)
     await settle(() => sidebarWidth() === 280)
     await page.getByRole('button', { name: 'toggle' }).click()
-    await settle(() => sidebarWidth() === 56)
+    await settle(() => sidebarState() === 'hidden')
+    expect(document.querySelector('[data-slot="app-frame-sidebar"]')).toBeNull()
+    expect(controlsVisible()).toBe(true)
     await page.getByRole('button', { name: 'toggle' }).click()
     await settle(() => sidebarWidth() === 280)
-    expect(document.querySelector('[data-slot="app-frame"]')!.getAttribute('data-sidebar')).toBe('expanded')
+    expect(sidebarState()).toBe('expanded')
+  })
+
+  it('收起后悬停控制条的展开按钮浮出侧栏卡片', async () => {
+    await page.viewport(1280, 800)
+    await render(<Harness />)
+    await settle(() => sidebarWidth() === 280)
+    await page.getByRole('button', { name: 'toggle' }).click()
+    await settle(() => sidebarState() === 'hidden')
+
+    // 收起后 300ms 内不浮出卡片；等待抑制窗口结束后再进入控制条的展开按钮。
+    await new Promise((resolve) => setTimeout(resolve, 340))
+    document.querySelector('[data-sidebar-expand]')!.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
+    await settle(() => document.querySelector('[data-slot="app-frame-peek"]') !== null)
+    const peek = document.querySelector<HTMLElement>('[data-slot="app-frame-peek"]')!
+    expect(peek.textContent).toContain('session one')
+    expect(peek.getBoundingClientRect().width).toBe(280)
+    expect(getComputedStyle(peek).borderRadius).toBe('28px')
+    expect(getComputedStyle(peek).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
   })
 })
 
 describe('AppFrame 窄窗口', () => {
-  it('帧宽 <1024 自动收起为 56px rail；回到宽窗口恢复', async () => {
+  it('帧宽 <1024 自动收起为控制条；回到宽窗口恢复', async () => {
     await page.viewport(1023, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 56)
+    await settle(() => sidebarState() === 'hidden')
+    expect(controlsVisible()).toBe(true)
     expect(document.querySelector('[data-slot="app-frame-resize-handle"]')).toBeNull()
     await page.viewport(1024, 800)
     await settle(() => sidebarWidth() === 280)
   })
 
-  it('rail 上的切换按钮以抽屉覆盖中栏，Escape 关闭并把焦点还给按钮', async () => {
+  it('控制条的展开按钮以抽屉覆盖中栏，Escape 关闭并把焦点还给按钮', async () => {
     await page.viewport(800, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 56)
+    await settle(() => sidebarState() === 'hidden')
+    // 列宽有 300ms 过渡，等主内容拿到全部宽度后再比较抽屉是否覆盖。
+    await settle(() => widthOf('[data-slot="app-frame-main"]') === 800)
     const mainBefore = widthOf('[data-slot="app-frame-main"]')
 
     await page.getByRole('button', { name: 'toggle' }).click()
@@ -147,12 +186,13 @@ describe('AppFrame 窄窗口', () => {
   it('390px 宽时中栏不产生整页横向滚动', async () => {
     await page.viewport(390, 700)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 56)
+    await settle(() => sidebarState() === 'hidden')
     const main = document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!
-    expect(main.getBoundingClientRect().width).toBe(390 - 56)
+    await settle(() => main.getBoundingClientRect().width === 390)
+    expect(main.getBoundingClientRect().width).toBe(390)
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth)
     expect(main.scrollWidth).toBeLessThanOrEqual(main.clientWidth)
-    expect(widthOf('[data-testid="content"]')).toBeLessThanOrEqual(390 - 56)
+    expect(widthOf('[data-testid="content"]')).toBeLessThanOrEqual(390)
   })
 })
 
@@ -174,10 +214,12 @@ describe('AppFrame 右栏', () => {
   })
 
   it('窄到放不下右栏列时改为覆盖中栏', async () => {
-    await page.viewport(700, 800)
+    // 侧栏整列收起后，690px 仍不足 400 + 300，右栏改为覆盖。
+    await page.viewport(690, 800)
     await render(<Harness rightOpen />)
     await settle(() => document.querySelector('[data-slot="app-frame"]')!.getAttribute('data-right') === 'overlay')
-    expect(widthOf('[data-slot="app-frame-main"]')).toBe(700 - 56)
+    await settle(() => widthOf('[data-slot="app-frame-main"]') === 690)
+    expect(widthOf('[data-slot="app-frame-main"]')).toBe(690)
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth)
   })
 })
@@ -188,14 +230,22 @@ describe('主题', () => {
     await render(<Harness />)
     const body = () => getComputedStyle(document.body)
     const sidebar = () => getComputedStyle(document.querySelector('[data-slot="app-frame-sidebar"]')!)
+    const glass = () => getComputedStyle(document.querySelector('[data-slot="app-frame-sidebar"]')!, '::before')
+    const main = () => getComputedStyle(document.querySelector('[data-slot="app-frame-main"]')!)
     expect(body().backgroundColor).toBe('rgb(255, 255, 255)')
     expect(body().color).toBe('rgb(15, 17, 21)')
-    expect(sidebar().backgroundColor).toBe('rgb(249, 250, 251)')
+    expect(sidebar().backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(main().backgroundColor).toBe('rgb(255, 255, 255)')
+    expect(glass().backgroundImage).toContain('linear-gradient')
+    expect(glass().backdropFilter).toBe('blur(40px) saturate(1.5)')
+    const lightGlass = glass().backgroundImage
 
     document.documentElement.classList.add('dark')
     expect(body().backgroundColor).toBe('rgb(21, 21, 23)')
     expect(body().color).toBe('rgb(249, 250, 251)')
-    expect(sidebar().backgroundColor).toBe('rgb(27, 27, 28)')
+    expect(sidebar().backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(main().backgroundColor).toBe('rgb(21, 21, 23)')
+    expect(glass().backgroundImage).not.toBe(lightGlass)
     expect(body().colorScheme).toBe('dark')
   })
 

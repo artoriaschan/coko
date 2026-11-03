@@ -269,7 +269,7 @@ export function TraceTab({ sessionId }: RightPanelTabProps) {
       {response.runs.length === 0 ? (
         <div className={centered}>{t('trace.empty')}</div>
       ) : (
-        <ul aria-label={t('trace.runs')} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <ul aria-label={t('trace.runs')} data-scroll-stable className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
           {response.runs.toReversed().map((run) => (
             <RunRow key={run.runId} run={run} currency={currency} />
           ))}

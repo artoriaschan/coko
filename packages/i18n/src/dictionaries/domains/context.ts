@@ -9,7 +9,7 @@ export const context = defineDomain(
     },
     card: {
       title: '上下文用量',
-      usage: '{tokens} / {window} tokens',
+      usage: '{tokens} / {window} · 占比按已用',
       window: '{window} 上下文',
       used: '{percent}% 已用',
       compactAt: '压缩点',
@@ -42,7 +42,7 @@ export const context = defineDomain(
     },
     card: {
       title: 'Context usage',
-      usage: '{tokens} / {window} tokens',
+      usage: '{tokens} / {window} · share of used',
       window: '{window} context',
       used: '{percent}% used',
       compactAt: 'Compact at',

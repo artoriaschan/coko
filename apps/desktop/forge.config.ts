@@ -59,6 +59,7 @@ const config: ForgeConfig = {
     name: 'Coko',
     executableName: 'Coko',
     appBundleId: 'dev.coko.desktop',
+    icon: fileURLToPath(new URL('../../brand/rukie-app-icon', import.meta.url)),
     asar: true,
     extraResource: ['dist/sidecar', 'dist/ripgrep'],
     ignore,

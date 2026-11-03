@@ -17,7 +17,7 @@ async function tempDir(prefix: string): Promise<string> {
   return dir
 }
 
-const status = (app: LaunchedApp) => app.window.locator('[role="status"]')
+const status = (app: LaunchedApp) => app.window.locator('[role="status"][data-connection]')
 
 describe('随包 ripgrep', () => {
   it('rg 路径不可执行时 Sidecar fatal，窗口显示失败状态与错误码', async () => {

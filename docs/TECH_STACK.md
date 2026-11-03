@@ -32,7 +32,7 @@ pnpm 负责依赖管理和脚本入口。产品运行时只有 Electron：main /
 | --- | --- |
 | 根 `package.json` | typescript、vite、vitest、@types/node、oxlint、oxfmt、husky、lint-staged、@commitlint/cli、@commitlint/config-conventional、mdast-util-from-markdown |
 | apps/desktop | electron、vitest；桌面壳切片（devDependencies，均由 tsdown / Vite 打入产物）：@electron-forge/cli、@electron-forge/shared-types、@electron-forge/plugin-fuses、@electron/fuses、tsdown、vite、@vitejs/plugin-react、react、react-dom、@types/react、@types/react-dom、typebox、ws、@types/ws、playwright、@types/node、@coko/protocol；ripgrep 与日志切片：@vscode/ripgrep（构建时复制 rg 到 dist/ripgrep，经 extraResource 随包）、@coko/logging（main 的 desktop.jsonl）；评审修复：@coko/server（sidecar 构建入口归属 apps/desktop）、@coko/i18n（main 原生对话框文案）；安装包切片：@electron-forge/maker-zip、@electron-forge/maker-dmg（make 的 ZIP / DMG） |
-| apps/desktop renderer | 界面基础切片（同为 devDependencies，由 Vite 打入 renderer 产物）：react、react-dom、lucide-react、@coko/ui、@coko/i18n、@tailwindcss/vite；Browser Mode 测试：vitest-browser-react、@vitest/browser-playwright、playwright；对话闭环切片：zustand（vanilla store） |
+| apps/desktop renderer | 界面基础切片（同为 devDependencies，由 Vite 打入 renderer 产物）：react、react-dom、lucide-react、@coko/ui、@coko/i18n、@tailwindcss/vite、@dnd-kit/core 6.3.1；Browser Mode 测试：vitest-browser-react、@vitest/browser-playwright、playwright；对话闭环切片：zustand（vanilla store） |
 | packages/protocol | typebox、vitest |
 | packages/ui | radix-ui、class-variance-authority、clsx、tailwind-merge、tailwindcss、tw-animate-css、lucide-react、streamdown、@streamdown/code、@streamdown/math、@streamdown/mermaid、@streamdown/cjk、katex、sonner、lexical、@lexical/react（其可选 peer yjs 只供协作插件，不安装）；peer react、react-dom；开发依赖 react、react-dom、@types/react、@types/react-dom、vite、@vitejs/plugin-react、@tailwindcss/vite、typescript（样式守卫解析 TSX）、vitest、vitest-browser-react、@vitest/browser-playwright、playwright |
 | packages/i18n | vitest |
@@ -154,7 +154,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 组件底层原语 | radix-ui 1.7.0 |
 | 变体 | class-variance-authority 0.7.1 |
 | 类名工具 | clsx 2.1.1 + tailwind-merge 3.7.0，组成 `cn()` |
-| 图标 | lucide-react 1.55.0 + @lobehub/icons 5.23.0 |
+| 图标 | lucide-react 1.55.0 + @lobehub/icons 6.13.0（模型与供应商品牌） |
 | Markdown 渲染 | **streamdown 2.7.1**，统一覆盖流式聊天和静态文档 |
 | GFM 解析 | Streamdown 内置 remark-gfm 支持，实际解析版本由 pnpm-lock.yaml 固定 |
 | 代码高亮 | @streamdown/code 2.0.0 + shiki 4.5.0 |

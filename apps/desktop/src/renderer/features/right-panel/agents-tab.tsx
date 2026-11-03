@@ -98,6 +98,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
       data-slot="agent-timeline"
       data-session-id={agent.agentId}
       tabIndex={0}
+      data-scroll-stable
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3 focus-ring"
       onScroll={(event) => {
         const el = event.currentTarget
@@ -202,7 +203,7 @@ export function AgentsTab({ sessionId }: RightPanelTabProps) {
   const current = agents.find((a) => a.agentId === selectedId) ?? defaultAgent(agents)!
   return (
     <div data-slot="agents-tab" className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ul aria-label={t('agents.tabView.list')} className="flex max-h-[40%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+      <ul aria-label={t('agents.tabView.list')} data-scroll-stable className="flex max-h-[40%] shrink-0 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
         {agents.map((agent) => (
           <AgentListItem
             key={agent.agentId}

@@ -57,6 +57,11 @@ export function ProjectFormDialog({
         return
       }
       setFolders([...folders, { path: canonical.path, primary: folders.length === 0 }])
+      // 创建项目时名称为空，先用所选文件夹名回填，用户仍可继续修改。
+      if (mode === 'create') {
+        const folderName = canonical.path.split('/').filter(Boolean).at(-1) ?? canonical.path
+        setName((current) => (current.trim() === '' ? [...folderName].slice(0, 50).join('') : current))
+      }
     } catch (error) {
       const reason = error instanceof ApiError ? error.details?.reason : undefined
       setFeedback({
@@ -165,21 +170,26 @@ export function ProjectFormDialog({
                         className="group/folder flex min-h-14 items-center gap-3 border-b-hairline border-border px-3 py-2"
                       >
                         <FolderClosedIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.1} />
-                        <div data-folder-copy data-user-content className="min-w-0 flex-1">
-                          <p className="break-all text-ui-body">{basename}</p>
-                          <p className="break-all text-ui-small text-muted-foreground">{folder.path}</p>
-                        </div>
-                        <div className="flex shrink-0 items-center justify-center">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div data-folder-copy data-user-content className="min-w-0 flex-1">
+                              <p className="truncate text-ui-body">{basename}</p>
+                              <p className="truncate text-ui-small text-muted-foreground">{folder.path}</p>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[min(420px,calc(100vw-32px))] break-all">{folder.path}</TooltipContent>
+                        </Tooltip>
+                        <div className="flex w-[68px] shrink-0 items-center justify-center">
                           {folder.primary ? (
-                            <span className="rounded-round bg-sidebar px-2 text-ui-small text-muted-foreground">{t('projectForm.primary')}</span>
+                            <span className="rounded-round bg-muted px-2 py-0.5 text-ui-small text-muted-foreground">{t('projectForm.primary')}</span>
                           ) : (
                             <Button
                               type="button"
                               data-make-primary
-                              variant="secondary"
+                              variant="ghost"
                               size="sm"
                               disabled={pending || picking}
-                              className="bg-accent opacity-0 group-hover/folder:opacity-100 group-focus-within/folder:opacity-100 [@media(hover:none)]:opacity-100"
+                              className="w-full opacity-0 group-hover/folder:opacity-100 group-focus-within/folder:opacity-100 [@media(hover:none)]:opacity-100"
                               onClick={() => setFolders(folders.map((item, current) => ({ ...item, primary: current === index })))}
                             >
                               {t('projectForm.makePrimary')}
