@@ -57,6 +57,7 @@ function Group({
   const body = React.useRef<HTMLDivElement>(null)
   const content = React.useRef<HTMLDivElement>(null)
   const following = React.useRef(true)
+  const wasCapped = React.useRef(!running)
   const [edges, setEdges] = React.useState({ up: false, down: false })
   const measure = React.useCallback(() => {
     const el = body.current
@@ -69,7 +70,9 @@ function Group({
   }, [])
   React.useLayoutEffect(() => {
     const el = body.current
-    if (el && open && following.current && !running) el.scrollTop = el.scrollHeight
+    if (el && open && following.current && !running && wasCapped.current) el.scrollTop = el.scrollHeight
+    // Restoring a cap is a lifecycle change, not a request to jump to the end.
+    wasCapped.current = !running
     measure()
   }, [group.members, open, running, measure])
   React.useLayoutEffect(() => {
@@ -236,8 +239,10 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
   previous.current = seats.filter((seat) => seat.kind === 'process')
   const [choices, setChoices] = React.useState<Record<string, { open?: boolean; epoch: number }>>({})
   const focusedRuns = React.useRef(new Set<string>())
+  const focusedGroups = React.useRef(new Set<string>())
   const focusHeld = React.useRef(new Set<string>())
   const locks = React.useRef(new Map<string, Set<symbol>>())
+  const groupLocks = React.useRef(new Map<string, Set<symbol>>())
   const acquisitions = React.useRef(new Map<string, () => () => void>())
   const first = new Set<string>()
   const eligibility = new Map<string, boolean>()
@@ -254,14 +259,19 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
       eligibility.set(seat.runId, eligible)
     }
     const focused = focusedRuns.current.has(seat.runId) || (locks.current.get(seat.runId)?.size ?? 0) > 0
-    if (!acquisitions.current.has(seat.runId))
-      acquisitions.current.set(seat.runId, () => {
+    const groupFocused = focusedGroups.current.has(seat.id) || (groupLocks.current.get(seat.id)?.size ?? 0) > 0
+    if (!acquisitions.current.has(seat.id))
+      acquisitions.current.set(seat.id, () => {
         const token = Symbol()
         const held = locks.current.get(seat.runId) ?? new Set<symbol>()
         locks.current.set(seat.runId, held)
         held.add(token)
+        const groupHeld = groupLocks.current.get(seat.id) ?? new Set<symbol>()
+        groupLocks.current.set(seat.id, groupHeld)
+        groupHeld.add(token)
         return () => {
           held.delete(token)
+          groupHeld.delete(token)
         }
       })
     if (eligible && focused) focusHeld.current.add(seat.runId)
@@ -286,20 +296,26 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
     }
     nodes.push(
       <ProcessDisclosureReset.Provider key={seat.id} value={choice?.epoch ?? 0}>
-        <ProcessFocusLock.Provider value={acquisitions.current.get(seat.runId)!}>
+        <ProcessFocusLock.Provider value={acquisitions.current.get(seat.id)!}>
           <div
             data-slot="process-seat"
             hidden={!open}
-            onFocusCapture={() => focusedRuns.current.add(seat.runId)}
+            onFocusCapture={() => {
+              focusedRuns.current.add(seat.runId)
+              focusedGroups.current.add(seat.id)
+            }}
             onBlurCapture={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) focusedRuns.current.delete(seat.runId)
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                focusedRuns.current.delete(seat.runId)
+                focusedGroups.current.delete(seat.id)
+              }
             }}
           >
             <Group
               group={seat}
               running={!run || run.status === 'unknown' || run.status === 'running'}
               hidden={!open}
-              focused={focused}
+              focused={groupFocused}
               renderItem={renderItem}
             />
           </div>

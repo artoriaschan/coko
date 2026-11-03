@@ -354,3 +354,41 @@ it('actual App: a host-delivered team input cuts process groups, stays outside f
   ).toEqual(['process-seat', 'team-message', 'process-seat'])
   expect(flow.textContent).not.toContain('HIDDEN CONTEXT')
 })
+
+it('actual App: restoring a focused running group height cap preserves its reading position', async () => {
+  await page.viewport(1000, 800)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 20 }, (_, i) => [call(2 + i * 2, `step-${i}`, 'custom', {}), result(3 + i * 2, `step-${i}`, `actual result ${i}`)]).flat(),
+  ])
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'run_start' } })
+  await expect.poll(() => document.querySelector('[data-slot="process-group-body"]')?.hasAttribute('data-running')).toBe(true)
+  const body = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  const tool = body.querySelector<HTMLButtonElement>('[data-slot="tool-card"] button')!
+  tool.focus({ preventScroll: true })
+  expect(body.scrollTop).toBe(0)
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(42, 'run_end', { status: 'completed' }) })
+  await expect.poll(() => getComputedStyle(body).maxHeight).toBe('400px')
+  expect(body.scrollTop).toBe(0)
+  expect(document.activeElement).toBe(tool)
+})
+
+it('actual App: completion protects only the focused group while other historical group bodies start collapsed', async () => {
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    call(2, 'before', 'custom', {}),
+    result(3, 'before', 'before'),
+    entry(4, 'message', { role: 'assistant', content: [{ type: 'text', text: 'Independent phase' }], stopReason: 'toolUse', timestamp: 0 }),
+    call(5, 'after', 'custom', {}),
+    result(6, 'after', 'after'),
+  ])
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'run_start' } })
+  await expect.poll(() => document.querySelectorAll('[data-slot="process-group-body"][data-running]').length).toBe(2)
+  const tool = document.querySelectorAll<HTMLButtonElement>('[data-slot="tool-card"] button')[1]!
+  tool.focus({ preventScroll: true })
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(7, 'run_end', { status: 'completed' }) })
+  await expect.element(page.getByRole('button', { name: 'Work steps', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  const heads = document.querySelectorAll('[data-slot="process-group-header"]')
+  expect([...heads].map((head) => head.getAttribute('aria-expanded'))).toEqual(['false', 'true'])
+  expect(document.activeElement).toBe(tool)
+})

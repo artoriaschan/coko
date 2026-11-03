@@ -1,0 +1,26 @@
+{
+  "port_49653": {
+    "exit": 1,
+    "listeners": ""
+  },
+  "port_49766": {
+    "exit": 1,
+    "listeners": ""
+  },
+  "pid_62393": {
+    "exit": 1,
+    "process": ""
+  },
+  "pid_69838": {
+    "exit": 1,
+    "process": ""
+  },
+  "browser_sessions": {
+    "coko-process-03": "Browser closed; exit0",
+    "coko-process-reference-03": "Browser closed; exit0"
+  },
+  "server_sessions": {
+    "66137": "Ctrl-C; observed exit130",
+    "51488": "Ctrl-C; observed exit130"
+  }
+}
