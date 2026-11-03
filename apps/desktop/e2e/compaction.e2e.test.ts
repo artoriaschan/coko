@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -65,7 +65,7 @@ describe('压缩', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const page = app.window
-    await waitConnected(page)
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await composerOf(page).click()

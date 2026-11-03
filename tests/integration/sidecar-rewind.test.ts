@@ -55,6 +55,27 @@ const send = async (api: Api, stream: Stream, sessionId: string, text: string, n
 }
 
 describe('回退与分叉', () => {
+  it('命令 Checkpoint 回退和分叉返回记录中的原始调用，保留展开正文与外部文件事实', async () => {
+    const root = await realpath(await tempDir())
+    await mkdir(join(root, '.coko', 'commands'), { recursive: true })
+    await writeFile(join(root, '.coko', 'commands', 'review.md'), 'Review $ARGUMENTS and report findings.')
+    const externalFile = join(root, 'external.txt')
+    await writeFile(externalFile, 'outside the command\n')
+    const { api, sessionId, stream } = await boot({ root, responses: [{ content: 'first answer' }, { content: 'review answer' }] })
+    await send(api, stream, sessionId, 'first', 1)
+    await send(api, stream, sessionId, '/review target', 2)
+    const source = await entriesOf(api, sessionId)
+    const [, targetSeq] = userSeqs(source)
+    expect(textOf(source.find((record) => record.seq === targetSeq)?.payload)).toBe('Review target and report findings.')
+    const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq })
+    expect(forked.body.text).toBe('/review target')
+    expect(await entriesOf(api, sessionId)).toEqual(source)
+    const rewound = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq, mode: 'conversation' })
+    expect(rewound.body.text).toBe('/review target')
+    expect((await entriesOf(api, sessionId)).slice(0, source.length)).toEqual(source)
+    expect(await readFile(externalFile, 'utf8')).toBe('outside the command\n')
+  })
+
   it(
     '三条消息各 edit 同一文件 → 回退代码到第二条：文件等于第一条 Run 之后的内容，其后新建的文件被删除，未追踪的文件不变；dry-run 不改文件并标出 Agent 之外的改动',
     { timeout: 60_000 },
@@ -158,7 +179,8 @@ describe('回退与分叉', () => {
     const a = join(root, 'a.txt')
     await send(api, stream, sessionId, 'alpha', 1)
     await send(api, stream, sessionId, 'beta', 2)
-    const [, beta] = userSeqs(await entriesOf(api, sessionId))
+    const beforeRewind = await entriesOf(api, sessionId)
+    const [, beta] = userSeqs(beforeRewind)
 
     const rewound = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: beta, mode: 'conversation' })
     expect(rewound.body).toMatchObject({ mode: 'conversation', text: 'beta', restored: [], deleted: [] })
@@ -167,6 +189,7 @@ describe('回退与分叉', () => {
     const detail = await api.get(apiPaths.session(sessionId))
     expect(detail.body.session).toMatchObject({ activity: 'idle', running: false })
     const rewindEntry = (detail.body.entries as SessionEntryRecord[]).at(-1)!
+    expect((detail.body.entries as SessionEntryRecord[]).slice(0, beforeRewind.length)).toEqual(beforeRewind)
     expect(rewindEntry).toMatchObject({ kind: 'rewind', payload: { targetSeq: beta } })
     expect((detail.body.entries as SessionEntryRecord[]).some((e) => role(e) === 'user' && textOf(e.payload) === 'beta')).toBe(true)
     // 回退的目标已不在有效上下文中。
@@ -196,6 +219,9 @@ describe('回退与分叉', () => {
     })
     await send(api, stream, sessionId, 'first', 1)
     await send(api, stream, sessionId, 'second', 2)
+    const externalFile = join(root, 'external-fact.txt')
+    const externalBytes = randomBytes(256)
+    await writeFile(externalFile, externalBytes)
     const source = await entriesOf(api, sessionId)
     const [, second] = userSeqs(source)
     // 目标不是用户消息：400。
@@ -216,14 +242,16 @@ describe('回退与分叉', () => {
     expect(copy[0]).toMatchObject({ seq: 1, kind: 'fork_origin', runId: null, payload: { sessionId, seq: second } })
     const expected = source.filter((e) => e.seq < second! && (e.kind === 'message' || e.kind === 'permission_mode' || e.kind === 'permission_rule'))
     expect(copy.slice(1).map((e) => [e.kind, e.runId, e.payload])).toEqual(expected.map((e) => [e.kind, null, e.payload]))
-    expect(await entriesOf(api, sessionId)).toHaveLength(source.length)
+    expect(await entriesOf(api, sessionId)).toEqual(source)
+    expect(await readFile(externalFile)).toEqual(externalBytes)
 
     // 新 Session 的 Run 只带分叉前的上下文；原 Session 仍不变。
     stream.send({ type: 'subscribe', sessionId: forkId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
     await send(api, stream, forkId, 'second, differently', 1)
     expect(await request(requestLog, 2)).toEqual(['user:first', 'assistant:r1', 'user:second, differently'])
-    expect(await entriesOf(api, sessionId)).toHaveLength(source.length)
+    expect(await entriesOf(api, sessionId)).toEqual(source)
+    expect(await readFile(externalFile)).toEqual(externalBytes)
     expect(stream.invalidEntries).toEqual([])
   })
 

@@ -13,7 +13,7 @@ it('archives, opens read-only from Settings, restores to the project, then resta
   const first = await launchApp({}, { dir: root })
   onTestFinished(() => first.dispose())
   const page = first.window
-  await waitConnected(page)
+  await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   const seeded = await page.evaluate(async (path) => {
     const post = async (route: string, body: unknown) => {
       const response = await fetch(route, { method: 'POST', body: JSON.stringify(body) })
@@ -25,9 +25,10 @@ it('archives, opens read-only from Settings, restores to the project, then resta
     return { project, session }
   }, folder)
   await page.reload()
-  await waitConnected(page)
+  await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   const row = () => page.locator(`[data-session-id="${seeded.session.id}"]`)
   await row().click()
+  await waitConnected(page)
   await row().click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^(归档|Archive conversation)$/ }).click()
   await page.getByText(/恢复后可继续|Restore this conversation to continue/).waitFor()
@@ -54,7 +55,6 @@ it('archives, opens read-only from Settings, restores to the project, then resta
   await first.dispose()
   const second = await launchApp({}, { dir: root })
   onTestFinished(() => second.dispose())
-  await waitConnected(second.window)
   await second.window.getByRole('heading', { name: /^(新对话|New chat)$/ }).waitFor()
   expect(await second.window.locator('[data-session-id]').count()).toBe(0)
   expect(await second.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).session.archivedAt, seeded.session.id)).toEqual(

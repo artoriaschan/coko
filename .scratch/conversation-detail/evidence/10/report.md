@@ -57,3 +57,5 @@ lifecycle: active
 文档未改路径或状态，无新增目录职责；正式材料没有具体scratch反向依赖，导航摘要仍成立。生命周期八项检查（引用、语义、归属、方向、生命周期、当前入口、新会话读入、历史保留）均通过，无归档变更。
 
 [cleanup.json](cleanup.json)：命名浏览器close exit0；视觉服务37338收到Ctrl-C后实际exit130；最终Electron命令exit0并由既有harness等待所属应用/Sidecar退出；按本票精确进程入口重新读取，remainingOwnedProcesses=[]。未关闭其他代理或用户的运行实例。没有推送或PR。
+
+集成复核：仅规范化三份终端日志的尾随空格和末尾空行，测试事实未修改。原始日志另存于 `/tmp/coko-conversation-detail/raw-10-logs/`；产品源码与已验证对象保持一致。

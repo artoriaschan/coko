@@ -234,16 +234,19 @@ export function TimelineView(props: TimelineViewProps) {
               <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
               {t('conversation.rewound', { count: item.items.length })}
             </summary>
-            <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
+            <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3">
               <TimelineView
                 sessionId={props.sessionId}
                 entries={props.entries}
                 items={item.items}
+                runs={props.runs}
+                connected={false}
                 theme={theme}
                 onRetry={onRetry}
                 actionsDisabled
                 historical
                 readOnly
+                onInspect={props.onInspect}
               />
             </div>
           </details>

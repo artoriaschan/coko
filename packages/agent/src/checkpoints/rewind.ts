@@ -73,9 +73,18 @@ export function userMessageText(payload: unknown): string | undefined {
 /** 有效上下文中的用户消息（Checkpoint 锚点）；不是时抛 RewindTargetError。 */
 export function rewindTarget(entries: readonly CheckpointEntry[], targetSeq: number): { entry: CheckpointEntry; text: string } {
   // 只应用回退：压缩之前的用户消息仍是 Checkpoint（回退到它时压缩落在被回退区间，原历史生效）。
-  const entry = effectiveEntries(entries).find((e) => e.seq === targetSeq)
+  const effective = effectiveEntries(entries)
+  const index = effective.findIndex((e) => e.seq === targetSeq)
+  const entry = effective[index]
   const text = entry?.kind === 'message' ? userMessageText(entry.payload) : undefined
   if (!entry || text === undefined) throw new RewindTargetError(targetSeq)
+  // The command entry records the invocation; the user message records its expanded model input.
+  // Only an adjacent command with the same proven Run belongs to this checkpoint.
+  const command = effective[index - 1]
+  if (entry.runId && command?.kind === 'command' && command.runId === entry.runId && isRecord(command.payload)) {
+    const { name, args } = command.payload
+    if (typeof name === 'string' && typeof args === 'string') return { entry, text: args === '' ? `/${name}` : `/${name} ${args}` }
+  }
   return { entry, text }
 }
 

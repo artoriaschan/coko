@@ -1,0 +1,8 @@
+{
+  "browser": { "session": "coko-history-11", "close": "Browser closed", "exitCode": 0 },
+  "visualServer": { "commandSession": 13532, "exitCode": 130, "port": 49455, "listeningAfterExit": false },
+  "processAudit": "ps matched no ticket-11 or coko-history-11 process except the audit shell and rg",
+  "electron": "all six actual Electron tests completed; harness awaited Electron and Sidecar disposal",
+  "temporaryStash": "owned ticket-11-before-context-integration restored, resolved, committed, then dropped",
+  "unrelatedProcesses": "untouched"
+}

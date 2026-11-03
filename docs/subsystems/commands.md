@@ -87,13 +87,14 @@ frontmatter 只认两个键，其余键（`model`、`allowed-tools` 等）忽略
 ## 界面
 
 - **/ 命令菜单**：草稿第一个字符为 `/` 时出现，查询为 `/` 之后、光标之前的非空白文本；前缀匹配在前、包含匹配在后，按来源分组，每项显示 `/name`、argument-hint 与描述。没有匹配时不出现，Enter 照常发送。焦点留在编辑区（`aria-activedescendant` 指向选中项）；↑↓ 循环移动，Enter / Tab 插入 `/name `（不发送），Esc 关闭且草稿不变，关闭后同一 token 继续输入不再弹出，删掉 token 后重新输入 `/` 再弹出；输入法组合期间不打开、组合中的 Enter 不确认。菜单经 Radix Popper 定位在编辑区上方，放不下时翻到下方，不越出窗口，可用指针选择。目录在切换会话或草稿与编辑区获得焦点时刷新。
-- **命令 chip**：由命令展开的用户消息显示为图标、`/name` 与参数，展开后显示"展开后的提示"全文。从这条消息回退时放回输入区的是原始调用 `/name 参数`。
+- **命令 chip**：由命令展开的用户消息显示为图标、`/name` 与参数，展开后显示"展开后的提示"全文。回退或从这条消息分叉时，紧邻目标消息且同属真实 Run 的 `command` 记录用于恢复原始调用 `/name 参数`；展开正文保持原样。没有该归属事实时使用目标消息真实正文，不从文字猜命令。返回文本放在已有未发送草稿之前，以换行分隔。
 
 ## 验证
 
 - `packages/agent/src/instructions/commands/args.test.ts`、`commands.test.ts`：占位符、引号参数、不递归、追加 ARGUMENTS 行、调用识别；发现、命名空间、frontmatter 与诊断、mtime 缓存；优先级、遮蔽与启停。
 - `apps/server/src/application/context/commands.test.ts`：内置命令的动作路径（409、steer 400）与 Skill 来源命令的展开与条目。
 - `tests/integration/sidecar-commands.test.ts`：真实 Sidecar 上的条目顺序与 faux requestLog、未知命令、追加指令展开、`commands.disabled` / `commands.enabled`、`GET /api/commands`。
+- `tests/integration/sidecar-rewind.test.ts` 与 `apps/desktop/e2e/rewind.e2e.test.ts`：命令回退/分叉返回原始调用、展开正文与源条目保持不变、已有草稿保留，以及 Checkpoint 的真实文件恢复。
 - `packages/ui/src/composer/composer-typeahead.browser.test.tsx`：typeahead 的键盘、Esc、输入法（Chromium CDP 组合）、指针与定位。
 - `apps/desktop/e2e/commands.e2e.test.ts`：Electron 中的分组菜单与 argument-hint、键盘与指针选择、命令 chip 展开全文。
 

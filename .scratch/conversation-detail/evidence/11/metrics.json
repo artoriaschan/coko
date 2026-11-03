@@ -1,0 +1,158 @@
+[
+  {
+    "theme": "light",
+    "locale": "en",
+    "width": 1000,
+    "data": {
+      "viewport": 1000,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1000,
+      "openHistory": [
+        true,
+        true
+      ],
+      "summaryOpen": true,
+      "keyboardFocused": "compaction-divider",
+      "groups": [
+        {
+          "cap": "400px",
+          "client": 400,
+          "total": 816
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        }
+      ],
+      "readonlyActions": [
+        true,
+        true
+      ],
+      "retry": 0
+    }
+  },
+  {
+    "theme": "light",
+    "locale": "en",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "openHistory": [
+        true,
+        true
+      ],
+      "summaryOpen": true,
+      "keyboardFocused": "compaction-divider",
+      "groups": [
+        {
+          "cap": "400px",
+          "client": 400,
+          "total": 816
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        }
+      ],
+      "readonlyActions": [
+        true,
+        true
+      ],
+      "retry": 0
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "en",
+    "width": 1000,
+    "data": {
+      "viewport": 1000,
+      "dpr": 1,
+      "main": 1000,
+      "overflow": 1000,
+      "openHistory": [
+        true,
+        true
+      ],
+      "summaryOpen": true,
+      "keyboardFocused": "compaction-divider",
+      "groups": [
+        {
+          "cap": "400px",
+          "client": 400,
+          "total": 816
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        }
+      ],
+      "readonlyActions": [
+        true,
+        true
+      ],
+      "retry": 0
+    }
+  },
+  {
+    "theme": "dark",
+    "locale": "en",
+    "width": 390,
+    "data": {
+      "viewport": 390,
+      "dpr": 1,
+      "main": 390,
+      "overflow": 390,
+      "openHistory": [
+        true,
+        true
+      ],
+      "summaryOpen": true,
+      "keyboardFocused": "compaction-divider",
+      "groups": [
+        {
+          "cap": "400px",
+          "client": 400,
+          "total": 816
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        },
+        {
+          "cap": "400px",
+          "client": 0,
+          "total": 0
+        }
+      ],
+      "readonlyActions": [
+        true,
+        true
+      ],
+      "retry": 0
+    }
+  }
+]
