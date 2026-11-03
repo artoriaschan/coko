@@ -28,7 +28,7 @@
   max-width: 100%;
   padding: 0;
   overflow: hidden;
-  border: var(--hairline) solid var(--conversation-inspect-stroke);
+  border: var(--hairline) solid var(--conversation-image-stroke);
   background: var(--accent);
   cursor: zoom-in;
 }
@@ -84,7 +84,7 @@
   max-width: min(100%, 1600px);
   max-height: 100%;
   object-fit: contain;
-  background: var(--background);
+  background: var(--conversation-image-surface);
 }
 .tool-image-close {
   position: absolute;
@@ -94,8 +94,8 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border: var(--hairline) solid var(--conversation-inspect-stroke);
-  background: var(--background);
+  border: var(--hairline) solid var(--conversation-image-stroke);
+  background: var(--conversation-image-surface);
   color: var(--foreground);
   cursor: pointer;
 }

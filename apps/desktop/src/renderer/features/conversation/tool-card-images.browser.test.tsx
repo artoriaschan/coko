@@ -104,6 +104,12 @@ it('actual App: partial bitmap becomes committed without duplicating, remounting
   await expect.element(dialog).toBeVisible()
   const full = dialog.element().querySelector('img')!
   const src = full.src
+  const input = document.querySelector('.tool-io-text')!
+  const inputRange = document.createRange()
+  inputRange.selectNodeContents(input)
+  getSelection()!.removeAllRanges()
+  getSelection()!.addRange(inputRange)
+  const selectedInput = getSelection()!.toString()
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(2) })
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: result(3, [{ type: 'text', text: 'committed prefix' }, ...content]) })
   await expect.poll(() => document.querySelector('[data-slot="tool-card"]')?.getAttribute('data-status')).toBe('done')
@@ -111,18 +117,17 @@ it('actual App: partial bitmap becomes committed without duplicating, remounting
   expect(document.querySelectorAll('[data-slot="tool-card"]')).toHaveLength(1)
   expect(dialog.element().querySelector('img')).toBe(full)
   expect(full.src).toBe(src)
+  expect(getSelection()!.toString()).toBe(selectedInput)
   expect(dialog.element().textContent).toContain('Image 2')
+  const preview = dialog.element()
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(4, 'run_end', { status: 'completed' }) })
+  await expect.poll(() => fixture.chat.getState().conversations['s-1']?.running).toBe(false)
+  expect(document.querySelector('[data-tool-image-dialog]')).toBe(preview)
   await userEvent.keyboard('{Escape}')
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull()
   expect(document.activeElement).toBe(buttons[1])
+  expect(buttons[1]!.checkVisibility()).toBe(true)
   expect(headerElement.getAttribute('aria-expanded')).toBe('true')
-  const text = document.querySelector('.tool-io-section:last-child .tool-io-text')!
-  const range = document.createRange()
-  range.selectNodeContents(text)
-  getSelection()!.removeAllRanges()
-  getSelection()!.addRange(range)
-  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(4, 'second') })
-  expect(getSelection()!.toString()).toContain('Screenshot text stays selectable')
 })
 
 it.each([

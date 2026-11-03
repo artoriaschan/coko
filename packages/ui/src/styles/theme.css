@@ -115,6 +115,8 @@
   --conversation-process-shimmer: var(--palette-ink-a30);
   --conversation-detail-stroke: var(--palette-ink-a04);
   --conversation-inspect-stroke: var(--palette-ink-a12);
+  --conversation-image-stroke: var(--palette-ink-a10);
+  --conversation-image-surface: var(--palette-white);
   --conversation-inspect-hover: var(--palette-gray-75);
   --conversation-process-transition: 100ms ease;
   --conversation-process-shimmer-duration: 1.5s;
@@ -190,6 +192,8 @@
   --conversation-process-shimmer: color-mix(in srgb, var(--palette-white) 45%, transparent);
   --conversation-detail-stroke: var(--palette-white-a06);
   --conversation-inspect-stroke: var(--palette-white-a16);
+  --conversation-image-stroke: var(--palette-white-a06);
+  --conversation-image-surface: var(--palette-gray-800);
   --conversation-inspect-hover: var(--palette-gray-750);
   color-scheme: dark;
   --background: var(--palette-gray-950);
