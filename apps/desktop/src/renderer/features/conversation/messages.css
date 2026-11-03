@@ -1,3 +1,9 @@
+.conversation-message-scroll {
+  padding-inline-start: 32px;
+  /* The stable scrollbar gutter is already inside the scrollport's end edge. */
+  padding-inline-end: calc(32px - var(--scrollbar-size));
+}
+
 .conversation-user-message,
 .conversation-assistant-message,
 .conversation-reasoning {
@@ -97,7 +103,11 @@
 }
 
 .conversation-reasoning[data-expanded] .conversation-reasoning-chevron {
-  transform: rotate(90deg);
+  opacity: 1;
+}
+
+.conversation-reasoning[data-expanded] .conversation-reasoning-icon {
+  opacity: 0;
 }
 
 .conversation-reasoning-title {

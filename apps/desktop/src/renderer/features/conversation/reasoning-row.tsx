@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { ChevronRightIcon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
@@ -48,6 +47,7 @@ export function ReasoningRow({ text, streaming, theme }: { text: string; streami
   const summary = preview(text, streaming)
   return (
     <section data-slot="reasoning" data-streaming={streaming || undefined} data-expanded={expanded || undefined} className="conversation-reasoning">
+      {streaming && <span className="sr-only">{t('tool.running')}</span>}
       <button
         type="button"
         aria-label={t('conversation.thinking')}
@@ -60,7 +60,15 @@ export function ReasoningRow({ text, streaming, theme }: { text: string; streami
           <span className="conversation-reasoning-icon">
             <ThinkIcon />
           </span>
-          <ChevronRightIcon aria-hidden className="conversation-reasoning-chevron" />
+          <svg aria-hidden className="conversation-reasoning-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+            <path
+              d={
+                expanded
+                  ? 'M12 10L8.70711 6.70711C8.31658 6.31658 7.68342 6.31658 7.29289 6.70711L4 10'
+                  : 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6'
+              }
+            />
+          </svg>
         </span>
         <span className="conversation-reasoning-labels">
           <span className="conversation-reasoning-title">{t('conversation.thinking')}</span>

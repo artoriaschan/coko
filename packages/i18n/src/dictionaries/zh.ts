@@ -202,7 +202,7 @@ export const zh = {
     loading: '正在加载对话',
     loadFailed: '对话加载失败',
     generating: '正在生成',
-    thinking: '思考过程',
+    thinking: '思考',
     copyMessage: '复制消息',
     messageCopied: '消息已复制',
     copyMessageFailed: '消息复制失败',

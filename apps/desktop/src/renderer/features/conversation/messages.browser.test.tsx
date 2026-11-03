@@ -135,6 +135,8 @@ it('message bubbles and actions use the reference geometry and copy original use
   expect([style.fontSize, style.lineHeight, style.padding, style.borderRadius]).toEqual(['14px', '22px', '10px 16px', '20px'])
   expect(rect('[data-slot="app-frame-main"] header')).toEqual(header)
   expect(rect('[data-slot="composer"]')).toEqual(composer)
+  const column = document.querySelector('[data-slot="conversation-messages"]')!.getBoundingClientRect()
+  expect((column.left + column.right) / 2).toBeCloseTo(composer[0]! + composer[2]! / 2, 2)
   const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
   await userEvent.click(page.getByRole('article', { name: 'You', exact: true }).getByRole('button', { name: 'Copy message' }))
   expect(write).toHaveBeenLastCalledWith(user)
@@ -203,6 +205,10 @@ it.each([
   expect(document.activeElement).toBe(toggle)
   const main = document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!
   expect(main.getBoundingClientRect().width).toBe(390)
+  const composer = document.querySelector('[data-slot="composer"]')!.getBoundingClientRect()
+  const messages = document.querySelector('[data-slot="conversation-messages"]')!.getBoundingClientRect()
+  expect(messages.width).toBe(composer.width - 32)
+  expect((messages.left + messages.right) / 2).toBe((composer.left + composer.right) / 2)
   expect(main.scrollWidth).toBeLessThanOrEqual(main.clientWidth)
   expect(getComputedStyle(document.querySelector('[data-slot="user-bubble"]')!).backgroundColor).toBe(
     theme === 'light' ? 'rgb(237, 243, 254)' : 'rgb(44, 44, 46)',

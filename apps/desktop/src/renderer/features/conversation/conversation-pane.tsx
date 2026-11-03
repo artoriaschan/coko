@@ -329,7 +329,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <div
           ref={scroller}
           data-scroll-stable
-          className={activeSessionId === null ? 'shrink-0 px-4' : 'flex min-h-0 flex-1 flex-col overflow-y-auto px-8'}
+          className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}
           onScroll={(event) => {
             const el = event.currentTarget
             pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
