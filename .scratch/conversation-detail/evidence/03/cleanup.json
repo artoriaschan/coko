@@ -22,5 +22,9 @@
   "server_sessions": {
     "66137": "Ctrl-C; observed exit130",
     "51488": "Ctrl-C; observed exit130"
+  },
+  "final_electron_runtime": {
+    "remaining": [],
+    "native_tests": "2 files, 9 passed, process exited0"
   }
 }

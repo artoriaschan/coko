@@ -8,7 +8,7 @@ lifecycle: active
 
 ## 对象与范围
 
-[规格](../../spec.md) AC-02—08、22—25；[实施票](../../issues/03-detailed-process-groups-and-folding.md) 与 [显示契约](../../design.md)。起点为 3f853817f6b0286c0d53329afac3e0c54450db63，实施提交 9ce7f99；先合入 04/05 的 7610b5d（合并提交 65420e8），再合入 06 的 694b27ed8fe56817fe821865676d742dc3f0da4e（27ac49f）。末尾阅读位置修复见后续当前提交。无协议、数据库或权限语义变化。
+[规格](../../spec.md) AC-02—08、22—25；[实施票](../../issues/03-detailed-process-groups-and-folding.md) 与 [显示契约](../../design.md)。起点为 3f853817f6b0286c0d53329afac3e0c54450db63，实施提交 9ce7f99；先合入 04/05 的 7610b5d（合并提交 65420e8），再合入 06 的 694b27ed8fe56817fe821865676d742dc3f0da4e（27ac49f）。最终源码对象为 3ad5caa（阅读位置、每组焦点/门户锁和对应 21 条 App 回归）；其后仅保存验收日志和清理回执。无协议、数据库或权限语义变化。
 
 环境：macOS arm64；Node 26.10.0、pnpm 12.15.0、Vitest 5.0.3、React 19.3.0、Electron 41.0.3 / Node 24.14.0 / Chromium 146.0.7680.80。agent-browser 0.38.2，命名静默会话 `coko-process-03`、`coko-process-reference-03`，DPR 1。Browser Mode 使用现有协议夹具替代外部模型与后端网络，之后保持真实 App、store、投影和组件；Electron 使用真实 Sidecar、SQLite、工具与 faux 模型，无真实模型调用或 CI 结论。
 
@@ -27,7 +27,7 @@ lifecycle: active
 
 - `rtk proxy pnpm run test --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel`：33 文件、228/228 通过、退出 0，包含本票真实 App 21 条；消息、工具、业务行、审批/恢复及右栏消费者见 [最终日志](consumers-final.log)。
 - `rtk pnpm run test apps/desktop/src/renderer/features/conversation/timeline.test.ts apps/desktop/src/renderer/features/conversation/process-groups.test.ts packages/ui/src/tool-card/tool-card.browser.test.tsx`：14 条时间线、2 条投影、2 条共享壳检查，共 18 条通过，退出 0。
-- `rtk proxy pnpm run test --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts`：真实 Electron/Sidecar 2 文件 9/9 通过、退出 0（[最终 Electron 日志](electron-final-tree.log)），对话、审批、停止、重试、重启历史与几何。初始新工作树缺 Electron binary，安装器返回 0 但未产生执行文件，随后从已验证同版本 04 依赖缓存复制 41.0.3 binary 后运行。空 New chat 不提供 ConnectionStatus，本地 setup 先等真实工作台，发送后仍验证实际连接；未改全局 waitConnected。原几何测试读到空页隐藏 h1，改为建立真实 Session，并分别核对 unchanged 控制条右边界 216、8px 后的可见标题 224、首键 84 和安全区 72；没有修改产品布局。
+- `rtk proxy pnpm run test --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts`：真实 Electron/Sidecar 2 文件 9/9 通过、退出 0（[最终 Electron 日志](electron-final-tree.log)），对话、审批、停止、重试、重启历史与几何。初始新工作树缺 Electron binary，安装器返回 0 但未产生执行文件，随后从已验证同版本 04 依赖缓存复制 41.0.3 binary 后运行。空 New chat 不提供 ConnectionStatus，本地 setup 先等真实工作台，发送后仍验证实际连接；未改全局 waitConnected。原几何测试读到空页隐藏 h1，改为建立真实 Session，并分别核对 原有控制条右边界 216、8px 后的可见标题 224、首键 84 和安全区 72；没有修改产品布局。
 - `rtk pnpm run typecheck`、`rtk pnpm run check:docs`：类型检查退出 0；文档检查 270 个 Markdown、0 问题、退出 0；没有工作流目录，未声称 CI 通过。
 
 ## 双主题视觉和交互

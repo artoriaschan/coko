@@ -5,6 +5,6 @@ $ vitest run --project desktop-e2e apps/desktop/e2e/chat.e2e.test.ts apps/deskto
 
  Test Files  2 passed (2)
       Tests  9 passed (9)
-   Start at  23:01:21
-   Duration  31.50s (tests 98%, import 2%)
+   Start at  23:05:12
+   Duration  27.24s (tests 99%, import 1%)
 
