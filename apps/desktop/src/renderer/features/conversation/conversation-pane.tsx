@@ -191,11 +191,29 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const confirmation = React.useMemo(() => (conversation && !conversation.running ? pendingConfirmations(conversation.entries)[0] : undefined), [conversation])
   // 输入区被接管时焦点若在其中，移到卡片上；回答后回到输入区。
   const composerArea = React.useRef<HTMLDivElement>(null)
-  const [focusCard, setFocusCard] = React.useState(false)
-  const cardKey = pending?.payload.requestId ?? confirmation?.toolCallId
+  const cardArea = React.useRef<HTMLDivElement>(null)
+  const previousCard = React.useRef<HTMLElement | null>(null)
+  const lastFocused = React.useRef<EventTarget | null>(null)
+  const cardKey = pending
+    ? `approval:${pending.sessionId}:${pending.payload.requestId}`
+    : confirmation
+      ? `confirmation:${activeSessionId}:${confirmation.toolCallId}`
+      : undefined
   React.useLayoutEffect(() => {
-    if (cardKey === undefined) return
-    setFocusCard(composerArea.current?.contains(document.activeElement) ?? false)
+    const previous = previousCard.current
+    const active = document.activeElement
+    const ownedFocus =
+      composerArea.current?.contains(active) ||
+      previous?.contains(active) ||
+      (active === document.body && lastFocused.current instanceof Node && previous?.contains(lastFocused.current))
+    const next =
+      cardKey === undefined
+        ? null
+        : (cardArea.current?.querySelector<HTMLElement>('[data-slot="approval-card"], [data-slot="confirmation-card"], [data-slot="plan-review"]') ?? null)
+    previousCard.current = next
+    if (!ownedFocus) return
+    if (next) next.focus({ preventScroll: true })
+    else if (previous) composer.current?.focus()
   }, [cardKey])
   const takenOver = pending !== undefined || confirmation !== undefined
   // 绑定的 worktree 已移除：会话只能查看（Sidecar 以 409 worktree-removed 拒绝提交），输入区换成只读提示。
@@ -329,7 +347,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         )}
       </header>
 
-      <div className={`relative flex min-h-0 flex-1 flex-col ${activeSessionId === null ? 'justify-center overflow-y-auto' : ''}`}>
+      <div
+        onFocusCapture={(event) => {
+          lastFocused.current = event.target
+        }}
+        className={`relative flex min-h-0 flex-1 flex-col ${activeSessionId === null ? 'justify-center overflow-y-auto' : ''}`}
+      >
         <div
           ref={scroller}
           data-scroll-stable
@@ -342,13 +365,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           {body}
         </div>
 
-        <div className="shrink-0 px-4 pb-4">
+        <div ref={cardArea} className="shrink-0 px-4 pb-4">
           {pending && (
             <ApprovalPanel
               className={composerColumn}
               request={pending.payload}
               call={pendingCall}
-              autoFocus={focusCard}
               onOpenPlan={() => openTab('plan')}
               {...(fromChild ? { source: { agentType: fromChild.agentType, description: fromChild.description } } : {})}
               onAllow={() => answerPending({ decision: 'allow', scope: 'once' })}
@@ -360,7 +382,6 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             <ConfirmationPanel
               className={composerColumn}
               confirmation={confirmation}
-              autoFocus={focusCard}
               onAnswer={(answer) => answerConfirmation(confirmation.toolCallId, answer)}
             />
           )}

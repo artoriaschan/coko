@@ -7,6 +7,7 @@ import { ProcessDisclosureReset, ProcessFocusLock, useProcessDisclosure } from '
 import { ProcessActivityIcon } from './process-icon.tsx'
 import { useNow } from './jobs-button.tsx'
 import './process-timeline.css'
+import { ProcessToolStates } from './tool-states.tsx'
 
 function summary(group: ProcessGroup, t: Translator, locale: string): string {
   const activities = processActivities(group.members)
@@ -109,6 +110,7 @@ function Group({
         </span>
         <span className="conversation-process-label">{summary(group, t, locale)}</span>
       </button>
+      {!running && <ProcessToolStates members={group.members} />}
       <div
         ref={body}
         id={bodyId}
@@ -171,12 +173,14 @@ function RunControl({
   open,
   connected,
   onToggle,
+  members,
 }: {
   run: DisplayRun
   eligible: boolean
   open: boolean
   connected: boolean
   onToggle: () => void
+  members: TimelineItem[]
 }) {
   const { t } = useI18n()
   const now = useNow(run.status === 'running' && connected && run.startedAt !== undefined)
@@ -230,6 +234,7 @@ function RunControl({
         </span>
         {eligible && <Chevron open={open} />}
       </button>
+      {!open && <ProcessToolStates members={members} />}
     </React.Fragment>
   )
 }
@@ -285,6 +290,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
           <RunControl
             key={`control:${run.id}`}
             run={run}
+            members={items.filter((item) => item.origin?.runId === run.id)}
             eligible={eligible}
             open={open}
             connected={connected}

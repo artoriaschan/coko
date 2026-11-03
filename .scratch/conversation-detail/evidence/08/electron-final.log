@@ -1,0 +1,9 @@
+$ vitest run apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/recovery.e2e.test.ts apps/desktop/e2e/sandbox.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-08
+
+
+ Test Files  3 passed (3)
+      Tests  5 passed (5)
+   Start at  23:18:00
+   Duration  16.80s (tests 97%, import 3%)

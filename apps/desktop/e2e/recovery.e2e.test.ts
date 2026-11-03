@@ -28,15 +28,21 @@ describe('启动恢复', () => {
     await writeFile(script, JSON.stringify({ responses: [{ content: [call] }] }))
     const app = await launchApp({ COKO_FAUX_SCRIPT: script }, { dir: root })
     apps.push(app)
-    await waitConnected(app.window)
+    await app.window.getByRole('heading', { level: 1 }).waitFor()
     await createProjectDraft(app, workspace)
     await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await app.window.locator('[data-permission-mode]').click()
     await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+    await app.window
+      .locator('[data-permission-risk-dialog]')
+      .getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ })
+      .click()
+    await app.window.locator('[data-permission-risk-dialog]').waitFor({ state: 'detached' })
     const composer = app.window.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     await composer.click()
     await composer.fill('run the long command')
     await composer.press('Enter')
+    await waitConnected(app.window)
     await expect.poll(() => exists(join(workspace, 'started')), { timeout: 30_000 }).toBe(true)
 
     // 重启后的 Sidecar 重新读取脚本：继续时的回复。

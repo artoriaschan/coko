@@ -542,6 +542,8 @@ export const en: typeof zh = {
       'Coko asks before writing files, running commands, or reading outside the workspace. Commands run in a sandbox that only lets them write to the workspace and temp folders (Read only: nowhere); it does not limit network access or reads, so use Coko only in workspaces you trust.',
   },
   tool: {
+    noRecordedResult: 'No recorded result',
+    sandboxDenied: 'Sandbox denied',
     running: 'Running',
     done: 'Done',
     error: 'Failed',
@@ -591,6 +593,11 @@ export const en: typeof zh = {
     fileShowAll: 'Show all {count} lines',
   },
   confirmation: {
+    recorded: {
+      applied: 'User confirmed it took effect',
+      'not-applied': 'User confirmed it did not take effect',
+      unknown: 'User could not confirm the outcome',
+    },
     status: 'Outcome unknown',
     detail: 'Interrupted operation',
     titleBash: 'Did this command take effect?',
