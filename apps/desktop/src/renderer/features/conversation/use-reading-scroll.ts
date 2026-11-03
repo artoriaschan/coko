@@ -95,12 +95,21 @@ export function useReadingScroll(
     }
     const intent = (event: Event) => {
       if (event instanceof KeyboardEvent && (event.defaultPrevented || !SCROLL_KEYS.has(event.key))) return
+      if (event instanceof WheelEvent && event.deltaY === 0) return
       const target = event.target instanceof Element ? event.target : null
       for (let inner = target instanceof HTMLElement ? target : target?.parentElement; inner && inner !== element; inner = inner.parentElement) {
         if (!['auto', 'scroll'].includes(getComputedStyle(inner).overflowY) || inner.scrollHeight <= inner.clientHeight + 1) continue
         if (!(event instanceof WheelEvent) || (event.deltaY < 0 ? inner.scrollTop > 0 : inner.scrollTop + inner.clientHeight < inner.scrollHeight - 1)) return
       }
-      following = false
+      const editing = target?.closest('button, [role="button"], input, textarea, [contenteditable="true"]')
+      if (event instanceof KeyboardEvent && editing && event.key === ' ') return
+      const upward =
+        event instanceof WheelEvent
+          ? event.deltaY < 0
+          : event instanceof KeyboardEvent
+            ? ['ArrowUp', 'PageUp', 'Home'].includes(event.key) || (event.key === ' ' && event.shiftKey)
+            : event.type === 'touchmove'
+      if (upward) following = false
       pendingGesture = true
       // A gesture cancels a pending old reading position before the browser applies its movement.
       capture()

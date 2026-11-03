@@ -2,7 +2,7 @@ import '../../styles.css'
 import { SessionEntry, type SessionEntryRecord } from '@coko/protocol'
 import { Value } from 'typebox/value'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
@@ -487,4 +487,24 @@ it('actual App: reversing a manual fold continues from the displayed height and 
   await expect.poll(() => seat.getAnimations().length).toBe(0)
   expect(document.querySelector('[data-slot="process-seat"]')).toBe(seat)
   expect(seat.hidden).toBe(false)
+})
+
+it('actual App: keyboard Space opens detail at the tail and a downward wheel at the floor retains following', async () => {
+  await page.viewport(1000, 800)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...longReplies(),
+    call(18, 'keyboard-growth', 'custom', {}),
+    result(19, 'keyboard-growth', 'Real keyboard output\n'.repeat(60)),
+  ])
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  const header = document.querySelector<HTMLButtonElement>('[data-slot="tool-card"] button')!
+  header.focus({ preventScroll: true })
+  await userEvent.keyboard(' ')
+  await expect.poll(() => document.querySelector('[data-slot="tool-card-body"]')).not.toBeNull()
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  outer().dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true }))
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: reply(20, 'Tail after downward gesture.\n\n' + 'Actual paragraph. '.repeat(100)) })
+  await expect.element(page.getByText(/Tail after downward gesture/)).toBeInTheDocument()
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
 })
