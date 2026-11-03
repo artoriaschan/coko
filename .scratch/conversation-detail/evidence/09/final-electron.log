@@ -1,0 +1,9 @@
+$ vitest run apps/desktop/e2e/plan.e2e.test.ts apps/desktop/e2e/goal.e2e.test.ts apps/desktop/e2e/jobs.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-09
+
+
+ Test Files  3 passed (3)
+      Tests  4 passed (4)
+   Start at  23:47:48
+   Duration  32.81s (tests 99%, import 1%)

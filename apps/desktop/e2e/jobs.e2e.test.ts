@@ -15,7 +15,10 @@ afterEach(async () => {
 async function launch(root: string) {
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window
+    .getByRole('button', { name: /^(Add project|创建项目)$/ })
+    .first()
+    .waitFor()
   return app
 }
 
@@ -30,6 +33,7 @@ async function setup(script: unknown) {
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await app.window.locator('[data-permission-mode]').click()
   await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+  await app.window.getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ }).click()
   await expect.poll(() => app.window.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('full-access')
   return { app, root, workspace }
 }
@@ -39,6 +43,14 @@ async function type(app: LaunchedApp, text: string) {
   await composer(app).click()
   await composer(app).fill(text)
   await composer(app).press('Enter')
+}
+async function openBackgroundCommands(app: LaunchedApp) {
+  const whole = app.window.locator('[data-slot="run-process-control"]')
+  for (const button of await whole.all()) if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
+  const groups = app.window.locator('[data-slot="process-group-header"]')
+  for (const button of await groups.all()) if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
+  const commands = app.window.locator('[data-slot="tool-card"][data-tool="bash"] > button')
+  for (const button of await commands.all()) if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
 }
 const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
 const jobsButton = (app: LaunchedApp) => app.window.locator('[data-action="open-jobs"]')
@@ -99,13 +111,14 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     await expect.poll(() => badge(app).textContent(), { timeout: 15_000 }).toBe('1')
     const stopped = await ticks()
 
-    // 工具卡上的 Job chip 打开对应 Job（alpha）。
-    const alphaChip = app.window.locator('[data-slot="tool-card"][data-tool="bash"] [data-slot="job-chip"]').first()
-    expect(await alphaChip.textContent()).toContain(': alpha')
     await app.window
       .getByRole('button', { name: /^(Close right panel|关闭右栏)$/ })
       .first()
       .click()
+    await openBackgroundCommands(app)
+    // 工具卡上的 Job chip 打开对应 Job（alpha）。
+    const alphaChip = app.window.locator('[data-slot="tool-card"][data-tool="bash"] [data-slot="job-chip"]').first()
+    expect(await alphaChip.textContent()).toContain(': alpha')
     await alphaChip.click()
     await expect.poll(() => detail(app).textContent(), { timeout: 10_000 }).toContain(': alpha')
     expect(await jobsTab(app).getAttribute('aria-selected')).toBe('true')
@@ -152,12 +165,14 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     })
     await type(app, 'build in background')
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Building.')
+    await openBackgroundCommands(app)
     const chipStatus = app.window.locator('[data-slot="job-chip"] [data-job-status]')
     await expect.poll(() => chipStatus.getAttribute('data-job-status'), { timeout: 15_000 }).toBe('completed')
     await apps.splice(apps.indexOf(app), 1)[0]!.dispose()
 
     const second = await launch(root)
     await second.window.locator('[data-session-id]').first().click()
+    await waitConnected(second.window)
     await second.window.getByRole('heading', { level: 1, name: 'build in background' }).waitFor({ timeout: 15_000 })
     await jobsButton(second).click()
     await expect.poll(() => jobsTab(second).getAttribute('aria-selected')).toBe('true')

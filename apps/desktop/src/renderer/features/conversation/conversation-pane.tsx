@@ -309,11 +309,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           theme={theme}
           onRetry={() => void retry()}
           onInspect={() => openTab('trace')}
+          onOpenPlan={() => openTab('plan')}
           onRewind={(seq, text) =>
             activeSessionId !== null && setRewindRequest((prev) => ({ sessionId: activeSessionId, seq, text, opened: (prev?.opened ?? 0) + 1, open: true }))
           }
           onFork={(seq) => void fork(seq)}
           actionsDisabled={actionsDisabled}
+          readOnly={archived || session?.worktree?.status === 'removed'}
         />
       </div>
     )

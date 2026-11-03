@@ -26,7 +26,7 @@ function FailedHandoffRow({ code, payload }: { code: string; payload: unknown })
       data-slot="handoff-row"
       data-handoff="failed"
       data-code={code}
-      className="flex min-w-0 flex-wrap items-start gap-2 text-conversation-row text-muted-foreground"
+      className="flex min-w-0 flex-wrap items-start gap-2 conversation-business-row text-muted-foreground"
     >
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="min-w-0 flex-1">
@@ -64,7 +64,7 @@ function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: '
       data-slot="handoff-row"
       data-handoff={handoff.kind}
       data-session-id={otherId}
-      className="flex min-w-0 flex-wrap items-center gap-2 text-conversation-row text-muted-foreground"
+      className="flex min-w-0 flex-wrap items-center gap-2 conversation-business-row text-muted-foreground"
     >
       <ArrowRightLeftIcon aria-hidden className="size-4 shrink-0" />
       <p data-user-content className="min-w-0 flex-1 break-words" title={text}>

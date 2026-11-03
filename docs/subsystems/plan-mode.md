@@ -54,7 +54,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 - **Plan chip**：plan 时在权限右侧显示 0.5px × 16px 分隔线与中性的“计划”胶囊。胶囊 H28、圆弧 R14，灯泡与关闭图标共用 24px 槽，hover 或键盘聚焦显示圆形关闭图标，标签位置和右侧至少 12px 内边距不变。关闭按钮有可访问名称和 Tooltip，无快捷键提示。点击后等待协议接受，恢复 prior（缺失时 default），返回编辑区焦点；退出失败保留状态并反馈，文字草稿与其他配置不改变。发送清空编辑器不会关闭计划状态。
 - **审阅卡**：kind plan 的待审批请求接管输入区（`data-slot="plan-review"`）：标题、修订、正文预览、"已编辑"标记；主按钮"批准并执行"（标出将恢复的模式，`data-restores`）与下拉"批准并允许编辑"（mode accept-edits；只在将恢复的模式为 full-access、accept-edits 更窄时给出）；"继续规划"展开反馈输入，"发送反馈"为带反馈拒绝；"在右栏查看"打开右栏 Plan tab。新请求出现时自动打开右栏一次（按 requestId，renderer 内存）。右栏中的编辑不合格时不能批准。
 - **右栏 Plan tab**：选中修订（缺省最新）的静态 Markdown、修订下拉（每个 planId 每个 revision 一项，最新在前）、状态与拒绝反馈；正在审阅的修订有"编辑"（mono Textarea）与"撤销编辑"。草稿在 renderer 内存，按 Session、planId 与 revision 保存，随批准作为 `editedPlan` 提交。
-- **时间线计划卡**（`data-slot="plan-card"`）：标题、修订、状态与反馈；proposed 条目在同一计划有后续条目后不再显示；点击切到右栏 Plan tab。
+- **时间线计划卡**（`data-slot="plan-card"`）：标题、修订、状态与反馈；proposed 条目在同一计划有后续条目后不再显示；主会话中点击切到既有右栏 Plan tab；子会话、回退历史及只读上下文中，点击展开当前记录的只读 Markdown 快照，不误开主会话的最新计划。后续修订仅按当前渲染 Session 的条目判断，不读取活动父会话。计划卡沿用对话详情的 13px/20px 字体、R16 轻量表面与 10px/14px 内边距，反馈完整换行。计划审阅仍接管既有输入区，状态机和审批契约不变。
 
 ## 验证
 

@@ -5,6 +5,7 @@ import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, Loade
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
+import './business-timeline.css'
 import { GoalRow } from './goal-row.tsx'
 import { JobRow } from './job-row.tsx'
 import { AgentNotificationRow } from './agent-notification-row.tsx'
@@ -25,6 +26,9 @@ import { TimelineSessionContext } from './timeline-session.tsx'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
+  historical?: boolean
+  readOnly?: boolean
+  onOpenPlan?: () => void
   sessionId?: string
   /** Actual caller-owned entries; never inferred from the active parent Session. */
   entries?: readonly SessionEntry[]
@@ -242,6 +246,8 @@ export function TimelineView(props: TimelineViewProps) {
                 theme={theme}
                 onRetry={onRetry}
                 actionsDisabled
+                historical
+                readOnly
                 onInspect={props.onInspect}
               />
             </div>
@@ -339,7 +345,16 @@ export function TimelineView(props: TimelineViewProps) {
     }
   }
   return (
-    <TimelineSessionContext.Provider value={{ sessionId: props.sessionId ?? null, entries: props.entries ?? [], actionsDisabled }}>
+    <TimelineSessionContext.Provider
+      value={{
+        sessionId: props.sessionId ?? null,
+        entries: props.entries ?? [],
+        actionsDisabled,
+        historical: props.historical ?? false,
+        readOnly: props.readOnly ?? false,
+        openPlan: props.onOpenPlan,
+      }}
+    >
       <ProcessTimeline
         key={props.sessionId}
         items={items}

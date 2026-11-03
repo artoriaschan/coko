@@ -7,7 +7,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -66,11 +66,15 @@ async function setup() {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window
+    .getByRole('button', { name: /^(Add project|创建项目)$/ })
+    .first()
+    .waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await app.window.locator('[data-permission-mode]').click()
   await app.window.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+  await app.window.getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ }).click()
   await expect.poll(() => app.window.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('full-access')
   return { app, workspace }
 }
