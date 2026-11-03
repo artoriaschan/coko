@@ -28,6 +28,8 @@ export interface TimelineViewProps {
   onFork?: (seq: number) => void
   /** Run 进行中或有待处理的请求：消息动作不可用。 */
   actionsDisabled?: boolean
+  /** 应用拥有追踪入口；子 Session 无对应定位时省略。 */
+  onInspect?: () => void
 }
 
 /** 消息动作按钮：仅图标，Tooltip 与可访问名称同一文案。 */
@@ -198,7 +200,7 @@ export function TimelineView(props: TimelineViewProps) {
               </details>
             )
           case 'tool':
-            return <ToolCardView key={item.key} item={item} />
+            return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} />
           case 'generating':
             return (
               <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">

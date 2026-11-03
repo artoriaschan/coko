@@ -24,6 +24,7 @@
   --palette-white: #ffffff;
   --palette-gray-25: rgb(250 250 250);
   --palette-gray-50: rgb(249 250 251);
+  --palette-gray-75: rgb(241 243 245);
   --palette-gray-100: rgb(235 238 242);
   --palette-gray-300: rgb(207 211 214);
   --palette-gray-400: rgb(173 178 184);
@@ -71,6 +72,7 @@
   --palette-ink-a12: rgb(0 0 0 / 0.12);
   --palette-ink-a16: rgb(0 0 0 / 0.16);
   --palette-ink-a24: rgb(0 0 0 / 0.24);
+  --palette-ink-a30: rgb(0 0 0 / 0.3);
   --palette-ink-a50: rgb(0 0 0 / 0.5);
   --palette-slate-a06: rgb(38 49 72 / 0.06);
   --palette-slate-a10: rgb(38 49 72 / 0.1);
@@ -106,6 +108,18 @@
   --secondary-foreground: var(--palette-ink);
   --muted: var(--palette-gray-50);
   --muted-foreground: var(--palette-gray-600);
+  /* 对话详细过程的次级文字与输入/输出表面；不改变全局 muted 角色。 */
+  --conversation-process-muted: var(--palette-gray-500);
+  --conversation-process-secondary: var(--palette-gray-600);
+  --conversation-process-caption: var(--palette-gray-400);
+  --conversation-process-shimmer: var(--palette-ink-a30);
+  --conversation-detail-stroke: var(--palette-ink-a04);
+  --conversation-inspect-stroke: var(--palette-ink-a12);
+  --conversation-inspect-hover: var(--palette-gray-75);
+  --conversation-process-transition: 100ms ease;
+  --conversation-process-shimmer-duration: 1.5s;
+  --conversation-process-shimmer-delay: 0.3s;
+  --conversation-process-shimmer-mask: linear-gradient(105deg, transparent 0%, var(--palette-white) 40% 60%, transparent 100%);
   --accent: var(--palette-slate-a06);
   --accent-active: var(--palette-slate-a10);
   --accent-foreground: var(--palette-ink);
@@ -140,11 +154,13 @@
   --sidebar-glass-blue: var(--palette-sidebar-blue);
   --sidebar-glass-violet: var(--palette-sidebar-violet);
   --sidebar-glass-background:
-    linear-gradient(to bottom,
+    linear-gradient(
+      to bottom,
       color-mix(in srgb, var(--palette-sidebar-blue) 10%, transparent),
       color-mix(in srgb, var(--palette-sidebar-blue) 0%, transparent) 35%,
       color-mix(in srgb, var(--palette-sidebar-violet) 0%, transparent) 68%,
-      color-mix(in srgb, var(--palette-sidebar-violet) 9%, transparent)),
+      color-mix(in srgb, var(--palette-sidebar-violet) 9%, transparent)
+    ),
     color-mix(in srgb, color-mix(in srgb, var(--sidebar) 97%, var(--palette-sidebar-blue)) 40%, transparent);
   --bubble: var(--palette-blue-50);
   --tooltip: var(--palette-gray-800);
@@ -167,6 +183,13 @@
 
 /* ---------- 语义 token：暗色 ---------- */
 .dark {
+  --conversation-process-muted: var(--palette-gray-400);
+  --conversation-process-secondary: var(--palette-gray-300);
+  --conversation-process-caption: var(--palette-gray-500);
+  --conversation-process-shimmer: color-mix(in srgb, var(--palette-white) 45%, transparent);
+  --conversation-detail-stroke: var(--palette-white-a06);
+  --conversation-inspect-stroke: var(--palette-white-a16);
+  --conversation-inspect-hover: var(--palette-gray-750);
   color-scheme: dark;
   --background: var(--palette-gray-950);
   --foreground: var(--palette-gray-50);
@@ -211,11 +234,13 @@
   --sidebar-accent-foreground: var(--palette-gray-50);
   --sidebar-border: var(--palette-white-a12);
   --sidebar-glass-background:
-    linear-gradient(to bottom,
+    linear-gradient(
+      to bottom,
       color-mix(in srgb, var(--palette-sidebar-blue) 8%, transparent),
       color-mix(in srgb, var(--palette-sidebar-blue) 0%, transparent) 35%,
       color-mix(in srgb, var(--palette-sidebar-violet) 0%, transparent) 68%,
-      color-mix(in srgb, var(--palette-sidebar-violet) 7%, transparent)),
+      color-mix(in srgb, var(--palette-sidebar-violet) 7%, transparent)
+    ),
     color-mix(in srgb, var(--sidebar) 50%, transparent);
   --bubble: var(--palette-gray-800);
   --tooltip: var(--palette-gray-700);
@@ -270,6 +295,10 @@
   --text-ui-small--line-height: 18px;
   --text-ui-body: 13px;
   --text-ui-body--line-height: 20px;
+  --text-ui-process: 13px;
+  --text-ui-process--line-height: 24px;
+  --text-ui-code-small: 11px;
+  --text-ui-code-small--line-height: 16px;
   --text-ui-body-lg: 14px;
   --text-ui-body-lg--line-height: 22px;
   --text-ui-title: 16px;
@@ -282,6 +311,9 @@
   --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   /* 代码栈以 CJK 字体收尾，避免回退到宋体。 */
   --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei';
+  --font-conversation-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-conversation-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
 
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --default-transition-duration: 0.2s;

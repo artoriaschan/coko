@@ -35,13 +35,13 @@ describe('工具卡', () => {
     const header = page.getByRole('button', { name: /Tool call/ })
     await expect.element(header).toBeVisible()
     expect(header.element().textContent).toContain('mcp__github__create_issue')
-    await expect.element(page.getByRole('img', { name: 'Done' })).toBeVisible()
+    expect(card.querySelector('[role="status"]')?.textContent).toBe('Done')
     await header.click()
     const body = card.querySelector('[data-slot="tool-card-body"]')!
-    expect(body.textContent).toContain('Arguments')
+    expect(body.textContent).toContain('IN')
     expect(body.textContent).toContain('"repo": "coko/coko"')
     expect(body.textContent).toContain('"bug"')
-    expect(body.textContent).toContain('Result')
+    expect(body.textContent).toContain('OUT')
     expect(body.textContent).toContain('Created issue #42')
   })
 
@@ -54,7 +54,8 @@ describe('工具卡', () => {
       status: 'error',
       live: null,
     })
-    // 出错的工具卡默认展开。
+    // 失败同样手动展开，保留检查真实输入/输出的入口。
+    await page.getByRole('button', { name: /Tool call/ }).click()
     const body = document.querySelector('[data-slot="tool-card-body"]')!
     expect(body.textContent).toContain('"reason": "nope"')
     expect(document.querySelector('[data-slot="tool-card"]')?.getAttribute('data-status')).toBe('error')
@@ -66,8 +67,8 @@ describe('工具卡', () => {
       </I18nProvider>,
     )
     await page.getByRole('button', { name: /Tool call/ }).click()
-    expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).not.toContain('Result')
-    await expect.element(page.getByRole('img', { name: 'Running' })).toBeVisible()
+    expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).not.toContain('OUT')
+    expect(document.querySelector('[role="status"]')?.textContent).toBe('Running')
   })
 
   it('edit 显示行号 diff，增删行使用 diff 语义色', async () => {
@@ -79,6 +80,7 @@ describe('工具卡', () => {
       status: 'done',
       live: null,
     })
+    await page.getByRole('button', { name: /Edit/ }).click()
     const added = document.querySelector<HTMLElement>('[data-diff="added"]')!
     const deleted = document.querySelector<HTMLElement>('[data-diff="deleted"]')!
     expect(added.textContent).toBe('+2 new')
@@ -147,6 +149,7 @@ describe('工具卡', () => {
     const header = page.getByRole('button', { name: /运行命令/ })
     await expect.element(header).toBeVisible()
     expect(header.element().textContent).toContain('ls -la')
+    await header.click()
     expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).toBe('total 0')
   })
   it('Memory 工具卡：按结果显示"已记住 / 已更新记忆 / 已删除记忆"，失败与等待时为动作名', async () => {
@@ -210,6 +213,7 @@ describe('工具卡：外部 Hook', () => {
     const mark = document.querySelector('[data-hook-blocked]')!
     expect(mark.textContent).toBe('被 Hook 阻止')
     expect(mark.getAttribute('title')).toBe('被 Hook 阻止：./guard.sh --strict')
+    await page.getByRole('button', { name: /运行命令/ }).click()
     const note = document.querySelector('[data-slot="hook-block"]')!
     expect(note.textContent).toBe('被 Hook 阻止./guard.sh --strict')
     expect(document.querySelector('[data-slot="tool-card-body"]')?.textContent).toContain('Blocked by hook: no rm')

@@ -516,7 +516,7 @@ export const en: typeof zh = {
     error: 'Failed',
     pending: 'Not finished',
     awaiting: 'Waiting for approval',
-    bash: 'Run command',
+    bash: 'Bash',
     read: 'Read',
     write: 'Write',
     edit: 'Edit',
@@ -527,6 +527,9 @@ export const en: typeof zh = {
     arguments: 'Arguments',
     result: 'Result',
     noOutput: 'No output',
+    input: 'IN',
+    output: 'OUT',
+    inspect: 'Inspect',
   },
   confirmation: {
     status: 'Outcome unknown',

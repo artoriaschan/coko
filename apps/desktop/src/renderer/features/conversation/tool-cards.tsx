@@ -1,28 +1,13 @@
 import type { MessageKey } from '@coko/i18n'
 import { Button, Dialog, DialogContent, DialogTitle, DiffBlock, ToolCard, ToolOutput } from '@coko/ui'
-import {
-  BrainIcon,
-  CodeIcon,
-  FilePenIcon,
-  FilePlusIcon,
-  FileTextIcon,
-  FolderSearchIcon,
-  FolderTreeIcon,
-  ListChecksIcon,
-  ListPlusIcon,
-  ListTodoIcon,
-  Maximize2Icon,
-  SearchIcon,
-  SendIcon,
-  TerminalIcon,
-  WrenchIcon,
-} from 'lucide-react'
+import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, Maximize2Icon, SendIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { useActiveEntries } from './agents-button.tsx'
 import { JobChip } from './job-row.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
+import { ToolIcon } from './tool-icon.tsx'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
@@ -33,8 +18,6 @@ interface ToolView {
   /** 摘要使用的参数字段，保持原文。 */
   summary: (args: Record<string, unknown>) => string | undefined
   body: (item: ToolItem, args: Record<string, unknown>) => React.ReactNode
-  /** 默认展开：命令输出与 diff 是主要信息。 */
-  expanded?: boolean
 }
 
 const str = (value: unknown) => (typeof value === 'string' ? value : undefined)
@@ -113,31 +96,29 @@ function LspBody({ item }: { item: ToolItem }) {
 /** 按工具名分发的专属展示；未登记的工具使用通用展示。 */
 const VIEWS: Record<string, ToolView> = {
   bash: {
-    icon: <TerminalIcon />,
+    icon: <ToolIcon kind="command" />,
     title: 'tool.bash',
     summary: (a) => str(a.command),
     body: (item) => <BashBody item={item} />,
-    expanded: true,
   },
-  read: { icon: <FileTextIcon />, title: 'tool.read', summary: (a) => str(a.path), body: (item) => <TextBody text={output(item)} /> },
+  read: { icon: <ToolIcon kind="read" />, title: 'tool.read', summary: (a) => str(a.path), body: (item) => <TextBody text={output(item)} /> },
   write: {
-    icon: <FilePlusIcon />,
+    icon: <ToolIcon kind="edit" />,
     title: 'tool.write',
     summary: (a) => str(a.path),
     body: (item, a) => (item.result?.isError ? <TextBody text={output(item)} /> : <ToolOutput>{str(a.content) ?? ''}</ToolOutput>),
   },
   edit: {
-    icon: <FilePenIcon />,
+    icon: <ToolIcon kind="edit" />,
     title: 'tool.edit',
     summary: (a) => str(a.path),
     body: (item) => {
       const diff = str((item.result?.details as { diff?: unknown } | undefined)?.diff)
       return diff && !item.result?.isError ? <DiffBlock diff={diff} /> : <TextBody text={output(item)} />
     },
-    expanded: true,
   },
-  grep: { icon: <SearchIcon />, title: 'tool.grep', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
-  find: { icon: <FolderSearchIcon />, title: 'tool.find', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
+  grep: { icon: <ToolIcon kind="search" />, title: 'tool.grep', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
+  find: { icon: <ToolIcon kind="search" />, title: 'tool.find', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
   ls: { icon: <FolderTreeIcon />, title: 'tool.ls', summary: (a) => str(a.path) ?? '.', body: (item) => <TextBody text={output(item)} /> },
   memory_list: { icon: <BrainIcon />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <TextBody text={output(item)} /> },
   memory_write: {
@@ -231,16 +212,22 @@ function HookBlockNote({ item }: { item: ToolItem }) {
 /** 未知工具：工具名为摘要，参数与结果按原样展示。 */
 function GenericBody({ item }: { item: ToolItem }) {
   const { t } = useI18n()
-  const result = item.result ? (item.result.text !== '' ? item.result.text : json(item.result.details)) : resultText(item.live?.partialResult)
+  const result = item.result ? [item.result.text, json(item.result.details)].filter(Boolean).join('\n\n') : resultText(item.live?.partialResult)
   return (
-    <div className="flex flex-col">
-      <p className="px-3 pt-2 text-ui-small text-muted-foreground">{t('tool.arguments')}</p>
-      <ToolOutput>{json(item.call.arguments)}</ToolOutput>
+    <div className="tool-io-card">
+      <div className="tool-io-section">
+        <span className="tool-io-label">{t('tool.input')}</span>
+        <span data-user-content className="tool-io-text">
+          {json(item.call.arguments)}
+        </span>
+      </div>
       {(item.result !== null || item.live?.partialResult !== undefined) && (
-        <>
-          <p className="border-t-hairline border-border px-3 pt-2 text-ui-small text-muted-foreground">{t('tool.result')}</p>
-          <ToolOutput>{result === '' ? t('tool.noOutput') : result}</ToolOutput>
-        </>
+        <div className="tool-io-section">
+          <span className="tool-io-label">{t('tool.output')}</span>
+          <span data-user-content className="tool-io-text" data-error={item.status === 'error' || undefined}>
+            {result === '' ? t('tool.noOutput') : result}
+          </span>
+        </div>
       )}
     </div>
   )
@@ -321,13 +308,26 @@ function ApprovalMeta({ item }: { item: ToolItem }) {
   )
 }
 
-export function ToolCardView({ item }: { item: ToolItem }) {
+export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
   if (item.call.name === 'agent') return <AgentCard item={item} />
-  return <ToolCallCard item={item} />
+  return <ToolCallCard item={item} onInspect={onInspect} />
 }
 
-function ToolCallCard({ item }: { item: ToolItem }) {
+function Inspect({ onInspect }: { onInspect?: () => void }) {
+  const { t } = useI18n()
+  if (!onInspect) return null
+  return (
+    <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
+      <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+        <path d="M4.67398 4.25061L1.36094 7.86484C1.29085 7.9413 1.29085 8.05866 1.36094 8.13513L4.67398 11.7494M11.3262 4.25061L14.6392 7.86484C14.7093 7.9413 14.7093 8.05866 14.6392 8.13513L11.3262 11.7494M9.56222 3.62573L6.43774 12.3743" />
+      </svg>
+      {t('tool.inspect')}
+    </button>
+  )
+}
+
+function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
   const view = VIEWS[item.call.name]
@@ -335,32 +335,33 @@ function ToolCallCard({ item }: { item: ToolItem }) {
   if (!view) {
     return (
       <ToolCard
+        variant="row"
         data-tool={item.call.name}
-        icon={<WrenchIcon />}
+        icon={<ToolIcon kind="generic" />}
         title={t('tool.unknown')}
         summary={item.call.name}
         status={item.status}
         statusLabel={statusLabel}
         meta={<ToolMeta item={item} />}
-        defaultExpanded={item.status === 'error'}
       >
         <HookBlockNote item={item} />
         <GenericBody item={item} />
         <ToolImages item={item} />
+        <Inspect onInspect={onInspect} />
       </ToolCard>
     )
   }
   const hasBody = item.result !== null || item.live?.partialResult !== undefined || item.call.name === 'write' || item.call.name === 'memory_write'
   return (
     <ToolCard
+      variant="row"
       data-tool={item.call.name}
       icon={view.icon}
       title={t(typeof view.title === 'function' ? view.title(item) : view.title)}
-      summary={view.summary(args)}
+      summary={item.status === 'error' && output(item).trim() !== '' ? output(item).split('\n')[0] : view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
       meta={<ToolMeta item={item} />}
-      defaultExpanded={view.expanded === true || item.status === 'error'}
     >
       {hookBlock(item) ? (
         <div className="flex flex-col">
@@ -369,7 +370,10 @@ function ToolCallCard({ item }: { item: ToolItem }) {
         </div>
       ) : hasBody ? (
         view.body(item, args)
-      ) : undefined}
+      ) : (
+        <GenericBody item={item} />
+      )}
+      <Inspect onInspect={onInspect} />
     </ToolCard>
   )
 }
