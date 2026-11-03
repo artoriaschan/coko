@@ -1,5 +1,7 @@
 import './file-tool-details.css'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
+import { languageForPath, readLanguageForPath } from '@coko/ui/lib/code-language'
+import type { FileToken } from '@coko/ui/lib/code-highlighting'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -38,6 +40,64 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
   const [expanded, setExpanded] = React.useState(false)
   const { copied, copy } = useToolDetailCopy(text)
   const [wrap, setWrap] = React.useState(false)
+  const codeRef = React.useRef<HTMLDivElement>(null)
+  const pendingSelection = React.useRef<{ anchor: number; focus: number } | undefined>(undefined)
+  const language = kind === 'read' ? readLanguageForPath(path) : languageForPath(path)
+  const [highlighted, setHighlighted] = React.useState<{ text: string; language: string; lines: FileToken[][] }>()
+  React.useEffect(() => {
+    if (kind !== 'read' || !language) return
+    let active = true
+    void import('@coko/ui/lib/code-highlighting').then(({ highlightFile }) => {
+      if (active)
+        highlightFile(text, language, (lines) => {
+          if (active) {
+            const code = codeRef.current
+            const selection = getSelection()
+            if (
+              code &&
+              selection?.anchorNode &&
+              selection.focusNode &&
+              !selection.isCollapsed &&
+              code.contains(selection.anchorNode) &&
+              code.contains(selection.focusNode)
+            ) {
+              const offset = (node: Node, end: number) => {
+                const range = document.createRange()
+                range.selectNodeContents(code)
+                range.setEnd(node, end)
+                return range.toString().length
+              }
+              pendingSelection.current = {
+                anchor: offset(selection.anchorNode, selection.anchorOffset),
+                focus: offset(selection.focusNode, selection.focusOffset),
+              }
+            }
+            setHighlighted({ text, language, lines })
+          }
+        })
+    })
+    return () => {
+      active = false
+    }
+  }, [kind, language, text])
+  React.useLayoutEffect(() => {
+    const code = codeRef.current
+    const selected = pendingSelection.current
+    pendingSelection.current = undefined
+    if (!code || !selected) return
+    const locate = (offset: number): [Node, number] | undefined => {
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT)
+      let node
+      while ((node = walker.nextNode())) {
+        if (offset <= node.textContent!.length) return [node, offset]
+        offset -= node.textContent!.length
+      }
+    }
+    const anchor = locate(selected.anchor)
+    const focus = locate(selected.focus)
+    if (anchor && focus) getSelection()?.setBaseAndExtent(...anchor, ...focus)
+  }, [highlighted])
+  const tokens = highlighted?.text === text && highlighted.language === language ? highlighted.lines : undefined
   const lines = text === '' ? [] : text.split('\n')
   const cap = kind === 'edit' ? 9 : 8
   const head = Math.ceil(cap / 2)
@@ -48,7 +108,7 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
   return (
     <div data-file-detail={kind} className="file-detail" data-wrap={wrap || undefined}>
       <div className="file-detail-header">
-        <span className="file-detail-language">{t('tool.fileCode')}</span>
+        <span className="file-detail-language">{language ?? t('tool.fileCode')}</span>
         <span data-user-content className="file-detail-path" title={path}>
           {path}
         </span>
@@ -87,7 +147,7 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
           </Tooltip>
         </div>
       </div>
-      <div className="file-detail-code" tabIndex={0} role="region" aria-label={path}>
+      <div ref={codeRef} className="file-detail-code" tabIndex={0} role="region" aria-label={path}>
         {lines.length === 0 && <span className="file-detail-empty">{t('tool.fileEmpty')}</span>}
         {lines.map((line, index) => {
           if (collapsed && index >= head && index < lines.length - tail) {
@@ -105,7 +165,14 @@ function FileCodeCard({ kind, path, text, offset, note }: { kind: 'read' | 'writ
                   {offset + index}
                 </span>
               )}
-              <span data-user-content>{line || '\u200b'}</span>
+              <span data-user-content>
+                {(tokens?.[index]?.length ? tokens[index] : undefined)?.map((token, part) => (
+                  <span data-file-token key={part} style={{ color: token.color }}>
+                    {token.content}
+                  </span>
+                )) ??
+                  (line || '\u200b')}
+              </span>
             </div>
           )
         })}

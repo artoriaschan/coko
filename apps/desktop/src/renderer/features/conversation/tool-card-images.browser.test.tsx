@@ -72,6 +72,14 @@ async function open(entries: SessionEntryRecord[], theme: 'light' | 'dark' = 'li
     </AgentsStoreProvider>,
   )
   await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
+  // ResizeObserver changes the initial wide shell to the real narrow layout.
+  // Measure the gallery after its actual grid transition, not its transient 110px column.
+  await Promise.all(
+    document
+      .querySelector('[data-slot="app-frame"]')!
+      .getAnimations()
+      .map((animation) => animation.finished),
+  )
   return fixture
 }
 

@@ -28,7 +28,7 @@ async function prepare(responses: unknown[]) {
 async function start(root: string) {
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('heading', { level: 1 }).waitFor()
   return app
 }
 
@@ -62,6 +62,7 @@ async function sendAndWait(page: Page, text: string, replies: number) {
   await composerOf(page).click()
   await page.keyboard.type(text)
   await page.keyboard.press('Enter')
+  await waitConnected(page)
   await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 15_000 }).toBe(replies)
 }
 

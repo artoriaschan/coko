@@ -81,6 +81,12 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
   await composer.fill('start background')
   await composer.press('Enter')
   await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('Background started.')
+  await app.window.locator('[data-action="send"]').waitFor()
+  // This normally completed Run has its own outer and group disclosures.
+  const backgroundProcess = app.window.locator('[data-slot="run-process-control"]').last()
+  await expect.poll(() => backgroundProcess.getAttribute('aria-expanded')).toBe('false')
+  await backgroundProcess.click()
+  await app.window.locator('[data-slot="process-group-header"]').last().click()
   const backgroundRow = app.window.locator('[data-slot="tool-card"][data-tool="bash"]').last()
   await backgroundRow.locator('button').first().click()
   const chip = backgroundRow.locator('[data-slot="job-chip"]')

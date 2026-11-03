@@ -25,7 +25,7 @@ async function setup() {
   await writeFile(join(root, 'faux.json'), JSON.stringify({ requestDetailsLog: requestLog, responses: [{ content: 'reviewed' }, { content: 'hi' }] }))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, requestLog }
@@ -73,6 +73,7 @@ describe('/ 命令菜单', () => {
 
     const chip = page.locator('[data-slot="command-message"][data-command="review"]')
     await chip.waitFor()
+    await waitConnected(page)
     await expect.poll(() => chip.locator('summary').textContent()).toBe('/reviewsrc')
     const expanded = chip.locator('[data-slot="command-expanded"]')
     expect(await expanded.isVisible()).toBe(false)

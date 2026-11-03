@@ -20,7 +20,7 @@ it('CW-63: native picker reads a chosen image, drafts survive Electron restart a
   let app = await launchApp(env, { dir: root })
   onTestFinished(() => app.dispose())
   let page = app.window
-  await waitConnected(page)
+  await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   expect(
     await page.evaluate(async (path) => {
       try {
@@ -49,10 +49,11 @@ it('CW-63: native picker reads a chosen image, drafts survive Electron restart a
   await app.dispose()
   app = await launchApp(env, { dir: root })
   page = app.window
-  await waitConnected(page)
+  await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   await page.getByRole('img', { name: 'pixel.png', exact: true }).waitFor()
   await page.getByRole('button', { name: /^(Send|发送)$/ }).click()
   await page.getByRole('article', { name: 'Coko', exact: true }).filter({ hasText: 'First image received.' }).waitFor()
+  await waitConnected(page)
   await page.getByRole('img', { name: /^(Image attachment|图片附件)$/ }).waitFor()
   expect(await page.getByRole('img', { name: /^(Image attachment|图片附件)$/ }).evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1)
   expect(await page.evaluate(async () => (await (await fetch('/api/sessions')).json()).sessions[0].title)).toBe('附件：pixel.png')

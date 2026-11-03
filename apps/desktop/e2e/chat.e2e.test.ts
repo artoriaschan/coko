@@ -75,6 +75,39 @@ const WRITE_SCRIPT = {
 }
 
 describe('对话闭环', () => {
+  it('compiled file details load path-derived syntax through the real read tool without changing workspace bytes', async () => {
+    const { root, workspace, env } = await setup({
+      responses: [
+        { content: [{ type: 'toolCall', name: 'read', id: 'read-source', arguments: { path: 'original.ts' } }] },
+        { content: 'Recorded source inspected.' },
+      ],
+    })
+    const source = 'export const greeting = "original";\n'
+    const sibling = Buffer.from([0, 7, 255, 19])
+    await writeFile(join(workspace, 'original.ts'), source)
+    await writeFile(join(workspace, 'untouched.bin'), sibling)
+    const app = await launch(env, root)
+    await addWorkspace(app, workspace)
+    await sendMessage(app, 'inspect the recorded source')
+    await app.window.getByText('Recorded source inspected.', { exact: true }).waitFor()
+    await app.window.locator('[data-action="send"]').waitFor()
+    await app.window.locator('[data-slot="run-process-control"][aria-expanded="false"]').click()
+    await app.window.locator('[data-slot="process-group-header"]').click()
+    const row = toolCard(app, 'read')
+    await row.locator('button').first().click()
+    await expect.poll(() => row.locator('[data-file-token]').count()).toBeGreaterThan(1)
+    expect(await row.locator('.file-detail-language').textContent()).toBe('ts')
+    const color = await row
+      .locator('[data-file-token]')
+      .first()
+      .evaluate((token) => ({ color: getComputedStyle(token).color, dark: document.documentElement.classList.contains('dark') }))
+    expect(color.color).toBe(color.dark ? 'rgb(250, 162, 193)' : 'rgb(214, 51, 108)')
+    expect(await row.locator('.file-detail-gutter').first().textContent()).toBe('1')
+    expect(await row.locator('.file-detail-line [data-user-content]').first().textContent()).toBe(source.trimEnd())
+    expect(await readFile(join(workspace, 'original.ts'), 'utf8')).toBe(source)
+    expect(await readFile(join(workspace, 'untouched.bin'))).toEqual(sibling)
+  })
+
   it('登记临时目录 → 新建会话 → 发送 → 流式回复与 write 工具卡 → 文件实际存在', async () => {
     const { root, workspace, env } = await setup()
     const requestLog = join(root, 'requests.jsonl')

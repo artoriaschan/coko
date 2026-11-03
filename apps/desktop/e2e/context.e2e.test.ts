@@ -36,7 +36,7 @@ describe('上下文环', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const page = app.window
-    await waitConnected(page)
+    await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await page.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
@@ -46,6 +46,7 @@ describe('上下文环', () => {
     await composerOf(page).click()
     await page.keyboard.type('hello')
     await page.keyboard.press('Enter')
+    await waitConnected(page)
     await expect.poll(() => page.getByRole('article', { name: 'Coko' }).count(), { timeout: 20_000 }).toBe(1)
     await expect.poll(() => ring(page).getAttribute('data-level'), { timeout: 15_000 }).toBe('warning')
     // 颜色有过渡动画：等其停在 warning 色。

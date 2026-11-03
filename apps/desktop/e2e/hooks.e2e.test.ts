@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -26,7 +26,7 @@ describe('Hooks 分区', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const { window } = app
-    await waitConnected(window)
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await window.getByRole('button', { name: /^(Settings|设置)$/ }).click()

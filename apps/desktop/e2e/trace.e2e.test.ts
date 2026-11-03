@@ -83,11 +83,12 @@ describe('Trace tab', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const win = app.window
-    await waitConnected(win)
+    await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await win.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await win.locator('[data-permission-mode]').click()
     await win.locator('[role="menuitemradio"][data-mode="full-access"]').click()
+    await win.getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ }).click()
     await expect.poll(() => win.locator('[data-permission-mode]').getAttribute('data-permission-mode')).toBe('full-access')
     const composer = win.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
     const send = async (text: string) => {
@@ -97,6 +98,7 @@ describe('Trace tab', () => {
     }
     const lastReply = () => win.getByRole('article', { name: 'Coko' }).last().textContent()
     await send('run something')
+    await waitConnected(win)
     await expect.poll(lastReply, { timeout: 30_000 }).toBe('First done.')
 
     // 右栏 → Trace tab：一个 Run（提交、已完成、两次请求的 Token）。

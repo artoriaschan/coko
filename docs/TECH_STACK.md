@@ -157,7 +157,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 图标 | lucide-react 1.55.0 + @lobehub/icons 6.13.0（模型与供应商品牌） |
 | Markdown 渲染 | **streamdown 2.7.1**，统一覆盖流式聊天和静态文档 |
 | GFM 解析 | Streamdown 内置 remark-gfm 支持，实际解析版本由 pnpm-lock.yaml 固定 |
-| 代码高亮 | @streamdown/code 2.0.0 + shiki 4.5.0 |
+| 代码高亮 | @streamdown/code 2.0.0 + shiki 4.5.0；文件读取复用其公开 token API 与 CSS-variable 主题（ui 直接声明相同既有 Shiki 版本），按路径延迟加载语法 |
 | 数学公式 | @streamdown/math 1.0.3 + katex 0.16.47 |
 | 图表 | @streamdown/mermaid 1.0.3 + mermaid 11.17.2 |
 | 中文解析适配 | @streamdown/cjk 1.0.4 |

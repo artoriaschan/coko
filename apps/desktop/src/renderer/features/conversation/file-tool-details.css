@@ -11,12 +11,12 @@
   align-items: center;
   gap: 12px;
   padding: 10px 18px 8px 22px;
-  font: 11px/18px var(--font-sans);
+  font: 11px/18px var(--font-conversation-sans);
   color: var(--muted-foreground);
 }
 .file-detail-language {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-conversation-mono);
 }
 .file-detail-path {
   min-width: 0;
@@ -32,7 +32,7 @@
 .file-detail-stats {
   margin-right: 8px;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-conversation-mono);
 }
 .file-detail-action {
   display: inline-flex;
@@ -52,7 +52,7 @@
   grid-template-columns: minmax(max-content, 1fr);
   overflow-x: auto;
   padding: 6px 0 20px;
-  font: 11px/19px var(--font-mono);
+  font: 11px/19px var(--font-conversation-mono);
 }
 .file-detail-line {
   display: flex;
@@ -89,7 +89,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--muted-foreground);
-  font: 11px/16px var(--font-mono);
+  font: 11px/16px var(--font-conversation-mono);
 }
 .file-detail-empty {
   padding: 0 22px;

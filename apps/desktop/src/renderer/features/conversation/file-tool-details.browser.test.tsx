@@ -167,3 +167,84 @@ it('actual App: a settled live read keeps its disclosure, selection and scrollin
   expect(window.getSelection()!.toString()).toBe(selected)
   expect(code.scrollLeft).toBe(100)
 })
+
+it.each(['light', 'dark'] as const)(
+  'actual App: %s known file suffixes supply reference syntax and mutation language labels without inventing file facts',
+  async (theme) => {
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    await open(
+      [
+        call(1, 'known', 'read', { path: 'src/original.TS' }),
+        result(2, 'known', 'export const greeting = "original";'),
+        call(3, 'unknown', 'read', { path: 'README.unknown' }),
+        result(4, 'unknown', 'unclassified original'),
+        call(5, 'mutation', 'edit', { path: 'src/original.ts', edits: [{ oldText: 'old', newText: 'new' }] }),
+        { ...result(6, 'mutation', 'Recorded edit'), payload: { ...(result(6, 'mutation', '').payload as object), details: { diff: '-1 old\n+1 new' } } },
+      ],
+      theme,
+    )
+    const rows = document.querySelectorAll('[data-slot="tool-card"]')
+    for (const row of rows) await page.elementLocator(row).getByRole('button').click()
+    expect(rows[0]!.querySelector('.file-detail-language')!.textContent).toBe('ts')
+    await expect.poll(() => rows[0]!.querySelectorAll('[data-file-token]').length).toBeGreaterThan(1)
+    const keyword = [...rows[0]!.querySelectorAll<HTMLElement>('[data-file-token]')].find((token) => token.textContent === 'export')!
+    expect(getComputedStyle(keyword).color).toBe(theme === 'light' ? 'rgb(214, 51, 108)' : 'rgb(250, 162, 193)')
+    expect(getComputedStyle(rows[0]!.querySelector('.file-detail-code')!).fontFamily.startsWith('"SF Mono"')).toBe(true)
+    expect(rows[0]!.querySelector('.file-detail-code [data-user-content]')!.textContent).toBe('export const greeting = "original";')
+    await page.elementLocator(rows[0]!).getByRole('button', { name: 'Copy', exact: true }).click()
+    expect(copy).toHaveBeenCalledWith('export const greeting = "original";')
+    expect(rows[1]!.querySelector('.file-detail-language')!.textContent).toBe('code')
+    expect(rows[1]!.querySelector('[data-file-token]')).toBeNull()
+    expect(rows[2]!.querySelector('.file-detail-language')!.textContent).toBe('typescript')
+    // The actual numbered diff is retained; a suffix is no basis for reconstructing a whole file.
+    expect(rows[2]!.querySelector('.file-detail-code')!.textContent).toBe('-1 old+1 new')
+  },
+)
+
+it('actual App: selecting the initial read text survives lazy syntax coloring and committed settlement without remounting its body', async () => {
+  const fixture = await open([entry(1, 'run_start', { trigger: 'submit' })])
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'run_start' } })
+  const args = { path: 'original.py' }
+  const raw = 'def original(value):\n    return "original"\n' + 'long_original_value = 1234567890; '.repeat(40)
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'tool_start', toolCallId: 'lazy', toolName: 'read', args } })
+  await page.getByRole('button', { name: /Read/ }).click()
+  let initialCode: HTMLElement | null = null
+  let selectedBeforeColoring = false
+  // Act on the actual plain-text DOM before the asynchronous grammar finishes;
+  // the model boundary is controlled, the highlighter and DOM are real.
+  const observer = new MutationObserver(() => {
+    if (initialCode) return
+    const code = document.querySelector<HTMLElement>('.file-detail-code')
+    const source = code?.querySelector('[data-user-content]')
+    if (!code || !source) return
+    initialCode = code
+    selectedBeforeColoring = code.querySelector('[data-file-token]') === null
+    const range = document.createRange()
+    range.selectNodeContents(source)
+    getSelection()!.removeAllRanges()
+    getSelection()!.addRange(range)
+    code.scrollLeft = 100
+  })
+  observer.observe(document.body, { childList: true, subtree: true })
+  try {
+    fixture.sendServer({
+      type: 'progress',
+      sessionId: 's-1',
+      runId: 'run-1',
+      event: { type: 'tool_end', toolCallId: 'lazy', toolName: 'read', result: { content: [{ type: 'text', text: raw }] }, isError: false },
+    })
+    await expect.poll(() => document.querySelectorAll('[data-file-token]').length).toBeGreaterThan(1)
+    expect(selectedBeforeColoring).toBe(true)
+    expect(getSelection()!.toString()).toBe('def original(value):')
+    const body = document.querySelector('[data-slot="tool-card-body"]')!
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(2, 'lazy', 'read', args) })
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: result(3, 'lazy', raw) })
+    await expect.poll(() => fixture.chat.getState().conversations['s-1']?.entries.length).toBe(3)
+    expect(document.querySelector('[data-slot="tool-card-body"]')).toBe(body)
+    expect(document.querySelector('.file-detail-code')).toBe(initialCode)
+    expect(getSelection()!.toString()).toBe('def original(value):')
+    expect(document.querySelector<HTMLElement>('.file-detail-code')!.scrollLeft).toBe(100)
+  } finally {
+    observer.disconnect()
+  }
+})

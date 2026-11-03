@@ -22,6 +22,26 @@
   --layer-menu: 50;
   --layer-menu-submenu: 51;
   --palette-white: #ffffff;
+  /* Locked conversation file-reading syntax palette. */
+  --palette-file-code-constant-light: #1c7ed6;
+  --palette-file-code-string-light: #2f9e44;
+  --palette-file-code-comment-light: #868e96;
+  --palette-file-code-keyword-light: #d6336c;
+  --palette-file-code-parameter-light: #e8590c;
+  --palette-file-code-function-light: #6741d9;
+  --palette-file-code-string-expression-light: #2b8a3e;
+  --palette-file-code-punctuation-light: #495057;
+  --palette-file-code-link-light: #1971c2;
+  --palette-file-code-constant-dark: #4dabf7;
+  --palette-file-code-string-dark: #69db7c;
+  --palette-file-code-comment-dark: #adb5bd;
+  --palette-file-code-keyword-dark: #faa2c1;
+  --palette-file-code-parameter-dark: #ffa94d;
+  --palette-file-code-function-dark: #b197fc;
+  --palette-file-code-string-expression-dark: #8ce99a;
+  --palette-file-code-punctuation-dark: #ced4da;
+  --palette-file-code-link-dark: #74c0fc;
+
   --palette-gray-25: rgb(250 250 250);
   --palette-gray-50: rgb(249 250 251);
   --palette-gray-75: rgb(241 243 245);
@@ -170,6 +190,18 @@
   --toast: var(--palette-gray-750);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-50);
+  --file-code-foreground: var(--foreground);
+  --file-code-background: var(--code-block);
+  --file-code-token-constant: var(--palette-file-code-constant-light);
+  --file-code-token-string: var(--palette-file-code-string-light);
+  --file-code-token-comment: var(--palette-file-code-comment-light);
+  --file-code-token-keyword: var(--palette-file-code-keyword-light);
+  --file-code-token-parameter: var(--palette-file-code-parameter-light);
+  --file-code-token-function: var(--palette-file-code-function-light);
+  --file-code-token-string-expression: var(--palette-file-code-string-expression-light);
+  --file-code-token-punctuation: var(--palette-file-code-punctuation-light);
+  --file-code-token-link: var(--palette-file-code-link-light);
+
   --conversation-code-banner: var(--palette-gray-50);
   --inline-code: var(--palette-gray-25);
   --diff-added: var(--palette-green-bg-light);
@@ -253,6 +285,16 @@
   --toast: var(--palette-gray-700);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-900);
+  --file-code-token-constant: var(--palette-file-code-constant-dark);
+  --file-code-token-string: var(--palette-file-code-string-dark);
+  --file-code-token-comment: var(--palette-file-code-comment-dark);
+  --file-code-token-keyword: var(--palette-file-code-keyword-dark);
+  --file-code-token-parameter: var(--palette-file-code-parameter-dark);
+  --file-code-token-function: var(--palette-file-code-function-dark);
+  --file-code-token-string-expression: var(--palette-file-code-string-expression-dark);
+  --file-code-token-punctuation: var(--palette-file-code-punctuation-dark);
+  --file-code-token-link: var(--palette-file-code-link-dark);
+
   --conversation-code-banner: var(--palette-gray-800);
   --inline-code: var(--palette-gray-830);
   --diff-added: var(--palette-green-bg-dark);

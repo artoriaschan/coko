@@ -64,6 +64,7 @@ Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点
 
 验证：[阅读 App 测试](../../apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx)覆盖动态尺寸、嵌套跟随、早期快照与手动开合、子 Session、暂停/继续、真实折叠几何及 reduced-motion；[阅读 Electron 测试](../../apps/desktop/e2e/reading-position.e2e.test.ts)使用真实 Sidecar、滚轮、结算与 SQLite 重启回放。
 
+[组合 App 验证](../../apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx)将终端、读取、实际 diff、搜索与图片的正文增高同组内跟随、外层阅读锚点、更早快照、三层重置及返回底部组合；390px 的流式终端提交、阶段回复、图片门户和 reduced-motion 同时验证实体、选区与焦点。
 验证：[真实 App 过程测试](../../apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx)覆盖运行、回复、正常/异常结束、无最终答案、中途用户/团队输入、类别排序、焦点、三层重置、断线计时、结果确认、四种主题/语言的 390px 主区与右栏子 Session 隔离；[投影边界](../../apps/desktop/src/renderer/features/conversation/process-groups.test.ts)补充无归属与历史揭示；[对话 Electron 闭环](../../apps/desktop/e2e/chat.e2e.test.ts)验证真实 Sidecar 的运行平铺、审批、完成折叠及文件结果。
 
 ## 历史与只读检查
@@ -161,6 +162,8 @@ worktree 会话选择主检出的文件时保留其绝对路径，不误写为�
 命令、编辑、未知工具和失败调用都初始收起，正文由用户点击或键盘 Enter / Space 展开。未知工具与 MCP 保留真实工具名称；通用输入/输出采用各自限高 150px 的可滚动分区，参数为格式化 JSON，已提交结果同时保留文本和结构化 details，不以其中一项覆盖另一项。已有专用正文、图片预览、审批决定、Hook 与沙箱标注继续由原功能提供。
 
 文件工具展开后使用局部代码容器：读取按调用的有效 offset（缺省 1）显示实际返回文本的行号，读取与写入内容默认保留首尾共 8 行，编辑的实际 `details.diff` 默认保留首尾共 9 行，中间省略有键盘可达的全文入口。路径完整换行，代码保持原文并局部横向滚动，也可切换换行；复制读取/写入的内容不包含行号，复制编辑时保留实际编号 diff。读取工具的原始截断/继续 offset 提示保留在正文下方，不把继续提示画成文件内容。
+
+文件语言提示只由记录中的路径扩展名派生：读取使用参考的短标签，已知类型通过现有代码高亮器延迟加载语法，以文件详情专用明暗 token 着色；未知扩展名和无扩展名保留 code 与纯文本。读取的实际行号、原始复制内容、当前选区、横向滚动和正文身份在语法加载及实时结果提交时保持；不把语言提示写回 Session Entry。写入和编辑仅使用路径派生语言标签，编辑保持实际编号 diff 的增删呈现，不重建缺失文件。
 
 写入视图只在成功结果后显示调用中记录的 content，不推断原文件、旧内容或新增行统计。编辑只渲染结果提供的编号 diff，增删统计按实际 diff 行计算；缺失 diff、路径或内容时，以及失败、待审批、被拒绝或没有完成结果时，降级到完整真实输入/输出。读取图片仍沿用图片/通用结果路径。文件路径是记录标识，当前工具详情没有宿主文件打开回调；展开、复制和换行只操作显示，不读取或再次修改工作区文件。
 
