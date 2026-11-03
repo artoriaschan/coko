@@ -71,6 +71,8 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 
 右栏 Trace tab：顶部为 Session 合计（Token、费用、Run 数、请求数、工具调用数）与"导出"（读取 `?children=1` 的文本，经浏览器下载保存为 `.ndjson`，成功后 Toast 提示文件名）；其下每个 Run 一行（触发、状态、时长、Token、费用，最近的在最上面），展开为模型请求（模型、用途、时长、首字、Token、费用、重试、错误码）与工具（名字、时长、审批等待与结果、出错、Hook 结果），以及 Run 上的 Hook。费用符号取设置 `usage.currency`。数据来自 `GET …/trace`；`model_request`、`run_start` 与 `run_end` 的条目数变化时重读，同一帧内的多次变化合并为一次；重读不重挂载已有的 Run 行，展开状态保留。读取失败时没有内容显示错误与重试，有内容时保留并显示一行提示。不做图表。
 
+主时间线的工具详情通过 Inspect（中文“查看”）复用该 Trace 标签页，必要时打开右栏；当前入口只选择当前 Session 的 Trace，不提供工具行定位。子 Session 时间线没有对应追踪导航回调时不显示 Inspect，也不通过展开或查看重新执行工具。
+
 ## 评测
 
 `tests/evals/` 是根 Vitest 配置中的项目 `evals`（`tests/evals/vitest.config.ts`），随 `pnpm run test` 运行；`pnpm run eval`（`vitest run --project evals`）只运行它。

@@ -527,6 +527,9 @@ export const zh = {
     arguments: '参数',
     result: '结果',
     noOutput: '无输出',
+    input: '输入',
+    output: '输出',
+    inspect: '查看',
   },
   confirmation: {
     status: '结果不明',

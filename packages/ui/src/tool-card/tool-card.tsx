@@ -1,6 +1,7 @@
 import { ChevronRightIcon, LoaderCircleIcon } from 'lucide-react'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
+import './tool-row.css'
 
 /** awaiting：等待用户审批，尚未执行。 */
 export type ToolCardStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
@@ -19,13 +20,20 @@ export interface ToolCardProps {
   /** 可展开的明细；为空时卡片只有标题行。 */
   children?: React.ReactNode
   defaultExpanded?: boolean
+  /** 对话过程使用紧凑摘要行；其他消费者保留卡片外观。 */
+  variant?: 'card' | 'row'
   /** 由业务层提供的稳定标识（例如工具名），便于观测与测试。 */
   'data-tool'?: string
   className?: string
 }
 
 /** 工具卡外壳：标题行（图标、名称、摘要、状态）与可展开明细。工具专属内容由业务层组合。 */
-export function ToolCard({ icon, title, summary, status, statusLabel, meta, children, defaultExpanded = false, className, ...rest }: ToolCardProps) {
+export function ToolCard(props: ToolCardProps) {
+  if (props.variant === 'row') return <ToolRow {...props} />
+  return <LegacyToolCard {...props} />
+}
+
+function LegacyToolCard({ icon, title, summary, status, statusLabel, meta, children, defaultExpanded = false, className, ...rest }: ToolCardProps) {
   const [expanded, setExpanded] = React.useState(defaultExpanded)
   const bodyId = React.useId()
   const hasBody = children !== undefined && children !== null && children !== false
@@ -73,6 +81,89 @@ export function ToolCard({ icon, title, summary, status, statusLabel, meta, chil
       )}
       {hasBody && expanded && (
         <div id={bodyId} data-slot="tool-card-body" className="border-t-hairline border-border">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 24px 过程行，业务图标在 hover 时让位给向下箭头，展开后显示向上箭头。 */
+function ToolRow({ icon, title, summary, status, statusLabel, meta, children, defaultExpanded = false, className, ...rest }: ToolCardProps) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded)
+  const bodyId = React.useId()
+  const header = React.useRef<HTMLButtonElement>(null)
+  const hasBody = children !== undefined && children !== null && children !== false
+  return (
+    <div data-slot="tool-card" data-variant="row" data-tool={rest['data-tool']} data-status={status} className={cn('tool-row', className)}>
+      <span className="sr-only" role="status">
+        {statusLabel}
+      </span>
+      <button
+        ref={header}
+        type="button"
+        aria-expanded={hasBody ? expanded : undefined}
+        aria-controls={hasBody ? bodyId : undefined}
+        onClick={
+          hasBody
+            ? () => {
+                // 手动收起先把焦点放回可见控制项。
+                if (expanded) header.current?.focus({ preventScroll: true })
+                setExpanded(!expanded)
+              }
+            : undefined
+        }
+        className="tool-row-header focus-ring"
+      >
+        <span aria-hidden className="tool-row-leading">
+          <span className="tool-row-business-icon" hidden={expanded}>
+            {icon}
+          </span>
+          {hasBody && (
+            <svg className="tool-row-chevron" data-open={expanded || undefined} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+              <path
+                d={
+                  expanded
+                    ? 'M12 10L8.70711 6.70711C8.31658 6.31658 7.68342 6.31658 7.29289 6.70711L4 10'
+                    : 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6'
+                }
+              />
+            </svg>
+          )}
+        </span>
+        <span className="tool-row-text">
+          <span className="tool-row-text-content">
+            <span className="tool-row-title">{title}</span>
+            {summary !== undefined && summary !== '' && (
+              <>
+                <span className="tool-row-separator" aria-hidden />
+                <span data-user-content className="tool-row-summary" title={summary}>
+                  {summary}
+                </span>
+              </>
+            )}
+          </span>
+          {status === 'running' && (
+            <span className="tool-row-shimmer" aria-hidden inert>
+              <span className="tool-row-shimmer-sweep">
+                <span className="tool-row-text-content tool-row-shimmer-highlight">
+                  <span className="tool-row-title" data-shimmer-text={title} />
+                  {summary !== undefined && summary !== '' && (
+                    <>
+                      <span className="tool-row-separator" />
+                      <span className="tool-row-summary" data-shimmer-text={summary} />
+                    </>
+                  )}
+                </span>
+              </span>
+            </span>
+          )}
+        </span>
+        <span className="tool-row-meta">{meta}</span>
+        {(status === 'pending' || status === 'awaiting') && <span className="tool-row-state">{statusLabel}</span>}
+      </button>
+      {hasBody && expanded && (
+        <div id={bodyId} data-slot="tool-card-body" className="tool-row-body">
           {children}
         </div>
       )}

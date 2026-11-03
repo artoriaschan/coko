@@ -35,6 +35,7 @@ lifecycle: active
 
 - 字号与行高成对登记为 `text-ui-*`，例如 `--text-ui-body` 与 `--text-ui-body--line-height`。业务组件在已有角色匹配时选用对应档位，不为单个元素新造字号；同一页面的字号种类保持少量。行与明细的常用档位为 13px（`text-ui-body`）；完整档位为 `caption` 11/14、`small` 12/18、`body` 13/20、`body-lg` 14/22、`title` 16/24、`heading` 20/28、`display` 24/32，登记于主题样式表。
 - 业务界面字重上限为 500，使用 `font-normal` 与 `font-medium`。Markdown 正文的排版字重由 `MarkdownRenderer` 管理，是唯一例外。
+- 对话消息区域的详细过程使用局部语义档位 `text-ui-process`（13px/24px）及 `text-ui-code-small`（11px/16px）；字体取 `font-conversation-sans` 与 `font-conversation-mono`，对应参考项目默认的系统文字与 SF Mono 优先代码字体栈，不更改设置、侧栏或输入区字体。过程文字、输入/输出发丝线和 Inspect 使用 `--conversation-process-*`、`--conversation-detail-stroke` 与 `--conversation-inspect-*`，明暗映射及动效参数集中在主题表；共享 ToolCard 仅在显式 `row` 变体中消费这些值。
 - 可点击的产物链接（Markdown 链接、文件提及、来源链接、产物文件标签）使用 `text-link` 与 `font-medium`，静止时无下划线；hover 与键盘焦点时显示点状下划线，偏移 3px。
 - 代码、终端和 diff 中需要保持列对齐的内容不换行，在所属区域内横向滚动，滚动条使用共享样式。
 

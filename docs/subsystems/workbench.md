@@ -124,6 +124,16 @@ worktree 会话选择主检出的文件时保留其绝对路径，不误写为�
 
 验证：[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[真实 Electron 图片选择、提交与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
 
+## 对话工具摘要与详情
+
+主时间线中的工具使用共享 `ToolCard` 的 `row` 变体：24px 摘要行、16px 前导绘制框（14px 图形）、13px/24px 常规字重，以及标题与原文摘要之间的圆点。运行时文字使用受 reduced-motion 控制的渐亮动画；悬停时业务图标变为向下箭头，展开后为向上箭头。其他未选用该变体的消费者保留卡片外观。
+
+命令、编辑、未知工具和失败调用都初始收起，正文由用户点击或键盘 Enter / Space 展开。未知工具与 MCP 保留真实工具名称；通用输入/输出采用各自限高 150px 的可滚动分区，参数为格式化 JSON，已提交结果同时保留文本和结构化 details，不以其中一项覆盖另一项。已有专用正文、图片预览、审批决定、Hook 与沙箱标注继续由原功能提供。
+
+工具调用沿用 `toolCallId` 形成的稳定展示 key；实时结果结算不切换正文实体，不因结算重置手动开合、输入选区或内部滚动。不同调用即使参数相同也各自显示。待审批和未完成为独立状态，不因缺失结果显示为成功。
+
+主时间线的展开详情提供 Inspect，中文为“查看”，打开既有右栏 Trace 标签页。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
+
 ## 验证入口
 
 - [工作台浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)：导航项几何、历史、无效会话跳过、设置返回、草稿保留及四角裁剪。

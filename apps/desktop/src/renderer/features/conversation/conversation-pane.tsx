@@ -291,6 +291,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           items={items}
           theme={theme}
           onRetry={() => void retry()}
+          onInspect={() => openTab('trace')}
           onRewind={(seq, text) =>
             activeSessionId !== null && setRewindRequest((prev) => ({ sessionId: activeSessionId, seq, text, opened: (prev?.opened ?? 0) + 1, open: true }))
           }

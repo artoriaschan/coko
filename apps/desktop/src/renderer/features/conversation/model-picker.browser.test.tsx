@@ -212,13 +212,13 @@ const brandedModels: AvailableModel[] = [
 ]
 
 it('长模型名视觉检查', async () => {
-  const long = [
+  const long: AvailableModel[] = [
     {
       providerId: 'anthropic',
       providerName: 'Anthropic',
       modelId: 'claude-sonnet-4-5-extended-thinking',
       name: 'Claude Sonnet 4.5 Extended Thinking Ultra Long Name',
-      thinkingLevels: ['off', 'high'] as const,
+      thinkingLevels: ['off', 'high'],
     },
   ]
   await render(

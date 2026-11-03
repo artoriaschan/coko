@@ -112,10 +112,11 @@ describe('团队的时间线行', () => {
     expect(card('task_create').textContent).toContain('Create task')
     expect(card('task_create').textContent).toContain('Write docs')
     expect(card('task_update').textContent).toContain('Update task')
-    expect(card('task_update').textContent).toContain('t2 · in_progress')
+    expect(card('task_update').textContent).toContain('stale-revision: t2')
     expect(card('task_list').textContent).toContain('View task board')
-    // send_message 展开：消息正文与结果；出错的 task_update 默认展开显示错误。
+    // 成功与失败都由用户手动展开；失败摘要显示实际错误。
     await page.getByRole('button', { name: /Send message/ }).click()
+    await page.getByRole('button', { name: /Update task/ }).click()
     expect(card('send_message').querySelector('[data-slot="tool-card-body"]')?.textContent).toContain('MESSAGE-BODY please start')
     expect(card('send_message').querySelector('[data-slot="tool-card-body"]')?.textContent).toContain('Sent to alice (message m1).')
     expect(card('task_update').querySelector('[data-slot="tool-card-body"]')?.textContent).toContain('stale-revision: t2')
