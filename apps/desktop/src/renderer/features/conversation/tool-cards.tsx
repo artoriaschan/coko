@@ -6,7 +6,7 @@ import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
-import { OriginalIO, OriginalToolIO } from './original-tool-io.tsx'
+import { OriginalIO, OriginalToolIO, ToolInspect } from './original-tool-io.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { ToolImages } from './tool-image-details.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
@@ -225,19 +225,6 @@ export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: 
   return <ToolCallCard item={item} onInspect={onInspect} />
 }
 
-function Inspect({ onInspect }: { onInspect?: () => void }) {
-  const { t } = useI18n()
-  if (!onInspect) return null
-  return (
-    <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
-      <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
-        <path d="M4.67398 4.25061L1.36094 7.86484C1.29085 7.9413 1.29085 8.05866 1.36094 8.13513L4.67398 11.7494M11.3262 4.25061L14.6392 7.86484C14.7093 7.9413 14.7093 8.05866 14.6392 8.13513L11.3262 11.7494M9.56222 3.62573L6.43774 12.3743" />
-      </svg>
-      {t('tool.inspect')}
-    </button>
-  )
-}
-
 function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   const [expanded, onExpandedChange] = useProcessDisclosure()
   const { t } = useI18n()
@@ -268,7 +255,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         <ToolStateDetail item={item} />
         <GenericBody item={item} />
         <ToolImages item={item} />
-        <Inspect onInspect={onInspect} />
+        <ToolInspect onInspect={onInspect} />
       </ToolCard>
     )
   }
@@ -303,7 +290,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         <GenericBody item={item} />
       )}
       <ToolImages item={item} />
-      <Inspect onInspect={onInspect} />
+      <ToolInspect onInspect={onInspect} />
     </ToolCard>
   )
 }

@@ -168,6 +168,9 @@ describe('交接', () => {
     const source = win.locator('[data-slot="handoff-row"][data-handoff="source"]')
     await expect.poll(() => source.textContent()).toContain('continue with the login page')
     expect(await source.textContent()).toMatch(/worktree/)
+    await source.locator('.conversation-collaboration-trigger').click()
+    expect(JSON.parse((await source.locator('pre').textContent())!).summary).toBe(summary)
+    expect(await source.locator('pre').textContent()).toContain('continue with the login page')
 
     for (const theme of ['dark', 'light'] as const) {
       await setTheme(win, theme)

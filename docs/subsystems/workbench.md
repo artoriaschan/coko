@@ -40,7 +40,7 @@ lifecycle: active
 
 [思考行](../../apps/desktop/src/renderer/features/conversation/reasoning-row.tsx)只显示非空白内容，流式与历史内容初始均收起。流式预览取最近一个首行已以换行结束的段落的首行；尚未完成的单行不产生预览。结算后预览显示首行，仅预览去掉 `**`，展开后的紧凑 Markdown 保持原文。标题行高 24px，展开正文从标题起点缩进 22px；悬停和键盘焦点显示开合箭头，运行中的文字扫光在 reduced-motion 下关闭。
 
-[显示身份映射](../../apps/desktop/src/renderer/features/conversation/message-identities.ts)仅保存在当前视图内，已提交内容仍以条目序号和内容块索引标识。仅在同一 Session、同一真实 Run 和内容块索引能唯一对应时，把流式块的 React 身份延续到新提交块；不从文本推测归属，不因结算、增量或主题变化重置思考开合与选区。主区和右栏子 Session 均传递 Session 身份，历史条目 key 不依赖已经加载的消息数量。此映射不写入数据库或协议。
+[显示身份映射](../../apps/desktop/src/renderer/features/conversation/message-identities.ts)仅保存在当前视图内，已提交内容仍以条目序号和内容块索引标识。仅在同一 Session、同一真实 Run 和内容块索引能唯一对应时，把流式块的 React 身份延续到新提交块；不从文本推测归属，不因结算、增量或主题变化重置思考开合与选区。主区和右栏子 Session 均显式传递 Session 身份与真实条目（`TimelineSessionContext`）；业务行从这些调用方事实读取自己的来源，历史条目 key 不依赖已经加载的消息数量。此映射不写入数据库或协议。
 
 验证：[真实 App 消息 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)覆盖预览、流式结算的 DOM/开合/选区、原文复制、外围几何、命令与附件、明暗主题和中英文的 390px 主内容区，以及 Markdown 排版；右栏现有[子代理](../../apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx)和[团队成员](../../apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx)验证共用时间线消费者。
 

@@ -197,7 +197,10 @@ describe('时间线的交接行', () => {
     expect(row.dataset.handoff).toBe('failed')
     expect(row.textContent).toContain('The summary was written, but the new session could not be created')
     expect(row.textContent).toContain('A worktree with this name already exists')
-    expect(screen.container.querySelector('button')).toBeNull()
+    expect(screen.container.querySelector('[data-action="open-handoff-target"]')).toBeNull()
+    expect(screen.container.querySelector('[data-action="open-handoff-source"]')).toBeNull()
+    await page.getByRole('button', { name: 'Input / output', exact: true }).click()
+    expect(row.textContent).toContain('summary')
   })
 })
 

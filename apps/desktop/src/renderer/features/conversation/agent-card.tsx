@@ -4,8 +4,9 @@ import { BotIcon, GitBranchIcon, PanelRightOpenIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { agentRecords, agentUsageText, useAgents, useAgentStatus, useAgentsStoreApi, useSessionAgents } from './agents-button.tsx'
-import { OriginalIO, OriginalToolIO } from './original-tool-io.tsx'
+import { OriginalIO, OriginalToolIO, ToolInspect } from './original-tool-io.tsx'
 import { useTimelineSession } from './timeline-session.tsx'
+import { ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { ToolImages } from './tool-image-details.tsx'
 import { useProcessDisclosure } from './process-disclosure.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -79,75 +80,77 @@ export function AgentCard({ item, onInspect }: { item: ToolItem; onInspect?: () 
       status={cardStatus}
       statusLabel={statusLabel}
       meta={
-        background ? (
-          <span data-slot="agent-background" className="shrink-0 rounded-xs border-hairline border-border px-1.5 text-ui-caption text-muted-foreground">
-            {t('agents.card.background')}
-          </span>
-        ) : undefined
+        <>
+          {background && (
+            <span data-slot="agent-background" className="shrink-0 rounded-xs border-hairline border-border px-1.5 text-ui-caption text-muted-foreground">
+              {t('agents.card.background')}
+            </span>
+          )}
+          <ToolStateMeta item={item} />
+        </>
       }
       expanded={expanded}
       onExpandedChange={onExpandedChange}
     >
       <div data-slot="agent-card" data-agent-id={record?.start.agentId} data-agent-status={status} className="flex flex-col">
-        {(progress !== undefined || usage !== undefined) && (
-          <div className="flex min-w-0 items-center gap-2 px-3 py-2 text-ui-small text-muted-foreground">
-            {progress !== undefined && (
-              <span
-                data-slot="agent-progress"
-                {...(running && activity ? { 'data-user-content': '' } : {})}
-                className={cn('min-w-0 flex-1 truncate', running && activity && 'font-mono')}
-                title={progress}
-                aria-live="polite"
-              >
-                {progress}
+        <ToolStateDetail item={item} />
+        <div className="structured-detail">
+          {(progress !== undefined || usage !== undefined) && (
+            <div className="flex min-w-0 items-center gap-2 px-3 py-2 text-ui-small text-muted-foreground">
+              {progress !== undefined && (
+                <span
+                  data-slot="agent-progress"
+                  {...(running && activity ? { 'data-user-content': '' } : {})}
+                  className={cn('min-w-0 flex-1 truncate', running && activity && 'font-mono')}
+                  title={progress}
+                  aria-live="polite"
+                >
+                  {progress}
+                </span>
+              )}
+              {usage !== undefined && (
+                <span data-slot="agent-usage" className="min-w-0 flex-1 break-words tabular-nums" title={usage}>
+                  {usage}
+                </span>
+              )}
+            </div>
+          )}
+          {record?.end?.worktree?.kept && (
+            <p data-slot="agent-worktree" className="flex min-w-0 items-center gap-1.5 px-3 pb-2 text-ui-small text-muted-foreground">
+              <GitBranchIcon aria-hidden className="size-3.5 shrink-0" />
+              <span data-user-content className="min-w-0 break-all font-mono" title={record.end.worktree.path}>
+                {t('agents.card.worktreeKept', { branch: record.end.worktree.branch })}
               </span>
-            )}
-            {usage !== undefined && (
-              <span data-slot="agent-usage" className="min-w-0 flex-1 truncate tabular-nums" title={usage}>
-                {usage}
-              </span>
-            )}
-          </div>
-        )}
-        {record?.end?.worktree?.kept && (
-          <p data-slot="agent-worktree" className="flex min-w-0 items-center gap-1.5 px-3 pb-2 text-ui-small text-muted-foreground">
-            <GitBranchIcon aria-hidden className="size-3.5 shrink-0" />
-            <span data-user-content className="truncate font-mono" title={record.end.worktree.path}>
-              {t('agents.card.worktreeKept', { branch: record.end.worktree.branch })}
-            </span>
-          </p>
-        )}
-        {result !== undefined && result !== '' && (
-          <div className="border-t-hairline border-border">
-            <p className="px-3 pt-2 text-ui-small text-muted-foreground">{t('agents.card.result')}</p>
-            <p data-slot="agent-result" data-user-content className="max-h-60 overflow-y-auto px-3 py-2 text-ui-body break-words whitespace-pre-wrap">
-              {result}
             </p>
-          </div>
-        )}
-        {record && sessionId !== null && (
-          <div className="flex justify-end border-t-hairline border-border px-2 py-1">
-            <button
-              type="button"
-              data-action="open-agent"
-              aria-label={t('agents.card.openLabel', { description })}
-              className="flex h-7 items-center gap-1.5 rounded-sm px-2 text-ui-small text-muted-foreground focus-ring [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-foreground"
-              onClick={() => agents.getState().open(sessionId, record.start.agentId)}
-            >
-              <PanelRightOpenIcon aria-hidden className="size-3.5" />
-              {t('agents.card.open')}
-            </button>
-          </div>
-        )}
+          )}
+          {result !== undefined && result !== '' && (
+            <div className="border-t-hairline border-border">
+              <p className="px-3 pt-2 text-ui-small text-muted-foreground">{t('agents.card.result')}</p>
+              <p data-slot="agent-result" data-user-content className="max-h-60 overflow-y-auto px-3 py-2 text-ui-body break-words whitespace-pre-wrap">
+                {result}
+              </p>
+            </div>
+          )}
+          {record && sessionId !== null && (
+            <div className="flex justify-end border-t-hairline border-border px-2 py-1">
+              <button
+                type="button"
+                data-action="open-agent"
+                aria-label={t('agents.card.openLabel', { description })}
+                className="flex h-7 items-center gap-1.5 rounded-sm px-2 text-ui-small text-muted-foreground focus-ring [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-foreground"
+                onClick={() => agents.getState().open(sessionId, record.start.agentId)}
+              >
+                <PanelRightOpenIcon aria-hidden className="size-3.5" />
+                {t('agents.card.open')}
+              </button>
+            </div>
+          )}
+        </div>
         <OriginalIO>
           <OriginalToolIO item={item} />
         </OriginalIO>
         <ToolImages item={item} />
-        {onInspect && (
-          <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
-            {t('tool.inspect')}
-          </button>
-        )}
+        <ToolInspect onInspect={onInspect} />
       </div>
     </ToolCard>
   )

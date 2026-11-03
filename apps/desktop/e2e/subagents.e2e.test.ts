@@ -183,6 +183,12 @@ describe('子代理界面', () => {
       // 3. 后台子代理：父 Run 结束后仍在运行；Agents tab 中键盘停止。
       await send('PARENT-3 survey in the background')
       const third = agentCards.nth(2)
+      await third.waitFor({ state: 'attached' })
+      for (const control of await win.locator('main [data-slot="run-process-control"]').all())
+        if ((await control.getAttribute('aria-expanded')) === 'false') await control.click()
+      const thirdGroup = third.locator('xpath=ancestor::*[@data-slot="process-group"]')
+      const thirdHeader = thirdGroup.locator('[data-slot="process-group-header"]')
+      if ((await thirdHeader.getAttribute('aria-expanded')) === 'false') await thirdHeader.click()
       await third.locator(':scope > button').click()
       await expect.poll(() => third.locator('[data-slot="agent-background"]').count(), { timeout: 30_000 }).toBe(1)
       await win.locator('[data-action="send"]').waitFor({ timeout: 30_000 })

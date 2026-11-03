@@ -194,7 +194,7 @@ it.each([
   await page.viewport(width, 900)
   const fixture = await open(
     [
-      entry(1, 'schedule_fire', { scheduleId: 'actual-schedule', occurrence: 1000, status: 'started', runId: 'run-1', missed: 2 }),
+      entry(1, 'schedule_fire', { scheduleId: 'actual-schedule', occurrence: 1000, status: 'started', missed: 2 }),
       entry(2, 'run_start', { trigger: 'schedule', schedule: { scheduleId: 'actual-schedule', occurrence: 1000 } }),
       entry(3, 'message', {
         role: 'user',
@@ -243,4 +243,63 @@ it.each([
   expect(document.querySelectorAll('[data-action="send"]').length).toBe(1)
   handoff.querySelector<HTMLButtonElement>('[data-action="open-handoff-target"]')!.click()
   await expect.poll(() => fixture.chat.getState().activeSessionId).toBe('s-2')
+})
+
+it('actual App: explicit whole collapse resets agent detail and Trace remains the existing root route', async () => {
+  await page.viewport(1280, 900)
+  const agents = createAgentsStore({
+    list: async () => [],
+    cancel: async () => {},
+    definitions: async () => ({ definitions: [], diagnostics: [] }),
+    answer: async () => {},
+  })
+  await open(
+    [
+      entry(1, 'run_start', { trigger: 'submit' }),
+      call(2, 'a', 'agent', { description: 'Inspect once', prompt: 'Original request' }),
+      entry(3, 'agent_start', { agentId: 'child-a', toolCallId: 'a', agentType: 'general', description: 'Inspect once', background: false }),
+      entry(4, 'agent_end', { agentId: 'child-a', status: 'completed', usage: { turns: 1, toolCalls: 0, tokens: 2, cost: 0, durationMs: 1 }, resultChars: 1 }),
+      result(5, 'a', 'Original response'),
+      entry(6, 'run_end', { status: 'completed' }),
+    ],
+    'light',
+    'en',
+    { agents, entries: {} },
+  )
+  const whole = page.getByRole('button', { name: 'Work steps', exact: true })
+  await whole.click()
+  await page.getByRole('button', { name: 'Coordinated subagents', exact: true }).click()
+  const agent = page.getByRole('button', { name: /Subagent general/ }).first()
+  await agent.click()
+  await page.getByText('Input / output', { exact: true }).click()
+  expect(document.querySelector('[data-tool="agent"] details')?.hasAttribute('open')).toBe(true)
+  await page.getByRole('button', { name: 'Inspect', exact: true }).click()
+  await expect.poll(() => document.querySelector('[role="tab"][data-tab="trace"]')?.getAttribute('aria-selected')).toBe('true')
+  await page.getByRole('button', { name: 'Close right panel', exact: true }).last().click()
+  await whole.click()
+  await whole.click()
+  await page.getByRole('button', { name: 'Coordinated subagents', exact: true }).click()
+  await expect.element(agent).toHaveAttribute('aria-expanded', 'false')
+})
+
+it('actual App: batched host messages retain each sender and body by recorded message identity', async () => {
+  await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    entry(2, 'team_message', { messageId: 'one', from: 'alice', to: 'lead' }),
+    entry(3, 'team_message', { messageId: 'two', from: 'bob', to: 'lead' }),
+    entry(4, 'message', {
+      role: 'user',
+      content: [
+        { type: 'text', text: '<team-message from="alice" message-id="one">\nFIRST BODY\n</team-message>' },
+        { type: 'text', text: '<team-message from="bob" message-id="two">\nSECOND BODY\n</team-message>' },
+        { type: 'text', text: 'USER INSTRUCTION remains visible' },
+      ],
+      timestamp: 0,
+    }),
+    entry(5, 'run_end', { status: 'completed' }),
+  ])
+  await page.getByRole('button', { name: 'alice to lead', exact: true }).click()
+  await page.getByRole('button', { name: 'bob to lead', exact: true }).click()
+  expect([...document.querySelectorAll('[data-slot="team-message-body"]')].map((e) => e.textContent)).toEqual(['FIRST BODY', 'SECOND BODY'])
+  await expect.element(page.getByText('USER INSTRUCTION remains visible', { exact: true })).toBeVisible()
 })

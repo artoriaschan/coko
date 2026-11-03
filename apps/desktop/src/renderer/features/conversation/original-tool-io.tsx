@@ -46,3 +46,16 @@ export function OriginalIO({ children }: { children: React.ReactNode }) {
     </details>
   )
 }
+
+export function ToolInspect({ onInspect }: { onInspect?: () => void }) {
+  const { t } = useI18n()
+  if (!onInspect) return null
+  return (
+    <button type="button" className="tool-inspect rounded-round focus-ring" onClick={onInspect}>
+      <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+        <path d="M4.67398 4.25061L1.36094 7.86484C1.29085 7.9413 1.29085 8.05866 1.36094 8.13513L4.67398 11.7494M11.3262 4.25061L14.6392 7.86484C14.7093 7.9413 14.7093 8.05866 14.6392 8.13513L11.3262 11.7494M9.56222 3.62573L6.43774 12.3743" />
+      </svg>
+      {t('tool.inspect')}
+    </button>
+  )
+}

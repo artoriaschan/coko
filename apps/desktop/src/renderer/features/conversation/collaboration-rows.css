@@ -1,6 +1,6 @@
 .conversation-collaboration-row {
   min-width: 0;
-  color: var(--conversation-process-muted);
+  color: var(--conversation-process-secondary);
   font: 14px/24px var(--font-conversation-sans);
 }
 .conversation-collaboration-trigger {
@@ -51,6 +51,7 @@
   white-space: pre-wrap;
 }
 .conversation-collaboration-source {
+  white-space: pre-wrap;
   margin-top: 4px;
   font: 11px/16px var(--font-conversation-mono);
   overflow-wrap: anywhere;
