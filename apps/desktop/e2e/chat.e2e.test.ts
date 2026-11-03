@@ -148,6 +148,7 @@ describe('对话闭环', () => {
     expect(await group.getAttribute('aria-expanded')).toBe('false')
     await group.click()
     expect(await toolCard(app, 'write').isVisible()).toBe(true)
+    await expect.poll(() => processBody.evaluate((el) => getComputedStyle(el).overflowY)).toBe('auto')
     expect(await processBody.evaluate((el) => getComputedStyle(el).maxHeight)).toBe('400px')
 
     const streamed = await app.window.evaluate(() => (window as unknown as { __streamed: string[] }).__streamed)

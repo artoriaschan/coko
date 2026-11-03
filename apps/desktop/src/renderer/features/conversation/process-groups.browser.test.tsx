@@ -245,6 +245,7 @@ it.each([
   await header.click()
   const body = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
   await expect.poll(() => body.clientHeight).toBe(400)
+  await expect.poll(() => getComputedStyle(body).overflowY).toBe('auto')
   await expect.poll(() => body.hasAttribute('data-scroll-down')).toBe(true)
   expect(body.scrollTop).toBe(0)
   const rows = body.querySelectorAll<HTMLElement>('[data-slot="tool-card"]')

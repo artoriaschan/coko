@@ -508,3 +508,35 @@ it('actual App: keyboard Space opens detail at the tail and a downward wheel at 
   await expect.element(page.getByText(/Tail after downward gesture/)).toBeInTheDocument()
   await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
 })
+
+it('actual App: an upward reading gesture during an active completion fold interrupts tail follow and retains the answer anchor', async () => {
+  await page.viewport(1000, 800)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 24 }, (_, i) => call(2 + i, `active-motion-${i}`, 'custom', {})),
+    ...longReplies().map((record) => ({ ...record, seq: record.seq + 30 })),
+  ])
+  const scroller = outer()
+  await expect.poll(() => distance(scroller)).toBeLessThanOrEqual(1)
+  const seat = scroller.querySelector<HTMLElement>('[data-slot="process-seat"]')!
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(60, 'run_end', { status: 'completed' }) })
+  await expect.poll(() => seat.getAnimations().length).toBeGreaterThan(0)
+  const motion = seat.getAnimations()[0]!
+  motion.pause()
+  motion.currentTime = 80
+  await new Promise(requestAnimationFrame)
+  scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -200, bubbles: true }))
+  scroller.scrollTop -= 200
+  scroller.dispatchEvent(new Event('scroll'))
+  const marker = [...scroller.querySelectorAll<HTMLElement>('.conversation-assistant-message')].find(
+    (row) => row.getBoundingClientRect().bottom > scroller.getBoundingClientRect().top,
+  )!
+  const top = marker.getBoundingClientRect().top
+  motion.currentTime = 120
+  await new Promise(requestAnimationFrame)
+  expect(Math.abs(marker.getBoundingClientRect().top - top)).toBeLessThanOrEqual(1)
+  motion.finish()
+  await expect.poll(() => seat.hidden).toBe(true)
+  expect(Math.abs(marker.getBoundingClientRect().top - top)).toBeLessThanOrEqual(1)
+  expect(distance(scroller)).toBeGreaterThan(100)
+})

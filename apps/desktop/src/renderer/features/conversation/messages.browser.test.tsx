@@ -61,9 +61,9 @@ it('streaming reasoning previews only the latest paragraph with a completed firs
   await expect.element(toggle).toHaveAttribute('aria-expanded', 'false')
   expect(document.querySelector('[data-slot="reasoning-summary"]')).toBeNull()
   delta('\ncontinued line\n\n**Latest paragraph**')
-  await expect.element(page.getByText('First line', { exact: true })).toBeVisible()
+  await expect.element(toggle.getByText('First line', { exact: true })).toBeVisible()
   delta('\nnot a summary')
-  await expect.element(page.getByText('Latest paragraph', { exact: true })).toBeVisible()
+  await expect.element(toggle.getByText('Latest paragraph', { exact: true })).toBeVisible()
   await userEvent.click(toggle)
   await expect.element(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect

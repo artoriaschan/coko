@@ -14,6 +14,7 @@ import { ApiError } from '../../client/api.ts'
 import { createSchedulesStore, type SchedulesBackend, type SchedulesStore } from '../../stores/schedules-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { localTimeZone, SchedulesStoreProvider } from '../conversation/schedules-button.tsx'
+import { TimelineSessionContext } from '../conversation/timeline-session.tsx'
 import { ScheduleFireRow } from '../conversation/schedule-fire-row.tsx'
 import { SchedulesButton } from '../conversation/schedules-button.tsx'
 import { visibleHeaderActions } from '../conversation/header-actions.ts'
@@ -436,7 +437,7 @@ describe('时间线的 schedule_fire 行', () => {
     await store.getState().load('s-1')
     await mount(
       store,
-      <>
+      <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries: [], actionsDisabled: true }}>
         <ScheduleFireRow item={{ kind: 'schedule-fire', key: '1', fire: { scheduleId: 'a', occurrence: NOV2_9_UTC, status: 'started', runId: 'r1' } }} />
         <ScheduleFireRow
           item={{
@@ -445,7 +446,7 @@ describe('时间线的 schedule_fire 行', () => {
             fire: { scheduleId: 'gone', occurrence: NOV2_9_UTC, status: 'skipped', reason: 'workspace-missing', missed: 2 },
           }}
         />
-      </>,
+      </TimelineSessionContext.Provider>,
     )
     const rows = [...document.querySelectorAll<HTMLElement>('[data-slot="schedule-fire"]')]
     expect(rows.map((r) => [r.dataset.status, r.dataset.reason])).toEqual([
