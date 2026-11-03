@@ -4,6 +4,7 @@ import { BotIcon, GitBranchIcon, PanelRightOpenIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { agentRecords, agentUsageText, useActiveEntries, useAgents, useAgentStatus, useAgentsStoreApi, useSessionAgents } from './agents-button.tsx'
+import { useProcessDisclosure } from './process-disclosure.tsx'
 import type { TimelineItem } from './timeline.ts'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
@@ -33,6 +34,7 @@ function resultBody(text: string): string {
  * 不读结果文本中的标签。
  */
 export function AgentCard({ item }: { item: ToolItem }) {
+  const [expanded, onExpandedChange] = useProcessDisclosure(true)
   const { t, locale } = useI18n()
   const agents = useAgentsStoreApi()
   const { sessionId, entries } = useActiveEntries()
@@ -76,7 +78,8 @@ export function AgentCard({ item }: { item: ToolItem }) {
           </span>
         ) : undefined
       }
-      defaultExpanded
+      expanded={expanded}
+      onExpandedChange={onExpandedChange}
     >
       <div data-slot="agent-card" data-agent-id={record?.start.agentId} data-agent-status={status} className="flex flex-col">
         {(progress !== undefined || usage !== undefined) && (

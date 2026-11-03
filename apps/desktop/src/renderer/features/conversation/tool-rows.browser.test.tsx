@@ -64,6 +64,8 @@ it('actual App: commands, edits and failures start collapsed; generic input/outp
     result(7, 'm', 'real output'),
     entry(8, 'run_end', { status: 'completed' }),
   ])
+  await page.getByRole('button', { name: 'Work steps', exact: true }).click()
+  await page.getByRole('button', { name: 'Ran commands, modified files, called tools', exact: true }).click()
   const rows = document.querySelectorAll('[data-slot="tool-card"]')
   expect(rows).toHaveLength(3)
   for (const row of rows) {
@@ -98,6 +100,7 @@ it.each([
     theme,
     locale,
   )
+  await page.getByRole('button', { name: locale === 'en' ? 'Called tools' : '已调用工具', exact: true }).click()
   const row = document.querySelector<HTMLElement>('[data-slot="tool-card"]')!
   await page.elementLocator(row).getByRole('button').click()
   const card = row.querySelector<HTMLElement>('.tool-io-card')!

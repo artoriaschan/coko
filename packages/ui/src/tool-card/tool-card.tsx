@@ -20,6 +20,8 @@ export interface ToolCardProps {
   /** 可展开的明细；为空时卡片只有标题行。 */
   children?: React.ReactNode
   defaultExpanded?: boolean
+  expanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
   /** 对话过程使用紧凑摘要行；其他消费者保留卡片外观。 */
   variant?: 'card' | 'row'
   /** 由业务层提供的稳定标识（例如工具名），便于观测与测试。 */
@@ -33,8 +35,26 @@ export function ToolCard(props: ToolCardProps) {
   return <LegacyToolCard {...props} />
 }
 
-function LegacyToolCard({ icon, title, summary, status, statusLabel, meta, children, defaultExpanded = false, className, ...rest }: ToolCardProps) {
-  const [expanded, setExpanded] = React.useState(defaultExpanded)
+function LegacyToolCard({
+  icon,
+  title,
+  summary,
+  status,
+  statusLabel,
+  meta,
+  children,
+  defaultExpanded = false,
+  expanded: controlledExpanded,
+  onExpandedChange,
+  className,
+  ...rest
+}: ToolCardProps) {
+  const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded)
+  const expanded = controlledExpanded ?? localExpanded
+  const setExpanded = (open: boolean) => {
+    setLocalExpanded(open)
+    onExpandedChange?.(open)
+  }
   const bodyId = React.useId()
   const hasBody = children !== undefined && children !== null && children !== false
   const header = (
@@ -71,7 +91,7 @@ function LegacyToolCard({ icon, title, summary, status, statusLabel, meta, child
           type="button"
           aria-expanded={expanded}
           aria-controls={bodyId}
-          onClick={() => setExpanded((open) => !open)}
+          onClick={() => setExpanded(!expanded)}
           className="flex h-9 w-full min-w-0 items-center gap-2 px-3 text-left focus-ring hover:bg-accent"
         >
           {header}
@@ -89,8 +109,26 @@ function LegacyToolCard({ icon, title, summary, status, statusLabel, meta, child
 }
 
 /** 24px 过程行，业务图标在 hover 时让位给向下箭头，展开后显示向上箭头。 */
-function ToolRow({ icon, title, summary, status, statusLabel, meta, children, defaultExpanded = false, className, ...rest }: ToolCardProps) {
-  const [expanded, setExpanded] = React.useState(defaultExpanded)
+function ToolRow({
+  icon,
+  title,
+  summary,
+  status,
+  statusLabel,
+  meta,
+  children,
+  defaultExpanded = false,
+  expanded: controlledExpanded,
+  onExpandedChange,
+  className,
+  ...rest
+}: ToolCardProps) {
+  const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded)
+  const expanded = controlledExpanded ?? localExpanded
+  const setExpanded = (open: boolean) => {
+    setLocalExpanded(open)
+    onExpandedChange?.(open)
+  }
   const bodyId = React.useId()
   const header = React.useRef<HTMLButtonElement>(null)
   const hasBody = children !== undefined && children !== null && children !== false

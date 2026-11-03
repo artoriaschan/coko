@@ -8,6 +8,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { agentUsageText, useAgents, useAgentsStoreApi } from '../conversation/agents-button.tsx'
 import { MemberStatusDot, useSessionTeam, useTeamStoreApi } from '../conversation/team-button.tsx'
+import { displayRuns } from '../conversation/process-groups.ts'
 import { buildTimeline } from '../conversation/timeline.ts'
 import { TimelineView } from '../conversation/timeline-view.tsx'
 import type { RightPanelTabProps } from './tabs.ts'
@@ -206,7 +207,14 @@ function MemberTimeline({ member }: { member: TeamMember }) {
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('teams.tabView.timelineEmpty')}</p>
       ) : (
-        <TimelineView sessionId={member.agentId} items={items} theme={theme} onRetry={() => {}} actionsDisabled />
+        <TimelineView
+          sessionId={member.agentId}
+          items={items}
+          runs={conversation ? displayRuns(conversation) : undefined}
+          theme={theme}
+          onRetry={() => {}}
+          actionsDisabled
+        />
       )}
     </div>
   )

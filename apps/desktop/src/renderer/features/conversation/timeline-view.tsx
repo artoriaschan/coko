@@ -18,10 +18,14 @@ import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
 import { RunUsageRow } from './run-usage-row.tsx'
 import type { TimelineItem } from './timeline.ts'
+import { ProcessTimeline } from './process-timeline.tsx'
+import type { DisplayRun } from './process-groups.ts'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
   sessionId?: string
+  runs?: ReadonlyMap<string, DisplayRun>
+  connected?: boolean
   items: TimelineItem[]
   theme: Theme
   onRetry: () => void
@@ -102,229 +106,223 @@ export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, onFork, actionsDisabled = false } = props
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
-  return (
-    <>
-      {items.map((item) => {
-        switch (item.kind) {
-          case 'user': {
-            const actions = item.checkpoint && (onRewind || onFork)
-            return (
-              // 动作在悬停（支持 hover 的设备）或焦点进入消息时出现；不支持 hover 时一直可见。Tab 到消息即可到达。
-              <article
-                key={item.key}
-                aria-label={t('conversation.you')}
-                data-seq={item.seq}
-                tabIndex={actions ? 0 : undefined}
-                data-slot="user-message"
-                className="conversation-user-message group ms-auto flex w-fit min-w-0 flex-col items-end rounded-xl focus-ring"
-              >
-                {item.command ? (
-                  // 命令消息：显示命令名与参数，可展开看展开后的全文。
-                  <details data-slot="command-message" data-command={item.command.name} className="group/command flex flex-col items-end">
-                    <summary
-                      aria-label={t('commands.chipLabel', { name: `/${item.command.name}` })}
-                      data-slot="user-bubble"
-                      className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
-                    >
-                      <SquareSlashIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="font-medium">/{item.command.name}</span>
-                      {item.command.args !== '' && (
-                        <span data-user-content className="min-w-0 break-words whitespace-pre-wrap">
-                          {item.command.args}
-                        </span>
-                      )}
-                      <ChevronRightIcon
-                        aria-hidden
-                        className="size-4 shrink-0 text-muted-foreground transition-transform group-open/command:rotate-90 motion-reduce:transition-none"
-                      />
-                    </summary>
-                    <div className="mt-1 rounded-xl border-hairline border-border px-4 py-2.5">
-                      <p className="mb-1 text-ui-small text-muted-foreground">{t('commands.showExpanded')}</p>
-                      <p data-user-content data-slot="command-expanded" className="text-ui-body break-words whitespace-pre-wrap">
-                        {item.text}
-                      </p>
-                    </div>
-                  </details>
-                ) : (
-                  <p
-                    hidden={!item.text}
-                    data-slot="user-bubble"
-                    data-user-content
-                    className="max-w-full rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap"
-                  >
+  const renderItem = (item: TimelineItem) => {
+    switch (item.kind) {
+      case 'user': {
+        const actions = item.checkpoint && (onRewind || onFork)
+        return (
+          // 动作在悬停（支持 hover 的设备）或焦点进入消息时出现；不支持 hover 时一直可见。Tab 到消息即可到达。
+          <article
+            key={item.key}
+            aria-label={t('conversation.you')}
+            data-seq={item.seq}
+            tabIndex={actions ? 0 : undefined}
+            data-slot="user-message"
+            className="conversation-user-message group ms-auto flex w-fit min-w-0 flex-col items-end rounded-xl focus-ring"
+          >
+            {item.command ? (
+              // 命令消息：显示命令名与参数，可展开看展开后的全文。
+              <details data-slot="command-message" data-command={item.command.name} className="group/command flex flex-col items-end">
+                <summary
+                  aria-label={t('commands.chipLabel', { name: `/${item.command.name}` })}
+                  data-slot="user-bubble"
+                  className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
+                >
+                  <SquareSlashIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="font-medium">/{item.command.name}</span>
+                  {item.command.args !== '' && (
+                    <span data-user-content className="min-w-0 break-words whitespace-pre-wrap">
+                      {item.command.args}
+                    </span>
+                  )}
+                  <ChevronRightIcon
+                    aria-hidden
+                    className="size-4 shrink-0 text-muted-foreground transition-transform group-open/command:rotate-90 motion-reduce:transition-none"
+                  />
+                </summary>
+                <div className="mt-1 rounded-xl border-hairline border-border px-4 py-2.5">
+                  <p className="mb-1 text-ui-small text-muted-foreground">{t('commands.showExpanded')}</p>
+                  <p data-user-content data-slot="command-expanded" className="text-ui-body break-words whitespace-pre-wrap">
                     {item.text}
                   </p>
-                )}
-                {item.images
-                  ?.filter((image) => /^image\/(png|jpeg|gif|webp)$/.test(image.mimeType) && /^[A-Za-z0-9+/]+={0,2}$/.test(image.data))
-                  .map((image, index) => (
-                    <img
-                      key={index}
-                      src={`data:${image.mimeType};base64,${image.data}`}
-                      alt={t('conversation.imageAttachment')}
-                      className="max-h-80 max-w-full rounded-lg object-contain"
-                    />
-                  ))}
-                {item.references && (
-                  // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
-                  <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-2">
-                    {item.references.map((path) => (
-                      <li
-                        key={path}
-                        data-slot="file-reference-chip"
-                        data-path={path}
-                        aria-label={t('references.chipLabel', { path })}
-                        className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
-                      >
-                        {path.endsWith('/') ? (
-                          <FolderIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <FileIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
-                        )}
-                        <span data-user-content className="min-w-0 break-all">
-                          {path}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {(item.text !== '' || actions) && (
-                  <div
-                    role="group"
-                    aria-label={t('conversation.messageActions')}
-                    data-slot="message-actions"
-                    className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-                  >
-                    {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
-                    {actions && onRewind && (
-                      <MessageAction
-                        label={t('conversation.rewindHere')}
-                        action="rewind"
-                        disabled={actionsDisabled}
-                        // 命令消息回退时放回原始调用，而不是展开后的全文。
-                        onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
-                      >
-                        <Undo2Icon />
-                      </MessageAction>
-                    )}
-                    {actions && onFork && (
-                      <MessageAction label={t('conversation.forkHere')} action="fork" disabled={actionsDisabled} onClick={() => onFork(item.seq)}>
-                        <GitBranchIcon />
-                      </MessageAction>
-                    )}
-                  </div>
-                )}
-              </article>
-            )
-          }
-          case 'rewound':
-            // 被回退的区间：折叠保留，可展开查看；其中的消息不提供动作。
-            return (
-              <details key={item.key} data-slot="rewound" className="group/rewound min-w-0 text-ui-body text-muted-foreground">
-                <summary className="flex cursor-pointer items-center gap-1.5 rounded-md select-none focus-ring [&::-webkit-details-marker]:hidden">
-                  <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
-                  {t('conversation.rewound', { count: item.items.length })}
-                </summary>
-                <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
-                  <TimelineView items={item.items} theme={theme} onRetry={onRetry} />
                 </div>
               </details>
-            )
-          case 'compaction':
-            return <CompactionDivider key={item.key} item={item} theme={theme} />
-          case 'text':
-            return (
-              <article
-                key={messageIdentities.get(item.key) ?? item.key}
-                aria-label={t('conversation.assistant')}
+            ) : (
+              <p
+                hidden={!item.text}
+                data-slot="user-bubble"
                 data-user-content
-                data-streaming={item.streaming || undefined}
-                className="conversation-assistant-message min-w-0"
+                className="max-w-full rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap"
               >
-                <Markdown text={item.text} streaming={item.streaming} theme={theme} />
-                {!item.streaming && item.finalResponse && (
-                  <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
-                    <CopyMessage text={item.text} />
-                  </div>
-                )}
-              </article>
-            )
-          case 'thinking':
-            return <ReasoningRow key={messageIdentities.get(item.key) ?? item.key} text={item.text} streaming={item.streaming} theme={theme} />
-          case 'tool':
-            return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} />
-          case 'generating':
-            return (
-              <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">
-                <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
-                {item.retry ? t('conversation.retrying', { attempt: item.retry.attempt, max: item.retry.maxRetries }) : t('conversation.generating')}
+                {item.text}
               </p>
-            )
-          case 'steering':
-            // 待送达的追加指令只在 dock 的 Queue 卡中显示（唯一呈现）。
-            return null
-          case 'paused':
-            return (
-              <p key={item.key} data-run-status="paused" className="text-ui-body text-muted-foreground">
-                {t('conversation.paused')}
-              </p>
-            )
-          case 'interrupted':
-            return (
-              <p key={item.key} data-run-status="interrupted" className="text-ui-body text-muted-foreground">
-                {t('conversation.interrupted')}
-              </p>
-            )
-          case 'stopped':
-            return (
-              <p key={item.key} data-run-status="aborted" className="text-ui-body text-muted-foreground">
-                {t('conversation.stopped')}
-              </p>
-            )
-          case 'error':
-            return (
+            )}
+            {item.images
+              ?.filter((image) => /^image\/(png|jpeg|gif|webp)$/.test(image.mimeType) && /^[A-Za-z0-9+/]+={0,2}$/.test(image.data))
+              .map((image, index) => (
+                <img
+                  key={index}
+                  src={`data:${image.mimeType};base64,${image.data}`}
+                  alt={t('conversation.imageAttachment')}
+                  className="max-h-80 max-w-full rounded-lg object-contain"
+                />
+              ))}
+            {item.references && (
+              // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
+              <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-2">
+                {item.references.map((path) => (
+                  <li
+                    key={path}
+                    data-slot="file-reference-chip"
+                    data-path={path}
+                    aria-label={t('references.chipLabel', { path })}
+                    className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
+                  >
+                    {path.endsWith('/') ? (
+                      <FolderIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <FileIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                    )}
+                    <span data-user-content className="min-w-0 break-all">
+                      {path}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(item.text !== '' || actions) && (
               <div
-                key={item.key}
-                role="alert"
-                data-run-status="error"
-                className="flex flex-col gap-2 rounded-lg border border-destructive px-3 py-2 text-ui-body"
+                role="group"
+                aria-label={t('conversation.messageActions')}
+                data-slot="message-actions"
+                className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
               >
-                <p className="font-medium text-destructive">{t('conversation.runError')}</p>
-                {item.message !== '' && (
-                  <p data-user-content className="break-words whitespace-pre-wrap text-muted-foreground select-text">
-                    {item.message}
-                  </p>
+                {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
+                {actions && onRewind && (
+                  <MessageAction
+                    label={t('conversation.rewindHere')}
+                    action="rewind"
+                    disabled={actionsDisabled}
+                    // 命令消息回退时放回原始调用，而不是展开后的全文。
+                    onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
+                  >
+                    <Undo2Icon />
+                  </MessageAction>
                 )}
-                {item.retryable && (
-                  <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
-                    <RotateCcwIcon />
-                    {t('conversation.retry')}
-                  </Button>
+                {actions && onFork && (
+                  <MessageAction label={t('conversation.forkHere')} action="fork" disabled={actionsDisabled} onClick={() => onFork(item.seq)}>
+                    <GitBranchIcon />
+                  </MessageAction>
                 )}
               </div>
-            )
-          case 'plan':
-            return <PlanCard key={item.key} item={item} />
-          case 'goal':
-            return <GoalRow key={item.key} item={item} />
-          case 'job':
-            return <JobRow key={item.key} item={item} />
-          case 'run-usage':
-            return <RunUsageRow key={item.key} item={item} />
-          case 'hook':
-            return <HookRow key={item.key} item={item} />
-          case 'agent-notification':
-            return <AgentNotificationRow key={item.key} item={item} />
-          case 'schedule-fire':
-            return <ScheduleFireRow key={item.key} item={item} />
-          case 'handoff':
-            return <HandoffRow key={item.key} item={item} />
-          case 'team-message':
-            return <TeamMessageRow key={item.key} item={item} />
-          case 'team-task':
-            return <TeamTaskRow key={item.key} item={item} />
-        }
-      })}
-    </>
+            )}
+          </article>
+        )
+      }
+      case 'rewound':
+        // 被回退的区间：折叠保留，可展开查看；其中的消息不提供动作。
+        return (
+          <details key={item.key} data-slot="rewound" className="group/rewound min-w-0 text-ui-body text-muted-foreground">
+            <summary className="flex cursor-pointer items-center gap-1.5 rounded-md select-none focus-ring [&::-webkit-details-marker]:hidden">
+              <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
+              {t('conversation.rewound', { count: item.items.length })}
+            </summary>
+            <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3 opacity-70">
+              <TimelineView items={item.items} theme={theme} onRetry={onRetry} />
+            </div>
+          </details>
+        )
+      case 'compaction':
+        return <CompactionDivider key={item.key} item={item} theme={theme} />
+      case 'text':
+        return (
+          <article
+            key={messageIdentities.get(item.key) ?? item.key}
+            aria-label={t('conversation.assistant')}
+            data-user-content
+            data-streaming={item.streaming || undefined}
+            className="conversation-assistant-message min-w-0"
+          >
+            <Markdown text={item.text} streaming={item.streaming} theme={theme} />
+            {!item.streaming && item.finalResponse && (
+              <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
+                <CopyMessage text={item.text} />
+              </div>
+            )}
+          </article>
+        )
+      case 'thinking':
+        return <ReasoningRow key={messageIdentities.get(item.key) ?? item.key} text={item.text} streaming={item.streaming} theme={theme} />
+      case 'tool':
+        return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} />
+      case 'generating':
+        return (
+          <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">
+            <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+            {item.retry ? t('conversation.retrying', { attempt: item.retry.attempt, max: item.retry.maxRetries }) : t('conversation.generating')}
+          </p>
+        )
+      case 'steering':
+        // 待送达的追加指令只在 dock 的 Queue 卡中显示（唯一呈现）。
+        return null
+      case 'paused':
+        return (
+          <p key={item.key} data-run-status="paused" className="text-ui-body text-muted-foreground">
+            {t('conversation.paused')}
+          </p>
+        )
+      case 'interrupted':
+        return (
+          <p key={item.key} data-run-status="interrupted" className="text-ui-body text-muted-foreground">
+            {t('conversation.interrupted')}
+          </p>
+        )
+      case 'stopped':
+        return (
+          <p key={item.key} data-run-status="aborted" className="text-ui-body text-muted-foreground">
+            {t('conversation.stopped')}
+          </p>
+        )
+      case 'error':
+        return (
+          <div key={item.key} role="alert" data-run-status="error" className="flex flex-col gap-2 rounded-lg border border-destructive px-3 py-2 text-ui-body">
+            <p className="font-medium text-destructive">{t('conversation.runError')}</p>
+            {item.message !== '' && (
+              <p data-user-content className="break-words whitespace-pre-wrap text-muted-foreground select-text">
+                {item.message}
+              </p>
+            )}
+            {item.retryable && (
+              <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
+                <RotateCcwIcon />
+                {t('conversation.retry')}
+              </Button>
+            )}
+          </div>
+        )
+      case 'plan':
+        return <PlanCard key={item.key} item={item} />
+      case 'goal':
+        return <GoalRow key={item.key} item={item} />
+      case 'job':
+        return <JobRow key={item.key} item={item} />
+      case 'run-usage':
+        return <RunUsageRow key={item.key} item={item} />
+      case 'hook':
+        return <HookRow key={item.key} item={item} />
+      case 'agent-notification':
+        return <AgentNotificationRow key={item.key} item={item} />
+      case 'schedule-fire':
+        return <ScheduleFireRow key={item.key} item={item} />
+      case 'handoff':
+        return <HandoffRow key={item.key} item={item} />
+      case 'team-message':
+        return <TeamMessageRow key={item.key} item={item} />
+      case 'team-task':
+        return <TeamTaskRow key={item.key} item={item} />
+    }
+  }
+  return (
+    <ProcessTimeline key={props.sessionId} items={items} identities={messageIdentities} runs={props.runs} connected={props.connected} renderItem={renderItem} />
   )
 }

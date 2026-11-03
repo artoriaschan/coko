@@ -3,6 +3,7 @@ import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
 import './messages.css'
+import { useProcessDisclosure } from './process-disclosure.tsx'
 
 /** The locked reference's 16px think artwork; regular weight is a 1px stroke. */
 function ThinkIcon() {
@@ -41,7 +42,7 @@ function preview(text: string, streaming: boolean): string {
 /** Reasoning disclosure keeps its body mounted across streaming and settlement. */
 export function ReasoningRow({ text, streaming, theme }: { text: string; streaming: boolean; theme: Theme }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = React.useState(false)
+  const [expanded, setExpanded] = useProcessDisclosure()
   const id = React.useId()
   if (text.trim() === '') return null
   const summary = preview(text, streaming)

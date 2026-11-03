@@ -62,7 +62,7 @@ export interface AssistantBlockSource {
   contentIndex: number
 }
 
-export type TimelineItem =
+type TimelineContent =
   /**
    * seq：用户消息条目（Checkpoint 锚点）；checkpoint：在有效上下文中，可以回退到此处或从这里分叉。
    * command：这条消息由命令展开而来（text 为展开后的全文），invocation 为原始调用 "/name 参数"（回退时放回输入区）。
@@ -133,6 +133,9 @@ export type TimelineItem =
         | { kind: 'failed'; payload: HandoffFailedPayload }
         | { kind: 'origin'; payload: HandoffOriginPayload }
     }
+
+/** Display provenance comes only from the actual entry or live Run; never from a key or adjacent row. */
+export type TimelineItem = TimelineContent & { origin?: { runId: string | null; seq?: number; createdAt?: number } }
 
 interface Block {
   type?: unknown
@@ -219,204 +222,209 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   }
 
   const pushEntry = (entry: SessionEntry, items: TimelineItem[], hidden: boolean) => {
-    const preceding = notices
-    notices =
-      entry.kind === 'job_notification' || entry.kind === 'agent_notification' || entry.kind === 'team_message'
-        ? new Set([...preceding, entry.kind])
-        : new Set()
-    if (entry.runId) lastRunId = entry.runId
-    if (entry.kind === 'run_start') {
-      pendingCommand = null
-      if (entry.payload.trigger === 'compact' && entry.runId) compactRuns.add(entry.runId)
-      if (entry.payload.trigger === 'schedule' && entry.runId) scheduleInputs.add(entry.runId)
-    }
-    if (entry.kind === 'compaction') {
-      const { summary, trigger, tokensBefore, tokensAfter } = entry.payload
-      items.push({
-        kind: 'compaction',
-        key: `${entry.seq}`,
-        summary,
-        trigger,
-        ...(tokensAfter === undefined ? {} : { saved: Math.max(0, tokensBefore - tokensAfter) }),
-      })
-      return
-    }
-    if (entry.kind === 'command') {
-      pendingCommand = entry.payload
-      return
-    }
-    if (entry.kind === 'plan') {
-      items.push({ kind: 'plan', key: `${entry.seq}`, plan: entry.payload })
-      return
-    }
-    if (entry.kind === 'goal') {
-      items.push({ kind: 'goal', key: `${entry.seq}`, goal: entry.payload })
-      return
-    }
-    if (entry.kind === 'job_start' || entry.kind === 'job_end' || entry.kind === 'job_notification') {
-      const job =
-        entry.kind === 'job_start'
-          ? ({ kind: 'start', payload: entry.payload } as const)
-          : entry.kind === 'job_end'
-            ? ({ kind: 'end', payload: entry.payload } as const)
-            : ({ kind: 'notification', payload: entry.payload } as const)
-      items.push({ kind: 'job', key: `${entry.seq}`, job })
-      return
-    }
-    if (entry.kind === 'hook_run') {
-      items.push({ kind: 'hook', key: `${entry.seq}`, hook: entry.payload })
-      return
-    }
-    if (entry.kind === 'team_message') {
-      items.push({ kind: 'team-message', key: `${entry.seq}`, message: entry.payload })
-      return
-    }
-    if (entry.kind === 'team_task') {
-      items.push({ kind: 'team-task', key: `${entry.seq}`, task: entry.payload })
-      return
-    }
-    if (entry.kind === 'agent_notification') {
-      items.push({ kind: 'agent-notification', key: `${entry.seq}`, notification: entry.payload })
-      return
-    }
-    if (entry.kind === 'schedule_fire') {
-      const item: Extract<TimelineItem, { kind: 'schedule-fire' }> = { kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload }
-      if (entry.payload.runId) fireItems.set(entry.payload.runId, item)
-      items.push(item)
-      return
-    }
-    if (entry.kind === 'handoff' || entry.kind === 'handoff_failed' || entry.kind === 'handoff_origin') {
-      const handoff =
-        entry.kind === 'handoff'
-          ? ({ kind: 'source', payload: entry.payload } as const)
-          : entry.kind === 'handoff_failed'
-            ? ({ kind: 'failed', payload: entry.payload } as const)
-            : ({ kind: 'origin', payload: entry.payload } as const)
-      items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
-      return
-    }
-    if (entry.kind === 'run_end') {
-      const payload = entry.payload
-      // 未结束的工具在 Run 结束后不会再有结果。
-      for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
-      if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
-      else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
-      else if (payload.status === 'interrupted') items.push({ kind: 'interrupted', key: `${entry.seq}` })
-      // 被回退区间内的错误不可重试。
-      else if (payload.status === 'error')
+    const first = items.length
+    try {
+      const preceding = notices
+      notices =
+        entry.kind === 'job_notification' || entry.kind === 'agent_notification' || entry.kind === 'team_message'
+          ? new Set([...preceding, entry.kind])
+          : new Set()
+      if (entry.runId) lastRunId = entry.runId
+      if (entry.kind === 'run_start') {
+        pendingCommand = null
+        if (entry.payload.trigger === 'compact' && entry.runId) compactRuns.add(entry.runId)
+        if (entry.payload.trigger === 'schedule' && entry.runId) scheduleInputs.add(entry.runId)
+      }
+      if (entry.kind === 'compaction') {
+        const { summary, trigger, tokensBefore, tokensAfter } = entry.payload
         items.push({
-          kind: 'error',
+          kind: 'compaction',
           key: `${entry.seq}`,
-          message: payload.error?.message ?? '',
-          retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
+          summary,
+          trigger,
+          ...(tokensAfter === undefined ? {} : { saved: Math.max(0, tokensBefore - tokensAfter) }),
         })
-      if (entry.runId && usageRuns.has(entry.runId)) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
-      return
-    }
-    if (entry.kind === 'approval_request') {
-      const tool = tools.get(entry.payload.toolCallId)
-      if (tool) {
-        tool.approval = { request: entry.payload, decision: null }
-        if (tool.result === null) tool.status = 'awaiting'
-        requests.set(entry.payload.requestId, tool)
+        return
       }
-      return
-    }
-    if (entry.kind === 'approval_decision') {
-      const tool = requests.get(entry.payload.requestId)
-      if (tool?.approval) {
-        tool.approval = { ...tool.approval, decision: entry.payload }
-        if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
+      if (entry.kind === 'command') {
+        pendingCommand = entry.payload
+        return
       }
-      return
-    }
-    if (entry.kind !== 'message') return
-    const message = entry.payload
-    if (message.role === 'user') {
-      const command = pendingCommand
-      pendingCommand = null
-      const references: string[] = []
-      // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
-      // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
-      // 后台子代理的结束通知（<agent-notification> 文本块，紧接在 agent_notification 条目之后）由该行显示；定时任务 Run 的输入
-      // （该 Run 的第一条 user message，<scheduled_task> 包装）由 schedule_fire 行表示。两者都只认宿主条目确定的位置，用户输入的同样文本照常显示。
-      const scheduleInput = entry.runId !== null && scheduleInputs.delete(entry.runId)
-      const agentNotice = preceding.has('agent_notification')
-      // 团队消息（<team-message> 文本块，紧接在 team_message 条目之后）同样只按条目确定的位置去掉。
-      const teamNotice = preceding.has('team_message')
-      const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice && !teamNotice
-      const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
-      const own = blocks.filter((b, index) => {
-        if (b.type !== 'text' || typeof b.text !== 'string') return true
-        if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
-        if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
-        if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) return false
-        if (scheduleInput && index === 0) {
-          const title = scheduledTaskTitle(b.text)
-          if (title !== undefined) {
-            const fire = fireItems.get(entry.runId!)
-            if (fire && title !== '') fire.title = title
-            return false
-          }
-        }
-        const path = fileReferencePath(b.text)
-        if (path !== undefined) references.push(path)
-        return path === undefined
-      })
-      if (!plain && blocks.length > 0 && own.length === 0 && references.length === 0) return
-      items.push({
-        kind: 'user',
-        key: `${entry.seq}`,
-        text: plain ? (message.content as string) : contentText(own),
-        images: own
-          .filter(
-            (block): block is Block & { type: 'image'; data: string; mimeType: string } =>
-              block.type === 'image' && typeof block.data === 'string' && typeof block.mimeType === 'string',
-          )
-          .map(({ data, mimeType }) => ({ data, mimeType })),
-        ...(references.length > 0 ? { references } : {}),
-        seq: entry.seq,
-        checkpoint: !hidden,
-        ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),
-      })
-    } else if (message.role === 'assistant') {
-      if (entry.runId) lastAssistantSeq.set(entry.runId, entry.seq)
-      if (entry.runId && 'usage' in message && message.usage) usageRuns.add(entry.runId)
-      blocksOf(message.content).forEach((block, index) => {
-        const key = `${entry.seq}:${index}`
-        const source = { sessionId: entry.sessionId, runId: entry.runId, contentIndex: index }
-        if (block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')
+      if (entry.kind === 'plan') {
+        items.push({ kind: 'plan', key: `${entry.seq}`, plan: entry.payload })
+        return
+      }
+      if (entry.kind === 'goal') {
+        items.push({ kind: 'goal', key: `${entry.seq}`, goal: entry.payload })
+        return
+      }
+      if (entry.kind === 'job_start' || entry.kind === 'job_end' || entry.kind === 'job_notification') {
+        const job =
+          entry.kind === 'job_start'
+            ? ({ kind: 'start', payload: entry.payload } as const)
+            : entry.kind === 'job_end'
+              ? ({ kind: 'end', payload: entry.payload } as const)
+              : ({ kind: 'notification', payload: entry.payload } as const)
+        items.push({ kind: 'job', key: `${entry.seq}`, job })
+        return
+      }
+      if (entry.kind === 'hook_run') {
+        items.push({ kind: 'hook', key: `${entry.seq}`, hook: entry.payload })
+        return
+      }
+      if (entry.kind === 'team_message') {
+        items.push({ kind: 'team-message', key: `${entry.seq}`, message: entry.payload })
+        return
+      }
+      if (entry.kind === 'team_task') {
+        items.push({ kind: 'team-task', key: `${entry.seq}`, task: entry.payload })
+        return
+      }
+      if (entry.kind === 'agent_notification') {
+        items.push({ kind: 'agent-notification', key: `${entry.seq}`, notification: entry.payload })
+        return
+      }
+      if (entry.kind === 'schedule_fire') {
+        const item: Extract<TimelineItem, { kind: 'schedule-fire' }> = { kind: 'schedule-fire', key: `${entry.seq}`, fire: entry.payload }
+        if (entry.payload.runId) fireItems.set(entry.payload.runId, item)
+        items.push(item)
+        return
+      }
+      if (entry.kind === 'handoff' || entry.kind === 'handoff_failed' || entry.kind === 'handoff_origin') {
+        const handoff =
+          entry.kind === 'handoff'
+            ? ({ kind: 'source', payload: entry.payload } as const)
+            : entry.kind === 'handoff_failed'
+              ? ({ kind: 'failed', payload: entry.payload } as const)
+              : ({ kind: 'origin', payload: entry.payload } as const)
+        items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
+        return
+      }
+      if (entry.kind === 'run_end') {
+        const payload = entry.payload
+        // 未结束的工具在 Run 结束后不会再有结果。
+        for (const tool of tools.values()) if (tool.result === null && (tool.status === 'running' || tool.status === 'awaiting')) tool.status = 'pending'
+        if (payload.status === 'aborted') items.push({ kind: 'stopped', key: `${entry.seq}` })
+        else if (payload.status === 'paused') items.push({ kind: 'paused', key: `${entry.seq}` })
+        else if (payload.status === 'interrupted') items.push({ kind: 'interrupted', key: `${entry.seq}` })
+        // 被回退区间内的错误不可重试。
+        else if (payload.status === 'error')
           items.push({
-            kind: 'text',
-            key,
-            text: block.text,
-            streaming: false,
-            source,
-            finalResponse: message.stopReason === 'stop' || message.stopReason === 'length',
+            kind: 'error',
+            key: `${entry.seq}`,
+            message: payload.error?.message ?? '',
+            retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
           })
-        else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '')
-          items.push({ kind: 'thinking', key, text: block.thinking, streaming: false, source })
-        else if (block.type === 'toolCall' && typeof block.id === 'string') {
-          const item: Extract<TimelineItem, { kind: 'tool' }> = {
-            kind: 'tool',
-            key: `tool:${block.id}`,
-            call: { id: block.id, name: typeof block.name === 'string' ? block.name : '', arguments: block.arguments },
-            result: null,
-            status: 'running',
-            live: null,
-            approval: null,
-          }
-          tools.set(block.id, item)
-          items.push(item)
-        }
-      })
-    } else if (message.role === 'toolResult') {
-      const tool = tools.get(message.toolCallId)
-      const result: ToolResultView = { isError: message.isError, text: contentText(message.content), details: message.details }
-      if (tool) {
-        tool.result = result
-        tool.status = result.isError ? 'error' : 'done'
+        if (entry.runId && usageRuns.has(entry.runId)) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
+        return
       }
+      if (entry.kind === 'approval_request') {
+        const tool = tools.get(entry.payload.toolCallId)
+        if (tool) {
+          tool.approval = { request: entry.payload, decision: null }
+          if (tool.result === null) tool.status = 'awaiting'
+          requests.set(entry.payload.requestId, tool)
+        }
+        return
+      }
+      if (entry.kind === 'approval_decision') {
+        const tool = requests.get(entry.payload.requestId)
+        if (tool?.approval) {
+          tool.approval = { ...tool.approval, decision: entry.payload }
+          if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
+        }
+        return
+      }
+      if (entry.kind !== 'message') return
+      const message = entry.payload
+      if (message.role === 'user') {
+        const command = pendingCommand
+        pendingCommand = null
+        const references: string[] = []
+        // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
+        // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
+        // 后台子代理的结束通知（<agent-notification> 文本块，紧接在 agent_notification 条目之后）由该行显示；定时任务 Run 的输入
+        // （该 Run 的第一条 user message，<scheduled_task> 包装）由 schedule_fire 行表示。两者都只认宿主条目确定的位置，用户输入的同样文本照常显示。
+        const scheduleInput = entry.runId !== null && scheduleInputs.delete(entry.runId)
+        const agentNotice = preceding.has('agent_notification')
+        // 团队消息（<team-message> 文本块，紧接在 team_message 条目之后）同样只按条目确定的位置去掉。
+        const teamNotice = preceding.has('team_message')
+        const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice && !teamNotice
+        const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
+        const own = blocks.filter((b, index) => {
+          if (b.type !== 'text' || typeof b.text !== 'string') return true
+          if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
+          if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
+          if (teamNotice && b.text.startsWith(TEAM_MESSAGE_TAG)) return false
+          if (scheduleInput && index === 0) {
+            const title = scheduledTaskTitle(b.text)
+            if (title !== undefined) {
+              const fire = fireItems.get(entry.runId!)
+              if (fire && title !== '') fire.title = title
+              return false
+            }
+          }
+          const path = fileReferencePath(b.text)
+          if (path !== undefined) references.push(path)
+          return path === undefined
+        })
+        if (!plain && blocks.length > 0 && own.length === 0 && references.length === 0) return
+        items.push({
+          kind: 'user',
+          key: `${entry.seq}`,
+          text: plain ? (message.content as string) : contentText(own),
+          images: own
+            .filter(
+              (block): block is Block & { type: 'image'; data: string; mimeType: string } =>
+                block.type === 'image' && typeof block.data === 'string' && typeof block.mimeType === 'string',
+            )
+            .map(({ data, mimeType }) => ({ data, mimeType })),
+          ...(references.length > 0 ? { references } : {}),
+          seq: entry.seq,
+          checkpoint: !hidden,
+          ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),
+        })
+      } else if (message.role === 'assistant') {
+        if (entry.runId) lastAssistantSeq.set(entry.runId, entry.seq)
+        if (entry.runId && 'usage' in message && message.usage) usageRuns.add(entry.runId)
+        blocksOf(message.content).forEach((block, index) => {
+          const key = `${entry.seq}:${index}`
+          const source = { sessionId: entry.sessionId, runId: entry.runId, contentIndex: index }
+          if (block.type === 'text' && typeof block.text === 'string' && block.text.trim() !== '')
+            items.push({
+              kind: 'text',
+              key,
+              text: block.text,
+              streaming: false,
+              source,
+              finalResponse: message.stopReason === 'stop' || message.stopReason === 'length',
+            })
+          else if (block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '')
+            items.push({ kind: 'thinking', key, text: block.thinking, streaming: false, source })
+          else if (block.type === 'toolCall' && typeof block.id === 'string') {
+            const item: Extract<TimelineItem, { kind: 'tool' }> = {
+              kind: 'tool',
+              key: `tool:${block.id}`,
+              call: { id: block.id, name: typeof block.name === 'string' ? block.name : '', arguments: block.arguments },
+              result: null,
+              status: 'running',
+              live: null,
+              approval: null,
+            }
+            tools.set(block.id, item)
+            items.push(item)
+          }
+        })
+      } else if (message.role === 'toolResult') {
+        const tool = tools.get(message.toolCallId)
+        const result: ToolResultView = { isError: message.isError, text: contentText(message.content), details: message.details }
+        if (tool) {
+          tool.result = result
+          tool.status = result.isError ? 'error' : 'done'
+        }
+      }
+    } finally {
+      for (let index = first; index < items.length; index++) items[index]!.origin = { runId: entry.runId, seq: entry.seq, createdAt: entry.createdAt }
     }
   }
 
@@ -439,6 +447,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         items.push({
           kind: 'tool',
           key: `tool:${liveTool.toolCallId}`,
+          origin: { runId: live.runId },
           call: { id: liveTool.toolCallId, name: liveTool.toolName, arguments: liveTool.args },
           result:
             liveTool.status === 'running'
@@ -459,6 +468,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         key: `live:${live.runId}:${lastAssistantSeq.get(live.runId ?? '') ?? 'start'}:${index}`,
         text: block.text,
         streaming: true,
+        origin: { runId: live.runId },
         source: { sessionId: conversation.entries[0]?.sessionId ?? '', runId: live.runId, contentIndex: index },
       })
     })
@@ -466,7 +476,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     const toolRunning = items.some((i) => i.kind === 'tool' && (i.status === 'running' || i.status === 'awaiting'))
     // 手动压缩的 Run 没有对话输出：状态行在输入区上方。
     const compacting = live.runId !== null && compactRuns.has(live.runId)
-    if (!visible && !toolRunning && !compacting) items.push({ kind: 'generating', key: 'generating', ...(live.retry ? { retry: live.retry } : {}) })
+    if (!visible && !toolRunning && !compacting)
+      items.push({ kind: 'generating', key: 'generating', origin: { runId: live.runId }, ...(live.retry ? { retry: live.retry } : {}) })
   }
 
   // 待送达的追加指令排在最后（送达后由 user 条目替代）。

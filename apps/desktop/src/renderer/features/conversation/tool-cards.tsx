@@ -7,6 +7,7 @@ import { AgentCard } from './agent-card.tsx'
 import { useActiveEntries } from './agents-button.tsx'
 import { JobChip } from './job-row.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
+import { useProcessDisclosure } from './process-disclosure.tsx'
 import { ToolIcon } from './tool-icon.tsx'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
@@ -328,6 +329,7 @@ function Inspect({ onInspect }: { onInspect?: () => void }) {
 }
 
 function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
+  const [expanded, onExpandedChange] = useProcessDisclosure()
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
   const view = VIEWS[item.call.name]
@@ -336,6 +338,8 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
     return (
       <ToolCard
         variant="row"
+        expanded={expanded}
+        onExpandedChange={onExpandedChange}
         data-tool={item.call.name}
         icon={<ToolIcon kind="generic" />}
         title={t('tool.unknown')}
@@ -355,6 +359,8 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
   return (
     <ToolCard
       variant="row"
+      expanded={expanded}
+      onExpandedChange={onExpandedChange}
       data-tool={item.call.name}
       icon={view.icon}
       title={t(typeof view.title === 'function' ? view.title(item) : view.title)}
