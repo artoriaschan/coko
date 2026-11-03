@@ -50,3 +50,5 @@ Coko 外部真实 App 夹具保留于 `/tmp/coko-conversation-detail/ticket-03-v
 清理回执：[cleanup.json](cleanup.json)。两条命名浏览器会话 close 返回 Browser closed、退出 0；App/参考 Vite 会话均实际退出 130。原监听 PID 62393/69838 与端口 49653/49766 在退出后检查均不存在。没有停止任何已有用户应用；原参考仓库 tracked 文件保持未修改（仅既有 codebase-guide/ 未跟踪）。Electron E2E 的应用与 Sidecar 由现有 harness dispose 等待实际退出，临时目录按测试 teardown 清理。
 
 最终文档读回：AGENTS → docs/README → workbench 新章节均可达；活动引用、语义、归属、引用方向、生命周期、当前入口、新会话可读性和历史保留逐项通过。没有移除历史或尚未完成的任务材料。保存状态为本地 codex/conversation-detail-03 的提交，待主任务整合；未推送。
+
+合入集成分支时仅规范化上述五份测试日志（`consumers-final-tree.log`、`consumers-final.log`、`consumers-with-06.log`、`electron-chat-approvals.log`、`electron-final-tree.log`）的末尾空行，保留单个结尾换行；测试命令、数量、时间与结果逐字未改。原始字节已先备份至仓库外 `/tmp/coko-conversation-detail/raw-03-logs/`，该路径仅是本机备份回执，验收结论仍以仓库内日志为依据。产品源码与最终源码对象 3ad5caa 完全相同，复用既有通过证据；未重跑产品测试。
