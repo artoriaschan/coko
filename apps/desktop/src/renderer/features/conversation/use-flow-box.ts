@@ -1,7 +1,12 @@
 import * as React from 'react'
 
 /** Stable mounted content changes its real flow geometry; the owning reader observes the same frames. */
-export function useFlowBox(ref: React.RefObject<HTMLDivElement | null>, hidden: boolean, layoutKey?: unknown, seatGap = false): boolean {
+export function useFlowBox(
+  ref: React.RefObject<HTMLDivElement | null>,
+  hidden: boolean,
+  layoutKey?: unknown,
+  { seatGap = false, scrollable = false }: { seatGap?: boolean; scrollable?: boolean } = {},
+): boolean {
   const [displayHidden, setDisplayHidden] = React.useState(hidden)
   const previous = React.useRef({ hidden, layoutKey, height: 0, marginTop: 0, marginBottom: 0, opacity: 1 })
   const active = React.useRef(false)
@@ -44,7 +49,7 @@ export function useFlowBox(ref: React.RefObject<HTMLDivElement | null>, hidden: 
     }
     const overflow = element.style.overflow
     const maxHeight = element.style.maxHeight
-    element.style.overflow = 'clip'
+    element.style.overflow = scrollable ? 'hidden' : 'clip'
     element.style.maxHeight = 'none'
     element.dataset.flowMotion = hidden ? 'collapse' : 'reveal'
     active.current = true
@@ -95,6 +100,6 @@ export function useFlowBox(ref: React.RefObject<HTMLDivElement | null>, hidden: 
       animation.cancel()
       restore()
     }
-  }, [ref, hidden, displayHidden, layoutKey, seatGap])
+  }, [ref, hidden, displayHidden, layoutKey, seatGap, scrollable])
   return displayHidden
 }

@@ -549,3 +549,108 @@ it('actual App: an upward reading gesture during an active completion fold inter
   expect(Math.abs(marker.getBoundingClientRect().top - top)).toBeLessThanOrEqual(1)
   expect(distance(scroller)).toBeGreaterThan(100)
 })
+
+it('actual App: restoring the cap keeps a focused tail tool inside the visible group and outer viewport', async () => {
+  await page.viewport(1000, 800)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 24 }, (_, i) => call(2 + i, `focused-tail-${i}`, 'custom', {})),
+  ])
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  const tool = document.querySelectorAll<HTMLButtonElement>('[data-slot="tool-card"] button')[23]!
+  tool.focus({ preventScroll: true })
+  expect(tool.getBoundingClientRect().bottom).toBeLessThanOrEqual(outer().getBoundingClientRect().bottom)
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(26, 'run_end', { status: 'completed' }) })
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => group.getAnimations().length).toBeGreaterThan(0)
+  const motion = group.getAnimations()[0]!
+  motion.pause()
+  motion.currentTime = 80
+  await expect.poll(() => tool.getBoundingClientRect().bottom - group.getBoundingClientRect().bottom).toBeLessThanOrEqual(1)
+  expect(document.activeElement).toBe(tool)
+  motion.finish()
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
+  expect(document.activeElement).toBe(tool)
+  expect(tool.getBoundingClientRect().bottom).toBeLessThanOrEqual(group.getBoundingClientRect().bottom)
+  expect(tool.getBoundingClientRect().top).toBeGreaterThanOrEqual(group.getBoundingClientRect().top)
+  expect(tool.getBoundingClientRect().bottom).toBeLessThanOrEqual(outer().getBoundingClientRect().bottom)
+})
+
+it('actual App: a portaled preview retains its scoped tail return target through cap restoration and Escape', async () => {
+  await page.viewport(1000, 800)
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg=='
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 23 }, (_, i) => call(2 + i, `portal-prefix-${i}`, 'custom', {})),
+    call(25, 'portal-tail', 'mcp__playwright__screenshot', {}),
+    entry(26, 'message', {
+      role: 'toolResult',
+      toolCallId: 'portal-tail',
+      toolName: 'mcp__playwright__screenshot',
+      content: [{ type: 'image', data: png, mimeType: 'image/png' }],
+      isError: false,
+      timestamp: 0,
+    }),
+  ])
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  const tool = document.querySelectorAll<HTMLButtonElement>('[data-slot="tool-card"] > button')[23]!
+  tool.click()
+  const preview = page.getByRole('button', { name: /View full size:/ })
+  await preview.click()
+  await expect.element(page.getByRole('dialog')).toBeVisible()
+  const target = document.querySelector<HTMLElement>('[data-tool-image-preview-open]')!
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(27, 'run_end', { status: 'completed' }) })
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
+  expect(target.getBoundingClientRect().bottom).toBeLessThanOrEqual(group.getBoundingClientRect().bottom)
+  expect(target.getBoundingClientRect().top).toBeGreaterThanOrEqual(group.getBoundingClientRect().top)
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  expect(document.activeElement).toBe(target)
+  expect(target.getBoundingClientRect().bottom).toBeLessThanOrEqual(outer().getBoundingClientRect().bottom)
+})
+
+it('actual App: cap restoration keeps a focused code action visible inside a reasoning row taller than the cap', async () => {
+  await page.viewport(1000, 800)
+  const thinking = 'Original reasoning\n\n' + 'Retained reasoning paragraph.\n\n'.repeat(50) + '```text\nOriginal code content\n```'
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    entry(2, 'message', { role: 'assistant', content: [{ type: 'thinking', thinking }], stopReason: 'toolUse', timestamp: 0 }),
+  ])
+  await page.getByRole('button', { name: 'Thinking', exact: true }).click()
+  await expect.poll(() => document.querySelectorAll('.conversation-reasoning-body [data-streamdown="code-block-actions"] button').length).toBeGreaterThan(0)
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  const action = [...document.querySelectorAll<HTMLButtonElement>('.conversation-reasoning-body [data-streamdown="code-block-actions"] button')].at(-1)!
+  action.focus({ preventScroll: true })
+  expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(outer().getBoundingClientRect().bottom)
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(3, 'run_end', { status: 'completed' }) })
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
+  expect(document.activeElement).toBe(action)
+  expect(action.getBoundingClientRect().bottom).toBeLessThanOrEqual(group.getBoundingClientRect().bottom)
+  expect(action.getBoundingClientRect().top).toBeGreaterThanOrEqual(group.getBoundingClientRect().top)
+})
+
+it('actual App: the focused sticky thinking control remains in the outer viewport throughout cap restoration', async () => {
+  await page.viewport(1000, 800)
+  const thinking = 'Original thinking\n\n' + 'Retained reasoning paragraph.\n\n'.repeat(50)
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    entry(2, 'message', { role: 'assistant', content: [{ type: 'thinking', thinking }], stopReason: 'toolUse', timestamp: 0 }),
+  ])
+  const toggle = page.getByRole('button', { name: 'Thinking', exact: true })
+  await toggle.click()
+  await expect.poll(() => distance(outer())).toBeLessThanOrEqual(1)
+  expect(toggle.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(outer().getBoundingClientRect().top)
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(3, 'run_end', { status: 'completed' }) })
+  const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
+  await expect.poll(() => group.getAnimations().length).toBeGreaterThan(0)
+  const motion = group.getAnimations()[0]!
+  motion.pause()
+  motion.currentTime = 20
+  await expect.poll(() => toggle.element().getBoundingClientRect().top - outer().getBoundingClientRect().top).toBeGreaterThanOrEqual(0)
+  expect(document.activeElement).toBe(toggle.element())
+  motion.finish()
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
+  expect(toggle.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(outer().getBoundingClientRect().top)
+})

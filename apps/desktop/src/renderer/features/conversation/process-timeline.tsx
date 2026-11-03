@@ -40,6 +40,7 @@ function Group({
   hidden,
   collapsing,
   focused,
+  focusTarget,
   renderItem,
 }: {
   group: ProcessGroup
@@ -47,6 +48,7 @@ function Group({
   hidden: boolean
   collapsing: boolean
   focused: boolean
+  focusTarget?: HTMLElement | undefined
   renderItem: (item: TimelineItem) => React.ReactNode
 }) {
   const { t, locale } = useI18n()
@@ -62,8 +64,8 @@ function Group({
   const headerHidden = useFlowBox(header, running || collapsing, open)
   const bodyId = React.useId()
   const body = React.useRef<HTMLDivElement>(null)
-  const bodyHidden = useFlowBox(body, !open, running)
-  const reading = useReadingScroll(group.id, group.members, { enabled: open && !running && !hidden, initialFollow: false, tolerance: 1 })
+  const bodyHidden = useFlowBox(body, !open, running, { scrollable: true })
+  const reading = useReadingScroll(group.id, group.members, { enabled: open && !running && !hidden, initialFollow: false, tolerance: 1, focusTarget })
   const initializeTop = React.useRef(false)
   React.useLayoutEffect(() => {
     if (open && initializeTop.current) {
@@ -112,6 +114,7 @@ function Group({
         hidden={bodyHidden}
         inert={!open}
         data-slot="process-group-body"
+        data-reading-focus-held={focused || undefined}
         data-scroll-stable={!running || undefined}
         data-running={running || undefined}
         data-scroll-up={(!running && reading.up) || undefined}
@@ -135,7 +138,7 @@ function ProcessSeat({
   onBlurCapture: React.FocusEventHandler<HTMLDivElement>
 }) {
   const ref = React.useRef<HTMLDivElement>(null)
-  const displayHidden = useFlowBox(ref, hidden, undefined, true)
+  const displayHidden = useFlowBox(ref, hidden, undefined, { seatGap: true })
   return (
     <div ref={ref} data-slot="process-seat" hidden={displayHidden} inert={hidden} {...events}>
       {children(displayHidden)}
@@ -254,6 +257,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
   const [choices, setChoices] = React.useState<Record<string, { open?: boolean; epoch: number }>>({})
   const focusedRuns = React.useRef(new Set<string>())
   const focusedGroups = React.useRef(new Set<string>())
+  const focusTargets = React.useRef(new Map<string, HTMLElement>())
   const focusHeld = React.useRef(new Set<string>())
   const locks = React.useRef(new Map<string, Set<symbol>>())
   const groupLocks = React.useRef(new Map<string, Set<symbol>>())
@@ -283,9 +287,12 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
         const groupHeld = groupLocks.current.get(seat.id) ?? new Set<symbol>()
         groupLocks.current.set(seat.id, groupHeld)
         groupHeld.add(token)
+        const scope = focusTargets.current.get(seat.id)?.closest('[data-slot="process-seat"]')
+        scope?.setAttribute('data-reading-focus-locked', '')
         return () => {
           held.delete(token)
           groupHeld.delete(token)
+          if (groupHeld.size === 0) scope?.removeAttribute('data-reading-focus-locked')
         }
       })
     if (eligible && focused) focusHeld.current.add(seat.runId)
@@ -314,7 +321,8 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
         <ProcessFocusLock.Provider value={acquisitions.current.get(seat.id)!}>
           <ProcessSeat
             hidden={!open}
-            onFocusCapture={() => {
+            onFocusCapture={(event) => {
+              if (event.currentTarget.contains(event.target)) focusTargets.current.set(seat.id, event.target)
               focusedRuns.current.add(seat.runId)
               focusedGroups.current.add(seat.id)
             }}
@@ -332,6 +340,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
                 hidden={seatHidden}
                 collapsing={!open}
                 focused={groupFocused}
+                focusTarget={groupFocused ? focusTargets.current.get(seat.id) : undefined}
                 renderItem={renderItem}
               />
             )}
