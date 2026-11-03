@@ -55,6 +55,8 @@ export const mcp = defineDomain(
     image: {
       alt: '工具返回的图片 {index}',
       open: '查看大图',
+      failed: '图片加载失败',
+      dimensions: '解码尺寸：{width} × {height}',
       close: '关闭',
     },
     form: {
@@ -182,6 +184,8 @@ export const mcp = defineDomain(
     image: {
       alt: 'Image {index} returned by the tool',
       open: 'View full size',
+      failed: 'Image could not be loaded',
+      dimensions: 'Decoded size: {width} × {height}',
       close: 'Close',
     },
     form: {

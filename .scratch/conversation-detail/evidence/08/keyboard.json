@@ -1,0 +1,22 @@
+{
+  "before": {
+    "focus": "approval-card",
+    "answers": [],
+    "composerHidden": true
+  },
+  "after": {
+    "focus": "true",
+    "draft": "preserved keyboard draft",
+    "answers": [
+      [
+        "s-1",
+        "key-request",
+        {
+          "decision": "allow",
+          "scope": "once"
+        }
+      ]
+    ],
+    "cardPresent": false
+  }
+}

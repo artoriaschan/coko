@@ -1,12 +1,13 @@
 import type { MessageKey } from '@coko/i18n'
-import { Button, Dialog, DialogContent, DialogTitle, ToolCard, ToolOutput } from '@coko/ui'
-import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, Maximize2Icon, SendIcon } from 'lucide-react'
+import { ToolCard, ToolOutput } from '@coko/ui'
+import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, SendIcon } from 'lucide-react'
 import * as React from 'react'
+import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
 import { AgentCard } from './agent-card.tsx'
-import { useActiveEntries } from './agents-button.tsx'
+import { ToolImages } from './tool-image-details.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 import { useProcessDisclosure } from './process-disclosure.tsx'
@@ -179,7 +180,7 @@ function HookBlockNote({ item }: { item: ToolItem }) {
   return (
     <p data-slot="hook-block" className="flex min-w-0 items-baseline gap-2 px-3 pt-2 text-ui-small text-muted-foreground">
       <span className="shrink-0">{t('hooks.blockedBy')}</span>
-      <code data-user-content className="min-w-0 truncate font-mono text-foreground" title={hook.command}>
+      <code data-user-content className="min-w-0 break-all font-mono text-foreground" title={hook.command}>
         {hook.command}
       </code>
     </p>
@@ -210,81 +211,6 @@ function GenericBody({ item }: { item: ToolItem }) {
   )
 }
 
-type SandboxModeKey = 'read-only' | 'workspace-write' | 'danger-full-access'
-
-/** bash 结果 details 中的沙箱拒绝（BashToolDetails.sandbox）。 */
-function sandboxDenial(item: ToolItem): SandboxModeKey | undefined {
-  const sandbox = (item.result?.details as { sandbox?: { mode?: unknown; denied?: unknown } } | undefined)?.sandbox
-  return sandbox?.denied === true && typeof sandbox.mode === 'string' ? (sandbox.mode as SandboxModeKey) : undefined
-}
-
-/** 外部 Hook 拦下的调用（toolResult details.hostBlock { by: hook }，运行时写入，工具自身不能声明）。 */
-export function hookBlock(item: ToolItem): { command: string } | undefined {
-  const mark = (item.result?.details as { hostBlock?: { by?: unknown; command?: unknown } } | undefined)?.hostBlock
-  return mark?.by === 'hook' && typeof mark.command === 'string' ? { command: mark.command } : undefined
-}
-
-/** 标题行的元信息：Hook 拦截、沙箱拒绝与已结束审批的决定。 */
-function ToolMeta({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const denied = sandboxDenial(item)
-  const hook = hookBlock(item)
-  return (
-    <>
-      {hook && (
-        <span
-          data-hook-blocked
-          className="max-w-60 shrink truncate text-ui-small text-destructive"
-          title={t('hooks.blockedCommand', { command: hook.command })}
-        >
-          {t('hooks.blockedBy')}
-        </span>
-      )}
-      {denied && (
-        <span data-sandbox-denied={denied} className="max-w-60 shrink truncate text-ui-small text-destructive">
-          {t('sandbox.denied', { mode: t(`sandbox.shortModes.${denied}`) })}
-        </span>
-      )}
-      <ApprovalMeta item={item} />
-    </>
-  )
-}
-
-/** 已结束审批的决定，显示在工具卡标题行。 */
-function ApprovalMeta({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const decision = item.approval?.decision
-  if (!decision) return null
-  const target = item.approval?.request.kind === 'escalation' ? item.approval.request.targetMode : undefined
-  let label: string
-  switch (decision.outcome) {
-    case 'allowed':
-      label =
-        decision.by === 'hook'
-          ? t('hooks.allowedBy')
-          : target
-            ? t('approval.allowedWithMode', { mode: t(`sandbox.shortModes.${target}`) })
-            : decision.scope === 'session'
-              ? t('approval.allowedSession')
-              : decision.scope === 'workspace'
-                ? t('approval.allowedWorkspace')
-                : decision.scope === 'global'
-                  ? t('approval.allowedGlobal')
-                  : t('approval.allowedOnce')
-      break
-    case 'denied':
-      label = decision.feedback ? t('approval.deniedWithFeedback', { feedback: decision.feedback }) : t('approval.denied')
-      break
-    default:
-      label = t(`approval.${decision.outcome}`)
-  }
-  return (
-    <span data-approval-outcome={decision.outcome} className="max-w-60 shrink truncate text-ui-small text-muted-foreground" title={label}>
-      {label}
-    </span>
-  )
-}
-
 export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
   if (item.call.name === 'agent') return <AgentCard item={item} />
@@ -309,7 +235,13 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
   const view = VIEWS[item.call.name]
-  const statusLabel = t(`tool.${item.status}`)
+  const statusLabel = t(
+    item.confirmation?.answer === null
+      ? 'confirmation.status'
+      : item.status === 'pending' && item.result === null
+        ? 'tool.noRecordedResult'
+        : `tool.${item.status}`,
+  )
   if (!view) {
     return (
       <ToolCard
@@ -322,9 +254,10 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
         summary={item.call.name}
         status={item.status}
         statusLabel={statusLabel}
-        meta={<ToolMeta item={item} />}
+        meta={<ToolStateMeta item={item} />}
       >
         <HookBlockNote item={item} />
+        <ToolStateDetail item={item} />
         <GenericBody item={item} />
         <ToolImages item={item} />
         <Inspect onInspect={onInspect} />
@@ -348,8 +281,9 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       summary={item.status === 'error' && output(item).trim() !== '' ? output(item).split('\n')[0] : view.summary(args)}
       status={item.status}
       statusLabel={statusLabel}
-      meta={<ToolMeta item={item} />}
+      meta={<ToolStateMeta item={item} />}
     >
+      <ToolStateDetail item={item} />
       {hookBlock(item) ? (
         <div className="flex flex-col">
           <HookBlockNote item={item} />
@@ -360,104 +294,8 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       ) : (
         <GenericBody item={item} />
       )}
+      <ToolImages item={item} />
       <Inspect onInspect={onInspect} />
     </ToolCard>
-  )
-}
-
-// ── 工具结果中的图片（MCP 的 image 块，例如浏览器截图）──
-
-/** 显示为缩略图的位图类型；SVG 等不显示（不在界面中渲染工具给出的矢量内容）。 */
-const RASTER_IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-const BASE64 = /^[A-Za-z0-9+/=\s]+$/
-
-interface ToolImage {
-  src: string
-}
-
-function imagesOf(content: unknown): ToolImage[] {
-  if (!Array.isArray(content)) return []
-  return content.flatMap((block: unknown) => {
-    const b = block as { type?: unknown; data?: unknown; mimeType?: unknown } | null
-    if (b?.type !== 'image' || typeof b.data !== 'string' || typeof b.mimeType !== 'string' || !RASTER_IMAGES.has(b.mimeType) || !BASE64.test(b.data)) return []
-    return [{ src: `data:${b.mimeType};base64,${b.data.replace(/\s/g, '')}` }]
-  })
-}
-
-/** 该调用的结果图片：已提交的 toolResult 条目，或进行中 Run 的结果。 */
-function useToolImages(item: ToolItem): ToolImage[] {
-  const { entries } = useActiveEntries()
-  return React.useMemo(() => {
-    const committed = entries.find((e) => {
-      const payload = e.payload as { role?: unknown; toolCallId?: unknown } | null
-      return e.kind === 'message' && payload?.role === 'toolResult' && payload.toolCallId === item.call.id
-    })
-    const content = committed ? (committed.payload as { content?: unknown }).content : (item.live?.result as { content?: unknown } | undefined)?.content
-    return imagesOf(content)
-  }, [entries, item.call.id, item.live?.result])
-}
-
-/** 结果图片的缩略图；"查看大图"打开对话框显示原图。 */
-function ToolImages({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const images = useToolImages(item)
-  const [open, setOpen] = React.useState<number | null>(null)
-  // 对话框不是由 DialogTrigger 打开：关闭后把焦点还给打开它的按钮。
-  const openers = React.useRef<(HTMLButtonElement | null)[]>([])
-  const opened = React.useRef<number | null>(null)
-  if (images.length === 0) return null
-  return (
-    <div className="flex flex-wrap gap-3 border-t-hairline border-border px-3 py-2">
-      {images.map((image, index) => {
-        const alt = t('mcp.image.alt', { index: index + 1 })
-        return (
-          <figure key={index} className="flex flex-col items-start gap-1">
-            <img
-              data-tool-image
-              src={image.src}
-              alt={alt}
-              className="max-h-40 max-w-full rounded-lg border-hairline border-border bg-muted/50 object-contain"
-            />
-            <Button
-              ref={(el) => {
-                openers.current[index] = el
-              }}
-              variant="ghost"
-              size="sm"
-              data-action="open-image"
-              onClick={() => {
-                opened.current = index
-                setOpen(index)
-              }}
-            >
-              <Maximize2Icon />
-              {t('mcp.image.open')}
-            </Button>
-          </figure>
-        )
-      })}
-      {open !== null && images[open] && (
-        <Dialog open onOpenChange={(value) => !value && setOpen(null)}>
-          <DialogContent
-            closeLabel={t('mcp.image.close')}
-            className="max-w-[min(90vw,1200px)] flex-col gap-3 p-5"
-            data-tool-image-dialog
-            onCloseAutoFocus={(event) => {
-              const button = opened.current === null ? null : openers.current[opened.current]
-              if (!button) return
-              event.preventDefault()
-              button.focus()
-            }}
-          >
-            <DialogTitle>{t('mcp.image.alt', { index: open + 1 })}</DialogTitle>
-            <img
-              src={images[open].src}
-              alt={t('mcp.image.alt', { index: open + 1 })}
-              className="max-h-[75vh] max-w-full self-center rounded-lg object-contain"
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
   )
 }

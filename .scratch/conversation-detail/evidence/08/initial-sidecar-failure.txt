@@ -1,0 +1,7 @@
+Recorded excerpt from the first targeted Sidecar aggregate (rtk proxy pnpm run test tests/integration/sidecar-hooks.test.ts tests/integration/sidecar-subagents-permissions.test.ts tests/integration/sidecar-recovery.test.ts):
+Test Files 1 failed | 2 passed (3)
+Tests 1 failed | 24 passed (25)
+sidecar-recovery.test.ts:242: expected 11 to be 9
+expect(version(db)).toBe(9)
+The unchanged migration registry independently ends at version 11, adding projects.primary_folder_index after v10 projects. Only this stale literal, comment and test title were corrected; all backup, entry, Provider and Credential assertions remain.
+Final raw aggregate output: sidecar.log (25/25).

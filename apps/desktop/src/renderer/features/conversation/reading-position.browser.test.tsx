@@ -189,6 +189,7 @@ it('actual App: a capped group follows detail growth independently while the out
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
   await expect.poll(() => group.clientHeight).toBe(400)
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
   expect(group.scrollTop).toBe(0)
   group.scrollTop = group.scrollHeight
   group.dispatchEvent(new Event('scroll'))
@@ -204,6 +205,7 @@ it('actual App: a capped group follows detail growth independently while the out
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   await expect.poll(() => group.clientHeight).toBe(400)
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
   expect(group.scrollTop).toBe(0)
 })
 
@@ -294,7 +296,10 @@ it('actual App: completion folds real process geometry on one 160ms clock and le
   const landed = outer().scrollTop
   await new Promise(requestAnimationFrame)
   expect(outer().scrollTop).toBe(landed)
-  const lastVisible = document.querySelector<HTMLElement>('[data-slot="run-process-control"]')!
+  const visibleRows = [...document.querySelector<HTMLElement>('[data-slot="process-timeline"]')!.children].filter(
+    (row) => row.getBoundingClientRect().height > 1 && row.closest('[hidden]') === null,
+  )
+  const lastVisible = visibleRows.at(-1)!
   expect(outer().getBoundingClientRect().bottom - lastVisible.getBoundingClientRect().bottom).toBeLessThan(20)
 })
 
@@ -365,6 +370,7 @@ it('actual App: an earlier process snapshot retains the inner visible tool and i
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   const group = document.querySelector<HTMLElement>('[data-slot="process-group-body"]')!
   await expect.poll(() => group.clientHeight).toBe(400)
+  await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
   const tool = group.querySelectorAll<HTMLElement>('[data-slot="tool-card"]')[8]!
   tool.querySelector<HTMLButtonElement>('button')!.click()
   await expect.poll(() => tool.querySelector('[data-slot="tool-card-body"]')).not.toBeNull()

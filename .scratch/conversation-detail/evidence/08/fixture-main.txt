@@ -1,0 +1,31 @@
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat} from '/tmp/coko-conversation-detail/ticket-08/apps/desktop/src/renderer/testing/fixture-chat.ts'
+const query=new URLSearchParams(location.search)
+const state=query.get('state')??'completed'
+const record=(seq,payload,kind='message')=>({sessionId:'s-1',seq,kind,payloadVersion:1,payload,runId:'process-run',createdAt:(state==='approval'?Date.now()-12000:0)+seq*1000})
+const call=(seq,id,name,args)=>record(seq,{role:'assistant',content:[{type:'toolCall',id,name,arguments:args}],stopReason:'toolUse',timestamp:0})
+const result=(seq,id,text)=>record(seq,{role:'toolResult',toolCallId:id,toolName:'custom',content:[{type:'text',text}],isError:false,timestamp:0})
+const request=(seq,id)=>record(seq,{requestId:id,toolCallId:id,toolName:'custom',kind:'tool',subject:'.git/config',suggestions:[]},'approval_request')
+const blocked=(seq,id,details)=>record(seq,{role:'toolResult',toolCallId:id,toolName:'custom',content:[{type:'text',text:'Not run: '+id}],details,isError:true,timestamp:0})
+const entries=[record(1,{trigger:'submit'},'run_start'),record(2,{role:'user',content:'检查受保护文件与外部命令。',timestamp:0}),
+call(3,'denied','custom',{path:'.git/config'}),request(4,'denied'),record(5,{requestId:'denied',outcome:'denied',by:'user',feedback:'Keep the protected file unchanged. 请保持原文件不变。'},'approval_decision'),blocked(6,'denied',{}),
+call(7,'sandbox','custom',{command:'write outside'}),blocked(8,'sandbox',{sandbox:{denied:true,mode:'workspace-write'}}),
+call(9,'hook','custom',{path:'protected.txt'}),blocked(10,'hook',{hostBlock:{by:'hook',command:'local-check --protect workspace'}}),
+call(11,'missing','custom',{path:'no-recorded-result.txt'}),
+...(state==='confirmation'?[call(12,'uncertain','custom',{command:'external-effect'}),record(13,{toolCallId:'uncertain'},'confirmation_request'),record(14,{status:'interrupted'},'run_end')]:
+state==='approval'?[call(12,'pending','custom',{path:'.git/config'}),request(13,'pending')]:[record(12,{status:'completed'},'run_end')])]
+const fixture=createFixtureChat({entries:{'s-1':entries}})
+const appearance=createAppearanceStore({theme:query.get('theme')==='dark'?'dark':'light',locale:query.get('lang')==='en'?'en':'zh'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+document.body.style.margin='0';document.getElementById('root').style.height='100vh'
+createRoot(document.getElementById('root')).render(<App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/>);
+window.fixture=fixture
+
+fixture.chat.subscribe(state=>{if(state.conversations['s-1']?.status==='ready' && window.started!==true){window.started=true;if(new URLSearchParams(location.search).get('state')==='approval')fixture.sendServer({type:'progress',sessionId:'s-1',runId:'process-run',event:{type:'run_start'}})}})

@@ -4,6 +4,7 @@ import {
   type ApprovalDecisionPayload,
   type ApprovalRequestPayload,
   type CommandPayload,
+  type ConfirmationAnswer,
   type CompactionPayload,
   type GoalPayload,
   type HandoffFailedPayload,
@@ -47,6 +48,8 @@ export interface ToolResultView {
   details: unknown
   /** 工具原有结构化输出；展示层不补造缺失字段。 */
   structuredContent?: unknown
+  /** 原始结果块属于该调用自身，供图片等非文本消费者读取。 */
+  content?: unknown
 }
 
 /** 工具调用的审批：请求，以及（已结束时）决定。 */
@@ -97,6 +100,8 @@ type TimelineContent =
       live: LiveTool | null
       /** 没有审批（免审批或旧记录）时省略或为 null。 */
       approval?: ToolApproval | null
+      /** Recovery facts; never inferred from a missing result or from assistant text. */
+      confirmation?: { answer: ConfirmationAnswer | null }
     }
   | { kind: 'generating'; key: string; retry?: { attempt: number; maxRetries: number } }
   | { kind: 'stopped'; key: string }
@@ -161,10 +166,17 @@ export function contentText(content: unknown): string {
 }
 
 /** 工具结果的文本：AgentToolResult 或 toolResult 条目的 content。 */
+function resultContent(value: unknown): unknown {
+  return typeof value === 'object' && value !== null ? (value as { content?: unknown }).content : undefined
+}
+
 export function resultText(result: unknown): string {
   if (result && typeof result === 'object' && 'content' in result) return contentText((result as { content: unknown }).content)
   return typeof result === 'string' ? result : ''
 }
+
+const approvalStopped = (approval: ToolApproval | null | undefined) =>
+  approval?.decision?.outcome === 'denied' || approval?.decision?.outcome === 'cancelled' || approval?.decision?.outcome === 'expired'
 
 const resultStructured = (result: unknown) => (result && typeof result === 'object' && 'structuredContent' in result ? result.structuredContent : undefined)
 
@@ -335,8 +347,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const tool = requests.get(entry.payload.requestId)
         if (tool?.approval) {
           tool.approval = { ...tool.approval, decision: entry.payload }
-          if (tool.result === null && tool.status === 'awaiting') tool.status = 'running'
+          if (tool.result === null && tool.status === 'awaiting') tool.status = approvalStopped(tool.approval) ? 'pending' : 'running'
         }
+        return
+      }
+      if (entry.kind === 'confirmation_request' || entry.kind === 'confirmation_answer') {
+        const tool = tools.get(entry.payload.toolCallId)
+        if (tool) tool.confirmation = { answer: entry.kind === 'confirmation_answer' ? entry.payload.answer : null }
         return
       }
       if (entry.kind !== 'message') return
@@ -424,6 +441,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const result: ToolResultView = {
           isError: message.isError,
           text: contentText(message.content),
+          content: message.content,
           details: message.details,
           structuredContent: resultStructured(message),
         }
@@ -449,11 +467,12 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         if (tool.result === null) {
           tool.live = liveTool
           // 等待审批时进度仍报告 running（pi 在审批前发出 tool_start）；以条目中的审批状态为准。
-          if (!(tool.status === 'awaiting' && liveTool.status === 'running')) tool.status = liveTool.status
+          if (!(liveTool.status === 'running' && (tool.status === 'awaiting' || approvalStopped(tool.approval)))) tool.status = liveTool.status
           if (liveTool.status !== 'running')
             tool.result = {
               isError: liveTool.status === 'error',
               text: resultText(liveTool.result),
+              content: resultContent(liveTool.result),
               details: resultDetails(liveTool.result),
               structuredContent: resultStructured(liveTool.result),
             }
@@ -471,6 +490,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
               : {
                   isError: liveTool.status === 'error',
                   text: resultText(liveTool.result),
+                  content: resultContent(liveTool.result),
                   details: resultDetails(liveTool.result),
                   structuredContent: resultStructured(liveTool.result),
                 },

@@ -9,6 +9,7 @@ import { useNow } from './jobs-button.tsx'
 import { useReadingScroll } from './use-reading-scroll.ts'
 import { useFlowBox } from './use-flow-box.ts'
 import './process-timeline.css'
+import { ProcessToolStates } from './tool-states.tsx'
 
 function summary(group: ProcessGroup, t: Translator, locale: string): string {
   const activities = processActivities(group.members)
@@ -98,12 +99,14 @@ function Group({
         </span>
         <span className="conversation-process-label">{summary(group, t, locale)}</span>
       </button>
+      {!running && <ProcessToolStates members={group.members} />}
       <div
         ref={bodyRef}
         id={bodyId}
         hidden={bodyHidden}
         inert={!open}
         data-slot="process-group-body"
+        data-scroll-stable={!running || undefined}
         data-running={running || undefined}
         data-scroll-up={(!running && reading.up) || undefined}
         data-scroll-down={(!running && reading.down) || undefined}
@@ -172,12 +175,14 @@ function RunControl({
   open,
   connected,
   onToggle,
+  members,
 }: {
   run: DisplayRun
   eligible: boolean
   open: boolean
   connected: boolean
   onToggle: () => void
+  members: TimelineItem[]
 }) {
   const { t } = useI18n()
   const now = useNow(run.status === 'running' && connected && run.startedAt !== undefined)
@@ -231,6 +236,7 @@ function RunControl({
         </span>
         {eligible && <Chevron open={open} />}
       </button>
+      {!open && <ProcessToolStates members={members} />}
     </React.Fragment>
   )
 }
@@ -286,6 +292,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
           <RunControl
             key={`control:${run.id}`}
             run={run}
+            members={items.filter((item) => item.origin?.runId === run.id)}
             eligible={eligible}
             open={open}
             connected={connected}

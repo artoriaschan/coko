@@ -203,7 +203,7 @@ describe('启动恢复与结果确认', () => {
     expect(await sidecarLog(dirs)).not.toContain('interrupted run recovered')
   })
 
-  it('迁移：用 v1 库启动 Sidecar → 当前版本（7）、生成 .backup-v1-*；旧 Provider、Credential 与默认模型被清除，Session 模型为空并标为被清空，条目可读', async () => {
+  it('迁移：用 v1 库启动 Sidecar → 当前版本（11）、生成 .backup-v1-*；旧 Provider、Credential 与默认模型被清除，Session 模型为空并标为被清空，条目可读', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const db = join(dirs.dataDir, 'coko.db')
@@ -238,8 +238,8 @@ describe('启动恢复与结果确认', () => {
         raw.close()
       }
     }
-    // 当前版本 9（v9：plugins、memories_fts，host_processes 增加 lsp）。
-    expect(version(db)).toBe(9)
+    // 当前版本 11（v10：projects；v11：primary_folder_index）。
+    expect(version(db)).toBe(11)
     expect(version(join(dirs.dataDir, backups[0]!))).toBe(1)
     // 备份保留旧 Provider。
     const backup = new DatabaseSync(join(dirs.dataDir, backups[0]!), { readOnly: true })

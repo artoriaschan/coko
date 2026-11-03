@@ -21,7 +21,7 @@ async function setup(script: (outside: string) => unknown) {
   await writeFile(join(root, 'faux.json'), JSON.stringify(script(outside)))
   const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json'), TMPDIR: temp }, { dir: root })
   apps.push(app)
-  await waitConnected(app.window)
+  await app.window.getByRole('heading', { level: 1 }).waitFor()
   await createProjectDraft(app, workspace)
   await app.window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
   return { app, workspace, outside }
@@ -62,6 +62,7 @@ describe.skipIf(process.platform !== 'darwin')('命令沙箱与提权卡（只�
     await composer(app).click()
     await composer(app).fill('write outside')
     await composer(app).press('Enter')
+    await waitConnected(app.window)
 
     await card(app).waitFor({ timeout: 30_000 })
     await allowOnce(app).click()
