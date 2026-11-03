@@ -58,6 +58,14 @@ Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点
 
 验证：[真实 App 过程测试](../../apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx)覆盖运行、回复、正常/异常结束、无最终答案、中途用户/团队输入、类别排序、焦点、三层重置、断线计时、结果确认、四种主题/语言的 390px 主区与右栏子 Session 隔离；[投影边界](../../apps/desktop/src/renderer/features/conversation/process-groups.test.ts)补充无归属与历史揭示；[对话 Electron 闭环](../../apps/desktop/e2e/chat.e2e.test.ts)验证真实 Sidecar 的运行平铺、审批、完成折叠及文件结果。
 
+## 历史与只读检查
+
+已有 Session Entry 直接派生消息与过程，不改写记录、不补造 Run 起点或归属。被回退区间在原位置独立折叠，嵌套区间继续递归；各层继承同一 Session 的完整不可变条目、真实 Run 状态与已有 Inspect 入口，组只按本层成员组织，不与当前有效过程混合。压缩分隔与摘要仍可展开；其中用户消息没有 Checkpoint 动作，历史错误不能重试。归档、运行中、待审批、待结果确认或 worktree 已移除时，受限消息动作不可用；打开的回退确认遇到新限制会关闭。查看、复制、展开与已有导航不触发执行。
+
+首次打开通过既有订阅从 `afterSeq: 0` 接收历史，重连从已收到的 `lastSeq` 接收后续条目，没有向前分页入口。展示身份不依赖已加载数量；受控更早快照揭示中途输入时，重新计算整轮折叠资格，并保留可对应的原消息、过程组和工具开合。像素锚点与滚动协调属于阅读容器的独立职责。
+
+验证：[真实 App 历史用例](../../apps/desktop/src/renderer/features/conversation/history.browser.test.tsx)覆盖缺失起点/归属、嵌套回退与压缩、只读矩阵、更早快照和稳定身份；[回退 Electron](../../apps/desktop/e2e/rewind.e2e.test.ts)与[回退协议](../../tests/integration/sidecar-rewind.test.ts)读取文件、原始条目与返回草稿，验证回退追加记录和 Fork 不修改源 Session；SQLite 和 Checkpoint 约定保持 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)与 [ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)。
+
 ## 新对话与首次发送
 
 新对话显示已确认的 `brand/rukie-avatar.png` 形象、欢迎标题与说明，和已有会话共用同一主输入框。侧栏与对话分类的创建入口都打开同一份草稿并聚焦编辑区；没有任何 Workspace 时也可编辑、选择权限或模型。独立草稿不查询虚构目录的上下文，只显示不可用轨道；没有模型时仍经配置模型入口保留草稿。
