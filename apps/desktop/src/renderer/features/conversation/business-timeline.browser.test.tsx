@@ -12,7 +12,7 @@ import { createAgentsStore } from '../../stores/agents-store.ts'
 import { createGoalStore } from '../../stores/goal-store.ts'
 import { GoalStoreProvider } from './dock/goal-card.tsx'
 import { createJobsStore } from '../../stores/jobs-store.ts'
-import { createFixtureChat } from '../../testing/fixture-chat.ts'
+import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 import { AgentsStoreProvider } from './agents-button.tsx'
 import { JobsStoreProvider } from './jobs-button.tsx'
 
@@ -70,8 +70,18 @@ afterEach(async () => {
   await page.viewport(viewport.width, viewport.height)
 })
 
-async function open(entries: SessionEntryRecord[], options: { child?: SessionEntryRecord[]; theme?: 'light' | 'dark'; locale?: 'en' | 'zh' } = {}) {
+async function open(
+  entries: SessionEntryRecord[],
+  options: { child?: SessionEntryRecord[]; theme?: 'light' | 'dark'; locale?: 'en' | 'zh'; removed?: boolean } = {},
+) {
   const fixture = createFixtureChat({
+    ...(options.removed
+      ? {
+          sessions: fixtureSessions.map((session) =>
+            session.id === 's-1' ? { ...session, worktree: { id: 'removed', name: 'removed', branch: 'coko/removed', status: 'removed' as const } } : session,
+          ),
+        }
+      : {}),
     entries: { 's-1': entries, ...(options.child ? { child: options.child.map((e) => ({ ...e, sessionId: 'child' })) } : {}) },
   })
   const appearance = createAppearanceStore({ theme: options.theme ?? 'light', locale: options.locale ?? 'en' })
@@ -304,4 +314,53 @@ it('actual App: finishing the dispatch Run does not complete its independent Job
   expect(document.querySelector('[data-slot="job-chip"]')).toBe(chip)
   expect(document.querySelectorAll('[data-slot="tool-card"]')).toHaveLength(1)
   expect(document.querySelector('[data-slot="job-notification"]')!.closest('[data-slot="process-seat"]')).toBeNull()
+})
+
+it.each(['archived', 'removed'] as const)('actual App: %s Session keeps Plan and Job inspection readable without execution controls', async (restriction) => {
+  const fixture = await open(
+    [plan(1, 'approved'), start(2), entry(3, 'job_notification', { jobIds: ['job_0123456789ab'] }), entry(4, 'run_end', { status: 'completed' })],
+    { removed: restriction === 'removed' },
+  )
+  if (restriction === 'archived') {
+    await fixture.chat.getState().archiveSession('s-1')
+    await fixture.chat.getState().openSession('s-1')
+  }
+  const planButton = page.elementLocator(document.querySelector('[data-action="open-plan"]')!)
+  await expect.element(planButton).toHaveAttribute('aria-expanded', 'false')
+  await planButton.click()
+  await expect
+    .element(page.elementLocator(document.querySelector('[data-slot="plan-card"]')!).getByText('Read sources before editing.', { exact: true }))
+    .toBeVisible()
+  const jobButton = page.elementLocator(document.querySelector('[data-action="open-job"]')!)
+  await jobButton.click()
+  await expect.element(page.getByText('Recorded Job output', { exact: true })).toBeVisible()
+  expect(document.querySelector('[data-action="stop-job"]')).toBeNull()
+  expect(document.querySelector('[data-action="plan-edit"]')).toBeNull()
+})
+
+it('actual App: a pending Plan review keeps the active Plan-tab route available independently of disabled checkpoint actions', async () => {
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    plan(2, 'proposed'),
+    entry(3, 'approval_request', {
+      requestId: 'review1',
+      toolCallId: 'exit1',
+      toolName: 'exit_plan_mode',
+      kind: 'plan',
+      subject: 'Recorded plan',
+      suggestions: [],
+      planId: 'shared-plan',
+      revision: 1,
+    }),
+  ])
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'same-run', event: { type: 'run_start' } })
+  await expect.poll(() => document.querySelector('[data-slot="plan-review"]')).not.toBeNull()
+  const button = document.querySelector('[data-slot="plan-card"] [data-action="open-plan"]')!
+  expect(button.getAttribute('aria-expanded')).toBeNull()
+  await page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: 'Close right panel', exact: true }).click()
+  ;(button as HTMLButtonElement).focus()
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => document.querySelector('[data-slot="app-frame-right"]')?.getAttribute('hidden')).toBeNull()
+  await expect.poll(() => document.querySelector('[data-slot="plan-tab"]')?.getAttribute('data-revision')).toBe('1')
+  expect(document.querySelector('[data-slot="plan-review"]')!.closest('[data-slot="process-seat"]')).toBeNull()
 })

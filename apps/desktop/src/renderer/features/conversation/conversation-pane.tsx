@@ -322,7 +322,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           }
           onFork={(seq) => void fork(seq)}
           actionsDisabled={actionsDisabled}
-          readOnly={takenOver || archived || readOnlyWorktree !== undefined}
+          readOnly={archived || session?.worktree?.status === 'removed'}
         />
       </div>
     )
