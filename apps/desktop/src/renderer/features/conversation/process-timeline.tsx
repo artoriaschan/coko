@@ -6,6 +6,8 @@ import { processActivities, processSeats, wholeFoldEligible, type DisplayRun, ty
 import { ProcessDisclosureReset, ProcessFocusLock, useProcessDisclosure } from './process-disclosure.tsx'
 import { ProcessActivityIcon } from './process-icon.tsx'
 import { useNow } from './jobs-button.tsx'
+import { useReadingScroll } from './use-reading-scroll.ts'
+import { useFlowBox } from './use-flow-box.ts'
 import './process-timeline.css'
 
 function summary(group: ProcessGroup, t: Translator, locale: string): string {
@@ -55,32 +57,22 @@ function Group({
   const open = running || opened || keepFocused
   const bodyId = React.useId()
   const body = React.useRef<HTMLDivElement>(null)
-  const content = React.useRef<HTMLDivElement>(null)
-  const following = React.useRef(true)
-  const wasCapped = React.useRef(!running)
-  const [edges, setEdges] = React.useState({ up: false, down: false })
-  const measure = React.useCallback(() => {
-    const el = body.current
-    if (el)
-      setEdges((old) => {
-        const up = el.scrollTop > 1
-        const down = el.scrollTop + el.clientHeight < el.scrollHeight - 1
-        return old.up === up && old.down === down ? old : { up, down }
-      })
-  }, [])
+  const bodyHidden = useFlowBox(body, !open, running)
+  const reading = useReadingScroll(group.id, group.members, { enabled: open && !running && !hidden, initialFollow: false, tolerance: 1 })
+  const initializeTop = React.useRef(false)
   React.useLayoutEffect(() => {
-    const el = body.current
-    if (el && open && following.current && !running && wasCapped.current) el.scrollTop = el.scrollHeight
-    // Restoring a cap is a lifecycle change, not a request to jump to the end.
-    wasCapped.current = !running
-    measure()
-  }, [group.members, open, running, measure])
-  React.useLayoutEffect(() => {
-    const observer = new ResizeObserver(measure)
-    if (content.current) observer.observe(content.current)
-    if (body.current) observer.observe(body.current)
-    return () => observer.disconnect()
-  }, [measure])
+    if (open && initializeTop.current) {
+      initializeTop.current = false
+      reading.toTop()
+    }
+  }, [open, reading])
+  const bodyRef = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      body.current = element
+      reading.ref(element)
+    },
+    [reading.ref],
+  )
   const activity = processActivities(group.members)[0]
   return (
     <section hidden={hidden} data-slot="process-group" data-run-id={group.runId} className="conversation-process-group">
@@ -93,10 +85,7 @@ function Group({
         className="conversation-process-group-header focus-ring rounded-sm"
         onClick={(event) => {
           event.currentTarget.focus({ preventScroll: true })
-          if (!open) {
-            following.current = false
-            if (body.current) body.current.scrollTop = 0
-          }
+          if (!open) initializeTop.current = true
           setKeepFocused(false)
           setOpened(!open)
         }}
@@ -110,25 +99,38 @@ function Group({
         <span className="conversation-process-label">{summary(group, t, locale)}</span>
       </button>
       <div
-        ref={body}
+        ref={bodyRef}
         id={bodyId}
-        hidden={!open}
+        hidden={bodyHidden}
+        inert={!open}
         data-slot="process-group-body"
         data-running={running || undefined}
-        data-scroll-up={(!running && edges.up) || undefined}
-        data-scroll-down={(!running && edges.down) || undefined}
+        data-scroll-up={(!running && reading.up) || undefined}
+        data-scroll-down={(!running && reading.down) || undefined}
         className="conversation-process-body"
-        onScroll={(event) => {
-          const el = event.currentTarget
-          following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 1
-          measure()
-        }}
       >
-        <div ref={content} className="conversation-process-content">
-          {group.members.map(renderItem)}
-        </div>
+        <div className="conversation-process-content">{group.members.map(renderItem)}</div>
       </div>
     </section>
+  )
+}
+
+function ProcessSeat({
+  hidden,
+  children,
+  ...events
+}: {
+  hidden: boolean
+  children: (hidden: boolean) => React.ReactNode
+  onFocusCapture: React.FocusEventHandler<HTMLDivElement>
+  onBlurCapture: React.FocusEventHandler<HTMLDivElement>
+}) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const displayHidden = useFlowBox(ref, hidden, undefined, true)
+  return (
+    <div ref={ref} data-slot="process-seat" hidden={displayHidden} inert={hidden} {...events}>
+      {children(displayHidden)}
+    </div>
   )
 }
 
@@ -297,8 +299,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
     nodes.push(
       <ProcessDisclosureReset.Provider key={seat.id} value={choice?.epoch ?? 0}>
         <ProcessFocusLock.Provider value={acquisitions.current.get(seat.id)!}>
-          <div
-            data-slot="process-seat"
+          <ProcessSeat
             hidden={!open}
             onFocusCapture={() => {
               focusedRuns.current.add(seat.runId)
@@ -311,14 +312,16 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
               }
             }}
           >
-            <Group
-              group={seat}
-              running={!run || run.status === 'unknown' || run.status === 'running'}
-              hidden={!open}
-              focused={groupFocused}
-              renderItem={renderItem}
-            />
-          </div>
+            {(seatHidden) => (
+              <Group
+                group={seat}
+                running={!run || run.status === 'unknown' || run.status === 'running'}
+                hidden={seatHidden}
+                focused={groupFocused}
+                renderItem={renderItem}
+              />
+            )}
+          </ProcessSeat>
         </ProcessFocusLock.Provider>
       </ProcessDisclosureReset.Provider>,
     )

@@ -115,6 +115,7 @@ export function TimelineView(props: TimelineViewProps) {
           <article
             key={item.key}
             aria-label={t('conversation.you')}
+            data-reading-anchor={item.key}
             data-seq={item.seq}
             tabIndex={actions ? 0 : undefined}
             data-slot="user-message"
@@ -240,6 +241,7 @@ export function TimelineView(props: TimelineViewProps) {
             key={messageIdentities.get(item.key) ?? item.key}
             aria-label={t('conversation.assistant')}
             data-user-content
+            data-reading-anchor={messageIdentities.get(item.key) ?? item.key}
             data-streaming={item.streaming || undefined}
             className="conversation-assistant-message min-w-0"
           >

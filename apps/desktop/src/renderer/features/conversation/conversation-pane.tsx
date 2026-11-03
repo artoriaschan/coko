@@ -1,5 +1,5 @@
 import type { ImageAttachment } from '@coko/protocol'
-import { EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
+import { ArrowDownIcon, EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { AppFrameCollapsedControls, Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
@@ -30,6 +30,7 @@ import { RewindDialog } from './rewind-dialog.tsx'
 import { displayRuns } from './process-groups.ts'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
+import { useReadingScroll } from './use-reading-scroll.ts'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
 
 export interface ConversationPaneProps {
@@ -253,16 +254,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     if (!rightOpen) onToggleRight()
   }
 
-  // 贴底时跟随新内容；用户上翻阅读时不打断。
-  const scroller = React.useRef<HTMLDivElement>(null)
-  const pinned = React.useRef(true)
-  React.useLayoutEffect(() => {
-    const el = scroller.current
-    if (el && pinned.current) el.scrollTop = el.scrollHeight
-  }, [items])
-  React.useLayoutEffect(() => {
-    pinned.current = true
-  }, [activeSessionId])
+  const reading = useReadingScroll(activeSessionId, items)
 
   let body: React.ReactNode
   if (activeSessionId === null) {
@@ -329,16 +321,25 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
       </header>
 
       <div className={`relative flex min-h-0 flex-1 flex-col ${activeSessionId === null ? 'justify-center overflow-y-auto' : ''}`}>
-        <div
-          ref={scroller}
-          data-scroll-stable
-          className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}
-          onScroll={(event) => {
-            const el = event.currentTarget
-            pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
-          }}
-        >
-          {body}
+        <div className={activeSessionId === null ? 'contents' : 'relative flex min-h-0 flex-1 flex-col'}>
+          <div
+            ref={reading.ref}
+            data-scroll-stable
+            className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}
+          >
+            {body}
+          </div>
+          {activeSessionId !== null && !reading.following && reading.down && (
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label={t('conversation.returnToBottom')}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-round bg-background"
+              onClick={reading.toBottom}
+            >
+              <ArrowDownIcon aria-hidden />
+            </Button>
+          )}
         </div>
 
         <div className="shrink-0 px-4 pb-4">

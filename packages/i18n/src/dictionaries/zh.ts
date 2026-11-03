@@ -229,6 +229,7 @@ export const zh = {
     emptySession: '向 Coko 布置任务开始对话',
     loading: '正在加载对话',
     loadFailed: '对话加载失败',
+    returnToBottom: '返回底部',
     generating: '正在生成',
     thinking: '思考',
     copyMessage: '复制消息',

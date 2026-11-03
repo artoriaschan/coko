@@ -11,6 +11,7 @@ import { formatJobDuration, useNow } from '../conversation/jobs-button.tsx'
 import { displayRuns } from '../conversation/process-groups.ts'
 import { buildTimeline } from '../conversation/timeline.ts'
 import { TimelineView } from '../conversation/timeline-view.tsx'
+import { useReadingScroll } from '../conversation/use-reading-scroll.ts'
 import type { RightPanelTabProps } from './tabs.ts'
 
 // 右栏 Agents tab（docs/subsystems/subagents.md#界面）：父会话的子代理列表（状态点、类型、描述、时长、用量、worktree）与选中项的只读时间线
@@ -78,12 +79,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
   React.useEffect(() => subscribeSession(agent.agentId), [subscribeSession, agent.agentId])
   // 用量行按当前会话的条目汇总（不是子 Session）：子代理的用量在列表中，这里不显示。
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation).filter((item) => item.kind !== 'run-usage') : []), [conversation])
-  const scroller = React.useRef<HTMLDivElement>(null)
-  const pinned = React.useRef(true)
-  React.useLayoutEffect(() => {
-    const el = scroller.current
-    if (el && pinned.current) el.scrollTop = el.scrollHeight
-  }, [items])
+  const reading = useReadingScroll(agent.agentId, items)
   if (!conversation || (conversation.status === 'loading' && conversation.entries.length === 0))
     return (
       <div className="flex flex-1 items-center justify-center" aria-label={t('agents.tabView.loading')}>
@@ -92,7 +88,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
     )
   return (
     <div
-      ref={scroller}
+      ref={reading.ref}
       role="log"
       aria-live="off"
       aria-label={t('agents.tabView.timeline', { description: agent.description })}
@@ -101,10 +97,6 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
       tabIndex={0}
       data-scroll-stable
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3 focus-ring"
-      onScroll={(event) => {
-        const el = event.currentTarget
-        pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
-      }}
     >
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('agents.tabView.timelineEmpty')}</p>

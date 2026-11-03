@@ -11,6 +11,7 @@ import { MemberStatusDot, useSessionTeam, useTeamStoreApi } from '../conversatio
 import { displayRuns } from '../conversation/process-groups.ts'
 import { buildTimeline } from '../conversation/timeline.ts'
 import { TimelineView } from '../conversation/timeline-view.tsx'
+import { useReadingScroll } from '../conversation/use-reading-scroll.ts'
 import type { RightPanelTabProps } from './tabs.ts'
 
 // 右栏 Team tab（docs/subsystems/teams.md#界面）：根会话的名册（状态点、当前活动、用量、worktree）、任务板（按 pending / in_progress /
@@ -176,12 +177,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
   React.useEffect(() => subscribeSession(member.agentId), [subscribeSession, member.agentId])
   // 用量行按当前会话的条目汇总（不是子 Session）：成员的用量在名册中，这里不显示。
   const items = React.useMemo(() => (conversation ? buildTimeline(conversation).filter((item) => item.kind !== 'run-usage') : []), [conversation])
-  const scroller = React.useRef<HTMLDivElement>(null)
-  const pinned = React.useRef(true)
-  React.useLayoutEffect(() => {
-    const el = scroller.current
-    if (el && pinned.current) el.scrollTop = el.scrollHeight
-  }, [items])
+  const reading = useReadingScroll(member.agentId, items)
   if (!conversation || (conversation.status === 'loading' && conversation.entries.length === 0))
     return (
       <div className="flex flex-1 items-center justify-center" aria-label={t('teams.tabView.loading')}>
@@ -190,7 +186,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
     )
   return (
     <div
-      ref={scroller}
+      ref={reading.ref}
       role="log"
       aria-live="off"
       aria-label={t('teams.tabView.timeline', { name: member.name })}
@@ -199,10 +195,6 @@ function MemberTimeline({ member }: { member: TeamMember }) {
       tabIndex={0}
       data-scroll-stable
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-3 focus-ring"
-      onScroll={(event) => {
-        const el = event.currentTarget
-        pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
-      }}
     >
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('teams.tabView.timelineEmpty')}</p>

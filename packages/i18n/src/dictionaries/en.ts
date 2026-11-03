@@ -232,6 +232,7 @@ export const en: typeof zh = {
     emptySession: 'Give Coko a task to start',
     loading: 'Loading conversation',
     loadFailed: 'Could not load the conversation',
+    returnToBottom: 'Return to bottom',
     generating: 'Generating',
     thinking: 'Thinking',
     copyMessage: 'Copy message',
