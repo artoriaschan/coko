@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, processExists, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, processExists, type LaunchedApp } from './harness.ts'
 
 const lspFixture = fileURLToPath(new URL('../../../tests/fixtures/lsp/server.mjs', import.meta.url))
 
@@ -35,7 +35,7 @@ describe('代码智能分区', () => {
     const app = await launchApp({ COKO_FAUX_SCRIPT: join(root, 'faux.json') }, { dir: root })
     apps.push(app)
     const { window } = app
-    await waitConnected(window)
+    await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
     await createProjectDraft(app, workspace)
     await window.getByRole('heading', { level: 1, name: /^(New chat|新对话)$/ }).waitFor()
 
@@ -98,6 +98,9 @@ describe('代码智能分区', () => {
     await expect.poll(() => card.getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     const header = card.getByRole('button', { name: /(Find references|查找引用)/ })
     expect(await header.textContent()).toContain('a.ts:1:14')
+    await window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+    for (const control of await window.locator('[data-slot="run-process-control"][aria-expanded="false"]:not(:disabled)').all()) await control.click()
+    for (const header of await window.locator('[data-slot="process-group-header"][aria-expanded="false"]').all()) await header.click()
     await header.click()
     await expect.poll(() => card.locator('[data-lsp-count]').textContent()).toMatch(/^(2 items|2 项)$/)
     expect(await card.textContent()).toContain('a.ts:2:13 console.log(value)')

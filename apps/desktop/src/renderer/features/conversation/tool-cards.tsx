@@ -4,6 +4,7 @@ import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, List
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
+import { SearchToolBody, StructuredToolBody } from './structured-tool-details.tsx'
 import { AgentCard } from './agent-card.tsx'
 import { useActiveEntries } from './agents-button.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
@@ -45,41 +46,12 @@ export function backgroundJobId(item: ToolItem): string | undefined {
   return STARTED_JOB.exec(item.result.text)?.[1]
 }
 
-/** lsp 的结果计数（LspToolDetails）。 */
-function lspCounts(item: ToolItem): { count: number; total: number; received?: false } | undefined {
-  const details = item.result?.details as { count?: unknown; total?: unknown; received?: unknown } | undefined
-  if (item.result?.isError || typeof details?.count !== 'number' || typeof details.total !== 'number') return undefined
-  return { count: details.count, total: details.total, ...(details.received === false ? { received: false as const } : {}) }
-}
-
 const LSP_TITLES = {
   diagnostics: 'lsp.tool.diagnostics',
   definition: 'lsp.tool.definition',
   references: 'lsp.tool.references',
   hover: 'lsp.tool.hover',
 } as const
-
-/** lsp 的明细：结果计数在输出之上。 */
-function LspBody({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const counts = lspCounts(item)
-  return (
-    <div className="flex flex-col">
-      {counts && (
-        <p data-lsp-count={counts.count} className="px-3 pt-2 text-ui-small text-muted-foreground">
-          {counts.received === false
-            ? t('lsp.tool.notReceived')
-            : counts.total === 0
-              ? t('lsp.tool.none')
-              : counts.count < counts.total
-                ? t('lsp.tool.truncated', { count: counts.count, total: counts.total })
-                : t('lsp.tool.count', { count: counts.count })}
-        </p>
-      )}
-      <TextBody text={output(item)} />
-    </div>
-  )
-}
 
 /** 按工具名分发的专属展示；未登记的工具使用通用展示。 */
 const VIEWS: Record<string, ToolView> = {
@@ -107,10 +79,25 @@ const VIEWS: Record<string, ToolView> = {
     summary: (a) => str(a.path),
     body: (item, a) => <FileToolBody item={item} args={a} fallback={<GenericBody item={item} />} />,
   },
-  grep: { icon: <ToolIcon kind="search" />, title: 'tool.grep', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
-  find: { icon: <ToolIcon kind="search" />, title: 'tool.find', summary: (a) => str(a.pattern), body: (item) => <TextBody text={output(item)} /> },
-  ls: { icon: <FolderTreeIcon />, title: 'tool.ls', summary: (a) => str(a.path) ?? '.', body: (item) => <TextBody text={output(item)} /> },
-  memory_list: { icon: <BrainIcon />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <TextBody text={output(item)} /> },
+  grep: {
+    icon: <ToolIcon kind="search" />,
+    title: 'tool.grep',
+    summary: (a) => str(a.pattern),
+    body: (item) => <SearchToolBody item={item} fallback={<GenericBody item={item} />} />,
+  },
+  find: {
+    icon: <ToolIcon kind="search" />,
+    title: 'tool.find',
+    summary: (a) => str(a.pattern),
+    body: (item) => <SearchToolBody item={item} fallback={<GenericBody item={item} />} />,
+  },
+  ls: {
+    icon: <FolderTreeIcon />,
+    title: 'tool.ls',
+    summary: (a) => str(a.path) ?? '.',
+    body: (item) => <SearchToolBody item={item} fallback={<GenericBody item={item} />} />,
+  },
+  memory_list: { icon: <BrainIcon />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <GenericBody item={item} /> },
   memory_write: {
     icon: <BrainIcon />,
     title: (item) => {
@@ -118,13 +105,13 @@ const VIEWS: Record<string, ToolView> = {
       return action === 'created' ? 'memory.tool.written' : action === 'updated' ? 'memory.tool.updated' : 'memory.tool.write'
     },
     summary: (a) => str(a.content),
-    body: (item, a) => (item.result?.isError ? <TextBody text={output(item)} /> : <ToolOutput>{str(a.content) ?? ''}</ToolOutput>),
+    body: (item) => <StructuredToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   memory_delete: {
     icon: <BrainIcon />,
     title: (item) => (memoryAction(item) === 'deleted' ? 'memory.tool.deleted' : 'memory.tool.delete'),
     summary: (a) => str(a.id),
-    body: (item) => <TextBody text={output(item)} />,
+    body: (item) => <StructuredToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   lsp: {
     icon: <CodeIcon />,
@@ -137,7 +124,7 @@ const VIEWS: Record<string, ToolView> = {
       if (file === undefined) return undefined
       return typeof a.line === 'number' && typeof a.character === 'number' ? `${file}:${a.line}:${a.character}` : file
     },
-    body: (item) => <LspBody item={item} />,
+    body: (item) => <StructuredToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   // Agent Teams：消息与任务板工具（docs/subsystems/teams.md）。
   send_message: {
