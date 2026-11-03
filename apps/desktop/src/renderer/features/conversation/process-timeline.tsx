@@ -68,11 +68,12 @@ function Group({
   const reading = useReadingScroll(group.id, group.members, { enabled: open && !running && !hidden, initialFollow: false, tolerance: 1, focusTarget })
   const initializeTop = React.useRef(false)
   React.useLayoutEffect(() => {
-    if (open && initializeTop.current) {
+    // Resetting a display:none body cannot replace its retained scroll position.
+    if (open && !bodyHidden && initializeTop.current) {
       initializeTop.current = false
       reading.toTop()
     }
-  }, [open, reading])
+  }, [open, bodyHidden, reading])
   const bodyRef = React.useCallback(
     (element: HTMLDivElement | null) => {
       body.current = element

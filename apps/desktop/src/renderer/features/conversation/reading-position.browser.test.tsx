@@ -204,6 +204,7 @@ it('actual App: a capped group follows detail growth independently while the out
   expect(distance(group)).toBeLessThanOrEqual(1)
   expect(scroller.scrollTop).toBe(top)
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
+  await expect.poll(() => group.hidden).toBe(true)
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   await expect.poll(() => group.clientHeight).toBe(400)
   await expect.poll(() => getComputedStyle(group).overflowY).toBe('auto')
