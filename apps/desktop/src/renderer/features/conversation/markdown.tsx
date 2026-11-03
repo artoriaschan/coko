@@ -6,11 +6,17 @@ import { useI18n } from '../../app/i18n.tsx'
 const LazyMarkdownRenderer = React.lazy(() => import('@coko/ui/markdown').then((module) => ({ default: module.MarkdownRenderer })))
 
 /** 助手消息正文：加载渲染器期间以纯文本占位，流式状态跟随实际生成。 */
-export function Markdown({ text, streaming, theme }: { text: string; streaming: boolean; theme: Theme }) {
+export function Markdown({ text, streaming, theme, compact = false }: { text: string; streaming: boolean; theme: Theme; compact?: boolean }) {
   const { dictionary } = useI18n()
   return (
     <React.Suspense fallback={<p className="text-ui-body-lg whitespace-pre-wrap">{text}</p>}>
-      <LazyMarkdownRenderer mode="streaming" isAnimating={streaming} colorScheme={theme} translations={dictionary.markdown}>
+      <LazyMarkdownRenderer
+        mode="streaming"
+        isAnimating={streaming}
+        colorScheme={theme}
+        translations={dictionary.markdown}
+        className={compact ? 'conversation-markdown conversation-markdown-compact' : 'conversation-markdown'}
+      >
         {text}
       </LazyMarkdownRenderer>
     </React.Suspense>

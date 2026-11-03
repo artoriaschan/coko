@@ -197,6 +197,8 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 
 ## 样式守卫
 
+对话消息的局部 Markdown 代码栏使用 `--conversation-code-banner`（亮色 `gray-50`、暗色 `gray-800`），保留共享 Markdown 的其他消费者。`messages.css` 中 `backdrop-filter: none` 是精确登记的例外：它关闭 Streamdown 行内代码工具栏自带的浮层模糊，使其落在代码标题栏中；该区域不是菜单，不改变菜单背景或共享菜单材质。思考标识使用参考版本的 16px think artwork、1px regular 线宽，限于对话详情复刻区域；原有 Coko 回退、分叉等动作继续使用现有图标库。
+
 已接入：`packages/ui/src/guards/style-guard.ts` 以 Vitest 静态检查 `packages/ui/src` 与 `apps/desktop/src/renderer` 中的 CSS 文件和 TSX（测试文件除外；TSX 经 TypeScript 语法树解析，忽略注释）。例外按文件、规则与匹配文本登记在同目录的 `style-guard-exceptions.ts`，失效的例外同样使测试失败；修改例外需在评审中说明原因。
 
 | 守卫 | 拒绝的写法 |

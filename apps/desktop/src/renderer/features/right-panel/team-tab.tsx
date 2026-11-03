@@ -206,7 +206,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('teams.tabView.timelineEmpty')}</p>
       ) : (
-        <TimelineView items={items} theme={theme} onRetry={() => {}} actionsDisabled />
+        <TimelineView sessionId={member.agentId} items={items} theme={theme} onRetry={() => {}} actionsDisabled />
       )}
     </div>
   )

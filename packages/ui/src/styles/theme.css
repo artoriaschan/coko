@@ -140,11 +140,13 @@
   --sidebar-glass-blue: var(--palette-sidebar-blue);
   --sidebar-glass-violet: var(--palette-sidebar-violet);
   --sidebar-glass-background:
-    linear-gradient(to bottom,
+    linear-gradient(
+      to bottom,
       color-mix(in srgb, var(--palette-sidebar-blue) 10%, transparent),
       color-mix(in srgb, var(--palette-sidebar-blue) 0%, transparent) 35%,
       color-mix(in srgb, var(--palette-sidebar-violet) 0%, transparent) 68%,
-      color-mix(in srgb, var(--palette-sidebar-violet) 9%, transparent)),
+      color-mix(in srgb, var(--palette-sidebar-violet) 9%, transparent)
+    ),
     color-mix(in srgb, color-mix(in srgb, var(--sidebar) 97%, var(--palette-sidebar-blue)) 40%, transparent);
   --bubble: var(--palette-blue-50);
   --tooltip: var(--palette-gray-800);
@@ -152,6 +154,7 @@
   --toast: var(--palette-gray-750);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-50);
+  --conversation-code-banner: var(--palette-gray-50);
   --inline-code: var(--palette-gray-25);
   --diff-added: var(--palette-green-bg-light);
   --diff-deleted: var(--palette-red-bg-light);
@@ -211,11 +214,13 @@
   --sidebar-accent-foreground: var(--palette-gray-50);
   --sidebar-border: var(--palette-white-a12);
   --sidebar-glass-background:
-    linear-gradient(to bottom,
+    linear-gradient(
+      to bottom,
       color-mix(in srgb, var(--palette-sidebar-blue) 8%, transparent),
       color-mix(in srgb, var(--palette-sidebar-blue) 0%, transparent) 35%,
       color-mix(in srgb, var(--palette-sidebar-violet) 0%, transparent) 68%,
-      color-mix(in srgb, var(--palette-sidebar-violet) 7%, transparent)),
+      color-mix(in srgb, var(--palette-sidebar-violet) 7%, transparent)
+    ),
     color-mix(in srgb, var(--sidebar) 50%, transparent);
   --bubble: var(--palette-gray-800);
   --tooltip: var(--palette-gray-700);
@@ -223,6 +228,7 @@
   --toast: var(--palette-gray-700);
   --toast-foreground: var(--palette-gray-50);
   --code-block: var(--palette-gray-900);
+  --conversation-code-banner: var(--palette-gray-800);
   --inline-code: var(--palette-gray-830);
   --diff-added: var(--palette-green-bg-dark);
   --diff-deleted: var(--palette-red-bg-dark);
