@@ -1,0 +1,32 @@
+{
+  "sessions": [
+    "coko-integrated-13",
+    "coko-reference-13",
+    "coko-native-integrated-13"
+  ],
+  "browserClosed": true,
+  "servers": [
+    {
+      "pid": 74917,
+      "port": 60177,
+      "exit": 143
+    },
+    {
+      "pid": 75212,
+      "port": 60180,
+      "exit": 143
+    }
+  ],
+  "nativeFinal": {
+    "electron": 88578,
+    "sidecar": 88605,
+    "controller": 88534,
+    "port": 63182,
+    "electronExited": true,
+    "sidecarExited": true,
+    "controllerExited": true,
+    "portListening": false,
+    "temporaryUserDataRemoved": true
+  },
+  "worktreesDeleted": false
+}

@@ -1,0 +1,39 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/reading-position.browser.test.tsx (19 tests | 1 failed) 10286ms
+   × actual App: a capped group follows detail growth independently while the outer reader remains held; manual reopen starts at the top 1451ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/reading-position.browser.test.tsx > actual App: a capped group follows detail growth independently while the outer reader remains held; manual reopen starts at the top
+AssertionError: expected 496 to be +0 // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--a-capped-group-follows-detail-growth-independently-while-the-outer-reader-remains-held--manual-reopen-starts-at-the-top.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 496[39m
+
+ ❯ src/renderer/features/conversation/reading-position.browser.test.tsx:210:27
+    208|   await expect.poll(() => group.clientHeight).toBe(400)
+    209|   await expect.poll(() => getComputedStyle(group).overflowY).toBe('aut…
+    210|   expect(group.scrollTop).toBe(0)
+       |                           ^
+    211| })
+    212|
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 25 passed (26)
+   Start at  00:35:20
+   Duration  11.82s (tests 96%, import 3%, setup 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

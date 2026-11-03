@@ -1,0 +1,57 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/file-tool-details.browser.test.tsx -t 'known file suffixes'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx (8 tests | 2 failed | 6 skipped) 1089ms
+   × actual App: light known file suffixes supply reference syntax and mutation language labels without inventing file facts 807ms
+   × actual App: dark known file suffixes supply reference syntax and mutation language labels without inventing file facts 282ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: light known file suffixes supply reference syntax and mutation language labels without inventing file facts
+AssertionError: expected 'rgb(15, 17, 21)' to be 'rgb(214, 51, 108)' // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--light-known-file-suffixes-supply-reference-syntax-and-mutation-language-labels-without-inventing-file-facts.png
+
+Expected: [32m"rgb([7m214, 51, 108[27m)"[39m
+Received: [31m"rgb([7m15, 17, 21[27m)"[39m
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:186:43
+    184|       theme,
+    185|     )
+    186|     const rows = document.querySelectorAll('[data-slot="tool-card"]')
+       |                                           ^
+    187|     for (const row of rows) await page.elementLocator(row).getByRole('…
+    188|     expect(rows[0]!.querySelector('.file-detail-language')!.textConten…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: dark known file suffixes supply reference syntax and mutation language labels without inventing file facts
+AssertionError: expected 'rgb(249, 250, 251)' to be 'rgb(250, 162, 193)' // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--dark-known-file-suffixes-supply-reference-syntax-and-mutation-language-labels-without-inventing-file-facts.png
+
+Expected: [32m"rgb(2[7m50, 162, 193[27m)"[39m
+Received: [31m"rgb(2[7m49, 250, 251[27m)"[39m
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:186:43
+    184|       theme,
+    185|     )
+    186|     const rows = document.querySelectorAll('[data-slot="tool-card"]')
+       |                                           ^
+    187|     for (const row of rows) await page.elementLocator(row).getByRole('…
+    188|     expect(rows[0]!.querySelector('.file-detail-language')!.textConten…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 skipped (8)
+   Start at  00:23:54
+   Duration  1.84s (tests 74%, setup 15%, import 8%, worker 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

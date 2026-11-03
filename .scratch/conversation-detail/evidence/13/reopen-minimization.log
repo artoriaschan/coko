@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx -t 'a capped group'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 18 skipped (19)
+   Start at  00:34:33
+   Duration  1.98s (tests 76%, setup 13%, import 9%, worker 3%)

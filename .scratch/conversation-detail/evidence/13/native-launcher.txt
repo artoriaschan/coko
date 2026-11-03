@@ -1,0 +1,29 @@
+import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {createProjectDraft,launchApp,processExists} from '/tmp/coko-conversation-detail/ticket-13/apps/desktop/e2e/harness.ts'
+const root=await mkdtemp(join(tmpdir(),'coko-integrated-native-13-'))
+const workspace=join(root,'workspace');await mkdir(workspace)
+await writeFile(join(workspace,'original.ts'),'export const greeting = "original";\n')
+const faux=join(root,'faux.json');await writeFile(faux,JSON.stringify({responses:[{content:[{type:'text',text:'Inspecting the recorded source.'},...Array.from({length:24},(_,i)=>({type:'toolCall',id:'read-native-'+i,name:'read',arguments:{path:'original.ts'}}))]},{content:[{type:'text',text:'The source remains unchanged.'},{type:'toolCall',id:'bash-native',name:'bash',arguments:{command:"printf 'native terminal output\\n'"}}]},{content:'Native final acceptance complete.'}]}))
+let launched
+process.on('SIGUSR2',async()=>{const page=launched.window;const cdp=await page.context().newCDPSession(page);await cdp.send('DOM.enable');await cdp.send('CSS.enable');const {root}=await cdp.send('DOM.getDocument');const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector:'.file-detail-code'});const fonts=await cdp.send('CSS.getPlatformFontsForNode',{nodeId});await writeFile('/tmp/coko-conversation-detail/ticket-13/.scratch/conversation-detail/evidence/13/native-platform-fonts.json',JSON.stringify(fonts,null,2));await cdp.detach();console.log('FONT13_READY',JSON.stringify(fonts))})
+const cleanup=async()=>{if(!launched)return;const pid=launched.app.process().pid;const sidecars=await launched.sidecarPids();await launched.dispose();await rm(root,{recursive:true,force:true});console.log('NATIVE13_CLOSED',JSON.stringify({pid,sidecars,electronAlive:processExists(pid),sidecarsAlive:sidecars.map(p=>processExists(p))}));launched=undefined}
+process.once('SIGTERM',async()=>{await cleanup();process.exit(0)})
+process.once('SIGINT',async()=>{await cleanup();process.exit(0)})
+try{
+ launched=await launchApp({COKO_FAUX_SCRIPT:faux},{dir:root})
+ const p=launched.window
+ await p.getByRole('heading',{level:1,name:/^(New chat|新对话)$/}).waitFor()
+ await createProjectDraft(launched,workspace)
+ await p.getByRole('textbox',{name:/Give Coko a task|向 Coko 布置任务/}).fill('verify integrated native details')
+ await p.getByRole('textbox',{name:/Give Coko a task|向 Coko 布置任务/}).press('Enter')
+ await p.locator('[data-slot="approval-card"]').getByRole('button',{name:/^(Allow once|允许一次)$/}).click()
+ await p.getByText('Native final acceptance complete.',{exact:true}).waitFor()
+ await p.locator('[data-action="send"]').waitFor()
+ const portFile=await readFile(join(root,'user-data','DevToolsActivePort'),'utf8')
+ const port=Number(portFile.split('\n')[0]);
+ const cdp=await p.context().newCDPSession(p);await cdp.send('Emulation.setFocusEmulationEnabled',{enabled:true})
+ console.log('NATIVE13_READY',JSON.stringify({port,root,pid:launched.app.process().pid,sidecars:await launched.sidecarPids(),runtime:await cdp.send('Browser.getVersion')}))
+ await new Promise(resolve=>process.once('SIGUSR1',resolve));await cleanup()
+}catch(error){console.error(error);await cleanup();process.exit(1)}

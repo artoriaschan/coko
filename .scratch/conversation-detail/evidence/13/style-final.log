@@ -1,0 +1,9 @@
+$ vitest run packages/ui/src/guards/style-guard.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  1 passed (1)
+      Tests  40 passed (40)
+   Start at  00:43:34
+   Duration  473ms (tests 55%, import 33%, transform 11%)

@@ -1,0 +1,36 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/context.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-e2e| e2e/context.e2e.test.ts (1 test | 1 failed) 16943ms
+   ❯ 上下文环 (1)
+     × 环入口、越过预警线变色、HoverCard 的五类分项、Esc 关闭回到环、最窄窗口不挤压选择器 16943ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-e2e| e2e/context.e2e.test.ts > 上下文环 > 环入口、越过预警线变色、HoverCard 的五类分项、Esc 关闭回到环、最窄窗口不挤压选择器
+AssertionError: expected 'normal' to be 'warning' // Object.is equality
+
+Expected: "warning"
+Received: "normal"
+
+ ❯ e2e/context.e2e.test.ts:59:89
+     57|     })
+     58|     await writeFile('/tmp/coko-conversation-detail/context-13-diagnosi…
+     59|     await expect.poll(() => ring(page).getAttribute('data-level'), { t…
+       |                                                                                         ^
+     60|     // 颜色有过渡动画：等其停在 warning 色。
+     61|     const warning = await colorOf(page, 'text-warning-text')
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ e2e/context.e2e.test.ts:59:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  00:37:38
+   Duration  20.35s (tests 99%, import 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

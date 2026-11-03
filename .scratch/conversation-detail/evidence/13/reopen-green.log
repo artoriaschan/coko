@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx -t 'a capped group'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/reopen-diagnosis
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 18 skipped (19)
+   Start at  00:40:56
+   Duration  2.12s (tests 79%, import 13%, setup 6%, worker 2%)

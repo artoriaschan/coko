@@ -1,0 +1,9 @@
+$ vitest run packages/ui/src/guards/style-guard.test.ts packages/ui/src/app-frame/app-frame.browser.test.tsx packages/ui/src/tool-card/tool-card.browser.test.tsx packages/ui/src/markdown/markdown-renderer.browser.test.tsx packages/i18n/src/index.test.ts packages/i18n/src/domains.test.ts apps/desktop/src/renderer/features/conversation/timeline.test.ts apps/desktop/src/renderer/features/conversation/process-groups.test.ts scripts/browser-deps.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  9 passed (9)
+      Tests  91 passed (91)
+   Start at  00:31:30
+   Duration  4.53s (tests 46%, transform 43%, import 9%, worker 3%)

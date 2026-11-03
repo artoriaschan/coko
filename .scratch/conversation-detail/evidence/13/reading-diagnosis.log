@@ -1,0 +1,9 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  00:30:24
+   Duration  20.31s (tests 99%, import 1%)

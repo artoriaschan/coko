@@ -1,0 +1,40 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 900,
+    "dpr": 1
+  },
+  "connection": "connected",
+  "main": 390,
+  "column": 326,
+  "whole": "true",
+  "groups": [
+    "true",
+    "true"
+  ],
+  "toolStates": [
+    {
+      "tool": "read",
+      "status": "done",
+      "open": "true"
+    },
+    {
+      "tool": "bash",
+      "status": "done",
+      "open": "true"
+    }
+  ],
+  "read": {
+    "label": "ts",
+    "source": "export const greeting = \"original\";",
+    "font": "11px / 19px \"SF Mono\", \"JetBrains Mono\", \"Fira Code\", Consolas, \"Liberation Mono\", Menlo, Courier, \"PingFang SC\", \"Microsoft YaHei\"",
+    "keyword": "rgb(214, 51, 108)",
+    "curve": "superellipse(1.5)"
+  },
+  "overflow": false,
+  "phases": [
+    "Inspecting the recorded source.",
+    "The source remains unchanged.",
+    "Native final acceptance complete."
+  ]
+}

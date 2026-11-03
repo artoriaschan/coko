@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  2 passed (2)
+      Tests  35 passed (35)
+   Start at  00:26:38
+   Duration  13.99s (tests 94%, import 3%, setup 2%, worker 1%)

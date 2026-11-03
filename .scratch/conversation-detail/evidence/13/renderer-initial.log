@@ -1,0 +1,92 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/sidebar/conversation-search.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/tool-card-images.browser.test.tsx (7 tests | 1 failed) 4280ms
+   × actual App: light/en multiple images, mixed text, blocked sources and decoding failures fit 390px 490ms
+ ❯ |desktop-renderer (chromium)| src/renderer/app/app.browser.test.tsx (28 tests | 1 failed) 35845ms
+   ❯ 界面语言 (5)
+     × 在设置的通用分区切换语言后文案即时更新，写入设置并显示 Toast 19978ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/app/app.browser.test.tsx > 界面语言 > 在设置的通用分区切换语言后文案即时更新，写入设置并显示 Toast
+Error: [2mexpect([22m[31melement[39m[2m).not.toBeInTheDocument()[22m
+
+[31mexpected document not to contain element, found <section
+  aria-labelledby="_r_f1_"
+  class="absolute inset-0 z-10 flex flex-col bg-background text-foreground sm:flex-row"
+  data-settings-page="true"
+>
+  <h1
+    class="sr-only"
+    id="_r_f1_"
+  >
+    Settings
+  </h1>
+  <div
+    class="flex min-h-0 shrink-0 flex-col border-b-hairline border-sidebar-border bg-sidebar px-3 pb-3 text-sidebar-foreground sm:w-60 sm:border-e-hairline sm:border-b-0 sm:pb-6"
+  >
+    <div … />
+    <button … />
+    <div … />
+    <nav … />
+  </div>
+  <div
+    class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pt-6 pb-8 sm:px-16 sm:pt-18 sm:pb-16"
+    data-scroll-stable="true"
+    data-settings-detail="true"
+  >
+    <div … />
+  </div>
+</section> instead[39m
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/app.browser.test.tsx/-----------------------------------Toast.png
+
+ ❯ Proxy.__VITEST_POLL_CHAIN__ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=a9481c03:5779:47
+ ❯ src/renderer/app/app.browser.test.tsx:202:48
+    200|     await expect.element(dialog.getByRole('heading', { name: 'General'…
+    201|     await userEvent.keyboard('{Escape}')
+    202|     await expect.element(settingsRegion()).not.toBeInTheDocument()
+       |                                                ^
+    203|     await vi.waitFor(() => expect(backend.settings.get('locale')?.valu…
+    204|
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ throwWithCause node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=a9481c03:5759:34
+ ❯ promise node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=a9481c03:5844:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/tool-card-images.browser.test.tsx > actual App: light/en multiple images, mixed text, blocked sources and decoding failures fit 390px
+AssertionError: expected -64 to be 10 // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/tool-card-images.browser.test.tsx/actual-App--light-en-multiple-images--mixed-text--blocked-sources-and-decoding-failures-fit-390px.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 10[39m
+[31m+ -64[39m
+
+ ❯ src/renderer/features/conversation/tool-card-images.browser.test.tsx:170:106
+    168|   const frames = [...document.querySelectorAll<HTMLElement>('.tool-ima…
+    169|   expect(frames.map((el) => el.getBoundingClientRect().width)).toEqual…
+    170|   expect(Math.round(frames[1]!.getBoundingClientRect().left - frames[0…
+       |                                                                                                          ^
+    171|   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(inn…
+    172|   expect(document.querySelector('.tool-image-details')!.textContent).t…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 39 passed (41)
+      Tests  2 failed | 352 passed (354)
+   Start at  00:25:34
+   Duration  37.90s (worker 63%, tests 34%, import 2%)
+
+[ELIFECYCLE] Test failed. See above for more details.

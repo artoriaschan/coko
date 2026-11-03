@@ -1,0 +1,86 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/images.e2e.test.ts apps/desktop/e2e/recovery.e2e.test.ts apps/desktop/e2e/plan.e2e.test.ts apps/desktop/e2e/jobs.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts apps/desktop/e2e/teams.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/handoff.e2e.test.ts apps/desktop/e2e/rewind.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-e2e| e2e/terminal-details.e2e.test.ts (1 test | 1 failed) 33151ms
+   × terminal command input, continuous output, error, raw copy and real Background Job entry work through Electron 33151ms
+ ❯ |desktop-e2e| e2e/reading-position.e2e.test.ts (1 test | 1 failed) 44399ms
+   × native App: a real reading gesture holds streamed output through settlement and completion; persisted history reopens at its real tail 44398ms
+ ❯ |desktop-e2e| e2e/images.e2e.test.ts (1 test | 1 failed) 30471ms
+   × CW-63: native picker reads a chosen image, drafts survive Electron restart and image-only messages render in new and existing sessions 30471ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-e2e| e2e/images.e2e.test.ts > CW-63: native picker reads a chosen image, drafts survive Electron restart and image-only messages render in new and existing sessions
+TimeoutError: locator.getAttribute: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[role="status"][data-connection]')[22m
+
+ ❯ e2e/harness.ts:171:75
+    169| export async function waitConnected(window: Page): Promise<void> {
+    170|   await waitFor(
+    171|     async () => (await window.locator('[role="status"][data-connection…
+       |                                                                           ^
+    172|     30_000,
+    173|     'sidecar connected',
+ ❯ waitFor e2e/harness.ts:147:18
+ ❯ waitConnected e2e/harness.ts:170:9
+ ❯ e2e/images.e2e.test.ts:23:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  |desktop-e2e| e2e/reading-position.e2e.test.ts > native App: a real reading gesture holds streamed output through settlement and completion; persisted history reopens at its real tail
+TimeoutError: page.waitForFunction: Timeout 30000ms exceeded.
+ ❯ e2e/reading-position.e2e.test.ts:44:22
+     42|   await first.window.locator('.conversation-message-scroll').hover()
+     43|   await first.window.mouse.wheel(0, -500)
+     44|   await first.window.waitForFunction(() => {
+       |                      ^
+     45|     const el = document.querySelector<HTMLElement>('.conversation-mess…
+     46|     return el.scrollHeight - el.clientHeight - el.scrollTop > 100
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  |desktop-e2e| e2e/terminal-details.e2e.test.ts > terminal command input, continuous output, error, raw copy and real Background Job entry work through Electron
+TimeoutError: locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-slot="tool-card"][data-tool="bash"]').last().locator('button').first()[22m
+[2m    - locator resolved to <button type="button" aria-expanded="false" aria-controls="_r_30_" class="tool-row-header focus-ring">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <div data-slot="process-timeline" class="conversation-process-timeline">…</div> intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+[2m    - element is not stable[22m
+[2m  2 × retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m      - waiting for element to be visible, enabled and stable[22m
+[2m      - element is not visible[22m
+[2m  57 × retrying click action[22m
+[2m       - waiting 500ms[22m
+[2m       - waiting for element to be visible, enabled and stable[22m
+[2m       - element is not visible[22m
+[2m  - retrying click action[22m
+[2m    - waiting 500ms[22m
+
+ ❯ e2e/terminal-details.e2e.test.ts:85:49
+     83|   await expect.poll(() => app.window.getByRole('article', { name: 'Cok…
+     84|   const backgroundRow = app.window.locator('[data-slot="tool-card"][da…
+     85|   await backgroundRow.locator('button').first().click()
+       |                                                 ^
+     86|   const chip = backgroundRow.locator('[data-slot="job-chip"]')
+     87|   const jobId = await chip.getAttribute('data-job-id')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed | 10 passed (13)
+      Tests  3 failed | 22 passed (25)
+   Start at  00:25:42
+   Duration  199.04s (tests 99%, import 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

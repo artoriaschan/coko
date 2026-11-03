@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/reopen-diagnosis
+
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  00:41:22
+   Duration  10.84s (tests 96%, setup 2%, import 1%)

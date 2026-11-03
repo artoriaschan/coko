@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/reopen-diagnosis
+
+
+ Test Files  2 passed (2)
+      Tests  26 passed (26)
+   Start at  00:41:10
+   Duration  12.00s (tests 95%, import 3%, setup 1%)

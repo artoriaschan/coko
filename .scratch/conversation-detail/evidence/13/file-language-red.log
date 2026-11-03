@@ -1,0 +1,36 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/file-tool-details.browser.test.tsx -t 'known file suffixes'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx (7 tests | 1 failed | 6 skipped) 715ms
+   × actual App: known file suffixes supply read syntax and mutation language labels without inventing file facts 714ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: known file suffixes supply read syntax and mutation language labels without inventing file facts
+AssertionError: expected 'code' to be 'ts' // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--known-file-suffixes-supply-read-syntax-and-mutation-language-labels-without-inventing-file-facts.png
+
+Expected: [32m"ts"[39m
+Received: [31m"code"[39m
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:182:72
+    180|   const rows = document.querySelectorAll('[data-slot="tool-card"]')
+    181|   for (const row of rows) await page.elementLocator(row).getByRole('bu…
+    182|   expect(rows[0]!.querySelector('.file-detail-language')!.textContent)…
+       |                                                                        ^
+    183|   await expect.poll(() => rows[0]!.querySelectorAll('[data-file-token]…
+    184|   expect(rows[0]!.querySelector('.file-detail-code [data-user-content]…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=20387b4e:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  00:22:51
+   Duration  1.46s (tests 65%, setup 21%, import 11%, worker 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

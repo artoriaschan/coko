@@ -1,0 +1,38 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/file-tool-details.browser.test.tsx -t 'initial read text'
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx (9 tests | 1 failed | 8 skipped) 772ms
+   × actual App: selecting the initial read text survives lazy syntax coloring and committed settlement without remounting its body 772ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/file-tool-details.browser.test.tsx > actual App: selecting the initial read text survives lazy syntax coloring and committed settlement without remounting its body
+AssertionError: expected '' to be 'def original(value):' // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/file-tool-details.browser.test.tsx/actual-App--selecting-the-initial-read-text-survives-lazy-syntax-coloring-and-committed-settlement-without-remounting-its-body.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- def original(value):[39m
+
+ ❯ src/renderer/features/conversation/file-tool-details.browser.test.tsx:232:40
+    230|     await expect.poll(() => document.querySelectorAll('[data-file-toke…
+    231|     expect(selectedBeforeColoring).toBe(true)
+    232|     expect(getSelection()!.toString()).toBe('def original(value):')
+       |                                        ^
+    233|     const body = document.querySelector('[data-slot="tool-card-body"]'…
+    234|     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=a9481c03:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 skipped (9)
+   Start at  00:24:58
+   Duration  1.53s (tests 67%, setup 20%, import 10%, worker 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

@@ -1,0 +1,49 @@
+{
+  "session": {
+    "id": "chat-3f43a63d463af31562042d4666713e0b3bf9602acbabfdd366446fb225eff3a8",
+    "workspaceId": "ae3b7064-a4e3-4d08-a7da-b84935a3b1ae",
+    "title": "hello",
+    "model": {
+      "providerId": "faux",
+      "modelId": "faux-1"
+    },
+    "thinkingLevel": "off",
+    "modelCleared": false,
+    "projectId": "86e69939-d730-4418-a7ee-c6ae3f493e54",
+    "pinnedAt": null,
+    "archivedAt": null,
+    "createdAt": 1793723863150,
+    "updatedAt": 1793723863170,
+    "cwd": "/private/var/folders/ql/gqv08x1d593_4fssr6n92gq80000gn/T/coko-context-f4RW1q/workspace",
+    "running": false,
+    "activity": "idle"
+  },
+  "context": {
+    "contextWindow": 40000,
+    "threshold": 32000,
+    "warning": 12000,
+    "tokens": 11988,
+    "estimated": false,
+    "breakdown": {
+      "system": 250,
+      "prompt": 3,
+      "assistant": 5448,
+      "thinking": 0,
+      "tools": 6287
+    },
+    "instructions": [
+      {
+        "path": "/var/folders/ql/gqv08x1d593_4fssr6n92gq80000gn/T/coko-context-f4RW1q/coko-home/AGENTS.md",
+        "scope": "user",
+        "chars": 22,
+        "truncated": false
+      }
+    ],
+    "diagnostics": [],
+    "autoCompact": {
+      "enabled": true,
+      "paused": false
+    }
+  },
+  "level": "normal"
+}

@@ -1,0 +1,9 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/context.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  00:38:37
+   Duration  5.69s (tests 96%, import 4%)

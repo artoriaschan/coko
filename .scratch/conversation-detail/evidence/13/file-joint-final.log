@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/file-tool-details.browser.test.tsx apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-13
+
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  00:31:51
+   Duration  9.15s (tests 92%, import 4%, setup 4%, worker 1%)

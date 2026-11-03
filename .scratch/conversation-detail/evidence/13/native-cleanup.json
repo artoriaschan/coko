@@ -1,0 +1,15 @@
+{
+  "session": "coko-native-integrated-13",
+  "browserClosed": true,
+  "electronPid": 14456,
+  "sidecarPids": [
+    14485
+  ],
+  "controllerPid": 14409,
+  "electronExited": true,
+  "sidecarsExited": true,
+  "controllerExited": true,
+  "port": 62128,
+  "portListening": false,
+  "tempDirectoryRemoved": true
+}
