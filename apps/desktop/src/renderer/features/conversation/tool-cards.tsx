@@ -1,11 +1,11 @@
 import type { MessageKey } from '@coko/i18n'
-import { Button, Dialog, DialogContent, DialogTitle, ToolCard, ToolOutput } from '@coko/ui'
-import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, Maximize2Icon, SendIcon } from 'lucide-react'
+import { ToolCard, ToolOutput } from '@coko/ui'
+import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, SendIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { FileToolBody } from './file-tool-details.tsx'
 import { AgentCard } from './agent-card.tsx'
-import { useActiveEntries } from './agents-button.tsx'
+import { ToolImages } from './tool-image-details.tsx'
 import { TerminalDetails } from './terminal-details.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 import { ToolIcon } from './tool-icon.tsx'
@@ -367,104 +367,8 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
       ) : (
         <GenericBody item={item} />
       )}
+      <ToolImages item={item} />
       <Inspect onInspect={onInspect} />
     </ToolCard>
-  )
-}
-
-// ── 工具结果中的图片（MCP 的 image 块，例如浏览器截图）──
-
-/** 显示为缩略图的位图类型；SVG 等不显示（不在界面中渲染工具给出的矢量内容）。 */
-const RASTER_IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-const BASE64 = /^[A-Za-z0-9+/=\s]+$/
-
-interface ToolImage {
-  src: string
-}
-
-function imagesOf(content: unknown): ToolImage[] {
-  if (!Array.isArray(content)) return []
-  return content.flatMap((block: unknown) => {
-    const b = block as { type?: unknown; data?: unknown; mimeType?: unknown } | null
-    if (b?.type !== 'image' || typeof b.data !== 'string' || typeof b.mimeType !== 'string' || !RASTER_IMAGES.has(b.mimeType) || !BASE64.test(b.data)) return []
-    return [{ src: `data:${b.mimeType};base64,${b.data.replace(/\s/g, '')}` }]
-  })
-}
-
-/** 该调用的结果图片：已提交的 toolResult 条目，或进行中 Run 的结果。 */
-function useToolImages(item: ToolItem): ToolImage[] {
-  const { entries } = useActiveEntries()
-  return React.useMemo(() => {
-    const committed = entries.find((e) => {
-      const payload = e.payload as { role?: unknown; toolCallId?: unknown } | null
-      return e.kind === 'message' && payload?.role === 'toolResult' && payload.toolCallId === item.call.id
-    })
-    const content = committed ? (committed.payload as { content?: unknown }).content : (item.live?.result as { content?: unknown } | undefined)?.content
-    return imagesOf(content)
-  }, [entries, item.call.id, item.live?.result])
-}
-
-/** 结果图片的缩略图；"查看大图"打开对话框显示原图。 */
-function ToolImages({ item }: { item: ToolItem }) {
-  const { t } = useI18n()
-  const images = useToolImages(item)
-  const [open, setOpen] = React.useState<number | null>(null)
-  // 对话框不是由 DialogTrigger 打开：关闭后把焦点还给打开它的按钮。
-  const openers = React.useRef<(HTMLButtonElement | null)[]>([])
-  const opened = React.useRef<number | null>(null)
-  if (images.length === 0) return null
-  return (
-    <div className="flex flex-wrap gap-3 border-t-hairline border-border px-3 py-2">
-      {images.map((image, index) => {
-        const alt = t('mcp.image.alt', { index: index + 1 })
-        return (
-          <figure key={index} className="flex flex-col items-start gap-1">
-            <img
-              data-tool-image
-              src={image.src}
-              alt={alt}
-              className="max-h-40 max-w-full rounded-lg border-hairline border-border bg-muted/50 object-contain"
-            />
-            <Button
-              ref={(el) => {
-                openers.current[index] = el
-              }}
-              variant="ghost"
-              size="sm"
-              data-action="open-image"
-              onClick={() => {
-                opened.current = index
-                setOpen(index)
-              }}
-            >
-              <Maximize2Icon />
-              {t('mcp.image.open')}
-            </Button>
-          </figure>
-        )
-      })}
-      {open !== null && images[open] && (
-        <Dialog open onOpenChange={(value) => !value && setOpen(null)}>
-          <DialogContent
-            closeLabel={t('mcp.image.close')}
-            className="max-w-[min(90vw,1200px)] flex-col gap-3 p-5"
-            data-tool-image-dialog
-            onCloseAutoFocus={(event) => {
-              const button = opened.current === null ? null : openers.current[opened.current]
-              if (!button) return
-              event.preventDefault()
-              button.focus()
-            }}
-          >
-            <DialogTitle>{t('mcp.image.alt', { index: open + 1 })}</DialogTitle>
-            <img
-              src={images[open].src}
-              alt={t('mcp.image.alt', { index: open + 1 })}
-              className="max-h-[75vh] max-w-full self-center rounded-lg object-contain"
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
   )
 }
