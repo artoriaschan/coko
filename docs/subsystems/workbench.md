@@ -44,6 +44,20 @@ lifecycle: active
 
 验证：[真实 App 消息 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)覆盖预览、流式结算的 DOM/开合/选区、原文复制、外围几何、命令与附件、明暗主题和中英文的 390px 主内容区，以及 Markdown 排版；右栏现有[子代理](../../apps/desktop/src/renderer/features/right-panel/agents-tab.browser.test.tsx)和[团队成员](../../apps/desktop/src/renderer/features/right-panel/team-tab.browser.test.tsx)验证共用时间线消费者。
 
+## 详细过程与三级折叠
+
+[过程投影](../../apps/desktop/src/renderer/features/conversation/process-groups.ts)从扁平时间线的真实 Run 来源收集相邻思考和工具。可见助手回复、输入、独立业务行及不同或未知 Run 归属截断组；工具类别和模型请求变化不会拆组。消息、状态、审批、确认与用量入口仍独立显示；未送达追加指令仍由 Queue 唯一显示。
+
+固定详细模式下，所属 Run 运行中的全部组直接平铺，包含已被阶段回复截断的早期组：无组头、无组级限高、4px 行距。正常结束且有过程、过程开始后没有中途可见输入、没有未处理授权/结果确认限制时，整轮默认收起全部过程，保留所有回复和输入；无需最终答案，纯回复不会产生空过程控件。失败、停止、暂停、中断、运行中或中途输入的 Run 不提供整轮折叠。未知未结束状态保持过程可见。
+
+历史组头按真实工具调用身份计活动次数（包括失败），降序排列、同数按首次出现排序，只显示前三类，不把摘要当作成功证明；纯思考使用分析摘要。整轮展开后组正文初始收起，打开组后再按需打开单条工具或思考。历史组正文上限 `min(400px, 50vh)`，组头与正文间距 8px，按实际上下滚动方向应用 24px 渐隐；手动展开历史组从顶部开始，内部跟随独立于外层。
+
+[稳定过程容器](../../apps/desktop/src/renderer/features/conversation/process-timeline.tsx)从首次运行显示起保持父子结构，先解析整份时间线的 live→committed 消息身份，再按成员重叠保留组身份。普通增量、结算和生命周期变化不重置详情；显式收起整轮才通过局部 reset 清空内部开合。自动完成不会隐藏当前键盘焦点；手动收起先聚焦对应控制项，焦点保留例外不阻止之后的手动组收起。
+
+Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点时不显示已结束耗时。运行计时在连接断开时冻结、重连后追平，数字不参与持续状态播报。右栏子代理和团队成员使用相同分组投影与独立 Session 身份。完整长内容、尺寸变化和历史锚点协调不由此处的基本分组实现替代。
+
+验证：[真实 App 过程测试](../../apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx)覆盖运行、回复、正常/异常结束、无最终答案、中途用户/团队输入、类别排序、焦点、三层重置、断线计时、结果确认、四种主题/语言的 390px 主区与右栏子 Session 隔离；[投影边界](../../apps/desktop/src/renderer/features/conversation/process-groups.test.ts)补充无归属与历史揭示；[对话 Electron 闭环](../../apps/desktop/e2e/chat.e2e.test.ts)验证真实 Sidecar 的运行平铺、审批、完成折叠及文件结果。
+
 ## 新对话与首次发送
 
 新对话显示已确认的 `brand/rukie-avatar.png` 形象、欢迎标题与说明，和已有会话共用同一主输入框。侧栏与对话分类的创建入口都打开同一份草稿并聚焦编辑区；没有任何 Workspace 时也可编辑、选择权限或模型。独立草稿不查询虚构目录的上下文，只显示不可用轨道；没有模型时仍经配置模型入口保留草稿。

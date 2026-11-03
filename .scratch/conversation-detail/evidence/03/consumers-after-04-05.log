@@ -1,0 +1,87 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-03
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx (8 tests | 6 failed) 120914ms
+   × actual App: terminal preserves the real command, ANSI output and recorded exit; copy uses raw output and long output scrolls inside the terminal 19975ms
+   × actual App: light/en terminal stays readable at 390px, retains plain results and never invents an exit or duration 19966ms
+   × actual App: light/zh terminal stays readable at 390px, retains plain results and never invents an exit or duration 19988ms
+   × actual App: dark/en terminal stays readable at 390px, retains plain results and never invents an exit or duration 19975ms
+   × actual App: dark/zh terminal stays readable at 390px, retains plain results and never invents an exit or duration 19965ms
+   × actual App: blocked commands show real arguments and rejection, without a terminal claiming execution 19963ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: terminal preserves the real command, ANSI output and recorded exit; copy uses raw output and long output scrolls inside the terminal
+TimeoutError: locator.click: Timeout 19771ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-vitest="true"]').contentFrame().getByRole('button', { name: /Bash/ })[22m
+
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--terminal-preserves-the-real-command--ANSI-output-and-recorded-exit--copy-uses-raw-output-and-long-output-scrolls-inside-the-terminal.png
+
+ ❯ src/renderer/features/conversation/terminal-details.browser.test.tsx:64:52
+     62|     entry(4, 'run_end', { status: 'error' }),
+     63|   ])
+     64|   await page.getByRole('button', { name: /Bash/ }).click()
+       |                                                    ^
+     65|   const terminal = document.querySelector<HTMLElement>('[data-terminal…
+     66|   expect(terminal).not.toBeNull()
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=c9f0f5cf:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: light/en terminal stays readable at 390px, retains plain results and never invents an exit or duration
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: light/zh terminal stays readable at 390px, retains plain results and never invents an exit or duration
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: dark/en terminal stays readable at 390px, retains plain results and never invents an exit or duration
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: dark/zh terminal stays readable at 390px, retains plain results and never invents an exit or duration
+TimeoutError: locator.click: Timeout 19863ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-vitest="true"]').contentFrame().getByText('DoneBashecho long-command-').getByRole('button')[22m
+
+
+Failure screenshots:
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--light-en-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--light-zh-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--dark-en-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--dark-zh-terminal-stays-readable-at-390px--retains-plain-results-and-never-invents-an-exit-or-duration.png
+
+ ❯ src/renderer/features/conversation/terminal-details.browser.test.tsx:169:78
+    167|   )
+    168|   const rows = [...document.querySelectorAll<HTMLElement>('[data-slot=…
+    169|   for (const row of rows) await page.elementLocator(row).getByRole('bu…
+       |                                                                              ^
+    170|   const plain = rows[0]!.querySelector<HTMLElement>('[data-terminal]')!
+    171|   expect(plain.textContent).toContain(raw)
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=c9f0f5cf:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/terminal-details.browser.test.tsx > actual App: blocked commands show real arguments and rejection, without a terminal claiming execution
+TimeoutError: locator.click: Timeout 19814ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-vitest="true"]').contentFrame().getByRole('button', { name: /Bash/ })[22m
+
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/terminal-details.browser.test.tsx/actual-App--blocked-commands-show-real-arguments-and-rejection--without-a-terminal-claiming-execution.png
+
+ ❯ src/renderer/features/conversation/terminal-details.browser.test.tsx:197:52
+    195|     entry(4, 'run_end', { status: 'error' }),
+    196|   ])
+    197|   await page.getByRole('button', { name: /Bash/ }).click()
+       |                                                    ^
+    198|   const body = document.querySelector('[data-slot="tool-card-body"]')!
+    199|   expect(body.textContent).toContain('touch protected')
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=c9f0f5cf:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+
+ Test Files  1 failed | 31 passed (32)
+      Tests  6 failed | 211 passed (217)
+   Start at  22:56:49
+   Duration  128.79s (tests 55%, worker 40%, import 4%, setup 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

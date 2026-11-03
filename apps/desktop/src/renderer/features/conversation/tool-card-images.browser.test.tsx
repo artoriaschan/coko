@@ -123,6 +123,8 @@ it('actual App: partial bitmap becomes committed without duplicating, remounting
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(4, 'run_end', { status: 'completed' }) })
   await expect.poll(() => fixture.chat.getState().conversations['s-1']?.running).toBe(false)
   expect(document.querySelector('[data-tool-image-dialog]')).toBe(preview)
+  expect(document.querySelector('[data-slot="run-process-control"]')?.getAttribute('aria-expanded')).toBe('true')
+  expect(document.querySelector('[data-slot="process-group-header"]')?.getAttribute('aria-expanded')).toBe('true')
   await userEvent.keyboard('{Escape}')
   await expect.poll(() => document.querySelector('[role="dialog"]')).toBeNull()
   expect(document.activeElement).toBe(buttons[1])

@@ -32,7 +32,8 @@ async function setup(script?: unknown) {
 async function launch(env: Record<string, string>, dir: string): Promise<LaunchedApp> {
   const app = await launchApp(env, { dir })
   apps.push(app)
-  await waitConnected(app.window)
+  // Empty New chat intentionally has no connection indicator. Wait for rendered workbench here.
+  await app.window.getByRole('heading', { level: 1 }).waitFor()
   return app
 }
 
@@ -47,6 +48,7 @@ async function sendMessage(app: LaunchedApp, text: string) {
   await composer.click()
   await composer.fill(text)
   await composer.press('Enter')
+  await waitConnected(app.window)
 }
 
 const toolCard = (app: LaunchedApp, tool: string) => app.window.locator(`[data-slot="tool-card"][data-tool="${tool}"]`)
@@ -122,6 +124,10 @@ describe('对话闭环', () => {
           ).status,
       ),
     ).toBe(200)
+    // Detailed mode uses a stable flat seat while execution is awaiting approval.
+    const processBody = app.window.locator('[data-slot="process-group-body"]')
+    expect(await processBody.evaluate((el) => getComputedStyle(el).maxHeight)).toBe('none')
+    expect(await app.window.locator('[data-slot="process-group-header"]').isVisible()).toBe(false)
     await allowOnce(app)
 
     await expect.poll(() => toolCard(app, 'write').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
@@ -131,6 +137,18 @@ describe('对话闭环', () => {
     // Markdown 已渲染（加粗），流式标记已撤下。
     expect(await assistantText(app).last().locator('[data-streamdown="strong"]').textContent()).toBe('notes/hello.txt')
     expect(await app.window.locator('[data-streaming]').count()).toBe(0)
+
+    // Completion folds only process content; phase and final replies remain visible.
+    const process = app.window.locator('[data-slot="run-process-control"]')
+    expect(await process.getAttribute('aria-expanded')).toBe('false')
+    expect(await assistantText(app).first().isVisible()).toBe(true)
+    expect(await assistantText(app).last().isVisible()).toBe(true)
+    await process.click()
+    const group = app.window.locator('[data-slot="process-group-header"]')
+    expect(await group.getAttribute('aria-expanded')).toBe('false')
+    await group.click()
+    expect(await toolCard(app, 'write').isVisible()).toBe(true)
+    expect(await processBody.evaluate((el) => getComputedStyle(el).maxHeight)).toBe('400px')
 
     const streamed = await app.window.evaluate(() => (window as unknown as { __streamed: string[] }).__streamed)
     const first = 'I will write the greeting file into notes for you right now.'
@@ -228,8 +246,11 @@ describe('对话闭环', () => {
   })
 
   it('document 带有平台标记；macOS 收起侧栏后控制条与标题避开红绿灯', async () => {
-    const { root } = await setup()
-    const app = await launch({}, root)
+    const { root, workspace, env } = await setup({ responses: [{ content: 'Ready for geometry verification.' }] })
+    const app = await launch(env, root)
+    await addWorkspace(app, workspace)
+    await sendMessage(app, 'verify the conversation header')
+    await app.window.locator('[data-action="send"]').waitFor()
     const platform = await app.app.evaluate(() => process.platform)
     expect(await app.window.evaluate(() => document.documentElement.dataset.platform)).toBe(platform)
     if (platform !== 'darwin') return
@@ -239,16 +260,19 @@ describe('对话闭环', () => {
       app.window.evaluate(() => {
         const heading = document.querySelector('h1')!.getBoundingClientRect()
         const expand = document.querySelector('[data-sidebar-expand]')!.getBoundingClientRect()
+        const controls = document.querySelector('[data-slot="app-frame-collapsed-controls"]')!.getBoundingClientRect()
         return {
           headingLeft: heading.left,
+          controlsRight: controls.right,
           expandLeft: expand.left,
           expandTop: expand.top,
           clearance: getComputedStyle(document.documentElement).getPropertyValue('--frame-leading-clearance').trim(),
         }
       })
-    // 红绿灯位于 x=16、宽约 52px；控制条按钮从 72 + 12 = 84 开始，标题让到 216 之后。
-    await expect.poll(async () => (await geometry()).headingLeft).toBe(216)
+    // Controls end at 216px; the unchanged header gap adds 8px before the visible title.
+    await expect.poll(async () => (await geometry()).headingLeft).toBe(224)
     const box = await geometry()
+    expect(box.controlsRight).toBe(216)
     expect(box.expandLeft).toBe(84)
     expect(box.expandTop).toBeLessThan(48)
     expect(box.clearance).toBe('72px')

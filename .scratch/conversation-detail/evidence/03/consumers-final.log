@@ -1,0 +1,10 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-03
+
+
+ Test Files  33 passed (33)
+      Tests  228 passed (228)
+   Start at  23:03:36
+   Duration  14.78s (worker 60%, tests 34%, import 6%, setup 1%)
+

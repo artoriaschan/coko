@@ -8,6 +8,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { isAgentRunning } from '../../stores/agents-store.ts'
 import { agentUsageText, AgentStatusDot, useAgents, useAgentsStoreApi, useSessionAgents } from '../conversation/agents-button.tsx'
 import { formatJobDuration, useNow } from '../conversation/jobs-button.tsx'
+import { displayRuns } from '../conversation/process-groups.ts'
 import { buildTimeline } from '../conversation/timeline.ts'
 import { TimelineView } from '../conversation/timeline-view.tsx'
 import type { RightPanelTabProps } from './tabs.ts'
@@ -108,7 +109,14 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
       {items.length === 0 ? (
         <p className="text-ui-body text-muted-foreground">{t('agents.tabView.timelineEmpty')}</p>
       ) : (
-        <TimelineView sessionId={agent.agentId} items={items} theme={theme} onRetry={() => {}} actionsDisabled />
+        <TimelineView
+          sessionId={agent.agentId}
+          items={items}
+          runs={conversation ? displayRuns(conversation) : undefined}
+          theme={theme}
+          onRetry={() => {}}
+          actionsDisabled
+        />
       )}
     </div>
   )

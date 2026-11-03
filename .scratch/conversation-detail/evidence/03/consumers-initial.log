@@ -1,0 +1,34 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-03
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/jobs-timeline.browser.test.tsx (2 tests | 1 failed) 182ms
+   ❯ 时间线中的后台任务 (2)
+     × Job chip 与通知行：标签与状态来自条目，点击请求打开该 Job；通知文本不进入用户气泡 181ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/jobs-timeline.browser.test.tsx > 时间线中的后台任务 > Job chip 与通知行：标签与状态来自条目，点击请求打开该 Job；通知文本不进入用户气泡
+TypeError: Cannot read properties of null (reading 'getAttribute')
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/jobs-timeline.browser.test.tsx/------------Job-chip------------------------Job------------.png
+
+ ❯ src/renderer/features/conversation/jobs-timeline.browser.test.tsx:96:17
+     94|
+     95|     const chip = screen.container.querySelector('[data-slot="job-chip"…
+     96|     expect(chip.getAttribute('data-job-id')).toBe('job_0123456789ab')
+       |                 ^
+     97|     expect(chip.textContent).toBe('npm run dev')
+     98|     expect(chip.querySelector('[data-job-status]')?.getAttribute('data…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=c9f0f5cf:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 29 passed (30)
+      Tests  1 failed | 202 passed (203)
+   Start at  22:53:10
+   Duration  13.96s (worker 51%, tests 40%, import 7%, setup 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

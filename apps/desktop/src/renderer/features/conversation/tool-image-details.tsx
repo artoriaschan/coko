@@ -2,6 +2,7 @@ import { Dialog, DialogClose, DialogContent, DialogTitle } from '@coko/ui'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
+import { useProcessFocusLock } from './process-disclosure.tsx'
 import './tool-image-details.css'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
@@ -77,6 +78,7 @@ function ImageTile({
   const [size, setSize] = React.useState<{ width: number; height: number } | null>(null)
   const [failed, setFailed] = React.useState(false)
   const [open, setOpen] = React.useState(false)
+  useProcessFocusLock(open)
   const opener = React.useRef<HTMLButtonElement>(null)
   const label = t('mcp.image.alt', { index: index + 1 })
   let fit: React.CSSProperties | undefined

@@ -27,6 +27,7 @@ import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.t
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { RewindDialog } from './rewind-dialog.tsx'
+import { displayRuns } from './process-groups.ts'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
@@ -289,6 +290,8 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <TimelineView
           sessionId={activeSessionId ?? undefined}
           items={items}
+          runs={conversation ? displayRuns(conversation) : undefined}
+          connected={connection.phase === 'connected'}
           theme={theme}
           onRetry={() => void retry()}
           onInspect={() => openTab('trace')}

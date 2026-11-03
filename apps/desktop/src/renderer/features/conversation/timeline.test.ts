@@ -250,7 +250,14 @@ describe('时间线：压缩分隔条', () => {
     seq = 0
     const items = buildTimeline(conversation([user('one'), reply('a1'), user('two'), compaction(), reply('a2')]))
     expect(shape(items)).toEqual(['user:one*', 'text:a1', 'user:two*', 'compaction', 'text:a2'])
-    expect(items[3]).toEqual({ kind: 'compaction', key: '4', summary: '## Goal\nS', trigger: 'auto', saved: 26_000 })
+    expect(items[3]).toEqual({
+      kind: 'compaction',
+      key: '4',
+      summary: '## Goal\nS',
+      trigger: 'auto',
+      saved: 26_000,
+      origin: { runId: 'r', seq: 4, createdAt: 4 },
+    })
     const unknown = buildTimeline(conversation([user('x'), compaction({ tokensAfter: undefined })]))
     expect(unknown[1]).not.toHaveProperty('saved')
   })
