@@ -542,6 +542,13 @@ export const en: typeof zh = {
       command: 'Command',
       output: 'Command output',
     },
+    fileCode: 'code',
+    fileCopy: 'Copy',
+    fileCopied: 'Copied',
+    fileCopyFailed: 'Could not copy',
+    fileWrap: 'Wrap lines',
+    fileEmpty: 'Empty file',
+    fileShowAll: 'Show all {count} lines',
   },
   confirmation: {
     status: 'Outcome unknown',
