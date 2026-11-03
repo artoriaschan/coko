@@ -260,16 +260,19 @@ describe('对话闭环', () => {
       app.window.evaluate(() => {
         const heading = document.querySelector('h1')!.getBoundingClientRect()
         const expand = document.querySelector('[data-sidebar-expand]')!.getBoundingClientRect()
+        const controls = document.querySelector('[data-slot="app-frame-collapsed-controls"]')!.getBoundingClientRect()
         return {
           headingLeft: heading.left,
+          controlsRight: controls.right,
           expandLeft: expand.left,
           expandTop: expand.top,
           clearance: getComputedStyle(document.documentElement).getPropertyValue('--frame-leading-clearance').trim(),
         }
       })
-    // 红绿灯位于 x=16、宽约 52px；控制条按钮从 72 + 12 = 84 开始，标题让到 216 之后。
-    await expect.poll(async () => (await geometry()).headingLeft).toBe(216)
+    // Controls end at 216px; the unchanged header gap adds 8px before the visible title.
+    await expect.poll(async () => (await geometry()).headingLeft).toBe(224)
     const box = await geometry()
+    expect(box.controlsRight).toBe(216)
     expect(box.expandLeft).toBe(84)
     expect(box.expandTop).toBeLessThan(48)
     expect(box.clearance).toBe('72px')

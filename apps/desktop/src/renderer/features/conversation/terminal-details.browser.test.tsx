@@ -48,6 +48,11 @@ async function open(entries: SessionEntryRecord[], theme: 'light' | 'dark' = 'li
     </div>,
   )
   await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
+  // Historical process is an outer disclosure; open it before exercising the terminal.
+  const whole = document.querySelector<HTMLButtonElement>('[data-slot="run-process-control"]')
+  if (whole?.getAttribute('aria-expanded') === 'false') await page.elementLocator(whole).click()
+  for (const header of document.querySelectorAll<HTMLButtonElement>('[data-slot="process-group-header"]'))
+    if (!header.hidden && header.getAttribute('aria-expanded') === 'false') await page.elementLocator(header).click()
   return fixture
 }
 
