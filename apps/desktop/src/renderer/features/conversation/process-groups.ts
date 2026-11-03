@@ -74,7 +74,8 @@ export function processSeats(items: TimelineItem[], identities: ReadonlyMap<stri
   const seats: ProcessSeat[] = []
   const used = new Set<string>()
   for (const item of items) {
-    if (item.kind === 'steering') continue // Queue-only, not a visible timeline boundary.
+    if (item.kind === 'steering' || (item.kind === 'job' && item.job.kind !== 'notification')) continue // Queue-only and Job lifecycle facts have no independent row.
+    // Plan proposals are real review boundaries, even after their card is superseded. Keeping this boundary preserves mounted process members on settlement.
     const runId = item.origin?.runId
     const last = seats.at(-1)
     if (processMember(item) && runId) {
