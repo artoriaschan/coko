@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  23:51:19
+   Duration  8.33s (tests 94%, setup 3%, import 2%, worker 1%)

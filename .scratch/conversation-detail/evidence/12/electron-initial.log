@@ -1,0 +1,33 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+ ❯ |desktop-e2e| e2e/chat.e2e.test.ts (6 tests | 1 failed) 16726ms
+   ❯ 对话闭环 (6)
+     × 登记临时目录 → 新建会话 → 发送 → 流式回复与 write 工具卡 → 文件实际存在 3829ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-e2e| e2e/chat.e2e.test.ts > 对话闭环 > 登记临时目录 → 新建会话 → 发送 → 流式回复与 write 工具卡 → 文件实际存在
+AssertionError: expected 'none' to be '400px' // Object.is equality
+
+Expected: "400px"
+Received: "none"
+
+ ❯ e2e/chat.e2e.test.ts:151:80
+    149|     await group.click()
+    150|     expect(await toolCard(app, 'write').isVisible()).toBe(true)
+    151|     expect(await processBody.evaluate((el) => getComputedStyle(el).max…
+       |                                                                                ^
+    152|
+    153|     const streamed = await app.window.evaluate(() => (window as unknow…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 9 passed (10)
+   Start at  23:35:24
+   Duration  44.78s (tests 99%, import 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

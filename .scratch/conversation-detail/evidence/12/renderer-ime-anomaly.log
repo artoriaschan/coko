@@ -1,0 +1,95 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/new-chat.browser.test.tsx (11 tests | 1 failed) 28158ms
+   × light：归属菜单在上方 6px，搜索区分同名项目；关闭不打开菜单且清除 Git 草稿 20001ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/new-chat.browser.test.tsx > light：归属菜单在上方 6px，搜索区分同名项目；关闭不打开菜单且清除 Git 草稿
+Error: [2mexpect([22m[31melement[39m[2m).toHaveFocus()[22m
+
+Expected element with focus:
+  [32m<input
+  aria-label="搜索项目"
+  class="box-border h-8 w-full min-w-0 rounded-md border-hairline border-input bg-background px-3 text-ui-body text-foreground transition-colors focus-ring placeholder:text-muted-foreground disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive pointer-coarse:text-ui-title"
+  data-slot="input"
+  placeholder="搜索项目"
+  style=""
+  value=""
+/>[39m
+Received element with focus:
+  [31m<button
+  aria-expanded="true"
+  aria-label="web"
+  class="sidebar-list-row flex h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 text-left text-ui-body focus-ring hover:bg-accent aria-[current=page]:bg-accent [corner-shape:round]"
+>
+  <span
+    aria-hidden="true"
+    class="flex size-4 shrink-0 items-center justify-center"
+  >
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-folder-open size-3"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="1.1"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"
+      />
+    </svg>
+  </span>
+  <span
+    class="flex min-w-0 flex-1 items-center gap-2 pe-0 group-hover/project:pe-12 group-focus-within/project:pe-12"
+  >
+    <span
+      class="fading-title block min-w-0 flex-1 overflow-hidden whitespace-nowrap select-none"
+      data-fade="none"
+      data-max="0"
+      data-offset="0"
+      data-scrollable-title="true"
+      data-user-content="true"
+    >
+      <span
+        class="inline-block whitespace-nowrap"
+      >
+        web
+      </span>
+    </span>
+  </span>
+</button>[39m
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/new-chat.browser.test.tsx/light---------6px---------------------Git---.png
+
+ ❯ Proxy.__VITEST_POLL_CHAIN__ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5779:47
+ ❯ src/renderer/features/conversation/new-chat.browser.test.tsx:161:32
+    159|   search.element().dispatchEvent(new CompositionEvent('compositionstar…
+    160|   await userEvent.keyboard('{ArrowDown}{Escape}')
+    161|   await expect.element(search).toHaveFocus()
+       |                                ^
+    162|   await expect.element(menu).toBeVisible()
+    163|   search.element().dispatchEvent(new CompositionEvent('compositionend'…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ throwWithCause node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5759:34
+ ❯ promise node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5844:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 37 passed (38)
+      Tests  1 failed | 305 passed (306)
+   Start at  23:51:19
+   Duration  30.56s (worker 64%, tests 32%, import 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

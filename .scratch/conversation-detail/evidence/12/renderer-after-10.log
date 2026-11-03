@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+
+ Test Files  37 passed (37)
+      Tests  295 passed (295)
+   Start at  23:37:17
+   Duration  21.83s (worker 59%, tests 37%, import 3%, setup 1%)

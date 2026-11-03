@@ -1,0 +1,99 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/right-panel/schedules-tab.browser.test.tsx (19 tests | 1 failed) 10230ms
+   ❯ 时间线的 schedule_fire 行 (2)
+     × 开始与跳过（原因、计划时刻、合并的错过次数）；标题来自任务，已删除时注明 205ms
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/process-groups.browser.test.tsx (21 tests | 2 failed) 16475ms
+   × actual App: dark/en keeps historical groups capped, directional masks and keyboard controls reachable at 390px 1741ms
+   × actual App: dark/zh keeps historical groups capped, directional masks and keyboard controls reachable at 390px 1751ms
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/messages.browser.test.tsx (9 tests | 1 failed) 21181ms
+   × streaming reasoning previews only the latest paragraph with a completed first line and opens compact Markdown manually 19999ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/messages.browser.test.tsx > streaming reasoning previews only the latest paragraph with a completed first line and opens compact Markdown manually
+Error: strict mode violation: getByText('Latest paragraph') resolved to 2 elements:
+    1) <span data-user-content="true" data-slot="reasoning-summary" class="conversation-reasoning-summary">Latest paragraph</span> aka getByLabel('Thinking', { exact: false }).getByText('Latest paragraph', { exact: false })
+    2) <span class="font-semibold" data-streamdown="strong">Latest paragraph</span> aka locator('p').filter({ hasText: 'Latest paragraph not a summary' }).locator('span')
+
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/messages.browser.test.tsx/streaming-reasoning-previews-only-the-latest-paragraph-with-a-completed-first-line-and-opens-compact-Markdown-manually.png
+
+ ❯ Proxy.__VITEST_POLL_CHAIN__ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5779:47
+ ❯ src/renderer/features/conversation/messages.browser.test.tsx:66:77
+     64|   await expect.element(page.getByText('First line', { exact: true })).…
+     65|   delta('\nnot a summary')
+     66|   await expect.element(page.getByText('Latest paragraph', { exact: tru…
+       |                                                                             ^
+     67|   await userEvent.click(toggle)
+     68|   await expect.element(toggle).toHaveAttribute('aria-expanded', 'true')
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ throwWithCause node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5759:34
+ ❯ promise node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5844:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/process-groups.browser.test.tsx > actual App: dark/en keeps historical groups capped, directional masks and keyboard controls reachable at 390px
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/process-groups.browser.test.tsx > actual App: dark/zh keeps historical groups capped, directional masks and keyboard controls reachable at 390px
+AssertionError: expected false to be true // Object.is equality
+
+Failure screenshots:
+  - .vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--dark-en-keeps-historical-groups-capped--directional-masks-and-keyboard-controls-reachable-at-390px.png
+  - .vitest/attachments/failure-screenshots/process-groups.browser.test.tsx/actual-App--dark-zh-keeps-historical-groups-capped--directional-masks-and-keyboard-controls-reachable-at-390px.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+ ❯ Proxy.__VITEST_POLL_CHAIN__ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5779:47
+ ❯ src/renderer/features/conversation/process-groups.browser.test.tsx:256:64
+    254|   body.scrollTop = body.scrollHeight
+    255|   body.dispatchEvent(new Event('scroll'))
+    256|   await expect.poll(() => body.hasAttribute('data-scroll-up')).toBe(tr…
+       |                                                                ^
+    257|   expect(body.hasAttribute('data-scroll-down')).toBe(false)
+    258|   const main = document.querySelector<HTMLElement>('[data-slot="app-fr…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+Caused by: Error: Matcher did not succeed in time.
+ ❯ throwWithCause node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5759:34
+ ❯ promise node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/index.C4tKZ0yW-CIKNCroD.js?v=819ec8a5:5844:7
+ ❯ src/renderer/features/conversation/process-groups.browser.test.tsx:256:3
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/right-panel/schedules-tab.browser.test.tsx > 时间线的 schedule_fire 行 > 开始与跳过（原因、计划时刻、合并的错过次数）；标题来自任务，已删除时注明
+AssertionError: expected 'Scheduled task started · Deleted sche…' to contain 'Nightly build'
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/schedules-tab.browser.test.tsx/-----schedule_fire-----------------------------------------.png
+
+Expected: [32m"Nightly build"[39m
+Received: [31m"Scheduled task started · Deleted scheduled task · due Nov 2, 2026, 5:00 PM"[39m
+
+ ❯ src/renderer/features/right-panel/schedules-tab.browser.test.tsx:456:34
+    454|     ])
+    455|     expect(rows[0]!.textContent).toContain('Scheduled task started')
+    456|     expect(rows[0]!.textContent).toContain('Nightly build')
+       |                                  ^
+    457|     expect(rows[1]!.textContent).toContain('Scheduled task skipped')
+    458|     expect(rows[1]!.textContent).toContain('Deleted scheduled task')
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+
+ Test Files  3 failed | 34 passed (37)
+      Tests  4 failed | 291 passed (295)
+   Start at  23:35:24
+   Duration  29.99s (worker 59%, tests 38%, import 3%, setup 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.

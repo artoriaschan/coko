@@ -1,0 +1,83 @@
+{
+  "frames": [
+    {
+      "elapsed": 10.400000381469681,
+      "height": 668,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 27.000000381469704,
+      "height": 668,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 43.70000038146975,
+      "height": 668,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 60.40000038146968,
+      "height": 668,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 77.0000003814697,
+      "height": 623.28125,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 93.70000038146975,
+      "height": 417.65625,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 110.30000038146977,
+      "height": 193.671875,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 127.0000003814697,
+      "height": 80.015625,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 143.70000038146975,
+      "height": 25.390625,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 160.30000038146977,
+      "height": 3.15625,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": false
+    },
+    {
+      "elapsed": 177.10000038146973,
+      "height": 0,
+      "scrollTop": 377,
+      "anchorDelta": 0,
+      "hidden": true
+    }
+  ],
+  "finalDelta": 0,
+  "animations": 0
+}

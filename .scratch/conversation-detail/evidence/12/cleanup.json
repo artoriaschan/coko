@@ -1,0 +1,40 @@
+{
+  "browser": {
+    "session": "coko-reading-12",
+    "close": "Browser closed",
+    "exitCode": 0,
+    "finalClose": "Browser closed",
+    "finalSource": "7a3c5cf"
+  },
+  "electron": "Final combined 3-file/10-case native command exited 0; harness.dispose awaited each owned Electron and Sidecar actual exit. Final filtered process audit found no ticket-12 Electron/Sidecar/server.",
+  "worktree": "Preserved for root integration; no user application or unrelated process stopped.",
+  "servers": [
+    {
+      "pid": 40426,
+      "command": "/opt/homebrew/bin/node /tmp/coko-conversation-detail/ticket-12-visual/serve.mjs",
+      "signal": "SIGTERM",
+      "execExitCode": 143,
+      "pidAbsentAfterExit": true,
+      "port": 64069,
+      "portAbsentAfterExit": true
+    },
+    {
+      "pid": 76459,
+      "command": "/opt/homebrew/bin/node /tmp/coko-conversation-detail/ticket-12-visual/serve.mjs",
+      "signal": "SIGTERM",
+      "execExitCode": 143,
+      "pidAbsentAfterExit": true,
+      "port": 52059,
+      "portAbsentAfterExit": true
+    },
+    {
+      "pid": 69790,
+      "command": "/opt/homebrew/bin/node /tmp/coko-conversation-detail/ticket-12-visual/serve.mjs",
+      "signal": "SIGTERM",
+      "execExitCode": 143,
+      "pidAbsentAfterExit": true,
+      "port": 57019,
+      "portAbsentAfterExit": true
+    }
+  ]
+}

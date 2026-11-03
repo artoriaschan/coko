@@ -1,0 +1,9 @@
+$ vitest run --project desktop-e2e apps/desktop/e2e/reading-position.e2e.test.ts apps/desktop/e2e/chat.e2e.test.ts apps/desktop/e2e/approvals.e2e.test.ts
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+
+ Test Files  3 passed (3)
+      Tests  10 passed (10)
+   Start at  23:37:17
+   Duration  44.67s (tests 99%, import 1%)

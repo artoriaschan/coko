@@ -1,0 +1,39 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/model-picker.browser.test.tsx (8 tests | 1 failed) 6645ms
+   × light detail retains canvas geometry near a narrow window edge 715ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/model-picker.browser.test.tsx > light detail retains canvas geometry near a narrow window edge
+AssertionError: expected 255.99998474121094 to be 256 // Object.is equality
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/model-picker.browser.test.tsx/light-detail-retains-canvas-geometry-near-a-narrow-window-edge.png
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 256[39m
+[31m+ 255.99998474121094[39m
+
+ ❯ src/renderer/features/conversation/model-picker.browser.test.tsx:192:26
+    190|       .toEqual({ width: 280, height: 112, visible: true })
+    191|     const slider = document.querySelector('[role="slider"]')!.getBound…
+    192|     expect(slider.width).toBe(256)
+       |                          ^
+    193|     expect(slider.height).toBe(28)
+    194|     expect(document.querySelector('[data-slot="thinking-thumb"]')!.get…
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 37 passed (38)
+      Tests  1 failed | 305 passed (306)
+   Start at  23:49:08
+   Duration  21.51s (worker 61%, tests 36%, import 3%)
+
+[ELIFECYCLE] Test failed. See above for more details.

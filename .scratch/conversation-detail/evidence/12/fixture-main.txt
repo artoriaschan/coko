@@ -1,0 +1,30 @@
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/styles.css'
+import {App} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/app/app.tsx'
+import {createAppearanceStore} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/app/appearance-store.ts'
+import {createConnectionStore} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/app/connection-store.ts'
+import {createPreferences} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/app/preferences.ts'
+import {createSettingsPageStore} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/app/settings-page-store.ts'
+import {createFixtureChat} from '/tmp/coko-conversation-detail/ticket-12/apps/desktop/src/renderer/testing/fixture-chat.ts'
+const query=new URLSearchParams(location.search)
+const state=query.get('state')??'completed'
+const record=(seq,payload,kind='message')=>({sessionId:'s-1',seq,kind,payloadVersion:1,payload,runId:'process-run',createdAt:(state==='running'?Date.now()-12000:0)+seq*1000})
+const call=(seq,id,name,args)=>record(seq,{role:'assistant',content:[{type:'toolCall',id,name,arguments:args}],stopReason:'toolUse',timestamp:0})
+const result=(seq,id,text)=>record(seq,{role:'toolResult',toolCallId:id,toolName:'custom',content:[{type:'text',text}],isError:false,timestamp:0})
+const text=(seq,text)=>record(seq,{role:'assistant',content:[{type:'text',text}],stopReason:'toolUse',timestamp:0})
+const entries=[record(1,{trigger:'submit'},'run_start'),
+ ...Array.from({length:16},(_,i)=>text(2+i,`Reading marker ${i}\n\n${'Original paragraph. '.repeat(8)}`)),
+ ...Array.from({length:24},(_,i)=>[call(18+i*2,`tool-${i}`,'custom',{original:i}),result(19+i*2,`tool-${i}`,`Real output ${i}\n`.repeat(60))]).flat(),
+ ...(state==='running'?[]:[text(66,'Final original answer.'),record(67,{status:'completed'},'run_end')])]
+const fixture=createFixtureChat({entries:{'s-1':entries}})
+const appearance=createAppearanceStore({theme:query.get('theme')==='dark'?'dark':'light',locale:query.get('lang')==='en'?'en':'zh'})
+const preferences=createPreferences({appearance,settings:fixture.settings,onConflict:()=>{},onFailure:()=>{}})
+document.body.style.margin='0';document.getElementById('root').style.height='100vh'
+createRoot(document.getElementById('root')).render(<App store={appearance} connection={createConnectionStore({phase:'connected'})} chat={fixture.chat} settings={fixture.settings} preferences={preferences} settingsPage={createSettingsPageStore()} pickDirectory={async()=>null}/>);
+window.fixture=fixture
+
+fixture.chat.subscribe(state=>{if(state.conversations['s-1']?.status==='ready' && window.started!==true){window.started=true;if(new URLSearchParams(location.search).get('state')==='running')fixture.sendServer({type:'progress',sessionId:'s-1',runId:'process-run',event:{type:'run_start'}})}})
+
+window.finish=()=>fixture.sendServer({type:'entry',sessionId:'s-1',entry:record(68,{status:'completed'},'run_end')})
+window.append=()=>fixture.sendServer({type:'entry',sessionId:'s-1',entry:text(69,'Appended original answer.\n\n'+'Actual next paragraph. '.repeat(80))})

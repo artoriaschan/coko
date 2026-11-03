@@ -1,0 +1,114 @@
+[
+  {
+    "theme": "light",
+    "width": 1000,
+    "height": 800,
+    "locale": "en",
+    "held": {
+      "delta": 0,
+      "remaining": 432
+    },
+    "resumed": {
+      "remaining": 0,
+      "main": 1000,
+      "column": 680,
+      "overflow": false,
+      "dpr": 1,
+      "font": "13px / 20px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+    },
+    "initialGroupTop": 0,
+    "groupBefore": 268,
+    "outerBefore": 1411,
+    "edge": {
+      "outer": 1411,
+      "inner": 0,
+      "cap": "400px",
+      "overscroll": "auto",
+      "overflow": false
+    }
+  },
+  {
+    "theme": "light",
+    "width": 390,
+    "height": 800,
+    "locale": "zh",
+    "held": {
+      "delta": 0,
+      "remaining": 432
+    },
+    "resumed": {
+      "remaining": 0,
+      "main": 390,
+      "column": 326,
+      "overflow": false,
+      "dpr": 1,
+      "font": "13px / 20px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+    },
+    "initialGroupTop": 0,
+    "groupBefore": 268,
+    "outerBefore": 2179,
+    "edge": {
+      "outer": 2179,
+      "inner": 0,
+      "cap": "400px",
+      "overscroll": "auto",
+      "overflow": false
+    }
+  },
+  {
+    "theme": "dark",
+    "width": 1000,
+    "height": 800,
+    "locale": "en",
+    "held": {
+      "delta": 0,
+      "remaining": 432
+    },
+    "resumed": {
+      "remaining": 0,
+      "main": 1000,
+      "column": 680,
+      "overflow": false,
+      "dpr": 1,
+      "font": "13px / 20px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+    },
+    "initialGroupTop": 0,
+    "groupBefore": 268,
+    "outerBefore": 1411,
+    "edge": {
+      "outer": 1411,
+      "inner": 0,
+      "cap": "400px",
+      "overscroll": "auto",
+      "overflow": false
+    }
+  },
+  {
+    "theme": "dark",
+    "width": 390,
+    "height": 800,
+    "locale": "zh",
+    "held": {
+      "delta": 0,
+      "remaining": 432
+    },
+    "resumed": {
+      "remaining": 0,
+      "main": 390,
+      "column": 326,
+      "overflow": false,
+      "dpr": 1,
+      "font": "13px / 20px -apple-system, \"system-ui\", \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+    },
+    "initialGroupTop": 0,
+    "groupBefore": 268,
+    "outerBefore": 2179,
+    "edge": {
+      "outer": 2179,
+      "inner": 0,
+      "cap": "400px",
+      "overscroll": "auto",
+      "overflow": false
+    }
+  }
+]

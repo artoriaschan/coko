@@ -1,0 +1,9 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/new-chat.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  00:01:10
+   Duration  9.70s (tests 96%, setup 2%, import 1%)

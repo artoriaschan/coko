@@ -1,0 +1,33 @@
+$ vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation apps/desktop/src/renderer/features/right-panel apps/desktop/src/renderer/app/app.browser.test.tsx
+
+ RUN  v5.0.3 /private/tmp/coko-conversation-detail/ticket-12
+
+ ❯ |desktop-renderer (chromium)| src/renderer/features/conversation/reading-position.browser.test.tsx (15 tests | 1 failed) 10373ms
+   × actual App: child Session detail growth follows its own tail, child switching resets reading, and the parent stays held 1232ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |desktop-renderer (chromium)| src/renderer/features/conversation/reading-position.browser.test.tsx > actual App: child Session detail growth follows its own tail, child switching resets reading, and the parent stays held
+AssertionError: expected 72 to be less than or equal to 1
+
+Failure screenshot:
+  - .vitest/attachments/failure-screenshots/reading-position.browser.test.tsx/actual-App--child-Session-detail-growth-follows-its-own-tail--child-switching-resets-reading--and-the-parent-stays-held.png
+
+ ❯ src/renderer/features/conversation/reading-position.browser.test.tsx:264:74
+    262|   await expect.poll(() => child.scrollTop).toBeGreaterThan(before + 10…
+    263|   expect(distance(child)).toBeLessThanOrEqual(1)
+    264|   expect(Math.abs(parentMarker.getBoundingClientRect().top - parentTop…
+       |                                                                          ^
+    265|   child.scrollTop = 100
+    266|   child.dispatchEvent(new Event('scroll'))
+ ❯ node_modules/.vite/vitest/97f7fe1b935bf1cda7730597031003f7df5ee984/deps/plugins.D2ut1V9b-C43e19iF.js?v=819ec8a5:5206:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 37 passed (38)
+      Tests  1 failed | 305 passed (306)
+   Start at  23:45:13
+   Duration  21.96s (worker 61%, tests 35%, import 3%, setup 1%)
+
+[ELIFECYCLE] Test failed. See above for more details.
