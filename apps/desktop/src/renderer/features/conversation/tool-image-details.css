@@ -48,7 +48,7 @@
 .tool-image-frame[data-failed] {
   color: var(--conversation-process-muted);
   font-size: var(--text-ui-small);
-  line-height: var(--text-ui-terminal--line-height);
+  line-height: var(--text-ui-small--line-height);
   cursor: default;
   padding: 4px;
 }

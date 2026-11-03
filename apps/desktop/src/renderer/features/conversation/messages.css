@@ -64,7 +64,7 @@
   border: 0;
   background: none;
   color: inherit;
-  font-size: var(--text-ui-body);
+  font-size: var(--text-ui-process);
   line-height: var(--text-ui-process--line-height);
   text-align: left;
   cursor: pointer;
@@ -316,7 +316,7 @@
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--conversation-code-banner);
   color: var(--foreground);
-  font-size: var(--text-ui-caption);
+  font-size: var(--text-ui-terminal);
   line-height: var(--text-ui-terminal--line-height);
 }
 
@@ -351,7 +351,7 @@
 .conversation-markdown.coko-markdown [data-streamdown='code-block-body'] pre {
   margin: 0;
   font-family: var(--font-conversation-mono, var(--font-mono));
-  font-size: var(--text-ui-caption);
+  font-size: var(--text-ui-file-code);
   line-height: var(--text-ui-file-code--line-height);
   white-space: pre;
 }

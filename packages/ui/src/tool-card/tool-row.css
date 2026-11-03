@@ -208,7 +208,7 @@
   background: var(--background);
   color: var(--conversation-process-secondary);
   font-family: var(--font-conversation-sans);
-  font-size: var(--text-ui-caption);
+  font-size: var(--text-ui-code-small);
   line-height: var(--text-ui-code-small--line-height);
   opacity: 0;
   transition: opacity var(--conversation-process-transition);
