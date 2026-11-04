@@ -1,0 +1,23 @@
+.scratch/conversation-status-and-header/issues/02-session-status-broadcast.md
+  s_296be7915f5188::t_19397294e21015 40-41
+.scratch/conversation-status-and-header/issues/09-integrated-acceptance.md
+  s_296be7915f5188::t_19397294e21015 34-35
+.scratch/conversation-status-and-header/spec.md
+  s_296be7915f5188::t_19397294e21015 297-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b4615ee0df35319176962aeadea0a547a2963b8c",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
