@@ -21,7 +21,9 @@ lifecycle: active
 
 ## 逐请求记录
 
-运行时在每次模型请求结束时提交一条 `model_request`（v1，与 assistant 消息同一提交链，错误结束的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（含重试之间的等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（之前失败的次数）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
+运行时为每次实际启动的模型请求尝试提交一条 `model_request`（v1，与 assistant 消息同一提交链，失败、取消以及失败压缩的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（仅该次尝试，不含重试退避等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（同次逻辑调用中之前失败的次数，首次为 0）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
+
+重试的每次真实尝试各有独立 `requestId`；记录保留结束前取得的有效计数。失败尝试在退避前提交，退避时 Sidecar 崩溃后仍可读回；退避期间停止不产生尚未发出的下一次请求，失败压缩即使没有成功 `compaction` 条目也保留请求事实。后续部分报告省略先前字段时不清空已有计数；缺失、无效或矛盾报告保持不完整。
 
 同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
 
@@ -31,7 +33,7 @@ lifecycle: active
 
 `deriveTrace(entries)` 按 `run_start` 的顺序给出每个 Run 的 `RunTrace`；没有 `run_start` 的 runId 与不属于 Run 的条目不出现。追踪包含被回退的 Run（它是执行记录，不是有效上下文）。
 
-- **Run。** `trigger` 取自 `run_start`；`status`、`errorCode` 与 `durationMs`（`run_end.createdAt − run_start.createdAt`）取自 `run_end`，没有 `run_end`（被中断或进行中）时省略。`requests` 为本 Run 的全部 `model_request`（含摘要请求）；`usage` 为它们之和，`tokens = input + output + cacheRead + cacheWrite`（与 [Goal 预算](goal.md#预算) 的 Token 口径相同），`cost` 为已定价请求之和。
+- **Run。** `trigger` 取自 `run_start`；`status`、`errorCode` 与 `durationMs`（`run_end.createdAt − run_start.createdAt`）取自 `run_end`，没有 `run_end`（被中断或进行中）时省略。`requests` 为本 Run 的全部 `model_request`（含摘要请求），按 `requestId` 去重（旧记录按条目序号），相同计数的不同尝试分别累计；`usage` 为它们之和，`tokens = input + output + cacheRead + cacheWrite`（与 [Goal 预算](goal.md#预算) 的 Token 口径相同），`cost` 为已定价请求之和。
 - **工具耗时。** 每个工具调用从所在 assistant 消息的 `createdAt` 起算，到结果消息的 `createdAt`（`durationMs`，含审批等待与 Hook）；side-effect 调用另有 `execMs`（`tool_exec` 到结果）。并行执行的一批调用的结果一起提交，各自的 `durationMs` 约等于整批的时间。没有结果的调用（Run 被中断）没有 `durationMs`。不新增条目。
 - **审批等待。** `approval_request` 到 `approval_decision` 的 `createdAt` 差，同一调用的多次审批相加；`approval` 为最后一次的结果（没有回答时 `pending`），`approvalBy` 为 `user`、`hook`（PermissionRequest Hook）或 `headless`（[ADR 0019](../adr/0019-headless-runs-deny-approvals.md)）。决定按 `requestId` 找到请求，不依赖决定条目的 runId。
 - **Hook 归属。** `hook_run` 不带 toolCallId：工具 Hook（PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure）只在本 Run 恰有一个调用尚未得到结果时记在该调用的 `hooks` 上；多个调用同时未结束（并行的一批或顺序执行时尚未开始的调用）时无法确定归属，与 UserPromptSubmit、Stop、PreCompact 等一起记在 Run 的 `hooks` 上。

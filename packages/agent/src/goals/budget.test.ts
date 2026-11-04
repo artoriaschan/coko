@@ -85,6 +85,34 @@ function timeline() {
 }
 
 describe('预算派生', () => {
+  it('actual request attempts take precedence once per Run while legacy and child ownership remain', () => {
+    const request = (t: number, run: string, requestId: string, input: number, output: number, cost: number) =>
+      at(t, 'model_request', { requestId, purpose: 'turn', usage: { input, output, cacheRead: 0, cacheWrite: 0, total: input + output }, cost }, run)
+    const first = request(2, 'modern', 'failed', 11, 3, 0.000017)
+    const second = request(3, 'modern', 'retry', 20, 5, 0.00003)
+    const entries = [
+      goalEntry(0, goal('running', 1)),
+      start(1, 'modern', 1),
+      first,
+      second,
+      { ...first, seq: 1000 },
+      assistant(4, 'modern', usage(20, 5, 0.00003)),
+      compaction(5, 'modern', usage(20, 5, 0.00003)),
+      end(11, 'modern'),
+      start(12, 'old'),
+      assistant(13, 'old', usage(2, 1, 0.1)),
+      end(17, 'old'),
+    ]
+    const child = [start(1, 'child'), request(2, 'child', 'child-request', 7, 1, 0.01), assistant(3, 'child', usage(7, 1, 0.01)), end(5, 'child')]
+    expect(goalUsage(entries, 'goal-1', { children: [child] })).toEqual({
+      rounds: 1,
+      toolCalls: 0,
+      tokens: 50,
+      cost: expect.closeTo(0.110047, 10),
+      durationMs: 19,
+    })
+  })
+
   it('五维用量：只计属于 Goal 的 Run；用户提交的 Run 不计轮次；compaction.usage 计入；进行中的 Run 计到 now', () => {
     const u = goalUsage(timeline(), 'goal-1', { now: 5600 })
     // Token：r1 (200+20+50) + 压缩 (300+30) + (100+10+7)，r3 (400+40)，共 1157。费用 0.002 + 0.003 + 0.001 + 0.004。

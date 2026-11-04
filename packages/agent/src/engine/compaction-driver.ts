@@ -1,7 +1,7 @@
 // 压缩编排（docs/subsystems/context.md#压缩）：摘要请求、提交 compaction 条目与重建对话记录、熔断，以及三个触发点——手动（/compact）、
 // 每次请求前越过阈值的自动压缩、请求以上下文溢出失败后的一次压缩与重试。运行时只在 prepareRequest 与 compact() 处接线。
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core'
-import { isContextOverflow, normalizeContext, type Model } from '@earendil-works/pi-ai'
+import { isContextOverflow, normalizeContext, type AssistantMessage, type Model } from '@earendil-works/pi-ai'
 import {
   createCompactionBreaker,
   estimateCompactedTokens,
@@ -127,8 +127,12 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const window = model.contextWindow ?? 0
     const { systemPrompt, prompt } = summaryRequest(plan, instructions, window > maxTokens ? { maxInputChars: (window - maxTokens) * 4 } : {})
     const request = normalizeContext({ systemPrompt, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }], timestamp: Date.now() }] })
-    const response = await (await stream(model, request, { signal, maxTokens, cacheRetention: 'none' })).result()
-    await options.recordRequest?.(run)
+    let response: AssistantMessage
+    try {
+      response = await (await stream(model, request, { signal, maxTokens, cacheRetention: 'none' })).result()
+    } finally {
+      await options.recordRequest?.(run)
+    }
     if (signal.aborted || response.stopReason === 'aborted') throw new SummaryAborted()
     if (response.stopReason === 'error') throw new Error(response.errorMessage || 'Summarization failed')
     if (response.stopReason === 'length') throw new Error('Summarization hit the output limit; the summary is incomplete')
