@@ -1,0 +1,56 @@
+packages/i18n/src/dictionaries/en.ts
+  s_296be7915f5188::t_d695a149e0b336 160-163
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_296be7915f5188::t_d695a149e0b336 257-259
+  s_296be7915f5188::t_26b90810704a5b 521-544
+  s_296be7915f5188::t_3bc75813eddb5d 602
+apps/desktop/e2e/schedules.e2e.test.ts
+  s_296be7915f5188::t_ae45471a0ac3fd 41
+  s_296be7915f5188::t_3bc75813eddb5d 93
+apps/desktop/e2e/jobs.e2e.test.ts
+  s_296be7915f5188::t_ae45471a0ac3fd 55
+  s_296be7915f5188::t_3bc75813eddb5d 82,115
+  s_296be7915f5188::t_1ea2a27932928a 157-160
+apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx
+  s_296be7915f5188::t_3bc75813eddb5d 278
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_296be7915f5188::t_d695a149e0b336 19
+apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx
+  s_296be7915f5188::t_3bc75813eddb5d 1,112
+apps/desktop/src/renderer/features/conversation/dock/dock.browser.test.tsx
+  s_296be7915f5188::t_0f73040341f279 71
+  s_296be7915f5188::t_3bc75813eddb5d 68
+packages/i18n/src/dictionaries/zh.ts
+  s_296be7915f5188::t_d695a149e0b336 157-160
+apps/desktop/e2e/subagents.e2e.test.ts
+  s_296be7915f5188::t_3bc75813eddb5d 167
+apps/desktop/e2e/trace.e2e.test.ts
+  s_296be7915f5188::t_3bc75813eddb5d 105
+apps/desktop/src/renderer/app/icon-button.tsx
+  s_296be7915f5188::t_957a9dfec53026 5-10
+  s_296be7915f5188::t_d695a149e0b336 4,18
+apps/desktop/src/renderer/features/conversation/business-timeline.browser.test.tsx
+  s_296be7915f5188::t_3bc75813eddb5d 361
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_1b9ceb4c3f3960 31-32
+.scratch/conversation-status-and-header/issues/06-open-sidebar-button.md
+  s_296be7915f5188::t_63ed0b203d2c5f 15-23,28-34
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_d695a149e0b336 2,66-71,305-309,315,317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9e7d52e1f4680d3ff26195c3900069e6855e72dc",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
