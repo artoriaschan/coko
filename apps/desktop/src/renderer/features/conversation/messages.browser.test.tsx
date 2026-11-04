@@ -182,6 +182,14 @@ it.each([
     locale,
   )
   await expect.poll(() => document.querySelector('[data-slot="app-frame-main"]')!.getBoundingClientRect().width).toBe(390)
+  const footer = document.querySelector<HTMLElement>('[data-slot="user-message-footer"]')!
+  expect(footer.querySelector('[data-action="fork"]')).toBeNull()
+  const sentTime = footer.querySelector('time')!
+  expect(sentTime.dateTime).toBe(new Date(2).toISOString())
+  sentTime.focus()
+  await userEvent.keyboard('{Tab}')
+  expect(document.activeElement?.getAttribute('data-action')).toBe('copy-message')
+  expect(document.activeElement?.getAttribute('aria-label')).toBe(locale === 'zh' ? '复制消息' : 'Copy message')
   const command = document.querySelector<HTMLElement>('[data-slot="command-message"] summary')!
   command.focus()
   await userEvent.keyboard('{Enter}')
@@ -257,4 +265,47 @@ it('phase replies stay visible while the assistant action footer belongs to the 
   await expect.element(page.getByText('A phase reply', { exact: true })).toBeVisible()
   await expect.element(page.getByText('The final response', { exact: true })).toBeVisible()
   expect(document.querySelectorAll('[data-slot="assistant-message-actions"]')).toHaveLength(1)
+})
+
+it('user footer keeps submitted time visible while copy and rewind reveal on keyboard focus, without a user fork', async () => {
+  const submitted = new Date(2026, 10, 3, 23, 7, 41).getTime()
+  const fixture = await open([{ ...record(1, { role: 'user', content: 'Original **input**', timestamp: submitted - 1000 }), createdAt: submitted }])
+  const article = page.getByRole('article', { name: 'You', exact: true })
+  await expect.element(article.getByText('23:07', { exact: true })).toBeVisible()
+  const time = article.element().querySelector('time')!
+  expect(time.dateTime).toBe(new Date(submitted).toISOString())
+  expect(time.getAttribute('aria-label')).toContain('41')
+  expect(article.element().querySelector('[data-action="fork"]')).toBeNull()
+  await userEvent.hover(page.getByRole('heading', { level: 1 }))
+  const actions = article.element().querySelector<HTMLElement>('[data-slot="message-actions"]')!
+  await expect.poll(() => getComputedStyle(actions).opacity).toBe('0')
+  expect(getComputedStyle(time).opacity).toBe('1')
+  time.focus()
+  await expect.poll(() => getComputedStyle(actions).opacity).toBe('1')
+  await userEvent.keyboard('{Tab}')
+  expect(document.activeElement?.getAttribute('data-action')).toBe('copy-message')
+  await userEvent.keyboard('{Tab}')
+  expect(document.activeElement?.getAttribute('data-action')).toBe('rewind')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('dialog')).toBeVisible()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  expect(fixture.chat.getState().conversations['s-1']?.entries).toHaveLength(1)
+  expect(time.dateTime).toBe(new Date(submitted).toISOString())
+})
+
+it('copying a command uses its invocation, and a clipboard failure cannot claim success', async () => {
+  await open([
+    record(1, { name: 'review', args: 'src', source: 'project' }, 'command'),
+    record(2, { role: 'user', content: 'Expanded model-only instruction', timestamp: 2 }),
+  ])
+  const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  const article = page.getByRole('article', { name: 'You', exact: true })
+  await article.getByRole('button', { name: 'Copy message' }).click()
+  expect(write).toHaveBeenLastCalledWith('/review src')
+  await expect.element(article.getByRole('button', { name: 'Copied message' })).toBeVisible()
+  write.mockRejectedValue(new Error('Clipboard denied'))
+  await article.getByRole('button', { name: 'Copied message' }).click()
+  await expect.element(page.getByText('Could not copy the message', { exact: true })).toBeVisible()
+  await expect.element(article.getByRole('button', { name: 'Copy message' })).toBeVisible()
 })

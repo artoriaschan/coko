@@ -67,7 +67,7 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 
 | | 从此分叉 | 交接 |
 | --- | --- | --- |
-| 入口 | 时间线中某条用户消息的"从此分叉" | 标题栏"交接"、`/handoff`、`POST /api/sessions/:id/handoff` |
+| 入口 | `POST /api/sessions/:id/fork` 的用户锚点兼容入口（用户气泡已移除该按钮） | 标题栏"交接"、`/handoff`、`POST /api/sessions/:id/handoff` |
 | 模型请求 | 无 | 一次摘要请求（trigger handoff，无工具，经 Goal 预算检查） |
 | 新会话的上下文 | 目标之前的有效消息（含最后一个压缩摘要） | 没有消息；摘要作为输入区草稿 |
 | 首条条目 | `fork_origin { sessionId, seq }` | `handoff_origin { sessionId, seq }` |

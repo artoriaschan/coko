@@ -1,7 +1,7 @@
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from '@coko/ui'
-import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, GitBranchIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
@@ -15,6 +15,7 @@ import { ScheduleFireRow } from './schedule-fire-row.tsx'
 import { TeamMessageRow } from './team-message-row.tsx'
 import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
+import { MessageTime } from './message-time.tsx'
 import { ReasoningRow } from './reasoning-row.tsx'
 import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
@@ -37,9 +38,9 @@ export interface TimelineViewProps {
   items: TimelineItem[]
   theme: Theme
   onRetry: () => void
-  /** 用户消息的"回退到此处"；省略时不显示消息动作。 */
+  /** 用户消息的"回退到此处"；省略时不显示回退动作。 */
   onRewind?: (seq: number, text: string) => void
-  /** 用户消息的"从这里分叉"。 */
+  /** 兼容既有调用方；用户消息已不呈现分叉入口。 */
   onFork?: (seq: number) => void
   /** Run 进行中或有待处理的请求：消息动作不可用。 */
   actionsDisabled?: boolean
@@ -87,10 +88,15 @@ function CopyMessage({ text }: { text: string }) {
       action="copy-message"
       disabled={false}
       onClick={() => {
-        void navigator.clipboard.writeText(text).then(
-          () => setCopied(true),
-          () => toast.error(t('conversation.copyMessageFailed')),
-        )
+        setCopied(false)
+        void (async () => {
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopied(true)
+          } catch {
+            toast.error(t('conversation.copyMessageFailed'))
+          }
+        })()
       }}
     >
       {copied ? (
@@ -111,13 +117,13 @@ function CopyMessage({ text }: { text: string }) {
 
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
 export function TimelineView(props: TimelineViewProps) {
-  const { items, theme, onRetry, onRewind, onFork, actionsDisabled = false } = props
+  const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
   const renderItem = (item: TimelineItem) => {
     switch (item.kind) {
       case 'user': {
-        const actions = item.checkpoint && (onRewind || onFork)
+        const actions = item.checkpoint && onRewind
         return (
           // 动作在悬停（支持 hover 的设备）或焦点进入消息时出现；不支持 hover 时一直可见。Tab 到消息即可到达。
           <article
@@ -125,7 +131,7 @@ export function TimelineView(props: TimelineViewProps) {
             aria-label={t('conversation.you')}
             data-reading-anchor={item.key}
             data-seq={item.seq}
-            tabIndex={actions ? 0 : undefined}
+            tabIndex={actions || item.text !== '' ? 0 : undefined}
             data-slot="user-message"
             className="conversation-user-message group ms-auto flex w-fit min-w-0 flex-col items-end rounded-xl focus-ring"
           >
@@ -199,32 +205,30 @@ export function TimelineView(props: TimelineViewProps) {
                 ))}
               </ul>
             )}
-            {(item.text !== '' || actions) && (
-              <div
-                role="group"
-                aria-label={t('conversation.messageActions')}
-                data-slot="message-actions"
-                className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
-              >
-                {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
-                {actions && onRewind && (
-                  <MessageAction
-                    label={t('conversation.rewindHere')}
-                    action="rewind"
-                    disabled={actionsDisabled}
-                    // 命令消息回退时放回原始调用，而不是展开后的全文。
-                    onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
-                  >
-                    <Undo2Icon />
-                  </MessageAction>
-                )}
-                {actions && onFork && (
-                  <MessageAction label={t('conversation.forkHere')} action="fork" disabled={actionsDisabled} onClick={() => onFork(item.seq)}>
-                    <GitBranchIcon />
-                  </MessageAction>
-                )}
-              </div>
-            )}
+            <div data-slot="user-message-footer" className="flex max-w-full items-center gap-2">
+              <MessageTime timestamp={item.origin?.createdAt} />
+              {(item.text !== '' || actions) && (
+                <div
+                  role="group"
+                  aria-label={t('conversation.messageActions')}
+                  data-slot="message-actions"
+                  className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                >
+                  {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
+                  {actions && onRewind && (
+                    <MessageAction
+                      label={t('conversation.rewindHere')}
+                      action="rewind"
+                      disabled={actionsDisabled}
+                      // 命令消息回退时放回原始调用，而不是展开后的全文。
+                      onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
+                    >
+                      <Undo2Icon />
+                    </MessageAction>
+                  )}
+                </div>
+              )}
+            </div>
           </article>
         )
       }
