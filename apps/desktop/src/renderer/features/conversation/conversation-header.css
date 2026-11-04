@@ -1,0 +1,20 @@
+/* Keep the same navigation controls mounted when a narrow Session header reflows. */
+@container main (max-width: 560px) {
+  .conversation-header[data-session-header]:has([data-slot='app-frame-collapsed-controls']) > header {
+    padding-inline-start: max(8px, calc(var(--frame-leading-clearance) + 12px));
+  }
+
+  .conversation-header[data-session-header] [data-slot='app-frame-collapsed-controls'] {
+    position: absolute;
+    top: var(--frame-top-clearance);
+    bottom: 0;
+    inset-inline-start: 16px;
+    height: auto;
+    align-items: center;
+    padding: 0;
+  }
+
+  .conversation-header[data-session-header]:has([data-slot='app-frame-collapsed-controls']) > [role='tablist'] {
+    padding-inline-start: 152px;
+  }
+}

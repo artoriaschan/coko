@@ -60,7 +60,7 @@ function StatusCapsule({
               data-action={kind === 'tokens' ? 'session-token-usage' : 'session-statistics'}
               data-session-status-trigger={kind}
               data-tokens={total}
-              className="h-[22px] min-w-0 shrink gap-1.5 px-1.5 text-ui-small font-normal tabular-nums data-[state=open]:bg-accent"
+              className="h-[22px] min-w-0 shrink gap-1.5 px-1.5 text-ui-small font-normal tabular-nums aria-expanded:bg-accent"
             >
               <Icon aria-hidden className="size-3.5 shrink-0" strokeWidth={1} />
               <span ref={text} className="min-w-0 truncate">
@@ -78,6 +78,11 @@ function StatusCapsule({
         data-slot={kind === 'tokens' ? 'session-token-details' : 'session-statistics-details'}
         className="max-h-(--radix-popover-content-available-height) w-max min-w-[min(300px,calc(100vw-24px))] max-w-[min(440px,calc(100vw-24px))] overflow-y-auto p-4 text-ui-small"
         onEscapeKeyDown={() => trigger.current?.focus()}
+        onCloseAutoFocus={(event) => {
+          // A closing card must not take focus back from the card opened beside it.
+          event.preventDefault()
+          if (!document.querySelector('[data-session-status-trigger][aria-expanded="true"]')) trigger.current?.focus()
+        }}
         onPointerDownOutside={(event) => {
           event.preventDefault()
           const target = event.detail.originalEvent.target

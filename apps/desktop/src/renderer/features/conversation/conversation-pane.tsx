@@ -35,6 +35,7 @@ import { HandoffEffects } from './handoff-effects.tsx'
 import { SessionStatusBar } from './session-status-bar.tsx'
 import { SessionMenu } from './session-menu.tsx'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
+import './conversation-header.css'
 
 export interface ConversationPaneProps {
   theme: Theme
@@ -288,38 +289,43 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     <>
       <ConnectionStatus state={connection} />
       <HandoffEffects />
-      {/* 收起侧栏时标题栏左侧显示控制条；它在标题栏内，沿用标题栏的拖拽区排除规则。 */}
-      <header data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-(--local-header-leading) pe-2 @max-[560px]/main:gap-1">
-        <AppFrameCollapsedControls />
-        {activeSessionId === null ? (
-          // 新对话顶部不展示标题与连接状态；标题只作为页面名称提供给辅助技术。
-          <h1 className="sr-only">{title}</h1>
-        ) : (
-          <>
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 truncate text-ui-body-lg font-medium" title={title}>
-                {title}
-              </h1>
-              {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
-            </div>
-            {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
-            <SessionMenu sessionId={activeSessionId} />
-            {!rightOpen && (
-              <IconButton ref={rightTrigger} label={t('frame.openRightPanel')} tooltip={t('frame.openSidebar')} tooltipSide="bottom" onClick={onToggleRight}>
-                <PanelRightOpenIcon />
-              </IconButton>
-            )}
-          </>
+      <div className="conversation-header relative shrink-0" data-session-header={activeSessionId !== null || undefined}>
+        {/* 收起侧栏时标题栏左侧显示控制条；它在标题栏内，沿用标题栏的拖拽区排除规则。 */}
+        <header
+          data-window-drag
+          className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-(--local-header-leading) pe-2 @max-[560px]/main:gap-1"
+        >
+          <AppFrameCollapsedControls />
+          {activeSessionId === null ? (
+            // 新对话顶部不展示标题与连接状态；标题只作为页面名称提供给辅助技术。
+            <h1 className="sr-only">{title}</h1>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 truncate text-ui-body-lg font-medium" title={title}>
+                  {title}
+                </h1>
+                {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
+              </div>
+              {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
+              <SessionMenu sessionId={activeSessionId} />
+              {!rightOpen && (
+                <IconButton ref={rightTrigger} label={t('frame.openRightPanel')} tooltip={t('frame.openSidebar')} tooltipSide="bottom" onClick={onToggleRight}>
+                  <PanelRightOpenIcon />
+                </IconButton>
+              )}
+            </>
+          )}
+        </header>
+        {activeSessionId !== null && (
+          <div role="tablist" aria-label={t('frame.main')} className="flex shrink-0 border-b-hairline border-border px-4">
+            <button type="button" role="tab" aria-selected="true" className="relative px-1 pt-2 pb-2.5 text-ui-body font-medium text-link focus-ring">
+              {t('frame.main')}
+              <span data-slot="conversation-tab-indicator" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-link" />
+            </button>
+          </div>
         )}
-      </header>
-      {activeSessionId !== null && (
-        <div role="tablist" aria-label={t('frame.main')} className="flex shrink-0 border-b-hairline border-border px-4">
-          <button type="button" role="tab" aria-selected="true" className="relative px-1 pt-2 pb-2.5 text-ui-body font-medium text-link focus-ring">
-            {t('frame.main')}
-            <span data-slot="conversation-tab-indicator" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-link" />
-          </button>
-        </div>
-      )}
+      </div>
 
       <div
         onFocusCapture={(event) => {

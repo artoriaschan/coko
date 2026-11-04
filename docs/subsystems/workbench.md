@@ -26,13 +26,15 @@ lifecycle: active
 
 详情页顶部的标题行高 48px，与窗口安全区和右栏头部共用 `--frame-top-clearance`。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
 
+主区不宽于 560px 且侧栏收起时，既有的展开侧栏、后退、前进和新对话控制条移到 tab 行左侧，“对话”tab 位于其后。控制条保持同一份 DOM、28px 命中区及原有键盘路径；标题行仍为 48px，保留原生窗口安全区，四个状态入口、“更多”和打开右栏均留在标题行。此局部重排避免全部状态入口同时出现时溢出，以及聚焦行尾按钮引发主区的隐藏横向滚动。
+
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
 右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 为“打开侧边栏”，可访问名称为“打开右侧边栏”。打开后入口隐藏，使用右栏头部的 X 收起：Tooltip 为“收起侧边栏”，可访问名称为“收起右侧边栏”；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口仍可直接打开对应 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
 详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
 
-验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)。
+验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)、[真实 Electron 联合验收](../../apps/desktop/e2e/conversation-status-header.e2e.test.ts)（四个状态入口同时存在、zh/en、明暗主题、390px、控件命中区及主区无横向偏移）。
 
 ## 对话搜索
 
