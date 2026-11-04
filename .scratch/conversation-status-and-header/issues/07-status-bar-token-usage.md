@@ -35,3 +35,6 @@
 - Electron：`pnpm run test apps/desktop/e2e/message-footers-protocol.e2e.test.ts` 当前构建上 3/3 通过，退出 0。通过真实 Electron/Sidecar 与受控协议模型验证 Token 胶囊累计含标题、排除子 Session 与复制历史、重复读取及应用重启。原测试在 25d4228e 的 `[data-usage-part] dd` 选择器与源码中的 dd 自身属性已不一致，同时期待零缓存行、未知缓存的精确值及不带推理后缀的输出；对照该基线 `assistant-footer.tsx` 修正为原有“省略零缓存、未知下界、推理为输出子集”的断言，并把 SessionCost 入口断言迁到 Token 胶囊。未改变底栏实现语义。
 - 文档影响：workbench 原地加入状态栏、用量口径与交互；server README 记录仅测试用 faux `usage.report` 的显式报告接缝。从 AGENTS → docs/README → workbench 读回：路径、职责、引用方向、当前入口及历史保留均通过，正式文档不反向引用任务材料。未修改视觉稿或上下文环。
 - 未验证/后续组合：无真实模型凭据；原生保存框不涉及本票。默认 faux 没有报告分桶，不能把字符估计值冒充统计；新增显式 `usage.report` 驱动供 09 联合 faux Run 读数使用，本票的完整读数与重启证据来自上述更严格的受控协议 Electron 测试。agent-browser、四种主题/语言及两胶囊互斥由 08/09 组合验收。
+
+- 集成复核：合入 `12705322`（含 01/03）后，再运行 `pnpm run test apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx apps/desktop/src/renderer/features/conversation/assistant-footer.browser.test.tsx apps/server/src/adapters/faux.test.ts`，3 文件 23/23 通过，退出 0；`pnpm run typecheck` 退出 0。同步 docs/README 的工作台导航摘要。可选 faux report 接缝未给报告时行为保持不变；适配器的新测试经真实模型流入口确认显式 report 正确传递。
+- 集成后的 Electron 复验：再次运行 `pnpm run test apps/desktop/e2e/message-footers-protocol.e2e.test.ts`，本次重新打包构建，3/3 通过，退出 0；最后 `pnpm run check:docs` 319 文件 0 问题，退出 0。所有交付仅本地提交，未推送。
