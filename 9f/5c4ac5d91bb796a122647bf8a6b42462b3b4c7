@@ -1,0 +1,26 @@
+.scratch/message-footers/issues/README.md
+  s_f9fee1f1315815::t_1464292be4489d 32
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_1464292be4489d 69
+.scratch/message-footers/evidence/final-review.md
+  s_f9fee1f1315815::t_7c4ae7b16e5131 52
+  s_f9fee1f1315815::t_1464292be4489d 39,44-51
+.scratch/message-footers/spec.md
+  s_f9fee1f1315815::t_1464292be4489d 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9f5c4ac5d91bb796a122647bf8a6b42462b3b4c7",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
