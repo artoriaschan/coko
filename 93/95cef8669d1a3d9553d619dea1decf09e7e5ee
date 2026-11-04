@@ -1,0 +1,48 @@
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_4299756dd0e893 37,39
+apps/desktop/src/renderer/features/conversation/message-time.tsx
+  s_f9fee1f1315815::t_6195c5dd6da57e 1-11,19-30
+  s_f9fee1f1315815::t_5aefb45a82ac9f 12-18
+.scratch/message-footers/issues/03-user-message-footer.md
+  s_f9fee1f1315815::t_3ca4be2d596dac 13,17-24,37
+apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx
+  s_f9fee1f1315815::t_5cb3ac11ab075d 269-295
+  s_f9fee1f1315815::t_192c72b50aa645 185-192
+  s_f9fee1f1315815::t_1c90f8471aa750 296-311
+apps/desktop/e2e/rewind.e2e.test.ts
+  s_f9fee1f1315815::t_a0bad554537668 87-94
+  s_f9fee1f1315815::t_5aefb45a82ac9f 155-165
+  s_f9fee1f1315815::t_e628326dcc9aa8 76-84
+  s_f9fee1f1315815::t_1c90f8471aa750 118,133-134,148,150,152-154,166-171
+docs/adr/0006-file-checkpoints-and-rewind.md
+  s_f9fee1f1315815::t_4299756dd0e893 40
+docs/subsystems/handoff.md
+  s_f9fee1f1315815::t_4299756dd0e893 70
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_f9fee1f1315815::t_6195c5dd6da57e 4,18,120,126,134,208-210,230-231
+  s_f9fee1f1315815::t_1c90f8471aa750 43,91-99
+  s_f9fee1f1315815::t_5aefb45a82ac9f 211-229
+docs/subsystems/commands.md
+  s_f9fee1f1315815::t_4299756dd0e893 90
+apps/desktop/src/renderer/features/conversation/history.browser.test.tsx
+  s_f9fee1f1315815::t_1c90f8471aa750 89,243
+.scratch/message-footers/evidence/03-user-footer.md
+  s_f9fee1f1315815::t_eae1139441ecca 1-24,26-27,29-45
+  s_f9fee1f1315815::t_3ca4be2d596dac 25,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "9395cef8669d1a3d9553d619dea1decf09e7e5ee",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
