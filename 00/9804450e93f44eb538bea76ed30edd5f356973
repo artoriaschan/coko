@@ -1,0 +1,64 @@
+.scratch/message-footers/issues/06-stopped-and-failed-footers.md
+  s_f9fee1f1315815::t_9675541c26f55c 13,17-24,37-39
+.scratch/message-footers/evidence/05-assistant-branch.md
+  s_f9fee1f1315815::t_a2d49326d08c1c 1-46
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 41,45
+  s_f9fee1f1315815::t_e14607ad8b7a10 43
+apps/desktop/e2e/message-footers.e2e.test.ts
+  s_f9fee1f1315815::t_0509ee417c51b6 190-201
+  s_f9fee1f1315815::t_150206b79e57f6 145-173,177-189,203-217
+  s_f9fee1f1315815::t_3404103f10dd0d 174-176
+.scratch/message-footers/spec.md
+  s_f9fee1f1315815::t_1497e1e949a1c4 18,121
+apps/desktop/src/renderer/features/conversation/ended-footers.browser.test.tsx
+  s_f9fee1f1315815::t_f73c8c72a187a3 1-236
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_f9fee1f1315815::t_9df8492a72d9b2 53
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_f9fee1f1315815::t_a2d49326d08c1c 61-62
+  s_f9fee1f1315815::t_9df8492a72d9b2 63-70,300-304,334
+  s_f9fee1f1315815::t_cc22fb7aa632b4 21,227,299,306
+apps/desktop/src/renderer/features/conversation/attempt-usage.browser.test.tsx
+  s_f9fee1f1315815::t_3404103f10dd0d 144-146
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 54-59
+.scratch/message-footers/evidence/06-ended-footers.md
+  s_f9fee1f1315815::t_af65eaebc3b637 23
+  s_f9fee1f1315815::t_fec2ebbde09e06 38,54
+  s_f9fee1f1315815::t_9675541c26f55c 1-22,24-37,39-53,55-58
+apps/desktop/src/renderer/features/conversation/timeline.ts
+  s_f9fee1f1315815::t_dc6b9220af7620 333
+  s_f9fee1f1315815::t_5a3e4310c51a42 572
+  s_f9fee1f1315815::t_0f5bc93fd89401 120,349
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_f9fee1f1315815::t_f73c8c72a187a3 354,384,389,423,426
+  s_f9fee1f1315815::t_9df8492a72d9b2 385-388,390
+  s_f9fee1f1315815::t_45680b284b0fe3 424-425,427,439
+apps/desktop/src/renderer/features/conversation/timeline.test.ts
+  s_f9fee1f1315815::t_45680b284b0fe3 30,138,269
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 150
+.scratch/message-footers/issues/05-branch-from-assistant-reply.md
+  s_f9fee1f1315815::t_a2d49326d08c1c 13,17-25,38-39
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_f9fee1f1315815::t_cc22fb7aa632b4 13,15-21,29-35,38-40,54,62-64,80
+  s_f9fee1f1315815::t_5a3e4310c51a42 36
+  s_f9fee1f1315815::t_cb0eb94a23e164 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "009804450e93f44eb538bea76ed30edd5f356973",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
