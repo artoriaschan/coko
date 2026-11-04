@@ -40,7 +40,7 @@ lifecycle: active
 
 成功结束且有最终助手正文的 Run 只在最后一条回复的最后一个文本块下显示一个[助手底栏](../../apps/desktop/src/renderer/features/conversation/assistant-footer.tsx)；阶段回复和生成中的回复不显示结束底栏，原独立费用行在此场景移除。复制会合并该条回复的原始 Markdown 文本块（块间保留空行），不含思考、工具或底栏；成功与失败沿用用户复制的反馈。底栏结束时间使用实际 `run_end.createdAt`，常显并复用完整日期、秒和键盘 Tooltip。最新底栏的复制与用量常显，历史底栏随消息 hover 或焦点显示；无 hover 时常显，详情通过 portal 打开期间保持操作可见，不替换原消息身份。
 
-用量按钮以紧凑格式展示本 Run 的已报告合计；明确全零显示 0 tokens，缺失显示未取得，部分统计标明“不完整”。点击打开共享 Popover，优先位于按钮上方并按视口避让；再点按钮、外点和 Escape 均可关闭并返回焦点。详情展示精确合计或已报告小计、未缓存输入／缓存读取／缓存写入／输出、已知 Provider 与模型列表；确有报告时显示 reasoning 输出子集。缓存命中率为缓存读取除以三种输入分桶之和，仅在完整且输入总量大于零时显示。不完整分桶的已知小计使用 ≥，未知项使用破折号，不生成伪精确比例。新底栏和详情不显示费用，标题栏累计费用、定价和预算保留。停止、失败及缺少最终正文的场景暂保留既有结束状态和用量输出。
+用量按钮以紧凑格式展示本 Run 的已报告合计；明确全零显示 0 tokens，缺失显示未取得，部分统计标明“不完整”。点击打开共享 Popover，优先位于按钮上方并按视口避让；再点按钮、外点和 Escape 均可关闭并返回焦点。详情只累计实际报告的分桶，展示精确合计或已报告小计、未缓存输入／缓存读取／缓存写入／输出、已知 Provider 与模型列表；依赖的未报告回退数值不作为已知下界。确有报告时显示 reasoning 输出子集。缓存命中率为缓存读取除以三种输入分桶之和，仅在完整且输入总量大于零时显示。不完整分桶的已知小计使用 ≥，未知项使用破折号，不生成伪精确比例。新底栏和详情不显示费用，标题栏累计费用、定价和预算保留。停止、失败及缺少最终正文的场景暂保留既有结束状态和用量输出。
 
 验证：[助手底栏 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/assistant-footer.browser.test.tsx)、[请求计量兼容 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx)、[真实 Electron 剪贴板、无 hover 与重载](../../apps/desktop/e2e/message-footers.e2e.test.ts)。
 

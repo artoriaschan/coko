@@ -89,6 +89,7 @@ function hookTrace(payload: Record<string, unknown>): HookTrace {
 
 interface RunState {
   trace: RunTrace
+  requests: Set<string>
   /** 已发出、还没有结果的调用。 */
   open: Map<string, ToolTrace>
 }
@@ -117,6 +118,7 @@ export function deriveTrace(entries: readonly TraceEntry[]): RunTrace[] {
           cost: 0,
         },
         open: new Map(),
+        requests: new Set(),
       })
       continue
     }
@@ -143,6 +145,9 @@ export function deriveTrace(entries: readonly TraceEntry[]): RunTrace[] {
       }
       case 'model_request': {
         const request = payload as unknown as ModelRequestPayload
+        const identity = request.requestId ?? `legacy:${entry.seq}`
+        if (run.requests.has(identity)) break
+        run.requests.add(identity)
         trace.requests.push(request)
         const u = request.usage
         trace.usage.input += num(u?.input)

@@ -13,10 +13,13 @@ function observer(api: string) {
   let cacheWrite1h: number | undefined
   let saw = false
   let finished = false
+  let invalid = false
+  let inputTotal: number | undefined
   const put = (key: Bucket, value: unknown) => {
     const n = count(value)
-    if (n === undefined) delete values[key]
-    else values[key] = n
+    if (n === undefined) {
+      if (value !== undefined) invalid = true
+    } else values[key] = n
   }
   const ingest = (raw: unknown) => {
     const event = object(raw)
@@ -67,18 +70,32 @@ function observer(api: string) {
           usage.prompt_cache_hit_tokens,
           usage.cached_tokens,
         ].some((value) => count(value) !== undefined)
-      )
+      ) {
+        invalid = true
+        finished = false
         return
+      }
       saw = true
-      const read = count(details.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cached_tokens ?? 0)
-      const write = count(details.cache_write_tokens ?? 0)
-      const input = count(responses ? usage.input_tokens : usage.prompt_tokens)
+      const rawRead = details.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cached_tokens
+      const rawWrite = details.cache_write_tokens
+      const read = rawRead === undefined ? (values.cacheRead ?? 0) : count(rawRead)
+      const write = rawWrite === undefined ? (values.cacheWrite ?? 0) : count(rawWrite)
+      const rawInput = responses ? usage.input_tokens : usage.prompt_tokens
+      const rawOutput = responses ? usage.output_tokens : usage.completion_tokens
+      const input = count(rawInput)
+      if (input !== undefined) inputTotal = input
+      if ((rawRead !== undefined && read === undefined) || (rawWrite !== undefined && write === undefined)) invalid = true
       put('cacheRead', read)
       put('cacheWrite', write)
-      put('input', input !== undefined && read !== undefined && write !== undefined && input >= read + write ? input - read - write : undefined)
-      put('output', responses ? usage.output_tokens : usage.completion_tokens)
-      reasoning = count(object(responses ? usage.output_tokens_details : usage.completion_tokens_details).reasoning_tokens)
-      finished = !responses || event.type === 'response.completed'
+      if (rawInput !== undefined && input === undefined) invalid = true
+      if (inputTotal !== undefined && read !== undefined && write !== undefined) {
+        if (inputTotal >= read + write) put('input', inputTotal - read - write)
+        else invalid = true
+      }
+      if (rawOutput !== undefined) put('output', rawOutput)
+      const reportedReasoning = object(responses ? usage.output_tokens_details : usage.completion_tokens_details).reasoning_tokens
+      if (reportedReasoning !== undefined) reasoning = count(reportedReasoning)
+      finished = (!responses || event.type === 'response.completed') && input !== undefined && count(rawOutput) !== undefined
     }
   }
   return {
@@ -86,7 +103,7 @@ function observer(api: string) {
     apply(message: AssistantMessage, model: Parameters<ProviderStreams['stream']>[0]) {
       const known = buckets.filter((key) => values[key] !== undefined)
       const report: UsageReport = {
-        complete: saw && finished && known.length === 4 && message.stopReason !== 'error' && message.stopReason !== 'aborted',
+        complete: saw && finished && !invalid && known.length === 4 && message.stopReason !== 'error' && message.stopReason !== 'aborted',
         known,
       }
       const usage: Usage & { report: UsageReport } = {

@@ -1,4 +1,4 @@
-// 逐请求记录：每次模型请求（含重试后的最终一次）的耗时、首个增量的时间与重试次数，提交为 model_request 条目。
+// 逐请求记录：每次实际模型请求尝试的耗时、首个增量的时间与此前失败的次数，提交为 model_request 条目。
 import { randomUUID } from 'node:crypto'
 import { Value } from 'typebox/value'
 import { USAGE_REPORT_SCHEMA } from '../session-entries/context.ts'
@@ -18,11 +18,11 @@ export interface RequestMeasurement {
 }
 
 export interface RequestMeter {
-  /** 包装请求流（在重试之外：耗时含重试的等待）。 */
+  /** 包装一次真实请求尝试（位于重试之内，不含退避等待）。 */
   wrap(inner: StreamFn): StreamFn
   /** 重试之前调用（withRetry 的 onRetry）：计入当前请求的 retries。 */
-  retried(): void
-  /** 取走最近结束的请求的测量；请求串行，取走后清空。 */
+  retried(attempt: number): void
+  /** 按结束顺序取走一次尝试；最后一次取走后为下一次逻辑调用重置重试序号。 */
   take(): RequestMeasurement | undefined
 }
 
@@ -30,15 +30,14 @@ const elapsedMs = (from: number) => Math.ceil(performance.now() - from)
 
 export function createRequestMeter(now: () => number = Date.now): RequestMeter {
   let retries = 0
-  let last: RequestMeasurement | undefined
+  const pending: RequestMeasurement[] = []
   return {
     wrap: (inner) => (model, context, options) => {
       const out = createAssistantMessageEventStream()
       const requestId = randomUUID()
       const startedAt = now()
       const started = performance.now()
-      retries = 0
-      last = undefined
+      let measured = false
       let ttftMs: number | undefined
       const measure = (final: AssistantMessage): RequestMeasurement => ({
         requestId,
@@ -50,26 +49,60 @@ export function createRequestMeter(now: () => number = Date.now): RequestMeter {
         final,
       })
       void (async () => {
-        const stream = await inner(model, context, options)
-        // 测量在终止事件转发之前记下：消费方（pi）在收到它之后才结束这一轮，取走时测量已经存在。
-        for await (const event of stream) {
-          if (ttftMs === undefined && (event.type === 'text_delta' || event.type === 'toolcall_delta')) ttftMs = elapsedMs(started)
-          if (event.type === 'done') last = measure(event.message)
-          if (event.type === 'error') last = measure(event.error)
-          out.push(event)
+        let partial: AssistantMessage | undefined
+        let final: AssistantMessage | undefined
+        try {
+          const stream = await inner(model, context, options)
+          // Queue before forwarding the terminal event: consumers can persist all attempts at message_end.
+          for await (const event of stream) {
+            if ('partial' in event) partial = event.partial
+            if (ttftMs === undefined && (event.type === 'text_delta' || event.type === 'toolcall_delta')) ttftMs = elapsedMs(started)
+            if (event.type === 'done' || event.type === 'error') {
+              final = event.type === 'done' ? event.message : event.error
+              pending.push(measure(final))
+              measured = true
+            }
+            out.push(event)
+          }
+          final = await stream.result()
+          if (!measured) pending.push(measure(final))
+        } catch {
+          if (!measured) {
+            final = {
+              ...(partial ?? {
+                role: 'assistant',
+                content: [],
+                api: model.api,
+                provider: model.provider,
+                model: model.id,
+                timestamp: now(),
+                usage: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  totalTokens: 0,
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+                },
+              }),
+              stopReason: options?.signal?.aborted ? 'aborted' : 'error',
+              errorMessage: 'Provider stream failed',
+            }
+            pending.push(measure(final))
+            out.push({ type: 'error', reason: final.stopReason as 'error' | 'aborted', error: final })
+          }
+        } finally {
+          out.end(final)
         }
-        const final = await stream.result()
-        last ??= measure(final)
-        out.end(final)
       })()
       return out
     },
-    retried: () => {
-      retries++
+    retried: (attempt) => {
+      retries = attempt
     },
     take: () => {
-      const taken = last
-      last = undefined
+      const taken = pending.shift()
+      if (pending.length === 0) retries = 0
       return taken
     },
   }
@@ -88,7 +121,9 @@ function errorCodeOf(final: AssistantMessage, model: Model<any>): string | undef
 export function modelRequestPayload(runId: string | null, purpose: ModelRequestPurpose, m: RequestMeasurement): ModelRequestPayload {
   const usage = m.final.usage
   const report = (usage as typeof usage & { report?: unknown })?.report
-  const usageReport = Value.Check(USAGE_REPORT_SCHEMA, report) ? report : { complete: false, known: [] }
+  const usageReport = Value.Check(USAGE_REPORT_SCHEMA, report)
+    ? { ...report, complete: report.complete && m.final.stopReason !== 'error' && m.final.stopReason !== 'aborted' }
+    : { complete: false, known: [] }
   const cost = usage?.cost?.total
   const errorCode = errorCodeOf(m.final, m.model)
   return {

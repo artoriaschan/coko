@@ -47,7 +47,7 @@ const isContentEvent = (event: AssistantMessageEvent) => event.type !== 'start' 
  * transcript and the client never see a discarded partial reply. The returned stream emits a single
  * `start` and the final attempt's events.
  */
-export function withRetry(inner: StreamFn, policy: RetryPolicy, onRetry?: (notice: RetryNotice) => void): StreamFn {
+export function withRetry(inner: StreamFn, policy: RetryPolicy, onRetry?: (notice: RetryNotice) => void | Promise<void>): StreamFn {
   return (model, context, options) => {
     const out = createAssistantMessageEventStream()
     const signal = options?.signal
@@ -92,7 +92,7 @@ export function withRetry(inner: StreamFn, policy: RetryPolicy, onRetry?: (notic
             { baseDelayMs: policy.baseDelayMs, ...(policy.maxDelayMs === undefined ? {} : { maxAgentDelayMs: policy.maxDelayMs }) },
             attempt + 1,
           )
-          onRetry?.({ attempt: attempt + 1, maxRetries: policy.maxRetries, delayMs, errorMessage: final.errorMessage ?? '' })
+          await onRetry?.({ attempt: attempt + 1, maxRetries: policy.maxRetries, delayMs, errorMessage: final.errorMessage ?? '' })
           if (!(await sleep(delayMs, signal))) {
             final = { ...final, stopReason: 'aborted', errorMessage: 'Request was aborted' }
             out.push({ type: 'error', reason: 'aborted', error: final })

@@ -75,9 +75,11 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 | --- | --- | --- |
 | `rounds` | 该 Goal 的 Goal Round 数（用户提交的 Run 不计） | `maxRounds`，缺省 50 |
 | `tool-calls` | 这些 Run 的 toolResult 数（被拒绝的调用照常计入；工具调用上限拦下的不计，按运行时写入的 `details.hostBlock` 识别，不看结果文本） | `maxToolCalls` |
-| `tokens` | assistant usage 的 input + output + cacheRead + cacheWrite，加 `compaction.usage`（摘要请求） | `maxTokens` |
-| `cost` | 同一组 usage 的 `cost.total`（不换算货币） | `maxCost` |
+| `tokens` | 带 requestId 的请求事实四分桶之和，按请求身份去重；该 Run 无新计量事实时回退到 assistant / compaction / handoff 的旧 usage | `maxTokens` |
+| `cost` | 同一组请求事实的 `cost`；旧记录回退到 usage.cost.total（不换算货币） | `maxCost` |
 | `time` | 各 Run `run_end.createdAt − run_start.createdAt` 之和（含审批等待，不含 Run 之间；进行中的 Run 计到此刻） | `maxDurationMs`（毫秒） |
+
+同一 Run 有带 `requestId` 的 `model_request` 时，它是 Token 与费用的唯一累计来源，助手消息、成功压缩和交接中的重复 usage 不再另加。失败重试及失败压缩的已知消耗同样计入；无报告不冒充实测零，也不主动估算未知费用。旧记录保持原口径，不补写历史。上下文环仍度量当前模型上下文，不使用累计请求消耗。
 
 已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。
 
@@ -86,7 +88,7 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 **检查点**（只对 running 的 Goal 与属于它的 Run）：
 
 - **Goal Round 开始前**（`GoalDriver.advance`）：五维；未定价检查。
-- **每次模型请求前**（`beforeRequest`）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。自动压缩与溢出恢复的摘要请求也是模型请求：压缩之前先检查一次，返回 stop 时不压缩；压缩之后（计入 `compaction.usage`）再检查一次。手动 `/compact` 的摘要请求同样先经这项检查：Goal 为 running 且已耗尽时不发摘要请求、不提交 `compaction`，compact 的 Run 照常转换 Goal 的阶段；Goal 不存在或不是 running 时照常压缩。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。
+- **每次模型请求前**（`beforeRequest`）：Token、费用、时间，设了 `maxCost` 而模型未定价时 `cost_unpriced`。自动压缩与溢出恢复的摘要请求也是模型请求：压缩之前先检查一次，返回 stop 时不压缩；压缩之后（计入请求事实，包括已报告的失败尝试）再检查一次。手动 `/compact` 的摘要请求同样先经这项检查：Goal 为 running 且已耗尽时不发摘要请求、不提交 `compaction`，compact 的 Run 照常转换 Goal 的阶段；Goal 不存在或不是 running 时照常压缩。返回 stop 时该次请求不发出，Run 以 `run_end { status: paused, error: { code: budget_exhausted | cost_unpriced, message } }` 结束。
 - **每次工具调用前**（权限判定之后、Checkpoint 备份之前的准入 hook `admissionHooks`；被拦下的调用不读文件、不写快照）：已提交的调用数加本 Run 已放行、结果尚未提交的调用数（同一批的调用先放行、后提交结果，检查按 Session 串行）达到 `maxToolCalls` 时该调用不执行，结果为错误 `Goal budget exhausted: tool calls (n / max)`，带运行时写入的结构化标记 `details.hostBlock { by: goal-budget, dimension }`（工具自身给出的同名字段被去掉，命令输出无法伪造），并要求 Run 本批完成后停止（`stopAfterBatch`）；同一批中先到的调用照常执行。
 
 耗尽的消息形如 `Goal budget exhausted: tokens (1050 / 1000)`（费用最多 6 位小数，时间带 `ms`）。Run 结束后 Goal 进入 budget-exhausted；恢复前须用 edit 使该维度有余量（`budget` 整体替换），否则 409 `invalid-transition`。
@@ -155,7 +157,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 展开状态、经 `/goal` 打开与关闭只在 renderer 内存中。`/goal`（无参数，独占整段输入）在 renderer 中直接展开 Goal 卡、不发送；没有 Goal 时显示空状态（如何用 `/goal <目标>` 建立），下一个 Run 开始或关闭后消失。Run 进行中的 `/goal pause`、`/goal cancel` 作为提交（Sidecar 的动作）发送，不作为追加指令；提交返回 204 时 renderer 不进入运行中、不报错。
 
-**时间线**。Goal 行采用对话区局部的 13px/20px 排版，长目标与原因完整换行，位于过程折叠外。Goal 仍只按 `goal` 快照显示阶段；Run 正常结束不会把目标标为 complete，预算、证据与控制仍由原有 dock 卡负责。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。成功且有最终助手正文的 Run 在正文下显示单一底栏，用量入口及详情不显示费用，交互与时间规则见[工作台消息底栏](workbench.md#对话消息与思考)。其他结束场景暂保留既有用量行。Token 合计为 input + output + cacheRead + cacheWrite。该 Run 存在带 `requestId` 的 `model_request` 时，以请求记录为唯一来源并按身份去重，不再重复累计助手消息和压缩载体；否则兼容汇总旧 assistant 与 compaction 的合法 usage，包括 reasoning/cacheWrite1h 扩展字段。reasoning 是输出子集，不另加。无法证明完整性的旧数据和缺少必要计数的新数据标为“不完整”，完全未取得计数显示“未取得用量”，明确完整报告的零仍显示 0 tokens。用量从当前渲染 Session 的真实条目与 Run ID 汇总；回退历史沿用同一口径，不读取别的活动会话。Agents / Team 子会话阅读器的成功回复复用同一底栏，只累计所渲染子 Session 的事实，不混入活动父会话。
+**时间线**。Goal 行采用对话区局部的 13px/20px 排版，长目标与原因完整换行，位于过程折叠外。Goal 仍只按 `goal` 快照显示阶段；Run 正常结束不会把目标标为 complete，预算、证据与控制仍由原有 dock 卡负责。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。成功且有最终助手正文的 Run 在正文下显示单一底栏，用量入口及详情不显示费用，交互与时间规则见[工作台消息底栏](workbench.md#对话消息与思考)。其他结束场景暂保留既有用量行。底栏 Token 合计为已报告的 input + output + cacheRead + cacheWrite，未报告的兼容数值不冒充已知消耗。该 Run 存在带 `requestId` 的 `model_request` 时，以请求记录为唯一来源并按身份去重，不再重复累计助手消息和压缩载体；否则兼容汇总旧 assistant 与 compaction 的合法 usage，包括 reasoning/cacheWrite1h 扩展字段。reasoning 是输出子集，不另加。无法证明完整性的旧数据和缺少必要计数的新数据标为“不完整”，完全未取得计数显示“未取得用量”，明确完整报告的零仍显示 0 tokens。用量从当前渲染 Session 的真实条目与 Run ID 汇总；回退历史沿用同一口径，不读取别的活动会话。Agents / Team 子会话阅读器的成功回复复用同一底栏，只累计所渲染子 Session 的事实，不混入活动父会话。
 
 **Session 费用**（会话标题栏）。按与 Run 相同的请求优先、旧记录兼容及身份去重规则汇总本 Session 的计量，另加 Run 外标题请求一次；分叉复制来的无 runId 消息不计，子 Session 自行归属；HoverCard 分项为输入、输出、缓存读取、缓存写入的 Token 与费用。会话没有用量时不显示。
 
@@ -175,7 +177,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 - `tests/integration/sidecar-goal.test.ts`：create_goal 之后 Goal Round 依次开始直到完整证据的 complete；轮次耗尽、POST 动作与 409；Goal Round 中的审批、停止为 waiting-input、用户提交后回到 running、追加指令授权 edit 与同一轮不重复；用户的 Run 中调用 wait_input 后不立即唤醒；Goal Round 中的计划审阅为 waiting-input（plan-review）；wait_jobs 后 Job 结束时下一轮开始；取消停止 Run 与 Job 并记 cleanup；取消进行中 resume 为 409；`/goal` 的动作；分叉与回退。
 - `apps/server/src/application/goal-driver.test.ts`：Goal Round 没能开始时按错误码为 blocked、waiting-input 或保持 running。
 - `packages/agent/src/engine/host-stop.test.ts`：`details.hostBlock` 只来自宿主 hook、`RunError.dimension` 不进入条目；`compaction.test.ts`：自动压缩、溢出恢复与手动压缩之前的请求前检查。
-- `packages/agent/src/goals/budget.test.ts`：五维派生（属于 Goal 的 Run、paused 期间不计、用户提交的 Run 不计轮次、compaction.usage、进行中的 Run、拦下的调用不计）、`children` 接口、耗尽的维度与消息、按完整用量判定恢复、`<goal>` 的用量行；`src/goals/dimensions.test.ts`：描述表的每一维（预算字段、用量字段、名称、格式）与判定、消息、`<goal>` 都取自它，`create_goal` 描述建议设 `max_cost`；`packages/agent/src/engine/compaction.test.ts`：compaction 带摘要请求的 usage、v1 读回为 v2；`packages/agent/src/models/models.test.ts`：价格写入 `model.cost`、已定价判定、负数拒绝。
+- `packages/agent/src/goals/budget.test.ts`：五维派生（请求事实优先与重放去重、旧记录与子 Session 兼容、属于 Goal 的 Run、paused 期间不计、用户提交的 Run 不计轮次、compaction.usage、进行中的 Run、拦下的调用不计）、`children` 接口、耗尽的维度与消息、按完整用量判定恢复、`<goal>` 的用量行；`src/goals/dimensions.test.ts`：描述表的每一维（预算字段、用量字段、名称、格式）与判定、消息、`<goal>` 都取自它，`create_goal` 描述建议设 `max_cost`；`packages/agent/src/engine/compaction.test.ts`：compaction 带摘要请求的 usage、v1 读回为 v2；`packages/agent/src/models/models.test.ts`：价格写入 `model.cost`、已定价判定、负数拒绝。
 - `tests/integration/sidecar-goal-budget.test.ts`：每一维单独设上限，耗尽为 budget-exhausted 且 reason 写明维度、工具调用上限时超出的调用不执行且文件逐字节不变、被拦下的 write 没有 `file_backup`、命令输出伪造拦下前缀时仍计为调用、调高后恢复直到完成；Goal running 且 Token 已耗尽时 `/compact` 不发摘要请求、没有 `compaction`，Goal 为 budget-exhausted（对手用例），Goal paused 时 `/compact` 照常；未定价模型设费用上限时 blocked 且 Goal 没有模型请求。
 - `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格得到 bad-request、没有价格的目录照常可用；`apps/server/src/control/channel.test.ts`：不合 schema、带 requestId 的控制请求立即得到失败回答。
 - `apps/desktop/src/renderer/features/settings/model-price.browser.test.tsx`：价格输入与校验、编辑回显与清空、费用货币。

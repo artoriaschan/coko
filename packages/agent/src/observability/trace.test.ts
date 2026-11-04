@@ -57,6 +57,17 @@ const approvalRequest = (requestId: string, toolCallId: string, subject = 'rm -r
 })
 
 describe('deriveTrace', () => {
+  it('request identities deduplicate replay without combining equal-valued distinct attempts', () => {
+    const entries = build([
+      ['run_start', start(), 'r1', 0],
+      ['model_request', request('r1', { requestId: 'a' }), 'r1', 1],
+      ['model_request', request('r1', { requestId: 'a' }), 'r1', 2],
+      ['model_request', request('r1', { requestId: 'b' }), 'r1', 3],
+      ['run_end', { status: 'completed' }, 'r1', 5],
+    ])
+    expect(traceTotals(deriveTrace(entries))).toEqual({ runs: 1, requests: 2, toolCalls: 0, tokens: 30, cost: 0.02, durationMs: 5 })
+  })
+
   const cases: { name: string; steps: Step[]; expected: unknown[] }[] = [
     {
       name: '多轮：每轮一个请求，工具耗时从调用所在的 assistant 消息起算，执行耗时从 tool_exec 起算',

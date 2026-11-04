@@ -421,13 +421,16 @@ describe('Agent 运行时：模型错误与重试', () => {
     }
   })
 
-  it('model_request：重试后成功记 retries，最终失败记 errorCode；失败的尝试不单独记录', async () => {
+  it('model_request：每次实际失败和重试均记录，序号为此前失败次数', async () => {
     const h = harness()
     h.faux.setResponses([unavailable(), fauxAssistantMessage('recovered')])
     await h.runtime.run('hi')
     const requests = () => h.entries.flatMap((e) => (e.kind === 'model_request' ? [e.payload] : []))
-    expect(requests()).toEqual([expect.objectContaining({ retries: 1, stopReason: 'stop', purpose: 'turn' })])
-    expect(requests()[0]!.errorCode).toBeUndefined()
+    expect(requests()).toEqual([
+      expect.objectContaining({ retries: 0, stopReason: 'error', purpose: 'turn' }),
+      expect.objectContaining({ retries: 1, stopReason: 'stop', purpose: 'turn' }),
+    ])
+    expect(requests()[1]!.errorCode).toBeUndefined()
 
     h.faux.setResponses([unavailable(), unavailable(), unavailable()])
     await h.runtime.run('again')
@@ -435,7 +438,7 @@ describe('Agent 运行时：模型错误与重试', () => {
     h.faux.setResponses([fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'Invalid API key' })])
     await h.runtime.run('third')
     expect(requests().at(-1)).toMatchObject({ retries: 0, stopReason: 'error', errorCode: 'model_error' })
-    expect(requests()).toHaveLength(3)
+    expect(requests()).toHaveLength(6)
   })
 
   it('不可重试的流错误立即转为 Run 错误条目', async () => {

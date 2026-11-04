@@ -15,7 +15,7 @@ export const modelRequestUsageSchema = Type.Object({ input: Count, output: Count
 export type ModelRequestUsage = Static<typeof modelRequestUsageSchema>
 
 /**
- * model_request v1：一次模型请求（含重试后的最终一次，retries 为之前失败的次数）。ttftMs 为第一个文本或工具调用增量到达的时间；
+ * model_request v1：一次实际模型请求尝试（retries 为同次逻辑调用中此前失败的次数）。ttftMs 为第一个文本或工具调用增量到达的时间；
  * cost 为该请求的费用合计（未定价时省略）；errorCode 只在请求以错误结束时有。
  */
 export const modelRequestPayloadSchema = Type.Object(

@@ -20,7 +20,7 @@ afterEach(async () => {
 
 type Step = ReturnType<typeof fauxAssistantMessage> | ((context: Context) => ReturnType<typeof fauxAssistantMessage>)
 
-/** 40k 窗口、4k 输出：阈值 23 000。保留最近 1000 tokens，使小用例也有可摘要的内容。 */
+/** 40k 窗口、4k 输出：阈值 32 000。保留最近 1000 tokens，使小用例也有可摘要的内容。 */
 function harness(options: { autoCompact?: boolean; context?: RuntimeContext } = {}) {
   const { faux, models, model } = createFauxModels({ models: [{ id: 'small', contextWindow: 40_000, maxTokens: 4_000 }] })
   const stored: EntryLike[] = []
@@ -62,7 +62,7 @@ describe('自动压缩', () => {
   it('越过阈值：提交 compaction { trigger: auto }，摘要请求没有工具且含节标题，下一次请求为合成摘要 + firstKeptSeq 及之后', async () => {
     const h = harness()
     h.reply(ok(), ok('SUMMARY BODY'), ok('done'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     const before = h.stored.length
     const result = await h.runtime.run(big(40_000, 'b'))
     expect(result.status).toBe('completed')
@@ -74,14 +74,14 @@ describe('自动压缩', () => {
     expect(compaction.trigger).toBe('auto')
     expect(compaction.firstKeptSeq).toBe(second[1]!.seq)
     expect(compaction.summary).toBe('SUMMARY BODY')
-    expect(compaction.tokensBefore).toBeGreaterThan(23_000)
+    expect(compaction.tokensBefore).toBeGreaterThan(32_000)
     expect(compaction.tokensAfter).toBeLessThan(compaction.tokensBefore)
 
     const summaryRequest = h.requests[1]!
     expect((summaryRequest.messages[0] as SystemMessage).toolsAdded).toBeUndefined()
     expect(summaryRequest.messages).toHaveLength(2)
     expect(text(summaryRequest.messages[1])).toContain('## User Messages')
-    expect(text(summaryRequest.messages[1])).toContain('[User]: ' + big(60_000, 'a'))
+    expect(text(summaryRequest.messages[1])).toContain('[User]: ' + big(100_000, 'a'))
 
     const next = h.requests[2]!.messages
     expect(next.map((m) => m.role)).toEqual(['system', 'user', 'user'])
@@ -93,7 +93,7 @@ describe('自动压缩', () => {
   it('compaction 带摘要请求的 usage（计入 Goal 预算）；v1 条目读回为 v2', async () => {
     const h = harness()
     h.reply(ok(), ok('SUMMARY BODY'), ok('done'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     await h.runtime.run(big(40_000, 'b'))
     const payload = h.stored.find((e) => e.kind === 'compaction')!.payload as { usage?: Record<string, unknown> }
     // faux 按字符估算摘要请求的 usage：输入为被摘要的内容（约 60 000 字符），输出为 "SUMMARY BODY"。
@@ -135,7 +135,7 @@ describe('自动压缩', () => {
   it('context.autoCompact 关闭时不压缩', async () => {
     const h = harness({ autoCompact: false })
     h.reply(ok(), ok('done'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     await h.runtime.run(big(40_000, 'b'))
     expect(h.stored.some((e) => e.kind === 'compaction')).toBe(false)
     expect(h.requests).toHaveLength(2)
@@ -169,7 +169,7 @@ describe('压缩前的请求前检查（Goal 预算）', () => {
     let stop = false
     const h = harness({ context: { beforeRequest: async () => (stop ? { stop: budget } : undefined) } })
     h.reply(ok(), ok('SUMMARY'), ok('done'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     stop = true
     const result = await h.runtime.run(big(40_000, 'b'))
     expect(result).toMatchObject({ status: 'paused', error: budget })
@@ -181,7 +181,7 @@ describe('压缩前的请求前检查（Goal 预算）', () => {
     let checks = 0
     const h = harness({ context: { beforeRequest: async () => (++checks === 3 ? { stop: budget } : undefined) } })
     h.reply(ok(), ok('SUMMARY'), ok('never'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     const result = await h.runtime.run(big(40_000, 'b'))
     expect(result).toMatchObject({ status: 'paused', error: budget })
     expect(h.stored.filter((e) => e.kind === 'compaction')).toHaveLength(1)
@@ -239,7 +239,7 @@ describe('熔断与手动压缩', () => {
     const h = harness()
     const fail = () => fauxAssistantMessage('partial', { stopReason: 'length' })
     h.reply(ok(), fail(), ok('r2'), fail(), ok('r3'), fail(), ok('r4'), ok('r5'), ok('MANUAL SUMMARY'))
-    await h.runtime.run(big(60_000, 'a'))
+    await h.runtime.run(big(100_000, 'a'))
     for (const input of [big(40_000, 'b'), 'c', 'd']) expect((await h.runtime.run(input)).status).toBe('completed')
     const failed = h.progress.filter((p): p is Extract<ProgressEvent, { type: 'compaction_failed' }> => p.type === 'compaction_failed')
     expect(failed.map((p) => [p.trigger, p.consecutiveFailures])).toEqual([

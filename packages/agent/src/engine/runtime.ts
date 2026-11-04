@@ -141,25 +141,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const context = options.context
   // 对话请求与摘要请求共用：同样的重试策略与 retry 进度；每次请求（含重试）由 meter 测量，结束后提交 model_request。
   const meter = createRequestMeter()
-  const stream = meter.wrap(
+  const streamFor = (purpose: ModelRequestPurpose) =>
     withRetry(
-      (model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions),
+      meter.wrap((model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions)),
       retryPolicy,
-      (notice) => {
-        meter.retried()
+      async (notice) => {
+        // Persist a finished failed attempt before waiting: a restart during backoff must not erase it.
+        if (current) await recordRequest(current, purpose)
+        meter.retried(notice.attempt)
         if (current) progress({ type: 'retry', runId: current.runId, ...notice })
       },
-    ),
-  )
-  /** 提交最近结束的请求的 model_request（没有发出请求时什么都不做）；提交失败时停止本 Run。 */
+    )
+  const stream = streamFor('turn')
+  const summaryStream = streamFor('summary')
+  /** 提交已结束尝试的 model_request（没有发出请求时什么都不做）；提交失败时停止本 Run。 */
   const recordRequest = async (run: { runId: string; commitError?: Error }, purpose: ModelRequestPurpose) => {
-    const measured = meter.take()
-    if (!measured || run.commitError) return
-    try {
-      await commit({ kind: 'model_request', runId: run.runId, payload: modelRequestPayload(run.runId, purpose, measured) })
-    } catch (error) {
-      run.commitError ??= error instanceof Error ? error : new Error(String(error))
-      agent.abort()
+    for (let measured = meter.take(); measured; measured = meter.take()) {
+      if (run.commitError) continue
+      try {
+        await commit({ kind: 'model_request', runId: run.runId, payload: modelRequestPayload(run.runId, purpose, measured) })
+      } catch (error) {
+        run.commitError ??= error instanceof Error ? error : new Error(String(error))
+        agent.abort()
+      }
     }
   }
 
@@ -171,7 +175,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       tools: effectiveTools(),
       messages: options.messages ?? [],
     },
-    streamFn: (model, request, streamOptions) => stream(model, request, streamOptions),
+    streamFn: (model, request, streamOptions) => (current?.summary ? summaryStream : stream)(model, request, streamOptions),
     identity: { attribution: null },
     ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     beforeToolCall: async (context, signal) => {
@@ -326,7 +330,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const driver: CompactionDriver | undefined = options.compaction
     ? createCompactionDriver({
         compaction: options.compaction,
-        stream,
+        stream: streamFor('compaction'),
         commit,
         recordRequest: (run) => recordRequest(run, 'compaction'),
         progress,

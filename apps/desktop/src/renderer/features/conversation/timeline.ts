@@ -330,6 +330,10 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
         return
       }
+      if (entry.kind === 'model_request') {
+        if (entry.runId && entry.payload.purpose !== 'title') usageRuns.add(entry.runId)
+        return
+      }
       if (entry.kind === 'run_end') {
         const payload = entry.payload
         // 未结束的工具在 Run 结束后不会再有结果。
