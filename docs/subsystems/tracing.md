@@ -21,7 +21,9 @@ lifecycle: active
 
 ## 逐请求记录
 
-运行时在每次模型请求结束时提交一条 `model_request`（v1，与 assistant 消息同一提交链，错误结束的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（含重试之间的等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（之前失败的次数）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
+运行时在每次模型请求结束时提交一条 `model_request`（v1，与 assistant 消息同一提交链，错误结束的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（含重试之间的等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（之前失败的次数）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
+
+同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
 
 标题请求在 Run 之外，信封与 payload 的 `runId` 均为 `null`，不创建虚构的 Run，也不提交 assistant / user 消息。其失败与超时同样记录；超时 `errorCode` 为 `timeout`。日志为 `title request finished { durationMs, usage, outcome }`，不包含标题、用户文字或模型错误原文。实现见[标题服务](../../apps/server/src/application/session-titles.ts)。
 
@@ -104,3 +106,5 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 - `tests/integration/secrets-gate-trace.test.ts`：trace、audit、export 与 requestLog 中没有登记 Secret 的明文（含用户输入的）。
 - `apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx` 与 `apps/desktop/e2e/trace.e2e.test.ts`：列表、键盘展开、自动更新与同帧合并、导出（E2E 中由 main 的 `will-download` 保存文件）、明暗主题对比度与 390 px。
 - `tests/evals/judge.test.ts` 与 `tests/evals/evals.test.ts`。
+
+正常请求计量与三协议持久化回归见 [Sidecar 请求用量测试](../../tests/integration/sidecar-request-usage.test.ts)，覆盖四分桶、reasoning、Anthropic 1h 缓存写入、零/未知/部分报告及重启读回；仅替换远程模型服务，不表示已验证真实 Provider。

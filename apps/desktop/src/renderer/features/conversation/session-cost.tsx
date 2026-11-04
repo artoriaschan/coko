@@ -9,7 +9,7 @@ import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
 import type { HeaderActionProps } from './header-actions.ts'
 
-// 用量与费用（docs/subsystems/goal.md#界面）：从会话条目汇总 assistant 消息与 compaction 的 usage。只计本 Session 提交的条目（带 runId）：
+// 用量与费用（docs/subsystems/goal.md#界面）：优先累计请求事实，兼容旧 assistant / compaction usage。只计本 Session 的请求：
 // 分叉复制来的消息去掉了 runId，其费用属于原 Session。费用不换算货币，符号取设置 usage.currency。
 
 export interface UsageTotals {
@@ -18,7 +18,14 @@ export interface UsageTotals {
   cacheRead: number
   cacheWrite: number
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number }
-  /** 带 usage 的回复中来自已定价 / 未定价模型的条数（compaction 不计）。 */
+  /** 所有请求的必要分桶都完整报告。旧记录无法证明。 */
+  complete: boolean
+  hasUsage: boolean
+  known: ('input' | 'output' | 'cacheRead' | 'cacheWrite')[]
+  requests: number
+  models: { provider: string; model: string }[]
+  reasoning?: number
+  /** 带归属的已定价 / 未定价请求或旧回复数量。 */
   priced: number
   unpriced: number
 }
@@ -29,6 +36,11 @@ const EMPTY_TOTALS: UsageTotals = {
   cacheRead: 0,
   cacheWrite: 0,
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  complete: true,
+  hasUsage: false,
+  known: ['input', 'output', 'cacheRead', 'cacheWrite'],
+  requests: 0,
+  models: [],
   priced: 0,
   unpriced: 0,
 }
@@ -49,28 +61,53 @@ const usageOf = (value: unknown): RequestUsage | undefined => (Value.Check(Reque
 
 /** 汇总带 runId 的条目的 usage；runId 给出时只汇总该 Run。 */
 export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup, runId?: string): UsageTotals {
-  const totals = { ...EMPTY_TOTALS, cost: { ...EMPTY_TOTALS.cost } }
+  const totals: UsageTotals = { ...EMPTY_TOTALS, cost: { ...EMPTY_TOTALS.cost }, known: [...EMPTY_TOTALS.known], models: [] }
+  const canonicalRuns = new Set(
+    entries.filter((entry) => entry.kind === 'model_request' && entry.payload.requestId && entry.runId !== null).map((entry) => entry.runId),
+  )
+  const seenEntries = new Set<string>()
+  const seenRequests = new Set<string>()
+  const provenance = (provider: string | undefined, model: string | undefined, cost: number) => {
+    if (priced(provider, model, cost)) totals.priced++
+    else totals.unpriced++
+    if (provider && model && !totals.models.some((item) => item.provider === provider && item.model === model)) totals.models.push({ provider, model })
+  }
   const add = (usage: RequestUsage) => {
+    totals.requests++
+    totals.complete = false // Legacy fields cannot prove provider reporting completeness.
+    totals.hasUsage = true
     totals.input += usage.input
     totals.output += usage.output
     totals.cacheRead += usage.cacheRead
     totals.cacheWrite += usage.cacheWrite
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'] as const) totals.cost[key] += usage.cost[key]
+    if (usage.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + usage.reasoning
   }
   for (const entry of entries) {
-    if (entry.kind === 'model_request' && entry.payload.purpose === 'title') {
-      if (runId !== undefined) continue
+    const identity = `${entry.sessionId}:${entry.seq}`
+    if (seenEntries.has(identity)) continue
+    seenEntries.add(identity)
+    if (entry.kind === 'model_request' && (entry.payload.purpose === 'title' || (entry.runId !== null && canonicalRuns.has(entry.runId)))) {
+      if (entry.payload.purpose === 'title' ? runId !== undefined : runId !== undefined && entry.runId !== runId) continue
       const request = entry.payload
+      if (request.requestId && seenRequests.has(request.requestId)) continue
+      if (request.requestId) seenRequests.add(request.requestId)
+      totals.requests++
+      const report = request.usageReport
+      totals.complete &&= report?.complete === true
+      totals.hasUsage ||= report ? report.known.length > 0 : true
+      totals.known = totals.known.filter((key) => report?.known.includes(key))
       totals.input += request.usage.input
       totals.output += request.usage.output
       totals.cacheRead += request.usage.cacheRead
       totals.cacheWrite += request.usage.cacheWrite
       totals.cost.total += request.cost ?? 0
-      if (priced(request.provider, request.model, request.cost ?? 0)) totals.priced++
-      else totals.unpriced++
+      if (request.costBreakdown) for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.cost[key] += request.costBreakdown[key]
+      if (request.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + request.reasoning
+      provenance(request.provider, request.model, request.cost ?? 0)
       continue
     }
-    if (entry.runId === null || (runId !== undefined && entry.runId !== runId)) continue
+    if (entry.runId === null || canonicalRuns.has(entry.runId) || (runId !== undefined && entry.runId !== runId)) continue
     if (entry.kind === 'compaction') {
       if (entry.payload.usage) add(entry.payload.usage)
       continue
@@ -80,14 +117,17 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
     const usage = usageOf(message.usage)
     if (!usage) continue
     add(usage)
-    const isPriced = priced(
+    provenance(
       typeof message.provider === 'string' ? message.provider : undefined,
       typeof message.model === 'string' ? message.model : undefined,
       usage.cost.total,
     )
-    if (isPriced) totals.priced++
-    else totals.unpriced++
   }
+  if (totals.requests === 0) {
+    totals.complete = false
+    totals.known = []
+  }
+
   return totals
 }
 

@@ -36,6 +36,18 @@ const compactionFields = {
 const compactionV1Schema = Type.Object(compactionFields, strict)
 
 const Amount = Type.Number({ minimum: 0 })
+/** Raw provider reporting completeness; absent on legacy records. */
+export const USAGE_REPORT_SCHEMA = Type.Object(
+  {
+    complete: Type.Boolean(),
+    known: Type.Array(Type.Union([Type.Literal('input'), Type.Literal('output'), Type.Literal('cacheRead'), Type.Literal('cacheWrite')]), {
+      uniqueItems: true,
+    }),
+  },
+  strict,
+)
+export type UsageReport = Static<typeof USAGE_REPORT_SCHEMA>
+
 /** 一次模型请求的 usage（pi-ai Usage 的 token 与费用部分）。 */
 export const requestUsageSchema = Type.Object(
   {
@@ -44,6 +56,9 @@ export const requestUsageSchema = Type.Object(
     cacheRead: Amount,
     cacheWrite: Amount,
     totalTokens: Amount,
+    reasoning: Type.Optional(Amount),
+    cacheWrite1h: Type.Optional(Amount),
+    report: Type.Optional(USAGE_REPORT_SCHEMA),
     cost: Type.Object({ input: Amount, output: Amount, cacheRead: Amount, cacheWrite: Amount, total: Amount }, strict),
   },
   strict,

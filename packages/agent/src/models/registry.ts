@@ -13,6 +13,7 @@ import {
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import { withUsageReports } from './usage-report.ts'
 import { isHttpUrl } from './base-url.ts'
 
 /** Wire protocols Coko supports; each Provider stores one of them. */
@@ -159,7 +160,7 @@ function buildProvider(config: ProviderConfig) {
     ...(config.headers ? { headers: config.headers } : {}),
     auth: { apiKey: storedApiKeyAuth(name) },
     models: config.models.map((spec) => buildModel(config, spec)),
-    api: Object.fromEntries(Object.entries(PROTOCOL_STREAMS).map(([protocol, streams]) => [protocol, streams()])),
+    api: Object.fromEntries(Object.entries(PROTOCOL_STREAMS).map(([protocol, streams]) => [protocol, withUsageReports(streams())])),
   })
 }
 

@@ -241,3 +241,44 @@ describe('模型适配：CredentialStore 与请求', () => {
     expect(requests).toHaveLength(0)
   })
 })
+
+it('真实 Chat SSE 保留缓存、reasoning 与报告完整性；缺失 usage 不冒充实测零', async () => {
+  let report = true
+  const { baseUrl } = await startServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    const usage = report
+      ? `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120, prompt_tokens_details: { cached_tokens: 30 }, completion_tokens_details: { reasoning_tokens: 7 } } })}\n\n`
+      : ''
+    res.end(chatCompletionSse('hello').replace('data: [DONE]\n\n', usage + 'data: [DONE]\n\n'))
+  })
+  const credentials = new InMemoryCredentialStore()
+  await credentials.modify('p', async () => ({ type: 'api_key', key: 'test' }))
+  const registry = createModelRegistry({ credentials, providers: [provider({ id: 'p', baseUrl: `${baseUrl}/v1`, models: [spec('m')] })] })
+  const request = () => registry.models.completeSimple(resolveModel(registry, 'p', 'm'), { messages: [{ role: 'user', content: 'hi', timestamp: 1 }] })
+  const message = await request()
+  expect(message.usage).toMatchObject({
+    input: 70,
+    cacheRead: 30,
+    cacheWrite: 0,
+    output: 20,
+    totalTokens: 120,
+    reasoning: 7,
+    report: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+  })
+  report = false
+  expect((await request()).usage).toMatchObject({ report: { complete: false, known: [] } })
+})
+
+it('invalid input counters remain unknown while valid output survives; invalid reasoning is not exposed', async () => {
+  const { baseUrl } = await startServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    const usage = `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: -1, completion_tokens: 9, completion_tokens_details: { reasoning_tokens: 11 } } })}\n\n`
+    res.end(chatCompletionSse('hello').replace('data: [DONE]\n\n', usage + 'data: [DONE]\n\n'))
+  })
+  const credentials = new InMemoryCredentialStore()
+  await credentials.modify('p', async () => ({ type: 'api_key', key: 'test' }))
+  const registry = createModelRegistry({ credentials, providers: [provider({ id: 'p', baseUrl: `${baseUrl}/v1`, models: [spec('m')] })] })
+  const message = await registry.models.completeSimple(resolveModel(registry, 'p', 'm'), { messages: [{ role: 'user', content: 'hi', timestamp: 1 }] })
+  expect(message.usage).toMatchObject({ output: 9, totalTokens: 9, report: { complete: false, known: ['output', 'cacheRead', 'cacheWrite'] } })
+  expect(message.usage).not.toHaveProperty('reasoning')
+})

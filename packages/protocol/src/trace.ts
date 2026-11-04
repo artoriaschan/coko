@@ -1,3 +1,4 @@
+import { USAGE_REPORT_SCHEMA, RequestUsage } from './context-entries.ts'
 import { Type, type Static, type TSchema } from 'typebox'
 
 // 观测：model_request 条目 payload 与 GET /api/sessions/:id/{trace,audit,export} 的 DTO。model_request 与 @coko/agent 的
@@ -22,8 +23,12 @@ export const ModelRequestPayload = Type.Object(
     startedAt: Count,
     durationMs: Count,
     ttftMs: Type.Optional(Count),
+    requestId: Type.Optional(Id),
+    usageReport: Type.Optional(USAGE_REPORT_SCHEMA),
+    reasoning: Type.Optional(Count),
     usage: ModelRequestUsage,
     cost: Type.Optional(Type.Number({ minimum: 0 })),
+    costBreakdown: Type.Optional(RequestUsage.properties.cost),
     stopReason: Type.String(),
     retries: Count,
     errorCode: Type.Optional(Type.String()),

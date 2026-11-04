@@ -6,7 +6,7 @@ import type { TimelineItem } from './timeline.ts'
 
 import { useTimelineSession } from './timeline-session.tsx'
 
-/** Run 结束后的用量行：该 Run 的 Token 合计（assistant 与 compaction 的 usage）与费用，未定价模型显示"未定价"而不是 0。 */
+/** Run 结束后的用量行：该 Run 的请求 Token 合计（兼容旧记录）与费用，缺失/部分计量明确标记，未定价模型显示"未定价"而不是 0。 */
 export function RunUsageRow({ item }: { item: Extract<TimelineItem, { kind: 'run-usage' }> }) {
   const { t, locale } = useI18n()
   const { entries } = useTimelineSession()
@@ -25,7 +25,8 @@ export function RunUsageRow({ item }: { item: Extract<TimelineItem, { kind: 'run
       className="flex min-w-0 flex-wrap items-center gap-x-1.5 conversation-business-row text-muted-foreground tabular-nums"
     >
       <GaugeIcon aria-hidden className="size-3.5 shrink-0" />
-      <span>{t('usage.tokens', { count: formatCount(locale, tokens) })}</span>
+      <span>{totals.hasUsage ? t('usage.tokens', { count: formatCount(locale, tokens) }) : t('usage.unavailable')}</span>
+      {!totals.complete && <span>{t('usage.incomplete')}</span>}
       <span aria-hidden>·</span>
       <span data-run-cost>{costText(t, locale, currency, totals)}</span>
     </p>

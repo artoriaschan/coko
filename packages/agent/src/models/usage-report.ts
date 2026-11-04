@@ -1,0 +1,164 @@
+import { calculateCost, createAssistantMessageEventStream, type AssistantMessage, type ProviderStreams, type Usage } from '@earendil-works/pi-ai'
+import type { UsageReport } from '../session-entries/context.ts'
+
+const buckets = ['input', 'output', 'cacheRead', 'cacheWrite'] as const
+type Bucket = (typeof buckets)[number]
+const object = (v: unknown): Record<string, unknown> => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+const count = (v: unknown): number | undefined => (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : undefined)
+
+/** Observe only metering fields, before pi-ai fills absent fields with zero. No body is retained. */
+function observer(api: string) {
+  const values: Partial<Record<Bucket, number>> = {}
+  let reasoning: number | undefined
+  let cacheWrite1h: number | undefined
+  let saw = false
+  let finished = false
+  const put = (key: Bucket, value: unknown) => {
+    const n = count(value)
+    if (n === undefined) delete values[key]
+    else values[key] = n
+  }
+  const ingest = (raw: unknown) => {
+    const event = object(raw)
+    if (api === 'anthropic-messages') {
+      const usage = object(event.type === 'message_start' ? object(event.message).usage : event.usage)
+      if (event.type !== 'message_start' && event.type !== 'message_delta') return
+      if (event.type === 'message_start') {
+        if (
+          ![usage.input_tokens, usage.output_tokens, usage.cache_read_input_tokens, usage.cache_creation_input_tokens].some(
+            (value) => count(value) !== undefined,
+          )
+        )
+          return
+        saw = true
+        put('input', usage.input_tokens)
+        put('cacheRead', usage.cache_read_input_tokens === undefined ? 0 : usage.cache_read_input_tokens)
+        put('cacheWrite', usage.cache_creation_input_tokens === undefined ? 0 : usage.cache_creation_input_tokens)
+      }
+      if (event.type === 'message_delta') {
+        for (const [key, field] of [
+          ['input', 'input_tokens'],
+          ['cacheRead', 'cache_read_input_tokens'],
+          ['cacheWrite', 'cache_creation_input_tokens'],
+        ] as const) {
+          if (usage[field] !== undefined) put(key, usage[field])
+        }
+        finished = object(event.delta).stop_reason != null && count(usage.output_tokens) !== undefined
+      }
+      if (usage.output_tokens !== undefined) put('output', usage.output_tokens)
+      const thinking = object(usage.output_tokens_details).thinking_tokens
+      if (thinking !== undefined) reasoning = count(thinking)
+      const ttl = object(usage.cache_creation).ephemeral_1h_input_tokens
+      if (ttl !== undefined) cacheWrite1h = count(ttl)
+    } else {
+      const response = object(event.response)
+      const choice = object(Array.isArray(event.choices) ? event.choices[0] : undefined)
+      const rawUsage = api === 'openai-responses' ? response.usage : (event.usage ?? choice.usage)
+      if (rawUsage === undefined || rawUsage === null) return
+      const usage = object(rawUsage)
+      const responses = api === 'openai-responses'
+      const details = object(responses ? usage.input_tokens_details : usage.prompt_tokens_details)
+      if (
+        ![
+          responses ? usage.input_tokens : usage.prompt_tokens,
+          responses ? usage.output_tokens : usage.completion_tokens,
+          details.cached_tokens,
+          details.cache_write_tokens,
+          usage.prompt_cache_hit_tokens,
+          usage.cached_tokens,
+        ].some((value) => count(value) !== undefined)
+      )
+        return
+      saw = true
+      const read = count(details.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cached_tokens ?? 0)
+      const write = count(details.cache_write_tokens ?? 0)
+      const input = count(responses ? usage.input_tokens : usage.prompt_tokens)
+      put('cacheRead', read)
+      put('cacheWrite', write)
+      put('input', input !== undefined && read !== undefined && write !== undefined && input >= read + write ? input - read - write : undefined)
+      put('output', responses ? usage.output_tokens : usage.completion_tokens)
+      reasoning = count(object(responses ? usage.output_tokens_details : usage.completion_tokens_details).reasoning_tokens)
+      finished = !responses || event.type === 'response.completed'
+    }
+  }
+  return {
+    ingest,
+    apply(message: AssistantMessage, model: Parameters<ProviderStreams['stream']>[0]) {
+      const known = buckets.filter((key) => values[key] !== undefined)
+      const report: UsageReport = {
+        complete: saw && finished && known.length === 4 && message.stopReason !== 'error' && message.stopReason !== 'aborted',
+        known,
+      }
+      const usage: Usage & { report: UsageReport } = {
+        ...message.usage,
+        ...Object.fromEntries(buckets.map((key) => [key, values[key] ?? 0])),
+        totalTokens: buckets.reduce((sum, key) => sum + (values[key] ?? 0), 0),
+        ...(reasoning === undefined ? {} : { reasoning }),
+        report,
+      }
+      // Do not retain a dependency's synthesized optional zero as a reported field.
+      if (reasoning === undefined || values.output === undefined || reasoning > values.output) delete usage.reasoning
+      if (cacheWrite1h === undefined || values.cacheWrite === undefined || cacheWrite1h > values.cacheWrite) delete usage.cacheWrite1h
+      else usage.cacheWrite1h = cacheWrite1h
+      // Preserve adapter pricing (service tier or a permitted fallback) when its normalized counters agree.
+      if (
+        buckets.some((key) => usage[key] !== message.usage[key]) ||
+        usage.cacheWrite1h !== message.usage.cacheWrite1h ||
+        Object.values(usage.cost).some((value) => !Number.isFinite(value) || value < 0)
+      )
+        calculateCost(model, usage)
+      message.usage = usage
+    },
+  }
+}
+
+/** Configured HTTP protocols preserve presence at their actual transport boundary. */
+export function withUsageReports(streams: ProviderStreams): ProviderStreams {
+  const wrap =
+    (inner: ProviderStreams['stream']): ProviderStreams['stream'] =>
+    (model, context, options) => {
+      const meter = observer(model.api)
+      const out = createAssistantMessageEventStream()
+      void (async () => {
+        let partial: AssistantMessage | undefined
+        try {
+          const stream = inner(model, context, {
+            ...options,
+            onProviderStreamEvent: async (event, responseModel) => {
+              meter.ingest(event)
+              await options?.onProviderStreamEvent?.(event, responseModel)
+            },
+          })
+          for await (const event of stream) {
+            if ('partial' in event) partial = event.partial
+            if (event.type === 'done') meter.apply(event.message, model)
+            if (event.type === 'error') meter.apply(event.error, model)
+            out.push(event)
+          }
+          const final = await stream.result()
+          meter.apply(final, model)
+          out.end(final)
+        } catch {
+          // ProviderStreams normally emits errors; also settle a throwing extension without leaking its payload.
+          const final: AssistantMessage = {
+            ...(partial ?? {
+              role: 'assistant',
+              content: [],
+              api: model.api,
+              provider: model.provider,
+              model: model.id,
+              timestamp: Date.now(),
+              usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+            }),
+            stopReason: options?.signal?.aborted ? 'aborted' : 'error',
+            errorMessage: 'Provider stream failed',
+          }
+          meter.apply(final, model)
+          out.push({ type: 'error', reason: final.stopReason as 'error' | 'aborted', error: final })
+          out.end(final)
+        }
+      })()
+      return out
+    }
+  return { ...streams, stream: wrap(streams.stream), streamSimple: wrap(streams.streamSimple) }
+}

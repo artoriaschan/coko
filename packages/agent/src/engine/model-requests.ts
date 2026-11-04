@@ -1,10 +1,14 @@
 // 逐请求记录：每次模型请求（含重试后的最终一次）的耗时、首个增量的时间与重试次数，提交为 model_request 条目。
+import { randomUUID } from 'node:crypto'
+import { Value } from 'typebox/value'
+import { USAGE_REPORT_SCHEMA } from '../session-entries/context.ts'
 import type { StreamFn } from '@earendil-works/pi-agent-core'
 import { createAssistantMessageEventStream, isContextOverflow, type AssistantMessage, type Model } from '@earendil-works/pi-ai'
 import type { ModelRequestPayload, ModelRequestPurpose } from '../session-entries/index.ts'
 
 /** 一次已结束的请求的测量（尚不知用途与 runId）。 */
 export interface RequestMeasurement {
+  requestId: string
   model: Model<any>
   startedAt: number
   durationMs: number
@@ -30,12 +34,14 @@ export function createRequestMeter(now: () => number = Date.now): RequestMeter {
   return {
     wrap: (inner) => (model, context, options) => {
       const out = createAssistantMessageEventStream()
+      const requestId = randomUUID()
       const startedAt = now()
       const started = performance.now()
       retries = 0
       last = undefined
       let ttftMs: number | undefined
       const measure = (final: AssistantMessage): RequestMeasurement => ({
+        requestId,
         model,
         startedAt,
         durationMs: elapsedMs(started),
@@ -81,10 +87,15 @@ function errorCodeOf(final: AssistantMessage, model: Model<any>): string | undef
 /** model_request 的 payload：usage 与该请求的 assistant 消息一致。 */
 export function modelRequestPayload(runId: string | null, purpose: ModelRequestPurpose, m: RequestMeasurement): ModelRequestPayload {
   const usage = m.final.usage
+  const report = (usage as typeof usage & { report?: unknown })?.report
+  const usageReport = Value.Check(USAGE_REPORT_SCHEMA, report) ? report : { complete: false, known: [] }
   const cost = usage?.cost?.total
   const errorCode = errorCodeOf(m.final, m.model)
   return {
     runId,
+    requestId: m.requestId,
+    usageReport,
+    ...(typeof usage?.reasoning === 'number' ? { reasoning: count(usage.reasoning) } : {}),
     provider: m.final.provider ?? m.model.provider,
     model: m.final.model ?? m.model.id,
     startedAt: m.startedAt,
@@ -97,7 +108,7 @@ export function modelRequestPayload(runId: string | null, purpose: ModelRequestP
       cacheWrite: count(usage?.cacheWrite),
       total: count(usage?.totalTokens),
     },
-    ...(typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? { cost } : {}),
+    ...(typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? { cost, costBreakdown: usage.cost } : {}),
     stopReason: m.final.stopReason,
     retries: m.retries,
     ...(errorCode ? { errorCode } : {}),

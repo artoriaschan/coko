@@ -19,6 +19,18 @@ export const CompactionTrigger = Type.Union([Type.Literal('auto'), Type.Literal(
 export type CompactionTrigger = Static<typeof CompactionTrigger>
 
 const Amount = Type.Number({ minimum: 0 })
+/** Raw provider reporting completeness; absent on legacy records. */
+export const USAGE_REPORT_SCHEMA = Type.Object(
+  {
+    complete: Type.Boolean(),
+    known: Type.Array(Type.Union([Type.Literal('input'), Type.Literal('output'), Type.Literal('cacheRead'), Type.Literal('cacheWrite')]), {
+      uniqueItems: true,
+    }),
+  },
+  strict,
+)
+export type UsageReport = Static<typeof USAGE_REPORT_SCHEMA>
+
 /** 一次模型请求的 usage：token 数与按模型价格计算的费用（未定价模型为 0）。 */
 export const RequestUsage = Type.Object(
   {
@@ -27,6 +39,9 @@ export const RequestUsage = Type.Object(
     cacheRead: Amount,
     cacheWrite: Amount,
     totalTokens: Amount,
+    reasoning: Type.Optional(Amount),
+    cacheWrite1h: Type.Optional(Amount),
+    report: Type.Optional(USAGE_REPORT_SCHEMA),
     cost: Type.Object({ input: Amount, output: Amount, cacheRead: Amount, cacheWrite: Amount, total: Amount }, strict),
   },
   strict,

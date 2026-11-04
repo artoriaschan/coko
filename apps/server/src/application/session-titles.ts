@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { modelRequestPayload, parseFileReferences, type ModelRegistry } from '@coko/agent'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
@@ -107,7 +108,7 @@ export class SessionTitles {
       stopReason: signal.aborted ? 'aborted' : 'error',
       timestamp: clock.now(),
     }
-    const payload = modelRequestPayload(null, 'title', { model, startedAt, durationMs, retries: 0, final: final ?? fallback })
+    const payload = modelRequestPayload(null, 'title', { requestId: randomUUID(), model, startedAt, durationMs, retries: 0, final: final ?? fallback })
     if (timedOut) payload.errorCode = 'timeout'
     const raw =
       final?.content

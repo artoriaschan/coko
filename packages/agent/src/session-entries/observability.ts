@@ -1,3 +1,4 @@
+import { USAGE_REPORT_SCHEMA, requestUsageSchema } from './context.ts'
 // 逐请求记录：每次模型请求结束时运行时提交的 model_request（与 @coko/protocol 的 trace.ts 一致）。
 import { Type, type Static } from 'typebox'
 import { definePayloads } from './define.ts'
@@ -25,8 +26,12 @@ export const modelRequestPayloadSchema = Type.Object(
     startedAt: Count,
     durationMs: Count,
     ttftMs: Type.Optional(Count),
+    requestId: Type.Optional(Id),
+    usageReport: Type.Optional(USAGE_REPORT_SCHEMA),
+    reasoning: Type.Optional(Count),
     usage: modelRequestUsageSchema,
     cost: Type.Optional(Type.Number({ minimum: 0 })),
+    costBreakdown: Type.Optional(requestUsageSchema.properties.cost),
     stopReason: Type.String(),
     retries: Count,
     errorCode: Type.Optional(Type.String()),

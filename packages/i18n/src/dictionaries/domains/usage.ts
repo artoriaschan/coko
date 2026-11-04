@@ -9,6 +9,8 @@ export const usage = defineDomain(
     partlyUnpriced: '{cost}（部分未定价）',
     tokens: '{count} tokens',
     runRow: '本次运行用量',
+    unavailable: '未取得用量',
+    incomplete: '不完整',
     session: {
       label: '会话费用：{cost}',
       title: '会话累计',
@@ -45,6 +47,8 @@ export const usage = defineDomain(
     partlyUnpriced: '{cost} (partly Unpriced)',
     tokens: '{count} tokens',
     runRow: 'Usage for this run',
+    unavailable: 'Usage unavailable',
+    incomplete: 'Incomplete',
     session: {
       label: 'Session cost: {cost}',
       title: 'Session total',
