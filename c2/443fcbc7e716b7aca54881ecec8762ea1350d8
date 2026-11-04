@@ -1,0 +1,47 @@
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_2321ce8d7bd94f 38,292,328
+  s_296be7915f5188::t_4808c0b0156561 293-326
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_1ba1246e930583 29-30,37
+apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx
+  s_296be7915f5188::t_0ca0374b7ff477 181-183
+apps/desktop/src/renderer/features/conversation/conversation-header.css
+  s_296be7915f5188::t_2321ce8d7bd94f 1-20
+apps/desktop/e2e/conversation-status-header.e2e.test.ts
+  s_296be7915f5188::t_dee8c9f0739ae8 119
+  s_296be7915f5188::t_0c45240157a2a4 85-87
+  s_296be7915f5188::t_5a3dccfcdc1a86 143,158-159
+  s_296be7915f5188::t_47867e66b1c000 65,71
+  s_296be7915f5188::t_8fe9a6d4df643a 104
+  s_296be7915f5188::t_f4dbd85192a990 66-70,72,112
+  s_296be7915f5188::t_a96ff9fafe4cf6 60,161-163,168-169
+  s_296be7915f5188::t_2ca5f342e06a5a 105
+  s_296be7915f5188::t_0647ce67c08202 55
+  s_296be7915f5188::t_9291d867fef7e0 1-15,47-51,56-59,61-63,81-84,91-101,103,106-111,113-118,120-128,171,173-176
+  s_296be7915f5188::t_060ac679ff067f 102
+  s_296be7915f5188::t_18d738c7d6d020 52-54,64,73,79-80
+  s_296be7915f5188::t_3ca67137a2a9db 132,165-167,170
+  s_296be7915f5188::t_be8a291901ed3b 172
+  s_296be7915f5188::t_db2eb64b4f1cfa 141-142
+  s_296be7915f5188::t_ecd784e1d663fd 160,164
+  s_296be7915f5188::t_4808c0b0156561 16-46,74-78,88-90,129-131,133-140,144-157
+apps/desktop/src/renderer/features/conversation/session-status-bar.tsx
+  s_296be7915f5188::t_fae9bef6275925 81-85
+  s_296be7915f5188::t_2ca5f342e06a5a 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "c2443fcbc7e716b7aca54881ecec8762ea1350d8",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
