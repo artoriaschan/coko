@@ -1,0 +1,66 @@
+apps/desktop/e2e/message-footers-protocol.e2e.test.ts
+  s_f9fee1f1315815::t_31acae3a48284a 381-403,405,407-417,419,421-456
+tests/integration/sidecar-request-usage.test.ts
+  s_f9fee1f1315815::t_3eb059e86fdf7d 171-172
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_beedc08ffed1e0 63
+  s_f9fee1f1315815::t_a1d41f8dcf6208 39,60-62,64-65
+apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx
+  s_f9fee1f1315815::t_b4db05c27ebfca 140
+packages/agent/src/engine/runtime.ts
+  s_f9fee1f1315815::t_f93e9568fb481d 286-291
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_f9fee1f1315815::t_f93e9568fb481d 8,33,35-36,52,95
+packages/agent/src/engine/runtime.test.ts
+  s_f9fee1f1315815::t_4ac7ae8bdda91e 124,251-252,398,403-404,473
+packages/agent/src/engine/compaction.test.ts
+  s_f9fee1f1315815::t_4ac7ae8bdda91e 70-72
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_a1d41f8dcf6208 160
+.scratch/message-footers/evidence/07-integrated-acceptance.md
+  s_f9fee1f1315815::t_a1d41f8dcf6208 88-91
+docs/subsystems/tracing.md
+  s_f9fee1f1315815::t_a1d41f8dcf6208 28-29
+.scratch/message-footers/evidence/final-review-fixes.md
+  s_f9fee1f1315815::t_99a2401ccb9ef3 46,51-52
+  s_f9fee1f1315815::t_beedc08ffed1e0 47-48
+  s_f9fee1f1315815::t_c765c1873610e1 44-45,62
+  s_f9fee1f1315815::t_93d7c990e82ab4 1-43,49-50,53-61,63-66
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_a1d41f8dcf6208 45-46
+apps/desktop/src/renderer/features/conversation/fork-history.ts
+  s_f9fee1f1315815::t_f93e9568fb481d 5,41
+  s_f9fee1f1315815::t_b4db05c27ebfca 25-27
+packages/i18n/src/dictionaries/domains/usage.ts
+  s_f9fee1f1315815::t_f93e9568fb481d 11,64
+apps/desktop/src/renderer/features/conversation/message-text.ts
+  s_f9fee1f1315815::t_f93e9568fb481d 1-7
+apps/desktop/src/renderer/features/conversation/session-cost.tsx
+  s_f9fee1f1315815::t_527cb2033c2adb 157-161
+  s_f9fee1f1315815::t_85e972a6ad9b12 97-101,106
+  s_f9fee1f1315815::t_b4db05c27ebfca 79-81,83,94-95,119,139,146
+  s_f9fee1f1315815::t_5d0b5a848a645d 89-93,108,133
+apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx
+  s_f9fee1f1315815::t_c7fe260d3878f7 158-166
+  s_f9fee1f1315815::t_85e972a6ad9b12 217-224,254-256
+  s_f9fee1f1315815::t_800508b2175503 225,232-240,242,244-245,265-266,268-276
+  s_f9fee1f1315815::t_8bc01ae6d3fa7a 3,176-188,190,192-202,204,206-216,228,230-231,246-253,257-264
+  s_f9fee1f1315815::t_5d0b5a848a645d 108-115
+  s_f9fee1f1315815::t_cfe800caf90027 145-157,167-175,277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "5912678532ea669f7b99ea4d97e801e82d348f31",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
