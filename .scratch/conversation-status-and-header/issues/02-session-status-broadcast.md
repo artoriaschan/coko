@@ -35,3 +35,5 @@
 - 协议场景：从未订阅的连接收到根 Run start/end；后台子代理等待审批、取消、存活子代理期间重启；Teammate 两个受文件闸门控制的 Run 与中间 idle；Background Job 完成不触发执行中或重复空闲广播；列表与详情口径一致。精确状态序列锁住运行时 start/end 与子代理更新的时序，Hub 用例验证进度先送达订阅者、观察者再同步执行及单连接发送失败隔离。
 - 文档影响：`packages/protocol/README.md` 增补全局消息、可选字段、重连与修订号；`docs/subsystems/projects.md` 更新后台运行与实时列表规则。已从 AGENTS → docs 导航回读，现有正文归属、引用方向与生命周期一致，没有正式文档反向依赖任务材料。
 - 限制：上述 Electron 与 Browser Mode 是静默自动化；整体明暗主题/zh/en/390px 联合验收与 agent-browser 由 09 负责。未运行真实模型、全仓测试、CI、发布产物或原生窗口层；没有推送或发布。
+
+- 集成后复核：已合入集成分支 `f08dbcbb`（包含 03、04、07），无冲突；复核对象 `211e18cd`。上述 34 项与侧栏 Browser 5 项合并为同一命令再次执行，5 文件 / 39 项通过；`pnpm run typecheck` 与 `pnpm run check:docs`（319 / 0）再次退出 0。已保存并本地提交，未推送。
