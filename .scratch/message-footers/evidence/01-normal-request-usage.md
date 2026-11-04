@@ -19,7 +19,10 @@ lifecycle: active
 | --- | --- | --- |
 | `rtk pnpm run test packages/agent/src/models/models.test.ts tests/integration/sidecar-request-usage.test.ts tests/integration/sidecar-model-price.test.ts apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx` | 5 文件、24 测试；三协议正常计量、实际依赖 reasoning/cacheWrite1h、四分桶、1h 缓存价格、完整零/未知/部分、持久化重启、既有模型价格、App 去重及标题归属 | exit 0 |
 | `rtk pnpm run test apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx packages/protocol/src/context-entries.test.ts packages/agent/src/session-entries/session-entries.test.ts` | 3 文件、31 测试；App 新增非法旧计数拒绝，协议与持久化 schema 回归 | exit 0 |
-| `rtk pnpm run typecheck` | 全 workspace 的当前 TypeScript 项目引用 | exit 0 |
+| `rtk pnpm run typecheck` | 全 workspace 的当前 TypeScript 项目引用；合并 9395cef8 后再验证 | exit 0 |
+| 合并提交 8299f871 后 `rtk pnpm run test tests/integration/sidecar-request-usage.test.ts apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx` | 3 文件、7 测试，覆盖组合 App 及加强后的可选 TTL 字段断言 | exit 0 |
+| `rtk pnpm run check:docs` | 合并后 300 个 Markdown 文件 | exit 0，0 问题 |
+| 对本票 TypeScript 文件执行 `pnpm exec oxlint`（shell 由 rtk proxy 包裹）及 `rtk git diff --check` | 改动源码/测试，无忽略规则放宽 | exit 0 |
 | `rtk pnpm run test tests/integration/sidecar-trace.test.ts packages/agent/src/goals/budget.test.ts packages/agent/src/engine/compaction.test.ts` | 3 文件、33 测试，29 通过；Trace 与 Goal 通过，压缩 4 失败 | exit 1；见下列基线核对 |
 | 在没有本票改动的集成 checkout 9395cef8 运行 `rtk pnpm run test packages/agent/src/engine/compaction.test.ts` | 12 测试，8 通过、相同 4 失败 | exit 1；证明基线已存在 |
 
