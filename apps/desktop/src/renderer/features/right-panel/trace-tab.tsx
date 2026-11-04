@@ -1,29 +1,18 @@
 import type { Translator } from '@coko/i18n'
 import type { HookTrace, ModelRequestPayload, RunTrace, ToolTrace, TraceTotals, UsageCurrency } from '@coko/protocol'
-import { Button, cn, toast } from '@coko/ui'
+import { Button, cn } from '@coko/ui'
 import { ChevronRightIcon, DownloadIcon, LoaderCircleIcon } from 'lucide-react'
 import * as React from 'react'
-import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
 import { formatCost, formatCount, useCurrency } from '../conversation/session-cost.tsx'
 import { useReloadOnEntryCount } from '../conversation/use-reload-on-entry-count.ts'
-import { traceStore, type TraceActions, type TraceState, type TraceStore } from '../../stores/trace-store.ts'
+import { useTrace, useTraceStoreApi, useSessionDownload } from '../conversation/session-download.tsx'
+export { TraceStoreProvider } from '../conversation/session-download.tsx'
 import type { RightPanelTabProps } from './tabs.ts'
 
 // 右栏 Trace tab（docs/subsystems/tracing.md#界面）：顶部为 Session 合计与"导出"（下载 .ndjson，含子 Session）；每个 Run 一行（触发、状态、时长、
 // Token、费用），展开为模型请求（模型、用途、首字、时长、Token、费用、重试）与工具（名字、时长、审批等待、Hook 结果）。数据来自 GET …/trace，
 // model_request、run_start 与 run_end 到达时重读（同一帧合并）。最近的 Run 在最上面。
-
-const TraceStoreContext = React.createContext<TraceStore>(traceStore)
-
-export function TraceStoreProvider({ store, children }: { store: TraceStore; children: React.ReactNode }) {
-  return <TraceStoreContext.Provider value={store}>{children}</TraceStoreContext.Provider>
-}
-
-const useTraceStoreApi = (): TraceStore => React.useContext(TraceStoreContext)
-function useTrace<T>(selector: (state: TraceState & TraceActions) => T): T {
-  return useStore(useTraceStoreApi(), selector)
-}
 
 /** 毫秒：1 秒以内按毫秒，否则保留一位小数的秒。 */
 export function formatMs(t: Translator, locale: string, ms: number): string {
@@ -171,32 +160,9 @@ function RunRow({ run, currency }: { run: RunTrace; currency: UsageCurrency }) {
   )
 }
 
-/** 浏览器下载：Blob URL 与临时链接（Electron 中经 will-download 保存）。 */
-function download(filename: string, text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/x-ndjson' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.append(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
 function Totals({ sessionId, totals, currency }: { sessionId: string; totals: TraceTotals; currency: UsageCurrency }) {
   const { t, locale } = useI18n()
-  const store = useTraceStoreApi()
-  const exporting = useTrace((s) => s.exporting[sessionId] ?? false)
-  const exportSession = async () => {
-    try {
-      const file = await store.getState().exportSession(sessionId)
-      if (!file) return
-      download(file.filename, file.text)
-      toast.success(t('trace.exported', { filename: file.filename }))
-    } catch (error) {
-      toast.error(t('trace.exportFailed', { message: error instanceof Error ? error.message : String(error) }))
-    }
-  }
+  const { exporting, download } = useSessionDownload(sessionId)
   return (
     <div data-slot="trace-totals" className="flex min-w-0 shrink-0 items-start gap-2 px-4 pb-2">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -205,7 +171,7 @@ function Totals({ sessionId, totals, currency }: { sessionId: string; totals: Tr
           {t('trace.totals', { runs: totals.runs, requests: totals.requests, tools: totals.toolCalls })}
         </span>
       </div>
-      <Button type="button" variant="outline" size="sm" data-action="export-session" disabled={exporting} onClick={() => void exportSession()}>
+      <Button type="button" variant="outline" size="sm" data-action="export-session" disabled={exporting} onClick={() => void download()}>
         {exporting ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <DownloadIcon />}
         {exporting ? t('trace.exporting') : t('trace.export')}
       </Button>

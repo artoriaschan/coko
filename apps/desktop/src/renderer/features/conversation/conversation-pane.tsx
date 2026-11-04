@@ -33,6 +33,7 @@ import { TimelineView } from './timeline-view.tsx'
 import { useReadingScroll } from './use-reading-scroll.ts'
 import { HandoffEffects } from './handoff-effects.tsx'
 import { SessionStatusBar } from './session-status-bar.tsx'
+import { SessionMenu } from './session-menu.tsx'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
 
 export interface ConversationPaneProps {
@@ -296,6 +297,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
             </div>
             {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
+            <SessionMenu sessionId={activeSessionId} />
             <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
               {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
             </IconButton>

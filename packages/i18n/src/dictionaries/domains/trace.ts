@@ -4,6 +4,8 @@ import { defineDomain } from './define.ts'
 export const trace = defineDomain(
   {
     tab: '追踪',
+    more: '更多',
+    downloadSession: 'Session 下载',
     export: '导出',
     exporting: '正在导出…',
     exportFailed: '无法导出会话：{message}',
@@ -62,6 +64,8 @@ export const trace = defineDomain(
   },
   {
     tab: 'Trace',
+    more: 'More',
+    downloadSession: 'Download session',
     export: 'Export',
     exporting: 'Exporting…',
     exportFailed: 'Couldn’t export the session: {message}',

@@ -28,6 +28,8 @@ lifecycle: active
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
+详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
+
 验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)。
 
 ## 对话搜索

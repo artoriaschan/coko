@@ -6,11 +6,14 @@ import { redactSecretsDeep } from '@coko/logging'
 import type { AuditResponse, TraceResponse } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { requireSession } from './session-runtimes.ts'
+import type { SecretService } from './secrets.ts'
 
 export interface TraceServiceOptions {
   store: Pick<SessionStore, 'sessions'>
   /** 导出 header 的 exportedAt（测试时钟）。缺省 Date.now。 */
   now?: () => number
+  /** 未使用过的登记 Secret 也必须在输出前加入按值脱敏来源。 */
+  secrets?: Pick<SecretService, 'list' | 'resolve'>
 }
 
 export interface SessionExport {
@@ -32,6 +35,13 @@ export class TraceService {
     return store.sessions.listEntries(sessionId)
   }
 
+  async #prepareRedaction() {
+    const secrets = this.#options.secrets
+    if (!secrets) return
+    const registered = await secrets.list()
+    await Promise.all(registered.secrets.map(({ name }) => secrets.resolve(name)))
+  }
+
   async trace(sessionId: string): Promise<TraceResponse> {
     const entries = await this.#entries(sessionId)
     const runs = deriveTrace(entries)
@@ -44,11 +54,14 @@ export class TraceService {
       totals.tokens += payload.usage.total
       totals.cost += payload.cost ?? 0
     }
+    await this.#prepareRedaction()
     return redactSecretsDeep({ runs, totals }) satisfies TraceResponse
   }
 
   async audit(sessionId: string): Promise<AuditResponse> {
-    return redactSecretsDeep(deriveAudit(await this.#entries(sessionId))) satisfies AuditResponse
+    const audit = deriveAudit(await this.#entries(sessionId))
+    await this.#prepareRedaction()
+    return redactSecretsDeep(audit) satisfies AuditResponse
   }
 
   /** header + 本 Session 的条目；children 时其后按派生顺序（深度优先）为各子 Session 的条目。 */
@@ -65,6 +78,7 @@ export class TraceService {
       await visit(sessionId)
     }
     const header = sessionExportHeader(sessionId, (this.#options.now ?? Date.now)())
+    await this.#prepareRedaction()
     return { filename: `coko-session-${sessionId}.ndjson`, text: formatExport(header, redactSecretsDeep(entries)) }
   }
 }
