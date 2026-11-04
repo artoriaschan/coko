@@ -31,3 +31,5 @@
 - TDD：新增“统计→Token→Escape”回归先失败（焦点在统计胶囊），修复后归还 Token；真实 Electron 的窄布局回归先失败（主区横向偏移 70px），局部 CSS 重排后为 0。四个状态入口全部存在，所有操作保持原命中区、同一导航 DOM、48px 标题行和原生安全区。
 - agent-browser 静默验证已完成，产物在 `/Users/chenzheng/Documents/Codex/2026-11-04/conversation-status-header/`。背景 Session 审批期间显示转圈，hover 换操作、项目收起聚合、取消清除；两卡、边缘避让、菜单和实际 JSONL 下载已核对。会话、捕获的 Forge/Electron/Sidecar 进程与 9222 已清理。原生保存框、真实 OS 指针和原生窗口层、真实模型、CI、发布/签名产物未验证。
 - 文档影响：workbench 增补窄标题栏重排与最终 E2E 入口；回读 projects、workbench、goal、handoff、tracing、protocol 和导航，引用方向、职责、状态、路径及历史保留均通过。spec/design 标为本地 delivered；没有推送、主分支合并或发布。
+
+- 最终两轴评审完成：两个新的评审子代理对 `25d4228e...131e69e6` 分别报告 Standards 0 项、Spec 1 项 P2。另一个新的实施子代理在 `4a9725de` 修复旧恢复 DTO 在刷新后覆盖运行状态的竞态，4 文件 / 42 项 store/归档/协议/侧栏 Browser 测试通过；typecheck、格式/lint/diff 与文档检查（319 / 0）通过。复核覆盖快照修正漏广播与普通/归档缓存目标优先级，避免以保留旧广播制造重连残留。完整说明和精确命令见 [spec 的评审修复记录](../spec.md#两轴评审与修复)。本次仅改 DTO 合并，既有 Electron/CDP/视觉证据继续有效，未扩大原生层验证声明；本地 delivered 与 Closed 保持不变。

@@ -294,3 +294,11 @@ agent-browser 会话为 `status09-998311604c41`，应用通过以下实际入口
 产物位于 `/Users/chenzheng/Documents/Codex/2026-11-04/conversation-status-header/`：`en-light-390-statistics.png`、`en-light-390-tokens.png`、`zh-dark-390-tokens.png`、`zh-dark-390-menu.png`、后台 Session 与项目的宽屏截图，四种 zh/en × light/dark 的 `*-390-electron.png` 和 `*-geometry.json`，以及上述 JSONL 与合成的 `faux-visual.json`。截图已读回检查。
 
 已关闭 agent-browser 会话与 Forge 应用，并确认本次捕获的 Electron `25423`、Sidecar `25495`、renderer `25504` 及 Forge 祖先进程退出，9222 不再监听。只清理本次实例，没有结束其他应用。真实 OS 指针、红绿灯、原生标题栏/材质和保存框、真实模型、CI 与发布/签名产物未验证；未运行全仓测试，也未推送或发布。
+
+### 两轴评审与修复
+
+2026-11-04：使用两个新的只读子代理评审 `25d4228e...131e69e6`。Standards：0 项发现；Spec：1 项 P2，已由另一个新的实施子代理在 `4a9725de` 修复，没有复用实施或评审子代理。问题是“恢复归档响应延迟 → 收到运行广播 → 新列表刷新并清理广播覆盖记录 → 旧响应写回”的顺序会把执行中改为空闲，违反 RUN-05 的旧 DTO 保护。
+
+已有列表行的执行状态由最新接受的快照或广播持有，操作 DTO 只更新元数据；普通与归档缓存暂时同时存在该 Session 时优先使用操作目标列表的行。新快照仍能修正断线期间漏掉的结束广播，旧 DTO 不能在快照之后重新制造转圈。未加载的 Session 仍合并已收到的广播，无已有状态时以 DTO 初始化。协议正文和 design 已同步这一实现边界，产品语义不变。
+
+回归先在真实 ChatStore 的恢复入口失败（刷新后为执行中，延迟 DTO 后变为空闲），修复后通过；另覆盖归档目标列表的快照优先级，以及普通/归档列表中“漏结束广播 → 重连快照改为空闲 → 延迟活跃 DTO”的相反方向。`pnpm run test apps/desktop/src/renderer/stores/chat-store.test.ts apps/desktop/src/renderer/stores/chat-store-archive.test.ts packages/protocol/src/readme.test.ts apps/desktop/src/renderer/features/sidebar/sidebar-activity.browser.test.tsx`：4 文件、42 项通过；`pnpm run typecheck`、两份变更 TS 的 oxfmt/oxlint、`git diff --check` 和 `pnpm run check:docs`（319 Markdown、0 问题）均退出 0。已有 Electron、Sidecar、静默 CDP 与视觉证据未被这次列表 DTO 合并修复推翻，未重复构建、未运行全仓测试。此次交付仍为本地分支，未推送或发布；原生层等未验证范围保持不变。
