@@ -147,7 +147,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 | `apps/desktop/src/renderer/features/conversation/dock/goal-card.tsx` | dock 的 Goal 卡、取消确认、编辑对话框；`GoalStoreProvider`、`isGoalCardCommand` |
 | `apps/desktop/src/renderer/stores/goal-store.ts` | 已用量（`GET …/goal`）、动作（`POST …/goal`）与卡片的界面状态 |
 | `apps/desktop/src/renderer/features/conversation/goal-row.tsx` | 时间线的 Goal 行 |
-| `apps/desktop/src/renderer/features/conversation/assistant-footer.tsx`、`run-usage-row.tsx`、`session-cost.tsx` | 助手底栏与异常兼容用量行；标题栏的 Session 费用与共用用量汇总 |
+| `apps/desktop/src/renderer/features/conversation/assistant-footer.tsx`、`session-cost.tsx` | 正常及异常结束的助手底栏；标题栏的 Session 费用与共用用量汇总 |
 
 **Goal 卡**（dock 中 Todo 与 Queue 之间）。快照取自最新的 `goal` 条目；已用量经 `GET …/goal` 读取，只在影响用量的条目（`goal`、`run_end`、`compaction` 与带 usage 的 assistant 消息）到达时重新读取，同一帧内到达的合并为一次。未终结的 Goal 一直显示；complete、cancelled 在下一个 Run 开始前显示，可关闭。收起时为一行：目标（单行截断）、阶段徽标、轮次 n / 上限（缺省 50）、费用（模型未定价且没有费用时为"未定价"），下方一行原因。展开后：目标全文（两行截断，可展开）、原因、成功条件（有证据时显示证据）、已设维度的预算条（已用 / 上限，≥ 80% warning 色，≥ 100% destructive 色；模型未定价时费用为提示而不是进度；模型已定价且没有费用上限时，预算条下方提示"未设费用上限"）、取消的清理结果，以及操作：
 

@@ -116,7 +116,7 @@ type TimelineContent =
   /** M4 的条目：各自的组件在对应功能交付前不渲染（返回 null）。 */
   | { kind: 'plan'; key: string; plan: PlanPayload }
   | { kind: 'goal'; key: string; goal: GoalPayload }
-  /** Run 结束后的用量行：只在该 Run 的 assistant 消息带 usage 时出现；用量由组件按 runId 从条目汇总。 */
+  /** Persisted Run ending seat, including absent usage; the renderer places its single footer here unless attached to the final reply. */
   | { kind: 'run-usage'; key: string; runId: string }
   | {
       kind: 'job'
@@ -194,7 +194,6 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
   /** trigger compact 的 Run：其错误不可重试（重试会重新执行上一轮对话），也不显示"生成中"。 */
   const compactRuns = new Set<string>()
   /** assistant 消息带 usage 的 Run：结束后显示用量行。 */
-  const usageRuns = new Set<string>()
   const lastAssistantSeq = new Map<string, number>()
   // command 条目紧接在其展开后的 user message 之前（同一 Run）；run_start 时丢弃未配对的。
   let pendingCommand: CommandPayload | null = null
@@ -330,10 +329,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         items.push({ kind: 'handoff', key: `${entry.seq}`, handoff })
         return
       }
-      if (entry.kind === 'model_request') {
-        if (entry.runId && entry.payload.purpose !== 'title') usageRuns.add(entry.runId)
-        return
-      }
+      if (entry.kind === 'model_request') return
       if (entry.kind === 'run_end') {
         const payload = entry.payload
         // 未结束的工具在 Run 结束后不会再有结果。
@@ -349,7 +345,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             message: payload.error?.message ?? '',
             retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
           })
-        if (entry.runId && usageRuns.has(entry.runId)) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
+        if (entry.runId) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
         return
       }
       if (entry.kind === 'approval_request') {
@@ -447,7 +443,6 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         })
       } else if (message.role === 'assistant') {
         if (entry.runId) lastAssistantSeq.set(entry.runId, entry.seq)
-        if (entry.runId && 'usage' in message && message.usage) usageRuns.add(entry.runId)
         blocksOf(message.content).forEach((block, index) => {
           const key = `${entry.seq}:${index}`
           const source = { sessionId: entry.sessionId, runId: entry.runId, contentIndex: index }
@@ -572,6 +567,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     else if (unrecorded.status === 'paused') items.push({ kind: 'paused', key: `unrecorded:${unrecorded.runId}` })
     else if (unrecorded.status === 'error')
       items.push({ kind: 'error', key: `unrecorded:${unrecorded.runId}`, message: unrecorded.error?.message ?? '', retryable: false })
+    items.push({ kind: 'run-usage', key: `usage:unrecorded:${unrecorded.runId}`, runId: unrecorded.runId, origin: { runId: unrecorded.runId } })
   }
 
   // 只有最后一个 Run 的错误可以重试，且当前没有 Run。

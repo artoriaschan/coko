@@ -17,11 +17,10 @@ import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
 import { MessageTime } from './message-time.tsx'
 import { CopyMessage, MessageAction } from './message-actions.tsx'
-import { AssistantFooter, completedReplyFooters } from './assistant-footer.tsx'
+import { AssistantFooter, completedReplyFooters, endedRunFooter } from './assistant-footer.tsx'
 import { ReasoningRow } from './reasoning-row.tsx'
 import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
-import { RunUsageRow } from './run-usage-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ProcessTimeline } from './process-timeline.tsx'
 import type { DisplayRun } from './process-groups.ts'
@@ -56,7 +55,16 @@ export function TimelineView(props: TimelineViewProps) {
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
   const footers = completedReplyFooters(items, props.entries ?? [], props.runs)
-  const latestFooter = [...footers.keys()].at(-1)
+  const latestFooterRunId = items.findLast((item) => item.kind === 'run-usage')?.runId ?? [...footers.values()].at(-1)?.runId
+  const endingFooters = new Map(
+    items.flatMap((item) => {
+      if (item.kind !== 'run-usage' || [...footers.values()].some((reply) => reply.runId === item.runId)) return []
+      const reply = endedRunFooter(props.entries ?? [], props.runs?.get(item.runId))
+      return reply ? [[item.key, reply] as const] : []
+    }),
+  )
+  // Suppressed ending seats must not reserve a ProcessTimeline gap after a final reply.
+  const visibleItems = items.filter((item) => item.kind !== 'run-usage' || endingFooters.has(item.key))
   const renderItem = (item: TimelineItem) => {
     switch (item.kind) {
       case 'user': {
@@ -209,16 +217,7 @@ export function TimelineView(props: TimelineViewProps) {
             <div data-slot="assistant-message-body">
               <Markdown text={item.text} streaming={item.streaming} theme={theme} />
             </div>
-            {footers.has(item.key) && <AssistantFooter reply={footers.get(item.key)!} latest={item.key === latestFooter} />}
-            {!footers.has(item.key) &&
-              !item.streaming &&
-              item.finalResponse &&
-              item.origin?.runId &&
-              ['aborted', 'error', 'paused', 'interrupted'].includes(props.runs?.get(item.origin.runId)?.status ?? '') && (
-                <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
-                  <CopyMessage text={item.text} />
-                </div>
-              )}
+            {footers.has(item.key) && <AssistantFooter reply={footers.get(item.key)!} latest={item.origin?.runId === latestFooterRunId} />}
           </article>
         )
       case 'thinking':
@@ -276,9 +275,14 @@ export function TimelineView(props: TimelineViewProps) {
         return <GoalRow key={item.key} item={item} />
       case 'job':
         return <JobRow key={item.key} item={item} />
-      case 'run-usage':
-        if ([...footers.values()].some((reply) => reply.runId === item.runId)) return null
-        return <RunUsageRow key={item.key} item={item} />
+      case 'run-usage': {
+        const reply = endingFooters.get(item.key)
+        return reply ? (
+          <div key={item.key} className="conversation-terminal-footer group min-w-0">
+            <AssistantFooter reply={reply} latest={item.runId === latestFooterRunId} />
+          </div>
+        ) : null
+      }
       case 'hook':
         return <HookRow key={item.key} item={item} />
       case 'agent-notification':
@@ -306,7 +310,7 @@ export function TimelineView(props: TimelineViewProps) {
     >
       <ProcessTimeline
         key={props.sessionId}
-        items={items}
+        items={visibleItems}
         identities={messageIdentities}
         runs={props.runs}
         connected={props.connected}
