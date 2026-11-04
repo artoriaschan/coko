@@ -5,6 +5,7 @@ import { GaugeIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { CopyMessage } from './message-actions.tsx'
 import { MessageTime } from './message-time.tsx'
+import { assistantMarkdown } from './message-text.ts'
 import type { DisplayRun } from './process-groups.ts'
 import { formatCount, sumUsage, totalTokens, type UsageTotals } from './session-cost.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -26,16 +27,13 @@ export interface CompletedReply extends RunFooter {
 // Footer quantities have no pricing dependency; stand-alone child Session readers share the same counter.
 const withoutPricing = () => false
 
-function replyText(entry: SessionEntry): string {
-  if (entry.kind !== 'message' || entry.payload.role !== 'assistant' || !Array.isArray(entry.payload.content)) return ''
-  return entry.payload.content.flatMap((block) => (block.type === 'text' && 'text' in block && typeof block.text === 'string' ? [block.text] : [])).join('\n\n')
-}
-
 /** Abnormal and body-less endings keep the same factual usage entry, after their termination status. */
 export function endedRunFooter(entries: readonly SessionEntry[], run?: DisplayRun): RunFooter | undefined {
   if (!run || run.status === 'running' || run.status === 'unknown') return
-  const last = entries.findLast((entry) => entry.runId === run.id && (run.endedSeq === undefined || entry.seq < run.endedSeq) && replyText(entry).trim() !== '')
-  return { runId: run.id, text: last ? replyText(last) : undefined, endedAt: run.status === 'interrupted' ? undefined : run.endedAt }
+  const last = entries.findLast(
+    (entry) => entry.runId === run.id && (run.endedSeq === undefined || entry.seq < run.endedSeq) && assistantMarkdown(entry).trim() !== '',
+  )
+  return { runId: run.id, text: last ? assistantMarkdown(last) : undefined, endedAt: run.status === 'interrupted' ? undefined : run.endedAt }
 }
 
 /** Completion and the last assistant message are persisted facts, independent of stop/length stage text. */
@@ -51,7 +49,7 @@ export function completedReplyFooters(
       (entry) => entry.runId === run.id && entry.seq < run.endedSeq! && entry.kind === 'message' && entry.payload.role === 'assistant',
     )
     if (!last || last.kind !== 'message' || last.payload.role !== 'assistant' || !['stop', 'length'].includes(String(last.payload.stopReason))) continue
-    const text = replyText(last)
+    const text = assistantMarkdown(last)
     if (!text.trim()) continue
     const seat = items.findLast((item) => item.kind === 'text' && !item.streaming && item.origin?.runId === run.id && item.origin.seq === last.seq)
     if (seat) result.set(seat.key, { runId: run.id, seq: last.seq, text, endedAt: run.endedAt })
@@ -94,7 +92,7 @@ function UsageDetails({ totals, open, onOpenChange }: { totals: UsageTotals; ope
   const unit = tokens >= 1_000_000 ? 1_000_000 : tokens >= 1_000 ? 1_000 : 1
   const compact =
     new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', { maximumFractionDigits: 1 }).format(tokens / unit) +
-    (unit === 1_000_000 ? 'M' : unit === 1_000 ? 'K' : '')
+    (unit === 1_000_000 ? t('usage.compact.million') : unit === 1_000 ? t('usage.compact.thousand') : '')
   const inputTotal = totals.reported.input + totals.reported.cacheRead + totals.reported.cacheWrite
   const ratio =
     totals.complete && inputTotal > 0

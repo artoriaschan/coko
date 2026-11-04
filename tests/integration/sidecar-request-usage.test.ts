@@ -168,6 +168,8 @@ describe('request usage survives the actual adapters and Sidecar', () => {
         usageReport: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
       })
       const assistant = entries.find((e) => e.kind === 'message' && (e.payload as { role?: string }).role === 'assistant')!
+      // A visible assistant must never be committed before its authoritative request fact.
+      expect(request[0]!.seq).toBeLessThan(assistant.seq)
       expect(Value.Check(SessionEntry, assistant)).toBe(true)
       expect(assistant.payload).toMatchObject({ usage: { input: 70, output: 20, ...cached, totalTokens: 120, reasoning: 7 } })
       expect((assistant.payload as { usage: { cacheWrite1h?: number } }).usage.cacheWrite1h).toBe(api === 'anthropic-messages' ? 3 : undefined)

@@ -2,6 +2,7 @@ import { effectiveEntries } from '@coko/agent/entries'
 import type { ForkMessageOrigin, SessionEntry } from '@coko/protocol'
 import type { CompletedReply } from './assistant-footer.tsx'
 import type { TimelineItem } from './timeline.ts'
+import { assistantMarkdown } from './message-text.ts'
 
 /** Copied envelopes are new writes; only origin metadata can attest the original submission time. */
 export function originalMessageTime(entries: readonly SessionEntry[], entry: SessionEntry): number | undefined {
@@ -21,6 +22,9 @@ function usageEntries(source: string, reply: NonNullable<ForkMessageOrigin['repl
       kind: 'message',
       payload: { role: 'assistant', content: [], stopReason: 'stop', ...value },
     })),
+    // Presence of reply provenance attests successful completion; this read-only projection
+    // never becomes a new Run and does not supply the footer's timestamp.
+    { ...envelope(reply.requests.length + reply.legacy.length), kind: 'run_end', payload: { status: 'completed' } },
   ]
 }
 
@@ -34,9 +38,7 @@ export function copiedReplyFooters(items: TimelineItem[], entries: readonly Sess
       const reply = message.reply
       const entry = effective.find((item) => item.seq === message.seq)
       if (!reply || !entry || entry.kind !== 'message' || entry.payload.role !== 'assistant' || !Array.isArray(entry.payload.content)) continue
-      const text = entry.payload.content
-        .flatMap((block) => (block.type === 'text' && 'text' in block && typeof block.text === 'string' ? [block.text] : []))
-        .join('\n\n')
+      const text = assistantMarkdown(entry)
       const seat = items.findLast((item) => item.kind === 'text' && !item.streaming && item.origin?.seq === message.seq)
       if (seat && text.trim())
         result.set(seat.key, {

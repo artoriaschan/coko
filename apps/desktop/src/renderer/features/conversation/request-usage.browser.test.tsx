@@ -1,6 +1,6 @@
 import '../../styles.css'
 import { expect, it } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import type { SessionEntryRecord } from '@coko/protocol'
 import { App } from '../../app/app.tsx'
@@ -105,6 +105,14 @@ it('actual App renders canonical usage once, accepts legacy extensions, and repl
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: canonical })
   expect(row('complete').getAttribute('data-tokens')).toBe('120')
   expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('240')
+  const usage = row('legacy').querySelector<HTMLButtonElement>('button[data-action="run-usage"]')!
+  usage.focus()
+  await userEvent.click(usage)
+  const details = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  await expect.element(details).toBeVisible()
+  expect(details.element().querySelector('[data-usage-part="reasoning"] dd')?.textContent).toBe('7')
+  await userEvent.keyboard('{Escape}')
+  await expect.element(details).not.toBeInTheDocument()
 })
 
 it('actual App distinguishes reported zero from missing and partial reports', async () => {
@@ -133,4 +141,137 @@ it('actual App distinguishes reported zero from missing and partial reports', as
   expect(row('unknown').textContent).toContain('Incomplete')
   expect(row('partial').textContent).toContain('9 tokens')
   expect(row('partial').textContent).toContain('Incomplete')
+})
+
+it('actual App marks interrupted and unrecorded endings incomplete even when earlier requests reported fully', async () => {
+  const fixture = await open([
+    entry(1, 'run_start', { trigger: 'submit' }, 'interrupted'),
+    reply(2, 'interrupted'),
+    request(3, 'interrupted', 100, 20, ['input', 'output', 'cacheRead', 'cacheWrite'], true),
+    entry(4, 'run_end', { status: 'interrupted' }, 'interrupted'),
+    entry(5, 'run_start', { trigger: 'submit' }, 'unrecorded'),
+    reply(6, 'unrecorded'),
+    request(7, 'unrecorded', 100, 20, ['input', 'output', 'cacheRead', 'cacheWrite'], true),
+  ])
+  await expect.poll(() => row('interrupted')?.textContent).toContain('120 tokens')
+  expect(row('interrupted').textContent).toContain('Incomplete')
+  const action = row('interrupted').querySelector<HTMLButtonElement>('button[data-action="run-usage"]')!
+  action.focus()
+  await userEvent.click(action)
+  const details = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  await expect.element(details).toBeVisible()
+  expect(details.element().querySelector('[data-usage-part="input"] dd')?.textContent).toBe('≥ 100')
+  expect(details.element().querySelector('[data-usage-part="cacheRead"] dd')?.textContent).toBe('—')
+  await userEvent.keyboard('{Escape}')
+  await expect.element(details).not.toBeInTheDocument()
+  fixture.sendServer({
+    type: 'progress',
+    sessionId: 's-1',
+    runId: 'unrecorded',
+    event: { type: 'run_end', status: 'error', error: { code: 'commit_failed', message: 'lease lost' } },
+  })
+  await expect.poll(() => row('unrecorded')?.textContent).toContain('120 tokens')
+  expect(row('unrecorded').textContent).toContain('Incomplete')
+  expect(row('unrecorded').querySelector('time')).toBeNull()
+})
+
+it('actual App respects report metadata in message-only fallback instead of inventing reported buckets', async () => {
+  const entries = [
+    entry(1, 'run_start', { trigger: 'submit' }, 'unknown-fallback'),
+    entry(
+      2,
+      'message',
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Unknown fallback' }],
+        stopReason: 'stop',
+        timestamp: 1,
+        usage: { ...legacyUsage, report: { known: [], complete: false } },
+      },
+      'unknown-fallback',
+    ),
+    entry(3, 'run_end', { status: 'interrupted' }, 'unknown-fallback'),
+    entry(4, 'run_start', { trigger: 'submit' }, 'partial-fallback'),
+    entry(
+      5,
+      'message',
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Partial fallback' }],
+        stopReason: 'stop',
+        timestamp: 1,
+        usage: { ...legacyUsage, input: 7, output: 99, report: { known: ['input'], complete: false } },
+      },
+      'partial-fallback',
+    ),
+    entry(6, 'run_end', { status: 'interrupted' }, 'partial-fallback'),
+    entry(7, 'run_start', { trigger: 'submit' }, 'zero-fallback'),
+    entry(
+      8,
+      'message',
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Measured zero' }],
+        stopReason: 'stop',
+        timestamp: 1,
+        usage: {
+          ...legacyUsage,
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          reasoning: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          report: { known: ['input', 'output', 'cacheRead', 'cacheWrite'], complete: true },
+        },
+      },
+      'zero-fallback',
+    ),
+    entry(9, 'run_end', { status: 'completed' }, 'zero-fallback'),
+    entry(10, 'run_start', { trigger: 'submit' }, 'legacy-zero-reasoning'),
+    entry(
+      11,
+      'message',
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Legacy optional zero' }],
+        stopReason: 'stop',
+        timestamp: 1,
+        usage: { ...legacyUsage, reasoning: 0 },
+      },
+      'legacy-zero-reasoning',
+    ),
+    entry(12, 'run_end', { status: 'completed' }, 'legacy-zero-reasoning'),
+  ]
+  await open(entries)
+  await expect.poll(() => row('unknown-fallback')?.textContent).toContain('Usage unavailable')
+  expect(row('unknown-fallback').textContent).not.toContain('0 tokens')
+  expect(row('partial-fallback').textContent).toContain('7 tokens')
+  expect(row('partial-fallback').textContent).toContain('Incomplete')
+  expect(row('zero-fallback').textContent).toContain('0 tokens')
+  expect(row('zero-fallback').textContent).not.toContain('Incomplete')
+  const action = row('partial-fallback').querySelector<HTMLButtonElement>('button[data-action="run-usage"]')!
+  action.focus()
+  await userEvent.click(action)
+  const details = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  await expect.element(details).toBeVisible()
+  expect(details.element().querySelector('[data-usage-part="total"] dd')?.textContent).toBe('7')
+  expect(details.element().querySelector('[data-usage-part="output"] dd')?.textContent).toBe('—')
+  expect(details.element().querySelector('[data-usage-part="cacheRead"] dd')?.textContent).toBe('—')
+  expect(details.element().querySelector('[data-usage-part="reasoning"]')).toBeNull()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(details).not.toBeInTheDocument()
+  for (const [runId, expected] of [
+    ['zero-fallback', '0'],
+    ['legacy-zero-reasoning', undefined],
+  ] as const) {
+    const usage = row(runId).querySelector<HTMLButtonElement>('button[data-action="run-usage"]')!
+    usage.focus()
+    await userEvent.click(usage)
+    await expect.element(details).toBeVisible()
+    expect(details.element().querySelector('[data-usage-part="reasoning"] dd')?.textContent).toBe(expected)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(details).not.toBeInTheDocument()
+  }
 })

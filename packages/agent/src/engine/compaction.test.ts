@@ -67,9 +67,9 @@ describe('自动压缩', () => {
     const result = await h.runtime.run(big(40_000, 'b'))
     expect(result.status).toBe('completed')
     const second = h.stored.slice(before)
-    expect(kinds(second)).toEqual(['run_start', 'message:user', 'model_request', 'compaction', 'message:assistant', 'model_request', 'run_end'])
-    // 摘要请求的 model_request 在 compaction 之前（purpose compaction），对话请求的在其 assistant 之后（purpose turn）。
-    expect([second[2]!.payload, second[5]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
+    expect(kinds(second)).toEqual(['run_start', 'message:user', 'model_request', 'compaction', 'model_request', 'message:assistant', 'run_end'])
+    // Authoritative request facts precede both their compaction and assistant duplicate carriers.
+    expect([second[2]!.payload, second[4]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
     const compaction = second[3]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
     expect(compaction.trigger).toBe('auto')
     expect(compaction.firstKeptSeq).toBe(second[1]!.seq)

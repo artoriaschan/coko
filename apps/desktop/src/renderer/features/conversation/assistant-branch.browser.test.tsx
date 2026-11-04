@@ -137,6 +137,7 @@ it('copied history preserves trusted original times and reply actions while sour
   const footer = document.querySelector('[data-slot="assistant-footer"]')!
   expect(footer.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-02T09:11:12.000Z')
   expect(footer.textContent).toContain('1.3K tokens')
+  expect(footer.textContent).not.toContain('Incomplete')
   expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
 })
 

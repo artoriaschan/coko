@@ -25,6 +25,8 @@ lifecycle: active
 
 重试的每次真实尝试各有独立 `requestId`；记录保留结束前取得的有效计数。失败尝试在退避前提交，退避时 Sidecar 崩溃后仍可读回；退避期间停止不产生尚未发出的下一次请求，失败压缩即使没有成功 `compaction` 条目也保留请求事实。后续部分报告省略先前字段时不清空已有计数；缺失、无效或矛盾报告保持不完整。
 
+普通对话的最终请求事实先于其助手消息副本持久化，避免助手消息已经提交、对应计量尚未提交时崩溃造成漏计；失败尝试仍在退避前落盘。记录提交失败会停止 Run，不因展示助手正文而越过计量提交屏障。中断 Run 或缺少可信结束记录只能提供已知小计，不能从现存的完整请求报告推断整轮完整。
+
 同时记日志 `model request finished { sessionId, runId, model, durationMs, ttftMs, tokens, cost, retries }`。Fork 与 Handoff 不复制 `model_request`。
 
 标题请求在 Run 之外，信封与 payload 的 `runId` 均为 `null`，不创建虚构的 Run，也不提交 assistant / user 消息。其失败与超时同样记录；超时 `errorCode` 为 `timeout`。日志为 `title request finished { durationMs, usage, outcome }`，不包含标题、用户文字或模型错误原文。实现见[标题服务](../../apps/server/src/application/session-titles.ts)。

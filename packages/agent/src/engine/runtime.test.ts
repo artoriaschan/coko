@@ -121,7 +121,7 @@ describe('Agent 运行时：内置工具闭环', () => {
     const deltas = h.progress.flatMap((event) => (event.type === 'assistant_delta' && event.kind === 'text' ? [event.delta] : []))
     expect(deltas.join('')).toBe('hello streaming world')
     expect(deltas.length).toBeGreaterThan(1)
-    expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'message', 'model_request', 'run_end'])
+    expect(h.entries.map((entry) => entry.kind)).toEqual(['run_start', 'message', 'model_request', 'message', 'run_end'])
   })
 
   it('文本增量带每个 contentIndex 的 UTF-16 offset，含多块与非 BMP 字符', async () => {
@@ -248,7 +248,8 @@ describe('Agent 运行时：顺序与提交屏障', () => {
     expect(result.status).toBe('error')
     expect(result.error).toEqual({ code: 'commit_failed', message: 'disk full' })
     await expect(access(ws.path('ran'))).rejects.toThrow(/ENOENT/)
-    expect(h.entries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual(['run_start', 'user'])
+    // The completed request remains durable even when saving its assistant duplicate fails.
+    expect(h.entries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual(['run_start', 'user', 'model_request'])
     expect(h.progress.at(-1)).toEqual({ type: 'run_end', runId: result.runId, status: 'error', error: { code: 'commit_failed', message: 'disk full' } })
   })
 
@@ -394,13 +395,13 @@ describe('Agent 运行时：模型错误与重试', () => {
     })
   })
 
-  it('model_request：两轮的 Run 提交两条，各在对应 assistant 之后；耗时 > 0，usage 与 assistant 一致，purpose turn', async () => {
+  it('model_request：两轮的 Run 提交两条，各先于对应 assistant；耗时 > 0，usage 与 assistant 一致，purpose turn', async () => {
     const h = harness({ tokensPerSecond: 2_000 })
     h.faux.setResponses([fauxAssistantMessage(fauxToolCall('ls', { path: '.' }, { id: 'l1' }), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
     const result = await h.runtime.run('list')
     const kinds = h.entries.map((e) => (e.kind === 'message' ? e.payload.role : e.kind))
-    expect(kinds).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'assistant', 'model_request', 'run_end'])
-    const pairs = h.entries.flatMap((entry, i) => (entry.kind === 'model_request' ? [[h.entries[i - 1]!, entry] as const] : []))
+    expect(kinds).toEqual(['run_start', 'user', 'model_request', 'assistant', 'toolResult', 'model_request', 'assistant', 'run_end'])
+    const pairs = h.entries.flatMap((entry, i) => (entry.kind === 'model_request' ? [[h.entries[i + 1]!, entry] as const] : []))
     for (const [assistant, request] of pairs) {
       if (assistant.kind !== 'message' || assistant.payload.role !== 'assistant' || request.kind !== 'model_request') throw new Error('unexpected order')
       const usage = assistant.payload.usage
@@ -468,8 +469,8 @@ describe('Agent 运行时：模型错误与重试', () => {
     const retriedEntries = h.entries.filter((entry) => entry.runId === retried.runId)
     expect(retriedEntries.map((entry) => (entry.kind === 'message' ? entry.payload.role : entry.kind))).toEqual([
       'run_start',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     expect(retriedEntries[0]).toEqual({ kind: 'run_start', runId: retried.runId, payload: { trigger: 'retry' } })

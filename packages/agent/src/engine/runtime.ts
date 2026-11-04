@@ -283,6 +283,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           return
         }
         if (isWithheld(run, event.message)) return
+        // Persist the authoritative request before its assistant duplicate, so a crash
+        // cannot leave a new message hidden behind an older canonical Run.
+        if (event.message.role === 'assistant') {
+          await recordRequest(run, 'turn')
+          if (run.commitError) return
+        }
         try {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
@@ -297,8 +303,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           return
         }
         if (event.message.role === 'assistant') {
-          await recordRequest(run, 'turn')
-          if (run.commitError) return
           const usage = event.message.usage
           const tokens = usage ? usage.input + usage.cacheRead + usage.cacheWrite + usage.output : 0
           progress({ type: 'context_usage', runId: run.runId, tokens, contextWindow: agent.state.model.contextWindow ?? 0 })

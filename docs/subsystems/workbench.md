@@ -42,6 +42,8 @@ lifecycle: active
 
 用量按钮以紧凑格式展示本 Run 的已报告合计；明确全零显示 0 tokens，缺失显示未取得，部分统计标明“不完整”。点击打开共享 Popover，优先位于按钮上方并按视口避让；再点按钮、外点和 Escape 均可关闭并返回焦点。详情只累计实际报告的分桶，展示精确合计或已报告小计、未缓存输入／缓存读取／缓存写入／输出、已知 Provider 与模型列表；依赖的未报告回退数值不作为已知下界。确有报告时显示 reasoning 输出子集。缓存命中率为缓存读取除以三种输入分桶之和，仅在完整且输入总量大于零时显示。不完整分桶的已知小计使用 ≥，未知项使用破折号，不生成伪精确比例。新底栏和详情不显示费用，标题栏累计费用、定价和预算保留。停止、失败与没有最终助手正文的 Run 在结束状态或已有内容后显示一个同样的底栏；只复制该轮最后实际产出的正文，完全无正文时没有复制。阶段回复不重复附加动作，停止、失败和暂停不提供成功分支。没有计量记录也保留“未取得用量”的详情入口，明确全零继续显示真实 0 tokens。暂停与中断状态、错误重试和结果确认仍保留；中断恢复补写的时间不是实际结束时间，不显示为底栏时间。仅由进度得知而未成功提交结束记录时，底栏保留已报告计数但不伪造结束时间或开放重试。隐藏的重复结束位置不占过程列表尾部空间。
 
+完整性还要求有可信的 Run 结束事实。中断恢复或结束记录未成功提交时，即使此前每条请求都完整报告，也不能证明没有丢失后续尝试；底栏保留已报告小计并标为不完整，各桶只显示已知下界或未知，不把先前的零当作整轮精确零。复制历史的成功最终回复来源证明仍可证明源 Run 已结束，不新增消费或补造结束时间。没有 canonical 请求的备用消息若已有 `usage.report`，同样尊重其 `known`／`complete`；只有真正没有报告元数据的旧记录才沿用历史兼容口径。旧 SDK 未报告 reasoning 时也可能填零，因此没有报告元数据的可选 reasoning 零不显示为实测值；可信正值和明确报告的零继续保留。
+
 验证：[异常及无正文底栏 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/ended-footers.browser.test.tsx)、[助手底栏 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/assistant-footer.browser.test.tsx)、[请求计量兼容 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx)、[真实 Electron 剪贴板、无 hover 与重载](../../apps/desktop/e2e/message-footers.e2e.test.ts)。[真实协议至 Electron 的联合用例](../../apps/desktop/e2e/message-footers-protocol.e2e.test.ts)经自定义 Provider、真实 Sidecar 和 SQLite 验证重试／工具循环、标题与子 Session 排除、部分报告停止、成功与失败压缩、历史助手分支及应用重启；只有远程模型 HTTP/SSE 由本地可控服务替代。
 
 [思考行](../../apps/desktop/src/renderer/features/conversation/reasoning-row.tsx)只显示非空白内容，流式与历史内容初始均收起。流式预览取最近一个首行已以换行结束的段落的首行；尚未完成的单行不产生预览。结算后预览显示首行，仅预览去掉 `**`，展开后的紧凑 Markdown 保持原文。标题行高 24px，展开正文从标题起点缩进 22px；悬停和键盘焦点显示开合箭头，运行中的文字扫光在 reduced-motion 下关闭。

@@ -76,22 +76,36 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
   )
   const seenEntries = new Set<string>()
   const seenRequests = new Set<string>()
+  const countedRuns = new Set<string>()
+  // A terminal request report cannot prove that no later attempt was lost in a crash.
+  const endedRuns = new Set(
+    entries.flatMap((entry) => (entry.kind === 'run_end' && entry.payload.status !== 'interrupted' && entry.runId !== null ? [entry.runId] : [])),
+  )
   const provenance = (provider: string | undefined, model: string | undefined, cost: number) => {
     if (priced(provider, model, cost)) totals.priced++
     else totals.unpriced++
     if (provider && model && !totals.models.some((item) => item.provider === provider && item.model === model)) totals.models.push({ provider, model })
   }
-  const add = (usage: RequestUsage) => {
+  const addReasoning = (value: number | undefined, output: number, report: RequestUsage['report']) => {
+    // Legacy SDKs filled an unreported optional reasoning count with zero.
+    if (value === undefined || value > output || (report ? !report.known.includes('output') : value === 0)) return
+    totals.reasoning = (totals.reasoning ?? 0) + value
+  }
+  const add = (usage: RequestUsage, owner: string) => {
+    countedRuns.add(owner)
     totals.requests++
-    totals.complete = false // Legacy fields cannot prove provider reporting completeness.
-    totals.hasUsage = true
+    const report = usage.report
+    const known = report?.known ?? ['input', 'output', 'cacheRead', 'cacheWrite']
+    totals.complete &&= report?.complete === true
+    totals.hasUsage ||= known.length > 0
+    totals.known = totals.known.filter((key) => known.includes(key))
     totals.input += usage.input
     totals.output += usage.output
     totals.cacheRead += usage.cacheRead
     totals.cacheWrite += usage.cacheWrite
-    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.reported[key] += usage[key]
+    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) if (known.includes(key)) totals.reported[key] += usage[key]
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'] as const) totals.cost[key] += usage.cost[key]
-    if (usage.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + usage.reasoning
+    addReasoning(usage.reasoning, usage.output, report)
   }
   for (const entry of entries) {
     const identity = `${entry.sessionId}:${entry.seq}`
@@ -102,6 +116,7 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
       const request = entry.payload
       if (request.requestId && seenRequests.has(request.requestId)) continue
       if (request.requestId) seenRequests.add(request.requestId)
+      if (entry.runId !== null) countedRuns.add(entry.runId)
       totals.requests++
       const report = request.usageReport
       totals.complete &&= report?.complete === true
@@ -115,20 +130,20 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
         if (!report || report.known.includes(key)) totals.reported[key] += request.usage[key]
       totals.cost.total += request.cost ?? 0
       if (request.costBreakdown) for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.cost[key] += request.costBreakdown[key]
-      if (request.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + request.reasoning
+      addReasoning(request.reasoning, request.usage.output, report)
       provenance(request.provider, request.model, request.cost ?? 0)
       continue
     }
     if (entry.runId === null || canonicalRuns.has(entry.runId) || (runId !== undefined && entry.runId !== runId)) continue
     if (entry.kind === 'compaction') {
-      if (entry.payload.usage) add(entry.payload.usage)
+      if (entry.payload.usage) add(entry.payload.usage, entry.runId)
       continue
     }
     if (entry.kind !== 'message' || entry.payload.role !== 'assistant') continue
     const message = entry.payload as { usage?: unknown; provider?: unknown; model?: unknown }
     const usage = usageOf(message.usage)
     if (!usage) continue
-    add(usage)
+    add(usage, entry.runId)
     provenance(
       typeof message.provider === 'string' ? message.provider : undefined,
       typeof message.model === 'string' ? message.model : undefined,
@@ -137,6 +152,11 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
   }
   if (totals.requests === 0) {
     totals.complete = false
+    totals.known = []
+  }
+  if ([...countedRuns].some((owner) => !endedRuns.has(owner))) {
+    totals.complete = false
+    // The lost attempt may contribute to any bucket, including an earlier reported zero.
     totals.known = []
   }
 

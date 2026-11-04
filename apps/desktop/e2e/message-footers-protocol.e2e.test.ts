@@ -378,3 +378,79 @@ it('actual cancellation and failed/successful compaction retain reported usage i
   )
   expect(await entries(app, source)).toEqual(records)
 })
+
+it('actual pending request crash keeps the completed request as an incomplete lower bound after recovery', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-protocol-crash-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const workspace = join(root, 'workspace')
+  await mkdir(workspace)
+  await writeFile(join(workspace, 'notes.txt'), 'crash boundary\n')
+  let turns = 0
+  const server = createServer((req, res) => {
+    let body = ''
+    req.setEncoding('utf8').on('data', (part: string) => (body += part))
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      if (body.includes('COKO_SESSION_TITLE')) return res.end(reply('Crash boundary', { prompt_tokens: 1, completion_tokens: 1 }))
+      turns++
+      if (turns === 1)
+        res.end(
+          chunk(
+            {
+              role: 'assistant',
+              content: 'Before the pending request.',
+              tool_calls: [
+                { index: 0, id: 'read-before-crash', type: 'function', function: { name: 'read', arguments: JSON.stringify({ path: 'notes.txt' }) } },
+              ],
+            },
+            null,
+          ) +
+            chunk({}, 'tool_calls', { prompt_tokens: 11, completion_tokens: 3 }) +
+            'data: [DONE]\n\n',
+        )
+      // The second real HTTP request remains open: it cannot produce a terminal measurement.
+    })
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  onTestFinished(
+    () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections()
+        server.close(() => resolve())
+      }),
+  )
+  let app = await launchApp({}, { dir: root })
+  onTestFinished(() => app.dispose())
+  await app.window.getByRole('heading', { level: 1 }).waitFor()
+  await installProvider(app, `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`)
+  await createProjectDraft(app, workspace)
+  await composer(app).fill('crash after the second request starts')
+  await composer(app).press('Enter')
+  await expect.poll(() => turns, { timeout: 30_000 }).toBe(2)
+  const source = (await activeId(app))!
+  const before = await entries(app, source)
+  const recorded = before.filter((entry) => entry.kind === 'model_request' && entry.runId !== null)
+  expect(recorded).toHaveLength(1)
+  expect(recorded[0]!.payload).toMatchObject({ usage: { total: 14 }, usageReport: { complete: true } })
+  expect(before.some((entry) => entry.kind === 'run_end')).toBe(false)
+  const pids = await app.sidecarPids()
+  expect(pids).toHaveLength(1)
+  process.kill(pids[0]!, 'SIGKILL')
+  await app.dispose()
+  app = await launchApp({}, { dir: root })
+  await waitConnected(app.window)
+  await footer(app, 0).waitFor()
+  expect(await footer(app, 0).getAttribute('data-tokens')).toBe('14')
+  expect(await footer(app, 0).textContent()).toMatch(/Incomplete|不完整/)
+  expect(await footer(app, 0).locator('time, [data-action="branch-reply"]').count()).toBe(0)
+  await footer(app, 0).locator('[data-action="run-usage"]').click()
+  const details = app.window.locator('[data-slot="run-usage-details"]')
+  await details.waitFor()
+  expect(await details.locator('[data-usage-part="input"] dd').textContent()).toBe('≥ 11')
+  expect(await details.locator('[data-usage-part="cacheRead"] dd').textContent()).toBe('—')
+  await app.window.keyboard.press('Escape')
+  const recovered = await entries(app, source)
+  expect(recovered.filter((entry) => entry.kind === 'model_request' && entry.runId !== null)).toEqual(recorded)
+  expect(recovered.filter((entry) => entry.kind === 'run_end').at(-1)?.payload).toMatchObject({ status: 'interrupted' })
+  expect(turns).toBe(2)
+})
