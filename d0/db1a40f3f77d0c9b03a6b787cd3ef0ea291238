@@ -1,0 +1,22 @@
+.scratch/conversation-status-and-header/issues/07-status-bar-token-usage.md
+  s_296be7915f5188::t_af65174230a780 38-39
+  s_296be7915f5188::t_cdf3bd22ffed24 40
+docs/README.md
+  s_296be7915f5188::t_af65174230a780 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "d0db1a40f3f77d0c9b03a6b787cd3ef0ea291238",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
