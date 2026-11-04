@@ -1,0 +1,59 @@
+.scratch/conversation-status-and-header/issues/05-more-menu-session-download.md
+  s_296be7915f5188::t_1fb292b5e9ea3f 15-22,27-38
+apps/desktop/src/renderer/features/conversation/session-menu.tsx
+  s_296be7915f5188::t_3f811657044675 1-12,16-18,21-25
+  s_296be7915f5188::t_178d285539792c 13-15,19-20
+apps/desktop/e2e/session-download.e2e.test.ts
+  s_296be7915f5188::t_2256aee9dc983a 38
+  s_296be7915f5188::t_6506763ca07dd4 1-17,34-36,39-42,44-61,66-77
+  s_296be7915f5188::t_867c485955a630 33
+  s_296be7915f5188::t_c8cde096a40370 43
+  s_296be7915f5188::t_5b9d2ee10520fd 37
+  s_296be7915f5188::t_178d285539792c 18-32,62-65
+apps/desktop/src/renderer/features/conversation/session-download.tsx
+  s_296be7915f5188::t_178d285539792c 34-38
+  s_296be7915f5188::t_3f811657044675 1-33,39-48
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_6e759246000ec9 31-32
+apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx
+  s_296be7915f5188::t_bfb04896d91e24 76,100-103
+  s_296be7915f5188::t_2d8f406763590d 13,60,68,83,117,127-128,132-134
+  s_296be7915f5188::t_d95a28c30c9849 1-12,14-15,20-21,25-30,47-53,58-59,61-67,69-71,75,77,81-82,84-85,87-88,95-99,105-109,116,138
+  s_296be7915f5188::t_503d8bdac17676 46,86,118-126,129-131,135-137
+  s_296be7915f5188::t_321375ce3849b6 104
+  s_296be7915f5188::t_178d285539792c 16-19,22-24,31-45,54-57,72-74,78-80,89-94,110-115
+docs/subsystems/tracing.md
+  s_296be7915f5188::t_697253f8ba4b36 3,19
+  s_296be7915f5188::t_56879738933f9e 68
+  s_296be7915f5188::t_6e759246000ec9 80-81,114
+docs/README.md
+  s_296be7915f5188::t_697253f8ba4b36 53
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_3f811657044675 36,300
+apps/desktop/src/renderer/features/right-panel/trace-tab.tsx
+  s_296be7915f5188::t_3f811657044675 3,9-10,165,174
+apps/desktop/e2e/trace.e2e.test.ts
+  s_296be7915f5188::t_c8cde096a40370 99
+apps/server/src/runtime/layers.ts
+  s_296be7915f5188::t_56879738933f9e 720
+apps/server/src/application/trace.ts
+  s_296be7915f5188::t_f0ea6771d4136d 9,15-16,38-44,57,62-64,81
+packages/i18n/src/dictionaries/domains/trace.ts
+  s_296be7915f5188::t_3f811657044675 7-8,67-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "c70cfca281244e22555bda74d9ec8446e7808025",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
