@@ -28,6 +28,8 @@ lifecycle: active
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
+右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 为“打开侧边栏”，可访问名称为“打开右侧边栏”。打开后入口隐藏，使用右栏头部的 X 收起：Tooltip 为“收起侧边栏”，可访问名称为“收起右侧边栏”；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口仍可直接打开对应 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+
 验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)。
 
 ## 对话搜索

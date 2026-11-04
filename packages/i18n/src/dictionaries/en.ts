@@ -157,8 +157,10 @@ export const en: typeof zh = {
   frame: {
     main: 'Conversation',
     rightPanel: 'Right panel',
-    openRightPanel: 'Open right panel',
-    closeRightPanel: 'Close right panel',
+    openRightPanel: 'Open right sidebar',
+    closeRightPanel: 'Close right sidebar',
+    openSidebar: 'Open sidebar',
+    collapseSidebar: 'Collapse sidebar',
   },
   appearance: {
     theme: 'Theme',

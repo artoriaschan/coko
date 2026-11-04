@@ -52,7 +52,7 @@ async function openBackgroundCommands(app: LaunchedApp) {
   const commands = app.window.locator('[data-slot="tool-card"][data-tool="bash"] > button')
   for (const button of await commands.all()) if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
 }
-const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
+const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().locator('[data-slot="assistant-message-body"]').textContent()
 const jobsButton = (app: LaunchedApp) => app.window.locator('[data-action="open-jobs"]')
 const badge = (app: LaunchedApp) => app.window.locator('[data-slot="jobs-badge"]')
 const detail = (app: LaunchedApp) => app.window.locator('[data-slot="job-detail"]')
@@ -79,7 +79,7 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Started.')
     await expect.poll(() => badge(app).textContent(), { timeout: 15_000 }).toBe('2')
 
-    // 标题栏按钮打开右栏的 Jobs tab：缺省选中最近启动的运行中 Job（beta），输出实时追加。
+    // 标题栏按钮打开右侧边栏的 Jobs tab：缺省选中最近启动的运行中 Job（beta），输出实时追加。
     await jobsButton(app).click()
     await expect.poll(() => jobsTab(app).getAttribute('aria-selected')).toBe('true')
     await expect.poll(() => app.window.locator('[data-slot="jobs-tab"] li').count()).toBe(2)
@@ -112,7 +112,7 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     const stopped = await ticks()
 
     await app.window
-      .getByRole('button', { name: /^(Close right panel|关闭右栏)$/ })
+      .getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
       .first()
       .click()
     await openBackgroundCommands(app)
@@ -154,7 +154,10 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     expect(row).toMatch(/: alpha/)
     expect(row).toMatch(/: beta/)
     expect(row).toMatch(/Stopped|已停止/)
-    const bubbles = await app.window.getByRole('article', { name: /^(You|你)$/ }).allTextContents()
+    const bubbles = await app.window
+      .getByRole('article', { name: /^(You|你)$/ })
+      .locator('[data-slot="user-bubble"]')
+      .allTextContents()
     expect(bubbles).toEqual(['start two watchers', 'what happened?'])
   })
 

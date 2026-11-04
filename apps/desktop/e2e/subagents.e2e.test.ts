@@ -164,7 +164,7 @@ describe('子代理界面', () => {
       expect(await timeline.locator('[data-slot="tool-card"][data-tool="read"]').count()).toBe(1)
       expect(await panel.getByRole('textbox').count()).toBe(0)
       await win
-        .getByRole('button', { name: /^(Close right panel|关闭右栏)$/ })
+        .getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
         .first()
         .click()
 

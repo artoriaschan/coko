@@ -254,7 +254,9 @@ it('details use a 48px title row followed by one selected conversation tab, with
   await expect.element(tab).toHaveAttribute('aria-selected', 'true')
   expect(page.getByRole('tablist').element().getBoundingClientRect().top).toBe(titleRow.getBoundingClientRect().bottom)
   expect(getComputedStyle(tab.element()).fontSize).toBe('13px')
-  expect(getComputedStyle(tab.element()).borderBottomWidth).toBe('2px')
+  const indicator = tab.element().querySelector<HTMLElement>('[data-slot="conversation-tab-indicator"]')!
+  expect(indicator.getBoundingClientRect().height).toBe(2)
+  expect(getComputedStyle(indicator).backgroundColor).toBe(getComputedStyle(tab.element()).color)
   await tab.click()
   expect(chat.getState().activeSessionId).toBe('s-1')
   expect(titleRow.querySelector('[data-connection]')).toBeNull()
@@ -516,6 +518,30 @@ describe('模型选择', () => {
 })
 
 describe('窄窗口', () => {
+  it.each([
+    ['en', 'Open right sidebar', 'Open sidebar', 'Close right sidebar', 'Collapse sidebar'],
+    ['zh', '打开右侧边栏', '打开侧边栏', '收起右侧边栏', '收起侧边栏'],
+  ] as const)('%s：右栏打开入口隐藏，X 收起后焦点回到入口，Tooltip 独立于名称', async (locale, openName, openTip, closeName, closeTip) => {
+    await page.viewport(1200, 900)
+    await renderApp(locale).screen
+    const open = page.getByRole('button', { name: openName, exact: true })
+    await expect.element(open).toBeVisible()
+    await userEvent.hover(open)
+    await expect.element(page.getByRole('tooltip', { name: openTip, exact: true })).toBeVisible()
+    ;(open.element() as HTMLElement).focus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(open).not.toBeInTheDocument()
+    const close = page.getByRole('button', { name: closeName, exact: true })
+    await expect.element(close).toBeVisible()
+    await userEvent.hover(close)
+    await expect.element(page.getByRole('tooltip', { name: closeTip, exact: true })).toBeVisible()
+    ;(close.element() as HTMLElement).focus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(open).toBeVisible()
+    await expect.poll(() => document.activeElement).toBe(open.element())
+    await expect.element(page.getByRole('button', { name: closeName, exact: true })).not.toBeInTheDocument()
+  })
+
   it('390px：无整页横向滚动，控制条与发送入口在视口内', async () => {
     await page.viewport(390, 700)
     await renderApp('en').screen
@@ -573,7 +599,7 @@ describe('窄窗口', () => {
     const header = document.querySelector<HTMLElement>('[data-slot="app-frame-main"] header')!
     expect(header.querySelector('[data-action="open-handoff"]')).toBeNull()
     expect(header.querySelector('[data-action="more-header-actions"]')).toBeNull()
-    const right = header.querySelector<HTMLElement>('button[aria-label$="right panel"]')!
+    const right = header.querySelector<HTMLElement>('button[aria-label$="right sidebar"]')!
     expect(right.getBoundingClientRect().right).toBeLessThanOrEqual(390)
     right.focus()
     expect(document.activeElement).toBe(right)

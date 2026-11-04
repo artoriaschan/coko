@@ -38,7 +38,7 @@ async function send(app: LaunchedApp, text: string) {
   await composer(app).press('Enter')
   await waitConnected(app.window)
 }
-const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().textContent()
+const lastReply = (app: LaunchedApp) => app.window.getByRole('article', { name: 'Coko' }).last().locator('[data-slot="assistant-message-body"]').textContent()
 
 /** 经 renderer 的同源代理调用 Sidecar（附加认证）。 */
 async function api<T>(window: Page, method: string, path: string, body?: unknown): Promise<{ status: number; body: T }> {
@@ -90,7 +90,7 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
 
     // 没有任务时标题栏没有"定时任务"按钮：从右栏的 Schedules tab 新建。
     expect(await window.locator('[data-action="open-schedules"]').count()).toBe(0)
-    await window.getByRole('button', { name: /^(Open right panel|打开右栏)$/ }).click()
+    await window.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
     await window.locator('[role="tab"][data-tab="schedules"]').click()
     await expect.poll(() => window.locator('[role="tab"][data-tab="schedules"]').getAttribute('aria-selected')).toBe('true')
     await window.locator('[data-action="new-schedule"]').click()

@@ -154,8 +154,10 @@ export const zh = {
   frame: {
     main: '对话',
     rightPanel: '右栏',
-    openRightPanel: '打开右栏',
-    closeRightPanel: '关闭右栏',
+    openRightPanel: '打开右侧边栏',
+    closeRightPanel: '收起右侧边栏',
+    openSidebar: '打开侧边栏',
+    collapseSidebar: '收起侧边栏',
   },
   appearance: {
     theme: '主题',

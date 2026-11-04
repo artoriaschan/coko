@@ -102,7 +102,7 @@ describe('Trace tab', () => {
     await expect.poll(lastReply, { timeout: 30_000 }).toBe('First done.')
 
     // 右栏 → Trace tab：一个 Run（提交、已完成、两次请求的 Token）。
-    await win.getByRole('button', { name: /^(Open right panel|打开右栏)$/ }).click()
+    await win.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
     await win.locator('[role="tab"][data-tab="trace"]').click()
     const runs = win.locator('[data-slot="trace-run"]')
     await expect.poll(() => runs.count(), { timeout: 15_000 }).toBe(1)

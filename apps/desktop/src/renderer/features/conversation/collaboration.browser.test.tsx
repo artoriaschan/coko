@@ -275,7 +275,7 @@ it('actual App: explicit whole collapse resets agent detail and Trace remains th
   expect(document.querySelector('[data-tool="agent"] details')?.hasAttribute('open')).toBe(true)
   await page.getByRole('button', { name: 'Inspect', exact: true }).click()
   await expect.poll(() => document.querySelector('[role="tab"][data-tab="trace"]')?.getAttribute('aria-selected')).toBe('true')
-  await page.getByRole('button', { name: 'Close right panel', exact: true }).last().click()
+  await page.getByRole('button', { name: 'Close right sidebar', exact: true }).last().click()
   await whole.click()
   await whole.click()
   await page.getByRole('button', { name: 'Coordinated subagents', exact: true }).click()

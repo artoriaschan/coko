@@ -1,5 +1,5 @@
 import type { ImageAttachment } from '@coko/protocol'
-import { ArrowDownIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
+import { ArrowDownIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { AppFrameCollapsedControls, Button, cn, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
@@ -63,6 +63,12 @@ export function HeaderActions({ actions, ...props }: { actions: readonly HeaderA
 
 export function ConversationPane({ theme, rightOpen, onToggleRight, connection, onOpenLogs, composerRef }: ConversationPaneProps) {
   const { t } = useI18n()
+  const rightTrigger = React.useRef<HTMLButtonElement>(null)
+  const previousRightOpen = React.useRef(rightOpen)
+  React.useLayoutEffect(() => {
+    if (previousRightOpen.current && !rightOpen) rightTrigger.current?.focus()
+    previousRightOpen.current = rightOpen
+  }, [rightOpen])
   const activeSessionId = useChat((s) => s.activeSessionId)
   const composerColumn = activeSessionId === null ? 'mx-auto w-full max-w-[768px]' : sessionComposerColumn
   const session = useCurrentSession()
@@ -296,16 +302,19 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
             </div>
             {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
-            <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
-              {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
-            </IconButton>
+            {!rightOpen && (
+              <IconButton ref={rightTrigger} label={t('frame.openRightPanel')} tooltip={t('frame.openSidebar')} onClick={onToggleRight}>
+                <PanelRightOpenIcon />
+              </IconButton>
+            )}
           </>
         )}
       </header>
       {activeSessionId !== null && (
         <div role="tablist" aria-label={t('frame.main')} className="flex shrink-0 border-b-hairline border-border px-4">
-          <button type="button" role="tab" aria-selected="true" className="border-b-2 border-link px-1 py-2 text-ui-body font-medium text-link focus-ring">
+          <button type="button" role="tab" aria-selected="true" className="relative px-1 pt-2 pb-2.5 text-ui-body font-medium text-link focus-ring">
             {t('frame.main')}
+            <span data-slot="conversation-tab-indicator" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-link" />
           </button>
         </div>
       )}

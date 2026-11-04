@@ -29,10 +29,8 @@ it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已
   ])
   expect(HEADER_ACTIONS.map((a) => [a.id, a.available])).toEqual([
     ['jobs', true],
-    ['cost', true],
     ['agents', true],
     ['schedules', true],
-    ['handoff', true],
     ['team', true],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
@@ -67,10 +65,10 @@ it('应用中：会话打开后 dock 没有内容时不占位；没有后台任�
   // 待办卡与队列卡已交付，但 s-1 没有待办与追加指令：容器为空，empty:hidden 不占位。
   expect(getComputedStyle(document.querySelector('[data-slot="dock"]')!).display).toBe('none')
   expect(document.querySelector('[data-action="open-jobs"]')).toBeNull()
-  await userEvent.click(page.getByRole('button', { name: 'Open right panel' }))
+  await userEvent.click(page.getByRole('button', { name: 'Open right sidebar' }))
   expect(document.querySelector('[data-slot="plan-chip"]')).toBeNull()
   await expect.element(page.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true')
-  expect([...screen.container.querySelectorAll('[role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual([
+  expect([...screen.container.querySelectorAll('[data-slot="app-frame-right"] [role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual([
     'plan',
     'jobs',
     'agents',
