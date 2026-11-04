@@ -33,7 +33,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 - `session_status { sessionId, running, agentsRunning }`：根 Session 的执行状态变化，发给所有连接，不需要订阅；两个布尔字段都必填。`running` 是根 Run 正在执行（含等待审批），`agentsRunning` 是有 running 的 Subagent 或 Teammate（含等待审批）；空闲 Teammate 与 Background Job 不计入。服务端在 `run_start`、`run_end` 和 `agent_update` 进度之后同步读取内存状态，映射到根 Session 并去重，只广播值的变化。运行时在 start 进度前已设为运行中、end 进度前已清除，子代理状态在 update 前已更新。
 - `error { code, message, sessionId? }`：订阅失败（例如 Session 不存在）或客户端消息不合 schema。
 
-列表与详情 DTO 的 `Session.agentsRunning?: boolean` 与广播使用同一规则，缺省视为 false。运行状态不持久化，重启后两个值均为 false；重连后读取列表快照补齐断线期间的变化。renderer 用修订号保留列表加载期间收到的较新广播，也用最新广播保护之后写入的接口 DTO；新一轮快照会清理先前广播，避免断线后残留状态。`activity` 与已订阅 Session 的条目、进度推导保持独立。
+列表与详情 DTO 的 `Session.agentsRunning?: boolean` 与广播使用同一规则，缺省视为 false。运行状态不持久化，重启后两个值均为 false；重连后读取列表快照补齐断线期间的变化。renderer 用修订号保留列表加载期间收到的较新广播，新一轮快照会清理先前广播的覆盖记录，避免断线后残留状态。操作 DTO 写入已有列表行时保留该行由最新快照或广播得到的执行状态，因此延迟的旧响应不能覆盖刷新结果；普通与归档缓存暂时同时持有同一 Session 时，优先操作目标列表的行。尚未加载的行优先合并已收到的广播，未观察过状态的新行才用 DTO 初始化。`activity` 与已订阅 Session 的条目、进度推导保持独立。
 
 验证：[真实 Sidecar 状态测试](../../tests/integration/sidecar-session-status.test.ts)、[列表并发测试](../../apps/desktop/src/renderer/stores/chat-store.test.ts)、[Electron 未打开会话测试](../../apps/desktop/e2e/session-status.e2e.test.ts)。
 

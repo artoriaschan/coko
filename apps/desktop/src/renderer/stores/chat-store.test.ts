@@ -615,6 +615,71 @@ describe('chat store：M5 的条目与进度', () => {
 })
 
 describe('global Session status', () => {
+  it('keeps refreshed execution state when a delayed restore response arrives after its broadcast', async () => {
+    let resolveRestore!: (value: Session) => void
+    const idle = session('s1')
+    const running = session('s1', { running: true, agentsRunning: true })
+    const stream = new FakeStream()
+    const store = createChatStore({
+      api: fakeApi({
+        listArchivedSessions: async () => [session('s1', { archivedAt: 10 })],
+        listSessions: async () => [running],
+        restoreSession: () => new Promise<Session>((resolve) => (resolveRestore = resolve)),
+      }),
+      stream,
+    })
+    await store.lists.getState().loadArchived()
+    const restoring = store.getState().restoreSession('s1')
+    // The restore committed before this Run, but its idle HTTP response is still in flight.
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: true, agentsRunning: true })
+    await store.lists.getState().load()
+    expect(store.lists.getState().sessions[0]).toMatchObject(running)
+    resolveRestore(idle)
+    await restoring
+    expect(store.lists.getState().sessions[0]).toMatchObject({ running: true, agentsRunning: true, archivedAt: null })
+    expect(store.lists.getState().archivedSessions).toEqual([])
+  })
+
+  it('uses the destination snapshot when an archive response moves a Session between cached lists', async () => {
+    let resolveArchive!: (value: Session) => void
+    const archived = session('s1', { archivedAt: 10, agentsRunning: false })
+    const store = createChatStore({
+      api: fakeApi({
+        listSessions: async () => [session('s1', { running: true, agentsRunning: true })],
+        listArchivedSessions: async () => [archived],
+        archiveSession: () => new Promise<Session>((resolve) => (resolveArchive = resolve)),
+      }),
+      stream: new FakeStream(),
+    })
+    await store.lists.getState().load()
+    const archiving = store.getState().archiveSession('s1')
+    // The Run ended while disconnected; the archived snapshot is now authoritative.
+    await store.lists.getState().loadArchived()
+    resolveArchive(archived)
+    await archiving
+    expect(store.lists.getState().sessions).toEqual([])
+    expect(store.lists.getState().archivedSessions[0]).toMatchObject({ running: false, agentsRunning: false, archivedAt: 10 })
+  })
+
+  it.each(['active', 'archived'] as const)('keeps a reconnect snapshot correction after a missed end broadcast in the %s list', async (list) => {
+    const archivedAt = list === 'archived' ? 10 : null
+    const idle = session('s1', { archivedAt, agentsRunning: false })
+    const stale = session('s1', { archivedAt, running: true, agentsRunning: true, title: 'renamed' })
+    const stream = new FakeStream()
+    const store = createChatStore({
+      api: fakeApi({ listSessions: async () => [idle], listArchivedSessions: async () => [idle] }),
+      stream,
+    })
+    const refresh = () => (list === 'active' ? store.lists.getState().load() : store.lists.getState().loadArchived())
+    await refresh()
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: true, agentsRunning: true })
+    // No end broadcast was received while disconnected; the new snapshot repairs it.
+    await refresh()
+    store.lists.getState().upsertSession(stale)
+    const current = list === 'active' ? store.lists.getState().sessions : store.lists.getState().archivedSessions
+    expect(current[0]).toMatchObject({ running: false, agentsRunning: false, title: 'renamed', archivedAt })
+  })
+
   it('updates unopened rows, preserves broadcasts across an older snapshot and stale DTO, then reconciles on reload', async () => {
     let resolve!: (value: Session[]) => void
     const pending = new Promise<Session[]>((done) => {

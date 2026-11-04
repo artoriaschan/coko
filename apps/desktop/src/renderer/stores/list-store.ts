@@ -287,7 +287,11 @@ export function createListStore(api: ApiClient): ListStore {
         if (removed.has(session.id)) return
         if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
         session = { ...session, ...organization.get(session.id) }
-        const status = statusChanges.get(session.id)
+        // A mutation DTO may predate a completed list refresh. Prefer the destination
+        // list's row when restore/archive has left both cached lists holding this id.
+        const active = get().sessions.find((current) => current.id === session.id)
+        const archived = get().archivedSessions.find((current) => current.id === session.id)
+        const status = (session.archivedAt === null ? (active ?? archived) : (archived ?? active)) ?? statusChanges.get(session.id)
         if (status) session = { ...session, running: status.running, agentsRunning: status.agentsRunning }
         const observed = titleChanges.get(session.id)
         if (observed) session = { ...session, title: observed.title }

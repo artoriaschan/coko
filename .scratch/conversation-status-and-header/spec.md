@@ -156,7 +156,7 @@ Q14 原定写完 spec 后直接实现、不拆实施票。开始实现之后，�
 - **DTO 新增可选字段。** Session DTO 新增可选的 `agentsRunning`，缺省视为 false；列表接口与详情接口按同一规则计算。
 - **服务端只为根 Session 计算。** `running` 沿用现有的运行时状态；该根 Session 下有 running 的 Subagent 或 Teammate 时，`agentsRunning` 为 true。Background Job 不参与计算。
 - **重算时机与去重。** 在三类进度之后重算受影响的根 Session：Run 开始、Run 结束、Subagent 状态更新；只在值变化时广播。这依赖三个时序：运行时在发出 `run_start` 之前已标记为运行中，在发出 `run_end` 之前已清除运行中状态，Subagent 的状态在发布 `agent_update` 之前已更新。
-- **renderer 写入。** renderer 的列表 store 按广播写入这两个字段，用与标题相同的修订号写法：加载列表快照期间收到的广播，在快照落地后仍然生效；接口返回的 DTO 写入列表时，同样以该 Session 最新的广播为准，避免较旧的值覆盖较新的状态。对已订阅的 Session，现有的按条目与进度推导运行状态的逻辑保持不变。
+- **renderer 写入。** renderer 的列表 store 按广播写入这两个字段，用与标题相同的修订号写法：加载列表快照期间收到的广播，在快照落地后仍然生效。接口返回的 DTO 写入已有列表行时保留当前行的执行状态，因此清理先前广播的覆盖记录后，延迟的旧 DTO 也不能覆盖新快照或广播；尚未加载的行先合并已收到的广播，无已有状态时才用 DTO 初始化。对已订阅的 Session，现有的按条目与进度推导运行状态的逻辑保持不变。
 - **侧栏的判断。** 侧栏以 `running` 或 `agentsRunning` 为真作为“执行中”。具体设计见 [design.md](design.md)。
 
 ### Session 下载
