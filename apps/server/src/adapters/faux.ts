@@ -67,6 +67,8 @@ export interface FauxScriptUsage {
   output?: number
   cacheRead?: number
   cacheWrite?: number
+  /** Explicit provider-report fixture; omitted preserves unknown bucket presence. */
+  report?: { complete: boolean; known: ('input' | 'output' | 'cacheRead' | 'cacheWrite')[] }
   cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; total?: number }
 }
 
@@ -93,6 +95,7 @@ export function toUsage(input: FauxScriptUsage): Usage {
     ...tokens,
     totalTokens: tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite,
     cost: { ...cost, total: input.cost?.total ?? cost.input + cost.output + cost.cacheRead + cost.cacheWrite },
+    ...(input.report === undefined ? {} : { report: input.report }),
   }
 }
 

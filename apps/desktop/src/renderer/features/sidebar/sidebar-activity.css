@@ -1,0 +1,49 @@
+/* The row's activity and commands share the trailing column. */
+[data-sidebar-activity-row] [data-sidebar-row-content] {
+  padding-inline-end: 0;
+}
+[data-sidebar-activity-row][data-executing] [data-sidebar-row-content] {
+  padding-inline-end: calc(var(--spacing) * 6);
+}
+[data-sidebar-activity-row] [data-session-actions],
+[data-sidebar-activity-row] [data-project-actions] {
+  opacity: 0;
+}
+[data-sidebar-activity-row]:focus-within [data-sidebar-activity],
+[data-sidebar-activity-row][data-menu-open] [data-sidebar-activity] {
+  visibility: hidden;
+}
+[data-sidebar-activity-row]:focus-within [data-sidebar-row-content],
+[data-sidebar-activity-row][data-menu-open] [data-sidebar-row-content] {
+  padding-inline-end: calc(var(--spacing) * 12);
+}
+[data-sidebar-activity-row]:focus-within [data-session-actions],
+[data-sidebar-activity-row]:focus-within [data-project-actions],
+[data-sidebar-activity-row][data-menu-open] [data-session-actions],
+[data-sidebar-activity-row][data-menu-open] [data-project-actions] {
+  opacity: 1;
+}
+@media (hover: hover) {
+  [data-sidebar-activity-row]:hover [data-sidebar-activity] {
+    visibility: hidden;
+  }
+  [data-sidebar-activity-row]:hover [data-sidebar-row-content] {
+    padding-inline-end: calc(var(--spacing) * 12);
+  }
+  [data-sidebar-activity-row]:hover [data-session-actions],
+  [data-sidebar-activity-row]:hover [data-project-actions] {
+    opacity: 1;
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  [data-sidebar-activity-row] [data-sidebar-activity] {
+    display: none;
+  }
+  [data-sidebar-activity-row] [data-sidebar-row-content] {
+    padding-inline-end: calc(var(--spacing) * 12);
+  }
+  [data-sidebar-activity-row] [data-session-actions],
+  [data-sidebar-activity-row] [data-project-actions] {
+    opacity: 1;
+  }
+}

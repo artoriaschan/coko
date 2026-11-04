@@ -62,3 +62,27 @@ it('records every actual request including a title without a scripted response',
   expect(JSON.stringify(details[0].messages)).toContain('COKO_SESSION_TITLE')
   expect(details[1].messages).toEqual([{ role: 'user', content: 'hello', timestamp: 0 }])
 })
+
+it('forwards explicit scripted bucket reports and leaves omitted reports unknown', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-faux-report-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'faux.json')
+  const report = { complete: false, known: ['input', 'output'] }
+  await writeFile(
+    path,
+    JSON.stringify({
+      responses: [
+        { content: 'Reported.', usage: { input: 20, output: 5, report } },
+        { content: 'Unknown.', usage: { input: 20, output: 5 } },
+      ],
+    }),
+  )
+  const registry = createModelRegistry({ credentials: new InMemoryCredentialStore() })
+  const spec = await installFauxProvider(registry, path)
+  const model = resolveModel(registry, spec.providerId, spec.modelId)
+  const context = { messages: [{ role: 'user' as const, content: 'count', timestamp: 0 }] }
+  const first = await registry.models.streamSimple(model, context).result()
+  expect(first.usage).toMatchObject({ input: 20, output: 5, totalTokens: 25, report })
+  const second = await registry.models.streamSimple(model, context).result()
+  expect(second.usage).not.toHaveProperty('report')
+})
