@@ -1,5 +1,5 @@
 // 回退与分叉：真实 Electron + 真实 Sidecar（faux）。悬停用户消息出现回退动作，确认对话框列出将恢复与删除的文件和
-// bash 不追踪说明；执行后输入区为原消息文本、时间线折叠、文件回到之前的内容。分叉后侧栏出现新会话并打开。键盘可达。
+// bash 不追踪说明；执行后输入区为原消息文本、时间线折叠、文件回到之前的内容。用户底栏没有分叉入口，旧用户锚点协议仍兼容。键盘可达。
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -73,8 +73,25 @@ describe('回退与分叉', () => {
     // 未悬停时动作不可见（支持 hover 的窗口），悬停后出现。
     await app.window.mouse.move(0, 0)
     await expect.poll(() => opacity(actions)).toBe('0')
+    const cdp = await app.window.context().newCDPSession(app.window)
+    try {
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+      await expect.poll(() => app.window.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(false)
+      await expect.poll(() => opacity(actions)).toBe('1')
+    } finally {
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+      await cdp.detach()
+    }
     await second.hover()
     await expect.poll(() => opacity(actions)).toBe('1')
+    const clipboardBefore = await app.app.evaluate(({ clipboard }) => clipboard.readText())
+    try {
+      await actions.locator('[data-action="copy-message"]').click()
+      await expect.poll(() => app.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('second change')
+    } finally {
+      await app.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), clipboardBefore)
+    }
+    expect(await second.locator('time').getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     await actions.locator('[data-action="rewind"]').click()
 
     const dialog = app.window.locator('[data-slot="rewind-dialog"]')
@@ -98,7 +115,7 @@ describe('回退与分叉', () => {
     const rewound = app.window.locator('[data-slot="rewound"]')
     await rewound.waitFor()
     expect(await rewound.getAttribute('open')).toBeNull()
-    expect(await rewound.locator('article[data-seq]').allTextContents()).toEqual(['second change'])
+    expect(await rewound.locator('[data-slot="user-bubble"]').allTextContents()).toEqual(['second change'])
     expect(await rewound.locator('[data-action="rewind"]').count()).toBe(0)
     expect(await replies(app).filter({ visible: true }).allTextContents()).toEqual(['First done.'])
     await rewound.locator('summary').click()
@@ -113,6 +130,8 @@ describe('回退与分叉', () => {
     const actions = first.locator('[data-slot="message-actions"]')
     await expect.poll(() => opacity(actions)).toBe('1')
     await app.window.keyboard.press('Tab')
+    expect(await app.window.evaluate(() => document.activeElement?.tagName)).toBe('TIME')
+    await app.window.keyboard.press('Tab')
     expect(await app.window.evaluate(() => document.activeElement?.getAttribute('data-action'))).toBe('copy-message')
     await app.window.keyboard.press('Tab')
     expect(await app.window.evaluate(() => document.activeElement?.getAttribute('data-action'))).toBe('rewind')
@@ -126,32 +145,30 @@ describe('回退与分叉', () => {
     expect(await app.window.locator('[data-slot="rewound"]').count()).toBe(0)
   })
 
-  it('从这里分叉 → 侧栏出现新会话并打开，输入区为原消息；原会话不变', async () => {
+  it('用户底栏没有分叉，旧用户锚点分叉协议仍保留上下文且不改变源文件或记录', async () => {
     const { app, workspace } = await setup()
-    const sourceEntries = await app.window.evaluate(async () => {
-      const { sessions } = await (await fetch('/api/sessions')).json()
-      return (await (await fetch(`/api/sessions/${sessions[0].id}`)).json()).entries
-    })
-    const sessions = app.window.locator('[data-session-id]')
-    expect(await sessions.count()).toBe(1)
-    const original = await sessions.first().getAttribute('data-session-id')
+    const source = await app.window.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id')
     const second = userMessage(app, 'second change')
-    await second.hover()
-    await second.locator('[data-action="fork"]').click()
-
-    await expect.poll(() => sessions.count(), { timeout: 15_000 }).toBe(2)
-    const active = app.window.locator('[data-session-id][aria-current="page"]')
-    await expect.poll(() => active.getAttribute('data-session-id')).not.toBe(original)
-    // 标题由界面按当前语言生成。
-    expect(await active.textContent()).toMatch(/\(fork\)|（分叉）/)
-    await expect.poll(() => composer(app).textContent(), { timeout: 15_000 }).toBe('second change')
-    // 新会话只有分叉前的消息。
-    await expect.poll(() => app.window.locator('article[data-seq]').allTextContents()).toEqual(['first change'])
-    expect(await replies(app).allTextContents()).toEqual(['First done.'])
-
-    await app.window.locator(`[data-session-id="${original}"]`).click()
-    await expect.poll(() => app.window.locator('article[data-seq]').allTextContents()).toEqual(['first change', 'second change'])
-    expect(await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, original)).toEqual(sourceEntries)
+    expect(await second.locator('[data-action="fork"]').count()).toBe(0)
+    const before = await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, source)
+    const targetSeq = Number(await second.getAttribute('data-seq'))
+    const fork = await app.window.evaluate(
+      async ({ source, targetSeq }) => {
+        const response = await fetch(`/api/sessions/${source}/fork`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetSeq, title: 'Legacy fork' }),
+        })
+        return { status: response.status, body: await response.json() }
+      },
+      { source, targetSeq },
+    )
+    expect(fork.status).toBe(201)
+    expect(fork.body.text).toBe('second change')
+    const entries = await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, fork.body.sessionId)
+    expect(entries[0]).toMatchObject({ kind: 'fork_origin', payload: { sessionId: source, seq: targetSeq } })
+    expect(entries.filter((entry: { kind: string; payload: { role?: string } }) => entry.kind === 'message' && entry.payload.role === 'user')).toHaveLength(1)
+    expect(await app.window.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, source)).toEqual(before)
     expect(await readFile(join(workspace, 'notes.txt'), 'utf8')).toBe('after two\n')
     expect(await readFile(join(workspace, 'extra.txt'), 'utf8')).toBe('extra\n')
   })

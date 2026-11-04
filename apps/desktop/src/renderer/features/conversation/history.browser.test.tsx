@@ -86,7 +86,7 @@ it('actual App: a removed worktree keeps history inspectable while rewind, fork 
   const rewind = vi.spyOn(fixture.api, 'rewind')
   const fork = vi.spyOn(fixture.api, 'fork')
   await expect.element(page.getByRole('button', { name: 'Rewind to here', exact: true })).toBeDisabled()
-  await expect.element(page.getByRole('button', { name: 'Fork from here', exact: true })).toBeDisabled()
+  expect(document.querySelector('[data-slot="user-message"] [data-action="fork"]')).toBeNull()
   expect(document.querySelector('[data-run-status="error"] button')).toBeNull()
   await page.getByRole('button', { name: 'Called tools', exact: true }).click()
   await page.getByRole('button', { name: 'Tool call custom', exact: true }).click()
@@ -240,7 +240,7 @@ it.each(['running', 'approval', 'confirmation', 'archived'] as const)(
       })
     }
     await expect.element(page.getByRole('button', { name: 'Rewind to here', exact: true })).toBeDisabled()
-    await expect.element(page.getByRole('button', { name: 'Fork from here', exact: true })).toBeDisabled()
+    expect(document.querySelector('[data-slot="user-message"] [data-action="fork"]')).toBeNull()
     expect(document.querySelector('[data-run-status="error"] button')).toBeNull()
     await expect.element(page.getByText('Read-only checkpoint', { exact: true })).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Copy message', exact: true })).toBeEnabled()
