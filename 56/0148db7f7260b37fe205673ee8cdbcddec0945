@@ -1,0 +1,193 @@
+packages/i18n/src/dictionaries/en.ts
+  s_feffacf9b87206::t_a21bf8255e0bf2 257-258
+apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx
+  s_feffacf9b87206::t_5bb9703c6d866e 467
+  s_feffacf9b87206::t_e5c2f878af3edf 466
+apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx
+  s_feffacf9b87206::t_85021fe8219cb2 98,100
+  s_feffacf9b87206::t_ded1b141ec2bb3 174
+  s_feffacf9b87206::t_bae0ef6a6006c6 97,99,156,173
+  s_feffacf9b87206::t_cf3c340549aeb5 259-261
+  s_feffacf9b87206::t_fdcece6102bca9 142
+  s_feffacf9b87206::t_c8494dafaa8ff7 163-164
+  s_feffacf9b87206::t_db4a209246bedf 250
+  s_feffacf9b87206::t_01202c7c76c18d 85
+  s_feffacf9b87206::t_8694a53e8fa5c8 102,137,140,249,252
+  s_feffacf9b87206::t_dd349903c0b57a 138,141,143
+  s_feffacf9b87206::t_83e6cede8150c0 157
+  s_feffacf9b87206::t_b19ed9c2412fc1 203
+  s_feffacf9b87206::t_2efbc8b25183b1 251,253
+  s_feffacf9b87206::t_62346d04a295a9 274-275
+  s_feffacf9b87206::t_302b66a1a35cdb 273
+  s_feffacf9b87206::t_81fe0d490632d1 124
+  s_feffacf9b87206::t_5ba220082fd51c 113
+  s_feffacf9b87206::t_819bd06c1334b0 111,161,257
+apps/desktop/src/renderer/features/conversation/message-clock.test.ts
+  s_feffacf9b87206::t_6749df2044e641 1-23,25-35
+  s_feffacf9b87206::t_42dda1636e0fdd 24
+packages/i18n/src/dictionaries/zh.ts
+  s_feffacf9b87206::t_11d0201d3c7c66 254-255
+apps/desktop/e2e/message-footers-protocol.e2e.test.ts
+  s_feffacf9b87206::t_972359170eabea 326-327
+  s_feffacf9b87206::t_32e812e65a36e0 357-358
+  s_feffacf9b87206::t_6afe52248cdaaf 165-166
+  s_feffacf9b87206::t_cfe10e14403934 191
+  s_feffacf9b87206::t_c86f4b012880e0 346-347
+  s_feffacf9b87206::t_edb6bc48e06cf7 444-445
+apps/desktop/src/renderer/features/conversation/message-clock.ts
+  s_feffacf9b87206::t_3dca2758fee4a4 1-34
+packages/agent/src/goals/budget.ts
+  s_feffacf9b87206::t_bbd840188a7c10 38-43,60-61
+  s_feffacf9b87206::t_6cf379898879c8 5
+packages/agent/src/models/models.test.ts
+  s_feffacf9b87206::t_5bfb89a7b4a0cf 282
+  s_feffacf9b87206::t_291b10578e984f 266
+apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx
+  s_feffacf9b87206::t_d2e63651ce661a 285-287
+  s_feffacf9b87206::t_f226eb5b5e15ef 284,288-292,297-298,301,307,318
+  s_feffacf9b87206::t_f4de0cefdf5612 152
+  s_feffacf9b87206::t_54e0b2edac9f52 155
+  s_feffacf9b87206::t_2876191230238b 293-295
+  s_feffacf9b87206::t_aed526f7daa9b5 296,303-306,308
+  s_feffacf9b87206::t_562cf49a71af2d 147-151,153-154,156-158
+apps/desktop/e2e/message-footers.e2e.test.ts
+  s_feffacf9b87206::t_abd784652abcd4 73
+  s_feffacf9b87206::t_dac239e10e9b08 190,192,197
+  s_feffacf9b87206::t_d0fb2051cc0363 46,51
+apps/desktop/src/renderer/features/conversation/session-cost.tsx
+  s_feffacf9b87206::t_61d19de53ebd8a 1-2
+  s_feffacf9b87206::t_42bb9a99f7e13c 47-70,74-75,77-83
+apps/desktop/src/renderer/features/conversation/attempt-usage.browser.test.tsx
+  s_feffacf9b87206::t_dc6ac714f07819 86,143
+  s_feffacf9b87206::t_b2d26bb9a75e36 85,93
+  s_feffacf9b87206::t_077d2c31fca27d 142
+packages/agent/src/entries/index.ts
+  s_feffacf9b87206::t_53e09daa409a7d 30-31
+apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx
+  s_feffacf9b87206::t_bd29af75cab91a 139
+  s_feffacf9b87206::t_797e0063839d0f 140
+apps/desktop/e2e/goal.e2e.test.ts
+  s_feffacf9b87206::t_723e862f82ae4c 248
+tests/integration/sidecar-request-usage.test.ts
+  s_feffacf9b87206::t_8eae61ab536fca 168-170
+  s_feffacf9b87206::t_6a80e057248fd2 171
+  s_feffacf9b87206::t_857f97a7d699db 263
+  s_feffacf9b87206::t_7965854f4f6352 258,313,348,500
+  s_feffacf9b87206::t_98ffaf1efbf83c 215,220
+  s_feffacf9b87206::t_bedf1c1b2807b2 394
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_feffacf9b87206::t_40df4b3f798c8b 53,55,59
+  s_feffacf9b87206::t_2aab664ca79e5e 46,49
+  s_feffacf9b87206::t_e37687e6ad5cb3 54
+  s_feffacf9b87206::t_1b4bc9a9a12fcd 58
+  s_feffacf9b87206::t_e3dc5e69561bb2 24,26-27,30-31,34,47-48
+  s_feffacf9b87206::t_8ea764257bc931 32-33
+apps/desktop/src/renderer/features/conversation/message-time.tsx
+  s_feffacf9b87206::t_2a319a03aca4c7 46
+  s_feffacf9b87206::t_49964d4dad97d1 1,4-20,24-25,29,43
+apps/desktop/src/renderer/features/conversation/assistant-footer.browser.test.tsx
+  s_feffacf9b87206::t_08f9a1be1bd091 124-131
+  s_feffacf9b87206::t_dccdc8b849118e 299-301,303,313
+  s_feffacf9b87206::t_d10f91c6711811 276
+  s_feffacf9b87206::t_038346d4077d29 315
+  s_feffacf9b87206::t_33a33021aa2f80 146,157-159,161-163,165
+  s_feffacf9b87206::t_5881225460b024 166,168,173
+  s_feffacf9b87206::t_4e90ab84c4333e 231-255
+  s_feffacf9b87206::t_165d587b5d2166 213-230
+  s_feffacf9b87206::t_1ebc34a546fd42 199,202,204-205
+  s_feffacf9b87206::t_7d16a355c93977 267-270,272-275
+  s_feffacf9b87206::t_56955e6a02ee7c 198
+  s_feffacf9b87206::t_292a324c2bb361 107,109,135,143
+packages/agent/src/models/usage-report.ts
+  s_feffacf9b87206::t_ea2730450536ac 81-82,88-90,92-94
+  s_feffacf9b87206::t_9b77b854c2db51 107,109-116
+  s_feffacf9b87206::t_831b4af138ce59 38-39
+apps/desktop/src/renderer/features/conversation/token-format.ts
+  s_feffacf9b87206::t_f5858ca355c936 1-76
+apps/desktop/src/renderer/features/conversation/jobs-timeline.browser.test.tsx
+  s_feffacf9b87206::t_2ffb7bdcb55382 113
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_feffacf9b87206::t_fb0281a948b32c 162,169
+  s_feffacf9b87206::t_5ad1c4d619de37 61-62
+  s_feffacf9b87206::t_d6bab3727b07f4 66-67
+  s_feffacf9b87206::t_6abdb49de6a9f2 233
+  s_feffacf9b87206::t_ad486363f66114 309
+  s_feffacf9b87206::t_52aef8670659b9 21,23
+packages/agent/src/entries/usage.test.ts
+  s_feffacf9b87206::t_29a576b6e934af 1-3,5-9,15-59,72-84,97-104,112-118
+  s_feffacf9b87206::t_ba0a8ad34fda9c 4
+  s_feffacf9b87206::t_81fe0d490632d1 10-14,60-71,85-96,105-111
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_feffacf9b87206::t_28a2732568c085 109
+  s_feffacf9b87206::t_d88b3e754c67bd 180-181
+  s_feffacf9b87206::t_5992c1b3339710 3-4,10,13
+  s_feffacf9b87206::t_36b148611064ca 88
+  s_feffacf9b87206::t_19045e5dee76be 130
+  s_feffacf9b87206::t_9ebaf27eed6441 61-72
+  s_feffacf9b87206::t_39f58e106b400f 29
+  s_feffacf9b87206::t_97cd86dde5e39a 160
+  s_feffacf9b87206::t_360ca7cb5f97c1 104,106-107,110-120,123-129,131-135,142,151-159,161-164,167-172,174-177
+  s_feffacf9b87206::t_3a5609295cbe88 89-90,93
+  s_feffacf9b87206::t_13e6327de931d6 74-76,81
+  s_feffacf9b87206::t_f435ad83170502 165-166
+  s_feffacf9b87206::t_07a701e20a1ba4 173
+  s_feffacf9b87206::t_3ba374a4d22c1d 77-80
+  s_feffacf9b87206::t_c080929744f197 91
+apps/desktop/e2e/rewind.e2e.test.ts
+  s_feffacf9b87206::t_3a124428f65e70 74-76,78-79,84
+  s_feffacf9b87206::t_fd9f66797180d1 134-135
+  s_feffacf9b87206::t_249cb2b1275016 71
+  s_feffacf9b87206::t_a6a6fd0951a289 90
+docs/subsystems/goal.md
+  s_feffacf9b87206::t_8dbbf9ac754ec9 78
+  s_feffacf9b87206::t_a1989a8f4dca1a 82
+packages/i18n/src/dictionaries/domains/usage.ts
+  s_feffacf9b87206::t_1ad391d85997f2 13-14,17,22-25
+  s_feffacf9b87206::t_702cd1cea68400 64-65,68,70,73-76
+packages/agent/src/entries/usage.ts
+  s_feffacf9b87206::t_35e8a00dc93ee4 160-161
+  s_feffacf9b87206::t_73a1cacba64bf0 1-64,68-105,113-144,147-148,151,154-156,158-159,162-168,170-248,250-252,254-255,260,262-283,285-299,301-330
+  s_feffacf9b87206::t_915140dadab23c 284,300
+  s_feffacf9b87206::t_71d7099bdca088 65-67
+  s_feffacf9b87206::t_5edca655f73d74 256-259,261
+  s_feffacf9b87206::t_841c9d136a2c2b 149-150,152-153,157
+  s_feffacf9b87206::t_e7196746e63816 145-146
+  s_feffacf9b87206::t_81fe0d490632d1 106-112
+  s_feffacf9b87206::t_42f1c858788600 169
+  s_feffacf9b87206::t_8268b1205ad461 253
+  s_feffacf9b87206::t_38693947c0fccc 249
+apps/desktop/src/renderer/features/conversation/message-actions.tsx
+  s_feffacf9b87206::t_ba89a009078efd 23-31
+docs/subsystems/workbench.md
+  s_feffacf9b87206::t_33447a6d984baf 45
+  s_feffacf9b87206::t_15a4d57e23223d 41
+  s_feffacf9b87206::t_e6de5542ad0563 39
+  s_feffacf9b87206::t_803a6f0c922033 43
+apps/desktop/src/renderer/features/conversation/ended-footers.browser.test.tsx
+  s_feffacf9b87206::t_c90d55a7a3af14 112
+  s_feffacf9b87206::t_4425a46195ae83 155
+  s_feffacf9b87206::t_ab98c0c078b3fb 93
+  s_feffacf9b87206::t_1167962d4a11c4 156-157
+  s_feffacf9b87206::t_a8e13715f24426 115-116,118
+  s_feffacf9b87206::t_3825f90cbd383f 101,133
+  s_feffacf9b87206::t_be396e8755f67d 221-222,224,226
+  s_feffacf9b87206::t_f48fbeaac00563 89-90,92
+  s_feffacf9b87206::t_7d873688cbcab0 159-160,162
+  s_feffacf9b87206::t_1c8ce071eda4be 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "560148db7f7260b37fe205673ee8cdbcddec0945",
+  "prompts": {},
+  "sessions": {
+    "s_feffacf9b87206": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_bhe1hw25oyfe",
+        "model": "auto(free)"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
