@@ -1,6 +1,6 @@
 import type { ImageAttachment } from '@coko/protocol'
-import { ArrowDownIcon, EllipsisIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
-import { AppFrameCollapsedControls, Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, toast } from '@coko/ui'
+import { ArrowDownIcon, PanelRightCloseIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
+import { AppFrameCollapsedControls, Button, cn, toast } from '@coko/ui'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession, useActiveWorkspaceId } from '../../app/chat.tsx'
@@ -20,7 +20,7 @@ import { NewChatWelcome } from './new-chat-welcome.tsx'
 import { NEW_CHAT_EDITOR_KEY } from '../../stores/new-chat-store.ts'
 import { Dock } from './dock/dock.tsx'
 import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock/goal-card.tsx'
-import { HeaderMenuActionContext, visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
+import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { restoredMode } from './plan-review-panel.tsx'
 import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
@@ -31,6 +31,7 @@ import { displayRuns } from './process-groups.ts'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 import { useReadingScroll } from './use-reading-scroll.ts'
+import { HandoffEffects } from './handoff-effects.tsx'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
 
 export interface ConversationPaneProps {
@@ -48,60 +49,13 @@ export interface ConversationPaneProps {
 const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
 const sessionComposerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
 
-/**
- * 标题栏操作（docs/tech-stack/ui.md 的"先重排，再截断"）：主列不窄于 560 px 时全部留在标题栏；更窄时（包括 390 px 与侧栏收起过渡中的
- * 瞬时宽度）提供菜单呈现的操作收进"更多操作"菜单，按钮本身仍挂载但隐藏，它持有的对话框照常工作；其余操作（状态类）留在标题栏。
- * "更多操作"只在窄主区且至少一个可收起的操作实际渲染时显示（例如子 Session 没有交接）。
- */
+/** 四个状态按钮在任何主区宽度下都直接显示。 */
 export function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDefinition[] } & HeaderActionProps) {
-  const { t } = useI18n()
-  const collapsible = actions.filter((action) => action.MenuItem !== undefined)
-  // 菜单项选中的动作：菜单关闭时先把焦点还给菜单按钮，再执行（见 HeaderMenuActionContext）。
-  const trigger = React.useRef<HTMLButtonElement>(null)
-  const pending = React.useRef<(() => void) | null>(null)
-  const afterMenuClose = React.useCallback((action: () => void) => {
-    pending.current = action
-  }, [])
   return (
-    <div data-slot="header-actions" className="group/actions flex shrink-0 items-center gap-1">
-      {actions.map(({ id, Component, MenuItem }) =>
-        MenuItem ? (
-          <span key={id} data-collapsible-action={id} className="contents @max-[560px]/main:hidden">
-            <Component {...props} />
-          </span>
-        ) : (
-          <Component key={id} {...props} />
-        ),
-      )}
-      {collapsible.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild ref={trigger}>
-            <IconButton
-              label={t('conversation.moreActions')}
-              data-action="more-header-actions"
-              className="hidden @max-[560px]/main:group-has-[[data-collapsible-action]>*]/actions:inline-flex"
-            >
-              <EllipsisIcon />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            data-slot="header-actions-menu"
-            onCloseAutoFocus={(event) => {
-              const action = pending.current
-              if (!action) return
-              pending.current = null
-              event.preventDefault()
-              trigger.current?.focus()
-              action()
-            }}
-          >
-            <HeaderMenuActionContext.Provider value={afterMenuClose}>
-              {collapsible.map(({ id, MenuItem }) => MenuItem && <MenuItem key={id} {...props} />)}
-            </HeaderMenuActionContext.Provider>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+    <div data-slot="header-actions" className="flex shrink-0 items-center gap-1">
+      {actions.map(({ id, Component }) => (
+        <Component key={id} {...props} />
+      ))}
     </div>
   )
 }
@@ -325,6 +279,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   return (
     <>
       <ConnectionStatus state={connection} />
+      <HandoffEffects />
       {/* 收起侧栏时标题栏左侧显示控制条；它在标题栏内，沿用标题栏的拖拽区排除规则。 */}
       <header data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-(--local-header-leading) pe-2 @max-[560px]/main:gap-1">
         <AppFrameCollapsedControls />

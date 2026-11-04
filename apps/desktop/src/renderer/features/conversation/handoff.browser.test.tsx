@@ -1,153 +1,141 @@
 // 交接的界面（docs/subsystems/handoff.md）：对话框（下一步目标、目标目录、未提交改动提示、错误、进行中与停止、⌘↩ 提交）、时间线的交接行
 // （打开目标与跳回源），以及写入目标会话的草稿能被输入区读出（纯文本 EditorState）。
 import '../../styles.css'
-import type { HandoffTarget, SessionEntryRecord, Worktree } from '@coko/protocol'
-import { ComposerEditor, TooltipProvider, type ComposerEditorHandle } from '@coko/ui'
+import type { HandoffTarget, SessionEntryRecord } from '@coko/protocol'
+import { ComposerEditor, toast, type ComposerEditorHandle } from '@coko/ui'
 import * as React from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { ChatStoreProvider } from '../../app/chat.tsx'
 import { I18nProvider } from '../../app/i18n.tsx'
-import { ApiError } from '../../client/api.ts'
 import { createDraftStore, draftKey, textEditorState, writeSessionDraft } from '../../stores/draft-store.ts'
-import { createHandoffStore, type HandoffBackend } from '../../stores/handoff-store.ts'
-import { createWorktreesStore } from '../../stores/worktrees-store.ts'
+import { createHandoffStore } from '../../stores/handoff-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
-import { HandoffDialog, HandoffStoresProvider } from './handoff-dialog.tsx'
+import { HandoffStoresProvider } from './handoff-effects.tsx'
+import { App } from '../../app/app.tsx'
+import { createAppearanceStore } from '../../app/appearance-store.ts'
+import { createConnectionStore } from '../../app/connection-store.ts'
+import { createPreferences } from '../../app/preferences.ts'
+import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { HandoffRow } from './handoff-row.tsx'
 
-const worktree: Worktree = {
-  id: 'wt1',
-  workspaceId: 'w-coko',
-  name: 'login',
-  path: '/Users/me/coko/.coko-worktrees/login',
-  branch: 'coko/login',
-  baseCommit: 'abc',
-  status: 'active',
-  createdBy: 'user',
-  sessionCount: 1,
-}
-
-async function mountDialog(options: { backend?: Partial<HandoffBackend>; repo?: boolean; dirty?: number } = {}) {
-  const fixture = createFixtureChat()
-  await expect.poll(() => fixture.chat.lists.getState().listStatus).toBe('ready')
+async function mountApp(history: SessionEntryRecord[] = []) {
+  const fixture = createFixtureChat(history.length ? { entries: { 's-1': history } } : {})
+  const writes: [string, string][] = []
   const starts: { sessionId: string; instructions: string; target: HandoffTarget }[] = []
-  const stops: string[] = []
   const handoff = createHandoffStore({
     backend: {
       start: async (sessionId, input) => {
         starts.push({ sessionId, ...input })
-        return { runId: 'h1' }
+        return { runId: 'retry-run' }
       },
-      gitStatus: async () => ({ repo: options.repo ?? true, ...(options.repo === false ? {} : { branch: 'main' }), dirtyFiles: options.dirty ?? 0 }),
-      stop: async (sessionId) => void stops.push(sessionId),
-      ...options.backend,
+      gitStatus: async () => ({ repo: false, dirtyFiles: 0 }),
+      stop: async () => {},
     },
-    writeDraft: () => {},
+    writeDraft: (id, text) => {
+      writes.push([id, text])
+    },
   })
-  const worktrees = createWorktreesStore({
-    list: async () => [worktree],
-    create: async () => worktree,
-    createSession: async () => ({}) as never,
-    remove: async () => {},
-  })
+  const appearance = createAppearanceStore({ theme: 'light', locale: 'en' })
+  const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict: () => {}, onFailure: () => {} })
   const screen = await render(
-    <I18nProvider locale="en">
-      <ChatStoreProvider store={fixture.chat}>
-        <HandoffStoresProvider handoff={handoff} worktrees={worktrees}>
-          <TooltipProvider>
-            <HandoffDialog sessionId="s-1" open onClose={() => {}} />
-          </TooltipProvider>
-        </HandoffStoresProvider>
-      </ChatStoreProvider>
-    </I18nProvider>,
+    <HandoffStoresProvider handoff={handoff}>
+      <div style={{ width: '100vw', height: '100vh' }}>
+        <App
+          store={appearance}
+          connection={createConnectionStore()}
+          chat={fixture.chat}
+          settings={fixture.settings}
+          preferences={preferences}
+          settingsPage={createSettingsPageStore()}
+          pickDirectory={async () => null}
+        />
+      </div>
+    </HandoffStoresProvider>,
   )
-  const dialog = () => document.querySelector('[data-slot="handoff-dialog"]') as HTMLElement
-  return { ...fixture, handoff, starts, stops, dialog, unmount: () => screen.unmount() }
+  await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
+  const push = (kind: string, payload: unknown, runId = 'handoff-live') => {
+    const seq = fixture.chat.getState().conversations['s-1']!.lastSeq + 1
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: { sessionId: 's-1', seq, kind, payload, payloadVersion: 1, runId, createdAt: seq } })
+  }
+  return { ...fixture, writes, starts, handoff, screen, push }
 }
 
-describe('交接对话框', () => {
-  it('未提交改动提示（按目标不同措辞）；新 worktree 带名称提交；⌘↩ 提交；之后显示进行中，可停止', async () => {
-    const h = await mountDialog({ dirty: 3 })
-    await expect.poll(() => h.dialog()?.querySelector('[data-slot="handoff-dirty"]')?.getAttribute('data-count')).toBe('3')
-    expect(h.dialog().querySelector('[data-slot="handoff-dirty"]')!.textContent).toContain('works in the same directory')
-    const submit = page.getByRole('button', { name: 'Hand off', exact: true })
-    await expect.element(submit).toBeDisabled()
-    await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'build the login page')
-    await userEvent.click(page.getByRole('radio', { name: 'New worktree' }))
-    expect(h.dialog().querySelector('[data-slot="handoff-dirty"]')!.textContent).toContain('not copied to the worktree')
-    await userEvent.fill(page.getByRole('textbox', { name: 'Worktree name (optional)' }), 'login-2')
-    await userEvent.click(page.getByRole('textbox', { name: 'Next goal' }))
-    await userEvent.keyboard('{Meta>}{Enter}{/Meta}')
-    await expect.poll(() => h.starts).toEqual([{ sessionId: 's-1', instructions: 'build the login page', target: { kind: 'new-worktree', name: 'login-2' } }])
-    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('summarizing')
-    const progress = h.dialog().querySelector('[data-slot="handoff-progress"]')!
-    expect(progress.getAttribute('role')).toBe('status')
-    expect(progress.textContent).toContain('Writing the handoff summary…')
-    await userEvent.click(page.getByRole('button', { name: 'Stop' }))
-    expect(h.stops).toEqual(['s-1'])
+afterEach(async () => {
+  toast.dismiss()
+  await vi.waitFor(() => {
+    if (document.querySelector('[data-sonner-toast]')) throw new Error('Toast still mounted')
+  })
+})
+
+describe('交接常驻效果', () => {
+  it('App 没有交接按钮与对话框，新 handoff 到达仍写草稿并切换目标；历史不触发', async () => {
+    const history: SessionEntryRecord[] = [
+      {
+        sessionId: 's-1',
+        seq: 1,
+        kind: 'handoff',
+        payloadVersion: 1,
+        runId: 'old',
+        createdAt: 1,
+        payload: { targetSessionId: 's-4', instructions: 'old', summary: 'Old summary', target: 'current' },
+      },
+    ]
+    const h = await mountApp(history)
+    expect(document.querySelector('[data-action="open-handoff"]')).toBeNull()
+    expect(document.querySelector('[data-action="more-header-actions"]')).toBeNull()
+    expect(document.querySelector('[data-slot="handoff-dialog"]')).toBeNull()
+    expect(h.chat.getState().activeSessionId).toBe('s-1')
+    expect(h.writes).toEqual([])
+    h.push('handoff', { targetSessionId: 's-3', instructions: 'next', summary: 'New summary', target: 'current' })
+    await expect.poll(() => h.chat.getState().activeSessionId).toBe('s-3')
+    expect(h.writes).toEqual([['s-3', 'New summary']])
+    await h.screen.unmount()
   })
 
-  it('已有 worktree：列出 active 的 worktree 并以其 id 提交；不在 git 仓库时只能选当前目录', async () => {
-    const h = await mountDialog()
-    await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'next')
-    const existing = page.getByRole('radio', { name: 'Existing worktree' })
-    await expect.element(existing).toBeEnabled()
-    await userEvent.click(existing)
-    await expect.element(page.getByRole('radio', { name: 'coko/login' })).toBeInTheDocument()
-    await userEvent.click(page.getByRole('button', { name: 'Hand off', exact: true }))
-    await expect.poll(() => h.starts.map((s) => s.target)).toEqual([{ kind: 'worktree', worktreeId: 'wt1' }])
-
-    await h.unmount()
-    const plain = await mountDialog({ repo: false, dirty: 0 })
-    await expect.element(page.getByText('This workspace is not in a git repository; you can only hand off to the current directory')).toBeInTheDocument()
-    await expect.element(page.getByRole('radio', { name: 'New worktree' })).toBeDisabled()
-    expect(plain.dialog().querySelector('[data-slot="handoff-dirty"]')).toBeNull()
+  it('失败只 Toast 一次；离开源会话后重试仍使用失败记录的目标与当前目录', async () => {
+    const h = await mountApp()
+    h.push('handoff_failed', { instructions: 'continue the exact next goal', summary: 'Ready summary', error: { code: 'worktree-exists', message: 'taken' } })
+    const retry = page.getByRole('button', { name: 'Retry', exact: true })
+    await expect.element(retry).toBeVisible()
+    expect(document.querySelectorAll('[data-sonner-toast]').length).toBe(1)
+    expect(document.querySelector('[data-sonner-toast]')?.textContent).toContain('A worktree with this name already exists')
+    h.chat.getState().openSession('s-4')
+    await expect.poll(() => h.chat.getState().activeSessionId).toBe('s-4')
+    expect(document.querySelector('[data-slot="handoff-dialog"]')).toBeNull()
+    await userEvent.click(retry)
+    await expect.poll(() => h.starts).toEqual([{ sessionId: 's-1', instructions: 'continue the exact next goal', target: { kind: 'current' } }])
+    expect(h.chat.getState().activeSessionId).toBe('s-4')
+    toast.dismiss()
+    await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
+    h.push('handoff_failed', { instructions: 'another goal', summary: '', error: { code: 'git-failed', message: 'failed' } }, 'next-failure')
+    await expect.element(retry).toBeVisible()
+    expect(document.querySelectorAll('[data-sonner-toast]').length).toBe(1)
+    toast.dismiss()
+    await expect.poll(() => document.querySelector('[data-sonner-toast]')).toBeNull()
+    await h.screen.unmount()
   })
 
-  it('摘要之后目标没能创建（failed）：显示错误与原因、可复制摘要、以"重试"重新提交；不再停在创建中', async () => {
-    const h = await mountDialog()
-    await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'next')
-    h.handoff.setState({
-      progress: { 's-1': { phase: 'failed', runId: 'h1', error: { code: 'worktree-exists', message: 'fatal: exists' }, summary: '## Task\nnext' } },
-    })
-    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('failed')
-    expect(h.dialog().querySelector('[data-slot="handoff-progress"]')).toBeNull()
-    const alert = h.dialog().querySelector('[data-slot="handoff-failed"]')!
-    expect(alert.getAttribute('role')).toBe('alert')
-    expect(alert.textContent).toContain('The summary was written, but the new session could not be created')
-    expect(alert.textContent).toContain('A worktree with this name already exists')
-    await expect.element(page.getByRole('textbox', { name: 'Next goal' })).toHaveValue('next')
-
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
-    try {
-      await userEvent.click(page.getByRole('button', { name: 'Copy summary' }))
-      await expect.poll(() => writeText.mock.calls).toEqual([['## Task\nnext']])
-    } finally {
-      writeText.mockRestore()
-    }
-
-    await userEvent.click(page.getByRole('button', { name: 'Retry', exact: true }))
-    await expect.poll(() => h.starts.map((s) => s.instructions)).toEqual(['next'])
-    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('summarizing')
-  })
-
-  it('失败的错误码未知、没有摘要时只显示概括，不提供复制', async () => {
-    const h = await mountDialog()
-    h.handoff.setState({ progress: { 's-1': { phase: 'failed', runId: 'h1', error: { code: 'git-failed' } } } })
-    await expect.poll(() => h.dialog().getAttribute('data-phase')).toBe('failed')
-    const alert = h.dialog().querySelector('[data-slot="handoff-failed"]')!
-    expect(alert.textContent).toBe('The summary was written, but the new session could not be created')
-    expect(h.dialog().querySelector('[data-action="copy-handoff-summary"]')).toBeNull()
-  })
-
-  it('Sidecar 拒绝时显示本地化的原因，输入保留', async () => {
-    await mountDialog({ backend: { start: async () => Promise.reject(new ApiError('nothing-to-hand-off', 'x', 400)) } })
-    await userEvent.fill(page.getByRole('textbox', { name: 'Next goal' }), 'next')
-    await userEvent.click(page.getByRole('button', { name: 'Hand off', exact: true }))
-    await expect.element(page.getByRole('alert')).toHaveTextContent('This session has nothing to hand off yet')
-    await expect.element(page.getByRole('textbox', { name: 'Next goal' })).toHaveValue('next')
+  it('补发的失败历史不 Toast；离开源会话后成功仍写草稿但不切换', async () => {
+    const h = await mountApp([
+      {
+        sessionId: 's-1',
+        seq: 1,
+        kind: 'handoff_failed',
+        payloadVersion: 1,
+        runId: 'old',
+        createdAt: 1,
+        payload: { instructions: 'old', summary: 'old', error: { code: 'worktree-exists', message: 'taken' } },
+      },
+    ])
+    expect(document.querySelector('[data-sonner-toast]')).toBeNull()
+    h.chat.getState().openSession('s-4')
+    await expect.poll(() => h.chat.getState().activeSessionId).toBe('s-4')
+    h.push('handoff', { targetSessionId: 's-3', instructions: 'next', summary: 'New summary', target: 'current' })
+    await expect.poll(() => h.writes).toEqual([['s-3', 'New summary']])
+    expect(h.chat.getState().activeSessionId).toBe('s-4')
+    await h.screen.unmount()
   })
 })
 

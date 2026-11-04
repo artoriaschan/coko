@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { handoffFailure } from '../../stores/handoff-store.ts'
-import { HANDOFF_ERRORS } from './handoff-dialog.tsx'
+import { HANDOFF_ERRORS } from './handoff-effects.tsx'
 import { CollaborationRow } from './collaboration-row.tsx'
 import type { TimelineItem } from './timeline.ts'
 
