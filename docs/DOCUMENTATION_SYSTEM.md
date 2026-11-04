@@ -29,6 +29,7 @@ lifecycle: active
 | L5 操作指南 | `docs/user/`、`docs/cookbook/`、未来 `docs/development.md` | 前提、最短步骤、成功判断、常见失败与恢复 | 大段架构论证或未执行过的命令承诺 |
 | L5 评审规范 | 未来 `CODING_STANDARDS.md`、`docs/defensive-patterns/` | 需要判断的代码规则；按错误类型或责任域组织 | 复制确定性工具已经执行的规则和阈值 |
 | L6 变更与历史证据 | `docs/upgrade-guide/`、`docs/persistence-changes/`、`docs/postmortem/`、任务 evidence | 用户迁移、格式兼容性、事故原因、具体版本验证结果 | 被当作当前 API 或当前需求继续维护 |
+| 会话交接 | 根目录 `hand offs/` | 用户要求保留的会话调研快照、源码入口、未决问题及继续工作步骤 | 替代正式规格、技术约定、ADR 或当前实现正文；将建议写成已批准决定 |
 | 执行方法 | 项目 `.agents/skills/`，或已安装共享 skills | 可复用步骤、输入、完成条件、失败处理 | 产品事实、运行时契约、重复规则正文 |
 
 `TECH_STACK.md` 是技术选型和精确版本的正文及读取入口，`docs/tech-stack/` 承接项目级详细技术约定。目录名与入口同名，表示同一份技术规范的分层展开；其中的 architecture 是规定的结构，`docs/architecture.md` 才是有实现证据支持的结构。UI 规则的正文在 `tech-stack/ui.md` 与 `tech-stack/ui-design-system.md`，测试规则在 `tech-stack/testing.md`，AGENTS 只保留读取触发条件和链接。
@@ -84,6 +85,7 @@ tracker 配置、模板和流程可以描述 `.scratch/<feature>/...` 等路径�
 AGENTS.md / CLAUDE.md -> AGENTS.md
 GLOSSARY.md                         确定术语后创建
 CODING_STANDARDS.md                  出现需人工判断的规范时创建
+hand offs/                         用户指定保留的会话交接；README 提供入口，正文引用所属正式文档
 .scratch/
   <effort>/                        产品或大型功能的决策地图
     map.md

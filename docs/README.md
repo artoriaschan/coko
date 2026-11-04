@@ -20,6 +20,7 @@ lifecycle: active
 - [文档模板](templates/README.md)：生成设计、ADR、当前参考、指南和证据时使用的格式。
 - [长期决定](adr/README.md)：已记录的 ADR 及其批准与实施状态。
 - [术语表](../GLOSSARY.md)：领域术语的唯一定义。
+- [会话交接](<../hand offs/README.md>)：用户要求保留的调研快照、未决问题和继续工作入口；使用时核对版本与证据范围，其中建议不代表已批准方案。
 
 - [Skills 项目配置](agents/issue-tracker.md)：本地 tracker；[分拣标签](agents/triage-labels.md)；[领域文档](agents/domain.md)。
 
