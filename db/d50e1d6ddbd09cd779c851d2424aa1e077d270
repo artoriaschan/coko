@@ -1,0 +1,37 @@
+.scratch/message-footers/spec.md
+  s_3da52e56b7a042::t_74c2a677b08083 1-128,130-197
+  s_3da52e56b7a042::t_815c62a7ad4653 129
+.scratch/message-footers/issues/04-assistant-footer-and-usage-details.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-37
+.scratch/message-footers/issues/02-retry-compaction-usage.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-36
+.scratch/message-footers/issues/03-user-message-footer.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-36
+.scratch/message-footers/issues/05-branch-from-assistant-reply.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-37
+.scratch/message-footers/issues/01-truthful-request-usage.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-36
+.scratch/message-footers/issues/07-integrated-acceptance.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-26,28-39
+  s_3da52e56b7a042::t_739e69b32e9efd 27
+.scratch/message-footers/issues/06-stopped-and-failed-footers.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-36
+.scratch/message-footers/issues/README.md
+  s_3da52e56b7a042::t_33369ef9fd2a0b 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "dbd50e1d6ddbd09cd779c851d2424aa1e077d270",
+  "prompts": {},
+  "sessions": {
+    "s_3da52e56b7a042": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a4ee-0e18-7bc3-b8f3-ba0d544862e9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
