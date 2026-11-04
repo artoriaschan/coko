@@ -1,0 +1,19 @@
+.scratch/message-footers/evidence/01-normal-request-usage.md
+  s_f9fee1f1315815::t_fe6773e190aede 22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "6acd696bb29befbeafc7ed9fe60bd532cbb316cd",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
