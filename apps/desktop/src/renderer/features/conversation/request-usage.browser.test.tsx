@@ -76,7 +76,7 @@ async function open(entries: SessionEntryRecord[]) {
   fixture.chat.getState().openSession('s-1')
   return fixture
 }
-const row = (runId: string) => document.querySelector(`[data-slot="run-usage"][data-run-id="${runId}"]`)!
+const row = (runId: string) => document.querySelector(`[data-slot="assistant-footer"][data-run-id="${runId}"]`)!
 
 it('actual App renders canonical usage once, accepts legacy extensions, and replay does not duplicate cost or tokens', async () => {
   const canonical = request(3, 'complete', 100, 20, ['input', 'output', 'cacheRead', 'cacheWrite'], true)

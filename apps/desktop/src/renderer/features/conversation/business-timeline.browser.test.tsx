@@ -204,7 +204,7 @@ it('actual App: rewound usage uses the rendered Run entries and historical Plan 
   await expect.poll(() => document.querySelector('[data-slot="plan-tab"]')?.getAttribute('data-revision')).toBe('2')
   const history = document.querySelector<HTMLDetailsElement>('[data-slot="rewound"]')!
   await page.elementLocator(history.querySelector('summary')!).click()
-  const row = history.querySelector('[data-slot="run-usage"]')!
+  const row = history.querySelector('[data-slot="assistant-footer"]')!
   expect(row.getAttribute('data-tokens')).toBe('42')
   // Historical usage remains attached to its original Run; a later Run has independent totals.
   expect(history.querySelector('[data-slot="plan-card"]')!.getAttribute('data-revision')).toBe('1')

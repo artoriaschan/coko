@@ -200,7 +200,9 @@ describe('对话闭环', () => {
     await expect.poll(() => toolCard(app, 'write').getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     expect(await toolCard(app, 'write').textContent()).toContain('notes/hello.txt')
     await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
-    expect(await assistantText(app).last().textContent()).toBe('Done. notes/hello.txt now contains the greeting.')
+    expect(await assistantText(app).last().locator('[data-slot="assistant-message-body"]').textContent()).toBe(
+      'Done. notes/hello.txt now contains the greeting.',
+    )
     // Markdown 已渲染（加粗），流式标记已撤下。
     expect(await assistantText(app).last().locator('[data-streamdown="strong"]').textContent()).toBe('notes/hello.txt')
     expect(await app.window.locator('[data-streaming]').count()).toBe(0)
@@ -285,11 +287,20 @@ describe('对话闭环', () => {
     const second = await launch({}, root)
     await second.window.getByRole('heading', { level: 1, name: 'write a greeting' }).waitFor({ timeout: 15_000 })
     expect(await second.window.locator('[data-session-id]').count()).toBe(1)
-    expect(await second.window.getByRole('article', { name: /^(You|你)$/ }).textContent()).toBe('write a greeting')
+    expect(
+      await second.window
+        .getByRole('article', { name: /^(You|你)$/ })
+        .locator('[data-slot="user-bubble"]')
+        .textContent(),
+    ).toBe('write a greeting')
     await expect.poll(() => toolCard(second, 'write').getAttribute('data-status')).toBe('done')
     expect(await toolCard(second, 'write').textContent()).toContain('notes/hello.txt')
-    await expect.poll(() => assistantText(second).last().textContent()).toBe('Done. notes/hello.txt now contains the greeting.')
-    expect(await assistantText(second).first().textContent()).toBe('I will write the greeting file into notes for you right now.')
+    await expect
+      .poll(() => assistantText(second).last().locator('[data-slot="assistant-message-body"]').textContent())
+      .toBe('Done. notes/hello.txt now contains the greeting.')
+    expect(await assistantText(second).first().locator('[data-slot="assistant-message-body"]').textContent()).toBe(
+      'I will write the greeting file into notes for you right now.',
+    )
   })
 
   it('模型出错时显示简短错误，重试后成功', async () => {
@@ -305,7 +316,9 @@ describe('对话闭环', () => {
     expect(await error.textContent()).toContain('faux model exploded')
     await error.getByRole('button', { name: /^(Retry|重试)$/ }).click()
 
-    await expect.poll(() => assistantText(app).last().textContent(), { timeout: 30_000 }).toBe('Recovered on retry.')
+    await expect
+      .poll(() => assistantText(app).last().locator('[data-slot="assistant-message-body"]').textContent(), { timeout: 30_000 })
+      .toBe('Recovered on retry.')
     await app.window.locator('[data-action="send"]').waitFor()
     // 只有最后一个 Run 的错误提供重试。
     expect(await app.window.getByRole('button', { name: /^(Retry|重试)$/ }).count()).toBe(0)

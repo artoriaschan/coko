@@ -410,7 +410,7 @@ it('/goal 无参数打开 Goal 卡（没有 Goal 时为空状态），不发送�
   await expect.poll(() => card()).toBeNull()
 })
 
-it('Run 用量行与 Session 费用：未定价模型显示"未定价"；已定价按 usage.cost；标题栏累计与分项', async () => {
+it('助手底栏不显示费用；Session 费用保留定价状态、累计与分项', async () => {
   const usage = (input: number, output: number, total: number) => ({
     input,
     output,
@@ -458,8 +458,15 @@ it('Run 用量行与 Session 费用：未定价模型显示"未定价"；已定�
     ),
   )
   fixture.send(record('run_end', { status: 'completed' }, 'run-b'))
-  const rows = () => [...document.querySelectorAll<HTMLElement>('[data-slot="run-usage"]')]
-  await expect.poll(() => rows().map((r) => r.textContent)).toEqual(['130 tokens·Unpriced', '1,210 tokens·$0.0124'])
+  const rows = () => [
+    ...document.querySelectorAll<HTMLElement>('[data-slot="assistant-footer"][data-run-id="run-a"], [data-slot="assistant-footer"][data-run-id="run-b"]'),
+  ]
+  await expect.poll(() => rows().map((r) => r.getAttribute('data-tokens'))).toEqual(['130', '1210'])
+  for (const row of rows()) {
+    expect(row.textContent).toContain('tokens')
+    expect(row.textContent).toContain('Incomplete')
+    expect(row.textContent).not.toMatch(/\$|Unpriced/)
+  }
   const cost = page.getByRole('button', { name: 'Session cost: $0.0124 (partly Unpriced)' })
   await expect.element(cost).toBeVisible()
   expect(document.querySelector('[data-slot="session-cost"]')!.getAttribute('data-tokens')).toBe('1340')

@@ -1,7 +1,7 @@
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
-import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from '@coko/ui'
-import { CheckIcon, ChevronRightIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import { Button } from '@coko/ui'
+import { ChevronRightIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
@@ -16,6 +16,8 @@ import { TeamMessageRow } from './team-message-row.tsx'
 import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
 import { MessageTime } from './message-time.tsx'
+import { CopyMessage, MessageAction } from './message-actions.tsx'
+import { AssistantFooter, completedReplyFooters } from './assistant-footer.tsx'
 import { ReasoningRow } from './reasoning-row.tsx'
 import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
@@ -48,78 +50,13 @@ export interface TimelineViewProps {
   onInspect?: () => void
 }
 
-/** 消息动作按钮：仅图标，Tooltip 与可访问名称同一文案。 */
-function MessageAction({
-  label,
-  action,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string
-  action: string
-  disabled: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="toolbar" size="icon-sm" aria-label={label} data-action={action} disabled={disabled} onClick={onClick}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function CopyMessage({ text }: { text: string }) {
-  const { t } = useI18n()
-  const [copied, setCopied] = React.useState(false)
-  React.useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(timer)
-  }, [copied])
-  return (
-    <MessageAction
-      label={t(copied ? 'conversation.messageCopied' : 'conversation.copyMessage')}
-      action="copy-message"
-      disabled={false}
-      onClick={() => {
-        setCopied(false)
-        void (async () => {
-          try {
-            await navigator.clipboard.writeText(text)
-            setCopied(true)
-          } catch {
-            toast.error(t('conversation.copyMessageFailed'))
-          }
-        })()
-      }}
-    >
-      {copied ? (
-        <CheckIcon />
-      ) : (
-        <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
-          <rect x="1.52075" y="4.07373" width="10.3932" height="10.3932" rx="2" />
-          <path
-            stroke="none"
-            fill="currentColor"
-            d="M11.9792 1.53296C13.36 1.53296 14.4792 2.65225 14.4792 4.03296V9.42847C14.4792 10.3756 13.9521 11.1987 13.1755 11.6228V10.3298C13.3652 10.0787 13.4792 9.7674 13.4792 9.42847V4.03296C13.4792 3.20453 12.8077 2.53296 11.9792 2.53296H6.58374C6.27966 2.53301 5.99684 2.6235 5.7605 2.77905H4.42358C4.85652 2.03463 5.66056 1.53304 6.58374 1.53296H11.9792Z"
-          />
-        </svg>
-      )}
-    </MessageAction>
-  )
-}
-
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
 export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
+  const footers = completedReplyFooters(items, props.entries ?? [], props.runs)
+  const latestFooter = [...footers.keys()].at(-1)
   const renderItem = (item: TimelineItem) => {
     switch (item.kind) {
       case 'user': {
@@ -267,14 +204,21 @@ export function TimelineView(props: TimelineViewProps) {
             data-user-content
             data-reading-anchor={messageIdentities.get(item.key) ?? item.key}
             data-streaming={item.streaming || undefined}
-            className="conversation-assistant-message min-w-0"
+            className="conversation-assistant-message group min-w-0"
           >
-            <Markdown text={item.text} streaming={item.streaming} theme={theme} />
-            {!item.streaming && item.finalResponse && (
-              <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
-                <CopyMessage text={item.text} />
-              </div>
-            )}
+            <div data-slot="assistant-message-body">
+              <Markdown text={item.text} streaming={item.streaming} theme={theme} />
+            </div>
+            {footers.has(item.key) && <AssistantFooter reply={footers.get(item.key)!} latest={item.key === latestFooter} />}
+            {!footers.has(item.key) &&
+              !item.streaming &&
+              item.finalResponse &&
+              item.origin?.runId &&
+              ['aborted', 'error', 'paused', 'interrupted'].includes(props.runs?.get(item.origin.runId)?.status ?? '') && (
+                <div data-slot="assistant-message-actions" className="conversation-message-actions conversation-assistant-actions flex items-center gap-2">
+                  <CopyMessage text={item.text} />
+                </div>
+              )}
           </article>
         )
       case 'thinking':
@@ -333,6 +277,7 @@ export function TimelineView(props: TimelineViewProps) {
       case 'job':
         return <JobRow key={item.key} item={item} />
       case 'run-usage':
+        if ([...footers.values()].some((reply) => reply.runId === item.runId)) return null
         return <RunUsageRow key={item.key} item={item} />
       case 'hook':
         return <HookRow key={item.key} item={item} />

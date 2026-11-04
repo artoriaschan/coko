@@ -49,6 +49,12 @@
   height: 17px;
 }
 
+@media (hover: hover) {
+  .conversation-assistant-message:not(:hover):not(:focus-within) .conversation-footer-controls[data-latest='false'][data-open='false'] {
+    opacity: 0;
+  }
+}
+
 .conversation-reasoning {
   min-width: 0;
   color: var(--conversation-process-muted, var(--muted-foreground));
@@ -138,8 +144,8 @@
   color: var(--conversation-process-shimmer, var(--foreground));
   mask-image: var(--conversation-process-shimmer-mask);
   transform: translateX(-100%);
-  animation: conversation-reasoning-sweep var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing) var(--conversation-process-shimmer-delay)
-    infinite;
+  animation: conversation-reasoning-sweep var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing)
+    var(--conversation-process-shimmer-delay) infinite;
 }
 
 .conversation-reasoning-highlight {
@@ -148,8 +154,8 @@
   width: 100%;
   height: 100%;
   transform: translateX(100%);
-  animation: conversation-reasoning-highlight var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing) var(--conversation-process-shimmer-delay)
-    infinite;
+  animation: conversation-reasoning-highlight var(--conversation-process-shimmer-duration) var(--conversation-process-shimmer-easing)
+    var(--conversation-process-shimmer-delay) infinite;
 }
 
 .conversation-reasoning-highlight [data-shimmer-text]::after {

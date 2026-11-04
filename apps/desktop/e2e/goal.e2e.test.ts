@@ -222,7 +222,7 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect.poll(async () => (await detail()).session.running, { timeout: 10_000 }).toBe(false)
     await shot('complete-light-1280')
 
-    // 用量：每个 Run 的用量行与条目中的 usage 一致；标题栏累计为全部 Run 加标题请求；Goal 的用量为 Goal 建立之后的 Run 之和。
+    // 用量：结束底栏与条目中的 usage 一致；底栏不显示费用，标题栏累计和 Goal 预算仍保留费用。
     const { entries } = await detail()
     const perRun = new Map<string, { tokens: number; cost: number }>()
     for (const e of entries) {
@@ -231,19 +231,26 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
       const sum = perRun.get(e.runId) ?? { tokens: 0, cost: 0 }
       perRun.set(e.runId, { tokens: sum.tokens + u.input + u.output + u.cacheRead + u.cacheWrite, cost: sum.cost + u.cost.total })
     }
-    const rows = await win.locator('[data-slot="run-usage"]').evaluateAll((els) =>
+    const rows = await win.locator('[data-slot="assistant-footer"], [data-slot="run-usage"]').evaluateAll((els) =>
       els.map((el) => ({
         runId: el.getAttribute('data-run-id')!,
         tokens: Number(el.getAttribute('data-tokens')),
-        cost: Number(el.getAttribute('data-cost')),
+        slot: el.getAttribute('data-slot'),
+        text: el.textContent,
       })),
     )
     expect(rows.map((r) => r.runId)).toEqual([...perRun.keys()])
-    for (const row of rows) {
-      expect(row.tokens).toBe(perRun.get(row.runId)!.tokens)
-      expect(row.cost).toBeCloseTo(perRun.get(row.runId)!.cost, 9)
+    for (const row of rows.filter((row) => row.slot === 'run-usage')) expect(row.tokens).toBe(perRun.get(row.runId)!.tokens)
+    for (const row of rows.filter((row) => row.slot === 'assistant-footer')) {
+      // Faux numeric fallback has no provider-report evidence; retain fees/budgets below without claiming reported tokens.
+      expect(row.tokens).toBe(0)
+      expect(row.text).toMatch(/Usage unavailable|未取得用量/)
+      expect(row.text).not.toMatch(/0 tokens/)
     }
-    expect(await win.locator('[data-slot="run-usage"]').first().textContent()).toMatch(/\$0\.0028/)
+    for (const footer of await win.locator('[data-slot="assistant-footer"]').all()) {
+      expect(await footer.textContent()).not.toMatch(/\$|Unpriced/)
+      expect(await footer.locator('[data-run-cost]').count()).toBe(0)
+    }
     const header = win.locator('[data-slot="session-cost"]')
     const titles = entries.filter((entry) => entry.kind === 'model_request' && entry.payload.purpose === 'title')
     expect(titles).toHaveLength(1)

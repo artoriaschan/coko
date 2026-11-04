@@ -117,9 +117,9 @@ describe('回退与分叉', () => {
     expect(await rewound.getAttribute('open')).toBeNull()
     expect(await rewound.locator('[data-slot="user-bubble"]').allTextContents()).toEqual(['second change'])
     expect(await rewound.locator('[data-action="rewind"]').count()).toBe(0)
-    expect(await replies(app).filter({ visible: true }).allTextContents()).toEqual(['First done.'])
+    expect(await replies(app).filter({ visible: true }).locator('[data-slot="assistant-message-body"]').allTextContents()).toEqual(['First done.'])
     await rewound.locator('summary').click()
-    expect(await rewound.getByRole('article', { name: 'Coko' }).allTextContents()).toEqual(['Second done.'])
+    expect(await rewound.getByRole('article', { name: 'Coko' }).locator('[data-slot="assistant-message-body"]').allTextContents()).toEqual(['Second done.'])
   })
 
   it('键盘：Tab 到消息后动作出现并可触发；Esc 关闭对话框不回退', async () => {

@@ -129,6 +129,7 @@ it('message bubbles and actions use the reference geometry and copy original use
     sessionId: 's-1',
     entry: record(2, { role: 'assistant', content: [{ type: 'text', text: answer }], stopReason: 'stop', timestamp: 2 }),
   })
+  fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: record(3, { status: 'completed' }, 'run_end') })
   await expect.element(page.getByText(user, { exact: true })).toBeVisible()
   const bubble = document.querySelector('[data-slot="user-bubble"]')!
   const style = getComputedStyle(bubble)
@@ -261,6 +262,7 @@ it('phase replies stay visible while the assistant action footer belongs to the 
       timestamp: 2,
     }),
     record(3, { role: 'assistant', content: [{ type: 'text', text: 'The final response' }], stopReason: 'stop', timestamp: 3 }),
+    record(4, { status: 'completed' }, 'run_end'),
   ])
   await expect.element(page.getByText('A phase reply', { exact: true })).toBeVisible()
   await expect.element(page.getByText('The final response', { exact: true })).toBeVisible()

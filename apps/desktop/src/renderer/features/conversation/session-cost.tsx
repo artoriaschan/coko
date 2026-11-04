@@ -22,6 +22,8 @@ export interface UsageTotals {
   complete: boolean
   hasUsage: boolean
   known: ('input' | 'output' | 'cacheRead' | 'cacheWrite')[]
+  /** Counts actually reported; compatibility totals above may include dependency fallback values. */
+  reported: { input: number; output: number; cacheRead: number; cacheWrite: number }
   requests: number
   models: { provider: string; model: string }[]
   reasoning?: number
@@ -39,6 +41,7 @@ const EMPTY_TOTALS: UsageTotals = {
   complete: true,
   hasUsage: false,
   known: ['input', 'output', 'cacheRead', 'cacheWrite'],
+  reported: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   requests: 0,
   models: [],
   priced: 0,
@@ -61,7 +64,13 @@ const usageOf = (value: unknown): RequestUsage | undefined => (Value.Check(Reque
 
 /** 汇总带 runId 的条目的 usage；runId 给出时只汇总该 Run。 */
 export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup, runId?: string): UsageTotals {
-  const totals: UsageTotals = { ...EMPTY_TOTALS, cost: { ...EMPTY_TOTALS.cost }, known: [...EMPTY_TOTALS.known], models: [] }
+  const totals: UsageTotals = {
+    ...EMPTY_TOTALS,
+    cost: { ...EMPTY_TOTALS.cost },
+    known: [...EMPTY_TOTALS.known],
+    reported: { ...EMPTY_TOTALS.reported },
+    models: [],
+  }
   const canonicalRuns = new Set(
     entries.filter((entry) => entry.kind === 'model_request' && entry.payload.requestId && entry.runId !== null).map((entry) => entry.runId),
   )
@@ -80,6 +89,7 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
     totals.output += usage.output
     totals.cacheRead += usage.cacheRead
     totals.cacheWrite += usage.cacheWrite
+    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.reported[key] += usage[key]
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'] as const) totals.cost[key] += usage.cost[key]
     if (usage.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + usage.reasoning
   }
@@ -101,6 +111,8 @@ export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup,
       totals.output += request.usage.output
       totals.cacheRead += request.usage.cacheRead
       totals.cacheWrite += request.usage.cacheWrite
+      for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const)
+        if (!report || report.known.includes(key)) totals.reported[key] += request.usage[key]
       totals.cost.total += request.cost ?? 0
       if (request.costBreakdown) for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.cost[key] += request.costBreakdown[key]
       if (request.reasoning !== undefined) totals.reasoning = (totals.reasoning ?? 0) + request.reasoning
