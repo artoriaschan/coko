@@ -29,7 +29,13 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 - 客户端发 `subscribe { sessionId, afterSeq }`：Sidecar 先补发该 Session 中 `seq > afterSeq` 的已提交条目，再发 `subscribed { sessionId, lastSeq, running }`，之后推送 `entry` 与 `progress`。重连时以已收到的最大 seq 作为 afterSeq。`unsubscribe { sessionId }` 停止推送。
 - `entry { sessionId, entry }`：已提交的 Session Entry（`SessionEntryRecord`，带 seq、kind、payloadVersion、runId?），可按 kind 用 `SessionEntry` 校验。条目是事实来源。
 - `progress { sessionId, runId, event }`：不持久化的临时显示状态，断线丢失后由条目重建。
+- `session_title { sessionId, title }`：标题提交后发给所有连接，不需要订阅该 Session。
+- `session_status { sessionId, running, agentsRunning }`：根 Session 的执行状态变化，发给所有连接，不需要订阅；两个布尔字段都必填。`running` 是根 Run 正在执行（含等待审批），`agentsRunning` 是有 running 的 Subagent 或 Teammate（含等待审批）；空闲 Teammate 与 Background Job 不计入。服务端在 `run_start`、`run_end` 和 `agent_update` 进度之后同步读取内存状态，映射到根 Session 并去重，只广播值的变化。运行时在 start 进度前已设为运行中、end 进度前已清除，子代理状态在 update 前已更新。
 - `error { code, message, sessionId? }`：订阅失败（例如 Session 不存在）或客户端消息不合 schema。
+
+列表与详情 DTO 的 `Session.agentsRunning?: boolean` 与广播使用同一规则，缺省视为 false。运行状态不持久化，重启后两个值均为 false；重连后读取列表快照补齐断线期间的变化。renderer 用修订号保留列表加载期间收到的较新广播，也用最新广播保护之后写入的接口 DTO；新一轮快照会清理先前广播，避免断线后残留状态。`activity` 与已订阅 Session 的条目、进度推导保持独立。
+
+验证：[真实 Sidecar 状态测试](../../tests/integration/sidecar-session-status.test.ts)、[列表并发测试](../../apps/desktop/src/renderer/stores/chat-store.test.ts)、[Electron 未打开会话测试](../../apps/desktop/e2e/session-status.e2e.test.ts)。
 
 ### Session 工作目录
 

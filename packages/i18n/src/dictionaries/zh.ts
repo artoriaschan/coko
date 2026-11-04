@@ -111,6 +111,7 @@ export const zh = {
     forkTitle: '{title}（分叉）',
     showMore: '再显示 {count} 个',
     running: '运行中',
+    backgroundRunning: '后台运行中',
     awaitingApproval: '等待审批',
     awaitingConfirmation: '等待确认结果',
     interrupted: '上次运行已中断',

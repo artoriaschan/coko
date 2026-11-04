@@ -26,7 +26,7 @@ import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
-import { SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
+import { ownPermissionScope, SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
 import { systemClock, type ClockPort } from '../adapters/clock.ts'
@@ -100,6 +100,9 @@ export class SessionService {
   readonly #removingProjects = new Set<string>()
   readonly #organizationTasks = new Map<string, Set<Promise<unknown>>>()
   readonly #clock: ClockPort
+  readonly #scopes: PermissionScopeResolver
+  /** 每个根 Session 最近一次广播的运行状态；只保存非空闲的，没有记录即 running 与 agentsRunning 都为 false。 */
+  readonly #statuses = new Map<string, { running: boolean; agentsRunning: boolean }>()
   #lifecycle: SessionLifecycle | undefined
   readonly permissions: PermissionService
 
@@ -159,6 +162,27 @@ export class SessionService {
       ...(options.cwd ? { cwd: options.cwd } : {}),
     })
     this.#runs.useAdmission((id) => this.assertAdmission(id))
+    this.#scopes = options.permissionScopes ?? ownPermissionScope
+    // 运行时在发出 run_start 之前已是运行中、在发出 run_end 之前已清除；Subagent 的状态在 agent_update 之前已更新。按条目重算会在
+    // run_end 条目提交时（当前 Run 尚未清除）得到过期的运行中。
+    options.hub.observeProgress((sessionId, event) => {
+      if (event.type === 'run_start' || event.type === 'run_end' || event.type === 'agent_update') this.#refreshStatus(sessionId)
+    })
+  }
+
+  /** 重算 sessionId 所属根 Session 的运行状态，与最近一次广播不同时广播（session_status）。 */
+  #refreshStatus(sessionId: string): void {
+    const rootId = this.#scopes.rootSessionId(sessionId)
+    const next = this.#status(rootId)
+    const last = this.#statuses.get(rootId) ?? { running: false, agentsRunning: false }
+    if (next.running === last.running && next.agentsRunning === last.agentsRunning) return
+    if (next.running || next.agentsRunning) this.#statuses.set(rootId, next)
+    else this.#statuses.delete(rootId)
+    this.#hub.publishStatus(rootId, next)
+  }
+
+  #status(sessionId: string): { running: boolean; agentsRunning: boolean } {
+    return { running: this.#runtimes.get(sessionId)?.isRunning ?? false, agentsRunning: this.#runs.childrenRunning(sessionId) }
   }
 
   useLifecycle(lifecycle: SessionLifecycle): void {
@@ -351,6 +375,7 @@ export class SessionService {
           this.#runtimes.forget(id)
           this.#permissions.forget(id)
           this.#recovery.forget(id)
+          this.#statuses.delete(id)
         }
         this.#lifecycle?.forget(sessionIds)
         return { sessionIds }
@@ -393,6 +418,7 @@ export class SessionService {
       thinkingLevel: this.#models.effectiveLevel(stored),
       ...(parentSessionId === null ? {} : { parentSessionId }),
       ...(worktree ? { worktree: { id: worktree.id, name: worktree.name, branch: worktree.branch, status: worktree.status } } : {}),
+      ...(this.#runs.childrenRunning(stored.id) ? { agentsRunning: true } : {}),
     }
     const runtime = this.#runtimes.get(session.id)
     const running = runtime?.isRunning ?? false

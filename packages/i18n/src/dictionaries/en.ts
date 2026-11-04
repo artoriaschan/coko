@@ -114,6 +114,7 @@ export const en: typeof zh = {
     forkTitle: '{title} (fork)',
     showMore: 'Show {count} more',
     running: 'Running',
+    backgroundRunning: 'Running in background',
     awaitingApproval: 'Waiting for approval',
     awaitingConfirmation: 'Waiting for you to confirm a result',
     interrupted: 'Last run was interrupted',

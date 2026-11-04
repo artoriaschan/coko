@@ -37,9 +37,9 @@ const viewport = { width: innerWidth, height: innerHeight }
 afterEach(async () => {
   await page.viewport(viewport.width, viewport.height)
 })
-async function open(entries: SessionEntryRecord[], sessions = fixtureSessions) {
+async function open(entries: SessionEntryRecord[], sessions = fixtureSessions, locale: 'en' | 'zh' = 'en') {
   const fixture = createFixtureChat({ entries: { 's-1': entries }, sessions })
-  const appearance = createAppearanceStore({ locale: 'en', theme: 'light' })
+  const appearance = createAppearanceStore({ locale, theme: 'light' })
   const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict() {}, onFailure() {} })
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -60,6 +60,7 @@ async function open(entries: SessionEntryRecord[], sessions = fixtureSessions) {
 it('actual App keeps a 22px status row and shows reported Session token usage in a keyboard-accessible card', async () => {
   await page.viewport(1000, 800)
   const fixture = await open([])
+  expect(document.querySelector('[data-action=session-statistics]')).toBeNull()
   const bar = document.querySelector<HTMLElement>('[data-slot=session-status-bar]')!
   expect(bar).not.toBeNull()
   expect(bar.getBoundingClientRect().height).toBe(22)
@@ -155,4 +156,75 @@ it('actual App marks missing buckets, omits cache rate without input and leaves 
   await userEvent.keyboard('{Escape}')
   await page.getByRole('button', { name: 'New chat', exact: true }).click()
   expect(document.querySelector('[data-slot=session-status-bar]')).toBeNull()
+})
+
+it('actual App shows logical Session statistics and switches between mutually exclusive cards at 390px', async () => {
+  await page.viewport(390, 700)
+  const fixture = await open([
+    request(1, 'turn', { durationMs: 500, ttftMs: undefined, stopReason: 'error', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }),
+    request(2, 'turn', { retries: 1, durationMs: 1000, ttftMs: 200, usage: { input: 100, output: 80, cacheRead: 900, cacheWrite: 0, total: 1080 } }),
+    request(3, 'compaction'),
+  ])
+  const stats = page.getByRole('button', { name: 'Session statistics: 1 rounds 1 steps · 100 tok/s', exact: true })
+  await expect.element(stats).toBeVisible()
+  await stats.click()
+  const card = page.getByRole('dialog', { name: 'Session statistics', exact: true })
+  await expect.element(card).toBeVisible()
+  expect(card.element().textContent).toContain('Model time1.5s')
+  expect(card.element().textContent).toContain('Average TTFT0.2s')
+  expect(card.element().textContent).toContain('Output speed100 tok/s')
+  expect(card.element().textContent).not.toContain('Tool call time')
+  const tokens = page.getByRole('button', { name: /^Token usage:/ })
+  await tokens.click()
+  await expect.element(card).not.toBeInTheDocument()
+  await expect.element(page.getByRole('dialog', { name: 'Token usage', exact: true })).toBeVisible()
+  await stats.click()
+  await expect.element(card).toBeVisible()
+  await expect.element(page.getByRole('dialog', { name: 'Token usage', exact: true })).not.toBeInTheDocument()
+  const box = card.element().getBoundingClientRect()
+  expect(box.left).toBeGreaterThanOrEqual(0)
+  expect(box.right).toBeLessThanOrEqual(390)
+  await userEvent.keyboard('{Escape}')
+  await expect.element(card).not.toBeInTheDocument()
+  expect(document.activeElement).toBe(stats.element())
+  fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event: { type: 'assistant_delta', kind: 'text', contentIndex: 0, delta: 'stream' } })
+  await expect.element(stats).toBeVisible()
+})
+
+it('actual App localizes long model time and approval-inclusive tool time without inventing missing speed', async () => {
+  await open(
+    [
+      request(1, 'turn', { durationMs: 162000 }),
+      {
+        ...request(2),
+        kind: 'message',
+        createdAt: 100,
+        payload: { role: 'assistant', content: [{ type: 'toolCall', id: 'tool', name: 'bash', arguments: { command: 'echo ok' } }], stopReason: 'toolUse' },
+      },
+      {
+        ...request(3),
+        kind: 'approval_request',
+        createdAt: 200,
+        payload: { requestId: 'approval', kind: 'tool', toolCallId: 'tool', toolName: 'bash', subject: 'echo ok', suggestions: [] },
+      },
+      { ...request(4), kind: 'approval_decision', createdAt: 4400, payload: { requestId: 'approval', outcome: 'allowed', scope: 'once' } },
+      {
+        ...request(5),
+        kind: 'message',
+        createdAt: 4500,
+        payload: { role: 'toolResult', toolCallId: 'tool', toolName: 'bash', content: [{ type: 'text', text: 'ok' }], isError: false },
+      },
+    ],
+    fixtureSessions,
+    'zh',
+  )
+  const stats = page.getByRole('button', { name: '会话统计：1 轮 1 步', exact: true })
+  await stats.click()
+  const card = page.getByRole('dialog', { name: '会话统计', exact: true })
+  await expect.element(card).toBeVisible()
+  expect(card.element().textContent).toContain('模型用时2分42秒')
+  expect(card.element().textContent).toContain('工具调用用时4.4秒')
+  expect(card.element().textContent).not.toContain('首 token 平均')
+  expect(card.element().textContent).not.toContain('输出速度')
+  await userEvent.keyboard('{Escape}')
 })

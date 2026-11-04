@@ -151,5 +151,13 @@ export const StreamErrorMessage = Type.Object(
 )
 
 export const SessionTitleMessage = Type.Object({ type: Type.Literal('session_title'), sessionId: Type.String(), title: Type.String() }, strict)
-export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage, SessionTitleMessage])
+/**
+ * 根 Session 的运行状态变化，发给所有连接（与 session_title 相同，不需要订阅）：running 为该 Session 有 Run 在进行；agentsRunning 为它
+ * 派发的 Subagent 或 Teammate 中有 running 的（父 Run 结束后仍可为 true）。Background Job 不参与。只在值变化时发送。
+ */
+export const SessionStatusMessage = Type.Object(
+  { type: Type.Literal('session_status'), sessionId: Type.String(), running: Type.Boolean(), agentsRunning: Type.Boolean() },
+  strict,
+)
+export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage, SessionTitleMessage, SessionStatusMessage])
 export type ServerMessage = Static<typeof ServerMessage>
