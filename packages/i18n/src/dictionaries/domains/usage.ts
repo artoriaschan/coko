@@ -24,6 +24,7 @@ export const usage = defineDomain(
       model: '提供方 / 模型',
       incompleteNote: '部分请求未完整报告用量，以下为已取得的统计。',
     },
+    status: { title: 'Token 用量', label: 'Token 用量：{count}', cacheHit: '缓存命中 {percent}%' },
     session: {
       label: '会话费用：{cost}',
       title: '会话累计',
@@ -75,6 +76,7 @@ export const usage = defineDomain(
       model: 'Provider / model',
       incompleteNote: 'Some requests did not report complete usage; counts below reflect what was reported.',
     },
+    status: { title: 'Token usage', label: 'Token usage: {count}', cacheHit: 'Cache hit {percent}%' },
     session: {
       label: 'Session cost: {cost}',
       title: 'Session total',

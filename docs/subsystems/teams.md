@@ -92,7 +92,7 @@ teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：
 ## 界面
 
 - **数据。** renderer 按根 Session 读取 `GET /api/sessions/:id/team`，`team_update` 到达时整体替换快照；读取期间到达的 `team_update` 不被较早的响应覆盖，读取失败保留已有快照。打开会话与 `agent_start`、`agent_end`、`team_task` 条目数变化时（含重连后补发）重新读取。运行中成员的活动优先取 `agent_update.activity`（快照只在名册或任务变化时推送）。
-- **标题栏"团队"按钮。** 会话有 teammate 时显示，徽标为 running 成员数（没有时不显示徽标，无障碍名称为"团队（n 个运行中）"）；点击打开右栏的 Team tab。只显示状态，窄主区中留在标题栏。
+- **标题栏"团队"按钮。** 会话有 teammate 时显示，徽标为 running 成员数（没有时不显示徽标，无障碍名称为"团队（n 个运行中）"）；点击打开右栏的 Team tab。只显示状态，在任何主区宽度下都直接留在标题栏。
 - **Team tab：名册。** 每个成员一行：状态点（running / idle / dismissed / failed，带状态名）、名字，次行为状态 · 当前活动（运行中，工具名 · 摘要）或用量（轮次、工具调用、Token、时长），保留的 worktree 显示分支。
 - **Team tab：任务板。** 按待处理、进行中、已完成分组（已删除的不显示），每项为编号、标题、owner；pending、前置全部完成且没有 owner 的标"可认领"；有未完成前置任务时显示"等待 t…"。`writeScopes` 重叠时板顶有警告（列出任务编号），重叠的任务带"范围重叠"标记。
 - **Team tab：成员时间线。** 点名册中的成员（键盘 Enter）在任务板下方打开其只读时间线：订阅该成员的子 Session（不切换当前会话），复用 TimelineView，没有输入区与消息动作，底部注明不能直接给成员发消息、需经 lead 转达。切到另一成员或关闭（标题行的关闭按钮）时释放订阅；缺省不选中成员。
