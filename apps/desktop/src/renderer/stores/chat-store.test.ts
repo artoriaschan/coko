@@ -613,3 +613,58 @@ describe('chat store：M5 的条目与进度', () => {
     expect(store.getState().conversations.child).toBeDefined()
   })
 })
+
+describe('global Session status', () => {
+  it('updates unopened rows, preserves broadcasts across an older snapshot and stale DTO, then reconciles on reload', async () => {
+    let resolve!: (value: Session[]) => void
+    const pending = new Promise<Session[]>((done) => {
+      resolve = done
+    })
+    const stream = new FakeStream()
+    const api = fakeApi({
+      listSessions: vi
+        .fn<Api['listSessions']>()
+        .mockReturnValueOnce(pending)
+        .mockResolvedValue([session('s1')]),
+    })
+    const store = createChatStore({ api, stream })
+    const loading = store.lists.getState().load()
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: false, agentsRunning: true })
+    resolve([session('s1')])
+    await loading
+    expect(store.lists.getState().sessions[0]).toMatchObject({ running: false, agentsRunning: true })
+    expect(store.getState().conversations.s1).toBeUndefined()
+    store.lists.getState().upsertSession(session('s1', { title: 'renamed' }))
+    expect(store.lists.getState().sessions[0]).toMatchObject({ title: 'renamed', running: false, agentsRunning: true })
+    await store.lists.getState().load()
+    expect(store.lists.getState().sessions[0]!.agentsRunning ?? false).toBe(false)
+  })
+
+  it('keeps only the last broadcast during overlapping loads and ignores removed Sessions', async () => {
+    const resolvers: ((value: Session[]) => void)[] = []
+    const api = fakeApi({
+      listSessions: () =>
+        new Promise<Session[]>((done) => {
+          resolvers.push(done)
+        }),
+    })
+    const stream = new FakeStream()
+    const store = createChatStore({ api, stream })
+    const first = store.lists.getState().load()
+    const second = store.lists.getState().load()
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: true, agentsRunning: false })
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: false, agentsRunning: true })
+    resolvers[1]!([session('s1')])
+    await second
+    resolvers[0]!([session('s1', { running: true })])
+    await first
+    expect(store.lists.getState().sessions[0]).toMatchObject({ running: false, agentsRunning: true })
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: false, agentsRunning: false })
+    store.lists.getState().upsertSession(session('s1', { running: true, agentsRunning: true }))
+    expect(store.lists.getState().sessions[0]).toMatchObject({ running: false, agentsRunning: false })
+    store.lists.getState().removeSessions(['s1'])
+    stream.deliver({ type: 'session_status', sessionId: 's1', running: true, agentsRunning: true })
+    store.lists.getState().upsertSession(session('s1'))
+    expect(store.lists.getState().sessions).toEqual([])
+  })
+})

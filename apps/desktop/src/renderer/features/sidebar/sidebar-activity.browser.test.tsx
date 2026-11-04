@@ -159,3 +159,34 @@ it('reduced motion stops spinning and devices without hover keep commands visibl
   const row = document.querySelector('[data-session-row="busy"]')!
   await expect.poll(() => getComputedStyle(row.querySelector('[data-session-actions]')!).opacity).toBe('1')
 })
+
+it('unopened Session broadcasts keep background activity visible and collapsed Projects use the right accessible name', async () => {
+  await page.viewport(1200, 900)
+  const fixture = createFixtureChat({ sessions: [{ ...fixtureSessions[0]!, id: 'background', title: 'Background member', running: false }] })
+  const appearance = createAppearanceStore({ theme: 'light', locale: 'en' })
+  await render(
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <App
+        store={appearance}
+        connection={createConnectionStore()}
+        chat={fixture.chat}
+        settings={fixture.settings}
+        preferences={createPreferences({ appearance, settings: fixture.settings, onConflict: () => {}, onFailure: () => {} })}
+        settingsPage={createSettingsPageStore()}
+        pickDirectory={async () => null}
+      />
+    </div>,
+  )
+  await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
+  fixture.sendServer({ type: 'session_status', sessionId: 'background', running: false, agentsRunning: true })
+  await expect.element(page.getByRole('img', { name: 'Running in background', exact: true })).toBeVisible()
+  const projects = page.getByRole('region', { name: 'Projects', exact: true })
+  await projects.getByRole('button', { name: 'coko', exact: true }).click()
+  ;(document.activeElement as HTMLElement)?.blur()
+  await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
+  await expect.element(projects.getByRole('img', { name: 'Running in background', exact: true })).toBeVisible()
+  fixture.sendServer({ type: 'session_status', sessionId: 'background', running: true, agentsRunning: true })
+  await expect.element(projects.getByRole('img', { name: 'Running', exact: true })).toBeVisible()
+  fixture.sendServer({ type: 'session_status', sessionId: 'background', running: false, agentsRunning: false })
+  await expect.element(projects.getByRole('img', { name: 'Running', exact: true })).not.toBeInTheDocument()
+})

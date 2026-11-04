@@ -57,6 +57,9 @@ export function ProjectRow({
   const executing = useLists((state) =>
     state.sessions.some((session) => session.projectId === project.id && session.archivedAt === null && session.pinnedAt === null && sessionExecuting(session)),
   )
+  const running = useLists((state) =>
+    state.sessions.some((session) => session.projectId === project.id && session.archivedAt === null && session.pinnedAt === null && session.running),
+  )
   const expanded = useLists((state) => state.expandedProjects[project.id] ?? true)
   const edit = useEditProject()
   const remove = useDeleteProject()
@@ -221,7 +224,7 @@ export function ProjectRow({
                   </FadingTitle>
                 </span>
               </SidebarListRow>
-              {!expanded && executing && <SidebarActivity />}
+              {!expanded && executing && <SidebarActivity running={running} />}
               <div data-project-actions className="absolute right-2 top-1 flex h-6 items-center transition-opacity duration-150 motion-reduce:transition-none">
                 <Tooltip>
                   <TooltipTrigger asChild>

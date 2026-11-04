@@ -238,6 +238,11 @@ export class SessionRuns {
     return context?.tools.registry.list().map((tool) => tool.name)
   }
 
+  /** 父 Session 是否有 running 的子代理或 Teammate（Session 的 agentsRunning；Background Job 不算）。 */
+  childrenRunning(parentSessionId: string): boolean {
+    return (this.#subagents?.runningChildren(parentSessionId).length ?? 0) > 0
+  }
+
   /** 父 Session 的 running 子代理中是否有在等待审批的（父 Session 的 activity 为 awaiting-approval）。 */
   childAwaitingApproval(parentSessionId: string): boolean {
     return (this.#subagents?.runningChildren(parentSessionId) ?? []).some((id) => (this.#options.runtimes.get(id)?.pendingApprovals.length ?? 0) > 0)

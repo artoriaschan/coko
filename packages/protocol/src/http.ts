@@ -105,6 +105,8 @@ export const Session = Type.Object(
     running: Type.Boolean(),
     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
     activity: SessionActivity,
+    /** 该根 Session 派发的 Subagent 或 Teammate 中有 running 的（父 Run 结束后仍可为 true；Background Job 不算）；缺省为 false。 */
+    agentsRunning: Type.Optional(Type.Boolean()),
     /** 子 Session（子代理）的父 Session；子 Session 不在 GET /api/sessions 的列表中。 */
     parentSessionId: Type.Optional(Id),
     /** 创建时绑定的 worktree（ADR 0016）；工作目录在 Session 的生命周期内不变。 */
