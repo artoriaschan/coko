@@ -410,7 +410,7 @@ it('/goal 无参数打开 Goal 卡（没有 Goal 时为空状态），不发送�
   await expect.poll(() => card()).toBeNull()
 })
 
-it('助手底栏不显示费用；Session 费用保留定价状态、累计与分项', async () => {
+it('助手底栏保留用量，标题栏不再显示 Session 费用与分项', async () => {
   const usage = (input: number, output: number, total: number) => ({
     input,
     output,
@@ -467,14 +467,6 @@ it('助手底栏不显示费用；Session 费用保留定价状态、累计与�
     expect(row.getAttribute('data-complete')).toBe('false')
     expect(row.textContent).not.toMatch(/\$|Unpriced/)
   }
-  const cost = page.getByRole('button', { name: 'Session cost: $0.0124 (partly Unpriced)' })
-  await expect.element(cost).toBeVisible()
-  expect(document.querySelector('[data-slot="session-cost"]')!.getAttribute('data-tokens')).toBe('1340')
-  // 键盘聚焦打开分项。
-  ;(document.querySelector('[data-slot="session-cost"]') as HTMLElement).focus()
-  await expect.poll(() => document.querySelector('[data-slot="session-cost-detail"]')).not.toBeNull()
-  const part = (key: string) => [...document.querySelectorAll(`[data-usage-part="${key}"] > *`)].map((e) => e.textContent)
-  expect(part('input')).toEqual(['Input', '1,100', '$0.0062'])
-  expect(part('cacheRead')).toEqual(['Cache read', '20', '$0.00'])
-  expect(part('total')).toEqual(['Total', '1,340', '$0.0124'])
+  expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
+  expect(document.querySelector('[data-slot="session-cost-detail"]')).toBeNull()
 })

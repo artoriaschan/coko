@@ -268,7 +268,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const continuable = resumeMode !== undefined
 
   const title = session ? session.title || t('sidebar.untitled') : t('conversation.newSession')
-  // 标题栏操作（后台任务、费用）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
+  // 标题栏操作（后台任务、子代理、定时任务与团队）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
   const headerActions = visibleHeaderActions()
   const openTab = (tab: RightPanelTabId) => {
     selectRightPanelTab(tab)
@@ -324,6 +324,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
 
   return (
     <>
+      <ConnectionStatus state={connection} />
       {/* 收起侧栏时标题栏左侧显示控制条；它在标题栏内，沿用标题栏的拖拽区排除规则。 */}
       <header data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-(--local-header-leading) pe-2 @max-[560px]/main:gap-1">
         <AppFrameCollapsedControls />
@@ -332,11 +333,12 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           <h1 className="sr-only">{title}</h1>
         ) : (
           <>
-            <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 flex-1 truncate text-ui-body-lg font-medium" title={title}>
-              {title}
-            </h1>
-            {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
-            <ConnectionStatus state={connection} />
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <h1 data-user-content={session?.title ? '' : undefined} className="min-w-0 truncate text-ui-body-lg font-medium" title={title}>
+                {title}
+              </h1>
+              {session?.worktree && <WorktreeChip worktree={session.worktree} className="max-w-48" />}
+            </div>
             {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
             <IconButton label={rightOpen ? t('frame.closeRightPanel') : t('frame.openRightPanel')} aria-pressed={rightOpen} onClick={onToggleRight}>
               {rightOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
@@ -344,6 +346,13 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           </>
         )}
       </header>
+      {activeSessionId !== null && (
+        <div role="tablist" aria-label={t('frame.main')} className="flex shrink-0 border-b-hairline border-border px-4">
+          <button type="button" role="tab" aria-selected="true" className="border-b-2 border-link px-1 py-2 text-ui-body font-medium text-link focus-ring">
+            {t('frame.main')}
+          </button>
+        </div>
+      )}
 
       <div
         onFocusCapture={(event) => {

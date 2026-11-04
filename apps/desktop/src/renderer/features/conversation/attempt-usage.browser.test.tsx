@@ -84,14 +84,14 @@ it('actual App shows all actual attempts once and labels the subtotal incomplete
   fixture.chat.getState().openSession('s-1')
   await expect.element(page.getByText('Usage 39 tok', { exact: true })).toBeVisible()
   expect(document.querySelector('[data-slot="assistant-footer"]')?.getAttribute('data-complete')).toBe('false')
-  expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('39')
+  expect(document.querySelector('[data-slot="assistant-footer"]')?.getAttribute('data-tokens')).toBe('39')
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: first })
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: second })
-  expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('39')
+  expect(document.querySelector('[data-slot="assistant-footer"]')?.getAttribute('data-tokens')).toBe('39')
   fixture.chat.getState().openSession('s-3')
   fixture.chat.getState().openSession('s-1')
   await expect.element(page.getByText('Usage 39 tok', { exact: true })).toBeVisible()
-  expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('39')
+  expect(document.querySelector('[data-slot="assistant-footer"]')?.getAttribute('data-tokens')).toBe('39')
 })
 
 it('actual App keeps failed compaction usage visible when no assistant message exists', async () => {

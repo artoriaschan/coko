@@ -1,6 +1,6 @@
-// Goal 卡、Run 用量与 Session 费用：真实 Electron + 真实 Sidecar（faux 多轮脚本，每次回复给出 usage，faux 模型有价格）。
+// Goal 卡与 Run 用量：真实 Electron + 真实 Sidecar（faux 多轮脚本，每次回复给出 usage，faux 模型有价格）。
 // 建立 Goal → Goal 卡出现在 Todo 与 Queue 之间 → 轮次随 Goal Round 增长 → 暂停后不再推进、恢复后继续 → 工具调用上限耗尽为 budget-exhausted、
-// 恢复不可用 → 编辑预算后恢复 → 完成后显示证据。Run 用量行与标题栏累计费用与 GET …/goal 及条目中的 usage 一致；明暗主题、390 px 窗口与
+// 恢复不可用 → 编辑预算后恢复 → 完成后显示证据。Run 用量行与 Goal 费用与 GET …/goal 及条目中的 usage 一致；明暗主题、390 px 窗口与
 // 键盘操作下 Goal 卡可用。设 COKO_E2E_SCREENSHOT_DIR 时保存截图（人工检查用，缺省不保存）。
 // bash 在 full-access 下运行（不经审批）；命令先写标记文件，标记出现即表示命令正在执行。
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -222,7 +222,7 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect.poll(async () => (await detail()).session.running, { timeout: 10_000 }).toBe(false)
     await shot('complete-light-1280')
 
-    // 用量：结束底栏与条目中的 usage 一致；底栏不显示费用，标题栏累计和 Goal 预算仍保留费用。
+    // 用量：结束底栏与条目中的 usage 一致；底栏不显示费用，Goal 预算仍保留费用，标题栏移除 Session 费用。
     const { entries } = await detail()
     const perRun = new Map<string, { tokens: number; cost: number }>()
     for (const e of entries) {
@@ -251,15 +251,12 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
       expect(await footer.textContent()).not.toMatch(/\$|Unpriced/)
       expect(await footer.locator('[data-run-cost]').count()).toBe(0)
     }
-    const header = win.locator('[data-slot="session-cost"]')
+    expect(await win.locator('[data-slot="session-cost"]').count()).toBe(0)
     const titles = entries.filter((entry) => entry.kind === 'model_request' && entry.payload.purpose === 'title')
     expect(titles).toHaveLength(1)
     expect(titles[0]!.runId).toBeNull()
     expect(titles[0]!.payload.usage).toMatchObject({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0 })
     expect(titles[0]!.payload.cost).toBeCloseTo(0.00002, 9)
-    const total = [...perRun.values()].reduce((a, b) => ({ tokens: a.tokens + b.tokens, cost: a.cost + b.cost }), { tokens: 15, cost: 0.00002 })
-    expect(Number(await header.getAttribute('data-tokens'))).toBe(total.tokens)
-    expect(Number(await header.getAttribute('data-cost'))).toBeCloseTo(total.cost, 9)
     const goal = (await win.evaluate(async (id) => fetch(`/api/sessions/${id}/goal`).then((r) => r.json()), sessionId)) as {
       usage: { rounds: number; tokens: number; cost: number; costUnpriced: boolean }
     }
@@ -273,13 +270,6 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
     await expect
       .poll(async () => Number(await card.locator('[data-goal-cost]').getAttribute('data-goal-cost')), { timeout: 10_000 })
       .toBeCloseTo(goal.usage.cost, 9)
-    // HoverCard 分项：键盘聚焦打开。
-    await header.focus()
-    await win.locator('[data-slot="session-cost-detail"]').waitFor()
-    expect(await win.locator('[data-slot="session-cost-detail"] [data-usage-part="total"]').textContent()).toContain(
-      String(total.tokens.toLocaleString('en-US')),
-    )
-
     // /goal 无参数：重新展开卡片，不发送消息。
     const users = await win.locator('article[data-seq]').count()
     await toggle.click()

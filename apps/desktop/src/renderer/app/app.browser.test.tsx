@@ -96,10 +96,12 @@ function chromeStrings(root: ParentNode = document.body): string[] {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node.textContent?.trim()
     const parent = node.parentElement
-    if (!text || !parent || parent.closest(USER_CONTENT) || parent.closest('script, style')) continue
+    if (!text || !parent || parent.closest(USER_CONTENT) || parent.closest('script, style, time')) continue
     out.push(text)
   }
   for (const el of root.querySelectorAll<HTMLElement>('[aria-label], [title], [placeholder]')) {
+    // 时间是本地化的持久化事实，由 MessageTime 测试验证，不是固定 chrome 文案。
+    if (el.tagName === 'TIME') continue
     // 用户内容内部只检查控件（例如 Markdown 代码块的复制按钮）
     if (el.closest(USER_CONTENT) && el.tagName !== 'BUTTON') continue
     const ownUserText = [...el.querySelectorAll(USER_CONTENT)].map((u) => u.textContent?.trim())
@@ -238,8 +240,36 @@ describe('界面语言', () => {
   })
 })
 
+it('details use a 48px title row followed by one selected conversation tab, with no connection or cost controls', async () => {
+  await page.viewport(1280, 800)
+  const { chat, connection, screen } = renderApp('en')
+  await screen
+  const heading = page.getByRole('heading', { name: '设计 token 与三栏骨架', exact: true })
+  await expect.element(heading).toBeVisible()
+  const titleRow = heading.element().closest('header')!
+  expect(titleRow.getBoundingClientRect().height).toBe(48)
+  expect(getComputedStyle(heading.element()).fontSize).toBe('14px')
+  expect(getComputedStyle(heading.element()).fontWeight).toBe('500')
+  const tab = page.getByRole('tab', { name: 'Conversation', exact: true })
+  await expect.element(tab).toHaveAttribute('aria-selected', 'true')
+  expect(page.getByRole('tablist').element().getBoundingClientRect().top).toBe(titleRow.getBoundingClientRect().bottom)
+  expect(getComputedStyle(tab.element()).fontSize).toBe('13px')
+  expect(getComputedStyle(tab.element()).borderBottomWidth).toBe('2px')
+  await tab.click()
+  expect(chat.getState().activeSessionId).toBe('s-1')
+  expect(titleRow.querySelector('[data-connection]')).toBeNull()
+  expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
+  connection.set({ phase: 'connected' })
+  const status = document.querySelector<HTMLElement>('[role="status"][data-connection]')!
+  await expect.poll(() => status.textContent).toBe('Sidecar connected')
+  expect(status.getBoundingClientRect().width).toBe(1)
+  await page.getByRole('button', { name: 'New chat', exact: true }).click()
+  await expect.element(tab).not.toBeInTheDocument()
+  expect(document.querySelector('[data-connection="connected"]')).toBe(status)
+})
+
 describe('Sidecar 连接状态', () => {
-  it('骨架中显示连接阶段，文案随界面语言切换', async () => {
+  it('视觉隐藏的状态元素播报连接阶段，文案随界面语言切换', async () => {
     await page.viewport(1280, 800)
     const { store, connection, screen } = renderApp('zh')
     await screen
@@ -265,7 +295,7 @@ describe('Sidecar 连接状态', () => {
     const detail = document.querySelector('[data-error-code]')
     expect(detail?.getAttribute('data-error-code')).toBe('fixture-fatal')
     expect(detail?.textContent).toBe('boom (fixture-fatal)')
-    // 失败覆盖层盖住消息与输入区，标题行的连接指示与侧栏仍可见。
+    // 失败覆盖层盖住消息与输入区；连接状态继续由视觉隐藏的元素播报，侧栏仍可见。
     const hit = (el: Element) => {
       const rect = el.getBoundingClientRect()
       return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
@@ -273,7 +303,7 @@ describe('Sidecar 连接状态', () => {
     const composer = page.getByRole('textbox', { name: 'Give Coko a task' }).element()
     expect(composer.contains(hit(composer))).toBe(false)
     const statusEl = page.getByRole('status', { name: /Sidecar/i }).element()
-    expect(statusEl.contains(hit(statusEl))).toBe(true)
+    expect(statusEl.getBoundingClientRect().width).toBe(1)
     const newSession = page.getByRole('button', { name: 'New chat' }).element()
     expect(newSession.contains(hit(newSession))).toBe(true)
   })
