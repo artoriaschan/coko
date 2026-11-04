@@ -1,0 +1,43 @@
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_622fdae39301f2 155-158,161,163
+apps/desktop/src/renderer/features/conversation/session-statistics.ts
+  s_296be7915f5188::t_fdd7ce257e00fc 3-13,16-17,19-42,46-68,79
+  s_296be7915f5188::t_ca076ed53632b3 1,18,43-45
+  s_296be7915f5188::t_67c47577309082 2,69-78
+  s_296be7915f5188::t_81c4e10cf03185 14-15
+.scratch/conversation-status-and-header/issues/08-status-bar-session-stats.md
+  s_296be7915f5188::t_a0aab6d0762f6a 15-19,26-29,34-39
+packages/i18n/src/dictionaries/domains/usage.ts
+  s_296be7915f5188::t_81c4e10cf03185 29-38,93-102
+  s_296be7915f5188::t_67c47577309082 28,39,92,103
+apps/desktop/src/renderer/features/conversation/session-statistics.test.ts
+  s_296be7915f5188::t_fb74df0f1674e3 3-4,38-39,89-103
+  s_296be7915f5188::t_32689e8b2bc095 105,109
+  s_296be7915f5188::t_81c4e10cf03185 7-22,40-88,106-108
+  s_296be7915f5188::t_35a936cbf7fcf4 5,23
+  s_296be7915f5188::t_fb6cea3bf5f2fd 1,24-37,104,110
+  s_296be7915f5188::t_ca076ed53632b3 2,6
+apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx
+  s_296be7915f5188::t_093e2586b0ec96 160-191,230
+  s_296be7915f5188::t_29c66d45dec7f2 40,42,63,192-194,221-229
+  s_296be7915f5188::t_81c4e10cf03185 195-220
+apps/desktop/src/renderer/features/conversation/session-status-bar.tsx
+  s_296be7915f5188::t_c06c86b6ccbad0 3,10,26-35,48,93-96,109-117,119-134
+  s_296be7915f5188::t_81c4e10cf03185 15-25,50-92,97-108,118,140-164,166-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "220b3a5babd2610ae3f3f66f6beddfd4e4503a89",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
