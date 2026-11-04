@@ -30,6 +30,8 @@ lifecycle: active
 
 右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 为“打开侧边栏”，可访问名称为“打开右侧边栏”。打开后入口隐藏，使用右栏头部的 X 收起：Tooltip 为“收起侧边栏”，可访问名称为“收起右侧边栏”；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口仍可直接打开对应 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
+详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
+
 验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)。
 
 ## 对话搜索
@@ -154,11 +156,15 @@ Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加�
 
 已有 Session 的输入框、审批/结果确认卡或只读提示下方常驻 [SessionStatusBar](../../apps/desktop/src/renderer/features/conversation/session-status-bar.tsx)。它与输入框共用列宽，顶部间距 4px、行高 22px、距主区底部 4px；没有数据时仍保留空行，数据提交后不挤动输入框。新对话页没有状态栏，上下文环继续留在输入框工具栏。
 
+左侧会话统计胶囊显示轮数、步数和可计算的输出速度。统计仅来自本 Session 已提交的主循环 `model_request`：至少有一次主循环请求的 Run 算一轮，用户提交和 Goal Round 同样计入；一次逻辑调用算一步，`retries` 标明的后续尝试不新增步数，重复请求也不重复累计。纯压缩、交接摘要和标题请求不计入轮步；缺少请求记录的旧会话不补造计数。模型用时仍累计每次实际主循环尝试的耗时，包含失败重试。
+
+会话统计卡按顺序显示模型用时、工具调用用时、首 token 平均和输出速度；未知或为零的行省略。工具调用用时按调用所在助手条目到结果条目的提交时间计算，含审批等待，与 Trace 口径一致；未完成调用不补造耗时。首 token 平均只使用有记录的 TTFT；输出速度按可配对的已报告输出 token 与生成时间汇总计算，生成时间为请求耗时减 TTFT，缺失 TTFT、未上报输出或生成时间为零的请求不参与该比值。小于 60 秒的用时保留一位小数，否则显示分与整秒；速度小于 10 时保留一位小数，否则取整。派生与格式化由[纯函数](../../apps/desktop/src/renderer/features/conversation/session-statistics.ts)维护。
+
 Token 胶囊只汇总本 Session 已提交的条目，包括主循环、压缩、交接摘要及标题请求，不合入子 Session。累计口径复用 Session 用量聚合、请求去重与服务商报告分桶；缺少报告时不制造零用量。文字使用紧凑总量与输入中的缓存命中比例，完整精确读数作为可访问名称，只有截断时显示 Tooltip。流式增量不更新数字；重复条目、重新打开和持久化回放不重复累计。
 
-点击或键盘打开 Token 卡，展示精确总量、缓存命中、未缓存输入、缓存读取、缓存写入、输出与已报告的推理子集；没有输入时省略命中率，未上报的必要分项附不完整说明，不展示费用。字段与“本轮用量”共用 [UsageFields](../../apps/desktop/src/renderer/features/conversation/usage-fields.tsx)。卡片沿用共享 Popover 的门户、窗口避让和可用高度限制，默认位于胶囊上方；再次点击、外部点击或 Escape 关闭并归还焦点。
+点击或键盘打开 Token 卡，展示精确总量、缓存命中、未缓存输入、缓存读取、缓存写入、输出与已报告的推理子集；没有输入时省略命中率，未上报的必要分项附不完整说明，不展示费用。字段与“本轮用量”共用 [UsageFields](../../apps/desktop/src/renderer/features/conversation/usage-fields.tsx)。两张详情卡互斥，可直接点击另一胶囊切换；共用 Popover 的门户、窗口避让和可用高度限制，默认位于胶囊上方，再次点击、外部点击或 Escape 关闭并归还焦点。两枚胶囊均单行截断，完整读数保留在可访问名称，仅在实际截断时显示 Tooltip。
 
-验证：[真实 App 状态栏 Browser Mode](../../apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx)覆盖空行几何、提交与重复回放、窄窗口浮层、键盘焦点、审批/确认、归档及已移除 worktree；[协议 Electron E2E](../../apps/desktop/e2e/message-footers-protocol.e2e.test.ts)覆盖累计读数与子 Session 隔离及重启读回。
+验证：[纯函数用例](../../apps/desktop/src/renderer/features/conversation/session-statistics.test.ts)覆盖多轮、重试、辅助请求、工具等待和缺失计量；[真实 App 状态栏 Browser Mode](../../apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx)覆盖空行几何、提交与重复回放、窄窗口浮层、两卡切换与键盘焦点、中文统计、审批/确认、归档及已移除 worktree；[协议 Electron E2E](../../apps/desktop/e2e/message-footers-protocol.e2e.test.ts)覆盖累计 Token 读数与子 Session 隔离及重启读回。
 
 ## 模型与推理档位
 

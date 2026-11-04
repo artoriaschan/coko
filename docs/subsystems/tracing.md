@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的追踪、审计与评测：model_request 条目、deriveTrace / deriveAudit 的派生规则（工具耗时、审批等待、Hook 归属）、GET /api/sessions/:id/{trace,audit,export}、导出的 ndjson 格式与 loadExport 回放、右栏 Trace tab，以及 tests/evals 的用例格式、运行器、报告与真实模式。修改逐请求记录、追踪接口、导出或评测前查阅。"
+description: "当前的追踪、审计与评测：model_request 条目、deriveTrace / deriveAudit 的派生规则（工具耗时、审批等待、Hook 归属）、GET /api/sessions/:id/{trace,audit,export}、脱敏 NDJSON 导出与标题栏 JSONL 下载、loadExport 回放、右栏 Trace tab，以及 tests/evals 的用例格式、运行器、报告与真实模式。修改逐请求记录、追踪接口、导出或评测前查阅。"
 lifecycle: active
 ---
 
@@ -16,7 +16,7 @@ lifecycle: active
 | `packages/agent/src/observability/` | 纯函数：`deriveTrace`、`traceTotals`、`deriveAudit`、`formatExport`、`loadExport`（`@coko/agent/testing` 另导出 `loadExport`） |
 | `packages/protocol/src/trace.ts` | `RunTrace`、`ToolTrace`、`HookTrace`、`TraceTotals`、`AuditEvent`、`SessionExportHeader` 与 `tracePaths` |
 | `apps/server/src/application/trace.ts`、`http/routes/trace.ts` | `TraceService`：读取条目、再脱敏、递归收集子 Session；三个 GET 路由 |
-| `apps/desktop/src/renderer/stores/trace-store.ts`、`features/right-panel/trace-tab.tsx` | 右栏 Trace tab 与导出 |
+| `apps/desktop/src/renderer/stores/trace-store.ts`、`features/right-panel/trace-tab.tsx`、`features/conversation/session-download.tsx` 与 `session-menu.tsx` | 右栏 Trace tab、共用下载流程与标题栏 Session 下载 |
 | `tests/evals/` | 评测用例、运行器、判定与报告 |
 
 ## 逐请求记录
@@ -65,7 +65,7 @@ lifecycle: active
 | `GET /api/sessions/:id/audit` | `AuditEvent[]` |
 | `GET /api/sessions/:id/export[?children=1]` | `application/x-ndjson`，`content-disposition: attachment; filename="coko-session-<id>.ndjson"` |
 
-Session 不存在时三者都是 404 `not-found`。三者的响应在返回前再按登记的明文替换一次（`redactSecretsDeep`）：它们是新的输出通道，用户自己输入的文本在库中按原样保存（ADR 0007），导出时同样替换。
+Session 不存在时三者都是 404 `not-found`。三者的响应在返回前先解析所有已登记 Secret，将从未使用过的登记值也加入内存中的脱敏来源，再按登记的明文替换一次（`redactSecretsDeep`）；解析失败时本次请求失败，不输出未完成脱敏的内容。它们是新的输出通道，用户自己输入的文本在库中按原样保存（ADR 0007），导出时同样替换。
 
 ## 导出与回放
 
@@ -76,6 +76,8 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 ## 界面
 
 右栏 Trace tab：顶部为 Session 合计（Token、费用、Run 数、请求数、工具调用数）与"导出"（读取 `?children=1` 的文本，经浏览器下载保存为 `.ndjson`，成功后 Toast 提示文件名）；其下每个 Run 一行（触发、状态、时长、Token、费用，最近的在最上面），展开为模型请求（模型、用途、时长、首字、Token、费用、重试、错误码）与工具（名字、时长、审批等待与结果、出错、Hook 结果），以及 Run 上的 Hook。费用符号取设置 `usage.currency`。数据来自 `GET …/trace`；`model_request`、`run_start` 与 `run_end` 的条目数变化时重读，同一帧内的多次变化合并为一次；重读不重挂载已有的 Run 行，展开状态保留。读取失败时没有内容显示错误与重试，有内容时保留并显示一行提示。不做图表。
+
+对话标题栏的常驻“更多”菜单提供“Session 下载”，在归档 Session 和窄窗口中同样可用。它读取同一个 `?children=1` 脱敏导出，只把建议文件名改为 `coko-session-<id>.jsonl`；服务端接口和 Trace 导出的 `.ndjson` 文件名保持不变。两处共用取文本、Blob 下载、同一 Session 的请求去重和 Toast：导出中对应操作禁用，失败说明原因，成功提示建议文件名。Electron 使用默认下载保存流程；自动验收通过 `will-download` 指定临时路径检查写出的文件，不据此声称已验证原生保存框。
 
 主时间线的工具详情通过 Inspect（中文“查看”）复用该 Trace 标签页，必要时打开右栏；当前入口只选择当前 Session 的 Trace，不提供工具行定位。子 Session 时间线没有对应追踪导航回调时不显示 Inspect，也不通过展开或查看重新执行工具。
 
@@ -109,6 +111,7 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 - `tests/integration/sidecar-trace.test.ts`：含审批与 Hook 的 Goal Round 之后的请求数、工具耗时 ≥ 审批等待、Goal Round 的追踪与 Goal 用量一致、审计的 approval 与 hook；导出的 ndjson 与 `?children=1`；回放往返。
 - `tests/integration/secrets-gate-trace.test.ts`：trace、audit、export 与 requestLog 中没有登记 Secret 的明文（含用户输入的）。
 - `apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx` 与 `apps/desktop/e2e/trace.e2e.test.ts`：列表、键盘展开、自动更新与同帧合并、导出（E2E 中由 main 的 `will-download` 保存文件）、明暗主题对比度与 390 px。
+- `apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx` 与 `apps/desktop/e2e/session-download.e2e.test.ts`：常驻菜单、键盘选择与焦点、归档与窄窗口、共享导出锁和失败反馈；真实 Electron 写出的 JSONL 包含子 Session、脱敏 Secret，Trace 仍写出同样条目的 NDJSON。
 - `tests/evals/judge.test.ts` 与 `tests/evals/evals.test.ts`。
 
 正常请求计量与三协议持久化回归见 [Sidecar 请求用量测试](../../tests/integration/sidecar-request-usage.test.ts)，覆盖四分桶、reasoning、Anthropic 1h 缓存写入、零/未知/部分报告及重启读回；仅替换远程模型服务，不表示已验证真实 Provider。

@@ -5,9 +5,13 @@ import type * as React from 'react'
 export function IconButton({
   label,
   tooltip = label,
+  tooltipSide = 'right',
   children,
   ...props
-}: { label: string; tooltip?: string } & Omit<React.ComponentProps<typeof Button>, 'aria-label'>) {
+}: { label: string; tooltip?: string; tooltipSide?: React.ComponentProps<typeof TooltipContent>['side'] } & Omit<
+  React.ComponentProps<typeof Button>,
+  'aria-label'
+>) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -15,7 +19,7 @@ export function IconButton({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="right">{tooltip}</TooltipContent>
+      <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
     </Tooltip>
   )
 }

@@ -96,7 +96,7 @@ describe('Trace tab', () => {
       await composer.fill(text)
       await composer.press('Enter')
     }
-    const lastReply = () => win.getByRole('article', { name: 'Coko' }).last().textContent()
+    const lastReply = () => win.locator('[data-slot="assistant-message-body"]').last().textContent()
     await send('run something')
     await waitConnected(win)
     await expect.poll(lastReply, { timeout: 30_000 }).toBe('First done.')
