@@ -1,5 +1,5 @@
 // Real Electron + real Sidecar with controlled model responses; native clipboard is restored after verification.
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, onTestFinished } from 'vitest'
@@ -36,8 +36,9 @@ it('completed assistant footers copy raw Markdown through the host clipboard and
   for (const [index, text] of ['first prompt', 'second prompt'].entries()) {
     await composer.fill(text)
     await composer.press('Enter')
+    await page.locator('[data-slot="assistant-message-body"]').nth(index).waitFor({ timeout: 30_000 })
+    await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     await expect.poll(() => page.locator('[data-slot="assistant-footer"]').count()).toBe(index + 1)
-    await page.locator('[data-action="send"]').waitFor()
   }
   const footer = page.locator('[data-slot="assistant-footer"]').first()
   const controls = footer.locator('[data-slot="assistant-message-actions"]')
@@ -78,4 +79,65 @@ it('completed assistant footers copy raw Markdown through the host clipboard and
   await page.locator('[data-slot="assistant-footer"]').first().waitFor()
   expect(await page.locator('[data-slot="assistant-footer"]').count()).toBe(2)
   expect(await page.locator('[data-slot="assistant-footer"]').first().locator('time').getAttribute('datetime')).toBe(timestamp)
+})
+
+it('keyboard assistant branch opens empty target, keeps source draft/records/current files and preserves Project', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-assistant-branch-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const workspace = join(root, 'workspace')
+  await mkdir(workspace)
+  const script = join(root, 'faux.json')
+  const write = (id: string, content: string) => ({ type: 'toolCall', name: 'write', id, arguments: { path: 'fact.txt', content } })
+  await writeFile(
+    script,
+    JSON.stringify({
+      responses: [
+        { match: 'COKO_SESSION_TITLE', content: 'Assistant branch check' },
+        { content: [write('first-write', 'after first')] },
+        { content: 'First complete reply.' },
+        { content: [write('second-write', 'current second bytes')] },
+        { content: 'Second complete reply.' },
+        { content: 'Branch follow up.' },
+      ],
+    }),
+  )
+  const app = await launchApp({ COKO_FAUX_SCRIPT: script }, { dir: root })
+  apps.push(app)
+  const page = app.window
+  await page.getByRole('heading', { level: 1 }).waitFor()
+  await createProjectDraft(app, workspace)
+  await page.locator('[data-permission-mode]').click()
+  await page.locator('[role="menuitemradio"][data-mode="accept-edits"]').click()
+  const composer = page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
+  for (const [index, prompt] of ['first instruction', 'later instruction'].entries()) {
+    await composer.fill(prompt)
+    await composer.press('Enter')
+    await page.locator('[data-slot="assistant-message-body"]').nth(index).waitFor({ timeout: 30_000 })
+    await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+    await expect.poll(() => page.locator('[data-slot="assistant-footer"]').count()).toBe(index + 1)
+  }
+  const sourceId = await page.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id')
+  const source = await page.evaluate(async (id) => await (await fetch(`/api/sessions/${id}`)).json(), sourceId)
+  expect(source.session.projectId).not.toBeNull()
+  const originalTime = await page.locator('[data-slot="assistant-footer"]').first().locator('time').getAttribute('datetime')
+  await composer.fill('unsent original draft')
+  const first = page.locator('[data-slot="assistant-footer"]').first()
+  await first.hover()
+  const branch = first.locator('[data-action="branch-reply"]')
+  await branch.focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => page.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id')).not.toBe(sourceId)
+  const targetId = await page.locator('[data-session-id][aria-current="page"]').getAttribute('data-session-id')
+  await expect.poll(() => composer.textContent()).toBe('')
+  const target = await page.evaluate(async (id) => await (await fetch(`/api/sessions/${id}`)).json(), targetId)
+  expect(target.session.projectId).toBe(source.session.projectId)
+  expect(target.session.model).toEqual(source.session.model)
+  expect(target.entries[0].payload).toMatchObject({ sessionId: sourceId, boundary: 'assistant-inclusive' })
+  expect(await page.locator('[data-slot="assistant-message-body"]').allTextContents()).toEqual(['First complete reply.'])
+  expect(await page.locator('[data-slot="assistant-footer"] time').getAttribute('datetime')).toBe(originalTime)
+  expect(await readFile(join(workspace, 'fact.txt'), 'utf8')).toBe('current second bytes')
+  expect(await page.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}/trace`)).json()).totals.tokens, targetId)).toBe(0)
+  await page.locator(`[data-session-id="${sourceId}"]`).click()
+  await expect.poll(() => composer.textContent()).toBe('unsent original draft')
+  expect(await page.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, sourceId)).toEqual(source.entries)
 })

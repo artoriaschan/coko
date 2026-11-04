@@ -67,14 +67,14 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 
 | | 从此分叉 | 交接 |
 | --- | --- | --- |
-| 入口 | `POST /api/sessions/:id/fork` 的用户锚点兼容入口（用户气泡已移除该按钮） | 标题栏"交接"、`/handoff`、`POST /api/sessions/:id/handoff` |
+| 入口 | 成功助手底栏“在新对话中分支”；`POST /api/sessions/:id/fork` 保留用户锚点兼容入口 | 标题栏"交接"、`/handoff`、`POST /api/sessions/:id/handoff` |
 | 模型请求 | 无 | 一次摘要请求（trigger handoff，无工具，经 Goal 预算检查） |
-| 新会话的上下文 | 目标之前的有效消息（含最后一个压缩摘要） | 没有消息；摘要作为输入区草稿 |
-| 首条条目 | `fork_origin { sessionId, seq }` | `handoff_origin { sessionId, seq }` |
-| 复制的权限状态 | `permission_mode`、`permission_rule` | 相同（同一规则） |
-| 工作目录 | 源会话的 Workspace | 当前目录、新 worktree 或已有 worktree |
+| 新会话的上下文 | 助手包含／旧用户之前边界的有效消息（含当时有效压缩摘要） | 没有消息；摘要作为输入区草稿 |
+| 首条条目 | `fork_origin`（来源、边界与复制历史证明） | `handoff_origin { sessionId, seq }` |
+| 复制的权限状态 | `permission_mode`、`permission_rule`；助手分支使用源当前状态 | 源当前权限状态 |
+| 工作目录 | 源会话实际目录（包含已绑定 Worktree） | 当前目录、新 worktree 或已有 worktree |
 | 源会话 | 不变 | 增加摘要 Run 与 `handoff` 条目 |
-| 新会话的输入区 | 目标消息的文本 | 交接摘要 |
+| 新会话的输入区 | 助手分支为空；旧用户边界返回目标文本 | 交接摘要 |
 | 不复制 | Goal、Todo、计划、后台任务、Hook、子代理、定时任务与交接记录 | 相同，另外不复制任何消息 |
 
 ## 已知限制

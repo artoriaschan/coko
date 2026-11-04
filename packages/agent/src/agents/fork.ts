@@ -1,6 +1,10 @@
-// 从此分叉（ADR 0006）：新 Session 的条目由原 Session 已提交的条目推导。与 Rewind 共用有效上下文与目标校验（checkpoints/）。
+// 显式边界分支（ADR 0023）：新 Session 的条目由原 Session 已提交的条目推导。与 Rewind 共用有效上下文与目标校验（checkpoints/）。
 import type { RunEntry } from '../engine/types.ts'
-import { rewindTarget } from '../checkpoints/rewind.ts'
+import { Value } from 'typebox/value'
+import { requestUsageSchema } from '../session-entries/context.ts'
+import type { ModelRequestPayload } from '../session-entries/observability.ts'
+import type { ForkBoundary, ForkMessageOrigin, ForkOriginPayload } from '../session-entries/checkpoints.ts'
+import { RewindTargetError, rewindTarget } from '../checkpoints/rewind.ts'
 import { effectiveEntries } from '../entries/index.ts'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
@@ -10,25 +14,76 @@ import type { CheckpointEntry } from '../checkpoints/tracker.ts'
  */
 const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
 
-/**
- * 从某条用户消息分叉（ADR 0006）：新 Session 的条目为 fork_origin，之后是目标之前的有效消息与权限条目（去掉 runId）。
- * Run 生命周期、审批、执行记录与快照引用不复制：它们的 Run 与锚点属于原 Session；Workspace 文件不复制。
- * 目标之前有压缩时只复制最后一个 compaction 保留的消息（docs/subsystems/context.md#压缩）：compaction 条目紧接 fork_origin、排在复制的
- * 条目之前，firstKeptSeq 指向新 Session 中第一条复制的消息（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处
- * 相同；之后回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍然有效。目标不是有效的用户消息时抛 RewindTargetError。
- */
-export function forkEntries(entries: readonly CheckpointEntry[], sessionId: string, targetSeq: number): { text: string; entries: RunEntry[] } {
-  const { text } = rewindTarget(entries, targetSeq)
-  const prefix = effectiveEntries(entries).filter((entry) => entry.seq < targetSeq)
+const record = (value: unknown): Record<string, unknown> => (value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {})
+const metadata = (entries: readonly CheckpointEntry[]) =>
+  entries.flatMap((entry) => (entry.kind === 'fork_origin' ? ((entry.payload as ForkOriginPayload).messages ?? []) : []))
+
+/** A successful source Run or an immutable copied-source proof; stop/length alone cannot prove a final reply. */
+function replyOrigin(entries: readonly CheckpointEntry[], target: CheckpointEntry): ForkMessageOrigin['reply'] {
+  const payload = record(target.payload)
+  if (
+    target.kind !== 'message' ||
+    payload.role !== 'assistant' ||
+    !['stop', 'length'].includes(String(payload.stopReason)) ||
+    !Array.isArray(payload.content) ||
+    !payload.content.some((block) => record(block).type === 'text' && typeof record(block).text === 'string' && String(record(block).text).trim())
+  )
+    return undefined
+  if (!target.runId) return metadata(entries).find((item) => item.seq === target.seq)?.reply
+  const end = entries.find((entry) => entry.kind === 'run_end' && entry.runId === target.runId && entry.seq > target.seq)
+  const last =
+    end &&
+    entries.findLast((entry) => entry.seq < end.seq && entry.runId === target.runId && entry.kind === 'message' && record(entry.payload).role === 'assistant')
+  if (!end || record(end.payload).status !== 'completed' || last?.seq !== target.seq) return undefined
+  const run = entries.filter((entry) => entry.runId === target.runId && entry.seq <= end.seq)
+  const requests = run.flatMap((entry) => (entry.kind === 'model_request' ? [entry.payload as ModelRequestPayload] : []))
+  const legacy = run.flatMap((entry) => {
+    const p = record(entry.payload)
+    if (!(entry.kind === 'message' && p.role === 'assistant') && entry.kind !== 'compaction') return []
+    if (!Value.Check(requestUsageSchema, p.usage)) return []
+    return [{ usage: p.usage, ...(typeof p.provider === 'string' ? { provider: p.provider } : {}), ...(typeof p.model === 'string' ? { model: p.model } : {}) }]
+  })
+  const endedAt = (end as CheckpointEntry & { createdAt?: number }).createdAt
+  return { runId: target.runId, ...(endedAt === undefined ? {} : { endedAt }), requests, legacy }
+}
+
+/** Copy effective model context at an explicit boundary; source Run identities remain source-owned. */
+export function forkEntries(
+  entries: readonly CheckpointEntry[],
+  sessionId: string,
+  targetSeq: number,
+  boundary: ForkBoundary = 'user-before',
+): { text: string; entries: RunEntry[] } {
+  const effective = effectiveEntries(entries)
+  const target = effective.find((entry) => entry.seq === targetSeq)
+  const text = boundary === 'user-before' ? rewindTarget(entries, targetSeq).text : ''
+  if (boundary === 'assistant-inclusive' && (!target || !replyOrigin(effective, target))) throw new RewindTargetError(targetSeq)
+  const prefix = effective.filter((entry) => (boundary === 'assistant-inclusive' ? entry.seq <= targetSeq : entry.seq < targetSeq))
   const compacted = effectiveEntries(prefix, { compacted: true })
   const compaction = compacted.find((entry) => entry.kind === 'compaction')
   const kept = new Set(compacted.map((entry) => entry.seq))
-  const copied = prefix
-    .filter((entry) => FORK_KINDS.has(entry.kind) && (entry.kind !== 'message' || kept.has(entry.seq)))
-    .map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
-  const origin: RunEntry = { kind: 'fork_origin', payload: { sessionId, seq: targetSeq } }
+  // Assistant branches inherit the current permission state, even when branching before a later restriction.
+  const selected = effective.filter(
+    (entry) =>
+      FORK_KINDS.has(entry.kind) &&
+      (entry.kind === 'message' ? kept.has(entry.seq) && prefix.includes(entry) : boundary === 'assistant-inclusive' || prefix.includes(entry)),
+  )
+  const copied = selected.map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
+  const previous = metadata(entries)
+  const hasOrigin = entries.some((entry) => entry.kind === 'fork_origin')
+  const firstSeq = compaction ? 3 : 2
+  const messages: ForkMessageOrigin[] = selected.flatMap((entry, index) => {
+    if (entry.kind !== 'message') return []
+    const prior = previous.find((item) => item.seq === entry.seq)
+    const createdAt = prior ? prior.createdAt : hasOrigin && !entry.runId ? undefined : (entry as CheckpointEntry & { createdAt?: number }).createdAt
+    const reply = replyOrigin(effective, entry)
+    return [{ seq: firstSeq + index, sourceSeq: entry.seq, ...(createdAt === undefined ? {} : { createdAt }), ...(reply ? { reply } : {}) }]
+  })
+  const origin: RunEntry = {
+    kind: 'fork_origin',
+    payload: { sessionId, seq: targetSeq, ...(boundary === 'assistant-inclusive' ? { boundary, messages } : {}) },
+  }
   if (!compaction) return { text, entries: [origin, ...copied] }
-  // 新 Session 的 seq：fork_origin 为 1、compaction 为 2，复制的条目从 3 开始。
   const firstMessage = copied.findIndex((entry) => entry.kind === 'message')
   const firstKeptSeq = firstMessage < 0 ? 3 + copied.length : 3 + firstMessage
   const summary: RunEntry = { kind: 'compaction', payload: { ...(compaction.payload as Extract<RunEntry, { kind: 'compaction' }>['payload']), firstKeptSeq } }

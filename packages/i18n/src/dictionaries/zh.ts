@@ -267,6 +267,7 @@ export const zh = {
     retry: '重试',
     messageActions: '消息操作',
     rewindHere: '回退到此处',
+    branchReply: '在新对话中分支',
     forkHere: '从这里分叉',
     rewound: '已回退：{count} 项不再提供给 Coko',
   },

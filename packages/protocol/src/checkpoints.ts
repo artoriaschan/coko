@@ -1,3 +1,5 @@
+import { ModelRequestPayload } from './trace.ts'
+import { RequestUsage } from './context-entries.ts'
 import { Type, type Static } from 'typebox'
 
 // Checkpoint、Rewind 与 Fork 的条目 payload（ADR 0006）。
@@ -20,7 +22,35 @@ export type FileChangePayload = Static<typeof FileChangePayload>
 export const RewindPayload = Type.Object({ targetSeq: Seq }, strict)
 export type RewindPayload = Static<typeof RewindPayload>
 
-export const ForkOriginPayload = Type.Object({ sessionId: Type.String({ minLength: 1 }), seq: Seq }, strict)
+export const ForkBoundary = Type.Union([Type.Literal('user-before'), Type.Literal('assistant-inclusive')])
+export type ForkBoundary = Static<typeof ForkBoundary>
+
+const LegacyForkUsage = Type.Object({ usage: RequestUsage, provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()) }, strict)
+export const ForkMessageOrigin = Type.Object(
+  {
+    seq: Seq,
+    sourceSeq: Seq,
+    createdAt: Type.Optional(Type.Integer({ minimum: 0 })),
+    reply: Type.Optional(
+      Type.Object(
+        {
+          runId: Type.String({ minLength: 1 }),
+          endedAt: Type.Optional(Type.Integer({ minimum: 0 })),
+          requests: Type.Array(ModelRequestPayload),
+          legacy: Type.Array(LegacyForkUsage),
+        },
+        strict,
+      ),
+    ),
+  },
+  strict,
+)
+export type ForkMessageOrigin = Static<typeof ForkMessageOrigin>
+
+export const ForkOriginPayload = Type.Object(
+  { sessionId: Type.String({ minLength: 1 }), seq: Seq, boundary: Type.Optional(ForkBoundary), messages: Type.Optional(Type.Array(ForkMessageOrigin)) },
+  strict,
+)
 export type ForkOriginPayload = Static<typeof ForkOriginPayload>
 
 export const checkpointEntryPayloadSchemas = {
@@ -69,17 +99,17 @@ export const RewindResponse = Type.Object(
 )
 export type RewindResponse = Static<typeof RewindResponse>
 
-/** title：新 Session 的标题，由界面按当前语言生成（例如"<原标题>（分叉）"）；省略时沿用原标题。 */
-export const ForkRequest = Type.Object({ targetSeq: Seq, title: Type.Optional(Type.String({ maxLength: 200 })) }, strict)
+/** boundary 缺省为 user-before；assistant-inclusive 仅接受成功最终助手回复。title 由界面本地化，省略时沿用原标题。 */
+export const ForkRequest = Type.Object({ targetSeq: Seq, title: Type.Optional(Type.String({ maxLength: 200 })), boundary: Type.Optional(ForkBoundary) }, strict)
 export type ForkRequest = Static<typeof ForkRequest>
 
-/** 新 Session 的 id（首条 fork_origin；Session 本身经列表读取）与目标消息的文本（放入新 Session 的输入区）。 */
+/** 新 Session 的 id（首条 fork_origin；Session 本身经列表读取）与目标文本（旧用户边界回填；助手包含边界为空）。 */
 export const ForkResponse = Type.Object({ sessionId: Type.String({ minLength: 1 }), text: Type.String() }, strict)
 export type ForkResponse = Static<typeof ForkResponse>
 
 /**
  * 回退与分叉的路由。Run 进行中或等待审批时 409 session-busy；有未回答的结果确认时 409 confirmation-pending；
- * targetSeq 不是有效的用户消息时 400 bad-request。
+ * targetSeq 不符合所选边界资格时 400 bad-request。
  */
 export const checkpointPaths = {
   /** GET CheckpointListResponse。 */

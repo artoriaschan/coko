@@ -55,6 +55,96 @@ const send = async (api: Api, stream: Stream, sessionId: string, text: string, n
 }
 
 describe('回退与分叉', () => {
+  it('助手边界服务端拒绝阶段与失败回复；最终成功历史可以分支', async () => {
+    const { api, sessionId, stream } = await boot({
+      mode: 'accept-edits',
+      responses: [
+        { content: [{ type: 'text', text: 'stage text' }, write('stage-write', 'stage.txt', 'stage')], stopReason: 'stop' },
+        { content: 'finished answer' },
+        { content: 'failed answer', stopReason: 'error', errorMessage: 'Invalid API key' },
+      ],
+    })
+    await send(api, stream, sessionId, 'with a stage', 1)
+    await send(api, stream, sessionId, 'fail now', 2)
+    const source = await entriesOf(api, sessionId)
+    for (const text of ['stage text', 'failed answer']) {
+      const target = source.find((e) => e.kind === 'message' && textOf(e.payload) === text)!
+      expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })).status).toBe(400)
+    }
+    const final = source.find((e) => e.kind === 'message' && textOf(e.payload) === 'finished answer')!
+    expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: final.seq, boundary: 'assistant-inclusive' })).status).toBe(201)
+  })
+
+  it('从早期助手分支仍继承源当前 plan 权限，不能绕过后续收紧', async () => {
+    const { api, sessionId, stream, root } = await boot({
+      mode: 'accept-edits',
+      responses: [{ content: 'old answer' }, { content: [write('restricted-write', 'blocked.txt', 'must not write')] }, { content: 'write denied' }],
+    })
+    await send(api, stream, sessionId, 'first', 1)
+    const target = (await entriesOf(api, sessionId)).find((e) => e.kind === 'message' && textOf(e.payload) === 'old answer')!
+    expect((await api.put(permissionPaths.sessionPermissionMode(sessionId), { mode: 'plan' })).status).toBe(200)
+    const fork = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
+    expect(fork.status).toBe(201)
+    const id = fork.body.sessionId as string
+    stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
+    expect((await api.post(apiPaths.sessionMessages(id), { text: 'try writing' })).status).toBe(202)
+    const approval = await waitApproval(stream, id)
+    expect(await absent(join(root, 'blocked.txt'))).toBe(true)
+    expect((await api.post(apiPaths.sessionApproval(id, approval.requestId), { decision: 'deny' })).status).toBe(204)
+    await runEnds(stream, id, 1)
+    expect(await absent(join(root, 'blocked.txt'))).toBe(true)
+    const result = (await entriesOf(api, id)).find((e) => e.kind === 'message' && (e.payload as { toolCallId?: string }).toolCallId === 'restricted-write')
+    expect(result?.payload).toMatchObject({ role: 'toolResult', isError: true })
+  })
+
+  it('从较早成功助手回复包含边界分支；下一请求保留工具上下文且排除之后内容，原记录与文件不变', async () => {
+    const root = await realpath(await tempDir())
+    const requestLog = join(root, 'assistant-fork-requests.jsonl')
+    const { api, sessionId, stream } = await boot({
+      root,
+      requestLog,
+      mode: 'accept-edits',
+      responses: [
+        { content: [{ type: 'thinking', thinking: 'inspect first' }, write('wa', 'fact.txt', 'first bytes')] },
+        { content: 'first answer' },
+        { content: 'later answer' },
+        { content: 'branch answer' },
+      ],
+    })
+    await send(api, stream, sessionId, 'first instruction', 1)
+    await send(api, stream, sessionId, 'later instruction', 2)
+    const source = await entriesOf(api, sessionId)
+    const target = source.find((e) => e.kind === 'message' && role(e) === 'assistant' && textOf(e.payload) === 'first answer')!
+    const forked = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
+    expect(forked.status).toBe(201)
+    expect(forked.body.text).toBe('')
+    const forkId = forked.body.sessionId as string
+    expect(await entriesOf(api, sessionId)).toEqual(source)
+    expect(await readFile(join(root, 'fact.txt'), 'utf8')).toBe('first bytes')
+    const copy = await entriesOf(api, forkId)
+    expect(copy[0]).toMatchObject({ kind: 'fork_origin', payload: { sessionId, seq: target.seq, boundary: 'assistant-inclusive' } })
+    expect(copy.filter((e) => e.kind === 'message').map((e) => e.payload)).toEqual(
+      source.filter((e) => e.kind === 'message' && e.seq <= target.seq).map((e) => e.payload),
+    )
+    expect(copy.every((e) => e.runId === null)).toBe(true)
+    const copiedReply = copy.find((e) => e.kind === 'message' && textOf(e.payload) === 'first answer')!
+    const again = await api.post(checkpointPaths.sessionFork(forkId), { targetSeq: copiedReply.seq, boundary: 'assistant-inclusive' })
+    expect(again.status).toBe(201)
+    expect(again.body.text).toBe('')
+    expect((await api.get(`/api/sessions/${forkId}/trace`)).body.totals.tokens).toBe(0)
+    stream.send({ type: 'subscribe', sessionId: forkId, afterSeq: 0 })
+    await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
+    await send(api, stream, forkId, 'follow up', 1)
+    expect(await request(requestLog, 3)).toEqual([
+      'user:first instruction',
+      'assistant:',
+      'toolResult:Successfully wrote to fact.txt',
+      'assistant:first answer',
+      'user:follow up',
+    ])
+  })
+
   it('命令 Checkpoint 回退和分叉返回记录中的原始调用，保留展开正文与外部文件事实', async () => {
     const root = await realpath(await tempDir())
     await mkdir(join(root, '.coko', 'commands'), { recursive: true })
@@ -265,6 +355,7 @@ describe('回退与分叉', () => {
     expect(await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: first, mode: 'both' })).toMatchObject(busy)
     expect(await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: first, mode: 'code', dryRun: true })).toMatchObject(busy)
     expect(await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: first })).toMatchObject(busy)
+    expect(await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: first, boundary: 'assistant-inclusive' })).toMatchObject(busy)
     expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'deny' })).status).toBe(204)
     await runEnds(stream, sessionId, 2)
     expect((await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: first, mode: 'both', dryRun: true })).status).toBe(200)
@@ -283,6 +374,7 @@ describe('回退与分叉', () => {
     const pending = { status: 409, body: { error: { code: 'confirmation-pending' } } }
     expect(await api.post(checkpointPaths.sessionRewind(first.sessionId), { targetSeq: target, mode: 'conversation' })).toMatchObject(pending)
     expect(await api.post(checkpointPaths.sessionFork(first.sessionId), { targetSeq: target })).toMatchObject(pending)
+    expect(await api.post(checkpointPaths.sessionFork(first.sessionId), { targetSeq: target, boundary: 'assistant-inclusive' })).toMatchObject(pending)
   })
 
   it('write 执行后、file_change 提交前被杀：恢复补齐的结果没有 file_change，回退代码不把该路径误报为 Agent 之外改过', { timeout: 60_000 }, async () => {

@@ -15,7 +15,7 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0003](0003-settings-and-sessions-in-sqlite.md) | 设置与会话存储在 SQLite | accepted | implemented |
 | [0004](0004-model-credentials-safe-storage.md) | 模型凭据由 main 用 safeStorage 加密 | accepted | implemented |
 | [0005](0005-permission-mode-and-sandbox.md) | 权限模式同时决定审批范围与沙箱档位 | accepted | implemented |
-| [0006](0006-file-checkpoints-and-rewind.md) | Checkpoint 只追踪文件工具，回退以追加记录实现 | accepted | implemented |
+| [0006](0006-file-checkpoints-and-rewind.md) | Checkpoint 只追踪文件工具，回退以追加记录实现 | superseded | implemented |
 | [0007](0007-secrets-from-registered-entries.md) | Secret 只来自登记条目，项目文件不能引用 | accepted | implemented |
 | [0008](0008-project-files-only-tighten.md) | 项目文件只能收紧，不能授予 | accepted | implemented |
 | [0009](0009-user-authored-resources-as-files.md) | 用户编写的指令、Skills 与命令保存为文件 | accepted | implemented |
@@ -32,3 +32,4 @@ ADR 的状态、实施字段与替代规则见 [文档体系](../DOCUMENTATION_S
 | [0020](0020-projects-organize-workspaces.md) | 项目是组织容器，执行边界仍是 Workspace | accepted | implemented |
 | [0021](0021-new-chat-worktree-base-branch.md) | 新对话的 worktree 在首次发送时从所选分支创建 | accepted | implemented |
 | [0022](0022-project-removal-preserves-sessions.md) | 删除项目保留会话，局部替代 ADR 0020 的删除条款 | accepted | implemented |
+| [0023](0023-assistant-reply-forks.md) | 助手回复包含边界、旧用户之前兼容与来源归属 | accepted | implemented |

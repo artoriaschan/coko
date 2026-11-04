@@ -1,3 +1,4 @@
+import { originalMessageTime } from './fork-history.ts'
 import {
   fileReferencePath,
   type AgentNotificationPayload,
@@ -491,7 +492,8 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         }
       }
     } finally {
-      for (let index = first; index < items.length; index++) items[index]!.origin = { runId: entry.runId, seq: entry.seq, createdAt: entry.createdAt }
+      for (let index = first; index < items.length; index++)
+        items[index]!.origin = { runId: entry.runId, seq: entry.seq, createdAt: originalMessageTime(conversation.entries, entry) }
     }
   }
 

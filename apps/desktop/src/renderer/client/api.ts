@@ -1,3 +1,4 @@
+import type { ForkBoundary } from '@coko/protocol'
 import type { ImageAttachment } from '@coko/protocol'
 import {
   AbortRunResponse,
@@ -144,9 +145,13 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     listCheckpoints: async (id: string) => (await call(CheckpointListResponse, 'GET', checkpointPaths.sessionCheckpoints(id))).checkpoints,
     /** 回退（dryRun 只返回将发生的变化）；Run 进行中或等待审批时以 session-busy 拒绝。 */
     rewind: (id: string, request: RewindRequest) => call(RewindResponse, 'POST', checkpointPaths.sessionRewind(id), request),
-    /** 从某条用户消息分叉：返回新 Session 的 id 与目标文本。 */
-    fork: (id: string, targetSeq: number, title?: string) =>
-      call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), { targetSeq, ...(title === undefined ? {} : { title }) }),
+    /** 显式 Fork 边界；省略时保留用户之前语义，助手包含边界返回空文本。 */
+    fork: (id: string, targetSeq: number, title?: string, boundary?: ForkBoundary) =>
+      call(ForkResponse, 'POST', checkpointPaths.sessionFork(id), {
+        targetSeq,
+        ...(title === undefined ? {} : { title }),
+        ...(boundary === undefined ? {} : { boundary }),
+      }),
     /** thinkingLevel 缺省时 Sidecar 保留当前档位（新模型不能选它时回到 off）。 */
     setSessionModel: (id: string, model: SessionModel, thinkingLevel?: ThinkingLevel) =>
       call(Session, 'PUT', apiPaths.sessionModel(id), { model, ...(thinkingLevel === undefined ? {} : { thinkingLevel }) }),

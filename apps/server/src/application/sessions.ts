@@ -1,3 +1,4 @@
+import type { ForkBoundary } from '@coko/protocol'
 import type { ImageAttachment } from '@coko/protocol'
 import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
@@ -451,9 +452,9 @@ export class SessionService {
     return this.#mutate(sessionId, () => this.#checkpoints.rewind(sessionId, input))
   }
 
-  async fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
+  async fork(sessionId: string, targetSeq: number, title?: string, boundary?: ForkBoundary): Promise<{ sessionId: string; text: string }> {
     const source = await requireSession(this.#store, sessionId)
-    return this.#organize(source.projectId, () => this.#mutate(sessionId, () => this.#checkpoints.fork(sessionId, targetSeq, title)))
+    return this.#organize(source.projectId, () => this.#mutate(sessionId, () => this.#checkpoints.fork(sessionId, targetSeq, title, boundary)))
   }
 
   // ---- DTO 与模型（session-models.ts） ----

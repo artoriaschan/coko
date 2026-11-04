@@ -389,3 +389,35 @@ describe('对手用例：.coko-worktrees 是符号链接', () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 })
+
+it('助手分支继承 Worktree 实际 cwd；移除后服务端拒绝从只读来源分支', async () => {
+  const fixture = await repo({ 'tracked.txt': 'same bytes' })
+  const h = await boot(fixture, [{ content: 'source answer' }, { content: [call('branch-pwd', 'bash', { command: 'pwd -P' })] }, { content: 'branch done' }])
+  const workspaceId = await h.workspace(fixture.root)
+  const worktree = (await h.api.post(worktreePaths.workspaceWorktrees(workspaceId), { name: 'assistant-fork' })).body
+  const source = await h.session(workspaceId, worktree.id)
+  await h.api.put(permissionPaths.sessionPermissionMode(source.id), { mode: 'full-access' })
+  await h.api.post(apiPaths.sessionMessages(source.id), { text: 'source prompt' })
+  await runEnds(h.stream, source.id, 1)
+  const entries = h.stream.entries(source.id)
+  const target = entries.find((e) => e.kind === 'message' && text(e.payload as Message) === 'source answer')!
+  const fork = await h.api.post(checkpointPaths.sessionFork(source.id), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
+  expect(fork.status).toBe(201)
+  const id = fork.body.sessionId as string
+  const detail = await h.api.get(apiPaths.session(id))
+  expect(detail.body.session.worktree.id).toBe(worktree.id)
+  expect(detail.body.session.cwd).toBe(worktree.path)
+  h.stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
+  await h.stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
+  await h.api.post(apiPaths.sessionMessages(id), { text: 'where am I' })
+  await runEnds(h.stream, id, 1)
+  expect(text(toolResult(h.stream, id, 'branch-pwd')).trim()).toBe(worktree.path)
+  expect(await readFile(join(fixture.root, 'tracked.txt'), 'utf8')).toBe('same bytes')
+  expect(await readFile(join(worktree.path, 'tracked.txt'), 'utf8')).toBe('same bytes')
+  expect(h.stream.entries(source.id)).toEqual(entries)
+  expect((await h.api.delete(worktreePaths.worktree(worktree.id))).status).toBe(204)
+  expect(await h.api.post(checkpointPaths.sessionFork(source.id), { targetSeq: target.seq, boundary: 'assistant-inclusive' })).toMatchObject({
+    status: 409,
+    body: { error: { code: 'worktree-removed' } },
+  })
+})

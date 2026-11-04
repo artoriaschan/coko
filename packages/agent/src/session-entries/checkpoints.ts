@@ -1,3 +1,5 @@
+import { modelRequestPayloadSchema } from './observability.ts'
+import { requestUsageSchema } from './context.ts'
 // Checkpoint、Rewind 与 Fork 的条目 payload（ADR 0006）。
 import { Type, type Static } from 'typebox'
 import { definePayloads } from './define.ts'
@@ -22,7 +24,39 @@ export const rewindPayloadSchema = Type.Object({ targetSeq: Seq }, strict)
 export type RewindPayload = Static<typeof rewindPayloadSchema>
 
 /** 分叉后新 Session 的第一条：来源 Session 与目标消息的 seq。 */
-export const forkOriginPayloadSchema = Type.Object({ sessionId: Type.String({ minLength: 1 }), seq: Seq }, strict)
+export const forkBoundarySchema = Type.Union([Type.Literal('user-before'), Type.Literal('assistant-inclusive')])
+export type ForkBoundary = Static<typeof forkBoundarySchema>
+const LegacyForkUsage = Type.Object({ usage: requestUsageSchema, provider: Type.Optional(Type.String()), model: Type.Optional(Type.String()) }, strict)
+export const forkMessageOriginSchema = Type.Object(
+  {
+    seq: Seq,
+    sourceSeq: Seq,
+    createdAt: Type.Optional(Type.Integer({ minimum: 0 })),
+    reply: Type.Optional(
+      Type.Object(
+        {
+          runId: Type.String({ minLength: 1 }),
+          endedAt: Type.Optional(Type.Integer({ minimum: 0 })),
+          requests: Type.Array(modelRequestPayloadSchema),
+          legacy: Type.Array(LegacyForkUsage),
+        },
+        strict,
+      ),
+    ),
+  },
+  strict,
+)
+export type ForkMessageOrigin = Static<typeof forkMessageOriginSchema>
+
+export const forkOriginPayloadSchema = Type.Object(
+  {
+    sessionId: Type.String({ minLength: 1 }),
+    seq: Seq,
+    boundary: Type.Optional(forkBoundarySchema),
+    messages: Type.Optional(Type.Array(forkMessageOriginSchema)),
+  },
+  strict,
+)
 export type ForkOriginPayload = Static<typeof forkOriginPayloadSchema>
 
 export interface CheckpointEntryPayloads {

@@ -10,7 +10,7 @@ import {
   type RewindMode,
 } from '@coko/agent'
 import { getLogger } from '@coko/logging'
-import type { Checkpoint, RewindResponse } from '@coko/protocol'
+import type { Checkpoint, RewindResponse, ForkBoundary } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionRecovery } from './recovery.ts'
@@ -136,18 +136,22 @@ export class SessionCheckpoints {
   }
 
   /**
-   * 从某条用户消息分叉（ADR 0006）：新 Session（同一 Workspace 与模型）的条目为 fork_origin 与目标之前的有效消息、权限条目；
+   * 以显式用户之前或成功助手包含边界分支（ADR 0023）：新 Session（同一 Workspace 与模型）的条目为 fork_origin、边界内有效消息与必要权限状态；
    * 原 Session 不变，Workspace 文件不复制。标题由界面按当前语言生成后传入（Sidecar 不写本地化文案），省略时沿用原标题。
-   * 返回新 Session 的 id 与目标文本。
+   * 返回新 Session 的 id 与目标文本（助手包含边界为空）。
    */
-  async fork(sessionId: string, targetSeq: number, title?: string): Promise<{ sessionId: string; text: string }> {
+  async fork(sessionId: string, targetSeq: number, title?: string, boundary: ForkBoundary = 'user-before'): Promise<{ sessionId: string; text: string }> {
     const { store, recovery } = this.#options
     return this.#exclusively(sessionId, async (entries) => {
       const source = await requireSession(store, sessionId)
-      const forked = plan(() => forkEntries(entries, sessionId, targetSeq))
+      const workspace = await store.sessions.getWorkspace(source.workspaceId)
+      if (!workspace) throw new AppError('not-found', `Workspace ${source.workspaceId} not found`)
+      if (this.#options.cwd) await this.#options.cwd.resolve(source, workspace)
+      const forked = plan(() => forkEntries(entries, sessionId, targetSeq, boundary))
       const session = await store.sessions.createSession({
         workspaceId: source.workspaceId,
         projectId: source.projectId,
+        worktreeId: source.worktreeId,
         title: title?.trim() || source.title,
         model: source.model,
         thinkingLevel: source.thinkingLevel,

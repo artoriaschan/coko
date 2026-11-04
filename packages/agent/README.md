@@ -6,7 +6,7 @@ lifecycle: active
 
 # @coko/agent
 
-Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖运行控制（追加指令、暂停与继续）、工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）；启动恢复的判定（`planRecovery`）见 [启动恢复与结果确认](../../docs/subsystems/recovery.md)。回退与分叉的纯函数（`effectiveEntries`、`planRewind`、`restoreFiles` 在 `src/checkpoints/rewind.ts`，`forkEntries` 在 `src/agents/fork.ts`；宿主端口 `SnapshotPort`、`RewindFiles` 在 `src/ports/checkpoints.ts`）的决定见 [ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)。
+Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现运行生命周期、内置工具、权限判定与审批、工具调度和 Session Entry 的 payload 定义。项目级约定见 [Agent 运行时约定](../../docs/tech-stack/agent-runtime.md)；权限判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md)。本文覆盖运行控制（追加指令、暂停与继续）、工具契约、调度与执行记录、命令沙箱接缝与 Secrets 端口。Checkpoint 的文件备份已实现（write / edit 修改前保存原内容）；启动恢复的判定（`planRecovery`）见 [启动恢复与结果确认](../../docs/subsystems/recovery.md)。回退与分叉的纯函数（`effectiveEntries`、`planRewind`、`restoreFiles` 在 `src/checkpoints/rewind.ts`，`forkEntries` 在 `src/agents/fork.ts`；宿主端口 `SnapshotPort`、`RewindFiles` 在 `src/ports/checkpoints.ts`）的决定见 [ADR 0023](../../docs/adr/0023-assistant-reply-forks.md)。
 
 ## 使用或结构入口
 

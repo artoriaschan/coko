@@ -93,7 +93,7 @@ packages/agent/src/
 ├── context/         # 上下文、压缩、Memory
 ├── policy/          # 权限、授权、执行限制
 ├── recovery/        # 恢复、重试、幂等
-├── checkpoints/     # Checkpoint tracker、有效上下文与回退（ADR 0006）
+├── checkpoints/     # Checkpoint tracker、有效上下文与回退（ADR 0023）
 ├── session-entries/ # 各 kind 的 Session Entry payload schema、版本与迁移
 ├── ports/           # 执行、工作区、凭据、Secrets、Checkpoint 快照等宿主接口
 ├── config/          # 配置模型与合并
@@ -112,7 +112,7 @@ Plan Mode、Skills、Rules、Hooks、MCP 工具、子代理和后台任务统一
 
 暂停与恢复保存显式状态。进程重启后由 agent 重建目标、任务、消息和待处理授权，由宿主重新建立连接和进程。取消按 Goal、Run、子代理、Job 的归属传播，宿主负责实际进程树终止及资源释放。
 
-会话回退、文件快照恢复和外部动作分别记录与处理；Checkpoint 的追踪范围与回退方式见 [ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)。已产生外部副作用的调用通过幂等键、执行记录和外部状态查询判定，结果不明确时保存待确认状态，避免恢复时重复执行。
+会话回退、文件快照恢复和外部动作分别记录与处理；Checkpoint 的追踪范围与回退方式见 [ADR 0023](../adr/0023-assistant-reply-forks.md)。已产生外部副作用的调用通过幂等键、执行记录和外部状态查询判定，结果不明确时保存待确认状态，避免恢复时重复执行。
 
 ### Goal 机制
 

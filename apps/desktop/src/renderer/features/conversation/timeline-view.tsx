@@ -1,7 +1,8 @@
+import { copiedReplyFooters } from './fork-history.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button } from '@coko/ui'
-import { ChevronRightIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import { ChevronRightIcon, GitBranchIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
@@ -44,6 +45,8 @@ export interface TimelineViewProps {
   onRewind?: (seq: number, text: string) => void
   /** 兼容既有调用方；用户消息已不呈现分叉入口。 */
   onFork?: (seq: number) => void
+  /** 成功助手最终回复为包含边界的新对话。 */
+  onBranch?: (seq: number) => void
   /** Run 进行中或有待处理的请求：消息动作不可用。 */
   actionsDisabled?: boolean
   /** 应用拥有追踪入口；子 Session 无对应定位时省略。 */
@@ -55,8 +58,8 @@ export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
-  const footers = completedReplyFooters(items, props.entries ?? [], props.runs)
-  const latestFooter = [...footers.keys()].at(-1)
+  const footers = new Map([...copiedReplyFooters(items, props.entries ?? []), ...completedReplyFooters(items, props.entries ?? [], props.runs)])
+  const latestFooter = items.findLast((item) => footers.has(item.key))?.key
   const renderItem = (item: TimelineItem) => {
     switch (item.kind) {
       case 'user': {
@@ -209,7 +212,24 @@ export function TimelineView(props: TimelineViewProps) {
             <div data-slot="assistant-message-body">
               <Markdown text={item.text} streaming={item.streaming} theme={theme} />
             </div>
-            {footers.has(item.key) && <AssistantFooter reply={footers.get(item.key)!} latest={item.key === latestFooter} />}
+            {footers.has(item.key) && (
+              <AssistantFooter
+                reply={footers.get(item.key)!}
+                latest={item.key === latestFooter}
+                branchAction={
+                  props.onBranch && !props.readOnly && !props.historical ? (
+                    <MessageAction
+                      label={t('conversation.branchReply')}
+                      action="branch-reply"
+                      disabled={actionsDisabled}
+                      onClick={() => props.onBranch?.(footers.get(item.key)!.seq)}
+                    >
+                      <GitBranchIcon />
+                    </MessageAction>
+                  ) : undefined
+                }
+              />
+            )}
             {!footers.has(item.key) &&
               !item.streaming &&
               item.finalResponse &&

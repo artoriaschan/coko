@@ -65,6 +65,55 @@ const progressOf = (stream: Stream, sessionId: string, type: string) =>
 const big = (n: number, c: string) => c.repeat(n)
 
 describe('自动压缩、回退与分叉', () => {
+  it('助手分支先截取包含边界再选择摘要：压缩前后历史的下一请求各保留正确上下文', { timeout: 90_000 }, async () => {
+    const { api, stream, workspace, requests } = await boot(
+      [
+        { content: 'ok1' },
+        { content: 'ok2' },
+        { content: 'ok3' },
+        { content: 'FORK-SUMMARY' },
+        { content: 'ok4' },
+        { content: 'early done' },
+        { content: 'late done' },
+      ],
+      { contextWindow: 65_000 },
+    )
+    const sessionId = await openSession(api, stream, workspace.id)
+    for (const c of ['a', 'b', 'c']) await send(api, stream, sessionId, big(40_000, c))
+    await send(api, stream, sessionId, big(60_000, 'd'))
+    const source = stream.entries(sessionId)
+    const early = source.find((e) => e.kind === 'message' && textOf(e.payload as Message) === 'ok1')!
+    const late = source.find((e) => e.kind === 'message' && textOf(e.payload as Message) === 'ok4')!
+    for (const [target, prompt] of [
+      [early, 'next early'],
+      [late, 'next late'],
+    ] as const) {
+      const fork = await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: target.seq, boundary: 'assistant-inclusive' })
+      expect(fork.status).toBe(201)
+      const id = fork.body.sessionId as string
+      stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
+      await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
+      expect(stream.entries(id).some((e) => e.kind === 'compaction')).toBe(target === late)
+      await send(api, stream, id, prompt)
+    }
+    const log = await requests()
+    expect(conversation(log[5]!)).toEqual([
+      ['user', big(40_000, 'a')],
+      ['assistant', 'ok1'],
+      ['user', 'next early'],
+    ])
+    expect(conversation(log[6]!)).toEqual([
+      ['user', expect.stringContaining('<summary>\nFORK-SUMMARY\n</summary>')],
+      ['user', big(40_000, 'c')],
+      ['assistant', 'ok3'],
+      ['user', big(60_000, 'd')],
+      ['assistant', 'ok4'],
+      ['user', 'next late'],
+    ])
+    expect(stream.entries(sessionId)).toEqual(source)
+    expect(stream.invalidEntries).toEqual([])
+  })
+
   it('越过阈值提交 compaction { trigger: auto }；回退到压缩之前恢复原历史；压缩后分叉的上下文与原 Session 一致', { timeout: 90_000 }, async () => {
     const { api, stream, sidecar, workspace, requests } = await boot(
       [

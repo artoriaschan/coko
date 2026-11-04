@@ -1,3 +1,4 @@
+import type { ForkBoundary } from '@coko/protocol'
 import type { ImageAttachment } from '@coko/protocol'
 import {
   SessionEntry,
@@ -240,8 +241,8 @@ export interface ChatActions {
   previewRewind(targetSeq: number, mode: RewindMode): Promise<RewindResponse | undefined>
   /** 回退当前会话；回退对话（或两者）时目标消息的文本回到输入区。失败时报告并返回 undefined。 */
   rewind(targetSeq: number, mode: RewindMode): Promise<RewindResponse | undefined>
-  /** 从当前会话的某条用户消息分叉：打开新会话，目标文本放入其输入区。返回是否成功。 */
-  fork(targetSeq: number): Promise<boolean>
+  /** 从当前会话分支：打开新会话；助手包含边界输入为空，旧用户边界回填目标文本。返回是否成功。 */
+  fork(targetSeq: number, boundary?: ForkBoundary): Promise<boolean>
   /**
    * 订阅打开过的会话收到的全部 progress（含 Run 生命周期之外的后台任务进度），供功能 store 维护各自的临时状态。
    * 在本 store 处理该帧之后调用；返回取消订阅。
@@ -671,7 +672,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         return result
       },
 
-      async fork(targetSeq) {
+      async fork(targetSeq, boundary) {
         const sessionId = get().activeSessionId
         if (sessionId === null) return false
         let forked: { sessionId: string; text: string }
@@ -681,7 +682,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
               .getState()
               .sessions.find((s) => s.id === sessionId)
               ?.title.trim() ?? ''
-          forked = forkTitle ? await api.fork(sessionId, targetSeq, forkTitle(source)) : await api.fork(sessionId, targetSeq)
+          forked = await api.fork(sessionId, targetSeq, forkTitle?.(source), boundary)
         } catch (error) {
           onFailure?.({ kind: 'fork', error: toApiError(error) })
           return false

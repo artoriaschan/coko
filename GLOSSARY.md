@@ -65,7 +65,7 @@ _Avoid_: snapshot（快照指单个文件的备份内容）
 _Avoid_: undo、revert
 
 **Fork**：
-从某条用户消息之前复制出一个新 Session 的操作，原 Session 不变。
+以某条消息为边界复制出一个新 Session 的操作，原 Session 不变。助手回复分支包含所选成功最终回复；兼容的用户消息分叉以该用户消息之前为边界。
 _Avoid_: branch、clone
 
 **Handoff**：

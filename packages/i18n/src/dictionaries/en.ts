@@ -270,6 +270,7 @@ export const en: typeof zh = {
     retry: 'Retry',
     messageActions: 'Message actions',
     rewindHere: 'Rewind to here',
+    branchReply: 'Branch in a new conversation',
     forkHere: 'Fork from here',
     rewound: 'Rewound: {count} items hidden from Coko',
   },

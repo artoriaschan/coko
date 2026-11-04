@@ -15,7 +15,7 @@ Status: ready-for-agent
 
 本功能使用独立 tracker 目录，是已交付的[对话详情规格](../conversation-detail/spec.md)之后的新修订。本文只接管消息底栏、助手回复分支和本轮用量统计的要求；旧规格保留为当次交付基线。本文明确修订范围内，以本次确认优先；消息正文、工作步骤、工具详情和阅读位置等仍沿用原有规则。
 
-既有约束见[术语表](../../GLOSSARY.md)、[界面约定](../../docs/tech-stack/ui.md)、[设计系统规格](../../docs/tech-stack/ui-design-system.md)、[测试约定](../../docs/tech-stack/testing.md)、[tracker 协议](../../docs/agents/issue-tracker.md)、[开发流程](../../docs/DEVELOPMENT_WORKFLOW.md)和 [ADR 0006](../../docs/adr/0006-file-checkpoints-and-rewind.md)。任务材料不加入正式文档导航。
+既有约束见[术语表](../../GLOSSARY.md)、[界面约定](../../docs/tech-stack/ui.md)、[设计系统规格](../../docs/tech-stack/ui-design-system.md)、[测试约定](../../docs/tech-stack/testing.md)、[tracker 协议](../../docs/agents/issue-tracker.md)、[开发流程](../../docs/DEVELOPMENT_WORKFLOW.md)和 [ADR 0023](../../docs/adr/0023-assistant-reply-forks.md)。任务材料不加入正式文档导航。
 
 ## Problem Statement
 
@@ -118,7 +118,7 @@ Status: ready-for-agent
 - **单次请求单一计数。** 同一请求的最终消息、尝试记录、追踪和压缩结果不能各计一次；失败、中止与重试仍保留已报告消耗。汇总使用确定的来源与去重规则，不能按“数值相同”去重。
 - **向后读取。** 已持久化的旧 usage 需要兼容读取；对其有效字段进行归一化，不改写为猜测值。重连及加载后的结果与同一批事实在线更新的结果一致。
 - **不扩展移除费用的范围。** UI 隐去新底栏和详情卡的费用，不删计量或预算字段；会话累计费用消费者需要进行相关回归，但本规格不重新设计该入口。
-- **设计与正式记录的衔接。** 助手 Fork 扩展了现有领域定义和 ADR 0006 的用户锚点分叉边界。实施前的功能设计需要说明兼容契约；按领域文档流程同步术语，并为改变已实施长期决定记录明确后继关系。当前 ADR、术语和实现说明不会仅因本规格已批准就被宣称已变更或已实现。
+- **设计与正式记录的衔接。** 助手 Fork 扩展了现有领域定义和 ADR 0023 的用户锚点分叉边界。实施前的功能设计需要说明兼容契约；按领域文档流程同步术语，并为改变已实施长期决定记录明确后继关系。当前 ADR、术语和实现说明不会仅因本规格已批准就被宣称已变更或已实现。
 
 ## Testing Decisions
 

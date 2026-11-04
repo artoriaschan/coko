@@ -314,6 +314,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
             activeSessionId !== null && setRewindRequest((prev) => ({ sessionId: activeSessionId, seq, text, opened: (prev?.opened ?? 0) + 1, open: true }))
           }
           onFork={(seq) => void fork(seq)}
+          onBranch={(seq) => void fork(seq, 'assistant-inclusive')}
           actionsDisabled={actionsDisabled}
           readOnly={archived || session?.worktree?.status === 'removed'}
         />

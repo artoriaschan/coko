@@ -1,13 +1,18 @@
 ---
 kind: decision
 description: "Checkpoint 只追踪文件工具的改动，原内容存为内容寻址文件、引用记为 Session Entry；回退对话以追加记录实现，不删除条目。修改快照、回退或分叉时回看。"
-status: accepted
+status: superseded
 implementation: implemented
-lifecycle: active
+lifecycle: deprecated
+deprecated-at: 2026-11-04
 category: architecture
 ---
 
 # Checkpoint 只追踪文件工具，回退以追加记录实现
+
+## 文档状态
+
+Fork 边界与界面入口于 2026-11-04 由 [ADR 0023](0023-assistant-reply-forks.md) 接续；Checkpoint、文件追踪及 append-only 回退约束由后继明确保留。本页保留原决定与当时实施证据。
 
 ## 上下文
 

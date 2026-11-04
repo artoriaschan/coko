@@ -80,7 +80,7 @@ Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点
 
 首次打开通过既有订阅从 `afterSeq: 0` 接收历史，重连从已收到的 `lastSeq` 接收后续条目，没有向前分页入口。展示身份不依赖已加载数量；受控更早快照揭示中途输入时，重新计算整轮折叠资格，并保留可对应的原消息、过程组和工具开合。像素锚点与滚动协调属于阅读容器的独立职责。
 
-验证：[真实 App 历史用例](../../apps/desktop/src/renderer/features/conversation/history.browser.test.tsx)覆盖缺失起点/归属、嵌套回退与压缩、只读矩阵、更早快照和稳定身份；[回退 Electron](../../apps/desktop/e2e/rewind.e2e.test.ts)与[回退协议](../../tests/integration/sidecar-rewind.test.ts)读取文件、原始条目与返回草稿，验证回退追加记录和 Fork 不修改源 Session；SQLite 和 Checkpoint 约定保持 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)与 [ADR 0006](../adr/0006-file-checkpoints-and-rewind.md)。
+验证：[真实 App 历史用例](../../apps/desktop/src/renderer/features/conversation/history.browser.test.tsx)覆盖缺失起点/归属、嵌套回退与压缩、只读矩阵、更早快照和稳定身份；[回退 Electron](../../apps/desktop/e2e/rewind.e2e.test.ts)与[回退协议](../../tests/integration/sidecar-rewind.test.ts)读取文件、原始条目与返回草稿，验证回退追加记录和 Fork 不修改源 Session；SQLite 和 Checkpoint 约定保持 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)与 [ADR 0023](../adr/0023-assistant-reply-forks.md)。
 
 ## 新对话与首次发送
 
@@ -191,6 +191,14 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 验证：[命令详情 App 测试](../../apps/desktop/src/renderer/features/conversation/terminal-details.browser.test.tsx)、[真实 Electron 命令与后台任务](../../apps/desktop/e2e/terminal-details.e2e.test.ts)。
 
 主时间线的展开详情提供 Inspect，中文为“查看”，打开既有右栏 Trace 标签页。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
+
+## 从助手回复创建新对话分支
+
+成功结束 Run 的最终助手回复底栏，在复制与用量之间提供“在新对话中分支”。最新和较早成功回复均可使用；阶段、流式、停止、失败及无正文回复不提供该入口。服务端重复校验有效回复资格、运行／审批／结果确认以及归档、已移除 Worktree 的只读限制，不能绕过隐藏按钮直接调用。
+
+新 Session 包含所选回复及之前的有效模型上下文（含思考、工具调用与结果），先按边界截取再选择当时的压缩摘要，排除后来消息和摘要。自动打开且输入为空；源条目、源草稿与当前文件不变。沿用源 Project、模型、推理档位及实际 Worktree 目录；助手分支采用源当前权限状态。分支共享当前文件，不创建 Worktree 或恢复旧代码。旧用户锚点 API 保持目标之前与回填原始调用的兼容语义。
+
+复制消息的原提交时间、成功最终回复证明和来源计量存于 `fork_origin` 来源表。历史底栏复用同一计量汇总器读取来源事实，旧消耗不计入新 Session；可信复制回复可再次分支。旧 Fork 无法证明原消息时间或成功资格时不补造事实，复制落盘时刻不显示为原发送时间。后继决定见 [ADR 0023](../adr/0023-assistant-reply-forks.md)。验证：[App 分支](../../apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx)、[Sidecar 上下文](../../tests/integration/sidecar-rewind.test.ts)、[静默 Electron](../../apps/desktop/e2e/message-footers.e2e.test.ts)。
 
 ## 验证入口
 

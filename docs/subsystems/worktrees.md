@@ -121,3 +121,5 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 - `apps/server/src/adapters/git.test.ts`：argv、环境、登记与超时终止。
 - `tests/integration/sidecar-first-send-worktree.test.ts`：所选分支最新提交、自动命名、源文件与分支不变、运行 cwd、并发与重启去重、Hook 与模型校验失败清理、缺失基础分支不留痕迹、git post-checkout 失败清理，以及修改过的 worktree 保留。
 - `apps/desktop/src/renderer/features/conversation/branches.browser.test.tsx`：草稿开关、基础分支选择、隐藏创建入口与草稿清理；`apps/desktop/e2e/first-send-worktree.e2e.test.ts`：真实 Electron 从菜单配置到首次发送和磁盘工作目录。
+
+从成功助手回复分支沿用源 `worktreeId` 与实际目录，不回到 Workspace 主目录、不新建 Worktree。创建前按同一 cwd 解析器拒绝已移除或正在移除的来源；[协议用例](../../tests/integration/sidecar-worktrees.test.ts)通过下一轮 bash pwd 和移除后 409 验证。

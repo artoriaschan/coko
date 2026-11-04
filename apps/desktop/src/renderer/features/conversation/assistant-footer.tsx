@@ -11,6 +11,7 @@ import type { TimelineItem } from './timeline.ts'
 import { useTimelineSession } from './timeline-session.tsx'
 
 export interface CompletedReply {
+  usageEntries?: readonly SessionEntry[]
   runId: string
   seq: number
   text: string
@@ -45,7 +46,7 @@ export function completedReplyFooters(
 
 export function AssistantFooter({ reply, latest, branchAction }: { reply: CompletedReply; latest: boolean; branchAction?: React.ReactNode }) {
   const { entries } = useTimelineSession()
-  const totals = React.useMemo(() => sumUsage(entries, withoutPricing, reply.runId), [entries, reply.runId])
+  const totals = React.useMemo(() => sumUsage(reply.usageEntries ?? entries, withoutPricing, reply.runId), [entries, reply.runId, reply.usageEntries])
   const [open, setOpen] = React.useState(false)
   return (
     <div
