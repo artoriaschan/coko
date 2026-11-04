@@ -1,6 +1,5 @@
 import '../../styles.css'
 import { expect, it } from 'vitest'
-import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { Value } from 'typebox/value'
 import { sumUsage } from './session-cost.tsx'
@@ -63,10 +62,10 @@ it('session costs include detached title usage exactly once while Run costs excl
     </div>,
   )
   fixture.chat.getState().openSession('s-1')
-  await expect.element(page.getByRole('button', { name: 'Session cost: $1.25' })).toBeVisible()
-  const cost = document.querySelector('[data-slot="session-cost"]')!
-  expect(cost.getAttribute('data-cost')).toBe('1.25')
-  expect(cost.getAttribute('data-tokens')).toBe('165')
   const typed = entries.filter((entry): entry is SessionEntry => Value.Check(SessionEntry, entry))
   expect(sumUsage(typed, () => true, 'run-1').cost.total).toBe(1)
+  const session = sumUsage(typed, () => true)
+  expect(session.cost.total).toBe(1.25)
+  expect(session.input + session.output + session.cacheRead + session.cacheWrite).toBe(165)
+  expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
 })

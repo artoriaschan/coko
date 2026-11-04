@@ -19,6 +19,7 @@ import {
 import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon, Trash2Icon } from 'lucide-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { SidebarActivity, sessionExecuting } from './sidebar-activity.tsx'
 import { sessionTime } from './session-time.ts'
 import { SessionArchiveMenuItem } from './session-archive-menu-item.tsx'
 import { SessionMoveMenu } from './session-move-menu.tsx'
@@ -117,6 +118,9 @@ export function SessionRow({
       <HoverCardTrigger asChild>
         <div
           data-session-row={session.id}
+          data-sidebar-activity-row
+          data-executing={sessionExecuting(session) || undefined}
+          data-menu-open={menu || undefined}
           className="group/session relative"
           onContextMenu={(event) => {
             event.preventDefault()
@@ -174,7 +178,7 @@ export function SessionRow({
               onKeyDown={(event) => scrolling.current?.handleKeyDown(event)}
               onClick={() => onSelect(session.id)}
             >
-              <span className="flex min-w-0 flex-1 items-center gap-2 pe-0 group-hover/session:pe-12 group-focus-within/session:pe-12">
+              <span data-sidebar-row-content className="flex min-w-0 flex-1 items-center gap-2">
                 {pinned ? (
                   <MessageCircleIcon aria-hidden className="size-3 shrink-0" strokeWidth={1.1} />
                 ) : nested ? (
@@ -186,11 +190,9 @@ export function SessionRow({
               </span>
             </SidebarListRow>
           )}
+          {!renaming && sessionExecuting(session) && <SidebarActivity />}
           {!renaming && (
-            <div
-              data-session-actions
-              className="absolute right-2 top-1 flex h-6 items-center opacity-0 transition-opacity duration-150 group-hover/session:opacity-100 group-focus-within/session:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
-            >
+            <div data-session-actions className="absolute right-2 top-1 flex h-6 items-center transition-opacity duration-150 motion-reduce:transition-none">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

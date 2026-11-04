@@ -100,11 +100,10 @@ it('actual App renders canonical usage once, accepts legacy extensions, and repl
   expect(row('legacy').getAttribute('data-complete')).toBe('false')
   expect(row('invalid').textContent).toContain('Usage unavailable')
   expect(row('invalid').textContent).not.toContain('0 tok')
-  await expect.element(page.getByRole('button', { name: 'Session cost: $0.60' })).toBeVisible()
-  expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('240')
+  expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
   fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: canonical })
   expect(row('complete').getAttribute('data-tokens')).toBe('120')
-  expect(document.querySelector('[data-slot="session-cost"]')?.getAttribute('data-tokens')).toBe('240')
+  expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
   const usage = row('legacy').querySelector<HTMLButtonElement>('button[data-action="run-usage"]')!
   usage.focus()
   await userEvent.click(usage)

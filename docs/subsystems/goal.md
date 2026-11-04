@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 Goal 契约：goal 条目（完整快照与 revision）、九阶段的转换表、create_goal / get_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重（GoalDriver）、wait_jobs 与 Job 结束后的唤醒、五维预算（从条目派生的口径与三个检查点、未定价模型）、<goal> 与 <goal_round> 注入、/goal 命令与 /api/sessions/:id/goal、取消的停止传播与重启后暂停，以及界面（dock 的 Goal 卡、时间线的 Goal 行与消息用量、标题栏的 Session 费用）。修改 Goal 的状态机、推进、预算、工具、注入、接口或界面前查阅。"
+description: "当前的 Goal 契约：goal 条目（完整快照与 revision）、九阶段的转换表、create_goal / get_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重（GoalDriver）、wait_jobs 与 Job 结束后的唤醒、五维预算（从条目派生的口径与三个检查点、未定价模型）、<goal> 与 <goal_round> 注入、/goal 命令与 /api/sessions/:id/goal、取消的停止传播与重启后暂停，以及界面（dock 的 Goal 卡、时间线的 Goal 行与消息用量）。修改 Goal 的状态机、推进、预算、工具、注入、接口或界面前查阅。"
 lifecycle: active
 ---
 
@@ -147,7 +147,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 | `apps/desktop/src/renderer/features/conversation/dock/goal-card.tsx` | dock 的 Goal 卡、取消确认、编辑对话框；`GoalStoreProvider`、`isGoalCardCommand` |
 | `apps/desktop/src/renderer/stores/goal-store.ts` | 已用量（`GET …/goal`）、动作（`POST …/goal`）与卡片的界面状态 |
 | `apps/desktop/src/renderer/features/conversation/goal-row.tsx` | 时间线的 Goal 行 |
-| `apps/desktop/src/renderer/features/conversation/assistant-footer.tsx`、`session-cost.tsx` | 正常及异常结束的助手底栏；标题栏的 Session 费用与共用用量汇总 |
+| `apps/desktop/src/renderer/features/conversation/assistant-footer.tsx`、`session-cost.tsx` | 正常及异常结束的助手底栏；共用用量、定价与货币格式化 |
 
 **Goal 卡**（dock 中 Todo 与 Queue 之间）。快照取自最新的 `goal` 条目；已用量经 `GET …/goal` 读取，只在影响用量的条目（`goal`、`run_end`、`compaction` 与带 usage 的 assistant 消息）到达时重新读取，同一帧内到达的合并为一次。未终结的 Goal 一直显示；complete、cancelled 在下一个 Run 开始前显示，可关闭。收起时为一行：目标（单行截断）、阶段徽标、轮次 n / 上限（缺省 50）、费用（模型未定价且没有费用时为"未定价"），下方一行原因。展开后：目标全文（两行截断，可展开）、原因、成功条件（有证据时显示证据）、已设维度的预算条（已用 / 上限，≥ 80% warning 色，≥ 100% destructive 色；模型未定价时费用为提示而不是进度；模型已定价且没有费用上限时，预算条下方提示"未设费用上限"）、取消的清理结果，以及操作：
 
@@ -159,7 +159,7 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 
 **时间线**。Goal 行采用对话区局部的 13px/20px 排版，长目标与原因完整换行，位于过程折叠外。Goal 仍只按 `goal` 快照显示阶段；Run 正常结束不会把目标标为 complete，预算、证据与控制仍由原有 dock 卡负责。每条 `goal` 条目一行：第一条为"新目标"与目标文本，之后为阶段徽标与原因。成功且有最终助手正文的 Run 在正文下显示单一底栏，用量入口及详情不显示费用，交互与时间规则见[工作台消息底栏](workbench.md#对话消息与思考)。其他结束场景在终止状态后复用同一底栏。底栏 Token 合计为已报告的 input + output + cacheRead + cacheWrite，未报告的兼容数值不冒充已知消耗。该 Run 存在带 `requestId` 的 `model_request` 时，以请求记录为唯一来源并按身份去重，不再重复累计助手消息和压缩载体；否则兼容汇总旧 assistant 与 compaction 的合法 usage，包括 reasoning/cacheWrite1h 扩展字段。reasoning 是输出子集，不另加。无法证明完整性的旧数据、缺少必要计数的新数据以及中断／未提交结束记录的 Run 标为“不完整”，完全未取得计数显示“未取得用量”，明确完整报告的零仍显示 0 tokens。用量从当前渲染 Session 的真实条目与 Run ID 汇总；回退历史沿用同一口径，不读取别的活动会话。Agents / Team 子会话阅读器的成功回复复用同一底栏，只累计所渲染子 Session 的事实，不混入活动父会话。
 
-**Session 费用**（会话标题栏）。按与 Run 相同的请求优先、旧记录兼容及身份去重规则汇总本 Session 的计量，另加 Run 外标题请求一次；分叉复制来的无 runId 消息不计，子 Session 自行归属；HoverCard 分项为输入、输出、缓存读取、缓存写入的 Token 与费用。会话没有用量时不显示。
+**Session 费用**。会话标题栏不提供费用按钮或分项浮层；Session 合计见 [Trace](tracing.md#追踪)，Goal 卡只展示自身预算归属的费用。共用计量仍按请求优先、旧记录兼容及身份去重规则汇总本 Session，Run 外标题请求只加一次；分叉复制来的无 runId 消息不计，子 Session 自行归属。
 
 **未定价。** 一条回复的模型在 Model Catalog 中且没有 `price` 时算未定价；不在目录中（faux、已删除的 Provider）时按该回复的 `cost.total` 是否大于 0 判定。全部未定价时显示"未定价"，部分未定价时在费用后注明。Goal 卡的费用按 `usage.costUnpriced`（当前模型）判定。货币符号取 `usage.currency`，不换算；小于 1 时保留 4 位小数。
 
@@ -182,8 +182,8 @@ Renderer 只读条目与上述接口，不新增协议字段、条目、注入�
 - `tests/integration/sidecar-model-price.test.ts`：`provider.save` 保存价格并读回（含重启）、assistant 的 `usage.cost` 与手算期望一致、负数价格得到 bad-request、没有价格的目录照常可用；`apps/server/src/control/channel.test.ts`：不合 schema、带 requestId 的控制请求立即得到失败回答。
 - `apps/desktop/src/renderer/features/settings/model-price.browser.test.tsx`：价格输入与校验、编辑回显与清空、费用货币。
 - `tests/integration/sidecar-goal-restart.test.ts`：Goal Round 中 SIGKILL，重启后 paused（restarted）、30 秒内没有新的 run_start，恢复后继续。
-- `apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx`：九个阶段的徽标与原因（zh / en）、预算条阈值与颜色、未定价时显示提示而不是 0、取消需确认与清理结果、key 为 goalId 与 criterionId、budget-exhausted 时恢复不可用与编辑预算、revision 冲突、`/goal` 打开空状态不发送、助手底栏不展示费用、Session 费用分项保留。
-- `apps/desktop/e2e/goal.e2e.test.ts`（真实 Electron + Sidecar + faux 多轮）：Goal 卡在 Todo 与 Queue 之间、轮次随 Goal Round 增长、暂停后不推进与恢复、工具调用上限耗尽后编辑预算再恢复、完成后显示证据；底栏用量、标题栏费用与条目及 `GET …/goal` 一致；明暗主题、390 px 窗口与键盘操作。
+- `apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx`：九个阶段的徽标与原因（zh / en）、预算条阈值与颜色、未定价时显示提示而不是 0、取消需确认与清理结果、key 为 goalId 与 criterionId、budget-exhausted 时恢复不可用与编辑预算、revision 冲突、`/goal` 打开空状态不发送、助手底栏不展示费用、标题栏不显示 Session 费用。
+- `apps/desktop/e2e/goal.e2e.test.ts`（真实 Electron + Sidecar + faux 多轮）：Goal 卡在 Todo 与 Queue 之间、轮次随 Goal Round 增长、暂停后不推进与恢复、工具调用上限耗尽后编辑预算再恢复、完成后显示证据；底栏用量和 Goal 费用与条目及 `GET …/goal` 一致；明暗主题、390 px 窗口与键盘操作。
 - `tests/integration/secrets-gate-goal.test.ts`：目标、约束、条件与证据含登记 Secret 时 goal 条目、工具结果、WebSocket、HTTP（含用量字段）、库、requestLog（`<goal>` 的用量行、`<goal_round>`）与日志中没有明文。
 
 **已知限制**：一个只填了全 0 价格的模型算已定价，费用上限永远不会耗尽。

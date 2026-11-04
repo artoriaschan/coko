@@ -34,6 +34,7 @@ import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useEditProject } from '../projects/project-dialogs.tsx'
 import { useDeleteProject } from '../projects/project-delete-dialog.tsx'
+import { SidebarActivity, sessionExecuting } from './sidebar-activity.tsx'
 import { SessionMenuIcon } from './session-menu.tsx'
 
 /** Lifecycle ticket 15 supplies the destructive item after the common commands. */
@@ -53,6 +54,9 @@ export function ProjectRow({
   const { t } = useI18n()
   const lists = useChatStoreApi().lists
   const sessionCount = useLists((state) => state.sessions.filter((session) => session.projectId === project.id && session.archivedAt === null).length)
+  const executing = useLists((state) =>
+    state.sessions.some((session) => session.projectId === project.id && session.archivedAt === null && session.pinnedAt === null && sessionExecuting(session)),
+  )
   const expanded = useLists((state) => state.expandedProjects[project.id] ?? true)
   const edit = useEditProject()
   const remove = useDeleteProject()
@@ -148,6 +152,8 @@ export function ProjectRow({
       <HoverCardTrigger asChild>
         <div
           data-project-row={project.id}
+          data-sidebar-activity-row
+          data-executing={(!expanded && executing) || undefined}
           className="group/project relative rounded-sm hover:bg-accent focus-within:bg-accent"
           data-menu-open={menu || undefined}
           onPointerOverCapture={(event) => {
@@ -209,16 +215,14 @@ export function ProjectRow({
                 <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
                   {expanded ? <FolderOpenIcon className="size-3" strokeWidth={1.1} /> : <FolderClosedIcon className="size-3" strokeWidth={1.1} />}
                 </span>
-                <span className="flex min-w-0 flex-1 items-center gap-2 pe-0 group-hover/project:pe-12 group-focus-within/project:pe-12">
+                <span data-sidebar-row-content className="flex min-w-0 flex-1 items-center gap-2">
                   <FadingTitle ref={scrolling} autoScroll={hovered}>
                     {project.name}
                   </FadingTitle>
                 </span>
               </SidebarListRow>
-              <div
-                data-project-actions
-                className="absolute right-2 top-1 flex h-6 items-center opacity-0 transition-opacity duration-150 group-hover/project:opacity-100 group-focus-within/project:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none"
-              >
+              {!expanded && executing && <SidebarActivity />}
+              <div data-project-actions className="absolute right-2 top-1 flex h-6 items-center transition-opacity duration-150 motion-reduce:transition-none">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
