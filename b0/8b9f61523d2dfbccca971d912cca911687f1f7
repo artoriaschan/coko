@@ -1,0 +1,81 @@
+apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx
+  s_f9fee1f1315815::t_750b8193fc88c2 461,463
+  s_f9fee1f1315815::t_4076b21cad0cb6 413,464-469
+apps/desktop/e2e/chat.e2e.test.ts
+  s_f9fee1f1315815::t_28349e617b240c 203,205,298-301,303,319-321
+  s_f9fee1f1315815::t_a203a3a70800d3 290-293,295
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_e14607ad8b7a10 3,148,158,183-184
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_e14607ad8b7a10 39-45
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_62275aa470b5b6 29-36
+apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx
+  s_f9fee1f1315815::t_360e5d4c63ed1f 79
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_f9fee1f1315815::t_28349e617b240c 209-211
+  s_f9fee1f1315815::t_f0ebe9b3f6af1f 3-4,19-20,58-59,207,212
+  s_f9fee1f1315815::t_51110316834d65 213-217
+apps/desktop/src/renderer/features/conversation/assistant-footer.browser.test.tsx
+  s_f9fee1f1315815::t_a203a3a70800d3 262-263
+  s_f9fee1f1315815::t_fc911b456759f6 90
+  s_f9fee1f1315815::t_d469ca8c1cee4d 104-117,119-136
+  s_f9fee1f1315815::t_5a28139c39e45a 1-32,34-36,38-57,59-74,76-89,91-92,95,97-101,103
+  s_f9fee1f1315815::t_beeebb17e5379b 93-94,96
+  s_f9fee1f1315815::t_343c9c2dfbd9c3 209-210,214-216,218-220,223-226
+  s_f9fee1f1315815::t_4b68f1f7a4a38a 168-184,187-195,197-204,227-230,232-242,244-245,247-255,257-261,264-265
+  s_f9fee1f1315815::t_3f9ec71b41e5c9 246
+  s_f9fee1f1315815::t_6e6b6217e369ca 137-167
+  s_f9fee1f1315815::t_c0298655c6eaf7 205-208,213,217,222
+  s_f9fee1f1315815::t_3ea5ff5356cf48 211-212,221
+  s_f9fee1f1315815::t_bdadd80b25778d 102
+  s_f9fee1f1315815::t_d507699eac2687 256
+  s_f9fee1f1315815::t_7fc0fd51e3e297 196
+packages/i18n/src/dictionaries/domains/usage.ts
+  s_f9fee1f1315815::t_7fc0fd51e3e297 24,76
+  s_f9fee1f1315815::t_7b6b9b628b64e1 14-23,25-27,66-75,77-79
+apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx
+  s_f9fee1f1315815::t_360e5d4c63ed1f 132,265
+apps/desktop/src/renderer/features/conversation/session-cost.tsx
+  s_f9fee1f1315815::t_3ea5ff5356cf48 67-73
+  s_f9fee1f1315815::t_68d2bd62320d92 25-26,44,92,114-115
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_f9fee1f1315815::t_e0e51bc434fe4f 9,20-22,48,77-80
+  s_f9fee1f1315815::t_7b6b9b628b64e1 3-4,49,57-62,65,69-75,82-83,85-115,117-127,129,131-132,140,143-146,149-152,154,157,159-161,163,165,167-168
+  s_f9fee1f1315815::t_68d2bd62320d92 54,76,81,84,128
+  s_f9fee1f1315815::t_7fc0fd51e3e297 155
+  s_f9fee1f1315815::t_3ea5ff5356cf48 133-139
+  s_f9fee1f1315815::t_51110316834d65 46,64
+  s_f9fee1f1315815::t_38c85e1172d5bc 1-2,5-8,10-19,23-26,28-32,34-37,39,41-45,47,50-53,55-56,63,66-68,169-170
+apps/desktop/src/renderer/features/conversation/business-timeline.browser.test.tsx
+  s_f9fee1f1315815::t_4076b21cad0cb6 207
+apps/desktop/e2e/goal.e2e.test.ts
+  s_f9fee1f1315815::t_16ee6f223e4e70 245-248
+  s_f9fee1f1315815::t_4076b21cad0cb6 225,234,250-252
+  s_f9fee1f1315815::t_3ea5ff5356cf48 243-244
+  s_f9fee1f1315815::t_c0298655c6eaf7 238-239
+apps/desktop/e2e/message-footers.e2e.test.ts
+  s_f9fee1f1315815::t_302ac1a2cd593c 1-26,29-44,46-49,51-71,73-75,77-81
+apps/desktop/src/renderer/features/conversation/message-actions.tsx
+  s_f9fee1f1315815::t_f0ebe9b3f6af1f 1-71
+apps/desktop/e2e/rewind.e2e.test.ts
+  s_f9fee1f1315815::t_28349e617b240c 120,122
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_f9fee1f1315815::t_51110316834d65 52-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b08b9f61523d2dfbccca971d912cca911687f1f7",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
