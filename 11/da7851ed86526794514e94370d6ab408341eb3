@@ -1,0 +1,56 @@
+apps/desktop/src/renderer/features/conversation/timeline.test.ts
+  s_f9fee1f1315815::t_45680b284b0fe3 30,138,269
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_f9fee1f1315815::t_cc22fb7aa632b4 13,15-21,29-35,38-40,54,62-64,80
+  s_f9fee1f1315815::t_5a3e4310c51a42 36
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_f9fee1f1315815::t_cc22fb7aa632b4 20,220,278,285
+  s_f9fee1f1315815::t_9df8492a72d9b2 59,62-63,65-66,279,281-283,313
+.scratch/message-footers/evidence/06-ended-footers.md
+  s_f9fee1f1315815::t_9675541c26f55c 1-22,24-37,39-53,55-58
+  s_f9fee1f1315815::t_af65eaebc3b637 23
+  s_f9fee1f1315815::t_fec2ebbde09e06 38,54
+apps/desktop/src/renderer/features/conversation/ended-footers.browser.test.tsx
+  s_f9fee1f1315815::t_dc12e78eb57f70 122-128,130-135,236
+  s_f9fee1f1315815::t_348dcd11a33d1c 1-29,31-63,65-71,73-96,102
+  s_f9fee1f1315815::t_a7e20b0acba05b 72,97-101,136-147,150-171,173-186,188-211,213-217,219-235
+  s_f9fee1f1315815::t_419222e685a8ac 103-121
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 41,43,45
+apps/desktop/src/renderer/features/conversation/attempt-usage.browser.test.tsx
+  s_f9fee1f1315815::t_3404103f10dd0d 144-146
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 150
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_0070e7ce4ee7e9 32,44-49
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_f9fee1f1315815::t_9df8492a72d9b2 385-388,390
+  s_f9fee1f1315815::t_45680b284b0fe3 424-425,427,439
+.scratch/message-footers/issues/06-stopped-and-failed-footers.md
+  s_f9fee1f1315815::t_9675541c26f55c 13,17-24,37-39
+apps/desktop/e2e/message-footers.e2e.test.ts
+  s_f9fee1f1315815::t_3404103f10dd0d 112-114
+  s_f9fee1f1315815::t_150206b79e57f6 82-96,99-111,115-127,141-151,153-155
+  s_f9fee1f1315815::t_0509ee417c51b6 128-129,131-134,136-139
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_f9fee1f1315815::t_9df8492a72d9b2 53
+apps/desktop/src/renderer/features/conversation/timeline.ts
+  s_f9fee1f1315815::t_5a3e4310c51a42 570
+  s_f9fee1f1315815::t_0f5bc93fd89401 119,332,348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "11da7851ed86526794514e94370d6ab408341eb3",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
