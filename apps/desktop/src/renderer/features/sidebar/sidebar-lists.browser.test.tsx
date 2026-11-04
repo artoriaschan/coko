@@ -39,7 +39,7 @@ function startCategoryDrag(source: Element, target: Element) {
   return { point: to, end: () => firePointer(document, 'pointerup', to, { button: 0, buttons: 0 }) }
 }
 
-it.each(['light', 'dark'])('%s：项目内会话按最后记录时间排列，整行圆弧 H32，展开与空状态，没有运行标记或分支', async (theme) => {
+it.each(['light', 'dark'])('%s：项目内会话按最后记录时间排列，整行圆弧 H32，展开与空状态，运行指示不改变排序且不显示分支', async (theme) => {
   document.documentElement.classList.toggle('dark', theme === 'dark')
   onTestFinished(() => document.documentElement.classList.remove('dark'))
   const fixture = createFixtureChat({
@@ -81,7 +81,7 @@ it.each(['light', 'dark'])('%s：项目内会话按最后记录时间排列，�
   expect(row.getBoundingClientRect().width).toBe(rows()[0]!.getBoundingClientRect().width)
   expect(rows()[2]!.getBoundingClientRect().top - row.getBoundingClientRect().bottom).toBe(2)
   expect(document.body.textContent).not.toContain('coko/secret')
-  expect(document.querySelector('[data-session-id] [data-activity], [data-session-id] [role="img"]')).toBeNull()
+  expect(document.querySelectorAll('[data-sidebar-activity]')).toHaveLength(1)
   expect(document.querySelector('[data-action="workspace-menu"]')).toBeNull()
   await userEvent.hover(page.getByRole('heading', { name: 'Projects', exact: true }))
   await userEvent.click(page.getByRole('button', { name: 'coko', exact: true }))
