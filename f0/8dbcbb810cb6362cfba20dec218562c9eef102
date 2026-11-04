@@ -1,0 +1,73 @@
+docs/subsystems/projects.md
+  s_296be7915f5188::t_1d43de4afd11db 77-81,91
+apps/server/README.md
+  s_296be7915f5188::t_dd2a10dada8622 27
+packages/i18n/src/dictionaries/domains/usage.ts
+  s_296be7915f5188::t_fcc163bce4ca81 27,79
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_835b5571654344 151-160
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_0a14b136caf249 439
+  s_296be7915f5188::t_fcc163bce4ca81 35,341
+.scratch/conversation-status-and-header/issues/01-sidebar-running-indicator.md
+  s_296be7915f5188::t_1d43de4afd11db 15-26,31-36
+apps/desktop/src/renderer/features/sidebar/sidebar-activity.css
+  s_296be7915f5188::t_1d43de4afd11db 1-49
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx
+  s_296be7915f5188::t_1d43de4afd11db 42,84
+apps/desktop/e2e/message-footers-protocol.e2e.test.ts
+  s_296be7915f5188::t_861a76f3851d49 177,188,202,212,216,228
+  s_296be7915f5188::t_979229fad71747 172-174,178,450-451
+.scratch/conversation-status-and-header/issues/07-status-bar-token-usage.md
+  s_296be7915f5188::t_af65174230a780 38-39
+  s_296be7915f5188::t_dd2a10dada8622 15-26,31-37
+  s_296be7915f5188::t_cdf3bd22ffed24 40
+apps/desktop/src/renderer/features/sidebar/sidebar-activity.tsx
+  s_296be7915f5188::t_1d43de4afd11db 1-18
+apps/desktop/src/renderer/features/sidebar/sidebar-activity.browser.test.tsx
+  s_296be7915f5188::t_1d43de4afd11db 1-161
+docs/README.md
+  s_296be7915f5188::t_af65174230a780 28
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_296be7915f5188::t_1d43de4afd11db 22,121-123,181,193,195
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_296be7915f5188::t_fcc163bce4ca81 13-14,149
+apps/desktop/src/renderer/features/sidebar/project-row.tsx
+  s_296be7915f5188::t_1d43de4afd11db 37,57-59,155-156,218,224-225
+.scratch/conversation-status-and-header/issues/04-remove-header-handoff.md
+  s_296be7915f5188::t_3d9d382b7b5d67 34-35
+apps/desktop/src/renderer/features/conversation/usage-fields.tsx
+  s_296be7915f5188::t_fb02b918a9d2bd 10-13,20-22,25-51
+  s_296be7915f5188::t_fcc163bce4ca81 1-9,14-19,23-24,52
+apps/server/src/adapters/faux.test.ts
+  s_296be7915f5188::t_48311bc2c36d2b 71-79
+  s_296be7915f5188::t_52fdb737e9fe4f 65-70,80-88
+apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx
+  s_296be7915f5188::t_1d43de4afd11db 81-83
+  s_296be7915f5188::t_fb02b918a9d2bd 1-80,91-96,123-127,130-141,149-151
+  s_296be7915f5188::t_2d80c6eaae7458 84-86,88-90,97-106,108-122,128-129,142-148,152-155,157-158
+  s_296be7915f5188::t_0366f92c014300 87,156
+  s_296be7915f5188::t_9702c27ecea43b 107
+apps/desktop/src/renderer/features/conversation/session-status-bar.tsx
+  s_296be7915f5188::t_fb02b918a9d2bd 40-98
+  s_296be7915f5188::t_75ec6490961b0a 1-22,24-39,99
+  s_296be7915f5188::t_7a153e4790945a 23
+apps/server/src/adapters/faux.ts
+  s_296be7915f5188::t_4dbff9df42935b 70-71,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "f08dbcbb810cb6362cfba20dec218562c9eef102",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
