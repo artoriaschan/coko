@@ -1,0 +1,70 @@
+apps/desktop/e2e/message-footers.e2e.test.ts
+  s_f9fee1f1315815::t_8a342f240c1930 2,83-100,103-114,118-119,121-131,133-138,140-141
+  s_f9fee1f1315815::t_807b1b7d1858ee 39-40,115-117
+apps/server/src/application/checkpoints.ts
+  s_f9fee1f1315815::t_a9ce5e1b12f804 13,139,141,143,147-150,154
+docs/adr/0006-file-checkpoints-and-rewind.md
+  s_f9fee1f1315815::t_e45b9855c15aff 4,6-7,13-15
+GLOSSARY.md
+  s_f9fee1f1315815::t_e45b9855c15aff 68
+tests/integration/sidecar-rewind.test.ts
+  s_f9fee1f1315815::t_99a68562a236fe 101-112,114-127,129-130,135-143,145-147
+  s_f9fee1f1315815::t_7e6164ce069d6a 131-134
+apps/desktop/src/renderer/features/conversation/fork-history.ts
+  s_f9fee1f1315815::t_cb0eb94a23e164 1-8,10,12-21,23-34,36-37,39,41-46,48-52
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_f9fee1f1315815::t_cb0eb94a23e164 1,5,48-49,61
+packages/agent/src/session-entries/checkpoints.ts
+  s_f9fee1f1315815::t_7e6164ce069d6a 1-2,29-42,45-46,48-55,57,59
+  s_f9fee1f1315815::t_a9ce5e1b12f804 27-28
+packages/agent/src/agents/fork.ts
+  s_f9fee1f1315815::t_a9ce5e1b12f804 7,51-54,56-57
+  s_f9fee1f1315815::t_1497e1e949a1c4 1
+  s_f9fee1f1315815::t_7e6164ce069d6a 3-6,18,20-28,30-31,34-35,37,41-50,59-60,65-66,68,70,72,74-76,78-83,85
+apps/server/src/application/sessions.ts
+  s_f9fee1f1315815::t_a9ce5e1b12f804 1,455,457
+apps/desktop/src/renderer/features/conversation/timeline.ts
+  s_f9fee1f1315815::t_cb0eb94a23e164 1,495-496
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_99a68562a236fe 44-53
+.scratch/message-footers/spec.md
+  s_f9fee1f1315815::t_1497e1e949a1c4 18,121
+docs/subsystems/recovery.md
+  s_f9fee1f1315815::t_1497e1e949a1c4 77
+apps/server/src/http/app.ts
+  s_f9fee1f1315815::t_a9ce5e1b12f804 178-179
+docs/tech-stack/agent-runtime.md
+  s_f9fee1f1315815::t_1497e1e949a1c4 96,115
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_f9fee1f1315815::t_cb0eb94a23e164 14,49
+packages/protocol/src/checkpoints.ts
+  s_f9fee1f1315815::t_a9ce5e1b12f804 25-27,103
+  s_f9fee1f1315815::t_7e6164ce069d6a 1-2,28-41,44-45,47-51,53
+docs/adr/README.md
+  s_f9fee1f1315815::t_e45b9855c15aff 18
+  s_f9fee1f1315815::t_1497e1e949a1c4 35
+apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx
+  s_f9fee1f1315815::t_1497e1e949a1c4 94,154
+  s_f9fee1f1315815::t_55b651ed10dae0 112-125,127,129-141
+packages/agent/README.md
+  s_f9fee1f1315815::t_1497e1e949a1c4 9
+docs/adr/0023-assistant-reply-forks.md
+  s_f9fee1f1315815::t_e45b9855c15aff 1-4,6-31,33-36
+  s_f9fee1f1315815::t_1497e1e949a1c4 5,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "049bd03f91eb6efc00df3b9402f378ad33e4648e",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
