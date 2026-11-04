@@ -27,7 +27,7 @@ describe('时间线：回退折叠', () => {
   it('被回退的区间折叠为一项，位置在原处；其中的用户消息不可回退、错误不可重试', () => {
     seq = 0
     const entries = [user('one'), reply('a1'), user('two'), failed(), entry('rewind', { targetSeq: 3 }), user('two again'), reply('a2')]
-    expect(shape(buildTimeline(conversation(entries)))).toEqual(['user:one*', 'text:a1', ['user:two', 'error'], 'user:two again*', 'text:a2'])
+    expect(shape(buildTimeline(conversation(entries)))).toEqual(['user:one*', 'text:a1', ['user:two', 'error', 'run-usage'], 'user:two again*', 'text:a2'])
   })
 
   it('嵌套的回退在外层折叠项中再折叠；不相交的回退各自折叠', () => {
@@ -135,7 +135,7 @@ describe('时间线：子代理通知与定时任务的宿主输入', () => {
       entry('run_end', { status: 'completed' }, 'r'),
     ]
     const items = buildTimeline(conversation(entries))
-    expect(shape(items)).toEqual(['schedule-fire', 'text:checked'])
+    expect(shape(items)).toEqual(['schedule-fire', 'text:checked', 'run-usage'])
     expect(items[0]).toMatchObject({ kind: 'schedule-fire', title: 'Daily "check" <x>' })
   })
 
@@ -266,7 +266,7 @@ describe('时间线：压缩分隔条', () => {
     seq = 0
     const start = entry('run_start', { trigger: 'compact' }, 'c')
     const end = entry('run_end', { status: 'error', error: { code: 'model_error', message: 'x' } }, 'c')
-    expect(shape(buildTimeline(conversation([user('one'), reply('a1'), start, end])))).toEqual(['user:one*', 'text:a1', 'error'])
+    expect(shape(buildTimeline(conversation([user('one'), reply('a1'), start, end])))).toEqual(['user:one*', 'text:a1', 'error', 'run-usage'])
     const running: Conversation = {
       ...conversation([user('one'), reply('a1'), start]),
       running: true,

@@ -351,7 +351,7 @@ describe('chat store', () => {
     respond()
     expect(await sent).toBe(true)
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
-    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', retryable: true })
+    expect(buildTimeline(store.getState().conversations.s1!).findLast((item) => item.kind === 'error')).toMatchObject({ kind: 'error', retryable: true })
   })
 
   it('不开始 Run 的动作（204，例如 /goal pause）：返回 true、不报告失败，撤销运行中', async () => {
@@ -381,7 +381,13 @@ describe('chat store', () => {
 
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 1, user('try this')) })
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'error', error: { code: 'model_error', message: 'boom' } }, 'run_end') })
-    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toEqual({ kind: 'error', key: '2', message: 'boom', retryable: true })
+    expect(buildTimeline(store.getState().conversations.s1!).findLast((item) => item.kind === 'error')).toEqual({
+      kind: 'error',
+      key: '2',
+      message: 'boom',
+      retryable: true,
+      origin: { createdAt: 2, runId: 'r1', seq: 2 },
+    })
   })
 
   it('重试调用 retry 接口重新执行上一轮，不再提交用户文本', async () => {
@@ -414,7 +420,11 @@ describe('chat store', () => {
     })
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
     expect(store.lists.getState().sessions[0]?.running).toBe(false)
-    expect(buildTimeline(store.getState().conversations.s1!).at(-1)).toMatchObject({ kind: 'error', message: 'host lease was taken over', retryable: false })
+    expect(buildTimeline(store.getState().conversations.s1!).findLast((item) => item.kind === 'error')).toMatchObject({
+      kind: 'error',
+      message: 'host lease was taken over',
+      retryable: false,
+    })
   })
 
   it('run_end 条目已到达时，随后的 run_end progress 不重复显示结束状态', async () => {
@@ -426,7 +436,7 @@ describe('chat store', () => {
     stream.deliver({ type: 'entry', sessionId: 's1', entry: entry('s1', 2, { status: 'aborted' }, 'run_end') })
     stream.deliver({ type: 'progress', sessionId: 's1', runId: 'r1', event: { type: 'run_end', status: 'aborted' } })
     expect(store.getState().conversations.s1).toMatchObject({ running: false, live: null })
-    expect(buildTimeline(store.getState().conversations.s1!).map((i) => i.kind)).toEqual(['user', 'stopped'])
+    expect(buildTimeline(store.getState().conversations.s1!).map((i) => i.kind)).toEqual(['user', 'stopped', 'run-usage'])
   })
 
   it('草稿中选择的模型用于创建会话；打开的会话切换模型经协议写入并更新列表', async () => {

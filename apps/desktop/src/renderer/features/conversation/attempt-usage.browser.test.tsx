@@ -141,4 +141,7 @@ it('actual App keeps failed compaction usage visible when no assistant message e
   fixture.chat.getState().openSession('s-1')
   await expect.element(page.getByText('37 tokens', { exact: true })).toBeVisible()
   await expect.element(page.getByText('Incomplete', { exact: true })).toBeVisible()
+  expect(document.querySelectorAll('[data-slot="assistant-footer"]').length).toBe(1)
+  expect(document.querySelector('[data-slot="run-usage"]')).toBeNull()
+  expect(document.querySelector('[data-slot="assistant-footer"] [data-action="copy-message"]')).toBeNull()
 })

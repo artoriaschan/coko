@@ -141,3 +141,77 @@ it('keyboard assistant branch opens empty target, keeps source draft/records/cur
   await expect.poll(() => composer.textContent()).toBe('unsent original draft')
   expect(await page.evaluate(async (id) => (await (await fetch(`/api/sessions/${id}`)).json()).entries, sourceId)).toEqual(source.entries)
 })
+
+it('failed and stopped Runs without assistant text keep one no-cost footer each across reload', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-ended-footers-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const workspace = join(root, 'workspace')
+  await mkdir(workspace)
+  const script = join(root, 'faux.json')
+  await writeFile(
+    script,
+    JSON.stringify({
+      responses: [
+        { match: 'COKO_SESSION_TITLE', content: 'Ending check' },
+        { content: '', stopReason: 'error', errorMessage: 'faux model exploded', usage: { input: 11, output: 3 } },
+        { content: [{ type: 'toolCall', name: 'bash', id: 'wait', arguments: { command: 'sleep 30' } }], usage: { input: 3, output: 1 } },
+        { content: 'Must not be called' },
+      ],
+    }),
+  )
+  const app = await launchApp({ COKO_FAUX_SCRIPT: script }, { dir: root })
+  apps.push(app)
+  const page = app.window
+  await page.getByRole('heading', { level: 1 }).waitFor()
+  await createProjectDraft(app, workspace)
+  await page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ }).fill('test the ending')
+  await page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ }).press('Enter')
+  const error = page.locator('[data-run-status="error"]')
+  await error.waitFor()
+  const footers = page.locator('[data-slot="assistant-footer"]')
+  await expect.poll(() => footers.count()).toBe(1)
+  expect(await footers.first().locator('[data-action="copy-message"]').count()).toBe(0)
+  // Faux counters do not carry provider-report presence. Preserve unknown rather than presenting the compatibility value as measured usage.
+  expect(await footers.first().textContent()).toMatch(/Usage unavailable|未取得/)
+  expect(await footers.first().textContent()).not.toContain('0 tokens')
+  await error.getByRole('button', { name: /^(Retry|重试)$/ }).click()
+  await page
+    .locator('[data-slot="approval-card"]')
+    .getByRole('button', { name: /^(Allow once|允许一次)$/ })
+    .click()
+  await expect.poll(() => page.locator('[data-slot="tool-card"][data-tool="bash"]').getAttribute('data-status')).toBe('running')
+  // Approval is an in-flight state, so the second ending footer must not exist yet.
+  expect(await footers.count()).toBe(1)
+  await page.locator('[data-action="stop"]').click()
+  await page.locator('[data-run-status="aborted"]').waitFor()
+  await expect.poll(() => footers.count()).toBe(2)
+  expect(await footers.last().locator('[data-action="copy-message"], [data-action="branch-reply"]').count()).toBe(0)
+  expect(await page.locator('[data-slot="run-usage"]').count()).toBe(0)
+  const historicalControls = footers.first().locator('[data-slot="assistant-message-actions"]')
+  await page.mouse.move(0, 0)
+  await expect.poll(() => historicalControls.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+    await expect.poll(() => page.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(false)
+    await expect.poll(() => historicalControls.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  } finally {
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+    await cdp.detach()
+  }
+  const dates = await footers.locator('time').evaluateAll((els) => els.map((el) => el.getAttribute('datetime')))
+  expect(dates).toHaveLength(2)
+  await footers.last().locator('[data-action="run-usage"]').focus()
+  await page.keyboard.press('Enter')
+  const details = page.locator('[data-slot="run-usage-details"]')
+  await details.waitFor()
+  expect(await details.textContent()).not.toMatch(/\$|Unpriced|未定价/)
+  await page.keyboard.press('Escape')
+  await details.waitFor({ state: 'detached' })
+  await page.reload()
+  await footers.first().waitFor()
+  expect(await footers.count()).toBe(2)
+  expect(await footers.locator('time').evaluateAll((els) => els.map((el) => el.getAttribute('datetime')))).toEqual(dates)
+  expect(await page.locator('[data-run-status="error"]').count()).toBe(1)
+  expect(await page.locator('[data-run-status="aborted"]').count()).toBe(1)
+})

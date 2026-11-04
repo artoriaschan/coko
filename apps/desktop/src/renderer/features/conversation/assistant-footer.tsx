@@ -10,16 +10,33 @@ import { formatCount, sumUsage, totalTokens, type UsageTotals } from './session-
 import type { TimelineItem } from './timeline.ts'
 import { useTimelineSession } from './timeline-session.tsx'
 
-export interface CompletedReply {
-  usageEntries?: readonly SessionEntry[]
+export interface RunFooter {
   runId: string
+  text?: string
+  endedAt?: number
+  /** Copied history may display source-owned facts without attributing them to the target Session. */
+  usageEntries?: readonly SessionEntry[]
+}
+
+export interface CompletedReply extends RunFooter {
   seq: number
   text: string
-  endedAt?: number
 }
 
 // Footer quantities have no pricing dependency; stand-alone child Session readers share the same counter.
 const withoutPricing = () => false
+
+function replyText(entry: SessionEntry): string {
+  if (entry.kind !== 'message' || entry.payload.role !== 'assistant' || !Array.isArray(entry.payload.content)) return ''
+  return entry.payload.content.flatMap((block) => (block.type === 'text' && 'text' in block && typeof block.text === 'string' ? [block.text] : [])).join('\n\n')
+}
+
+/** Abnormal and body-less endings keep the same factual usage entry, after their termination status. */
+export function endedRunFooter(entries: readonly SessionEntry[], run?: DisplayRun): RunFooter | undefined {
+  if (!run || run.status === 'running' || run.status === 'unknown') return
+  const last = entries.findLast((entry) => entry.runId === run.id && (run.endedSeq === undefined || entry.seq < run.endedSeq) && replyText(entry).trim() !== '')
+  return { runId: run.id, text: last ? replyText(last) : undefined, endedAt: run.status === 'interrupted' ? undefined : run.endedAt }
+}
 
 /** Completion and the last assistant message are persisted facts, independent of stop/length stage text. */
 export function completedReplyFooters(
@@ -34,9 +51,7 @@ export function completedReplyFooters(
       (entry) => entry.runId === run.id && entry.seq < run.endedSeq! && entry.kind === 'message' && entry.payload.role === 'assistant',
     )
     if (!last || last.kind !== 'message' || last.payload.role !== 'assistant' || !['stop', 'length'].includes(String(last.payload.stopReason))) continue
-    const content = last.payload.content
-    if (!Array.isArray(content)) continue
-    const text = content.flatMap((block) => (block.type === 'text' && 'text' in block && typeof block.text === 'string' ? [block.text] : [])).join('\n\n')
+    const text = replyText(last)
     if (!text.trim()) continue
     const seat = items.findLast((item) => item.kind === 'text' && !item.streaming && item.origin?.runId === run.id && item.origin.seq === last.seq)
     if (seat) result.set(seat.key, { runId: run.id, seq: last.seq, text, endedAt: run.endedAt })
@@ -44,9 +59,10 @@ export function completedReplyFooters(
   return result
 }
 
-export function AssistantFooter({ reply, latest, branchAction }: { reply: CompletedReply; latest: boolean; branchAction?: React.ReactNode }) {
-  const { entries } = useTimelineSession()
-  const totals = React.useMemo(() => sumUsage(reply.usageEntries ?? entries, withoutPricing, reply.runId), [entries, reply.runId, reply.usageEntries])
+export function AssistantFooter({ reply, latest, branchAction }: { reply: RunFooter; latest: boolean; branchAction?: React.ReactNode }) {
+  const context = useTimelineSession()
+  const entries = reply.usageEntries ?? context.entries
+  const totals = React.useMemo(() => sumUsage(entries, withoutPricing, reply.runId), [entries, reply.runId])
   const [open, setOpen] = React.useState(false)
   return (
     <div
@@ -61,7 +77,7 @@ export function AssistantFooter({ reply, latest, branchAction }: { reply: Comple
         data-open={open}
         className="conversation-message-actions conversation-footer-controls flex min-w-0 items-center gap-2 transition-opacity"
       >
-        <CopyMessage text={reply.text} />
+        {reply.text?.trim() && <CopyMessage text={reply.text} />}
         {branchAction}
         <UsageDetails totals={totals} open={open} onOpenChange={setOpen} />
       </div>
