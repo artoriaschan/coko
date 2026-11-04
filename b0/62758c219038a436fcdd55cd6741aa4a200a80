@@ -1,0 +1,30 @@
+.scratch/message-footers/evidence/final-review.md
+  s_f9fee1f1315815::t_a293c25bd9ef9f 1-39
+  s_f9fee1f1315815::t_0d5224558d89b6 40-43
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_a293c25bd9ef9f 3,5,12,18,32,39,66-69
+.scratch/message-footers/spec.md
+  s_f9fee1f1315815::t_a293c25bd9ef9f 4,10,14,177,197
+.scratch/message-footers/issues/07-integrated-acceptance.md
+  s_f9fee1f1315815::t_a293c25bd9ef9f 13,25,42-43
+.scratch/message-footers/evidence/07-integrated-acceptance.md
+  s_f9fee1f1315815::t_a293c25bd9ef9f 92-95
+.scratch/message-footers/issues/README.md
+  s_f9fee1f1315815::t_0d5224558d89b6 3,9,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "b062758c219038a436fcdd55cd6741aa4a200a80",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
