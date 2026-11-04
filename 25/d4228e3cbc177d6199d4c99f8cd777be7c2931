@@ -1,0 +1,59 @@
+.scratch/conversation-status-and-header/issues/03-header-title-and-chat-tab.md
+  s_246dcc3126a5cf::t_de09c80d0f1ff3 1-25
+.scratch/conversation-status-and-header/reference/session-status-broadcast.patch
+  s_246dcc3126a5cf::t_41646c29c32e74 1-320
+.scratch/conversation-status-and-header/issues/07-status-bar-token-usage.md
+  s_246dcc3126a5cf::t_2fb1abadf772d4 1-28
+.scratch/conversation-status-and-header/issues/08-status-bar-session-stats.md
+  s_246dcc3126a5cf::t_543275a8b7d297 1-31
+.scratch/conversation-status-and-header/issues/09-integrated-acceptance.md
+  s_246dcc3126a5cf::t_5a60434e9175b8 1-25
+.scratch/conversation-status-and-header/issues/01-sidebar-running-indicator.md
+  s_246dcc3126a5cf::t_41544dfd47b327 1-28
+.scratch/conversation-status-and-header/issues/02-session-status-broadcast.md
+  s_246dcc3126a5cf::t_b873a016c7d5c5 1-28
+.scratch/conversation-status-and-header/issues/06-open-sidebar-button.md
+  s_246dcc3126a5cf::t_978bb905b38574 1-25
+.scratch/conversation-status-and-header/issues/04-remove-header-handoff.md
+  s_246dcc3126a5cf::t_0329a2f23333c0 1-25
+.scratch/conversation-status-and-header/design.md
+  s_246dcc3126a5cf::t_95adaf18f5bdb3 98,100-102,104
+  s_246dcc3126a5cf::t_1028ad2f0371ac 147
+  s_246dcc3126a5cf::t_54ba43af5f9e77 126
+  s_246dcc3126a5cf::t_b661608f6e67ca 46-53,56-97,99,103,105
+  s_246dcc3126a5cf::t_4cdf39a117594e 54-55
+  s_246dcc3126a5cf::t_0e3df6c2c6d1b0 1-45
+  s_246dcc3126a5cf::t_c5644d9a860608 141
+  s_246dcc3126a5cf::t_69f08c1d0dd617 106-109,111-125,127-140,142-146
+.scratch/conversation-status-and-header/spec.md
+  s_246dcc3126a5cf::t_69d385e902ebf8 1-15,17-48
+  s_246dcc3126a5cf::t_44960c2145609c 158
+  s_246dcc3126a5cf::t_817c72a42aaf15 243-255
+  s_246dcc3126a5cf::t_759af419298619 106-128
+  s_246dcc3126a5cf::t_c65a4b57d0463c 80-105
+  s_246dcc3126a5cf::t_0eed96c57f30af 57
+  s_246dcc3126a5cf::t_0fced016f70740 129-157,159-171
+  s_246dcc3126a5cf::t_a85b1874b230dd 16
+  s_246dcc3126a5cf::t_8c289400c6ebf2 172-190
+  s_246dcc3126a5cf::t_bea9b6c407f5eb 49-56,58-79
+  s_246dcc3126a5cf::t_49a72f573bb131 191-213
+  s_246dcc3126a5cf::t_5e81efd3a5d34c 214-242
+.scratch/conversation-status-and-header/issues/05-more-menu-session-download.md
+  s_246dcc3126a5cf::t_d3f492ce1346e8 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "25d4228e3cbc177d6199d4c99f8cd777be7c2931",
+  "prompts": {},
+  "sessions": {
+    "s_246dcc3126a5cf": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_itbtevno2481",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
