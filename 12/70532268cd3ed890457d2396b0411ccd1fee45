@@ -1,0 +1,45 @@
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_296be7915f5188::t_16750af5581670 264
+  s_296be7915f5188::t_2209476eb0c422 272,298,306
+  s_296be7915f5188::t_d2a4e3d6d0a8cc 243-263,265-270
+  s_296be7915f5188::t_38bffd76318aa4 99,103-104
+apps/desktop/src/renderer/features/connection/connection-status.tsx
+  s_296be7915f5188::t_38bffd76318aa4 1,3,15,20-21
+apps/desktop/src/renderer/features/conversation/header-actions.ts
+  s_296be7915f5188::t_38bffd76318aa4 9-10
+apps/desktop/e2e/goal.e2e.test.ts
+  s_296be7915f5188::t_2209476eb0c422 1,3,225,254
+apps/desktop/src/renderer/features/conversation/attempt-usage.browser.test.tsx
+  s_296be7915f5188::t_2209476eb0c422 87,90,94
+apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx
+  s_296be7915f5188::t_2209476eb0c422 103,106
+docs/subsystems/goal.md
+  s_296be7915f5188::t_db265d99769be7 3,150,162,185-186
+apps/desktop/src/renderer/features/conversation/dock/goal-card.browser.test.tsx
+  s_296be7915f5188::t_2209476eb0c422 470-471
+  s_296be7915f5188::t_38bffd76318aa4 413
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_38bffd76318aa4 271,327,336-341,349-355
+apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx
+  s_296be7915f5188::t_2209476eb0c422 67-70
+docs/subsystems/workbench.md
+  s_296be7915f5188::t_db265d99769be7 3,25-32,51
+.scratch/conversation-status-and-header/issues/03-header-title-and-chat-tab.md
+  s_296be7915f5188::t_64733ed21b0cac 15-23,28-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "1270532268cd3ed890457d2396b0411ccd1fee45",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
