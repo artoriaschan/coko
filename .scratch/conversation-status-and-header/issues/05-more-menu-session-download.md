@@ -36,3 +36,5 @@
 - `pnpm run typecheck`：退出码 0。`pnpm run check:docs`：319 个 Markdown、0 问题，退出码 0。所改 TS/TSX 的 oxfmt、oxlint 通过。样式守卫初次执行 39/40：唯一失败是 03 继承的 `border-b-2` 下划线，06 已负责改为独立指示器，集成后复核；本票未增加样式违规。
 - 文档影响：workbench 标题栏增加菜单、下载与共用去重语义；tracing 增加 JSONL 入口、未使用 Secret 的输出前解析保证及验证边界；docs/README 的 tracing 摘要同步。从 AGENTS → docs/README → 两篇正文读回，正式文档不依赖任务材料，生命周期与历史记录保留。
 - 未验证：真实用户操作的原生保存框、真实指针/原生层、签名发布产物和真实模型；未运行全仓测试。保存对话框沿用 Electron 默认行为，测试用 will-download 指定路径不能证明原生框视觉。本地提交与集成状态随合并记录更新，不表示推送或发布。
+
+- 集成核对：实现提交 `c70cfca2` 后合入集成分支 `4df14acd`（02、08），merge `30cd71f6` 无冲突；`pnpm run test apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx`：3 文件、16 测试通过，退出码 0；typecheck 再次退出 0；check:docs 再次 319/0。新增下载 E2E 在强化 preload 登记成功与末四位校验后再次通过 1/1。06 的新侧边栏名称尚未进入本次集成基线，后续合并时同步新测试的旧名称选择器。
