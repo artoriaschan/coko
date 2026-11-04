@@ -1,0 +1,30 @@
+packages/protocol/README.md
+  s_296be7915f5188::t_77c3d52e5ffffb 36
+.scratch/conversation-status-and-header/spec.md
+  s_296be7915f5188::t_a22b91bfaba3c0 159
+apps/desktop/src/renderer/stores/chat-store.test.ts
+  s_296be7915f5188::t_afeff5f55825f5 643-663
+  s_296be7915f5188::t_77ba01c56141fe 618-642
+  s_296be7915f5188::t_7728f32a7d5d15 664-682
+apps/desktop/src/renderer/stores/list-store.ts
+  s_296be7915f5188::t_6e05fcfaeaeedc 290-294
+.scratch/conversation-status-and-header/design.md
+  s_296be7915f5188::t_a22b91bfaba3c0 104
+  s_296be7915f5188::t_77c3d52e5ffffb 102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "4a9725de8d2f6227bc762b3deefdbcb1961667e8",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
