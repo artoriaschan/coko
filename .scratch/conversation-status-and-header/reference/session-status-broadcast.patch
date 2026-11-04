@@ -1,0 +1,320 @@
+diff --git a/apps/desktop/src/renderer/stores/chat-store.ts b/apps/desktop/src/renderer/stores/chat-store.ts
+index 1ba7e209..60b018bc 100644
+--- a/apps/desktop/src/renderer/stores/chat-store.ts
++++ b/apps/desktop/src/renderer/stores/chat-store.ts
+@@ -728,6 +728,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
+         patchSession(message.sessionId, { title: message.title })
+         return
+       }
++      case 'session_status': {
++        lists.getState().applyStatus(message.sessionId, { running: message.running, agentsRunning: message.agentsRunning })
++        return
++      }
+       case 'subscribed': {
+         patchConversation(message.sessionId, (c) => ({
+           ...c,
+diff --git a/apps/desktop/src/renderer/stores/list-store.ts b/apps/desktop/src/renderer/stores/list-store.ts
+index 64a4789d..ca7dfa63 100644
+--- a/apps/desktop/src/renderer/stores/list-store.ts
++++ b/apps/desktop/src/renderer/stores/list-store.ts
+@@ -75,6 +75,8 @@ export interface ListActions {
+   removeSessions(ids: string[]): void
+   upsertSession(session: Session): void
+   patchSession(id: string, patch: Partial<Session>): void
++  /** 写入 session_status 广播；之后到达的较旧列表快照或接口返回的 DTO 不覆盖它。 */
++  applyStatus(id: string, status: { running: boolean; agentsRunning: boolean }): void
+ }
+ export type ListStore = StoreApi<ListState & ListActions>
+ 
+@@ -90,6 +92,9 @@ export function createListStore(api: ApiClient): ListStore {
+   let loadRevision = 0
+   let titleRevision = 0
+   const titleChanges = new Map<string, { revision: number; title: string }>()
++  // 每条广播都是完整的值：最后收到的一条不比之后取得的快照旧（快照之后的变化另有广播），因此加载开始之前的记录在快照落地后删除。
++  let statusRevision = 0
++  const statusChanges = new Map<string, { revision: number; running: boolean; agentsRunning: boolean }>()
+   return createStore<ListState & ListActions>()((set, get) => {
+     const save = (patch: Partial<ListDisplay>) => {
+       set(patch)
+@@ -177,6 +182,7 @@ export function createListStore(api: ApiClient): ListStore {
+       async load() {
+         const request = ++loadRevision
+         const titlesAtStart = titleRevision
++        const statusesAtStart = statusRevision
+         const archivesAtStart = archiveRevision
+         if (get().listStatus === 'idle') set({ listStatus: 'loading' })
+         try {
+@@ -189,6 +195,10 @@ export function createListStore(api: ApiClient): ListStore {
+             .map((session) => ({ ...session, ...organization.get(session.id) }))
+             .filter((session) => session.archivedAt === null)
+             .filter((session) => !removed.has(session.id))
++            .map((session) => {
++              const status = statusChanges.get(session.id)
++              return status && status.revision > statusesAtStart ? { ...session, running: status.running, agentsRunning: status.agentsRunning } : session
++            })
+             .map((session) => {
+               const title = titleChanges.get(session.id)
+               if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
+@@ -199,6 +209,7 @@ export function createListStore(api: ApiClient): ListStore {
+             })
+           for (const [id, change] of titleChanges)
+             if (change.revision <= titlesAtStart && !get().archivedSessions.some((session) => session.id === id)) titleChanges.delete(id)
++          for (const [id, change] of statusChanges) if (change.revision <= statusesAtStart) statusChanges.delete(id)
+           set({ workspaces, projects: projects.filter((project) => !removedProjects.has(project.id)), sessions: current, listStatus: 'ready' })
+           return true
+         } catch {
+@@ -266,6 +277,7 @@ export function createListStore(api: ApiClient): ListStore {
+         for (const id of ids) {
+           removed.add(id)
+           titleChanges.delete(id)
++          statusChanges.delete(id)
+         }
+         set((state) => ({
+           sessions: state.sessions.filter((session) => !removed.has(session.id)),
+@@ -278,6 +290,8 @@ export function createListStore(api: ApiClient): ListStore {
+         session = { ...session, ...organization.get(session.id) }
+         const observed = titleChanges.get(session.id)
+         if (observed) session = { ...session, title: observed.title }
++        const status = statusChanges.get(session.id)
++        if (status) session = { ...session, running: status.running, agentsRunning: status.agentsRunning }
+         set((state) => ({
+           sessions:
+             session.archivedAt === null ? [session, ...state.sessions.filter((s) => s.id !== session.id)] : state.sessions.filter((s) => s.id !== session.id),
+@@ -287,6 +301,10 @@ export function createListStore(api: ApiClient): ListStore {
+               : state.archivedSessions.filter((s) => s.id !== session.id),
+         }))
+       },
++      applyStatus(id, status) {
++        statusChanges.set(id, { ...status, revision: ++statusRevision })
++        get().patchSession(id, status)
++      },
+       patchSession(id, patch) {
+         if (patch.projectId && removedProjects.has(patch.projectId)) patch = { ...patch, projectId: null }
+         if (typeof patch.title === 'string') titleChanges.set(id, { title: patch.title, revision: ++titleRevision })
+diff --git a/apps/server/src/application/hub.ts b/apps/server/src/application/hub.ts
+index 464296aa..75dc9984 100644
+--- a/apps/server/src/application/hub.ts
++++ b/apps/server/src/application/hub.ts
+@@ -1,11 +1,16 @@
+ import type { ProgressEvent, ServerMessage, SessionEntryRecord } from '@coko/protocol'
+ 
+ type Listener = (message: ServerMessage) => void
++type ProgressObserver = (sessionId: string, event: ProgressEvent) => void
+ 
+-/** 按 Session 分发已提交的 entry 与临时 progress。entry 只在提交完成后发布。 */
++/**
++ * 按 Session 分发已提交的 entry 与临时 progress。entry 只在提交完成后发布。Session 标题与运行状态发给所有连接（broadcast），
++ * 运行状态由 SessionService 观察进度后计算。
++ */
+ export class SessionHub {
+-  readonly #titleListeners = new Set<Listener>()
++  readonly #broadcastListeners = new Set<Listener>()
+   readonly #listeners = new Map<string, Set<Listener>>()
++  readonly #progressObservers = new Set<ProgressObserver>()
+ 
+   subscribe(sessionId: string, listener: Listener): () => void {
+     let set = this.#listeners.get(sessionId)
+@@ -17,22 +22,29 @@ export class SessionHub {
+     }
+   }
+ 
+-  subscribeTitles(listener: Listener): () => void {
+-    this.#titleListeners.add(listener)
++  /** 不需要订阅的消息：session_title 与 session_status。 */
++  subscribeBroadcasts(listener: Listener): () => void {
++    this.#broadcastListeners.add(listener)
+     return () => {
+-      this.#titleListeners.delete(listener)
++      this.#broadcastListeners.delete(listener)
+     }
+   }
+ 
+   publishTitle(sessionId: string, title: string): void {
+     // Every connected list must observe title changes, including clients viewing another Session.
+-    const message: ServerMessage = { type: 'session_title', sessionId, title }
+-    for (const listener of this.#titleListeners) {
+-      try {
+-        listener(message)
+-      } catch {
+-        /* A disconnected observer cannot fail a committed title. */
+-      }
++    this.#broadcast({ type: 'session_title', sessionId, title })
++  }
++
++  /** 根 Session 运行状态的变化（session_status）；去重由调用方负责。 */
++  publishStatus(sessionId: string, status: { running: boolean; agentsRunning: boolean }): void {
++    this.#broadcast({ type: 'session_status', sessionId, ...status })
++  }
++
++  /** 每次 publishProgress 之后（订阅者已收到该进度）同步调用。 */
++  observeProgress(observer: ProgressObserver): () => void {
++    this.#progressObservers.add(observer)
++    return () => {
++      this.#progressObservers.delete(observer)
+     }
+   }
+ 
+@@ -42,6 +54,17 @@ export class SessionHub {
+ 
+   publishProgress(sessionId: string, runId: string, event: ProgressEvent): void {
+     this.#emit(sessionId, { type: 'progress', sessionId, runId, event })
++    for (const observer of this.#progressObservers) observer(sessionId, event)
++  }
++
++  #broadcast(message: ServerMessage): void {
++    for (const listener of this.#broadcastListeners) {
++      try {
++        listener(message)
++      } catch {
++        /* A disconnected observer cannot fail a committed broadcast. */
++      }
++    }
+   }
+ 
+   #emit(sessionId: string, message: ServerMessage): void {
+diff --git a/apps/server/src/application/session-runs.ts b/apps/server/src/application/session-runs.ts
+index 374939e5..611e4cf2 100644
+--- a/apps/server/src/application/session-runs.ts
++++ b/apps/server/src/application/session-runs.ts
+@@ -238,6 +238,11 @@ export class SessionRuns {
+     return context?.tools.registry.list().map((tool) => tool.name)
+   }
+ 
++  /** 父 Session 是否有 running 的子代理或 Teammate（Session 的 agentsRunning；Background Job 不算）。 */
++  childrenRunning(parentSessionId: string): boolean {
++    return (this.#subagents?.runningChildren(parentSessionId).length ?? 0) > 0
++  }
++
+   /** 父 Session 的 running 子代理中是否有在等待审批的（父 Session 的 activity 为 awaiting-approval）。 */
+   childAwaitingApproval(parentSessionId: string): boolean {
+     return (this.#subagents?.runningChildren(parentSessionId) ?? []).some((id) => (this.#options.runtimes.get(id)?.pendingApprovals.length ?? 0) > 0)
+diff --git a/apps/server/src/application/sessions.ts b/apps/server/src/application/sessions.ts
+index bbd664e9..e5a790e9 100644
+--- a/apps/server/src/application/sessions.ts
++++ b/apps/server/src/application/sessions.ts
+@@ -26,7 +26,7 @@ import type { SessionHub } from './hub.ts'
+ import { hostToolNames, PermissionService } from './permissions.ts'
+ import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
+ import { SessionModels } from './session-models.ts'
+-import { SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
++import { ownPermissionScope, SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
+ import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
+ import { requireSession, SessionRuntimes } from './session-runtimes.ts'
+ import { systemClock, type ClockPort } from '../adapters/clock.ts'
+@@ -100,6 +100,9 @@ export class SessionService {
+   readonly #removingProjects = new Set<string>()
+   readonly #organizationTasks = new Map<string, Set<Promise<unknown>>>()
+   readonly #clock: ClockPort
++  readonly #scopes: PermissionScopeResolver
++  /** 每个根 Session 最近一次广播的运行状态；只保存非空闲的，没有记录即 running 与 agentsRunning 都为 false。 */
++  readonly #statuses = new Map<string, { running: boolean; agentsRunning: boolean }>()
+   #lifecycle: SessionLifecycle | undefined
+   readonly permissions: PermissionService
+ 
+@@ -159,6 +162,27 @@ export class SessionService {
+       ...(options.cwd ? { cwd: options.cwd } : {}),
+     })
+     this.#runs.useAdmission((id) => this.assertAdmission(id))
++    this.#scopes = options.permissionScopes ?? ownPermissionScope
++    // 运行时在发出 run_start 之前已是运行中、在发出 run_end 之前已清除；Subagent 的状态在 agent_update 之前已更新。按条目重算会在
++    // run_end 条目提交时（当前 Run 尚未清除）得到过期的运行中。
++    options.hub.observeProgress((sessionId, event) => {
++      if (event.type === 'run_start' || event.type === 'run_end' || event.type === 'agent_update') this.#refreshStatus(sessionId)
++    })
++  }
++
++  /** 重算 sessionId 所属根 Session 的运行状态，与最近一次广播不同时广播（session_status）。 */
++  #refreshStatus(sessionId: string): void {
++    const rootId = this.#scopes.rootSessionId(sessionId)
++    const next = this.#status(rootId)
++    const last = this.#statuses.get(rootId) ?? { running: false, agentsRunning: false }
++    if (next.running === last.running && next.agentsRunning === last.agentsRunning) return
++    if (next.running || next.agentsRunning) this.#statuses.set(rootId, next)
++    else this.#statuses.delete(rootId)
++    this.#hub.publishStatus(rootId, next)
++  }
++
++  #status(sessionId: string): { running: boolean; agentsRunning: boolean } {
++    return { running: this.#runtimes.get(sessionId)?.isRunning ?? false, agentsRunning: this.#runs.childrenRunning(sessionId) }
+   }
+ 
+   useLifecycle(lifecycle: SessionLifecycle): void {
+@@ -351,6 +375,7 @@ export class SessionService {
+           this.#runtimes.forget(id)
+           this.#permissions.forget(id)
+           this.#recovery.forget(id)
++          this.#statuses.delete(id)
+         }
+         this.#lifecycle?.forget(sessionIds)
+         return { sessionIds }
+@@ -393,6 +418,7 @@ export class SessionService {
+       thinkingLevel: this.#models.effectiveLevel(stored),
+       ...(parentSessionId === null ? {} : { parentSessionId }),
+       ...(worktree ? { worktree: { id: worktree.id, name: worktree.name, branch: worktree.branch, status: worktree.status } } : {}),
++      ...(this.#runs.childrenRunning(stored.id) ? { agentsRunning: true } : {}),
+     }
+     const runtime = this.#runtimes.get(session.id)
+     const running = runtime?.isRunning ?? false
+diff --git a/apps/server/src/ws/connection.ts b/apps/server/src/ws/connection.ts
+index 7e82ce6c..9ab064c5 100644
+--- a/apps/server/src/ws/connection.ts
++++ b/apps/server/src/ws/connection.ts
+@@ -14,7 +14,7 @@ export interface StreamContext {
+  * 最后冲刷缓冲中更新的条目：既不漏也不重复。
+  */
+ export class StreamConnection {
+-  readonly #offTitles: () => void
++  readonly #offBroadcasts: () => void
+   readonly #context: StreamContext
+   readonly #send: (message: ServerMessage) => void
+   readonly #subscriptions = new Map<string, () => void>()
+@@ -22,7 +22,7 @@ export class StreamConnection {
+   constructor(context: StreamContext, send: (message: ServerMessage) => void) {
+     this.#context = context
+     this.#send = send
+-    this.#offTitles = context.hub.subscribeTitles(send)
++    this.#offBroadcasts = context.hub.subscribeBroadcasts(send)
+   }
+ 
+   async receive(data: unknown): Promise<void> {
+@@ -38,7 +38,7 @@ export class StreamConnection {
+   }
+ 
+   close(): void {
+-    this.#offTitles()
++    this.#offBroadcasts()
+     for (const sessionId of this.#subscriptions.keys()) this.#unsubscribe(sessionId)
+   }
+ 
+diff --git a/packages/protocol/src/http.ts b/packages/protocol/src/http.ts
+index 66d30f1e..9a8a82bf 100644
+--- a/packages/protocol/src/http.ts
++++ b/packages/protocol/src/http.ts
+@@ -105,6 +105,8 @@ export const Session = Type.Object(
+     running: Type.Boolean(),
+     /** 派生的运行状态（等待审批、等待确认、暂停、中断等）。 */
+     activity: SessionActivity,
++    /** 该根 Session 派发的 Subagent 或 Teammate 中有 running 的（父 Run 结束后仍可为 true；Background Job 不算）；缺省为 false。 */
++    agentsRunning: Type.Optional(Type.Boolean()),
+     /** 子 Session（子代理）的父 Session；子 Session 不在 GET /api/sessions 的列表中。 */
+     parentSessionId: Type.Optional(Id),
+     /** 创建时绑定的 worktree（ADR 0016）；工作目录在 Session 的生命周期内不变。 */
+diff --git a/packages/protocol/src/ws.ts b/packages/protocol/src/ws.ts
+index 760c0108..f8e443c7 100644
+--- a/packages/protocol/src/ws.ts
++++ b/packages/protocol/src/ws.ts
+@@ -151,5 +151,13 @@ export const StreamErrorMessage = Type.Object(
+ )
+ 
+ export const SessionTitleMessage = Type.Object({ type: Type.Literal('session_title'), sessionId: Type.String(), title: Type.String() }, strict)
+-export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage, SessionTitleMessage])
++/**
++ * 根 Session 的运行状态变化，发给所有连接（与 session_title 相同，不需要订阅）：running 为该 Session 有 Run 在进行；agentsRunning 为它
++ * 派发的 Subagent 或 Teammate 中有 running 的（父 Run 结束后仍可为 true）。Background Job 不参与。只在值变化时发送。
++ */
++export const SessionStatusMessage = Type.Object(
++  { type: Type.Literal('session_status'), sessionId: Type.String(), running: Type.Boolean(), agentsRunning: Type.Boolean() },
++  strict,
++)
++export const ServerMessage = Type.Union([SubscribedMessage, EntryMessage, ProgressMessage, StreamErrorMessage, SessionTitleMessage, SessionStatusMessage])
+ export type ServerMessage = Static<typeof ServerMessage>
