@@ -66,4 +66,4 @@ Goal 用量对每个 Run 优先采用带 requestId 的请求事实，按身份�
 
 ## 交付状态
 
-七张实施票及评审修复已完成并提交到本地集成分支。验证和限制见[联合验收](evidence/07-integrated-acceptance.md)、[评审修复](evidence/final-review-fixes.md)与[最终评审](evidence/final-review.md)。本状态不表示已推送、合入 main 或发布；托管实施 worktree 的归档受应用活动任务保护阻止，检出与提交均保留。
+七张实施票及评审修复已完成并提交到本地集成分支。验证和限制见[联合验收](evidence/07-integrated-acceptance.md)、[评审修复](evidence/final-review-fixes.md)与[最终评审](evidence/final-review.md)。用户随后明确要求合并与清理，现已快进合入本地 main；未推送或发布。托管实施 worktree 的归档仍受应用活动任务保护阻止，当前集成检出另受本聊天主检出保护，检出与提交均保留。
