@@ -2,7 +2,7 @@
 kind: design
 description: "会话运行状态广播的设计：根 Session 的 running 与 agentsRunning 怎样计算、在哪些进度之后重算并去重广播给所有连接，renderer 怎样写入列表并避免被较旧的快照覆盖。"
 lifecycle: active
-status: approved
+status: delivered
 ---
 
 # 会话运行状态广播
@@ -144,4 +144,8 @@ sequenceDiagram
 
 无待决问题。
 
-产品语义来自 spec 的 RUN-01 与 RUN-05，用户已两轮确认。2026-11-04，用户确认拆成 9 张实施票：本设计由 02 实现，renderer 改用修订号写法。本文的触发事件、去重、DTO 可选字段和 renderer 的修订号写入，都是这一确认范围内可逆的实现选择，因此本设计为 `approved`。
+产品语义来自 spec 的 RUN-01 与 RUN-05，用户已两轮确认。2026-11-04，用户确认拆成 9 张实施票：本设计由 02 实现，renderer 改用修订号写法。本文的触发事件、去重、DTO 可选字段和 renderer 的修订号写入，都是这一确认范围内可逆的实现选择，因此本设计在确认时为 `approved`，当前交付状态见下节。
+
+## 交付记录
+
+2026-11-04 已本地交付本设计，实施与检查见 [02](issues/02-session-status-broadcast.md)，最终组合复核见 [09](issues/09-integrated-acceptance.md) 与 [spec 的联合验收记录](spec.md#联合验收与交付记录)。真实 Sidecar 验证未订阅连接、根 Run、后台子代理等待审批与取消、Teammate idle/rearm、Background Job 排除及重启；renderer 验证广播与快照/DTO 交错，最终 Electron 与静默 CDP 验证未打开会话的侧栏指示。不把本地实现表述为已推送、主分支合并或发布。

@@ -1,7 +1,7 @@
 ---
 kind: spec
 description: "对话状态栏、标题栏、Session 下载与侧栏“执行中”指示规格：输入框底部的会话统计与 Token 用量及详情卡，标题行与“对话”tab、标题栏三项移除与“更多”菜单，Session JSONL 下载，以及“执行中”的定义、转圈指示与实时广播。"
-status: approved
+status: delivered
 lifecycle: active
 ---
 
@@ -13,7 +13,7 @@ Status: ready-for-agent
 
 本规格按 `to-spec` 汇总 2026-11-04 本会话经 `grill-me` 两轮确认的需求。第一轮 Q1—Q11 中，用户修改两项，其余采用推荐：Q9 改为父 Run 结束后后台 Subagent 或 Teammate 仍在运行时也显示“执行中”；Q11 改为需要创建 spec、不修改视觉稿（视觉稿为 `docs/ui/` 下的 `.pen` 文件）。第二轮 Q12 改为 Background Job 不算“执行中”；Q13（测试接缝）与 Q14（spec 和 design 的位置、不拆实施票、写完直接实现）采用推荐。产品需求因此为 `approved`。`to-spec` 第 2 步要求核对的测试接缝即 Q13 的确认结果，本次不再重复询问。
 
-Q14 原定写完 spec 后直接实现、不拆实施票。开始实现之后，用户叫停：“不要修改代码，我还要生成工单”，随后调用 `to-tickets`，要求撤回已经写好的代码。2026-11-04，用户回复“确认”，确认 9 张实施票及其阻塞关系，取代了 Q14 中“不拆实施票”的结论；票的清单见下文“交付方式”。撤回前写的草稿保存在 [session-status-broadcast.patch](reference/session-status-broadcast.patch)，只通过了类型检查，没有测试。当前实施状态为 **未实施**；实施进度与证据记入各票的 Comments 和本文。
+Q14 原定写完 spec 后直接实现、不拆实施票。开始实现之后，用户叫停：“不要修改代码，我还要生成工单”，随后调用 `to-tickets`，要求撤回已经写好的代码。2026-11-04，用户回复“确认”，确认 9 张实施票及其阻塞关系，取代了 Q14 中“不拆实施票”的结论；票的清单见下文“交付方式”。撤回前写的草稿保存在 [session-status-broadcast.patch](reference/session-status-broadcast.patch)，当时只通过了类型检查，没有测试。2026-11-04 用户调用 `implement-spec` 后，9 票现已本地实施并完成联合验收，证据与原生层未验证范围见文末；尚未推送、合入主分支或发布。
 
 本功能使用独立 tracker 目录。界面布局与交互参考 DeepSeek Harness，视觉使用 Coko 的字体、语义 token、图标和共享浮层组件；视觉稿 [双栏布局.pen](../../docs/ui/双栏布局.pen) 本次不修改。既有约束见[术语表](../../GLOSSARY.md)、[界面约定](../../docs/tech-stack/ui.md)、[设计系统规格](../../docs/tech-stack/ui-design-system.md)、[测试约定](../../docs/tech-stack/testing.md)、[tracker 协议](../../docs/agents/issue-tracker.md)和[开发流程](../../docs/DEVELOPMENT_WORKFLOW.md)。
 
@@ -148,6 +148,7 @@ Q14 原定写完 spec 后直接实现、不拆实施票。开始实现之后，�
 - **连接状态只给读屏器。** 连接状态组件改为视觉隐藏的播报区域，保留 status 角色和表示连接状态的 data 属性，现有 e2e 的就绪等待不用改；可见的圆点和文字去掉。
 - **标题栏的组成与样式。** 标题行与 tab 行由同一个标题栏组件组成；交互控件按共享规则退出窗口拖拽区。标题字体使用 Coko 现有的 body-lg 与中等字重档位，tab 使用现有的 body 字号与 link 色，不新增全局 token。
 - **（工程决定）图标按钮支持单独的 Tooltip。** “打开侧边栏”的 Tooltip 与可访问名称文字不同，共享的图标按钮因此支持单独传入 Tooltip 文字，缺省时与可访问名称相同。
+- **（联合验收中的工程决定）窄主区的导航控制条重排。** 主区不宽于 560px 且侧栏收起时，把同一份展开侧栏、后退、前进和新对话控制条放到 tab 行左侧，“对话”tab 随后；标题行仍高 48px，保留原生安全区与四个状态按钮、“更多”、打开侧边栏的顺序和命中区。不隐藏操作、不新增第三行，也不改变新对话页或全局 token。真实 Electron 曾在全部状态入口出现时裁掉行尾操作，聚焦后又把主区横向滚动 70px；局部 CSS 重排消除了这一缺陷。
 
 ### 会话状态广播（跨进程）
 
@@ -253,3 +254,43 @@ Q14 原定写完 spec 后直接实现、不拆实施票。开始实现之后，�
 - [09 联合验收与交付核对](issues/09-integrated-acceptance.md)
 
 用户显式启动实施流程之后，各票分别实施，验证证据记入各票的 Comments。09 做联合验收，并把整体交付状态记入本文。长期有效的结论提炼到所属的正式文档。
+
+## 联合验收与交付记录
+
+2026-11-04：01—08 的能力已逐项核对，09 在集成基线 `b02c800b` 上完成组合验收；09 的代码与测试提交为 `c2443fcb`。这次交付是本地分支交付，没有推送、合入主分支或发布。两轴评审在 `implement-spec` 的集成步骤中另行完成，不以这些测试代替评审。
+
+### 场景与证据
+
+| 场景 | 已核对的证据与结果 |
+| --- | --- |
+| AC-01、04、06 | 真实 App 状态栏 Browser 覆盖 22px 空行、4px/22px/4px 几何、归档/移除 worktree/审批/确认卡切换且同一状态行不重挂载；最终 Electron 的显式 faux 分桶报告得到 250 tok，轮步与独立 Trace 请求事实一致，重载后读数不变。 |
+| AC-02、03 | 统计纯函数与用量 Browser/协议 E2E 覆盖多 Run、重试、辅助请求、缺失/零值、TTFT/TPS、工具审批等待、子 Session 排除与持久化读回；结果见 07、08 的 Comments。最终联合测试使用真实 Job、具名子代理和 Schedule，辅助通知产生的实际主循环请求同样计入步数。 |
+| AC-05 | 两卡直接切换、外点与 Escape、边缘避让与焦点返回均已验证。09 的 Browser 回归曾在“统计→Token→Escape”时失败，焦点错误地回到统计；关闭卡片不再从另一张已打开卡片抢焦点，修复后 Browser 与静默 CDP 均回到 Token 胶囊。 |
+| AC-07、08、10 | 48px 标题、单一选中 tab、三项移除、隐藏连接播报与新对话就绪信号、四个状态入口的顺序、独立 Tooltip、右栏关闭后的焦点已核对。所有状态入口同时存在时的 390px 检查覆盖原生安全区与控件命中区。 |
+| AC-09 | `/handoff` 的真实 Electron 场景通过；真实 App 的完成/失败/重试/历史补发测试通过，历史补发不切换 Session 或重新弹失败 Toast。 |
+| AC-11、12 | 最终 Electron 下载测试通过：JSONL 文件名、header、子 Session、脱敏，以及 Trace 的同内容 NDJSON；Browser 验证同 Session 共用导出锁、失败 Toast 和键盘菜单。静默 agent-browser 另下载一份真实 JSONL，包含 26 条 Entry、2 个 Session。原生保存框的视觉行为未验证，见下文范围。 |
+| AC-13、14、17 | 最终 Electron 的未打开 Session 场景通过；真实 Sidecar 覆盖根 Run、后台审批/取消、Teammate idle/rearm、Background Job 排除与重启；store 覆盖广播与快照/DTO 交错。静默 CDP 另检查后台转圈、项目收起聚合与取消清除。 |
+| AC-15、16 | 真实 App Browser 与静默 CDP 覆盖 Session/项目的 hover 替换，Browser 另覆盖键盘、菜单保持、减少动态效果、置顶与排序。 |
+| AC-18 | 最终 Electron 对 zh/en × light/dark 的四种组合均在 390 CSS px 核对卡片、菜单、焦点、10 个标题栏操作的真实边界及无主区横向偏移；静默 CDP 另检查 1280px、390px、明暗主题、中文与英文。 |
+
+### 最终检查
+
+以下命令均退出 0。选择最小相关集，不将局部通过描述为全仓通过；01—08 中未受 09 的局部 UI 修复影响的服务端与协议证据继续有效。
+
+- `pnpm run test apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-activity.browser.test.tsx packages/ui/src/guards/style-guard.test.ts`：5 文件、88 项通过。
+- `COKO_E2E_SCREENSHOT_DIR=/Users/chenzheng/Documents/Codex/2026-11-04/conversation-status-header pnpm run test apps/desktop/e2e/conversation-status-header.e2e.test.ts apps/desktop/e2e/session-download.e2e.test.ts apps/desktop/e2e/session-status.e2e.test.ts apps/desktop/e2e/handoff.e2e.test.ts`：4 文件、4 项真实 Electron 测试通过，globalSetup 构建本次应用。整理测试诊断和几何断言后，同环境单独复跑 `apps/desktop/e2e/conversation-status-header.e2e.test.ts`：1 项通过。
+- 修复前的组合相关集：`pnpm run test apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx apps/desktop/src/renderer/features/sidebar/sidebar-activity.browser.test.tsx apps/desktop/src/renderer/features/conversation/session-statistics.test.ts apps/desktop/src/renderer/stores/chat-store.test.ts apps/server/src/application/hub.test.ts tests/integration/sidecar-session-status.test.ts tests/integration/secrets-gate-trace.test.ts packages/ui/src/guards/style-guard.test.ts`：10 文件、125 项通过。09 后续只改 UI 与组合测试，因此其中 store、Hub、Sidecar、Secret 与统计纯函数证据仍有效；UI/样式由上述 88 项及最终 Electron 重新验证。
+- `pnpm run typecheck` 通过；上述 4 个变更 TS/TSX 文件的 `pnpm exec oxlint`、5 个变更源码/测试/CSS 文件的 `pnpm run format` 与 `git diff --check` 通过。提交 hook 同样运行格式与 lint，未跳过。
+- `pnpm run check:docs`：319 个 Markdown、0 问题。已从 AGENTS → docs/README 回读 projects、workbench、goal、handoff、tracing、protocol，以及相关导航；行为、事实归属、引用方向、生命周期与当前入口一致。新增窄标题栏事实归 workbench，正式文档不依赖本任务。
+
+09 发现并修复两处组合缺陷：一是上述切卡后焦点；二是全状态标题栏在 390px 裁掉行尾操作，聚焦又让 `overflow: hidden` 的主区横向偏移 70px。后者的 Electron 回归在修复前明确失败（期望 0、实际 70），修复后为 0；将同一份导航控制条移到 tab 行的局部重排没有缩小命中区、隐藏操作或修改全局 token。
+
+### 静默 Electron 与产物
+
+agent-browser 会话为 `status09-998311604c41`，应用通过以下实际入口启动：`COKO_E2E_BACKGROUND=1 COKO_USER_DATA_DIR=/var/folders/fm/kpyn8kps2132fdlzztk20vsm0000gr/T/coko-status09-visual-CsvEA5/user-data COKO_HOME=/var/folders/fm/kpyn8kps2132fdlzztk20vsm0000gr/T/coko-status09-visual-CsvEA5/coko-home COKO_CHATS_ROOT=/var/folders/fm/kpyn8kps2132fdlzztk20vsm0000gr/T/coko-status09-visual-CsvEA5/chats COKO_FAUX_SCRIPT=/var/folders/fm/kpyn8kps2132fdlzztk20vsm0000gr/T/coko-status09-visual-CsvEA5/faux.json pnpm --filter @coko/desktop exec electron-forge start -- --remote-debugging-port=9222`。前置取消 `ELECTRON_RUN_AS_NODE`；使用独立用户数据和 Coko 目录，没有读写真实用户配置。
+
+`agent-browser --session status09-998311604c41 connect 9222` 后执行 snapshot、hover、click、press、390/1280 viewport、screenshot；`download @e103 /Users/chenzheng/Documents/Codex/2026-11-04/conversation-status-header/coko-session-86f65d88-6394-41b8-87cb-b804aeef3490.jsonl` 实际写出文件并读回 header、Entry 数和 Session 数。菜单打开、两卡位置、切换后的焦点、后台与项目指示及 hover 隐藏均在静默 CDP 中观察。此处的下载由 CDP 指定保存路径，没有据此宣称观察到默认原生保存框。
+
+产物位于 `/Users/chenzheng/Documents/Codex/2026-11-04/conversation-status-header/`：`en-light-390-statistics.png`、`en-light-390-tokens.png`、`zh-dark-390-tokens.png`、`zh-dark-390-menu.png`、后台 Session 与项目的宽屏截图，四种 zh/en × light/dark 的 `*-390-electron.png` 和 `*-geometry.json`，以及上述 JSONL 与合成的 `faux-visual.json`。截图已读回检查。
+
+已关闭 agent-browser 会话与 Forge 应用，并确认本次捕获的 Electron `25423`、Sidecar `25495`、renderer `25504` 及 Forge 祖先进程退出，9222 不再监听。只清理本次实例，没有结束其他应用。真实 OS 指针、红绿灯、原生标题栏/材质和保存框、真实模型、CI 与发布/签名产物未验证；未运行全仓测试，也未推送或发布。
