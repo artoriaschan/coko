@@ -2,7 +2,7 @@
 // 开始的 Run（含用户提交的），以及该 Goal 的 Goal Round。轮次 = Goal Round 数；工具调用 = 这些 Run 的 toolResult 数（工具调用上限拦下的错误
 // 结果除外，按 details.hostBlock 识别）；新 Run 以带 requestId 的 model_request 计 Token / 费用并去重，旧 Run 回退到 assistant / compaction / handoff usage；
 // 时间 = 各 Run run_end.createdAt − run_start.createdAt 之和（进行中的 Run 计到 now）。handoff 条目的 usage 与 compaction 相同，计入其 Run。子 Session 的 Run 按触发它的根 Run 归属（goalChildRuns），不计轮次。
-import type { ModelRequestPayload } from '../session-entries/observability.ts'
+import { aggregateUsageByRun } from '../entries/usage.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalPayload } from '../session-entries/goals.ts'
 import { goalRounds, isTerminalPhase, type GoalUsageSnapshot } from './state.ts'
@@ -14,11 +14,6 @@ export interface BudgetEntry extends EntryLike {
 
 /** 五维全部派生的用量。 */
 export type GoalUsageTotals = Required<GoalUsageSnapshot>
-
-type UsageLike = { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } }
-
-const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
-const tokensOf = (usage: UsageLike) => num(usage.input) + num(usage.output) + num(usage.cacheRead) + num(usage.cacheWrite)
 
 /** 按时间线判定属于该 Goal 的 Run：run_start 时 Goal 已存在且处于非终态、非 paused，或该 Run 是这个 Goal 的 Goal Round。 */
 export function goalRunIds(entries: readonly EntryLike[], goalId: string): Set<string> {
@@ -40,25 +35,17 @@ export function goalRunIds(entries: readonly EntryLike[], goalId: string): Set<s
 /** 一组 Run 的工具调用、Token、费用与时间；runs 省略时计入全部 Run（子 Session）。 */
 function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | undefined, now: number): Omit<GoalUsageTotals, 'rounds'> {
   const totals = { toolCalls: 0, tokens: 0, cost: 0, durationMs: 0 }
+  const usage = aggregateUsageByRun(entries, { includeTitle: false })
+  for (const [runId, summary] of usage.byRun) {
+    if (runs !== undefined && !runs.has(runId)) continue
+    totals.tokens += summary.totals.input + summary.totals.output + summary.totals.cacheRead + summary.totals.cacheWrite
+    totals.cost += summary.cost.total
+  }
   const started = new Map<string, number>()
-  const canonicalRuns = new Set(
-    entries.filter((entry) => entry.kind === 'model_request' && (entry.payload as ModelRequestPayload).requestId).map((entry) => entry.runId),
-  )
-  const seenRequests = new Set<string>()
   const member = (runId: string | null | undefined): runId is string => !!runId && (runs === undefined || runs.has(runId))
   for (const entry of entries) {
     if (!member(entry.runId)) continue
     const runId = entry.runId
-    if (entry.kind === 'model_request' && canonicalRuns.has(runId)) {
-      const request = entry.payload as ModelRequestPayload
-      if (request.purpose === 'title') continue
-      const identity = request.requestId ?? `legacy:${entry.seq}`
-      if (seenRequests.has(identity)) continue
-      seenRequests.add(identity)
-      totals.tokens += tokensOf(request.usage)
-      totals.cost += num(request.cost)
-      continue
-    }
     switch (entry.kind) {
       case 'run_start':
         started.set(runId, entry.createdAt)
@@ -69,24 +56,9 @@ function runTotals(entries: readonly BudgetEntry[], runs: ReadonlySet<string> | 
         started.delete(runId)
         break
       }
-      // 摘要请求的 usage：压缩与交接（trigger handoff 的 Run 不提交消息，只在 handoff 条目上记 usage）。
-      case 'compaction':
-      case 'handoff':
-      case 'handoff_failed': {
-        if (canonicalRuns.has(runId)) break
-        const usage = (entry.payload as { usage?: UsageLike }).usage
-        if (usage) {
-          totals.tokens += tokensOf(usage)
-          totals.cost += num(usage.cost?.total)
-        }
-        break
-      }
       case 'message': {
-        const message = entry.payload as { role?: string; usage?: UsageLike; details?: unknown }
-        if (message.role === 'assistant' && message.usage && !canonicalRuns.has(runId)) {
-          totals.tokens += tokensOf(message.usage)
-          totals.cost += num(message.usage.cost?.total)
-        } else if (message.role === 'toolResult' && !isBudgetBlocked(message)) totals.toolCalls++
+        const message = entry.payload as { role?: string; details?: unknown }
+        if (message.role === 'toolResult' && !isBudgetBlocked(message)) totals.toolCalls++
         break
       }
     }

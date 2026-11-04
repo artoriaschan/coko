@@ -254,6 +254,8 @@ export const en: typeof zh = {
     copyMessage: 'Copy message',
     messageCopied: 'Copied message',
     copyMessageFailed: 'Could not copy the message',
+    clockMonthDay: '{month}/{day}',
+    clockYearMonthDay: '{year}-{month}-{day}',
     retrying: 'Model request failed, retrying ({attempt}/{max})',
     stopped: 'Stopped',
     pause: 'Pause',

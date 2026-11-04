@@ -144,6 +144,18 @@ it('message bubbles and actions use the reference geometry and copy original use
   await expect.element(page.getByRole('button', { name: 'Copied message', exact: true })).toBeVisible()
   await userEvent.click(page.getByRole('article', { name: 'Coko', exact: true }).getByRole('button', { name: 'Copy message' }))
   expect(write).toHaveBeenLastCalledWith(answer)
+  for (const footer of document.querySelectorAll<HTMLElement>('[data-slot="user-message-footer"], [data-slot="assistant-footer"]')) {
+    const action = footer.querySelector<HTMLElement>('[data-action="copy-message"]')!
+    const box = action.getBoundingClientRect()
+    expect([box.width, box.height]).toEqual([22, 22])
+    const icon = action.querySelector('svg')!
+    expect([getComputedStyle(icon).width, getComputedStyle(icon).height]).toEqual(['14px', '14px'])
+    expect(Number.parseFloat(getComputedStyle(icon).strokeWidth)).toBe(1)
+    expect(getComputedStyle(footer).margin).toBe('4px')
+    expect(getComputedStyle(footer).userSelect).toBe('none')
+    expect(getComputedStyle(footer).columnGap).toBe('8px')
+    expect(getComputedStyle(footer.querySelector('time')!).fontSize).toBe('12px')
+  }
 })
 
 it.each([
@@ -269,21 +281,32 @@ it('phase replies stay visible while the assistant action footer belongs to the 
   expect(document.querySelectorAll('[data-slot="assistant-message-actions"]')).toHaveLength(1)
 })
 
-it('user footer keeps submitted time visible while copy and rewind reveal on keyboard focus, without a user fork', async () => {
-  const submitted = new Date(2026, 10, 3, 23, 7, 41).getTime()
-  const fixture = await open([{ ...record(1, { role: 'user', content: 'Original **input**', timestamp: submitted - 1000 }), createdAt: submitted }])
-  const article = page.getByRole('article', { name: 'You', exact: true })
-  await expect.element(article.getByText('23:07', { exact: true })).toBeVisible()
-  const time = article.element().querySelector('time')!
+it('user footer reveals copy and rewind on hover or keyboard focus while the latest user message keeps them visible', async () => {
+  const today = new Date()
+  const submitted = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 7, 41).getTime()
+  const earlierSent = submitted - 60_000
+  const fixture = await open([
+    { ...record(1, { role: 'user', content: 'Earlier **input**', timestamp: earlierSent }), createdAt: earlierSent },
+    { ...record(2, { role: 'user', content: 'Original **input**', timestamp: submitted }), createdAt: submitted },
+  ])
+  await expect.poll(() => document.querySelectorAll('[data-slot="user-message"]').length).toBe(2)
+  const articles = [...document.querySelectorAll<HTMLElement>('[data-slot="user-message"]')]
+  const earlier = articles[0]!
+  const latest = articles[1]!
+  const footer = (article: HTMLElement) => article.querySelector<HTMLElement>('[data-slot="user-message-footer"]')!
+  const time = latest.querySelector('time')!
+  await expect.element(page.getByText('23:07', { exact: true })).toBeVisible()
   expect(time.dateTime).toBe(new Date(submitted).toISOString())
   expect(time.getAttribute('aria-label')).toContain('41')
-  expect(article.element().querySelector('[data-action="fork"]')).toBeNull()
+  expect(latest.querySelector('[data-action="fork"]')).toBeNull()
   await userEvent.hover(page.getByRole('heading', { level: 1 }))
-  const actions = article.element().querySelector<HTMLElement>('[data-slot="message-actions"]')!
-  await expect.poll(() => getComputedStyle(actions).opacity).toBe('0')
-  expect(getComputedStyle(time).opacity).toBe('1')
+  await expect.poll(() => getComputedStyle(footer(earlier)).opacity).toBe('0')
+  expect(footer(latest).getAttribute('data-latest')).toBe('true')
+  expect(getComputedStyle(footer(latest)).opacity).toBe('1')
+  expect(footer(latest).contains(time)).toBe(true)
+  await userEvent.hover(earlier)
+  await expect.poll(() => getComputedStyle(footer(earlier)).opacity).toBe('1')
   time.focus()
-  await expect.poll(() => getComputedStyle(actions).opacity).toBe('1')
   await userEvent.keyboard('{Tab}')
   expect(document.activeElement?.getAttribute('data-action')).toBe('copy-message')
   await userEvent.keyboard('{Tab}')
@@ -292,7 +315,7 @@ it('user footer keeps submitted time visible while copy and rewind reveal on key
   await expect.element(page.getByRole('dialog')).toBeVisible()
   await userEvent.keyboard('{Escape}')
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  expect(fixture.chat.getState().conversations['s-1']?.entries).toHaveLength(1)
+  expect(fixture.chat.getState().conversations['s-1']?.entries).toHaveLength(2)
   expect(time.dateTime).toBe(new Date(submitted).toISOString())
 })
 

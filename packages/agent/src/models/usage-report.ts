@@ -35,8 +35,8 @@ function observer(api: string) {
           return
         saw = true
         put('input', usage.input_tokens)
-        put('cacheRead', usage.cache_read_input_tokens === undefined ? 0 : usage.cache_read_input_tokens)
-        put('cacheWrite', usage.cache_creation_input_tokens === undefined ? 0 : usage.cache_creation_input_tokens)
+        if (usage.cache_read_input_tokens !== undefined) put('cacheRead', usage.cache_read_input_tokens)
+        if (usage.cache_creation_input_tokens !== undefined) put('cacheWrite', usage.cache_creation_input_tokens)
       }
       if (event.type === 'message_delta') {
         for (const [key, field] of [
@@ -78,18 +78,20 @@ function observer(api: string) {
       saw = true
       const rawRead = details.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.cached_tokens
       const rawWrite = details.cache_write_tokens
-      const read = rawRead === undefined ? (values.cacheRead ?? 0) : count(rawRead)
-      const write = rawWrite === undefined ? (values.cacheWrite ?? 0) : count(rawWrite)
+      const read = rawRead === undefined ? values.cacheRead : count(rawRead)
+      const write = rawWrite === undefined ? values.cacheWrite : count(rawWrite)
       const rawInput = responses ? usage.input_tokens : usage.prompt_tokens
       const rawOutput = responses ? usage.output_tokens : usage.completion_tokens
       const input = count(rawInput)
       if (input !== undefined) inputTotal = input
       if ((rawRead !== undefined && read === undefined) || (rawWrite !== undefined && write === undefined)) invalid = true
-      put('cacheRead', read)
-      put('cacheWrite', write)
+      // 未报告的缓存桶保持未知，不写成实测零；拆分输入时把缺失的缓存按 0 处理。
+      if (read !== undefined) put('cacheRead', read)
+      if (write !== undefined) put('cacheWrite', write)
       if (rawInput !== undefined && input === undefined) invalid = true
-      if (inputTotal !== undefined && read !== undefined && write !== undefined) {
-        if (inputTotal >= read + write) put('input', inputTotal - read - write)
+      if (inputTotal !== undefined) {
+        const cached = (read ?? 0) + (write ?? 0)
+        if (inputTotal >= cached) put('input', inputTotal - cached)
         else invalid = true
       }
       if (rawOutput !== undefined) put('output', rawOutput)
@@ -102,8 +104,16 @@ function observer(api: string) {
     ingest,
     apply(message: AssistantMessage, model: Parameters<ProviderStreams['stream']>[0]) {
       const known = buckets.filter((key) => values[key] !== undefined)
+      // 缓存桶是可选项：未报告不影响本轮是否完整，只是不展示该行。
       const report: UsageReport = {
-        complete: saw && finished && !invalid && known.length === 4 && message.stopReason !== 'error' && message.stopReason !== 'aborted',
+        complete:
+          saw &&
+          finished &&
+          !invalid &&
+          known.includes('input') &&
+          known.includes('output') &&
+          message.stopReason !== 'error' &&
+          message.stopReason !== 'aborted',
         known,
       }
       const usage: Usage & { report: UsageReport } = {

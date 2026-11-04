@@ -20,7 +20,15 @@ export function MessageAction({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="toolbar" size="icon-sm" aria-label={label} data-action={action} disabled={disabled} onClick={onClick}>
+        <Button
+          variant="toolbar"
+          size="icon-sm"
+          aria-label={label}
+          data-action={action}
+          disabled={disabled}
+          onClick={onClick}
+          className="size-[22px] rounded-sm p-0 [&_svg]:stroke-[1]"
+        >
           {children}
         </Button>
       </TooltipTrigger>

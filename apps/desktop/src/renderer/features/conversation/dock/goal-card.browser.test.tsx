@@ -463,8 +463,8 @@ it('助手底栏不显示费用；Session 费用保留定价状态、累计与�
   ]
   await expect.poll(() => rows().map((r) => r.getAttribute('data-tokens'))).toEqual(['130', '1210'])
   for (const row of rows()) {
-    expect(row.textContent).toContain('tokens')
-    expect(row.textContent).toContain('Incomplete')
+    expect(row.textContent).toContain('tok')
+    expect(row.getAttribute('data-complete')).toBe('false')
     expect(row.textContent).not.toMatch(/\$|Unpriced/)
   }
   const cost = page.getByRole('button', { name: 'Session cost: $0.0124 (partly Unpriced)' })

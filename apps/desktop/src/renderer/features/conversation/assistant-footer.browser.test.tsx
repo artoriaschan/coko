@@ -104,9 +104,9 @@ it('actual App waits for Run end, attaches one footer to the final reply and cop
 
 it('usage popover shows exact exclusive buckets, provenance and reported reasoning without fees, and restores focus', async () => {
   await open([record(1, 'run_start', { trigger: 'submit' }), answer(2, ['Done']), metered(3), record(4, 'run_end', { status: 'completed' })])
-  const trigger = page.getByRole('button', { name: 'Usage for this run', exact: true })
+  const trigger = document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!
   await userEvent.click(trigger)
-  const card = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
   await expect.element(card).toBeVisible()
   const detail = card.element()
   expect(detail.querySelector('[data-usage-part="total"]')?.textContent).toContain('1,300')
@@ -121,10 +121,18 @@ it('usage popover shows exact exclusive buckets, provenance and reported reasoni
   expect(detail.textContent).toContain('configured-provider')
   expect(detail.textContent).toContain('model-with-a-long-name')
   expect(detail.textContent).toContain('27.3%')
+  expect([...detail.querySelectorAll('[data-turn-usage-details] dt')].map((node) => node.textContent)).toEqual([
+    'Provider / model',
+    'Cache hit',
+    'Uncached input',
+    'Cached input',
+    'Cache write',
+    'Output',
+  ])
   expect(detail.textContent).not.toMatch(/\$|Cost|Unpriced/)
   await userEvent.keyboard('{Escape}')
   await expect.element(card).not.toBeInTheDocument()
-  expect(document.activeElement).toBe(trigger.element())
+  expect(document.activeElement).toBe(trigger)
   await userEvent.click(trigger)
   await expect.element(card).toBeVisible()
   await userEvent.click(trigger)
@@ -132,10 +140,10 @@ it('usage popover shows exact exclusive buckets, provenance and reported reasoni
   await userEvent.click(trigger)
   await page.getByRole('heading', { level: 1 }).click()
   await expect.element(card).not.toBeInTheDocument()
-  expect(document.activeElement).toBe(trigger.element())
+  expect(document.activeElement).toBe(trigger)
 })
 
-it('historical controls reveal for hover or focus, stay visible while the portaled card is open, and keep time visible', async () => {
+it('historical footers reveal as a whole for hover or focus, stay visible while the portaled card is open, and include the time', async () => {
   await open([
     record(1, 'run_start', { trigger: 'submit' }),
     answer(2, ['Earlier answer']),
@@ -146,23 +154,23 @@ it('historical controls reveal for hover or focus, stay visible while the portal
     metered(7, 'r2'),
     record(8, 'run_end', { status: 'completed' }, 'r2'),
   ])
-  const prior = document.querySelector('[data-slot="assistant-footer"][data-run-id="r1"]')!
-  const current = document.querySelector('[data-slot="assistant-footer"][data-run-id="r2"]')!
-  const controls = prior.querySelector('[data-slot="assistant-message-actions"]')!
+  const prior = document.querySelector<HTMLElement>('[data-slot="assistant-footer"][data-run-id="r1"]')!
+  const current = document.querySelector<HTMLElement>('[data-slot="assistant-footer"][data-run-id="r2"]')!
+  const controls = prior.querySelector<HTMLElement>('[data-slot="assistant-message-actions"]')!
   await page.getByRole('heading', { level: 1 }).hover()
-  await expect.poll(() => getComputedStyle(controls).opacity).toBe('0')
-  expect(getComputedStyle(prior.querySelector('time')!).opacity).toBe('1')
-  expect(getComputedStyle(current.querySelector('[data-slot="assistant-message-actions"]')!).opacity).toBe('1')
+  await expect.poll(() => getComputedStyle(prior).opacity).toBe('0')
+  expect(prior.contains(prior.querySelector('time'))).toBe(true)
+  expect(getComputedStyle(current).opacity).toBe('1')
   await page.getByRole('article', { name: 'Coko', exact: true }).first().hover()
-  await expect.poll(() => getComputedStyle(controls).opacity).toBe('1')
-  const trigger = page.getByRole('button', { name: 'Usage for this run', exact: true }).first()
+  await expect.poll(() => getComputedStyle(prior).opacity).toBe('1')
+  const trigger = document.querySelectorAll<HTMLButtonElement>('[data-action="run-usage"]')[0]!
   await userEvent.click(trigger)
-  const card = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
   await card.hover()
   expect(getComputedStyle(controls).opacity).toBe('1')
   await userEvent.keyboard('{Escape}')
   await expect.element(card).not.toBeInTheDocument()
-  expect(document.activeElement).toBe(trigger.element())
+  expect(document.activeElement).toBe(trigger)
   expect(getComputedStyle(controls).opacity).toBe('1')
 })
 
@@ -187,19 +195,62 @@ it('partial multi-model usage names its reported subtotal and omits unsupported 
     },
     record(5, 'run_end', { status: 'completed' }),
   ])
-  await page.getByRole('button', { name: 'Usage for this run', exact: true }).click()
-  const card = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  await userEvent.click(document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!)
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
   await expect.element(card).toBeVisible()
   const detail = card.element()
-  expect(detail.querySelector('[data-usage-part="total"]')?.textContent).toBe('Reported subtotal1,309')
+  expect(detail.querySelector('[data-usage-part="total"]')?.textContent).toBe('1,309')
   expect(detail.textContent).toContain('Some requests did not report complete usage')
-  expect(detail.textContent).toContain('Reported providers / models')
-  expect(detail.textContent).toContain('other-provider / other-model')
+  expect(detail.textContent).toContain('Provider / model')
+  expect(detail.textContent).toContain('other-provider/other-model')
   expect(detail.querySelector('[data-usage-part="input"]')?.textContent).toContain('≥ 700')
   expect(detail.querySelector('[data-usage-part="reasoning"]')).toBeNull()
   expect(detail.querySelector('[data-usage-part="cacheHit"]')).toBeNull()
   await userEvent.keyboard('{Escape}')
   await expect.element(card).not.toBeInTheDocument()
+})
+
+it('omits cache rows the provider did not report, even when the usage object carries values', async () => {
+  const request = metered(3)
+  await open([
+    record(1, 'run_start', { trigger: 'submit' }),
+    answer(2, ['Done']),
+    { ...request, payload: { ...(request.payload as Record<string, unknown>), usageReport: { complete: true, known: ['input', 'output'] } } },
+    record(4, 'run_end', { status: 'completed' }),
+  ])
+  const footer = document.querySelector('[data-slot="assistant-footer"]')!
+  expect(footer.getAttribute('data-complete')).toBe('true')
+  await userEvent.click(document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!)
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
+  await expect.element(card).toBeVisible()
+  expect(card.element().querySelector('[data-usage-part="cacheRead"]')).toBeNull()
+  expect(card.element().querySelector('[data-usage-part="cacheWrite"]')).toBeNull()
+  expect(card.element().querySelector('[data-usage-part="cacheHit"]')).toBeNull()
+})
+
+it('hides cache rows whose reported counts are zero', async () => {
+  const request = metered(3)
+  const payload = request.payload as Record<string, unknown>
+  const usage = payload.usage as Record<string, number>
+  await open([
+    record(1, 'run_start', { trigger: 'submit' }),
+    answer(2, ['Done']),
+    {
+      ...request,
+      payload: {
+        ...payload,
+        usage: { ...usage, cacheRead: 0, cacheWrite: 0, total: 900 },
+        usageReport: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+      },
+    },
+    record(4, 'run_end', { status: 'completed' }),
+  ])
+  await userEvent.click(document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!)
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
+  await expect.element(card).toBeVisible()
+  expect(card.element().querySelector('[data-usage-part="cacheRead"]')).toBeNull()
+  expect(card.element().querySelector('[data-usage-part="cacheWrite"]')).toBeNull()
+  expect(card.element().querySelector('[data-usage-part="cacheHit"]')).toBeNull()
 })
 
 it.each([
@@ -213,13 +264,16 @@ it.each([
     { ...request, payload: { ...(request.payload as Record<string, unknown>), reasoning: undefined, usageReport: { complete: false, known } } },
     record(4, 'run_end', { status: 'completed' }),
   ])
-  const trigger = page.getByRole('button', { name: 'Usage for this run', exact: true })
-  expect(trigger.element().textContent).toContain(expected === '—' ? 'Usage unavailable' : '200 tokens')
-  await trigger.click()
-  const card = page.getByRole('dialog', { name: 'Run usage details', exact: true })
+  const trigger = document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!
+  expect(trigger.textContent).toContain(expected === '—' ? 'Usage unavailable' : '200 tok')
+  await userEvent.click(trigger)
+  const card = page.getByRole('dialog', { name: 'Turn usage', exact: true })
   await expect.element(card).toBeVisible()
-  for (const part of ['input', 'cacheRead', 'cacheWrite']) expect(card.element().querySelector(`[data-usage-part="${part}"] dd`)?.textContent).toBe('—')
-  for (const part of ['total', 'output']) expect(card.element().querySelector(`[data-usage-part="${part}"] dd`)?.textContent).toBe(expected)
+  for (const part of ['cacheRead', 'cacheWrite']) expect(card.element().querySelector(`dd[data-usage-part="${part}"]`)).toBeNull()
+  expect(card.element().querySelector('dd[data-usage-part="input"]')?.textContent).toBe('—')
+  expect(card.element().querySelector('[data-usage-part="total"]')?.textContent).toBe(expected)
+  expect(card.element().querySelector('dd[data-usage-part="output"]')?.textContent).toBe(expected)
+  expect(card.element().textContent).toContain('Some requests did not report complete usage')
   await userEvent.keyboard('{Escape}')
   await expect.element(card).not.toBeInTheDocument()
 })
@@ -242,11 +296,11 @@ it.each([
     theme,
     locale,
   )
-  const trigger = page.getByRole('button', { name: locale === 'en' ? 'Usage for this run' : '本次运行用量', exact: true })
-  expect(trigger.element().textContent).toContain('1.3K tokens')
-  trigger.element().focus()
+  const trigger = document.querySelector<HTMLButtonElement>('[data-action="run-usage"]')!
+  expect(trigger.textContent).toContain('1.3K tok')
+  trigger.focus()
   await userEvent.keyboard('{Enter}')
-  const card = page.getByRole('dialog', { name: locale === 'en' ? 'Run usage details' : '本轮用量详情', exact: true })
+  const card = page.getByRole('dialog', { name: locale === 'en' ? 'Turn usage' : '本轮用量', exact: true })
   await expect.element(card).toBeVisible()
   const box = card.element().getBoundingClientRect()
   expect(box.left).toBeGreaterThanOrEqual(0)
@@ -256,9 +310,9 @@ it.each([
 
   await userEvent.keyboard('{Escape}')
   await expect.element(card).not.toBeInTheDocument()
-  expect(document.activeElement).toBe(trigger.element())
+  expect(document.activeElement).toBe(trigger)
   const time = document.querySelector('[data-slot="assistant-footer"] time')!
-  expect(time.textContent).toMatch(/^\d{2}:\d{2}$/)
+  expect(time.textContent).toMatch(/\d{2}:\d{2}$/)
   await userEvent.keyboard('{Tab}')
   expect(document.activeElement).toBe(time)
   expect(time.getAttribute('aria-label')).toContain('45')

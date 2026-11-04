@@ -21,13 +21,17 @@
 }
 
 .conversation-message-actions {
-  height: 28px;
+  height: 22px;
   color: var(--conversation-process-muted, var(--muted-foreground));
+  font-size: var(--text-ui-small);
+  line-height: var(--text-ui-small--line-height);
 }
 
-.conversation-message-actions button svg {
-  width: 15px;
-  height: 15px;
+.conversation-message-actions button svg,
+.conversation-assistant-actions button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1;
 }
 
 .conversation-assistant-message {
@@ -39,18 +43,20 @@
   margin-top: 0;
 }
 
-.conversation-assistant-actions {
-  margin-top: 16px;
-  margin-left: -6px;
-}
-
-.conversation-assistant-actions button svg {
-  width: 17px;
-  height: 17px;
+.conversation-assistant-actions,
+.conversation-user-message [data-slot='user-message-footer'] {
+  margin: 4px;
+  user-select: none;
 }
 
 @media (hover: hover) {
-  :is(.conversation-assistant-message, .conversation-terminal-footer):not(:hover):not(:focus-within) .conversation-footer-controls[data-latest='false'][data-open='false'] {
+  /* 底栏含时间与动作，整体显隐；最新消息常显，历史消息随悬停或焦点进入显示。 */
+  :is(.conversation-assistant-message, .conversation-terminal-footer):not(:hover):not(:focus-within)
+    .conversation-assistant-actions[data-latest='false'][data-open='false'] {
+    opacity: 0;
+  }
+
+  .conversation-user-message:not(:hover):not(:focus-within) [data-slot='user-message-footer'][data-latest='false'] {
     opacity: 0;
   }
 }

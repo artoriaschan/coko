@@ -18,8 +18,9 @@ import { TeamTaskRow } from './team-task-row.tsx'
 import { Markdown } from './markdown.tsx'
 import { MessageTime } from './message-time.tsx'
 import { CopyMessage, MessageAction } from './message-actions.tsx'
-import { AssistantFooter, completedReplyFooters, endedRunFooter } from './assistant-footer.tsx'
+import { AssistantFooter, completedReplyFooters, endedRunFooter, withoutPricing } from './assistant-footer.tsx'
 import { ReasoningRow } from './reasoning-row.tsx'
+import { sumUsageByRun } from './session-cost.tsx'
 import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard } from './plan-card.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -57,9 +58,13 @@ export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
   const messageIdentities = useMessageIdentities(items, props.sessionId)
+  // 一次遍历汇总每个 Run 的用量，避免每个底栏各扫一遍全部条目。
+  const usage = React.useMemo(() => sumUsageByRun(props.entries ?? [], withoutPricing), [props.entries])
   const footers = new Map([...copiedReplyFooters(items, props.entries ?? []), ...completedReplyFooters(items, props.entries ?? [], props.runs)])
   const latestFooterRunId =
     items.findLast((item) => item.kind === 'run-usage')?.runId ?? footers.get(items.findLast((item) => footers.has(item.key))?.key ?? '')?.runId
+  // 被回退区间只读，其末尾消息不是会话的最新输入，不享受常显。
+  const latestUserKey = props.readOnly ? undefined : items.findLast((item) => item.kind === 'user')?.key
   const endingFooters = new Map(
     items.flatMap((item) => {
       if (item.kind !== 'run-usage' || [...footers.values()].some((reply) => reply.runId === item.runId)) return []
@@ -154,14 +159,14 @@ export function TimelineView(props: TimelineViewProps) {
                 ))}
               </ul>
             )}
-            <div data-slot="user-message-footer" className="flex max-w-full items-center gap-2">
+            <div data-slot="user-message-footer" data-latest={item.key === latestUserKey} className="flex max-w-full items-center gap-2 transition-opacity">
               <MessageTime timestamp={item.origin?.createdAt} />
               {(item.text !== '' || actions) && (
                 <div
                   role="group"
                   aria-label={t('conversation.messageActions')}
                   data-slot="message-actions"
-                  className="conversation-message-actions flex items-center gap-2 transition-opacity group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                  className="conversation-message-actions flex items-center gap-2"
                 >
                   {item.text !== '' && <CopyMessage text={item.invocation ?? item.text} />}
                   {actions && onRewind && (
@@ -225,6 +230,7 @@ export function TimelineView(props: TimelineViewProps) {
               <AssistantFooter
                 reply={footers.get(item.key)!}
                 latest={footers.get(item.key)!.runId === latestFooterRunId}
+                totals={usage.byRun.get(footers.get(item.key)!.runId)}
                 branchAction={
                   props.onBranch && !props.readOnly && !props.historical ? (
                     <MessageAction
@@ -300,7 +306,7 @@ export function TimelineView(props: TimelineViewProps) {
         const reply = endingFooters.get(item.key)
         return reply ? (
           <div key={item.key} className="conversation-terminal-footer group min-w-0">
-            <AssistantFooter reply={reply} latest={item.runId === latestFooterRunId} />
+            <AssistantFooter reply={reply} latest={item.runId === latestFooterRunId} totals={usage.byRun.get(reply.runId)} />
           </div>
         ) : null
       }

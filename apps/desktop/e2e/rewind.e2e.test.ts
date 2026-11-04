@@ -68,22 +68,26 @@ const exists = (path: string) =>
 describe('回退与分叉', () => {
   it('悬停用户消息出现回退动作；确认对话框列出文件与 bash 说明；执行后输入区为原消息、时间线折叠、文件恢复', async () => {
     const { app, workspace } = await setup()
+    const first = userMessage(app, 'first change')
     const second = userMessage(app, 'second change')
     const actions = second.locator('[data-slot="message-actions"]')
-    // 未悬停时动作不可见（支持 hover 的窗口），悬停后出现。
+    const footer = second.locator('[data-slot="user-message-footer"]')
+    const earlierFooter = first.locator('[data-slot="user-message-footer"]')
+    // 最新一条用户消息的底栏常显；更早的用户消息在支持 hover 的窗口未悬停时整体隐藏。
     await app.window.mouse.move(0, 0)
-    await expect.poll(() => opacity(actions)).toBe('0')
+    await expect.poll(() => opacity(footer)).toBe('1')
+    await expect.poll(() => opacity(earlierFooter)).toBe('0')
     const cdp = await app.window.context().newCDPSession(app.window)
     try {
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
       await expect.poll(() => app.window.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(false)
-      await expect.poll(() => opacity(actions)).toBe('1')
+      await expect.poll(() => opacity(earlierFooter)).toBe('1')
     } finally {
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false })
       await cdp.detach()
     }
     await second.hover()
-    await expect.poll(() => opacity(actions)).toBe('1')
+    await expect.poll(() => opacity(footer)).toBe('1')
     const clipboardBefore = await app.app.evaluate(({ clipboard }) => clipboard.readText())
     try {
       await actions.locator('[data-action="copy-message"]').click()
@@ -127,8 +131,8 @@ describe('回退与分叉', () => {
     const first = userMessage(app, 'first change')
     await app.window.mouse.move(0, 0)
     await first.focus()
-    const actions = first.locator('[data-slot="message-actions"]')
-    await expect.poll(() => opacity(actions)).toBe('1')
+    const footer = first.locator('[data-slot="user-message-footer"]')
+    await expect.poll(() => opacity(footer)).toBe('1')
     await app.window.keyboard.press('Tab')
     expect(await app.window.evaluate(() => document.activeElement?.tagName)).toBe('TIME')
     await app.window.keyboard.press('Tab')

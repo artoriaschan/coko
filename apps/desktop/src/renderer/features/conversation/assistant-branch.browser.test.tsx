@@ -136,8 +136,8 @@ it('copied history preserves trusted original times and reply actions while sour
   expect(document.querySelector('[data-slot="user-message"] time')?.getAttribute('datetime')).toBe('2026-11-02T09:10:11.000Z')
   const footer = document.querySelector('[data-slot="assistant-footer"]')!
   expect(footer.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-02T09:11:12.000Z')
-  expect(footer.textContent).toContain('1.3K tokens')
-  expect(footer.textContent).not.toContain('Incomplete')
+  expect(footer.textContent).toContain('Usage 1.3K tok')
+  expect(footer.getAttribute('data-complete')).toBe('true')
   expect(document.querySelector('[data-slot="session-cost"]')).toBeNull()
 })
 

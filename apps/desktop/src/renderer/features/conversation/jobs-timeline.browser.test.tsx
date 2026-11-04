@@ -110,7 +110,7 @@ describe('时间线中的后台任务', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open background task npm run dev' }).last())
     expect(jobs.getState().openRequests['s-1']).toBe(2)
 
-    const bubbles = [...screen.container.querySelectorAll('article[aria-label="You"]')].map((a) => a.textContent)
+    const bubbles = [...screen.container.querySelectorAll('article[aria-label="You"]')].map((a) => a.querySelector('[data-slot="user-bubble"]')?.textContent)
     expect(bubbles).toEqual(['start the server', 'what happened?'])
   })
 

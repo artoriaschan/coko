@@ -245,7 +245,7 @@ describe('Goal 卡与用量', { timeout: 240_000 }, () => {
       // Faux numeric fallback has no provider-report evidence; retain fees/budgets below without claiming reported tokens.
       expect(row.tokens).toBe(0)
       expect(row.text).toMatch(/Usage unavailable|未取得用量/)
-      expect(row.text).not.toMatch(/0 tokens/)
+      expect(row.text).not.toMatch(/0 tok/)
     }
     for (const footer of await win.locator('[data-slot="assistant-footer"]').all()) {
       expect(await footer.textContent()).not.toMatch(/\$|Unpriced/)

@@ -75,11 +75,11 @@ Goal Round 中用户照常可以追加指令、停止与回答审批；提交新
 | --- | --- | --- |
 | `rounds` | 该 Goal 的 Goal Round 数（用户提交的 Run 不计） | `maxRounds`，缺省 50 |
 | `tool-calls` | 这些 Run 的 toolResult 数（被拒绝的调用照常计入；工具调用上限拦下的不计，按运行时写入的 `details.hostBlock` 识别，不看结果文本） | `maxToolCalls` |
-| `tokens` | 带 requestId 的请求事实四分桶之和，按请求身份去重；该 Run 无新计量事实时回退到 assistant / compaction / handoff 的旧 usage | `maxTokens` |
+| `tokens` | 带 requestId 的请求事实四分桶之和，按请求身份去重；该 Run 无新计量事实时回退到 assistant / compaction / handoff 的旧 usage；旧来源与请求按四桶签名配对，配不上的 Run 标为不完整但不改变预算数值 | `maxTokens` |
 | `cost` | 同一组请求事实的 `cost`；旧记录回退到 usage.cost.total（不换算货币） | `maxCost` |
 | `time` | 各 Run `run_end.createdAt − run_start.createdAt` 之和（含审批等待，不含 Run 之间；进行中的 Run 计到此刻） | `maxDurationMs`（毫秒） |
 
-同一 Run 有带 `requestId` 的 `model_request` 时，它是 Token 与费用的唯一累计来源，助手消息、成功压缩和交接中的重复 usage 不再另加。失败重试及失败压缩的已知消耗同样计入；无报告不冒充实测零，也不主动估算未知费用。旧记录保持原口径，不补写历史。上下文环仍度量当前模型上下文，不使用累计请求消耗。
+同一 Run 有带 `requestId` 的 `model_request` 时，它是 Token 与费用的唯一累计来源，助手消息、成功压缩和交接中的重复 usage 不再另加。失败重试及失败压缩的已知消耗同样计入；无报告不冒充实测零，也不主动估算未知费用。旧记录保持原口径，不补写历史。预算与消息底栏共用 `@coko/agent/entries` 的同一汇总实现；计数不是安全非负整数、或声明的总量小于分桶和时，该来源不计入。上下文环仍度量当前模型上下文，不使用累计请求消耗。
 
 已用 ≥ 上限即耗尽；多维同时耗尽时按上表顺序取第一个。
 

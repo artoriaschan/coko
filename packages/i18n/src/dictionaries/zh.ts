@@ -251,6 +251,8 @@ export const zh = {
     copyMessage: '复制消息',
     messageCopied: '消息已复制',
     copyMessageFailed: '消息复制失败',
+    clockMonthDay: '{month}月{day}日',
+    clockYearMonthDay: '{year}年{month}月{day}日',
     retrying: '模型请求失败，正在重试（{attempt}/{max}）',
     stopped: '已停止',
     pause: '暂停',

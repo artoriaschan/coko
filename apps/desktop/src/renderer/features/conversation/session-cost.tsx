@@ -1,9 +1,9 @@
-import { RequestUsage, USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider, type SessionEntry, type UsageCurrency } from '@coko/protocol'
+import { aggregateUsage, aggregateUsageByRun, type UsageSummary } from '@coko/agent/entries'
+import { USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider, type SessionEntry, type UsageCurrency } from '@coko/protocol'
 import type { Translator } from '@coko/i18n'
 import { Button, HoverCard, HoverCardContent, HoverCardTrigger } from '@coko/ui'
 import { CoinsIcon } from 'lucide-react'
 import * as React from 'react'
-import { Value } from 'typebox/value'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
@@ -32,22 +32,6 @@ export interface UsageTotals {
   unpriced: number
 }
 
-const EMPTY_TOTALS: UsageTotals = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-  complete: true,
-  hasUsage: false,
-  known: ['input', 'output', 'cacheRead', 'cacheWrite'],
-  reported: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-  requests: 0,
-  models: [],
-  priced: 0,
-  unpriced: 0,
-}
-
 export const totalTokens = (u: Pick<UsageTotals, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>) => u.input + u.output + u.cacheRead + u.cacheWrite
 
 /** 模型是否已定价：目录中有该模型时看是否写了 price；不在目录中（测试用 faux、已删除的 Provider）时看这条回复是否计了费用。 */
@@ -60,107 +44,43 @@ export function pricedLookup(providers: readonly Provider[]): PricedLookup {
   }
 }
 
-const usageOf = (value: unknown): RequestUsage | undefined => (Value.Check(RequestUsage, value) ? value : undefined)
+const totalsOf = (summary: UsageSummary, priced: PricedLookup): UsageTotals => {
+  let pricedRequests = 0
+  let unpricedRequests = 0
+  for (const attribution of summary.attributions) {
+    if (priced(attribution.provider, attribution.model, attribution.cost)) pricedRequests++
+    else unpricedRequests++
+  }
+  return {
+    input: summary.totals.input,
+    output: summary.totals.output,
+    cacheRead: summary.totals.cacheRead,
+    cacheWrite: summary.totals.cacheWrite,
+    cost: { ...summary.cost },
+    complete: summary.complete,
+    hasUsage: summary.hasUsage,
+    known: [...summary.known],
+    reported: { ...summary.reported },
+    requests: summary.requests,
+    models: [...summary.models],
+    ...(summary.reasoning === undefined ? {} : { reasoning: summary.reasoning }),
+    priced: pricedRequests,
+    unpriced: unpricedRequests,
+  }
+}
 
 /** 汇总带 runId 的条目的 usage；runId 给出时只汇总该 Run。 */
 export function sumUsage(entries: readonly SessionEntry[], priced: PricedLookup, runId?: string): UsageTotals {
-  const totals: UsageTotals = {
-    ...EMPTY_TOTALS,
-    cost: { ...EMPTY_TOTALS.cost },
-    known: [...EMPTY_TOTALS.known],
-    reported: { ...EMPTY_TOTALS.reported },
-    models: [],
-  }
-  const canonicalRuns = new Set(
-    entries.filter((entry) => entry.kind === 'model_request' && entry.payload.requestId && entry.runId !== null).map((entry) => entry.runId),
-  )
-  const seenEntries = new Set<string>()
-  const seenRequests = new Set<string>()
-  const countedRuns = new Set<string>()
-  // A terminal request report cannot prove that no later attempt was lost in a crash.
-  const endedRuns = new Set(
-    entries.flatMap((entry) => (entry.kind === 'run_end' && entry.payload.status !== 'interrupted' && entry.runId !== null ? [entry.runId] : [])),
-  )
-  const provenance = (provider: string | undefined, model: string | undefined, cost: number) => {
-    if (priced(provider, model, cost)) totals.priced++
-    else totals.unpriced++
-    if (provider && model && !totals.models.some((item) => item.provider === provider && item.model === model)) totals.models.push({ provider, model })
-  }
-  const addReasoning = (value: number | undefined, output: number, report: RequestUsage['report']) => {
-    // Legacy SDKs filled an unreported optional reasoning count with zero.
-    if (value === undefined || value > output || (report ? !report.known.includes('output') : value === 0)) return
-    totals.reasoning = (totals.reasoning ?? 0) + value
-  }
-  const add = (usage: RequestUsage, owner: string) => {
-    countedRuns.add(owner)
-    totals.requests++
-    const report = usage.report
-    const known = report?.known ?? ['input', 'output', 'cacheRead', 'cacheWrite']
-    totals.complete &&= report?.complete === true
-    totals.hasUsage ||= known.length > 0
-    totals.known = totals.known.filter((key) => known.includes(key))
-    totals.input += usage.input
-    totals.output += usage.output
-    totals.cacheRead += usage.cacheRead
-    totals.cacheWrite += usage.cacheWrite
-    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) if (known.includes(key)) totals.reported[key] += usage[key]
-    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'] as const) totals.cost[key] += usage.cost[key]
-    addReasoning(usage.reasoning, usage.output, report)
-  }
-  for (const entry of entries) {
-    const identity = `${entry.sessionId}:${entry.seq}`
-    if (seenEntries.has(identity)) continue
-    seenEntries.add(identity)
-    if (entry.kind === 'model_request' && (entry.payload.purpose === 'title' || (entry.runId !== null && canonicalRuns.has(entry.runId)))) {
-      if (entry.payload.purpose === 'title' ? runId !== undefined : runId !== undefined && entry.runId !== runId) continue
-      const request = entry.payload
-      if (request.requestId && seenRequests.has(request.requestId)) continue
-      if (request.requestId) seenRequests.add(request.requestId)
-      if (entry.runId !== null) countedRuns.add(entry.runId)
-      totals.requests++
-      const report = request.usageReport
-      totals.complete &&= report?.complete === true
-      totals.hasUsage ||= report ? report.known.length > 0 : true
-      totals.known = totals.known.filter((key) => report?.known.includes(key))
-      totals.input += request.usage.input
-      totals.output += request.usage.output
-      totals.cacheRead += request.usage.cacheRead
-      totals.cacheWrite += request.usage.cacheWrite
-      for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const)
-        if (!report || report.known.includes(key)) totals.reported[key] += request.usage[key]
-      totals.cost.total += request.cost ?? 0
-      if (request.costBreakdown) for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) totals.cost[key] += request.costBreakdown[key]
-      addReasoning(request.reasoning, request.usage.output, report)
-      provenance(request.provider, request.model, request.cost ?? 0)
-      continue
-    }
-    if (entry.runId === null || canonicalRuns.has(entry.runId) || (runId !== undefined && entry.runId !== runId)) continue
-    if (entry.kind === 'compaction') {
-      if (entry.payload.usage) add(entry.payload.usage, entry.runId)
-      continue
-    }
-    if (entry.kind !== 'message' || entry.payload.role !== 'assistant') continue
-    const message = entry.payload as { usage?: unknown; provider?: unknown; model?: unknown }
-    const usage = usageOf(message.usage)
-    if (!usage) continue
-    add(usage, entry.runId)
-    provenance(
-      typeof message.provider === 'string' ? message.provider : undefined,
-      typeof message.model === 'string' ? message.model : undefined,
-      usage.cost.total,
-    )
-  }
-  if (totals.requests === 0) {
-    totals.complete = false
-    totals.known = []
-  }
-  if ([...countedRuns].some((owner) => !endedRuns.has(owner))) {
-    totals.complete = false
-    // The lost attempt may contribute to any bucket, including an earlier reported zero.
-    totals.known = []
-  }
+  return totalsOf(aggregateUsage(entries, runId), priced)
+}
 
-  return totals
+/** 一次遍历得到整个 Session 与每个 Run 的汇总，供消息底栏共用。 */
+export function sumUsageByRun(entries: readonly SessionEntry[], priced: PricedLookup): { session: UsageTotals; byRun: Map<string, UsageTotals> } {
+  const { session, byRun } = aggregateUsageByRun(entries)
+  return {
+    session: totalsOf(session, priced),
+    byRun: new Map([...byRun].map(([runId, summary]) => [runId, totalsOf(summary, priced)])),
+  }
 }
 
 const CURRENCY_SYMBOLS: Record<UsageCurrency, string> = { USD: '$', CNY: '¥' }

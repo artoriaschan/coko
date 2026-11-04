@@ -165,7 +165,10 @@ describe('request usage survives the actual adapters and Sidecar', () => {
         runId: request[0]?.runId,
         usage: { input: 70, output: 20, ...cached, total: 120 },
         reasoning: 7,
-        usageReport: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: {
+          complete: true,
+          known: api === 'openai-completions' ? ['input', 'output', 'cacheRead'] : ['input', 'output', 'cacheRead', 'cacheWrite'],
+        },
       })
       const assistant = entries.find((e) => e.kind === 'message' && (e.payload as { role?: string }).role === 'assistant')!
       // A visible assistant must never be committed before its authoritative request fact.
@@ -209,12 +212,12 @@ describe('request usage survives the actual adapters and Sidecar', () => {
     const requests = records.filter((e) => e.kind === 'model_request').map((e) => e.payload)
     expect(requests).toEqual([
       expect.objectContaining({
-        usageReport: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: true, known: ['input', 'output'] },
         usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
       }),
       expect.objectContaining({ usageReport: { complete: false, known: [] } }),
       expect.objectContaining({
-        usageReport: { complete: false, known: ['output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: false, known: ['output'] },
         usage: { input: 0, output: 9, cacheRead: 0, cacheWrite: 0, total: 9 },
       }),
     ])
@@ -252,12 +255,12 @@ describe('request usage survives the actual adapters and Sidecar', () => {
       expect.objectContaining({
         usage: { input: 11, output: 3, cacheRead: 0, cacheWrite: 0, total: 14 },
         stopReason: 'error',
-        usageReport: { complete: false, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: false, known: ['input', 'output'] },
       }),
       expect.objectContaining({
         usage: { input: 20, output: 5, cacheRead: 0, cacheWrite: 0, total: 25 },
         stopReason: 'stop',
-        usageReport: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: true, known: ['input', 'output'] },
       }),
     ])
     expect(new Set(requests.map((e) => (e.payload as { requestId: string }).requestId)).size).toBe(2)
@@ -307,7 +310,7 @@ describe('request usage survives the actual adapters and Sidecar', () => {
       expect.objectContaining({
         stopReason: 'aborted',
         usage: { input: 31, output: 7, cacheRead: 0, cacheWrite: 0, total: 38 },
-        usageReport: { complete: false, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: false, known: ['input', 'output'] },
       }),
     ])
     await sidecar.stop()
@@ -342,7 +345,7 @@ describe('request usage survives the actual adapters and Sidecar', () => {
         stopReason: 'error',
         retries: 0,
         usage: { input: 11, output: 3, cacheRead: 0, cacheWrite: 0, total: 14 },
-        usageReport: { complete: false, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: false, known: ['input', 'output'] },
       }),
     ])
     expect(entries.filter((e) => e.kind === 'run_end').at(-1)?.payload).toEqual({ status: 'aborted' })
@@ -388,7 +391,7 @@ describe('request usage survives the actual adapters and Sidecar', () => {
       purpose: 'compaction',
       stopReason: 'error',
       usage: { input: 30, output: 7, cacheRead: 0, cacheWrite: 0, total: 37 },
-      usageReport: { complete: false, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+      usageReport: { complete: false, known: ['input', 'output'] },
     })
     expect((await http.get(tracePaths.trace(sessionId))).body.runs.at(-1)).toMatchObject({ tokens: 37, status: 'error' })
     await sidecar.stop()
@@ -494,7 +497,7 @@ describe('request usage survives the actual adapters and Sidecar', () => {
     expect(entries.filter((e) => e.kind === 'model_request').map((e) => e.payload)).toEqual([
       expect.objectContaining({
         usage: { input: 11, output: 3, cacheRead: 0, cacheWrite: 0, total: 14 },
-        usageReport: { complete: false, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+        usageReport: { complete: false, known: ['input', 'output'] },
       }),
     ])
     expect((await again.get(tracePaths.trace(sessionId))).body.totals).toMatchObject({ requests: 1, tokens: 14 })

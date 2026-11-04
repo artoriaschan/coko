@@ -263,7 +263,7 @@ it('真实 Chat SSE 保留缓存、reasoning 与报告完整性；缺失 usage �
     output: 20,
     totalTokens: 120,
     reasoning: 7,
-    report: { complete: true, known: ['input', 'output', 'cacheRead', 'cacheWrite'] },
+    report: { complete: true, known: ['input', 'output', 'cacheRead'] },
   })
   report = false
   expect((await request()).usage).toMatchObject({ report: { complete: false, known: [] } })
@@ -279,6 +279,6 @@ it('invalid input counters remain unknown while valid output survives; invalid r
   await credentials.modify('p', async () => ({ type: 'api_key', key: 'test' }))
   const registry = createModelRegistry({ credentials, providers: [provider({ id: 'p', baseUrl: `${baseUrl}/v1`, models: [spec('m')] })] })
   const message = await registry.models.completeSimple(resolveModel(registry, 'p', 'm'), { messages: [{ role: 'user', content: 'hi', timestamp: 1 }] })
-  expect(message.usage).toMatchObject({ output: 9, totalTokens: 9, report: { complete: false, known: ['output', 'cacheRead', 'cacheWrite'] } })
+  expect(message.usage).toMatchObject({ output: 9, totalTokens: 9, report: { complete: false, known: ['output'] } })
   expect(message.usage).not.toHaveProperty('reasoning')
 })
