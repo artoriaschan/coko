@@ -4,11 +4,10 @@ import { AgentsButton } from './agents-button.tsx'
 import { HandoffButton, HandoffMenuItem } from './handoff-dialog.tsx'
 import { JobsButton } from './jobs-button.tsx'
 import { SchedulesButton } from './schedules-button.tsx'
-import { SessionCost } from './session-cost.tsx'
 import { TeamButton } from './team-button.tsx'
 
-/** 会话标题栏的操作 id：后台任务按钮（running 数徽标）、Session 费用，M5 的子代理、定时任务与交接，以及 M6 的团队。 */
-export type HeaderActionId = 'jobs' | 'cost' | 'agents' | 'schedules' | 'handoff' | 'team'
+/** 会话标题栏的操作 id：后台任务按钮（running 数徽标），M5 的子代理、定时任务与交接，以及 M6 的团队。 */
+export type HeaderActionId = 'jobs' | 'agents' | 'schedules' | 'handoff' | 'team'
 
 export interface HeaderActionProps {
   sessionId: string
@@ -36,7 +35,6 @@ export const HeaderMenuActionContext = React.createContext<(action: () => void) 
 
 export const HEADER_ACTIONS: readonly HeaderActionDefinition[] = [
   { id: 'jobs', Component: JobsButton, available: true },
-  { id: 'cost', Component: SessionCost, available: true },
   { id: 'agents', Component: AgentsButton, available: true },
   { id: 'schedules', Component: SchedulesButton, available: true },
   { id: 'handoff', Component: HandoffButton, MenuItem: HandoffMenuItem, available: true },

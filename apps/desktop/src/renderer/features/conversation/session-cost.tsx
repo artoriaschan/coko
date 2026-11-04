@@ -1,13 +1,8 @@
 import { aggregateUsage, aggregateUsageByRun, type UsageSummary } from '@coko/agent/entries'
 import { USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider, type SessionEntry, type UsageCurrency } from '@coko/protocol'
 import type { Translator } from '@coko/i18n'
-import { Button, HoverCard, HoverCardContent, HoverCardTrigger } from '@coko/ui'
-import { CoinsIcon } from 'lucide-react'
 import * as React from 'react'
-import { useChat } from '../../app/chat.tsx'
-import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
-import type { HeaderActionProps } from './header-actions.ts'
 
 // 用量与费用（docs/subsystems/goal.md#界面）：优先累计请求事实，兼容旧 assistant / compaction usage。只计本 Session 的请求：
 // 分叉复制来的消息去掉了 runId，其费用属于原 Session。费用不换算货币，符号取设置 usage.currency。
@@ -111,83 +106,4 @@ export function useCurrency(): UsageCurrency {
 export function usePricedLookup(): PricedLookup {
   const providers = useSettings((s) => s.providers)
   return React.useMemo(() => pricedLookup(providers), [providers])
-}
-
-const NO_ENTRIES: SessionEntry[] = []
-
-/**
- * 会话标题栏的 Session 累计费用：费用（或"未定价"）与 HoverCard 分项（输入、输出、缓存读写的 Token 与费用）。会话还没有带 usage 的回复时
- * 不显示。触发器是按钮，键盘聚焦时同样打开 HoverCard。
- */
-export function SessionCost({ sessionId }: HeaderActionProps) {
-  const { t, locale } = useI18n()
-  const entries = useChat((s) => s.conversations[sessionId]?.entries ?? NO_ENTRIES)
-  const priced = usePricedLookup()
-  const currency = useCurrency()
-  const totals = React.useMemo(() => sumUsage(entries, priced), [entries, priced])
-  if (totals.priced + totals.unpriced === 0 && totalTokens(totals) === 0) return null
-  const cost = costText(t, locale, currency, totals)
-  const allUnpriced = totals.priced === 0 && totals.unpriced > 0
-  const rows = [
-    ['input', totals.input, totals.cost.input],
-    ['output', totals.output, totals.cost.output],
-    ['cacheRead', totals.cacheRead, totals.cost.cacheRead],
-    ['cacheWrite', totals.cacheWrite, totals.cost.cacheWrite],
-  ] as const
-  return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger asChild>
-        <Button
-          variant="toolbar"
-          size="sm"
-          data-slot="session-cost"
-          data-cost={totals.cost.total}
-          data-tokens={totalTokens(totals)}
-          data-unpriced={allUnpriced || undefined}
-          aria-label={t('usage.session.label', { cost })}
-          className="max-w-40 min-w-0 tabular-nums"
-        >
-          <CoinsIcon aria-hidden />
-          <span className="truncate">{cost}</span>
-        </Button>
-      </HoverCardTrigger>
-      <HoverCardContent align="end" data-slot="session-cost-detail" className="w-72 text-ui-body">
-        <p className="mb-2 font-medium">{t('usage.session.title')}</p>
-        <table className="w-full tabular-nums">
-          <thead className="text-ui-small text-muted-foreground">
-            <tr>
-              <th scope="col" className="py-0.5 text-start font-normal">
-                <span className="sr-only">{t('usage.title')}</span>
-              </th>
-              <th scope="col" className="py-0.5 text-end font-normal">
-                {t('usage.session.tokens')}
-              </th>
-              <th scope="col" className="py-0.5 text-end font-normal">
-                {t('usage.session.cost')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([key, tokens, amount]) => (
-              <tr key={key} data-usage-part={key}>
-                <th scope="row" className="py-0.5 text-start font-normal text-muted-foreground">
-                  {t(`usage.session.${key}`)}
-                </th>
-                <td className="py-0.5 text-end">{formatCount(locale, tokens)}</td>
-                <td className="py-0.5 text-end">{allUnpriced ? '—' : formatCost(locale, currency, amount)}</td>
-              </tr>
-            ))}
-            <tr data-usage-part="total" className="border-t-hairline border-border">
-              <th scope="row" className="pt-1 text-start font-medium">
-                {t('usage.session.total')}
-              </th>
-              <td className="pt-1 text-end font-medium">{formatCount(locale, totalTokens(totals))}</td>
-              <td className="pt-1 text-end font-medium">{allUnpriced ? t('usage.unpriced') : formatCost(locale, currency, totals.cost.total)}</td>
-            </tr>
-          </tbody>
-        </table>
-        {totals.unpriced > 0 && !allUnpriced && <p className="mt-2 text-ui-small text-muted-foreground">{t('usage.session.unpricedNote')}</p>}
-      </HoverCardContent>
-    </HoverCard>
-  )
 }
