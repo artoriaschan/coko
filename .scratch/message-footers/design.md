@@ -1,21 +1,21 @@
 ---
 kind: design
-description: "消息底栏的请求级计量事实、完整性和兼容读取设计。"
+description: "消息底栏、助手包含边界、来源历史与请求级计量完整性的已交付设计。"
 lifecycle: active
-status: approved
+status: delivered
 ---
 
 # 消息底栏功能设计
 
 ## 问题与来源
 
-本设计实施[规格](spec.md)的 USAGE-01—09。2026-11-04 用户已批准规格及实施流程；以下为该授权内工程选择，未改变产品范围。遵守 [append-only 存储](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)、[测试边界](../../docs/tech-stack/testing.md)和[界面规则](../../docs/tech-stack/ui.md)。
+本设计实施[规格](spec.md)的消息底栏、助手回复分支与本轮用量要求。2026-11-04 用户已批准规格及实施流程；以下为该授权内工程选择，未改变产品范围。遵守 [append-only 存储](../../docs/adr/0003-settings-and-sessions-in-sqlite.md)、[测试边界](../../docs/tech-stack/testing.md)和[界面规则](../../docs/tech-stack/ui.md)。
 
 ## 计量事实与责任
 
 - Provider 适配边界通过 pi-ai 支持的请求级 onProviderStreamEvent，在依赖默认填零及归一化之前观察原始协议 usage，不复制 SSE 解析器、不全局替换 fetch、不保存正文或凭据。依赖生成的 Usage 默认零不能证明服务报告；仅原始有效非负整数及协议定义的缺省零形成 known 分桶。
 - 四分桶是互斥的 input（未缓存）、cacheRead、cacheWrite、output。OpenAI 输入含缓存，先减去缓存；Anthropic input 原本不含缓存。reasoning 仅作为 output 子集。字段缺失或非法时保留其他有效分桶，完整性为 false；未知字段不导致整个报告丢弃。
-- 请求终止时把归一化计数及 usageReport（complete、known、可选 reasoning）送入既有 model_request；请求身份 requestId 每个实际调用创建一次，信封 Session 与 runId 确定归属。02 将重试内层的每次真正调用纳入同一 meter 契约；计划中的重试没有身份。
+- 请求终止时把归一化计数及 usageReport（complete、known、可选 reasoning）送入既有 model_request；请求身份 requestId 每个实际调用创建一次，信封 Session 与 runId 确定归属。重试内层的每次真正调用已纳入同一 meter 契约；计划中的重试没有身份。
 - model_request 是新请求的唯一累计来源。UI 按 requestId 去重；一个 Run 有新计量记录时不再把同 Run 的助手消息或压缩记录相加。标题只入 Session 累计，子 Session 自行归属，复制到 Fork 的无 runId 历史不计新增。
 - assistant usage 保留费用和合法 reasoning/cacheWrite1h，旧合法记录可读取。旧记录没有 usageReport 时只提供已知历史小计，不能证明完整；不更新既有 Session Entry。model_request 新字段可选，旧版记录保持兼容；无需补写猜测计数。
 
@@ -29,14 +29,14 @@ status: approved
 
 ## 助手底栏的展示
 
-底栏消费已有 Run 与请求事实，不新增存储或第二套汇总。只有实际 run_end 为 completed，且其之前最后一条助手消息以 stop/length 结束并有非空文本时，在该消息最后一个可见文本块下放置一个底栏；复制合并该消息全部原始文本块，以空行分隔。显示身份沿用原有 live→committed 映射，底栏只作为原消息的子节点追加。停止、失败与无最终正文保留既有结束输出，由后续切片接入同一计数。
+底栏消费已有 Run 与请求事实，不新增存储或第二套汇总。只有实际 run_end 为 completed，且其之前最后一条助手消息以 stop/length 结束并有非空文本时，在该消息最后一个可见文本块下放置一个底栏；复制合并该消息全部原始文本块，以空行分隔。显示身份沿用原有 live→committed 映射，底栏只作为原消息的子节点追加。停止、失败与无最终正文保留既有结束输出，并通过下述异常结束位置接入同一计数。
 
 消息底栏不依赖定价设置，因而独立子 Session 阅读器也能通过自己所属条目呈现。共用 sumUsage 的 reported 小计只累计 known 分桶，兼容数值仍留给费用等原消费者；展示四个互斥分桶，不完整时名称为已报告小计，缺失分桶使用未知或已知下界，reasoning 明确为已报告的输出子集。缓存命中率只在完整报告且总输入非零时展示，分母包含未缓存输入、缓存读取与缓存写入。
 
 时间始终独立于操作显隐。历史操作在 hover/focus 时显示；共享 Popover 打开状态保持操作可见，因为 portal 不在父消息 hover 树内。共享浮层负责上下优先与边缘避让、关闭与焦点归还，长模型名允许换行。分支保留位于复制与用量之间的真实动作插槽，调用方没有提供动作时不产生按钮。
 ## 每次尝试、失败压缩与计量消费者
 
-02 将原有 meter 移入 withRetry 内层，只有真正调用模型时创建 requestId，按结束顺序排队；失败尝试在重试退避前等待持久化，最终尝试在模型结束事件后、对应助手消息提交之前落盘，避免已有 canonical Run 抑制尚未配对的助手副本时丢失已知计数。每条记录 retries 表示该逻辑调用之前失败的次数，durationMs 仅该次尝试，不含退避。退避中取消仍只有已经发出的记录。因此退避时崩溃重启仍能回看已报告的失败消耗；摘要结果在 finally 提交请求事实，不依赖 compaction 成功。
+请求计量已移入 withRetry 内层，只有真正调用模型时创建 requestId，按结束顺序排队；失败尝试在重试退避前等待持久化，最终尝试在模型结束事件后、对应助手消息提交之前落盘，避免已有 canonical Run 抑制尚未配对的助手副本时丢失已知计数。每条记录 retries 表示该逻辑调用之前失败的次数，durationMs 仅该次尝试，不含退避。退避中取消仍只有已经发出的记录。因此退避时崩溃重启仍能回看已报告的失败消耗；摘要结果在 finally 提交请求事实，不依赖 compaction 成功。
 
 Goal 用量对每个 Run 优先采用带 requestId 的请求事实，按身份去重并抑制消息/压缩/交接重复载体；旧 Run 沿用原 usage，子 Session 保持原 Goal 归属。Trace 同样按请求身份去重。UI 继续复用 01 的汇总，不另造异常算法。上下文估算仍以当前上下文计量，不改为历史消耗累计。
 
@@ -63,3 +63,7 @@ Goal 用量对每个 Run 优先采用带 requestId 的请求事实，按身份�
 请求报告完整并不代表整个 Run 没有尚未落盘的后续尝试。汇总还要求可信的持久化终态；Interrupted Run 或仅进度结束保留已报告小计、标记不完整，并将整轮分桶视为未知或下界。复制成功回复的不可变来源证明可投影为只读完成事实供同一汇总器使用，不成为目标 Session 的新 Run、消费或显示时间。
 
 备用 assistant／compaction usage 如果已有 report，按其 known／complete 汇总；只有缺少元数据的旧记录使用历史兼容值，原数值和费用不改写。旧依赖会把未报告的 reasoning 填成零，因此无报告元数据的零不能作为可选实测值展示；可靠正值、明确报告且输出已知的零仍保留。普通及复制正文使用同一 Markdown 提取函数，紧凑单位由类型化 zh/en 字典提供。
+
+## 交付状态
+
+七张实施票及评审修复已完成并提交到本地集成分支。验证和限制见[联合验收](evidence/07-integrated-acceptance.md)、[评审修复](evidence/final-review-fixes.md)与[最终评审](evidence/final-review.md)。本状态不表示已推送、合入 main 或发布；托管实施 worktree 的归档受应用活动任务保护阻止，检出与提交均保留。
