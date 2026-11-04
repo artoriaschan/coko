@@ -1,0 +1,59 @@
+packages/protocol/src/context-entries.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 22-26,28-29,31-33,42-44
+docs/subsystems/tracing.md
+  s_f9fee1f1315815::t_13b6b3c86599c0 24-26,109-110
+packages/agent/src/models/usage-report.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 1-5,8-12,14-16,19-26,33-37,53-55,57-60,73-86,88-89,91-93,95-99,110-122,160-164
+  s_f9fee1f1315815::t_007f78df78d5b1 13,38-41,43-45,47-52,100-102,123-159
+  s_f9fee1f1315815::t_f885fa65512331 27-28,30-32,46,61-67,70-72,103-104,106,108-109
+apps/server/src/application/session-titles.ts
+  s_f9fee1f1315815::t_5578bda1d7c0cc 111
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_007f78df78d5b1 16
+packages/agent/src/session-entries/observability.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 29-31
+tests/integration/sidecar-request-usage.test.ts
+  s_f9fee1f1315815::t_c19ebe9424ae4b 82,84
+  s_f9fee1f1315815::t_5b4cdc8f37c3a8 1-14,16-22,24-43,47-68,72-78,80-81,85-93,95-96,98-99,101-117,120-130,132,135-142,144,147-153,155,157-158,165-189,191-192,194-196,198-201,203-207
+  s_f9fee1f1315815::t_694c68a514285f 159,161
+  s_f9fee1f1315815::t_079109b264043e 160,162,164
+packages/agent/src/engine/model-requests.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 2-4,11,37,44,90-91,96-98
+.scratch/message-footers/evidence/01-normal-request-usage.md
+  s_f9fee1f1315815::t_c6adaa37fa32d3 1-49
+apps/desktop/src/renderer/features/conversation/request-usage.browser.test.tsx
+  s_f9fee1f1315815::t_810864c3714b28 1-19,21-29,31-36,38-56,58-73,75-91,94-100,103-122,124,126-136
+  s_f9fee1f1315815::t_d8b383f9b0ea77 92-93,101-102
+apps/desktop/src/renderer/features/conversation/session-cost.tsx
+  s_f9fee1f1315815::t_13b6b3c86599c0 12,21-28
+packages/agent/src/models/models.test.ts
+  s_f9fee1f1315815::t_079109b264043e 271-284
+packages/agent/src/session-entries/context.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 39-43,45-46,48-50,59-61
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_13b6b3c86599c0 158,160
+apps/desktop/src/renderer/features/conversation/run-usage-row.tsx
+  s_f9fee1f1315815::t_13b6b3c86599c0 9
+packages/agent/src/models/registry.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 16,163
+packages/protocol/src/trace.ts
+  s_f9fee1f1315815::t_f9964ec19fbb11 26-28
+.scratch/message-footers/issues/01-truthful-request-usage.md
+  s_f9fee1f1315815::t_123762c111046c 13,17-24,37-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "5dedb9eb4eb313cc9028da15f1944b872a6fe502",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
