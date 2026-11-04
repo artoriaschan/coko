@@ -140,6 +140,16 @@ renderer 提交期间禁止重复首次发送，失败时保留文字与配置�
 
 Run 中停止取代主发送位置，仍可暂停；有文字时另显示追加指令按钮，Enter 也提交追加指令。输入法组合期间不提交，Shift+Enter 换行。审批、确认、计划审阅接管时输入框保持挂载，草稿和选区保留。
 
+### 会话状态栏与 Token 用量
+
+已有 Session 的输入框、审批/结果确认卡或只读提示下方常驻 [SessionStatusBar](../../apps/desktop/src/renderer/features/conversation/session-status-bar.tsx)。它与输入框共用列宽，顶部间距 4px、行高 22px、距主区底部 4px；没有数据时仍保留空行，数据提交后不挤动输入框。新对话页没有状态栏，上下文环继续留在输入框工具栏。
+
+Token 胶囊只汇总本 Session 已提交的条目，包括主循环、压缩、交接摘要及标题请求，不合入子 Session。累计口径复用 Session 用量聚合、请求去重与服务商报告分桶；缺少报告时不制造零用量。文字使用紧凑总量与输入中的缓存命中比例，完整精确读数作为可访问名称，只有截断时显示 Tooltip。流式增量不更新数字；重复条目、重新打开和持久化回放不重复累计。
+
+点击或键盘打开 Token 卡，展示精确总量、缓存命中、未缓存输入、缓存读取、缓存写入、输出与已报告的推理子集；没有输入时省略命中率，未上报的必要分项附不完整说明，不展示费用。字段与“本轮用量”共用 [UsageFields](../../apps/desktop/src/renderer/features/conversation/usage-fields.tsx)。卡片沿用共享 Popover 的门户、窗口避让和可用高度限制，默认位于胶囊上方；再次点击、外部点击或 Escape 关闭并归还焦点。
+
+验证：[真实 App 状态栏 Browser Mode](../../apps/desktop/src/renderer/features/conversation/session-status-bar.browser.test.tsx)覆盖空行几何、提交与重复回放、窄窗口浮层、键盘焦点、审批/确认、归档及已移除 worktree；[协议 Electron E2E](../../apps/desktop/e2e/message-footers-protocol.e2e.test.ts)覆盖累计读数与子 Session 隔离及重启读回。
+
 ## 模型与推理档位
 
 模型按钮读取设置中的可用目录，显示当前模型与档位摘要；档位名与设置中登记的档位一致（off、minimal 等，英文首字母大写）。首次打开时显示当前模型详情：当前档位、模型图标与名称、推理档位滑条；详情采用共享菜单表面，基准宽 280px、高 112px。点击名称区域以按供应商分组的模型列表替换详情，选择后返回详情；两种内容始终复用一个浮层。供应商分组不显示图标；模型行按模型名称（回退模型 ID 与供应商）显示单色品牌图标，未收录的品牌回退通用机器人图形；选中勾号在行尾。

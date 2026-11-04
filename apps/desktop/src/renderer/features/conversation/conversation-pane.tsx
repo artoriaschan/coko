@@ -31,6 +31,7 @@ import { displayRuns } from './process-groups.ts'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
 import { useReadingScroll } from './use-reading-scroll.ts'
+import { SessionStatusBar } from './session-status-bar.tsx'
 import { WorktreeChip, WorktreeReadOnlyNotice } from './worktree-chip.tsx'
 
 export interface ConversationPaneProps {
@@ -373,7 +374,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           )}
         </div>
 
-        <div ref={cardArea} className="shrink-0 px-4 pb-4">
+        <div ref={cardArea} className={cn('shrink-0 px-4', activeSessionId === null ? 'pb-4' : 'pb-1')}>
           {pending && (
             <ApprovalPanel
               className={composerColumn}
@@ -471,6 +472,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               />
             </div>
           </div>
+          {activeSessionId !== null && <SessionStatusBar key={activeSessionId} sessionId={activeSessionId} className={composerColumn} />}
         </div>
         <RewindDialog
           key={rewindRequest?.opened ?? 0}

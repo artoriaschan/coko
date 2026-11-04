@@ -169,13 +169,13 @@ it('actual protocol attempts reach Electron details, exclude title/history, bran
   await details.waitFor()
   for (const [part, value] of [
     ['input', '51'],
-    ['cacheRead', '10'],
-    ['cacheWrite', '0'],
-    ['output', '16'],
-    ['reasoning', '2'],
+    ['cacheRead', '≥ 10'],
+    ['output', '16 (2 reasoning)'],
+    ['reasoning', ' (2 reasoning)'],
     ['total', '77'],
   ])
-    expect(await details.locator(`[data-usage-part="${part}"] dd`).textContent()).toBe(value)
+    expect(await details.locator(`[data-usage-part="${part}"]`).textContent()).toBe(value)
+  expect(await details.locator('[data-usage-part="cacheWrite"]').count()).toBe(0)
   expect(await details.textContent()).not.toMatch(/\$|Unpriced|未定价/)
   await app.window.keyboard.press('Escape')
   await details.waitFor({ state: 'detached' })
@@ -185,7 +185,7 @@ it('actual protocol attempts reach Electron details, exclude title/history, bran
         (await entries(app, source)).filter((entry) => entry.kind === 'model_request' && (entry.payload as { purpose?: string }).purpose === 'title').length,
     )
     .toBe(1)
-  await expect.poll(() => app.window.locator('[data-slot="session-cost"]').getAttribute('data-tokens')).toBe('1097')
+  await expect.poll(() => app.window.locator('[data-action="session-token-usage"]').getAttribute('data-tokens')).toBe('1097')
   await send(app, 'protocol second', 'Second protocol answer', 2)
   expect(await footer(app, 1).getAttribute('data-tokens')).toBe('12')
   expect(await footer(app, 1).getAttribute('data-complete')).toBe('true')
@@ -199,7 +199,7 @@ it('actual protocol attempts reach Electron details, exclude title/history, bran
   await expect.poll(() => composer(app).textContent()).toBe('')
   expect(await footer(app, 0).getAttribute('data-tokens')).toBe('77')
   expect(await footer(app, 0).locator('time').getAttribute('datetime')).toBe(originalTime)
-  expect(await app.window.locator('[data-slot="session-cost"]').count()).toBe(0)
+  expect(await app.window.locator('[data-action="session-token-usage"]').count()).toBe(0)
   expect(await readFile(join(workspace, 'notes.txt'), 'utf8')).toBe('source file stays current\n')
   await send(app, 'branch followup', 'Branch protocol answer', 2)
   const branchRequest = model.requests.filter((body) => !body.includes('COKO_SESSION_TITLE')).at(-1)!
@@ -209,11 +209,11 @@ it('actual protocol attempts reach Electron details, exclude title/history, bran
   expect(branchRequest).toContain('Child protocol result.')
   expect(branchRequest).not.toContain('protocol second')
   expect(branchRequest).not.toContain('Second protocol answer')
-  expect(await app.window.locator('[data-slot="session-cost"]').getAttribute('data-tokens')).toBe('6')
+  expect(await app.window.locator('[data-action="session-token-usage"]').getAttribute('data-tokens')).toBe('6')
   expect(await entries(app, source)).toEqual(before)
   await app.window.locator(`[data-session-id="${source}"]`).click()
   await expect.poll(() => composer(app).textContent()).toBe('source unsent draft')
-  expect(await app.window.locator('[data-slot="session-cost"]').getAttribute('data-tokens')).toBe('1109')
+  expect(await app.window.locator('[data-action="session-token-usage"]').getAttribute('data-tokens')).toBe('1109')
   await app.window.locator(`[data-session-id="${target}"]`).click()
   const targetRecords = await entries(app, target)
   await app.dispose()
@@ -225,7 +225,7 @@ it('actual protocol attempts reach Electron details, exclude title/history, bran
   expect(await footer(app, 1).getAttribute('data-tokens')).toBe('6')
   expect(await footer(app, 0).locator('time').getAttribute('datetime')).toBe(originalTime)
   expect(await entries(app, target)).toEqual(targetRecords)
-  expect(await app.window.locator('[data-slot="session-cost"]').getAttribute('data-tokens')).toBe('6')
+  expect(await app.window.locator('[data-action="session-token-usage"]').getAttribute('data-tokens')).toBe('6')
   expect(model.requests.filter((body) => body.includes('COKO_SESSION_TITLE'))).toHaveLength(1)
   expect(model.requests.filter((body) => !body.includes('COKO_SESSION_TITLE') && !isChildRequest(body))).toHaveLength(5)
   expect(model.requests.filter(isChildRequest)).toHaveLength(1)
@@ -447,8 +447,8 @@ it('actual pending request crash keeps the completed request as an incomplete lo
   await footer(app, 0).locator('[data-action="run-usage"]').click()
   const details = app.window.locator('[data-slot="run-usage-details"]')
   await details.waitFor()
-  expect(await details.locator('[data-usage-part="input"] dd').textContent()).toBe('≥ 11')
-  expect(await details.locator('[data-usage-part="cacheRead"] dd').textContent()).toBe('—')
+  expect(await details.locator('[data-usage-part="input"]').textContent()).toBe('≥ 11')
+  expect(await details.locator('[data-usage-part="cacheRead"]').count()).toBe(0)
   await app.window.keyboard.press('Escape')
   const recovered = await entries(app, source)
   expect(recovered.filter((entry) => entry.kind === 'model_request' && entry.runId !== null)).toEqual(recorded)
