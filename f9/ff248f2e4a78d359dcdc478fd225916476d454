@@ -1,0 +1,89 @@
+packages/agent/src/engine/compaction.test.ts
+  s_f9fee1f1315815::t_309695b6661531 23,65,77,84,96,138,172,184,242
+packages/agent/src/session-entries/observability.ts
+  s_f9fee1f1315815::t_e66eabcb46b24b 18
+packages/agent/src/models/usage-report.ts
+  s_f9fee1f1315815::t_5b2e20d3ac569f 16,79-85,93-98,106
+  s_f9fee1f1315815::t_9b0e8f061415bc 20-22
+  s_f9fee1f1315815::t_bc49e4419218e6 17,73-75,77,86-87,90-92
+packages/agent/src/goals/budget.ts
+  s_f9fee1f1315815::t_e3f9dfd658c952 5,47,52-61,76,86
+  s_f9fee1f1315815::t_9b0e8f061415bc 44-46
+  s_f9fee1f1315815::t_e66eabcb46b24b 3
+packages/agent/src/engine/retry.ts
+  s_f9fee1f1315815::t_225bbebc9cf29f 50,95
+packages/agent/src/goals/budget.test.ts
+  s_f9fee1f1315815::t_9b0e8f061415bc 89-90,92-105,107-113
+  s_f9fee1f1315815::t_cbf016755c144b 88,91,106,114-115
+.scratch/message-footers/evidence/04-assistant-footer.md
+  s_f9fee1f1315815::t_16a8ddbf1919ca 1-25,27-45
+  s_f9fee1f1315815::t_8ef868cb820060 26
+docs/subsystems/tracing.md
+  s_f9fee1f1315815::t_11eec64f2c81fe 26
+  s_f9fee1f1315815::t_e66eabcb46b24b 24,36
+docs/subsystems/goal.md
+  s_f9fee1f1315815::t_e14607ad8b7a10 160
+  s_f9fee1f1315815::t_e66eabcb46b24b 78-79,82-83,91,180
+packages/agent/src/observability/trace.test.ts
+  s_f9fee1f1315815::t_cc83cf86d8fe8e 60-70
+packages/agent/src/engine/runtime.ts
+  s_f9fee1f1315815::t_225bbebc9cf29f 155-157,178,333
+  s_f9fee1f1315815::t_5f94487d7d7afe 159,161-166
+  s_f9fee1f1315815::t_d225632cb52705 144,146,148-151,154
+  s_f9fee1f1315815::t_309695b6661531 160
+apps/desktop/src/renderer/features/conversation/attempt-usage.browser.test.tsx
+  s_f9fee1f1315815::t_075be9cb5bbc0a 1-144
+packages/agent/src/engine/runtime.test.ts
+  s_f9fee1f1315815::t_9b0e8f061415bc 429-432
+  s_f9fee1f1315815::t_309695b6661531 424,433,441
+.scratch/message-footers/design.md
+  s_f9fee1f1315815::t_e66eabcb46b24b 37-38,40-43
+  s_f9fee1f1315815::t_11eec64f2c81fe 39
+  s_f9fee1f1315815::t_62275aa470b5b6 34
+packages/agent/src/engine/compaction-driver.ts
+  s_f9fee1f1315815::t_309695b6661531 130-135
+  s_f9fee1f1315815::t_a41e01e55a4068 4
+apps/desktop/src/renderer/features/conversation/timeline.ts
+  s_f9fee1f1315815::t_dc6b9220af7620 333-336
+packages/agent/src/observability/trace.ts
+  s_f9fee1f1315815::t_e3f9dfd658c952 92,121,148-150
+.scratch/message-footers/issues/04-assistant-footer-and-usage-details.md
+  s_f9fee1f1315815::t_8ef868cb820060 13,17-25,38-41
+.scratch/message-footers/evidence/02-request-attempts.md
+  s_f9fee1f1315815::t_6f2d6086c72cf7 1-25,27-52
+  s_f9fee1f1315815::t_a11d7a108a980b 26
+tests/integration/sidecar-request-usage.test.ts
+  s_f9fee1f1315815::t_b365d133d3d901 221-224,230-234,238-244,246,248,260,262-268,312-313
+  s_f9fee1f1315815::t_d225632cb52705 6-18,471-474,487,492-497
+  s_f9fee1f1315815::t_3d4b4a0cb178c8 4,398-403,442,448-459,461,463-465
+  s_f9fee1f1315815::t_7a4f1f763141ed 278
+  s_f9fee1f1315815::t_19f2e9978531d3 314-317,322-332,334,336-337,347-353,365-378,380-382,391-397,466
+  s_f9fee1f1315815::t_a41e01e55a4068 2,98,103,118,269-272,274,288-298,300,302-303,311
+  s_f9fee1f1315815::t_a4cd42a346ea19 467-470,475-486,488-491,498-500
+  s_f9fee1f1315815::t_9b0e8f061415bc 117,225-229,235-237,245,247,249-259,261,273,275-277,279-287,299,301,304-310,318-321,333,335,338-346,354-364,379,383-390,404-441,443-447,460,462
+.scratch/message-footers/issues/02-retry-compaction-usage.md
+  s_f9fee1f1315815::t_6f2d6086c72cf7 13,17-24,37-38
+docs/subsystems/workbench.md
+  s_f9fee1f1315815::t_e14607ad8b7a10 43
+packages/agent/src/engine/model-requests.ts
+  s_f9fee1f1315815::t_309695b6661531 52-65,67-72,87-95
+  s_f9fee1f1315815::t_225bbebc9cf29f 24,100-101
+  s_f9fee1f1315815::t_9b0e8f061415bc 73-86,124-126
+  s_f9fee1f1315815::t_5f94487d7d7afe 1,21,25,33,40,66,104-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "f9ff248f2e4a78d359dcdc478fd225916476d454",
+  "prompts": {},
+  "sessions": {
+    "s_f9fee1f1315815": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a50a-cd6c-7913-bdb3-27d7994dfd9a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
