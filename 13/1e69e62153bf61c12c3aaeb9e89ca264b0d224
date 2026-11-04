@@ -1,0 +1,25 @@
+.scratch/conversation-status-and-header/design.md
+  s_296be7915f5188::t_f13e0a34d397c7 147
+  s_296be7915f5188::t_1ba1246e930583 5,148-151
+.scratch/conversation-status-and-header/spec.md
+  s_296be7915f5188::t_1ba1246e930583 4,16,151
+  s_296be7915f5188::t_cccd61a02c7335 257-296
+.scratch/conversation-status-and-header/issues/09-integrated-acceptance.md
+  s_296be7915f5188::t_ca9428138ace0d 15-23,28-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "131e69e62153bf61c12c3aaeb9e89ca264b0d224",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
