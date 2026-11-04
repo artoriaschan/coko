@@ -190,7 +190,7 @@ export function SessionRow({
               </span>
             </SidebarListRow>
           )}
-          {!renaming && sessionExecuting(session) && <SidebarActivity />}
+          {!renaming && sessionExecuting(session) && <SidebarActivity running={session.running} />}
           {!renaming && (
             <div data-session-actions className="absolute right-2 top-1 flex h-6 items-center transition-opacity duration-150 motion-reduce:transition-none">
               <Tooltip>

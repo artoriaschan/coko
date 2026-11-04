@@ -75,6 +75,7 @@ export interface ListActions {
   removeSessions(ids: string[]): void
   upsertSession(session: Session): void
   patchSession(id: string, patch: Partial<Session>): void
+  updateSessionStatus(id: string, status: Pick<Session, 'running'> & { agentsRunning: boolean }): void
 }
 export type ListStore = StoreApi<ListState & ListActions>
 
@@ -88,6 +89,8 @@ export function createListStore(api: ApiClient): ListStore {
   let archiveLoadRevision = 0
   const archiveChanges = new Map<string, number>()
   let loadRevision = 0
+  let statusRevision = 0
+  const statusChanges = new Map<string, { revision: number; running: boolean; agentsRunning: boolean }>()
   let titleRevision = 0
   const titleChanges = new Map<string, { revision: number; title: string }>()
   return createStore<ListState & ListActions>()((set, get) => {
@@ -108,6 +111,7 @@ export function createListStore(api: ApiClient): ListStore {
       archivedSessions: [],
       async loadArchived() {
         const request = ++archiveLoadRevision
+        const statusesAtStart = statusRevision
         const titlesAtStart = titleRevision
         const before = archiveRevision
         const sessions = await api.listArchivedSessions()
@@ -118,6 +122,8 @@ export function createListStore(api: ApiClient): ListStore {
         set({
           archivedSessions: sessions
             .map((session) => {
+              const status = statusChanges.get(session.id)
+              if (status && status.revision > statusesAtStart) session = { ...session, running: status.running, agentsRunning: status.agentsRunning }
               const title = titleChanges.get(session.id)
               if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
               return { ...session, ...organization.get(session.id), ...(title && title.revision > titlesAtStart ? { title: title.title } : {}) }
@@ -176,6 +182,7 @@ export function createListStore(api: ApiClient): ListStore {
       },
       async load() {
         const request = ++loadRevision
+        const statusesAtStart = statusRevision
         const titlesAtStart = titleRevision
         const archivesAtStart = archiveRevision
         if (get().listStatus === 'idle') set({ listStatus: 'loading' })
@@ -190,6 +197,8 @@ export function createListStore(api: ApiClient): ListStore {
             .filter((session) => session.archivedAt === null)
             .filter((session) => !removed.has(session.id))
             .map((session) => {
+              const status = statusChanges.get(session.id)
+              if (status && status.revision > statusesAtStart) session = { ...session, running: status.running, agentsRunning: status.agentsRunning }
               const title = titleChanges.get(session.id)
               if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
               if (!title) return session
@@ -197,6 +206,7 @@ export function createListStore(api: ApiClient): ListStore {
               titleChanges.delete(session.id)
               return session
             })
+          for (const [id, change] of statusChanges) if (change.revision <= statusesAtStart) statusChanges.delete(id)
           for (const [id, change] of titleChanges)
             if (change.revision <= titlesAtStart && !get().archivedSessions.some((session) => session.id === id)) titleChanges.delete(id)
           set({ workspaces, projects: projects.filter((project) => !removedProjects.has(project.id)), sessions: current, listStatus: 'ready' })
@@ -266,6 +276,7 @@ export function createListStore(api: ApiClient): ListStore {
         for (const id of ids) {
           removed.add(id)
           titleChanges.delete(id)
+          statusChanges.delete(id)
         }
         set((state) => ({
           sessions: state.sessions.filter((session) => !removed.has(session.id)),
@@ -276,6 +287,8 @@ export function createListStore(api: ApiClient): ListStore {
         if (removed.has(session.id)) return
         if (session.projectId && removedProjects.has(session.projectId)) session = { ...session, projectId: null }
         session = { ...session, ...organization.get(session.id) }
+        const status = statusChanges.get(session.id)
+        if (status) session = { ...session, running: status.running, agentsRunning: status.agentsRunning }
         const observed = titleChanges.get(session.id)
         if (observed) session = { ...session, title: observed.title }
         set((state) => ({
@@ -286,6 +299,11 @@ export function createListStore(api: ApiClient): ListStore {
               ? [session, ...state.archivedSessions.filter((s) => s.id !== session.id)]
               : state.archivedSessions.filter((s) => s.id !== session.id),
         }))
+      },
+      updateSessionStatus(id, status) {
+        if (removed.has(id)) return
+        statusChanges.set(id, { ...status, revision: ++statusRevision })
+        get().patchSession(id, status)
       },
       patchSession(id, patch) {
         if (patch.projectId && removedProjects.has(patch.projectId)) patch = { ...patch, projectId: null }

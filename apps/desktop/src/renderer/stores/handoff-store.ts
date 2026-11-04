@@ -7,7 +7,7 @@ import { writeSessionDraft } from './draft-store.ts'
 // 交接的 store（docs/subsystems/handoff.md）：开始交接（POST /api/sessions/:id/handoff）、源会话的 git 状态（未提交改动提示）、进行中的交接
 // 与停止。进行中的状态由条目派生：源会话的 trigger handoff 的 run_start 开始，run_end 正常结束后等 handoff 条目，其余结束为停止。
 // handoff 条目到达时把摘要写入目标会话的输入区草稿（不提交），用户仍在源会话时切到目标会话；失败的 handoff 条目（摘要之后目标没能创建）
-// 使进度变为 failed，带错误码与摘要（对话框显示错误、复制摘要与重试）。只处理订阅完成之后到达的条目：打开会话时补发的历史不触发切换。
+// 使进度变为 failed，带错误码与摘要（常驻交接效果显示错误 Toast 与重试）。只处理订阅完成之后到达的条目：打开会话时补发的历史不触发切换。
 
 export interface HandoffBackend {
   start(sessionId: string, input: { instructions: string; target: HandoffTarget }): Promise<{ runId: string }>
@@ -142,7 +142,7 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
       gitStatus: {},
       async start(sessionId, input) {
         const { runId } = await backend.start(sessionId, input)
-        // run_start 条目通常随后到达；先记下，使对话框立即显示进行中。
+        // run_start 条目通常随后到达；先记下进行中状态。
         if (!ended.has(runId) && get().progress[sessionId]?.runId !== runId) setProgress(sessionId, { phase: 'summarizing', runId })
       },
       async stop(sessionId) {
@@ -161,7 +161,7 @@ export function createHandoffStore({ backend = httpHandoffBackend(), writeDraft 
         if (phase === 'stopped' || phase === 'failed') setProgress(sessionId, undefined)
       },
       attach(chat) {
-        // 多个按钮挂载时共用一次订阅（同一个对话 store）。
+        // 同一个对话 store 的挂载者共用一次订阅。
         if (attached && attached.chat === chat) attached.count++
         else {
           attached?.off()

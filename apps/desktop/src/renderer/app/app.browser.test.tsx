@@ -566,36 +566,17 @@ describe('窄窗口', () => {
     expect(contrastOf(el)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('390px：交接收进标题栏的"更多操作"菜单，键盘可以到达并打开交接对话框，关闭后焦点回到菜单按钮', async () => {
+  it('390px：标题栏没有交接按钮或旧的更多操作菜单，右栏入口保持可达', async () => {
     await page.viewport(390, 700)
     await renderApp('en').screen
-    await expect.poll(() => document.querySelector('[data-slot="app-frame"]')?.getAttribute('data-sidebar')).toBe('hidden')
-    // 收起过渡完成后主内容才拿到完整宽度；在此之前标题栏仍在 280 列内布局。
     await expect.poll(() => document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!.getBoundingClientRect().width).toBe(390)
     const header = document.querySelector<HTMLElement>('[data-slot="app-frame-main"] header')!
-    const more = page.getByRole('button', { name: 'More actions' })
-    await expect.element(more).toBeVisible()
-    const rect = more.element().getBoundingClientRect()
-    expect(rect.left).toBeGreaterThanOrEqual(0)
-    expect(rect.right).toBeLessThanOrEqual(390)
-    // 标题栏中的交接按钮仍挂载但不渲染，不在 Tab 顺序中。
-    await expect.poll(() => header.querySelector('[data-action="open-handoff"]')?.getClientRects().length).toBe(0)
-
-    // 键盘：从右栏开关 Shift+Tab 回到"更多操作"，Enter 打开菜单（焦点在第一项），Enter 选择"交接"。
-    header.querySelector<HTMLElement>('button[aria-label$="right panel"]')!.focus()
-    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
-    await expect.poll(() => document.activeElement).toBe(more.element())
-    await userEvent.keyboard('{Enter}')
-    const item = page.getByRole('menu').getByRole('menuitem', { name: 'Hand off' })
-    await expect.element(item).toHaveFocus()
-    await userEvent.keyboard('{Enter}')
-    await expect.element(page.getByRole('dialog', { name: 'Hand off to a new session' })).toBeVisible()
-    await expect.element(page.getByRole('textbox', { name: 'Next goal' })).toHaveFocus()
-    await expect.poll(() => document.querySelector('[role="menu"]')).toBeNull()
-
-    await userEvent.keyboard('{Escape}')
-    await expect.element(page.getByRole('dialog', { name: 'Hand off to a new session' })).not.toBeInTheDocument()
-    await expect.poll(() => document.activeElement).toBe(more.element())
+    expect(header.querySelector('[data-action="open-handoff"]')).toBeNull()
+    expect(header.querySelector('[data-action="more-header-actions"]')).toBeNull()
+    const right = header.querySelector<HTMLElement>('button[aria-label$="right panel"]')!
+    expect(right.getBoundingClientRect().right).toBeLessThanOrEqual(390)
+    right.focus()
+    expect(document.activeElement).toBe(right)
   })
 
   it('控制条展开的抽屉中可以选择会话，选择后抽屉关闭', async () => {

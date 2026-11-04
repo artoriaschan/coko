@@ -76,7 +76,7 @@ renderer 的 [list-store](../../apps/desktop/src/renderer/stores/list-store.ts) 
 
 侧栏包含“置顶”“对话”和“项目”：置顶分类在有置顶会话或项目时显示；独立的未归档、未置顶根会话在“对话”下；项目行在原位展开或收起未单独置顶的所属会话，空项目显示“暂无对话”。项目内会话只缩进内容，整行背景与命中宽度保持一致。共享 SidebarListRow 提供 H32/R8 圆弧；行间距为 2px。列表不显示分支 chip，也不按运行状态上浮。侧栏不再提供 worktree 列表和移除入口。
 
-Run 正在执行（包括 Run 内等待审批）的会话行在右侧操作列显示 12px、弱化色的转动图标，可访问名称为“运行中”。收起的项目有执行中的未单独置顶、未归档成员时，项目行显示同样的指示；项目展开后只在对应会话行显示。置顶会话只在置顶区显示自己的指示，不计入所属项目；置顶项目遵循相同规则。分页藏起的会话和收起的分类不另外聚合或改变排序。当前指示消费列表中的 `running` 字段，未打开会话的更新以列表刷新为准，后台 Subagent / Teammate 活动尚不计入。
+Run 正在执行（包括 Run 内等待审批），或有正在运行的后台 Subagent / Teammate 的会话行在右侧操作列显示 12px、弱化色的转动图标，根 Run 正在执行时可访问名称为“运行中”，否则为“后台运行中”。Teammate 空闲等待消息、暂停、中断、等待结果确认，以及 Background Job 不算“执行中”。收起的项目有执行中的未单独置顶、未归档成员时，项目行显示同样的指示；项目展开后只在对应会话行显示。置顶会话只在置顶区显示自己的指示，不计入所属项目；置顶项目遵循相同规则。分页藏起的会话和收起的分类不另外聚合或改变排序。列表快照与详情带 `running`、可选 `agentsRunning`，缺省的 `agentsRunning` 视为 false；任一为真即执行中。所有连接都会收到根会话的 `session_status` 广播，因此未打开的会话也实时更新；加载中的快照和较旧接口 DTO 不覆盖较新的广播。重连重新读取快照，重启后不保留 Run 与子代理运行状态。协议与时序见 [WebSocket 契约](../../packages/protocol/README.md#websocket)，验证见 [Sidecar 状态用例](../../tests/integration/sidecar-session-status.test.ts)与 [Electron 用例](../../apps/desktop/e2e/session-status.e2e.test.ts)。
 
 悬停、键盘焦点进入或行菜单打开时，转圈隐藏、原有操作显示；离开且菜单关闭后恢复。标题视口为转圈或操作预留右侧空间，前导图标与文字起点不动。无 hover 能力或粗指针设备保持操作常显并隐藏转圈；减少动态效果时图标静止。实际 App 的[活动指示浏览器验证](../../apps/desktop/src/renderer/features/sidebar/sidebar-activity.browser.test.tsx)覆盖明暗主题、悬停与键盘、菜单、项目折叠、置顶、排序和浏览器媒体偏好。
 
