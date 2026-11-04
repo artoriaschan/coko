@@ -1,0 +1,51 @@
+apps/desktop/src/renderer/features/conversation/header-actions.ts
+  s_296be7915f5188::t_0aa53802f12b96 8-9
+docs/README.md
+  s_296be7915f5188::t_ae0eaed4565c52 49
+docs/subsystems/handoff.md
+  s_296be7915f5188::t_ae0eaed4565c52 3,9,21,50,60-63,69,74,81,89-90
+docs/subsystems/subagents.md
+  s_296be7915f5188::t_ae0eaed4565c52 94
+apps/desktop/e2e/handoff.e2e.test.ts
+  s_296be7915f5188::t_46fe016faa92a7 1,87,123-127,129,132-133,135,137-139,144,151,160
+  s_296be7915f5188::t_10e5f6f335f794 134,136
+docs/subsystems/teams.md
+  s_296be7915f5188::t_ae0eaed4565c52 95
+.scratch/conversation-status-and-header/issues/04-remove-header-handoff.md
+  s_296be7915f5188::t_3ce89caf287ad4 15-23,28-33
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_296be7915f5188::t_0aa53802f12b96 2-3,23,34,52,282
+  s_296be7915f5188::t_10e5f6f335f794 55-58
+apps/desktop/src/renderer/stores/handoff-store.ts
+  s_296be7915f5188::t_ae0eaed4565c52 10,145,164
+apps/desktop/src/renderer/features/conversation/handoff.browser.test.tsx
+  s_296be7915f5188::t_06e0365aa645c2 5,7,65-66,70,94,97-111,113-116,120,132-138
+  s_296be7915f5188::t_1949cd44f15f3a 67-68
+  s_296be7915f5188::t_10e5f6f335f794 31,36-37,45-53,74-84,121-131
+  s_296be7915f5188::t_13e2a44a89bce3 15
+  s_296be7915f5188::t_9030a7690333b8 112
+  s_296be7915f5188::t_f77d8cccea8282 4,13,16-20,23-25,33-34,40-41,43-44,54-55,57-62,72-73,85-93,117
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_296be7915f5188::t_9030a7690333b8 569,574-579
+apps/desktop/src/renderer/features/conversation/handoff-row.tsx
+  s_296be7915f5188::t_13e2a44a89bce3 7
+apps/desktop/src/renderer/features/conversation/handoff-effects.tsx
+  s_296be7915f5188::t_10e5f6f335f794 46-61
+  s_296be7915f5188::t_13e2a44a89bce3 2,5,12-14,28-29,31,33-35,37-45,62,64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "c7a816aa6e0c59a7fd79e738d9ffd6c8f52e0aeb",
+  "prompts": {},
+  "sessions": {
+    "s_296be7915f5188": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a682-4c76-73c1-97fe-0fbb4f37aca7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
