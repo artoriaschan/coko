@@ -11,10 +11,10 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { BACKGROUND_ENV, processExists, waitFor } from './harness.ts'
@@ -304,7 +304,7 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     const workspaceId = (registered.body as unknown as { id: string }).id
     const mcp = await page.evaluate(
       async (body) => (await fetch('/api/mcp/servers', { method: 'PUT', headers: { 'content-type': 'application/json' }, body })).status,
-      JSON.stringify({ servers: { fixture: { command: process.execPath, args: [stdioServerEntry] } }, expectedRevision: 0, workspaceId }),
+      JSON.stringify({ servers: { fixture: { command: process.execPath, args: [stdioServerEntry], alwaysLoad: true } }, expectedRevision: 0, workspaceId }),
     )
     expect(mcp).toBe(200)
     await waitFor(
@@ -474,7 +474,7 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     })
     // 接收侧：假服务器收到 initialize（rootUri 为 Workspace）与 hover。
     await expect.poll(async () => (await readFile(record, 'utf8').catch(() => '')).includes('"method":"textDocument/hover"'), { timeout: 30_000 }).toBe(true)
-    expect(await readFile(record, 'utf8')).toContain(`"rootUri":"file://${workspace}"`)
+    expect(await readFile(record, 'utf8')).toContain(`"rootUri":"${pathToFileURL(await realpath(workspace)).href}"`)
     const db = join(root, 'coko-home', 'data', 'coko.db')
     const lspRows = () => {
       const handle = new DatabaseSync(db, { readOnly: true })

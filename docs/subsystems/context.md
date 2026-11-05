@@ -26,7 +26,7 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
 
-按需加载开启且根 Session 的 MCP 目录非空时，`on_demand_tools` 的值记录排序后的已公告工具名，正文按 Server 展示名字与首句说明；名单变化时重发完整目录，不变不发。目录与搜索使用同一 Run 开始时的工具快照；子代理与 Teammate 没有该项。加载事实另存 `tool_load`，不依赖 State Update 或搜索结果文字，工具用量只计本次实际提供的定义。当前行为见 [MCP 的工具搜索](mcp.md#工具搜索与按需加载)。
+MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需加载开启且根 Session 的 MCP 目录非空时，`on_demand_tools` 的值记录排序后的已公告工具名，正文按 Server 展示名字与首句说明；名单变化时重发完整目录，不变不发。目录与搜索使用同一 Run 开始时的工具快照；子代理与 Teammate 没有该项。加载事实另存 `tool_load`，不依赖 State Update 或搜索结果文字，工具用量只计本次实际提供的定义。当前行为见 [MCP 的工具搜索](mcp.md#工具搜索与按需加载)。
 
 ## 结构入口
 
