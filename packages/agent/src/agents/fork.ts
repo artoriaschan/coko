@@ -10,9 +10,9 @@ import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
 /**
  * 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。Goal、Todo、计划与后台任务的条目属于原 Session，
- * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。配对的 State Update 随其用户消息复制，保留模型已收到的值。
+ * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。配对的 State Update 随其用户消息复制，保留模型已收到的值；tool_load 只取边界内的加载，压缩不删除加载事实。
  */
-const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
+const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule', 'tool_load'])
 
 const record = (value: unknown): Record<string, unknown> => (value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {})
 const metadata = (entries: readonly CheckpointEntry[]) =>
@@ -67,7 +67,11 @@ export function forkEntries(
   const selected = effective.filter(
     (entry) =>
       (FORK_KINDS.has(entry.kind) || updates.has(entry.seq)) &&
-      (entry.kind === 'message' ? kept.has(entry.seq) && prefix.includes(entry) : boundary === 'assistant-inclusive' || prefix.includes(entry)),
+      (entry.kind === 'message'
+        ? kept.has(entry.seq) && prefix.includes(entry)
+        : entry.kind === 'tool_load'
+          ? prefix.includes(entry)
+          : boundary === 'assistant-inclusive' || prefix.includes(entry)),
   )
   const copied = selected.map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
   const previous = metadata(entries)

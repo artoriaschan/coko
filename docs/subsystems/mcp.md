@@ -90,6 +90,8 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 宿主只根据可信的搜索执行通道或当前目录中的未加载调用生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。若结果已保存而加载记录尚未保存，重建后仍未加载，后续直接调用可再次乐观加载，不会自动重跑业务工具。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
 
+已加载集合应用对话回退，不受压缩切点影响。Fork 的用户之前与助手包含边界只继承边界内的 `tool_load`，包括压缩之前的记录；后续加载不继承，助手分支的权限继承规则不改变这个边界。纯文件回退保持加载集合，Handoff 的新 Session 不继承加载。边界实现与[下一次模型请求验证](../../tests/integration/sidecar-tool-search-boundaries.test.ts)见[上下文管理](context.md#压缩)。
+
 ## 工具
 
 - **命名**：`mcp__<server>__<tool>`，`[A-Za-z0-9_-]` 之外的字符换成 `_`；超过 64 字符，或与同一 Server 的另一工具规范化后同名时，截断工具部分并加 8 位 hash（保留 `mcp__<server>__` 前缀，`mcp__<server>` 规则照常匹配）。

@@ -1,5 +1,5 @@
 // 交接（Handoff）：摘要提示、准入判定与目标 Session 的条目推导。摘要请求由运行时的摘要模式发出（trigger handoff：有效上下文加这里的提示，
-// 不注册工具）；目标 Session 只复制权限状态（模式与 Session 规则），与"从此分叉"同一规则，消息、Goal、Todo、计划、Job、子代理与定时任务不复制。
+// 不注册工具）；目标 Session 只复制权限状态（模式与 Session 规则），权限继承与"从此分叉"相同，工具加载、消息、Goal、Todo、计划、Job、子代理与定时任务不复制。
 import type { RunEntry } from '../engine/types.ts'
 import { effectiveEntries } from '../entries/index.ts'
 import type { EntryLike } from '../entries/types.ts'
@@ -7,7 +7,7 @@ import type { EntryLike } from '../entries/types.ts'
 /** 交接摘要的上限（字符；与 @coko/protocol 的 HANDOFF_SUMMARY_MAX 相同）。超出时截断。 */
 export const HANDOFF_SUMMARY_MAX_CHARS = 12_000
 
-/** 目标 Session 复制的条目种类：与分叉相同的权限状态（forkEntries 复制的非消息条目）。 */
+/** 目标 Session 复制的条目种类：只复制权限状态；分叉另继承边界内的工具加载记录，交接不继承。 */
 export const HANDOFF_COPIED_KINDS: ReadonlySet<string> = new Set(['permission_mode', 'permission_rule'])
 
 /** 摘要提示：模型只回复交接摘要（Markdown），四个小节依次为 Context、Files、Open items 与 Task。 */
