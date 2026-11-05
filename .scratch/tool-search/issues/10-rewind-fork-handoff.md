@@ -30,3 +30,5 @@
 - 相关回归：`rtk pnpm run test packages/agent/src/agents/fork.test.ts packages/agent/src/agents/handoff.test.ts packages/agent/src/entries/tool-loads.test.ts tests/integration/sidecar-tool-search-boundaries.test.ts tests/integration/sidecar-state-update-fork.test.ts tests/integration/sidecar-rewind.test.ts tests/integration/sidecar-handoff.test.ts`：7 文件 58/58，通过。随后按 lint 规则整理断言位置，仅重跑失效的 fork 与 boundaries：2 文件 23/23，通过。
 - 验证：`rtk pnpm run typecheck`、定向 oxfmt/oxlint、`rtk pnpm run check:docs`（396 个 Markdown，0 问题）通过。文档影响：当前分叉/回退语义归 `docs/subsystems/context.md`，MCP 生命周期、Handoff 继承表和工作台助手分支说明同步；源码 Handoff 注释澄清与 Fork 的差异。从 AGENTS → docs/README → 正文读回，正式文档不依赖任务材料，未改变 ADR 状态。
 - 范围：未验证真实 Provider、Electron 原生层、构建产物或 CI。本票无需新增模型可见文字，实际模型请求的工具声明与保存条目为验收事实。
+
+- 合入最新 integration `6976a0be`（含 Completions 原生判定）后：`rtk pnpm run test packages/agent/src/agents/fork.test.ts tests/integration/sidecar-tool-search-boundaries.test.ts tests/integration/sidecar-state-update-fork.test.ts` 3 文件 24/24，类型检查、文档检查（396/0）与 diff 检查通过；工作区干净后交给新 merger，未推送。
