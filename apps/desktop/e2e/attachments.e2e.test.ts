@@ -7,7 +7,11 @@ import { cokoHomeOf, launchApp, stubDirectoryPicker, waitConnected } from './har
 it('copied file attachments survive deleting the source and restarting Electron; native picker enforces the file cap', async () => {
   const root = await mkdtemp(join(tmpdir(), 'coko-attachments-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
-  const path = join(root, 'notes.txt')
+  // Retained review artifacts use their own atomic namespace across independent test processes.
+  const screenshots = await mkdtemp(join(tmpdir(), 'coko-sdr-review-filename-'))
+  console.info('File draft screenshots:', screenshots)
+  const filename = 'shared-long-prefix-'.repeat(7) + 'report.txt'
+  const path = join(root, filename)
   const large = join(root, 'large.txt')
   await writeFile(path, 'retained upload')
   await writeFile(large, '')
@@ -24,12 +28,24 @@ it('copied file attachments survive deleting the source and restarting Electron;
   await page.getByRole('alert').filter({ hasText: /32 MB/ }).waitFor()
   expect(await page.locator('[data-slot="file-drafts"]').count()).toBe(0)
   await page.getByRole('button', { name: /Add attachment|添加附件/ }).click()
-  await page.getByRole('button', { name: /^(Remove|移除) notes.txt$/ }).waitFor()
+  await page.getByRole('button', { name: new RegExp('^(Remove|移除) ' + filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$') }).waitFor()
+  await app.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 680))
+  const filenameTrigger = page.locator('[data-slot="file-drafts"]').getByText(filename, { exact: true })
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((dark) => document.documentElement.classList.toggle('dark', dark), theme === 'dark')
+    await filenameTrigger.focus()
+    await page.getByRole('tooltip').filter({ hasText: filename }).waitFor()
+    await page.screenshot({ path: join(screenshots, `${theme}.png`) })
+    await page.keyboard.press('Escape')
+    await page.getByRole('tooltip').filter({ hasText: filename }).waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: /^(Send|发送)$/ }).focus()
+  }
+  await page.evaluate(() => document.documentElement.classList.remove('dark'))
   expect(await readdir(join(cokoHomeOf(root), 'data', 'attachments')).catch(() => [])).toEqual([])
   await app.dispose()
   app = await launchApp(env, { dir: root })
   page = app.window
-  await page.getByRole('button', { name: /^(Remove|移除) notes.txt$/ }).waitFor()
+  await page.getByRole('button', { name: new RegExp('^(Remove|移除) ' + filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$') }).waitFor()
   await page.getByRole('button', { name: /^(Send|发送)$/ }).click()
   await page.getByRole('article', { name: 'Coko', exact: true }).filter({ hasText: 'Attachment received.' }).waitFor()
   await waitConnected(page)
@@ -44,7 +60,7 @@ it('copied file attachments survive deleting the source and restarting Electron;
   app = await launchApp(env, { dir: root })
   page = app.window
   await waitConnected(page)
-  await page.locator('[data-slot="copied-attachments"]').getByRole('button', { name: 'notes.txt', exact: true }).waitFor()
+  await page.locator('[data-slot="copied-attachments"]').getByRole('button', { name: filename, exact: true }).waitFor()
   expect(await page.locator('[data-slot="file-drafts"]').count()).toBe(0)
   expect(await page.locator('[data-slot="copied-attachments"] button').getAttribute('title')).toBe(copy)
   expect(await readFile(copy, 'utf8')).toBe('retained upload')

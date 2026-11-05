@@ -132,6 +132,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     sessionId: options.sessionId ?? randomUUID(),
     recordExecution,
     ...(options.toolResultsDirectory ? { outputDirectory: options.toolResultsDirectory } : {}),
+    ...(options.toolOutputRedaction ? { outputRedaction: options.toolOutputRedaction } : {}),
     prepare: wiring.prepare,
   }
 

@@ -34,7 +34,7 @@ import {
   type ToolRegistry,
 } from '@coko/agent'
 import { hookContextText } from '@coko/agent/entries'
-import { getLogger, redactSecretsDeep } from '@coko/logging'
+import { getLogger, redactSecretsDeep, redactSecretValues, createSecretStreamRedactor } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
 import {
@@ -745,6 +745,7 @@ export class SessionRuns {
       cwd,
       tools: runContext.tools.registry,
       sessionId: session.id,
+      toolOutputRedaction: { text: redactSecretValues, stream: createSecretStreamRedactor },
       ...(this.#options.toolResultsRoot ? { toolResultsDirectory: join(this.#options.toolResultsRoot, encodeURIComponent(session.id)) } : {}),
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),

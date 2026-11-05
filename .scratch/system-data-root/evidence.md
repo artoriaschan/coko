@@ -9,10 +9,10 @@ lifecycle: active
 ## 验证对象
 
 - [规格](spec.md)故事 1–34；[设计](design.md)与 [13 号票](issues/13-integration-and-docs.md)。逐票红绿证据及平台限制保留在同目录 issues/01–12。
-- 代码基线：`8970a86a5706ef9bcba844d9041df5358c2ec1f4`（01–12 已集成），目标为本记录同提交的源码与测试改动。13 号票 worktree 为 `/tmp/coko-sdr-13`，分支 `codex/system-data-root-13`；最终 Standards / Spec 评审由集成流程另行执行，不把本记录当作评审结论。
-- 本票 8 个 TS/TSX 文件按路径排序，以 UTF-8 路径、NUL、文件字节、NUL 串联后的 SHA-256：`1ccd21cdde0938608c4a9d492ed9783d56fbb1909198d46d870ed89d08b84564`。文件为 session-runs、scheduler.test、sidecar-config/environment/mcp-resources-prompts/system-data-root.test，以及 settings 的 sections/settings-page Browser 测试。
+- 代码基线：`8970a86a5706ef9bcba844d9041df5358c2ec1f4`（01–12 已集成），原联合验收目标为 `5bb252fa` 的源码与测试改动；后续评审修复及重新验证见末节。13 号票 worktree 为 `/tmp/coko-sdr-13`，分支 `codex/system-data-root-13`；最终 Standards / Spec 评审由集成流程另行执行，不把本记录当作评审结论。
+- 原联合验收的 8 个 TS/TSX 文件按路径排序，以 UTF-8 路径、NUL、文件字节、NUL 串联后的 SHA-256：`1ccd21cdde0938608c4a9d492ed9783d56fbb1909198d46d870ed89d08b84564`。文件为 session-runs、scheduler.test、sidecar-config/environment/mcp-resources-prompts/system-data-root.test，以及 settings 的 sections/settings-page Browser 测试。
 - 环境：macOS、本机 Node/Vitest 与 Electron 41.0.3 内置 Node；Browser Mode 为无头 Chromium；Electron E2E 全部为后台测试构建。所有运行目录来自 mkdtemp；COKO_HOME、COKO_CHATS_ROOT 与 Electron userData 分别隔离，不读写真实用户业务目录。
-- 只替换模型及已声明的网络/时钟边界；Sidecar、数据库、HTTP、工具、权限、文件系统和 Electron 装配均使用真实实现。没有外部服务密钥或私人会话材料。
+- 模型及已声明的网络/时钟边界可被替换；桌面 E2E 沿用 harness 的原生目录/文件选择对话框替身；Artifact E2E 还在原生 shell 边界记录并替换 `shell.openPath`、`shell.showItemInFolder`，验证调用路径而不实际启动外部应用或 Finder。Sidecar、数据库、HTTP、工具、权限、文件系统和 Electron main/preload/renderer 装配使用真实实现。没有外部服务密钥或私人会话材料。
 
 ## 执行记录
 
@@ -23,7 +23,7 @@ lifecycle: active
 | 下方命令 B | 实际桌面路径、首次发送、Artifact、附件回看/重启、空白项目、删除保留路径、存储展示 | 7 文件，11 项 | 退出 0 |
 | `pnpm run test apps/desktop/e2e/package-smoke.e2e.test.ts -t '启动并完成一次 faux 对话'` | 本次打包产物启动、随包 Sidecar/ripgrep 与日志 | 1 项通过；同文件其他 5 项按标题过滤 | 退出 0 |
 | `pnpm run typecheck` | 全部 TypeScript 项目 | tsc -b | 退出 0 |
-| `pnpm run format`、`pnpm run lint` 后接本票 8 个 TS/TSX 文件 | 格式与静态检查 | 8 文件；`git diff --check` 同时通过 | 退出 0 |
+| `pnpm run format`、`pnpm run lint` 后接原联合验收的 8 个 TS/TSX 文件 | 格式与静态检查 | 8 文件；`git diff --check` 同时通过 | 退出 0 |
 | `pnpm run check:docs` | 正式正文、导航、生命周期与引用方向 | 末次结果见票内完成记录 | 退出 0 |
 
 命令 A（从仓库根运行）：
@@ -74,3 +74,29 @@ pnpm run test apps/desktop/e2e/data-root.e2e.test.ts apps/desktop/e2e/first-send
 - Session directory/cwd 与附件消息引用保存本机绝对路径；跨机器重映射不在本轮范围。插件相对路径与批准摘要的整体移动是已验证的单独契约。
 - 真实模型、Windows 实机、成功打开外部文件应用/Finder、真实鼠标和原生标题栏未验证。后台 CDP/Electron 操作及 Browser Mode 证明所列交互，不能替代这些范围。未运行全仓测试或发布构建平台矩阵。
 - 本票仅本地提交；没有推送、远程 CI、合并 main 或发布。后续源码/依赖/配置变化需重新判断相关证据，最终评审修复由集成流程记录。
+
+
+## 双轴评审修复（集成基线 e09289e9）
+
+首轮评审独立检查了 f6db82e3 到 e09289e9：Standards 3 项（最严重 P1），Spec 1 项（P2）。全部由同一新实施代理在独立分支修复；此处记录处理与验证，不代替后续独立确认。
+
+- Standards S1：原通用落盘和 bash 直接流写先于会话脱敏 Hook，合成登记 Secret 会进入结果文件。Sidecar 现给运行时提供 `toolOutputRedaction` 整段/流式端口，复用已有登记值脱敏器（Secret 与已登记 Credential 共用），agent 不依赖 Sidecar 或全局日志注册表。bash 在解码后、任何缓冲/写盘前处理增量；通用正文在转字节/写盘前处理。现有 Hook 顺序保持原样。流式跨 chunk 行为由同次既有 redactor 用例验证；真实 Sidecar 新增 read/bash 长结果用例扫描运行中及退出后的整个数据目录，未声称 OS 数据 chunk 被测试强制定界。
+- Spec F1：ls/find/JS grep/随包 ripgrep 的默认数量上限原先提前丢弃结果。现保留原显示数量，同时将其余允许读取结果收集到有界缓冲；收集前流式脱敏、按实际字节计 32 MiB、保留 UTF-8，并用临时 capped 标记保证提前停止时文件与模型文本仍标注 `[truncated]`。grep 的两后端通过逐匹配接缝异步消费，不保留第二份无界匹配数组；context 仅缓存当前文件。显式 limit 与 read 的 offset/limit 一样是查询边界，仍及时停止，不因落盘扩大查询。
+- Standards S2：普通文件草稿的完整名称与移除动作接入共享 Tooltip；名称可键盘聚焦。真实 Browser Mode 验证 320px 宽容器中的实际截断、hover 全文、Escape 与移除提示/动作，覆盖明暗主题；后台 Electron 通过键盘焦点显示同一全文并验证附件重启持久化。本轮读回截图为 `/tmp/coko-sdr-review-filename-light.png` 与 `/tmp/coko-sdr-review-filename-dark.png`；自动化最终改为独立 mkdtemp 截图命名空间，避免并行进程覆盖。
+- Standards S3：本记录开头明确披露桌面原生文件选择替身及 Artifact E2E 的 shell 调用记录边界。外部应用/Finder 成功打开仍未验证，没有把记录调用冒充真实 OS 打开。
+
+红绿证据：`pnpm run test tests/integration/secrets-gate-tool-results.test.ts` 在修复前 2/2 因原文落盘失败；修复后通过。`pnpm run test tests/integration/sidecar-tool-result-counts.test.ts` 的最初 2 个后端用例在修复前因无落盘文件失败；修复后连同脱敏字节计量/上限标记场景共 3 项通过。`pnpm run test apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx -t 'long file drafts'` 在修复前 2 项因没有 Tooltip 失败，修复后 2 项通过（同文件 14 项按标题过滤）。后续 UI 调试遇到共享 Tooltip 的 pointer-grace 和关闭动画多个临时节点，测试使用 Escape 与按目标内容定位来验证独立操作，没有放宽等待预算。
+
+最终相关集命令：
+
+```sh
+pnpm run test tests/integration/secrets-gate-tool-results.test.ts tests/integration/secrets-gate-echo.test.ts tests/integration/secrets-gate-jobs.test.ts tests/integration/sidecar-tool-result-counts.test.ts tests/integration/sidecar-tool-results.test.ts tests/integration/sidecar-ripgrep.test.ts tests/integration/sidecar-system-data-root.test.ts tests/integration/sidecar-session-cleanup.test.ts tests/integration/sidecar-standalone-write-roots.test.ts apps/server/src/adapters/ripgrep.test.ts packages/agent/src/tools/builtin/grep.test.ts packages/agent/src/tools/builtin/file-tools.test.ts packages/agent/src/tools/builtin/bash.test.ts packages/agent/src/tools/scheduler.test.ts packages/logging/src/secret-values.test.ts apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx packages/ui/src/guards/style-guard.test.ts
+```
+
+结果：17 文件、167 项通过，无过滤或跳过。最后将 ls 的 stat 异常捕获范围收窄，避免吞掉收集/脱敏异常后，针对失效部分再运行 `pnpm run test tests/integration/sidecar-tool-result-counts.test.ts packages/agent/src/tools/builtin/file-tools.test.ts`：2 文件、17 项通过。随后区分 grep 的查询数量耗尽与捕获字节上限，并补查不应伪报 matchLimitReached 的显式窗口；`pnpm run test tests/integration/sidecar-tool-result-counts.test.ts apps/server/src/adapters/ripgrep.test.ts packages/agent/src/tools/builtin/grep.test.ts packages/agent/src/tools/builtin/file-tools.test.ts`：4 文件、60 项通过。
+
+- `pnpm run test apps/desktop/e2e/attachments.e2e.test.ts`：1 项通过，实际 Electron 900×680 窗口、明暗主题全文提示、删除源文件/重启回看与原生选择边界。
+- `pnpm run test apps/desktop/e2e/package-smoke.e2e.test.ts -t '启动并完成一次 faux 对话'`：当前构建产物 1 项通过，5 项按标题过滤。
+- `pnpm run typecheck`、17 个改动 TS/TSX 文件的 format/lint：通过；文档检查和最终提交状态见 13 号票追加记录。
+
+文档按 AGENTS → 导航 → execution 与 agent README 读回：落盘前脱敏、默认显示上限和显式查询上限、临时字段移除及原生验证边界与代码/测试一致；无新增正式目录、归档改写或正式文档反向依赖任务材料。平台与未覆盖范围沿用上节，未运行全仓测试、真实模型、Windows 实机或原生前台操作。

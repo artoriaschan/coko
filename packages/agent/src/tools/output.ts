@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { CokoToolResult } from './types.ts'
+import type { CokoToolResult, ToolOutputRedaction } from './types.ts'
 
 export const MAX_TOOL_OUTPUT_BYTES = 32 * 1024 * 1024
 export const OUTPUT_TRUNCATED_MARKER = '\n[truncated]\n'
@@ -15,12 +15,41 @@ export function outputPrefix(bytes: Buffer, limit: number): Buffer {
 
 export const toolOutputFile = (directory: string, toolCallId: string) => join(directory, `${encodeURIComponent(toolCallId)}.txt`)
 
+/** Bounded full-result capture; redaction precedes accounting and buffering. */
+export class ToolOutputBuffer {
+  private readonly chunks: string[] = []
+  private readonly redactor: ReturnType<ToolOutputRedaction['stream']> | undefined
+  private bytes = 0
+  private lines = 0
+  private capped = false
+  constructor(redaction?: ToolOutputRedaction) {
+    this.redactor = redaction?.stream()
+  }
+  appendLine(line: string): boolean {
+    const text = `${this.lines++ ? '\n' : ''}${line}`
+    return this.append(this.redactor ? this.redactor.push(text) : text)
+  }
+  result(): Pick<CokoToolResult, 'untruncatedText' | 'untruncatedTextCapped'> {
+    if (!this.capped && this.redactor) this.append(this.redactor.flush())
+    return { untruncatedText: this.chunks.join(''), ...(this.capped ? { untruncatedTextCapped: true } : {}) }
+  }
+  private append(text: string): boolean {
+    if (this.capped) return false
+    const bytes = Buffer.from(text, 'utf8')
+    const prefix = outputPrefix(bytes, MAX_TOOL_OUTPUT_BYTES - this.bytes)
+    this.chunks.push(prefix.toString('utf8'))
+    this.bytes += prefix.length
+    this.capped = prefix.length < bytes.length
+    return !this.capped
+  }
+}
+
 /** Strip the transient raw text before the result reaches hooks, progress or persistence. */
-export async function storeToolOutput<T>(result: CokoToolResult<T>, path: string | undefined): Promise<CokoToolResult<T>> {
-  const { untruncatedText, ...visible } = result
+export async function storeToolOutput<T>(result: CokoToolResult<T>, path: string | undefined, redact?: (text: string) => string): Promise<CokoToolResult<T>> {
+  const { untruncatedText, untruncatedTextCapped, ...visible } = result
   if (untruncatedText === undefined || !path) return visible
-  const bytes = Buffer.from(untruncatedText, 'utf8')
-  const truncated = bytes.length > MAX_TOOL_OUTPUT_BYTES
+  const bytes = Buffer.from(redact ? redact(untruncatedText) : untruncatedText, 'utf8')
+  const truncated = untruncatedTextCapped === true || bytes.length > MAX_TOOL_OUTPUT_BYTES
   const stored = truncated
     ? Buffer.concat([outputPrefix(bytes, MAX_TOOL_OUTPUT_BYTES - Buffer.byteLength(OUTPUT_TRUNCATED_MARKER)), Buffer.from(OUTPUT_TRUNCATED_MARKER)])
     : bytes

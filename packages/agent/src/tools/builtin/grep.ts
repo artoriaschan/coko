@@ -6,6 +6,7 @@ import ignore from 'ignore'
 import { Type, type Static } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, GREP_MAX_LINE_LENGTH, truncateHead, truncateLine, type TruncationResult } from '../truncate.ts'
+import { ToolOutputBuffer } from '../output.ts'
 import type { CokoTool } from '../types.ts'
 import { createReadFilter } from './read-filter.ts'
 import { walkTree } from './walk.ts'
@@ -41,6 +42,8 @@ export interface GrepSearchRequest {
   /** Stop after this many matching lines. */
   limit: number
   signal?: AbortSignal
+  /** Stream matches to the formatter without retaining a second unbounded match array. False stops capture. */
+  consume?: (match: GrepMatch) => Promise<boolean>
 }
 
 export interface GrepMatch {
@@ -87,6 +90,8 @@ export const jsGrepSearcher: GrepSearcher = async (request) => {
   const source = request.literal ? escapeRegExp(request.pattern) : request.pattern
   const regex = new RegExp(source, request.ignoreCase ? 'i' : '')
   const matches: GrepMatch[] = []
+  let count = 0
+  let limitReached = false
 
   const searchFile = async (filePath: string): Promise<boolean> => {
     let buffer: Buffer
@@ -101,20 +106,27 @@ export const jsGrepSearcher: GrepSearcher = async (request) => {
     for (let index = 0; index < lines.length; index++) {
       const line = (lines[index] as string).replace(/\r$/, '')
       if (!regex.test(line)) continue
-      matches.push({ filePath, lineNumber: index + 1, lineText: line })
-      if (matches.length >= request.limit) return true
+      throwIfAborted(request.signal)
+      const match = { filePath, lineNumber: index + 1, lineText: line }
+      count++
+      limitReached = count >= request.limit
+      if (request.consume) {
+        if (!(await request.consume(match))) return true
+      } else matches.push(match)
+      if (limitReached) return true
     }
     return false
   }
 
   if (!request.isDirectory) {
-    return { matches, limitReached: await searchFile(request.searchPath) }
+    await searchFile(request.searchPath)
+    return { matches, limitReached }
   }
   const filter = createGlobFilter(request.glob)
   for await (const entry of walkTree(request.searchPath, { signal: request.signal, descend: (dir) => filter.directory(dir.relativePath) })) {
     if (entry.isDirectory || !filter.file(entry.relativePath)) continue
     throwIfAborted(request.signal)
-    if (await searchFile(entry.absolutePath)) return { matches, limitReached: true }
+    if (await searchFile(entry.absolutePath)) return { matches, limitReached }
   }
   return { matches, limitReached: false }
 }
@@ -145,29 +157,6 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
       const limit = Math.max(1, Math.floor(params.limit ?? GREP_DEFAULT_LIMIT))
 
       const filter = await createReadFilter(context, searchPath)
-      const searched = await searcher({
-        pattern: params.pattern,
-        searchPath,
-        isDirectory,
-        ...(params.glob ? { glob: params.glob } : {}),
-        ignoreCase: params.ignoreCase === true,
-        literal: params.literal === true,
-        limit,
-        ...(signal ? { signal } : {}),
-      })
-      throwIfAborted(signal)
-      // 被读取拒绝规则覆盖的文件不进入结果（按文件计数）。
-      const deniedFiles = new Map<string, boolean>()
-      const matches = searched.matches.filter((match) => {
-        let denied = deniedFiles.get(match.filePath)
-        if (denied === undefined) deniedFiles.set(match.filePath, (denied = filter.denied(match.filePath)))
-        return !denied
-      })
-      const limitReached = searched.limitReached
-      const omitted = filter.notice()
-      if (matches.length === 0)
-        return { content: [{ type: 'text', text: omitted ? `No matches found\n\n[${omitted}]` : 'No matches found' }], details: undefined }
-
       const formatPath = (filePath: string) => {
         if (isDirectory) {
           const rel = relative(searchPath, filePath)
@@ -175,18 +164,19 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
         }
         return basename(filePath)
       }
-      const fileLines = new Map<string, string[]>()
+      // Backends visit files in path order, so only the current context file needs caching.
+      let cachedPath: string | undefined
+      let cachedLines: string[] = []
       const linesOf = async (filePath: string) => {
-        let lines = fileLines.get(filePath)
-        if (!lines) {
+        if (cachedPath !== filePath) {
           try {
-            lines = (await readFile(filePath, 'utf-8')).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+            cachedLines = (await readFile(filePath, 'utf-8')).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
           } catch {
-            lines = []
+            cachedLines = []
           }
-          fileLines.set(filePath, lines)
+          cachedPath = filePath
         }
-        return lines
+        return cachedLines
       }
 
       let linesTruncated = false
@@ -196,29 +186,58 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
         return text
       }
       const output: string[] = []
-      const fullOutput: string[] = []
-      for (const match of matches) {
+      const fullOutput = new ToolOutputBuffer(context?.outputRedaction)
+      let matchCount = 0
+      let consumed = false
+      const collect = async (match: GrepMatch): Promise<boolean> => {
+        if (filter.denied(match.filePath)) return true
+        matchCount++
+        const visible = matchCount <= limit
         const rel = formatPath(match.filePath)
         if (contextLines === 0 && match.lineText !== undefined) {
-          fullOutput.push(`${rel}:${match.lineNumber}: ${match.lineText.replace(/\r?\n$/, '').replace(/\r/g, '')}`)
-          output.push(`${rel}:${match.lineNumber}: ${clip(match.lineText)}`)
-          continue
+          const active = fullOutput.appendLine(`${rel}:${match.lineNumber}: ${match.lineText.replace(/\r?\n$/, '').replace(/\r/g, '')}`)
+          if (visible) output.push(`${rel}:${match.lineNumber}: ${clip(match.lineText)}`)
+          return active
         }
         const lines = await linesOf(match.filePath)
         if (lines.length === 0) {
-          fullOutput.push(`${rel}:${match.lineNumber}: (unable to read file)`)
-          output.push(`${rel}:${match.lineNumber}: (unable to read file)`)
-          continue
+          if (visible) output.push(`${rel}:${match.lineNumber}: (unable to read file)`)
+          return fullOutput.appendLine(`${rel}:${match.lineNumber}: (unable to read file)`)
         }
         const start = Math.max(1, match.lineNumber - contextLines)
         const end = Math.min(lines.length, match.lineNumber + contextLines)
         for (let current = start; current <= end; current++) {
           const original = (lines[current - 1] ?? '').replace(/\r/g, '')
-          fullOutput.push(current === match.lineNumber ? `${rel}:${current}: ${original}` : `${rel}-${current}- ${original}`)
-          const text = clip(original)
-          output.push(current === match.lineNumber ? `${rel}:${current}: ${text}` : `${rel}-${current}- ${text}`)
+          const active = fullOutput.appendLine(current === match.lineNumber ? `${rel}:${current}: ${original}` : `${rel}-${current}- ${original}`)
+          if (visible) {
+            const text = clip(original)
+            output.push(current === match.lineNumber ? `${rel}:${current}: ${text}` : `${rel}-${current}- ${text}`)
+          }
+          if (!active) return false
         }
+        return true
       }
+      const searched = await searcher({
+        pattern: params.pattern,
+        searchPath,
+        isDirectory,
+        ...(params.glob ? { glob: params.glob } : {}),
+        ignoreCase: params.ignoreCase === true,
+        literal: params.literal === true,
+        // Explicit limits are query bounds. The default is a display cap; retain its overflow.
+        limit: params.limit === undefined ? Number.MAX_SAFE_INTEGER : limit,
+        ...(signal ? { signal } : {}),
+        consume: async (match) => {
+          consumed = true
+          return collect(match)
+        },
+      })
+      // Existing custom searchers may still return their result array rather than use consume.
+      if (!consumed) for (const match of searched.matches) if (!(await collect(match))) break
+      throwIfAborted(signal)
+      const limitReached = params.limit === undefined ? matchCount > limit : searched.limitReached
+      const omitted = filter.notice()
+      if (matchCount === 0) return { content: [{ type: 'text', text: omitted ? `No matches found\n\n[${omitted}]` : 'No matches found' }], details: undefined }
 
       const truncation = truncateHead(output.join('\n'), { maxLines: Number.MAX_SAFE_INTEGER })
       let text = truncation.content
@@ -241,7 +260,7 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
       return {
         content: [{ type: 'text', text }],
         details: Object.keys(details).length > 0 ? details : undefined,
-        ...(truncation.truncated || linesTruncated ? { untruncatedText: fullOutput.join('\n') } : {}),
+        ...(truncation.truncated || linesTruncated || (params.limit === undefined && limitReached) ? fullOutput.result() : {}),
       }
     },
   }

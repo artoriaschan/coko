@@ -54,67 +54,66 @@ export function ripgrepArgs(request: GrepSearchRequest): string[] {
 
 /** 以给定 rg 可执行文件构造 GrepSearcher。 */
 export function createRipgrepSearcher(rgPath: string): GrepSearcher {
-  return (request) =>
-    new Promise((resolve, reject) => {
-      if (request.signal?.aborted) {
-        reject(abortError())
-        return
-      }
-      const child = spawn(rgPath, ripgrepArgs(request), { ...(request.isDirectory ? { cwd: request.searchPath } : {}), stdio: ['ignore', 'pipe', 'pipe'] })
-      const matches: GrepMatch[] = []
-      let limitReached = false
-      let stopped = false
-      let settled = false
-      let stderr = ''
-
-      const finish = (error: Error | undefined) => {
-        if (settled) return
-        settled = true
-        request.signal?.removeEventListener('abort', onAbort)
-        if (error) reject(error)
-        else resolve({ matches, limitReached })
-      }
-      const stop = () => {
-        stopped = true
-        if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
-      }
-      const onAbort = () => {
-        stop()
-        finish(abortError())
-      }
-      request.signal?.addEventListener('abort', onAbort, { once: true })
-
-      child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
-        stderr = (stderr + chunk).slice(-8192)
-      })
-      const lines = createInterface({ input: child.stdout })
-      lines.on('line', (line) => {
-        if (stopped || !line.startsWith('{"type":"match"')) return
+  return async (request) => {
+    if (request.signal?.aborted) throw abortError()
+    const child = spawn(rgPath, ripgrepArgs(request), { ...(request.isDirectory ? { cwd: request.searchPath } : {}), stdio: ['ignore', 'pipe', 'pipe'] })
+    const exited = new Promise<{ code: number | null } | { error: Error }>((resolve) => {
+      child.once('error', (error) => resolve({ error }))
+      child.once('close', (code) => resolve({ code }))
+    })
+    const matches: GrepMatch[] = []
+    let count = 0
+    let limitReached = false
+    let stopped = false
+    let stderr = ''
+    const stop = () => {
+      stopped = true
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
+    }
+    request.signal?.addEventListener('abort', stop, { once: true })
+    if (request.signal?.aborted) stop()
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+      stderr = (stderr + chunk).slice(-8192)
+    })
+    const lines = createInterface({ input: child.stdout })
+    try {
+      for await (const line of lines) {
+        if (stopped) break
+        if (!line.startsWith('{"type":"match"')) continue
         let message: RgMatchMessage
         try {
           message = JSON.parse(line) as RgMatchMessage
         } catch {
-          return
+          continue
         }
-        matches.push({
+        const match = {
           filePath: request.isDirectory ? join(request.searchPath, decode(message.data.path)) : request.searchPath,
           lineNumber: message.data.line_number ?? 0,
           lineText: decode(message.data.lines).replace(/\r?\n$/, ''),
-        })
-        if (matches.length >= request.limit) {
-          limitReached = true
-          stop()
         }
-      })
-
-      child.once('error', (error) => finish(error))
-      child.once('close', (code) => {
-        if (request.signal?.aborted) return finish(abortError())
-        // 0 = 有匹配，1 = 无匹配，2 = 错误（非法正则等）。因 limit 主动停止时忽略退出码。
-        if (stopped || code === 0 || code === 1) return finish(undefined)
-        finish(new Error(stderr.trim() || `ripgrep exited with code ${String(code)}`))
-      })
-    })
+        count++
+        const active = request.consume ? await request.consume(match) : (matches.push(match), true)
+        if (!active || count >= request.limit) {
+          limitReached = count >= request.limit
+          stop()
+          break
+        }
+      }
+      const exit = await exited
+      if ('error' in exit) throw exit.error
+      const code = exit.code
+      if (request.signal?.aborted) throw abortError()
+      if (!stopped && code !== 0 && code !== 1) throw new Error(stderr.trim() || `ripgrep exited with code ${String(code)}`)
+      return { matches, limitReached }
+    } catch (error) {
+      stop()
+      await exited
+      throw error
+    } finally {
+      request.signal?.removeEventListener('abort', stop)
+      lines.close()
+    }
+  }
 }
 
 /** 启动检查：可执行且能报告版本，返回首行版本文本（如 "ripgrep 15.0.0 (rev …)"）；否则拒绝。 */
