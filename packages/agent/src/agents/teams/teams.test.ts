@@ -225,16 +225,16 @@ describe('名字、名册与 <team>', () => {
     ])
   })
 
-  it('<team> 含自己的名字、lead、其他成员与任务', () => {
+  it('<team> 只含自己的名字、lead 与固定规则，当前状态取自 State Update', () => {
     const text = teamSectionText({
       name: 'alice',
-      members: [{ name: 'bob', status: 'idle' }],
-      tasks: [{ ...task({ taskId: 't1', subject: 'Fix it' }), ready: true }],
     })
     expect(text).toMatch(/^<team name="alice">/)
     expect(text).toContain('led by "lead"')
-    expect(text).toContain('bob (idle)')
-    expect(text).toContain('t1 r1 [pending, ready]: Fix it')
+    expect(text).toContain('task_update')
+    expect(text).toContain('latest team State Update')
+    expect(text).not.toContain('Other teammates:')
+    expect(text).not.toContain('Current tasks:')
   })
 
   it('task_update 的错误结果文本以错误码开头（工具抛出）', async () => {

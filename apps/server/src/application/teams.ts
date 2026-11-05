@@ -22,6 +22,7 @@ import {
   type TeamPort,
   type TeamSent,
   type TeamTaskPayload,
+  type TeamStateValue,
 } from '@coko/agent'
 import { getLogger, redactSecretValues } from '@coko/logging'
 import type { TeamMember, TeamSnapshot } from '@coko/protocol'
@@ -132,12 +133,28 @@ export class TeamService {
   async section(sessionId: string): Promise<{ name: string; text: string } | undefined> {
     const me = this.#options.subagents?.teammateOf(sessionId)
     if (!me) return undefined
+    return { name: 'teams', text: teamSectionText({ name: me.name }) }
+  }
+
+  /** teammate 当前看到的其他成员与任务板；定义仍留在静态 section。 */
+  async stateValue(sessionId: string): Promise<TeamStateValue | undefined> {
+    const me = this.#options.subagents?.teammateOf(sessionId)
+    if (!me) return undefined
     const entries = await this.#options.store.sessions.listEntries(me.rootId)
     const members = teamRoster(entries)
       .filter((m) => m.name !== me.name)
       .map((m) => ({ name: m.name, status: this.#status(m) }))
       .filter((m) => m.status !== 'dismissed')
-    return { name: 'teams', text: teamSectionText({ name: me.name, members, tasks: taskViews(teamTasks(entries)) }) }
+    const tasks = taskViews(teamTasks(entries)).map(({ taskId, revision, subject, status, ready, owner, blockedBy }) => ({
+      taskId,
+      revision,
+      subject,
+      status,
+      ready,
+      ...(owner ? { owner } : {}),
+      blockedBy,
+    }))
+    return { members, tasks }
   }
 
   // ---- 模型的工具（context/teams.ts） ----

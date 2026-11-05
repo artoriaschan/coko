@@ -20,7 +20,13 @@ export const byUser = (logged: Logged[], marker: string) =>
 
 export async function bootAgents(
   responses: unknown[],
-  options: { env?: Record<string, string>; script?: Record<string, unknown>; providers?: Parameters<typeof seedProviders>[1]; workspace?: string } = {},
+  options: {
+    env?: Record<string, string>
+    script?: Record<string, unknown>
+    providers?: Parameters<typeof seedProviders>[1]
+    workspace?: string
+    ipc?: boolean
+  } = {},
 ) {
   const root = await tempDir()
   const requestLog = join(root, 'requests.jsonl')
@@ -28,7 +34,7 @@ export async function bootAgents(
   const dirs = await sidecarDirs()
   if (options.providers) await seedProviders(dirs, options.providers)
   const script = await fauxScript(root, { requestLog, responses, ...options.script })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', ...options.env } })
+  const sidecar = await startSidecar({ dirs, ipc: options.ipc, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', ...options.env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
