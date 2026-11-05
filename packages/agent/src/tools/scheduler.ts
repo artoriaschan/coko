@@ -2,6 +2,7 @@
 // read 调用共享执行槽；side-effect 调用是独占屏障：等前面的调用全部完成才开始，后面的调用等它完成。
 // 取得执行槽后先做执行前的准备（复核与执行上下文），再由 side-effect 调用提交 tool_exec 执行记录；任一步失败则不执行。
 import { idempotencyKeyFor, type ToolExecPayload } from '../session-entries/tools.ts'
+import { storeToolOutput, toolOutputFile } from './output.ts'
 import type { CokoTool, ToolEffect, ToolExecutionContext } from './types.ts'
 
 export const DEFAULT_TOOL_CONCURRENCY = 10
@@ -87,6 +88,7 @@ export interface SchedulingOptions {
   scheduler: ToolScheduler
   /** 幂等键的 Session 部分。 */
   sessionId: string
+  outputDirectory?: string
   /**
    * 提交 side-effect 调用的执行记录，在取得执行槽之后、execute 之前。拒绝时调用不执行，拒绝原因成为该调用的错误；
    * 让 Run 以 commit_failed 结束由调用方负责。
@@ -115,7 +117,10 @@ export function withScheduling(tool: CokoTool, options: SchedulingOptions): Coko
   return {
     ...tool,
     execute(toolCallId, params, signal, onUpdate) {
-      const context: ToolExecutionContext = { idempotencyKey: idempotencyKeyFor(options.sessionId, toolCallId) }
+      const context: ToolExecutionContext = {
+        idempotencyKey: idempotencyKeyFor(options.sessionId, toolCallId),
+        ...(options.outputDirectory ? { outputFile: toolOutputFile(options.outputDirectory, toolCallId) } : {}),
+      }
       return options.scheduler.run(
         effect,
         async () => {
@@ -126,7 +131,25 @@ export function withScheduling(tool: CokoTool, options: SchedulingOptions): Coko
             // 记录提交期间被取消：不再开始执行。
             if (signal?.aborted) throw new Error(OPERATION_ABORTED)
           }
-          return tool.execute(toolCallId, params, signal, onUpdate, extra ? { ...extra, ...context } : context)
+          try {
+            return await storeToolOutput(
+              await tool.execute(toolCallId, params, signal, onUpdate, extra ? { ...extra, ...context } : context),
+              context.outputFile,
+            )
+          } catch (error) {
+            if (!(error instanceof Error) || !('untruncatedText' in error) || typeof error.untruncatedText !== 'string') throw error
+            const result = await storeToolOutput(
+              { content: [{ type: 'text', text: error.message }], details: undefined, untruncatedText: error.untruncatedText },
+              context.outputFile,
+            )
+            throw new Error(
+              result.content
+                .filter((block) => block.type === 'text')
+                .map((block) => block.text)
+                .join('\n\n'),
+              { cause: error },
+            )
+          }
         },
         signal,
       )

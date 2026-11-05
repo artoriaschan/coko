@@ -136,7 +136,7 @@ function limited(lines: string[], noun: string): { text: string; counts: LspResu
   return { text, counts: { count: shown.length, total: lines.length, truncated } }
 }
 
-export function formatLspResult(result: LspQueryResult, options: LspFormatOptions): { text: string; details: LspResultCounts } {
+export function formatLspResult(result: LspQueryResult, options: LspFormatOptions): { text: string; details: LspResultCounts; untruncatedText?: string } {
   const { cwd, file, readText } = options
   const fileLabel = displayPath(cwd, file)
   switch (result.kind) {
@@ -158,24 +158,30 @@ export function formatLspResult(result: LspQueryResult, options: LspFormatOption
           return `${fileLabel}:${at.line}:${at.character} ${severity} ${oneLine(String(d.message ?? ''))}${source}`
         })
       const out = limited(rows, 'diagnostics')
-      return { text: out.text, details: out.counts }
+      return { text: out.text, details: out.counts, ...(out.counts.truncated ? { untruncatedText: rows.join('\n') } : {}) }
     }
     case 'locations': {
       const locations = normalizeLocations(result.locations)
       const noun = result.operation === 'definition' ? 'definitions' : 'references'
       if (locations.length === 0)
         return { text: result.operation === 'definition' ? 'No definition found.' : 'No references found.', details: { count: 0, total: 0, truncated: false } }
+      const fullRows: string[] = []
       const rows = locations.map(({ path, start }) => {
         const text = readText(path)
         const at = fromLspPosition(text, start)
         const label = `${displayPath(cwd, path)}:${at.line}:${at.character}`
         const line = text === undefined ? undefined : (text.split(/\r\n|\r|\n/)[start.line] ?? '').trim()
+        fullRows.push(line ? `${label} ${line}` : label)
         if (!line) return label
         const points = Array.from(line)
         return `${label} ${points.length > LSP_LINE_TEXT_MAX ? points.slice(0, LSP_LINE_TEXT_MAX).join('') + '…' : line}`
       })
       const out = limited(rows, noun)
-      return { text: out.text, details: out.counts }
+      return {
+        text: out.text,
+        details: out.counts,
+        ...(out.counts.truncated || fullRows.join('\n') !== rows.join('\n') ? { untruncatedText: fullRows.join('\n') } : {}),
+      }
     }
     case 'hover': {
       const text = hoverText(result.hover?.contents).trim()
@@ -184,6 +190,7 @@ export function formatLspResult(result: LspQueryResult, options: LspFormatOption
       return {
         text: text.slice(0, LSP_MAX_CHARS) + `\n\n[Hover truncated: ${text.length} characters in total.]`,
         details: { count: 1, total: 1, truncated: true },
+        untruncatedText: text,
       }
     }
   }

@@ -48,7 +48,7 @@ async function setup(responses: unknown[]) {
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line) as { role: string; content: unknown }[])
-  return { root, workspaceDir, sidecar, api, stream, workspace, requests }
+  return { root, dirs, workspaceDir, sidecar, api, stream, workspace, requests }
 }
 
 async function newSession(api: Api, stream: Stream, workspaceId: string): Promise<string> {
@@ -170,6 +170,9 @@ describe('MCP 资源', () => {
     expect(big).toContain('note 2000\n')
     expect(big).not.toContain('note 2001')
     expect(big).toContain('[Resource truncated: showing 2000 of 2500 lines]')
+    expect(await readFile(join(ctx.dirs.dataDir, 'tool-results', sessionId, 'big.txt'), 'utf8')).toBe(
+      Array.from({ length: 2500 }, (_, i) => `note ${i + 1}`).join('\n'),
+    )
     expect(result(stream, sessionId, 'dot').content).toEqual([{ type: 'image', data: FIXTURE_PNG, mimeType: 'image/png' }])
     expect(textOf(result(stream, sessionId, 'blob'))).toBe('[binary resource fixture://bin/blob (application/octet-stream, 2.9KB) omitted]')
     expect(textOf(result(stream, sessionId, 'item'))).toBe('item 42')

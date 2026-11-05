@@ -35,7 +35,12 @@ export function detectImageMimeType(buffer: Buffer): string | undefined {
   return undefined
 }
 
-function readText(buffer: Buffer, path: string, offset: number | undefined, limit: number | undefined): { text: string; details: ReadToolDetails | undefined } {
+function readText(
+  buffer: Buffer,
+  path: string,
+  offset: number | undefined,
+  limit: number | undefined,
+): { text: string; details: ReadToolDetails | undefined; untruncatedText?: string } {
   const allLines = buffer.toString('utf-8').split('\n')
   const startLine = offset ? Math.max(0, offset - 1) : 0
   const startDisplay = startLine + 1
@@ -55,6 +60,7 @@ function readText(buffer: Buffer, path: string, offset: number | undefined, limi
     return {
       text: `[Line ${startDisplay} is ${size}, exceeds ${formatSize(DEFAULT_MAX_BYTES)} limit. Use bash: sed -n '${startDisplay}p' ${path} | head -c ${DEFAULT_MAX_BYTES}]`,
       details: { truncation },
+      untruncatedText: selected,
     }
   }
   if (truncation.truncated) {
@@ -63,6 +69,7 @@ function readText(buffer: Buffer, path: string, offset: number | undefined, limi
     return {
       text: `${truncation.content}\n\n[Showing lines ${startDisplay}-${endDisplay} of ${allLines.length}${limitNote}. Use offset=${endDisplay + 1} to continue.]`,
       details: { truncation },
+      untruncatedText: selected,
     }
   }
   if (userLimited !== undefined && startLine + userLimited < allLines.length) {
@@ -101,8 +108,8 @@ export function createReadTool({ cwd }: { cwd: string }): CokoTool<typeof readPa
         ]
         return { content, details: undefined, structuredContent: { type: 'image', data, mimeType, note } }
       }
-      const { text, details } = readText(buffer, path, offset, limit)
-      return { content: [{ type: 'text', text }], details, structuredContent: text }
+      const { text, details, untruncatedText } = readText(buffer, path, offset, limit)
+      return { content: [{ type: 'text', text }], details, structuredContent: text, ...(untruncatedText !== undefined ? { untruncatedText } : {}) }
     },
   }
 }

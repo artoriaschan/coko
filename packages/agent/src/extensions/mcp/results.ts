@@ -1,6 +1,6 @@
 // MCP 工具结果 → 模型内容（docs/subsystems/mcp.md）：isError 为错误结果；文本按 2000 行 / 50KB 截断；图片透传；其他类型注明省略。
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
-import type { AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { CokoToolResult } from '../../tools/types.ts'
 import type { CallToolResult, ContentBlock } from '@earendil-works/pi-mcp'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
 
@@ -37,7 +37,7 @@ export function convertMcpResult(
   server: string,
   tool: string,
   result: Pick<CallToolResult, 'content' | 'structuredContent' | 'isError'>,
-): AgentToolResult<McpToolDetails> {
+): CokoToolResult<McpToolDetails> {
   const converted: ModelContent[] =
     result.content.length > 0
       ? result.content.map(blockToContent)
@@ -49,6 +49,7 @@ export function convertMcpResult(
     .map((block) => block.text)
     .join('\n')
   if (result.isError && combined === '') combined = `MCP tool ${server}/${tool} returned an error`
+  const original = combined
   const truncation = truncateHead(combined)
   if (truncation.truncated) {
     const limit = truncation.truncatedBy === 'bytes' ? ` (${formatSize(DEFAULT_MAX_BYTES)} limit)` : ''
@@ -58,6 +59,7 @@ export function convertMcpResult(
   return {
     content: [...(combined === '' ? [] : [{ type: 'text' as const, text: combined }]), ...images],
     details: { server, tool },
+    ...(truncation.truncated ? { untruncatedText: original } : {}),
     ...(result.isError ? { isError: true } : {}),
   }
 }
