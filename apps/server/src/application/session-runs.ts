@@ -55,6 +55,7 @@ import { createProgressRedactor, redactModelMessages, secretRedactionHook } from
 import type { SessionModels } from './session-models.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
+import { standaloneWriteRoots } from './session-directory.ts'
 import { sessionProject } from './session-project.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -203,6 +204,7 @@ interface RunContext {
   observe: ReturnType<typeof dynamicHooks>
   readRoots: readonly string[]
   workspaceRoots: readonly string[]
+  writeRoots: readonly string[] | undefined
   /** 该 Run 的外部 Hook 权限端口；没有时 gate 与没有 Hook 时相同。 */
   permissionHooks: PermissionHookPort | undefined
 }
@@ -471,6 +473,7 @@ export class SessionRuns {
       runContext.observe.set(observe)
       runContext.readRoots = readRoots
       runContext.workspaceRoots = workspaceRoots
+      runContext.writeRoots = scope.sessionDirectory ? await standaloneWriteRoots(scope.sessionDirectory) : undefined
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
       const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
@@ -719,6 +722,7 @@ export class SessionRuns {
       observe: dynamicHooks(),
       readRoots: [],
       workspaceRoots: [],
+      writeRoots: undefined,
       permissionHooks: undefined,
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
@@ -748,6 +752,7 @@ export class SessionRuns {
           ...(this.#options.toolResultsRoot ? [join(this.#options.toolResultsRoot, encodeURIComponent(session.id))] : []),
         ],
         workspaceRoots: () => runContext.workspaceRoots,
+        writeRoots: () => runContext.writeRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
         hooks: {
           preToolUse: (call, signal) => runContext.permissionHooks?.preToolUse(call, signal) ?? NO_VERDICT,
