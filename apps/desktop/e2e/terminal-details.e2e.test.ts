@@ -1,5 +1,5 @@
 // Real App + Sidecar + command execution. The file barrier controls output; no timing sleeps.
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
@@ -10,9 +10,8 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const workspace = join(root, 'workspace')
   await mkdir(workspace)
-  const script =
-    "const fs=require('fs'); const watcher=fs.watch('.',()=>{if(fs.existsSync('release')){watcher.close(); console.log('second output'); process.exit(7)}}); process.stdout.write('\\u001b[31mfirst output\\u001b[0m\\n'); fs.writeFileSync('ready','1')"
-  const command = `node -e ${JSON.stringify(script)}`
+  const script = String.raw`const fs=require('fs'); let emitted=false; const watcher=fs.watch('.',()=>{if(!emitted&&fs.existsSync('emit')){emitted=true; process.stdout.write('\u001b[31mfirst output\u001b[0m\n')} if(fs.existsSync('release')){watcher.close(); console.log('second output'); process.exit(7)}}); fs.writeFileSync('ready','1')`
+  const command = `node -e '${script.replaceAll("'", "'\\''")}'`
   const background = `node -e "console.log('background-real')"`
   const faux = join(root, 'faux.json')
   await writeFile(
@@ -45,6 +44,9 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
   await composer.press('Enter')
   const row = app.window.locator('[data-slot="tool-card"][data-tool="bash"]').first()
   await row.locator('button').first().click()
+  // 首次发送先启动 Run 后订阅：等真实命令与界面都就绪，再放行不可回放的首段进度。
+  await expect.poll(() => readFile(join(workspace, 'ready'), 'utf8').catch(() => null)).toBe('1')
+  await writeFile(join(workspace, 'emit'), '1')
   const output = row.locator('[data-terminal-output]')
   await expect.poll(() => output.textContent()).toBe('first output\n')
   expect(await row.locator('[data-command-text]').allTextContents()).toEqual([command])
@@ -72,7 +74,7 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
     await app.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), before)
   }
   await writeFile(join(workspace, 'release'), '1')
-  await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('Foreground ended.')
+  await expect.poll(() => app.window.locator('[data-slot="assistant-message-body"]').last().textContent(), { timeout: 30_000 }).toBe('Foreground ended.')
   expect(await output.textContent()).toContain('second output')
   expect(await output.textContent()).toContain('Command exited with code 7')
   expect(await row.getAttribute('data-status')).toBe('error')
@@ -80,7 +82,7 @@ it('terminal command input, continuous output, error, raw copy and real Backgrou
   expect(await row.locator('[aria-expanded="true"]').count()).toBe(1)
   await composer.fill('start background')
   await composer.press('Enter')
-  await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('Background started.')
+  await expect.poll(() => app.window.locator('[data-slot="assistant-message-body"]').last().textContent(), { timeout: 30_000 }).toBe('Background started.')
   await app.window.locator('[data-action="send"]').waitFor()
   // This normally completed Run has its own outer and group disclosures.
   const backgroundProcess = app.window.locator('[data-slot="run-process-control"]').last()

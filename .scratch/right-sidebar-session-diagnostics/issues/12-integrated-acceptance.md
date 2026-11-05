@@ -29,3 +29,10 @@
 ## Comments
 
 - 2026-11-05：用户回复“全部采用推荐”，确认 12 张票及其阻塞关系。本票发布到本地 Markdown tracker，尚未实施，验收项均未完成。
+
+### 2026-11-05 提前 Electron 回归修复（不关闭本票）
+
+- 基线 `19578a20` 的 schedules / subagents / trace 窄窗口断言改为等待实际全屏面板边界；terminal-details 以文件屏障同步不可回放的首段进度，并将正文定位与消息页脚分开。没有修改产品代码，诊断及原始失败信号见 [第 03 票补验](03-width-narrow-fullscreen.md#2026-11-05-原生-e2e-提前补验)。
+- 独立 worktree 最终执行 `rtk pnpm run test --project desktop-e2e apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts`：4 文件、5 项通过、0 跳过，退出 0，45.67s。类型与相关 lint 通过。保留第 12 票的最终集成验收，不将提前批次冒充 AC-01—30 已完成。
+
+- 后续合入第 07 票 `f3a8db9d`（无冲突）后，同一四文件 Electron 命令再次通过：4 文件、5 项、0 跳过，退出 0，47.89s；冻结依赖安装、类型检查、文档检查（344 文件、0 问题）均退出 0。第 08—11 票后的最终整体证据仍由本票核对。

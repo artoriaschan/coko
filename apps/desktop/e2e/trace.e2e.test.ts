@@ -167,6 +167,15 @@ describe('Trace tab', () => {
       w.setContentSize(390, 820)
     })
     await expect.poll(() => win.evaluate(() => window.innerWidth)).toBe(390)
+    await expect.poll(() => win.locator('[data-slot="app-frame"]').getAttribute('data-right')).toBe('fullscreen')
+    await expect
+      .poll(() =>
+        win.locator('[data-slot="app-frame-right"]').evaluate((el) => {
+          const box = el.getBoundingClientRect()
+          return [box.x, box.width]
+        }),
+      )
+      .toEqual([0, 390])
     const box = await exportButton.boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)
