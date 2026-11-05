@@ -216,7 +216,7 @@ describe('桌面壳', () => {
     const boxes = () =>
       app.app.evaluate(() => (globalThis as { __boxes?: { type?: string; message?: string; detail?: string; buttons?: string[] }[] }).__boxes ?? [])
     const opened = () => app.app.evaluate(() => (globalThis as { __opened?: string[] }).__opened ?? [])
-    const logsDir = join(await realpath(dir), 'user-data', 'logs')
+    const logsDir = join(await realpath(dir), 'coko-home', 'data', 'logs')
     await expect.poll(async () => (await boxes()).length, { timeout: 15_000 }).toBe(1)
     const [box] = await boxes()
     expect(box?.type).toBe('error')
@@ -286,7 +286,7 @@ describe('桌面壳', () => {
       .poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 })
       .toBe('Answered by the restarted sidecar.')
     await app.dispose()
-    const records = await readLogRecords(join(root, 'user-data', 'logs', 'desktop.jsonl'))
+    const records = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'desktop.jsonl'))
     expect(records.map((r) => r.message)).toEqual(expect.arrayContaining(['sidecar exited unexpectedly', 'sidecar restarting', 'sidecar restarted']))
   })
 

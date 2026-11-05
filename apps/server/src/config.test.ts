@@ -9,6 +9,18 @@ describe('Sidecar 启动参数', () => {
     expect(parseConfig(argv, { COKO_CHATS_ROOT: '/work/chats' }, { testBuild: false }).chatsRoot).toBe('/work/chats')
     expect(() => parseConfig(argv, { COKO_CHATS_ROOT: 'relative' })).toThrow(ConfigError)
   })
+  it('COKO_HOME 控制默认业务数据与日志，Electron userData 不参与派生', () => {
+    const config = parseConfig([], { COKO_HOME: '/isolated/coko', COKO_USER_DATA_DIR: '/other/electron' })
+    expect(config).toMatchObject({
+      cokoHome: '/isolated/coko',
+      dataDir: '/isolated/coko/data',
+      dbPath: '/isolated/coko/data/coko.db',
+      logDir: '/isolated/coko/data/logs',
+      logPath: '/isolated/coko/data/logs/sidecar.jsonl',
+    })
+    expect(parseConfig([], {}).dataDir).toBe(join(homedir(), '.coko', 'data'))
+    expect(parseConfig(['--data-dir', '/explicit/data'], { COKO_HOME: '/isolated/coko' }).logDir).toBe('/explicit/data/logs')
+  })
   it('解析 desktop main 传入的目录，派生库与日志文件路径', () => {
     expect(parseConfig(['--data-dir', '/d', '--log-dir=/l'], {})).toEqual({
       dataDir: '/d',
@@ -17,7 +29,7 @@ describe('Sidecar 启动参数', () => {
       logPath: '/l/sidecar.jsonl',
       logLevel: 'info',
       cokoHome: join(homedir(), '.coko'),
-      chatsRoot: join(homedir(), 'Coko', 'chats'),
+      chatsRoot: join(homedir(), 'Documents', 'Coko'),
     })
   })
 
@@ -94,10 +106,7 @@ describe('Sidecar 启动参数', () => {
     expect(parseConfig(argv, { COKO_FAUX_SCRIPT: '/s.json' }, { testBuild: true })).toMatchObject({ packaged: true, fauxScript: '/s.json' })
   })
 
-  it.each([[[]], [['--data-dir', '/d']], [['--data-dir', 'd', '--log-dir', '/l']], [['--data-dir', '/d', '--log-dir', '/l', '--port', '1']], [['--data-dir']]])(
-    '拒绝 %j',
-    (argv) => {
-      expect(() => parseConfig(argv, {})).toThrow(ConfigError)
-    },
-  )
+  it.each([[['--data-dir', 'd', '--log-dir', '/l']], [['--data-dir', '/d', '--log-dir', '/l', '--port', '1']], [['--data-dir']]])('拒绝 %j', (argv) => {
+    expect(() => parseConfig(argv, {})).toThrow(ConfigError)
+  })
 })

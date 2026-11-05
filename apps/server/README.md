@@ -19,14 +19,14 @@ Sidecar 是运行 Hono 服务与 Agent 的 Node 进程：由 Electron main 以 `
 
 | 输入 | 含义 |
 | --- | --- |
-| `--data-dir` | 必填，绝对路径；库文件为 `<dir>/coko.db` |
-| `--log-dir` | 必填，绝对路径；日志为 `<dir>/sidecar.jsonl`（JSONL，10 MiB × 5 份轮转） |
+| `--data-dir` | 可选，绝对路径；缺省 `<COKO_HOME>/data`，库文件为 `<dir>/coko.db`（Headless 入口仍必填） |
+| `--log-dir` | 可选，绝对路径；缺省 `<data-dir>/logs`，日志为 `<dir>/sidecar.jsonl`（JSONL，10 MiB × 5 份轮转） |
 | `--ripgrep` | 可选，绝对路径；给定时启动先运行 `<rg> --version`，失败按 `ripgrep-unavailable` fatal（不回退内置 grep），成功则以 ripgrep 版 grep 覆盖内置 grep（`src/adapters/ripgrep.ts`）。未给定时使用内置纯 JS grep。生效实现记入日志 `grep implementation selected { implementation, path?, version? }` |
 | `--app-version` | 可选，版本号形态（如 `1.2.3`、`1.2.3-beta.1`）；写入 sidecar.jsonl 每条记录的 `appVersion` 统一字段。desktop main 传入 `app.getVersion()` |
 | `--packaged` | 由打包产物启动（desktop main 在 `app.isPackaged` 时传入）。发布构建中此时不读下文标为"仅测试"的 `COKO_FAUX_SCRIPT`、`COKO_SANDBOX_EXEC`、`COKO_TEST_*`，并记 warn `test hooks ignored in a packaged build { variables }`（只记名字）；main 也不把它们交给 Sidecar。以构建期标志 `COKO_TEST_BUILD=1` 打包的测试构建（E2E 的 globalSetup）照常读取 |
 | `COKO_FAUX_SCRIPT` | 仅测试：faux provider 脚本的绝对路径，格式见 `src/adapters/faux.ts`；开启后新建 Session 默认使用 `faux/faux-1`。脚本的 `requestLog` 给出时，每次模型请求前把上下文消息作为一行 JSON 追加到该文件；`usage.report` 可显式声明服务商已报告的分桶，省略时保持未知，不从数值推断报告完整性 |
 | `COKO_LOG_LEVEL` | `trace`…`fatal`，默认 `info` |
-| `COKO_HOME` | 用户级资源目录（指令、Skills、命令），绝对路径，缺省 `~/.coko`（`src/config.ts`）。不是测试钩子：打包产物同样读取；与其他 `COKO_*` 一样不进入 bash 的命令环境。集成与 E2E harness 传入临时目录 |
+| `COKO_HOME` | 应用主数据根与用户级资源目录（指令、Skills、命令、插件），绝对路径，缺省 `~/.coko`（`src/config.ts`）。不是测试钩子：打包产物同样读取；与其他 `COKO_*` 一样不进入 bash 的命令环境。集成与 E2E harness 传入临时目录 |
 | `COKO_SANDBOX_EXEC` | 仅测试：覆盖 sandbox-exec 的绝对路径（默认 `/usr/bin/sandbox-exec`），用于验证不可用时的 fail-closed |
 | `COKO_TEST_TOOLS` | 仅测试：为 `1` 时注册测试宿主工具 `secret_probe`（`src/adapters/test-tools.ts`，声明 Secret `COKO_TEST_SECRET`） |
 | `COKO_SECRET_<NAME>` | 仅独立运行模式读取的 Secret（ADR 0007），见下文。IPC 模式不读 |

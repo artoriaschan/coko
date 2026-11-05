@@ -164,7 +164,9 @@ export interface SidecarDirs {
 
 export async function sidecarDirs(): Promise<SidecarDirs> {
   const root = await tempDir('coko-sidecar-')
-  return { dataDir: join(root, 'data'), logDir: join(root, 'logs'), cokoHome: join(root, 'coko-home') }
+  const cokoHome = join(root, 'coko-home')
+  const dataDir = join(cokoHome, 'data')
+  return { dataDir, logDir: join(dataDir, 'logs'), cokoHome }
 }
 
 /** 在 dirs.cokoHome 下写文件（相对路径，父目录按需创建），返回绝对路径。 */

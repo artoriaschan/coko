@@ -44,7 +44,7 @@ export interface SidecarConfig {
   /** COKO_LOG_LEVEL，默认 info。 */
   logLevel: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'
   /**
-   * COKO_HOME：用户级资源目录（AGENTS.md、skills/、commands/），缺省 ~/.coko。不是测试钩子：打包产物同样读取（docs/subsystems/configuration.md）。
+   * COKO_HOME：应用主数据根与用户级资源目录，缺省 ~/.coko。不是测试钩子：打包产物同样读取（docs/subsystems/configuration.md）。
    * Sidecar 不把它传给 Agent 的命令环境。
    */
   cokoHome: string
@@ -132,10 +132,6 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
     if (name === '--app-version' && !VERSION.test(value)) throw new ConfigError('--app-version must be a version such as 1.2.3')
     values.set(name, value)
   }
-  const dataDir = values.get('--data-dir')
-  const logDir = values.get('--log-dir')
-  if (!dataDir) throw new ConfigError('Missing --data-dir')
-  if (!logDir) throw new ConfigError('Missing --log-dir')
   const ripgrepPath = values.get('--ripgrep')
   const appVersion = values.get('--app-version')
   const packaged = values.has('--packaged')
@@ -145,7 +141,10 @@ export function parseConfig(argv: readonly string[], env: Env, options: ParseOpt
   if (!LEVELS.has(level)) throw new ConfigError(`Unknown COKO_LOG_LEVEL: ${level}`)
   const cokoHome = env.COKO_HOME || join(homedir(), '.coko')
   if (!isAbsolute(cokoHome)) throw new ConfigError('COKO_HOME must be an absolute path')
-  const chatsRoot = env.COKO_CHATS_ROOT || join(homedir(), 'Coko', 'chats')
+  const dataDir = values.get('--data-dir') ?? join(cokoHome, 'data')
+  const logDir = values.get('--log-dir') ?? join(dataDir, 'logs')
+  // 桌面 main 提供 app.getPath('documents') 的实际路径；独立运行时使用用户 Documents。
+  const chatsRoot = env.COKO_CHATS_ROOT || join(homedir(), 'Documents', 'Coko')
   if (!isAbsolute(chatsRoot)) throw new ConfigError('COKO_CHATS_ROOT must be an absolute path')
   return {
     dataDir,

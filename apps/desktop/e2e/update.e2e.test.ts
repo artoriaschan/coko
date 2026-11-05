@@ -193,7 +193,7 @@ describe.skipIf(process.platform !== 'darwin')('自动更新（打包的测试�
 
     app.child.kill('SIGTERM')
     expect(await app.exited).toBe(0)
-    const desktop = await readLogRecords(join(userData, 'logs', 'desktop.jsonl'))
+    const desktop = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'desktop.jsonl'))
     const messages = desktop.map((r) => r.message)
     expect(messages).toContain('auto update enabled')
     expect(messages).not.toContain('auto update disabled')
