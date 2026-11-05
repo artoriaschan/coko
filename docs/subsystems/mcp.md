@@ -106,6 +106,8 @@ Provider 表单在协议下方显示「工具搜索」分组及「加载新工�
 
 只有根 Session 开启按需加载、当前 Run 的目录非空且 Provider 开关开启时使用原生写法：Messages 以 `tool_addition` 声明加载的工具，并发送 `inline-tools-2026-09-15` beta；Responses 在 `additional_tools` 中声明。其余情况发送完整的当前工具列表。开关值在 Run 开始时确定；等待审批时修改 Provider 不改变进行中的 Run，下一个 Run、continue 与 retry 才采用新值，已加载记录保留。
 
+openai-completions 开启该选项后，按 Base URL 与模型 ID 查询安装的 pi 内置目录：URL 去掉路径末尾斜杠、主机名转小写，路径其余部分保持原样；只采用同时标注 `supportsMidConvoSystemMessages` 与 `supportsMidConvoToolAdditions` 的条目。匹配时，加载定义随带 `tools` 的 system 消息追加；未匹配或选项关闭时，照常追加到请求顶层的 `tools`，不会仅因未标注而报错。不按模型名或主机名推断能力。目录通过 pi-ai 的公共 `providers/all` 接口读取；[Completions 请求测试](../../tests/integration/sidecar-completions-incremental-tools.test.ts)以真实 Sidecar 和本地 HTTP 服务验证这两种写法，测试只重定向外部网络，不改写内置目录。
+
 构造运行时时，未入库的开头工具基线只含常驻工具，已加载工具沿历史声明回放，避免 Anthropic 重启后把它们移到请求级 tools 而改写前缀。压缩去掉较早声明时，丢弃前缀的工具状态经 pi 的 transcript 接口折入新的开头基线，保留区间的声明仍按原位置回放；自动压缩后的同一次请求不会丢失已加载定义。上述写法与生命周期由[真实 Sidecar 和本地模型 HTTP 服务](../../tests/integration/sidecar-incremental-tools.test.ts)验证，不代表已实测真实 Provider 的缓存命中。
 
 ## 资源
