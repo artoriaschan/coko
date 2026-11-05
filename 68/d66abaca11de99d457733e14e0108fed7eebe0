@@ -1,0 +1,42 @@
+apps/server/src/application/plugins.test.ts
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 4,144-145
+  s_6cadf0cc1974f1::t_827dd70a868e47 57
+docs/README.md
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 52
+packages/agent/src/extensions/plugins/manifest.test.ts
+  s_6cadf0cc1974f1::t_a77c670101d9fb 26,239-257
+docs/subsystems/plugins.md
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 9,68,85,134,136-137
+tests/integration/sidecar-plugins.test.ts
+  s_6cadf0cc1974f1::t_b4bac8e01c2ea7 5,198-214,219-226,230-240
+  s_6cadf0cc1974f1::t_a77c670101d9fb 23,241-267,271-280
+  s_6cadf0cc1974f1::t_23484ff2010415 215-218,227-229,268-270
+apps/server/src/application/plugins.ts
+  s_6cadf0cc1974f1::t_23484ff2010415 202-206
+  s_6cadf0cc1974f1::t_214dbccffa6b24 92-95,119,234,290,317
+  s_6cadf0cc1974f1::t_2be67cfda13333 97-100,199,284
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 198
+packages/agent/src/extensions/plugins/manifest.ts
+  s_6cadf0cc1974f1::t_23484ff2010415 337-338
+  s_6cadf0cc1974f1::t_2be67cfda13333 3,65-66,331,335-336,339-340,376-378
+.scratch/system-data-root/issues/09-plugin-relative-path.md
+  s_6cadf0cc1974f1::t_f31ccd465dd984 9-30
+docs/adr/0017-plugins-declarative-user-installed.md
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "68d66abaca11de99d457733e14e0108fed7eebe0",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
