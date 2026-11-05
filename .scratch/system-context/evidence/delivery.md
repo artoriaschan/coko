@@ -32,9 +32,17 @@ lifecycle: active
 | Skills 受影响夹具的最终检查 | 日期条目顺序与真实路径 | 6 例 | 通过 | 集成 `5b3da280`；票 07 的后续补记 |
 | 票 10 `pnpm install --frozen-lockfile` | 本工作区检查依赖 | lockfile 未改 | 通过，退出 0 | 本票实际执行 |
 | 票 10 `pnpm run check:docs`、`git diff --check` 及入口读回 | ADR partial、引用方向和当前说明 | 361 个 Markdown、0 问题；diff 检查退出 0 | 通过；合入 `5b3da280` 后仍为 361 文件 0 问题、diff 检查退出 0 | 本票实际执行 |
-| 全分支 Standards/Spec 评审 | 固定基线 `ec32dfc9` 到最终集成 | 尚未由本票执行 | 待父代理执行 | 不提前宣称通过 |
+| 全分支 Standards/Spec 评审 | 固定范围 `ec32dfc9...43de0ccf`，两名新代理独立只读评审 | Standards 1 项、Spec 1 项，均为同一个 P2 定时输入时间线回归；未发现其他高置信行动项 | 同一问题已修复并通过公开时间线回归；最终集成复核由父代理执行 | 详见下方评审修复记录，不将两轴重复发现计为两个缺陷 |
+| `pnpm run test apps/desktop/src/renderer/features/conversation/timeline.test.ts` | 配对 date/goal 前缀后的定时输入隐藏、投递行标题/原始指令、普通用户同名文本保留 | 1 文件 17 例 | 通过 | 新增组合回归先红后绿；未运行浏览器或 Electron 窗口 |
+| 评审修复 `pnpm run typecheck`、两文件 `oxfmt --check` / `oxlint`、`pnpm run check:docs`、`git diff --check` | 类型、受影响代码格式、任务证据与引用 | 类型/格式/lint/diff 均退出 0；文档 361 文件、0 问题 | 通过 | 只运行本次修复相关检查，未重跑全仓 |
 
 早期红灯、旧顺序与实路径基线失败、修复依据保存在各票 Comments。Skills 原 4 个失败已在后续修补中通过，不列为当前未解决项；这不代表全仓测试均通过。
+
+### 两轴评审后的修复
+
+2026-11-05，两轴在 `ec32dfc9...43de0ccf` 独立发现同一处 P2：定时任务的第一条输入含前置 State Update 时，时间线先隐藏状态块，却仍按原始索引 0 识别 `<scheduled_task>`，使其包装成为用户气泡，投递行也未提取后备标题与原始指令。新增 `buildTimeline` 公开接缝回归在修复前因多出的用户气泡失败；实现按首个非配对状态块定位真实定时输入，宿主来源仍由 `trigger: schedule` 与该 Run 首条输入判定。普通用户即使带有宿主 date 前缀，其自写的同名定时标签仍正常展示。
+
+修复不改变静态提示、状态送达、权限或持久条目格式，也不改变无凭据收尾结论。当前 [定时任务正文](../../../docs/subsystems/schedules.md) 的隐藏输入契约继续成立，无须新增正式正文；本证据与票 07 追加修复、红绿过程和最小检查，历史阶段的“待评审”记录保留原意。父代理仍需在合入修复后核对最终状态，不把本地回归等同于新一轮全分支评审或全仓测试。
 
 ## 文档影响
 

@@ -397,6 +397,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice && !teamNotice
         const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
         const stateIndices = new Set(stateUpdates.get(entry.seq)?.map((pair) => pair.blockIndex))
+        const inputIndex = blocks.findIndex((_, index) => !stateIndices.has(index))
         const own = blocks.filter((b, index) => {
           if (stateIndices.has(index)) return false
           if (b.type !== 'text' || typeof b.text !== 'string') return true
@@ -421,7 +422,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             row.body = end < 0 ? b.text : raw.slice(0, end).replace(/^\n/, '').replace(/\n$/, '')
             return false
           }
-          if (scheduleInput && index === 0) {
+          if (scheduleInput && index === inputIndex) {
             const title = scheduledTaskTitle(b.text)
             if (title !== undefined) {
               const fire = fireItems.get(entry.runId!)

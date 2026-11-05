@@ -49,3 +49,9 @@ Closed: true
 补验：`pnpm install --frozen-lockfile`、`pnpm run test tests/integration/sidecar-skills.test.ts`（1 文件 6 例通过）、`pnpm run typecheck`、该文件 `oxfmt --check` / `oxlint` 均退出 0。后续合并复核结果见下。
 
 已无冲突合入包含票 08 的集成 `148c99bc`；合并后重跑上述 Skills 文件 6 例、类型检查、文档检查（360 个 Markdown、0 问题）均退出 0。补验未运行真实 Provider、Electron 窗口或打包产物；未推送。
+
+2026-11-05 全分支评审修复：Standards 与 Spec 两个新的只读代理在 `ec32dfc9...43de0ccf` 独立确认同一处 P2。日期或 Goal 状态块前置后，时间线隐藏了这些块，但定时输入仍按原始 `index === 0` 识别，导致 `<scheduled_task>` 包装进入用户气泡，投递行未提取标题和原始指令。新增公开 `buildTimeline` 场景先因多出的气泡失败；改为按首个非配对 State Update 块识别定时输入后通过，并强化普通 submit 带宿主日期前缀时用户伪造同名标签仍可见的对手用例。来源仍由定时 Run 与首条输入判定，不靠标签自行授权。
+
+修复后 `pnpm run test apps/desktop/src/renderer/features/conversation/timeline.test.ts` 实际选中 1 文件 17 例，全部通过。类型、文档与格式检查结果见最终补记；最终集成复核由父代理执行。本次没有运行真实模型、浏览器/Electron 窗口或打包产物，不改变默认 v1 与 ADR partial。
+
+最终补记：`pnpm run typecheck`、两个受影响 TypeScript 文件的 `pnpm exec oxfmt --check` / `pnpm exec oxlint`、`pnpm run check:docs`（361 文件、0 问题）、`git diff --check` 均退出 0。从 AGENTS → 文档导航 → 定时任务时间线正文读回，现有隐藏输入契约与修复一致；本次只更新任务证据，无新增正式文档或反向引用。
