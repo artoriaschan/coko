@@ -1,0 +1,22 @@
+packages/agent/src/engine/runtime.ts
+  s_2a03236d6e6b67::t_86c875b503518f 553-560
+tests/integration/sidecar-state-update-continue.test.ts
+  s_2a03236d6e6b67::t_6c052f77a11d16 28,30-33,40-43,66-71,76-81
+  s_2a03236d6e6b67::t_1f0881aec84e24 1-27,29,34-39,44-65,72-75,82-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "02527f65e765ffc3f9423a189d5f3a0a20b1e054",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
