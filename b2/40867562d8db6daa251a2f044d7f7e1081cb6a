@@ -1,0 +1,52 @@
+packages/agent/src/agents/teams/section.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 1,9,12,18
+docs/subsystems/teams.md
+  s_2a03236d6e6b67::t_23196c0eee4847 13,22-23,116
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_3d8a8c24ddaa8d 13
+  s_2a03236d6e6b67::t_23196c0eee4847 220
+packages/agent/src/entries/state-updates.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 4
+  s_2a03236d6e6b67::t_3d8a8c24ddaa8d 78-87
+tests/integration/sidecar-subagents-harness.ts
+  s_2a03236d6e6b67::t_b4a01472a59644 23-29
+  s_2a03236d6e6b67::t_dddefde2ef253b 37
+tests/integration/sidecar-team-state-updates.test.ts
+  s_2a03236d6e6b67::t_26552949bf7343 1-2,4,6-10,39-93
+  s_2a03236d6e6b67::t_dddefde2ef253b 3,5,11
+  s_2a03236d6e6b67::t_b4a01472a59644 12-38
+apps/server/src/application/teams.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 25,134-140,148,156-157
+  s_2a03236d6e6b67::t_b4a01472a59644 149-155
+packages/agent/src/entries/team-text.ts
+  s_2a03236d6e6b67::t_3d8a8c24ddaa8d 18-19
+  s_2a03236d6e6b67::t_dddefde2ef253b 1-17,20-31
+packages/agent/src/entries/index.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 36
+tests/integration/secrets-gate-teams.test.ts
+  s_2a03236d6e6b67::t_de3dde9bbb02b3 15,27,96,99-100,103-108
+  s_2a03236d6e6b67::t_23196c0eee4847 2
+  s_2a03236d6e6b67::t_3d8a8c24ddaa8d 69
+apps/server/src/application/context/teams.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 19-24
+packages/agent/src/agents/teams/teams.test.ts
+  s_2a03236d6e6b67::t_dddefde2ef253b 228,234-237
+.scratch/system-context/issues/05-team-status-state-update.md
+  s_2a03236d6e6b67::t_3d8a8c24ddaa8d 11-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "b240867562d8db6daa251a2f044d7f7e1081cb6a",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
