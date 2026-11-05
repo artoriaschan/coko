@@ -18,6 +18,7 @@ import {
   type SystemSection,
   type ToolHooks,
   type ToolRegistry,
+  type CokoTool,
 } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import { getLogger } from '@coko/logging'
@@ -303,6 +304,21 @@ export function createContextAssembly(options: {
 
 /** 没有任何贡献的组合（SessionService 未给 context 时）。 */
 export const emptyContextAssembly = (cokoHome = ''): ContextAssembly => createContextAssembly({ contributions: [], config: new ConfigService(), cokoHome })
+
+/** 模型请求与用量共用的工具清单：基础工具优先，同名只保留一次，再应用该 Session 的领域过滤。 */
+export function providedTools(
+  base: ToolRegistry,
+  contributed: readonly ContributedTool[],
+  context: Pick<ContextAssembly, 'filterTools'>,
+  scope: ContextScope,
+): CokoTool[] {
+  const unique = new Map<string, CokoTool>()
+  for (const tool of [...base.list(), ...contributed.map((item) => item.tool)]) {
+    if (!unique.has(tool.name)) unique.set(tool.name, tool)
+  }
+  const visible = new Set(context.filterTools([...unique.keys()], scope))
+  return [...unique.values()].filter((tool) => visible.has(tool.name))
+}
 
 /** 运行时的工具：宿主的基础工具集加上本次 Run 贡献的工具（与基础工具同名的贡献被忽略并记 warn）。 */
 export function layeredTools(base: ToolRegistry): {

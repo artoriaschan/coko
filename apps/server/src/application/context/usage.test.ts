@@ -221,4 +221,30 @@ describe('contextUsage five categories', () => {
     expect(result.breakdown.tools).toBe(21)
     expect(result.tokens).toBe(58)
   })
+
+  it('counts a tool once when its committed declaration is folded into the request tool list', async () => {
+    const baseTools = createToolRegistry()
+    baseTools.register({
+      name: 'read',
+      label: 'Read',
+      description: 'Read',
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [{ type: 'text' as const, text: 'done' }], details: {} }),
+    })
+    const result = await contextUsage({
+      context: emptyContextAssembly(),
+      scope: scope(false),
+      baseTools,
+      model: undefined,
+      entries: [
+        entry(1, {
+          role: 'system',
+          content: '',
+          toolsAdded: [{ name: 'read', description: 'Read', parameters: { type: 'object', properties: {} } }],
+          timestamp: 0,
+        }),
+      ],
+    })
+    expect(result.breakdown.tools).toBe(21)
+  })
 })

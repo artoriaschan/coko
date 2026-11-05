@@ -3,6 +3,8 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Context, SystemMessage } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { Type } from 'typebox'
+import { createToolRegistry, type ToolRegistry } from '../tools/registry.ts'
 import type { EntryLike } from '../entries/index.ts'
 import { createFauxModels, fauxAssistantMessage } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
@@ -21,7 +23,7 @@ afterEach(async () => {
 type Step = ReturnType<typeof fauxAssistantMessage> | ((context: Context) => ReturnType<typeof fauxAssistantMessage>)
 
 /** 40k 窗口、4k 输出：阈值 32 000。保留最近 1000 tokens，使小用例也有可摘要的内容。 */
-function harness(options: { autoCompact?: boolean; context?: RuntimeContext } = {}) {
+function harness(options: { autoCompact?: boolean; context?: RuntimeContext; tools?: ToolRegistry } = {}) {
   const { faux, models, model } = createFauxModels({ models: [{ id: 'small', contextWindow: 40_000, maxTokens: 4_000 }] })
   const stored: EntryLike[] = []
   const progress: ProgressEvent[] = []
@@ -30,7 +32,7 @@ function harness(options: { autoCompact?: boolean; context?: RuntimeContext } = 
     models,
     model,
     cwd: ws.dir,
-    tools: { register() {}, get: () => undefined, list: () => [], implementations: () => [], permissionClass: () => undefined } as never,
+    tools: options.tools ?? createToolRegistry(),
     commit: async (entry) => {
       stored.push({ seq: stored.length + 1, kind: entry.kind, runId: entry.runId ?? null, payload: entry.payload })
     },
@@ -130,6 +132,30 @@ describe('自动压缩', () => {
     // 40k 窗口、4k 输出：摘要请求的输入不超过 (40 000 − 4 000) × 4 个字符。
     expect(prompt.length).toBeLessThan(36_000 * 4)
     expect(prompt).toContain('omitted to fit the summary request')
+  })
+
+  it('a removed tool definition does not trigger compaction after its request-level declaration is folded away', async () => {
+    const base = createToolRegistry()
+    base.register({
+      name: 'large',
+      label: 'Large',
+      description: big(60_000, 't'),
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [], details: {} }),
+    })
+    let enabled = true
+    // Host selection changes between Runs, through the same public registry boundary used by Session tool filtering.
+    const tools: ToolRegistry = { ...base, list: () => (enabled ? base.list() : []) }
+    const h = harness({ tools })
+    // A failed request has no trusted usage, so admission falls back to the current definitions plus message estimates.
+    h.reply(fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'rejected' }), ok('done'), ok('after unwanted compaction'))
+    expect((await h.runtime.run(big(60_000, 'a'))).status).toBe('error')
+    enabled = false
+    const result = await h.runtime.run(big(20_000, 'b'))
+    expect(result.error).toBeUndefined()
+    expect(result.status).toBe('completed')
+    expect(h.stored.filter((e) => e.kind === 'compaction')).toEqual([])
+    expect(h.requests).toHaveLength(2)
   })
 
   it('context.autoCompact 关闭时不压缩', async () => {

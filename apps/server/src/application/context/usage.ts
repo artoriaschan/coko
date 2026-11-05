@@ -19,7 +19,7 @@ import type { Model } from '@earendil-works/pi-ai'
 import { getLogger } from '@coko/logging'
 import type { ContextBreakdown, ContextUsageResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry } from '@coko/session'
-import type { ContextAssembly } from './index.ts'
+import { providedTools, type ContextAssembly } from './index.ts'
 import type { ContextContribution, ContextContributionOptions, ContextScope } from './types.ts'
 
 const log = getLogger(['application', 'context', 'usage'])
@@ -55,7 +55,7 @@ export function usageContribution(options: UsageContributionOptions): ContextCon
 }
 
 export interface ContextUsageInput {
-  context: Pick<ContextAssembly, 'report' | 'tools' | 'systemSections'>
+  context: Pick<ContextAssembly, 'report' | 'tools' | 'systemSections' | 'filterTools'>
   scope: ContextScope
   /** 基础工具集（与运行时相同的工厂）。 */
   baseTools: ToolRegistry
@@ -110,14 +110,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     diagnostics.push(...(report.diagnostics ?? []))
   }
 
-  // 与运行时相同：同名的贡献工具被忽略。
-  const seen = new Set<string>()
-  let tools = 0
-  for (const tool of [...input.baseTools.list(), ...contributed.map((c) => c.tool)]) {
-    if (seen.has(tool.name)) continue
-    seen.add(tool.name)
-    tools += toolChars(tool)
-  }
+  const tools = providedTools(input.baseTools, contributed, input.context, scope).reduce((chars, tool) => chars + toolChars(tool), 0)
 
   const raw = effectiveMessages(input.entries)
   const trim = scope.config.context.trimOldToolResults
@@ -152,7 +145,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
       const system = message as { toolsAdded?: unknown[] }
       const declarations = system.toolsAdded?.length ? JSON.stringify(system.toolsAdded).length : 0
       chars.system += estimateMessageChars(message) - declarations
-      chars.tools += declarations
+      // pi 将历史声明合并到本次请求的工具清单；上面已经按最终定义计数。
     }
   }
   chars.prompt -= stateChars

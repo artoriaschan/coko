@@ -8,7 +8,6 @@ import { isSkillsContribution } from './context/skills.ts'
 import { contextUsage } from './context/usage.ts'
 import { AppError } from './errors.ts'
 import { workspaceCwd, type SessionCwd } from './session-runs.ts'
-import { sessionProject } from './session-project.ts'
 import type { SessionService } from './sessions.ts'
 
 export interface ContextServiceOptions {
@@ -16,7 +15,7 @@ export interface ContextServiceOptions {
   /** Same explicit prompt as SessionService, when evaluating a candidate. */
   basePrompt?: string
   assembly: ContextAssembly
-  sessions: Pick<SessionService, 'contextModel' | 'baseTools' | 'compactionPaused'>
+  sessions: Pick<SessionService, 'contextModel' | 'baseTools' | 'compactionPaused' | 'runs'>
   /** Session 的工作目录（worktree 会话为其 worktree；缺省 Workspace 目录）：用量与作用域按它读取指令、Skills 与项目设置。 */
   cwd?: SessionCwd
 }
@@ -62,17 +61,8 @@ export class ContextService {
         ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       })
     }
-    const session = await this.#session(input.sessionId)
-    const workspace = await this.#workspace(session.workspaceId)
-    const [model, project] = await Promise.all([this.#sessions.contextModel(session.model), sessionProject(this.#store, session)])
-    return this.assembly.scope({
-      workspaceId: workspace.id,
-      cwd: await this.#cwd.resolve(session, workspace),
-      sessionId: session.id,
-      additionalFolders: project?.additionalFolders ?? [],
-      ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
-      ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
-    })
+    // 与 Run 装配共享 Session 作用域，包含子代理的工具交集与父 Session 归属。
+    return this.#sessions.runs.scope(await this.#session(input.sessionId))
   }
 
   /** Session（其条目、模型与压缩熔断）或草稿（Workspace，缺省模型、没有条目）的上下文用量。 */

@@ -40,6 +40,7 @@ import type { SessionCheckpoints } from './checkpoints.ts'
 import {
   dynamicHooks,
   layeredTools,
+  providedTools,
   type ActionResult,
   type ContextAction,
   type ContextActionSession,
@@ -311,9 +312,8 @@ export class SessionRuns {
     const context = this.#options.context
     const contributed = await context.tools(runContext.scope)
     runContext.tools.set(contributed)
-    const names = [...this.baseTools(runContext.scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
-    const visible = context.filterTools(names, runContext.scope)
-    runContext.tools.allow(visible.length === names.length && visible.every((name, i) => name === names[i]) ? undefined : new Set(visible))
+    const visible = providedTools(this.baseTools(runContext.scope.cwd), contributed, context, runContext.scope)
+    runContext.tools.allow(new Set(visible.map((tool) => tool.name)))
     runtime.refreshTools()
   }
 
@@ -478,9 +478,8 @@ export class SessionRuns {
       runContext.writeRoots = writeRoots
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
-      const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
-      const visible = context.filterTools(names, scope)
-      runContext.tools.allow(visible.length === names.length && visible.every((name, i) => name === names[i]) ? undefined : new Set(visible))
+      const visible = providedTools(this.baseTools(scope.cwd), contributed, context, scope)
+      runContext.tools.allow(new Set(visible.map((tool) => tool.name)))
     }
     runtime.setModel(model)
     runtime.setThinkingLevel(models.effectiveLevel(session))
@@ -734,9 +733,8 @@ export class SessionRuns {
     const seeded = await context.tools(runContext.scope)
     runContext.tools.set(seeded)
     // 开头的系统消息只列本 Session 可用的工具（子代理的工具交集）：构造前就按 filterTools 限定，不先列出再撤回。
-    const seedNames = [...this.baseTools(cwd).list(), ...seeded.map((c) => c.tool)].map((tool) => tool.name)
-    const seedVisible = context.filterTools(seedNames, runContext.scope)
-    if (seedVisible.length !== seedNames.length) runContext.tools.allow(new Set(seedVisible))
+    const seedVisible = providedTools(this.baseTools(cwd), seeded, context, runContext.scope)
+    runContext.tools.allow(new Set(seedVisible.map((tool) => tool.name)))
     const runtime = createAgentRuntime({
       ...(this.#options.basePrompt ? { systemPrompt: this.#options.basePrompt.text } : {}),
       models: registry.models,

@@ -356,6 +356,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         recordRequest: (run) => recordRequest(run, 'compaction'),
         progress,
         state: agent.state,
+        tools: () => agent.state.tools,
         current: () => current,
         resume: () => agent.continue(),
         abortAgent: () => agent.abort(),

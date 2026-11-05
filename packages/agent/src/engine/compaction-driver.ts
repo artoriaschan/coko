@@ -1,7 +1,7 @@
 // 压缩编排（docs/subsystems/context.md#压缩）：摘要请求、提交 compaction 条目与重建对话记录、熔断，以及三个触发点——手动（/compact）、
 // 每次请求前越过阈值的自动压缩、请求以上下文溢出失败后的一次压缩与重试。运行时只在 prepareRequest 与 compact() 处接线。
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core'
-import { isContextOverflow, normalizeContext, type AssistantMessage, type Model } from '@earendil-works/pi-ai'
+import { isContextOverflow, normalizeContext, type AssistantMessage, type Model, type Tool } from '@earendil-works/pi-ai'
 import {
   createCompactionBreaker,
   estimateCompactedTokens,
@@ -44,6 +44,8 @@ export interface CompactionDriverOptions {
   progress: (event: ProgressEvent) => void
   /** agent 的状态：当前模型与对话记录（压缩后替换）。 */
   state: { model: Model<any>; messages: AgentMessage[] }
+  /** 当前提供给模型的工具；历史中的增减声明不重复计数。 */
+  tools: () => readonly Tool[]
   /** 当前 Run（溢出恢复在 drive 之后读取）。 */
   current: () => CompactionRun | undefined
   /** 继续 agent 循环（溢出压缩之后重试）。 */
@@ -104,14 +106,31 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
   const { compaction, stream, commit, progress, state } = options
   const breaker = createCompactionBreaker()
 
+  const withoutToolDeclarations = (message: AgentMessage): AgentMessage => {
+    if (message.role !== 'system') return message
+    const { toolsAdded: _added, toolsRemoved: _removed, ...rest } = message
+    return rest
+  }
+  const toolTokens = () =>
+    charsToTokens(
+      options
+        .tools()
+        .reduce((chars, tool) => chars + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length, 0),
+    )
   const systemTokens = () => {
     const head = state.messages[0]
-    return head?.role === 'system' ? charsToTokens(estimateMessageChars(head)) : 0
+    return head?.role === 'system' ? charsToTokens(estimateMessageChars(withoutToolDeclarations(head))) : 0
   }
-  /** 当前模型上下文的估算：可信 usage（晚于最后一个压缩）或 chars/4 加系统消息。 */
+  const contextTokens = (messages: readonly AgentMessage[]) => {
+    const estimate = estimateContextTokens(messages.map(withoutToolDeclarations))
+    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + toolTokens()
+  }
+  /** 可信 usage 包含当时的定义；无 usage 时只计当前工具，历史声明由 pi 合并到请求级清单。 */
   const contextTokensOf = (entries: readonly EntryLike[]) => {
-    const estimate = estimateCompactedTokens(entries)
-    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + systemTokens()
+    const estimate = estimateCompactedTokens(
+      entries.map((entry) => (entry.kind === 'message' ? { ...entry, payload: withoutToolDeclarations(entry.payload as AgentMessage) } : entry)),
+    )
+    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + systemTokens() + toolTokens()
   }
 
   /**
@@ -188,7 +207,8 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const next = (modelContext([...entries, { seq: Number.MAX_SAFE_INTEGER, kind: 'compaction', runId: run.runId, payload }]) as AgentMessage[]).filter(
       (message) => !isFailedReply(message),
     )
-    payload.tokensAfter = next.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(message)), 0) + systemTokens()
+    payload.tokensAfter =
+      next.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(withoutToolDeclarations(message))), 0) + systemTokens() + toolTokens()
     try {
       await commit({ kind: 'compaction', runId: run.runId, payload })
     } catch (error) {
@@ -228,7 +248,7 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       if (run.trigger === 'compact' || run.trigger === 'handoff' || run.aborted || run.commitError || breaker.paused || !compaction.autoCompact())
         return undefined
       const { threshold } = contextBudget({ contextWindow: model.contextWindow ?? 0, maxTokens: model.maxTokens ?? 0 })
-      if (threshold <= 0 || estimateContextTokens(messages).tokens < threshold) return undefined
+      if (threshold <= 0 || contextTokens(messages) < threshold) return undefined
       // 内存中的估算可能用了压缩之前的 usage：按条目复核。
       if (contextTokensOf(await compaction.entries()) < threshold) return undefined
       const outcome = await compactNow(run, 'auto', signal ?? new AbortController().signal)
