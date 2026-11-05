@@ -3,6 +3,7 @@ import { Value } from 'typebox/value'
 import type { RightPanelLayout, RightPanelPageKind } from './layout-store.ts'
 
 export const RIGHT_PANEL_LAYOUT_PREFIX = 'coko.right-panel.v1.'
+/** 默认可用页面；开发者页由偏好装配按开关另外启用。 */
 export const RIGHT_PANEL_PAGE_KINDS: readonly RightPanelPageKind[] = ['start', 'plan', 'jobs', 'agents', 'schedules', 'team', 'trace']
 export const INITIAL_RIGHT_PANEL_LAYOUT: RightPanelLayout = { tabs: [], active: null, expanded: false, mode: 'normal' }
 

@@ -104,6 +104,12 @@ export const NotificationSettings = Type.Object(
 export type NotificationSettings = Static<typeof NotificationSettings>
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = { enabled: true, scheduleRunEnded: true, approvalWaiting: true, agentFinished: true }
 
+/** renderer 全局开发者偏好；Sidecar 仅保存这个设置键，不读取其语义。 */
+export const DEVELOPER_SETTING = 'developer'
+export const DeveloperSettings = Type.Object({ sessionDiagnostics: Type.Boolean() }, strict)
+export type DeveloperSettings = Static<typeof DeveloperSettings>
+export const DEFAULT_DEVELOPER_SETTINGS: DeveloperSettings = { sessionDiagnostics: false }
+
 /** sidecar 请 main 显示桌面通知（窗口不在前台时显示；点击聚焦窗口并打开 sessionId）。title 与 body 已脱敏。 */
 export const SidecarNotify = Type.Object(
   { type: Type.Literal('notify'), kind: NotificationKind, sessionId: Type.String({ minLength: 1 }), title: Type.String(), body: Type.String() },

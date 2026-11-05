@@ -3,6 +3,7 @@ import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightCloseIcon } from 'luci
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
+import { useSettings } from '../../app/settings.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { closeOtherPages, closePage, closePagesToRight, getRightPanelLayout, movePage, openPage, rightPanelLayoutStore, selectPage } from './layout-store.ts'
 import { RIGHT_PANEL_TABS, visibleRightPanelTabs, type RightPanelTabDefinition } from './tabs.ts'
@@ -20,11 +21,12 @@ export function RightPanel({
   onToggleFullscreen?: () => void
 }) {
   const { t } = useI18n()
+  const diagnostics = useSettings((state) => state.developer.sessionDiagnostics)
   const sessionId = useChat((s) => s.activeSessionId)
   const attention = useStore(rightPanelLayoutStore, (state) => (state.attention?.sessionId === sessionId ? state.attention.revision : null))
   const layout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
   if (sessionId === null) return null
-  const visible = visibleRightPanelTabs(tabs)
+  const visible = visibleRightPanelTabs(tabs, diagnostics)
   const current = visible.find((tab) => tab.id === layout.active)
   const pages = visible.map((tab) => ({ id: tab.id, title: t(tab.label), icon: <tab.icon aria-hidden className="size-5 shrink-0" /> }))
   const panelTabs = layout.tabs.flatMap((kind) => {

@@ -1,13 +1,13 @@
 import { createTranslator, type Locale, type MessageKey } from '@coko/i18n'
 import type { ResourceDiagnostic } from '@coko/protocol'
-import { cn, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
+import { cn, Switch, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
 import { ChevronDownIcon, MoonIcon, SunIcon } from 'lucide-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
-import { usePreferences } from '../../app/settings.tsx'
+import { usePreferences, useSettings, useSettingsActions } from '../../app/settings.tsx'
 import { configStore } from '../../stores/config-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard, SettingsRow } from './settings-page.tsx'
@@ -62,7 +62,54 @@ export function GeneralSection({ theme }: { theme: Theme }) {
         <ProjectSettingsRow />
       </SettingsCard>
       <ContextSwitches />
+      <DeveloperCard />
     </section>
+  )
+}
+
+/** 全局开发者开关：界面先采用选择，设置库保存结果通过 Toast 反馈。 */
+function DeveloperCard() {
+  const { t } = useI18n()
+  const value = useSettings((state) => state.developer.sessionDiagnostics)
+  const status = useSettings((state) => state.status)
+  const { setDeveloperSettings } = useSettingsActions()
+  const [busy, setBusy] = React.useState(false)
+  const id = React.useId()
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 id={`${id}-title`} className="text-ui-body font-medium">
+        {t('diagnostics.developer')}
+      </h3>
+      <SettingsCard role="group" aria-labelledby={`${id}-title`}>
+        <div className="flex items-start justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <label htmlFor={id} className="text-ui-body">
+              {t('diagnostics.title')}
+            </label>
+            <span id={`${id}-hint`} className="text-ui-small text-muted-foreground">
+              {t('diagnostics.hint')}
+            </span>
+          </div>
+          <Switch
+            id={id}
+            className="mt-0.5"
+            aria-describedby={`${id}-hint`}
+            checked={value}
+            disabled={status !== 'ready' || busy}
+            onCheckedChange={async (sessionDiagnostics) => {
+              setBusy(true)
+              try {
+                const result = await setDeveloperSettings({ sessionDiagnostics })
+                if (result.status === 'conflict') toast.warning(t('diagnostics.conflict'))
+                else if (result.status === 'failed') toast.error(t('diagnostics.saveFailed'))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
+        </div>
+      </SettingsCard>
+    </div>
   )
 }
 

@@ -1,6 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import type * as React from 'react'
-import { ActivityIcon, BotIcon, CalendarClockIcon, ListTodoIcon, NetworkIcon, ScrollTextIcon, type LucideIcon } from 'lucide-react'
+import { ActivityIcon, BracesIcon, BotIcon, CalendarClockIcon, ListTodoIcon, NetworkIcon, ScrollTextIcon, type LucideIcon } from 'lucide-react'
 import type { RightPanelTabId } from './layout-store.ts'
 export type { RightPanelTabId } from './layout-store.ts'
 import { AgentsTab } from './agents-tab.tsx'
@@ -8,6 +8,7 @@ import { JobsTab } from './jobs-tab.tsx'
 import { PlanTab } from './plan-tab.tsx'
 import { SchedulesTab } from './schedules-tab.tsx'
 import { TeamTab } from './team-tab.tsx'
+import { SessionDiagnostics } from '../session-diagnostics/session-diagnostics.tsx'
 import { TraceTab } from './trace-tab.tsx'
 
 export interface RightPanelTabProps {
@@ -31,6 +32,8 @@ export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
   { id: 'schedules', icon: CalendarClockIcon, label: 'schedules.tab', Component: SchedulesTab, available: true },
   { id: 'team', icon: NetworkIcon, label: 'teams.tab', Component: TeamTab, available: true },
   { id: 'trace', icon: ScrollTextIcon, label: 'trace.tab', Component: TraceTab, available: true },
+  { id: 'diagnostics', icon: BracesIcon, label: 'diagnostics.title', Component: SessionDiagnostics, available: true },
 ]
 
-export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS) => tabs.filter((tab) => tab.available)
+export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS, sessionDiagnostics = false) =>
+  tabs.filter((tab) => tab.available && (tab.id !== 'diagnostics' || sessionDiagnostics))
