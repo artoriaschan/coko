@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { BellIcon, SquareTerminalIcon } from 'lucide-react'
@@ -136,12 +137,12 @@ function NotifiedJob({ jobId, sessionId, entries }: { jobId: string; sessionId: 
  * 时间线的后台任务行：job_notification 为紧凑行（"后台任务已结束"与每个 Job 的状态，点击打开）；job_start 由工具卡的 Job chip 表示，
  * job_end 反映在通知行与 chip 的状态上，不单独成行。
  */
-export function JobRow({ item }: { item: Extract<TimelineItem, { kind: 'job' }> }) {
+export function JobRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'job' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
   const { sessionId, entries } = useTimelineSession()
   if (item.job.kind !== 'notification') return null
   return (
-    <div data-slot="job-notification" className="flex min-w-0 items-start gap-1.5 conversation-business-row text-muted-foreground">
+    <div {...rootAttributes} data-slot="job-notification" className="flex min-w-0 items-start gap-1.5 conversation-business-row text-muted-foreground">
       <BellIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="shrink-0">{t('jobs.notification')}</span>

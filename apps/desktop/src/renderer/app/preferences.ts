@@ -1,4 +1,6 @@
 import { locales, type Locale } from '@coko/i18n'
+import { RIGHT_PANEL_PAGE_KINDS } from '../features/right-panel/layout-persistence.ts'
+import { setAvailableRightPanelPages } from '../features/right-panel/layout-store.ts'
 import type { ApiError } from '../client/api.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore, Theme } from './appearance-store.ts'
@@ -23,7 +25,8 @@ export interface Preferences {
 }
 
 /**
- * 主题与语言：appearance store 是界面状态的唯一来源，设置首次加载后把已保存的值应用到它一次
+ * 界面偏好：按开发者选择同步右栏页面的可用条件；主题与语言以 appearance store 为唯一来源。
+ * 设置首次加载后把已保存的外观值应用到它一次
  * （用户在加载前已做的选择不被覆盖）；之后用户的切换立即生效并在后台保存。
  */
 export function createPreferences({ appearance, settings, onConflict, onFailure }: PreferencesOptions): Preferences {
@@ -32,6 +35,8 @@ export function createPreferences({ appearance, settings, onConflict, onFailure 
 
   const applyLoaded = () => {
     const state = settings.getState()
+    // 装配在 Bootstrap 之前；恢复布局时诊断页的可用条件已经确定。
+    setAvailableRightPanelPages([...RIGHT_PANEL_PAGE_KINDS, ...(state.developer.sessionDiagnostics ? ['diagnostics' as const] : [])])
     if (applied || state.status !== 'ready') return
     applied = true
     const theme = state.values[THEME_SETTING]?.value

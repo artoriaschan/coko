@@ -39,6 +39,16 @@ if (location.protocol === 'coko-app:' && location.host === 'app') {
       ipcRenderer.on(IPC.openSession, handler)
       return () => void ipcRenderer.removeListener(IPC.openSession, handler)
     },
+    onMenuClose: (listener) => {
+      const handler = () => listener()
+      ipcRenderer.on(IPC.menuClose, handler)
+      if (ipcRenderer.listenerCount(IPC.menuClose) === 1) ipcRenderer.send(IPC.menuCloseListening, true)
+      return () => {
+        ipcRenderer.removeListener(IPC.menuClose, handler)
+        if (ipcRenderer.listenerCount(IPC.menuClose) === 0) ipcRenderer.send(IPC.menuCloseListening, false)
+      }
+    },
+    requestCloseWindow: () => ipcRenderer.send(IPC.requestCloseWindow),
     onUpdateStatus: (listener) => {
       const handler = (_event: IpcRendererEvent, status: UpdateStatus) => listener(status)
       ipcRenderer.on(IPC.updateStatus, handler)

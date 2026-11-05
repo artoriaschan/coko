@@ -1,0 +1,378 @@
+// Adapted from DeepSeek Harness (MIT), Copyright (c) 2026 DeepSeek.
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
+import { defaultRangeExtractor, useVirtualizer, type Range, type Virtualizer } from '@tanstack/react-virtual'
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import * as React from 'react'
+import { useI18n } from '../../app/i18n.tsx'
+import { DiagnosticTableHierarchy, diagnosticRowCollapsed, type DiagnosticDisclosure, type DiagnosticRow } from './table-model.ts'
+import { DiagnosticTableLayout, DIAGNOSTIC_ROW_HEIGHT, type DiagnosticRowAnchor } from './table-layout.ts'
+import type { DiagnosticModel, DiagnosticRecord } from './table-model.ts'
+import { diagnosticPreview } from './format.ts'
+import { RecordDetails } from './record-details.tsx'
+import { DiagnosticTypeFilter } from './type-filter.ts'
+import { TypeFilterEditor } from './type-filter-editor.tsx'
+import { diagnosticMotion } from './diagnostic-motion.ts'
+import './diagnostic-table.css'
+
+/** Reference navigation reveals a row without replacing the selected details path. */
+export interface DiagnosticTableRevealRequest {
+  readonly key: string
+  readonly nonce: object
+  /** Picker selection starts a new details path; references only reveal. */
+  readonly select?: boolean
+}
+
+/** Each mounted row owns its generation, expiry and cancellable paint; never replace its DOM to restart a fade. */
+function DiagnosticTableRow({ update, ...props }: React.ComponentProps<'tr'> & { update: { at: number } | undefined }) {
+  const row = React.useRef<HTMLTableRowElement>(null)
+  const [active, setActive] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const element = row.current
+    if (!element || !update || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const { duration, easing } = diagnosticMotion(element)
+    const elapsed = Math.max(0, Date.now() - update.at)
+    if (elapsed >= duration) return
+    const style = getComputedStyle(element)
+    const animation = element.animate([{ backgroundColor: style.getPropertyValue('--accent') }, { backgroundColor: 'transparent' }], { duration, easing })
+    animation.currentTime = elapsed
+    setActive(true)
+    const timer = window.setTimeout(() => {
+      animation.cancel()
+      setActive(false)
+    }, duration - elapsed)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const cancel = () => {
+      animation.cancel()
+      setActive(false)
+    }
+    reduced.addEventListener('change', cancel)
+    return () => {
+      window.clearTimeout(timer)
+      reduced.removeEventListener('change', cancel)
+      animation.cancel()
+    }
+  }, [update])
+  return <tr ref={row} data-diagnostic-updated={active || undefined} {...props} />
+}
+
+/** 共享的只读表格；数据模型不拥有滚动、选择、折叠或详情高度。 */
+export function DiagnosticTable({
+  model,
+  showTime = true,
+  toolbar,
+  renderDetails,
+  onSelect,
+  changedKeys,
+  revealRequest,
+}: {
+  model: DiagnosticModel
+  showTime?: boolean
+  toolbar?: React.ReactNode
+  renderDetails?: (record: DiagnosticRecord | undefined, selectedKey: string) => React.ReactNode
+  onSelect?: (key: string | null) => void
+  changedKeys?: ReadonlyMap<string, { at: number }>
+  revealRequest?: DiagnosticTableRevealRequest | undefined
+}) {
+  const { t } = useI18n()
+  const [filter, setFilter] = React.useState(() => new DiagnosticTypeFilter(''))
+  const filtered = React.useMemo(() => filter.apply(model.rows, (key) => model.records.get(key)?.type), [filter, model])
+  const suggest = React.useCallback((query: string) => new DiagnosticTypeFilter(query).suggest(model.rows, (key) => model.records.get(key)?.type), [model])
+  const [selected, updateSelected] = React.useState<string | null>(null)
+  const setSelected = (key: string | null) => {
+    updateSelected(key)
+    onSelect?.(key)
+  }
+  const [disclosures, setDisclosures] = React.useState<ReadonlyMap<string, DiagnosticDisclosure>>(new Map())
+  const scroller = React.useRef<HTMLDivElement>(null)
+  const follow = React.useRef<'tail' | 'scroll' | 'manual'>('tail')
+  const viewport = React.useRef({ offset: 0, height: 600 })
+  const anchor = React.useRef<DiagnosticRowAnchor | undefined>(undefined)
+  const [spacingGeneration, resetSpacing] = React.useState(0)
+  const handledReveal = React.useRef<object | undefined>(undefined)
+  const revealAnimation = React.useRef<Animation | undefined>(undefined)
+  const [pendingReveal, setPendingReveal] = React.useState<DiagnosticTableRevealRequest>()
+  React.useEffect(() => () => revealAnimation.current?.cancel(), [])
+  const hierarchy = React.useMemo(
+    () => new DiagnosticTableHierarchy(filtered.rows, filter.active ? new Map() : disclosures),
+    [filtered.rows, filter.active, disclosures],
+  )
+  const committed = React.useRef<{ layout: DiagnosticTableLayout; disclosures: typeof disclosures; spacingGeneration: number } | undefined>(undefined)
+  const layout = React.useMemo(
+    () =>
+      new DiagnosticTableLayout(
+        hierarchy,
+        committed.current?.disclosures === disclosures && committed.current.spacingGeneration === spacingGeneration ? committed.current.layout : undefined,
+        viewport.current,
+        anchor.current,
+      ),
+    [hierarchy, disclosures, spacingGeneration],
+  )
+  const anchoredOffset = committed.current?.layout !== layout ? layout.scrollOffset : undefined
+  const virtualRef = React.useRef<Virtualizer<HTMLDivElement, HTMLTableRowElement> | undefined>(undefined)
+  const rangeExtractor = React.useCallback(
+    (range: Range) => {
+      const offset = anchoredOffset ?? virtualRef.current?.scrollOffset ?? 0
+      const visible =
+        anchoredOffset === undefined
+          ? range
+          : {
+              ...range,
+              startIndex: Math.max(0, Math.floor(offset / DIAGNOSTIC_ROW_HEIGHT) - 1),
+              endIndex: Math.min(range.count - 1, Math.ceil((offset + viewport.current.height) / DIAGNOSTIC_ROW_HEIGHT) - 1),
+            }
+      return [...new Set([...layout.stickyIndexesAtOffset(offset), ...defaultRangeExtractor(visible)])].sort((left, right) => left - right)
+    },
+    [layout, anchoredOffset],
+  )
+  const virtual = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
+    count: layout.items.length,
+    getScrollElement: () => scroller.current,
+    estimateSize: () => DIAGNOSTIC_ROW_HEIGHT,
+    getItemKey: (index) => layout.items[index]!.key,
+    overscan: 12,
+    initialRect: { width: 0, height: 600 },
+    anchorTo: layout.scrollOffset !== undefined || follow.current !== 'tail' ? 'start' : 'end',
+    scrollEndThreshold: 40,
+    paddingStart: DIAGNOSTIC_ROW_HEIGHT,
+    scrollPaddingStart: DIAGNOSTIC_ROW_HEIGHT,
+    paddingEnd: layout.bottomPadding,
+    rangeExtractor,
+  })
+  virtualRef.current = virtual
+  const viewportHeight = virtual.scrollRect?.height
+  React.useLayoutEffect(() => {
+    if (anchoredOffset !== undefined) virtual.scrollToOffset(anchoredOffset)
+    else if (follow.current === 'tail' && layout.bottomPadding === 0) virtual.scrollToEnd()
+    if (scroller.current) viewport.current = { offset: scroller.current.scrollTop, height: viewportHeight ?? 600 }
+    anchor.current = undefined
+    committed.current = { layout, disclosures, spacingGeneration }
+  }, [virtual, layout, disclosures, spacingGeneration, viewportHeight, anchoredOffset])
+  const confirmFilter = (query: string) => {
+    follow.current = 'manual'
+    anchor.current = undefined
+    viewport.current = { offset: 0, height: scroller.current?.clientHeight ?? 600 }
+    setPendingReveal(undefined)
+    revealAnimation.current?.cancel()
+    setSelected(null)
+    setDisclosures(new Map())
+    resetSpacing((value) => value + 1)
+    setFilter(new DiagnosticTypeFilter(query))
+    virtual.scrollToOffset(0)
+  }
+  const toggle = (row: DiagnosticRow, element: HTMLTableRowElement) => {
+    const host = scroller.current
+    if (!host) return
+    follow.current = 'manual'
+    anchor.current = { key: row.key, top: element.getBoundingClientRect().top - host.getBoundingClientRect().top - host.clientTop }
+    viewport.current = { offset: host.scrollTop, height: host.clientHeight }
+    setDisclosures((previous) => new Map(previous).set(row.key, { state: row.disclosure, collapsed: !diagnosticRowCollapsed(row, previous) }))
+  }
+  React.useLayoutEffect(() => {
+    if (!revealRequest || handledReveal.current === revealRequest.nonce) return
+    const byKey = new Map(model.rows.map((row) => [row.key, row]))
+    if (!byKey.has(revealRequest.key)) return
+    handledReveal.current = revealRequest.nonce
+    if (revealRequest.select) setSelected(revealRequest.key)
+    follow.current = 'manual'
+    anchor.current = undefined
+    resetSpacing((value) => value + 1)
+    // Context rows count as retained: revealing one must keep the current filter.
+    if (filter.active && !filtered.rows.some((row) => row.key === revealRequest.key)) setFilter(new DiagnosticTypeFilter(''))
+    setDisclosures((previous) => {
+      const next = new Map(previous)
+      let parent = byKey.get(revealRequest.key)?.parent
+      while (parent !== undefined) {
+        const row = byKey.get(parent)
+        if (!row) break
+        next.set(parent, { state: row.disclosure, collapsed: false })
+        parent = row.parent
+      }
+      return next
+    })
+    setPendingReveal(revealRequest)
+  }, [revealRequest, model, filter, filtered.rows])
+  React.useLayoutEffect(() => {
+    if (!pendingReveal) return
+    const index = layout.items.findIndex((item) => item.key === pendingReveal.key)
+    if (index < 0) return
+    const host = scroller.current
+    if (!host) return
+    const ancestors = hierarchy.stickyIndexes(index).filter((ancestor) => ancestor !== index).length
+    const top = (index + 1) * DIAGNOSTIC_ROW_HEIGHT
+    if (top < host.scrollTop + (ancestors + 1) * DIAGNOSTIC_ROW_HEIGHT || top + DIAGNOSTIC_ROW_HEIGHT > host.scrollTop + host.clientHeight) {
+      virtual.scrollToOffset(Math.max(0, (index - ancestors) * DIAGNOSTIC_ROW_HEIGHT))
+    }
+    let frame: number
+    const flash = () => {
+      const row = [...host.querySelectorAll<HTMLElement>('[data-record-key]')].find((element) => element.dataset.recordKey === pendingReveal.key)
+      if (!row) {
+        frame = requestAnimationFrame(flash)
+        return
+      }
+      revealAnimation.current?.cancel()
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        revealAnimation.current = row.animate(
+          [{ backgroundColor: getComputedStyle(row).getPropertyValue('--accent') }, { backgroundColor: getComputedStyle(row).backgroundColor }],
+          diagnosticMotion(row),
+        )
+      }
+      setPendingReveal(undefined)
+    }
+    frame = requestAnimationFrame(flash)
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [pendingReveal, layout, hierarchy, virtual])
+  const items = virtual.getVirtualItems()
+  const sticky = new Map(layout.stickyIndexesAtOffset(anchoredOffset ?? virtual.scrollOffset ?? 0).map((index, level) => [index, level]))
+  const last = items.at(-1)
+  const bottom = last ? Math.max(0, virtual.getTotalSize() - last.end) : 0
+  const columns = showTime ? 5 : 4
+  const selectedRecord = selected === null ? undefined : model.records.get(selected)
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
+        {toolbar}
+        <span className="ms-auto text-ui-caption text-muted-foreground" role="status" aria-label={t('diagnostics.rowCount')}>
+          {filter.active
+            ? t('diagnostics.filteredRows', { count: filtered.matches.size, total: model.rows.length })
+            : t('diagnostics.rows', { count: model.rows.length })}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            follow.current = 'tail'
+            resetSpacing((value) => value + 1)
+          }}
+        >
+          {t('diagnostics.latest')}
+        </Button>
+      </div>
+      <div
+        ref={scroller}
+        data-slot="diagnostic-scroll"
+        className="min-h-0 flex-1 overflow-auto [overflow-anchor:none]"
+        data-scroll-stable
+        onScroll={(event) => {
+          const host = event.currentTarget
+          const before = viewport.current.offset
+          viewport.current = { offset: host.scrollTop, height: host.clientHeight }
+          if (host.scrollTop < before && anchoredOffset === undefined) follow.current = 'scroll'
+          else if (follow.current !== 'manual') follow.current = host.scrollHeight - host.clientHeight - host.scrollTop <= 40 ? 'tail' : 'scroll'
+        }}
+      >
+        <table className="diagnostic-table diagnostic-motion text-ui-caption" aria-label={t('diagnostics.title')} aria-rowcount={hierarchy.rows.length + 1}>
+          <colgroup>
+            <col style={{ width: 64 }} />
+            <col style={{ width: 190 }} />
+            <col style={{ width: 60 }} />
+            {showTime && <col style={{ width: 100 }} />}
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <th tabIndex={0} className="font-medium focus-ring">
+                    {t('diagnostics.sequence')}
+                  </th>
+                </TooltipTrigger>
+                <TooltipContent>{t('diagnostics.sequence')}</TooltipContent>
+              </Tooltip>
+              <th className="font-medium">
+                <span className="inline-flex items-center gap-1">
+                  {t('diagnostics.type')}
+                  <TypeFilterEditor value={filter.query} suggest={suggest} apply={confirmFilter} />
+                </span>
+              </th>
+              <th className="font-medium">{t('diagnostics.run')}</th>
+              {showTime && <th className="font-medium">{t('diagnostics.time')}</th>}
+              <th className="font-medium">{t('diagnostics.data')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, position) => {
+              const gap = item.start - (items[position - 1]?.end ?? DIAGNOSTIC_ROW_HEIGHT)
+              const row = layout.items[item.index]!.row
+              const record = model.records.get(row.key)
+              const level = sticky.get(item.index)
+              const collapsed = !filter.active && diagnosticRowCollapsed(row, disclosures)
+              const summary = record?.summary ?? diagnosticPreview(record?.value)
+              return (
+                <React.Fragment key={item.key}>
+                  {gap > 0 && (
+                    <tr aria-hidden>
+                      <td colSpan={columns} style={{ height: gap, padding: 0 }} />
+                    </tr>
+                  )}
+                  <DiagnosticTableRow
+                    update={changedKeys?.get(row.key)}
+                    className="hover:bg-accent"
+                    data-record-key={row.key}
+                    data-diagnostic-context={filter.active && !filtered.matches.has(row.key) ? '' : undefined}
+                    aria-rowindex={item.index + 2}
+                    aria-selected={row.key === selected}
+                    data-sticky={level === undefined ? undefined : ''}
+                    style={level === undefined ? undefined : { top: (level + 1) * DIAGNOSTIC_ROW_HEIGHT, zIndex: 19 - level }}
+                  >
+                    <td>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>{record?.identity}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{record?.identity}</TooltipContent>
+                      </Tooltip>
+                    </td>
+                    <td style={{ paddingInlineStart: 8 + row.depth * 20 }}>
+                      <div className="flex items-center gap-1">
+                        {hierarchy.isBranch(row.key) && (
+                          <button
+                            type="button"
+                            className="flex size-5 shrink-0 items-center justify-center rounded-xs focus-ring hover:bg-muted"
+                            aria-label={t(collapsed ? 'diagnostics.expand' : 'diagnostics.collapse', { type: record?.type ?? '' })}
+                            aria-expanded={!collapsed}
+                            disabled={filter.active}
+                            onClick={(event) => toggle(row, event.currentTarget.closest('tr')!)}
+                          >
+                            {collapsed ? <ChevronRightIcon className="size-3.5" aria-hidden /> : <ChevronDownIcon className="size-3.5" aria-hidden />}
+                          </button>
+                        )}
+                        <button type="button" className="min-w-0 truncate focus-ring" onClick={() => setSelected(row.key)}>
+                          {record?.type}
+                        </button>
+                      </div>
+                    </td>
+                    <td>{record?.location}</td>
+                    {showTime && <td>{record?.time === undefined ? '' : new Date(record.time).toISOString().slice(11, 23)}</td>}
+                    <td>
+                      <button
+                        type="button"
+                        className="block max-w-full truncate text-start focus-ring"
+                        aria-label={t('diagnostics.inspect', { sequence: record?.identity ?? '' })}
+                        onClick={() => setSelected(row.key)}
+                      >
+                        {collapsed ? (record?.collapsedSummary ?? summary) : summary}
+                      </button>
+                    </td>
+                  </DiagnosticTableRow>
+                </React.Fragment>
+              )
+            })}
+            {bottom > 0 && (
+              <tr aria-hidden data-diagnostic-fold-space={layout.bottomPadding > 0 ? '' : undefined}>
+                <td colSpan={columns} style={{ height: bottom, padding: 0 }} />
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {model.rows.length === 0 && <p className="p-3 text-ui-body text-muted-foreground">{t('diagnostics.empty')}</p>}
+      </div>
+      {selected !== null && (
+        <RecordDetails recordKey={selected} value={selectedRecord?.value} removed={selectedRecord === undefined} onClose={() => setSelected(null)}>
+          {renderDetails?.(selectedRecord, selected)}
+        </RecordDetails>
+      )}
+    </div>
+  )
+}

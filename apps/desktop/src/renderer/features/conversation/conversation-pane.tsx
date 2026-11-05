@@ -23,7 +23,7 @@ import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock
 import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { restoredMode } from './plan-review-panel.tsx'
-import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
+import { openPage, type RightPanelTabId } from '../right-panel/layout-store.ts'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { RewindDialog } from './rewind-dialog.tsx'
@@ -231,12 +231,14 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const continuable = resumeMode !== undefined
 
   const title = session ? session.title || t('sidebar.untitled') : t('conversation.newSession')
-  // 标题栏操作（后台任务、子代理、定时任务与团队）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
+  // 所有入口打开或聚焦当前 Session 的页面；布局动作负责单例、引导页与展开规则。
   const headerActions = visibleHeaderActions()
-  const openTab = (tab: RightPanelTabId) => {
-    selectRightPanelTab(tab)
-    if (!rightOpen) onToggleRight()
-  }
+  const openTab = React.useCallback(
+    (tab: RightPanelTabId) => {
+      openPage(activeSessionId, tab)
+    },
+    [activeSessionId],
+  )
 
   const reading = useReadingScroll(activeSessionId, items)
 
@@ -264,6 +266,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     body = (
       <div data-slot="conversation-messages" className={`${chatColumn} flex min-w-0 flex-col gap-1 py-4`}>
         <TimelineView
+          publishMainProjection
           sessionId={activeSessionId ?? undefined}
           entries={conversation?.entries}
           items={items}
@@ -310,7 +313,14 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
               <SessionMenu sessionId={activeSessionId} />
               {!rightOpen && (
-                <IconButton ref={rightTrigger} label={t('frame.openRightPanel')} tooltip={t('frame.openSidebar')} tooltipSide="bottom" onClick={onToggleRight}>
+                <IconButton
+                  ref={rightTrigger}
+                  aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
+                  label={t('frame.openRightPanel')}
+                  tooltip={t('rightPanel.toggleShortcut')}
+                  tooltipSide="bottom"
+                  onClick={onToggleRight}
+                >
                   <PanelRightOpenIcon />
                 </IconButton>
               )}
@@ -336,6 +346,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <div className={activeSessionId === null ? 'contents' : 'relative flex min-h-0 flex-1 flex-col'}>
           <div
             ref={reading.ref}
+            data-main-timeline-session={activeSessionId ?? undefined}
             tabIndex={activeSessionId === null ? undefined : -1}
             data-scroll-stable
             className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}

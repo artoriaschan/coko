@@ -1,22 +1,40 @@
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
-import { clampSidebarWidth, computeFrameLayout, SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, type FrameLayout } from './frame-layout.ts'
+import {
+  clampRightPanelWidth,
+  clampSidebarWidth,
+  computeFrameLayout,
+  rightPanelMaxWidth,
+  RIGHT_AUTO_FULLSCREEN_BELOW,
+  RIGHT_MIN_WIDTH,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  type FrameLayout,
+} from './frame-layout.ts'
 
 export interface AppFrameLabels {
   sidebar: string
   main: string
   rightPanel: string
   resizeSidebar: string
+  resizeRightPanel: string
 }
 
 export interface AppFrameProps {
   /** 展开的侧栏内容（宽栏与窄窗口抽屉共用）。 */
   sidebar: React.ReactNode
-  /** 收起后的 56px rail 内容；主要操作在此保持可达。 */
+  /** 收起后嵌入中栏标题的控制条。 */
   rail: React.ReactNode
   children: React.ReactNode
   rightPanel?: React.ReactNode
   rightOpen?: boolean
+  onRightOpenChange?: (open: boolean) => void
+  rightWidth?: number | undefined
+  onRightWidthChange?: (width: number) => void
+  /** 仅用户选择的全屏偏好；窄窗口的自动全屏由框架派生。 */
+  rightFullscreen?: boolean
+  onRightFullscreenChange?: (fullscreen: boolean) => void
   sidebarWidth?: number
   onSidebarWidthChange?: (width: number) => void
   sidebarCollapsed?: boolean
@@ -28,6 +46,8 @@ export interface AppFrameProps {
 
 export interface AppFrameContextValue {
   layout: FrameLayout
+  rightFullscreen: boolean
+  toggleRightFullscreen: () => void
   /** 侧栏内容是否可见（宽栏展开或窄窗口抽屉打开）。 */
   sidebarVisible: boolean
   toggleSidebar: () => void
@@ -68,8 +88,8 @@ export function AppFrameCollapsedControls() {
 const RESIZE_STEP = 16
 
 /**
- * 应用框架：侧栏（可拖动 264–420，收起为 56px rail，帧宽 <1024 自动收起）、主内容和可选右栏。
- * 帧宽通过 ResizeObserver 测量：收起与右栏让位依赖实际像素宽度和侧栏状态，CSS 断点无法表达。
+ * 应用框架：左侧栏（264–420px、窄窗口抽屉）、主内容、可拖宽与全屏的右栏。
+ * ResizeObserver 测量帧宽：右栏分配与放不下时的状态回写需要实际像素宽度。
  */
 export function AppFrame({
   sidebar,
@@ -77,6 +97,11 @@ export function AppFrame({
   children,
   rightPanel,
   rightOpen = false,
+  onRightOpenChange,
+  rightWidth,
+  onRightWidthChange,
+  rightFullscreen: manualRightFullscreen = false,
+  onRightFullscreenChange,
   sidebarWidth = SIDEBAR_DEFAULT_WIDTH,
   onSidebarWidthChange,
   sidebarCollapsed = false,
@@ -109,8 +134,24 @@ export function AppFrame({
     return () => observer.disconnect()
   }, [])
 
-  const layout = computeFrameLayout({ frameWidth: frameWidth ?? Number.POSITIVE_INFINITY, sidebarWidth, sidebarCollapsed, rightOpen })
-  const drawerVisible = layout.narrow && drawerOpen
+  const measuredWidth = frameWidth ?? window.innerWidth
+  const layout = computeFrameLayout({
+    frameWidth: measuredWidth,
+    sidebarWidth,
+    sidebarCollapsed,
+    rightOpen,
+    rightWidth,
+    rightFullscreen: manualRightFullscreen,
+  })
+  const rightFullscreen = layout.right === 'fullscreen'
+  const toggleRightFullscreen = React.useCallback(() => {
+    onRightFullscreenChange?.(!rightFullscreen)
+    if (rightFullscreen && measuredWidth < RIGHT_AUTO_FULLSCREEN_BELOW) onRightOpenChange?.(false)
+  }, [rightFullscreen, measuredWidth, onRightFullscreenChange, onRightOpenChange])
+  React.useLayoutEffect(() => {
+    if (frameWidth !== null && rightOpen && layout.right === 'closed') onRightOpenChange?.(false)
+  }, [frameWidth, rightOpen, layout.right, onRightOpenChange])
+  const drawerVisible = layout.narrow && drawerOpen && !rightFullscreen
 
   // 帧变宽后抽屉不再适用；派生而非同步状态：渲染时按 narrow 判断，离开窄窗口时重置。
   if (!layout.narrow && drawerOpen) setDrawerOpen(false)
@@ -132,7 +173,7 @@ export function AppFrame({
 
   // 侧栏整列收起后，悬停左上角展开按钮延迟浮出侧栏卡片；指针进入卡片或停留展开按钮时保持。
   const peekAvailable = layout.sidebar === 'hidden' && !layout.narrow
-  const peekVisible = peekOpen && peekAvailable
+  const peekVisible = peekOpen && peekAvailable && !rightFullscreen
   peekAvailableRef.current = peekAvailable
   const schedulePeekOpen = () => {
     if (!peekAvailable || !peekHover.current) return
@@ -227,6 +268,8 @@ export function AppFrame({
   const context = React.useMemo<AppFrameContextValue>(
     () => ({
       layout,
+      rightFullscreen,
+      toggleRightFullscreen,
       sidebarVisible: layout.sidebar === 'expanded' || drawerVisible,
       toggleSidebar,
       closeSidebarDrawer,
@@ -234,10 +277,63 @@ export function AppFrame({
       leaveSidebarPeek,
       collapsedControls: rail,
     }),
-    [layout, drawerVisible, toggleSidebar, closeSidebarDrawer, peekSidebar, leaveSidebarPeek, rail],
+    [layout, rightFullscreen, toggleRightFullscreen, drawerVisible, toggleSidebar, closeSidebarDrawer, peekSidebar, leaveSidebarPeek, rail],
   )
 
   const resizeTo = (width: number) => onSidebarWidthChange?.(clampSidebarWidth(width))
+  const resizeRightTo = (width: number) => onRightWidthChange?.(clampRightPanelWidth(width, measuredWidth, layout.sidebarColumn))
+  const dragCleanup = React.useRef<(() => void) | null>(null)
+  React.useEffect(() => () => dragCleanup.current?.(), [])
+
+  const onRightResizeKeyDown = (event: React.KeyboardEvent) => {
+    const next =
+      event.key === 'ArrowLeft'
+        ? layout.rightColumn + RESIZE_STEP
+        : event.key === 'ArrowRight'
+          ? layout.rightColumn - RESIZE_STEP
+          : event.key === 'Home'
+            ? RIGHT_MIN_WIDTH
+            : event.key === 'End'
+              ? rightPanelMaxWidth(measuredWidth, layout.sidebarColumn)
+              : null
+    if (next === null) return
+    event.preventDefault()
+    resizeRightTo(next)
+  }
+
+  /** Both edges share listener ownership; width direction and clamping stay with each edge. */
+  const startResize = (event: React.PointerEvent<HTMLElement>, resize: (delta: number) => void) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.focus()
+    dragCleanup.current?.()
+    const startX = event.clientX
+    const pointerId = event.pointerId
+    setDragging(true)
+    const onMove = (move: PointerEvent) => {
+      if (move.pointerId === pointerId) resize(move.clientX - startX)
+    }
+    const stop = () => {
+      setDragging(false)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      window.removeEventListener('blur', stop)
+      dragCleanup.current = null
+    }
+    const onUp = (up: PointerEvent) => {
+      if (up.pointerId === pointerId) stop()
+    }
+    dragCleanup.current = stop
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    window.addEventListener('blur', stop)
+  }
+  const onRightResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const startWidth = layout.rightColumn
+    startResize(event, (delta) => resizeRightTo(startWidth - delta))
+  }
 
   const onResizeKeyDown = (event: React.KeyboardEvent) => {
     const next =
@@ -255,31 +351,15 @@ export function AppFrame({
     resizeTo(next)
   }
 
-  const onResizePointerDown = (event: React.PointerEvent) => {
-    if (event.button !== 0) return
-    // 阻止拖动时选中文字；保留键盘焦点，按下后可继续用方向键微调。
-    event.preventDefault()
-    ;(event.currentTarget as HTMLElement).focus()
-    const startX = event.clientX
+  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const startWidth = layout.sidebarColumn
-    setDragging(true)
-    const onMove = (move: PointerEvent) => resizeTo(startWidth + move.clientX - startX)
-    const onUp = () => {
-      setDragging(false)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
+    startResize(event, (delta) => resizeTo(startWidth + delta))
   }
 
-  const rightColumn = layout.right === 'column' ? layout.rightColumn : 0
+  const rightColumn = layout.rightColumn
   const frameStyle = {
     '--local-sidebar-column': `${layout.sidebarColumn}px`,
     '--local-right-column': `${rightColumn}px`,
-    '--local-right-overlay': `${layout.rightColumn}px`,
     // 主内容标题栏的左侧起点：控制条在收起时作为标题栏的第一个子项，标题紧随其后。
     '--local-header-leading': layout.sidebar === 'expanded' ? '16px' : '0px',
   } as React.CSSProperties
@@ -302,6 +382,7 @@ export function AppFrame({
       >
         {layout.sidebar === 'expanded' && (
           <aside
+            inert={rightFullscreen || undefined}
             data-slot="app-frame-sidebar"
             aria-label={labels.sidebar}
             className="sidebar-glass isolate relative flex min-h-0 min-w-0 flex-col overflow-hidden text-sidebar-foreground"
@@ -324,6 +405,7 @@ export function AppFrame({
         {layout.sidebar === 'expanded' && (
           <div
             role="separator"
+            inert={rightFullscreen || undefined}
             aria-orientation="vertical"
             aria-label={labels.resizeSidebar}
             aria-valuemin={SIDEBAR_MIN_WIDTH}
@@ -339,6 +421,7 @@ export function AppFrame({
         )}
 
         <main
+          inert={rightFullscreen || undefined}
           data-slot="app-frame-main"
           aria-label={labels.main}
           className="@container/main relative col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-hairline before:bg-sidebar-border before:content-['']"
@@ -351,14 +434,34 @@ export function AppFrame({
           aria-label={labels.rightPanel}
           hidden={layout.right === 'closed'}
           className={cn(
-            'col-start-3 min-h-0 min-w-0 flex-col overflow-hidden bg-background',
+            'min-h-0 min-w-0 flex-col overflow-hidden bg-background',
             layout.right !== 'closed' && 'flex',
             layout.right === 'column' && 'border-l-hairline',
-            layout.right === 'overlay' && 'absolute inset-y-0 right-0 z-30 w-(--local-right-overlay) shadow-prominent',
+            rightFullscreen
+              ? 'absolute inset-0 col-span-full z-40 [&_[data-slot=panel-tab-strip]]:ps-[max(10px,calc(var(--frame-leading-clearance)_+_12px))]'
+              : 'col-start-3',
           )}
         >
           {rightPanel}
         </section>
+
+        {layout.right === 'column' && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={labels.resizeRightPanel}
+            aria-valuemin={RIGHT_MIN_WIDTH}
+            aria-valuemax={Math.round(rightPanelMaxWidth(measuredWidth, layout.sidebarColumn))}
+            aria-valuenow={layout.rightColumn}
+            tabIndex={0}
+            data-slot="app-frame-right-resize-handle"
+            data-window-no-drag
+            onKeyDown={onRightResizeKeyDown}
+            onPointerDown={onRightResizePointerDown}
+            className="absolute inset-y-0 z-20 w-2 translate-x-1/2 cursor-col-resize touch-none focus-ring"
+            style={{ right: 'var(--local-right-column)' }}
+          />
+        )}
 
         {drawerVisible && (
           <>

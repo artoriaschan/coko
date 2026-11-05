@@ -1,6 +1,6 @@
 import '../styles.css'
 import { dictionaries, type Locale } from '@coko/i18n'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { toast } from '@coko/ui'
@@ -11,6 +11,7 @@ import { createPreferences } from './preferences.ts'
 import { createSettingsPageStore } from './settings-page-store.ts'
 import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
+import { setReducedMotion } from '../testing/browser-commands.ts'
 import { settingsRegion } from '../testing/settings-page.ts'
 
 it('pinning and unpinning the open conversation preserve its content and editor DOM', async () => {
@@ -519,9 +520,9 @@ describe('模型选择', () => {
 
 describe('窄窗口', () => {
   it.each([
-    ['en', 'Open right sidebar', 'Open sidebar', 'Close right sidebar', 'Collapse sidebar'],
-    ['zh', '打开右侧边栏', '打开侧边栏', '收起右侧边栏', '收起侧边栏'],
-  ] as const)('%s：右栏打开入口隐藏，X 收起后焦点回到入口，Tooltip 独立于名称', async (locale, openName, openTip, closeName, closeTip) => {
+    ['en', 'Open sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)', 'Collapse sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)'],
+    ['zh', '打开侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）', '收起侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）'],
+  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 标出快捷键', async (locale, openName, openTip, closeName, closeTip) => {
     await page.viewport(1200, 900)
     await renderApp(locale).screen
     const open = page.getByRole('button', { name: openName, exact: true })
@@ -531,7 +532,7 @@ describe('窄窗口', () => {
     ;(open.element() as HTMLElement).focus()
     await userEvent.keyboard('{Enter}')
     await expect.element(open).not.toBeInTheDocument()
-    const close = page.getByRole('button', { name: closeName, exact: true })
+    const close = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: closeName, exact: true })
     await expect.element(close).toBeVisible()
     await userEvent.hover(close)
     await expect.element(page.getByRole('tooltip', { name: closeTip, exact: true })).toBeVisible()
@@ -539,7 +540,7 @@ describe('窄窗口', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(open).toBeVisible()
     await expect.poll(() => document.activeElement).toBe(open.element())
-    await expect.element(page.getByRole('button', { name: closeName, exact: true })).not.toBeInTheDocument()
+    await expect.element(close).not.toBeInTheDocument()
   })
 
   it('390px：无整页横向滚动，控制条与发送入口在视口内', async () => {
@@ -599,7 +600,7 @@ describe('窄窗口', () => {
     const header = document.querySelector<HTMLElement>('[data-slot="app-frame-main"] header')!
     expect(header.querySelector('[data-action="open-handoff"]')).toBeNull()
     expect(header.querySelector('[data-action="more-header-actions"]')).toBeNull()
-    const right = header.querySelector<HTMLElement>('button[aria-label$="right sidebar"]')!
+    const right = header.querySelector<HTMLElement>('button[aria-label="Open sidebar"]')!
     expect(right.getBoundingClientRect().right).toBeLessThanOrEqual(390)
     right.focus()
     expect(document.activeElement).toBe(right)
@@ -718,4 +719,315 @@ describe('内容区历史与草稿', () => {
       expect(target === frame || !frame.contains(target)).toBe(true)
     }
   })
+})
+
+it('opens Start on demand, replaces it with a singleton page and collapses after its final close', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(panel.getByRole('tab').all().length).toBe(1)
+  expect(panel.getByRole('button', { name: 'New tab', exact: true }).query()).toBeNull()
+  expect(panel.getByRole('button', { name: 'Close Start', exact: true }).query()).toBeNull()
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace']) {
+    await expect.element(panel.getByRole('button', { name, exact: true })).toBeVisible()
+  }
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await expect.element(panel.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(panel.getByRole('tab').all().length).toBe(1)
+  await expect.element(panel.getByRole('button', { name: 'New tab', exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Close Trace', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toHaveFocus()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toBeVisible()
+})
+
+it('retains separate sidebar pages per Session and hides the container on non-session pages', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = () => page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel().getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel().getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel().getByRole('button', { name: 'Plan', exact: true }).click()
+  await page.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await panel().getByRole('button', { name: 'Team', exact: true }).click()
+  await page.getByRole('button', { name: '设计 token 与三栏骨架', exact: true }).click()
+  expect(
+    panel()
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().getAttribute('data-tab')),
+  ).toEqual(['trace', 'plan'])
+  await expect.element(panel().getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'New chat', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).not.toBeInTheDocument()
+  await expect.element(page.getByRole('tab', { name: 'Plan', exact: true })).not.toBeInTheDocument()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Plugins', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).not.toBeInTheDocument()
+})
+
+it('keeps the right page mounted through fullscreen and collapses narrow fullscreen without reopening', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await page.getByRole('button', { name: 'Trace', exact: true }).click()
+  const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
+  const pageNode = document.querySelector('[role="tabpanel"]')!
+  const center = document.querySelector('[data-slot="app-frame-main"]')!
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(648)
+  const centerWidth = center.getBoundingClientRect().width
+  const fullscreen = page.getByRole('button', { name: 'Fullscreen', exact: true })
+  expect(fullscreen.query()).not.toBeNull()
+  await fullscreen.click()
+  await expect.poll(() => panel.getBoundingClientRect().width).toBe(1440)
+  expect(center.getBoundingClientRect().width).toBe(centerWidth)
+  expect(document.querySelector('[role="tabpanel"]')).toBe(pageNode)
+  await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click()
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(648)
+  expect(document.querySelector('[role="tabpanel"]')).toBe(pageNode)
+  await page.viewport(700, 900)
+  await expect.element(page.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeVisible()
+  await expect.poll(() => panel.getBoundingClientRect().width).toBe(700)
+  await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toHaveFocus()
+  await page.viewport(1440, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(panel.hidden).toBe(true)
+})
+
+it('resizes the sidebar panel through its separator and remembers fit collapse across window growth', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
+  const handle = page.getByRole('separator', { name: 'Resize sidebar panel', exact: true })
+  await handle.click()
+  await userEvent.keyboard('{Home}')
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(300)
+  await userEvent.keyboard('{ArrowLeft}')
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(316)
+  await page.getByRole('separator', { name: 'Resize sidebar', exact: true }).click()
+  await userEvent.keyboard('{End}')
+  await expect.poll(() => document.querySelector('[data-slot="app-frame-sidebar"]')!.getBoundingClientRect().width).toBe(420)
+  await page.viewport(1120, 900)
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(300)
+  await page.viewport(1119, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(document.querySelector('[data-slot="app-frame-sidebar"]')!.getBoundingClientRect().width).toBe(420)
+  await page.viewport(1440, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(panel.hidden).toBe(true)
+})
+
+it.each([
+  ['en', 'light', 'Open sidebar', 'Start', 'Trace'],
+  ['zh', 'dark', '打开侧边栏', '开始', '追踪'],
+] as const)('%s %s: Start and its page entry remain reachable at 390 CSS px', async (locale, theme, open, start, trace) => {
+  await page.viewport(390, 800)
+  await renderApp(locale, { theme }).screen
+  await page.getByRole('button', { name: open, exact: true }).click()
+  await expect.element(page.getByRole('tab', { name: start, exact: true })).toBeVisible()
+  const card = page.getByRole('button', { name: trace, exact: true })
+  const bounds = card.element().getBoundingClientRect()
+  expect(bounds.left).toBeGreaterThanOrEqual(0)
+  expect(bounds.right).toBeLessThanOrEqual(390)
+  await card.click()
+  await expect.element(page.getByRole('tab', { name: trace, exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+})
+
+it('sidebar tabs use manual keyboard activation and modifier arrows reorder the focused tab', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  const plan = panel.getByRole('tab', { name: 'Plan', exact: true })
+  const trace = panel.getByRole('tab', { name: 'Trace', exact: true })
+  ;(plan.element() as HTMLElement).focus()
+  await userEvent.keyboard('{ArrowLeft}')
+  await expect.element(trace).toHaveFocus()
+  await expect.element(plan).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(trace).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{Meta>}{Shift>}{ArrowRight}{/Shift}{/Meta}')
+  expect(
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent),
+  ).toEqual(['Plan', 'Trace'])
+  await expect.element(trace).toHaveFocus()
+  await userEvent.keyboard('{Control>}{Shift>}{ArrowLeft}{/Shift}{/Control}')
+  expect(
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent),
+  ).toEqual(['Trace', 'Plan'])
+  await userEvent.keyboard('{End}')
+  await expect.element(plan).toHaveFocus()
+  await expect.element(trace).toHaveAttribute('aria-selected', 'true')
+})
+
+it('sidebar supports middle-click and context closing while its sole Start tab stays protected', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  const open = async (name: string) => {
+    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+    await panel.getByRole('button', { name, exact: true }).click()
+  }
+  const order = () =>
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent)
+  await open('Trace')
+  await open('Plan')
+  await open('Team')
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'middle' })
+  expect(order()).toEqual(['Trace', 'Team'])
+  await panel.getByRole('tab', { name: 'Trace', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close tabs to the right', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  expect(order()).toEqual(['Trace'])
+  await open('Plan')
+  await open('Team')
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close other tabs', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  expect(order()).toEqual(['Plan'])
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const start = panel.getByRole('tab', { name: 'Start', exact: true })
+  await start.click({ button: 'middle' })
+  await start.click({ button: 'right' })
+  expect(page.getByRole('menu').query()).toBeNull()
+  await expect.element(start).toBeVisible()
+})
+
+it('sidebar tabs reorder through pointer dragging without changing the selected page', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  const source = panel.getByRole('tab', { name: 'Trace', exact: true }).element()
+  const target = panel.getByRole('tab', { name: 'Plan', exact: true }).element()
+  const center = (element: Element) => {
+    const rect = element.getBoundingClientRect()
+    return { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }
+  }
+  const fire = (element: EventTarget, type: string, point: { clientX: number; clientY: number }, buttons: number) =>
+    element.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        isPrimary: true,
+        pointerType: 'mouse',
+        pointerId: 1,
+        button: 0,
+        buttons,
+        ...point,
+      }),
+    )
+  const from = center(source)
+  const to = center(target)
+  fire(source, 'pointerdown', from, 1)
+  fire(document, 'pointermove', { ...from, clientX: from.clientX + 8 }, 1)
+  await new Promise(requestAnimationFrame)
+  fire(document, 'pointermove', to, 1)
+  await new Promise(requestAnimationFrame)
+  fire(document, 'pointerup', to, 0)
+  await expect
+    .poll(() =>
+      panel
+        .getByRole('tab')
+        .all()
+        .map((tab) => tab.element().textContent),
+    )
+    .toEqual(['Plan', 'Trace'])
+  await expect.element(panel.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+})
+
+it.each([
+  ['en', 'light'],
+  ['zh', 'dark'],
+] as const)('%s %s: overflowing sidebar tabs scroll with fading edges while controls remain reachable at 390px', async (locale, theme) => {
+  await page.viewport(390, 800)
+  const { store, screen } = renderApp('en', { theme })
+  await screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace']) {
+    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+    await panel.getByRole('button', { name, exact: true }).click()
+  }
+  store.setLocale(locale)
+  const list = panel.getByRole('tablist').element() as HTMLElement
+  expect(list.scrollWidth).toBeGreaterThan(list.clientWidth)
+  expect(getComputedStyle(list).overflowX).toBe('auto')
+  expect(getComputedStyle(list).scrollbarWidth).toBe('none')
+  list.scrollLeft = 0
+  list.dispatchEvent(new Event('scroll'))
+  await expect.poll(() => getComputedStyle(list).maskImage).toContain('linear-gradient')
+  list.scrollLeft = list.scrollWidth / 2 - list.clientWidth / 2
+  list.dispatchEvent(new Event('scroll'))
+  await expect.poll(() => getComputedStyle(list).maskImage.match(/rgba\(0, 0, 0, 0\)/g)?.length).toBe(2)
+  const close = page
+    .elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+    .getByRole('button', { name: locale === 'zh' ? '收起侧边栏' : 'Collapse sidebar', exact: true })
+    .element()
+  const bounds = close.getBoundingClientRect()
+  expect(bounds.width).toBeGreaterThanOrEqual(28)
+  expect(bounds.right).toBeLessThanOrEqual(390)
+  expect(list.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.left)
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+})
+
+it.each([false, true])('opening an already displayed sidebar page glows for 600ms while foreground changes do not glow (reduce=%s)', async (reduced) => {
+  await setReducedMotion(reduced)
+  onTestFinished(() => setReducedMotion(false))
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Work steps', exact: true }).click()
+  await page.getByRole('button', { name: 'Modified files', exact: true }).click()
+  const tool = page.elementLocator(document.querySelector('[data-tool="edit"] button')!)
+  await tool.click()
+  const inspect = page.getByRole('button', { name: 'Inspect', exact: true })
+  await inspect.click()
+  await expect.element(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  await inspect.click()
+  const glow = document.querySelector<HTMLElement>('[data-slot="panel-attention"]')
+  expect(glow).not.toBeNull()
+  const animation = glow!.getAnimations()[0]!
+  animation.pause()
+  expect(animation.effect!.getTiming().duration).toBe(600)
+  expect(getComputedStyle(glow!).boxShadow).toContain('inset')
+  const frames = (animation.effect as KeyframeEffect).getKeyframes()
+  expect(frames.map((frame) => frame.opacity)).toEqual(reduced ? ['1', '1'] : ['1', '0'])
+  animation.finish()
+  await expect.poll(() => document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  await inspect.click()
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  await panel.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+  await inspect.click()
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
 })

@@ -1,3 +1,5 @@
+import { DEFAULT_DEVELOPER_SETTINGS, DEVELOPER_SETTING, DeveloperSettings } from '@coko/protocol'
+import { Value } from 'typebox/value'
 import type { AvailableModel, CatalogModel, ModelProtocol, PermissionsResponse, Provider, SessionModel, UpdatePermissionsRequest } from '@coko/protocol'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, type ApiClient } from '../client/api.ts'
@@ -12,6 +14,8 @@ export interface KnownSetting {
 export interface SettingsState {
   status: 'idle' | 'loading' | 'ready' | 'error'
   values: Record<string, KnownSetting>
+  /** 开发者设置的界面选择；保存失败或冲突时保留，values 仍是服务端确认值。 */
+  developer: DeveloperSettings
   providers: Provider[]
   models: AvailableModel[]
   defaultModel: SessionModel | null
@@ -47,6 +51,7 @@ export interface SettingsActions {
   load(): Promise<void>
   /** 以已知 revision 写入；同一键的写入按调用顺序串行。冲突时读回服务端的值与 revision。 */
   saveSetting(key: string, value: unknown): Promise<SaveSettingResult>
+  setDeveloperSettings(value: DeveloperSettings): Promise<SaveSettingResult>
   saveProvider(draft: ProviderDraft): Promise<SaveProviderResult>
   /** 获取供应商的可用模型（ADR 0010）：表单中的 Key 只用于这一次请求；编辑时 Key 留空用已保存的 Credential。不改变 store。 */
   fetchProviderModels(input: FetchProviderModelsInput): Promise<FetchProviderModelsResult>
@@ -85,6 +90,7 @@ const toValues = (settings: { key: string; value: unknown; revision: number }[])
 
 /** 设置与 Provider 的 vanilla store（无 React 依赖）。Provider 与密钥经 preload 交给 main 一次提交，不经 HTTP（ADR 0004、0010）。 */
 export function createSettingsStore({ api, saveProvider: submitProvider, providerModels, onFailure, onProviderDeleted }: SettingsStoreOptions): SettingsStore {
+  let developerTouched = false
   const chains = new Map<string, Promise<unknown>>()
 
   return createStore<SettingsState & SettingsActions>()((set, get) => {
@@ -148,6 +154,7 @@ export function createSettingsStore({ api, saveProvider: submitProvider, provide
     return {
       status: 'idle',
       values: {},
+      developer: { ...DEFAULT_DEVELOPER_SETTINGS },
       providers: [],
       models: [],
       defaultModel: null,
@@ -171,7 +178,9 @@ export function createSettingsStore({ api, saveProvider: submitProvider, provide
         if (get().status !== 'ready') set({ status: 'loading' })
         try {
           const [settings, providers, { models, defaultModel }] = await Promise.all([api.listSettings(), api.listProviders(), api.listModels()])
-          set({ status: 'ready', values: toValues(settings), providers, models, defaultModel })
+          const storedDeveloper = settings.find((setting) => setting.key === DEVELOPER_SETTING)?.value
+          const developer = Value.Check(DeveloperSettings, storedDeveloper) ? storedDeveloper : { ...DEFAULT_DEVELOPER_SETTINGS }
+          set({ status: 'ready', values: toValues(settings), providers, models, defaultModel, ...(!developerTouched ? { developer } : {}) })
           void get().loadPermissions(get().permissions?.workspace?.workspaceId)
         } catch (error) {
           if (get().status !== 'ready') set({ status: 'error' })
@@ -184,6 +193,12 @@ export function createSettingsStore({ api, saveProvider: submitProvider, provide
         const next = previous.then(() => putSetting(key, value))
         chains.set(key, next)
         return next
+      },
+
+      setDeveloperSettings(developer) {
+        developerTouched = true
+        set({ developer })
+        return get().saveSetting(DEVELOPER_SETTING, developer)
       },
 
       async saveProvider(draft) {

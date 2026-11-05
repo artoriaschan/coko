@@ -1,0 +1,53 @@
+.diagnostic-table {
+  width: 100%;
+  min-width: 650px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.diagnostic-table th,
+.diagnostic-table td {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 8px;
+  white-space: nowrap;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--hairline) solid var(--border);
+}
+.diagnostic-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--background);
+}
+.diagnostic-table tr[data-sticky] {
+  position: sticky;
+  background: var(--background);
+}
+.diagnostic-table tr[aria-selected='true'] {
+  background: var(--accent);
+}
+
+.diagnostic-table tr[data-diagnostic-context] {
+  color: var(--muted-foreground);
+}
+
+/* Body-level diagnostics paint never changes transcript geometry or reading anchors. */
+.diagnostic-timeline-mask,
+.diagnostic-timeline-highlight {
+  position: fixed;
+  z-index: 40;
+}
+.diagnostic-timeline-mask {
+  cursor: crosshair;
+  background: transparent;
+}
+.diagnostic-timeline-highlight {
+  pointer-events: none;
+  z-index: 41;
+  background: color-mix(in srgb, var(--ring) 15%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ring);
+  border-radius: var(--radius-sm);
+}

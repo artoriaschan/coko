@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { AlarmClockIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { formatScheduleTime, useSchedules } from './schedules-button.tsx'
@@ -10,7 +11,7 @@ import type { TimelineItem } from './timeline.ts'
  * 标题来自 schedules store（标题栏按钮读取会话的列表），其次取该 Run 输入包装中的标题；都没有时显示"已删除的定时任务"。
  * 定时任务 Run 的输入（<scheduled_task> 包装）不成用户气泡，这一行即是该 Run 的开头。
  */
-export function ScheduleFireRow({ item }: { item: Extract<TimelineItem, { kind: 'schedule-fire' }> }) {
+export function ScheduleFireRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'schedule-fire' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t, locale } = useI18n()
   const { fire } = item
   const { sessionId } = useTimelineSession()
@@ -25,6 +26,7 @@ export function ScheduleFireRow({ item }: { item: Extract<TimelineItem, { kind: 
   ].filter(Boolean)
   return (
     <CollaborationRow
+      {...rootAttributes}
       data-slot="schedule-fire"
       data-status={fire.status}
       data-reason={fire.reason}

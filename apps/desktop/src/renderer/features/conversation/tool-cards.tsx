@@ -219,13 +219,29 @@ function GenericBody({ item }: { item: ToolItem }) {
   )
 }
 
-export function ToolCardView({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
+export function ToolCardView({
+  item,
+  onInspect,
+  rootAttributes,
+}: {
+  item: ToolItem
+  onInspect?: () => void
+  rootAttributes?: React.ComponentProps<typeof ToolCard>['rootAttributes']
+}) {
   // agent：子代理卡（状态来自 agent_start / agent_end 与 agent_update）。
-  if (item.call.name === 'agent') return <AgentCard item={item} onInspect={onInspect} />
-  return <ToolCallCard item={item} onInspect={onInspect} />
+  if (item.call.name === 'agent') return <AgentCard item={item} onInspect={onInspect} rootAttributes={rootAttributes} />
+  return <ToolCallCard item={item} onInspect={onInspect} rootAttributes={rootAttributes} />
 }
 
-function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
+function ToolCallCard({
+  item,
+  onInspect,
+  rootAttributes,
+}: {
+  item: ToolItem
+  onInspect?: () => void
+  rootAttributes?: React.ComponentProps<typeof ToolCard>['rootAttributes']
+}) {
   const [expanded, onExpandedChange] = useProcessDisclosure()
   const { t } = useI18n()
   const args = item.call.arguments && typeof item.call.arguments === 'object' ? (item.call.arguments as Record<string, unknown>) : {}
@@ -240,6 +256,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
   if (!view) {
     return (
       <ToolCard
+        rootAttributes={rootAttributes}
         variant="row"
         expanded={expanded}
         onExpandedChange={onExpandedChange}
@@ -268,6 +285,7 @@ function ToolCallCard({ item, onInspect }: { item: ToolItem; onInspect?: () => v
     item.call.name === 'memory_write'
   return (
     <ToolCard
+      rootAttributes={rootAttributes}
       variant="row"
       expanded={expanded}
       onExpandedChange={onExpandedChange}

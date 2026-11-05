@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises'
+import { applicationMenuTemplate } from './application-menu.ts'
 import { openDirectory } from './open-directory.ts'
 import { allowPermission } from './permissions.ts'
 import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
@@ -9,6 +10,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
   Notification,
   protocol,
   safeStorage,
@@ -86,6 +88,7 @@ function run(): void {
   const devServerUrl = development ? process.env.COKO_RENDERER_DEV_URL : undefined
   const renderer: RendererSource = devServerUrl ? { kind: 'dev-server', url: devServerUrl } : { kind: 'directory', root: join(appRoot, 'dist', 'renderer') }
 
+  let menuCloseListening = false
   let mainWindow: BrowserWindow | undefined
   let quitApproved = false
   let readyToExit = false
@@ -243,6 +246,23 @@ function run(): void {
     if (state.phase === 'ready') return { ok: true, info: { ...result.info, wsBaseUrl: wsBaseUrl(state.port) } }
     if (state.phase === 'failed') return { ok: false, error: state.error }
     return result
+  })
+
+  // 登记只接受主窗口主文档。重载/进程丢失时清空，尚无 renderer 监听时保留原生关闭能力。
+  ipcMain.on(IPC.menuCloseListening, (event, listening: unknown) => {
+    try {
+      assertMainFrame(event)
+    } catch {
+      return
+    }
+    if (typeof listening === 'boolean') menuCloseListening = listening
+  })
+  ipcMain.on(IPC.requestCloseWindow, (event) => {
+    try {
+      assertMainFrame(event).close()
+    } catch {
+      return
+    }
   })
 
   ipcMain.handle(IPC.openLogs, async (event) => {
@@ -482,9 +502,28 @@ function run(): void {
       )
     })
 
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate(
+        applicationMenuTemplate(process.platform, { file: t()('main.fileMenu'), close: t()('main.close') }, () => {
+          const window = mainWindow
+          if (window === undefined || window.isDestroyed()) return
+          if (!menuCloseListening || window.webContents.isDestroyed()) window.close()
+          else window.webContents.send(IPC.menuClose)
+        }),
+      ),
+    )
+
     const open = () => {
+      menuCloseListening = false
       mainWindow = createMainWindow(preload, windowMode)
+      mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+        if (isMainFrame && !isInPlace) menuCloseListening = false
+      })
+      mainWindow.webContents.on('render-process-gone', () => {
+        menuCloseListening = false
+      })
       mainWindow.on('closed', () => {
+        menuCloseListening = false
         mainWindow = undefined
       })
     }

@@ -269,6 +269,11 @@ for (const theme of ['light', 'dark'] as const)
         planButton.focus()
         await userEvent.keyboard('{Enter}')
         await expect.poll(() => document.querySelector('[data-slot="plan-tab"]')?.getAttribute('data-revision')).toBe('1')
+        // 窄窗口的右栏现在全屏；先收起再操作背景 dock，键盘不能穿透全屏面板。
+        await page
+          .elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+          .getByRole('button', { name: locale === 'en' ? 'Collapse sidebar' : '收起侧边栏', exact: true })
+          .click()
         // Goal controls and budget remain in the existing dock, never folded with work steps.
         const goalToggle = document.querySelector<HTMLButtonElement>('[data-action="toggle-goal"]')!
         goalToggle.focus()
@@ -358,7 +363,7 @@ it('actual App: a pending Plan review keeps the active Plan-tab route available 
   await expect.poll(() => document.querySelector('[data-slot="plan-review"]')).not.toBeNull()
   const button = document.querySelector('[data-slot="plan-card"] [data-action="open-plan"]')!
   expect(button.getAttribute('aria-expanded')).toBeNull()
-  await page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: 'Close right sidebar', exact: true }).click()
+  await page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
   ;(button as HTMLButtonElement).focus()
   await userEvent.keyboard('{Enter}')
   await expect.poll(() => document.querySelector('[data-slot="app-frame-right"]')?.getAttribute('hidden')).toBeNull()

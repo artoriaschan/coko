@@ -1,13 +1,17 @@
 import { createTranslator } from '@coko/i18n'
-import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
+import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider, useAppFrame } from '@coko/ui'
 import * as React from 'react'
+import { useStore } from 'zustand'
+import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded, setRightPanelMode } from '../features/right-panel/layout-store.ts'
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
+import { useRightPanelCommands } from './right-panel-commands.ts'
 import { ChatStoreProvider } from './chat.tsx'
 import type { ConnectionStore } from './connection-store.ts'
 import type { ComposerHandle } from '../features/conversation/composer.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
+import { DiagnosticProgressProvider } from '../features/session-diagnostics/progress-capture.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { SettingsPage } from '../features/settings/settings-page.tsx'
 import { ConversationSearch } from '../features/sidebar/conversation-search.tsx'
@@ -102,55 +106,66 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
-  const [rightOpen, setRightOpen] = React.useState(false)
+  const [rightWidth, setRightWidth] = React.useState<number>()
+  const activeSessionId = useStore(chat, (state) => state.activeSessionId)
+  const rightLayout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(activeSessionId))
+  const rightOpen = activeSessionId !== null && rightLayout.expanded
+  const setRightOpen = (expanded: boolean) => setRightPanelExpanded(activeSessionId, expanded)
   const [search, setSearch] = React.useState<string | null>(null)
 
   return (
     <I18nProvider locale={locale}>
       <ChatStoreProvider store={chat}>
-        <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
-          <WorkbenchNavigationContext.Provider value={navigation}>
-            <TooltipProvider>
-              <ProjectDialogsProvider pickDirectory={pickDirectory}>
-                <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
-                  {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
-                  <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
-                    <Frame
-                      sidebarWidth={sidebarWidth}
-                      onSidebarWidthChange={setSidebarWidth}
-                      sidebarCollapsed={sidebarCollapsed}
-                      onSidebarCollapsedChange={setSidebarCollapsed}
-                      rightOpen={rightOpen && contentPage === null}
-                      sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
-                      rail={<SidebarRail />}
-                      rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
-                    >
-                      <div
-                        hidden={contentPage !== null}
-                        inert={contentPage !== null || undefined}
-                        className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+        <DiagnosticProgressProvider chat={chat}>
+          <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
+            <WorkbenchNavigationContext.Provider value={navigation}>
+              <TooltipProvider>
+                <ProjectDialogsProvider pickDirectory={pickDirectory}>
+                  <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
+                    {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
+                    <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
+                      <Frame
+                        sidebarWidth={sidebarWidth}
+                        onSidebarWidthChange={setSidebarWidth}
+                        sidebarCollapsed={sidebarCollapsed}
+                        onSidebarCollapsedChange={setSidebarCollapsed}
+                        rightOpen={rightOpen && contentPage === null}
+                        onRightOpenChange={setRightOpen}
+                        rightWidth={rightWidth}
+                        onRightWidthChange={setRightWidth}
+                        rightFullscreen={rightLayout.mode === 'fullscreen'}
+                        onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
+                        sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
+                        rail={<SidebarRail />}
+                        rightPanel={<FrameRightPanel chat={chat} enabled={!settingsVisible && contentPage === null} onClose={() => setRightOpen(false)} />}
                       >
-                        <ConversationPane
-                          theme={theme}
-                          rightOpen={rightOpen && contentPage === null}
-                          onToggleRight={() => setRightOpen((open) => !open)}
-                          connection={connectionState}
-                          onAddWorkspace={() => {}}
-                          onOpenLogs={openLogs}
-                          composerRef={composer}
-                        />
-                      </div>
-                      {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
-                    </Frame>
+                        <div
+                          hidden={contentPage !== null}
+                          inert={contentPage !== null || undefined}
+                          className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+                        >
+                          <ConversationPane
+                            theme={theme}
+                            rightOpen={rightOpen && contentPage === null}
+                            onToggleRight={() => setRightOpen(!rightOpen)}
+                            connection={connectionState}
+                            onAddWorkspace={() => {}}
+                            onOpenLogs={openLogs}
+                            composerRef={composer}
+                          />
+                        </div>
+                        {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
+                      </Frame>
+                    </div>
+                    <ConversationSearch open={search !== null} onOpenChange={(open) => setSearch(open ? '' : null)} />
+                    <SettingsPage theme={theme} />
                   </div>
-                  <ConversationSearch open={search !== null} onOpenChange={(open) => setSearch(open ? '' : null)} />
-                  <SettingsPage theme={theme} />
-                </div>
-                <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
-              </ProjectDialogsProvider>
-            </TooltipProvider>
-          </WorkbenchNavigationContext.Provider>
-        </SettingsProvider>
+                  <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+                </ProjectDialogsProvider>
+              </TooltipProvider>
+            </WorkbenchNavigationContext.Provider>
+          </SettingsProvider>
+        </DiagnosticProgressProvider>
       </ChatStoreProvider>
     </I18nProvider>
   )
@@ -161,11 +176,24 @@ function ProjectSidebar(props: Omit<React.ComponentProps<typeof Sidebar>, 'onAdd
   return <Sidebar {...props} onAddWorkspace={() => createProject?.()} />
 }
 
+/** 全屏按钮使用框架派生的实际形态，窄窗口不会改写 Session 偏好。 */
+function FrameRightPanel({ onClose, chat, enabled }: { onClose: () => void; chat: ChatStore; enabled: boolean }) {
+  const { rightFullscreen, toggleRightFullscreen } = useAppFrame()
+  useRightPanelCommands({ chat, enabled, toggleFullscreen: toggleRightFullscreen })
+  return <RightPanel onClose={onClose} fullscreen={rightFullscreen} onToggleFullscreen={toggleRightFullscreen} />
+}
+
 /** 注入已本地化的框架无障碍名称。 */
 function Frame(props: Omit<React.ComponentProps<typeof AppFrame>, 'labels'>) {
   const { t } = useI18n()
   const labels = React.useMemo(
-    () => ({ sidebar: t('sidebar.label'), main: t('frame.main'), rightPanel: t('frame.rightPanel'), resizeSidebar: t('sidebar.resize') }),
+    () => ({
+      sidebar: t('sidebar.label'),
+      main: t('frame.main'),
+      rightPanel: t('frame.rightPanel'),
+      resizeSidebar: t('sidebar.resize'),
+      resizeRightPanel: t('rightPanel.resize'),
+    }),
     [t],
   )
   return <AppFrame {...props} labels={labels} />

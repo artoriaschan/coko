@@ -12,6 +12,8 @@ export default defineProject({
   optimizeDeps: {
     include: [
       'radix-ui/internal',
+      '@dnd-kit/core',
+      '@tanstack/react-virtual',
       'sonner',
       '@lexical/react/LexicalComposer',
       '@lexical/react/LexicalComposerContext',
@@ -36,6 +38,20 @@ export default defineProject({
     testTimeout: 20_000,
     browser: {
       enabled: true,
+      commands: {
+        setReducedMotion: async ({ page }, reduced: boolean) => {
+          await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' })
+        },
+        setBrowserScale: async ({ page }, scale: number) => {
+          const cdp = await page.context().newCDPSession(page)
+          try {
+            await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: scale })
+            return await page.evaluate(() => window.visualViewport?.scale ?? 1)
+          } finally {
+            await cdp.detach()
+          }
+        },
+      },
       headless: true,
       provider: playwright(),
       instances: [{ browser: 'chromium' }],

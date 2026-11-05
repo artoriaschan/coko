@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { WebhookIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -9,12 +10,13 @@ const DESTRUCTIVE = new Set(['blocked', 'denied', 'stopped', 'timeout', 'error',
  * 时间线的 Hook 行（hook_run 条目）：紧凑行。事件名、结论、来源与（已脱敏的）命令；有 message 时另起一行显示（换行，不截断）。
  * 命令单行截断，完整内容在 title 中。
  */
-export function HookRow({ item }: { item: Extract<TimelineItem, { kind: 'hook' }> }) {
+export function HookRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'hook' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
   const { hook } = item
   const destructive = DESTRUCTIVE.has(hook.outcome)
   return (
     <div
+      {...rootAttributes}
       data-slot="hook-row"
       data-event={hook.event}
       data-outcome={hook.outcome}

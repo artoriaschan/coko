@@ -164,8 +164,8 @@ describe('子代理界面', () => {
       expect(await timeline.locator('[data-slot="tool-card"][data-tool="read"]').count()).toBe(1)
       expect(await panel.getByRole('textbox').count()).toBe(0)
       await win
-        .getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
-        .first()
+        .locator('[data-slot="app-frame-right"]')
+        .getByRole('button', { name: /^(Collapse sidebar|收起侧边栏)$/ })
         .click()
 
       // 2. 子代理的写入审批：父会话输入区接管，标出来源；允许后子代理继续并写入文件。
@@ -211,6 +211,15 @@ describe('子代理界面', () => {
         if (!(await panel.isVisible())) await headerButton.click()
         const stop = panel.locator('[data-action="stop-agent"]')
         await stop.waitFor()
+        await expect.poll(() => win.locator('[data-slot="app-frame"]').getAttribute('data-right')).toBe('fullscreen')
+        await expect
+          .poll(() =>
+            panel.evaluate((el) => {
+              const box = el.getBoundingClientRect()
+              return [box.x, box.width]
+            }),
+          )
+          .toEqual([0, 390])
         const box = (await stop.boundingBox())!
         expect(box.x + box.width).toBeLessThanOrEqual(390)
         expect(await win.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)

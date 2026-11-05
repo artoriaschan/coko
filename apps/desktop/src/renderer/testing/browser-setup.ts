@@ -5,6 +5,7 @@
 //   这些设置不会撤销，之后的 getByRole 看不到这些节点。卸载之后断言没有残留，报出泄漏的用例（等菜单关闭后再结束用例）。
 import { afterEach, beforeEach } from 'vitest'
 import { cleanup } from 'vitest-browser-react'
+import { rightPanelLayoutStore } from '../features/right-panel/layout-store.ts'
 
 let stored: [string, string][] = []
 
@@ -14,6 +15,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await cleanup()
+  rightPanelLayoutStore.setState({ sessions: {}, attention: null })
   localStorage.clear()
   for (const [key, value] of stored) localStorage.setItem(key, value)
   const hidden = [...document.body.children].filter((node) => node.hasAttribute('data-aria-hidden') || node.getAttribute('aria-hidden') === 'true')

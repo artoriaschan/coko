@@ -25,7 +25,7 @@ lifecycle: active
 
 ## 当前行为
 
-- [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史、设置返回、对话搜索、消息与思考、专用工具详情与文件语法、详细过程、三级折叠与阅读位置、历史与只读检查、主输入框、会话状态栏与 Token 用量、新对话归属与首次发送、模型生成标题、单份草稿、模型与推理档位、文件与图片附件，以及跨功能 Electron 验证。
+- [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史、设置返回与开发者开关、对话搜索、消息与思考、专用工具详情与文件语法、详细过程、三级折叠与阅读位置、历史与只读检查、主输入框、会话状态栏与 Token 用量、新对话归属与首次发送、模型生成标题、单份草稿、模型与推理档位、文件与图片附件，以及跨功能 Electron 验证。
 - [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、多文件夹创建与主要目录、删除项目保留对话、根会话归属、列表交互与恢复、会话详情、长标题、置顶、菜单、重命名、移入移出项目、归档恢复与永久删除。
 
 - [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。
@@ -34,6 +34,7 @@ lifecycle: active
 - [指令文件](subsystems/instructions.md)：AGENTS.md / CLAUDE.md 的发现顺序、@import、预算、注入格式与嵌套按需加载。
 - [命令](subsystems/commands.md)：提示模板的发现与展开、同名优先级与诊断、命令目录接口、/ 命令菜单与命令 chip。
 - [Skills](subsystems/skills.md)：Skill 的发现位置与校验、<available_skills> 索引与预算、skill 工具与读取根、/<skill-name> 展开、开关与 Skills & Commands 分区。
+- [会话数据诊断](subsystems/session-diagnostics.md)：开发者开关下的已加载条目、Run 与主时间线分组、实时增量、类型筛选、虚拟表格、跟随与锚定、JSON/运行时对象详情、引用与主时间线定位和瞄准。
 - [上下文管理](subsystems/context.md)：@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量的五类统计与上下文环、时间裁剪、压缩、忽略规则。
 - [命令执行与子进程登记](subsystems/execution.md)：bash 的进程组执行与生命周期回调、子进程登记表、启动时的孤儿清理与有序关闭、已知限制。
 - [外部 Hook](subsystems/hooks.md)：Hook 配置与诊断、项目 Hook 的逐条批准、matcher 与 if、执行与进程登记、PreToolUse 与判定的组合、PermissionRequest、PostToolUse 的追加上下文、UserPromptSubmit / Stop / PreCompact / Notification、continue: false 的停止、hook_run、/api/hooks 与设置分区。
@@ -52,7 +53,7 @@ lifecycle: active
 - [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、基础分支与首次发送回滚、会话绑定与固定的工作目录、宿主执行的 git、项目本地分支与创建检出、全局分支前缀、移除的 busy / dirty 检查与只读会话、HTTP 接口与会话只读提示。
 - [追踪、审计、导出与评测](subsystems/tracing.md)：model_request 逐请求记录、每个 Run 的追踪（工具耗时、审批等待、Hook 归属）、审计序列、/api/sessions/:id/{trace,audit,export}、ndjson 导出与标题栏 JSONL 下载、loadExport 回放、右栏 Trace tab、tests/evals 的用例格式、报告与真实模式。
 - [无界面运行](subsystems/headless.md)：headless 入口的参数、装配与输出（text / json / stream-json）、退出码与信号、审批自动拒绝（by headless）、--provider-config 与密钥变量、日志与已知限制。
-- [安装包、自动更新与发布构建](subsystems/delivery.md)：开发运行的 watch 与重启、ZIP / DMG makers 与 make、构建期更新源与 UpdateCoordinator、设置 → 关于、发布构建与测试构建的差异、两类 E2E 入口。
+- [安装包、自动更新与发布构建](subsystems/delivery.md)：开发运行的 watch 与重启、应用菜单与关闭路由、ZIP / DMG makers 与 make、构建期更新源与 UpdateCoordinator、设置 → 关于、发布构建与测试构建的差异、两类 E2E 入口。
 - [@coko/agent](../packages/agent/README.md)：运行时入口、工具契约、工具调度与执行记录。
 
 当前行为文档随实际实现逐步建立。尚不存在的架构、子系统或接口页面不作为可用资料列入导航。

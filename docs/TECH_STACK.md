@@ -161,7 +161,7 @@ tsdown 沿用参考清单的 0.22.2，负责非 UI 模块的 TS/JS 构建；Vite
 | 数学公式 | @streamdown/math 1.0.3 + katex 0.16.47 |
 | 图表 | @streamdown/mermaid 1.0.3 + mermaid 11.17.2 |
 | 中文解析适配 | @streamdown/cjk 1.0.4 |
-| 虚拟列表 | @tanstack/react-virtual 3.14.14 |
+| 虚拟列表 | @tanstack/react-virtual 3.14.14（已安装于 apps/desktop；锁定 virtual-core 3.18.0，用于会话数据诊断） |
 | ANSI 展示 | anser 2.3.5（apps/desktop devDependency，M4 票 02 写入 manifest；后台任务视图接入） |
 | Diff 展示 | diff 8.0.4 |
 | 状态管理 | Zustand 5.0.15，使用 vanilla store |

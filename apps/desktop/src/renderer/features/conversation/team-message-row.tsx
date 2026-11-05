@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { ArrowRightIcon, MessageSquareIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { CollaborationRow } from './collaboration-row.tsx'
@@ -6,11 +7,12 @@ import type { TimelineItem } from './timeline.ts'
 /**
  * 团队消息的紧凑行（team_message 条目）：发送方 → 接收方与 summary。送达它的 <team-message> 包装由时间线按条目位置去掉，正文由宿主包装提取并可手动展开查看。名字与 summary 是协议值与模型输出，原样显示。
  */
-export function TeamMessageRow({ item }: { item: Extract<TimelineItem, { kind: 'team-message' }> }) {
+export function TeamMessageRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'team-message' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
   const { from, to, summary, messageId } = item.message
   return (
     <CollaborationRow
+      {...rootAttributes}
       data-slot="team-message"
       data-message-id={messageId}
       data-from={from}

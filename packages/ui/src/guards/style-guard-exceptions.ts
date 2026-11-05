@@ -12,6 +12,12 @@ export interface StyleGuardException {
 /** 修改例外需要在评审中说明原因。 */
 export const styleGuardExceptions: StyleGuardException[] = [
   {
+    file: 'apps/desktop/src/renderer/features/session-diagnostics/type-filter-editor.tsx',
+    rule: 'menu',
+    match: 'role="listbox"',
+    reason: 'The combobox candidates are inside the shared PopoverContent menu surface; a second nested surface would duplicate its material and elevation.',
+  },
+  {
     file: 'apps/desktop/src/renderer/features/conversation/messages.css',
     rule: 'menu',
     match: 'backdrop-filter: none',

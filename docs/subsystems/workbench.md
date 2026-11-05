@@ -12,7 +12,11 @@ lifecycle: active
 
 [App](../../apps/desktop/src/renderer/app/app.tsx) 组合左侧导航与列表、右侧内容及可选的右面板。[AppFrame](../../packages/ui/src/app-frame/app-frame.tsx) 负责侧栏伸缩、整列收起与抽屉、拖动分隔条以及四角裁剪，圆角使用共享的 R28 主面板档位。
 
-启动时先渲染品牌加载屏（[startup-screen.tsx](../../apps/desktop/src/renderer/app/startup-screen.tsx)）：覆盖整个窗口、背景取 `--background`、顶部 48px 保持窗口拖拽，正文居中展示 250px 圆形品牌角色。渲染进程在 Sidecar 连接后读取设置，等设置进入 `ready` 或 `error` 后先应用已保存的语言与主题，再渲染工作台；因此首帧就是保存的语言，不再出现“系统英文 → 应用中文”的闪动。连接失败或超过 10 秒仍无设置时也进入工作台，由工作台展示连接错误，避免一直停在加载屏。
+右栏左缘提供可聚焦的分隔条。拖动或按左右方向键（16px 步长）、Home、End 调整宽度：默认帧宽的 45%，最小 300px，最大为帧宽的 70%，同时为中栏至少保留 400px。宽度偏好由 App 在当前窗口内存中保存，切换 Session 沿用，重新加载回到默认。左侧栏不为右栏让位；普通右栏放不下 300px 时，框架回写当前 Session 的收起状态，窗口变宽也不自动重新打开。
+
+tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。全屏覆盖整个应用帧，保留普通形态的底层列宽和同一棵右栏正文 DOM，展开与滚动状态不丢失；此时没有右栏分隔条，背景主区与侧栏不可交互。帧宽小于 768px 时，打开右栏自动全屏，不占普通右栏列，也不写入手动全屏偏好；在此宽度退出全屏会收起右栏，变宽不重开。全屏 tab 条按窗口左侧安全区避让 macOS 控制按钮，交互控件仍退出窗口拖拽区。
+
+启动时先渲染品牌加载屏（[startup-screen.tsx](../../apps/desktop/src/renderer/app/startup-screen.tsx)）：覆盖整个窗口、背景取 `--background`、顶部 48px 保持窗口拖拽，正文居中展示 250px 圆形品牌角色。渲染进程在 Sidecar 连接后读取设置，等设置进入 `ready` 或 `error` 后先应用已保存的语言与主题，并确定开发者页面的可用条件，再渲染工作台；因此首帧就是保存的语言，不再出现“系统英文 → 应用中文”的闪动。连接失败或超过 10 秒仍无设置时也进入工作台，由工作台展示连接错误，避免一直停在加载屏。
 
 侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。
 
@@ -22,15 +26,39 @@ lifecycle: active
 
 导航历史只保存在 renderer 内存中，重启后为空。分类状态和新对话草稿的持久化由各自功能负责；本节不定义它们的数据格式。独立新对话未发送时没有 Workspace；专属目录与会话只在首次发送时创建。项目草稿引用已有的主要 Workspace。
 
+## 开发者设置
+
+设置 → 常规的“开发者”卡片提供“会话数据诊断”开关，说明为“在侧边栏启用当前会话的原始数据和对话分组数据分析功能”。它是默认关闭的全局偏好，所有项目共用，发布构建中同样可用；经已有设置接口保存 `developer` 键 `{ sessionDiagnostics: boolean }`，重启后保持。[schema 与缺省值](../../packages/protocol/src/control.ts)由协议包提供，Sidecar 只通过通用设置库保存值，不读取开发者偏好的语义。无效值或启动读取失败按关闭处理。
+
+[设置 store](../../apps/desktop/src/renderer/stores/settings-store.ts)分别保存服务端已确认的值／revision 与当前开发者选择。开关立即采用当前选择；保存冲突或失败时显示应用级 Toast，并保留选择，离开再返回设置页也不撤销。[偏好装配](../../apps/desktop/src/renderer/app/preferences.ts)在工作台首次渲染之前确定页面可用条件，避免已保存的诊断 tab 在恢复时被错误过滤。
+
+启用后，各 Session 的“开始”页末尾增加“会话数据诊断”卡片，不会自动打开页面。关闭后立即移除所有已采用布局中的诊断 tab；它是唯一 tab 时整栏收起。未采用布局在日后恢复时过滤掉诊断页，过滤本身不批量改写其他 Session 的保存键。诊断页检查主区当前 Session，只读，也可用于归档或 worktree 已移除的会话；页面提供“展示形式”、类型筛选浮层与只读数据表格，不提供会话消息输入；已加载条目的 Run 与主时间线分组、实时增量、虚拟化、筛选、跟随、JSON/运行时对象详情与引用见[会话数据诊断](session-diagnostics.md)。
+
+验证：[真实 App 开发者 Browser Mode](../../apps/desktop/src/renderer/features/settings/developer.browser.test.tsx)覆盖开关默认值、保存、无效值／读取失败、冲突／失败保留选择、跨 Session 关闭与恢复、390px 中英文及明暗主题；[Electron 重启用例](../../apps/desktop/e2e/developer-diagnostics.e2e.test.ts)覆盖设置保持与诊断页恢复／关闭链路。
+
 ## 对话标题栏
 
-详情页顶部的标题行高 48px，与窗口安全区和右栏头部共用 `--frame-top-clearance`。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
+详情页顶部的标题行高 48px，使用窗口安全区的 `--frame-top-clearance`；右栏上沿是独立的 tab 条。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
 
 主区不宽于 560px 且侧栏收起时，既有的展开侧栏、后退、前进和新对话控制条移到 tab 行左侧，“对话”tab 位于其后。控制条保持同一份 DOM、28px 命中区及原有键盘路径；标题行仍为 48px，保留原生窗口安全区，四个状态入口、“更多”和打开右栏均留在标题行。此局部重排避免全部状态入口同时出现时溢出，以及聚焦行尾按钮引发主区的隐藏横向滚动。
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
-右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 为“打开侧边栏”，可访问名称为“打开右侧边栏”。打开后入口隐藏，使用右栏头部的 X 收起：Tooltip 为“收起侧边栏”，可访问名称为“收起右侧边栏”；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口仍可直接打开对应 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+右栏关闭时，标题行末尾显示面板图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+
+布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
+
+右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
+
+tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/End 只移动焦点，Enter/空格选择页面；⌘/Ctrl+Shift+左右方向键移动聚焦的 tab 并保留活动页面。指针排序复用 `@dnd-kit/core`。tab 可以用关闭按钮、中键，或共享右键菜单中的“关闭”“关闭其他标签页”“关闭右侧标签页”关闭，批量关闭仅影响当前 Session；唯一的引导页中键与右键均无效。tab 溢出时横向滚动并按滚动位置渐隐，后面的新标签页与收起按钮不被压缩；实际截断的标题在悬停或键盘聚焦时通过 Tooltip 显示全文。
+
+从外部入口重复打开已显示的活动页面时，共享 `PanelAttention` 在该格内发光约 600ms；切到后台页面或重新展开右栏不发光。减少动态效果时，同样保留 600ms 的静态提示。发光只重建覆盖层，正文不重新挂载。[真实 App 右栏 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)覆盖排序、关闭、焦点、390px 明暗主题与中英文，以及真实浏览器 reduced-motion 偏好；[共享标签条 Browser Mode](../../packages/ui/src/components/panel-tabs.browser.test.tsx)覆盖长标题截断与全文 Tooltip。
+
+右栏快捷键由 [关闭与快捷键命令](../../apps/desktop/src/renderer/app/right-panel-commands.ts)统一处理：⌘/Ctrl+Alt+B 展开或收起当前 Session 的右栏，展开后聚焦活动页面；焦点在右栏内时，⌘/Ctrl+Alt+Enter 切换全屏。没有当前 Session、处于插件或定时任务内容页、设置覆盖工作台、输入法组合期间或前台浮层打开时，这两个快捷键不改变右栏。收起后焦点回到标题栏的打开按钮，按钮以 Tooltip 与 `aria-keyshortcuts` 标出有效键位。延后聚焦前会重新核对当前 Session、页面和浮层，避免切换内容后抢回焦点。
+
+应用菜单的 File → 关闭绑定 ⌘/Ctrl+W，并交给 renderer：前台弹窗、菜单或对话框先经过自己的 Escape 关闭规则，拒绝关闭时命令也不穿透；否则焦点在可见右栏内时关闭活动页面。唯一“开始”页收到关闭命令只收起右栏，保留引导页；关闭后仍展开时聚焦同一 Session 剩余活动页面，可连续关闭。焦点在右栏外时请求 main 关闭窗口，输入法组合期间忽略该命令。原生菜单、bridge 与未就绪回退见 [桌面交付](delivery.md#应用菜单与关闭)。对应入口用例为 [快捷键 Browser Mode](../../apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx)与[原生菜单 E2E](../../apps/desktop/e2e/right-panel-menu.e2e.test.ts)。
 
 详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
 
@@ -69,6 +97,8 @@ lifecycle: active
 ## 详细过程与三级折叠
 
 [过程投影](../../apps/desktop/src/renderer/features/conversation/process-groups.ts)从扁平时间线的真实 Run 来源收集相邻思考和工具。可见助手回复、输入、独立业务行及不同或未知 Run 归属截断组；工具类别和模型请求变化不会拆组。无独立行的 Job 起止事实不拆组；曾真实显示的 Plan 审阅是独立阶段边界，即便 proposed 卡之后被批准或拒绝快照替代也保留该边界，避免结算时重新挂载已展开的工具及丢失焦点。消息、状态、审批、确认与用量入口仍独立显示；未送达追加指令仍由 Queue 唯一显示。
+
+主区时间线在 layout effect 中发布本次实际提交的过程席位、显示身份、时间线项与 Run，供[会话数据诊断](session-diagnostics.md#对话分组)只读订阅；子 Session 与回退历史的嵌套时间线不发布。发布不改变过程计算、树的层级或阅读锚点，工具、思考和消息的语义根保留对应显示身份属性。语义根同时暴露 Run、来源 seq、toolCallId 与过程组 id。[主区展开入口](../../apps/desktop/src/renderer/features/conversation/timeline-reveal.tsx)按主时间线所有者路由定位请求，复用三级展开状态并保留 reset epoch；同 Session 的回退历史继承入口，子 Session 不注册。定位期间由阅读策略暂时释放旧锚点，按目标的实际布局逐层揭示，完成后保留新位置。高亮与瞄准位于 body 层，不增加消息树节点；完整匹配、回退与取消语义见[会话数据诊断](session-diagnostics.md#定位与瞄准)。
 
 固定详细模式下，所属 Run 运行中的全部组直接平铺，包含已被阶段回复截断的早期组：无组头、无组级限高、4px 行距。正常结束且有过程、过程开始后没有中途可见输入、没有未处理授权/结果确认限制时，整轮默认收起全部过程，保留所有回复和输入；无需最终答案，纯回复不会产生空过程控件。失败、停止、暂停、中断、运行中或中途输入的 Run 不提供整轮折叠。未知未结束状态保持过程可见。
 
@@ -220,7 +250,7 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 
 验证：[命令详情 App 测试](../../apps/desktop/src/renderer/features/conversation/terminal-details.browser.test.tsx)、[真实 Electron 命令与后台任务](../../apps/desktop/e2e/terminal-details.e2e.test.ts)。
 
-主时间线的展开详情提供 Inspect，中文为“查看”，打开既有右栏 Trace 标签页。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
+主时间线的展开详情提供 Inspect，中文为“查看”，打开或聚焦当前 Session 的右栏 Trace 页面。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
 
 ## 从助手回复创建新对话分支
 
@@ -233,7 +263,7 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 ## 验证入口
 
 - [工作台浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)：导航项几何、历史、无效会话跳过、设置返回、草稿保留及四角裁剪。
-- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉及右面板让位。
+- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉、右栏调整与空间不足时收起、保留正文和底层列宽的全屏。
 - [工作台 Electron E2E](../../apps/desktop/e2e/workbench.e2e.test.ts)：真实 Sidecar 中两个会话与插件、定时任务之间的前进后退，以及设置返回后的草稿和列表。
 
 - [模型选择 Browser Mode](../../apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx)：互斥菜单、拖动预览、键盘与粒子生命周期。

@@ -11,6 +11,7 @@
     "./styles/*": "./src/styles/*"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
     "@lexical/react": "0.52.0",
     "@lobehub/icons": "6.13.0",
     "@streamdown/cjk": "1.0.4",

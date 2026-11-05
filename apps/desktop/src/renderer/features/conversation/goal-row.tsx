@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { TargetIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { GoalPhaseBadge, goalReasonText } from './dock/goal-card.tsx'
@@ -7,13 +8,14 @@ import type { TimelineItem } from './timeline.ts'
  * 时间线的 Goal 行（goal 条目）：紧凑状态行。第一条快照为"新目标"与目标文本；之后为阶段徽标与原因（没有原因时为目标文本）。
  * 文本换行显示，不截断。
  */
-export function GoalRow({ item }: { item: Extract<TimelineItem, { kind: 'goal' }> }) {
+export function GoalRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'goal' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t, dictionary } = useI18n()
   const { goal } = item
   const created = goal.revision === 1
   const reason = created ? undefined : goalReasonText(t, dictionary, goal.reason)
   return (
     <p
+      {...rootAttributes}
       data-slot="goal-row"
       data-goal-id={goal.id}
       data-revision={goal.revision}

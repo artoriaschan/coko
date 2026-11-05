@@ -11,8 +11,20 @@
 @source '../../../../node_modules/streamdown/dist/*.js';
 
 /* 单行可滚动标题由渐隐表达边缘，不让横向滚动条占用正文行高。 */
-.fading-title {
+.fading-title,
+.panel-tab-scroll {
   scrollbar-width: none;
+}
+
+/* Diagnostics paint is component scoped, including body-level timeline overlays. */
+.diagnostic-motion {
+  --local-diagnostic-highlight-duration: 700;
+  --local-diagnostic-highlight-easing: ease-out;
+}
+
+/* 同一格重复聚焦的动效值只作用于此共享组件，不增加全局 token。 */
+.panel-attention {
+  --local-panel-attention-duration: 600;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));

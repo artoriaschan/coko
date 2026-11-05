@@ -90,8 +90,8 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
 
     // 没有任务时标题栏没有"定时任务"按钮：从右栏的 Schedules tab 新建。
     expect(await window.locator('[data-action="open-schedules"]').count()).toBe(0)
-    await window.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
-    await window.locator('[role="tab"][data-tab="schedules"]').click()
+    await window.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
+    await window.getByRole('button', { name: /^(Schedules|定时任务)$/, exact: true }).click()
     await expect.poll(() => window.locator('[role="tab"][data-tab="schedules"]').getAttribute('aria-selected')).toBe('true')
     await window.locator('[data-action="new-schedule"]').click()
     const form = window.locator('[data-slot="schedule-form-dialog"]')
@@ -148,7 +148,7 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     expect(await item.locator('[data-slot="schedule-next"]').textContent()).toMatch(/^(No next run|没有下次执行)$/)
     expect(await fireRows.count()).toBe(1)
     expect(await window.locator('[data-slot="schedule-history-item"]').count()).toBe(1)
-    // 窄窗口（内容区验收下限 390 px；窗口 minWidth 为 520，只在本用例中放开）：右栏为浮层，恢复按钮可达，没有整页横向滚动。
+    // 窄窗口（内容区验收下限 390 px；窗口 minWidth 为 520，只在本用例中放开）：右栏自动全屏，恢复按钮可达，没有整页横向滚动。
     await app.app.evaluate(({ BrowserWindow }) => {
       const win = BrowserWindow.getAllWindows()[0]!
       win.setMinimumSize(390, 400)
@@ -156,6 +156,15 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
     })
     await expect.poll(() => window.evaluate(() => globalThis.innerWidth)).toBe(390)
     const resume = item.locator('[data-action="resume-schedule"]')
+    await expect.poll(() => window.locator('[data-slot="app-frame"]').getAttribute('data-right')).toBe('fullscreen')
+    await expect
+      .poll(() =>
+        window.locator('[data-slot="app-frame-right"]').evaluate((el) => {
+          const box = el.getBoundingClientRect()
+          return [box.x, box.width]
+        }),
+      )
+      .toEqual([0, 390])
     const box = await resume.boundingBox()
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)
     expect(await window.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)

@@ -260,7 +260,7 @@ it.each([
   const session = { ...fixtureSessions[0]!, cwd, projectId }
   const fixture = createFixtureChat({ sessions: draft ? [] : [session] })
   const root = cwd ?? '/Users/me/coko'
-  vi.stubGlobal('coko', { pickFiles: async () => ['/Users/me/coko/README.md', `${root}/selected.ts`, '/outside/notes.txt'] })
+  vi.stubGlobal('coko', { onMenuClose: () => () => {}, pickFiles: async () => ['/Users/me/coko/README.md', `${root}/selected.ts`, '/outside/notes.txt'] })
   try {
     const appearance = createAppearanceStore({ locale: 'en', theme: 'light' })
     const preferences = createPreferences({ appearance, settings: fixture.settings, onConflict() {}, onFailure() {} })

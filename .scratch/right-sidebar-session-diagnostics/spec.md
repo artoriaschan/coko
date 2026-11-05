@@ -1,7 +1,7 @@
 ---
 kind: spec
 description: "右栏与会话数据诊断规格：右栏改为按 Session 的单格 tab 容器（引导页、按需打开与关闭、排序、宽度与全屏、保存与快捷键、统一入口），以及默认关闭的开发者开关和“会话数据诊断”页（原始数据与对话分组、实时增量、筛选、详情、定位与瞄准）。"
-status: approved
+status: delivered
 lifecycle: active
 ---
 
@@ -11,7 +11,7 @@ Status: ready-for-agent
 
 ## 来源、确认与实施状态
 
-本规格按 `to-spec` 汇总 2026-11-04 本会话中经 `grill-me` 确认的需求。Q1—Q21 中用户改了一项：Q6 改为合成一个需求、一份规格，在实施票里先做右栏、再做会话数据诊断。其余采用推荐。Q8 更正了第一轮的叫法：已批准的标题栏规格已经把右栏开关定为“打开侧边栏”。Q19、Q20 是对照 Coko 界面约定补充的两条规则。Q21 是 `to-spec` 第 2 步要求核对的测试接缝。产品需求因此为 `approved`。当前实施状态为 **未实施**；实施进度与证据记入各实施票的 Comments 和本文。
+本规格按 `to-spec` 汇总 2026-11-04 本会话中经 `grill-me` 确认的需求。Q1—Q21 中用户改了一项：Q6 改为合成一个需求、一份规格，在实施票里先做右栏、再做会话数据诊断。其余采用推荐。Q8 更正了第一轮的叫法：已批准的标题栏规格已经把右栏开关定为“打开侧边栏”。Q19、Q20 是对照 Coko 界面约定补充的两条规则。Q21 是 `to-spec` 第 2 步要求核对的测试接缝。产品需求因此为 `approved`。当前实施状态为 **已实施并完成本次集成验收**；批准依据与历史保留，最终证据及后台原生限制见本文交付章节和各票 Comments。
 
 本需求在已批准的[对话状态栏与标题栏规格](../conversation-status-and-header/spec.md)全部交付之后实施，以交付后的标题栏为基线（Q14）。界面布局、交互与文案参考 DeepSeek Harness 的右侧 Sidebar 与“会话数据诊断”。视觉使用 Coko 的组件、语义 token、图标和共享浮层组件；视觉稿 [双栏布局.pen](../../docs/ui/双栏布局.pen) 本次不修改（Q4、Q5）。既有约束见[术语表](../../GLOSSARY.md)、[界面约定](../../docs/tech-stack/ui.md)、[设计系统规格](../../docs/tech-stack/ui-design-system.md)、[测试约定](../../docs/tech-stack/testing.md)、[tracker 协议](../../docs/agents/issue-tracker.md)和[开发流程](../../docs/DEVELOPMENT_WORKFLOW.md)。
 
@@ -291,3 +291,46 @@ Status: ready-for-agent
 ### 交付方式
 
 本规格涉及按 Session 保存布局、跨 main 与 renderer 的 Mod+W、主时间线投影的共享与定位接口，并且第一次引入第三方源码。因此按[开发流程](../../docs/DEVELOPMENT_WORKFLOW.md#架构设计如何产生文档)，先在同一目录写 design.md，再用 `to-tickets` 拆成实施票。实施票按依赖顺序排列：先做右栏，再做开发者开关和会话数据诊断。整体在“对话状态栏与标题栏”规格的 9 张票交付之后开始（Q6、Q14）。
+
+
+## 2026-11-05 交付与逐项验收
+
+01—12 已本地交付；[集成执行记录](evidence/integrated-acceptance.md) 分别列出 B1/B2 真实 App 与纯模型、E1/E2 真实 Electron/Sidecar/打包和静默 CDP 的精确范围、初始失败、截图及限制。无真实模型、CI 或签名发布结论；后台模式下红绿灯命中、OS 鼠标/窗口拖拽未验证，按第 12 票允许记录原因。`Status: ready-for-agent` 保留 tracker 角色，文档 `delivered` 表示该批实现交付。
+
+| 场景 | 实际证据与结果（全部满足本次验收范围） |
+| --- | --- |
+| AC-01 | App 的 Start/单例场景；CDP 开始截图：六页加开关后的第七页，唯一开始无 +。 |
+| AC-02 | App Start 替换和单例场景；CDP 从开始进入诊断后只留一个 tab 与 +。 |
+| AC-03 | App/PanelTabs 的重复打开、后台激活、600ms 与 reduced-motion 场景。 |
+| AC-04 | App 与 layout-persistence Browser Mode 的按 Session 恢复与无 Session 页面隐藏；E1 persistence。 |
+| AC-05 | PanelTabs/App 的关闭按钮、中键、单个和批量右键菜单场景。 |
+| AC-06 | App/PanelTabs 的最后页面收起、唯一开始保护；E1 menu 连续关闭。 |
+| AC-07 | PanelTabs 的 pointer 排序与键盘手动激活；CDP 七 tab 中 Meta+Shift+Right 换序、Right 仅移动焦点。 |
+| AC-08 | PanelTabs 截断 Tooltip/聚焦/溢出场景；CDP 456/771 横向滚动、28px 末端按钮和溢出截图。 |
+| AC-09 | App 开关入口；CDP 顶部仅 tab 条、收起/全屏，无原右栏标题 X。 |
+| AC-10 | App/AppFrame 保留实际 DOM、展开与滚动的全屏场景；CDP same-node、424px 底层主列、84px 安全区。原生命中限制见证据。 |
+| AC-11 | AppFrame 与 App 的拖动/方向键/Home/End 实际几何；frame-layout 纯测试；宽度偏好只在 App 内存，Browser Mode 新挂载恢复默认45%。 |
+| AC-12 | AppFrame 420px 左栏、300px 右栏与关闭写回场景；App 宽度恢复不自动重开。 |
+| AC-13 | AppFrame/App 的 700px 自动全屏与退出后不重开；E1 schedules/subagents/trace/jobs 的 390px 实际 Electron。 |
+| AC-14 | E1 right-panel-persistence 两个真实 Electron 场景（重启、全屏顺序、损坏隔离、真实配额与一次 warning）；Browser Mode 读回过滤。 |
+| AC-15 | right-panel-shortcuts Browser Mode 的当前 Session、无 Session、组合输入与浮层保护；E1 原生菜单组合输入。 |
+| AC-16 | E1 right-panel-menu 两项实际 File 关闭路径：页面、连续焦点、唯一开始、对话框、时间线窗口关闭及无监听回退。 |
+| AC-17 | E1 六个旧右栏 E2E；B1 collaboration/right-panel 与 B2 plan/schedules-notifications 的统一入口、审批一次打开。 |
+| AC-18 | E1/E2 developer-diagnostics 实际设置库和重启；B1 developer Browser Mode 的多 Session 移除与默认关闭。 |
+| AC-19 | B1 raw-model/format/raw-data：Run 组、根行、seq 空缺、UTC 毫秒、列与摘要；CDP 原始截图。 |
+| AC-20 | B1 progress-model/live-progress 回放及 tab/Session 生命周期；E1/E2 diagnostic-progress 实际 faux 思考/工具流式、结算、晚 run_end 与 reload 清空。 |
+| AC-21 | B1/B2 raw-data/type-filter 草稿、键盘候选、取消、异步和上下文；locator/grouping 反查/引用清除排除筛选；CDP text 筛选后瞄准恢复 5 行。 |
+| AC-22 | B1 raw-data/table-layout 的虚拟长历史、吸顶、上滚、手动折叠锚定、尾部留白与跟踪最新；live-progress 的新增行。 |
+| AC-23 | B1/B2 raw-data 的详情键盘15%—80%、保留高度、移除/序列化错误；raw-json/object-value 边界。 |
+| AC-24 | B1 grouping 与 process-groups 的同一主投影/身份、变化闪烁、reduced-motion 与不单独成行项；CDP grouping。 |
+| AC-25 | B1 grouping/locator 的工具→组→Run→Entry 引用与面包屑、表格展开滚动闪烁；CDP Run 引用与瞄准重置根。 |
+| AC-26 | B1 locator 10 项的 Run/组/工具与原生 details 展开、内外滚动裁剪、同/其他 Run 与整列回退、reduced-motion；E1/E2 新工具定位断言；CDP 同调用可见几何。 |
+| AC-27 | B1 locator 的蒙层真实指针、底层动作不激活、嵌套滚轮、未命中、Esc/toggle/blur/format/Session/hide/close 清理；CDP preview/click/未命中/Esc。 |
+| AC-28 | B1/B2 raw-data 的用户原文和 [REDACTED:secret]、只订阅既有数据；E1 session-download 的登记 Secret 全链路替换事实；诊断共用已收到 Entry，无新增请求或导出。 |
+| AC-29 | B1/B2 App/AppFrame/PanelTabs/raw-data 的390px、双语主题、键盘与语义；静默 CDP 1280px 英文亮色/中文暗色及390px，序号表头修复红绿与实际悬停；原生限制明列。 |
+| AC-30 | E1/E2 third-party-notices 从当次 Forge package 的 app Resources 逐字比较完整 DeepSeek 版权和 MIT 文本。 |
+
+
+### 最终审查修正与补验
+
+最终 Standards 的四项硬性问题（实时 JSON 折叠保持、键盘瞄准、筛选 Tooltip、共享主题动效）与分隔条重复生命周期判断项，以及 Spec 的每行独立高亮代次/到期问题，统一在[审查修正证据](evidence/review-resolution.md)逐项对应修正和本次检查。该补验替换原集成证据中被修正代码影响的范围，未变化范围继续按[原集成验收](evidence/integrated-acceptance.md)的精确范围复用；原始失败和后台原生物理交互的未验证限制保留。tracker 的 `Status: ready-for-agent` 是分拣角色，交付状态仍由 frontmatter 与完成证据表达。

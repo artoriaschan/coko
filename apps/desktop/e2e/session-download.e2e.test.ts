@@ -67,8 +67,11 @@ it('More downloads a redacted Session and its child as JSONL; Trace retains NDJS
   expect(lines.slice(1).some((line) => line.kind === 'agent_start')).toBe(true)
   expect(new Set(lines.slice(1).map((line) => line.sessionId)).size).toBe(2)
   expect(text).toContain('Downloaded child result.')
-  await win.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
-  await win.locator('[role="tab"][data-tab="trace"]').click()
+  await win.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
+  await win
+    .getByRole('region', { name: /^(Sidebar|侧边栏)$/ })
+    .getByRole('button', { name: /^(Trace|追踪)$/ })
+    .click()
   await win.locator('[data-action="export-session"]').click()
   await expect.poll(saved, { timeout: 15_000 }).toHaveLength(2)
   expect((await saved())[1]).toBe(`completed:${join(downloads, `coko-session-${sessionId}.ndjson`)}`)

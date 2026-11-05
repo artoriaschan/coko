@@ -27,8 +27,8 @@ export const agents = defineDomain(
       usage: '轮次 {turns} · 工具调用 {toolCalls} · {tokens} · {duration}',
       worktreeKept: '改动保留在 worktree {branch}',
       result: '结果',
-      open: '在右栏查看',
-      openLabel: '在右栏查看子代理 {description}',
+      open: '在侧边栏查看',
+      openLabel: '在侧边栏查看子代理 {description}',
     },
     tabView: {
       list: '子代理',
