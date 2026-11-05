@@ -159,7 +159,7 @@ const PRESET = {
   config: { command: 'npx', args: ['-y', '@playwright/mcp@0.0.83', '--isolated'] },
 }
 
-async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 'light') {
+async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 'light', locale: 'en' | 'zh' = 'en') {
   const puts: { servers: Record<string, unknown> }[] = []
   vi.stubGlobal(
     'fetch',
@@ -169,14 +169,15 @@ async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 
       if (input.startsWith('/api/mcp/servers') && method === 'PUT') {
         const body = JSON.parse(String(init!.body)) as { servers: Record<string, unknown> }
         puts.push(body)
-        return json(200, { ...mcp, global: body.servers, globalRevision: 1 })
+        Object.assign(mcp, { global: body.servers, globalRevision: 1 })
+        return json(200, mcp)
       }
       if (input.startsWith('/api/mcp')) return json(200, mcp)
       if (input.startsWith('/api/secrets')) return json(200, { source: 'stored', secrets: [] })
       return json(404, { error: { code: 'not-found', message: 'not found' } })
     }),
   )
-  const store = createAppearanceStore({ theme, locale: 'en' })
+  const store = createAppearanceStore({ theme, locale })
   const { chat, settings } = createFixtureChat()
   const settingsPage = createSettingsPageStore()
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -195,6 +196,43 @@ async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 
   )
   settingsPage.open('mcp')
   return { dialog: settingsRegion(), puts }
+}
+
+for (const locale of ['en', 'zh'] as const) {
+  it(`Server 始终加载选项保存、回显与文案（${locale}）`, async () => {
+    const { dialog, puts } = await mountMcp(
+      {
+        enabled: true,
+        servers: [{ name: 'demo', scope: 'global', transport: 'stdio', enabled: true, status: 'idle', tools: [] }],
+        global: { demo: { command: 'node' } },
+        globalRevision: 0,
+        diagnostics: [],
+      },
+      'light',
+      locale,
+    )
+    const label = locale === 'en' ? 'Always load' : '始终加载'
+    const hint =
+      locale === 'en'
+        ? 'This server\'s tools are always in the tool list, without a search first. Suited to servers used in almost every conversation. Only applies when "Load MCP tools on demand" is on.'
+        : '此 Server 的工具始终出现在工具列表中，不需要先搜索。适合几乎每次对话都会用到的 Server。仅在开启「按需加载 MCP 工具」时生效。'
+    const edit = dialog.getByRole('button', { name: locale === 'en' ? 'Edit' : '编辑', exact: true })
+    const save = locale === 'en' ? 'Save' : '保存'
+    await edit.click()
+    const checkbox = dialog.getByRole('checkbox', { name: label, exact: true })
+    await expect.element(checkbox).not.toBeChecked()
+    await expect.element(dialog.getByText(hint, { exact: true })).toBeVisible()
+    await checkbox.click()
+    await dialog.getByRole('button', { name: save, exact: true }).click()
+    await expect.poll(() => puts.length).toBe(1)
+    expect(puts[0]!.servers).toEqual({ demo: { command: 'node', alwaysLoad: true } })
+    await edit.click()
+    await expect.element(checkbox).toBeChecked()
+    await checkbox.click()
+    await dialog.getByRole('button', { name: save, exact: true }).click()
+    await expect.poll(() => puts.length).toBe(2)
+    expect(puts[1]!.servers).toEqual({ demo: { command: 'node' } })
+  })
 }
 
 const AUTH_MCP = {

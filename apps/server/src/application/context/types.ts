@@ -64,6 +64,8 @@ export interface ContributedTool {
   permissionClass?: PermissionClass
   /** MCP tool origin captured with this Run; resource Host Tools do not carry it. */
   mcpServer?: string
+  /** The MCP server opts out of on-demand loading for this Run. */
+  mcpAlwaysLoad?: boolean
 }
 
 /**

@@ -329,7 +329,9 @@ export function onDemandCatalog(contributed: readonly ContributedTool[], availab
   if (!scope.config.mcp.toolSearch || scope.parentSessionId) return []
   const availableByName = new Map(available.map((tool) => [tool.name, tool]))
   const origins = new Map(
-    contributed.filter((item) => item.mcpServer && availableByName.get(item.tool.name) === item.tool).map((item) => [item.tool.name, item.mcpServer!]),
+    contributed
+      .filter((item) => item.mcpServer && !item.mcpAlwaysLoad && availableByName.get(item.tool.name) === item.tool)
+      .map((item) => [item.tool.name, item.mcpServer!]),
   )
   return available.flatMap((tool) =>
     origins.has(tool.name) ? [{ name: tool.name, server: origins.get(tool.name)!, description: tool.description, parameters: tool.parameters }] : [],
