@@ -131,6 +131,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     scheduler: createToolScheduler(options.toolConcurrency),
     sessionId: options.sessionId ?? randomUUID(),
     recordExecution,
+    ...(options.toolResultsDirectory ? { outputDirectory: options.toolResultsDirectory } : {}),
     prepare: wiring.prepare,
   }
 

@@ -100,6 +100,7 @@ export function createLspTool({ cwd, port }: { cwd: string; port: LspPort }): Co
       const formatted = formatLspResult(result, { cwd, file: path, readText: (p) => texts.get(p) })
       return {
         content: [{ type: 'text', text: formatted.text }],
+        ...(formatted.untruncatedText !== undefined ? { untruncatedText: formatted.untruncatedText } : {}),
         details: {
           operation,
           file: displayPath(cwd, path),

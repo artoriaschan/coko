@@ -7,7 +7,7 @@
 import type { ImageContent, TextContent } from '@earendil-works/pi-ai'
 import type { McpRequestOptions, ServerCapabilities } from '@earendil-works/pi-mcp'
 import { Type, type Static } from 'typebox'
-import type { CokoTool } from '../../tools/types.ts'
+import type { CokoTool, CokoToolResult } from '../../tools/types.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
 import { invalidResult, isRecord, listAllPages, listPage, type McpRequester } from './pagination.ts'
 import type { McpToolDetails } from './results.ts'
@@ -72,8 +72,10 @@ function truncated(text: string): string {
   return `${truncation.content}\n\n[Resource truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines${limit}]`
 }
 
-function jsonResult(tool: string, server: string | undefined, payload: Item): { content: TextContent[]; details: McpToolDetails } {
-  return { content: [{ type: 'text', text: truncated(JSON.stringify(payload)) }], details: { server: server ?? '', tool } }
+function jsonResult(tool: string, server: string | undefined, payload: Item): CokoToolResult<McpToolDetails> {
+  const original = JSON.stringify(payload)
+  const text = truncated(original)
+  return { content: [{ type: 'text', text }], details: { server: server ?? '', tool }, ...(text !== original ? { untruncatedText: original } : {}) }
 }
 
 type ReadContents = { uri: string; mimeType?: string; text?: string; blob?: string }
@@ -91,7 +93,7 @@ function validateRead(server: string, value: unknown): ReadContents[] {
 }
 
 /** read result → model content: texts joined (labeled by URI when there are several) and truncated as one; images follow. */
-function readContent(uri: string, contents: readonly ReadContents[]): (TextContent | ImageContent)[] {
+function readContent(uri: string, contents: readonly ReadContents[]): { content: (TextContent | ImageContent)[]; untruncatedText?: string } {
   const texts: string[] = []
   const images: ImageContent[] = []
   for (const item of contents) {
@@ -104,7 +106,9 @@ function readContent(uri: string, contents: readonly ReadContents[]): (TextConte
       texts.push(`${label}[binary resource ${item.uri} (${item.mimeType ?? 'unknown type'}, ${formatSize(Buffer.byteLength(item.blob!, 'base64'))}) omitted]`)
   }
   if (texts.length === 0 && images.length === 0) texts.push(`Resource ${uri} is empty.`)
-  return [...(texts.length === 0 ? [] : [{ type: 'text' as const, text: truncated(texts.join('\n\n')) }]), ...images]
+  const original = texts.join('\n\n')
+  const text = truncated(original)
+  return { content: [...(texts.length === 0 ? [] : [{ type: 'text' as const, text }]), ...images], ...(text !== original ? { untruncatedText: original } : {}) }
 }
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
@@ -186,7 +190,7 @@ export function createMcpResourceTools(options: { servers: () => readonly McpRes
       const server = find(serverName)
       const name = server.connection.name
       const contents = validateRead(name, await server.connection.request<unknown>('resources/read', { uri }, requestOptions(server, signal)))
-      return { content: readContent(uri, contents), details: { server: name, tool: READ_MCP_RESOURCE_TOOL } }
+      return { ...readContent(uri, contents), details: { server: name, tool: READ_MCP_RESOURCE_TOOL } }
     },
   }
 

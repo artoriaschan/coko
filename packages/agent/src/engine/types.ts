@@ -211,6 +211,8 @@ export interface AgentRuntimeOptions {
    * runs alone, after every earlier call of the batch finished and before any later one starts.
    */
   toolConcurrency?: number
+  /** Session-scoped directory for full text of truncated tool results. */
+  toolResultsDirectory?: string
   /** Session of the transcript; the first part of every idempotency key. Omitted: a random id per runtime. */
   sessionId?: string
   /**

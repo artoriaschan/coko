@@ -59,8 +59,11 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
     signal?: AbortSignal,
     onUpdate?: AgentToolUpdateCallback<TDetails>,
     context?: ToolExecutionContext,
-  ) => Promise<AgentToolResult<TDetails>>
+  ) => Promise<CokoToolResult<TDetails>>
 }
+
+/** Raw text retained only until the scheduler persists a truncated result; never put in the transcript. */
+export type CokoToolResult<TDetails = any> = AgentToolResult<TDetails> & { untruncatedText?: string }
 
 export type ToolEffect = 'read' | 'side-effect'
 
@@ -74,6 +77,8 @@ export interface ToolExecutionContext {
    * capability can use it to deduplicate a repeated request.
    */
   idempotencyKey: string
+  /** Host-selected destination for this call’s truncated output. Created only if truncation occurs. */
+  outputFile?: string
   /**
    * The call's command sandbox, decided at execution from the Session's Permission Mode or a granted escalation. Absent
    * when the runtime has no permission decision (library callers): commands run unconfined.

@@ -57,6 +57,7 @@ export interface SessionServiceOptions {
   fallbackModel?: SessionModel
   /** Workspace 的工具集；默认内置工具。桌面端以此覆盖 grep。 */
   tools?: (cwd: string) => ToolRegistry
+  toolResultsRoot?: string
   /**
    * 每个 Session 运行时的扩展（checkpoint 等经 runtime/layers.ts 注册，不改本文件）。hooks 排在权限判定之后；
    * onEntry 在每条条目提交并发布之后调用。
@@ -149,6 +150,7 @@ export class SessionService {
     })
     this.#runs = new SessionRuns({
       store,
+      ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
       ...(options.basePrompt ? { basePrompt: options.basePrompt } : {}),
       registry: options.registry,
       hub: options.hub,

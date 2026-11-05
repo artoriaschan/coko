@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises'
-import { isAbsolute, relative, sep } from 'node:path'
+import { isAbsolute, join, relative, sep } from 'node:path'
 import { type ImageAttachment } from '@coko/protocol'
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
 // 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
@@ -137,6 +137,7 @@ export interface SessionRunsOptions {
   hub: SessionHub
   runs: RunLauncher
   tools?: (cwd: string) => ToolRegistry
+  toolResultsRoot?: string
   extensions?: (context: SessionExtensionContext) => SessionExtension
   secrets?: SecretProvider
   context: ContextAssembly
@@ -741,11 +742,15 @@ export class SessionRuns {
       cwd,
       tools: runContext.tools.registry,
       sessionId: session.id,
+      ...(this.#options.toolResultsRoot ? { toolResultsDirectory: join(this.#options.toolResultsRoot, encodeURIComponent(session.id)) } : {}),
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: {
         ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id, cwd),
-        readRoots: () => runContext.readRoots,
+        readRoots: () => [
+          ...runContext.readRoots,
+          ...(this.#options.toolResultsRoot ? [join(this.#options.toolResultsRoot, encodeURIComponent(session.id))] : []),
+        ],
         workspaceRoots: () => runContext.workspaceRoots,
         writeRoots: () => runContext.writeRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
