@@ -1,0 +1,54 @@
+apps/desktop/e2e/developer-diagnostics.e2e.test.ts
+  s_eff121e41805b1::t_49077549b87064 1-32,42-68
+  s_eff121e41805b1::t_8c9b17251a4bfa 33-41
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_8c9b17251a4bfa 19
+  s_eff121e41805b1::t_53b53811421504 29-38
+apps/desktop/src/renderer/stores/settings-store.ts
+  s_eff121e41805b1::t_b0b9d56b731653 1-2,17-18,54,93,157,181-183,198-201
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_eff121e41805b1::t_b0b9d56b731653 6,24,29
+packages/i18n/src/dictionaries/domains/diagnostics.ts
+  s_eff121e41805b1::t_b0b9d56b731653 1-26
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_eff121e41805b1::t_8c9b17251a4bfa 6
+apps/desktop/src/renderer/features/right-panel/tabs.ts
+  s_eff121e41805b1::t_b0b9d56b731653 3,11,35,38-39
+apps/desktop/src/renderer/features/settings/general-section.tsx
+  s_eff121e41805b1::t_b0b9d56b731653 3,10,65,70-77,110
+  s_eff121e41805b1::t_8c9b17251a4bfa 78-109,111-113
+packages/i18n/src/dictionaries/domains/index.ts
+  s_eff121e41805b1::t_b0b9d56b731653 1,28
+apps/desktop/src/renderer/features/settings/developer.browser.test.tsx
+  s_eff121e41805b1::t_8c9b17251a4bfa 30-42,52-54,133-136
+  s_eff121e41805b1::t_f3a0c8ce812b03 2,4,13,17-18,20-24,27,127-130,143-170
+  s_eff121e41805b1::t_28befef0121467 1,3,5-6,8-12,14-16,19,25-26,28-29,43-51,55-72,171
+  s_eff121e41805b1::t_f05d2c7cb742bb 7,73-90,92,94-117,119-126,131-132,137-142
+  s_eff121e41805b1::t_fffc1edea013e7 91,93,118
+apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx
+  s_eff121e41805b1::t_b0b9d56b731653 1-10,35
+  s_eff121e41805b1::t_8c9b17251a4bfa 11-34
+apps/desktop/src/renderer/app/preferences.ts
+  s_eff121e41805b1::t_8c9b17251a4bfa 28-29
+  s_eff121e41805b1::t_b0b9d56b731653 2-3,38-39
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_eff121e41805b1::t_b0b9d56b731653 6
+packages/protocol/src/control.ts
+  s_eff121e41805b1::t_b0b9d56b731653 107-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "8d75e940c607d3f55adfb7561694ba2d21c07b5d",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
