@@ -1,6 +1,6 @@
 ---
 kind: decision
-description: "Session 的工作目录（Workspace 或其某个 git worktree）在创建时固定、之后不变；worktree 放在仓库根的 .coko-worktrees/<name>、分支 coko/<name>，由宿主以 argv 执行 git，只在干净且无运行中工作时由用户移除，分支保留。修改 Session 与目录的绑定、worktree 的位置、创建或清理时回看。"
+description: "Session 的工作目录（托管独立会话的 work/、Workspace 或其某个 git worktree）在创建时固定、之后不变；worktree 放在仓库根的 .coko-worktrees/<name>、分支 coko/<name>，由宿主以 argv 执行 git，只在干净且无运行中工作时由用户移除，分支保留。修改 Session 与目录的绑定、worktree 的位置、创建或清理时回看。"
 status: accepted
 implementation: implemented
 lifecycle: active
@@ -17,7 +17,7 @@ Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它
 
 ## 决定
 
-- **创建时固定。** Session 在创建时绑定 Workspace 本身或其某个 worktree，之后工作目录不变；没有中途进入或离开 worktree 的操作。在另一个 worktree 中继续工作是新建会话或交接到新会话。
+- **创建时固定。** Session 在创建时绑定托管独立目录的 `work/`、Workspace 本身或其某个 worktree，之后工作目录不变；没有中途进入或离开 worktree 的操作。在另一个 worktree 中继续工作是新建会话或交接到新会话。
 - **位置与分支。** worktree 在仓库根的 `.coko-worktrees/<name>`，分支 `coko/<name>`，从源 checkout 的当前提交创建，不复制未提交的改动；分支已存在时报错，不重置。首次创建时把该目录写入仓库本地的 `.git/info/exclude`。目录或其祖先是符号链接、或真实路径不在仓库根下时拒绝创建。
 - **宿主执行 git。** server 以 argv 运行系统 git（不经 shell、不弹凭据提示、有超时），进程登记在进程登记表中；不提供模型可调用的 worktree 工具。
 - **清理。** 只由用户移除，且须绑定的会话都没有进行中的 Run、子代理、后台任务或启用的定时任务，worktree 没有未提交或未跟踪的改动；不提供强制删除，分支保留。移除后绑定的会话只读。子代理的隔离 worktree 在子代理结束时没有新提交且干净则自动移除并删除分支，否则保留。
@@ -49,3 +49,14 @@ Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它
 - [ADR 0021](0021-new-chat-worktree-base-branch.md)（2026-11-02）改变了新对话入口的两点：可以选择基础分支，首次发送失败时自动移除未改动的 worktree。本页的其他决定不变，交接与子代理的 worktree 仍从当前 HEAD 创建。
 
 - 2026-11-03，ADR 0020 的项目源文件夹进入每个 Run 的权限快照，cwd 和配置来源仍保持本决定。worktree 的来源主检出始终排除，移动归属、更换主要文件夹或重叠附加根不重新授予来源检出；见[当前 Worktree 契约](../subsystems/worktrees.md#会话绑定与工作目录)和[Sidecar 验证](../../tests/integration/sidecar-project-permissions.test.ts)。
+
+
+## 2026-11-05：托管独立会话的目录分层
+
+用户于 2026-11-04 至 2026-11-05 确认独立会话以 `<Documents>/Coko/<本地日期>/chat-<sessionId 前 12 位>/` 为会话根，内部 `work/` 是 Agent 的固定 cwd，`outputs/` 是交付目录；并于 2026-11-05 授权实施。此处局部替代“cwd 总由 Workspace 路径推导”的旧表述，创建时固定与 worktree 的其他决定保持有效。
+
+Workspace 登记会话根，SQLite 的 Session 分别持久化实际 `directory` 与 `cwd`，DTO 暴露会话根。日期与目录建立后不随标题或跨天移动；短名冲突回退完整 sessionId，使用原子目录创建避免覆盖已有文件。旧值为空时仍按 Workspace / worktree 解析，不迁移历史目录。相同目录的分叉、交接与非隔离子代理继承固定绑定；隔离 worktree 不继承原会话根。
+
+选择分层而非整根 cwd，是为了让中间文件与交付物有稳定归属；持久化实际目录而非每次重新派生，是为了在短名冲突、重试、跨天与标题变化后保持路径一致。代价是这些值为本机绝对路径，跨机器还原需要另行映射，本轮不处理。权限根与 cwd 已分离，写根的约束归 [ADR 0005](0005-permission-mode-and-sandbox.md)。
+
+实施证据：[首次发送 Sidecar 用例](../../tests/integration/sidecar-first-send.test.ts)覆盖目录、真实工具 cwd、指令、冲突、重试、回滚与继续绑定；[Electron 首次发送](../../apps/desktop/e2e/first-send.e2e.test.ts)覆盖桌面真实路径及模型收到的系统上下文。当前契约见[独立目录](../subsystems/projects.md#独立对话专属目录)与[工作目录](../subsystems/worktrees.md#会话绑定与工作目录)。

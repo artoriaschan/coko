@@ -52,6 +52,8 @@ Worktree 没有自己的 Session Entry kind，也没有模型可调用的工具�
 
 [只读目录描述](../../apps/server/src/application/session-directory.ts)与运行准入共用路径映射；Session 元数据列表在 worktree 移除中或已移除时仍返回原 `cwd`，不执行 Run 准入检查。开始 Run 的 busy/removed 拒绝保持不变。renderer 用它分类附件，主检出文件不会误引用 worktree 中的同名文件。
 
+托管独立会话在创建时另存 `directory` 与 `cwd=directory/work`；旧记录为空时回退 Workspace。相同目录的分叉、交接和非隔离子代理继承这两个值，新建隔离 worktree 则沿用 worktree 解析，不复用原会话目录。
+
 工作目录固定为该会话的 cwd：bash 的 cwd、文件工具的相对路径、指令文件、项目设置与 Skills 都从它推导。每个 Run 的 Workspace 根集合还可以包含当前项目的其他源文件夹，读取、文件写入与 Seatbelt 共用该快照，见[权限范围](permissions.md#每个-run-的-workspace-根)。`.coko-worktrees` 不是受保护路径（受保护的是路径段 `.coko`），worktree 根的 `.git` 文件仍受保护。主 checkout 在 worktree 会话的工作目录之外：读取它须审批（绝对路径与 `../..` 相同）。来源仓库记录决定排除范围，不根据当前项目主要文件夹猜测；移动项目、更换主要文件夹，或附加包含主检出的祖先/后代目录，都不会把来源主检出加入根集合。
 
 父 Workspace 的会话：`info/exclude` 使内置 grep / find 与 ripgrep 都不进入 `.coko-worktrees`，`git status` 也不列出它；`ls` 只列一层，根下显示该目录本身。
