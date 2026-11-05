@@ -1,4 +1,5 @@
 .diagnostic-table {
+  --diagnostic-reveal-duration: 700ms;
   width: 100%;
   min-width: 650px;
   table-layout: fixed;
@@ -28,4 +29,8 @@
 }
 .diagnostic-table tr[aria-selected='true'] {
   background: var(--accent);
+}
+
+.diagnostic-table tr[data-diagnostic-context] {
+  color: var(--muted-foreground);
 }

@@ -8,6 +8,7 @@ import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
 import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
+import { setBrowserScale } from '../../testing/browser-commands.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
 
 const entry = (seq: number, kind: string, payload: unknown, runId: string | null = 'run-a'): SessionEntryRecord => ({
@@ -131,7 +132,7 @@ it('actual App keeps details height across rows, clamps keyboard resize, and iso
   const details = panel.getByRole('region', { name: 'Record details', exact: true })
   const separator = details.getByRole('separator', { name: 'Resize details', exact: true })
   expect(details.element().getBoundingClientRect().height / details.element().parentElement!.getBoundingClientRect().height).toBeCloseTo(0.4, 2)
-  await userEvent.dragAndDrop(separator, table.getByRole('columnheader', { name: 'Type', exact: true }))
+  await userEvent.dragAndDrop(separator, table.getByRole('columnheader', { name: 'Type Filter types', exact: true }))
   await expect.element(separator).toHaveAttribute('aria-valuenow', '80')
   await separator.click()
   await userEvent.keyboard('{End}')
@@ -162,4 +163,128 @@ it.each([
   scroll.scrollLeft = scroll.scrollWidth
   await expect.poll(() => scroll.scrollLeft).toBeGreaterThan(0)
   expect(panel.element().querySelector('input,textarea,[contenteditable]')).toBeNull()
+  await table.getByRole('button', { name: options.locale === 'zh' ? '筛选类型' : 'Filter types', exact: true }).click()
+  const popup = page.getByRole('dialog', { name: options.locale === 'zh' ? '筛选类型' : 'Filter types', exact: true })
+  await expect.element(page.getByRole('combobox', { name: options.locale === 'zh' ? '类型片段' : 'Type fragment', exact: true })).toHaveFocus()
+  expect(popup.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(0)
+  expect(popup.element().getBoundingClientRect().right).toBeLessThanOrEqual(390)
+  await page.getByRole('button', { name: options.locale === 'zh' ? '取消筛选' : 'Cancel filter', exact: true }).click()
+})
+
+it('actual App keeps a filter draft separate, confirms fragments and keyboard candidates, and retains forced-open dim context for new rows', async () => {
+  const { panel, sendServer } = await open()
+  const table = panel.getByRole('table')
+  const trigger = table.getByRole('button', { name: 'Filter types', exact: true })
+  await table.getByRole('button', { name: 'Inspect record 3', exact: true }).click()
+  await table.getByRole('button', { name: 'Collapse run_start', exact: true }).click()
+  await trigger.click()
+  const input = page.getByRole('combobox', { name: 'Type fragment', exact: true })
+  await expect.element(input).toHaveFocus()
+  await input.fill('MESS')
+  await expect.element(page.getByRole('option', { name: 'message/user', exact: true })).toBeVisible()
+  await expect.element(table.getByRole('cell', { name: 'message/user', exact: true })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(trigger).toHaveFocus()
+  await trigger.click()
+  await expect.element(input).toHaveValue('')
+  await input.fill(' **MESS** ')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('1 / 3')
+  await expect.element(panel.getByRole('region', { name: 'Record details', exact: true })).not.toBeInTheDocument()
+  await expect.element(table.getByRole('cell', { name: 'message/user', exact: true })).toBeVisible()
+  const context = table.element().querySelector('[data-record-key="entry:1"]')!
+  expect(context.getAttribute('data-diagnostic-context')).toBe('')
+  await expect.element(table.getByRole('button', { name: 'Collapse run_start', exact: true })).toBeDisabled()
+  sendServer({
+    type: 'entry',
+    sessionId: 's-1',
+    entry: entry(6, 'message', { role: 'assistant', content: [{ type: 'text', text: 'new assistant' }], stopReason: 'stop', timestamp: 0 }),
+  })
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('2 / 4')
+  await trigger.click()
+  await input.fill('assistant')
+  await expect.element(page.getByRole('option', { name: 'message/assistant', exact: true })).toBeVisible()
+  await userEvent.keyboard('{ArrowDown}{Enter}')
+  await trigger.click()
+  await expect.element(input).toHaveValue('message/assistant')
+  await input.fill('run_end')
+  await page.getByRole('button', { name: 'Cancel filter', exact: true }).click()
+  await trigger.click()
+  await expect.element(input).toHaveValue('message/assistant')
+  await page.getByRole('button', { name: 'Clear draft', exact: true }).click()
+  await page.getByRole('button', { name: 'Apply filter', exact: true }).click()
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('4 rows')
+  await expect.element(table.getByRole('cell', { name: 'run_end', exact: true })).toBeVisible()
+  await trigger.click()
+  await input.fill('run_')
+  await page.getByRole('option', { name: 'run_end', exact: true }).click()
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('1 / 4')
+})
+
+it('actual App anchors the editor through viewport changes, browser zoom and table scroll; outside/IME cancel and confirmation resets scroll and folding', async () => {
+  const source = [
+    entry(1, 'run_start', { trigger: 'submit' }),
+    ...Array.from({ length: 100 }, (_, index) => entry(index + 2, 'message', { role: 'user', content: `row ${index}`, timestamp: 0 })),
+  ]
+  const { panel, sendServer } = await open(source)
+  const table = panel.getByRole('table')
+  const scroll = panel.element().querySelector<HTMLElement>('[data-slot="diagnostic-scroll"]')!
+  await expect.poll(() => scroll.scrollTop).toBeGreaterThan(0)
+  await table.getByRole('button', { name: 'Collapse run_start', exact: true }).click()
+  expect(table.element().querySelector('[data-diagnostic-fold-space]')).not.toBeNull()
+  const trigger = table.getByRole('button', { name: 'Filter types', exact: true })
+  await trigger.click()
+  const input = page.getByRole('combobox', { name: 'Type fragment', exact: true })
+  const popup = page.getByRole('dialog', { name: 'Filter types', exact: true })
+  await expect.element(input).toHaveFocus()
+  const anchored = () => {
+    const button = trigger.element().getBoundingClientRect()
+    const content = popup.element().getBoundingClientRect()
+    return (
+      button.left >= content.left - 1 &&
+      button.right <= content.right + 1 &&
+      content.left >= 0 &&
+      content.right <= window.innerWidth &&
+      Math.abs(content.top - button.bottom - 6) < 2
+    )
+  }
+  await expect.poll(anchored).toBe(true)
+  expect(await setBrowserScale(1.25)).toBe(1.25)
+  try {
+    await expect.poll(anchored).toBe(true)
+    await page.viewport(1100, 720)
+    await expect.poll(anchored).toBe(true)
+    scroll.scrollTop = 50
+    scroll.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await expect.poll(anchored).toBe(true)
+    await input.fill('message')
+    input.element().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true }))
+    await expect.element(popup).toBeVisible()
+    await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('101 rows')
+    await panel.getByRole('button', { name: 'Follow latest', exact: true }).click()
+    await expect.element(popup).not.toBeInTheDocument()
+    await trigger.click()
+    await expect.element(input).toHaveValue('')
+    await input.fill('message')
+    await page.getByRole('button', { name: 'Apply filter', exact: true }).click()
+    await expect.poll(() => scroll.scrollTop).toBe(0)
+    expect(table.element().querySelector('[data-diagnostic-fold-space]')).toBeNull()
+    await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('100 / 101')
+    await trigger.click()
+    await input.fill('run')
+    await expect.element(page.getByRole('option', { name: 'run_start', exact: true })).toBeVisible()
+    sendServer({ type: 'entry', sessionId: 's-1', entry: entry(102, 'run_end', { status: 'completed' }) })
+    await expect.element(page.getByRole('option', { name: 'run_end', exact: true })).toBeVisible()
+    await input.fill('no-such-type')
+    await expect.element(page.getByRole('option')).not.toBeInTheDocument()
+    await input.fill('run')
+    await expect.element(page.getByRole('option', { name: 'run_start', exact: true })).toBeVisible()
+    await userEvent.keyboard('{ArrowUp}{ArrowDown}{Enter}')
+    await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('1 / 102')
+    await trigger.click()
+    await expect.element(input).toHaveValue('run_end')
+    await userEvent.keyboard('{Escape}')
+  } finally {
+    await setBrowserScale(1)
+  }
 })

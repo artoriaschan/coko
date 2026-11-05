@@ -35,7 +35,7 @@ lifecycle: active
 - [指令文件](subsystems/instructions.md)：AGENTS.md / CLAUDE.md 的发现顺序、@import、预算、注入格式与嵌套按需加载。
 - [命令](subsystems/commands.md)：提示模板的发现与展开、同名优先级与诊断、命令目录接口、/ 命令菜单与命令 chip。
 - [Skills](subsystems/skills.md)：Skill 的发现位置与校验、<available_skills> 索引与预算、skill 工具与读取根、/<skill-name> 展开、开关与 Skills & Commands 分区。
-- [会话数据诊断](subsystems/session-diagnostics.md)：开发者开关下的已加载条目、Run 分组、虚拟表格、跟随与锚定、可调整 JSON 详情、Run 实时增量和数据范围。
+- [会话数据诊断](subsystems/session-diagnostics.md)：开发者开关下的已加载条目、Run 分组、虚拟表格、类型筛选、跟随与锚定、可调整 JSON 详情、Run 实时增量和数据范围。
 - [上下文管理](subsystems/context.md)：@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量的五类统计与上下文环、时间裁剪、压缩、忽略规则。
 - [命令执行与子进程登记](subsystems/execution.md)：bash 的进程组执行与生命周期回调、子进程登记表、启动时的孤儿清理与有序关闭、已知限制。
 - [外部 Hook](subsystems/hooks.md)：Hook 配置与诊断、项目 Hook 的逐条批准、matcher 与 if、执行与进程登记、PreToolUse 与判定的组合、PermissionRequest、PostToolUse 的追加上下文、UserPromptSubmit / Stop / PreCompact / Notification、continue: false 的停止、hook_run、/api/hooks 与设置分区。
