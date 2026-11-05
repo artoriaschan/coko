@@ -1,0 +1,41 @@
+packages/agent/src/models/incremental-tools.test.ts
+  s_dd1034265ded7f::t_f09e65a2d48f85 1-3,6,19,22-28,68
+  s_dd1034265ded7f::t_a17291063baeb8 9-17
+  s_dd1034265ded7f::t_ffa381e97741c8 4,29-64,66-67
+  s_dd1034265ded7f::t_13329b1f0f7695 65
+  s_dd1034265ded7f::t_165fe07c1631b6 5,7-8,18,20-21
+tests/fixtures/tool-search/model-fetch-redirect.mjs
+  s_dd1034265ded7f::t_ffa381e97741c8 1-16
+tests/integration/sidecar-completions-incremental-tools.test.ts
+  s_dd1034265ded7f::t_ffa381e97741c8 1-15,53,61-72,83-96,98-108,112-127
+  s_dd1034265ded7f::t_9154e1deb50a82 16-52,54-60,73-82,109-111
+  s_dd1034265ded7f::t_0f5d28f3e08204 97
+.scratch/tool-search/issues/14-completions-pi-catalog.md
+  s_dd1034265ded7f::t_e023738a1145c2 15-20,25-31
+packages/agent/src/models/base-url.ts
+  s_dd1034265ded7f::t_7ac8db3b58e1ae 13-15,20
+  s_dd1034265ded7f::t_13329b1f0f7695 16-19
+packages/agent/src/models/registry.ts
+  s_dd1034265ded7f::t_f989bace14c088 25
+  s_dd1034265ded7f::t_a17291063baeb8 38-39
+  s_dd1034265ded7f::t_7ac8db3b58e1ae 16,18,24,28,35-37
+  s_dd1034265ded7f::t_a2c0df5740a414 26-27
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_e69061139c2c32 103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "40f7efed29cd1edccace924eef4ac7df280321b3",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
