@@ -10,7 +10,7 @@ lifecycle: active
 
 ## State Update
 
-当前 Todo List 由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+当前 Todo List 与 Goal 进度由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
@@ -192,7 +192,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ### 压缩后的 `<goal>`
 
-`<goal>` system section 每个 Run 开始时从该 Session 最新的 `goal` 条目生成，不依赖对话消息：压缩把 create_goal 与 update_goal 的调用摘要掉之后，Goal 未终结时 section 照常注入，模型仍看到目标、成功条件、阶段与轮次。见 [Goal](goal.md#注入)。
+`<goal>` system section 每个 Run 开始时从该 Session 最新的 `goal` 条目生成，只含 id、目标、约束、成功条件、预算上限与工具说明；revision、阶段、原因和用量通过 goal State Update 送达。它们都从领域条目派生，不依赖 create_goal 与 update_goal 的调用是否仍在对话中。Goal 结束后清空动态值并移除定义；子 Session 不接收根 Goal 的值。见 [Goal](goal.md#注入)。
 
 ### 压缩后的 `<approved_plan>`
 
