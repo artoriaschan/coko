@@ -1,0 +1,89 @@
+tests/integration/sidecar-incremental-tools.test.ts
+  s_dd1034265ded7f::t_3652a0dd9f3153 104-105,133,234-249,251-254
+  s_dd1034265ded7f::t_ab1ff84fe543e5 2-3,7,141-145,163-165,169
+  s_dd1034265ded7f::t_3ca9aaea640291 146-162,166-168,293-313
+  s_dd1034265ded7f::t_c6cbe4a9013b89 8-19,21,23,36-40,170-180,182-200,202-223,225-233
+  s_dd1034265ded7f::t_e3da3655f395b1 91-93,95,107-108,110,255
+  s_dd1034265ded7f::t_177ae32a9403cf 1,4-6,22,24-35,41-47,49-52,54-57,59-71,73-82,84-90,96-100,103,106,111-129,131-132,134-140,287-292,314-325
+packages/protocol/README.md
+  s_dd1034265ded7f::t_31d76025b43a90 25-26
+apps/desktop/src/renderer/stores/settings-store.ts
+  s_dd1034265ded7f::t_9c510a0102bd43 42,207,210
+packages/session/src/sqlite/schema.ts
+  s_dd1034265ded7f::t_fbb4250d8d83ab 336-341
+apps/desktop/src/renderer/features/settings/provider-form.tsx
+  s_dd1034265ded7f::t_9c510a0102bd43 3,67,186-210,258,270
+packages/session/src/types.ts
+  s_dd1034265ded7f::t_fbb4250d8d83ab 187-188
+packages/protocol/src/http.ts
+  s_dd1034265ded7f::t_fbb4250d8d83ab 316,344
+apps/server/src/application/providers.ts
+  s_dd1034265ded7f::t_fbb4250d8d83ab 52-58,60,174-175,183,233,236,239,248-250
+apps/server/src/application/providers.test.ts
+  s_dd1034265ded7f::t_c9a7c855714d11 48-56,58
+  s_dd1034265ded7f::t_3ca9aaea640291 256-258
+  s_dd1034265ded7f::t_fbb4250d8d83ab 57
+  s_dd1034265ded7f::t_23f304684a4574 250,261
+packages/session/src/sqlite/migrate-v13.test.ts
+  s_dd1034265ded7f::t_548a43f1946515 1-15,17-34
+packages/agent/src/index.ts
+  s_dd1034265ded7f::t_c24adf67681de5 39-45,47
+packages/session/src/sqlite/repositories.ts
+  s_dd1034265ded7f::t_fbb4250d8d83ab 86,133,145,422,427,443,447
+docs/README.md
+  s_dd1034265ded7f::t_3e38aec3df6aff 49
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_31d76025b43a90 91-98
+packages/agent/src/models/registry.ts
+  s_dd1034265ded7f::t_c24adf67681de5 23-31
+  s_dd1034265ded7f::t_fbb4250d8d83ab 69
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_9b1c98e9155081 787-789
+  s_dd1034265ded7f::t_b8e7c94bcbb7be 15,503,520-526,530
+docs/subsystems/headless.md
+  s_dd1034265ded7f::t_31d76025b43a90 81-82
+apps/desktop/src/renderer/features/settings/models-section.browser.test.tsx
+  s_dd1034265ded7f::t_9c510a0102bd43 82
+  s_dd1034265ded7f::t_ea1a320f2bc0b3 71-75,77,80-81,84,102-103
+  s_dd1034265ded7f::t_890b02384ada8b 76,83
+  s_dd1034265ded7f::t_ee0a457fc2ac4f 78-79,85-91,93-94,96-98,100-101
+  s_dd1034265ded7f::t_49608d3ec10aba 30-34,36
+  s_dd1034265ded7f::t_15df8e5e926bc6 92,95,99,483-484
+packages/session/src/sqlite/migrate-v5.test.ts
+  s_dd1034265ded7f::t_8d4a7c097c8416 32-36
+apps/desktop/src/renderer/features/settings/provider-draft.ts
+  s_dd1034265ded7f::t_9c510a0102bd43 12,26-32,34,42,78
+packages/agent/src/engine/compaction-driver.ts
+  s_dd1034265ded7f::t_cc98ecc6bce9f8 24,229-239
+.scratch/tool-search/issues/12-provider-switch-native-transport.md
+  s_dd1034265ded7f::t_3c025018083e3e 15-24,29-37
+tests/integration/sidecar-settings-credentials.test.ts
+  s_dd1034265ded7f::t_20d36edc3c5868 224
+  s_dd1034265ded7f::t_8d4a7c097c8416 63,126,129-134,136,210-211,357,359-361,363
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_3e38aec3df6aff 193
+packages/session/src/sqlite/migrate-v12.test.ts
+  s_dd1034265ded7f::t_548a43f1946515 6,22
+packages/i18n/src/dictionaries/en.ts
+  s_dd1034265ded7f::t_9c510a0102bd43 429-434
+packages/i18n/src/dictionaries/zh.ts
+  s_dd1034265ded7f::t_9c510a0102bd43 426-430
+packages/session/src/sqlite/migrate-v4.test.ts
+  s_dd1034265ded7f::t_8d4a7c097c8416 53-57,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "8c292c761090b81e7e243c268c784b8efb6789e7",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
