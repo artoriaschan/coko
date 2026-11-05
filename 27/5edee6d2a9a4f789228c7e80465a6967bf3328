@@ -1,0 +1,29 @@
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_05fa3cc7749fa5 93,95
+  s_dd1034265ded7f::t_4728860e3818a0 94
+tests/integration/sidecar-tool-search-lifecycle.test.ts
+  s_dd1034265ded7f::t_8884d14c595168 1-208
+tests/fixtures/tool-search/stdio-server.ts
+  s_dd1034265ded7f::t_b4b8b4e73119db 2,9-12
+.scratch/tool-search/issues/09-restore-compaction-reconnect.md
+  s_dd1034265ded7f::t_515035ccfbc5e0 15-21,26-34
+  s_dd1034265ded7f::t_764f5140bb2632 35-36
+.scratch/tool-search/issues/10-rewind-fork-handoff.md
+  s_dd1034265ded7f::t_9a821467053868 35-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "275edee6d2a9a4f789228c7e80465a6967bf3328",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
