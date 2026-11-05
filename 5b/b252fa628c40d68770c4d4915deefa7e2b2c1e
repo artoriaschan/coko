@@ -1,0 +1,55 @@
+tests/integration/sidecar-system-data-root.test.ts
+  s_6cadf0cc1974f1::t_a9ff5f23eeb9c1 76-78
+  s_6cadf0cc1974f1::t_d02365e634cdea 63,66
+  s_6cadf0cc1974f1::t_d5b59ad62b9fbc 1-26,31-34,42-55,59-62,64-65,67-75,79-82
+  s_6cadf0cc1974f1::t_0445caa0802be7 27-30,35-41,56-58
+tests/integration/sidecar-environment.test.ts
+  s_6cadf0cc1974f1::t_4d82ecc659b560 94-96,139,149
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 147-148,150-152
+docs/adr/0016-session-cwd-fixed-worktrees.md
+  s_6cadf0cc1974f1::t_a9ff5f23eeb9c1 14
+packages/protocol/README.md
+  s_6cadf0cc1974f1::t_a9ff5f23eeb9c1 42,63,65,67,80,88,105-109
+apps/server/README.md
+  s_6cadf0cc1974f1::t_deede2883568c6 3,14,29,46-51,61
+apps/server/src/application/session-runs.ts
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 455,459,478
+tests/integration/sidecar-mcp-resources-prompts.test.ts
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 235-236,238-240,242
+packages/agent/src/tools/scheduler.test.ts
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 194,201,224
+docs/adr/0020-projects-organize-workspaces.md
+  s_6cadf0cc1974f1::t_965a8d60e50d87 82
+  s_6cadf0cc1974f1::t_a9ff5f23eeb9c1 25,33,53,56,75-81
+.scratch/system-data-root/evidence.md
+  s_6cadf0cc1974f1::t_4870150d25fc62 1-76
+.scratch/system-data-root/issues/13-integration-and-docs.md
+  s_6cadf0cc1974f1::t_4870150d25fc62 9-25
+  s_6cadf0cc1974f1::t_2804f737d4e8dc 26-27
+apps/desktop/src/renderer/features/settings/sections.browser.test.tsx
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 22,79,89,161,196
+docs/subsystems/mcp.md
+  s_6cadf0cc1974f1::t_965a8d60e50d87 143
+apps/desktop/src/renderer/features/settings/settings-page.browser.test.tsx
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 221,224-225,285
+tests/integration/sidecar-config.test.ts
+  s_6cadf0cc1974f1::t_ba3b1a7340ceb5 3,45,168
+docs/subsystems/worktrees.md
+  s_6cadf0cc1974f1::t_a9ff5f23eeb9c1 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "5bb252fa628c40d68770c4d4915deefa7e2b2c1e",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
