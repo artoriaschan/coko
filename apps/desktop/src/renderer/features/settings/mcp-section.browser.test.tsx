@@ -1,7 +1,7 @@
 // MCP 分区的错误文案（ui.md：错误用本地化的用户语言，技术详情放入诊断入口）：保存被服务端拒绝时显示本地化文案，服务端原文只在
 // 可展开的技术详情中；删除 Secret 失败时 toast 只有本地化文案。fetch 在测试中替换（mcpStore 每次调用时取全局 fetch）。
 import '../../styles.css'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
@@ -11,11 +11,19 @@ import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { settingsRegion } from '../../testing/settings-page.ts'
+import { configStore } from '../../stores/config-store.ts'
+import type { ConfigResponse } from '@coko/protocol'
 
 const RAW = 'server "x" conflicts with "X" (names differ only in case, "-" or "_")'
 const RAW_DELETE = 'SQLITE_BUSY: database is locked'
+let configBefore = configStore.getState()
+
+beforeEach(() => {
+  configBefore = configStore.getState()
+})
 
 afterEach(() => {
+  configStore.setState(configBefore, true)
   vi.unstubAllGlobals()
 })
 
@@ -161,10 +169,41 @@ const PRESET = {
 
 async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 'light', locale: 'en' | 'zh' = 'en') {
   const puts: { servers: Record<string, unknown> }[] = []
+  const configPuts: ConfigResponse['global'][] = []
+  const config: ConfigResponse = {
+    effective: {
+      instructions: { enabled: true },
+      skills: { enabled: true, disabled: [] },
+      commands: { enabled: true, disabled: [] },
+      mcp: { enabled: true, toolSearch: true },
+      memory: { enabled: true },
+      context: { autoCompact: true, trimOldToolResults: true },
+      hooks: { enabled: true },
+      agents: { enabled: true },
+      schedules: { enabled: true },
+      plugins: { enabled: true },
+      lsp: { enabled: true },
+      teams: { enabled: true },
+    },
+    global: { mcp: { enabled: true }, skills: { disabled: ['keep-me'] } },
+    globalRevision: 0,
+  }
+  configStore.setState({ status: 'idle', config: null, workspaceId: null })
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET'
+      if (input.startsWith('/api/config')) {
+        if (method === 'PUT') {
+          const body = JSON.parse(String(init!.body)) as { values: ConfigResponse['global']; expectedRevision: number }
+          if (body.expectedRevision !== config.globalRevision) return json(409, { error: { code: 'revision-conflict', message: 'Stale revision' } })
+          config.global = body.values
+          config.globalRevision++
+          config.effective.mcp.toolSearch = body.values.mcp?.toolSearch !== false
+          configPuts.push(body.values)
+        }
+        return json(200, config)
+      }
       if (input.startsWith('/api/mcp/presets')) return json(200, { presets: [PRESET] })
       if (input.startsWith('/api/mcp/servers') && method === 'PUT') {
         const body = JSON.parse(String(init!.body)) as { servers: Record<string, unknown> }
@@ -195,7 +234,31 @@ async function mountMcp(mcp: Record<string, unknown>, theme: 'light' | 'dark' = 
     </div>,
   )
   settingsPage.open('mcp')
-  return { dialog: settingsRegion(), puts }
+  return { dialog: settingsRegion(), puts, configPuts }
+}
+
+for (const locale of ['en', 'zh'] as const) {
+  it(`按需加载全局开关默认开启，保存与重新读取保留其他配置（${locale}）`, async () => {
+    const { dialog, configPuts } = await mountMcp({ enabled: true, servers: [], global: {}, globalRevision: 0, diagnostics: [] }, 'light', locale)
+    const label = locale === 'en' ? 'Load MCP tools on demand' : '按需加载 MCP 工具'
+    const title = locale === 'en' ? 'Tool search' : '工具搜索'
+    const hint =
+      locale === 'en'
+        ? "When on, MCP tool definitions aren't sent with every request; the model searches for the tools it needs and then calls them. When off, every MCP tool is provided up front."
+        : '开启后不再每次请求都发送全部 MCP 工具定义，模型先搜索需要的工具，再直接调用。关闭后一次提供全部 MCP 工具。'
+    await expect.element(dialog.getByRole('heading', { name: title, exact: true })).toBeVisible()
+    const toggle = dialog.getByRole('checkbox', { name: label, exact: true })
+    await expect.element(toggle).toBeChecked()
+    await expect.element(dialog.getByText(hint, { exact: true })).toBeVisible()
+    await toggle.click()
+    await expect.element(toggle).not.toBeChecked()
+    await expect.poll(() => configPuts).toEqual([{ mcp: { enabled: true, toolSearch: false }, skills: { disabled: ['keep-me'] } }])
+    await configStore.getState().load(configStore.getState().workspaceId ?? undefined)
+    await expect.element(toggle).not.toBeChecked()
+    await toggle.click()
+    await expect.element(toggle).toBeChecked()
+    expect(configPuts[1]).toEqual({ mcp: { enabled: true, toolSearch: true }, skills: { disabled: ['keep-me'] } })
+  })
 }
 
 for (const locale of ['en', 'zh'] as const) {

@@ -10,6 +10,7 @@ export type CapabilitySwitch =
   | 'skills.enabled'
   | 'commands.enabled'
   | 'mcp.enabled'
+  | 'mcp.toolSearch'
   | 'memory.enabled'
   | 'context.autoCompact'
   | 'context.trimOldToolResults'
@@ -33,6 +34,7 @@ export const CAPABILITY_SWITCHES: Record<CapabilitySwitch, SwitchAccess> = {
   'skills.enabled': section('skills', 'enabled'),
   'commands.enabled': section('commands', 'enabled'),
   'mcp.enabled': section('mcp', 'enabled'),
+  'mcp.toolSearch': section('mcp', 'toolSearch'),
   'memory.enabled': section('memory', 'enabled'),
   'context.autoCompact': section('context', 'autoCompact'),
   'context.trimOldToolResults': section('context', 'trimOldToolResults'),
