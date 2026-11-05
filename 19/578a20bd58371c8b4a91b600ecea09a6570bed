@@ -1,0 +1,21 @@
+.scratch/right-sidebar-session-diagnostics/issues/06-developer-switch.md
+  s_eff121e41805b1::t_e73122f69e557d 19-23,25-26,31-53
+docs/README.md
+  s_eff121e41805b1::t_e73122f69e557d 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "19578a20bd58371c8b4a91b600ecea09a6570bed",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
