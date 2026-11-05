@@ -78,3 +78,8 @@ rtk pnpm run test --project desktop-e2e apps/desktop/e2e/diagnostic-progress.e2e
 ## 文档影响与读回
 
 当前行为归 `docs/subsystems/session-diagnostics.md`，共享几何归 `docs/tech-stack/ui-design-system.md`；本票只原位补充序号表头 Tooltip 与原生工具定位用例入口。AGENTS → docs/README → workbench/diagnostics/delivery，以及 plan-mode/jobs/subagents/teams/schedules/tracing、TECH_STACK 的入口与约定逐项读回；正文保持只依赖正式资料/源码，没有指向本证据或其他 scratch。原有调查与批准历史保留，最终规格的 AC 逐行映射见其交付章节。
+
+
+## 最终审查后的局部替代证据
+
+本记录保留 `d943ea50` 的原始执行范围、截图、历史失败与未验证限制。后续 JSON 折叠、键盘瞄准、筛选 Tooltip、主题动效、逐行高亮及分隔条生命周期的变动，使用[审查修正补验](review-resolution.md)中的最新结果；仅替换被这些变动影响的范围，不能将旧批次或本次局部结果表述为新提交的全仓通过。

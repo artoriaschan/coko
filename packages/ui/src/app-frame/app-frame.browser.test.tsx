@@ -43,7 +43,15 @@ function Preview() {
   )
 }
 
-function Harness({ rightOpen: initialRightOpen = false, initialWidth = 280 }: { rightOpen?: boolean; initialWidth?: number }) {
+function Harness({
+  rightOpen: initialRightOpen = false,
+  initialWidth = 280,
+  onWidthChange,
+}: {
+  rightOpen?: boolean
+  initialWidth?: number
+  onWidthChange?: (side: 'left' | 'right', width: number) => void
+}) {
   const [width, setWidth] = React.useState(initialWidth)
   const [collapsed, setCollapsed] = React.useState(false)
   const [rightOpen, setRightOpen] = React.useState(initialRightOpen)
@@ -63,12 +71,18 @@ function Harness({ rightOpen: initialRightOpen = false, initialWidth = 280 }: { 
         rightOpen={rightOpen}
         onRightOpenChange={setRightOpen}
         rightWidth={rightWidth}
-        onRightWidthChange={setRightWidth}
+        onRightWidthChange={(width) => {
+          setRightWidth(width)
+          onWidthChange?.('right', width)
+        }}
         rightFullscreen={fullscreen}
         onRightFullscreenChange={setFullscreen}
         rightPanel={<Preview />}
         sidebarWidth={width}
-        onSidebarWidthChange={setWidth}
+        onSidebarWidthChange={(width) => {
+          setWidth(width)
+          onWidthChange?.('left', width)
+        }}
         sidebarCollapsed={collapsed}
         onSidebarCollapsedChange={setCollapsed}
       >
@@ -359,4 +373,36 @@ describe('主题', () => {
     const round = getComputedStyle(document.querySelector('[data-testid="round"]')!)
     expect(Number.parseFloat(round.borderTopLeftRadius)).toBeGreaterThanOrEqual(12)
   })
+})
+
+it.each(['left', 'right'] as const)('AppFrame %s drag stops on blur and unmount, and a later drag starts with the current width', async (side) => {
+  await page.viewport(1440, 800)
+  const changes: number[] = []
+  const view = await render(
+    <Harness
+      rightOpen
+      onWidthChange={(changedSide, width) => {
+        if (changedSide === side) changes.push(width)
+      }}
+    />,
+  )
+  const selector = side === 'left' ? '[data-slot="app-frame-sidebar"]' : '[data-slot="app-frame-right"]'
+  const handleSelector = side === 'left' ? '[data-slot="app-frame-resize-handle"]' : '[data-slot="app-frame-right-resize-handle"]'
+  await settle(() => widthOf(selector) === (side === 'left' ? 280 : 648))
+  const begin = () => document.querySelector(handleSelector)!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 600 }))
+  begin()
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: side === 'left' ? 630 : 570 }))
+  await settle(() => widthOf(selector) === (side === 'left' ? 310 : 678))
+  window.dispatchEvent(new Event('blur'))
+  const afterBlur = changes.length
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: 650 }))
+  expect(changes).toHaveLength(afterBlur)
+  begin()
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: side === 'left' ? 620 : 580 }))
+  await settle(() => widthOf(selector) === (side === 'left' ? 330 : 698))
+  await view.unmount()
+  const afterUnmount = changes.length
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: 660 }))
+  window.dispatchEvent(new PointerEvent('pointerup'))
+  expect(changes).toHaveLength(afterUnmount)
 })

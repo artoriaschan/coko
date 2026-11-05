@@ -26,7 +26,7 @@ lifecycle: active
 
 Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；工具同时保留 assistant 调用和实际 toolResult 的来源 seq。每次引用增加一级面包屑，返回前级截断后面的路径，第一级始终是最初选中的行。点击表格行会重新开始路径。引用对应表格行时，交给共用表格展开祖先、定位并闪烁；筛选排除目标时先清除筛选。每次引用同时请求定位主时间线；引用没有独立表格行时仍可查看当前对象并定位相应 Run 或来源。
 
-投影发布后，同身份的行保留选择与折叠。变化比较不序列化对象，不把新分配的过程席位本身当作变化；新增或更新的行使用 700ms 背景淡出，系统要求减少动态效果时不播放。
+投影发布后，同身份的行保留选择与折叠。变化比较不序列化对象，不把新分配的过程席位本身当作变化；新增或更新的行使用约 700ms 背景淡出，每行保留自己的更新代次和到期时间；同一行再次更新只重启该行，其他行完成各自的淡出。虚拟化后重新出现的行只播放剩余时段，已经到期的不重播；行 DOM、选择、焦点和滚动位置不因重启而替换。系统要求减少动态效果时不播放。
 
 ## 定位与瞄准
 
@@ -36,7 +36,7 @@ Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；�
 
 精确目标不可呈现时，先选择同 Run 中按来源 seq 最近的已加载内容，再尝试其他已加载内容；都没有时只提示当前可见消息列，不移动它。body 层的高亮按视口、主消息滚动区和嵌套限高组裁剪，持续约 700ms，不插入时间线节点。系统要求减少动态效果时立即滚动且不闪烁。布局等待只观察目标及其折叠路径，不被其他 Run 的实时更新或过程动画拖住。
 
-工具栏的“瞄准”按钮开启单实例透明蒙层。悬停时预览当前元素，离开消息区清除预览；点击按现有身份属性反查当前展示形式的记录。命中后清除排除该记录的筛选、展开表格祖先、选中并打开详情；对话分组从新记录开始面包屑。未命中时显示“当前表格没有匹配记录，请选择其他元素或按 Esc 取消。”并继续等待。
+工具栏的“瞄准”按钮开启单实例透明蒙层。悬停时预览当前元素，离开消息区清除预览；点击按现有身份属性反查当前展示形式的记录。命中后清除排除该记录的筛选、展开表格祖先、选中并打开详情；对话分组从新记录开始面包屑。未命中时显示“当前表格没有匹配记录，请选择其他元素或按 Esc 取消。”并继续等待。键盘激活后，焦点留在瞄准按钮，用上下方向键循环预览当前可见且可匹配的身份，Home/End 到首尾，Enter/空格选取。预览使用同一身份索引和裁剪区域，当前目标及操作说明通过本地化状态区和按钮描述提供。输入框、组合输入、前台弹层及带修饰键的快捷键保持原处理。
 
 蒙层拦截 pointer、mouse、click、auxclick、双击和右键动作，底下的时间线控件不会激活。滚轮先交给指针下可滚动的嵌套区域，剩余位移再交给外层消息区。Esc、再次点击瞄准、切换展示形式或 Session、隐藏或关闭诊断页、窗口失焦都会取消；全屏或其他覆盖层使主时间线不可见时也不会拾取。取消和卸载清理监听器、动画帧与覆盖层。
 
@@ -52,11 +52,11 @@ Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；�
 
 默认跟随尾部；上滚或手动折叠暂停跟随。手动折叠前测量组头位置，折叠后保持其可见位置，把所需留白放到所有数据之后。自动收束后的新行先消耗尾部留白；“跟踪最新”清除留白并恢复跟随。没有“加载更早”按钮。
 
-选中条目后，下方 JSON 详情默认占可用高度的 40%；上缘分隔条支持拖动、上下方向键及 Home/End，限制 15%～80%，换记录时保留高度。JSON 容器默认全部展开，可以逐层折叠；循环祖先为 `[Circular]`，共享的非循环对象分别展开，大整数显示为带 n 后缀的字符串。序列化失败只在详情内显示说明，表格和其他记录仍可使用；已不存在的选择显示移除或结算提示。
+选中条目后，下方 JSON 详情默认占可用高度的 40%；上缘分隔条支持拖动、上下方向键及 Home/End，限制 15%～80%，换记录时保留高度。JSON 容器默认全部展开，可以逐层折叠；同一记录收到增量时保留手动折叠，切换记录时以新记录重新展开，详情高度仍保留。循环祖先为 `[Circular]`，共享的非循环对象分别展开，大整数显示为带 n 后缀的字符串。序列化失败只在详情内显示说明，表格和其他记录仍可使用；已不存在的选择显示移除或结算提示。
 
 ## 类型筛选
 
-类型表头的筛选按钮打开共享浮层；浮层跟随按钮定位，定位完成后才聚焦输入框。候选异步读取全部已加载的行，包含被折叠或当前筛选隐藏的类型；新数据到达后更新候选，过期的查询结果不会替换当前草稿的候选。
+类型表头的筛选按钮悬停或聚焦时显示共享 Tooltip，激活后打开共享浮层；浮层跟随按钮定位，定位完成后才聚焦输入框。候选异步读取全部已加载的行，包含被折叠或当前筛选隐藏的类型；新数据到达后更新候选，过期的查询结果不会替换当前草稿的候选。
 
 输入只改变草稿。Enter 确认片段，方向键循环选择候选后 Enter 或直接点击候选则确认完整类型；“确认筛选”始终确认片段。输入法组合期间的 Enter 不提交。Esc、“取消筛选”、外部点击或窗口失焦放弃草稿，重新打开时恢复已确认的片段；“清空草稿”后确认恢复全部类型。
 
@@ -68,6 +68,6 @@ Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；�
 
 [诊断组装](../../apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx)读取真实 chat store，[原始模型](../../apps/desktop/src/renderer/features/session-diagnostics/raw-model.ts)持有行与记录的只读投影，[表格](../../apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx)拥有选择、折叠和滚动状态，[详情](../../apps/desktop/src/renderer/features/session-diagnostics/record-details.tsx)拥有高度与 JSON 树。[投影发布点](../../apps/desktop/src/renderer/features/conversation/timeline-projection.ts)只保存已提交主区值，[分组模型](../../apps/desktop/src/renderer/features/session-diagnostics/grouping-model.ts)建立行与原始对象引用，[运行时树](../../apps/desktop/src/renderer/features/session-diagnostics/object-tree.tsx)按需检查字段。
 
-实时增量由 [生命周期订阅](../../apps/desktop/src/renderer/features/session-diagnostics/progress-capture.tsx)与[纯模型](../../apps/desktop/src/renderer/features/session-diagnostics/progress-model.ts)维护，不修改 chat store。纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。[分组 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/grouping.browser.test.tsx)覆盖身份、引用面包屑、懒枚举、分页、getter、循环、发布更新与减少动态效果；对象值纯测试移植原生集合的边界案例。[定位 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-navigation.browser.test.tsx)覆盖三级展开、精确与整列回退、嵌套滚轮及裁剪、只在需要时滚动、原始实时块、回退历史、筛选后的反查和完整取消；[身份匹配测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-matching.test.ts)覆盖精确身份优先、工具来源和同 Run／其他 Run 回退。第三方许可与打包约定见[安装包](delivery.md#安装包)。
+实时增量由 [生命周期订阅](../../apps/desktop/src/renderer/features/session-diagnostics/progress-capture.tsx)与[纯模型](../../apps/desktop/src/renderer/features/session-diagnostics/progress-model.ts)维护，不修改 chat store。纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。[分组 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/grouping.browser.test.tsx)覆盖身份、引用面包屑、懒枚举、分页、getter、循环、发布更新与减少动态效果；对象值纯测试移植原生集合的边界案例。[定位 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-navigation.browser.test.tsx)覆盖三级展开、精确与整列回退、嵌套滚轮及裁剪、只在需要时滚动、原始实时块、回退历史、筛选后的反查、键盘瞄准、输入与弹层保护、修饰键以及完整取消；[身份匹配测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-matching.test.ts)覆盖精确身份优先、工具来源和同 Run／其他 Run 回退。第三方许可与打包约定见[安装包](delivery.md#安装包)。
 
-[真实 App 进度回放](../../apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx)覆盖分组、转交、空时间列与 tab/Session 生命周期；[真实 Sidecar Electron 用例](../../apps/desktop/e2e/diagnostic-progress.e2e.test.ts)在已创建并订阅的 Session 中打开诊断后运行 faux 模型，用模型时钟屏障和真实工具文件屏障观察流式与结算，再从已提交的 toolResult 选择记录，验证原有 Run、过程组与工具详情展开且工具卡在消息视口内。用例源码与具体执行记录分别维护。
+[真实 App 进度回放](../../apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx)覆盖分组、转交、空时间列、实时 JSON 折叠保持与 tab/Session 生命周期；[真实 Sidecar Electron 用例](../../apps/desktop/e2e/diagnostic-progress.e2e.test.ts)在已创建并订阅的 Session 中打开诊断后运行 faux 模型，用模型时钟屏障和真实工具文件屏障观察流式与结算，再从已提交的 toolResult 选择记录，验证原有 Run、过程组与工具详情展开且工具卡在消息视口内，并完成键盘瞄准、面包屑重置与 Tooltip 检查。用例源码与具体执行记录分别维护。

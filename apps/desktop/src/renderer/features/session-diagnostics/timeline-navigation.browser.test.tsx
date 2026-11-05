@@ -411,3 +411,98 @@ it('actual App missing Entry targets fall back to the nearest same Run, then ano
   expect(chat.getState().activeSessionId).toBe('s-1')
   await expect.element(panel.getByRole('heading', { name: 'Session diagnostics', exact: true })).toBeVisible()
 })
+
+it('actual App keyboard picker previews and selects mounted identities, clears filtering and breadcrumb without activating the timeline', async () => {
+  const { panel } = await open(processRecords)
+  await grouping(panel)
+  const table = panel.getByRole('table')
+  await table.getByRole('button', { name: 'Inspect record tool:read-a', exact: true }).click()
+  const tool = document.querySelector<HTMLElement>('[data-tool-call-id="read-a"]')!
+  await expect.poll(() => tool.closest('[hidden]')).toBeNull()
+  const trigger = tool.querySelector<HTMLButtonElement>('button[aria-expanded]')!
+  const expanded = trigger.getAttribute('aria-expanded')
+  let activations = 0
+  const activate = () => activations++
+  trigger.addEventListener('click', activate)
+  onTestFinished(() => trigger.removeEventListener('click', activate))
+  const details = panel.getByRole('region', { name: 'Record details', exact: true })
+  await details.getByRole('button', { name: 'Run · run-a', exact: true }).click()
+  await table.getByRole('button', { name: 'Filter types', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Type fragment', exact: true }).fill('text')
+  await page.getByRole('button', { name: 'Apply filter', exact: true }).click()
+  const pick = panel.getByRole('button', { name: 'Pick from timeline', exact: true })
+  pick.element().focus()
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => document.querySelector('[data-slot="timeline-mask"]')).not.toBeNull()
+  await expect
+    .element(panel.getByText('Use Up and Down to preview visible timeline records, Enter to select, or Esc to cancel.', { exact: true }))
+    .toBeVisible()
+  await userEvent.keyboard('{Home}')
+  const seen = new Set<string>()
+  for (let index = 0; index < 20; index++) {
+    const current = panel.element().querySelector<HTMLElement>('[data-picker-current]')?.dataset.pickerCurrent
+    if (current) seen.add(current)
+    if (current === 'tool:read-a') break
+    await userEvent.keyboard('{ArrowDown}')
+  }
+  expect(seen.has('tool:read-a')).toBe(true)
+  await expect.poll(() => document.querySelector('[data-preview]')?.getBoundingClientRect().height).toBeGreaterThan(0)
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => details.getByRole('navigation', { name: 'Inspection path', exact: true }).element().textContent).toBe('tool:read-a')
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('5 rows')
+  expect(trigger.getAttribute('aria-expanded')).toBe(expanded)
+  expect(activations).toBe(0)
+  expect(document.querySelector('[data-slot="timeline-mask"]')).toBeNull()
+  expect(document.querySelector('[data-preview]')).toBeNull()
+})
+
+it('actual App picker leaves input editing and foreground filter keys intact and modified fullscreen still cancels it', async () => {
+  const { panel } = await open(processRecords)
+  const pick = panel.getByRole('button', { name: 'Pick from timeline', exact: true })
+  await pick.click()
+  const composer = page.getByRole('textbox', { name: 'Give Coko a task', exact: true })
+  composer.element().focus()
+  await userEvent.keyboard('draft{ArrowLeft}{Enter}')
+  await expect.element(pick).toHaveAttribute('aria-pressed', 'true')
+  expect(panel.element().querySelector('[data-picker-current]')).toBeNull()
+  await panel.getByRole('button', { name: 'Filter types', exact: true }).click()
+  const input = page.getByRole('combobox', { name: 'Type fragment', exact: true })
+  await input.fill('message')
+  await userEvent.keyboard('{ArrowDown}{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Filter types', exact: true })).not.toBeInTheDocument()
+  await expect.element(pick).toHaveAttribute('aria-pressed', 'true')
+  pick.element().focus()
+  await userEvent.keyboard('{Meta>}{Alt>}{Enter}{/Alt}{/Meta}')
+  await expect.element(panel.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeVisible()
+  await expect.poll(() => document.querySelector('[data-slot="timeline-mask"]')).toBeNull()
+  await expect.element(pick).toHaveAttribute('aria-pressed', 'false')
+})
+
+it.each(['raw', 'grouping'] as const)('actual App keyboard picker completes every visible %s target type through mounted identities', async (format) => {
+  const { panel } = await open(processRecords)
+  await panel.getByRole('button', { name: 'Inspect record 4', exact: true }).click()
+  await expect.poll(() => document.querySelector('[data-tool-call-id="read-a"]')?.closest('[hidden]')).toBeNull()
+  if (format === 'grouping') await grouping(panel)
+  const pick = panel.getByRole('button', { name: 'Pick from timeline', exact: true })
+  const seen = new Set<string>()
+  const types = new Set<string>()
+  for (let index = 0; index < 12; index++) {
+    pick.element().focus()
+    await userEvent.keyboard('{Enter}{Home}')
+    for (let step = 0; step < index; step++) await userEvent.keyboard('{ArrowDown}')
+    const key = panel.element().querySelector<HTMLElement>('[data-picker-current]')!.dataset.pickerCurrent!
+    if (seen.has(key)) {
+      await userEvent.keyboard('{Escape}')
+      break
+    }
+    seen.add(key)
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => panel.element().querySelector<HTMLElement>('[data-record-key][aria-selected="true"]')?.dataset.recordKey).toBe(key)
+    const selected = panel.element().querySelector('[data-record-key][aria-selected="true"]')!
+    types.add(selected.children[1]!.querySelector('button:last-child')!.textContent!)
+    expect(document.querySelector('[data-slot="timeline-mask"]')).toBeNull()
+  }
+  expect([...types].sort()).toEqual(
+    format === 'grouping' ? ['process', 'text', 'thinking', 'tool', 'user'] : ['message/assistant', 'message/toolResult', 'message/user', 'run_start'],
+  )
+})

@@ -12,6 +12,8 @@ let activePicker: (() => void) | undefined
 export function useTimelineNavigation(sessionId: string | null, targets: ReadonlyMap<string, DiagnosticTarget>, enabled = true) {
   const { t } = useI18n()
   const button = React.useRef<HTMLButtonElement>(null)
+  const helpId = React.useId()
+  const [keyboardTarget, setKeyboardTarget] = React.useState<string>()
   const [picking, setPicking] = React.useState(false)
   const [message, setMessage] = React.useState(false)
   const [revealRequest, setReveal] = React.useState<DiagnosticTableRevealRequest>()
@@ -54,6 +56,7 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
       if (activePicker === stop) activePicker = undefined
       setPicking(false)
       setMessage(false)
+      setKeyboardTarget(undefined)
     }
     activePicker = stop
     const inPort = (event: MouseEvent) => {
@@ -71,8 +74,36 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
       return result
     }
     let hovered: HTMLElement | undefined
+    let keyboardElement: HTMLElement | undefined
+    const choose = (element: HTMLElement) => {
+      const found = pickRecord(elementTarget(element), current.current)
+      if (found === undefined) return false
+      setReveal({ key: found, nonce: {}, select: true })
+      stop()
+      return true
+    }
+    const keyboardCandidates = () => {
+      const seen = new Set<string>()
+      return [...root.querySelectorAll<HTMLElement>('[data-timeline-identity], [data-process-group-id], [data-slot="run-process-control"]')].filter(
+        (element) => {
+          const key = pickRecord(elementTarget(element), current.current)
+          if (
+            key === undefined ||
+            seen.has(key) ||
+            !clippedRect(element, port) ||
+            element.closest('[hidden], [inert]') ||
+            getComputedStyle(element).visibility === 'hidden'
+          )
+            return false
+          seen.add(key)
+          return true
+        },
+      )
+    }
     const move = (event: Event) => {
       if (!(event instanceof MouseEvent)) return
+      keyboardElement = undefined
+      setKeyboardTarget(undefined)
       hovered = inPort(event) ? identities(event)[0] : undefined
       positionOverlay(preview, hovered ? clippedRect(hovered, port) : undefined)
     }
@@ -81,14 +112,7 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
       event.preventDefault()
       event.stopImmediatePropagation()
       if (event.type !== 'click') return
-      for (const element of identities(event)) {
-        const found = pickRecord(elementTarget(element), current.current)
-        if (found !== undefined) {
-          setReveal({ key: found, nonce: {}, select: true })
-          stop()
-          return
-        }
-      }
+      for (const element of identities(event)) if (choose(element)) return
       setMessage(true)
     }
     const blocked = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'auxclick', 'dblclick', 'contextmenu']
@@ -121,11 +145,57 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
       }
     }
     const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (
+        target?.closest(
+          'input, textarea, select, [contenteditable="true"], [role="textbox"], [role="dialog"], [role="alertdialog"], [role="menu"], [data-slot="popover-content"]',
+        )
+      )
+        return
+      if (
+        document.querySelector(
+          '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"], [data-slot="popover-content"][data-state="open"]',
+        )
+      )
+        return
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopImmediatePropagation()
         stop()
+        return
       }
+      // Keep ordinary input, tab navigation and controls outside the picker/column intact.
+      if (target !== button.current && (!target || !root.contains(target))) return
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' '].includes(event.key)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const candidates = keyboardCandidates()
+      if (!candidates.length) {
+        setMessage(true)
+        return
+      }
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (keyboardElement && choose(keyboardElement)) return
+        setMessage(true)
+        return
+      }
+      const index = keyboardElement ? candidates.indexOf(keyboardElement) : -1
+      const next =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? candidates.length - 1
+            : index < 0
+              ? event.key === 'ArrowUp'
+                ? candidates.length - 1
+                : 0
+              : (index + (event.key === 'ArrowDown' ? 1 : -1) + candidates.length) % candidates.length
+      keyboardElement = candidates[next]!
+      hovered = keyboardElement
+      setKeyboardTarget(pickRecord(elementTarget(keyboardElement), current.current))
+      setMessage(false)
+      positionOverlay(preview, clippedRect(keyboardElement, port))
     }
     for (const type of blocked) document.addEventListener(type, intercept, true)
     document.addEventListener('pointermove', move, true)
@@ -160,6 +230,7 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
           tooltipSide="bottom"
           label={t('diagnostics.pick')}
           aria-pressed={picking}
+          aria-describedby={picking ? helpId : undefined}
           onClick={() => {
             setMessage(false)
             setPicking((value) => !value)
@@ -167,6 +238,12 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
         >
           <CrosshairIcon aria-hidden />
         </IconButton>
+        {picking && (
+          <span id={helpId} role="status" className="text-ui-caption text-muted-foreground">
+            {t('diagnostics.pickHelp')}
+            {keyboardTarget && <span data-picker-current={keyboardTarget}> {t('diagnostics.pickCurrent', { identity: keyboardTarget })}</span>}
+          </span>
+        )}
         {message && (
           <span role="status" className="text-ui-caption text-muted-foreground">
             {t('diagnostics.noPickMatch')}

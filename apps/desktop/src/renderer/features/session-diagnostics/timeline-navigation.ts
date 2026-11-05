@@ -1,5 +1,6 @@
 import { mainTimelineRoot, revealTimeline } from '../conversation/timeline-reveal.tsx'
 import type { DiagnosticTarget } from './grouping-model.ts'
+import { diagnosticMotion } from './diagnostic-motion.ts'
 import { locateCandidate } from './timeline-matching.ts'
 
 const IDENTITIES = '[data-timeline-identity], [data-process-group-id]'
@@ -57,7 +58,7 @@ export function positionOverlay(overlay: HTMLElement, rect: DOMRect | undefined)
 export function timelineOverlay(kind: 'highlight' | 'mask') {
   const node = document.createElement('div')
   node.dataset.slot = `timeline-${kind}`
-  node.className = `diagnostic-timeline-${kind}`
+  node.className = `diagnostic-timeline-${kind} diagnostic-motion`
   node.setAttribute('aria-hidden', 'true')
   document.body.append(node)
   return node
@@ -132,8 +133,9 @@ export function locateTimeline(sessionId: string | null, target: DiagnosticTarge
     }
     paint = timelineOverlay('highlight')
     updatePaint()
-    animation = paint.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' })
-    timer = window.setTimeout(cleanup, 700)
+    const motion = diagnosticMotion(paint)
+    animation = paint.animate([{ opacity: 1 }, { opacity: 0 }], motion)
+    timer = window.setTimeout(cleanup, motion.duration)
     const track = () => {
       if (!disposed) {
         updatePaint()

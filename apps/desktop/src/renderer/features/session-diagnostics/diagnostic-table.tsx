@@ -11,6 +11,7 @@ import { diagnosticPreview } from './format.ts'
 import { RecordDetails } from './record-details.tsx'
 import { DiagnosticTypeFilter } from './type-filter.ts'
 import { TypeFilterEditor } from './type-filter-editor.tsx'
+import { diagnosticMotion } from './diagnostic-motion.ts'
 import './diagnostic-table.css'
 
 /** Reference navigation reveals a row without replacing the selected details path. */
@@ -19,6 +20,39 @@ export interface DiagnosticTableRevealRequest {
   readonly nonce: object
   /** Picker selection starts a new details path; references only reveal. */
   readonly select?: boolean
+}
+
+/** Each mounted row owns its generation, expiry and cancellable paint; never replace its DOM to restart a fade. */
+function DiagnosticTableRow({ update, ...props }: React.ComponentProps<'tr'> & { update: { at: number } | undefined }) {
+  const row = React.useRef<HTMLTableRowElement>(null)
+  const [active, setActive] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const element = row.current
+    if (!element || !update || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const { duration, easing } = diagnosticMotion(element)
+    const elapsed = Math.max(0, Date.now() - update.at)
+    if (elapsed >= duration) return
+    const style = getComputedStyle(element)
+    const animation = element.animate([{ backgroundColor: style.getPropertyValue('--accent') }, { backgroundColor: 'transparent' }], { duration, easing })
+    animation.currentTime = elapsed
+    setActive(true)
+    const timer = window.setTimeout(() => {
+      animation.cancel()
+      setActive(false)
+    }, duration - elapsed)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const cancel = () => {
+      animation.cancel()
+      setActive(false)
+    }
+    reduced.addEventListener('change', cancel)
+    return () => {
+      window.clearTimeout(timer)
+      reduced.removeEventListener('change', cancel)
+      animation.cancel()
+    }
+  }, [update])
+  return <tr ref={row} data-diagnostic-updated={active || undefined} {...props} />
 }
 
 /** 共享的只读表格；数据模型不拥有滚动、选择、折叠或详情高度。 */
@@ -36,7 +70,7 @@ export function DiagnosticTable({
   toolbar?: React.ReactNode
   renderDetails?: (record: DiagnosticRecord | undefined, selectedKey: string) => React.ReactNode
   onSelect?: (key: string | null) => void
-  changedKeys?: ReadonlySet<string>
+  changedKeys?: ReadonlyMap<string, { at: number }>
   revealRequest?: DiagnosticTableRevealRequest | undefined
 }) {
   const { t } = useI18n()
@@ -179,7 +213,7 @@ export function DiagnosticTable({
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         revealAnimation.current = row.animate(
           [{ backgroundColor: getComputedStyle(row).getPropertyValue('--accent') }, { backgroundColor: getComputedStyle(row).backgroundColor }],
-          { duration: Number.parseFloat(getComputedStyle(row).getPropertyValue('--diagnostic-reveal-duration')) },
+          diagnosticMotion(row),
         )
       }
       setPendingReveal(undefined)
@@ -228,7 +262,7 @@ export function DiagnosticTable({
           else if (follow.current !== 'manual') follow.current = host.scrollHeight - host.clientHeight - host.scrollTop <= 40 ? 'tail' : 'scroll'
         }}
       >
-        <table className="diagnostic-table text-ui-caption" aria-label={t('diagnostics.title')} aria-rowcount={hierarchy.rows.length + 1}>
+        <table className="diagnostic-table diagnostic-motion text-ui-caption" aria-label={t('diagnostics.title')} aria-rowcount={hierarchy.rows.length + 1}>
           <colgroup>
             <col style={{ width: 64 }} />
             <col style={{ width: 190 }} />
@@ -272,10 +306,10 @@ export function DiagnosticTable({
                       <td colSpan={columns} style={{ height: gap, padding: 0 }} />
                     </tr>
                   )}
-                  <tr
+                  <DiagnosticTableRow
+                    update={changedKeys?.get(row.key)}
                     className="hover:bg-accent"
                     data-record-key={row.key}
-                    data-diagnostic-updated={changedKeys?.has(row.key) || undefined}
                     data-diagnostic-context={filter.active && !filtered.matches.has(row.key) ? '' : undefined}
                     aria-rowindex={item.index + 2}
                     aria-selected={row.key === selected}
@@ -321,7 +355,7 @@ export function DiagnosticTable({
                         {collapsed ? (record?.collapsedSummary ?? summary) : summary}
                       </button>
                     </td>
-                  </tr>
+                  </DiagnosticTableRow>
                 </React.Fragment>
               )
             })}
@@ -335,7 +369,7 @@ export function DiagnosticTable({
         {model.rows.length === 0 && <p className="p-3 text-ui-body text-muted-foreground">{t('diagnostics.empty')}</p>}
       </div>
       {selected !== null && (
-        <RecordDetails value={selectedRecord?.value} removed={selectedRecord === undefined} onClose={() => setSelected(null)}>
+        <RecordDetails recordKey={selected} value={selectedRecord?.value} removed={selectedRecord === undefined} onClose={() => setSelected(null)}>
           {renderDetails?.(selectedRecord, selected)}
         </RecordDetails>
       )}

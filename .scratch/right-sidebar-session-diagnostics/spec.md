@@ -329,3 +329,8 @@ Status: ready-for-agent
 | AC-28 | B1/B2 raw-data 的用户原文和 [REDACTED:secret]、只订阅既有数据；E1 session-download 的登记 Secret 全链路替换事实；诊断共用已收到 Entry，无新增请求或导出。 |
 | AC-29 | B1/B2 App/AppFrame/PanelTabs/raw-data 的390px、双语主题、键盘与语义；静默 CDP 1280px 英文亮色/中文暗色及390px，序号表头修复红绿与实际悬停；原生限制明列。 |
 | AC-30 | E1/E2 third-party-notices 从当次 Forge package 的 app Resources 逐字比较完整 DeepSeek 版权和 MIT 文本。 |
+
+
+### 最终审查修正与补验
+
+最终 Standards 的四项硬性问题（实时 JSON 折叠保持、键盘瞄准、筛选 Tooltip、共享主题动效）与分隔条重复生命周期判断项，以及 Spec 的每行独立高亮代次/到期问题，统一在[审查修正证据](evidence/review-resolution.md)逐项对应修正和本次检查。该补验替换原集成证据中被修正代码影响的范围，未变化范围继续按[原集成验收](evidence/integrated-acceptance.md)的精确范围复用；原始失败和后台原生物理交互的未验证限制保留。tracker 的 `Status: ready-for-agent` 是分拣角色，交付状态仍由 frontmatter 与完成证据表达。

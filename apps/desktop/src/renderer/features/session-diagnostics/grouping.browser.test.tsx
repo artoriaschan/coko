@@ -1,6 +1,6 @@
 import '../../styles.css'
 import type { SessionEntryRecord } from '@coko/protocol'
-import { expect, it, onTestFinished } from 'vitest'
+import { expect, it, onTestFinished, vi } from 'vitest'
 import { setReducedMotion } from '../../testing/browser-commands.ts'
 import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
@@ -327,4 +327,73 @@ it('actual App reference reveal scrolls a virtualized member below its sticky an
   await expect.poll(() => row.getBoundingClientRect().top - scroll.getBoundingClientRect().top).toBeGreaterThanOrEqual(59)
   expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(scroll.getBoundingClientRect().bottom + 1)
   expect(table.element().querySelectorAll('[data-record-key]').length).toBeLessThan(60)
+})
+
+it('actual App restarts only the updated row fade and lets each staggered row finish independently without replacing rows or focus', async () => {
+  const { panel, sendServer } = await open([entry(1, 'run_start', { trigger: 'submit' })])
+  sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-a', event: { type: 'run_start' } })
+  const delta = (contentIndex: number, text: string) =>
+    sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-a', event: { type: 'assistant_delta', kind: 'text', contentIndex, delta: text } })
+  delta(0, 'A')
+  delta(1, 'B')
+  await panel.getByRole('button', { name: 'Display format', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Conversation groups', exact: true }).click()
+  const table = panel.getByRole('table').element()
+  const rows = [...table.querySelectorAll<HTMLTableRowElement>('[data-record-key]')]
+  const a = rows.find((row) => row.textContent?.endsWith('A'))!
+  const b = rows.find((row) => row.textContent?.endsWith('B'))!
+  const inspect = a.querySelectorAll<HTMLButtonElement>('button')[1] ?? a.querySelector('button')!
+  inspect.focus()
+  const port = table.parentElement!
+  const scroll = port.scrollTop
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  const fade = (row: HTMLElement) =>
+    row
+      .getAnimations()
+      .find((animation) => animation.effect instanceof KeyframeEffect && animation.effect.getKeyframes().some((frame) => 'backgroundColor' in frame))
+  delta(0, ' one')
+  await expect.poll(() => a.textContent).toContain('A one')
+  await expect.poll(() => fade(a)).toBeDefined()
+  const first = fade(a)!
+  expect(first.effect?.getTiming().duration).toBe(700)
+  first.pause()
+  first.currentTime = 350
+  const middle = getComputedStyle(a).backgroundColor
+  expect(middle).not.toBe(getComputedStyle(a).getPropertyValue('--accent').trim())
+  await vi.advanceTimersByTimeAsync(300)
+  delta(0, ' two')
+  await expect.poll(() => a.textContent).toContain('A one two')
+  await expect.poll(() => fade(a) !== undefined && fade(a) !== first).toBe(true)
+  const restarted = fade(a)!
+  restarted.pause()
+  restarted.currentTime = 0
+  const start = getComputedStyle(a).backgroundColor
+  expect(start).not.toBe(middle)
+  await vi.advanceTimersByTimeAsync(300)
+  delta(1, ' later')
+  await expect.poll(() => b.textContent).toContain('B later')
+  expect(fade(a)).toBe(restarted)
+  await expect.poll(() => fade(b)).toBeDefined()
+  const other = fade(b)!
+  other.pause()
+  other.currentTime = 0
+  await vi.advanceTimersByTimeAsync(399)
+  expect(fade(a)).toBe(restarted)
+  expect(fade(b)).toBe(other)
+  await vi.advanceTimersByTimeAsync(2)
+  await expect.poll(() => fade(a)).toBeUndefined()
+  expect(fade(b)).toBe(other)
+  await vi.advanceTimersByTimeAsync(300)
+  await expect.poll(() => fade(b)).toBeUndefined()
+  expect(table.querySelector(`[data-record-key="${a.dataset.recordKey}"]`)).toBe(a)
+  expect(document.activeElement).toBe(inspect)
+  expect(port.scrollTop).toBe(scroll)
+  sendServer({ type: 'entry', sessionId: 's-1', entry: entry(2, 'message', { role: 'user', content: 'New highlighted row', timestamp: 0 }) })
+  await expect.element(panel.getByRole('button', { name: 'user', exact: true })).toBeVisible()
+  const added = table.querySelector<HTMLElement>('[data-record-key="2"]')!
+  await expect.poll(() => fade(added)).toBeDefined()
+  expect(fade(added)?.effect?.getTiming().duration).toBe(700)
 })

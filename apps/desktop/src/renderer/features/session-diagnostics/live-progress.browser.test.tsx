@@ -1,7 +1,7 @@
 import '../../styles.css'
 import type { SessionEntryRecord } from '@coko/protocol'
 import { expect, it } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
@@ -141,4 +141,32 @@ it('actual App replays Run progress through real stores, transfers blocks and to
   await expect.element(table.getByRole('button', { name: 'context_usage', exact: true })).not.toBeInTheDocument()
   expect(table.element().querySelectorAll('tr[data-record-key^="progress:"]').length).toBe(0)
   expect(sent.filter((message) => message.type === 'subscribe')).toHaveLength(2)
+})
+
+it('actual App preserves manually collapsed JSON branches through live updates and resets them only for a different record', async () => {
+  const { panel, sendServer } = await open([entry(1, 'run_start', { trigger: 'submit' })])
+  const delta = (text: string, offset: number) =>
+    sendServer({
+      type: 'progress',
+      sessionId: 's-1',
+      runId: 'run-a',
+      event: { type: 'assistant_delta', contentIndex: 0, kind: 'thinking', delta: text, offset },
+    })
+  delta('First', 0)
+  await panel.getByRole('button', { name: 'assistant_delta/thinking', exact: true }).click()
+  const details = panel.getByRole('region', { name: 'Record details', exact: true })
+  const root = details.element().querySelector<HTMLDetailsElement>('details')!
+  await page.elementLocator(root.querySelector('summary')!).click()
+  await expect.poll(() => root.open).toBe(false)
+  const handle = details.getByRole('separator')
+  await handle.click()
+  await userEvent.keyboard('{End}')
+  delta(' second', 5)
+  await expect.element(panel.getByRole('button', { name: 'Inspect record group:1', exact: true })).toBeVisible()
+  await expect.poll(() => details.element().querySelector('details')).toBe(root)
+  expect(root.open).toBe(false)
+  await expect.element(handle).toHaveAttribute('aria-valuenow', '80')
+  await panel.getByRole('button', { name: 'Inspect record 1', exact: true }).click()
+  await expect.poll(() => details.element().querySelector<HTMLDetailsElement>('details')?.open).toBe(true)
+  await expect.element(handle).toHaveAttribute('aria-valuenow', '80')
 })

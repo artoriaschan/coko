@@ -1,5 +1,5 @@
 // Adapted from DeepSeek Harness (MIT), Copyright (c) 2026 DeepSeek.
-import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@coko/ui'
+import { Button, Input, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import { FilterIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -76,16 +76,21 @@ export function TypeFilterEditor({
         setOpen(next)
       }}
     >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex size-5 items-center justify-center rounded-xs focus-ring hover:bg-muted"
-          aria-label={t('diagnostics.filter.title')}
-          aria-pressed={value !== ''}
-        >
-          <FilterIcon className="size-3.5" aria-hidden />
-        </button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex size-5 items-center justify-center rounded-xs focus-ring hover:bg-muted"
+              aria-label={t('diagnostics.filter.title')}
+              aria-pressed={value !== ''}
+            >
+              <FilterIcon className="size-3.5" aria-hidden />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t('diagnostics.filter.title')}</TooltipContent>
+      </Tooltip>
       <PopoverContent
         ref={setPanel}
         role="dialog"

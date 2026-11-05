@@ -63,19 +63,19 @@ export function GroupingView({ sessionId, toolbar }: { sessionId: string | null;
   }, [navigation.revealRequest])
   const [path, setPath] = React.useState<readonly string[]>([])
   const [revealRequest, setReveal] = React.useState<import('./diagnostic-table.tsx').DiagnosticTableRevealRequest>()
-  const [changedKeys, setChangedKeys] = React.useState<ReadonlySet<string>>(new Set())
+  const [changedKeys, setChangedKeys] = React.useState<ReadonlyMap<string, { at: number }>>(new Map())
   const previous = React.useRef<GroupingModel | undefined>(undefined)
-  const flashTimer = React.useRef<number | undefined>(undefined)
-  React.useEffect(() => () => window.clearTimeout(flashTimer.current), [])
   React.useLayoutEffect(() => {
     const before = previous.current
     previous.current = model
     if (!before) return
     const changes = new Set([...model.records].filter(([key, record]) => !sameGroupingValue(before.records.get(key)?.value, record.value)).map(([key]) => key))
     if (changes.size === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    setChangedKeys(changes)
-    window.clearTimeout(flashTimer.current)
-    flashTimer.current = window.setTimeout(() => setChangedKeys(new Set()), 700)
+    setChangedKeys((previous) => {
+      const next = new Map([...previous].filter(([key]) => model.records.has(key)))
+      for (const key of changes) next.set(key, { at: Date.now() })
+      return next
+    })
   }, [model])
   const navigate = (reference: ObjectReference) => {
     navigation.locate(reference.target)

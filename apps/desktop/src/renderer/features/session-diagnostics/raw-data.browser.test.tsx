@@ -290,3 +290,21 @@ it('actual App anchors the editor through viewport changes, browser zoom and tab
     await setBrowserScale(1)
   }
 })
+
+it('actual App type filter exposes its shared Tooltip on hover and keyboard focus and still opens the editor', async () => {
+  const { panel } = await open()
+  const button = panel.getByRole('button', { name: 'Filter types', exact: true })
+  await page.getByRole('textbox', { name: 'Give Coko a task', exact: true }).click()
+  await button.hover()
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('Filter types')
+  await page.getByRole('textbox', { name: 'Give Coko a task', exact: true }).click()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  button.element().focus()
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('Filter types')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('dialog', { name: 'Filter types', exact: true })).toBeVisible()
+  await expect.element(page.getByRole('combobox', { name: 'Type fragment', exact: true })).toHaveFocus()
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByRole('dialog', { name: 'Filter types', exact: true })).not.toBeInTheDocument()
+})

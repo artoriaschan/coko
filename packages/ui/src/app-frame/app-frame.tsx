@@ -282,8 +282,8 @@ export function AppFrame({
 
   const resizeTo = (width: number) => onSidebarWidthChange?.(clampSidebarWidth(width))
   const resizeRightTo = (width: number) => onRightWidthChange?.(clampRightPanelWidth(width, measuredWidth, layout.sidebarColumn))
-  const rightDragCleanup = React.useRef<(() => void) | null>(null)
-  React.useEffect(() => () => rightDragCleanup.current?.(), [])
+  const dragCleanup = React.useRef<(() => void) | null>(null)
+  React.useEffect(() => () => dragCleanup.current?.(), [])
 
   const onRightResizeKeyDown = (event: React.KeyboardEvent) => {
     const next =
@@ -301,28 +301,38 @@ export function AppFrame({
     resizeRightTo(next)
   }
 
-  const onRightResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+  /** Both edges share listener ownership; width direction and clamping stay with each edge. */
+  const startResize = (event: React.PointerEvent<HTMLElement>, resize: (delta: number) => void) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.currentTarget.focus()
-    rightDragCleanup.current?.()
+    dragCleanup.current?.()
     const startX = event.clientX
-    const startWidth = layout.rightColumn
+    const pointerId = event.pointerId
     setDragging(true)
-    const onMove = (move: PointerEvent) => resizeRightTo(startWidth + startX - move.clientX)
-    const onUp = () => {
+    const onMove = (move: PointerEvent) => {
+      if (move.pointerId === pointerId) resize(move.clientX - startX)
+    }
+    const stop = () => {
       setDragging(false)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
-      window.removeEventListener('blur', onUp)
-      rightDragCleanup.current = null
+      window.removeEventListener('blur', stop)
+      dragCleanup.current = null
     }
-    rightDragCleanup.current = onUp
+    const onUp = (up: PointerEvent) => {
+      if (up.pointerId === pointerId) stop()
+    }
+    dragCleanup.current = stop
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
-    window.addEventListener('blur', onUp)
+    window.addEventListener('blur', stop)
+  }
+  const onRightResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const startWidth = layout.rightColumn
+    startResize(event, (delta) => resizeRightTo(startWidth - delta))
   }
 
   const onResizeKeyDown = (event: React.KeyboardEvent) => {
@@ -341,24 +351,9 @@ export function AppFrame({
     resizeTo(next)
   }
 
-  const onResizePointerDown = (event: React.PointerEvent) => {
-    if (event.button !== 0) return
-    // 阻止拖动时选中文字；保留键盘焦点，按下后可继续用方向键微调。
-    event.preventDefault()
-    ;(event.currentTarget as HTMLElement).focus()
-    const startX = event.clientX
+  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const startWidth = layout.sidebarColumn
-    setDragging(true)
-    const onMove = (move: PointerEvent) => resizeTo(startWidth + move.clientX - startX)
-    const onUp = () => {
-      setDragging(false)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
+    startResize(event, (delta) => resizeTo(startWidth + delta))
   }
 
   const rightColumn = layout.rightColumn

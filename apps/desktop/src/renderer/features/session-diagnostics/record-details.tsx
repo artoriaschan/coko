@@ -33,7 +33,19 @@ function JsonBranch({ value, name }: { value: unknown; name: string }) {
 }
 
 /** 原始数据先安全序列化；JSON 树的所有容器默认展开。运行时对象树由对话分组提供。 */
-export function RecordDetails({ value, removed, onClose, children }: { value: unknown; removed: boolean; onClose: () => void; children?: React.ReactNode }) {
+export function RecordDetails({
+  recordKey,
+  value,
+  removed,
+  onClose,
+  children,
+}: {
+  recordKey: string
+  value: unknown
+  removed: boolean
+  onClose: () => void
+  children?: React.ReactNode
+}) {
   const { t } = useI18n()
   const [percent, setPercent] = React.useState(40)
   const root = React.useRef<HTMLDivElement>(null)
@@ -109,7 +121,7 @@ export function RecordDetails({ value, removed, onClose, children }: { value: un
             <p role="alert">{t('diagnostics.serializationFailed')}</p>
           ) : (
             <ul>
-              <JsonBranch key={serialized.text} value={parsed} name="$" />
+              <JsonBranch key={recordKey} value={parsed} name="$" />
             </ul>
           )))
         )}

@@ -47,3 +47,8 @@
 补齐原生定位断言并迁移旧入口/几何与 bridge 桩；英文序号表头使用共享 Tooltip 补全文入口。原生真实指针、红绿灯命中、窗口拖拽无法由后台透明且忽略鼠标的窗口验证；CSS安全区与CDP几何不算原生命中。未运行真实模型、签名/公证或ZIP/DMG发布验收。当前行为文档从 AGENTS → docs/README →正文读回，语义同步、权威归属、引用方向、状态、入口与历史保留通过；正式文档未链接scratch。仅本地分支提交，不推送或改main。
 
 最终机械检查：`rtk pnpm run check:docs` 退出0，345个Markdown、0问题；`rtk pnpm run typecheck`、六个变动TS/TSX的oxlint与oxfmt、`rtk git diff --check`均退出0。文档读回结果及未验证项见上文与证据。
+
+
+### 2026-11-05 最终双轴审查修正补验
+
+本票关闭后的最终 Standards 四项硬性问题、一个重复生命周期判断项，以及 Spec 的逐行独立高亮问题，均由新实施者在独立分支修正。详见[逐条修正、红绿与局部补验](../evidence/review-resolution.md)。原始集成失败与未验证原生物理限制保留，不改变 ready-for-agent 分拣角色或 Closed 状态；本次补验按失效范围替换，未变化范围复用既有证据。
