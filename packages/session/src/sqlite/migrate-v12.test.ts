@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it, onTestFinished } from 'vitest'
-import { openSqliteStore } from '@coko/session/sqlite'
+import { openSqliteStore, SQLITE_SCHEMA_VERSION } from '@coko/session/sqlite'
 import { TEST_PAYLOADS } from '../test-payloads.ts'
 import { openDatabase } from './open.ts'
 import { MIGRATIONS } from './schema.ts'
@@ -19,7 +19,7 @@ it('v11 升级保留旧会话与条目，目录与 cwd 为空；原库备份仍�
   old.close()
   const store = await openSqliteStore({ path, payloads: TEST_PAYLOADS })
   onTestFinished(() => store.close())
-  expect(store.migration).toMatchObject({ from: 11, to: 12 })
+  expect(store.migration).toMatchObject({ from: 11, to: SQLITE_SCHEMA_VERSION })
   expect(await store.sessions.getSession('s1')).toMatchObject({ title: 'Old session', directory: null, cwd: null, updatedAt: 20 })
   expect(await store.sessions.listEntries('s1')).toEqual([expect.objectContaining({ payload: 'retained' })])
   expect(await store.sessions.getWorkspace('w1')).toMatchObject({ path: '/old/workspace' })

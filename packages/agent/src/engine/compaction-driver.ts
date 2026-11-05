@@ -1,7 +1,15 @@
 // 压缩编排（docs/subsystems/context.md#压缩）：摘要请求、提交 compaction 条目与重建对话记录、熔断，以及三个触发点——手动（/compact）、
 // 每次请求前越过阈值的自动压缩、请求以上下文溢出失败后的一次压缩与重试。运行时只在 prepareRequest 与 compact() 处接线。
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core'
-import { isContextOverflow, normalizeContext, type AssistantMessage, type Model, type Tool } from '@earendil-works/pi-ai'
+import {
+  createInitialSystemMessage,
+  getCurrentTools,
+  isContextOverflow,
+  normalizeContext,
+  type AssistantMessage,
+  type Model,
+  type Tool,
+} from '@earendil-works/pi-ai'
 import {
   createCompactionBreaker,
   estimateCompactedTokens,
@@ -13,7 +21,7 @@ import {
   type CompactionPlan,
 } from '../context/compaction/index.ts'
 import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars } from '../context/usage/index.ts'
-import { modelContext, type EntryLike } from '../entries/index.ts'
+import { effectiveEntries, modelContext, type EntryLike } from '../entries/index.ts'
 import type { CompactionPayload, CompactionTrigger, RequestUsage } from '../session-entries/index.ts'
 import type { CompactInfo, CompactVerdict, ProgressEvent, RunEntry, RunError, RunStatus, RuntimeCompaction } from './types.ts'
 
@@ -218,6 +226,17 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     }
     breaker.succeeded()
     const head = state.messages[0]?.role === 'system' ? [state.messages[0]] : []
+    // pi 已在 prepareRequest 之前提交本轮的工具差异。压缩移除差异消息时，把被移除前缀的工具状态
+    // 折入未持久化的开头消息；保留区间的增减仍按原位置回放。声明由 pi 的 transcript 接口生成。
+    if (head[0]) {
+      const prefix = effectiveEntries(entries)
+        .filter((entry) => entry.kind === 'message' && entry.seq < plan.firstKeptSeq)
+        .map((entry) => entry.payload as AgentMessage)
+      const seed = createInitialSystemMessage(undefined, getCurrentTools([...head, ...prefix]))
+      if (seed?.toolsAdded) head[0].toolsAdded = seed.toolsAdded
+      else delete head[0].toolsAdded
+      delete head[0].toolsRemoved
+    }
     state.messages = [...head, ...next]
     if (trigger !== 'manual') await options.afterCompact?.(run)
     if (run.commitError || run.aborted) return { kind: 'aborted' }

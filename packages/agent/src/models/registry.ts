@@ -20,6 +20,15 @@ import { isHttpUrl } from './base-url.ts'
 export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
 export type ModelProtocol = (typeof MODEL_PROTOCOLS)[number]
 
+/** A Run freezes its transport choice after its on-demand catalog is known. */
+export function withIncrementalTools(model: Model<any>, enabled: boolean): Model<any> {
+  if (!enabled) return model
+  if (model.api === 'anthropic-messages')
+    return { ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true, supportsMidConvoToolChanges: true } }
+  if (model.api === 'openai-responses') return { ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true } }
+  return model
+}
+
 /** The seven Thinking Levels in their fixed order (pi-ai's `MODEL_THINKING_LEVELS`). */
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ModelThinkingLevel[]
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
@@ -57,6 +66,7 @@ export interface ProviderConfig {
   api: ModelProtocol
   baseUrl: string
   headers?: Record<string, string>
+  incrementalTools?: boolean
   models: ModelSpec[]
 }
 

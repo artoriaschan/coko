@@ -9,6 +9,7 @@ export interface FormDraft {
   name: string
   api: ModelProtocol
   baseUrl: string
+  incrementalTools?: boolean
   /** 模型目录的行草稿，按界面顺序。 */
   models: ModelRowDraft[]
   /** 编辑时为空表示保留原 Credential。 */
@@ -22,7 +23,15 @@ export type DraftErrors = Partial<Record<DraftField, MessageKey>> & { catalog?: 
 const PROVIDER_ID = new RegExp(PROVIDER_ID_PATTERN)
 
 /** 新建表单：默认协议 OpenAI Chat Completions。 */
-export const emptyDraft = (): FormDraft => ({ providerId: '', name: '', api: 'openai-completions', baseUrl: '', models: [], secret: '' })
+export const emptyDraft = (): FormDraft => ({
+  providerId: '',
+  name: '',
+  api: 'openai-completions',
+  baseUrl: '',
+  models: [],
+  secret: '',
+  incrementalTools: undefined,
+})
 
 /** 编辑表单的初始草稿：Key 输入框为空，不回填已保存的密钥（ADR 0004）。 */
 export const draftOf = (provider: Provider): FormDraft => ({
@@ -30,6 +39,7 @@ export const draftOf = (provider: Provider): FormDraft => ({
   name: provider.name,
   api: provider.api,
   baseUrl: provider.baseUrl,
+  incrementalTools: provider.incrementalTools,
   models: rowsOf(provider.models),
   secret: '',
 })
@@ -65,6 +75,7 @@ export function toProviderDraft(draft: FormDraft, provider?: Provider): Provider
     name: draft.name.trim(),
     api: draft.api,
     baseUrl: draft.baseUrl.trim(),
+    ...(draft.incrementalTools === undefined ? {} : { incrementalTools: draft.incrementalTools }),
     models: toCatalog(draft.models),
     secret: draft.secret.trim(),
   }

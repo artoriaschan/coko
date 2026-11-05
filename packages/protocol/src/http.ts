@@ -313,6 +313,7 @@ export const Provider = Type.Object(
     api: ModelProtocol,
     /** http 或 https URL。 */
     baseUrl: Type.String(),
+    incrementalTools: Type.Optional(Type.Boolean()),
     models: Type.Array(CatalogModel),
     credential: Type.Union([Type.Object({ hint: Type.String() }, strict), Type.Null()]),
     createdAt: Timestamp,
@@ -340,6 +341,7 @@ export const ProviderFields = Type.Object(
     name: Type.String({ minLength: 1 }),
     api: ModelProtocol,
     baseUrl: Type.String({ minLength: 1 }),
+    incrementalTools: Type.Optional(Type.Boolean()),
     models: Catalog,
   },
   strict,

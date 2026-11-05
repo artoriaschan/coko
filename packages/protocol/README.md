@@ -22,6 +22,8 @@ Sidecar 与客户端（桌面 main 与 renderer、外部客户端）之间的契
 
 ### 控制通道
 
+`Provider` 与 `ProviderFields` 接受可选布尔字段 `incrementalTools`。它随 `provider.save` 一次提交，不设值表示使用协议默认值；Headless 的 Provider 配置复用同一 schema。默认与工具传输条件见 [MCP](../../docs/subsystems/mcp.md#provider-的工具增量传输)。
+
 Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, message }`、`shutdown-complete`、`inspect-quit.result`、`credential.decrypt`、`secret.decrypt`、`provider.save.result`、`provider.models.result`、`secret.store.result`、`notify`。宿主 → Sidecar：`shutdown`、`inspect-quit`、`provider.save`、`provider.models`、`provider.models.cancel`、`credential.decrypt.result`、`secret.store`、`secret.decrypt.result`。密钥的加解密只在 main（ADR 0004）；standalone 的 Sidecar 没有 main，Credential 只读 `COKO_CREDENTIAL_<ID>`，Secret 只读 `COKO_SECRET_<NAME>`，也不能保存 Provider。
 
 ### WebSocket

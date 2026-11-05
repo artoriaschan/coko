@@ -83,6 +83,7 @@ interface ProviderRow {
   name: string
   api: string
   base_url: string
+  incremental_tools: number | null
   models: string
   created_at: number
   updated_at: number
@@ -129,6 +130,7 @@ const toProvider = (r: ProviderRow): Provider => ({
   name: r.name,
   api: r.api,
   baseUrl: r.base_url,
+  ...(r.incremental_tools === null ? {} : { incrementalTools: r.incremental_tools === 1 }),
   models: JSON.parse(r.models) as JsonValue[],
   credential: r.hint === null ? null : { hint: r.hint },
   createdAt: r.created_at,
@@ -140,7 +142,7 @@ const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(f
 
 const SESSION_SELECT =
   'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, directory, cwd, project_id, pinned_at, archived_at, created_at, updated_at FROM sessions'
-const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
+const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.incremental_tools, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
 export function createSessionRepository(conn: Connection, payloads: Pick<StoreOptions, 'payloads' | 'onInvalidEntry'>): SessionRepository {
@@ -417,11 +419,12 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           if (select(id)) throw alreadyExists('provider', id)
           const at = conn.now()
           conn.run(
-            'INSERT INTO providers (id, name, api, base_url, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO providers (id, name, api, base_url, incremental_tools, models, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             input.name,
             input.api,
             input.baseUrl,
+            input.incrementalTools === undefined ? null : Number(input.incrementalTools),
             JSON.stringify(input.models),
             at,
             at,
@@ -437,10 +440,11 @@ export function createProviderRepository(conn: Connection): ProviderRepository {
           const next = { ...current, ...patch, id }
           const at = conn.now()
           conn.run(
-            'UPDATE providers SET name = ?, api = ?, base_url = ?, models = ?, updated_at = ? WHERE id = ?',
+            'UPDATE providers SET name = ?, api = ?, base_url = ?, incremental_tools = ?, models = ?, updated_at = ? WHERE id = ?',
             next.name,
             next.api,
             next.baseUrl,
+            next.incrementalTools === undefined ? null : Number(next.incrementalTools),
             JSON.stringify(next.models),
             at,
             id,
