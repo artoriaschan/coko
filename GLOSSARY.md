@@ -44,6 +44,10 @@ _Avoid_: turn（turn 指一次模型请求与其工具调用）
 Run 进行中用户追加的指令，在当前步骤结束后送达 Agent。
 _Avoid_: interrupt、插话
 
+**Host Notification**：
+Coko 告知 Agent 在当前 Run 之外发生的事，例如 Background Job 结束、后台 Subagent 结束与 Agent Team 内的消息；即使与 Steering 经同一通道送达，也不算用户的输入。中文称“宿主通知”。
+_Avoid_: 系统消息、event、Steering（Steering 是用户追加的指令）
+
 **Interrupted Run**：
 因 Sidecar 崩溃或强制退出而没有正常结束记录、在下次启动时被判定为中断的 Run。
 _Avoid_: crashed run、failed run
@@ -232,6 +236,10 @@ _Avoid_: env var、token、Credential（Credential 专指 Provider 的密钥）
 **Memory Entry**：
 跨 Session 保留、属于用户或某个 Workspace 的一条记忆，由模型或用户增删。
 _Avoid_: note、fact
+
+**State Update**：
+Coko 告知 Agent 某项 Session 状态当前的值，例如 Todo List、Goal 的进度、Agent Team 的成员状态与当天日期；同一项状态较新的更新取代较早的。与 Host Notification 的区别是它记录值而不是发生过的事。中文称“状态更新”。
+_Avoid_: reminder（Schedule 同样避免）、system prompt、attachment
 
 **File Reference**：
 用户消息中以 @ 指向 Workspace 内文件或目录、提交时附上其内容的引用。
