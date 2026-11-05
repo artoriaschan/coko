@@ -6,6 +6,11 @@ import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
 import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
+/** The card and mounted projection share the same null-rendering decision. */
+export function planCardSuppressed(item: Extract<TimelineItem, { kind: 'plan' }>, entries: readonly import('@coko/protocol').SessionEntry[]) {
+  return item.plan.status === 'proposed' && (planHistory(entries).get(item.plan.planId) ?? []).some((p) => p.seq > Number(item.key))
+}
+
 /**
  * 时间线的计划卡（plan 条目）：标题、修订与状态，被拒绝时带反馈。proposed 的条目在同一计划有后续条目（批准、拒绝或新修订）后不再显示，
  * 时间线只留结论。点击切到右栏的 Plan tab。
@@ -13,9 +18,8 @@ import type { TimelineItem } from './timeline.ts'
 export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' }> }) {
   const { t } = useI18n()
   const { plan } = item
-  const seq = Number(item.key)
   const { entries, historical, readOnly, openPlan } = useTimelineSession()
-  const superseded = plan.status === 'proposed' && (planHistory(entries).get(plan.planId) ?? []).some((p) => p.seq > seq)
+  const superseded = planCardSuppressed(item, entries)
   const inline = historical || readOnly || openPlan === undefined
   const [expanded, setExpanded] = React.useState(false)
   const title = React.useMemo(() => planTitle(plan.markdown), [plan.markdown])

@@ -1,3 +1,4 @@
+import { publishTimelineProjection, releaseTimelineProjection } from './timeline-projection.ts'
 import { copiedReplyFooters } from './fork-history.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
@@ -22,7 +23,7 @@ import { AssistantFooter, completedReplyFooters, endedRunFooter, withoutPricing 
 import { ReasoningRow } from './reasoning-row.tsx'
 import { sumUsageByRun } from './session-cost.tsx'
 import { useMessageIdentities } from './message-identities.ts'
-import { PlanCard } from './plan-card.tsx'
+import { PlanCard, planCardSuppressed } from './plan-card.tsx'
 import type { TimelineItem } from './timeline.ts'
 import { ProcessTimeline } from './process-timeline.tsx'
 import type { DisplayRun } from './process-groups.ts'
@@ -30,6 +31,8 @@ import { TimelineSessionContext } from './timeline-session.tsx'
 import { ToolCardView } from './tool-cards.tsx'
 
 export interface TimelineViewProps {
+  /** Only ConversationPane opts in; child/rewound timelines never publish. */
+  publishMainProjection?: boolean
   historical?: boolean
   readOnly?: boolean
   onOpenPlan?: () => void
@@ -74,7 +77,21 @@ export function TimelineView(props: TimelineViewProps) {
   )
   // Suppressed ending seats must not reserve a ProcessTimeline gap after a final reply.
   const visibleItems = items.filter((item) => item.kind !== 'run-usage' || endingFooters.has(item.key))
+  const projectionOwner = React.useMemo(() => ({}), [props.sessionId])
+  React.useLayoutEffect(() => {
+    if (!props.publishMainProjection || !props.sessionId) return
+    const id = props.sessionId
+    return () => releaseTimelineProjection(projectionOwner, id)
+  }, [projectionOwner, props.publishMainProjection, props.sessionId])
   const renderItem = (item: TimelineItem) => {
+    if (item.kind === 'thinking' && item.text.trim() === '') return null
+    if (item.kind === 'plan' && planCardSuppressed(item, props.entries ?? [])) return null
+    const rootAttributes = {
+      'data-timeline-identity': messageIdentities.get(item.key) ?? item.key,
+      'data-run-id': item.origin?.runId ?? undefined,
+      'data-entry-seq': item.origin?.seq,
+      ...(item.kind === 'tool' ? { 'data-tool-call-id': item.call.id } : {}),
+    }
     switch (item.kind) {
       case 'user': {
         const actions = item.checkpoint && onRewind
@@ -248,9 +265,17 @@ export function TimelineView(props: TimelineViewProps) {
           </article>
         )
       case 'thinking':
-        return <ReasoningRow key={messageIdentities.get(item.key) ?? item.key} text={item.text} streaming={item.streaming} theme={theme} />
+        return (
+          <ReasoningRow
+            key={messageIdentities.get(item.key) ?? item.key}
+            text={item.text}
+            streaming={item.streaming}
+            theme={theme}
+            rootAttributes={rootAttributes}
+          />
+        )
       case 'tool':
-        return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} />
+        return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} rootAttributes={rootAttributes} />
       case 'generating':
         return (
           <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">
@@ -342,6 +367,16 @@ export function TimelineView(props: TimelineViewProps) {
         runs={props.runs}
         connected={props.connected}
         renderItem={renderItem}
+        onProjection={
+          props.publishMainProjection && props.sessionId
+            ? (projection) =>
+                publishTimelineProjection(projectionOwner, {
+                  ...projection,
+                  sessionId: props.sessionId!,
+                  entries: props.entries ?? [],
+                })
+            : undefined
+        }
       />
     </TimelineSessionContext.Provider>
   )

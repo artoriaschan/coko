@@ -40,14 +40,30 @@ function preview(text: string, streaming: boolean): string {
 }
 
 /** Reasoning disclosure keeps its body mounted across streaming and settlement. */
-export function ReasoningRow({ text, streaming, theme }: { text: string; streaming: boolean; theme: Theme }) {
+export function ReasoningRow({
+  text,
+  streaming,
+  theme,
+  rootAttributes,
+}: {
+  text: string
+  streaming: boolean
+  theme: Theme
+  rootAttributes?: Readonly<Record<`data-${string}`, string | number | undefined>>
+}) {
   const { t } = useI18n()
   const [expanded, setExpanded] = useProcessDisclosure()
   const id = React.useId()
   if (text.trim() === '') return null
   const summary = preview(text, streaming)
   return (
-    <section data-slot="reasoning" data-streaming={streaming || undefined} data-expanded={expanded || undefined} className="conversation-reasoning">
+    <section
+      {...rootAttributes}
+      data-slot="reasoning"
+      data-streaming={streaming || undefined}
+      data-expanded={expanded || undefined}
+      className="conversation-reasoning"
+    >
       {streaming && <span className="sr-only">{t('tool.running')}</span>}
       <button
         type="button"

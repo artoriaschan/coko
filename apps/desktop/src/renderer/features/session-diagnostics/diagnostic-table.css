@@ -29,3 +29,20 @@
 .diagnostic-table tr[aria-selected='true'] {
   background: var(--accent);
 }
+
+@keyframes diagnostic-update {
+  from {
+    background-color: var(--accent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.diagnostic-table tr[data-diagnostic-updated] {
+  animation: diagnostic-update 700ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagnostic-table tr[data-diagnostic-updated] {
+    animation: none;
+  }
+}

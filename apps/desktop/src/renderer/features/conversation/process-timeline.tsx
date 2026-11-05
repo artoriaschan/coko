@@ -1,4 +1,5 @@
 import * as React from 'react'
+import type { TimelineProjection } from './timeline-projection.ts'
 import type { Translator } from '@coko/i18n'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -84,7 +85,7 @@ function Group({
   )
   const activity = processActivities(group.members)[0]
   return (
-    <section hidden={hidden} data-slot="process-group" data-run-id={group.runId} className="conversation-process-group">
+    <section hidden={hidden} data-slot="process-group" data-process-group-id={group.id} data-run-id={group.runId} className="conversation-process-group">
       <div ref={header} hidden={headerHidden}>
         <button
           type="button"
@@ -149,6 +150,7 @@ function ProcessSeat({
 }
 
 export interface ProcessTimelineProps {
+  onProjection?: ((projection: Omit<TimelineProjection, 'sessionId' | 'entries'>) => void) | undefined
   items: TimelineItem[]
   identities: ReadonlyMap<string, string>
   runs?: ReadonlyMap<string, DisplayRun>
@@ -252,7 +254,7 @@ function RunControl({
   )
 }
 
-export function ProcessTimeline({ items, identities, runs = new Map(), connected = false, renderItem }: ProcessTimelineProps) {
+export function ProcessTimeline({ items, identities, runs = new Map(), connected = false, renderItem, onProjection }: ProcessTimelineProps) {
   const previous = React.useRef<ProcessGroup[]>([])
   const seats = processSeats(items, identities, previous.current)
   previous.current = seats.filter((seat) => seat.kind === 'process')
@@ -267,9 +269,25 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
   const first = new Set<string>()
   const eligibility = new Map<string, boolean>()
   const nodes: React.ReactNode[] = []
+  const renderedKeys = new Set<string>()
+  const render = (item: TimelineItem) => {
+    const node = renderItem(item)
+    if (node !== null && node !== undefined) renderedKeys.add(item.key)
+    // Attribute native semantic roots without changing the reading tree or keys.
+    if (React.isValidElement<Record<string, unknown>>(node) && typeof node.type === 'string')
+      return React.cloneElement(node, {
+        'data-timeline-identity': identities.get(item.key) ?? item.key,
+        'data-run-id': item.origin?.runId,
+        'data-entry-seq': item.origin?.seq,
+      })
+    return node
+  }
+  React.useLayoutEffect(() => {
+    onProjection?.({ items, identities, seats, runs, renderedKeys })
+  })
   for (const seat of seats) {
     if (seat.kind === 'row') {
-      nodes.push(renderItem(seat.item))
+      nodes.push(render(seat.item))
       continue
     }
     const run = runs.get(seat.runId)
@@ -343,7 +361,7 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
                 collapsing={!open}
                 focused={groupFocused}
                 focusTarget={groupFocused ? focusTargets.current.get(seat.id) : undefined}
-                renderItem={renderItem}
+                renderItem={render}
               />
             )}
           </ProcessSeat>

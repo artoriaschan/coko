@@ -7,6 +7,8 @@ import './tool-row.css'
 export type ToolCardStatus = 'running' | 'done' | 'error' | 'pending' | 'awaiting'
 
 export interface ToolCardProps {
+  /** Opaque owner-supplied observation attributes on the existing semantic root. */
+  rootAttributes?: Readonly<Record<`data-${string}`, string | number | undefined>>
   icon: React.ReactNode
   /** 工具或操作名（已本地化或协议原文）。 */
   title: string
@@ -47,6 +49,7 @@ function LegacyToolCard({
   expanded: controlledExpanded,
   onExpandedChange,
   className,
+  rootAttributes,
   ...rest
 }: ToolCardProps) {
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded)
@@ -76,6 +79,7 @@ function LegacyToolCard({
   )
   return (
     <div
+      {...rootAttributes}
       data-slot="tool-card"
       data-status={status}
       data-tool={rest['data-tool']}
@@ -121,6 +125,7 @@ function ToolRow({
   expanded: controlledExpanded,
   onExpandedChange,
   className,
+  rootAttributes,
   ...rest
 }: ToolCardProps) {
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded)
@@ -133,7 +138,7 @@ function ToolRow({
   const header = React.useRef<HTMLButtonElement>(null)
   const hasBody = children !== undefined && children !== null && children !== false
   return (
-    <div data-slot="tool-card" data-variant="row" data-tool={rest['data-tool']} data-status={status} className={cn('tool-row', className)}>
+    <div {...rootAttributes} data-slot="tool-card" data-variant="row" data-tool={rest['data-tool']} data-status={status} className={cn('tool-row', className)}>
       <span className="sr-only" role="status">
         {statusLabel}
       </span>

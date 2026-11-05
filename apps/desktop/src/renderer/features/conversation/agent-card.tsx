@@ -37,7 +37,15 @@ function resultBody(text: string): string {
  * 后台 chip 与保留的 worktree；明细为结果文本与"在右栏查看"。状态与用量只来自宿主的 agent_start / agent_end 与 agent_update，
  * 不读结果文本中的标签。
  */
-export function AgentCard({ item, onInspect }: { item: ToolItem; onInspect?: () => void }) {
+export function AgentCard({
+  item,
+  onInspect,
+  rootAttributes,
+}: {
+  item: ToolItem
+  onInspect?: () => void
+  rootAttributes?: React.ComponentProps<typeof ToolCard>['rootAttributes']
+}) {
   const [expanded, onExpandedChange] = useProcessDisclosure()
   const { t, locale } = useI18n()
   const agents = useAgentsStoreApi()
@@ -72,6 +80,7 @@ export function AgentCard({ item, onInspect }: { item: ToolItem; onInspect?: () 
   const result = item.result && !background ? resultBody(item.result.text) : failedToStart ? (item.result?.text ?? '') : undefined
   return (
     <ToolCard
+      rootAttributes={rootAttributes}
       variant="row"
       data-tool="agent"
       icon={<BotIcon />}

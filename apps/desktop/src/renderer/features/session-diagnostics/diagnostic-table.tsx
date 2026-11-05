@@ -6,15 +6,36 @@ import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { DiagnosticTableHierarchy, diagnosticRowCollapsed, type DiagnosticDisclosure, type DiagnosticRow } from './table-model.ts'
 import { DiagnosticTableLayout, DIAGNOSTIC_ROW_HEIGHT, type DiagnosticRowAnchor } from './table-layout.ts'
-import type { DiagnosticModel } from './table-model.ts'
+import type { DiagnosticModel, DiagnosticRecord } from './table-model.ts'
 import { diagnosticPreview } from './format.ts'
 import { RecordDetails } from './record-details.tsx'
 import './diagnostic-table.css'
 
 /** 共享的只读表格；数据模型不拥有滚动、选择、折叠或详情高度。 */
-export function DiagnosticTable({ model, showTime = true, toolbar }: { model: DiagnosticModel; showTime?: boolean; toolbar?: React.ReactNode }) {
+export function DiagnosticTable({
+  model,
+  showTime = true,
+  toolbar,
+  renderDetails,
+  onSelect,
+  changedKeys,
+  revealRequest,
+}: {
+  model: DiagnosticModel
+  showTime?: boolean
+  toolbar?: React.ReactNode
+  renderDetails?: (record: DiagnosticRecord | undefined, selectedKey: string) => React.ReactNode
+  onSelect?: (key: string | null) => void
+  changedKeys?: ReadonlySet<string>
+  revealRequest?: { key: string; nonce: object } | undefined
+}) {
+  void revealRequest // The shared table reveal controller is integrated by the filter ticket.
   const { t } = useI18n()
-  const [selected, setSelected] = React.useState<string | null>(null)
+  const [selected, updateSelected] = React.useState<string | null>(null)
+  const setSelected = (key: string | null) => {
+    updateSelected(key)
+    onSelect?.(key)
+  }
   const [disclosures, setDisclosures] = React.useState<ReadonlyMap<string, DiagnosticDisclosure>>(new Map())
   const scroller = React.useRef<HTMLDivElement>(null)
   const follow = React.useRef<'tail' | 'scroll' | 'manual'>('tail')
@@ -153,6 +174,7 @@ export function DiagnosticTable({ model, showTime = true, toolbar }: { model: Di
                   <tr
                     className="hover:bg-accent"
                     data-record-key={row.key}
+                    data-diagnostic-updated={changedKeys?.has(row.key) || undefined}
                     aria-rowindex={item.index + 2}
                     aria-selected={row.key === selected}
                     data-sticky={level === undefined ? undefined : ''}
@@ -209,7 +231,11 @@ export function DiagnosticTable({ model, showTime = true, toolbar }: { model: Di
         </table>
         {model.rows.length === 0 && <p className="p-3 text-ui-body text-muted-foreground">{t('diagnostics.empty')}</p>}
       </div>
-      {selected !== null && <RecordDetails value={selectedRecord?.value} removed={selectedRecord === undefined} onClose={() => setSelected(null)} />}
+      {selected !== null && (
+        <RecordDetails value={selectedRecord?.value} removed={selectedRecord === undefined} onClose={() => setSelected(null)}>
+          {renderDetails?.(selectedRecord, selected)}
+        </RecordDetails>
+      )}
     </div>
   )
 }
