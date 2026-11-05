@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/04-keyword-search-and-scope.md
+  s_dd1034265ded7f::t_ef2fbdc5c86986 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "8ba793f7f190fe8b212cc91a691a042cd981f0dc",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
