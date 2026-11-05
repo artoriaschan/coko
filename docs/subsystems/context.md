@@ -14,6 +14,8 @@ lifecycle: active
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
+continue 在 Run 开始时同样比较当前状态。有变化时先提交 `state_update` 条目，再以只含这些块的 user message 发起请求；这既适用于暂停前以工具结果结尾，也适用于以 user message 结尾的上下文。没有变化时不新增消息或状态条目，沿用原有 continue 路径。纯状态消息不授予用户权限，也不唤醒 waiting-input 的 Goal；真正的用户输入仍按原有规则处理。
+
 时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 开始时不读新状态，重试保留原请求上下文。
 
 同一 Run 内自动或溢出压缩成功后，按压缩后的有效上下文重新比较当前状态。在下一次模型请求之前依次提交需要补发的 `state_update` 条目和只含块的 user message，并将消息追加到运行时上下文；不经 Steering 队列。补发消息提交失败时按 `commit_failed` 停止，不发送未保存的状态；之后请求失败的 retry 仍重放已经保存的补发消息。手动 compact 不补发，之后的 Run 再按当前状态判断。

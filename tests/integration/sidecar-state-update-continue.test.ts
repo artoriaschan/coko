@@ -113,6 +113,7 @@ it('continuing a Goal Round with only State Updates neither grants user authorit
   expect((goalRun.payload as { trigger: string }).trigger).toBe('goal')
   expect((await h.api.post(runPaths.sessionPause(h.sessionId))).status).toBe(204)
   await h.waitEnd(goalRun.runId!)
+  expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'pause', revision: 999 })).status).toBe(409)
   const before = await h.api.get(goalPaths.sessionGoal(h.sessionId))
   expect(before.body.goal).toMatchObject({ phase: 'waiting-input', revision: 2 })
   const continued = await h.resume()
@@ -123,7 +124,8 @@ it('continuing a Goal Round with only State Updates neither grants user authorit
   }
   expect(result).toMatchObject({ isError: true })
   expect(result.content[0]!.text).toContain('pause needs a user request')
-  // This read shares the Goal lock with run-end processing, so it observes the completed wake decision.
+  // A rejected stale action takes the Goal lock after run-end processing without changing its state.
+  expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'pause', revision: 999 })).status).toBe(409)
   const after = await h.api.get(goalPaths.sessionGoal(h.sessionId))
   expect(after.body.goal).toMatchObject({ phase: 'waiting-input', revision: 2 })
   expect(h.entries().filter((entry) => entry.kind === 'run_start')).toHaveLength(3)
@@ -170,6 +172,7 @@ it('continue can append an edited Goal snapshot directly after a paused user mes
   const last = (await h.requests()).at(-1)!
   expect(last.slice(-2).map((message) => message.role)).toEqual(['user', 'user'])
   expect(last.at(-1)!.content).toEqual((continued.find((entry) => role(entry) === 'user')!.payload as { content: unknown }).content)
+  expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'pause', revision: 999 })).status).toBe(409)
   expect((await h.api.get(goalPaths.sessionGoal(h.sessionId))).body.goal).toMatchObject({ phase: 'waiting-input', revision: 3 })
   expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
 })
