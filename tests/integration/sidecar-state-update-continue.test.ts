@@ -2,8 +2,8 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { API_ROUTES, apiPaths, goalPaths, hookPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
+import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
 type LoggedMessage = { role: string; content?: { type: string; text?: string }[] }
 const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
@@ -87,5 +87,89 @@ it('continue sends changed Todo after a tool result, and unchanged Todo adds no 
   expect(unchanged.map(role)).toEqual(['run_start', 'model_request', 'assistant', 'run_end'])
   expect((await h.requests()).at(-1)!.at(-1)).toMatchObject({ role: 'toolResult' })
   expect(h.stream.invalidEntries).toEqual([])
+  expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+})
+
+it('continuing a Goal Round with only State Updates neither grants user authority nor wakes a waiting Goal', { timeout: 60_000 }, async () => {
+  const h = await boot([
+    { content: [call('create_goal', 'create', { objective: 'review the project', criteria: ['done'], budget: { max_rounds: 3 } })] },
+    { content: 'goal set' },
+    {
+      content: [
+        call('todo_write', 'todo', { items: [{ content: 'review', status: 'pending' }] }),
+        call('write', 'write', { path: 'guarded.txt', content: 'guarded' }),
+      ],
+    },
+    { content: [call('update_goal', 'pause', { goal_id: 'goal-1', revision: 2, action: 'pause' })] },
+    { content: 'waiting for the user' },
+  ])
+  expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'default' })).status).toBe(200)
+  await h.submit('create the goal')
+  await waitApproval(h.stream, h.sessionId)
+  const goalRun = h
+    .entries()
+    .filter((entry) => entry.kind === 'run_start')
+    .at(-1)!
+  expect((goalRun.payload as { trigger: string }).trigger).toBe('goal')
+  expect((await h.api.post(runPaths.sessionPause(h.sessionId))).status).toBe(204)
+  await h.waitEnd(goalRun.runId!)
+  const before = await h.api.get(goalPaths.sessionGoal(h.sessionId))
+  expect(before.body.goal).toMatchObject({ phase: 'waiting-input', revision: 2 })
+  const continued = await h.resume()
+  expect(continued.filter((entry) => entry.kind === 'state_update').map((entry) => (entry.payload as { name: string }).name)).toEqual(['goal', 'todo_list'])
+  const result = continued.find((entry) => entry.kind === 'message' && (entry.payload as { toolName?: string }).toolName === 'update_goal')!.payload as {
+    isError: boolean
+    content: { text: string }[]
+  }
+  expect(result).toMatchObject({ isError: true })
+  expect(result.content[0]!.text).toContain('pause needs a user request')
+  // This read shares the Goal lock with run-end processing, so it observes the completed wake decision.
+  const after = await h.api.get(goalPaths.sessionGoal(h.sessionId))
+  expect(after.body.goal).toMatchObject({ phase: 'waiting-input', revision: 2 })
+  expect(h.entries().filter((entry) => entry.kind === 'run_start')).toHaveLength(3)
+  expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+})
+
+it('continue can append an edited Goal snapshot directly after a paused user message', { timeout: 60_000 }, async () => {
+  const h = await boot([
+    { content: [call('create_goal', 'create', { objective: 'review', criteria: ['done'], budget: { max_rounds: 3 } })] },
+    { content: 'goal set' },
+    { content: [call('update_goal', 'wait', { goal_id: 'goal-1', revision: 1, action: 'wait_input', reason: 'need a decision' })] },
+    { content: 'waiting' },
+    { content: 'received edited state' },
+  ])
+  await h.submit('create the goal')
+  await h.stream.waitFor(() => h.entries().some((entry) => entry.kind === 'goal' && (entry.payload as { phase: string }).phase === 'waiting-input'))
+  await h.waitEnd(
+    h
+      .entries()
+      .filter((entry) => entry.kind === 'run_start')
+      .at(-1)!.runId!,
+  )
+  expect(
+    (
+      await h.api.put(hookPaths.hooks, {
+        expectedRevision: 0,
+        hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `printf '%s' '{"continue":false,"stopReason":"hold before request"}'` }] }] },
+      })
+    ).status,
+  ).toBe(200)
+  const held = await h.submit('hold this request')
+  await h.waitEnd(held)
+  expect(
+    h
+      .entries()
+      .filter((entry) => entry.kind === 'message')
+      .at(-1),
+  ).toMatchObject({ payload: { role: 'user' } })
+  expect((await h.api.post(goalPaths.sessionGoal(h.sessionId), { action: 'edit', revision: 2, objective: 'review the edited target' })).status).toBe(200)
+  const continued = await h.resume()
+  expect(continued.filter((entry) => entry.kind === 'state_update').map((entry) => entry.payload)).toEqual([
+    expect.objectContaining({ name: 'goal', value: expect.objectContaining({ revision: 3, phase: 'waiting-input' }) }),
+  ])
+  const last = (await h.requests()).at(-1)!
+  expect(last.slice(-2).map((message) => message.role)).toEqual(['user', 'user'])
+  expect(last.at(-1)!.content).toEqual((continued.find((entry) => role(entry) === 'user')!.payload as { content: unknown }).content)
+  expect((await h.api.get(goalPaths.sessionGoal(h.sessionId))).body.goal).toMatchObject({ phase: 'waiting-input', revision: 3 })
   expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
 })
