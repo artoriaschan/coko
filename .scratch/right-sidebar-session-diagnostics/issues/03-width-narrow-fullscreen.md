@@ -65,3 +65,5 @@
 - 文档影响：产品行为没有变化，只补充本票及集成验收票的检查证据；正式正文无需变更。测试同步遵循测试约定的“等待可观察状态”和“测试随行为演进”。本次没有验证真实鼠标、原生红绿灯或签名发布构建；第 12 票仍须对最终集成代码核对整体证据。
 
 - 补充检查：`rtk pnpm run format:check apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts` 退出 0；`rtk pnpm run check:docs` 检查 342 个 Markdown、0 问题，退出 0；`rtk git diff --check` 通过。由 AGENTS → docs/README → 测试约定读回，测试接缝、同步方法、证据边界与本次改动相符；没有正式文档的失效引用或需迁移结论。
+
+- 合入第 07 票 `f3a8db9d` 后（合并提交 `ad1d0b5b`，无冲突），冻结依赖安装退出 0；重新运行上述四份真实 Electron E2E：4 文件、5 项通过、0 跳过，退出 0，47.89s。`rtk pnpm run typecheck` 退出 0；`rtk pnpm run check:docs` 检查 344 个 Markdown、0 问题，退出 0。该补验使用包含原始诊断表格与第三方声明的新打包源码，不沿用合并前产物。
