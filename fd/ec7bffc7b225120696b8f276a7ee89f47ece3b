@@ -1,0 +1,47 @@
+.scratch/right-sidebar-session-diagnostics/issues/04-layout-persistence.md
+  s_eff121e41805b1::t_79feb316d63764 21-29,34-46,50-58
+  s_eff121e41805b1::t_edf8361a245b55 47-49
+apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx
+  s_eff121e41805b1::t_e4fd6161a5f41a 90-120,122-124
+  s_eff121e41805b1::t_f114efd0be9d08 1-2,4-10,12,34-36,38-43,89
+  s_eff121e41805b1::t_c519eb7b5a3a68 13-16,32-33,37,72-88
+  s_eff121e41805b1::t_55a9689c26b5e3 18-30
+  s_eff121e41805b1::t_f17dcbcdddcb6b 3,121
+  s_eff121e41805b1::t_0a9749e25d94e1 125-147
+  s_eff121e41805b1::t_3dd087b5975516 11,17,31,44-71
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_eff121e41805b1::t_650015153ae97b 1-25
+apps/desktop/e2e/right-panel-persistence.e2e.test.ts
+  s_eff121e41805b1::t_69606b2d217ec8 55,62
+  s_eff121e41805b1::t_8d37cb4813bbad 1-36,43-54,56-61,63-65,72-98,102-112,117-118
+  s_eff121e41805b1::t_55a9689c26b5e3 37-42,66-71,99-101,113-116
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_b81da2afd922e1 39-41
+apps/desktop/src/renderer/features/right-panel/layout-persistence.test.ts
+  s_eff121e41805b1::t_55a9689c26b5e3 5-13,30-41
+  s_eff121e41805b1::t_e4fd6161a5f41a 1-4,14-29,42
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_eff121e41805b1::t_8f12bcfd434fe2 35,38-39,43,63-67,71-77,79-80,82,89-92,95-99,105,112,117
+  s_eff121e41805b1::t_84083a64551911 78,81,83-88,93-94
+  s_eff121e41805b1::t_3281e846cc3d34 2,24,109-111,113
+  s_eff121e41805b1::t_650015153ae97b 3,14,20-23,26-34,36-37,40-42,44-46,52-62,108
+  s_eff121e41805b1::t_55a9689c26b5e3 47-51,68-70,100-104
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_eff121e41805b1::t_8f12bcfd434fe2 28,433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "fdec7bffc7b225120696b8f276a7ee89f47ece3b",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
