@@ -44,7 +44,7 @@ status: approved
 
 **假设**（实施时核对）
 
-- 同一个 WebSocket 上，服务端先发出 Run 的 progress，再发出对应的条目。增量转交给条目的规则依赖这个顺序。
+- **已核对（2026-11-05）**：不存在统一的 progress 先于对应条目的保证。runtime 的 `run_start`、助手增量、工具进度先于对应提交，但 runtime 在提交 `run_end` 后发送结束进度，compaction-driver 在提交 `compaction` 后发送 `compaction_end`。Pi Agent Core 1.4.0 的事件派发逐个 await listener，所以助手 message_end 提交完成后才进入工具事件。SessionRuntimes 先持久化再发布 entry；WS 在补发历史期间缓冲实时消息，不能据此推导全局进度优先。模型同时在条目提交时转交待匹配帧，并在进度到达时查已有对应条目；助手块只绑定其采集窗口之后的下一条助手提交。
 - 现有的过程分组展开状态可以从时间线外部请求展开。定位接口通过它展开折叠层，不改 DOM。
 
 ## 模块责任与依赖
@@ -118,6 +118,8 @@ sequenceDiagram
 - `tool_start`、`tool_update`、`tool_end` 按 (runId, toolCallId) 分组。对应的 toolResult 条目提交后，转到它下面。
 - 压缩相关进度在 compaction 条目提交后转到它下面；`run_start` / `run_end` 进度在同名条目提交后转到它下面。
 - 其余进度（重试、上下文用量等）和没有匹配的增量，留在“实时进度”行下。
+- 订阅宿主挂在 App 内、右栏视口之外，同步订阅 chat store 与布局 store。只以“当前 Session + 诊断 tab 存在”判定采集，不依赖活动页或面板可见。每次进度回调先按 chat store 已提交的条目核对转交，随后处理当前帧；不从 live 正文重建历史帧。
+- 内容块偏移按 UTF-16 位置拼接，重复/一致重叠去重；缺前缀、间隙或冲突保留原帧但不提供拼接预览。条目下的增量默认收起；run_start 自身同时是 Run 组头，保留其展开状态，起始帧放在独立收起的 progress/run_start 子组。
 
 **对话分组与定位。**
 

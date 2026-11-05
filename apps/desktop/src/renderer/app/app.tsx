@@ -11,6 +11,7 @@ import { ChatStoreProvider } from './chat.tsx'
 import type { ConnectionStore } from './connection-store.ts'
 import type { ComposerHandle } from '../features/conversation/composer.tsx'
 import { ConversationPane } from '../features/conversation/conversation-pane.tsx'
+import { DiagnosticProgressProvider } from '../features/session-diagnostics/progress-capture.tsx'
 import { RightPanel } from '../features/right-panel/right-panel.tsx'
 import { SettingsPage } from '../features/settings/settings-page.tsx'
 import { ConversationSearch } from '../features/sidebar/conversation-search.tsx'
@@ -115,54 +116,56 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
   return (
     <I18nProvider locale={locale}>
       <ChatStoreProvider store={chat}>
-        <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
-          <WorkbenchNavigationContext.Provider value={navigation}>
-            <TooltipProvider>
-              <ProjectDialogsProvider pickDirectory={pickDirectory}>
-                <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
-                  {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
-                  <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
-                    <Frame
-                      sidebarWidth={sidebarWidth}
-                      onSidebarWidthChange={setSidebarWidth}
-                      sidebarCollapsed={sidebarCollapsed}
-                      onSidebarCollapsedChange={setSidebarCollapsed}
-                      rightOpen={rightOpen && contentPage === null}
-                      onRightOpenChange={setRightOpen}
-                      rightWidth={rightWidth}
-                      onRightWidthChange={setRightWidth}
-                      rightFullscreen={rightLayout.mode === 'fullscreen'}
-                      onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
-                      sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
-                      rail={<SidebarRail />}
-                      rightPanel={<FrameRightPanel chat={chat} enabled={!settingsVisible && contentPage === null} onClose={() => setRightOpen(false)} />}
-                    >
-                      <div
-                        hidden={contentPage !== null}
-                        inert={contentPage !== null || undefined}
-                        className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+        <DiagnosticProgressProvider chat={chat}>
+          <SettingsProvider store={settings} page={settingsPage} preferences={preferences}>
+            <WorkbenchNavigationContext.Provider value={navigation}>
+              <TooltipProvider>
+                <ProjectDialogsProvider pickDirectory={pickDirectory}>
+                  <div className="relative h-full w-full overflow-hidden rounded-panel [clip-path:border-box]">
+                    {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
+                    <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
+                      <Frame
+                        sidebarWidth={sidebarWidth}
+                        onSidebarWidthChange={setSidebarWidth}
+                        sidebarCollapsed={sidebarCollapsed}
+                        onSidebarCollapsedChange={setSidebarCollapsed}
+                        rightOpen={rightOpen && contentPage === null}
+                        onRightOpenChange={setRightOpen}
+                        rightWidth={rightWidth}
+                        onRightWidthChange={setRightWidth}
+                        rightFullscreen={rightLayout.mode === 'fullscreen'}
+                        onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
+                        sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
+                        rail={<SidebarRail />}
+                        rightPanel={<FrameRightPanel chat={chat} enabled={!settingsVisible && contentPage === null} onClose={() => setRightOpen(false)} />}
                       >
-                        <ConversationPane
-                          theme={theme}
-                          rightOpen={rightOpen && contentPage === null}
-                          onToggleRight={() => setRightOpen(!rightOpen)}
-                          connection={connectionState}
-                          onAddWorkspace={() => {}}
-                          onOpenLogs={openLogs}
-                          composerRef={composer}
-                        />
-                      </div>
-                      {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
-                    </Frame>
+                        <div
+                          hidden={contentPage !== null}
+                          inert={contentPage !== null || undefined}
+                          className={cn('min-h-0 flex-1 flex-col', contentPage === null ? 'flex' : 'hidden')}
+                        >
+                          <ConversationPane
+                            theme={theme}
+                            rightOpen={rightOpen && contentPage === null}
+                            onToggleRight={() => setRightOpen(!rightOpen)}
+                            connection={connectionState}
+                            onAddWorkspace={() => {}}
+                            onOpenLogs={openLogs}
+                            composerRef={composer}
+                          />
+                        </div>
+                        {contentPage && <WorkbenchPage section={contentPage} theme={theme} />}
+                      </Frame>
+                    </div>
+                    <ConversationSearch open={search !== null} onOpenChange={(open) => setSearch(open ? '' : null)} />
+                    <SettingsPage theme={theme} />
                   </div>
-                  <ConversationSearch open={search !== null} onOpenChange={(open) => setSearch(open ? '' : null)} />
-                  <SettingsPage theme={theme} />
-                </div>
-                <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
-              </ProjectDialogsProvider>
-            </TooltipProvider>
-          </WorkbenchNavigationContext.Provider>
-        </SettingsProvider>
+                  <Toaster theme={theme} containerAriaLabel={createTranslator(locale)('toast.region')} />
+                </ProjectDialogsProvider>
+              </TooltipProvider>
+            </WorkbenchNavigationContext.Provider>
+          </SettingsProvider>
+        </DiagnosticProgressProvider>
       </ChatStoreProvider>
     </I18nProvider>
   )
