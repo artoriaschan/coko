@@ -204,6 +204,14 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 - 动效时长与缓动使用主题登记的值，并提供 `motion-reduce:` 下的替代或关闭。
 - **可点击文案不可选中。** 按钮与菜单选项属于界面文案：主题统一为 `button`、`[role=button]` 和菜单选项（含 listbox `option`）设置 `user-select: none`，菜单表面整块沿用该规则，避免点击、双击时选中文案；按钮内以 `data-user-content` 标记的用户内容保持可选择。共享 Button 的基础类同样带 `select-none`，覆盖 `asChild` 渲染的非 `<button>` 元素。
 
+## 右栏 tab 条与引导页
+
+右栏共享 `PanelTabs` 上沿 H38，由顶部 10px 留白与 H28 控件组成；tab 胶囊 H28，最小宽度 80px、最大宽度 170px，圆角沿用 `rounded-sm`，不新增全局几何 token。关闭图标的命中区为 20px，新标签页与末端按钮为 28px；空白区域使用窗口拖拽区，交互区明确退出拖拽区。开始页卡片使用 `rounded-xl`、两列居中排列，仅显示图标和标题。
+
+tab 列表单独横向滚动，主题为 `.panel-tab-scroll` 隐藏滚动条；只有列表收缩，末端按钮保持尺寸。滚动位置决定左端、右端或两端各 12px 的渐隐，渐隐不影响后面的操作。标题单行省略，实际截断时才使用共享 Tooltip 显示全文；菜单继续使用共享 RowMenu 和 DropdownMenu 的材质、定位、关闭与焦点规则。
+
+重复打开已显示页面时，覆盖层使用 `ring` 语义色向内发光。600ms 持续时间在主题中以 `.panel-attention` 的组件局部值登记，不增加全局 token；WAAPI 读取此值。减少动态效果时保持同样时长的静态提示，以免被全局缩短 CSS 动画的规则清除。正文不参与动画或重挂载。
+
 ## 样式守卫
 
 对话消息的局部 Markdown 代码栏使用 `--conversation-code-banner`（亮色 `gray-50`、暗色 `gray-800`），保留共享 Markdown 的其他消费者。`messages.css` 中 `backdrop-filter: none` 是精确登记的例外：它关闭 Streamdown 行内代码工具栏自带的浮层模糊，使其落在代码标题栏中；该区域不是菜单，不改变菜单背景或共享菜单材质。思考标识使用参考版本的 16px think artwork、1px regular 线宽，限于对话详情复刻区域；原有 Coko 回退、分叉等动作继续使用现有图标库。

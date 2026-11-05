@@ -40,6 +40,10 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
 
+tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/End 只移动焦点，Enter/空格选择页面；⌘/Ctrl+Shift+左右方向键移动聚焦的 tab 并保留活动页面。指针排序复用 `@dnd-kit/core`。tab 可以用关闭按钮、中键，或共享右键菜单中的“关闭”“关闭其他标签页”“关闭右侧标签页”关闭，批量关闭仅影响当前 Session；唯一的引导页中键与右键均无效。tab 溢出时横向滚动并按滚动位置渐隐，后面的新标签页与收起按钮不被压缩；实际截断的标题在悬停或键盘聚焦时通过 Tooltip 显示全文。
+
+从外部入口重复打开已显示的活动页面时，共享 `PanelAttention` 在该格内发光约 600ms；切到后台页面或重新展开右栏不发光。减少动态效果时，同样保留 600ms 的静态提示。发光只重建覆盖层，正文不重新挂载。[真实 App 右栏 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)覆盖排序、关闭、焦点、390px 明暗主题与中英文，以及真实浏览器 reduced-motion 偏好；[共享标签条 Browser Mode](../../packages/ui/src/components/panel-tabs.browser.test.tsx)覆盖长标题截断与全文 Tooltip。
+
 详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
 
 验证：[真实 App 的标题与连接状态 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)、[Session 汇总与标题栏费用移除](../../apps/desktop/src/renderer/features/conversation/session-cost.browser.test.tsx)、[真实 Electron 联合验收](../../apps/desktop/e2e/conversation-status-header.e2e.test.ts)（四个状态入口同时存在、zh/en、明暗主题、390px、控件命中区及主区无横向偏移）。
