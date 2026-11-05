@@ -1,0 +1,88 @@
+packages/agent/src/tools/lsp/tool.ts
+  s_6cadf0cc1974f1::t_859696ada9dd9d 103
+packages/agent/src/tools/types.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 62,65-67,80-81
+tests/integration/sidecar-tool-results.test.ts
+  s_6cadf0cc1974f1::t_c92d317245c7b7 1-194
+packages/agent/src/tools/builtin/output-accumulator.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 79-84,198-200
+  s_6cadf0cc1974f1::t_2e18f61acf1f77 41-42,58,64,95-96,172-178,182-190
+  s_6cadf0cc1974f1::t_c92d317245c7b7 191-192
+  s_6cadf0cc1974f1::t_4cf859de20d156 3,7-8,15,43-46,50-51,94,110,179-181,195-197,201
+packages/agent/src/index.ts
+  s_6cadf0cc1974f1::t_9bf5eff720469e 58
+packages/agent/src/agents/tools.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 78,190-199
+  s_6cadf0cc1974f1::t_ff79ada845fa82 7,76,124-128,159-161,189,214
+packages/agent/src/tools/builtin/bash.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 124,183
+  s_6cadf0cc1974f1::t_cfb71532c50d43 95
+packages/agent/src/tools/builtin/read.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 38-43
+  s_6cadf0cc1974f1::t_e748707d81ab44 63,72,111-112
+apps/server/src/application/sessions.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 61,155
+packages/agent/src/tools/builtin/find.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 79-83
+packages/agent/src/engine/types.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 214-215
+packages/agent/README.md
+  s_6cadf0cc1974f1::t_d90559682c34db 159-162
+packages/agent/src/tools/builtin/ls.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 83-87
+apps/server/src/application/session-runs.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 748-751
+  s_6cadf0cc1974f1::t_4cf859de20d156 2,140,743
+packages/agent/src/tools/builtin/grep.ts
+  s_6cadf0cc1974f1::t_19f7ab1bed9889 199,203,209,216-218
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 241-245
+packages/agent/src/tools/scheduler.ts
+  s_6cadf0cc1974f1::t_ff79ada845fa82 134,139-140,152
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 135-138,141-151
+  s_6cadf0cc1974f1::t_4cf859de20d156 5,91,120-123
+packages/agent/src/context/memory/tools.ts
+  s_6cadf0cc1974f1::t_859696ada9dd9d 81-82,84
+packages/agent/src/extensions/mcp/resources.ts
+  s_6cadf0cc1974f1::t_859696ada9dd9d 10,75-78,96,109-111,193
+tests/integration/sidecar-mcp-resources-prompts.test.ts
+  s_6cadf0cc1974f1::t_9b937e31b761f5 51
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 173-175
+.scratch/system-data-root/issues/07-tool-result-spill.md
+  s_6cadf0cc1974f1::t_d4fb37ec4e15ba 41-49
+  s_6cadf0cc1974f1::t_01d231903c2db5 9-40
+packages/agent/src/tools/lsp/format.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 180-184
+  s_6cadf0cc1974f1::t_859696ada9dd9d 139,161,168,174,193
+packages/agent/src/extensions/mcp/results.ts
+  s_6cadf0cc1974f1::t_2e18f61acf1f77 3,40,52,62
+tests/integration/sidecar-mcp.test.ts
+  s_6cadf0cc1974f1::t_551ffc0a1f9ac3 158-160
+docs/subsystems/execution.md
+  s_6cadf0cc1974f1::t_cfb71532c50d43 3,40-48
+packages/agent/src/tools/output.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 1-30
+apps/server/src/runtime/layers.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 594
+docs/README.md
+  s_6cadf0cc1974f1::t_cfb71532c50d43 39
+packages/agent/src/engine/runtime.ts
+  s_6cadf0cc1974f1::t_4cf859de20d156 134
+packages/agent/src/tasks/jobs/tools.ts
+  s_6cadf0cc1974f1::t_859696ada9dd9d 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "9a45ec5adb3e3caae0d0d770572e5e574229a3b0",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
