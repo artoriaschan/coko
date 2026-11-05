@@ -49,6 +49,9 @@ export const ProjectFields = Type.Object(
   strict,
 )
 export type ProjectFields = Static<typeof ProjectFields>
+/** Existing folders remain the default; blank mode allocates a managed project directory. */
+export const CreateProjectRequest = Type.Union([ProjectFields, Type.Object({ mode: Type.Literal('blank'), name: Type.String({ maxLength: 50 }) }, strict)])
+export type CreateProjectRequest = Static<typeof CreateProjectRequest>
 export const CreateProjectResponse = Type.Object({ status: Type.Union([Type.Literal('created'), Type.Literal('existing')]), project: Project }, strict)
 export type CreateProjectResponse = Static<typeof CreateProjectResponse>
 export const DeleteProjectResponse = Type.Object({ sessionIds: Type.Array(Id) }, strict)

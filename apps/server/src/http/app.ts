@@ -13,6 +13,7 @@ import {
   isMainOnlyPath,
   CreateSessionRequest,
   ProjectFields,
+  CreateProjectRequest,
   RenameProjectRequest,
   CheckProjectFolderRequest,
   FirstSendRequest,
@@ -120,7 +121,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(API_ROUTES.projects, async (c) => c.json({ projects: await app.projects.list() }))
   http.delete(`${API_ROUTES.projects}/:id`, async (c) => c.json(await app.projects.delete(c.req.param('id'))))
   http.post(API_ROUTES.projects, async (c) => {
-    const result = await app.projects.create(await body(c, ProjectFields))
+    const result = await app.projects.create(await body(c, CreateProjectRequest))
     return c.json(result, result.status === 'created' ? 201 : 200)
   })
   http.put(`${API_ROUTES.projects}/:id`, async (c) => c.json(await app.projects.update(c.req.param('id'), await body(c, ProjectFields))))

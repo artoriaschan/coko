@@ -12,7 +12,7 @@ it('a project with an older moved Session uses its member activity, and only emp
   for (const name of ['source', 'recent', 'destination']) await mkdir(join(root, name))
   let now = 100
   const store = createMemoryStore({ now: () => now, payloads: createPayloadRegistry([]) })
-  const service = new ProjectService(store, { removeProject: async () => ({ sessionIds: [] }) })
+  const service = new ProjectService(store, { removeProject: async () => ({ sessionIds: [] }) }, root)
   const create = async (name: string) => (await service.create({ name, folders: [{ path: join(root, name), primary: true }] })).project
   const source = await create('source')
   const old = await store.sessions.createSession({ workspaceId: source.primaryWorkspaceId })

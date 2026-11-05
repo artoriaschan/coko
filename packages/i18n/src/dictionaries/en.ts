@@ -128,6 +128,9 @@ export const en: typeof zh = {
     resize: 'Resize sidebar',
   },
   projectForm: {
+    blank: 'Create blank project',
+    existingFolder: 'Add existing folders',
+    blankHint: 'Create a project folder automatically, without choosing an existing folder.',
     primaryConflict: 'This primary folder belongs to “{name}”. Choose another primary folder.',
     create: 'Create project',
     edit: 'Edit project',
