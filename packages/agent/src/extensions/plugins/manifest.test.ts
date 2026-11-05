@@ -23,7 +23,7 @@ const put = async (relative: string, content: string | object) => {
   return path
 }
 const manifest = (fields: Record<string, unknown> = {}) => put('.coko-plugin/plugin.json', { name: 'demo', version: '1.2.3', ...fields })
-const load = (options: { appVersion?: string; installRoot?: string } = {}) => loadPlugin(root, options)
+const load = (options: { appVersion?: string; installRoot?: string; portableDigest?: boolean } = {}) => loadPlugin(root, options)
 const codes = (plugin: { diagnostics: { code: string }[] }) => plugin.diagnostics.map((d) => d.code)
 const hookFile = (command: string) => ({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command }] }] } })
 
@@ -234,6 +234,27 @@ describe('digest', () => {
     const before = (await load()).digest
     await change()
     expect((await load()).digest).not.toBe(before)
+  })
+
+  it('可移动摘要在根替换前计算，保留 Hook、MCP、LSP 原声明中的所有变化', async () => {
+    await manifest()
+    await put('hooks/hooks.json', hookFile('${COKO_PLUGIN_ROOT}/guard'))
+    await put('.mcp.json', { echo: { command: 'srv', args: ['${COKO_PLUGIN_ROOT}/server'], env: { ROOT: '${CLAUDE_PLUGIN_ROOT}', MODE: 'one' } } })
+    await put('.lsp.json', { ts: { command: 'node', args: ['${COKO_PLUGIN_ROOT}/language.mjs'] } })
+    const first = await load({ installRoot: '/a', portableDigest: true })
+    const moved = await load({ installRoot: '/b', portableDigest: true })
+    expect(moved.digest).toBe(first.digest)
+    expect(moved.executables.hooks[0]!.command).toBe('/b/guard')
+    expect(moved.mcpServers.echo!.env).toEqual({ ROOT: '/b', MODE: 'one' })
+    expect(moved.lspServers.ts!.args).toEqual(['/b/language.mjs'])
+    await put('hooks/hooks.json', hookFile('/a/guard'))
+    const absolute = (await load({ installRoot: '/a', portableDigest: true })).digest
+    expect(absolute).not.toBe(first.digest)
+    await put('.mcp.json', { echo: { command: 'srv', args: ['${COKO_PLUGIN_ROOT}/server'], env: { ROOT: '${CLAUDE_PLUGIN_ROOT}', MODE: 'two' } } })
+    const changedEnv = (await load({ installRoot: '/a', portableDigest: true })).digest
+    expect(changedEnv).not.toBe(absolute)
+    await put('.lsp.json', { ts: { command: 'node', args: ['${COKO_PLUGIN_ROOT}/other.mjs'] } })
+    expect((await load({ installRoot: '/a', portableDigest: true })).digest).not.toBe(changedEnv)
   })
 
   it('安装目录不同（替换结果不同）时变化：digest 覆盖实际运行的命令', async () => {
