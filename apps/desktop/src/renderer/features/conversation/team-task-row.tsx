@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import type { TeamTaskPayload } from '@coko/protocol'
 import { ListTodoIcon } from 'lucide-react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -16,12 +17,13 @@ export function taskChange(task: TeamTaskPayload): TaskChange {
 }
 
 /** 任务板变更的紧凑行（根 Session 的 team_task 条目）：谁做了什么，以及任务编号与标题。 */
-export function TeamTaskRow({ item }: { item: Extract<TimelineItem, { kind: 'team-task' }> }) {
+export function TeamTaskRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'team-task' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
   const { task } = item
   const change = taskChange(task)
   return (
     <CollaborationRow
+      {...rootAttributes}
       data-slot="team-task"
       data-task-id={task.taskId}
       data-task-change={change}

@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { planTitle } from '@coko/protocol'
 import { ClipboardListIcon } from 'lucide-react'
 import * as React from 'react'
@@ -15,7 +16,7 @@ export function planCardSuppressed(item: Extract<TimelineItem, { kind: 'plan' }>
  * 时间线的计划卡（plan 条目）：标题、修订与状态，被拒绝时带反馈。proposed 的条目在同一计划有后续条目（批准、拒绝或新修订）后不再显示，
  * 时间线只留结论。点击切到右栏的 Plan tab。
  */
-export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' }> }) {
+export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'plan' }>; rootAttributes?: TimelineRootAttributes }) {
   const { t } = useI18n()
   const { plan } = item
   const { entries, historical, readOnly, openPlan } = useTimelineSession()
@@ -26,6 +27,7 @@ export function PlanCard({ item }: { item: Extract<TimelineItem, { kind: 'plan' 
   if (superseded) return null
   return (
     <section
+      {...rootAttributes}
       data-slot="plan-card"
       data-plan-id={plan.planId}
       data-revision={plan.revision}

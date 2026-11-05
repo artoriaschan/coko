@@ -229,7 +229,7 @@ export function TimelineView(props: TimelineViewProps) {
           </details>
         )
       case 'compaction':
-        return <CompactionDivider key={item.key} item={item} theme={theme} />
+        return <CompactionDivider key={item.key} rootAttributes={rootAttributes} item={item} theme={theme} />
       case 'text':
         return (
           <article
@@ -322,11 +322,11 @@ export function TimelineView(props: TimelineViewProps) {
           </div>
         )
       case 'plan':
-        return <PlanCard key={item.key} item={item} />
+        return <PlanCard key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'goal':
-        return <GoalRow key={item.key} item={item} />
+        return <GoalRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'job':
-        return <JobRow key={item.key} item={item} />
+        return <JobRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'run-usage': {
         const reply = endingFooters.get(item.key)
         return reply ? (
@@ -336,17 +336,17 @@ export function TimelineView(props: TimelineViewProps) {
         ) : null
       }
       case 'hook':
-        return <HookRow key={item.key} item={item} />
+        return <HookRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'agent-notification':
-        return <AgentNotificationRow key={item.key} item={item} />
+        return <AgentNotificationRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'schedule-fire':
-        return <ScheduleFireRow key={item.key} item={item} />
+        return <ScheduleFireRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'handoff':
-        return <HandoffRow key={item.key} item={item} />
+        return <HandoffRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'team-message':
-        return <TeamMessageRow key={item.key} item={item} />
+        return <TeamMessageRow key={item.key} rootAttributes={rootAttributes} item={item} />
       case 'team-task':
-        return <TeamTaskRow key={item.key} item={item} />
+        return <TeamTaskRow key={item.key} rootAttributes={rootAttributes} item={item} />
     }
   }
   return (

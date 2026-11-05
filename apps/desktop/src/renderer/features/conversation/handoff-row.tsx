@@ -1,3 +1,4 @@
+import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { Button } from '@coko/ui'
 import { ArrowRightLeftIcon, TriangleAlertIcon } from 'lucide-react'
 import * as React from 'react'
@@ -12,17 +13,19 @@ import type { TimelineItem } from './timeline.ts'
  * 时间线的交接行：源会话的 handoff（"已交接到 <标题>"，可打开目标会话）与目标会话首条的 handoff_origin（"交接自 <标题>"，可跳回源会话）。
  * 标题取会话列表；不在列表中（已删除或尚未读取）时显示"未命名"。handoff_failed（摘要之后目标没能创建）没有目标，显示失败与原因。
  */
-export function HandoffRow({ item }: { item: Extract<TimelineItem, { kind: 'handoff' }> }) {
+export function HandoffRow({ item, rootAttributes }: { item: Extract<TimelineItem, { kind: 'handoff' }>; rootAttributes?: TimelineRootAttributes }) {
   const { handoff } = item
-  if (handoff.kind === 'failed') return <FailedHandoffRow code={handoffFailure(handoff.payload)?.error.code ?? ''} payload={handoff.payload} />
-  return <LinkedHandoffRow item={{ ...item, handoff }} />
+  if (handoff.kind === 'failed')
+    return <FailedHandoffRow rootAttributes={rootAttributes} code={handoffFailure(handoff.payload)?.error.code ?? ''} payload={handoff.payload} />
+  return <LinkedHandoffRow rootAttributes={rootAttributes} item={{ ...item, handoff }} />
 }
 
-function FailedHandoffRow({ code, payload }: { code: string; payload: unknown }) {
+function FailedHandoffRow({ code, payload, rootAttributes }: { code: string; payload: unknown; rootAttributes?: TimelineRootAttributes | undefined }) {
   const { t } = useI18n()
   const reason = HANDOFF_ERRORS[code]
   return (
     <div
+      {...rootAttributes}
       data-slot="handoff-row"
       data-handoff="failed"
       data-code={code}
@@ -44,7 +47,13 @@ function FailedHandoffRow({ code, payload }: { code: string; payload: unknown })
 
 type LinkedHandoff = Exclude<Extract<TimelineItem, { kind: 'handoff' }>['handoff'], { kind: 'failed' }>
 
-function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: 'handoff' }>, 'handoff'> & { handoff: LinkedHandoff } }) {
+function LinkedHandoffRow({
+  item,
+  rootAttributes,
+}: {
+  item: Omit<Extract<TimelineItem, { kind: 'handoff' }>, 'handoff'> & { handoff: LinkedHandoff }
+  rootAttributes?: TimelineRootAttributes | undefined
+}) {
   const { t } = useI18n()
   const chat = useOptionalChatStoreApi()
   const { handoff } = item
@@ -61,6 +70,7 @@ function LinkedHandoffRow({ item }: { item: Omit<Extract<TimelineItem, { kind: '
   const action = handoff.kind === 'source' ? t('handoff.row.open') : t('handoff.row.back')
   return (
     <div
+      {...rootAttributes}
       data-slot="handoff-row"
       data-handoff={handoff.kind}
       data-session-id={otherId}

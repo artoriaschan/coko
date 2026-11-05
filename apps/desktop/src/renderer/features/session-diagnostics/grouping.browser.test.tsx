@@ -241,6 +241,7 @@ it('actual App omits null-rendered Plan and ending seats while preserving the re
   expect(table.element().querySelectorAll('[data-record-key^="process:"]')).toHaveLength(2)
   expect(table.element().querySelector('[data-record-key="3"]')).toBeNull()
   expect(table.element().querySelector('[data-record-key="5"]')).not.toBeNull()
+  expect(document.querySelector('[data-slot="plan-card"]')?.getAttribute('data-timeline-identity')).toBe('5')
   expect(table.element().querySelector('[data-record-key="usage:7"]')).toBeNull()
   expect(table.element().querySelectorAll('[data-record-key]')).toHaveLength(6)
 })

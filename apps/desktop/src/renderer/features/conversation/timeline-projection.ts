@@ -2,6 +2,9 @@ import type { SessionEntry } from '@coko/protocol'
 import type { DisplayRun, ProcessSeat } from './process-groups.ts'
 import type { TimelineItem } from './timeline.ts'
 
+/** Opaque attributes added to existing semantic roots without inserting transcript nodes. */
+export type TimelineRootAttributes = Readonly<Record<`data-${string}`, string | number | undefined>>
+
 /** The exact values committed by the opted-in main timeline; diagnostics never recomputes them. */
 export interface TimelineProjection {
   readonly sessionId: string
