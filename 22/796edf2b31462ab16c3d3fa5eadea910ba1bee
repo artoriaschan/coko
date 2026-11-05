@@ -1,0 +1,29 @@
+packages/agent/src/engine/run-control.test.ts
+  s_2a03236d6e6b67::t_7e8ef40e87958f 108,126,199,210,308
+docs/subsystems/goal.md
+  s_2a03236d6e6b67::t_8675c972d0cdf9 54
+packages/agent/README.md
+  s_2a03236d6e6b67::t_ed4a695095daca 87
+.scratch/system-context/issues/02-continue-delivery.md
+  s_2a03236d6e6b67::t_39bb00a0e8742a 11-37
+tests/integration/sidecar-state-update-continue.test.ts
+  s_2a03236d6e6b67::t_21f0cf4ba5528b 116,127-128,175
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_8675c972d0cdf9 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "22796edf2b31462ab16c3d3fa5eadea910ba1bee",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
