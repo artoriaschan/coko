@@ -127,6 +127,12 @@ export function McpSection() {
         </div>
       </div>
       {adding && <AddPresetDialog preset={adding} onClose={() => setAdding(null)} />}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-ui-body font-medium">{t('mcp.toolSearch.title')}</h3>
+        <SettingsCard>
+          <CapabilityToggle name="mcp.toolSearch" workspaceId={workspaceId} />
+        </SettingsCard>
+      </div>
       <SettingsCard>
         <CapabilityToggle name="mcp.enabled" workspaceId={workspaceId} />
       </SettingsCard>

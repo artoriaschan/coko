@@ -76,6 +76,8 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 全局能力配置 `mcp.toolSearch` 控制 MCP 工具的按需加载，默认 true；未保存过该键的用户与 Headless Run 同样默认开启。开关关闭时直接提供全部已连接且未停用的 MCP 工具。打开时，仅根 Session 启用：每个 Run 开始时冻结当时可用的工具目录，首次请求保留内置工具与 Host Tool；存在按需工具时再提供 `tool_search`，不提供目录内 MCP 工具的 schema。设置 `alwaysLoad: true` 的全局、项目或插件 Server 的工具始终直接提供，不进入按需目录；确切名称选择它们时返回 `alreadyAvailable`。更改此字段不改变项目 Server 的批准摘要，无需重新批准。开关关闭时该字段不影响工具提供方式。MCP 资源工具仍为常驻 Host Tool。子代理与 Teammate 直接取得其允许范围内的全部工具，没有目录或 `tool_search`。
 
+设置 → MCP 顶部的「工具搜索」分组提供「按需加载 MCP 工具」开关；保存时只改全局 `mcp.toolSearch`，其他配置保留。项目文件只能设为 false；设为 true 会被忽略并产生 `project-cannot-grant` 诊断。改动从下一次 Run（包括 retry、continue）生效，进行中的 Run 即使等待审批也沿用开始时的值。开关关闭时没有 `tool_search` 和目录，直接调用不会写加载记录；重新打开后，这些调用过的工具仍为按需工具。之前已经搜索加载的工具则继续保留。
+
 目录通过 `on_demand_tools` State Update 按 Server 分组公告，不含 schema；首次发送完整目录，之后只发送 `Added` / `Removed`，名单不变不重发。对话回退或压缩后的下一次送达重发完整目录。说明至多 60 字，超预算时依次缩短说明（截断下限 24 字）、只列名称、只列 Server 与工具数，预算与派生规则见[上下文管理](context.md#state-update)。读取或渲染失败只记 warn，Run 继续。进行中的 Run 使用同一快照，工具列表变化及手动重连成功都到下一个 Run 生效。
 
 `tool_search { query, limit? }` 一次完成搜索与加载。普通关键词默认返回 5 项、最多 20 项；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制；`+词` 要求候选包含该词。检索文本只取工具名（`_ . - :` 换成空格）、说明与第一层参数名，不递归索引 schema、不翻译。英文与数字按词、中日韩文字按相邻二字切分（单字保留），在必需词过滤后的候选上计算 BM25（k1=1.5、b=0.75）；同分按 Server、名称排序，没有正分时才按完整查询串做工具名子串匹配。
@@ -84,7 +86,9 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 搜索的权限类为 context-read，可在 Plan Mode 下使用；deny 规则与 PreToolUse Hook 可以阻止搜索。目录只含当前 Run 可用的工具，`disabledTools` 与未批准项目 Server 的工具不进入搜索，确切选择也报未知。加载不授予业务执行权限：目标工具即使已经加载，其调用仍经过原有规则、审批与 Hook；deny 规则拒绝时 MCP Server 不收到业务调用。
 
-宿主只根据可信的搜索执行通道生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
+模型直接调用目录中尚未加载的工具时，该次调用不执行业务处理，错误结果改为「工具已加载，请直接重试。」，并以 `optimistic` 来源保存加载记录；下一次请求起带上定义，再次调用仍经过权限与 Hook。名称不在当前目录中的调用保留原来的未找到错误；已提供工具的权限拒绝或业务错误不会触发乐观加载。
+
+宿主只根据可信的搜索执行通道或当前目录中的未加载调用生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。若结果已保存而加载记录尚未保存，重建后仍未加载，后续直接调用可再次乐观加载，不会自动重跑业务工具。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
 
 ## 工具
 

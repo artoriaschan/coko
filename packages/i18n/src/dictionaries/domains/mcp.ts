@@ -4,6 +4,11 @@ import { defineDomain } from './define.ts'
 export const mcp = defineDomain(
   {
     title: 'MCP',
+    toolSearch: {
+      title: '工具搜索',
+      label: '按需加载 MCP 工具',
+      hint: '开启后不再每次请求都发送全部 MCP 工具定义，模型先搜索需要的工具，再直接调用。关闭后一次提供全部 MCP 工具。',
+    },
     description: '连接 MCP Server 以使用外部工具。工具调用默认需要审批，可按工具或 Server（mcp__名称）保存规则。',
     disabled: 'MCP 已在能力配置中关闭，Server 不会连接',
     noWorkspace: '打开一个会话后可查看其工作区的连接状态与项目 Server',
@@ -134,6 +139,11 @@ export const mcp = defineDomain(
   },
   {
     title: 'MCP',
+    toolSearch: {
+      title: 'Tool search',
+      label: 'Load MCP tools on demand',
+      hint: "When on, MCP tool definitions aren't sent with every request; the model searches for the tools it needs and then calls them. When off, every MCP tool is provided up front.",
+    },
     description: 'Connect MCP servers to use external tools. Tool calls need approval by default; save rules per tool or per server (mcp__name).',
     disabled: 'MCP is turned off in the capability settings; servers will not connect',
     noWorkspace: "Open a session to see its workspace's connections and project servers",

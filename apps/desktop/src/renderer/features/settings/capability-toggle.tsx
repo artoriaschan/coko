@@ -14,6 +14,7 @@ const COPY: Record<ToggleSwitch, { label: MessageKey; hint: MessageKey }> = {
   'instructions.enabled': { label: 'config.capabilities.instructions.label', hint: 'config.capabilities.instructions.hint' },
   'commands.enabled': { label: 'config.capabilities.commands.label', hint: 'config.capabilities.commands.hint' },
   'mcp.enabled': { label: 'config.capabilities.mcp.label', hint: 'config.capabilities.mcp.hint' },
+  'mcp.toolSearch': { label: 'mcp.toolSearch.label', hint: 'mcp.toolSearch.hint' },
   'context.autoCompact': { label: 'config.capabilities.autoCompact.label', hint: 'config.capabilities.autoCompact.hint' },
   'context.trimOldToolResults': { label: 'config.capabilities.trimOldToolResults.label', hint: 'config.capabilities.trimOldToolResults.hint' },
 }
