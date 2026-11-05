@@ -1,3 +1,4 @@
+import type { StoragePathsResponse } from '@coko/protocol'
 import type { ArtifactService } from './artifacts.ts'
 import type { BranchService } from './branches.ts'
 import type { ProjectService } from './projects.ts'
@@ -36,6 +37,8 @@ export interface Application {
   firstSend: FirstSendService
   providers: ProviderService
   settings: SettingsService
+  /** 启动时解析的只读主根与独立会话根。 */
+  storage: StoragePathsResponse
   workspaces: WorkspaceService
   projects: ProjectService
   /** 有效能力配置（docs/subsystems/configuration.md）。 */
