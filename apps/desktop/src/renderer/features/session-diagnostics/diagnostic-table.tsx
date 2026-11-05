@@ -9,7 +9,15 @@ import { DiagnosticTableLayout, DIAGNOSTIC_ROW_HEIGHT, type DiagnosticRowAnchor 
 import type { DiagnosticModel, DiagnosticRecord } from './table-model.ts'
 import { diagnosticPreview } from './format.ts'
 import { RecordDetails } from './record-details.tsx'
+import { DiagnosticTypeFilter } from './type-filter.ts'
+import { TypeFilterEditor } from './type-filter-editor.tsx'
 import './diagnostic-table.css'
+
+/** Reference navigation reveals a row without replacing the selected details path. */
+export interface DiagnosticTableRevealRequest {
+  readonly key: string
+  readonly nonce: object
+}
 
 /** 共享的只读表格；数据模型不拥有滚动、选择、折叠或详情高度。 */
 export function DiagnosticTable({
@@ -27,10 +35,12 @@ export function DiagnosticTable({
   renderDetails?: (record: DiagnosticRecord | undefined, selectedKey: string) => React.ReactNode
   onSelect?: (key: string | null) => void
   changedKeys?: ReadonlySet<string>
-  revealRequest?: { key: string; nonce: object } | undefined
+  revealRequest?: DiagnosticTableRevealRequest | undefined
 }) {
-  void revealRequest // The shared table reveal controller is integrated by the filter ticket.
   const { t } = useI18n()
+  const [filter, setFilter] = React.useState(() => new DiagnosticTypeFilter(''))
+  const filtered = React.useMemo(() => filter.apply(model.rows, (key) => model.records.get(key)?.type), [filter, model])
+  const suggest = React.useCallback((query: string) => new DiagnosticTypeFilter(query).suggest(model.rows, (key) => model.records.get(key)?.type), [model])
   const [selected, updateSelected] = React.useState<string | null>(null)
   const setSelected = (key: string | null) => {
     updateSelected(key)
@@ -42,7 +52,14 @@ export function DiagnosticTable({
   const viewport = React.useRef({ offset: 0, height: 600 })
   const anchor = React.useRef<DiagnosticRowAnchor | undefined>(undefined)
   const [spacingGeneration, resetSpacing] = React.useState(0)
-  const hierarchy = React.useMemo(() => new DiagnosticTableHierarchy(model.rows, disclosures), [model.rows, disclosures])
+  const handledReveal = React.useRef<object | undefined>(undefined)
+  const revealAnimation = React.useRef<Animation | undefined>(undefined)
+  const [pendingReveal, setPendingReveal] = React.useState<DiagnosticTableRevealRequest>()
+  React.useEffect(() => () => revealAnimation.current?.cancel(), [])
+  const hierarchy = React.useMemo(
+    () => new DiagnosticTableHierarchy(filtered.rows, filter.active ? new Map() : disclosures),
+    [filtered.rows, filter.active, disclosures],
+  )
   const committed = React.useRef<{ layout: DiagnosticTableLayout; disclosures: typeof disclosures; spacingGeneration: number } | undefined>(undefined)
   const layout = React.useMemo(
     () =>
@@ -94,6 +111,18 @@ export function DiagnosticTable({
     anchor.current = undefined
     committed.current = { layout, disclosures, spacingGeneration }
   }, [virtual, layout, disclosures, spacingGeneration, viewportHeight, anchoredOffset])
+  const confirmFilter = (query: string) => {
+    follow.current = 'manual'
+    anchor.current = undefined
+    viewport.current = { offset: 0, height: scroller.current?.clientHeight ?? 600 }
+    setPendingReveal(undefined)
+    revealAnimation.current?.cancel()
+    setSelected(null)
+    setDisclosures(new Map())
+    resetSpacing((value) => value + 1)
+    setFilter(new DiagnosticTypeFilter(query))
+    virtual.scrollToOffset(0)
+  }
   const toggle = (row: DiagnosticRow, element: HTMLTableRowElement) => {
     const host = scroller.current
     if (!host) return
@@ -102,6 +131,61 @@ export function DiagnosticTable({
     viewport.current = { offset: host.scrollTop, height: host.clientHeight }
     setDisclosures((previous) => new Map(previous).set(row.key, { state: row.disclosure, collapsed: !diagnosticRowCollapsed(row, previous) }))
   }
+  React.useLayoutEffect(() => {
+    if (!revealRequest || handledReveal.current === revealRequest.nonce) return
+    const byKey = new Map(model.rows.map((row) => [row.key, row]))
+    if (!byKey.has(revealRequest.key)) return
+    handledReveal.current = revealRequest.nonce
+    follow.current = 'manual'
+    anchor.current = undefined
+    resetSpacing((value) => value + 1)
+    // Context rows count as retained: revealing one must keep the current filter.
+    if (filter.active && !filtered.rows.some((row) => row.key === revealRequest.key)) setFilter(new DiagnosticTypeFilter(''))
+    setDisclosures((previous) => {
+      const next = new Map(previous)
+      let parent = byKey.get(revealRequest.key)?.parent
+      while (parent !== undefined) {
+        const row = byKey.get(parent)
+        if (!row) break
+        next.set(parent, { state: row.disclosure, collapsed: false })
+        parent = row.parent
+      }
+      return next
+    })
+    setPendingReveal(revealRequest)
+  }, [revealRequest, model, filter, filtered.rows])
+  React.useLayoutEffect(() => {
+    if (!pendingReveal) return
+    const index = layout.items.findIndex((item) => item.key === pendingReveal.key)
+    if (index < 0) return
+    const host = scroller.current
+    if (!host) return
+    const ancestors = hierarchy.stickyIndexes(index).filter((ancestor) => ancestor !== index).length
+    const top = (index + 1) * DIAGNOSTIC_ROW_HEIGHT
+    if (top < host.scrollTop + (ancestors + 1) * DIAGNOSTIC_ROW_HEIGHT || top + DIAGNOSTIC_ROW_HEIGHT > host.scrollTop + host.clientHeight) {
+      virtual.scrollToOffset(Math.max(0, (index - ancestors) * DIAGNOSTIC_ROW_HEIGHT))
+    }
+    let frame: number
+    const flash = () => {
+      const row = [...host.querySelectorAll<HTMLElement>('[data-record-key]')].find((element) => element.dataset.recordKey === pendingReveal.key)
+      if (!row) {
+        frame = requestAnimationFrame(flash)
+        return
+      }
+      revealAnimation.current?.cancel()
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        revealAnimation.current = row.animate(
+          [{ backgroundColor: getComputedStyle(row).getPropertyValue('--accent') }, { backgroundColor: getComputedStyle(row).backgroundColor }],
+          { duration: Number.parseFloat(getComputedStyle(row).getPropertyValue('--diagnostic-reveal-duration')) },
+        )
+      }
+      setPendingReveal(undefined)
+    }
+    frame = requestAnimationFrame(flash)
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [pendingReveal, layout, hierarchy, virtual])
   const items = virtual.getVirtualItems()
   const sticky = new Map(layout.stickyIndexesAtOffset(anchoredOffset ?? virtual.scrollOffset ?? 0).map((index, level) => [index, level]))
   const last = items.at(-1)
@@ -113,7 +197,9 @@ export function DiagnosticTable({
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
         {toolbar}
         <span className="ms-auto text-ui-caption text-muted-foreground" role="status" aria-label={t('diagnostics.rowCount')}>
-          {t('diagnostics.rows', { count: model.rows.length })}
+          {filter.active
+            ? t('diagnostics.filteredRows', { count: filtered.matches.size, total: model.rows.length })
+            : t('diagnostics.rows', { count: model.rows.length })}
         </span>
         <Button
           variant="ghost"
@@ -150,7 +236,12 @@ export function DiagnosticTable({
           <thead>
             <tr>
               <th className="font-medium">{t('diagnostics.sequence')}</th>
-              <th className="font-medium">{t('diagnostics.type')}</th>
+              <th className="font-medium">
+                <span className="inline-flex items-center gap-1">
+                  {t('diagnostics.type')}
+                  <TypeFilterEditor value={filter.query} suggest={suggest} apply={confirmFilter} />
+                </span>
+              </th>
               <th className="font-medium">{t('diagnostics.run')}</th>
               {showTime && <th className="font-medium">{t('diagnostics.time')}</th>}
               <th className="font-medium">{t('diagnostics.data')}</th>
@@ -162,7 +253,7 @@ export function DiagnosticTable({
               const row = layout.items[item.index]!.row
               const record = model.records.get(row.key)
               const level = sticky.get(item.index)
-              const collapsed = diagnosticRowCollapsed(row, disclosures)
+              const collapsed = !filter.active && diagnosticRowCollapsed(row, disclosures)
               const summary = record?.summary ?? diagnosticPreview(record?.value)
               return (
                 <React.Fragment key={item.key}>
@@ -175,6 +266,7 @@ export function DiagnosticTable({
                     className="hover:bg-accent"
                     data-record-key={row.key}
                     data-diagnostic-updated={changedKeys?.has(row.key) || undefined}
+                    data-diagnostic-context={filter.active && !filtered.matches.has(row.key) ? '' : undefined}
                     aria-rowindex={item.index + 2}
                     aria-selected={row.key === selected}
                     data-sticky={level === undefined ? undefined : ''}
@@ -196,6 +288,7 @@ export function DiagnosticTable({
                             className="flex size-5 shrink-0 items-center justify-center rounded-xs focus-ring hover:bg-muted"
                             aria-label={t(collapsed ? 'diagnostics.expand' : 'diagnostics.collapse', { type: record?.type ?? '' })}
                             aria-expanded={!collapsed}
+                            disabled={filter.active}
                             onClick={(event) => toggle(row, event.currentTarget.closest('tr')!)}
                           >
                             {collapsed ? <ChevronRightIcon className="size-3.5" aria-hidden /> : <ChevronDownIcon className="size-3.5" aria-hidden />}

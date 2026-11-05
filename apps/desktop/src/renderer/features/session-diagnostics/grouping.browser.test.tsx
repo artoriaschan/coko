@@ -245,3 +245,76 @@ it('actual App omits null-rendered Plan and ending seats while preserving the re
   expect(table.element().querySelector('[data-record-key="usage:7"]')).toBeNull()
   expect(table.element().querySelectorAll('[data-record-key]')).toHaveLength(6)
 })
+
+it('actual App reference reveal clears only an excluded filter, opens parents and keeps the original breadcrumb', async () => {
+  const { panel } = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    entry(2, 'message', {
+      role: 'assistant',
+      content: [{ type: 'toolCall', id: 'ref', name: 'read', arguments: { path: '/ref' } }],
+      stopReason: 'toolUse',
+      timestamp: 0,
+    }),
+  ])
+  await panel.getByRole('button', { name: 'Display format', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Conversation groups', exact: true }).click()
+  const table = panel.getByRole('table')
+  const filter = panel.getByRole('button', { name: 'Filter types', exact: true })
+  const apply = async (query: string) => {
+    await filter.click()
+    await page.getByRole('combobox', { name: 'Type fragment', exact: true }).fill(query)
+    await page.getByRole('button', { name: 'Apply filter', exact: true }).click()
+  }
+  await apply('process')
+  await expect.element(table.getByRole('button', { name: 'tool', exact: true })).not.toBeInTheDocument()
+  await table.getByRole('button', { name: 'process', exact: true }).click()
+  const details = panel.getByRole('region', { name: 'Record details', exact: true })
+  const root = details.getByRole('navigation', { name: 'Inspection path', exact: true }).element().textContent!
+  await details.getByRole('button', { name: 'Timeline row · tool:ref', exact: true }).click()
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('2 rows')
+  await expect.element(table.getByRole('button', { name: 'tool', exact: true })).toBeVisible()
+  const revealed = table.element().querySelector<HTMLElement>('[data-record-key="tool:ref"]')!
+  await expect.poll(() => revealed.getAnimations().some((animation) => animation.effect?.getTiming().duration === 700)).toBe(true)
+  expect(table.element().querySelector('[aria-selected="true"]')?.getAttribute('data-record-key')).toBe(root)
+  await table.getByRole('button', { name: 'Collapse process', exact: true }).click()
+  await expect.element(table.getByRole('button', { name: 'tool', exact: true })).not.toBeInTheDocument()
+  await details.getByRole('button', { name: 'Process group · ' + root, exact: true }).click()
+  await details.getByRole('button', { name: 'Timeline row · tool:ref', exact: true }).click()
+  await expect.element(table.getByRole('button', { name: 'tool', exact: true })).toBeVisible()
+  await expect.element(table.getByRole('button', { name: 'Collapse process', exact: true })).toHaveAttribute('aria-expanded', 'true')
+  await details.getByRole('button', { name: root, exact: true }).first().click()
+  expect(details.getByRole('navigation', { name: 'Inspection path', exact: true }).element().querySelectorAll('button')).toHaveLength(1)
+  await apply('tool')
+  await table.getByRole('button', { name: 'tool', exact: true }).click()
+  await details.getByRole('button', { name: 'Process group · ' + root, exact: true }).click()
+  // A retained context row must not clear the confirmed filter.
+  await expect.element(panel.getByRole('status', { name: 'Current row count' })).toHaveTextContent('1 / 2')
+  expect(details.getByRole('navigation', { name: 'Inspection path', exact: true }).element().querySelector('button')?.textContent).toBe('tool:ref')
+})
+
+it('actual App reference reveal scrolls a virtualized member below its sticky ancestors', async () => {
+  const { panel } = await open([
+    entry(1, 'run_start', { trigger: 'submit' }),
+    entry(2, 'message', {
+      role: 'assistant',
+      content: Array.from({ length: 80 }, (_, index) => ({ type: 'toolCall', id: `far-${index}`, name: 'read', arguments: { path: `/file-${index}` } })),
+      stopReason: 'toolUse',
+      timestamp: 0,
+    }),
+  ])
+  await panel.getByRole('button', { name: 'Display format', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Conversation groups', exact: true }).click()
+  const table = panel.getByRole('table')
+  await table.getByRole('button', { name: 'Collapse process', exact: true }).click()
+  await table.getByRole('button', { name: 'process', exact: true }).click()
+  const details = panel.getByRole('region', { name: 'Record details', exact: true })
+  expect(table.element().querySelector('[data-record-key="tool:far-79"]')).toBeNull()
+  await details.getByRole('button', { name: 'Timeline row · tool:far-79', exact: true }).click()
+  const scroll = panel.element().querySelector<HTMLElement>('[data-slot="diagnostic-scroll"]')!
+  await expect.poll(() => table.element().querySelector('[data-record-key="tool:far-79"]')).not.toBeNull()
+  const row = table.element().querySelector<HTMLElement>('[data-record-key="tool:far-79"]')!
+  await expect.poll(() => scroll.scrollTop).toBeGreaterThan(1000)
+  await expect.poll(() => row.getBoundingClientRect().top - scroll.getBoundingClientRect().top).toBeGreaterThanOrEqual(59)
+  expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(scroll.getBoundingClientRect().bottom + 1)
+  expect(table.element().querySelectorAll('[data-record-key]').length).toBeLessThan(60)
+})

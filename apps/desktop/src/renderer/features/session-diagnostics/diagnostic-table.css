@@ -1,4 +1,5 @@
 .diagnostic-table {
+  --diagnostic-reveal-duration: 700ms;
   width: 100%;
   min-width: 650px;
   table-layout: fixed;
@@ -45,4 +46,7 @@
   .diagnostic-table tr[data-diagnostic-updated] {
     animation: none;
   }
+}
+.diagnostic-table tr[data-diagnostic-context] {
+  color: var(--muted-foreground);
 }
