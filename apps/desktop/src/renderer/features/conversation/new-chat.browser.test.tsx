@@ -253,7 +253,7 @@ it.each([
     references: ['README.md', 'selected.ts'],
     source: '@README.md',
   },
-])('$label attachments use the correct directory at the App/composer boundary', async (config) => {
+])('$label explicit file attachments keep their selected paths at the App/composer boundary', async (config) => {
   const { cwd, projectId } = config
   const draft = 'draft' in config && config.draft === true
   await page.viewport(1200, 900)
@@ -284,10 +284,11 @@ it.each([
     const editor = page.getByRole('textbox', { name: 'Give Coko a task' })
     await expect.element(editor).toBeVisible()
     await page.getByRole('button', { name: 'Add attachment' }).click()
-    await expect.poll(() => editor.element().querySelector('[data-file-reference="selected.ts"]')).not.toBeNull()
-    expect(editor.element().textContent).toContain('/outside/notes.txt')
-    expect(editor.element().textContent).toContain(config.source)
-    expect([...editor.element().querySelectorAll<HTMLElement>('[data-file-reference]')].map((node) => node.dataset.fileReference)).toEqual(config.references)
+    await expect.element(page.getByRole('button', { name: 'Remove selected.ts' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Remove README.md' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Remove notes.txt' })).toBeVisible()
+    expect(editor.element().textContent).toBe('')
+    expect(editor.element().querySelectorAll('[data-file-reference]')).toHaveLength(0)
     await screen.unmount()
   } finally {
     vi.unstubAllGlobals()

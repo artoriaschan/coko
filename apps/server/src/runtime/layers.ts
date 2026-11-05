@@ -1,3 +1,4 @@
+import { AttachmentStore } from '../application/attachments.ts'
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
 import {
@@ -582,6 +583,7 @@ const AppLive = Layer.effect(
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
     const sessions: SessionService = new SessionService({
+      attachments: new AttachmentStore(join(config.dataDir, 'attachments')),
       store,
       ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2 } : {}),
       clock,

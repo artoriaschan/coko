@@ -150,8 +150,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     return c.json(await app.sessions.moveToProject(c.req.param('id'), projectId))
   })
   http.post(`${API_ROUTES.sessions}/:id/messages`, async (c) => {
-    const { text, images } = await body(c, SubmitMessageRequest)
-    const result = await app.sessions.submit(c.req.param('id'), text, images)
+    const { text, images, files } = await body(c, SubmitMessageRequest)
+    const result = await app.sessions.submit(c.req.param('id'), text, images, files)
     // 不开始 Run 的动作（例如 /goal pause）：204。
     return 'runId' in result ? c.json(result, 202) : c.body(null, 204)
   })

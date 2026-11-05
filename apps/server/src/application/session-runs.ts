@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, relative, sep } from 'node:path'
-import { type ImageAttachment } from '@coko/protocol'
+import { attachmentReferenceText, type FileAttachment, type ImageAttachment } from '@coko/protocol'
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
 // 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
@@ -129,6 +129,7 @@ export interface SessionExtension {
 }
 
 export interface SessionRunsOptions {
+  attachments?: import('./attachments.ts').AttachmentStore
   store: SessionStore
   /** Explicit host override, used to evaluate a versioned base prompt. */
   basePrompt?: { text: string; version: string }
@@ -467,7 +468,7 @@ export class SessionRuns {
       runContext.hooks.set(hooks)
       runContext.admission.set(admission)
       runContext.observe.set(observe)
-      runContext.readRoots = readRoots
+      runContext.readRoots = [...readRoots, ...(this.#options.attachments ? [this.#options.attachments.directory(sessionId)] : [])]
       runContext.workspaceRoots = workspaceRoots
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
@@ -575,23 +576,23 @@ export class SessionRuns {
    * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
    * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
    */
-  submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = []): Promise<ActionResult> {
-    return this.#admit(sessionId, () => this.#submit(sessionId, text, waitForInput, images))
+  submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = [], files: FileAttachment[] = []): Promise<ActionResult> {
+    return this.#admit(sessionId, () => this.#submit(sessionId, text, waitForInput, images, files))
   }
 
-  async #submit(sessionId: string, text: string, waitForInput: boolean, images: ImageAttachment[]): Promise<ActionResult> {
+  async #submit(sessionId: string, text: string, waitForInput: boolean, images: ImageAttachment[], files: FileAttachment[]): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
     if (session.parentSessionId !== null) throw childSession()
     if (runtimes.isRunning(sessionId)) {
-      if (images.length) throw new AppError('run-in-progress', 'Wait for the current Run to finish before sending images')
+      if (images.length || files.length) throw new AppError('run-in-progress', 'Wait for the current Run to finish before sending images')
       const invocation = parseCommandInvocation(text)
       const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
       const action = builtin ? context.action(builtin.action) : undefined
       if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
-    if (!text.trim() && !images.length) throw new AppError('bad-request', 'A message is required')
+    if (!text.trim() && !images.length && !files.length) throw new AppError('bad-request', 'A message is required')
     if (images.length) {
       const model = await this.#options.models.contextModel(session.model)
       if (!model?.input.includes('image')) throw new AppError('bad-request', 'The selected model does not support image input')
@@ -607,27 +608,28 @@ export class SessionRuns {
       // 提交前检查（UserPromptSubmit 等）：reject 时不提交 user message、不开始 Run。
       const verdict = await context.beforeSubmit(scope, text)
       if (verdict && 'reject' in verdict) throw new AppError('hook-blocked', verdict.reject.slice(0, 2048), { reason: verdict.reject.slice(0, 2048) })
-      return this.startRun(
-        sessionId,
-        {
-          trigger: 'submit',
-          input: withSubmitContext(
-            images.length
-              ? {
-                  ...expanded.input,
-                  content: [
-                    ...(expanded.input.content ?? (expanded.input.text ? [{ type: 'text' as const, text: expanded.input.text }] : [])),
-                    ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })),
-                  ],
-                }
-              : expanded.input,
-            verdict?.context,
-          ),
-        },
-        waitForInput,
-      )
+      if ((images.length || files.length) && !this.#options.attachments) throw new AppError('internal', 'Attachment storage is unavailable')
+      const prepared = await this.#options.attachments?.prepare(sessionId, images, files)
+      try {
+        const content = [
+          ...(expanded.input.content ?? (expanded.input.text ? [{ type: 'text' as const, text: expanded.input.text }] : [])),
+          ...(prepared?.references ?? []).map((reference) => ({ type: 'text' as const, text: attachmentReferenceText(reference) })),
+          ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })),
+        ]
+        return await this.startRun(
+          sessionId,
+          {
+            trigger: 'submit',
+            input: withSubmitContext(content.length ? { ...expanded.input, content } : expanded.input, verdict?.context),
+          },
+          waitForInput,
+        )
+      } catch (error) {
+        await prepared?.rollback()
+        throw error
+      }
     }
-    if (images.length) throw new AppError('bad-request', 'Images require a message, not an action command')
+    if (images.length || files.length) throw new AppError('bad-request', 'Attachments require a message, not an action command')
     if (waitForInput) throw new AppError('bad-request', 'Send a message to start a new conversation')
     const action = context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
