@@ -93,7 +93,10 @@ describe('MCP 连接与工具', () => {
     const { api, stream, workspace } = ctx
     const log = join(ctx.root, 'local.jsonl')
     const saved = await api.put(mcpPaths.servers, {
-      servers: { local: stdioServerConfig({ MCP_FIXTURE_LOG: log }, { timeout: 1, disabledTools: ['hidden'] }), remote: { url: http.url } },
+      servers: {
+        local: stdioServerConfig({ MCP_FIXTURE_LOG: log }, { timeout: 1, disabledTools: ['hidden'], alwaysLoad: true }),
+        remote: { url: http.url, alwaysLoad: true },
+      },
       expectedRevision: 0,
       workspaceId: workspace.id,
     })

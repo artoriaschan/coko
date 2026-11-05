@@ -51,6 +51,7 @@ describe('MCP 预设与图像结果', () => {
       const bin = await fakeNpx(join(tmp, 'bin'), { MCP_FIXTURE_FEATURES: 'screenshot', MCP_FIXTURE_LOG: log })
       const ctx = await setup(
         [
+          { content: [{ type: 'toolCall', name: 'tool_search', id: 'load-screenshot', arguments: { query: 'select:mcp__playwright__screenshot' } }] },
           { content: [{ type: 'toolCall', name: 'mcp__playwright__screenshot', id: 's1', arguments: { url: 'https://example.test' } }] },
           { content: 'Looks fine.' },
         ],
@@ -96,8 +97,8 @@ describe('MCP 预设与图像结果', () => {
         .split('\n')
         .filter(Boolean)
         .map((line) => JSON.parse(line) as { role: string; toolCallId?: string; content: unknown }[])
-      expect(requests).toHaveLength(2)
-      expect(requests[1]!.find((m) => m.role === 'toolResult' && m.toolCallId === 's1')?.content).toEqual(result.content)
+      expect(requests).toHaveLength(3)
+      expect(requests[2]!.find((m) => m.role === 'toolResult' && m.toolCallId === 's1')?.content).toEqual(result.content)
       expect(await ctx.sidecar.stop()).toEqual({ code: 0, signal: null })
     },
   )

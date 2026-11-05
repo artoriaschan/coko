@@ -26,7 +26,7 @@ const jsonl = async (path: string): Promise<any[]> =>
     .filter(Boolean)
     .map((line) => JSON.parse(line))
 
-async function setup(responses: unknown[], enabled = true) {
+async function setup(responses: unknown[], enabled: boolean | null = true) {
   const root = await tempDir()
   const dirs = await sidecarDirs()
   const requestLog = join(root, 'requests.jsonl')
@@ -38,7 +38,9 @@ async function setup(responses: unknown[], enabled = true) {
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
   const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
-  expect((await api.put(configPaths.config, { values: { mcp: { toolSearch: enabled } }, expectedRevision: 0 })).status).toBe(200)
+  const config =
+    enabled === null ? await api.get(configPaths.config) : await api.put(configPaths.config, { values: { mcp: { toolSearch: enabled } }, expectedRevision: 0 })
+  expect(config.status).toBe(200)
   expect(
     (await api.put(mcpPaths.servers, { servers: { demo: stdioServerConfig({ MCP_FIXTURE_LOG: mcpLog }) }, workspaceId, expectedRevision: 0 })).status,
   ).toBe(200)
@@ -123,7 +125,7 @@ describe('on-demand MCP tools', () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('the first actual HTTP model request contains search and resident schemas only, matching usage', async () => {
+  it.each([false, true])('the first actual HTTP model request uses default on-demand tools, matching usage (legacy config: %s)', async (legacy) => {
     const requests: any[] = []
     const server = createServer((req, res) => {
       let body = ''
@@ -166,7 +168,10 @@ describe('on-demand MCP tools', () => {
     const api = client(sidecar, cookie)
     const stream = await connect(sidecar, cookie)
     const workspaceId = (await api.post(API_ROUTES.workspaces, { path: await tempDir() })).body.id as string
-    await api.put(configPaths.config, { values: { mcp: { toolSearch: true } }, expectedRevision: 0 })
+    // 新用户与已保存旧版部分配置的用户都未设置 toolSearch。
+    const config = legacy ? await api.put(configPaths.config, { values: { mcp: { enabled: true } }, expectedRevision: 0 }) : await api.get(configPaths.config)
+    expect(config.status).toBe(200)
+    expect(config.body.effective.mcp.toolSearch).toBe(true)
     await api.put(mcpPaths.servers, { servers: { demo: stdioServerConfig() }, workspaceId, expectedRevision: 0 })
     const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
     stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
@@ -189,11 +194,14 @@ describe('on-demand MCP tools', () => {
   })
 
   it('Headless Run uses the same durable search and MCP execution path', async () => {
-    const h = await setup([
-      { content: [{ type: 'toolCall', id: 'search', name: 'tool_search', arguments: { query: 'select:mcp__demo__echo' } }] },
-      { content: [{ type: 'toolCall', id: 'echo', name: 'mcp__demo__echo', arguments: { text: 'headless hello' } }] },
-      { content: 'headless done' },
-    ])
+    const h = await setup(
+      [
+        { content: [{ type: 'toolCall', id: 'search', name: 'tool_search', arguments: { query: 'select:mcp__demo__echo' } }] },
+        { content: [{ type: 'toolCall', id: 'echo', name: 'mcp__demo__echo', arguments: { text: 'headless hello' } }] },
+        { content: 'headless done' },
+      ],
+      null,
+    )
     await h.sidecar.stop()
     const out = await runHeadless(
       h.dirs,
@@ -208,7 +216,7 @@ describe('on-demand MCP tools', () => {
   })
 
   it('an empty catalog registers no search tool or announcement', async () => {
-    const h = await setup([{ content: 'no MCP' }])
+    const h = await setup([{ content: 'no MCP' }], null)
     await h.api.put(mcpPaths.servers, { servers: {}, workspaceId: h.workspaceId, expectedRevision: 1 })
     await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'no MCP' })
     await h.stream.waitFor(isRunEnd(h.sessionId))

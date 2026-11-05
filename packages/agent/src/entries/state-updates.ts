@@ -64,8 +64,17 @@ export function planStateUpdates(
   renderers: Partial<Record<StateUpdateName, (value: unknown, previous: unknown) => string>> = {},
 ): StateUpdateDelivery | undefined {
   const latest = new Map<StateUpdateName, unknown>()
-  for (const pairs of pairedStateUpdates(effectiveEntries(entries, { compacted: true })).values())
-    for (const pair of pairs) latest.set(pair.payload.name, pair.payload.value)
+  const effective = effectiveEntries(entries, { compacted: true })
+  // A conversation boundary requires a self-contained catalog even when an older
+  // announcement survived in the retained prefix. File-only rewinds add no entry.
+  let catalogBoundary = 0
+  for (const entry of entries) if (entry.kind === 'rewind') catalogBoundary = Math.max(catalogBoundary, entry.seq)
+  for (const entry of effective) if (entry.kind === 'compaction') catalogBoundary = Math.max(catalogBoundary, entry.seq)
+  for (const pairs of pairedStateUpdates(effective).values())
+    for (const pair of pairs) {
+      if (pair.payload.name === 'on_demand_tools' && pair.entry.seq < catalogBoundary) continue
+      latest.set(pair.payload.name, pair.payload.value)
+    }
   const delivery: StateUpdateDelivery = { blocks: [], entries: [] }
   for (const name of STATE_UPDATE_NAMES) {
     if (!Object.hasOwn(values, name)) continue

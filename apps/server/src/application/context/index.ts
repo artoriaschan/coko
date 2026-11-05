@@ -232,7 +232,19 @@ export function createContextAssembly(options: {
           if (contribution.stateValues) Object.assign(values, await contribution.stateValues(scope))
         }
         if (catalog?.length) values.on_demand_tools = catalog.map((tool) => tool.name).sort()
-        return planStateUpdates(redactSecretsDeep(values), await entries(), catalog?.length ? { on_demand_tools: () => renderOnDemandCatalog(catalog) } : {})
+        return planStateUpdates(
+          redactSecretsDeep(values),
+          await entries(),
+          catalog?.length
+            ? {
+                on_demand_tools: (_value, previous) =>
+                  renderOnDemandCatalog(catalog, {
+                    contextWindow: scope.model?.contextWindow,
+                    ...(Array.isArray(previous) ? { previousNames: previous } : {}),
+                  }),
+              }
+            : {},
+        )
       } catch (error) {
         log.warn('state updates unavailable', { error: message(error) })
         return undefined
@@ -329,7 +341,9 @@ export function onDemandCatalog(contributed: readonly ContributedTool[], availab
   if (!scope.config.mcp.toolSearch || scope.parentSessionId) return []
   const availableByName = new Map(available.map((tool) => [tool.name, tool]))
   const origins = new Map(
-    contributed.filter((item) => item.mcpServer && availableByName.get(item.tool.name) === item.tool).map((item) => [item.tool.name, item.mcpServer!]),
+    contributed
+      .filter((item) => item.mcpServer && !item.mcpAlwaysLoad && availableByName.get(item.tool.name) === item.tool)
+      .map((item) => [item.tool.name, item.mcpServer!]),
   )
   return available.flatMap((tool) =>
     origins.has(tool.name) ? [{ name: tool.name, server: origins.get(tool.name)!, description: tool.description, parameters: tool.parameters }] : [],

@@ -131,6 +131,7 @@ export interface McpRunTools {
   tools: CokoTool[]
   resources: CokoTool[]
   servers: ReadonlyMap<string, string>
+  alwaysLoad: ReadonlySet<string>
   diagnostics: ResourceDiagnostic[]
 }
 
@@ -312,16 +313,20 @@ export class McpManager {
   async runTools(scope: { workspaceId: string; cwd: string }): Promise<McpRunTools> {
     const loaded = await this.load({ id: scope.workspaceId, path: scope.cwd })
     await this.reconcile(scope.workspaceId, scope.cwd, loaded)
-    if (!loaded.enabled) return { tools: [], resources: [], servers: new Map(), diagnostics: loaded.diagnostics }
+    if (!loaded.enabled) return { tools: [], resources: [], servers: new Map(), alwaysLoad: new Set(), diagnostics: loaded.diagnostics }
     await this.#ensure(scope.workspaceId, scope.cwd, loaded)
     const tools: CokoTool[] = []
     const toolServers = new Map<string, string>()
+    const alwaysLoad = new Set<string>()
     for (const entry of loaded.entries) {
       const pooled = this.#pool.get(keyOf(scope.workspaceId, scope.cwd, entry.name))
       if (pooled?.connection.status === 'connected') {
         const serverTools = createMcpTools(pooled.connection, { config: entry.config })
         tools.push(...serverTools)
-        for (const tool of serverTools) toolServers.set(tool.name, entry.name)
+        for (const tool of serverTools) {
+          toolServers.set(tool.name, entry.name)
+          if (entry.config.alwaysLoad) alwaysLoad.add(tool.name)
+        }
       }
     }
     const entries = loaded.entries.filter((entry) => desired(entry, loaded))
@@ -331,7 +336,7 @@ export class McpManager {
         return pooled?.connection.status === 'connected' ? [{ connection: pooled.connection, timeoutMs: timeoutMsOf(entry.config) }] : []
       })
     const resources = servers().some((s) => s.connection.capabilities?.resources) ? createMcpResourceTools({ servers }) : []
-    return { tools, resources, servers: toolServers, diagnostics: loaded.diagnostics }
+    return { tools, resources, servers: toolServers, alwaysLoad, diagnostics: loaded.diagnostics }
   }
 
   #recordDiagnostics(pooled: Pooled, kind: string, diagnostics: readonly ResourceDiagnostic[]): void {
@@ -460,9 +465,9 @@ export function mcpContribution(options: ContextContributionOptions): ContextCon
     name: 'mcp',
     ruleTools: MCP_RULE_TOOLS,
     async tools(scope) {
-      const { tools, resources, servers } = await manager.runTools(scope)
+      const { tools, resources, servers, alwaysLoad } = await manager.runTools(scope)
       return [
-        ...tools.map((tool) => ({ tool, permissionClass: 'external' as const, mcpServer: servers.get(tool.name) })),
+        ...tools.map((tool) => ({ tool, permissionClass: 'external' as const, mcpServer: servers.get(tool.name), mcpAlwaysLoad: alwaysLoad.has(tool.name) })),
         ...resources.map((tool) => ({ tool, permissionClass: 'context-read' as const })),
       ]
     },

@@ -47,3 +47,22 @@ it.each(['domain', 'entries'])('a %s read failure withholds all updates without 
     }),
   ).toBeUndefined()
 })
+
+it('applies the current model window to the catalog and withholds a failed render', async () => {
+  const assembly = createContextAssembly({ config: new ConfigService(), cokoHome: '', contributions: [] })
+  const scope = await assembly.scope({ workspaceId: 'w', sessionId: 's', cwd: '/w', model: { providerId: 'p', modelId: 'm', contextWindow: 1_350 } })
+  const tool = { name: 'mcp__demo__read', server: 'demo', description: 'd'.repeat(80), parameters: {} }
+  const first = await assembly.stateUpdates(scope, async () => [], [tool, { ...tool, name: 'mcp__demo__write' }])
+  expect(first?.blocks[0]?.text).toContain('demo (2 tools)')
+  expect(first?.blocks[0]?.text).not.toContain(': d')
+  expect(
+    await assembly.stateUpdates(scope, async () => [], [
+      {
+        ...tool,
+        get description(): string {
+          throw new Error('catalog renderer unavailable')
+        },
+      },
+    ]),
+  ).toBeUndefined()
+})

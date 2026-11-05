@@ -40,7 +40,7 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 | --- | --- | --- |
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
-| `mcp.toolSearch` | false | 只有 false 生效；控制 MCP 工具按需加载，当前无界面开关，见 [MCP](mcp.md#工具搜索与按需加载) |
+| `mcp.toolSearch` | true | 只有 false 生效；控制 MCP 工具按需加载，当前无界面开关，见 [MCP](mcp.md#工具搜索与按需加载) |
 | `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
 | `lsp.enabled`、`teams.enabled`（M6） | true | 只有 false 生效；项目文件中 `lsp` 的其他键（例如 `lsp.servers`）以 `project-cannot-grant` 忽略：语言服务器只在全局与 Workspace 设置中配置 |
 | `plugins.enabled`（M6） | true | 只能在全局设置：项目文件中的 `plugins` 键不论取值都以 `project-cannot-grant` 忽略；关闭后所有插件的贡献为空 |
@@ -77,6 +77,8 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 - `GET /api/config?workspaceId=…` → `{ effective, global, globalRevision, project? }`。`globalRevision` 未保存过为 0。给出 workspaceId 时 `effective` 含该项目文件，`project = { path, exists, values, diagnostics }`：`values` 只有生效的项（关闭的开关、追加的 `skills.disabled`、有规则时的 `permissions: { deny, ask }`），被忽略的项只出现在 `diagnostics` 中；文件不存在时 `exists: false`。Workspace 不存在 404。
 - `PUT /api/config { values, expectedRevision, workspaceId? }`：整体替换全局值，返回同形的响应。值不合 schema 400；revision 不一致 409 `revision-conflict`。
 - 设置界面的能力开关经 `GET /api/config` 读取全局值与 revision，再以 `PUT /api/config` 整体替换（只改一个键，其他全局键原样带回），完成后重新读取。
+
+MCP Server 的配置另有可选布尔值 `alwaysLoad`（缺省 false），适用于全局、项目与插件 Server：启用工具搜索时，这些 Server 的工具始终直接提供；工具搜索关闭时不影响工具列表。它只控制定义的加载方式，不授予执行权限，也不进入项目 Server 的启动批准摘要，已有批准保持有效。字段与表单见 [MCP](mcp.md#配置)。
 
 ## 界面
 

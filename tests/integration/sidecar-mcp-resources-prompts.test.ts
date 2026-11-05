@@ -124,7 +124,7 @@ describe('MCP 资源', () => {
     ])
     const { api, stream, workspace, workspaceDir, root } = ctx
     const docsLog = join(root, 'docs.jsonl')
-    const plain = stdioServerConfig({ MCP_FIXTURE_NAME: 'plain' })
+    const plain = stdioServerConfig({ MCP_FIXTURE_NAME: 'plain' }, { alwaysLoad: true })
     expect((await api.put(mcpPaths.servers, { servers: { plain }, expectedRevision: 0, workspaceId: workspace.id })).status).toBe(200)
     await waitConnected(api, workspace.id, ['plain'])
 
@@ -137,7 +137,7 @@ describe('MCP 资源', () => {
     expect(textOf(missing)).toMatch(/not found/i)
 
     // 加入声明 resources 的 Server：下一个 Run 注册三个资源工具。
-    const docs = stdioServerConfig({ MCP_FIXTURE_FEATURES: 'resources', MCP_FIXTURE_LOG: docsLog })
+    const docs = stdioServerConfig({ MCP_FIXTURE_FEATURES: 'resources', MCP_FIXTURE_LOG: docsLog }, { alwaysLoad: true })
     expect((await api.put(mcpPaths.servers, { servers: { plain, docs }, expectedRevision: 1, workspaceId: workspace.id })).status).toBe(200)
     const view = await waitConnected(api, workspace.id, ['plain', 'docs'])
     // 资源工具不是该 Server 的工具，不计入 tools。
@@ -215,7 +215,10 @@ describe('MCP 提示模板', () => {
       const ctx = await setup([{ content: 'greeted' }, { content: [call('mcp__srv__add_prompt', 'add', { name: 'fresh' })] }, { content: 'added' }])
       const { api, stream, workspace, root, requests } = ctx
       const log = join(root, 'srv.jsonl')
-      const servers = { srv: stdioServerConfig({ MCP_FIXTURE_FEATURES: 'prompts', MCP_FIXTURE_LOG: log }), plain: stdioServerConfig() }
+      const servers = {
+        srv: stdioServerConfig({ MCP_FIXTURE_FEATURES: 'prompts', MCP_FIXTURE_LOG: log }, { alwaysLoad: true }),
+        plain: stdioServerConfig({}, { alwaysLoad: true }),
+      }
       expect((await api.put(mcpPaths.servers, { servers, expectedRevision: 0 })).status).toBe(200)
 
       // 目录（按名字排序）：列命令时先连接；只有声明 prompts 的 Server 登记提示模板，参数提示按声明顺序。

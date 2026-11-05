@@ -14,6 +14,7 @@ import {
 } from '@coko/protocol'
 import {
   Button,
+  Checkbox,
   cn,
   Dialog,
   DialogContent,
@@ -545,6 +546,7 @@ function ServerForm({ name: initialName, focus, onDone }: { name?: string | unde
   const [headers, setHeaders] = React.useState(toLines(existing?.headers, ': '))
   const [timeout, setTimeoutValue] = React.useState(typeof existing?.timeout === 'number' ? String(existing.timeout) : '')
   const [disabledTools, setDisabledTools] = React.useState(Array.isArray(existing?.disabledTools) ? (existing.disabledTools as string[]).join(', ') : '')
+  const [alwaysLoad, setAlwaysLoad] = React.useState(existing?.alwaysLoad === true)
   const [error, setError] = React.useState<string | null>(null)
   const [errorDetail, setErrorDetail] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -556,6 +558,7 @@ function ServerForm({ name: initialName, focus, onDone }: { name?: string | unde
     if (trimmed === '') return setError(t('mcp.form.nameRequired'))
     const common: Record<string, unknown> = {}
     if (existing?.enabled === false) common.enabled = false
+    if (alwaysLoad) common.alwaysLoad = true
     if (timeout.trim() !== '') common.timeout = Number(timeout)
     const disabled = disabledTools
       .split(',')
@@ -675,6 +678,23 @@ function ServerForm({ name: initialName, focus, onDone }: { name?: string | unde
             )}
           </>
         )}
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id={`${id}-alwaysLoad`}
+            className="mt-0.5"
+            checked={alwaysLoad}
+            onCheckedChange={(checked) => setAlwaysLoad(checked === true)}
+            aria-describedby={`${id}-alwaysLoadHint`}
+          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <label htmlFor={`${id}-alwaysLoad`} className="text-ui-body">
+              {t('mcp.form.alwaysLoad')}
+            </label>
+            <p id={`${id}-alwaysLoadHint`} className="text-ui-small text-muted-foreground">
+              {t('mcp.form.alwaysLoadHint')}
+            </p>
+          </div>
+        </div>
         {field(
           'timeout',
           'mcp.form.timeout',

@@ -35,7 +35,7 @@ export interface ContextScope {
   /** Managed Standalone Session root; cwd is its work/ directory. Omitted for Project and legacy Sessions. */
   sessionDirectory?: string
   /** Current model; draft scopes use the default model. */
-  model?: { providerId: string; modelId: string }
+  model?: { providerId: string; modelId: string; contextWindow?: number }
   /** Additional Project folders, inherited from the root Session by child Sessions. */
   additionalFolders?: readonly string[]
   /** 草稿（还没有 Session）时省略。 */
@@ -64,6 +64,8 @@ export interface ContributedTool {
   permissionClass?: PermissionClass
   /** MCP tool origin captured with this Run; resource Host Tools do not carry it. */
   mcpServer?: string
+  /** The MCP server opts out of on-demand loading for this Run. */
+  mcpAlwaysLoad?: boolean
 }
 
 /**

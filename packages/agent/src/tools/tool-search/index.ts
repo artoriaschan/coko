@@ -1,5 +1,6 @@
 import { Type } from 'typebox'
 import type { CokoTool } from '../types.ts'
+import { parseToolSearchQuery, searchOnDemandTools } from './search.ts'
 
 /** A frozen Run catalog. It contains definitions, never a connection or a Session store. */
 export interface OnDemandTool {
@@ -9,27 +10,7 @@ export interface OnDemandTool {
   parameters: unknown
 }
 
-export function renderOnDemandCatalog(catalog: readonly OnDemandTool[]): string {
-  const groups = new Map<string, OnDemandTool[]>()
-  for (const tool of [...catalog].sort((a, b) => a.server.localeCompare(b.server) || a.name.localeCompare(b.name))) {
-    const group = groups.get(tool.server) ?? []
-    group.push(tool)
-    groups.set(tool.server, group)
-  }
-  return [
-    'On-demand tool catalog. Use tool_search to load a tool before calling it directly.',
-    ...[...groups].map(
-      ([server, tools]) =>
-        `${server} (${tools.length} tools):\n${tools
-          .map((tool) => {
-            const sentence = tool.description.split(/[.!?。！？]\s*|\n/)[0] ?? ''
-            const description = sentence.length > 60 ? `${sentence.slice(0, 60).trimEnd()}…` : sentence
-            return `- ${tool.name}${description ? `: ${description}` : ''}`
-          })
-          .join('\n')}`,
-    ),
-  ].join('\n\n')
-}
+export { renderOnDemandCatalog } from './catalog.ts'
 
 const parameters = Type.Object({
   query: Type.String({
@@ -53,39 +34,49 @@ export function createToolSearch(options: {
     parameters,
     description:
       'Load the parameter schema for an on-demand tool (MCP) so you can call it. The on-demand tool catalog at the start of this conversation already lists every such tool by name and purpose — this tool is how you get its parameters, not how you discover that it exists. When you already see the exact name in that catalog, call this with `select:<name>` instead of keywords. Returns each match with its full parameter schema and loads it, so from the NEXT turn on you call the tool directly by its own name — do not route later calls back through this tool. Tools already present in your tools list never need to be searched.',
-    async execute(id, { query }) {
+    async execute(id, { query, limit }) {
       const result = (payload: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(payload) }], details: {} })
       if (!query.trim())
         return result({ error: 'query is required', hint: 'Pass keywords, or `select:<exact-tool-name>` for a tool listed in the on-demand tool catalog.' })
-      const names = /^select:/i.test(query.trim())
-        ? [
-            ...new Set(
-              query
-                .trim()
-                .slice(7)
-                .split(',')
-                .map((name) => name.trim())
-                .filter(Boolean),
-            ),
-          ]
-        : []
+      if (options.catalog.length === 0)
+        return result({
+          query,
+          totalOnDemand: 0,
+          matches: [],
+          hint: 'No on-demand tools are attached to this session. Everything available is already in your tools list.',
+        })
+      const names = parseToolSearchQuery(query).selectNames
       const byName = new Map(options.catalog.map((tool) => [tool.name, tool]))
-      const matched = names.flatMap((name) => (byName.has(name) ? [byName.get(name)!] : []))
+      const matched = names.length
+        ? names.flatMap((name) => (byName.has(name) ? [byName.get(name)!] : []))
+        : searchOnDemandTools(options.catalog, query, Number.isFinite(limit) ? Math.max(1, Math.min(20, Math.floor(limit!))) : 5)
       const regular = names.filter((name) => !byName.has(name) && options.regularNames.includes(name))
       const unknown = names.filter((name) => !byName.has(name) && !options.regularNames.includes(name))
       const loaded = options.loadedNames()
       const added = matched.filter((tool) => !loaded.has(tool.name)).map((tool) => tool.name)
       if (added.length) options.onLoad?.(id, added)
+      let schemaChars = 0
       const payload: Record<string, unknown> = {
         query,
         totalOnDemand: options.catalog.length,
-        matches: matched.map((tool) => ({
-          name: tool.name,
-          server: tool.server,
-          description: tool.description,
-          alreadyAvailable: loaded.has(tool.name),
-          parameters: tool.parameters,
-        })),
+        matches: matched.map((tool) => {
+          const base = { name: tool.name, server: tool.server, description: tool.description, alreadyAvailable: loaded.has(tool.name) }
+          if (tool.parameters === undefined) return base
+          let serialized = ''
+          try {
+            serialized = JSON.stringify(tool.parameters) ?? ''
+          } catch {
+            /* Schema text is optional; the registered tool still loads. */
+          }
+          if (schemaChars + serialized.length > 8000)
+            return {
+              ...base,
+              parametersOmitted:
+                'Parameter schema omitted to stay within the result budget. The tool is loaded — its schema is in your tools list from the next turn on.',
+            }
+          schemaChars += serialized.length
+          return { ...base, parameters: tool.parameters }
+        }),
       }
       if (regular.length) {
         payload.alreadyAvailable = regular
