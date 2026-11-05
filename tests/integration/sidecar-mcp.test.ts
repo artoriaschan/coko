@@ -210,8 +210,8 @@ describe('MCP 连接与工具', () => {
     await waitServer(api, workspace.id, 'proj', (s) => s.status === 'connected' && s.approval?.approved === true)
     const started = (await readJsonl(projectLog)).filter((e) => e.event === 'start')
     expect(started).toHaveLength(1)
-    // stdio 的工作目录缺省为 Workspace。
-    expect(await realpath(started[0]!.cwd)).toBe(await realpath(workspaceDir))
+    // stdio 的工作目录缺省为按 Server 分配的数据目录。
+    expect(await realpath(started[0]!.cwd)).toBe(await realpath(join(ctx.dirs.dataDir, 'mcp', 'proj')))
 
     // 改动 args：摘要变化，回到 pending，已有连接关闭；用旧摘要批准得到 409。
     await writeFile(join(workspaceDir, '.mcp.json'), JSON.stringify(project([stdioServerEntry, '--changed'])))

@@ -26,6 +26,7 @@ describe('MCP 贡献', () => {
     let effective = 0
     const reads: string[] = []
     const manager = new McpManager({
+      dataRoot: join(dir, 'mcp-data'),
       store,
       config: {
         effective: (path) => {

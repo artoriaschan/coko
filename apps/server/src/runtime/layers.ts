@@ -325,14 +325,16 @@ const AssemblyLive = Layer.effect(
     // ── mcp ──
     const mcp = new McpManager({
       store,
+      dataRoot: join(sidecar.dataDir, 'mcp'),
       config,
       secrets,
       plugins,
       // stdio Server 登记为 mcp（ADR 0012），传输关闭后删除。pi-mcp 在 POSIX 上以独立进程组（detached，pgid = pid）启动它，登记进程组使
       // 孤儿清理覆盖 Server 派生的子进程（例如经 npx 启动的 Server）；Windows 没有进程组。
-      createTransport: (server, { cwd, authProvider }) =>
+      createTransport: (server, { cwd, dataDir, authProvider }) =>
         createMcpTransport(server, {
           cwd,
+          dataDir,
           env,
           authProvider,
           onProcess: ({ pid, command }) => processes.track({ pid, ...(process.platform === 'win32' ? {} : { pgid: pid }), kind: 'mcp', command }),
