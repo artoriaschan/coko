@@ -11,6 +11,7 @@ import {
   GOAL_BUDGET_DIMENSIONS,
   GOAL_BUDGET_EXHAUSTED_PREFIX,
   goalSection,
+  goalStateValue,
   type GoalUsageSnapshot,
 } from './index.ts'
 
@@ -52,7 +53,8 @@ describe('GOAL_BUDGET_DIMENSIONS', () => {
     expect(exhaustedDimension(budget, usage, [dimension])).toBe(dimension)
     expect(exhaustedDimension(budget, { rounds: 0, [spec.used]: 2 }, [dimension])).toBeUndefined()
     expect(exhaustedMessage(dimension, budget, usage)).toBe(`${GOAL_BUDGET_EXHAUSTED_PREFIX}${spec.name} (${spec.format(3)} / ${spec.format(3)})`)
-    expect(goalSection(goal(budget), usage)!.text).toContain(`- ${spec.name}: ${spec.format(3)} / ${spec.format(3)}`)
+    expect(goalSection(goal(budget))!.text).toContain(`- ${spec.name}: limit ${spec.format(3)}`)
+    expect(goalStateValue(goal(budget), usage)).toMatchObject({ usage: { [spec.used]: 3 }, budget: { [spec.limit]: 3 } })
   })
 
   it('create_goal 的描述建议长任务设 max_cost（缺省只有轮次上限）', () => {

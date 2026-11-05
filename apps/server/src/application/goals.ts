@@ -14,6 +14,7 @@ import {
   goalRounds,
   goalRunIds,
   goalSection,
+  goalStateValue,
   goalUsage,
   goalView,
   isActivePhase,
@@ -213,11 +214,17 @@ export class GoalService {
     return { goal, usage: { ...(await this.#usage(entries, goal.id)), costUnpriced: !(await this.#priced(sessionId)) } }
   }
 
-  /** Goal 未终结时的 <goal> section（已设维度的用量 / 上限）。 */
+  /** Goal 未终结时的 <goal> section，只包含稳定定义。 */
   async systemSection(sessionId: string): Promise<SystemSection | undefined> {
     const entries = await this.#entries(sessionId)
+    return goalSection(currentGoal(entries))
+  }
+
+  /** 按与 GET …/goal 相同的领域快照和用量口径给 State Update 取值。 */
+  async stateValue(sessionId: string) {
+    const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
-    return goalSection(goal, goal ? await this.#usage(entries, goal.id) : { rounds: 0 })
+    return goalStateValue(goal, goal ? await this.#usage(entries, goal.id) : { rounds: 0 })
   }
 
   // ---- 预算检查点（context/goal.ts 的 beforeRequest 与工具 hook） ----

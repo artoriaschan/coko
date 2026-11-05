@@ -9,6 +9,7 @@ import {
   GOAL_BUDGET_EXHAUSTED_PREFIX,
   goalChildRuns,
   goalSection,
+  goalStateValue,
   goalUsage,
   type BudgetEntry,
   type GoalUsageSnapshot,
@@ -236,13 +237,15 @@ describe('耗尽的维度', () => {
     expect(applyGoalChange(raised, { type: 'resume' }, 'user', used)).toMatchObject({ phase: 'running', resumedAtRound: 3 })
   })
 
-  it('<goal> 列出已设维度的用量 / 上限', () => {
-    const text = goalSection(goal('running', 1, { maxRounds: 5, maxToolCalls: 20, maxTokens: 9000, maxCost: 1.5, maxDurationMs: 120_000 }), used)?.text
-    expect(text).toContain('- rounds: 3 / 5')
-    expect(text).toContain('- tool calls: 10 / 20')
-    expect(text).toContain('- tokens: 5000 / 9000')
-    expect(text).toContain('- cost: 0.25 / 1.5')
-    expect(text).toContain('- time: 60000 ms / 120000 ms')
+  it('<goal> 只列预算上限，State Update 列已设维度的用量 / 上限', () => {
+    const g = goal('running', 1, { maxRounds: 5, maxToolCalls: 20, maxTokens: 9000, maxCost: 1.5, maxDurationMs: 120_000 })
+    const text = goalSection(g)?.text
+    expect(text).toContain('- rounds: limit 5')
+    expect(text).toContain('- tool calls: limit 20')
+    expect(text).toContain('- tokens: limit 9000')
+    expect(text).toContain('- cost: limit 1.5')
+    expect(text).toContain('- time: limit 120000 ms')
+    expect(goalStateValue(g, used)).toMatchObject({ usage: used, budget: g.budget })
   })
 })
 

@@ -1,4 +1,4 @@
-// Goal 的上下文贡献（docs/subsystems/goal.md）：<goal> system section（Goal 未终结时每个 Run 注入，压缩后同样存在）、Goal 工具（get_goal 为
+// Goal 的上下文贡献（docs/subsystems/goal.md）：稳定的 <goal> system section 与动态 State Update 当前值、Goal 工具（get_goal 为
 // context-read，create_goal、update_goal 为 session-state）、预算检查点（工具调用前的 hook 与模型请求前的 beforeRequest）、Run 结束后的阶段
 // 转换与推进（GoalService.runEnded），以及内置命令 /goal 的动作。
 import { createCreateGoalTool, createGetGoalTool, createUpdateGoalTool } from '@coko/agent'
@@ -49,6 +49,10 @@ export function goalContribution(options: ContextContributionOptions): ContextCo
       if (scope.sessionId === undefined) return []
       const section = await goals.systemSection(scope.sessionId)
       return section ? [section] : []
+    },
+    async stateValues(scope) {
+      if (scope.sessionId === undefined || scope.parentSessionId !== undefined) return {}
+      return { goal: await goals.stateValue(scope.sessionId) }
     },
     async tools(scope) {
       if (scope.sessionId === undefined) return []
