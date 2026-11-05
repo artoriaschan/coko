@@ -30,3 +30,5 @@ Closed: true
 - `rtk pnpm run typecheck`：退出 0。改动 TS/TSX 的 oxfmt 与 oxlint：退出 0。
 - 文档影响：当前创建/API/冲突/回滚事实归 `docs/subsystems/projects.md`，总导航摘要同步 `docs/README.md`；无新类别、无新 ADR。`rtk pnpm run check:docs`：退出 0，378 个 Markdown，0 问题。按 AGENTS → 文档导航 → 项目正文读回；路径与引用、语义、归属、引用方向、生命周期、入口、新会话读入、历史保留均通过。
 - 本地验证未覆盖 Windows 实机、真实模型、真实鼠标/原生目录选择层或签名发布；无真实用户 ~/.coko/Documents 写入，未推送、未发布。合并最新集成基线后的检查见下条。
+
+- 最终同步：实施提交 `c9db95fc` 后，将集成分支 `bbde17a9` 合入为 `eeca3eea`，无冲突，保留附件/MCP 的协议、装配与字典变化。合并后 `rtk pnpm run test tests/integration/sidecar-blank-project.test.ts apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx` 退出 0（2 文件 8 项全通过）；`rtk pnpm run typecheck` 与 `rtk pnpm run check:docs` 均退出 0（378 文件、0 问题）。明暗窄窗截图已实际读图核对，文字、按钮和边界完整，无横向溢出。
