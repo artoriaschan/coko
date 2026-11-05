@@ -1,0 +1,88 @@
+.scratch/tool-search/evidence/acceptance.md
+  s_dd1034265ded7f::t_5787fe1c47f0eb 1-19,22-43,46-67,69-112,114-115
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 20-21,44-45,68,113
+packages/agent/src/context/usage/tool-definitions.test.ts
+  s_dd1034265ded7f::t_d7fbb11f80ecbf 4
+  s_dd1034265ded7f::t_2b27d3c79d2085 17-21
+  s_dd1034265ded7f::t_f01a0e7da18ec8 1-3,5-16,22-40
+.scratch/tool-search/design.md
+  s_dd1034265ded7f::t_5787fe1c47f0eb 10
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_2b27d3c79d2085 371-375,381-390,548-553
+  s_dd1034265ded7f::t_b88c9d58a579ff 376-379,391-393
+  s_dd1034265ded7f::t_c6b8b0d583b426 370
+packages/agent/README.md
+  s_dd1034265ded7f::t_4a761339644861 3,15
+packages/agent/src/engine/context-seam.test.ts
+  s_dd1034265ded7f::t_b16e35f93beb2d 115,142,147
+apps/server/src/application/context-service.ts
+  s_dd1034265ded7f::t_2b27d3c79d2085 74
+  s_dd1034265ded7f::t_b88c9d58a579ff 75
+tests/integration/sidecar-tool-search-settings.test.ts
+  s_dd1034265ded7f::t_b97cc9655b2ae3 4,115,117-118
+packages/agent/src/context/usage/tool-definitions.ts
+  s_dd1034265ded7f::t_2b27d3c79d2085 5-6,13-23
+  s_dd1034265ded7f::t_8b88f437fe3903 10
+docs/subsystems/subagents.md
+  s_dd1034265ded7f::t_2389885dc83372 49
+docs/adr/0024-session-state-as-state-updates.md
+  s_dd1034265ded7f::t_4a761339644861 25,45,58
+packages/agent/src/index.ts
+  s_dd1034265ded7f::t_911df86b814d0d 47
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_4a761339644861 143,149,174,270
+.scratch/tool-search/spec.md
+  s_dd1034265ded7f::t_2389885dc83372 236-237
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 22
+  s_dd1034265ded7f::t_5787fe1c47f0eb 16,20-21,23,238
+tests/integration/sidecar-incremental-tools.test.ts
+  s_dd1034265ded7f::t_00979bef5f4679 236-239,241-245
+  s_dd1034265ded7f::t_83013af5fa4af8 240
+  s_dd1034265ded7f::t_9f5b7b63f9b6c9 198
+  s_dd1034265ded7f::t_2b27d3c79d2085 49-56,80-85,156-160,162-177,181-188,193-196,208-211,213-221,224-234
+  s_dd1034265ded7f::t_351eea41a027eb 6,25,69,107,116,147,207,212,222-223,235,246-248
+  s_dd1034265ded7f::t_5ff604007f711e 4,155,161,178-180,189-192,197,199-206
+.scratch/tool-search/issues/15-integrated-acceptance-and-docs.md
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 32-36
+  s_dd1034265ded7f::t_2389885dc83372 15-22,27-31
+  s_dd1034265ded7f::t_3b2b3fa4036c49 37-38
+tests/integration/sidecar-tool-search.test.ts
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 56
+  s_dd1034265ded7f::t_b8cc8ee0c42941 4,57-63,67-70,72-76,78-81
+  s_dd1034265ded7f::t_d861ea8dad6ed3 71,77
+  s_dd1034265ded7f::t_c6b8b0d583b426 64-66
+apps/server/src/application/context/usage.ts
+  s_dd1034265ded7f::t_2b27d3c79d2085 107-111
+  s_dd1034265ded7f::t_4a761339644861 158
+packages/agent/src/engine/compaction-driver.ts
+  s_dd1034265ded7f::t_00979bef5f4679 23,122,129,213-218,231
+  s_dd1034265ded7f::t_4a761339644861 55,131
+  s_dd1034265ded7f::t_2b27d3c79d2085 220-222
+docs/adr/0003-settings-and-sessions-in-sqlite.md
+  s_dd1034265ded7f::t_4a761339644861 42-43
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_4a761339644861 3,91
+.scratch/tool-search/issues/03-on-demand-minimal-loop.md
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 43-44
+.scratch/tool-search/README.md
+  s_dd1034265ded7f::t_1ffdeee2b2eb2e 27
+  s_dd1034265ded7f::t_5787fe1c47f0eb 11,25-26,28,31,51,65-66
+docs/README.md
+  s_dd1034265ded7f::t_4a761339644861 38,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "7ee1906f3396f5d8a3be29c1aec7a8a3588d5621",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
