@@ -331,6 +331,21 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   })
 
   // ---- 压缩（compaction-driver.ts）：省略 compaction 选项时没有自动压缩，compact() 拒绝 ----
+  const redeliverState = async (run: CompactionRun) => {
+    const updates = await context?.stateUpdates?.()
+    if (!updates || run.aborted || run.commitError) return
+    const message = userMessage({ text: '', content: updates.blocks })
+    try {
+      for (const entry of updates.entries) await commit({ ...entry, runId: run.runId })
+      await commit({ kind: 'message', runId: run.runId, payload: message })
+    } catch (error) {
+      run.commitError ??= error instanceof Error ? error : new Error(String(error))
+      agent.abort()
+      return
+    }
+    // prepareRequest 不会为直接追加的消息发出 message_end；先持久化，再更新本次请求的上下文。
+    agent.state.messages.push(message)
+  }
   const driver: CompactionDriver | undefined = options.compaction
     ? createCompactionDriver({
         compaction: options.compaction,
@@ -343,6 +358,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         resume: () => agent.continue(),
         abortAgent: () => agent.abort(),
         admit: (run) => admit(run as RunState, agent.state.messages, agent.state.model),
+        afterCompact: redeliverState,
         ...(context?.beforeCompact ? { beforeCompact: (info) => context.beforeCompact!(info) } : {}),
       })
     : undefined
@@ -550,7 +566,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 上一 Run 须为 paused / interrupted；模型请求要从用户消息或工具结果继续。
       if ((lastStatus !== 'paused' && lastStatus !== 'interrupted') || !last || last.role === 'assistant' || last.role === 'system')
         return Promise.reject(new NothingToContinueError())
-      return execute('continue', withStop(recoverOverflow(() => agent.continue())))
+      const input: RunInput = { text: '', content: [] }
+      return execute(
+        'continue',
+        withStop(recoverOverflow(() => (input.content!.length > 0 ? agent.prompt(userMessage(input)) : agent.continue()))),
+        [],
+        {},
+        input,
+      )
     },
     steer(raw) {
       const run = current
