@@ -36,7 +36,9 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 与可访问名称均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
-右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，目前保存在 renderer 内存。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+
+布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
 
 右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
 
