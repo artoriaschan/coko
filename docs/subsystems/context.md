@@ -8,6 +8,16 @@ lifecycle: active
 
 本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖 [File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
 
+## State Update
+
+当前 Todo List 由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+
+块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
+
+时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 不读新状态，重试保留原请求上下文。
+
+原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
+
 ## 结构入口
 
 | 位置 | 职责 |
@@ -167,9 +177,9 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 输入区：当前会话收到 `compaction_start` 后，输入框上方显示状态行"正在压缩上下文…"与"停止压缩"（即停止当前 Run）；`compaction_end`、`compaction_failed`、`run_end` 或重连时清除。
 - 失败时每次一个 Toast，第 3 次自动失败的 Toast 改为提示自动压缩已暂停并给出 `/compact`；暂停标记见[上下文环](#上下文环)。
 
-### 压缩后的 `<todo_list>`
+### 压缩后的 Todo List
 
-`<todo_list>` system section 每个 Run 开始时从该 Session 最新的 `todo_list` 条目生成，不依赖对话消息：压缩把 todo_write 的调用与结果摘要掉之后，有未完成项时 section 照常注入，模型仍看到当前表。见 [Todo List](todo.md#注入)。
+Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目读取。压缩移出上次配对的 State Update 后，下一个带新输入的 Run 会重新送达当前表。见 [Todo List](todo.md#注入)。
 
 ### 压缩后的 `<goal>`
 
@@ -177,7 +187,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 压缩后的 `<approved_plan>`
 
-最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal → todo）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
+最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
 
 ## 定时任务的 `<scheduled_task>` 输入
 

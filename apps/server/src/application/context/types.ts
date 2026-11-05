@@ -1,3 +1,4 @@
+import type { StateValues } from '@coko/agent/entries'
 // 上下文装配（docs/subsystems/context.md）：每个领域一个文件导出 ContextContribution，context/index.ts 按固定顺序组合。
 // M4 起另有请求前检查（beforeRequest）、下一个 Run 的待送达内容（pendingInput）与 Run 结束通知（onRunEnd）。
 import type {
@@ -162,6 +163,7 @@ export interface ContextContribution {
   /** 领域名（日志与组合顺序）。 */
   name: string
   systemSections?(scope: ContextScope): Promise<SystemSection[]>
+  stateValues?(scope: ContextScope): Promise<StateValues>
   tools?(scope: ContextScope): Promise<ContributedTool[]>
   /** 本领域可能贡献的工具及其权限类（PermissionService 据此校验与归一规则中的工具名）。 */
   ruleTools?: readonly RuleTool[]

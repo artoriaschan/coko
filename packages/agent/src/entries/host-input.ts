@@ -17,6 +17,9 @@ export const TEAM_MESSAGE_TAG = '<team-message'
 /** 前置在送达通知的 user message 之前的条目 kind：这样的 user message 是宿主通知，不是用户写的。 */
 export const HOST_NOTIFICATION_KINDS: ReadonlySet<string> = new Set(['job_notification', 'agent_notification', 'team_message'])
 
+/** Host-generated inputs include state snapshots as well as notifications. */
+export const HOST_INPUT_KINDS: ReadonlySet<string> = new Set([...HOST_NOTIFICATION_KINDS, 'state_update'])
+
 /** 文本是否为宿主通知（Job 或后台子代理的结束通知、团队消息）。 */
 export const isHostNotificationText = (text: string) =>
   text.startsWith(JOB_NOTIFICATION_TAG) || text.startsWith(AGENT_NOTIFICATION_TAG) || text.startsWith(TEAM_MESSAGE_TAG)

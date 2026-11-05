@@ -14,6 +14,7 @@ export {
   AGENT_NOTIFICATION_TAG,
   HOOK_CONTEXT_TAG,
   HOST_NOTIFICATION_KINDS,
+  HOST_INPUT_KINDS,
   hookContextText,
   isHostBlockText,
   isHostNotificationText,
@@ -29,3 +30,6 @@ export type { ScheduleRuleSpec } from '../tasks/schedules/rules.ts'
 export type { CompactionFields, ContextMessage, EntryLike, EntryRunStatus, RewoundRange, UnansweredConfirmation } from './types.ts'
 export { aggregateUsage, aggregateUsageByRun } from './usage.ts'
 export type { UsageAggregate, UsageAggregateOptions, UsageAttribution, UsageBucket, UsageCounts, UsageSummary } from './usage.ts'
+
+export { pairedStateUpdates, planStateUpdates, STATE_UPDATE_NAMES } from './state-updates.ts'
+export type { StateUpdateName, StateValues, StateSnapshotPayload, StateUpdateDelivery, PairedStateUpdate } from './state-updates.ts'

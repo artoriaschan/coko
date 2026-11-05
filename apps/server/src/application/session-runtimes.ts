@@ -1,5 +1,5 @@
 import { lastRunStatus, type AgentRuntime, type ProgressEvent as AgentProgress, type RunEntry, type RunStatus } from '@coko/agent'
-import { HOST_NOTIFICATION_KINDS } from '@coko/agent/entries'
+import { HOST_INPUT_KINDS } from '@coko/agent/entries'
 import { redactSecretsDeep, redactText } from '@coko/logging'
 import type { ProgressEvent } from '@coko/protocol'
 import type { JsonValue, NewSessionEntry, SessionEntry as StoredEntry, Session as StoredSession, SessionStore } from '@coko/session'
@@ -120,7 +120,7 @@ export class SessionRuntimes {
    */
   publisher(sessionId: string, onEntry: () => ((entry: StoredEntry) => void) | undefined): (entry: RunEntry) => Promise<StoredEntry> {
     const publish = async (entry: RunEntry): Promise<StoredEntry> => {
-      if (HOST_NOTIFICATION_KINDS.has(entry.kind) && !this.#inputMarkers.has(sessionId)) {
+      if (HOST_INPUT_KINDS.has(entry.kind) && !this.#inputMarkers.has(sessionId)) {
         let release!: () => void
         const done = new Promise<void>((resolve) => {
           release = resolve

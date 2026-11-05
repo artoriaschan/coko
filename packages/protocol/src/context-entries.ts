@@ -6,6 +6,13 @@ import { Type, type Static } from 'typebox'
 const strict = { additionalProperties: false } as const
 const Count = Type.Integer({ minimum: 0 })
 
+/** state_update v1 records the structured state delivered in the next user message. */
+export const StateUpdatePayload = Type.Object(
+  { name: Type.Union([Type.Literal('date'), Type.Literal('goal'), Type.Literal('todo_list'), Type.Literal('team')]), value: Type.Unknown() },
+  strict,
+)
+export type StateUpdatePayload = Static<typeof StateUpdatePayload>
+
 /** 命令的来源（命令目录的分组）。 */
 export const CommandSource = Type.Union([Type.Literal('builtin'), Type.Literal('project'), Type.Literal('user'), Type.Literal('skill'), Type.Literal('mcp')])
 export type CommandSource = Static<typeof CommandSource>
@@ -70,6 +77,7 @@ export type CompactionPayload = Static<typeof CompactionPayload>
 
 /** 本领域的 kind → payload schema。 */
 export const contextEntryPayloadSchemas = {
+  state_update: StateUpdatePayload,
   command: CommandPayload,
   compaction: CompactionPayload,
 }

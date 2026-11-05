@@ -1,6 +1,8 @@
 // Todo List（docs/subsystems/todo.md）：todo_write 整表替换的校验与 id 生成、结果文本与 <todo_list> system section。
 // 存储经 TodoPort 由宿主提供（apps/server context/todo.ts 提交 todo_list 条目）；权限类 session-state 由宿主注册时给出。
 import { Type, type Static } from 'typebox'
+import { formatTodoItems, todoResultText } from '../../entries/todo-text.ts'
+export { formatTodoItems, todoResultText } from '../../entries/todo-text.ts'
 import type { SystemSection } from '../../engine/types.ts'
 import type { TodoItem, TodoStatus } from '../../session-entries/index.ts'
 import type { CokoTool } from '../../tools/types.ts'
@@ -91,34 +93,6 @@ export function normalizeTodoItems(input: readonly TodoInputItem[]): TodoItem[] 
     if (open) throw new TodoValidationError('Item ' + item.id + ' cannot be ' + item.status + ': prerequisite ' + open + ' is not finished')
   }
   return items
-}
-
-/** 表中每项一行（结果另起一行缩进）；空表为 (empty)。 */
-export function formatTodoItems(items: readonly TodoItem[]): string {
-  if (items.length === 0) return '(empty)'
-  return items
-    .map((item) => {
-      const blocked = item.blockedBy?.length ? ' (blocked by ' + item.blockedBy.join(', ') + ')' : ''
-      const line = '- [' + item.status + '] ' + item.id + ': ' + item.content + blocked
-      return item.result === undefined ? line : line + '\n  result: ' + item.result
-    })
-    .join('\n')
-}
-
-/** todo_write 的结果：各状态计数加当前表。 */
-export function todoResultText(items: readonly TodoItem[]): string {
-  const count = (status: TodoStatus) => items.filter((i) => i.status === status).length
-  const summary =
-    'Updated todo list: ' +
-    count('pending') +
-    ' pending, ' +
-    count('in_progress') +
-    ' in progress, ' +
-    count('completed') +
-    ' completed, ' +
-    count('cancelled') +
-    ' cancelled.'
-  return summary + '\n\n' + formatTodoItems(items)
 }
 
 /** 有未完成项（pending / in_progress）时的 <todo_list> system section；全部完成、取消或为空时 undefined。 */

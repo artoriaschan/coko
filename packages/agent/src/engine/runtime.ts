@@ -443,6 +443,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     drive: () => Promise<void>,
     before: readonly RunEntry[] = [],
     start: Omit<RunStartPayload, 'trigger'> = {},
+    input?: RunInput,
   ): Promise<RunResult> => {
     if (current || agent.state.isStreaming) throw new RuntimeBusyError()
     const run: RunState = {
@@ -471,7 +472,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       try {
         if (!run.commitError) {
           if (context?.systemSections) systemMessage.apply(await context.systemSections())
-          for (const entry of before) {
+          const updates = input && context?.stateUpdates ? await context.stateUpdates() : undefined
+          if (updates && input) input.content = [...updates.blocks, ...(input.content ?? [{ type: 'text' as const, text: input.text }])]
+          for (const entry of [...(updates?.entries ?? []), ...before]) {
             try {
               await commit({ ...entry, runId: run.runId } as RunEntry)
             } catch (error) {
@@ -515,7 +518,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 
   return {
     run(raw) {
-      const input = toInput(raw)
+      const input = { ...toInput(raw) }
       const trigger = input.trigger ?? 'submit'
       const start = {
         ...(input.goal ? { goal: input.goal } : {}),
@@ -523,7 +526,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
         ...(input.subagent ? { subagent: input.subagent } : {}),
       }
       if (trigger === 'handoff') return execute(trigger, summaryDrive(input), input.before ?? [], start)
-      return execute(trigger, withStop(recoverOverflow(() => agent.prompt(userMessage(input)))), input.before ?? [], start)
+      return execute(trigger, withStop(recoverOverflow(() => agent.prompt(userMessage(input)))), input.before ?? [], start, input)
     },
     async retry() {
       if (current || agent.state.isStreaming) throw new RuntimeBusyError()

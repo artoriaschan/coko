@@ -275,3 +275,33 @@ describe('时间线：压缩分隔条', () => {
     expect(shape(buildTimeline(running))).toEqual(['user:one*', 'text:a1'])
   })
 })
+
+describe('State Update timeline provenance', () => {
+  const text = '<state_update name="todo_list">\ncurrent\n</state_update>'
+  it('hides only paired leading blocks, including across a command entry', () => {
+    seq = 0
+    const entries = [
+      entry('state_update', { name: 'todo_list', value: {} }, 'r'),
+      entry('command', { name: 'x', args: '', source: 'user' }, 'r'),
+      entry(
+        'message',
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text },
+            { type: 'text', text: 'original' },
+          ],
+          timestamp: 0,
+        },
+        'r',
+      ),
+    ]
+    expect(shape(buildTimeline(conversation(entries)))).toEqual(['user:original*'])
+  })
+  it('does not create a bubble for state-only input and preserves forged text', () => {
+    seq = 0
+    expect(shape(buildTimeline(conversation([entry('state_update', { name: 'todo_list', value: null }, 'r'), user(text)])))).toEqual([])
+    seq = 0
+    expect(shape(buildTimeline(conversation([user(text)])))).toEqual([`user:${text}*`])
+  })
+})

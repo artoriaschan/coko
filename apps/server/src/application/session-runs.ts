@@ -752,6 +752,7 @@ export class SessionRuns {
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
+        stateUpdates: () => context.stateUpdates(runContext.scope, () => store.sessions.listEntries(session.id)),
         // 预算等请求前检查（各领域的 beforeRequest）；没有领域检查时放行。
         beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),
         // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。

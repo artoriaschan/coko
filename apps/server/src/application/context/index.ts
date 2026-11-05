@@ -1,4 +1,6 @@
-// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory → plan → goal → todo；
+import { planStateUpdates, type StateUpdateDelivery, type StateValues, type EntryLike } from '@coko/agent/entries'
+import { redactSecretsDeep } from '@coko/logging'
+// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory → plan → goal；
 // 输入展开为 命令 → File Reference。
 import {
   composeAfterToolCall,
@@ -58,8 +60,8 @@ export type * from './types.ts'
 const log = getLogger(['application', 'context'])
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → todo → 子代理（子 Session 的 <subagent>）→ 团队（teammate 的 <team>）。 */
-const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo', 'subagents', 'teams']
+/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → 子代理（子 Session 的 <subagent>）→ 团队（teammate 的 <team>）。 */
+const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'subagents', 'teams']
 /** 输入展开的顺序：命令 → File Reference。 */
 const EXPAND_ORDER = ['commands', 'references']
 
@@ -98,6 +100,7 @@ export interface ContextAssembly {
   /** 取值：有效配置与已启用插件的贡献快照（plugins.enabled 为 false 时为空）。 */
   scope(input: Omit<ContextScope, 'config' | 'cokoHome' | 'plugins'>): Promise<ContextScope>
   systemSections(scope: ContextScope): Promise<SystemSection[]>
+  stateUpdates(scope: ContextScope, entries: () => Promise<readonly EntryLike[]>): Promise<StateUpdateDelivery | undefined>
   tools(scope: ContextScope): Promise<ContributedTool[]>
   readRoots(scope: ContextScope): Promise<string[]>
   hooks(scope: ContextScope): ToolHooks[]
@@ -214,6 +217,18 @@ export function createContextAssembly(options: {
     },
     systemSections: (scope) =>
       collect('systemSections', (c) => (c.systemSections ? () => c.systemSections!(scope) : undefined), ordered(contributions, SECTION_ORDER)),
+    async stateUpdates(scope, entries) {
+      try {
+        const values: StateValues = {}
+        for (const contribution of contributions) {
+          if (contribution.stateValues) Object.assign(values, await contribution.stateValues(scope))
+        }
+        return planStateUpdates(redactSecretsDeep(values), await entries())
+      } catch (error) {
+        log.warn('state updates unavailable', { error: message(error) })
+        return undefined
+      }
+    },
     tools: (scope) => collect('tools', (c) => (c.tools ? () => c.tools!(scope) : undefined)),
     readRoots: (scope) => collect('readRoots', (c) => (c.readRoots ? () => c.readRoots!(scope) : undefined)),
     hooks: (scope) => contributions.flatMap((c) => c.hooks?.(scope) ?? []),

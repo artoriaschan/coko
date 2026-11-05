@@ -42,7 +42,7 @@ lifecycle: active
 - [定时任务](subsystems/schedules.md)：规则与 cron（时区、夏令时）、定时器与补跑、准入与跳过原因、至多一次投递与挂起、<scheduled_task> 输入与授权、四个工具、/api/schedules、桌面通知与通知设置、界面（Schedules tab、设置分区）、测试时钟。
 - [子代理](subsystems/subagents.md)：定义文件与诊断、agent / agent_wait / agent_cancel、子 Session 与工具交集、有效权限与审批、预算汇入 Goal、并行上限与取消、后台通知、isolation worktree、重启中断与 /api/sessions/:id/agents；界面（agent 工具卡、Agents tab、审批冒泡、设置分区）。
 - [Agent Teams](subsystems/teams.md)：具名 teammate 的创建与解散、send_message 的送达与排队、子代理继续对话、任务板的 compare-and-set 与认领、TaskCreated / TaskCompleted / TeammateIdle、worktree、预算归属、重启与 /api/sessions/:id/team。
-- [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时注入的 <todo_list>（压缩后仍在）、dock 的待办卡与队列卡。
+- [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时按变化送达的 State Update、dock 的待办卡与队列卡。
 - [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、<goal> 与 <goal_round> 注入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停、预算与模型价格、Goal 卡与用量界面。
 - [Plan Mode](subsystems/plan-mode.md)：plan 权限模式、/plan 与 prior、exit_plan_mode 的提交与审阅、<plan_mode> 与 <approved_plan> 注入、审阅卡与右栏 Plan tab。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、关键词检索与 FTS 降级、开关、/api/memories 与设置分区。

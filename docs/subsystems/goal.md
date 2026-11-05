@@ -118,7 +118,7 @@ Model Catalog 的模型可带 `price { input, output, cacheRead?, cacheWrite? }`
 
 ## 注入
 
-Goal 未终结时每个 Run 开始时注入名为 `goal` 的 system section（顺序在指令、Skills、Memory、plan 之后，todo 之前）：当前 Goal 的 id、revision、阶段与原因、目标（JSON 字符串）、约束、成功条件、轮次 n / 上限与已设维度的已用 / 上限（如 `- tokens: 5000 / 9000`），以及工具用法说明。轮次计入本轮（其 `run_start` 在 section 取值之前提交）。section 来自条目，压缩后照常注入，见 [上下文管理](context.md#压缩后的-goal)。
+Goal 未终结时每个 Run 开始时注入名为 `goal` 的 system section（顺序在指令、Skills、Memory、plan 之后）：当前 Goal 的 id、revision、阶段与原因、目标（JSON 字符串）、约束、成功条件、轮次 n / 上限与已设维度的已用 / 上限（如 `- tokens: 5000 / 9000`），以及工具用法说明。轮次计入本轮（其 `run_start` 在 section 取值之前提交）。section 来自条目，压缩后照常注入，见 [上下文管理](context.md#压缩后的-goal)。
 
 Goal Round 的输入是一条 user message：`<goal_round>`、`Objective: "<目标>"`、成功条件、`Round: n / 上限` 与推进说明（以当前 Workspace、工具结果与已提交状态为准；完成时用 update_goal 给出每条条件的证据）。文本取自已提交（已脱敏）的快照。
 

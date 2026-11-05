@@ -32,6 +32,7 @@ describe('Session Entry payload 定义', () => {
         'fork_origin',
         'command',
         'compaction',
+        'state_update',
         'goal',
         'todo_list',
         'plan',
@@ -76,15 +77,15 @@ describe('Session Entry payload 定义', () => {
       expect(entries.map((e) => e.kind)).toEqual([
         'run_start',
         'message',
-        'message',
         'model_request',
         'message',
         'message',
         'model_request',
+        'message',
         'run_end',
         'run_start',
-        'message',
         'model_request',
+        'message',
         'run_end',
       ])
       const reasons = entries.map((entry) => [entry.kind, check(entry.kind, JSON.parse(JSON.stringify(entry.payload)))])

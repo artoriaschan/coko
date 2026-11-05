@@ -52,7 +52,8 @@ describe('秘密不外泄总闸：Todo', () => {
     expect(JSON.stringify(result.payload)).toContain('verify [REDACTED:secret] still works')
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
     expect(requests).toHaveLength(3)
-    expect(requests[2]).toContain('<todo_list>')
+    expect(requests[2]).toContain('state_update')
+    expect(stream.entries(sessionId).filter((e) => e.kind === 'state_update')).toHaveLength(1)
 
     sidecar.child.kill('SIGTERM')
     expect(await sidecar.exited).toEqual({ code: 0, signal: null })

@@ -334,6 +334,16 @@ describe('Run 的授权（runAuthority）', () => {
       [start('continue'), e('agent_notification', { agentIds: ['a'] }), user('<agent-notification agent-id="a">')],
       { kind: 'none' },
     ],
+    [
+      'continue state update is host input',
+      [start('continue'), e('state_update', { name: 'todo_list', value: null }), user('<state_update>')],
+      { kind: 'none' },
+    ],
+    [
+      'Goal Round state update is host input',
+      [start('goal', { goalId: 'goal-1', round: 2 }), user('<goal_round>'), e('state_update', { name: 'todo_list', value: null }), user('<state_update>')],
+      { kind: 'goal-round', goalId: 'goal-1', round: 2 },
+    ],
     ['continue', [start('continue')], { kind: 'none' }],
     ['continue 中送达了追加指令', [start('continue'), user('go on')], { kind: 'user' }],
     ['没有进行中的 Run', [start('submit'), user('hi'), e('run_end', { status: 'completed' })], { kind: 'none' }],

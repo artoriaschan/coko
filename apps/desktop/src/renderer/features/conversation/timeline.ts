@@ -21,7 +21,15 @@ import {
   type TeamMessagePayload,
   type TeamTaskPayload,
 } from '@coko/protocol'
-import { AGENT_NOTIFICATION_TAG, HOOK_CONTEXT_TAG, JOB_NOTIFICATION_TAG, rewoundRanges, SCHEDULED_TASK_TAG, TEAM_MESSAGE_TAG } from '@coko/agent/entries'
+import {
+  AGENT_NOTIFICATION_TAG,
+  pairedStateUpdates,
+  HOOK_CONTEXT_TAG,
+  JOB_NOTIFICATION_TAG,
+  rewoundRanges,
+  SCHEDULED_TASK_TAG,
+  TEAM_MESSAGE_TAG,
+} from '@coko/agent/entries'
 import type { Conversation, LiveTool } from '../../stores/chat-store.ts'
 
 const unescapeAttribute = (value: string) =>
@@ -188,6 +196,7 @@ const resultDetails = (result: unknown) => (result && typeof result === 'object'
  * toolResult 条目按 toolCallId 配对；尚无结果的工具使用 progress 中的实时状态。
  */
 export function buildTimeline(conversation: Conversation): TimelineItem[] {
+  const stateUpdates = pairedStateUpdates(conversation.entries)
   const items: TimelineItem[] = []
   const tools = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
   const requests = new Map<string, Extract<TimelineItem, { kind: 'tool' }>>()
@@ -387,7 +396,9 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const teamNotice = preceding.has('team_message')
         const plain = typeof message.content === 'string' && !scheduleInput && !agentNotice && !teamNotice
         const blocks: Block[] = typeof message.content === 'string' ? (plain ? [] : [{ type: 'text', text: message.content }]) : blocksOf(message.content)
+        const stateIndices = new Set(stateUpdates.get(entry.seq)?.map((pair) => pair.blockIndex))
         const own = blocks.filter((b, index) => {
+          if (stateIndices.has(index)) return false
           if (b.type !== 'text' || typeof b.text !== 'string') return true
           if (b.text.startsWith(JOB_NOTIFICATION_TAG) || b.text.startsWith(HOOK_CONTEXT_TAG)) return false
           if (agentNotice && b.text.startsWith(AGENT_NOTIFICATION_TAG)) return false
