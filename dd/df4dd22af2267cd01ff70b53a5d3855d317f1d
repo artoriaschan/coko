@@ -1,0 +1,112 @@
+packages/agent/src/entries/tool-loads.test.ts
+  s_dd1034265ded7f::t_d718ae064a9b66 1-12
+packages/protocol/src/context-entries.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 11-14
+docs/subsystems/configuration.md
+  s_dd1034265ded7f::t_f42a63e8131943 43
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 324-327,343-350,754-757
+  s_dd1034265ded7f::t_1da8ce17db4604 328,333,341
+  s_dd1034265ded7f::t_dc48c4f5aca67d 14-16,39,44-46,207-210,332,334-340,342,351-355,517,773-774,776-777,785,812-822
+  s_dd1034265ded7f::t_73e3ec9794f3a1 502,509
+tests/integration/sidecar-config.test.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 55
+packages/agent/src/tools/tool-search/tool-search.test.ts
+  s_dd1034265ded7f::t_00c1a44c83e65b 1-12,21-37
+  s_dd1034265ded7f::t_e6a33022bc590d 13-20
+packages/agent/src/engine/types.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 19,170-173,205-206
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_dc48c4f5aca67d 1,6-8,111,228,234-235,313,327-329,337-339,347-352,357
+  s_dd1034265ded7f::t_e6a33022bc590d 334-336,340-346,353-356
+  s_dd1034265ded7f::t_c5ee584bbc0848 330
+  s_dd1034265ded7f::t_0160c8da3408d6 331-333
+packages/agent/src/entries/index.ts
+  s_dd1034265ded7f::t_af9cee7305ae4a 37
+packages/agent/src/entries/tool-loads.ts
+  s_dd1034265ded7f::t_af9cee7305ae4a 1-12
+tests/fixtures/tool-search/exact-result.json
+  s_dd1034265ded7f::t_b018257fc62821 1-16,18-20,22-23
+  s_dd1034265ded7f::t_e6a33022bc590d 17,21
+packages/agent/src/config/merge.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 17
+packages/protocol/src/runs.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 134-137
+  s_dd1034265ded7f::t_773c43201c4dbe 138-139,141
+packages/agent/src/engine/runtime.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 119-122
+  s_dd1034265ded7f::t_982bad8d6fcb17 505-508
+  s_dd1034265ded7f::t_773c43201c4dbe 117,222-224,305-311
+apps/server/src/application/context/usage.ts
+  s_dd1034265ded7f::t_dc48c4f5aca67d 113
+apps/server/src/application/context/types.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 65-66
+packages/agent/src/engine/tool-loading.test.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 16-23,25-32,34-38,40-43,54-64,67-75
+  s_dd1034265ded7f::t_6a62b6849b37a5 65
+  s_dd1034265ded7f::t_d718ae064a9b66 1-15,24,33,39,44-53,66,76-78
+apps/server/src/application/entry-payloads.test.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 32-48
+  s_dd1034265ded7f::t_d5522b2c494423 50-51
+  s_dd1034265ded7f::t_b018257fc62821 3,29-31,49,52-53
+packages/agent/src/session-entries/context.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 10-13
+tests/integration/sidecar-tool-search.test.ts
+  s_dd1034265ded7f::t_6a62b6849b37a5 1,4-5,93-95,107-129,148,156-161,165-182,187-188,219
+  s_dd1034265ded7f::t_6eaf72967b7673 2-3,7,21,28-36,40-41,45-48,50-59,62-68,71-76,81-92,220
+  s_dd1034265ded7f::t_e6a33022bc590d 8-20,22-27,42-44,77-80,96-106,130-147,149-155,162-164,183-186,198-202
+  s_dd1034265ded7f::t_fa9bc937fa1587 61,203
+  s_dd1034265ded7f::t_cca3d8c072f22b 37-39
+  s_dd1034265ded7f::t_b018257fc62821 69-70
+  s_dd1034265ded7f::t_b4e428885df9af 6,49,189-197,204-218
+  s_dd1034265ded7f::t_aa950d0e61a401 60
+packages/agent/src/tools/tool-search/index.ts
+  s_dd1034265ded7f::t_af9cee7305ae4a 1-18,32-34,39-49,56-57,72,74-79,89-91,94-96,99-102,107-114
+  s_dd1034265ded7f::t_e6a33022bc590d 19-31,35-38,50-55,58-71,73,80-88,92-93,97-98,104-106
+  s_dd1034265ded7f::t_6a62b6849b37a5 103
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_f42a63e8131943 73-82
+.scratch/tool-search/issues/03-on-demand-minimal-loop.md
+  s_dd1034265ded7f::t_b872af6a587ccf 15-28,33-40
+  s_dd1034265ded7f::t_5634baf23035c3 41
+  s_dd1034265ded7f::t_ee4ed097d3d555 42
+packages/agent/src/entries/state-updates.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 61-65,75-78
+  s_dd1034265ded7f::t_773c43201c4dbe 7
+packages/agent/src/session-entries/tools.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 14-21
+  s_dd1034265ded7f::t_773c43201c4dbe 22-23,25,31
+packages/protocol/src/config.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 43,63,88
+packages/agent/src/config/schema.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 13,47
+packages/agent/src/index.ts
+  s_dd1034265ded7f::t_af9cee7305ae4a 147
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_f42a63e8131943 15,29
+apps/desktop/src/renderer/stores/config-store.test.ts
+  s_dd1034265ded7f::t_1da8ce17db4604 10
+docs/adr/0024-session-state-as-state-updates.md
+  s_dd1034265ded7f::t_f42a63e8131943 25
+packages/protocol/README.md
+  s_dd1034265ded7f::t_f42a63e8131943 201-202
+apps/server/src/application/context/mcp.ts
+  s_dd1034265ded7f::t_1da8ce17db4604 454
+  s_dd1034265ded7f::t_773c43201c4dbe 133,315,318,321-325,334,463,465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "dddf4dd22af2267cd01ff70b53a5d3855d317f1d",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
