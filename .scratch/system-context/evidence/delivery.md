@@ -31,7 +31,7 @@ lifecycle: active
 | `COKO_EVAL_PROMPT_GATE=1 pnpm run eval` | v1/v2 faux 四例，以及真实门槛的缺凭据分支 | 2 文件 18 例通过、8 例跳过；v1/v2 各四个 faux case 通过 | faux 通过；真实未验证 | [09 Comments](../issues/09-base-prompt-v2-and-host-block-eval.md#comments)；报告注明 `real` 与 `promptGate` 为 `skipped: no-credentials` |
 | Skills 受影响夹具的最终检查 | 日期条目顺序与真实路径 | 6 例 | 通过 | 集成 `5b3da280`；票 07 的后续补记 |
 | 票 10 `pnpm install --frozen-lockfile` | 本工作区检查依赖 | lockfile 未改 | 通过，退出 0 | 本票实际执行 |
-| 票 10 `pnpm run check:docs`、`git diff --check` 及入口读回 | ADR partial、引用方向和当前说明 | 361 个 Markdown、0 问题；diff 检查退出 0 | 通过；合并后再次核对 | 本票实际执行 |
+| 票 10 `pnpm run check:docs`、`git diff --check` 及入口读回 | ADR partial、引用方向和当前说明 | 361 个 Markdown、0 问题；diff 检查退出 0 | 通过；合入 `5b3da280` 后仍为 361 文件 0 问题、diff 检查退出 0 | 本票实际执行 |
 | 全分支 Standards/Spec 评审 | 固定基线 `ec32dfc9` 到最终集成 | 尚未由本票执行 | 待父代理执行 | 不提前宣称通过 |
 
 早期红灯、旧顺序与实路径基线失败、修复依据保存在各票 Comments。Skills 原 4 个失败已在后续修补中通过，不列为当前未解决项；这不代表全仓测试均通过。

@@ -27,3 +27,5 @@ Closed: true
 检查命令与最终合并核验见下方补记；全分支 Standards/Spec 评审由父代理在本票合入后执行，本票不提前宣称评审通过。真实模型、连续 user 消息的真实协议兼容性、缓存、Electron 窗口/真实指针、产物、CI、推送与发布均未由本票验证。
 
 文档收尾检查：`rtk pnpm install --frozen-lockfile` 退出 0、lockfile 无改动；`rtk pnpm run check:docs` 检查 361 个 Markdown，0 问题、退出 0；`rtk git diff --check` 退出 0。本票仅 Markdown 变更，按测试约定不重复运行有效的源代码测试或类型检查。正文与 ADR 索引从正式入口可达，旧“not-started”只保留于明确的历史 grilling 事实；没有移动/归档资料或改变产品决定。
+
+合入集成 `5b3da280` 后，Skills 修补与票 07 补记已保留，无冲突；`rtk pnpm run check:docs` 仍为 361 文件、0 问题，`rtk git diff --check` 退出 0。工作区只新增本段验证回执；最终提交后交由新的 merger 合入集成分支。
