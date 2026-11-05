@@ -11,6 +11,7 @@ lifecycle: active
 - [规格](../spec.md)、[15 号票](../issues/15-integrated-acceptance-and-docs.md)；01—14 号票的逐票命令与红绿证据从[实施入口](../README.md#实施票)访问。
 - 集成基线 `1b88e113`，本票基于集成 `10efa3cf`；本票提交标识以 Git 记录为准。所有代码仅本地，未推送、未发布；两轴 code-review 由集成流程在本票合入后执行。
 - macOS arm64；Electron 41.0.3 / Electron Node 24.14.0；pnpm 12.15.0 / pi-ai 与 pi-agent-core 1.4.0；测试只替换模型服务、外部网络或时钟，真实 Sidecar、MCP stdio、持久化与加载实现保留。
+- 首轮两轴审查后的修复与最新定向检查另见[审查记录](review.md)；原命令结果保留当时状态，不能用原绿灯替代修复后的复核。
 
 ## 执行记录
 

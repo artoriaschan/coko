@@ -17,6 +17,69 @@ const decrypt = (ciphertext: string) => Buffer.from([...Buffer.from(ciphertext, 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
 
 describe('秘密不外泄总闸：MCP', () => {
+  it.each([8, 80])('redacts a registered value before catalog truncation and delivery (%s random bytes)', async (size) => {
+    const value = `catalog-private-${randomBytes(size).toString('hex')}`
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const requestLog = join(root, 'catalog-requests.jsonl')
+    await writeFile(requestLog, '')
+    const script = await fauxScript(root, { requestLog, responses: [{ content: 'directory received' }] })
+    const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+    sidecar.onMessage((message) => {
+      if (message.type === 'secret.decrypt')
+        sidecar.send({ type: 'secret.decrypt.result', requestId: message.requestId, plaintext: decrypt(message.ciphertext) })
+    })
+    const cookie = await exchange(sidecar)
+    const bodies: string[] = []
+    const api = recordingClient(sidecar, cookie, bodies)
+    const stream = await connect(sidecar, cookie)
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: root })).body.id as string
+    sidecar.send({ type: 'secret.store', requestId: 1, name: 'MY_SERVICE_DSN', ciphertext: encrypt(value), hint: value.slice(-4) })
+    expect(await sidecar.waitMessage('secret.store.result')).toMatchObject({ ok: true })
+    expect(
+      (
+        await api.put(mcpPaths.servers, {
+          servers: { dsn: stdioServerConfig({ MY_SERVICE_DSN: '${MY_SERVICE_DSN}', MCP_FIXTURE_DESCRIPTION_ENV: 'MY_SERVICE_DSN' }) },
+          expectedRevision: 0,
+          workspaceId,
+        })
+      ).status,
+    ).toBe(200)
+    const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+    stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+    await stream.waitFor((message) => message.type === 'subscribed' && message.sessionId === sessionId)
+    await api.post(apiPaths.sessionMessages(sessionId), { text: 'read the tool directory' })
+    await stream.waitFor(isRunEnd(sessionId))
+    const entries = stream.entries(sessionId)
+    const catalog = entries.find((entry) => entry.kind === 'message' && JSON.stringify(entry.payload).includes('On-demand tool catalog'))
+    expect(catalog).toBeDefined()
+    expect(JSON.stringify(catalog!.payload)).toContain('Catalog description [REDACTED:secret]')
+    expect(entries.some((entry) => entry.kind === 'tool_exec')).toBe(false)
+    expect((await api.get(apiPaths.session(sessionId))).status).toBe(200)
+    const exported = await api.get(`/api/sessions/${sessionId}/export`)
+    expect(exported.status).toBe(200)
+    expect(JSON.stringify(exported.body)).toContain('On-demand tool catalog')
+    const running = await persisted(dirs)
+    expect(running.some((file) => file.name === 'coko.db-wal')).toBe(true)
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+    const stopped = await persisted(dirs)
+    const requests = await readFile(requestLog, 'utf8')
+    expect(requests.split('\n').filter(Boolean)).toHaveLength(1)
+    expect(
+      leaksIn(
+        [
+          ['model request', requests],
+          ...stream.frames.map((frame, i): [string, string] => [`ws frame ${i}`, frame]),
+          ...bodies.map((body, i): [string, string] => [`http body ${i}`, body]),
+          ...running.map((file): [string, Buffer] => [`running ${file.name}`, file.bytes]),
+          ...stopped.map((file): [string, Buffer] => [`stopped ${file.name}`, file.bytes]),
+          ['sidecar stderr', sidecar.stderr()],
+        ],
+        { 'registered secret': value, 'registered secret prefix': value.slice(0, 24) },
+      ),
+    ).toEqual([])
+  })
+
   it('登记的 Secret 只进入引用它的 MCP Server；协议、库、日志、诊断与 bash env 中都没有明文；未登记的名字启动失败', { timeout: 90_000 }, async () => {
     // 不是凭据形态（不以 sk- 开头、名字不含 KEY / TOKEN / SECRET）：不能依赖通用脱敏规则或命令环境剔除。
     const value = `postgres://svc:dsn${randomBytes(12).toString('hex')}@db.internal/app`

@@ -28,6 +28,8 @@ lifecycle: active
 
 ## 实施票
 
+首轮两轴审查发现及独立修复见[审查记录](evidence/review.md)：Standards 1 项 P1、Spec 1 项 P2 的回归已通过，修复后由新的子代理复审，当前不将修复状态当作最终审查通过。
+
 2026-11-05 按 `to-tickets` 拆分，用户确认了粒度与阻塞关系。01、02 为前置重构；03 打通最小闭环，其中开关暂时默认关闭，11 号票改为默认打开并迁移现有 MCP 测试；15 联合验收与文档同步。各票的分拣角色保留 ready-for-agent，完成状态另以 `Closed: true` 与逐票 Comments 表达；阻塞表保留原实施图。
 
 | 票 | Blocked by |

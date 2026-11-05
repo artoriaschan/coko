@@ -233,7 +233,15 @@ export async function handle(message: Json, options: CoreOptions, env: NodeJS.Pr
       return reply({})
     case 'tools/list':
       return reply({
-        tools: [...FIXTURE_TOOLS, ...(features.includes('prompts') ? [ADD_PROMPT_TOOL] : []), ...(features.includes('screenshot') ? [SCREENSHOT_TOOL] : [])],
+        tools: [
+          ...FIXTURE_TOOLS.map((tool) =>
+            tool.name === 'echo' && env.MCP_FIXTURE_DESCRIPTION_ENV
+              ? { ...tool, description: `Catalog description ${env[env.MCP_FIXTURE_DESCRIPTION_ENV] ?? ''}` }
+              : tool,
+          ),
+          ...(features.includes('prompts') ? [ADD_PROMPT_TOOL] : []),
+          ...(features.includes('screenshot') ? [SCREENSHOT_TOOL] : []),
+        ],
       })
     case 'tools/call':
       record(options.log, { event: 'call', params })

@@ -22,7 +22,7 @@ import {
 } from './sidecar-harness.ts'
 
 type Reply = { name: string; args: Record<string, unknown> } | { error: number } | string
-async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage = false) {
+async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage = false, inputTokens: readonly number[] = []) {
   const requests: { body: any; headers: IncomingHttpHeaders }[] = []
   const server = createServer((req, res) => {
     let body = ''
@@ -34,6 +34,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage 
       .on('end', () => {
         const index = requests.push({ body: JSON.parse(body), headers: req.headers }) - 1
         const reply = replies[index] ?? 'done'
+        const usedInput = zeroUsage ? 0 : (inputTokens[index] ?? 40)
         if (typeof reply !== 'string' && 'error' in reply) {
           res.writeHead(reply.error, { 'content-type': 'application/json' })
           res.end(JSON.stringify({ error: { message: 'fixture failure', type: 'invalid_request_error' } }))
@@ -52,7 +53,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage 
               role: 'assistant',
               type: 'message',
               content: [],
-              usage: { input_tokens: zeroUsage ? 0 : 40, output_tokens: 0 },
+              usage: { input_tokens: usedInput, output_tokens: 0 },
             },
           })
           event('content_block_start', {
@@ -81,7 +82,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage 
               id: 'resp_' + index,
               status: 'completed',
               output: [item],
-              usage: { input_tokens: zeroUsage ? 0 : 40, output_tokens: zeroUsage ? 0 : 5, total_tokens: zeroUsage ? 0 : 45 },
+              usage: { input_tokens: usedInput, output_tokens: zeroUsage ? 0 : 5, total_tokens: usedInput + (zeroUsage ? 0 : 5) },
             },
           })
         }
@@ -104,7 +105,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage 
 async function setup(
   protocol: ModelProtocol,
   incrementalTools?: boolean,
-  options: { search?: boolean; mcp?: boolean; replies?: Reply[]; contextWindow?: number; zeroUsage?: boolean } = {},
+  options: { search?: boolean; mcp?: boolean; replies?: Reply[]; contextWindow?: number; zeroUsage?: boolean; inputTokens?: readonly number[] } = {},
 ) {
   const fake = await modelServer(
     protocol,
@@ -114,6 +115,7 @@ async function setup(
       'done',
     ],
     options.zeroUsage,
+    options.inputTokens,
   )
   const dirs = await sidecarDirs()
   const sidecar = await startSidecar({ dirs })
@@ -152,10 +154,66 @@ function wireTools(body: any): string[] {
 }
 
 describe('Provider native incremental tools', () => {
-  it.each(['anthropic-messages', 'openai-responses'] as const)('auto-compacts retained native definitions after a tool is removed (%s)', async (protocol) => {
+  it.each([
+    ['anthropic-messages', false],
+    ['anthropic-messages', true],
+    ['openai-responses', false],
+    ['openai-responses', true],
+  ] as const)('auto-compacts a newly loaded schema after positive usage (%s, native=%s)', async (protocol, native) => {
+    const h = await setup(protocol, native, {
+      contextWindow: 40_000,
+      inputTokens: [5_000, 25_000, 100, 25_000],
+      replies: ['old conversation', { name: 'tool_search', args: { query: 'select:mcp__demo__echo' } }, 'summary', 'after loading'],
+    })
+    const schema = 's'.repeat(80_000)
+    const catalog = join(await tempDir(), 'positive-usage-tools.json')
+    await writeFile(
+      catalog,
+      JSON.stringify([
+        { name: 'echo', description: 'Echo text', inputSchema: { type: 'object', properties: { text: { type: 'string', description: schema } } } },
+      ]),
+    )
+    expect(
+      (
+        await h.api.put(mcpPaths.servers, {
+          servers: {
+            demo: {
+              command: process.execPath,
+              args: [fileURLToPath(new URL('../fixtures/tool-search/stdio-server.ts', import.meta.url))],
+              env: { TOOL_SEARCH_FIXTURE_CATALOG: catalog },
+            },
+          },
+          workspaceId: h.workspaceId,
+          expectedRevision: 1,
+        })
+      ).status,
+    ).toBe(200)
+    await h.run('a'.repeat(100_000))
+    expect(h.stream.entries(h.sessionId).some((entry) => entry.kind === 'compaction')).toBe(false)
+    await h.run('b'.repeat(80_000))
+    const entries = h.stream.entries(h.sessionId)
+    const loaded = entries.find((entry) => entry.kind === 'tool_load')!
+    const compacted = entries.filter((entry) => entry.kind === 'compaction')
+    expect(compacted).toHaveLength(1)
+    expect(compacted[0]!.seq).toBeGreaterThan(loaded.seq)
+    expect(compacted[0]!.payload).toMatchObject({ trigger: 'auto' })
+    expect((compacted[0]!.payload as any).tokensBefore).toBeGreaterThan(32_000)
+    expect(h.requests).toHaveLength(4)
+    expect(JSON.stringify(h.requests[3]!.body)).toContain(schema)
+    expect(JSON.stringify(h.requests[2]!.body)).not.toContain(schema)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it.each([
+    ['anthropic-messages', true],
+    ['anthropic-messages', false],
+    ['openai-responses', true],
+    ['openai-responses', false],
+  ] as const)('auto-compacts retained native definitions after a tool is removed (%s, zero usage=%s)', async (protocol, zeroUsage) => {
     const h = await setup(protocol, true, {
       contextWindow: 40_000,
-      zeroUsage: true,
+      zeroUsage,
+      inputTokens: [40, 55_000, 100, 40],
       replies: [{ name: 'tool_search', args: { query: 'select:mcp__demo__echo' } }, 'loaded', 'summary of old tools', 'after compaction'],
     })
     const catalog = join(await tempDir(), 'tools.json')

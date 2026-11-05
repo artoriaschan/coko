@@ -23,7 +23,7 @@ afterEach(async () => {
 type Step = ReturnType<typeof fauxAssistantMessage> | ((context: Context) => ReturnType<typeof fauxAssistantMessage>)
 
 /** 40k 窗口、4k 输出：阈值 32 000。保留最近 1000 tokens，使小用例也有可摘要的内容。 */
-function harness(options: { autoCompact?: boolean; context?: RuntimeContext; tools?: ToolRegistry } = {}) {
+function harness(options: { autoCompact?: boolean; context?: RuntimeContext; tools?: ToolRegistry; initialToolNames?: readonly string[] } = {}) {
   const { faux, models, model } = createFauxModels({ models: [{ id: 'small', contextWindow: 40_000, maxTokens: 4_000 }] })
   const stored: EntryLike[] = []
   const progress: ProgressEvent[] = []
@@ -33,6 +33,7 @@ function harness(options: { autoCompact?: boolean; context?: RuntimeContext; too
     model,
     cwd: ws.dir,
     tools: options.tools ?? createToolRegistry(),
+    ...(options.initialToolNames ? { initialToolNames: options.initialToolNames } : {}),
     commit: async (entry) => {
       stored.push({ seq: stored.length + 1, kind: entry.kind, runId: entry.runId ?? null, payload: entry.payload })
     },
@@ -61,6 +62,53 @@ const big = (n: number, c: string) => c.repeat(n)
 const ok = (t = 'ok') => fauxAssistantMessage(t)
 
 describe('自动压缩', () => {
+  it.each([true, false])('does not double-count definitions in positive usage (tool remains=%s)', async (remains) => {
+    const tools = createToolRegistry()
+    tools.register({
+      name: 'large',
+      label: 'Large',
+      description: big(60_000, 't'),
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [], details: {} }),
+    })
+    let selected = true
+    const h = harness({ tools, context: { toolNames: async () => (selected ? ['large'] : []) } })
+    const before = ok('before')
+    before.usage = { ...before.usage, input: 30_000, output: 1, cacheRead: 0, cacheWrite: 0 }
+    h.reply(before, ok('done'))
+    await h.runtime.run(big(60_000, 'a'))
+    selected = remains
+    expect((await h.runtime.run(big(remains ? 4_000 : 8_000, 'b'))).status).toBe('completed')
+    expect(h.stored.some((entry) => entry.kind === 'compaction')).toBe(false)
+    expect(h.requests).toHaveLength(2)
+  })
+
+  it('counts a newly selected definition beyond the last positive assistant usage', async () => {
+    const tools = createToolRegistry()
+    tools.register({
+      name: 'large',
+      label: 'Large',
+      description: big(80_000, 't'),
+      parameters: Type.Object({}),
+      execute: async () => ({ content: [], details: {} }),
+    })
+    let selected = false
+    const h = harness({ tools, initialToolNames: [], context: { toolNames: async () => (selected ? ['large'] : []) } })
+    const before = ok('before loading')
+    before.usage = { ...before.usage, input: 25_000, output: 1, cacheRead: 0, cacheWrite: 0 }
+    h.reply(before, ok('SUMMARY'), ok('after loading'))
+    expect((await h.runtime.run(big(100_000, 'a'))).status).toBe('completed')
+    expect(h.stored.some((entry) => entry.kind === 'compaction')).toBe(false)
+    selected = true
+    expect((await h.runtime.run(big(8_000, 'b'))).status).toBe('completed')
+    const compacted = h.stored.find((entry) => entry.kind === 'compaction')
+    expect(compacted?.payload).toMatchObject({ trigger: 'auto', tokensBefore: expect.any(Number) })
+    expect((compacted!.payload as { tokensBefore: number }).tokensBefore).toBeGreaterThan(32_000)
+    expect(h.requests).toHaveLength(3)
+    expect((h.requests[1]!.messages[0] as SystemMessage).toolsAdded).toBeUndefined()
+    expect(JSON.stringify(h.requests[2])).toContain(big(80_000, 't'))
+  })
+
   it('越过阈值：提交 compaction { trigger: auto }，摘要请求没有工具且含节标题，下一次请求为合成摘要 + firstKeptSeq 及之后', async () => {
     const h = harness()
     h.reply(ok(), ok('SUMMARY BODY'), ok('done'))

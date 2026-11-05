@@ -238,7 +238,7 @@ export function createContextAssembly(options: {
           catalog?.length
             ? {
                 on_demand_tools: (_value, previous) =>
-                  renderOnDemandCatalog(catalog, {
+                  renderOnDemandCatalog(redactSecretsDeep(catalog), {
                     contextWindow: scope.model?.contextWindow,
                     ...(Array.isArray(previous) ? { previousNames: previous } : {}),
                   }),

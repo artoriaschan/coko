@@ -120,20 +120,31 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     return rest
   }
   const toolTokens = (messages: readonly AgentMessage[] = state.messages) => charsToTokens(toolDefinitionChars(state.model, options.tools(), messages))
+  // Positive usage includes the definitions sent for that earlier request, not later declarations.
+  const toolTokensAtUsage = (messages: readonly AgentMessage[]) => {
+    for (let index = messages.length - 1; index >= 0; index--) {
+      if (messages[index]!.role !== 'assistant' || estimateContextTokens([messages[index]!]).usageTokens === 0) continue
+      const prefix = messages.slice(0, index + 1)
+      return charsToTokens(toolDefinitionChars(state.model, getCurrentTools(prefix), prefix))
+    }
+    return 0
+  }
   const systemTokens = () => {
     const head = state.messages[0]
     return head?.role === 'system' ? charsToTokens(estimateMessageChars(withoutToolDeclarations(head))) : 0
   }
   const contextTokens = (messages: readonly AgentMessage[]) => {
     const estimate = estimateContextTokens(messages.map(withoutToolDeclarations))
-    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + toolTokens(messages)
+    return Math.max(0, estimate.tokens + toolTokens(messages) - (estimate.usageTokens > 0 ? toolTokensAtUsage(messages) : 0))
   }
-  /** 可信 usage 包含当时的定义；无 usage 时按本次传输折叠规则计入工具定义。 */
+  /** 可信 usage 包含当时的定义，补上此后差量；无 usage 时按本次传输规则计入全部定义。 */
   const contextTokensOf = (entries: readonly EntryLike[]) => {
     const estimate = estimateCompactedTokens(
       entries.map((entry) => (entry.kind === 'message' ? { ...entry, payload: withoutToolDeclarations(entry.payload as AgentMessage) } : entry)),
     )
-    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + systemTokens() + toolTokens()
+    return estimate.usageTokens > 0
+      ? Math.max(0, estimate.tokens + toolTokens() - toolTokensAtUsage(state.messages))
+      : estimate.tokens + systemTokens() + toolTokens()
   }
 
   /**
