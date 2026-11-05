@@ -1,0 +1,97 @@
+apps/desktop/src/preload/index.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 17
+apps/desktop/src/renderer/features/right-panel/artifacts-tab.tsx
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 12-17,39-42,47-57,61-115,135-138,142-147,149-178
+  s_6cadf0cc1974f1::t_232b51331096b3 2
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1,3-11,18-38,43-46,58-60,116-134,139-141,148,179
+apps/server/src/runtime/layers.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1,784
+packages/i18n/src/dictionaries/en.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 5,20
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 6-19
+docs/subsystems/workbench.md
+  s_6cadf0cc1974f1::t_232b51331096b3 49,53,263-273
+apps/desktop/src/renderer/features/right-panel/tabs.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1,40,50-51
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 4-14
+apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 23-25,27-46,48-56,68-70,85-101
+  s_6cadf0cc1974f1::t_ee5dc47115dd57 2-22,26,47,57-67,71-80
+  s_6cadf0cc1974f1::t_0e13c2ca944772 114-121,125-128,139-147
+  s_6cadf0cc1974f1::t_9bb2f59b12e293 1
+  s_6cadf0cc1974f1::t_60f89389338380 81-84,102-113
+  s_6cadf0cc1974f1::t_197afdf1c40ac7 122-124,129-138
+apps/desktop/src/main/open-directory.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 25-33,37
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 34-36
+docs/README.md
+  s_6cadf0cc1974f1::t_232b51331096b3 28
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 7
+apps/desktop/src/shared/bridge.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 9,141
+apps/desktop/src/renderer/client/artifacts.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1-4,7-8
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 5-6
+apps/server/src/http/routes/artifacts.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 8-10
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1-7,11-12
+tests/integration/sidecar-artifacts.test.ts
+  s_6cadf0cc1974f1::t_be76d610918436 52,54
+  s_6cadf0cc1974f1::t_aefe916a7da67b 1-27,35-39
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 28-34
+  s_6cadf0cc1974f1::t_ee5dc47115dd57 40-51,53,58-75
+  s_6cadf0cc1974f1::t_33e4f6eacfa73e 55-57
+apps/desktop/e2e/artifacts.e2e.test.ts
+  s_6cadf0cc1974f1::t_a7d1dedbcf88d8 50,52-54
+  s_6cadf0cc1974f1::t_f24035295362e0 51,57-58,68-71
+  s_6cadf0cc1974f1::t_60f89389338380 1-16,24-49,55-56,72
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 17-23,59-67
+apps/server/src/application/artifacts.ts
+  s_6cadf0cc1974f1::t_be76d610918436 76
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 18-20,28-29,38-41,56-62,64-66,77
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1-16,21-22,25-27,30-37,42-55,63,67-75,78-96
+  s_6cadf0cc1974f1::t_83484a6fc55741 17,23-24
+packages/protocol/src/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 37-38
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_6cadf0cc1974f1::t_84bf4093a628db 32-33
+  s_6cadf0cc1974f1::t_96b379fb18d09b 4,28-29
+  s_6cadf0cc1974f1::t_60f89389338380 27,31
+apps/desktop/src/main/open-directory.test.ts
+  s_6cadf0cc1974f1::t_60f89389338380 5,51-57,63-66
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 58-62,67-73
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 6
+packages/i18n/src/dictionaries/zh.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 3,18
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 4-17
+.scratch/system-data-root/issues/05-artifact-panel.md
+  s_6cadf0cc1974f1::t_9c19183b4c106f 9-30
+packages/protocol/src/artifacts.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1-5,16-24
+  s_6cadf0cc1974f1::t_be76d610918436 12
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 6-11,13-15
+apps/desktop/src/main/index.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 4,360-362
+apps/server/src/application/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1,32
+apps/server/src/http/routes/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ffb573ce4986db15bda6c2533a5b850cec83e3a2",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
