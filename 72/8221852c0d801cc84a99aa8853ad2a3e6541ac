@@ -1,0 +1,34 @@
+tests/fixtures/tool-search/optimistic-result.txt
+  s_dd1034265ded7f::t_8a531a080b8c0c 1
+packages/agent/src/engine/types.ts
+  s_dd1034265ded7f::t_a54991162bd365 172-173
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_a54991162bd365 818,821-824
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_cdaf0fc499750b 87-89
+packages/agent/src/engine/tool-loading.test.ts
+  s_dd1034265ded7f::t_9576eb08efd70a 16-20,30-31,35-40,51-52,56-58,65-74
+  s_dd1034265ded7f::t_c3b15187fd1656 9-15,21-29,32-34,41-50,53-55,59-64,75-81
+tests/integration/sidecar-tool-search-optimistic.test.ts
+  s_dd1034265ded7f::t_9576eb08efd70a 9-13,26-28,38-43
+  s_dd1034265ded7f::t_8a531a080b8c0c 1-5,7-8,14-20,22-25,29-37,44-84
+  s_dd1034265ded7f::t_aa3e2348632d7e 6,21
+packages/agent/src/engine/runtime.ts
+  s_dd1034265ded7f::t_a54991162bd365 303-308,310-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "728221852c0d801cc84a99aa8853ad2a3e6541ac",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
