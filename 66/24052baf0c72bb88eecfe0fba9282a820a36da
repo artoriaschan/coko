@@ -1,0 +1,62 @@
+packages/agent/src/checkpoints/rewind.ts
+  s_6cadf0cc1974f1::t_c019fb5a6036fb 185-186,233
+packages/agent/README.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 138
+apps/server/src/application/checkpoints.ts
+  s_6cadf0cc1974f1::t_c019fb5a6036fb 15-16,124-125,127-128
+  s_6cadf0cc1974f1::t_77b2bd162e6898 122-123,126
+apps/server/src/application/session-directory.ts
+  s_6cadf0cc1974f1::t_c019fb5a6036fb 2,23,25-33
+  s_6cadf0cc1974f1::t_47a4e1e6ed5bae 24
+packages/agent/src/engine/permission-wiring.ts
+  s_6cadf0cc1974f1::t_47a4e1e6ed5bae 124-128
+  s_6cadf0cc1974f1::t_3397842d750012 67
+packages/agent/src/policy/gate.ts
+  s_6cadf0cc1974f1::t_3397842d750012 72-73,179
+docs/adr/README.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 38
+packages/agent/src/engine/types.ts
+  s_6cadf0cc1974f1::t_3397842d750012 250-251
+docs/subsystems/worktrees.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 55
+docs/adr/0005-permission-mode-and-sandbox.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 20-21,64-65
+apps/server/src/application/session-runs.ts
+  s_6cadf0cc1974f1::t_c019fb5a6036fb 58,475
+  s_6cadf0cc1974f1::t_3397842d750012 206,724,750
+docs/subsystems/permissions.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 44,70,76-77,80,231
+packages/agent/src/policy/paths.ts
+  s_6cadf0cc1974f1::t_3397842d750012 43-44
+tests/integration/sidecar-standalone-write-roots.test.ts
+  s_6cadf0cc1974f1::t_47a4e1e6ed5bae 11-15,46-51,55-57,78-83,95-99,108-110,114-121,159-160
+  s_6cadf0cc1974f1::t_3397842d750012 3,20-21
+  s_6cadf0cc1974f1::t_579ddcdc4c19c6 149-158,161-162
+  s_6cadf0cc1974f1::t_a4540052217af1 1,92-94,100-107,111-113,122-124,126-130,135-147
+  s_6cadf0cc1974f1::t_89a4aca9477d23 2,4-10,16-19,22-45,52-54,58-65
+  s_6cadf0cc1974f1::t_12e067021492cc 66-77,84-91,148
+  s_6cadf0cc1974f1::t_77b2bd162e6898 125,131-134
+packages/agent/src/policy/sandbox.ts
+  s_6cadf0cc1974f1::t_3397842d750012 42,45,50-51
+  s_6cadf0cc1974f1::t_9cb61c7699df13 41
+docs/adr/0026-standalone-session-write-roots.md
+  s_6cadf0cc1974f1::t_9cb61c7699df13 1-36
+.scratch/system-data-root/issues/04-sandbox-write-roots.md
+  s_6cadf0cc1974f1::t_47a4e1e6ed5bae 9-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6624052baf0c72bb88eecfe0fba9282a820a36da",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
