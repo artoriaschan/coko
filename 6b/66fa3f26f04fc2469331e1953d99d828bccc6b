@@ -1,0 +1,19 @@
+.scratch/system-data-root/issues/06-attachment-copies.md
+  s_6cadf0cc1974f1::t_1cbf4c02e17e5b 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6b66fa3f26f04fc2469331e1953d99d828bccc6b",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
