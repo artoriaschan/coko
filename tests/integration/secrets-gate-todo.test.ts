@@ -53,7 +53,7 @@ describe('秘密不外泄总闸：Todo', () => {
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
     expect(requests).toHaveLength(3)
     expect(requests[2]).toContain('state_update')
-    expect(stream.entries(sessionId).filter((e) => e.kind === 'state_update')).toHaveLength(1)
+    expect(stream.entries(sessionId).filter((e) => e.kind === 'state_update' && (e.payload as { name: string }).name === 'todo_list')).toHaveLength(1)
 
     sidecar.child.kill('SIGTERM')
     expect(await sidecar.exited).toEqual({ code: 0, signal: null })

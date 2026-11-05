@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, realpath, rename, stat, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, checkpointPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs, type Stream } from './sidecar-harness.ts'
 
@@ -11,7 +12,7 @@ async function boot(options: { mode?: string; responses: unknown[]; requestLog?:
   const root = options.root ?? (await realpath(await tempDir()))
   const dirs = options.dirs ?? (await sidecarDirs())
   const script = await fauxScript(root, { responses: options.responses, ...(options.requestLog ? { requestLog: options.requestLog } : {}) }, '.faux.json')
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, ...options.env } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script, ...options.env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const workspace = await api.post(API_ROUTES.workspaces, { path: root })
@@ -137,11 +138,11 @@ describe('回退与分叉', () => {
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
     await send(api, stream, forkId, 'follow up', 1)
     expect(await request(requestLog, 3)).toEqual([
-      'user:first instruction',
+      'user:' + dateBlock + 'first instruction',
       'assistant:',
       'toolResult:Successfully wrote to fact.txt',
       'assistant:first answer',
-      'user:follow up',
+      'user:' + dateBlock + 'follow up',
     ])
   })
 
@@ -286,7 +287,13 @@ describe('回退与分叉', () => {
     expect((await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: beta, mode: 'conversation' })).status).toBe(400)
 
     await send(api, stream, sessionId, 'gamma', 3)
-    expect(await request(requestLog, 4)).toEqual(['user:alpha', 'assistant:', 'toolResult:Successfully wrote to a.txt', 'assistant:alpha done', 'user:gamma'])
+    expect(await request(requestLog, 4)).toEqual([
+      'user:' + dateBlock + 'alpha',
+      'assistant:',
+      'toolResult:Successfully wrote to a.txt',
+      'assistant:alpha done',
+      'user:gamma',
+    ])
 
     // both：回到 alpha 之前——a.txt 原先不存在，被删除；下一次请求只有新消息。
     const [alpha] = userSeqs(await entriesOf(api, sessionId))
@@ -294,7 +301,7 @@ describe('回退与分叉', () => {
     expect(both.body).toMatchObject({ mode: 'both', text: 'alpha', restored: [], deleted: [a], diverged: [] })
     expect(await absent(a)).toBe(true)
     await send(api, stream, sessionId, 'delta', 4)
-    expect(await request(requestLog, 5)).toEqual(['user:delta'])
+    expect(await request(requestLog, 5)).toEqual(['user:' + dateBlock + 'delta'])
     expect(stream.invalidEntries).toEqual([])
   })
 
@@ -339,7 +346,7 @@ describe('回退与分叉', () => {
     stream.send({ type: 'subscribe', sessionId: forkId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
     await send(api, stream, forkId, 'second, differently', 1)
-    expect(await request(requestLog, 2)).toEqual(['user:first', 'assistant:r1', 'user:second, differently'])
+    expect(await request(requestLog, 2)).toEqual(['user:' + dateBlock + 'first', 'assistant:r1', 'user:' + dateBlock + 'second, differently'])
     expect(await entriesOf(api, sessionId)).toEqual(source)
     expect(await readFile(externalFile)).toEqual(externalBytes)
     expect(stream.invalidEntries).toEqual([])
@@ -368,7 +375,7 @@ describe('回退与分叉', () => {
     await first.stream.waitFor((m) => m.type === 'entry' && m.sessionId === first.sessionId && m.entry.kind === 'tool_exec')
     first.sidecar.child.kill('SIGKILL')
     await first.sidecar.exited
-    const sidecar = await startSidecar({ dirs: first.dirs, env: { COKO_FAUX_SCRIPT: join(first.root, '.faux.json') } })
+    const sidecar = await startSidecar({ dirs: first.dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: join(first.root, '.faux.json') } })
     const api = client(sidecar, await exchange(sidecar))
     const [target] = userSeqs(await entriesOf(api, first.sessionId))
     const pending = { status: 409, body: { error: { code: 'confirmation-pending' } } }
@@ -387,11 +394,11 @@ describe('回退与分叉', () => {
     first.sidecar.child.kill('SIGKILL')
     await first.sidecar.exited
 
-    const sidecar = await startSidecar({ dirs: first.dirs, env: { COKO_FAUX_SCRIPT: join(first.root, '.faux.json') } })
+    const sidecar = await startSidecar({ dirs: first.dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: join(first.root, '.faux.json') } })
     const api = client(sidecar, await exchange(sidecar))
     const entries = await entriesOf(api, first.sessionId)
     const kinds = entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))
-    expect(kinds.slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'file_backup', 'tool_exec', 'toolResult', 'run_end'])
+    expect(kinds.slice(2)).toEqual(['run_start', 'state_update', 'user', 'model_request', 'assistant', 'file_backup', 'tool_exec', 'toolResult', 'run_end'])
     expect(textOf(entries.find((e) => role(e) === 'toolResult')!.payload)).toMatch(/^Applied: /)
     const [target] = userSeqs(entries)
 

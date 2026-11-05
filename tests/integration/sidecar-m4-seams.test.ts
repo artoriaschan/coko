@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { DEFAULT_SYSTEM_PROMPT } from '@coko/agent'
 import { API_ROUTES, apiPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
 import { jobLogDir, leaksIn, marker, persisted } from './secrets-gate-harness.ts'
@@ -25,7 +26,7 @@ import {
 type Logged = { role: string; content: unknown; sections?: unknown }[]
 
 async function boot(dirs: SidecarDirs, root: string, env: Record<string, string>) {
-  const sidecar = await startSidecar({ dirs, env })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, ...env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -64,7 +65,7 @@ describe('M4 装配接入点', () => {
     expect(messages![0]).toEqual(
       expect.objectContaining({ role: 'system', sections: { 'coko.base': DEFAULT_SYSTEM_PROMPT, environment: expect.stringContaining('<environment>') } }),
     )
-    expect(texts(messages![1]!.content)).toEqual(['hello'])
+    expect(texts(messages![1]!.content)).toEqual([dateBlock, 'hello'])
     expect(stream.entries(sessionId).find((e) => e.kind === 'run_start')?.payload).toEqual({ trigger: 'submit' })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -91,7 +92,7 @@ describe('M4 装配接入点', () => {
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'third' })
     await runEnds(3)
 
-    expect(users(stream.entries(sessionId))).toEqual([['queue something'], ['<note>queued</note>', 'second'], ['third']])
+    expect(users(stream.entries(sessionId))).toEqual([[dateBlock, 'queue something'], ['<note>queued</note>', 'second'], ['third']])
     const logged = await requests(requestLog)
     expect(logged).toHaveLength(4)
     expect(texts(logged[2]!.at(-1)!.content)).toEqual(['<note>queued</note>', 'second'])

@@ -3,6 +3,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
@@ -11,7 +12,7 @@ async function boot(responses: unknown[], options: { mode?: string } = {}) {
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const script = await fauxScript(root, { responses, requestLog })
-  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script } })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const workspace = await api.post(API_ROUTES.workspaces, { path: root })
@@ -54,17 +55,18 @@ describe('运行控制', () => {
       'permission_mode',
       'permission_mode',
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'tool_exec',
       'toolResult',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
-    expect(userTexts(entries)).toEqual(['run it', 'also mention the README'])
+    expect(userTexts(entries)).toEqual([dateBlock + 'run it', 'also mention the README'])
     const runId = entries.find((e) => e.kind === 'run_start')!.runId
     expect(entries.filter((e) => e.seq > entries.find((x) => x.kind === 'run_start')!.seq).every((e) => e.runId === runId)).toBe(true)
     expect(entries.at(-1)?.payload).toEqual({ status: 'completed' })
@@ -85,7 +87,7 @@ describe('运行控制', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.at(-1)?.payload).toEqual({ status: 'aborted', undeliveredSteering: ['not delivered'] })
-    expect(userTexts(entries)).toEqual(['run it'])
+    expect(userTexts(entries)).toEqual([dateBlock + 'run it'])
     expect(await requests()).toHaveLength(1)
     expect(stream.invalidEntries).toEqual([])
   })
@@ -98,7 +100,7 @@ describe('运行控制', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'tool_exec', 'toolResult', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'state_update', 'user', 'model_request', 'assistant', 'tool_exec', 'toolResult', 'run_end'])
     const result = entries.find((e) => kindOf(e) === 'toolResult')!.payload as { isError: boolean; content: { text?: string }[] }
     expect(result.isError).toBe(false)
     expect(result.content.map((b) => b.text ?? '').join('')).toContain('slept')
@@ -111,7 +113,7 @@ describe('运行控制', () => {
     expect(continued.status).toBe(202)
     await stream.waitFor((m) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'run_end' && m.entry.runId === continued.body.runId)
     const second = stream.entries(sessionId).filter((e) => e.runId === continued.body.runId)
-    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'model_request', 'run_end'])
+    expect(second.map(kindOf)).toEqual(['run_start', 'model_request', 'assistant', 'run_end'])
     expect(second[0]!.payload).toEqual({ trigger: 'continue' })
     expect(second.at(-1)!.payload).toEqual({ status: 'completed' })
     const sent = await requests()

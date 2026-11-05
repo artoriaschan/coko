@@ -2,11 +2,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, permissionPaths, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval, type Stream } from './sidecar-harness.ts'
 
 async function boot(dirs: Awaited<ReturnType<typeof sidecarDirs>>, script?: string) {
-  const sidecar = await startSidecar({ dirs, ...(script ? { env: { COKO_FAUX_SCRIPT: script } } : {}) })
+  const sidecar = await startSidecar({ dirs, ...(script ? { env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } } : {}) })
   const cookie = await exchange(sidecar)
   return { sidecar, cookie, api: client(sidecar, cookie) }
 }
@@ -76,17 +77,18 @@ describe('Session 协议', () => {
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
       'permission_mode',
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'approval_request',
       'approval_decision',
       'file_backup',
       'tool_exec',
       'file_change',
       'toolResult',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     expect(entries[0]).toMatchObject({ runId: null, payload: { mode: 'default' } })
@@ -215,7 +217,11 @@ describe('Session 协议', () => {
       AWS_SECRET_ACCESS_KEY: 'aws-secret-value',
       CLIENT_SECRET: 'client-secret-value',
     }
-    const sidecar = await startSidecar({ dirs: await sidecarDirs(), ipc: false, env: { COKO_FAUX_SCRIPT: script, ...secrets, KEEP_ME: 'visible-value' } })
+    const sidecar = await startSidecar({
+      dirs: await sidecarDirs(),
+      ipc: false,
+      env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script, ...secrets, KEEP_ME: 'visible-value' },
+    })
     const cookie = await exchange(sidecar)
     const api = client(sidecar, cookie)
     const { sessionId } = await newSession(api, root)
@@ -292,19 +298,20 @@ describe('Session 协议', () => {
     expect(entries.map((e) => (e.kind === 'message' ? role(e) : e.kind))).toEqual([
       'permission_mode',
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
       'run_start',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     expect(entries.filter((e) => e.runId === runId).map((e) => [e.kind, e.payload])).toEqual([
       ['run_start', { trigger: 'retry' }],
-      ['message', expect.objectContaining({ role: 'assistant' })],
       ['model_request', expect.objectContaining({ runId, purpose: 'turn', retries: 0 })],
+      ['message', expect.objectContaining({ role: 'assistant' })],
       ['run_end', { status: 'completed' }],
     ])
     expect(stream.invalidEntries).toEqual([])

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：系统消息的组成与环境信息、@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
@@ -10,11 +10,13 @@ lifecycle: active
 
 ## State Update
 
-当前 Todo List、Goal 进度与 teammate 的团队状态由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+当前日期、Todo List、Goal 进度与 teammate 的团队状态由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+
+同次送达按 `date` → `goal` → `todo_list` → `team` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
-时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 开始时不读新状态，重试保留原请求上下文。
+时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。Checkpoint 列表与回退、分叉返回的输入文本同样去掉有来源配对的块；只含 State Update 的消息不是 Checkpoint，用户伪造的同名文本保留。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 开始时不读新状态，重试保留原请求上下文。
 
 同一 Run 内自动或溢出压缩成功后，按压缩后的有效上下文重新比较当前状态。在下一次模型请求之前依次提交需要补发的 `state_update` 条目和只含块的 user message，并将消息追加到运行时上下文；不经 Steering 队列。补发消息提交失败时按 `commit_failed` 停止，不发送未保存的状态；之后请求失败的 retry 仍重放已经保存的补发消息。手动 compact 不补发，之后的 Run 再按当前状态判断。
 
@@ -24,7 +26,7 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `apps/server/src/application/context/environment.ts`、`types.ts` | 环境 section；作用域中的模型与 Project 附加文件夹 |
+| `apps/server/src/application/context/environment.ts`、`date.ts`、`types.ts` | 稳定环境 section、按 Sidecar 时钟计算日期的 State Update；作用域中的模型与 Project 附加文件夹 |
 | `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法 |
 | `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块 |
 | `packages/agent/src/context/references/search.ts` | `searchWorkspaceFiles`：@ 菜单的候选（复用 `tools/builtin/walk.ts`） |

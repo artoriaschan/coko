@@ -5,6 +5,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
 import { V1_PROVIDER, writeV1Database } from '../fixtures/v1-database.ts'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval, type SidecarDirs } from './sidecar-harness.ts'
@@ -14,7 +15,7 @@ const textOf = (e: SessionEntryRecord) => ((e.payload as { content?: { text?: st
 
 /** 启动 Sidecar 并建好 Workspace、Session 与订阅；env 另加 COKO_FAUX_SCRIPT。 */
 async function boot(root: string, dirs: SidecarDirs, script: string, options: { mode?: string; env?: Record<string, string> } = {}) {
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, ...options.env } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script, ...options.env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const workspace = await api.post(API_ROUTES.workspaces, { path: root })
@@ -33,7 +34,7 @@ async function boot(root: string, dirs: SidecarDirs, script: string, options: { 
 async function killAndRestart(sidecar: Awaited<ReturnType<typeof startSidecar>>, dirs: SidecarDirs, env: Record<string, string>) {
   sidecar.child.kill('SIGKILL')
   expect(await sidecar.exited).toEqual({ code: null, signal: 'SIGKILL' })
-  const next = await startSidecar({ dirs, env })
+  const next = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, ...env } })
   const cookie = await exchange(next)
   return { sidecar: next, api: client(next, cookie), cookie }
 }
@@ -67,7 +68,16 @@ describe('启动恢复与结果确认', () => {
     expect((await api.get(API_ROUTES.sessions)).body.sessions[0]).toMatchObject({ id: first.sessionId, running: false, activity: 'awaiting-confirmation' })
     const detail = await api.get(apiPaths.session(first.sessionId))
     const entries = detail.body.entries as SessionEntryRecord[]
-    expect(entries.map(kindOf).slice(2)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'tool_exec', 'confirmation_request', 'run_end'])
+    expect(entries.map(kindOf).slice(2)).toEqual([
+      'run_start',
+      'state_update',
+      'user',
+      'model_request',
+      'assistant',
+      'tool_exec',
+      'confirmation_request',
+      'run_end',
+    ])
     const runId = entries.find((e) => e.kind === 'run_start')!.runId
     expect(entries.slice(-2).every((e) => e.runId === runId)).toBe(true)
     expect(entries.at(-2)!.payload).toEqual({ toolCallId: 'b1' })
@@ -102,7 +112,7 @@ describe('启动恢复与结果确认', () => {
     expect(continued.status).toBe(202)
     await stream.waitFor(isRunEnd(first.sessionId))
     const second = stream.entries(first.sessionId).filter((e) => e.runId === continued.body.runId)
-    expect(second.map(kindOf)).toEqual(['run_start', 'assistant', 'model_request', 'run_end'])
+    expect(second.map(kindOf)).toEqual(['run_start', 'model_request', 'assistant', 'run_end'])
     expect(second[0]!.payload).toEqual({ trigger: 'continue' })
     const sent = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
     expect(sent).toHaveLength(2)
@@ -128,9 +138,10 @@ describe('启动恢复与结果确认', () => {
     // 默认模式：只有创建时的一条 permission_mode。
     expect(entries.map(kindOf).slice(1)).toEqual([
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'approval_request',
       'approval_decision',
       'toolResult',
@@ -164,9 +175,10 @@ describe('启动恢复与结果确认', () => {
     const entries = (await api.get(apiPaths.session(first.sessionId))).body.entries as SessionEntryRecord[]
     expect(entries.map(kindOf).slice(2)).toEqual([
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'file_backup',
       'tool_exec',
       'file_change',
@@ -193,7 +205,7 @@ describe('启动恢复与结果确认', () => {
     await committed(first.stream, first.sessionId, 'tool_exec')
     expect(await first.sidecar.stop()).toEqual({ code: 0, signal: null })
 
-    const second = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+    const second = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
     const api = client(second, await exchange(second))
     expect((await api.get(API_ROUTES.sessions)).body.sessions[0]).toMatchObject({ id: first.sessionId, activity: 'idle' })
     const entries = (await api.get(apiPaths.session(first.sessionId))).body.entries as SessionEntryRecord[]

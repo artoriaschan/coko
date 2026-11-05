@@ -393,6 +393,7 @@ const AssemblyLive = Layer.effect(
     // 交接：摘要 Run 经 SessionService，目标 worktree 经 WorktreeService（都在 AppLive 创建后接上）；目标创建后之后的请求按 Goal 预算重查。
     const handoff = new HandoffService({ store, entries, runs: runs.handoff, worktrees: runs.worktrees, goals })
     const contributions = createContributions({
+      clock,
       cokoHome: sidecar.cokoHome,
       mcp,
       memories: store,

@@ -24,6 +24,7 @@ import { getLogger } from '@coko/logging'
 import { ConfigService } from '../config.ts'
 import { commandsContribution } from './commands.ts'
 import { compactionContribution } from './compaction.ts'
+import { dateContribution } from './date.ts'
 import { environmentContribution } from './environment.ts'
 import { goalContribution } from './goal.ts'
 import { handoffContribution } from './handoff.ts'
@@ -71,6 +72,7 @@ export function createContributions(options: ContextContributionOptions): Contex
   // 命令目录读取其余领域的 commandSources（Skill、MCP 提示模板）与 actions（内置命令）。
   const contributions: ContextContribution[] = [
     environmentContribution(),
+    dateContribution(options.clock),
     instructionsContribution(options),
     commandsContribution({ ...options, siblings: () => contributions }),
     skillsContribution(options),

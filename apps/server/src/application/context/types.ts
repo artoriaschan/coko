@@ -209,6 +209,8 @@ export interface ContextContribution {
 }
 
 export interface ContextContributionOptions {
+  /** Sidecar clock shared with schedules; date State Updates use its local date. */
+  clock?: Pick<import('../../adapters/clock.ts').ClockPort, 'now'>
   cokoHome: string
   /** MCP 连接池；省略时 mcp 贡献为空。 */
   mcp?: import('./mcp.ts').McpManager
