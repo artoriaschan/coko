@@ -157,7 +157,7 @@ it('Run 中移出项目不改变本次根快照，下个 Run 收回；原 cwd �
   await h.api.post(apiPaths.sessionAbort(h.sessionId))
 })
 
-it('独立对话移入项目包含主要文件夹，读取免审批、写入询问；执行 cwd 仍是专属目录', async () => {
+it('独立对话移入项目包含主要文件夹，读取免审批、写入询问；执行 cwd 仍是专属 work 目录', async () => {
   const h = await boot(({ primary }) => [
     { content: 'standalone' },
     { content: [read('main-read', join(primary, 'note.txt'))] },
@@ -180,7 +180,7 @@ it('独立对话移入项目包含主要文件夹，读取免审批、写入询�
   }
   await h.stream.waitFor(() => ends(h.stream, id) === 2)
   expect(await readFile(join(h.primary, 'moved.txt'), 'utf8')).toBe('changed')
-  expect(await readFile(join(workspace.path, 'cwd.txt'), 'utf8')).toBe('changed')
+  expect(await readFile(join(created.body.session.cwd, 'cwd.txt'), 'utf8')).toBe('changed')
   expect((await h.api.get(apiPaths.session(id))).body.session.workspaceId).toBe(workspace.id)
 })
 

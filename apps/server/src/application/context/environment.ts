@@ -45,7 +45,24 @@ export function environmentContribution(): ContextContribution {
         `Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`,
         '</environment>',
       ].join('\n')
-      return [{ name: 'environment', text }]
+      return [
+        { name: 'environment', text },
+        ...(scope.sessionDirectory
+          ? [
+              {
+                name: 'standalone-directory',
+                text: [
+                  '<standalone_directory>',
+                  `Session directory: ${scope.sessionDirectory}`,
+                  `Intermediate files and scripts: ${join(scope.sessionDirectory, 'work')} (your working directory).`,
+                  `Final deliverables: ${join(scope.sessionDirectory, 'outputs')}.`,
+                  'Do not create files elsewhere in the session directory.',
+                  '</standalone_directory>',
+                ].join('\n'),
+              },
+            ]
+          : []),
+      ]
     },
   }
 }
