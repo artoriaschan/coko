@@ -43,6 +43,8 @@ category: architecture
 - 2026-11-01，插件界面：设置 → 插件分区（文件夹与 git 安装、状态、来源与 commit、贡献计数、诊断、启用开关、更新、卸载确认）与批准对话框（每条 Hook 的事件、matcher 与完整命令，每个 MCP / 语言服务器的命令、参数、地址与环境变量的键，资源名字；只有点"批准"才批准，内容变化时提示并换成最新内容）已交付，当前行为见 [插件](../subsystems/plugins.md#界面)。证据：`apps/desktop/e2e/plugins.e2e.test.ts`（真实 Electron 与 Sidecar：安装 → 待批准 → 对话框中的完整 Hook 命令 → 批准 → `/` 菜单出现 `sample:hello`，禁用后消失；更新改动 Hook 命令后回到待批准；卸载）、`apps/desktop/src/renderer/features/settings/plugins-section.browser.test.tsx`、`apps/desktop/src/renderer/stores/plugins-store.test.ts`。implementation 改为 implemented。
 - 实施中补齐的一处：`/<skill>` 与 `/<command>` 展开时文件正文先按值替换登记的 Secret 再进入 user message 条目（此前只有发给模型的请求被脱敏），插件与用户自己的文件都适用。
 
+- 2026-11-05，安装路径相对主数据根：用户确认整体移动 `COKO_HOME` 后新安装的插件仍可使用。新记录保存 `plugins/<name>`，在读取、更新和卸载时基于当前主根解析；新相对记录的摘要覆盖根目录替换前的完整可执行声明，使根移动不改变批准状态。旧绝对记录保留原路径及展开后摘要，不为摘要格式变化自动授予批准；真实声明变化仍须重新批准。验证见 `tests/integration/sidecar-plugins.test.ts` 的整体移动与旧记录兼容用例，以及 `manifest.test.ts` 的可移动摘要敏感范围；当前规则见[插件](../subsystems/plugins.md#digest-与批准)。
+
 ## 来源与后继
 
 - 参考实现：claude-code 社区还原版 `src/utils/plugins/schemas.ts`、`pluginLoader.ts`；pi v1.4.0 `packages/coding-agent/docs/packages.md`。本页已提炼所需结论。
