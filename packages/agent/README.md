@@ -135,6 +135,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 ### 命令沙箱接缝
 
 - **档位。** 有 `permissions` 时，运行时在执行记录之前按当时的模式现算 `sandbox = { mode, writableRoots, protectedNames? }`（`policy/sandbox.ts`，与文件工具的可写根同一推导；workspace-write 下 `protectedNames` 为受保护路径段，宿主沙箱在可写根之下也拒绝写入它们）；已批准的提权取目标档位与执行时模式档位中较宽者，只用于该调用。没有 `permissions` 时不设沙箱，命令不受限。
+- **显式写根。** `RuntimePermissions.writeRoots()` 可独立于 `workspaceRoots()` 的读取根提供 workspace-write 写根；提供时替代默认 Workspace 与系统临时目录集合。文件权限与命令准备共用该集合，read-only 与 danger-full-access 仍按档位推导。托管独立会话用它只开放 `work/`、`outputs/`，见 [权限范围](../../docs/subsystems/permissions.md#每个-run-的-workspace-根)。
 - **执行端口。** `ExecRequest.sandbox` 为受限档位（read-only、workspace-write）时，端口必须实施限制，做不到就以 `SandboxUnavailableError`（`code: 'sandbox-unavailable'`）拒绝且不运行命令；`danger-full-access` 或省略为不受限。`ExecOutcome` 的 `sandboxDenied` 表示受限命令非零退出且输出含拒绝签名。
 - **本地执行。** `createLocalExecPort({ sandbox?: LocalSandbox })`：`LocalSandbox.wrap(policy)` 返回包裹 `<shell> -c <command>` 的 argv 前缀（可抛 SandboxUnavailableError），`denialSignature` 为拒绝签名。本包不带沙箱实现（没有系统二进制依赖），不传时受限档位一律 fail-closed；Sidecar 传入 Seatbelt（`apps/server/src/adapters/seatbelt.ts`）。
 - **bash。** 被拒绝时在退出码之前追加拒绝标记与提权提示，`details.sandbox = { mode, denied: true }`；端口报告不可用时以 `sandbox-unavailable: …` 错误结束。提权的判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md#命令沙箱与提权)。
