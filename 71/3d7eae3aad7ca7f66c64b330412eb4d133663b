@@ -1,0 +1,19 @@
+.scratch/system-data-root/issues/04-sandbox-write-roots.md
+  s_6cadf0cc1974f1::t_fde151a3fce21b 31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "713d7eae3aad7ca7f66c64b330412eb4d133663b",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
