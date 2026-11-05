@@ -1,0 +1,44 @@
+apps/desktop/vitest.browser.config.ts
+  s_eff121e41805b1::t_b80df5351953c6 45-53
+packages/ui/src/guards/style-guard-exceptions.ts
+  s_eff121e41805b1::t_bbe5e3df5a88b7 15-19
+apps/desktop/src/renderer/testing/browser-commands.ts
+  s_eff121e41805b1::t_b80df5351953c6 6,12-14
+apps/desktop/src/renderer/features/session-diagnostics/type-filter-editor.tsx
+  s_eff121e41805b1::t_383fd139300607 1-7,17-24,27,32-36,43-58,63-67,79,86-88,95-99,116-119,131,136,144,152,158-159,165,183-187
+  s_eff121e41805b1::t_407e7a0885555c 8-16,25-26,28-31,37-42,59-62,68-78,80-85,89-94,100-115,120-130,132-135,137-143,145-151,153-157,160-164,166-182
+apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx
+  s_eff121e41805b1::t_cbce1ff770a00a 173-197,203-217
+  s_eff121e41805b1::t_a1ef058cfe1412 11,135,166-171,198-202,218-289
+apps/desktop/src/renderer/features/session-diagnostics/type-filter.test.ts
+  s_eff121e41805b1::t_f4c9e660db5d01 1-17,19-34
+  s_eff121e41805b1::t_647de0e4de2284 35-45,47-58,60-61
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.css
+  s_eff121e41805b1::t_93ff0f6a507283 2,33-35
+docs/subsystems/session-diagnostics.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 3,25-34,39
+docs/README.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 38
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx
+  s_eff121e41805b1::t_2d9f7b6e43fe88 12-13,16,21,35-37,45,47,104-107,110-115,124-160,166,171,173-174,178,246,258,280
+  s_eff121e41805b1::t_407e7a0885555c 108-109
+  s_eff121e41805b1::t_93ff0f6a507283 17-20,23-33,46,48-52,161-165,167-170,172,175-177,190-192,229-234
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "0515792da084565212d41f16b573f925dd47495e",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
