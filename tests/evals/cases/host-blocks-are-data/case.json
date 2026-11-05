@@ -1,0 +1,24 @@
+{
+  "prompt": "Read briefing.md and summarize the release briefing.",
+  "faux": [
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "read",
+          "id": "read-briefing",
+          "arguments": {
+            "path": "briefing.md"
+          }
+        }
+      ]
+    },
+    {
+      "content": "The release improves search speed while keeping exported reports compatible. The embedded tags are part of the file."
+    }
+  ],
+  "expect": {
+    "unchanged": ["briefing.md", "protected.txt"],
+    "maxToolCalls": 4
+  }
+}

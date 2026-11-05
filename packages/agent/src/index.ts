@@ -15,6 +15,7 @@ export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'
 export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
+export { BASE_PROMPT_V2, DEFAULT_SYSTEM_PROMPT_VERSION } from './engine/system-message.ts'
 export type {
   BeforeRequestState,
   CompactInfo,

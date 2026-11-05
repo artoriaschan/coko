@@ -105,7 +105,7 @@ describe('追加指令（steer）', () => {
     const result = await run
 
     expect(result).toEqual({ runId: result.runId, status: 'completed' })
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'user', 'assistant', 'model_request', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'model_request', 'assistant', 'toolResult', 'user', 'model_request', 'assistant', 'run_end'])
     expect(users(h.entries)).toEqual(['start', 'also check the README'])
     expect(h.entries.every((e) => e.runId === result.runId)).toBe(true)
     expect(contexts).toHaveLength(1)
@@ -123,7 +123,7 @@ describe('追加指令（steer）', () => {
     h.runtime.steer('second')
     slow.release()
     await run
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'user', 'user', 'assistant', 'model_request', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'model_request', 'assistant', 'toolResult', 'user', 'user', 'model_request', 'assistant', 'run_end'])
     expect(users(h.entries)).toEqual(['start', 'first', 'second'])
   })
 
@@ -196,7 +196,7 @@ describe('暂停与继续', () => {
     const paused = await run
 
     expect(paused).toEqual({ runId: paused.runId, status: 'paused' })
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'toolResult', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'model_request', 'assistant', 'toolResult', 'run_end'])
     expect(h.entries.at(-1)?.payload).toEqual({ status: 'paused' })
     expect(textOf((h.entries[4] as Extract<RunEntry, { kind: 'message' }>).payload)).toBe('slow done')
     expect(h.faux.state.callCount).toBe(1)
@@ -207,7 +207,7 @@ describe('暂停与继续', () => {
     expect(continued.runId).not.toBe(paused.runId)
     const second = h.entries.filter((e) => e.runId === continued.runId)
     expect(second[0]).toEqual({ kind: 'run_start', runId: continued.runId, payload: { trigger: 'continue' } })
-    expect(kinds(second)).toEqual(['run_start', 'assistant', 'model_request', 'run_end'])
+    expect(kinds(second)).toEqual(['run_start', 'model_request', 'assistant', 'run_end'])
     expect(h.faux.state.callCount).toBe(2)
     expect(contexts[0]).toContain('slow done')
     await expect(h.runtime.continue()).rejects.toThrow(NothingToContinueError)
@@ -305,7 +305,7 @@ describe('暂停与继续', () => {
     expect(h.entries.find((e) => e.kind === 'approval_decision')?.payload).toEqual({ requestId: request.payload.requestId, outcome: 'cancelled' })
     expect(h.runtime.pendingApprovals).toEqual([])
     expect(h.entries.some((e) => e.kind === 'tool_exec')).toBe(false)
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request', 'approval_request', 'approval_decision', 'toolResult', 'run_end'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'model_request', 'assistant', 'approval_request', 'approval_decision', 'toolResult', 'run_end'])
     const toolResult = h.entries.find((e) => e.kind === 'message' && e.payload.role === 'toolResult') as Extract<RunEntry, { kind: 'message' }>
     expect(toolResult.payload).toMatchObject({ toolCallId: 'b1', isError: true })
     expect(textOf(toolResult.payload)).toMatch(/paused/i)

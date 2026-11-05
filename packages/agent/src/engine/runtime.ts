@@ -566,7 +566,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       // 上一 Run 须为 paused / interrupted；模型请求要从用户消息或工具结果继续。
       if ((lastStatus !== 'paused' && lastStatus !== 'interrupted') || !last || last.role === 'assistant' || last.role === 'system')
         return Promise.reject(new NothingToContinueError())
-      return execute('continue', withStop(recoverOverflow(() => agent.continue())))
+      const input: RunInput = { text: '', content: [] }
+      return execute(
+        'continue',
+        withStop(recoverOverflow(() => (input.content!.length > 0 ? agent.prompt(userMessage(input)) : agent.continue()))),
+        [],
+        {},
+        input,
+      )
     },
     steer(raw) {
       const run = current

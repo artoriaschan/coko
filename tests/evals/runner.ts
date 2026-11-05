@@ -1,6 +1,7 @@
 // 评测运行器（docs/subsystems/tracing.md#评测）：复用集成测试的 sidecar-harness 启动真实 Sidecar，把用例的 workspace/ 复制到临时目录、
 // 提交 prompt、等 Run 结束（read-only / default 下的审批带反馈拒绝，Run 继续），再按文件结果判定；tokens、cost 与 durationMs 来自
 // GET …/trace。faux 模式用用例的脚本；真实模式（COKO_EVAL_PROVIDER_CONFIG 与对应的 COKO_CREDENTIAL_<ID> 都存在）用真实模型。
+import { BASE_PROMPT_V2, DEFAULT_SYSTEM_PROMPT_VERSION } from '@coko/agent'
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { API_ROUTES, apiPaths, permissionPaths, tracePaths, type ProviderFields, type TraceResponse } from '@coko/protocol'
@@ -29,6 +30,7 @@ export type EvalMode = { kind: 'faux' } | { kind: 'real'; config: EvalProviderCo
 export interface EvalResult {
   name: string
   mode: 'faux' | 'real'
+  basePromptVersion: string
   pass: boolean
   reasons: string[]
   tokens: number
@@ -59,13 +61,18 @@ async function snapshot(dir: string): Promise<Record<string, string>> {
 
 const DENY_FEEDBACK = 'This evaluation runs without a human: the request was denied. Continue without it.'
 
-export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode): Promise<EvalResult> {
+/** Explicit candidate selection is limited to the Sidecar test hook; it never changes the runtime default. */
+export interface EvalRunOptions {
+  basePrompt?: 'v2'
+}
+
+export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode, options: EvalRunOptions = {}): Promise<EvalResult> {
   const root = await tempDir('coko-eval-')
   const workspace = join(root, 'workspace')
   await cp(join(caseDir, 'workspace'), workspace, { recursive: true })
   const initial = await snapshot(workspace)
   const dirs = await sidecarDirs()
-  const env: Record<string, string> = {}
+  const env: Record<string, string> = options.basePrompt ? { COKO_TEST_BASE_PROMPT: options.basePrompt } : {}
   if (mode.kind === 'faux') {
     // 有价格：报告中的 cost 按 pi-ai 的算法给出（与真实 Provider 相同）。
     env.COKO_FAUX_SCRIPT = await fauxScript(root, { responses: spec.faux, price: { input: 1, output: 2 } }, '.faux.json')
@@ -112,6 +119,7 @@ export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode): 
     return {
       name: spec.name,
       mode: mode.kind,
+      basePromptVersion: options.basePrompt ? BASE_PROMPT_V2.version : DEFAULT_SYSTEM_PROMPT_VERSION,
       pass: reasons.length === 0,
       reasons,
       tokens: trace.totals.tokens,
@@ -125,9 +133,20 @@ export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode): 
   }
 }
 
+export interface PromptGateCase {
+  name: string
+  baseline: EvalResult[]
+  candidate: EvalResult[]
+}
+
+export type PromptGateReport =
+  | { skipped: 'not-requested' | 'no-credentials' }
+  | { baselineVersion: string; candidateVersion: string; repetitions: 3; cases: PromptGateCase[] }
+
 export interface EvalReport {
   startedAt: string
   faux: EvalResult[]
+  promptGate: PromptGateReport
   real: { skipped: 'no-credentials' } | { model: string; results: EvalResult[] }
 }
 

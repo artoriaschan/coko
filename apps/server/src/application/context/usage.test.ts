@@ -132,7 +132,7 @@ describe('contextUsage five categories', () => {
     expect(result.breakdown).toEqual(expected)
   })
 
-  it('counts every assembled system section, including plan, goal and todo', async () => {
+  it('counts assembled system sections, excluding the removed todo section', async () => {
     const context = createContextAssembly({
       cokoHome: '/h',
       config: new ConfigService(),
@@ -142,8 +142,8 @@ describe('contextUsage five categories', () => {
       })),
     })
     const result = await contextUsage({ context, scope: scope(false), baseTools: createToolRegistry(), model: undefined, entries: [] })
-    expect(result.breakdown).toEqual({ system: 43, prompt: 0, assistant: 0, thinking: 0, tools: 0 })
-    expect(result.tokens).toBe(43)
+    expect(result.breakdown).toEqual({ system: 42, prompt: 0, assistant: 0, thinking: 0, tools: 0 })
+    expect(result.tokens).toBe(42)
   })
 
   it('counts compaction summaries as prompts and discards usage from summarized history', async () => {

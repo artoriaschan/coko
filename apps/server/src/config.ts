@@ -37,6 +37,8 @@ export interface SidecarConfig {
   testNoFts?: boolean
   /** COKO_TEST_PLUGINS=<绝对路径>：把该目录当作一个已批准的插件提供贡献（插件消费 seam 的接线用例），仅测试使用。 */
   testPlugins?: string
+  /** COKO_TEST_BASE_PROMPT=v2：仅评测候选基础提示；发布构建忽略。 */
+  testBasePrompt?: 'v2'
   /** 打包的发布构建中被忽略的测试钩子变量名（只记名字，用于启动日志）。 */
   ignoredTestHooks?: string[]
   /** COKO_LOG_LEVEL，默认 info。 */
@@ -74,8 +76,10 @@ function testHooks(
   env: Env,
 ): Pick<
   SidecarConfig,
-  'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock' | 'testClockStart' | 'testScheduleHold' | 'testNoFts' | 'testPlugins'
+  'fauxScript' | 'sandboxExec' | 'testTools' | 'testHold' | 'testClock' | 'testClockStart' | 'testScheduleHold' | 'testNoFts' | 'testPlugins' | 'testBasePrompt'
 > {
+  const basePrompt = env.COKO_TEST_BASE_PROMPT
+  if (basePrompt !== undefined && basePrompt !== 'v2') throw new ConfigError('COKO_TEST_BASE_PROMPT must be v2 when set')
   const testClock = env.COKO_TEST_CLOCK
   if (testClock !== undefined && testClock !== '1') throw new ConfigError('COKO_TEST_CLOCK must be 1 when set')
   const clockStart = testClock ? env.COKO_TEST_CLOCK_START : undefined
@@ -94,6 +98,7 @@ function testHooks(
   const testPlugins = env.COKO_TEST_PLUGINS
   if (testPlugins !== undefined && !isAbsolute(testPlugins)) throw new ConfigError('COKO_TEST_PLUGINS must be an absolute path')
   return {
+    ...(basePrompt ? { testBasePrompt: basePrompt } : {}),
     ...(noFts ? { testNoFts: true } : {}),
     ...(testPlugins ? { testPlugins } : {}),
     ...(fauxScript ? { fauxScript } : {}),

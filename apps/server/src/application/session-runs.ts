@@ -7,6 +7,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
   BUILTIN_COMMANDS,
+  DEFAULT_SYSTEM_PROMPT_VERSION,
   MAX_IMAGE_BYTES,
   detectImageMimeType,
   createAgentRuntime,
@@ -129,6 +130,8 @@ export interface SessionExtension {
 
 export interface SessionRunsOptions {
   store: SessionStore
+  /** Explicit host override, used to evaluate a versioned base prompt. */
+  basePrompt?: { text: string; version: string }
   registry: ModelRegistry
   hub: SessionHub
   runs: RunLauncher
@@ -510,6 +513,7 @@ export class SessionRuns {
       providerId: session.model!.providerId,
       modelId: session.model!.modelId,
       thinkingLevel: models.effectiveLevel(session),
+      basePromptVersion: this.#options.basePrompt?.version ?? DEFAULT_SYSTEM_PROMPT_VERSION,
     })
     const goal = request.trigger === 'goal' ? request.goal : undefined
     const schedule = request.trigger === 'schedule' ? request.schedule : undefined
@@ -725,6 +729,7 @@ export class SessionRuns {
     const seedVisible = context.filterTools(seedNames, runContext.scope)
     if (seedVisible.length !== seedNames.length) runContext.tools.allow(new Set(seedVisible))
     const runtime = createAgentRuntime({
+      ...(this.#options.basePrompt ? { systemPrompt: this.#options.basePrompt.text } : {}),
       models: registry.models,
       model,
       thinkingLevel: this.#options.models.effectiveLevel(session),
