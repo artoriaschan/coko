@@ -100,3 +100,24 @@ pnpm run test tests/integration/secrets-gate-tool-results.test.ts tests/integrat
 - `pnpm run typecheck`、17 个改动 TS/TSX 文件的 format/lint：通过；文档检查和最终提交状态见 13 号票追加记录。
 
 文档按 AGENTS → 导航 → execution 与 agent README 读回：落盘前脱敏、默认显示上限和显式查询上限、临时字段移除及原生验证边界与代码/测试一致；无新增正式目录、归档改写或正式文档反向依赖任务材料。平台与未覆盖范围沿用上节，未运行全仓测试、真实模型、Windows 实机或原生前台操作。
+
+
+## grep 后续复核修复（集成基线 69d558ab）
+
+原 Standards 三项在新代理复核中均已确认修复，复核另发现两处 grep 输出回归，由另一全新实施代理在 `codex/system-data-root-grep-followup` 独立分支修复：
+
+- 被拒绝文件的多条匹配重复增加“省略路径数”。恢复调用内的拒绝文件集合，同一路径只调用一次拒绝计数；被拒绝的内容仍不进入预览或完整捕获。
+- 原始结果达到 32 MiB 后过早停止后端，连尚未完成的可见窗口也被缩短。捕获上限与预览窗口分别判断：只要可见匹配尚不足请求数量，就继续搜索；上下文分支先完成当前可见匹配的上下文，再决定停止。32 MiB 缓冲、脱敏和文件/模型截断标记保持原样。
+
+真实 Sidecar 红绿：新增 JS/随包 ripgrep 两后端的拒绝计数用例，在修复前均观测一个文件的三条匹配报告 3 paths，修复后均为 1 path。首轮夹具的规则路径使用了 macOS /tmp 别名，先改为真实路径后才得到上述有效红证据，未将夹具构造错误算作产品问题。再新增两后端的超长首行用例：第一条匹配为 33 MiB，其后 99 条短匹配；修复前默认窗口实际只有 1 条，修复后默认 100 条、显式 limit=7 的 7 条，以及 context=1 的 100 条匹配均完整可见；三个落盘文件都不超过 32 MiB，且文件和模型文本保留 `[truncated]`。
+
+执行记录：
+
+- `pnpm install --frozen-lockfile`：退出 0，锁文件不变。
+- `pnpm run test tests/integration/sidecar-tool-result-counts.test.ts -t 'counts each denied path'`：有效红 2 失败/3 过滤；产品修复后 2 通过/3 过滤。
+- `pnpm run test tests/integration/sidecar-tool-result-counts.test.ts -t 'finishes its visible window'`：修复前 2 失败/5 过滤（预期 100、实际 1）；修复后 2 通过/5 过滤。
+- `pnpm run test tests/integration/sidecar-tool-result-counts.test.ts apps/server/src/adapters/ripgrep.test.ts packages/agent/src/tools/builtin/grep.test.ts tests/integration/sidecar-ripgrep.test.ts tests/integration/secrets-gate-tool-results.test.ts`：5 文件 55 通过、1 失败。唯一失败是旧的显式 100 条查询断言仍要求 matchLimitReached 缺省；现在窗口确实完成 100 条，依据请求字面值把该断言改为 100，并同步测试名称。
+- 修正该失效断言后，`pnpm run test tests/integration/sidecar-tool-result-counts.test.ts`：1 文件 7 项全部通过；其他 4 文件 49 项的既有通过证据仍有效（产品逻辑未再改变）。
+- `pnpm run typecheck`：退出 0。两项 TS 文件 format/lint 与文档机械检查结果见 13 号票追加回执。
+
+产品源码只改 grep 过滤缓存与停止条件；没有修改原生适配器、入口、依赖、UI、权限边界、或已有缓冲/脱敏实现。新增行为经当前源码启动的真实 Sidecar 及实际随包 ripgrep 验证。本小批次未重复 Electron/打包 smoke，之前的产物记录仍限定在当时源码；Windows 实机、真实模型和原生前台未验证范围不变。正式正文已经描述相同的过滤、显示上限和捕获上限契约，无新长期决定或引用需要迁移；本次只在任务证据与 13 号票追加修复回执。主代理将使用新代理完成最终 Spec 确认。

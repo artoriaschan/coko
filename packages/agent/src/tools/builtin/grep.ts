@@ -189,33 +189,40 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
       const fullOutput = new ToolOutputBuffer(context?.outputRedaction)
       let matchCount = 0
       let consumed = false
+      const deniedFiles = new Set<string>()
       const collect = async (match: GrepMatch): Promise<boolean> => {
-        if (filter.denied(match.filePath)) return true
+        if (deniedFiles.has(match.filePath)) return true
+        if (filter.denied(match.filePath)) {
+          deniedFiles.add(match.filePath)
+          return true
+        }
         matchCount++
         const visible = matchCount <= limit
         const rel = formatPath(match.filePath)
         if (contextLines === 0 && match.lineText !== undefined) {
           const active = fullOutput.appendLine(`${rel}:${match.lineNumber}: ${match.lineText.replace(/\r?\n$/, '').replace(/\r/g, '')}`)
           if (visible) output.push(`${rel}:${match.lineNumber}: ${clip(match.lineText)}`)
-          return active
+          // Filling the spill buffer must not shorten the independent preview window.
+          return active || matchCount < limit
         }
         const lines = await linesOf(match.filePath)
         if (lines.length === 0) {
           if (visible) output.push(`${rel}:${match.lineNumber}: (unable to read file)`)
-          return fullOutput.appendLine(`${rel}:${match.lineNumber}: (unable to read file)`)
+          return fullOutput.appendLine(`${rel}:${match.lineNumber}: (unable to read file)`) || matchCount < limit
         }
         const start = Math.max(1, match.lineNumber - contextLines)
         const end = Math.min(lines.length, match.lineNumber + contextLines)
+        let captureActive = true
         for (let current = start; current <= end; current++) {
           const original = (lines[current - 1] ?? '').replace(/\r/g, '')
-          const active = fullOutput.appendLine(current === match.lineNumber ? `${rel}:${current}: ${original}` : `${rel}-${current}- ${original}`)
+          captureActive = fullOutput.appendLine(current === match.lineNumber ? `${rel}:${current}: ${original}` : `${rel}-${current}- ${original}`)
           if (visible) {
             const text = clip(original)
             output.push(current === match.lineNumber ? `${rel}:${current}: ${text}` : `${rel}-${current}- ${text}`)
           }
-          if (!active) return false
+          if (!captureActive && !visible) return false
         }
-        return true
+        return captureActive || matchCount < limit
       }
       const searched = await searcher({
         pattern: params.pattern,
