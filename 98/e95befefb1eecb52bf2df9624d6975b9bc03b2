@@ -1,0 +1,47 @@
+apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx
+  s_eff121e41805b1::t_649e7fd4cf4813 18-23
+apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx
+  s_eff121e41805b1::t_a1ef058cfe1412 11,166-171,198-202,218-289
+  s_eff121e41805b1::t_86d83345ad424f 135
+  s_eff121e41805b1::t_cbce1ff770a00a 173-197,203-217
+docs/README.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 38
+docs/subsystems/session-diagnostics.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 3,31-38,45,47-54
+  s_eff121e41805b1::t_a00c5c7f1721a7 46,60
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx
+  s_eff121e41805b1::t_2d9f7b6e43fe88 12-13,16,21,41-43,57,114-117,120-125,134-170,176,181,183-184,188,269,291
+  s_eff121e41805b1::t_ae42903347d526 55,59-62
+  s_eff121e41805b1::t_407e7a0885555c 118-119
+  s_eff121e41805b1::t_524c7d8dcfb510 200,202,239,241,244,256
+  s_eff121e41805b1::t_93ff0f6a507283 17-20,38,56,58,171-175,177-180,182,185-187,201,240,242-243
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_141fc5c4a0b13a 35
+apps/desktop/src/renderer/testing/browser-commands.ts
+  s_eff121e41805b1::t_b80df5351953c6 6,12-14
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.css
+  s_eff121e41805b1::t_93ff0f6a507283 2,50-51
+apps/desktop/vitest.browser.config.ts
+  s_eff121e41805b1::t_b80df5351953c6 45-53
+packages/ui/src/guards/style-guard-exceptions.ts
+  s_eff121e41805b1::t_bbe5e3df5a88b7 15-19
+apps/desktop/src/renderer/features/session-diagnostics/type-filter.test.ts
+  s_eff121e41805b1::t_647de0e4de2284 35-61
+  s_eff121e41805b1::t_f4c9e660db5d01 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "98e95befefb1eecb52bf2df9624d6975b9bc03b2",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
