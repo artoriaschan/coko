@@ -1,7 +1,7 @@
 import { readFile, readdir, rm, truncate, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, checkpointPaths } from '@coko/protocol'
 import { client, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 it('copies uploaded files on first send and preserves the copy reference after the source is removed', async () => {
@@ -125,4 +125,82 @@ it('reads the current session copied attachment through the real read tool witho
   await expect.poll(async () => JSON.stringify((await api.get(apiPaths.session(id))).body.entries)).toContain('CURRENT_ATTACHMENT_BODY')
   const detail = await api.get(apiPaths.session(id))
   expect(detail.body.entries.filter((entry: { kind: string }) => entry.kind === 'approval_request')).toHaveLength(0)
+})
+
+it('forks copied attachments into the new session before the source session and its files are deleted', async () => {
+  const root = await tempDir()
+  const source = join(root, 'branch.txt')
+  await writeFile(source, 'FORK_ATTACHMENT_BODY')
+  const script = await fauxScript(root, { responses: [{ content: 'ready to fork' }] })
+  const dirs = await sidecarDirs()
+  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const api = client(sidecar, await exchange(sidecar))
+  const sent = await api.post(API_ROUTES.firstSend, { draftId: 'fork-copy', text: 'keep this', files: [{ name: 'branch.txt', path: source }] })
+  const sourceId = sent.body.session.id
+  await expect.poll(async () => (await api.get(apiPaths.session(sourceId))).body.session.running).toBe(false)
+  const detail = await api.get(apiPaths.session(sourceId))
+  const assistant = detail.body.entries.find(
+    (entry: { kind: string; payload: { role?: string } }) => entry.kind === 'message' && entry.payload.role === 'assistant',
+  )
+  const forked = await api.post(checkpointPaths.sessionFork(sourceId), { targetSeq: assistant.seq, boundary: 'assistant-inclusive' })
+  expect(forked.status).toBe(201)
+  const forkId = forked.body.sessionId
+  const forkRoot = join(dirs.dataDir, 'attachments', forkId)
+  const names = await readdir(forkRoot)
+  expect(names).toHaveLength(1)
+  expect(await readFile(join(forkRoot, names[0]!), 'utf8')).toBe('FORK_ATTACHMENT_BODY')
+  expect((await api.delete(apiPaths.session(sourceId))).status).toBe(200)
+  await rm(join(dirs.dataDir, 'attachments', sourceId), { recursive: true, force: true })
+  const retained = await api.get(apiPaths.session(forkId))
+  expect(JSON.stringify(retained.body.entries)).toContain(forkRoot)
+  expect(JSON.stringify(retained.body.entries)).not.toContain(join(dirs.dataDir, 'attachments', sourceId))
+  expect(await readFile(join(forkRoot, names[0]!), 'utf8')).toBe('FORK_ATTACHMENT_BODY')
+})
+
+it('rolls back the new fork and all its copies when a later inherited attachment cannot be copied', async () => {
+  const root = await tempDir()
+  const a = join(root, 'a.txt')
+  const b = join(root, 'b.txt')
+  await writeFile(a, 'first')
+  await writeFile(b, 'second')
+  const script = await fauxScript(root, { responses: [{ content: 'ready' }] })
+  const dirs = await sidecarDirs()
+  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const api = client(sidecar, await exchange(sidecar))
+  const sent = await api.post(API_ROUTES.firstSend, {
+    draftId: 'fork-failure',
+    text: 'keep',
+    files: [
+      { name: 'a.txt', path: a },
+      { name: 'b.txt', path: b },
+    ],
+  })
+  const id = sent.body.session.id
+  await expect.poll(async () => (await api.get(apiPaths.session(id))).body.session.running).toBe(false)
+  const copies = join(dirs.dataDir, 'attachments', id)
+  const names = await readdir(copies)
+  await truncate(
+    join(
+      copies,
+      names.find((name) => name.endsWith('-b.txt'))!,
+    ),
+    32 * 1024 * 1024 + 1,
+  )
+  const detail = await api.get(apiPaths.session(id))
+  const assistant = detail.body.entries.find(
+    (entry: { kind: string; payload: { role?: string } }) => entry.kind === 'message' && entry.payload.role === 'assistant',
+  )
+  const rejected = await api.post(checkpointPaths.sessionFork(id), { targetSeq: assistant.seq, boundary: 'assistant-inclusive' })
+  expect(rejected.status).toBe(400)
+  expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(1)
+  expect(await readdir(join(dirs.dataDir, 'attachments'))).toEqual([id])
+  expect(
+    await readFile(
+      join(
+        copies,
+        names.find((name) => name.endsWith('-a.txt'))!,
+      ),
+      'utf8',
+    ),
+  ).toBe('first')
 })

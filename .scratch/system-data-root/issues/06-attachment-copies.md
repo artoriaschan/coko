@@ -29,3 +29,7 @@
 - 合入 03 后 `pnpm run test tests/integration/sidecar-attachments.test.ts tests/integration/sidecar-images.test.ts tests/integration/sidecar-first-send.test.ts`：3 文件、15 项通过。`pnpm run typecheck` 通过；改动 TS/TSX 的 oxfmt、oxlint 通过。
 - 文档按 `coko-docs` 同步工作台附件正文与 Worktree 的旧“按 cwd 分类附件”说明。搜索 `.agents/`、`docs/` 和本功能任务材料的旧路径插入/不复制表述，活动正文已改为副本语义；从 AGENTS → docs/README → 正文读回，链接、语义、归属、引用方向、生命周期与历史保留通过。`pnpm run check:docs`：377 Markdown、0 问题。
 - 未调用真实模型；未在 Windows 实机验证；原生默认应用打开成功用注入 shell 的窄边界测试，Electron 验证缺失路径的拒绝；未实际启动外部文件应用或占用用户前台。删除后的附件清理由 11 号票完成。仅本地提交，未推送、未发布。
+
+补充：合入 07 号票时只在 SessionRuns 的 import 区冲突；保留工具结果目录与附件目录的独立只读根，3 文件、12 项联合 Sidecar 用例通过，typecheck / check:docs 通过。额外发现普通文件在分支历史中继承了源副本路径；真实 assistant-inclusive 分支测试先因新会话没有副本而失败。现在分支复制受管附件并重写标记，源会话删除后分支副本保持可读；复制/提交失败回滚新会话与本次副本。handoff 只生成摘要草稿，子代理只接收派发 prompt，均不复制用户消息历史，无同样的所有权转移。
+
+分支补充验证：`pnpm run test tests/integration/sidecar-attachments.test.ts tests/integration/sidecar-rewind.test.ts tests/integration/sidecar-worktrees.test.ts`：3 文件、28 项通过，含失败分支没有新 Session 或部分副本，源 Session 和文件不变。

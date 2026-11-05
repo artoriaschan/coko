@@ -137,6 +137,7 @@ export class SessionService {
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
+      ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       runtimes: this.#runtimes,
       recovery: this.#recovery,

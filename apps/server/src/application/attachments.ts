@@ -1,6 +1,8 @@
+import type { RunEntry } from '@coko/agent'
+import { attachmentReferenceFromText, attachmentReferenceText } from '@coko/protocol'
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, rm, rmdir } from 'node:fs/promises'
-import { basename, isAbsolute, join } from 'node:path'
+import { mkdir, open, realpath, rm, rmdir } from 'node:fs/promises'
+import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import { FILE_ATTACHMENT_MAX_BYTES, IMAGE_ATTACHMENT_MAX_BYTES, type AttachmentReference, type FileAttachment, type ImageAttachment } from '@coko/protocol'
 import { AppError } from './errors.ts'
 
@@ -12,6 +14,47 @@ export class AttachmentStore {
   }
   directory(sessionId: string): string {
     return join(this.root, encodeURIComponent(sessionId))
+  }
+  /** Forks own their copies so deleting the source Session cannot invalidate inherited history. */
+  async fork(sessionId: string, entries: readonly RunEntry[]): Promise<{ entries: RunEntry[]; rollback(): Promise<void> }> {
+    const references = new Map<string, AttachmentReference>()
+    for (const entry of entries) {
+      if (entry.kind !== 'message' || entry.payload.role !== 'user' || !Array.isArray(entry.payload.content)) continue
+      for (const block of entry.payload.content) {
+        if (block.type !== 'text') continue
+        const reference = attachmentReferenceFromText(block.text)
+        if (!reference) continue
+        const within = (root: string, path: string) => {
+          const rel = relative(root, path)
+          return rel !== '' && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel)
+        }
+        // A user-typed marker must never turn an unrelated local path into an implicit upload.
+        if (!within(this.root, reference.path)) continue
+        const [root, path] = await Promise.all([realpath(this.root), realpath(reference.path)])
+        if (!within(root, path)) throw new AppError('bad-request', 'A copied attachment is outside attachment storage')
+        references.set(reference.path, { name: reference.name, path })
+      }
+    }
+    const sourcePaths = [...references.keys()]
+    const prepared = await this.prepare(sessionId, [], [...references.values()])
+    const copied = new Map(sourcePaths.map((path, index) => [path, prepared.references[index]!]))
+    return {
+      rollback: prepared.rollback,
+      entries: entries.map((entry) => {
+        if (entry.kind !== 'message' || entry.payload.role !== 'user' || !Array.isArray(entry.payload.content)) return entry
+        return {
+          ...entry,
+          payload: {
+            ...entry.payload,
+            content: entry.payload.content.map((block) => {
+              const reference = block.type === 'text' ? attachmentReferenceFromText(block.text) : undefined
+              const replacement = reference && copied.get(reference.path)
+              return replacement ? { type: 'text' as const, text: attachmentReferenceText(replacement) } : block
+            }),
+          },
+        }
+      }),
+    }
   }
   async prepare(
     sessionId: string,

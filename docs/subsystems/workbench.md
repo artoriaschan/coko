@@ -218,7 +218,7 @@ Token 胶囊只汇总本 Session 已提交的条目，包括主循环、压缩�
 
 首次发送和已有会话提交协议接收 `images` 与 `files`。普通文件的来源为 `{name,path}` 或 `{name,data}`，不会从用户文字解析任意路径进行复制。Sidecar 在 Run 与用户消息产生前独立校验图片能力、base64、签名和大小，并以有界读取把所有附件复制到 `data/attachments/<sessionId>/<随机 id>-<原名>`。部分复制或开始 Run 失败会移除本次副本，不发送消息；重试仍使用原草稿。只有动作命令的提交不能携带附件。
 
-消息以 `<coko_attachment>` 文本块保存副本的名称与绝对路径，模型可据此读取当前会话的副本目录；该目录作为额外只读根，不授予写入权限。图片继续以原有 `{type:'image',data,mimeType}` 块持久化并传给模型。时间线保留图片预览，并将副本渲染为可用默认应用打开的附件标签，原文件移动或删除后历史仍指向副本。原生打开入口仅接受已有的绝对文件路径。旧图片消息无需转换。
+消息以 `<coko_attachment>` 文本块保存副本的名称与绝对路径，模型可据此读取当前会话的副本目录；该目录作为额外只读根，不授予写入权限。图片继续以原有 `{type:'image',data,mimeType}` 块持久化并传给模型。时间线保留图片预览，并将副本渲染为可用默认应用打开的附件标签，原文件移动或删除后历史仍指向副本。原生打开入口仅接受已有的绝对文件路径，打开失败在附件旁提示。分支会将边界内的副本复制到新会话目录并重写引用，因此删除源会话不影响分支附件；分支复制或条目提交失败时回滚新副本与新会话。旧图片消息无需转换。
 
 Worktree 与主检出中的同名文件分别从实际选择的路径复制，不以 cwd 重写来源。验证见 [worktree 附件](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。其他证据：[附件 Sidecar 协议](../../tests/integration/sidecar-attachments.test.ts)、[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[历史附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)、[真实 Electron 文件草稿、上限、副本与重启](../../apps/desktop/e2e/attachments.e2e.test.ts)、[图片选择与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
 
