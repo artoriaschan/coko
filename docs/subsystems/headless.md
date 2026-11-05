@@ -54,6 +54,8 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 
 result：`{ type: 'result', status, sessionId, runId, text, usage: { input, output, cacheRead, cacheWrite, total, cost? }, durationMs, error?, approvalDenied? }`。`status` 为 Run 的结束状态（completed / error / paused / aborted / interrupted），Run 没能开始时为 `failed`（runId 为 null）。usage 为该 Run 的 `model_request` 之和（不含子代理 Session 的用量）；`cost` 在至少一个请求有费用时出现。
 
+原生工具传输被 HTTP 400/422 拒绝时，结构化结果的 `error.code` 为 `incremental_tools_rejected`，`message` 保留服务端原文；文本格式在原文之后追加英文的 Provider 开关提示，见 [MCP 工具增量传输](mcp.md#provider-的工具增量传输)。
+
 ## 退出码
 
 | 码 | 含义 |

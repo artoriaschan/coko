@@ -1,6 +1,7 @@
 // 无界面运行的输出：stream-json 逐行写与 WebSocket 相同的 ServerMessage（entry / progress），最后一行为 result；json 只写 result；
 // text 只写最终的 assistant 文本。stdout 只有这些内容（日志写文件）。
-import type { ServerMessage, SessionEntryRecord } from '@coko/protocol'
+import { RUN_ERROR_INCREMENTAL_TOOLS_REJECTED, type ServerMessage, type SessionEntryRecord } from '@coko/protocol'
+import { dictionaries } from '@coko/i18n'
 import type { OutputFormat } from './args.ts'
 
 /** 结果状态：Run 的结束状态，或 failed（Run 没能开始，例如缺凭据）。 */
@@ -97,7 +98,10 @@ export function createOutput(format: OutputFormat, stdout: NodeJS.WritableStream
     result(result) {
       if (format !== 'text') return write(stdout, `${JSON.stringify(result)}\n`)
       if (result.text) write(stdout, result.text.endsWith('\n') ? result.text : `${result.text}\n`)
-      if (result.error) write(stderr, `coko headless: ${result.status}: ${result.error.code}: ${result.error.message}\n`)
+      if (result.error) {
+        const hint = result.error.code === RUN_ERROR_INCREMENTAL_TOOLS_REJECTED ? `\n${dictionaries.en.mcp.toolSearch.rejectedHint}` : ''
+        write(stderr, `coko headless: ${result.status}: ${result.error.code}: ${result.error.message}${hint}\n`)
+      }
     },
     flush: () => pending,
   }

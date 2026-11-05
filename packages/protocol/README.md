@@ -194,7 +194,7 @@ Artifact：`GET artifactPaths.list(id)` 返回 `{ artifacts: [{path,name,kind,si
 | `storage-unavailable` | 503 | 存储不可继续使用 |
 | `internal` | 500 | 意外错误（不带原文） |
 
-`run_end.error.code` 是另一组取值（Run 的结束原因，见 `@coko/agent` 的 `RunErrorCode`）：`model_error`、`commit_failed`、`internal`、`budget_exhausted`、`cost_unpriced`、`hook_stopped`、`hook_blocked`、`max_turns`、`approval_denied`（无界面运行的 `--on-approval fail`）。
+`run_end.error.code` 是另一组取值（Run 的结束原因，见 `@coko/agent` 的 `RunErrorCode`）：`model_error`、`incremental_tools_rejected`（原生工具传输的 HTTP 400/422 拒绝，客户端按当前语言追加 Provider 开关提示；`message` 保留服务端原文）、`commit_failed`、`internal`、`budget_exhausted`、`cost_unpriced`、`hook_stopped`、`hook_blocked`、`max_turns`、`approval_denied`（无界面运行的 `--on-approval fail`）。
 
 ## 版本与兼容
 

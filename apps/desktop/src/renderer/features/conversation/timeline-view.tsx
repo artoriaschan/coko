@@ -356,6 +356,7 @@ export function TimelineView(props: TimelineViewProps) {
                 {item.message}
               </p>
             )}
+            {item.incrementalToolsRejected && <p className="break-words whitespace-pre-wrap text-muted-foreground">{t('mcp.toolSearch.rejectedHint')}</p>}
             {item.retryable && !actionsDisabled && (
               <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
                 <RotateCcwIcon />

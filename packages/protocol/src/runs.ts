@@ -73,6 +73,8 @@ export type RunEndPayload = Static<typeof RunEndPayload>
 export const RUN_ERROR_HOOK_STOPPED = 'hook_stopped'
 export const RUN_ERROR_HOOK_BLOCKED = 'hook_blocked'
 export const RUN_ERROR_MAX_TURNS = 'max_turns'
+/** Native tool transport was rejected with HTTP 400/422; the client appends its localized Provider-setting hint. */
+export const RUN_ERROR_INCREMENTAL_TOOLS_REJECTED = 'incremental_tools_rejected'
 
 const ContentBlocks = Type.Array(Type.Object({ type: Type.String() }))
 

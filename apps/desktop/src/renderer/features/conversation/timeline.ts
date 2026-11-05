@@ -1,4 +1,4 @@
-import { attachmentReferenceFromText, type AttachmentReference } from '@coko/protocol'
+import { RUN_ERROR_INCREMENTAL_TOOLS_REJECTED, attachmentReferenceFromText, type AttachmentReference } from '@coko/protocol'
 import { originalMessageTime } from './fork-history.ts'
 import {
   fileReferencePath,
@@ -123,7 +123,7 @@ type TimelineContent =
   /** 已发出、尚未送达的追加指令。 */
   | { kind: 'steering'; key: string; text: string }
   /** retryable：只有最后一个 Run 以模型错误结束、且当前没有 Run 时可重试（重新执行该轮）。 */
-  | { kind: 'error'; key: string; message: string; retryable: boolean }
+  | { kind: 'error'; key: string; message: string; retryable: boolean; incrementalToolsRejected?: boolean }
   /** M4 的条目：各自的组件在对应功能交付前不渲染（返回 null）。 */
   | { kind: 'plan'; key: string; plan: PlanPayload }
   | { kind: 'goal'; key: string; goal: GoalPayload }
@@ -355,6 +355,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             kind: 'error',
             key: `${entry.seq}`,
             message: payload.error?.message ?? '',
+            ...(payload.error?.code === RUN_ERROR_INCREMENTAL_TOOLS_REJECTED ? { incrementalToolsRejected: true } : {}),
             retryable: !hidden && !(entry.runId && compactRuns.has(entry.runId)),
           })
         if (entry.runId) items.push({ kind: 'run-usage', key: `usage:${entry.seq}`, runId: entry.runId })
@@ -589,7 +590,13 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
     if (unrecorded.status === 'aborted') items.push({ kind: 'stopped', key: `unrecorded:${unrecorded.runId}` })
     else if (unrecorded.status === 'paused') items.push({ kind: 'paused', key: `unrecorded:${unrecorded.runId}` })
     else if (unrecorded.status === 'error')
-      items.push({ kind: 'error', key: `unrecorded:${unrecorded.runId}`, message: unrecorded.error?.message ?? '', retryable: false })
+      items.push({
+        kind: 'error',
+        key: `unrecorded:${unrecorded.runId}`,
+        message: unrecorded.error?.message ?? '',
+        retryable: false,
+        ...(unrecorded.error?.code === RUN_ERROR_INCREMENTAL_TOOLS_REJECTED ? { incrementalToolsRejected: true } : {}),
+      })
     items.push({ kind: 'run-usage', key: `usage:unrecorded:${unrecorded.runId}`, runId: unrecorded.runId, origin: { runId: unrecorded.runId } })
   }
 

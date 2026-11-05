@@ -40,6 +40,15 @@ export function withIncrementalTools(model: Model<any>, enabled: boolean): Model
   return model
 }
 
+/** Whether this model snapshot actually selects a supported native tool transport. */
+export function usesIncrementalTools(model: Model<any>): boolean {
+  const compat = model.compat
+  if (!compat || !('supportsMidConvoSystemMessages' in compat) || !compat.supportsMidConvoSystemMessages) return false
+  if (model.api === 'anthropic-messages') return 'supportsMidConvoToolChanges' in compat && compat.supportsMidConvoToolChanges === true
+  if (model.api === 'openai-responses') return 'supportsAdditionalTools' in compat && compat.supportsAdditionalTools === true
+  return model.api === 'openai-completions' && 'supportsMidConvoToolAdditions' in compat && compat.supportsMidConvoToolAdditions === true
+}
+
 /** The seven Thinking Levels in their fixed order (pi-ai's `MODEL_THINKING_LEVELS`). */
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly ModelThinkingLevel[]
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number]

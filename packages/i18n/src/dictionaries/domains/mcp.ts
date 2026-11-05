@@ -7,6 +7,7 @@ export const mcp = defineDomain(
     toolSearch: {
       title: '工具搜索',
       label: '按需加载 MCP 工具',
+      rejectedHint: '如果该服务不支持，请在 Provider 设置中关闭「加载新工具时保留提示词缓存」后重试。',
       hint: '开启后不再每次请求都发送全部 MCP 工具定义，模型先搜索需要的工具，再直接调用。关闭后一次提供全部 MCP 工具。',
     },
     description: '连接 MCP Server 以使用外部工具。工具调用默认需要审批，可按工具或 Server（mcp__名称）保存规则。',
@@ -142,6 +143,7 @@ export const mcp = defineDomain(
     toolSearch: {
       title: 'Tool search',
       label: 'Load MCP tools on demand',
+      rejectedHint: 'If this service doesn\'t support it, turn off "Keep the prompt cache when loading tools" in the provider settings and retry.',
       hint: "When on, MCP tool definitions aren't sent with every request; the model searches for the tools it needs and then calls them. When off, every MCP tool is provided up front.",
     },
     description: 'Connect MCP servers to use external tools. Tool calls need approval by default; save rules per tool or per server (mcp__name).',

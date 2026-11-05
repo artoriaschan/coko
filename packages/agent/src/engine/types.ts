@@ -27,6 +27,8 @@ export type { RunStatus } from '../session-entries/index.ts'
 export type RunErrorCode =
   /** The model stream ended with an error (after retries, if retryable). */
   | 'model_error'
+  /** A native incremental-tool request was rejected with HTTP 400 or 422; clients append a localized settings hint. */
+  | 'incremental_tools_rejected'
   /** The host's commit rejected; the Run stopped because its record would be incomplete. */
   | 'commit_failed'
   /** Unexpected failure inside the runtime. */

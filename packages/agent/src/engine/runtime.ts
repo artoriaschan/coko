@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool } from '@earendil-works/pi-agent-core'
+import { usesIncrementalTools } from '../models/registry.ts'
 import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import { composeAfterToolCall, composeBeforeToolCall, type HostBlock } from '../extensions/hooks/index.ts'
 import { createLocalExecPort } from '../ports/local-exec.ts'
@@ -42,6 +43,8 @@ interface RunState extends CompactionRun, PermissionRun {
   /** Steering messages sent and not yet committed, in send order, with the entries to commit right before each. */
   steering: Steering[]
   commitError?: Error
+  /** Last actual response, reset for every request attempt; never inferred from provider text. */
+  responseStatus?: number
   trigger: RunTrigger
   /** 由 Run 自身决定的结束状态（手动压缩）；优先于按对话记录推断。 */
   ended?: { status: RunStatus; error?: RunError }
@@ -149,7 +152,21 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   const meter = createRequestMeter()
   const streamFor = (purpose: ModelRequestPurpose) =>
     withRetry(
-      meter.wrap((model, request, streamOptions) => options.models.streamSimple(model, request, streamOptions)),
+      meter.wrap((model, request, streamOptions) => {
+        const run = current
+        if (run) run.responseStatus = undefined
+        if (!run || !usesIncrementalTools(model)) return options.models.streamSimple(model, request, streamOptions)
+        // SDK rejections bypass onResponse; observe status at the HTTP boundary without parsing error text.
+        const requestFetch = streamOptions?.fetch ?? globalThis.fetch
+        return options.models.streamSimple(model, request, {
+          ...streamOptions,
+          fetch: async (...args) => {
+            const response = await requestFetch(...args)
+            run.responseStatus = response.status
+            return response
+          },
+        })
+      }),
       retryPolicy,
       async (notice) => {
         // Persist a finished failed attempt before waiting: a restart during backoff must not erase it.
@@ -533,6 +550,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       agent.clearSteeringQueue()
       const undelivered = run.steering.map((s) => s.text)
       const ended: { status: RunStatus; error?: RunError; undeliveredSteering?: string[] } = internal ? { status: 'error', error: internal } : outcome(run)
+      if (ended.error?.code === 'model_error' && usesIncrementalTools(agent.state.model) && (run.responseStatus === 400 || run.responseStatus === 422))
+        ended.error = { ...ended.error, code: 'incremental_tools_rejected' }
       if (undelivered.length > 0) ended.undeliveredSteering = undelivered
       result = { runId: run.runId, ...ended }
       if (run.summaryResult && ended.status === 'completed')

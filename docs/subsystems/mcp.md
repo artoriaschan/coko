@@ -106,6 +106,8 @@ Provider 表单在协议下方显示「工具搜索」分组及「加载新工�
 
 openai-completions 开启该选项后，按 Base URL 与模型 ID 查询安装的 pi 内置目录：URL 去掉路径末尾斜杠、主机名转小写，路径其余部分保持原样；只采用同时标注 `supportsMidConvoSystemMessages` 与 `supportsMidConvoToolAdditions` 的条目。匹配时，加载定义随带 `tools` 的 system 消息追加；未匹配或选项关闭时，照常追加到请求顶层的 `tools`，不会仅因未标注而报错。不按模型名或主机名推断能力。目录通过 pi-ai 的公共 `providers/all` 接口读取；[Completions 请求测试](../../tests/integration/sidecar-completions-incremental-tools.test.ts)以真实 Sidecar 和本地 HTTP 服务验证这两种写法，测试只重定向外部网络，不改写内置目录。
 
+实际使用原生写法的请求被 HTTP 400 或 422 拒绝时，Run 以 `incremental_tools_rejected` 结束，保留服务端错误原文；界面随后按当前语言追加关闭「加载新工具时保留提示词缓存」后重试的提示，Headless 文本输出追加英文提示。该原因按实际 HTTP 响应判定，不解析服务端文字。401、429 和完整列表写法下的错误保持原来的 `model_error`；开启 Provider 选项但未命中能力目录的 Completions 模型同样不附提示。不自动改用完整列表、不自动关闭设置，原有重试策略不变。错误码与原文保存在条目和结构化输出中，不固定界面语言。
+
 构造运行时时，未入库的开头工具基线只含常驻工具，已加载工具沿历史声明回放，避免 Anthropic 重启后把它们移到请求级 tools 而改写前缀。压缩去掉较早声明时，丢弃前缀的工具状态经 pi 的 transcript 接口折入新的开头基线，保留区间的声明仍按原位置回放；自动压缩后的同一次请求不会丢失已加载定义。上述写法与生命周期由[真实 Sidecar 和本地模型 HTTP 服务](../../tests/integration/sidecar-incremental-tools.test.ts)验证，不代表已实测真实 Provider 的缓存命中。
 
 ## 资源
