@@ -312,7 +312,14 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               {!archived && headerActions.length > 0 && <HeaderActions actions={headerActions} sessionId={activeSessionId} openTab={openTab} />}
               <SessionMenu sessionId={activeSessionId} />
               {!rightOpen && (
-                <IconButton ref={rightTrigger} label={t('frame.openRightPanel')} tooltip={t('frame.openSidebar')} tooltipSide="bottom" onClick={onToggleRight}>
+                <IconButton
+                  ref={rightTrigger}
+                  aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
+                  label={t('frame.openRightPanel')}
+                  tooltip={t('rightPanel.toggleShortcut')}
+                  tooltipSide="bottom"
+                  onClick={onToggleRight}
+                >
                   <PanelRightOpenIcon />
                 </IconButton>
               )}

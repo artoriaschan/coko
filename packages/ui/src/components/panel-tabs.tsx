@@ -12,6 +12,8 @@ export interface PanelTab<Kind extends string = string> {
   title: string
   icon: React.ReactNode
   closeLabel?: string
+  closeTooltip?: string
+  closeKeyShortcuts?: string
 }
 
 /** 单格面板上沿；只有标签胶囊收缩，末端控件保持完整点击区。 */
@@ -186,13 +188,14 @@ export function PanelTabs<Kind extends string>({
                         <button
                           type="button"
                           aria-label={tab.closeLabel}
+                          aria-keyshortcuts={tab.closeKeyShortcuts}
                           className="me-1 flex size-5 shrink-0 items-center justify-center rounded-xs text-muted-foreground focus-ring hover:bg-muted hover:text-foreground"
                           onClick={() => onClose(tab.id)}
                         >
                           <XIcon aria-hidden className="size-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>{tab.closeLabel}</TooltipContent>
+                      <TooltipContent>{tab.closeTooltip ?? tab.closeLabel}</TooltipContent>
                     </Tooltip>
                   )}
                 </>

@@ -37,6 +37,8 @@ export function RightPanel({
         title,
         icon: definition ? <definition.icon aria-hidden className="size-3.5 shrink-0" /> : <HouseIcon aria-hidden className="size-3.5 shrink-0" />,
         closeLabel: kind === 'start' && layout.tabs.length === 1 ? undefined : t('rightPanel.closePage', { title }),
+        closeTooltip: layout.active === kind ? t('rightPanel.closePageShortcut', { title }) : undefined,
+        closeKeyShortcuts: layout.active === kind ? 'Meta+W Control+W' : undefined,
       },
     ]
   })
@@ -65,11 +67,23 @@ export function RightPanel({
         onNewTab={layout.tabs.includes('start') ? undefined : () => openPage(sessionId, 'start')}
         controls={
           <>
-            <IconButton size="icon-sm" label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
+            <IconButton
+              size="icon-sm"
+              label={t('frame.closeRightPanel')}
+              tooltip={t('rightPanel.toggleShortcut')}
+              onClick={onClose}
+              aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
+            >
               <PanelRightCloseIcon />
             </IconButton>
             {onToggleFullscreen && (
-              <IconButton size="icon-sm" label={t(fullscreen ? 'rightPanel.exitFullscreen' : 'rightPanel.fullscreen')} onClick={onToggleFullscreen}>
+              <IconButton
+                size="icon-sm"
+                label={t(fullscreen ? 'rightPanel.exitFullscreen' : 'rightPanel.fullscreen')}
+                onClick={onToggleFullscreen}
+                aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter"
+                tooltip={t(fullscreen ? 'rightPanel.exitFullscreenShortcut' : 'rightPanel.fullscreenShortcut')}
+              >
                 {fullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
               </IconButton>
             )}

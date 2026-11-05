@@ -17,6 +17,10 @@ export const IPC = {
   sidecarState: 'coko:sidecar-state',
   /** main → renderer：打开某个会话（用户点击了桌面通知）；参数为 sessionId。 */
   openSession: 'coko:open-session',
+  /** main → renderer：File → 关闭；监听登记是 preload 内部握手。 */
+  menuClose: 'coko:menu-close',
+  menuCloseListening: 'coko:menu-close-listening',
+  requestCloseWindow: 'coko:request-close-window',
   /** main → renderer：自动更新的状态（UpdateStatus）。 */
   updateStatus: 'coko:update-status',
   /** renderer → main：读取当前更新状态（订阅时先给出一次）。 */
@@ -156,6 +160,10 @@ export interface CokoBridge {
   onSidecarState(listener: (event: SidecarStateEvent) => void): () => void
   /** main 要求打开某个会话（用户点击了桌面通知）；返回取消订阅。 */
   onOpenSession(listener: (sessionId: string) => void): () => void
+  /** 处理应用菜单的关闭命令；返回取消订阅，不暴露任意 IPC。 */
+  onMenuClose(listener: () => void): () => void
+  /** 由 renderer 的关闭命令决定关闭窗口；仍经过 main 的正常关闭流程。 */
+  requestCloseWindow(): void
   /** 订阅自动更新的状态：先给出当前状态，之后每次变化；返回取消订阅。 */
   onUpdateStatus(listener: (status: UpdateStatus) => void): () => void
   /** 检查更新（disabled 时不做任何事）；结果经 onUpdateStatus 给出。 */

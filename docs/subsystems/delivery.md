@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的桌面交付：开发运行（electron-forge start 的 watch、Electron 与 Sidecar 的重启），Forge 的 ZIP / DMG makers 与 make 脚本、COKO_FORGE_OUT_DIR、appdmg 链的安装脚本裁决，main 的 UpdateCoordinator（构建期更新源、disabled 原因、autoUpdater 事件到 UpdateStatus 的映射、检查调度、经退出确认的安装），设置 → 关于，发布构建与测试构建的差异，以及两类 E2E 入口（测试构建的本地 feed、COKO_RELEASE_E2E 的发布构建）。修改打包、更新或发布构建前查阅。"
+description: "当前的桌面交付：开发运行（electron-forge start 的 watch、Electron 与 Sidecar 的重启）、应用菜单与关闭命令，Forge 的 ZIP / DMG makers 与 make 脚本、COKO_FORGE_OUT_DIR、appdmg 链的安装脚本裁决，main 的 UpdateCoordinator（构建期更新源、disabled 原因、autoUpdater 事件到 UpdateStatus 的映射、检查调度、经退出确认的安装），设置 → 关于，发布构建与测试构建的差异，以及两类 E2E 入口（测试构建的本地 feed、COKO_RELEASE_E2E 的发布构建）。修改打包、更新或发布构建前查阅。"
 lifecycle: active
 ---
 
@@ -16,6 +16,7 @@ lifecycle: active
 | `apps/desktop/build/build.ts` | 构建期定义：`__COKO_TEST_BUILD__`、`__COKO_UPDATE_FEED__`（main）、`__COKO_RUNTIME_VERSIONS__`（renderer 的关于页）；`watchElectron`、`watchSidecar`、Sidecar 重建通知文件 |
 | `apps/desktop/src/main/dev-reload.ts`、`sidecar-supervisor.ts` 的 `reload` | 开发时 Sidecar 重建后的计划重启 |
 | `apps/desktop/src/main/build-flags.ts` | `TEST_BUILD`、`UPDATE_FEED`、`resolveUpdateFeed`、`ignoredTestHooks` |
+| `apps/desktop/src/main/application-menu.ts`、`src/main/index.ts` | 自定义应用菜单与 File → 关闭的路由；标准应用、编辑、视图、窗口菜单使用 Electron role |
 | `apps/desktop/src/main/update-coordinator.ts` | `createUpdateCoordinator`：状态、调度、日志与安装；autoUpdater 与退出流程由 `index.ts` 注入 |
 | `apps/desktop/src/shared/bridge.ts`、`src/preload/` | `UpdateStatus`；`onUpdateStatus`（订阅时先给出当前状态）、`checkForUpdates`、`installUpdate` |
 | `apps/desktop/src/renderer/stores/update-store.ts`、`features/settings/about-section.tsx` | 关于页的更新状态与操作 |
@@ -35,6 +36,14 @@ lifecycle: active
 `reload()` 是计划重启：先通知控制通道当前进程不可用（等待中的请求被拒绝），分级停止当前进程（不触发意外退出与崩溃重启），启动新进程并重新交换 cookie。状态经 `restarting` 回到 `ready`，renderer 与崩溃重启时一样连向新地址并以 afterSeq 补齐；不计入连续故障次数。新进程启动失败时直接进入 `failed { reason: crashed }`，不按退避重试，修复后的下一次重建可以从这里恢复到 `ready`。进行中的 reload 期间的重建合并为它结束后的一次。Sidecar 首次启动失败（`reason: startup`）时 reload 不做任何事，需要重启 Electron。
 
 已知限制：tsdown 的 watch 在 stdin 上注册了自己的快捷键（`r`、`c`、`q` 加回车；`q` 会直接结束 Forge 进程）。只对未打包的运行生效：main 只在 `!app.isPackaged` 时读取 `COKO_SIDECAR_RELOAD_FILE`。
+
+## 应用菜单与关闭
+
+main 在 Electron ready 后安装自定义应用菜单。macOS 的应用菜单、各平台的编辑、视图与窗口菜单使用 Electron 标准 role，保留撤销、重做、剪切、复制、粘贴、全选以及原有视图和窗口命令。File → 关闭使用 `CmdOrCtrl+W`，由 renderer 按前台浮层与焦点决定关闭页面还是窗口；标题栏的原生关闭按钮仍走原来的窗口关闭流程。
+
+[bridge](../../apps/desktop/src/shared/bridge.ts)仅增加 `onMenuClose` 与 `requestCloseWindow` 两个受控方法。preload 在订阅的首个监听添加、最后一个监听移除时向 main 登记；主进程只接受所属主窗口、主框架与 `coko-app://app` 文档的登记和关闭请求，不暴露任意 IPC。主文档开始跨文档导航、renderer 进程丢失或窗口关闭时清除登记。没有监听时，File → 关闭直接关闭窗口；存在监听但 renderer 无响应时不继续关闭底层窗口，原生关闭按钮仍可使用。
+
+菜单模板与键位的补充检查见 [application-menu.test.ts](../../apps/desktop/src/main/application-menu.test.ts)；真实 Electron 的页面连续关闭、对话框优先、输入法和窗口回退入口见 [right-panel-menu.e2e.test.ts](../../apps/desktop/e2e/right-panel-menu.e2e.test.ts)。右栏快捷键与焦点规则见 [工作台](workbench.md)。
 
 ## 安装包
 
