@@ -1,0 +1,36 @@
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_a3a0009707e60c 11-20,180
+packages/agent/src/entries/index.ts
+  s_2a03236d6e6b67::t_76664ccb87e919 35
+docs/subsystems/todo.md
+  s_2a03236d6e6b67::t_a3a0009707e60c 3,9,17,36-38,49
+packages/protocol/README.md
+  s_2a03236d6e6b67::t_a3a0009707e60c 195
+packages/agent/src/entries/state-updates.ts
+  s_2a03236d6e6b67::t_76664ccb87e919 9,11-36
+packages/agent/src/entries/state-updates.test.ts
+  s_2a03236d6e6b67::t_c785a9ee6c5c94 1-13,17-46,48-50,52-54
+packages/agent/src/engine/runtime.ts
+  s_2a03236d6e6b67::t_4082c43aaebf18 521
+  s_2a03236d6e6b67::t_76664ccb87e919 476
+apps/server/src/application/context/state-updates.test.ts
+  s_2a03236d6e6b67::t_a3a0009707e60c 1-11,13-21,23-28,30-38,42-46,48-49
+.scratch/system-context/issues/01-todo-list-state-update.md
+  s_2a03236d6e6b67::t_4082c43aaebf18 11-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "c652b578c56c3b663df1673012400af128838113",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
