@@ -47,3 +47,5 @@ Closed: true
 2026-11-05 集成补验：新增首轮日期也影响 `sidecar-skills.test.ts` 的 Skill 命令路径。父代理在原始 `ec32dfc9` 与日期集成 `7b667126` 各观察 6 例中的 4 个失败；独立修补工作区再次复现。三个断言依赖 `/var` 临时路径的字面值，但应用保存的是 `realpath` 后的 Workspace 路径；夹具改为通过 `fs.realpath` 读取临时根的真实路径。命令场景使用已有固定日期夹具，并完整断言两轮的条目顺序、首轮 date payload、日期块先于 Skill 展开正文、次轮同日不重发和实际模型请求。保留索引、权限与文件内容断言，没有过滤 State Update 或改动生产代码。
 
 补验：`pnpm install --frozen-lockfile`、`pnpm run test tests/integration/sidecar-skills.test.ts`（1 文件 6 例通过）、`pnpm run typecheck`、该文件 `oxfmt --check` / `oxlint` 均退出 0。后续合并复核结果见下。
+
+已无冲突合入包含票 08 的集成 `148c99bc`；合并后重跑上述 Skills 文件 6 例、类型检查、文档检查（360 个 Markdown、0 问题）均退出 0。补验未运行真实 Provider、Electron 窗口或打包产物；未推送。
