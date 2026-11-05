@@ -1,0 +1,34 @@
+packages/ui/src/components/panel-tabs.css
+  s_eff121e41805b1::t_9f0fccd03c1a27 15-32
+.scratch/right-sidebar-session-diagnostics/evidence/start-style-qa.md
+  s_eff121e41805b1::t_e5123ad74ab565 1-10,12-50,52-59
+  s_eff121e41805b1::t_82abbf1faca041 11
+  s_eff121e41805b1::t_d7d0c16dc3c8c3 51
+packages/ui/src/components/panel-tabs.tsx
+  s_eff121e41805b1::t_9f0fccd03c1a27 3,341-342,349,351-354
+  s_eff121e41805b1::t_24abdf987bad56 343
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_15de339d83c1ca 53
+docs/tech-stack/ui-design-system.md
+  s_eff121e41805b1::t_15de339d83c1ca 209-211
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_eff121e41805b1::t_5c6be18492de4f 736,831,839-847
+.scratch/right-sidebar-session-diagnostics/spec.md
+  s_eff121e41805b1::t_59d802c3b7872e 337-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "4e2937146aeffebb7972665fa85ad0f92e9cf1ee",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
