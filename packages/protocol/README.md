@@ -192,7 +192,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 
 - 本包与 Sidecar 同版本发布，没有独立的协议版本号；客户端与 Sidecar 应来自同一构建。
 - Session Entry 按 kind 带 `payloadVersion`；Sidecar 读取时把旧版本迁移到当前版本再推送，客户端只需要理解当前版本。新增 kind 或升级版本时 schema 在 `src/entries.ts` 与各领域文件中登记，迁移在 `@coko/agent` 的 `session-entries/`。
-- `state_update` v1 `{ name, value }` 记录送达模型的状态快照，name 为 date、goal、todo_list 或 team，null 表示清空。每条与同一 Run 中之后第一条 user message 的开头块按名称和顺序配对；时间线只隐藏已配对块，原始条目、导出与 headless stream-json 均保留。旧应用读取时跳过未登记 kind 并报告 invalid entry，消息仍保留，降级后可能显示包装块。
+- `state_update` v1 `{ name, value }` 记录送达模型的状态快照，name 为 date、goal、todo_list 或 team，null 表示清空。每条与同一 Run 中之后第一条 user message 的开头块按名称和顺序配对；时间线只隐藏已配对块，原始条目、导出与 headless stream-json 均保留；分叉仅随保留的配对消息复制该条目，快照不代替新 Session 的领域状态。旧应用读取时跳过未登记 kind 并报告 invalid entry，消息仍保留，降级后可能显示包装块。
 - 新增进度类型必须在 `DETACHED_PROGRESS` 中登记（编译期穷尽）；客户端应忽略不认识的进度类型与条目 kind。
 - 本文的路由键、进度类型与错误码由 `src/readme.test.ts` 机械检查：新增而文档没有跟上时测试失败。
 

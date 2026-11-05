@@ -187,7 +187,7 @@ describe('自动压缩、回退与分叉', () => {
     expect(conversation(log[5]!)).toEqual([
       ['user', dateBlock + big(40_000, 'a')],
       ['assistant', 'ok1'],
-      ['user', dateBlock + 'next early'],
+      ['user', 'next early'],
     ])
     expect(conversation(log[6]!)).toEqual([
       ['user', expect.stringContaining('<summary>\nFORK-SUMMARY\n</summary>')],
@@ -196,7 +196,7 @@ describe('自动压缩、回退与分叉', () => {
       ['user', big(60_000, 'd')],
       ['user', dateBlock],
       ['assistant', 'ok4'],
-      ['user', dateBlock + 'next late'],
+      ['user', 'next late'],
     ])
     expect(stream.entries(sessionId)).toEqual(source)
     expect(stream.invalidEntries).toEqual([])
@@ -273,7 +273,7 @@ describe('自动压缩、回退与分叉', () => {
     expect(stream.entries(forkId).some((e) => e.kind === 'compaction')).toBe(true)
     await send(api, stream, forkId, 'five')
     log = await requests()
-    expect(conversation(log[6]!)).toEqual([...original.slice(0, -1), ['user', dateBlock + 'five']])
+    expect(conversation(log[6]!)).toEqual(original)
 
     // 回退到压缩之前的消息（第二条）：compaction 落在被回退区间内，下一次请求恢复原历史。
     const rewound = await api.post(checkpointPaths.sessionRewind(sessionId), { targetSeq: users[1]!.seq, mode: 'conversation' })

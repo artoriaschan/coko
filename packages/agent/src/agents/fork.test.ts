@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 import { forkEntries } from './fork.ts'
+import { planStateUpdates } from '../entries/index.ts'
 
 let seq = 0
 const entry = (kind: string, payload: unknown, runId: string | null = 'r1') =>
@@ -89,6 +90,54 @@ const M6_KINDS: [string, unknown][] = [
 ]
 
 describe('forkEntries 不复制 M4、M5 与 M6 条目', () => {
+  it('压缩分叉保留首条消息之前的更新来源，后续规划不重复发送同值', () => {
+    seq = 0
+    const update = entry('state_update', { name: 'date', value: '2026-11-05' })
+    const input = entry('message', {
+      role: 'user',
+      content: [
+        { type: 'text', text: '<state_update name="date">\n2026-11-05\n</state_update>' },
+        { type: 'text', text: 'one' },
+      ],
+      timestamp: 0,
+    })
+    const compact = entry('compaction', { firstKeptSeq: update.seq, summary: 'earlier history' })
+    const target = user('two')
+    const forked = forkEntries([update, input, compact, target], 's', target.seq)
+    expect(forked.entries.map((entry) => entry.kind)).toEqual(['fork_origin', 'compaction', 'state_update', 'message'])
+    expect(forked.entries[1]!.payload).toMatchObject({ firstKeptSeq: 3 })
+    const copied = forked.entries.map((entry, index) => ({ ...entry, seq: index + 1, runId: null }))
+    expect(planStateUpdates({ date: '2026-11-05' }, copied)).toBeUndefined()
+  })
+
+  it('仅随保留的用户消息复制配对的 State Update，目标消息之前的孤立更新不复制', () => {
+    seq = 0
+    const date = entry('state_update', { name: 'date', value: '2026-11-05' })
+    const first = entry('message', {
+      role: 'user',
+      content: [
+        { type: 'text', text: '<state_update name="date">\n2026-11-05\n</state_update>' },
+        { type: 'text', text: 'one' },
+      ],
+      timestamp: 0,
+    })
+    const omitted = entry('state_update', { name: 'todo_list', value: { items: [] } })
+    const target = entry('message', {
+      role: 'user',
+      content: [
+        { type: 'text', text: '<state_update name="todo_list">\nempty\n</state_update>' },
+        { type: 'text', text: 'two' },
+      ],
+      timestamp: 1,
+    })
+    const forked = forkEntries([date, first, omitted, target], 's', target.seq)
+    expect(forked.entries).toEqual([
+      { kind: 'fork_origin', payload: { sessionId: 's', seq: target.seq } },
+      { kind: 'state_update', payload: { name: 'date', value: '2026-11-05' } },
+      { kind: 'message', payload: first.payload },
+    ])
+  })
+
   it.each([...M4_KINDS, ...M5_KINDS, ...M6_KINDS])('%s 不出现在分叉后的条目中；消息与权限条目照常复制', (kind, payload) => {
     seq = 0
     const entries = [entry('permission_mode', { mode: 'default' }, null), user('one'), entry(kind, payload), user('two')]

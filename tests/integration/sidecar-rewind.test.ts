@@ -142,7 +142,7 @@ describe('回退与分叉', () => {
       'assistant:',
       'toolResult:Successfully wrote to fact.txt',
       'assistant:first answer',
-      'user:' + dateBlock + 'follow up',
+      'user:follow up',
     ])
   })
 
@@ -337,7 +337,7 @@ describe('回退与分叉', () => {
 
     const copy = await entriesOf(api, forkId)
     expect(copy[0]).toMatchObject({ seq: 1, kind: 'fork_origin', runId: null, payload: { sessionId, seq: second } })
-    const expected = source.filter((e) => e.seq < second! && (e.kind === 'message' || e.kind === 'permission_mode' || e.kind === 'permission_rule'))
+    const expected = source.filter((e) => e.seq < second! && ['message', 'permission_mode', 'permission_rule', 'state_update'].includes(e.kind))
     expect(copy.slice(1).map((e) => [e.kind, e.runId, e.payload])).toEqual(expected.map((e) => [e.kind, null, e.payload]))
     expect(await entriesOf(api, sessionId)).toEqual(source)
     expect(await readFile(externalFile)).toEqual(externalBytes)
@@ -346,7 +346,7 @@ describe('回退与分叉', () => {
     stream.send({ type: 'subscribe', sessionId: forkId, afterSeq: 0 })
     await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === forkId)
     await send(api, stream, forkId, 'second, differently', 1)
-    expect(await request(requestLog, 2)).toEqual(['user:' + dateBlock + 'first', 'assistant:r1', 'user:' + dateBlock + 'second, differently'])
+    expect(await request(requestLog, 2)).toEqual(['user:' + dateBlock + 'first', 'assistant:r1', 'user:second, differently'])
     expect(await entriesOf(api, sessionId)).toEqual(source)
     expect(await readFile(externalFile)).toEqual(externalBytes)
     expect(stream.invalidEntries).toEqual([])
