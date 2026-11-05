@@ -1,0 +1,53 @@
+apps/server/src/application/context/index.ts
+  s_2a03236d6e6b67::t_28aae579a57f01 27,75
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_ed4ad61faa803c 3,19
+  s_2a03236d6e6b67::t_392b6bb8eb4d0a 13-15,29
+packages/agent/src/checkpoints/rewind.test.ts
+  s_2a03236d6e6b67::t_7af515390812bc 77-81,93-101
+  s_2a03236d6e6b67::t_f61428e1ef5f72 82-92
+tests/integration/sidecar-date-state-updates.test.ts
+  s_2a03236d6e6b67::t_ba89cb32e41bd0 1-2,5-11,21-43,51-52,118
+  s_2a03236d6e6b67::t_392b6bb8eb4d0a 12-20,44-50,56-112
+apps/server/src/application/context/types.ts
+  s_2a03236d6e6b67::t_28aae579a57f01 212-213
+tests/integration/sidecar-schedules.test.ts
+  s_2a03236d6e6b67::t_f61428e1ef5f72 370-373
+docs/README.md
+  s_2a03236d6e6b67::t_ed4ad61faa803c 38
+tests/integration/sidecar-m6-seams.test.ts
+  s_2a03236d6e6b67::t_f61428e1ef5f72 153-156
+  s_2a03236d6e6b67::t_0ad85f2728d57c 13-14,51,112,144,174
+tests/integration/sidecar-recovery.test.ts
+  s_2a03236d6e6b67::t_f61428e1ef5f72 71-80
+  s_2a03236d6e6b67::t_0ad85f2728d57c 8
+tests/integration/sidecar-rewind.test.ts
+  s_2a03236d6e6b67::t_f61428e1ef5f72 290-296
+tests/integration/sidecar-session.test.ts
+  s_2a03236d6e6b67::t_f61428e1ef5f72 220-224
+apps/server/src/runtime/layers.ts
+  s_2a03236d6e6b67::t_28aae579a57f01 396
+apps/server/src/application/context/date.ts
+  s_2a03236d6e6b67::t_392b6bb8eb4d0a 8-11
+  s_2a03236d6e6b67::t_28aae579a57f01 1-7,12-22
+tests/integration/sidecar-commands.test.ts
+  s_2a03236d6e6b67::t_0ad85f2728d57c 3,7,14
+tests/integration/sidecar-compaction.test.ts
+  s_2a03236d6e6b67::t_392b6bb8eb4d0a 23-26,69,94-98,102-103,136-137,139-146,149,188,190,197,199,225-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "fdf7f7b4306d69112faacb98ab22a47ddd7696f6",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
