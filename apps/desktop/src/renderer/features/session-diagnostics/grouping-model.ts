@@ -49,6 +49,7 @@ export function buildGroupingModel(projection: TimelineProjection | undefined): 
   const targets = new Map<string, DiagnosticTarget>()
   const ordinal = new Map<string, string>()
   for (const entry of projection.entries) if (entry.runId && !ordinal.has(entry.runId)) ordinal.set(entry.runId, String(ordinal.size + 1))
+  for (const id of projection.runs.keys()) if (!ordinal.has(id)) ordinal.set(id, String(ordinal.size + 1))
   const addRef = (ref: ObjectReference) => {
     references.set(ref.key, ref)
     objects.set(ref.value, ref)
@@ -92,12 +93,7 @@ export function buildGroupingModel(projection: TimelineProjection | undefined): 
       identity,
       location: runId ? (ordinal.get(runId) ?? '') : '',
       value: item,
-      summary:
-        item.kind === 'text' || item.kind === 'thinking'
-          ? item.text.slice(0, 240)
-          : item.kind === 'tool'
-            ? item.call.name
-            : new InspectorObjectValue(item).label,
+      summary: item.kind === 'text' || item.kind === 'thinking' ? item.text.slice(0, 240) : item.kind === 'tool' ? item.call.name : runtimePreview(item),
     })
     targets.set(identity, target)
     addRef({ key: identity, kind: 'row', identity, value: item, rowKey: identity, target })
@@ -130,6 +126,23 @@ export function buildGroupingModel(projection: TimelineProjection | undefined): 
     for (const member of seat.members) addItem(member, seat.id)
   }
   return { rows, records, references, objects, related, targets, revision: projection }
+}
+
+/** Bounded shallow summaries also avoid evaluating accessors on runtime values. */
+function runtimePreview(value: object): string {
+  const fields: string[] = []
+  for (const entry of new InspectorObjectValue(value).entries()) {
+    if (['key', 'kind', 'origin', 'source', 'runId'].includes(entry.name)) continue
+    let label: string
+    try {
+      label = entry.accessor ? '[Getter/Setter]' : new InspectorObjectValue(entry.value).label
+    } catch {
+      label = '…'
+    }
+    fields.push(`${entry.name}: ${label.slice(0, 180)}`)
+    if (fields.length === 5) break
+  }
+  return fields.join(', ').slice(0, 240)
 }
 
 /** Descriptor-only comparison ignores newly allocated provenance wrappers and process seats. */
