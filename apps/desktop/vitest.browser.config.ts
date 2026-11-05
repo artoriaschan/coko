@@ -42,6 +42,15 @@ export default defineProject({
         setReducedMotion: async ({ page }, reduced: boolean) => {
           await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' })
         },
+        setBrowserScale: async ({ page }, scale: number) => {
+          const cdp = await page.context().newCDPSession(page)
+          try {
+            await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: scale })
+            return await page.evaluate(() => window.visualViewport?.scale ?? 1)
+          } finally {
+            await cdp.detach()
+          }
+        },
       },
       headless: true,
       provider: playwright(),

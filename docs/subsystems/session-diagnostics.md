@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "开发者开关下的会话数据诊断：已加载条目的 Run 分组、虚拟表格、跟随与锚定、JSON 详情及数据范围。"
+description: "开发者开关下的会话数据诊断：已加载条目的 Run 分组、虚拟表格、类型筛选、跟随与锚定、JSON 详情及数据范围。"
 lifecycle: active
 ---
 
@@ -22,8 +22,18 @@ lifecycle: active
 
 选中条目后，下方 JSON 详情默认占可用高度的 40%；上缘分隔条支持拖动、上下方向键及 Home/End，限制 15%～80%，换记录时保留高度。JSON 容器默认全部展开，可以逐层折叠；循环祖先为 `[Circular]`，共享的非循环对象分别展开，大整数显示为带 n 后缀的字符串。序列化失败只在详情内显示说明，表格和其他记录仍可使用；已不存在的选择显示移除或结算提示。
 
+## 类型筛选
+
+类型表头的筛选按钮打开共享浮层；浮层跟随按钮定位，定位完成后才聚焦输入框。候选异步读取全部已加载的行，包含被折叠或当前筛选隐藏的类型；新数据到达后更新候选，过期的查询结果不会替换当前草稿的候选。
+
+输入只改变草稿。Enter 确认片段，方向键循环选择候选后 Enter 或直接点击候选则确认完整类型；“确认筛选”始终确认片段。输入法组合期间的 Enter 不提交。Esc、“取消筛选”、外部点击或窗口失焦放弃草稿，重新打开时恢复已确认的片段；“清空草稿”后确认恢复全部类型。
+
+匹配不区分大小写，使用包含匹配；首尾空白与可选的 `*` 不影响匹配，空白或只有边界星号表示不过滤。筛选保留匹配行和它们的祖先；仅作为上下文的祖先使用次级字色，强制展开且不能手动收起。计数为“匹配数 / 总数”，上下文不计入匹配数；新行沿用当前已确认的筛选。每次确认清除选中、手动折叠与尾部留白，暂停跟随并回到顶部。
+
+共享表格的引用定位请求只在目标被筛选排除时清除筛选，再展开祖先、滚动并短暂高亮；上下文中已有的目标保留筛选。定位请求不改变原先的详情选择，减少动态效果时不播放高亮动画。
+
 ## 实现与验证入口
 
 [诊断组装](../../apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx)读取真实 chat store，[原始模型](../../apps/desktop/src/renderer/features/session-diagnostics/raw-model.ts)持有行与记录的只读投影，[表格](../../apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx)拥有选择、折叠和滚动状态，[详情](../../apps/desktop/src/renderer/features/session-diagnostics/record-details.tsx)拥有高度与 JSON 树。
 
-纯模型、层级、布局、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、双语主题与 390px。第三方许可与打包约定见[安装包](delivery.md#安装包)。
+纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。第三方许可与打包约定见[安装包](delivery.md#安装包)。
