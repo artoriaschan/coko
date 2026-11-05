@@ -95,7 +95,7 @@ it.each(['deleted', 'archived'])('remembered %s session falls back to new chat a
       '--input-type=module',
       '-e',
       `import {DatabaseSync} from 'node:sqlite'; const db=new DatabaseSync(process.argv[1]); if(process.argv[3]==='deleted') db.prepare('DELETE FROM session_entries WHERE session_id=?').run(process.argv[2]); db.prepare(process.argv[3]==='deleted'?'DELETE FROM sessions WHERE id=?':'UPDATE sessions SET archived_at=100 WHERE id=?').run(process.argv[2]); db.close();`,
-      join(root, 'user-data', 'data', 'coko.db'),
+      join(root, 'coko-home', 'data', 'coko.db'),
       id,
       state,
     ],

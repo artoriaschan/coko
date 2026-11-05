@@ -21,7 +21,7 @@ lifecycle: active
 
 ### 文件、轮转与脱敏
 
-桌面日志目录由 main 通过 `app.getPath('logs')` 确定，并将 sidecar 的日志路径传入子进程。桌面日志和服务日志分别写入 `desktop.jsonl`、`sidecar.jsonl`；每个文件保持单写者，多实例使用独立目录。
+桌面日志目录由 main 从 `COKO_HOME`（缺省 `~/.coko`）派生为 `data/logs/`，并将该日志路径传入 Sidecar；不使用 Electron 的 `app.getPath('logs')`，路径边界见 [ADR 0025](../adr/0025-system-data-root.md)。桌面日志和服务日志分别写入 `desktop.jsonl`、`sidecar.jsonl`；每个文件保持单写者，多实例使用独立目录。
 
 采用按大小轮转，默认单文件上限 10 MiB，最多保留 5 份备份。正常退出时等待日志 sink 刷新和释放；日志目录创建、写入或轮转失败通过独立的 Console 诊断路径报告，避免递归写入同一个故障 sink。[文件与轮转支持](https://logtape.org/sinks/file)
 

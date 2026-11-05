@@ -8,6 +8,16 @@ lifecycle: active
 
 本文说明 Coko 当前如何得到每个 Run 的有效能力配置：默认值、用户在设置中保存的全局值与 Workspace 内的项目设置文件三层合并，项目文件只能收紧。长期决定见 [ADR 0008](../adr/0008-project-files-only-tighten.md)（项目文件只收紧）与 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)（应用状态在 SQLite、项目配置为只读覆盖）。各能力开关由对应的上下文贡献读取；本页只描述配置本身。
 
+## 主数据根与启动路径
+
+应用主数据根为 `COKO_HOME`，未设置或为空时使用 `~/.coko`；macOS 与 Windows 使用相同的家目录接口（Windows 为 `C:\Users\<用户>\.coko`），不读取 APPDATA 或 LOCALAPPDATA。决定见 [ADR 0025](../adr/0025-system-data-root.md)。业务数据存放在 `<COKO_HOME>/data/`，SQLite 库为 `data/coko.db`，桌面和服务日志为 `data/logs/desktop.jsonl` 与 `data/logs/sidecar.jsonl`。用户级指令、Skills、命令和插件仍从主根加载。
+
+Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业务根搬动；`COKO_USER_DATA_DIR` 只控制 Electron userData。desktop main 显式把主根派生的数据和日志目录传给 Sidecar；非桌面 Sidecar 省略 `--data-dir` 时也使用主根的 `data/`，显式给定时优先，省略 `--log-dir` 时使用所选数据目录的 `logs/`。Headless 入口仍要求显式 `--data-dir`，见 [无界面运行](headless.md)。
+
+独立会话默认根由 desktop main 用 `app.getPath('documents')` 解析为 `<Documents>/Coko` 后传给 Sidecar，`COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；独立运行 Sidecar 的缺省值为 `~/Documents/Coko`。测试 harness 总是使用临时主根与会话根。
+
+本轮不迁移旧 userData/data 或旧 ~/Coko/chats：不会扫描、复制、移动或删除它们，也不回退读取旧库；首次使用新主根时看不到旧库中的会话是预期行为。
+
 ## 结构入口
 
 | 位置 | 职责 |

@@ -71,7 +71,7 @@ describe('随包 ripgrep', () => {
     )
     await app.dispose()
 
-    const logs = join(root, 'user-data', 'logs')
+    const logs = join(root, 'coko-home', 'data', 'logs')
     const desktop = await readLogRecords(join(logs, 'desktop.jsonl'))
     const sidecar = await readLogRecords(join(logs, 'sidecar.jsonl'))
     expect(desktop.map((r) => r.message)).toEqual(expect.arrayContaining(['app starting', 'sidecar ready', 'app quitting']))
