@@ -32,3 +32,5 @@
 - 范围：未验证真实 Provider、Electron 原生层、构建产物或 CI。本票无需新增模型可见文字，实际模型请求的工具声明与保存条目为验收事实。
 
 - 合入最新 integration `6976a0be`（含 Completions 原生判定）后：`rtk pnpm run test packages/agent/src/agents/fork.test.ts tests/integration/sidecar-tool-search-boundaries.test.ts tests/integration/sidecar-state-update-fork.test.ts` 3 文件 24/24，类型检查、文档检查（396/0）与 diff 检查通过；工作区干净后交给新 merger，未推送。
+
+- 再合入 integration `616c5b33`（09 生命周期）时，MCP 正文同一插入点冲突，按 resolving-merge-conflicts 保留生命周期与边界两段。合并检查 `rtk pnpm run test packages/agent/src/agents/fork.test.ts tests/integration/sidecar-tool-search-boundaries.test.ts tests/integration/sidecar-state-update-fork.test.ts tests/integration/sidecar-tool-search-lifecycle.test.ts` 4 文件 29/29；typecheck、check:docs（396/0）、diff 检查通过。
