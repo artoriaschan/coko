@@ -1,0 +1,107 @@
+apps/desktop/src/renderer/features/session-diagnostics/record-details.tsx
+  s_eff121e41805b1::t_ba891c7c353437 1
+  s_eff121e41805b1::t_ae42903347d526 2-8,16,33-40,43-46,48,117,119
+  s_eff121e41805b1::t_524c7d8dcfb510 9-15,17-32,41-42,47,49-116,118
+packages/i18n/src/dictionaries/domains/diagnostics.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 14-27,41-54
+  s_eff121e41805b1::t_649e7fd4cf4813 28-29,55-56
+docs/tech-stack/ui-design-system.md
+  s_eff121e41805b1::t_90cfcc57761a93 215-220
+apps/desktop/src/renderer/features/session-diagnostics/table-hierarchy.test.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 19,27
+  s_eff121e41805b1::t_8200882acf5df5 1-18,20-26,28-43
+apps/desktop/src/renderer/features/session-diagnostics/raw-model.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 10,27-34
+  s_eff121e41805b1::t_6579ce5fd0b74b 13,39
+  s_eff121e41805b1::t_741882d5b0da46 14-19
+  s_eff121e41805b1::t_a4f0f7cc71691e 1-2,4,6-9,11-12,20-26,35-38,40-43
+  s_eff121e41805b1::t_90cfcc57761a93 3,5
+apps/desktop/src/renderer/features/session-diagnostics/format.ts
+  s_eff121e41805b1::t_8200882acf5df5 1-6,8-13,19-20,26-34,36
+  s_eff121e41805b1::t_ba891c7c353437 35
+  s_eff121e41805b1::t_524c7d8dcfb510 7,14-18,21-25
+THIRD_PARTY_NOTICES.md
+  s_eff121e41805b1::t_132b9c3f74b7a4 1-33
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.css
+  s_eff121e41805b1::t_ae42903347d526 1-31
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_d4d8ebd0477b31 35
+.scratch/right-sidebar-session-diagnostics/issues/07-inspector-raw-data.md
+  s_eff121e41805b1::t_3e6efe1817c97c 24-30,32,37-49,51-73
+  s_eff121e41805b1::t_fd64749bd05883 50
+docs/README.md
+  s_eff121e41805b1::t_a00c5c7f1721a7 38
+apps/desktop/e2e/third-party-notices.e2e.test.ts
+  s_eff121e41805b1::t_18f6b859d66a4d 1-17
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx
+  s_eff121e41805b1::t_90cfcc57761a93 9
+  s_eff121e41805b1::t_8a326c85424c86 10
+  s_eff121e41805b1::t_ae42903347d526 2-8,11-25,36-37,53,66-81,83-89,136,213,215
+  s_eff121e41805b1::t_524c7d8dcfb510 26-35,38-52,54-65,82,90-135,137-212,214
+  s_eff121e41805b1::t_ba891c7c353437 1
+apps/desktop/vitest.browser.config.ts
+  s_eff121e41805b1::t_649e7fd4cf4813 16
+apps/desktop/src/renderer/features/session-diagnostics/table-layout.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 49-54,60-63,65-70,72-75
+  s_eff121e41805b1::t_fd6d7ef23f5e26 39,55
+  s_eff121e41805b1::t_8200882acf5df5 1-38,40-48,56-59,64,71,76-123
+apps/desktop/src/renderer/features/session-diagnostics/table-layout.test.ts
+  s_eff121e41805b1::t_8200882acf5df5 1-13,15-20,22-76,78-92,97-103,120-122
+  s_eff121e41805b1::t_524c7d8dcfb510 14,21,77,93-96,104-119
+apps/desktop/src/renderer/features/session-diagnostics/raw-json.test.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 14-25,35-36,43-56
+  s_eff121e41805b1::t_8200882acf5df5 1-13,26-34,37-42,57
+apps/desktop/src/renderer/features/session-diagnostics/raw-json.ts
+  s_eff121e41805b1::t_8200882acf5df5 1-9,17-25,27-48
+  s_eff121e41805b1::t_524c7d8dcfb510 10-16,26
+apps/desktop/src/renderer/features/session-diagnostics/format.test.ts
+  s_eff121e41805b1::t_8200882acf5df5 1-6,11,13,15-17,20-22,24-36,38-42,44-56
+  s_eff121e41805b1::t_6c6c2a63d8ec56 7-10
+  s_eff121e41805b1::t_6579ce5fd0b74b 12,14,18-19
+  s_eff121e41805b1::t_524c7d8dcfb510 23,37,43
+apps/desktop/src/renderer/features/session-diagnostics/table-model.ts
+  s_eff121e41805b1::t_8200882acf5df5 1-59,63-95
+  s_eff121e41805b1::t_90cfcc57761a93 96-101
+  s_eff121e41805b1::t_524c7d8dcfb510 60-62
+apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx
+  s_eff121e41805b1::t_649e7fd4cf4813 5-7,15
+  s_eff121e41805b1::t_8a326c85424c86 10
+  s_eff121e41805b1::t_524c7d8dcfb510 14,21-43
+apps/desktop/src/renderer/features/settings/developer.browser.test.tsx
+  s_eff121e41805b1::t_741882d5b0da46 71
+apps/desktop/forge.config.ts
+  s_eff121e41805b1::t_132b9c3f74b7a4 64
+docs/subsystems/session-diagnostics.md
+  s_eff121e41805b1::t_a00c5c7f1721a7 1-29
+apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx
+  s_eff121e41805b1::t_675aad12c8642c 1-3,5-10,12,22-26,28,33-36,55-65,67-71,78-81,165
+  s_eff121e41805b1::t_524c7d8dcfb510 13-21,29-32,38-50,66,77,85-88,96-98,115-127,151-154
+  s_eff121e41805b1::t_d4d8ebd0477b31 37,51-54
+  s_eff121e41805b1::t_86d83345ad424f 133-135
+  s_eff121e41805b1::t_7ad729eefa0fbd 4,82-84,89-95,99-114,128-132,136-148
+  s_eff121e41805b1::t_7b4c8ac7f78778 11,27,149-150,155-164
+  s_eff121e41805b1::t_1761fee8c00389 72-76
+docs/subsystems/delivery.md
+  s_eff121e41805b1::t_a00c5c7f1721a7 50-51
+apps/desktop/src/renderer/features/session-diagnostics/raw-model.test.ts
+  s_eff121e41805b1::t_524c7d8dcfb510 5-13,16-24,26-33
+  s_eff121e41805b1::t_23fc85efee466d 1-4,14-15,25,34-38
+docs/TECH_STACK.md
+  s_eff121e41805b1::t_a00c5c7f1721a7 164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "f3a8db9da129378feef682e371592ff4f0b5623f",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
