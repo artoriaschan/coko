@@ -1,0 +1,53 @@
+apps/server/src/application/context-service.ts
+  s_2a03236d6e6b67::t_479f9ba6fb768b 101-108
+docs/subsystems/tracing.md
+  s_2a03236d6e6b67::t_479f9ba6fb768b 100,104-106,110
+tests/evals/cases/host-blocks-are-data/case.json
+  s_2a03236d6e6b67::t_479f9ba6fb768b 21
+apps/server/src/application/session-runs.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 10,133-134,516,732
+apps/server/src/runtime/layers.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 585
+  s_2a03236d6e6b67::t_479f9ba6fb768b 3-11,752-758
+packages/agent/README.md
+  s_2a03236d6e6b67::t_479f9ba6fb768b 23-30
+apps/server/src/config.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 40-41,79,81-82,101
+packages/agent/src/index.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 18
+tests/integration/sidecar-base-prompt.test.ts
+  s_2a03236d6e6b67::t_4c7f73b60f811a 1-4,7-24,26-29,31-37,47-48,69-70
+  s_2a03236d6e6b67::t_937ef040dd2a03 6,25,30
+  s_2a03236d6e6b67::t_6eeb5ba12fe7f4 5,49-64
+  s_2a03236d6e6b67::t_479f9ba6fb768b 38-46,65-68
+apps/server/src/application/sessions.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 51-52,152
+packages/agent/src/engine/system-message.ts
+  s_2a03236d6e6b67::t_f9db752d17e5bd 9-27
+.scratch/system-context/issues/09-base-prompt-v2-and-host-block-eval.md
+  s_2a03236d6e6b67::t_adf2075bb06c57 11-12,17-38
+tests/evals/evals.test.ts
+  s_2a03236d6e6b67::t_ecc5c564b38077 3,7,14-19,25,56-59,61-70,72-77
+  s_2a03236d6e6b67::t_e2c1c2bce9fde8 48
+  s_2a03236d6e6b67::t_6eeb5ba12fe7f4 60,71
+apps/server/src/config.test.ts
+  s_2a03236d6e6b67::t_ecc5c564b38077 51-60
+tests/evals/runner.ts
+  s_2a03236d6e6b67::t_ecc5c564b38077 4,33,64-69,75,122,136-145,149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "bb8531f7a5744930a599fe01c8c3e2dc544ce9be",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
