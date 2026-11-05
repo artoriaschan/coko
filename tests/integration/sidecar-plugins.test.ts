@@ -122,6 +122,8 @@ describe('插件：目录来源', { timeout: 120_000 }, () => {
       ],
       { dirs },
     )
+    // 本票验证安装、批准与资源接线，按需加载由独立场景验证。
+    expect((await h.api.put(configPaths.config, { values: { mcp: { toolSearch: false } }, expectedRevision: 0 })).status).toBe(200)
     const installed = await h.install({ kind: 'dir', path: plugin.root })
     expect(installed.status).toBe(201)
     const info = installed.body as PluginInfo
@@ -202,6 +204,8 @@ describe('插件：目录来源', { timeout: 120_000 }, () => {
       JSON.stringify(preToolUseHooks(hookCommand('--record', '${COKO_PLUGIN_ROOT}/hook-stdin.jsonl'), 'Bash')),
     )
     const h = await boot([])
+    // 本票验证安装、批准与资源接线，按需加载由独立场景验证。
+    expect((await h.api.put(configPaths.config, { values: { mcp: { toolSearch: false } }, expectedRevision: 0 })).status).toBe(200)
     const installed = await h.install({ kind: 'dir', path: plugin.root })
     expect(installed.status).toBe(201)
     const info = installed.body as PluginInfo

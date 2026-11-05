@@ -31,3 +31,5 @@
 - 真实 Sidecar 3/3：两个 Run 之间换 Server 只发送 Added/Removed、后续不变不送；手动压缩后与回退到压缩之前（更早公告仍存活）各重发全量；失败 Server 在写入审批期间重连，本 Run 搜索仍报未知，下一 Run 目录新增并搜索、实际调用成功；100 个中文描述工具的模型可见目录经预算缩短且不暴露 schema。渲染异常通过公开 ContextAssembly 接缝注入失败，返回 undefined、不拒绝 Run hook，原有 warn guard 保留；未给 Sidecar 增加故障专用开关。
 - 验证：`rtk pnpm run test packages/agent/src/tools/tool-search/catalog.test.ts packages/agent/src/tools/tool-search/tool-search.test.ts packages/agent/src/entries/state-updates.test.ts apps/server/src/application/context/state-updates.test.ts tests/integration/sidecar-tool-search-catalog.test.ts tests/integration/sidecar-tool-search.test.ts tests/integration/sidecar-compaction.test.ts`：7 文件 47/47；`rtk pnpm run typecheck`、定向 oxfmt / oxlint、`rtk pnpm run check:docs`（396 个 Markdown，0 问题）、`rtk git diff --check` 均通过。
 - 文档：更新上下文管理与 MCP 当前正文，搜索旧“名单变化发送完整目录”结论并同步两处；AGENTS → docs/README → 正文读回，路径、语义、归属、引用方向、生命周期、入口可达和历史保留均通过，无新增目录或 ADR 状态晋升。真实 Provider、Electron 指针/原生层、构建产物与 CI 未验证；本票未改变这些入口。
+
+- 合并最新集成分支 `6ebff60b`（包含 11 的默认打开与既有 MCP 测试迁移）：仅上下文正文发生冲突，保留“默认按需加载”与本票预算/增量/边界说明。合并后相同 7 文件测试 48/48（11 新增的无 MCP 默认行为用例计入）、typecheck、check:docs（396/0）、暂存差异检查通过。交付为本地已提交，未推送、未发布。

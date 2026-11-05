@@ -72,7 +72,7 @@ describe('MCP 认证：auth-required', () => {
         expect(saved.status).toBe(200)
         revision++
       }
-      await save({ strict: { url: strict.url, headers: wrong }, callonly: { url: callOnly.url, headers: wrong } })
+      await save({ strict: { url: strict.url, headers: wrong }, callonly: { url: callOnly.url, headers: wrong, alwaysLoad: true } })
 
       // 401：auth-required（不是 failed），错误为固定文案，诊断 mcp-auth-required。
       const required = await waitServer('strict', (s) => s.status === 'auth-required')
@@ -121,7 +121,7 @@ describe('MCP 认证：auth-required', () => {
 
       // 改配置引用登记的 Secret：重新连接并 connected，请求头是 Secret 的值。
       const fixed = { Authorization: 'Bearer ${MCP_TOKEN}' }
-      await save({ strict: { url: strict.url, headers: fixed }, callonly: { url: callOnly.url, headers: fixed } })
+      await save({ strict: { url: strict.url, headers: fixed }, callonly: { url: callOnly.url, headers: fixed, alwaysLoad: true } })
       expect((await waitServer('strict', (s) => s.status === 'connected')).tools.length).toBeGreaterThan(0)
       await waitServer('callonly', (s) => s.status === 'connected')
       expect(strict.headers.at(-1)?.authorization).toBe(`Bearer ${token}`)

@@ -16,6 +16,7 @@ import {
   API_ROUTES,
   apiPaths,
   commandPaths,
+  configPaths,
   lspPaths,
   mcpPaths,
   permissionPaths,
@@ -100,6 +101,8 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
       ],
       { COKO_TEST_PLUGINS: plugin.root },
     )
+    // 保持本接线场景的命令与 Hook 序列；按需加载有独立 Sidecar 场景。
+    expect((await h.api.put(configPaths.config, { values: { mcp: { toolSearch: false } }, expectedRevision: 0 })).status).toBe(200)
     const sessionId = await h.open()
 
     // 命令：/sample:hello 展开为插件的模板。

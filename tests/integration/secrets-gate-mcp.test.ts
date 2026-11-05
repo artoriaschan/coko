@@ -59,7 +59,7 @@ describe('秘密不外泄总闸：MCP', () => {
     const env = { MY_SERVICE_DSN: '${MY_SERVICE_DSN}' }
     await api.put(mcpPaths.servers, {
       servers: {
-        dsn: stdioServerConfig(env),
+        dsn: stdioServerConfig(env, { alwaysLoad: true }),
         leaky: stdioServerConfig({ ...env, MCP_FIXTURE_STDERR_ENV: 'MY_SERVICE_DSN' }),
         missing: stdioServerConfig({ OTHER: '${NOT_REGISTERED}' }),
       },

@@ -7,7 +7,7 @@ const response = (global: ConfigResponse['global'], revision = 3): ConfigRespons
     instructions: { enabled: true },
     skills: { enabled: true, disabled: [] },
     commands: { enabled: true, disabled: [] },
-    mcp: { enabled: true, toolSearch: false },
+    mcp: { enabled: true, toolSearch: true },
     memory: { enabled: true },
     context: { autoCompact: true, trimOldToolResults: true },
     hooks: { enabled: true },

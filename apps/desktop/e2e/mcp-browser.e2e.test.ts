@@ -52,6 +52,7 @@ describe('MCP 浏览器预设与认证', () => {
       join(root, 'faux.json'),
       JSON.stringify({
         responses: [
+          { content: [{ type: 'toolCall', name: 'tool_search', id: 'load-screenshot', arguments: { query: 'select:mcp__playwright__screenshot' } }] },
           { content: [{ type: 'toolCall', name: 'mcp__playwright__screenshot', id: 'p1', arguments: { url: 'https://example.test' } }] },
           { content: 'The page looks right.' },
         ],

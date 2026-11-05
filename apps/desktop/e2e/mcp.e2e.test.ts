@@ -95,8 +95,8 @@ describe('MCP 分区', () => {
     await expect.poll(async () => (await readFile(projectLog, 'utf8').catch(() => '')).includes('"start"')).toBe(true)
 
     await app.dispose()
-    // 用户数据目录（库、WAL、日志、Chromium 存储）中没有 Secret 明文。
-    const files = await filesUnder(join(root, 'user-data'))
+    // 主数据根（库、WAL、日志）与 Chromium profile 都不含 Secret 明文。
+    const files = [...(await filesUnder(join(root, 'coko-home', 'data'))), ...(await filesUnder(join(root, 'user-data')))]
     expect(files.some((f) => f.endsWith('coko.db'))).toBe(true)
     const leaking: string[] = []
     for (const file of files) if ((await readFile(file)).includes(secret)) leaking.push(file)
