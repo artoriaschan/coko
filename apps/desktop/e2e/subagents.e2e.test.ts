@@ -211,6 +211,15 @@ describe('子代理界面', () => {
         if (!(await panel.isVisible())) await headerButton.click()
         const stop = panel.locator('[data-action="stop-agent"]')
         await stop.waitFor()
+        await expect.poll(() => win.locator('[data-slot="app-frame"]').getAttribute('data-right')).toBe('fullscreen')
+        await expect
+          .poll(() =>
+            panel.evaluate((el) => {
+              const box = el.getBoundingClientRect()
+              return [box.x, box.width]
+            }),
+          )
+          .toEqual([0, 390])
         const box = (await stop.boundingBox())!
         expect(box.x + box.width).toBeLessThanOrEqual(390)
         expect(await win.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)

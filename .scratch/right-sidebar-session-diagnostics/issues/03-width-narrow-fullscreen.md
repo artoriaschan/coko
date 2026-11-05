@@ -56,3 +56,12 @@
 | 删除“窄窗口右栏浮层”旧结论 | `docs/subsystems/jobs.md` | 改为自动全屏/空间不足收起，链接工作台正文 |
 
 已从 AGENTS → docs/README → workbench/jobs，以及专项导航 → ui-design-system 读回。路径与引用、语义同步、归属与权威、引用方向、生命周期、当前入口、新会话读入、历史保留均通过；没有新目录、替代链或归档修改，正式文档没有新增具体任务反向引用。搜索命中设计/规格中的基线描述保留历史语境，未把目标说明改写为过去已实现。原生验证与扩展集缺口如上。
+
+### 2026-11-05 原生 E2E 提前补验
+
+- 集成基线 `19578a20` 的旧页面 Electron 批次发现 schedules / subagents / trace 在缩到 390px 后立即读取控件边界，读到过渡中的旧列宽。独立 worktree `native-preflight-fix` 重新运行 terminal-details / trace：2 文件、2 失败（退出 1，46.01s），复现原始信号。临时几何探针确认帧已经是 390px、`data-right=fullscreen`，但网格列宽过渡中的导出按钮右缘仍为 840px；只等形态字段不足。等待真实面板边界 `[x, width] = [0, 390]` 后，原来的控件可达性与整页无横向滚动断言通过。三个用例现在等待这一外部几何条件；没有增加 sleep、重试或超时，也没有修改布局实现。
+- terminal-details 的首段进度可能在首次发送的响应与 Session 订阅完成前发出；这些进度按当前契约不会回放。文件 `ready` 证实命令已经启动，CDP 临时探针证实订阅建立后的 `tool_update` 正常携带真实 ANSI 与换行。夹具增加 `emit` 文件屏障：真实命令就绪且工具卡已打开后才放行首段输出，仍由 `release` 放行第二段和退出码 7；命令使用 POSIX 引号而非把 JSON 序列化当作 shell 转义。回复断言改为 `assistant-message-body`，避免将先前交付的消息页脚计入正文；原始复制、ANSI 红色、连续输出、错误状态、后台 Job 身份与输出断言保留并通过。所有 `[DEBUG-native-preflight-*]` 探针已移除。
+- 最终命令：`rtk pnpm run test --project desktop-e2e apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts`，4 文件、5 项通过、0 跳过，退出 0，45.67s。每次 globalSetup 均从此 worktree 构建产物，真实 Electron / Sidecar / faux 模型，独立临时目录、后台模式。`rtk pnpm run typecheck` 与四份改动测试的 `rtk pnpm exec oxlint ...` 退出 0。
+- 文档影响：产品行为没有变化，只补充本票及集成验收票的检查证据；正式正文无需变更。测试同步遵循测试约定的“等待可观察状态”和“测试随行为演进”。本次没有验证真实鼠标、原生红绿灯或签名发布构建；第 12 票仍须对最终集成代码核对整体证据。
+
+- 补充检查：`rtk pnpm run format:check apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts` 退出 0；`rtk pnpm run check:docs` 检查 342 个 Markdown、0 问题，退出 0；`rtk git diff --check` 通过。由 AGENTS → docs/README → 测试约定读回，测试接缝、同步方法、证据边界与本次改动相符；没有正式文档的失效引用或需迁移结论。
