@@ -15,7 +15,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await cleanup()
-  rightPanelLayoutStore.setState({ sessions: {} })
+  rightPanelLayoutStore.setState({ sessions: {}, attention: null })
   localStorage.clear()
   for (const [key, value] of stored) localStorage.setItem(key, value)
   const hidden = [...document.body.children].filter((node) => node.hasAttribute('data-aria-hidden') || node.getAttribute('aria-hidden') === 'true')

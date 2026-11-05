@@ -12,6 +12,7 @@ export default defineProject({
   optimizeDeps: {
     include: [
       'radix-ui/internal',
+      '@dnd-kit/core',
       'sonner',
       '@lexical/react/LexicalComposer',
       '@lexical/react/LexicalComposerContext',
@@ -36,6 +37,11 @@ export default defineProject({
     testTimeout: 20_000,
     browser: {
       enabled: true,
+      commands: {
+        setReducedMotion: async ({ page }, reduced: boolean) => {
+          await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' })
+        },
+      },
       headless: true,
       provider: playwright(),
       instances: [{ browser: 'chromium' }],

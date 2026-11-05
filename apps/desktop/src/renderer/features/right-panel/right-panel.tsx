@@ -1,16 +1,17 @@
-import { PanelStart, PanelTabs } from '@coko/ui'
+import { PanelAttention, PanelStart, PanelTabs } from '@coko/ui'
 import { HouseIcon, PanelRightCloseIcon } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
-import { closePage, getRightPanelLayout, openPage, rightPanelLayoutStore, selectPage } from './layout-store.ts'
+import { closeOtherPages, closePage, closePagesToRight, getRightPanelLayout, movePage, openPage, rightPanelLayoutStore, selectPage } from './layout-store.ts'
 import { RIGHT_PANEL_TABS, visibleRightPanelTabs, type RightPanelTabDefinition } from './tabs.ts'
 
 /** 当前 Session 的单格面板；正文组件继续沿用各页面自己的状态与数据。 */
 export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () => void; tabs?: readonly RightPanelTabDefinition[] }) {
   const { t } = useI18n()
   const sessionId = useChat((s) => s.activeSessionId)
+  const attention = useStore(rightPanelLayoutStore, (state) => (state.attention?.sessionId === sessionId ? state.attention.revision : null))
   const layout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
   if (sessionId === null) return null
   const visible = visibleRightPanelTabs(tabs)
@@ -30,7 +31,8 @@ export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () =
     ]
   })
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {attention !== null && <PanelAttention key={attention} />}
       <PanelTabs
         tabs={panelTabs}
         active={layout.active}
@@ -38,9 +40,21 @@ export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () =
         newTabLabel={t('rightPanel.newTab')}
         onSelect={(id) => selectPage(sessionId, id)}
         onClose={(id) => closePage(sessionId, id)}
+        onMove={(id, index) => movePage(sessionId, id, index)}
+        reorderHint={t('rightPanel.reorderHint')}
+        dragLabels={{
+          instructions: t('rightPanel.reorderHint'),
+          start: t('rightPanel.dragStart'),
+          over: (title) => t('rightPanel.dragOver', { title }),
+          end: t('rightPanel.dragEnd'),
+          cancel: t('rightPanel.dragCancel'),
+        }}
+        menuLabels={{ close: t('rightPanel.close'), closeOthers: t('rightPanel.closeOthers'), closeRight: t('rightPanel.closeRight') }}
+        onCloseOthers={(id) => closeOtherPages(sessionId, id)}
+        onCloseRight={(id) => closePagesToRight(sessionId, id)}
         onNewTab={layout.tabs.includes('start') ? undefined : () => openPage(sessionId, 'start')}
         controls={
-          <IconButton label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
+          <IconButton size="icon-sm" label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
             <PanelRightCloseIcon />
           </IconButton>
         }
@@ -58,6 +72,6 @@ export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () =
           current && <current.Component sessionId={sessionId} />
         )}
       </div>
-    </>
+    </div>
   )
 }

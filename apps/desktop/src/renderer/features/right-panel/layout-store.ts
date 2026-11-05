@@ -11,7 +11,9 @@ export interface RightPanelLayout {
 const INITIAL_LAYOUT: RightPanelLayout = { tabs: [], active: null, expanded: false }
 
 /** 仅持有界面布局；与 React、页面正文及 Session 数据无关。 */
-export const rightPanelLayoutStore = createStore<{ sessions: Record<string, RightPanelLayout> }>()(() => ({ sessions: {} }))
+export const rightPanelLayoutStore = createStore<{ sessions: Record<string, RightPanelLayout>; attention: { sessionId: string; revision: number } | null }>()(
+  () => ({ sessions: {}, attention: null }),
+)
 export const getRightPanelLayout = (sessionId: string | null): RightPanelLayout =>
   sessionId === null ? INITIAL_LAYOUT : (rightPanelLayoutStore.getState().sessions[sessionId] ?? INITIAL_LAYOUT)
 
@@ -22,6 +24,8 @@ function update(sessionId: string, layout: RightPanelLayout) {
 export function openPage(sessionId: string | null, kind: RightPanelPageKind) {
   if (sessionId === null) return false
   const layout = getRightPanelLayout(sessionId)
+  const attention = rightPanelLayoutStore.getState().attention
+  rightPanelLayoutStore.setState({ attention: layout.expanded && layout.active === kind ? { sessionId, revision: (attention?.revision ?? 0) + 1 } : null })
   let tabs = layout.tabs
   if (!tabs.includes(kind)) {
     const start = tabs.indexOf('start')
@@ -51,4 +55,30 @@ export function closePage(sessionId: string, kind: RightPanelPageKind) {
   const tabs = layout.tabs.filter((tab) => tab !== kind)
   const active = layout.active === kind ? (tabs[Math.min(index, tabs.length - 1)] ?? null) : layout.active
   update(sessionId, { ...layout, tabs, active, expanded: tabs.length > 0 && layout.expanded })
+}
+
+/** 只移动本 Session 的页面，活动项保持不变。 */
+export function movePage(sessionId: string, kind: RightPanelPageKind, index: number) {
+  const layout = getRightPanelLayout(sessionId)
+  const from = layout.tabs.indexOf(kind)
+  if (from < 0) return
+  const tabs = [...layout.tabs]
+  tabs.splice(from, 1)
+  tabs.splice(Math.max(0, Math.min(tabs.length, index)), 0, kind)
+  update(sessionId, { ...layout, tabs })
+}
+
+/** 批量关闭限定在当前 Session；选择被关闭时落到仍存在的相邻项。 */
+export function closeOtherPages(sessionId: string, kind: RightPanelPageKind) {
+  const layout = getRightPanelLayout(sessionId)
+  if (!layout.tabs.includes(kind)) return
+  update(sessionId, { ...layout, tabs: [kind], active: kind })
+}
+
+export function closePagesToRight(sessionId: string, kind: RightPanelPageKind) {
+  const layout = getRightPanelLayout(sessionId)
+  const index = layout.tabs.indexOf(kind)
+  if (index < 0) return
+  const tabs = layout.tabs.slice(0, index + 1)
+  update(sessionId, { ...layout, tabs, active: layout.active && tabs.includes(layout.active) ? layout.active : kind })
 }

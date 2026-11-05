@@ -1,6 +1,6 @@
 import '../styles.css'
 import { dictionaries, type Locale } from '@coko/i18n'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { toast } from '@coko/ui'
@@ -11,6 +11,7 @@ import { createPreferences } from './preferences.ts'
 import { createSettingsPageStore } from './settings-page-store.ts'
 import { catalogModel, customProvider } from '../testing/fake-settings.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
+import { setReducedMotion } from '../testing/browser-commands.ts'
 import { settingsRegion } from '../testing/settings-page.ts'
 
 it('pinning and unpinning the open conversation preserve its content and editor DOM', async () => {
@@ -784,4 +785,196 @@ it.each([
   await card.click()
   await expect.element(page.getByRole('tab', { name: trace, exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+})
+
+it('sidebar tabs use manual keyboard activation and modifier arrows reorder the focused tab', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  const plan = panel.getByRole('tab', { name: 'Plan', exact: true })
+  const trace = panel.getByRole('tab', { name: 'Trace', exact: true })
+  ;(plan.element() as HTMLElement).focus()
+  await userEvent.keyboard('{ArrowLeft}')
+  await expect.element(trace).toHaveFocus()
+  await expect.element(plan).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(trace).toHaveAttribute('aria-selected', 'true')
+  await userEvent.keyboard('{Meta>}{Shift>}{ArrowRight}{/Shift}{/Meta}')
+  expect(
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent),
+  ).toEqual(['Plan', 'Trace'])
+  await expect.element(trace).toHaveFocus()
+  await userEvent.keyboard('{Control>}{Shift>}{ArrowLeft}{/Shift}{/Control}')
+  expect(
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent),
+  ).toEqual(['Trace', 'Plan'])
+  await userEvent.keyboard('{End}')
+  await expect.element(plan).toHaveFocus()
+  await expect.element(trace).toHaveAttribute('aria-selected', 'true')
+})
+
+it('sidebar supports middle-click and context closing while its sole Start tab stays protected', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  const open = async (name: string) => {
+    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+    await panel.getByRole('button', { name, exact: true }).click()
+  }
+  const order = () =>
+    panel
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().textContent)
+  await open('Trace')
+  await open('Plan')
+  await open('Team')
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'middle' })
+  expect(order()).toEqual(['Trace', 'Team'])
+  await panel.getByRole('tab', { name: 'Trace', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close tabs to the right', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  expect(order()).toEqual(['Trace'])
+  await open('Plan')
+  await open('Team')
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close other tabs', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  expect(order()).toEqual(['Plan'])
+  await panel.getByRole('tab', { name: 'Plan', exact: true }).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Close', exact: true }).click()
+  await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const start = panel.getByRole('tab', { name: 'Start', exact: true })
+  await start.click({ button: 'middle' })
+  await start.click({ button: 'right' })
+  expect(page.getByRole('menu').query()).toBeNull()
+  await expect.element(start).toBeVisible()
+})
+
+it('sidebar tabs reorder through pointer dragging without changing the selected page', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  const source = panel.getByRole('tab', { name: 'Trace', exact: true }).element()
+  const target = panel.getByRole('tab', { name: 'Plan', exact: true }).element()
+  const center = (element: Element) => {
+    const rect = element.getBoundingClientRect()
+    return { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }
+  }
+  const fire = (element: EventTarget, type: string, point: { clientX: number; clientY: number }, buttons: number) =>
+    element.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        isPrimary: true,
+        pointerType: 'mouse',
+        pointerId: 1,
+        button: 0,
+        buttons,
+        ...point,
+      }),
+    )
+  const from = center(source)
+  const to = center(target)
+  fire(source, 'pointerdown', from, 1)
+  fire(document, 'pointermove', { ...from, clientX: from.clientX + 8 }, 1)
+  await new Promise(requestAnimationFrame)
+  fire(document, 'pointermove', to, 1)
+  await new Promise(requestAnimationFrame)
+  fire(document, 'pointerup', to, 0)
+  await expect
+    .poll(() =>
+      panel
+        .getByRole('tab')
+        .all()
+        .map((tab) => tab.element().textContent),
+    )
+    .toEqual(['Plan', 'Trace'])
+  await expect.element(panel.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+})
+
+it.each([
+  ['en', 'light'],
+  ['zh', 'dark'],
+] as const)('%s %s: overflowing sidebar tabs scroll with fading edges while controls remain reachable at 390px', async (locale, theme) => {
+  await page.viewport(390, 800)
+  const { store, screen } = renderApp('en', { theme })
+  await screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace']) {
+    if (!panel.getByRole('tab', { name: 'Start', exact: true }).query()) await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+    await panel.getByRole('button', { name, exact: true }).click()
+  }
+  store.setLocale(locale)
+  const list = panel.getByRole('tablist').element() as HTMLElement
+  expect(list.scrollWidth).toBeGreaterThan(list.clientWidth)
+  expect(getComputedStyle(list).overflowX).toBe('auto')
+  expect(getComputedStyle(list).scrollbarWidth).toBe('none')
+  list.scrollLeft = 0
+  list.dispatchEvent(new Event('scroll'))
+  await expect.poll(() => getComputedStyle(list).maskImage).toContain('linear-gradient')
+  list.scrollLeft = list.scrollWidth / 2 - list.clientWidth / 2
+  list.dispatchEvent(new Event('scroll'))
+  await expect.poll(() => getComputedStyle(list).maskImage.match(/rgba\(0, 0, 0, 0\)/g)?.length).toBe(2)
+  const close = page
+    .elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+    .getByRole('button', { name: locale === 'zh' ? '收起侧边栏' : 'Collapse sidebar', exact: true })
+    .element()
+  const bounds = close.getBoundingClientRect()
+  expect(bounds.width).toBeGreaterThanOrEqual(28)
+  expect(bounds.right).toBeLessThanOrEqual(390)
+  expect(list.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.left)
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+})
+
+it.each([false, true])('opening an already displayed sidebar page glows for 600ms while foreground changes do not glow (reduce=%s)', async (reduced) => {
+  await setReducedMotion(reduced)
+  onTestFinished(() => setReducedMotion(false))
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Work steps', exact: true }).click()
+  await page.getByRole('button', { name: 'Modified files', exact: true }).click()
+  const tool = page.elementLocator(document.querySelector('[data-tool="edit"] button')!)
+  await tool.click()
+  const inspect = page.getByRole('button', { name: 'Inspect', exact: true })
+  await inspect.click()
+  await expect.element(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  await inspect.click()
+  const glow = document.querySelector<HTMLElement>('[data-slot="panel-attention"]')
+  expect(glow).not.toBeNull()
+  const animation = glow!.getAnimations()[0]!
+  animation.pause()
+  expect(animation.effect!.getTiming().duration).toBe(600)
+  expect(getComputedStyle(glow!).boxShadow).toContain('inset')
+  const frames = (animation.effect as KeyframeEffect).getKeyframes()
+  expect(frames.map((frame) => frame.opacity)).toEqual(reduced ? ['1', '1'] : ['1', '0'])
+  animation.finish()
+  await expect.poll(() => document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel.getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan', exact: true }).click()
+  await inspect.click()
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
+  await panel.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+  await inspect.click()
+  expect(document.querySelector('[data-slot="panel-attention"]')).toBeNull()
 })

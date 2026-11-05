@@ -10,6 +10,7 @@ export default defineProject({
   optimizeDeps: {
     include: [
       'radix-ui/internal',
+      '@dnd-kit/core',
       'sonner',
       '@lexical/react/LexicalComposer',
       '@lexical/react/LexicalComposerContext',
