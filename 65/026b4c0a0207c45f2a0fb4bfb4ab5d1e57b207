@@ -1,0 +1,35 @@
+apps/server/src/application/attachments.ts
+  s_6cadf0cc1974f1::t_1772a772c3f1e9 1-2,4-5,18-44,56-57
+  s_6cadf0cc1974f1::t_43d6189e47222d 45-55
+.scratch/system-data-root/issues/06-attachment-copies.md
+  s_6cadf0cc1974f1::t_3a5b6cede46e70 32-33
+  s_6cadf0cc1974f1::t_18bee780de5e0d 34-35
+apps/server/src/application/checkpoints.ts
+  s_6cadf0cc1974f1::t_1772a772c3f1e9 23,169-177
+docs/subsystems/workbench.md
+  s_6cadf0cc1974f1::t_3a5b6cede46e70 221
+tests/integration/sidecar-attachments.test.ts
+  s_6cadf0cc1974f1::t_f787126b14daec 158
+  s_6cadf0cc1974f1::t_77c50df314ee9c 129-141,145-157
+  s_6cadf0cc1974f1::t_43d6189e47222d 142-144,170-177,182-188,190-192,197-205
+  s_6cadf0cc1974f1::t_9534a74370eda3 4
+  s_6cadf0cc1974f1::t_3a5b6cede46e70 159-169,178-181,189,193-196,206
+apps/server/src/application/sessions.ts
+  s_6cadf0cc1974f1::t_1772a772c3f1e9 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "65026b4c0a0207c45f2a0fb4bfb4ab5d1e57b207",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
