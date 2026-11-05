@@ -54,6 +54,7 @@ import { createProgressRedactor, redactModelMessages, secretRedactionHook } from
 import type { SessionModels } from './session-models.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
+import { sessionProject } from './session-project.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -329,13 +330,7 @@ export class SessionRuns {
   /** 只拓宽文件能力；配置发现始终只接收固定 cwd。子 Session 从持久化父链取根归属。 */
   async #workspaceRoots(session: StoredSession, cwd: string): Promise<readonly string[]> {
     const store = this.#options.store
-    let root = session
-    const visited = new Set<string>()
-    while (root.parentSessionId && !visited.has(root.id)) {
-      visited.add(root.id)
-      root = await requireSession(store, root.parentSessionId)
-    }
-    const project = root.projectId ? await store.projects.get(root.projectId) : undefined
+    const project = await sessionProject(store, session)
     const primary = project ? await store.sessions.getWorkspace(project.primaryWorkspaceId) : undefined
     const roots = await Promise.all(
       [cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
@@ -360,6 +355,7 @@ export class SessionRuns {
 
   async scope(session: StoredSession): Promise<ContextScope> {
     const { cwd } = await this.cwd(session)
+    const [project, model] = await Promise.all([sessionProject(this.#options.store, session), this.#options.models.contextModel(session.model)])
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
     const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id, cwd).rules()
@@ -367,6 +363,8 @@ export class SessionRuns {
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
       cwd,
+      additionalFolders: project?.additionalFolders ?? [],
+      ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       sessionId: session.id,
       permissionRules,
       ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),

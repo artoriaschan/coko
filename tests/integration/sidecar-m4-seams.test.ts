@@ -49,7 +49,7 @@ const users = (entries: SessionEntryRecord[]) =>
   entries.filter((e) => e.kind === 'message' && (e.payload as { role: string }).role === 'user').map((e) => texts((e.payload as { content: unknown }).content))
 
 describe('M4 装配接入点', () => {
-  it('空贡献时请求与之前相同：开头只有基础系统提示，没有 sections；user message 原样；run_start 为 submit', async () => {
+  it('没有额外贡献时仍有基础提示与环境；user message 原样；run_start 为 submit', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const requestLog = join(root, 'requests.jsonl')
@@ -61,8 +61,9 @@ describe('M4 装配接入点', () => {
     const [messages, ...rest] = await requests(requestLog)
     expect(rest).toEqual([])
     expect(messages!.map((m) => m.role)).toEqual(['system', 'user'])
-    expect(messages![0]).toEqual(expect.objectContaining({ role: 'system', content: DEFAULT_SYSTEM_PROMPT }))
-    expect(messages![0]).not.toHaveProperty('sections')
+    expect(messages![0]).toEqual(
+      expect.objectContaining({ role: 'system', sections: { 'coko.base': DEFAULT_SYSTEM_PROMPT, environment: expect.stringContaining('<environment>') } }),
+    )
     expect(texts(messages![1]!.content)).toEqual(['hello'])
     expect(stream.entries(sessionId).find((e) => e.kind === 'run_start')?.payload).toEqual({ trigger: 'submit' })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })

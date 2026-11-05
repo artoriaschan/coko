@@ -31,6 +31,10 @@ export interface ContextScope {
   workspaceId: string
   /** Workspace 目录。 */
   cwd: string
+  /** Current model; draft scopes use the default model. */
+  model?: { providerId: string; modelId: string }
+  /** Additional Project folders, inherited from the root Session by child Sessions. */
+  additionalFolders?: readonly string[]
   /** 草稿（还没有 Session）时省略。 */
   sessionId?: string
   config: CapabilityConfig

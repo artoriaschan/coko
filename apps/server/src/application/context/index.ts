@@ -1,4 +1,4 @@
-// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 指令 → Skills 索引 → Memory → plan → goal → todo；
+// 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 环境 → 指令 → Skills 索引 → Memory → plan → goal → todo；
 // 输入展开为 命令 → File Reference。
 import {
   composeAfterToolCall,
@@ -22,6 +22,7 @@ import { getLogger } from '@coko/logging'
 import { ConfigService } from '../config.ts'
 import { commandsContribution } from './commands.ts'
 import { compactionContribution } from './compaction.ts'
+import { environmentContribution } from './environment.ts'
 import { goalContribution } from './goal.ts'
 import { handoffContribution } from './handoff.ts'
 import { hooksContribution } from './hooks.ts'
@@ -58,8 +59,8 @@ export type * from './types.ts'
 const log = getLogger(['application', 'context'])
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-/** system section 的顺序：指令 → Skills 索引 → Memory → plan → goal → todo → 子代理（子 Session 的 <subagent>）→ 团队（teammate 的 <team>）。 */
-const SECTION_ORDER = ['instructions', 'skills', 'memory', 'plan', 'goal', 'todo', 'subagents', 'teams']
+/** system section 的顺序：环境 → 指令 → Skills 索引 → Memory → plan → goal → todo → 子代理（子 Session 的 <subagent>）→ 团队（teammate 的 <team>）。 */
+const SECTION_ORDER = ['environment', 'instructions', 'skills', 'memory', 'plan', 'goal', 'todo', 'subagents', 'teams']
 /** 输入展开的顺序：命令 → File Reference。 */
 const EXPAND_ORDER = ['commands', 'references']
 
@@ -67,6 +68,7 @@ const EXPAND_ORDER = ['commands', 'references']
 export function createContributions(options: ContextContributionOptions): ContextContribution[] {
   // 命令目录读取其余领域的 commandSources（Skill、MCP 提示模板）与 actions（内置命令）。
   const contributions: ContextContribution[] = [
+    environmentContribution(),
     instructionsContribution(options),
     commandsContribution({ ...options, siblings: () => contributions }),
     skillsContribution(options),
