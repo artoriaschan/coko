@@ -1,0 +1,50 @@
+packages/agent/src/engine/runtime.ts
+  s_dd1034265ded7f::t_b79bde1132ce2e 359
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_47670eaca365f3 136,167,261
+packages/agent/src/engine/compaction.test.ts
+  s_dd1034265ded7f::t_ffcf4bacc4cd71 150,152
+  s_dd1034265ded7f::t_9d209ab5cccf09 7
+  s_dd1034265ded7f::t_1001793a07e30b 139-145,148
+  s_dd1034265ded7f::t_f1122539e13e89 6,26,35,137-138,146-147,149,153,157-158
+  s_dd1034265ded7f::t_47670eaca365f3 151
+  s_dd1034265ded7f::t_fb81ce3afee429 154-156
+tests/integration/sidecar-tool-accounting.test.ts
+  s_dd1034265ded7f::t_1cf002256037b5 6,65-67,89,91-92
+  s_dd1034265ded7f::t_fce3bf432e2db7 1-5,8-16,20-24,36-37,45-48,56-60,68-78,86-88,90,93-95,102-124
+  s_dd1034265ded7f::t_ba06958e5ec024 7,61
+  s_dd1034265ded7f::t_1001793a07e30b 17-19,25-35,38-44,49-55,62-64,79-85,96-101
+.scratch/tool-search/issues/02-shared-tool-accounting.md
+  s_dd1034265ded7f::t_ceae94fd69f5b4 15-22,27-33
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_48fa1a08faa7bf 43,315-316,481-482,736-737
+packages/agent/src/engine/compaction-driver.ts
+  s_dd1034265ded7f::t_b79bde1132ce2e 4,47-48,109-113,122,124-128,133,251
+  s_dd1034265ded7f::t_1001793a07e30b 114-119,130-132
+  s_dd1034265ded7f::t_5473e79b8195dc 210-211
+apps/server/src/application/context/usage.ts
+  s_dd1034265ded7f::t_48fa1a08faa7bf 22,58,113,148
+apps/server/src/application/context/usage.test.ts
+  s_dd1034265ded7f::t_5075c128423676 224-227,232-234,247-249
+  s_dd1034265ded7f::t_1001793a07e30b 228-231,235-246
+apps/server/src/application/context-service.ts
+  s_dd1034265ded7f::t_48fa1a08faa7bf 18,64-65
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_48fa1a08faa7bf 21,308-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "87501404c6cfc5afc5335bed324a0bf77fa57cd1",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
