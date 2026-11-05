@@ -752,6 +752,7 @@ const AppLive = Layer.effect(
       providers,
       firstSend: new FirstSendService({ store, sessions, worktrees, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
+      storage: { home: config.cokoHome, chatsRoot: config.chatsRoot },
       workspaces: new WorkspaceService(store),
       projects: new ProjectService(store, sessions, config.chatsRoot),
       config: capabilities,

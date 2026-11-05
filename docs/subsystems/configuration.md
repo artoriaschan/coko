@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的分层能力配置契约：默认 ← 全局设置键 config ← 项目 .coko/settings.json（只收紧）、项目文件的读取时机与诊断代码、GET / PUT /api/config、项目 deny / ask 规则的 project 作用域、设置界面的项目设置行与能力开关。修改能力开关、项目设置的合并或诊断、配置接口或相关界面前查阅。"
+description: "当前的分层能力配置契约：默认 ← 全局设置键 config ← 项目 .coko/settings.json（只收紧）、项目文件的读取时机与诊断代码、GET / PUT /api/config、项目 deny / ask 规则的 project 作用域、设置界面的项目设置行、能力开关与只读存储位置。修改能力开关、项目设置的合并或诊断、配置接口或相关界面前查阅。"
 lifecycle: active
 ---
 
@@ -18,6 +18,8 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 
 本轮不迁移旧 userData/data 或旧 ~/Coko/chats：不会扫描、复制、移动或删除它们，也不回退读取旧库；首次使用新主根时看不到旧库中的会话是预期行为。
 
+设置 → 常规的“存储”区域通过只读 `GET /api/storage` 显示当前主数据根与对话/项目根的实际绝对路径。它不读取或写入通用设置键，不提供路径输入框；路径由 `COKO_HOME` 与 `COKO_CHATS_ROOT` 环境变量决定。“打开目录”经受控 preload 调用 main 的现有目录打开能力；目录不存在或无法打开时显示路径与可重试的错误。读取路径失败时提供重试。
+
 ## 结构入口
 
 | 位置 | 职责 |
@@ -27,7 +29,7 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 | `packages/protocol/src/config.ts` | `ConfigResponse`、`UpdateConfigRequest`、`ResourceDiagnostic`、`configPaths`、`isConfigSettingKey`、`PROJECT_SETTINGS_PATH` |
 | `apps/server/src/application/config.ts` | `ConfigService`：全局值的读写、项目文件按 mtime 读取、`effective(workspacePath?)`、项目 Hook 的原值 `projectHooks(cwd)`；两份 schema 的编译期比对 |
 | `apps/server/src/application/permissions.ts` | `PermissionService` 经 `ProjectRuleSource`（由 `ConfigService` 实现）取项目规则，见 [权限判定与审批](permissions.md#作用域与持久化) |
-| `apps/server/src/http/routes/config.ts` | `GET / PUT /api/config` |
+| `apps/server/src/http/routes/config.ts` | `GET / PUT /api/config`、只读 `GET /api/storage` |
 | `apps/desktop/src/renderer/stores/config-store.ts` | renderer 的配置 store（读取 `GET /api/config`） |
 | `apps/desktop/src/renderer/features/settings/general-section.tsx` | General 分区的项目设置行与"上下文"组的能力开关 |
 | `apps/desktop/src/renderer/features/settings/capability-toggle.tsx`、`stores/config-store.ts` | 能力开关组件与 `setSwitch`（读取后整体替换全局值） |
@@ -70,6 +72,7 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 
 ## 协议
 
+- `GET /api/storage` → `{ home, chatsRoot }`：来自本次 Sidecar 启动配置的主根和独立会话/项目根，要求认证；没有写入接口。
 - `GET /api/config?workspaceId=…` → `{ effective, global, globalRevision, project? }`。`globalRevision` 未保存过为 0。给出 workspaceId 时 `effective` 含该项目文件，`project = { path, exists, values, diagnostics }`：`values` 只有生效的项（关闭的开关、追加的 `skills.disabled`、有规则时的 `permissions: { deny, ask }`），被忽略的项只出现在 `diagnostics` 中；文件不存在时 `exists: false`。Workspace 不存在 404。
 - `PUT /api/config { values, expectedRevision, workspaceId? }`：整体替换全局值，返回同形的响应。值不合 schema 400；revision 不一致 409 `revision-conflict`。
 - 设置界面的能力开关经 `GET /api/config` 读取全局值与 revision，再以 `PUT /api/config` 整体替换（只改一个键，其他全局键原样带回），完成后重新读取。
@@ -81,6 +84,8 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 - **Permissions 分区的项目规则**：只读列表，标出来源文件，没有删除入口与输入框，见 [权限判定与审批](permissions.md#界面)。
 
 ## 验证
+
+- `tests/integration/sidecar-storage-paths.test.ts`：真实 Sidecar 的覆盖路径、只读路由与设置隔离；`apps/desktop/src/renderer/features/settings/storage-card.browser.test.tsx`：路径展示、目录按钮、读取/打开失败与重试、窄窗口长路径、中英文和明暗主题；`apps/desktop/e2e/storage-paths.e2e.test.ts`：后台 Electron 的实际路径及原生目录打开失败提示。
 
 - `packages/agent/src/config/merge.test.ts`：合并（默认 / 全局 / 项目、项目 true 不打开全局 false、列表并集）与诊断（`project-cannot-grant`、`unknown-key`、`invalid-value` 且其余键照常、`invalid-json` 整文件忽略）。
 - `tests/integration/sidecar-config.test.ts`：真实 Sidecar 上的 `GET / PUT /api/config`、409、通用设置接口 400、改文件后下一次 GET 与下一个 Run 读到新值、项目 deny 在 full-access 下拒绝、项目 allow 不放行。
