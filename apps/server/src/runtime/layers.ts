@@ -753,7 +753,7 @@ const AppLive = Layer.effect(
       firstSend: new FirstSendService({ store, sessions, worktrees, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
       workspaces: new WorkspaceService(store),
-      projects: new ProjectService(store, sessions),
+      projects: new ProjectService(store, sessions, config.chatsRoot),
       config: capabilities,
       context: new ContextService({
         store,

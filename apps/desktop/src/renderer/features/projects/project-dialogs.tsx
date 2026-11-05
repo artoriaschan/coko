@@ -37,6 +37,7 @@ export function ProjectDialogsProvider({ pickDirectory, children }: { pickDirect
             initial={request.project}
             pickDirectory={pickDirectory}
             onSubmit={request.project ? (fields) => projectApi.update(request.project!.id, fields) : projectApi.create}
+            onSubmitBlank={request.project ? undefined : (name) => projectApi.create({ mode: 'blank', name })}
             onClose={() => setRequest(null)}
             onComplete={(result) => {
               chat.lists.getState().upsertProject(result.project)

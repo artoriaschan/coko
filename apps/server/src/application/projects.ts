@@ -1,17 +1,19 @@
 import { constants } from 'node:fs'
-import { access, realpath, stat } from 'node:fs/promises'
-import { isAbsolute } from 'node:path'
-import type { CreateProjectResponse, Project, ProjectFields } from '@coko/protocol'
+import { access, mkdir, realpath, rmdir, stat } from 'node:fs/promises'
+import { isAbsolute, join } from 'node:path'
+import type { CreateProjectRequest, CreateProjectResponse, Project, ProjectFields } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 
 /** Project 的持久化组织关系与当前列表视图。 */
 export class ProjectService {
   readonly #store: SessionStore
+  readonly #projectsRoot: string
   readonly #removal: { removeProject(id: string): Promise<{ sessionIds: string[] }> }
-  constructor(store: SessionStore, removal: { removeProject(id: string): Promise<{ sessionIds: string[] }> }) {
+  constructor(store: SessionStore, removal: { removeProject(id: string): Promise<{ sessionIds: string[] }> }, chatsRoot: string) {
     this.#store = store
     this.#removal = removal
+    this.#projectsRoot = join(chatsRoot, 'projects')
   }
 
   delete(id: string): Promise<{ sessionIds: string[] }> {
@@ -47,10 +49,40 @@ export class ProjectService {
     }
   }
 
-  async create(input: ProjectFields): Promise<CreateProjectResponse> {
+  async #createBlank(name: string): Promise<CreateProjectResponse> {
+    const base =
+      name
+        .trim()
+        .replace(/[\\/]/g, '')
+        .replace(/^[.\s]+/u, '')
+        .trim() || '新项目'
+    await mkdir(this.#projectsRoot, { recursive: true })
+    for (let suffix = 1; ; suffix++) {
+      const ending = suffix === 1 ? '' : `-${suffix}`
+      const allocated = `${[...base].slice(0, 50 - ending.length).join('')}${ending}`
+      const path = join(this.#projectsRoot, allocated)
+      try {
+        await mkdir(path)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') continue
+        throw error
+      }
+      try {
+        return await this.create({ name: allocated, folders: [{ path, primary: true }] })
+      } catch (error) {
+        // Remove only our empty allocation; an external writer's files must survive.
+        await rmdir(path).catch(() => {})
+        throw error
+      }
+    }
+  }
+
+  async create(input: CreateProjectRequest): Promise<CreateProjectResponse> {
+    if ('mode' in input) return this.#createBlank(input.name)
     const { primaryPath, ...fields } = await this.#normalize(input)
     const existing = (await this.list()).find((project) => project.folders.some((folder) => folder.primary && folder.path === primaryPath))
     if (existing) return { status: 'existing', project: existing }
+    const prior = (await this.#store.sessions.listWorkspaces()).find((workspace) => workspace.path === primaryPath)
     const workspace = await this.#store.sessions.registerWorkspace({ path: primaryPath })
     try {
       const created = await this.#store.projects.create({
@@ -62,6 +94,7 @@ export class ProjectService {
       // 并发请求可能在检查后先登记同一主要 Workspace；唯一约束仍是最终裁决。
       const winner = (await this.list()).find((project) => project.primaryWorkspaceId === workspace.id)
       if (winner) return { status: 'existing', project: winner }
+      if (!prior) await this.#store.sessions.deleteWorkspaceIfUnused(workspace.id)
       throw error
     }
   }

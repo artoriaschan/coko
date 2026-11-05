@@ -125,6 +125,9 @@ export const zh = {
     resize: '调整侧栏宽度',
   },
   projectForm: {
+    blank: '新建空白项目',
+    existingFolder: '添加已有文件夹',
+    blankHint: '自动创建项目文件夹，无需选择已有文件夹。',
     primaryConflict: '该主要文件夹已属于“{name}”，请选择其他主要文件夹。',
     create: '创建项目',
     edit: '编辑项目',
