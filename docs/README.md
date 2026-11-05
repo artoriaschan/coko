@@ -35,12 +35,12 @@ lifecycle: active
 - [命令](subsystems/commands.md)：提示模板的发现与展开、同名优先级与诊断、命令目录接口、/ 命令菜单与命令 chip。
 - [Skills](subsystems/skills.md)：Skill 的发现位置与校验、<available_skills> 索引与预算、skill 工具与读取根、/<skill-name> 展开、开关与 Skills & Commands 分区。
 - [会话数据诊断](subsystems/session-diagnostics.md)：开发者开关下的已加载条目、Run 与主时间线分组、实时增量、类型筛选、虚拟表格、跟随与锚定、JSON/运行时对象详情、引用与主时间线定位和瞄准。
-- [上下文管理](subsystems/context.md)：系统消息的组成与环境信息、日期与会话状态的 State Update、@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量的五类统计与上下文环、时间裁剪、压缩、State Update 的分叉来源与 system 用量、忽略规则。
+- [上下文管理](subsystems/context.md)：系统消息的组成与环境信息、日期与会话状态的 State Update、@ File Reference 的语法、展开与上限、文件候选接口、@ 菜单与引用 chip、输入区草稿的持久化、上下文用量的五类统计、Run 工具快照与原生声明估算及上下文环、时间裁剪、压缩、State Update 的分叉来源与 system 用量、忽略规则。
 - [命令执行与子进程登记](subsystems/execution.md)：bash 的进程组执行与生命周期回调、截断工具结果落盘、子进程登记表、启动时的孤儿清理与有序关闭、已知限制。
 - [外部 Hook](subsystems/hooks.md)：Hook 配置与诊断、项目 Hook 的逐条批准、matcher 与 if、执行与进程登记、PreToolUse 与判定的组合、PermissionRequest、PostToolUse 的追加上下文、UserPromptSubmit / Stop / PreCompact / Notification、continue: false 的停止、hook_run、/api/hooks 与设置分区。
 - [后台任务](subsystems/jobs.md)：bash run_in_background、Job 输出（环形缓冲、日志、进度）、job_output / job_list / job_kill、完成通知、HTTP 接口、停止与重启 lost、PTY Job 与 job_input、后台任务视图。
 - [定时任务](subsystems/schedules.md)：规则与 cron（时区、夏令时）、定时器与补跑、准入与跳过原因、至多一次投递与挂起、<scheduled_task> 输入与授权、四个工具、/api/schedules、桌面通知与通知设置、界面（Schedules tab、设置分区）、测试时钟。
-- [子代理](subsystems/subagents.md)：定义文件与诊断、agent / agent_wait / agent_cancel、子 Session 与工具交集、有效权限与审批、预算汇入 Goal、并行上限与取消、后台通知、isolation worktree、重启中断与 /api/sessions/:id/agents；界面（agent 工具卡、Agents tab、审批冒泡、设置分区）。
+- [子代理](subsystems/subagents.md)：定义文件与诊断、agent / agent_wait / agent_cancel、子 Session 与完整工具交集、按需加载的子会话旁路、有效权限与审批、预算汇入 Goal、并行上限与取消、后台通知、isolation worktree、重启中断与 /api/sessions/:id/agents；界面（agent 工具卡、Agents tab、审批冒泡、设置分区）。
 - [Agent Teams](subsystems/teams.md)：具名 teammate 的创建与解散、send_message 的送达与排队、子代理继续对话、任务板的 compare-and-set 与认领、TaskCreated / TaskCompleted / TeammateIdle、worktree、预算归属、重启与 /api/sessions/:id/team。
 - [Todo List](subsystems/todo.md)：todo_write 的校验与权限类、todo_list 条目、有未完成项时按变化送达的 State Update、dock 的待办卡与队列卡。
 - [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、稳定的 <goal> 定义与动态 State Update、<goal_round> 输入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停、预算与模型价格、Goal 卡与用量界面。

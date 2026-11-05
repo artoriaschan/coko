@@ -44,6 +44,7 @@ export {
   selectableThinkingLevels,
   THINKING_LEVELS,
   withIncrementalTools,
+  usesIncrementalTools,
 } from './models/registry.ts'
 export type {
   ModelPrice,

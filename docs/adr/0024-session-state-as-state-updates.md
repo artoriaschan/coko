@@ -22,7 +22,7 @@ category: architecture
 ## 决定
 
 - **system 只放会话内不变的定义。** 包括：英文的静态基础提示（带版本号，跨会话与 Workspace 逐字不变）；Instruction File；Skills 索引；环境（Workspace 路径与 Project 的附加文件夹、是否 git 仓库与 Worktree、平台、shell、OS 版本、当前模型、IANA 时区，不含 git status）；Memory；Plan Mode 的说明与被压缩替代的已批准 Plan；Subagent 的角色；teammate 自己的名字、lead 与任务板规则；Goal 的目标、约束、成功条件、预算上限与工具说明。只有这些定义变化时 system 的文本才变。Memory 每个 Run 重新读取，用户删除记忆后下一个 Run 生效。
-- **会变的状态改为 State Update。** Goal 的 revision、阶段与原因、各维度已用量；Todo List；Agent Team 的成员状态与当前任务；当天日期（只给日期与星期）；启用按需加载的根 Session 的 MCP 工具目录（`on_demand_tools`）。它们由宿主生成，以 user 角色追加到历史，统一用一个包装标签 `<state_update name="…">`，不写回 system。只在当前值与有效模型上下文中同名的最近一条 State Update 不同时送达，因此回退与压缩去掉旧的更新后会自然重发。送达时机、摘要请求中的处理与上下文用量的归类由规格规定。
+- **会变的状态改为 State Update。** Goal 的 revision、阶段与原因、各维度已用量；Todo List；Agent Team 的成员状态与当前任务；当天日期（只给日期与星期）；启用按需加载的根 Session 的 MCP 工具目录（`on_demand_tools`）。它们由宿主生成，以 user 角色追加到历史，统一用一个包装标签 `<state_update name="…">`，不写回 system。只在当前值与有效模型上下文中同名的最近一条 State Update 不同时送达，因此回退与压缩去掉旧的更新后会自然重发。`on_demand_tools` 另有边界规则：对话回退或压缩后即使保留了更早的公告，也按条目边界重发完整目录；纯文件回退不触发。其余状态继续按值去重。送达时机、摘要请求中的处理与上下文用量的归类由规格规定。
 - **State Update 存为 Session Entry。** 先提交 `state_update` 条目（名称与结构化的值），再提交含渲染块的 user message。`goal`、`todo_list` 等领域条目仍是事实来源；`state_update` 只记录当时给了模型什么，[ADR 0011](0011-goal-state-as-session-entries.md) 中 Goal 状态的重建规则不变。
 - **来源只看条目。** 一段文本是否为 State Update，只由它前面的 `state_update` 条目决定。用户输入或工具输出中出现的同名标签只是文本，不授予任何权限；工具输出不转义、不改写。分叉时 `state_update` 条目随其后的消息一起复制。
 - **不承诺。** 不把模型原生的中途 system 消息作为通用方案，它留作声明支持该能力的模型上的后续优化；不采用按轮次间隔的周期提醒。
@@ -42,7 +42,7 @@ category: architecture
 - **承担：** 新增一种长期保存与读取的条目，时间线需要隐藏它；user 角色的 State Update 权重低于 system，权限与 Plan Mode 的限制仍由宿主强制执行，提示只负责说明；模型写过 Todo 后，下一个 Run 开头会重发一次同样的表。
 - **现有缺口（本决定不修）：** 分叉已随保留的消息复制配对 `state_update`，但宿主通知的前置条目仍没有复制，复制过来的通知消息在来源判断里会被当成用户输入。
 - **implementation 变为 implemented 前需要：** 在真实 Provider 上，用同一段带 Todo 与 Goal 的多 Run 会话比较改动前后每个 Run 首次请求的 cacheRead；真实 Sidecar 集成测试覆盖 State Update 的送达、去重、压缩后补发、回退、分叉与伪造标签；新基础提示在真实模型评测（现有 3 个用例加针对宿主块的用例）中不比旧提示差。
-- **需要重新审视的条件：** 所用模型普遍支持原生的中途 system 消息；测量显示 Memory 变化频繁；Tool Search 的目录提醒并入这一通道。
+- **需要重新审视的条件：** 所用模型普遍支持原生的中途 system 消息；测量显示 Memory 变化频繁；Tool Search 的目录提醒并入这一通道（2026-11-05 已满足，补充实现见下文；不改变真实模型门槛）。
 
 ## 实施状态与证据
 
@@ -54,6 +54,8 @@ category: architecture
 - **真实缓存未验证。** 尚无改动前后同位置首次请求的实测 `cacheRead` 对比，不声称费用或延迟已经改善。补验时以改动前提交 `ec32dfc9` 为基线，使用同一 Provider、模型与含 Todo 写入/Goal 推进的连续多 Run 会话，在缓存有效期内从[追踪接口](../subsystems/tracing.md#追踪)读取每个 Run 第一条 `purpose: turn` 请求，保留用量完整性。改动后各位置不得低于基线，且至少一个 Todo 或 Goal 变化后的 Run 须从基线未命中变为命中；未知字段不能当作零。
 
 只有真实提示比较和缓存对比补齐且满足上述门槛后，才能激活候选并将 implementation 升为 implemented。真实模型的连续 user 消息兼容性、Electron 窗口交互、构建产物与 CI 也没有由本次 Sidecar/faux 证据覆盖。
+
+2026-11-05，Tool Search 的 `on_demand_tools` 已并入此通道，根 Run 冻结目录并从有效配对条目派生 Added/Removed；对话回退或压缩后以边界序号重发完整目录。实现见 [状态规划](../../packages/agent/src/entries/state-updates.ts) 与 [MCP](../subsystems/mcp.md#工具搜索与按需加载)，验证见 [目录集成](../../tests/integration/sidecar-tool-search-catalog.test.ts)。这只补充目录规则，前述真实提示比较与缓存对比仍未完成，`implementation` 保持 partial。
 
 ## 来源与后继
 

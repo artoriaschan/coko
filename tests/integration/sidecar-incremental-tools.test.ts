@@ -1,8 +1,9 @@
 import { createServer, type IncomingHttpHeaders } from 'node:http'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { API_ROUTES, apiPaths, configPaths, mcpPaths, permissionPaths, type ModelProtocol } from '@coko/protocol'
+import { API_ROUTES, apiPaths, configPaths, mcpPaths, permissionPaths, contextPaths, type ModelProtocol } from '@coko/protocol'
 import { stdioServerConfig } from '../fixtures/mcp/index.ts'
 import { baseArgs, runHeadless } from './headless-harness.ts'
 import {
@@ -21,7 +22,7 @@ import {
 } from './sidecar-harness.ts'
 
 type Reply = { name: string; args: Record<string, unknown> } | { error: number } | string
-async function modelServer(protocol: ModelProtocol, replies: Reply[]) {
+async function modelServer(protocol: ModelProtocol, replies: Reply[], zeroUsage = false) {
   const requests: { body: any; headers: IncomingHttpHeaders }[] = []
   const server = createServer((req, res) => {
     let body = ''
@@ -45,7 +46,14 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[]) {
         if (protocol === 'anthropic-messages') {
           event('message_start', {
             type: 'message_start',
-            message: { id: 'msg_' + index, model: 'search', role: 'assistant', type: 'message', content: [], usage: { input_tokens: 40, output_tokens: 0 } },
+            message: {
+              id: 'msg_' + index,
+              model: 'search',
+              role: 'assistant',
+              type: 'message',
+              content: [],
+              usage: { input_tokens: zeroUsage ? 0 : 40, output_tokens: 0 },
+            },
           })
           event('content_block_start', {
             type: 'content_block_start',
@@ -58,7 +66,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[]) {
             delta: call ? { type: 'input_json_delta', partial_json: JSON.stringify(reply.args) } : { type: 'text_delta', text: reply },
           })
           event('content_block_stop', { type: 'content_block_stop', index: 0 })
-          event('message_delta', { type: 'message_delta', delta: { stop_reason: call ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 5 } })
+          event('message_delta', { type: 'message_delta', delta: { stop_reason: call ? 'tool_use' : 'end_turn' }, usage: { output_tokens: zeroUsage ? 0 : 5 } })
           event('message_stop', { type: 'message_stop' })
         } else {
           const item = call
@@ -69,7 +77,12 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[]) {
           event('response.output_item.done', { type: 'response.output_item.done', output_index: 0, item })
           event('response.completed', {
             type: 'response.completed',
-            response: { id: 'resp_' + index, status: 'completed', output: [item], usage: { input_tokens: 40, output_tokens: 5, total_tokens: 45 } },
+            response: {
+              id: 'resp_' + index,
+              status: 'completed',
+              output: [item],
+              usage: { input_tokens: zeroUsage ? 0 : 40, output_tokens: zeroUsage ? 0 : 5, total_tokens: zeroUsage ? 0 : 45 },
+            },
           })
         }
         res.end()
@@ -91,7 +104,7 @@ async function modelServer(protocol: ModelProtocol, replies: Reply[]) {
 async function setup(
   protocol: ModelProtocol,
   incrementalTools?: boolean,
-  options: { search?: boolean; mcp?: boolean; replies?: Reply[]; contextWindow?: number } = {},
+  options: { search?: boolean; mcp?: boolean; replies?: Reply[]; contextWindow?: number; zeroUsage?: boolean } = {},
 ) {
   const fake = await modelServer(
     protocol,
@@ -100,6 +113,7 @@ async function setup(
       { name: 'mcp__demo__echo', args: { text: 'native loaded' } },
       'done',
     ],
+    options.zeroUsage,
   )
   const dirs = await sidecarDirs()
   const sidecar = await startSidecar({ dirs })
@@ -130,7 +144,7 @@ async function setup(
         .at(-1)?.payload,
     ).toMatchObject({ status: 'completed' })
   }
-  return { ...fake, api, stream, sidecar, dirs, sessionId, provider, run }
+  return { ...fake, api, stream, sidecar, dirs, sessionId, workspaceId, provider, run }
 }
 
 function wireTools(body: any): string[] {
@@ -138,6 +152,100 @@ function wireTools(body: any): string[] {
 }
 
 describe('Provider native incremental tools', () => {
+  it.each(['anthropic-messages', 'openai-responses'] as const)('auto-compacts retained native definitions after a tool is removed (%s)', async (protocol) => {
+    const h = await setup(protocol, true, {
+      contextWindow: 40_000,
+      zeroUsage: true,
+      replies: [{ name: 'tool_search', args: { query: 'select:mcp__demo__echo' } }, 'loaded', 'summary of old tools', 'after compaction'],
+    })
+    const catalog = join(await tempDir(), 'tools.json')
+    await writeFile(
+      catalog,
+      JSON.stringify([
+        {
+          name: 'echo',
+          description: 'Echo text',
+          inputSchema: { type: 'object', properties: { text: { type: 'string', description: 'x'.repeat(200_000) } }, required: ['text'] },
+        },
+        { name: 'other', description: 'Another on-demand tool', inputSchema: { type: 'object', properties: {} } },
+      ]),
+    )
+    const server = {
+      command: process.execPath,
+      args: [fileURLToPath(new URL('../fixtures/tool-search/stdio-server.ts', import.meta.url))],
+      env: { TOOL_SEARCH_FIXTURE_CATALOG: catalog },
+    }
+    expect((await h.api.put(mcpPaths.servers, { servers: { demo: server }, workspaceId: h.workspaceId, expectedRevision: 1 })).status).toBe(200)
+    const configure = async (autoCompact: boolean) => {
+      const current = (await h.api.get(configPaths.config)).body
+      expect(
+        (
+          await h.api.put(configPaths.config, {
+            values: { ...current.global, context: { ...current.global.context, autoCompact } },
+            expectedRevision: current.globalRevision,
+          })
+        ).status,
+      ).toBe(200)
+    }
+    await configure(false)
+    await h.run('load old definition')
+    expect(h.stream.entries(h.sessionId).some((entry) => entry.kind === 'compaction')).toBe(false)
+    expect(
+      (await h.api.put(mcpPaths.servers, { servers: { demo: { ...server, disabledTools: ['echo'] } }, workspaceId: h.workspaceId, expectedRevision: 2 }))
+        .status,
+    ).toBe(200)
+    await configure(true)
+    await h.run('continue without echo ' + 'y'.repeat(80_000))
+    const compact = h.stream.entries(h.sessionId).find((entry) => entry.kind === 'compaction')
+    expect(compact?.payload).toMatchObject({ trigger: 'auto' })
+    expect((compact!.payload as any).tokensBefore).toBeGreaterThan(32_000)
+    expect((compact!.payload as any).tokensAfter).toBeLessThan(32_000)
+    expect(h.requests).toHaveLength(4)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it.each(['anthropic-messages', 'openai-responses'] as const)('counts historical native tool declarations after removal (%s)', async (protocol) => {
+    const h = await setup(protocol, true, {
+      zeroUsage: true,
+      replies: [{ name: 'tool_search', args: { query: 'select:mcp__demo__echo' } }, 'loaded', 'removed'],
+    })
+    await h.run()
+    expect(
+      (
+        await h.api.put(mcpPaths.servers, {
+          servers: { demo: { ...stdioServerConfig(), disabledTools: ['echo'] } },
+          workspaceId: h.workspaceId,
+          expectedRevision: 1,
+        })
+      ).status,
+    ).toBe(200)
+    await h.run('remove echo')
+    const body = h.requests.at(-1)!.body
+    const definitions =
+      protocol === 'anthropic-messages'
+        ? [
+            ...body.tools.filter((tool: any) => !tool.defer_loading),
+            ...body.messages.flatMap((message: any) =>
+              Array.isArray(message.content)
+                ? message.content.filter((block: any) => block.type === 'tool_addition').map((block: any) => block.tool.definition)
+                : [],
+            ),
+          ]
+        : body.input.filter((item: any) => item.type === 'additional_tools').flatMap((item: any) => item.tools)
+    expect(definitions.some((tool: any) => tool.name === 'mcp__demo__echo')).toBe(true)
+    const old = definitions.find((tool: any) => tool.name === 'mcp__demo__echo')
+    const retainedChars = JSON.stringify({ name: old.name, description: old.description, parameters: old.input_schema ?? old.parameters }).length
+    const nativeUsage = (await h.api.get(contextPaths.session(h.sessionId))).body
+    expect(nativeUsage.estimated).toBe(true)
+    expect(await saveProvider(h.sidecar, { ...h.provider, incrementalTools: false }, { mode: 'update' })).toMatchObject({ ok: true })
+    const ordinaryUsage = (await h.api.get(contextPaths.session(h.sessionId))).body
+    // Both views use the same transcript/results and canonical Coko schema measure; native retains the old definition.
+    const difference = nativeUsage.breakdown.tools - ordinaryUsage.breakdown.tools
+    expect(difference).toBeGreaterThanOrEqual(Math.floor(retainedChars / 4))
+    expect(difference).toBeLessThanOrEqual(Math.ceil(retainedChars / 4))
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('Headless accepts incrementalTools in its Provider startup configuration and uses the same native transport', async () => {
     const h = await setup('openai-responses', true)
     await h.sidecar.stop()

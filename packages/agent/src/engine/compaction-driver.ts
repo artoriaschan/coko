@@ -20,7 +20,7 @@ import {
   summaryRequest,
   type CompactionPlan,
 } from '../context/compaction/index.ts'
-import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars } from '../context/usage/index.ts'
+import { charsToTokens, contextBudget, estimateContextTokens, estimateMessageChars, toolDefinitionChars } from '../context/usage/index.ts'
 import { effectiveEntries, modelContext, type EntryLike } from '../entries/index.ts'
 import type { CompactionPayload, CompactionTrigger, RequestUsage } from '../session-entries/index.ts'
 import type { CompactInfo, CompactVerdict, ProgressEvent, RunEntry, RunError, RunStatus, RuntimeCompaction } from './types.ts'
@@ -52,7 +52,7 @@ export interface CompactionDriverOptions {
   progress: (event: ProgressEvent) => void
   /** agent 的状态：当前模型与对话记录（压缩后替换）。 */
   state: { model: Model<any>; messages: AgentMessage[] }
-  /** 当前提供给模型的工具；历史中的增减声明不重复计数。 */
+  /** 当前提供给模型的工具；原生传输的历史声明由共享估算器按 pi 规则计入。 */
   tools: () => readonly Tool[]
   /** 当前 Run（溢出恢复在 drive 之后读取）。 */
   current: () => CompactionRun | undefined
@@ -119,21 +119,16 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const { toolsAdded: _added, toolsRemoved: _removed, ...rest } = message
     return rest
   }
-  const toolTokens = () =>
-    charsToTokens(
-      options
-        .tools()
-        .reduce((chars, tool) => chars + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length, 0),
-    )
+  const toolTokens = (messages: readonly AgentMessage[] = state.messages) => charsToTokens(toolDefinitionChars(state.model, options.tools(), messages))
   const systemTokens = () => {
     const head = state.messages[0]
     return head?.role === 'system' ? charsToTokens(estimateMessageChars(withoutToolDeclarations(head))) : 0
   }
   const contextTokens = (messages: readonly AgentMessage[]) => {
     const estimate = estimateContextTokens(messages.map(withoutToolDeclarations))
-    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + toolTokens()
+    return estimate.usageTokens > 0 ? estimate.tokens : estimate.tokens + toolTokens(messages)
   }
-  /** 可信 usage 包含当时的定义；无 usage 时只计当前工具，历史声明由 pi 合并到请求级清单。 */
+  /** 可信 usage 包含当时的定义；无 usage 时按本次传输折叠规则计入工具定义。 */
   const contextTokensOf = (entries: readonly EntryLike[]) => {
     const estimate = estimateCompactedTokens(
       entries.map((entry) => (entry.kind === 'message' ? { ...entry, payload: withoutToolDeclarations(entry.payload as AgentMessage) } : entry)),
@@ -215,8 +210,16 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     const next = (modelContext([...entries, { seq: Number.MAX_SAFE_INTEGER, kind: 'compaction', runId: run.runId, payload }]) as AgentMessage[]).filter(
       (message) => !isFailedReply(message),
     )
+    const head = state.messages[0]?.role === 'system' ? [state.messages[0]] : []
+    const prefix = effectiveEntries(entries)
+      .filter((entry) => entry.kind === 'message' && entry.seq < plan.firstKeptSeq)
+      .map((entry) => entry.payload as AgentMessage)
+    const seed = head[0] ? createInitialSystemMessage(undefined, getCurrentTools([...head, ...prefix])) : undefined
+    const projectedHead = head[0] ? [{ ...head[0], toolsAdded: seed?.toolsAdded, toolsRemoved: undefined }] : []
     payload.tokensAfter =
-      next.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(withoutToolDeclarations(message))), 0) + systemTokens() + toolTokens()
+      next.reduce((sum, message) => sum + charsToTokens(estimateMessageChars(withoutToolDeclarations(message))), 0) +
+      systemTokens() +
+      toolTokens([...projectedHead, ...next])
     try {
       await commit({ kind: 'compaction', runId: run.runId, payload })
     } catch (error) {
@@ -225,14 +228,8 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
       return { kind: 'aborted' }
     }
     breaker.succeeded()
-    const head = state.messages[0]?.role === 'system' ? [state.messages[0]] : []
-    // pi 已在 prepareRequest 之前提交本轮的工具差异。压缩移除差异消息时，把被移除前缀的工具状态
-    // 折入未持久化的开头消息；保留区间的增减仍按原位置回放。声明由 pi 的 transcript 接口生成。
+    // Preserve the unpersisted head identity after the compaction commit succeeds.
     if (head[0]) {
-      const prefix = effectiveEntries(entries)
-        .filter((entry) => entry.kind === 'message' && entry.seq < plan.firstKeptSeq)
-        .map((entry) => entry.payload as AgentMessage)
-      const seed = createInitialSystemMessage(undefined, getCurrentTools([...head, ...prefix]))
       if (seed?.toolsAdded) head[0].toolsAdded = seed.toolsAdded
       else delete head[0].toolsAdded
       delete head[0].toolsRemoved

@@ -71,17 +71,20 @@ export class ContextService {
       const session = await this.#session(input.sessionId)
       const workspace = await this.#workspace(session.workspaceId)
       const cwd = await this.#cwd.resolve(session, workspace)
-      const [scope, entries, model] = await Promise.all([
-        this.scopeFor({ sessionId: session.id }),
-        this.#store.sessions.listEntries(session.id),
-        this.#sessions.contextModel(session.model),
-      ])
+      const [entries, model] = await Promise.all([this.#store.sessions.listEntries(session.id), this.#sessions.contextModel(session.model)])
+      const snapshot = this.#sessions.runs.contextSnapshot(session.id)
+      const active = snapshot?.run
+      const scope = active?.scope ?? (await this.scopeFor({ sessionId: session.id }))
+      const provider = !active && model ? await this.#store.providers.get(model.provider) : undefined
       return contextUsage({
         context: this.assembly,
+        ...(active ? { contributedTools: active.contributed } : {}),
+        ...(snapshot ? { declarationMessages: snapshot.messages } : {}),
+        incrementalTools: active?.incrementalTools ?? provider?.incrementalTools,
         ...(this.#basePrompt ? { basePrompt: this.#basePrompt } : {}),
         scope,
         baseTools: this.#sessions.baseTools(cwd),
-        model,
+        model: active?.model ?? model,
         entries,
         autoCompactPaused: this.#sessions.compactionPaused(session.id),
       })

@@ -13,6 +13,7 @@ import {
   createAgentRuntime,
   createToolSearch,
   withIncrementalTools,
+  usesIncrementalTools,
   type OnDemandTool,
   type ToolLoadPayload,
   createBuiltinToolRegistry,
@@ -204,6 +205,7 @@ function withJobs(base: ToolRegistry, launcher: BackgroundJobLauncher): ToolRegi
 
 /** 运行时每个 Run 开始时刷新的上下文取值（运行时创建后其工具集与 hook 链不变，经这里间接替换）。 */
 interface RunContext {
+  model: Model<any>
   scope: ContextScope
   contributed: ContributedTool[]
   catalog: OnDemandTool[]
@@ -364,6 +366,31 @@ export class SessionRuns {
     return this.#runContexts.get(runtime)?.scope
   }
 
+  /** Actual transcript plus the admitted scope while a Run is active. Idle previews use fresh configuration. */
+  contextSnapshot(sessionId: string):
+    | {
+        messages: readonly AgentMessage[]
+        run?: { scope: ContextScope; contributed: readonly ContributedTool[]; model: Model<any>; incrementalTools: boolean }
+      }
+    | undefined {
+    const runtime = this.#options.runtimes.get(sessionId)
+    const runContext = runtime && this.#runContexts.get(runtime)
+    if (!runtime || !runContext) return undefined
+    return {
+      messages: runtime.messages,
+      ...(runtime.isRunning
+        ? {
+            run: {
+              scope: runContext.scope,
+              contributed: runContext.contributed,
+              model: runContext.model,
+              incrementalTools: usesIncrementalTools(runContext.model),
+            },
+          }
+        : {}),
+    }
+  }
+
   /** Session 的工作目录（SessionCwd；缺省 Workspace 目录）。 */
   async cwd(session: StoredSession): Promise<{ workspace: Workspace; cwd: string }> {
     const workspace = await this.#options.store.sessions.getWorkspace(session.workspaceId)
@@ -517,17 +544,17 @@ export class SessionRuns {
       runContext.permissionHooks = permissionHooks
       // The registry retains all allowed tools; the runtime selects model tools separately.
     }
-    runtime.setModel(
-      withIncrementalTools(
-        model,
-        Boolean(
-          runContext?.catalog.length &&
-          scope.parentSessionId === undefined &&
-          scope.config.mcp.toolSearch &&
-          (provider?.incrementalTools ?? model.api !== 'openai-completions'),
-        ),
+    const transportModel = withIncrementalTools(
+      model,
+      Boolean(
+        runContext?.catalog.length &&
+        scope.parentSessionId === undefined &&
+        scope.config.mcp.toolSearch &&
+        (provider?.incrementalTools ?? model.api !== 'openai-completions'),
       ),
     )
+    if (runContext) runContext.model = transportModel
+    runtime.setModel(transportModel)
     runtime.setThinkingLevel(models.effectiveLevel(session))
 
     this.#directoryAdmission?.(scope.cwd)
@@ -760,6 +787,7 @@ export class SessionRuns {
     const publish = runtimes.publisher(session.id, () => extension.onEntry)
     if (this.#options.extensions) extension = this.#options.extensions({ sessionId: session.id, cwd, commit: publish })
     const runContext: RunContext = {
+      model,
       scope: await this.scope(session),
       // 子 Session 没有后台任务入口：bash 的 run_in_background / tty 为参数错误（ADR 0014）。
       contributed: [],

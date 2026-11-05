@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 MCP Server 连接、工具、资源与提示模板契约：全局设置键 mcp.servers 与项目 .mcp.json 的形状与诊断、项目 Server 的按摘要批准、Secret 引用、运行时数据目录、连接状态机与池化（含 HTTP 401 的 auth-required）、工具命名与结果转换（含图像结果）、权限类 external 与 context-read、资源工具、/mcp__<server>__<prompt> 命令、浏览器预设（Playwright MCP）、/api/mcp 与 /api/secrets、设置界面的 MCP 分区。修改 MCP 配置、连接、认证、工具适配、资源或提示模板、预设、Secret 来源或 MCP 界面前查阅。"
+description: "当前的 MCP Server 连接、工具、资源与提示模板契约：全局设置键 mcp.servers 与项目 .mcp.json 的形状与诊断、项目 Server 的按摘要批准、Secret 引用、运行时数据目录、连接状态机与池化（含 HTTP 401 的 auth-required）、工具命名与结果转换（含图像结果）、权限类 external 与 context-read、资源工具、/mcp__<server>__<prompt> 命令、浏览器预设（Playwright MCP）、/api/mcp 与 /api/secrets、工具搜索、加载记录与 Provider 原生增量传输、设置界面的 MCP 分区。修改 MCP 配置、连接、认证、工具适配、资源或提示模板、预设、Secret 来源或 MCP 界面前查阅。"
 lifecycle: active
 ---
 
@@ -88,7 +88,7 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 模型直接调用目录中尚未加载的工具时，该次调用不执行业务处理，错误结果改为「工具已加载，请直接重试。」，并以 `optimistic` 来源保存加载记录；下一次请求起带上定义，再次调用仍经过权限与 Hook。名称不在当前目录中的调用保留原来的未找到错误；已提供工具的权限拒绝或业务错误不会触发乐观加载。
 
-宿主只根据可信的搜索执行通道或当前目录中的未加载调用生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。若结果已保存而加载记录尚未保存，重建后仍未加载，后续直接调用可再次乐观加载，不会自动重跑业务工具。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
+宿主只根据可信的搜索执行通道或当前目录中的未加载调用生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。若结果已保存而加载记录尚未保存，重建后仍未加载，后续直接调用可再次乐观加载，不会自动重跑业务工具。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。运行中的用量沿用相同快照，空闲后再读取下次 Run 的配置；原生传输仍保留在请求中的旧 schema 按[传输估算规则](context.md#估算)计入用量与自动压缩，不能仅按当前执行集合忽略它们。
 
 已加载集合从只应用对话回退的有效 `tool_load` 条目派生，不按压缩切点过滤。因此重启后的 continue、失败请求的 retry，以及手动、自动和溢出压缩都保留已加载工具；恢复只回放上下文，不重新执行已提交的业务调用。Server 断连或工具停用时，已加载名称仍保留，但该 Run 不提供不可用的定义；重连或重新启用后，下一个 Run 自动恢复，不必重新搜索。工具说明和参数 schema 始终取该 Run 开始时的当前定义。相关生命周期通过[真实 Sidecar 的加载与恢复测试](../../tests/integration/sidecar-tool-search-lifecycle.test.ts)核对模型请求、持久条目和 MCP 调用日志。
 

@@ -40,3 +40,5 @@
 - 关键词/BM25、schema 预算、目录预算与增量、alwaysLoad、设置 UI、乐观加载、生命周期完整场景和原生传输按后续票实现，不将本票临时行为作为最终规格变更。真实 Provider、Electron 窗口/原生层、产物与 CI 未验证；01 已记录的两个原有 context-seam 顺序断言失败未改动。
 
 - 提交前补验：`rtk pnpm run test tests/integration/sidecar-tool-search.test.ts apps/server/src/application/context/usage.test.ts`：2 文件 19/19；`rtk pnpm run test apps/server/src/application/context/mcp.test.ts apps/server/src/application/context/state-updates.test.ts packages/agent/src/engine/tool-loading.test.ts packages/agent/src/tools/tool-search/tool-search.test.ts packages/agent/src/entries/tool-loads.test.ts`：5 文件 9/9；补齐现有 MCP/State Update 组合边界。最新类型检查通过。
+
+- 2026-11-05 联合验收补充：15 号票已用真实 Sidecar 临时 SQLite 触发器补齐 AC-16 的 `tool_load` 提交失败，确认结果已提交、无加载/下一请求、WS commit_failed；详见[联合证据](../evidence/acceptance.md)。上面的 Runtime-only 记录保留其当时验证范围。

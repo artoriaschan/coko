@@ -13,13 +13,15 @@ import {
   pairedStateUpdates,
   trimOldToolResults,
   type ToolRegistry,
+  toolDefinitionChars,
+  withIncrementalTools,
 } from '@coko/agent'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import { getLogger } from '@coko/logging'
 import type { ContextBreakdown, ContextUsageResponse } from '@coko/protocol'
 import type { SessionEntry as StoredEntry } from '@coko/session'
-import { providedTools, type ContextAssembly } from './index.ts'
+import { availableTools, onDemandCatalog, providedTools, type ContextAssembly } from './index.ts'
 import type { ContextContribution, ContextContributionOptions, ContextScope } from './types.ts'
 
 const log = getLogger(['application', 'context', 'usage'])
@@ -59,6 +61,10 @@ export interface ContextUsageInput {
   scope: ContextScope
   /** 基础工具集（与运行时相同的工厂）。 */
   baseTools: ToolRegistry
+  /** Active Runs use admitted contributions; idle and draft views rediscover current tools. */
+  contributedTools?: readonly import('./types.ts').ContributedTool[]
+  declarationMessages?: readonly AgentMessage[]
+  incrementalTools?: boolean | undefined
   /** Session 的模型或缺省模型；没有时窗口、阈值与预警为 0。 */
   model: Model<any> | undefined
   /** Session 的条目；草稿为空。 */
@@ -69,9 +75,6 @@ export interface ContextUsageInput {
   /** 自动压缩因连续失败暂停（压缩的熔断，SessionService.compactionPaused）；缺省 false。 */
   autoCompactPaused?: boolean
 }
-
-const toolChars = (tool: { name: string; description: string; parameters: unknown }) =>
-  JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length
 
 const lastAssistantTimestamp = (messages: readonly AgentMessage[]) => {
   for (let i = messages.length - 1; i >= 0; i--) if (messages[i]!.role === 'assistant') return (messages[i] as { timestamp: number }).timestamp
@@ -101,7 +104,11 @@ function allocateUsage(breakdown: ContextBreakdown, tokens: number): ContextBrea
 export async function contextUsage(input: ContextUsageInput): Promise<ContextUsageResponse> {
   const { scope, model } = input
   const now = (input.now ?? Date.now)()
-  const [reports, contributed, sections] = await Promise.all([input.context.report(scope), input.context.tools(scope), input.context.systemSections(scope)])
+  const [reports, contributed, sections] = await Promise.all([
+    input.context.report(scope),
+    input.contributedTools ?? input.context.tools(scope),
+    input.context.systemSections(scope),
+  ])
 
   const instructions: ContextUsageResponse['instructions'] = []
   const diagnostics: ContextUsageResponse['diagnostics'] = []
@@ -110,7 +117,10 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     diagnostics.push(...(report.diagnostics ?? []))
   }
 
-  const tools = providedTools(input.baseTools, contributed, input.context, scope, input.entries).reduce((chars, tool) => chars + toolChars(tool), 0)
+  const selected = providedTools(input.baseTools, contributed, input.context, scope, input.entries)
+  const catalog = onDemandCatalog(contributed, availableTools(input.baseTools, contributed, input.context, scope), scope)
+  const transportModel = model && withIncrementalTools(model, Boolean(catalog.length && (input.incrementalTools ?? model.api !== 'openai-completions')))
+  const tools = toolDefinitionChars(transportModel, selected, input.declarationMessages ?? effectiveMessages(input.entries))
 
   const raw = effectiveMessages(input.entries)
   const trim = scope.config.context.trimOldToolResults
@@ -145,7 +155,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
       const system = message as { toolsAdded?: unknown[] }
       const declarations = system.toolsAdded?.length ? JSON.stringify(system.toolsAdded).length : 0
       chars.system += estimateMessageChars(message) - declarations
-      // pi 将历史声明合并到本次请求的工具清单；上面已经按最终定义计数。
+      // 共享估算器已按实际传输计入定义，避免在消息分项里再次累加。
     }
   }
   chars.prompt -= stateChars

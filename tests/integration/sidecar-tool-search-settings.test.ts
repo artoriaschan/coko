@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, configPaths, mcpPaths, permissionPaths, runPaths } from '@coko/protocol'
+import { API_ROUTES, apiPaths, configPaths, contextPaths, mcpPaths, permissionPaths, runPaths } from '@coko/protocol'
 import { stdioServerConfig } from '../fixtures/mcp/index.ts'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
@@ -112,7 +112,10 @@ it.each(['retry', 'continue'] as const)('snapshots the switch during approval an
   await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'search then call' })
   const approval = await waitApproval(h.stream, h.sessionId)
   expect(approval.toolName).toBe('mcp__demo__echo')
+  const usageBeforeSwitch = (await h.api.get(contextPaths.session(h.sessionId))).body
   await h.switchTo(false)
+  const usageAfterSwitch = (await h.api.get(contextPaths.session(h.sessionId))).body
+  expect(usageAfterSwitch.breakdown.tools).toBe(usageBeforeSwitch.breakdown.tools)
   expect((await h.api.post(apiPaths.sessionApproval(h.sessionId, approval.requestId), { decision: 'allow' })).status).toBe(204)
   let pause: { toolName: string; status: number } | undefined
   if (resume === 'continue') {

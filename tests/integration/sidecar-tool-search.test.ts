@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, configPaths, contextPaths, mcpPaths, permissionPaths } from '@coko/protocol'
 import { baseArgs, lines, runHeadless } from './headless-harness.ts'
@@ -52,6 +53,32 @@ async function setup(responses: unknown[], enabled: boolean | null = true) {
 }
 
 describe('on-demand MCP tools', () => {
+  it('reports commit_failed when real Sidecar SQLite rejects the durable load following its committed result', async () => {
+    const h = await setup([
+      { content: [{ type: 'toolCall', id: 'load-fault', name: 'tool_search', arguments: { query: 'select:mcp__demo__echo' } }] },
+      { content: 'must not reach this request' },
+    ])
+    // Genuine SQLite failure, installed while idle: no mocked store and no production fault switch.
+    const db = new DatabaseSync(join(h.dirs.dataDir, 'coko.db'))
+    try {
+      db.exec(
+        "CREATE TRIGGER reject_tool_load BEFORE INSERT ON session_entries WHEN NEW.kind = 'tool_load' BEGIN SELECT RAISE(ABORT, 'tool_load fixture rejection'); END",
+      )
+    } finally {
+      db.close()
+    }
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'load with a failing durable commit' })).status).toBe(202)
+    const ended = await h.stream.waitFor((message) => message.type === 'progress' && message.sessionId === h.sessionId && message.event.type === 'run_end')
+    const entries = h.stream.entries(h.sessionId)
+    expect(entries.filter((entry) => entry.kind === 'message' && (entry.payload as any).role === 'toolResult').map((entry) => entry.payload)).toMatchObject([
+      { toolCallId: 'load-fault', isError: false },
+    ])
+    expect(entries.some((entry) => entry.kind === 'tool_load')).toBe(false)
+    expect(ended).toMatchObject({ type: 'progress', event: { type: 'run_end', status: 'error', error: { code: 'commit_failed' } } })
+    expect(await jsonl(h.requestLog)).toHaveLength(1)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('announces a catalog, durably loads exact selections after their result, and executes the real MCP tool', async () => {
     const h = await setup([
       { content: [{ type: 'toolCall', id: 'search', name: 'tool_search', arguments: { query: 'select:mcp__demo__echo' } }] },

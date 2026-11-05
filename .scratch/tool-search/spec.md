@@ -13,9 +13,13 @@ Status: ready-for-agent
 
 本规格按 `to-spec` 汇总 2026-11-04 至 2026-11-05 本会话的需求。用户先指定检索采用 BM25、加载与恢复参考 Rukie；随后决定复刻程小帮 v1.10.1 的 ToolSearch、复用协议原生增量路径、自研搜索算法，并经 `grill-me` 逐项确认 Q1—Q27，最后确认了全部结论的汇总。
 
-用户改动或补充推荐的地方：复刻方向取代了 Q1“首版只用普通 tools 列表”的推荐；Q14 给出 Provider 开关的标题与文案；Q17 把开关从模型目录移到 Provider 表单、默认开启；Q21 让 openai-completions 也显示开关、默认关闭；Q26 让 openai-completions 下未标注支持的模型照常追加顶层 tools、不报错；Q27 改为按 pi 自带目录的标识判断、不追加说明。其余采用推荐。Q20 是 `to-spec` 第 2 步要求核对的测试接缝。设计把加载记录改为单独的条目，这一工程选择在调用 `/to-spec` 前已告知用户。产品需求因此为 `approved`。2026-11-05 已拆为 15 张实施票，尚未实施。
+用户改动或补充推荐的地方：复刻方向取代了 Q1“首版只用普通 tools 列表”的推荐；Q14 给出 Provider 开关的标题与文案；Q17 把开关从模型目录移到 Provider 表单、默认开启；Q21 让 openai-completions 也显示开关、默认关闭；Q26 让 openai-completions 下未标注支持的模型照常追加顶层 tools、不报错；Q27 改为按 pi 自带目录的标识判断、不追加说明。其余采用推荐。Q20 是 `to-spec` 第 2 步要求核对的测试接缝。设计把加载记录改为单独的条目，这一工程选择在调用 `/to-spec` 前已告知用户。产品需求因此为 `approved`。2026-11-05 拆为 15 张实施票，随后按用户显式调用 `implement-spec` 实现；本地联合验收与边界见下文。
 
 实现方式见 [Tool Search 设计](design.md)，复刻基准见 [程小帮研究](research/chengxiaobang.md)。在本文范围内，本次确认优先于 [MCP](../../docs/subsystems/mcp.md) 与 [上下文管理](../../docs/subsystems/context.md) 中“已连接 Server 的全部工具直接提供给模型”“用量计入全部 MCP 工具”的当前行为说明。既有约束见 [术语表](../../GLOSSARY.md)、[ADR 0024](../../docs/adr/0024-session-state-as-state-updates.md)、[ADR 0008](../../docs/adr/0008-project-files-only-tighten.md)、[ADR 0023](../../docs/adr/0023-assistant-reply-forks.md)、[ADR 0014](../../docs/adr/0014-subagents-as-child-sessions.md)、[ADR 0010](../../docs/adr/0010-provider-one-shot-save.md)、[界面约定](../../docs/tech-stack/ui.md)、[测试约定](../../docs/tech-stack/testing.md) 与 [tracker 协议](../../docs/agents/issue-tracker.md)。任务材料不加入正式文档导航。
+
+## 当前实施状态
+
+2026-11-05：01—15 号票的本地实现与联合验收已完成，见[联合证据](evidence/acceptance.md)。全局按需开关最终默认开启，三个协议依本规格选择写法。真实 Provider 的 AC-02/18 与缓存效果未验证；AC-16 的加载提交失败使用真实 Sidecar 与 SQLite 触发器；乐观中断精确切点在公开 Runtime 重建接缝验证，正常持久化与调用使用真实 Sidecar。规格继续保留 approved 基线，最终两轴审查由集成流程完成后再记录交付；设计稿仍 draft，未推送或发布。
 
 ## Problem Statement
 
@@ -229,6 +233,6 @@ MCP 工具默认成为按需工具（On-demand Tool）。每个 Run 开始时，
 
 - **与程小帮 v1.10.1 的有意差异。** 已加载集合保存在 Session 条目中，而不是会话字段；已公告名单不另存；Run 中途不刷新 MCP；开关按 Provider 而不按模型；openai-completions 按 pi 目录的标识判断；线上格式随 pi-ai 1.4.0，程小帮在 pi-ai 0.85.1 上的缓存实测不能沿用。
 - **目录预算的 token 估算。** Coko 没有 tokenizer：中日韩字符按 1 token、其余按 chars/4 估算，用户 2026-11-05 确认拆票时采用。设计的“实施时需确认”另列了五项实现核查，已分配到实施票。
-- **ADR 0024。** 新增一种 State Update 与该 ADR 的决定一致；实施时更新它的列举与[上下文管理](../../docs/subsystems/context.md#state-update)的说明。
-- **文档影响。** 实施后需要同步的当前文档见设计的“验证映射与实施顺序”；设计获批后再判断是否提炼 ADR。
-- **实施票。** 2026-11-05 拆为 15 张实施票，列表与阻塞关系见 [README](README.md#实施票)；下一步由用户调用 `/implement` 或 `/implement-spec`。
+- **ADR 0024。** 新增一种 State Update 与该 ADR 的决定一致；本次已更新它的列举与[上下文管理](../../docs/subsystems/context.md#state-update)的说明。
+- **文档影响。** 本次已同步的当前文档及 ADR 归属判断见[联合证据](evidence/acceptance.md#文档影响与-adr-判断)；设计提案的确认状态保持独立。
+- **实施票。** 2026-11-05 拆为 15 张实施票，列表与阻塞关系见 [README](README.md#实施票)；本地实施已完成，当前结果见[联合证据](evidence/acceptance.md)。

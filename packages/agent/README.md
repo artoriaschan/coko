@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "@coko/agent 的运行时入口、运行控制（steer、pause、continue）、M5 领域（外部 Hook、子代理、定时任务、交接）的纯函数与工具、工具契约（effect、permissionSubject、sandboxRequest、secrets、probeOutcome、执行上下文）、工具调度与执行记录（tool_exec、幂等键）、命令沙箱接缝与 Secrets 端口，以及 M6 领域（插件清单、lsp 工具、Agent Teams 的任务板与工具、追踪与导出、Memory 检索、MCP 认证状态、无人回答的审批）。注册宿主工具、装配运行时、实现执行端口或解读工具相关条目前查阅。"
+description: "@coko/agent 的运行时入口、运行控制（steer、pause、continue）、工具搜索与加载条目、原生传输估算、M5 领域（外部 Hook、子代理、定时任务、交接）的纯函数与工具、工具契约（effect、permissionSubject、sandboxRequest、secrets、probeOutcome、执行上下文）、工具调度与执行记录（tool_exec、幂等键）、命令沙箱接缝与 Secrets 端口，以及 M6 领域（插件清单、lsp 工具、Agent Teams 的任务板与工具、追踪与导出、Memory 检索、MCP 认证状态、无人回答的审批）。注册宿主工具、装配运行时、实现执行端口或解读工具相关条目前查阅。"
 lifecycle: active
 ---
 
@@ -12,7 +12,7 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 | 入口 | 内容 |
 | --- | --- |
-| `@coko/agent` | `createAgentRuntime`、工具注册表与内置工具、`CokoTool` 契约、`withTimeout`、Session Entry payload（`SESSION_ENTRY_PAYLOADS` 及各 kind 的 schema）、policy 与 ports（沙箱与 Secrets 的类型经 policy barrel 导出：`SandboxPolicy`、`LocalSandbox`、`SandboxUnavailableError`、`SecretProvider` 等）；模型层：`createModelRegistry`（推理开关打开的 Anthropic 模型以 adaptive thinking 的 effort 发送所选档位的参数值）、`selectableThinkingLevels`、`withIncrementalTools`（宿主按 Run 的目录与 Provider 开关选择 Messages / Responses 的原生增量写法，保留已有 compat）、`listProviderModels`（按协议请求供应商的模型列表；Anthropic 跟随 `has_more`，至多 `MAX_MODEL_PAGES` 页；失败为 `ListModelsError`，时限与脱敏由宿主负责）、`isHttpUrl` |
+| `@coko/agent` | `createAgentRuntime`、工具注册表与内置工具、`CokoTool` 契约、`withTimeout`、Session Entry payload（`SESSION_ENTRY_PAYLOADS` 及各 kind 的 schema）、policy 与 ports（沙箱与 Secrets 的类型经 policy barrel 导出：`SandboxPolicy`、`LocalSandbox`、`SandboxUnavailableError`、`SecretProvider` 等）；模型层：`createModelRegistry`（推理开关打开的 Anthropic 模型以 adaptive thinking 的 effort 发送所选档位的参数值）、`selectableThinkingLevels`、`withIncrementalTools`（宿主按 Run 的目录与 Provider 开关选择 Messages / Responses 或按 pi 公共目录匹配的 Completions 原生增量写法，保留已有 compat；Completions 按规范化 Base URL、完整模型 ID 与两项能力标识匹配，详见 [MCP](../../docs/subsystems/mcp.md#provider-的工具增量传输)）、`usesIncrementalTools`（判断实际启用的原生 compat）、`toolDefinitionChars`（与自动压缩共用的规范 schema 字符估算，按 pi 的传输折叠规则保留必要历史定义）、`listProviderModels`（按协议请求供应商的模型列表；Anthropic 跟随 `has_more`，至多 `MAX_MODEL_PAGES` 页；失败为 `ListModelsError`，时限与脱敏由宿主负责）、`isHttpUrl` |
 | `@coko/agent/entries` | 浏览器安全的条目派生（唯一实现）：`effectiveEntries(entries, { compacted? })`（回退区间；`compacted` 时再应用最后一个有效的 compaction）、`rewoundRanges`、`lastRunStatus`、`unansweredConfirmations`、`modelContext`（有效条目 → 模型消息，压缩后为合成摘要消息 + firstKeptSeq 及之后）、`JOB_NOTIFICATION_TAG`，以及定时任务表单用的 `upcomingOccurrences`、`validateRule`、`ScheduleRuleError`、`CronError`、`isValidTimeZone`、`parseAt`、`SCHEDULE_MIN_EVERY_SECONDS`。只导入 typebox、本目录与登记的纯模块（`tasks/schedules/{cron,rules}.ts`，其传递导入照样检查），server、renderer 与 agent 内部都从这里导入；`@coko/agent` 原样转出 |
 | `@coko/agent/testing` | faux 模型、临时 Workspace、grep 契约测试套件、导出回放 `loadExport`；只供测试文件导入 |
 

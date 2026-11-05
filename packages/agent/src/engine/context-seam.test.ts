@@ -111,8 +111,8 @@ describe('RunInput', () => {
       'run_start',
       'command',
       'message:user',
-      'message:assistant',
       'model_request',
+      'message:assistant',
       'run_end',
     ])
     expect(h.entries.every((e) => e.runId === result.runId)).toBe(true)
@@ -138,13 +138,13 @@ describe('RunInput', () => {
     expect(kinds).toEqual([
       'run_start',
       'message:user',
-      'message:assistant',
       'model_request',
+      'message:assistant',
       'message:toolResult',
       'command',
       'message:user',
-      'message:assistant',
       'model_request',
+      'message:assistant',
       'run_end',
     ])
 

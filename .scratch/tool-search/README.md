@@ -8,7 +8,7 @@ lifecycle: active
 
 2026-11-04：已完成公开仓库、Claude Code、本地 Rukie 和程小帮的实现研究。用户进一步指定加载和恢复参考 Rukie、检索采用 BM25，只出设计不写代码，在主仓库 main 提交。
 
-2026-11-05：用户决定复刻程小帮 v1.10.1 的 ToolSearch、复用协议原生增量路径、自研搜索算法，并在访谈中逐项确认结论；随后按 `to-spec` 汇总为规格（approved，Status: ready-for-agent），设计据此只保留实现方式。设计仍为 draft。随后按 `to-tickets` 拆为 15 张实施票，用户确认了拆分与阻塞关系；尚无 ADR，未改变产品行为。
+2026-11-05：用户决定复刻程小帮 v1.10.1 的 ToolSearch、复用协议原生增量路径、自研搜索算法，并在访谈中逐项确认结论；随后按 `to-spec` 汇总为规格（approved，Status: ready-for-agent），设计据此只保留实现方式。设计仍为 draft。随后按 `to-tickets` 拆为 15 张实施票，用户确认了拆分与阻塞关系；当时尚无新 ADR，未改变产品行为。
 
 - [Tool Search 规格](spec.md)：主入口；需求 TS-01—TS-27、界面文案与验收场景 AC-01—AC-23。
 - [Tool Search 设计](design.md)：实现方式；模块与接口、加载记录与恢复、各协议的原生增量写法、验证映射与待决问题。
@@ -22,9 +22,13 @@ lifecycle: active
 - [实现机制与 Coko 接入建议](research/implementation.md)：综合结论、源码证据、建议的数据流、边界与验证方法。
 - [Anthropic 与 MCP 一手资料](research/anthropic-mcp.md)：协议细节、历史保留、版本差异与待实测项。
 
+## 本地实施与验收
+
+2026-11-05，用户调用 `implement-spec` 后，01—15 号票已在集成分支 `codex/tool-search` 的逐票独立 worktree 实现并完成本地联合验收。最终按需开关默认开启；[联合证据](evidence/acceptance.md) 列出 AC-01—AC-23、用户故事、当前检查和未验证范围。真实 Provider 与缓存效果未验证；AC-16 的加载提交失败已在真实 Sidecar 以 SQLite 触发器验证；乐观加载的精确中断切点采用公开 Runtime 重建接缝。集成后的 Standards/Spec 两轴审查由当前流程继续执行，未推送或发布；提交标识以 Git 记录为准。设计稿仍是 draft，不因已有实现而自动变为已批准提案。
+
 ## 实施票
 
-2026-11-05 按 `to-tickets` 拆分，用户确认了粒度与阻塞关系。01、02 为前置重构；03 打通最小闭环，其中开关暂时默认关闭，11 号票改为默认打开并迁移现有 MCP 测试；15 联合验收与文档同步。各票均为 ready-for-agent，尚未实施。
+2026-11-05 按 `to-tickets` 拆分，用户确认了粒度与阻塞关系。01、02 为前置重构；03 打通最小闭环，其中开关暂时默认关闭，11 号票改为默认打开并迁移现有 MCP 测试；15 联合验收与文档同步。各票的分拣角色保留 ready-for-agent，完成状态另以 `Closed: true` 与逐票 Comments 表达；阻塞表保留原实施图。
 
 | 票 | Blocked by |
 | --- | --- |
@@ -44,7 +48,7 @@ lifecycle: active
 | [14 openai-completions 按 pi 目录使用原生写法](issues/14-completions-pi-catalog.md) | 12 |
 | [15 联合验收与文档同步](issues/15-integrated-acceptance-and-docs.md) | 04 至 14 |
 
-下一步由用户调用 `/implement` 逐票实施，或调用 `/implement-spec` 并行实施。规格与设计中，已确认的需求与其余工程选择分开标注；保存或提交不等于批准实施。
+当前实现与验证入口见[联合证据](evidence/acceptance.md)，不需要再次调用实施入口。规格的原始确认与设计提案状态分别保留；本地实现、审查、提交、推送和发布分别报告。
 
 ## 检查与保存状态
 
@@ -58,3 +62,5 @@ lifecycle: active
 - 2026-11-05：按 `to-spec` 新建规格（approved，Status: ready-for-agent）；设计第 3 节的已确认决定移入规格，验证表改为对应规格的验收编号。`pnpm run check:docs` 检查 381 个 Markdown 文件，0 个问题，退出码 0。改动只保存在本地工作区，未提交。
 - 2026-11-05：按 `to-tickets` 发布 15 张实施票（Status: ready-for-agent，均未关闭）；规格与设计稿记入已确认的目录预算 token 估算，设计稿“实施时需确认”的五项分配到票。`pnpm run check:docs` 检查 396 个 Markdown 文件，0 个问题，退出码 0；脚本核对 15 张票的票号、标题、状态与阻塞关系和本页表格一致。改动只保存在本地工作区，未提交。
 - 2026-11-05：按用户要求，把上面三条记录中尚未提交的改动（规格、设计稿、程小帮研究的 v1.10.1 一节、GLOSSARY 的两个术语与 15 张实施票）一并提交到本地 main，未推送远端；提交标识以 Git 记录为准。
+
+- 2026-11-05：`implement-spec` 本地实施与联合验收已完成；新建[联合证据](evidence/acceptance.md)，补齐活动 Run 工具用量快照与原生历史定义估算。正式文档同步，真实 Provider/缓存/原生指针/安装包/CI 保持未验证。最终检查和本地提交以 15 号票 Comments 为准。
