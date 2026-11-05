@@ -58,6 +58,8 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。
 
+运行时重建时，若首条已提交消息只是无正文的 `toolsAdded` / `toolsRemoved` 工具声明，会在它之前补回不提交的基础提示，并按当前 Run 更新 system sections；原工具声明保持顺序回放，不重复登记工具。历史以带正文的 system 消息开头时保留原消息。
+
 `<environment>` 给出 Session 的固定工作目录（Worktree Session 为其中的工作目录）、Project 附加文件夹、是否为 git 仓库与 linked worktree、平台、命令执行实际使用的 shell、OS 版本、当前 Provider / 模型和 Sidecar 的 IANA 时区。不包含 git status、日期与时刻。git 仓库从工作目录向上发现 `.git`；`.git` 文件指向的 gitdir 含 `commondir` 才视为 linked worktree，避免把 submodule 当作 worktree。绑定的 Worktree Session 同样标为 worktree。
 
 托管的独立会话在环境之后额外提供 `<standalone_directory>`（section 名 `standalone-directory`）：给出会话根，说明中间文件和脚本写在 `work/`、最终交付写在 `outputs/`，不在会话根其他位置创建文件。项目及旧版无 `directory` 的会话不注入。共享该目录的子代理、分叉和当前目录交接保留相同约定。
