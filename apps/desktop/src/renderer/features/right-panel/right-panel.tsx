@@ -1,7 +1,7 @@
 import { PanelAttention, PanelStart, PanelTabs } from '@coko/ui'
 import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightCloseIcon } from 'lucide-react'
 import { useStore } from 'zustand'
-import { useChat } from '../../app/chat.tsx'
+import { useChat, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
@@ -24,9 +24,13 @@ export function RightPanel({
   const diagnostics = useSettings((state) => state.developer.sessionDiagnostics)
   const sessionId = useChat((s) => s.activeSessionId)
   const attention = useStore(rightPanelLayoutStore, (state) => (state.attention?.sessionId === sessionId ? state.attention.revision : null))
-  const layout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
+  const storedLayout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
+  const session = useCurrentSession()
+  const visible = visibleRightPanelTabs(tabs, diagnostics, !!session?.directory && !session.projectId)
   if (sessionId === null) return null
-  const visible = visibleRightPanelTabs(tabs, diagnostics)
+  const kinds = storedLayout.tabs.filter((kind) => kind === 'start' || visible.some((tab) => tab.id === kind))
+  const pageKinds: typeof kinds = kinds.length ? kinds : ['start']
+  const layout = { ...storedLayout, tabs: pageKinds, active: pageKinds.find((kind) => kind === storedLayout.active) ?? pageKinds[0]! }
   const current = visible.find((tab) => tab.id === layout.active)
   const pages = visible.map((tab) => ({ id: tab.id, title: t(tab.label), icon: <tab.icon aria-hidden className="size-5 shrink-0" /> }))
   const panelTabs = layout.tabs.flatMap((kind) => {

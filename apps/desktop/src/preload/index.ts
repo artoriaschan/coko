@@ -14,6 +14,7 @@ import {
 if (location.protocol === 'coko-app:' && location.host === 'app') {
   const bridge: CokoBridge = {
     boot: () => ipcRenderer.invoke(IPC.boot) as Promise<BootResult>,
+    revealFile: (path) => ipcRenderer.invoke(IPC.revealFile, path) as Promise<boolean>,
     openFile: (path) => ipcRenderer.invoke(IPC.openFile, path) as Promise<boolean>,
     openDirectory: (path) => ipcRenderer.invoke(IPC.openDirectory, path) as Promise<boolean>,
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,

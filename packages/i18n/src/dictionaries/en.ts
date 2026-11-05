@@ -2,6 +2,22 @@ import type { zh } from './zh.ts'
 
 // 基础字典（M2 及之前）；M3 起的文案在 domains/。
 export const en: typeof zh = {
+  artifacts: {
+    tab: 'Artifacts',
+    folder: 'outputs/',
+    refresh: 'Refresh artifacts',
+    loading: 'Loading artifacts',
+    files: 'Delivery files',
+    empty: 'No delivery files yet. Files in outputs/ appear here.',
+    loadFailed: 'Could not load delivery files. Refresh to try again.',
+    open: 'Open {name}',
+    reveal: 'Show {name} in Finder',
+    copy: 'Copy path of {name}',
+    expand: 'Expand {name}',
+    collapse: 'Collapse {name}',
+    copied: 'Path copied',
+    actionFailed: 'The file may have moved or been deleted. Refresh and try again.',
+  },
   app: {
     name: 'Coko',
   },

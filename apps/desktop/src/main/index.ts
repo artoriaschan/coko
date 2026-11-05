@@ -1,7 +1,7 @@
 import { open } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { applicationMenuTemplate } from './application-menu.ts'
-import { openDirectory, openFile } from './open-directory.ts'
+import { openDirectory, openFile, revealFile } from './open-directory.ts'
 import { allowPermission } from './permissions.ts'
 import { FILE_ATTACHMENT_MAX_BYTES, IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
 import { basename, extname, join, resolve } from 'node:path'
@@ -356,6 +356,10 @@ function run(): void {
         pickingFiles = undefined
       })
     return pickingFiles
+  })
+  ipcMain.handle(IPC.revealFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    return revealFile(path, shell)
   })
   ipcMain.handle(IPC.openFile, async (event, path: unknown) => {
     assertMainFrame(event)

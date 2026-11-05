@@ -1,3 +1,4 @@
+import type { ArtifactService } from './artifacts.ts'
 import type { BranchService } from './branches.ts'
 import type { ProjectService } from './projects.ts'
 import type { FirstSendService } from './first-send.ts'
@@ -28,6 +29,7 @@ import type { WorkspaceService } from './workspaces.ts'
 
 /** application 层的全部入口，由 runtime 装配，http / ws 只经这里访问业务。 */
 export interface Application {
+  artifacts: ArtifactService
   store: SessionStore
   hub: SessionHub
   sessions: SessionService
