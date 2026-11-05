@@ -1,0 +1,26 @@
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_2221777a326bbd 61-62
+packages/agent/src/engine/system-message-rebuild.test.ts
+  s_dd1034265ded7f::t_6bbd79bfb7fe51 57-58,60
+  s_dd1034265ded7f::t_36ccdc391bf386 61
+  s_dd1034265ded7f::t_4628929e5fc57f 1-29,31-36,38-56,62-99,101-102,104-108,111-113
+packages/agent/src/engine/system-message.ts
+  s_dd1034265ded7f::t_295215ccc40a66 33,42,44,46
+  s_dd1034265ded7f::t_4789a8b0ab790a 3,43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "e95cd0f67ab05e9bd33d29aeaca2dd3466e1d781",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
