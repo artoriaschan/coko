@@ -18,7 +18,7 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 启动时先渲染品牌加载屏（[startup-screen.tsx](../../apps/desktop/src/renderer/app/startup-screen.tsx)）：覆盖整个窗口、背景取 `--background`、顶部 48px 保持窗口拖拽，正文居中展示 250px 圆形品牌角色。渲染进程在 Sidecar 连接后读取设置，等设置进入 `ready` 或 `error` 后先应用已保存的语言与主题，并确定开发者页面的可用条件，再渲染工作台；因此首帧就是保存的语言，不再出现“系统英文 → 应用中文”的闪动。连接失败或超过 10 秒仍无设置时也进入工作台，由工作台展示连接错误，避免一直停在加载屏。
 
-侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。
+侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。设置 → 常规可只读查看主数据根与对话/项目根，并打开目录；路径来源与错误处理见[存储位置](configuration.md#主数据根与启动路径)。
 
 [导航 store](../../apps/desktop/src/renderer/app/workbench-navigation.ts) 保存当前窗口中的内容区位置：会话、新对话、插件或定时任务。新位置清空前进历史，连续访问同一位置不重复记录；后退和前进跳过当前列表中已经不存在的会话，因此删除或归档后的会话不会重新打开。首次列表加载不制造一次额外的历史访问。外部入口打开会话也更新内容区位置。
 
@@ -46,11 +46,11 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 右栏关闭时，标题行末尾显示面板图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
-右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口包含计划、后台任务、子代理、定时任务、团队、追踪；有专属目录的独立会话还在首位显示 Artifacts；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
 布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
 
-右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。开始页以淡色罗盘和单列横向卡片呈现入口，图标与标题左对齐，窄或矮面板中卡片保持可滚动、可通过键盘到达；几何见[设计系统](../tech-stack/ui-design-system.md#右栏-tab-条与引导页)。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
+右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。开始页以淡色罗盘和单列横向卡片呈现入口，图标与标题左对齐，窄或矮面板中卡片保持可滚动、可通过键盘到达；几何见[设计系统](../tech-stack/ui-design-system.md#右栏-tab-条与引导页)。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。各页面的正文与数据来源继续遵循各子系统契约。
 
 tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/End 只移动焦点，Enter/空格选择页面；⌘/Ctrl+Shift+左右方向键移动聚焦的 tab 并保留活动页面。指针排序复用 `@dnd-kit/core`。tab 可以用关闭按钮、中键，或共享右键菜单中的“关闭”“关闭其他标签页”“关闭右侧标签页”关闭，批量关闭仅影响当前 Session；唯一的引导页中键与右键均无效。tab 溢出时横向滚动并按滚动位置渐隐，后面的新标签页与收起按钮不被压缩；实际截断的标题在悬停或键盘聚焦时通过 Tooltip 显示全文。
 
@@ -134,9 +134,9 @@ Run 状态和耗时读取真实开始/结束记录；缺失起点或可信终点
 
 [新对话 store](../../apps/desktop/src/renderer/stores/new-chat-store.ts) 独立保存草稿身份、归属与 Git 配置、模型、档位、权限与图片引用；`ChatStore` 的既有选择动作转交此 store，不复制另一份状态。配置存为 `coko.new-chat.v1`，文字与 File Reference 的 EditorState 存为 `coko.draft.new-chat`。切换会话、内容页或重启后恢复；旧的 `coko.draft.workspace.*` 键不再读取，初始化时清除。已有会话草稿仍按 Session 保存。新草稿模型显示第一个供应商目录中的第一个模型，档位关闭。
 
-`POST /api/chats/first-send` 接收草稿身份、文字、图片、权限模式、模型与档位，以及可选的 `projectId`。选择项目时使用发送当时项目的主要 Workspace 并保存归属，不创建专属目录；项目不存在时拒绝。独立发送时，服务端在用户可见目录根（默认 `~/Coko/chats`，可用绝对路径环境变量 `COKO_CHATS_ROOT` 覆盖）下独占创建日期加短随机后缀的目录，登记独立 Workspace，创建初始配置已经生效的会话，然后提交第一条消息。此路径不会自动创建项目。首条消息标题取去空白后的首行，按 Unicode 字符最多 20 个；只有 File Reference 或图片时用“附件：”加文件名，多个文件名用“、”连接。
+`POST /api/chats/first-send` 接收草稿身份、文字、图片、权限模式、模型与档位，以及可选的 `projectId`。选择项目时使用发送当时项目的主要 Workspace 并保存归属，不创建专属目录；项目不存在时拒绝。独立发送时，服务端在用户可见目录根（默认 `<Documents>/Coko`（desktop main 解析系统 Documents），可用绝对路径环境变量 `COKO_CHATS_ROOT` 覆盖）下按本地日期创建 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>` 会话根与 `work/`、`outputs/`。短名冲突时回退完整 sessionId，已占用的完整名也不会覆盖。登记的 Workspace 是根，名称固定为“独立对话 · yyyy-MM-dd”；Session 保存 `directory` 与 `cwd=directory/work`，然后提交第一条消息。此路径不会自动创建项目。首条消息标题取去空白后的首行，按 Unicode 字符最多 20 个；只有 File Reference 或图片时用“附件：”加文件名，多个文件名用“、”连接。
 
-[首次发送服务](../../apps/server/src/application/first-send.ts) 对同一草稿共享进行中的请求，以草稿身份的 SHA-256 派生内部会话键；已经持久化的首条用户消息与 Run 身份是重启后重试的结果凭证，不新增 schema 版本或草稿映射表。HTTP 成功返回之前等待运行时已提交的用户消息事件，而不是同步 `run_start` 进度。重复提交不再启动 Run。目录、模型校验、Hook 拒绝或接受前失败时，删除本次新建会话、未被引用的 Workspace 与专属目录；首条消息接受后发生模型错误保留会话。清理不操作其他源目录。
+[首次发送服务](../../apps/server/src/application/first-send.ts) 对同一草稿共享进行中的请求，以草稿身份的 SHA-256 派生内部会话键；已经持久化的首条用户消息与 Run 身份是重启后重试的结果凭证，不新增草稿映射表；v12 的 `sessions.directory/cwd` 记录实际分配目录与固定工作目录。HTTP 成功返回之前等待运行时已提交的用户消息事件，而不是同步 `run_start` 进度。重复提交不再启动 Run。目录、模型校验、Hook 拒绝或接受前失败时，删除本次新建会话、未被引用的 Workspace 与专属目录；首条消息接受后发生模型错误保留会话。清理不操作其他源目录。
 
 renderer 提交期间禁止重复首次发送，失败时保留文字与配置并通过应用级 Toast 反馈；成功后清空提交的草稿并进入同一个会话，用户等待期间已打开其他会话时不抢回焦点。列表恢复仍由列表 store 管理，新欢迎页不会生成空会话。
 
@@ -210,17 +210,17 @@ Token 胶囊只汇总本 Session 已提交的条目，包括主循环、压缩�
 
 ## 文件附件
 
-附件按钮经受控 preload 打开系统多文件选择，主进程校验发送者为应用主窗口主框架，重复打开共用一次对话框。非图片文件仍只传路径：已有会话以 Session DTO 的 `cwd` 判定实际工作目录，旧 DTO 缺少此字段时回退到原 Workspace 路径；首次发送前的项目草稿仍以主要 Workspace 判定，尚未创建的 worktree 不作为附件根。目录内插入与 @ 相同的 File Reference 节点，目录外插入绝对路径，不复制内容；外部文件读取继续由现有权限规则处理。粘贴和拖入非图片的 `File` 通过 `webUtils.getPathForFile` 获取路径。
+附件按钮经受控 preload 打开系统多文件选择，主进程校验发送者为应用主窗口主框架，重复打开共用一次对话框。选择、粘贴和拖入的普通文件作为显式附件，不再转换为 @ File Reference 或原路径文字；手动输入的 @ 引用继续按[上下文管理](context.md)展开。普通文件单个上限为 32 × 1024 × 1024 字节；选择的文件由主进程检查，浏览器 `File` 在读入前检查，超限在输入区说明原因。原生 File 有路径时仅保存路径；没有本机路径的粘贴 File 以 base64 暂存。
 
-worktree 会话选择主检出的文件时保留其绝对路径，不误写为指向 worktree 同名文件的相对引用；选择 worktree 内文件则相对于实际会话目录。真实路径映射与只读元数据见 [Worktree](worktrees.md#会话绑定与工作目录)，端到端覆盖见 [worktree 附件](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。
+图片支持 PNG、JPEG、GIF 与 WebP，模型输入类型必须含 `image`。选择的图片经受控 `readPickedImage` IPC 读取，主进程只读取本窗口已经选择的路径，限制读取字节数；粘贴或拖入的图片直接读取浏览器 `File`。单张上限为 4.5 × 1024 × 1024 字节，不缩放。图片缩略图与普通文件标签都有可访问的移除按钮；只有附件没有文字也能发送。
 
-图片支持 PNG、JPEG、GIF 与 WebP。当前模型的输入类型含 `image` 时，选择、粘贴和拖入都能添加；否则立即说明原因。选择的图片经受控 `readPickedImage` IPC 读取，主进程只读取本窗口已经选择的路径，限制读取字节数；粘贴或拖入的图片直接读取浏览器 `File`，无需磁盘路径。单张上限为 read 工具相同的 4.5 × 1024 × 1024 字节，不缩放。图片缩略图带可访问名称与移除按钮；没有文字但有图片时允许发送。
+[附件草稿存储](../../apps/desktop/src/renderer/stores/image-drafts.ts) 在 IndexedDB `coko.image-drafts` 分别保存图片与文件草稿，文字 EditorState 不嵌入二进制。新对话的 `imageRefs`、已有会话的 `.images` 键，以及文件草稿引用仅保存不透明 id。切换会话、重新挂载及重启后恢复；尚未发送时不写主数据根的附件目录。发送失败保留文字、附件与配置，接受后只删除本次提交的引用及 IndexedDB 条目。当前 Run 进行中时附件保留，追加指令只传文字并反馈等待原因。
 
-[图片草稿存储](../../apps/desktop/src/renderer/stores/image-drafts.ts) 将图片 bytes 存入 IndexedDB `coko.image-drafts`，文字 EditorState 不嵌入图片。新对话配置的 `imageRefs` 与已有 Session 草稿的 `.images` 键只保存不透明引用；切换会话、重新挂载及重启后从 IndexedDB 恢复。发送失败或切换到不支持图片的模型时保留文字、图片与配置，发送明确拒绝；成功接受后删除本次发送的引用及 IndexedDB 图片。当前 Run 进行中时，图片保留到运行结束后发送，追加指令仍只传文字并明确反馈等待原因。
+首次发送和已有会话提交协议接收 `images` 与 `files`。普通文件的来源为 `{name,path}` 或 `{name,data}`，不会从用户文字解析任意路径进行复制。Sidecar 在 Run 与用户消息产生前独立校验图片能力、base64、签名和大小，并以有界读取把所有附件复制到 `data/attachments/<sessionId>/<随机 id>-<原名>`。部分复制或开始 Run 失败会移除本次副本，不发送消息；重试仍使用原草稿。只有动作命令的提交不能携带附件。
 
-首次发送和已有会话的提交协议均接收 `images`，文字可为空。Sidecar 在用户消息与 Run 产生前重新检查解析后模型的图片能力、base64、签名与 read 图片大小上限，不信任 renderer。图片作为 `{ type: 'image', data, mimeType }` 内容块持久化并交给 Agent，普通文字、文件引用与 Hook 上下文保持原顺序。时间线只为 raster MIME 与合法 base64 渲染图片，不嵌入 SVG 或外部 HTML。带图片的动作命令拒绝发送，避免无声丢弃图片。
+消息以 `<coko_attachment>` 文本块保存副本的名称与绝对路径，模型可据此读取当前会话的副本目录；该目录作为额外只读根，不授予写入权限。图片继续以原有 `{type:'image',data,mimeType}` 块持久化并传给模型。时间线保留图片预览，并将副本渲染为可用默认应用打开的附件标签，原文件移动或删除后历史仍指向副本。原生打开入口仅接受已有的绝对文件路径，打开失败在附件旁提示。分支会将边界内的副本复制到新会话目录并重写引用，因此删除源会话不影响分支附件；分支复制或条目提交失败时回滚新副本与新会话。旧图片消息无需转换。
 
-验证：[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[真实 Electron 图片选择、提交与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
+Worktree 与主检出中的同名文件分别从实际选择的路径复制，不以 cwd 重写来源。验证见 [worktree 附件](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。其他证据：[附件 Sidecar 协议](../../tests/integration/sidecar-attachments.test.ts)、[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[历史附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)、[真实 Electron 文件草稿、上限、副本与重启](../../apps/desktop/e2e/attachments.e2e.test.ts)、[图片选择与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
 
 ## 对话工具摘要与详情
 
@@ -259,6 +259,18 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 新 Session 包含所选回复及之前的有效模型上下文（含思考、工具调用与结果），先按边界截取再选择当时的压缩摘要，排除后来消息和摘要。自动打开且输入为空；源条目、源草稿与当前文件不变。沿用源 Project、模型、推理档位及实际 Worktree 目录；助手分支采用源当前权限状态。分支共享当前文件，不创建 Worktree 或恢复旧代码。旧用户锚点 API 保持目标之前与回填原始调用的兼容语义。
 
 复制消息的原提交时间、成功最终回复证明和来源计量存于 `fork_origin` 来源表。历史底栏复用同一计量汇总器读取来源事实，旧消耗不计入新 Session；可信复制回复可再次分支。旧 Fork 无法证明原消息时间或成功资格时不补造事实，复制落盘时刻不显示为原发送时间。后继决定见 [ADR 0023](../adr/0023-assistant-reply-forks.md)。验证：[App 分支](../../apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx)、[Sidecar 上下文](../../tests/integration/sidecar-rewind.test.ts)、[静默 Electron](../../apps/desktop/e2e/message-footers.e2e.test.ts)。
+
+## Artifacts 交付文件
+
+拥有 `directory` 且不属于 Project 的独立会话，在右栏“开始”页提供 Artifacts。项目会话和没有专属目录的旧会话不显示该入口；会话移入项目后，已有的 Artifacts 页面也从该会话的可见标签中移除，当前页面回到其他可用页或“开始”。布局仍沿用每个 Session 的本地保存规则。
+
+Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Session Entry，也不保存历史版本。面板挂载时读取，完成每次读取后约一秒再扫描；关闭页面或切换会话会中止请求并清理计时器。手动刷新和重新打开同样重新扫描。空态说明 `outputs/` 暂无交付文件；读取失败时保留最近一次清单并提供刷新，删除的文件在下一次成功扫描后消失。
+
+[Artifact 服务](../../apps/server/src/application/artifacts.ts)递归列出普通文件与目录，跳过隐藏项、符号链接和其他特殊文件；`outputs/` 自身被替换为符号链接时拒绝读取。文件树显示名称、相对路径和大小，目录可以展开与收起。文件名打开默认应用，行尾可以在 Finder 中显示或复制绝对路径。打开、显示与复制前，服务端重新解析路径并核对其仍处于当前 `outputs/` 内；条目已经消失或变成链接时拒绝操作并提示刷新。renderer 只经 HTTP 获取清单与解析结果，原生打开/显示由受控 preload bridge 转交 main。
+
+协议位于 [artifacts.ts](../../packages/protocol/src/artifacts.ts)：`GET /api/sessions/:id/artifacts` 返回扁平清单，每项有 `path`（正斜线相对路径）、`name`、`kind`、`size` 和 `modifiedAt`（文件系统毫秒时间）；目录大小为 0。`POST /api/sessions/:id/artifacts/resolve` 接收相对 `path` 并返回当前绝对路径。项目/旧会话返回 404，非法路径返回 400，越界链接和被替换的根返回 403，已消失的条目返回 404。
+
+验证：[真实 Sidecar 文件树与边界](../../tests/integration/sidecar-artifacts.test.ts)、[Browser Mode 文件操作、刷新、错误保留与窄面板](../../apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx)、[后台 Electron 面板与原生 bridge](../../apps/desktop/e2e/artifacts.e2e.test.ts)。Electron 用例保留真实 preload/main 调用链，只在系统 `shell` 边界记录打开/显示路径，不启动用户的外部文件应用；Windows 实机及真实 Finder 前台交互未验证。
 
 ## 验证入口
 

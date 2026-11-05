@@ -12,6 +12,8 @@ import {
 import { getLogger } from '@coko/logging'
 import type { Checkpoint, RewindResponse, ForkBoundary } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
+import { standaloneWriteRoots } from './session-directory.ts'
+import { sessionProject } from './session-project.ts'
 import { AppError } from './errors.ts'
 import type { SessionRecovery } from './recovery.ts'
 import type { SessionCwd } from './session-runs.ts'
@@ -20,6 +22,8 @@ import { requireSession, type SessionRuntimes } from './session-runtimes.ts'
 const log = getLogger(['application', 'sessions'])
 
 export interface SessionCheckpointsOptions {
+  attachments?: import('./attachments.ts').AttachmentStore
+  sessionFiles?: import('./session-files.ts').SessionFiles
   store: SessionStore
   runtimes: SessionRuntimes
   recovery: SessionRecovery
@@ -117,7 +121,13 @@ export class SessionCheckpoints {
           if (!workspace) throw new AppError('not-found', `Workspace ${session.workspaceId} not found`)
           // 边界为会话的工作目录（ADR 0016：Checkpoint 路径与会话目录一致）；Workspace 为仓库子目录时 worktree 不在 Workspace 目录之下。
           const cwd = this.#options.cwd ? await this.#options.cwd.resolve(session, workspace) : workspace.path
-          files = await restoreFiles(planned.files, this.#options.files, { workspace: await realLocation(cwd), dryRun })
+          const directory = session.directory
+          const standalone = directory && !(await sessionProject(store, session))
+          files = await restoreFiles(planned.files, this.#options.files, {
+            workspace: await realLocation(cwd),
+            ...(standalone ? { writeRoots: await standaloneWriteRoots(directory) } : {}),
+            dryRun,
+          })
         }
         if (!dryRun && planned.entry) {
           await runtimes.commit(sessionId, planned.entry)
@@ -157,13 +167,26 @@ export class SessionCheckpoints {
       const forked = plan(() => forkEntries(entries, sessionId, targetSeq, boundary))
       const session = await store.sessions.createSession({
         workspaceId: source.workspaceId,
+        directory: source.directory,
+        cwd: source.cwd,
         projectId: source.projectId,
         worktreeId: source.worktreeId,
         title: title?.trim() || source.title,
         model: source.model,
         thinkingLevel: source.thinkingLevel,
       })
-      await recovery.commitBatch(session.id, forked.entries)
+      let copies: Awaited<ReturnType<NonNullable<SessionCheckpointsOptions['attachments']>['fork']>> | undefined
+      let outputs: Awaited<ReturnType<NonNullable<SessionCheckpointsOptions['sessionFiles']>['fork']>> | undefined
+      try {
+        copies = await this.#options.attachments?.fork(session.id, forked.entries)
+        outputs = await this.#options.sessionFiles?.fork(source.id, session.id, copies?.entries ?? forked.entries)
+        await recovery.commitBatch(session.id, outputs?.entries ?? copies?.entries ?? forked.entries)
+      } catch (error) {
+        await outputs?.rollback()
+        await copies?.rollback()
+        await store.sessions.deleteSession(session.id)
+        throw error
+      }
       log.info('session forked', { sessionId, forkedSessionId: session.id, targetSeq, entries: forked.entries.length })
       return { sessionId: session.id, text: forked.text }
     })

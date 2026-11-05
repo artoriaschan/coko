@@ -11,3 +11,27 @@ export async function openDirectory(path: unknown, shell: { openPath(path: strin
     return false
   }
 }
+
+/** Files use the same narrow shell boundary as folders. */
+export async function openFile(path: unknown, shell: { openPath(path: string): Promise<string> }): Promise<boolean> {
+  if (typeof path !== 'string' || !isAbsolute(path)) return false
+  try {
+    if (!(await stat(path)).isFile()) return false
+    return (await shell.openPath(path)) === ''
+  } catch {
+    return false
+  }
+}
+
+/** Reveal an existing absolute local file or directory in the system file manager. */
+export async function revealFile(path: unknown, shell: { showItemInFolder(path: string): void }): Promise<boolean> {
+  if (typeof path !== 'string' || !isAbsolute(path)) return false
+  try {
+    const info = await stat(path)
+    if (!info.isFile() && !info.isDirectory()) return false
+    shell.showItemInFolder(path)
+    return true
+  } catch {
+    return false
+  }
+}

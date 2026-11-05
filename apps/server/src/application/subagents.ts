@@ -356,6 +356,7 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
       if (worktree) this.#recovery.isolate(parentId, worktree.path, true)
       const child = await sessions.createSession({
         workspaceId: parent.workspaceId,
+        ...(!worktree ? { directory: parent.directory, cwd: parent.cwd } : {}),
         title: request.description,
         parentSessionId: parentId,
         model,

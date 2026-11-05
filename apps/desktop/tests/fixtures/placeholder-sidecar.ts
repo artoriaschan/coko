@@ -43,7 +43,7 @@ async function waitForGate(): Promise<void> {
 process.stderr.write(`placeholder sidecar mode=${mode}\n`)
 if (process.env.COKO_FIXTURE_STDERR) process.stderr.write(process.env.COKO_FIXTURE_STDERR + '\n')
 const spawnedBefore = eventsPath !== undefined && existsSync(eventsPath) && readFileSync(eventsPath, 'utf8').includes('"event":"spawned"')
-record({ event: 'spawned', mode, argv: process.argv.slice(2) })
+record({ event: 'spawned', mode, argv: process.argv.slice(2), cokoHome: process.env.COKO_HOME, chatsRoot: process.env.COKO_CHATS_ROOT })
 send({ type: 'starting' })
 await waitForGate()
 

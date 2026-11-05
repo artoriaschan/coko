@@ -1,3 +1,5 @@
+import { ArtifactService } from '../application/artifacts.ts'
+import { AttachmentStore } from '../application/attachments.ts'
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
 import {
@@ -325,14 +327,16 @@ const AssemblyLive = Layer.effect(
     // ── mcp ──
     const mcp = new McpManager({
       store,
+      dataRoot: join(sidecar.dataDir, 'mcp'),
       config,
       secrets,
       plugins,
       // stdio Server 登记为 mcp（ADR 0012），传输关闭后删除。pi-mcp 在 POSIX 上以独立进程组（detached，pgid = pid）启动它，登记进程组使
       // 孤儿清理覆盖 Server 派生的子进程（例如经 npx 启动的 Server）；Windows 没有进程组。
-      createTransport: (server, { cwd, authProvider }) =>
+      createTransport: (server, { cwd, dataDir, authProvider }) =>
         createMcpTransport(server, {
           cwd,
+          dataDir,
           env,
           authProvider,
           onProcess: ({ pid, command }) => processes.track({ pid, ...(process.platform === 'win32' ? {} : { pgid: pid }), kind: 'mcp', command }),
@@ -582,6 +586,7 @@ const AppLive = Layer.effect(
     const providers = new ProviderService({ store, registry, invalidateCredential: (id) => credentials.invalidate(id) })
     yield* Effect.promise(() => providers.load())
     const sessions: SessionService = new SessionService({
+      attachments: new AttachmentStore(join(config.dataDir, 'attachments')),
       store,
       ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2 } : {}),
       clock,
@@ -589,6 +594,7 @@ const AppLive = Layer.effect(
       hub,
       runs,
       tools: workspaceTools,
+      toolResultsRoot: join(config.dataDir, 'tool-results'),
       secrets: secrets.provider,
       extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
@@ -747,8 +753,9 @@ const AppLive = Layer.effect(
       providers,
       firstSend: new FirstSendService({ store, sessions, worktrees, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
+      storage: { home: config.cokoHome, chatsRoot: config.chatsRoot },
       workspaces: new WorkspaceService(store),
-      projects: new ProjectService(store, sessions),
+      projects: new ProjectService(store, sessions, config.chatsRoot),
       config: capabilities,
       context: new ContextService({
         store,
@@ -775,6 +782,7 @@ const AppLive = Layer.effect(
       lsp,
       teams,
       trace,
+      artifacts: new ArtifactService(store),
     } satisfies Application
   }),
 )

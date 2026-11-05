@@ -5,6 +5,8 @@ export const API_ROUTES = {
   /** main 用启动令牌一次性交换会话 cookie；不经 renderer 代理。 */
   authExchange: '/api/auth/exchange',
   health: '/api/health',
+  /** GET：运行中的只读存储路径（StoragePathsResponse）。 */
+  storage: '/api/storage',
   /** WebSocket 升级入口。 */
   stream: '/api/ws',
   workspaces: '/api/workspaces',
@@ -60,12 +62,17 @@ export type AuthExchangeRequest = Static<typeof AuthExchangeRequest>
 export const HealthResponse = Type.Object({ status: Type.Literal('ok') }, { additionalProperties: false })
 export type HealthResponse = Static<typeof HealthResponse>
 
+/** 运行时目录，不属于可编辑的 settings。 */
+export const StoragePathsResponse = Type.Object({ home: Type.String(), chatsRoot: Type.String() }, { additionalProperties: false })
+export type StoragePathsResponse = Static<typeof StoragePathsResponse>
+
 /** 带参数的业务路径。 */
 export const apiPaths = {
   project: (id: string) => `${API_ROUTES.projects}/${encodeURIComponent(id)}`,
   projectPin: (id: string) => `${apiPaths.project(id)}/pin`,
   projectName: (id: string) => `${apiPaths.project(id)}/name`,
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
+  sessionDeletePreview: (id: string) => `${apiPaths.session(id)}/delete-preview`,
   sessionProject: (id: string) => `${apiPaths.session(id)}/project`,
   sessionArchive: (id: string) => `${apiPaths.session(id)}/archive`,
   sessionRestore: (id: string) => `${apiPaths.session(id)}/restore`,

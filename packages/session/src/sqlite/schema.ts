@@ -327,6 +327,12 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('ALTER TABLE projects ADD COLUMN primary_folder_index INTEGER NOT NULL DEFAULT 0 CHECK (primary_folder_index >= 0)')
     },
   },
+  {
+    version: 12,
+    up(db) {
+      db.exec('ALTER TABLE sessions ADD COLUMN directory TEXT; ALTER TABLE sessions ADD COLUMN cwd TEXT;')
+    },
+  },
 ]
 
 /**

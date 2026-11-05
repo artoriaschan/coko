@@ -11,6 +11,7 @@ import { usePreferences, useSettings, useSettingsActions } from '../../app/setti
 import { configStore } from '../../stores/config-store.ts'
 import { CapabilityToggle } from './capability-toggle.tsx'
 import { SettingsCard, SettingsRow } from './settings-page.tsx'
+import { StorageCard } from './storage-card.tsx'
 
 export function GeneralSection({ theme }: { theme: Theme }) {
   const { t, locale } = useI18n()
@@ -61,6 +62,7 @@ export function GeneralSection({ theme }: { theme: Theme }) {
         </SettingsRow>
         <ProjectSettingsRow />
       </SettingsCard>
+      <StorageCard />
       <ContextSwitches />
       <DeveloperCard />
     </section>

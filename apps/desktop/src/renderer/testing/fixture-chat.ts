@@ -169,6 +169,7 @@ export function createFixtureChat(options: { entries?: Record<string, SessionEnt
       sessionList = sessionList.map((session) => (session.id === id ? updated : session))
       return updated
     },
+    deletePreview: async () => ({ retainedDirectories: [] }),
     deleteSession: async (id) => {
       sessionList = sessionList.filter((session) => session.id !== id && session.parentSessionId !== id)
       return { sessionIds: [id] }

@@ -151,7 +151,7 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     await app.browser.close()
     app.child.kill('SIGTERM')
     expect(await app.exited).toBe(0)
-    const sidecarLog = await readLogRecords(join(userData, 'logs', 'sidecar.jsonl'))
+    const sidecarLog = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'sidecar.jsonl'))
     expect(sidecarLog.find((r) => r.message === 'pty backend selected')?.properties).toMatchObject({
       backend: 'node-pty',
       path: join(ptyRoot, 'package.json'),
@@ -351,7 +351,9 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     expect(await readFile(join(outside, 'leak.txt'), 'utf8').catch(() => null)).toBeNull()
     await page.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     // 发送按钮恢复时最后一条回复可能仍是流式显示（Markdown 原文），等提交的条目渲染完成。
-    await expect.poll(() => page.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 15_000 }).toBe('Found the needle in notes.txt.')
+    await expect
+      .poll(() => page.getByRole('article', { name: 'Coko' }).last().locator('.conversation-markdown').textContent(), { timeout: 15_000 })
+      .toBe('Found the needle in notes.txt.')
 
     await page.evaluate(() =>
       window.coko!.log({ level: 'info', category: ['smoke'], message: 'smoke marker sk-smokeSecretValue1', properties: { apiKey: 'plain-secret' } }),
@@ -363,7 +365,7 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     expect(await app.exited).toBe(0)
     await waitFor(() => !processExists(sidecar!.pid), 10_000, 'sidecar exit')
 
-    const logs = join(userData, 'logs')
+    const logs = join(root, 'coko-home', 'data', 'logs')
     const desktop = await readLogRecords(join(logs, 'desktop.jsonl'))
     const sidecarLog = await readLogRecords(join(logs, 'sidecar.jsonl'))
     expect(desktop.find((r) => r.message === 'app starting')?.properties).toMatchObject({
@@ -382,8 +384,13 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     expect(String(selected?.properties.version)).toMatch(/^ripgrep \d+\.\d+\.\d+/)
     expect(sidecarLog.some((r) => r.message === 'run ended' && r.properties.status === 'completed')).toBe(true)
     // COKO_HOME 的 AGENTS.md 进入第一次模型请求的系统提示。
-    const firstRequest = JSON.parse((await readFile(requestLog, 'utf8')).split('\n')[0]!) as { role: string; sections?: Record<string, string> }[]
-    expect(Object.values(firstRequest[0]?.sections ?? {}).join('\n')).toContain('SMOKE-USER-RULE: answer briefly.')
+    // 自动生成标题也会请求模型；从实际的 Run 系统消息检查指令。
+    const requests = (await readFile(requestLog, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { role: string; sections?: Record<string, string> }[])
+    const runSystem = requests.flat().find((message) => message.role === 'system' && message.sections?.instructions !== undefined)
+    expect(runSystem?.sections?.instructions).toContain('SMOKE-USER-RULE: answer briefly.')
     for (const file of ['desktop.jsonl', 'sidecar.jsonl']) {
       const text = await readFile(join(logs, file), 'utf8')
       expect(text).not.toContain('plain-secret')
@@ -468,7 +475,7 @@ describe('打包产物 smoke', { timeout: 180_000 }, () => {
     // 接收侧：假服务器收到 initialize（rootUri 为 Workspace）与 hover。
     await expect.poll(async () => (await readFile(record, 'utf8').catch(() => '')).includes('"method":"textDocument/hover"'), { timeout: 30_000 }).toBe(true)
     expect(await readFile(record, 'utf8')).toContain(`"rootUri":"file://${workspace}"`)
-    const db = join(userData, 'data', 'coko.db')
+    const db = join(root, 'coko-home', 'data', 'coko.db')
     const lspRows = () => {
       const handle = new DatabaseSync(db, { readOnly: true })
       try {

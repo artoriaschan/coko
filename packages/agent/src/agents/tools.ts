@@ -4,7 +4,7 @@
 import { Type } from 'typebox'
 import { AGENT_NOTIFICATION_TAG } from '../entries/host-input.ts'
 import type { AgentEndStatus } from '../session-entries/index.ts'
-import type { CokoTool } from '../tools/types.ts'
+import type { CokoTool, CokoToolResult } from '../tools/types.ts'
 
 export interface AgentUsageTotals {
   turns: number
@@ -73,10 +73,9 @@ const worktreeNote = (outcome: AgentOutcome) =>
   outcome.worktree?.kept ? `\n\n[The subagent's changes were kept in worktree ${outcome.worktree.path} on branch ${outcome.worktree.branch}.]` : ''
 
 /** 前台结果与 agent_wait 的结束项：<agent-result …>文本</agent-result>，超过 50 000 字符截断并注明子 Session。 */
-export function agentResultText(outcome: AgentOutcome): string {
+export function agentResultText(outcome: AgentOutcome, maxChars = AGENT_RESULT_MAX_CHARS): string {
   let body = neutralizeAgentTags(outcome.text)
-  if (body.length > AGENT_RESULT_MAX_CHARS)
-    body = body.slice(0, AGENT_RESULT_MAX_CHARS) + `\n\n[Truncated; the full output is in child session ${outcome.agentId}.]`
+  if (body.length > maxChars) body = body.slice(0, maxChars) + `\n\n[Truncated; the full output is in child session ${outcome.agentId}.]`
   if (body.trim() === '') body = '(The subagent returned no text.)'
   return `<agent-result ${attrs(outcome)}>\n${body}${worktreeNote(outcome)}\n</agent-result>`
 }
@@ -122,6 +121,11 @@ export const agentParameters = Type.Object({
 
 const failed = (status: AgentEndStatus) => status !== 'completed'
 
+const outcomeResult = (outcome: AgentOutcome): CokoToolResult<{ isError: boolean }> => ({
+  ...text(agentResultText(outcome)),
+  ...(neutralizeAgentTags(outcome.text).length > AGENT_RESULT_MAX_CHARS ? { untruncatedText: agentResultText(outcome, Number.MAX_SAFE_INTEGER) } : {}),
+})
+
 export function createAgentTool(port: SubagentsPort): CokoTool<typeof agentParameters, { isError: boolean }> {
   return {
     name: 'agent',
@@ -152,8 +156,9 @@ export function createAgentTool(port: SubagentsPort): CokoTool<typeof agentParam
         signal,
       )
       if (started.kind === 'background') return text(agentStartedText(started))
-      if (failed(started.outcome.status)) throw new Error(agentResultText(started.outcome))
-      return text(agentResultText(started.outcome))
+      const result = outcomeResult(started.outcome)
+      if (failed(started.outcome.status)) throw Object.assign(new Error(agentResultText(started.outcome)), { untruncatedText: result.untruncatedText })
+      return result
     },
   }
 }
@@ -181,7 +186,17 @@ export function createAgentWaitTool(port: SubagentsPort): CokoTool<typeof agentW
     async execute(_toolCallId, { agent_ids, timeout_ms }, signal) {
       const timeout = Math.min(timeout_ms ?? AGENT_WAIT_DEFAULT_MS, AGENT_WAIT_MAX_MS)
       const items = await port.wait(agent_ids, timeout, signal)
-      return text(items.length === 0 ? 'No subagents in this session.' : items.map(waitLine).join('\n\n'))
+      const result = text(items.length === 0 ? 'No subagents in this session.' : items.map(waitLine).join('\n\n'))
+      return {
+        ...result,
+        ...(items.some((item) => item.status !== 'running' && neutralizeAgentTags(item.outcome.text).length > AGENT_RESULT_MAX_CHARS)
+          ? {
+              untruncatedText: items
+                .map((item) => (item.status === 'running' ? waitLine(item) : agentResultText(item.outcome, Number.MAX_SAFE_INTEGER)))
+                .join('\n\n'),
+            }
+          : {}),
+      }
     },
   }
 }
@@ -196,7 +211,7 @@ export function createAgentCancelTool(port: SubagentsPort): CokoTool<typeof agen
     parameters: agentCancelParameters,
     effect: 'side-effect',
     async execute(_toolCallId, { agent_id }) {
-      return text(agentResultText(await port.cancel(agent_id)))
+      return outcomeResult(await port.cancel(agent_id))
     },
   }
 }

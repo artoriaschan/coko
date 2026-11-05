@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的命令执行与子进程登记契约：ExecPort 与本地执行（进程组、超时、中止、沙箱接缝、onSpawn / onExit）、PTY 与 stdin（node-pty、job_input）、host_processes 登记表、启动时的孤儿清理与有序关闭、日志与已知限制。修改 bash 执行、PTY、子进程启动、MCP stdio 传输或 Sidecar 关闭顺序前查阅。"
+description: "当前的命令执行与子进程登记契约：ExecPort 与本地执行（进程组、超时、中止、沙箱接缝、onSpawn / onExit）、PTY 与 stdin（node-pty、job_input）、截断工具结果落盘、host_processes 登记表、启动时的孤儿清理与有序关闭、日志与已知限制。修改 bash 执行、PTY、子进程启动、MCP stdio 传输或 Sidecar 关闭顺序前查阅。"
 lifecycle: active
 ---
 
@@ -36,6 +36,18 @@ lifecycle: active
 **后台命令。** `ExecPort.spawn(request)` 以同样的方式（工作目录检查、沙箱前缀、环境过滤、独立进程组、stdin 关闭）启动命令，进程启动后即返回句柄 `{ pid, pgid, kill(signal), exited }`：`kill` 向进程组发信号（缺省 SIGTERM），`exited` 在退出且输出送达后 resolve 为 `{ exitCode, signal? }`（信号终止时退出码为 128 + 信号）。没有超时与中止。`trackExec` 原样转交 `spawn`，由后台任务自己登记。
 
 **生命周期回调。** spawn 成功（Node 的 `spawn` 事件）后调用一次 `onSpawn({ pid, pgid })`，进程退出、被中止或超时后调用一次 `onExit`；命令没有启动时两者都不调用。回调抛出的错误被忽略，不影响命令结果。
+
+## 工具结果落盘
+
+Sidecar 为每个 Session 的运行时设置 `data/tool-results/<sessionId>/`。工具正文因默认显示数量、行数、字节数或行长限制被截断时，完整正文写入 `<toolCallId>.txt`，返回给模型的结果末尾包含绝对路径；普通未截断结果不产生文件。调用 id 中的路径分隔符编码后才用作文件名。文件只保留 UTF-8 完整字符，32 MiB 上限包含末尾的 `\n[truncated]\n`；超限时保留可容纳的原文前缀，文件与模型文本均有 `[truncated]` 标记。
+
+bash 的输出在超过显示限制后直接有界写入该文件，等待写入结束才返回结果，不先创建无上限临时文件。read、grep（内置与 ripgrep 后端）、find、ls、MCP 工具与资源、Memory、Job 输出、LSP 和子代理结果在各自显示截断前保留原文，经统一工具调度边界落盘；完整结果收集和流式 bash 输出都在内存中按登记值脱敏后才缓冲或写盘，复用宿主的跨增量脱敏器；Secret 和 Provider Credential 明文不会先写入文件再重写。正文与收集提前达到上限的标记在进入 Hook、进度与 Session 条目之前移除。ls、find 和两种 grep 后端的默认数量上限只限制可见结果；其余允许读取的结果继续有界收集到 32 MiB。调用方显式提供的查询窗口（read 的 offset/limit，ls/find/grep 的 limit）仍限定查询范围，不为落盘扩展；Job 已从环形缓冲丢弃的输出仍以既有丢弃提示和 `data/jobs/` 日志为准。
+
+分叉会将边界内历史引用的结果文件复制到新 Session 的私有目录，并重写历史中的路径；复制或条目提交失败会回滚新副本与新会话。删除源 Session 不影响已成功分叉的文件，副本仍只在新会话的读取根内。验证见[删除与分叉 Sidecar 用例](../../tests/integration/sidecar-session-cleanup.test.ts)。
+
+该 Session 的结果目录加入额外读取根，免审批读取自己保存的结果；不授予其他 Session 的目录，也不新增写入权限。拒绝规则仍优先。库调用方可用 `AgentRuntimeOptions.toolResultsDirectory` 选择目录，并用 `toolOutputRedaction` 提供宿主的整段与流式登记值脱敏端口（Sidecar 始终提供）；未配置时不启用通用文本落盘，bash 继续使用有界的系统临时文件。
+
+实现入口：`packages/agent/src/tools/output.ts`、`tools/scheduler.ts`、`tools/builtin/output-accumulator.ts`；Sidecar 装配见 `apps/server/src/application/session-runs.ts`。真实 Sidecar 验证在 `tests/integration/sidecar-tool-results.test.ts`，覆盖完整内容、模型请求中的路径、普通结果无文件、字节上限与 UTF-8、路径编码、跨会话审批及只读模式；MCP 工具和资源测试另检查完整原文文件。
 
 ## PTY 与 stdin
 

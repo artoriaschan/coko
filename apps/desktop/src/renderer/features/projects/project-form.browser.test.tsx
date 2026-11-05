@@ -251,3 +251,53 @@ it('创建项目时名称为空，选择文件夹后用文件夹名回填；编�
   await expect.element(editedName).toHaveValue('Existing project')
   await edited.unmount()
 })
+
+it('空白项目无需选择文件夹，失败后保留名称并可重试空名称', async () => {
+  const submissions: string[] = []
+  const view = await render(
+    <I18nProvider locale="zh">
+      <ProjectFormDialog
+        mode="create"
+        pickDirectory={async () => {
+          throw new Error('must not open picker')
+        }}
+        onSubmit={async () => {
+          throw new Error('folder flow')
+        }}
+        onSubmitBlank={async (name) => {
+          submissions.push(name)
+          throw new Error('unavailable')
+        }}
+        onComplete={() => {}}
+        onClose={() => {}}
+      />
+    </I18nProvider>,
+  )
+  await page.getByRole('button', { name: '新建空白项目', exact: true }).click()
+  await expect.element(page.getByText('自动创建项目文件夹，无需选择已有文件夹。')).toBeVisible()
+  const dialog = document.querySelector<HTMLElement>('[data-project-form]')!
+  for (const theme of ['light', 'dark'] as const) {
+    applyTheme(theme)
+    await page.viewport(390, 640)
+    const box = dialog.getBoundingClientRect()
+    expect(box.left).toBeGreaterThanOrEqual(16)
+    expect(box.right).toBeLessThanOrEqual(374)
+    expect(dialog.scrollWidth).toBeLessThanOrEqual(dialog.clientWidth)
+    await page.screenshot({ element: dialog, path: `../../../../../../.vitest/blank-project-${theme}-narrow.png` })
+  }
+  applyTheme('light')
+  await page.viewport(1000, 800)
+  const name = page.getByRole('textbox', { name: '项目名称' })
+  await name.fill('  ../My project/  ')
+  await page.getByRole('button', { name: '创建项目', exact: true }).click()
+  await expect.element(page.getByRole('alert')).toHaveTextContent('未能保存项目，请重试')
+  expect(submissions).toEqual(['  ../My project/  '])
+  await expect.element(name).toHaveValue('  ../My project/  ')
+  await name.fill('')
+  await page.getByRole('button', { name: '创建项目', exact: true }).click()
+  expect(submissions).toEqual(['  ../My project/  ', ''])
+  await page.getByRole('button', { name: '添加已有文件夹', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: /添加文件夹/ })).toBeVisible()
+  await expect.element(page.getByRole('button', { name: '创建项目', exact: true })).toBeDisabled()
+  await view.unmount()
+})

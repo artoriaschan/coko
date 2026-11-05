@@ -17,6 +17,7 @@ async function newSession(api: ReturnType<typeof client>, workspacePath: string)
   expect(workspace.status).toBe(201)
   const session = await api.post(API_ROUTES.sessions, { workspaceId: workspace.body.id })
   expect(session.status).toBe(201)
+  expect(session.body).toMatchObject({ directory: null, cwd: workspace.body.path })
   return { workspaceId: workspace.body.id as string, sessionId: session.body.id as string, model: session.body.model }
 }
 

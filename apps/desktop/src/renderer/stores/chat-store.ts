@@ -1,5 +1,5 @@
 import type { ForkBoundary } from '@coko/protocol'
-import type { ImageAttachment } from '@coko/protocol'
+import type { FileAttachment, ImageAttachment } from '@coko/protocol'
 import {
   SessionEntry,
   isDetachedProgress,
@@ -197,6 +197,7 @@ export interface ChatActions {
   subscribeSession(sessionId: string): () => void
   archiveSession(sessionId: string): Promise<void>
   restoreSession(sessionId: string): Promise<void>
+  deletePreview(sessionId: string): Promise<{ retainedDirectories: string[] }>
   deleteSession(sessionId: string): Promise<void>
   deleteProject(projectId: string): Promise<void>
   startDraft(workspaceId?: string): void
@@ -205,7 +206,7 @@ export interface ChatActions {
   /** 选择目录并登记；登记成功后在其中开始新会话草稿。 */
   addWorkspace(pickDirectory: () => Promise<string | null>): Promise<void>
   /** 在当前会话（或草稿）中发送；返回是否被接受（失败时保留输入）。 */
-  send(text: string, images?: ImageAttachment[]): Promise<boolean>
+  send(text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<boolean>
   stop(): Promise<void>
   /** 重新执行当前会话出错的上一轮（不追加用户消息）。 */
   retry(): Promise<boolean>
@@ -428,6 +429,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       async restoreSession(sessionId) {
         lists.getState().setArchiveState(await api.restoreSession(sessionId))
       },
+      deletePreview: (sessionId) => api.deletePreview(sessionId),
       async deleteSession(sessionId) {
         const { sessionIds } = await api.deleteSession(sessionId)
         forgetRightPanelLayouts(sessionIds)
@@ -473,11 +475,11 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
         }
       },
 
-      async send(text, images) {
+      async send(text, images, files) {
         const { activeSessionId } = get()
-        if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text, images), 'send')
+        if (activeSessionId !== null) return submit(activeSessionId, () => api.submitMessage(activeSessionId, text, images, files), 'send')
         const draft = newChat.getState()
-        if (draft.sending || (!text.trim() && !images?.length)) return false
+        if (draft.sending || (!text.trim() && !images?.length && !files?.length)) return false
         newChat.getState().setSending(true)
         try {
           const available = draft.model ? undefined : (await api.listModels()).models[0]
@@ -488,6 +490,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
             ...(draft.newWorktree ? { newWorktree: true, ...(draft.branch ? { baseBranch: draft.branch } : {}) } : {}),
             text,
             ...(images?.length ? { images } : {}),
+            ...(files?.length ? { files } : {}),
             ...(model ? { model } : {}),
             thinkingLevel: draft.thinkingLevel,
             ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),

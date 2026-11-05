@@ -30,7 +30,7 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 
 打包应用中为 `ELECTRON_RUN_AS_NODE=1 Coko.app/Contents/MacOS/Coko Coko.app/Contents/Resources/sidecar/headless.mjs …`；源码中为 `apps/server/src/headless/index.ts`（集成测试）。
 
-- `--data-dir` 必填，与桌面应用的数据目录相同时共用同一个库（租约互斥：桌面应用开着时 headless 启动失败，以 4 退出）。相对路径按当前目录解析。
+- `--data-dir` 必填；桌面应用的默认数据目录是 `<COKO_HOME>/data`（缺省 `~/.coko/data`），与其相同时共用同一个库（租约互斥：桌面应用开着时 headless 启动失败，以 4 退出）。相对路径按当前目录解析。
 - `--workspace` 不在库中时登记为 Workspace；`--session` 继续已有的根 Session（与 `--workspace` 同时给出时须属于它）；省略 `--session` 时新建 Session（权限模式为默认模式）。
 - `--model` 写入 Session 的模型；`--permission-mode` 提交 `permission_mode` 条目（与界面切换相同）。
 - `--max-turns`：根 Session 第 n 条 assistant 仍在调用工具时 `stopAfterBatch(max_turns)`，本批完成后以 paused 结束。

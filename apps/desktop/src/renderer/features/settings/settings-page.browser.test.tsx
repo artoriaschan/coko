@@ -218,9 +218,11 @@ it('外壳几何与源稿画面 01 一致：导航 240px、安全区 48px、返�
   expect(getComputedStyle(item).backgroundColor).not.toBe(getComputedStyle(nav.querySelector('[data-section="memory"]')!).backgroundColor)
   // 详情：右侧居中，最宽 800px，上边距 72px。
   const heading = settings.getByRole('heading', { level: 2, name: 'General' }).element()
+  const detail = heading.closest<HTMLElement>('[data-settings-detail]')!
   const body = heading.closest('[data-settings-detail] > div')!.getBoundingClientRect()
   expect(body.width).toBe(800)
-  expect(body.left).toBe(240 + (1440 - 240 - 800) / 2)
+  // 居中相对于实际可见的详情区域；经典滚动条占用的宽度不属于内容。
+  expect(body.left).toBe(detail.getBoundingClientRect().left + (detail.clientWidth - body.width) / 2)
   expect(body.top).toBe(72)
 })
 
@@ -280,7 +282,7 @@ it('可访问性：设置是带标题的 region，Tab 依次经过返回、搜�
     expect(getComputedStyle(active).outlineStyle).toBe('solid')
     steps.push(active.getAttribute('data-section') ?? active.getAttribute('type'))
   }
-  expect(steps).toEqual(['search', 'general', 'memory'])
+  expect(steps).toEqual(['search', 'general', 'archived'])
   // 应用部分不在 Tab 顺序中。
   expect(main().closest('[inert]')).not.toBeNull()
 })

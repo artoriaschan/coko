@@ -2,7 +2,7 @@
 // 进程不启动：夹具的记录文件不存在）；批准后各类资源以 <plugin>: 或 plugin-<plugin>- 命名可用，用户的同名 Skill 与命令照常可用；禁用、卸载与
 // plugins.enabled: false；git 来源（file:// 夹具仓库）的 commit、#tag 与更新后重新批准。
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 import { DatabaseSync } from 'node:sqlite'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -20,6 +20,7 @@ import {
   type PluginInfo,
   type SessionEntryRecord,
 } from '@coko/protocol'
+import { loadPlugin } from '@coko/agent'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { preToolUseHooks, writePlugin } from '../fixtures/plugins/index.ts'
 import {
@@ -192,6 +193,91 @@ describe('插件：目录来源', { timeout: 120_000 }, () => {
     await h.runEnds(sessionId, 5)
     expect(h.stream.entries(sessionId).find((e) => e.kind === 'agent_start')?.payload).toMatchObject({ agentType: 'sample:reviewer' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('整体移动 COKO_HOME 后已批准的插件保持启用、资源与进程可用；更新声明仍要求批准且能在新根卸载', async () => {
+    const plugin = await preparePluginFixture()
+    await writeFile(
+      join(plugin.root, 'hooks', 'hooks.json'),
+      JSON.stringify(preToolUseHooks(hookCommand('--record', '${COKO_PLUGIN_ROOT}/hook-stdin.jsonl'), 'Bash')),
+    )
+    const h = await boot([])
+    const installed = await h.install({ kind: 'dir', path: plugin.root })
+    expect(installed.status).toBe(201)
+    const info = installed.body as PluginInfo
+    expect((await h.approve(info)).status).toBe(200)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+
+    const cokoHome = join(await tempDir('coko-relocated-'), 'home')
+    await rename(h.dirs.cokoHome, cokoHome)
+    const dataDir = join(cokoHome, 'data')
+    const moved = await boot(
+      [
+        { content: [bash('relocated-bash', 'echo relocated'), call('relocated-mcp', 'mcp__plugin-sample-echo__echo', { text: 'relocated' })] },
+        { content: 'done' },
+      ],
+      { dirs: { cokoHome, dataDir, logDir: join(dataDir, 'logs') } },
+    )
+    expect(await moved.plugins()).toEqual([expect.objectContaining({ name: 'sample', status: 'enabled', digest: info.digest, approvedDigest: info.digest })])
+    expect(await moved.commands()).toContain('sample:hello')
+    const sessionId = await moved.open()
+    await moved.send(sessionId, 'run relocated plugin')
+    await moved.runEnds(sessionId, 1)
+    const entries = moved.stream.entries(sessionId)
+    expect(
+      entries.find((entry) => entry.kind === 'message' && (entry.payload as { toolCallId?: string }).toolCallId === 'relocated-mcp')?.payload,
+    ).toMatchObject({ isError: false })
+    expect(await readFile(join(cokoHome, 'plugins', 'sample', 'hook-stdin.jsonl'), 'utf8')).toContain('echo relocated')
+    expect(await readFile(plugin.mcpLog, 'utf8')).toContain('"event":"start"')
+
+    await writeFile(join(plugin.root, 'hooks', 'hooks.json'), JSON.stringify(preToolUseHooks('printf changed', 'Bash')))
+    const updated = await moved.api.post(pluginPaths.update('sample'))
+    expect([updated.status, (updated.body as PluginInfo).status]).toEqual([200, 'needs-approval'])
+    expect((updated.body as PluginInfo).digest).not.toBe(info.digest)
+    expect((await moved.api.delete(pluginPaths.plugin('sample'))).status).toBe(204)
+    expect(existsSync(join(cokoHome, 'plugins', 'sample'))).toBe(false)
+    expect(await moved.plugins()).toEqual([])
+    expect(await moved.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('旧绝对安装记录与已批准摘要继续可读；缺失目录正常报错，越界绝对记录允许读取但更新与卸载被拒', async () => {
+    const plugin = await preparePluginFixture()
+    const h = await boot([])
+    expect((await h.install({ kind: 'dir', path: plugin.root })).status).toBe(201)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+    const installedPath = join(h.dirs.cokoHome, 'plugins', 'sample')
+    const legacy = await loadPlugin(installedPath)
+    const seed = (path: string, digest: string) => {
+      const db = new DatabaseSync(join(h.dirs.dataDir, 'coko.db'))
+      try {
+        db.prepare('UPDATE plugins SET path = ?, digest = ?, approved_digest = ?, enabled = 1 WHERE name = ?').run(path, digest, digest, 'sample')
+      } finally {
+        db.close()
+      }
+    }
+    seed(installedPath, legacy.digest)
+    const compatible = await boot([], { dirs: h.dirs })
+    expect(await compatible.plugins()).toEqual([expect.objectContaining({ name: 'sample', status: 'enabled', digest: legacy.digest })])
+    expect(await compatible.commands()).toContain('sample:hello')
+    const updated = await compatible.api.post(pluginPaths.update('sample'))
+    expect([updated.status, (updated.body as PluginInfo).status]).toEqual([200, 'enabled'])
+    expect(await compatible.sidecar.stop()).toEqual({ code: 0, signal: null })
+
+    seed(join(h.dirs.cokoHome, 'missing'), legacy.digest)
+    const missing = await boot([], { dirs: h.dirs })
+    expect(await missing.plugins()).toEqual([
+      expect.objectContaining({ status: 'invalid', diagnostics: [expect.objectContaining({ code: 'invalid-manifest' })] }),
+    ])
+    expect(await missing.sidecar.stop()).toEqual({ code: 0, signal: null })
+
+    const outside = await loadPlugin(plugin.root)
+    seed(plugin.root, outside.digest)
+    const external = await boot([], { dirs: h.dirs })
+    expect(await external.plugins()).toEqual([expect.objectContaining({ name: 'sample', status: 'enabled' })])
+    expect((await external.api.post(pluginPaths.update('sample'))).status).toBe(403)
+    expect((await external.api.delete(pluginPaths.plugin('sample'))).status).toBe(403)
+    expect(await readFile(join(plugin.root, '.coko-plugin', 'plugin.json'), 'utf8')).toContain('sample')
+    expect(await external.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
   it('禁用后下一个 Run 不再加载且 MCP 进程退出；卸载 204、目录与记录不存在、进程退出；plugins.enabled: false 时全部不加载', async () => {

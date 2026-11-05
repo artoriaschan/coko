@@ -9,7 +9,7 @@ it('v9 Workspace 与会话升级后在项目下显示，并可继续对话', { t
   const root = await mkdtemp(join(tmpdir(), 'coko-project-migration-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const folder = join(root, 'workspace')
-  const data = join(root, 'user-data', 'data')
+  const data = join(root, 'coko-home', 'data')
   await mkdir(folder)
   await mkdir(data, { recursive: true })
   // 用独立 Node 进程构造旧版库；不把存储私有源码纳入 desktop 的编译边界。

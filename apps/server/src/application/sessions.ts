@@ -1,5 +1,5 @@
 import type { ForkBoundary } from '@coko/protocol'
-import type { ImageAttachment } from '@coko/protocol'
+import type { FileAttachment, ImageAttachment } from '@coko/protocol'
 import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type {
@@ -26,6 +26,7 @@ import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
+import { SessionFiles } from './session-files.ts'
 import { ownPermissionScope, SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
@@ -46,6 +47,7 @@ export interface SessionLifecycle {
 }
 
 export interface SessionServiceOptions {
+  attachments?: import('./attachments.ts').AttachmentStore
   clock?: ClockPort
   store: SessionStore
   /** Explicit host override for base-prompt evaluation; normal operation uses the runtime default. */
@@ -57,6 +59,7 @@ export interface SessionServiceOptions {
   fallbackModel?: SessionModel
   /** Workspace 的工具集；默认内置工具。桌面端以此覆盖 grep。 */
   tools?: (cwd: string) => ToolRegistry
+  toolResultsRoot?: string
   /**
    * 每个 Session 运行时的扩展（checkpoint 等经 runtime/layers.ts 注册，不改本文件）。hooks 排在权限判定之后；
    * onEntry 在每条条目提交并发布之后调用。
@@ -94,6 +97,7 @@ export class SessionService {
   readonly #recovery: SessionRecovery
   readonly #checkpoints: SessionCheckpoints
   readonly #models: SessionModels
+  readonly #files: SessionFiles
   readonly #runs: SessionRuns
   readonly #context: ContextAssembly
   readonly #deleting = new Set<string>()
@@ -111,6 +115,11 @@ export class SessionService {
   constructor(options: SessionServiceOptions) {
     const { store } = options
     this.#store = store
+    this.#files = new SessionFiles({
+      store,
+      ...(options.attachments ? { attachmentsRoot: options.attachments.root } : {}),
+      ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
+    })
     this.#clock = options.clock ?? systemClock()
     this.#hub = options.hub
     this.#context = options.context ?? emptyContextAssembly()
@@ -135,6 +144,8 @@ export class SessionService {
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
+      sessionFiles: this.#files,
+      ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       runtimes: this.#runtimes,
       recovery: this.#recovery,
@@ -148,7 +159,9 @@ export class SessionService {
       ...(options.fallbackModel ? { fallbackModel: options.fallbackModel } : {}),
     })
     this.#runs = new SessionRuns({
+      ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
+      ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
       ...(options.basePrompt ? { basePrompt: options.basePrompt } : {}),
       registry: options.registry,
       hub: options.hub,
@@ -345,7 +358,17 @@ export class SessionService {
     }
   }
 
-  async delete(sessionId: string): Promise<{ sessionIds: string[] }> {
+  async deletePreview(sessionId: string): Promise<{ retainedDirectories: string[] }> {
+    const tree: StoredSession[] = []
+    const visit = async (id: string) => {
+      tree.push(await requireSession(this.#store, id))
+      for (const child of await this.#store.sessions.listChildren(id)) await visit(child.id)
+    }
+    await visit(sessionId)
+    return this.#files.preview(tree)
+  }
+
+  async delete(sessionId: string): Promise<{ sessionIds: string[]; retainedDirectories: string[] }> {
     this.assertAdmission(sessionId)
     this.#deleting.add(sessionId)
     const tree: StoredSession[] = []
@@ -381,7 +404,7 @@ export class SessionService {
           this.#statuses.delete(id)
         }
         this.#lifecycle?.forget(sessionIds)
-        return { sessionIds }
+        return { sessionIds, ...(await this.#files.delete(tree)) }
       }
       return this.#lifecycle ? await this.#lifecycle.quiesce(ids, remove) : await remove()
     } finally {
@@ -405,7 +428,7 @@ export class SessionService {
 
   /** 协议 DTO：parentSessionId 只在子 Session 上出现，worktree 为创建时绑定的 worktree（含已移除的）。 */
   async toDto(stored: StoredSession): Promise<Session> {
-    const { parentSessionId, worktreeId, ...rest } = stored
+    const { parentSessionId, worktreeId, cwd, ...rest } = stored
     let root = stored
     while (root.parentSessionId !== null) {
       const parent = await this.#store.sessions.getSession(root.parentSessionId)
@@ -416,7 +439,7 @@ export class SessionService {
     const workspace = await this.#store.sessions.getWorkspace(stored.workspaceId)
     const session = {
       ...rest,
-      ...(workspace ? { cwd: await sessionDirectory(workspace, worktree) } : {}),
+      ...(workspace ? { cwd: cwd ?? (await sessionDirectory(workspace, worktree)) } : {}),
       projectId: root.projectId,
       thinkingLevel: this.#models.effectiveLevel(stored),
       ...(parentSessionId === null ? {} : { parentSessionId }),
@@ -532,6 +555,8 @@ export class SessionService {
   async create(input: {
     id?: string
     workspaceId: string
+    directory?: string
+    cwd?: string
     projectId?: string | null
     permissionMode?: PermissionMode
     title?: string
@@ -545,6 +570,8 @@ export class SessionService {
     const session = await this.createRecord({
       ...(input.id === undefined ? {} : { id: input.id }),
       workspaceId: input.workspaceId,
+      ...(input.directory === undefined ? {} : { directory: input.directory }),
+      ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
       ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,
@@ -613,13 +640,13 @@ export class SessionService {
   // ---- Run 控制（开始 Run 与运行时构造在 session-runs.ts） ----
 
   /** 提交一条消息：开始 Run（{ runId }）或执行不开始 Run 的动作（{ done: true }）；见 SessionRuns.submit。 */
-  submit(sessionId: string, text: string, images?: ImageAttachment[]): Promise<ActionResult> {
-    return this.#runs.submit(sessionId, text, false, images)
+  submit(sessionId: string, text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text, false, images, files)
   }
 
   /** 首次发送的成功边界是首条用户消息提交，而不是同步的 Run 进度。 */
-  submitFirst(sessionId: string, text: string, images?: ImageAttachment[]): Promise<ActionResult> {
-    return this.#runs.submit(sessionId, text, true, images)
+  submitFirst(sessionId: string, text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text, true, images, files)
   }
 
   /** 首次发送的预接受失败：Run 尚未提交用户输入，释放运行时后回滚新建记录。 */

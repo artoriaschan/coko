@@ -1,8 +1,9 @@
 import { open } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { applicationMenuTemplate } from './application-menu.ts'
-import { openDirectory } from './open-directory.ts'
+import { openDirectory, openFile, revealFile } from './open-directory.ts'
 import { allowPermission } from './permissions.ts'
-import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
+import { FILE_ATTACHMENT_MAX_BYTES, IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
 import { basename, extname, join, resolve } from 'node:path'
 import {
   app,
@@ -50,7 +51,6 @@ protocol.registerSchemesAsPrivileged([
 const userDataOverride = process.env.COKO_USER_DATA_DIR
 if (userDataOverride !== undefined && userDataOverride !== '') {
   app.setPath('userData', resolve(userDataOverride))
-  app.setAppLogsPath(join(resolve(userDataOverride), 'logs'))
 }
 
 // E2E 后台模式：在单实例锁之前切换为 accessory，第二实例在退出前也不显示 Dock 图标、不激活。
@@ -66,7 +66,10 @@ if (!app.requestSingleInstanceLock()) {
 function run(): void {
   const development = !app.isPackaged
   const log = getLogger(['main'])
-  const logging = startDesktopLogging({ logPath: join(app.getPath('logs'), DESKTOP_LOG_FILE), appVersion: app.getVersion(), console: development })
+  const cokoHome = resolve(process.env.COKO_HOME || join(homedir(), '.coko'))
+  const dataDir = join(cokoHome, 'data')
+  const logDir = join(dataDir, 'logs')
+  const logging = startDesktopLogging({ logPath: join(logDir, DESKTOP_LOG_FILE), appVersion: app.getVersion(), console: development })
   const appRoot = app.getAppPath()
   const preload = join(appRoot, 'dist', 'electron', 'preload.cjs')
   // 开发时允许用环境变量替换 sidecar 入口（测试用占位 sidecar）；安装包始终使用随包 sidecar。
@@ -104,7 +107,7 @@ function run(): void {
 
   /** 诊断入口：在系统文件管理器中打开日志文件夹（desktop.jsonl 与 sidecar.jsonl 所在目录）。 */
   const openLogsFolder = async (): Promise<boolean> => {
-    const error = await shell.openPath(app.getPath('logs'))
+    const error = await shell.openPath(logDir)
     if (error !== '') log.warn('open logs folder failed', { error })
     return error === ''
   }
@@ -139,14 +142,14 @@ function run(): void {
       new SidecarProcess({
         execPath: process.execPath,
         entry: sidecarEntry,
-        args: sidecarArgs(
-          ['--data-dir', join(app.getPath('userData'), 'data'), '--log-dir', app.getPath('logs'), '--ripgrep', ripgrepPath, '--app-version', app.getVersion()],
-          {
-            packaged: !development,
-          },
-        ),
+        args: sidecarArgs(['--data-dir', dataDir, '--log-dir', logDir, '--ripgrep', ripgrepPath, '--app-version', app.getVersion()], {
+          packaged: !development,
+        }),
         // 打包的发布构建不把测试钩子变量（COKO_SANDBOX_EXEC、COKO_TEST_*、COKO_FAUX_SCRIPT）交给 Sidecar。
-        env: sidecarEnvironment(process.env, { packaged: !development, testBuild: TEST_BUILD }),
+        env: sidecarEnvironment(
+          { ...process.env, COKO_HOME: cokoHome, COKO_CHATS_ROOT: process.env.COKO_CHATS_ROOT || join(app.getPath('documents'), 'Coko') },
+          { packaged: !development, testBuild: TEST_BUILD },
+        ),
         onStdout: (chunk) => process.stdout.write(chunk),
       }),
     exchange: exchangeLaunchToken,
@@ -310,6 +313,18 @@ function run(): void {
   let picking: Promise<string | null> | undefined
   let pickingFiles: Promise<string[]> | undefined
   const pickedImages = new Set<string>()
+  ipcMain.handle(IPC.validatePickedFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    if (typeof path !== 'string' || !pickedImages.has(path)) throw new Error('Choose the file first')
+    const handle = await open(path, 'r')
+    try {
+      const info = await handle.stat()
+      if (!info.isFile()) throw new Error('Attachment must be a file')
+      if (info.size > FILE_ATTACHMENT_MAX_BYTES) throw new Error('File exceeds the 32 MB limit')
+    } finally {
+      await handle.close()
+    }
+  })
   ipcMain.handle(IPC.readPickedImage, async (event, path: unknown) => {
     assertMainFrame(event)
     if (typeof path !== 'string' || !pickedImages.has(path)) throw new Error('Choose the image first')
@@ -341,6 +356,14 @@ function run(): void {
         pickingFiles = undefined
       })
     return pickingFiles
+  })
+  ipcMain.handle(IPC.revealFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    return revealFile(path, shell)
+  })
+  ipcMain.handle(IPC.openFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    return openFile(path, shell)
   })
   ipcMain.handle(IPC.openDirectory, async (event, path: unknown) => {
     assertMainFrame(event)

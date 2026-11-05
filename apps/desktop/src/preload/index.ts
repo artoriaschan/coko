@@ -14,10 +14,13 @@ import {
 if (location.protocol === 'coko-app:' && location.host === 'app') {
   const bridge: CokoBridge = {
     boot: () => ipcRenderer.invoke(IPC.boot) as Promise<BootResult>,
+    revealFile: (path) => ipcRenderer.invoke(IPC.revealFile, path) as Promise<boolean>,
+    openFile: (path) => ipcRenderer.invoke(IPC.openFile, path) as Promise<boolean>,
     openDirectory: (path) => ipcRenderer.invoke(IPC.openDirectory, path) as Promise<boolean>,
     pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory) as Promise<string | null>,
     pickFiles: () => ipcRenderer.invoke(IPC.pickFiles) as Promise<string[]>,
     getFilePath: (file) => webUtils.getPathForFile(file),
+    validatePickedFile: (path) => ipcRenderer.invoke(IPC.validatePickedFile, path) as Promise<void>,
     readPickedImage: (path) => ipcRenderer.invoke(IPC.readPickedImage, path),
     saveProvider: (input) => ipcRenderer.invoke(IPC.saveProvider, input) as Promise<SaveProviderResult>,
     fetchProviderModels: (input) => ipcRenderer.invoke(IPC.fetchProviderModels, input) as Promise<FetchProviderModelsResult>,

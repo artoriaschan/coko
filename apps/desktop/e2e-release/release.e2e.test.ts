@@ -165,8 +165,8 @@ describe.skipIf(process.platform !== 'darwin')('发布构建产物', { timeout: 
     if (sidecar) await waitFor(() => !processExists(sidecar.pid), 10_000, 'sidecar exit')
     expect(feedRequests).toEqual([])
 
-    const desktop = await readLogRecords(join(userData, 'logs', 'desktop.jsonl'))
-    const sidecarLog = await readLogRecords(join(userData, 'logs', 'sidecar.jsonl'))
+    const desktop = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'desktop.jsonl'))
+    const sidecarLog = await readLogRecords(join(root, 'coko-home', 'data', 'logs', 'sidecar.jsonl'))
     expect(desktop.find((r) => r.message === 'app starting')?.properties).toMatchObject({ packaged: true, testBuild: false, background: false })
     expect(desktop.find((r) => r.message === 'test hooks ignored in a packaged build')?.properties.variables).toEqual(
       expect.arrayContaining(Object.keys(hooks)),

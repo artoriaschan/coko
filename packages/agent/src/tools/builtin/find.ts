@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises'
 import { Type } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead, type TruncationResult } from '../truncate.ts'
+import { ToolOutputBuffer } from '../output.ts'
 import type { CokoTool } from '../types.ts'
 import { createFindMatcher } from './glob.ts'
 import { createReadFilter } from './read-filter.ts'
@@ -41,8 +42,10 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
       const effectiveLimit = limit ?? DEFAULT_LIMIT
       const matches = createFindMatcher(pattern)
       const results: string[] = []
+      const fullOutput = new ToolOutputBuffer(context?.outputRedaction)
       const filter = await createReadFilter(context, searchPath)
       // 被读取拒绝规则覆盖的目录不进入，文件不列出。
+      let resultLimitReached = false
       const denied = new Set<string>()
       const descend = (entry: { absolutePath: string }) => !denied.has(entry.absolutePath)
       for await (const entry of walkTree(searchPath, { ...(signal ? { signal } : {}), descend })) {
@@ -51,8 +54,14 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
           continue
         }
         if (!matches(entry.relativePath)) continue
-        results.push(entry.isDirectory ? `${entry.relativePath}/` : entry.relativePath)
-        if (results.length >= effectiveLimit) break
+        const line = entry.isDirectory ? `${entry.relativePath}/` : entry.relativePath
+        if (results.length < effectiveLimit) results.push(line)
+        else resultLimitReached = true
+        if (!fullOutput.appendLine(line)) break
+        if (limit !== undefined && results.length >= effectiveLimit) {
+          resultLimitReached = true
+          break
+        }
       }
       throwIfAborted(signal)
       const omitted = filter.notice()
@@ -66,7 +75,7 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
       let text = truncation.content
       const details: FindToolDetails = {}
       const notices: string[] = []
-      if (results.length >= effectiveLimit) {
+      if (resultLimitReached) {
         notices.push(`${effectiveLimit} results limit reached. Use limit=${effectiveLimit * 2} for more, or refine pattern`)
         details.resultLimitReached = effectiveLimit
       }
@@ -76,7 +85,11 @@ export function createFindTool({ cwd }: { cwd: string }): CokoTool<typeof findPa
       }
       if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
-      return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
+      return {
+        content: [{ type: 'text', text }],
+        details: Object.keys(details).length > 0 ? details : undefined,
+        ...(truncation.truncated || (limit === undefined && resultLimitReached) ? fullOutput.result() : {}),
+      }
     },
   }
 }

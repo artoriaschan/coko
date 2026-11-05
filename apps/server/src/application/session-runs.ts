@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises'
-import { isAbsolute, relative, sep } from 'node:path'
-import { type ImageAttachment } from '@coko/protocol'
+import { isAbsolute, join, relative, sep } from 'node:path'
+import { attachmentReferenceText, type FileAttachment, type ImageAttachment } from '@coko/protocol'
 // 开始 Run：检查、按需构造 Session 的运行时（恢复对话记录、权限、扩展、上下文装配与压缩接线），每个 Run 开始时向上下文装配取值，
 // 交给 RunLauncher 受管执行。submit、Goal Round、重试、继续与动作开始的 Run 都经统一入口 startRun。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
@@ -34,7 +34,7 @@ import {
   type ToolRegistry,
 } from '@coko/agent'
 import { hookContextText } from '@coko/agent/entries'
-import { getLogger, redactSecretsDeep } from '@coko/logging'
+import { getLogger, redactSecretsDeep, redactSecretValues, createSecretStreamRedactor } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
 import {
@@ -55,6 +55,7 @@ import { createProgressRedactor, redactModelMessages, secretRedactionHook } from
 import type { SessionModels } from './session-models.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
+import { standaloneWriteRoots } from './session-directory.ts'
 import { sessionProject } from './session-project.ts'
 
 const log = getLogger(['application', 'sessions'])
@@ -100,14 +101,14 @@ function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInpu
 const takesPending = (trigger: RunRequest['trigger']) => trigger === 'submit' || trigger === 'goal' || trigger === 'schedule'
 
 /**
- * Session 的工作目录（ADR 0016）：Session 创建时确定，生命周期内不变。缺省为 Workspace 目录；worktree 绑定由 worktree 的实现给出
+ * Session 的工作目录（ADR 0016）：Session 创建时确定，生命周期内不变。优先使用持久化 cwd，旧记录回退 Workspace 目录；worktree 绑定由 worktree 的实现给出
  * （worktree 路径 + Workspace 相对仓库根的路径）。指令、项目设置、项目 Hook 与 MCP、Skills、子代理定义都从这个目录读取。
  */
 export interface SessionCwd {
   resolve(session: StoredSession, workspace: Workspace): Promise<string>
 }
 
-export const workspaceCwd: SessionCwd = { resolve: async (_session, workspace) => workspace.path }
+export const workspaceCwd: SessionCwd = { resolve: async (session, workspace) => session.cwd ?? workspace.path }
 
 /** 受管的 Run 执行：关闭 sidecar 时中断并等待 Run 结束（run_end 已提交）。由 runtime 层用 Effect 实现。 */
 export interface RunLauncher {
@@ -129,6 +130,7 @@ export interface SessionExtension {
 }
 
 export interface SessionRunsOptions {
+  attachments?: import('./attachments.ts').AttachmentStore
   store: SessionStore
   /** Explicit host override, used to evaluate a versioned base prompt. */
   basePrompt?: { text: string; version: string }
@@ -136,6 +138,7 @@ export interface SessionRunsOptions {
   hub: SessionHub
   runs: RunLauncher
   tools?: (cwd: string) => ToolRegistry
+  toolResultsRoot?: string
   extensions?: (context: SessionExtensionContext) => SessionExtension
   secrets?: SecretProvider
   context: ContextAssembly
@@ -202,6 +205,7 @@ interface RunContext {
   observe: ReturnType<typeof dynamicHooks>
   readRoots: readonly string[]
   workspaceRoots: readonly string[]
+  writeRoots: readonly string[] | undefined
   /** 该 Run 的外部 Hook 权限端口；没有时 gate 与没有 Hook 时相同。 */
   permissionHooks: PermissionHookPort | undefined
 }
@@ -336,7 +340,7 @@ export class SessionRuns {
     const project = await sessionProject(store, session)
     const primary = project ? await store.sessions.getWorkspace(project.primaryWorkspaceId) : undefined
     const roots = await Promise.all(
-      [cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
+      [session.directory ?? cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
         realpath(path).catch(() => (index === 0 ? cwd : undefined)),
       ),
     )
@@ -369,6 +373,7 @@ export class SessionRuns {
       additionalFolders: project?.additionalFolders ?? [],
       ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       sessionId: session.id,
+      ...(session.directory && !project ? { sessionDirectory: session.directory } : {}),
       permissionRules,
       ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
       ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
@@ -447,10 +452,11 @@ export class SessionRuns {
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 每个 Run 开始时向上下文装配取值（工具、读取根、hook）；取值之后再检查，检查与开始 Run 之间没有 await。
     const scope = await this.scope(session)
-    const [contributed, readRoots, workspaceRoots] = await Promise.all([
+    const [contributed, readRoots, workspaceRoots, writeRoots] = await Promise.all([
       context.tools(scope),
       context.readRoots(scope),
       this.#workspaceRoots(session, scope.cwd),
+      scope.sessionDirectory ? standaloneWriteRoots(scope.sessionDirectory) : undefined,
     ])
     const hooks = context.hooks(scope)
     const admission = context.admissionHooks(scope)
@@ -467,8 +473,9 @@ export class SessionRuns {
       runContext.hooks.set(hooks)
       runContext.admission.set(admission)
       runContext.observe.set(observe)
-      runContext.readRoots = readRoots
+      runContext.readRoots = [...readRoots, ...(this.#options.attachments ? [this.#options.attachments.directory(sessionId)] : [])]
       runContext.workspaceRoots = workspaceRoots
+      runContext.writeRoots = writeRoots
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
       const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)
@@ -575,23 +582,23 @@ export class SessionRuns {
    * 执行，其余以 run-in-progress 拒绝。之后提交的文本经上下文装配展开（命令 → File Reference）；展开为动作（例如 /compact）时调用该动作。
    * 展开期间另一个 Run 开始时，startRun 与动作照常再检查一次。
    */
-  submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = []): Promise<ActionResult> {
-    return this.#admit(sessionId, () => this.#submit(sessionId, text, waitForInput, images))
+  submit(sessionId: string, text: string, waitForInput = false, images: ImageAttachment[] = [], files: FileAttachment[] = []): Promise<ActionResult> {
+    return this.#admit(sessionId, () => this.#submit(sessionId, text, waitForInput, images, files))
   }
 
-  async #submit(sessionId: string, text: string, waitForInput: boolean, images: ImageAttachment[]): Promise<ActionResult> {
+  async #submit(sessionId: string, text: string, waitForInput: boolean, images: ImageAttachment[], files: FileAttachment[]): Promise<ActionResult> {
     const { store, runtimes, context } = this.#options
     const session = await requireSession(store, sessionId)
     if (session.parentSessionId !== null) throw childSession()
     if (runtimes.isRunning(sessionId)) {
-      if (images.length) throw new AppError('run-in-progress', 'Wait for the current Run to finish before sending images')
+      if (images.length || files.length) throw new AppError('run-in-progress', 'Wait for the current Run to finish before sending images')
       const invocation = parseCommandInvocation(text)
       const builtin = invocation && BUILTIN_COMMANDS.find((command) => command.name === invocation.name)
       const action = builtin ? context.action(builtin.action) : undefined
       if (invocation && action?.whileRunning?.(invocation.args)) return this.#act(session, action, invocation.args)
       throw new AppError('run-in-progress', 'A Run is in progress')
     }
-    if (!text.trim() && !images.length) throw new AppError('bad-request', 'A message is required')
+    if (!text.trim() && !images.length && !files.length) throw new AppError('bad-request', 'A message is required')
     if (images.length) {
       const model = await this.#options.models.contextModel(session.model)
       if (!model?.input.includes('image')) throw new AppError('bad-request', 'The selected model does not support image input')
@@ -607,27 +614,28 @@ export class SessionRuns {
       // 提交前检查（UserPromptSubmit 等）：reject 时不提交 user message、不开始 Run。
       const verdict = await context.beforeSubmit(scope, text)
       if (verdict && 'reject' in verdict) throw new AppError('hook-blocked', verdict.reject.slice(0, 2048), { reason: verdict.reject.slice(0, 2048) })
-      return this.startRun(
-        sessionId,
-        {
-          trigger: 'submit',
-          input: withSubmitContext(
-            images.length
-              ? {
-                  ...expanded.input,
-                  content: [
-                    ...(expanded.input.content ?? (expanded.input.text ? [{ type: 'text' as const, text: expanded.input.text }] : [])),
-                    ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })),
-                  ],
-                }
-              : expanded.input,
-            verdict?.context,
-          ),
-        },
-        waitForInput,
-      )
+      if ((images.length || files.length) && !this.#options.attachments) throw new AppError('internal', 'Attachment storage is unavailable')
+      const prepared = await this.#options.attachments?.prepare(sessionId, images, files)
+      try {
+        const content = [
+          ...(expanded.input.content ?? (expanded.input.text ? [{ type: 'text' as const, text: expanded.input.text }] : [])),
+          ...(prepared?.references ?? []).map((reference) => ({ type: 'text' as const, text: attachmentReferenceText(reference) })),
+          ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })),
+        ]
+        return await this.startRun(
+          sessionId,
+          {
+            trigger: 'submit',
+            input: withSubmitContext(content.length ? { ...expanded.input, content } : expanded.input, verdict?.context),
+          },
+          waitForInput,
+        )
+      } catch (error) {
+        await prepared?.rollback()
+        throw error
+      }
     }
-    if (images.length) throw new AppError('bad-request', 'Images require a message, not an action command')
+    if (images.length || files.length) throw new AppError('bad-request', 'Attachments require a message, not an action command')
     if (waitForInput) throw new AppError('bad-request', 'Send a message to start a new conversation')
     const action = context.action(expanded.name)
     if (!action) throw new AppError('bad-request', `Unknown action ${expanded.name}`)
@@ -717,6 +725,7 @@ export class SessionRuns {
       observe: dynamicHooks(),
       readRoots: [],
       workspaceRoots: [],
+      writeRoots: undefined,
       permissionHooks: undefined,
     }
     // 运行时在构造时以当时的工具组成开头的系统消息（不提交）：先放入贡献的工具，使默认开启的贡献（如 memory_*）不在第一个 Run
@@ -736,12 +745,18 @@ export class SessionRuns {
       cwd,
       tools: runContext.tools.registry,
       sessionId: session.id,
+      toolOutputRedaction: { text: redactSecretValues, stream: createSecretStreamRedactor },
+      ...(this.#options.toolResultsRoot ? { toolResultsDirectory: join(this.#options.toolResultsRoot, encodeURIComponent(session.id)) } : {}),
       messages,
       ...(previous ? { lastRunStatus: previous } : {}),
       permissions: {
         ...sessionPermissions.runtimePermissions(permissions, session.workspaceId, session.id, cwd),
-        readRoots: () => runContext.readRoots,
+        readRoots: () => [
+          ...runContext.readRoots,
+          ...(this.#options.toolResultsRoot ? [join(this.#options.toolResultsRoot, encodeURIComponent(session.id))] : []),
+        ],
         workspaceRoots: () => runContext.workspaceRoots,
+        writeRoots: () => runContext.writeRoots,
         // 外部 Hook 的端口按 Run 现取；没有端口时没有决定（gate 与没有 Hook 时相同）。
         hooks: {
           preToolUse: (call, signal) => runContext.permissionHooks?.preToolUse(call, signal) ?? NO_VERDICT,

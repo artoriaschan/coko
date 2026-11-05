@@ -135,6 +135,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 ### 命令沙箱接缝
 
 - **档位。** 有 `permissions` 时，运行时在执行记录之前按当时的模式现算 `sandbox = { mode, writableRoots, protectedNames? }`（`policy/sandbox.ts`，与文件工具的可写根同一推导；workspace-write 下 `protectedNames` 为受保护路径段，宿主沙箱在可写根之下也拒绝写入它们）；已批准的提权取目标档位与执行时模式档位中较宽者，只用于该调用。没有 `permissions` 时不设沙箱，命令不受限。
+- **显式写根。** `RuntimePermissions.writeRoots()` 可独立于 `workspaceRoots()` 的读取根提供 workspace-write 写根；提供时替代默认 Workspace 与系统临时目录集合。文件权限与命令准备共用该集合，read-only 与 danger-full-access 仍按档位推导。托管独立会话用它只开放 `work/`、`outputs/`，见 [权限范围](../../docs/subsystems/permissions.md#每个-run-的-workspace-根)。
 - **执行端口。** `ExecRequest.sandbox` 为受限档位（read-only、workspace-write）时，端口必须实施限制，做不到就以 `SandboxUnavailableError`（`code: 'sandbox-unavailable'`）拒绝且不运行命令；`danger-full-access` 或省略为不受限。`ExecOutcome` 的 `sandboxDenied` 表示受限命令非零退出且输出含拒绝签名。
 - **本地执行。** `createLocalExecPort({ sandbox?: LocalSandbox })`：`LocalSandbox.wrap(policy)` 返回包裹 `<shell> -c <command>` 的 argv 前缀（可抛 SandboxUnavailableError），`denialSignature` 为拒绝签名。本包不带沙箱实现（没有系统二进制依赖），不传时受限档位一律 fail-closed；Sidecar 传入 Seatbelt（`apps/server/src/adapters/seatbelt.ts`）。
 - **bash。** 被拒绝时在退出码之前追加拒绝标记与提权提示，`details.sandbox = { mode, denied: true }`；端口报告不可用时以 `sandbox-unavailable: …` 错误结束。提权的判定与审批见 [权限判定与审批](../../docs/subsystems/permissions.md#命令沙箱与提权)。
@@ -155,6 +156,10 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 - 未声明 `effect` 的宿主工具按 side-effect 独占执行并提交执行记录；只读的宿主工具应声明 `effect: 'read'` 才能并行。
 - 在持有独占执行槽的工具内部再经同一运行时调度另一个工具会等待自己，形成死锁；目前没有这样的调用路径。
 - 被放弃（超时后不响应取消）的调用释放执行槽时，其底层操作可能仍在后台运行。
+
+## 截断结果存储
+
+宿主可在 `createAgentRuntime` 中设置 `toolResultsDirectory`，把需要截断的工具正文写入该 Session 的独立目录并向模型返回文件路径。单个文件最多 32 MiB（包含超限标记），保留 UTF-8 前缀；未截断结果不写盘。宿主负责将此目录配置为额外读取根和随 Session 清理。工具实现通过 `CokoToolResult.untruncatedText` 提供显示截断前的正文，若有界收集已截断则同时设置 `untruncatedTextCapped`；调度器在 Hook、进度和持久化之前移除这些临时字段。宿主的 `toolOutputRedaction` 提供整段与跨增量脱敏，必须在任何字节落盘之前应用；bash 通过执行上下文的 `outputFile` 与同一流式脱敏端口直接有界写入。默认显示数量上限的溢出也被收集，显式 query limit 仍保持查询边界。完整契约见[工具结果落盘](../../docs/subsystems/execution.md#工具结果落盘)。
 
 ## 验证与相关设计
 

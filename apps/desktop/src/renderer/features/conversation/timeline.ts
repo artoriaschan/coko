@@ -1,3 +1,4 @@
+import { attachmentReferenceFromText, type AttachmentReference } from '@coko/protocol'
 import { originalMessageTime } from './fork-history.ts'
 import {
   fileReferencePath,
@@ -91,6 +92,7 @@ type TimelineContent =
       command?: CommandPayload
       invocation?: string
       references?: string[]
+      attachments?: AttachmentReference[]
       images?: { data: string; mimeType: string }[]
     }
   /** 被回退的区间：折叠保留，可展开查看（ADR 0006）。 */
@@ -386,6 +388,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
         const command = pendingCommand
         pendingCommand = null
         const references: string[] = []
+        const attachments: AttachmentReference[] = []
         // 后台任务的完成通知（<job-notification> 文本块）由 job_notification 行显示，不进入用户气泡；只有通知的消息不成气泡。
         // UserPromptSubmit Hook 追加的上下文（<hook-context> 文本块）由 hook_run 行显示，同样不进入气泡（也不随回退放回输入区）。
         // 后台子代理的结束通知（<agent-notification> 文本块，紧接在 agent_notification 条目之后）由该行显示；定时任务 Run 的输入
@@ -434,11 +437,16 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
               return false
             }
           }
+          const attachment = attachmentReferenceFromText(b.text)
+          if (attachment) {
+            attachments.push(attachment)
+            return false
+          }
           const path = fileReferencePath(b.text)
           if (path !== undefined) references.push(path)
           return path === undefined
         })
-        if (!plain && blocks.length > 0 && own.length === 0 && references.length === 0) return
+        if (!plain && blocks.length > 0 && own.length === 0 && references.length === 0 && attachments.length === 0) return
         items.push({
           kind: 'user',
           key: `${entry.seq}`,
@@ -450,6 +458,7 @@ export function buildTimeline(conversation: Conversation): TimelineItem[] {
             )
             .map(({ data, mimeType }) => ({ data, mimeType })),
           ...(references.length > 0 ? { references } : {}),
+          ...(attachments.length > 0 ? { attachments } : {}),
           seq: entry.seq,
           checkpoint: !hidden,
           ...(command ? { command, invocation: command.args === '' ? `/${command.name}` : `/${command.name} ${command.args}` } : {}),

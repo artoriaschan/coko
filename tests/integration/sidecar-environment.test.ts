@@ -91,7 +91,9 @@ it('环境在基础提示后，含当前目录、附加文件夹与宿主环境�
 })
 
 it('更换模型后下一次请求的环境只改变 Model；草稿按缺省模型计算', async () => {
-  const bodies: { messages: { role: string; content: string }[] }[] = []
+  const bodies: { messages: { role: string; content: string | { type: string; text?: string }[] }[] }[] = []
+  const contentText = (content: string | { type: string; text?: string }[]) =>
+    typeof content === 'string' ? content : content.map((block) => block.text ?? '').join('')
   const server = createServer((request, response) => {
     let text = ''
     request.setEncoding('utf8').on('data', (chunk: string) => {
@@ -134,7 +136,7 @@ it('更换模型后下一次请求的环境只改变 Model；草稿按缺省模�
     await stream.waitFor(() => stream.entries(session.id).filter((entry) => entry.kind === 'run_end').length > index)
   }
   const environments = bodies.map(
-    (body) => body.messages.find((message) => message.role === 'system')!.content.match(/<environment>[\s\S]*?<\/environment>/)![0],
+    (body) => contentText(body.messages.find((message) => message.role === 'system')!.content).match(/<environment>[\s\S]*?<\/environment>/)![0],
   )
   expect(environments).toHaveLength(2)
   expect(environments[0]).toContain('Model: environment-models/first-model')
@@ -142,6 +144,11 @@ it('更换模型后下一次请求的环境只改变 Model；草稿按缺省模�
   const draft = (await api.get(contextPaths.workspace(workspace.id))).body
   expect(draft.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[0]!.length))
   const usage = (await api.get(contextPaths.session(session.id))).body
-  expect(usage.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[1]!.length))
+  // 已送达的宿主状态块也属于 system；直接从实际模型请求观察它们。
+  const stateBlocks = bodies[1]!.messages.flatMap((message) =>
+    message.role === 'user' ? [...contentText(message.content).matchAll(/<state_update name="[^"]+">[\s\S]*?<\/state_update>/g)].map((match) => match[0]) : [],
+  )
+  expect(stateBlocks).toHaveLength(1)
+  expect(usage.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[1]!.length + stateBlocks[0]!.length))
   expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
 })

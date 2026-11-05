@@ -1,18 +1,19 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises'
+import { mkdir, realpath, rm, rmdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { parseFileReferences } from '@coko/agent'
 import type { FirstSendRequest, FirstSendResponse, ImageAttachment } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
 import { AppError } from './errors.ts'
 import type { SessionService } from './sessions.ts'
+import { sessionDateDirectory, sessionDirectoryName } from './session-directory.ts'
 import type { WorktreeService } from './worktrees.ts'
 
 /** 固定草稿身份对应固定的记录键，提交结果本身就是重启后的幂等凭证。 */
 function sessionIdFor(draftId: string): string {
   return `chat-${createHash('sha256').update(draftId).digest('hex')}`
 }
-export function firstMessageTitle(text: string, images: ImageAttachment[] = []): string {
+export function firstMessageTitle(text: string, images: Pick<ImageAttachment, 'name'>[] = []): string {
   if (!text.trim() && images.length)
     return Array.from(`附件：${images.map((image) => image.name).join('、')}`)
       .slice(0, 20)
@@ -61,7 +62,7 @@ export class FirstSendService {
 
   async #send(id: string, input: FirstSendRequest): Promise<FirstSendResponse> {
     const { store, sessions, chatsRoot } = this.#options
-    if (!input.text.trim() && !input.images?.length) throw new AppError('bad-request', 'A message is required')
+    if (!input.text.trim() && !input.images?.length && !input.files?.length) throw new AppError('bad-request', 'A message is required')
     const existing = await store.sessions.getSession(id)
     if (existing) {
       const entries = await store.sessions.listEntries(id)
@@ -81,31 +82,56 @@ export class FirstSendService {
     if (input.newWorktree && !project) throw new AppError('bad-request', 'A project is required for a new worktree')
     let worktreeId: string | undefined
     let folder: string | undefined
+    let dateFolder: string | undefined
+    let createdDateFolder = false
     let workspaceId: string | undefined = project?.primaryWorkspaceId
     let accepted = false
     try {
       if (!workspaceId) {
         await mkdir(chatsRoot, { recursive: true })
-        const today = new Date()
-        const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-        folder = await mkdtemp(join(chatsRoot, `${date}-`))
-        workspaceId = (await store.sessions.registerWorkspace({ path: await realpath(folder) })).id
+        const date = sessionDateDirectory(new Date())
+        dateFolder = join(chatsRoot, date)
+        try {
+          await mkdir(dateFolder)
+          createdDateFolder = true
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+        }
+        // Atomic allocation never adopts a folder belonging to another Session or an external writer.
+        const short = join(dateFolder, sessionDirectoryName(id))
+        try {
+          await mkdir(short)
+          folder = short
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+          const full = join(dateFolder, sessionDirectoryName(id, true))
+          await mkdir(full)
+          folder = full
+        }
+        await mkdir(join(folder, 'work'))
+        await mkdir(join(folder, 'outputs'))
+        folder = await realpath(folder)
+        workspaceId = (await store.sessions.registerWorkspace({ path: folder, name: `独立对话 · ${date}` })).id
       }
       if (input.newWorktree) worktreeId = (await this.#options.worktrees.create(workspaceId, input.baseBranch ? { baseBranch: input.baseBranch } : {})).id
       const session = await sessions.create({
         id,
         workspaceId,
+        ...(folder ? { directory: folder, cwd: join(folder, 'work') } : {}),
         ...(worktreeId ? { worktreeId } : {}),
         projectId: project?.id ?? null,
-        title: firstMessageTitle(input.text, input.images),
+        title: firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]),
         ...(input.model ? { model: input.model } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
         ...(input.permissionMode ? { permissionMode: input.permissionMode } : {}),
       })
-      const result = await sessions.submitFirst(session.id, input.text, input.images)
+      const result = await sessions.submitFirst(session.id, input.text, input.images, input.files)
       if (!('runId' in result)) throw new AppError('bad-request', 'A message is required')
       accepted = true
-      this.#options.titles?.start(id, firstMessageTitle(input.text, input.images), input.text, input.images ?? [])
+      this.#options.titles?.start(id, firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]), input.text, [
+        ...(input.images ?? []),
+        ...(input.files ?? []),
+      ])
       return { session: await sessions.toDto((await store.sessions.getSession(id))!), runId: result.runId }
     } catch (error) {
       if (accepted) throw error
@@ -113,6 +139,10 @@ export class FirstSendService {
       if (worktreeId) await this.#options.worktrees.removeIfUnchanged(worktreeId)
       // 其他调用方已经引用这个 Workspace 时，不删除它仍在使用的目录。
       if (folder && (!workspaceId || (await store.sessions.deleteWorkspaceIfUnused(workspaceId)))) await rm(folder, { recursive: true, force: true })
+      if (createdDateFolder && dateFolder)
+        await rmdir(dateFolder).catch((cleanup: NodeJS.ErrnoException) => {
+          if (cleanup.code !== 'ENOENT' && cleanup.code !== 'ENOTEMPTY' && cleanup.code !== 'EEXIST') throw cleanup
+        })
       throw error
     }
   }

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、多文件夹创建与编辑、项目详情与置顶、删除项目保留会话，以及会话归属、列表、菜单、归档和永久删除。"
+description: "项目模型、Workspace 迁移、多文件夹与空白项目创建、编辑、项目详情与置顶、删除项目保留会话，以及会话归属、列表、菜单、归档和永久删除。"
 lifecycle: active
 ---
 
@@ -20,11 +20,13 @@ SQLite v11 追加主要目录位置字段，旧项目默认为列表第一项；
 
 ## 创建项目与主要文件夹
 
-项目分类的“+”与新对话归属菜单底部的“新建项目”打开同一个[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.tsx)。名称首次聚焦、最多 50 字符，非空名称及至少一个目录才可提交。空表单提供虚线添加区域，目录由 Electron 宿主选择；取消选择不改草稿。添加前通过 Sidecar 校验存在、可读取及可遍历，并取真实路径，同一目录经符号链接、末尾斜杠或 `..` 添加会提示“已添加”。失败说明保留在表单中，不新增目录行。
+项目分类的“+”与新对话归属菜单底部的“新建项目”打开同一个[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.tsx)。名称首次聚焦、最多 50 字符；添加已有文件夹时，非空名称及至少一个目录才可提交。空表单提供虚线添加区域，目录由 Electron 宿主选择；取消选择不改草稿。添加前通过 Sidecar 校验存在、可读取及可遍历，并取真实路径，同一目录经符号链接、末尾斜杠或 `..` 添加会提示“已添加”。失败说明保留在表单中，不新增目录行。
+
+创建表单底部的“新建空白项目”切换到自动建目录模式；此时无需选择文件夹，名称留空也可提交。“添加已有文件夹”可切回原流程，已填名称和所选目录保留。服务端在独立会话根的 `projects/` 下创建目录，默认是 `<Documents>/Coko/projects/<名称>`；去除名称首尾空白、路径分隔符和前导点，空值使用“新项目”。已有目录或文件同名时原子地尝试 `-2`、`-3`，不覆盖内容；名称及目录名保持项目的 50 字符上限，追加后缀时按字符收短原名。创建成功后以该目录登记主要 Workspace 和 Project，并沿用入口的新对话预选规则；项目根直接作为工作目录，不创建 `work/outputs`。失败时回滚本次未被引用的 Workspace 与空目录，已有目录、文件和外部写入内容保留。
 
 源文件夹保留添加顺序。创建项目时如果名称为空，选择文件夹后用该文件夹的名称回填名称输入框，已有名称不覆盖；编辑项目不回填。第一个缺省为主要，非主要行在 hover 或焦点进入时显示“设为主要”，隐藏时保留按钮位置；按钮常态无背景，只有悬停到按钮本身才显示 hover 背景；点击只改草稿中的唯一主要标记。文件夹名称与地址各占一行并以省略号截断，悬停名称或地址时用 Tooltip 展示完整路径。项目行与“更多项目操作”按钮打开同一份操作菜单，在项目行上右键时菜单定位到指针处。移除主要目录时由列表中的下一项接替，末项没有后继时取新的末项。名称、文件夹或主要标记改动后，取消、右上关闭与 Escape 均先询问“放弃更改？”，取消确认保留输入。提交期间锁定表单并阻止重复提交，保存失败保留草稿。
 
-`POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
+`POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，或 `{ mode: "blank", name }` 的空白模式。已有文件夹模式中，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
 
 应用级[弹窗宿主](../../apps/desktop/src/renderer/features/projects/project-dialogs.tsx) 更新同一份列表数据。分类创建或命中已有项目后进入新对话，预选该项目并聚焦输入区；归属菜单创建后只选择目标项目，保留同一份新对话草稿。已有项目结果通过应用级 Toast 告知项目名。表单也接受编辑初值和外部提交/完成回调，完成动作由调用方拥有，表单本身不创建会话或改变归属。编辑完成只更新同一份列表引用，不进入新对话或切换当前会话。
 
@@ -58,9 +60,9 @@ DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及�
 
 ## 独立对话专属目录
 
-独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `~/Coko/chats`，启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。日期加随机后缀通过独占创建分配，不覆盖既有文件。
+独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `<Documents>/Coko`（desktop main 解析系统 Documents），启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。会话根是 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>`，日期采用首次成功发送时的本地日期；同日短名已占用则以完整 sessionId 回退，两个候选都被占用时拒绝，不认领既有目录。根下创建 `work/` 与 `outputs/`，Workspace 指向会话根，名称固定为“独立对话 · yyyy-MM-dd”，Session 的 `directory` 保存实际根、`cwd` 保存 `work/`。标题改变、跨天与同草稿重试都不移动它。旧记录没有这两个值时仍按原 Workspace / worktree 解析。
 
-首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，其工作文件仍应保留。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
+首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，只清理真正为空的专属目录，有内容的工作文件仍保留，详见[永久删除对话](#永久删除对话)。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
 
 ## 会话归属与列表协议
 
@@ -148,9 +150,10 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 - [项目编辑 Sidecar 用例](../../tests/integration/sidecar-edit-project.test.ts)：编辑及主要目录冲突、原会话 Workspace 固定、置顶时间、归档与置顶计数、非法输入及重启读回。
 - [项目行浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-row.browser.test.tsx)：详情与菜单 2px 顶对齐、指针跨间距、完整路径、混合置顶树、失败与展开状态；[应用浏览器用例](../../apps/desktop/src/renderer/app/app.browser.test.tsx) 验证内容和草稿 DOM 稳定及共用编辑入口。
 - [Finder 宿主单元用例](../../apps/desktop/src/main/open-directory.test.ts)：注入 shell 验证目录准入与失败；[项目编辑 Electron 用例](../../apps/desktop/e2e/project-edit.e2e.test.ts) 验证真实 preload/main 装配、编辑、重启及项目内新对话。
+- [空白项目 Sidecar 用例](../../tests/integration/sidecar-blank-project.test.ts)：名称清洗、空名、并发冲突、重启、首次发送 cwd 与创建失败回滚。
 - [创建项目 Sidecar 用例](../../tests/integration/sidecar-create-project.test.ts)：多目录顺序、真实路径判重、已有结果、名称与目录拒绝及重启读回。
 - [项目表单浏览器用例](../../apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx)：主要标记与接替、hover/focus 几何、目录取消/失败、放弃确认、保存锁定、明暗主题与窄窗口。
-- [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建与首次发送归属。
+- [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建，以及空白项目、重名和名称清洗后的首次发送归属。
 - [存储契约](../../packages/session/src/repository-contract.ts)：主要 Workspace 唯一、完整组织字段的读写和最后记录时间。
 - [迁移用例](../../packages/session/src/sqlite/migrate-v10.test.ts)：v9 升级、根会话和 worktree 归属、子会话字段及备份读回。
 - [Sidecar 协议](../../tests/integration/sidecar-projects.test.ts)：真实目录判重、项目列表、创建会话、分叉和重启读回。
@@ -171,10 +174,14 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 
 普通、项目内和置顶会话共用删除入口。选择“删除对话”先关闭菜单，再打开 [SessionDeleteDialog](../../apps/desktop/src/renderer/features/sidebar/session-delete-dialog.tsx)，它接收固定的 sessionId，也可由归档列表和搜索结果复用。确认弹窗为 W480、最小 H184、R28，狭窄窗口按可用宽度收缩；初始焦点在取消。取消、右上关闭和 Escape 保留会话并恢复来源行的焦点；确认期间禁止重复提交和关闭。失败留在弹窗显示原因，成功响应后才移除列表与内容订阅。删除当前打开会话时进入新对话，其他会话保持当前选择。
 
-DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代的身份。存储在一个事务中删除会话树、它们的条目、绑定定时任务和进程登记；保留 Workspace、worktree 记录及目录、记忆、项目源目录和用户工作文件，独立对话的专属目录也保留。直接删除不会执行 worktree 清理或删除文件系统路径。
+`GET /api/sessions/:id/delete-preview` 返回 `{ retainedDirectories }`，给出按当前磁盘与共享引用状态应保留的独立会话目录。弹窗显示完整路径并支持复制；加载期间或检查失败时不能确认删除，检查失败可重试，复制失败保留路径和弹窗。长路径在窄窗口换行并可滚动，复制按钮与路径并列。
+
+`DELETE /api/sessions/:id` 返回 `{ sessionIds, retainedDirectories }`，包括目标和所有后代的身份与最终保留的目录。存储先在一个事务中删除会话树、它们的条目、绑定定时任务和进程登记；文件系统清理与该事务分开执行。删除后重新检查磁盘：只有会话根除 `work/`、`outputs/` 外没有其他条目，且这两个子目录为空（或已经不存在）时，才以不递归的 `rmdir` 清理。隐藏文件、符号链接、其他条目、目录检查失败或清理时出现的新内容都会使目录保留，不跟随链接删除内容。仍被其他 Session 或项目文件夹使用的目录保留；有内容或共享引用时也保留 Workspace，空目录清理后才调用 `deleteWorkspaceIfUnused` 删除没有会话、项目、worktree 或记忆引用的登记。旧 `directory=null` 会话不做目录清理，Project 与 Worktree 文件及记录不被此流程移除。
+
+目标与后代各自的 `data/attachments/<sessionId>/` 和 `data/tool-results/<sessionId>/` 随删除清理；不删除 `data/mcp/`、Job 日志、项目源文件或记忆。归档与恢复不执行这些文件系统操作。分叉先复制私有附件与被历史引用的工具落盘文件并重绑定路径，删除源会话不会破坏分支中的副本。目录在检查与清理间发生变化时以最终文件系统操作结果为准；空目录清理失败记日志并返回保留路径，私有附件/结果清理错误向调用方报告。
 
 有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
 
-[SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
+[SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约还包括[空目录、保留路径与私有文件 Sidecar 测试](../../tests/integration/sidecar-session-cleanup.test.ts)、[保留路径 Browser Mode](../../apps/desktop/src/renderer/features/sidebar/session-delete-dialog.browser.test.tsx)。原有并发与重启契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
 
 [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts) 从创建项目后的首次发送读回项目身份、主要 Workspace 与标题，并验证独立、项目、置顶和搜索来源使用同一套最终五项会话菜单。

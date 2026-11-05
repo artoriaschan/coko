@@ -1,7 +1,7 @@
 // PluginService（ADR 0017）：目录来源安装、状态派生、digest 批准、启停的贡献快照、卸载的路径安全（记录被改到插件根外时拒绝删除）。
 // 内存存储与真实临时目录；git 来源与进程在 tests/integration/sidecar-plugins*.test.ts。
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,7 @@ describe('PluginService', () => {
       contributions: { skills: ['demo:greet'], commands: [], agents: [] },
       executables: { hooks: [{ event: 'PreToolUse', command: join(installed, 'guard.sh') }] },
     })
+    expect((await store.plugins.get('demo'))!.path).toBe(join('plugins', 'demo'))
     expect(existsSync(join(installed, 'skills', 'greet', 'SKILL.md'))).toBe(true)
     expect(await plugins.snapshot()).toEqual({ skillRoots: [], commandRoots: [], agentRoots: [], hooks: [], mcpServers: [], lspServers: [] })
     expect(await codeOf(plugins.install({ kind: 'dir', path: source }))).toEqual(['plugin-exists', 409])
@@ -140,7 +141,8 @@ describe('PluginService', () => {
     const victim = join(base, 'victim')
     await mkdir(victim)
     await writeFile(join(victim, 'keep.txt'), 'keep')
-    for (const path of [victim, join(cokoHome, 'plugins', '..', '..', 'victim')]) {
+    await symlink(victim, join(cokoHome, 'plugins', 'linked'))
+    for (const path of [victim, join(cokoHome, 'plugins', '..', '..', 'victim'), join('..', 'victim'), join('plugins', 'linked')]) {
       await store.plugins.upsert({ ...record!, path })
       expect(await codeOf(plugins.uninstall('demo'))).toEqual(['forbidden', 403])
       expect(await codeOf(plugins.update('demo'))).toEqual(['forbidden', 403])
