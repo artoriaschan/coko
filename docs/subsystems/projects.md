@@ -58,7 +58,7 @@ DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及�
 
 ## 独立对话专属目录
 
-独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `<Documents>/Coko`（desktop main 解析系统 Documents），启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。日期加随机后缀通过独占创建分配，不覆盖既有文件。
+独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `<Documents>/Coko`（desktop main 解析系统 Documents），启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。会话根是 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>`，日期采用首次成功发送时的本地日期；同日短名已占用则以完整 sessionId 回退，两个候选都被占用时拒绝，不认领既有目录。根下创建 `work/` 与 `outputs/`，Workspace 指向会话根，名称固定为“独立对话 · yyyy-MM-dd”，Session 的 `directory` 保存实际根、`cwd` 保存 `work/`。标题改变、跨天与同草稿重试都不移动它。旧记录没有这两个值时仍按原 Workspace / worktree 解析。
 
 首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，其工作文件仍应保留。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
 

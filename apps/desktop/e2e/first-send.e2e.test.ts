@@ -1,6 +1,6 @@
-import { mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
 import { launchApp, waitConnected } from './harness.ts'
 
@@ -8,7 +8,8 @@ it('CW-26/41/62：独立新对话的草稿和配置跨切换与重启恢复；�
   const root = await mkdtemp(join(tmpdir(), 'coko-first-send-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const script = join(root, 'faux.json')
-  await writeFile(script, JSON.stringify({ responses: [{ content: 'Example reply.' }] }))
+  const requestLog = join(root, 'requests.jsonl')
+  await writeFile(script, JSON.stringify({ requestLog, responses: [{ content: 'Example reply.' }] }))
   const env = { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: join(root, 'chats') }
   let app = await launchApp(env, { dir: root })
   onTestFinished(() => app.dispose())
@@ -79,6 +80,20 @@ it('CW-26/41/62：独立新对话的草稿和配置跨切换与重启恢复；�
   expect(facts.sessions[0]).toMatchObject({ projectId: null, title: 'Example draft intent' })
   const folder = facts.workspaces.find((workspace: { id: string }) => workspace.id === facts.sessions[0].workspaceId).path
   expect((await stat(folder)).isDirectory()).toBe(true)
+  const session = facts.sessions[0]
+  expect(session.directory).toBe(folder)
+  expect(session.cwd).toBe(join(folder, 'work'))
+  expect(basename(dirname(folder))).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(basename(folder)).toBe(`chat-${session.id.slice(0, 12)}`)
+  expect((await readdir(folder)).sort()).toEqual(['outputs', 'work'])
+  const system = (await readFile(requestLog, 'utf8'))
+    .trim()
+    .split('\n')
+    .flatMap((line) => JSON.parse(line))
+    .find((message: { sections?: Record<string, string> }) => message.sections?.environment)?.sections
+  expect(system.environment).toContain(`Workspace: ${session.cwd}`)
+  expect(system['standalone-directory']).toContain(join(folder, 'outputs'))
+  expect(system['standalone-directory']).toContain('Intermediate files')
   expect(await readdir(env.COKO_CHATS_ROOT)).toHaveLength(1)
   await page.getByRole('button', { name: /^(New chat|新对话)$/ }).click()
   await expect.poll(() => editor().textContent()).toBe('')

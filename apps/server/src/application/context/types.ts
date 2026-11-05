@@ -32,6 +32,8 @@ export interface ContextScope {
   workspaceId: string
   /** Workspace 目录。 */
   cwd: string
+  /** Managed Standalone Session root; cwd is its work/ directory. Omitted for Project and legacy Sessions. */
+  sessionDirectory?: string
   /** Current model; draft scopes use the default model. */
   model?: { providerId: string; modelId: string }
   /** Additional Project folders, inherited from the root Session by child Sessions. */

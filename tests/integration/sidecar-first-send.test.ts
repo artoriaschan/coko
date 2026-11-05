@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, hookPaths } from '@coko/protocol'
-import { client, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { API_ROUTES, apiPaths, checkpointPaths, handoffPaths, hookPaths } from '@coko/protocol'
+import { client, exchange, fauxScript, pollUntil, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 it('首次发送创建专属目录并在消息持久化后返回；同一草稿并发与重启重试只有一个会话', async () => {
   const root = await tempDir()
@@ -29,7 +30,12 @@ it('首次发送创建专属目录并在消息持久化后返回；同一草稿�
   const workspace = (await api.get(API_ROUTES.workspaces)).body.workspaces[0]
   expect(workspace.id).toBe(session.workspaceId)
   expect(workspace.path.startsWith(await realpath(chatsRoot))).toBe(true)
-  expect(workspace.path.split('/').at(-1)).toMatch(/^\d{4}-\d{2}-\d{2}-.+/)
+  expect(basename(dirname(workspace.path))).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  expect(basename(workspace.path)).toBe(`chat-${session.id.slice(0, 12)}`)
+  expect(session.directory).toBe(workspace.path)
+  expect(session.cwd).toBe(join(workspace.path, 'work'))
+  expect(workspace.name).toBe(`独立对话 · ${basename(dirname(workspace.path))}`)
+  expect((await readdir(workspace.path)).sort()).toEqual(['outputs', 'work'])
   expect((await stat(workspace.path)).isDirectory()).toBe(true)
   expect((await api.get(API_ROUTES.projects)).body.projects).toHaveLength(0)
   const detail = (await api.get(apiPaths.session(session.id))).body
@@ -40,6 +46,8 @@ it('首次发送创建专属目录并在消息持久化后返回；同一草稿�
       expect.objectContaining({ kind: 'message', payload: expect.objectContaining({ role: 'user' }) }),
     ]),
   )
+  expect((await api.put(apiPaths.sessionTitle(session.id), { title: 'Renamed title' })).status).toBe(200)
+  expect((await api.get(API_ROUTES.workspaces)).body.workspaces[0].name).toBe(workspace.name)
   await first.stop()
   const second = await startSidecar({ dirs, env })
   const after = client(second, await exchange(second))
@@ -134,4 +142,117 @@ it('项目首次发送固定使用主要文件夹，拒绝后保留项目和源�
   expect((await api.post(API_ROUTES.firstSend, { draftId: 'missing-project', projectId: 'missing', text: 'hello' })).status).toBe(404)
   expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(1)
   expect((await api.get(API_ROUTES.workspaces)).body.workspaces[0].path).toBe(await realpath(folder))
+})
+
+it('独立会话在 work 中执行并收到交付目录指令；项目会话不注入该约定', async () => {
+  const root = await tempDir()
+  const requestLog = join(root, 'requests.jsonl')
+  const script = await fauxScript(root, {
+    requestLog,
+    responses: [
+      { content: [{ type: 'toolCall', name: 'write', id: 'cwd-proof', arguments: { path: 'cwd-proof.txt', content: 'work directory' } }] },
+      { content: 'done' },
+    ],
+  })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: join(root, 'chats') } })
+  const api = client(sidecar, await exchange(sidecar))
+  const sent = await api.post(API_ROUTES.firstSend, { draftId: 'work-instructions', text: 'create proof', permissionMode: 'accept-edits' })
+  expect(sent.status).toBe(201)
+  const session = sent.body.session
+  await pollUntil(async () => (await api.get(apiPaths.session(session.id))).body.entries.some((entry: { kind: string }) => entry.kind === 'run_end'), {
+    timeoutMs: 10000,
+    what: 'run end',
+  })
+  expect(await readFile(join(session.directory, 'work', 'cwd-proof.txt'), 'utf8')).toBe('work directory')
+  const sections = (await readFile(requestLog, 'utf8'))
+    .trim()
+    .split('\n')
+    .flatMap((line) => JSON.parse(line))
+    .find((message: { sections?: Record<string, string> }) => message.sections?.environment)?.sections
+  expect(sections['standalone-directory']).toContain('Intermediate files')
+  expect(sections['standalone-directory']).toContain(join(session.directory, 'outputs'))
+  expect(sections['standalone-directory']).toContain('Do not create files elsewhere in the session directory')
+  const projectFolder = join(root, 'project')
+  await mkdir(projectFolder)
+  await api.post(API_ROUTES.workspaces, { path: projectFolder })
+  const project = (await api.get(API_ROUTES.projects)).body.projects[0]
+  const projectSent = await api.post(API_ROUTES.firstSend, { draftId: 'project-instructions', projectId: project.id, text: 'project task' })
+  expect(projectSent.body.session.directory).toBeNull()
+  await pollUntil(
+    async () => (await api.get(apiPaths.session(projectSent.body.session.id))).body.entries.some((entry: { kind: string }) => entry.kind === 'run_end'),
+    { timeoutMs: 10000, what: 'run end' },
+  )
+  const projectRequest = (await readFile(requestLog, 'utf8'))
+    .trim()
+    .split('\n')
+    .flatMap((line) => JSON.parse(line))
+    .find((message: { sections?: Record<string, string> }) => message.sections?.environment?.includes(`Workspace: ${projectSent.body.session.cwd}`))
+  expect(projectRequest.sections['standalone-directory']).toBeUndefined()
+})
+
+it('同日短目录冲突时回退完整 id，保留占用目录，不认领完整 id 已占用目录', async () => {
+  const root = await tempDir()
+  const chatsRoot = join(root, 'chats')
+  const now = new Date()
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const idFor = (draft: string) => `chat-${createHash('sha256').update(draft).digest('hex')}`
+  const id = idFor('collision')
+  const day = join(chatsRoot, date)
+  const occupied = join(day, `chat-${id.slice(0, 12)}`)
+  await mkdir(occupied, { recursive: true })
+  await writeFile(join(occupied, 'keep.txt'), 'keep')
+  const script = await fauxScript(root, { responses: [{ content: 'done' }] })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: chatsRoot } })
+  const api = client(sidecar, await exchange(sidecar))
+  const sent = await api.post(API_ROUTES.firstSend, { draftId: 'collision', text: 'hello' })
+  expect(sent.status).toBe(201)
+  expect(sent.body.session.directory).toBe(join(await realpath(day), id))
+  expect(await readFile(join(occupied, 'keep.txt'), 'utf8')).toBe('keep')
+  const blocked = idFor('both-occupied')
+  await mkdir(join(day, `chat-${blocked.slice(0, 12)}`))
+  await mkdir(join(day, blocked))
+  await writeFile(join(day, blocked, 'keep.txt'), 'still here')
+  expect((await api.post(API_ROUTES.firstSend, { draftId: 'both-occupied', text: 'hello' })).status).toBe(500)
+  expect(await readFile(join(day, blocked, 'keep.txt'), 'utf8')).toBe('still here')
+  expect((await api.get(API_ROUTES.sessions)).body.sessions).toHaveLength(1)
+})
+
+it('独立会话的分叉、当前目录交接和非隔离子代理保留固定 cwd 与会话目录', async () => {
+  const root = await tempDir()
+  const script = await fauxScript(root, {
+    responses: [
+      {
+        match: 'PARENT',
+        content: [{ type: 'toolCall', name: 'agent', id: 'delegate', arguments: { description: 'write proof', prompt: 'CHILD', subagent_type: 'general' } }],
+      },
+      { match: 'CHILD', content: [{ type: 'toolCall', name: 'write', id: 'child-write', arguments: { path: 'child.txt', content: 'child work' } }] },
+      { match: 'CHILD', content: 'child done' },
+      { match: 'PARENT', content: 'parent done' },
+      { content: 'Summary for continuation' },
+    ],
+  })
+  const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: join(root, 'chats') } })
+  const api = client(sidecar, await exchange(sidecar))
+  const sent = await api.post(API_ROUTES.firstSend, { draftId: 'continuations', text: 'PARENT', permissionMode: 'accept-edits' })
+  expect(sent.status).toBe(201)
+  const source = sent.body.session
+  await pollUntil(async () => (await api.get(apiPaths.session(source.id))).body.entries.some((entry: { kind: string }) => entry.kind === 'run_end'), {
+    timeoutMs: 15000,
+    what: 'parent run',
+  })
+  const detail = (await api.get(apiPaths.session(source.id))).body
+  const childId = detail.entries.find((entry: { kind: string }) => entry.kind === 'agent_start').payload.agentId
+  const child = (await api.get(apiPaths.session(childId))).body.session
+  expect(child).toMatchObject({ cwd: source.cwd, directory: source.directory })
+  expect(await readFile(join(source.cwd, 'child.txt'), 'utf8')).toBe('child work')
+  const targetSeq = detail.entries.find((entry: { kind: string; payload: { role?: string } }) => entry.kind === 'message' && entry.payload.role === 'user').seq
+  const forked = await api.post(checkpointPaths.sessionFork(source.id), { targetSeq })
+  expect(forked.status).toBe(201)
+  expect((await api.get(apiPaths.session(forked.body.sessionId))).body.session).toMatchObject({ cwd: source.cwd, directory: source.directory })
+  expect((await api.post(handoffPaths.handoff(source.id), { instructions: 'continue', target: { kind: 'current' } })).status).toBe(202)
+  const targetId = await pollUntil(
+    async () => (await api.get(apiPaths.session(source.id))).body.entries.find((entry: { kind: string }) => entry.kind === 'handoff')?.payload.targetSessionId,
+    { timeoutMs: 10000, what: 'handoff' },
+  )
+  expect((await api.get(apiPaths.session(targetId))).body.session).toMatchObject({ cwd: source.cwd, directory: source.directory })
 })

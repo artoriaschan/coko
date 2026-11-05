@@ -60,6 +60,8 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 `<environment>` 给出 Session 的固定工作目录（Worktree Session 为其中的工作目录）、Project 附加文件夹、是否为 git 仓库与 linked worktree、平台、命令执行实际使用的 shell、OS 版本、当前 Provider / 模型和 Sidecar 的 IANA 时区。不包含 git status、日期与时刻。git 仓库从工作目录向上发现 `.git`；`.git` 文件指向的 gitdir 含 `commondir` 才视为 linked worktree，避免把 submodule 当作 worktree。绑定的 Worktree Session 同样标为 worktree。
 
+托管的独立会话在环境之后额外提供 `<standalone_directory>`（section 名 `standalone-directory`）：给出会话根，说明中间文件和脚本写在 `work/`、最终交付写在 `outputs/`，不在会话根其他位置创建文件。项目及旧版无 `directory` 的会话不注入。共享该目录的子代理、分叉和当前目录交接保留相同约定。
+
 环境每个 Run 开始按当前作用域生成，未改变环境与模型时逐字稳定；更换模型后下一次 Run 使用新模型标识。子 Session 继承根 Session 所属 Project 的附加文件夹。还没有 Session 的草稿上下文接口使用 Workspace 与其 Project、缺省模型；会话的用量接口使用当前模型与实际工作目录。环境 section 与其他 system section 一起计入上下文用量的 `system` 分项。
 
 ## File Reference
