@@ -1,6 +1,6 @@
 // 开头的系统消息：基础提示与宿主每个 Run 开始时给出的 system sections。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { SystemMessage } from '@earendil-works/pi-ai'
+import { getSystemMessageText, type SystemMessage } from '@earendil-works/pi-ai'
 import type { SystemSection } from './types.ts'
 
 export const DEFAULT_SYSTEM_PROMPT =
@@ -30,7 +30,7 @@ export const BASE_SYSTEM_SECTION = 'coko.base'
 
 /**
  * 替换运行时自己建立的开头系统消息（它不是已提交的条目，每次构造运行时都按基础提示重建）。恢复的对话记录本身以系统消息开头时
- * 不动它；没有宿主段落时保持基础提示原样，模型请求与 M2 相同。
+ * 不动它；首条只是工具声明时先补回未提交的基础提示，让声明照常回放。没有宿主段落时保持基础提示原样。
  */
 export function createSystemMessage(options: {
   basePrompt: string
@@ -39,8 +39,11 @@ export function createSystemMessage(options: {
   state: { messages: AgentMessage[] }
 }): { apply(sections: readonly SystemSection[]): void } {
   const { basePrompt, state } = options
+  const first = options.restored?.[0]
+  const declarationOnly = first?.role === 'system' && getSystemMessageText(first) === '' && Boolean(first.toolsAdded?.length || first.toolsRemoved?.length)
+  if (declarationOnly) state.messages = [{ role: 'system', content: basePrompt, timestamp: Date.now() }, ...state.messages]
   let leading: SystemMessage | undefined =
-    options.restored?.[0]?.role !== 'system' && state.messages[0]?.role === 'system' ? (state.messages[0] as SystemMessage) : undefined
+    (first?.role !== 'system' || declarationOnly) && state.messages[0]?.role === 'system' ? (state.messages[0] as SystemMessage) : undefined
   return {
     apply(sections) {
       const messages = state.messages
