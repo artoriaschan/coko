@@ -1,0 +1,49 @@
+packages/agent/src/tools/tool-search/index.ts
+  s_dd1034265ded7f::t_071205b08829fa 3,57,68,70-72
+  s_dd1034265ded7f::t_525d7e5d676b7d 61,78,82-85,91,97-99
+  s_dd1034265ded7f::t_6f51dbd3f591d1 62-67,86-90,92-96
+.scratch/tool-search/issues/04-keyword-search-and-scope.md
+  s_dd1034265ded7f::t_9faf651dcf109b 15-23,28-34
+docs/README.md
+  s_dd1034265ded7f::t_cd247867ad10e6 49
+tests/integration/sidecar-tool-search-keywords.test.ts
+  s_dd1034265ded7f::t_0272bd9b1cf8df 1-10,12-15,43-50,52-71,84-89,97-103,107,112-121,123-131,137-138,143-149,160-162,164-166
+  s_dd1034265ded7f::t_82d5e6aa6ef284 11,32-34,39-40,51,91,159,163
+  s_dd1034265ded7f::t_d091391c8ba590 35-38,72-83,93-96,150-153
+  s_dd1034265ded7f::t_7da93ccdf7a956 122
+  s_dd1034265ded7f::t_6f51dbd3f591d1 16-31,41-42,90,92,104-106,108-111,132-136,139-142,154-158
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_b62233e8c9f4ff 80-84
+  s_dd1034265ded7f::t_cd247867ad10e6 19,153
+tests/fixtures/tool-search/stdio-server.ts
+  s_dd1034265ded7f::t_6f51dbd3f591d1 12-15
+  s_dd1034265ded7f::t_0272bd9b1cf8df 1-11,16-17
+packages/agent/src/tools/tool-search/tool-search.test.ts
+  s_dd1034265ded7f::t_6f51dbd3f591d1 62-67,113-118
+  s_dd1034265ded7f::t_6310e440049b4f 18-31
+  s_dd1034265ded7f::t_02b6d97480cb03 4,11-16,58-61,68-92,94-112,119-120
+  s_dd1034265ded7f::t_525d7e5d676b7d 93
+tests/fixtures/tool-search/keyword-result.json
+  s_dd1034265ded7f::t_0272bd9b1cf8df 1-2,4-18
+  s_dd1034265ded7f::t_82d5e6aa6ef284 3
+packages/agent/src/tools/tool-search/search.ts
+  s_dd1034265ded7f::t_82d5e6aa6ef284 69-70,81
+  s_dd1034265ded7f::t_6f51dbd3f591d1 16-27,30-39,55-60,71-80,82-85,90-93
+  s_dd1034265ded7f::t_071205b08829fa 1-15,28-29,40-54,61-68,86-89,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "028af33729c99a1d2e06fae2347289ccaffb62a0",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
