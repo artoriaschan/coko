@@ -238,7 +238,14 @@ export function DiagnosticTable({
           </colgroup>
           <thead>
             <tr>
-              <th className="font-medium">{t('diagnostics.sequence')}</th>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <th tabIndex={0} className="font-medium focus-ring">
+                    {t('diagnostics.sequence')}
+                  </th>
+                </TooltipTrigger>
+                <TooltipContent>{t('diagnostics.sequence')}</TooltipContent>
+              </Tooltip>
               <th className="font-medium">
                 <span className="inline-flex items-center gap-1">
                   {t('diagnostics.type')}

@@ -64,3 +64,8 @@
 - 从 AGENTS → docs/README → workbench 与 session-diagnostics 正文读回：语义同步、归属与权威、引用方向、当前入口、新会话独立读取、历史保留均通过；本次没有移动／弃用文档，不产生替代链。文档仍将整体批准与本票实施状态分开。
 - `git merge codex/right-sidebar-session-diagnostics-integration`：Already up to date（集成基线 `98e95bef`）。本票只提交独立分支，不推送／修改 main。
 - 本票未运行 Electron、agent-browser、安装包、真实指针／原生层或真实模型验收；按实施合同由 12 集中执行桌面与产物场景。Browser Mode 的真实 Chromium 交互与 HTML details 不等于 Electron 原生验收。
+
+
+### 2026-11-05 第 12 票集成回执
+
+[最终证据](../evidence/integrated-acceptance.md) 已实际运行相关真实 Electron、App Browser Mode 与当前产物验证。E1 为 13 文件17项，E2 为最终表头补丁后的3文件3项，均通过且0跳过；B1为46文件459项、B2为原始诊断7项及额外6文件76项通过。上文“本票未运行”保留为当时的历史；本回执补齐原生/资源执行证据，不将源码或 Browser Mode 冒充原生验收。03 的旧 IME组合信号本次未复现；初始新不确定性与真实鼠标/红绿灯/窗口拖拽的后台限制均保留在证据中。

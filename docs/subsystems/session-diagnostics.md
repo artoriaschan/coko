@@ -14,7 +14,7 @@ lifecycle: active
 
 每条真实条目以 seq 为身份，跳过的 seq 不补造。`run_start` 为组头，同一 Run 的其余条目按 seq 成为子行，整个组位于组头的位置；没有组头的 Run 条目和不属于 Run 的条目按 seq 作为根行。Run 列按加载条目中 Run 首次出现的顺序从 1 编号，非 Run 条目为空。
 
-列为序号、类型、Run、UTC 毫秒时间与摘要；message 类型附角色。摘要省略已有独立列的顶层元数据，保留嵌套业务值，最多 240 字符。每行与表头固定为 30px，表格使用 Tanstack 虚拟化，保留当前吸顶祖先；序号可悬停或聚焦查看全文。超出面板宽度的列只在表格中横向滚动，工具栏可换行。
+列为序号、类型、Run、UTC 毫秒时间与摘要；message 类型附角色。摘要省略已有独立列的顶层元数据，保留嵌套业务值，最多 240 字符。每行与表头固定为 30px，表格使用 Tanstack 虚拟化，保留当前吸顶祖先；序号值与表头可悬停或聚焦查看全文。超出面板宽度的列只在表格中横向滚动，工具栏可换行。
 
 ## 对话分组
 
@@ -70,4 +70,4 @@ Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；�
 
 实时增量由 [生命周期订阅](../../apps/desktop/src/renderer/features/session-diagnostics/progress-capture.tsx)与[纯模型](../../apps/desktop/src/renderer/features/session-diagnostics/progress-model.ts)维护，不修改 chat store。纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。[分组 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/grouping.browser.test.tsx)覆盖身份、引用面包屑、懒枚举、分页、getter、循环、发布更新与减少动态效果；对象值纯测试移植原生集合的边界案例。[定位 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-navigation.browser.test.tsx)覆盖三级展开、精确与整列回退、嵌套滚轮及裁剪、只在需要时滚动、原始实时块、回退历史、筛选后的反查和完整取消；[身份匹配测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-matching.test.ts)覆盖精确身份优先、工具来源和同 Run／其他 Run 回退。第三方许可与打包约定见[安装包](delivery.md#安装包)。
 
-[真实 App 进度回放](../../apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx)覆盖分组、转交、空时间列与 tab/Session 生命周期；[真实 Sidecar Electron 用例](../../apps/desktop/e2e/diagnostic-progress.e2e.test.ts)在已创建并订阅的 Session 中打开诊断后运行 faux 模型，用模型时钟屏障和真实工具文件屏障观察流式与结算。用例源码不代表已经执行桌面验收。
+[真实 App 进度回放](../../apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx)覆盖分组、转交、空时间列与 tab/Session 生命周期；[真实 Sidecar Electron 用例](../../apps/desktop/e2e/diagnostic-progress.e2e.test.ts)在已创建并订阅的 Session 中打开诊断后运行 faux 模型，用模型时钟屏障和真实工具文件屏障观察流式与结算，再从已提交的 toolResult 选择记录，验证原有 Run、过程组与工具详情展开且工具卡在消息视口内。用例源码与具体执行记录分别维护。

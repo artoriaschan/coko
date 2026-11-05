@@ -67,3 +67,8 @@
 - 补充检查：`rtk pnpm run format:check apps/desktop/e2e/terminal-details.e2e.test.ts apps/desktop/e2e/trace.e2e.test.ts apps/desktop/e2e/schedules.e2e.test.ts apps/desktop/e2e/subagents.e2e.test.ts` 退出 0；`rtk pnpm run check:docs` 检查 342 个 Markdown、0 问题，退出 0；`rtk git diff --check` 通过。由 AGENTS → docs/README → 测试约定读回，测试接缝、同步方法、证据边界与本次改动相符；没有正式文档的失效引用或需迁移结论。
 
 - 合入第 07 票 `f3a8db9d` 后（合并提交 `ad1d0b5b`，无冲突），冻结依赖安装退出 0；重新运行上述四份真实 Electron E2E：4 文件、5 项通过、0 跳过，退出 0，47.89s。`rtk pnpm run typecheck` 退出 0；`rtk pnpm run check:docs` 检查 344 个 Markdown、0 问题，退出 0。该补验使用包含原始诊断表格与第三方声明的新打包源码，不沿用合并前产物。
+
+
+### 2026-11-05 第 12 票集成回执
+
+[最终证据](../evidence/integrated-acceptance.md) 已实际运行相关真实 Electron、App Browser Mode 与当前产物验证。E1 为 13 文件17项，E2 为最终表头补丁后的3文件3项，均通过且0跳过；B1为46文件459项、B2为原始诊断7项及额外6文件76项通过。上文“本票未运行”保留为当时的历史；本回执补齐原生/资源执行证据，不将源码或 Browser Mode 冒充原生验收。03 的旧 IME组合信号本次未复现；初始新不确定性与真实鼠标/红绿灯/窗口拖拽的后台限制均保留在证据中。

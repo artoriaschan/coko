@@ -105,6 +105,26 @@ it('diagnostic progress captures a real faux Run before streaming and settles as
     .locator('tr[data-record-key^="progress:group:"]')
     .filter({ has: page.getByRole('button', { name: 'run_end', exact: true }) })
     .waitFor()
+  // Selection must reveal the real, settled tool through the existing Run/group/tool disclosures.
+  const timelineTool = page.locator('[data-main-timeline-session] [data-tool-call-id="diagnostic-tool"]')
+  const runControl = page.locator('[data-main-timeline-session] [data-slot="run-process-control"]')
+  if ((await runControl.getAttribute('aria-expanded')) === 'true') await runControl.click()
+  await expect.poll(() => timelineTool.evaluate((element) => element.closest('[hidden]') !== null)).toBe(true)
+  await row(tool.seq)
+    .getByRole('button', { name: new RegExp(`^(Inspect record|查看记录) ${tool.seq}$`) })
+    .click()
+  await expect.poll(() => timelineTool.evaluate((element) => element.closest('[hidden]') === null)).toBe(true)
+  await expect.poll(() => timelineTool.locator('[aria-expanded="true"]').count()).toBeGreaterThan(0)
+  await expect
+    .poll(() =>
+      timelineTool.evaluate((element) => {
+        const rect = element.getBoundingClientRect()
+        const port = element.closest('[data-main-timeline-session]')!.getBoundingClientRect()
+        return rect.height > 0 && rect.bottom > port.top && rect.top < port.bottom
+      }),
+    )
+    .toBe(true)
+  await expect.poll(() => page.locator('[data-slot="timeline-highlight"]').count()).toBe(1)
   await page.reload()
   await waitConnected(page)
   await panel.getByRole('table').waitFor()

@@ -65,6 +65,8 @@ it('actual App renders loaded Entry rows, Run disclosure, UTC milliseconds, unto
   const table = panel.getByRole('table', { name: 'Session diagnostics', exact: true })
   await expect.element(table).toBeVisible()
   expect([...table.element().querySelectorAll('th')].map((node) => node.textContent)).toEqual(['Sequence', 'Type', 'Run', 'Time (UTC)', 'Data'])
+  await table.getByRole('columnheader', { name: 'Sequence', exact: true }).hover()
+  await expect.element(page.getByRole('tooltip', { name: 'Sequence', exact: true })).toBeVisible()
   await expect.element(table.getByRole('cell', { name: 'message/user', exact: true })).toBeVisible()
   await expect.element(table.getByRole('cell', { name: '22:13:20.003', exact: true })).toBeVisible()
   await table.getByRole('button', { name: 'Inspect record 3', exact: true }).click()

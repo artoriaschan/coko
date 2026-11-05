@@ -124,13 +124,14 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     expect(await jobsTab(app).getAttribute('aria-selected')).toBe('true')
     expect(await detail(app).getAttribute('data-status')).toBe('running')
 
-    // 窄窗口：内容区验收下限 390 px（窗口的 minWidth 为 520，只在本用例中放开）。右栏为浮层，停止按钮可达、输出不撑出整页横向滚动。
+    // 窄窗口：内容区验收下限 390 px（窗口的 minWidth 为 520，只在本用例中放开）。右栏自动全屏，停止按钮可达、输出不撑出整页横向滚动。
     await app.app.evaluate(({ BrowserWindow }) => {
       const win = BrowserWindow.getAllWindows()[0]!
       win.setMinimumSize(390, 400)
       win.setContentSize(390, 820)
     })
     await expect.poll(() => app.window.evaluate(() => window.innerWidth)).toBe(390)
+    await expect.poll(() => app.window.locator('[data-slot="app-frame-right"]').evaluate((panel) => panel.getBoundingClientRect().width)).toBe(390)
     const box = await detail(app).locator('[data-action="stop-job"]').boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)

@@ -23,10 +23,10 @@
 **Closed:** true
 
 - [x] Mod+Alt+B 与 Mod+Alt+Enter 按 RP-15 工作：没有选中 Session 时 Mod+Alt+B 无效，输入法组合输入期间不响应。（AC-15）
-- [ ] 焦点在右栏页面时按 Mod+W，该页面关闭，窗口不关闭，焦点移到右栏中仍然可见的页面；连续按到只剩引导页时，右栏收起。焦点在时间线时按 Mod+W，窗口关闭。有对话框打开时，Mod+W 只作用于对话框。（AC-16）
+- [x] 焦点在右栏页面时按 Mod+W，该页面关闭，窗口不关闭，焦点移到右栏中仍然可见的页面；连续按到只剩引导页时，右栏收起。焦点在时间线时按 Mod+W，窗口关闭。有对话框打开时，Mod+W 只作用于对话框。（AC-16）
 - [x] 自定义菜单保留默认的编辑能力：输入框中的撤销、重做、剪切、复制、粘贴和全选仍然可用。视图与窗口菜单的默认项也保留。
 - [x] bridge 只新增两个方法：“菜单关闭”的监听和“请求关闭窗口”，不暴露任意 IPC。renderer 未就绪时，Mod+W 直接关闭窗口。窗口的关闭按钮不经过菜单，行为不变。
-- [ ] 真实 Electron E2E 触发 File → 关闭菜单项，验证三种结果：关闭页面、关闭窗口、交给对话框。菜单项绑定的是 Mod+W，由菜单定义的单测断言。renderer 中的快捷键在真实 App 的 Browser Mode 中验证。
+- [x] 真实 Electron E2E 触发 File → 关闭菜单项，验证三种结果：关闭页面、关闭窗口、交给对话框。菜单项绑定的是 Mod+W，由菜单定义的单测断言。renderer 中的快捷键在真实 App 的 Browser Mode 中验证。
 - [x] 按测试约定运行最小相关测试集与类型检查，同步上述文档；实际执行的检查和文档影响记入 Comments。
 
 ## Comments
@@ -42,3 +42,8 @@
 - 文档影响：右栏快捷键、焦点与 Mod+W 路由 → `docs/subsystems/workbench.md` 原地更新；原生菜单、bridge 与未就绪回退 → `docs/subsystems/delivery.md` 新增所属章节；`docs/README.md` 的交付入口摘要同步。消费者搜索包含隐藏任务材料及正式正文，旧规格/历史票保留当时结论，正式文档不反向引用任务。已从 AGENTS → docs/README → 上述正文读回，生命周期、当前入口、语义同步、归属、引用方向、替代链与历史保留均通过；没有新目录、弃用或归档。
 
 - 合入集成最新 `fdec7bff`（04 布局持久化）后，自动合并 workbench，保留持久化与本票快捷键正文，无代码冲突。组合复核命令：`rtk pnpm run test apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx apps/desktop/src/renderer/app/app.browser.test.tsx apps/desktop/src/main/application-menu.test.ts packages/ui/src/components/panel-tabs.browser.test.tsx packages/ui/src/guards/style-guard.test.ts apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx apps/desktop/src/renderer/features/right-panel/layout-persistence.test.ts` 退出 0，7 文件、105 项通过、0 跳过；合并后 `rtk pnpm run typecheck`、`rtk pnpm run check:docs`（342 文件、0 问题）及 `rtk pnpm run build:desktop` 均退出 0。`rtk pnpm run format:check <上述 15 个 TypeScript 文件>` 与 `rtk git diff --check` 退出 0。本票代码提交 `22f1f77d`，合并提交 `f82cda28`；仅本地提交，未推送、未合 main。
+
+
+### 2026-11-05 第 12 票集成回执
+
+[最终证据](../evidence/integrated-acceptance.md) 已实际运行相关真实 Electron、App Browser Mode 与当前产物验证。E1 为 13 文件17项，E2 为最终表头补丁后的3文件3项，均通过且0跳过；B1为46文件459项、B2为原始诊断7项及额外6文件76项通过。上文“本票未运行”保留为当时的历史；本回执补齐原生/资源执行证据，不将源码或 Browser Mode 冒充原生验收。03 的旧 IME组合信号本次未复现；初始新不确定性与真实鼠标/红绿灯/窗口拖拽的后台限制均保留在证据中。
