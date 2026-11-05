@@ -1,0 +1,18 @@
+{
+  "query": "+应用 日志",
+  "totalOnDemand": 6,
+  "matches": [
+    {
+      "name": "mcp__demo__query_cn",
+      "server": "demo",
+      "description": "查询应用日志",
+      "alreadyAvailable": false,
+      "parameters": {
+        "type": "object",
+        "properties": { "requestId": { "type": "string" } }
+      }
+    }
+  ],
+  "loaded": ["mcp__demo__query_cn"],
+  "note": "Loaded. From the next turn on, call these tools directly by name; do not go through tool_search again."
+}
