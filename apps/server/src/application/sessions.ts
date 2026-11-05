@@ -1,5 +1,5 @@
 import type { ForkBoundary } from '@coko/protocol'
-import type { ImageAttachment } from '@coko/protocol'
+import type { FileAttachment, ImageAttachment } from '@coko/protocol'
 import type { ModelRegistry, PermissionMode, PermissionRule, RewindFiles, RewindMode, SecretProvider, ToolRegistry } from '@coko/agent'
 import { getLogger } from '@coko/logging'
 import type {
@@ -46,6 +46,7 @@ export interface SessionLifecycle {
 }
 
 export interface SessionServiceOptions {
+  attachments?: import('./attachments.ts').AttachmentStore
   clock?: ClockPort
   store: SessionStore
   /** Explicit host override for base-prompt evaluation; normal operation uses the runtime default. */
@@ -136,6 +137,7 @@ export class SessionService {
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
+      ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       runtimes: this.#runtimes,
       recovery: this.#recovery,
@@ -149,6 +151,7 @@ export class SessionService {
       ...(options.fallbackModel ? { fallbackModel: options.fallbackModel } : {}),
     })
     this.#runs = new SessionRuns({
+      ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
       ...(options.basePrompt ? { basePrompt: options.basePrompt } : {}),
@@ -619,13 +622,13 @@ export class SessionService {
   // ---- Run 控制（开始 Run 与运行时构造在 session-runs.ts） ----
 
   /** 提交一条消息：开始 Run（{ runId }）或执行不开始 Run 的动作（{ done: true }）；见 SessionRuns.submit。 */
-  submit(sessionId: string, text: string, images?: ImageAttachment[]): Promise<ActionResult> {
-    return this.#runs.submit(sessionId, text, false, images)
+  submit(sessionId: string, text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text, false, images, files)
   }
 
   /** 首次发送的成功边界是首条用户消息提交，而不是同步的 Run 进度。 */
-  submitFirst(sessionId: string, text: string, images?: ImageAttachment[]): Promise<ActionResult> {
-    return this.#runs.submit(sessionId, text, true, images)
+  submitFirst(sessionId: string, text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<ActionResult> {
+    return this.#runs.submit(sessionId, text, true, images, files)
   }
 
   /** 首次发送的预接受失败：Run 尚未提交用户输入，释放运行时后回滚新建记录。 */

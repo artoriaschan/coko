@@ -30,7 +30,7 @@ export class SessionTitles {
     this.#options = options
   }
 
-  start(id: string, placeholder: string, text: string, images: ImageAttachment[]): void {
+  start(id: string, placeholder: string, text: string, images: Pick<ImageAttachment, 'name'>[]): void {
     if (this.#pending.has(id)) return
     const controller = new AbortController()
     const done = this.#generate(id, placeholder, text, images, controller)
@@ -55,7 +55,7 @@ export class SessionTitles {
     await this.settle([...this.#pending.keys()])
   }
 
-  async #generate(id: string, placeholder: string, text: string, images: ImageAttachment[], controller: AbortController): Promise<void> {
+  async #generate(id: string, placeholder: string, text: string, images: Pick<ImageAttachment, 'name'>[], controller: AbortController): Promise<void> {
     const { store, sessions, registry, clock } = this.#options
     sessions.assertAdmission(id)
     const session = await store.sessions.getSession(id)

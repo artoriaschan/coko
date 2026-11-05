@@ -1,4 +1,4 @@
-import type { ImageAttachment } from '@coko/protocol'
+import type { FileAttachment, ImageAttachment } from '@coko/protocol'
 import { ArrowDownIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { AppFrameCollapsedControls, Button, cn, toast } from '@coko/ui'
 import * as React from 'react'
@@ -102,11 +102,11 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     goals.getState().open(activeSessionId, conversation?.entries.at(-1)?.seq ?? 0)
     return true
   }
-  const sendOrOpen = async (text: string, images?: ImageAttachment[]) => (!images?.length && openGoalCard(text)) || send(text, images)
+  const sendOrOpen = async (text: string, images?: ImageAttachment[], files?: FileAttachment[]) =>
+    (!images?.length && !files?.length && openGoalCard(text)) || send(text, images, files)
   const steerOrAct = async (text: string) => openGoalCard(text) || (isGoalRunningControl(text) ? send(text) : steer(text))
   const activeWorkspaceId = useActiveWorkspaceId()
   const workspacePath = useLists((s) => s.workspaces.find((w) => w.id === activeWorkspaceId)?.path)
-  const attachmentRoot = session?.cwd ?? workspacePath
   const defaultPermissionMode = useSettings((s) => s.permissions?.defaultMode.value ?? 'default')
   const settingsStatus = useSettings((s) => s.status)
   const models = useSettings((s) => s.models)
@@ -435,7 +435,6 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 commandTarget={commandTarget}
                 draftStorageKey={activeSessionId === null ? NEW_CHAT_EDITOR_KEY : undefined}
                 fileWorkspaceId={activeWorkspaceId}
-                fileWorkspacePath={attachmentRoot}
                 needsSetup={needsSetup}
                 onSend={sendOrOpen}
                 supportsImages={

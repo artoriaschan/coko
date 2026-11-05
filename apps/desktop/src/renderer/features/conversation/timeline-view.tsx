@@ -61,6 +61,7 @@ export interface TimelineViewProps {
 export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
+  const [attachmentFailure, setAttachmentFailure] = React.useState<string | null>(null)
   const inheritedReveal = React.useContext(TimelineRevealContext)
   const revealScope = useMainTimelineReveal(props.sessionId, props.publishMainProjection ?? false)
   const revealContext = React.useMemo(
@@ -165,6 +166,36 @@ export function TimelineView(props: TimelineViewProps) {
                   className="max-h-80 max-w-full rounded-lg object-contain"
                 />
               ))}
+            {item.attachments && (
+              <ul aria-label={t('conversation.fileAttachments')} data-slot="copied-attachments" className="flex max-w-full flex-wrap justify-end gap-2">
+                {item.attachments.map((attachment) => (
+                  <li key={attachment.path}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="max-w-full"
+                      title={attachment.path}
+                      onClick={async () => {
+                        setAttachmentFailure(null)
+                        try {
+                          if (!(await window.coko?.openFile(attachment.path))) setAttachmentFailure(attachment.path)
+                        } catch {
+                          setAttachmentFailure(attachment.path)
+                        }
+                      }}
+                    >
+                      <FileIcon aria-hidden />
+                      <span className="truncate">{attachment.name}</span>
+                    </Button>
+                    {attachmentFailure === attachment.path && (
+                      <p role="alert" className="text-ui-small text-destructive">
+                        {t('conversation.attachmentOpenFailed')}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
             {item.references && (
               // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
               <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-2">

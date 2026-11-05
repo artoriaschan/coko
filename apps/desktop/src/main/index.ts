@@ -1,9 +1,9 @@
 import { open } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { applicationMenuTemplate } from './application-menu.ts'
-import { openDirectory } from './open-directory.ts'
+import { openDirectory, openFile } from './open-directory.ts'
 import { allowPermission } from './permissions.ts'
-import { IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
+import { FILE_ATTACHMENT_MAX_BYTES, IMAGE_ATTACHMENT_MAX_BYTES } from '@coko/protocol'
 import { basename, extname, join, resolve } from 'node:path'
 import {
   app,
@@ -313,6 +313,18 @@ function run(): void {
   let picking: Promise<string | null> | undefined
   let pickingFiles: Promise<string[]> | undefined
   const pickedImages = new Set<string>()
+  ipcMain.handle(IPC.validatePickedFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    if (typeof path !== 'string' || !pickedImages.has(path)) throw new Error('Choose the file first')
+    const handle = await open(path, 'r')
+    try {
+      const info = await handle.stat()
+      if (!info.isFile()) throw new Error('Attachment must be a file')
+      if (info.size > FILE_ATTACHMENT_MAX_BYTES) throw new Error('File exceeds the 32 MB limit')
+    } finally {
+      await handle.close()
+    }
+  })
   ipcMain.handle(IPC.readPickedImage, async (event, path: unknown) => {
     assertMainFrame(event)
     if (typeof path !== 'string' || !pickedImages.has(path)) throw new Error('Choose the image first')
@@ -344,6 +356,10 @@ function run(): void {
         pickingFiles = undefined
       })
     return pickingFiles
+  })
+  ipcMain.handle(IPC.openFile, async (event, path: unknown) => {
+    assertMainFrame(event)
+    return openFile(path, shell)
   })
   ipcMain.handle(IPC.openDirectory, async (event, path: unknown) => {
     assertMainFrame(event)

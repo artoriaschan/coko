@@ -147,6 +147,20 @@ export const ImageAttachment = Type.Object(
 )
 export type ImageAttachment = Static<typeof ImageAttachment>
 
+export const FILE_ATTACHMENT_MAX_BYTES = 32 * 1024 * 1024
+/** Only explicit uploads are copied; ordinary message paths remain File References. */
+export const FileAttachment = Type.Union([
+  Type.Object({ name: Type.String({ minLength: 1, maxLength: 255 }), path: Type.String({ minLength: 1 }) }, strict),
+  Type.Object(
+    {
+      name: Type.String({ minLength: 1, maxLength: 255 }),
+      data: Type.String({ maxLength: Math.ceil(FILE_ATTACHMENT_MAX_BYTES / 3) * 4, pattern: '^[A-Za-z0-9+/]*={0,2}$' }),
+    },
+    strict,
+  ),
+])
+export type FileAttachment = Static<typeof FileAttachment>
+
 /** 首次发送：同一草稿身份只创建一个会话；成功时首条用户消息已经持久化。 */
 export const FirstSendRequest = Type.Object(
   {
@@ -156,6 +170,7 @@ export const FirstSendRequest = Type.Object(
     baseBranch: Type.Optional(Type.String({ minLength: 1 })),
     text: Type.String(),
     images: Type.Optional(Type.Array(ImageAttachment)),
+    files: Type.Optional(Type.Array(FileAttachment)),
     model: Type.Optional(SessionModel),
     thinkingLevel: Type.Optional(ThinkingLevel),
     permissionMode: Type.Optional(PermissionMode),
@@ -182,7 +197,10 @@ export type RenameSessionRequest = Static<typeof RenameSessionRequest>
 export const SessionDetailResponse = Type.Object({ session: Session, entries: Type.Array(SessionEntryRecord) }, strict)
 export type SessionDetailResponse = Static<typeof SessionDetailResponse>
 
-export const SubmitMessageRequest = Type.Object({ text: Type.String(), images: Type.Optional(Type.Array(ImageAttachment)) }, strict)
+export const SubmitMessageRequest = Type.Object(
+  { text: Type.String(), images: Type.Optional(Type.Array(ImageAttachment)), files: Type.Optional(Type.Array(FileAttachment)) },
+  strict,
+)
 export type SubmitMessageRequest = Static<typeof SubmitMessageRequest>
 
 /** 202：Run 已开始；结果经 WebSocket 的 entry / progress 推送。 */
