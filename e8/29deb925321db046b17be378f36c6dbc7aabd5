@@ -1,0 +1,52 @@
+docs/subsystems/configuration.md
+  s_dd1034265ded7f::t_20fcde1031bea4 81-82
+.scratch/tool-search/issues/06-always-load-servers.md
+  s_dd1034265ded7f::t_7eeb7507d40576 15-22,27-33
+packages/protocol/src/mcp.ts
+  s_dd1034265ded7f::t_a9639f123c999c 19
+tests/integration/sidecar-mcp-always-load.test.ts
+  s_dd1034265ded7f::t_fddf8550a32909 88,94-101,103-108,113-118
+  s_dd1034265ded7f::t_58cc1996894f48 1-12,30-44,49-51,61-66,71-77,83-87
+  s_dd1034265ded7f::t_20fcde1031bea4 102
+  s_dd1034265ded7f::t_5e1bce6193fa84 13-29,45-48,52-60,67-70,78-82,89-93,109-112
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_5e1bce6193fa84 332-334
+packages/i18n/src/dictionaries/domains/mcp.ts
+  s_dd1034265ded7f::t_350496852de85c 73-74,204,207
+  s_dd1034265ded7f::t_5e1bce6193fa84 205-206
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_20fcde1031bea4 46,52,139
+  s_dd1034265ded7f::t_7eeb7507d40576 76
+packages/agent/src/extensions/mcp/config.test.ts
+  s_dd1034265ded7f::t_4dec1c10fdd1ae 15-22
+apps/desktop/src/renderer/features/settings/mcp-section.browser.test.tsx
+  s_dd1034265ded7f::t_e6fbbd903a51b2 172-173,180
+  s_dd1034265ded7f::t_350496852de85c 162,201
+  s_dd1034265ded7f::t_ca59ff18a441ac 202-214,219-237
+  s_dd1034265ded7f::t_5e1bce6193fa84 215-218
+apps/server/src/application/context/types.ts
+  s_dd1034265ded7f::t_a9639f123c999c 67-68
+packages/agent/src/extensions/mcp/config.ts
+  s_dd1034265ded7f::t_4a8ebae0cb7a66 2,22-23,61,77-78,117
+apps/server/src/application/context/mcp.ts
+  s_dd1034265ded7f::t_a9639f123c999c 134,316,320,326-329,339,468,470
+apps/desktop/src/renderer/features/settings/mcp-section.tsx
+  s_dd1034265ded7f::t_5e1bce6193fa84 682-688,690-695
+  s_dd1034265ded7f::t_350496852de85c 17,549,561,681,689,696-697
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "e829deb925321db046b17be378f36c6dbc7aabd5",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
