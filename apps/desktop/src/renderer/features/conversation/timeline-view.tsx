@@ -1,3 +1,4 @@
+import { TimelineRevealContext, useMainTimelineReveal } from './timeline-reveal.tsx'
 import { publishTimelineProjection, releaseTimelineProjection } from './timeline-projection.ts'
 import { copiedReplyFooters } from './fork-history.ts'
 import type { SessionEntry } from '@coko/protocol'
@@ -60,6 +61,17 @@ export interface TimelineViewProps {
 export function TimelineView(props: TimelineViewProps) {
   const { items, theme, onRetry, onRewind, actionsDisabled = false } = props
   const { t } = useI18n()
+  const inheritedReveal = React.useContext(TimelineRevealContext)
+  const revealScope = useMainTimelineReveal(props.sessionId, props.publishMainProjection ?? false)
+  const revealContext = React.useMemo(
+    () =>
+      revealScope
+        ? { scope: revealScope }
+        : inheritedReveal && inheritedReveal.scope.sessionId === props.sessionId
+          ? { scope: inheritedReveal.scope }
+          : undefined,
+    [revealScope, inheritedReveal?.scope, props.sessionId],
+  )
   const messageIdentities = useMessageIdentities(items, props.sessionId)
   // 一次遍历汇总每个 Run 的用量，避免每个底栏各扫一遍全部条目。
   const usage = React.useMemo(() => sumUsageByRun(props.entries ?? [], withoutPricing), [props.entries])
@@ -360,24 +372,27 @@ export function TimelineView(props: TimelineViewProps) {
         openPlan: props.onOpenPlan,
       }}
     >
-      <ProcessTimeline
-        key={props.sessionId}
-        items={visibleItems}
-        identities={messageIdentities}
-        runs={props.runs}
-        connected={props.connected}
-        renderItem={renderItem}
-        onProjection={
-          props.publishMainProjection && props.sessionId
-            ? (projection) =>
-                publishTimelineProjection(projectionOwner, {
-                  ...projection,
-                  sessionId: props.sessionId!,
-                  entries: props.entries ?? [],
-                })
-            : undefined
-        }
-      />
+      <TimelineRevealContext.Provider value={revealContext}>
+        <ProcessTimeline
+          key={props.sessionId}
+          mainRevealScope={revealScope}
+          items={visibleItems}
+          identities={messageIdentities}
+          runs={props.runs}
+          connected={props.connected}
+          renderItem={renderItem}
+          onProjection={
+            props.publishMainProjection && props.sessionId
+              ? (projection) =>
+                  publishTimelineProjection(projectionOwner, {
+                    ...projection,
+                    sessionId: props.sessionId!,
+                    entries: props.entries ?? [],
+                  })
+              : undefined
+          }
+        />
+      </TimelineRevealContext.Provider>
     </TimelineSessionContext.Provider>
   )
 }

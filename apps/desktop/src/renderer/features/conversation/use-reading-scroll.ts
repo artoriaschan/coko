@@ -30,6 +30,7 @@ export function useReadingScroll(
   const control = React.useRef<{ sync: () => void; bottom: () => void; top: () => void } | null>(null)
   React.useLayoutEffect(() => {
     if (!element || !enabled) return
+    let revealing = false
     let following = initialFollow
     let writtenTop = element.scrollTop
     let sampledHeight = element.clientHeight
@@ -81,6 +82,10 @@ export function useReadingScroll(
       captureFocus()
     }
     const sync = () => {
+      if (revealing) {
+        publish()
+        return
+      }
       const floor = Math.max(0, element.scrollHeight - element.clientHeight)
       if (pendingGesture && Math.abs(element.scrollTop - Math.min(writtenTop, floor)) > 0.5) {
         following = floor - element.scrollTop <= tolerance
@@ -167,6 +172,15 @@ export function useReadingScroll(
       capture()
       captureFocus()
     }
+    const reveal = (event: Event) => {
+      revealing = (event as CustomEvent<boolean>).detail
+      following = false
+      protectFocus = false
+      focusPosition = undefined
+      anchors = []
+      pendingGesture = false
+      publish()
+    }
     const reset = (event: Event) => {
       if (event.target instanceof Element) {
         const target = event.target
@@ -185,6 +199,7 @@ export function useReadingScroll(
     })
     mutations.observe(element, { childList: true, subtree: false })
     observe()
+    element.addEventListener('coko-reveal-reading', reveal)
     element.addEventListener('focusin', focus)
     element.addEventListener('coko-flow-layout', sync)
     element.addEventListener(RESET_READING, reset)
@@ -216,6 +231,7 @@ export function useReadingScroll(
     return () => {
       observer.disconnect()
       mutations.disconnect()
+      element.removeEventListener('coko-reveal-reading', reveal)
       element.removeEventListener('focusin', focus)
       element.removeEventListener('coko-flow-layout', sync)
       element.removeEventListener(RESET_READING, reset)

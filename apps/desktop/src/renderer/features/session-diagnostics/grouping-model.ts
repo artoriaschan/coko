@@ -3,16 +3,9 @@ import type { TimelineItem } from '../conversation/timeline.ts'
 import type { DiagnosticModel, DiagnosticRecord, DiagnosticRow } from './table-model.ts'
 import { InspectorObjectValue } from './object-value.ts'
 
-/** Provenance shared by diagnostic table navigation and the timeline locator. */
-export interface DiagnosticTarget {
-  readonly identity?: string
-  readonly groupId?: string
-  readonly runId?: string
-  readonly seq?: number
-  readonly sourceSeqs?: readonly number[]
-  readonly toolCallId?: string
-  readonly kind?: TimelineItem['kind']
-}
+import type { TimelineTarget as DiagnosticTarget } from '../conversation/timeline-projection.ts'
+export type { TimelineTarget as DiagnosticTarget } from '../conversation/timeline-projection.ts'
+
 export interface ObjectReference {
   readonly key: string
   readonly kind: 'run' | 'group' | 'row' | 'entry'
@@ -61,7 +54,17 @@ export function buildGroupingModel(projection: TimelineProjection | undefined): 
   }
   for (const entry of projection.entries) {
     const key = `source:${entry.seq}`
-    addRef({ key, kind: 'entry', identity: String(entry.seq), value: entry, target: { seq: entry.seq, ...(entry.runId ? { runId: entry.runId } : {}) } })
+    addRef({
+      key,
+      kind: 'entry',
+      identity: String(entry.seq),
+      value: entry,
+      target: {
+        seq: entry.seq,
+        ...(entry.runId ? { runId: entry.runId } : {}),
+        ...(entry.kind === 'message' && entry.payload.role === 'toolResult' ? { toolCallId: entry.payload.toolCallId } : {}),
+      },
+    })
     if (entry.runId) {
       link(key, `run:${entry.runId}`)
       link(`run:${entry.runId}`, key)

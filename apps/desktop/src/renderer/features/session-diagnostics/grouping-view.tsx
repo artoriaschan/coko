@@ -1,3 +1,4 @@
+import { useTimelineNavigation } from './use-timeline-navigation.tsx'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { subscribeTimelineProjection, timelineProjection } from '../conversation/timeline-projection.ts'
@@ -56,8 +57,12 @@ function GroupingDetails({
 export function GroupingView({ sessionId, toolbar }: { sessionId: string | null; toolbar: React.ReactNode }) {
   const projection = React.useSyncExternalStore(subscribeTimelineProjection, () => timelineProjection(sessionId))
   const model = React.useMemo(() => buildGroupingModel(projection), [projection])
+  const navigation = useTimelineNavigation(sessionId, model.targets)
+  React.useEffect(() => {
+    if (navigation.revealRequest) setReveal(navigation.revealRequest)
+  }, [navigation.revealRequest])
   const [path, setPath] = React.useState<readonly string[]>([])
-  const [revealRequest, setReveal] = React.useState<{ key: string; nonce: object }>()
+  const [revealRequest, setReveal] = React.useState<import('./diagnostic-table.tsx').DiagnosticTableRevealRequest>()
   const [changedKeys, setChangedKeys] = React.useState<ReadonlySet<string>>(new Set())
   const previous = React.useRef<GroupingModel | undefined>(undefined)
   const flashTimer = React.useRef<number | undefined>(undefined)
@@ -73,6 +78,7 @@ export function GroupingView({ sessionId, toolbar }: { sessionId: string | null;
     flashTimer.current = window.setTimeout(() => setChangedKeys(new Set()), 700)
   }, [model])
   const navigate = (reference: ObjectReference) => {
+    navigation.locate(reference.target)
     setPath((previous) => [...previous, reference.key])
     if (reference.rowKey) setReveal({ key: reference.rowKey, nonce: {} })
   }
@@ -80,10 +86,18 @@ export function GroupingView({ sessionId, toolbar }: { sessionId: string | null;
     <DiagnosticTable
       model={model}
       showTime={false}
-      toolbar={toolbar}
+      toolbar={
+        <>
+          {toolbar}
+          {navigation.picker}
+        </>
+      }
       revealRequest={revealRequest}
       changedKeys={changedKeys}
-      onSelect={() => setPath([])}
+      onSelect={(key) => {
+        setPath([])
+        navigation.select(key)
+      }}
       renderDetails={(_record, key) => (
         <GroupingDetails
           model={model}
@@ -93,6 +107,7 @@ export function GroupingView({ sessionId, toolbar }: { sessionId: string | null;
           back={(index) => {
             setPath((previous) => previous.slice(0, index))
             const reference = model.references.get(index === 0 ? key : path[index - 1]!)
+            navigation.locate(reference?.target)
             if (reference?.rowKey) setReveal({ key: reference.rowKey, nonce: {} })
           }}
         />

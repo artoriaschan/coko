@@ -40,3 +40,14 @@ export function releaseTimelineProjection(owner: object, sessionId: string) {
   projections.delete(sessionId)
   for (const listener of listeners) listener()
 }
+
+/** Provenance shared by diagnostic table navigation and the timeline locator. */
+export interface TimelineTarget {
+  readonly identity?: string
+  readonly groupId?: string
+  readonly runId?: string
+  readonly seq?: number
+  readonly sourceSeqs?: readonly number[]
+  readonly toolCallId?: string
+  readonly kind?: TimelineItem['kind']
+}

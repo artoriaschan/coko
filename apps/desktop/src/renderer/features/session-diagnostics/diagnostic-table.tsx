@@ -17,6 +17,8 @@ import './diagnostic-table.css'
 export interface DiagnosticTableRevealRequest {
   readonly key: string
   readonly nonce: object
+  /** Picker selection starts a new details path; references only reveal. */
+  readonly select?: boolean
 }
 
 /** 共享的只读表格；数据模型不拥有滚动、选择、折叠或详情高度。 */
@@ -136,6 +138,7 @@ export function DiagnosticTable({
     const byKey = new Map(model.rows.map((row) => [row.key, row]))
     if (!byKey.has(revealRequest.key)) return
     handledReveal.current = revealRequest.nonce
+    if (revealRequest.select) setSelected(revealRequest.key)
     follow.current = 'manual'
     anchor.current = undefined
     resetSpacing((value) => value + 1)

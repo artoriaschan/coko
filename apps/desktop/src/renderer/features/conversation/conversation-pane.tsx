@@ -346,6 +346,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
         <div className={activeSessionId === null ? 'contents' : 'relative flex min-h-0 flex-1 flex-col'}>
           <div
             ref={reading.ref}
+            data-main-timeline-session={activeSessionId ?? undefined}
             tabIndex={activeSessionId === null ? undefined : -1}
             data-scroll-stable
             className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}

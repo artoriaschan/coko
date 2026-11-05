@@ -1,3 +1,6 @@
+import { subscribeTimelineProjection, timelineProjection } from '../conversation/timeline-projection.ts'
+import { useTimelineNavigation } from './use-timeline-navigation.tsx'
+import { rawTargets } from './raw-targets.ts'
 import { GroupingView } from './grouping-view.tsx'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@coko/ui'
 import { ChevronDownIcon } from 'lucide-react'
@@ -16,11 +19,14 @@ export function SessionDiagnostics({ sessionId }: RightPanelTabProps) {
   const [format, setFormat] = React.useState('raw')
   const entries = useChat((state) => (sessionId === null ? undefined : state.conversations[sessionId]?.entries))
   const progress = useDiagnosticProgress(sessionId)
+  const projection = React.useSyncExternalStore(subscribeTimelineProjection, () => timelineProjection(sessionId))
   const liveLabel = t('diagnostics.liveProgress')
   const model = React.useMemo(
     () => (progress ? buildProgressRecords(entries ?? [], progress, liveLabel) : buildRawRecords(entries ?? [])),
     [entries, progress, liveLabel],
   )
+  const targets = React.useMemo(() => rawTargets(entries ?? [], model, projection, progress ?? undefined), [entries, model, projection, progress])
+  const navigation = useTimelineNavigation(sessionId, targets, format === 'raw')
   const toolbar = (
     <>
       <DropdownMenu>
@@ -45,7 +51,18 @@ export function SessionDiagnostics({ sessionId }: RightPanelTabProps) {
         {t('diagnostics.title')}
       </h2>
       {format === 'raw' ? (
-        <DiagnosticTable key={`${sessionId}:raw`} model={model} toolbar={toolbar} />
+        <DiagnosticTable
+          key={`${sessionId}:raw`}
+          model={model}
+          toolbar={
+            <>
+              {toolbar}
+              {navigation.picker}
+            </>
+          }
+          onSelect={navigation.select}
+          revealRequest={navigation.revealRequest}
+        />
       ) : (
         <GroupingView key={`${sessionId}:grouping`} sessionId={sessionId} toolbar={toolbar} />
       )}

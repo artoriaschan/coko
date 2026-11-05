@@ -1,3 +1,4 @@
+import { TimelineRevealContext, useTimelineReveal, type TimelineRevealScope } from './timeline-reveal.tsx'
 import * as React from 'react'
 import type { TimelineProjection } from './timeline-projection.ts'
 import type { Translator } from '@coko/i18n'
@@ -55,6 +56,9 @@ function Group({
 }) {
   const { t, locale } = useI18n()
   const [opened, setOpened] = useProcessDisclosure()
+  useTimelineReveal((target) => {
+    if (target.groupId === group.id || (target.identity !== undefined && group.identities.includes(target.identity))) setOpened(true)
+  })
   const [keepFocused, setKeepFocused] = useProcessDisclosure()
   const [wasRunning, setWasRunning] = React.useState(running)
   if (wasRunning !== running) {
@@ -150,6 +154,7 @@ function ProcessSeat({
 }
 
 export interface ProcessTimelineProps {
+  mainRevealScope?: TimelineRevealScope | undefined
   onProjection?: ((projection: Omit<TimelineProjection, 'sessionId' | 'entries'>) => void) | undefined
   items: TimelineItem[]
   identities: ReadonlyMap<string, string>
@@ -254,11 +259,16 @@ function RunControl({
   )
 }
 
-export function ProcessTimeline({ items, identities, runs = new Map(), connected = false, renderItem, onProjection }: ProcessTimelineProps) {
+export function ProcessTimeline({ items, identities, runs = new Map(), connected = false, renderItem, onProjection, mainRevealScope }: ProcessTimelineProps) {
+  const revealContext = React.useContext(TimelineRevealContext)
   const previous = React.useRef<ProcessGroup[]>([])
   const seats = processSeats(items, identities, previous.current)
   previous.current = seats.filter((seat) => seat.kind === 'process')
   const [choices, setChoices] = React.useState<Record<string, { open?: boolean; epoch: number }>>({})
+  useTimelineReveal((target) => {
+    if (target.runId !== undefined && seats.some((seat) => seat.kind === 'process' && seat.runId === target.runId))
+      setChoices((old) => ({ ...old, [target.runId!]: { open: true, epoch: old[target.runId!]?.epoch ?? 0 } }))
+  })
   const focusedRuns = React.useRef(new Set<string>())
   const focusedGroups = React.useRef(new Set<string>())
   const focusTargets = React.useRef(new Map<string, HTMLElement>())
@@ -273,15 +283,26 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
   const render = (item: TimelineItem) => {
     const node = renderItem(item)
     if (node !== null && node !== undefined) renderedKeys.add(item.key)
-    // Attribute native semantic roots without changing the reading tree or keys.
-    if (React.isValidElement<Record<string, unknown>>(node) && typeof node.type === 'string')
-      return React.cloneElement(node, {
-        'data-timeline-identity': identities.get(item.key) ?? item.key,
-        'data-run-id': item.origin?.runId,
-        'data-entry-seq': item.origin?.seq,
-      })
-    return node
+    // Providers preserve the existing semantic roots and the exact reconciliation keys.
+    const attributed =
+      React.isValidElement<Record<string, unknown>>(node) && typeof node.type === 'string'
+        ? React.cloneElement(node, {
+            'data-timeline-identity': identities.get(item.key) ?? item.key,
+            'data-run-id': item.origin?.runId,
+            'data-entry-seq': item.origin?.seq,
+          })
+        : node
+    if (attributed === null || attributed === undefined || !revealContext) return attributed
+    return (
+      <TimelineRevealContext.Provider
+        key={React.isValidElement(node) ? node.key : item.key}
+        value={{ scope: revealContext.scope, identity: identities.get(item.key) ?? item.key }}
+      >
+        {attributed}
+      </TimelineRevealContext.Provider>
+    )
   }
+
   React.useLayoutEffect(() => {
     onProjection?.({ items, identities, seats, runs, renderedKeys })
   })
@@ -370,7 +391,18 @@ export function ProcessTimeline({ items, identities, runs = new Map(), connected
     )
   }
   return (
-    <div data-slot="process-timeline" className="conversation-process-timeline">
+    <div
+      ref={
+        mainRevealScope
+          ? (element) => {
+              if (element) mainRevealScope.root = element
+              else delete mainRevealScope.root
+            }
+          : undefined
+      }
+      data-slot="process-timeline"
+      className="conversation-process-timeline"
+    >
       {nodes}
     </div>
   )

@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "开发者开关下的会话数据诊断：原始条目与主时间线分组、Run 实时增量、类型筛选、虚拟表格、对象与 JSON 详情及引用。"
+description: "开发者开关下的会话数据诊断：原始条目与主时间线分组、Run 实时增量、类型筛选、虚拟表格、对象与 JSON 详情、引用与主时间线定位和瞄准。"
 lifecycle: active
 ---
 
@@ -24,9 +24,21 @@ lifecycle: active
 
 详情保留原始对象，根节点默认展开，嵌套字段按需展开，集合每批 50 项；数组空槽、显式 undefined、符号键、Map 的真实键和 Set 的值分别保留。访问器只显示标记，不执行 getter；循环祖先显示 `$` 路径，相同对象在兄弟位置仍可独立展开。枚举失败仅在该分支提示，其他字段可继续查看；展开后的枚举在下一次投影发布前复用，发布后能看到原地更新。
 
-Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；工具同时保留 assistant 调用和实际 toolResult 的来源 seq。每次引用增加一级面包屑，返回前级截断后面的路径，第一级始终是最初选中的行。点击表格行会重新开始路径。引用对应表格行时，交给共用表格展开祖先、定位并闪烁；筛选排除目标时先清除筛选。本模块提供定位元数据；从诊断页定位到主区与瞄准的实际交互另行接入。
+Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；工具同时保留 assistant 调用和实际 toolResult 的来源 seq。每次引用增加一级面包屑，返回前级截断后面的路径，第一级始终是最初选中的行。点击表格行会重新开始路径。引用对应表格行时，交给共用表格展开祖先、定位并闪烁；筛选排除目标时先清除筛选。每次引用同时请求定位主时间线；引用没有独立表格行时仍可查看当前对象并定位相应 Run 或来源。
 
 投影发布后，同身份的行保留选择与折叠。变化比较不序列化对象，不把新分配的过程席位本身当作变化；新增或更新的行使用 700ms 背景淡出，系统要求减少动态效果时不播放。
+
+## 定位与瞄准
+
+选中原始条目、实时进度或对话分组行，或者沿对象引用与面包屑导航时，使用主时间线的展示身份、过程组 id、Run id、来源 seq 与 toolCallId 定位。工具结果沿真实调用 id 找回工具卡；实时助手块直接采用已发布的内容块显示身份。匹配不比较文本，不切换页面或 Session。
+
+定位请求由当前主时间线拥有，通过原有的 Run、过程组、工具与思考展开状态打开折叠层，保留手动整轮收起的 reset epoch。主区同一 Session 的回退历史继承该所有者，定位时也打开路径上的原生 details；右栏子 Session 不注册为主区。已提交布局稳定后，先调整必要的组内滚动，再调整主消息列；目标已经可见时不移动。阅读策略在展开与定位期间交出旧的贴底／锚定意图，完成后保留新的阅读位置，不将下一次尺寸变化拉回旧位置。
+
+精确目标不可呈现时，先选择同 Run 中按来源 seq 最近的已加载内容，再尝试其他已加载内容；都没有时只提示当前可见消息列，不移动它。body 层的高亮按视口、主消息滚动区和嵌套限高组裁剪，持续约 700ms，不插入时间线节点。系统要求减少动态效果时立即滚动且不闪烁。布局等待只观察目标及其折叠路径，不被其他 Run 的实时更新或过程动画拖住。
+
+工具栏的“瞄准”按钮开启单实例透明蒙层。悬停时预览当前元素，离开消息区清除预览；点击按现有身份属性反查当前展示形式的记录。命中后清除排除该记录的筛选、展开表格祖先、选中并打开详情；对话分组从新记录开始面包屑。未命中时显示“当前表格没有匹配记录，请选择其他元素或按 Esc 取消。”并继续等待。
+
+蒙层拦截 pointer、mouse、click、auxclick、双击和右键动作，底下的时间线控件不会激活。滚轮先交给指针下可滚动的嵌套区域，剩余位移再交给外层消息区。Esc、再次点击瞄准、切换展示形式或 Session、隐藏或关闭诊断页、窗口失焦都会取消；全屏或其他覆盖层使主时间线不可见时也不会拾取。取消和卸载清理监听器、动画帧与覆盖层。
 
 ## 实时增量
 
@@ -56,6 +68,6 @@ Run、过程组、时间线项与来源 Session Entry 可以沿引用查看；�
 
 [诊断组装](../../apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx)读取真实 chat store，[原始模型](../../apps/desktop/src/renderer/features/session-diagnostics/raw-model.ts)持有行与记录的只读投影，[表格](../../apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx)拥有选择、折叠和滚动状态，[详情](../../apps/desktop/src/renderer/features/session-diagnostics/record-details.tsx)拥有高度与 JSON 树。[投影发布点](../../apps/desktop/src/renderer/features/conversation/timeline-projection.ts)只保存已提交主区值，[分组模型](../../apps/desktop/src/renderer/features/session-diagnostics/grouping-model.ts)建立行与原始对象引用，[运行时树](../../apps/desktop/src/renderer/features/session-diagnostics/object-tree.tsx)按需检查字段。
 
-实时增量由 [生命周期订阅](../../apps/desktop/src/renderer/features/session-diagnostics/progress-capture.tsx)与[纯模型](../../apps/desktop/src/renderer/features/session-diagnostics/progress-model.ts)维护，不修改 chat store。纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。[分组 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/grouping.browser.test.tsx)覆盖身份、引用面包屑、懒枚举、分页、getter、循环、发布更新与减少动态效果；对象值纯测试移植原生集合的边界案例。第三方许可与打包约定见[安装包](delivery.md#安装包)。
+实时增量由 [生命周期订阅](../../apps/desktop/src/renderer/features/session-diagnostics/progress-capture.tsx)与[纯模型](../../apps/desktop/src/renderer/features/session-diagnostics/progress-model.ts)维护，不修改 chat store。纯模型、层级、布局、筛选、摘要和序列化测试与源码相邻；[真实 App 浏览器测试](../../apps/desktop/src/renderer/features/session-diagnostics/raw-data.browser.test.tsx)覆盖实际几何、虚拟化、折叠、详情、筛选键盘与取消、窗口变化和浏览器缩放、双语主题与 390px。[分组 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/grouping.browser.test.tsx)覆盖身份、引用面包屑、懒枚举、分页、getter、循环、发布更新与减少动态效果；对象值纯测试移植原生集合的边界案例。[定位 App 测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-navigation.browser.test.tsx)覆盖三级展开、精确与整列回退、嵌套滚轮及裁剪、只在需要时滚动、原始实时块、回退历史、筛选后的反查和完整取消；[身份匹配测试](../../apps/desktop/src/renderer/features/session-diagnostics/timeline-matching.test.ts)覆盖精确身份优先、工具来源和同 Run／其他 Run 回退。第三方许可与打包约定见[安装包](delivery.md#安装包)。
 
 [真实 App 进度回放](../../apps/desktop/src/renderer/features/session-diagnostics/live-progress.browser.test.tsx)覆盖分组、转交、空时间列与 tab/Session 生命周期；[真实 Sidecar Electron 用例](../../apps/desktop/e2e/diagnostic-progress.e2e.test.ts)在已创建并订阅的 Session 中打开诊断后运行 faux 模型，用模型时钟屏障和真实工具文件屏障观察流式与结算。用例源码不代表已经执行桌面验收。

@@ -4,6 +4,8 @@ export const diagnostics = defineDomain(
   {
     title: '会话数据诊断',
     liveProgress: '实时进度',
+    pick: '瞄准',
+    noPickMatch: '当前表格没有匹配记录，请选择其他元素或按 Esc 取消。',
     developer: '开发者',
     hint: '在侧边栏启用当前会话的原始数据和对话分组数据分析功能',
     conflict: '设置已在其他位置更改，已保留当前选择，请重新保存',
@@ -53,6 +55,8 @@ export const diagnostics = defineDomain(
   {
     title: 'Session diagnostics',
     liveProgress: 'Live progress',
+    pick: 'Pick from timeline',
+    noPickMatch: 'No matching record in the current table. Choose another element or press Esc to cancel.',
     developer: 'Developer',
     hint: 'Enable analysis of raw data and conversation groups for the current session in the sidebar',
     conflict: 'Settings changed elsewhere. Your selection is kept; save it again.',

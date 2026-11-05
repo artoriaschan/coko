@@ -142,6 +142,16 @@ it('actual App runtime details are lazy, getter-free, paged, cycle-aware and ref
       stopReason: 'toolUse',
       timestamp: 0,
     }),
+    // Locating now expands the actual tool. A completed read uses its specialized body,
+    // so this test measures diagnostic enumeration rather than the generic input preview.
+    entry(3, 'message', {
+      role: 'toolResult',
+      toolCallId: 'runtime',
+      toolName: 'read',
+      content: [{ type: 'text', text: 'Recorded file' }],
+      isError: false,
+      timestamp: 0,
+    }),
   ])
   await panel.getByRole('button', { name: 'Display format', exact: true }).click()
   await page.getByRole('menuitemradio', { name: 'Conversation groups', exact: true }).click()
@@ -166,7 +176,7 @@ it('actual App runtime details are lazy, getter-free, paged, cycle-aware and ref
   expect(details.element().textContent).not.toContain('99: 99')
   expect(enumerations).toBe(1)
   runtime.published = 'fresh publication'
-  sendServer({ type: 'entry', sessionId: 's-1', entry: entry(3, 'message', { role: 'user', content: 'next input', timestamp: 0 }) })
+  sendServer({ type: 'entry', sessionId: 's-1', entry: entry(4, 'message', { role: 'user', content: 'next input', timestamp: 0 }) })
   await expect.poll(() => details.element().textContent).toContain('fresh publication')
   expect(enumerations).toBe(2)
   expect(reads).toBe(0)
