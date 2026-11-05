@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 import { forkEntries } from './fork.ts'
-import { planStateUpdates } from '../entries/index.ts'
+import { loadedToolNames, planStateUpdates } from '../entries/index.ts'
 
 let seq = 0
 const entry = (kind: string, payload: unknown, runId: string | null = 'r1') =>
@@ -143,5 +143,36 @@ describe('forkEntries 不复制 M4、M5 与 M6 条目', () => {
     const entries = [entry('permission_mode', { mode: 'default' }, null), user('one'), entry(kind, payload), user('two')]
     const forked = forkEntries(entries, 's', 4)
     expect(forked.entries.map((e) => e.kind)).toEqual(['fork_origin', 'permission_mode', 'message'])
+  })
+})
+
+describe('forkEntries 的工具加载边界', () => {
+  it.each([false, true])('只复制边界之前的加载，保留压缩之前的加载（压缩：%s）', (compacted) => {
+    seq = 0
+    const mode = entry('permission_mode', { mode: 'full-access' }, null)
+    const first = user('first')
+    const a = entry('tool_load', { names: ['mcp__demo__echo'], source: 'search', toolCallId: 'load-a' })
+    const summary = compacted ? [entry('compaction', { firstKeptSeq: seq + 2, summary: 'earlier messages' })] : []
+    const targetUser = user('boundary')
+    const reply = entry('message', { role: 'assistant', content: [{ type: 'text', text: 'boundary answer' }], stopReason: 'stop', timestamp: 0 })
+    const end = entry('run_end', { status: 'completed' })
+    const b = entry('tool_load', { names: ['mcp__demo__sum'], source: 'optimistic', toolCallId: 'load-b' })
+    const restriction = entry('permission_mode', { mode: 'plan' }, null)
+    const source = [mode, first, a, ...summary, targetUser, reply, end, b, restriction]
+    const boundaries = [
+      ['user-before', targetUser.seq],
+      ['assistant-inclusive', reply.seq],
+    ] as const
+    const forks = boundaries.map(([boundary, targetSeq]) => forkEntries(source, 's', targetSeq, boundary))
+    for (const [index, forked] of forks.entries()) {
+      expect(forked.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
+      const copied = forked.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
+      expect([...loadedToolNames(copied)]).toEqual(['mcp__demo__echo'])
+      expect(forked.entries.filter((item) => item.kind === 'permission_mode').at(-1)?.payload).toEqual({ mode: index === 0 ? 'full-access' : 'plan' })
+    }
+    const copied = forks[1]!.entries.map((item, index) => ({ ...item, seq: index + 1, runId: null }))
+    const copiedReply = copied.find((item) => item.kind === 'message' && (item.payload as { role?: string }).role === 'assistant')!
+    const again = forkEntries(copied, 'forked', copiedReply.seq, 'assistant-inclusive')
+    expect(again.entries.filter((item) => item.kind === 'tool_load')).toEqual([{ kind: 'tool_load', payload: a.payload }])
   })
 })

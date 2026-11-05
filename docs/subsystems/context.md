@@ -55,7 +55,7 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 | `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片；压缩进度（`trackCompaction`）与熔断暂停标记 |
 | `packages/agent/src/context/compaction/` | `planCompaction`（切点、要摘要的消息、文件与 Skill 汇总）、`summaryRequest` / `formatCompactionSummary`（摘要提示）、`estimateCompactedTokens`、`createCompactionBreaker` |
 | `packages/agent/src/engine/compaction-driver.ts`、`runtime.ts` | `compaction` 选项：请求前的自动压缩、溢出后压缩并重试、`compact()`（trigger compact 的 Run）、熔断状态（编排在 driver，运行时只接线） |
-| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction、保留消息及其配对 State Update |
+| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction、保留消息及其配对 State Update，以及边界内的工具加载记录 |
 | `apps/server/src/application/context/compaction.ts`、`session-runs.ts`、`sessions.ts` | `/compact` 动作；运行时的 `compaction` 接线（`session-runs.ts`）与 `compactionPaused`（`sessions.ts`） |
 | `apps/desktop/src/renderer/features/conversation/compaction-divider.tsx`、`composer.tsx` | 时间线的压缩分隔条；输入区上方的压缩状态行 |
 
@@ -196,7 +196,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 压缩重建时，切点前的工具声明经 pi 的 transcript 接口折入未持久化的开头工具基线；切点后的工具增减继续在原位置回放。自动压缩发生在 pi 已生成本轮声明之后，同一次请求也保有完整的当前工具定义，见 [MCP 增量传输](mcp.md#provider-的工具增量传输)。
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills?, usage? }`（v2；`usage` 为摘要请求的 usage，计入 [Goal 预算](goal.md#预算)，v1 条目原样读回、没有 usage）在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
-- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
+- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧。工具加载记录 `tool_load` 则只复制目标边界之前的有效记录，包含已被摘要替代的原消息对应的加载；不套用助手分支复制源当前全部权限的规则。对话回退撤销区间内的加载，纯文件回退保持加载集合；交接不继承加载记录。compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
 
 ### 界面
 
@@ -255,6 +255,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `tests/integration/sidecar-state-update-continue.test.ts`：工具结果或 user message 后继续、有/无状态变化、纯状态消息不提升 Goal 授权且不唤醒 waiting-input；`tests/integration/sidecar-date-state-updates.test.ts`：本地午夜、同日去重、Run 内等待、子代理与 teammate 日期。
 - 基础提示默认 v1 与候选 v2、真实门槛和缓存的未验证范围见 [ADR 0024](../adr/0024-session-state-as-state-updates.md#实施状态与证据)，faux 通过不代表真实模型或缓存验收完成。
 
+- `tests/integration/sidecar-tool-search-boundaries.test.ts`：压缩与未压缩源会话的用户、助手及再次分叉只继承边界内加载；文件回退保留加载，对话回退撤销后续加载，交接从未加载开始；核对下一次模型请求。
 - `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-state-update-fork.test.ts`：配对快照随两种分叉边界复制、排除目标消息的孤立更新、压缩后的来源保留、新 Session 首 Run 清空 Goal/Todo 且不重复日期；`tests/integration/sidecar-trace.test.ts` 与 `headless.test.ts` 验证 ndjson 回放及 stream-json 包含 `state_update`。
 
 - `tests/integration/sidecar-environment.test.ts`：真实 Sidecar 的普通仓库、Worktree 与非 git 目录、附加文件夹、环境顺序与跨 Run 稳定性、更换模型、草稿缺省模型及环境的 system 用量。

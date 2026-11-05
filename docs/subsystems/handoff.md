@@ -49,7 +49,7 @@ lifecycle: active
 
 Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 Session、不提交 handoff）。目标创建失败（例如校验之后 git 才发现分支已存在、绑定的 worktree 已被移除）时源 Session 以摘要 Run 的 runId 提交 `handoff_failed { instructions, summary, error, usage? }`：usage 照常计入 Goal，摘要保留在时间线的原始输入/输出中，客户端据此离开"正在创建"。
 
-不继承：消息、Goal、Todo、计划、后台任务、子代理、定时任务与 Checkpoint；源会话除摘要 Run 与 handoff 条目外不变，Goal 留在源会话：交接完成后 running 的 Goal 暂停（`handed-off`），用户可以恢复。
+不继承：消息、MCP 工具加载记录、Goal、Todo、计划、后台任务、子代理、定时任务与 Checkpoint；源会话除摘要 Run 与 handoff 条目外不变，Goal 留在源会话：交接完成后 running 的 Goal 暂停（`handed-off`），用户可以恢复。
 
 ## Goal 用量
 
@@ -70,6 +70,7 @@ Run 被停止、暂停或出错时什么都不创建（不建 worktree、不建 
 | 模型请求 | 无 | 一次摘要请求（trigger handoff，无工具，经 Goal 预算检查） |
 | 新会话的上下文 | 助手包含／旧用户之前边界的有效消息（含当时有效压缩摘要） | 没有消息；摘要作为输入区草稿 |
 | 首条条目 | `fork_origin`（来源、边界与复制历史证明） | `handoff_origin { sessionId, seq }` |
+| 已加载的 MCP 工具 | 只继承所选边界之前的有效加载记录，包含压缩前的加载 | 不继承，新会话按需搜索 |
 | 复制的权限状态 | `permission_mode`、`permission_rule`；助手分支使用源当前状态 | 源当前权限状态 |
 | 工作目录 | 源会话实际目录（包含已绑定 Worktree） | 界面为当前目录；HTTP 接口也支持新 worktree 或已有 worktree |
 | 源会话 | 不变 | 增加摘要 Run 与 `handoff` 条目 |

@@ -1,11 +1,15 @@
 // Real stdio MCP fixture with a per-test catalog file; calls use the shared MCP fixture implementation.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { handle, record } from '../mcp/server-core.ts'
 
 const tools = JSON.parse(readFileSync(process.env.TOOL_SEARCH_FIXTURE_CATALOG!, 'utf8'))
 const options = { name: 'tool-search-fixture', log: process.env.MCP_FIXTURE_LOG }
 record(options.log, { event: 'start' })
+if (process.env.MCP_FIXTURE_FAIL_IF && existsSync(process.env.MCP_FIXTURE_FAIL_IF)) {
+  process.stderr.write('tool-search fixture refused to start: fail flag present\n')
+  process.exit(1)
+}
 const input = createInterface({ input: process.stdin })
 input.on('line', (line) => {
   const message = JSON.parse(line)
