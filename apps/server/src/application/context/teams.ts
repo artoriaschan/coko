@@ -16,6 +16,12 @@ export function teamsContribution(options: ContextContributionOptions): ContextC
       const section = teams && scope.parentSessionId && scope.sessionId ? await teams.section(scope.sessionId) : undefined
       return section ? [section] : []
     },
+    async stateValues(scope) {
+      const teams = subagents.teams()
+      if (!teams || !scope.parentSessionId || !scope.sessionId) return {}
+      const value = await teams.stateValue(scope.sessionId)
+      return value ? { team: value } : {}
+    },
     async tools(scope) {
       const teams = subagents.teams()
       if (!teams || scope.sessionId === undefined || !scope.config.teams.enabled) return []

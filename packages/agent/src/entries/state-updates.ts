@@ -1,6 +1,7 @@
 // State Update provenance and delivery planning; browser-safe and independent of domain storage.
 import { effectiveEntries } from './derive.ts'
 import { todoResultText } from './todo-text.ts'
+import { teamStateText, type TeamStateValue } from './team-text.ts'
 import type { EntryLike } from './types.ts'
 
 export const STATE_UPDATE_NAMES = ['date', 'goal', 'todo_list', 'team'] as const
@@ -74,6 +75,16 @@ export function planStateUpdates(values: StateValues, entries: readonly EntryLik
 }
 
 function renderStateValue(name: StateUpdateName, value: unknown): string {
+  if (
+    name === 'team' &&
+    value &&
+    typeof value === 'object' &&
+    'members' in value &&
+    Array.isArray(value.members) &&
+    'tasks' in value &&
+    Array.isArray(value.tasks)
+  )
+    return teamStateText(value as TeamStateValue)
   if (name === 'todo_list' && value && typeof value === 'object' && 'items' in value && Array.isArray(value.items)) {
     const items = value.items as { id: string; content: string; status: string; blockedBy?: string[]; result?: string }[]
     return todoResultText(items)

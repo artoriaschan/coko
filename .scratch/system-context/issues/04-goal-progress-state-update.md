@@ -32,3 +32,5 @@ TDD：先修改真实 Sidecar 连续两轮的请求断言，观察缺少 goal St
 限制：使用 Electron Node 中的真实 Sidecar 与 faux 模型，只验证送达链路和模型可见请求，不证明真实模型按新提示采取行为或提示缓存命中。无真实 Provider 凭据，按用户确认记为未验证；可见 Electron UI、构建产物和 CI 未运行。压缩后补发与 continue 分属 03、02，本票不宣称完成其验收。
 
 最终文档/格式检查：`pnpm run check:docs` 为 360 文件、0 问题；所改 9 个 TS 文件 `oxfmt --check` 通过，`git diff --check` 退出 0。
+
+合并 05 团队状态后：保留 Todo、Goal 与 team 的文档说明；`pnpm run typecheck`、`pnpm run check:docs`（360 文件 0 问题）、`git diff --check` 通过。`pnpm run test packages/agent/src/entries/state-updates.test.ts tests/integration/sidecar-goal.test.ts tests/integration/sidecar-team-state-updates.test.ts` 为 3 文件 23 例通过。

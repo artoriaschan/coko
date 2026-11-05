@@ -10,7 +10,7 @@ lifecycle: active
 
 ## State Update
 
-当前 Todo List 与 Goal 进度由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+当前 Todo List、Goal 进度与 teammate 的团队状态由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
@@ -217,7 +217,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ## 团队的 `<team>` 与 `<team-message>`
 
-teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自己的名字、lead 与其他未解散成员的状态、任务板的使用要求与当前任务（至多 30 行，标题来自已脱敏的 `team_task` 条目），每个 Run 重新生成。成员之间的消息以 user message `<team-message from="…" message-id="…">正文</team-message>` 送达，前一条为 `team_message` 条目；运行中为追加指令，空闲的 teammate 以它为输入开始新 Run，lead 空闲时挂起到下一个 Run 的开头。它是宿主注入的输入：不授予 Goal 的用户权限，Run 结束时退回的不算用户的追加指令，时间线按条目位置去掉包装。见 [Agent Teams](teams.md#消息)。
+teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`：自己的名字、lead 与任务板的使用规则。其他未解散成员的状态与当前任务板以 `team` State Update 送达，结构化值为 `{ members, tasks }`，正文至多 30 行（标题来自已脱敏的 `team_task` 条目）；变化才在下一 Run 开头发送，不改写 system section。成员之间的消息以 user message `<team-message from="…" message-id="…">正文</team-message>` 送达，前一条为 `team_message` 条目；运行中为追加指令，空闲的 teammate 以它为输入开始新 Run，lead 空闲时挂起到下一个 Run 的开头。State Update 排在这些消息之前。团队消息是宿主注入的输入：不授予 Goal 的用户权限，Run 结束时退回的不算用户的追加指令，时间线按条目位置去掉包装。见 [Agent Teams](teams.md#消息)。
 
 ## 忽略规则
 

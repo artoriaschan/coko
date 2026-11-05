@@ -10,7 +10,7 @@ lifecycle: active
 
 ## 结构入口
 
-- `packages/agent/src/agents/teams/`：名字校验（`names.ts`）、由条目派生的名册（`roster.ts`）、任务板状态机与重叠警告（`board.ts`）、`<team>` section 文本（`section.ts`），以及 `send_message`、`task_create`、`task_update`、`task_list` 四个工具（`tools.ts`，经宿主实现的 `TeamPort` 访问名册与提交）。条目 payload 在 `session-entries/teams.ts`；送达文本 `teamMessageText` 与宿主标签在 `entries/host-input.ts`。
+- `packages/agent/src/agents/teams/`：名字校验（`names.ts`）、由条目派生的名册（`roster.ts`）、任务板状态机与重叠警告（`board.ts`）、静态 `<team>` section 文本（`section.ts`），以及 `send_message`、`task_create`、`task_update`、`task_list` 四个工具（`tools.ts`，经宿主实现的 `TeamPort` 访问名册与提交）。条目 payload 在 `session-entries/teams.ts`；送达文本 `teamMessageText` 与宿主标签在 `entries/host-input.ts`；团队 State Update 的结构化值与正文格式在 `entries/team-text.ts`。
 - `apps/server/src/application/teams.ts`：`TeamService`：快照、`team_update`、消息的目标解析、任务变更（同一根 Session 经 `KeyedMutex` 串行）与 TaskCreated / TaskCompleted。
 - `apps/server/src/application/subagents.ts`：teammate 的派发（`agent { name }`）、消息送达（追加指令、开始新 Run 或排队）、继续对话、解散；`subagent-notifications.ts`：给 lead 的消息与空闲通知的挂起；`subagent-recovery.ts`：`agent_start` v2 的记录、解散时的 worktree 回收。
 - `apps/server/src/application/hooks.ts`：`taskEvent`、`teammateIdle`。`application/context/teams.ts`：工具注册与 `<team>`。`http/routes/teams.ts`：HTTP 接口。
@@ -19,7 +19,8 @@ lifecycle: active
 ## teammate
 
 - **创建。** `agent { description, prompt, subagent_type?, name, isolation? }`：带 `name` 时创建 teammate，总在后台运行（与 `run_in_background: false` 同用为错误结果）。需要 `agents.enabled` 与 `teams.enabled`（缺省 true，项目文件只能关闭）。名字为 `[a-z][a-z0-9-]{0,31}`、不能是 `lead`，在根 Session 未解散的成员中唯一，否则为错误结果 `invalid-name` / `teammate-exists`；未解散的 teammate 至多 8 个（`team-full`）。根 Session 的 `agent_start` v2 带 `name`、`teammate: true` 与 `triggerRunId`（派发它的根 Run）。结果为 `Started teammate <name> (<agentId>, <type>): <description>. Message it with send_message; you are notified when it goes idle.`。
-- **工具与上下文。** 子代理的工具交集之外另有 `send_message` 与 `task_*`；没有 `agent`（深度 1）。system sections 最后另有 `<team name="…">`：自己的名字、lead 与其他未解散成员的状态、任务板的使用要求与当前任务（至多 30 行）。
+- **工具与上下文。** 子代理的工具交集之外另有 `send_message` 与 `task_*`；没有 `agent`（深度 1）。system sections 最后另有 `<team name="…">`，只放自己的名字、lead 与任务板的使用规则；任务或成员状态变化不会改写它。
+- **团队 State Update。** teammate 每个 Run 开始时读取其他未解散成员的状态与根 Session 当前的任务板，作为结构化的 `{ members, tasks }` 值。与有效模型上下文中最近一次送达的同名值不同时，提交 `state_update { name: 'team', value }` 并把 `<state_update name="team">` 放在 user message 的最前面（团队消息之前）；值不变时不重复。正文至多 30 行，包含成员行、任务标题行与超出部分的计数；完整任务可用 `task_list` 读取。任务标题入库与送达前均按值替换已登记明文。根 Session 与一次性子代理没有 team State Update。配对、回退与压缩规则见 [上下文管理](context.md#state-update)。
 - **空闲通知。** teammate 的每个 Run 结束时，lead 收到与后台子代理相同的 `<agent-notification>`（lead 有 Run 时作为追加指令，没有时挂起到下一个 Run，不唤醒）。
 - **解散。** `agent_cancel { agent_id }`（agentId 或成员名）对 teammate 为解散：运行中先 abort 并等该 Run 结束，提交 `agent_end { status: dismissed }`，丢弃排队给它的消息。重启后不在进程内的 teammate 同样可以解散。之后发给它的消息为 `agent-not-reachable`。
 - **名册状态。** 由根 Session 的 `agent_start` v2 与每个成员最后一条 `agent_end` 派生，加上进程内的运行状态：running、idle（completed、max-turns、cancelled 或 interrupted 之后）、failed、dismissed。
@@ -112,6 +113,7 @@ teammate 的子 Session 按 [启动恢复](recovery.md) 的中断恢复处理：
 - `apps/server/src/application/teams.test.ts`：两次认领的读取交叠（deferred）时只有一个成功、另一个 stale-revision 带快照（去掉 `KeyedMutex` 时两个都成功）。
 - `tests/integration/sidecar-teams.test.ts`：创建（`agent_start.name`、`<team>`、trigger subagent 与 triggerRunId）、空闲通知与 lead 不被唤醒、消息唤醒 teammate、运行中的 steering、teammate 给空闲 lead 的消息挂起到下一个 Run、广播、`teammate-exists` 与 `team-full`、子代理继续对话（含重启后）与 `agent-not-reachable`、并发上限时排队；时间线经 renderer 的 `buildTimeline` 读回条目。
 - `tests/integration/sidecar-teams-tasks.test.ts`、`sidecar-teams-hooks.test.ts`、`sidecar-teams-budget.test.ts`（预算，以及 Goal Round 中的消息不授权）、`sidecar-teams-restart.test.ts`（SIGKILL 与 git 夹具的 worktree）、`secrets-gate-teams.test.ts`。
+- `tests/integration/sidecar-team-state-updates.test.ts`：连续多 Run 的静态 sections 相同，任务与成员状态变化才送达 team State Update，解散成员从值中移除，31 项任务正文限制为 30 行，条目与实际请求中的任务标题已替换登记 Secret。
 - 界面：`apps/desktop/src/renderer/stores/team-store.test.ts`（快照替换与较早响应的丢弃、订阅计数）、`features/right-panel/team-tab.browser.test.tsx`（名册、任务板分组与可认领、阻塞、重叠警告、`team_update`、按钮的 running 数、选中成员的订阅与释放）、`features/conversation/team-rows.browser.test.tsx`（消息行不显示包装原文、用户输入的同样文本照常显示、任务行、工具卡）；`apps/desktop/e2e/teams.e2e.test.ts`（真实 Electron 与 Sidecar：两个 teammate 认领与完成时 Team tab 与按钮实时变化、teammate 的写入审批在父会话中允许、成员只读时间线、明暗主题与键盘）。
 - Goal 的用户输入判断：`apps/server/src/application/goal-driver.test.ts`（只有团队消息时 `hasUserSteering` 为 false）；runAuthority：`packages/agent/src/goals/goals.test.ts` 的 `team_message` 行。
 
