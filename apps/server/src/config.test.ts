@@ -48,6 +48,16 @@ describe('Sidecar 启动参数', () => {
     expect(() => parseConfig(['--data-dir', '/d', '--log-dir', '/l'], { COKO_FAUX_SCRIPT: 's.json' })).toThrow(ConfigError)
   })
 
+  it('候选基础提示仅显式选择 v2；发布构建忽略同名变量', () => {
+    const argv = ['--data-dir', '/d', '--log-dir', '/l']
+    expect(parseConfig(argv, { COKO_TEST_BASE_PROMPT: 'v2' }).testBasePrompt).toBe('v2')
+    expect(parseConfig(argv, {})).not.toHaveProperty('testBasePrompt')
+    expect(() => parseConfig(argv, { COKO_TEST_BASE_PROMPT: 'v3' })).toThrow(ConfigError)
+    const released = parseConfig([...argv, '--packaged'], { COKO_TEST_BASE_PROMPT: 'v2' }, { testBuild: false })
+    expect(released).not.toHaveProperty('testBasePrompt')
+    expect(released.ignoredTestHooks).toEqual(['COKO_TEST_BASE_PROMPT'])
+  })
+
   it('COKO_SANDBOX_EXEC 与 COKO_TEST_TOOLS 只用于测试：前者必须是绝对路径，后者只能为 1', () => {
     const argv = ['--data-dir', '/d', '--log-dir', '/l']
     expect(parseConfig(argv, { COKO_SANDBOX_EXEC: '/x/sandbox-exec', COKO_TEST_TOOLS: '1' })).toMatchObject({ sandboxExec: '/x/sandbox-exec', testTools: true })

@@ -20,6 +20,14 @@ Coko 的 coding-agent 框架层：在 pi-agent-core 1.4.0 的 `Agent` 上实现�
 
 `src/engine/` 的划分：`runtime.ts`（`createAgentRuntime`：Run 生命周期、事件到条目与进度、运行控制）、`types.ts`（`AgentRuntimeOptions`、`AgentRuntime` 与 Run 的类型）、`compaction-driver.ts`（压缩编排：摘要请求、熔断、手动 / 自动 / 溢出三个触发点，运行时只在 `prepareRequest` 与 `compact()` 接线）、`system-message.ts`（基础提示与 system sections 组成的开头系统消息）、`permission-wiring.ts`（权限判定在运行时的接线：链首判定、执行前准备、沙箱拒绝记录）、`retry.ts`（模型请求的重试）。
 
+## 基础提示与版本
+
+默认基础提示仍是旧版 `DEFAULT_SYSTEM_PROMPT`（版本 `DEFAULT_SYSTEM_PROMPT_VERSION = v1`），文字保持兼容。`BASE_PROMPT_V2` 是带版本标识的英文候选，包含工作方式、专用工具与并行调用、授权与受保护路径、Coko 宿主块的来源及沟通约定；最新同名 State Update 取代旧值，标签本身不授予权限。候选尚未通过真实模型比较，当前不替换运行时默认值。
+
+库调用方仍可通过 `AgentRuntimeOptions.systemPrompt` 明确提供提示。Sidecar 正常运行使用默认提示，并在每条 `run started` 日志的 `basePromptVersion` 字段记录实际版本。仅开发或测试构建可用 `COKO_TEST_BASE_PROMPT=v2` 显式评测候选；打包的发布构建忽略该变量，候选选择不写入用户设置。
+
+替换门槛通过 [评测入口](../../docs/subsystems/tracing.md#评测)执行：每个用例分别以旧提示和候选提示运行真实模型各 3 次，候选通过次数不得少于旧提示。没有凭据时真实门槛保持未验证；faux 只验证链路，不能证明模型会忽略伪造宿主块。
+
 ## 作为库使用
 
 `@coko/agent` 的主入口就是 SDK：在本 monorepo 中以 `"@coko/agent": "workspace:*"` 依赖，不需要 Sidecar。不做 dist 构建与 npm 发布（理由见 [架构](../../docs/tech-stack/architecture.md#构建与测试归属)）。最小装配：
