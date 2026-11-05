@@ -1,5 +1,5 @@
 import { PanelStart, PanelTabs } from '@coko/ui'
-import { HouseIcon, PanelRightCloseIcon } from 'lucide-react'
+import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightCloseIcon } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -8,7 +8,17 @@ import { closePage, getRightPanelLayout, openPage, rightPanelLayoutStore, select
 import { RIGHT_PANEL_TABS, visibleRightPanelTabs, type RightPanelTabDefinition } from './tabs.ts'
 
 /** 当前 Session 的单格面板；正文组件继续沿用各页面自己的状态与数据。 */
-export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () => void; tabs?: readonly RightPanelTabDefinition[] }) {
+export function RightPanel({
+  onClose,
+  tabs = RIGHT_PANEL_TABS,
+  fullscreen = false,
+  onToggleFullscreen,
+}: {
+  onClose: () => void
+  tabs?: readonly RightPanelTabDefinition[]
+  fullscreen?: boolean
+  onToggleFullscreen?: () => void
+}) {
   const { t } = useI18n()
   const sessionId = useChat((s) => s.activeSessionId)
   const layout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
@@ -40,9 +50,16 @@ export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () =
         onClose={(id) => closePage(sessionId, id)}
         onNewTab={layout.tabs.includes('start') ? undefined : () => openPage(sessionId, 'start')}
         controls={
-          <IconButton label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
-            <PanelRightCloseIcon />
-          </IconButton>
+          <>
+            <IconButton label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
+              <PanelRightCloseIcon />
+            </IconButton>
+            {onToggleFullscreen && (
+              <IconButton size="icon-sm" label={t(fullscreen ? 'rightPanel.exitFullscreen' : 'rightPanel.fullscreen')} onClick={onToggleFullscreen}>
+                {fullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+              </IconButton>
+            )}
+          </>
         }
       />
       <div

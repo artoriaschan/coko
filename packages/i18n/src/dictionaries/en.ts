@@ -717,6 +717,9 @@ export const en: typeof zh = {
     start: 'Start',
     newTab: 'New tab',
     closePage: 'Close {title}',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit fullscreen',
+    resize: 'Resize sidebar panel',
   },
   markdown: {
     close: 'Close',

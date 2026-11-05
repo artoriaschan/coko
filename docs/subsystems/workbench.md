@@ -12,6 +12,10 @@ lifecycle: active
 
 [App](../../apps/desktop/src/renderer/app/app.tsx) 组合左侧导航与列表、右侧内容及可选的右面板。[AppFrame](../../packages/ui/src/app-frame/app-frame.tsx) 负责侧栏伸缩、整列收起与抽屉、拖动分隔条以及四角裁剪，圆角使用共享的 R28 主面板档位。
 
+右栏左缘提供可聚焦的分隔条。拖动或按左右方向键（16px 步长）、Home、End 调整宽度：默认帧宽的 45%，最小 300px，最大为帧宽的 70%，同时为中栏至少保留 400px。宽度偏好由 App 在当前窗口内存中保存，切换 Session 沿用，重新加载回到默认。左侧栏不为右栏让位；普通右栏放不下 300px 时，框架回写当前 Session 的收起状态，窗口变宽也不自动重新打开。
+
+tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。全屏覆盖整个应用帧，保留普通形态的底层列宽和同一棵右栏正文 DOM，展开与滚动状态不丢失；此时没有右栏分隔条，背景主区与侧栏不可交互。帧宽小于 768px 时，打开右栏自动全屏，不占普通右栏列，也不写入手动全屏偏好；在此宽度退出全屏会收起右栏，变宽不重开。全屏 tab 条按窗口左侧安全区避让 macOS 控制按钮，交互控件仍退出窗口拖拽区。
+
 启动时先渲染品牌加载屏（[startup-screen.tsx](../../apps/desktop/src/renderer/app/startup-screen.tsx)）：覆盖整个窗口、背景取 `--background`、顶部 48px 保持窗口拖拽，正文居中展示 250px 圆形品牌角色。渲染进程在 Sidecar 连接后读取设置，等设置进入 `ready` 或 `error` 后先应用已保存的语言与主题，再渲染工作台；因此首帧就是保存的语言，不再出现“系统英文 → 应用中文”的闪动。连接失败或超过 10 秒仍无设置时也进入工作台，由工作台展示连接错误，避免一直停在加载屏。
 
 侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。
@@ -32,7 +36,7 @@ lifecycle: active
 
 右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 与可访问名称均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
-右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项和展开状态，目前保存在 renderer 内存。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，目前保存在 renderer 内存。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
 右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
 
@@ -237,7 +241,7 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 ## 验证入口
 
 - [工作台浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)：导航项几何、历史、无效会话跳过、设置返回、草稿保留及四角裁剪。
-- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉及右面板让位。
+- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉、右栏调整与空间不足时收起、保留正文和底层列宽的全屏。
 - [工作台 Electron E2E](../../apps/desktop/e2e/workbench.e2e.test.ts)：真实 Sidecar 中两个会话与插件、定时任务之间的前进后退，以及设置返回后的草稿和列表。
 
 - [模型选择 Browser Mode](../../apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx)：互斥菜单、拖动预览、键盘与粒子生命周期。

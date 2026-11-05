@@ -269,6 +269,11 @@ for (const theme of ['light', 'dark'] as const)
         planButton.focus()
         await userEvent.keyboard('{Enter}')
         await expect.poll(() => document.querySelector('[data-slot="plan-tab"]')?.getAttribute('data-revision')).toBe('1')
+        // 窄窗口的右栏现在全屏；先收起再操作背景 dock，键盘不能穿透全屏面板。
+        await page
+          .elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+          .getByRole('button', { name: locale === 'en' ? 'Collapse sidebar' : '收起侧边栏', exact: true })
+          .click()
         // Goal controls and budget remain in the existing dock, never folded with work steps.
         const goalToggle = document.querySelector<HTMLButtonElement>('[data-action="toggle-goal"]')!
         goalToggle.focus()

@@ -7,8 +7,9 @@ export interface RightPanelLayout {
   tabs: readonly RightPanelPageKind[]
   active: RightPanelPageKind | null
   expanded: boolean
+  mode: 'normal' | 'fullscreen'
 }
-const INITIAL_LAYOUT: RightPanelLayout = { tabs: [], active: null, expanded: false }
+const INITIAL_LAYOUT: RightPanelLayout = { tabs: [], active: null, expanded: false, mode: 'normal' }
 
 /** 仅持有界面布局；与 React、页面正文及 Session 数据无关。 */
 export const rightPanelLayoutStore = createStore<{ sessions: Record<string, RightPanelLayout> }>()(() => ({ sessions: {} }))
@@ -41,6 +42,11 @@ export function setRightPanelExpanded(sessionId: string | null, expanded: boolea
 export function selectPage(sessionId: string, kind: RightPanelPageKind) {
   const layout = getRightPanelLayout(sessionId)
   if (layout.tabs.includes(kind)) update(sessionId, { ...layout, active: kind })
+}
+
+/** 只保存用户选择；窄窗口的自动全屏不写入布局。 */
+export function setRightPanelMode(sessionId: string | null, mode: RightPanelLayout['mode']) {
+  if (sessionId !== null) update(sessionId, { ...getRightPanelLayout(sessionId), mode })
 }
 
 export function closePage(sessionId: string, kind: RightPanelPageKind) {

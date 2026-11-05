@@ -769,6 +769,59 @@ it('retains separate sidebar pages per Session and hides the container on non-se
   await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).not.toBeInTheDocument()
 })
 
+it('keeps the right page mounted through fullscreen and collapses narrow fullscreen without reopening', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await page.getByRole('button', { name: 'Trace', exact: true }).click()
+  const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
+  const pageNode = document.querySelector('[role="tabpanel"]')!
+  const center = document.querySelector('[data-slot="app-frame-main"]')!
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(648)
+  const centerWidth = center.getBoundingClientRect().width
+  const fullscreen = page.getByRole('button', { name: 'Fullscreen', exact: true })
+  expect(fullscreen.query()).not.toBeNull()
+  await fullscreen.click()
+  await expect.poll(() => panel.getBoundingClientRect().width).toBe(1440)
+  expect(center.getBoundingClientRect().width).toBe(centerWidth)
+  expect(document.querySelector('[role="tabpanel"]')).toBe(pageNode)
+  await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click()
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(648)
+  expect(document.querySelector('[role="tabpanel"]')).toBe(pageNode)
+  await page.viewport(700, 900)
+  await expect.element(page.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeVisible()
+  await expect.poll(() => panel.getBoundingClientRect().width).toBe(700)
+  await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toHaveFocus()
+  await page.viewport(1440, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(panel.hidden).toBe(true)
+})
+
+it('resizes the sidebar panel through its separator and remembers fit collapse across window growth', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
+  const handle = page.getByRole('separator', { name: 'Resize sidebar panel', exact: true })
+  await handle.click()
+  await userEvent.keyboard('{Home}')
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(300)
+  await userEvent.keyboard('{ArrowLeft}')
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(316)
+  await page.getByRole('separator', { name: 'Resize sidebar', exact: true }).click()
+  await userEvent.keyboard('{End}')
+  await expect.poll(() => document.querySelector('[data-slot="app-frame-sidebar"]')!.getBoundingClientRect().width).toBe(420)
+  await page.viewport(1120, 900)
+  await expect.poll(() => Math.round(panel.getBoundingClientRect().width)).toBe(300)
+  await page.viewport(1119, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(document.querySelector('[data-slot="app-frame-sidebar"]')!.getBoundingClientRect().width).toBe(420)
+  await page.viewport(1440, 900)
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  expect(panel.hidden).toBe(true)
+})
+
 it.each([
   ['en', 'light', 'Open sidebar', 'Start', 'Trace'],
   ['zh', 'dark', '打开侧边栏', '开始', '追踪'],

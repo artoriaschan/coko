@@ -1,8 +1,8 @@
 import { createTranslator } from '@coko/i18n'
-import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
+import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider, useAppFrame } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded } from '../features/right-panel/layout-store.ts'
+import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded, setRightPanelMode } from '../features/right-panel/layout-store.ts'
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
@@ -104,6 +104,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
+  const [rightWidth, setRightWidth] = React.useState<number>()
   const activeSessionId = useStore(chat, (state) => state.activeSessionId)
   const rightLayout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(activeSessionId))
   const rightOpen = activeSessionId !== null && rightLayout.expanded
@@ -126,9 +127,14 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                       sidebarCollapsed={sidebarCollapsed}
                       onSidebarCollapsedChange={setSidebarCollapsed}
                       rightOpen={rightOpen && contentPage === null}
+                      onRightOpenChange={setRightOpen}
+                      rightWidth={rightWidth}
+                      onRightWidthChange={setRightWidth}
+                      rightFullscreen={rightLayout.mode === 'fullscreen'}
+                      onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
                       sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
                       rail={<SidebarRail />}
-                      rightPanel={<RightPanel onClose={() => setRightOpen(false)} />}
+                      rightPanel={<FrameRightPanel onClose={() => setRightOpen(false)} />}
                     >
                       <div
                         hidden={contentPage !== null}
@@ -166,11 +172,23 @@ function ProjectSidebar(props: Omit<React.ComponentProps<typeof Sidebar>, 'onAdd
   return <Sidebar {...props} onAddWorkspace={() => createProject?.()} />
 }
 
+/** 全屏按钮使用框架派生的实际形态，窄窗口不会改写 Session 偏好。 */
+function FrameRightPanel({ onClose }: { onClose: () => void }) {
+  const { rightFullscreen, toggleRightFullscreen } = useAppFrame()
+  return <RightPanel onClose={onClose} fullscreen={rightFullscreen} onToggleFullscreen={toggleRightFullscreen} />
+}
+
 /** 注入已本地化的框架无障碍名称。 */
 function Frame(props: Omit<React.ComponentProps<typeof AppFrame>, 'labels'>) {
   const { t } = useI18n()
   const labels = React.useMemo(
-    () => ({ sidebar: t('sidebar.label'), main: t('frame.main'), rightPanel: t('frame.rightPanel'), resizeSidebar: t('sidebar.resize') }),
+    () => ({
+      sidebar: t('sidebar.label'),
+      main: t('frame.main'),
+      rightPanel: t('frame.rightPanel'),
+      resizeSidebar: t('sidebar.resize'),
+      resizeRightPanel: t('rightPanel.resize'),
+    }),
     [t],
   )
   return <AppFrame {...props} labels={labels} />

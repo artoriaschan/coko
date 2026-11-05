@@ -12,14 +12,17 @@ export const CENTER_MIN_WIDTH = 400
 export const RIGHT_MIN_WIDTH = 300
 export const RIGHT_DEFAULT_RATIO = 0.45
 export const RIGHT_MAX_RATIO = 0.7
+/** 低于此帧宽时右栏自动全屏；不改变用户保存的普通/全屏偏好。 */
+export const RIGHT_AUTO_FULLSCREEN_BELOW = 768
 
 export interface FrameLayoutInput {
   frameWidth: number
   sidebarWidth: number
   sidebarCollapsed: boolean
   rightOpen: boolean
+  rightFullscreen?: boolean
   /** 用户拖动后记住的右栏宽度；未设置时为帧宽的 45%。 */
-  rightWidth?: number
+  rightWidth?: number | undefined
 }
 
 export interface FrameLayout {
@@ -28,21 +31,27 @@ export interface FrameLayout {
   sidebar: 'expanded' | 'hidden'
   /** 第一列的实际宽度。 */
   sidebarColumn: number
-  right: 'closed' | 'column' | 'overlay'
+  right: 'closed' | 'column' | 'fullscreen'
+  /** 普通形态的底层列宽；全屏时保留，窄窗口自动全屏为 0。 */
   rightColumn: number
 }
 
 export const clampSidebarWidth = (width: number) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)))
 
+/** 右栏不能挤占中栏的最小阅读宽度，也不改变左侧栏。 */
+export const rightPanelMaxWidth = (frameWidth: number, sidebarColumn: number) =>
+  Math.min(frameWidth * RIGHT_MAX_RATIO, frameWidth - sidebarColumn - CENTER_MIN_WIDTH)
+export const clampRightPanelWidth = (width: number, frameWidth: number, sidebarColumn: number) =>
+  Math.round(Math.max(RIGHT_MIN_WIDTH, Math.min(width, rightPanelMaxWidth(frameWidth, sidebarColumn))))
+
 /**
- * 计算三栏布局。空间不足时依次：右栏缩到最小宽度 → 侧栏整列收起 → 右栏改为覆盖中栏。
- * 中栏不低于 CENTER_MIN_WIDTH 只在有右栏时作为让位规则；帧本身窄于该值时中栏取剩余宽度。
+ * 右栏先缩小，再整栏收起，左侧栏不让位。全屏使用相同的底层列宽，窄窗口不分配右栏列。
  */
 export function computeFrameLayout(input: FrameLayoutInput): FrameLayout {
   const { frameWidth } = input
   const narrow = frameWidth < AUTO_COLLAPSE_BELOW
-  let sidebar: FrameLayout['sidebar'] = narrow || input.sidebarCollapsed ? 'hidden' : 'expanded'
-  let sidebarColumn = sidebar === 'hidden' ? SIDEBAR_COLLAPSED_WIDTH : clampSidebarWidth(input.sidebarWidth)
+  const sidebar: FrameLayout['sidebar'] = narrow || input.sidebarCollapsed ? 'hidden' : 'expanded'
+  const sidebarColumn = sidebar === 'hidden' ? SIDEBAR_COLLAPSED_WIDTH : clampSidebarWidth(input.sidebarWidth)
 
   if (!input.rightOpen) return { narrow, sidebar, sidebarColumn, right: 'closed', rightColumn: 0 }
 
@@ -50,12 +59,16 @@ export function computeFrameLayout(input: FrameLayoutInput): FrameLayout {
   const preferred = Math.round(Math.min(frameWidth * RIGHT_MAX_RATIO, Math.max(RIGHT_MIN_WIDTH, ideal)))
   const fit = (side: number) => Math.min(preferred, frameWidth - side - CENTER_MIN_WIDTH)
 
-  let rightColumn = fit(sidebarColumn)
-  if (rightColumn < RIGHT_MIN_WIDTH && sidebar === 'expanded') {
-    sidebar = 'hidden'
-    sidebarColumn = SIDEBAR_COLLAPSED_WIDTH
-    rightColumn = fit(sidebarColumn)
+  const rightColumn = fit(sidebarColumn)
+  if (input.rightFullscreen || frameWidth < RIGHT_AUTO_FULLSCREEN_BELOW) {
+    return {
+      narrow,
+      sidebar,
+      sidebarColumn,
+      right: 'fullscreen',
+      rightColumn: frameWidth < RIGHT_AUTO_FULLSCREEN_BELOW || rightColumn < RIGHT_MIN_WIDTH ? 0 : rightColumn,
+    }
   }
   if (rightColumn >= RIGHT_MIN_WIDTH) return { narrow, sidebar, sidebarColumn, right: 'column', rightColumn }
-  return { narrow, sidebar, sidebarColumn, right: 'overlay', rightColumn: Math.min(preferred, frameWidth - sidebarColumn) }
+  return { narrow, sidebar, sidebarColumn, right: 'closed', rightColumn: 0 }
 }

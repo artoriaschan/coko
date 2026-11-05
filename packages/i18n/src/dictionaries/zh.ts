@@ -710,6 +710,9 @@ export const zh = {
     start: '开始',
     newTab: '新标签页',
     closePage: '关闭{title}',
+    fullscreen: '全屏',
+    exitFullscreen: '退出全屏',
+    resize: '调整侧边栏宽度',
   },
   markdown: {
     close: '关闭',
