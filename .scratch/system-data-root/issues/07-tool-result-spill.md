@@ -38,3 +38,12 @@ TDD 证据：新增真实 Sidecar 用例先因 long-output.txt 不存在失败�
 基线复现精确命令：`pnpm run test packages/agent/src/tools/scheduler.test.ts tests/integration/sidecar-mcp-resources-prompts.test.ts -t 'side-effect 调用|tool_exec 提交失败|/mcp__srv__greet'`，2 文件、3 失败、6 过滤。未修改这些旧断言。
 
 文档影响：当前执行正文新增工具结果落盘契约并从 docs 导航可达，Agent 包说明新增宿主选项与原文传播契约；从 AGENTS → docs/README → execution 和包 README 读回，引用方向、语义、生命周期均无缺口。07 不维护 MCP 目录等其他票的事实。
+
+
+集成读回（2026-11-05）：实现提交 `08567ddb`，已无冲突合入含 03 的集成分支 tip（合并提交 `50843e39`）。最终精确回归命令：
+
+```sh
+pnpm run test tests/integration/sidecar-tool-results.test.ts tests/integration/sidecar-mcp.test.ts tests/integration/sidecar-mcp-resources-prompts.test.ts packages/agent/src/tools/builtin/bash.test.ts packages/agent/src/tools/builtin/file-tools.test.ts packages/agent/src/tools/scheduler.test.ts packages/agent/src/extensions/mcp/results.test.ts packages/agent/src/extensions/mcp/resources.test.ts packages/agent/src/tools/lsp/lsp.test.ts packages/agent/src/context/memory/memory.test.ts packages/agent/src/tasks/jobs/jobs.test.ts packages/agent/src/agents/definitions.test.ts apps/server/src/adapters/ripgrep.test.ts -t '^(?!.*(?:side-effect 调用的 tool_exec|tool_exec 提交失败|/mcp__srv__greet))'
+```
+
+结果退出 0，13 文件通过、197 项通过、仅上述 3 项已证实的基线失败过滤。合入后 `pnpm run typecheck` 退出 0；`pnpm run check:docs` 377 Markdown、0 问题。提交前 changed-file oxfmt 与 oxlint 通过。没有推送或发布。
