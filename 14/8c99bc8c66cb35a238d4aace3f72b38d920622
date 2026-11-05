@@ -1,0 +1,61 @@
+tests/integration/sidecar-state-update-fork.test.ts
+  s_2a03236d6e6b67::t_0899c1cf753cd1 66-68,79
+  s_2a03236d6e6b67::t_0d459bd39f26bc 20-25,53-55,70-73,86-97,99-106
+  s_2a03236d6e6b67::t_5b842d5b314c75 27,56-57
+  s_2a03236d6e6b67::t_8193b37359a92d 1-19,26,28-52,58-65,69,74-78,80-85,98,107-113
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_767485f2a99027 25-26,53,134,189,244
+packages/agent/src/agents/fork.test.ts
+  s_2a03236d6e6b67::t_592622a8cf5fa4 113-115,124,133-140
+  s_2a03236d6e6b67::t_176fa4d73f9241 116-117,122-123,125-126,131-132
+  s_2a03236d6e6b67::t_0d459bd39f26bc 98-101,118-121,127-130
+  s_2a03236d6e6b67::t_c9158c5fd1a6b8 5,93-97,102-112
+tests/integration/headless.test.ts
+  s_2a03236d6e6b67::t_f54c141ad89e3e 55-58
+  s_2a03236d6e6b67::t_acb19db311513b 72-73,75,78,83-86
+.scratch/system-context/issues/08-fork-and-context-usage.md
+  s_2a03236d6e6b67::t_b22453b22f9598 11-35
+packages/agent/README.md
+  s_2a03236d6e6b67::t_762f0619dfde59 90
+packages/protocol/README.md
+  s_2a03236d6e6b67::t_762f0619dfde59 195
+tests/integration/sidecar-compaction.test.ts
+  s_2a03236d6e6b67::t_7587279b37b327 190,276
+  s_2a03236d6e6b67::t_f460b5c91dddbc 199
+apps/server/src/application/context/usage.ts
+  s_2a03236d6e6b67::t_c2bd36a82da0c2 8,13,132-141,158
+docs/README.md
+  s_2a03236d6e6b67::t_762f0619dfde59 38
+apps/server/src/application/context/usage.test.ts
+  s_2a03236d6e6b67::t_2b401190c44fbb 99-115
+  s_2a03236d6e6b67::t_0d459bd39f26bc 83-90
+  s_2a03236d6e6b67::t_fb5de4a0498ae1 94-96
+  s_2a03236d6e6b67::t_181badbca5fa24 73-82,91-93,97-98
+tests/integration/sidecar-trace.test.ts
+  s_2a03236d6e6b67::t_5a21762e197569 9,161-162,175
+tests/integration/sidecar-rewind.test.ts
+  s_2a03236d6e6b67::t_6f51c587f8c63d 145,340,349
+packages/agent/src/agents/fork.ts
+  s_2a03236d6e6b67::t_b771aa44d511bb 8,13,65,69,88-89
+docs/subsystems/headless.md
+  s_2a03236d6e6b67::t_385fcd5cd9aebd 53-54
+tests/integration/sidecar-context.test.ts
+  s_2a03236d6e6b67::t_6495394d03ace8 72,77-93
+  s_2a03236d6e6b67::t_05fd175f3400ab 73-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "148c99bc8c66cb35a238d4aace3f72b38d920622",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
