@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/08-optimistic-loading.md
+  s_dd1034265ded7f::t_d847c1a3da7e20 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "2a2ac6c9f94ef7077bc6a8fbfcfe1d0425e44d97",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
