@@ -65,6 +65,11 @@ const toolResults = (stream: Stream, sessionId: string, toolName: string) =>
 const textOf = (message: LoggedMessage | undefined) =>
   !message ? '' : typeof message.content === 'string' ? message.content : ((message.content ?? []) as { text?: string }[]).map((b) => b.text ?? '').join('')
 const lastUser = (messages: LoggedMessage[]) => textOf(messages.filter((m) => m.role === 'user').at(-1))
+function goalUpdate(messages: LoggedMessage[]) {
+  const text = lastUser(messages)
+  const block = text.match(/<state_update name="goal">\n([\s\S]*?)\n<\/state_update>/)
+  return block ? JSON.parse(block[1]!) : undefined
+}
 function sectionsOf(messages: LoggedMessage[]) {
   const sections: Record<string, string> = {}
   for (const m of messages) {
@@ -159,18 +164,101 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(log).toHaveLength(8)
     // 第一个 Run 开始时没有 Goal；Goal Round 的输入为 <goal_round>，每个 Run 注入 <goal>。
     expect(sectionsOf(log[0]!).goal).toBeUndefined()
-    expect(lastUser(log[2]!)).toMatch(/^<goal_round>\nObjective: "fix the tests"\nSuccess criteria:\n- c1: tests pass\n- c2: summary given\nRound: 1 \/ 5\n/)
+    expect(lastUser(log[2]!)).toMatch(
+      /^<state_update name="goal">[\s\S]*<\/state_update><goal_round>\nObjective: "fix the tests"\nSuccess criteria:\n- c1: tests pass\n- c2: summary given\nRound: 1 \/ 5\n/,
+    )
     expect(lastUser(log[4]!)).toContain('Round: 2 / 5')
     expect(lastUser(log[4]!)).toContain('Treat the current workspace, tool results and committed session state as authoritative')
     for (const i of [2, 4]) {
       const section = sectionsOf(log[i]!).goal
-      expect(section).toMatch(/^<goal>\nCurrent goal goal-1 \(revision 1\), phase running\./)
+      expect(section).toMatch(/^<goal>\nCurrent goal goal-1\./)
       expect(section).toContain('- c2: summary given')
+      expect(section).not.toMatch(/revision \d|phase \w|rounds: [12] \/ 5/)
+      expect(section).toContain('latest goal State Update')
+      expect(goalUpdate(log[i]!)).toMatchObject({ id: 'goal-1', revision: 1, phase: 'running', budget: { maxRounds: 5 } })
     }
-    // 轮次计入本轮（其 run_start 在 section 取值之前已提交）。
-    expect(sectionsOf(log[2]!).goal).toContain('- rounds: 1 / 5')
-    expect(sectionsOf(log[4]!).goal).toContain('- rounds: 2 / 5')
+    expect(sectionsOf(log[2]!)).toEqual(sectionsOf(log[4]!))
+    // 当前轮次只在 State Update 中，工具直接使用其中的 revision；脚本从未调用 get_goal。
+    expect(goalUpdate(log[2]!)).toMatchObject({ usage: { rounds: 1 } })
+    expect(goalUpdate(log[4]!)).toMatchObject({ usage: { rounds: 2 } })
+    expect(toolResults(stream, sessionId, 'get_goal')).toEqual([])
     expect(stream.invalidEntries).toEqual([])
+  })
+
+  it.each(['cancel', 'complete'] as const)('UI 暂停与编辑的状态下次送达；%s 后只清空一次', async (terminal) => {
+    const { sidecar, api, stream, workspaceId, requests } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 5, max_tool_calls: 50, max_tokens: 100000, max_duration_ms: 600000 } })] },
+      { content: 'set' },
+      { content: [call('update_goal', 'wait', { goal_id: 'goal-1', revision: 1, action: 'wait_input', reason: 'choose a database' })] },
+      { content: 'waiting' },
+      { content: 'paused' },
+      { content: 'edited' },
+      { content: 'ended' },
+      { content: 'again' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId)
+    await submit(api, sessionId, 'start')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'waiting-input')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 2)
+    const paused = await action(api, sessionId, { action: 'pause', revision: 2 })
+    expect(paused.body.goal).toMatchObject({ phase: 'paused', revision: 3 })
+    await submit(api, sessionId, 'inspect paused goal')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 3)
+    expect((await action(api, sessionId, { action: 'edit', revision: 3, objective: 'use sqlite' })).body.goal).toMatchObject({ revision: 4 })
+    await submit(api, sessionId, 'inspect edited goal')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 4)
+    expect((await action(api, sessionId, { action: terminal, revision: 4 })).body.goal).toMatchObject({ revision: 5 })
+    await submit(api, sessionId, 'inspect ended goal')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 5)
+    await submit(api, sessionId, 'inspect once more')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 6)
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+
+    const log = await requests()
+    expect(goalUpdate(log[4]!)).toEqual({
+      id: 'goal-1',
+      revision: 3,
+      phase: 'paused',
+      reason: { code: 'user-paused', message: 'Paused by the user' },
+      usage: paused.body.usage && {
+        rounds: 1,
+        toolCalls: paused.body.usage.toolCalls,
+        tokens: paused.body.usage.tokens,
+        durationMs: paused.body.usage.durationMs,
+      },
+      budget: { maxRounds: 5, maxToolCalls: 50, maxTokens: 100000, maxDurationMs: 600000 },
+    })
+    expect(goalUpdate(log[5]!)).toMatchObject({ revision: 4, phase: 'paused' })
+    expect(sectionsOf(log[5]!).goal).toContain('Objective: "use sqlite"')
+    expect(sectionsOf(log[6]!).goal).toBeUndefined()
+    expect(lastUser(log[6]!)).toMatch(/^<state_update name="goal">\nThis item currently has no content\./)
+    expect(lastUser(log[7]!)).toBe('inspect once more')
+    const updates = of(stream, sessionId, 'state_update')
+      .map((entry) => entry.payload as { name: string; value: unknown })
+      .filter((p) => p.name === 'goal')
+    expect(updates.filter((p) => p.value === null)).toHaveLength(1)
+    expect(stream.invalidEntries).toEqual([])
+  })
+
+  it('Goal Round 派发的子 Session 不收到根 Goal 的 section 或 State Update', async () => {
+    const { sidecar, api, stream, workspaceId, requests } = await boot([
+      { content: [createGoal(['done'], { budget: { max_rounds: 1 } })] },
+      { content: 'set' },
+      { content: [call('agent', 'child', { description: 'look around', prompt: 'CHILD-GOAL inspect', subagent_type: 'explore' })] },
+      { content: 'child finished' },
+      { content: 'parent finished' },
+    ])
+    const sessionId = await newSession(api, stream, workspaceId)
+    await submit(api, sessionId, 'go')
+    await waitGoal(stream, sessionId, (g) => g.phase === 'budget-exhausted')
+    await stream.waitFor(() => of(stream, sessionId, 'run_end').length === 2)
+    const childId = (of(stream, sessionId, 'agent_start')[0]!.payload as { agentId: string }).agentId
+    const child = (await api.get(apiPaths.session(childId))).body.entries as SessionEntryRecord[]
+    expect(child.filter((entry) => entry.kind === 'state_update' && (entry.payload as { name: string }).name === 'goal')).toEqual([])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+    const childRequest = (await requests()).find((messages) => lastUser(messages).includes('CHILD-GOAL inspect'))!
+    expect(sectionsOf(childRequest).goal).toBeUndefined()
+    expect(lastUser(childRequest)).not.toContain('<state_update name="goal">')
   })
 
   it('轮次上限耗尽进入 budget-exhausted（rounds）；POST …/goal 的动作、revision-conflict 与 invalid-transition', async () => {
@@ -385,7 +473,7 @@ describe('Goal', { timeout: 120_000 }, () => {
     expect(kinds.indexOf('job_end')).toBeLessThan(kinds.lastIndexOf('run_start'))
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
     const round2 = (await requests())[5]!
-    expect(lastUser(round2)).toMatch(/^<job-notification>[\s\S]*<\/job-notification>[\s\S]*<goal_round>/)
+    expect(lastUser(round2)).toMatch(/^<state_update name="goal">[\s\S]*<\/state_update><job-notification>[\s\S]*<\/job-notification>[\s\S]*<goal_round>/)
   })
 
   it('取消：进行中的 Run 结束、该 Goal 的 Job 停止，cancelled 快照带 cleanup', async () => {
@@ -477,7 +565,9 @@ describe('Goal', { timeout: 120_000 }, () => {
     const users = of(stream, sessionId, 'message').filter((e) => (e.payload as { role: string }).role === 'user')
     expect(users).toHaveLength(5)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
-    expect(lastUser((await requests())[4]!)).toMatch(/^Create a goal for this objective with create_goal[\s\S]*Objective: ship the release$/)
+    expect(lastUser((await requests())[4]!)).toMatch(
+      /^<state_update name="goal">[\s\S]*<\/state_update>Create a goal for this objective with create_goal[\s\S]*Objective: ship the release$/,
+    )
   })
 
   it('分叉不复制 Goal；回退对话不改变 Goal', async () => {
