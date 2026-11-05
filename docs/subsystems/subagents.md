@@ -45,7 +45,7 @@ frontmatter 字段：`name`（必填，`[a-z0-9-]{1,64}`）、`description`（�
 
 子 Session 的 `parent_session_id` 为父 Session；首条条目为 `subagent_origin`（来源、定义、工具表），父 Session 依次有 `agent_start`（与派发它的调用同一 Run）与 `agent_end`。子 Session 不在 `GET /api/sessions` 中；提交、追加指令、重试、继续、切换模式与修改 Session 规则都返回 409 `child-session`；审批照常可答。
 
-- **上下文。** 子 Run 以 `trigger: subagent` 开始，首条 user message 为 prompt（SubagentStart Hook 的 additionalContext 作为其后的 `<hook-context>` 块）。system sections 照常（指令、Skills、Memory），另有 `<subagent type="…">`（角色正文与交回结论的要求），没有 `<goal>`。
+- **上下文。** 子 Run 以 `trigger: subagent` 开始，首条 user message 为 prompt（SubagentStart Hook 的 additionalContext 作为其后的 `<hook-context>` 块）。system sections 照常（环境、指令、Skills、Memory），另有 `<subagent type="…">`（角色正文与交回结论的要求），没有 `<goal>`。
 - **工具。** 派发时父级本 Run 可用工具 ∩ 定义 `tools` − `disallowed-tools` − 固定排除集（`agent`、`agent_wait`、`agent_cancel`、Goal 的三个工具、`exit_plan_mode`、`schedule_*`、`job_*`、`memory_write`、`memory_delete`）。开头的系统消息只列这些工具。子 Session 没有后台任务入口：bash 的 `run_in_background` 失败。
 - **模型。** 参数 > 定义 > 父 Session 当前模型。
 - **轮次。** 每次子 Run 的模型请求前计数已有的 assistant 消息，达到 `max-turns` 时不发出请求，`run_end { status: paused, error: { code: max_turns } }`、`agent_end { status: max-turns }`。

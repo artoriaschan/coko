@@ -13,7 +13,7 @@ it.each(['submit', 'goal', 'schedule', 'subagent'] as const)('places state befor
     const runtime = createAgentRuntime({
       models,
       model,
-      cwd: workspace.cwd,
+      cwd: workspace.dir,
       commit: async (entry) => {
         entries.push(entry)
       },

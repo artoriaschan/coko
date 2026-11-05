@@ -34,3 +34,7 @@ TDD：新增配对/规划的 9 例先因缺少导出失败，再实现后通过�
 `pnpm install --frozen-lockfile`、`pnpm run typecheck`、`pnpm run check:docs` 均退出 0；docs 检查 360 个 Markdown、0 问题。相关新 TS 文件 oxlint 通过。文档同步 Todo、context、Goal 顺序、agent/protocol README 与 docs 总入口；从 AGENTS → 导航 → 所属正文读回，引用方向、生命周期与归属保持不变。旧应用读取未登记 kind 会跳过并报告 invalid entry，不隔离库；消息仍保留，降级时间线可能显示包装块。诊断类型候选动态来自原始条目，不需枚举新 kind。
 
 限制：真实 Provider、可见 Electron、构建产物与 CI 未运行；本票没有单独的 detached-commit 并发 barrier 用例，输入标记机制扩展使用同一 HOST_INPUT_KINDS；Goal waiting-input 与 continue 的状态消息场景由 02 的真实 Sidecar 验收覆盖；同 Run 压缩补发由 03 负责。触发 goal/schedule/subagent 的顺序由公开 runtime 入口验证，Sidecar 本票只以 submit 实际驱动，后续相应领域票继续验证子 Session 与 Goal。规格已确认的测试接缝沿用，不另要求用户批准。
+
+合入 06 环境信息后保留 environment 第一段、ContextScope model/additionalFolders 与草稿模型默认值，移除 todo 旧段。新增公开 Runtime 用例的临时目录属性曾误写为 cwd，typecheck 捕获后改为 dir；下述合并后验证为最终依据。
+
+合并后最终检查：上述 10 文件加 `packages/agent/src/engine/state-updates.test.ts` 与 `tests/integration/sidecar-environment.test.ts`，12 文件 288 例通过；`pnpm run typecheck` 退出 0；`pnpm run check:docs` 为 360 文件 0 问题；`git diff --check` 退出 0。未运行真实模型、Electron UI、产物与 CI。

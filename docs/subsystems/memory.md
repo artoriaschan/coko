@@ -29,7 +29,7 @@ lifecycle: active
 
 ## 注入
 
-每个 Run 开始时（上下文装配取 system sections，顺序为指令 → Skills 索引 → Memory）读取条目，组成名为 `memory` 的 section：
+每个 Run 开始时（上下文装配取 system sections，顺序为环境 → 指令 → Skills 索引 → Memory）读取条目，组成名为 `memory` 的 section：
 
 - 以 `<memory>` 开头、`</memory>` 结尾，首行说明作用域与维护方式，每条为 `<entry id="…" scope="…">\n正文\n</entry>`；正文中的 `</entry>`、`</memory>` 写成 `<\/…>`。
 - 按 updatedAt 倒序（同一时刻后写的在前）逐条加入；条目块合计（每块加一个换行）超过 12 000 字符时停止，其余注明 `N more entries not shown; use memory_list with a query to search them.`。

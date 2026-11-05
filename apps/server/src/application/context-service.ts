@@ -8,6 +8,7 @@ import { isSkillsContribution } from './context/skills.ts'
 import { contextUsage } from './context/usage.ts'
 import { AppError } from './errors.ts'
 import { workspaceCwd, type SessionCwd } from './session-runs.ts'
+import { sessionProject } from './session-project.ts'
 import type { SessionService } from './sessions.ts'
 
 export interface ContextServiceOptions {
@@ -48,11 +49,26 @@ export class ContextService {
     if (input.sessionId === undefined && input.workspaceId === undefined) throw new AppError('bad-request', 'sessionId or workspaceId is required')
     if (input.sessionId === undefined) {
       const workspace = await this.#workspace(input.workspaceId!)
-      return this.assembly.scope({ workspaceId: workspace.id, cwd: workspace.path })
+      const [model, projects] = await Promise.all([this.#sessions.contextModel(undefined), this.#store.projects.list()])
+      const project = projects.find((p) => p.primaryWorkspaceId === workspace.id)
+      return this.assembly.scope({
+        workspaceId: workspace.id,
+        cwd: workspace.path,
+        additionalFolders: project?.additionalFolders ?? [],
+        ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
+      })
     }
     const session = await this.#session(input.sessionId)
     const workspace = await this.#workspace(session.workspaceId)
-    return this.assembly.scope({ workspaceId: workspace.id, cwd: await this.#cwd.resolve(session, workspace), sessionId: session.id })
+    const [model, project] = await Promise.all([this.#sessions.contextModel(session.model), sessionProject(this.#store, session)])
+    return this.assembly.scope({
+      workspaceId: workspace.id,
+      cwd: await this.#cwd.resolve(session, workspace),
+      sessionId: session.id,
+      additionalFolders: project?.additionalFolders ?? [],
+      ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
+      ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
+    })
   }
 
   /** Session（其条目、模型与压缩熔断）或草稿（Workspace，缺省模型、没有条目）的上下文用量。 */
@@ -62,7 +78,7 @@ export class ContextService {
       const workspace = await this.#workspace(session.workspaceId)
       const cwd = await this.#cwd.resolve(session, workspace)
       const [scope, entries, model] = await Promise.all([
-        this.assembly.scope({ workspaceId: workspace.id, cwd, sessionId: session.id }),
+        this.scopeFor({ sessionId: session.id }),
         this.#store.sessions.listEntries(session.id),
         this.#sessions.contextModel(session.model),
       ])
@@ -76,7 +92,7 @@ export class ContextService {
       })
     }
     const workspace = await this.#workspace(input.workspaceId)
-    const [scope, model] = await Promise.all([this.assembly.scope({ workspaceId: workspace.id, cwd: workspace.path }), this.#sessions.contextModel(undefined)])
+    const [scope, model] = await Promise.all([this.scopeFor({ workspaceId: workspace.id }), this.#sessions.contextModel(undefined)])
     return contextUsage({ context: this.assembly, scope, baseTools: this.#sessions.baseTools(workspace.path), model, entries: [] })
   }
 

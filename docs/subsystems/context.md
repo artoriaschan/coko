@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
 # 上下文管理
 
-本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖 [File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
+本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖环境信息、[File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
 
 ## State Update
 
@@ -22,6 +22,7 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
+| `apps/server/src/application/context/environment.ts`、`types.ts` | 环境 section；作用域中的模型与 Project 附加文件夹 |
 | `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法 |
 | `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块 |
 | `packages/agent/src/context/references/search.ts` | `searchWorkspaceFiles`：@ 菜单的候选（复用 `tools/builtin/walk.ts`） |
@@ -44,6 +45,14 @@ lifecycle: active
 | `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction 与其保留的消息 |
 | `apps/server/src/application/context/compaction.ts`、`session-runs.ts`、`sessions.ts` | `/compact` 动作；运行时的 `compaction` 接线（`session-runs.ts`）与 `compactionPaused`（`sessions.ts`） |
 | `apps/desktop/src/renderer/features/conversation/compaction-divider.tsx`、`composer.tsx` | 时间线的压缩分隔条；输入区上方的压缩状态行 |
+
+## 系统消息与环境
+
+开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。
+
+`<environment>` 给出 Session 的固定工作目录（Worktree Session 为其中的工作目录）、Project 附加文件夹、是否为 git 仓库与 linked worktree、平台、命令执行实际使用的 shell、OS 版本、当前 Provider / 模型和 Sidecar 的 IANA 时区。不包含 git status、日期与时刻。git 仓库从工作目录向上发现 `.git`；`.git` 文件指向的 gitdir 含 `commondir` 才视为 linked worktree，避免把 submodule 当作 worktree。绑定的 Worktree Session 同样标为 worktree。
+
+环境每个 Run 开始按当前作用域生成，未改变环境与模型时逐字稳定；更换模型后下一次 Run 使用新模型标识。子 Session 继承根 Session 所属 Project 的附加文件夹。还没有 Session 的草稿上下文接口使用 Workspace 与其 Project、缺省模型；会话的用量接口使用当前模型与实际工作目录。环境 section 与其他 system section 一起计入上下文用量的 `system` 分项。
 
 ## File Reference
 
@@ -187,7 +196,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ### 压缩后的 `<approved_plan>`
 
-最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
+最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（环境 → 指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
 
 ## 定时任务的 `<scheduled_task>` 输入
 
@@ -204,7 +213,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ## 子代理的 `<subagent>` 与首条消息
 
-子 Session 的 system sections 照常有指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
+子 Session 的 system sections 照常有环境、指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
 
 ## 团队的 `<team>` 与 `<team-message>`
 
@@ -223,6 +232,8 @@ teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自�
 优先级从低到高：全局 excludes、`info/exclude`、ignore 文件（`!` 模式可反转更低来源的忽略）。始终包含隐藏文件、排除 `.git`、不跟随符号链接。
 
 ## 验证
+
+- `tests/integration/sidecar-environment.test.ts`：真实 Sidecar 的普通仓库、Worktree 与非 git 目录、附加文件夹、环境顺序与跨 Run 稳定性、更换模型、草稿缺省模型及环境的 system 用量。
 
 - `packages/agent/src/context/references/parse.test.ts`、`expand.test.ts`、`search.test.ts`：语法（引号、标点、邮箱等不误判）；截断、目录上限、10 个 / 200KB、拒绝规则、Workspace 外与二进制的说明；候选的忽略规则、排序与上限。
 - `tests/integration/secrets-gate-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记。
