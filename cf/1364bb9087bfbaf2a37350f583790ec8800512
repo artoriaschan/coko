@@ -1,0 +1,19 @@
+.scratch/system-data-root/issues/07-tool-result-spill.md
+  s_6cadf0cc1974f1::t_d4fb37ec4e15ba 41-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "cf1364bb9087bfbaf2a37350f583790ec8800512",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
