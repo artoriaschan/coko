@@ -1,0 +1,59 @@
+apps/desktop/src/renderer/features/projects/project-form.tsx
+  s_6cadf0cc1974f1::t_8080e19432b010 16,29,34,87,92,151-153,235,246-247,258-260,264
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 154-157,161,163-234,248-257
+apps/desktop/src/renderer/client/api.ts
+  s_6cadf0cc1974f1::t_8080e19432b010 39,188
+apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 259-273
+  s_6cadf0cc1974f1::t_10c843b04e226a 254-258,274-277,290-303
+  s_6cadf0cc1974f1::t_01bfb5d98c88bf 278-289
+packages/i18n/src/dictionaries/zh.ts
+  s_6cadf0cc1974f1::t_8080e19432b010 128-130
+docs/README.md
+  s_6cadf0cc1974f1::t_c22071bad76ab9 29
+apps/server/src/runtime/layers.ts
+  s_6cadf0cc1974f1::t_808ab27e8524bf 752
+apps/desktop/e2e/create-project.e2e.test.ts
+  s_6cadf0cc1974f1::t_01bfb5d98c88bf 1,57-67,72-91
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 68-71
+apps/desktop/src/renderer/features/projects/project-dialogs.tsx
+  s_6cadf0cc1974f1::t_8080e19432b010 40
+packages/protocol/src/http.ts
+  s_6cadf0cc1974f1::t_808ab27e8524bf 52,54
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 53
+docs/subsystems/projects.md
+  s_6cadf0cc1974f1::t_c22071bad76ab9 3,23-25,29,153,156
+.scratch/system-data-root/issues/10-blank-project.md
+  s_6cadf0cc1974f1::t_0e8125c0558a6d 9-32
+tests/integration/sidecar-blank-project.test.ts
+  s_6cadf0cc1974f1::t_6874539e34eae3 1-3,6-19,26-29,33-36,71
+  s_6cadf0cc1974f1::t_618479743fbe7f 30-32
+  s_6cadf0cc1974f1::t_5d2f8aaea55814 4-5,37-51,56-70
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 20-25,52-55
+apps/server/src/application/projects.test.ts
+  s_6cadf0cc1974f1::t_808ab27e8524bf 15
+apps/server/src/http/app.ts
+  s_6cadf0cc1974f1::t_808ab27e8524bf 16,124
+packages/i18n/src/dictionaries/en.ts
+  s_6cadf0cc1974f1::t_8080e19432b010 131-133
+apps/server/src/application/projects.ts
+  s_6cadf0cc1974f1::t_d0023fd1bad8d6 61-62
+  s_6cadf0cc1974f1::t_8a445ffbcd1578 53-58
+  s_6cadf0cc1974f1::t_808ab27e8524bf 2-4,11,13,16,52,59-60,63-81,85,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "c9db95fc4367c01d0e33ea952de3b498bfe1f7bd",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
