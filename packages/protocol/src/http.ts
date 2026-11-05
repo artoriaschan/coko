@@ -374,5 +374,11 @@ export const ModelListResponse = Type.Object({ models: Type.Array(AvailableModel
 export type ModelListResponse = Static<typeof ModelListResponse>
 
 /** DELETE /api/sessions/:id: authoritative removed tree identities. */
-export const DeleteSessionResponse = Type.Object({ sessionIds: Type.Array(Type.String()) }, { additionalProperties: false })
+export const SessionDeletePreview = Type.Object({ retainedDirectories: Type.Array(Type.String()) }, { additionalProperties: false })
+export type SessionDeletePreview = Static<typeof SessionDeletePreview>
+
+export const DeleteSessionResponse = Type.Object(
+  { sessionIds: Type.Array(Type.String()), retainedDirectories: Type.Optional(Type.Array(Type.String())) },
+  { additionalProperties: false },
+)
 export type DeleteSessionResponse = Static<typeof DeleteSessionResponse>

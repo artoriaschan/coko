@@ -137,6 +137,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.post(API_ROUTES.firstSend, async (c) => c.json(await app.firstSend.send(await body(c, FirstSendRequest)), 201))
   http.post(API_ROUTES.sessions, async (c) => c.json(await app.sessions.create(await body(c, CreateSessionRequest)), 201))
   http.get(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.detail(c.req.param('id'))))
+  http.get(`${API_ROUTES.sessions}/:id/delete-preview`, async (c) => c.json(await app.sessions.deletePreview(c.req.param('id'))))
   http.delete(`${API_ROUTES.sessions}/:id`, async (c) => c.json(await app.sessions.delete(c.req.param('id'))))
   http.put(`${API_ROUTES.sessions}/:id/title`, async (c) => {
     const { title } = await body(c, RenameSessionRequest)
