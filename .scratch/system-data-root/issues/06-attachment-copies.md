@@ -33,3 +33,5 @@
 补充：合入 07 号票时只在 SessionRuns 的 import 区冲突；保留工具结果目录与附件目录的独立只读根，3 文件、12 项联合 Sidecar 用例通过，typecheck / check:docs 通过。额外发现普通文件在分支历史中继承了源副本路径；真实 assistant-inclusive 分支测试先因新会话没有副本而失败。现在分支复制受管附件并重写标记，源会话删除后分支副本保持可读；复制/提交失败回滚新会话与本次副本。handoff 只生成摘要草稿，子代理只接收派发 prompt，均不复制用户消息历史，无同样的所有权转移。
 
 分支补充验证：`pnpm run test tests/integration/sidecar-attachments.test.ts tests/integration/sidecar-rewind.test.ts tests/integration/sidecar-worktrees.test.ts`：3 文件、28 项通过，含失败分支没有新 Session 或部分副本，源 Session 和文件不变。
+
+最终集成基线：已合入 `d16be237`（01/02/03/04/07）。`pnpm run test tests/integration/sidecar-attachments.test.ts tests/integration/sidecar-tool-results.test.ts tests/integration/sidecar-standalone-write-roots.test.ts`：3 文件、18 项通过，附件/工具结果只读根与独立会话写根同时生效；`pnpm run typecheck` 通过；`pnpm run check:docs`：378 Markdown、0 问题。分支附件修复提交 `65026b4`。
