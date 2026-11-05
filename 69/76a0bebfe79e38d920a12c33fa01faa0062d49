@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/14-completions-pi-catalog.md
+  s_dd1034265ded7f::t_24d020e5409564 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6976a0bebfe79e38d920a12c33fa01faa0062d49",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
