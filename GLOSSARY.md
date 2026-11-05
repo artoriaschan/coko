@@ -211,6 +211,14 @@ packages/agent 自带、只依赖纯 JS 的工具实现。
 宿主在装配时注册或以相同契约覆盖内置工具的实现。
 _Avoid_: native tool、plugin tool
 
+**On-demand Tool**：
+定义起初不提供给模型、经 Tool Search 加载后才能直接调用的 MCP Server 工具；中文称“按需工具”。
+_Avoid_: deferred tool、lazy tool
+
+**Tool Search**：
+模型按关键词或确切名称，从当前可用的 On-demand Tool 中找到并加载所需工具的操作；中文称“工具搜索”。
+_Avoid_: tool discovery、tool lookup、ToolSearch
+
 ## 上下文与指令
 
 **Instruction File**：

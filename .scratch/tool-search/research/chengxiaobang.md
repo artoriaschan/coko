@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "程小帮当前源码与 1.9.2 解包产物的 ToolSearch 算法、动态工具加载和恢复方式对照。"
+description: "程小帮当前源码、1.9.2 与 1.10.1 解包产物的 ToolSearch 算法、动态工具加载、恢复方式与原生增量开关对照；1.10.1 为 Coko 的复刻基准。"
 lifecycle: active
 ---
 
 # 程小帮的 Tool Search 实现
 
-核查日期：2026-11-04。研究材料，未批准为 Coko 设计，未实施。只读检查 `/Users/artorias_chan/Workspaces/agent/chengxiaobang`，HEAD 为 `0a9ce4defed95aa633a899d72791de71c407aaa1`，检查前后 Git status 均为空。没有运行程小帮、调用模型、执行测试或重新解包安装包。
+核查日期：2026-11-04。研究材料，未批准为 Coko 设计，未实施。只读检查 `/Users/artorias_chan/Workspaces/agent/chengxiaobang`，HEAD 为 `0a9ce4defed95aa633a899d72791de71c407aaa1`，检查前后 Git status 均为空。没有运行程小帮、调用模型、执行测试或重新解包安装包。2026-11-05 在另一台机器上补查了当前源码与 v1.10.1 产物，见第三节。
 
 ## 先区分两份实现
 
@@ -114,6 +114,56 @@ matches 尽量返回完整 parameters，**结果文本中的 schema 总预算为
 1.9.2 不仅有搜索，还会给模型一份可发现目录：名称+短说明 → 缩短说明 → 只有名称 → 只有分组摘要，按预算降级。默认 listing=auto、5000 token；运行中按可用上下文2.5%与配置上限取预算，用目录自身的真实 tokenizer 比率换算字符，而不是统一 chars/4。
 
 证据：`tools/tool-deferral.ts:217`（renderDeferredToolsListing）；`agent/run-tool-deferral.ts:137`（renderCatalogListing）；`agent/session-model-context.ts:134`（ToolSearch接线）。目录公告与真正已加载集合分开，运行中还可生成 Added/Removed 的目录增量。
+
+## 三、v1.10.1 解包产物（2026-11-05 补查）
+
+本节在 `/Users/chenzheng/Desktop/Work/person/chengxiaobang` 只读核查，HEAD 为 `f0fb66d7`。产物为 `decompiled/v1.10.1/`（build 1.10.1.2715048，2026-11-04 从安装包提取），打包的 pi-ai 为 0.85.1。除另行注明外，路径相对于 `decompiled/v1.10.1/backend/modules/src/`。当前工程的 `apps/backend/src/tools/tool-search-tool.ts` 自首次提交后未变，仍是第一节的关键词方案。没有运行程小帮、调用模型或执行测试。Coko 的 [Tool Search 设计](../design.md) 以本节为复刻基准。
+
+### 工具与检索
+
+- `tools/tool-search-tools.ts`：参数为 `query` 与可选的 `limit`；描述以 “Load the parameter schema for an on-demand tool (MCP or built-in desktop tools)” 开头。执行顺序：`runtime.listTools()` → `buildDeferredCatalog` → `select:` 走 `resolveSelected`，否则走 `searchDeferredCatalog` → `runtime.loadTools`。
+- 结果为 JSON：`query`、`totalOnDemand`、`matches`（name、server、description、alreadyAvailable，以及 parameters 或 parametersOmitted）、`loaded`、`note`。`select:` 命中常驻工具时给出 `alreadyAvailable` 与提示；未知名称给出 `unknownNames` 与提示；零命中时给出 `availableServers` 与重搜提示。
+- 结果文本中的 schema 预算为 `SCHEMA_BUDGET_CHARS = 8e3`（第 5 行）。有新加载时结果另带 `addedToolNames`，供 pi 0.85.1 在加载位置声明定义（第 110–115 行）。
+- `tools/tool-deferral.ts`：
+  - 可延迟的工具包括电脑操作工具、mod 声明为延迟的工具，以及 `alwaysLoad` 不为 true 的 MCP 工具（第 8–20 行）。
+  - 分词取小写字母数字串与中日韩 bigram（第 45–67 行）。检索文本为工具名（`_ . - :` 换成空格）、描述与第一层参数名（第 68–80 行）。
+  - BM25 的 k1=1.5、b=0.75（第 166–188 行）。`+term` 先过滤候选，再在剩余候选上统计 df 与平均长度；没有正分时按查询串匹配工具名子串（第 189–232 行）。
+  - 目录渲染（第 253–346 行）：按 Server 分组，说明取首句、最长 60 字。超出预算时先把说明统一缩短到最少 24 字，仍超出就从最长的组开始降级，先只列名称，再只列 Server 与工具数。预算为 `min(listingMaxTokens, 窗口 × 2.5%)`，按目录自身的字符与 token 比率换算（第 347–373 行）。
+  - `applyToolDeferral`（第 374–419 行）：开关打开且有可延迟工具就生效，没有阈值；提供的工具为常驻工具加上已加载的工具。
+
+### 运行时
+
+- `agent/run-tool-deferral.ts`：发现集的种子先读会话字段，没有时从历史中的 MCP 调用迁移（第 5–29 行）。乐观加载：模型直接调用目录中未加载的工具时加载该工具并推送提醒（第 30–69 行），提醒文字在 `agent/system-reminders.ts` 第 209–215 行。目录以冻结的完整清单开始，之后按已公告名单计算 Added/Removed（第 95–136 行）。
+- `agent/agent-runner.ts`：加载时更新内存集合，并调用 `setSessionDiscoveredTools` 写入（第 3298–3330 行，失败分支未逐行核实）；子代理不注入目录（第 3439 行）；已公告名单存于 envSnapshots（第 3478–3486 行）。
+- `agent/run-pi-loop.ts`：每两轮之间先刷新 MCP 工具，再做乐观加载（第 1010–1035 行）；每次请求前注入目录增量（第 357–372 行）。
+- 持久化：`repository/sqlite-schema.ts` 第 344 行的 `sessions.discovered_tools_json`。`repository/sqlite-state-store.ts` 第 931 行与第 978 行分别读、写该列，按 1.9.2 的结论推测用于分叉时复制，所在函数未核实。
+
+### 设置与开关
+
+- `shared/src/tool.ts`（相对于 `decompiled/v1.10.1/`）第 374–407 行定义五项设置：`enabled`、`listing`（auto、names、summary、off）、`listingMaxTokens`、`searchDefaultLimit`、`maxSearchLimit`，默认值依次为 true、auto、5000、5、20。`tool-search-settings.ts` 允许用环境变量 `CHENGXIAOBANG_TOOL_SEARCH` 覆盖开关。
+- `shared/src/mcp.ts` 第 84 行：MCP Server 配置的 `alwaysLoad` 字段，经用户、项目与插件配置传入。
+- 原生增量开关：
+  - `shared/src/model-catalog.ts` 第 219–224 行定义模型字段 `incrementalToolDeclarations`，只对 openai-responses 与 anthropic-messages 生效。
+  - 第 369–455 行是默认规则。开启的有三类：携程 Responses 整条线路，注释称 2026-10-25 经 Gateway 实测，加载那一轮的缓存命中由 0 升到约 94%～97%；api.openai.com 上 GPT 5.4 及以上（不含 nano）；api.anthropic.com 上 Claude Opus、Sonnet、Fable 4.5 及以上。其余线路默认关闭，注释称携程 Messages 打开后也没有缓存收益。
+  - `model/pi-model.ts` 第 375–399 行把该字段映射为 pi 0.85.1 的 `supportsAdditionalTools`（Responses）与 `supportsToolReferences`（Messages）。
+- 界面文案：`renderer/readable/assets/global-pF-Bp8cp.js` 中模型能力编辑器的「工具加载」分区，键 `incrementalTools` 对应“加载新工具时保留提示词缓存”（英文 “Keep the prompt cache when loading tools”），键 `incrementalToolsHint` 为说明文字。
+
+### 与 Coko 所用 pi-ai 1.4.0 的差异
+
+Coko 安装的 pi-ai 1.4.0 已经没有 `supportsToolReferences` 与 `addedToolNames`，原生增量改由 system 消息的 `toolsAdded` 驱动：Messages 用 `tool_addition`，Responses 用 `additional_tools` 或 `tool_search_output`，Completions 用带 `tools` 字段的 system 消息。因此程小帮的实测结论不能直接沿用到 Coko。
+
+pi 0.80.9 的 `compat.deferredToolsMode` 在 1.4.0 中换成了 `supportsMidConvoSystemMessages` 与 `supportsMidConvoToolAdditions` 两个标识；pi 生成模型目录时只给 Kimi K3 打开这两个标识（pi 仓库 `packages/ai/scripts/generate-models.ts` 第 951 行起）。Coko 安装的 pi-ai 1.4.0 自带目录中，同时带这两个标识的条目共 9 个，分布在 6 个数据文件：
+
+- Moonshot 官方 `api.moonshot.ai/v1` 与 `api.moonshot.cn/v1`：`kimi-k3`
+- Kimi Coding `api.kimi.com/coding/v1`：`k3`、`k3-256k`、`kimi-for-coding`
+- Fireworks：`accounts/fireworks/models/kimi-k3`、`accounts/fireworks/routers/kimi-k3-fast`
+- OpenCode 与 OpenCode Go：`kimi-k3`
+
+### 未核实
+
+- v1.10.1 写入发现集失败时是否仍只记警告；1.9.2 是只记警告。
+- v1.10.1 的子代理是否完全关闭按需加载；只核实了子代理不注入目录。
+- 程小帮设置界面的具体控件。
 
 ## 对 Coko 有什么意义
 
