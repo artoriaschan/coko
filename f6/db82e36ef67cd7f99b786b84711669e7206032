@@ -1,0 +1,45 @@
+.scratch/system-data-root/issues/06-attachment-copies.md
+  s_bda73c6d0ad5a7::t_ad734dd47ab801 1-14
+.scratch/system-data-root/issues/11-session-delete-cleanup.md
+  s_bda73c6d0ad5a7::t_59065529838ca3 1-14
+.scratch/system-data-root/spec.md
+  s_bda73c6d0ad5a7::t_f1f30e59f40287 1-172
+.scratch/system-data-root/issues/08-mcp-data-directory.md
+  s_bda73c6d0ad5a7::t_7ca49a8ba06e6a 1-13
+.scratch/system-data-root/issues/07-tool-result-spill.md
+  s_bda73c6d0ad5a7::t_13def97d6e2900 1-14
+.scratch/system-data-root/issues/09-plugin-relative-path.md
+  s_bda73c6d0ad5a7::t_8cfc1747bc5a67 1-13
+.scratch/system-data-root/issues/12-settings-storage-path.md
+  s_bda73c6d0ad5a7::t_a68bcb445d0e73 1-12
+.scratch/system-data-root/issues/02-session-directory-schema.md
+  s_bda73c6d0ad5a7::t_37112a6348ce2b 1-13
+.scratch/system-data-root/issues/13-integration-and-docs.md
+  s_bda73c6d0ad5a7::t_a34aa6141bf6ba 1-14
+.scratch/system-data-root/issues/01-data-root.md
+  s_bda73c6d0ad5a7::t_9d6b46a4356661 1-15
+.scratch/system-data-root/issues/10-blank-project.md
+  s_bda73c6d0ad5a7::t_eecbdcab437ff4 1-14
+.scratch/system-data-root/issues/04-sandbox-write-roots.md
+  s_bda73c6d0ad5a7::t_8f6db36e1442b9 1-14
+.scratch/system-data-root/issues/05-artifact-panel.md
+  s_bda73c6d0ad5a7::t_3382a10911e129 1-14
+.scratch/system-data-root/issues/03-standalone-session-directory.md
+  s_bda73c6d0ad5a7::t_b825c69fd60537 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f6db82e36ef67cd7f99b786b84711669e7206032",
+  "prompts": {},
+  "sessions": {
+    "s_bda73c6d0ad5a7": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_9v51r4jbfo8d",
+        "model": "auto(free)"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
