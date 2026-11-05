@@ -1,0 +1,98 @@
+GLOSSARY.md
+  s_02ad3dd0403acd::t_c62ea8bb796c64 214-221
+.scratch/tool-search/issues/15-integrated-acceptance-and-docs.md
+  s_02ad3dd0403acd::t_60606c3a0e666b 1-24
+.scratch/tool-search/issues/13-native-rejection-hint.md
+  s_02ad3dd0403acd::t_1b76dbde9a1ae3 1-23
+.scratch/tool-search/issues/05-catalog-budget-and-deltas.md
+  s_02ad3dd0403acd::t_e8ae698ea58f18 1-24
+.scratch/tool-search/issues/02-shared-tool-accounting.md
+  s_02ad3dd0403acd::t_1d76afd6d5bf16 1-24
+.scratch/tool-search/issues/06-always-load-servers.md
+  s_02ad3dd0403acd::t_6a4f5f7d104fdb 1-24
+.scratch/tool-search/issues/12-provider-switch-native-transport.md
+  s_02ad3dd0403acd::t_dfab46f60e476b 1-26
+.scratch/tool-search/spec.md
+  s_02ad3dd0403acd::t_02822988b57d20 16
+  s_02ad3dd0403acd::t_168e525173a8c5 62-104
+  s_02ad3dd0403acd::t_d2747395afa0db 210-230,232-233
+  s_02ad3dd0403acd::t_76fad869e1fa74 1-15,17-36
+  s_02ad3dd0403acd::t_bda699c58163b1 37-61
+  s_02ad3dd0403acd::t_7009d1e00dae99 183-209
+  s_02ad3dd0403acd::t_aa70034f44734f 231
+  s_02ad3dd0403acd::t_058f31aca4ef6b 140-182
+  s_02ad3dd0403acd::t_898d5afedfe945 105-139
+  s_02ad3dd0403acd::t_6dc604ddc0a333 234
+.scratch/tool-search/issues/11-default-on-and-test-migration.md
+  s_02ad3dd0403acd::t_13ed81dbd72cf9 1-24
+.scratch/tool-search/issues/04-keyword-search-and-scope.md
+  s_02ad3dd0403acd::t_ba43224f0bfd20 1-25
+.scratch/tool-search/issues/08-optimistic-loading.md
+  s_02ad3dd0403acd::t_aed42e64662606 1-24
+.scratch/tool-search/issues/10-rewind-fork-handoff.md
+  s_02ad3dd0403acd::t_512234db5efad4 1-23
+.scratch/tool-search/issues/03-on-demand-minimal-loop.md
+  s_02ad3dd0403acd::t_b5ed5a51172fbd 1-30
+.scratch/tool-search/issues/07-global-switch-settings.md
+  s_02ad3dd0403acd::t_d713a6636f36c7 1-24
+.scratch/tool-search/README.md
+  s_02ad3dd0403acd::t_30630e9f934fee 58
+  s_02ad3dd0403acd::t_0c0a2c42f806d8 13-14
+  s_02ad3dd0403acd::t_5170da6fbcb237 20
+  s_02ad3dd0403acd::t_984820dd289b93 9,12
+  s_02ad3dd0403acd::t_dfeb63a48546ce 25-47
+  s_02ad3dd0403acd::t_b217c1da8bc41e 11
+  s_02ad3dd0403acd::t_0ae75315e964e2 3
+  s_02ad3dd0403acd::t_09bb7a274c276c 57
+  s_02ad3dd0403acd::t_e3a9ca57b18272 60
+  s_02ad3dd0403acd::t_25db697137c498 59
+.scratch/tool-search/design.md
+  s_02ad3dd0403acd::t_d7e8b1e0b1374a 174,176,178,180-189,191
+  s_02ad3dd0403acd::t_14e1133e99481d 204
+  s_02ad3dd0403acd::t_960d5b8398fb8b 48,50
+  s_02ad3dd0403acd::t_67a8af590dd11c 14
+  s_02ad3dd0403acd::t_f7dd1b4a16ff9b 20
+  s_02ad3dd0403acd::t_4d5d0846d5960a 77,83-85,87-94,96,99,101,103,105,107-111,113,115
+  s_02ad3dd0403acd::t_fc4a2a03a22a93 158,160,162-173,175,177,179,190,192,194-198,202-203
+  s_02ad3dd0403acd::t_31d3d3f6007760 60
+  s_02ad3dd0403acd::t_fd20235e23e152 193
+  s_02ad3dd0403acd::t_ed761044b568c9 201
+  s_02ad3dd0403acd::t_d4e4371f156de8 123
+  s_02ad3dd0403acd::t_8f24b0fbf523cb 31,33,35,37-46
+  s_02ad3dd0403acd::t_7e7a1013fd30f7 199-200
+  s_02ad3dd0403acd::t_9a8f6f6b2cd625 156
+  s_02ad3dd0403acd::t_82b7057c476836 117,119,121,125,127-135,137,139-142,144,146,148,150-154
+  s_02ad3dd0403acd::t_ef7095da9e73fe 22
+  s_02ad3dd0403acd::t_f8d1aca736209a 16,18,21,24,26-29
+  s_02ad3dd0403acd::t_76897a7c2bb7c3 10
+  s_02ad3dd0403acd::t_81e957f5208f75 52,54-59,61-64,66,68,70,72-73,75
+  s_02ad3dd0403acd::t_73c2cc5544037b 3
+  s_02ad3dd0403acd::t_fa96aab4174e03 74
+.scratch/tool-search/issues/01-keep-base-prompt-on-rebuild.md
+  s_02ad3dd0403acd::t_b29b72f4be42a4 1-23
+.scratch/tool-search/issues/09-restore-compaction-reconnect.md
+  s_02ad3dd0403acd::t_a2bc48176709fc 1-23
+.scratch/tool-search/research/chengxiaobang.md
+  s_02ad3dd0403acd::t_68f475c25b5f95 9
+  s_02ad3dd0403acd::t_c4255c0d7241d9 3
+  s_02ad3dd0403acd::t_85eab4efa6efb0 141-166
+  s_02ad3dd0403acd::t_caf16f22bcdf1b 118-140,167
+.scratch/tool-search/issues/14-completions-pi-catalog.md
+  s_02ad3dd0403acd::t_25e02096c27463 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "1b88e1134cdc2ff5688207bffb78fae4cf3d05be",
+  "prompts": {},
+  "sessions": {
+    "s_02ad3dd0403acd": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_icpyfypfopan",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
