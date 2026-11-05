@@ -1,0 +1,42 @@
+packages/agent/src/agents/handoff.ts
+  s_dd1034265ded7f::t_05fa3cc7749fa5 2,10
+.scratch/tool-search/issues/10-rewind-fork-handoff.md
+  s_dd1034265ded7f::t_f743bc5d53c1b5 15-21,26-32
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_05fa3cc7749fa5 58,199,258
+packages/agent/src/agents/fork.ts
+  s_dd1034265ded7f::t_cae71acd7c1103 13,15,70-74
+docs/subsystems/handoff.md
+  s_dd1034265ded7f::t_05fa3cc7749fa5 52,73
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_05fa3cc7749fa5 93-94
+docs/subsystems/workbench.md
+  s_dd1034265ded7f::t_05fa3cc7749fa5 259
+tests/integration/sidecar-tool-search-boundaries.test.ts
+  s_dd1034265ded7f::t_21daa445f738a0 78-79,92,105,107-113
+  s_dd1034265ded7f::t_9fa88a235245e7 9,33,72
+  s_dd1034265ded7f::t_b8c21fb1517dec 80-83
+  s_dd1034265ded7f::t_b3674fa562a3ce 85-87,118-123
+  s_dd1034265ded7f::t_c6115683e96eec 126
+  s_dd1034265ded7f::t_9d3ecd5c39275e 1-8,10-32,34-71,73-77,84,88-91,93-104,106,114-117,124-125,127-142
+packages/agent/src/agents/fork.test.ts
+  s_dd1034265ded7f::t_b8c21fb1517dec 162-165
+  s_dd1034265ded7f::t_789d4c67537813 5,148-161,168-170,172
+  s_dd1034265ded7f::t_21daa445f738a0 166-167,171,173-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "d88ff01be90f4ce357b27442a78f1a85071d179c",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
