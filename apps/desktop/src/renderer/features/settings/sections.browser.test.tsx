@@ -19,7 +19,7 @@ const ids = (groups: ReturnType<typeof navigationGroups>) => groups.map((g) => (
 
 it('菜单按个人、环境、插件、模型分组，关于不属于任何分类且在最后；未交付的外观不出现', () => {
   expect(ids(navigationGroups())).toEqual([
-    { group: 'personal', sections: ['general', 'memory', 'notifications'] },
+    { group: 'personal', sections: ['general', 'archived', 'memory', 'notifications'] },
     { group: 'environment', sections: ['permissions', 'schedules'] },
     { group: 'plugins', sections: ['plugins', 'skills', 'mcp', 'lsp', 'hooks', 'agents'] },
     { group: 'models', sections: ['models'] },
@@ -76,7 +76,7 @@ it.each([
   [
     'zh',
     [
-      { title: '个人', items: ['常规', '记忆', '通知'] },
+      { title: '个人', items: ['常规', '已归档对话', '记忆', '通知'] },
       { title: '环境', items: ['权限', '定时任务'] },
       { title: '插件', items: ['插件', '技能', 'MCP', '代码智能', 'Hook', '子代理'] },
       { title: '模型', items: ['模型服务'] },
@@ -86,7 +86,7 @@ it.each([
   [
     'en',
     [
-      { title: 'Personal', items: ['General', 'Memory', 'Notifications'] },
+      { title: 'Personal', items: ['General', 'Archived conversations', 'Memory', 'Notifications'] },
       { title: 'Environment', items: ['Permissions', 'Scheduled tasks'] },
       { title: 'Plugins', items: ['Plugins', 'Skills', 'MCP', 'Code intelligence', 'Hooks', 'Agents'] },
       { title: 'Models', items: ['Model services'] },
@@ -158,6 +158,7 @@ it('键盘按菜单顺序在菜单项间移动，焦点环可见，Enter 打开�
   }
   expect(steps.map((s) => s.id)).toEqual([
     'general',
+    'archived',
     'memory',
     'notifications',
     'permissions',
@@ -192,7 +193,7 @@ it('M6 的 Team tab 与团队按钮已交付并显示；代码智能分区已交
 
 it('M5 的注册表行都已交付：设置菜单中有子代理并可打开；右栏 tab 与标题栏操作含子代理', async () => {
   expect(visibleRightPanelTabs().map((tab) => tab.id)).toEqual(['plan', 'jobs', 'agents', 'schedules', 'team', 'trace'])
-  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'cost', 'agents', 'schedules', 'handoff', 'team'])
+  expect(visibleHeaderActions().map((action) => action.id)).toEqual(['jobs', 'agents', 'schedules', 'team'])
   await page.viewport(1280, 800)
   const { screen, settingsPage } = renderSettings('en')
   const result = await screen

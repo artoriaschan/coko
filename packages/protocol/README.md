@@ -39,7 +39,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 
 ### Session 工作目录
 
-`Session.cwd` 为可选的绝对路径：当前服务端返回创建时固定的会话工作目录，worktree 会话包含 Workspace 在仓库中的相对子目录。它是只读元数据，移除中或已移除的 worktree 仍可列出会话与原目录；开始 Run 的 busy/removed 错误另行判定。旧 DTO 可缺省此字段，客户端回退到该 Session 的 Workspace 路径。附件按该目录区分相对 File Reference 与目录外绝对路径，不根据当前项目归属重新定位。
+`Session.cwd` 为可选的绝对路径：当前服务端返回创建时固定的会话工作目录，worktree 会话包含 Workspace 在仓库中的相对子目录。它是只读元数据，移除中或已移除的 worktree 仍可列出会话与原目录；开始 Run 的 busy/removed 错误另行判定。旧 DTO 可缺省此字段，客户端回退到该 Session 的 Workspace 路径。手动 File Reference 按该 cwd 展开，不根据当前项目归属重新定位。`Session.directory` 是可空的托管会话根，旧 DTO 可省略；独立会话的 cwd 为根下 `work/`，交付目录为根下 `outputs/`，项目及旧记录通常为空。SQLite v12 新增 directory/cwd，空值仍回退 Workspace/worktree。上传附件单独复制并持久引用 Session 私有副本，不改写用户手动输入的路径。
 
 ## 认证
 
@@ -60,10 +60,11 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `health` | `/api/health` | GET → `{ status: 'ok' }` |
 | `stream` | `/api/ws` | WebSocket 升级入口（见下文） |
 | `workspaces` | `/api/workspaces` | GET 列表；POST `{ path, name? }` 登记目录（同一路径返回已有的） |
-| `projects` | `/api/projects` | GET 项目列表；POST `ProjectFields { name, folders }` 创建，已有项目返回 200 / existing，新建返回 201 / created；更新、重命名、置顶与删除见 `apiPaths` |
+| `projects` | `/api/projects` | GET 项目列表；POST `CreateProjectRequest` 接受已有文件夹 `{ name, folders }` 或空白模式 `{ mode: 'blank', name }` 创建，已有项目返回 200 / existing，新建返回 201 / created；更新、重命名、置顶与删除见 `apiPaths` |
 | `projectFolderCheck` | `/api/projects/check-folder` | POST `{ path }` 校验目录并返回规范化的 `{ path }`，不创建项目 |
-| `firstSend` | `/api/chats/first-send` | POST `FirstSendRequest` 首次发送；同一 `draftId` 幂等创建一个 Session，接受后返回 201 `{ session, runId }`，首条用户消息已持久化；支持项目或独立目录、可选 Worktree、模型、推理档位、权限模式与图片 |
+| `firstSend` | `/api/chats/first-send` | POST `FirstSendRequest` 首次发送；同一 `draftId` 幂等创建一个 Session，接受后返回 201 `{ session, runId }`，首条用户消息已持久化；支持项目或独立目录、可选 Worktree、模型、推理档位、权限模式、图片及普通文件附件 |
 | `sessions` | `/api/sessions` | GET 列表（`?workspaceId=`）；POST 新建；带参数的路径见 `apiPaths` |
+| `storage` | `/api/storage` | GET 只读 `{ home, chatsRoot }`，返回本次启动的主数据根与独立会话根 |
 | `settings` | `/api/settings` | GET 全部设置；`apiPaths.setting(key)` 按 revision 写入 |
 | `providers` | `/api/providers` | GET Provider 列表（只有末四位提示）；删除走 `apiPaths.provider(id)`。HTTP 不创建、不更新 Provider（ADR 0010） |
 | `models` | `/api/models` | GET 可用模型与默认模型 |
@@ -76,7 +77,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 
 | 文件 | 导出 | 范围 |
 | --- | --- | --- |
-| `src/api.ts` | `apiPaths` | Session 的消息、重试、停止、审批、模型、重命名、归属、置顶、归档恢复与永久删除；项目操作；设置；Provider；团队、追踪、审计、导出；Memory 检索 |
+| `src/api.ts` | `apiPaths` | Session 的消息、重试、停止、审批、模型、重命名、归属、置顶、归档恢复、删除预览与永久删除；项目操作；设置；Provider；团队、追踪、审计、导出；Memory 检索 |
 | `src/runs.ts` | `runPaths` | 追加指令、暂停、继续、结果确认 |
 | `src/permissions.ts` | `permissionPaths` | 全局 / Workspace 规则、Session 模式与规则 |
 | `src/checkpoints.ts` | `checkpointPaths` | Checkpoint 列表、回退、分叉 |
@@ -84,6 +85,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `src/commands.ts` | `commandPaths` | 命令 |
 | `src/skills.ts` | `skillPaths` | Skills |
 | `src/files.ts` | `filePaths` | 文件候选 |
+| `src/artifacts.ts` | `artifactPaths` | 会话 outputs 文件树与操作前路径校验 |
 | `src/config.ts` | `configPaths` | 能力配置 |
 | `src/goal.ts` | `goalPaths` | Goal |
 | `src/jobs.ts` | `jobPaths` | 后台任务 |
@@ -100,7 +102,11 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `src/teams.ts` | `teamPaths` | 团队 |
 | `src/trace.ts` | `tracePaths` | 追踪、审计、导出 |
 
-提交消息：`POST apiPaths.sessionMessages(id) SubmitMessageRequest { text, images? }`（含图片时文字可为空，服务端重新校验图片格式、字节上限及所选模型能力） → 202 `{ runId }`（开始 Run）或 `{ done: true }`（动作，例如 `/compact` 之外的命令）。回答审批：`POST apiPaths.sessionApproval(id, requestId)`（`AnswerApprovalRequest`）→ 204。
+提交消息：`POST apiPaths.sessionMessages(id) SubmitMessageRequest { text, images?, files? }`（有附件时文字可为空；图片上限 4.5 MiB、普通文件上限 32 MiB。files 接受 `{name,path}` 或 `{name,data}`，data 为 base64；服务端重新校验并在消息接受前复制，失败不发送。历史以 `<coko_attachment>` 文本块引用私有副本，图片另保留原有 inline 块） → 202 `{ runId }`（开始 Run）或 `{ done: true }`（动作，例如 `/compact` 之外的命令）。回答审批：`POST apiPaths.sessionApproval(id, requestId)`（`AnswerApprovalRequest`）→ 204。
+
+Artifact：`GET artifactPaths.list(id)` 返回 `{ artifacts: [{path,name,kind,size,modifiedAt}] }`，path 为 outputs 下使用 `/` 分隔的相对路径；实时扫描过滤隐藏项与越界符号链接。`POST artifactPaths.resolve(id) {path}` 在操作前再次校验并返回可用绝对路径。项目或无 directory 的旧会话返回 404；越界路径拒绝，不保留历史清单。
+
+删除：`GET apiPaths.sessionDeletePreview(id)` 返回 `{ retainedDirectories }`；`DELETE apiPaths.session(id)` 返回 `{ sessionIds, retainedDirectories? }`，后者反映最终清理结果。预览后磁盘可能变化，最终返回值为准；仅空的托管独立目录会清理，归档不清理文件。
 
 ## 进度事件
 

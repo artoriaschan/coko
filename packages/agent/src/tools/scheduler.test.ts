@@ -190,15 +190,15 @@ describe('工具调度', () => {
     expect(kinds(h.entries)).toEqual([
       'run_start',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'tool_exec',
       'tool_exec',
       'toolResult',
       'toolResult',
       'toolResult',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     expect(toolExecs(h.entries)).toEqual([
@@ -221,7 +221,7 @@ describe('工具调度', () => {
 
     expect(result).toMatchObject({ status: 'error', error: { code: 'commit_failed', message: 'disk full' } })
     expect(p.log).toEqual([])
-    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'assistant', 'model_request'])
+    expect(kinds(h.entries)).toEqual(['run_start', 'user', 'model_request', 'assistant'])
   })
 
   it('排队中 abort：未开始的调用返回 Operation aborted 且没有 tool_exec', async () => {

@@ -232,12 +232,14 @@ describe('MCP 提示模板', () => {
       expect((await api.post(apiPaths.sessionMessages(sessionId), { text: '/mcp__srv__greet Alice' })).status).toBe(202)
       await waitRunEnds(stream, sessionId, 1)
       const entries = stream.entries(sessionId)
-      expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
-      expect(entries[2]!.payload).toEqual({ name: 'mcp__srv__greet', args: 'Alice', source: 'mcp' })
+      expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'state_update', 'command', 'user', 'model_request', 'assistant', 'run_end'])
+      expect(entries.find((entry) => entry.kind === 'command')!.payload).toEqual({ name: 'mcp__srv__greet', args: 'Alice', source: 'mcp' })
       const expanded = 'Say hello to Alice.\n\n<resource uri="fixture://style">\nKeep it to one sentence.\n</resource>'
-      expect(contentText((entries[3]!.payload as { content: unknown }).content)).toBe(expanded)
+      const user = entries.find((entry) => kindOf(entry) === 'user')!.payload as { content: { type: string; text: string }[] }
+      expect(user.content.at(-1)).toEqual({ type: 'text', text: expanded })
+      expect(user.content[0]!.text).toMatch(/^<state_update name="date">/)
       const sent = (await requests())[0]!.filter((m) => m.role === 'user').map((m) => contentText(m.content))
-      expect(sent).toEqual([expanded])
+      expect(sent).toEqual([contentText(user.content)])
       expect((await readJsonl(log)).filter((e) => e.event === 'prompts/get').map((e) => e.params)).toEqual([{ name: 'greet', arguments: { name: 'Alice' } }])
 
       // 缺必填参数：400 bad-request 并给出参数名，不开始 Run。

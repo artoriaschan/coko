@@ -452,10 +452,11 @@ export class SessionRuns {
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 每个 Run 开始时向上下文装配取值（工具、读取根、hook）；取值之后再检查，检查与开始 Run 之间没有 await。
     const scope = await this.scope(session)
-    const [contributed, readRoots, workspaceRoots] = await Promise.all([
+    const [contributed, readRoots, workspaceRoots, writeRoots] = await Promise.all([
       context.tools(scope),
       context.readRoots(scope),
       this.#workspaceRoots(session, scope.cwd),
+      scope.sessionDirectory ? standaloneWriteRoots(scope.sessionDirectory) : undefined,
     ])
     const hooks = context.hooks(scope)
     const admission = context.admissionHooks(scope)
@@ -474,7 +475,7 @@ export class SessionRuns {
       runContext.observe.set(observe)
       runContext.readRoots = [...readRoots, ...(this.#options.attachments ? [this.#options.attachments.directory(sessionId)] : [])]
       runContext.workspaceRoots = workspaceRoots
-      runContext.writeRoots = scope.sessionDirectory ? await standaloneWriteRoots(scope.sessionDirectory) : undefined
+      runContext.writeRoots = writeRoots
       runContext.permissionHooks = permissionHooks
       // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
       const names = [...this.baseTools(scope.cwd).list(), ...contributed.map((c) => c.tool)].map((tool) => tool.name)

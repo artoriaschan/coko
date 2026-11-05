@@ -11,7 +11,7 @@ category: architecture
 
 ## 上下文
 
-M5 让 Session 在 git worktree 中工作，使并行的会话与子代理互不干扰。当前每个 Session 的工作目录就是其 Workspace 的目录，权限判定、命令沙箱的可写根、指令文件与项目设置都从它推导，Checkpoint 记录的是该目录下的路径。参考项目的做法：claude-code 的 EnterWorktree 把当前会话切换到 `.claude/worktrees/<slug>`（分支 `worktree-<slug>`，以 `-B` 重置同名分支），子代理的隔离 worktree 没有改动时自动删除；deepseek-harness 的实验包在 `<checkout>/.agents/worktrees/<name>` 创建并进入，离开时保留。
+M5 让 Session 在 git worktree 中工作，使并行的会话与子代理互不干扰。制定本决定时，每个 Session 的工作目录就是其 Workspace 的目录，权限判定、命令沙箱的可写根、指令文件与项目设置都从它推导，Checkpoint 记录的是该目录下的路径。参考项目的做法：claude-code 的 EnterWorktree 把当前会话切换到 `.claude/worktrees/<slug>`（分支 `worktree-<slug>`，以 `-B` 重置同名分支），子代理的隔离 worktree 没有改动时自动删除；deepseek-harness 的实验包在 `<checkout>/.agents/worktrees/<name>` 创建并进入，离开时保留。
 
 Coko 的 `.coko` 是受保护路径，命令沙箱在可写根下拒绝写入它。用户于 2026-10-28 的常设指示要求讨论问题采用推荐方案并优先沿用参考项目；本决定于 2026-10-31 规划 M5 时按该指示采纳，未经用户逐条确认。
 
