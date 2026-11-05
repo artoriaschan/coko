@@ -92,7 +92,7 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
   return {
     name: 'bash',
     label: 'bash',
-    description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds. ${SANDBOX_TOOL_NOTE}`,
+    description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a file. Optionally provide a timeout in seconds. ${SANDBOX_TOOL_NOTE}`,
     parameters: bashParameters,
     effect: 'side-effect',
     permissionSubject: (args) => args.command,
@@ -121,7 +121,7 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
         }
       }
       const timeoutMs = resolveTimeoutMs(timeout)
-      const output = new OutputAccumulator(tempDir)
+      const output = new OutputAccumulator(tempDir, 'coko-bash', context?.outputFile)
       let accepting = true
       let timer: NodeJS.Timeout | undefined
       let dirty = false
@@ -180,6 +180,7 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
             text += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Full output: ${snapshot.fullOutputPath}]`
           }
         }
+        if (snapshot.storedOutputTruncated) text += '\n[truncated]'
         return { text, details }
       }
 

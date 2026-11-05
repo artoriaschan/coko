@@ -95,7 +95,7 @@ export function createJobOutputTool(port: JobsPort): CokoTool<typeof jobOutputPa
         )
       if (!truncation.content && dropped === 0) parts.push('(no new output)')
       parts.push(statusLine(job.snapshot()))
-      return text(parts.join('\n\n'))
+      return { ...text(parts.join('\n\n')), ...(truncation.truncated ? { untruncatedText: [unread, statusLine(job.snapshot())].join('\n\n') } : {}) }
     },
   }
 }

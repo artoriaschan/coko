@@ -155,6 +155,9 @@ describe('MCP 连接与工具', () => {
     expect(big).toContain('row 2000\n')
     expect(big).not.toContain('row 2001')
     expect(big).toContain('[MCP output truncated: showing 2000 of 3000 lines]')
+    expect(await readFile(join(ctx.dirs.dataDir, 'tool-results', sessionId, 'b1.txt'), 'utf8')).toBe(
+      Array.from({ length: 3000 }, (_, i) => `row ${i + 1}`).join('\n'),
+    )
     const slow = results.find((r) => r.toolCallId === 's1')!
     expect(slow.isError).toBe(true)
     expect(resultText(slow)).toMatch(/timed out after 1000ms/)

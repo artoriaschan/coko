@@ -55,7 +55,7 @@ export type { ListModelsErrorCode, ListProviderModelsOptions } from './models/li
 export { createToolRegistry, ToolRegistrationError } from './tools/registry.ts'
 export type { RegisterToolOptions, ToolImplementation, ToolRegistry } from './tools/registry.ts'
 export { toolContract } from './tools/types.ts'
-export type { CokoTool, ToolEffect, ToolExecutionContext, ToolSource } from './tools/types.ts'
+export type { CokoTool, CokoToolResult, ToolEffect, ToolExecutionContext, ToolSource } from './tools/types.ts'
 export { DEFAULT_TOOL_CONCURRENCY } from './tools/scheduler.ts'
 export { DEFAULT_ABORT_GRACE_MS, DEFAULT_TOOL_TIMEOUT_MS, withTimeout } from './tools/timeout.ts'
 export type { TimeoutOptions } from './tools/timeout.ts'

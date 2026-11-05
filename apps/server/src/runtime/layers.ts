@@ -591,6 +591,7 @@ const AppLive = Layer.effect(
       hub,
       runs,
       tools: workspaceTools,
+      toolResultsRoot: join(config.dataDir, 'tool-results'),
       secrets: secrets.provider,
       extensions: withTestHold(checkpointExtensions(checkpoints.snapshots, store), config.testHold),
       checkpoints: checkpoints.files,
