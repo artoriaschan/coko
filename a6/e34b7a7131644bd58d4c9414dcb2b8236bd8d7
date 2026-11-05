@@ -1,0 +1,83 @@
+packages/ui/src/components/panel-tabs.tsx
+  s_eff121e41805b1::t_e62fd1b688c5ae 314,316,320-321,323-326
+  s_eff121e41805b1::t_a0da6c67d4a264 207,310-313,315
+  s_eff121e41805b1::t_c63c4c842119b4 317-319,322
+  s_eff121e41805b1::t_14104f6eef355b 5-6,28,30-31,43-45,52,79-84,146-155,214-250
+  s_eff121e41805b1::t_1344589dc9ba22 130-141
+  s_eff121e41805b1::t_e66b92e6bedd04 159,178-182,259-274,276-281
+  s_eff121e41805b1::t_91ba77f4229efb 1,29,42,49,109-121,123-129,143-145,160-162,198,200-203,283-297,299-308
+  s_eff121e41805b1::t_20425d7a527a1c 2,26-27,41,46,50,53-54,76-78,85-106,166-171
+  s_eff121e41805b1::t_018233e696d7f2 8,51,55-75
+packages/ui/package.json
+  s_eff121e41805b1::t_91ba77f4229efb 14
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_eff121e41805b1::t_91ba77f4229efb 45-49,51
+  s_eff121e41805b1::t_14104f6eef355b 7,52-54
+  s_eff121e41805b1::t_a0da6c67d4a264 1,34-35,57,75
+  s_eff121e41805b1::t_20425d7a527a1c 43-44
+docs/tech-stack/ui-design-system.md
+  s_eff121e41805b1::t_c63c4c842119b4 201-208
+packages/ui/vitest.browser.config.ts
+  s_eff121e41805b1::t_47a3d60e10aa35 13
+packages/i18n/src/dictionaries/zh.ts
+  s_eff121e41805b1::t_20425d7a527a1c 719
+  s_eff121e41805b1::t_91ba77f4229efb 715-718
+  s_eff121e41805b1::t_14104f6eef355b 712-714
+packages/ui/src/styles/theme.css
+  s_eff121e41805b1::t_c63c4c842119b4 19-23
+  s_eff121e41805b1::t_018233e696d7f2 14-15
+apps/desktop/src/renderer/testing/browser-setup.ts
+  s_eff121e41805b1::t_a0da6c67d4a264 18
+apps/desktop/src/renderer/testing/browser-commands.ts
+  s_eff121e41805b1::t_771e86e1993784 1-10
+packages/ui/src/components/panel-tabs.browser.test.tsx
+  s_eff121e41805b1::t_fed628e885772a 15-28,30-42
+  s_eff121e41805b1::t_8f0c7eebb2aded 1-14
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_c63c4c842119b4 39-42
+packages/i18n/src/dictionaries/en.ts
+  s_eff121e41805b1::t_91ba77f4229efb 722-725
+  s_eff121e41805b1::t_14104f6eef355b 719-721
+  s_eff121e41805b1::t_20425d7a527a1c 726
+apps/desktop/vitest.browser.config.ts
+  s_eff121e41805b1::t_47a3d60e10aa35 15
+  s_eff121e41805b1::t_771e86e1993784 40-44
+packages/ui/src/components/panel-tabs.css
+  s_eff121e41805b1::t_a0da6c67d4a264 10-14
+  s_eff121e41805b1::t_018233e696d7f2 1-9
+.scratch/right-sidebar-session-diagnostics/issues/02-tab-strip-interactions.md
+  s_eff121e41805b1::t_5b2e9b9390771c 21-29,34-41
+pnpm-lock.yaml
+  s_eff121e41805b1::t_8a2e7a7ca7320f 462-464
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_eff121e41805b1::t_14104f6eef355b 70-84
+  s_eff121e41805b1::t_20425d7a527a1c 59-69
+  s_eff121e41805b1::t_a0da6c67d4a264 14,16,27-28
+packages/ui/src/index.ts
+  s_eff121e41805b1::t_783d0d573317fd 77
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_eff121e41805b1::t_c0cf1f4db6446e 825-864
+  s_eff121e41805b1::t_c12341de56b35b 937-940
+  s_eff121e41805b1::t_771e86e1993784 3,14,948-950,968-969
+  s_eff121e41805b1::t_46b1ed40721c5b 953-954
+  s_eff121e41805b1::t_44f4a85d0b1e54 912-914,916-936,941-946
+  s_eff121e41805b1::t_bc7720ae80404b 865-876,878-890,893-906,908-911
+  s_eff121e41805b1::t_b8bd0c9fbbe20d 789-810,812-818,820-824
+  s_eff121e41805b1::t_05555059cce4ca 947,951-952,955-967,970-980
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "a6e34b7a7131644bd58d4c9414dcb2b8236bd8d7",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
