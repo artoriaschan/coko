@@ -68,7 +68,7 @@ it('developer switch defaults off, saves globally and exposes a readonly diagnos
   await panel().getByRole('button', { name: 'Session diagnostics', exact: true }).click()
   await expect.element(panel().getByRole('heading', { name: 'Session diagnostics', exact: true })).toBeVisible()
   await expect.element(panel().getByRole('button', { name: 'Display format', exact: true })).toBeVisible()
-  await expect.element(panel().getByText('No records', { exact: true })).toBeVisible()
+  await expect.element(panel().getByRole('table', { name: 'Session diagnostics', exact: true })).toBeVisible()
   expect(panel().element().querySelector('input,textarea,[contenteditable]')).toBeNull()
 })
 

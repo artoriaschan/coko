@@ -47,6 +47,8 @@ main 在 Electron ready 后安装自定义应用菜单。macOS 的应用菜单�
 
 ## 安装包
 
+会话数据诊断移植的第三方源码与测试声明在根目录 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)，包含 DeepSeek 的版权行和完整 MIT 许可。Forge `extraResource` 把该文件原样复制到应用 Resources，包外放置，不纳入 ASAR 的应用文件筛选；源码声明的修改随下一次打包分发。[产物声明测试](../../apps/desktop/e2e/third-party-notices.e2e.test.ts)读取当前构建资源并逐字比较。
+
 `pnpm make:desktop`（根脚本，等价 `pnpm --filter @coko/desktop run make`；`electron-forge make`）先运行与 `package` 相同的 prePackage 构建与打包，再生成：
 
 - `out/make/zip/darwin/<arch>/Coko-darwin-<arch>-<version>.zip`：自动更新（Squirrel.Mac）下载的格式。

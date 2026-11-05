@@ -1,0 +1,31 @@
+.diagnostic-table {
+  width: 100%;
+  min-width: 650px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.diagnostic-table th,
+.diagnostic-table td {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 8px;
+  white-space: nowrap;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: var(--hairline) solid var(--border);
+}
+.diagnostic-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--background);
+}
+.diagnostic-table tr[data-sticky] {
+  position: sticky;
+  background: var(--background);
+}
+.diagnostic-table tr[aria-selected='true'] {
+  background: var(--accent);
+}
