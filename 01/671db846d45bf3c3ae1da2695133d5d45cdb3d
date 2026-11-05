@@ -1,0 +1,19 @@
+.scratch/system-context/issues/03-post-compaction-redelivery.md
+  s_2a03236d6e6b67::t_1eb70ffde7085a 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "01671db846d45bf3c3ae1da2695133d5d45cdb3d",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
