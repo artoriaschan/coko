@@ -1,0 +1,32 @@
+docs/subsystems/subagents.md
+  s_2a03236d6e6b67::t_3576c08f824484 48
+docs/adr/README.md
+  s_2a03236d6e6b67::t_3576c08f824484 36
+.scratch/system-context/issues/10-cache-acceptance-and-adr-0024.md
+  s_2a03236d6e6b67::t_c28a35d0dbb2fa 28-29
+  s_2a03236d6e6b67::t_2366e1c6879b87 13-27
+.scratch/system-context/evidence/delivery.md
+  s_2a03236d6e6b67::t_c28a35d0dbb2fa 14,34
+  s_2a03236d6e6b67::t_2366e1c6879b87 1-13,15-33,35-55
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_c28a35d0dbb2fa 13
+  s_2a03236d6e6b67::t_3576c08f824484 76,224,244-246
+docs/adr/0024-session-state-as-state-updates.md
+  s_2a03236d6e6b67::t_3576c08f824484 5,14,41,43,47-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ba6bcfe45bb2cfbf54d4e176a20b06b4faa41757",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
