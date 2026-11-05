@@ -72,6 +72,7 @@ export const apiPaths = {
   projectPin: (id: string) => `${apiPaths.project(id)}/pin`,
   projectName: (id: string) => `${apiPaths.project(id)}/name`,
   session: (id: string) => `${API_ROUTES.sessions}/${encodeURIComponent(id)}`,
+  sessionDeletePreview: (id: string) => `${apiPaths.session(id)}/delete-preview`,
   sessionProject: (id: string) => `${apiPaths.session(id)}/project`,
   sessionArchive: (id: string) => `${apiPaths.session(id)}/archive`,
   sessionRestore: (id: string) => `${apiPaths.session(id)}/restore`,

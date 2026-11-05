@@ -62,7 +62,7 @@ DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及�
 
 独立对话没有项目归属，首次发送时才创建用户可见的专属目录并登记 Workspace，目录不是 Project。默认根目录为 `<Documents>/Coko`（desktop main 解析系统 Documents），启动环境 `COKO_CHATS_ROOT` 可覆盖为另一个绝对路径；测试夹具为每个实例提供临时根目录。会话根是 `<yyyy-MM-dd>/chat-<sessionId 前 12 位>`，日期采用首次成功发送时的本地日期；同日短名已占用则以完整 sessionId 回退，两个候选都被占用时拒绝，不认领既有目录。根下创建 `work/` 与 `outputs/`，Workspace 指向会话根，名称固定为“独立对话 · yyyy-MM-dd”，Session 的 `directory` 保存实际根、`cwd` 保存 `work/`。标题改变、跨天与同草稿重试都不移动它。旧记录没有这两个值时仍按原 Workspace / worktree 解析。
 
-首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，其工作文件仍应保留。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
+首次发送接受前失败时只回滚自己创建的会话、未被引用的 Workspace 和目录；接受后的模型错误仍属于已有会话。删除记录与目录是不同操作：存储的 `deleteSession` 清理会话树的条目、定时任务与进程登记，保留 Workspace 和 worktree；`deleteWorkspaceIfUnused` 只有在没有会话、项目、worktree、记忆引用时删除登记，不操作文件系统。独立会话后续被用户删除时，只清理真正为空的专属目录，有内容的工作文件仍保留，详见[永久删除对话](#永久删除对话)。首次发送的完整契约与验证见[工作台](workbench.md#新对话与首次发送)。
 
 ## 会话归属与列表协议
 
@@ -174,10 +174,14 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 
 普通、项目内和置顶会话共用删除入口。选择“删除对话”先关闭菜单，再打开 [SessionDeleteDialog](../../apps/desktop/src/renderer/features/sidebar/session-delete-dialog.tsx)，它接收固定的 sessionId，也可由归档列表和搜索结果复用。确认弹窗为 W480、最小 H184、R28，狭窄窗口按可用宽度收缩；初始焦点在取消。取消、右上关闭和 Escape 保留会话并恢复来源行的焦点；确认期间禁止重复提交和关闭。失败留在弹窗显示原因，成功响应后才移除列表与内容订阅。删除当前打开会话时进入新对话，其他会话保持当前选择。
 
-DELETE /api/sessions/:id 返回 `{ sessionIds }`，包括目标和所有后代的身份。存储在一个事务中删除会话树、它们的条目、绑定定时任务和进程登记；保留 Workspace、worktree 记录及目录、记忆、项目源目录和用户工作文件，独立对话的专属目录也保留。直接删除不会执行 worktree 清理或删除文件系统路径。
+`GET /api/sessions/:id/delete-preview` 返回 `{ retainedDirectories }`，给出按当前磁盘与共享引用状态应保留的独立会话目录。弹窗显示完整路径并支持复制；加载期间或检查失败时不能确认删除，检查失败可重试，复制失败保留路径和弹窗。长路径在窄窗口换行并可滚动，复制按钮与路径并列。
+
+`DELETE /api/sessions/:id` 返回 `{ sessionIds, retainedDirectories }`，包括目标和所有后代的身份与最终保留的目录。存储先在一个事务中删除会话树、它们的条目、绑定定时任务和进程登记；文件系统清理与该事务分开执行。删除后重新检查磁盘：只有会话根除 `work/`、`outputs/` 外没有其他条目，且这两个子目录为空（或已经不存在）时，才以不递归的 `rmdir` 清理。隐藏文件、符号链接、其他条目、目录检查失败或清理时出现的新内容都会使目录保留，不跟随链接删除内容。仍被其他 Session 或项目文件夹使用的目录保留；有内容或共享引用时也保留 Workspace，空目录清理后才调用 `deleteWorkspaceIfUnused` 删除没有会话、项目、worktree 或记忆引用的登记。旧 `directory=null` 会话不做目录清理，Project 与 Worktree 文件及记录不被此流程移除。
+
+目标与后代各自的 `data/attachments/<sessionId>/` 和 `data/tool-results/<sessionId>/` 随删除清理；不删除 `data/mcp/`、Job 日志、项目源文件或记忆。归档与恢复不执行这些文件系统操作。分叉先复制私有附件与被历史引用的工具落盘文件并重绑定路径，删除源会话不会破坏分支中的副本。目录在检查与清理间发生变化时以最终文件系统操作结果为准；空目录清理失败记日志并返回保留路径，私有附件/结果清理错误向调用方报告。
 
 有进行中的 Run、子代理或运行中的 Job 时，以 409 `session-busy` 拒绝，details 为 `{ reasons, sessions }`：reasons 区分 `run`、`agent`、`job`（共享类型还为归档等操作保留 `schedule`），sessions 给出涉及的会话 id 和标题。仅启用的定时任务不阻止删除。旧回退接口的同名错误仍可没有这些 details。
 
-[SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
+[SessionService](../../apps/server/src/application/sessions.ts) 在检查前登记删除屏障，排斥新 Run 和子会话创建；异步输入准备、Run 准入及 Run 结束后的领域回调也计入忙碌。删除前等待定时投递和已结束 Job 的尾部写入，成功后释放运行时、权限、Job、子代理通知与定时监听缓存。失败释放屏障，以便重试。契约还包括[空目录、保留路径与私有文件 Sidecar 测试](../../tests/integration/sidecar-session-cleanup.test.ts)、[保留路径 Browser Mode](../../apps/desktop/src/renderer/features/sidebar/session-delete-dialog.browser.test.tsx)。原有并发与重启契约见 [Sidecar 集成测试](../../tests/integration/sidecar-delete-session.test.ts)、[并发边界测试](../../apps/server/src/application/session-delete.test.ts)、[浏览器菜单测试](../../apps/desktop/src/renderer/features/sidebar/session-menu.browser.test.tsx) 与 [Electron 重启测试](../../apps/desktop/e2e/session-delete.e2e.test.ts)。
 
 [跨功能 Electron 验证](../../apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts) 从创建项目后的首次发送读回项目身份、主要 Workspace 与标题，并验证独立、项目、置顶和搜索来源使用同一套最终五项会话菜单。

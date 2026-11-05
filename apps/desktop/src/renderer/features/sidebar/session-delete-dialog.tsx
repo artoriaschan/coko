@@ -23,12 +23,36 @@ export function SessionDeleteDialog({
   const cancel = React.useRef<HTMLButtonElement>(null)
   const submitting = React.useRef(false)
   const [pending, setPending] = React.useState(false)
+  const [preview, setPreview] = React.useState<{ id: string; paths: string[]; failed?: boolean } | null>(null)
+  const [previewRetry, setPreviewRetry] = React.useState(0)
+  const [copied, setCopied] = React.useState<string | null>(null)
+  const loading = open && preview?.id !== sessionId
+  React.useEffect(() => {
+    if (!open) return
+    let active = true
+    setPreview(null)
+    setCopied(null)
+    void chat
+      .getState()
+      .deletePreview(sessionId)
+      .then(
+        (value) => {
+          if (active) setPreview({ id: sessionId, paths: value.retainedDirectories })
+        },
+        () => {
+          if (active) setPreview({ id: sessionId, paths: [], failed: true })
+        },
+      )
+    return () => {
+      active = false
+    }
+  }, [chat, open, sessionId, previewRetry])
   const [error, setError] = React.useState<string | null>(null)
   React.useEffect(() => {
     if (open) setError(null)
   }, [open, sessionId])
   async function confirm() {
-    if (submitting.current) return
+    if (submitting.current || loading || preview?.failed) return
     submitting.current = true
     setPending(true)
     setError(null)
@@ -65,7 +89,7 @@ export function SessionDeleteDialog({
       <DialogContent
         role="alertdialog"
         data-session-delete-dialog
-        aria-busy={pending}
+        aria-busy={pending || loading}
         closeLabel={t('sidebar.deleteClose')}
         className="w-[480px] max-w-[calc(100vw-32px)] min-h-[184px] gap-3 p-6"
         onOpenAutoFocus={(event) => {
@@ -79,6 +103,39 @@ export function SessionDeleteDialog({
       >
         <DialogTitle className="pr-8 text-ui-heading">{t('sidebar.deleteTitle')}</DialogTitle>
         <DialogDescription>{t('sidebar.deleteDescription')}</DialogDescription>
+        {preview?.id === sessionId && preview.paths.length > 0 && (
+          <div className="min-h-0 space-y-2 overflow-y-auto" data-retained-directories>
+            <p className="text-ui-body text-muted-foreground">{t('sidebar.deleteFilesRetained')}</p>
+            {preview.paths.map((path) => (
+              <div key={path} className="flex items-start gap-2 rounded-md bg-muted p-2">
+                <p className="min-w-0 flex-1 break-all font-mono text-ui-caption select-text">{path}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(path).then(
+                      () => setCopied(path),
+                      () => setError(t('sidebar.deleteCopyFailed')),
+                    )
+                  }}
+                >
+                  {t(copied === path ? 'sidebar.deletePathCopied' : 'sidebar.deleteCopyPath')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        {preview?.id === sessionId && preview.failed && (
+          <div className="space-y-2">
+            <p role="alert" className="text-ui-body text-destructive">
+              {t('sidebar.deletePreviewFailed')}
+            </p>
+            <Button size="sm" variant="secondary" onClick={() => setPreviewRetry((value) => value + 1)}>
+              {t('sidebar.deletePreviewRetry')}
+            </Button>
+          </div>
+        )}
         {error && (
           <p role="alert" className="text-ui-body text-destructive">
             {error}
@@ -88,7 +145,12 @@ export function SessionDeleteDialog({
           <Button ref={cancel} variant="secondary" disabled={pending} onClick={() => onOpenChange(false)}>
             {t('sidebar.deleteCancel')}
           </Button>
-          <Button variant="ghost" className="bg-destructive/10 text-destructive hover:bg-destructive/20" disabled={pending} onClick={() => void confirm()}>
+          <Button
+            variant="ghost"
+            className="bg-destructive/10 text-destructive hover:bg-destructive/20"
+            disabled={pending || loading || preview?.failed}
+            onClick={() => void confirm()}
+          >
             {t('sidebar.deleteConfirm')}
           </Button>
         </div>

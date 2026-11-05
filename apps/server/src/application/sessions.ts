@@ -26,6 +26,7 @@ import type { SessionHub } from './hub.ts'
 import { hostToolNames, PermissionService } from './permissions.ts'
 import { SessionRecovery, type RecoveryHook, type RecoveryReport, type RecoverySource } from './recovery.ts'
 import { SessionModels } from './session-models.ts'
+import { SessionFiles } from './session-files.ts'
 import { ownPermissionScope, SessionPermissions, type PermissionScopeResolver } from './session-permissions.ts'
 import { SessionRuns, type RunLauncher, type SessionCwd, type SessionExtension, type SessionExtensionContext } from './session-runs.ts'
 import { requireSession, SessionRuntimes } from './session-runtimes.ts'
@@ -96,6 +97,7 @@ export class SessionService {
   readonly #recovery: SessionRecovery
   readonly #checkpoints: SessionCheckpoints
   readonly #models: SessionModels
+  readonly #files: SessionFiles
   readonly #runs: SessionRuns
   readonly #context: ContextAssembly
   readonly #deleting = new Set<string>()
@@ -113,6 +115,11 @@ export class SessionService {
   constructor(options: SessionServiceOptions) {
     const { store } = options
     this.#store = store
+    this.#files = new SessionFiles({
+      store,
+      ...(options.attachments ? { attachmentsRoot: options.attachments.root } : {}),
+      ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
+    })
     this.#clock = options.clock ?? systemClock()
     this.#hub = options.hub
     this.#context = options.context ?? emptyContextAssembly()
@@ -137,6 +144,7 @@ export class SessionService {
       locked: (sessionId, task) => this.#permissions.locked(sessionId, task),
     })
     this.#checkpoints = new SessionCheckpoints({
+      sessionFiles: this.#files,
       ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       runtimes: this.#runtimes,
@@ -350,7 +358,17 @@ export class SessionService {
     }
   }
 
-  async delete(sessionId: string): Promise<{ sessionIds: string[] }> {
+  async deletePreview(sessionId: string): Promise<{ retainedDirectories: string[] }> {
+    const tree: StoredSession[] = []
+    const visit = async (id: string) => {
+      tree.push(await requireSession(this.#store, id))
+      for (const child of await this.#store.sessions.listChildren(id)) await visit(child.id)
+    }
+    await visit(sessionId)
+    return this.#files.preview(tree)
+  }
+
+  async delete(sessionId: string): Promise<{ sessionIds: string[]; retainedDirectories: string[] }> {
     this.assertAdmission(sessionId)
     this.#deleting.add(sessionId)
     const tree: StoredSession[] = []
@@ -386,7 +404,7 @@ export class SessionService {
           this.#statuses.delete(id)
         }
         this.#lifecycle?.forget(sessionIds)
-        return { sessionIds }
+        return { sessionIds, ...(await this.#files.delete(tree)) }
       }
       return this.#lifecycle ? await this.#lifecycle.quiesce(ids, remove) : await remove()
     } finally {

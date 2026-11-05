@@ -197,6 +197,7 @@ export interface ChatActions {
   subscribeSession(sessionId: string): () => void
   archiveSession(sessionId: string): Promise<void>
   restoreSession(sessionId: string): Promise<void>
+  deletePreview(sessionId: string): Promise<{ retainedDirectories: string[] }>
   deleteSession(sessionId: string): Promise<void>
   deleteProject(projectId: string): Promise<void>
   startDraft(workspaceId?: string): void
@@ -428,6 +429,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       async restoreSession(sessionId) {
         lists.getState().setArchiveState(await api.restoreSession(sessionId))
       },
+      deletePreview: (sessionId) => api.deletePreview(sessionId),
       async deleteSession(sessionId) {
         const { sessionIds } = await api.deleteSession(sessionId)
         forgetRightPanelLayouts(sessionIds)

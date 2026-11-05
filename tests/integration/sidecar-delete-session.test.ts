@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
 import { API_ROUTES, apiPaths, schedulePaths, worktreePaths, jobPaths } from '@coko/protocol'
@@ -18,10 +18,17 @@ it('deletes a session tree atomically and persists deletion while preserving wor
   await env.stream.waitFor(() => runEnds(env.stream, parent).length === 1)
   const child = starts(env.stream, parent)[0]!.agentId
   expect((await env.api.get(apiPaths.session(child))).status).toBe(200)
+  for (const id of [parent, child])
+    for (const kind of ['attachments', 'tool-results']) {
+      await mkdir(join(env.dirs.dataDir, kind, id), { recursive: true })
+      await writeFile(join(env.dirs.dataDir, kind, id, 'owned.txt'), 'owned')
+    }
   await expect.poll(async () => (await env.api.delete(apiPaths.session(parent))).status).toBe(200)
   expect((await env.api.get(apiPaths.session(parent))).status).toBe(404)
   expect((await env.api.get(apiPaths.session(child))).status).toBe(404)
   expect((await env.api.get(API_ROUTES.sessions)).body.sessions).toEqual([])
+  for (const id of [parent, child])
+    for (const kind of ['attachments', 'tool-results']) await expect(access(join(env.dirs.dataDir, kind, id))).rejects.toThrow(/ENOENT/)
   expect(await readFile(join(env.wsPath, 'source.txt'), 'utf8')).toBe('user source')
   await env.sidecar.stop()
   const second = await startSidecar({ dirs: env.dirs })

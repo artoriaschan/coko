@@ -23,6 +23,7 @@ const log = getLogger(['application', 'sessions'])
 
 export interface SessionCheckpointsOptions {
   attachments?: import('./attachments.ts').AttachmentStore
+  sessionFiles?: import('./session-files.ts').SessionFiles
   store: SessionStore
   runtimes: SessionRuntimes
   recovery: SessionRecovery
@@ -175,10 +176,13 @@ export class SessionCheckpoints {
         thinkingLevel: source.thinkingLevel,
       })
       let copies: Awaited<ReturnType<NonNullable<SessionCheckpointsOptions['attachments']>['fork']>> | undefined
+      let outputs: Awaited<ReturnType<NonNullable<SessionCheckpointsOptions['sessionFiles']>['fork']>> | undefined
       try {
         copies = await this.#options.attachments?.fork(session.id, forked.entries)
-        await recovery.commitBatch(session.id, copies?.entries ?? forked.entries)
+        outputs = await this.#options.sessionFiles?.fork(source.id, session.id, copies?.entries ?? forked.entries)
+        await recovery.commitBatch(session.id, outputs?.entries ?? copies?.entries ?? forked.entries)
       } catch (error) {
+        await outputs?.rollback()
         await copies?.rollback()
         await store.sessions.deleteSession(session.id)
         throw error
