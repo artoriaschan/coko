@@ -1,0 +1,90 @@
+packages/ui/src/styles/theme.css
+  s_eff121e41805b1::t_018233e696d7f2 14-15
+  s_eff121e41805b1::t_c63c4c842119b4 19-23
+docs/tech-stack/ui-design-system.md
+  s_eff121e41805b1::t_c63c4c842119b4 207-214
+packages/ui/src/components/panel-tabs.browser.test.tsx
+  s_eff121e41805b1::t_fed628e885772a 15-28,30-42
+  s_eff121e41805b1::t_4e958f1ab462d0 29
+  s_eff121e41805b1::t_8f0c7eebb2aded 1-14
+pnpm-lock.yaml
+  s_eff121e41805b1::t_8a2e7a7ca7320f 462-464
+apps/desktop/src/renderer/testing/browser-commands.ts
+  s_eff121e41805b1::t_771e86e1993784 1-10
+apps/desktop/vitest.browser.config.ts
+  s_eff121e41805b1::t_47a3d60e10aa35 15
+  s_eff121e41805b1::t_771e86e1993784 40-44
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_eff121e41805b1::t_a0da6c67d4a264 1,44-45,92
+  s_eff121e41805b1::t_067e42dfc02d1f 68
+  s_eff121e41805b1::t_91ba77f4229efb 55-61
+  s_eff121e41805b1::t_14104f6eef355b 7,62-64
+  s_eff121e41805b1::t_20425d7a527a1c 53-54
+packages/ui/vitest.browser.config.ts
+  s_eff121e41805b1::t_47a3d60e10aa35 13
+packages/ui/src/components/panel-tabs.tsx
+  s_eff121e41805b1::t_20425d7a527a1c 2,26-27,41,46,50,53-54,76-78,85-106,166-171
+  s_eff121e41805b1::t_e66b92e6bedd04 159,178-182,259-274,276-281
+  s_eff121e41805b1::t_018233e696d7f2 8,51,55-75
+  s_eff121e41805b1::t_1344589dc9ba22 130-141
+  s_eff121e41805b1::t_14104f6eef355b 5-6,28,30-31,43-45,52,79-84,146-155,214-250
+  s_eff121e41805b1::t_a0da6c67d4a264 207,310-313,315
+  s_eff121e41805b1::t_91ba77f4229efb 1,29,42,49,109-121,123-129,143-145,160-162,198,200-203,283-297,299-308
+  s_eff121e41805b1::t_c63c4c842119b4 317-319,322
+  s_eff121e41805b1::t_e62fd1b688c5ae 314,316,320-321,323-326
+  s_eff121e41805b1::t_4e958f1ab462d0 122,142,157-158,163-165,172-177,183-197,199,275,282,298
+packages/i18n/src/dictionaries/zh.ts
+  s_eff121e41805b1::t_91ba77f4229efb 715-718
+  s_eff121e41805b1::t_20425d7a527a1c 719
+  s_eff121e41805b1::t_14104f6eef355b 712-714
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_eff121e41805b1::t_b8bd0c9fbbe20d 842-863,865-871,873-877
+  s_eff121e41805b1::t_c12341de56b35b 990-993
+  s_eff121e41805b1::t_771e86e1993784 3,14,1001-1003,1021-1022
+  s_eff121e41805b1::t_c0cf1f4db6446e 878-917
+  s_eff121e41805b1::t_44f4a85d0b1e54 965-967,969-989,994-999
+  s_eff121e41805b1::t_bc7720ae80404b 918-929,931-943,946-959,961-964
+  s_eff121e41805b1::t_46b1ed40721c5b 1006-1007
+  s_eff121e41805b1::t_05555059cce4ca 1000,1004-1005,1008-1020,1023-1033
+  s_eff121e41805b1::t_4e958f1ab462d0 864,872,930,944-945,960,968
+packages/ui/src/components/panel-tabs.css
+  s_eff121e41805b1::t_a0da6c67d4a264 10-14
+  s_eff121e41805b1::t_018233e696d7f2 1-9
+.scratch/right-sidebar-session-diagnostics/issues/02-tab-strip-interactions.md
+  s_eff121e41805b1::t_5b2e9b9390771c 21-29,34-41
+packages/ui/package.json
+  s_eff121e41805b1::t_91ba77f4229efb 14
+packages/ui/src/index.ts
+  s_eff121e41805b1::t_783d0d573317fd 77
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_c63c4c842119b4 43-46
+.scratch/right-sidebar-session-diagnostics/issues/03-width-narrow-fullscreen.md
+  s_eff121e41805b1::t_a513061a9555eb 20-27,32-58
+packages/i18n/src/dictionaries/en.ts
+  s_eff121e41805b1::t_14104f6eef355b 719-721
+  s_eff121e41805b1::t_20425d7a527a1c 726
+  s_eff121e41805b1::t_91ba77f4229efb 722-725
+apps/desktop/src/renderer/testing/browser-setup.ts
+  s_eff121e41805b1::t_a0da6c67d4a264 18
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_eff121e41805b1::t_a0da6c67d4a264 15,17,28-29
+  s_eff121e41805b1::t_20425d7a527a1c 65-75
+  s_eff121e41805b1::t_14104f6eef355b 76-90
+  s_eff121e41805b1::t_4e958f1ab462d0 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "33f34989f099b8517e9bd500a733a2d15cc0eb8c",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
