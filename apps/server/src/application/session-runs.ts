@@ -100,7 +100,7 @@ function launch(runtime: AgentRuntime, request: RunRequest, pending: PendingInpu
 const takesPending = (trigger: RunRequest['trigger']) => trigger === 'submit' || trigger === 'goal' || trigger === 'schedule'
 
 /**
- * Session 的工作目录（ADR 0016）：Session 创建时确定，生命周期内不变。缺省为 Workspace 目录；worktree 绑定由 worktree 的实现给出
+ * Session 的工作目录（ADR 0016）：Session 创建时确定，生命周期内不变。优先使用持久化 cwd，旧记录回退 Workspace 目录；worktree 绑定由 worktree 的实现给出
  * （worktree 路径 + Workspace 相对仓库根的路径）。指令、项目设置、项目 Hook 与 MCP、Skills、子代理定义都从这个目录读取。
  */
 export interface SessionCwd {
@@ -336,7 +336,7 @@ export class SessionRuns {
     const project = await sessionProject(store, session)
     const primary = project ? await store.sessions.getWorkspace(project.primaryWorkspaceId) : undefined
     const roots = await Promise.all(
-      [cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
+      [session.directory ?? cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
         realpath(path).catch(() => (index === 0 ? cwd : undefined)),
       ),
     )
@@ -369,6 +369,7 @@ export class SessionRuns {
       additionalFolders: project?.additionalFolders ?? [],
       ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       sessionId: session.id,
+      ...(session.directory && !project ? { sessionDirectory: session.directory } : {}),
       permissionRules,
       ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
       ...(session.worktreeId ? { worktreeId: session.worktreeId } : {}),
