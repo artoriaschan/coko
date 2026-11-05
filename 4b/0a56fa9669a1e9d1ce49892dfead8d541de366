@@ -1,0 +1,56 @@
+.scratch/right-sidebar-session-diagnostics/spec.md
+  s_7023d7f1750f6a::t_bcd73b556d8e5d 268-293
+  s_7023d7f1750f6a::t_903c58a1655724 39-61
+  s_7023d7f1750f6a::t_1b98f0d9cac7c4 86-125
+  s_7023d7f1750f6a::t_21b5cac4d426fa 238-267
+  s_7023d7f1750f6a::t_d540ee2ae15bfc 188
+  s_7023d7f1750f6a::t_147ee00ae27aac 1-38
+  s_7023d7f1750f6a::t_2b9c646adf9563 186
+  s_7023d7f1750f6a::t_a4330a84d927fd 172-185,187,189-197
+  s_7023d7f1750f6a::t_ca866ea341250d 126-171
+  s_7023d7f1750f6a::t_afa864040b05b3 62-85
+  s_7023d7f1750f6a::t_55ef4ba1d065f2 198-237
+.scratch/right-sidebar-session-diagnostics/issues/12-integrated-acceptance.md
+  s_7023d7f1750f6a::t_f0f9e519af9d21 1-31
+.scratch/right-sidebar-session-diagnostics/issues/02-tab-strip-interactions.md
+  s_7023d7f1750f6a::t_91d76a2a94c949 1-31
+.scratch/right-sidebar-session-diagnostics/design.md
+  s_7023d7f1750f6a::t_6909fab7bb9e72 49-111
+  s_7023d7f1750f6a::t_0cc3a8bf2ca438 112-169
+  s_7023d7f1750f6a::t_fe35fe895806b1 170-206
+  s_7023d7f1750f6a::t_92097ecf2ae9bb 1-48
+.scratch/right-sidebar-session-diagnostics/issues/03-width-narrow-fullscreen.md
+  s_7023d7f1750f6a::t_1ae9f4a3bcdced 1-29
+.scratch/right-sidebar-session-diagnostics/issues/09-inspector-live-progress.md
+  s_7023d7f1750f6a::t_04418a75215392 1-31
+.scratch/right-sidebar-session-diagnostics/issues/08-inspector-type-filter.md
+  s_7023d7f1750f6a::t_89da2dc773e554 1-29
+.scratch/right-sidebar-session-diagnostics/issues/10-inspector-chat-grouping.md
+  s_7023d7f1750f6a::t_b0a021af27508f 1-31
+.scratch/right-sidebar-session-diagnostics/issues/06-developer-switch.md
+  s_7023d7f1750f6a::t_e29d10b9220ef5 1-28
+.scratch/right-sidebar-session-diagnostics/issues/07-inspector-raw-data.md
+  s_7023d7f1750f6a::t_9b45f15cfcd420 1-34
+.scratch/right-sidebar-session-diagnostics/issues/04-layout-persistence.md
+  s_7023d7f1750f6a::t_0933de1282a59a 1-31
+.scratch/right-sidebar-session-diagnostics/issues/05-shortcuts-native-menu.md
+  s_7023d7f1750f6a::t_ad7399c4ae57e5 1-32
+.scratch/right-sidebar-session-diagnostics/issues/01-per-session-tab-container.md
+  s_7023d7f1750f6a::t_99842f4597163a 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "4b0a56fa9669a1e9d1ce49892dfead8d541de366",
+  "prompts": {},
+  "sessions": {
+    "s_7023d7f1750f6a": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_vousdp39cr4h",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
