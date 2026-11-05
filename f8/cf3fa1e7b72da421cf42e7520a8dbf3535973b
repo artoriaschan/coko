@@ -1,0 +1,34 @@
+.scratch/system-data-root/evidence.md
+  s_6cadf0cc1974f1::t_c3b96b4e71802c 103-123
+packages/agent/src/tools/builtin/grep.ts
+  s_6cadf0cc1974f1::t_cb42390a7109f6 192,194-198
+  s_6cadf0cc1974f1::t_5adcbaf5fec032 205
+  s_6cadf0cc1974f1::t_49b770b06a75ec 206,211,215,218,223,225
+.scratch/system-data-root/issues/13-integration-and-docs.md
+  s_6cadf0cc1974f1::t_a5524e249f4369 42
+  s_6cadf0cc1974f1::t_af3b6f3005c28f 40-41
+  s_6cadf0cc1974f1::t_c3b96b4e71802c 35-39
+tests/integration/sidecar-tool-result-counts.test.ts
+  s_6cadf0cc1974f1::t_82cf61f5613c2c 1
+  s_6cadf0cc1974f1::t_5cda8976d0a379 4,118-127,129-139,143-147,150-154
+  s_6cadf0cc1974f1::t_49d40c0f285024 128,140-142,148-149,164-170,189-190,193-197,201-206
+  s_6cadf0cc1974f1::t_38dcf1c57a87ed 73,117
+  s_6cadf0cc1974f1::t_178f6e988a6c83 156-163,171-188,191-192,198-200,207-213
+  s_6cadf0cc1974f1::t_ad090f4adfe0ff 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f8cf3fa1e7b72da421cf42e7520a8dbf3535973b",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
