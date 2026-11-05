@@ -1,5 +1,5 @@
 // 秘密不外泄总闸的团队通道（ADR 0004、0007、0018）：send_message 的正文与 summary、task_create 的标题与描述含登记的 Secret。团队引入的通道——根 Session 的
-// team_task 条目、各 Session 的 team_message 条目与 <team-message> user message、teammate 的 <team> section（任务标题）、team_update 帧、HTTP（GET …/team
+// team_task 条目、各 Session 的 team_message 条目与 <team-message> user message、teammate 的 team State Update（任务标题）、team_update 帧、HTTP（GET …/team
 // 与 Session 详情）、两个 Session 的 faux requestLog——以及日志与库文件中都不得出现明文。团队不新增读取根（名册与任务板只读根 Session 的条目）。
 import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -12,7 +12,7 @@ import { leaksIn, persisted, recordingClient } from './secrets-gate-harness.ts'
 const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
 
 describe('秘密不外泄总闸：Agent Teams', () => {
-  it('消息正文、任务描述与 <team> section 含登记 Secret：条目、team_update、HTTP、库与各 Session 的 requestLog 中没有明文', { timeout: 120_000 }, async () => {
+  it('消息正文、任务描述与团队状态含登记 Secret：条目、推送、HTTP、库与 requestLog 没有明文', { timeout: 120_000 }, async () => {
     const value = 'team-token-' + randomBytes(12).toString('hex')
     const root = await tempDir()
     const workspaceDir = join(root, 'ws')
@@ -24,7 +24,7 @@ describe('秘密不外泄总闸：Agent Teams', () => {
     await writeFile(requestLog, '')
     const waitFor = (path: string) => "until [ -f '" + path + "' ]; do sleep 0.05; done"
     // 每条回复都带 match：lead 的三个 Run（LEAD-S / LEAD-MSG / LEAD-NEXT）与 mate 的两个 Run（MATE-S / MSG-S）各取自己的回复。
-    // <team> section 只在 Run 开始时读取一次，所以 mate 必须在任务创建之后以新 Run 接收消息：它的第一个 Run 等 gate（lead 的 Run 结束、任务已提交）
+    // 团队状态在 Run 开始时读取，所以 mate 必须在任务创建之后以新 Run 接收消息：它的第一个 Run 等 gate（lead 的 Run 结束、任务已提交）
     // 后结束，lead 在下一个 Run 中才 send_message，消息以新 Run 送达空闲的 mate。mate 的回复等 gate2（lead 的第二个 Run 已结束），挂起到 lead 的第三个 Run。
     const script = await fauxScript(root, {
       requestLog,
@@ -66,7 +66,7 @@ describe('秘密不外泄总闸：Agent Teams', () => {
     const mate = (stream.entries(sessionId).find((e) => e.kind === 'agent_start')!.payload as { agentId: string }).agentId
     await writeFile(gate, 'open')
     await expect.poll(ended, { timeout: 60_000 }).toBeGreaterThanOrEqual(1)
-    // lead 的第二个 Run：send_message 给空闲的 mate，mate 以新 Run 接收（section 在任务之后读取）。lead 的 Run 结束后放行 mate 的回复。
+    // lead 的第二个 Run：send_message 给空闲的 mate，mate 以新 Run 接收（状态在任务之后读取）。lead 的 Run 结束后放行 mate 的回复。
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'LEAD-MSG go' })
     await stream.waitFor(() => runEnds() >= 2, 60_000)
     await writeFile(gate2, 'open')
@@ -93,12 +93,19 @@ describe('秘密不外泄总闸：Agent Teams', () => {
     ])
     expect(stream.messages.some((m) => m.type === 'progress' && m.event.type === 'team_update')).toBe(true)
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
-    // 送达消息的请求同时含任务标题的 <team> section 与脱敏后的消息正文。
+    // 送达消息的请求同时含任务标题的 team State Update 与脱敏后的消息正文。
     expect(
       requests.some(
-        (line) => line.includes('<team name=\\"mate\\">') && line.includes('Rotate [REDACTED:secret]') && line.includes('MSG-S the key is [REDACTED:secret]'),
+        (line) =>
+          line.includes('<state_update name=\\"team\\">') && line.includes('Rotate [REDACTED:secret]') && line.includes('MSG-S the key is [REDACTED:secret]'),
       ),
     ).toBe(true)
+    expect(mateEntries.filter((entry) => entry.kind === 'state_update').map((entry) => entry.payload)).toContainEqual(
+      expect.objectContaining({
+        name: 'team',
+        value: expect.objectContaining({ tasks: [expect.objectContaining({ subject: 'Rotate [REDACTED:secret]' })] }),
+      }),
+    )
     expect(requests.some((line) => line.includes('<team-message from=\\"mate\\"'))).toBe(true)
 
     sidecar.child.kill('SIGTERM')
