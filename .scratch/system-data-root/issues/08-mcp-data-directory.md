@@ -32,3 +32,5 @@ TDD：真实 Sidecar 新用例首先失败，fixture 观察到 cwd 是 Workspace
 文档归属：当前 MCP 正文原地更新默认 cwd、可信环境变量、目录生命周期和池化作用域，docs 导航同步摘要。搜索 `缺省为 Workspace`、`stdio 的工作目录`、`MCP.*cwd` 与 `cwd.*MCP`，当前有效行为正文命中归 MCP 正文；已有规格描述已符合新行为，无需改写。AGENTS → docs/README → MCP 正文读回：路径与引用、语义同步、归属与权威、引用方向、生命周期、入口、新会话读入、历史保留均通过，无新增文档目录。
 
 未验证：Windows 实机、真实 Playwright MCP / 外部 HTTP 服务；本票无 renderer、Electron 入口或构建配置变化，不运行桌面产物 E2E。保存与提交状态见后续集成读回；未推送或发布。
+
+集成读回：实施提交 `5d4d7449`，无冲突合入最新集成 tip `d16be237`（本票分支合并提交 `7e7b6648`）。再次运行上述首组 4 文件检查，11 项全部通过；`pnpm run typecheck` 退出 0；`pnpm run check:docs` 检查 378 Markdown、0 问题。提交前 changed-file oxfmt、oxlint 均通过。工作区干净后交新 merger 汇入；未推送或发布。
