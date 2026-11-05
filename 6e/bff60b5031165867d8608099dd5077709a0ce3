@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/11-default-on-and-test-migration.md
+  s_dd1034265ded7f::t_4b3862c8ca3f48 15-22,27-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6ebff60b5031165867d8608099dd5077709a0ce3",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
