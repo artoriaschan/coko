@@ -1,0 +1,58 @@
+tests/integration/sidecar-plugins.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 125-126,207-208
+apps/desktop/e2e/mcp.e2e.test.ts
+  s_dd1034265ded7f::t_d04d33eef8195e 98
+  s_dd1034265ded7f::t_bd9b7c858ce26d 99
+tests/integration/sidecar-mcp.test.ts
+  s_dd1034265ded7f::t_bd9b7c858ce26d 96-99
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_06988b78f70dcd 76
+docs/subsystems/configuration.md
+  s_dd1034265ded7f::t_06988b78f70dcd 43
+tests/integration/sidecar-tool-search.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 29
+  s_dd1034265ded7f::t_bd9b7c858ce26d 197-204
+  s_dd1034265ded7f::t_cf400d3e0c1912 43,172-174
+  s_dd1034265ded7f::t_b2b5d4b3dee643 128,171,219
+  s_dd1034265ded7f::t_9aa4e2e4c7b612 41-42
+tests/integration/sidecar-mcp-auth.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 75,124
+tests/integration/sidecar-m6-seams.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 19,104-105
+tests/integration/sidecar-mcp-presets.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 54,100-101
+tests/integration/sidecar-config.test.ts
+  s_dd1034265ded7f::t_b993f0073b1a66 55
+tests/integration/secrets-gate-mcp.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 62
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_06988b78f70dcd 29
+packages/agent/src/config/schema.ts
+  s_dd1034265ded7f::t_d04d33eef8195e 47
+apps/desktop/e2e/mcp-browser.e2e.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 55
+apps/desktop/e2e/package-smoke.e2e.test.ts
+  s_dd1034265ded7f::t_d04d33eef8195e 14,17,477
+  s_dd1034265ded7f::t_a04b32a5835d5d 307
+apps/desktop/src/renderer/stores/config-store.test.ts
+  s_dd1034265ded7f::t_b993f0073b1a66 10
+tests/integration/sidecar-mcp-resources-prompts.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 127,140
+  s_dd1034265ded7f::t_bd9b7c858ce26d 218-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "aaa2782b0477eb3f02ea8a498b7bd5ad740d7f52",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
