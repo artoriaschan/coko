@@ -40,7 +40,7 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 | --- | --- | --- |
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
-| `mcp.toolSearch` | true | 只有 false 生效；控制 MCP 工具按需加载，当前无界面开关，见 [MCP](mcp.md#工具搜索与按需加载) |
+| `mcp.toolSearch` | true | 只有 false 生效；true 被忽略并给出 `project-cannot-grant` 诊断；全局开关在设置 → MCP 顶部的「工具搜索」分组，见 [MCP](mcp.md#工具搜索与按需加载) |
 | `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
 | `lsp.enabled`、`teams.enabled`（M6） | true | 只有 false 生效；项目文件中 `lsp` 的其他键（例如 `lsp.servers`）以 `project-cannot-grant` 忽略：语言服务器只在全局与 Workspace 设置中配置 |
 | `plugins.enabled`（M6） | true | 只能在全局设置：项目文件中的 `plugins` 键不论取值都以 `project-cannot-grant` 忽略；关闭后所有插件的贡献为空 |
@@ -83,7 +83,7 @@ MCP Server 的配置另有可选布尔值 `alwaysLoad`（缺省 false），适�
 ## 界面
 
 - **General 分区的项目设置行**：当前会话（或草稿）所在 Workspace 的项目文件路径、"未创建" / "没有问题" / 诊断数；诊断数是一个按钮，展开后按 code 显示本地化标题与原始说明。没有 Workspace 时提示先打开会话。
-- **能力开关**：每个开关写全局值；有效值被项目设置关闭时注明"已被项目设置关闭"。General 分区的"上下文"组：`instructions.enabled`、`context.autoCompact`、`context.trimOldToolResults`；MCP 分区顶部：`mcp.enabled`；Skills & Commands 分区：`skills.enabled`、`commands.enabled`；Memory 分区：`memory.enabled`。共用组件 `features/settings/capability-toggle.tsx` 与 `stores/config-store.ts` 的 `setSwitch`（Skills 与 Memory 的开关各有自己的 store，行为相同）。
+- **能力开关**：每个开关写全局值；有效值被项目设置关闭时注明"已被项目设置关闭"。General 分区的"上下文"组：`instructions.enabled`、`context.autoCompact`、`context.trimOldToolResults`；MCP 分区顶部的「工具搜索」组：`mcp.toolSearch`（「按需加载 MCP 工具」），其后为 `mcp.enabled`；Skills & Commands 分区：`skills.enabled`、`commands.enabled`；Memory 分区：`memory.enabled`。共用组件 `features/settings/capability-toggle.tsx` 与 `stores/config-store.ts` 的 `setSwitch`（Skills 与 Memory 的开关各有自己的 store，行为相同）。`mcp.toolSearch` 在下一次 Run（含 retry、continue）生效，进行中的 Run 与等待审批时的工具目录沿用开始时的值。
 - **Permissions 分区的项目规则**：只读列表，标出来源文件，没有删除入口与输入框，见 [权限判定与审批](permissions.md#界面)。
 
 ## 验证
@@ -92,6 +92,7 @@ MCP Server 的配置另有可选布尔值 `alwaysLoad`（缺省 false），适�
 
 - `packages/agent/src/config/merge.test.ts`：合并（默认 / 全局 / 项目、项目 true 不打开全局 false、列表并集）与诊断（`project-cannot-grant`、`unknown-key`、`invalid-value` 且其余键照常、`invalid-json` 整文件忽略）。
 - `tests/integration/sidecar-config.test.ts`：真实 Sidecar 上的 `GET / PUT /api/config`、409、通用设置接口 400、改文件后下一次 GET 与下一个 Run 读到新值、项目 deny 在 full-access 下拒绝、项目 allow 不放行。
+- `tests/integration/sidecar-tool-search-settings.test.ts`：按需加载开关的项目收紧、关闭期间不记录加载、审批中的快照，以及 retry / continue 采用新值且保留已加载工具；`apps/desktop/src/renderer/features/settings/mcp-section.browser.test.tsx` 覆盖中英文默认值、文案、保存与重新读取。
 - `apps/desktop/e2e/config.e2e.test.ts`：General 分区的路径与诊断、Permissions 分区的只读项目规则；能力开关（指令、自动压缩、时间裁剪、MCP、命令）写入全局配置、其他全局键带回、关闭再打开后读回、被项目关闭的项注明。`apps/desktop/src/renderer/stores/config-store.test.ts`：`setSwitch` 的整体替换与 revision。
 
 ## 延伸阅读

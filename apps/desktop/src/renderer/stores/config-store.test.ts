@@ -61,7 +61,14 @@ describe('config-store：能力开关', () => {
   })
 
   it('开关表：全局值缺省为开；项目关闭时有效值为 false', () => {
-    const keys: CapabilitySwitch[] = ['instructions.enabled', 'commands.enabled', 'mcp.enabled', 'context.autoCompact', 'context.trimOldToolResults']
+    const keys: CapabilitySwitch[] = [
+      'instructions.enabled',
+      'commands.enabled',
+      'mcp.enabled',
+      'mcp.toolSearch',
+      'context.autoCompact',
+      'context.trimOldToolResults',
+    ]
     expect(Object.keys(CAPABILITY_SWITCHES).sort()).toEqual([...keys, 'memory.enabled', 'skills.enabled'].sort())
     const config = response({ context: { autoCompact: false } })
     config.effective.instructions.enabled = false
