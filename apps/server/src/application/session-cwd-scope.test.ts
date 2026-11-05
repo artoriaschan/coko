@@ -126,6 +126,7 @@ describe('worktree 会话的作用域', () => {
     await s.settings.set('mcp.servers', { local: { command: 'node', args: ['server.js'] } }, 0)
     const started: string[] = []
     const manager = new McpManager({
+      dataRoot: join(workspaceDir, 'mcp-data'),
       store: s,
       config: new ConfigService({ store: s }),
       secrets: { resolve: async () => undefined, redact: (t) => t, redactValues: (t) => t, onChange: () => () => {} },

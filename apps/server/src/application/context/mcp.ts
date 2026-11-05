@@ -1,4 +1,4 @@
-// MCP（docs/subsystems/mcp.md）：McpManager 按 (Workspace, Server) 池化连接，Workspace 的第一个 Run 开始时并发连接（单个 30 秒超时，
+// MCP（docs/subsystems/mcp.md）：McpManager 按 (Workspace, cwd, Server) 池化连接，Workspace 的第一个 Run 开始时并发连接（单个 30 秒超时，
 // 失败不阻止 Run，该 Server 的工具缺席），之后的 Run 复用；全局配置为设置键 mcp.servers，项目配置为 <Workspace>/.mcp.json（须按摘要批准，
 // 不能引用 Secret，同名被全局遮蔽，ADR 0007、0008）。配置、批准或 Secret 改变、Server 停用时关闭受影响的连接；有序关闭时在存储之前关闭全部连接。
 // HTTP 视图与管理（view、updateServers、approve、reconnect）在 mcp-admin.ts。
@@ -6,7 +6,7 @@
 // /mcp__<server>__<prompt> 登记到命令目录（列表按连接缓存，prompts/list_changed 或重连后重新列出；列命令目录与提交消息时同样先连接）。
 // 认证：HTTP Server 回 401 时连接为 auth-required（不自动重连，Run 开始时也不重试），诊断 mcp-auth-required；command 为 npx 而找不到它时
 // 诊断 mcp-npx-missing（需要安装 Node.js）。两者都随连接状态派生，状态改变后消失。
-import { readFile as readFileFs } from 'node:fs/promises'
+import { mkdir, readFile as readFileFs, realpath } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import {
   createMcpResourceTools,
@@ -48,11 +48,13 @@ const log = getLogger(['application', 'mcp'])
 
 export interface McpManagerOptions {
   store: SessionStore
+  /** MCP Server 持久化数据根（data/mcp），按 Server 名分配子目录。 */
+  dataRoot: string
   /** 有效能力配置（mcp.enabled，含项目 .coko/settings.json 的收紧）。 */
   config: { effective(workspacePath?: string): Promise<CapabilityConfig> }
   secrets: Pick<SecretService, 'resolve' | 'redact' | 'redactValues' | 'onChange'>
   /** 建立传输（adapters/mcp.ts）；config 中的 ${NAME} 已展开。HTTP 传输装配 authProvider（401 时连接为 auth-required）。 */
-  createTransport: (config: McpServerConfig, options: { cwd: string } & McpTransportContext) => McpTransportHandle
+  createTransport: (config: McpServerConfig, options: { cwd: string; dataDir: string } & McpTransportContext) => McpTransportHandle
   /** 测试覆盖（缺省 30 秒、1/2/4 秒）。 */
   connectTimeoutMs?: number
   reconnectDelaysMs?: readonly number[]
@@ -69,7 +71,7 @@ export interface McpManagerOptions {
 
 interface Pooled {
   workspaceId: string
-  /** 连接的工作目录（stdio Server 的 cwd）：worktree 会话与主 checkout 的同名 Server 是不同的连接。 */
+  /** 配置与协议根目录：worktree 会话与主 checkout 的同名 Server 是不同的连接，不等于 stdio 进程 cwd。 */
   cwd: string
   entry: McpServerEntry
   connection: McpConnection
@@ -260,7 +262,11 @@ export class McpManager {
         const current = this.#pool.get(key)?.entry ?? entry
         const expanded = await expandSecretRefs(current.config, (name) => secrets.resolve(name))
         if (!expanded.ok) throw new Error(`Secret ${expanded.missing.join(', ')} is not registered; add it under Settings → MCP → Secrets`)
-        return this.#options.createTransport(expanded.config, { cwd, authProvider })
+        // 名字来自已校验配置；编码也保证插件命名空间和路径分隔符不改变目录层级。
+        const directory = join(this.#options.dataRoot, encodeURIComponent(current.name).replaceAll('.', '%2E'))
+        await mkdir(directory, { recursive: true })
+        const dataDir = await realpath(directory)
+        return this.#options.createTransport(expanded.config, { cwd, dataDir, authProvider })
       },
     })
     let lastStatus = connection.status

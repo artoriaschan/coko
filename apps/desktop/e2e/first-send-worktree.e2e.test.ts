@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { tmpdir } from 'node:os'
-import { mkdir, mkdtemp, rm, writeFile, readFile, realpath, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile, readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
-import { launchApp, stubDirectoryPicker, waitConnected } from './harness.ts'
+import { cokoHomeOf, launchApp, stubDirectoryPicker, waitConnected } from './harness.ts'
 
 it('CW-65: real Electron sends its first project message in a new worktree from the selected base branch', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'coko-worktree-native-')))
@@ -66,6 +66,11 @@ it('CW-65: real Electron sends its first project message in a new worktree from 
   expect((await git('worktree', 'list', '--porcelain')).match(/worktree /g)).toHaveLength(1)
   await page.getByRole('button', { name: /^(Permission mode:|权限模式：)/ }).click()
   await page.getByRole('menuitemradio', { name: /Full access|全权处理/ }).click()
+  await page
+    .locator('[data-permission-risk-dialog]')
+    .getByRole('button', { name: /^(Turn on anyway|仍要开启)$/ })
+    .click()
+  await page.locator('[data-permission-risk-dialog]').waitFor({ state: 'detached' })
   const editor = page.getByRole('textbox', { name: /^(Give Coko a task|向 Coko 布置任务)$/ })
   await editor.fill('Native worktree task')
   await editor.press('Enter')
@@ -88,21 +93,22 @@ it('CW-65: real Electron sends its first project message in a new worktree from 
   await writeFile(join(tree.path, 'README.md'), 'WORKTREE_SELECTED_CONTENT')
   await stubDirectoryPicker(app.app, [join(repo, 'README.md'), join(tree.path, 'README.md')])
   await page.getByRole('button', { name: /^(Add attachment|添加附件)$/ }).click()
-  await expect.poll(() => editor.textContent()).toContain(join(repo, 'README.md'))
+  await expect.poll(() => page.locator('[data-slot="file-drafts"] li').count()).toBe(1)
   await page.getByRole('button', { name: /^(Add attachment|添加附件)$/ }).click()
-  await editor.locator('[data-file-reference="README.md"]').waitFor()
-  expect(await editor.locator('[data-file-reference]').count()).toBe(1)
-  expect(await editor.textContent()).toContain(join(repo, 'README.md'))
-  expect(await editor.textContent()).not.toContain('@.coko-worktrees/')
-  await editor.press('Enter')
+  await expect.poll(() => page.locator('[data-slot="file-drafts"] li').count()).toBe(2)
+  expect(await editor.locator('[data-file-reference]').count()).toBe(0)
+  await page.getByRole('button', { name: /^(Send|发送)$/ }).click()
   await page.getByRole('article', { name: 'Coko' }).filter({ hasText: 'Worktree attachment expanded.' }).waitFor()
   const sent = (await readFile(requestLog, 'utf8'))
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line))
     .at(-1)
-  expect(JSON.stringify(sent)).toContain('WORKTREE_SELECTED_CONTENT')
-  expect(JSON.stringify(sent)).toContain('<file_reference path=')
+  const copies = join(cokoHomeOf(app.dir), 'data', 'attachments', facts.sessions[0].id)
+  const copiedBodies = await Promise.all((await readdir(copies)).map((name) => readFile(join(copies, name), 'utf8')))
+  expect(copiedBodies.sort()).toEqual(['WORKTREE_SELECTED_CONTENT', 'source checkout'])
+  expect(JSON.stringify(sent)).toContain('<coko_attachment>')
+  expect(JSON.stringify(sent)).toContain(copies)
   expect(JSON.stringify(sent)).not.toContain('source checkout')
   expect(await readFile(join(repo, 'README.md'), 'utf8')).toBe('source checkout')
 })

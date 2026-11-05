@@ -32,3 +32,5 @@ export * from './worktrees.ts'
 export * from './ws.ts'
 
 export * from './branches.ts'
+
+export * from './attachment-reference.ts'
