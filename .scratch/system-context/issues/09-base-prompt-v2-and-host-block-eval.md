@@ -36,3 +36,5 @@ TDD：先跑 `rtk pnpm run test tests/integration/sidecar-base-prompt.test.ts`�
 文档影响与读回：基础提示和版本 → `packages/agent/README.md`；用例、报告字段与门槛命令 → `docs/subsystems/tracing.md`。从 AGENTS → docs/README → 正文读回，路径、当前入口、归属、引用方向、语义同步、生命周期和历史保留均通过；旧规格和讨论保留原要求，通过本票说明当前未激活状态。
 
 限制：真实模型各三次比较、真实提示缓存、Electron UI、构建产物和 CI 未验证；没有凭据时门槛未完成，不能将候选标为已取代默认提示。
+
+合并集成分支 `22796edf`（含 continue 与压缩补发）后复核：`rtk pnpm run test tests/integration/sidecar-base-prompt.test.ts tests/integration/sidecar-state-update-continue.test.ts` 为 2 文件、5 例通过；typecheck、check:docs（360 文件、0 问题）、diff-check 仍退出 0。共享 README 无冲突，保留两方说明。
