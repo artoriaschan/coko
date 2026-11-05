@@ -49,8 +49,15 @@ export type CatalogMatchesModelSpec = Assert<Equal<CatalogModel, ModelSpec>>
 /** 库中的 Model Catalog：写入前已按协议 schema 校验，读回原样使用。 */
 export const catalogOf = (provider: Pick<StoredProvider, 'models'>): CatalogModel[] => provider.models as CatalogModel[]
 
-export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'api' | 'baseUrl' | 'models'>): ProviderConfig {
-  return { id: provider.id, name: provider.name, api: provider.api as ModelProtocol, baseUrl: provider.baseUrl, models: catalogOf(provider) }
+export function toProviderConfig(provider: Pick<StoredProvider, 'id' | 'name' | 'api' | 'baseUrl' | 'models' | 'incrementalTools'>): ProviderConfig {
+  return {
+    id: provider.id,
+    name: provider.name,
+    api: provider.api as ModelProtocol,
+    baseUrl: provider.baseUrl,
+    ...(provider.incrementalTools === undefined ? {} : { incrementalTools: provider.incrementalTools }),
+    models: catalogOf(provider),
+  }
 }
 
 export function toProviderDto(provider: StoredProvider): Provider {
@@ -164,8 +171,8 @@ export class ProviderService {
    * update 不带 credential 时保留原 Credential；带 credential 时替换并清除 sidecar 内存中的明文缓存。
    */
   async save(mode: ProviderSaveMode, fields: ProviderFields, credential?: { ciphertext: string; hint: string }): Promise<Provider> {
-    const { id, name, api, baseUrl, models } = fields
-    const record: ProviderInput = { id, name, api, baseUrl, models }
+    const { id, name, api, baseUrl, models, incrementalTools } = fields
+    const record: ProviderInput = { id, name, api, baseUrl, models, incrementalTools }
     const secret: CredentialRecord | undefined = credential && {
       ciphertext: new Uint8Array(Buffer.from(credential.ciphertext, 'base64')),
       hint: credential.hint,
@@ -173,7 +180,7 @@ export class ProviderService {
     validate(toProviderConfig(record))
     const { providers } = this.#options.store
     const saved = await storeCall(id, () =>
-      mode === 'create' ? providers.create(record, secret) : providers.update(id, { name, api, baseUrl, models }, secret),
+      mode === 'create' ? providers.create(record, secret) : providers.update(id, { name, api, baseUrl, models, incrementalTools }, secret),
     )
     this.#options.registry.setProvider(toProviderConfig(saved))
     if (secret) this.#options.invalidateCredential(id)
@@ -223,13 +230,13 @@ export class ProviderService {
     const updated: StoredProvider[] = []
     const previousDefault = await settings.get(DEFAULT_MODEL_SETTING)
     try {
-      for (const { id, name, api, baseUrl, models } of config.providers) {
+      for (const { id, name, api, baseUrl, models, incrementalTools } of config.providers) {
         const before = existing.get(id)
         if (before) {
-          await providers.update(id, { name, api, baseUrl, models })
+          await providers.update(id, { name, api, baseUrl, models, incrementalTools })
           updated.push(before)
         } else {
-          await providers.create({ id, name, api, baseUrl, models })
+          await providers.create({ id, name, api, baseUrl, models, incrementalTools })
           created.push(id)
         }
       }
@@ -238,7 +245,9 @@ export class ProviderService {
       // 补偿：同一进程持有库的租约，没有并发写入方；按相反顺序撤销。
       for (const id of created.reverse()) await providers.delete(id).catch(() => undefined)
       for (const before of updated.reverse())
-        await providers.update(before.id, { name: before.name, api: before.api, baseUrl: before.baseUrl, models: before.models }).catch(() => undefined)
+        await providers
+          .update(before.id, { name: before.name, api: before.api, baseUrl: before.baseUrl, models: before.models, incrementalTools: before.incrementalTools })
+          .catch(() => undefined)
       log.error('provider config rolled back', { error: error instanceof Error ? error.message : String(error) })
       throw error
     }

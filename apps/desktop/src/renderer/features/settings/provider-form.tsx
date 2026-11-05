@@ -1,6 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import { ModelProtocol, type Provider } from '@coko/protocol'
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Input, toast } from '@coko/ui'
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Input, Switch, toast } from '@coko/ui'
 import { ChevronDownIcon, CircleAlertIcon } from 'lucide-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
@@ -64,7 +64,7 @@ export function ProviderForm({
     if (focusTick > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
   }, [focusTick])
 
-  const update = (field: Exclude<keyof FormDraft, 'models'>, value: string) => {
+  const update = (field: Exclude<keyof FormDraft, 'models' | 'incrementalTools'>, value: string) => {
     onChange({ ...draft, [field]: value })
     if (field in errors)
       setErrors((current) => {
@@ -183,6 +183,31 @@ export function ProviderForm({
       )}
     </Field>
   )
+  const toolSearchField = (
+    <section aria-labelledby={`${id}-tool-search-title`} className="flex flex-col gap-2">
+      <h4 id={`${id}-tool-search-title`} className="text-ui-body font-medium">
+        {t('providers.toolSearch.title')}
+      </h4>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <label id={`${id}-incremental-label`} htmlFor={`${id}-incremental`} className="text-ui-small">
+            {t('providers.toolSearch.label')}
+          </label>
+          <p id={`${id}-incremental-hint`} className="text-ui-caption text-muted-foreground">
+            {t('providers.toolSearch.description')}
+          </p>
+        </div>
+        <Switch
+          id={`${id}-incremental`}
+          className="shrink-0"
+          aria-labelledby={`${id}-incremental-label`}
+          aria-describedby={`${id}-incremental-hint`}
+          checked={draft.incrementalTools ?? draft.api !== 'openai-completions'}
+          onCheckedChange={(checked) => onChange({ ...draft, incrementalTools: checked })}
+        />
+      </div>
+    </section>
+  )
   const secretField = (
     <Field {...field('secret')} label={t('providers.credential')}>
       {(aria) => (
@@ -230,6 +255,7 @@ export function ProviderForm({
           {nameField}
           {urlField}
           {protocolField}
+          {toolSearchField}
           {secretField}
         </div>
       ) : (
@@ -241,6 +267,7 @@ export function ProviderForm({
             {nameField}
             {urlField}
             {protocolField}
+            {toolSearchField}
           </div>
         </>
       )}

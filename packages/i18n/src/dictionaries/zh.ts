@@ -423,6 +423,11 @@ export const zh = {
     idInvalid: 'Provider ID 须以小写字母开头，只含小写字母、数字与连字符，最长 64',
     idTaken: 'ID 已被使用',
     name: '显示名称',
+    toolSearch: {
+      title: '工具搜索',
+      label: '加载新工具时保留提示词缓存',
+      description: '对话中途按需加载工具时，只在加载处追加工具定义，不改动整份工具列表。需要服务端支持，不支持时请求会报错，关掉即可。',
+    },
     protocol: 'API 协议',
     protocols: {
       'openai-completions': 'OpenAI Chat Completions',

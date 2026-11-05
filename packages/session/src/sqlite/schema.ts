@@ -333,6 +333,12 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('ALTER TABLE sessions ADD COLUMN directory TEXT; ALTER TABLE sessions ADD COLUMN cwd TEXT;')
     },
   },
+  {
+    version: 13,
+    up(db) {
+      db.exec('ALTER TABLE providers ADD COLUMN incremental_tools INTEGER CHECK (incremental_tools IN (0, 1))')
+    },
+  },
 ]
 
 /**

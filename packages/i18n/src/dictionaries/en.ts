@@ -426,6 +426,12 @@ export const en: typeof zh = {
     idInvalid: 'Provider ID must start with a lowercase letter and contain only lowercase letters, digits and hyphens (up to 64)',
     idTaken: 'ID is already in use',
     name: 'Display name',
+    toolSearch: {
+      title: 'Tool search',
+      label: 'Keep the prompt cache when loading tools',
+      description:
+        'When a tool is loaded mid-conversation, its definition is added where it was loaded instead of changing the whole tool list. This needs support from the service; if requests start failing, turn it off.',
+    },
     protocol: 'API protocol',
     protocols: {
       'openai-completions': 'OpenAI Chat Completions',

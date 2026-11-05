@@ -78,6 +78,8 @@ SIGINT / SIGTERM：中止进行中的 Run，等待 run_end 提交，写出 resul
 
 ## Provider 配置
 
+Provider 可带布尔字段 `incrementalTools`，行为与桌面设置一致；缺省值和使用条件见 [MCP 工具增量传输](mcp.md#provider-的工具增量传输)。启动配置更新或失败补偿会保留该字段的显式值。
+
 `--provider-config <file>`：`{ "providers": ProviderFields[], "defaultModel"?: "<providerId>/<modelId>" }`。启动时 `upsertFromConfig` 先校验整份文件（密钥形态的字段名 `apiKey`、`api_key`、`secret`、`token`、`password`、`credentials`、`authorization` 等在任意深度出现即拒绝，消息不含值；协议 schema；能否构造模型；`defaultModel` 是否指向文件或库中的模型），全部通过后新建或更新（已有的 Credential 不变），中途写入失败时撤销已写入的；任一项失败以 4 退出，库不变。只在 headless 装配中可用，HTTP 与控制消息都不提供。
 
 密钥只读 `COKO_CREDENTIAL_<ID>`（ID 大写、非字母数字换成下划线）。Session 将用的模型属于库中的 Provider 而变量缺失时 Run 不开始：result 为 `failed`、`error.code` 为 `no-credential`，以 1 退出。

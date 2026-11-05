@@ -232,7 +232,19 @@ export function createContextAssembly(options: {
           if (contribution.stateValues) Object.assign(values, await contribution.stateValues(scope))
         }
         if (catalog?.length) values.on_demand_tools = catalog.map((tool) => tool.name).sort()
-        return planStateUpdates(redactSecretsDeep(values), await entries(), catalog?.length ? { on_demand_tools: () => renderOnDemandCatalog(catalog) } : {})
+        return planStateUpdates(
+          redactSecretsDeep(values),
+          await entries(),
+          catalog?.length
+            ? {
+                on_demand_tools: (_value, previous) =>
+                  renderOnDemandCatalog(catalog, {
+                    contextWindow: scope.model?.contextWindow,
+                    ...(Array.isArray(previous) ? { previousNames: previous } : {}),
+                  }),
+              }
+            : {},
+        )
       } catch (error) {
         log.warn('state updates unavailable', { error: message(error) })
         return undefined

@@ -1,0 +1,22 @@
+<state_update name="on_demand_tools">
+On-demand tool catalog update. Use tool_search to load a tool before calling it directly.
+
+Added:
+next (7 tools):
+- mcp__next__big: Returns many lines
+- mcp__next__echo: Echo the text back
+- mcp__next__env_raw: Value of an environment variable (secrets gate only)
+- mcp__next__env_sha: SHA-256 of an environment variable
+- mcp__next__fail: Always returns an error result
+- mcp__next__hidden: Disabled in tests
+- mcp__next__sleep: Waits before answering
+
+Removed:
+- mcp__old__big
+- mcp__old__echo
+- mcp__old__env_raw
+- mcp__old__env_sha
+- mcp__old__fail
+- mcp__old__hidden
+- mcp__old__sleep
+</state_update>

@@ -78,7 +78,7 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 设置 → MCP 顶部的「工具搜索」分组提供「按需加载 MCP 工具」开关；保存时只改全局 `mcp.toolSearch`，其他配置保留。项目文件只能设为 false；设为 true 会被忽略并产生 `project-cannot-grant` 诊断。改动从下一次 Run（包括 retry、continue）生效，进行中的 Run 即使等待审批也沿用开始时的值。开关关闭时没有 `tool_search` 和目录，直接调用不会写加载记录；重新打开后，这些调用过的工具仍为按需工具。之前已经搜索加载的工具则继续保留。
 
-目录通过 `on_demand_tools` State Update 按 Server 分组公告，每行包含工具名与首句说明（至多 60 字），不含 schema；首次或名单变化时发送完整目录，名单不变不重发。读取或渲染失败只记 warn。进行中的 Run 使用同一快照，工具列表变化到下一个 Run 生效。
+目录通过 `on_demand_tools` State Update 按 Server 分组公告，不含 schema；首次发送完整目录，之后只发送 `Added` / `Removed`，名单不变不重发。对话回退或压缩后的下一次送达重发完整目录。说明至多 60 字，超预算时依次缩短说明（截断下限 24 字）、只列名称、只列 Server 与工具数，预算与派生规则见[上下文管理](context.md#state-update)。读取或渲染失败只记 warn，Run 继续。进行中的 Run 使用同一快照，工具列表变化及手动重连成功都到下一个 Run 生效。
 
 `tool_search { query, limit? }` 一次完成搜索与加载。普通关键词默认返回 5 项、最多 20 项；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制；`+词` 要求候选包含该词。检索文本只取工具名（`_ . - :` 换成空格）、说明与第一层参数名，不递归索引 schema、不翻译。英文与数字按词、中日韩文字按相邻二字切分（单字保留），在必需词过滤后的候选上计算 BM25（k1=1.5、b=0.75）；同分按 Server、名称排序，没有正分时才按完整查询串做工具名子串匹配。
 
@@ -95,6 +95,14 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 - **权限**：宿主以权限类 external 注册，只有 full-access 免审批；规则可写全名或 `mcp__<server>`（匹配该 Server 全部工具），见 [权限判定与审批](permissions.md#模式)。effect 一律 side-effect（Server 的 readOnly 提示不可信），因此执行前提交 `tool_exec`。
 - **调用**：`tools/call` 的 `_meta.idempotencyKey` 为 `<sessionId>:<toolCallId>`（与 `tool_exec` 记录同一个键）；超时为配置的 `timeout`，进度通知重置并作为 `tool_update` 推送；统一的 10 分钟工具时限不适用。超时与中止为该次调用的错误结果，不中断 Run。
 - **结果**：`isError` 为错误结果（没有文本时为 `MCP tool <server>/<tool> returned an error`）；文本块合并后按 2000 行 / 50KB 截断并注明 `[MCP output truncated: showing N of M lines…]`；图片（含嵌入的图片资源）透传：toolResult 条目中为 `{ type: 'image', data, mimeType }` 块，下一次模型请求原样带上（base64 与 mimeType 不变，Secret 的按值替换只作用于文本）；嵌入的文本资源转为文本；音频、资源链接与二进制资源注明省略；只有 `structuredContent` 时为其 JSON。
+
+### Provider 的工具增量传输
+
+Provider 表单在协议下方显示「工具搜索」分组及「加载新工具时保留提示词缓存」。可选的 `incrementalTools` 随 Provider 与 Credential 一次保存；未设置时，anthropic-messages 与 openai-responses 默认开启，openai-completions 默认关闭，已有 Provider 同样按协议取默认值。Headless 的 Provider 配置接受同一字段。
+
+只有根 Session 开启按需加载、当前 Run 的目录非空且 Provider 开关开启时使用原生写法：Messages 以 `tool_addition` 声明加载的工具，并发送 `inline-tools-2026-09-15` beta；Responses 在 `additional_tools` 中声明。其余情况发送完整的当前工具列表。开关值在 Run 开始时确定；等待审批时修改 Provider 不改变进行中的 Run，下一个 Run、continue 与 retry 才采用新值，已加载记录保留。
+
+构造运行时时，未入库的开头工具基线只含常驻工具，已加载工具沿历史声明回放，避免 Anthropic 重启后把它们移到请求级 tools 而改写前缀。压缩去掉较早声明时，丢弃前缀的工具状态经 pi 的 transcript 接口折入新的开头基线，保留区间的声明仍按原位置回放；自动压缩后的同一次请求不会丢失已加载定义。上述写法与生命周期由[真实 Sidecar 和本地模型 HTTP 服务](../../tests/integration/sidecar-incremental-tools.test.ts)验证，不代表已实测真实 Provider 的缓存命中。
 
 ## 资源
 

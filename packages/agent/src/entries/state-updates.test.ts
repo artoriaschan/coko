@@ -34,6 +34,25 @@ describe('State Update provenance', () => {
 })
 
 describe('State Update planning', () => {
+  it.each(['rewind', 'compaction'])('resends the catalog after %s even when its earlier announcement survives', (kind) => {
+    const names = ['mcp__demo__read']
+    const prior: EntryLike[] = [
+      { seq: 1, kind: 'state_update', runId: 'r', payload: { name: 'on_demand_tools', value: names } },
+      { ...message('on_demand_tools'), seq: 3 },
+      { seq: 4, kind: 'message', payload: { role: 'user', content: 'later' } },
+      { seq: 5, kind, payload: kind === 'rewind' ? { targetSeq: 4 } : { summary: 'summary', firstKeptSeq: 1 } },
+    ]
+    const delivered = planStateUpdates({ on_demand_tools: names }, prior, {
+      on_demand_tools: (_value, previous) => (previous === undefined ? 'FULL' : 'DELTA'),
+    })!
+    expect(delivered.blocks).toEqual([{ type: 'text', text: '<state_update name="on_demand_tools">\nFULL\n</state_update>' }])
+    const entries = [
+      ...prior,
+      { seq: 6, runId: 'next', ...delivered.entries[0]! },
+      { seq: 7, runId: 'next', kind: 'message', payload: { role: 'user', content: delivered.blocks } },
+    ]
+    expect(planStateUpdates({ on_demand_tools: names }, entries)).toBeUndefined()
+  })
   it('first value sends; unchanged skips; null clears once; absent null skips', () => {
     expect(planStateUpdates({ todo_list: value }, [])?.entries[0]).toMatchObject({ kind: 'state_update', payload: { name: 'todo_list', value } })
     expect(planStateUpdates({ todo_list: value }, [marker(), message()])).toBeUndefined()

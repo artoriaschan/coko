@@ -26,7 +26,10 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
 
-MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需加载开启且根 Session 的 MCP 目录非空时，`on_demand_tools` 的值记录排序后的已公告工具名，正文按 Server 展示名字与首句说明；名单变化时重发完整目录，不变不发。目录与搜索使用同一 Run 开始时的工具快照；子代理与 Teammate 没有该项。加载事实另存 `tool_load`，不依赖 State Update 或搜索结果文字，工具用量只计本次实际提供的定义。当前行为见 [MCP 的工具搜索](mcp.md#工具搜索与按需加载)。
+MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需加载开启且根 Session 的 MCP 目录非空时，`on_demand_tools` 的值记录排序后的已公告工具名。首次正文按 Server 展示名字与首句说明；之后只列 `Added` 与 `Removed`，名单不变不发。公告名单仅从有效上下文中已配对的条目派生，不另存可变副本。对话回退或压缩之后重发完整目录，即使切点之前仍保留旧公告；纯文件回退不产生对话边界，不触发重发。目录与搜索使用同一 Run 开始时的工具快照：Run 进行中连接或重连的工具到下一 Run 才进入目录，子代理与 Teammate 没有该项。
+
+目录不含 schema，预算为 5000 token 与当前模型窗口 2.5% 的较小值；中日韩字符按 1 token、其余按 chars/4 估算。说明从首句最多 60 字开始，超预算时统一缩短到最少 24 字，再依次将最长的组改为只列名称、只列 Server 与工具数；原说明不足 24 字时保留原文。读取或渲染失败只记 warn，本次不发送更新，Run 继续。加载事实另存 `tool_load`，不依赖 State Update 或搜索结果文字，工具用量只计本次实际提供的定义。当前行为见 [MCP 的工具搜索](mcp.md#工具搜索与按需加载)。
+
 
 ## 结构入口
 
@@ -190,6 +193,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 条目与模型上下文
 
+- 压缩重建时，切点前的工具声明经 pi 的 transcript 接口折入未持久化的开头工具基线；切点后的工具增减继续在原位置回放。自动压缩发生在 pi 已生成本轮声明之后，同一次请求也保有完整的当前工具定义，见 [MCP 增量传输](mcp.md#provider-的工具增量传输)。
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills?, usage? }`（v2；`usage` 为摘要请求的 usage，计入 [Goal 预算](goal.md#预算)，v1 条目原样读回、没有 usage）在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
 - 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。

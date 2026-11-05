@@ -184,6 +184,8 @@ export interface ProviderInput {
   /** 模型协议，例如 openai-completions、openai-responses、anthropic-messages。 */
   api: string
   baseUrl: string
+  /** 未设置时按协议使用工具增量传输的默认值。 */
+  incrementalTools?: boolean
   /** Model Catalog：每个模型的配置，按 JSON 保存并原样读回。 */
   models: JsonValue[]
 }
