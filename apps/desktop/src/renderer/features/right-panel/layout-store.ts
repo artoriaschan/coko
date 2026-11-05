@@ -3,7 +3,7 @@ import { createRendererLog } from '../../app/renderer-log.ts'
 import { INITIAL_RIGHT_PANEL_LAYOUT, parseRightPanelLayout, RIGHT_PANEL_LAYOUT_PREFIX, RIGHT_PANEL_PAGE_KINDS } from './layout-persistence.ts'
 
 /** 页面种类就是 tab 身份；开始页也遵守单例规则。 */
-export type RightPanelTabId = 'plan' | 'jobs' | 'agents' | 'schedules' | 'team' | 'trace' | 'diagnostics'
+export type RightPanelTabId = 'plan' | 'jobs' | 'agents' | 'schedules' | 'team' | 'trace' | 'diagnostics' | 'artifacts'
 export type RightPanelPageKind = RightPanelTabId | 'start'
 export interface RightPanelLayout {
   tabs: readonly RightPanelPageKind[]

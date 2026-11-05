@@ -1,3 +1,5 @@
+import type { StoragePathsResponse } from '@coko/protocol'
+import type { ArtifactService } from './artifacts.ts'
 import type { BranchService } from './branches.ts'
 import type { ProjectService } from './projects.ts'
 import type { FirstSendService } from './first-send.ts'
@@ -28,12 +30,15 @@ import type { WorkspaceService } from './workspaces.ts'
 
 /** application 层的全部入口，由 runtime 装配，http / ws 只经这里访问业务。 */
 export interface Application {
+  artifacts: ArtifactService
   store: SessionStore
   hub: SessionHub
   sessions: SessionService
   firstSend: FirstSendService
   providers: ProviderService
   settings: SettingsService
+  /** 启动时解析的只读主根与独立会话根。 */
+  storage: StoragePathsResponse
   workspaces: WorkspaceService
   projects: ProjectService
   /** 有效能力配置（docs/subsystems/configuration.md）。 */

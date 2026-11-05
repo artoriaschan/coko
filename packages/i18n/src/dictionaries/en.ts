@@ -2,6 +2,35 @@ import type { zh } from './zh.ts'
 
 // 基础字典（M2 及之前）；M3 起的文案在 domains/。
 export const en: typeof zh = {
+  artifacts: {
+    tab: 'Artifacts',
+    folder: 'outputs/',
+    refresh: 'Refresh artifacts',
+    loading: 'Loading artifacts',
+    files: 'Delivery files',
+    empty: 'No delivery files yet. Files in outputs/ appear here.',
+    loadFailed: 'Could not load delivery files. Refresh to try again.',
+    open: 'Open {name}',
+    reveal: 'Show {name} in Finder',
+    copy: 'Copy path of {name}',
+    expand: 'Expand {name}',
+    collapse: 'Collapse {name}',
+    copied: 'Path copied',
+    actionFailed: 'The file may have moved or been deleted. Refresh and try again.',
+  },
+  storage: {
+    retry: 'Retry',
+    openFailed: 'The folder does not exist or could not be opened. Try again after checking the path.',
+    title: 'Storage',
+    home: 'Application data',
+    chatsRoot: 'Chats and projects',
+    openFolder: 'Open folder',
+    openHome: 'Open application data folder',
+    openChatsRoot: 'Open chats and projects folder',
+    hint: 'Set COKO_HOME to change application data, or COKO_CHATS_ROOT to change chats and projects. These paths are read-only here.',
+    loading: 'Loading storage locations…',
+    loadFailed: 'Could not load storage locations.',
+  },
   app: {
     name: 'Coko',
   },

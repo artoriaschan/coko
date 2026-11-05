@@ -18,7 +18,7 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 启动时先渲染品牌加载屏（[startup-screen.tsx](../../apps/desktop/src/renderer/app/startup-screen.tsx)）：覆盖整个窗口、背景取 `--background`、顶部 48px 保持窗口拖拽，正文居中展示 250px 圆形品牌角色。渲染进程在 Sidecar 连接后读取设置，等设置进入 `ready` 或 `error` 后先应用已保存的语言与主题，并确定开发者页面的可用条件，再渲染工作台；因此首帧就是保存的语言，不再出现“系统英文 → 应用中文”的闪动。连接失败或超过 10 秒仍无设置时也进入工作台，由工作台展示连接错误，避免一直停在加载屏。
 
-侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。
+侧栏顶部安全区依次放置收起侧栏、后退、前进按钮；macOS 为原生窗口控制按钮预留空间。下面三项导航为新对话、插件和定时任务，高度均为 32px。新对话右侧的搜索按钮打开共享模态搜索浮层，不创建会话。收起侧栏时整列隐藏，主内容左上角显示展开、后退、前进和新对话四个 28px 按钮；悬停展开按钮浮出侧栏卡片，点击则在宽窗口固定展开、在窄窗口打开抽屉。搜索、插件、定时任务与设置入口在展开的侧栏或抽屉中。列表在中间独立滚动，底部设置入口固定为 46px 底栏中的 36px 圆弧按钮：16px 齿轮图标加“设置”，常态透明，hover 使用共享 accent；点击打开整页设置。设置 → 常规可只读查看主数据根与对话/项目根，并打开目录；路径来源与错误处理见[存储位置](configuration.md#主数据根与启动路径)。
 
 [导航 store](../../apps/desktop/src/renderer/app/workbench-navigation.ts) 保存当前窗口中的内容区位置：会话、新对话、插件或定时任务。新位置清空前进历史，连续访问同一位置不重复记录；后退和前进跳过当前列表中已经不存在的会话，因此删除或归档后的会话不会重新打开。首次列表加载不制造一次额外的历史访问。外部入口打开会话也更新内容区位置。
 
@@ -46,11 +46,11 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 右栏关闭时，标题行末尾显示面板图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
-右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口包含计划、后台任务、子代理、定时任务、团队、追踪；有专属目录的独立会话还在首位显示 Artifacts；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
 布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
 
-右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
+右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。各页面的正文与数据来源继续遵循各子系统契约。
 
 tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/End 只移动焦点，Enter/空格选择页面；⌘/Ctrl+Shift+左右方向键移动聚焦的 tab 并保留活动页面。指针排序复用 `@dnd-kit/core`。tab 可以用关闭按钮、中键，或共享右键菜单中的“关闭”“关闭其他标签页”“关闭右侧标签页”关闭，批量关闭仅影响当前 Session；唯一的引导页中键与右键均无效。tab 溢出时横向滚动并按滚动位置渐隐，后面的新标签页与收起按钮不被压缩；实际截断的标题在悬停或键盘聚焦时通过 Tooltip 显示全文。
 
@@ -259,6 +259,18 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 新 Session 包含所选回复及之前的有效模型上下文（含思考、工具调用与结果），先按边界截取再选择当时的压缩摘要，排除后来消息和摘要。自动打开且输入为空；源条目、源草稿与当前文件不变。沿用源 Project、模型、推理档位及实际 Worktree 目录；助手分支采用源当前权限状态。分支共享当前文件，不创建 Worktree 或恢复旧代码。旧用户锚点 API 保持目标之前与回填原始调用的兼容语义。
 
 复制消息的原提交时间、成功最终回复证明和来源计量存于 `fork_origin` 来源表。历史底栏复用同一计量汇总器读取来源事实，旧消耗不计入新 Session；可信复制回复可再次分支。旧 Fork 无法证明原消息时间或成功资格时不补造事实，复制落盘时刻不显示为原发送时间。后继决定见 [ADR 0023](../adr/0023-assistant-reply-forks.md)。验证：[App 分支](../../apps/desktop/src/renderer/features/conversation/assistant-branch.browser.test.tsx)、[Sidecar 上下文](../../tests/integration/sidecar-rewind.test.ts)、[静默 Electron](../../apps/desktop/e2e/message-footers.e2e.test.ts)。
+
+## Artifacts 交付文件
+
+拥有 `directory` 且不属于 Project 的独立会话，在右栏“开始”页提供 Artifacts。项目会话和没有专属目录的旧会话不显示该入口；会话移入项目后，已有的 Artifacts 页面也从该会话的可见标签中移除，当前页面回到其他可用页或“开始”。布局仍沿用每个 Session 的本地保存规则。
+
+Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Session Entry，也不保存历史版本。面板挂载时读取，完成每次读取后约一秒再扫描；关闭页面或切换会话会中止请求并清理计时器。手动刷新和重新打开同样重新扫描。空态说明 `outputs/` 暂无交付文件；读取失败时保留最近一次清单并提供刷新，删除的文件在下一次成功扫描后消失。
+
+[Artifact 服务](../../apps/server/src/application/artifacts.ts)递归列出普通文件与目录，跳过隐藏项、符号链接和其他特殊文件；`outputs/` 自身被替换为符号链接时拒绝读取。文件树显示名称、相对路径和大小，目录可以展开与收起。文件名打开默认应用，行尾可以在 Finder 中显示或复制绝对路径。打开、显示与复制前，服务端重新解析路径并核对其仍处于当前 `outputs/` 内；条目已经消失或变成链接时拒绝操作并提示刷新。renderer 只经 HTTP 获取清单与解析结果，原生打开/显示由受控 preload bridge 转交 main。
+
+协议位于 [artifacts.ts](../../packages/protocol/src/artifacts.ts)：`GET /api/sessions/:id/artifacts` 返回扁平清单，每项有 `path`（正斜线相对路径）、`name`、`kind`、`size` 和 `modifiedAt`（文件系统毫秒时间）；目录大小为 0。`POST /api/sessions/:id/artifacts/resolve` 接收相对 `path` 并返回当前绝对路径。项目/旧会话返回 404，非法路径返回 400，越界链接和被替换的根返回 403，已消失的条目返回 404。
+
+验证：[真实 Sidecar 文件树与边界](../../tests/integration/sidecar-artifacts.test.ts)、[Browser Mode 文件操作、刷新、错误保留与窄面板](../../apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx)、[后台 Electron 面板与原生 bridge](../../apps/desktop/e2e/artifacts.e2e.test.ts)。Electron 用例保留真实 preload/main 调用链，只在系统 `shell` 边界记录打开/显示路径，不启动用户的外部文件应用；Windows 实机及真实 Finder 前台交互未验证。
 
 ## 验证入口
 

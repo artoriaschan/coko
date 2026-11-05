@@ -1,3 +1,4 @@
+import { ArtifactService } from '../application/artifacts.ts'
 import { AttachmentStore } from '../application/attachments.ts'
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
@@ -752,6 +753,7 @@ const AppLive = Layer.effect(
       providers,
       firstSend: new FirstSendService({ store, sessions, worktrees, chatsRoot: config.chatsRoot, titles }),
       settings: new SettingsService(store),
+      storage: { home: config.cokoHome, chatsRoot: config.chatsRoot },
       workspaces: new WorkspaceService(store),
       projects: new ProjectService(store, sessions, config.chatsRoot),
       config: capabilities,
@@ -780,6 +782,7 @@ const AppLive = Layer.effect(
       lsp,
       teams,
       trace,
+      artifacts: new ArtifactService(store),
     } satisfies Application
   }),
 )
