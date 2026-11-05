@@ -1,0 +1,26 @@
+.scratch/tool-search/spec.md
+  s_dd1034265ded7f::t_f1039820f140ad 4,10,22
+.scratch/tool-search/README.md
+  s_dd1034265ded7f::t_f1039820f140ad 27,31,69
+.scratch/tool-search/evidence/review.md
+  s_dd1034265ded7f::t_d1f85a30b0e958 74-75
+  s_dd1034265ded7f::t_f1039820f140ad 3,12,24,36,54-73,80
+.scratch/tool-search/evidence/acceptance.md
+  s_dd1034265ded7f::t_f1039820f140ad 12,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "325de992af6bae0884be03909878481059da3a23",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
