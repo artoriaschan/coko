@@ -6,6 +6,79 @@ import { createToolSearch } from '../tools/tool-search/index.ts'
 import { createAgentRuntime } from './runtime.ts'
 import type { RunEntry } from './types.ts'
 import type { ToolLoadPayload } from '../session-entries/index.ts'
+import { loadedToolNames } from '../entries/tool-loads.ts'
+
+it('a lost optimistic load stops the Run and recovery can load again without replaying business execution', async () => {
+  const { faux, models, model } = createFauxModels()
+  const registry = createToolRegistry()
+  let businessCalls = 0
+  registry.register({
+    name: 'mcp__demo__echo',
+    label: 'echo',
+    description: 'echo',
+    effect: 'read',
+    parameters: Type.Object({}),
+    execute: async () => {
+      businessCalls++
+      return { content: [{ type: 'text', text: 'executed once' }], details: {} }
+    },
+  })
+  const entries: RunEntry[] = []
+  const stored = () => entries.map((entry, index) => ({ ...entry, seq: index + 1 }))
+  const context = {
+    toolNames: async () => [...loadedToolNames(stored())],
+    takeToolLoad: (id: string, unavailable?: string): ToolLoadPayload | undefined =>
+      unavailable === 'mcp__demo__echo' ? { names: [unavailable], source: 'optimistic', toolCallId: id } : undefined,
+  }
+  faux.setResponses([fauxAssistantMessage(fauxToolCall('mcp__demo__echo', {}, { id: 'lost' }))])
+  const interrupted = createAgentRuntime({
+    models,
+    model,
+    cwd: '.',
+    tools: registry,
+    initialToolNames: [],
+    context,
+    commit: async (entry) => {
+      if (entry.kind === 'tool_load') throw new Error('load not saved')
+      entries.push(structuredClone(entry))
+    },
+  })
+  expect(await interrupted.run('direct call')).toMatchObject({ status: 'error', error: { code: 'commit_failed' } })
+  expect(faux.state.callCount).toBe(1)
+  expect(loadedToolNames(stored()).size).toBe(0)
+  expect(businessCalls).toBe(0)
+  expect(entries.find((entry) => entry.kind === 'message' && entry.payload.role === 'toolResult')?.payload).toMatchObject({
+    isError: true,
+    content: [{ type: 'text', text: '工具已加载，请直接重试。' }],
+  })
+  faux.setResponses([
+    (request) => {
+      expect(request.messages.flatMap((message) => (message.role === 'system' ? (message.toolsAdded ?? []) : [])).map((tool) => tool.name)).not.toContain(
+        'mcp__demo__echo',
+      )
+      return fauxAssistantMessage(fauxToolCall('mcp__demo__echo', {}, { id: 'recover' }))
+    },
+    fauxAssistantMessage(fauxToolCall('mcp__demo__echo', {}, { id: 'business' })),
+    fauxAssistantMessage('done'),
+  ])
+  const recovered = createAgentRuntime({
+    models,
+    model,
+    cwd: '.',
+    tools: registry,
+    initialToolNames: [],
+    context,
+    messages: entries.flatMap((entry) => (entry.kind === 'message' ? [entry.payload] : [])),
+    commit: async (entry) => {
+      entries.push(structuredClone(entry))
+    },
+  })
+  expect(await recovered.run('try again')).toMatchObject({ status: 'completed' })
+  expect(businessCalls).toBe(1)
+  expect(entries.filter((entry) => entry.kind === 'tool_load').map((entry) => entry.payload)).toEqual([
+    { names: ['mcp__demo__echo'], source: 'optimistic', toolCallId: 'recover' },
+  ])
+})
 
 it('a rejected load commit ends the Run before any request can use an uncommitted definition', async () => {
   const { faux, models, model } = createFauxModels()

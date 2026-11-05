@@ -86,7 +86,9 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 搜索的权限类为 context-read，可在 Plan Mode 下使用；deny 规则与 PreToolUse Hook 可以阻止搜索。目录只含当前 Run 可用的工具，`disabledTools` 与未批准项目 Server 的工具不进入搜索，确切选择也报未知。加载不授予业务执行权限：目标工具即使已经加载，其调用仍经过原有规则、审批与 Hook；deny 规则拒绝时 MCP Server 不收到业务调用。
 
-宿主只根据可信的搜索执行通道生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
+模型直接调用目录中尚未加载的工具时，该次调用不执行业务处理，错误结果改为「工具已加载，请直接重试。」，并以 `optimistic` 来源保存加载记录；下一次请求起带上定义，再次调用仍经过权限与 Hook。名称不在当前目录中的调用保留原来的未找到错误；已提供工具的权限拒绝或业务错误不会触发乐观加载。
+
+宿主只根据可信的搜索执行通道或当前目录中的未加载调用生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。若结果已保存而加载记录尚未保存，重建后仍未加载，后续直接调用可再次乐观加载，不会自动重跑业务工具。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
 
 已加载集合从只应用对话回退的有效 `tool_load` 条目派生，不按压缩切点过滤。因此重启后的 continue、失败请求的 retry，以及手动、自动和溢出压缩都保留已加载工具；恢复只回放上下文，不重新执行已提交的业务调用。Server 断连或工具停用时，已加载名称仍保留，但该 Run 不提供不可用的定义；重连或重新启用后，下一个 Run 自动恢复，不必重新搜索。工具说明和参数 schema 始终取该 Run 开始时的当前定义。相关生命周期通过[真实 Sidecar 的加载与恢复测试](../../tests/integration/sidecar-tool-search-lifecycle.test.ts)核对模型请求、持久条目和 MCP 调用日志。
 
@@ -104,6 +106,8 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 Provider 表单在协议下方显示「工具搜索」分组及「加载新工具时保留提示词缓存」。可选的 `incrementalTools` 随 Provider 与 Credential 一次保存；未设置时，anthropic-messages 与 openai-responses 默认开启，openai-completions 默认关闭，已有 Provider 同样按协议取默认值。Headless 的 Provider 配置接受同一字段。
 
 只有根 Session 开启按需加载、当前 Run 的目录非空且 Provider 开关开启时使用原生写法：Messages 以 `tool_addition` 声明加载的工具，并发送 `inline-tools-2026-09-15` beta；Responses 在 `additional_tools` 中声明。其余情况发送完整的当前工具列表。开关值在 Run 开始时确定；等待审批时修改 Provider 不改变进行中的 Run，下一个 Run、continue 与 retry 才采用新值，已加载记录保留。
+
+openai-completions 开启该选项后，按 Base URL 与模型 ID 查询安装的 pi 内置目录：URL 去掉路径末尾斜杠、主机名转小写，路径其余部分保持原样；只采用同时标注 `supportsMidConvoSystemMessages` 与 `supportsMidConvoToolAdditions` 的条目。匹配时，加载定义随带 `tools` 的 system 消息追加；未匹配或选项关闭时，照常追加到请求顶层的 `tools`，不会仅因未标注而报错。不按模型名或主机名推断能力。目录通过 pi-ai 的公共 `providers/all` 接口读取；[Completions 请求测试](../../tests/integration/sidecar-completions-incremental-tools.test.ts)以真实 Sidecar 和本地 HTTP 服务验证这两种写法，测试只重定向外部网络，不改写内置目录。
 
 构造运行时时，未入库的开头工具基线只含常驻工具，已加载工具沿历史声明回放，避免 Anthropic 重启后把它们移到请求级 tools 而改写前缀。压缩去掉较早声明时，丢弃前缀的工具状态经 pi 的 transcript 接口折入新的开头基线，保留区间的声明仍按原位置回放；自动压缩后的同一次请求不会丢失已加载定义。上述写法与生命周期由[真实 Sidecar 和本地模型 HTTP 服务](../../tests/integration/sidecar-incremental-tools.test.ts)验证，不代表已实测真实 Provider 的缓存命中。
 
