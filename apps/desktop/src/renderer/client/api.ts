@@ -1,5 +1,5 @@
 import type { ForkBoundary } from '@coko/protocol'
-import type { ImageAttachment } from '@coko/protocol'
+import type { FileAttachment, ImageAttachment } from '@coko/protocol'
 import {
   AbortRunResponse,
   API_ROUTES,
@@ -36,6 +36,7 @@ import {
   type ConfirmationAnswer,
   type CreateSessionRequest,
   type ProjectFields,
+  type CreateProjectRequest,
   type FirstSendRequest,
   type ErrorCode,
   type PermissionMode,
@@ -123,8 +124,12 @@ export function createApiClient(fetchImpl: Fetch = defaultFetch) {
     firstSend: (input: FirstSendRequest) => call(FirstSendResponse, 'POST', API_ROUTES.firstSend, input),
     sessionDetail: (id: string) => call(SessionDetailResponse, 'GET', apiPaths.session(id)),
     /** 202 返回新 runId；不开始 Run 的动作（例如 /goal pause）为 204，返回 { done: true }。 */
-    submitMessage: async (id: string, text: string, images?: ImageAttachment[]): Promise<SubmitMessageResponse | { done: true }> =>
-      (await call(Type.Union([SubmitMessageResponse, NoContent]), 'POST', apiPaths.sessionMessages(id), { text, ...(images?.length ? { images } : {}) })) ?? {
+    submitMessage: async (id: string, text: string, images?: ImageAttachment[], files?: FileAttachment[]): Promise<SubmitMessageResponse | { done: true }> =>
+      (await call(Type.Union([SubmitMessageResponse, NoContent]), 'POST', apiPaths.sessionMessages(id), {
+        text,
+        ...(images?.length ? { images } : {}),
+        ...(files?.length ? { files } : {}),
+      })) ?? {
         done: true as const,
       },
     /** 重新执行出错的上一轮，不追加用户消息。 */
@@ -184,6 +189,6 @@ export type ApiClient = ReturnType<typeof createApiClient>
 /** 项目表单的协议边界；不依赖会话生命周期。 */
 export const projectApi = {
   update: (id: string, input: ProjectFields) => requestJson(UpdateProjectResponse, 'PUT', apiPaths.project(id), input),
-  create: (input: ProjectFields) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
+  create: (input: CreateProjectRequest) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
   checkFolder: (path: string) => requestJson(CheckProjectFolderResponse, 'POST', API_ROUTES.projectFolderCheck, { path }),
 }

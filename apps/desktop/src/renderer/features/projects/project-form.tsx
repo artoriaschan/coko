@@ -13,6 +13,7 @@ export interface ProjectFormDialogProps {
   pickDirectory: () => Promise<string | null>
   checkFolder?: (path: string) => Promise<{ path: string }>
   onSubmit: (fields: ProjectFields) => Promise<ProjectFormResult>
+  onSubmitBlank?: (name: string) => Promise<CreateProjectResponse>
   /** 创建、命中已有项目与编辑均由调用者决定完成动作；此组件不切换会话。 */
   onComplete: (result: ProjectFormResult) => void
   onClose: () => void
@@ -25,10 +26,12 @@ export function ProjectFormDialog({
   pickDirectory,
   checkFolder = projectApi.checkFolder,
   onSubmit,
+  onSubmitBlank,
   onComplete,
   onClose,
 }: ProjectFormDialogProps) {
   const { t } = useI18n()
+  const [blank, setBlank] = React.useState(false)
   const [name, setName] = React.useState(initial?.name ?? '')
   const [folders, setFolders] = React.useState<ProjectFields['folders']>(() => initial?.folders.map((folder) => ({ ...folder })) ?? [])
   const [pending, setPending] = React.useState(false)
@@ -81,12 +84,12 @@ export function ProjectFormDialog({
   }
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (busy.current || !name.trim() || folders.length === 0 || [...name].length > 50) return
+    if (busy.current || (!blank && (!name.trim() || folders.length === 0)) || [...name].length > 50) return
     busy.current = true
     setPending(true)
     setFeedback(null)
     try {
-      const result = await onSubmit({ name: name.trim(), folders })
+      const result = blank && onSubmitBlank ? await onSubmitBlank(name) : await onSubmit({ name: name.trim(), folders })
       onComplete(result)
     } catch (error) {
       const conflict = error instanceof ApiError && error.details?.reason === 'primary-conflict' ? error.details.project : undefined
@@ -145,87 +148,91 @@ export function ProjectFormDialog({
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
-            <section aria-label={t('projectForm.folders')} className="flex min-h-0 flex-col gap-2">
-              <h2 className="text-ui-body font-medium">{t('projectForm.folders')}</h2>
-              {folders.length === 0 ? (
-                <button
-                  type="button"
-                  disabled={pending || picking}
-                  onClick={() => void addFolder()}
-                  className="flex h-33 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input text-ui-body focus-ring hover:bg-accent disabled:opacity-50"
-                >
-                  <FolderPlusIcon aria-hidden className="size-5 text-muted-foreground" strokeWidth={1.1} />
-                  <span>{t('projectForm.add')}</span>
-                  <span className="text-ui-small text-muted-foreground">{t('projectForm.hint')}</span>
-                </button>
-              ) : (
-                <div className="max-h-[min(380px,45vh)] overflow-y-auto rounded-lg bg-card ring-(length:--hairline) ring-border ring-inset">
-                  {folders.map((folder, index) => {
-                    const basename = folder.path.split('/').filter(Boolean).at(-1) ?? folder.path
-                    return (
-                      <div
-                        key={folder.path}
-                        data-project-folder={folder.path}
-                        data-primary-folder={folder.primary}
-                        className="group/folder flex min-h-14 items-center gap-3 border-b-hairline border-border px-3 py-2"
-                      >
-                        <FolderClosedIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.1} />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div data-folder-copy data-user-content className="min-w-0 flex-1">
-                              <p className="truncate text-ui-body">{basename}</p>
-                              <p className="truncate text-ui-small text-muted-foreground">{folder.path}</p>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[min(420px,calc(100vw-32px))] break-all">{folder.path}</TooltipContent>
-                        </Tooltip>
-                        <div className="flex w-[68px] shrink-0 items-center justify-center">
-                          {folder.primary ? (
-                            <span className="rounded-round bg-muted px-2 py-0.5 text-ui-small text-muted-foreground">{t('projectForm.primary')}</span>
-                          ) : (
-                            <Button
-                              type="button"
-                              data-make-primary
-                              variant="ghost"
-                              size="sm"
-                              disabled={pending || picking}
-                              className="w-full opacity-0 group-hover/folder:opacity-100 group-focus-within/folder:opacity-100 [@media(hover:none)]:opacity-100"
-                              onClick={() => setFolders(folders.map((item, current) => ({ ...item, primary: current === index })))}
-                            >
-                              {t('projectForm.makePrimary')}
-                            </Button>
-                          )}
-                        </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              disabled={pending || picking}
-                              aria-label={t('projectForm.remove', { name: basename })}
-                              className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground focus-ring hover:bg-accent"
-                              onClick={() => removeFolder(index)}
-                            >
-                              <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t('projectForm.remove', { name: basename })}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    )
-                  })}
-                  <Button
+            {blank ? (
+              <p className="text-ui-body text-muted-foreground">{t('projectForm.blankHint')}</p>
+            ) : (
+              <section aria-label={t('projectForm.folders')} className="flex min-h-0 flex-col gap-2">
+                <h2 className="text-ui-body font-medium">{t('projectForm.folders')}</h2>
+                {folders.length === 0 ? (
+                  <button
                     type="button"
-                    variant="ghost"
                     disabled={pending || picking}
-                    className="w-full justify-start rounded-none px-3"
                     onClick={() => void addFolder()}
+                    className="flex h-33 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input text-ui-body focus-ring hover:bg-accent disabled:opacity-50"
                   >
-                    <FolderPlusIcon aria-hidden className="size-4" strokeWidth={1.1} />
-                    {t('projectForm.add')}
-                  </Button>
-                </div>
-              )}
-            </section>
+                    <FolderPlusIcon aria-hidden className="size-5 text-muted-foreground" strokeWidth={1.1} />
+                    <span>{t('projectForm.add')}</span>
+                    <span className="text-ui-small text-muted-foreground">{t('projectForm.hint')}</span>
+                  </button>
+                ) : (
+                  <div className="max-h-[min(380px,45vh)] overflow-y-auto rounded-lg bg-card ring-(length:--hairline) ring-border ring-inset">
+                    {folders.map((folder, index) => {
+                      const basename = folder.path.split('/').filter(Boolean).at(-1) ?? folder.path
+                      return (
+                        <div
+                          key={folder.path}
+                          data-project-folder={folder.path}
+                          data-primary-folder={folder.primary}
+                          className="group/folder flex min-h-14 items-center gap-3 border-b-hairline border-border px-3 py-2"
+                        >
+                          <FolderClosedIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div data-folder-copy data-user-content className="min-w-0 flex-1">
+                                <p className="truncate text-ui-body">{basename}</p>
+                                <p className="truncate text-ui-small text-muted-foreground">{folder.path}</p>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[min(420px,calc(100vw-32px))] break-all">{folder.path}</TooltipContent>
+                          </Tooltip>
+                          <div className="flex w-[68px] shrink-0 items-center justify-center">
+                            {folder.primary ? (
+                              <span className="rounded-round bg-muted px-2 py-0.5 text-ui-small text-muted-foreground">{t('projectForm.primary')}</span>
+                            ) : (
+                              <Button
+                                type="button"
+                                data-make-primary
+                                variant="ghost"
+                                size="sm"
+                                disabled={pending || picking}
+                                className="w-full opacity-0 group-hover/folder:opacity-100 group-focus-within/folder:opacity-100 [@media(hover:none)]:opacity-100"
+                                onClick={() => setFolders(folders.map((item, current) => ({ ...item, primary: current === index })))}
+                              >
+                                {t('projectForm.makePrimary')}
+                              </Button>
+                            )}
+                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={pending || picking}
+                                aria-label={t('projectForm.remove', { name: basename })}
+                                className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground focus-ring hover:bg-accent"
+                                onClick={() => removeFolder(index)}
+                              >
+                                <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('projectForm.remove', { name: basename })}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )
+                    })}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={pending || picking}
+                      className="w-full justify-start rounded-none px-3"
+                      onClick={() => void addFolder()}
+                    >
+                      <FolderPlusIcon aria-hidden className="size-4" strokeWidth={1.1} />
+                      {t('projectForm.add')}
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
             {feedback && (
               <p role={feedback.error ? 'alert' : 'status'} className={feedback.error ? 'text-ui-body text-destructive' : 'text-ui-body text-muted-foreground'}>
                 {feedback.text}
@@ -236,11 +243,25 @@ export function ProjectFormDialog({
                 {t('projectForm.picking')}
               </p>
             )}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              {mode === 'create' && onSubmitBlank && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="mr-auto"
+                  disabled={pending || picking}
+                  onClick={() => {
+                    setBlank(!blank)
+                    setFeedback(null)
+                  }}
+                >
+                  {t(blank ? 'projectForm.existingFolder' : 'projectForm.blank')}
+                </Button>
+              )}
               <Button type="button" variant="ghost" disabled={pending || picking} onClick={requestClose}>
                 {t('projectForm.cancel')}
               </Button>
-              <Button type="submit" disabled={pending || picking || !name.trim() || folders.length === 0}>
+              <Button type="submit" disabled={pending || picking || (!blank && (!name.trim() || folders.length === 0))}>
                 {t(mode === 'create' ? 'projectForm.create' : 'projectForm.save')}
               </Button>
             </div>

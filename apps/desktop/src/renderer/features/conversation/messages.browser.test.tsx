@@ -334,3 +334,29 @@ it('copying a command uses its invocation, and a clipboard failure cannot claim 
   await expect.element(page.getByText('Could not copy the message', { exact: true })).toBeVisible()
   await expect.element(article.getByRole('button', { name: 'Copy message' })).toBeVisible()
 })
+
+it('history shows copied attachments by name and opens the retained copy', async () => {
+  const copied = '/data/attachments/s-1/123-notes.txt'
+  const openFile = vi.fn<(path: string) => Promise<boolean>>(async () => true)
+  vi.stubGlobal('coko', { onMenuClose: () => () => {}, openFile })
+  try {
+    await open([
+      record(1, {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Read the file' },
+          { type: 'text', text: '<coko_attachment>{"name":"notes.txt","path":"' + copied + '"}</coko_attachment>' },
+        ],
+        timestamp: 1,
+      }),
+    ])
+    await userEvent.click(page.getByRole('button', { name: 'notes.txt', exact: true }))
+    expect(openFile).toHaveBeenCalledWith(copied)
+    openFile.mockResolvedValueOnce(false)
+    await userEvent.click(page.getByRole('button', { name: 'notes.txt', exact: true }))
+    await expect.element(page.getByRole('alert')).toHaveTextContent('Could not open the attachment. Check that the copied file still exists.')
+    expect(document.querySelector('[data-slot="user-bubble"]')?.textContent).toBe('Read the file')
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})

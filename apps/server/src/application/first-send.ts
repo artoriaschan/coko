@@ -13,7 +13,7 @@ import type { WorktreeService } from './worktrees.ts'
 function sessionIdFor(draftId: string): string {
   return `chat-${createHash('sha256').update(draftId).digest('hex')}`
 }
-export function firstMessageTitle(text: string, images: ImageAttachment[] = []): string {
+export function firstMessageTitle(text: string, images: Pick<ImageAttachment, 'name'>[] = []): string {
   if (!text.trim() && images.length)
     return Array.from(`附件：${images.map((image) => image.name).join('、')}`)
       .slice(0, 20)
@@ -62,7 +62,7 @@ export class FirstSendService {
 
   async #send(id: string, input: FirstSendRequest): Promise<FirstSendResponse> {
     const { store, sessions, chatsRoot } = this.#options
-    if (!input.text.trim() && !input.images?.length) throw new AppError('bad-request', 'A message is required')
+    if (!input.text.trim() && !input.images?.length && !input.files?.length) throw new AppError('bad-request', 'A message is required')
     const existing = await store.sessions.getSession(id)
     if (existing) {
       const entries = await store.sessions.listEntries(id)
@@ -120,15 +120,18 @@ export class FirstSendService {
         ...(folder ? { directory: folder, cwd: join(folder, 'work') } : {}),
         ...(worktreeId ? { worktreeId } : {}),
         projectId: project?.id ?? null,
-        title: firstMessageTitle(input.text, input.images),
+        title: firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]),
         ...(input.model ? { model: input.model } : {}),
         ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
         ...(input.permissionMode ? { permissionMode: input.permissionMode } : {}),
       })
-      const result = await sessions.submitFirst(session.id, input.text, input.images)
+      const result = await sessions.submitFirst(session.id, input.text, input.images, input.files)
       if (!('runId' in result)) throw new AppError('bad-request', 'A message is required')
       accepted = true
-      this.#options.titles?.start(id, firstMessageTitle(input.text, input.images), input.text, input.images ?? [])
+      this.#options.titles?.start(id, firstMessageTitle(input.text, [...(input.images ?? []), ...(input.files ?? [])]), input.text, [
+        ...(input.images ?? []),
+        ...(input.files ?? []),
+      ])
       return { session: await sessions.toDto((await store.sessions.getSession(id))!), runId: result.runId }
     } catch (error) {
       if (accepted) throw error

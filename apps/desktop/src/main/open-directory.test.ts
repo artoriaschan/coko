@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
-import { openDirectory } from './open-directory.ts'
+import { openDirectory, openFile } from './open-directory.ts'
 
 it('Finder 只打开已存在的绝对目录，拒绝文件、丢失和非法路径并回报 shell 失败', async () => {
   const root = await mkdtemp(join(tmpdir(), 'coko-open-directory-'))
@@ -29,4 +29,22 @@ it('Finder 只打开已存在的绝对目录，拒绝文件、丢失和非法路
       },
     }),
   ).toBe(false)
+})
+
+it('opens only existing absolute files with the default application', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-open-file-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'notes.txt')
+  await writeFile(path, 'body')
+  const calls: string[] = []
+  const shell = {
+    openPath: async (path: string) => {
+      calls.push(path)
+      return ''
+    },
+  }
+  expect(await openFile(path, shell)).toBe(true)
+  for (const input of [root, join(root, 'missing'), 'relative', null]) expect(await openFile(input, shell)).toBe(false)
+  expect(calls).toEqual([path])
+  expect(await openFile(path, { openPath: async () => 'failed' })).toBe(false)
 })

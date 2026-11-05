@@ -210,17 +210,17 @@ Token 胶囊只汇总本 Session 已提交的条目，包括主循环、压缩�
 
 ## 文件附件
 
-附件按钮经受控 preload 打开系统多文件选择，主进程校验发送者为应用主窗口主框架，重复打开共用一次对话框。非图片文件仍只传路径：已有会话以 Session DTO 的 `cwd` 判定实际工作目录，旧 DTO 缺少此字段时回退到原 Workspace 路径；首次发送前的项目草稿仍以主要 Workspace 判定，尚未创建的 worktree 不作为附件根。目录内插入与 @ 相同的 File Reference 节点，目录外插入绝对路径，不复制内容；外部文件读取继续由现有权限规则处理。粘贴和拖入非图片的 `File` 通过 `webUtils.getPathForFile` 获取路径。
+附件按钮经受控 preload 打开系统多文件选择，主进程校验发送者为应用主窗口主框架，重复打开共用一次对话框。选择、粘贴和拖入的普通文件作为显式附件，不再转换为 @ File Reference 或原路径文字；手动输入的 @ 引用继续按[上下文管理](context.md)展开。普通文件单个上限为 32 × 1024 × 1024 字节；选择的文件由主进程检查，浏览器 `File` 在读入前检查，超限在输入区说明原因。原生 File 有路径时仅保存路径；没有本机路径的粘贴 File 以 base64 暂存。
 
-worktree 会话选择主检出的文件时保留其绝对路径，不误写为指向 worktree 同名文件的相对引用；选择 worktree 内文件则相对于实际会话目录。真实路径映射与只读元数据见 [Worktree](worktrees.md#会话绑定与工作目录)，端到端覆盖见 [worktree 附件](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。
+图片支持 PNG、JPEG、GIF 与 WebP，模型输入类型必须含 `image`。选择的图片经受控 `readPickedImage` IPC 读取，主进程只读取本窗口已经选择的路径，限制读取字节数；粘贴或拖入的图片直接读取浏览器 `File`。单张上限为 4.5 × 1024 × 1024 字节，不缩放。图片缩略图与普通文件标签都有可访问的移除按钮；只有附件没有文字也能发送。
 
-图片支持 PNG、JPEG、GIF 与 WebP。当前模型的输入类型含 `image` 时，选择、粘贴和拖入都能添加；否则立即说明原因。选择的图片经受控 `readPickedImage` IPC 读取，主进程只读取本窗口已经选择的路径，限制读取字节数；粘贴或拖入的图片直接读取浏览器 `File`，无需磁盘路径。单张上限为 read 工具相同的 4.5 × 1024 × 1024 字节，不缩放。图片缩略图带可访问名称与移除按钮；没有文字但有图片时允许发送。
+[附件草稿存储](../../apps/desktop/src/renderer/stores/image-drafts.ts) 在 IndexedDB `coko.image-drafts` 分别保存图片与文件草稿，文字 EditorState 不嵌入二进制。新对话的 `imageRefs`、已有会话的 `.images` 键，以及文件草稿引用仅保存不透明 id。切换会话、重新挂载及重启后恢复；尚未发送时不写主数据根的附件目录。发送失败保留文字、附件与配置，接受后只删除本次提交的引用及 IndexedDB 条目。当前 Run 进行中时附件保留，追加指令只传文字并反馈等待原因。
 
-[图片草稿存储](../../apps/desktop/src/renderer/stores/image-drafts.ts) 将图片 bytes 存入 IndexedDB `coko.image-drafts`，文字 EditorState 不嵌入图片。新对话配置的 `imageRefs` 与已有 Session 草稿的 `.images` 键只保存不透明引用；切换会话、重新挂载及重启后从 IndexedDB 恢复。发送失败或切换到不支持图片的模型时保留文字、图片与配置，发送明确拒绝；成功接受后删除本次发送的引用及 IndexedDB 图片。当前 Run 进行中时，图片保留到运行结束后发送，追加指令仍只传文字并明确反馈等待原因。
+首次发送和已有会话提交协议接收 `images` 与 `files`。普通文件的来源为 `{name,path}` 或 `{name,data}`，不会从用户文字解析任意路径进行复制。Sidecar 在 Run 与用户消息产生前独立校验图片能力、base64、签名和大小，并以有界读取把所有附件复制到 `data/attachments/<sessionId>/<随机 id>-<原名>`。部分复制或开始 Run 失败会移除本次副本，不发送消息；重试仍使用原草稿。只有动作命令的提交不能携带附件。
 
-首次发送和已有会话的提交协议均接收 `images`，文字可为空。Sidecar 在用户消息与 Run 产生前重新检查解析后模型的图片能力、base64、签名与 read 图片大小上限，不信任 renderer。图片作为 `{ type: 'image', data, mimeType }` 内容块持久化并交给 Agent，普通文字、文件引用与 Hook 上下文保持原顺序。时间线只为 raster MIME 与合法 base64 渲染图片，不嵌入 SVG 或外部 HTML。带图片的动作命令拒绝发送，避免无声丢弃图片。
+消息以 `<coko_attachment>` 文本块保存副本的名称与绝对路径，模型可据此读取当前会话的副本目录；该目录作为额外只读根，不授予写入权限。图片继续以原有 `{type:'image',data,mimeType}` 块持久化并传给模型。时间线保留图片预览，并将副本渲染为可用默认应用打开的附件标签，原文件移动或删除后历史仍指向副本。原生打开入口仅接受已有的绝对文件路径，打开失败在附件旁提示。分支会将边界内的副本复制到新会话目录并重写引用，因此删除源会话不影响分支附件；分支复制或条目提交失败时回滚新副本与新会话。旧图片消息无需转换。
 
-验证：[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[真实 Electron 图片选择、提交与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
+Worktree 与主检出中的同名文件分别从实际选择的路径复制，不以 cwd 重写来源。验证见 [worktree 附件](../../apps/desktop/e2e/first-send-worktree.e2e.test.ts)。其他证据：[附件 Sidecar 协议](../../tests/integration/sidecar-attachments.test.ts)、[图片 Sidecar 协议](../../tests/integration/sidecar-images.test.ts)、[附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/composer.browser.test.tsx)、[历史附件 Browser Mode](../../apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx)、[真实 Electron 文件草稿、上限、副本与重启](../../apps/desktop/e2e/attachments.e2e.test.ts)、[图片选择与重启](../../apps/desktop/e2e/images.e2e.test.ts)。
 
 ## 对话工具摘要与详情
 

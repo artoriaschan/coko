@@ -13,6 +13,7 @@ import {
   isMainOnlyPath,
   CreateSessionRequest,
   ProjectFields,
+  CreateProjectRequest,
   RenameProjectRequest,
   CheckProjectFolderRequest,
   FirstSendRequest,
@@ -120,7 +121,7 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
   http.get(API_ROUTES.projects, async (c) => c.json({ projects: await app.projects.list() }))
   http.delete(`${API_ROUTES.projects}/:id`, async (c) => c.json(await app.projects.delete(c.req.param('id'))))
   http.post(API_ROUTES.projects, async (c) => {
-    const result = await app.projects.create(await body(c, ProjectFields))
+    const result = await app.projects.create(await body(c, CreateProjectRequest))
     return c.json(result, result.status === 'created' ? 201 : 200)
   })
   http.put(`${API_ROUTES.projects}/:id`, async (c) => c.json(await app.projects.update(c.req.param('id'), await body(c, ProjectFields))))
@@ -150,8 +151,8 @@ export function createApp(options: { auth: AccessAuth; app: Application; sockets
     return c.json(await app.sessions.moveToProject(c.req.param('id'), projectId))
   })
   http.post(`${API_ROUTES.sessions}/:id/messages`, async (c) => {
-    const { text, images } = await body(c, SubmitMessageRequest)
-    const result = await app.sessions.submit(c.req.param('id'), text, images)
+    const { text, images, files } = await body(c, SubmitMessageRequest)
+    const result = await app.sessions.submit(c.req.param('id'), text, images, files)
     // 不开始 Run 的动作（例如 /goal pause）：204。
     return 'runId' in result ? c.json(result, 202) : c.body(null, 204)
   })

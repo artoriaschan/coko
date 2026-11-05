@@ -5,8 +5,10 @@ export const IPC = {
   boot: 'coko:boot',
   pickDirectory: 'coko:pick-directory',
   openDirectory: 'coko:open-directory',
+  openFile: 'coko:open-file',
   pickFiles: 'coko:pick-files',
   readPickedImage: 'coko:read-picked-image',
+  validatePickedFile: 'coko:validate-picked-file',
   saveProvider: 'coko:save-provider',
   fetchProviderModels: 'coko:fetch-provider-models',
   cancelProviderModels: 'coko:cancel-provider-models',
@@ -133,10 +135,13 @@ export interface CokoBridge {
   /** 打开目录选择对话框；取消时为 null。 */
   pickDirectory(): Promise<string | null>
   openDirectory(path: string): Promise<boolean>
+  /** Open an existing local file using its default application. */
+  openFile(path: string): Promise<boolean>
   /** 系统文件选择；取消返回空数组。 */
   pickFiles(): Promise<string[]>
   /** 只解析用户选择、粘贴或拖入的 File，不开放任意文件读取。 */
   getFilePath(file: File): string
+  validatePickedFile(path: string): Promise<void>
   readPickedImage(path: string): Promise<{ name: string; mimeType: string; data: string }>
   /**
    * 一次提交 Provider（ADR 0010）：main 用 safeStorage 加密 Key 后，配置与密文经一条控制消息交给 Sidecar，在一个事务中写入；

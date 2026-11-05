@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
@@ -53,4 +53,40 @@ it('CW-59：重复主要目录打开已有项目；归属菜单创建新项目�
   const sessions = await page.evaluate(async () => (await (await fetch('/api/sessions')).json()).sessions)
   expect(sessions).toHaveLength(2)
   expect(sessions.find((item: { projectId: string }) => item.projectId === project.id)).toMatchObject({ workspaceId: project.primaryWorkspaceId })
+})
+
+it('空白项目从侧栏创建、清洗名称和重名后直接开始项目会话', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'coko-blank-project-'))
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
+  const script = join(root, 'faux.json')
+  await writeFile(script, JSON.stringify({ responses: [{ content: 'Blank project ready.' }] }))
+  const app = await launchApp({ COKO_FAUX_SCRIPT: script }, { dir: root })
+  onTestFinished(() => app.dispose())
+  const page = app.window
+  await waitConnected(page)
+  for (const expected of ['Blank project', 'Blank project-2']) {
+    await page
+      .getByRole('button', { name: /^(Add project|创建项目)$/ })
+      .first()
+      .click()
+    const dialog = page.getByRole('dialog', { name: /^(Create project|创建项目)$/ })
+    await dialog.getByRole('button', { name: /^(Create blank project|新建空白项目)$/ }).click()
+    await dialog.getByRole('textbox', { name: /^(Project name|项目名称)$/ }).fill('  ../Blank\\ project/  ')
+    await dialog.getByRole('button', { name: /^(Create project|创建项目)$/ }).click()
+    await dialog.waitFor({ state: 'detached' })
+    await page.getByRole('button', { name: new RegExp(`^(Choose chat destination: |选择对话归属：)${expected}$`) }).waitFor()
+    const projects = await page.evaluate(async () => (await (await fetch('/api/projects')).json()).projects)
+    const project = projects.find((item: { name: string }) => item.name === expected)
+    expect(project.folders).toEqual([{ path: await realpath(join(root, 'chats', 'projects', expected)), primary: true }])
+    expect(await readdir(project.folders[0].path)).toEqual([])
+    expect(await page.evaluate(async () => (await (await fetch('/api/sessions')).json()).sessions)).toHaveLength(0)
+  }
+  const editor = page.getByRole('textbox', { name: /Give Coko a task|向 Coko 布置任务/ })
+  await editor.fill('Begin the blank project')
+  await editor.press('Enter')
+  await page.getByRole('article', { name: 'Coko' }).filter({ hasText: 'Blank project ready.' }).waitFor()
+  const sessions = await page.evaluate(async () => (await (await fetch('/api/sessions')).json()).sessions)
+  expect(sessions).toHaveLength(1)
+  expect(sessions[0]).toMatchObject({ cwd: await realpath(join(root, 'chats', 'projects', 'Blank project-2')), directory: null })
+  expect(await readdir(sessions[0].cwd)).toEqual([])
 })

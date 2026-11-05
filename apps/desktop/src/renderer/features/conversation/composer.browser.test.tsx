@@ -44,38 +44,42 @@ const editorElement = () => editor().element() as HTMLElement
 const action = (name: string) => document.querySelector('[data-action="' + name + '"]') as HTMLButtonElement | null
 
 describe('Composer：双层输入区', () => {
-  it('粘贴与拖入文件沿用引用节点，工作目录前缀相似的外部路径不误判', async () => {
-    const h = renderComposer({ fileWorkspacePath: '/work', getFilePath: (file) => (file.name === 'a.ts' ? '/work/a.ts' : '/workspace/b.txt') })
+  it('粘贴与拖入文件保持为可重试的结构化附件，成功发送后清理', async () => {
+    let accepted = false
+    const send = vi.fn<Submit>(async () => accepted)
+    const h = renderComposer({ onSend: send, getFilePath: (file) => '/source/' + file.name })
     await h.result
     const paste = new DataTransfer()
-    paste.items.add(new File(['a'], 'a.ts', { type: 'text/plain' }))
+    paste.items.add(new File(['body'], 'notes.txt', { type: 'text/plain' }))
     editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: paste }))
-    await expect.poll(() => editorElement().textContent).toContain('@a.ts')
-    const drop = new DataTransfer()
-    drop.items.add(new File(['b'], 'b.txt', { type: 'text/plain' }))
-    editorElement().dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: drop }))
-    await expect.poll(() => editorElement().textContent).toContain('/workspace/b.txt')
-    expect(editorElement().querySelectorAll('[data-file-reference]')).toHaveLength(1)
-    const image = new DataTransfer()
-    image.items.add(new File(['png'], 'paste.png', { type: 'image/png' }))
-    editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: image }))
-    await expect.element(page.getByRole('alert')).toHaveTextContent('This model does not support images. Choose an image-capable model.')
-    expect(editorElement().textContent).not.toContain('paste.png')
+    await expect.element(page.getByRole('button', { name: 'Remove notes.txt' })).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Send' }))
+    await expect.poll(() => send.mock.calls.length).toBe(1)
+    expect(send.mock.calls[0]).toEqual(['', undefined, [{ name: 'notes.txt', path: '/source/notes.txt' }]])
+    await expect.element(page.getByRole('button', { name: 'Remove notes.txt' })).toBeVisible()
+    accepted = true
+    await userEvent.click(page.getByRole('button', { name: 'Send' }))
+    await expect.element(page.getByRole('button', { name: 'Remove notes.txt' })).not.toBeInTheDocument()
+    expect(editorElement().textContent).toBe('')
   })
-  it('系统选择插入 Workspace 内 File Reference 与外部绝对路径，图片拒绝并保留草稿', async () => {
-    const picks = ['/work/src/a.ts', '/outside/notes.txt', '/work/image.png']
-    const h = renderComposer({ fileWorkspacePath: '/work', pickFiles: async () => picks })
+  it('系统选择保留文件附件与原文字，图片模型限制仍生效', async () => {
+    const h = renderComposer({ pickFiles: async () => ['/work/src/a.ts', '/outside/notes.txt', '/work/image.png'] })
     await h.result
     await editor().fill('check ')
     await userEvent.click(page.getByRole('button', { name: 'Add attachment' }))
-    await expect.poll(() => editorElement().textContent).toContain('@src/a.ts')
-    expect(editorElement().querySelector('[data-file-reference="src/a.ts"]')).not.toBeNull()
-    expect(editorElement().textContent).toContain('/outside/notes.txt')
-    expect(editorElement().textContent).not.toContain('image.png')
+    await expect.element(page.getByRole('button', { name: 'Remove a.ts' })).toBeVisible()
+    expect(editorElement().textContent).toBe('check ')
     await expect.element(page.getByRole('alert')).toHaveTextContent('This model does not support images. Choose an image-capable model.')
-    await userEvent.keyboard('{Enter}')
+    await userEvent.click(page.getByRole('button', { name: 'Send' }))
     await expect.poll(() => h.onSend.mock.calls.length).toBe(1)
-    expect(h.onSend.mock.calls[0]?.[0]).toContain('@src/a.ts')
+    expect(h.onSend.mock.calls[0]).toEqual([
+      'check',
+      undefined,
+      [
+        { name: 'a.ts', path: '/work/src/a.ts' },
+        { name: 'notes.txt', path: '/outside/notes.txt' },
+      ],
+    ])
   })
   it('主输入框基准高 120px，控件依序位于底部的 40px 工具栏', async () => {
     const screen = await renderComposer({
@@ -299,4 +303,15 @@ it('switching draft scopes restores each session image without copying it to ano
   await screen.rerender(node(key + '.second'))
   await expect.poll(() => editorElement().textContent).toBe('scope two')
   expect(document.querySelectorAll('[data-slot="image-drafts"] img')).toHaveLength(0)
+})
+
+it('oversized ordinary pasted files show the 32 MB error without adding or sending a draft', async () => {
+  const h = renderComposer({})
+  await h.result
+  const paste = new DataTransfer()
+  paste.items.add(new File([new Uint8Array(32 * 1024 * 1024 + 1)], 'large.bin'))
+  editorElement().dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: paste }))
+  await expect.element(page.getByRole('alert')).toHaveTextContent('Files must be 32 MB or smaller.')
+  expect(document.querySelector('[data-slot="file-drafts"]')).toBeNull()
+  expect(h.onSend).not.toHaveBeenCalled()
 })
