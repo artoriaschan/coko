@@ -36,6 +36,7 @@ import {
   type ConfirmationAnswer,
   type CreateSessionRequest,
   type ProjectFields,
+  type CreateProjectRequest,
   type FirstSendRequest,
   type ErrorCode,
   type PermissionMode,
@@ -188,6 +189,6 @@ export type ApiClient = ReturnType<typeof createApiClient>
 /** 项目表单的协议边界；不依赖会话生命周期。 */
 export const projectApi = {
   update: (id: string, input: ProjectFields) => requestJson(UpdateProjectResponse, 'PUT', apiPaths.project(id), input),
-  create: (input: ProjectFields) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
+  create: (input: CreateProjectRequest) => requestJson(CreateProjectResponse, 'POST', API_ROUTES.projects, input),
   checkFolder: (path: string) => requestJson(CheckProjectFolderResponse, 'POST', API_ROUTES.projectFolderCheck, { path }),
 }

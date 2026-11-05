@@ -1,6 +1,6 @@
 // 插件清单（ADR 0017）：<root>/.coko-plugin/plugin.json，缺失时 <root>/.claude-plugin/plugin.json（claude-code 插件的子集）。解析字段与诊断、
 // 资源路径（含经符号链接）不得逃出插件根、engines.coko（只支持 >=x.y.z）、${COKO_PLUGIN_ROOT} / ${CLAUDE_PLUGIN_ROOT} 替换为安装目录，
-// 以及批准所用的 digest：SHA-256（规范化 JSON，键排序）覆盖清单的 name / version / engines 与展开后的 hooks、mcpServers、lspServers 声明。
+// 以及批准所用的 digest：SHA-256（规范化 JSON，键排序）覆盖清单的 name / version / engines 与 hooks、mcpServers、lspServers 声明；新安装可选择在根目录替换前计算，以便随主根移动。
 // Skills、命令与子代理定义的正文不进入 digest（它们不执行；改正文不需要重新批准）。
 import { createHash } from 'node:crypto'
 import { readFile, realpath, stat } from 'node:fs/promises'
@@ -62,6 +62,8 @@ export interface LoadedPlugin {
 export interface LoadPluginOptions {
   /** 安装目录（替换与 digest 所用）；缺省为读取的目录。安装时在暂存目录中读取、按最终目录计算。 */
   installRoot?: string
+  /** 在根目录替换前计算 digest；相对安装记录使用，旧绝对记录保持展开后的摘要格式。 */
+  portableDigest?: boolean
   /** 应用版本（--app-version）；缺省或 0.0.0（源码运行）视为满足任何 engines.coko。 */
   appVersion?: string
 }
@@ -326,12 +328,16 @@ export async function loadPlugin(dir: string, options: LoadPluginOptions = {}): 
           report('invalid-server', `${key}.${name} must be an object`, manifestPath)
           continue
         }
-        if (!(name in out)) out[name] = substituteServer(config, installRoot)
+        if (!(name in out)) out[name] = config
       }
     return out
   }
-  plugin.mcpServers = await servers('mcpServers', '.mcp.json')
-  plugin.lspServers = await servers('lspServers', '.lsp.json')
+  const mcpServers = await servers('mcpServers', '.mcp.json')
+  const lspServers = await servers('lspServers', '.lsp.json')
+  const substituted = (configs: Record<string, Json>) =>
+    Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, substituteServer(config, installRoot)]))
+  plugin.mcpServers = substituted(mcpServers)
+  plugin.lspServers = substituted(lspServers)
 
   const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : undefined)
   const owner = plugin.name ?? 'plugin'
@@ -367,9 +373,9 @@ export async function loadPlugin(dir: string, options: LoadPluginOptions = {}): 
           name: plugin.name,
           version: plugin.version,
           engines: engines ?? null,
-          hooks: plugin.hooks,
-          mcpServers: plugin.mcpServers,
-          lspServers: plugin.lspServers,
+          hooks: options.portableDigest ? hooks : plugin.hooks,
+          mcpServers: options.portableDigest ? mcpServers : plugin.mcpServers,
+          lspServers: options.portableDigest ? lspServers : plugin.lspServers,
         }),
       )
       .digest('hex')

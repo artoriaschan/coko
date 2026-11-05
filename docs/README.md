@@ -26,7 +26,7 @@ lifecycle: active
 ## 当前行为
 
 - [桌面工作台](subsystems/workbench.md)：双栏外壳、侧栏导航、内容区历史、设置返回与开发者开关、对话搜索、消息与思考、专用工具详情与文件语法、详细过程、三级折叠与阅读位置、历史与只读检查、主输入框、会话状态栏与 Token 用量、新对话归属与首次发送、模型生成标题、单份草稿、模型与推理档位、文件与图片附件、Artifacts 交付文件树，以及跨功能 Electron 验证。
-- [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、多文件夹创建与主要目录、删除项目保留对话、根会话归属、列表交互与恢复、会话详情、长标题、置顶、菜单、重命名、移入移出项目、归档恢复与永久删除。
+- [项目与会话列表](subsystems/projects.md)：项目模型、Workspace 迁移、多文件夹及空白项目创建与主要目录、删除项目保留对话、根会话归属、列表交互与恢复、会话详情、长标题、置顶、菜单、重命名、移入移出项目、归档恢复与永久删除。
 
 - [权限判定与审批](subsystems/permissions.md)：工具调用的判定顺序、审批请求的状态与条目、回答路由和审批卡。
 - [启动恢复与结果确认](subsystems/recovery.md)：崩溃后被中断 Run 的判定、结果探测、待确认与继续。
@@ -49,7 +49,7 @@ lifecycle: active
 - [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、运行时数据目录、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
 - [交接](subsystems/handoff.md)：/handoff 与失败重试、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
 - [代码智能](subsystems/lsp.md)：语言服务器的配置来源与合并、lsp 工具的四个操作与结果格式、权限与脱敏、进程生命周期与失败、/api/lsp 与 lsp_update、设置 → 代码智能分区与工具卡。
-- [插件](subsystems/plugins.md)：清单与诊断、目录与 git 来源的安装与复制、digest 与批准、启用 / 禁用 / 更新 / 卸载、贡献的命名空间与加载时机、/api/plugins、与项目资源的区别、设置中的插件分区与批准对话框。
+- [插件](subsystems/plugins.md)：清单与诊断、目录与 git 来源的安装与复制、相对主根路径与移动兼容、digest 与批准、启用 / 禁用 / 更新 / 卸载、贡献的命名空间与加载时机、/api/plugins、与项目资源的区别、设置中的插件分区与批准对话框。
 - [Worktree](subsystems/worktrees.md)：.coko-worktrees/<name> 与分支 coko/<name> 的创建、基础分支与首次发送回滚、会话绑定与固定的工作目录、宿主执行的 git、项目本地分支与创建检出、全局分支前缀、移除的 busy / dirty 检查与只读会话、HTTP 接口与会话只读提示。
 - [追踪、审计、导出与评测](subsystems/tracing.md)：model_request 逐请求记录、每个 Run 的追踪（工具耗时、审批等待、Hook 归属）、审计序列、/api/sessions/:id/{trace,audit,export}、ndjson 导出与标题栏 JSONL 下载、loadExport 回放、右栏 Trace tab、tests/evals 的用例格式、报告与真实模式。
 - [无界面运行](subsystems/headless.md)：headless 入口的参数、装配与输出（text / json / stream-json）、退出码与信号、审批自动拒绝（by headless）、--provider-config 与密钥变量、日志与已知限制。

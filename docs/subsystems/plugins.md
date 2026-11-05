@@ -6,7 +6,7 @@ lifecycle: active
 
 # 插件
 
-本文说明 Coko 当前如何安装、批准和加载 [Plugin](../../GLOSSARY.md)：插件是用户安装的一组资源（Skills、命令、子代理定义、Hook、MCP Server 与语言服务器声明），复制到 `<COKO_HOME>/plugins/<name>`，按会执行的声明整体批准后才加载。只声明、不执行插件代码、只有用户级安装与按 digest 批准的理由见 [ADR 0017](../adr/0017-plugins-declarative-user-installed.md)。服务端行为见前几节，设置中的插件分区与批准对话框见 [界面](#界面)。
+本文说明 Coko 当前如何安装、批准和加载 [Plugin](../../GLOSSARY.md)：插件是用户安装的一组资源（Skills、命令、子代理定义、Hook、MCP Server 与语言服务器声明），复制到 `<COKO_HOME>/plugins/<name>`，按会执行的声明整体批准后才加载。新安装记录保存相对 `COKO_HOME` 的 `plugins/<name>`；读取时解析为绝对路径，整体移动主根与数据库后仍可加载。已有绝对路径记录按原值读取，不自动移动或改写。只声明、不执行插件代码、只有用户级安装与按 digest 批准的理由见 [ADR 0017](../adr/0017-plugins-declarative-user-installed.md)。服务端行为见前几节，设置中的插件分区与批准对话框见 [界面](#界面)。
 
 ## 结构入口
 
@@ -65,7 +65,7 @@ lifecycle: active
 
 ## digest 与批准
 
-digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）：清单的 `name`、`version`、`engines`，以及替换根目录之后的 Hook、MCP 与语言服务器声明。Skills、命令与子代理定义的正文不在其中，改正文不需要重新批准；安装目录不同则替换结果不同，digest 也不同。digest 每次从安装目录现读，安装目录被改动（例如 Hook 命令）时 digest 随之变化。
+digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）：清单的 `name`、`version`、`engines`，以及 Hook、MCP 与语言服务器声明。新相对路径记录在根目录占位符替换之前计算摘要，因此整体移动主根不改变批准状态；Hook 命令、Server 参数或环境值的实际声明变化仍改变摘要。旧绝对路径记录继续使用替换根目录后的摘要，保留旧批准的含义，不自动把不匹配的批准转为新格式。Skills、命令与子代理定义的正文不在摘要中，改正文不需要重新批准。digest 每次从安装目录现读，安装目录被改动（例如 Hook 命令）时摘要随之变化。
 
 `GET /api/plugins` 的每项带：
 
@@ -82,7 +82,7 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 - **启用与禁用。** `PATCH /api/plugins/:name { enabled }` → 200 `PluginInfo`。
 - **更新。** `POST /api/plugins/:name/update` 按记录的来源（与 ref）重新取，校验后替换安装目录；源中声明的插件名变了为 400 `plugin-invalid`。git 来源更新 commit。digest 变化时回到 `needs-approval`，旧的声明不再加载，直到按新 digest 批准；用旧 digest 批准为 409。
 - **卸载。** `DELETE /api/plugins/:name` → 204：先把该插件移出快照并通知订阅者，等待 MCP 关闭其连接与进程，再删除安装目录与记录。未安装为 404 `plugin-not-found`。
-- **路径安全。** 卸载与更新前确认记录中的安装目录在 `<COKO_HOME>/plugins` 之下（字面路径与真实路径都检查）；不在其下时 403 `forbidden`，不删除也不替换。
+- **路径安全。** 卸载与更新前确认记录中的安装目录按当前主根解析后在 `<COKO_HOME>/plugins` 之下（字面路径与真实路径都检查）；不在其下时 403 `forbidden`，不删除也不替换。
 - **总开关。** 全局配置 `plugins.enabled`（缺省 true；项目文件写它为 `project-cannot-grant`）为 false 时，所有插件都不加载，已连接的插件 MCP Server 被关闭。
 
 启用、禁用、批准、更新与卸载之后，`PluginContributionsPort.onChange` 的订阅者收到通知；MCP 据此 reconcile，关闭不再提供的 Server。
@@ -131,10 +131,10 @@ digest 为 SHA-256，输入是规范化 JSON（键排序，数组保持顺序）
 
 ## 验证
 
-- `packages/agent/src/extensions/plugins/manifest.test.ts`：两种清单位置、每种诊断、路径数组与缺省目录、符号链接与 `../` 逃出插件根、根目录替换、`engines.coko`、digest 不受键顺序与 Skill 正文影响而随 Hook 命令、MCP 参数与 env、LSP 命令、version、engines 与安装目录变化、贡献名字。
+- `packages/agent/src/extensions/plugins/manifest.test.ts`：两种清单位置、每种诊断、路径数组与缺省目录、符号链接与 `../` 逃出插件根、根目录替换、`engines.coko`、digest 不受键顺序与 Skill 正文影响而随 Hook 命令、MCP 参数与 env、LSP 命令、version、engines 变化；可移动摘要不随安装根变化，旧摘要保留展开后路径语义；贡献名字。
 - `packages/agent/src/extensions/plugins/copy.test.ts`：复制与可执行位、不复制 `.git`、根内符号链接重建、超过上限不写文件。
-- `apps/server/src/application/plugins.test.ts`：安装快照、待批准不提供贡献、安装目录改动后回到待批准、错误码、`incompatible`、卸载先通知再删除、记录路径在插件根外时卸载与更新被拒。
-- `tests/integration/sidecar-plugins.test.ts`：真实 Sidecar。目录来源安装后待批准、批准前 Skill 不在索引、Hook 不运行、MCP 与语言服务器进程不启动；批准后各类资源带插件名可用，用户的同名资源照常；禁用、卸载与 `plugins.enabled: false` 后 MCP 进程退出；`file://` 夹具仓库的 commit、`#tag`、更新后重新批准与旧 digest 409。
+- `apps/server/src/application/plugins.test.ts`：安装快照、待批准不提供贡献、安装目录改动后回到待批准、错误码、`incompatible`、卸载先通知再删除、新记录保存相对路径，记录路径为绝对/相对越界或指向根外的链接时卸载与更新被拒。
+- `tests/integration/sidecar-plugins.test.ts`：真实 Sidecar。目录来源安装后待批准、批准前 Skill 不在索引、Hook 不运行、MCP 与语言服务器进程不启动；批准后各类资源带插件名可用，用户的同名资源照常；禁用、卸载与 `plugins.enabled: false` 后 MCP 进程退出；`file://` 夹具仓库的 commit、`#tag`、更新后重新批准与旧 digest 409；整体移动主根后的批准、Hook/MCP 执行、更新与卸载；旧绝对记录与摘要兼容、缺失目录诊断和越界更新/卸载拒绝。
 - `tests/integration/sidecar-plugins-trust.test.ts`：插件 Hook 的 allow 越不过询问规则、`.git/config` 写入与越出可写根；deny 在 full-access 下生效；符号链接与清单路径逃出插件根；MCP 引用 Secret；`engines.coko` 不满足；超过体积上限。
 - `tests/integration/secrets-gate-plugins.test.ts`：插件 Skill、命令与子代理定义的正文和插件 Hook 输出含登记 Secret 时，requestLog、条目、WS、HTTP、库、日志与 Hook 的 stdin 中没有明文。
 - `apps/desktop/e2e/package-smoke.e2e.test.ts`：打包应用中从仓库夹具目录安装、批准后插件的 MCP Server 被启动，语言服务器列在 `executables` 中。

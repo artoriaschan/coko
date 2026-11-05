@@ -28,3 +28,5 @@ Closed: true
 - `rtk pnpm run typecheck` 退出 0；变更 TypeScript 文件的 `oxfmt` 与 `oxlint` 退出 0；`rtk git diff --check` 退出 0；`rtk pnpm run check:docs`：378 Markdown、0 问题，退出 0。
 - 文档影响：当前 Artifact 行为、HTTP 与原生边界归 `docs/subsystems/workbench.md`，导航摘要与旧的固定六页描述同步。已从 AGENTS → docs/README → 工作台正文读回；链接、语义、归属、引用方向、生命周期、导航和历史保留均通过，无新增目录或 ADR。
 - 已检查后台 Electron 明暗主题实际截图；未验证 Windows 实机、真实模型、原生 Finder 前台交互或启动外部文件应用。此票不修改模型行为、不推送、不发布。
+
+集成读回：实施提交 `ffb573c`；合入最新集成基线 `59491b38`（含空白项目、插件迁移）。仅 `docs/README.md` 导航的相邻摘要冲突，已同时保留 Artifacts 与空白项目说明；源码无冲突。合并后 `rtk pnpm run test tests/integration/sidecar-artifacts.test.ts tests/integration/sidecar-blank-project.test.ts apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx`：3 文件、8 项通过，退出 0；`rtk pnpm run typecheck` 退出 0；`rtk pnpm run check:docs`：378 Markdown、0 问题。首次实施提交仅因消息正文行长被 commitlint 拒绝，换为带实际换行的消息文件后成功，代码未受影响。

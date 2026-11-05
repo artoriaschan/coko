@@ -89,8 +89,15 @@ export class PluginService implements PluginContributionsPort {
     return next
   }
 
+  #path(record: Pick<PluginRecord, 'path'>): string {
+    return isAbsolute(record.path) ? record.path : resolve(this.#options.cokoHome, record.path)
+  }
+
   #load(record: Pick<PluginRecord, 'path'>): Promise<LoadedPlugin> {
-    return loadPlugin(record.path, this.#options.appVersion ? { appVersion: this.#options.appVersion } : {})
+    return loadPlugin(this.#path(record), {
+      portableDigest: !isAbsolute(record.path),
+      ...(this.#options.appVersion ? { appVersion: this.#options.appVersion } : {}),
+    })
   }
 
   #status(record: PluginRecord, plugin: LoadedPlugin): PluginStatus {
@@ -109,7 +116,7 @@ export class PluginService implements PluginContributionsPort {
         source: 'plugin',
         code: 'invalid-name',
         message: `The manifest name ${plugin.name} does not match the installed plugin`,
-        path: record.path,
+        path: this.#path(record),
       })
     return {
       name: record.name,
@@ -188,11 +195,15 @@ export class PluginService implements PluginContributionsPort {
     return dir
   }
 
-  /** 暂存的副本按最终目录读取（替换与 digest 以安装目录计算）；无效时 400 plugin-invalid。 */
-  async #validate(dir: string, finalPath: (name: string) => string): Promise<LoadedPlugin> {
+  /** 暂存副本按最终目录展开命令；新相对记录用可移动摘要，旧绝对记录保留原摘要格式。 */
+  async #validate(dir: string, finalPath: (name: string) => string, portableDigest = true): Promise<LoadedPlugin> {
     const probe = await loadPlugin(dir)
     if (!probe.valid || probe.name === undefined) throw new AppError('plugin-invalid', 'The plugin manifest is invalid', { diagnostics: probe.diagnostics })
-    return loadPlugin(dir, { installRoot: finalPath(probe.name), ...(this.#options.appVersion ? { appVersion: this.#options.appVersion } : {}) })
+    return loadPlugin(dir, {
+      installRoot: finalPath(probe.name),
+      portableDigest,
+      ...(this.#options.appVersion ? { appVersion: this.#options.appVersion } : {}),
+    })
   }
 
   /** POST /api/plugins → 201（状态 needs-approval；不加载任何资源）。 */
@@ -220,7 +231,7 @@ export class PluginService implements PluginContributionsPort {
           sourceLocation: source.kind === 'dir' ? source.path : git!.url,
           sourceRef: git?.ref ?? null,
           commit: fetched.commit ?? null,
-          path,
+          path: relative(this.#options.cokoHome, path),
           digest: plugin.digest,
         })
         log.info('plugin installed', { plugin: name, version: record.version, sourceKind: source.kind })
@@ -270,13 +281,13 @@ export class PluginService implements PluginContributionsPort {
       const staging = await this.#staging()
       try {
         const fetched = await this.#fetch(source, staging)
-        const plugin = await this.#validate(fetched.dir, () => record.path)
+        const plugin = await this.#validate(fetched.dir, () => this.#path(record), !isAbsolute(record.path))
         if (plugin.name !== name)
           throw new AppError('plugin-invalid', `The source now declares plugin ${plugin.name ?? '?'}, not ${name}`, {
             diagnostics: [{ source: 'plugin', code: 'invalid-name', message: 'The plugin name changed', path: plugin.manifestPath }],
           })
         if (path.exists) await rename(path.real, join(staging, 'previous'))
-        await rename(fetched.dir, record.path)
+        await rename(fetched.dir, this.#path(record))
         const updated = await this.#options.store.plugins.upsert({
           name,
           version: plugin.version!,
@@ -303,7 +314,7 @@ export class PluginService implements PluginContributionsPort {
   async #owned(record: PluginRecord): Promise<{ real: string; exists: boolean }> {
     const root = resolve(this.#root)
     const realRoot = await realpath(root).catch(() => root)
-    const path = resolve(record.path)
+    const path = this.#path(record)
     const refuse = () => {
       log.warn('plugin path outside the plugins directory refused', { plugin: record.name })
       return new AppError('forbidden', `The recorded path of plugin ${record.name} is outside the plugins directory`)

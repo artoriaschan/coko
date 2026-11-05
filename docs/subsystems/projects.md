@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "项目模型、Workspace 迁移、多文件夹创建与编辑、项目详情与置顶、删除项目保留会话，以及会话归属、列表、菜单、归档和永久删除。"
+description: "项目模型、Workspace 迁移、多文件夹与空白项目创建、编辑、项目详情与置顶、删除项目保留会话，以及会话归属、列表、菜单、归档和永久删除。"
 lifecycle: active
 ---
 
@@ -20,11 +20,13 @@ SQLite v11 追加主要目录位置字段，旧项目默认为列表第一项；
 
 ## 创建项目与主要文件夹
 
-项目分类的“+”与新对话归属菜单底部的“新建项目”打开同一个[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.tsx)。名称首次聚焦、最多 50 字符，非空名称及至少一个目录才可提交。空表单提供虚线添加区域，目录由 Electron 宿主选择；取消选择不改草稿。添加前通过 Sidecar 校验存在、可读取及可遍历，并取真实路径，同一目录经符号链接、末尾斜杠或 `..` 添加会提示“已添加”。失败说明保留在表单中，不新增目录行。
+项目分类的“+”与新对话归属菜单底部的“新建项目”打开同一个[项目表单](../../apps/desktop/src/renderer/features/projects/project-form.tsx)。名称首次聚焦、最多 50 字符；添加已有文件夹时，非空名称及至少一个目录才可提交。空表单提供虚线添加区域，目录由 Electron 宿主选择；取消选择不改草稿。添加前通过 Sidecar 校验存在、可读取及可遍历，并取真实路径，同一目录经符号链接、末尾斜杠或 `..` 添加会提示“已添加”。失败说明保留在表单中，不新增目录行。
+
+创建表单底部的“新建空白项目”切换到自动建目录模式；此时无需选择文件夹，名称留空也可提交。“添加已有文件夹”可切回原流程，已填名称和所选目录保留。服务端在独立会话根的 `projects/` 下创建目录，默认是 `<Documents>/Coko/projects/<名称>`；去除名称首尾空白、路径分隔符和前导点，空值使用“新项目”。已有目录或文件同名时原子地尝试 `-2`、`-3`，不覆盖内容；名称及目录名保持项目的 50 字符上限，追加后缀时按字符收短原名。创建成功后以该目录登记主要 Workspace 和 Project，并沿用入口的新对话预选规则；项目根直接作为工作目录，不创建 `work/outputs`。失败时回滚本次未被引用的 Workspace 与空目录，已有目录、文件和外部写入内容保留。
 
 源文件夹保留添加顺序。创建项目时如果名称为空，选择文件夹后用该文件夹的名称回填名称输入框，已有名称不覆盖；编辑项目不回填。第一个缺省为主要，非主要行在 hover 或焦点进入时显示“设为主要”，隐藏时保留按钮位置；按钮常态无背景，只有悬停到按钮本身才显示 hover 背景；点击只改草稿中的唯一主要标记。文件夹名称与地址各占一行并以省略号截断，悬停名称或地址时用 Tooltip 展示完整路径。项目行与“更多项目操作”按钮打开同一份操作菜单，在项目行上右键时菜单定位到指针处。移除主要目录时由列表中的下一项接替，末项没有后继时取新的末项。名称、文件夹或主要标记改动后，取消、右上关闭与 Escape 均先询问“放弃更改？”，取消确认保留输入。提交期间锁定表单并阻止重复提交，保存失败保留草稿。
 
-`POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
+`POST /api/projects/check-folder` 校验绝对目录并返回规范真实路径；不可访问、非目录与相对路径以 `bad-request` 及可机读的 `reason` 拒绝。`POST /api/projects` 接受名称与带主要标记的有序目录，或 `{ mode: "blank", name }` 的空白模式。已有文件夹模式中，服务端再次验证名称、全部目录、去重和恰好一个主要标记；以主要 Workspace 唯一约束处理并发创建。返回 `status: created` 时带新项目；主要目录已属于项目时返回 `status: existing` 和原项目，不新增项目，也不合并草稿名称或附加目录。
 
 应用级[弹窗宿主](../../apps/desktop/src/renderer/features/projects/project-dialogs.tsx) 更新同一份列表数据。分类创建或命中已有项目后进入新对话，预选该项目并聚焦输入区；归属菜单创建后只选择目标项目，保留同一份新对话草稿。已有项目结果通过应用级 Toast 告知项目名。表单也接受编辑初值和外部提交/完成回调，完成动作由调用方拥有，表单本身不创建会话或改变归属。编辑完成只更新同一份列表引用，不进入新对话或切换当前会话。
 
@@ -148,9 +150,10 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 - [项目编辑 Sidecar 用例](../../tests/integration/sidecar-edit-project.test.ts)：编辑及主要目录冲突、原会话 Workspace 固定、置顶时间、归档与置顶计数、非法输入及重启读回。
 - [项目行浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-row.browser.test.tsx)：详情与菜单 2px 顶对齐、指针跨间距、完整路径、混合置顶树、失败与展开状态；[应用浏览器用例](../../apps/desktop/src/renderer/app/app.browser.test.tsx) 验证内容和草稿 DOM 稳定及共用编辑入口。
 - [Finder 宿主单元用例](../../apps/desktop/src/main/open-directory.test.ts)：注入 shell 验证目录准入与失败；[项目编辑 Electron 用例](../../apps/desktop/e2e/project-edit.e2e.test.ts) 验证真实 preload/main 装配、编辑、重启及项目内新对话。
+- [空白项目 Sidecar 用例](../../tests/integration/sidecar-blank-project.test.ts)：名称清洗、空名、并发冲突、重启、首次发送 cwd 与创建失败回滚。
 - [创建项目 Sidecar 用例](../../tests/integration/sidecar-create-project.test.ts)：多目录顺序、真实路径判重、已有结果、名称与目录拒绝及重启读回。
 - [项目表单浏览器用例](../../apps/desktop/src/renderer/features/projects/project-form.browser.test.tsx)：主要标记与接替、hover/focus 几何、目录取消/失败、放弃确认、保存锁定、明暗主题与窄窗口。
-- [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建与首次发送归属。
+- [创建项目 Electron 用例](../../apps/desktop/e2e/create-project.e2e.test.ts)：宿主目录选择、已有项目 Toast、新对话预选、归属菜单创建，以及空白项目、重名和名称清洗后的首次发送归属。
 - [存储契约](../../packages/session/src/repository-contract.ts)：主要 Workspace 唯一、完整组织字段的读写和最后记录时间。
 - [迁移用例](../../packages/session/src/sqlite/migrate-v10.test.ts)：v9 升级、根会话和 worktree 归属、子会话字段及备份读回。
 - [Sidecar 协议](../../tests/integration/sidecar-projects.test.ts)：真实目录判重、项目列表、创建会话、分叉和重启读回。
