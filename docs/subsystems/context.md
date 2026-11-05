@@ -14,7 +14,9 @@ lifecycle: active
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
-时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 不读新状态，重试保留原请求上下文。
+时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 开始时不读新状态，重试保留原请求上下文。
+
+同一 Run 内自动或溢出压缩成功后，按压缩后的有效上下文重新比较当前状态。在下一次模型请求之前依次提交需要补发的 `state_update` 条目和只含块的 user message，并将消息追加到运行时上下文；不经 Steering 队列。补发消息提交失败时按 `commit_failed` 停止，不发送未保存的状态；之后请求失败的 retry 仍重放已经保存的补发消息。手动 compact 不补发，之后的 Run 再按当前状态判断。
 
 原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
 
@@ -168,7 +170,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 摘要请求
 
-- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。`<file_reference>` 与 `<instruction_file>` 块缩为一行 `[file reference attached: <path>]` / `[instruction file attached: <path>]`，图片写为 `[image omitted]`，用户自己写的文本逐字保留。
+- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。`<file_reference>` 与 `<instruction_file>` 块缩为一行 `[file reference attached: <path>]` / `[instruction file attached: <path>]`，有条目配对的 State Update 块缩为 `[state update: <name>]`，图片写为 `[image omitted]`。用户自己写的 State Update 同名文本逐字保留；缩写只用于摘要请求，不修改已保存的消息。
 - 输入上限：整个请求文本不超过 (窗口 − 摘要输出上限) × 4 个字符。超出时从最早处省略，先省略工具结果，再省略消息，开头注明 `[N earlier messages omitted to fit the summary request]`；只剩一条仍超出时截掉它的中间。摘要请求因此不会自身溢出而反复触发熔断。
 - 结构固定为 `## Goal`、`## Constraints & Preferences`、`## User Messages`（逐条，安全相关约束原文保留，不把 assistant 的话当成用户的）、`## Files and Code`、`## Errors and Fixes`、`## Key Decisions`、`## Progress`（Done / In Progress / Blocked）、`## Pending Tasks`、`## Current Work`、`## Next Step`（须与最近的明确请求一致）。已有摘要时用增量更新提示，上次摘要在 `<previous-summary>` 中。
 - 回复出错、被截断（`length`）、含工具调用或为空都算失败。成功时摘要正文之后追加 `<read-files>`、`<modified-files>`（从被摘要的 read / write / edit 调用与上次的列表汇总，改过的不再列为只读）与 `<invoked-skills>`（skill 调用与 Skill 来源的命令），只列路径与名字，不重读内容。
@@ -188,7 +190,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 压缩后的 Todo List
 
-Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目读取。压缩移出上次配对的 State Update 后，下一个带新输入的 Run 会重新送达当前表。见 [Todo List](todo.md#注入)。
+Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目读取。自动或溢出压缩移出上次配对的 State Update 后，同一 Run 在下一次请求前立即重新送达当前表；手动压缩后则在下一个 Run 判断并送达。见 [Todo List](todo.md#注入)。
 
 ### 压缩后的 `<goal>`
 
@@ -244,7 +246,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-context.test.ts`：草稿与会话的用量接口（分项、指令文件与截断、Skills 诊断、404）、Run 后 tokens 等于 faux usage（加其后 toolResult 的 chars/4）、`context_usage` 在 assistant 条目之后。`tests/integration/secrets-gate-context.test.ts`：用量响应在秘密总闸的扫描范围内。
 - `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位；附加文件块缩为路径、摘要输入超过上限时从最早处省略。`packages/agent/src/engine/compaction.test.ts`：被摘要内容超过窗口时摘要请求的输入受限、压缩成功。`packages/agent/src/checkpoints/rewind.test.ts`：分叉中 compaction 的位置与 `firstKeptSeq`、分叉后回退到第一条保留的消息、复制消息的 usage 不用于估算。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
-- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
+- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试；同 Run 自动和溢出压缩后的状态补发、手动压缩后的下 Run 送达、摘要中的宿主块缩写与伪造文本保留、补发后失败的 retry 原样重放。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
 - `apps/desktop/src/renderer/features/conversation/timeline.test.ts`、`composer.browser.test.tsx`、`stores/context-store.test.ts`：分隔条与节省数、compact Run 的错误不可重试；状态行与停止；进度跟踪。`apps/desktop/e2e/compaction.e2e.test.ts`：Electron 中的失败 Toast、熔断暂停标记、`/compact` 状态行、分隔条与摘要展开、之前的消息仍在。
 - `packages/agent/src/testing/grep-contract.ts`（内置 grep 与 `apps/server/src/adapters/ripgrep.test.ts` 都运行）：临时 HOME 下的 `.git/info/exclude`、`core.excludesFile`、XDG 缺省文件与没有这些文件时；`tools/builtin/walk.test.ts`：find 与文件候选、嵌套仓库与 worktree。
 - `apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx`、`stores/context-store.test.ts`：环的档位与颜色、HoverCard 内容、Esc 与焦点、390px 宽输入区不重叠；读取与过期请求。`apps/desktop/e2e/context.e2e.test.ts`：Electron 中的百分比、越过预警线变色、卡片的分项与指令文件、Esc、最窄窗口。
