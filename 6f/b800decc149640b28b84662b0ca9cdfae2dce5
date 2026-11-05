@@ -1,0 +1,21 @@
+tests/integration/sidecar-skills.test.ts
+  s_2a03236d6e6b67::t_64a98f029729cc 3,7,26,40,208-224,231
+.scratch/system-context/issues/07-date-state-update.md
+  s_2a03236d6e6b67::t_e9f6db0a7b0c7e 45-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6fb800decc149640b28b84662b0ca9cdfae2dce5",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
