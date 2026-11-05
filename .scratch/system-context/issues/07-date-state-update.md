@@ -42,3 +42,8 @@ Closed: true
 文档影响与读回：更新 `docs/subsystems/context.md` 的日期值、送达顺序、时区/时钟、子 Session、Checkpoint 来源处理及结构入口；同步 `docs/README.md` 摘要。搜索了正式正文、任务与 skills 中“当天日期 / 当前日期 / date State Update / Todo List、Goal 进度与”消费者：规格与 ADR 保留目标和已批准状态，已有完成票保留历史证据，08 的分叉配对留在其职责。AGENTS → 文档导航 → 上下文正文读回：路径与引用、语义同步、归属与权威、引用方向、生命周期、当前入口、新会话读入和历史保留均通过，无新增反向依赖。
 
 未验证：真实 Provider / 提示缓存、Electron 窗口交互、打包产物与 CI。本票只证明真实 Sidecar、可控模型和测试时钟下的链路；用户已确认缺少真实凭据时按规格记录未验证继续。
+
+
+2026-11-05 集成补验：新增首轮日期也影响 `sidecar-skills.test.ts` 的 Skill 命令路径。父代理在原始 `ec32dfc9` 与日期集成 `7b667126` 各观察 6 例中的 4 个失败；独立修补工作区再次复现。三个断言依赖 `/var` 临时路径的字面值，但应用保存的是 `realpath` 后的 Workspace 路径；夹具改为通过 `fs.realpath` 读取临时根的真实路径。命令场景使用已有固定日期夹具，并完整断言两轮的条目顺序、首轮 date payload、日期块先于 Skill 展开正文、次轮同日不重发和实际模型请求。保留索引、权限与文件内容断言，没有过滤 State Update 或改动生产代码。
+
+补验：`pnpm install --frozen-lockfile`、`pnpm run test tests/integration/sidecar-skills.test.ts`（1 文件 6 例通过）、`pnpm run typecheck`、该文件 `oxfmt --check` / `oxlint` 均退出 0。后续合并复核结果见下。
