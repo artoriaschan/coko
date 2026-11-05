@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, open, rm, rmdir, writeFile } from 'node:fs/promises'
+import { mkdir, open, rm, rmdir } from 'node:fs/promises'
 import { basename, isAbsolute, join } from 'node:path'
 import { FILE_ATTACHMENT_MAX_BYTES, IMAGE_ATTACHMENT_MAX_BYTES, type AttachmentReference, type FileAttachment, type ImageAttachment } from '@coko/protocol'
 import { AppError } from './errors.ts'
@@ -35,13 +35,18 @@ export class AttachmentStore {
             .filter((character) => character.charCodeAt(0) >= 32)
             .join('') || 'attachment'
         const path = join(directory, `${randomUUID()}-${name}`)
-        references.push({ name, path })
         if ('data' in file) {
           const bytes = Buffer.from(file.data, 'base64')
           const limit = 'mimeType' in file ? IMAGE_ATTACHMENT_MAX_BYTES : FILE_ATTACHMENT_MAX_BYTES
           if (bytes.length > limit || bytes.toString('base64') !== file.data)
             throw new AppError('bad-request', `Attachment exceeds the ${'mimeType' in file ? '4.5' : '32'} MB limit or has invalid bytes`)
-          await writeFile(path, bytes, { flag: 'wx', mode: 0o600 })
+          const output = await open(path, 'wx', 0o600)
+          references.push({ name, path })
+          try {
+            await output.writeFile(bytes)
+          } finally {
+            await output.close()
+          }
         } else {
           if (!isAbsolute(file.path)) throw new AppError('bad-request', 'Attachment path must be absolute')
           const source = await open(file.path, 'r')
@@ -50,6 +55,7 @@ export class AttachmentStore {
             if (!info.isFile()) throw new AppError('bad-request', 'Attachment must be a file')
             if (info.size > FILE_ATTACHMENT_MAX_BYTES) throw new AppError('bad-request', 'Attachment exceeds the 32 MB limit')
             const output = await open(path, 'wx', 0o600)
+            references.push({ name, path })
             try {
               const buffer = Buffer.alloc(64 * 1024)
               let total = 0
