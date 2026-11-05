@@ -1,0 +1,152 @@
+.scratch/system-data-root/issues/05-artifact-panel.md
+  s_6cadf0cc1974f1::t_9c19183b4c106f 9-30
+  s_6cadf0cc1974f1::t_efd6accf8a1f7a 31-32
+packages/agent/src/extensions/plugins/manifest.test.ts
+  s_6cadf0cc1974f1::t_a77c670101d9fb 26,239-257
+tests/integration/sidecar-plugins.test.ts
+  s_6cadf0cc1974f1::t_b4bac8e01c2ea7 5,198-214,219-226,230-240
+  s_6cadf0cc1974f1::t_a77c670101d9fb 23,241-267,271-280
+  s_6cadf0cc1974f1::t_23484ff2010415 215-218,227-229,268-270
+apps/server/src/http/routes/artifacts.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 8-10
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1-7,11-12
+apps/server/src/runtime/layers.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 756
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1,785
+docs/README.md
+  s_6cadf0cc1974f1::t_232b51331096b3 28
+  s_6cadf0cc1974f1::t_a41d32e9982e57 33
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 52
+apps/server/src/http/routes/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1,25
+docs/subsystems/configuration.md
+  s_6cadf0cc1974f1::t_a41d32e9982e57 3,21-22,32,75,88
+apps/server/src/application/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 2,33
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 1,40-41
+packages/i18n/src/dictionaries/zh.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 4-17
+  s_6cadf0cc1974f1::t_7e59c0bd34d777 19,22-31
+  s_6cadf0cc1974f1::t_60bebdfbfe816b 21
+  s_6cadf0cc1974f1::t_96b379fb18d09b 3,18
+  s_6cadf0cc1974f1::t_b57de558ffa75e 20
+tests/integration/sidecar-artifacts.test.ts
+  s_6cadf0cc1974f1::t_1603fe1493f6ea 1-75
+apps/server/src/http/routes/config.ts
+  s_6cadf0cc1974f1::t_a41d32e9982e57 1
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 8
+apps/desktop/src/shared/bridge.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 9,141
+apps/desktop/src/renderer/features/right-panel/tabs.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 4-14
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1,40,50-51
+tests/integration/sidecar-storage-paths.test.ts
+  s_6cadf0cc1974f1::t_1603fe1493f6ea 1-13
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_6cadf0cc1974f1::t_84bf4093a628db 32-33
+  s_6cadf0cc1974f1::t_96b379fb18d09b 4,28-29
+  s_6cadf0cc1974f1::t_60f89389338380 27,31
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 6
+apps/desktop/src/renderer/features/settings/storage-card.browser.test.tsx
+  s_6cadf0cc1974f1::t_1603fe1493f6ea 1-102
+packages/protocol/src/index.ts
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 37-38
+docs/subsystems/workbench.md
+  s_6cadf0cc1974f1::t_232b51331096b3 49,53,263-273
+  s_6cadf0cc1974f1::t_a41d32e9982e57 21
+apps/desktop/src/main/index.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 4,360-362
+docs/subsystems/plugins.md
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 9,68,85,134,136-137
+docs/adr/0017-plugins-declarative-user-installed.md
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 46-47
+packages/agent/src/extensions/plugins/manifest.ts
+  s_6cadf0cc1974f1::t_2be67cfda13333 3,65-66,331,335-336,339-340,376-378
+  s_6cadf0cc1974f1::t_23484ff2010415 337-338
+apps/server/src/application/plugins.test.ts
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 4,144-145
+  s_6cadf0cc1974f1::t_827dd70a868e47 57
+.scratch/system-data-root/issues/09-plugin-relative-path.md
+  s_6cadf0cc1974f1::t_0fab5c4aab8ba9 31-36
+  s_6cadf0cc1974f1::t_f31ccd465dd984 9-30
+.scratch/system-data-root/issues/12-settings-storage-path.md
+  s_6cadf0cc1974f1::t_c8309b16aef5a0 9-36
+  s_6cadf0cc1974f1::t_a280de21fcebf2 37-41
+apps/server/src/application/artifacts.ts
+  s_6cadf0cc1974f1::t_1603fe1493f6ea 1-96
+apps/desktop/src/renderer/features/right-panel/artifacts-tab.tsx
+  s_6cadf0cc1974f1::t_232b51331096b3 2
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 12-17,39-42,47-57,61-115,135-138,142-147,149-178
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1,3-11,18-38,43-46,58-60,116-134,139-141,148,179
+apps/desktop/src/renderer/features/settings/storage-card.tsx
+  s_6cadf0cc1974f1::t_b57de558ffa75e 1,5,24,28,40,86,93-94
+  s_6cadf0cc1974f1::t_60bebdfbfe816b 22-23,42-53
+  s_6cadf0cc1974f1::t_10caf05ef40c6c 2-4,6,8-12,17-21,25-27,29,36,41,54-55,59,79,95,104-106
+  s_6cadf0cc1974f1::t_3e5c65c55ff7b7 7,107
+  s_6cadf0cc1974f1::t_fae8a36fb1f17d 13-16,30-35,37-39,56-58,60-78,80-85,87-92,96-103
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 7
+apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx
+  s_6cadf0cc1974f1::t_60f89389338380 81-84,102-113
+  s_6cadf0cc1974f1::t_197afdf1c40ac7 122-124,129-138
+  s_6cadf0cc1974f1::t_ee5dc47115dd57 2-22,26,47,57-67,71-80
+  s_6cadf0cc1974f1::t_0e13c2ca944772 114-121,125-128,139-147
+  s_6cadf0cc1974f1::t_9bb2f59b12e293 1
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 23-25,27-46,48-56,68-70,85-101
+packages/i18n/src/dictionaries/en.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 6-19
+  s_6cadf0cc1974f1::t_7e59c0bd34d777 21,24-33
+  s_6cadf0cc1974f1::t_b57de558ffa75e 22
+  s_6cadf0cc1974f1::t_60bebdfbfe816b 23
+  s_6cadf0cc1974f1::t_96b379fb18d09b 5,20
+apps/desktop/src/main/open-directory.test.ts
+  s_6cadf0cc1974f1::t_60f89389338380 5,51-57,63-66
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 58-62,67-73
+packages/protocol/src/artifacts.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 6-11,13-15
+  s_6cadf0cc1974f1::t_be76d610918436 12
+  s_6cadf0cc1974f1::t_e1e936b9c08a02 1-5,16-24
+apps/desktop/src/renderer/client/artifacts.ts
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 5-6
+  s_6cadf0cc1974f1::t_96b379fb18d09b 1-4,7-8
+packages/protocol/src/api.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 8-9,65-67
+apps/desktop/src/main/open-directory.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 25-33,37
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 34-36
+apps/server/src/application/plugins.ts
+  s_6cadf0cc1974f1::t_214dbccffa6b24 92-95,119,234,290,317
+  s_6cadf0cc1974f1::t_a2db365fdfb8ae 198
+  s_6cadf0cc1974f1::t_2be67cfda13333 97-100,199,284
+  s_6cadf0cc1974f1::t_23484ff2010415 202-206
+apps/desktop/src/preload/index.ts
+  s_6cadf0cc1974f1::t_96b379fb18d09b 17
+apps/desktop/e2e/storage-paths.e2e.test.ts
+  s_6cadf0cc1974f1::t_5eaa57a359d7bb 1-26
+apps/desktop/src/renderer/client/storage.ts
+  s_6cadf0cc1974f1::t_b57de558ffa75e 1-5
+apps/desktop/e2e/artifacts.e2e.test.ts
+  s_6cadf0cc1974f1::t_f24035295362e0 51,57-58,68-71
+  s_6cadf0cc1974f1::t_cf5ce5aa38e4a2 17-23,59-67
+  s_6cadf0cc1974f1::t_a7d1dedbcf88d8 50,52-54
+  s_6cadf0cc1974f1::t_60f89389338380 1-16,24-49,55-56,72
+apps/desktop/src/renderer/features/settings/general-section.tsx
+  s_6cadf0cc1974f1::t_10caf05ef40c6c 14,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "00195b39ee61e0b0ff08a1385f25b5659266fe89",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
