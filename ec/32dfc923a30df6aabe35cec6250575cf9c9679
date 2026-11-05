@@ -1,0 +1,70 @@
+.scratch/system-context/grilling.md
+  s_9001379810dd40::t_1ffc59bbf0a8ff 19,28-30,33-34,44,47,49-54,56
+  s_9001379810dd40::t_1e001315a37131 3,20,31-32,36-37,55,57-68
+  s_9001379810dd40::t_639c738d876987 69-70
+  s_9001379810dd40::t_cf82b592e2428e 71
+  s_9001379810dd40::t_46bd0260831f57 1-2,4-18,21-27,35,38-43,45-46,48
+.scratch/system-context/spec.md
+  s_9001379810dd40::t_b841e72f4aaa03 75
+  s_9001379810dd40::t_46a6fe3b6b2aba 78-94
+  s_9001379810dd40::t_514d149ddb6eb0 95-131
+  s_9001379810dd40::t_e0816881567a9a 5
+  s_9001379810dd40::t_437b23a67c9ef7 45-74,76
+  s_9001379810dd40::t_ca6bcdf09d4902 77
+  s_9001379810dd40::t_52c48c6c0bb6a1 4
+  s_9001379810dd40::t_bfe86261dd1819 1-3,6-35,37-44
+  s_9001379810dd40::t_455bf4d20dfb89 36
+.scratch/system-context/issues/01-todo-list-state-update.md
+  s_9001379810dd40::t_c3bc2fd555d0f4 1-23
+GLOSSARY.md
+  s_9001379810dd40::t_e5a4184df9d1a4 48
+  s_9001379810dd40::t_dfefbe36ba1d3b 47,49-50
+  s_9001379810dd40::t_624bfe78ff64d1 240,242-243
+  s_9001379810dd40::t_beaa56a659ea69 241
+.scratch/system-context/issues/03-post-compaction-redelivery.md
+  s_9001379810dd40::t_f76358179d6b7a 1-16
+.scratch/system-context/design.md
+  s_9001379810dd40::t_dd21d16c4a195f 86-133
+  s_9001379810dd40::t_e71f47999967ce 149
+  s_9001379810dd40::t_d456a5c19844b5 5,10
+  s_9001379810dd40::t_06efcb16738dac 36-85
+  s_9001379810dd40::t_78aab6bb360e89 1-4,6-9,11-35
+  s_9001379810dd40::t_89d7ac804d8d71 154
+  s_9001379810dd40::t_57f3046734ec94 134-148,150-153
+.scratch/system-context/issues/06-environment-section.md
+  s_9001379810dd40::t_56a826cd953462 1-15
+.scratch/system-context/issues/08-fork-and-context-usage.md
+  s_9001379810dd40::t_b82df95b02cc56 1-15
+docs/adr/0024-session-state-as-state-updates.md
+  s_9001379810dd40::t_4773f08d11b357 1-51
+.scratch/system-context/issues/05-team-status-state-update.md
+  s_9001379810dd40::t_4cca69c3d331da 1-15
+.scratch/system-context/issues/04-goal-progress-state-update.md
+  s_9001379810dd40::t_522a06047738c8 1-17
+.scratch/system-context/issues/07-date-state-update.md
+  s_9001379810dd40::t_44d9f55e367f78 1-15
+.scratch/system-context/issues/10-cache-acceptance-and-adr-0024.md
+  s_9001379810dd40::t_294b3dc035fbe4 1-14
+.scratch/system-context/issues/02-continue-delivery.md
+  s_9001379810dd40::t_6b520ca4828a82 1-16
+docs/adr/README.md
+  s_9001379810dd40::t_1b85a760dab5c4 36
+.scratch/system-context/issues/09-base-prompt-v2-and-host-block-eval.md
+  s_9001379810dd40::t_ed586d54eacdb9 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ec32dfc923a30df6aabe35cec6250575cf9c9679",
+  "prompts": {},
+  "sessions": {
+    "s_9001379810dd40": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_l1orgrwn5tmf",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
