@@ -1,0 +1,33 @@
+apps/desktop/e2e/trace.e2e.test.ts
+  s_eff121e41805b1::t_d55fcb7976d791 170
+  s_eff121e41805b1::t_0353c00f57e0d5 171-178
+.scratch/right-sidebar-session-diagnostics/issues/12-integrated-acceptance.md
+  s_eff121e41805b1::t_75e3c4993771c5 32-36
+.scratch/right-sidebar-session-diagnostics/issues/03-width-narrow-fullscreen.md
+  s_eff121e41805b1::t_17f28e51c46a4c 66-67
+  s_eff121e41805b1::t_75e3c4993771c5 59-65
+apps/desktop/e2e/schedules.e2e.test.ts
+  s_eff121e41805b1::t_d55fcb7976d791 151,159
+  s_eff121e41805b1::t_0353c00f57e0d5 160-167
+apps/desktop/e2e/terminal-details.e2e.test.ts
+  s_eff121e41805b1::t_d55fcb7976d791 2,13-14,47-49,77,85
+apps/desktop/e2e/subagents.e2e.test.ts
+  s_eff121e41805b1::t_0353c00f57e0d5 215-222
+  s_eff121e41805b1::t_d55fcb7976d791 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "641d86a8d41afc9ba2fb8cd8d797326e41a4fc8c",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
