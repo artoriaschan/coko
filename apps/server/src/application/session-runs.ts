@@ -107,7 +107,7 @@ export interface SessionCwd {
   resolve(session: StoredSession, workspace: Workspace): Promise<string>
 }
 
-export const workspaceCwd: SessionCwd = { resolve: async (_session, workspace) => workspace.path }
+export const workspaceCwd: SessionCwd = { resolve: async (session, workspace) => session.cwd ?? workspace.path }
 
 /** 受管的 Run 执行：关闭 sidecar 时中断并等待 Run 结束（run_end 已提交）。由 runtime 层用 Effect 实现。 */
 export interface RunLauncher {

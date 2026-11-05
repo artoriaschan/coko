@@ -29,6 +29,22 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       clock += ms
     }
 
+    it('会话目录与 cwd 可保存、更新并原样读回；未设置的旧式会话保持为空', async () => {
+      const store = await open()
+      const workspace = await store.sessions.registerWorkspace({ path: '/standalone' })
+      const legacy = await store.sessions.createSession({ workspaceId: workspace.id })
+      expect(legacy).toMatchObject({ directory: null, cwd: null })
+      const session = await store.sessions.createSession({ workspaceId: workspace.id, directory: '/standalone/chat-123', cwd: '/standalone/chat-123/work' })
+      expect(await store.sessions.getSession(session.id)).toMatchObject({ directory: '/standalone/chat-123', cwd: '/standalone/chat-123/work' })
+      await store.sessions.setSessionDirectory(session.id, { directory: '/standalone/actual', cwd: '/standalone/actual/work' })
+      expect(await store.sessions.getSession(session.id)).toMatchObject({
+        directory: '/standalone/actual',
+        cwd: '/standalone/actual/work',
+        updatedAt: session.updatedAt,
+      })
+      await expectStoreError(store.sessions.setSessionDirectory('missing', { directory: null, cwd: null }), 'not-found')
+    })
+
     it('archive updates the whole tree atomically, preserves raw root enumeration and entries, and restore never repins', async () => {
       const store = await open()
       const workspace = await store.sessions.registerWorkspace({ path: '/archive' })

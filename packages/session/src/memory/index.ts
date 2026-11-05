@@ -226,6 +226,8 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
           modelCleared: false,
           parentSessionId,
           worktreeId,
+          directory: input.directory ?? null,
+          cwd: input.cwd ?? null,
           createdAt: at,
           updatedAt: at,
         }
@@ -263,6 +265,12 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         )
           return false
         return workspaces.delete(id)
+      }),
+      setSessionDirectory: op((id, directory) => {
+        const current = requireSession(id)
+        const next = { ...current, ...directory }
+        sessions.set(id, next)
+        return next
       }),
       setSessionArchived: op((id: string, archivedAt: number | null) => {
         requireSession(id)
