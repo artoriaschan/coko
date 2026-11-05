@@ -101,12 +101,12 @@ export class WorktreeService {
   /** SessionCwd 的 worktree 实现：没有绑定时为 Workspace 目录。 */
   readonly cwd: SessionCwd = {
     resolve: async (session, workspace) => {
-      if (session.worktreeId === null) return workspace.path
+      if (session.worktreeId === null) return session.cwd ?? workspace.path
       const worktree = await this.#store.worktrees.get(session.worktreeId)
       if (!worktree) throw new AppError('not-found', `Worktree ${session.worktreeId} not found`)
       if (worktree.status === 'removed') throw new AppError('worktree-removed', `Worktree ${worktree.name} was removed; this session is read-only`)
       if (this.#removing.has(worktree.id)) throw new AppError('worktree-busy', `Worktree ${worktree.name} is being removed`, { reasons: [] })
-      return sessionDirectory(workspace, worktree)
+      return session.cwd ?? sessionDirectory(workspace, worktree)
     },
   }
 

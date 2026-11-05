@@ -29,6 +29,22 @@ afterEach(async () => {
 const store = () => createMemoryStore({ payloads: createPayloadRegistry(SESSION_ENTRY_PAYLOADS) })
 
 describe('会话创建的唯一入口', () => {
+  it('显式 cwd 与 directory 在 DTO 与实际运行目录中保留；旧式会话回退到 Workspace', async () => {
+    const s = store()
+    const workspace = await s.sessions.registerWorkspace({ path: workspaceDir })
+    const service = new SessionService({
+      store: s,
+      registry: createModelRegistry({ credentials: new InMemoryCredentialStore() }),
+      hub: new SessionHub(),
+      runs: { launch: () => undefined },
+    })
+    const legacy = await service.create({ workspaceId: workspace.id })
+    expect(legacy).toMatchObject({ cwd: workspaceDir, directory: null })
+    const allocated = await service.createRecord({ workspaceId: workspace.id, directory: workspaceDir, cwd: join(workspaceDir, 'work') })
+    expect(await service.toDto(allocated)).toMatchObject({ cwd: join(workspaceDir, 'work'), directory: workspaceDir })
+    expect((await service.runs.cwd(allocated)).cwd).toBe(join(workspaceDir, 'work'))
+  })
+
   it('绑定已移除的 worktree 时 409 worktree-removed，不写入；active 的照常创建', async () => {
     const s = store()
     const workspace = await s.sessions.registerWorkspace({ path: workspaceDir })
