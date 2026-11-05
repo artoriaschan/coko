@@ -193,6 +193,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 条目与模型上下文
 
+- 压缩重建时，切点前的工具声明经 pi 的 transcript 接口折入未持久化的开头工具基线；切点后的工具增减继续在原位置回放。自动压缩发生在 pi 已生成本轮声明之后，同一次请求也保有完整的当前工具定义，见 [MCP 增量传输](mcp.md#provider-的工具增量传输)。
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills?, usage? }`（v2；`usage` 为摘要请求的 usage，计入 [Goal 预算](goal.md#预算)，v1 条目原样读回、没有 usage）在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
 - 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。

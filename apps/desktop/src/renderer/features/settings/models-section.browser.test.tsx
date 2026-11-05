@@ -27,7 +27,13 @@ afterEach(async () => {
 type Backend = ReturnType<typeof fakeSettingsBackend>
 
 /** 等页面上的动画（弹窗缩放、菜单淡入）结束。 */
-const settled = () => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined)))
+const settled = () =>
+  Promise.all(
+    document
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map((animation) => animation.finished.catch(() => undefined)),
+  )
 
 /** 渲染应用并打开设置的模型服务分区；seed 在读取设置前预置 Provider。 */
 async function openModels(locale: Locale, seed: (backend: Backend) => void = () => {}) {
@@ -61,6 +67,39 @@ async function openModels(locale: Locale, seed: (backend: Backend) => void = () 
 
 const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-page] [data-provider-id]')]
 const row = (id: string) => page.elementLocator(document.querySelector<HTMLElement>(`[data-settings-page] [data-provider-id="${id}"]`)!)
+
+it.each(['zh', 'en'] as const)('工具搜索：旧 Provider 按协议显示默认值，开关经同一次保存回显（%s）', async (locale) => {
+  const label = locale === 'zh' ? '加载新工具时保留提示词缓存' : 'Keep the prompt cache when loading tools'
+  const { dialog, backend } = await openModels(locale, (backend) => {
+    backend.seedProvider(customProvider('messages', ['model'], { api: 'anthropic-messages' }))
+  })
+  await dialog.getByRole('button', { name: dictionaries[locale].providers.edit, exact: true }).click()
+  await expect.element(dialog.getByRole('switch', { name: label })).toBeChecked()
+  await expect.element(dialog.getByRole('heading', { name: dictionaries[locale].providers.toolSearch.title, exact: true })).toBeVisible()
+  await expect.element(dialog.getByText(dictionaries[locale].providers.toolSearch.description, { exact: true })).toBeVisible()
+  await dialog.getByRole('switch', { name: label }).click()
+  await dialog.getByRole('button', { name: dictionaries[locale].providers.save, exact: true }).click()
+  await expect.poll(() => backend.providers.find((provider) => provider.id === 'messages')?.incrementalTools).toBe(false)
+  await dialog.getByRole('button', { name: dictionaries[locale].providers.edit, exact: true }).click()
+  await expect.element(dialog.getByRole('switch', { name: label })).not.toBeChecked()
+})
+
+it('新建 Provider：未设置的开关跟随协议默认值，手动选择后保持该值', async () => {
+  const { dialog } = await openModels('zh')
+  await dialog.getByRole('button', { name: '添加模型供应商', exact: true }).click()
+  const toggle = dialog.getByRole('switch', { name: '加载新工具时保留提示词缓存' })
+  await expect.element(toggle).not.toBeChecked()
+  await dialog.getByRole('button', { name: 'API 协议', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Anthropic Messages', exact: true }).click()
+  await expect.element(toggle).toBeChecked()
+  await dialog.getByRole('button', { name: 'API 协议', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'OpenAI Responses', exact: true }).click()
+  await expect.element(toggle).toBeChecked()
+  await toggle.click()
+  await dialog.getByRole('button', { name: 'API 协议', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Anthropic Messages', exact: true }).click()
+  await expect.element(toggle).not.toBeChecked()
+})
 
 it('列表：每个供应商都有编辑与删除，状态点以文字区分已配置 / 未配置 Key；紧凑行 H40/R12、间距 4px，添加入口在列表下方', async () => {
   const { dialog } = await openModels('zh', (backend) => {
@@ -441,6 +480,8 @@ it('键盘：Tab 到“添加模型供应商”并用键盘完成新建，焦点
   await expect.element(protocol).toHaveTextContent('Anthropic Messages')
   await expect.element(protocol).toHaveFocus()
   // 空目录：目录标题行的“获取可用模型”之后是“添加模型”，Enter 新增一行并聚焦模型 ID。
+  await userEvent.keyboard('{Tab}')
+  await expect.element(dialog.getByRole('switch', { name: 'Keep the prompt cache when loading tools' })).toHaveFocus()
   await userEvent.keyboard('{Tab}sk-two-2222{Tab}')
   expect(document.activeElement?.hasAttribute('data-fetch-models')).toBe(true)
   await userEvent.keyboard('{Tab}')

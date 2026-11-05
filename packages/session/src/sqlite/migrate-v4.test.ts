@@ -50,6 +50,11 @@ describe('SQLite 迁移 v4', () => {
       modelCleared: true,
       parentSessionId: null,
       worktreeId: null,
+      directory: null,
+      cwd: null,
+      projectId: 'project-w1',
+      pinnedAt: null,
+      archivedAt: null,
       createdAt: 1,
       updatedAt: 5,
     })
@@ -61,7 +66,7 @@ describe('SQLite 迁移 v4', () => {
     try {
       const columns = (raw.prepare("SELECT name FROM pragma_table_info('providers')").all() as { name: string }[]).map((r) => r.name)
       expect(columns).not.toContain('kind')
-      expect(columns).toEqual(['id', 'name', 'api', 'base_url', 'models', 'created_at', 'updated_at'])
+      expect(columns).toEqual(['id', 'name', 'api', 'base_url', 'models', 'created_at', 'updated_at', 'incremental_tools'])
     } finally {
       raw.close()
     }

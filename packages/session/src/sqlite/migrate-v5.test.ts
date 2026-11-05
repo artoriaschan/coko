@@ -29,6 +29,11 @@ describe('SQLite 迁移 v5', () => {
       modelCleared: false,
       parentSessionId: null,
       worktreeId: null,
+      directory: null,
+      cwd: null,
+      projectId: 'project-w1',
+      pinnedAt: null,
+      archivedAt: null,
       createdAt: 1,
       updatedAt: 5,
     })

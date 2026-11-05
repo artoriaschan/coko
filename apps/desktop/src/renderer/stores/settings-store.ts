@@ -39,6 +39,7 @@ export interface ProviderDraft {
   name: string
   api: ModelProtocol
   baseUrl: string
+  incrementalTools?: boolean
   models: CatalogModel[]
   secret: string
 }
@@ -203,10 +204,10 @@ export function createSettingsStore({ api, saveProvider: submitProvider, provide
 
       async saveProvider(draft) {
         if (!submitProvider) return { ok: false, code: 'sidecar-unavailable', message: 'Desktop bridge is unavailable' }
-        const { id, name, api: protocol, baseUrl, models, secret } = draft
+        const { id, name, api: protocol, baseUrl, models, secret, incrementalTools } = draft
         const result = await submitProvider({
           mode: draft.isNew ? 'create' : 'update',
-          provider: { id, name, api: protocol, baseUrl, models },
+          provider: { id, name, api: protocol, baseUrl, models, ...(incrementalTools === undefined ? {} : { incrementalTools }) },
           ...(secret === '' ? {} : { secret }),
         }).catch((error: unknown): SaveProviderResult => ({
           ok: false,

@@ -45,6 +45,17 @@ function setup(store = createMemoryStore({ payloads: createPayloadRegistry([]) }
 const credential = (bytes: number[], hint: string) => ({ ciphertext: Buffer.from(bytes).toString('base64'), hint })
 
 describe('ProviderService：自定义 Provider', () => {
+  it('保留工具增量开关：保存、重载与 headless 配置更新均读回原值', async () => {
+    const { store, service } = setup()
+    expect(await service.save('create', { ...request(), incrementalTools: false })).toMatchObject({ incrementalTools: false })
+    const restarted = setup(store)
+    await restarted.service.load()
+    expect(await restarted.service.list()).toMatchObject([{ incrementalTools: false }])
+    await restarted.service.upsertFromConfig({ providers: [{ ...request(), incrementalTools: true }] })
+    expect(await restarted.service.list()).toMatchObject([{ incrementalTools: true }])
+    await restarted.service.save('update', request())
+    expect((await restarted.service.list())[0]?.incrementalTools).toBeUndefined()
+  })
   it('创建后读回与提交一致；模型以目录中的能力与 thinkingLevelMap 注册；重新装载（重启）后一致', async () => {
     const { store, registry, service } = setup()
     const created = await service.save('create', request())
@@ -236,15 +247,18 @@ describe('ProviderService.upsertFromConfig：无界面运行的启动配置（AD
 
   it('写入中途失败时已写入的回滚（新建的删除、更新的恢复）', async () => {
     const { store, service } = setup()
-    await service.save('create', request({ name: 'before' }))
+    await service.save('create', request({ name: 'before', incrementalTools: false }))
     const original = store.providers.create.bind(store.providers)
     store.providers.create = async (input, credential) => {
       if (input.id === 'third') throw new Error('disk full')
       return original(input, credential)
     }
-    const error = await service.upsertFromConfig({ providers: [request({ name: 'after' }), second(), second({ id: 'third' })] }).catch((e: unknown) => e)
+    const error = await service
+      .upsertFromConfig({ providers: [request({ name: 'after', incrementalTools: true }), second(), second({ id: 'third' })] })
+      .catch((e: unknown) => e)
     expect(error).toBeInstanceOf(Error)
     expect((await service.list()).map((p) => [p.id, p.name])).toEqual([['custom-provider-1', 'before']])
+    expect((await service.list())[0]?.incrementalTools).toBe(false)
   })
 
   it.each([

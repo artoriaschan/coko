@@ -60,8 +60,8 @@ async function runOnce(sidecar: Sidecar, cookie: string, model: { providerId: st
 }
 
 async function readAll(dir: string): Promise<Buffer> {
-  const names = await readdir(dir).catch(() => [] as string[])
-  return Buffer.concat(await Promise.all(names.map((name) => readFile(join(dir, name)))))
+  const entries = await readdir(dir, { withFileTypes: true })
+  return Buffer.concat(await Promise.all(entries.map((entry) => (entry.isDirectory() ? readAll(join(dir, entry.name)) : readFile(join(dir, entry.name))))))
 }
 
 async function logLines(dirs: SidecarDirs): Promise<Record<string, any>[]> {
@@ -123,9 +123,17 @@ describe('设置与 Provider', () => {
           providerName: 'custom-provider-1',
           modelId: 'custom-model-1',
           name: '自定义模型一',
+          input: ['text', 'image'],
           thinkingLevels: ['off', 'high', 'max'],
         },
-        { providerId: 'custom-provider-1', providerName: 'custom-provider-1', modelId: 'custom-model-2', name: 'custom-model-2', thinkingLevels: ['off'] },
+        {
+          providerId: 'custom-provider-1',
+          providerName: 'custom-provider-1',
+          modelId: 'custom-model-2',
+          name: 'custom-model-2',
+          input: ['text'],
+          thinkingLevels: ['off'],
+        },
       ],
       defaultModel: { providerId: 'custom-provider-1', modelId: 'custom-model-1' },
     })
@@ -199,8 +207,8 @@ describe('设置与 Provider', () => {
     const listed = (await api.get(API_ROUTES.models)).body
     expect(listed).toEqual({
       models: [
-        { providerId: 'local', providerName: 'local', modelId: 'm1', name: 'm1', thinkingLevels: ['off'] },
-        { providerId: 'local', providerName: 'local', modelId: 'm2', name: 'm2', thinkingLevels: ['off'] },
+        { providerId: 'local', providerName: 'local', modelId: 'm1', name: 'm1', input: ['text'], thinkingLevels: ['off'] },
+        { providerId: 'local', providerName: 'local', modelId: 'm2', name: 'm2', input: ['text'], thinkingLevels: ['off'] },
       ],
       defaultModel: { providerId: 'local', modelId: 'm1' },
     })
@@ -213,7 +221,7 @@ describe('设置与 Provider', () => {
     const faux = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: await fauxScript(root, { responses: [] }) } })
     const fauxApi = client(faux, await exchange(faux))
     expect((await fauxApi.get(API_ROUTES.models)).body).toEqual({
-      models: [{ providerId: 'faux', providerName: 'faux', modelId: 'faux-1', name: 'Faux', thinkingLevels: ['off'] }],
+      models: [{ providerId: 'faux', providerName: 'faux', modelId: 'faux-1', name: 'Faux', input: ['text'], thinkingLevels: ['off'] }],
       defaultModel: { providerId: 'faux', modelId: 'faux-1' },
     })
   })
@@ -346,9 +354,13 @@ describe('Credential', () => {
 })
 
 describe('启动失败', () => {
-  it('参数缺失或不是绝对路径时 fatal invalid-arguments 并以 1 退出', async () => {
+  it('路径参数缺值、不是绝对路径或选项未知时 fatal invalid-arguments 并以 1 退出', async () => {
     const dirs = await sidecarDirs()
-    for (const args of [[], ['--data-dir', 'relative', '--log-dir', dirs.logDir], ['--data-dir', dirs.dataDir, '--log-dir', dirs.logDir, '--unknown', 'x']]) {
+    for (const args of [
+      ['--data-dir'],
+      ['--data-dir', 'relative', '--log-dir', dirs.logDir],
+      ['--data-dir', dirs.dataDir, '--log-dir', dirs.logDir, '--unknown', 'x'],
+    ]) {
       const proc = spawnSidecar({ dirs, args })
       expect(await proc.waitMessage('fatal')).toMatchObject({ code: 'invalid-arguments' })
       expect((await proc.exited).code).toBe(1)

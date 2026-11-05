@@ -12,6 +12,7 @@ import {
   detectImageMimeType,
   createAgentRuntime,
   createToolSearch,
+  withIncrementalTools,
   type OnDemandTool,
   type ToolLoadPayload,
   createBuiltinToolRegistry,
@@ -499,7 +500,7 @@ export class SessionRuns {
     const observe = context.observeHooks(scope)
     const permissionHooks = context.permissionHooks(scope)
     const pending = takesPending(request.trigger) ? await context.pendingInput(scope) : undefined
-    const toolEntries = await store.sessions.listEntries(sessionId)
+    const [toolEntries, provider] = await Promise.all([store.sessions.listEntries(sessionId), store.providers.get(model.provider)])
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
@@ -516,7 +517,17 @@ export class SessionRuns {
       runContext.permissionHooks = permissionHooks
       // The registry retains all allowed tools; the runtime selects model tools separately.
     }
-    runtime.setModel(model)
+    runtime.setModel(
+      withIncrementalTools(
+        model,
+        Boolean(
+          runContext?.catalog.length &&
+          scope.parentSessionId === undefined &&
+          scope.config.mcp.toolSearch &&
+          (provider?.incrementalTools ?? model.api !== 'openai-completions'),
+        ),
+      ),
+    )
     runtime.setThinkingLevel(models.effectiveLevel(session))
 
     this.#directoryAdmission?.(scope.cwd)
@@ -773,7 +784,9 @@ export class SessionRuns {
     const storedEntries = await store.sessions.listEntries(session.id)
     this.#setTools(runContext, seeded, storedEntries)
     // 开头的系统消息只列本 Session 可用的工具（子代理的工具交集）：构造前就按 filterTools 限定，不先列出再撤回。
-    const seedVisible = providedTools(this.baseTools(cwd), runContext.contributed, context, runContext.scope, storedEntries)
+    // Seed the uncommitted transcript baseline with resident tools only. Durable loads replay at
+    // their original positions; execute() selects their current definitions before the request.
+    const seedVisible = providedTools(this.baseTools(cwd), runContext.contributed, context, runContext.scope)
 
     const runtime = createAgentRuntime({
       ...(this.#options.basePrompt ? { systemPrompt: this.#options.basePrompt.text } : {}),
