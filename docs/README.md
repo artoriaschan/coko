@@ -46,7 +46,7 @@ lifecycle: active
 - [Goal](subsystems/goal.md)：goal 条目与九阶段转换、create_goal / update_goal 的授权与完成证据、Goal Round 的推进与去重、wait_jobs、稳定的 <goal> 定义与动态 State Update、<goal_round> 输入、/goal 与 /api/sessions/:id/goal、取消与重启后暂停、预算与模型价格、Goal 卡与用量界面。
 - [Plan Mode](subsystems/plan-mode.md)：plan 权限模式、/plan 与 prior、exit_plan_mode 的提交与审阅、<plan_mode> 与 <approved_plan> 注入、审阅卡与右栏 Plan tab。
 - [Memory](subsystems/memory.md)：记忆工具与权限类、每个 Run 注入的 <memory> section 与预算、关键词检索与 FTS 降级、开关、/api/memories 与设置分区。
-- [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、运行时数据目录、连接状态与重连、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
+- [MCP Server 连接、工具、资源与提示模板](subsystems/mcp.md)：全局与项目 MCP Server 配置、批准摘要、运行时数据目录、连接状态与重连、工具搜索与按需加载、工具命名与权限、资源工具、`/mcp__<server>__<prompt>` 命令、登记的 Secret。
 - [交接](subsystems/handoff.md)：/handoff 与失败重试、trigger handoff 的摘要 Run、目标 Session（当前目录或 worktree）与权限状态的复制、Goal 用量、草稿与时间线行、与从此分叉的差异。
 - [代码智能](subsystems/lsp.md)：语言服务器的配置来源与合并、lsp 工具的四个操作与结果格式、权限与脱敏、进程生命周期与失败、/api/lsp 与 lsp_update、设置 → 代码智能分区与工具卡。
 - [插件](subsystems/plugins.md)：清单与诊断、目录与 git 来源的安装与复制、相对主根路径与移动兼容、digest 与批准、启用 / 禁用 / 更新 / 卸载、贡献的命名空间与加载时机、/api/plugins、与项目资源的区别、设置中的插件分区与批准对话框。

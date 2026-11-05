@@ -16,6 +16,7 @@ lifecycle: active
 | `packages/agent/src/extensions/mcp/naming.ts` | 工具名 `mcp__<server>__<tool>`、截断与 hash、Server 名冲突 |
 | `packages/agent/src/extensions/mcp/connection.ts` | `McpConnection`：pi-mcp `McpClient` 的连接状态机、连接超时、退避重连、stderr 尾部、auth-required（给宿主传输的 `authProvider`、`isMcpAuthError`）；传输由宿主注入 |
 | `packages/agent/src/extensions/mcp/tool.ts`、`results.ts` | MCP 工具 → `CokoTool`（参数 schema、幂等键、进度），结果 → 模型内容 |
+| `packages/agent/src/tools/tool-search/` | 目录渲染、查询解析、BM25 与 CJK 分词、`tool_search` 的结果及 schema 预算；不连接 MCP、不保存 Session |
 | `packages/agent/src/extensions/mcp/pagination.ts` | 分页列表：按 `nextCursor` 翻页、重复 cursor 与 1000 页上限、逐项校验与诊断 |
 | `packages/agent/src/extensions/mcp/resources.ts` | 资源工具 `list_mcp_resources`、`list_mcp_resource_templates`、`read_mcp_resource` |
 | `packages/agent/src/extensions/mcp/prompts.ts` | 提示模板：`prompts/list` 与 `prompts/get` 的请求封装、结果校验、位置参数映射、消息转文本 |
@@ -76,7 +77,11 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 目录通过 `on_demand_tools` State Update 按 Server 分组公告，每行包含工具名与首句说明（至多 60 字），不含 schema；首次或名单变化时发送完整目录，名单不变不重发。读取或渲染失败只记 warn。进行中的 Run 使用同一快照，工具列表变化到下一个 Run 生效。
 
-`tool_search { query, limit? }` 的权限类为 context-read，可在 Plan Mode 下使用；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制。结果包含名称、Server、说明与参数 schema，并指示下一轮按真实名称直接调用；常驻名称列为已可用，范围外名称列为未知。当前关键词查询返回零命中与重搜提示，关键词检索另行接入。调用卡沿用通用工具卡，加载不授予业务执行权限。
+`tool_search { query, limit? }` 一次完成搜索与加载。普通关键词默认返回 5 项、最多 20 项；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制；`+词` 要求候选包含该词。检索文本只取工具名（`_ . - :` 换成空格）、说明与第一层参数名，不递归索引 schema、不翻译。英文与数字按词、中日韩文字按相邻二字切分（单字保留），在必需词过滤后的候选上计算 BM25（k1=1.5、b=0.75）；同分按 Server、名称排序，没有正分时才按完整查询串做工具名子串匹配。
+
+结果包含名称、Server、说明与参数 schema，并指示下一轮按真实名称直接调用。schema 的累计预算为 8000 字符，超出的项目注明 `parametersOmitted`，仍然加载，其完整定义在下一次请求的工具列表中。常驻名称列为已可用，范围外名称列为未知；零命中列出可用 Server 与工具数，提示用 Server 名加具体动作或对象重搜。调用卡沿用通用工具卡。
+
+搜索的权限类为 context-read，可在 Plan Mode 下使用；deny 规则与 PreToolUse Hook 可以阻止搜索。目录只含当前 Run 可用的工具，`disabledTools` 与未批准项目 Server 的工具不进入搜索，确切选择也报未知。加载不授予业务执行权限：目标工具即使已经加载，其调用仍经过原有规则、审批与 Hook；deny 规则拒绝时 MCP Server 不收到业务调用。
 
 宿主只根据可信的搜索执行通道生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
 
@@ -144,6 +149,8 @@ Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload 
 OAuth（auth-required 之后由用户在请求头中填写凭据；没有授权流程与令牌刷新）、SSE 与 WebSocket 传输、sampling、elicitation、资源订阅、在 `@` 菜单引用资源、stdio Server 的沙箱、其他浏览器预设。HTTP 测试 Server 没有服务端流，list_changed 通知只在 stdio 上验证，GET 流上的 401 未单独验证。真实的 Playwright MCP 与真实要求认证的 HTTP 服务未在自动化中验证（`sidecar-mcp-presets` 的真实用例只在 `COKO_REAL_PLAYWRIGHT_MCP=1` 时运行）。
 
 ## 验证
+
+- `packages/agent/src/tools/tool-search/tool-search.test.ts` 与 `tests/integration/sidecar-tool-search-keywords.test.ts`：关键词、CJK、必需词过滤后的 BM25、同分排序、子串兜底、limit 与 schema 预算；真实 Sidecar 验证确切选择、常驻与未知名称、独立维护的关键词输出快照、Plan Mode、停用与未批准工具不可见、deny 和 PreToolUse Hook，以及已加载业务工具被拒绝时 MCP fixture 未收到调用。
 
 - `tests/integration/sidecar-mcp-data-directory.test.ts`：真实 Sidecar 启动 stdio fixture，验证可信环境变量、默认数据 cwd、显式相对与绝对 cwd、HTTP 无 cwd；磁盘状态跨 Session 删除、移除配置、重启和同名 Server 重建保留；非法路径形状的 Server 名在 HTTP 配置边界拒绝。
 
