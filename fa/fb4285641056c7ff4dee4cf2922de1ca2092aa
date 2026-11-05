@@ -1,0 +1,45 @@
+apps/desktop/src/renderer/features/settings/mcp-section.tsx
+  s_dd1034265ded7f::t_f4c46c7dcbb845 130-135
+apps/desktop/src/renderer/features/settings/mcp-section.browser.test.tsx
+  s_dd1034265ded7f::t_1134c713d667be 199
+  s_dd1034265ded7f::t_10284218eb56cf 4,19-23,26
+  s_dd1034265ded7f::t_d95af881c59896 256
+  s_dd1034265ded7f::t_830c0db79cc07b 175-186,245-248
+  s_dd1034265ded7f::t_95cce6dfc24d34 14-15,172-174,187-191,196-198,200-206,237-244,249-255,257-261
+.scratch/tool-search/issues/07-global-switch-settings.md
+  s_dd1034265ded7f::t_cc05b1044cf436 15-22,27-33
+apps/desktop/src/renderer/features/settings/capability-toggle.tsx
+  s_dd1034265ded7f::t_f4c46c7dcbb845 17
+tests/integration/sidecar-tool-search-settings.test.ts
+  s_dd1034265ded7f::t_c0b6c3a9484d26 73,127,140,147
+  s_dd1034265ded7f::t_565ce330b5578e 1-27,36-37,41-46,52-72,74-90,94-98,103-106,111-116,118,121,123-126,134-139,141-146,148-150
+  s_dd1034265ded7f::t_830c0db79cc07b 28-35,38-40,47-51,91-93,107-110,128-133
+  s_dd1034265ded7f::t_eaa0ef9750fd91 99-102,117,120,122
+  s_dd1034265ded7f::t_5a4a4b494af696 119
+apps/desktop/src/renderer/stores/config-store.ts
+  s_dd1034265ded7f::t_f4c46c7dcbb845 13,37
+packages/i18n/src/dictionaries/domains/mcp.ts
+  s_dd1034265ded7f::t_f4c46c7dcbb845 7-11,142-146
+docs/subsystems/configuration.md
+  s_dd1034265ded7f::t_b2a39a6634d28d 43,86,95
+apps/desktop/src/renderer/stores/config-store.test.ts
+  s_dd1034265ded7f::t_830c0db79cc07b 64-71
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_b2a39a6634d28d 79-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "fafb4285641056c7ff4dee4cf2922de1ca2092aa",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
