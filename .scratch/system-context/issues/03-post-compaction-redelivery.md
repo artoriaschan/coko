@@ -28,3 +28,4 @@
 - `rtk pnpm run typecheck`、`rtk pnpm run check:docs`（360 个 Markdown、0 问题）、受影响 TypeScript 的 `rtk pnpm exec oxlint ...`、`rtk git diff --check`：通过。首次 lint 指出条件 expect，已按上述方式修正。
 - 文档影响：State Update 的压缩后送达时机、摘要缩写、压缩后的 Todo List 与测试入口归 `docs/subsystems/context.md`，已原地同步。从 AGENTS → docs/README → 正文读回，路径/语义/归属/引用方向/生命周期/入口/新会话读入/历史保留均通过；无新增目录或正式文档到任务材料的反向依赖。
 - 未验证：真实 Provider 的连续 user 消息兼容性、真实模型与缓存、Electron 窗口、打包产物、CI；本票通过证明真实 Sidecar 与 faux 模型链路，不将其表述为真实 Provider 验证。
+- 合入集成的团队票 `b2408675` 后，复跑 Sidecar 压缩、压缩规划与 State Update 配对 3 文件共 34 例通过；typecheck、check:docs（360 文件、0 问题）与 diff-check 再次通过。合并保留团队静态 section 与动态快照的描述，无代码冲突。
