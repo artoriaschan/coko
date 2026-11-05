@@ -153,9 +153,9 @@ export const zh = {
   },
   frame: {
     main: '对话',
-    rightPanel: '右栏',
-    openRightPanel: '打开右侧边栏',
-    closeRightPanel: '收起右侧边栏',
+    rightPanel: '侧边栏',
+    openRightPanel: '打开侧边栏',
+    closeRightPanel: '收起侧边栏',
     openSidebar: '打开侧边栏',
     collapseSidebar: '收起侧边栏',
   },
@@ -705,8 +705,11 @@ export const zh = {
     confirmQuitMany: '有 {count} 个正在运行的任务，退出会中断它们',
   },
   rightPanel: {
-    title: '文件预览',
-    empty: '选择文件或改动后在这里预览',
+    title: '侧边栏',
+    empty: '请先选择会话',
+    start: '开始',
+    newTab: '新标签页',
+    closePage: '关闭{title}',
   },
   markdown: {
     close: '关闭',

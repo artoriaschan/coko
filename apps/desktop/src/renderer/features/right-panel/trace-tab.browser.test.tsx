@@ -1,11 +1,12 @@
-// 右栏 Trace tab（docs/subsystems/tracing.md#界面）：在应用中（内存协议后端）打开右侧边栏的 Trace tab；追踪与导出经注入的 TraceBackend
+// 右栏 Trace tab（docs/subsystems/tracing.md#界面）：在应用中（内存协议后端）打开侧边栏的 Trace tab；追踪与导出经注入的 TraceBackend
 // （与 GET …/trace、…/export 同形）。最近的 Run 在最上面，展开为请求与工具行（键盘可达）；影响追踪的条目到达时重读（同一帧合并）；
 // 导出交给下载并提示文件名；读取失败时可重试。
 import '../../styles.css'
 import type { RunTrace, SessionEntryRecord, TraceResponse } from '@coko/protocol'
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
+import { toast } from '@coko/ui'
 import { App } from '../../app/app.tsx'
 import { createAppearanceStore } from '../../app/appearance-store.ts'
 import { createConnectionStore } from '../../app/connection-store.ts'
@@ -109,8 +110,8 @@ async function open(trace: ReturnType<typeof fakeTrace>) {
     </div>,
   )
   await expect.poll(() => fixture.chat.getState().conversations['s-1']?.status).toBe('ready')
-  await page.getByRole('button', { name: 'Open right sidebar' }).click()
-  await page.getByRole('tab', { name: 'Trace' }).click()
+  await page.getByRole('button', { name: 'Open sidebar' }).click()
+  await page.getByRole('button', { name: 'Trace', exact: true }).click()
   await expect.poll(() => document.querySelector('[role="tab"][data-tab="trace"]')?.getAttribute('aria-selected')).toBe('true')
   return fixture
 }
@@ -192,4 +193,11 @@ it('读取失败：没有内容时为错误与重试；有内容时保留内容�
   trace.state.response = response([run('run-1')])
   await page.getByRole('button', { name: 'Retry' }).click()
   await expect.poll(() => runRows().length).toBe(1)
+})
+
+afterEach(async () => {
+  toast.dismiss()
+  await vi.waitFor(() => {
+    if (document.querySelector('[data-sonner-toast]')) throw new Error('toast still mounted')
+  })
 })

@@ -73,3 +73,5 @@ export { toast } from 'sonner'
 
 export { SidebarSettings } from './sidebar/sidebar-settings.tsx'
 export { SidebarListRow } from './components/sidebar-list-row.tsx'
+
+export { PanelTabs, PanelStart, type PanelTab } from './components/panel-tabs.tsx'

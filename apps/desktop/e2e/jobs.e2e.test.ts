@@ -79,7 +79,7 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Started.')
     await expect.poll(() => badge(app).textContent(), { timeout: 15_000 }).toBe('2')
 
-    // 标题栏按钮打开右侧边栏的 Jobs tab：缺省选中最近启动的运行中 Job（beta），输出实时追加。
+    // 标题栏按钮打开侧边栏的 Jobs tab：缺省选中最近启动的运行中 Job（beta），输出实时追加。
     await jobsButton(app).click()
     await expect.poll(() => jobsTab(app).getAttribute('aria-selected')).toBe('true')
     await expect.poll(() => app.window.locator('[data-slot="jobs-tab"] li').count()).toBe(2)
@@ -112,8 +112,8 @@ describe('后台任务视图', { timeout: 180_000 }, () => {
     const stopped = await ticks()
 
     await app.window
-      .getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
-      .first()
+      .locator('[data-slot="app-frame-right"]')
+      .getByRole('button', { name: /^(Collapse sidebar|收起侧边栏)$/ })
       .click()
     await openBackgroundCommands(app)
     // 工具卡上的 Job chip 打开对应 Job（alpha）。

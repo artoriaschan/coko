@@ -90,8 +90,8 @@ describe('定时任务界面', { timeout: 180_000 }, () => {
 
     // 没有任务时标题栏没有"定时任务"按钮：从右栏的 Schedules tab 新建。
     expect(await window.locator('[data-action="open-schedules"]').count()).toBe(0)
-    await window.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
-    await window.locator('[role="tab"][data-tab="schedules"]').click()
+    await window.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
+    await window.getByRole('button', { name: /^(Schedules|定时任务)$/, exact: true }).click()
     await expect.poll(() => window.locator('[role="tab"][data-tab="schedules"]').getAttribute('aria-selected')).toBe('true')
     await window.locator('[data-action="new-schedule"]').click()
     const form = window.locator('[data-slot="schedule-form-dialog"]')

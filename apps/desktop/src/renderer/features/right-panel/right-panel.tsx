@@ -1,51 +1,63 @@
-import { XIcon } from 'lucide-react'
+import { PanelStart, PanelTabs } from '@coko/ui'
+import { HouseIcon, PanelRightCloseIcon } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
-import { RIGHT_PANEL_TABS, rightPanelTabStore, selectRightPanelTab, visibleRightPanelTabs, type RightPanelTabDefinition } from './tabs.ts'
+import { closePage, getRightPanelLayout, openPage, rightPanelLayoutStore, selectPage } from './layout-store.ts'
+import { RIGHT_PANEL_TABS, visibleRightPanelTabs, type RightPanelTabDefinition } from './tabs.ts'
 
-/** 右栏：没有已交付的 tab 时显示空状态；有时标题下为 tab 列表，选中项不可见时显示第一个。 */
+/** 当前 Session 的单格面板；正文组件继续沿用各页面自己的状态与数据。 */
 export function RightPanel({ onClose, tabs = RIGHT_PANEL_TABS }: { onClose: () => void; tabs?: readonly RightPanelTabDefinition[] }) {
   const { t } = useI18n()
   const sessionId = useChat((s) => s.activeSessionId)
-  const selected = useStore(rightPanelTabStore, (s) => s.selected)
+  const layout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(sessionId))
+  if (sessionId === null) return null
   const visible = visibleRightPanelTabs(tabs)
-  const current = visible.find((tab) => tab.id === selected) ?? visible[0]
+  const current = visible.find((tab) => tab.id === layout.active)
+  const pages = visible.map((tab) => ({ id: tab.id, title: t(tab.label), icon: <tab.icon aria-hidden className="size-5 shrink-0" /> }))
+  const panelTabs = layout.tabs.flatMap((kind) => {
+    const definition = visible.find((tab) => tab.id === kind)
+    if (kind !== 'start' && !definition) return []
+    const title = definition ? t(definition.label) : t('rightPanel.start')
+    return [
+      {
+        id: kind,
+        title,
+        icon: definition ? <definition.icon aria-hidden className="size-3.5 shrink-0" /> : <HouseIcon aria-hidden className="size-3.5 shrink-0" />,
+        closeLabel: kind === 'start' && layout.tabs.length === 1 ? undefined : t('rightPanel.closePage', { title }),
+      },
+    ]
+  })
   return (
     <>
-      <header data-window-drag className="flex h-(--frame-top-clearance) shrink-0 items-center gap-2 ps-4 pe-2">
-        <h2 className="min-w-0 flex-1 truncate text-ui-body-lg font-medium">{t('rightPanel.title')}</h2>
-        <IconButton label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
-          <XIcon />
-        </IconButton>
-      </header>
-      {current ? (
-        <>
-          <div role="tablist" aria-label={t('rightPanel.title')} className="flex shrink-0 gap-1 px-2 pb-2">
-            {visible.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`right-panel-tab-${tab.id}`}
-                aria-selected={tab === current}
-                aria-controls="right-panel-tabpanel"
-                data-tab={tab.id}
-                className="min-w-0 truncate rounded-md px-2 py-1 text-ui-body text-muted-foreground focus-ring aria-selected:bg-accent aria-selected:text-foreground [@media(hover:hover)]:hover:text-foreground"
-                onClick={() => selectRightPanelTab(tab.id)}
-              >
-                {t(tab.label)}
-              </button>
-            ))}
-          </div>
-          <div role="tabpanel" id="right-panel-tabpanel" aria-labelledby={`right-panel-tab-${current.id}`} className="flex min-h-0 flex-1 flex-col">
-            <current.Component sessionId={sessionId} />
-          </div>
-        </>
-      ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('rightPanel.empty')}</div>
-      )}
+      <PanelTabs
+        tabs={panelTabs}
+        active={layout.active}
+        label={t('frame.rightPanel')}
+        newTabLabel={t('rightPanel.newTab')}
+        onSelect={(id) => selectPage(sessionId, id)}
+        onClose={(id) => closePage(sessionId, id)}
+        onNewTab={layout.tabs.includes('start') ? undefined : () => openPage(sessionId, 'start')}
+        controls={
+          <IconButton label={t('frame.closeRightPanel')} tooltip={t('frame.collapseSidebar')} onClick={onClose}>
+            <PanelRightCloseIcon />
+          </IconButton>
+        }
+      />
+      <div
+        role="tabpanel"
+        id="right-panel-tabpanel"
+        aria-labelledby={`right-panel-tab-${layout.active}`}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col focus:outline-none"
+      >
+        {layout.active === 'start' ? (
+          <PanelStart pages={pages} onOpen={(id) => openPage(sessionId, id)} />
+        ) : (
+          current && <current.Component sessionId={sessionId} />
+        )}
+      </div>
     </>
   )
 }

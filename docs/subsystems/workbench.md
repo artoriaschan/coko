@@ -24,13 +24,17 @@ lifecycle: active
 
 ## 对话标题栏
 
-详情页顶部的标题行高 48px，与窗口安全区和右栏头部共用 `--frame-top-clearance`。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
+详情页顶部的标题行高 48px，使用窗口安全区的 `--frame-top-clearance`；右栏上沿是独立的 tab 条。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
 
 主区不宽于 560px 且侧栏收起时，既有的展开侧栏、后退、前进和新对话控制条移到 tab 行左侧，“对话”tab 位于其后。控制条保持同一份 DOM、28px 命中区及原有键盘路径；标题行仍为 48px，保留原生窗口安全区，四个状态入口、“更多”和打开右栏均留在标题行。此局部重排避免全部状态入口同时出现时溢出，以及聚焦行尾按钮引发主区的隐藏横向滚动。
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
-右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 为“打开侧边栏”，可访问名称为“打开右侧边栏”。打开后入口隐藏，使用右栏头部的 X 收起：Tooltip 为“收起侧边栏”，可访问名称为“收起右侧边栏”；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口仍可直接打开对应 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 与可访问名称均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项和展开状态，目前保存在 renderer 内存。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+
+右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。六个页面的正文与数据来源继续遵循各子系统契约。
 
 详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
 
@@ -220,7 +224,7 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 
 验证：[命令详情 App 测试](../../apps/desktop/src/renderer/features/conversation/terminal-details.browser.test.tsx)、[真实 Electron 命令与后台任务](../../apps/desktop/e2e/terminal-details.e2e.test.ts)。
 
-主时间线的展开详情提供 Inspect，中文为“查看”，打开既有右栏 Trace 标签页。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
+主时间线的展开详情提供 Inspect，中文为“查看”，打开或聚焦当前 Session 的右栏 Trace 页面。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
 
 ## 从助手回复创建新对话分支
 

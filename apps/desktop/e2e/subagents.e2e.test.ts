@@ -164,8 +164,8 @@ describe('子代理界面', () => {
       expect(await timeline.locator('[data-slot="tool-card"][data-tool="read"]').count()).toBe(1)
       expect(await panel.getByRole('textbox').count()).toBe(0)
       await win
-        .getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
-        .first()
+        .locator('[data-slot="app-frame-right"]')
+        .getByRole('button', { name: /^(Collapse sidebar|收起侧边栏)$/ })
         .click()
 
       // 2. 子代理的写入审批：父会话输入区接管，标出来源；允许后子代理继续并写入文件。

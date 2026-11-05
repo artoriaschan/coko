@@ -14,7 +14,7 @@ import { createSchedulesStore, type SchedulesBackend } from '../../stores/schedu
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
 import { settingsRegion } from '../../testing/settings-page.ts'
 import { SchedulesStoreProvider } from '../conversation/schedules-button.tsx'
-import { rightPanelTabStore } from '../right-panel/tabs.ts'
+import { getRightPanelLayout } from '../right-panel/layout-store.ts'
 
 const schedule = (id: string, sessionId: string, patch: Partial<Schedule> = {}): Schedule => ({
   id,
@@ -75,7 +75,6 @@ function renderApp(initial: Schedule[] = [], locale: 'en' | 'zh' = 'en') {
 }
 
 afterEach(async () => {
-  rightPanelTabStore.setState({ selected: null })
   await page.viewport(1280, 800)
 })
 
@@ -116,7 +115,7 @@ describe('设置 → 定时任务', () => {
     await userEvent.click(settingsRegion().getByRole('button', { name: 'Open the session of Task b' }))
     await expect.poll(() => settingsPage.getSnapshot().visible).toBe(false)
     expect(fixture.chat.getState().activeSessionId).toBe('s-3')
-    await expect.poll(() => rightPanelTabStore.getState().selected).toBe('schedules')
+    await expect.poll(() => getRightPanelLayout('s-3').active).toBe('schedules')
     await expect.poll(() => document.querySelector('[role="tab"][data-tab="schedules"]')?.getAttribute('aria-selected')).toBe('true')
     await expect.poll(() => document.querySelector('[data-slot="schedules-tab"] li[data-schedule-id="b"]')).not.toBeNull()
   })

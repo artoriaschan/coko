@@ -82,7 +82,7 @@ it('composes Session statistics, Token usage and header through replay in zh/en,
   await waitConnected(win)
   await expect.poll(() => tokens.getAttribute('data-tokens')).toBe('250')
   await expect.poll(() => stats.textContent()).toBe(initialStats)
-  const closePanel = win.getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ })
+  const closePanel = win.locator('[data-slot="app-frame-right"]').getByRole('button', { name: /^(Collapse sidebar|收起侧边栏)$/ })
   if (await closePanel.count()) await closePanel.click()
   const header = win.locator('[data-slot="app-frame-main"] header[data-window-drag]')
   await expect
@@ -124,10 +124,13 @@ it('composes Session statistics, Token usage and header through replay in zh/en,
       await win.locator('[data-action="session-menu"]').click()
       expect(await win.getByRole('menuitem', { name: /^(Download session|Session 下载)$/ }).isVisible()).toBe(true)
       await win.keyboard.press('Escape')
-      await win.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).click()
-      await win.getByRole('button', { name: /^(Close right sidebar|收起右侧边栏)$/ }).click()
+      await win.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
+      await win
+        .locator('[data-slot="app-frame-right"]')
+        .getByRole('button', { name: /^(Collapse sidebar|收起侧边栏)$/ })
+        .click()
       await expect
-        .poll(() => win.getByRole('button', { name: /^(Open right sidebar|打开右侧边栏)$/ }).evaluate((element) => element === document.activeElement))
+        .poll(() => win.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).evaluate((element) => element === document.activeElement))
         .toBe(true)
       await expect.poll(() => header.getByRole('button').count()).toBe(10)
       const buttons = await header.getByRole('button').evaluateAll((elements) =>

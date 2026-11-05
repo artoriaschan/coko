@@ -79,7 +79,7 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 
 对话标题栏的常驻“更多”菜单提供“Session 下载”，在归档 Session 和窄窗口中同样可用。它读取同一个 `?children=1` 脱敏导出，只把建议文件名改为 `coko-session-<id>.jsonl`；服务端接口和 Trace 导出的 `.ndjson` 文件名保持不变。两处共用取文本、Blob 下载、同一 Session 的请求去重和 Toast：导出中对应操作禁用，失败说明原因，成功提示建议文件名。Electron 使用默认下载保存流程；自动验收通过 `will-download` 指定临时路径检查写出的文件，不据此声称已验证原生保存框。
 
-主时间线的工具详情通过 Inspect（中文“查看”）复用该 Trace 标签页，必要时打开右栏；当前入口只选择当前 Session 的 Trace，不提供工具行定位。子 Session 时间线没有对应追踪导航回调时不显示 Inspect，也不通过展开或查看重新执行工具。
+主时间线的工具详情通过 Inspect（中文“查看”）打开或聚焦当前 Session 的 Trace 页面，并展开右栏；当前入口只选择当前 Session 的 Trace，不提供工具行定位。子 Session 时间线没有对应追踪导航回调时不显示 Inspect，也不通过展开或查看重新执行工具。
 
 ## 评测
 

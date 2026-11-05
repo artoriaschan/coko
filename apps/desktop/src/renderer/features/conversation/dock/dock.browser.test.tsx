@@ -2,7 +2,7 @@
 import '../../../styles.css'
 import { TooltipProvider } from '@coko/ui'
 import type * as React from 'react'
-import { afterEach, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { App } from '../../../app/app.tsx'
@@ -15,11 +15,10 @@ import { createSettingsPageStore } from '../../../app/settings-page-store.ts'
 import { createFixtureChat } from '../../../testing/fixture-chat.ts'
 import { HEADER_ACTIONS } from '../header-actions.ts'
 import { RightPanel } from '../../right-panel/right-panel.tsx'
-import { RIGHT_PANEL_TABS, rightPanelTabStore } from '../../right-panel/tabs.ts'
+import { openPage } from '../../right-panel/layout-store.ts'
+import { RIGHT_PANEL_TABS } from '../../right-panel/tabs.ts'
 import { Dock } from './dock.tsx'
 import { DOCK_SLOTS } from './dock-slots.ts'
-
-afterEach(() => rightPanelTabStore.setState({ selected: null }))
 
 it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已交付', () => {
   expect(DOCK_SLOTS.map((s) => [s.id, s.available])).toEqual([
@@ -43,7 +42,7 @@ it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已
   ])
 })
 
-it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏 tab 为 Plan、Tasks、Agents、Schedules、Team 与 Trace', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏按需打开页面，开始页列出全部六个入口', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -65,17 +64,12 @@ it('应用中：会话打开后 dock 没有内容时不占位；没有后台任�
   // 待办卡与队列卡已交付，但 s-1 没有待办与追加指令：容器为空，empty:hidden 不占位。
   expect(getComputedStyle(document.querySelector('[data-slot="dock"]')!).display).toBe('none')
   expect(document.querySelector('[data-action="open-jobs"]')).toBeNull()
-  await userEvent.click(page.getByRole('button', { name: 'Open right sidebar' }))
+  await userEvent.click(page.getByRole('button', { name: 'Open sidebar' }))
   expect(document.querySelector('[data-slot="plan-chip"]')).toBeNull()
-  await expect.element(page.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true')
-  expect([...screen.container.querySelectorAll('[data-slot="app-frame-right"] [role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual([
-    'plan',
-    'jobs',
-    'agents',
-    'schedules',
-    'team',
-    'trace',
-  ])
+  await expect.element(page.getByRole('tab', { name: 'Start' })).toHaveAttribute('aria-selected', 'true')
+  expect([...screen.container.querySelectorAll('[data-slot="app-frame-right"] [role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['start'])
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace'])
+    await expect.element(page.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
 function renderWithProviders(node: React.ReactNode) {
@@ -109,13 +103,12 @@ it('dock：只挂载已交付的卡片，按 Todo → Goal → Queue；卡片都
   expect(getComputedStyle(dock).display).toBe('none')
 })
 
-it('右栏：已交付的 tab 组成 tab 列表，点击切换；选中项不可见时显示第一个', async () => {
+it('右栏：开始页只列出已交付页面，选择后原位替换引导页', async () => {
   const Panel = (id: string) => () => <p>{`panel-${id}`}</p>
   const tabs = RIGHT_PANEL_TABS.map((t) => ({ ...t, available: true, Component: Panel(t.id) }))
+  openPage('s-1', 'start')
   await renderWithProviders(<RightPanel onClose={() => {}} tabs={tabs} />)
-  await expect.element(page.getByRole('tab', { name: 'Plan' })).toHaveAttribute('aria-selected', 'true')
-  await expect.element(page.getByText('panel-plan')).toBeVisible()
-  await userEvent.click(page.getByRole('tab', { name: 'Tasks' }))
+  await userEvent.click(page.getByRole('button', { name: 'Tasks', exact: true }))
   await expect.element(page.getByText('panel-jobs')).toBeVisible()
   await expect.element(page.getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'true')
 })

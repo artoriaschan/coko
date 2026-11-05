@@ -23,7 +23,7 @@ import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock
 import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { restoredMode } from './plan-review-panel.tsx'
-import { selectRightPanelTab, type RightPanelTabId } from '../right-panel/tabs.ts'
+import { openPage, type RightPanelTabId } from '../right-panel/layout-store.ts'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
 import { RewindDialog } from './rewind-dialog.tsx'
@@ -231,12 +231,14 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   const continuable = resumeMode !== undefined
 
   const title = session ? session.title || t('sidebar.untitled') : t('conversation.newSession')
-  // 标题栏操作（后台任务、子代理、定时任务与团队）：已交付的才挂载；打开某个 tab 时右栏未打开则先打开。
+  // 所有入口打开或聚焦当前 Session 的页面；布局动作负责单例、引导页与展开规则。
   const headerActions = visibleHeaderActions()
-  const openTab = (tab: RightPanelTabId) => {
-    selectRightPanelTab(tab)
-    if (!rightOpen) onToggleRight()
-  }
+  const openTab = React.useCallback(
+    (tab: RightPanelTabId) => {
+      openPage(activeSessionId, tab)
+    },
+    [activeSessionId],
+  )
 
   const reading = useReadingScroll(activeSessionId, items)
 

@@ -519,9 +519,9 @@ describe('模型选择', () => {
 
 describe('窄窗口', () => {
   it.each([
-    ['en', 'Open right sidebar', 'Open sidebar', 'Close right sidebar', 'Collapse sidebar'],
-    ['zh', '打开右侧边栏', '打开侧边栏', '收起右侧边栏', '收起侧边栏'],
-  ] as const)('%s：右栏打开入口隐藏，X 收起后焦点回到入口，Tooltip 独立于名称', async (locale, openName, openTip, closeName, closeTip) => {
+    ['en', 'Open sidebar', 'Open sidebar', 'Collapse sidebar', 'Collapse sidebar'],
+    ['zh', '打开侧边栏', '打开侧边栏', '收起侧边栏', '收起侧边栏'],
+  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 与名称一致', async (locale, openName, openTip, closeName, closeTip) => {
     await page.viewport(1200, 900)
     await renderApp(locale).screen
     const open = page.getByRole('button', { name: openName, exact: true })
@@ -531,7 +531,7 @@ describe('窄窗口', () => {
     ;(open.element() as HTMLElement).focus()
     await userEvent.keyboard('{Enter}')
     await expect.element(open).not.toBeInTheDocument()
-    const close = page.getByRole('button', { name: closeName, exact: true })
+    const close = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: closeName, exact: true })
     await expect.element(close).toBeVisible()
     await userEvent.hover(close)
     await expect.element(page.getByRole('tooltip', { name: closeTip, exact: true })).toBeVisible()
@@ -539,7 +539,7 @@ describe('窄窗口', () => {
     await userEvent.keyboard('{Enter}')
     await expect.element(open).toBeVisible()
     await expect.poll(() => document.activeElement).toBe(open.element())
-    await expect.element(page.getByRole('button', { name: closeName, exact: true })).not.toBeInTheDocument()
+    await expect.element(close).not.toBeInTheDocument()
   })
 
   it('390px：无整页横向滚动，控制条与发送入口在视口内', async () => {
@@ -599,7 +599,7 @@ describe('窄窗口', () => {
     const header = document.querySelector<HTMLElement>('[data-slot="app-frame-main"] header')!
     expect(header.querySelector('[data-action="open-handoff"]')).toBeNull()
     expect(header.querySelector('[data-action="more-header-actions"]')).toBeNull()
-    const right = header.querySelector<HTMLElement>('button[aria-label$="right sidebar"]')!
+    const right = header.querySelector<HTMLElement>('button[aria-label="Open sidebar"]')!
     expect(right.getBoundingClientRect().right).toBeLessThanOrEqual(390)
     right.focus()
     expect(document.activeElement).toBe(right)
@@ -718,4 +718,70 @@ describe('内容区历史与草稿', () => {
       expect(target === frame || !frame.contains(target)).toBe(true)
     }
   })
+})
+
+it('opens Start on demand, replaces it with a singleton page and collapses after its final close', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(panel.getByRole('tab').all().length).toBe(1)
+  expect(panel.getByRole('button', { name: 'New tab', exact: true }).query()).toBeNull()
+  expect(panel.getByRole('button', { name: 'Close Start', exact: true }).query()).toBeNull()
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace']) {
+    await expect.element(panel.getByRole('button', { name, exact: true })).toBeVisible()
+  }
+  await panel.getByRole('button', { name: 'Trace', exact: true }).click()
+  await expect.element(panel.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(panel.getByRole('tab').all().length).toBe(1)
+  await expect.element(panel.getByRole('button', { name: 'New tab', exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Close Trace', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toHaveFocus()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await expect.element(panel.getByRole('tab', { name: 'Start', exact: true })).toBeVisible()
+})
+
+it('retains separate sidebar pages per Session and hides the container on non-session pages', async () => {
+  await page.viewport(1440, 900)
+  await renderApp('en').screen
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  const panel = () => page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!)
+  await panel().getByRole('button', { name: 'Trace', exact: true }).click()
+  await panel().getByRole('button', { name: 'New tab', exact: true }).click()
+  await panel().getByRole('button', { name: 'Plan', exact: true }).click()
+  await page.getByRole('button', { name: /^Sidecar startup handshake/ }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+  await panel().getByRole('button', { name: 'Team', exact: true }).click()
+  await page.getByRole('button', { name: '设计 token 与三栏骨架', exact: true }).click()
+  expect(
+    panel()
+      .getByRole('tab')
+      .all()
+      .map((tab) => tab.element().getAttribute('data-tab')),
+  ).toEqual(['trace', 'plan'])
+  await expect.element(panel().getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('button', { name: 'New chat', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).not.toBeInTheDocument()
+  await expect.element(page.getByRole('tab', { name: 'Plan', exact: true })).not.toBeInTheDocument()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Plugins', exact: true }).click()
+  await expect.element(page.getByRole('button', { name: 'Open sidebar', exact: true })).not.toBeInTheDocument()
+})
+
+it.each([
+  ['en', 'light', 'Open sidebar', 'Start', 'Trace'],
+  ['zh', 'dark', '打开侧边栏', '开始', '追踪'],
+] as const)('%s %s: Start and its page entry remain reachable at 390 CSS px', async (locale, theme, open, start, trace) => {
+  await page.viewport(390, 800)
+  await renderApp(locale, { theme }).screen
+  await page.getByRole('button', { name: open, exact: true }).click()
+  await expect.element(page.getByRole('tab', { name: start, exact: true })).toBeVisible()
+  const card = page.getByRole('button', { name: trace, exact: true })
+  const bounds = card.element().getBoundingClientRect()
+  expect(bounds.left).toBeGreaterThanOrEqual(0)
+  expect(bounds.right).toBeLessThanOrEqual(390)
+  await card.click()
+  await expect.element(page.getByRole('tab', { name: trace, exact: true })).toHaveAttribute('aria-selected', 'true')
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
 })

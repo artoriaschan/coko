@@ -156,9 +156,9 @@ export const en: typeof zh = {
   },
   frame: {
     main: 'Conversation',
-    rightPanel: 'Right panel',
-    openRightPanel: 'Open right sidebar',
-    closeRightPanel: 'Close right sidebar',
+    rightPanel: 'Sidebar',
+    openRightPanel: 'Open sidebar',
+    closeRightPanel: 'Collapse sidebar',
     openSidebar: 'Open sidebar',
     collapseSidebar: 'Collapse sidebar',
   },
@@ -712,8 +712,11 @@ export const en: typeof zh = {
     confirmQuitMany: '{count} running tasks will be interrupted.',
   },
   rightPanel: {
-    title: 'File preview',
-    empty: 'Select a file or change to preview it here',
+    title: 'Sidebar',
+    empty: 'Please select a session first',
+    start: 'Start',
+    newTab: 'New tab',
+    closePage: 'Close {title}',
   },
   markdown: {
     close: 'Close',

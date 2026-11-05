@@ -1,6 +1,8 @@
 import { createTranslator } from '@coko/i18n'
 import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider } from '@coko/ui'
 import * as React from 'react'
+import { useStore } from 'zustand'
+import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded } from '../features/right-panel/layout-store.ts'
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
@@ -102,7 +104,10 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
 
   const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
-  const [rightOpen, setRightOpen] = React.useState(false)
+  const activeSessionId = useStore(chat, (state) => state.activeSessionId)
+  const rightLayout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(activeSessionId))
+  const rightOpen = activeSessionId !== null && rightLayout.expanded
+  const setRightOpen = (expanded: boolean) => setRightPanelExpanded(activeSessionId, expanded)
   const [search, setSearch] = React.useState<string | null>(null)
 
   return (
@@ -133,7 +138,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                         <ConversationPane
                           theme={theme}
                           rightOpen={rightOpen && contentPage === null}
-                          onToggleRight={() => setRightOpen((open) => !open)}
+                          onToggleRight={() => setRightOpen(!rightOpen)}
                           connection={connectionState}
                           onAddWorkspace={() => {}}
                           onOpenLogs={openLogs}
