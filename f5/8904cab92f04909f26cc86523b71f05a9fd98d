@@ -1,0 +1,67 @@
+docs/tech-stack/ui-design-system.md
+  s_eff121e41805b1::t_063e6b25916b0f 126-131
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_eff121e41805b1::t_067e42dfc02d1f 11-21,54-57,59-61
+  s_eff121e41805b1::t_56a7d54b2c1684 2,53,62
+  s_eff121e41805b1::t_a6d9c18db4a611 58
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_eff121e41805b1::t_34867c353a2fc8 772-800
+  s_eff121e41805b1::t_43c16b2e02d7a5 801-824
+packages/ui/src/app-frame/app-frame.tsx
+  s_eff121e41805b1::t_a616d70e7aea7a 442
+  s_eff121e41805b1::t_067e42dfc02d1f 3-14,138-145,289-298,445-447,454-465,467-468
+  s_eff121e41805b1::t_d7ec74f7757f25 35-37,49-50,103-104,146-150,154,176,271-272,280,364,390,413,429
+  s_eff121e41805b1::t_7243d17a513749 32,100,151-153
+  s_eff121e41805b1::t_c4e9a573376585 27,91-92,304
+  s_eff121e41805b1::t_b8bb3a42ec895e 21,33-34,101-102,137,284-288,299-303,305-326,453,466,469
+docs/subsystems/workbench.md
+  s_eff121e41805b1::t_063e6b25916b0f 15-18,39,244
+apps/desktop/src/renderer/features/conversation/business-timeline.browser.test.tsx
+  s_eff121e41805b1::t_3925c653aa73c0 273-276
+  s_eff121e41805b1::t_a6d9c18db4a611 272
+packages/i18n/src/dictionaries/en.ts
+  s_eff121e41805b1::t_56a7d54b2c1684 720-722
+packages/ui/src/app-frame/frame-layout.ts
+  s_eff121e41805b1::t_d7ec74f7757f25 15-16,23,25,34-35,48,63
+  s_eff121e41805b1::t_b8bb3a42ec895e 41,44-46
+  s_eff121e41805b1::t_067e42dfc02d1f 42-43,64-70
+  s_eff121e41805b1::t_b422e1a29d4ea6 53-54,62,73
+docs/subsystems/jobs.md
+  s_eff121e41805b1::t_063e6b25916b0f 103
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_eff121e41805b1::t_56a7d54b2c1684 10,12,47-49
+packages/i18n/src/dictionaries/zh.ts
+  s_eff121e41805b1::t_56a7d54b2c1684 713-715
+apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx
+  s_eff121e41805b1::t_a6d9c18db4a611 124
+  s_eff121e41805b1::t_3925c653aa73c0 125
+packages/ui/src/app-frame/frame-layout.test.ts
+  s_eff121e41805b1::t_bde3a265e9b704 10-14,20-22,27
+  s_eff121e41805b1::t_3925c653aa73c0 15-19,23-26
+  s_eff121e41805b1::t_ca03f57d2322d0 1-9,28
+apps/desktop/src/renderer/app/app.tsx
+  s_eff121e41805b1::t_56a7d54b2c1684 2,5,107,130-134,137,175-180
+  s_eff121e41805b1::t_067e42dfc02d1f 185-191
+packages/ui/src/app-frame/app-frame.browser.test.tsx
+  s_eff121e41805b1::t_01e2506ac77232 28-29,44-45,51,67-69,229-262
+  s_eff121e41805b1::t_0a2908f137c4b2 8,46,49,64,294,303-311,313-317
+  s_eff121e41805b1::t_df626b507ab977 50,65-66,263-286
+  s_eff121e41805b1::t_a4cc8504608f41 312
+  s_eff121e41805b1::t_067e42dfc02d1f 30-43,80-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "f58904cab92f04909f26cc86523b71f05a9fd98d",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
