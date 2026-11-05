@@ -17,6 +17,8 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 ## 决定
 
+以下模式、审批与提权决定继续有效。2026-11-05 的 [ADR 0026](0026-standalone-session-write-roots.md) 局部替代托管独立会话的 workspace-write 根集合：其显式写根仅为 `work/` 与 `outputs/`，不自动追加临时目录；项目与旧会话的默认集合不变。
+
 - 每个 Session 有一个权限模式，取值 read-only、default、accept-edits、full-access；新 Session 使用设置中的默认模式（缺省 default）。模式切换记为 Session Entry，重启后由回放恢复。
 - 模式同时决定免审批范围和命令的沙箱档位：
 
@@ -59,3 +61,5 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 - [ADR 0020](0020-projects-organize-workspaces.md)（2026-11-02）扩大了“Workspace 内”的范围：项目的附加文件夹对该项目的会话来说在 Workspace 内，读取不需要审批，workspace-write 的可写根也包含它们。本页的判定顺序、受保护路径与拒绝规则不变。
 
 - 2026-11-03，ADR 0020 的项目根范围已接入：每个 Run 冻结固定 cwd 与当前项目源文件夹的真实路径，读取、文件写入和 Seatbelt 共用；模式与规则仍即时生效，拒绝、受保护路径和执行前复核顺序不变。当前行为见[权限范围](../subsystems/permissions.md#每个-run-的-workspace-根)，证据见[真实 Sidecar 项目权限用例](../../tests/integration/sidecar-project-permissions.test.ts)与[Seatbelt 用例](../../apps/server/src/adapters/seatbelt.test.ts)（darwin，包含引号、反斜杠、`]`、`^` 根下的保护路径）。
+
+- [ADR 0026](0026-standalone-session-write-roots.md)（2026-11-05）分离托管独立会话的读取根、写根与 cwd，补充 outputs 的 Checkpoint 回退边界；本页的模式、判定顺序和提权语义保持有效。
