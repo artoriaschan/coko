@@ -9,7 +9,7 @@ lifecycle: active
 ## 验证对象
 
 - [规格](../spec.md)、[15 号票](../issues/15-integrated-acceptance-and-docs.md)；01—14 号票的逐票命令与红绿证据从[实施入口](../README.md#实施票)访问。
-- 集成基线 `1b88e113`，本票基于集成 `10efa3cf`；本票提交标识以 Git 记录为准。所有代码仅本地，未推送、未发布；两轴 code-review 由集成流程在本票合入后执行。
+- 集成基线 `1b88e113`，本票基于集成 `10efa3cf`；本票提交标识以 Git 记录为准。两轴 code-review 在本票合入后完成，修复后独立复审两轴均为 0 项未解决问题，见[审查记录](review.md#独立复审与本地交付)。所有代码仅本地，集成分支 `codex/tool-search` 尚未合入 main、未推送、未发布。
 - macOS arm64；Electron 41.0.3 / Electron Node 24.14.0；pnpm 12.15.0 / pi-ai 与 pi-agent-core 1.4.0；测试只替换模型服务、外部网络或时钟，真实 Sidecar、MCP stdio、持久化与加载实现保留。
 - 首轮两轴审查后的修复与最新定向检查另见[审查记录](review.md)；原命令结果保留当时状态，不能用原绿灯替代修复后的复核。
 
@@ -104,7 +104,7 @@ rtk pnpm run test apps/desktop/src/renderer/features/settings/mcp-section.browse
 | 目录边界例外 | [ADR 0024](../../../docs/adr/0024-session-state-as-state-updates.md) | 已达到 Tool Search 并入条件；partial 与真实模型门槛保留 |
 | 加载事实的理由 | [ADR 0003](../../../docs/adr/0003-settings-and-sessions-in-sqlite.md) | 追加条目、压缩与 Fork 的既有所有权决定；不新建重复 ADR |
 | Provider 原生策略 | MCP 的当前传输正文，ADR 0010 继续约束一次保存 | 可撤回的配置策略，不额外建立 ADR |
-| 本次材料状态 | README/spec/design/本票与本证据 | 保留原始批准和历史检查；设计仍 draft；本地实施与待审查/未发布分开 |
+| 本次材料状态 | README/spec/design/本票与本证据 | 保留原始批准和历史检查；规格 delivered、设计仍 draft；本地交付与合入 main、推送和发布分开 |
 
 ADR 判断：工具加载事实确有长期理由，已补入既有 append-only 存储决定，并链接 Fork 当前规则；目录与 Provider 保存分别由 ADR 0024/0010 继续维护。不用新的 ADR 复制当前机制列表，也不把实现授权改写成设计稿整体获批。
 

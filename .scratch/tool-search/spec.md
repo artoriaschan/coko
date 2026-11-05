@@ -1,13 +1,13 @@
 ---
 kind: spec
 description: "Tool Search 规格：MCP 工具默认作为按需工具，模型经工具搜索加载后按真实名称调用；加载状态随 Session 条目在重启、压缩、回退与分叉中保持；全局开关、按 Server 的始终加载、按 Provider 的保留提示词缓存开关，以及上下文用量口径。"
-status: approved
+status: delivered
 lifecycle: active
 ---
 
 # Tool Search 规格
 
-Status: ready-for-agent
+Status: delivered
 
 ## 来源、确认与实施状态
 
@@ -19,7 +19,7 @@ Status: ready-for-agent
 
 ## 当前实施状态
 
-2026-11-05：01—15 号票的本地实现与联合验收已完成，见[联合证据](evidence/acceptance.md)。全局按需开关最终默认开启，三个协议依本规格选择写法。真实 Provider 的 AC-02/18 与缓存效果未验证；AC-16 的加载提交失败使用真实 Sidecar 与 SQLite 触发器；乐观中断精确切点在公开 Runtime 重建接缝验证，正常持久化与调用使用真实 Sidecar。规格继续保留 approved 基线，最终两轴审查由集成流程完成后再记录交付；设计稿仍 draft，未推送或发布。
+2026-11-05：01—15 号票的本地实现与联合验收已完成，见[联合证据](evidence/acceptance.md)。全局按需开关最终默认开启，三个协议依本规格选择写法。首轮 Standards 的 P1 与 Spec 的 P2 均已修复；两个新建子代理的独立复审分别为 0 项未解决问题，见[两轴审查与修复](evidence/review.md#独立复审与本地交付)。本规格以原批准需求作为 delivered 交付基线，集成分支为 `codex/tool-search`，提交标识以 Git 记录为准；尚未合入 main、未推送或发布。真实 Provider 的 AC-02/18 与缓存效果未验证；AC-16 的加载提交失败使用真实 Sidecar 与 SQLite 触发器；乐观中断精确切点在公开 Runtime 重建接缝验证，正常持久化与调用使用真实 Sidecar。设计稿仍 draft，不因本次交付自动获得整体批准。
 
 ## Problem Statement
 

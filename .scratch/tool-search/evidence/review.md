@@ -1,6 +1,6 @@
 ---
 kind: evidence
-description: "Tool Search 首轮 Standards/Spec 审查发现、独立修复、红绿回归与待复审状态。"
+description: "Tool Search Standards/Spec 首轮发现、独立修复、红绿回归与两轴独立复审通过的本地交付记录。"
 lifecycle: active
 ---
 
@@ -9,7 +9,7 @@ lifecycle: active
 ## 验证对象
 
 - 首轮比较：`1b88e113...7ee1906f`，Standards 与 Spec 由两个新建只读子代理独立审查。
-- 本轮修复基于 `7ee1906f`，独立分支 `codex/tool-search-review-fixes`；提交标识以 Git 记录为准。15 张实施票保持已关闭，规格保持 approved，修复后的两轴复审由集成流程继续执行。
+- 本轮修复基于 `7ee1906f`，独立分支 `codex/tool-search-review-fixes`，实现提交 `ac14d22a`；修复后已由两个新建只读子代理独立复审。15 张实施票保持已关闭，规格据此标记 delivered；最终文档提交标识以 Git 记录为准，设计保持 draft。
 - 环境和原验收范围见[联合验收](acceptance.md)。本轮未修改 UI、依赖、协议或故障开关，也未读取真实 Secret。
 
 ## Standards
@@ -21,7 +21,7 @@ lifecycle: active
 - 真实 Sidecar 新回归先失败：短登记值原样出现在目录宿主消息中。仅在渲染后替换的尝试又在长值场景失败，目录留下值前缀；最终改为渲染前脱敏。
 - 使用真实登记 Secret、MCP stdio 和持久化，不模拟 store。短/长值用例扫描完整值与唯一前缀，覆盖模型 requestLog、原始 WS 帧、HTTP、导出、运行中 SQLite/WAL、退出后库文件和日志。
 - 原可执行复现的修复后 worktree 版本输出 `rawValueReachesPersistedUserPayload: false`，退出 0；原报告和脚本保存在 `/Users/chenzheng/Documents/Codex/2026-11-05/tool-search/`。
-- **处理状态：修复和回归通过，等待新建 Standards 子代理复核。**
+- **处理状态：修复和回归通过；新建 Standards 子代理独立复核已通过，0 项未解决问题。**
 
 ## Spec
 
@@ -33,7 +33,7 @@ lifecycle: active
 - 真实 Sidecar 的 Messages/Responses × Provider 原生开/关四例在旧驱动上全部失败（没有 compaction），恢复修复后全部通过；压缩发生在耐久加载记录之后，摘要请求不带大 schema，后续真实 HTTP 请求带大 schema。
 - 原生历史定义移除后的压缩场景同时覆盖零和正 usage，保留前轮已确认的折叠规则。
 - 原诊断脚本已保留为 `reproduce-positive-usage.mjs`。`verify-positive-usage.mjs` 只增加修复后必需的摘要响应并断言成功，worktree 验证输出 `requests: 3, compactions: 1`，实际工具描述为 80000 字符，退出 0。
-- **处理状态：修复和回归通过，等待新建 Spec 子代理复核。**
+- **处理状态：修复和回归通过；新建 Spec 子代理独立复核已通过，0 项新增或未解决问题。**
 
 ## 执行记录
 
@@ -51,8 +51,30 @@ C：
 rtk pnpm run test tests/integration/secrets-gate-mcp.test.ts tests/integration/sidecar-incremental-tools.test.ts tests/integration/sidecar-completions-incremental-tools.test.ts tests/integration/sidecar-tool-search-catalog.test.ts tests/integration/sidecar-tool-search.test.ts packages/agent/src/engine/compaction.test.ts packages/agent/src/context/usage/tool-definitions.test.ts apps/server/src/application/context/state-updates.test.ts apps/server/src/application/context/usage.test.ts
 ```
 
+## 独立复审与本地交付
+
+2026-11-05，两个新建只读子代理分别复审 `7ee1906f...ac14d22a`，以首轮完整审查范围 `1b88e113...7ee1906f` 为上下文；没有复用首轮审查者。两轴结论独立保留：
+
+| 轴 | 首轮问题处理 | 独立复审结论与实际检查 |
+| --- | --- | --- |
+| Standards | 原 P1 已关闭：目录展示副本在首句提取、截断与预算降级前脱敏，真实搜索目录保持原值 | 0 项未解决问题，无新增约定违反或可行动代码异味；独立运行泄漏复现退出 0，`rawValueReachesPersistedUserPayload: false`；真实 Sidecar Secret gate 单文件 3/3 通过 |
+| Spec | 原 P2 已关闭：内存准入和条目复核均计入最近可信 usage 锚点后的规范工具定义差量 | 0 项新增或未解决问题；独立 Runtime 验证退出 0，`requests: 3, compactions: 1`；引擎与定义估算 2 文件 21/21，选中的 Sidecar 正 usage/原生保留移除场景 8/8 通过，另 16 例按过滤条件未选中 |
+
+Spec 复审的定向命令：
+
+```sh
+rtk pnpm run test packages/agent/src/engine/compaction.test.ts packages/agent/src/context/usage/tool-definitions.test.ts
+rtk pnpm run test tests/integration/sidecar-incremental-tools.test.ts -t 'positive usage|tool is removed'
+```
+
+Standards 的独立命令为 `rtk pnpm run test tests/integration/secrets-gate-mcp.test.ts`。完整独立报告保存在 `/Users/chenzheng/Documents/Codex/2026-11-05/tool-search/review-standards-final.md` 与 `review-spec-final.md`；复现和修复后验证脚本同目录保留。集成代理另在已合入的 `ac14d22a` 独立运行两个持久脚本，均退出 0，输出分别为 `rawValueReachesPersistedUserPayload: false` 与 `requests: 3, compactions: 1`。
+
+本地交付基线：15 张实施票均为 `Closed: true`，保留各自 ready-for-agent 分拣角色；规格状态由 approved 晋为 delivered，原批准需求和历史依据不变，设计提案保持 draft。集成分支为 `codex/tool-search`，最终文档提交标识以 Git 记录为准；尚未合入 main、未推送、未发布。没有把复审通过扩展为真实 Provider、缓存、原生指针、安装包或 CI 已验证。
+
+最终状态同步只修改任务入口、规格和两份证据共 4 个 Markdown 文件；独立 worktree 的 `rtk pnpm run check:docs` 检查 398 个 Markdown，0 个问题，退出 0，`rtk git diff --check` 退出 0。从 AGENTS → docs/README → MCP/上下文正文 → 本任务入口读回，路径、语义、归属、引用方向、生命周期、入口、新会话状态与历史保留八项均通过；没有新增正式文档到任务材料的依赖。此次未改源码、依赖或测试，复用上述当前代码的验证，不重复执行源码测试和类型检查。
+
 ## 文档影响与限制
 
 - [MCP](../../../docs/subsystems/mcp.md#secret-的来源)补充目录展示在截断前脱敏；[上下文管理](../../../docs/subsystems/context.md#触发与熔断)补充可信 usage 后的工具定义差量。正式正文不依赖任务材料。
 - 本轮代码、测试和记录仅本地，未推送、未发布。原验收中的真实 Provider/cache、原生指针、安装包和 CI 未验证范围保持；本轮未运行全仓测试。
-- 新的复审结论应追加到本记录，不把“实现已修复”冒充复审已经通过。
+- 本记录保留首轮发现、修复红绿证据及独立复审的先后关系；最终交付结论以本节上方的独立复审为依据。后续代码、依赖或相关配置变化需要重新判断证据有效性。

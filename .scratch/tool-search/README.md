@@ -24,11 +24,11 @@ lifecycle: active
 
 ## 本地实施与验收
 
-2026-11-05，用户调用 `implement-spec` 后，01—15 号票已在集成分支 `codex/tool-search` 的逐票独立 worktree 实现并完成本地联合验收。最终按需开关默认开启；[联合证据](evidence/acceptance.md) 列出 AC-01—AC-23、用户故事、当前检查和未验证范围。真实 Provider 与缓存效果未验证；AC-16 的加载提交失败已在真实 Sidecar 以 SQLite 触发器验证；乐观加载的精确中断切点采用公开 Runtime 重建接缝。集成后的 Standards/Spec 两轴审查由当前流程继续执行，未推送或发布；提交标识以 Git 记录为准。设计稿仍是 draft，不因已有实现而自动变为已批准提案。
+2026-11-05，用户调用 `implement-spec` 后，01—15 号票已在集成分支 `codex/tool-search` 的逐票独立 worktree 实现并完成本地联合验收。最终按需开关默认开启；[联合证据](evidence/acceptance.md) 列出 AC-01—AC-23、用户故事、当前检查和未验证范围。[两轴独立复审](evidence/review.md#独立复审与本地交付)已通过，Standards 与 Spec 各为 0 项未解决问题，规格已标记 delivered。真实 Provider 与缓存效果未验证；AC-16 的加载提交失败已在真实 Sidecar 以 SQLite 触发器验证；乐观加载的精确中断切点采用公开 Runtime 重建接缝。当前为本地集成分支交付，尚未合入 main、未推送或发布；提交标识以 Git 记录为准。设计稿仍是 draft，不因已有实现而自动变为已批准提案。
 
 ## 实施票
 
-首轮两轴审查发现及独立修复见[审查记录](evidence/review.md)：Standards 1 项 P1、Spec 1 项 P2 的回归已通过，修复后由新的子代理复审，当前不将修复状态当作最终审查通过。
+首轮两轴审查发现及独立修复见[审查记录](evidence/review.md)：Standards 1 项 P1、Spec 1 项 P2 的回归已通过，修复后由两个新的子代理独立复审；原问题均关闭，两轴均无新增或未解决问题。
 
 2026-11-05 按 `to-tickets` 拆分，用户确认了粒度与阻塞关系。01、02 为前置重构；03 打通最小闭环，其中开关暂时默认关闭，11 号票改为默认打开并迁移现有 MCP 测试；15 联合验收与文档同步。各票的分拣角色保留 ready-for-agent，完成状态另以 `Closed: true` 与逐票 Comments 表达；阻塞表保留原实施图。
 
@@ -66,3 +66,4 @@ lifecycle: active
 - 2026-11-05：按用户要求，把上面三条记录中尚未提交的改动（规格、设计稿、程小帮研究的 v1.10.1 一节、GLOSSARY 的两个术语与 15 张实施票）一并提交到本地 main，未推送远端；提交标识以 Git 记录为准。
 
 - 2026-11-05：`implement-spec` 本地实施与联合验收已完成；新建[联合证据](evidence/acceptance.md)，补齐活动 Run 工具用量快照与原生历史定义估算。正式文档同步，真实 Provider/缓存/原生指针/安装包/CI 保持未验证。最终检查和本地提交以 15 号票 Comments 为准。
+- 2026-11-05：首轮两轴审查发现的 P1/P2 在 `ac14d22a` 修复，随后两个新建只读子代理独立复审通过，见[最终审查证据](evidence/review.md#独立复审与本地交付)。15 张票保持 `Closed: true`，规格标为 delivered；设计保持 draft，实施票分拣角色和历史记录不变。本地集成分支仍未合入 main、未推送或发布。
