@@ -44,7 +44,7 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
-右栏关闭时，标题行末尾显示面板图标按钮，Tooltip 与可访问名称均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+右栏关闭时，标题行末尾显示面板图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
 右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口依次为计划、后台任务、子代理、定时任务、团队、追踪；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
@@ -55,6 +55,10 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/End 只移动焦点，Enter/空格选择页面；⌘/Ctrl+Shift+左右方向键移动聚焦的 tab 并保留活动页面。指针排序复用 `@dnd-kit/core`。tab 可以用关闭按钮、中键，或共享右键菜单中的“关闭”“关闭其他标签页”“关闭右侧标签页”关闭，批量关闭仅影响当前 Session；唯一的引导页中键与右键均无效。tab 溢出时横向滚动并按滚动位置渐隐，后面的新标签页与收起按钮不被压缩；实际截断的标题在悬停或键盘聚焦时通过 Tooltip 显示全文。
 
 从外部入口重复打开已显示的活动页面时，共享 `PanelAttention` 在该格内发光约 600ms；切到后台页面或重新展开右栏不发光。减少动态效果时，同样保留 600ms 的静态提示。发光只重建覆盖层，正文不重新挂载。[真实 App 右栏 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)覆盖排序、关闭、焦点、390px 明暗主题与中英文，以及真实浏览器 reduced-motion 偏好；[共享标签条 Browser Mode](../../packages/ui/src/components/panel-tabs.browser.test.tsx)覆盖长标题截断与全文 Tooltip。
+
+右栏快捷键由 [关闭与快捷键命令](../../apps/desktop/src/renderer/app/right-panel-commands.ts)统一处理：⌘/Ctrl+Alt+B 展开或收起当前 Session 的右栏，展开后聚焦活动页面；焦点在右栏内时，⌘/Ctrl+Alt+Enter 切换全屏。没有当前 Session、处于插件或定时任务内容页、设置覆盖工作台、输入法组合期间或前台浮层打开时，这两个快捷键不改变右栏。收起后焦点回到标题栏的打开按钮，按钮以 Tooltip 与 `aria-keyshortcuts` 标出有效键位。延后聚焦前会重新核对当前 Session、页面和浮层，避免切换内容后抢回焦点。
+
+应用菜单的 File → 关闭绑定 ⌘/Ctrl+W，并交给 renderer：前台弹窗、菜单或对话框先经过自己的 Escape 关闭规则，拒绝关闭时命令也不穿透；否则焦点在可见右栏内时关闭活动页面。唯一“开始”页收到关闭命令只收起右栏，保留引导页；关闭后仍展开时聚焦同一 Session 剩余活动页面，可连续关闭。焦点在右栏外时请求 main 关闭窗口，输入法组合期间忽略该命令。原生菜单、bridge 与未就绪回退见 [桌面交付](delivery.md#应用菜单与关闭)。对应入口用例为 [快捷键 Browser Mode](../../apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx)与[原生菜单 E2E](../../apps/desktop/e2e/right-panel-menu.e2e.test.ts)。
 
 详情页右侧常驻“更多”按钮，位于右栏开关左侧，归档 Session 与 390px 窗口下也可使用。菜单只有“Session 下载”，通过 Electron 默认下载保存为 `coko-session-<id>.jsonl`；内容包括本 Session 与子 Session 的脱敏条目，格式和 [Trace 导出](tracing.md#导出与回放)相同。菜单支持键盘打开与选择、Escape 关闭及焦点返回。“更多”与 Trace 的导出共用同一 Session 的导出锁、下载和 Toast 反馈。
 

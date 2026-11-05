@@ -696,6 +696,7 @@ export const en: typeof zh = {
     },
   },
   main: {
+    fileMenu: 'File',
     dialogTitle: 'Coko',
     startupFailedMessage: 'Sidecar failed to start',
     startupFailedDetail: "Coko's background service did not start, so Coko can't be used right now. The logs folder has diagnostic details.",
@@ -712,6 +713,10 @@ export const en: typeof zh = {
     confirmQuitMany: '{count} running tasks will be interrupted.',
   },
   rightPanel: {
+    closePageShortcut: 'Close {title} (⌘/Ctrl+W)',
+    toggleShortcut: 'Toggle sidebar (⌘/Ctrl+Alt+B)',
+    fullscreenShortcut: 'Fullscreen (⌘/Ctrl+Alt+Enter)',
+    exitFullscreenShortcut: 'Exit fullscreen (⌘/Ctrl+Alt+Enter)',
     title: 'Sidebar',
     empty: 'Please select a session first',
     start: 'Start',

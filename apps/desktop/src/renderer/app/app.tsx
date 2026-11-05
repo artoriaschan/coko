@@ -6,6 +6,7 @@ import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded, setR
 import type { ChatStore } from '../stores/chat-store.ts'
 import type { SettingsStore } from '../stores/settings-store.ts'
 import type { AppearanceStore } from './appearance-store.ts'
+import { useRightPanelCommands } from './right-panel-commands.ts'
 import { ChatStoreProvider } from './chat.tsx'
 import type { ConnectionStore } from './connection-store.ts'
 import type { ComposerHandle } from '../features/conversation/composer.tsx'
@@ -134,7 +135,7 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                       onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
                       sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}
                       rail={<SidebarRail />}
-                      rightPanel={<FrameRightPanel onClose={() => setRightOpen(false)} />}
+                      rightPanel={<FrameRightPanel chat={chat} enabled={!settingsVisible && contentPage === null} onClose={() => setRightOpen(false)} />}
                     >
                       <div
                         hidden={contentPage !== null}
@@ -173,8 +174,9 @@ function ProjectSidebar(props: Omit<React.ComponentProps<typeof Sidebar>, 'onAdd
 }
 
 /** 全屏按钮使用框架派生的实际形态，窄窗口不会改写 Session 偏好。 */
-function FrameRightPanel({ onClose }: { onClose: () => void }) {
+function FrameRightPanel({ onClose, chat, enabled }: { onClose: () => void; chat: ChatStore; enabled: boolean }) {
   const { rightFullscreen, toggleRightFullscreen } = useAppFrame()
+  useRightPanelCommands({ chat, enabled, toggleFullscreen: toggleRightFullscreen })
   return <RightPanel onClose={onClose} fullscreen={rightFullscreen} onToggleFullscreen={toggleRightFullscreen} />
 }
 

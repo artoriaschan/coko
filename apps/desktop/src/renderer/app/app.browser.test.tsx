@@ -520,9 +520,9 @@ describe('模型选择', () => {
 
 describe('窄窗口', () => {
   it.each([
-    ['en', 'Open sidebar', 'Open sidebar', 'Collapse sidebar', 'Collapse sidebar'],
-    ['zh', '打开侧边栏', '打开侧边栏', '收起侧边栏', '收起侧边栏'],
-  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 与名称一致', async (locale, openName, openTip, closeName, closeTip) => {
+    ['en', 'Open sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)', 'Collapse sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)'],
+    ['zh', '打开侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）', '收起侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）'],
+  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 标出快捷键', async (locale, openName, openTip, closeName, closeTip) => {
     await page.viewport(1200, 900)
     await renderApp(locale).screen
     const open = page.getByRole('button', { name: openName, exact: true })
