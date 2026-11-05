@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/13-native-rejection-hint.md
+  s_dd1034265ded7f::t_82daa3b13e9697 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "10efa3cfe16c4b4e6725e0f2aba0ca3fefc8534d",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
