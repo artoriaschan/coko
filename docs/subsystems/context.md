@@ -10,7 +10,7 @@ lifecycle: active
 
 ## State Update
 
-当前日期、Todo List、Goal 进度与 teammate 的团队状态由 system section 改为对话历史中的状态快照。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+当前日期通过对话历史中的状态快照送达；Todo List、Goal 进度与 teammate 的团队状态也从 system section 移到这些 State Update 中。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
 
 同次送达按 `date` → `goal` → `todo_list` → `team` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
 
@@ -73,7 +73,7 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 ### 展开
 
-提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；第一个块是原文。没有引用时 user message 只有原文。块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
+提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -221,7 +221,7 @@ Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目
 
 ## 子代理的 `<subagent>` 与首条消息
 
-子 Session 的 system sections 照常有环境、指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
+子 Session 的 system sections 照常有环境、指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 先放需要送达的 State Update，再放 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为 prompt 之后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
 
 ## 团队的 `<team>` 与 `<team-message>`
 
@@ -240,6 +240,10 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 优先级从低到高：全局 excludes、`info/exclude`、ignore 文件（`!` 模式可反转更低来源的忽略）。始终包含隐藏文件、排除 `.git`、不跟随符号链接。
 
 ## 验证
+
+- `packages/agent/src/entries/state-updates.test.ts` 与 `apps/server/src/application/context/state-updates.test.ts`：来源配对、部分提交与压缩切点、去重与一次清空、脱敏后比较、读取失败降级；`apps/desktop/src/renderer/features/conversation/timeline.test.ts` 验证配对块隐藏与伪造原文保留。
+- `tests/integration/sidecar-state-update-continue.test.ts`：工具结果或 user message 后继续、有/无状态变化、纯状态消息不提升 Goal 授权且不唤醒 waiting-input；`tests/integration/sidecar-date-state-updates.test.ts`：本地午夜、同日去重、Run 内等待、子代理与 teammate 日期。
+- 基础提示默认 v1 与候选 v2、真实门槛和缓存的未验证范围见 [ADR 0024](../adr/0024-session-state-as-state-updates.md#实施状态与证据)，faux 通过不代表真实模型或缓存验收完成。
 
 - `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-state-update-fork.test.ts`：配对快照随两种分叉边界复制、排除目标消息的孤立更新、压缩后的来源保留、新 Session 首 Run 清空 Goal/Todo 且不重复日期；`tests/integration/sidecar-trace.test.ts` 与 `headless.test.ts` 验证 ndjson 回放及 stream-json 包含 `state_update`。
 
