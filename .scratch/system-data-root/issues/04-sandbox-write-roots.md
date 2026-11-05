@@ -28,3 +28,5 @@
 - `rtk pnpm run typecheck` 通过；改动 TypeScript 的 oxfmt/oxlint 通过；`rtk pnpm run check:docs`：378 个 Markdown、0 问题。
 - 文档：新增 ADR 0026 局部承接 ADR 0005 的写根决定，同步 ADR 索引、权限与 Worktree 当前契约、Agent 包 README。从 AGENTS → docs/README → 正文读回，链接、根范围、只读与提权语义一致，无正式正文对任务材料的反向依赖。
 - 未验证：Windows 实机、真实模型、Electron 前台原生层；本票无 UI 变更，真实进程入口由 Sidecar 覆盖。未运行全仓测试、未推送或发布。
+
+- 汇入集成分支 `2744fafc`（工具结果落盘）后，无冲突地保留 `readRoots` 与独立 `writeRoots`；`rtk pnpm run typecheck` 再次通过。`rtk pnpm run test tests/integration/sidecar-standalone-write-roots.test.ts tests/integration/sidecar-tool-results.test.ts`：2 文件、12 项通过，确认只读工具结果根未转成可写根。
