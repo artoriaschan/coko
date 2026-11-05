@@ -1,9 +1,10 @@
 // Skills：真实 Sidecar（faux 模型），夹具 tests/fixtures/skills 复制到临时 Workspace、临时 COKO_HOME 与其同级的 .agents。
 // 断言 faux requestLog 中实际发给模型的 <available_skills> 与工具、提交的条目（approval_request、command、toolResult）与 GET /api/skills。
-import { cp, mkdir, readFile, symlink, utimes, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, realpath, symlink, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, commandPaths, configPaths, permissionPaths, skillPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, waitApproval, type Stream } from './sidecar-harness.ts'
 
@@ -22,7 +23,7 @@ const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({
 
 /** responses 可依赖临时目录（Skill 文件的绝对路径）。 */
 async function boot(responses: unknown[] | ((paths: { cokoHome: string; workspaceDir: string }) => unknown[])) {
-  const root = await tempDir()
+  const root = await realpath(await tempDir())
   const workspaceDir = join(root, 'workspace')
   await cp(join(fixtures, 'workspace'), workspaceDir, { recursive: true })
   const dirs = await sidecarDirs()
@@ -36,7 +37,7 @@ async function boot(responses: unknown[] | ((paths: { cokoHome: string; workspac
     responses: typeof responses === 'function' ? responses({ cokoHome: dirs.cokoHome, workspaceDir }) : responses,
     requestLog,
   })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -204,14 +205,30 @@ describe('Skill 调用', () => {
     await send(api, stream, sessionId, '/pdf report.pdf')
     await send(api, stream, sessionId, '/deploy staging')
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf).slice(1, 5)).toEqual(['run_start', 'command', 'user', 'assistant'])
+    expect(entries.map(kindOf)).toEqual([
+      'permission_mode',
+      'run_start',
+      'state_update',
+      'command',
+      'user',
+      'model_request',
+      'assistant',
+      'run_end',
+      'run_start',
+      'command',
+      'user',
+      'model_request',
+      'assistant',
+      'run_end',
+    ])
+    expect(entries[2]!.payload).toEqual({ name: 'date', value: { date: '2026-11-05', weekday: 'Thursday' } })
     expect(entries.filter((e) => e.kind === 'command').map((e) => e.payload)).toEqual([
       { name: 'pdf', args: 'report.pdf', source: 'skill' },
       { name: 'deploy', args: 'staging', source: 'skill' },
     ])
     const pdfDir = join(workspaceDir, '.coko/skills/pdf')
     const [pdf, deploy] = userTexts(entries)
-    expect(pdf!.startsWith(`<skill name="pdf" location="${pdfDir}/SKILL.md">\nBase directory for this skill: ${pdfDir}\n`)).toBe(true)
+    expect(pdf!.startsWith(`${dateBlock}<skill name="pdf" location="${pdfDir}/SKILL.md">\nBase directory for this skill: ${pdfDir}\n`)).toBe(true)
     expect(pdf).toContain('PDF-SKILL-BODY')
     expect(pdf).toContain('<skill_files>\nscripts/extract.sh\n</skill_files>')
     expect(pdf!.endsWith('</skill>\n\nreport.pdf')).toBe(true)
