@@ -249,6 +249,8 @@ export interface RuntimeCompaction {
 export interface RuntimePermissions {
   /** 本 Run 已规范化且固定的 Workspace 根；与只读的资源读取根分开。 */
   workspaceRoots?: () => readonly string[]
+  /** 显式可写根；提供时替代默认 Workspace 与临时目录集合，不改变读取根。 */
+  writeRoots?: () => readonly string[] | undefined
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
   /** 额外读取根（例如 Skill 目录）：其下的 read 组调用与 Workspace 内读取同样处理。每次判定现取。 */

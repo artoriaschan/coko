@@ -182,6 +182,8 @@ export const emptyRewindReport = (): RewindReport => ({ restored: [], deleted: [
 export interface RestoreOptions {
   /** Workspace 的真实路径：之外的路径列入 outside。 */
   workspace: string
+  /** 显式可写根；独立会话的 work/outputs 用于目录外提示，不拓宽实际回退路径。 */
+  writeRoots?: readonly string[]
   /** 只返回报告，不改文件。 */
   dryRun?: boolean
 }
@@ -228,7 +230,7 @@ export async function restoreFiles(files: readonly RewindFilePlan[], port: Rewin
   report.restored = writes.map((w) => w.path)
   report.deleted = [...deletes]
   report.outside = [...report.restored, ...report.deleted].filter(
-    (path) => !pathContains(options.workspace, path) || isProtectedPath({ resolved: path, real: path }),
+    (path) => !(options.writeRoots ?? [options.workspace]).some((root) => pathContains(root, path)) || isProtectedPath({ resolved: path, real: path }),
   )
   if (options.dryRun) return report
   const recheck = async (path: string) => {

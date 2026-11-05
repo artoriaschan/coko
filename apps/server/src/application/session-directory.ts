@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises'
-import { isAbsolute, join, relative } from 'node:path'
+import { isAbsolute, join, relative, sep } from 'node:path'
 import type { Workspace, WorktreeRecord } from '@coko/session'
 
 /** Describe the fixed directory without admitting a Run; removed/busy worktrees remain readable. */
@@ -19,4 +19,15 @@ export function sessionDateDirectory(date: Date): string {
 /** 同日短名已占用时使用完整身份；调用方负责检查磁盘与持久化幂等目录。 */
 export function sessionDirectoryName(sessionId: string, shortNameExists = false): string {
   return shortNameExists ? sessionId : `chat-${sessionId.slice(0, 12)}`
+}
+
+/** 独立会话仅有两个写根，不能被系统临时目录或指向根外的链接重新拓宽。 */
+export async function standaloneWriteRoots(directory: string): Promise<readonly string[]> {
+  const root = await realpath(directory)
+  const paths = await Promise.all(['work', 'outputs'].map((name) => realpath(join(root, name)).catch(() => undefined)))
+  return paths.filter((path): path is string => {
+    if (!path) return false
+    const rel = relative(root, path)
+    return rel !== '' && rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel)
+  })
 }

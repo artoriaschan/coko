@@ -69,6 +69,8 @@ export interface PermissionGateOptions {
   readRoots?: () => readonly string[]
   /** 宿主在 Run 开始时冻结的真实 Workspace 根（含 cwd）。 */
   workspaceRoots?: () => readonly string[]
+  /** 显式可写根；提供时替代默认 Workspace 与临时目录集合，不改变读取根。 */
+  writeRoots?: () => readonly string[] | undefined
   broker: ApprovalBroker
   mode: () => PermissionMode
   rules: () => readonly PermissionRule[]
@@ -174,7 +176,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       mode,
       rules: options.rules(),
       workspace: root,
-      writableRoots: await writableRootsFor(mode, workspaceRoots),
+      writableRoots: await writableRootsFor(mode, workspaceRoots, options.writeRoots?.()),
       ...(readRoots.length > 0 ? { readRoots } : {}),
     }
     const { decision, step } = decideWithStep(call, context)

@@ -64,6 +64,7 @@ export function createPermissionWiring(options: {
         permissionClass: (name) => registry.permissionClass(name),
         ...(permissions.readRoots ? { readRoots: permissions.readRoots } : {}),
         ...(permissions.workspaceRoots ? { workspaceRoots: permissions.workspaceRoots } : {}),
+        ...(permissions.writeRoots ? { writeRoots: permissions.writeRoots } : {}),
         broker: options.broker,
         mode: permissions.mode,
         rules: permissions.rules,
@@ -120,7 +121,11 @@ export function createPermissionWiring(options: {
         escalations.delete(toolCallId)
         const mode = sandboxModeFor(permissions.mode())
         const root = permissions.workspaceRoots?.()[0] ?? (await realWorkspace())
-        extra.sandbox = await sandboxPolicyFor(granted ? widerSandbox(granted, mode) : mode, permissions.workspaceRoots?.() ?? [root])
+        extra.sandbox = await sandboxPolicyFor(
+          granted ? widerSandbox(granted, mode) : mode,
+          permissions.workspaceRoots?.() ?? [root],
+          permissions.writeRoots?.(),
+        )
         const denied = readDenial(permissions.rules(), root)
         if (denied) extra.readDenied = denied
       }
