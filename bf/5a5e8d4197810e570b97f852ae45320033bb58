@@ -1,0 +1,74 @@
+apps/server/src/application/context/types.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 35-38
+apps/server/src/application/context/index.ts
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 3,64
+  s_2a03236d6e6b67::t_fcca1a790bb115 27,65,73
+apps/server/src/application/context-service.ts
+  s_2a03236d6e6b67::t_84fb3d80a44e98 11,52-59,63-71,81,95
+tests/integration/sidecar-m5-seams.test.ts
+  s_2a03236d6e6b67::t_dbdd6e6347d39b 82-84
+  s_2a03236d6e6b67::t_d8583664944a2d 70
+docs/README.md
+  s_2a03236d6e6b67::t_7d8a4ee9ac0785 38
+tests/integration/sidecar-m4-seams.test.ts
+  s_2a03236d6e6b67::t_dbdd6e6347d39b 64-66
+  s_2a03236d6e6b67::t_d8583664944a2d 52
+packages/agent/src/ports/local-exec.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 24-26,159
+docs/subsystems/subagents.md
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 48
+.scratch/system-context/issues/06-environment-section.md
+  s_2a03236d6e6b67::t_f78348183d2b88 16-30
+  s_9001379810dd40::t_56a826cd953462 11-15
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 9,49-56,199,216,236
+  s_2a03236d6e6b67::t_7d8a4ee9ac0785 3,25
+tests/integration/sidecar-instructions.test.ts
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 72,94,98-99
+apps/server/src/application/context/environment.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 1-51
+docs/subsystems/memory.md
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 32
+tests/integration/sidecar-environment.test.ts
+  s_2a03236d6e6b67::t_1479fefdd53cdb 3,7,84-85,90-96,100-106,114,116,127-135,139-145
+  s_2a03236d6e6b67::t_dbdd6e6347d39b 30-40,62-65,69-80,97-99,107-113,117-123,136-138
+  s_2a03236d6e6b67::t_e7f52744218067 1-2,4-6,8-9,11-29,41-61,66-68,81-83,86-89,146-147
+  s_2a03236d6e6b67::t_d8583664944a2d 10,115
+  s_2a03236d6e6b67::t_0181cd5cafdb0a 124-126
+apps/server/src/application/session-project.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 1-13
+tests/integration/sidecar-skills.test.ts
+  s_2a03236d6e6b67::t_d8583664944a2d 141
+packages/agent/src/index.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 138
+.scratch/system-context/issues/01-todo-list-state-update.md
+  s_2a03236d6e6b67::t_6420f1641d1bd2 39-40
+tests/integration/sidecar-context-seam.test.ts
+  s_2a03236d6e6b67::t_d8583664944a2d 1,11,41,43
+apps/server/src/application/session-runs.ts
+  s_2a03236d6e6b67::t_fcca1a790bb115 57,333,358,366-367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "bf5a5e8d4197810e570b97f852ae45320033bb58",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_9001379810dd40": {
+      "agent_id": {
+        "tool": "chengxiaobang",
+        "id": "s_l1orgrwn5tmf",
+        "model": "kr-claude-opus-5.5[1M]"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
