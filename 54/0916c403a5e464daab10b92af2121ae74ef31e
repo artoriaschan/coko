@@ -1,0 +1,51 @@
+packages/session/src/sqlite/repositories.ts
+  s_6cadf0cc1974f1::t_532d669562b837 58-59,102-103,142
+  s_6cadf0cc1974f1::t_a6fcd42cef28c7 198-199,209-210,238-243
+packages/session/src/repository-contract.ts
+  s_6cadf0cc1974f1::t_e3f13ea45ef06b 40-44
+  s_6cadf0cc1974f1::t_473b4bd451f55d 32-39,45-47
+packages/protocol/src/http.ts
+  s_6cadf0cc1974f1::t_b1323de118353b 92-93
+apps/server/src/application/worktrees.ts
+  s_6cadf0cc1974f1::t_b1323de118353b 104,109
+apps/server/src/application/session-runs.ts
+  s_6cadf0cc1974f1::t_b1323de118353b 110
+apps/server/src/application/session-cwd-scope.test.ts
+  s_6cadf0cc1974f1::t_bd582a2ee63efb 32-47
+tests/integration/sidecar-session.test.ts
+  s_6cadf0cc1974f1::t_bfe83bbc9baf5c 20
+apps/server/src/application/session-directory.test.ts
+  s_6cadf0cc1974f1::t_ae7e7df1af58bb 1-15
+.scratch/system-data-root/issues/02-session-directory-schema.md
+  s_6cadf0cc1974f1::t_15ded705854a16 9-23
+packages/session/src/sqlite/schema.ts
+  s_6cadf0cc1974f1::t_532d669562b837 330-335
+apps/server/src/application/session-directory.ts
+  s_6cadf0cc1974f1::t_b70c8440d7a26c 13-22
+packages/session/src/sqlite/migrate-v12.test.ts
+  s_6cadf0cc1974f1::t_e3f13ea45ef06b 29-34
+  s_6cadf0cc1974f1::t_c68a25afb4217a 1-28,35-38
+packages/session/src/memory/index.ts
+  s_6cadf0cc1974f1::t_a6fcd42cef28c7 229-230,269-273
+apps/server/src/application/sessions.ts
+  s_6cadf0cc1974f1::t_9125be5875106f 535-536,550-551
+  s_6cadf0cc1974f1::t_b1323de118353b 408,419
+packages/session/src/types.ts
+  s_6cadf0cc1974f1::t_a6fcd42cef28c7 78-81,97-98,144-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "540916c403a5e464daab10b92af2121ae74ef31e",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
