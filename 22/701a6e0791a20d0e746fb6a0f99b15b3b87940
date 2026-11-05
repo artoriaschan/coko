@@ -1,0 +1,36 @@
+packages/agent/src/context/compaction/plan.ts
+  s_2a03236d6e6b67::t_261ccf43647839 6,87-100
+tests/integration/sidecar-compaction.test.ts
+  s_2a03236d6e6b67::t_6c7605e8ac28e2 128-134
+  s_2a03236d6e6b67::t_9a2e65278bfea6 83
+  s_2a03236d6e6b67::t_238cdde6a8687b 5,33,72-73,76
+  s_2a03236d6e6b67::t_289d3366a25c48 108-127,135-136
+  s_2a03236d6e6b67::t_0b66636e2a5cac 209-210,381,385,388
+  s_2a03236d6e6b67::t_725fbab80dd383 67-71,74-75,77-80,82,84-107,137-138
+packages/agent/src/engine/compaction-driver.ts
+  s_2a03236d6e6b67::t_0a5b0a44f13377 57-58,202-203
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_809f1af0399976 17-19,173,193,249
+packages/agent/src/engine/runtime.ts
+  s_2a03236d6e6b67::t_0a5b0a44f13377 334-348,361
+.scratch/system-context/issues/03-post-compaction-redelivery.md
+  s_2a03236d6e6b67::t_481cdc3db97481 11-30
+packages/agent/src/context/compaction/compaction.test.ts
+  s_2a03236d6e6b67::t_035436a8c60921 153-161,163,165-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "22701a6e0791a20d0e746fb6a0f99b15b3b87940",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
