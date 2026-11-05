@@ -1,6 +1,6 @@
 // 分层配置：GET / PUT /api/config 与项目 .coko/settings.json（只收紧，ADR 0008），以及项目 deny / ask 规则作为
 // project 作用域参与权限判定。真实 Sidecar（faux 模型）经协议驱动；项目文件在两次请求或两个 Run 之间改写。
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, configPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
@@ -42,7 +42,7 @@ describe('GET / PUT /api/config', () => {
     await mkdir(workspace)
     const { sidecar, api } = await boot(root, [])
     const workspaceId = (await api.post(API_ROUTES.workspaces, { path: workspace })).body.id as string
-    const path = join(workspace, '.coko', 'settings.json')
+    const path = join(await realpath(workspace), '.coko', 'settings.json')
     const url = `${configPaths.config}?workspaceId=${workspaceId}`
 
     // 没有项目文件：全部默认，项目路径照常给出。
@@ -165,7 +165,7 @@ describe('项目规则（project 作用域）', () => {
     const permissions = (await api.get(`${permissionPaths.permissions}?workspaceId=${workspaceId}`)).body
     expect(permissions.project).toEqual({
       workspaceId,
-      path: join(workspace, '.coko', 'settings.json'),
+      path: join(await realpath(workspace), '.coko', 'settings.json'),
       rules: [{ behavior: 'deny', tool: 'Bash', content: 'echo *' }],
     })
     expect(permissions.global.rules).toEqual([{ behavior: 'allow', tool: 'Bash', content: 'echo *' }])
