@@ -815,10 +815,13 @@ export class SessionRuns {
           runContext.loadedNames = loadedToolNames(entries)
           return providedTools(this.baseTools(cwd), runContext.contributed, context, runContext.scope, entries).map((tool) => tool.name)
         },
-        takeToolLoad: (id) => {
+        takeToolLoad: (id, unavailableToolName) => {
           const load = runContext.pendingLoads.get(id)
           runContext.pendingLoads.delete(id)
-          return load
+          if (load) return load
+          return unavailableToolName && runContext.catalog.some((tool) => tool.name === unavailableToolName)
+            ? { names: [unavailableToolName], source: 'optimistic', toolCallId: id }
+            : undefined
         },
         // 预算等请求前检查（各领域的 beforeRequest）；没有领域检查时放行。
         beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),

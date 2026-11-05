@@ -300,11 +300,15 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           const delivered = run.steering.findIndex((s) => s.message === event.message)
           // 追加指令的 before 条目（例如 command）紧接在其 user message 之前提交。
           if (delivered >= 0) for (const entry of run.steering[delivered]!.before) await commit({ ...entry, runId: run.runId } as RunEntry)
-          if (event.message.role === 'toolResult') markHostBlock(run, event.message)
+          const message = event.message
+          const unavailableTool = message.role === 'toolResult' && message.isError && !agent.state.tools.some((tool) => tool.name === message.toolName)
+          const load = message.role === 'toolResult' ? context?.takeToolLoad?.(message.toolCallId, unavailableTool ? message.toolName : undefined) : undefined
+          const optimistic = unavailableTool && load?.source === 'optimistic'
+          if (optimistic && message.role === 'toolResult') message.content = [{ type: 'text', text: '工具已加载，请直接重试。' }]
+          if (message.role === 'toolResult') markHostBlock(run, message)
           await commit({ kind: 'message', runId: run.runId, payload: event.message })
-          if (event.message.role === 'toolResult') {
-            const load = context?.takeToolLoad?.(event.message.toolCallId)
-            if (load && !event.message.isError) {
+          if (message.role === 'toolResult') {
+            if (load && (!message.isError || optimistic)) {
               await commit({ kind: 'tool_load', runId: run.runId, payload: load })
               toolsDirty = true
             }

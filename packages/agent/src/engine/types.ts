@@ -169,8 +169,8 @@ export interface BeforeRequestState {
 export interface RuntimeContext {
   /** Names exposed to the model/executor; the registry retains all available tools. Read between turns. */
   toolNames?(): Promise<readonly string[]>
-  /** Consume a host-owned load captured by a search call. Result text/details cannot create loads. */
-  takeToolLoad?(toolCallId: string): ToolLoadPayload | undefined
+  /** Consume a host-owned search load, or authorize an unavailable catalog tool. Result text/details cannot create loads. */
+  takeToolLoad?(toolCallId: string, unavailableToolName?: string): ToolLoadPayload | undefined
   systemSections?(): Promise<SystemSection[]>
   /** Current state snapshots for Run-start and compaction delivery. */
   stateUpdates?(): Promise<StateUpdateDelivery | undefined>
