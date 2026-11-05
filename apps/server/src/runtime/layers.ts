@@ -1,3 +1,4 @@
+import { ArtifactService } from '../application/artifacts.ts'
 import { AttachmentStore } from '../application/attachments.ts'
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
@@ -780,6 +781,7 @@ const AppLive = Layer.effect(
       lsp,
       teams,
       trace,
+      artifacts: new ArtifactService(store),
     } satisfies Application
   }),
 )

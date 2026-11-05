@@ -22,3 +22,16 @@ export async function openFile(path: unknown, shell: { openPath(path: string): P
     return false
   }
 }
+
+/** Reveal an existing absolute local file or directory in the system file manager. */
+export async function revealFile(path: unknown, shell: { showItemInFolder(path: string): void }): Promise<boolean> {
+  if (typeof path !== 'string' || !isAbsolute(path)) return false
+  try {
+    const info = await stat(path)
+    if (!info.isFile() && !info.isDirectory()) return false
+    shell.showItemInFolder(path)
+    return true
+  } catch {
+    return false
+  }
+}

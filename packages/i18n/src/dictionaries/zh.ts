@@ -1,5 +1,21 @@
 // 中文字典是键结构的来源；en 必须与之同构（由 Dictionary 类型约束）。
 export const zh = {
+  artifacts: {
+    tab: 'Artifacts',
+    folder: 'outputs/',
+    refresh: '刷新交付文件',
+    loading: '正在读取交付文件',
+    files: '交付文件',
+    empty: '还没有交付文件，outputs/ 中的文件会显示在这里',
+    loadFailed: '无法读取交付文件，请刷新重试',
+    open: '打开 {name}',
+    reveal: '在 Finder 中显示 {name}',
+    copy: '复制 {name} 的路径',
+    expand: '展开 {name}',
+    collapse: '收起 {name}',
+    copied: '已复制路径',
+    actionFailed: '文件可能已移动或删除，请刷新后重试',
+  },
   app: {
     name: 'Coko',
   },

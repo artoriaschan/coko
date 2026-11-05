@@ -1,3 +1,4 @@
+import { artifactsRoutes } from './artifacts.ts'
 // 各领域的路由：每个领域一个 routes/<domain>.ts，在这里登记一次。
 import { agentsRoutes } from './agents.ts'
 import { commandsRoutes } from './commands.ts'
@@ -21,6 +22,7 @@ import { traceRoutes } from './trace.ts'
 import { worktreesRoutes } from './worktrees.ts'
 
 export const DOMAIN_ROUTES: readonly DomainRoutes[] = [
+  artifactsRoutes,
   configRoutes,
   commandsRoutes,
   skillsRoutes,

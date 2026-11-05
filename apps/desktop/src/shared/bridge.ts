@@ -6,6 +6,7 @@ export const IPC = {
   pickDirectory: 'coko:pick-directory',
   openDirectory: 'coko:open-directory',
   openFile: 'coko:open-file',
+  revealFile: 'coko:reveal-file',
   pickFiles: 'coko:pick-files',
   readPickedImage: 'coko:read-picked-image',
   validatePickedFile: 'coko:validate-picked-file',
@@ -137,6 +138,7 @@ export interface CokoBridge {
   openDirectory(path: string): Promise<boolean>
   /** Open an existing local file using its default application. */
   openFile(path: string): Promise<boolean>
+  revealFile(path: string): Promise<boolean>
   /** 系统文件选择；取消返回空数组。 */
   pickFiles(): Promise<string[]>
   /** 只解析用户选择、粘贴或拖入的 File，不开放任意文件读取。 */
