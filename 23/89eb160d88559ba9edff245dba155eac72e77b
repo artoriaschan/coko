@@ -1,0 +1,19 @@
+.scratch/tool-search/issues/10-rewind-fork-handoff.md
+  s_dd1034265ded7f::t_726183acf8ca52 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "2389eb160d88559ba9edff245dba155eac72e77b",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
