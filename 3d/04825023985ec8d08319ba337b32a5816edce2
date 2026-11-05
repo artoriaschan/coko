@@ -1,0 +1,55 @@
+packages/protocol/src/api.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 8-9,65-67
+docs/subsystems/configuration.md
+  s_6cadf0cc1974f1::t_a41d32e9982e57 3,21-22,32,75,88
+docs/README.md
+  s_6cadf0cc1974f1::t_a41d32e9982e57 33
+apps/desktop/src/renderer/client/storage.ts
+  s_6cadf0cc1974f1::t_307ae9d494b6c2 1-5
+packages/i18n/src/dictionaries/zh.ts
+  s_6cadf0cc1974f1::t_b57de558ffa75e 20
+  s_6cadf0cc1974f1::t_60bebdfbfe816b 21
+  s_6cadf0cc1974f1::t_7e59c0bd34d777 19,22-31
+apps/desktop/src/renderer/features/settings/storage-card.tsx
+  s_6cadf0cc1974f1::t_307ae9d494b6c2 1-107
+apps/desktop/src/renderer/features/settings/storage-card.browser.test.tsx
+  s_6cadf0cc1974f1::t_307ae9d494b6c2 1-102
+apps/server/src/application/index.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 1,40-41
+apps/server/src/runtime/layers.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 756
+apps/desktop/src/renderer/features/settings/general-section.tsx
+  s_6cadf0cc1974f1::t_10caf05ef40c6c 14,65
+apps/desktop/e2e/storage-paths.e2e.test.ts
+  s_6cadf0cc1974f1::t_307ae9d494b6c2 1-26
+apps/server/src/http/routes/config.ts
+  s_6cadf0cc1974f1::t_ed892a1ee8b9b5 8
+  s_6cadf0cc1974f1::t_a41d32e9982e57 1
+tests/integration/sidecar-storage-paths.test.ts
+  s_6cadf0cc1974f1::t_307ae9d494b6c2 1-13
+packages/i18n/src/dictionaries/en.ts
+  s_6cadf0cc1974f1::t_b57de558ffa75e 22
+  s_6cadf0cc1974f1::t_60bebdfbfe816b 23
+  s_6cadf0cc1974f1::t_7e59c0bd34d777 21,24-33
+docs/subsystems/workbench.md
+  s_6cadf0cc1974f1::t_a41d32e9982e57 21
+.scratch/system-data-root/issues/12-settings-storage-path.md
+  s_6cadf0cc1974f1::t_c8309b16aef5a0 9-36
+  s_6cadf0cc1974f1::t_a280de21fcebf2 37-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "3d04825023985ec8d08319ba337b32a5816edce2",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
