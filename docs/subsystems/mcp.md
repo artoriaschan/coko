@@ -43,12 +43,13 @@ lifecycle: active
 | `enabled?` | 全部 | false 时保留配置、不连接（状态 disabled） |
 | `timeout?` | 全部 | 单次请求超时（秒，缺省 60），进度通知重置 |
 | `disabledTools?` | 全部 | 不注册的工具（按 Server 给出的名字） |
+| `alwaysLoad?` | 全部 | 始终加载工具（布尔值，缺省 false），只在启用工具搜索时生效；全局、项目与插件 Server 使用同一校验 |
 
 名字只能用字母、数字、`_`、`-`，不含 `__`，至多 40 个字符。名字按权限规则匹配工具名的方式比较：不区分大小写，`-` 等于 `_`（`serverNameKey`）；只差大小写、`-` 或 `_` 的两个名字冲突，后者被拒绝。项目项与全局项按同一规则比较，`GitHub` 与全局的 `github` 视为同名而被忽略，因此项目 Server 不能借名字继承用户为全局 Server 保存的 `mcp__github` 规则。未知键视为错误。能力配置 `mcp.enabled` 为 false 时（全局或项目设置关闭）所有 Server 为 disabled、不连接，见 [分层配置](configuration.md)。
 
 **诊断**（`{ source: 'mcp', path?, code, message }`，不阻止 Run）：`invalid-server`（该项不合法，忽略）、`project-secret-reference`（项目项中任意字符串含 `${`，拒绝加载，ADR 0007）、`shadowed-by-global`（项目项与全局同名，按上面的规则比较，忽略，全局优先）、`name-conflict`、`invalid-json` / `invalid-value`（整个 `.mcp.json` 忽略）、`read-failed`。全局配置经接口写入时就逐项校验，不合法时 400 并写明哪一项。
 
-**项目 Server 的批准**（ADR 0008）。摘要为启动相关字段（传输、command、args、cwd、env；url、headers）键序规范化后的 SHA-256；`enabled`、`timeout`、`disabledTools` 不进入摘要。批准保存在设置键 `mcp.approvals.<workspaceId>`（`{ [name]: digest }`）。保存的摘要不等于当前摘要时状态为 pending-approval、不启动；命令、参数、地址、环境或请求头一改即回到 pending，已有连接随即关闭。
+**项目 Server 的批准**（ADR 0008）。摘要为启动相关字段（传输、command、args、cwd、env；url、headers）键序规范化后的 SHA-256；`enabled`、`timeout`、`disabledTools`、`alwaysLoad` 不进入摘要。批准保存在设置键 `mcp.approvals.<workspaceId>`（`{ [name]: digest }`）。保存的摘要不等于当前摘要时状态为 pending-approval、不启动；命令、参数、地址、环境或请求头一改即回到 pending，已有连接随即关闭。
 
 **Secret 引用**（ADR 0007）。只有全局配置的 `env` 值与 `headers` 值可以写 `${NAME}`，在启动或连接时从登记的 Secret 展开；名字未登记时该 Server 以 failed 结束，错误写明缺少的名字（`Secret NAME is not registered; …`），不回退到进程环境。字面值照常使用。
 
@@ -72,7 +73,7 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 ## 工具搜索与按需加载
 
-全局能力配置 `mcp.toolSearch` 控制 MCP 工具的按需加载，当前默认 false；开关关闭时直接提供全部已连接且未停用的 MCP 工具。打开时，仅根 Session 启用：每个 Run 开始时冻结当时可用的工具目录，首次请求保留内置工具、Host Tool 与 `tool_search`，不提供目录内 MCP 工具的 schema。MCP 资源工具仍为常驻 Host Tool。子代理与 Teammate 直接取得其允许范围内的全部工具，没有目录或 `tool_search`。
+全局能力配置 `mcp.toolSearch` 控制 MCP 工具的按需加载，当前默认 false；开关关闭时直接提供全部已连接且未停用的 MCP 工具。打开时，仅根 Session 启用：每个 Run 开始时冻结当时可用的工具目录，首次请求保留内置工具与 Host Tool；存在按需工具时再提供 `tool_search`，不提供目录内 MCP 工具的 schema。设置 `alwaysLoad: true` 的全局、项目或插件 Server 的工具始终直接提供，不进入按需目录；确切名称选择它们时返回 `alreadyAvailable`。更改此字段不改变项目 Server 的批准摘要，无需重新批准。开关关闭时该字段不影响工具提供方式。MCP 资源工具仍为常驻 Host Tool。子代理与 Teammate 直接取得其允许范围内的全部工具，没有目录或 `tool_search`。
 
 目录通过 `on_demand_tools` State Update 按 Server 分组公告，每行包含工具名与首句说明（至多 60 字），不含 schema；首次或名单变化时发送完整目录，名单不变不重发。读取或渲染失败只记 warn。进行中的 Run 使用同一快照，工具列表变化到下一个 Run 生效。
 
@@ -135,7 +136,7 @@ Secret 名形如 `^[A-Z][A-Z0-9_]{0,63}$`。桌面应用：renderer 调 preload 
 
 ## 界面
 
-设置页的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部；auth-required 时状态为"需要认证"（`text-warning-text`）、下方说明"服务器要求认证：检查请求头中的凭据，可引用登记的 Secret ${NAME}"，全局 HTTP Server 另有"编辑请求头"，打开该 Server 的编辑表单并聚焦请求头）；分区标题旁的"添加浏览器"菜单（预设来自 `GET /api/mcp/presets`，名称按 `id` 本地化），选择后的对话框显示完整命令与可改的名称，确认后经全局保存接口写入；名称与已有的全局 Server 按服务端规则冲突（不区分大小写，`-` 等于 `_`）时不保存，提示改名并回到名称输入框；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时与不注册的工具）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与逐行的环境变量 / 请求头键值，批准后启动；已批准的可撤销）；分区顶部的能力开关 `mcp.enabled`（与其他能力开关共用，见 [分层配置](configuration.md#界面)）；保存或删除失败时显示本地化文案，服务端原文只在表单的"技术详情"中展开查看；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
+设置页的 MCP 分区：全局 Server 卡片（名称、传输、状态、工具数与展开的工具列表、启停、编辑、删除、重新连接；failed 时显示错误与可展开的 stderr 尾部；auth-required 时状态为"需要认证"（`text-warning-text`）、下方说明"服务器要求认证：检查请求头中的凭据，可引用登记的 Secret ${NAME}"，全局 HTTP Server 另有"编辑请求头"，打开该 Server 的编辑表单并聚焦请求头）；分区标题旁的"添加浏览器"菜单（预设来自 `GET /api/mcp/presets`，名称按 `id` 本地化），选择后的对话框显示完整命令与可改的名称，确认后经全局保存接口写入；名称与已有的全局 Server 按服务端规则冲突（不区分大小写，`-` 等于 `_`）时不保存，提示改名并回到名称输入框；"添加 Server"表单（stdio 的命令、每行一个参数、`NAME=value` 环境、工作目录；HTTP 的地址与 `Name: value` 请求头；超时、不注册的工具与「始终加载」选项；后者带说明且保存后可回显）；当前会话所在 Workspace 的项目 Server（"查看并批准"打开对话框显示完整命令、参数、地址与逐行的环境变量 / 请求头键值，批准后启动；已批准的可撤销）；分区顶部的能力开关 `mcp.enabled`（与其他能力开关共用，见 [分层配置](configuration.md#界面)）；保存或删除失败时显示本地化文案，服务端原文只在表单的"技术详情"中展开查看；配置诊断；Secrets 子区（名称与末四位、删除、登记表单，值输入框为密码框，保存后清空）。分区打开期间每 0.75 秒读取一次状态。
 
 时间线的工具详情展开后，在完整结果文本下显示该调用自身的图片图库（PNG、JPEG、GIF、WebP 的 inline base64；SVG、URL 等来源不加载）。单图按实际解码尺寸和 0.25—4 的显示比例计算，长边最多 240px、命中区至少 44px；多图为 64px 方格、间距 10px。尺寸文字明确标为实际解码尺寸；缺少路径或原始尺寸记录时不推断。不可解码图片显示本地化失败状态。点击缩略图或键盘 Enter / Space 打开覆盖视口的原图预览，Escape、关闭按钮或背景操作关闭后焦点回到原缩略图，内部操作不改变工具开合。预览通过所属过程组的交互锁保持返回控件可达；Run 正常完成时保持整轮与该组展开，关闭预览后也不立即隐藏返回焦点，后续仍可手动折叠。图片来源包括实时 partialResult、已结束的实时结果与已提交 toolResult；已提交结果优先，包括最终空结果。以图片来源及同源出现次序保持显示身份，新增文本与结算不重建未改变的图片或预览；子 Session 使用自己的结果，不查主会话条目。预览只使用原有 data URL，不分配 Blob URL。
 

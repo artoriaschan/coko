@@ -16,7 +16,7 @@ export const isMcpSettingKey = (key: string) => key === MCP_SERVERS_SETTING || k
 /** Workspace 内的项目 MCP 配置文件。 */
 export const PROJECT_MCP_PATH = '.mcp.json'
 
-/** 一个 Server 配置：stdio { command, args?, env?, cwd? } 或 HTTP { url, headers? }，公共 { type?, enabled?, timeout?, disabledTools? }。 */
+/** 一个 Server 配置：stdio { command, args?, env?, cwd? } 或 HTTP { url, headers? }，公共 { type?, enabled?, timeout?, disabledTools?, alwaysLoad? }。 */
 export const McpServerConfig = Type.Record(Type.String(), Type.Unknown())
 export type McpServerConfig = Static<typeof McpServerConfig>
 export const McpServersConfig = Type.Record(Type.String(), McpServerConfig)

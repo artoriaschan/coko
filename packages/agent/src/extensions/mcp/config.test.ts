@@ -12,6 +12,14 @@ describe('MCP Server 配置校验', () => {
     })
   })
 
+  it('接受始终加载布尔值，且不改变启动摘要', () => {
+    const config = { command: 'node', alwaysLoad: true }
+    expect(validateMcpServerConfig('a', config)).toEqual({ ok: true, config })
+    expect(validateMcpServerConfig('b', { url: 'https://example.com/mcp', alwaysLoad: false }).ok).toBe(true)
+    expect(validateMcpServerConfig('a', { command: 'node', alwaysLoad: 'true' }).ok).toBe(false)
+    expect(digestMcpServer(config)).toBe(digestMcpServer({ command: 'node' }))
+  })
+
   it('非法名字、缺 command / url、SSE、非字符串 args、非正 timeout 都是错误', () => {
     const bad: [string, unknown][] = [
       ['has space', { command: 'x' }],

@@ -70,6 +70,8 @@ export const mcp = defineDomain(
       headers: '请求头（每行一个 Name: value；Secret 写作 ${NAME}）',
       timeout: '请求超时（秒）',
       disabledTools: '不注册的工具（逗号分隔）',
+      alwaysLoad: '始终加载',
+      alwaysLoadHint: '此 Server 的工具始终出现在工具列表中，不需要先搜索。适合几乎每次对话都会用到的 Server。仅在开启「按需加载 MCP 工具」时生效。',
       nameRequired: '请填写名称',
       targetRequired: '请填写命令或地址',
       invalidLine: '这一行的格式不对：{line}',
@@ -199,6 +201,10 @@ export const mcp = defineDomain(
       headers: 'Headers (one Name: value per line; write secrets as ${NAME})',
       timeout: 'Request timeout (seconds)',
       disabledTools: 'Tools not to register (comma-separated)',
+      alwaysLoad: 'Always load',
+      alwaysLoadHint:
+        'This server\'s tools are always in the tool list, without a search first. Suited to servers used in almost every conversation. Only applies when "Load MCP tools on demand" is on.',
+
       nameRequired: 'Enter a name',
       targetRequired: 'Enter a command or a URL',
       invalidLine: 'This line is not valid: {line}',

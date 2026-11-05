@@ -78,6 +78,8 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 - `PUT /api/config { values, expectedRevision, workspaceId? }`：整体替换全局值，返回同形的响应。值不合 schema 400；revision 不一致 409 `revision-conflict`。
 - 设置界面的能力开关经 `GET /api/config` 读取全局值与 revision，再以 `PUT /api/config` 整体替换（只改一个键，其他全局键原样带回），完成后重新读取。
 
+MCP Server 的配置另有可选布尔值 `alwaysLoad`（缺省 false），适用于全局、项目与插件 Server：启用工具搜索时，这些 Server 的工具始终直接提供；工具搜索关闭时不影响工具列表。它只控制定义的加载方式，不授予执行权限，也不进入项目 Server 的启动批准摘要，已有批准保持有效。字段与表单见 [MCP](mcp.md#配置)。
+
 ## 界面
 
 - **General 分区的项目设置行**：当前会话（或草稿）所在 Workspace 的项目文件路径、"未创建" / "没有问题" / 诊断数；诊断数是一个按钮，展开后按 code 显示本地化标题与原始说明。没有 Workspace 时提示先打开会话。

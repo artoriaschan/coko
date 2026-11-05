@@ -1,5 +1,5 @@
 // MCP Server 配置（docs/subsystems/mcp.md）。形状沿用通用 mcpServers：stdio { command, args?, env?, cwd? }、
-// HTTP { url, headers? }（type 可选），公共 { enabled?, timeout?（秒）, disabledTools? }。
+// HTTP { url, headers? }（type 可选），公共 { enabled?, timeout?（秒）, disabledTools?, alwaysLoad? }。
 // Adapted in part from pi coding-agent 1.4.0 core/mcp-servers.ts (MIT, Copyright (c) 2025 Mario Zechner). See THIRD_PARTY_NOTICES.md.
 import { createHash } from 'node:crypto'
 import { diagnostic, type ResourceDiagnostic } from '../../instructions/shared/diagnostics.ts'
@@ -19,6 +19,8 @@ const SECRET_REF = /\$\{([^}]*)\}/g
 interface McpServerConfigBase {
   /** false keeps the entry without connecting. Default: true. */
   enabled?: boolean
+  /** Always provide this server's tools without Tool Search. Default: false. */
+  alwaysLoad?: boolean
   /** Per-request timeout in seconds. Default: 60. */
   timeout?: number
   /** Tools of the server that are not registered (names as the server offers them). */
@@ -56,7 +58,7 @@ export interface McpServerEntry {
 
 export const transportOf = (config: McpServerConfig): McpTransportKind => ('url' in config ? 'http' : 'stdio')
 
-const COMMON_KEYS = ['type', 'enabled', 'timeout', 'disabledTools']
+const COMMON_KEYS = ['type', 'enabled', 'timeout', 'disabledTools', 'alwaysLoad']
 const STDIO_KEYS = new Set([...COMMON_KEYS, 'command', 'args', 'env', 'cwd'])
 const HTTP_KEYS = new Set([...COMMON_KEYS, 'url', 'headers'])
 
@@ -72,7 +74,8 @@ export function validateMcpServerConfig(name: string, raw: unknown): ValidateRes
   if (!MCP_SERVER_NAME.test(name) || name.includes('__') || name.length > MAX_MCP_SERVER_NAME_LENGTH)
     return { ok: false, message: `invalid server name "${name}" (letters, digits, "_" and "-", no "__", at most ${MAX_MCP_SERVER_NAME_LENGTH} characters)` }
   if (!isRecord(raw)) return fail('must be an object')
-  const { type, enabled, timeout, disabledTools } = raw
+  const { type, enabled, timeout, disabledTools, alwaysLoad } = raw
+  if (alwaysLoad !== undefined && typeof alwaysLoad !== 'boolean') return fail('alwaysLoad must be a boolean')
   if (enabled !== undefined && typeof enabled !== 'boolean') return fail('enabled must be a boolean')
   if (timeout !== undefined && (typeof timeout !== 'number' || !Number.isFinite(timeout) || !(timeout > 0)))
     return fail('timeout must be a positive number of seconds')
@@ -111,7 +114,7 @@ function canonicalJson(value: unknown): string {
 
 /**
  * Digest of what the server runs or connects to (ADR 0008): transport, command, args, cwd, env, url and headers, with
- * keys in canonical order. Enabling, the timeout and disabledTools do not change it, so they need no re-approval.
+ * keys in canonical order. Enabling, alwaysLoad, the timeout and disabledTools do not change it, so they need no re-approval.
  */
 export function digestMcpServer(config: McpServerConfig): string {
   const launch =
