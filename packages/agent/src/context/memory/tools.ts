@@ -78,9 +78,10 @@ function createListTool(port: MemoryPort): CokoTool<typeof memoryListParameters,
         entries = sortMemories(await port.list(scope ? { scope } : {}))
         if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
       }
-      const truncation = truncateHead(entries.map(formatMemoryEntry).join('\n'))
+      const original = entries.map(formatMemoryEntry).join('\n')
+      const truncation = truncateHead(original)
       const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
-      return { content: [{ type: 'text', text }], details: undefined }
+      return { content: [{ type: 'text', text }], details: undefined, ...(truncation.truncated ? { untruncatedText: original } : {}) }
     },
   }
 }

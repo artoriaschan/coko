@@ -156,6 +156,10 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 - 在持有独占执行槽的工具内部再经同一运行时调度另一个工具会等待自己，形成死锁；目前没有这样的调用路径。
 - 被放弃（超时后不响应取消）的调用释放执行槽时，其底层操作可能仍在后台运行。
 
+## 截断结果存储
+
+宿主可在 `createAgentRuntime` 中设置 `toolResultsDirectory`，把需要截断的工具正文写入该 Session 的独立目录并向模型返回文件路径。单个文件最多 32 MiB（包含超限标记），保留 UTF-8 前缀；未截断结果不写盘。宿主负责将此目录配置为额外读取根和随 Session 清理。工具实现通过 `CokoToolResult.untruncatedText` 提供显示截断前的原文，调度器在 Hook、进度和持久化之前移除该临时字段；bash 则通过执行上下文的 `outputFile` 直接有界流写。完整契约见[工具结果落盘](../../docs/subsystems/execution.md#工具结果落盘)。
+
 ## 验证与相关设计
 
 - `src/entries/entries.test.ts`：有效条目（回退区间、压缩、压缩落在被回退区间时原历史生效）、`modelContext`、`lastRunStatus`、`unansweredConfirmations` 的表驱动用例；导入守卫断言该子路径（含传递导入）不导入 `node:*` 与 `@earendil-works/*`。`src/engine/context-seam.test.ts`：system sections、`RunInput.before` 的位置、`transformMessages` 只改请求、`context_usage`。`src/instructions/shared/shared.test.ts`：frontmatter、mtime 缓存、文件端口与配置默认值。`src/context/compaction/compaction.test.ts`：切点、摘要提示、文件与 Skill 汇总、压缩后的估算与熔断；`src/engine/compaction.test.ts`：运行时的自动、溢出、熔断、手动压缩与停止。

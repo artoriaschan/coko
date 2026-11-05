@@ -196,21 +196,26 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
         return text
       }
       const output: string[] = []
+      const fullOutput: string[] = []
       for (const match of matches) {
         const rel = formatPath(match.filePath)
         if (contextLines === 0 && match.lineText !== undefined) {
+          fullOutput.push(`${rel}:${match.lineNumber}: ${match.lineText.replace(/\r?\n$/, '').replace(/\r/g, '')}`)
           output.push(`${rel}:${match.lineNumber}: ${clip(match.lineText)}`)
           continue
         }
         const lines = await linesOf(match.filePath)
         if (lines.length === 0) {
+          fullOutput.push(`${rel}:${match.lineNumber}: (unable to read file)`)
           output.push(`${rel}:${match.lineNumber}: (unable to read file)`)
           continue
         }
         const start = Math.max(1, match.lineNumber - contextLines)
         const end = Math.min(lines.length, match.lineNumber + contextLines)
         for (let current = start; current <= end; current++) {
-          const text = clip(lines[current - 1] ?? '')
+          const original = (lines[current - 1] ?? '').replace(/\r/g, '')
+          fullOutput.push(current === match.lineNumber ? `${rel}:${current}: ${original}` : `${rel}-${current}- ${original}`)
+          const text = clip(original)
           output.push(current === match.lineNumber ? `${rel}:${current}: ${text}` : `${rel}-${current}- ${text}`)
         }
       }
@@ -233,7 +238,11 @@ export function createGrepTool({ cwd, searcher = jsGrepSearcher }: GrepToolOptio
       }
       if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
-      return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
+      return {
+        content: [{ type: 'text', text }],
+        details: Object.keys(details).length > 0 ? details : undefined,
+        ...(truncation.truncated || linesTruncated ? { untruncatedText: fullOutput.join('\n') } : {}),
+      }
     },
   }
 }

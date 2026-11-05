@@ -80,7 +80,11 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
       }
       if (omitted) notices.push(omitted)
       if (notices.length > 0) text += `\n\n[${notices.join('. ')}]`
-      return { content: [{ type: 'text', text }], details: Object.keys(details).length > 0 ? details : undefined }
+      return {
+        content: [{ type: 'text', text }],
+        details: Object.keys(details).length > 0 ? details : undefined,
+        ...(truncation.truncated ? { untruncatedText: results.join('\n') } : {}),
+      }
     },
   }
 }
