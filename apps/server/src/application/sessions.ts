@@ -405,7 +405,7 @@ export class SessionService {
 
   /** 协议 DTO：parentSessionId 只在子 Session 上出现，worktree 为创建时绑定的 worktree（含已移除的）。 */
   async toDto(stored: StoredSession): Promise<Session> {
-    const { parentSessionId, worktreeId, ...rest } = stored
+    const { parentSessionId, worktreeId, cwd, ...rest } = stored
     let root = stored
     while (root.parentSessionId !== null) {
       const parent = await this.#store.sessions.getSession(root.parentSessionId)
@@ -416,7 +416,7 @@ export class SessionService {
     const workspace = await this.#store.sessions.getWorkspace(stored.workspaceId)
     const session = {
       ...rest,
-      ...(workspace ? { cwd: await sessionDirectory(workspace, worktree) } : {}),
+      ...(workspace ? { cwd: cwd ?? (await sessionDirectory(workspace, worktree)) } : {}),
       projectId: root.projectId,
       thinkingLevel: this.#models.effectiveLevel(stored),
       ...(parentSessionId === null ? {} : { parentSessionId }),
@@ -532,6 +532,8 @@ export class SessionService {
   async create(input: {
     id?: string
     workspaceId: string
+    directory?: string
+    cwd?: string
     projectId?: string | null
     permissionMode?: PermissionMode
     title?: string
@@ -545,6 +547,8 @@ export class SessionService {
     const session = await this.createRecord({
       ...(input.id === undefined ? {} : { id: input.id }),
       workspaceId: input.workspaceId,
+      ...(input.directory === undefined ? {} : { directory: input.directory }),
+      ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
       ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
       ...(input.title === undefined ? {} : { title: input.title }),
       model: model ?? null,

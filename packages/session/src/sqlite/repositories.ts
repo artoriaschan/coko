@@ -55,6 +55,8 @@ interface SessionRow {
   model_cleared: number
   parent_session_id: string | null
   worktree_id: string | null
+  directory: string | null
+  cwd: string | null
   project_id: string | null
   pinned_at: number | null
   archived_at: number | null
@@ -97,6 +99,8 @@ const toSession = (r: SessionRow): Session => ({
   modelCleared: r.model_cleared === 1,
   parentSessionId: r.parent_session_id,
   worktreeId: r.worktree_id,
+  directory: r.directory,
+  cwd: r.cwd,
   projectId: r.project_id,
   pinnedAt: r.pinned_at,
   archivedAt: r.archived_at,
@@ -135,7 +139,7 @@ const toProvider = (r: ProviderRow): Provider => ({
 const later = <T>(fn: () => T): Promise<T> => new Promise((resolve) => resolve(fn()))
 
 const SESSION_SELECT =
-  'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, project_id, pinned_at, archived_at, created_at, updated_at FROM sessions'
+  'SELECT id, workspace_id, title, model_provider_id, model_id, thinking_level, model_cleared, parent_session_id, worktree_id, directory, cwd, project_id, pinned_at, archived_at, created_at, updated_at FROM sessions'
 const PROVIDER_SELECT = `SELECT p.id, p.name, p.api, p.base_url, p.models, p.created_at, p.updated_at, c.hint
   FROM providers p LEFT JOIN provider_credentials c ON c.provider_id = p.id`
 
@@ -191,8 +195,8 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
           const id = input.id ?? randomUUID()
           if (getSession(id)) throw alreadyExists('session', id)
           conn.run(
-            `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, project_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO sessions (id, workspace_id, title, model_provider_id, model_id, thinking_level, parent_session_id, worktree_id, project_id, directory, cwd, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             id,
             input.workspaceId,
             input.title ?? '',
@@ -202,6 +206,8 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
             parentSessionId,
             worktreeId,
             projectId,
+            input.directory ?? null,
+            input.cwd ?? null,
             at,
             at,
           )
@@ -227,6 +233,14 @@ export function createSessionRepository(conn: Connection, payloads: Pick<StoreOp
         conn.read(() => {
           const row = getSession(id)
           return row ? toSession(row) : undefined
+        }),
+      ),
+    setSessionDirectory: (id, directory) =>
+      later(() =>
+        conn.write(() => {
+          requireSession(id)
+          conn.run('UPDATE sessions SET directory = ?, cwd = ? WHERE id = ?', directory.directory, directory.cwd, id)
+          return toSession(requireSession(id))
         }),
       ),
     setSessionArchived: (id, archivedAt) =>

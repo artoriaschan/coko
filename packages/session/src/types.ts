@@ -75,6 +75,10 @@ export interface Session {
   parentSessionId: string | null
   /** 创建时绑定的 worktree（ADR 0016）；没有绑定为 null。 */
   worktreeId: string | null
+  /** 独立会话实际根目录；旧会话、项目与其他未指定的会话为空。 */
+  directory: string | null
+  /** 创建时固定的实际工作目录；为空时按 Workspace/worktree 派生。 */
+  cwd: string | null
   createdAt: number
   /** 创建或追加条目时更新；组织、标题与模型修改不改变最后记录时间。 */
   updatedAt: number
@@ -90,6 +94,8 @@ export interface NewSession extends Partial<SessionModelChoice> {
   projectId?: string | null
   parentSessionId?: string | null
   worktreeId?: string | null
+  directory?: string | null
+  cwd?: string | null
 }
 
 /** 待提交的 Session Entry。payload 的含义由 agent 定义，经 PayloadRegistry 校验后按版本保存。 */
@@ -135,6 +141,8 @@ export interface SessionRepository {
   deleteWorkspaceIfUnused(id: string): Promise<boolean>
   /** Archive/restore a complete Session tree atomically; pins are always cleared. */
   setSessionArchived(id: string, archivedAt: number | null): Promise<Session>
+  /** 保存宿主分配的会话根与工作目录；不改变会话最后记录时间。 */
+  setSessionDirectory(id: string, directory: Pick<Session, 'directory' | 'cwd'>): Promise<Session>
   setSessionTitle(id: string, title: string): Promise<Session>
   /** Atomically replace an unchanged placeholder; missing/deleted sessions return undefined. */
   replaceSessionTitle(id: string, expected: string, title: string): Promise<Session | undefined>

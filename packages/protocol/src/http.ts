@@ -89,6 +89,8 @@ export const Session = Type.Object(
     workspaceId: Id,
     /** Fixed Session directory, including the Workspace's subdirectory inside a worktree; absent in legacy DTOs. */
     cwd: Type.Optional(Type.String()),
+    /** 独立会话的实际根目录；未分配目录的旧会话与项目会话为空，旧 DTO 可省略。 */
+    directory: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     projectId: Type.Union([Id, Type.Null()]),
     pinnedAt: Type.Union([Timestamp, Type.Null()]),
     archivedAt: Type.Union([Timestamp, Type.Null()]),
