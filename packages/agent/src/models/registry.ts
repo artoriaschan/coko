@@ -13,12 +13,18 @@ import {
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import { getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
 import { withUsageReports } from './usage-report.ts'
-import { isHttpUrl } from './base-url.ts'
+import { isHttpUrl, normalizeModelBaseUrl } from './base-url.ts'
 
 /** Wire protocols Coko supports; each Provider stores one of them. */
 export const MODEL_PROTOCOLS = ['openai-completions', 'openai-responses', 'anthropic-messages'] as const
 export type ModelProtocol = (typeof MODEL_PROTOCOLS)[number]
+
+const incrementalCompletionsModels = getBuiltinProviders()
+  .flatMap<Model<any>>((provider) => getBuiltinModels(provider))
+  .filter((model): model is Model<'openai-completions'> => model.api === 'openai-completions')
+  .filter((model) => model.compat?.supportsMidConvoSystemMessages && model.compat.supportsMidConvoToolAdditions)
 
 /** A Run freezes its transport choice after its on-demand catalog is known. */
 export function withIncrementalTools(model: Model<any>, enabled: boolean): Model<any> {
@@ -26,6 +32,11 @@ export function withIncrementalTools(model: Model<any>, enabled: boolean): Model
   if (model.api === 'anthropic-messages')
     return { ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true, supportsMidConvoToolChanges: true } }
   if (model.api === 'openai-responses') return { ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true, supportsAdditionalTools: true } }
+  if (
+    model.api === 'openai-completions' &&
+    incrementalCompletionsModels.some((entry) => entry.id === model.id && normalizeModelBaseUrl(entry.baseUrl) === normalizeModelBaseUrl(model.baseUrl))
+  )
+    return { ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true, supportsMidConvoToolAdditions: true } }
   return model
 }
 

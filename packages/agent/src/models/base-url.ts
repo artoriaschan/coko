@@ -10,3 +10,11 @@ export function isHttpUrl(text: string): boolean {
     return false
   }
 }
+
+/** Catalog identity keeps the URL path; host case and terminal slashes are insignificant. */
+export function normalizeModelBaseUrl(text: string): string {
+  const url = new URL(text)
+  const suffix = url.search + url.hash
+  const address = suffix ? url.href.slice(0, -suffix.length) : url.href
+  return address.replace(/\/+$/, '') + suffix
+}
