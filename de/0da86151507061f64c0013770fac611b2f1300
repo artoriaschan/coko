@@ -1,0 +1,19 @@
+.scratch/right-sidebar-session-diagnostics/issues/05-shortcuts-native-menu.md
+  s_eff121e41805b1::t_1e4852165e38f6 43-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.51-trip",
+  "base_commit_sha": "de0da86151507061f64c0013770fac611b2f1300",
+  "prompts": {},
+  "sessions": {
+    "s_eff121e41805b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a9bd-3d04-7cf0-bdda-a88134239c7d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
