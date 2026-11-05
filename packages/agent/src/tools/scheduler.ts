@@ -89,6 +89,7 @@ export interface SchedulingOptions {
   /** 幂等键的 Session 部分。 */
   sessionId: string
   outputDirectory?: string
+  outputRedaction?: import('./types.ts').ToolOutputRedaction
   /**
    * 提交 side-effect 调用的执行记录，在取得执行槽之后、execute 之前。拒绝时调用不执行，拒绝原因成为该调用的错误；
    * 让 Run 以 commit_failed 结束由调用方负责。
@@ -118,6 +119,7 @@ export function withScheduling(tool: CokoTool, options: SchedulingOptions): Coko
     ...tool,
     execute(toolCallId, params, signal, onUpdate) {
       const context: ToolExecutionContext = {
+        ...(options.outputRedaction ? { outputRedaction: options.outputRedaction } : {}),
         idempotencyKey: idempotencyKeyFor(options.sessionId, toolCallId),
         ...(options.outputDirectory ? { outputFile: toolOutputFile(options.outputDirectory, toolCallId) } : {}),
       }
@@ -135,12 +137,14 @@ export function withScheduling(tool: CokoTool, options: SchedulingOptions): Coko
             return await storeToolOutput(
               await tool.execute(toolCallId, params, signal, onUpdate, extra ? { ...extra, ...context } : context),
               context.outputFile,
+              options.outputRedaction?.text,
             )
           } catch (error) {
             if (!(error instanceof Error) || !('untruncatedText' in error) || typeof error.untruncatedText !== 'string') throw error
             const result = await storeToolOutput(
               { content: [{ type: 'text', text: error.message }], details: undefined, untruncatedText: error.untruncatedText },
               context.outputFile,
+              options.outputRedaction?.text,
             )
             throw new Error(
               result.content

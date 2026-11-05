@@ -43,11 +43,13 @@ export class OutputAccumulator {
   private storedBytes = 0
   private storedOutputTruncated = false
   private streamError: Error | undefined
+  private readonly redactor: { push(text: string): string; flush(): string } | undefined
   private readonly outputFile: string | undefined
   private readonly tempDir: string
   private readonly tempFilePrefix: string
 
-  constructor(tempDir: string = tmpdir(), tempFilePrefix = 'coko-bash', outputFile?: string) {
+  constructor(tempDir: string = tmpdir(), tempFilePrefix = 'coko-bash', outputFile?: string, redactor?: { push(text: string): string; flush(): string }) {
+    this.redactor = redactor
     this.outputFile = outputFile
     this.tempDir = tempDir
     this.tempFilePrefix = tempFilePrefix
@@ -55,13 +57,14 @@ export class OutputAccumulator {
 
   append(data: Buffer): void {
     if (this.finished) throw new Error('Cannot append to a finished output accumulator')
-    this.appendOutput(this.decoder.decode(data, { stream: true }))
+    this.appendOutput(this.redact(this.decoder.decode(data, { stream: true })))
   }
 
   finish(): void {
     if (this.finished) return
     this.finished = true
-    this.appendOutput(this.decoder.decode())
+    this.appendOutput(this.redact(this.decoder.decode()))
+    if (this.redactor) this.appendOutput(this.redactor.flush())
     if (this.exceedsLimits()) this.ensureTempFile()
   }
 
@@ -122,6 +125,10 @@ export class OutputAccumulator {
     } finally {
       await file.close()
     }
+  }
+
+  private redact(text: string): string {
+    return this.redactor ? this.redactor.push(text) : text
   }
 
   private exceedsLimits(): boolean {

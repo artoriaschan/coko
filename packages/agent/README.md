@@ -159,7 +159,7 @@ assistant（含 toolCall） → approval_request → approval_decision → tool_
 
 ## 截断结果存储
 
-宿主可在 `createAgentRuntime` 中设置 `toolResultsDirectory`，把需要截断的工具正文写入该 Session 的独立目录并向模型返回文件路径。单个文件最多 32 MiB（包含超限标记），保留 UTF-8 前缀；未截断结果不写盘。宿主负责将此目录配置为额外读取根和随 Session 清理。工具实现通过 `CokoToolResult.untruncatedText` 提供显示截断前的原文，调度器在 Hook、进度和持久化之前移除该临时字段；bash 则通过执行上下文的 `outputFile` 直接有界流写。完整契约见[工具结果落盘](../../docs/subsystems/execution.md#工具结果落盘)。
+宿主可在 `createAgentRuntime` 中设置 `toolResultsDirectory`，把需要截断的工具正文写入该 Session 的独立目录并向模型返回文件路径。单个文件最多 32 MiB（包含超限标记），保留 UTF-8 前缀；未截断结果不写盘。宿主负责将此目录配置为额外读取根和随 Session 清理。工具实现通过 `CokoToolResult.untruncatedText` 提供显示截断前的正文，若有界收集已截断则同时设置 `untruncatedTextCapped`；调度器在 Hook、进度和持久化之前移除这些临时字段。宿主的 `toolOutputRedaction` 提供整段与跨增量脱敏，必须在任何字节落盘之前应用；bash 通过执行上下文的 `outputFile` 与同一流式脱敏端口直接有界写入。默认显示数量上限的溢出也被收集，显式 query limit 仍保持查询边界。完整契约见[工具结果落盘](../../docs/subsystems/execution.md#工具结果落盘)。
 
 ## 验证与相关设计
 

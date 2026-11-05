@@ -213,6 +213,8 @@ export interface AgentRuntimeOptions {
   toolConcurrency?: number
   /** Session-scoped directory for full text of truncated tool results. */
   toolResultsDirectory?: string
+  /** Host redaction for durable tool output, including streaming commands. */
+  toolOutputRedaction?: import('../tools/types.ts').ToolOutputRedaction
   /** Session of the transcript; the first part of every idempotency key. Omitted: a random id per runtime. */
   sessionId?: string
   /**

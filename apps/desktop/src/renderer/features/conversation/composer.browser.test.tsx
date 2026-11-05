@@ -1,6 +1,6 @@
 import '../../styles.css'
 import * as React from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { TooltipProvider } from '@coko/ui'
@@ -61,6 +61,31 @@ describe('Composer：双层输入区', () => {
     await userEvent.click(page.getByRole('button', { name: 'Send' }))
     await expect.element(page.getByRole('button', { name: 'Remove notes.txt' })).not.toBeInTheDocument()
     expect(editorElement().textContent).toBe('')
+  })
+  it.each(['light', 'dark'])('long file drafts expose fullname and remove hints at narrow width (%s)', async (theme) => {
+    const name = 'shared-long-prefix-'.repeat(8) + 'report.txt'
+    const wasDark = document.documentElement.classList.contains('dark')
+    onTestFinished(() => {
+      document.documentElement.classList.toggle('dark', wasDark)
+    })
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const h = renderComposer({ pickFiles: async () => ['/source/' + name] })
+    const screen = await h.result
+    const wrapper = screen.container.firstElementChild as HTMLElement
+    wrapper.style.width = '320px'
+    await page.getByRole('button', { name: 'Add attachment' }).click()
+    const filename = page.getByText(name, { exact: true })
+    await expect.element(filename).toBeVisible()
+    expect((filename.element() as HTMLElement).scrollWidth).toBeGreaterThan((filename.element() as HTMLElement).clientWidth)
+    await filename.hover()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(name)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await page.getByRole('button', { name: `Remove ${name}` }).hover()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(`Remove ${name}`)
+    await page.getByRole('button', { name: `Remove ${name}` }).click()
+    await expect.element(page.getByRole('button', { name: `Remove ${name}` })).not.toBeInTheDocument()
+    await screen.unmount()
   })
   it('系统选择保留文件附件与原文字，图片模型限制仍生效', async () => {
     const h = renderComposer({ pickFiles: async () => ['/work/src/a.ts', '/outside/notes.txt', '/work/image.png'] })

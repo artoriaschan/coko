@@ -362,22 +362,34 @@ export function Composer({
         <ul data-slot="file-drafts" className="flex flex-wrap gap-2 px-3 pt-3" aria-label={t('conversation.fileAttachments')}>
           {files.map((file) => (
             <li key={file.id} className="flex min-w-0 items-center gap-2 rounded-lg border-hairline border-border px-2 py-1 text-ui-body">
-              <span className="max-w-60 truncate">{file.name}</span>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label={t('conversation.removeFile', { name: file.name })}
-                onClick={() => {
-                  rememberFiles(
-                    key,
-                    files.filter((item) => item.id !== file.id),
-                  )
-                  void fileDrafts.remove([file.id])
-                }}
-              >
-                <XIcon aria-hidden />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0} className="min-w-0 max-w-60 truncate">
+                    {file.name}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{file.name}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={t('conversation.removeFile', { name: file.name })}
+                    onClick={() => {
+                      rememberFiles(
+                        key,
+                        files.filter((item) => item.id !== file.id),
+                      )
+                      void fileDrafts.remove([file.id])
+                    }}
+                  >
+                    <XIcon aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t('conversation.removeFile', { name: file.name })}</TooltipContent>
+              </Tooltip>
             </li>
           ))}
         </ul>

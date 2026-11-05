@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Type } from 'typebox'
 import { resolveToCwd, throwIfAborted } from '../paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead, type TruncationResult } from '../truncate.ts'
+import { ToolOutputBuffer } from '../output.ts'
 import type { CokoTool } from '../types.ts'
 import { createReadFilter } from './read-filter.ts'
 
@@ -49,17 +50,24 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
       const filter = await createReadFilter(context, dirPath)
       entries = entries.filter((entry) => !filter.denied(join(dirPath, entry)))
       const results: string[] = []
+      const fullOutput = new ToolOutputBuffer(context?.outputRedaction)
       let entryLimitReached = false
       for (const entry of entries) {
-        if (results.length >= effectiveLimit) {
+        if (limit !== undefined && results.length >= effectiveLimit) {
           entryLimitReached = true
           break
         }
+        let directory: boolean
         try {
-          results.push((await stat(join(dirPath, entry))).isDirectory() ? `${entry}/` : entry)
+          directory = (await stat(join(dirPath, entry))).isDirectory()
         } catch {
           // Skip entries that cannot be stat'ed (broken symlinks).
+          continue
         }
+        const line = directory ? `${entry}/` : entry
+        if (results.length < effectiveLimit) results.push(line)
+        else entryLimitReached = true
+        if (!fullOutput.appendLine(line)) break
       }
       throwIfAborted(signal)
       const omitted = filter.notice()
@@ -83,7 +91,7 @@ export function createLsTool({ cwd }: { cwd: string }): CokoTool<typeof lsParame
       return {
         content: [{ type: 'text', text }],
         details: Object.keys(details).length > 0 ? details : undefined,
-        ...(truncation.truncated ? { untruncatedText: results.join('\n') } : {}),
+        ...(truncation.truncated || (limit === undefined && entryLimitReached) ? fullOutput.result() : {}),
       }
     },
   }

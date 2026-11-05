@@ -121,7 +121,7 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
         }
       }
       const timeoutMs = resolveTimeoutMs(timeout)
-      const output = new OutputAccumulator(tempDir, 'coko-bash', context?.outputFile)
+      const output = new OutputAccumulator(tempDir, 'coko-bash', context?.outputFile, context?.outputRedaction?.stream())
       let accepting = true
       let timer: NodeJS.Timeout | undefined
       let dirty = false

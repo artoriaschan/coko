@@ -63,12 +63,18 @@ export interface CokoTool<TParameters extends TSchema = TSchema, TDetails = any>
 }
 
 /** Raw text retained only until the scheduler persists a truncated result; never put in the transcript. */
-export type CokoToolResult<TDetails = any> = AgentToolResult<TDetails> & { untruncatedText?: string }
+export type CokoToolResult<TDetails = any> = AgentToolResult<TDetails> & { untruncatedText?: string; untruncatedTextCapped?: boolean }
 
 export type ToolEffect = 'read' | 'side-effect'
 
 /** Whether an interrupted side-effect call took effect (see `CokoTool.probeOutcome`). */
 export type ToolOutcome = 'applied' | 'not-applied' | 'unknown'
+
+/** Host-owned registered-value redaction, applied before any tool-output bytes reach storage. */
+export interface ToolOutputRedaction {
+  text(text: string): string
+  stream(): { push(text: string): string; flush(): string }
+}
 
 /** What the runtime tells one call. Absent when a tool is executed outside the runtime (tests, direct calls). */
 export interface ToolExecutionContext {
@@ -79,6 +85,7 @@ export interface ToolExecutionContext {
   idempotencyKey: string
   /** Host-selected destination for this call’s truncated output. Created only if truncation occurs. */
   outputFile?: string
+  outputRedaction?: ToolOutputRedaction
   /**
    * The call's command sandbox, decided at execution from the Session's Permission Mode or a granted escalation. Absent
    * when the runtime has no permission decision (library callers): commands run unconfined.
