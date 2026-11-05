@@ -1,0 +1,56 @@
+apps/server/src/application/goals.ts
+  s_2a03236d6e6b67::t_687ac3d28314f8 17,217,219-224,227
+tests/integration/sidecar-goal.test.ts
+  s_2a03236d6e6b67::t_65d281ebeaf94c 243-263
+  s_2a03236d6e6b67::t_4f5ca4d9d0b873 167-169,219-228,236-238,568-570
+  s_2a03236d6e6b67::t_f9064cca23d4bb 68-72,174,177-178,180-184
+  s_2a03236d6e6b67::t_1550f1fe896505 476
+  s_2a03236d6e6b67::t_d0ef4c3a1dc71f 176,188-218,229-235,239
+tests/integration/sidecar-goal-restart.test.ts
+  s_2a03236d6e6b67::t_65d281ebeaf94c 3,55-56,90-92,96-106,115
+  s_2a03236d6e6b67::t_4f5ca4d9d0b873 57-64,93-95
+docs/subsystems/goal.md
+  s_2a03236d6e6b67::t_b0c7d5e58793a1 3
+  s_2a03236d6e6b67::t_b554dd4c99a3a9 18,22,86,121-123,182,189
+  s_2a03236d6e6b67::t_b67b869b78b890 112
+docs/subsystems/context.md
+  s_2a03236d6e6b67::t_b0c7d5e58793a1 13
+  s_2a03236d6e6b67::t_b554dd4c99a3a9 195
+docs/README.md
+  s_2a03236d6e6b67::t_b554dd4c99a3a9 46
+packages/agent/src/goals/budget.test.ts
+  s_2a03236d6e6b67::t_1550f1fe896505 12,240-248
+.scratch/system-context/issues/04-goal-progress-state-update.md
+  s_2a03236d6e6b67::t_01cbe25becd22f 33-34
+  s_2a03236d6e6b67::t_b0c7d5e58793a1 11-32
+packages/agent/src/goals/goals.test.ts
+  s_2a03236d6e6b67::t_4f5ca4d9d0b873 388-393
+  s_2a03236d6e6b67::t_1550f1fe896505 15,376-378,384-387,394-400
+apps/server/src/application/context/goal.ts
+  s_2a03236d6e6b67::t_b67b869b78b890 1
+  s_2a03236d6e6b67::t_687ac3d28314f8 53-56
+packages/agent/src/goals/dimensions.test.ts
+  s_2a03236d6e6b67::t_1550f1fe896505 14,56-57
+packages/agent/README.md
+  s_2a03236d6e6b67::t_3b350a48378d14 65
+packages/agent/src/goals/prompt.ts
+  s_2a03236d6e6b67::t_687ac3d28314f8 19-20,23-25,29-30,34,40-41,50-65
+tests/integration/secrets-gate-goal.test.ts
+  s_2a03236d6e6b67::t_1550f1fe896505 84-85,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "73c21ac27e96cadc51d4c3ef2751def1c41722e4",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
