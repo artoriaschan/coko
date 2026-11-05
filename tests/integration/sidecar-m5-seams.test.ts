@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it, onTestFinished } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { DEFAULT_SYSTEM_PROMPT } from '@coko/agent'
 import { API_ROUTES, apiPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
 import { createGitWorkspace, GIT_FIXTURE_AUTHOR } from '../fixtures/git/index.ts'
@@ -30,7 +31,7 @@ const run = promisify(execFile)
 type Logged = { role: string; content: unknown; sections?: unknown }[]
 
 async function boot(dirs: SidecarDirs, root: string, env: Record<string, string>) {
-  const sidecar = await startSidecar({ dirs, env })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, ...env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -67,7 +68,7 @@ async function logSteps(dirs: SidecarDirs) {
 }
 
 describe('M5 装配接入点', () => {
-  it('空贡献时请求与之前相同：开头只有基础系统提示，没有 sections；user message 原样；run_start 为 submit', async () => {
+  it('没有额外贡献时仍有基础提示与环境；user message 原样；run_start 为 submit', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const requestLog = join(root, 'requests.jsonl')
@@ -79,9 +80,10 @@ describe('M5 装配接入点', () => {
     const [messages, ...rest] = await requests(requestLog)
     expect(rest).toEqual([])
     expect(messages!.map((m) => m.role)).toEqual(['system', 'user'])
-    expect(messages![0]).toEqual(expect.objectContaining({ role: 'system', content: DEFAULT_SYSTEM_PROMPT }))
-    expect(messages![0]).not.toHaveProperty('sections')
-    expect(texts(messages![1]!.content)).toEqual(['hello'])
+    expect(messages![0]).toEqual(
+      expect.objectContaining({ role: 'system', sections: { 'coko.base': DEFAULT_SYSTEM_PROMPT, environment: expect.stringContaining('<environment>') } }),
+    )
+    expect(texts(messages![1]!.content)).toEqual([dateBlock, 'hello'])
     expect(stream.entries(sessionId).find((e) => e.kind === 'run_start')?.payload).toEqual({ trigger: 'submit' })
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -99,10 +101,10 @@ describe('M5 装配接入点', () => {
 
     expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'note [m5:context]' })).status).toBe(202)
     await runEnds(sessionId, 1)
-    expect(users(stream.entries(sessionId))).toEqual([['note [m5:context]', '<hook-context>\nContext from the M5 test seam\n</hook-context>']])
+    expect(users(stream.entries(sessionId))).toEqual([[dateBlock, 'note [m5:context]', '<hook-context>\nContext from the M5 test seam\n</hook-context>']])
     const logged = await requests(requestLog)
     expect(logged).toHaveLength(1)
-    expect(texts(logged[0]!.at(-1)!.content)).toEqual(['note [m5:context]', '<hook-context>\nContext from the M5 test seam\n</hook-context>'])
+    expect(texts(logged[0]!.at(-1)!.content)).toEqual([dateBlock, 'note [m5:context]', '<hook-context>\nContext from the M5 test seam\n</hook-context>'])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
@@ -116,7 +118,7 @@ describe('M5 装配接入点', () => {
     await api.post(apiPaths.sessionMessages(sessionId), { text: 'go [m5:continue]' })
     await runEnds(sessionId, 1)
     const entries = stream.entries(sessionId)
-    expect(users(entries)).toEqual([['go [m5:continue]'], ['Continue from the M5 test seam']])
+    expect(users(entries)).toEqual([[dateBlock, 'go [m5:continue]'], ['Continue from the M5 test seam']])
     expect(new Set(entries.filter((e) => e.kind === 'message').map((e) => e.runId)).size).toBe(1)
     expect(entries.find((e) => e.kind === 'run_end')?.payload).toEqual({ status: 'completed' })
     expect(await requests(requestLog)).toHaveLength(2)

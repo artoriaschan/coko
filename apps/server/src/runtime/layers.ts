@@ -1,6 +1,14 @@
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type SnapshotPort, type ToolHooks, type ToolRegistry } from '@coko/agent'
+import {
+  BASE_PROMPT_V2,
+  createCheckpointTracker,
+  createModelRegistry,
+  SESSION_ENTRY_PAYLOADS,
+  type SnapshotPort,
+  type ToolHooks,
+  type ToolRegistry,
+} from '@coko/agent'
 import { getLogger, REDACTED, registerSecretValues } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
@@ -393,6 +401,7 @@ const AssemblyLive = Layer.effect(
     // 交接：摘要 Run 经 SessionService，目标 worktree 经 WorktreeService（都在 AppLive 创建后接上）；目标创建后之后的请求按 Goal 预算重查。
     const handoff = new HandoffService({ store, entries, runs: runs.handoff, worktrees: runs.worktrees, goals })
     const contributions = createContributions({
+      clock,
       cokoHome: sidecar.cokoHome,
       mcp,
       memories: store,
@@ -574,6 +583,7 @@ const AppLive = Layer.effect(
     yield* Effect.promise(() => providers.load())
     const sessions: SessionService = new SessionService({
       store,
+      ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2 } : {}),
       clock,
       registry,
       hub,
@@ -740,7 +750,13 @@ const AppLive = Layer.effect(
       workspaces: new WorkspaceService(store),
       projects: new ProjectService(store, sessions),
       config: capabilities,
-      context: new ContextService({ store, assembly: context, sessions, cwd: worktrees.cwd }),
+      context: new ContextService({
+        store,
+        assembly: context,
+        sessions,
+        cwd: worktrees.cwd,
+        ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2.text } : {}),
+      }),
       memories,
       mcp,
       secrets,

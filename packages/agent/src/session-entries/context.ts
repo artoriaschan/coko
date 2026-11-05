@@ -5,6 +5,13 @@ import { definePayloads, type EntryJson } from './define.ts'
 const strict = { additionalProperties: false } as const
 const Count = Type.Integer({ minimum: 0 })
 
+/** state_update v1 records the structured state delivered in the next user message. */
+export const stateUpdatePayloadSchema = Type.Object(
+  { name: Type.Union([Type.Literal('date'), Type.Literal('goal'), Type.Literal('todo_list'), Type.Literal('team')]), value: Type.Unknown() },
+  strict,
+)
+export type StateUpdatePayload = Static<typeof stateUpdatePayloadSchema>
+
 export const commandSourceSchema = Type.Union([
   Type.Literal('builtin'),
   Type.Literal('project'),
@@ -73,11 +80,13 @@ export const compactionPayloadSchema = Type.Object({ ...compactionFields, usage:
 export type CompactionPayload = Static<typeof compactionPayloadSchema>
 
 export interface ContextEntryPayloads {
+  state_update: StateUpdatePayload
   command: CommandPayload
   compaction: CompactionPayload
 }
 
 export const contextEntryPayloads = definePayloads({
+  state_update: [{ schema: stateUpdatePayloadSchema }],
   command: [{ schema: commandPayloadSchema }],
   compaction: [{ schema: compactionV1Schema }, { schema: compactionPayloadSchema, migrate: (previous: EntryJson) => previous }],
 } satisfies Record<keyof ContextEntryPayloads, unknown>)

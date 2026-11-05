@@ -3,6 +3,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, fileReferencePath, filePaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
@@ -27,7 +28,7 @@ async function boot(responses: unknown[]) {
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const script = await fauxScript(root, { responses, requestLog })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -59,13 +60,14 @@ describe('File Reference 展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'user', 'assistant', 'model_request', 'run_end'])
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'state_update', 'user', 'model_request', 'assistant', 'run_end'])
     const expected = [
+      { type: 'text', text: dateBlock },
       { type: 'text', text: '看看 @src/a.ts' },
       { type: 'text', text: '<file_reference path="src/a.ts">\nexport const a = 1\n\n</file_reference>' },
     ]
     expect(userBlocks(entries)).toEqual([expected])
-    expect(fileReferencePath(userBlocks(entries)[0]![1]!.text!)).toBe('src/a.ts')
+    expect(fileReferencePath(userBlocks(entries)[0]![2]!.text!)).toBe('src/a.ts')
     const sent = await requests()
     expect(sent).toHaveLength(1)
     expect(sentUserBlocks(sent[0]!)).toEqual([expected])
@@ -85,6 +87,7 @@ describe('File Reference 展开', () => {
 
     const [denied, plain] = userBlocks(stream.entries(sessionId))
     expect(denied).toEqual([
+      { type: 'text', text: dateBlock },
       { type: 'text', text: 'read @secret.txt please' },
       { type: 'text', text: '<file_reference path="secret.txt">\n[Not attached: denied by permission rules.]\n</file_reference>' },
     ])
@@ -99,9 +102,10 @@ describe('File Reference 展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
-    expect(entries[2]!.payload).toEqual({ name: 'explain', args: '@src/a.ts', source: 'project' })
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'state_update', 'command', 'user', 'model_request', 'assistant', 'run_end'])
+    expect(entries[3]!.payload).toEqual({ name: 'explain', args: '@src/a.ts', source: 'project' })
     const expected = [
+      { type: 'text', text: dateBlock },
       { type: 'text', text: 'Explain @src/a.ts in one paragraph.' },
       { type: 'text', text: '<file_reference path="src/a.ts">\nexport const a = 1\n\n</file_reference>' },
     ]

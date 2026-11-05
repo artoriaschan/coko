@@ -1,6 +1,7 @@
 // Goal 的状态机（ADR 0011，docs/subsystems/goal.md）：快照与 revision、九阶段的转换表、创建与编辑的校验、完成证据与 Run 的授权。
 // 全部是纯函数：输入当前快照与条目（EntryLike），输出下一份快照或抛出 GoalError；宿主（apps/server application/goals.ts）负责加锁与提交。
-import { HOST_NOTIFICATION_KINDS } from '../entries/host-input.ts'
+import { HOST_INPUT_KINDS } from '../entries/host-input.ts'
+import { pairedStateUpdates } from '../entries/state-updates.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { GoalBudget, GoalCriterion, GoalEvidence, GoalPayload, GoalPhase } from '../session-entries/goals.ts'
 
@@ -383,6 +384,7 @@ export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
   // 无人值守（定时任务）与宿主派生（子 Session、交接）的 Run：之后送达的消息也不授予用户的权限（输入可能由命令输出或模型构造）。
   if (UNATTENDED_TRIGGERS.has(payload.trigger)) return { kind: 'none' }
   // submit 与 goal 的第一条 user message 是该 Run 的输入（goal 为宿主生成的 <goal_round>）；其余的是送达的追加指令。
+  const snapshots = pairedStateUpdates(entries)
   let skipFirst = payload.trigger === 'goal'
   for (let i = start + 1; i < entries.length; i++) {
     const entry = entries[i]!
@@ -391,7 +393,7 @@ export function runAuthority(entries: readonly EntryLike[]): RunAuthority {
       skipFirst = false
       continue
     }
-    if (!HOST_NOTIFICATION_KINDS.has(entries[i - 1]?.kind ?? '')) return { kind: 'user' }
+    if (!snapshots.has(entry.seq) && !HOST_INPUT_KINDS.has(entries[i - 1]?.kind ?? '')) return { kind: 'user' }
   }
   if (payload.trigger === 'goal' && payload.goal) return { kind: 'goal-round', goalId: payload.goal.goalId, round: payload.goal.round }
   return { kind: 'none' }

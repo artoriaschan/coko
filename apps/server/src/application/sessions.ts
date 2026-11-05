@@ -48,6 +48,8 @@ export interface SessionLifecycle {
 export interface SessionServiceOptions {
   clock?: ClockPort
   store: SessionStore
+  /** Explicit host override for base-prompt evaluation; normal operation uses the runtime default. */
+  basePrompt?: { text: string; version: string }
   registry: ModelRegistry
   hub: SessionHub
   runs: RunLauncher
@@ -147,6 +149,7 @@ export class SessionService {
     })
     this.#runs = new SessionRuns({
       store,
+      ...(options.basePrompt ? { basePrompt: options.basePrompt } : {}),
       registry: options.registry,
       hub: options.hub,
       runs: options.runs,

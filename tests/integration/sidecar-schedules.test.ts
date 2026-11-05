@@ -4,6 +4,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, goalPaths, permissionPaths, schedulePaths } from '@coko/protocol'
 import {
   advanceClock,
@@ -32,7 +33,7 @@ async function boot(responses: unknown[], options: { env?: Record<string, string
   await writeFile(requestLog, '')
   const dirs = await sidecarDirs()
   const faux: Record<string, string> = options.faux === false ? {} : { COKO_FAUX_SCRIPT: await fauxScript(root, { requestLog, responses }) }
-  const sidecar = await startSidecar({ dirs, ...(options.ipc === false ? { ipc: false } : {}), env: { COKO_TEST_CLOCK: '1', ...faux, ...options.env } })
+  const sidecar = await startSidecar({ dirs, ...(options.ipc === false ? { ipc: false } : {}), env: { ...DATE_TEST_ENV, ...faux, ...options.env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -118,7 +119,7 @@ describe('定时任务：到期投递', { timeout: 120_000 }, () => {
     expect(fires(stream, sessionId)).toEqual(steps.map(([s, occurrence]) => ({ scheduleId: s.id, occurrence, status: 'started' })))
     const logged = await requests()
     expect(logged.map(lastUserTexts)).toEqual([
-      [tag(after.id, 'after', t0 + 30_000, 'prompt-after')],
+      [dateBlock, tag(after.id, 'after', t0 + 30_000, 'prompt-after')],
       [tag(at.id, 'at', t0 + 90_000, 'prompt-at')],
       [tag(cron.id, 'cron', cronTime, 'prompt-cron')],
       [tag(every.id, 'every', t0 + 600_000, 'prompt-every')],
@@ -366,7 +367,10 @@ describe('定时任务：授权（对手用例）', { timeout: 120_000 }, () => 
     await advanceClock(api, 60_000)
     await waitKind(stream, sessionId, 'run_end', 3)
     expect(of(stream, sessionId, 'run_start').at(-1)!.payload).toMatchObject({ trigger: 'schedule', schedule: { scheduleId: id } })
-    expect(lastUserTexts((await requests()).at(-1)!)).toEqual([expect.stringMatching(/^<scheduled_task [^>]*>\/goal resume<\/scheduled_task>$/)])
+    expect(lastUserTexts((await requests()).at(-1)!)).toEqual([
+      expect.stringMatching(/^<state_update name="goal">/),
+      expect.stringMatching(/^<scheduled_task [^>]*>\/goal resume<\/scheduled_task>$/),
+    ])
     expect((await api.get(goalPaths.sessionGoal(sessionId))).body.goal).toMatchObject({ phase: 'paused', revision: pausedRevision.revision })
     expect(of(stream, sessionId, 'run_start')).toHaveLength(3)
     expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })

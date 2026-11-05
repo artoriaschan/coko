@@ -14,6 +14,7 @@ import {
   goalRounds,
   goalRunIds,
   goalSection,
+  goalStateValue,
   goalUsage,
   goalView,
   isActivePhase,
@@ -32,6 +33,7 @@ import {
   type ToolBlockResult,
   type ToolHooks,
 } from '@coko/agent'
+import { HOST_INPUT_KINDS, pairedStateUpdates } from '@coko/agent/entries'
 import { getLogger } from '@coko/logging'
 import type { GoalActionRequest, GoalBudgetDimension, GoalResponse, KnownGoalReasonCode } from '@coko/protocol'
 import type { SessionEntry as StoredEntry, SessionStore } from '@coko/session'
@@ -213,11 +215,17 @@ export class GoalService {
     return { goal, usage: { ...(await this.#usage(entries, goal.id)), costUnpriced: !(await this.#priced(sessionId)) } }
   }
 
-  /** Goal 未终结时的 <goal> section（已设维度的用量 / 上限）。 */
+  /** Goal 未终结时的 <goal> section，只包含稳定定义。 */
   async systemSection(sessionId: string): Promise<SystemSection | undefined> {
     const entries = await this.#entries(sessionId)
+    return goalSection(currentGoal(entries))
+  }
+
+  /** 按与 GET …/goal 相同的领域快照和用量口径给 State Update 取值。 */
+  async stateValue(sessionId: string) {
+    const entries = await this.#entries(sessionId)
     const goal = currentGoal(entries)
-    return goalSection(goal, goal ? await this.#usage(entries, goal.id) : { rounds: 0 })
+    return goalStateValue(goal, goal ? await this.#usage(entries, goal.id) : { rounds: 0 })
   }
 
   // ---- 预算检查点（context/goal.ts 的 beforeRequest 与工具 hook） ----
@@ -662,9 +670,32 @@ function endChange(goal: GoalPayload, info: RunEndInfo, entries: readonly Stored
       return { type: 'wait-input', reason: { code: 'approval-unanswered', message: 'The goal round stopped while an approval was waiting for an answer' } }
     return { type: 'pause', reason: { code: 'user-stopped', message: 'The run was stopped by the user' } }
   }
-  if (goal.phase === 'waiting-input' && USER_TRIGGERS.has(trigger) && result.status === 'completed' && waitingBefore(goal, info.runId, entries))
+  if (
+    goal.phase === 'waiting-input' &&
+    USER_TRIGGERS.has(trigger) &&
+    result.status === 'completed' &&
+    waitingBefore(goal, info.runId, entries) &&
+    !onlyStateInput(entries, info.runId)
+  )
     return { type: 'wake' }
   return undefined
+}
+
+/** A delivered snapshot is host input, even when continue used prompt() to send it. */
+function onlyStateInput(entries: readonly StoredEntry[], runId: string): boolean {
+  const snapshots = pairedStateUpdates(entries)
+  let hasState = false
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index]!
+    if (entry.runId !== runId || entry.kind !== 'message' || (entry.payload as { role?: string }).role !== 'user') continue
+    const paired = snapshots.get(entry.seq)
+    if (paired) {
+      const content = (entry.payload as { content?: unknown }).content
+      if (!Array.isArray(content) || paired.length !== content.length) return false
+      hasState = true
+    } else if (!HOST_INPUT_KINDS.has(entries[index - 1]?.kind ?? '')) return false
+  }
+  return hasState
 }
 
 /** Goal 进入当前这段 waiting-input 的快照（之后的 edit 不改变阶段）是否早于该 Run 的 run_start。 */

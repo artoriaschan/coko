@@ -21,6 +21,9 @@ import { PTY_COLS, PTY_ROWS, PTY_TERM, PtyUnavailableError, type PtyPort } from 
 const HOST_ONLY_ENV = ['ELECTRON_RUN_AS_NODE']
 const EXIT_STDIO_GRACE_MS = 100
 
+/** The default command shell, also reported in the model's environment context. */
+export const DEFAULT_COMMAND_SHELL = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh'
+
 /** An exact variable name or a pattern tested against each name. */
 export type EnvExclusion = string | RegExp
 
@@ -153,7 +156,7 @@ function notify<T extends unknown[]>(callback: ((...args: T) => void) | undefine
  * The process leads that group (detached spawn), so `onSpawn` reports `pgid = pid`.
  */
 export function createLocalExecPort(options: LocalExecOptions = {}): ExecPort {
-  const shell = options.shell ?? (existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh')
+  const shell = options.shell ?? DEFAULT_COMMAND_SHELL
   const baseEnv = () => filterEnv(options.env ?? process.env, options.excludeEnv)
 
   /** 检查工作目录、按沙箱档位加前缀，得到 `[...前缀, <shell>, -c, <command>]`。 */

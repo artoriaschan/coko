@@ -10,6 +10,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_SYSTEM_PROMPT } from '@coko/agent'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import {
   API_ROUTES,
   apiPaths,
@@ -46,7 +48,7 @@ async function boot(root: string, responses: unknown[], env: Record<string, stri
   const requestLog = join(root, '.requests.jsonl')
   await writeFile(requestLog, '')
   const script = await fauxScript(root, { requestLog, responses }, '.faux.json')
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, ...env } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script, ...env } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -107,7 +109,7 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
     const entries = () => h.stream.entries(sessionId)
     expect(entries().find((e) => e.kind === 'command')?.payload).toMatchObject({ name: 'sample:hello', args: 'World' })
     expect(userText(entries().find((e) => e.kind === 'message' && (e.payload as { role: string }).role === 'user')!)).toBe(
-      'Hello from the sample plugin, World.',
+      dateBlock + 'Hello from the sample plugin, World.',
     )
     // Skill：<available_skills> 中有 sample:greet。
     expect(JSON.stringify((await h.requests())[0])).toContain('sample:greet')
@@ -139,7 +141,7 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('未设置 COKO_TEST_PLUGINS 时插件资源都不存在；空贡献时请求没有 sections', async () => {
+  it('未设置 COKO_TEST_PLUGINS 时插件资源都不存在；空插件贡献时保留基础提示与环境 sections', async () => {
     const root = await tempDir()
     const h = await boot(root, [{ content: [call('b1', 'bash', { command: 'echo x' })] }, { content: 'done' }])
     const sessionId = await h.open()
@@ -148,7 +150,10 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
     await h.runEnds(sessionId, 1)
     const [first] = await h.requests()
     expect(JSON.stringify(first)).not.toContain('sample:greet')
-    expect((first as { sections?: unknown }[])[0]!.sections).toBeUndefined()
+    expect((first as { sections?: unknown }[])[0]!.sections).toEqual({
+      'coko.base': DEFAULT_SYSTEM_PROMPT,
+      environment: expect.stringContaining('<environment>'),
+    })
     expect(h.stream.entries(sessionId).some((e) => e.kind === 'hook_run')).toBe(false)
     expect((await h.mcp()).servers).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
@@ -166,7 +171,7 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
 })
 
 describe('M6 装配接入点', { timeout: 60_000 }, () => {
-  it('model_request：两轮的 Run 提交两条（各在 assistant 之后，耗时 > 0），日志有 model request finished', async () => {
+  it('model_request：两轮的 Run 提交两条（各在 assistant 之前，耗时 > 0），日志有 model request finished', async () => {
     const root = await tempDir()
     const h = await boot(root, [{ content: [call('l1', 'ls', { path: '.' })] }, { content: 'listed' }])
     const sessionId = await h.open()
@@ -175,12 +180,13 @@ describe('M6 装配接入点', { timeout: 60_000 }, () => {
     const kinds = h.stream.entries(sessionId).map((e) => (e.kind === 'message' ? (e.payload as { role: string }).role : e.kind))
     expect(kinds.slice(kinds.indexOf('run_start'))).toEqual([
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'toolResult',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     const requests = h.stream.modelRequests(sessionId)

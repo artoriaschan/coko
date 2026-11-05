@@ -52,7 +52,10 @@ describe('headless', { timeout: 120_000 }, () => {
       durationMs: expect.any(Number),
     })
     const kinds = messages.flatMap((m) => (m.type === 'entry' ? [(m.entry as { kind: string }).kind] : []))
-    expect(kinds).toEqual(expect.arrayContaining(['run_start', 'message', 'model_request', 'run_end']))
+    expect(kinds).toEqual(expect.arrayContaining(['run_start', 'state_update', 'message', 'model_request', 'run_end']))
+    expect(messages.filter((message) => message.type === 'entry' && (message.entry as { kind: string }).kind === 'state_update')).toEqual([
+      expect.objectContaining({ entry: expect.objectContaining({ payloadVersion: 1, payload: { name: 'date', value: expect.any(Object) } }) }),
+    ])
     expect(messages.filter((m) => m.type === 'progress').map((m) => (m.event as { type: string }).type)).toEqual(
       expect.arrayContaining(['run_start', 'tool_start', 'tool_end', 'run_end']),
     )
@@ -66,18 +69,21 @@ describe('headless', { timeout: 120_000 }, () => {
   it('text 只打印最终文本；--session 继续已有会话（第二次的请求含第一次的对话），json 只有一行 result', async () => {
     // 每个 headless 进程的 faux 队列从头开始：以 match 区分两次运行。
     const h = await setup([
-      { match: 'one', content: 'first answer' },
-      { match: 'two', content: 'second answer' },
+      { match: 'FIRST_REQUEST_MARKER', content: 'first answer' },
+      { match: 'SECOND_REQUEST_MARKER', content: 'second answer' },
     ])
-    const first = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'one'), h.env)
+    const first = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'FIRST_REQUEST_MARKER'), h.env)
     expect([first.code, first.stdout]).toEqual([0, 'first answer\n'])
     const sessionId = dbRows(h.dirs, 'SELECT id FROM sessions')[0]!.id as string
-    const second = await runHeadless(h.dirs, baseArgs(h.dirs, '--session', sessionId, '--prompt', 'two', '--output', 'json'), h.env)
+    const second = await runHeadless(h.dirs, baseArgs(h.dirs, '--session', sessionId, '--prompt', 'SECOND_REQUEST_MARKER', '--output', 'json'), h.env)
     expect(second).toMatchObject({ code: 0 })
     expect(lines(second.stdout)).toEqual([expect.objectContaining({ type: 'result', status: 'completed', sessionId, text: 'second answer' })])
     expect(dbRows(h.dirs, 'SELECT id FROM sessions')).toHaveLength(1)
     const users = dbEntries(h.dirs, sessionId).filter((e) => e.kind === 'message' && e.payload.role === 'user')
-    expect(users.map((u) => JSON.stringify(u.payload.content))).toEqual([expect.stringContaining('one'), expect.stringContaining('two')])
+    expect(users.map((u) => JSON.stringify(u.payload.content))).toEqual([
+      expect.stringContaining('FIRST_REQUEST_MARKER'),
+      expect.stringContaining('SECOND_REQUEST_MARKER'),
+    ])
   })
 
   it.each([

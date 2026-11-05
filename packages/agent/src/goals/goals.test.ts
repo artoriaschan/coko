@@ -12,6 +12,7 @@ import {
   goalRounds,
   goalRoundText,
   goalSection,
+  goalStateValue,
   goalView,
   nextGoalId,
   planGoalCreate,
@@ -334,6 +335,16 @@ describe('Run 的授权（runAuthority）', () => {
       [start('continue'), e('agent_notification', { agentIds: ['a'] }), user('<agent-notification agent-id="a">')],
       { kind: 'none' },
     ],
+    [
+      'continue state update is host input',
+      [start('continue'), e('state_update', { name: 'todo_list', value: null }), user('<state_update>')],
+      { kind: 'none' },
+    ],
+    [
+      'Goal Round state update is host input',
+      [start('goal', { goalId: 'goal-1', round: 2 }), user('<goal_round>'), e('state_update', { name: 'todo_list', value: null }), user('<state_update>')],
+      { kind: 'goal-round', goalId: 'goal-1', round: 2 },
+    ],
     ['continue', [start('continue')], { kind: 'none' }],
     ['continue 中送达了追加指令', [start('continue'), user('go on')], { kind: 'user' }],
     ['没有进行中的 Run', [start('submit'), user('hi'), e('run_end', { status: 'completed' })], { kind: 'none' }],
@@ -362,19 +373,31 @@ describe('派生与文本', () => {
     expect(currentGoal([])).toBeUndefined()
   })
 
-  it('<goal> 在未终结时注入（目标、条件、阶段与原因、轮次 / 上限），终结后不注入', () => {
-    const section = goalSection(goal({ phase: 'paused', reason: { code: 'user-paused', message: 'Paused by the user' }, constraints: 'no new deps' }), {
-      rounds: 2,
-    })
+  it('<goal> 只保留稳定定义；动态状态单独送达，终结后清空', () => {
+    const paused = goal({ phase: 'paused', reason: { code: 'user-paused', message: 'Paused by the user' }, constraints: 'no new deps' })
+    const section = goalSection(paused)
     expect(section?.name).toBe('goal')
     expect(section?.text).toMatch(/^<goal>\n/)
     expect(section?.text).toContain('Objective: "fix the tests"')
     expect(section?.text).toContain('Constraints: "no new deps"')
     expect(section?.text).toContain('- c2: lint passes')
-    expect(section?.text).toContain('phase paused (user-paused: Paused by the user)')
-    expect(section?.text).toContain('- rounds: 2 / 50')
-    for (const phase of ['complete', 'cancelled'] as const) expect(goalSection(goal({ phase }), { rounds: 2 })).toBeUndefined()
-    expect(goalSection(undefined, { rounds: 0 })).toBeUndefined()
+    expect(section?.text).not.toContain('user-paused')
+    expect(section?.text).toContain('- rounds: limit 50')
+    expect(section).toEqual(goalSection({ ...paused, revision: 9, phase: 'running', reason: undefined }))
+    expect(goalStateValue(paused, { rounds: 2, tokens: 99 })).toEqual({
+      id: 'goal-1',
+      revision: 3,
+      phase: 'paused',
+      reason: { code: 'user-paused', message: 'Paused by the user' },
+      usage: { rounds: 2 },
+      budget: { maxRounds: 50 },
+    })
+    for (const phase of ['complete', 'cancelled'] as const) {
+      expect(goalSection(goal({ phase }))).toBeUndefined()
+      expect(goalStateValue(goal({ phase }), { rounds: 2 })).toBeNull()
+    }
+    expect(goalSection(undefined)).toBeUndefined()
+    expect(goalStateValue(undefined, { rounds: 0 })).toBeNull()
   })
 
   it('<goal_round>：目标 JSON 字符串、条件、第 n / 上限 轮与"以当前状态为准"', () => {

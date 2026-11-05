@@ -85,7 +85,14 @@ export class SessionCheckpoints {
     const backups = entries.flatMap((e) => (e.kind === 'file_backup' ? [e.payload as { anchorSeq: number; path: string }] : []))
     return effectiveEntries(entries).flatMap((entry) => {
       if (entry.kind !== 'message' || (entry.payload as { role?: unknown }).role !== 'user') return []
-      const { text } = planRewind(entries, entry.seq, 'conversation')
+      let text: string
+      try {
+        text = planRewind(entries, entry.seq, 'conversation').text
+      } catch (error) {
+        // A provenance-paired, state-only user message is host delivery, not a Checkpoint.
+        if (error instanceof RewindTargetError) return []
+        throw error
+      }
       const paths = [...new Set(backups.filter((b) => b.anchorSeq >= entry.seq).map((b) => b.path))]
       return [{ seq: entry.seq, text, createdAt: entry.createdAt, paths }]
     })

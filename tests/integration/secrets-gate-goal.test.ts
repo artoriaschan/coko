@@ -81,12 +81,13 @@ describe('秘密不外泄总闸：Goal', () => {
     expect(requests[2]).toContain('<goal>')
     expect(requests[2]).toContain('<goal_round>')
     expect(requests[2]).toContain('rotate [REDACTED:secret]')
-    expect(requests[2]).toMatch(/- tool calls: \d+ \/ 20\\n- tokens: \d+ \/ 10000000\\n- time: \d+ ms \/ 600000 ms/)
+    expect(requests[2]).toContain('<state_update name=\\"goal\\">')
+    expect(requests[2]).toMatch(/- tool calls: limit 20\\n- tokens: limit 10000000\\n- time: limit 600000 ms/)
 
     sidecar.child.kill('SIGTERM')
     expect(await sidecar.exited).toEqual({ code: 0, signal: null })
     const db = new DatabaseSync(join(dirs.dataDir, 'coko.db'), { readOnly: true })
-    const rows = db.prepare("SELECT payload FROM session_entries WHERE kind IN ('goal', 'message')").all() as { payload: string }[]
+    const rows = db.prepare("SELECT payload FROM session_entries WHERE kind IN ('goal', 'state_update', 'message')").all() as { payload: string }[]
     db.close()
     expect(rows.length).toBeGreaterThan(2)
     const files = await persisted(dirs)

@@ -5,10 +5,12 @@ import {
   contextBudget,
   estimateCompactedTokens,
   DEFAULT_SYSTEM_PROMPT,
+  effectiveEntries,
   effectiveMessages,
   estimateContextTokens,
   estimateMessageChars,
   OLD_TOOL_RESULT_CLEARED,
+  pairedStateUpdates,
   trimOldToolResults,
   type ToolRegistry,
 } from '@coko/agent'
@@ -62,6 +64,8 @@ export interface ContextUsageInput {
   /** Session 的条目；草稿为空。 */
   entries: readonly StoredEntry[]
   now?: () => number
+  /** Runtime base prompt; omitted in normal operation. */
+  basePrompt?: string
   /** 自动压缩因连续失败暂停（压缩的熔断，SessionService.compactionPaused）；缺省 false。 */
   autoCompactPaused?: boolean
 }
@@ -119,12 +123,22 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
   const trim = scope.config.context.trimOldToolResults
   const messages = trim ? trimOldToolResults(raw, { now }) : raw
   const chars: ContextBreakdown = {
-    system: DEFAULT_SYSTEM_PROMPT.length + sections.reduce((sum, section) => sum + section.text.length, 0),
+    system: (input.basePrompt ?? DEFAULT_SYSTEM_PROMPT).length + sections.reduce((sum, section) => sum + section.text.length, 0),
     prompt: 0,
     assistant: 0,
     thinking: 0,
     tools,
   }
+  const effective = effectiveEntries(input.entries, { compacted: true })
+  const updates = pairedStateUpdates(effective)
+  let stateChars = 0
+  for (const entry of effective) {
+    const pairs = updates.get(entry.seq)
+    if (!pairs) continue
+    const content = (entry.payload as { content: { text: string }[] }).content
+    for (const pair of pairs) stateChars += content[pair.blockIndex]!.text.length
+  }
+  chars.system += stateChars
   for (const message of messages) {
     if (message.role === 'user') chars.prompt += estimateMessageChars(message)
     else if (message.role === 'toolResult') chars.tools += estimateMessageChars(message)
@@ -141,6 +155,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
       chars.tools += declarations
     }
   }
+  chars.prompt -= stateChars
   const breakdown = Object.fromEntries(Object.entries(chars).map(([key, value]) => [key, charsToTokens(value)])) as ContextBreakdown
   const sum = Object.values(breakdown).reduce((a, b) => a + b, 0)
 

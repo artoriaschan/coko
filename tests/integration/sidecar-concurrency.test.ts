@@ -2,6 +2,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, permissionPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
@@ -22,7 +23,7 @@ describe('工具调度与执行记录', () => {
       ],
     })
     const dirs = await sidecarDirs()
-    const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+    const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
     const cookie = await exchange(sidecar)
     const api = client(sidecar, cookie)
     const workspace = await api.post(API_ROUTES.workspaces, { path: root })
@@ -41,16 +42,17 @@ describe('工具调度与执行记录', () => {
     expect(entries.map(kindOf)).toEqual([
       'permission_mode',
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'approval_request',
       'approval_decision',
       'tool_exec',
       'toolResult',
       'toolResult',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     const execs = entries.filter((e) => e.kind === 'tool_exec')
@@ -66,7 +68,7 @@ describe('工具调度与执行记录', () => {
 
     await stream.close()
     await sidecar.stop()
-    const again = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+    const again = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
     const detail = await client(again, await exchange(again)).get(apiPaths.session(sessionId))
     expect(detail.body.entries).toEqual(entries)
   })
@@ -89,7 +91,7 @@ describe('工具调度与执行记录', () => {
         { content: 'done' },
       ],
     })
-    const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script } })
+    const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
     const cookie = await exchange(sidecar)
     const api = client(sidecar, cookie)
     const workspace = await api.post(API_ROUTES.workspaces, { path: root })

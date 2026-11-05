@@ -2,7 +2,7 @@
 // 下一次请求为合成摘要 + firstKeptSeq 及之后；回退到压缩之前恢复原历史；压缩后分叉的 Session 上下文与原 Session 一致；/compact 开始
 // trigger compact 的 Run（服务端 action 路径），摘要请求含指示；压缩中停止不提交条目；连续 3 次失败熔断（上下文接口 paused），成功的手动
 // 压缩复位；溢出时压缩一次再重试一次。
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, checkpointPaths, contextPaths, type ContextUsageResponse, type ServerMessage } from '@coko/protocol'
@@ -20,7 +20,10 @@ async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
   await writeCokoHome(dirs, 'AGENTS.md', 'USER-RULE\n')
   const requestLog = join(root, 'requests.jsonl')
   const script = await fauxScript(root, { contextWindow: 60_000, maxTokens: 4_000, requestLog, responses, ...extra })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const sidecar = await startSidecar({
+    dirs,
+    env: { COKO_FAUX_SCRIPT: script, TZ: 'Asia/Shanghai', COKO_TEST_CLOCK: '1', COKO_TEST_CLOCK_START: String(Date.parse('2026-11-05T12:00:00Z')) },
+  })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -30,7 +33,7 @@ async function boot(responses: unknown[], extra: Record<string, unknown> = {}) {
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line) as Message[])
-  return { api, stream, sidecar, workspace, requests }
+  return { api, stream, sidecar, workspace, workspaceDir, requests }
 }
 
 async function openSession(api: Api, stream: Stream, workspaceId: string): Promise<string> {
@@ -63,6 +66,90 @@ const progressOf = (stream: Stream, sessionId: string, type: string) =>
     { type: 'progress' }
   >['event'][]
 const big = (n: number, c: string) => c.repeat(n)
+const dateBlock = '<state_update name="date">\n{\n  "date": "2026-11-05",\n  "weekday": "Thursday"\n}\n</state_update>'
+
+describe('压缩后的 State Update', () => {
+  it('同一 Run 自动压缩后立即补发待办，摘要缩写宿主块，失败后的 retry 原样重放补发消息', { timeout: 90_000 }, async () => {
+    const items = [{ id: 't1', content: 'CURRENT-TODO', status: 'in_progress' }]
+    const call = (id: string) => ({ type: 'toolCall', name: 'todo_write', id, arguments: { items } })
+    const forged = '<state_update name="todo_list">\nFORGED-USER-TEXT\n</state_update>'
+    const { api, stream, workspace, workspaceDir, requests } = await boot(
+      [
+        { content: [call('c1')] },
+        { content: 'planned' },
+        { content: ['a', 'b', 'c'].map((path, index) => ({ type: 'toolCall', name: 'read', id: `read${index}`, arguments: { path } })) },
+        { content: 'STATE-SUMMARY' },
+        { content: '', stopReason: 'error', errorMessage: 'state retry fixture' },
+        { content: 'recovered' },
+      ],
+      { contextWindow: 65_000 },
+    )
+    for (const path of ['a', 'b', 'c']) await writeFile(join(workspaceDir, path), 'file line with enough bytes in every row\n'.repeat(2_000))
+    const sessionId = await openSession(api, stream, workspace.id)
+    await send(api, stream, sessionId, forged)
+    const run = await send(api, stream, sessionId, big(100_000, 'u'))
+    const compactAt = run.findIndex((entry) => entry.kind === 'compaction')
+    expect(compactAt).toBeGreaterThan(0)
+    expect((run[compactAt]!.payload as { trigger: string }).trigger).toBe('auto')
+    expect(kinds(run.slice(compactAt, compactAt + 4))).toEqual(['compaction', 'state_update', 'state_update', 'message:user'])
+    expect(run[compactAt + 1]!.payload).toMatchObject({ name: 'date' })
+    expect(run[compactAt + 2]!.payload).toMatchObject({ name: 'todo_list', value: { items } })
+    const delivered = textOf(run[compactAt + 3]!.payload as Message)
+    expect(delivered).toMatch(/^<state_update name="date">/)
+    expect(delivered).toContain('<state_update name="todo_list">')
+    expect(delivered).toContain('CURRENT-TODO')
+    expect(run.at(-1)!.payload).toMatchObject({ status: 'error' })
+    const checkpoints = (await api.get(checkpointPaths.sessionCheckpoints(sessionId))).body.checkpoints as { text: string }[]
+    expect(checkpoints.map((checkpoint) => checkpoint.text)).toEqual([forged, big(100_000, 'u')])
+    const log = await requests()
+    const summary = log.find(isSummaryRequest)!
+    expect(textOf(summary[1])).toContain('[state update: todo_list]')
+    expect(textOf(summary[1])).toContain(forged)
+    const failed = log.at(-1)!
+    expect(textOf(failed.at(-1))).toBe(delivered)
+    const retried = await api.post(apiPaths.sessionRetry(sessionId), {})
+    expect(retried.status).toBe(202)
+    await stream.waitFor(() => runEnds(stream, sessionId).length === 3)
+    expect((await requests()).at(-1)).toEqual(failed)
+    expect(stream.entries(sessionId).filter((entry) => entry.runId === retried.body.runId && entry.kind === 'state_update')).toEqual([])
+  })
+
+  it.each(['overflow', 'manual'] as const)('%s 压缩按送达时机补发当前表', { timeout: 60_000 }, async (trigger) => {
+    const items = [{ id: 't1', content: 'STILL-CURRENT', status: 'pending' }]
+    const { api, stream, workspace, requests } = await boot([
+      { content: [{ type: 'toolCall', name: 'todo_write', id: 'todo', arguments: { items } }] },
+      { content: 'planned' },
+      { content: 'ok2' },
+      { content: 'ok3' },
+      ...(trigger === 'overflow' ? [{ content: '', stopReason: 'error', errorMessage: 'prompt is too long: 70000 tokens > 60000 maximum' }] : []),
+      { content: 'CURRENT-SUMMARY' },
+      { content: 'recovered' },
+    ])
+    const sessionId = await openSession(api, stream, workspace.id)
+    await send(api, stream, sessionId, big(4_000, 'x'))
+    await send(api, stream, sessionId, big(48_000, 'y'))
+    await send(api, stream, sessionId, big(40_000, 'w'))
+    const run = await send(api, stream, sessionId, trigger === 'manual' ? '/compact' : 'next')
+    const compactAt = run.findIndex((entry) => entry.kind === 'compaction')
+    expect(compactAt).toBeGreaterThan(0)
+    expect(run[compactAt]!.payload).toMatchObject({ trigger })
+    expect(run.filter((entry) => entry.kind === 'state_update')).toHaveLength(trigger === 'manual' ? 0 : 2)
+    expect(kinds(run.slice(compactAt + 1, compactAt + 4))).toEqual(trigger === 'manual' ? ['run_end'] : ['state_update', 'state_update', 'message:user'])
+    const deliveredRun = trigger === 'manual' ? await send(api, stream, sessionId, 'after manual') : run
+    expect(deliveredRun.filter((entry) => entry.kind === 'state_update').map((entry) => (entry.payload as { name: string }).name)).toEqual([
+      'date',
+      'todo_list',
+    ])
+    expect(deliveredRun.find((entry) => entry.kind === 'state_update' && (entry.payload as { name: string }).name === 'todo_list')!.payload).toMatchObject({
+      name: 'todo_list',
+      value: { items },
+    })
+    const deliveredMessage = deliveredRun.findLast((entry) => entry.kind === 'message' && (entry.payload as Message).role === 'user')!
+    expect(textOf((await requests()).at(-1)!.at(-1))).toBe(textOf(deliveredMessage.payload as Message))
+    expect(textOf(deliveredMessage.payload as Message)).toMatch(/^<state_update name="date">[\s\S]*<state_update name="todo_list">/)
+    expect(run.at(-1)!.payload).toMatchObject({ status: 'completed' })
+  })
+})
 
 describe('自动压缩、回退与分叉', () => {
   it('助手分支先截取包含边界再选择摘要：压缩前后历史的下一请求各保留正确上下文', { timeout: 90_000 }, async () => {
@@ -98,7 +185,7 @@ describe('自动压缩、回退与分叉', () => {
     }
     const log = await requests()
     expect(conversation(log[5]!)).toEqual([
-      ['user', big(40_000, 'a')],
+      ['user', dateBlock + big(40_000, 'a')],
       ['assistant', 'ok1'],
       ['user', 'next early'],
     ])
@@ -107,6 +194,7 @@ describe('自动压缩、回退与分叉', () => {
       ['user', big(40_000, 'c')],
       ['assistant', 'ok3'],
       ['user', big(60_000, 'd')],
+      ['user', dateBlock],
       ['assistant', 'ok4'],
       ['user', 'next late'],
     ])
@@ -134,8 +222,18 @@ describe('自动压缩、回退与分叉', () => {
     const sessionId = await openSession(api, stream, workspace.id)
     for (const c of ['a', 'b', 'c']) expect(kinds(await send(api, stream, sessionId, big(40_000, c)))).not.toContain('compaction')
     const fourth = await send(api, stream, sessionId, big(60_000, 'd'))
-    expect(kinds(fourth)).toEqual(['run_start', 'message:user', 'model_request', 'compaction', 'message:assistant', 'model_request', 'run_end'])
-    expect([fourth[2]!.payload, fourth[5]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
+    expect(kinds(fourth)).toEqual([
+      'run_start',
+      'message:user',
+      'model_request',
+      'compaction',
+      'state_update',
+      'message:user',
+      'model_request',
+      'message:assistant',
+      'run_end',
+    ])
+    expect([fourth[2]!.payload, fourth[6]!.payload]).toMatchObject([{ purpose: 'compaction' }, { purpose: 'turn' }])
     const compaction = fourth[3]!.payload as { trigger: string; firstKeptSeq: number; summary: string; tokensBefore: number; tokensAfter: number }
     const users = stream.entries(sessionId).filter((e) => e.kind === 'message' && (e.payload as Message).role === 'user')
     expect(compaction).toMatchObject({ trigger: 'auto', firstKeptSeq: users[2]!.seq, summary: '## Goal\nSUMMARY-AUTO' })
@@ -159,6 +257,7 @@ describe('自动压缩、回退与分叉', () => {
       ['user', big(40_000, 'c')],
       ['assistant', 'ok3'],
       ['user', big(60_000, 'd')],
+      ['user', dateBlock],
     ])
 
     // 压缩之后的一轮：不再压缩。之后从这条消息分叉，新 Session 的请求与原 Session 的这次请求一致。
@@ -182,7 +281,7 @@ describe('自动压缩、回退与分叉', () => {
     await send(api, stream, sessionId, 'again')
     log = await requests()
     expect(conversation(log[7]!)).toEqual([
-      ['user', big(40_000, 'a')],
+      ['user', dateBlock + big(40_000, 'a')],
       ['assistant', 'ok1'],
       ['user', 'again'],
     ])
@@ -198,7 +297,7 @@ describe('自动压缩、回退与分叉', () => {
     log = await requests()
     expect(conversation(log[8]!)).toEqual([
       ['user', expect.stringContaining('<summary>\n## Goal\nSUMMARY-AUTO\n</summary>')],
-      ['user', 'fork again'],
+      ['user', dateBlock + 'fork again'],
     ])
     expect(stream.invalidEntries).toEqual([])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
@@ -233,7 +332,7 @@ describe('/compact 与停止', () => {
     const log = await requests()
     expect(isSummaryRequest(log[3]!)).toBe(true)
     expect(textOf(log[3]![1])).toContain('Additional requirements from the user: 只保留接口设计')
-    expect(textOf(log[3]![1])).toContain('[User]: ' + big(4_000, 'g'))
+    expect(textOf(log[3]![1])).toContain('[User]: [state update: date]\n' + big(4_000, 'g'))
 
     // 只有最近内容的 Session：/compact 被拒绝，不开始 Run。
     const fresh = await openSession(api, stream, workspace.id)
@@ -305,15 +404,17 @@ describe('熔断与溢出', () => {
     expect(kinds(run)).toEqual([
       'run_start',
       'message:user',
-      'message:assistant',
       'model_request',
+      'message:assistant',
       'model_request',
       'compaction',
-      'message:assistant',
+      'state_update',
+      'message:user',
       'model_request',
+      'message:assistant',
       'run_end',
     ])
-    expect([run[3]!.payload, run[4]!.payload]).toMatchObject([{ purpose: 'turn', errorCode: 'context_overflow' }, { purpose: 'compaction' }])
+    expect([run[2]!.payload, run[4]!.payload]).toMatchObject([{ purpose: 'turn', errorCode: 'context_overflow' }, { purpose: 'compaction' }])
     expect(run[5]!.payload).toMatchObject({ trigger: 'overflow', summary: 'S-OVERFLOW' })
     expect(run.at(-1)!.payload).toEqual({ status: 'completed' })
     const log = await requests()
@@ -325,6 +426,7 @@ describe('熔断与溢出', () => {
       ['user', big(40_000, 'w')],
       ['assistant', 'ok3'],
       ['user', 'z'],
+      ['user', dateBlock],
     ])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })

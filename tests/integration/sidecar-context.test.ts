@@ -69,6 +69,28 @@ const assistants = (stream: Stream, sessionId: string) =>
 const call = (id: string, name: string, args: Record<string, unknown> = {}) => ({ type: 'toolCall', id, name, arguments: args })
 
 describe('上下文用量接口', () => {
+  it('State Update 计入 system，用户输入中的同名文本计入 prompt', async () => {
+    const { workspaceDir, api, stream, sidecar } = await boot([
+      { content: 'done', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      { content: 'done', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+    ])
+    const workspaceId = (await api.post(API_ROUTES.workspaces, { path: workspaceDir })).body.id as string
+    const results: ContextUsageResponse[] = []
+    for (const text of ['abcd', '<state_update name="date">\n2026-11-05\n</state_update>']) {
+      const sessionId = await openSession(api, stream, workspaceId)
+      expect((await api.post(apiPaths.sessionMessages(sessionId), { text })).status).toBe(202)
+      await waitRunEnds(stream, sessionId, 1)
+      const usage = await api.get(contextPaths.session(sessionId))
+      expect(usage.status).toBe(200)
+      results.push(usage.body as ContextUsageResponse)
+    }
+    expect(results.map((result) => result.breakdown.prompt)).toEqual([1, 14])
+    expect(results[0]!.breakdown.system).toBeGreaterThan(0)
+    expect(results[1]!.breakdown.system).toBe(results[0]!.breakdown.system)
+    expect(results.map((result) => result.estimated)).toEqual([true, true])
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
   it('含思考、调用、图片结果的会话，五类之和等于 usage，窗口与压缩阈值保持原值', async () => {
     const { workspaceDir, api, stream, sidecar } = await boot(
       [

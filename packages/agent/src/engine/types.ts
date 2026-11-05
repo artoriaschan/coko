@@ -1,6 +1,6 @@
 import type { AgentMessage, AgentToolResult, ThinkingLevel } from '@earendil-works/pi-agent-core'
 import type { Model, Models, TextContent, UserMessage } from '@earendil-works/pi-ai'
-import type { EntryLike } from '../entries/index.ts'
+import type { EntryLike, StateUpdateDelivery } from '../entries/index.ts'
 import type { ToolHooks } from '../extensions/hooks/index.ts'
 import type { ApprovalAnswer } from '../policy/broker.ts'
 import type { PermissionHookPort } from '../policy/gate.ts'
@@ -167,6 +167,8 @@ export interface BeforeRequestState {
  */
 export interface RuntimeContext {
   systemSections?(): Promise<SystemSection[]>
+  /** Current state snapshots for Run-start and compaction delivery. */
+  stateUpdates?(): Promise<StateUpdateDelivery | undefined>
   transformMessages?(messages: AgentMessage[]): AgentMessage[]
   beforeRequest?(state: BeforeRequestState): Promise<void | RequestStop>
   /** Before a manual or automatic compaction that has something to summarize; not called for overflow recovery. */

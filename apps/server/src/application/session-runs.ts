@@ -7,6 +7,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core'
 import type { Model } from '@earendil-works/pi-ai'
 import {
   BUILTIN_COMMANDS,
+  DEFAULT_SYSTEM_PROMPT_VERSION,
   MAX_IMAGE_BYTES,
   detectImageMimeType,
   createAgentRuntime,
@@ -54,6 +55,7 @@ import { createProgressRedactor, redactModelMessages, secretRedactionHook } from
 import type { SessionModels } from './session-models.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
+import { sessionProject } from './session-project.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -128,6 +130,8 @@ export interface SessionExtension {
 
 export interface SessionRunsOptions {
   store: SessionStore
+  /** Explicit host override, used to evaluate a versioned base prompt. */
+  basePrompt?: { text: string; version: string }
   registry: ModelRegistry
   hub: SessionHub
   runs: RunLauncher
@@ -329,13 +333,7 @@ export class SessionRuns {
   /** 只拓宽文件能力；配置发现始终只接收固定 cwd。子 Session 从持久化父链取根归属。 */
   async #workspaceRoots(session: StoredSession, cwd: string): Promise<readonly string[]> {
     const store = this.#options.store
-    let root = session
-    const visited = new Set<string>()
-    while (root.parentSessionId && !visited.has(root.id)) {
-      visited.add(root.id)
-      root = await requireSession(store, root.parentSessionId)
-    }
-    const project = root.projectId ? await store.projects.get(root.projectId) : undefined
+    const project = await sessionProject(store, session)
     const primary = project ? await store.sessions.getWorkspace(project.primaryWorkspaceId) : undefined
     const roots = await Promise.all(
       [cwd, ...(primary ? [primary.path] : []), ...(project?.additionalFolders ?? [])].map((path, index) =>
@@ -360,6 +358,7 @@ export class SessionRuns {
 
   async scope(session: StoredSession): Promise<ContextScope> {
     const { cwd } = await this.cwd(session)
+    const [project, model] = await Promise.all([sessionProject(this.#options.store, session), this.#options.models.contextModel(session.model)])
     const permissions = this.#options.permissions
     // 规则在取用时现算（steer 时为当时的规则）：Session 规则与全局、Workspace、project 规则，与运行时的判定相同。
     const permissionRules = async () => permissions.runtimePermissions(await permissions.state(session), session.workspaceId, session.id, cwd).rules()
@@ -367,6 +366,8 @@ export class SessionRuns {
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
       cwd,
+      additionalFolders: project?.additionalFolders ?? [],
+      ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       sessionId: session.id,
       permissionRules,
       ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
@@ -512,6 +513,7 @@ export class SessionRuns {
       providerId: session.model!.providerId,
       modelId: session.model!.modelId,
       thinkingLevel: models.effectiveLevel(session),
+      basePromptVersion: this.#options.basePrompt?.version ?? DEFAULT_SYSTEM_PROMPT_VERSION,
     })
     const goal = request.trigger === 'goal' ? request.goal : undefined
     const schedule = request.trigger === 'schedule' ? request.schedule : undefined
@@ -727,6 +729,7 @@ export class SessionRuns {
     const seedVisible = context.filterTools(seedNames, runContext.scope)
     if (seedVisible.length !== seedNames.length) runContext.tools.allow(new Set(seedVisible))
     const runtime = createAgentRuntime({
+      ...(this.#options.basePrompt ? { systemPrompt: this.#options.basePrompt.text } : {}),
       models: registry.models,
       model,
       thinkingLevel: this.#options.models.effectiveLevel(session),
@@ -752,6 +755,7 @@ export class SessionRuns {
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
+        stateUpdates: () => context.stateUpdates(runContext.scope, () => store.sessions.listEntries(session.id)),
         // 预算等请求前检查（各领域的 beforeRequest）；没有领域检查时放行。
         beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),
         // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。

@@ -1,17 +1,36 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
 # 上下文管理
 
-本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖 [File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
+本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖环境信息、[File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
+
+## State Update
+
+当前日期通过对话历史中的状态快照送达；Todo List、Goal 进度与 teammate 的团队状态也从 system section 移到这些 State Update 中。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
+
+同次送达按 `date` → `goal` → `todo_list` → `team` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
+
+块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
+
+continue 在 Run 开始时同样比较当前状态。有变化时先提交 `state_update` 条目，再以只含这些块的 user message 发起请求；这既适用于暂停前以工具结果结尾，也适用于以 user message 结尾的上下文。没有变化时不新增消息或状态条目，沿用原有 continue 路径。纯状态消息不授予用户权限，也不唤醒 waiting-input 的 Goal；真正的用户输入仍按原有规则处理。
+
+时间线不显示 state_update 条目，配对块不进入用户气泡，只有块的消息没有气泡。用户输入和工具输出中的同名标签保持原样，不会产生来源记录。Checkpoint 列表与回退、分叉返回的输入文本同样去掉有来源配对的块；只含 State Update 的消息不是 Checkpoint，用户伪造的同名文本保留。宿主输入集合 `HOST_INPUT_KINDS` 包含 State Update，使只含块的消息不授予 Goal 用户输入权限；状态消息不作为未送达的追加指令退回输入区。retry、手动 compact 和 handoff 开始时不读新状态，重试保留原请求上下文。
+
+同一 Run 内自动或溢出压缩成功后，按压缩后的有效上下文重新比较当前状态。在下一次模型请求之前依次提交需要补发的 `state_update` 条目和只含块的 user message，并将消息追加到运行时上下文；不经 Steering 队列。补发消息提交失败时按 `commit_failed` 停止，不发送未保存的状态；之后请求失败的 retry 仍重放已经保存的补发消息。手动 compact 不补发，之后的 Run 再按当前状态判断。
+
+分叉按助手包含边界或用户之前边界复制消息时，同时复制有效上下文中与这些消息配对的 `state_update`，保持原顺序；目标消息被排除、未配对或已被压缩移出的更新不复制。新 Session 的领域 Goal、Todo List 不继承，首个 Run 会对照复制的快照送达一次清空；未变化的日期不重复发送。快照只证明模型收到过的值，不成为新 Session 的领域事实。
+
+原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
 
 ## 结构入口
 
 | 位置 | 职责 |
 | --- | --- |
+| `apps/server/src/application/context/environment.ts`、`date.ts`、`types.ts` | 稳定环境 section、按 Sidecar 时钟计算日期的 State Update；作用域中的模型与 Project 附加文件夹 |
 | `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法 |
 | `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块 |
 | `packages/agent/src/context/references/search.ts` | `searchWorkspaceFiles`：@ 菜单的候选（复用 `tools/builtin/walk.ts`） |
@@ -31,9 +50,17 @@ lifecycle: active
 | `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片；压缩进度（`trackCompaction`）与熔断暂停标记 |
 | `packages/agent/src/context/compaction/` | `planCompaction`（切点、要摘要的消息、文件与 Skill 汇总）、`summaryRequest` / `formatCompactionSummary`（摘要提示）、`estimateCompactedTokens`、`createCompactionBreaker` |
 | `packages/agent/src/engine/compaction-driver.ts`、`runtime.ts` | `compaction` 选项：请求前的自动压缩、溢出后压缩并重试、`compact()`（trigger compact 的 Run）、熔断状态（编排在 driver，运行时只接线） |
-| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction 与其保留的消息 |
+| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction、保留消息及其配对 State Update |
 | `apps/server/src/application/context/compaction.ts`、`session-runs.ts`、`sessions.ts` | `/compact` 动作；运行时的 `compaction` 接线（`session-runs.ts`）与 `compactionPaused`（`sessions.ts`） |
 | `apps/desktop/src/renderer/features/conversation/compaction-divider.tsx`、`composer.tsx` | 时间线的压缩分隔条；输入区上方的压缩状态行 |
+
+## 系统消息与环境
+
+开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。
+
+`<environment>` 给出 Session 的固定工作目录（Worktree Session 为其中的工作目录）、Project 附加文件夹、是否为 git 仓库与 linked worktree、平台、命令执行实际使用的 shell、OS 版本、当前 Provider / 模型和 Sidecar 的 IANA 时区。不包含 git status、日期与时刻。git 仓库从工作目录向上发现 `.git`；`.git` 文件指向的 gitdir 含 `commondir` 才视为 linked worktree，避免把 submodule 当作 worktree。绑定的 Worktree Session 同样标为 worktree。
+
+环境每个 Run 开始按当前作用域生成，未改变环境与模型时逐字稳定；更换模型后下一次 Run 使用新模型标识。子 Session 继承根 Session 所属 Project 的附加文件夹。还没有 Session 的草稿上下文接口使用 Workspace 与其 Project、缺省模型；会话的用量接口使用当前模型与实际工作目录。环境 section 与其他 system section 一起计入上下文用量的 `system` 分项。
 
 ## File Reference
 
@@ -46,7 +73,7 @@ lifecycle: active
 
 ### 展开
 
-提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；第一个块是原文。没有引用时 user message 只有原文。块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
+提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -104,7 +131,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ### 估算
 
 - tokens = 最后一次有效的 assistant usage（input + cacheRead + cacheWrite + output，跳过出错、中止与为 0 的回复）加其后消息的 chars/4（向上取整）；最后一条就是该回复时 `estimated` 为 false。
-- `breakdown` 固定为五类：`system` 包含基础系统提示与装配的全部章节（指令、Skills、Memory、计划、Goal、待办及其他贡献）；`prompt` 为用户消息、图片与压缩摘要；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为工具声明和工具结果。同名工具声明只计一次。
+- `breakdown` 固定为五类：`system` 包含基础系统提示、装配的全部章节（环境、指令、Skills、Memory、计划、Goal 与其他贡献），以及有效上下文中有条目配对的 State Update 块；`prompt` 为去掉这些块后的用户消息、图片与压缩摘要，用户伪造的同名文本仍计入 prompt；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为工具声明和工具结果。同名工具声明只计一次。按配对归类只改变分项，不改变模型可见消息或压缩触发的估算口径。
 - 各类先以 chars/4 向上取整；文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。没有有效 usage，或时间裁剪改变了下一次请求、usage 已不代表它，或最后一次 usage 早于有效压缩时，tokens 为这五类之和、`estimated` 为 true。有有效 usage 时保留上文的 tokens 计算，按五类估算的比例分配，用最大余数法补齐取整余数（同余数按上述键顺序），所以五类整数合计始终等于 tokens。窗口、阈值、预警与压缩触发的计算不变。
 - 每条 assistant 消息提交后 Sidecar 发 progress `context_usage { tokens, contextWindow }`，位于该 assistant 条目之后。
 
@@ -149,7 +176,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ### 摘要请求
 
-- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。`<file_reference>` 与 `<instruction_file>` 块缩为一行 `[file reference attached: <path>]` / `[instruction file attached: <path>]`，图片写为 `[image omitted]`，用户自己写的文本逐字保留。
+- Session 当前模型、没有工具、`maxTokens` 20 000（不超过模型上限）、不写提示缓存，经与对话请求相同的重试。系统提示要求只输出摘要、不接着对话、不调用工具；唯一一条 user 消息是 `<conversation>` 中序列化的文本：`[User]`、`[Assistant]`、`[Assistant tool calls]: name(k=v)`、`[Tool result]`（每个截断到 2000 字符），思考省略。`<file_reference>` 与 `<instruction_file>` 块缩为一行 `[file reference attached: <path>]` / `[instruction file attached: <path>]`，有条目配对的 State Update 块缩为 `[state update: <name>]`，图片写为 `[image omitted]`。用户自己写的 State Update 同名文本逐字保留；缩写只用于摘要请求，不修改已保存的消息。
 - 输入上限：整个请求文本不超过 (窗口 − 摘要输出上限) × 4 个字符。超出时从最早处省略，先省略工具结果，再省略消息，开头注明 `[N earlier messages omitted to fit the summary request]`；只剩一条仍超出时截掉它的中间。摘要请求因此不会自身溢出而反复触发熔断。
 - 结构固定为 `## Goal`、`## Constraints & Preferences`、`## User Messages`（逐条，安全相关约束原文保留，不把 assistant 的话当成用户的）、`## Files and Code`、`## Errors and Fixes`、`## Key Decisions`、`## Progress`（Done / In Progress / Blocked）、`## Pending Tasks`、`## Current Work`、`## Next Step`（须与最近的明确请求一致）。已有摘要时用增量更新提示，上次摘要在 `<previous-summary>` 中。
 - 回复出错、被截断（`length`）、含工具调用或为空都算失败。成功时摘要正文之后追加 `<read-files>`、`<modified-files>`（从被摘要的 read / write / edit 调用与上次的列表汇总，改过的不再列为只读）与 `<invoked-skills>`（skill 调用与 Skill 来源的命令），只列路径与名字，不重读内容。
@@ -159,7 +186,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills?, usage? }`（v2；`usage` 为摘要请求的 usage，计入 [Goal 预算](goal.md#预算)，v1 条目原样读回、没有 usage）在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
-- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 为新 Session 中第一条复制的消息（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
+- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
 
 ### 界面
 
@@ -167,17 +194,17 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 - 输入区：当前会话收到 `compaction_start` 后，输入框上方显示状态行"正在压缩上下文…"与"停止压缩"（即停止当前 Run）；`compaction_end`、`compaction_failed`、`run_end` 或重连时清除。
 - 失败时每次一个 Toast，第 3 次自动失败的 Toast 改为提示自动压缩已暂停并给出 `/compact`；暂停标记见[上下文环](#上下文环)。
 
-### 压缩后的 `<todo_list>`
+### 压缩后的 Todo List
 
-`<todo_list>` system section 每个 Run 开始时从该 Session 最新的 `todo_list` 条目生成，不依赖对话消息：压缩把 todo_write 的调用与结果摘要掉之后，有未完成项时 section 照常注入，模型仍看到当前表。见 [Todo List](todo.md#注入)。
+Todo List 不依赖对话消息，当前表始终从最新的 `todo_list` 条目读取。自动或溢出压缩移出上次配对的 State Update 后，同一 Run 在下一次请求前立即重新送达当前表；手动压缩后则在下一个 Run 判断并送达。见 [Todo List](todo.md#注入)。
 
 ### 压缩后的 `<goal>`
 
-`<goal>` system section 每个 Run 开始时从该 Session 最新的 `goal` 条目生成，不依赖对话消息：压缩把 create_goal 与 update_goal 的调用摘要掉之后，Goal 未终结时 section 照常注入，模型仍看到目标、成功条件、阶段与轮次。见 [Goal](goal.md#注入)。
+`<goal>` system section 每个 Run 开始时从该 Session 最新的 `goal` 条目生成，只含 id、目标、约束、成功条件、预算上限与工具说明；revision、阶段、原因和用量通过 goal State Update 送达。它们都从领域条目派生，不依赖 create_goal 与 update_goal 的调用是否仍在对话中。Goal 结束后清空动态值并移除定义；子 Session 不接收根 Goal 的值。见 [Goal](goal.md#注入)。
 
 ### 压缩后的 `<approved_plan>`
 
-最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（指令 → Skills → Memory → plan → goal → todo）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
+最新一条 approved 的 `plan` 条目早于最后一个有效 compaction 的 `firstKeptSeq`（计划已被摘要替代）时，之后每个 Run 注入 system section `<approved_plan>`（正文至多 16 000 字符，超出截断并注明总长度），位于 plan 贡献的位置（环境 → 指令 → Skills → Memory → plan → goal）。计划仍在保留的消息中时不注入。见 [Plan Mode](plan-mode.md#注入)。
 
 ## 定时任务的 `<scheduled_task>` 输入
 
@@ -194,11 +221,11 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ## 子代理的 `<subagent>` 与首条消息
 
-子 Session 的 system sections 照常有指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 是 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为其后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
+子 Session 的 system sections 照常有环境、指令、Skills 与 Memory，最后另有 `<subagent type="…">`：定义的角色正文与"只交回最终报告"的要求；没有 `<goal>`。子 Run 的首条 user message 先放需要送达的 State Update，再放 `agent` 调用的 prompt（派发时已按值替换登记的 Secret），SubagentStart Hook 的 additionalContext 作为 prompt 之后单独的 `<hook-context>` 块；子 Session 看不到父级的消息。结果以 `<agent-result>` 回到父级，后台子代理的结束以 `<agent-notification>` 送达（追加指令或下一个 Run 的开头）。见 [子代理](subagents.md#子-session)。
 
 ## 团队的 `<team>` 与 `<team-message>`
 
-teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自己的名字、lead 与其他未解散成员的状态、任务板的使用要求与当前任务（至多 30 行，标题来自已脱敏的 `team_task` 条目），每个 Run 重新生成。成员之间的消息以 user message `<team-message from="…" message-id="…">正文</team-message>` 送达，前一条为 `team_message` 条目；运行中为追加指令，空闲的 teammate 以它为输入开始新 Run，lead 空闲时挂起到下一个 Run 的开头。它是宿主注入的输入：不授予 Goal 的用户权限，Run 结束时退回的不算用户的追加指令，时间线按条目位置去掉包装。见 [Agent Teams](teams.md#消息)。
+teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`：自己的名字、lead 与任务板的使用规则。其他未解散成员的状态与当前任务板以 `team` State Update 送达，结构化值为 `{ members, tasks }`，正文至多 30 行（标题来自已脱敏的 `team_task` 条目）；变化才在下一 Run 开头发送，不改写 system section。成员之间的消息以 user message `<team-message from="…" message-id="…">正文</team-message>` 送达，前一条为 `team_message` 条目；运行中为追加指令，空闲的 teammate 以它为输入开始新 Run，lead 空闲时挂起到下一个 Run 的开头。State Update 排在这些消息之前。团队消息是宿主注入的输入：不授予 Goal 的用户权限，Run 结束时退回的不算用户的追加指令，时间线按条目位置去掉包装。见 [Agent Teams](teams.md#消息)。
 
 ## 忽略规则
 
@@ -214,6 +241,14 @@ teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自�
 
 ## 验证
 
+- `packages/agent/src/entries/state-updates.test.ts` 与 `apps/server/src/application/context/state-updates.test.ts`：来源配对、部分提交与压缩切点、去重与一次清空、脱敏后比较、读取失败降级；`apps/desktop/src/renderer/features/conversation/timeline.test.ts` 验证配对块隐藏与伪造原文保留。
+- `tests/integration/sidecar-state-update-continue.test.ts`：工具结果或 user message 后继续、有/无状态变化、纯状态消息不提升 Goal 授权且不唤醒 waiting-input；`tests/integration/sidecar-date-state-updates.test.ts`：本地午夜、同日去重、Run 内等待、子代理与 teammate 日期。
+- 基础提示默认 v1 与候选 v2、真实门槛和缓存的未验证范围见 [ADR 0024](../adr/0024-session-state-as-state-updates.md#实施状态与证据)，faux 通过不代表真实模型或缓存验收完成。
+
+- `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-state-update-fork.test.ts`：配对快照随两种分叉边界复制、排除目标消息的孤立更新、压缩后的来源保留、新 Session 首 Run 清空 Goal/Todo 且不重复日期；`tests/integration/sidecar-trace.test.ts` 与 `headless.test.ts` 验证 ndjson 回放及 stream-json 包含 `state_update`。
+
+- `tests/integration/sidecar-environment.test.ts`：真实 Sidecar 的普通仓库、Worktree 与非 git 目录、附加文件夹、环境顺序与跨 Run 稳定性、更换模型、草稿缺省模型及环境的 system 用量。
+
 - `packages/agent/src/context/references/parse.test.ts`、`expand.test.ts`、`search.test.ts`：语法（引号、标点、邮箱等不误判）；截断、目录上限、10 个 / 200KB、拒绝规则、Workspace 外与二进制的说明；候选的忽略规则、排序与上限。
 - `tests/integration/secrets-gate-references.test.ts`：引用块中的登记 Secret 在 user message 条目、faux requestLog、推送、库与日志中都是标记。
 - `tests/integration/sidecar-references.test.ts`：真实 Sidecar 上的 user message 块与 faux requestLog、project 作用域的 Read 拒绝规则、命令与引用的顺序、`GET /api/workspaces/:id/files`。
@@ -223,7 +258,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有 `<team name="…">`：自�
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-context.test.ts`：草稿与会话的用量接口（分项、指令文件与截断、Skills 诊断、404）、Run 后 tokens 等于 faux usage（加其后 toolResult 的 chars/4）、`context_usage` 在 assistant 条目之后。`tests/integration/secrets-gate-context.test.ts`：用量响应在秘密总闸的扫描范围内。
 - `packages/agent/src/context/compaction/compaction.test.ts`：切点表驱动（不拆调用对、只有最近内容时不压缩、出错回复与被回退的压缩）、增量更新与指示、文件与 Skill 汇总、压缩后不信任旧 usage、熔断计数与复位；附加文件块缩为路径、摘要输入超过上限时从最早处省略。`packages/agent/src/engine/compaction.test.ts`：被摘要内容超过窗口时摘要请求的输入受限、压缩成功。`packages/agent/src/checkpoints/rewind.test.ts`：分叉中 compaction 的位置与 `firstKeptSeq`、分叉后回退到第一条保留的消息、复制消息的 usage 不用于估算。`packages/agent/src/engine/compaction.test.ts`：运行时的自动、关闭、溢出、熔断与手动复位、手动压缩中停止。`packages/agent/src/checkpoints/rewind.test.ts`：经过压缩的分叉。
-- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
+- `tests/integration/sidecar-compaction.test.ts`：真实 Sidecar（faux 60k 窗口）的自动压缩条目与 requestLog（摘要请求无工具、节标题、下一次请求）、回退到压缩之前、压缩后分叉的请求一致、`/compact` 的服务端动作路径与指示、没有可摘要内容时 400、压缩中停止、熔断与用量接口 `paused`、溢出后压缩并重试；同 Run 自动和溢出压缩后的状态补发、手动压缩后的下 Run 送达、摘要中的宿主块缩写与伪造文本保留、补发后失败的 retry 原样重放。`tests/integration/secrets-gate-compaction.test.ts`：摘要请求的错误回显 Credential 时 `compaction_failed`、`run_end`、日志与库中没有明文。
 - `apps/desktop/src/renderer/features/conversation/timeline.test.ts`、`composer.browser.test.tsx`、`stores/context-store.test.ts`：分隔条与节省数、compact Run 的错误不可重试；状态行与停止；进度跟踪。`apps/desktop/e2e/compaction.e2e.test.ts`：Electron 中的失败 Toast、熔断暂停标记、`/compact` 状态行、分隔条与摘要展开、之前的消息仍在。
 - `packages/agent/src/testing/grep-contract.ts`（内置 grep 与 `apps/server/src/adapters/ripgrep.test.ts` 都运行）：临时 HOME 下的 `.git/info/exclude`、`core.excludesFile`、XDG 缺省文件与没有这些文件时；`tools/builtin/walk.test.ts`：find 与文件候选、嵌套仓库与 worktree。
 - `apps/desktop/src/renderer/features/conversation/context-ring.browser.test.tsx`、`stores/context-store.test.ts`：环的档位与颜色、HoverCard 内容、Esc 与焦点、390px 宽输入区不重叠；读取与过期请求。`apps/desktop/e2e/context.e2e.test.ts`：Electron 中的百分比、越过预警线变色、卡片的分项与指令文件、Esc、最窄窗口。

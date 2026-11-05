@@ -1,6 +1,6 @@
 // Goal 的重启恢复（ADR 0011）：Goal Round 进行中 SIGKILL Sidecar，重启后 Goal 为 paused（restarted），30 秒内不出现新的 run_start（以事件等待
 // 超时断言）；用户恢复后继续下一轮。不读取文件，不涉及符号链接越界。
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, goalPaths } from '@coko/protocol'
@@ -52,7 +52,16 @@ describe('Goal 的重启恢复', { timeout: 120_000 }, () => {
       },
       'faux-1.json',
     )
-    const second = await fauxScript(root, { responses: [{ content: 'round 2 after restart' }] }, 'faux-2.json')
+    const secondLog = join(root, 'requests-2.jsonl')
+    await writeFile(secondLog, '')
+    const second = await fauxScript(
+      root,
+      {
+        requestLog: secondLog,
+        responses: [{ content: 'paused snapshot after restart' }, { content: 'round 2 after restart' }],
+      },
+      'faux-2.json',
+    )
     const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: first } })
     const { api, stream } = await open(sidecar)
     const workspaceId = (await api.post(API_ROUTES.workspaces, { path: workspaceDir })).body.id as string
@@ -78,6 +87,23 @@ describe('Goal 的重启恢复', { timeout: 120_000 }, () => {
     // 不自动推进：30 秒内没有新的 run_start。
     await expect(after.stream.waitFor(() => entries().filter((e) => e.kind === 'run_start').length > startsBefore, 30_000)).rejects.toThrow(/Timed out/)
 
+    // 继续普通对话时送达恢复后的当前状态；值与公开 Goal 接口一致，不依赖旧 State Update 重建。
+    expect((await after.api.post(apiPaths.sessionMessages(sessionId), { text: 'inspect recovered goal' })).status).toBe(202)
+    await after.stream.waitFor(() => entries().filter((e) => e.kind === 'run_end').length === 3)
+    const state = entries()
+      .filter((e) => e.kind === 'state_update' && (e.payload as { name: string }).name === 'goal')
+      .at(-1)!.payload as { value: unknown }
+    expect(state.value).toEqual({
+      id: goal.goal.id,
+      revision: goal.goal.revision,
+      phase: goal.goal.phase,
+      reason: goal.goal.reason,
+      usage: { rounds: goal.usage.rounds },
+      budget: goal.goal.budget,
+    })
+    const firstRequest = JSON.parse((await readFile(secondLog, 'utf8')).trim().split('\n')[0]!) as { role: string; content: { text?: string }[] }[]
+    expect(firstRequest.filter((m) => m.role === 'user').at(-1)!.content[0]!.text).toMatch(/^<state_update name="goal">/)
+
     const resumed = await after.api.post(goalPaths.sessionGoal(sessionId), { action: 'resume', revision: 2 })
     expect(resumed.status).toBe(200)
     expect(resumed.body.goal).toMatchObject({ phase: 'running', revision: 3, resumedAtRound: 1 })
@@ -86,7 +112,7 @@ describe('Goal 的重启恢复', { timeout: 120_000 }, () => {
       .filter((e) => e.kind === 'run_start')
       .map((e) => e.payload)
     expect(runStarts.at(-1)).toEqual({ trigger: 'goal', goal: { goalId: 'goal-1', round: 2 } })
-    expect(runStarts).toHaveLength(3)
+    expect(runStarts).toHaveLength(4)
     expect(await restarted.stop()).toEqual({ code: 0, signal: null })
   })
 })

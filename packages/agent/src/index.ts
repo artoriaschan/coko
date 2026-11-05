@@ -15,6 +15,7 @@ export type { AgentRuntime, AgentRuntimeOptions } from './engine/runtime.ts'
 export { DEFAULT_RETRY_POLICY } from './engine/retry.ts'
 export type { RetryPolicy } from './engine/retry.ts'
 export { BASE_SYSTEM_SECTION } from './engine/runtime.ts'
+export { BASE_PROMPT_V2, DEFAULT_SYSTEM_PROMPT_VERSION } from './engine/system-message.ts'
 export type {
   BeforeRequestState,
   CompactInfo,
@@ -135,7 +136,7 @@ export type { ExecOutcome, ExecPort, ExecRequest } from './ports/exec.ts'
 export type { RewindFiles, SnapshotPort } from './ports/checkpoints.ts'
 export { PtyUnavailableError } from './ports/pty.ts'
 export type { PtyExit, PtyPort, PtyProcess, PtySpawnRequest } from './ports/pty.ts'
-export { createLocalExecPort, filterEnv } from './ports/local-exec.ts'
+export { createLocalExecPort, DEFAULT_COMMAND_SHELL, filterEnv } from './ports/local-exec.ts'
 export type { EnvExclusion, LocalExecOptions } from './ports/local-exec.ts'
 export { InMemoryCredentialStore } from './ports/credentials.ts'
 export type { ApiKeyCredential, Credential, CredentialInfo, CredentialStore } from './ports/credentials.ts'

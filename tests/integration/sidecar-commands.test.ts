@@ -1,16 +1,17 @@
 // 命令与提示模板：真实 Sidecar（faux 模型），夹具 tests/fixtures/commands 复制到临时 Workspace 与临时 COKO_HOME。
 // 断言提交的条目（run_start → command → 展开后的 user message）、faux requestLog 中实际发给模型的文本与 GET /api/commands。
-import { cp, readFile, writeFile } from 'node:fs/promises'
+import { cp, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { DATE_TEST_BLOCK as dateBlock, DATE_TEST_ENV } from './date-state-fixture.ts'
 import { API_ROUTES, apiPaths, commandPaths, configPaths, permissionPaths, runPaths, type SessionEntryRecord } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
 const fixtures = fileURLToPath(new URL('../fixtures/commands/', import.meta.url))
 
 async function boot(responses: unknown[]) {
-  const root = await tempDir()
+  const root = await realpath(await tempDir())
   const workspaceDir = join(root, 'workspace')
   await cp(join(fixtures, 'workspace'), workspaceDir, { recursive: true })
   const dirs = await sidecarDirs()
@@ -18,7 +19,7 @@ async function boot(responses: unknown[]) {
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const script = await fauxScript(root, { responses, requestLog })
-  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
+  const sidecar = await startSidecar({ dirs, env: { ...DATE_TEST_ENV, COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -51,14 +52,14 @@ describe('命令展开', () => {
     await stream.waitFor(isRunEnd(sessionId))
 
     const entries = stream.entries(sessionId)
-    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'command', 'user', 'assistant', 'model_request', 'run_end'])
+    expect(entries.map(kindOf)).toEqual(['permission_mode', 'run_start', 'state_update', 'command', 'user', 'model_request', 'assistant', 'run_end'])
     const runId = entries[1]!.runId
-    expect(entries[2]).toMatchObject({ runId, payload: { name: 'review', args: 'src', source: 'project' } })
+    expect(entries[3]).toMatchObject({ runId, payload: { name: 'review', args: 'src', source: 'project' } })
     const expanded = 'Review the code under src and report bugs. Focus: correctness.'
-    expect(userTexts(entries)).toEqual([expanded])
+    expect(userTexts(entries)).toEqual([dateBlock + expanded])
     const sent = await requests()
     expect(sent).toHaveLength(1)
-    expect(sentUserTexts(sent[0]!)).toEqual([expanded])
+    expect(sentUserTexts(sent[0]!)).toEqual([dateBlock + expanded])
     expect(JSON.stringify(sent[0])).not.toContain('/review')
     expect(stream.invalidEntries).toEqual([])
     // 重新读回的条目相同。
@@ -82,7 +83,7 @@ describe('命令展开', () => {
       { name: 'git:commit', args: '', source: 'project' },
     ])
     expect(userTexts(entries)).toEqual([
-      'Say hello to Ada Lovelace in one short sentence.',
+      dateBlock + 'Say hello to Ada Lovelace in one short sentence.',
       'Write a conventional commit message for the staged changes.',
       '/xxx do things',
     ])
@@ -102,21 +103,22 @@ describe('命令展开', () => {
     const entries = stream.entries(sessionId)
     expect(entries.map(kindOf).slice(2)).toEqual([
       'run_start',
+      'state_update',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'tool_exec',
       'toolResult',
       'command',
       'user',
-      'assistant',
       'model_request',
+      'assistant',
       'run_end',
     ])
     expect(entries.find((e) => e.kind === 'command')!.payload).toEqual({ name: 'hello', args: 'Bob', source: 'user' })
-    expect(userTexts(entries)).toEqual(['run it', 'Say hello to Bob in one short sentence.'])
+    expect(userTexts(entries)).toEqual([dateBlock + 'run it', 'Say hello to Bob in one short sentence.'])
     const sent = await requests()
-    expect(sentUserTexts(sent[1]!)).toEqual(['run it', 'Say hello to Bob in one short sentence.'])
+    expect(sentUserTexts(sent[1]!)).toEqual([dateBlock + 'run it', 'Say hello to Bob in one short sentence.'])
   })
 
   it('commands.disabled 中的命令与 commands.enabled=false 时不展开', async () => {
@@ -135,7 +137,7 @@ describe('命令展开', () => {
 
     const entries = stream.entries(sessionId)
     expect(entries.filter((e) => e.kind === 'command').map((e) => (e.payload as { name: string }).name)).toEqual(['hello'])
-    expect(userTexts(entries)).toEqual(['/review src', 'Say hello to Ann in one short sentence.', '/hello Ann'])
+    expect(userTexts(entries)).toEqual([dateBlock + '/review src', 'Say hello to Ann in one short sentence.', '/hello Ann'])
     const listed = (await api.get(`${commandPaths.commands}?workspaceId=${workspace.id}`)).body as { commands: { name: string; enabled: boolean }[] }
     // 停用的命令仍列出（enabled: false），供设置分区显示。
     expect(listed.commands.map((c) => [c.name, c.enabled])).toEqual([
