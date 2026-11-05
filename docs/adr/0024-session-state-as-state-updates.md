@@ -22,7 +22,7 @@ category: architecture
 ## 决定
 
 - **system 只放会话内不变的定义。** 包括：英文的静态基础提示（带版本号，跨会话与 Workspace 逐字不变）；Instruction File；Skills 索引；环境（Workspace 路径与 Project 的附加文件夹、是否 git 仓库与 Worktree、平台、shell、OS 版本、当前模型、IANA 时区，不含 git status）；Memory；Plan Mode 的说明与被压缩替代的已批准 Plan；Subagent 的角色；teammate 自己的名字、lead 与任务板规则；Goal 的目标、约束、成功条件、预算上限与工具说明。只有这些定义变化时 system 的文本才变。Memory 每个 Run 重新读取，用户删除记忆后下一个 Run 生效。
-- **会变的状态改为 State Update。** Goal 的 revision、阶段与原因、各维度已用量；Todo List；Agent Team 的成员状态与当前任务；当天日期（只给日期与星期）。它们由宿主生成，以 user 角色追加到历史，统一用一个包装标签 `<state_update name="…">`，不写回 system。只在当前值与有效模型上下文中同名的最近一条 State Update 不同时送达，因此回退与压缩去掉旧的更新后会自然重发。送达时机、摘要请求中的处理与上下文用量的归类由规格规定。
+- **会变的状态改为 State Update。** Goal 的 revision、阶段与原因、各维度已用量；Todo List；Agent Team 的成员状态与当前任务；当天日期（只给日期与星期）；启用按需加载的根 Session 的 MCP 工具目录（`on_demand_tools`）。它们由宿主生成，以 user 角色追加到历史，统一用一个包装标签 `<state_update name="…">`，不写回 system。只在当前值与有效模型上下文中同名的最近一条 State Update 不同时送达，因此回退与压缩去掉旧的更新后会自然重发。送达时机、摘要请求中的处理与上下文用量的归类由规格规定。
 - **State Update 存为 Session Entry。** 先提交 `state_update` 条目（名称与结构化的值），再提交含渲染块的 user message。`goal`、`todo_list` 等领域条目仍是事实来源；`state_update` 只记录当时给了模型什么，[ADR 0011](0011-goal-state-as-session-entries.md) 中 Goal 状态的重建规则不变。
 - **来源只看条目。** 一段文本是否为 State Update，只由它前面的 `state_update` 条目决定。用户输入或工具输出中出现的同名标签只是文本，不授予任何权限；工具输出不转义、不改写。分叉时 `state_update` 条目随其后的消息一起复制。
 - **不承诺。** 不把模型原生的中途 system 消息作为通用方案，它留作声明支持该能力的模型上的后续优化；不采用按轮次间隔的周期提醒。

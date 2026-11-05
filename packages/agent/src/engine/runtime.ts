@@ -114,8 +114,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   // Seed the tools at construction so they are part of the leading system message; only later
   // changes are announced to the model (and committed) as a system message with toolsAdded/Removed.
   // 超时在调度之内：排队等待不计入调用的时限。
+  let selectedNames = options.initialToolNames ? new Set(options.initialToolNames) : undefined
   const effectiveTools = () =>
-    registry.list().map((tool) => withScheduling(withTimeout(wiring.observeSandbox(tool), options.timeouts), scheduling) as AgentTool<any>)
+    registry
+      .list()
+      .filter((tool) => selectedNames === undefined || selectedNames.has(tool.name))
+      .map((tool) => withScheduling(withTimeout(wiring.observeSandbox(tool), options.timeouts), scheduling) as AgentTool<any>)
 
   const broker = createApprovalBroker((entry) => commit({ ...entry, ...(current ? { runId: current.runId } : {}) }))
   const wiring = createPermissionWiring({
@@ -215,8 +219,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     steeringMode: 'all',
     // 宿主在 Run 中改变了工具组成（refreshTools，例如第一次派发后台子代理后注册 agent_wait）：下一次请求按新的工具组成，变化照常
     // 以 toolsAdded / toolsRemoved 的 system 消息告知模型。
-    prepareNextTurnWithContext: ({ context: turn }) => {
-      if (!toolsDirty) return undefined
+    prepareNextTurnWithContext: async ({ context: turn }) => {
+      if (!toolsDirty && !context?.toolNames) return undefined
+      if (context?.toolNames) selectedNames = new Set(await context.toolNames())
       toolsDirty = false
       const next = effectiveTools()
       agent.state.tools = next
@@ -297,6 +302,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
           if (delivered >= 0) for (const entry of run.steering[delivered]!.before) await commit({ ...entry, runId: run.runId } as RunEntry)
           if (event.message.role === 'toolResult') markHostBlock(run, event.message)
           await commit({ kind: 'message', runId: run.runId, payload: event.message })
+          if (event.message.role === 'toolResult') {
+            const load = context?.takeToolLoad?.(event.message.toolCallId)
+            if (load && !event.message.isError) {
+              await commit({ kind: 'tool_load', runId: run.runId, payload: load })
+              toolsDirty = true
+            }
+          }
           // 追加指令送达：提交成功后才不算未送达。
           if (delivered >= 0) run.steering.splice(delivered, 1)
         } catch (error) {
@@ -490,6 +502,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
       }
       try {
         if (!run.commitError) {
+          if (context?.toolNames) {
+            selectedNames = new Set(await context.toolNames())
+            agent.state.tools = effectiveTools()
+          }
           if (context?.systemSections) systemMessage.apply(await context.systemSections())
           const updates = input && context?.stateUpdates ? await context.stateUpdates() : undefined
           if (updates && input) input.content = [...updates.blocks, ...(input.content ?? [{ type: 'text' as const, text: input.text }])]

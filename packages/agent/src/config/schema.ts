@@ -10,7 +10,7 @@ export const capabilityConfigSchema = Type.Object(
     instructions: Type.Object({ enabled: Type.Boolean() }, strict),
     skills: Type.Object({ enabled: Type.Boolean(), disabled: Names }, strict),
     commands: Type.Object({ enabled: Type.Boolean(), disabled: Names }, strict),
-    mcp: Type.Object({ enabled: Type.Boolean() }, strict),
+    mcp: Type.Object({ enabled: Type.Boolean(), toolSearch: Type.Boolean() }, strict),
     memory: Type.Object({ enabled: Type.Boolean() }, strict),
     context: Type.Object({ autoCompact: Type.Boolean(), trimOldToolResults: Type.Boolean() }, strict),
     /** 外部 Hook（ADR 0013）：只在全局设置；项目文件中的 hooks.enabled 以 project-cannot-grant 忽略。 */
@@ -44,7 +44,7 @@ export function defaultCapabilityConfig(): CapabilityConfig {
     instructions: { enabled: true },
     skills: { enabled: true, disabled: [] },
     commands: { enabled: true, disabled: [] },
-    mcp: { enabled: true },
+    mcp: { enabled: true, toolSearch: false },
     memory: { enabled: true },
     context: { autoCompact: true, trimOldToolResults: true },
     hooks: { enabled: true },

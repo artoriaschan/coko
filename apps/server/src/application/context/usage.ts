@@ -110,7 +110,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     diagnostics.push(...(report.diagnostics ?? []))
   }
 
-  const tools = providedTools(input.baseTools, contributed, input.context, scope).reduce((chars, tool) => chars + toolChars(tool), 0)
+  const tools = providedTools(input.baseTools, contributed, input.context, scope, input.entries).reduce((chars, tool) => chars + toolChars(tool), 0)
 
   const raw = effectiveMessages(input.entries)
   const trim = scope.config.context.trimOldToolResults

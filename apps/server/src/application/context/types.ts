@@ -62,6 +62,8 @@ export type SubmitVerdict = void | { reject: string } | { context: string }
 export interface ContributedTool {
   tool: CokoTool
   permissionClass?: PermissionClass
+  /** MCP tool origin captured with this Run; resource Host Tools do not carry it. */
+  mcpServer?: string
 }
 
 /**

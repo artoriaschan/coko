@@ -12,7 +12,7 @@ lifecycle: active
 
 当前日期通过对话历史中的状态快照送达；Todo List、Goal 进度与 teammate 的团队状态也从 system section 移到这些 State Update 中。每个带新输入的 Run（submit、goal、schedule、subagent）开始时，运行时读取上下文贡献的 `stateValues`，在替换登记 Secret 与 Credential 明文后，与有效上下文中同名最近一次已送达的值比较。变化才发送；从未存在的空值不发送；已送达的值变为空时发送一次清空。状态或条目读取失败记 warn，本次不发送，Run 继续。
 
-同次送达按 `date` → `goal` → `todo_list` → `team` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
+同次送达按 `date` → `goal` → `todo_list` → `team` → `on_demand_tools` 排序。`date` 的值为 `{ date: "YYYY-MM-DD", weekday: "Thursday" }`，按 Sidecar 的 ClockPort 与环境 section 相同的 IANA 时区计算本地日期和英文星期。根 Session、子代理与 teammate 的首个 Run 都会收到；同日不重发，跨当地午夜后的下一 Run 才更新。Run 内跨午夜不在中途送达，自动或溢出压缩后的重新判定除外。
 
 块排在该 Run 的第一条 user message 最前，先于宿主通知与输入。每块按顺序前置 `state_update` v1 `{ name, value }` 条目，值为 null 表示清空。配对只认同一 Run 中条目之后第一条 user message 开头、名称相符的对应块，command 等非消息条目不会打断配对。条目已保存而消息未保存，或压缩切点移除了前置条目时，不算已送达；回退同样让无效配对失效，下次重新发送当前状态。
 
@@ -25,6 +25,8 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 分叉按助手包含边界或用户之前边界复制消息时，同时复制有效上下文中与这些消息配对的 `state_update`，保持原顺序；目标消息被排除、未配对或已被压缩移出的更新不复制。新 Session 的领域 Goal、Todo List 不继承，首个 Run 会对照复制的快照送达一次清空；未变化的日期不重复发送。快照只证明模型收到过的值，不成为新 Session 的领域事实。
 
 原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
+
+按需加载开启且根 Session 的 MCP 目录非空时，`on_demand_tools` 的值记录排序后的已公告工具名，正文按 Server 展示名字与首句说明；名单变化时重发完整目录，不变不发。目录与搜索使用同一 Run 开始时的工具快照；子代理与 Teammate 没有该项。加载事实另存 `tool_load`，不依赖 State Update 或搜索结果文字，工具用量只计本次实际提供的定义。当前行为见 [MCP 的工具搜索](mcp.md#工具搜索与按需加载)。
 
 ## 结构入口
 

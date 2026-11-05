@@ -131,7 +131,14 @@ export const runPaths = {
 } as const
 
 /** 本领域的 kind → payload schema；entries.ts 据此组成 SessionEntry。 */
+export const ToolLoadPayload = Type.Object(
+  { names: Type.Array(Id, { minItems: 1, uniqueItems: true }), source: Type.Union([Type.Literal('search'), Type.Literal('optimistic')]), toolCallId: Id },
+  strict,
+)
+export type ToolLoadPayload = Static<typeof ToolLoadPayload>
+
 export const runEntryPayloadSchemas = {
+  tool_load: ToolLoadPayload,
   run_start: RunStartPayload,
   message: MessagePayload,
   run_end: RunEndPayload,

@@ -1,8 +1,11 @@
-import { planStateUpdates, type StateUpdateDelivery, type StateValues, type EntryLike } from '@coko/agent/entries'
+import { loadedToolNames, planStateUpdates, type StateUpdateDelivery, type StateValues, type EntryLike } from '@coko/agent/entries'
 import { redactSecretsDeep } from '@coko/logging'
 // 上下文装配的组合（docs/subsystems/context.md）。固定顺序：system section 为 环境 → 指令 → Skills 索引 → Memory → plan → goal；
 // 输入展开为 命令 → File Reference。
 import {
+  createToolSearch,
+  renderOnDemandCatalog,
+  type OnDemandTool,
   composeAfterToolCall,
   composeBeforeToolCall,
   createToolRegistry,
@@ -105,7 +108,7 @@ export interface ContextAssembly {
   /** 取值：有效配置与已启用插件的贡献快照（plugins.enabled 为 false 时为空）。 */
   scope(input: Omit<ContextScope, 'config' | 'cokoHome' | 'plugins'>): Promise<ContextScope>
   systemSections(scope: ContextScope): Promise<SystemSection[]>
-  stateUpdates(scope: ContextScope, entries: () => Promise<readonly EntryLike[]>): Promise<StateUpdateDelivery | undefined>
+  stateUpdates(scope: ContextScope, entries: () => Promise<readonly EntryLike[]>, catalog?: readonly OnDemandTool[]): Promise<StateUpdateDelivery | undefined>
   tools(scope: ContextScope): Promise<ContributedTool[]>
   readRoots(scope: ContextScope): Promise<string[]>
   hooks(scope: ContextScope): ToolHooks[]
@@ -222,13 +225,14 @@ export function createContextAssembly(options: {
     },
     systemSections: (scope) =>
       collect('systemSections', (c) => (c.systemSections ? () => c.systemSections!(scope) : undefined), ordered(contributions, SECTION_ORDER)),
-    async stateUpdates(scope, entries) {
+    async stateUpdates(scope, entries, catalog) {
       try {
         const values: StateValues = {}
         for (const contribution of contributions) {
           if (contribution.stateValues) Object.assign(values, await contribution.stateValues(scope))
         }
-        return planStateUpdates(redactSecretsDeep(values), await entries())
+        if (catalog?.length) values.on_demand_tools = catalog.map((tool) => tool.name).sort()
+        return planStateUpdates(redactSecretsDeep(values), await entries(), catalog?.length ? { on_demand_tools: () => renderOnDemandCatalog(catalog) } : {})
       } catch (error) {
         log.warn('state updates unavailable', { error: message(error) })
         return undefined
@@ -306,7 +310,7 @@ export function createContextAssembly(options: {
 export const emptyContextAssembly = (cokoHome = ''): ContextAssembly => createContextAssembly({ contributions: [], config: new ConfigService(), cokoHome })
 
 /** 模型请求与用量共用的工具清单：基础工具优先，同名只保留一次，再应用该 Session 的领域过滤。 */
-export function providedTools(
+export function availableTools(
   base: ToolRegistry,
   contributed: readonly ContributedTool[],
   context: Pick<ContextAssembly, 'filterTools'>,
@@ -318,6 +322,39 @@ export function providedTools(
   }
   const visible = new Set(context.filterTools([...unique.keys()], scope))
   return [...unique.values()].filter((tool) => visible.has(tool.name))
+}
+
+/** Root Run catalog after the same visibility filtering used for execution and usage. */
+export function onDemandCatalog(contributed: readonly ContributedTool[], available: readonly CokoTool[], scope: ContextScope): OnDemandTool[] {
+  if (!scope.config.mcp.toolSearch || scope.parentSessionId) return []
+  const availableByName = new Map(available.map((tool) => [tool.name, tool]))
+  const origins = new Map(
+    contributed.filter((item) => item.mcpServer && availableByName.get(item.tool.name) === item.tool).map((item) => [item.tool.name, item.mcpServer!]),
+  )
+  return available.flatMap((tool) =>
+    origins.has(tool.name) ? [{ name: tool.name, server: origins.get(tool.name)!, description: tool.description, parameters: tool.parameters }] : [],
+  )
+}
+
+/** Model execution/schema list and accounting share this selection; the registry stays complete. */
+export function providedTools(
+  base: ToolRegistry,
+  contributed: readonly ContributedTool[],
+  context: Pick<ContextAssembly, 'filterTools'>,
+  scope: ContextScope,
+  entries: readonly EntryLike[] = [],
+): CokoTool[] {
+  const available = availableTools(base, contributed, context, scope)
+  const catalog = onDemandCatalog(contributed, available, scope)
+  if (!catalog.length) return available
+  const deferred = new Set(catalog.map((tool) => tool.name))
+  const loaded = loadedToolNames(entries)
+  const selected = available.filter((tool) => !deferred.has(tool.name) || loaded.has(tool.name))
+  if (!selected.some((tool) => tool.name === 'tool_search'))
+    selected.push(
+      createToolSearch({ catalog, regularNames: available.filter((tool) => !deferred.has(tool.name)).map((tool) => tool.name), loadedNames: () => loaded }),
+    )
+  return selected
 }
 
 /** 运行时的工具：宿主的基础工具集加上本次 Run 贡献的工具（与基础工具同名的贡献被忽略并记 warn）。 */

@@ -70,6 +70,16 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 - **关闭**：配置改变（摘要不同）、Server 或能力被关闭、批准被撤销、引用的 Secret 被登记、替换或删除时关闭受影响的连接。Sidecar 有序关闭时在 Run 结束之后、存储关闭之前关闭全部连接；stdio 由 pi-mcp 先关 stdin，0.5 秒后 SIGTERM，再 2 秒后 SIGKILL（进程组）。Sidecar 被强杀时 stdio 子进程可能残留（地图 M4 的孤儿进程 Carry-over）。
 - **stdio 的环境**：Sidecar 自身环境经与 bash 相同的 `HOST_ENV_EXCLUSIONS` 过滤（去掉 `COKO_*`、`ELECTRON_RUN_AS_NODE`、各 Provider 的密钥变量与凭据形态的名字），再叠加配置 `env`（Secret 已展开），最后注入宿主的 `COKO_MCP_DATA_DIR`。stdio 进程不套 Seatbelt。客户端声明的 roots 仍是会话固定 cwd。
 
+## 工具搜索与按需加载
+
+全局能力配置 `mcp.toolSearch` 控制 MCP 工具的按需加载，当前默认 false；开关关闭时直接提供全部已连接且未停用的 MCP 工具。打开时，仅根 Session 启用：每个 Run 开始时冻结当时可用的工具目录，首次请求保留内置工具、Host Tool 与 `tool_search`，不提供目录内 MCP 工具的 schema。MCP 资源工具仍为常驻 Host Tool。子代理与 Teammate 直接取得其允许范围内的全部工具，没有目录或 `tool_search`。
+
+目录通过 `on_demand_tools` State Update 按 Server 分组公告，每行包含工具名与首句说明（至多 60 字），不含 schema；首次或名单变化时发送完整目录，名单不变不重发。读取或渲染失败只记 warn。进行中的 Run 使用同一快照，工具列表变化到下一个 Run 生效。
+
+`tool_search { query, limit? }` 的权限类为 context-read，可在 Plan Mode 下使用；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制。结果包含名称、Server、说明与参数 schema，并指示下一轮按真实名称直接调用；常驻名称列为已可用，范围外名称列为未知。当前关键词查询返回零命中与重搜提示，关键词检索另行接入。调用卡沿用通用工具卡，加载不授予业务执行权限。
+
+宿主只根据可信的搜索执行通道生成 `tool_load { names, source, toolCallId }`，在对应 toolResult 成功提交后单独提交；工具结果文字与 details 不产生加载事实。提交失败以 `commit_failed` 停止 Run，下一次请求不会使用未提交的加载。实际提供的工具与用量统计共用一份清单：常驻工具、有效条目中已加载且当前仍可用的 MCP 工具，以及目录非空时的 `tool_search`。运行时 registry 保留全部可用工具供子会话取交集。
+
 ## 工具
 
 - **命名**：`mcp__<server>__<tool>`，`[A-Za-z0-9_-]` 之外的字符换成 `_`；超过 64 字符，或与同一 Server 的另一工具规范化后同名时，截断工具部分并加 8 位 hash（保留 `mcp__<server>__` 前缀，`mcp__<server>` 规则照常匹配）。

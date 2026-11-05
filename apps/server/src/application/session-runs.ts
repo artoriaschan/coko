@@ -11,6 +11,9 @@ import {
   MAX_IMAGE_BYTES,
   detectImageMimeType,
   createAgentRuntime,
+  createToolSearch,
+  type OnDemandTool,
+  type ToolLoadPayload,
   createBuiltinToolRegistry,
   createLocalExecPort,
   effectiveMessages,
@@ -33,11 +36,14 @@ import {
   type ToolHooks,
   type ToolRegistry,
 } from '@coko/agent'
-import { hookContextText } from '@coko/agent/entries'
+import { loadedToolNames, hookContextText } from '@coko/agent/entries'
 import { getLogger, redactSecretsDeep, redactSecretValues, createSecretStreamRedactor } from '@coko/logging'
 import type { SessionEntry as StoredEntry, Session as StoredSession, SessionStore, Workspace } from '@coko/session'
 import type { SessionCheckpoints } from './checkpoints.ts'
 import {
+  availableTools,
+  onDemandCatalog,
+  type ContributedTool,
   dynamicHooks,
   layeredTools,
   providedTools,
@@ -198,6 +204,10 @@ function withJobs(base: ToolRegistry, launcher: BackgroundJobLauncher): ToolRegi
 /** 运行时每个 Run 开始时刷新的上下文取值（运行时创建后其工具集与 hook 链不变，经这里间接替换）。 */
 interface RunContext {
   scope: ContextScope
+  contributed: ContributedTool[]
+  catalog: OnDemandTool[]
+  loadedNames: ReadonlySet<string>
+  pendingLoads: Map<string, ToolLoadPayload>
   tools: ReturnType<typeof layeredTools>
   hooks: ReturnType<typeof dynamicHooks>
   /** 准入 hook（只拦截、无副作用），排在扩展之前。 */
@@ -311,10 +321,36 @@ export class SessionRuns {
     if (!runtime?.isRunning || !runContext) return
     const context = this.#options.context
     const contributed = await context.tools(runContext.scope)
-    runContext.tools.set(contributed)
-    const visible = providedTools(this.baseTools(runContext.scope.cwd), contributed, context, runContext.scope)
-    runContext.tools.allow(new Set(visible.map((tool) => tool.name)))
+    const snapshot = [
+      ...contributed.filter((item) => !item.mcpServer && item.tool.name !== 'tool_search'),
+      ...runContext.contributed.filter((item) => item.mcpServer),
+    ]
+    this.#setTools(runContext, snapshot, await this.#options.store.sessions.listEntries(sessionId), false)
     runtime.refreshTools()
+  }
+
+  /** Snapshot the MCP catalog once at Run admission, without hiding tools from child intersection. */
+  #setTools(runContext: RunContext, contributed: ContributedTool[], entries: readonly StoredEntry[], resetLoads = true): void {
+    const scope = runContext.scope
+    const context = this.#options.context
+    const base = this.baseTools(scope.cwd)
+    const available = availableTools(base, contributed, context, scope)
+    const catalog = onDemandCatalog(contributed, available, scope)
+    runContext.catalog = catalog
+    runContext.loadedNames = loadedToolNames(entries)
+    if (resetLoads) runContext.pendingLoads.clear()
+    const deferred = new Set(catalog.map((tool) => tool.name))
+    const search = catalog.length
+      ? createToolSearch({
+          catalog,
+          regularNames: available.filter((tool) => !deferred.has(tool.name)).map((tool) => tool.name),
+          loadedNames: () => runContext.loadedNames,
+          onLoad: (toolCallId, names) => runContext.pendingLoads.set(toolCallId, { toolCallId, names, source: 'search' }),
+        })
+      : undefined
+    runContext.contributed = [...contributed, ...(search ? [{ tool: search, permissionClass: 'context-read' as const }] : [])]
+    runContext.tools.set(runContext.contributed)
+    runContext.tools.allow(new Set([...available.map((tool) => tool.name), ...(search ? ['tool_search'] : [])]))
   }
 
   /** 该 Workspace 的基础工具集（与运行时相同的工厂；上下文用量接口按其定义计工具分项）。 */
@@ -463,13 +499,14 @@ export class SessionRuns {
     const observe = context.observeHooks(scope)
     const permissionHooks = context.permissionHooks(scope)
     const pending = takesPending(request.trigger) ? await context.pendingInput(scope) : undefined
+    const toolEntries = await store.sessions.listEntries(sessionId)
     if (runtime.isRunning) throw new AppError('run-in-progress', 'A Run is in progress')
     // 回退或分叉进行中：运行时可能即将按新的有效上下文重建。
     if (checkpoints.busy(sessionId)) throw new AppError('session-busy', 'The session is being rewound or forked')
     const runContext = this.#runContexts.get(runtime)
     if (runContext) {
       runContext.scope = scope
-      runContext.tools.set(contributed)
+      this.#setTools(runContext, contributed, toolEntries)
       runContext.hooks.set(hooks)
       runContext.admission.set(admission)
       runContext.observe.set(observe)
@@ -477,9 +514,7 @@ export class SessionRuns {
       runContext.workspaceRoots = workspaceRoots
       runContext.writeRoots = writeRoots
       runContext.permissionHooks = permissionHooks
-      // 本次 Run 可用的工具（子代理的工具交集等）：没有领域过滤时不限。
-      const visible = providedTools(this.baseTools(scope.cwd), contributed, context, scope)
-      runContext.tools.allow(new Set(visible.map((tool) => tool.name)))
+      // The registry retains all allowed tools; the runtime selects model tools separately.
     }
     runtime.setModel(model)
     runtime.setThinkingLevel(models.effectiveLevel(session))
@@ -716,6 +751,10 @@ export class SessionRuns {
     const runContext: RunContext = {
       scope: await this.scope(session),
       // 子 Session 没有后台任务入口：bash 的 run_in_background / tty 为参数错误（ADR 0014）。
+      contributed: [],
+      catalog: [],
+      loadedNames: new Set(),
+      pendingLoads: new Map(),
       tools: layeredTools(
         this.#jobs && session.parentSessionId === null ? withJobs(this.baseTools(cwd), this.#jobs.launcher(session.id)) : this.baseTools(cwd),
       ),
@@ -731,10 +770,11 @@ export class SessionRuns {
     // 产生 toolsAdded 的 system 条目；之后各 Run 开始时照常重新取值，只有真正的变化才提交。
     const context = this.#options.context
     const seeded = await context.tools(runContext.scope)
-    runContext.tools.set(seeded)
+    const storedEntries = await store.sessions.listEntries(session.id)
+    this.#setTools(runContext, seeded, storedEntries)
     // 开头的系统消息只列本 Session 可用的工具（子代理的工具交集）：构造前就按 filterTools 限定，不先列出再撤回。
-    const seedVisible = providedTools(this.baseTools(cwd), seeded, context, runContext.scope)
-    runContext.tools.allow(new Set(seedVisible.map((tool) => tool.name)))
+    const seedVisible = providedTools(this.baseTools(cwd), runContext.contributed, context, runContext.scope, storedEntries)
+
     const runtime = createAgentRuntime({
       ...(this.#options.basePrompt ? { systemPrompt: this.#options.basePrompt.text } : {}),
       models: registry.models,
@@ -742,6 +782,7 @@ export class SessionRuns {
       thinkingLevel: this.#options.models.effectiveLevel(session),
       cwd,
       tools: runContext.tools.registry,
+      initialToolNames: seedVisible.map((tool) => tool.name),
       sessionId: session.id,
       toolOutputRedaction: { text: redactSecretValues, stream: createSecretStreamRedactor },
       ...(this.#options.toolResultsRoot ? { toolResultsDirectory: join(this.#options.toolResultsRoot, encodeURIComponent(session.id)) } : {}),
@@ -768,7 +809,17 @@ export class SessionRuns {
       ...(this.#options.secrets ? { secrets: this.#options.secrets } : {}),
       context: {
         systemSections: () => context.systemSections(runContext.scope),
-        stateUpdates: () => context.stateUpdates(runContext.scope, () => store.sessions.listEntries(session.id)),
+        stateUpdates: () => context.stateUpdates(runContext.scope, () => store.sessions.listEntries(session.id), runContext.catalog),
+        toolNames: async () => {
+          const entries = await store.sessions.listEntries(session.id)
+          runContext.loadedNames = loadedToolNames(entries)
+          return providedTools(this.baseTools(cwd), runContext.contributed, context, runContext.scope, entries).map((tool) => tool.name)
+        },
+        takeToolLoad: (id) => {
+          const load = runContext.pendingLoads.get(id)
+          runContext.pendingLoads.delete(id)
+          return load
+        },
         // 预算等请求前检查（各领域的 beforeRequest）；没有领域检查时放行。
         beforeRequest: async (state) => (context.beforeRequest ? ((await context.beforeRequest(state, runContext.scope)) ?? undefined) : undefined),
         // 每次模型请求的上下文都替换登记明文（模型回显、压缩摘要），之后才是各领域的改写。

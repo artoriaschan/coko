@@ -14,7 +14,7 @@ export interface ProjectCapabilityValues {
   instructions?: { enabled?: false }
   skills?: { enabled?: false; disabled?: string[] }
   commands?: { enabled?: false }
-  mcp?: { enabled?: false }
+  mcp?: { enabled?: false; toolSearch?: false }
   memory?: { enabled?: false }
   context?: { autoCompact?: false; trimOldToolResults?: false }
   agents?: { enabled?: false }

@@ -40,6 +40,7 @@ Electron 的 userData、Cache、Cookies、IndexedDB 和 Local Storage 不随业�
 | --- | --- | --- |
 | `instructions.enabled`、`skills.enabled`、`commands.enabled`、`mcp.enabled`、`memory.enabled` | true | 只有 false 生效 |
 | `context.autoCompact`、`context.trimOldToolResults` | true | 只有 false 生效 |
+| `mcp.toolSearch` | false | 只有 false 生效；控制 MCP 工具按需加载，当前无界面开关，见 [MCP](mcp.md#工具搜索与按需加载) |
 | `agents.enabled`、`schedules.enabled`（M5） | true | 只有 false 生效 |
 | `lsp.enabled`、`teams.enabled`（M6） | true | 只有 false 生效；项目文件中 `lsp` 的其他键（例如 `lsp.servers`）以 `project-cannot-grant` 忽略：语言服务器只在全局与 Workspace 设置中配置 |
 | `plugins.enabled`（M6） | true | 只能在全局设置：项目文件中的 `plugins` 键不论取值都以 `project-cannot-grant` 忽略；关闭后所有插件的贡献为空 |

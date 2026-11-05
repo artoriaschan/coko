@@ -16,6 +16,7 @@ import type {
   RunTrigger,
   SessionEntryKind,
   SessionEntryPayloads,
+  ToolLoadPayload,
 } from '../session-entries/index.ts'
 import type { ToolRegistry } from '../tools/registry.ts'
 import type { TimeoutOptions } from '../tools/timeout.ts'
@@ -166,6 +167,10 @@ export interface BeforeRequestState {
  * withholds that request: nothing is sent, and the Run ends as after stopAfterBatch(stop).
  */
 export interface RuntimeContext {
+  /** Names exposed to the model/executor; the registry retains all available tools. Read between turns. */
+  toolNames?(): Promise<readonly string[]>
+  /** Consume a host-owned load captured by a search call. Result text/details cannot create loads. */
+  takeToolLoad?(toolCallId: string): ToolLoadPayload | undefined
   systemSections?(): Promise<SystemSection[]>
   /** Current state snapshots for Run-start and compaction delivery. */
   stateUpdates?(): Promise<StateUpdateDelivery | undefined>
@@ -197,6 +202,8 @@ export interface AgentRuntimeOptions {
   commit: (entry: RunEntry) => Promise<void>
   /** Default: built-in tools for `cwd` using `exec`. Read again at the start of every Run. */
   tools?: ToolRegistry
+  /** Selected tool names for the initial system declaration before the first Run. */
+  initialToolNames?: readonly string[]
   /** Default: local shell. Only used when `tools` is omitted. */
   exec?: ExecPort
   systemPrompt?: string

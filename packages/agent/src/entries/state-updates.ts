@@ -4,7 +4,7 @@ import { todoResultText } from './todo-text.ts'
 import { teamStateText, type TeamStateValue } from './team-text.ts'
 import type { EntryLike } from './types.ts'
 
-export const STATE_UPDATE_NAMES = ['date', 'goal', 'todo_list', 'team'] as const
+export const STATE_UPDATE_NAMES = ['date', 'goal', 'todo_list', 'team', 'on_demand_tools'] as const
 export type StateUpdateName = (typeof STATE_UPDATE_NAMES)[number]
 export type StateValues = Partial<Record<StateUpdateName, unknown>>
 export interface StateSnapshotPayload {
@@ -58,7 +58,11 @@ const normalized = (value: unknown): string =>
   )
 
 /** Domain values must already have registered plaintext replaced, so comparisons use persisted values. */
-export function planStateUpdates(values: StateValues, entries: readonly EntryLike[]): StateUpdateDelivery | undefined {
+export function planStateUpdates(
+  values: StateValues,
+  entries: readonly EntryLike[],
+  renderers: Partial<Record<StateUpdateName, (value: unknown, previous: unknown) => string>> = {},
+): StateUpdateDelivery | undefined {
   const latest = new Map<StateUpdateName, unknown>()
   for (const pairs of pairedStateUpdates(effectiveEntries(entries, { compacted: true })).values())
     for (const pair of pairs) latest.set(pair.payload.name, pair.payload.value)
@@ -68,7 +72,10 @@ export function planStateUpdates(values: StateValues, entries: readonly EntryLik
     const value = values[name]
     if (value === undefined || (!latest.has(name) && value === null) || (latest.has(name) && normalized(value) === normalized(latest.get(name)))) continue
     delivery.entries.push({ kind: 'state_update', payload: { name, value } })
-    const text = value === null ? 'This item currently has no content. Previous updates with this name no longer apply.' : renderStateValue(name, value)
+    const text =
+      value === null
+        ? 'This item currently has no content. Previous updates with this name no longer apply.'
+        : (renderers[name]?.(value, latest.get(name)) ?? renderStateValue(name, value))
     delivery.blocks.push({ type: 'text', text: `<state_update name="${name}">\n${text}\n</state_update>` })
   }
   return delivery.entries.length > 0 ? delivery : undefined

@@ -52,7 +52,7 @@ describe('GET / PUT /api/config', () => {
         instructions: { enabled: true },
         skills: { enabled: true, disabled: [] },
         commands: { enabled: true, disabled: [] },
-        mcp: { enabled: true },
+        mcp: { enabled: true, toolSearch: false },
         memory: { enabled: true },
         context: { autoCompact: true, trimOldToolResults: true },
         hooks: { enabled: true },

@@ -1,0 +1,23 @@
+{
+  "query": "select:mcp__demo__echo",
+  "totalOnDemand": 7,
+  "matches": [
+    {
+      "name": "mcp__demo__echo",
+      "server": "demo",
+      "description": "Echo the text back",
+      "alreadyAvailable": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["text"]
+      }
+    }
+  ],
+  "loaded": ["mcp__demo__echo"],
+  "note": "Loaded. From the next turn on, call these tools directly by name; do not go through tool_search again."
+}

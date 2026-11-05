@@ -144,3 +144,4 @@ export type { ApiKeyCredential, Credential, CredentialInfo, CredentialStore } fr
 export { MAX_IMAGE_BYTES, detectImageMimeType } from './tools/builtin/read.ts'
 
 export { modelRequestPayload } from './engine/model-requests.ts'
+export * from './tools/tool-search/index.ts'

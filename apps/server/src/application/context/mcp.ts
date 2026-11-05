@@ -130,6 +130,7 @@ const desired = (entry: McpServerEntry, loaded: LoadedMcpConfig) => staticMcpSta
 export interface McpRunTools {
   tools: CokoTool[]
   resources: CokoTool[]
+  servers: ReadonlyMap<string, string>
   diagnostics: ResourceDiagnostic[]
 }
 
@@ -311,12 +312,17 @@ export class McpManager {
   async runTools(scope: { workspaceId: string; cwd: string }): Promise<McpRunTools> {
     const loaded = await this.load({ id: scope.workspaceId, path: scope.cwd })
     await this.reconcile(scope.workspaceId, scope.cwd, loaded)
-    if (!loaded.enabled) return { tools: [], resources: [], diagnostics: loaded.diagnostics }
+    if (!loaded.enabled) return { tools: [], resources: [], servers: new Map(), diagnostics: loaded.diagnostics }
     await this.#ensure(scope.workspaceId, scope.cwd, loaded)
     const tools: CokoTool[] = []
+    const toolServers = new Map<string, string>()
     for (const entry of loaded.entries) {
       const pooled = this.#pool.get(keyOf(scope.workspaceId, scope.cwd, entry.name))
-      if (pooled?.connection.status === 'connected') tools.push(...createMcpTools(pooled.connection, { config: entry.config }))
+      if (pooled?.connection.status === 'connected') {
+        const serverTools = createMcpTools(pooled.connection, { config: entry.config })
+        tools.push(...serverTools)
+        for (const tool of serverTools) toolServers.set(tool.name, entry.name)
+      }
     }
     const entries = loaded.entries.filter((entry) => desired(entry, loaded))
     const servers = () =>
@@ -325,7 +331,7 @@ export class McpManager {
         return pooled?.connection.status === 'connected' ? [{ connection: pooled.connection, timeoutMs: timeoutMsOf(entry.config) }] : []
       })
     const resources = servers().some((s) => s.connection.capabilities?.resources) ? createMcpResourceTools({ servers }) : []
-    return { tools, resources, diagnostics: loaded.diagnostics }
+    return { tools, resources, servers: toolServers, diagnostics: loaded.diagnostics }
   }
 
   #recordDiagnostics(pooled: Pooled, kind: string, diagnostics: readonly ResourceDiagnostic[]): void {
@@ -445,7 +451,7 @@ export class McpManager {
 }
 
 /** 资源工具的规则名为原名（context-read）；mcp__ 前缀的工具由 policy 原样接受，不必声明。 */
-const MCP_RULE_TOOLS: readonly RuleTool[] = MCP_RESOURCE_TOOL_NAMES.map((name) => ({ name, permissionClass: 'context-read' }))
+const MCP_RULE_TOOLS: readonly RuleTool[] = [...MCP_RESOURCE_TOOL_NAMES, 'tool_search'].map((name) => ({ name, permissionClass: 'context-read' }))
 
 export function mcpContribution(options: ContextContributionOptions): ContextContribution {
   const manager = options.mcp
@@ -454,9 +460,9 @@ export function mcpContribution(options: ContextContributionOptions): ContextCon
     name: 'mcp',
     ruleTools: MCP_RULE_TOOLS,
     async tools(scope) {
-      const { tools, resources } = await manager.runTools(scope)
+      const { tools, resources, servers } = await manager.runTools(scope)
       return [
-        ...tools.map((tool) => ({ tool, permissionClass: 'external' as const })),
+        ...tools.map((tool) => ({ tool, permissionClass: 'external' as const, mcpServer: servers.get(tool.name) })),
         ...resources.map((tool) => ({ tool, permissionClass: 'context-read' as const })),
       ]
     },
