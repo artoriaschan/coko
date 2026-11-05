@@ -3,7 +3,7 @@
 // 算法参照 pi coding-agent 1.4.0 core/compaction/compaction.ts 的 findCutPoint 与 prepareCompaction（MIT, Copyright (c) 2025 Mario Zechner），
 // 去掉了拆分回合的二次摘要：切在 assistant 开始处时，它之前的整轮都进入摘要。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { effectiveEntries, modelContext, type CompactionFields, type EntryLike } from '../../entries/index.ts'
+import { effectiveEntries, modelContext, pairedStateUpdates, type CompactionFields, type EntryLike } from '../../entries/index.ts'
 import { charsToTokens, estimateContextTokens, estimateMessageChars, type ContextTokenEstimate } from '../usage/index.ts'
 
 /** 压缩后保留的最近消息的估算 token 数。 */
@@ -84,7 +84,20 @@ export function planCompaction(entries: readonly EntryLike[], options: { keepRec
   const read = new Set(strings(prior?.readFiles))
   const modified = new Set(strings(prior?.modifiedFiles))
   const skills = new Set(strings(prior?.invokedSkills))
-  const messages = summarized.map((entry) => entry.payload as AgentMessage)
+  const pairs = pairedStateUpdates(effective)
+  const messages = summarized.map((entry) => {
+    const message = entry.payload as AgentMessage
+    const updates = pairs.get(entry.seq)
+    if (message.role !== 'user' || !Array.isArray(message.content) || !updates) return message
+    const names = new Map(updates.map((update) => [update.blockIndex, update.payload.name]))
+    return {
+      ...message,
+      content: message.content.map((block, index) => {
+        const name = names.get(index)
+        return name === undefined ? block : { type: 'text' as const, text: `[state update: ${name}]` }
+      }),
+    }
+  })
   for (const message of messages) {
     for (const call of toolCalls(message)) {
       const path = typeof call.arguments.path === 'string' ? call.arguments.path : undefined

@@ -54,6 +54,8 @@ export interface CompactionDriverOptions {
   admit: (run: CompactionRun) => Promise<boolean>
   /** 手动与自动压缩有可摘要的内容时、摘要请求之前（RuntimeContext.beforeCompact）；溢出恢复不调用。 */
   beforeCompact?: (info: CompactInfo) => Promise<void | CompactVerdict>
+  /** 自动或溢出压缩已提交并重建上下文后，在下一次请求之前补发当前状态。手动压缩不调用。 */
+  afterCompact?: (run: CompactionRun) => Promise<void>
 }
 
 const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0)
@@ -197,6 +199,8 @@ export function createCompactionDriver(options: CompactionDriverOptions): Compac
     breaker.succeeded()
     const head = state.messages[0]?.role === 'system' ? [state.messages[0]] : []
     state.messages = [...head, ...next]
+    if (trigger !== 'manual') await options.afterCompact?.(run)
+    if (run.commitError || run.aborted) return { kind: 'aborted' }
     progress({ type: 'compaction_end', runId: run.runId, trigger, tokensBefore, tokensAfter: payload.tokensAfter })
     return { kind: 'compacted' }
   }
