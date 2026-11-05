@@ -32,3 +32,5 @@
 - 验证：`rtk pnpm run test tests/integration/sidecar-tool-search-lifecycle.test.ts tests/integration/sidecar-tool-search-keywords.test.ts tests/integration/sidecar-tool-search-catalog.test.ts tests/integration/sidecar-incremental-tools.test.ts packages/agent/src/entries/tool-loads.test.ts`：5 文件 28/28，退出 0。`rtk pnpm run typecheck`、定向 oxfmt/oxlint、`rtk pnpm run check:docs`（396 Markdown，0 问题）通过。原有纯函数工具加载测试也在上述集合中通过。
 - 文档归属：原地补充 `docs/subsystems/mcp.md` 的工具搜索生命周期段落；搜索相关加载/恢复/压缩口径，既有上下文与 Provider 段落保持一致。按 AGENTS → docs/README → MCP 读回，导航路径、语义与正式文档引用方向通过；未新增目录或改变 ADR 批准/实施状态。
 - 未验证：真实 Provider、Electron 窗口/原生指针、打包产物与 CI；faux 模型请求日志证明所观察的定义与基础提示，不代表真实缓存命中。本票仅本地提交，未推送。
+
+- 合并验收：实现提交 `c980aaf` 后合入最新集成 `6976a0be`（包含 08 乐观加载与 14 Completions 目录判断），无冲突；合并提交 `ae6ae688`。`rtk pnpm run test tests/integration/sidecar-tool-search-lifecycle.test.ts tests/integration/sidecar-tool-search-optimistic.test.ts tests/integration/sidecar-completions-incremental-tools.test.ts`：3 文件 12/12，类型检查与文档检查再次通过。共享定义/加载逻辑的当前变化均覆盖；此前 5 文件 28 例中未改变的证据保留。
