@@ -407,7 +407,7 @@ export class SessionRuns {
       workspaceId: session.workspaceId,
       cwd,
       additionalFolders: project?.additionalFolders ?? [],
-      ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
+      ...(model ? { model: { providerId: model.provider, modelId: model.id, contextWindow: model.contextWindow } } : {}),
       sessionId: session.id,
       ...(session.directory && !project ? { sessionDirectory: session.directory } : {}),
       permissionRules,

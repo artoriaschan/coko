@@ -10,27 +10,7 @@ export interface OnDemandTool {
   parameters: unknown
 }
 
-export function renderOnDemandCatalog(catalog: readonly OnDemandTool[]): string {
-  const groups = new Map<string, OnDemandTool[]>()
-  for (const tool of [...catalog].sort((a, b) => a.server.localeCompare(b.server) || a.name.localeCompare(b.name))) {
-    const group = groups.get(tool.server) ?? []
-    group.push(tool)
-    groups.set(tool.server, group)
-  }
-  return [
-    'On-demand tool catalog. Use tool_search to load a tool before calling it directly.',
-    ...[...groups].map(
-      ([server, tools]) =>
-        `${server} (${tools.length} tools):\n${tools
-          .map((tool) => {
-            const sentence = tool.description.split(/[.!?。！？]\s*|\n/)[0] ?? ''
-            const description = sentence.length > 60 ? `${sentence.slice(0, 60).trimEnd()}…` : sentence
-            return `- ${tool.name}${description ? `: ${description}` : ''}`
-          })
-          .join('\n')}`,
-    ),
-  ].join('\n\n')
-}
+export { renderOnDemandCatalog } from './catalog.ts'
 
 const parameters = Type.Object({
   query: Type.String({

@@ -76,7 +76,7 @@ stdio Server 收到可信的绝对路径环境变量 `COKO_MCP_DATA_DIR`；该�
 
 全局能力配置 `mcp.toolSearch` 控制 MCP 工具的按需加载，当前默认 false；开关关闭时直接提供全部已连接且未停用的 MCP 工具。打开时，仅根 Session 启用：每个 Run 开始时冻结当时可用的工具目录，首次请求保留内置工具与 Host Tool；存在按需工具时再提供 `tool_search`，不提供目录内 MCP 工具的 schema。设置 `alwaysLoad: true` 的全局、项目或插件 Server 的工具始终直接提供，不进入按需目录；确切名称选择它们时返回 `alreadyAvailable`。更改此字段不改变项目 Server 的批准摘要，无需重新批准。开关关闭时该字段不影响工具提供方式。MCP 资源工具仍为常驻 Host Tool。子代理与 Teammate 直接取得其允许范围内的全部工具，没有目录或 `tool_search`。
 
-目录通过 `on_demand_tools` State Update 按 Server 分组公告，每行包含工具名与首句说明（至多 60 字），不含 schema；首次或名单变化时发送完整目录，名单不变不重发。读取或渲染失败只记 warn。进行中的 Run 使用同一快照，工具列表变化到下一个 Run 生效。
+目录通过 `on_demand_tools` State Update 按 Server 分组公告，不含 schema；首次发送完整目录，之后只发送 `Added` / `Removed`，名单不变不重发。对话回退或压缩后的下一次送达重发完整目录。说明至多 60 字，超预算时依次缩短说明（截断下限 24 字）、只列名称、只列 Server 与工具数，预算与派生规则见[上下文管理](context.md#state-update)。读取或渲染失败只记 warn，Run 继续。进行中的 Run 使用同一快照，工具列表变化及手动重连成功都到下一个 Run 生效。
 
 `tool_search { query, limit? }` 一次完成搜索与加载。普通关键词默认返回 5 项、最多 20 项；`select:名称[,名称]` 按确切名称加载多个工具，不受 limit 限制；`+词` 要求候选包含该词。检索文本只取工具名（`_ . - :` 换成空格）、说明与第一层参数名，不递归索引 schema、不翻译。英文与数字按词、中日韩文字按相邻二字切分（单字保留），在必需词过滤后的候选上计算 BM25（k1=1.5、b=0.75）；同分按 Server、名称排序，没有正分时才按完整查询串做工具名子串匹配。
 
