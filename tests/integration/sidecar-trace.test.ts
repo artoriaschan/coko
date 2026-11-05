@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { deriveTrace } from '@coko/agent'
-import { modelContext } from '@coko/agent/entries'
+import { modelContext, pairedStateUpdates } from '@coko/agent/entries'
 import { loadExport } from '@coko/agent/testing'
 import {
   API_ROUTES,
@@ -158,6 +158,8 @@ describe('追踪、审计与导出', { timeout: 90_000 }, () => {
     const [header, ...rest] = lines(own.body)
     expect(header).toEqual({ type: 'header', format: SESSION_EXPORT_FORMAT, version: 1, sessionId, exportedAt: expect.any(Number) })
     expect(rest).toEqual(parentEntries)
+    const exportedUpdates = parentEntries.filter((entry) => entry.kind === 'state_update')
+    expect(exportedUpdates).toEqual([expect.objectContaining({ payload: { name: 'date', value: expect.any(Object) } })])
 
     const withChildren = lines((await api.get(tracePaths.export(sessionId, true))).body).slice(1) as SessionEntryRecord[]
     expect(withChildren.filter((e) => e.sessionId === sessionId)).toEqual(parentEntries)
@@ -170,6 +172,7 @@ describe('追踪、审计与导出', { timeout: 90_000 }, () => {
     const replayParent = loaded.filter((e) => e.sessionId === sessionId)
     const replayChild = loaded.filter((e) => e.sessionId === childId)
     expect(modelContext(replayParent)).toEqual(modelContext(parentEntries))
+    expect([...pairedStateUpdates(replayParent).values()].flatMap((pairs) => pairs.map((pair) => pair.entry))).toEqual(exportedUpdates)
     expect(modelContext(replayChild)).toEqual(modelContext(childEntries))
     expect(modelContext(replayChild).length).toBeGreaterThan(0)
     expect(deriveTrace(replayParent)).toEqual(((await api.get(tracePaths.trace(sessionId))).body as TraceResponse).runs)

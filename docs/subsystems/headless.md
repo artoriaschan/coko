@@ -50,6 +50,8 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 | `json` | 一行 result |
 | `stream-json` | 根 Session 的每条 `entry` 与 `progress` 一行（与 WebSocket 推送的 `ServerMessage` 相同，已脱敏），最后一行 result |
 
+`stream-json` 包含 `state_update` v1 条目（`{ name, value }`），按提交顺序排在承载对应块的 user message 之前；时间线隐藏这些快照不影响结构化输出。根 Session 的日期等状态与 Sidecar 使用同一套送达和来源规则，见[上下文管理](context.md#state-update)。
+
 result：`{ type: 'result', status, sessionId, runId, text, usage: { input, output, cacheRead, cacheWrite, total, cost? }, durationMs, error?, approvalDenied? }`。`status` 为 Run 的结束状态（completed / error / paused / aborted / interrupted），Run 没能开始时为 `failed`（runId 为 null）。usage 为该 Run 的 `model_request` 之和（不含子代理 Session 的用量）；`cost` 在至少一个请求有费用时出现。
 
 ## 退出码

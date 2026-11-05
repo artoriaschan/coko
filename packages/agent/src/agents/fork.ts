@@ -5,12 +5,12 @@ import { requestUsageSchema } from '../session-entries/context.ts'
 import type { ModelRequestPayload } from '../session-entries/observability.ts'
 import type { ForkBoundary, ForkMessageOrigin, ForkOriginPayload } from '../session-entries/checkpoints.ts'
 import { RewindTargetError, rewindTarget } from '../checkpoints/rewind.ts'
-import { effectiveEntries } from '../entries/index.ts'
+import { effectiveEntries, pairedStateUpdates } from '../entries/index.ts'
 import type { CheckpointEntry } from '../checkpoints/tracker.ts'
 
 /**
  * 分叉时复制的条目种类：模型可见消息与 Session 的权限状态（模式、Session 规则）。Goal、Todo、计划与后台任务的条目属于原 Session，
- * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。
+ * 不复制（新 Session 从没有 Goal、Todo 与 Job 开始）。配对的 State Update 随其用户消息复制，保留模型已收到的值。
  */
 const FORK_KINDS = new Set(['message', 'permission_mode', 'permission_rule'])
 
@@ -62,10 +62,11 @@ export function forkEntries(
   const compacted = effectiveEntries(prefix, { compacted: true })
   const compaction = compacted.find((entry) => entry.kind === 'compaction')
   const kept = new Set(compacted.map((entry) => entry.seq))
+  const updates = new Set([...pairedStateUpdates(compacted).values()].flatMap((pairs) => pairs.map((pair) => pair.entry.seq)))
   // Assistant branches inherit the current permission state, even when branching before a later restriction.
   const selected = effective.filter(
     (entry) =>
-      FORK_KINDS.has(entry.kind) &&
+      (FORK_KINDS.has(entry.kind) || updates.has(entry.seq)) &&
       (entry.kind === 'message' ? kept.has(entry.seq) && prefix.includes(entry) : boundary === 'assistant-inclusive' || prefix.includes(entry)),
   )
   const copied = selected.map((entry) => ({ kind: entry.kind, payload: entry.payload }) as RunEntry)
@@ -84,8 +85,8 @@ export function forkEntries(
     payload: { sessionId, seq: targetSeq, ...(boundary === 'assistant-inclusive' ? { boundary, messages } : {}) },
   }
   if (!compaction) return { text, entries: [origin, ...copied] }
-  const firstMessage = copied.findIndex((entry) => entry.kind === 'message')
-  const firstKeptSeq = firstMessage < 0 ? 3 + copied.length : 3 + firstMessage
+  const firstContext = copied.findIndex((entry) => entry.kind === 'message' || entry.kind === 'state_update')
+  const firstKeptSeq = firstContext < 0 ? 3 + copied.length : 3 + firstContext
   const summary: RunEntry = { kind: 'compaction', payload: { ...(compaction.payload as Extract<RunEntry, { kind: 'compaction' }>['payload']), firstKeptSeq } }
   return { text, entries: [origin, summary, ...copied] }
 }

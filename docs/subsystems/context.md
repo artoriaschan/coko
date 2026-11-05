@@ -22,6 +22,8 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 
 同一 Run 内自动或溢出压缩成功后，按压缩后的有效上下文重新比较当前状态。在下一次模型请求之前依次提交需要补发的 `state_update` 条目和只含块的 user message，并将消息追加到运行时上下文；不经 Steering 队列。补发消息提交失败时按 `commit_failed` 停止，不发送未保存的状态；之后请求失败的 retry 仍重放已经保存的补发消息。手动 compact 不补发，之后的 Run 再按当前状态判断。
 
+分叉按助手包含边界或用户之前边界复制消息时，同时复制有效上下文中与这些消息配对的 `state_update`，保持原顺序；目标消息被排除、未配对或已被压缩移出的更新不复制。新 Session 的领域 Goal、Todo List 不继承，首个 Run 会对照复制的快照送达一次清空；未变化的日期不重复发送。快照只证明模型收到过的值，不成为新 Session 的领域事实。
+
 原始会话诊断按已加载条目的类型动态筛选，自动包括新 kind。导出和 headless stream-json 照常输出原始条目。旧应用的 payload 注册表不认识新 kind 时会跳过该条目并报告 invalid entry，保留 seq 空缺，库本身不被隔离；其后 user message 仍保留，旧时间线可能显示包装块，因此降级不提供隐藏快照的保证。
 
 ## 结构入口
@@ -48,7 +50,7 @@ continue 在 Run 开始时同样比较当前状态。有变化时先提交 `stat
 | `apps/desktop/src/renderer/stores/context-store.ts`、`features/conversation/context-ring.tsx` | 用量的读取与底栏的环、卡片；压缩进度（`trackCompaction`）与熔断暂停标记 |
 | `packages/agent/src/context/compaction/` | `planCompaction`（切点、要摘要的消息、文件与 Skill 汇总）、`summaryRequest` / `formatCompactionSummary`（摘要提示）、`estimateCompactedTokens`、`createCompactionBreaker` |
 | `packages/agent/src/engine/compaction-driver.ts`、`runtime.ts` | `compaction` 选项：请求前的自动压缩、溢出后压缩并重试、`compact()`（trigger compact 的 Run）、熔断状态（编排在 driver，运行时只接线） |
-| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction 与其保留的消息 |
+| `packages/agent/src/agents/fork.ts` | 分叉时复制最后一个 compaction、保留消息及其配对 State Update |
 | `apps/server/src/application/context/compaction.ts`、`session-runs.ts`、`sessions.ts` | `/compact` 动作；运行时的 `compaction` 接线（`session-runs.ts`）与 `compactionPaused`（`sessions.ts`） |
 | `apps/desktop/src/renderer/features/conversation/compaction-divider.tsx`、`composer.tsx` | 时间线的压缩分隔条；输入区上方的压缩状态行 |
 
@@ -129,7 +131,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ### 估算
 
 - tokens = 最后一次有效的 assistant usage（input + cacheRead + cacheWrite + output，跳过出错、中止与为 0 的回复）加其后消息的 chars/4（向上取整）；最后一条就是该回复时 `estimated` 为 false。
-- `breakdown` 固定为五类：`system` 包含基础系统提示与装配的全部章节（指令、Skills、Memory、计划、Goal、待办及其他贡献）；`prompt` 为用户消息、图片与压缩摘要；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为工具声明和工具结果。同名工具声明只计一次。
+- `breakdown` 固定为五类：`system` 包含基础系统提示、装配的全部章节（环境、指令、Skills、Memory、计划、Goal 与其他贡献），以及有效上下文中有条目配对的 State Update 块；`prompt` 为去掉这些块后的用户消息、图片与压缩摘要，用户伪造的同名文本仍计入 prompt；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为工具声明和工具结果。同名工具声明只计一次。按配对归类只改变分项，不改变模型可见消息或压缩触发的估算口径。
 - 各类先以 chars/4 向上取整；文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。没有有效 usage，或时间裁剪改变了下一次请求、usage 已不代表它，或最后一次 usage 早于有效压缩时，tokens 为这五类之和、`estimated` 为 true。有有效 usage 时保留上文的 tokens 计算，按五类估算的比例分配，用最大余数法补齐取整余数（同余数按上述键顺序），所以五类整数合计始终等于 tokens。窗口、阈值、预警与压缩触发的计算不变。
 - 每条 assistant 消息提交后 Sidecar 发 progress `context_usage { tokens, contextWindow }`，位于该 assistant 条目之后。
 
@@ -184,7 +186,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 - `compaction { summary, firstKeptSeq, tokensBefore, tokensAfter, trigger, readFiles, modifiedFiles, invokedSkills?, usage? }`（v2；`usage` 为摘要请求的 usage，计入 [Goal 预算](goal.md#预算)，v1 条目原样读回、没有 usage）在压缩时提交（自动压缩位于本轮 user message 或工具结果之后、下一条 assistant 之前）。之后的模型上下文为开头的系统消息、合成摘要消息（user，`The conversation history before this point was compacted…<summary>…</summary>`）与 firstKeptSeq 及之后的有效消息（`modelContext`）；运行时按条目重建对话记录，去掉出错的回复。`tokensBefore` 为压缩前的估算，`tokensAfter` 为重建后的 chars/4 估算。
 - 嵌套指令的"已加载"从上下文中的 toolResult 块派生，压缩移除这些块后下次触及该目录时重新加载。
-- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 为新 Session 中第一条复制的消息（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
+- 回退到压缩之前的消息时，compaction 落在被回退区间内而不生效，原历史恢复。分叉先按显式边界（旧用户消息之前／成功助手回复包含）截取，再复制当时最后一个 compaction 保留的消息、配对 State Update 与权限条目；边界之后生成的摘要不向更早分支泄漏。助手分支保留源当前权限状态，防止绕过后来的收紧；compaction 条目紧接 `fork_origin`、排在复制的条目之前，`firstKeptSeq` 指向第一条复制消息或它之前的 State Update，以保留来源配对（新 Session 从 seq 1 编号）。新 Session 的模型上下文与原 Session 在目标处相同；被摘要替代的消息不复制。之后在分叉中回退到任一复制的消息时 compaction 不在被回退的区间内，摘要仍是模型上下文的开头（分叉中没有原历史可以恢复）。估算时复制的消息（没有 runId）的 usage 不当作压缩之后的 usage。
 
 ### 界面
 
@@ -238,6 +240,8 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 优先级从低到高：全局 excludes、`info/exclude`、ignore 文件（`!` 模式可反转更低来源的忽略）。始终包含隐藏文件、排除 `.git`、不跟随符号链接。
 
 ## 验证
+
+- `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-state-update-fork.test.ts`：配对快照随两种分叉边界复制、排除目标消息的孤立更新、压缩后的来源保留、新 Session 首 Run 清空 Goal/Todo 且不重复日期；`tests/integration/sidecar-trace.test.ts` 与 `headless.test.ts` 验证 ndjson 回放及 stream-json 包含 `state_update`。
 
 - `tests/integration/sidecar-environment.test.ts`：真实 Sidecar 的普通仓库、Worktree 与非 git 目录、附加文件夹、环境顺序与跨 Run 稳定性、更换模型、草稿缺省模型及环境的 system 用量。
 

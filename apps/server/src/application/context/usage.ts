@@ -5,10 +5,12 @@ import {
   contextBudget,
   estimateCompactedTokens,
   DEFAULT_SYSTEM_PROMPT,
+  effectiveEntries,
   effectiveMessages,
   estimateContextTokens,
   estimateMessageChars,
   OLD_TOOL_RESULT_CLEARED,
+  pairedStateUpdates,
   trimOldToolResults,
   type ToolRegistry,
 } from '@coko/agent'
@@ -127,6 +129,16 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
     thinking: 0,
     tools,
   }
+  const effective = effectiveEntries(input.entries, { compacted: true })
+  const updates = pairedStateUpdates(effective)
+  let stateChars = 0
+  for (const entry of effective) {
+    const pairs = updates.get(entry.seq)
+    if (!pairs) continue
+    const content = (entry.payload as { content: { text: string }[] }).content
+    for (const pair of pairs) stateChars += content[pair.blockIndex]!.text.length
+  }
+  chars.system += stateChars
   for (const message of messages) {
     if (message.role === 'user') chars.prompt += estimateMessageChars(message)
     else if (message.role === 'toolResult') chars.tools += estimateMessageChars(message)
@@ -143,6 +155,7 @@ export async function contextUsage(input: ContextUsageInput): Promise<ContextUsa
       chars.tools += declarations
     }
   }
+  chars.prompt -= stateChars
   const breakdown = Object.fromEntries(Object.entries(chars).map(([key, value]) => [key, charsToTokens(value)])) as ContextBreakdown
   const sum = Object.values(breakdown).reduce((a, b) => a + b, 0)
 
