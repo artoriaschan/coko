@@ -1,0 +1,65 @@
+packages/agent/src/tools/tool-search/catalog.test.ts
+  s_dd1034265ded7f::t_157b6dad3b2ff6 73-80
+  s_dd1034265ded7f::t_65fb0f20efbdf1 53-58
+  s_dd1034265ded7f::t_5557be731a5936 17-29
+  s_dd1034265ded7f::t_19fff4dd818379 33,35
+  s_dd1034265ded7f::t_1a9cd68d713f46 1-2,4-16
+  s_dd1034265ded7f::t_58228cf5ea96bb 30-32,34,36-38
+  s_dd1034265ded7f::t_8010a41074a40b 3,46-52,59-60
+  s_dd1034265ded7f::t_d9c38624561cf5 39-45,61-62
+  s_dd1034265ded7f::t_94ca63da88c12b 63-72
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_a8a5dcaf7f7fa2 29-31
+packages/agent/src/tools/tool-search/catalog.ts
+  s_dd1034265ded7f::t_718093de2ac167 1-7,22-24,26-27,31,82
+  s_dd1034265ded7f::t_0b7e8e100e7bb4 15-17,19-21,40,53,56-57,60-65,79-81
+  s_dd1034265ded7f::t_e4fed558c4d694 8-14,18,25,28-30,32-39,41-43,51-52,54-55,58-59,70,72-73,76,78
+  s_dd1034265ded7f::t_f1c0abec21eb76 66-67,71
+  s_dd1034265ded7f::t_807ae1bf5c0d7d 74-75,77
+  s_dd1034265ded7f::t_65fb0f20efbdf1 44-50,68-69
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_a8a5dcaf7f7fa2 79
+tests/fixtures/tool-search/catalog-delta.txt
+  s_dd1034265ded7f::t_a57ea0fed85233 1-22
+packages/agent/src/entries/state-updates.test.ts
+  s_dd1034265ded7f::t_b9cae7e8d15127 37-44,48,54-55
+  s_dd1034265ded7f::t_65fb0f20efbdf1 45-47,49-53
+packages/agent/src/entries/state-updates.ts
+  s_dd1034265ded7f::t_f3e83da8541bc1 70-72
+  s_dd1034265ded7f::t_3ac27d95de672b 67-69,73-77
+apps/server/src/application/context/types.ts
+  s_dd1034265ded7f::t_fc8737d8a2485c 38
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_65fb0f20efbdf1 235-247
+tests/integration/sidecar-tool-search-catalog.test.ts
+  s_dd1034265ded7f::t_a57ea0fed85233 53
+  s_dd1034265ded7f::t_ecaea679fbaf16 1-2,4-6,8-40,42-52,54-65,144-145
+  s_dd1034265ded7f::t_65fb0f20efbdf1 41,95-102,116-125,127-133
+  s_dd1034265ded7f::t_f7e07eb2b465fa 3,110-115,126,134-143
+  s_dd1034265ded7f::t_366994ca9dd38c 7,66-94,103-109
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_fc8737d8a2485c 410
+apps/server/src/application/context/state-updates.test.ts
+  s_dd1034265ded7f::t_65fb0f20efbdf1 58-67
+  s_dd1034265ded7f::t_2b6d5ebb112084 50-57,68
+packages/agent/src/tools/tool-search/index.ts
+  s_dd1034265ded7f::t_718093de2ac167 13
+.scratch/tool-search/issues/05-catalog-budget-and-deltas.md
+  s_dd1034265ded7f::t_975eef2407b550 15-22,27-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "f6fa7e5329d53dc45d5a2139d3199ec794874da9",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
