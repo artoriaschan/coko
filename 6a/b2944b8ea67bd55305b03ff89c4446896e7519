@@ -1,0 +1,174 @@
+tests/integration/sidecar-tool-search.test.ts
+  s_dd1034265ded7f::t_cf400d3e0c1912 173
+  s_dd1034265ded7f::t_6a62b6849b37a5 128,172,174
+  s_dd1034265ded7f::t_b4e428885df9af 197-202,204,219
+  s_dd1034265ded7f::t_6eaf72967b7673 29,42-43
+  s_dd1034265ded7f::t_b2b5d4b3dee643 171
+  s_dd1034265ded7f::t_9aa4e2e4c7b612 41
+  s_dd1034265ded7f::t_bd9b7c858ce26d 203
+tests/integration/sidecar-mcp-resources-prompts.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 127,140
+  s_dd1034265ded7f::t_bd9b7c858ce26d 218-221
+tests/integration/sidecar-mcp-auth.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 75,124
+tests/integration/sidecar-plugins.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 125-126,207-208
+packages/agent/src/extensions/mcp/config.ts
+  s_dd1034265ded7f::t_4a8ebae0cb7a66 2,22-23,61,77-78,117
+tests/integration/sidecar-mcp-always-load.test.ts
+  s_dd1034265ded7f::t_20fcde1031bea4 102
+  s_dd1034265ded7f::t_58cc1996894f48 1-12,30-44,49-51,61-66,71-77,83-87
+  s_dd1034265ded7f::t_5e1bce6193fa84 13-29,45-48,52-60,67-70,78-82,89-93,109-112
+  s_dd1034265ded7f::t_fddf8550a32909 88,94-101,103-108,113-118
+tests/integration/secrets-gate-mcp.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 62
+tests/integration/sidecar-m6-seams.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 19,104-105
+apps/server/src/application/context/types.ts
+  s_dd1034265ded7f::t_fc8737d8a2485c 38
+  s_dd1034265ded7f::t_a9639f123c999c 67-68
+docs/subsystems/configuration.md
+  s_dd1034265ded7f::t_20fcde1031bea4 81-82
+  s_dd1034265ded7f::t_f42a63e8131943 43
+tests/integration/sidecar-mcp.test.ts
+  s_dd1034265ded7f::t_bd9b7c858ce26d 96-99
+apps/server/src/application/context/state-updates.test.ts
+  s_dd1034265ded7f::t_65fb0f20efbdf1 58-67
+  s_dd1034265ded7f::t_2b6d5ebb112084 50-57,68
+apps/desktop/e2e/mcp-browser.e2e.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 55
+apps/server/src/application/context/mcp.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 316,326-327,339,468,470
+  s_dd1034265ded7f::t_a9639f123c999c 134,320,328-329
+.scratch/tool-search/issues/11-default-on-and-test-migration.md
+  s_dd1034265ded7f::t_4b3862c8ca3f48 15-22,27-79
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_a8a5dcaf7f7fa2 30
+  s_dd1034265ded7f::t_f42a63e8131943 29,31
+  s_dd1034265ded7f::t_536cd83631b262 32
+packages/protocol/src/mcp.ts
+  s_dd1034265ded7f::t_a9639f123c999c 19
+apps/desktop/src/renderer/features/settings/mcp-section.browser.test.tsx
+  s_dd1034265ded7f::t_ca59ff18a441ac 202-214,219-237
+  s_dd1034265ded7f::t_350496852de85c 162,201
+  s_dd1034265ded7f::t_5e1bce6193fa84 215-218
+  s_dd1034265ded7f::t_e6fbbd903a51b2 172-173,180
+apps/desktop/e2e/package-smoke.e2e.test.ts
+  s_dd1034265ded7f::t_d04d33eef8195e 14,17,477
+  s_dd1034265ded7f::t_a04b32a5835d5d 307
+apps/desktop/src/renderer/features/settings/mcp-section.tsx
+  s_dd1034265ded7f::t_350496852de85c 17,549,561,681,689,696-697
+  s_dd1034265ded7f::t_5e1bce6193fa84 682-688,690-695
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_b62233e8c9f4ff 83-85
+  s_dd1034265ded7f::t_cd247867ad10e6 19,162
+  s_dd1034265ded7f::t_20fcde1031bea4 47,53,152
+  s_dd1034265ded7f::t_f42a63e8131943 77,79,81-82
+tests/integration/sidecar-mcp-presets.test.ts
+  s_dd1034265ded7f::t_a04b32a5835d5d 54,100-101
+docs/README.md
+  s_dd1034265ded7f::t_3e38aec3df6aff 49
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_65fb0f20efbdf1 242-243
+  s_dd1034265ded7f::t_0160c8da3408d6 344-346
+  s_dd1034265ded7f::t_dc48c4f5aca67d 235-241,244-247
+packages/agent/src/tools/tool-search/catalog.test.ts
+  s_dd1034265ded7f::t_157b6dad3b2ff6 73-80
+  s_dd1034265ded7f::t_94ca63da88c12b 63-72
+  s_dd1034265ded7f::t_1a9cd68d713f46 1-2,4-16
+  s_dd1034265ded7f::t_8010a41074a40b 3,46-52,59-60
+  s_dd1034265ded7f::t_65fb0f20efbdf1 53-58
+  s_dd1034265ded7f::t_d9c38624561cf5 39-45,61-62
+  s_dd1034265ded7f::t_58228cf5ea96bb 30-32,34,36-38
+  s_dd1034265ded7f::t_5557be731a5936 17-29
+  s_dd1034265ded7f::t_19fff4dd818379 33,35
+tests/fixtures/tool-search/catalog-delta.txt
+  s_dd1034265ded7f::t_a57ea0fed85233 1-22
+packages/agent/src/tools/tool-search/catalog.ts
+  s_dd1034265ded7f::t_f1c0abec21eb76 66-67,71
+  s_dd1034265ded7f::t_0b7e8e100e7bb4 15-17,19-21,40,53,56-57,60-65,79-81
+  s_dd1034265ded7f::t_718093de2ac167 1-7,22-24,26-27,31,82
+  s_dd1034265ded7f::t_807ae1bf5c0d7d 74-75,77
+  s_dd1034265ded7f::t_65fb0f20efbdf1 44-50,68-69
+  s_dd1034265ded7f::t_e4fed558c4d694 8-14,18,25,28-30,32-39,41-43,51-52,54-55,58-59,70,72-73,76,78
+tests/fixtures/tool-search/stdio-server.ts
+  s_dd1034265ded7f::t_0272bd9b1cf8df 1-11,16-17
+  s_dd1034265ded7f::t_6f51dbd3f591d1 12-15
+apps/desktop/e2e/mcp.e2e.test.ts
+  s_dd1034265ded7f::t_d04d33eef8195e 98
+  s_dd1034265ded7f::t_bd9b7c858ce26d 99
+tests/integration/sidecar-config.test.ts
+  s_dd1034265ded7f::t_e6a33022bc590d 55
+packages/agent/src/config/schema.ts
+  s_dd1034265ded7f::t_773c43201c4dbe 47
+packages/i18n/src/dictionaries/domains/mcp.ts
+  s_dd1034265ded7f::t_350496852de85c 73-74,204,207
+  s_dd1034265ded7f::t_5e1bce6193fa84 205-206
+tests/integration/sidecar-tool-search-keywords.test.ts
+  s_dd1034265ded7f::t_536cd83631b262 1-166
+.scratch/tool-search/issues/04-keyword-search-and-scope.md
+  s_dd1034265ded7f::t_9faf651dcf109b 15-23,28-34
+  s_dd1034265ded7f::t_ef2fbdc5c86986 35
+packages/agent/src/tools/tool-search/index.ts
+  s_dd1034265ded7f::t_525d7e5d676b7d 58,64-65,77
+  s_dd1034265ded7f::t_af9cee7305ae4a 13,37
+  s_dd1034265ded7f::t_071205b08829fa 3,48
+  s_dd1034265ded7f::t_6f51dbd3f591d1 46-47,66-70,72-76
+  s_dd1034265ded7f::t_e6a33022bc590d 41-45,50-52,62-63,71,78-79
+.scratch/tool-search/issues/06-always-load-servers.md
+  s_dd1034265ded7f::t_7eeb7507d40576 15-22,27-33
+packages/agent/src/entries/state-updates.test.ts
+  s_dd1034265ded7f::t_b9cae7e8d15127 37-44,48,54-55
+  s_dd1034265ded7f::t_65fb0f20efbdf1 45-47,49-53
+tests/fixtures/tool-search/keyword-result.json
+  s_dd1034265ded7f::t_82d5e6aa6ef284 3
+  s_dd1034265ded7f::t_0272bd9b1cf8df 1-2,4-18
+apps/desktop/src/renderer/stores/config-store.test.ts
+  s_dd1034265ded7f::t_1da8ce17db4604 10
+.scratch/tool-search/issues/05-catalog-budget-and-deltas.md
+  s_dd1034265ded7f::t_975eef2407b550 15-22,27-33
+  s_dd1034265ded7f::t_299ea9c48a716a 34-35
+.scratch/tool-search/issues/12-provider-switch-native-transport.md
+  s_dd1034265ded7f::t_56d2b1d3103542 38-39
+apps/server/src/application/session-runs.ts
+  s_dd1034265ded7f::t_fc8737d8a2485c 411
+tests/integration/sidecar-tool-search-catalog.test.ts
+  s_dd1034265ded7f::t_ecaea679fbaf16 1-2,4-6,8-40,42-52,54-65,144-145
+  s_dd1034265ded7f::t_65fb0f20efbdf1 41,95-102,116-125,127-133
+  s_dd1034265ded7f::t_366994ca9dd38c 7,66-94,103-109
+  s_dd1034265ded7f::t_a57ea0fed85233 53
+  s_dd1034265ded7f::t_f7e07eb2b465fa 3,110-115,126,134-143
+packages/agent/src/entries/state-updates.ts
+  s_dd1034265ded7f::t_3ac27d95de672b 67-69,73-77
+  s_dd1034265ded7f::t_f3e83da8541bc1 70-72
+packages/agent/src/tools/tool-search/search.ts
+  s_dd1034265ded7f::t_82d5e6aa6ef284 69-70,81
+  s_dd1034265ded7f::t_071205b08829fa 1-15,28-29,40-54,61-68,86-89,94
+  s_dd1034265ded7f::t_6f51dbd3f591d1 16-27,30-39,55-60,71-80,82-85,90-93
+packages/agent/README.md
+  s_dd1034265ded7f::t_e9447c8207f0f4 15
+packages/agent/src/tools/tool-search/tool-search.test.ts
+  s_dd1034265ded7f::t_00c1a44c83e65b 121
+  s_dd1034265ded7f::t_6310e440049b4f 18-31
+  s_dd1034265ded7f::t_02b6d97480cb03 4,11-16,58-61,68-92,94-112,119-120
+  s_dd1034265ded7f::t_525d7e5d676b7d 93
+  s_dd1034265ded7f::t_6f51dbd3f591d1 62-67,113-118
+packages/agent/src/extensions/mcp/config.test.ts
+  s_dd1034265ded7f::t_4dec1c10fdd1ae 15-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6ab2944b8ea67bd55305b03ff89c4446896e7519",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
