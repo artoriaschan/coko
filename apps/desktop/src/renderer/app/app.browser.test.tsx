@@ -733,6 +733,7 @@ it('opens Start on demand, replaces it with a singleton page and collapses after
   for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace']) {
     await expect.element(panel.getByRole('button', { name, exact: true })).toBeVisible()
   }
+  await page.screenshot({ element: panel.element(), path: '../../../../../.vitest/sidebar-start-desktop.png' })
   await panel.getByRole('button', { name: 'Trace', exact: true }).click()
   await expect.element(panel.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(panel.getByRole('tab').all().length).toBe(1)
@@ -827,7 +828,7 @@ it.each([
   ['en', 'light', 'Open sidebar', 'Start', 'Trace'],
   ['zh', 'dark', '打开侧边栏', '开始', '追踪'],
 ] as const)('%s %s: Start and its page entry remain reachable at 390 CSS px', async (locale, theme, open, start, trace) => {
-  await page.viewport(390, 800)
+  await page.viewport(390, 400)
   await renderApp(locale, { theme }).screen
   await page.getByRole('button', { name: open, exact: true }).click()
   await expect.element(page.getByRole('tab', { name: start, exact: true })).toBeVisible()
@@ -835,7 +836,15 @@ it.each([
   const bounds = card.element().getBoundingClientRect()
   expect(bounds.left).toBeGreaterThanOrEqual(0)
   expect(bounds.right).toBeLessThanOrEqual(390)
-  await card.click()
+  const first = page.getByRole('button', { name: locale === 'zh' ? '计划' : 'Plan', exact: true })
+  ;(first.element() as HTMLElement).focus()
+  for (let index = 0; index < 5; index++) await userEvent.keyboard('{Tab}')
+  await expect.element(card).toHaveFocus()
+  const focusedBounds = card.element().getBoundingClientRect()
+  expect(focusedBounds.top).toBeGreaterThanOrEqual(0)
+  expect(focusedBounds.bottom).toBeLessThanOrEqual(400)
+  await page.screenshot({ path: `../../../../../.vitest/sidebar-start-${locale}-${theme}-390-short.png` })
+  await userEvent.keyboard('{Enter}')
   await expect.element(page.getByRole('tab', { name: trace, exact: true })).toHaveAttribute('aria-selected', 'true')
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
 })

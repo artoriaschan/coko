@@ -1,6 +1,6 @@
 import { DndContext, PointerSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import * as React from 'react'
-import { PlusIcon, XIcon } from 'lucide-react'
+import { CompassIcon, PlusIcon, XIcon } from 'lucide-react'
 import { Button } from './button.tsx'
 import { DropdownMenuItem } from './dropdown-menu.tsx'
 import { RowMenu, type RowMenuPoint } from './row-menu.tsx'
@@ -338,17 +338,20 @@ export function PanelStart<Kind extends string>({
   onOpen: (id: Kind) => void
 }) {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4" data-scroll-stable>
-      <div className="grid w-full max-w-96 grid-cols-2 gap-3">
+    <div className="min-h-0 flex-1 overflow-y-auto" data-slot="panel-start" data-scroll-stable>
+      <div className="panel-start-content">
+        <CompassIcon aria-hidden strokeWidth={1.5} className="mb-4 size-14 shrink-0 text-foreground opacity-10 [&_path]:fill-current" />
         {pages.map((page) => (
           <button
             key={page.id}
             type="button"
             onClick={() => onOpen(page.id)}
-            className="flex min-h-24 min-w-0 flex-col items-center justify-center gap-2 rounded-xl bg-card p-3 text-ui-body text-foreground focus-ring hover:bg-accent"
+            className="flex min-h-14 w-[380px] max-w-full min-w-0 shrink-0 items-center gap-3.5 rounded-xl border-hairline border-border bg-card px-5 py-3.5 text-start text-ui-body-lg text-foreground focus-ring hover:bg-accent"
           >
-            {page.icon}
-            <span className="max-w-full truncate">{page.title}</span>
+            <span aria-hidden className="flex size-[26px] shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-[22px]">
+              {page.icon}
+            </span>
+            <span className="min-w-0 flex-1">{page.title}</span>
           </button>
         ))}
       </div>
