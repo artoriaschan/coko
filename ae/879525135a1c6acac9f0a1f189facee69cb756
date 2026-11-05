@@ -1,0 +1,19 @@
+.scratch/system-data-root/issues/08-mcp-data-directory.md
+  s_6cadf0cc1974f1::t_b49f42b6a6f55f 35-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ae879525135a1c6acac9f0a1f189facee69cb756",
+  "prompts": {},
+  "sessions": {
+    "s_6cadf0cc1974f1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaf7-1b11-76f1-b0a0-dc7223609a49",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
