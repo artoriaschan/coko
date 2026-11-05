@@ -1,0 +1,49 @@
+apps/server/src/application/context/index.ts
+  s_dd1034265ded7f::t_c8fffc3d1091b5 241
+tests/integration/secrets-gate-mcp.test.ts
+  s_dd1034265ded7f::t_472889a86a7ea4 20-21
+  s_dd1034265ded7f::t_6c61a857facd34 39-47,68-80
+  s_dd1034265ded7f::t_f8d6d795f51c2d 22-38,48-57,62-67,81-82
+  s_dd1034265ded7f::t_3942e5fe48375c 58-61
+tests/integration/sidecar-incremental-tools.test.ts
+  s_dd1034265ded7f::t_c8fffc3d1091b5 207-212,215-216
+  s_dd1034265ded7f::t_6c61a857facd34 37,170-190
+  s_dd1034265ded7f::t_64b8ebff50a5a2 25,56,85,108,118,157-169,191-206
+docs/subsystems/context.md
+  s_dd1034265ded7f::t_3942e5fe48375c 174,270
+packages/agent/src/engine/compaction-driver.ts
+  s_dd1034265ded7f::t_8207378e6b498a 123-125,127-131,138,140,145-147
+  s_dd1034265ded7f::t_3942e5fe48375c 126
+packages/agent/src/engine/compaction.test.ts
+  s_dd1034265ded7f::t_6c61a857facd34 67-73,75,88-94,96
+  s_dd1034265ded7f::t_3229c9a69a82b7 26,36,101
+  s_dd1034265ded7f::t_1f5fd0d230ae0c 86-87,95,97-100,102-111
+  s_dd1034265ded7f::t_f71b21ea98424d 65-66,74,76-85
+tests/fixtures/mcp/server-core.ts
+  s_dd1034265ded7f::t_f8d6d795f51c2d 236-244
+.scratch/tool-search/evidence/review.md
+  s_dd1034265ded7f::t_f57cb73ac3706b 1-45,47-58
+  s_dd1034265ded7f::t_f2531e6a260480 46
+docs/subsystems/mcp.md
+  s_dd1034265ded7f::t_3942e5fe48375c 159
+.scratch/tool-search/README.md
+  s_dd1034265ded7f::t_f57cb73ac3706b 31-32
+.scratch/tool-search/evidence/acceptance.md
+  s_dd1034265ded7f::t_f57cb73ac3706b 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ac14d22a069cf1e179d2788f6c7b34b8ee88636a",
+  "prompts": {},
+  "sessions": {
+    "s_dd1034265ded7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1abaa-c58a-79e3-8cf1-ab5652e0ee72",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
