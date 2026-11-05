@@ -1,0 +1,21 @@
+.scratch/system-context/issues/10-cache-acceptance-and-adr-0024.md
+  s_2a03236d6e6b67::t_db88de86cd1b77 30-31
+.scratch/system-context/evidence/delivery.md
+  s_2a03236d6e6b67::t_db88de86cd1b77 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "43de0ccf24d6f09db1c226ebd5c12a627f907a41",
+  "prompts": {},
+  "sessions": {
+    "s_2a03236d6e6b67": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aaaa-1504-76d0-8502-10356dcbd525",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
