@@ -32,7 +32,7 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 [设置 store](../../apps/desktop/src/renderer/stores/settings-store.ts)分别保存服务端已确认的值／revision 与当前开发者选择。开关立即采用当前选择；保存冲突或失败时显示应用级 Toast，并保留选择，离开再返回设置页也不撤销。[偏好装配](../../apps/desktop/src/renderer/app/preferences.ts)在工作台首次渲染之前确定页面可用条件，避免已保存的诊断 tab 在恢复时被错误过滤。
 
-启用后，各 Session 的“开始”页末尾增加“会话数据诊断”卡片，不会自动打开页面。关闭后立即移除所有已采用布局中的诊断 tab；它是唯一 tab 时整栏收起。未采用布局在日后恢复时过滤掉诊断页，过滤本身不批量改写其他 Session 的保存键。诊断页检查主区当前 Session，只读，也可用于归档或 worktree 已移除的会话；当前页面外壳包含“展示形式”（原始数据／对话分组）与“暂无记录”状态，没有输入框。
+启用后，各 Session 的“开始”页末尾增加“会话数据诊断”卡片，不会自动打开页面。关闭后立即移除所有已采用布局中的诊断 tab；它是唯一 tab 时整栏收起。未采用布局在日后恢复时过滤掉诊断页，过滤本身不批量改写其他 Session 的保存键。诊断页检查主区当前 Session，只读，也可用于归档或 worktree 已移除的会话；页面提供“展示形式”与只读数据表格，没有输入框；已加载条目的 Run 分组、虚拟化、跟随与 JSON 详情见[会话数据诊断](session-diagnostics.md)。
 
 验证：[真实 App 开发者 Browser Mode](../../apps/desktop/src/renderer/features/settings/developer.browser.test.tsx)覆盖开关默认值、保存、无效值／读取失败、冲突／失败保留选择、跨 Session 关闭与恢复、390px 中英文及明暗主题；[Electron 重启用例](../../apps/desktop/e2e/developer-diagnostics.e2e.test.ts)覆盖设置保持与诊断页恢复／关闭链路。
 

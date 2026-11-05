@@ -13,6 +13,7 @@ export default defineProject({
     include: [
       'radix-ui/internal',
       '@dnd-kit/core',
+      '@tanstack/react-virtual',
       'sonner',
       '@lexical/react/LexicalComposer',
       '@lexical/react/LexicalComposerContext',
