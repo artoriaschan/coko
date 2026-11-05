@@ -42,3 +42,11 @@
 文档影响与读回：更新 [项目与会话](../../../docs/subsystems/projects.md#永久删除对话) 的预览、文件/Workspace 清理与归档边界；更新 [执行](../../../docs/subsystems/execution.md#工具结果落盘) 的分叉私有文件所有权，并同步总导航摘要。从 AGENTS → 文档导航 → 两处正文读回，路径与引用、语义、归属、引用方向、生命周期、入口和历史保留检查均通过；未新建正式文档类别。明暗主题截图保存在被忽略的 `.vitest/sdr11-delete-*.png`，已查看实际渲染；长路径可滚动，复制按钮在路径旁保持可见。
 
 限制：Windows 只审查 Node 文件系统 API 与路径假设，未实机运行；未调用真实模型或前台原生窗口/真实指针；复制路径在 Browser Mode 替换剪贴板边界验证，Electron E2E 检查保留路径与按钮，不改用户剪贴板。SQLite 删除与文件系统清理不是跨系统事务，私有数据清理错误会向调用方报告，目录检查或 rmdir 竞态失败保留目录；未声称整仓测试或 CI 通过。仅本地提交，未推送/发布。
+
+
+合入最终前置集成 `3d048250`（插件、Artifacts 与存储设置）后，仅 `docs/README.md` 相邻导航摘要发生冲突，按 resolving-merge-conflicts 保留两边语义；源码、协议与字典自动合并。合并工作区验证：
+
+- `rtk pnpm run typecheck`：退出 0。
+- `rtk pnpm run test tests/integration/sidecar-session-cleanup.test.ts tests/integration/sidecar-artifacts.test.ts tests/integration/sidecar-storage-paths.test.ts apps/desktop/src/renderer/features/sidebar/session-delete-dialog.browser.test.tsx apps/desktop/src/renderer/features/settings/storage-card.browser.test.tsx apps/desktop/src/renderer/features/right-panel/artifacts-tab.browser.test.tsx apps/server/src/application/session-delete.test.ts`：7 文件、22 项通过，未过滤。
+- 另行 `rtk pnpm run test apps/server/src/application/session-delete.test.ts`：2 项通过（与联合检查有重叠，不累加为不同用例）。
+- `rtk pnpm run check:docs`：378 个 Markdown，0 问题；从总导航同时读回 Artifact、存储和空目录清理摘要，均保留有效入口。
