@@ -245,7 +245,7 @@ it.each([
   await expect.poll(() => fixture.chat.getState().activeSessionId).toBe('s-2')
 })
 
-it('actual App: explicit whole collapse resets agent detail and Trace remains the existing root route', async () => {
+it('actual App: explicit whole collapse resets agent detail and Inspect opens the main trajectory view', async () => {
   await page.viewport(1280, 900)
   const agents = createAgentsStore({
     list: async () => [],
@@ -274,8 +274,8 @@ it('actual App: explicit whole collapse resets agent detail and Trace remains th
   await page.getByText('Input / output', { exact: true }).click()
   expect(document.querySelector('[data-tool="agent"] details')?.hasAttribute('open')).toBe(true)
   await page.getByRole('button', { name: 'Inspect', exact: true }).click()
-  await expect.poll(() => document.querySelector('[role="tab"][data-tab="trace"]')?.getAttribute('aria-selected')).toBe('true')
-  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).last().click()
+  await expect.poll(() => document.querySelector('[role="tab"][data-tab="trajectory"]')?.getAttribute('aria-selected')).toBe('true')
+  await page.getByRole('tab', { name: 'Conversation', exact: true }).click()
   await whole.click()
   await whole.click()
   await page.getByRole('button', { name: 'Coordinated subagents', exact: true }).click()

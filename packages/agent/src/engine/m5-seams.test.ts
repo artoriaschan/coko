@@ -2,7 +2,7 @@
 // 只发一次无工具的请求，经 beforeRequest，不提交消息）、run_start 的 schedule 与新的停止原因。faux 模型 + 临时 Workspace；
 // 工具执行与控制调用的交叠由 deferred 控制，不用 sleep。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { Context } from '@earendil-works/pi-ai'
+import { getCurrentSystemPrompt, type Context } from '@earendil-works/pi-ai'
 import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { EntryLike } from '../entries/index.ts'
@@ -260,7 +260,11 @@ describe('摘要模式（trigger handoff）', () => {
     ])
     expect(checked).toEqual([h.stored[0]!.runId, result.runId])
     expect(kinds(h.stored.slice(before))).toEqual(['run_start', 'model_request', 'run_end'])
-    expect(h.stored[before + 1]!.payload).toMatchObject({ purpose: 'summary', runId: result.runId })
+    expect(h.stored[before + 1]!.payload).toMatchObject({
+      purpose: 'summary',
+      runId: result.runId,
+      snapshot: { system: getCurrentSystemPrompt(request.messages), messages: JSON.parse(JSON.stringify(request.messages)), tools: [] },
+    })
     expect(h.stored[before]!.payload).toEqual({ trigger: 'handoff' })
     expect(h.runtime.messages).toEqual(messages)
     // 之后的 Run 照常有工具。
@@ -330,7 +334,7 @@ describe('新的 trigger 与停止原因', () => {
     slow.release()
     const result = await run
     expect(result).toEqual({ runId: result.runId, status: 'paused', error })
-    expect(kinds(h.stored)).toEqual(['run_start', 'message:user', 'message:assistant', 'model_request', 'message:toolResult', 'run_end'])
+    expect(kinds(h.stored)).toEqual(['run_start', 'message:user', 'model_request', 'message:assistant', 'message:toolResult', 'run_end'])
     expect(h.stored.at(-1)!.payload).toEqual({ status: 'paused', error })
     expect(h.requests).toHaveLength(1)
   })

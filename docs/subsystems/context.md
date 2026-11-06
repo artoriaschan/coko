@@ -71,6 +71,10 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 
 环境每个 Run 开始按当前作用域生成，未改变环境与模型时逐字稳定；更换模型后下一次 Run 使用新模型标识。子 Session 继承根 Session 所属 Project 的附加文件夹。还没有 Session 的草稿上下文接口使用 Workspace 与其 Project、缺省模型；会话的用量接口使用当前模型与实际工作目录。环境 section 与其他 system section 一起计入上下文用量的 `system` 分项。
 
+每次请求的完整系统提示词、消息和有效工具目录另外记录为脱敏请求快照，见[逐请求记录](tracing.md#逐请求记录)。它属于 `model_request` 执行记录，不是模型消息，不会作为新上下文回灌；Fork 与 Handoff 不复制该记录。
+
+轨迹列表把基础 system 正文与 `coko.base` 单独显示为初始系统提示词；其他 system sections 和实际送达的 State Update 包装块作为上下文分别展示在用户输入之后。它只是查看方式，实际请求仍按上述 system sections 与消息组合发送；圆点请求详情保留完整原始快照。没有记录的历史提示词不会从当前配置重建，见[轨迹界面](tracing.md#界面)。
+
 ## File Reference
 
 ### 语法

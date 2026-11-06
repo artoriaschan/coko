@@ -1,12 +1,11 @@
-// Trace tab（docs/subsystems/tracing.md#界面）：真实 Electron + 真实 Sidecar（faux）。Run 结束后右栏的 Trace tab 列出它（触发、状态、Token），
-// 键盘展开为模型请求与工具行；新 Run 结束后自动出现；"导出"经 Electron 的下载保存 .ndjson（接收侧：main 的 will-download 与写出的文件，
-// 第一行为 header）；明暗主题下 Run 摘要与请求行的对比度 ≥ 4.5；390 px 窗口下导出按钮可达、不出现整页横向滚动。bash 在 full-access 下运行。
+// 真实 Electron + Sidecar（faux）：轨迹记录、键盘详情、Inspect 精确定位、实时追加与 NDJSON 下载。
+// 同时验证明暗主题文字对比度及 390px 窗口，并保存实际渲染截图。bash 在 full-access 下运行。
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Locator, Page } from 'playwright'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { createProjectDraft, launchApp, waitConnected, type LaunchedApp } from './harness.ts'
+import { createProjectDraft, launchApp, waitConnected, writeCokoHome, type LaunchedApp } from './harness.ts'
 
 const apps: LaunchedApp[] = []
 afterEach(async () => {
@@ -63,11 +62,17 @@ async function setTheme(win: Page, theme: 'dark' | 'light') {
 const call = (id: string, command: string) => ({ type: 'toolCall', name: 'bash', id, arguments: { command } })
 
 describe('Trace tab', () => {
-  it('列出 Run → 键盘展开请求与工具行 → 新 Run 自动出现 → 导出 .ndjson；明暗主题对比度；390 px', { timeout: 180_000 }, async () => {
+  it('trajectory ledger, exact Inspect navigation, live append, export, light/dark and 390px', { timeout: 180_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'coko-trace-e2e-'))
     onTestFinished(() => rm(root, { recursive: true, force: true }))
     const workspace = join(root, 'workspace')
     await mkdir(workspace)
+    await writeFile(join(workspace, 'AGENTS.md'), '# Workspace instructions\nTRAJECTORY_WORKSPACE_CONTEXT\n')
+    await writeCokoHome(
+      root,
+      'skills/trajectory-qa/SKILL.md',
+      '---\nname: trajectory-qa\ndescription: A skill catalog entry for trajectory verification.\n---\nRead the workspace before editing.\n',
+    )
     const downloads = join(root, 'downloads')
     await mkdir(downloads)
     await writeFile(
@@ -101,33 +106,96 @@ describe('Trace tab', () => {
     await waitConnected(win)
     await expect.poll(lastReply, { timeout: 30_000 }).toBe('First done.')
 
-    // 右栏 → Trace tab：一个 Run（提交、已完成、两次请求的 Token）。
-    await win.getByRole('button', { name: /^(Open sidebar|打开侧边栏)$/ }).click()
-    await win.getByRole('button', { name: /^(Trace|追踪)$/, exact: true }).click()
-    const runs = win.locator('[data-slot="trace-run"]')
-    await expect.poll(() => runs.count(), { timeout: 15_000 }).toBe(1)
-    await expect.poll(() => runs.first().getAttribute('data-status')).toBe('completed')
-    expect(await runs.first().textContent()).toContain('274 tokens')
-
-    // 键盘展开：两次请求、一个 bash 工具行。之后按 runId 定位（新 Run 出现在最上面）。
-    const firstRunId = (await runs.first().getAttribute('data-run-id'))!
-    const firstRun = win.locator(`[data-slot="trace-run"][data-run-id="${firstRunId}"]`)
-    const toggle = firstRun.locator('[data-action="toggle-run"]')
-    await toggle.focus()
+    await win.getByRole('tab', { name: /^(Trajectory|轨迹)$/, exact: true }).click()
+    const ledger = win.locator('[data-slot="trajectory-panel"]')
+    const tools = ledger.locator('tr[data-tool-call-id]')
+    await expect.poll(() => tools.count(), { timeout: 15_000 }).toBe(1)
+    await expect.poll(() => ledger.locator('[data-timeline-span]').count()).toBeGreaterThan(0)
+    expect(await tools.first().textContent()).toContain('traced')
+    const system = ledger.locator('tr[data-kind="system"][data-request-purpose="turn"]').first()
+    await system.click()
+    await ledger.getByRole('tab', { name: /^(System Prompt|系统提示词)$/ }).click()
+    const systemPanel = ledger.getByRole('tabpanel', { name: /^(System Prompt|系统提示词)$/ })
+    await systemPanel.waitFor()
+    expect(await systemPanel.textContent()).toContain('You are Coko')
+    expect(await systemPanel.textContent()).not.toContain('<environment>')
+    expect(await systemPanel.textContent()).not.toContain('TRAJECTORY_WORKSPACE_CONTEXT')
+    await mkdir('.impeccable/review', { recursive: true })
+    await win.screenshot({ path: '.impeccable/review/trajectory-system-snapshot.png' })
+    await ledger.getByRole('tab', { name: /^(Tools|工具)$/ }).click()
+    await ledger
+      .getByRole('tabpanel', { name: /^(Tools|工具)$/ })
+      .getByText('bash', { exact: true })
+      .waitFor()
+    await ledger.getByRole('button', { name: /^(Close details|关闭详情)$/ }).click()
+    const environment = ledger.locator('tr[data-context-section="environment"]').first()
+    await environment.click()
+    expect(await ledger.locator('aside').textContent()).toContain('<environment>')
+    const user = ledger.locator('tr[data-kind="user"]').first()
+    const indexInTable = (row: Locator) => row.evaluate((el) => [...el.parentElement!.children].indexOf(el))
+    expect(await indexInTable(environment)).toBeGreaterThan(await indexInTable(user))
+    await ledger.locator('tr[data-context-section="instructions"]').first().click()
+    expect(await ledger.locator('aside').textContent()).toContain('TRAJECTORY_WORKSPACE_CONTEXT')
+    expect(await ledger.locator('tr[data-context-section="skills"]').first().textContent()).toContain('trajectory-qa')
+    await ledger.locator('tr[data-context-section="date"]').first().click()
+    expect(await ledger.locator('aside').textContent()).toContain('<state_update name="date">')
+    await ledger.getByRole('button', { name: /^(Close details|关闭详情)$/ }).click()
+    await win.screenshot({ path: '.impeccable/review/trajectory-separated-context.png' })
+    const assistant = ledger.locator('tr[data-kind="message"][data-request-purpose="turn"]:not([data-request-only])').first()
+    await assistant.click()
+    await ledger.locator('aside').getByRole('button', { name: 'bash', exact: true }).waitFor()
+    await assistant.locator('button[aria-pressed]').click()
+    await ledger.locator('aside[data-inspector="request"]').waitFor()
+    await ledger.getByRole('tab', { name: /^(Options|选项)$/ }).click()
+    expect(await ledger.getByRole('tabpanel', { name: /^(Options|选项)$/ }).textContent()).toContain('messages:')
+    expect(await ledger.getByRole('tabpanel', { name: /^(Options|选项)$/ }).textContent()).toContain('<environment>')
+    await win.screenshot({ path: '.impeccable/review/trajectory-request-inspector.png' })
+    await ledger.getByRole('button', { name: /^(Close details|关闭详情)$/ }).click()
+    await assistant.dblclick()
+    await expect.poll(() => tools.count()).toBe(0)
+    const callSummary = ledger.locator('tr[data-collapsed-summary="assistant"]')
+    expect(Math.round((await callSummary.boundingBox())!.height)).toBe(20)
+    await win.screenshot({ path: '.impeccable/review/trajectory-assistant-folded.png' })
+    await callSummary.click()
+    await expect.poll(() => tools.count()).toBe(1)
+    await ledger.locator('tr[data-turn-start="true"]').first().dblclick()
+    const turnSummary = ledger.locator('tr[data-collapsed-summary="turn"]')
+    await turnSummary.waitFor()
+    await expect.poll(() => tools.count()).toBe(0)
+    await win.screenshot({ path: '.impeccable/review/trajectory-turn-folded.png' })
+    await turnSummary.focus()
     await win.keyboard.press('Enter')
-    await expect.poll(() => toggle.getAttribute('aria-expanded')).toBe('true')
-    const details = firstRun.locator('[data-slot="trace-run-details"]')
-    await expect.poll(() => details.locator('[data-slot="trace-request"]').count()).toBe(2)
-    expect(await details.locator('[data-slot="trace-tool"]').getAttribute('data-tool')).toBe('bash')
+    await expect.poll(() => tools.count()).toBe(1)
+    await tools.first().focus()
+    await win.keyboard.press('Enter')
+    const details = ledger.locator('aside')
+    await details.waitFor()
+    await details.getByRole('tab', { name: /^(Payload|参数)$/ }).click()
+    expect(await details.textContent()).toContain('echo traced')
+    await details.getByRole('tab', { name: 'Schema', exact: true }).click()
+    expect(await details.textContent()).toContain('"bash"')
+    expect(await details.textContent()).toContain('parameters:')
+    await details.getByRole('tab', { name: /^(Payload|参数)$/ }).click()
 
-    // 新 Run 结束后自动出现在最上面（不需要切换 tab）。
+    // A completed Run appends records without losing the selected call.
     await send('again')
     await expect.poll(lastReply, { timeout: 30_000 }).toBe('Second done.')
-    await expect.poll(() => runs.count(), { timeout: 15_000 }).toBe(2)
-    await expect.poll(() => runs.first().textContent()).toContain('164 tokens')
-    expect(await runs.first().getAttribute('data-run-id')).not.toBe(firstRunId)
-    // 重读不重挂载已有的 Run：展开状态保留。
-    expect(await toggle.getAttribute('aria-expanded')).toBe('true')
+    await expect.poll(() => ledger.locator('tr[data-kind="user"]').count()).toBe(2)
+    expect(await ledger.locator('[data-selected="true"]').getAttribute('data-tool-call-id')).toBe('b1')
+
+    // Inspect through the main timeline opens the same record after folds and search.
+    await details.getByRole('button', { name: /^(Close details|关闭详情)$/ }).click()
+    await ledger.getByRole('searchbox').fill('missing record')
+    await ledger.getByRole('button', { name: /^(Collapse turns|收起所有轮次)$/ }).click()
+    await win.getByRole('tab', { name: /^(Conversation|对话)$/, exact: true }).click()
+    const process = win.getByRole('button', { name: /^(Work steps|工作步骤)$/ })
+    if (await process.count()) await process.first().click()
+    const group = win.getByRole('button', { name: /^(Ran commands|已运行命令)$/ })
+    if (await group.count()) await group.first().click()
+    await win.locator('[data-slot="tool-card"][data-tool="bash"]').first().getByRole('button').first().click()
+    await win.getByRole('button', { name: /^(Inspect|查看)$/, exact: true }).click()
+    await expect.poll(() => ledger.locator('[data-selected="true"]').getAttribute('data-tool-call-id')).toBe('b1')
+    expect(await ledger.getByRole('searchbox').inputValue()).toBe('')
 
     // 导出：main 的 will-download 把下载保存到临时目录（接收侧为写出的文件）。
     await app.app.evaluate(({ session }, dir) => {
@@ -150,14 +218,13 @@ describe('Trace tab', () => {
     expect(lines.slice(1).map((line) => (JSON.parse(line) as { kind: string }).kind)).toEqual(expect.arrayContaining(['run_start', 'model_request', 'run_end']))
     await expect.poll(() => win.getByText(/^(Exported|已导出) coko-session-/).count()).toBeGreaterThan(0)
 
-    // 明暗主题：Run 摘要与请求行的文字对比度。
-    const summary = firstRun.locator('[data-action="toggle-run"] span.text-ui-small')
-    const requestLine = details.locator('[data-slot="trace-request"] span.text-ui-small').first()
+    // Theme/readability captures from the actual Electron renderer.
+    await mkdir('.impeccable/review', { recursive: true })
     for (const theme of ['dark', 'light'] as const) {
       await setTheme(win, theme)
-      await win.locator('[role="tab"][data-tab="trace"]').click()
-      expect(await contrast(summary)).toBeGreaterThanOrEqual(4.5)
-      expect(await contrast(requestLine)).toBeGreaterThanOrEqual(4.5)
+      await win.locator('[role="tab"][data-tab="trajectory"]').click()
+      expect(await contrast(details.locator('header span').last())).toBeGreaterThanOrEqual(4.5)
+      await win.screenshot({ path: `.impeccable/review/trajectory-${theme}.png` })
     }
 
     // 390 px：导出按钮在窗口内，没有整页横向滚动。
@@ -167,18 +234,11 @@ describe('Trace tab', () => {
       w.setContentSize(390, 820)
     })
     await expect.poll(() => win.evaluate(() => window.innerWidth)).toBe(390)
-    await expect.poll(() => win.locator('[data-slot="app-frame"]').getAttribute('data-right')).toBe('fullscreen')
-    await expect
-      .poll(() =>
-        win.locator('[data-slot="app-frame-right"]').evaluate((el) => {
-          const box = el.getBoundingClientRect()
-          return [box.x, box.width]
-        }),
-      )
-      .toEqual([0, 390])
+    await expect.poll(() => win.locator('[data-slot="app-frame-main"]').evaluate((el) => Math.round(el.getBoundingClientRect().width))).toBe(390)
     const box = await exportButton.boundingBox()
     expect(box).not.toBeNull()
     expect(box!.x + box!.width).toBeLessThanOrEqual(390)
     expect(await win.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await win.screenshot({ path: '.impeccable/review/trajectory-narrow.png' })
   })
 })

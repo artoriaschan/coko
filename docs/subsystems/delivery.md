@@ -14,6 +14,7 @@ lifecycle: active
 | --- | --- |
 | `apps/desktop/forge.config.ts` | `outDir`（`COKO_FORGE_OUT_DIR`，缺省 `out`）、`packagerConfig.icon`（仓库根 `brand/rukie-app-icon`）、`MakerZIP({}, ['darwin'])`、`MakerDMG({ format: 'ULFO' })`、Fuses、preStart 的 watch 与开发服务器、prePackage 构建 |
 | `apps/desktop/build/build.ts` | 构建期定义：`__COKO_TEST_BUILD__`、`__COKO_UPDATE_FEED__`（main）、`__COKO_RUNTIME_VERSIONS__`（renderer 的关于页）；`watchElectron`、`watchSidecar`、Sidecar 重建通知文件 |
+| `apps/desktop/build/renderer-dev-server.ts` | renderer 开发服务器、独立预构建缓存与退出清理 |
 | `apps/desktop/src/main/dev-reload.ts`、`sidecar-supervisor.ts` 的 `reload` | 开发时 Sidecar 重建后的计划重启 |
 | `apps/desktop/src/main/build-flags.ts` | `TEST_BUILD`、`UPDATE_FEED`、`resolveUpdateFeed`、`ignoredTestHooks` |
 | `apps/desktop/src/main/application-menu.ts`、`src/main/index.ts` | 自定义应用菜单与 File → 关闭的路由；标准应用、编辑、视图、窗口菜单使用 Electron role |
@@ -25,7 +26,9 @@ lifecycle: active
 
 ## 开发运行
 
-`pnpm dev:desktop`（根脚本，等价 `pnpm --filter @coko/desktop run start`；`electron-forge start`）的 preStart 依次：复制 ripgrep；启动 main / preload 与 Sidecar 的 tsdown watch 构建，两者首次构建都成功后启动 renderer 的 Vite 开发服务器（middleware 模式，HMR 复用同一端口），再由 Forge 启动 Electron。首次构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
+`pnpm dev:desktop`（根脚本，等价 `pnpm --filter @coko/desktop run start`；`electron-forge start`）的 preStart 依次：复制 ripgrep；启动 main / preload 与 Sidecar 的 tsdown watch 构建，两者首次构建都成功后才写入 Sidecar 重载通知，再启动 renderer 的 Vite 开发服务器（middleware 模式，HMR 复用同一端口），再由 Forge 启动 Electron。首次构建失败时 tsdown 报告错误并继续监听，修复后继续启动。同一检出已有开发实例时，初始构建开始不能先写重载通知：构建会清理输出目录，过早通知会让旧 main 重启到暂时缺失的 `dist/sidecar/index.mjs`；通知必须在产物就绪后发布。
+
+每个桌面开发服务器在系统临时目录使用独立的 Vite `cacheDir`，关闭或启动失败时清理自己的目录和 HTTP 监听。多个实例不能共用 `node_modules/.vite`：另一进程重建依赖会替换整个缓存，使旧页面尚未加载的动态模块丢失，返回 `504 Outdated Optimize Dep`，并可能因 React 未捕获的导入异常导致白屏。独立缓存避免后台验收实例覆盖正在使用的开发窗口。
 
 | 改动范围 | 结果 |
 | --- | --- |
@@ -97,7 +100,9 @@ main 在 Electron ready 后安装自定义应用菜单。macOS 的应用菜单�
 
 ## 验证入口
 
-- 开发运行：`sidecar-supervisor.test.ts`（reload 换进程且旧进程经 shutdown 退出、不触发意外退出；新进程失败进入 failed 后再次 reload 恢复；并发 reload 合并；首次启动失败后不动作；reload 途中 stop）、`dev-reload.test.ts`（原子替换触发、内容未变与其他文件不触发、close 后不触发）。`electron-forge start` 的整条链路没有自动化测试，2026-11-02 本机手动验证：改 `apps/server/src/index.ts` 后 Electron 进程不变、Sidecar 约 0.3 秒后重新 ready；改 `src/main` 后 Electron 重启、旧 Sidecar 退出、新 Sidecar ready；结束 Electron 后 Forge 退出，没有残留进程。
+- renderer 开发缓存：[并发开发进程回归](../../scripts/renderer-dev-server.test.ts)在两个独立 Node 进程中启动真实 Vite；第二个进程以不同优化配置生成依赖后，第一个进程仍能首次加载先前引用的动态模块，关闭第二个进程后也继续可用；退出后检查各自缓存已删除、监听已关闭。2026-11-06 静默 CDP 验收使用真实 Electron 加载开发服务器，验证 Markdown 标题、代码块与语法高亮正常显示。
+
+- 开发运行：[首次构建与通知顺序](../../scripts/desktop-dev-start.test.ts)覆盖已有开发实例不会在初始构建完成前收到重载通知；`sidecar-supervisor.test.ts`（reload 换进程且旧进程经 shutdown 退出、不触发意外退出；新进程失败进入 failed 后再次 reload 恢复；并发 reload 合并；首次启动失败后不动作；reload 途中 stop）、`dev-reload.test.ts`（原子替换触发、内容未变与其他文件不触发、close 后不触发）。`electron-forge start` 的整条链路没有自动化测试，2026-11-02 本机手动验证：改 `apps/server/src/index.ts` 后 Electron 进程不变、Sidecar 约 0.3 秒后重新 ready；改 `src/main` 后 Electron 重启、旧 Sidecar 退出、新 Sidecar ready；结束 Electron 后 Forge 退出，没有残留进程。2026-11-06 以隔离用户数据目录的两个后台开发实例验证首次构建顺序修复：第二个实例通过 `pnpm dev:desktop` 启动后，第一个实例在产物就绪后成功重启 Sidecar 并恢复连接，第二个实例正常就绪。
 - main 单元：`update-coordinator.test.ts`（两种 disabled、事件映射、调度、去重、同步抛出、脱敏、经确认的安装与取消）、`build-flags.test.ts`（发布构建不读 `COKO_TEST_UPDATE_FEED_URL`、被忽略的名字）。
 - renderer：`update-store.test.ts`、`about-section.browser.test.tsx`（各状态文案、键盘、明暗主题对比度）。
 - 测试构建 E2E `update.e2e.test.ts`（darwin）：本地 feed（loopback 端口 0）收到 main 的请求；204 → 已是最新；返回一个更新（下载内容不是签名应用）→ `error`，应用与 Sidecar 仍在，按钮与键盘触发新请求，明暗主题。

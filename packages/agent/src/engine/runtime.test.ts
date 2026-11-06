@@ -432,6 +432,9 @@ describe('Agent 运行时：模型错误与重试', () => {
       expect.objectContaining({ retries: 1, stopReason: 'stop', purpose: 'turn' }),
     ])
     expect(requests()[1]!.errorCode).toBeUndefined()
+    expect(requests()[0]!.snapshot).toEqual(requests()[1]!.snapshot)
+    expect(requests()[0]!.snapshot?.system).toContain('You are Coko')
+    expect(requests()[0]!.requestId).not.toBe(requests()[1]!.requestId)
 
     h.faux.setResponses([unavailable(), unavailable(), unavailable()])
     await h.runtime.run('again')
@@ -440,6 +443,7 @@ describe('Agent 运行时：模型错误与重试', () => {
     await h.runtime.run('third')
     expect(requests().at(-1)).toMatchObject({ retries: 0, stopReason: 'error', errorCode: 'model_error' })
     expect(requests()).toHaveLength(6)
+    expect(requests().every((request) => request.snapshot !== undefined)).toBe(true)
   })
 
   it('不可重试的流错误立即转为 Run 错误条目', async () => {

@@ -1,7 +1,7 @@
 // 运行时 seam：context.systemSections 组成开头系统消息的 sections（基础提示为第一段）、RunInput.before 的条目位于
 // run_start 之后与 user message 之前、transformMessages 只改请求不改条目、每条 assistant 提交后发 context_usage。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import { getSystemMessageText, type Context, type SystemMessage } from '@earendil-works/pi-ai'
+import { getCurrentSystemPrompt, getCurrentTools, getSystemMessageText, type Context, type SystemMessage } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createFauxModels, fauxAssistantMessage, fauxToolCall } from '../testing/faux.ts'
 import { createTempWorkspace, type TempWorkspace } from '../testing/workspace.ts'
@@ -81,6 +81,20 @@ describe('context.systemSections', () => {
     expect(sections[1]).toEqual(sections[0])
     expect(sections[2]).toMatchObject({ instructions: '<instructions>v2</instructions>' })
     expect(getSystemMessageText(leadingOf(h.requests[2]!))).toBe(DEFAULT_SYSTEM_PROMPT + '\n\n<instructions>v2</instructions>')
+    const recorded = h.entries.filter((entry) => entry.kind === 'model_request')
+    expect(recorded).toHaveLength(h.requests.length)
+    for (const [index, request] of h.requests.entries()) {
+      // Persisted JSON omits SDK fields whose value is undefined.
+      expect(recorded[index]?.payload.snapshot).toEqual(
+        JSON.parse(
+          JSON.stringify({
+            system: getCurrentSystemPrompt(request.messages),
+            messages: request.messages,
+            tools: getCurrentTools(request.messages),
+          }),
+        ),
+      )
+    }
     // 开头的系统消息不是条目。
     expect(h.entries.some((e) => e.kind === 'message' && e.payload.role === 'system')).toBe(false)
   })

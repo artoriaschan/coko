@@ -3,8 +3,23 @@ import { randomUUID } from 'node:crypto'
 import { Value } from 'typebox/value'
 import { USAGE_REPORT_SCHEMA } from '../session-entries/context.ts'
 import type { StreamFn } from '@earendil-works/pi-agent-core'
-import { createAssistantMessageEventStream, isContextOverflow, type AssistantMessage, type Model } from '@earendil-works/pi-ai'
-import type { ModelRequestPayload, ModelRequestPurpose } from '../session-entries/index.ts'
+import {
+  createAssistantMessageEventStream,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  isContextOverflow,
+  normalizeContext,
+  type AssistantMessage,
+  type Context,
+  type Model,
+} from '@earendil-works/pi-ai'
+import type { ModelRequestPayload, ModelRequestPurpose, ModelRequestSnapshot } from '../session-entries/index.ts'
+
+/** Copy before streaming can append responses or mutate transcript/tool declarations. Never captures transport credentials. */
+export function captureRequestSnapshot(context: Context): ModelRequestSnapshot {
+  const { messages } = normalizeContext(context)
+  return JSON.parse(JSON.stringify({ system: getCurrentSystemPrompt(messages), messages, tools: getCurrentTools(messages) })) as ModelRequestSnapshot
+}
 
 /** 一次已结束的请求的测量（尚不知用途与 runId）。 */
 export interface RequestMeasurement {
@@ -15,6 +30,7 @@ export interface RequestMeasurement {
   ttftMs?: number
   retries: number
   final: AssistantMessage
+  snapshot: ModelRequestSnapshot
 }
 
 export interface RequestMeter {
@@ -35,6 +51,7 @@ export function createRequestMeter(now: () => number = Date.now): RequestMeter {
     wrap: (inner) => (model, context, options) => {
       const out = createAssistantMessageEventStream()
       const requestId = randomUUID()
+      const snapshot = captureRequestSnapshot(context)
       const startedAt = now()
       const started = performance.now()
       let measured = false
@@ -47,6 +64,7 @@ export function createRequestMeter(now: () => number = Date.now): RequestMeter {
         ...(ttftMs === undefined ? {} : { ttftMs }),
         retries,
         final,
+        snapshot,
       })
       void (async () => {
         let partial: AssistantMessage | undefined
@@ -129,6 +147,7 @@ export function modelRequestPayload(runId: string | null, purpose: ModelRequestP
   return {
     runId,
     requestId: m.requestId,
+    snapshot: m.snapshot,
     usageReport,
     ...(typeof usage?.reasoning === 'number' ? { reasoning: count(usage.reasoning) } : {}),
     provider: m.final.provider ?? m.model.provider,

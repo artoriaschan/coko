@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
-import { modelRequestPayload, parseFileReferences, type ModelRegistry } from '@coko/agent'
+import { captureRequestSnapshot, modelRequestPayload, parseFileReferences, type ModelRegistry, type ModelRequestSnapshot } from '@coko/agent'
 import { getLogger, redactSecretsDeep } from '@coko/logging'
 import type { ImageAttachment } from '@coko/protocol'
 import type { SessionStore } from '@coko/session'
@@ -74,21 +74,20 @@ export class SessionTitles {
       else signal.addEventListener('abort', () => resolve(undefined), { once: true })
     })
     let final: AssistantMessage | undefined
+    let snapshot: ModelRequestSnapshot = { system: SYSTEM, messages: [], tools: [] }
     try {
       const filenames = [...parseFileReferences(text).map((reference) => basename(reference.path)), ...images.map((image) => image.name)]
       const messages = redactSecretsDeep([{ role: 'user' as const, content: JSON.stringify({ text, filenames }), timestamp: clock.now() }])
+      const context = { systemPrompt: SYSTEM, messages }
+      snapshot = captureRequestSnapshot(context)
       const request = Promise.resolve().then(() =>
         registry.models
-          .streamSimple(
-            model,
-            { systemPrompt: SYSTEM, messages },
-            {
-              signal,
-              toolChoice: 'none',
-              maxTokens: 100,
-              // pi-ai's absent reasoning level is off (the same mapping used by AgentRuntime).
-            },
-          )
+          .streamSimple(model, context, {
+            signal,
+            toolChoice: 'none',
+            maxTokens: 100,
+            // pi-ai's absent reasoning level is off (the same mapping used by AgentRuntime).
+          })
           .result(),
       )
       final = await Promise.race([request, aborted])
@@ -108,7 +107,15 @@ export class SessionTitles {
       stopReason: signal.aborted ? 'aborted' : 'error',
       timestamp: clock.now(),
     }
-    const payload = modelRequestPayload(null, 'title', { requestId: randomUUID(), model, startedAt, durationMs, retries: 0, final: final ?? fallback })
+    const payload = modelRequestPayload(null, 'title', {
+      requestId: randomUUID(),
+      model,
+      startedAt,
+      durationMs,
+      retries: 0,
+      final: final ?? fallback,
+      snapshot,
+    })
     if (timedOut) payload.errorCode = 'timeout'
     const raw =
       final?.content

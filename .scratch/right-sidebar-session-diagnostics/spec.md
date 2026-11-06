@@ -204,7 +204,7 @@ Status: ready-for-agent
 
 测试接缝为 Q21 确认的四类入口：
 
-1. **真实 App 的 Browser Mode 测试（主接缝）。** 装配方式照 [App 浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)与[对话联合浏览器测试](../../apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx)：使用真实 store，用 fixture 回放条目和进度。覆盖 RP-01—RP-18 中除 Mod+W 以外的行为，DEV-01—02，INS-01—INS-16，SEC-01，以及 390 CSS px、明暗主题与 zh/en。几何与让位的既有用例见 [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)，拖拽排序见[侧栏列表浏览器测试](../../apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx)，现有页面见[追踪 tab 浏览器测试](../../apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx)。
+1. **真实 App 的 Browser Mode 测试（主接缝）。** 装配方式照 [App 浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)与[对话联合浏览器测试](../../apps/desktop/src/renderer/features/conversation/integrated-detail.browser.test.tsx)：使用真实 store，用 fixture 回放条目和进度。覆盖 RP-01—RP-18 中除 Mod+W 以外的行为，DEV-01—02，INS-01—INS-16，SEC-01，以及 390 CSS px、明暗主题与 zh/en。几何与让位的既有用例见 [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)，拖拽排序见[侧栏列表浏览器测试](../../apps/desktop/src/renderer/features/sidebar/sidebar-lists.browser.test.tsx)，现有页面见[追踪 tab 浏览器测试](../../apps/desktop/src/renderer/features/trajectory/trajectory-view.browser.test.tsx)。
 2. **真实 Electron E2E（faux 模型）。** 只验证浏览器测不到的部分：
    - 焦点在右栏时，Mod+W 关闭页面，不关闭窗口；焦点不在右栏时，Mod+W 关闭窗口。
    - 重启应用后恢复 tab；设置中的开发者开关在重启后仍然生效。

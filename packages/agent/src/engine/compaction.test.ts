@@ -1,7 +1,7 @@
 // 运行时的压缩：每次请求前越过阈值时自动压缩并提交 compaction { trigger: auto }，摘要请求没有工具，下一次请求为合成摘要 +
 // firstKeptSeq 及之后；溢出时压缩一次再重试一次；连续 3 次自动失败后暂停，成功的手动压缩复位；手动压缩中停止不提交条目。
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
-import type { Context, SystemMessage } from '@earendil-works/pi-ai'
+import { getCurrentSystemPrompt, type Context, type SystemMessage } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Type } from 'typebox'
 import { createToolRegistry, type ToolRegistry } from '../tools/registry.ts'
@@ -128,6 +128,9 @@ describe('自动压缩', () => {
     expect(compaction.tokensAfter).toBeLessThan(compaction.tokensBefore)
 
     const summaryRequest = h.requests[1]!
+    expect(second[2]!.payload).toMatchObject({
+      snapshot: { system: getCurrentSystemPrompt(summaryRequest.messages), messages: JSON.parse(JSON.stringify(summaryRequest.messages)), tools: [] },
+    })
     expect((summaryRequest.messages[0] as SystemMessage).toolsAdded).toBeUndefined()
     expect(summaryRequest.messages).toHaveLength(2)
     expect(text(summaryRequest.messages[1])).toContain('## User Messages')

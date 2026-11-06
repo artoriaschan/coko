@@ -30,15 +30,15 @@ function imagesOf(content: unknown): ToolImage[] {
   })
 }
 
-function useToolImages(item: ToolItem): ToolImage[] {
-  // A committed result is authoritative, including an empty final result.
+/** Tool cards and the trajectory inspector share the same inline-result gallery. */
+export function ToolImages({ item }: { item: ToolItem }) {
   const content = item.result !== null ? item.result.content : ((item.live?.result ?? item.live?.partialResult) as { content?: unknown } | undefined)?.content
-  return React.useMemo(() => imagesOf(content), [content])
+  return <ToolResultImages content={content} />
 }
 
 /** Inline bytes already belong to the Session: data URLs need no Blob lifecycle. */
-export function ToolImages({ item }: { item: ToolItem }) {
-  const images = useToolImages(item)
+export function ToolResultImages({ content }: { content: unknown }) {
+  const images = React.useMemo(() => imagesOf(content), [content])
   const { t } = useI18n()
   const [sizes, setSizes] = React.useState<Record<string, Dimensions>>({})
   const decoded = React.useCallback((key: string, size: Dimensions) => setSizes((previous) => ({ ...previous, [key]: size })), [])

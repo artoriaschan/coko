@@ -53,7 +53,16 @@ describe('秘密不外泄总闸：追踪、审计与导出', () => {
     expect(exportText).toContain('deploy with [REDACTED:secret]')
     expect((trace.body as { totals: { toolCalls: number } }).totals.toolCalls).toBe(2)
     // 用户输入的明文仍在库中按原样保存（ADR 0007），HTTP 读回的会话详情中可见：导出不是读回原文。
-    expect(JSON.stringify((await api.get(apiPaths.session(sessionId))).body)).toContain(typed)
+    const detail = (await api.get(apiPaths.session(sessionId))).body
+    expect(JSON.stringify(detail)).toContain(typed)
+    const requestEntries = detail.entries.filter((entry: { kind: string }) => entry.kind === 'model_request')
+    expect(requestEntries).toHaveLength(3)
+    for (const entry of requestEntries) {
+      expect(entry.payload.snapshot.system).toContain('You are Coko')
+      expect(entry.payload.snapshot.tools.length).toBeGreaterThan(0)
+      expect(JSON.stringify(entry.payload.snapshot)).not.toContain(value)
+      expect(JSON.stringify(entry.payload.snapshot)).not.toContain(typed)
+    }
     bodies.pop()
 
     const requests = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)

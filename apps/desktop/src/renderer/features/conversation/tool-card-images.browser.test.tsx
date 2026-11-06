@@ -98,7 +98,8 @@ it('actual App: partial bitmap becomes committed without duplicating, remounting
     runId: 'run-1',
     event: { type: 'tool_update', toolCallId: 'image', toolName: name, partialResult: { content } },
   })
-  const header = page.getByRole('button', { name: /Tool call/ })
+  await expect.poll(() => document.querySelector('[data-slot="tool-card"]')).not.toBeNull()
+  const header = page.elementLocator(document.querySelector('[data-slot="tool-card"]')!).getByRole('button', { name: /mcp__playwright__screenshot/ })
   await header.click()
   const headerElement = header.element()
   const thumbs = () => [...document.querySelectorAll<HTMLImageElement>('[data-tool-image]')]
@@ -165,7 +166,8 @@ it.each([
     theme,
     locale,
   )
-  const header = page.getByRole('button', { name: /Tool call|工具调用/ })
+  await expect.poll(() => document.querySelector('[data-slot="tool-card"]')).not.toBeNull()
+  const header = page.elementLocator(document.querySelector('[data-slot="tool-card"]')!).getByRole('button', { name: /mcp__playwright__screenshot/ })
   await header.click()
   await expect.poll(() => document.querySelectorAll('[data-tool-image]').length).toBe(2)
   const failed = page.getByRole('button', { name: /could not be loaded|图片加载失败/ })
@@ -199,8 +201,8 @@ it('actual App: a child Session gallery reads the child result while the parent 
   await expect.poll(() => document.querySelector('[data-slot="agent-timeline"]')?.textContent).toContain(name)
   const timeline = document.querySelector<HTMLElement>('[data-slot="agent-timeline"]')!
   await page
-    .elementLocator(timeline)
-    .getByRole('button', { name: /Tool call/ })
+    .elementLocator(timeline.querySelector('[data-slot="tool-card"]')!)
+    .getByRole('button', { name: /mcp__playwright__screenshot/ })
     .click()
   await expect.poll(() => timeline.querySelector<HTMLImageElement>('[data-tool-image]')?.naturalWidth).toBe(2)
   expect(fixture.chat.getState().activeSessionId).toBe('s-1')
@@ -226,7 +228,7 @@ it('actual App: single bitmap measures its natural size; final empty content rem
     runId: 'run-1',
     event: { type: 'tool_update', toolCallId: 'image', toolName: 'read', partialResult: { content: [image] } },
   })
-  await page.getByRole('button', { name: /Read/ }).click()
+  await page.elementLocator(document.querySelector('[data-slot="tool-card"]')!).getByRole('button', { name: /Read/ }).click()
   const opener = document.querySelector<HTMLButtonElement>('[data-action="open-image"]')!
   await expect.poll(() => opener.getBoundingClientRect().width).toBe(160)
   expect(opener.getBoundingClientRect().height).toBe(100)

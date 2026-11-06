@@ -41,6 +41,7 @@ it('titles a first accepted message outside its Run with a text-only, tool-free 
   expect(request.tools ?? []).toHaveLength(0)
   expect(request.options.reasoning).toBe('off')
   const users = request.messages.filter((message: any) => message.role === 'user')
+  expect(title.payload.snapshot).toMatchObject({ system: expect.stringContaining('COKO_SESSION_TITLE'), messages: request.messages, tools: [] })
   expect(users).toEqual([{ role: 'user', content: expect.any(String), timestamp: expect.any(Number) }])
   expect(JSON.parse(users[0].content)).toEqual({ text: '帮我修复登录流程', filenames: [] })
   expect((await api.get(`/api/sessions/${id}/trace`)).body.totals.cost).toBeGreaterThanOrEqual(0.25)

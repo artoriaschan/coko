@@ -10,8 +10,8 @@ export function SessionMenu({ sessionId }: { sessionId: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <IconButton label={t('trace.more')} data-action="session-menu">
-          <EllipsisIcon />
+        <IconButton label={t('trace.more')} data-action="session-menu" size="icon-sm">
+          <EllipsisIcon className="size-4" strokeWidth={1} />
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

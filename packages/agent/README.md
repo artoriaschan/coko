@@ -99,6 +99,8 @@ const result = await runtime.run('…') // RunResult { runId, status, error? }
 
 `CokoTool`（`src/tools/types.ts`）是 pi 的 `AgentTool` 加以下字段。名称、描述、参数与 outputSchema 是覆盖时必须保持的契约；其余字段属于实现，覆盖时应沿用内置工具的值。
 
+内置 `bash` 接受可选 `description`，供会话时间线显示本次命令的任务说明；执行与权限判定仍只使用 `command`。未提供说明的历史调用继续显示原始命令。
+
 | 字段 | 含义 |
 | --- | --- |
 | `effect` | `read`：没有副作用；`side-effect`：可能改变文件、进程或外部状态。缺省按 `side-effect`。内置 read、grep、find、ls 为 read，write、edit、bash 为 side-effect |

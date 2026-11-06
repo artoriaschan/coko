@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的追踪、审计与评测：model_request 条目、deriveTrace / deriveAudit 的派生规则（工具耗时、审批等待、Hook 归属）、GET /api/sessions/:id/{trace,audit,export}、脱敏 NDJSON 导出与标题栏 JSONL 下载、loadExport 回放、右栏 Trace tab，以及 tests/evals 的用例格式、运行器、报告与真实模式。修改逐请求记录、追踪接口、导出或评测前查阅。"
+description: "当前的追踪、审计与评测：model_request 条目与请求上下文脱敏快照、deriveTrace / deriveAudit 的派生规则（工具耗时、审批等待、Hook 归属）、GET /api/sessions/:id/{trace,audit,export}、脱敏 NDJSON 导出与标题栏 JSONL 下载、loadExport 回放、对话标题栏轨迹视图，以及 tests/evals 的用例格式、运行器、报告与真实模式。修改逐请求记录、追踪接口、导出或评测前查阅。"
 lifecycle: active
 ---
 
 # 追踪、审计、导出与评测
 
-本文说明 Coko 当前如何记录每次模型请求，如何由已提交的条目派生每个 Run 的追踪与 Session 的审计序列，导出与回放会话的格式，右栏 Trace tab，以及 `tests/evals` 的回归评测。日志的字段与落盘约定见 [日志与诊断约定](../tech-stack/observability.md)；条目的存储与迁移见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)；秘密的脱敏边界见 [ADR 0004](../adr/0004-model-credentials-safe-storage.md) 与 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)。术语 Run、Eval Case 见 [GLOSSARY](../../GLOSSARY.md)。
+本文说明 Coko 当前如何记录每次模型请求，如何由已提交的条目派生每个 Run 的追踪与 Session 的审计序列，导出与回放会话的格式，对话标题栏轨迹视图，以及 `tests/evals` 的回归评测。日志的字段与落盘约定见 [日志与诊断约定](../tech-stack/observability.md)；条目的存储与迁移见 [ADR 0003](../adr/0003-settings-and-sessions-in-sqlite.md)；秘密的脱敏边界见 [ADR 0004](../adr/0004-model-credentials-safe-storage.md) 与 [ADR 0007](../adr/0007-secrets-from-registered-entries.md)。术语 Run、Eval Case 见 [GLOSSARY](../../GLOSSARY.md)。
 
 ## 结构入口
 
@@ -16,10 +16,12 @@ lifecycle: active
 | `packages/agent/src/observability/` | 纯函数：`deriveTrace`、`traceTotals`、`deriveAudit`、`formatExport`、`loadExport`（`@coko/agent/testing` 另导出 `loadExport`） |
 | `packages/protocol/src/trace.ts` | `RunTrace`、`ToolTrace`、`HookTrace`、`TraceTotals`、`AuditEvent`、`SessionExportHeader` 与 `tracePaths` |
 | `apps/server/src/application/trace.ts`、`http/routes/trace.ts` | `TraceService`：读取条目、再脱敏、递归收集子 Session；三个 GET 路由 |
-| `apps/desktop/src/renderer/stores/trace-store.ts`、`features/right-panel/trace-tab.tsx`、`features/conversation/session-download.tsx` 与 `session-menu.tsx` | 右栏 Trace tab、共用下载流程与标题栏 Session 下载 |
+| `apps/desktop/src/renderer/stores/trace-store.ts`、`features/trajectory/trajectory-view.tsx`、`features/conversation/session-download.tsx` 与 `session-menu.tsx` | 对话标题栏轨迹视图、共用下载流程与标题栏 Session 下载 |
 | `tests/evals/` | 评测用例、运行器、判定与报告 |
 
 ## 逐请求记录
+
+每次实际请求尝试开始前冻结 `snapshot { system, messages, tools }`，随该次尝试结束后的 `model_request` 一起提交。`system` 是 pi-ai 从规范化上下文合成的完整系统提示词；`messages` 是交给模型适配器的完整消息序列，保留 system sections、工具声明变化与原始内容块；`tools` 是这次请求的完整有效工具目录及参数 Schema，包含尚未调用的工具。快照不包含传输层认证或请求选项，后续消息追加和工具变更不改写既有快照。普通请求、重试、压缩、交接摘要和独立标题生成使用同一快照格式。宿主提交非用户条目前先按已登记 Secret／Credential 明文脱敏，trace 与导出再执行一次输出脱敏。旧记录可缺少 `snapshot`，明确显示未记录，不用当前系统提示或工具目录补造历史。
 
 运行时为每次实际启动的模型请求尝试提交一条 `model_request`（v1，与 assistant 消息同一提交链，失败、取消以及失败压缩的请求也提交）：`runId`、`provider`、`model`、`startedAt`、`durationMs`（仅该次尝试，不含重试退避等待）、`ttftMs?`（第一个文本或工具调用增量到达的时间）、`usage { input, output, cacheRead, cacheWrite, total }`、`cost?`（未定价时省略）、`stopReason`、`retries`（同次逻辑调用中之前失败的次数，首次为 0）、`errorCode?`（`aborted`、`context_overflow`、`model_error`）与 `purpose`（`turn`、压缩的 `compaction`、交接的 `summary`、会话标题的 `title`）。新请求另有唯一 `requestId`、`usageReport { complete, known }`（四分桶中实际已知的字段）、可选 `reasoning` 与 `costBreakdown`。`usageReport` 缺失的旧记录不能证明完整性，不补写历史计量；`reasoning` 是输出子集，不能再加到合计。配置的 Chat Completions、Responses 和 Anthropic 适配器通过 pi-ai 的原始流事件回调，在依赖填零之前记录计数字段是否存在；协议允许省略的缓存字段可解释为零，缺少必要字段保留其他已知值并标为不完整。OpenAI 输入总量扣除缓存读取/写入后才是未缓存输入，Anthropic 输入原本不含缓存。无效计数不升级为实测零。
 
@@ -75,11 +77,29 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 
 ## 界面
 
-右栏 Trace tab：顶部为 Session 合计（Token、费用、Run 数、请求数、工具调用数）与"导出"（读取 `?children=1` 的文本，经浏览器下载保存为 `.ndjson`，成功后 Toast 提示文件名）；其下每个 Run 一行（触发、状态、时长、Token、费用，最近的在最上面），展开为模型请求（模型、用途、时长、首字、Token、费用、重试、错误码）与工具（名字、时长、审批等待与结果、出错、Hook 结果），以及 Run 上的 Hook。费用符号取设置 `usage.currency`。数据来自 `GET …/trace`；`model_request`、`run_start` 与 `run_end` 的条目数变化时重读，同一帧内的多次变化合并为一次；重读不重挂载已有的 Run 行，展开状态保留。读取失败时没有内容显示错误与重试，有内容时保留并显示一行提示。不做图表。
+对话标题栏提供“对话”与“轨迹”（Trajectory）两个主视图 tab，沿用 DeepSeek Harness 的入口位置。轨迹替换旧的 Run 摘要列表。时间条、工具栏与记录表的布局和交互改写自 DeepSeek Harness（MIT，许可见根 `THIRD_PARTY_NOTICES.md`）；前端位于 `features/trajectory/`，由 `features/trajectory/trajectory-view.tsx` 读取追踪数据后装配。右栏不再注册轨迹入口；恢复旧右栏布局时过滤 `trace`，保留其他页面，过滤后为空则收起右栏。主视图选择按 Session 保存在 renderer 内存中，重启后默认选择对话；首次进入轨迹时挂载，随后切换 tab 保留轨迹筛选与详情、对话阅读位置和共同输入框的草稿。
 
-对话标题栏的常驻“更多”菜单提供“Session 下载”，在归档 Session 和窄窗口中同样可用。它读取同一个 `?children=1` 脱敏导出，只把建议文件名改为 `coko-session-<id>.jsonl`；服务端接口和 Trace 导出的 `.ndjson` 文件名保持不变。两处共用取文本、Blob 下载、同一 Session 的请求去重和 Toast：导出中对应操作禁用，失败说明原因，成功提示建议文件名。Electron 使用默认下载保存流程；自动验收通过 `will-download` 指定临时路径检查写出的文件，不据此声称已验证原生保存框。
+顶部工具栏提供时长比例切换、轮次／调用／子调用批量折叠、参数与结果全文搜索，以及原有 NDJSON 导出。三行时间条分别显示输入、模型和工具；支持点击记录、水平拖选聚焦、滚轮缩放、右键平移和 Escape／双击清除选区。等宽与实际时长均来自已记录数据，不用临时猜测耗时。
 
-主时间线的工具详情通过 Inspect（中文“查看”）打开或聚焦当前 Session 的 Trace 页面，并展开右栏；当前入口只选择当前 Session 的 Trace，不提供工具行定位。子 Session 时间线没有对应追踪导航回调时不显示 Inspect，也不通过展开或查看重新执行工具。
+记录表按执行顺序列出用户输入、上下文、助手消息、工具调用及压缩。初始 SYSTEM 记录独立置顶，只展示快照中基础 system 正文与 `coko.base`；`environment`、指令、Skills、Memory、plan 等其他命名 section，以及后续追加的 system 正文，按实际请求快照分别投影为 CONTEXT 记录。相同内容不重复插入，变化或移除在对应请求前显示；这些展示分类不改变实际模型消息的 role 或顺序。基础提示词或有效工具目录变化仍产生 SYSTEM 更新，差异页只比较基础提示词和目录，动态 section 不混入该差异。
+
+用户输入列在本轮动态上下文之前。已由 `state_update` 条目与用户内容块配对证明的注入，从用户行中分离后，使用实际发送的包装文本展示为上下文，不以状态条目的 `{ name, value }` JSON 代替模型收到的内容；未配对的历史条目只展示其已记录数据，不把普通用户文字中的标签当成注入来源。SYSTEM 详情提供“系统提示词／工具”，更新记录默认打开“差异”；上下文中的 XML 标签保留为文字并按 Markdown 渲染其正文。工具目录逐项展开完整说明与参数 Schema。用户、上下文和助手记录使用“概述／预览／原始数据”；助手摘要优先正文、其次思考，详情保留思考、正文及工具跳转入口，原始页保留内容块顺序。
+
+旧会话没有请求快照时，顶部显示“初始系统提示词（未记录）”，详情说明当时的系统提示词与动态上下文无法还原；仍展示已保存的状态更新，不读取当前工作区指令或设置补造历史。若只有后续请求开始保存快照，其系统行标为“首次记录的系统提示词”并保留真实请求位置，不回填成会话开头的提示词。缺失提示词的占位行不计入时间条。
+
+左侧圆点是独立请求入口，只在对应请求边界出现，选择圆点不选中助手记录。请求详情提供“概述／选项／用量／计时”：选项始终显示完整脱敏 system、messages、tools 及 provider／model（包含所有动态 section），列表的分类和去重不会修改此原始快照，可展开和复制完整输入；概述保留用途、状态、重试及错误。标题生成（`purpose: title`，包括 `COKO_SESSION_TITLE` 输入）的请求不投影为列表、圆点或时间条节点；持久化记录和导出仍保留，普通请求从第一条可见请求开始编号。压缩和交接摘要等没有可见助手消息的请求仍保留圆点边界，不制造空助手行或虚构 Run；这些辅助请求的快照不影响对话的 SYSTEM 变更。失败助手与其失败请求对应，不占用后续成功请求的快照。
+
+双击轮次首条内容记录折叠整轮，保留首条内容、SYSTEM 记录和一条“步骤数 · 工具调用数”摘要；双击助手记录只折叠其工具调用，摘要显示调用数和工具名。双击已折叠轮次的首行，或单击／用 Enter、Space 激活摘要行即可展开。沿用参考的 30px 内容行、20px 摘要行、轮次标签、选中导轨、请求圆点及其 hover／active 状态；工具栏提供相同层级的批量折叠。搜索暂时越过折叠只显示匹配内容，清空搜索恢复原有折叠状态；Inspect 自动展开目标祖先并定位，虚拟化按内容与摘要的实际行高计算。
+
+每条工具调用显示原始参数与结果预览，详情提供概述、参数、结果、Schema 与计时；Schema 从该调用所属请求的快照读取，旧请求没有快照时明确显示不可用。JSON 树沿用 Harness 的层级展开、方向键导航与逐节点复制：单击复制值或格式化 JSON，右键选择值、紧凑 JSON、格式化 JSON 或属性路径。长字符串在概述中折叠为 3 行，专用详情中为 12 行，展开后提供换行与收起；换行偏好用于下次展开，不修改其他已展开文本，不截断原值或保存数据。Schema 展示工具名、说明与参数树。结果页分为原始结果和渲染结果：原始区读取已保存的 SDK 工具结果消息或当前 SDK 结果，缺失时明确说明，不从展示文本反推原始值。关闭 JSON 复制菜单只关闭该菜单，保留当前步骤详情。工具计时标明会话时间戳来源，并保留审批等待和审批结果，Hook 在概述中独立分区；图片沿用主时间线的内联栅格图片解析、解码尺寸、失败状态与全屏预览。纯图片或其他非文本结果保留原始块，不显示为空输出；没有嵌套调用记录时不制造子调用。
+
+详情标题栏、页签、摘要信息与独立滚动区块沿用 Harness 的布局。再次点击同一记录回到默认详情页；用户、上下文与助手的原始页按块保留类型、内容和工具跳转，不显示整条消息的 JSON 包装。压缩仅提供概述和原始页，概述直接渲染摘要。请求用量分为本次与截至本次请求的会话累计；计时包含开始、总时长、首 token、生成时长与吞吐量，点击开始时间可切换本地日期时间与 Unix 秒。
+
+详情默认宽度为 `clamp(320px, 38%, 440px)`，拖动限制在 320～720px 并给列表保留 280px，左右键每次调整 16px，双击或 Home 恢复默认；窗口宽度不超过 760px 时沿用参考的右侧覆盖详情，关闭后返回列表。记录超过 200 行时启用虚拟化；在列表底部时跟随追加，选中记录或向上阅读时保留位置。搜索显示匹配行，时间范围让范围外记录淡出。新条目和已收到的 live progress 更新正文，`model_request`、`run_start`、`run_end`、`message`、`tool_exec`、审批和 Hook 条目触发同帧合并重读；读取失败时保留已有内容并提示，无内容时提供重试。原 `/trace`、`/audit` 和导出协议不变。
+
+对话标题栏的常驻“更多”菜单提供“Session 下载”，在归档 Session 和窄窗口中同样可用。它读取同一个 `?children=1` 脱敏导出，只把建议文件名改为 `coko-session-<id>.jsonl`；服务端接口和轨迹导出的 `.ndjson` 文件名保持不变。两处共用取文本、Blob 下载、同一 Session 的请求去重和 Toast：导出中对应操作禁用，失败说明原因，成功提示建议文件名。Electron 使用默认下载保存流程；自动验收通过 `will-download` 指定临时路径检查写出的文件，不据此声称已验证原生保存框。
+
+主时间线的工具详情通过 Inspect（中文“查看”）传递当前 Session 和 `toolCallId`，选择标题栏的轨迹 tab、清空搜索与时间范围、展开所属轮次和调用，滚动并聚焦对应工具行，同时打开详情。同一个工具可以重复定位；请求按 Session 保存，在页面挂载和工具记录到达后消费，不改变右栏布局，也不影响其他会话。子 Session 时间线没有对应导航回调时不显示 Inspect，展开和查看均不执行工具。
 
 ## 评测
 
@@ -111,10 +131,13 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 
 ## 验证
 
+- `packages/agent/src/engine/model-requests.test.ts`、`context-seam.test.ts`、`runtime.test.ts`：请求开始时冻结实际发送的上下文，后续变更不污染快照，重试分别保留独立记录。
+- `tests/integration/request-snapshots.test.ts`、`sidecar-titles.test.ts`：完整 system／messages／tools 与模型收到的上下文一致，保留未调用工具，覆盖多次请求、标题生成与 Sidecar 重启读回。
 - `packages/agent/src/observability/trace.test.ts`：`deriveTrace`（多轮、重试、压缩与交接摘要、工具并行、审批等待与回答者、Hook 归属、被中断的 Run）、`deriveAudit` 的每类事件与顺序、`loadExport` 的格式校验。
 - `tests/integration/sidecar-trace.test.ts`：含审批与 Hook 的 Goal Round 之后的请求数、工具耗时 ≥ 审批等待、Goal Round 的追踪与 Goal 用量一致、审计的 approval 与 hook；导出的 ndjson 与 `?children=1`；回放往返。
-- `tests/integration/secrets-gate-trace.test.ts`：trace、audit、export 与 requestLog 中没有登记 Secret 的明文（含用户输入的）。
-- `apps/desktop/src/renderer/features/right-panel/trace-tab.browser.test.tsx` 与 `apps/desktop/e2e/trace.e2e.test.ts`：列表、键盘展开、自动更新与同帧合并、导出（E2E 中由 main 的 `will-download` 保存文件）、明暗主题对比度与 390 px。
+- `tests/integration/secrets-gate-trace.test.ts`：请求快照入库前脱敏；trace、audit、export 与 requestLog 中没有登记 Secret 的明文（含用户输入的）。
+- `apps/desktop/src/renderer/features/trajectory/json-tree.browser.test.tsx`：JSON 树方向键导航、逐节点复制菜单、属性路径与长字符串折叠和换行偏好。
+- `apps/desktop/src/renderer/features/trajectory/trajectory-view.browser.test.tsx` 与 `apps/desktop/e2e/trace.e2e.test.ts`：标题栏入口、主视图切换与状态保留、轨迹工具栏与时间条、键盘详情、搜索／折叠后的精确定位、重复 Inspect、实时追加与同帧合并、导出（E2E 中由 main 的 `will-download` 保存文件）、明暗主题与 390 px。
 - `apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx` 与 `apps/desktop/e2e/session-download.e2e.test.ts`：常驻菜单、键盘选择与焦点、归档与窄窗口、共享导出锁和失败反馈；真实 Electron 写出的 JSONL 包含子 Session、脱敏 Secret，Trace 仍写出同样条目的 NDJSON。
 - `tests/evals/judge.test.ts` 与 `tests/evals/evals.test.ts`。
 

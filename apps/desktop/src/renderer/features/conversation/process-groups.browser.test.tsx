@@ -248,8 +248,13 @@ it.each([
   await expect.poll(() => getComputedStyle(body).overflowY).toBe('auto')
   await expect.poll(() => body.hasAttribute('data-scroll-down')).toBe(true)
   expect(body.scrollTop).toBe(0)
+  const steps = body.querySelectorAll<HTMLElement>('[data-slot="process-tool-step"]')
+  expect(steps).toHaveLength(20)
   const rows = body.querySelectorAll<HTMLElement>('[data-slot="tool-card"]')
-  expect(rows[1]!.getBoundingClientRect().top - rows[0]!.getBoundingClientRect().bottom).toBe(4)
+  expect(rows).toHaveLength(20)
+  expect(steps[1]!.getBoundingClientRect().top - steps[0]!.getBoundingClientRect().bottom).toBe(4)
+  const stepHeader = steps[0]!.querySelector<HTMLElement>('.conversation-tool-step-header')!
+  expect(rows[0]!.getBoundingClientRect().top - stepHeader.getBoundingClientRect().bottom).toBe(4)
   expect(body.getBoundingClientRect().top - header.element().getBoundingClientRect().top).toBe(32)
   expect(getComputedStyle(body).maskImage).toContain('24px')
   body.scrollTop = body.scrollHeight

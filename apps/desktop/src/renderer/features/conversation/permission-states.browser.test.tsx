@@ -120,9 +120,8 @@ it('actual App: approval takeover supports keyboard answering once, then returns
   await userEvent.keyboard('{Enter}')
   expect(answers).toEqual([])
   await page.getByRole('button', { name: 'Inspect', exact: true }).click()
-  await expect.element(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
-  // Inspect 在窄窗口使用全屏右栏；返回主区后才能通过键盘回答审批。
-  await page.elementLocator(document.querySelector('[data-slot="app-frame-right"]')!).getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+  await expect.element(page.getByRole('tab', { name: 'Trajectory', exact: true })).toHaveAttribute('aria-selected', 'true')
+  // 审批卡与主视图共用输入区，在轨迹中同样可以通过键盘回答。
   expect(answers).toEqual([])
   expect(document.querySelector('[data-action="rewind"]')).toBeNull()
   const allow = page.getByRole('button', { name: 'Allow once', exact: true })

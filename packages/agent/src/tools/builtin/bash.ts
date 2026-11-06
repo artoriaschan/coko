@@ -23,6 +23,7 @@ const UPDATE_THROTTLE_MS = 100
 
 export const bashParameters = Type.Object({
   command: Type.String({ description: 'Shell command to execute' }),
+  description: Type.Optional(Type.String({ description: 'Short description of what this command does, shown in the conversation timeline.' })),
   timeout: Type.Optional(Type.Number({ description: 'Timeout in seconds (optional, no default timeout)' })),
   sandbox_permissions: Type.Optional(
     Type.Union([Type.Literal('workspace-write'), Type.Literal('danger-full-access')], { description: SANDBOX_PERMISSIONS_DESCRIPTION }),

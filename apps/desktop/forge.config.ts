@@ -52,7 +52,7 @@ const ignore = (file: string): boolean => {
   return !KEEP.some((kept) => file === kept || (kept !== '/dist' && file.startsWith(kept + '/')))
 }
 
-const config: ForgeConfig = {
+const config = {
   // COKO_FORGE_OUT_DIR 改变产物目录（缺省 out）：发布构建 E2E 打到 out-release/，不覆盖测试构建 E2E 使用的 out/。
   outDir: process.env.COKO_FORGE_OUT_DIR || 'out',
   packagerConfig: {
@@ -94,11 +94,12 @@ const config: ForgeConfig = {
       // 首次构建与 watch：main / preload 重建后重启 Electron，Sidecar 重建后由 main 重启 Sidecar。首次构建都成功且
       // 开发服务器就绪后 Forge 才启动 Electron；构建失败时 tsdown 报告错误并继续监听，修复后继续启动。
       await prepareRipgrep()
-      await writeSidecarReloadStamp()
       const sidecar = watchSidecar(reloadSidecar)
       const electron = watchElectron(restartElectron)
       devWatchers = [sidecar, electron]
       await Promise.all([sidecar.ready, electron.ready])
+      // 同一检出可能已有 main 监视此文件；产物就绪前通知会使它在清理输出期间重启到缺失的入口。
+      await writeSidecarReloadStamp()
       devServer = await startRendererDevServer()
       process.env.COKO_RENDERER_DEV_URL = devServer.url
       process.env.COKO_SIDECAR_RELOAD_FILE = sidecarReloadFile
@@ -116,6 +117,6 @@ const config: ForgeConfig = {
       await buildRenderer()
     },
   },
-}
+} satisfies ForgeConfig
 
 export default config

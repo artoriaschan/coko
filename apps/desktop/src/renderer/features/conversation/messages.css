@@ -11,7 +11,7 @@
 }
 
 .conversation-user-message {
-  max-width: min(calc(clamp(680px, 64cqi, 920px) * 0.702), 82%);
+  max-width: min(calc(var(--local-chat-content-width, clamp(680px, 64cqi, 920px)) * 0.702), 82%);
   gap: 6px;
 }
 

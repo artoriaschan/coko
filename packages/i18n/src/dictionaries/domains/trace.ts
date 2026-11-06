@@ -1,9 +1,9 @@
-// 追踪：右栏 Trace tab（每个 Run 的模型请求、工具与 Hook，Session 合计）与会话导出（docs/subsystems/tracing.md#界面）。
+// 轨迹页面入口、追踪读取状态与会话导出（docs/subsystems/tracing.md#界面）。
 import { defineDomain } from './define.ts'
 
 export const trace = defineDomain(
   {
-    tab: '追踪',
+    tab: '轨迹',
     more: '更多',
     downloadSession: 'Session 下载',
     export: '导出',
@@ -63,7 +63,7 @@ export const trace = defineDomain(
     seconds: '{value} 秒',
   },
   {
-    tab: 'Trace',
+    tab: 'Trajectory',
     more: 'More',
     downloadSession: 'Download session',
     export: 'Export',

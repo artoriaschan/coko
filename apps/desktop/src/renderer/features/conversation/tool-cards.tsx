@@ -13,6 +13,8 @@ import { TerminalDetails } from './terminal-details.tsx'
 import { resultText, type TimelineItem } from './timeline.ts'
 import { useProcessDisclosure } from './process-disclosure.tsx'
 import { ToolIcon } from './tool-icon.tsx'
+import { toolArgumentSummary } from './process-groups.ts'
+import { ProcessActivityIcon } from './process-icon.tsx'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
@@ -60,8 +62,14 @@ const VIEWS: Record<string, ToolView> = {
   bash: {
     icon: <ToolIcon kind="command" />,
     title: 'tool.bash',
-    summary: (a) => str(a.command),
+    summary: (a) => toolArgumentSummary('bash', a),
     body: (item, args) => <TerminalDetails item={item} args={args} jobId={backgroundJobId(item)} />,
+  },
+  run_code: {
+    icon: <ProcessActivityIcon activity="code" />,
+    title: 'tool.code',
+    summary: (a) => toolArgumentSummary('run_code', a),
+    body: (item) => <GenericBody item={item} />,
   },
   read: {
     icon: <ToolIcon kind="read" />,

@@ -53,7 +53,7 @@ React 订阅在 app 层通过 `useSyncExternalStore` 接入；store 模块保持
 
 ## Markdown 渲染
 
-封装统一的 `MarkdownRenderer`，共享插件配置、标题、链接、图片、表格、代码块组件和明暗主题，组件样式使用现有设计 token。它经 `@coko/ui/markdown` 子路径导出、不在包的聚合入口中，消费方按需懒加载，使 Shiki、Mermaid 与 KaTeX 不进入首屏 chunk。
+封装统一的 `MarkdownRenderer`，共享插件配置、标题、链接、图片、表格、代码块组件和明暗主题，组件样式使用现有设计 token。它经 `@coko/ui/markdown` 子路径导出、不在包的聚合入口中。桌面入口异步加载整个工作台，将 Markdown 渲染器及其 CSS 作为工作台的静态依赖；依赖就绪前沿用应用启动屏，使 Shiki、Mermaid 与 KaTeX 不进入启动入口 chunk。会话正文直接使用已就绪的渲染器，首次打开和切换会话时不先显示原始 Markdown 文本再替换排版。
 
 | 场景 | 配置 |
 | --- | --- |

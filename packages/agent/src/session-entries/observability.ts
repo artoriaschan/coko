@@ -14,6 +14,13 @@ export type ModelRequestPurpose = Static<typeof modelRequestPurposeSchema>
 export const modelRequestUsageSchema = Type.Object({ input: Count, output: Count, cacheRead: Count, cacheWrite: Count, total: Count }, strict)
 export type ModelRequestUsage = Static<typeof modelRequestUsageSchema>
 
+/** Frozen model-visible context at the start of one request attempt, before persistence redaction. */
+export const modelRequestSnapshotSchema = Type.Object(
+  { system: Type.String(), messages: Type.Array(Type.Unknown()), tools: Type.Array(Type.Unknown()) },
+  strict,
+)
+export type ModelRequestSnapshot = Static<typeof modelRequestSnapshotSchema>
+
 /**
  * model_request v1：一次实际模型请求尝试（retries 为同次逻辑调用中此前失败的次数）。ttftMs 为第一个文本或工具调用增量到达的时间；
  * cost 为该请求的费用合计（未定价时省略）；errorCode 只在请求以错误结束时有。
@@ -27,6 +34,7 @@ export const modelRequestPayloadSchema = Type.Object(
     durationMs: Count,
     ttftMs: Type.Optional(Count),
     requestId: Type.Optional(Id),
+    snapshot: Type.Optional(modelRequestSnapshotSchema),
     usageReport: Type.Optional(USAGE_REPORT_SCHEMA),
     reasoning: Type.Optional(Count),
     usage: modelRequestUsageSchema,

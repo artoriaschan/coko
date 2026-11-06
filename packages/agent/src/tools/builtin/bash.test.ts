@@ -22,7 +22,7 @@ describe('内置 bash', () => {
   const tool = () => createBashTool({ cwd: ws.dir, exec: createLocalExecPort(), tempDir: ws.dir })
 
   it('在 Workspace 中执行并返回输出与结构化结果', async () => {
-    const result = await tool().execute('c', { command: 'pwd; echo out; echo err 1>&2' })
+    const result = await tool().execute('c', { command: 'pwd; echo out; echo err 1>&2', description: 'Inspect the working directory and command output' })
     expect(textOf(result)).toBe(`${ws.dir}\nout\nerr\n`)
     expect(result.isError).toBeUndefined()
     expect(result.structuredContent).toMatchObject({ exit_code: 0, truncated: false, output: `${ws.dir}\nout\nerr\n` })

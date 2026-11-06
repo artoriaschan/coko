@@ -26,6 +26,7 @@ import { createListStore, type ListStore } from './list-store.ts'
 import { createNewChatStore, type NewChatStore } from './new-chat-store.ts'
 import type { StreamClient } from '../client/connection.ts'
 import { forgetRightPanelLayouts } from '../features/right-panel/layout-store.ts'
+import { forgetConversationViews } from '../features/conversation/view-store.ts'
 
 /** 进行中的工具：由 progress 维护，最终内容以 toolResult 条目为准。 */
 export interface LiveTool {
@@ -433,6 +434,7 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
       async deleteSession(sessionId) {
         const { sessionIds } = await api.deleteSession(sessionId)
         forgetRightPanelLayouts(sessionIds)
+        forgetConversationViews(sessionIds)
         for (const id of sessionIds) {
           stream.send({ type: 'unsubscribe', sessionId: id })
           pinned.delete(id)

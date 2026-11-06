@@ -115,7 +115,7 @@ it.each(['light', 'dark'] as const)(
         partialResult: { content: [{ type: 'text', text: 'Real streamed output\n'.repeat(80) }] },
       },
     })
-    await expect.element(page.getByRole('button', { name: /Tool call/ })).toBeInTheDocument()
+    await expect.element(page.getByRole('button', { name: 'Tool call custom', exact: true })).toBeInTheDocument()
     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: result(19, 'live-output', 'Real streamed output\n'.repeat(80)) })
     fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(20, 'run_end', { status: 'completed' }) })
     await expect.poll(() => document.querySelector('[data-slot="run-process-control"]')?.getAttribute('aria-expanded')).toBe('false')

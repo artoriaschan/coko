@@ -4,7 +4,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ApiError, requestJson, type Fetch } from '../client/api.ts'
 
 // 追踪视图的 store（docs/subsystems/tracing.md#界面）：每个 Session 的 GET …/trace（响应在信任边界按 schema 校验）与导出的 ndjson 文本。
-// 重新读取的时机由 Trace tab 决定（model_request、run_start 与 run_end 到达时，同一帧合并）；较早发出的请求晚到时被丢弃。
+// 轨迹视图在请求、消息、Run、审批与 Hook 条目变化时合并重读；较早发出的请求晚到时被丢弃。
 
 export interface SessionExportFile {
   filename: string

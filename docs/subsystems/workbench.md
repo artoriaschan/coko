@@ -38,17 +38,17 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 ## 对话标题栏
 
-详情页顶部的标题行高 48px，使用窗口安全区的 `--frame-top-clearance`；右栏上沿是独立的 tab 条。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，只有一个选中的“对话”tab，使用 13px、500 字重与 link 色文字、2px 下划线，底部有发丝分隔线；点击不切换内容。新对话页不显示标题与 tab 行。
+详情页顶部的标题行高 48px，使用窗口安全区的 `--frame-top-clearance`；右栏上沿是独立的 tab 条。标题为 14px、500 字重，单行截断且 `title` 保留全文；worktree 分支 chip 紧跟标题。后台任务、子代理、定时任务和团队的状态入口保留既有行为。下方是独立的 tab 行，包含“对话”和“轨迹”，切换主内容视图，共用输入框。tab 使用 13px、500 字重，选中项使用 link 色文字与 2px 下划线，底部有发丝分隔线；左右方向键与 Home/End 移动焦点，Enter/空格选中。选择按 Session 保存在内存中；切换保留草稿、对话阅读位置和已挂载的轨迹状态。新对话页不显示标题与 tab 行。
 
-主区不宽于 560px 且侧栏收起时，既有的展开侧栏、后退、前进和新对话控制条移到 tab 行左侧，“对话”tab 位于其后。控制条保持同一份 DOM、28px 命中区及原有键盘路径；标题行仍为 48px，保留原生窗口安全区，四个状态入口、“更多”和打开右栏均留在标题行。此局部重排避免全部状态入口同时出现时溢出，以及聚焦行尾按钮引发主区的隐藏横向滚动。
+主区不宽于 560px 且侧栏收起时，既有的展开侧栏、后退、前进和新对话控制条移到 tab 行左侧，主视图 tabs 位于其后。控制条保持同一份 DOM、28px 命中区及原有键盘路径；标题行仍为 48px，保留原生窗口安全区，四个状态入口、“更多”和打开右栏均留在标题行。此局部重排避免全部状态入口同时出现时溢出，以及聚焦行尾按钮引发主区的隐藏横向滚动。
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
-右栏关闭时，标题行末尾显示面板图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。状态按钮、时间线“查看”和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+右栏关闭时，标题行末尾显示 `panel-right` 图标按钮，可访问名称为“打开侧边栏”，Tooltip 标出展开／收起的快捷键。打开后入口隐藏，使用 tab 条末端同一 `panel-right` 图标的“收起侧边栏”收起；关闭后焦点回到重新出现的打开按钮。左侧栏开关统一使用 `panel-left`，展开与收起保持同一图标。两侧栏开关与右栏打开按钮左侧的“更多”按钮均为 28px 点击框、16px 图标、1px 描边。状态按钮和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏；时间线“查看”切换到标题栏轨迹 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
-右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口包含计划、后台任务、子代理、定时任务、团队、追踪；有专属目录的独立会话还在首位显示 Artifacts；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
+右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口包含计划、后台任务、子代理、定时任务、团队；有专属目录的独立会话还在首位显示 Artifacts；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
-布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
+布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。轨迹已移至主内容区，旧布局中的 `trace` 与其他未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
 
 右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。开始页以淡色罗盘和单列横向卡片呈现入口，图标与标题左对齐，窄或矮面板中卡片保持可滚动、可通过键盘到达；几何见[设计系统](../tech-stack/ui-design-system.md#右栏-tab-条与引导页)。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。各页面的正文与数据来源继续遵循各子系统契约。
 
@@ -76,7 +76,15 @@ tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/E
 
 ## 对话消息与思考
 
-[消息时间线](../../apps/desktop/src/renderer/features/conversation/timeline-view.tsx)保持原始用户文本、命令调用和展开全文、文件引用、有效图片附件与回退操作。用户气泡为 14px/22px、10px/16px 内边距、R20，最大宽度取聊天列的 70.2% 与当前可用列的 82% 中较小者；消息区左右各留 32px，聊天列仍沿用 `clamp(680px, 64cqi, 920px)`，输入区、标题栏和侧栏不随消息样式改变。附件引用显示完整路径并可换行，不伪造文件尺寸或其他元数据。
+[启动入口](../../apps/desktop/src/renderer/main.tsx)等待工作台异步模块及其 Markdown/CSS 依赖完成后才显示会话，期间沿用品牌启动屏。[Markdown 正文](../../apps/desktop/src/renderer/features/conversation/markdown.tsx)直接渲染，不再在加载阶段显示原始 Markdown 文本；初次恢复历史和切换会话的第一棵正文 DOM 已包含标题、列表、强调等结构及其样式。重型插件保留在工作台异步依赖中，不进入启动入口 chunk。[首次正文浏览器测试](../../apps/desktop/src/renderer/features/conversation/markdown-loading.browser.test.tsx)和[原生启动回归](../../apps/desktop/e2e/markdown-startup.e2e.test.ts)逐次观察正文首次提交，避免只检查最终排版而漏掉中间的无样式显示。
+
+会话表格通过共享渲染器的 `tableMaxHeight={0}` 使用自然行高，移除 Streamdown 默认 300px 纵向限高；纵向由会话消息区滚动，横向溢出仍在表格内部滚动。表格离开视口后调整窗口、再滚回时，容器随实际行高重排，不保留独立纵向滚动位置。复制、下载和全屏入口继续保留。对应[明暗主题与离屏缩放浏览器用例](../../apps/desktop/src/renderer/features/conversation/markdown-table-resize.browser.test.tsx)和[真实窗口缩放用例](../../apps/desktop/e2e/markdown-table-resize.e2e.test.ts)使用长行内代码夹在短行之间的表格，检查容器高度、行内空白、全页横溢及实际捕获。
+
+[消息时间线](../../apps/desktop/src/renderer/features/conversation/timeline-view.tsx)保持原始用户文本、命令调用和展开全文、文件引用、有效图片附件与回退操作。用户气泡为 14px/22px、10px/16px 内边距、R20，最大宽度取聊天列的 70.2% 与当前可用列的 82% 中较小者；消息区左右各留 32px。附件引用显示完整路径并可换行，不伪造文件尺寸或其他元数据。
+
+[内容宽度](../../apps/desktop/src/renderer/features/conversation/conversation-width.tsx)参照 Harness 手动调宽时的可用范围，默认直接展开至 `max(680px, 会话列宽 − 176px)`，不再使用原来的 64% 比例与 920px 上限；用户于 2026-11-06 指出原默认宽度未调整后，采用此默认宽屏展示。消息列居中，输入框、Dock 与接管卡比消息列宽 32px；空间不足时缩至可用宽度。两侧拖动条位于正文外 24px、宽 10px，仅两侧余量足够时出现；拖动保持中心轴，手动宽度至少 640px，最大取默认展开宽度。偏好保存在本机 localStorage 的 `coko.conversation.contentWidth`，窗口缩窄仅限制显示宽度。键盘左右键每次调整总宽度 32px；Home 或双击恢复默认展开宽度。欢迎页仍沿用自己的 768px 宽度。
+
+[轮次指示器](../../apps/desktop/src/renderer/features/conversation/turn-navigator.tsx)从主时间线的真实 Run 归属生成刻度，至少两轮时显示在会话详情左侧，距边缘 12px；不把回退历史和子 Session 混入主区。刻度间距 10px，当前轮由实际阅读位置决定，贴底时指向最后一轮；点击或键盘激活跳到该轮输入，没有输入时使用该轮已显示的首项。指针悬停与键盘聚焦显示输入和回复预览，离开关闭；预览复用共享 Markdown 渲染器，标题、加粗、行内代码、链接和列表显示为渲染后的内容，输入最多一行、回复最多三行，卡片最多 100px；预览为只读，不提供复制、下载和全屏控件；长列表在最多 420px 的独立区域内虚拟化并滚动，边缘渐隐。主区宽度不超过 964px 时隐藏，以匹配 Harness 在正文可用宽度不超过 900px 时的避让规则。跳转释放原阅读锚点，新增内容不会强制拉回底部；返回底部恢复跟随，减少动态效果时跳转不播放平滑滚动。
 
 用户底栏依次显示发送时间、原文复制与回退，不再呈现用户分叉按钮。时间读取用户消息 Session Entry 的 `createdAt`，按本地时区显示紧凑标签：同一本地日为 24 小时 `HH:mm`，同年更早日期带月日，往年带年月日，跨过本地午夜后自动变宽；共享 Tooltip 在悬停及键盘聚焦时提供完整日期与秒，缺少可信时间不使用查看时刻补齐。时间、复制与回退作为一条底栏整体显隐：最后一条用户消息的底栏常显，较早的用户消息在支持 hover 的设备上随悬停或焦点进入整体显示，无 hover 时全部可见。复制使用用户原始文本（命令使用原始 `/name 参数`），不包含展开上下文、文件引用正文或图片二进制；成功短暂显示勾号与已复制提示，失败沿用应用错误反馈且不保留成功状态。回退沿用三模式确认、默认对话和代码、文件预览及原始草稿合并规则；旧用户锚点分叉协议继续保留。回退与旧分叉协议仍由原 Checkpoint、Run、审批和只读条件决定。助手正文使用现有 Streamdown 渲染器，消息局部样式适配 14px/24px 正文、标题与列表节奏、11px/19px 代码和行内代码、代码工具栏；静态文档的排版不受影响。
 
@@ -97,6 +105,12 @@ tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/E
 ## 详细过程与三级折叠
 
 [过程投影](../../apps/desktop/src/renderer/features/conversation/process-groups.ts)从扁平时间线的真实 Run 来源收集相邻思考和工具。可见助手回复、输入、独立业务行及不同或未知 Run 归属截断组；工具类别和模型请求变化不会拆组。无独立行的 Job 起止事实不拆组；曾真实显示的 Plan 审阅是独立阶段边界，即便 proposed 卡之后被批准或拒绝快照替代也保留该边界，避免结算时重新挂载已展开的工具及丢失焦点。消息、状态、审批、确认与用量入口仍独立显示；未送达追加指令仍由 Queue 唯一显示。
+
+过程正文内，思考行与按请求组织的工具分组并列；同一助手消息中的相邻工具进入同一分组，消息序号变化或思考行会分隔分组。流式调用按现有进度批次展示，结算后使用实际助手消息序号；分组以首个调用 ID 保留显示身份。分组名称使用“操作类型 · 任务说明”，不再固定显示“工具调用 · N 个调用”：同类操作使用运行命令、读取文件、搜索代码等名称，混合文件／命令操作和实际 `run_code` 使用“代码”。说明优先取记录中的 `description`，缺失时回退到命令、路径、模式等真实参数；未知工具回退工具名。bash 参数新增可选 `description`，仅作展示，不进入执行命令或权限判定；单条 bash 行同样优先显示说明。图标保持类型标识，悬停或键盘聚焦时换成开合箭头。
+
+外层活动摘要直接沿用 Harness 的类别计数与译文组合：真实调用按 ID 去重，按次数降序、同数按首次出现排序，显示前三类；两类中文仅在译文都以“已”开头时共享前缀。Coko 的 `find`、`ls` 纳入文件搜索类别。展示分组不补造 `run_code` 或父调用，因此只有实际代码调用才会让外层摘要出现“运行了代码”；全部为 bash 的历史仍如实归为命令。工具子项沿用 Harness 的 22px 外缩进、8px 内缩进与 0.5px 竖线，默认显示，可独立折叠；单条工具的输入输出仍按需打开。用户于 2026-11-06 选择采用此展示分组。整轮手动重置关闭单条明细，工具分组恢复默认展开；定位工具时同时揭示该展示分组。
+
+验证：[详情 App Browser Mode](../../apps/desktop/src/renderer/features/conversation/conversation-detail.browser.test.tsx)覆盖明暗主题、真实嵌套几何、分组与单条开合、轮次预览和跳转、长刻度列表、宽度持有与重置，以及 390px 避让。
 
 主区时间线在 layout effect 中发布本次实际提交的过程席位、显示身份、时间线项与 Run，供[会话数据诊断](session-diagnostics.md#对话分组)只读订阅；子 Session 与回退历史的嵌套时间线不发布。发布不改变过程计算、树的层级或阅读锚点，工具、思考和消息的语义根保留对应显示身份属性。语义根同时暴露 Run、来源 seq、toolCallId 与过程组 id。[主区展开入口](../../apps/desktop/src/renderer/features/conversation/timeline-reveal.tsx)按主时间线所有者路由定位请求，复用三级展开状态并保留 reset epoch；同 Session 的回退历史继承入口，子 Session 不注册。定位期间由阅读策略暂时释放旧锚点，按目标的实际布局逐层揭示，完成后保留新位置。高亮与瞄准位于 body 层，不增加消息树节点；完整匹配、回退与取消语义见[会话数据诊断](session-diagnostics.md#定位与瞄准)。
 
@@ -250,7 +264,7 @@ Electron 对网页权限仅放行自有主窗口、主框架、可信 Coko 地�
 
 验证：[命令详情 App 测试](../../apps/desktop/src/renderer/features/conversation/terminal-details.browser.test.tsx)、[真实 Electron 命令与后台任务](../../apps/desktop/e2e/terminal-details.e2e.test.ts)。
 
-主时间线的展开详情提供 Inspect，中文为“查看”，打开或聚焦当前 Session 的右栏 Trace 页面。当前入口定位到 Session，不声称定位单个工具。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
+主时间线的展开详情提供 Inspect，中文为“查看”，携带当前 Session 和工具调用 ID 选中标题栏轨迹 tab，不改变右栏布局，清除搜索与时间选区、展开所属层级、滚动并聚焦对应工具行，同时打开详情。没有对应入口的子 Session 时间线不显示该按钮；查看与展开均不执行工具。追踪语义见[追踪、审计与评测](tracing.md#界面)。
 
 ## 从助手回复创建新对话分支
 

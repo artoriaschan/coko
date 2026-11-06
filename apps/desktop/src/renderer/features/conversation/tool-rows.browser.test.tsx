@@ -80,7 +80,7 @@ it('actual App: commands, edits and failures start collapsed; generic input/outp
   expect(rows[2]!.textContent).toContain('"query": "unchanged 原文"')
   expect(rows[2]!.textContent).toContain('"enabled": false')
   await page.getByRole('button', { name: 'Inspect', exact: true }).click()
-  await expect.element(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect.element(page.getByRole('tab', { name: 'Trajectory', exact: true })).toHaveAttribute('aria-selected', 'true')
 })
 
 it.each([
@@ -124,7 +124,7 @@ it('actual App: streaming settlement keeps one call, expanded content, selection
     runId: 'run-1',
     event: { type: 'tool_update', toolCallId: 'one', toolName: 'custom', partialResult: { content: [{ type: 'text', text: 'line\n'.repeat(60) }] } },
   })
-  const header = page.getByRole('button', { name: /Tool call/ })
+  const header = page.getByRole('button', { name: 'Tool call custom', exact: true })
   await header.click()
   const body = document.querySelector('[data-slot="tool-card-body"]')!
   const input = body.querySelector('.tool-io-text')!

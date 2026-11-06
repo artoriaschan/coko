@@ -32,3 +32,48 @@
 @media (prefers-reduced-motion: reduce) { .conversation-run-process { transition: none; } }
 
 .conversation-process-leading svg[width="16"] { width: 16px; height: 16px; }
+
+.conversation-tool-step {
+  min-width: 0;
+}
+.conversation-tool-step-leading > span { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; }
+.conversation-tool-step-chevron { opacity: 0; }
+.conversation-tool-step-header:focus-visible .conversation-tool-step-icon { opacity: 0; }
+.conversation-tool-step-header:focus-visible .conversation-tool-step-chevron { opacity: 1; }
+@media (hover: hover) {
+  .conversation-tool-step-header:hover .conversation-tool-step-icon { opacity: 0; }
+  .conversation-tool-step-header:hover .conversation-tool-step-chevron { opacity: 1; }
+}
+.conversation-tool-step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--conversation-process-muted);
+  font-family: var(--font-conversation-sans);
+  font-size: var(--text-ui-process);
+  line-height: var(--text-ui-process--line-height);
+  text-align: left;
+  cursor: pointer;
+}
+.conversation-tool-step-separator {
+  flex: none;
+  margin-inline: 2px;
+}
+.conversation-tool-step-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 2px 22px;
+  padding-left: 8px;
+  border-left: var(--hairline) solid var(--conversation-detail-stroke);
+}
+@media (hover: hover) {
+  .conversation-tool-step-header:hover {
+    color: var(--conversation-process-secondary);
+  }
+}

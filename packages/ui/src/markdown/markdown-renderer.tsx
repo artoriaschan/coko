@@ -19,6 +19,10 @@ export interface MarkdownRendererProps {
   colorScheme: 'light' | 'dark'
   /** 已本地化的控件文案（复制、下载、全屏等）。 */
   translations: MarkdownTranslations
+  /** 0 keeps the table at its natural height; omitted uses Streamdown's default cap. */
+  tableMaxHeight?: number
+  /** Disable copy, download and fullscreen controls in passive previews. */
+  controls?: boolean
   className?: string
 }
 
@@ -27,7 +31,16 @@ const mermaidLight = createMermaidPlugin({ config: { theme: 'default' } })
 const mermaidDark = createMermaidPlugin({ config: { theme: 'dark' } })
 
 /** 会话消息与静态文档统一的 Markdown 渲染：code、math、mermaid、cjk 插件，排版由主题样式表的 .coko-markdown 管理。 */
-export function MarkdownRenderer({ children, mode, isAnimating = false, colorScheme, translations, className }: MarkdownRendererProps) {
+export function MarkdownRenderer({
+  children,
+  mode,
+  isAnimating = false,
+  colorScheme,
+  translations,
+  tableMaxHeight,
+  controls,
+  className,
+}: MarkdownRendererProps) {
   const plugins = React.useMemo<PluginConfig>(() => ({ code, math, cjk, mermaid: colorScheme === 'dark' ? mermaidDark : mermaidLight }), [colorScheme])
   const streaming = mode === 'streaming'
   return (
@@ -38,6 +51,8 @@ export function MarkdownRenderer({ children, mode, isAnimating = false, colorSch
       isAnimating={streaming && isAnimating}
       plugins={plugins}
       translations={translations}
+      tableMaxHeight={tableMaxHeight}
+      controls={controls}
     >
       {children}
     </Streamdown>

@@ -9,7 +9,7 @@ import { createPreferences } from '../../app/preferences.ts'
 import { createSettingsPageStore } from '../../app/settings-page-store.ts'
 import { createTraceStore, type TraceBackend, type SessionExportFile } from '../../stores/trace-store.ts'
 import { createFixtureChat, fixtureSessions } from '../../testing/fixture-chat.ts'
-import { TraceStoreProvider } from '../right-panel/trace-tab.tsx'
+import { TraceStoreProvider } from './session-download.tsx'
 import { toast } from '@coko/ui'
 
 const viewport = { width: innerWidth, height: innerHeight }
@@ -98,10 +98,9 @@ it('header download and Trace share the Session export lock', async () => {
   await expect.poll(() => requests).toBe(1)
   expect(await trace.getState().exportSession('s-1')).toBeUndefined()
   await expect.poll(() => document.querySelector('[role=menu]')).toBeNull()
-  await page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
-  await page.getByRole('button', { name: 'Trace', exact: true }).click()
+  await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
   await expect.element(page.getByRole('button', { name: 'Exporting…', exact: true })).toBeDisabled()
-  await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).last().click()
+  await page.getByRole('tab', { name: 'Conversation', exact: true }).click()
   await more.click()
   await expect.element(page.getByRole('menuitem', { name: 'Download session', exact: true })).toBeDisabled()
   await userEvent.keyboard('{Escape}')

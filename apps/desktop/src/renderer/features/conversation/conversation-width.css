@@ -1,0 +1,41 @@
+.conversation-message-column {
+  max-width: var(--local-chat-content-width);
+}
+.conversation-composer-column {
+  max-width: calc(var(--local-chat-content-width) + 32px);
+}
+.conversation-width-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.conversation-width-handle[data-side='left'] {
+  right: calc(50% + var(--local-chat-content-width) / 2 + 24px);
+}
+.conversation-width-handle[data-side='right'] {
+  left: calc(50% + var(--local-chat-content-width) / 2 + 24px);
+}
+.conversation-width-handle::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - 36px);
+  left: 4px;
+  width: 2px;
+  height: 72px;
+  border-radius: 2px;
+  background: var(--border);
+  opacity: 0;
+}
+.conversation-width-handle:focus-visible::after {
+  opacity: 1;
+  background: var(--ring);
+}
+@media (hover: hover) {
+  .conversation-width-handle:hover::after {
+    opacity: 1;
+  }
+}

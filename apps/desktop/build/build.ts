@@ -2,13 +2,15 @@
 // Forge hooks、E2E globalSetup 与 `pnpm run build` 共用这里的函数；各任务只清理自己的输出目录。
 import { execFileSync } from 'node:child_process'
 import { chmod, copyFile, cp, mkdir, rename, rm, writeFile } from 'node:fs/promises'
-import { createServer as createHttpServer } from 'node:http'
 import { createRequire } from 'node:module'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rgPath } from '@vscode/ripgrep'
 import { build as tsdown, type InlineConfig, type TsdownBundle } from 'tsdown'
-import { build as viteBuild, createServer as createViteServer } from 'vite'
+import { build as viteBuild } from 'vite'
+import { createRendererDevServer, type RendererDevServer } from './renderer-dev-server.ts'
+
+export type { RendererDevServer } from './renderer-dev-server.ts'
 
 export const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
 // renderer 唯一的 Vite 配置：base './'，输出 dist/renderer；生产构建与开发服务器共用。
@@ -223,33 +225,9 @@ export async function buildRenderer(): Promise<void> {
   await viteBuild({ configFile: viteConfigFile, logLevel: 'warn', define: runtimeVersionsDefine() })
 }
 
-export interface RendererDevServer {
-  /** http://127.0.0.1:<port>，经环境变量 COKO_RENDERER_DEV_URL 交给 main。 */
-  readonly url: string
-  close(): Promise<void>
-}
-
-/** 开发服务器：先在端口 0 监听拿到实际端口，再以 middleware 模式挂载 Vite，HMR 复用同一端口。 */
+/** Forge 开发入口：使用同一份 renderer 配置和当前 Electron 运行时版本。 */
 export async function startRendererDevServer(): Promise<RendererDevServer> {
-  const http = createHttpServer()
-  await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
-  const address = http.address()
-  if (address === null || typeof address === 'string') throw new Error('Unexpected dev server address')
-  const vite = await createViteServer({
-    configFile: viteConfigFile,
-    define: runtimeVersionsDefine(),
-    appType: 'spa',
-    server: { middlewareMode: true, hmr: { server: http, host: '127.0.0.1', clientPort: address.port, protocol: 'ws' } },
-  })
-  http.on('request', vite.middlewares)
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    close: async () => {
-      await vite.close()
-      http.closeAllConnections()
-      await new Promise<void>((resolve) => http.close(() => resolve()))
-    },
-  }
+  return createRendererDevServer(viteConfigFile, runtimeVersionsDefine())
 }
 
 if (import.meta.main) {

@@ -1,5 +1,5 @@
 import { PanelAttention, PanelStart, PanelTabs } from '@coko/ui'
-import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightCloseIcon } from 'lucide-react'
+import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightIcon } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useChat, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -80,7 +80,7 @@ export function RightPanel({
               onClick={onClose}
               aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
             >
-              <PanelRightCloseIcon />
+              <PanelRightIcon className="size-4" strokeWidth={1} />
             </IconButton>
             {onToggleFullscreen && (
               <IconButton

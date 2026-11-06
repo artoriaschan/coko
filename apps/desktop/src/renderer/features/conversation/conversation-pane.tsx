@@ -1,7 +1,8 @@
 import type { FileAttachment, ImageAttachment } from '@coko/protocol'
-import { ArrowDownIcon, PanelRightOpenIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
+import { ArrowDownIcon, PanelRightIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
 import { AppFrameCollapsedControls, Button, cn, toast } from '@coko/ui'
 import * as React from 'react'
+import { useStore } from 'zustand'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useNewChat, useChat, useChatActions, useChatStoreApi, useLists, useCurrentSession, useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -23,6 +24,9 @@ import { isGoalCardCommand, isGoalRunningControl, useGoalStoreApi } from './dock
 import { visibleHeaderActions, type HeaderActionDefinition, type HeaderActionProps } from './header-actions.ts'
 import { PlanChip } from './plan-chip.tsx'
 import { restoredMode } from './plan-review-panel.tsx'
+import { inspectTrajectory } from '../trajectory/inspect-store.ts'
+import { TrajectoryView } from '../trajectory/trajectory-view.tsx'
+import { conversationViewStore, INITIAL_CONVERSATION_VIEW, selectConversationView } from './view-store.ts'
 import { openPage, type RightPanelTabId } from '../right-panel/layout-store.ts'
 import { ModelPicker } from './model-picker.tsx'
 import { ModePicker, nextCycledMode } from './mode-picker.tsx'
@@ -30,6 +34,8 @@ import { RewindDialog } from './rewind-dialog.tsx'
 import { displayRuns } from './process-groups.ts'
 import { buildTimeline } from './timeline.ts'
 import { TimelineView } from './timeline-view.tsx'
+import { TurnNavigator } from './turn-navigator.tsx'
+import { ConversationWidthControls, useConversationWidth } from './conversation-width.tsx'
 import { useReadingScroll } from './use-reading-scroll.ts'
 import { HandoffEffects } from './handoff-effects.tsx'
 import { SessionStatusBar } from './session-status-bar.tsx'
@@ -48,9 +54,8 @@ export interface ConversationPaneProps {
   composerRef?: React.Ref<ComposerHandle>
 }
 
-// 聊天列宽度轴：clamp(680px, 列宽×0.64, 920px)，窄于该值时取列宽；composer 比聊天列宽 32px。
-const chatColumn = 'mx-auto w-full max-w-[clamp(680px,64cqi,920px)]'
-const sessionComposerColumn = 'mx-auto w-full max-w-[calc(clamp(680px,64cqi,920px)_+_32px)]'
+const chatColumn = 'conversation-message-column mx-auto w-full'
+const sessionComposerColumn = 'conversation-composer-column mx-auto w-full'
 
 /** 四个状态按钮在任何主区宽度下都直接显示。 */
 export function HeaderActions({ actions, ...props }: { actions: readonly HeaderActionDefinition[] } & HeaderActionProps) {
@@ -72,6 +77,11 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
     previousRightOpen.current = rightOpen
   }, [rightOpen])
   const activeSessionId = useChat((s) => s.activeSessionId)
+  const mainView = useStore(conversationViewStore, (state) =>
+    activeSessionId === null ? INITIAL_CONVERSATION_VIEW : (state.sessions[activeSessionId] ?? INITIAL_CONVERSATION_VIEW),
+  )
+  const trajectoryActive = activeSessionId !== null && mainView.active === 'trajectory'
+  const tabId = React.useId()
   const composerColumn = activeSessionId === null ? 'mx-auto w-full max-w-[768px]' : sessionComposerColumn
   const session = useCurrentSession()
   const conversation = useChat((s) => (s.activeSessionId === null ? undefined : s.conversations[s.activeSessionId]))
@@ -241,6 +251,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   )
 
   const reading = useReadingScroll(activeSessionId, items)
+  const contentWidth = useConversationWidth()
 
   let body: React.ReactNode
   if (activeSessionId === null) {
@@ -274,7 +285,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
           connected={connection.phase === 'connected'}
           theme={theme}
           onRetry={() => void retry()}
-          onInspect={() => openTab('trace')}
+          onInspect={(toolCallId) => activeSessionId !== null && inspectTrajectory(activeSessionId, toolCallId)}
           onOpenPlan={() => openTab('plan')}
           onRewind={(seq, text) =>
             activeSessionId !== null && setRewindRequest((prev) => ({ sessionId: activeSessionId, seq, text, opened: (prev?.opened ?? 0) + 1, open: true }))
@@ -319,25 +330,70 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                   label={t('frame.openRightPanel')}
                   tooltip={t('rightPanel.toggleShortcut')}
                   tooltipSide="bottom"
+                  size="icon-sm"
                   onClick={onToggleRight}
                 >
-                  <PanelRightOpenIcon />
+                  <PanelRightIcon className="size-4" strokeWidth={1} />
                 </IconButton>
               )}
             </>
           )}
         </header>
         {activeSessionId !== null && (
-          <div role="tablist" aria-label={t('frame.main')} className="flex shrink-0 border-b-hairline border-border px-4">
-            <button type="button" role="tab" aria-selected="true" className="relative px-1 pt-2 pb-2.5 text-ui-body font-medium text-link focus-ring">
-              {t('frame.main')}
-              <span data-slot="conversation-tab-indicator" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-link" />
-            </button>
+          <div
+            role="tablist"
+            aria-label={t('frame.main')}
+            data-conversation-tabs
+            className="flex shrink-0 gap-6 border-b-hairline border-border px-4"
+            onKeyDown={(event) => {
+              if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return
+              const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+              const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+              const next =
+                event.key === 'ArrowRight'
+                  ? (current + 1) % buttons.length
+                  : event.key === 'ArrowLeft'
+                    ? (current - 1 + buttons.length) % buttons.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? buttons.length - 1
+                        : null
+              if (next !== null) {
+                event.preventDefault()
+                buttons[next]?.focus()
+              }
+            }}
+          >
+            {(['conversation', 'trajectory'] as const).map((view) => (
+              <button
+                key={view}
+                type="button"
+                role="tab"
+                id={`${tabId}-${view}`}
+                data-tab={view}
+                aria-controls={`${tabId}-${view}-panel`}
+                aria-selected={mainView.active === view}
+                tabIndex={mainView.active === view ? 0 : -1}
+                className={cn(
+                  'relative px-1 pt-2 pb-2.5 text-ui-body font-medium focus-ring',
+                  mainView.active === view ? 'text-link' : 'text-muted-foreground [@media(hover:hover)]:hover:text-foreground',
+                )}
+                onClick={() => selectConversationView(activeSessionId, view)}
+              >
+                {t(view === 'conversation' ? 'frame.main' : 'trace.tab')}
+                {mainView.active === view && (
+                  <span data-slot="conversation-tab-indicator" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-link" />
+                )}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
       <div
+        ref={contentWidth.ref}
+        style={contentWidth.style}
         onFocusCapture={(event) => {
           lastFocused.current = event.target
         }}
@@ -345,24 +401,49 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
       >
         <div className={activeSessionId === null ? 'contents' : 'relative flex min-h-0 flex-1 flex-col'}>
           <div
-            ref={reading.ref}
-            data-main-timeline-session={activeSessionId ?? undefined}
-            tabIndex={activeSessionId === null ? undefined : -1}
-            data-scroll-stable
-            className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}
+            role={activeSessionId === null ? undefined : 'tabpanel'}
+            id={`${tabId}-conversation-panel`}
+            aria-labelledby={`${tabId}-conversation`}
+            aria-hidden={trajectoryActive || undefined}
+            inert={trajectoryActive}
+            className={cn(activeSessionId === null ? 'contents' : 'relative flex min-h-0 flex-1 flex-col', trajectoryActive && 'invisible absolute inset-0')}
           >
-            {body}
-          </div>
-          {activeSessionId !== null && !reading.following && reading.down && (
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={t('conversation.returnToBottom')}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-round bg-background"
-              onClick={reading.toBottom}
+            {activeSessionId !== null && <ConversationWidthControls layout={contentWidth} />}
+            <div
+              ref={reading.ref}
+              data-main-timeline-session={activeSessionId ?? undefined}
+              tabIndex={activeSessionId === null ? undefined : -1}
+              data-scroll-stable
+              className={activeSessionId === null ? 'shrink-0 px-4' : 'conversation-message-scroll flex min-h-0 flex-1 flex-col overflow-y-auto'}
             >
-              <ArrowDownIcon aria-hidden />
-            </Button>
+              {body}
+            </div>
+            {activeSessionId !== null && (
+              <TurnNavigator key={activeSessionId} items={items} scrollport={reading.element} onNavigate={reading.jump} theme={theme} />
+            )}
+            {activeSessionId !== null && !reading.following && reading.down && (
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label={t('conversation.returnToBottom')}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-round bg-background"
+                onClick={reading.toBottom}
+              >
+                <ArrowDownIcon aria-hidden />
+              </Button>
+            )}
+          </div>
+          {activeSessionId !== null && mainView.trajectoryOpened && (
+            <div
+              role="tabpanel"
+              id={`${tabId}-trajectory-panel`}
+              aria-labelledby={`${tabId}-trajectory`}
+              aria-hidden={!trajectoryActive || undefined}
+              inert={!trajectoryActive}
+              className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col', !trajectoryActive && 'invisible absolute inset-0')}
+            >
+              <TrajectoryView key={activeSessionId} sessionId={activeSessionId} />
+            </div>
           )}
         </div>
 

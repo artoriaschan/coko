@@ -1,10 +1,18 @@
 import { TimelineRevealContext, useTimelineReveal, type TimelineRevealScope } from './timeline-reveal.tsx'
 import * as React from 'react'
 import type { TimelineProjection } from './timeline-projection.ts'
-import type { Translator } from '@coko/i18n'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
-import { processActivities, processSeats, wholeFoldEligible, type DisplayRun, type ProcessGroup } from './process-groups.ts'
+import {
+  processActivities,
+  processSeats,
+  processSteps,
+  processTitle,
+  toolStepPresentation,
+  wholeFoldEligible,
+  type DisplayRun,
+  type ProcessGroup,
+} from './process-groups.ts'
 import { ProcessDisclosureReset, ProcessFocusLock, useProcessDisclosure } from './process-disclosure.tsx'
 import { ProcessActivityIcon } from './process-icon.tsx'
 import { useNow } from './jobs-button.tsx'
@@ -12,16 +20,6 @@ import { useReadingScroll } from './use-reading-scroll.ts'
 import { useFlowBox } from './use-flow-box.ts'
 import './process-timeline.css'
 import { ProcessToolStates } from './tool-states.tsx'
-
-function summary(group: ProcessGroup, t: Translator, locale: string): string {
-  const activities = processActivities(group.members)
-  if (activities.length === 0) return t('process.thinking')
-  const kinds = activities.slice(0, 3)
-  const completedPrefix = new Set(['thinking', 'read', 'readImage', 'search', 'write', 'webSearch', 'webFetch', 'subagents', 'tools'])
-  const combineChinese = locale === 'zh' && kinds.length === 2 && kinds.every((kind) => completedPrefix.has(kind))
-  const titles = kinds.map((kind, index) => t(index > 0 && (locale === 'en' || combineChinese) ? `process.continuation.${kind}` : `process.${kind}`))
-  return titles.join(t(titles.length === 2 ? 'process.joinTwo' : 'process.joinMany')) + (activities.length > 3 ? t('process.more') : '')
-}
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -54,7 +52,7 @@ function Group({
   focusTarget?: HTMLElement | undefined
   renderItem: (item: TimelineItem) => React.ReactNode
 }) {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const [opened, setOpened] = useProcessDisclosure()
   useTimelineReveal((target) => {
     if (target.groupId === group.id || (target.identity !== undefined && group.identities.includes(target.identity))) setOpened(true)
@@ -111,7 +109,7 @@ function Group({
               <Chevron open={open} />
             </span>
           </span>
-          <span className="conversation-process-label">{summary(group, t, locale)}</span>
+          <span className="conversation-process-label">{processTitle(group.members, t)}</span>
         </button>
       </div>
       {!running && <ProcessToolStates members={group.members} />}
@@ -128,9 +126,59 @@ function Group({
         data-scroll-down={(!running && reading.down) || undefined}
         className="conversation-process-body"
       >
-        <div className="conversation-process-content">{group.members.map(renderItem)}</div>
+        <div className="conversation-process-content">
+          {processSteps(group.members).map((step) =>
+            step.kind === 'item' ? renderItem(step.item) : <ToolStep key={step.id} members={step.members} renderItem={renderItem} />,
+          )}
+        </div>
       </div>
     </section>
+  )
+}
+
+function ToolStep({ members, renderItem }: { members: Extract<TimelineItem, { kind: 'tool' }>[]; renderItem: (item: TimelineItem) => React.ReactNode }) {
+  const { t } = useI18n()
+  const presentation = toolStepPresentation(members)
+  const [open, setOpen] = useProcessDisclosure(true)
+  const bodyId = React.useId()
+  useTimelineReveal((target) => {
+    if (
+      members.some(
+        (item) => target.toolCallId === item.call.id || target.identity === item.key || (target.seq !== undefined && target.seq === item.origin?.seq),
+      )
+    )
+      setOpen(true)
+  })
+  return (
+    <div data-slot="process-tool-step" className="conversation-tool-step">
+      <button
+        type="button"
+        className="conversation-tool-step-header focus-ring rounded-sm"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={() => setOpen(!open)}
+      >
+        <span aria-hidden className="conversation-process-leading conversation-tool-step-leading">
+          <span className="conversation-tool-step-icon">
+            <ProcessActivityIcon activity={presentation.activity} />
+          </span>
+          <span className="conversation-tool-step-chevron">
+            <Chevron open={open} />
+          </span>
+        </span>
+        <span className="shrink-0">{t(`process.step.${presentation.activity}`)}</span>
+        <span aria-hidden className="conversation-tool-step-separator">
+          ·
+        </span>
+        <span data-user-content className="conversation-process-label">
+          {presentation.summary}
+        </span>
+      </button>
+      <div id={bodyId} hidden={!open} className="conversation-tool-step-calls">
+        {members.map(renderItem)}
+      </div>
+      {!open && <ProcessToolStates members={members} />}
+    </div>
   )
 }
 

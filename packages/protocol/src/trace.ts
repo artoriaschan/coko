@@ -14,6 +14,10 @@ export type ModelRequestPurpose = Static<typeof ModelRequestPurpose>
 export const ModelRequestUsage = Type.Object({ input: Count, output: Count, cacheRead: Count, cacheWrite: Count, total: Count }, strict)
 export type ModelRequestUsage = Static<typeof ModelRequestUsage>
 
+/** Immutable, redacted model-visible input captured when the request attempt started. */
+export const ModelRequestSnapshot = Type.Object({ system: Type.String(), messages: Type.Array(Type.Unknown()), tools: Type.Array(Type.Unknown()) }, strict)
+export type ModelRequestSnapshot = Static<typeof ModelRequestSnapshot>
+
 /** model_request v1：一次模型请求结束（含错误、摘要与 Run 外标题请求；标题的 runId 为 null）；retries 为之前失败的次数。 */
 export const ModelRequestPayload = Type.Object(
   {
@@ -24,6 +28,7 @@ export const ModelRequestPayload = Type.Object(
     durationMs: Count,
     ttftMs: Type.Optional(Count),
     requestId: Type.Optional(Id),
+    snapshot: Type.Optional(ModelRequestSnapshot),
     usageReport: Type.Optional(USAGE_REPORT_SCHEMA),
     reasoning: Type.Optional(Count),
     usage: ModelRequestUsage,

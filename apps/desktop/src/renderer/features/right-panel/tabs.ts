@@ -1,17 +1,7 @@
 import { ArtifactsTab } from './artifacts-tab.tsx'
 import type { MessageKey } from '@coko/i18n'
 import type * as React from 'react'
-import {
-  ActivityIcon,
-  FolderOutputIcon,
-  BracesIcon,
-  BotIcon,
-  CalendarClockIcon,
-  ListTodoIcon,
-  NetworkIcon,
-  ScrollTextIcon,
-  type LucideIcon,
-} from 'lucide-react'
+import { ActivityIcon, FolderOutputIcon, BracesIcon, BotIcon, CalendarClockIcon, ListTodoIcon, NetworkIcon, type LucideIcon } from 'lucide-react'
 import type { RightPanelTabId } from './layout-store.ts'
 export type { RightPanelTabId } from './layout-store.ts'
 import { AgentsTab } from './agents-tab.tsx'
@@ -20,7 +10,6 @@ import { PlanTab } from './plan-tab.tsx'
 import { SchedulesTab } from './schedules-tab.tsx'
 import { TeamTab } from './team-tab.tsx'
 import { SessionDiagnostics } from '../session-diagnostics/session-diagnostics.tsx'
-import { TraceTab } from './trace-tab.tsx'
 
 export interface RightPanelTabProps {
   /** 当前会话；没有会话（草稿或未选择）时为 null。 */
@@ -43,7 +32,6 @@ export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
   { id: 'agents', icon: BotIcon, label: 'agents.tab', Component: AgentsTab, available: true },
   { id: 'schedules', icon: CalendarClockIcon, label: 'schedules.tab', Component: SchedulesTab, available: true },
   { id: 'team', icon: NetworkIcon, label: 'teams.tab', Component: TeamTab, available: true },
-  { id: 'trace', icon: ScrollTextIcon, label: 'trace.tab', Component: TraceTab, available: true },
   { id: 'diagnostics', icon: BracesIcon, label: 'diagnostics.title', Component: SessionDiagnostics, available: true },
 ]
 

@@ -8,7 +8,7 @@ lifecycle: active
 
 ## DeepSeek Harness
 
-Coko 的会话数据诊断表格模型、滚动布局、摘要格式、JSON 展示及对应测试改写自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，基线 `8bd073392eef6f54e921a093b95076248eb08cbb`。以下许可随应用 Resources 分发。
+Coko 的会话数据诊断表格模型、滚动布局、摘要格式、JSON 展示，以及轨迹时间条、工具栏、记录表、详情布局、JSON 树、图标原始矢量和对应测试改写自 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，基线 `8bd073392eef6f54e921a093b95076248eb08cbb`。以下许可随应用 Resources 分发。
 
 MIT License
 

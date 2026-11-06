@@ -57,7 +57,10 @@ it('actual App: search retains raw results, caps at eight lines, expands by keyb
   const original = 'src/a.ts:7: original\nsecond\nthird\nfourth\nfifth\nsixth\nseventh\neighth\nninth\ntenth\neleventh\ntwelfth'
   const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
   await open([call(1, 'g', 'grep', { pattern: 'original', path: 'src', context: 2 }), result(2, 'g', original, { linesTruncated: true })])
-  await page.getByRole('button', { name: /Search/ }).click()
+  await page
+    .elementLocator(document.querySelector('[data-slot="tool-card"]')!)
+    .getByRole('button', { name: /Search/ })
+    .click()
   const card = document.querySelector('[data-search-detail]')!
   expect(card).not.toBeNull()
   expect(card.textContent).toContain('src/a.ts:7: original')
@@ -93,7 +96,7 @@ it('actual App: LSP distinguishes request fields from returned locations, preser
   expect(card.textContent).toContain('returned.ts:19:2 original result')
   expect(card.querySelector('a, button')).toBeNull()
   await page.getByRole('button', { name: 'Inspect', exact: true }).click()
-  await expect.element(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect.element(page.getByRole('tab', { name: 'Trajectory', exact: true })).toHaveAttribute('aria-selected', 'true')
 })
 
 it('actual App: Memory shows the recorded saved entry, keeps original arguments and receipts, and never retries a failed operation', async () => {

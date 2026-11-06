@@ -34,6 +34,19 @@
   --layer-menu: 50;
   --layer-menu-submenu: 51;
   --palette-white: #ffffff;
+  /* Read-only trajectory inspector syntax, matching the Harness JSON tree. */
+  --palette-json-property-light: #881391;
+  --palette-json-string-light: #c41a16;
+  --palette-json-number-light: #1c00cf;
+  --palette-json-punctuation-light: #202124;
+  --palette-json-icon-light: #5f6368;
+  --palette-json-hover-light: rgb(60 64 67 / 4%);
+  --palette-json-property-dark: #5db0d7;
+  --palette-json-string-dark: #f28b82;
+  --palette-json-number-dark: #99c8ff;
+  --palette-json-punctuation-dark: #e8eaed;
+  --palette-json-icon-dark: #9aa0a6;
+  --palette-json-hover-dark: rgb(232 234 237 / 5%);
   /* Locked conversation file-reading syntax palette. */
   --palette-file-code-constant-light: #1c7ed6;
   --palette-file-code-string-light: #2f9e44;
@@ -78,6 +91,9 @@
   --palette-red-500: rgb(236 19 19);
   --palette-red-300: rgb(242 90 90);
   --palette-green-500: rgb(34 197 94);
+  --palette-harness-green-100: rgb(230 250 237);
+  --palette-harness-green-900: rgb(35 60 44);
+  --palette-black: rgb(0 0 0);
   --palette-amber-500: rgb(245 158 11);
   /* 文字用的深色（亮色主题，对白色约 5:1 以上）与浅色（暗色主题）：成功、警告文字与终端的 ANSI 颜色。 */
   --palette-red-700: rgb(185 28 28);
@@ -103,6 +119,7 @@
   --palette-ink-a10: rgb(0 0 0 / 0.1);
   --palette-ink-a12: rgb(0 0 0 / 0.12);
   --palette-ink-a16: rgb(0 0 0 / 0.16);
+  --palette-ink-a14: rgb(0 0 0 / 0.14);
   --palette-ink-a24: rgb(0 0 0 / 0.24);
   --palette-ink-a30: rgb(0 0 0 / 0.3);
   --palette-ink-a50: rgb(0 0 0 / 0.5);
@@ -127,6 +144,26 @@
   color-scheme: light;
   --background: var(--palette-white);
   --foreground: var(--palette-ink);
+  --trajectory-json-property: var(--palette-json-property-light);
+  --trajectory-json-string: var(--palette-json-string-light);
+  --trajectory-json-number: var(--palette-json-number-light);
+  --trajectory-json-keyword: var(--palette-json-number-light);
+  --trajectory-json-punctuation: var(--palette-json-punctuation-light);
+  --trajectory-json-icon: var(--palette-json-icon-light);
+  --trajectory-json-hover: var(--palette-json-hover-light);
+  --font-trajectory-ui:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --trajectory-detail-secondary: var(--palette-gray-600);
+  --trajectory-detail-tertiary: var(--palette-gray-500);
+  --trajectory-detail-caption: var(--palette-gray-400);
+  --trajectory-detail-background: var(--palette-white);
+  --trajectory-detail-foreground: var(--palette-black);
+  --trajectory-diff-added-text: color-mix(in srgb, var(--palette-green-500) 72%, var(--trajectory-detail-foreground));
+  --trajectory-diff-added-fill: var(--palette-harness-green-100);
+  --trajectory-diff-removed-text: var(--palette-red-500);
+  --trajectory-diff-removed-fill: color-mix(in srgb, var(--trajectory-diff-removed-text) 12%, var(--trajectory-detail-background));
+  --trajectory-detail-overlay-shadow: -12px 0 32px var(--palette-ink-a14);
+  --trajectory-detail-overlay-border: var(--palette-ink-a12);
   --card: var(--palette-white);
   --card-foreground: var(--palette-ink);
   --card-fill: var(--palette-white);
@@ -248,6 +285,23 @@
   color-scheme: dark;
   --background: var(--palette-gray-950);
   --foreground: var(--palette-gray-50);
+  --trajectory-json-property: var(--palette-json-property-dark);
+  --trajectory-json-string: var(--palette-json-string-dark);
+  --trajectory-json-number: var(--palette-json-number-dark);
+  --trajectory-json-keyword: var(--palette-json-number-dark);
+  --trajectory-json-punctuation: var(--palette-json-punctuation-dark);
+  --trajectory-json-icon: var(--palette-json-icon-dark);
+  --trajectory-json-hover: var(--palette-json-hover-dark);
+  --trajectory-detail-secondary: var(--palette-gray-300);
+  --trajectory-detail-tertiary: var(--palette-gray-400);
+  --trajectory-detail-caption: var(--palette-gray-500);
+  --trajectory-detail-background: var(--palette-gray-850);
+  --trajectory-detail-foreground: var(--palette-gray-50);
+  --trajectory-diff-added-text: color-mix(in srgb, var(--palette-green-500) 72%, var(--trajectory-detail-foreground));
+  --trajectory-diff-added-fill: var(--palette-harness-green-900);
+  --trajectory-diff-removed-text: var(--palette-red-300);
+  --trajectory-diff-removed-fill: color-mix(in srgb, var(--trajectory-diff-removed-text) 12%, var(--trajectory-detail-background));
+  --trajectory-detail-overlay-border: var(--palette-white-a16);
   --card: var(--palette-gray-800);
   --card-foreground: var(--palette-gray-50);
   --card-fill: var(--palette-gray-800);

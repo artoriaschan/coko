@@ -54,7 +54,7 @@ export interface TimelineViewProps {
   /** Run 进行中或有待处理的请求：消息动作不可用。 */
   actionsDisabled?: boolean
   /** 应用拥有追踪入口；子 Session 无对应定位时省略。 */
-  onInspect?: () => void
+  onInspect?: (toolCallId: string) => void
 }
 
 /** 消息流：用户气泡、流式 Markdown、思考过程、工具卡与 Run 结束状态。key 为条目身份，流式更新不重挂载。 */
@@ -318,7 +318,14 @@ export function TimelineView(props: TimelineViewProps) {
           />
         )
       case 'tool':
-        return <ToolCardView key={item.key} item={item} onInspect={props.onInspect} rootAttributes={rootAttributes} />
+        return (
+          <ToolCardView
+            key={item.key}
+            item={item}
+            onInspect={props.onInspect ? () => props.onInspect?.(item.call.id) : undefined}
+            rootAttributes={rootAttributes}
+          />
+        )
       case 'generating':
         return (
           <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">

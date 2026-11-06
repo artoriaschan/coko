@@ -27,7 +27,7 @@ export function useReadingScroll(
   targetRef.current = focusTarget
   const [element, ref] = React.useState<HTMLDivElement | null>(null)
   const [state, setState] = React.useState({ following: initialFollow, up: false, down: false })
-  const control = React.useRef<{ sync: () => void; bottom: () => void; top: () => void } | null>(null)
+  const control = React.useRef<{ sync: () => void; bottom: () => void; top: () => void; jump: (target: HTMLElement) => void } | null>(null)
   React.useLayoutEffect(() => {
     if (!element || !enabled) return
     let revealing = false
@@ -210,6 +210,15 @@ export function useReadingScroll(
     element.addEventListener('keydown', intent)
     control.current = {
       sync,
+      jump: (target) => {
+        following = false
+        protectFocus = false
+        focusPosition = undefined
+        anchors = []
+        const top = element.scrollTop + target.getBoundingClientRect().top - element.getBoundingClientRect().top - 16
+        element.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+        publish()
+      },
       bottom: () => {
         element.focus({ preventScroll: true })
         following = true
@@ -247,5 +256,12 @@ export function useReadingScroll(
   React.useLayoutEffect(() => {
     control.current?.sync()
   }, [revision])
-  return { ref, ...state, toBottom: () => control.current?.bottom(), toTop: () => control.current?.top() }
+  return {
+    ref,
+    element,
+    ...state,
+    toBottom: () => control.current?.bottom(),
+    toTop: () => control.current?.top(),
+    jump: (target: HTMLElement) => control.current?.jump(target),
+  }
 }

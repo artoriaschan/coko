@@ -12,6 +12,7 @@ import { createConnectionStore } from '../../../app/connection-store.ts'
 import { I18nProvider } from '../../../app/i18n.tsx'
 import { createPreferences } from '../../../app/preferences.ts'
 import { createSettingsPageStore } from '../../../app/settings-page-store.ts'
+import { SettingsProvider } from '../../../app/settings.tsx'
 import { createFixtureChat } from '../../../testing/fixture-chat.ts'
 import { HEADER_ACTIONS } from '../header-actions.ts'
 import { RightPanel } from '../../right-panel/right-panel.tsx'
@@ -33,16 +34,17 @@ it('注册表：dock 三张卡、标题栏全部操作、右栏全部 tab 均已
     ['team', true],
   ])
   expect(RIGHT_PANEL_TABS.map((t) => [t.id, t.available])).toEqual([
+    ['artifacts', true],
     ['plan', true],
     ['jobs', true],
     ['agents', true],
     ['schedules', true],
     ['team', true],
-    ['trace', true],
+    ['diagnostics', true],
   ])
 })
 
-it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏按需打开页面，开始页列出全部六个入口', async () => {
+it('应用中：会话打开后 dock 没有内容时不占位；没有后台任务时不显示"后台任务"按钮，没有 Plan chip（不在 plan 模式）；右栏按需打开页面，开始页列出全部五个入口', async () => {
   const { chat, settings } = createFixtureChat()
   const store = createAppearanceStore({ theme: 'light', locale: 'en' })
   const preferences = createPreferences({ appearance: store, settings, onConflict: () => {}, onFailure: () => {} })
@@ -68,17 +70,20 @@ it('应用中：会话打开后 dock 没有内容时不占位；没有后台任�
   expect(document.querySelector('[data-slot="plan-chip"]')).toBeNull()
   await expect.element(page.getByRole('tab', { name: 'Start' })).toHaveAttribute('aria-selected', 'true')
   expect([...screen.container.querySelectorAll('[data-slot="app-frame-right"] [role="tab"]')].map((e) => e.getAttribute('data-tab'))).toEqual(['start'])
-  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team', 'Trace'])
-    await expect.element(page.getByRole('button', { name, exact: true })).toBeVisible()
+  for (const name of ['Plan', 'Tasks', 'Agents', 'Schedules', 'Team']) await expect.element(page.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
 function renderWithProviders(node: React.ReactNode) {
-  const { chat } = createFixtureChat()
+  const { chat, settings } = createFixtureChat()
+  const appearance = createAppearanceStore({ theme: 'light', locale: 'en' })
+  const preferences = createPreferences({ appearance, settings, onConflict: () => {}, onFailure: () => {} })
   return render(
     <I18nProvider locale="en">
-      <ChatStoreProvider store={chat}>
-        <TooltipProvider>{node}</TooltipProvider>
-      </ChatStoreProvider>
+      <SettingsProvider store={settings} page={createSettingsPageStore()} preferences={preferences}>
+        <ChatStoreProvider store={chat}>
+          <TooltipProvider>{node}</TooltipProvider>
+        </ChatStoreProvider>
+      </SettingsProvider>
     </I18nProvider>,
   )
 }
@@ -105,9 +110,11 @@ it('dock：只挂载已交付的卡片，按 Todo → Goal → Queue；卡片都
 
 it('右栏：开始页只列出已交付页面，选择后原位替换引导页', async () => {
   const Panel = (id: string) => () => <p>{`panel-${id}`}</p>
-  const tabs = RIGHT_PANEL_TABS.map((t) => ({ ...t, available: true, Component: Panel(t.id) }))
+  const tabs = RIGHT_PANEL_TABS.map((t) => ({ ...t, available: t.id !== 'team', Component: Panel(t.id) }))
   openPage('s-1', 'start')
   await renderWithProviders(<RightPanel onClose={() => {}} tabs={tabs} />)
+  await expect.element(page.getByRole('button', { name: 'Tasks', exact: true })).toBeVisible()
+  await expect.element(page.getByRole('button', { name: 'Team', exact: true })).not.toBeInTheDocument()
   await userEvent.click(page.getByRole('button', { name: 'Tasks', exact: true }))
   await expect.element(page.getByText('panel-jobs')).toBeVisible()
   await expect.element(page.getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'true')

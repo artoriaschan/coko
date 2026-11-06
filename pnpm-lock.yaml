@@ -302,12 +302,18 @@ importers:
       anser:
         specifier: 2.3.5
         version: 2.3.5
+      diff:
+        specifier: 8.0.4
+        version: 8.0.4
       electron:
         specifier: 41.0.3
         version: 41.0.3
       lucide-react:
         specifier: 1.55.0
         version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
+      mdast-util-from-markdown:
+        specifier: 2.1.0
+        version: 2.1.0
       playwright:
         specifier: 1.64.0
         version: 1.64.0

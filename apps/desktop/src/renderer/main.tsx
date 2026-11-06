@@ -4,7 +4,6 @@ import { toast } from '@coko/ui'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as React from 'react'
-import { App } from './app/app.tsx'
 import { createAppearanceStore, defaultAppearance, type Theme } from './app/appearance-store.ts'
 import { notifyFailure } from './app/chat-failure.ts'
 import { createConnectionStore } from './app/connection-store.ts'
@@ -19,6 +18,9 @@ import { createChatStore } from './stores/chat-store.ts'
 import { contextStore, trackCompaction } from './stores/context-store.ts'
 import { createSettingsStore } from './stores/settings-store.ts'
 import type { FetchProviderModelsInput, SaveProviderInput } from '../shared/bridge.ts'
+
+// 工作台及其 Markdown/CSS 依赖共同就绪后才显示正文，重型插件仍留在异步 chunk。
+const App = React.lazy(() => import('./app/app.tsx').then((module) => ({ default: module.App })))
 
 const root = document.getElementById('root')
 if (!root) throw new Error('renderer: missing #root')
@@ -125,18 +127,21 @@ function Bootstrap() {
       unsubscribeConnection()
     }
   }, [])
-  if (!ready) return <StartupScreen label={createTranslator(appearance.getSnapshot().locale)('startup.loading')} />
+  const loading = <StartupScreen label={createTranslator(appearance.getSnapshot().locale)('startup.loading')} />
+  if (!ready) return loading
   return (
-    <App
-      store={appearance}
-      connection={connection}
-      chat={chat}
-      settings={settings}
-      preferences={preferences}
-      settingsPage={settingsPage}
-      pickDirectory={pickDirectory}
-      openLogs={openLogs}
-    />
+    <React.Suspense fallback={loading}>
+      <App
+        store={appearance}
+        connection={connection}
+        chat={chat}
+        settings={settings}
+        preferences={preferences}
+        settingsPage={settingsPage}
+        pickDirectory={pickDirectory}
+        openLogs={openLogs}
+      />
+    </React.Suspense>
   )
 }
 

@@ -4,7 +4,7 @@ import type { RightPanelLayout, RightPanelPageKind } from './layout-store.ts'
 
 export const RIGHT_PANEL_LAYOUT_PREFIX = 'coko.right-panel.v1.'
 /** 默认可用页面；开发者页由偏好装配按开关另外启用。 */
-export const RIGHT_PANEL_PAGE_KINDS: readonly RightPanelPageKind[] = ['start', 'plan', 'jobs', 'agents', 'schedules', 'team', 'trace', 'artifacts']
+export const RIGHT_PANEL_PAGE_KINDS: readonly RightPanelPageKind[] = ['start', 'plan', 'jobs', 'agents', 'schedules', 'team', 'artifacts']
 export const INITIAL_RIGHT_PANEL_LAYOUT: RightPanelLayout = { tabs: [], active: null, expanded: false, mode: 'normal' }
 
 // 先校验字符串和成员关系，再过滤种类：旧版本可以保留新版本记录中自己认识的页面。

@@ -6,6 +6,7 @@
 import { afterEach, beforeEach } from 'vitest'
 import { cleanup } from 'vitest-browser-react'
 import { rightPanelLayoutStore } from '../features/right-panel/layout-store.ts'
+import { conversationViewStore } from '../features/conversation/view-store.ts'
 
 let stored: [string, string][] = []
 
@@ -16,6 +17,7 @@ beforeEach(() => {
 afterEach(async () => {
   await cleanup()
   rightPanelLayoutStore.setState({ sessions: {}, attention: null })
+  conversationViewStore.setState({ sessions: {} })
   localStorage.clear()
   for (const [key, value] of stored) localStorage.setItem(key, value)
   const hidden = [...document.body.children].filter((node) => node.hasAttribute('data-aria-hidden') || node.getAttribute('aria-hidden') === 'true')
