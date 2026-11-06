@@ -1,0 +1,422 @@
+apps/desktop/src/renderer/stores/trace-store.ts
+  s_5f188ad9a583ab::t_82b7fc48c42d0f 7
+scripts/desktop-dev-start.test.ts
+  s_5f188ad9a583ab::t_447b603ea2d0ef 36
+  s_5f188ad9a583ab::t_c637e4d74b7947 1,3-4,10-14,18-35,37-52
+  s_5f188ad9a583ab::t_f46f691011f3c7 2,5-9,15-17
+packages/agent/src/tools/builtin/bash.test.ts
+  s_4eb1acc141d433::t_afc0e781edd507 25
+THIRD_PARTY_NOTICES.md
+  s_5f188ad9a583ab::t_43d7512797051a 11
+apps/desktop/src/renderer/features/conversation/tool-rows.browser.test.tsx
+  s_4eb1acc141d433::t_90e9ac1b7c4a03 127
+apps/desktop/src/renderer/features/conversation/tool-card-images.browser.test.tsx
+  s_4eb1acc141d433::t_9a2c8066d6823e 205
+docs/README.md
+  s_4eb1acc141d433::t_1e1bf456f15e1b 28
+  s_5f188ad9a583ab::t_44128fa26ef324 54
+packages/i18n/src/dictionaries/en.ts
+  s_4eb1acc141d433::t_438a40fe0c9fcc 315-318
+  s_4eb1acc141d433::t_5c55df33434a26 219-234
+  s_4eb1acc141d433::t_e9d083e81bff92 218,638
+apps/desktop/src/renderer/features/conversation/view-store.ts
+  s_5f188ad9a583ab::t_2ef263084b5137 1-18
+apps/desktop/e2e/session-download.e2e.test.ts
+  s_5f188ad9a583ab::t_41d49214f0b834 70
+apps/desktop/forge.config.ts
+  s_5f188ad9a583ab::t_447b603ea2d0ef 55,120
+  s_5f188ad9a583ab::t_48fe367056dd29 101-102
+packages/agent/src/index.ts
+  s_5f188ad9a583ab::t_b39c46aaf0cc84 155
+tests/integration/sidecar-titles.test.ts
+  s_5f188ad9a583ab::t_dc1b24e273fb87 44
+apps/desktop/src/renderer/features/trajectory/snapshot-context.ts
+  s_5f188ad9a583ab::t_41224adfebace9 1-2,5,7-11,14-19,21-34,36-38,40
+  s_5f188ad9a583ab::t_ba0516bca8e350 3-4,20,35,39
+apps/desktop/build/renderer-dev-server.ts
+  s_5f188ad9a583ab::t_c48c8675da4250 1,6-14,18,24,54-55
+  s_5f188ad9a583ab::t_4c33f48946cfdf 2-5,15-17,19-23,25-53
+apps/desktop/src/renderer/features/conversation/conversation-width.css
+  s_4eb1acc141d433::t_438a40fe0c9fcc 1-41
+apps/desktop/src/renderer/features/sidebar/sidebar-window-controls.tsx
+  s_4eb1acc141d433::t_cb08d170e48280 2,9,25
+docs/tech-stack/ui-design-system.md
+  s_4eb1acc141d433::t_f4d2bddfa6ca1f 128-130
+  s_5f188ad9a583ab::t_43d7512797051a 43-44
+packages/agent/src/session-entries/observability.ts
+  s_5f188ad9a583ab::t_b39c46aaf0cc84 17-23,37
+apps/desktop/src/renderer/features/conversation/permission-states.browser.test.tsx
+  s_5f188ad9a583ab::t_c685904e6cf68f 124
+packages/agent/README.md
+  s_4eb1acc141d433::t_b8681762c6b856 102-103
+apps/desktop/src/renderer/testing/browser-setup.ts
+  s_5f188ad9a583ab::t_2ef263084b5137 9,20
+apps/desktop/src/renderer/features/trajectory/trajectory-view.tsx
+  s_5f188ad9a583ab::t_bfa60e43d6ce51 1-2,6-7,10,28,59
+  s_5f188ad9a583ab::t_d0927aaccf7a0a 33
+docs/tech-stack/ui.md
+  s_4eb1acc141d433::t_840d12b27c22c6 56
+docs/subsystems/delivery.md
+  s_5f188ad9a583ab::t_e5c1fe22a03d04 17,29-31,103-105
+apps/desktop/src/renderer/features/trajectory/json-tree-menu.tsx
+  s_5f188ad9a583ab::t_c29050769175ca 2,74,85,87,90,92-93,102,108,110-111
+  s_5f188ad9a583ab::t_85ea5045f59226 4,9-10,19-28,114
+  s_5f188ad9a583ab::t_9a8096568e1341 32-35,50,78,82-84,97-99,104
+  s_5f188ad9a583ab::t_84a71e2ae39bb6 37-49,51-71,75-77,79-81,86,88-89,91,94-96,100-101,103,105-107,109
+  s_5f188ad9a583ab::t_db12c371b9417e 5-8,11-18,36,72-73,113
+  s_5f188ad9a583ab::t_3190177e1ca1c2 3
+  s_5f188ad9a583ab::t_7806375b4c21f9 1,29-31,112
+apps/desktop/src/renderer/features/trajectory/json-tree.tsx
+  s_5f188ad9a583ab::t_593453a58bbf45 1-3,5-88,90-104,106-132,134-171,173-216,218,220-230,232-269,271-290,292-393,395-397,399-503,505-543,545-549,551-554,556-560,562-566,568-570,572-613,616-649,651-671,673,675-707,709-782,784,787-789,794,797-827
+apps/desktop/src/renderer/features/conversation/process-groups.ts
+  s_4eb1acc141d433::t_e9d083e81bff92 2,150,175-193,203,205-221,224-232
+  s_4eb1acc141d433::t_5c55df33434a26 194-202,204,222-223
+  s_4eb1acc141d433::t_e52e5de2a574c4 112-114
+  s_4eb1acc141d433::t_3f887e22c8cc16 66-83
+apps/desktop/src/renderer/features/conversation/markdown-table-resize.browser.test.tsx
+  s_4eb1acc141d433::t_5c55df33434a26 14-16,20-30,34-46,58-70,72
+  s_4eb1acc141d433::t_cea21bd9b3e4bb 74
+  s_4eb1acc141d433::t_35f5a10ca2a262 12
+  s_4eb1acc141d433::t_511c3a616361ba 50,52-53,56-57
+  s_4eb1acc141d433::t_cb1055d079d9d9 1-11,13,17-19,31-33,47-49,51,55,71,73,75-79
+  s_4eb1acc141d433::t_9890f40a6f567f 54
+apps/desktop/src/renderer/features/conversation/tool-cards.tsx
+  s_4eb1acc141d433::t_e9d083e81bff92 16-17,65,68-72
+packages/agent/src/engine/model-requests.ts
+  s_5f188ad9a583ab::t_b39c46aaf0cc84 6-13,15-22,33,54,67,150
+apps/desktop/src/renderer/features/conversation/process-disclosure.tsx
+  s_4eb1acc141d433::t_4c9a92eb5e2e7c 9
+apps/desktop/src/renderer/features/conversation/markdown-loading.browser.test.tsx
+  s_4eb1acc141d433::t_5a740bf3d8ab86 1-12,24-39,53-62
+  s_4eb1acc141d433::t_b757dbeca861ba 13-23,40-52
+apps/desktop/src/renderer/features/right-panel/layout-persistence.ts
+  s_5f188ad9a583ab::t_2ef263084b5137 7
+apps/desktop/src/renderer/features/conversation/turn-navigator.tsx
+  s_4eb1acc141d433::t_438a40fe0c9fcc 133,140-142
+  s_4eb1acc141d433::t_9d4b8558853062 55,96,118,122,134-139
+  s_4eb1acc141d433::t_4c9a92eb5e2e7c 1,5-40,43-46,48,50-54,56-59,67,69-78,80-95,97-117,119-121,123-132,143-148,150-179,181-186,199,201-203
+  s_4eb1acc141d433::t_b501b2b2852bd3 2,61,63-65,79
+  s_5f188ad9a583ab::t_584f16193134ac 3-4,42,47,49,187-198
+apps/desktop/src/renderer/features/trajectory/ledger.ts
+  s_5f188ad9a583ab::t_48c443720f9dfe 1-13,15-29,32-43,45,49-57,60-61,63,65-68,70-78
+apps/desktop/src/renderer/features/trajectory/json-tree.browser.test.tsx
+  s_5f188ad9a583ab::t_2c73cc784abc78 23-24,26
+  s_5f188ad9a583ab::t_fbd663879706cc 1-7,18-22,25,27-31,34-35,37-61,79-87,108
+  s_5f188ad9a583ab::t_3b827a100e80d8 8-17,62-78,88-107
+  s_5f188ad9a583ab::t_131e060dbf97f2 32-33,36
+packages/agent/src/engine/compaction.test.ts
+  s_5f188ad9a583ab::t_44128fa26ef324 4,131-133
+apps/desktop/src/renderer/features/trajectory/trajectory-record.ts
+  s_5f188ad9a583ab::t_80adda0fe8a316 39,181
+  s_5f188ad9a583ab::t_62ce09278c86b1 141-142,167-168
+  s_5f188ad9a583ab::t_c82cddcddf8fb4 35,151,228,328,335
+  s_5f188ad9a583ab::t_f4cf0967650c77 42,83-84,192,241,256,262,269,272-273,330-332,339-340,343-346
+  s_5f188ad9a583ab::t_95a3984f5a5eeb 3-5,7-30,34,36-38,40-41,50-57,60-64,66-81,90-91,93-94,96-103,106,120-123,125,129-130,132,135-136,139,143-150,152-155,157-162,164-166,169-180,182-184,188-189,191,193,195-199,219-221,242,245-255,257,260-261,347-349,351,354-355,358-366,368-369,371-372,374-379,381-383,385-387,389-391,400-413
+  s_5f188ad9a583ab::t_d2009ea2ead40f 2,107,113-118,202-218,265,267-268,278-293,295-313,319-327
+  s_5f188ad9a583ab::t_41224adfebace9 43,46-49,108-112,119,200,264,266,274-277,294,314-316,318,329,336-338,341-342,394,397
+  s_5f188ad9a583ab::t_db12c371b9417e 32-33,86-88,187
+  s_5f188ad9a583ab::t_ba0516bca8e350 6,44-45,201,263
+  s_5f188ad9a583ab::t_d07a0a14b03647 85,222-227,229-234,236-240,317,333-334,392-393,395-396,398-399
+  s_5f188ad9a583ab::t_108a244c385b19 156,235,270-271
+apps/desktop/src/renderer/features/trajectory/trajectory-panel.tsx
+  s_5f188ad9a583ab::t_8b24c527839992 333
+  s_5f188ad9a583ab::t_ab4f1d34d4dcf4 475
+  s_5f188ad9a583ab::t_da19328e57370d 50-57
+  s_5f188ad9a583ab::t_80adda0fe8a316 478
+  s_5f188ad9a583ab::t_a38b346ba2de15 1-2,8-10,25-33,467-474
+  s_5f188ad9a583ab::t_db12c371b9417e 78,147,152,182,267,476
+  s_5f188ad9a583ab::t_ba0516bca8e350 36-37,335
+  s_5f188ad9a583ab::t_861e8c95915e7c 108-117,136-138
+  s_5f188ad9a583ab::t_e4259c6dd56313 3-7,11-19,22-24,34,43-49,58-59,61-76,79-85,87-90,93-98,100-101,103,105,107,127,129-131,133,135,139,161,163-167,169-172,174-178,184-187,189-198,200-201,204,206-212,216-220,222-254,257-258,261-265,268-269,271-278,280-282,288-301,304-305,453,456-457,459-460,493-494,496
+  s_5f188ad9a583ab::t_8dd5a7128b61d9 368-375,381
+  s_5f188ad9a583ab::t_c93b0f52723376 376-380,408-410
+  s_5f188ad9a583ab::t_569e942704667c 20
+  s_5f188ad9a583ab::t_145699629441a6 307-308,311,351,463-466,486-489
+  s_5f188ad9a583ab::t_9f0d6d13586902 77,128,132,134,140,143,154,158,213-214,270
+  s_5f188ad9a583ab::t_fa69e0f05505cc 21,40-41,122-126,142,144-146,148-151,153,155-157,179-181,183,202-203,284-287,309-310,312-332,334,336-350,352-367,382-407,411-452,477,479-484
+  s_5f188ad9a583ab::t_85ee08819e582b 35,38-39,42
+apps/desktop/src/renderer/features/conversation/process-groups.test.ts
+  s_4eb1acc141d433::t_e52e5de2a574c4 56-57,60-63,93
+  s_4eb1acc141d433::t_5c55df33434a26 67-72,84-89
+  s_4eb1acc141d433::t_b45dc4e1de1dc5 58-59
+  s_4eb1acc141d433::t_d27ff96638c63e 36-44,46-47,49-54
+  s_4eb1acc141d433::t_533f7507a5bedc 2-3,64-66,73-83,90-92
+apps/desktop/src/renderer/features/conversation/use-reading-scroll.ts
+  s_4eb1acc141d433::t_4c9a92eb5e2e7c 30,213-221,259-264,266
+apps/desktop/tests/fixtures/markdown-table.txt
+  s_4eb1acc141d433::t_35f5a10ca2a262 1-103
+packages/agent/src/engine/context-seam.test.ts
+  s_5f188ad9a583ab::t_f1b604a565d239 4,84-86,91-93,97
+  s_5f188ad9a583ab::t_2dee3c80950a64 87-90,95-96
+packages/protocol/src/trace.ts
+  s_5f188ad9a583ab::t_b39c46aaf0cc84 17,19-20,31
+packages/agent/src/observability/index.ts
+  s_5f188ad9a583ab::t_f4cf0967650c77 2
+apps/desktop/e2e/markdown-table-resize.e2e.test.ts
+  s_4eb1acc141d433::t_fff26b62e14383 2-6,8-13,15-25,37-38,43-45,53-56,60-62
+  s_4eb1acc141d433::t_9890f40a6f567f 7,29-36
+  s_4eb1acc141d433::t_5c55df33434a26 26-28,39-41,46-52,57-59
+  s_4eb1acc141d433::t_511c3a616361ba 42
+  s_4eb1acc141d433::t_35f5a10ca2a262 1,14
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_4eb1acc141d433::t_438a40fe0c9fcc 37-38,57-58,254,395-396
+  s_4eb1acc141d433::t_cb08d170e48280 2,333,336
+  s_5f188ad9a583ab::t_584f16193134ac 422
+  s_5f188ad9a583ab::t_bfa60e43d6ce51 5,27-29,82-84,343-347,349-367,369-379,381-384,386,388-389
+apps/desktop/src/renderer/features/conversation/dock/dock.browser.test.tsx
+  s_5f188ad9a583ab::t_54ad732613e6f8 15,37,43,47,73,77-79,82-86,113,116-117
+apps/desktop/src/renderer/features/trajectory/trajectory-record.test.ts
+  s_5f188ad9a583ab::t_529911967e87d3 49,56-58,61,149-156,159-163,165,168-175,182-189,192-193,195,202-205,207-208,210-218,220-226,229,232-233,235
+  s_5f188ad9a583ab::t_6b2af439baaf6d 85-98,107-111,113,117-118,127-129
+  s_5f188ad9a583ab::t_0a5b4de651b83c 60
+  s_5f188ad9a583ab::t_108a244c385b19 119-122,125-126,130-143
+  s_5f188ad9a583ab::t_73b822b2c6d124 106,112,115-116
+  s_5f188ad9a583ab::t_6846027f8d950a 83-84,99-105,114,237
+  s_5f188ad9a583ab::t_31acce373d703a 123-124,144-148,157-158,164,166-167,176-181,190-191,194,196-201
+apps/desktop/src/renderer/features/conversation/turn-navigator.css
+  s_5f188ad9a583ab::t_584f16193134ac 103-111
+  s_4eb1acc141d433::t_4c9a92eb5e2e7c 16-47,49-54,56-102,112-121
+  s_4eb1acc141d433::t_438a40fe0c9fcc 1-15
+apps/desktop/src/renderer/features/trajectory/inspect-store.ts
+  s_5f188ad9a583ab::t_95a3984f5a5eeb 1,3-6,8-16
+  s_5f188ad9a583ab::t_2ef263084b5137 2,7
+apps/desktop/src/renderer/features/trajectory/preview.ts
+  s_5f188ad9a583ab::t_fa69e0f05505cc 1-2,9,15-25
+  s_5f188ad9a583ab::t_62ce09278c86b1 3-8,10-14
+apps/desktop/src/renderer/features/conversation/markdown.tsx
+  s_4eb1acc141d433::t_3f3adac6cea3db 14
+  s_4eb1acc141d433::t_dd850476ff2d24 1,5
+  s_4eb1acc141d433::t_b757dbeca861ba 9-13,15-18
+apps/desktop/src/renderer/features/trajectory/detail-metrics.tsx
+  s_5f188ad9a583ab::t_a910ec60d10f9e 10,13-14
+  s_5f188ad9a583ab::t_042fdf738e957b 55
+  s_5f188ad9a583ab::t_a02333dcc31922 1-3,5-9,12,25-31,53-54,56,58-59,66,119-125,129,136,147-150,166
+  s_5f188ad9a583ab::t_3190177e1ca1c2 11,15-24,32-52,60-65,67-118,126-128,130-135,137-146,151-165
+  s_5f188ad9a583ab::t_73b822b2c6d124 4,57
+docs/subsystems/workbench.md
+  s_4eb1acc141d433::t_e20e70dc40b802 85
+  s_4eb1acc141d433::t_840d12b27c22c6 79-80
+  s_4eb1acc141d433::t_fe6150f834a1b8 109-111
+  s_4eb1acc141d433::t_08cb94217b89c9 81-82
+  s_4eb1acc141d433::t_1e1bf456f15e1b 83,86,112-113
+apps/desktop/src/renderer/features/conversation/session-menu.tsx
+  s_4eb1acc141d433::t_cb08d170e48280 13-14
+apps/desktop/src/renderer/features/conversation/process-groups.browser.test.tsx
+  s_5f188ad9a583ab::t_1d02af65de704d 251-252,254-257
+apps/desktop/src/renderer/features/conversation/view-store.test.ts
+  s_5f188ad9a583ab::t_99fc1911d8f1a3 1-22
+apps/desktop/src/renderer/features/conversation/session-menu.browser.test.tsx
+  s_5f188ad9a583ab::t_bfa60e43d6ce51 12
+tests/integration/request-snapshots.test.ts
+  s_5f188ad9a583ab::t_2b9b263da8fcc7 25-27,29-30
+  s_5f188ad9a583ab::t_dc1b24e273fb87 1-24,28,31-52,55-65,67
+tests/integration/secrets-gate-trace.test.ts
+  s_5f188ad9a583ab::t_dc1b24e273fb87 56-65
+apps/desktop/src/renderer/features/conversation/process-timeline.css
+  s_4eb1acc141d433::t_3f887e22c8cc16 35-38,47-79
+  s_4eb1acc141d433::t_d47a6956485210 39-46
+apps/desktop/build/build.ts
+  s_5f188ad9a583ab::t_c48c8675da4250 10-13,228,230
+apps/desktop/src/renderer/features/conversation/conversation-detail.browser.test.tsx
+  s_4eb1acc141d433::t_d27ff96638c63e 1-32,34-36,38-45,47-51,53-58,61-73,75-87,89-113,115-121,123-126,165-166,176-179,181-183,186,188,190,194,196-197,201-202,204-208,210-218
+  s_5f188ad9a583ab::t_8fc6ae4bf4222c 59-60,127-146,148,150,152-155,157-161
+  s_4eb1acc141d433::t_6ed49fcb3bd04d 33,88
+  s_4eb1acc141d433::t_e20e70dc40b802 184-185,187,189,193,203
+  s_4eb1acc141d433::t_b89ee409458dea 195
+  s_5f188ad9a583ab::t_1d02af65de704d 198-200
+  s_5f188ad9a583ab::t_8f019fefe753e3 147,149,151,156,162-164
+  s_4eb1acc141d433::t_295a73e81d19a1 191-192
+  s_4eb1acc141d433::t_9d4b8558853062 180,209
+  s_4eb1acc141d433::t_90e9ac1b7c4a03 114
+  s_4eb1acc141d433::t_a140cb2e4aa001 167-175
+packages/agent/src/engine/m5-seams.test.ts
+  s_5f188ad9a583ab::t_44128fa26ef324 5,263-267,337
+packages/ui/src/styles/theme.css
+  s_5f188ad9a583ab::t_23eb796f6e3f40 94-96,159-164,298-303
+  s_5f188ad9a583ab::t_62c5254a64f16e 37-49,147-153,288-294
+  s_5f188ad9a583ab::t_b399fa148f19ac 122,154-155,165
+  s_5f188ad9a583ab::t_09d1065768bd8a 156-158,295-297
+  s_5f188ad9a583ab::t_84a71e2ae39bb6 166,304
+apps/desktop/src/renderer/features/conversation/reading-position.browser.test.tsx
+  s_4eb1acc141d433::t_90e9ac1b7c4a03 118
+apps/desktop/src/renderer/features/conversation/conversation-width.tsx
+  s_4eb1acc141d433::t_e20e70dc40b802 8-9,11,37
+  s_4eb1acc141d433::t_438a40fe0c9fcc 1-7,10,12-33,44-50,63-79,84,89,96,98,102-103,106-107
+  s_4eb1acc141d433::t_b89ee409458dea 90-95
+  s_4eb1acc141d433::t_700b80707281ee 34-36,38-43,51-62,80-83,85-88,97,99-101,104-105
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_4eb1acc141d433::t_cb08d170e48280 2,83
+apps/desktop/src/renderer/features/trajectory/locales.ts
+  s_5f188ad9a583ab::t_6b992d89e39a8b 112,125,341,354
+  s_5f188ad9a583ab::t_0a5b4de651b83c 134,364
+  s_5f188ad9a583ab::t_593453a58bbf45 5,7-8,10-11,234,236-237,239-240
+  s_5f188ad9a583ab::t_ba0516bca8e350 126-129,355-359
+  s_5f188ad9a583ab::t_145699629441a6 113,115,342,344
+  s_5f188ad9a583ab::t_80adda0fe8a316 114,343
+  s_5f188ad9a583ab::t_916a3663015345 6,9,235,238
+  s_5f188ad9a583ab::t_0b11cd5a01e65c 161-164,391-394
+packages/agent/src/engine/model-requests.test.ts
+  s_5f188ad9a583ab::t_2b9b263da8fcc7 25
+  s_5f188ad9a583ab::t_6846027f8d950a 1,3-23,26-31
+  s_5f188ad9a583ab::t_17128a0cf93e87 2,24
+apps/desktop/src/renderer/main.tsx
+  s_4eb1acc141d433::t_dd850476ff2d24 22-24,130-131,133,144
+  s_4eb1acc141d433::t_b757dbeca861ba 134-143
+packages/agent/src/engine/runtime.test.ts
+  s_5f188ad9a583ab::t_0b11cd5a01e65c 435-437,446
+apps/desktop/src/renderer/features/trajectory/timeline.ts
+  s_5f188ad9a583ab::t_529911967e87d3 79-113
+scripts/renderer-dev-server.test.ts
+  s_5f188ad9a583ab::t_6a5e9611dda70a 3,70,82-84,109,112,116,121
+  s_5f188ad9a583ab::t_a5db358db05aee 11,95,98-99,108,111
+  s_5f188ad9a583ab::t_4c33f48946cfdf 43-44,85,118,123
+  s_5f188ad9a583ab::t_c48c8675da4250 1-2,4-10,18-24,30-32,36-42,45-51,55-57,64,68-69,71-74,76-78,81,86-94,96-97,114,117,119-120,122,124,127
+  s_5f188ad9a583ab::t_79b95b1dd0753f 12-17,25-29,33-35,52-54,58-63,65-67,75,80,100-107,115,125-126
+  s_5f188ad9a583ab::t_976a86f730c363 110,113
+  s_5f188ad9a583ab::t_fd64472ed46724 79
+apps/desktop/src/renderer/features/conversation/collaboration.browser.test.tsx
+  s_5f188ad9a583ab::t_c685904e6cf68f 248,278
+  s_5f188ad9a583ab::t_bfa60e43d6ce51 277
+apps/desktop/src/renderer/features/trajectory/trajectory-details.tsx
+  s_5f188ad9a583ab::t_7423f02dbaac76 4,94-108,115-139,141-184,186-192,194,200-202,210-213,223-231,270,637
+  s_5f188ad9a583ab::t_32cc285cf448cd 39,193
+  s_5f188ad9a583ab::t_1c72b795242cee 197
+  s_5f188ad9a583ab::t_29c195580fcb0b 82-84,111-113,277,509-520
+  s_5f188ad9a583ab::t_7cc63a2444c9f9 140
+  s_5f188ad9a583ab::t_3190177e1ca1c2 68,78-79,109-110,114,506,593-612
+  s_5f188ad9a583ab::t_acce699c63028b 1-3,5-32,48-51,92-93,243-244,246-256,258,268-269,271-276,278,291-292,295,305-307,310,413,635-636,638-640,657
+  s_5f188ad9a583ab::t_a910ec60d10f9e 648-654
+  s_5f188ad9a583ab::t_db12c371b9417e 33-38,40-47,52-67,69-77,80-81,85-91,185,195-196,198-199,203-209,214-222,232-242,245,257,259-267,279-290,293-294,296-304,308-309,311-409,411-412,414-418,420-505,507-508,521-592,613-634,641-647,655-656
+  s_5f188ad9a583ab::t_23eb796f6e3f40 410,419
+packages/agent/src/tools/builtin/bash.ts
+  s_4eb1acc141d433::t_d47a6956485210 26
+docs/subsystems/context.md
+  s_5f188ad9a583ab::t_44128fa26ef324 75
+  s_5f188ad9a583ab::t_96d6e1d8cc393d 74
+packages/ui/src/guards/style-guard-exceptions.ts
+  s_5f188ad9a583ab::t_23eb796f6e3f40 14-20,22-24,28-30,34-36,39-44
+  s_5f188ad9a583ab::t_e6697df55abea3 21,25-27,31-33,37-38
+docs/subsystems/tracing.md
+  s_5f188ad9a583ab::t_96d6e1d8cc393d 3,9,19,24-25,80,102,134-135,138-140
+  s_5f188ad9a583ab::t_da19328e57370d 100
+apps/desktop/e2e/markdown-startup.e2e.test.ts
+  s_4eb1acc141d433::t_840d12b27c22c6 14-22,32,35-38,41,43,65-70
+  s_4eb1acc141d433::t_dd850476ff2d24 1-13,23-31,33-34,39-40,42,44-64,71
+apps/server/src/application/session-titles.ts
+  s_5f188ad9a583ab::t_b39c46aaf0cc84 3,77,81-82,85-90,110-116,118
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_4eb1acc141d433::t_438a40fe0c9fcc 14
+apps/desktop/src/renderer/features/conversation/process-timeline.tsx
+  s_4eb1acc141d433::t_5c55df33434a26 6-15,162-167
+  s_4eb1acc141d433::t_e9d083e81bff92 55,112,141,161,169
+  s_4eb1acc141d433::t_e52e5de2a574c4 172
+  s_4eb1acc141d433::t_3f887e22c8cc16 129-133,139-140,142-144,151-160,168,170-171,176-181
+  s_5f188ad9a583ab::t_54ad732613e6f8 173-175
+  s_4eb1acc141d433::t_438a40fe0c9fcc 145-146,148-150
+packages/i18n/src/dictionaries/zh.ts
+  s_4eb1acc141d433::t_e9d083e81bff92 215,634
+  s_4eb1acc141d433::t_438a40fe0c9fcc 312-315
+  s_4eb1acc141d433::t_5c55df33434a26 216-231
+packages/i18n/src/dictionaries/domains/trace.ts
+  s_5f188ad9a583ab::t_82b7fc48c42d0f 1
+apps/desktop/e2e/trace.e2e.test.ts
+  s_5f188ad9a583ab::t_8eda976611605b 237
+  s_5f188ad9a583ab::t_d07a0a14b03647 115-116,118-120,125,130,175-176,178
+  s_5f188ad9a583ab::t_d438904a0db011 117,128,144-150,152-166,168
+  s_5f188ad9a583ab::t_82b7fc48c42d0f 1-2
+  s_5f188ad9a583ab::t_d2009ea2ead40f 8,65,70-73,75,121-122,131-134,136-143,151
+  s_5f188ad9a583ab::t_94530243980056 123-124,126-127,129,177
+packages/ui/src/markdown/markdown-renderer.tsx
+  s_5f188ad9a583ab::t_584f16193134ac 24-25,34-41,43,55
+  s_4eb1acc141d433::t_3f3adac6cea3db 22-23,54
+apps/desktop/src/renderer/features/conversation/structured-tool-details.browser.test.tsx
+  s_5f188ad9a583ab::t_6372222b5a8a63 60-63
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_5f188ad9a583ab::t_2ef263084b5137 29,437
+apps/desktop/src/renderer/app/app.browser.test.tsx
+  s_5f188ad9a583ab::t_54ad732613e6f8 102-103,124-132
+  s_5f188ad9a583ab::t_8249e97466b9e7 1029-1030,1032,1047,1051
+  s_5f188ad9a583ab::t_8eda976611605b 1028
+  s_5f188ad9a583ab::t_07bb64f017a0af 842-843,848,854,861,1033,1048,1052
+  s_5f188ad9a583ab::t_214250cde14de3 841
+apps/desktop/src/renderer/features/trajectory/detail-payload.tsx
+  s_5f188ad9a583ab::t_1bfd970f01bd73 1-5,7-19,21,23-49,51-52,67-69
+  s_5f188ad9a583ab::t_593453a58bbf45 6,54,56-63,65
+apps/desktop/src/renderer/features/trajectory/trajectory-view.browser.test.tsx
+  s_5f188ad9a583ab::t_4027e6a0eb7f58 240-242,254-259,261-272,281-289,292-297,301-306,309-310,342-343
+  s_5f188ad9a583ab::t_131e060dbf97f2 290-291
+  s_5f188ad9a583ab::t_e44f6bd0d0ec64 273-280
+  s_5f188ad9a583ab::t_6b2af439baaf6d 209-214,222,359-361,363-368,370-373,375,377,397-398,400,426-427,450
+  s_5f188ad9a583ab::t_ccbec5c889012c 298-300
+  s_5f188ad9a583ab::t_1ecab3fc1b0792 408-409
+  s_5f188ad9a583ab::t_c9ec7f04c4ff12 380,382-391,393-395,399,402-404,422-425,428-430
+  s_5f188ad9a583ab::t_1158c0df958247 164,180-181,200-202,206-208,215-221,223-226,231-234,238-239,344-350,352-358,362,378-379
+  s_5f188ad9a583ab::t_1a57c802898c25 165-179,182-198,203-205,351
+  s_5f188ad9a583ab::t_7423f02dbaac76 227
+  s_5f188ad9a583ab::t_6846027f8d950a 447-449,451-456
+  s_5f188ad9a583ab::t_99fc1911d8f1a3 15,457-460,467-513
+  s_5f188ad9a583ab::t_8249e97466b9e7 461-466
+  s_5f188ad9a583ab::t_ae38f955bdd29e 199
+  s_5f188ad9a583ab::t_529911967e87d3 120-134,136,139-144,148-163,521
+  s_5f188ad9a583ab::t_a38b346ba2de15 228-230
+  s_5f188ad9a583ab::t_bfa60e43d6ce51 14,16,92-93,112-113,117,514-517,519-520,522-523,525-526,529-558,562-563,570,573-626,632,656,660
+  s_5f188ad9a583ab::t_2b9b263da8fcc7 381,401
+  s_5f188ad9a583ab::t_17128a0cf93e87 406-407,419-421
+  s_5f188ad9a583ab::t_23eb796f6e3f40 340
+  s_5f188ad9a583ab::t_0ffb124b1d34a7 307
+  s_5f188ad9a583ab::t_c1364b0ba4a66a 412-413,415-418
+  s_5f188ad9a583ab::t_85ee08819e582b 432-436,438-439,445-446
+  s_5f188ad9a583ab::t_0a5b4de651b83c 311-312,320-334
+  s_5f188ad9a583ab::t_848ea0f11daa19 369,374,376
+  s_5f188ad9a583ab::t_7cc63a2444c9f9 527
+  s_5f188ad9a583ab::t_067804ab34604a 243-253,260,308,316-319,335-339,341
+  s_5f188ad9a583ab::t_0b11cd5a01e65c 392,396
+  s_5f188ad9a583ab::t_5b88c9eb983db8 414
+  s_5f188ad9a583ab::t_c6c79a85ddc132 235-237
+  s_5f188ad9a583ab::t_29c195580fcb0b 313-315,528
+  s_5f188ad9a583ab::t_91c1ab06f9eb0f 405,410-411,431,437,440-444
+apps/desktop/src/renderer/features/right-panel/layout-store.ts
+  s_5f188ad9a583ab::t_2ef263084b5137 6
+apps/desktop/src/renderer/features/trajectory/trajectory-panel.module.css
+  s_5f188ad9a583ab::t_23eb796f6e3f40 585-586,589-590,714-715,903-907
+  s_5f188ad9a583ab::t_1c72b795242cee 387-407
+  s_5f188ad9a583ab::t_c93b0f52723376 484
+  s_5f188ad9a583ab::t_575e1bfe995890 1303
+  s_5f188ad9a583ab::t_c29050769175ca 1304-1306,1316-1318,1322,1325-1326,1329-1338
+  s_5f188ad9a583ab::t_bbbcc3edc597ef 486-487,493-494,496,498-499,530,538-541,543-547,549-552,617-620,622-624,626-660,664-672,676-712,1430-1432,1434-1438,1441-1445,1447-1453,1455-1556
+  s_5f188ad9a583ab::t_b399fa148f19ac 555-563,566-569,572,574-577,582,593-595,1440
+  s_5f188ad9a583ab::t_09d1065768bd8a 770,843,854,864,870,934,976,1004,1034,1071,1132,1137,1204,1227,1352,1392,1446,1454
+  s_5f188ad9a583ab::t_81a91dc9b39d22 196,621,625,713,716-769,774,778-842,844-853,855-863,865-869,871-902,908-933,935-975,977-1003,1005-1033,1035-1070,1072-1131,1133-1136,1138-1156,1176-1203,1205-1210,1213-1226,1228-1292,1294-1298,1339-1351,1353-1383,1385-1391,1393-1429
+  s_5f188ad9a583ab::t_84a71e2ae39bb6 1433,1439
+  s_5f188ad9a583ab::t_da19328e57370d 476-479,1384
+  s_5f188ad9a583ab::t_29c195580fcb0b 1157-1175
+  s_5f188ad9a583ab::t_7806375b4c21f9 506-518
+  s_5f188ad9a583ab::t_8b24c527839992 103-188,199-360,444-455,480-483,485,488-492,495,497,500-505,519-529,531-537,542,548,553-554,564-565,570-571,573,578-581,583-584,587-588,591-592,596-616,771-773,775-777
+  s_5f188ad9a583ab::t_a910ec60d10f9e 661-663
+  s_5f188ad9a583ab::t_08217312c32ecc 673-675,1211-1212
+  s_5f188ad9a583ab::t_67fe122b161cac 1293,1299-1302,1307-1315,1319-1321,1323-1324,1327-1328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "29600adcff62f900ce5de422dab03346eca382fa",
+  "prompts": {},
+  "sessions": {
+    "s_4eb1acc141d433": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aed2-b93c-7023-8962-1e133151ca03",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_5f188ad9a583ab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1af54-5da9-7730-b5c9-a33aacae1799",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
