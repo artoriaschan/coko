@@ -1,0 +1,280 @@
+apps/desktop/src/renderer/features/conversation/mode-picker.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 14,23-24,26-27
+  s_ec00379ab74d3b::t_2e77ad77da8666 39-40
+apps/desktop/src/renderer/features/conversation/team-task-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,31
+apps/desktop/src/renderer/features/conversation/tool-cards.tsx
+  s_ec00379ab74d3b::t_2555f6b5f1c8dd 157-162
+  s_ec00379ab74d3b::t_8de264293652ed 3
+  s_ec00379ab74d3b::t_2e77ad77da8666 105,110,112,121,127,141,164,173
+apps/desktop/src/renderer/features/conversation/permission-risk-dialog.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,11-13,29,52
+apps/desktop/src/renderer/features/settings/permissions-section.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 91,208,303
+  s_ec00379ab74d3b::t_8de264293652ed 15
+apps/desktop/src/renderer/features/conversation/session-menu.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 14
+  s_ec00379ab74d3b::t_8de264293652ed 2,19
+docs/TECH_STACK.md
+  s_ec00379ab74d3b::t_915c69d681d181 35,37,157
+apps/desktop/src/renderer/features/settings/thinking-levels-editor.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 15,71
+  s_ec00379ab74d3b::t_2e77ad77da8666 103,155,177
+apps/desktop/src/renderer/features/conversation/goal-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,25
+apps/desktop/src/renderer/features/conversation/dock/goal-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 13,469,482,514,516,608
+  s_ec00379ab74d3b::t_2e77ad77da8666 373,398,411
+apps/desktop/src/renderer/features/right-panel/team-tab.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 233
+  s_ec00379ab74d3b::t_8de264293652ed 3,64,110,142,184,241,273
+apps/desktop/src/renderer/features/right-panel/schedules-tab.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 23
+  s_ec00379ab74d3b::t_2e77ad77da8666 149,414,457,494,505,510,514,685
+apps/desktop/src/renderer/features/right-panel/plan-tab.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3
+  s_ec00379ab74d3b::t_2e77ad77da8666 57,84,90
+apps/desktop/src/renderer/features/sidebar/sidebar-activity.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 19
+  s_ec00379ab74d3b::t_8de264293652ed 2,15
+apps/desktop/src/renderer/features/sidebar/conversation-search.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 5
+  s_ec00379ab74d3b::t_a81f535506b044 91,201,269
+apps/desktop/src/renderer/features/sidebar/sidebar-window-controls.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 25,28,31,35
+  s_ec00379ab74d3b::t_8de264293652ed 2
+packages/ui/src/components/dropdown-menu.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 1
+  s_ec00379ab74d3b::t_2e77ad77da8666 130,156,209
+apps/desktop/src/renderer/features/settings/provider-form.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 170
+  s_ec00379ab74d3b::t_8de264293652ed 4,287,347
+apps/desktop/src/renderer/features/settings/models-section.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 161
+  s_ec00379ab74d3b::t_8de264293652ed 3,123
+apps/desktop/src/renderer/features/settings/fetch-models-dialog.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,139,173,180
+apps/desktop/src/renderer/features/sidebar/sidebar-lists.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 560
+  s_ec00379ab74d3b::t_2e77ad77da8666 230,293,476,597
+  s_ec00379ab74d3b::t_2555f6b5f1c8dd 274,276
+  s_ec00379ab74d3b::t_8de264293652ed 1,17,424
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,44
+  s_ec00379ab74d3b::t_2e77ad77da8666 83,93
+apps/desktop/src/renderer/features/conversation/rewind-dialog.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,77,124,136,142
+apps/desktop/src/renderer/features/settings/memory-section.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 172,214,227
+  s_ec00379ab74d3b::t_8de264293652ed 3,83
+apps/desktop/src/renderer/features/conversation/message-actions.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3
+  s_ec00379ab74d3b::t_2e77ad77da8666 66
+apps/desktop/src/renderer/features/conversation/context-ring.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,101
+apps/desktop/src/renderer/features/conversation/plan-review-panel.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 12
+  s_ec00379ab74d3b::t_2e77ad77da8666 211,255
+apps/desktop/src/renderer/features/conversation/schedules-button.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4
+  s_ec00379ab74d3b::t_2e77ad77da8666 150
+apps/desktop/src/renderer/features/conversation/handoff-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,34,39,79,84
+apps/desktop/src/renderer/features/settings/mcp-section.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 33,811
+  s_ec00379ab74d3b::t_2e77ad77da8666 124,182,349,373,385
+apps/desktop/src/renderer/features/conversation/agent-notification-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,45
+apps/desktop/src/renderer/features/sidebar/session-archive-menu-item.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 57
+  s_ec00379ab74d3b::t_8de264293652ed 5
+packages/ui/src/brand/provider-icon.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 1,37
+packages/ui/src/components/checkbox.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 1
+  s_ec00379ab74d3b::t_2e77ad77da8666 18
+apps/desktop/src/renderer/features/conversation/dock/queue-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,20
+apps/desktop/src/renderer/features/conversation/compaction-divider.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,34
+apps/desktop/src/renderer/features/projects/project-form.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 128,139,163,178,214,229
+  s_ec00379ab74d3b::t_8de264293652ed 3
+apps/desktop/src/renderer/features/conversation/destination-bar.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 74,80,93,147,162,176
+  s_ec00379ab74d3b::t_8de264293652ed 18
+  s_ec00379ab74d3b::t_2e77ad77da8666 71
+apps/desktop/src/renderer/features/conversation/hook-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,26
+apps/desktop/src/renderer/features/conversation/assistant-footer.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4,120,141
+apps/desktop/src/renderer/features/session-diagnostics/diagnostic-table.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4,338
+apps/desktop/src/renderer/features/right-panel/tabs.ts
+  s_ec00379ab74d3b::t_8de264293652ed 4,21,29-35
+apps/desktop/src/renderer/features/session-diagnostics/session-diagnostics.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 6,36
+apps/desktop/src/renderer/features/conversation/timeline-view.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 240,302,369
+  s_ec00379ab74d3b::t_8de264293652ed 7,130,137,187,211,213,254,332
+apps/desktop/src/renderer/features/settings/model-catalog.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 129,194,197
+  s_ec00379ab74d3b::t_8de264293652ed 4,323
+packages/ui/src/approval/approval-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 1
+  s_ec00379ab74d3b::t_2e77ad77da8666 183
+packages/ui/src/components/dialog.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 110
+  s_ec00379ab74d3b::t_8de264293652ed 1
+apps/desktop/src/renderer/features/settings/schedules-section.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3
+  s_ec00379ab74d3b::t_2e77ad77da8666 110
+packages/ui/package.json
+  s_ec00379ab74d3b::t_80d4f485bc42ee 21
+apps/desktop/src/renderer/features/conversation/conversation-pane.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,271,432
+  s_ec00379ab74d3b::t_2e77ad77da8666 336,489
+apps/desktop/src/renderer/features/conversation/schedule-fire-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,34
+apps/desktop/src/renderer/features/sidebar/project-row.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 219
+  s_ec00379ab74d3b::t_a81f535506b044 253,267,294,300,306,312,330,364,406,411,425
+  s_ec00379ab74d3b::t_8de264293652ed 22-32,85
+packages/ui/components.json
+  s_ec00379ab74d3b::t_11a6efaba14e5e 13
+apps/desktop/src/renderer/features/conversation/worktree-chip.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,25,45
+apps/desktop/src/renderer/features/settings/agents-section.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 5,69,99
+apps/desktop/src/renderer/features/connection/connection-status.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 50
+  s_ec00379ab74d3b::t_8de264293652ed 2
+apps/desktop/src/renderer/features/conversation/model-picker.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 109
+  s_ec00379ab74d3b::t_8de264293652ed 19,142
+apps/desktop/src/renderer/features/conversation/team-message-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,21,26
+apps/desktop/src/renderer/features/sidebar/session-menu.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 41,47
+  s_ec00379ab74d3b::t_8de264293652ed 3,36
+docs/tech-stack/ui-design-system.md
+  s_ec00379ab74d3b::t_915c69d681d181 123,128,130
+apps/desktop/src/renderer/features/trajectory/TrajectoryToolbar.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 133
+  s_ec00379ab74d3b::t_8de264293652ed 5
+apps/desktop/src/renderer/features/conversation/project-git-menu.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 22
+  s_ec00379ab74d3b::t_a81f535506b044 170,213
+apps/desktop/src/renderer/features/conversation/agent-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,129,152
+  s_ec00379ab74d3b::t_2e77ad77da8666 86
+apps/desktop/src/renderer/features/conversation/composer.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,354,388,420
+  s_ec00379ab74d3b::t_2e77ad77da8666 475,488,504,524,532
+apps/desktop/src/renderer/features/sidebar/session-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 19,67,366
+  s_ec00379ab74d3b::t_a81f535506b044 183,206,233,283,378
+apps/desktop/src/renderer/features/right-panel/artifacts-tab.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 101,104,154
+  s_ec00379ab74d3b::t_8de264293652ed 3,74,76,82,84,164
+apps/desktop/src/renderer/features/session-diagnostics/type-filter-editor.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,88
+apps/desktop/src/renderer/features/session-diagnostics/use-timeline-navigation.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,239
+apps/desktop/src/renderer/features/settings/plugins-section.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 6,256
+  s_ec00379ab74d3b::t_2e77ad77da8666 162
+apps/desktop/src/renderer/features/sidebar/sidebar.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 49,72,85,102
+  s_ec00379ab74d3b::t_2e77ad77da8666 59
+  s_ec00379ab74d3b::t_8de264293652ed 2
+apps/desktop/src/renderer/features/settings/model-catalog.browser.test.tsx
+  s_ec00379ab74d3b::t_915c69d681d181 111,117
+apps/desktop/src/renderer/features/settings/delete-provider-dialog.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,91,116
+apps/desktop/src/renderer/features/conversation/session-status-bar.tsx
+  s_ec00379ab74d3b::t_a81f535506b044 65,106
+  s_ec00379ab74d3b::t_8de264293652ed 3,30,101,151,155,176,181
+apps/desktop/src/renderer/features/right-panel/agents-tab.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,61,86,162,198
+  s_ec00379ab74d3b::t_2e77ad77da8666 150
+apps/desktop/src/renderer/features/settings/general-section.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 33,37,176
+  s_ec00379ab74d3b::t_8de264293652ed 4
+apps/desktop/src/renderer/features/settings/settings-page.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 64
+  s_ec00379ab74d3b::t_8de264293652ed 3,68
+apps/desktop/src/renderer/features/conversation/collaboration-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,28
+apps/desktop/src/renderer/features/conversation/jobs-button.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4
+  s_ec00379ab74d3b::t_2e77ad77da8666 133
+apps/desktop/src/renderer/features/conversation/plan-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,39
+apps/desktop/src/renderer/features/conversation/team-button.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3
+  s_ec00379ab74d3b::t_2e77ad77da8666 72
+pnpm-lock.yaml
+  s_ec00379ab74d3b::t_51703a86778ff5 275-277,492-494,2501-2508,7549-7554
+apps/desktop/src/renderer/features/conversation/job-row.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4,90,146
+apps/desktop/src/renderer/features/settings/settings-button.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2
+  s_ec00379ab74d3b::t_2e77ad77da8666 14,19
+apps/desktop/src/renderer/features/settings/about-section.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,65
+apps/desktop/src/renderer/features/conversation/dock/todo-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,15-18,70,115,123
+apps/desktop/src/renderer/features/trajectory/trajectory-view.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 2,48
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_ec00379ab74d3b::t_915c69d681d181 366,377
+apps/desktop/package.json
+  s_ec00379ab74d3b::t_80d4f485bc42ee 30
+apps/desktop/src/renderer/features/settings/sections.ts
+  s_ec00379ab74d3b::t_8de264293652ed 3-17,82-96
+packages/ui/src/components/panel-tabs.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 3,195,211
+  s_ec00379ab74d3b::t_11a6efaba14e5e 343
+apps/desktop/src/renderer/features/right-panel/jobs-tab.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 162,175,246
+  s_ec00379ab74d3b::t_8de264293652ed 4,257,307
+packages/ui/src/components/plan-mode-pill.tsx
+  s_ec00379ab74d3b::t_2555f6b5f1c8dd 32-35
+  s_ec00379ab74d3b::t_8de264293652ed 1
+  s_ec00379ab74d3b::t_2e77ad77da8666 31
+apps/desktop/src/renderer/features/conversation/agents-button.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 4
+  s_ec00379ab74d3b::t_2e77ad77da8666 144
+packages/ui/src/components/sonner.tsx
+  s_ec00379ab74d3b::t_2e77ad77da8666 46-50
+  s_ec00379ab74d3b::t_8de264293652ed 1
+apps/desktop/src/renderer/features/sidebar/session-move-menu.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 14
+  s_ec00379ab74d3b::t_a81f535506b044 62,124,153,163
+apps/desktop/src/renderer/features/trajectory/trajectory-panel.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 9
+  s_ec00379ab74d3b::t_2e77ad77da8666 244
+packages/ui/src/tool-card/tool-card.tsx
+  s_ec00379ab74d3b::t_8de264293652ed 1,77,219
+apps/desktop/src/renderer/features/sidebar/session-row.browser.test.tsx
+  s_ec00379ab74d3b::t_915c69d681d181 84
+docs/tech-stack/ui.md
+  s_ec00379ab74d3b::t_ae1d4fc6f31c34 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "485ec0ff944d08b0cba57195539e7d275b1e5d9c",
+  "prompts": {},
+  "sessions": {
+    "s_ec00379ab74d3b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c966-376f-7001-aae3-d82b8c6ff679",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
