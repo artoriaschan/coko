@@ -1,3 +1,4 @@
+import { trackKeyboardFocus } from '../lib/focus-visible.ts'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 import {
@@ -110,6 +111,7 @@ export function AppFrame({
   className,
 }: AppFrameProps) {
   const rootRef = React.useRef<HTMLDivElement>(null)
+  React.useLayoutEffect(() => trackKeyboardFocus(rootRef.current!.ownerDocument), [])
   const drawerRef = React.useRef<HTMLDivElement>(null)
   const peekRef = React.useRef<HTMLDivElement>(null)
   const returnFocusRef = React.useRef<HTMLElement | null>(null)
@@ -374,7 +376,8 @@ export function AppFrame({
         data-right={layout.right}
         style={frameStyle}
         className={cn(
-          'relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-transparent text-foreground',
+          'relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-sidebar text-foreground',
+          "after:pointer-events-none after:absolute after:inset-0 after:z-30 after:rounded-panel after:border-hairline after:border-sidebar-border after:content-['']",
           'grid-cols-[var(--local-sidebar-column)_minmax(0,1fr)_var(--local-right-column)]',
           !dragging && frameWidth !== null && 'transition-[grid-template-columns] duration-300 motion-reduce:transition-none',
           className,
@@ -385,7 +388,7 @@ export function AppFrame({
             inert={rightFullscreen || undefined}
             data-slot="app-frame-sidebar"
             aria-label={labels.sidebar}
-            className="sidebar-glass isolate relative flex min-h-0 min-w-0 flex-col overflow-hidden text-sidebar-foreground"
+            className="sidebar-surface relative flex min-h-0 min-w-0 flex-col overflow-hidden text-sidebar-foreground"
           >
             {sidebar}
           </aside>
@@ -395,7 +398,7 @@ export function AppFrame({
           <div
             ref={peekRef}
             data-slot="app-frame-peek"
-            className="absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden rounded-panel bg-popover text-sidebar-foreground shadow-prominent"
+            className="sidebar-surface absolute inset-y-0 left-0 z-50 flex flex-col overflow-hidden rounded-panel text-sidebar-foreground shadow-prominent"
             style={{ width: clampSidebarWidth(sidebarWidth) }}
           >
             {sidebar}
@@ -473,7 +476,7 @@ export function AppFrame({
               aria-label={labels.sidebar}
               tabIndex={-1}
               data-slot="app-frame-drawer"
-              className="absolute inset-y-0 left-0 z-50 flex max-w-[calc(100%-var(--local-sidebar-column))] flex-col overflow-hidden rounded-panel bg-popover text-sidebar-foreground shadow-prominent outline-none"
+              className="sidebar-surface absolute inset-y-0 left-0 z-50 flex max-w-[calc(100%-var(--local-sidebar-column))] flex-col overflow-hidden rounded-panel text-sidebar-foreground shadow-prominent outline-none"
               style={{ width: clampSidebarWidth(sidebarWidth) }}
             >
               {sidebar}

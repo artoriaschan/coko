@@ -218,7 +218,7 @@
   width: 12px;
   height: 12px;
 }
-.tool-inspect:focus-visible {
+.tool-inspect:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   opacity: 1;
 }
 @media (hover: hover) {

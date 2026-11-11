@@ -785,7 +785,6 @@ export const en: typeof zh = {
   },
   rightPanel: {
     closePageShortcut: 'Close {title} (⌘/Ctrl+W)',
-    toggleShortcut: 'Toggle sidebar (⌘/Ctrl+Alt+B)',
     fullscreenShortcut: 'Fullscreen (⌘/Ctrl+Alt+Enter)',
     exitFullscreenShortcut: 'Exit fullscreen (⌘/Ctrl+Alt+Enter)',
     title: 'Sidebar',

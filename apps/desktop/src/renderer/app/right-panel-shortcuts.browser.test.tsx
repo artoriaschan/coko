@@ -32,7 +32,7 @@ async function renderApp() {
 it('sidebar shortcuts open, focus, fullscreen and collapse the current Session panel', async () => {
   await renderApp()
   await userEvent.keyboard('{Meta>}{Alt>}b{/Alt}{/Meta}')
-  const panel = page.getByRole('tabpanel')
+  const panel = page.getByRole('tabpanel', { name: 'Start', exact: true })
   await expect.element(panel).toBeVisible()
   await expect.element(panel).toHaveFocus()
   await expect.element(page.getByRole('tab', { name: 'Start', exact: true })).toBeVisible()
@@ -56,7 +56,7 @@ it('sidebar shortcuts ignore active composition, drafts and non-Session pages', 
   expect(document.querySelector('[data-slot="app-frame-right"]')!.getClientRects()).toHaveLength(0)
   editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
-  await expect.element(page.getByRole('tabpanel')).toHaveFocus()
+  await expect.element(page.getByRole('tabpanel', { name: 'Start', exact: true })).toHaveFocus()
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
   await page.getByRole('button', { name: 'New chat', exact: true }).click()
   expect(fixture.chat.getState().activeSessionId).toBeNull()

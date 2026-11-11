@@ -7,8 +7,8 @@
 .conversation-process-leading svg { width: 14px; height: 14px; }
 .conversation-process-icon, .conversation-process-chevron { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; transition: opacity var(--conversation-process-transition); }
 .conversation-process-chevron { opacity: 0; }
-.conversation-process-group-header[aria-expanded='true'] .conversation-process-icon, .conversation-process-group-header:focus-visible .conversation-process-icon { opacity: 0; }
-.conversation-process-group-header[aria-expanded='true'] .conversation-process-chevron, .conversation-process-group-header:focus-visible .conversation-process-chevron { opacity: 1; }
+.conversation-process-group-header[aria-expanded='true'] .conversation-process-icon, .conversation-process-group-header:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-process-icon { opacity: 0; }
+.conversation-process-group-header[aria-expanded='true'] .conversation-process-chevron, .conversation-process-group-header:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-process-chevron { opacity: 1; }
 .conversation-process-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-process-body { max-height: min(400px, 50vh); overflow-y: auto; overscroll-behavior-y: auto; }
 .conversation-process-body[data-running] { max-height: none; overflow: visible; }
@@ -38,8 +38,8 @@
 }
 .conversation-tool-step-leading > span { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; }
 .conversation-tool-step-chevron { opacity: 0; }
-.conversation-tool-step-header:focus-visible .conversation-tool-step-icon { opacity: 0; }
-.conversation-tool-step-header:focus-visible .conversation-tool-step-chevron { opacity: 1; }
+.conversation-tool-step-header:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-tool-step-icon { opacity: 0; }
+.conversation-tool-step-header:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-tool-step-chevron { opacity: 1; }
 @media (hover: hover) {
   .conversation-tool-step-header:hover .conversation-tool-step-icon { opacity: 0; }
   .conversation-tool-step-header:hover .conversation-tool-step-chevron { opacity: 1; }

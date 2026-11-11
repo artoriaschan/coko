@@ -30,7 +30,7 @@
   background: var(--border);
   opacity: 0;
 }
-.conversation-width-handle:focus-visible::after {
+.conversation-width-handle:focus-visible:where(:root:not([data-focus-modality='pointer']) *)::after {
   opacity: 1;
   background: var(--ring);
 }

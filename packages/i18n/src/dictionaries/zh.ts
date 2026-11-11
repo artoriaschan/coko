@@ -777,7 +777,6 @@ export const zh = {
   },
   rightPanel: {
     closePageShortcut: '关闭{title}（⌘/Ctrl+W）',
-    toggleShortcut: '展开／收起右侧栏（⌘/Ctrl+Alt+B）',
     fullscreenShortcut: '全屏（⌘/Ctrl+Alt+Enter）',
     exitFullscreenShortcut: '退出全屏（⌘/Ctrl+Alt+Enter）',
     title: '侧边栏',

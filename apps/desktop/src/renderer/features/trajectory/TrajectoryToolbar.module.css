@@ -58,7 +58,7 @@
   background: var(--accent);
 }
 
-.toggle:focus-visible {
+.toggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring);
   outline-offset: 1px;
 }
@@ -106,7 +106,7 @@
   }
 }
 
-.control:focus-visible {
+.control:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring);
   outline-offset: 1px;
 }
@@ -170,7 +170,7 @@
   }
 }
 
-.action:focus-visible {
+.action:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring);
   outline-offset: 1px;
 }
@@ -202,8 +202,11 @@
 }
 
 .search:focus-within {
-  border-color: var(--ring);
   background: var(--background);
+}
+
+.search:focus-within:where(:root:not([data-focus-modality='pointer']) *) {
+  border-color: var(--ring);
 }
 
 .searchIcon {

@@ -328,7 +328,6 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                   ref={rightTrigger}
                   aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
                   label={t('frame.openRightPanel')}
-                  tooltip={t('rightPanel.toggleShortcut')}
                   tooltipSide="bottom"
                   size="icon-sm"
                   onClick={onToggleRight}

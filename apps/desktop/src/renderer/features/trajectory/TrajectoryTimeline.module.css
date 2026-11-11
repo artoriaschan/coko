@@ -95,7 +95,7 @@
   cursor: default;
 }
 
-.earlierHistory:focus-visible {
+.earlierHistory:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   box-shadow: inset 0 0 0 1px var(--ring);
 }
 
@@ -108,7 +108,7 @@
   font: var(--text-ui-body)/var(--text-ui-body--line-height) var(--font-conversation-sans);
 }
 
-.track:focus-visible {
+.track:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring);
   outline-offset: -1px;
 }

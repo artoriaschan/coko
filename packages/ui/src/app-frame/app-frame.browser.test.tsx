@@ -103,6 +103,33 @@ function Harness({
 }
 
 const widthOf = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().width
+
+it('Tab 聚焦两侧分隔条后改用鼠标拖拽时立即隐藏焦点框', async () => {
+  await page.viewport(1440, 900)
+  await render(
+    <>
+      <input aria-label="Text focus" />
+      <Harness rightOpen />
+    </>,
+  )
+  const input = document.querySelector('input')!
+  for (const label of [labels.resizeSidebar, labels.resizeRightPanel]) {
+    await userEvent.click(input)
+    const handle = page.getByRole('separator', { name: label }).element()
+    await userEvent.tab()
+    handle.focus()
+    expect(getComputedStyle(handle).outlineStyle).toBe('solid')
+    await userEvent.click(handle)
+    const bounds = handle.getBoundingClientRect()
+    const startX = bounds.left + bounds.width / 2
+    handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, clientX: startX, clientY: 100 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: startX + 20, clientY: 100 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: startX + 20, clientY: 100 }))
+    expect(document.activeElement).toBe(handle)
+    expect(getComputedStyle(handle).outlineStyle).toBe('none')
+  }
+})
+
 const sidebarWidth = () => widthOf('[data-slot="app-frame-sidebar"]')
 const sidebarState = () => document.querySelector('[data-slot="app-frame"]')!.getAttribute('data-sidebar')
 const controlsVisible = () => document.querySelector('[data-slot="app-frame-collapsed-controls"]') !== null
@@ -338,22 +365,22 @@ describe('主题', () => {
     await render(<Harness />)
     const body = () => getComputedStyle(document.body)
     const sidebar = () => getComputedStyle(document.querySelector('[data-slot="app-frame-sidebar"]')!)
-    const glass = () => getComputedStyle(document.querySelector('[data-slot="app-frame-sidebar"]')!, '::before')
     const main = () => getComputedStyle(document.querySelector('[data-slot="app-frame-main"]')!)
     expect(body().backgroundColor).toBe('rgb(255, 255, 255)')
     expect(body().color).toBe('rgb(15, 17, 21)')
-    expect(sidebar().backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(sidebar().backgroundColor).toBe('rgb(247, 251, 251)')
     expect(main().backgroundColor).toBe('rgb(255, 255, 255)')
-    expect(glass().backgroundImage).toContain('linear-gradient')
-    expect(glass().backdropFilter).toBe('blur(40px) saturate(1.5)')
-    const lightGlass = glass().backgroundImage
+    expect(sidebar().backgroundImage).toContain('linear-gradient')
+    expect(sidebar().backdropFilter).toBe('none')
+    const lightSurface = sidebar().backgroundImage
 
     document.documentElement.classList.add('dark')
     expect(body().backgroundColor).toBe('rgb(21, 21, 23)')
     expect(body().color).toBe('rgb(249, 250, 251)')
-    expect(sidebar().backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    expect(sidebar().backgroundColor).toBe('rgb(27, 27, 28)')
     expect(main().backgroundColor).toBe('rgb(21, 21, 23)')
-    expect(glass().backgroundImage).not.toBe(lightGlass)
+    expect(sidebar().backgroundImage).not.toBe(lightSurface)
+    expect(sidebar().backdropFilter).toBe('none')
     expect(body().colorScheme).toBe('dark')
   })
 

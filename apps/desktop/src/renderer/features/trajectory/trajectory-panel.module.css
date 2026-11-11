@@ -88,7 +88,7 @@
 .table tr[data-selected='true'] {
   background: var(--accent);
 }
-.table tr:focus-visible {
+.table tr:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   box-shadow: inset 0 0 0 1px var(--ring);
 }
 .event {
@@ -294,13 +294,13 @@
 .requestDot[data-request-status='error']::before {
   background: var(--destructive);
 }
-.root .requestDot:focus-visible {
+.root .requestDot:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
 }
-.requestDot:focus-visible::before {
+.requestDot:focus-visible:where(:root:not([data-focus-modality='pointer']) *)::before {
   background: var(--ring);
 }
-.requestDot:focus-visible::after {
+.requestDot:focus-visible:where(:root:not([data-focus-modality='pointer']) *)::after {
   opacity: 1;
   transform: translateX(0);
 }
@@ -418,7 +418,7 @@
 .root button {
   cursor: pointer;
 }
-.root button:focus-visible {
+.root button:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring);
   outline-offset: -1px;
 }
@@ -503,7 +503,7 @@
 .toolCatalogItem > summary::-webkit-details-marker {
   display: none;
 }
-.toolCatalogItem > summary:focus-visible {
+.toolCatalogItem > summary:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   background: var(--accent);
   outline: 1px solid var(--ring, var(--link));
   outline-offset: -1px;
@@ -740,7 +740,7 @@
   user-select: none;
 }
 
-.resize:focus-visible {
+.resize:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
 }
 
@@ -865,8 +865,8 @@
   content: '';
 }
 
-.close:focus-visible,
-.detailTabs button:focus-visible {
+.close:focus-visible:where(:root:not([data-focus-modality='pointer']) *),
+.detailTabs button:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--link));
   outline-offset: -1px;
 }
@@ -961,7 +961,7 @@
   color: var(--muted-foreground);
 }
 
-.hierarchyLink:focus-visible .overviewHierarchyJumpIconTight {
+.hierarchyLink:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .overviewHierarchyJumpIconTight {
   color: var(--foreground);
 }
 
@@ -971,7 +971,7 @@
   }
 }
 
-.hierarchyLink:focus-visible {
+.hierarchyLink:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   color: var(--foreground);
   outline: 1px solid var(--ring, var(--link));
   outline-offset: 2px;
@@ -1030,7 +1030,7 @@
   user-select: text;
 }
 
-.timestampToggle:focus-visible {
+.timestampToggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--link));
   outline-offset: 2px;
 }
@@ -1128,12 +1128,12 @@
   }
 }
 
-.overviewHeading button:focus-visible {
+.overviewHeading button:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--link));
   outline-offset: 2px;
 }
 
-.overviewHeading button:focus-visible .overviewHeading button svg {
+.overviewHeading button:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .overviewHeading button svg {
   color: var(--link);
 }
 
@@ -1223,7 +1223,7 @@
   }
 }
 
-.thinkingToggle:focus-visible {
+.thinkingToggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--link));
   outline-offset: 2px;
 }
@@ -1328,7 +1328,7 @@
   line-height: 17px;
   text-align: left;
 }
-.jsonCopyMenuItem:focus-visible {
+.jsonCopyMenuItem:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
   background: var(--accent);
 }
@@ -1344,11 +1344,11 @@
   }
 }
 
-.sourceBlockJumpTarget:focus-visible {
+.sourceBlockJumpTarget:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
 }
 
-.sourceBlockJumpTarget:focus-visible .sourceBlockJumpIcon {
+.sourceBlockJumpTarget:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .sourceBlockJumpIcon {
   color: var(--link);
 }
 

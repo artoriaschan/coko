@@ -1,3 +1,13 @@
+.conversation-header::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--hairline);
+  background: var(--border);
+  pointer-events: none;
+}
+
 /* Keep the same navigation controls mounted when a narrow Session header reflows. */
 @container main (max-width: 560px) {
   .conversation-header[data-session-header]:has([data-slot='app-frame-collapsed-controls']) > header {

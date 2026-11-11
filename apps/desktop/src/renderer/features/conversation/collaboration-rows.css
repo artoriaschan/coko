@@ -37,7 +37,7 @@
 .conversation-collaboration-trigger[aria-expanded='true'] .conversation-collaboration-chevron {
   transform: rotate(180deg);
 }
-.conversation-collaboration-trigger:focus-visible {
+.conversation-collaboration-trigger:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   color: var(--conversation-process-secondary);
 }
 .conversation-collaboration-body {

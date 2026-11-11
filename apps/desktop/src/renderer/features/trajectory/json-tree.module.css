@@ -71,7 +71,7 @@
 }
 
 .row:not(.topLevelBracket)[data-json-copy-active]::after,
-.row:has(> .expander:focus-visible)::after {
+.row:has(> .expander:focus-visible:where(:root:not([data-focus-modality='pointer']) *))::after {
   position: absolute;
   z-index: 0;
   top: 0;
@@ -196,7 +196,7 @@
   }
 }
 
-.stringToggle:focus-visible {
+.stringToggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--primary));
   outline-offset: 1px;
 }
@@ -303,7 +303,7 @@
   color: var(--primary);
 }
 
-.actionButton:focus-visible {
+.actionButton:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: 1px solid var(--ring, var(--primary));
   outline-offset: -1px;
 }
@@ -350,7 +350,7 @@
   }
 }
 
-.expander:focus-visible {
+.expander:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
 }
 

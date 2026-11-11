@@ -59,14 +59,14 @@
   transform: translateY(-50%) scaleX(1);
   background: var(--foreground);
 }
-.conversation-turn-mark:focus-visible {
+.conversation-turn-mark:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   outline: none;
 }
-.conversation-turn-mark:focus-visible::before {
+.conversation-turn-mark:focus-visible:where(:root:not([data-focus-modality='pointer']) *)::before {
   transform: translateY(-50%) scaleX(1);
   background: var(--ring);
 }
-.conversation-turn-mark:focus-visible::after {
+.conversation-turn-mark:focus-visible:where(:root:not([data-focus-modality='pointer']) *)::after {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;

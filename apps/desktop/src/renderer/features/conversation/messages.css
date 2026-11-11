@@ -226,15 +226,15 @@
   background: var(--background);
 }
 
-.conversation-reasoning-toggle:focus-visible {
+.conversation-reasoning-toggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) {
   color: var(--conversation-process-secondary, var(--foreground));
 }
 
-.conversation-reasoning-toggle:focus-visible .conversation-reasoning-icon {
+.conversation-reasoning-toggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-reasoning-icon {
   opacity: 0;
 }
 
-.conversation-reasoning-toggle:focus-visible .conversation-reasoning-chevron {
+.conversation-reasoning-toggle:focus-visible:where(:root:not([data-focus-modality='pointer']) *) .conversation-reasoning-chevron {
   opacity: 1;
 }
 

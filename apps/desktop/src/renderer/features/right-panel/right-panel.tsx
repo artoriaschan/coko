@@ -73,13 +73,7 @@ export function RightPanel({
         onNewTab={layout.tabs.includes('start') ? undefined : () => openPage(sessionId, 'start')}
         controls={
           <>
-            <IconButton
-              size="icon-sm"
-              label={t('frame.closeRightPanel')}
-              tooltip={t('rightPanel.toggleShortcut')}
-              onClick={onClose}
-              aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
-            >
+            <IconButton size="icon-sm" label={t('frame.closeRightPanel')} onClick={onClose} aria-keyshortcuts="Meta+Alt+B Control+Alt+B">
               <IconLayoutSidebarRight aria-hidden className="size-4" stroke={1} />
             </IconButton>
             {onToggleFullscreen && (
