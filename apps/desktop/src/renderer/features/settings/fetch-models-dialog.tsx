@@ -1,6 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import { Button, Checkbox, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input } from '@coko/ui'
-import { CircleAlertIcon, LoaderCircleIcon, SearchIcon } from 'lucide-react'
+import { IconAlertCircle, IconLoader2, IconSearch } from '@tabler/icons-react'
 import * as React from 'react'
 import type { FetchProviderModelsErrorCode, FetchProviderModelsInput } from '../../../shared/bridge.ts'
 import { useI18n } from '../../app/i18n.tsx'
@@ -136,7 +136,7 @@ export function FetchModels({
           </div>
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
-              <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <IconSearch aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 ref={searchRef}
                 id={searchId}
@@ -170,14 +170,14 @@ export function FetchModels({
           <div aria-live="polite" aria-busy={loading || undefined} className="flex min-h-0 flex-1 flex-col">
             {result.status === 'loading' && (
               <div className="flex flex-1 items-center justify-center gap-2 text-ui-body text-muted-foreground">
-                <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+                <IconLoader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
                 {t('providers.fetchModels.loading')}
               </div>
             )}
             {result.status === 'error' && (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
                 <p role="alert" className="flex items-start gap-1.5 text-ui-body text-destructive">
-                  <CircleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <IconAlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
                   {errorText}
                 </p>
                 <details className="max-w-full text-ui-small text-muted-foreground">

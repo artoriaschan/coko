@@ -2,7 +2,7 @@ import * as React from 'react'
 import { SessionBusyDetails } from '@coko/protocol'
 import { Value } from 'typebox/value'
 import { DropdownMenuItem, toast } from '@coko/ui'
-import { ArchiveIcon } from 'lucide-react'
+import { IconArchive } from '@tabler/icons-react'
 import { useChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { ApiError } from '../../client/api.ts'
@@ -54,7 +54,7 @@ export function SessionArchiveMenuItem({
       }}
     >
       <SessionMenuIcon>
-        <ArchiveIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+        <IconArchive aria-hidden className="size-3.5" stroke={1.1} />
       </SessionMenuIcon>
       {t('sidebar.archiveConversation')}
     </DropdownMenuItem>

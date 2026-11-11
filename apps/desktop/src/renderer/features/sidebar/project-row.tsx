@@ -19,17 +19,17 @@ import {
   toast,
 } from '@coko/ui'
 import {
-  FolderClosedIcon,
-  FolderOpenIcon,
-  FolderPenIcon,
-  MoreHorizontalIcon,
-  PencilIcon,
-  PinIcon,
-  PinOffIcon,
-  SquarePenIcon,
-  FolderInputIcon,
-  Trash2Icon,
-} from 'lucide-react'
+  IconFolder,
+  IconFolderOpen,
+  IconFolderCog,
+  IconDots,
+  IconPencil,
+  IconPinned,
+  IconPinnedOff,
+  IconEdit,
+  IconFolderDown,
+  IconTrash,
+} from '@tabler/icons-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useEditProject } from '../projects/project-dialogs.tsx'
@@ -82,7 +82,7 @@ export function ProjectRow({
   const skipMenuFocus = React.useRef(false)
   /** 按下时菜单是否已打开：外部关闭可能先于 click 发生，点击仍应关闭而不是重新打开。 */
   const menuWasOpen = React.useRef(false)
-  const Pin = project.pinnedAt === null ? PinIcon : PinOffIcon
+  const Pin = project.pinnedAt === null ? IconPinned : IconPinnedOff
   const pinLabel = t(project.pinnedAt === null ? 'sidebar.pinProject' : 'sidebar.unpinProject')
   function closeDetails() {
     allowOpen.current = false
@@ -216,7 +216,7 @@ export function ProjectRow({
                 onClick={() => lists.getState().toggleProject(project.id)}
               >
                 <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
-                  {expanded ? <FolderOpenIcon className="size-3" strokeWidth={1.1} /> : <FolderClosedIcon className="size-3" strokeWidth={1.1} />}
+                  {expanded ? <IconFolderOpen aria-hidden className="size-3" stroke={1.1} /> : <IconFolder aria-hidden className="size-3" stroke={1.1} />}
                 </span>
                 <span data-sidebar-row-content className="flex min-w-0 flex-1 items-center gap-2">
                   <FadingTitle ref={scrolling} autoScroll={hovered}>
@@ -250,7 +250,7 @@ export function ProjectRow({
                         openMenu(null)
                       }}
                     >
-                      <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                      <IconDots aria-hidden className="size-3.5" stroke={1.1} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{t('sidebar.moreProject')}</TooltipContent>
@@ -264,7 +264,7 @@ export function ProjectRow({
                       aria-label={t('sidebar.newSessionIn', { name: project.name })}
                       onClick={newChat}
                     >
-                      <SquarePenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                      <IconEdit aria-hidden className="size-3.5" stroke={1.1} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{t('sidebar.newSessionIn', { name: project.name })}</TooltipContent>
@@ -291,25 +291,25 @@ export function ProjectRow({
               }}
             >
               <SessionMenuIcon>
-                <PencilIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconPencil aria-hidden className="size-3.5" stroke={1.1} />
               </SessionMenuIcon>
               {t('sidebar.rename')}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={editProject}>
               <SessionMenuIcon>
-                <FolderPenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconFolderCog aria-hidden className="size-3.5" stroke={1.1} />
               </SessionMenuIcon>
               {t('sidebar.editProjectMenu')}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={pending} onSelect={() => void togglePin()}>
               <SessionMenuIcon>
-                <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
+                <Pin aria-hidden className="size-3.5 rotate-45" stroke={1.1} />
               </SessionMenuIcon>
               {pinLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={newChat}>
               <SessionMenuIcon>
-                <SquarePenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconEdit aria-hidden className="size-3.5" stroke={1.1} />
               </SessionMenuIcon>
               {t('sidebar.newSessionIn', { name: project.name })}
             </DropdownMenuItem>
@@ -327,7 +327,7 @@ export function ProjectRow({
               }}
             >
               <SessionMenuIcon>
-                <FolderInputIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconFolderDown aria-hidden className="size-3.5" stroke={1.1} />
               </SessionMenuIcon>
               {t('sidebar.openFinder')}
             </DropdownMenuItem>
@@ -361,7 +361,7 @@ export function ProjectRow({
                     }}
                   >
                     <SessionMenuIcon>
-                      <Trash2Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                      <IconTrash aria-hidden className="size-3.5" stroke={1.1} />
                     </SessionMenuIcon>
                     {t('sidebar.deleteProject')}
                   </DropdownMenuItem>
@@ -403,12 +403,12 @@ export function ProjectRow({
           }}
         >
           <div className="flex items-center gap-2 px-2 py-1">
-            <FolderClosedIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+            <IconFolder aria-hidden className="size-3.5 shrink-0 text-muted-foreground" stroke={1.1} />
             <span data-user-content className="min-w-0 flex-1 break-words text-ui-body font-medium">
               {project.name}
             </span>
             <Button size="icon-xs" variant="toolbar" className="size-6 rounded-sm" disabled={pending} aria-label={pinLabel} onClick={() => void togglePin()}>
-              <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
+              <Pin aria-hidden className="size-3.5 rotate-45" stroke={1.1} />
             </Button>
           </div>
           <p className="px-2 py-1 text-ui-small text-muted-foreground">{t('sidebar.projectCount', { count: sessionCount })}</p>
@@ -422,7 +422,7 @@ export function ProjectRow({
           </ul>
           <DropdownMenuSeparator />
           <Button variant="ghost" className="w-full justify-start" onClick={editProject}>
-            <FolderPenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+            <IconFolderCog aria-hidden className="size-3.5" stroke={1.1} />
             {t('sidebar.editProject')}
           </Button>
         </RowHoverCardContent>

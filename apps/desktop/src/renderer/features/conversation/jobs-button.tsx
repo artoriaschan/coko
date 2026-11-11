@@ -1,7 +1,7 @@
 import type { JobSnapshot, JobStatus, SessionEntry } from '@coko/protocol'
 import type { Translator } from '@coko/i18n'
 import { cn } from '@coko/ui'
-import { SquareTerminalIcon } from 'lucide-react'
+import { IconTerminal2 } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
@@ -130,7 +130,7 @@ export function JobsButton({ sessionId, openTab }: HeaderActionProps) {
   const label = running > 0 ? t('jobs.headerActionRunning', { count: running }) : t('jobs.headerAction')
   return (
     <IconButton label={label} data-action="open-jobs" data-running={running} className="relative" onClick={() => openTab('jobs')}>
-      <SquareTerminalIcon />
+      <IconTerminal2 aria-hidden />
       {running > 0 && (
         <span
           aria-hidden

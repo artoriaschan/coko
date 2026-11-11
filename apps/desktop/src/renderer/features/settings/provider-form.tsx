@@ -1,7 +1,7 @@
 import type { MessageKey } from '@coko/i18n'
 import { ModelProtocol, type Provider } from '@coko/protocol'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Input, Switch, toast } from '@coko/ui'
-import { ChevronDownIcon, CircleAlertIcon } from 'lucide-react'
+import { IconChevronDown, IconAlertCircle } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettingsActions } from '../../app/settings.tsx'
@@ -167,7 +167,7 @@ export function ProviderForm({
           <DropdownMenuTrigger asChild>
             <Button {...aria} type="button" variant="outline" data-protocol={draft.api} className="w-full justify-between px-3 font-normal">
               {t(`providers.protocols.${draft.api}`)}
-              <ChevronDownIcon className="text-muted-foreground" />
+              <IconChevronDown aria-hidden className="text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
@@ -284,7 +284,7 @@ export function ProviderForm({
       {formError !== null && (
         <div className="flex flex-col gap-1">
           <p role="alert" className="flex items-start gap-1.5 text-ui-small text-destructive">
-            <CircleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <IconAlertCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
             {formError}
           </p>
           {detail !== null && (
@@ -344,7 +344,7 @@ function Field({
       {children({ id, ...(error !== undefined ? { 'aria-invalid': true } : {}), ...(describedBy ? { 'aria-describedby': describedBy } : {}) })}
       {error !== undefined && (
         <p id={errorId} data-field-error className="flex items-start gap-1.5 text-ui-small text-destructive">
-          <CircleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <IconAlertCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           {error}
         </p>
       )}

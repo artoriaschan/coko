@@ -1,7 +1,7 @@
 import { createTranslator, type Locale, type MessageKey } from '@coko/i18n'
 import type { ResourceDiagnostic } from '@coko/protocol'
 import { cn, Switch, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
-import { ChevronDownIcon, MoonIcon, SunIcon } from 'lucide-react'
+import { IconChevronDown, IconMoon, IconSun } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import type { Theme } from '../../app/appearance-store.ts'
@@ -30,11 +30,11 @@ export function GeneralSection({ theme }: { theme: Theme }) {
             onValueChange={(value) => value && void preferences.setTheme(value as Theme)}
           >
             <ToggleGroupItem value="light" data-theme-option="light">
-              <SunIcon />
+              <IconSun aria-hidden />
               {t('appearance.light')}
             </ToggleGroupItem>
             <ToggleGroupItem value="dark" data-theme-option="dark">
-              <MoonIcon />
+              <IconMoon aria-hidden />
               {t('appearance.dark')}
             </ToggleGroupItem>
           </ToggleGroup>
@@ -173,7 +173,7 @@ function ProjectSettingsRow() {
         onClick={() => setExpanded((value) => !value)}
       >
         {t('config.project.issues', { count: diagnostics.length })}
-        <ChevronDownIcon className={cn('size-3.5 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} />
+        <IconChevronDown aria-hidden className={cn('size-3.5 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} />
       </button>
     )
   else

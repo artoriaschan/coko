@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { IconButton } from '../../app/icon-button.tsx'
-import { CrosshairIcon } from 'lucide-react'
+import { IconCrosshair } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { DiagnosticTarget } from './grouping-model.ts'
 import type { DiagnosticTableRevealRequest } from './diagnostic-table.tsx'
@@ -236,7 +236,7 @@ export function useTimelineNavigation(sessionId: string | null, targets: Readonl
             setPicking((value) => !value)
           }}
         >
-          <CrosshairIcon aria-hidden />
+          <IconCrosshair aria-hidden />
         </IconButton>
         {picking && (
           <span id={helpId} role="status" className="text-ui-caption text-muted-foreground">

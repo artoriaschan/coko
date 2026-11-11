@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDownIcon } from 'lucide-react'
+import { IconChevronDown } from '@tabler/icons-react'
 import './collaboration-rows.css'
 
 /** Coko-specific facts use the same compact 14/24 disclosure geometry as process rows. */
@@ -25,7 +25,7 @@ export function CollaborationRow({
       >
         <span className="conversation-collaboration-icon">{icon}</span>
         <span className="conversation-collaboration-label">{label}</span>
-        <ChevronDownIcon aria-hidden className="conversation-collaboration-chevron" />
+        <IconChevronDown aria-hidden className="conversation-collaboration-chevron" />
       </button>
       {open && (
         <div id={id} className="conversation-collaboration-body">

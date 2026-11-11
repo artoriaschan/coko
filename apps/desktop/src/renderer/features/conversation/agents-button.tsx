@@ -1,7 +1,7 @@
 import type { Translator } from '@coko/i18n'
 import type { AgentEndPayload, AgentStartPayload, AgentStatus, AgentUsage, SessionEntry } from '@coko/protocol'
 import { cn } from '@coko/ui'
-import { BotIcon } from 'lucide-react'
+import { IconRobot } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -141,7 +141,7 @@ export function AgentsButton({ sessionId, openTab }: HeaderActionProps) {
   const label = running > 0 ? t('agents.headerActionRunning', { count: running }) : t('agents.headerAction')
   return (
     <IconButton label={label} data-action="open-agents" data-running={running} className="relative" onClick={() => openTab('agents')}>
-      <BotIcon />
+      <IconRobot aria-hidden />
       {running > 0 && (
         <span
           aria-hidden

@@ -6,7 +6,7 @@ import { useStore } from 'zustand'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { RunTrace, SessionEntry } from '@coko/protocol'
 import { Button, cn } from '@coko/ui'
-import { DownloadIcon, LoaderCircleIcon } from 'lucide-react'
+import { IconDownload, IconLoader2 } from '@tabler/icons-react'
 import { SparklesIcon, SettingsIcon, ContextIcon, CompactedIcon, UserIcon, WrenchIcon } from './trajectory-icons.tsx'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -241,7 +241,7 @@ export function TrajectoryPanel({ sessionId, runs }: { sessionId: string; runs: 
           disabled={exporting}
           onClick={() => void download()}
         >
-          {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />}
+          {exporting ? <IconLoader2 aria-hidden className="animate-spin" /> : <IconDownload aria-hidden />}
         </Button>
       </div>
       <TrajectoryTimeline

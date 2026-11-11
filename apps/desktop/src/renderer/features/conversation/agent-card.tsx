@@ -1,6 +1,6 @@
 import type { AgentStatus } from '@coko/protocol'
 import { cn, ToolCard, type ToolCardStatus } from '@coko/ui'
-import { BotIcon, GitBranchIcon, PanelRightOpenIcon } from 'lucide-react'
+import { IconRobot, IconGitBranch, IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { agentRecords, agentUsageText, useAgents, useAgentStatus, useAgentsStoreApi, useSessionAgents } from './agents-button.tsx'
@@ -83,7 +83,7 @@ export function AgentCard({
       rootAttributes={rootAttributes}
       variant="row"
       data-tool="agent"
-      icon={<BotIcon />}
+      icon={<IconRobot aria-hidden />}
       title={t('agents.card.title', { type })}
       summary={description}
       status={cardStatus}
@@ -126,7 +126,7 @@ export function AgentCard({
           )}
           {record?.end?.worktree?.kept && (
             <p data-slot="agent-worktree" className="flex min-w-0 items-center gap-1.5 px-3 pb-2 text-ui-small text-muted-foreground">
-              <GitBranchIcon aria-hidden className="size-3.5 shrink-0" />
+              <IconGitBranch aria-hidden className="size-3.5 shrink-0" />
               <span data-user-content className="min-w-0 break-all font-mono" title={record.end.worktree.path}>
                 {t('agents.card.worktreeKept', { branch: record.end.worktree.branch })}
               </span>
@@ -149,7 +149,7 @@ export function AgentCard({
                 className="flex h-7 items-center gap-1.5 rounded-sm px-2 text-ui-small text-muted-foreground focus-ring [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-foreground"
                 onClick={() => agents.getState().open(sessionId, record.start.agentId)}
               >
-                <PanelRightOpenIcon aria-hidden className="size-3.5" />
+                <IconLayoutSidebarRightExpand aria-hidden className="size-3.5" />
                 {t('agents.card.open')}
               </button>
             </div>

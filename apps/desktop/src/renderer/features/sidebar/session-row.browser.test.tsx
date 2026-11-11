@@ -81,7 +81,7 @@ it.each(['light', 'dark'])('%s long titles scroll by keyboard, wheel and drag wi
     scroll.dispatchEvent(new WheelEvent('wheel', { deltaY: 60, bubbles: true, cancelable: true }))
     await expect.poll(() => Number(scroll.dataset.offset)).toBe(60)
     expect(controls.getBoundingClientRect().left).toBe(fixed)
-    const pin = controls.querySelector<SVGSVGElement>('svg.lucide-pin')!
+    const pin = controls.querySelector<SVGSVGElement>('svg.tabler-icon-pinned')!
     expect(getComputedStyle(pin).width).toBe('14px')
     expect(getComputedStyle(pin).rotate).toBe('45deg')
     const pinBox = pin.getBoundingClientRect()

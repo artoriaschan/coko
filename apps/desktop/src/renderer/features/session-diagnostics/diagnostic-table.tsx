@@ -1,7 +1,7 @@
 // Adapted from DeepSeek Harness (MIT), Copyright (c) 2026 DeepSeek.
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import { defaultRangeExtractor, useVirtualizer, type Range, type Virtualizer } from '@tanstack/react-virtual'
-import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { DiagnosticTableHierarchy, diagnosticRowCollapsed, type DiagnosticDisclosure, type DiagnosticRow } from './table-model.ts'
@@ -335,7 +335,7 @@ export function DiagnosticTable({
                             disabled={filter.active}
                             onClick={(event) => toggle(row, event.currentTarget.closest('tr')!)}
                           >
-                            {collapsed ? <ChevronRightIcon className="size-3.5" aria-hidden /> : <ChevronDownIcon className="size-3.5" aria-hidden />}
+                            {collapsed ? <IconChevronRight className="size-3.5" aria-hidden /> : <IconChevronDown className="size-3.5" aria-hidden />}
                           </button>
                         )}
                         <button type="button" className="min-w-0 truncate focus-ring" onClick={() => setSelected(row.key)}>

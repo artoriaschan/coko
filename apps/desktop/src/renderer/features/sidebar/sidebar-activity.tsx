@@ -1,5 +1,5 @@
 import type { Session } from '@coko/protocol'
-import { LoaderCircleIcon } from 'lucide-react'
+import { IconLoader2 } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import './sidebar-activity.css'
 
@@ -12,11 +12,11 @@ export function SidebarActivity({ running }: { running: boolean }) {
   const { t } = useI18n()
   return (
     <span data-sidebar-activity className="pointer-events-none absolute right-2 top-1 flex size-6 items-center justify-center text-muted-foreground">
-      <LoaderCircleIcon
+      <IconLoader2
         role="img"
         aria-label={t(running ? 'sidebar.running' : 'sidebar.backgroundRunning')}
         className="size-3 animate-spin motion-reduce:animate-none"
-        strokeWidth={1.1}
+        stroke={1.1}
       />
     </span>
   )

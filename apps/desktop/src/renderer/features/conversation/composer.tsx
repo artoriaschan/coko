@@ -1,6 +1,6 @@
 import { IMAGE_ATTACHMENT_MAX_BYTES, type FileAttachment, type ImageAttachment } from '@coko/protocol'
 import { Button, cn, ComposerEditor, Tooltip, TooltipContent, TooltipTrigger, type ComposerEditorHandle } from '@coko/ui'
-import { ArrowUpIcon, LoaderCircleIcon, PauseIcon, PlusIcon, SettingsIcon, SquareIcon, XIcon } from 'lucide-react'
+import { IconArrowUp, IconLoader2, IconPlayerPause, IconPlus, IconSettings, IconSquare, IconX } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useI18n } from '../../app/i18n.tsx'
@@ -351,7 +351,7 @@ export function Composer({
       {compacting && (
         // 压缩进行中（自动或 /compact）：独占一行，排在编辑区之上；停止不提交 compaction 条目。
         <div role="status" data-slot="compaction-status" className="order-first flex w-full items-center gap-2 px-3 pt-3 text-ui-body text-muted-foreground">
-          <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
           <span className="min-w-0 flex-1">{t('context.compaction.inProgress')}</span>
           <Button type="button" size="sm" variant="ghost" data-action="stop-compaction" onClick={onStop}>
             {t('context.compaction.stop')}
@@ -385,7 +385,7 @@ export function Composer({
                       void fileDrafts.remove([file.id])
                     }}
                   >
-                    <XIcon aria-hidden />
+                    <IconX aria-hidden />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{t('conversation.removeFile', { name: file.name })}</TooltipContent>
@@ -417,7 +417,7 @@ export function Composer({
                   void imageDrafts.remove([image.id])
                 }}
               >
-                <XIcon aria-hidden />
+                <IconX aria-hidden />
               </Button>
             </li>
           ))}
@@ -472,7 +472,7 @@ export function Composer({
                 }
               }}
             >
-              <PlusIcon />
+              <IconPlus aria-hidden />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t('conversation.attach')}</TooltipContent>
@@ -485,7 +485,7 @@ export function Composer({
         {accessory}
         {setup ? (
           <Button type="submit" size="sm" data-action="setup" disabled={disabled} className="shrink-0">
-            <SettingsIcon />
+            <IconSettings aria-hidden />
             {t('models.configure')}
           </Button>
         ) : (
@@ -501,7 +501,7 @@ export function Composer({
                     disabled={disabled || !imagesReady || (empty && images.length === 0 && files.length === 0)}
                     className="rounded-round [&_svg]:size-4 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:[&_svg]:opacity-35"
                   >
-                    <ArrowUpIcon />
+                    <IconArrowUp aria-hidden />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">{sendLabel}</TooltipContent>
@@ -521,7 +521,7 @@ export function Composer({
                       disabled={disabled || pausing}
                       onClick={onPause}
                     >
-                      <PauseIcon className="fill-current" />
+                      <IconPlayerPause aria-hidden className="fill-current" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">{pausing ? t('conversation.pausing') : t('conversation.pause')}</TooltipContent>
@@ -529,7 +529,7 @@ export function Composer({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button type="button" size="icon-toolbar" aria-label={t('conversation.stop')} data-action="stop" disabled={disabled} onClick={onStop}>
-                      <SquareIcon className="fill-current" />
+                      <IconSquare aria-hidden className="fill-current" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">{t('conversation.stop')}</TooltipContent>

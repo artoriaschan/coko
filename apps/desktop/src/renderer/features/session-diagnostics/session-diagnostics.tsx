@@ -3,7 +3,7 @@ import { useTimelineNavigation } from './use-timeline-navigation.tsx'
 import { rawTargets } from './raw-targets.ts'
 import { GroupingView } from './grouping-view.tsx'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@coko/ui'
-import { ChevronDownIcon } from 'lucide-react'
+import { IconChevronDown } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useChat } from '../../app/chat.tsx'
@@ -33,7 +33,7 @@ export function SessionDiagnostics({ sessionId }: RightPanelTabProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" aria-label={t('diagnostics.format')}>
             {format === 'raw' ? t('diagnostics.raw') : t('diagnostics.grouping')}
-            <ChevronDownIcon aria-hidden />
+            <IconChevronDown aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

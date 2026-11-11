@@ -272,6 +272,9 @@ importers:
       '@electron/fuses':
         specifier: 2.1.3
         version: 2.1.3
+      '@tabler/icons-react':
+        specifier: 3.51.0
+        version: 3.51.0(react@19.3.0)
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@8.3.1(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -308,9 +311,6 @@ importers:
       electron:
         specifier: 41.0.3
         version: 41.0.3
-      lucide-react:
-        specifier: 1.55.0
-        version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
       mdast-util-from-markdown:
         specifier: 2.1.0
         version: 2.1.0
@@ -489,6 +489,9 @@ importers:
       '@streamdown/mermaid':
         specifier: 1.0.3
         version: 1.0.3(react@19.3.0)
+      '@tabler/icons-react':
+        specifier: 3.51.0
+        version: 3.51.0(react@19.3.0)
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -501,9 +504,6 @@ importers:
       lexical:
         specifier: 0.52.0
         version: 0.52.0(typescript@6.0.3)
-      lucide-react:
-        specifier: 1.55.0
-        version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
       radix-ui:
         specifier: 1.7.0
         version: 1.7.0(@types/react-dom@19.2.3(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -2497,6 +2497,14 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
+
+  '@tabler/icons-react@3.51.0':
+    resolution: {integrity: sha512-F3GGChIUspsCq+HhXtJezc1W9QRcRlEG07Jb4dKUR1TV+mq1uvY7+G46n1fZE02jhQUOVuOoi445Bk1O9mFrDg==}
+    peerDependencies:
+      react: '>= 16'
+
+  '@tabler/icons@3.51.0':
+    resolution: {integrity: sha512-0pinvPZz7YeX+OSfxuEAbnEPWbocVXW5iU8h5lh41pYG8sZuQfpWECC980lxOT0clGIcNGn8xsBr+zKaRGdA/g==}
 
   '@tailwindcss/node@4.3.3':
     resolution: {integrity: sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg==}
@@ -7537,6 +7545,13 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@tabler/icons-react@3.51.0(react@19.3.0)':
+    dependencies:
+      '@tabler/icons': 3.51.0
+      react: 19.3.0
+
+  '@tabler/icons@3.51.0': {}
 
   '@tailwindcss/node@4.3.3':
     dependencies:

@@ -1,4 +1,4 @@
-import { XIcon } from 'lucide-react'
+import { IconX } from '@tabler/icons-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { FocusScope } from 'radix-ui/internal'
 import * as React from 'react'
@@ -107,7 +107,7 @@ function DialogContent({
             aria-label={closeLabel}
             className="absolute top-3 right-3 inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors focus-ring hover:bg-accent hover:text-foreground [&_svg]:size-4"
           >
-            <XIcon />
+            <IconX aria-hidden />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

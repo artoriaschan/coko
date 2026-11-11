@@ -3,7 +3,7 @@
 import type { MessageKey } from '@coko/i18n'
 import { ResourceDiagnostic, type PluginInfo, type PluginStatus } from '@coko/protocol'
 import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Switch, toast } from '@coko/ui'
-import { CircleAlertIcon, FolderOpenIcon } from 'lucide-react'
+import { IconAlertCircle, IconFolderOpen } from '@tabler/icons-react'
 import * as React from 'react'
 import { Type } from 'typebox'
 import { Value } from 'typebox/value'
@@ -159,7 +159,7 @@ function InstallPanel({ onInstalled }: { onInstalled: (name: string) => void }) 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-ui-body font-medium">{t('plugins.install.title')}</h3>
         <Button variant="outline" size="sm" data-action="install-folder" disabled={installing} onClick={() => void fromFolder()}>
-          <FolderOpenIcon />
+          <IconFolderOpen aria-hidden />
           {t('plugins.install.folder')}
         </Button>
       </div>
@@ -253,7 +253,7 @@ function PluginCard({ plugin, onReview, onUninstall }: { plugin: PluginInfo; onR
             </span>
             <span data-plugin-status className={cn('inline-flex items-center gap-1 self-center text-ui-small', STATUS_TONE[plugin.status])}>
               {(plugin.status === 'incompatible' || plugin.status === 'invalid') && (
-                <CircleAlertIcon aria-hidden className="size-3.5 shrink-0 text-destructive" />
+                <IconAlertCircle aria-hidden className="size-3.5 shrink-0 text-destructive" />
               )}
               {t(`plugins.status.${plugin.status}`)}
             </span>

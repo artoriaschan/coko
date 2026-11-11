@@ -1,7 +1,7 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
-import { BellIcon, SquareTerminalIcon } from 'lucide-react'
+import { IconBell, IconTerminal2 } from '@tabler/icons-react'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { JobOutputView } from '../right-panel/jobs-tab.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -87,7 +87,7 @@ export function JobChip({ jobId }: { jobId: string }) {
           }
         }}
       >
-        <SquareTerminalIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        <IconTerminal2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         {job.status && <JobStatusDot status={job.status} />}
         <span data-user-content className="truncate font-mono">
           {job.label}
@@ -143,7 +143,7 @@ export function JobRow({ item, rootAttributes }: { item: Extract<TimelineItem, {
   if (item.job.kind !== 'notification') return null
   return (
     <div {...rootAttributes} data-slot="job-notification" className="flex min-w-0 items-start gap-1.5 conversation-business-row text-muted-foreground">
-      <BellIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      <IconBell aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="shrink-0">{t('jobs.notification')}</span>
         <ul className="flex min-w-0 flex-col">

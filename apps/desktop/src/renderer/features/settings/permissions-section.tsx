@@ -12,7 +12,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@coko/ui'
-import { ChevronDownIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { IconChevronDown, IconPlus, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useChat, useChatActions, useActiveWorkspaceId, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -88,7 +88,7 @@ export function PermissionsSection() {
                   >
                     <DefaultIcon />
                     {t(`permissions.modes.${defaultMode}`)}
-                    <ChevronDownIcon />
+                    <IconChevronDown aria-hidden />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
@@ -205,7 +205,7 @@ function RuleList({
                       </code>
                       {onRemove && (
                         <IconButton label={t('permissions.remove', { rule: text })} onClick={() => void onRemove(rule)}>
-                          <Trash2Icon />
+                          <IconTrash aria-hidden />
                         </IconButton>
                       )}
                     </li>
@@ -300,7 +300,7 @@ function RuleEditor({
           )}
         </div>
         <Button type="submit" size="sm" variant="outline" disabled={busy || text.trim() === ''}>
-          <PlusIcon />
+          <IconPlus aria-hidden />
           {t('permissions.add')}
         </Button>
       </form>

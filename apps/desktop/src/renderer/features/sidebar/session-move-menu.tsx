@@ -11,7 +11,7 @@ import {
   Input,
   toast,
 } from '@coko/ui'
-import { FolderClosedIcon, FolderInputIcon, FolderMinusIcon, FolderPlusIcon } from 'lucide-react'
+import { IconFolder, IconFolderDown, IconFolderMinus, IconFolderPlus } from '@tabler/icons-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useCreateProject } from '../projects/project-dialogs.tsx'
@@ -59,7 +59,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
         }}
       >
         <SessionMenuIcon>
-          <FolderInputIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+          <IconFolderDown aria-hidden className="size-3.5" stroke={1.1} />
         </SessionMenuIcon>
         {t('sidebar.moveToProject')}
       </DropdownMenuSubTrigger>
@@ -121,7 +121,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
               .at(-1)
             return (
               <DropdownMenuRadioItem key={project.id} value={project.id} indicatorAlign="end">
-                <FolderClosedIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconFolder aria-hidden className="size-3.5" stroke={1.1} />
                 <span data-user-content className="min-w-0 truncate">
                   {project.name}
                   {(names.get(project.name) ?? 0) > 1 && folder && <span className="text-muted-foreground"> · {folder}</span>}
@@ -150,7 +150,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
             )
           }}
         >
-          <FolderPlusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+          <IconFolderPlus aria-hidden className="size-3.5" stroke={1.1} />
           {t('sidebar.chooseProjectFolder')}
         </DropdownMenuItem>
         {session.projectId !== null && (
@@ -160,7 +160,7 @@ export function SessionMoveMenu({ session, close }: { session: Session; close: (
               void move(session.id, null)
             }}
           >
-            <FolderMinusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+            <IconFolderMinus aria-hidden className="size-3.5" stroke={1.1} />
             {t('sidebar.moveOutOfProject')}
           </DropdownMenuItem>
         )}

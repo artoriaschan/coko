@@ -1,20 +1,20 @@
 import type { MessageKey } from '@coko/i18n'
 import {
-  BellIcon,
-  BlocksIcon,
-  BotIcon,
-  BoxIcon,
-  BrainIcon,
-  ClockIcon,
-  CodeIcon,
-  InfoIcon,
-  PaletteIcon,
-  PlugIcon,
-  PuzzleIcon,
-  ShieldIcon,
-  SlidersHorizontalIcon,
-  WebhookIcon,
-} from 'lucide-react'
+  IconBell,
+  IconBlocks,
+  IconRobot,
+  IconBox,
+  IconBrain,
+  IconClock,
+  IconCode,
+  IconInfoCircle,
+  IconPalette,
+  IconPlug,
+  IconPuzzle,
+  IconShield,
+  IconAdjustmentsHorizontal,
+  IconWebhook,
+} from '@tabler/icons-react'
 import type * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { ArchivedSection } from './archived-section.tsx'
@@ -79,21 +79,21 @@ function Unavailable() {
 
 /** 分区注册表，分类内按菜单顺序。 */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
-  { id: 'general', label: 'settings.nav.general', icon: SlidersHorizontalIcon, Component: GeneralSection, group: 'personal', available: true },
-  { id: 'archived', label: 'sidebar.archivedConversations', icon: BoxIcon, Component: ArchivedSection, group: 'personal', available: true },
-  { id: 'appearance', label: 'settings.nav.appearance', icon: PaletteIcon, Component: Unavailable, group: 'personal', available: false },
-  { id: 'memory', label: 'settings.nav.memory', icon: BrainIcon, Component: MemorySection, group: 'personal', available: true },
-  { id: 'notifications', label: 'notifications.settings', icon: BellIcon, Component: NotificationsSection, group: 'personal', available: true },
-  { id: 'permissions', label: 'settings.nav.permissions', icon: ShieldIcon, Component: PermissionsSection, group: 'environment', available: true },
-  { id: 'schedules', label: 'schedules.settings', icon: ClockIcon, Component: SchedulesSection, group: 'environment', available: true },
-  { id: 'plugins', label: 'settings.nav.plugins', icon: PuzzleIcon, Component: PluginsSection, group: 'plugins', available: true },
-  { id: 'skills', label: 'settings.nav.skills', icon: BlocksIcon, Component: SkillsSection, group: 'plugins', available: true },
-  { id: 'mcp', label: 'settings.nav.mcp', icon: PlugIcon, Component: McpSection, group: 'plugins', available: true },
-  { id: 'lsp', label: 'lsp.settings', icon: CodeIcon, Component: LspSection, group: 'plugins', available: true },
-  { id: 'hooks', label: 'settings.nav.hooks', icon: WebhookIcon, Component: HooksSection, group: 'plugins', available: true },
-  { id: 'agents', label: 'agents.settings', icon: BotIcon, Component: AgentsSection, group: 'plugins', available: true },
-  { id: 'models', label: 'settings.nav.models', icon: BoxIcon, Component: ModelsSection, group: 'models', available: true },
-  { id: 'about', label: 'settings.nav.about', icon: InfoIcon, Component: AboutSection, available: true },
+  { id: 'general', label: 'settings.nav.general', icon: IconAdjustmentsHorizontal, Component: GeneralSection, group: 'personal', available: true },
+  { id: 'archived', label: 'sidebar.archivedConversations', icon: IconBox, Component: ArchivedSection, group: 'personal', available: true },
+  { id: 'appearance', label: 'settings.nav.appearance', icon: IconPalette, Component: Unavailable, group: 'personal', available: false },
+  { id: 'memory', label: 'settings.nav.memory', icon: IconBrain, Component: MemorySection, group: 'personal', available: true },
+  { id: 'notifications', label: 'notifications.settings', icon: IconBell, Component: NotificationsSection, group: 'personal', available: true },
+  { id: 'permissions', label: 'settings.nav.permissions', icon: IconShield, Component: PermissionsSection, group: 'environment', available: true },
+  { id: 'schedules', label: 'schedules.settings', icon: IconClock, Component: SchedulesSection, group: 'environment', available: true },
+  { id: 'plugins', label: 'settings.nav.plugins', icon: IconPuzzle, Component: PluginsSection, group: 'plugins', available: true },
+  { id: 'skills', label: 'settings.nav.skills', icon: IconBlocks, Component: SkillsSection, group: 'plugins', available: true },
+  { id: 'mcp', label: 'settings.nav.mcp', icon: IconPlug, Component: McpSection, group: 'plugins', available: true },
+  { id: 'lsp', label: 'lsp.settings', icon: IconCode, Component: LspSection, group: 'plugins', available: true },
+  { id: 'hooks', label: 'settings.nav.hooks', icon: IconWebhook, Component: HooksSection, group: 'plugins', available: true },
+  { id: 'agents', label: 'agents.settings', icon: IconRobot, Component: AgentsSection, group: 'plugins', available: true },
+  { id: 'models', label: 'settings.nav.models', icon: IconBox, Component: ModelsSection, group: 'models', available: true },
+  { id: 'about', label: 'settings.nav.about', icon: IconInfoCircle, Component: AboutSection, available: true },
 ]
 
 /** 导航中显示的分区，按菜单顺序（分类顺序，无分类的在最后）。 */

@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { WebhookIcon } from 'lucide-react'
+import { IconWebhook } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import type { TimelineItem } from './timeline.ts'
 
@@ -23,7 +23,7 @@ export function HookRow({ item, rootAttributes }: { item: Extract<TimelineItem, 
       data-source={hook.source}
       className="flex min-w-0 items-start gap-1.5 conversation-business-row text-muted-foreground"
     >
-      <WebhookIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      <IconWebhook aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="shrink-0 font-mono text-ui-small">{hook.event}</span>

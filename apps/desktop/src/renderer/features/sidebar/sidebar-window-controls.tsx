@@ -1,5 +1,5 @@
 import { useAppFrame } from '@coko/ui'
-import { ArrowLeftIcon, ArrowRightIcon, PanelLeftIcon, SquarePenIcon } from 'lucide-react'
+import { IconArrowLeft, IconArrowRight, IconLayoutSidebar, IconEdit } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
@@ -22,17 +22,17 @@ export function SidebarWindowControls({ expanded, showNewChat = false }: { expan
         onPointerEnter={expanded ? undefined : peekSidebar}
         onClick={toggleSidebar}
       >
-        <PanelLeftIcon className="size-4" strokeWidth={1} />
+        <IconLayoutSidebar aria-hidden className="size-4" stroke={1} />
       </IconButton>
       <IconButton label={t('sidebar.back')} size="icon-sm" disabled={!navigation.canBack} onClick={navigation.back}>
-        <ArrowLeftIcon className="size-5" strokeWidth={1.1} />
+        <IconArrowLeft aria-hidden className="size-5" stroke={1.1} />
       </IconButton>
       <IconButton label={t('sidebar.forward')} size="icon-sm" disabled={!navigation.canForward} onClick={navigation.forward}>
-        <ArrowRightIcon className="size-5" strokeWidth={1.1} />
+        <IconArrowRight aria-hidden className="size-5" stroke={1.1} />
       </IconButton>
       {showNewChat && (
         <IconButton label={t('sidebar.newSession')} size="icon-sm" onClick={() => navigation.newChat()}>
-          <SquarePenIcon className="size-4" strokeWidth={1.1} />
+          <IconEdit aria-hidden className="size-4" stroke={1.1} />
         </IconButton>
       )}
     </div>

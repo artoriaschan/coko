@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from '@coko/ui'
-import { CheckIcon } from 'lucide-react'
+import { IconCheck } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 
 /** 消息动作按钮：仅图标，Tooltip 与可访问名称同一文案。 */
@@ -63,7 +63,7 @@ export function CopyMessage({ text }: { text: string }) {
       }}
     >
       {copied ? (
-        <CheckIcon />
+        <IconCheck aria-hidden />
       ) : (
         <svg aria-hidden viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
           <rect x="1.52075" y="4.07373" width="10.3932" height="10.3932" rx="2" />

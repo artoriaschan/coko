@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import type { Session } from '@coko/protocol'
 import { Dialog, DialogContent, DialogTitle, DropdownMenuItem, InlineRename, Input, SidebarListRow, toast, type RowMenuPoint } from '@coko/ui'
-import { MessageCircleIcon, SearchIcon, Trash2Icon } from 'lucide-react'
+import { IconMessageCircle, IconSearch, IconTrash } from '@tabler/icons-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
@@ -88,7 +88,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
       >
         <DialogTitle className="sr-only">{t('sidebar.searchConversations')}</DialogTitle>
         <div className="relative h-10 shrink-0">
-          <SearchIcon aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" strokeWidth={1.1} />
+          <IconSearch aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" stroke={1.1} />
           <Input
             ref={input}
             role="combobox"
@@ -198,7 +198,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                       setMenu({ session, point: { x: event.clientX, y: event.clientY } })
                     }}
                   >
-                    <MessageCircleIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+                    <IconMessageCircle aria-hidden className="size-3.5 shrink-0 text-muted-foreground" stroke={1.1} />
                     <span data-user-content className="min-w-0 flex-1 truncate">
                       {highlighted}
                     </span>
@@ -266,7 +266,7 @@ export function ConversationSearch({ open, onOpenChange }: { open: boolean; onOp
                     }}
                   >
                     <SessionMenuIcon>
-                      <Trash2Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                      <IconTrash aria-hidden className="size-3.5" stroke={1.1} />
                     </SessionMenuIcon>
                     {t('sidebar.deleteConversation')}
                   </DropdownMenuItem>

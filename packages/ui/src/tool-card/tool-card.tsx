@@ -1,4 +1,4 @@
-import { ChevronRightIcon, LoaderCircleIcon } from 'lucide-react'
+import { IconChevronRight, IconLoader2 } from '@tabler/icons-react'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
 import './tool-row.css'
@@ -74,7 +74,7 @@ function LegacyToolCard({
       {(summary === undefined || summary === '') && <span className="flex-1" />}
       {meta}
       <ToolStatus status={status} label={statusLabel} />
-      {hasBody && <ChevronRightIcon aria-hidden className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} />}
+      {hasBody && <IconChevronRight aria-hidden className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} />}
     </>
   )
   return (
@@ -216,7 +216,7 @@ function ToolRow({
 
 function ToolStatus({ status, label }: { status: ToolCardStatus; label: string }) {
   if (status === 'running')
-    return <LoaderCircleIcon role="img" aria-label={label} className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />
+    return <IconLoader2 role="img" aria-label={label} className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />
   return (
     <span
       role="img"

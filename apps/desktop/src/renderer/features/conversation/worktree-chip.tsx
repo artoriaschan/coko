@@ -1,6 +1,6 @@
 import type { SessionWorktree } from '@coko/protocol'
 import { cn } from '@coko/ui'
-import { GitBranchIcon } from 'lucide-react'
+import { IconGitBranch } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 
 /**
@@ -22,7 +22,7 @@ export function WorktreeChip({ worktree, className }: { worktree: SessionWorktre
         className,
       )}
     >
-      <GitBranchIcon aria-hidden className="size-3 shrink-0" />
+      <IconGitBranch aria-hidden className="size-3 shrink-0" />
       <span data-user-content className="min-w-0 truncate">
         {worktree.branch}
       </span>
@@ -42,7 +42,7 @@ export function WorktreeReadOnlyNotice({ worktree, className }: { worktree: Sess
         className,
       )}
     >
-      <GitBranchIcon aria-hidden className="size-4 shrink-0" />
+      <IconGitBranch aria-hidden className="size-4 shrink-0" />
       <p className="min-w-0 flex-1">{t('worktrees.readOnly', { name: worktree.name })}</p>
     </div>
   )

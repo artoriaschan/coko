@@ -16,7 +16,7 @@ import {
   TooltipTrigger,
   type ThinkingSliderValue,
 } from '@coko/ui'
-import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -106,7 +106,7 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
                   <span className="shrink-0 whitespace-nowrap text-muted-foreground">{LEVEL_NAMES[level]}</span>
                 </>
               )}
-              <ChevronDownIcon />
+              <IconChevronDown aria-hidden />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -139,7 +139,7 @@ export function ModelPicker({ models, value, thinkingLevel, disabled, onChange }
                 <span data-user-content className="min-w-0 break-words">
                   {label}
                 </span>
-                <ChevronRightIcon className="size-3 shrink-0" aria-hidden />
+                <IconChevronRight className="size-3 shrink-0" aria-hidden />
               </span>
             </DropdownMenuItem>
             <div className="w-full">

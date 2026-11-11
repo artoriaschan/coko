@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { BellIcon } from 'lucide-react'
+import { IconBell } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { agentRecords, AgentStatusDot, useAgentStatus, useAgentsStoreApi, type AgentRecord } from './agents-button.tsx'
@@ -42,7 +42,7 @@ export function AgentNotificationRow({
   const byId = React.useMemo(() => new Map(agentRecords(entries).map((r) => [r.start.agentId, r])), [entries])
   return (
     <div {...rootAttributes} data-slot="agent-notification" className="flex min-w-0 items-start gap-2 conversation-business-row text-muted-foreground">
-      <BellIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      <IconBell aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
         <span className="shrink-0">{t('agents.notification')}</span>
         <ul className="flex min-w-0 flex-col">

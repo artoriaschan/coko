@@ -1,6 +1,6 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { Button } from '@coko/ui'
-import { ArrowRightLeftIcon, TriangleAlertIcon } from 'lucide-react'
+import { IconArrowsRightLeft, IconAlertTriangle } from '@tabler/icons-react'
 import * as React from 'react'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -31,12 +31,12 @@ function FailedHandoffRow({ code, payload, rootAttributes }: { code: string; pay
       data-code={code}
       className="flex min-w-0 flex-wrap items-start gap-2 conversation-business-row text-muted-foreground"
     >
-      <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <IconAlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="min-w-0 flex-1">
         {t('handoff.failed')}
         {reason && <span className="block text-ui-small">{t(reason)}</span>}
       </p>
-      <CollaborationRow className="basis-full" icon={<TriangleAlertIcon aria-hidden />} label={t('tool.originalIO')}>
+      <CollaborationRow className="basis-full" icon={<IconAlertTriangle aria-hidden />} label={t('tool.originalIO')}>
         <pre data-user-content className="conversation-collaboration-source">
           {JSON.stringify(payload, null, 2)}
         </pre>
@@ -76,12 +76,12 @@ function LinkedHandoffRow({
       data-session-id={otherId}
       className="flex min-w-0 flex-wrap items-center gap-2 conversation-business-row text-muted-foreground"
     >
-      <ArrowRightLeftIcon aria-hidden className="size-4 shrink-0" />
+      <IconArrowsRightLeft aria-hidden className="size-4 shrink-0" />
       <p data-user-content className="min-w-0 flex-1 break-words" title={text}>
         {text}
       </p>
       {handoff.kind === 'source' && (
-        <CollaborationRow className="order-last basis-full" icon={<ArrowRightLeftIcon aria-hidden />} label={t('tool.originalIO')}>
+        <CollaborationRow className="order-last basis-full" icon={<IconArrowsRightLeft aria-hidden />} label={t('tool.originalIO')}>
           <pre data-user-content className="conversation-collaboration-source">
             {JSON.stringify(handoff.payload, null, 2)}
           </pre>

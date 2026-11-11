@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@coko/ui'
-import { GitBranchIcon, SettingsIcon } from 'lucide-react'
+import { IconGitBranch, IconSettings } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useNewChat } from '../../app/chat.tsx'
@@ -167,7 +167,7 @@ export function ProjectGitMenu({
                 aria-label={t('worktrees.projectConfiguration')}
                 className="ml-auto size-6 [&_svg]:size-3.5"
               >
-                <SettingsIcon aria-hidden strokeWidth={1.1} />
+                <IconSettings aria-hidden stroke={1.1} />
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -210,7 +210,7 @@ export function ProjectGitMenu({
                 if (event.relatedTarget instanceof Node && searchInput.current?.closest('[role="menu"]')?.contains(event.relatedTarget)) event.preventDefault()
               }}
             >
-              <GitBranchIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+              <IconGitBranch aria-hidden className="size-3.5" stroke={1.1} />
               <span>{t('worktrees.branchLabel')}</span>
               <span data-user-content className="ml-auto max-w-32 truncate text-muted-foreground">
                 {selected ?? (git?.available ? t('worktrees.branchDetached') : '')}

@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from 'lucide-react'
+import { IconChevronDown } from '@tabler/icons-react'
 import * as React from 'react'
 import { Button } from '../components/button.tsx'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../components/dropdown-menu.tsx'
@@ -180,7 +180,7 @@ function ApprovalFlow({ title, description, labels, onAllow, onReject, allowAlwa
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" size="sm" data-action="allow-always" disabled={answered}>
                 {allowAlways.label}
-                <ChevronDownIcon />
+                <IconChevronDown aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="end" className="max-w-80">

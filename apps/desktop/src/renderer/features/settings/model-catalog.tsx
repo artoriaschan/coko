@@ -1,7 +1,7 @@
 import type { MessageKey } from '@coko/i18n'
 import { MODEL_CATALOG_DEFAULTS, USAGE_CURRENCY_SETTING, usageCurrencyOf, type CatalogModel } from '@coko/protocol'
 import { Button, Checkbox, cn, Input, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { ChevronDownIcon, ChevronRightIcon, CircleAlertIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { IconChevronDown, IconChevronRight, IconAlertCircle, IconPlus, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings } from '../../app/settings.tsx'
@@ -126,7 +126,7 @@ export function ModelCatalog({
           onClick={add}
           {...(emptyError !== undefined ? { 'aria-invalid': true, 'aria-describedby': emptyErrorId } : {})}
         >
-          <PlusIcon />
+          <IconPlus aria-hidden />
           {t('providers.catalog.add')}
         </Button>
         {emptyError !== undefined && <FieldError id={emptyErrorId}>{emptyError}</FieldError>}
@@ -191,10 +191,10 @@ function ModelRow({
             className="flex-1"
           />
           <IconButton label={t('providers.catalog.options')} aria-expanded={expanded} aria-controls={optionsId} onClick={onToggle}>
-            {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+            {expanded ? <IconChevronDown aria-hidden /> : <IconChevronRight aria-hidden />}
           </IconButton>
           <IconButton label={t('providers.catalog.remove')} onClick={onRemove}>
-            <Trash2Icon />
+            <IconTrash aria-hidden />
           </IconButton>
         </div>
         {idError && <FieldError id={`${id}-id-error`}>{idError}</FieldError>}
@@ -320,7 +320,7 @@ function IconButton({ label, ...props }: { label: string } & Omit<React.Componen
 function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
   return (
     <p id={id} data-field-error className="flex items-start gap-1.5 text-ui-small text-destructive">
-      <CircleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <IconAlertCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
       {children}
     </p>
   )

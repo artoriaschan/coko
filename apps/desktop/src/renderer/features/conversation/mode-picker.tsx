@@ -11,7 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { ClipboardListIcon, EyeIcon, HandIcon, ShieldAlertIcon, ShieldIcon, TerminalIcon } from 'lucide-react'
+import { IconClipboardList, IconEye, IconHandStop, IconShieldExclamation, IconShield, IconTerminal } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { PermissionRiskDialog } from './permission-risk-dialog.tsx'
@@ -20,11 +20,11 @@ import { PermissionRiskDialog } from './permission-risk-dialog.tsx'
 export const PERMISSION_MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'full-access']
 
 export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?: string }>> = {
-  'read-only': EyeIcon,
-  default: HandIcon,
+  'read-only': IconEye,
+  default: IconHandStop,
   'accept-edits': ShieldTerminalIcon,
-  'full-access': ShieldAlertIcon,
-  plan: ClipboardListIcon,
+  'full-access': IconShieldExclamation,
+  plan: IconClipboardList,
 }
 
 /** Shift+Tab 的下一档：只在前三档之间循环（不含 plan）；从 full-access 或 plan 回到第一档。 */
@@ -36,8 +36,8 @@ export function nextCycledMode(mode: PermissionMode): PermissionMode {
 function ShieldTerminalIcon({ className }: { className?: string }) {
   return (
     <span aria-hidden className={cn('relative inline-flex size-3.5 shrink-0', className)}>
-      <ShieldIcon className="size-3.5" />
-      <TerminalIcon className="absolute inset-1 size-1.5" />
+      <IconShield aria-hidden className="size-3.5" />
+      <IconTerminal aria-hidden className="absolute inset-1 size-1.5" />
     </span>
   )
 }

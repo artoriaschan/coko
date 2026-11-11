@@ -1,6 +1,6 @@
 import type { AgentSnapshot } from '@coko/protocol'
 import { Button, toast } from '@coko/ui'
-import { GitBranchIcon, LoaderCircleIcon, LockIcon, SquareIcon } from 'lucide-react'
+import { IconGitBranch, IconLoader2, IconLock, IconSquare } from '@tabler/icons-react'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions } from '../../app/chat.tsx'
@@ -58,7 +58,7 @@ function AgentListItem({ agent, selected, now, onSelect }: { agent: AgentSnapsho
           </span>
           {agent.worktree && (
             <span className="flex min-w-0 items-center gap-1 text-ui-small text-muted-foreground">
-              <GitBranchIcon aria-hidden className="size-3 shrink-0" />
+              <IconGitBranch aria-hidden className="size-3 shrink-0" />
               <span data-user-content className="truncate font-mono" title={agent.worktree.path}>
                 {agent.worktree.branch}
               </span>
@@ -83,7 +83,7 @@ function AgentTimeline({ agent }: { agent: AgentSnapshot }) {
   if (!conversation || (conversation.status === 'loading' && conversation.entries.length === 0))
     return (
       <div className="flex flex-1 items-center justify-center" aria-label={t('agents.tabView.loading')}>
-        <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
       </div>
     )
   return (
@@ -147,7 +147,7 @@ function AgentDetail({ sessionId, agent }: { sessionId: string; agent: AgentSnap
         </span>
         {running ? (
           <Button type="button" variant="outline" size="sm" data-action="stop-agent" disabled={stopping} onClick={() => void stop()}>
-            {stopping ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <SquareIcon />}
+            {stopping ? <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <IconSquare aria-hidden />}
             {stopping ? t('agents.tabView.stopping') : t('agents.tabView.stop')}
           </Button>
         ) : (
@@ -159,7 +159,7 @@ function AgentDetail({ sessionId, agent }: { sessionId: string; agent: AgentSnap
         data-slot="agent-read-only"
         className="flex shrink-0 items-center gap-1.5 border-t-hairline border-border px-3 py-2 text-ui-small text-muted-foreground"
       >
-        <LockIcon aria-hidden className="size-3.5 shrink-0" />
+        <IconLock aria-hidden className="size-3.5 shrink-0" />
         {t('agents.tabView.readOnly')}
       </p>
     </section>
@@ -195,7 +195,7 @@ export function AgentsTab({ sessionId }: RightPanelTabProps) {
     if (session?.status === 'loading')
       return (
         <div className="flex min-h-0 flex-1 items-center justify-center" aria-label={t('agents.tabView.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       )
     return <div className={centered}>{t('agents.tabView.empty')}</div>

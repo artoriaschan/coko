@@ -1,6 +1,6 @@
 import { contextUsageLevel, contextUsagePercent, type ContextBreakdown, type ContextUsageResponse } from '@coko/protocol'
 import { ContextRing, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger, type ContextRingLevel } from '@coko/ui'
-import { CirclePauseIcon } from 'lucide-react'
+import { IconCirclePause } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -98,7 +98,7 @@ export function ContextRingControl({ target, store = defaultStore }: ContextRing
               data-slot="auto-compact-paused"
               className="flex size-8 shrink-0 items-center justify-center rounded-md text-warning focus-ring"
             >
-              <CirclePauseIcon aria-hidden className="size-4" />
+              <IconCirclePause aria-hidden className="size-4" />
             </span>
           </TooltipTrigger>
           <TooltipContent side="top">{t('context.compaction.pausedHint')}</TooltipContent>

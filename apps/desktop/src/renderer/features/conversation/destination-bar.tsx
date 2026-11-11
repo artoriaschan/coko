@@ -15,7 +15,7 @@ import {
   TooltipContent,
   cn,
 } from '@coko/ui'
-import { ChevronDownIcon, FolderClosedIcon, MessageCircleIcon, PlusIcon, XIcon } from 'lucide-react'
+import { IconChevronDown, IconFolder, IconMessageCircle, IconPlus, IconX } from '@tabler/icons-react'
 import * as React from 'react'
 import { useLists, useNewChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -68,16 +68,16 @@ export function DestinationBar({ className }: { className?: string }) {
                   aria-hidden
                   className="flex size-6 shrink-0 items-center justify-center group-hover/destination:invisible group-focus-within/destination:invisible"
                 >
-                  <FolderClosedIcon className="size-3.5" strokeWidth={1.1} />
+                  <IconFolder aria-hidden className="size-3.5" stroke={1.1} />
                 </span>
               ) : (
-                <MessageCircleIcon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.1} />
+                <IconMessageCircle aria-hidden className="size-3.5 shrink-0" stroke={1.1} />
               )}
               <span data-destination-name data-user-content={project ? '' : undefined} className="flex h-7 min-w-0 items-center truncate pb-0.5 text-ui-body">
                 {label}
               </span>
               {/* 项目归属的箭头在悬停时让位给清除按钮；视觉稿只保留文件夹/清除图标。 */}
-              {!project && <ChevronDownIcon aria-hidden className="size-3! shrink-0" strokeWidth={1.1} />}
+              {!project && <IconChevronDown aria-hidden className="size-3! shrink-0" stroke={1.1} />}
             </Button>
           </DropdownMenuTrigger>
           {project && (
@@ -90,7 +90,7 @@ export function DestinationBar({ className }: { className?: string }) {
                   className="absolute left-2 flex size-6 items-center justify-center rounded-sm opacity-0 focus-ring group-hover/destination:opacity-100 group-focus-within/destination:opacity-100"
                   onClick={() => selectProject(null)}
                 >
-                  <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                  <IconX aria-hidden className="size-3.5" stroke={1.1} />
                 </button>
               </TooltipTrigger>
               <TooltipContent>{t('conversation.destinationClear')}</TooltipContent>
@@ -144,7 +144,7 @@ export function DestinationBar({ className }: { className?: string }) {
                 .at(-1)
               return (
                 <DropdownMenuRadioItem key={item.id} value={item.id} indicatorAlign="end">
-                  <FolderClosedIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                  <IconFolder aria-hidden className="size-3.5" stroke={1.1} />
                   <span data-user-content className="min-w-0 truncate">
                     {item.name}
                     {(names.get(item.name) ?? 0) > 1 && folder && <span className="text-muted-foreground"> · {folder}</span>}
@@ -159,7 +159,7 @@ export function DestinationBar({ className }: { className?: string }) {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuRadioItem value="" indicatorAlign="end">
-              <MessageCircleIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+              <IconMessageCircle aria-hidden className="size-3.5" stroke={1.1} />
               {t('conversation.destinationNone')}
             </DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
@@ -173,7 +173,7 @@ export function DestinationBar({ className }: { className?: string }) {
                   requestAnimationFrame(() => createProject({ onComplete: (created) => selectProject(created.id) }))
                 }}
               >
-                <PlusIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                <IconPlus aria-hidden className="size-3.5" stroke={1.1} />
                 {t('projectForm.newProject')}
               </DropdownMenuItem>
             </>

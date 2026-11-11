@@ -1,6 +1,6 @@
 import type { SessionEntry } from '@coko/protocol'
 import { Button, cn, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { DatabaseIcon, GaugeIcon, type LucideIcon } from 'lucide-react'
+import { IconDatabase, IconGauge, type TablerIcon } from '@tabler/icons-react'
 import * as React from 'react'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -27,7 +27,7 @@ function StatusCapsule({
   reading: string
   label: string
   title: string
-  Icon: LucideIcon
+  Icon: TablerIcon
   open: boolean
   onOpenChange: (open: boolean) => void
   children: React.ReactNode
@@ -62,7 +62,7 @@ function StatusCapsule({
               data-tokens={total}
               className="h-[22px] min-w-0 shrink gap-1.5 px-1.5 text-ui-small font-normal tabular-nums aria-expanded:bg-accent"
             >
-              <Icon aria-hidden className="size-3.5 shrink-0" strokeWidth={1} />
+              <Icon aria-hidden className="size-3.5 shrink-0" stroke={1} />
               <span ref={text} className="min-w-0 truncate">
                 {reading}
               </span>
@@ -98,12 +98,12 @@ function StatusCapsule({
   )
 }
 
-function CardHeading({ Icon, title, children }: { Icon: LucideIcon; title: string; children: React.ReactNode }) {
+function CardHeading({ Icon, title, children }: { Icon: TablerIcon; title: string; children: React.ReactNode }) {
   return (
     <>
       <div className="mb-2 flex justify-between gap-4 font-medium text-foreground">
         <span className="inline-flex min-w-0 items-center gap-1.5">
-          <Icon aria-hidden className="size-3.5 shrink-0" strokeWidth={1} />
+          <Icon aria-hidden className="size-3.5 shrink-0" stroke={1} />
           {title}
         </span>
         {children}
@@ -148,11 +148,11 @@ export function SessionStatusBar({ sessionId, className }: { sessionId: string; 
           reading={statsReading}
           label={t('usage.statistics.label', { reading: statsReading })}
           title={t('usage.statistics.title')}
-          Icon={GaugeIcon}
+          Icon={IconGauge}
           open={open === 'statistics'}
           onOpenChange={show('statistics')}
         >
-          <CardHeading Icon={GaugeIcon} title={t('usage.statistics.title')}>
+          <CardHeading Icon={IconGauge} title={t('usage.statistics.title')}>
             <span className="tabular-nums">{counts}</span>
           </CardHeading>
           <dl className="space-y-1.5">
@@ -173,12 +173,12 @@ export function SessionStatusBar({ sessionId, className }: { sessionId: string; 
           reading={reading}
           label={label}
           title={t('usage.status.title')}
-          Icon={DatabaseIcon}
+          Icon={IconDatabase}
           open={open === 'tokens'}
           onOpenChange={show('tokens')}
           total={total}
         >
-          <CardHeading Icon={DatabaseIcon} title={t('usage.status.title')}>
+          <CardHeading Icon={IconDatabase} title={t('usage.status.title')}>
             <span data-usage-part="total" className="tabular-nums">
               {formatExactTokens(total)}
             </span>

@@ -1,5 +1,5 @@
 import type { TodoItem, TodoStatus } from '@coko/protocol'
-import { ChevronDownIcon, CircleCheckIcon, CircleDotIcon, CircleIcon, CircleXIcon, ListTodoIcon } from 'lucide-react'
+import { IconChevronDown, IconCircleCheck, IconCircleDot, IconCircle, IconCircleX, IconChecklist } from '@tabler/icons-react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import { useChat } from '../../../app/chat.tsx'
@@ -12,10 +12,10 @@ const expandedStore = createStore<Record<string, boolean>>(() => ({}))
 const finished = (status: TodoStatus) => status === 'completed' || status === 'cancelled'
 
 const STATUS_ICON = {
-  pending: <CircleIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
-  in_progress: <CircleDotIcon aria-hidden className="size-4 shrink-0 text-primary" />,
-  completed: <CircleCheckIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
-  cancelled: <CircleXIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
+  pending: <IconCircle aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
+  in_progress: <IconCircleDot aria-hidden className="size-4 shrink-0 text-primary" />,
+  completed: <IconCircleCheck aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
+  cancelled: <IconCircleX aria-hidden className="size-4 shrink-0 text-muted-foreground" />,
 } as const satisfies Record<TodoStatus, React.ReactNode>
 
 /**
@@ -67,7 +67,7 @@ function TodoRow({ item, open }: { item: TodoItem; open: readonly string[] }) {
       <details className="group/result">
         <summary className="flex cursor-pointer items-start gap-2 rounded-sm py-0.5 select-none focus-ring [&::-webkit-details-marker]:hidden">
           {body}
-          <ChevronDownIcon
+          <IconChevronDown
             aria-hidden
             className="size-4 shrink-0 text-muted-foreground transition-transform group-open/result:rotate-180 motion-reduce:transition-none"
           />
@@ -112,7 +112,7 @@ export function TodoCard({ sessionId }: DockCardProps) {
         onClick={() => expandedStore.setState({ [sessionId]: !expanded })}
         className="flex w-full min-w-0 items-center gap-2 rounded-sm text-start focus-ring disabled:cursor-default"
       >
-        <ListTodoIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <IconChecklist aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span data-todo-count className="shrink-0 font-medium">
           {t('todo.count', { done, total: items.length })}
         </span>
@@ -120,7 +120,7 @@ export function TodoCard({ sessionId }: DockCardProps) {
           {allDone ? t('todo.allDone') : (current?.content ?? '')}
         </span>
         {!allDone && (
-          <ChevronDownIcon
+          <IconChevronDown
             aria-hidden
             className={`size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none ${showList ? 'rotate-180' : ''}`}
           />

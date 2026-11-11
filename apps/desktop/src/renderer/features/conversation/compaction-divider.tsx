@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { ChevronRightIcon } from 'lucide-react'
+import { IconChevronRight } from '@tabler/icons-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { Markdown } from './markdown.tsx'
@@ -31,7 +31,7 @@ export function CompactionDivider({
         className="flex cursor-pointer items-center gap-2 rounded-md select-none focus-ring [&::-webkit-details-marker]:hidden"
       >
         <span aria-hidden className="h-px flex-1 bg-border" />
-        <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 transition-transform group-open/compaction:rotate-90 motion-reduce:transition-none" />
+        <IconChevronRight aria-hidden className="size-3.5 shrink-0 transition-transform group-open/compaction:rotate-90 motion-reduce:transition-none" />
         <span className="shrink-0">
           {t('context.compaction.divider')}
           {saved !== undefined && <span className="tabular-nums"> · {t('context.compaction.saved', { tokens: saved })}</span>}

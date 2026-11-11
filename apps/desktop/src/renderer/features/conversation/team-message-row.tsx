@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { ArrowRightIcon, MessageSquareIcon } from 'lucide-react'
+import { IconArrowRight, IconMessage } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { CollaborationRow } from './collaboration-row.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -18,12 +18,12 @@ export function TeamMessageRow({ item, rootAttributes }: { item: Extract<Timelin
       data-from={from}
       data-to={to}
       triggerLabel={t('teams.message.route', { from, to })}
-      icon={<MessageSquareIcon aria-hidden />}
+      icon={<IconMessage aria-hidden />}
       label={
         <>
           <span data-slot="team-message-route" aria-label={t('teams.message.route', { from, to })} className="inline-flex items-center gap-1">
             <span data-user-content>{from}</span>
-            <ArrowRightIcon aria-hidden className="size-3.5" />
+            <IconArrowRight aria-hidden className="size-3.5" />
             <span data-user-content>{to}</span>
           </span>
           {summary !== undefined && summary !== '' && (

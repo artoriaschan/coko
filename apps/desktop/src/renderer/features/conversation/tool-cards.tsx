@@ -1,6 +1,6 @@
 import type { MessageKey } from '@coko/i18n'
 import { ToolCard, ToolOutput } from '@coko/ui'
-import { BrainIcon, CodeIcon, FolderTreeIcon, ListChecksIcon, ListPlusIcon, ListTodoIcon, SendIcon } from 'lucide-react'
+import { IconBrain, IconCode, IconListTree, IconListCheck, IconPlaylistAdd, IconChecklist, IconSend } from '@tabler/icons-react'
 import * as React from 'react'
 import { hookBlock, ToolStateMeta, ToolStateDetail } from './tool-states.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -102,14 +102,14 @@ const VIEWS: Record<string, ToolView> = {
     body: (item) => <SearchToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   ls: {
-    icon: <FolderTreeIcon />,
+    icon: <IconListTree aria-hidden />,
     title: 'tool.ls',
     summary: (a) => str(a.path) ?? '.',
     body: (item) => <SearchToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
-  memory_list: { icon: <BrainIcon />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <GenericBody item={item} /> },
+  memory_list: { icon: <IconBrain aria-hidden />, title: 'memory.tool.list', summary: (a) => str(a.scope), body: (item) => <GenericBody item={item} /> },
   memory_write: {
-    icon: <BrainIcon />,
+    icon: <IconBrain aria-hidden />,
     title: (item) => {
       const action = memoryAction(item)
       return action === 'created' ? 'memory.tool.written' : action === 'updated' ? 'memory.tool.updated' : 'memory.tool.write'
@@ -118,13 +118,13 @@ const VIEWS: Record<string, ToolView> = {
     body: (item) => <StructuredToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   memory_delete: {
-    icon: <BrainIcon />,
+    icon: <IconBrain aria-hidden />,
     title: (item) => (memoryAction(item) === 'deleted' ? 'memory.tool.deleted' : 'memory.tool.delete'),
     summary: (a) => str(a.id),
     body: (item) => <StructuredToolBody item={item} fallback={<GenericBody item={item} />} />,
   },
   lsp: {
-    icon: <CodeIcon />,
+    icon: <IconCode aria-hidden />,
     title: (item) => {
       const operation = (item.call.arguments as { operation?: unknown } | undefined)?.operation
       return typeof operation === 'string' && operation in LSP_TITLES ? LSP_TITLES[operation as keyof typeof LSP_TITLES] : 'lsp.tool.diagnostics'
@@ -138,7 +138,7 @@ const VIEWS: Record<string, ToolView> = {
   },
   // Agent Teams：消息与任务板工具（docs/subsystems/teams.md）。
   send_message: {
-    icon: <SendIcon />,
+    icon: <IconSend aria-hidden />,
     title: 'teams.tool.sendMessage',
     summary: (a) => {
       const to = str(a.to)
@@ -154,9 +154,14 @@ const VIEWS: Record<string, ToolView> = {
       </>
     ),
   },
-  task_create: { icon: <ListPlusIcon />, title: 'teams.tool.taskCreate', summary: (a) => str(a.subject), body: (item) => <OriginalToolIO item={item} /> },
+  task_create: {
+    icon: <IconPlaylistAdd aria-hidden />,
+    title: 'teams.tool.taskCreate',
+    summary: (a) => str(a.subject),
+    body: (item) => <OriginalToolIO item={item} />,
+  },
   task_update: {
-    icon: <ListTodoIcon />,
+    icon: <IconChecklist aria-hidden />,
     title: 'teams.tool.taskUpdate',
     summary: (a) => {
       const id = str(a.id)
@@ -165,7 +170,7 @@ const VIEWS: Record<string, ToolView> = {
     },
     body: (item) => <OriginalToolIO item={item} />,
   },
-  task_list: { icon: <ListChecksIcon />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <OriginalToolIO item={item} /> },
+  task_list: { icon: <IconListCheck aria-hidden />, title: 'teams.tool.taskList', summary: () => undefined, body: (item) => <OriginalToolIO item={item} /> },
 }
 
 /** send_message 的明细：发出的正文（模型输出，原样）与结果。 */

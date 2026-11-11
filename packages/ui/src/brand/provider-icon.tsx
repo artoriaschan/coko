@@ -1,4 +1,4 @@
-import { BotIcon } from 'lucide-react'
+import { IconRobot } from '@tabler/icons-react'
 import { cn } from '../lib/utils.ts'
 import { BRAND_GLYPHS, brandOf, type BrandHints, type BrandId } from './brands.ts'
 
@@ -34,5 +34,5 @@ export interface ProviderIconProps extends BrandHints {
 export function ProviderIcon({ size = 16, variant = 'color', className, ...hints }: ProviderIconProps) {
   const brand = brandOf(hints)
   if (brand !== null) return <BrandIcon brand={brand} size={size} variant={variant} className={className} />
-  return <BotIcon aria-hidden size={size} className={cn('shrink-0 text-muted-foreground', className)} />
+  return <IconRobot aria-hidden size={size} className={cn('shrink-0 text-muted-foreground', className)} />
 }

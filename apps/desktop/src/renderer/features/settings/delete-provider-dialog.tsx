@@ -1,6 +1,6 @@
 import type { Provider } from '@coko/protocol'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, toast } from '@coko/ui'
-import { LoaderCircleIcon } from 'lucide-react'
+import { IconLoader2 } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettingsActions } from '../../app/settings.tsx'
@@ -88,7 +88,7 @@ export function DeleteProviderDialog({
         <div aria-live="polite" data-provider-references={references.status} className="flex min-h-8 items-center gap-2 text-ui-body">
           {references.status === 'loading' && (
             <>
-              <LoaderCircleIcon aria-hidden className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none" />
+              <IconLoader2 aria-hidden className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none" />
               <span className="text-muted-foreground">{t('providers.deleteDialog.counting')}</span>
             </>
           )}
@@ -113,7 +113,7 @@ export function DeleteProviderDialog({
             {t('providers.cancel')}
           </Button>
           <Button variant="destructive" disabled={references.status !== 'ready' || deleting} onClick={() => void confirm()}>
-            {deleting && <LoaderCircleIcon aria-hidden className="animate-spin motion-reduce:animate-none" />}
+            {deleting && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
             {t('providers.delete')}
           </Button>
         </div>

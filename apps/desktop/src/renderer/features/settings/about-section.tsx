@@ -1,5 +1,5 @@
 import { Button } from '@coko/ui'
-import { CircleAlertIcon } from 'lucide-react'
+import { IconAlertCircle } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import type { UpdateStatus } from '../../../shared/bridge.ts'
@@ -62,7 +62,7 @@ function UpdateCard({ store }: { store: UpdateStore }) {
         {status !== undefined && (
           <p data-update-status className="flex items-center gap-1.5 text-ui-body">
             {/* 小号文字用 destructive 色在卡片上低于 4.5:1，错误只用图标着色，文字保持中性色。 */}
-            {status.state === 'error' && <CircleAlertIcon aria-hidden data-update-error-icon className="size-4 shrink-0 text-destructive" />}
+            {status.state === 'error' && <IconAlertCircle aria-hidden data-update-error-icon className="size-4 shrink-0 text-destructive" />}
             {t(`update.state.${status.state}`)}
           </p>
         )}

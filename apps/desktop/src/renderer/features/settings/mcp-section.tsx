@@ -30,7 +30,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@coko/ui'
-import { ChevronDownIcon, GlobeIcon, KeyRoundIcon, PlusIcon, RefreshCwIcon } from 'lucide-react'
+import { IconChevronDown, IconWorld, IconKey, IconPlus, IconRefresh } from '@tabler/icons-react'
 import { Value } from 'typebox/value'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -121,7 +121,7 @@ export function McpSection() {
         <div className="flex shrink-0 flex-wrap gap-1">
           <BrowserPresetMenu disabled={!data || editing !== null} onPick={setAdding} />
           <Button variant="outline" size="sm" disabled={!data || editing !== null} onClick={() => setEditing({})}>
-            <PlusIcon />
+            <IconPlus aria-hidden />
             {t('mcp.add')}
           </Button>
         </div>
@@ -179,7 +179,7 @@ function BrowserPresetMenu({ disabled, onPick }: { disabled: boolean; onPick: (p
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" data-action="add-browser" disabled={disabled || presets === null}>
-          <GlobeIcon />
+          <IconWorld aria-hidden />
           {t('mcp.browser.add')}
         </Button>
       </DropdownMenuTrigger>
@@ -346,7 +346,7 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
                 onClick={() => setShowTools((v) => !v)}
               >
                 {t('mcp.tools', { count: server.tools.length })}
-                <ChevronDownIcon className={cn('size-3.5 transition-transform motion-reduce:transition-none', showTools && 'rotate-180')} />
+                <IconChevronDown aria-hidden className={cn('size-3.5 transition-transform motion-reduce:transition-none', showTools && 'rotate-180')} />
               </button>
             )}
           </div>
@@ -370,7 +370,7 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
           )}
           {authRequired && server.scope === 'global' && server.transport === 'http' && onEdit && (
             <Button variant="outline" size="sm" data-action="edit-headers" disabled={busy || working} onClick={() => onEdit('headers')}>
-              <KeyRoundIcon />
+              <IconKey aria-hidden />
               {t('mcp.auth.editHeaders')}
             </Button>
           )}
@@ -382,7 +382,7 @@ function ServerCard({ server, busy, onEdit }: { server: McpServerInfo; busy: boo
               disabled={working}
               onClick={() => void run(() => mcpStore.getState().reconnect(server.name), 'mcp.reconnectFailed')}
             >
-              <RefreshCwIcon />
+              <IconRefresh aria-hidden />
               {t('mcp.reconnect')}
             </Button>
           )}
@@ -808,7 +808,7 @@ function SecretsPanel() {
         {secrets && secrets.secrets.length === 0 && <p className="px-4 py-3 text-ui-body text-muted-foreground">{t('mcp.secrets.empty')}</p>}
         {secrets?.secrets.map((secret) => (
           <div key={secret.name} data-secret={secret.name} className="flex items-center gap-3 px-4 py-2 not-last:border-b-hairline not-last:border-border">
-            <KeyRoundIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+            <IconKey aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
             <span data-user-content className="min-w-0 flex-1 truncate font-mono text-ui-body">
               {secret.name}
             </span>

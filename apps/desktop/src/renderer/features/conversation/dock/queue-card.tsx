@@ -1,5 +1,5 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@coko/ui'
-import { ClockIcon } from 'lucide-react'
+import { IconClock } from '@tabler/icons-react'
 import { useChat } from '../../../app/chat.tsx'
 import { useI18n } from '../../../app/i18n.tsx'
 import type { DockCardProps } from './dock-slots.ts'
@@ -17,7 +17,7 @@ export function QueueCard({ sessionId }: DockCardProps) {
   return (
     <section data-slot="queue-card" aria-label={t('todo.queue.hint')} className="rounded-panel bg-background px-3 py-2 text-ui-body shadow-panel">
       <div className="flex min-w-0 items-center gap-2">
-        <ClockIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <IconClock aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="shrink-0 font-medium">{t('todo.queue.title', { count: steering.length })}</span>
         <span className="min-w-0 flex-1 truncate text-ui-small text-muted-foreground">{t('todo.queue.hint')}</span>
       </div>

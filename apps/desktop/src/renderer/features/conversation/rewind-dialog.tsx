@@ -1,6 +1,6 @@
 import type { RewindMode, RewindResponse } from '@coko/protocol'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, ToggleGroup, ToggleGroupItem } from '@coko/ui'
-import { LoaderCircleIcon, TriangleAlertIcon } from 'lucide-react'
+import { IconLoader2, IconAlertTriangle } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -74,7 +74,7 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
               data-outside={outside.has(path) || undefined}
               className="flex min-w-0 items-center gap-1.5"
             >
-              {(diverged.has(path) || outside.has(path)) && <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-warning" />}
+              {(diverged.has(path) || outside.has(path)) && <IconAlertTriangle aria-hidden className="size-3.5 shrink-0 text-warning" />}
               <span data-user-content className="truncate font-mono text-ui-small" title={path}>
                 {displayPath(path, workspacePath)}
               </span>
@@ -121,7 +121,7 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
           <div data-slot="rewind-files" aria-busy={!ready} className="flex max-h-60 min-h-8 flex-col gap-3 overflow-y-auto">
             {!ready && (
               <p className="flex items-center gap-2 text-ui-body text-muted-foreground">
-                <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+                <IconLoader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
                 {t('rewind.checking')}
               </p>
             )}
@@ -133,13 +133,13 @@ export function RewindDialog({ target, workspacePath, onPreview, onConfirm, onCl
                 )}
                 {files.diverged.length > 0 && (
                   <p role="alert" data-slot="rewind-diverged" className="flex items-start gap-1.5 text-ui-body text-warning-text">
-                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+                    <IconAlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
                     {t('rewind.diverged', { count: files.diverged.length })}
                   </p>
                 )}
                 {files.outside.length > 0 && (
                   <p role="alert" data-slot="rewind-outside" className="flex items-start gap-1.5 text-ui-body text-warning-text">
-                    <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+                    <IconAlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
                     {t('rewind.outside', { count: files.outside.length })}
                   </p>
                 )}

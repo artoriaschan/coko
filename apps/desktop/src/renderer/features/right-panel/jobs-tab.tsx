@@ -1,7 +1,7 @@
 import type { JobSnapshot } from '@coko/protocol'
 import { Button, cn, toast } from '@coko/ui'
 import Anser from 'anser'
-import { ArrowDownToLineIcon, LoaderCircleIcon, SquareIcon } from 'lucide-react'
+import { IconArrowBarToDown, IconLoader2, IconSquare } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import {
@@ -159,7 +159,7 @@ export function JobOutputView({ label, text, earlier, truncated }: JobOutputView
             className="mb-1 font-sans"
             onClick={earlier.onLoad}
           >
-            {earlier.loading && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />}
+            {earlier.loading && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
             {t('jobs.output.earlier')}
           </Button>
         )}
@@ -172,7 +172,7 @@ export function JobOutputView({ label, text, earlier, truncated }: JobOutputView
       </pre>
       {!following && (
         <Button type="button" variant="outline" size="sm" data-action="follow-tail" className="absolute end-3 bottom-2 shadow-soft" onClick={follow}>
-          <ArrowDownToLineIcon />
+          <IconArrowBarToDown aria-hidden />
           {t('jobs.output.followTail')}
         </Button>
       )}
@@ -243,7 +243,7 @@ function JobDetail({ sessionId, job }: { sessionId: string; job: JobSnapshot }) 
         </span>
         {job.status === 'running' || job.status === 'stopping' ? (
           <Button type="button" variant="outline" size="sm" data-action="stop-job" disabled={pending} onClick={() => void stop()}>
-            {pending ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : <SquareIcon />}
+            {pending ? <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <IconSquare aria-hidden />}
             {pending ? t('jobs.stopping') : t('jobs.stop')}
           </Button>
         ) : (
@@ -254,7 +254,7 @@ function JobDetail({ sessionId, job }: { sessionId: string; job: JobSnapshot }) 
       </div>
       {!output || output.status === 'loading' ? (
         <div className="flex flex-1 items-center justify-center" aria-label={t('jobs.output.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       ) : output.status === 'error' ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-ui-body text-muted-foreground">
@@ -304,7 +304,7 @@ export function JobsTab({ sessionId }: RightPanelTabProps) {
     if (session?.status === 'loading')
       return (
         <div className="flex min-h-0 flex-1 items-center justify-center" aria-label={t('jobs.output.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       )
     return <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('jobs.empty')}</div>

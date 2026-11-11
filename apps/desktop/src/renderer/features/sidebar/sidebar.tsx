@@ -1,5 +1,5 @@
 import { Button, SidebarSettings, useAppFrame } from '@coko/ui'
-import { AtSignIcon, Clock3Icon, SearchIcon, SettingsIcon, SquarePenIcon } from 'lucide-react'
+import { IconAt, IconClockHour3, IconSearch, IconSettings, IconEdit } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useWorkbenchNavigation } from '../../app/workbench.tsx'
@@ -46,7 +46,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             aria-current={navigation.location.kind === 'new-chat' ? 'page' : undefined}
             onClick={() => newSession()}
           >
-            <SquarePenIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+            <IconEdit aria-hidden className="size-3.5" stroke={1.1} />
             {t('sidebar.newSession')}
           </Button>
           <IconButton
@@ -56,7 +56,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             className="size-7"
             onClick={() => onSearchChange(search === null ? '' : null)}
           >
-            <SearchIcon />
+            <IconSearch aria-hidden />
           </IconButton>
         </div>
         <Button
@@ -69,7 +69,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             closeSidebarDrawer()
           }}
         >
-          <AtSignIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+          <IconAt aria-hidden className="size-3.5" stroke={1.1} />
           {t('settings.nav.plugins')}
         </Button>
         <Button
@@ -82,7 +82,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
             closeSidebarDrawer()
           }}
         >
-          <Clock3Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+          <IconClockHour3 aria-hidden className="size-3.5" stroke={1.1} />
           {t('schedules.settings')}
         </Button>
       </nav>
@@ -99,7 +99,7 @@ export function Sidebar({ onAddWorkspace, search, onSearchChange }: SidebarProps
 
       <SidebarSettings
         label={t('sidebar.settings')}
-        icon={<SettingsIcon aria-hidden className="size-4" strokeWidth={1.1} />}
+        icon={<IconSettings aria-hidden className="size-4" stroke={1.1} />}
         onClick={() => {
           closeSidebarDrawer()
           openSettings()

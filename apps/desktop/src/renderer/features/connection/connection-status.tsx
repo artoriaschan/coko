@@ -1,5 +1,5 @@
 import { Button } from '@coko/ui'
-import { FolderOpenIcon } from 'lucide-react'
+import { IconFolderOpen } from '@tabler/icons-react'
 import { RENDERER_FAILURE_CODES, type ConnectionState } from '../../client/connection.ts'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -47,7 +47,7 @@ export function ConnectionFailure({ code, message, crashed = false, onOpenLogs }
       </p>
       {onOpenLogs && (
         <Button variant="outline" size="sm" className="mt-2" onClick={onOpenLogs}>
-          <FolderOpenIcon />
+          <IconFolderOpen aria-hidden />
           {t('connection.openLogs')}
         </Button>
       )}

@@ -1,6 +1,6 @@
 import type { TeamMember, TeamSnapshot, TeamTaskView } from '@coko/protocol'
 import { Button } from '@coko/ui'
-import { GitBranchIcon, LoaderCircleIcon, LockIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
+import { IconGitBranch, IconLoader2, IconLock, IconAlertTriangle, IconX } from '@tabler/icons-react'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useChat, useChatActions, useOptionalChatStoreApi } from '../../app/chat.tsx'
@@ -61,7 +61,7 @@ function MemberItem({ member, selected, onSelect }: { member: TeamMember; select
           </span>
           {member.worktree && (
             <span className="flex min-w-0 items-center gap-1 text-ui-small text-muted-foreground">
-              <GitBranchIcon aria-hidden className="size-3 shrink-0" />
+              <IconGitBranch aria-hidden className="size-3 shrink-0" />
               <span data-user-content className="truncate font-mono" title={member.worktree.path}>
                 {member.worktree.branch}
               </span>
@@ -107,7 +107,7 @@ function TaskItem({ task, byId, overlap }: { task: TeamTaskView; byId: Map<strin
           {waiting.length > 0 && <span data-slot="task-blocked">{t('teams.board.blockedBy', { tasks: listFormat(locale, waiting) })}</span>}
           {overlap && (
             <span data-slot="task-overlap" className="flex items-center gap-1 text-warning-text">
-              <TriangleAlertIcon aria-hidden className="size-3 shrink-0" />
+              <IconAlertTriangle aria-hidden className="size-3 shrink-0" />
               {t('teams.board.overlapBadge')}
             </span>
           )}
@@ -139,7 +139,7 @@ function TaskBoard({ team, compact }: { team: TeamSnapshot; compact: boolean }) 
           data-slot="team-overlap"
           className="mx-2 mb-1 flex items-start gap-1.5 rounded-md border border-warning px-2 py-1 text-ui-small text-warning-text"
         >
-          <TriangleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <IconAlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           <span>{t('teams.board.overlap', { tasks: listFormat(locale, warning.taskIds) })}</span>
         </p>
       ))}
@@ -181,7 +181,7 @@ function MemberTimeline({ member }: { member: TeamMember }) {
   if (!conversation || (conversation.status === 'loading' && conversation.entries.length === 0))
     return (
       <div className="flex flex-1 items-center justify-center" aria-label={t('teams.tabView.loading')}>
-        <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
       </div>
     )
   return (
@@ -230,7 +230,7 @@ function MemberDetail({ member, onClose }: { member: TeamMember; onClose: () => 
         </span>
         <span className="shrink-0 text-ui-small text-muted-foreground">{t(`teams.member.${member.status}`)}</span>
         <IconButton label={t('teams.tabView.close')} data-action="close-member" onClick={onClose}>
-          <XIcon />
+          <IconX aria-hidden />
         </IconButton>
       </div>
       <MemberTimeline member={member} />
@@ -238,7 +238,7 @@ function MemberDetail({ member, onClose }: { member: TeamMember; onClose: () => 
         data-slot="team-read-only"
         className="flex shrink-0 items-center gap-1.5 border-t-hairline border-border px-3 py-2 text-ui-small text-muted-foreground"
       >
-        <LockIcon aria-hidden className="size-3.5 shrink-0" />
+        <IconLock aria-hidden className="size-3.5 shrink-0" />
         {t('teams.tabView.readOnly')}
       </p>
     </section>
@@ -270,7 +270,7 @@ export function TeamTab({ sessionId }: RightPanelTabProps) {
     if (session?.status === 'loading')
       return (
         <div className="flex min-h-0 flex-1 items-center justify-center" aria-label={t('teams.tabView.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       )
     return <div className={centered}>{t('teams.tabView.empty')}</div>

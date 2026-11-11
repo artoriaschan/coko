@@ -1,4 +1,4 @@
-import { CheckIcon } from 'lucide-react'
+import { IconCheck } from '@tabler/icons-react'
 import { Checkbox as CheckboxPrimitive } from 'radix-ui'
 import type * as React from 'react'
 import { cn } from '../lib/utils.ts'
@@ -15,7 +15,7 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
       {...props}
     >
       <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className="flex items-center justify-center">
-        <CheckIcon className="size-3.5" />
+        <IconCheck aria-hidden className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

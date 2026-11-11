@@ -4,7 +4,7 @@ import { copiedReplyFooters } from './fork-history.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button } from '@coko/ui'
-import { ChevronRightIcon, GitBranchIcon, FileIcon, FolderIcon, LoaderCircleIcon, RotateCcwIcon, SquareSlashIcon, Undo2Icon } from 'lucide-react'
+import { IconChevronRight, IconGitBranch, IconFile, IconFolder, IconLoader2, IconRotate, IconSquareOff, IconArrowBackUp } from '@tabler/icons-react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
@@ -127,14 +127,14 @@ export function TimelineView(props: TimelineViewProps) {
                   data-slot="user-bubble"
                   className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg select-none focus-ring [&::-webkit-details-marker]:hidden"
                 >
-                  <SquareSlashIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                  <IconSquareOff aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                   <span className="font-medium">/{item.command.name}</span>
                   {item.command.args !== '' && (
                     <span data-user-content className="min-w-0 break-words whitespace-pre-wrap">
                       {item.command.args}
                     </span>
                   )}
-                  <ChevronRightIcon
+                  <IconChevronRight
                     aria-hidden
                     className="size-4 shrink-0 text-muted-foreground transition-transform group-open/command:rotate-90 motion-reduce:transition-none"
                   />
@@ -184,7 +184,7 @@ export function TimelineView(props: TimelineViewProps) {
                         }
                       }}
                     >
-                      <FileIcon aria-hidden />
+                      <IconFile aria-hidden />
                       <span className="truncate">{attachment.name}</span>
                     </Button>
                     {attachmentFailure === attachment.path && (
@@ -208,9 +208,9 @@ export function TimelineView(props: TimelineViewProps) {
                     className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
                   >
                     {path.endsWith('/') ? (
-                      <FolderIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                      <IconFolder aria-hidden className="size-7 shrink-0 text-muted-foreground" />
                     ) : (
-                      <FileIcon aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                      <IconFile aria-hidden className="size-7 shrink-0 text-muted-foreground" />
                     )}
                     <span data-user-content className="min-w-0 break-all">
                       {path}
@@ -237,7 +237,7 @@ export function TimelineView(props: TimelineViewProps) {
                       // 命令消息回退时放回原始调用，而不是展开后的全文。
                       onClick={() => onRewind(item.seq, item.invocation ?? item.text)}
                     >
-                      <Undo2Icon />
+                      <IconArrowBackUp aria-hidden />
                     </MessageAction>
                   )}
                 </div>
@@ -251,7 +251,7 @@ export function TimelineView(props: TimelineViewProps) {
         return (
           <details key={item.key} data-slot="rewound" className="group/rewound min-w-0 text-ui-body text-muted-foreground">
             <summary className="flex cursor-pointer items-center gap-1.5 rounded-md select-none focus-ring [&::-webkit-details-marker]:hidden">
-              <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
+              <IconChevronRight aria-hidden className="size-4 transition-transform group-open/rewound:rotate-90 motion-reduce:transition-none" />
               {t('conversation.rewound', { count: item.items.length })}
             </summary>
             <div className="mt-2 flex flex-col gap-4 border-l-hairline border-border ps-3">
@@ -299,7 +299,7 @@ export function TimelineView(props: TimelineViewProps) {
                       disabled={actionsDisabled}
                       onClick={() => props.onBranch?.(footers.get(item.key)!.seq)}
                     >
-                      <GitBranchIcon />
+                      <IconGitBranch aria-hidden />
                     </MessageAction>
                   ) : undefined
                 }
@@ -329,7 +329,7 @@ export function TimelineView(props: TimelineViewProps) {
       case 'generating':
         return (
           <p key={item.key} aria-live="polite" data-generating className="flex items-center gap-2 text-ui-body text-muted-foreground">
-            <LoaderCircleIcon aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+            <IconLoader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
             {item.retry ? t('conversation.retrying', { attempt: item.retry.attempt, max: item.retry.maxRetries }) : t('conversation.generating')}
           </p>
         )
@@ -366,7 +366,7 @@ export function TimelineView(props: TimelineViewProps) {
             {item.incrementalToolsRejected && <p className="break-words whitespace-pre-wrap text-muted-foreground">{t('mcp.toolSearch.rejectedHint')}</p>}
             {item.retryable && !actionsDisabled && (
               <Button variant="outline" size="sm" className="self-start" onClick={onRetry}>
-                <RotateCcwIcon />
+                <IconRotate aria-hidden />
                 {t('conversation.retry')}
               </Button>
             )}

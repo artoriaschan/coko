@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@coko/ui'
-import { ChevronDownIcon, CircleHelpIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { IconChevronDown, IconHelpCircle, IconPlus, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { addLevel, changeLevel, levelChoices, nextLevel, removeLevel, setLevelValue } from './thinking-levels.ts'
@@ -68,7 +68,7 @@ export function ThinkingLevelsEditor({
           <Tooltip>
             <TooltipTrigger asChild>
               <button type="button" aria-label={t('providers.thinking.help')} className="inline-flex rounded-xs text-muted-foreground focus-ring">
-                <CircleHelpIcon aria-hidden className="size-3.5" />
+                <IconHelpCircle aria-hidden className="size-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-64">{t('providers.thinking.help')}</TooltipContent>
@@ -100,7 +100,7 @@ export function ThinkingLevelsEditor({
                       className="min-w-0 flex-1 justify-between px-3 font-normal"
                     >
                       <span className="font-mono">{configured.level}</span>
-                      <ChevronDownIcon className="text-muted-foreground" />
+                      <IconChevronDown aria-hidden className="text-muted-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
@@ -152,7 +152,7 @@ export function ThinkingLevelsEditor({
                         )
                       }}
                     >
-                      <Trash2Icon />
+                      <IconTrash aria-hidden />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>{t('providers.thinking.remove')}</TooltipContent>
@@ -174,7 +174,7 @@ export function ThinkingLevelsEditor({
             update(addLevel(levels), [...keys.current, `level-${++keySeq.current}`])
           }}
         >
-          <PlusIcon />
+          <IconPlus aria-hidden />
           {t('providers.thinking.add')}
         </Button>
       </div>

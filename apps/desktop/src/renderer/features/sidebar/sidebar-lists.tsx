@@ -1,4 +1,4 @@
-import { SquarePenIcon } from 'lucide-react'
+import { IconEdit } from '@tabler/icons-react'
 import * as React from 'react'
 import { IconButton } from '../../app/icon-button.tsx'
 import type { SidebarCategory } from '../../stores/list-store.ts'
@@ -14,7 +14,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@coko/ui'
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon, MoreHorizontalIcon, GripVerticalIcon, ChevronsDownUpIcon, ChevronsUpDownIcon } from 'lucide-react'
+import { IconChevronDown, IconChevronRight, IconPlus, IconDots, IconGripVertical, IconFold, IconSelector } from '@tabler/icons-react'
 import {
   DndContext,
   DragOverlay,
@@ -227,7 +227,7 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                     className="size-6 rounded-sm [&_svg]:size-3.5"
                     onClick={() => onNewSession()}
                   >
-                    <SquarePenIcon className="size-3.5" strokeWidth={1.1} />
+                    <IconEdit aria-hidden className="size-3.5" stroke={1.1} />
                   </IconButton>
                 </>
               )}
@@ -271,9 +271,9 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                         }
                       >
                         {anyExpanded ? (
-                          <ChevronsDownUpIcon className="size-3.5" strokeWidth={1.1} />
+                          <IconFold aria-hidden className="size-3.5" stroke={1.1} />
                         ) : (
-                          <ChevronsUpDownIcon className="size-3.5" strokeWidth={1.1} />
+                          <IconSelector aria-hidden className="size-3.5" stroke={1.1} />
                         )}
                       </Button>
                     </TooltipTrigger>
@@ -290,7 +290,7 @@ function SidebarListsContent({ onAddWorkspace, onSelect, onNewSession }: Sidebar
                         aria-label={t('sidebar.addProject')}
                         onClick={onAddWorkspace}
                       >
-                        <PlusIcon className="size-3.5" strokeWidth={1.1} />
+                        <IconPlus aria-hidden className="size-3.5" stroke={1.1} />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>{t('sidebar.addProject')}</TooltipContent>
@@ -421,7 +421,7 @@ export function SidebarCategoryHeader({
   muted?: boolean
 }) {
   const { t } = useI18n()
-  const Arrow = expanded ? ChevronDownIcon : ChevronRightIcon
+  const Arrow = expanded ? IconChevronDown : IconChevronRight
   return (
     <div
       data-category-header
@@ -473,7 +473,7 @@ function ProjectSortMenu({ value, onChange }: { value: 'recent' | 'created'; onC
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <Button variant="toolbar" size="icon-xs" className="size-6 rounded-sm [&_svg]:size-3.5" aria-label={t('sidebar.sortProjects')}>
-              <MoreHorizontalIcon className="size-3.5" strokeWidth={1.1} />
+              <IconDots aria-hidden className="size-3.5" stroke={1.1} />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -557,7 +557,7 @@ function CategoryDragCard({ category }: { category: SidebarCategory }) {
   const { t } = useI18n()
   return (
     <div data-category-drag-card className="flex h-8 items-center gap-2 rounded-md bg-popover px-3 text-foreground shadow-panel">
-      <GripVerticalIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+      <IconGripVertical aria-hidden className="size-3.5 shrink-0 text-muted-foreground" stroke={1.5} />
       <span className="truncate text-ui-body font-medium">{t(category === 'projects' ? 'sidebar.projects' : 'sidebar.conversations')}</span>
     </div>
   )
@@ -594,7 +594,7 @@ function CategoryDrag({
             requestAnimationFrame(() => handle.focus())
           }}
         >
-          <GripVerticalIcon className="size-3.5" strokeWidth={1.1} />
+          <IconGripVertical aria-hidden className="size-3.5" stroke={1.1} />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

@@ -1,6 +1,6 @@
 import { DndContext, PointerSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import * as React from 'react'
-import { CompassIcon, PlusIcon, XIcon } from 'lucide-react'
+import { IconCompass, IconPlus, IconX } from '@tabler/icons-react'
 import { Button } from './button.tsx'
 import { DropdownMenuItem } from './dropdown-menu.tsx'
 import { RowMenu, type RowMenuPoint } from './row-menu.tsx'
@@ -192,7 +192,7 @@ export function PanelTabs<Kind extends string>({
                           className="me-1 flex size-5 shrink-0 items-center justify-center rounded-xs text-muted-foreground focus-ring hover:bg-muted hover:text-foreground"
                           onClick={() => onClose(tab.id)}
                         >
-                          <XIcon aria-hidden className="size-3.5" />
+                          <IconX aria-hidden className="size-3.5" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>{tab.closeTooltip ?? tab.closeLabel}</TooltipContent>
@@ -208,7 +208,7 @@ export function PanelTabs<Kind extends string>({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="toolbar" size="icon-sm" aria-label={newTabLabel} onClick={onNewTab}>
-              <PlusIcon aria-hidden />
+              <IconPlus aria-hidden />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{newTabLabel}</TooltipContent>
@@ -340,7 +340,7 @@ export function PanelStart<Kind extends string>({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" data-slot="panel-start" data-scroll-stable>
       <div className="panel-start-content">
-        <CompassIcon aria-hidden strokeWidth={1.5} className="mb-4 size-14 shrink-0 text-foreground opacity-10 [&_path]:fill-current" />
+        <IconCompass aria-hidden stroke={1.5} className="mb-4 size-14 shrink-0 text-foreground opacity-10 [&_path:first-of-type]:fill-current" />
         {pages.map((page) => (
           <button
             key={page.id}

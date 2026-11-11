@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { AlarmClockIcon } from 'lucide-react'
+import { IconAlarm } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { formatScheduleTime, useSchedules } from './schedules-button.tsx'
 import { CollaborationRow } from './collaboration-row.tsx'
@@ -31,7 +31,7 @@ export function ScheduleFireRow({ item, rootAttributes }: { item: Extract<Timeli
       data-status={fire.status}
       data-reason={fire.reason}
       data-schedule-id={fire.scheduleId}
-      icon={<AlarmClockIcon aria-hidden />}
+      icon={<IconAlarm aria-hidden />}
       label={
         <>
           <span className={skipped ? 'text-warning-text' : undefined}>{t(skipped ? 'schedules.fireRow.skipped' : 'schedules.fireRow.started')}</span>

@@ -1,7 +1,7 @@
 import { ArtifactsTab } from './artifacts-tab.tsx'
 import type { MessageKey } from '@coko/i18n'
 import type * as React from 'react'
-import { ActivityIcon, FolderOutputIcon, BracesIcon, BotIcon, CalendarClockIcon, ListTodoIcon, NetworkIcon, type LucideIcon } from 'lucide-react'
+import { IconActivity, IconFolderUp, IconBraces, IconRobot, IconCalendarClock, IconChecklist, IconSitemap, type TablerIcon } from '@tabler/icons-react'
 import type { RightPanelTabId } from './layout-store.ts'
 export type { RightPanelTabId } from './layout-store.ts'
 import { AgentsTab } from './agents-tab.tsx'
@@ -18,7 +18,7 @@ export interface RightPanelTabProps {
 
 export interface RightPanelTabDefinition {
   id: RightPanelTabId
-  icon: LucideIcon
+  icon: TablerIcon
   label: MessageKey
   Component: React.ComponentType<RightPanelTabProps>
   /** false：功能尚未交付，不显示。交付该 tab 的票只把自己的一行改为 true，并把 Component 换成自己的组件。 */
@@ -26,13 +26,13 @@ export interface RightPanelTabDefinition {
 }
 
 export const RIGHT_PANEL_TABS: readonly RightPanelTabDefinition[] = [
-  { id: 'artifacts', icon: FolderOutputIcon, label: 'artifacts.tab', Component: ArtifactsTab, available: true },
-  { id: 'plan', icon: ListTodoIcon, label: 'plan.tab', Component: PlanTab, available: true },
-  { id: 'jobs', icon: ActivityIcon, label: 'jobs.tab', Component: JobsTab, available: true },
-  { id: 'agents', icon: BotIcon, label: 'agents.tab', Component: AgentsTab, available: true },
-  { id: 'schedules', icon: CalendarClockIcon, label: 'schedules.tab', Component: SchedulesTab, available: true },
-  { id: 'team', icon: NetworkIcon, label: 'teams.tab', Component: TeamTab, available: true },
-  { id: 'diagnostics', icon: BracesIcon, label: 'diagnostics.title', Component: SessionDiagnostics, available: true },
+  { id: 'artifacts', icon: IconFolderUp, label: 'artifacts.tab', Component: ArtifactsTab, available: true },
+  { id: 'plan', icon: IconChecklist, label: 'plan.tab', Component: PlanTab, available: true },
+  { id: 'jobs', icon: IconActivity, label: 'jobs.tab', Component: JobsTab, available: true },
+  { id: 'agents', icon: IconRobot, label: 'agents.tab', Component: AgentsTab, available: true },
+  { id: 'schedules', icon: IconCalendarClock, label: 'schedules.tab', Component: SchedulesTab, available: true },
+  { id: 'team', icon: IconSitemap, label: 'teams.tab', Component: TeamTab, available: true },
+  { id: 'diagnostics', icon: IconBraces, label: 'diagnostics.title', Component: SessionDiagnostics, available: true },
 ]
 
 export const visibleRightPanelTabs = (tabs: readonly RightPanelTabDefinition[] = RIGHT_PANEL_TABS, sessionDiagnostics = false, artifacts = false) =>

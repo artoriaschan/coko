@@ -1,6 +1,6 @@
 // Adapted from DeepSeek Harness (MIT), Copyright (c) 2026 DeepSeek.
 import { Button, Input, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
-import { FilterIcon } from 'lucide-react'
+import { IconFilter } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -85,7 +85,7 @@ export function TypeFilterEditor({
               aria-label={t('diagnostics.filter.title')}
               aria-pressed={value !== ''}
             >
-              <FilterIcon className="size-3.5" aria-hidden />
+              <IconFilter className="size-3.5" aria-hidden />
             </button>
           </PopoverTrigger>
         </TooltipTrigger>

@@ -1,6 +1,6 @@
 import type { TeamMemberStatus } from '@coko/protocol'
 import { cn } from '@coko/ui'
-import { UsersIcon } from 'lucide-react'
+import { IconUsers } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
@@ -69,7 +69,7 @@ export function TeamButton({ sessionId, openTab }: HeaderActionProps) {
   const label = running > 0 ? t('teams.headerActionRunning', { count: running }) : t('teams.headerAction')
   return (
     <IconButton label={label} data-action="open-team" data-running={running} className="relative" onClick={() => openTab('team')}>
-      <UsersIcon />
+      <IconUsers aria-hidden />
       {running > 0 && (
         <span
           aria-hidden

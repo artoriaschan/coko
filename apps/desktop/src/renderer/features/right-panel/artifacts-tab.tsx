@@ -1,6 +1,6 @@
 import type { Artifact } from '@coko/protocol'
 import { toast } from '@coko/ui'
-import { ChevronDownIcon, ChevronRightIcon, CopyIcon, FileIcon, FolderIcon, FolderSearchIcon, LoaderCircleIcon, RefreshCwIcon } from 'lucide-react'
+import { IconChevronDown, IconChevronRight, IconCopy, IconFile, IconFolder, IconFolderSearch, IconLoader2, IconRefresh } from '@tabler/icons-react'
 import * as React from 'react'
 import { IconButton } from '../../app/icon-button.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -71,17 +71,17 @@ function ArtifactNode({
         >
           {directory ? (
             expanded ? (
-              <ChevronDownIcon aria-hidden className="size-3 shrink-0" />
+              <IconChevronDown aria-hidden className="size-3 shrink-0" />
             ) : (
-              <ChevronRightIcon aria-hidden className="size-3 shrink-0" />
+              <IconChevronRight aria-hidden className="size-3 shrink-0" />
             )
           ) : (
             <span aria-hidden className="size-3 shrink-0" />
           )}
           {directory ? (
-            <FolderIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <IconFolder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           ) : (
-            <FileIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <IconFile aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           )}
           <span className="flex min-w-0 flex-1 flex-col">
             <span data-user-content className="break-words text-ui-body">
@@ -98,10 +98,10 @@ function ArtifactNode({
           </span>
         )}
         <IconButton size="icon-xs" label={t('artifacts.reveal', { name: entry.name })} disabled={pending} onClick={() => onAction(entry, 'reveal')}>
-          <FolderSearchIcon />
+          <IconFolderSearch aria-hidden />
         </IconButton>
         <IconButton size="icon-xs" label={t('artifacts.copy', { name: entry.name })} disabled={pending} onClick={() => onAction(entry, 'copy')}>
-          <CopyIcon />
+          <IconCopy aria-hidden />
         </IconButton>
       </div>
       {directory && expanded && (
@@ -151,7 +151,7 @@ export function ArtifactsTab({ sessionId }: RightPanelTabProps) {
       <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
         <span className="text-ui-small text-muted-foreground">{t('artifacts.folder')}</span>
         <IconButton size="icon-sm" label={t('artifacts.refresh')} disabled={snapshot?.loading} onClick={refresh}>
-          <RefreshCwIcon />
+          <IconRefresh aria-hidden />
         </IconButton>
       </div>
       {snapshot?.failed && (
@@ -161,7 +161,7 @@ export function ArtifactsTab({ sessionId }: RightPanelTabProps) {
       )}
       {!artifacts && !snapshot?.failed ? (
         <div className="flex flex-1 items-center justify-center" aria-label={t('artifacts.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       ) : artifacts?.length ? (
         <ul aria-label={t('artifacts.files')} data-scroll-stable className="min-h-0 min-w-0 flex-1 overflow-y-auto px-2 pb-2">

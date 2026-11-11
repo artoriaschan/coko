@@ -2,7 +2,7 @@
 // 定义是 Markdown 文件，注明在文件中编辑。没有会话或草稿 Workspace 时只说明定义的位置。
 import type { AgentDefinitionInfo, AgentDefinitionSource } from '@coko/protocol'
 import { Button } from '@coko/ui'
-import { ChevronRightIcon, LoaderCircleIcon } from 'lucide-react'
+import { IconChevronRight, IconLoader2 } from '@tabler/icons-react'
 import * as React from 'react'
 import { useActiveWorkspaceId } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -66,7 +66,7 @@ export function AgentsSection() {
       {workspaceId === undefined && <p className="text-ui-body text-muted-foreground">{t('agents.section.noWorkspace')}</p>}
       {view?.status === 'loading' && !response && (
         <div className="flex justify-center py-6" aria-label={t('agents.tabView.loading')}>
-          <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       )}
       {view?.status === 'error' && !response && (
@@ -96,7 +96,7 @@ export function AgentsSection() {
           {response.diagnostics.length > 0 && (
             <details data-agents-diagnostics={response.diagnostics.length} className="group/diagnostics rounded-lg bg-muted/50">
               <summary className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-ui-small font-medium select-none focus-ring [&::-webkit-details-marker]:hidden">
-                <ChevronRightIcon aria-hidden className="size-4 shrink-0 transition-transform group-open/diagnostics:rotate-90 motion-reduce:transition-none" />
+                <IconChevronRight aria-hidden className="size-4 shrink-0 transition-transform group-open/diagnostics:rotate-90 motion-reduce:transition-none" />
                 {t('agents.section.diagnostics', { count: response.diagnostics.length })}
               </summary>
               <ul className="flex flex-col gap-1.5 px-3 pb-2">

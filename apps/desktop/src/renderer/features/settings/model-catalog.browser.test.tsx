@@ -108,13 +108,13 @@ it('连续添加模型：每次在末尾新增一个空行并聚焦模型 ID；�
   expect(modelRows()[0]!.querySelector('[name="contextWindow"]')).toBeNull()
   await toggle.click()
   await expect.element(toggle).toHaveAttribute('aria-expanded', 'true')
-  expect(toggle.element().querySelector('.lucide-chevron-down')).not.toBeNull()
+  expect(toggle.element().querySelector('.tabler-icon-chevron-down')).not.toBeNull()
   const options = document.getElementById(toggle.element().getAttribute('aria-controls')!)!
   expect(modelRows()[0]!.contains(options)).toBe(true)
   expect(options.querySelector('[name="contextWindow"]')).not.toBeNull()
   await toggle.click()
   await expect.element(toggle).toHaveAttribute('aria-expanded', 'false')
-  expect(toggle.element().querySelector('.lucide-chevron-right')).not.toBeNull()
+  expect(toggle.element().querySelector('.tabler-icon-chevron-right')).not.toBeNull()
 
   // 删除行不额外确认，焦点不落到 body。
   await modelRow(2).getByRole('button', { name: '删除模型', exact: true }).click()

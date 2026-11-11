@@ -10,7 +10,7 @@ import {
 } from '@coko/protocol'
 import type { MessageKey, Translator } from '@coko/i18n'
 import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Textarea, toast } from '@coko/ui'
-import { ChevronDownIcon, CircleCheckIcon, CircleIcon, LoaderCircleIcon, TargetIcon, XIcon } from 'lucide-react'
+import { IconChevronDown, IconCircleCheck, IconCircle, IconLoader2, IconTarget, IconX } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useChat } from '../../../app/chat.tsx'
@@ -370,7 +370,7 @@ function GoalEditDialog({ goal, open, onClose, act }: { goal: GoalPayload; open:
               {t('goal.edit.cancel')}
             </Button>
             <Button type="submit" data-action="save-goal" disabled={saving}>
-              {saving && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />}
+              {saving && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
               {t('goal.edit.save')}
             </Button>
           </div>
@@ -395,7 +395,7 @@ function GoalCancelDialog({ open, onClose, act, pending }: { open: boolean; onCl
             {t('goal.cancelConfirm.keep')}
           </Button>
           <Button variant="destructive" data-action="confirm-cancel-goal" disabled={pending} onClick={() => void act('cancel').then((ok) => ok && onClose())}>
-            {pending && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />}
+            {pending && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
             {pending ? t('goal.cancelConfirm.cancelling') : t('goal.cancelConfirm.confirm')}
           </Button>
         </div>
@@ -408,7 +408,7 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
   return (
     <IconButton label={t('goal.action.close')} size="icon-sm" data-action="close-goal" onClick={onClose}>
-      <XIcon />
+      <IconX aria-hidden />
     </IconButton>
   )
 }
@@ -466,7 +466,7 @@ function GoalBody({ sessionId, goal, round, usage, expanded, pending, onToggle, 
           className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded-sm text-start focus-ring"
         >
           <span className="flex min-w-0 flex-[1_1_8rem] items-center gap-2">
-            <TargetIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <IconTarget aria-hidden className="size-4 shrink-0 text-muted-foreground" />
             {expanded ? (
               <span className="shrink-0 font-medium">{t('goal.title')}</span>
             ) : (
@@ -479,7 +479,7 @@ function GoalBody({ sessionId, goal, round, usage, expanded, pending, onToggle, 
             <GoalPhaseBadge phase={phase} />
             <span data-goal-rounds={rounds}>{t('goal.rounds', { used: rounds, max: maxRounds })}</span>
             {costLabel !== undefined && <span data-goal-cost={usage?.cost ?? 0}>{costLabel}</span>}
-            <ChevronDownIcon aria-hidden className={cn('size-4 shrink-0 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} />
+            <IconChevronDown aria-hidden className={cn('size-4 shrink-0 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} />
           </span>
         </button>
         {onClose && <CloseButton onClose={onClose} />}
@@ -511,9 +511,9 @@ function GoalBody({ sessionId, goal, round, usage, expanded, pending, onToggle, 
                 return (
                   <li key={criterion.id} data-criterion={criterion.id} data-done={proof ? '' : undefined} className="flex min-w-0 items-start gap-2">
                     {proof ? (
-                      <CircleCheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+                      <IconCircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
                     ) : (
-                      <CircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <IconCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="sr-only">{proof ? t('goal.criterionDone') : t('goal.criterionOpen')}</span>
                     <div className="min-w-0 flex-1">
@@ -605,7 +605,7 @@ function EmptyGoal({ onClose }: { onClose: () => void }) {
   return (
     <section data-slot="goal-card" data-empty aria-label={t('goal.card')} className="rounded-panel bg-background px-3 py-2 text-ui-body shadow-panel">
       <div className="flex min-w-0 items-start gap-2">
-        <TargetIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <IconTarget aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{t('goal.empty.title')}</p>
           <p className="text-ui-small text-muted-foreground">{t('goal.empty.hint')}</p>

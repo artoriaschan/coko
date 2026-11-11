@@ -16,7 +16,7 @@ import {
   TooltipTrigger,
   toast,
 } from '@coko/ui'
-import { FolderClosedIcon, MessageCircleIcon, MoreHorizontalIcon, PinIcon, PinOffIcon, Trash2Icon } from 'lucide-react'
+import { IconFolder, IconMessageCircle, IconDots, IconPinned, IconPinnedOff, IconTrash } from '@tabler/icons-react'
 import { useChatStoreApi, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { SidebarActivity, sessionExecuting } from './sidebar-activity.tsx'
@@ -64,7 +64,7 @@ export function SessionRow({
   const lists = chat.lists
   const title = session.title.trim() || t('sidebar.untitled')
   const pinLabel = t(session.pinnedAt === null ? 'sidebar.pinConversation' : 'sidebar.unpinConversation')
-  const Pin = session.pinnedAt === null ? PinIcon : PinOffIcon
+  const Pin = session.pinnedAt === null ? IconPinned : IconPinnedOff
   function openMenu(point: RowMenuPoint | null) {
     allowOpen.current = false
     setDetails(false)
@@ -180,7 +180,7 @@ export function SessionRow({
             >
               <span data-sidebar-row-content className="flex min-w-0 flex-1 items-center gap-2">
                 {pinned ? (
-                  <MessageCircleIcon aria-hidden className="size-3 shrink-0" strokeWidth={1.1} />
+                  <IconMessageCircle aria-hidden className="size-3 shrink-0" stroke={1.1} />
                 ) : nested ? (
                   <span aria-hidden className="size-4 shrink-0" />
                 ) : null}
@@ -203,7 +203,7 @@ export function SessionRow({
                     aria-label={pinLabel}
                     onClick={() => void togglePin()}
                   >
-                    <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
+                    <Pin aria-hidden className="size-3.5 rotate-45" stroke={1.1} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{pinLabel}</TooltipContent>
@@ -230,7 +230,7 @@ export function SessionRow({
                       openMenu(null)
                     }}
                   >
-                    <MoreHorizontalIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                    <IconDots aria-hidden className="size-3.5" stroke={1.1} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{t('sidebar.moreConversation')}</TooltipContent>
@@ -280,7 +280,7 @@ export function SessionRow({
                   }}
                 >
                   <SessionMenuIcon>
-                    <Trash2Icon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                    <IconTrash aria-hidden className="size-3.5" stroke={1.1} />
                   </SessionMenuIcon>
                   {t('sidebar.deleteConversation')}
                 </DropdownMenuItem>
@@ -363,7 +363,7 @@ function SessionDetails({ session, title }: { session: Session; title: string })
     return () => clearInterval(timer)
   }, [])
   const time = sessionTime(session.updatedAt, now, locale, t)
-  const Ownership = project ? FolderClosedIcon : MessageCircleIcon
+  const Ownership = project ? IconFolder : IconMessageCircle
   return (
     <>
       <div className="flex items-start gap-x-3 px-2 py-1">
@@ -375,7 +375,7 @@ function SessionDetails({ session, title }: { session: Session; title: string })
         </time>
       </div>
       <div className="flex min-h-8 items-center gap-2 px-2 text-ui-body">
-        <Ownership aria-hidden className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+        <Ownership aria-hidden className="size-3.5 shrink-0 text-muted-foreground" stroke={1.1} />
         <span data-user-content className="min-w-0 break-words">
           {project?.name ?? t('sidebar.conversations')}
         </span>

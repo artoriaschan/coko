@@ -1,5 +1,5 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
-import { TargetIcon } from 'lucide-react'
+import { IconTarget } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { GoalPhaseBadge, goalReasonText } from './dock/goal-card.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -22,7 +22,7 @@ export function GoalRow({ item, rootAttributes }: { item: Extract<TimelineItem, 
       data-phase={goal.phase}
       className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 conversation-business-row text-muted-foreground"
     >
-      <TargetIcon aria-hidden className="size-4 shrink-0" />
+      <IconTarget aria-hidden className="size-4 shrink-0" />
       <span className="shrink-0">{created ? t('goal.row.created') : t('goal.title')}</span>
       <GoalPhaseBadge phase={goal.phase} />
       {reason ? (

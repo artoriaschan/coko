@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import { DropdownMenuItem, DropdownMenuSeparator, RowMenu, type RowMenuPoint } from '@coko/ui'
-import { PencilIcon, PinIcon, PinOffIcon } from 'lucide-react'
+import { IconPencil, IconPinned, IconPinnedOff } from '@tabler/icons-react'
 import type { Session } from '@coko/protocol'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -33,18 +33,18 @@ export function SessionMenu({
   slots?: SessionMenuSlots
 }) {
   const { t } = useI18n()
-  const Pin = session.pinnedAt === null ? PinIcon : PinOffIcon
+  const Pin = session.pinnedAt === null ? IconPinned : IconPinnedOff
   return (
     <RowMenu open={open} onOpenChange={onOpenChange} point={point} label={t('sidebar.conversationActions')} onCloseAutoFocus={onCloseAutoFocus}>
       <DropdownMenuItem onSelect={onRename}>
         <SessionMenuIcon>
-          <PencilIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+          <IconPencil aria-hidden className="size-3.5" stroke={1.1} />
         </SessionMenuIcon>
         {t('sidebar.rename')}
       </DropdownMenuItem>
       <DropdownMenuItem disabled={pending} onSelect={onPin}>
         <SessionMenuIcon>
-          <Pin aria-hidden className="size-3.5 rotate-45" strokeWidth={1.1} />
+          <Pin aria-hidden className="size-3.5 rotate-45" stroke={1.1} />
         </SessionMenuIcon>
         {t(session.pinnedAt === null ? 'sidebar.pinConversation' : 'sidebar.unpinConversation')}
       </DropdownMenuItem>

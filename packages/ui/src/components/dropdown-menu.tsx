@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronRightIcon } from 'lucide-react'
+import { IconCheck, IconChevronRight } from '@tabler/icons-react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 import * as React from 'react'
 import { cn } from '../lib/utils.ts'
@@ -127,7 +127,7 @@ function DropdownMenuCheckboxItem({ className, children, checked, ...props }: Re
     <DropdownMenuPrimitive.CheckboxItem data-slot="dropdown-menu-checkbox-item" className={cn(menuItem, 'pl-8', className)} checked={checked} {...props}>
       <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <IconCheck aria-hidden className="size-4" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -153,7 +153,7 @@ function DropdownMenuRadioItem({
     >
       <span className={cn('pointer-events-none absolute flex size-4 items-center justify-center', indicatorAlign === 'end' ? 'right-2' : 'left-2')}>
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <IconCheck aria-hidden className="size-4" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -206,7 +206,7 @@ function DropdownMenuSubTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto size-4" />
+      <IconChevronRight aria-hidden className="ml-auto size-4" />
     </DropdownMenuPrimitive.SubTrigger>
   )
 }

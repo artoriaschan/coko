@@ -1,7 +1,7 @@
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@coko/ui'
-import { DatabaseIcon } from 'lucide-react'
+import { IconDatabase } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { CopyMessage } from './message-actions.tsx'
 import { MessageTime } from './message-time.tsx'
@@ -117,7 +117,7 @@ function UsageDetails({ totals, open, onOpenChange }: { totals: UsageTotals; ope
           aria-haspopup="dialog"
           className="h-[22px] min-w-0 shrink gap-2 px-1.5 text-ui-small tabular-nums"
         >
-          <DatabaseIcon aria-hidden className="size-3.5 shrink-0" />
+          <IconDatabase aria-hidden className="size-3.5 shrink-0" />
           <span className="min-w-0 truncate">{totals.hasUsage ? t('usage.consumed', { total: t('usage.count', { count }) }) : t('usage.unavailable')}</span>
         </Button>
       </PopoverTrigger>
@@ -138,7 +138,7 @@ function UsageDetails({ totals, open, onOpenChange }: { totals: UsageTotals; ope
       >
         <div className="mb-2 flex justify-between gap-4 font-medium text-foreground">
           <span className="inline-flex min-w-0 items-center gap-1.5">
-            <DatabaseIcon aria-hidden className="size-3.5 shrink-0" />
+            <IconDatabase aria-hidden className="size-3.5 shrink-0" />
             {t('usage.details.title')}
           </span>
           <span data-usage-part="total" className="tabular-nums">

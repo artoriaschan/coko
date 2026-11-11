@@ -1,5 +1,5 @@
 import { Button } from '@coko/ui'
-import { LoaderCircleIcon } from 'lucide-react'
+import { IconLoader2 } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useReloadOnEntryCount } from '../conversation/use-reload-on-entry-count.ts'
@@ -45,7 +45,7 @@ export function TrajectoryView({ sessionId }: { sessionId: string }) {
       )
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" aria-label={t('trace.loading')}>
-        <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
       </div>
     )
   }

@@ -1,6 +1,6 @@
 import { USAGE_CURRENCIES, USAGE_CURRENCY_SETTING, usageCurrencyOf, type Provider } from '@coko/protocol'
 import { Button, cn, Dialog, DialogContent, DialogDescription, DialogTitle, ProviderIcon, toast, ToggleGroup, ToggleGroupItem } from '@coko/ui'
-import { LoaderCircleIcon, PlusIcon } from 'lucide-react'
+import { IconLoader2, IconPlus } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { useSettings, useSettingsActions, useSettingsPage } from '../../app/settings.tsx'
@@ -120,7 +120,7 @@ export function ModelsSection() {
 
       {status === 'loading' && providers.length === 0 && (
         <div className="flex justify-center py-8">
-          <LoaderCircleIcon aria-label={t('settings.models')} className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+          <IconLoader2 aria-label={t('settings.models')} className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
         </div>
       )}
       {status === 'error' && (
@@ -158,7 +158,7 @@ export function ModelsSection() {
         <SettingsCard className="p-4">{form(current)}</SettingsCard>
       ) : (
         <Button data-provider-add variant="outline" className="w-full" disabled={status !== 'ready'} onClick={() => void switchTo(createForm())}>
-          <PlusIcon />
+          <IconPlus aria-hidden />
           {t('providers.add')}
         </Button>
       )}

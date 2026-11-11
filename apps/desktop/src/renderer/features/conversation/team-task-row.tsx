@@ -1,6 +1,6 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
 import type { TeamTaskPayload } from '@coko/protocol'
-import { ListTodoIcon } from 'lucide-react'
+import { IconChecklist } from '@tabler/icons-react'
 import { useI18n } from '../../app/i18n.tsx'
 import { CollaborationRow } from './collaboration-row.tsx'
 import type { TimelineItem } from './timeline.ts'
@@ -28,7 +28,7 @@ export function TeamTaskRow({ item, rootAttributes }: { item: Extract<TimelineIt
       data-task-id={task.taskId}
       data-task-change={change}
       data-revision={task.revision}
-      icon={<ListTodoIcon aria-hidden />}
+      icon={<IconChecklist aria-hidden />}
       label={
         <>
           <span>{t(`teams.task.${change}`, { by: task.by })}</span> <span className="font-mono">{task.taskId}</span>{' '}

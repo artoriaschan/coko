@@ -1,5 +1,5 @@
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@coko/ui'
-import { FilesIcon, GlobeIcon, ShieldAlertIcon, TerminalIcon } from 'lucide-react'
+import { IconFiles, IconWorld, IconShieldExclamation, IconTerminal } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 
@@ -8,9 +8,9 @@ export function PermissionRiskDialog({ open, onOpenChange, onConfirm }: { open: 
   const { t } = useI18n()
   const cancel = React.useRef<HTMLButtonElement>(null)
   const rows = [
-    { icon: FilesIcon, title: t('permissions.risk.filesTitle'), detail: t('permissions.risk.filesDetail'), tone: 'text-link' },
-    { icon: TerminalIcon, title: t('permissions.risk.commandsTitle'), detail: t('permissions.risk.commandsDetail'), tone: 'text-foreground' },
-    { icon: GlobeIcon, title: t('permissions.risk.networkTitle'), detail: t('permissions.risk.networkDetail'), tone: 'text-link' },
+    { icon: IconFiles, title: t('permissions.risk.filesTitle'), detail: t('permissions.risk.filesDetail'), tone: 'text-link' },
+    { icon: IconTerminal, title: t('permissions.risk.commandsTitle'), detail: t('permissions.risk.commandsDetail'), tone: 'text-foreground' },
+    { icon: IconWorld, title: t('permissions.risk.networkTitle'), detail: t('permissions.risk.networkDetail'), tone: 'text-link' },
   ] as const
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,7 +26,7 @@ export function PermissionRiskDialog({ open, onOpenChange, onConfirm }: { open: 
         }}
       >
         <div className="flex items-center gap-2.5">
-          <ShieldAlertIcon aria-hidden className="size-5 shrink-0 text-warning-text" />
+          <IconShieldExclamation aria-hidden className="size-5 shrink-0 text-warning-text" />
           <DialogTitle className="text-ui-heading">{t('permissions.risk.title')}</DialogTitle>
         </div>
         <DialogDescription className="text-ui-body leading-5">{t('permissions.risk.description')}</DialogDescription>
@@ -49,7 +49,7 @@ export function PermissionRiskDialog({ open, onOpenChange, onConfirm }: { open: 
             {t('permissions.risk.cancel')}
           </Button>
           <Button variant="ghost" className="bg-warning-text/10 text-warning-text hover:bg-warning-text/20" onClick={onConfirm}>
-            <ShieldAlertIcon aria-hidden className="size-3.5" />
+            <IconShieldExclamation aria-hidden className="size-3.5" />
             {t('permissions.risk.confirm')}
           </Button>
         </div>

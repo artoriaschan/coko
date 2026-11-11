@@ -20,7 +20,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@coko/ui'
-import { ChevronDownIcon, LoaderCircleIcon, PauseIcon, PencilIcon, PlayIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { IconChevronDown, IconLoader2, IconPlayerPause, IconPencil, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -146,7 +146,7 @@ function TimeZonePicker({ id, value, onChange, invalid }: { id: string; value: s
           className="w-full justify-between font-normal"
         >
           <span className="truncate">{value === local ? t('schedules.localTimeZone', { zone: value }) : value}</span>
-          <ChevronDownIcon className="text-muted-foreground" />
+          <IconChevronDown aria-hidden className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 w-(--radix-dropdown-menu-trigger-width)">
@@ -411,7 +411,7 @@ function ScheduleForm({ onClose, sessionId, schedule, onCreated }: ScheduleFormP
             {t('schedules.cancel')}
           </Button>
           <Button type="submit" data-action="save-schedule" disabled={submitting}>
-            {submitting && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />}
+            {submitting && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
             {submitting ? t('schedules.saving') : t(schedule ? 'schedules.save' : 'schedules.create')}
           </Button>
         </div>
@@ -454,7 +454,7 @@ export function DeleteScheduleDialog({ schedule, onClose }: { schedule: Schedule
                 {t('schedules.cancel')}
               </Button>
               <Button variant="destructive" data-action="confirm-delete-schedule" disabled={submitting} onClick={() => void confirm()}>
-                {submitting && <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />}
+                {submitting && <IconLoader2 aria-hidden className="animate-spin motion-reduce:animate-none" />}
                 {submitting ? t('schedules.deleting') : t('schedules.confirmDelete')}
               </Button>
             </div>
@@ -491,7 +491,7 @@ export function ScheduleRowActions({ schedule, onEdit, onDelete }: { schedule: S
           disabled={busy}
           onClick={() => void setStatus('paused')}
         >
-          <PauseIcon />
+          <IconPlayerPause aria-hidden />
         </IconButton>
       )}
       {schedule.status === 'paused' && (
@@ -502,16 +502,16 @@ export function ScheduleRowActions({ schedule, onEdit, onDelete }: { schedule: S
           disabled={busy}
           onClick={() => void setStatus('active')}
         >
-          <PlayIcon />
+          <IconPlayerPlay aria-hidden />
         </IconButton>
       )}
       {onEdit && (
         <IconButton label={t('schedules.edit', { title: schedule.title })} size="icon-sm" data-action="edit-schedule" onClick={onEdit}>
-          <PencilIcon />
+          <IconPencil aria-hidden />
         </IconButton>
       )}
       <IconButton label={t('schedules.delete', { title: schedule.title })} size="icon-sm" data-action="delete-schedule" onClick={onDelete}>
-        <Trash2Icon />
+        <IconTrash aria-hidden />
       </IconButton>
     </div>
   )
@@ -682,7 +682,7 @@ export function SchedulesTab({ sessionId }: RightPanelTabProps) {
     <div data-slot="schedules-tab" className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-end px-2 pb-2">
         <Button type="button" variant="outline" size="sm" data-action="new-schedule" onClick={() => setForm({})}>
-          <PlusIcon />
+          <IconPlus aria-hidden />
           {t('schedules.new')}
         </Button>
       </div>

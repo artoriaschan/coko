@@ -1,6 +1,6 @@
 import type { TimelineRootAttributes } from './timeline-projection.ts'
 import { planTitle } from '@coko/protocol'
-import { ClipboardListIcon } from 'lucide-react'
+import { IconClipboardList } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
@@ -36,7 +36,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
       className="conversation-business-card conversation-business-row"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <ClipboardListIcon aria-hidden className="size-4 shrink-0 text-link" />
+        <IconClipboardList aria-hidden className="size-4 shrink-0 text-link" />
         <button
           type="button"
           data-action="open-plan"

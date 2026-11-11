@@ -1,6 +1,6 @@
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope } from '@coko/protocol'
 import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
-import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from 'lucide-react'
+import { IconPencil, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useLists, useActiveWorkspaceId } from '../../app/chat.tsx'
@@ -80,7 +80,7 @@ function MemorySearch() {
   }, [text])
   return (
     <div className="relative">
-      <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <IconSearch aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
         data-memory-search
@@ -169,7 +169,7 @@ function MemoryGroup({ scope, title, memories, emptyText }: { scope: MemoryScope
           className="border-t-hairline border-border px-4 py-3"
           placeholder={t('memory.addPlaceholder')}
           submitLabel={t('memory.add')}
-          icon={<PlusIcon />}
+          icon={<IconPlus aria-hidden />}
           onSubmit={async (content) => {
             await memoryStore.getState().create({ scope, content })
             toast.success(t('memory.saved'))
@@ -211,7 +211,7 @@ function MemoryItem({ memory }: { memory: MemoryEntry }) {
         <span className="text-ui-small text-muted-foreground">{t(`memory.sources.${memory.source}`)}</span>
       </div>
       <IconButton label={t('memory.edit')} onClick={() => setEditing(true)}>
-        <PencilIcon />
+        <IconPencil aria-hidden />
       </IconButton>
       <IconButton
         label={t('memory.remove')}
@@ -224,7 +224,7 @@ function MemoryItem({ memory }: { memory: MemoryEntry }) {
           }
         }}
       >
-        <Trash2Icon />
+        <IconTrash aria-hidden />
       </IconButton>
     </li>
   )

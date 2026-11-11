@@ -2,7 +2,7 @@
 /** Trajectory toolbar: timeline and ledger fold controls. */
 
 import type { TrajectoryTranslate } from './locales.ts'
-import { SearchIcon as IconSearchOutlineRegular } from 'lucide-react'
+import { IconSearch as IconSearchOutlineRegular } from '@tabler/icons-react'
 import css from './TrajectoryToolbar.module.css'
 
 export interface TrajectoryToolbarProps {
@@ -130,7 +130,7 @@ export function TrajectoryToolbar({
           </button>
         </div>
         <div className={css.search}>
-          <IconSearchOutlineRegular size={11} className={css.searchIcon} />
+          <IconSearchOutlineRegular aria-hidden size={11} className={css.searchIcon} />
           <input
             type="search"
             className={css.searchInput}

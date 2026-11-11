@@ -9,7 +9,7 @@ import {
   type StandardPermissionMode,
 } from '@coko/protocol'
 import { Button, cn, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea } from '@coko/ui'
-import { ChevronDownIcon, PanelRightOpenIcon } from 'lucide-react'
+import { IconChevronDown, IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
@@ -208,7 +208,7 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
       <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3">
         {onOpenPanel && (
           <Button type="button" variant="ghost" size="sm" data-action="open-plan" onClick={onOpenPanel}>
-            <PanelRightOpenIcon />
+            <IconLayoutSidebarRightExpand aria-hidden />
             {t('plan.review.openPanel')}
           </Button>
         )}
@@ -252,7 +252,7 @@ export function PlanReviewPanel({ sessionId, request, entries, answer, onOpenPan
                   aria-label={t('plan.review.more')}
                   className="rounded-s-none border-s-hairline border-primary-foreground/30"
                 >
-                  <ChevronDownIcon />
+                  <IconChevronDown aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="end">

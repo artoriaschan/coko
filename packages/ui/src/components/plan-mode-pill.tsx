@@ -1,4 +1,4 @@
-import { CircleXIcon, LightbulbIcon } from 'lucide-react'
+import { IconCircleX, IconBulb } from '@tabler/icons-react'
 import type * as React from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip.tsx'
 
@@ -28,8 +28,11 @@ export function PlanModePill({
             className="group inline-flex h-7 min-w-18 shrink-0 items-center gap-1 rounded-round pl-1 pr-3 text-ui-body text-muted-foreground focus-ring disabled:pointer-events-none disabled:opacity-50 [@media(hover:hover)]:hover:bg-accent focus-visible:bg-accent"
           >
             <span aria-hidden className="relative flex size-6 items-center justify-center">
-              <LightbulbIcon className="size-3.5 group-focus-visible:hidden [@media(hover:hover)]:group-hover:hidden pointer-coarse:hidden" />
-              <CircleXIcon className="hidden size-3.5 fill-current [&_path]:stroke-background group-focus-visible:block [@media(hover:hover)]:group-hover:block pointer-coarse:block" />
+              <IconBulb aria-hidden className="size-3.5 group-focus-visible:hidden [@media(hover:hover)]:group-hover:hidden pointer-coarse:hidden" />
+              <IconCircleX
+                aria-hidden
+                className="hidden size-3.5 fill-current [&_path:not(:first-of-type)]:stroke-background group-focus-visible:block [@media(hover:hover)]:group-hover:block pointer-coarse:block"
+              />
             </span>
             <span data-slot="plan-label">{label}</span>
           </button>

@@ -1,7 +1,7 @@
 import type { Locale, Translator } from '@coko/i18n'
 import type { Schedule, ScheduleRule, ScheduleStatus } from '@coko/protocol'
 import { cn } from '@coko/ui'
-import { AlarmClockIcon } from 'lucide-react'
+import { IconAlarm } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { useOptionalChatStoreApi } from '../../app/chat.tsx'
@@ -147,7 +147,7 @@ export function SchedulesButton({ sessionId, openTab }: HeaderActionProps) {
   const label = active > 0 ? t('schedules.headerActionActive', { count: active }) : t('schedules.headerAction')
   return (
     <IconButton label={label} data-action="open-schedules" data-active={active} className="relative" onClick={() => openTab('schedules')}>
-      <AlarmClockIcon />
+      <IconAlarm aria-hidden />
       {active > 0 && (
         <span
           aria-hidden

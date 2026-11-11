@@ -1,5 +1,5 @@
 import { PanelAttention, PanelStart, PanelTabs } from '@coko/ui'
-import { HouseIcon, MaximizeIcon, MinimizeIcon, PanelRightIcon } from 'lucide-react'
+import { IconHome, IconMaximize, IconMinimize, IconLayoutSidebarRight } from '@tabler/icons-react'
 import { useStore } from 'zustand'
 import { useChat, useCurrentSession } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -41,7 +41,7 @@ export function RightPanel({
       {
         id: kind,
         title,
-        icon: definition ? <definition.icon aria-hidden className="size-3.5 shrink-0" /> : <HouseIcon aria-hidden className="size-3.5 shrink-0" />,
+        icon: definition ? <definition.icon aria-hidden className="size-3.5 shrink-0" /> : <IconHome aria-hidden className="size-3.5 shrink-0" />,
         closeLabel: kind === 'start' && layout.tabs.length === 1 ? undefined : t('rightPanel.closePage', { title }),
         closeTooltip: layout.active === kind ? t('rightPanel.closePageShortcut', { title }) : undefined,
         closeKeyShortcuts: layout.active === kind ? 'Meta+W Control+W' : undefined,
@@ -80,7 +80,7 @@ export function RightPanel({
               onClick={onClose}
               aria-keyshortcuts="Meta+Alt+B Control+Alt+B"
             >
-              <PanelRightIcon className="size-4" strokeWidth={1} />
+              <IconLayoutSidebarRight aria-hidden className="size-4" stroke={1} />
             </IconButton>
             {onToggleFullscreen && (
               <IconButton
@@ -90,7 +90,7 @@ export function RightPanel({
                 aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter"
                 tooltip={t(fullscreen ? 'rightPanel.exitFullscreenShortcut' : 'rightPanel.fullscreenShortcut')}
               >
-                {fullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+                {fullscreen ? <IconMinimize aria-hidden /> : <IconMaximize aria-hidden />}
               </IconButton>
             )}
           </>

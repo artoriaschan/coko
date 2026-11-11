@@ -1,6 +1,6 @@
 import type { Schedule } from '@coko/protocol'
 import { Button } from '@coko/ui'
-import { ExternalLinkIcon } from 'lucide-react'
+import { IconExternalLink } from '@tabler/icons-react'
 import * as React from 'react'
 import { useChatActions, useLists } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -107,7 +107,7 @@ function SettingsScheduleItem({ schedule, onDelete }: { schedule: Schedule; onDe
             back()
           }}
         >
-          <ExternalLinkIcon />
+          <IconExternalLink aria-hidden />
           {t('schedules.openSession')}
         </Button>
         <ScheduleRowActions schedule={schedule} onDelete={onDelete} />

@@ -1,6 +1,6 @@
 import type { CreateProjectResponse, Project, ProjectFields } from '@coko/protocol'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@coko/ui'
-import { FolderClosedIcon, FolderPlusIcon, XIcon } from 'lucide-react'
+import { IconFolder, IconFolderPlus, IconX } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
@@ -125,7 +125,7 @@ export function ProjectFormDialog({
         >
           <DialogTitle className="h-6 pr-8">{t(mode === 'create' ? 'projectForm.create' : 'projectForm.edit')}</DialogTitle>
           <IconButton label={t('projectForm.close')} type="button" disabled={pending || picking} className="absolute top-3 right-3" onClick={requestClose}>
-            <XIcon aria-hidden className="size-4" strokeWidth={1.1} />
+            <IconX aria-hidden className="size-4" stroke={1.1} />
           </IconButton>
           <form
             aria-busy={pending}
@@ -136,7 +136,7 @@ export function ProjectFormDialog({
             }}
           >
             <div className="relative">
-              <FolderClosedIcon aria-hidden className="pointer-events-none absolute top-2 left-3 size-4 text-muted-foreground" strokeWidth={1.1} />
+              <IconFolder aria-hidden className="pointer-events-none absolute top-2 left-3 size-4 text-muted-foreground" stroke={1.1} />
               <Input
                 ref={input}
                 value={name}
@@ -160,7 +160,7 @@ export function ProjectFormDialog({
                     onClick={() => void addFolder()}
                     className="flex h-33 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-input text-ui-body focus-ring hover:bg-accent disabled:opacity-50"
                   >
-                    <FolderPlusIcon aria-hidden className="size-5 text-muted-foreground" strokeWidth={1.1} />
+                    <IconFolderPlus aria-hidden className="size-5 text-muted-foreground" stroke={1.1} />
                     <span>{t('projectForm.add')}</span>
                     <span className="text-ui-small text-muted-foreground">{t('projectForm.hint')}</span>
                   </button>
@@ -175,7 +175,7 @@ export function ProjectFormDialog({
                           data-primary-folder={folder.primary}
                           className="group/folder flex min-h-14 items-center gap-3 border-b-hairline border-border px-3 py-2"
                         >
-                          <FolderClosedIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.1} />
+                          <IconFolder aria-hidden className="size-4 shrink-0 text-muted-foreground" stroke={1.1} />
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div data-folder-copy data-user-content className="min-w-0 flex-1">
@@ -211,7 +211,7 @@ export function ProjectFormDialog({
                                 className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground focus-ring hover:bg-accent"
                                 onClick={() => removeFolder(index)}
                               >
-                                <XIcon aria-hidden className="size-3.5" strokeWidth={1.1} />
+                                <IconX aria-hidden className="size-3.5" stroke={1.1} />
                               </button>
                             </TooltipTrigger>
                             <TooltipContent>{t('projectForm.remove', { name: basename })}</TooltipContent>
@@ -226,7 +226,7 @@ export function ProjectFormDialog({
                       className="w-full justify-start rounded-none px-3"
                       onClick={() => void addFolder()}
                     >
-                      <FolderPlusIcon aria-hidden className="size-4" strokeWidth={1.1} />
+                      <IconFolderPlus aria-hidden className="size-4" stroke={1.1} />
                       {t('projectForm.add')}
                     </Button>
                   </div>

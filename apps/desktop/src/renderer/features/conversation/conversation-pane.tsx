@@ -1,5 +1,5 @@
 import type { FileAttachment, ImageAttachment } from '@coko/protocol'
-import { ArrowDownIcon, PanelRightIcon, LoaderCircleIcon, PlayIcon } from 'lucide-react'
+import { IconArrowDown, IconLayoutSidebarRight, IconLoader2, IconPlayerPlay } from '@tabler/icons-react'
 import { AppFrameCollapsedControls, Button, cn, toast } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -268,7 +268,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
   } else if (conversation?.status === 'loading' && conversation.entries.length === 0) {
     body = (
       <div className="flex flex-1 items-center justify-center" aria-label={t('conversation.loading')}>
-        <LoaderCircleIcon aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
+        <IconLoader2 aria-hidden className="size-5 animate-spin text-muted-foreground motion-reduce:animate-none" />
       </div>
     )
   } else if (items.length === 0 && conversation) {
@@ -333,7 +333,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                   size="icon-sm"
                   onClick={onToggleRight}
                 >
-                  <PanelRightIcon className="size-4" strokeWidth={1} />
+                  <IconLayoutSidebarRight aria-hidden className="size-4" stroke={1} />
                 </IconButton>
               )}
             </>
@@ -429,7 +429,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
                 className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-round bg-background"
                 onClick={reading.toBottom}
               >
-                <ArrowDownIcon aria-hidden />
+                <IconArrowDown aria-hidden />
               </Button>
             )}
           </div>
@@ -486,7 +486,7 @@ export function ConversationPane({ theme, rightOpen, onToggleRight, connection, 
               <p className="min-w-0 flex-1 text-muted-foreground">{t(banner === 'paused' ? 'conversation.pausedBanner' : 'conversation.interruptedBanner')}</p>
               {continuable && !archived && readOnlyWorktree === undefined && (
                 <Button size="sm" data-action="continue" data-continue-mode={resumeMode} onClick={() => void continueRun(t('conversation.continuePrompt'))}>
-                  <PlayIcon />
+                  <IconPlayerPlay aria-hidden />
                   {t('conversation.continue')}
                 </Button>
               )}

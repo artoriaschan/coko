@@ -1,6 +1,6 @@
 import { planMarkdownProblem, planTitle } from '@coko/protocol'
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, Textarea } from '@coko/ui'
-import { ChevronDownIcon, PencilIcon, RotateCcwIcon } from 'lucide-react'
+import { IconChevronDown, IconPencil, IconRotate } from '@tabler/icons-react'
 import * as React from 'react'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
@@ -54,7 +54,7 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="toolbar" size="sm" data-action="plan-revisions" aria-label={t('plan.revisions')} className="min-w-0 shrink">
               <span className="truncate">{t('plan.revision', { n: String(current.revision) })}</span>
-              <ChevronDownIcon />
+              <IconChevronDown aria-hidden />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-w-80">
@@ -81,13 +81,13 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
             data-action="plan-reset"
             onClick={() => setPlanDraft(sessionId, current.planId, current.revision, undefined)}
           >
-            <RotateCcwIcon />
+            <IconRotate aria-hidden />
             {t('plan.reset')}
           </Button>
         )}
         {reviewing && (
           <Button type="button" variant="outline" size="sm" data-action="plan-edit" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
-            <PencilIcon />
+            <IconPencil aria-hidden />
             {editing ? t('plan.editDone') : t('plan.edit')}
           </Button>
         )}

@@ -1,6 +1,6 @@
 import { createTranslator } from '@coko/i18n'
 import { cn } from '@coko/ui'
-import { ArrowLeftIcon, SearchIcon } from 'lucide-react'
+import { IconArrowLeft, IconSearch } from '@tabler/icons-react'
 import * as React from 'react'
 import type { Theme } from '../../app/appearance-store.ts'
 import { useI18n } from '../../app/i18n.tsx'
@@ -61,11 +61,11 @@ function SettingsPageContent({ theme }: { theme: Theme }) {
           onClick={back}
           className="flex h-9 shrink-0 items-center gap-2 rounded-md px-2 text-left text-ui-body focus-ring hover:bg-accent [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
         >
-          <ArrowLeftIcon />
+          <IconArrowLeft aria-hidden />
           {t('settings.back')}
         </button>
         <div className="relative mt-1 shrink-0">
-          <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <IconSearch aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="search"
             value={query}
