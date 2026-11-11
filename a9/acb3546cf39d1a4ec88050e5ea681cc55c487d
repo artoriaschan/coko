@@ -1,0 +1,73 @@
+packages/ui/src/app-frame/app-frame.tsx
+  s_ec00379ab74d3b::t_5a83289d3a72d1 379-380
+  s_ec00379ab74d3b::t_24437ff5776411 391,401,479
+  s_ec00379ab74d3b::t_c077184a56e5fb 114
+  s_ec00379ab74d3b::t_df70990ff36b95 1
+docs/tech-stack/ui-design-system.md
+  s_ec00379ab74d3b::t_9139756d982076 172
+  s_ec00379ab74d3b::t_9d5ad34c24bc89 180
+apps/desktop/src/renderer/features/conversation/turn-navigator.css
+  s_ec00379ab74d3b::t_df70990ff36b95 62,65,69
+packages/ui/src/styles/theme.css
+  s_ec00379ab74d3b::t_df70990ff36b95 31,538-539,543,592-596,757
+  s_ec00379ab74d3b::t_24437ff5776411 90-91,227,231-233,337-338,375-376,553-555
+apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx
+  s_ec00379ab74d3b::t_ad27758171e5e1 35,59
+apps/desktop/src/main/window.ts
+  s_ec00379ab74d3b::t_24437ff5776411 9
+apps/desktop/src/renderer/features/right-panel/right-panel.tsx
+  s_ec00379ab74d3b::t_dd8947c98dde55 76
+packages/ui/src/app-frame/app-frame.browser.test.tsx
+  s_ec00379ab74d3b::t_1574cd3d31e580 119-121
+  s_ec00379ab74d3b::t_f09496e519f148 106,108-118,122-132
+  s_ec00379ab74d3b::t_c077184a56e5fb 107
+  s_ec00379ab74d3b::t_ad27758171e5e1 371,373-375,380,382-383
+apps/desktop/src/renderer/features/conversation/collaboration-rows.css
+  s_ec00379ab74d3b::t_df70990ff36b95 40
+docs/subsystems/workbench.md
+  s_ec00379ab74d3b::t_9139756d982076 21
+  s_ec00379ab74d3b::t_391e6d091da829 47
+apps/desktop/src/renderer/features/trajectory/json-tree.module.css
+  s_ec00379ab74d3b::t_df70990ff36b95 74,199,306,353
+apps/desktop/src/renderer/features/conversation/process-timeline.css
+  s_ec00379ab74d3b::t_8fa4d963e5e6cf 10-11,41-42
+apps/desktop/src/renderer/features/trajectory/TrajectoryToolbar.module.css
+  s_ec00379ab74d3b::t_df70990ff36b95 61,109,173,208-209
+apps/desktop/src/renderer/features/trajectory/trajectory-panel.module.css
+  s_ec00379ab74d3b::t_df70990ff36b95 91,297,300,303,421,506,743,868-869,964,974,1033,1131,1136,1226,1331,1347,1351
+docs/ui/workbench-prototype.html
+  s_ec00379ab74d3b::t_9d5ad34c24bc89 195-196,221,255-258
+  s_ec00379ab74d3b::t_3679c619b6db24 29-30,118,122-127,191,203,215,217-218
+apps/desktop/src/renderer/features/conversation/conversation-header.css
+  s_ec00379ab74d3b::t_24437ff5776411 1-10
+packages/ui/src/styles/focus.browser.test.tsx
+  s_ec00379ab74d3b::t_043cb97fb0ddb9 9,46,50-51,55-63,76-111
+  s_ec00379ab74d3b::t_c077184a56e5fb 2,12,35-39,41
+  s_ec00379ab74d3b::t_5b6858842fed8a 47-49,52-54,64-75,112-113
+packages/ui/src/lib/focus-visible.ts
+  s_ec00379ab74d3b::t_c077184a56e5fb 1-38
+apps/desktop/src/renderer/features/conversation/messages.css
+  s_ec00379ab74d3b::t_df70990ff36b95 229,233,237
+apps/desktop/src/renderer/features/trajectory/TrajectoryTimeline.module.css
+  s_ec00379ab74d3b::t_df70990ff36b95 98,111
+apps/desktop/src/renderer/features/conversation/conversation-width.css
+  s_ec00379ab74d3b::t_df70990ff36b95 33
+packages/ui/src/tool-card/tool-row.css
+  s_ec00379ab74d3b::t_df70990ff36b95 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "a9acb3546cf39d1a4ec88050e5ea681cc55c487d",
+  "prompts": {},
+  "sessions": {
+    "s_ec00379ab74d3b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c966-376f-7001-aae3-d82b8c6ff679",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
