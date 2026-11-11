@@ -1,5 +1,5 @@
 import { createTranslator } from '@coko/i18n'
-import { AppFrame, applyTheme, cn, SIDEBAR_DEFAULT_WIDTH, Toaster, TooltipProvider, useAppFrame } from '@coko/ui'
+import { AppFrame, applyTheme, cn, Toaster, TooltipProvider, useAppFrame } from '@coko/ui'
 import * as React from 'react'
 import { useStore } from 'zustand'
 import { getRightPanelLayout, rightPanelLayoutStore, setRightPanelExpanded, setRightPanelMode } from '../features/right-panel/layout-store.ts'
@@ -24,6 +24,7 @@ import type { SettingsPageStore } from './settings-page-store.ts'
 import { SettingsProvider } from './settings.tsx'
 import { createWorkbenchNavigation } from './workbench-navigation.ts'
 import { WorkbenchNavigationContext, WorkbenchPage } from './workbench.tsx'
+import { readFrameWidths, saveFrameWidths, type FrameWidths } from './frame-widths.ts'
 
 export interface AppProps {
   store: AppearanceStore
@@ -104,9 +105,13 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [settingsPage, chat, pickDirectory, navigation])
 
-  const [sidebarWidth, setSidebarWidth] = React.useState(SIDEBAR_DEFAULT_WIDTH)
+  const [frameWidths, setFrameWidths] = React.useState(readFrameWidths)
+  const changeFrameWidth = (side: keyof FrameWidths, width: number) => {
+    const next = { ...frameWidths, [side]: width }
+    setFrameWidths(next)
+    saveFrameWidths(next)
+  }
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false)
-  const [rightWidth, setRightWidth] = React.useState<number>()
   const activeSessionId = useStore(chat, (state) => state.activeSessionId)
   const rightLayout = useStore(rightPanelLayoutStore, () => getRightPanelLayout(activeSessionId))
   const rightOpen = activeSessionId !== null && rightLayout.expanded
@@ -125,14 +130,14 @@ export function App({ store, connection, chat, settings, preferences, settingsPa
                     {/* 设置打开时应用隐藏但不卸载：草稿、滚动位置与进行中的 Run 保持；inert 使其不能聚焦或点击。 */}
                     <div className={cn('h-full w-full', settingsVisible && 'invisible')} inert={settingsVisible || undefined}>
                       <Frame
-                        sidebarWidth={sidebarWidth}
-                        onSidebarWidthChange={setSidebarWidth}
+                        sidebarWidth={frameWidths.sidebarWidth}
+                        onSidebarWidthChange={(width) => changeFrameWidth('sidebarWidth', width)}
                         sidebarCollapsed={sidebarCollapsed}
                         onSidebarCollapsedChange={setSidebarCollapsed}
                         rightOpen={rightOpen && contentPage === null}
                         onRightOpenChange={setRightOpen}
-                        rightWidth={rightWidth}
-                        onRightWidthChange={setRightWidth}
+                        rightWidth={frameWidths.rightWidth}
+                        onRightWidthChange={(width) => changeFrameWidth('rightWidth', width)}
                         rightFullscreen={rightLayout.mode === 'fullscreen'}
                         onRightFullscreenChange={(fullscreen) => setRightPanelMode(activeSessionId, fullscreen ? 'fullscreen' : 'normal')}
                         sidebar={<ProjectSidebar search={search} onSearchChange={setSearch} />}

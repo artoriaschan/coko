@@ -10,9 +10,9 @@ lifecycle: active
 
 ## 外壳与导航
 
-[App](../../apps/desktop/src/renderer/app/app.tsx) 组合左侧导航与列表、右侧内容及可选的右面板。[AppFrame](../../packages/ui/src/app-frame/app-frame.tsx) 负责侧栏伸缩、整列收起与抽屉、拖动分隔条以及四角裁剪，圆角使用共享的 R28 主面板档位。
+[App](../../apps/desktop/src/renderer/app/app.tsx) 组合左侧导航与列表、右侧内容及可选的右面板。[AppFrame](../../packages/ui/src/app-frame/app-frame.tsx) 通过 react-resizable-panels 的嵌套 Group、Panel 与 Separator 管理三栏拖动，负责侧栏整列收起与抽屉、右栏全屏以及四角裁剪，圆角使用共享的 R28 主面板档位。
 
-右栏左缘提供可聚焦的分隔条。拖动或按左右方向键（16px 步长）、Home、End 调整宽度：默认帧宽的 45%，最小 300px，最大为帧宽的 70%，同时为中栏至少保留 400px。宽度偏好由 App 在当前窗口内存中保存，切换 Session 沿用，重新加载回到默认。左侧栏不为右栏让位；普通右栏放不下 300px 时，框架回写当前 Session 的收起状态，窗口变宽也不自动重新打开。
+右栏左缘提供可聚焦的分隔条。拖动或按左右方向键（16px 步长）、Home、End 调整宽度：默认帧宽的 45%，最小 300px，最大为帧宽的 70%，同时为中栏至少保留 400px。左栏默认 280px、范围 264–420px；左右栏的像素宽度由 [宽度偏好模块](../../apps/desktop/src/renderer/app/frame-widths.ts)写入本机 localStorage 的 `coko.app-frame.v1`，切换 Session 沿用，刷新和重启后恢复。拖动结束或键盘调整时保存，窗口缩窄的适配、面板开合与全屏不覆盖偏好；损坏字段回退默认值，存储不可用时仍保留当前窗口的内存选择。左侧栏不为右栏让位；普通右栏放不下 300px 时，框架回写当前 Session 的收起状态，窗口变宽也不自动重新打开。普通右栏展开和收起分别使用 240ms 与 180ms 的宽度分配过渡，中栏同步伸缩；收起期间保留正文用于退出动画，但立即禁用交互，结束后隐藏。快速反向开合从当前几何继续，拖动、窗口适配和全屏切换直接响应；减少动态效果时不播放空间过渡。
 
 tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。全屏覆盖整个应用帧，保留普通形态的底层列宽和同一棵右栏正文 DOM，展开与滚动状态不丢失；此时没有右栏分隔条，背景主区与侧栏不可交互。帧宽小于 768px 时，打开右栏自动全屏，不占普通右栏列，也不写入手动全屏偏好；在此宽度退出全屏会收起右栏，变宽不重开。全屏 tab 条按窗口左侧安全区避让 macOS 控制按钮，交互控件仍退出窗口拖拽区。
 
@@ -44,11 +44,11 @@ tab 条末端的“全屏 / 退出全屏”切换该 Session 的手动形态。�
 
 标题栏不再显示 Sidecar 连接点、连接文字、Session 费用按钮及其分项浮层。连接状态由常驻的视觉隐藏 `role="status"` 元素播报，详情与新对话页均保留 `data-connection` 就绪信号；启动失败仍由全屏提示层说明原因。Session 费用可在 [Trace](tracing.md#追踪) 查看，[Goal 卡](goal.md#界面)继续展示 Goal 费用；计量、定价和货币格式化规则保留。
 
-右栏关闭时，标题行末尾显示 `panel-right` 图标按钮，可访问名称与 Tooltip 均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端同一 `panel-right` 图标的“收起侧边栏”收起，Tooltip 同样为“收起侧边栏”；两处 Tooltip 均不附加快捷键文案；关闭后焦点回到重新出现的打开按钮。左侧栏开关统一使用 `panel-left`，展开与收起保持同一图标。两侧栏开关与右栏打开按钮左侧的“更多”按钮均为 28px 点击框、16px 图标、1px 描边。状态按钮和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏；时间线“查看”切换到标题栏轨迹 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
+右栏关闭时，标题行末尾显示 `panel-right` 图标按钮，可访问名称与 Tooltip 均为“打开侧边栏”。打开后入口隐藏，使用 tab 条末端同一 `panel-right` 图标的“收起侧边栏”收起，Tooltip 同样为“收起侧边栏”；所有 Tooltip 均不附加快捷键文案，包括全屏、退出全屏与标签页关闭按钮；关闭后焦点回到重新出现的打开按钮。左侧栏开关统一使用 `panel-left`，展开与收起保持同一图标。两侧栏开关与右栏打开按钮左侧的“更多”按钮均为 28px 点击框、16px 图标、1px 描边。状态按钮和计划入口打开或聚焦当前 Session 的对应页面，并展开右栏；时间线“查看”切换到标题栏轨迹 tab。共享 [IconButton](../../apps/desktop/src/renderer/app/icon-button.tsx) 的 Tooltip 缺省沿用可访问名称，也可单独传入已本地化的文案。
 
 右栏是按 Session 区分的单格 tab 容器，由 [布局 store](../../apps/desktop/src/renderer/features/right-panel/layout-store.ts)集中持有页面列表、顺序、选中项、展开状态和手动全屏形态，并写入每个 Session 的 `coko.right-panel.v1.<sessionId>` localStorage 键。切换 Session 后使用该 Session 自己的布局；新对话、插件和定时任务内容页不显示右栏与开关。首次展开空布局显示“开始”，居中入口包含计划、后台任务、子代理、定时任务、团队；有专属目录的独立会话还在首位显示 Artifacts；点击后原位替换引导页。从其他入口直接打开页面不补引导页，同一种页面只开一个 tab。没有引导页时 tab 条提供“新标签页”按钮。
 
-布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。轨迹已移至主内容区，旧布局中的 `trace` 与其他未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择和窗口宽度偏好不保存，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
+布局在正文首次渲染前同步恢复，[读回校验](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.ts)检查字段类型、唯一的页面列表和选中项成员关系；损坏时只清除对应 Session 的键。轨迹已移至主内容区，旧布局中的 `trace` 与其他未知或不可用的页面被过滤，原选中项被过滤时选择第一个剩余项，列表为空时回到初始收起状态；过滤本身不重写键，下一次布局操作才保存当前值。页面内部的临时选择不保存；左右栏宽度独立保存于上文的本机偏好，窄窗口的自动全屏也不改变保存的手动形态。写入失败不影响内存中的布局，并在当前 renderer 生命周期内只记录一次诊断日志。归档保留布局；永久删除按服务端返回的全部 Session 身份（含子 Session）清除内存布局及各版本的布局键。[真实 App 持久化 Browser Mode](../../apps/desktop/src/renderer/features/right-panel/layout-persistence.browser.test.tsx)覆盖读回、Session 切换、写入、损坏隔离、真实存储配额耗尽及归档／删除；原生重启路径见 [Electron E2E](../../apps/desktop/e2e/right-panel-persistence.e2e.test.ts)。
 
 右栏没有独立标题行。共享 [PanelTabs 与 PanelStart](../../packages/ui/src/components/panel-tabs.tsx)承载 tab 胶囊、关闭按钮、引导卡片和末端收起按钮；tab 标题实时跟随界面语言。开始页以淡色罗盘和单列横向卡片呈现入口，图标与标题左对齐，窄或矮面板中卡片保持可滚动、可通过键盘到达；几何见[设计系统](../tech-stack/ui-design-system.md#右栏-tab-条与引导页)。关闭最后一个普通页面时整栏收起，下次展开重新显示“开始”；唯一的引导页没有关闭按钮。上沿总高 38px（顶部 10px 留白与 28px 控件），空白属于窗口拖拽区，按钮退出拖拽区。各页面的正文与数据来源继续遵循各子系统契约。
 
@@ -56,7 +56,7 @@ tab 条按手动激活的 WAI-ARIA tabs 模式工作：左右方向键与 Home/E
 
 从外部入口重复打开已显示的活动页面时，共享 `PanelAttention` 在该格内发光约 600ms；切到后台页面或重新展开右栏不发光。减少动态效果时，同样保留 600ms 的静态提示。发光只重建覆盖层，正文不重新挂载。[真实 App 右栏 Browser Mode](../../apps/desktop/src/renderer/app/app.browser.test.tsx)覆盖排序、关闭、焦点、390px 明暗主题与中英文，以及真实浏览器 reduced-motion 偏好；[共享标签条 Browser Mode](../../packages/ui/src/components/panel-tabs.browser.test.tsx)覆盖长标题截断与全文 Tooltip。
 
-右栏快捷键由 [关闭与快捷键命令](../../apps/desktop/src/renderer/app/right-panel-commands.ts)统一处理：⌘/Ctrl+Alt+B 展开或收起当前 Session 的右栏，展开后聚焦活动页面；焦点在右栏内时，⌘/Ctrl+Alt+Enter 切换全屏。没有当前 Session、处于插件或定时任务内容页、设置覆盖工作台、输入法组合期间或前台浮层打开时，这两个快捷键不改变右栏。收起后焦点回到标题栏的打开按钮，按钮以 Tooltip 与 `aria-keyshortcuts` 标出有效键位。延后聚焦前会重新核对当前 Session、页面和浮层，避免切换内容后抢回焦点。
+右栏快捷键由 [关闭与快捷键命令](../../apps/desktop/src/renderer/app/right-panel-commands.ts)统一处理：⌘/Ctrl+Alt+B 展开或收起当前 Session 的右栏，展开后聚焦活动页面；焦点在右栏内时，⌘/Ctrl+Alt+Enter 切换全屏。没有当前 Session、处于插件或定时任务内容页、设置覆盖工作台、输入法组合期间或前台浮层打开时，这两个快捷键不改变右栏。收起后焦点回到标题栏的打开按钮，按钮通过 `aria-keyshortcuts` 标出有效键位，Tooltip 只说明动作名称。延后聚焦前会重新核对当前 Session、页面和浮层，避免切换内容后抢回焦点。
 
 应用菜单的 File → 关闭绑定 ⌘/Ctrl+W，并交给 renderer：前台弹窗、菜单或对话框先经过自己的 Escape 关闭规则，拒绝关闭时命令也不穿透；否则焦点在可见右栏内时关闭活动页面。唯一“开始”页收到关闭命令只收起右栏，保留引导页；关闭后仍展开时聚焦同一 Session 剩余活动页面，可连续关闭。焦点在右栏外时请求 main 关闭窗口，输入法组合期间忽略该命令。原生菜单、bridge 与未就绪回退见 [桌面交付](delivery.md#应用菜单与关闭)。对应入口用例为 [快捷键 Browser Mode](../../apps/desktop/src/renderer/app/right-panel-shortcuts.browser.test.tsx)与[原生菜单 E2E](../../apps/desktop/e2e/right-panel-menu.e2e.test.ts)。
 
@@ -289,7 +289,7 @@ Artifact 以 `directory/outputs/` 的磁盘内容为唯一事实源，不写 Ses
 ## 验证入口
 
 - [工作台浏览器测试](../../apps/desktop/src/renderer/app/app.browser.test.tsx)：导航项几何、历史、无效会话跳过、设置返回、草稿保留及四角裁剪。
-- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉、右栏调整与空间不足时收起、保留正文和底层列宽的全屏。
+- [AppFrame 浏览器测试](../../packages/ui/src/app-frame/app-frame.browser.test.tsx)：侧栏宽度、窄窗口抽屉、右栏开合中间帧、快速反向与拖拽打断、右栏调整与空间不足时收起、保留正文和底层列宽的全屏；[真实 App 分栏偏好](../../apps/desktop/src/renderer/app/frame-widths.browser.test.tsx)覆盖真实鼠标拖动、重新挂载恢复、Session 切换、窗口适配与损坏记录。
 - [工作台 Electron E2E](../../apps/desktop/e2e/workbench.e2e.test.ts)：真实 Sidecar 中两个会话与插件、定时任务之间的前进后退，以及设置返回后的草稿和列表。
 
 - [模型选择 Browser Mode](../../apps/desktop/src/renderer/features/conversation/model-picker.browser.test.tsx)：互斥菜单、拖动预览、键盘与粒子生命周期。

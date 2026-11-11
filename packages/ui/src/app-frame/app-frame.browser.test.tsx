@@ -5,6 +5,17 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { AppFrame, AppFrameCollapsedControls, useAppFrame } from './app-frame.tsx'
 
+const pointer = (type: string, options: PointerEventInit) =>
+  new PointerEvent(type, {
+    pointerType: 'mouse',
+    isPrimary: true,
+    pointerId: 1,
+    buttons: type === 'pointerup' ? 0 : 1,
+    bubbles: true,
+    cancelable: true,
+    ...options,
+  })
+
 const labels = { sidebar: 'Sidebar', main: 'Main', rightPanel: 'Right panel', resizeSidebar: 'Resize sidebar', resizeRightPanel: 'Resize right panel' }
 
 function Toggle() {
@@ -94,6 +105,9 @@ function Harness({
             <button type="button" aria-pressed={rightOpen} onClick={() => setRightOpen(true)}>
               open preview
             </button>
+            <button type="button" onClick={() => setRightOpen(false)}>
+              close preview
+            </button>
             content
           </div>
         </div>
@@ -102,7 +116,7 @@ function Harness({
   )
 }
 
-const widthOf = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().width
+const widthOf = (selector: string) => Math.round(document.querySelector(selector)!.getBoundingClientRect().width)
 
 it('Tab 聚焦两侧分隔条后改用鼠标拖拽时立即隐藏焦点框', async () => {
   await page.viewport(1440, 900)
@@ -122,10 +136,25 @@ it('Tab 聚焦两侧分隔条后改用鼠标拖拽时立即隐藏焦点框', asy
     await userEvent.click(handle)
     const bounds = handle.getBoundingClientRect()
     const startX = bounds.left + bounds.width / 2
-    handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, clientX: startX, clientY: 100 }))
-    window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: startX + 20, clientY: 100 }))
-    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: startX + 20, clientY: 100 }))
-    expect(document.activeElement).toBe(handle)
+    handle.dispatchEvent(
+      pointer('pointerdown', {
+        button: 0,
+        clientX: startX,
+        clientY: 100,
+      }),
+    )
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: startX + 20,
+        clientY: 100,
+      }),
+    )
+    document.dispatchEvent(
+      pointer('pointerup', {
+        clientX: startX + 20,
+        clientY: 100,
+      }),
+    )
     expect(getComputedStyle(handle).outlineStyle).toBe('none')
   }
 })
@@ -150,7 +179,7 @@ describe('AppFrame 侧栏宽度', () => {
   it('宽窗口默认 280px，键盘把宽度限制在 264–420', async () => {
     await page.viewport(1280, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
 
     const handle = page.getByRole('separator', { name: 'Resize sidebar' })
     await handle.click()
@@ -162,48 +191,74 @@ describe('AppFrame 侧栏宽度', () => {
     await settle(() => sidebarWidth() === 264)
     await userEvent.keyboard('{ArrowLeft}')
     await settle(() => sidebarWidth() === 264)
-    await expect.element(handle).toHaveAttribute('aria-valuenow', '264')
+    await userEvent.keyboard('{Enter}')
+    expect(sidebarWidth()).toBe(264)
+    await expect.element(handle).toHaveAttribute('aria-controls', 'sidebar')
   })
 
   it('拖动分隔条改变宽度，越界时停在上限', async () => {
     await page.viewport(1280, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
     const handle = document.querySelector<HTMLElement>('[data-slot="app-frame-resize-handle"]')!
     const x = handle.getBoundingClientRect().left + 4
-    handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: x, clientY: 100 }))
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: x + 60, clientY: 100 }))
-    await settle(() => sidebarWidth() === 340)
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: x + 600, clientY: 100 }))
-    window.dispatchEvent(new PointerEvent('pointerup', { clientX: x + 600, clientY: 100 }))
+    handle.dispatchEvent(
+      pointer('pointerdown', {
+        button: 0,
+        clientX: x,
+        clientY: 100,
+      }),
+    )
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: x + 60,
+        clientY: 100,
+      }),
+    )
+    await expect.poll(sidebarWidth).toBe(340)
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: x + 600,
+        clientY: 100,
+      }),
+    )
+    document.dispatchEvent(
+      pointer('pointerup', {
+        clientX: x + 600,
+        clientY: 100,
+      }),
+    )
     await settle(() => sidebarWidth() === 420)
     // 松开后不再跟随指针
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: x - 200, clientY: 100 }))
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: x - 200,
+        clientY: 100,
+      }),
+    )
     expect(sidebarWidth()).toBe(420)
   })
 
   it('宽窗口下切换按钮在展开与整列收起之间切换', async () => {
     await page.viewport(1280, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
     await page.getByRole('button', { name: 'toggle' }).click()
     await settle(() => sidebarState() === 'hidden')
     expect(document.querySelector('[data-slot="app-frame-sidebar"]')).toBeNull()
     expect(controlsVisible()).toBe(true)
     await page.getByRole('button', { name: 'toggle' }).click()
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
     expect(sidebarState()).toBe('expanded')
   })
 
   it('收起后悬停控制条的展开按钮浮出侧栏卡片', async () => {
     await page.viewport(1280, 800)
     await render(<Harness />)
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
     await page.getByRole('button', { name: 'toggle' }).click()
     await settle(() => sidebarState() === 'hidden')
 
-    // 收起后 300ms 内不浮出卡片；等待抑制窗口结束后再进入控制条的展开按钮。
-    await new Promise((resolve) => setTimeout(resolve, 340))
     document.querySelector('[data-sidebar-expand]')!.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }))
     await settle(() => document.querySelector('[data-slot="app-frame-peek"]') !== null)
     const peek = document.querySelector<HTMLElement>('[data-slot="app-frame-peek"]')!
@@ -222,14 +277,14 @@ describe('AppFrame 窄窗口', () => {
     expect(controlsVisible()).toBe(true)
     expect(document.querySelector('[data-slot="app-frame-resize-handle"]')).toBeNull()
     await page.viewport(1024, 800)
-    await settle(() => sidebarWidth() === 280)
+    await expect.poll(sidebarWidth).toBe(280)
   })
 
   it('控制条的展开按钮以抽屉覆盖中栏，Escape 关闭并把焦点还给按钮', async () => {
     await page.viewport(800, 800)
     await render(<Harness />)
     await settle(() => sidebarState() === 'hidden')
-    // 列宽有 300ms 过渡，等主内容拿到全部宽度后再比较抽屉是否覆盖。
+    // 等布局提交主内容的全部宽度后再比较抽屉是否覆盖。
     await settle(() => widthOf('[data-slot="app-frame-main"]') === 800)
     const mainBefore = widthOf('[data-slot="app-frame-main"]')
 
@@ -249,7 +304,7 @@ describe('AppFrame 窄窗口', () => {
     await render(<Harness />)
     await page.getByRole('button', { name: 'toggle' }).click()
     await expect.element(page.getByRole('dialog')).toBeVisible()
-    document.querySelector('[data-slot="app-frame-scrim"]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    document.querySelector('[data-slot="app-frame-scrim"]')!.dispatchEvent(pointer('pointerdown', { bubbles: true }))
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -267,6 +322,85 @@ describe('AppFrame 窄窗口', () => {
 })
 
 describe('AppFrame 右栏', () => {
+  it('展开与收起平滑分配两栏宽度，退出期间保留正文并立即禁止交互', async () => {
+    await page.viewport(1440, 800)
+    await render(<Harness />)
+    const panel = document.querySelector<HTMLElement>('[data-slot="app-frame-right"]')!
+    const column = document.querySelector<HTMLElement>('[data-slot="app-frame-right-column"]')!
+    const animations = () =>
+      [...document.querySelectorAll('[data-slot="app-frame-main-column"], [data-slot="app-frame-right-column"]')].flatMap((node) => node.getAnimations())
+    const pauseHalfway = async () => {
+      await expect.poll(() => column.getAnimations().length).toBeGreaterThan(0)
+      const current = animations()
+      for (const animation of current) {
+        animation.pause()
+        animation.currentTime = Number(animation.effect!.getTiming().duration) / 2
+      }
+      await expect.poll(() => widthOf('[data-slot="app-frame-right-column"]')).toBeGreaterThan(0)
+      expect(widthOf('[data-slot="app-frame-right-column"]')).toBeLessThan(648)
+      expect(widthOf('[data-slot="app-frame-main"]')).toBeGreaterThan(512)
+      expect(widthOf('[data-slot="app-frame-main"]')).toBeLessThan(1160)
+      return current
+    }
+    await page.getByRole('button', { name: 'open preview' }).click()
+    const opening = await pauseHalfway()
+    await page.screenshot({ path: '../../../../.vitest/right-panel-enter-midpoint.png' })
+    for (const animation of opening) animation.finish()
+    await settle(() => widthOf('[data-slot="app-frame-right"]') === 648)
+    await page.getByText('retained disclosure', { exact: true }).click()
+    const disclosure = panel.querySelector('details')!
+    await page.getByRole('button', { name: 'close preview' }).click()
+    const closing = await pauseHalfway()
+    expect(panel.hidden).toBe(false)
+    expect(panel.inert).toBe(true)
+    expect(panel.querySelector('details')).toBe(disclosure)
+    await page.screenshot({ path: '../../../../.vitest/right-panel-exit-midpoint.png' })
+    for (const animation of closing) animation.finish()
+    await settle(() => panel.hidden === true)
+    expect(widthOf('[data-slot="app-frame-main"]')).toBe(1160)
+    await page.getByRole('button', { name: 'open preview' }).click()
+    await settle(() => widthOf('[data-slot="app-frame-right"]') === 648)
+    expect(panel.querySelector('details')).toBe(disclosure)
+    expect(disclosure.open).toBe(true)
+  })
+
+  it('快速反向开合会到达最后选择的状态，拖动分隔条没有过渡延迟', async () => {
+    await page.viewport(1440, 800)
+    await render(<Harness />)
+    await page.getByRole('button', { name: 'open preview' }).click()
+    await page.getByRole('button', { name: 'close preview' }).click()
+    await page.getByRole('button', { name: 'open preview' }).click()
+    await settle(() => widthOf('[data-slot="app-frame-right"]') === 648)
+    await expect.poll(() => document.querySelector('[data-right-transitioning]')).toBeNull()
+    const handle = page.getByRole('separator', { name: 'Resize right panel' })
+    await handle.dropTo(handle, { sourcePosition: { x: 4, y: 200 }, targetPosition: { x: 84, y: 200 }, force: true })
+    await settle(() => widthOf('[data-slot="app-frame-right"]') === 568)
+    expect(document.querySelector('[data-slot="app-frame-right-column"]')!.getAnimations()).toHaveLength(0)
+  })
+
+  it('拖拽会中断尚未结束的展开动画并立即调整列宽', async () => {
+    await page.viewport(1440, 800)
+    await render(<Harness />)
+    await page.getByRole('button', { name: 'open preview' }).click()
+    const column = document.querySelector('[data-slot="app-frame-right-column"]')!
+    await expect.poll(() => column.getAnimations().length).toBeGreaterThan(0)
+    for (const node of document.querySelectorAll('[data-slot="app-frame-main-column"], [data-slot="app-frame-right-column"]')) {
+      for (const animation of node.getAnimations()) {
+        animation.pause()
+        animation.currentTime = Number(animation.effect!.getTiming().duration) / 2
+      }
+    }
+    const handle = page.getByRole('separator', { name: 'Resize right panel' }).element()
+    await settle(() => Math.round(handle.getBoundingClientRect().left + 4) === Math.round(column.getBoundingClientRect().left))
+    const x = handle.getBoundingClientRect().left + 4
+    handle.dispatchEvent(pointer('pointerdown', { button: 0, clientX: x, clientY: 200 }))
+    await expect.poll(() => document.querySelector('[data-right-transitioning]')).toBeNull()
+    expect(column.getAnimations()).toHaveLength(0)
+    document.dispatchEvent(pointer('pointermove', { clientX: x + 20, clientY: 200 }))
+    document.dispatchEvent(pointer('pointerup', { clientX: x + 20, clientY: 200 }))
+    await settle(() => widthOf('[data-slot="app-frame-right"]') === 628)
+  })
+
   it('全屏覆盖整个帧，底层列宽、正文DOM与展开和滚动状态保持', async () => {
     await page.viewport(1440, 800)
     await render(<Harness rightOpen />)
@@ -315,14 +449,27 @@ describe('AppFrame 右栏', () => {
     await settle(() => widthOf('[data-slot="app-frame-right"]') === 760)
     expect(widthOf('[data-slot="app-frame-main"]')).toBe(400)
     await userEvent.keyboard('{ArrowLeft}')
-    await expect.element(handle).toHaveAttribute('aria-valuenow', '760')
+    expect(widthOf('[data-slot="app-frame-right"]')).toBe(760)
     const element = handle.element()
     const start = element.getBoundingClientRect().left + 4
-    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: start }))
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: start + 160 }))
-    window.dispatchEvent(new PointerEvent('pointerup'))
+    element.dispatchEvent(
+      pointer('pointerdown', {
+        button: 0,
+        clientX: start,
+      }),
+    )
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: start + 160,
+      }),
+    )
+    document.dispatchEvent(pointer('pointerup', { bubbles: true }))
     await settle(() => widthOf('[data-slot="app-frame-right"]') === 600)
-    window.dispatchEvent(new PointerEvent('pointermove', { clientX: start - 500 }))
+    document.dispatchEvent(
+      pointer('pointermove', {
+        clientX: start - 500,
+      }),
+    )
     expect(widthOf('[data-slot="app-frame-right"]')).toBe(600)
   })
   it('打开时占帧宽 45%，中栏保持 ≥400', async () => {
@@ -352,7 +499,7 @@ describe('AppFrame 右栏', () => {
     await settle(() => document.querySelector('[data-slot="app-frame-right"]')!.hasAttribute('hidden'))
     await expect.element(page.getByRole('button', { name: 'open preview' })).toHaveAttribute('aria-pressed', 'false')
     expect(sidebarWidth()).toBe(420)
-    await settle(() => widthOf('[data-slot="app-frame-main"]') === 699)
+    await expect.poll(() => widthOf('[data-slot="app-frame-main"]')).toBe(699)
     await page.viewport(1440, 800)
     await settle(() => widthOf('[data-slot="app-frame-main"]') === 1020)
     expect(document.querySelector('[data-slot="app-frame-right"]')!.hasAttribute('hidden')).toBe(true)
@@ -415,21 +562,51 @@ it.each(['left', 'right'] as const)('AppFrame %s drag stops on blur and unmount,
   )
   const selector = side === 'left' ? '[data-slot="app-frame-sidebar"]' : '[data-slot="app-frame-right"]'
   const handleSelector = side === 'left' ? '[data-slot="app-frame-resize-handle"]' : '[data-slot="app-frame-right-resize-handle"]'
-  await settle(() => widthOf(selector) === (side === 'left' ? 280 : 648))
-  const begin = () => document.querySelector(handleSelector)!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 600 }))
-  begin()
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: side === 'left' ? 630 : 570 }))
-  await settle(() => widthOf(selector) === (side === 'left' ? 310 : 678))
+  await expect.poll(() => widthOf(selector)).toBe(side === 'left' ? 280 : 648)
+  const aligned = () => {
+    const handle = document.querySelector(handleSelector)!.getBoundingClientRect()
+    const panel = document.querySelector(selector)!.getBoundingClientRect()
+    return Math.round(handle.left + handle.width / 2) === Math.round(side === 'left' ? panel.right : panel.left)
+  }
+  await settle(aligned)
+  const begin = () => {
+    const handle = document.querySelector(handleSelector)!
+    const bounds = handle.getBoundingClientRect()
+    const x = bounds.left + bounds.width / 2
+    handle.dispatchEvent(
+      pointer('pointerdown', {
+        button: 0,
+        clientX: x,
+        clientY: 100,
+      }),
+    )
+    return x
+  }
+  const firstX = begin()
+  document.dispatchEvent(
+    pointer('pointermove', {
+      clientX: firstX + (side === 'left' ? 30 : -30),
+      clientY: 100,
+    }),
+  )
+  await expect.poll(() => widthOf(selector)).toBe(side === 'left' ? 310 : 678)
   window.dispatchEvent(new Event('blur'))
+  await expect.element(page.elementLocator(document.querySelector(handleSelector)!)).not.toHaveAttribute('data-separator', 'active')
+  await settle(aligned)
   const afterBlur = changes.length
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: 650 }))
+  document.dispatchEvent(pointer('pointermove', { bubbles: true, clientX: 650 }))
   expect(changes).toHaveLength(afterBlur)
-  begin()
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: side === 'left' ? 620 : 580 }))
-  await settle(() => widthOf(selector) === (side === 'left' ? 330 : 698))
+  const secondX = begin()
+  document.dispatchEvent(
+    pointer('pointermove', {
+      clientX: secondX + (side === 'left' ? 20 : -20),
+      clientY: 100,
+    }),
+  )
+  await expect.poll(() => widthOf(selector)).toBe(side === 'left' ? 330 : 698)
   await view.unmount()
   const afterUnmount = changes.length
-  window.dispatchEvent(new PointerEvent('pointermove', { clientX: 660 }))
-  window.dispatchEvent(new PointerEvent('pointerup'))
+  document.dispatchEvent(pointer('pointermove', { bubbles: true, clientX: 660 }))
+  document.dispatchEvent(pointer('pointerup', { bubbles: true }))
   expect(changes).toHaveLength(afterUnmount)
 })

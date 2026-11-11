@@ -339,8 +339,8 @@ describe('主题', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(21, 21, 23)')
     const sidebar = document.querySelector('[data-slot="app-frame-sidebar"]')!
-    expect(getComputedStyle(sidebar).backgroundColor).toBe('rgba(0, 0, 0, 0)')
-    expect(getComputedStyle(sidebar, '::before').backgroundImage).toContain('linear-gradient')
+    expect(getComputedStyle(sidebar).backgroundColor).toBe('rgb(27, 27, 28)')
+    expect(getComputedStyle(sidebar).backgroundImage).toContain('linear-gradient')
   })
 })
 
@@ -533,9 +533,9 @@ describe('模型选择', () => {
 
 describe('窄窗口', () => {
   it.each([
-    ['en', 'Open sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)', 'Collapse sidebar', 'Toggle sidebar (⌘/Ctrl+Alt+B)'],
-    ['zh', '打开侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）', '收起侧边栏', '展开／收起右侧栏（⌘/Ctrl+Alt+B）'],
-  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 标出快捷键', async (locale, openName, openTip, closeName, closeTip) => {
+    ['en', 'Open sidebar', 'Open sidebar', 'Collapse sidebar', 'Collapse sidebar'],
+    ['zh', '打开侧边栏', '打开侧边栏', '收起侧边栏', '收起侧边栏'],
+  ] as const)('%s：右栏打开入口隐藏，收起后焦点回到入口，Tooltip 沿用按钮名称', async (locale, openName, openTip, closeName, closeTip) => {
     await page.viewport(1200, 900)
     await renderApp(locale).screen
     const open = page.getByRole('button', { name: openName, exact: true })
@@ -565,7 +565,7 @@ describe('窄窗口', () => {
     const doc = document.documentElement
     expect(doc.scrollWidth).toBeLessThanOrEqual(doc.clientWidth)
     const main = document.querySelector<HTMLElement>('[data-slot="app-frame-main"]')!
-    // data-sidebar 先更新，grid 列宽随后完成过渡；按真实可观察布局等待，不测中途的 110px 内容列。
+    // data-sidebar 与内部 Panel 几何分别提交；按真实可观察布局等待。
     await expect.poll(() => main.scrollWidth - main.clientWidth).toBeLessThanOrEqual(0)
     // 代码、表格等列对齐内容只能在自身区域内横向滚动；KaTeX 的 MathML 副本始终被裁剪为 1px，只供读屏使用。
     // Markdown 插件异步渲染，轮询到布局稳定后再判定。

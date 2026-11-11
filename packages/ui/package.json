@@ -24,6 +24,7 @@
     "katex": "0.16.47",
     "lexical": "0.52.0",
     "radix-ui": "1.7.0",
+    "react-resizable-panels": "4.21.0",
     "shiki": "4.5.0",
     "sonner": "2.0.8",
     "streamdown": "2.7.1",

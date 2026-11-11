@@ -43,7 +43,6 @@ export function RightPanel({
         title,
         icon: definition ? <definition.icon aria-hidden className="size-3.5 shrink-0" /> : <IconHome aria-hidden className="size-3.5 shrink-0" />,
         closeLabel: kind === 'start' && layout.tabs.length === 1 ? undefined : t('rightPanel.closePage', { title }),
-        closeTooltip: layout.active === kind ? t('rightPanel.closePageShortcut', { title }) : undefined,
         closeKeyShortcuts: layout.active === kind ? 'Meta+W Control+W' : undefined,
       },
     ]
@@ -82,7 +81,6 @@ export function RightPanel({
                 label={t(fullscreen ? 'rightPanel.exitFullscreen' : 'rightPanel.fullscreen')}
                 onClick={onToggleFullscreen}
                 aria-keyshortcuts="Meta+Alt+Enter Control+Alt+Enter"
-                tooltip={t(fullscreen ? 'rightPanel.exitFullscreenShortcut' : 'rightPanel.fullscreenShortcut')}
               >
                 {fullscreen ? <IconMinimize aria-hidden /> : <IconMaximize aria-hidden />}
               </IconButton>

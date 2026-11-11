@@ -12,7 +12,6 @@ export interface PanelTab<Kind extends string = string> {
   title: string
   icon: React.ReactNode
   closeLabel?: string
-  closeTooltip?: string
   closeKeyShortcuts?: string
 }
 
@@ -195,7 +194,7 @@ export function PanelTabs<Kind extends string>({
                           <IconX aria-hidden className="size-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>{tab.closeTooltip ?? tab.closeLabel}</TooltipContent>
+                      <TooltipContent>{tab.closeLabel}</TooltipContent>
                     </Tooltip>
                   )}
                 </>

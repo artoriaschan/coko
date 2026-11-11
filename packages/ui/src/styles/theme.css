@@ -27,6 +27,25 @@
   --local-panel-attention-duration: 600;
 }
 
+/* 开合同时改变中栏和右栏份额；拖拽、窗口适配与全屏切换不添加延迟。 */
+.app-frame {
+  --local-right-panel-enter-duration: 240ms;
+  --local-right-panel-exit-duration: 180ms;
+  --local-right-panel-easing: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-frame :is([data-slot='app-frame-main-column'], [data-slot='app-frame-right-column']) {
+  transition: none;
+}
+
+.app-frame[data-right-transitioning] :is([data-slot='app-frame-main-column'], [data-slot='app-frame-right-column']) {
+  transition: flex-grow var(--local-right-panel-enter-duration) var(--local-right-panel-easing);
+}
+
+.app-frame[data-right-transitioning][data-right='closed'] :is([data-slot='app-frame-main-column'], [data-slot='app-frame-right-column']) {
+  transition-duration: var(--local-right-panel-exit-duration);
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant focus-visible (&:focus-visible:where(:root:not([data-focus-modality='pointer']) *));
 

@@ -207,7 +207,7 @@ H 指设计外框高度（含边框），R 指 `border-radius`。先按组件角
 - 依赖指针精度的表现使用 `pointer-coarse:`：粗指针下文本输入框字号不低于 16px，精细指针保持紧凑尺寸。
 - JS 悬停预览在 `(any-hover: hover)` 下接受鼠标进入，忽略 `pointerType === "touch"` 的事件。
 - 详细过程的 WAAPI 开合从所属元素读取 `--conversation-flow-*`（毫秒数值 160，总收起延迟 50、淡出 70）和 easing；CSS 共享 `--conversation-process-transition` 与 shimmer 时长、延迟及阶梯缓动，不改变原有几何或反向清理。
-- 动效时长与缓动使用主题登记的值，并提供 `motion-reduce:` 下的替代或关闭。
+- 动效时长与缓动使用主题登记的值，并提供 `motion-reduce:` 下的替代或关闭。普通右栏开合由 `.app-frame` 的局部值登记：展开 240ms、收起 180ms、缓动 `cubic-bezier(0.16, 1, 0.3, 1)`；中栏与右栏的份额同步过渡，退出时正文保持原宽并由列裁剪。拖动、窗口适配与全屏不使用此过渡，减少动态效果时直接提交状态。
 - **可点击文案不可选中。** 按钮与菜单选项属于界面文案：主题统一为 `button`、`[role=button]` 和菜单选项（含 listbox `option`）设置 `user-select: none`，菜单表面整块沿用该规则，避免点击、双击时选中文案；按钮内以 `data-user-content` 标记的用户内容保持可选择。共享 Button 的基础类同样带 `select-none`，覆盖 `asChild` 渲染的非 `<button>` 元素。
 
 ## 右栏 tab 条与引导页

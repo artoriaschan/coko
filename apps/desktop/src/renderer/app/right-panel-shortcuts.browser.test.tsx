@@ -9,9 +9,9 @@ import { createPreferences } from './preferences.ts'
 import { createSettingsPageStore } from './settings-page-store.ts'
 import { createFixtureChat } from '../testing/fixture-chat.ts'
 
-async function renderApp() {
+async function renderApp(locale: 'en' | 'zh' = 'en') {
   await page.viewport(1440, 900)
-  const appearance = createAppearanceStore({ theme: 'light', locale: 'en' })
+  const appearance = createAppearanceStore({ theme: 'light', locale })
   const fixture = createFixtureChat()
   await render(
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -28,6 +28,31 @@ async function renderApp() {
   )
   return fixture
 }
+
+it.each([
+  ['en', 'Fullscreen', 'Exit fullscreen', 'Plan', 'Close Plan'],
+  ['zh', '全屏', '退出全屏', '计划', '关闭计划'],
+] as const)('%s: fullscreen and tab-close tooltips contain only the action label', async (locale, fullscreen, exit, plan, close) => {
+  await renderApp(locale)
+  await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
+  const maximize = page.getByRole('button', { name: fullscreen, exact: true })
+  await userEvent.hover(maximize)
+  await expect.element(page.getByRole('tooltip', { name: fullscreen, exact: true })).toBeVisible()
+  await expect.element(maximize).toHaveAttribute('aria-keyshortcuts', 'Meta+Alt+Enter Control+Alt+Enter')
+  await maximize.click()
+  const restore = page.getByRole('button', { name: exit, exact: true })
+  await userEvent.hover(restore)
+  await expect.element(page.getByRole('tooltip', { name: exit, exact: true })).toBeVisible()
+  await restore.click()
+  await page
+    .getByRole('region', { name: locale === 'en' ? 'Sidebar' : '侧边栏', exact: true })
+    .getByRole('button', { name: plan, exact: true })
+    .click()
+  const closeTab = page.getByRole('button', { name: close, exact: true })
+  await userEvent.hover(closeTab)
+  await expect.element(page.getByRole('tooltip', { name: close, exact: true })).toBeVisible()
+  await expect.element(closeTab).toHaveAttribute('aria-keyshortcuts', 'Meta+W Control+W')
+})
 
 it('sidebar shortcuts open, focus, fullscreen and collapse the current Session panel', async () => {
   await renderApp()
@@ -58,6 +83,7 @@ it('sidebar shortcuts ignore active composition, drafts and non-Session pages', 
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
   await expect.element(page.getByRole('tabpanel', { name: 'Start', exact: true })).toHaveFocus()
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')
+  await expect.poll(() => document.querySelector('[data-slot="app-frame-right"]')!.getClientRects().length).toBe(0)
   await page.getByRole('button', { name: 'New chat', exact: true }).click()
   expect(fixture.chat.getState().activeSessionId).toBeNull()
   await userEvent.keyboard('{Control>}{Alt>}b{/Alt}{/Control}')

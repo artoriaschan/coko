@@ -1,5 +1,6 @@
 import { trackKeyboardFocus } from '../lib/focus-visible.ts'
 import * as React from 'react'
+import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { cn } from '../lib/utils.ts'
 import {
   clampRightPanelWidth,
@@ -11,6 +12,7 @@ import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
+  CENTER_MIN_WIDTH,
   type FrameLayout,
 } from './frame-layout.ts'
 
@@ -90,7 +92,7 @@ const RESIZE_STEP = 16
 
 /**
  * 应用框架：左侧栏（264–420px、窄窗口抽屉）、主内容、可拖宽与全屏的右栏。
- * ResizeObserver 测量帧宽：右栏分配与放不下时的状态回写需要实际像素宽度。
+ * react-resizable-panels 管理拖拽；测量帧宽与实际侧栏宽度以派生抽屉、全屏和右栏空间不足状态。
  */
 export function AppFrame({
   sidebar,
@@ -118,7 +120,13 @@ export function AppFrame({
   const [frameWidth, setFrameWidth] = React.useState<number | null>(null)
   const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [peekOpen, setPeekOpen] = React.useState(false)
-  const [dragging, setDragging] = React.useState(false)
+  const sidebarPanel = usePanelRef()
+  const rightPanelRef = usePanelRef()
+  const rightResizeHandle = React.useRef<HTMLDivElement>(null)
+  const [measuredSidebarWidth, setMeasuredSidebarWidth] = React.useState(sidebarWidth)
+  const [measuredRightWidth, setMeasuredRightWidth] = React.useState(0)
+  const [measuredWorkspaceWidth, setMeasuredWorkspaceWidth] = React.useState(0)
+  const activeResize = React.useRef<'sidebar' | 'right' | null>(null)
   const peekOpenTimer = React.useRef<number | null>(null)
   const peekCloseTimer = React.useRef<number | null>(null)
   // 指针在展开按钮上时，200ms 后浮出侧栏卡片；离开控制条或进入其他按钮时取消。
@@ -139,13 +147,45 @@ export function AppFrame({
   const measuredWidth = frameWidth ?? window.innerWidth
   const layout = computeFrameLayout({
     frameWidth: measuredWidth,
-    sidebarWidth,
+    sidebarWidth: measuredSidebarWidth || sidebarWidth,
     sidebarCollapsed,
     rightOpen,
     rightWidth,
     rightFullscreen: manualRightFullscreen,
   })
   const rightFullscreen = layout.right === 'fullscreen'
+  const sidebarExpanded = layout.sidebar === 'expanded'
+  const rightColumn = layout.rightColumn
+  const workspaceWidth = measuredWidth - layout.sidebarColumn
+  const initialSidebarWidth = React.useRef(sidebarExpanded ? sidebarWidth : 0)
+  const initialRightWidth = React.useRef(rightColumn)
+  const previousRight = React.useRef(layout.right)
+  const [rightTransitionWidth, setRightTransitionWidth] = React.useState<number | null>(null)
+  const rightTransitioning = rightTransitionWidth !== null
+  React.useLayoutEffect(() => {
+    const previous = previousRight.current
+    previousRight.current = layout.right
+    if (previous === layout.right) return
+    const columnToggle = (previous === 'closed' && layout.right === 'column') || (previous === 'column' && layout.right === 'closed')
+    setRightTransitionWidth(
+      columnToggle && frameWidth !== null && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? rightColumn || measuredRightWidth : null,
+    )
+  }, [layout.right, frameWidth, rightColumn, measuredRightWidth])
+  React.useLayoutEffect(() => setRightTransitionWidth(null), [frameWidth])
+  // 外部偏好、收起与窗口尺寸变化通过 imperative API 应用，不重挂载正文，也不作为用户拖动提交。
+  React.useEffect(() => {
+    if (sidebarExpanded) sidebarPanel.current?.resize(clampSidebarWidth(sidebarWidth))
+    else sidebarPanel.current?.collapse()
+  }, [sidebarPanel, sidebarExpanded, sidebarWidth])
+  React.useEffect(() => {
+    // 嵌套 Group 要等外层提交新的像素宽度，避免用旧容器宽度把偏好换算为百分比。
+    const frame = requestAnimationFrame(() => {
+      if (rightResizeHandle.current?.dataset.separator === 'active') return
+      if (rightColumn > 0) rightPanelRef.current?.resize(rightColumn)
+      else rightPanelRef.current?.collapse()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [rightPanelRef, rightColumn, measuredWorkspaceWidth])
   const toggleRightFullscreen = React.useCallback(() => {
     onRightFullscreenChange?.(!rightFullscreen)
     if (rightFullscreen && measuredWidth < RIGHT_AUTO_FULLSCREEN_BELOW) onRightOpenChange?.(false)
@@ -284,10 +324,10 @@ export function AppFrame({
 
   const resizeTo = (width: number) => onSidebarWidthChange?.(clampSidebarWidth(width))
   const resizeRightTo = (width: number) => onRightWidthChange?.(clampRightPanelWidth(width, measuredWidth, layout.sidebarColumn))
-  const dragCleanup = React.useRef<(() => void) | null>(null)
-  React.useEffect(() => () => dragCleanup.current?.(), [])
 
   const onRightResizeKeyDown = (event: React.KeyboardEvent) => {
+    // 开合由工作台按钮管理，避免库的 Enter 折叠绕过应用状态。
+    if (event.key === 'Enter') return event.preventDefault()
     const next =
       event.key === 'ArrowLeft'
         ? layout.rightColumn + RESIZE_STEP
@@ -303,41 +343,8 @@ export function AppFrame({
     resizeRightTo(next)
   }
 
-  /** Both edges share listener ownership; width direction and clamping stay with each edge. */
-  const startResize = (event: React.PointerEvent<HTMLElement>, resize: (delta: number) => void) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.focus()
-    dragCleanup.current?.()
-    const startX = event.clientX
-    const pointerId = event.pointerId
-    setDragging(true)
-    const onMove = (move: PointerEvent) => {
-      if (move.pointerId === pointerId) resize(move.clientX - startX)
-    }
-    const stop = () => {
-      setDragging(false)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-      window.removeEventListener('blur', stop)
-      dragCleanup.current = null
-    }
-    const onUp = (up: PointerEvent) => {
-      if (up.pointerId === pointerId) stop()
-    }
-    dragCleanup.current = stop
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
-    window.addEventListener('blur', stop)
-  }
-  const onRightResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const startWidth = layout.rightColumn
-    startResize(event, (delta) => resizeRightTo(startWidth - delta))
-  }
-
   const onResizeKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') return event.preventDefault()
     const next =
       event.key === 'ArrowRight'
         ? sidebarWidth + RESIZE_STEP
@@ -353,46 +360,58 @@ export function AppFrame({
     resizeTo(next)
   }
 
-  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const startWidth = layout.sidebarColumn
-    startResize(event, (delta) => resizeTo(startWidth + delta))
-  }
-
-  const rightColumn = layout.rightColumn
   const frameStyle = {
-    '--local-sidebar-column': `${layout.sidebarColumn}px`,
-    '--local-right-column': `${rightColumn}px`,
     // 主内容标题栏的左侧起点：控制条在收起时作为标题栏的第一个子项，标题紧随其后。
     '--local-header-leading': layout.sidebar === 'expanded' ? '16px' : '0px',
   } as React.CSSProperties
 
   return (
     <AppFrameContext.Provider value={context}>
-      <div
-        ref={rootRef}
+      <Group
+        elementRef={rootRef}
         data-slot="app-frame"
         data-sidebar={layout.sidebar}
         data-narrow={layout.narrow || undefined}
         data-right={layout.right}
+        data-right-transitioning={rightTransitioning || undefined}
         style={frameStyle}
+        resizeTargetMinimumSize={{ fine: 8, coarse: 20 }}
+        disabled={rightFullscreen || !sidebarExpanded}
+        onLayoutChanged={(sizes, { isUserInteraction }) => {
+          if (isUserInteraction && sidebarExpanded && activeResize.current === 'sidebar') {
+            activeResize.current = null
+            resizeTo((sizes.sidebar! / 100) * measuredWidth)
+          }
+        }}
         className={cn(
-          'relative grid h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-sidebar text-foreground',
+          'app-frame relative h-full w-full min-w-0 overflow-hidden rounded-panel [clip-path:border-box] bg-sidebar text-foreground',
           "after:pointer-events-none after:absolute after:inset-0 after:z-30 after:rounded-panel after:border-hairline after:border-sidebar-border after:content-['']",
-          'grid-cols-[var(--local-sidebar-column)_minmax(0,1fr)_var(--local-right-column)]',
-          !dragging && frameWidth !== null && 'transition-[grid-template-columns] duration-300 motion-reduce:transition-none',
           className,
         )}
       >
-        {layout.sidebar === 'expanded' && (
-          <aside
-            inert={rightFullscreen || undefined}
-            data-slot="app-frame-sidebar"
-            aria-label={labels.sidebar}
-            className="sidebar-surface relative flex min-h-0 min-w-0 flex-col overflow-hidden text-sidebar-foreground"
-          >
-            {sidebar}
-          </aside>
-        )}
+        <Panel
+          id="sidebar"
+          panelRef={sidebarPanel}
+          defaultSize={initialSidebarWidth.current}
+          collapsible
+          collapsedThreshold={SIDEBAR_MIN_WIDTH}
+          minSize={SIDEBAR_MIN_WIDTH}
+          maxSize={SIDEBAR_MAX_WIDTH}
+          groupResizeBehavior="preserve-pixel-size"
+          onResize={({ inPixels }) => setMeasuredSidebarWidth(inPixels)}
+          className="h-full min-w-0"
+        >
+          {sidebarExpanded && (
+            <aside
+              inert={rightFullscreen || undefined}
+              data-slot="app-frame-sidebar"
+              aria-label={labels.sidebar}
+              className="sidebar-surface relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden text-sidebar-foreground"
+            >
+              {sidebar}
+            </aside>
+          )}
+        </Panel>
 
         {peekVisible && (
           <div
@@ -406,65 +425,102 @@ export function AppFrame({
         )}
 
         {layout.sidebar === 'expanded' && (
-          <div
-            role="separator"
+          <Separator
+            disableDoubleClick
             inert={rightFullscreen || undefined}
-            aria-orientation="vertical"
             aria-label={labels.resizeSidebar}
-            aria-valuemin={SIDEBAR_MIN_WIDTH}
-            aria-valuemax={SIDEBAR_MAX_WIDTH}
-            aria-valuenow={layout.sidebarColumn}
-            tabIndex={0}
             data-slot="app-frame-resize-handle"
-            onKeyDown={onResizeKeyDown}
-            onPointerDown={onResizePointerDown}
-            className="absolute inset-y-0 z-20 w-2 -translate-x-1/2 cursor-col-resize touch-none focus-ring"
-            style={{ left: 'var(--local-sidebar-column)' }}
-          />
-        )}
-
-        <main
-          inert={rightFullscreen || undefined}
-          data-slot="app-frame-main"
-          aria-label={labels.main}
-          className="@container/main relative col-start-2 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-hairline before:bg-sidebar-border before:content-['']"
-        >
-          {children}
-        </main>
-
-        <section
-          data-slot="app-frame-right"
-          aria-label={labels.rightPanel}
-          hidden={layout.right === 'closed'}
-          className={cn(
-            'min-h-0 min-w-0 flex-col overflow-hidden bg-background',
-            layout.right !== 'closed' && 'flex',
-            layout.right === 'column' && 'border-l-hairline',
-            rightFullscreen
-              ? 'absolute inset-0 col-span-full z-40 [&_[data-slot=panel-tab-strip]]:ps-[max(10px,calc(var(--frame-leading-clearance)_+_12px))]'
-              : 'col-start-3',
-          )}
-        >
-          {rightPanel}
-        </section>
-
-        {layout.right === 'column' && (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={labels.resizeRightPanel}
-            aria-valuemin={RIGHT_MIN_WIDTH}
-            aria-valuemax={Math.round(rightPanelMaxWidth(measuredWidth, layout.sidebarColumn))}
-            aria-valuenow={layout.rightColumn}
-            tabIndex={0}
-            data-slot="app-frame-right-resize-handle"
+            onKeyDownCapture={onResizeKeyDown}
+            onPointerDownCapture={() => {
+              setRightTransitionWidth(null)
+              activeResize.current = 'sidebar'
+            }}
             data-window-no-drag
-            onKeyDown={onRightResizeKeyDown}
-            onPointerDown={onRightResizePointerDown}
-            className="absolute inset-y-0 z-20 w-2 translate-x-1/2 cursor-col-resize touch-none focus-ring"
-            style={{ right: 'var(--local-right-column)' }}
+            className="absolute inset-y-0 z-20 w-2 -translate-x-1/2 cursor-col-resize touch-none focus-ring"
+            style={{ left: layout.sidebarColumn }}
           />
         )}
+
+        <Panel id="workspace" onResize={({ inPixels }) => setMeasuredWorkspaceWidth(inPixels)} className="h-full min-w-0" style={{ overflow: 'visible' }}>
+          <Group
+            disabled={layout.right !== 'column'}
+            style={{ overflow: 'visible' }}
+            resizeTargetMinimumSize={{ fine: 8, coarse: 20 }}
+            onLayoutChanged={(sizes, { isUserInteraction }) => {
+              if (isUserInteraction && layout.right === 'column' && activeResize.current === 'right') {
+                activeResize.current = null
+                resizeRightTo((sizes.right! / 100) * measuredWorkspaceWidth)
+              }
+            }}
+          >
+            <Panel
+              id="main"
+              data-slot="app-frame-main-column"
+              minSize={Math.min(CENTER_MIN_WIDTH, Math.max(0, workspaceWidth - rightColumn))}
+              className="h-full min-w-0"
+            >
+              <main
+                inert={rightFullscreen || undefined}
+                data-slot="app-frame-main"
+                aria-label={labels.main}
+                className="@container/main relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-hairline before:bg-sidebar-border before:content-['']"
+              >
+                {children}
+              </main>
+            </Panel>
+
+            {layout.right === 'column' && (
+              <Separator
+                elementRef={rightResizeHandle}
+                disableDoubleClick
+                aria-label={labels.resizeRightPanel}
+                data-slot="app-frame-right-resize-handle"
+                data-window-no-drag
+                onKeyDownCapture={onRightResizeKeyDown}
+                onPointerDownCapture={() => {
+                  setRightTransitionWidth(null)
+                  activeResize.current = 'right'
+                }}
+                className="absolute inset-y-0 z-20 w-2 translate-x-1/2 cursor-col-resize touch-none focus-ring"
+                style={{ right: measuredRightWidth }}
+              />
+            )}
+
+            <Panel
+              id="right"
+              data-slot="app-frame-right-column"
+              panelRef={rightPanelRef}
+              defaultSize={initialRightWidth.current}
+              collapsible
+              collapsedThreshold={RIGHT_MIN_WIDTH}
+              minSize={rightColumn > 0 ? RIGHT_MIN_WIDTH : 0}
+              maxSize={rightColumn > 0 ? Math.max(RIGHT_MIN_WIDTH, rightPanelMaxWidth(measuredWidth, layout.sidebarColumn)) : 0}
+              groupResizeBehavior="preserve-pixel-size"
+              onResize={({ inPixels }) => setMeasuredRightWidth(inPixels)}
+              className="h-full min-w-0"
+              style={{ overflow: rightFullscreen ? 'visible' : 'hidden' }}
+              onTransitionEnd={(event) => {
+                if (event.target === event.currentTarget && event.propertyName === 'flex-grow') setRightTransitionWidth(null)
+              }}
+            >
+              <section
+                data-slot="app-frame-right"
+                aria-label={labels.rightPanel}
+                hidden={layout.right === 'closed' && !rightTransitioning}
+                inert={layout.right === 'closed' || undefined}
+                style={rightTransitioning ? { width: rightTransitionWidth } : undefined}
+                className={cn(
+                  'h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background',
+                  (layout.right !== 'closed' || rightTransitioning) && 'flex',
+                  (layout.right === 'column' || rightTransitioning) && 'border-l-hairline',
+                  rightFullscreen && 'absolute inset-0 z-40 [&_[data-slot=panel-tab-strip]]:ps-[max(10px,calc(var(--frame-leading-clearance)_+_12px))]',
+                )}
+              >
+                {rightPanel}
+              </section>
+            </Panel>
+          </Group>
+        </Panel>
 
         {drawerVisible && (
           <>
@@ -476,14 +532,14 @@ export function AppFrame({
               aria-label={labels.sidebar}
               tabIndex={-1}
               data-slot="app-frame-drawer"
-              className="sidebar-surface absolute inset-y-0 left-0 z-50 flex max-w-[calc(100%-var(--local-sidebar-column))] flex-col overflow-hidden rounded-panel text-sidebar-foreground shadow-prominent outline-none"
+              className="sidebar-surface absolute inset-y-0 left-0 z-50 flex max-w-full flex-col overflow-hidden rounded-panel text-sidebar-foreground shadow-prominent outline-none"
               style={{ width: clampSidebarWidth(sidebarWidth) }}
             >
               {sidebar}
             </div>
           </>
         )}
-      </div>
+      </Group>
     </AppFrameContext.Provider>
   )
 }

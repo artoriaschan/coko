@@ -776,9 +776,6 @@ export const zh = {
     confirmQuitMany: '有 {count} 个正在运行的任务，退出会中断它们',
   },
   rightPanel: {
-    closePageShortcut: '关闭{title}（⌘/Ctrl+W）',
-    fullscreenShortcut: '全屏（⌘/Ctrl+Alt+Enter）',
-    exitFullscreenShortcut: '退出全屏（⌘/Ctrl+Alt+Enter）',
     title: '侧边栏',
     empty: '请先选择会话',
     start: '开始',

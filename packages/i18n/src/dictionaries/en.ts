@@ -784,9 +784,6 @@ export const en: typeof zh = {
     confirmQuitMany: '{count} running tasks will be interrupted.',
   },
   rightPanel: {
-    closePageShortcut: 'Close {title} (⌘/Ctrl+W)',
-    fullscreenShortcut: 'Fullscreen (⌘/Ctrl+Alt+Enter)',
-    exitFullscreenShortcut: 'Exit fullscreen (⌘/Ctrl+Alt+Enter)',
     title: 'Sidebar',
     empty: 'Please select a session first',
     start: 'Start',
