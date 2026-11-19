@@ -1,6 +1,6 @@
 ---
 kind: decision
-description: "项目（Project）是组织会话的容器：一组源文件夹，其中唯一的主要文件夹对应一个 Workspace，主要文件夹在项目间不能重复、名称可以重复；会话最多属于一个项目，移入或移出项目只改归属、不改工作目录；附加文件夹在权限上算项目会话的 Workspace 内部；删除项目保留会话的修订规则见 ADR 0022；独立对话在 Coko 首次发送时创建的专属目录中工作；现有 Workspace 迁移为单文件夹项目。修改项目与 Workspace 的映射、归属变更的语义或独立对话的目录时回看。"
+description: "项目（Project）是组织会话的容器：一组源文件夹，其中唯一的主要文件夹对应一个 Workspace，主要文件夹在项目间不能重复、名称可以重复；会话最多属于一个项目，移入或移出项目只改归属、不改工作目录；附加文件夹在权限上算项目会话的 Workspace 内部；删除项目保留会话的修订规则见 ADR 0022；记忆随项目归属的修订见 ADR 0027；独立对话在 Coko 首次发送时创建的专属目录中工作；现有 Workspace 迁移为单文件夹项目。修改项目与 Workspace 的映射、归属变更的语义或独立对话的目录时回看。"
 status: accepted
 implementation: implemented
 lifecycle: active
@@ -20,7 +20,7 @@ category: architecture
 ## 决定
 
 - **项目。** 项目是用户命名的一组源文件夹，其中恰好一个主要文件夹，对应一个 Workspace。主要文件夹在所有项目中唯一，名称可以重复。新建项目的主要文件夹已是其他项目的主要文件夹时，不创建新项目，改用已有项目：从创建入口进入时打开它，从“移到项目”的“选择文件夹…”进入时把对话移入它。
-- **归属与工作目录分离。** 一个 Session 最多属于一个项目；它的 Workspace 与工作目录在创建时固定（ADR 0016）。移入、移出项目或在项目间移动，只改变归属，不改变工作目录、worktree 绑定以及按 Workspace 作用域保存的批准与记忆。要在另一个目录中工作，就新建会话或交接。
+- **归属与工作目录分离。** 一个 Session 最多属于一个项目；它的 Workspace 与工作目录在创建时固定（ADR 0016）。移入、移出项目或在项目间移动，只改变归属，不改变工作目录、worktree 绑定以及按 Workspace 作用域保存的批准与记忆。（关于记忆的部分已被 [ADR 0027](0027-memory-follows-project-writes-without-approval.md) 局部替代：Session 使用哪个 Workspace 的记忆改由当前项目归属决定。）要在另一个目录中工作，就新建会话或交接。
 - **项目内的新会话**在主要文件夹的 Workspace 中运行。修改项目的文件夹列表，不改变已有会话的工作目录。
 - **新建的独立对话**（Standalone Session）在 Coko 于首次发送时创建的专属目录中工作。目录位于 Coko 管理、用户可见的根目录下（原例为 `~/Coko/chats/<日期>-<短 id>`；2026-11-05 的目录布局修订见下文），不放在应用数据目录中；这个目录就是该会话的 Workspace。
 - **迁移。** 升级时，每个现有 Workspace 迁移为只含一个文件夹的项目，原有会话归入该项目。
@@ -72,6 +72,7 @@ category: architecture
 - 参考实现：程小帮 `apps/backend/src/repository/state-store.ts`（项目以路径为键、会话的项目可为空、删除项目级联删除会话）。本页已提炼所需结论。
 
 - 删除项目这一条的后继：[ADR 0022：删除项目保留会话](0022-project-removal-preserves-sessions.md)。该局部替代不改变本页其他映射与执行边界决定。
+- 记忆归属的后继：[ADR 0027：记忆跟随项目归属，写入不经审批](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，尚未实施）。它局部替代“移入、移出项目不改变按 Workspace 作用域保存的记忆”：Session 属于项目时使用该项目主要文件夹上的记忆，不属于项目时只有用户级记忆。本页关于批准规则、工作目录与 worktree 绑定按 Workspace 保存的决定不变；ADR 0027 实施前，当前行为仍按本页。
 
 ## 2026-11-05 独立会话目录与删除规则修订
 
