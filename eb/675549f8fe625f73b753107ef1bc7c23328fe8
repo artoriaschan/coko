@@ -1,0 +1,19 @@
+.scratch/memory-tiered-injection/evidence/acceptance.md
+  s_e563b3fac8279d::t_65e0134f7029f9 1-19,21-24,29-57,59-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "eb675549f8fe625f73b753107ef1bc7c23328fe8",
+  "prompts": {},
+  "sessions": {
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
