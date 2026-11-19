@@ -1,0 +1,161 @@
+tests/integration/sidecar-harness.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 15,384-386,546-566
+docs/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 48
+tests/evals/case.test.ts
+  s_e563b3fac8279d::t_2fdf029a2f209a 1-6,11-23,25,27-29,33-77
+  s_2fe05d2b987088::t_a15e68248e08e1 7-10,24,26,30-32
+tests/evals/cases/finds-memory-by-search/workspace/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 1
+packages/session/src/internal.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 119-145
+packages/protocol/src/memory.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 31-41,46,48
+.scratch/memory-tiered-injection/evidence/acceptance.md
+  s_2fe05d2b987088::t_a15e68248e08e1 20,25-27,57,72,74,76-78,80,82-84,88,107-111
+  s_e563b3fac8279d::t_65e0134f7029f9 1-19,21-24,28-56,58-71,73,75,79,81,85-87,89-106
+packages/session/src/types.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 283-288
+packages/i18n/src/dictionaries/domains/memory.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 18,55
+docs/subsystems/context.md
+  s_2fe05d2b987088::t_a15e68248e08e1 64
+tests/integration/sidecar-memory-summary.test.ts
+  s_e563b3fac8279d::t_e62c1385981505 1-6,10-41,43-47,49-52,55-73,75-86
+  s_2fe05d2b987088::t_a15e68248e08e1 7-9,42,48,53-54,74
+packages/session/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 38
+apps/server/src/application/context/memory.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 5-13,15,39-41,71-80,85-88,91,148-161,181-186,202
+apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx
+  s_2fe05d2b987088::t_a15e68248e08e1 4,7,35,116,120,127-142,170-171,220-251,265-268,270-275
+.scratch/memory-tiered-injection/issues/06-injection-summary-in-settings.md
+  s_0f0f72467ad091::t_ea1248683256f0 14
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-22,27-37
+.scratch/memory-tiered-injection/spec.md
+  s_0f0f72467ad091::t_c7be34429509d6 4,17
+  s_0f0f72467ad091::t_288323fccc1b6f 16
+  s_0f0f72467ad091::t_ed6607e4eec105 223
+  s_2fe05d2b987088::t_a15e68248e08e1 18
+tests/integration/headless.test.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 129,133-137,140-141,146-153,160-161,166-172
+.scratch/memory-tiered-injection/issues/08-integrated-acceptance-and-docs.md
+  s_2fe05d2b987088::t_a15e68248e08e1 13-14,29-48
+  s_0f0f72467ad091::t_1328be43276cfe 15-17,19-24
+tests/integration/sidecar-memory-approx.test.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 8-21,31,72-73
+  s_e563b3fac8279d::t_14e167b2eb253d 1-7,22-30,32-71,74-107
+tests/integration/sidecar-memory-ids.test.ts
+  s_e563b3fac8279d::t_a429e84fd5d320 1,4-7,9-16,24-28,30-47,50-87,89-90,95-114,118-121
+  s_2fe05d2b987088::t_a15e68248e08e1 2-3,8,17-23,29,48-49,88,91-94,115-117
+docs/subsystems/memory.md
+  s_2fe05d2b987088::t_a15e68248e08e1 3,15-16,19,39-42,44,51-53,60-61,76,83,89-90,93-96,98,100,102,105
+apps/server/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 81
+packages/session/src/memory/index.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 16,21,390-394
+tests/evals/cases/reads-summarized-memory/case.json
+  s_2fe05d2b987088::t_a15e68248e08e1 1-62
+tests/integration/sidecar-memory-harness.ts
+  s_e563b3fac8279d::t_6041f04353f600 1-22
+.scratch/memory-tiered-injection/issues/02-memory-list-by-ids.md
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-22,28-31
+  s_0f0f72467ad091::t_89c26f2582277c 14
+tests/integration/sidecar-subagents-harness.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 5,29-30,36
+packages/agent/src/context/memory/tools.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 8,26-27,43-50,54,63,79-100,103-141,148-150,153,155-157,183-184
+packages/session/src/sqlite/migrate-v9.test.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 2,125-126
+docs/tech-stack/testing.md
+  s_2fe05d2b987088::t_a15e68248e08e1 21
+.scratch/memory-tiered-injection/issues/03-summary-tier.md
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-27,33-38
+  s_0f0f72467ad091::t_044d285254af2f 14
+packages/session/src/repository-contract.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 542-566,894
+apps/desktop/src/renderer/stores/memory-store.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 10,51-52,82-83,110,119-120,122
+packages/session/src/sqlite/memory-secrets.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 3,66-83,92
+tests/evals/cases/finds-memory-by-search/case.json
+  s_2fe05d2b987088::t_a15e68248e08e1 1-197
+.scratch/memory-tiered-injection/issues/04-similar-entries-on-create.md
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-25,31-39
+  s_0f0f72467ad091::t_72845d0cd2171d 14
+docs/subsystems/tracing.md
+  s_2fe05d2b987088::t_02494ee5c1576e 128
+tests/integration/sidecar-memory-similar.test.ts
+  s_e563b3fac8279d::t_292999c22a0f6d 1-4,6-8,24-38,40-51,53-57,59-101,105-106,110-130,133-148
+  s_2fe05d2b987088::t_a15e68248e08e1 5,9-23,39,52,58,102-104,107-109,131-132
+tests/evals/case.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 42-61,65-66,82-83
+.scratch/memory-tiered-injection/issues/07-eval-cases-with-seeded-memories.md
+  s_0f0f72467ad091::t_3cf1e85c25848d 14
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-23,28-35
+.scratch/memory-tiered-injection/issues/05-approximate-search.md
+  s_0f0f72467ad091::t_d67a2b0b9a970d 14
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-23,29-34
+packages/agent/src/context/memory/index.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 2-16
+tests/integration/sidecar-memory-injection.test.ts
+  s_e563b3fac8279d::t_7ab466324581c4 1-6,9-33,35,37,39-72
+  s_2fe05d2b987088::t_a15e68248e08e1 7-8,34,36,38
+packages/agent/src/context/memory/section.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 1-3,8,10-11,30-32,36-56,61-67,75-77,86,103-109,111-112,114-115,117-119,126-147,151-154
+apps/desktop/src/renderer/features/settings/memory-section.tsx
+  s_2fe05d2b987088::t_a15e68248e08e1 1,19,33,42-44,62,64-70,163-175,180-189
+.scratch/memory-tiered-injection/issues/01-user-entries-first.md
+  s_2fe05d2b987088::t_a15e68248e08e1 13,15-21,27-31
+  s_0f0f72467ad091::t_ab5933b51b99de 14
+packages/agent/src/context/memory/memory.test.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 1,7,12,14,16,31-35,49,51-58,65-75,82-90,145,147,150,154-155,161,163-165,188,194,200,206,220,228,238-352,363,377-384,403,433-468,480-487,599-620
+  s_e563b3fac8279d::t_da386dab6f39de 469-479
+  s_e563b3fac8279d::t_0ed8ddeea1914b 527-530
+  s_e563b3fac8279d::t_50812eae97de51 575-598
+tests/evals/cases/reads-summarized-memory/workspace/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 1
+packages/protocol/README.md
+  s_2fe05d2b987088::t_a15e68248e08e1 76
+tests/integration/sidecar-memory-joint.test.ts
+  s_e563b3fac8279d::t_d5d57956d1a832 44
+  s_e563b3fac8279d::t_80601c19d53d16 1-6,10-14,16-23,25,30,32-37,39,41-43,45-50,54-62,64-67,70-83,86-106
+  s_2fe05d2b987088::t_a15e68248e08e1 7-9,15,24,26-29,31,38,40,51-53,63,68-69,84-85
+apps/server/src/http/routes/memories.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 3,6,24-29
+tests/integration/sidecar-memory.test.ts
+  s_2fe05d2b987088::t_a15e68248e08e1 6,302,320-325,354
+  s_e563b3fac8279d::t_7984f3f48f678f 326-353,355-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "954706d5881abfc181187637baa4a7658fd8a220",
+  "prompts": {},
+  "sessions": {
+    "s_0f0f72467ad091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d2f112e-ea71-4ed1-bbaf-cd27366852b3",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_2fe05d2b987088": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296f4065-62a4-4e5c-8c52-5925e14c9462",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
