@@ -10,14 +10,17 @@
 
 **Status:** ready-for-agent
 
-- [ ] 新 ADR 按[决策模板](../../../docs/templates/decision.md)写成，包含上下文、决定、理由与考虑过的备选方案（记忆继续固定在 Session 的 Workspace 上；只放行项目级写入、用户级仍询问；保留默认询问）、后果与残余风险、需要重新审视的条件。
-- [ ] ADR 写明用户确认的日期与依据（2026-11-19 的需求澄清），区分用户明确提出的要求与采纳的推荐；正文自身提炼必要背景，不链接任务材料。
-- [ ] ADR 的 status 与 implementation 按[状态与晋升](../../../docs/DOCUMENTATION_SYSTEM.md#四-状态与晋升)填写；功能尚未实施，不得标为已实施。
-- [ ] ADR 0020 的“来源与后继”指向新 ADR，写明局部替代的范围；[ADR 0022](../../../docs/adr/0022-project-removal-preserves-sessions.md) 关于删除项目保留记忆的决定不变，新 ADR 中引用它。
-- [ ] 术语表中 Memory Entry 的定义改为反映用户级与项目级两个层级，只保留定义，不写存储字段与实现细节。
-- [ ] ADR 索引新增一行；`pnpm run check:docs` 通过，并从 AGENTS.md、docs/README 到正文依次读回。
-- [ ] 实际执行的检查与文档影响记入 Comments。
+Closed: true
+
+- [x] 新 ADR 按[决策模板](../../../docs/templates/decision.md)写成，包含上下文、决定、理由与考虑过的备选方案（记忆继续固定在 Session 的 Workspace 上；只放行项目级写入、用户级仍询问；保留默认询问）、后果与残余风险、需要重新审视的条件。
+- [x] ADR 写明用户确认的日期与依据（2026-11-19 的需求澄清），区分用户明确提出的要求与采纳的推荐；正文自身提炼必要背景，不链接任务材料。
+- [x] ADR 的 status 与 implementation 按[状态与晋升](../../../docs/DOCUMENTATION_SYSTEM.md#四-状态与晋升)填写；功能尚未实施，不得标为已实施。
+- [x] ADR 0020 的“来源与后继”指向新 ADR，写明局部替代的范围；[ADR 0022](../../../docs/adr/0022-project-removal-preserves-sessions.md) 关于删除项目保留记忆的决定不变，新 ADR 中引用它。
+- [x] 术语表中 Memory Entry 的定义改为反映用户级与项目级两个层级，只保留定义，不写存储字段与实现细节。
+- [x] ADR 索引新增一行；`pnpm run check:docs` 通过，并从 AGENTS.md、docs/README 到正文依次读回。
+- [x] 实际执行的检查与文档影响记入 Comments。
 
 ## Comments
 
 - 2026-11-19：用户确认 9 票的拆分及阻塞关系。本票发布到本地 Markdown tracker，尚未实施，验收项均未完成。
+- 2026-11-19：完成。新增 [ADR 0027](../../../docs/adr/0027-memory-follows-project-writes-without-approval.md)（status accepted，implementation not-started，category feature），含上下文、决定（记忆跟随项目归属；记忆操作不经审批及替代限制）、三个备选方案、后果、残余风险、重新审视条件与来源；区分用户明确要求与采纳的推荐，正文不链接任务材料。文档影响：ADR 0020 的 description、“归属与工作目录分离”条目与“来源与后继”指向 ADR 0027 并写明局部替代范围（批准、工作目录与 worktree 不变）；ADR 0005 的“来源与后继”按 ADR 0026 的先例补充 memory-write 放行的局部修订（票面未列，属同一决定的双向链接）；ADR 0022 未改动，由 ADR 0027 引用；[ADR 索引](../../../docs/adr/README.md) 新增 0027 一行；[术语表](../../../GLOSSARY.md) 的 Memory Entry 改为用户级与项目级两个层级。检查：`pnpm run check:docs` 通过（409 个 Markdown 文件，0 个问题）；从 AGENTS.md → docs/README.md → docs/adr/README.md → ADR 0027 及 docs/README.md → GLOSSARY.md 读回。只改文档，未运行代码测试。
