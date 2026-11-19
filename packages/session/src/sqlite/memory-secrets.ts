@@ -1,6 +1,6 @@
 // Memory 与登记的 Secret 的 SQLite 仓库（迁移 v3；ADR 0003、0007）。
 import { randomUUID } from 'node:crypto'
-import { checkMemoryScope, MEMORY_SEARCH_LIMIT, notFound, searchTerms } from '../internal.ts'
+import { checkMemoryScope, MEMORY_SEARCH_LIMIT, notFound, rankSimilar, searchTerms, trigrams } from '../internal.ts'
 import type { Memory, MemoryInput, MemoryRepository, MemoryScope, MemorySearchOptions, SecretInfo, SecretRepository } from '../types.ts'
 import type { Connection } from './connection.ts'
 
@@ -63,6 +63,24 @@ export function createMemoryRepository(conn: Connection, options: { fts: boolean
       .map(toMemory)
   }
 
+  // FTS 取出至少共享一个片段的候选，重合比例在 JS 中计算。
+  // ponytail: 候选为全部共享片段的条目、每条重新切片，条目上千且正文很长时再改为在 SQL 中计数。
+  const similar = (text: string, filter: MemorySearchOptions = {}): Memory[] => {
+    const grams = trigrams(text)
+    if (!options.fts || grams.size === 0) return []
+    const candidates = conn
+      .all<MemoryRow>(
+        `SELECT m.* FROM memories_fts f JOIN memories m ON m.rowid = f.rowid
+         WHERE memories_fts MATCH ?3 AND (?1 IS NULL OR m.scope = ?1) AND (?2 IS NULL OR m.workspace_id = ?2)
+         ORDER BY m.updated_at DESC, m.rowid DESC`,
+        filter.scope ?? null,
+        filter.workspaceId ?? null,
+        [...grams].map(ftsPhrase).join(' OR '),
+      )
+      .map(toMemory)
+    return rankSimilar(grams, candidates, Math.max(1, Math.trunc(filter.limit ?? MEMORY_SEARCH_LIMIT)))
+  }
+
   const select = (id: string) => conn.get<MemoryRow>('SELECT * FROM memories WHERE id = ?', id)
   const requireMemory = (id: string): MemoryRow => {
     const row = select(id)
@@ -71,6 +89,7 @@ export function createMemoryRepository(conn: Connection, options: { fts: boolean
   }
   return {
     search: (query, filter) => later(() => conn.read(() => search(query, filter))),
+    similar: (text, filter) => later(() => conn.read(() => similar(text, filter))),
     list: (filter = {}) =>
       later(() =>
         conn.read(() =>

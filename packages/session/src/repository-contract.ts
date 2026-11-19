@@ -539,6 +539,31 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await ids('vitest')).toEqual([])
     })
 
+    it('Memory 相近：按三字符片段的重合程度排序，低于阈值与不足三个字符时没有结果，作用域过滤与 list 相同', async () => {
+      const { sessions, memories } = await open()
+      const [w1, w2] = [await sessions.registerWorkspace({ path: '/w1' }), await sessions.registerWorkspace({ path: '/w2' })]
+      const add = async (content: string, workspaceId?: string) => {
+        tick()
+        return memories.create({ scope: workspaceId ? 'workspace' : 'user', workspaceId: workspaceId ?? null, content, source: 'agent' })
+      }
+      const partial = await add('用户偏好 pnpm 而不是 npm')
+      const inW1 = await add('用户偏好使用 pnpm，不要用 npm 或 yarn', w1.id)
+      const inW2 = await add('用户偏好使用 PNPM，不要用 npm', w2.id)
+      // 只共享少数片段（“用户偏好”、“pnpm”）：低于阈值。
+      await add('用户偏好深色主题')
+      await add('Prefers pnpm over npm')
+      const ids = async (text: string, options?: Parameters<typeof memories.similar>[1]) => (await memories.similar(text, options)).map((m) => m.id)
+      const text = '用户偏好使用 pnpm，不要用 npm'
+      // 全部片段都出现的两条在前（同分时较新的在前），部分重合的在后。
+      expect(await ids(text)).toEqual([inW2.id, inW1.id, partial.id])
+      expect(await ids(text, { scope: 'workspace', workspaceId: w1.id })).toEqual([inW1.id])
+      expect(await ids(text, { scope: 'user' })).toEqual([partial.id])
+      expect(await ids(text, { limit: 1 })).toEqual([inW2.id])
+      expect(await ids('pn')).toEqual([])
+      expect(await ids('   ')).toEqual([])
+      expect(await ids('完全无关的一句话')).toEqual([])
+    })
+
     it('插件：upsert 新建为未批准、未启用；更新保留批准与启用；approve / setEnabled / delete；path 唯一，来源未知 invalid-input', async () => {
       const { plugins } = await open()
       const input = {
@@ -866,6 +891,7 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
         store.sessions.listChildren('s'),
         store.plugins.list(),
         store.memories.search('x'),
+        store.memories.similar('xyz'),
       ]) {
         await expect(attempt).rejects.toMatchObject({ name: 'StoreError', code: 'closed' })
       }

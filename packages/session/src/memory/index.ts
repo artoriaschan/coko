@@ -13,10 +13,12 @@ import {
   matchesTerms,
   MEMORY_SEARCH_LIMIT,
   notFound,
+  rankSimilar,
   recordRevisionConflict,
   revisionConflict,
   sameWorkspace,
   searchTerms,
+  trigrams,
   upgradeEntries,
 } from '../internal.ts'
 import { StoreError } from '../errors.ts'
@@ -384,6 +386,12 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         return listMemories(filter)
           .filter((memory) => matchesTerms(memory.content, terms))
           .slice(0, limit)
+      }),
+      // 内存实现没有索引：对全部条目计算片段重合。
+      similar: op((text: string, filter: MemorySearchOptions = {}) => {
+        const grams = trigrams(text)
+        if (grams.size === 0) return []
+        return rankSimilar(grams, listMemories(filter), Math.max(1, Math.trunc(filter.limit ?? MEMORY_SEARCH_LIMIT)))
       }),
       get: op((id: string) => memories.get(id)),
       create: op((input: MemoryInput) => {

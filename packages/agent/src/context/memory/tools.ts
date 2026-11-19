@@ -5,7 +5,7 @@ import { Type } from 'typebox'
 import type { PermissionClass } from '../../policy/decide.ts'
 import { DEFAULT_MAX_BYTES, truncateHead } from '../../tools/truncate.ts'
 import type { CokoTool } from '../../tools/types.ts'
-import { formatMemoryEntry, MEMORY_MAX_CHARS, MEMORY_SEARCH_LIMIT, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
+import { formatMemoryEntry, MEMORY_MAX_CHARS, MEMORY_SEARCH_LIMIT, memorySummary, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
 
 /** 可预期的失败（条目不存在、作用域不符、正文为空）：作为工具错误回给模型。 */
 export class MemoryToolError extends Error {
@@ -23,6 +23,8 @@ export interface MemoryPort {
    * 其中的引号、星号、括号与 NEAR 等按字面匹配。
    */
   search(query: string, options: { scope?: MemoryScope; limit: number }): Promise<MemoryEntry[]>
+  /** 与 text 相近的可见条目，按相近程度排序（由宿主判定，工具不重排），至多 limit 条；宿主不支持时为空数组。 */
+  similar(text: string, options: { scope?: MemoryScope; limit: number }): Promise<MemoryEntry[]>
   create(input: { scope: MemoryScope; content: string }): Promise<MemoryEntry>
   update(id: string, content: string): Promise<MemoryEntry>
   /** 返回被删除的条目。 */
@@ -38,10 +40,18 @@ const scopeSchema = (description: string) => Type.Union([Type.Literal('user'), T
 const query = Type.Optional(
   Type.String({ description: `Keywords to search for; entries containing every word are returned, most relevant first, at most ${MEMORY_SEARCH_LIMIT}` }),
 )
+const MEMORY_IDS_LIMIT = 20
+const ids = Type.Optional(
+  Type.Array(Type.String({ minLength: 1 }), {
+    minItems: 1,
+    maxItems: MEMORY_IDS_LIMIT,
+    description: `Ids of entries to read in full (at most ${MEMORY_IDS_LIMIT}); cannot be combined with query`,
+  }),
+)
 const contentField = Type.String({ minLength: 1, maxLength: MEMORY_MAX_CHARS, description: `The fact to remember, at most ${MEMORY_MAX_CHARS} characters` })
 const replaceId = Type.Optional(Type.String({ minLength: 1, description: 'Id of an existing entry to replace; omit to create a new entry' }))
 
-export const memoryListParameters = Type.Object({ scope: Type.Optional(scopeSchema('Only list entries of this scope (default: both)')), query })
+export const memoryListParameters = Type.Object({ scope: Type.Optional(scopeSchema('Only list entries of this scope (default: both)')), query, ids })
 
 export const memoryWriteParameters = Type.Object({
   content: contentField,
@@ -50,7 +60,7 @@ export const memoryWriteParameters = Type.Object({
 })
 
 // 没有项目（只有用户级记忆）时的参数：scope 没有 workspace 取值，memory_write 的 scope 缺省为 user。
-const userListParameters = Type.Object({ scope: Type.Optional(Type.Literal('user', { description: 'Only list entries of this scope' })), query })
+const userListParameters = Type.Object({ scope: Type.Optional(Type.Literal('user', { description: 'Only list entries of this scope' })), query, ids })
 const userWriteParameters = Type.Object({
   content: contentField,
   scope: Type.Optional(Type.Literal('user', { description: 'user (default): applies in every session (preferences of the user)' })),
@@ -66,7 +76,68 @@ export interface MemoryTool {
   permissionClass: PermissionClass
 }
 
+/** 新建后列出的相近条目上限。 */
+const SIMILAR_ON_CREATE = 3
+
+/** 新建条目后附在结果后的相近条目（不含新建的这条）；没有时为空串。查找失败时同样为空串：条目已保存，提示不挡住写入。 */
+async function similarNote(port: MemoryPort, created: MemoryEntry): Promise<string> {
+  // 多取一条：新建的这条自身必然相近。
+  const found = await port.similar(created.content, { limit: SIMILAR_ON_CREATE + 1 }).catch(() => [])
+  const similar = found.filter((e) => e.id !== created.id).slice(0, SIMILAR_ON_CREATE)
+  if (similar.length === 0) return ''
+  const lines = similar.map(
+    (e) =>
+      `- id: ${e.id}, scope: ${e.scope}, source: ${e.source === 'user' ? 'user (maintained by the user; you cannot change it)' : 'agent'}: ${memorySummary(e.content)}`,
+  )
+  return [
+    '',
+    'Similar existing entries:',
+    ...lines,
+    `If the new entry duplicates one of these, merge its content into that entry (memory_write with its id) and delete the new entry ${created.id} ` +
+      'with memory_delete. Entries with source "user" cannot be changed; if one overlaps, tell the user in your reply and decide whether to keep the new entry.',
+  ].join('\n')
+}
+
 const notFound = (id: string) => new MemoryToolError(`Memory entry ${id} not found`)
+
+type ListResult = { content: { type: 'text'; text: string }[]; details: undefined; untruncatedText?: string }
+
+const textResult = (text: string): ListResult => ({ content: [{ type: 'text', text }], details: undefined })
+
+/** 条目块的列表文字（前后可附说明），超出上限时截断。 */
+function listResult(entries: MemoryEntry[], { header = '', footer = '' } = {}): ListResult {
+  const original = header + entries.map(formatMemoryEntry).join('\n') + footer
+  const truncation = truncateHead(original)
+  if (!truncation.truncated) return textResult(truncation.content)
+  return { ...textResult(`${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]`), untruncatedText: original }
+}
+
+/** 按 id 读取全文：按给出的次序（去重），不可见（其他项目、没有项目时的 workspace）与不存在的 id 同样列为没有找到。 */
+async function listByIds(port: MemoryPort, ids: string[], scope: MemoryScope | undefined): Promise<ListResult> {
+  const visible = new Map((await port.list(scope ? { scope } : {})).map((e) => [e.id, e]))
+  const wanted = [...new Set(ids)]
+  const entries = wanted.flatMap((id) => visible.get(id) ?? [])
+  const absent = wanted.filter((id) => !visible.has(id))
+  const missing = absent.length > 0 ? `Memory entries not found: ${absent.join(', ')}.` : ''
+  if (entries.length === 0) return textResult(missing)
+  return listResult(entries, { footer: missing ? `\n\n${missing}` : '' })
+}
+
+/** 按关键词检索；严格匹配为空时退回相近条目（宿主没有 FTS5 时为空），第一行注明不是完全匹配。 */
+async function listByQuery(port: MemoryPort, keywords: string, scope: MemoryScope | undefined): Promise<ListResult> {
+  const options = { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT }
+  const matched = (await port.search(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+  if (matched.length > 0) return listResult(matched)
+  const similar = (await port.similar(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+  if (similar.length === 0) return textResult(`No memories match "${keywords}".`)
+  return listResult(similar, { header: `No exact match for "${keywords}"; showing similar entries instead:\n\n` })
+}
+
+/** 全部可见条目，新的在前。 */
+async function listAll(port: MemoryPort, scope: MemoryScope | undefined): Promise<ListResult> {
+  const entries = sortMemories(await port.list(scope ? { scope } : {}))
+  return entries.length === 0 ? textResult('No memories saved.') : listResult(entries)
+}
 
 function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryListParameters | typeof userListParameters, undefined> {
   return {
@@ -74,23 +145,16 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
     label: 'memory_list',
     description:
       `List saved memories (${project ? 'user-level and the current project' : 'user-level'}) with their ids, newest first. ` +
-      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}).`,
+      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}); ` +
+      'if no entry matches exactly, similar entries are returned and labelled as such. ' +
+      `Pass ids to read specific entries in full text (at most ${MEMORY_IDS_LIMIT}), e.g. entries shown only by their first line.`,
     parameters: project ? memoryListParameters : userListParameters,
     effect: 'read',
-    async execute(_toolCallId, { scope, query }) {
+    async execute(_toolCallId, { scope, query, ids }) {
       const keywords = query?.trim() ?? ''
-      let entries: MemoryEntry[]
-      if (keywords !== '') {
-        entries = (await port.search(keywords, { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT })).slice(0, MEMORY_SEARCH_LIMIT)
-        if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
-      } else {
-        entries = sortMemories(await port.list(scope ? { scope } : {}))
-        if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
-      }
-      const original = entries.map(formatMemoryEntry).join('\n')
-      const truncation = truncateHead(original)
-      const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
-      return { content: [{ type: 'text', text }], details: undefined, ...(truncation.truncated ? { untruncatedText: original } : {}) }
+      if (ids === undefined) return keywords === '' ? listAll(port, scope) : listByQuery(port, keywords, scope)
+      if (keywords !== '') throw new MemoryToolError('Pass either ids or query, not both')
+      return listByIds(port, ids, scope)
     },
   }
 }
@@ -116,7 +180,8 @@ function createWriteTool(port: MemoryPort, project: boolean): CokoTool<typeof me
       if (text === '') throw new MemoryToolError('Memory content is empty')
       if (id === undefined) {
         const memory = await port.create({ scope, content: text })
-        return { content: [{ type: 'text', text: `Remembered (id: ${memory.id}, scope: ${memory.scope}).` }], details: { action: 'created', memory } }
+        const result = `Remembered (id: ${memory.id}, scope: ${memory.scope}).${await similarNote(port, memory)}`
+        return { content: [{ type: 'text', text: result }], details: { action: 'created', memory } }
       }
       const existing = (await port.list()).find((e) => e.id === id)
       if (!existing) throw notFound(id)

@@ -1,4 +1,4 @@
-import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope } from '@coko/protocol'
+import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemoryTierCounts } from '@coko/protocol'
 import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
 import { IconPencil, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
@@ -16,7 +16,7 @@ const SEARCH_DEBOUNCE_MS = 200
 
 /**
  * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；按关键词搜索；用户级与项目记忆两组条目，
- * 查看、添加、编辑与删除。项目组跟随当前会话（草稿为所选项目）的项目归属，针对项目的主要 Workspace（ADR 0027）；
+ * 查看、添加、编辑与删除；每组标题下一行注入汇总（列表响应的 injection；没有条目的组与搜索时不显示）。项目组跟随当前会话（草稿为所选项目）的项目归属，针对项目的主要 Workspace（ADR 0027）；
  * 独立对话只有用户级一组，没有会话也没有所选项目时注明。
  */
 export function MemorySection() {
@@ -30,6 +30,7 @@ export function MemorySection() {
   const loadedFor = useStore(memoryStore, (s) => s.workspaceId)
   const memories = useStore(memoryStore, (s) => s.memories)
   const query = useStore(memoryStore, (s) => s.query)
+  const injection = useStore(memoryStore, (s) => s.injection)
 
   React.useEffect(() => {
     void memoryStore.getState().load(workspaceId)
@@ -38,7 +39,9 @@ export function MemorySection() {
     void configStore.getState().load(configWorkspaceId)
   }, [configWorkspaceId])
 
-  const current = loadedFor === (workspaceId ?? null) ? memories : []
+  const loaded = loadedFor === (workspaceId ?? null)
+  const current = loaded ? memories : []
+  const counts = loaded && query.trim() === '' ? injection : null
   const of = (scope: MemoryScope) => current.filter((m) => m.scope === scope)
   const emptyText = query.trim() === '' ? t('memory.empty') : t('memory.noMatches')
 
@@ -56,9 +59,15 @@ export function MemorySection() {
         <p className="text-ui-body text-muted-foreground">{t('memory.loadFailed')}</p>
       ) : (
         <>
-          <MemoryGroup scope="user" title={t('memory.user')} memories={of('user')} emptyText={emptyText} />
+          <MemoryGroup scope="user" title={t('memory.user')} memories={of('user')} counts={counts?.user} emptyText={emptyText} />
           {project ? (
-            <MemoryGroup scope="workspace" title={t('memory.project', { name: project.name })} memories={of('workspace')} emptyText={emptyText} />
+            <MemoryGroup
+              scope="workspace"
+              title={t('memory.project', { name: project.name })}
+              memories={of('workspace')}
+              counts={counts?.workspace}
+              emptyText={emptyText}
+            />
           ) : (
             activeSessionId === null && <p className="text-ui-small text-muted-foreground">{t('memory.noProject')}</p>
           )}
@@ -151,14 +160,33 @@ function MemoryToggle({ workspaceId }: { workspaceId: string | undefined }) {
 
 const failed = (t: ReturnType<typeof useI18n>['t']) => toast.error(t('memory.saveFailed'))
 
-function MemoryGroup({ scope, title, memories, emptyText }: { scope: MemoryScope; title: string; memories: readonly MemoryEntry[]; emptyText: string }) {
+function MemoryGroup({
+  scope,
+  title,
+  memories,
+  counts,
+  emptyText,
+}: {
+  scope: MemoryScope
+  title: string
+  memories: readonly MemoryEntry[]
+  counts: MemoryTierCounts | undefined
+  emptyText: string
+}) {
   const { t } = useI18n()
   const headingId = `memory-${scope}`
   return (
     <div className="flex flex-col gap-2" data-memory-list={scope}>
-      <h3 id={headingId} className="text-ui-body font-medium">
-        {title}
-      </h3>
+      <div className="flex flex-col gap-0.5">
+        <h3 id={headingId} className="text-ui-body font-medium">
+          {title}
+        </h3>
+        {counts && memories.length > 0 && (
+          <p data-memory-injection className="text-ui-small text-muted-foreground">
+            {t('memory.injection', counts)}
+          </p>
+        )}
+      </div>
       <SettingsCard>
         {memories.length === 0 ? (
           <p data-memory-empty className="px-4 py-3 text-ui-body text-muted-foreground">

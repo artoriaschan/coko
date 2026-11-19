@@ -1,8 +1,9 @@
 // /api/memories（路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加与经接口改正文的条目 source 为 user。
 // 新建 Workspace 条目须在项目的主要 Workspace 上（MemoryService 校验，400）；已有条目的读、改、删不受此限。
-// GET 带非空 query 时为检索（至多 20 条，按相关度；FTS5 不可用时按 updatedAt 倒序），否则为列表；scope 只留一种。
+// GET 带非空 query 时为检索（至多 20 条，按相关度；FTS5 不可用时按 updatedAt 倒序），否则为列表；scope 只留一种。不带 query 与 scope 的列表另有注入汇总。
 import { CreateMemoryRequest, MemoryListResponse, MemoryScope, UpdateMemoryRequest } from '@coko/protocol'
 import { Value } from 'typebox/value'
+import { memoryInjection } from '../../application/context/memory.ts'
 import type { Application } from '../../application/index.ts'
 import { AppError } from '../../application/errors.ts'
 import { body, domainRouter } from './shared.ts'
@@ -20,11 +21,12 @@ export function memoriesRoutes(app: Application) {
     const workspace = workspaceId(c.req.query('workspaceId'))
     const scope = scopeOf(c.req.query('scope'))
     const query = c.req.query('query')?.trim() ?? ''
-    const list =
-      query === ''
-        ? await memories.list(workspace, scope)
-        : await memories.search(query, { ...(workspace ? { workspaceId: workspace } : {}), ...(scope ? { scope } : {}) })
-    return c.json({ memories: list } satisfies MemoryListResponse)
+    if (query !== '')
+      return c.json({
+        memories: await memories.search(query, { ...(workspace ? { workspaceId: workspace } : {}), ...(scope ? { scope } : {}) }),
+      } satisfies MemoryListResponse)
+    const list = await memories.list(workspace, scope)
+    return c.json({ memories: list, ...(scope ? {} : { injection: memoryInjection(list, workspace) }) } satisfies MemoryListResponse)
   })
   r.post('/memories', async (c) => {
     const input = await body(c, CreateMemoryRequest)

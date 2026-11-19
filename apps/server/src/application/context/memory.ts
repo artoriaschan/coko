@@ -2,9 +2,17 @@
 // 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与
 // 本 Run 的项目记忆 Workspace（ContextScope.memoryWorkspaceId，ADR 0027；不属于项目时只有用户级，工具没有 workspace 作用域）；正文保存前经 redactText 脱敏（ADR 0004）；
 // 用户来源的条目模型不能替换或删除；新建 Workspace 条目只能在项目的主要 Workspace 上。
-import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
+import {
+  createMemoryTools,
+  MEMORY_SEARCH_LIMIT,
+  memorySection,
+  MemoryToolError,
+  tierMemories,
+  type MemoryEntry as AgentMemory,
+  type MemoryPort,
+} from '@coko/agent'
 import { redactText } from '@coko/logging'
-import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemorySource } from '@coko/protocol'
+import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryInjection, type MemoryScope, type MemorySource } from '@coko/protocol'
 import type { Memory } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { ContextContribution, ContextContributionOptions, ContextScope, MemoryStore, RuleTool } from './types.ts'
@@ -27,6 +35,9 @@ function checkContent(content: string): string {
   if (text.length > MEMORY_CONTENT_MAX) throw new AppError('bad-request', `Memory content exceeds ${MEMORY_CONTENT_MAX} characters`)
   return redactText(text)
 }
+
+type MemoryQueryOptions = { workspaceId?: string; scope?: MemoryScope; limit?: number }
+type MemoryFind = (query: string, filter: { scope?: MemoryScope; workspaceId?: string; limit: number }) => Promise<Memory[]>
 
 /** 改动条目时的可见范围：Workspace id 为用户级与该 Workspace，null 为只有用户级（没有项目的 Run），undefined 为不限（不校验归属）。 */
 type MemoryReach = string | null | undefined
@@ -57,18 +68,27 @@ export class MemoryService {
    * 按关键词检索可见的条目（与 list 相同的可见范围与 scope），至多 limit 条（缺省 MEMORY_SEARCH_LIMIT），按仓库的次序：
    * FTS5 可用时按相关度，否则按 updatedAt 倒序（ADR 0003 的降级）。查询只有空白时为空数组。
    */
-  async search(query: string, options: { workspaceId?: string; scope?: MemoryScope; limit?: number } = {}): Promise<MemoryEntry[]> {
+  async search(query: string, options: MemoryQueryOptions = {}): Promise<MemoryEntry[]> {
+    return this.#query((q, filter) => this.#store.memories.search(q, filter), query, options)
+  }
+
+  /** 与 text 相近的可见条目（与 search 相同的可见范围与 scope），按仓库给出的相近程度排序；仓库没有 FTS 时为空数组。 */
+  async similar(text: string, options: MemoryQueryOptions = {}): Promise<MemoryEntry[]> {
+    return this.#query((q, filter) => this.#store.memories.similar(q, filter), text, options)
+  }
+
+  async #query(find: MemoryFind, query: string, options: MemoryQueryOptions): Promise<MemoryEntry[]> {
     const { workspaceId, scope } = options
     await this.#checkFilter(workspaceId, scope)
     const limit = options.limit ?? MEMORY_SEARCH_LIMIT
     if (query.trim() === '' || limit < 1) return []
-    if (scope === 'user') return (await this.#store.memories.search(query, { scope: 'user', limit })).map(toEntry)
-    if (scope === 'workspace') return (await this.#store.memories.search(query, { scope: 'workspace', workspaceId: workspaceId!, limit })).map(toEntry)
-    if (workspaceId === undefined) return (await this.#store.memories.search(query, { scope: 'user', limit })).map(toEntry)
-    // 用户级与该 Workspace 一起排序：仓库的一次查询给出全库的次序（bm25 或 updatedAt），过滤掉其他 Workspace 的条目；
+    if (scope === 'user') return (await find(query, { scope: 'user', limit })).map(toEntry)
+    if (scope === 'workspace') return (await find(query, { scope: 'workspace', workspaceId: workspaceId!, limit })).map(toEntry)
+    if (workspaceId === undefined) return (await find(query, { scope: 'user', limit })).map(toEntry)
+    // 用户级与该 Workspace 一起排序：仓库的一次查询给出全库的次序（bm25、相近程度或 updatedAt），过滤掉其他 Workspace 的条目；
     // 过滤后不足 limit 而仓库可能还有更多时放大条数再查，使结果仍是全局次序的前 limit 条。
     for (let fetch = limit * 2; ; fetch *= 4) {
-      const found = await this.#store.memories.search(query, { limit: fetch })
+      const found = await find(query, { limit: fetch })
       const shown = found.filter((m) => visible(m, workspaceId))
       if (shown.length >= limit || found.length < fetch) return shown.slice(0, limit).map(toEntry)
     }
@@ -125,6 +145,20 @@ const visible = (m: Memory, workspaceId: string | undefined) => m.scope === 'use
 
 const toAgent = (m: MemoryEntry): AgentMemory => ({ id: m.id, scope: m.scope, source: m.source, content: m.content, updatedAt: m.updatedAt })
 
+/**
+ * 注入汇总（/api/memories 的列表）：entries 为 list(workspaceId) 的结果，即同一可见范围的 Run 的 Memory 段的输入，按同一套分层计数；
+ * 给出 workspaceId 时另有 workspace 一组。
+ */
+export function memoryInjection(entries: readonly MemoryEntry[], workspaceId: string | undefined): MemoryInjection {
+  const tiers = tierMemories(entries.map(toAgent))
+  const count = (scope: MemoryScope) => ({
+    full: tiers.full.filter((e) => e.scope === scope).length,
+    summary: tiers.summary.filter((e) => e.scope === scope).length,
+    omitted: tiers.omitted.filter((e) => e.scope === scope).length,
+  })
+  return { user: count('user'), ...(workspaceId === undefined ? {} : { workspace: count('workspace') }) }
+}
+
 /** 工具端口：限定在项目记忆 Workspace（省略时只有用户级）；可预期的失败转为 MemoryToolError（作为工具错误回给模型）。 */
 export function memoryPort(service: MemoryService, workspaceId: string | undefined): MemoryPort {
   const tool = async <T>(task: () => Promise<T>): Promise<T> => {
@@ -144,6 +178,12 @@ export function memoryPort(service: MemoryService, workspaceId: string | undefin
           await service.search(query, { ...(workspaceId ? { workspaceId } : {}), ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })
         ).map(toAgent),
       ),
+    similar: (text, options) =>
+      tool(async () =>
+        (
+          await service.similar(text, { ...(workspaceId ? { workspaceId } : {}), ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })
+        ).map(toAgent),
+      ),
     create: (input) =>
       tool(async () =>
         toAgent(await service.create({ scope: input.scope, ...(input.scope === 'workspace' ? { workspaceId } : {}), content: input.content, source: 'model' })),
@@ -159,6 +199,7 @@ const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools(
   {
     list: notConnected,
     search: notConnected,
+    similar: notConnected,
     create: notConnected,
     update: notConnected,
     delete: notConnected,
