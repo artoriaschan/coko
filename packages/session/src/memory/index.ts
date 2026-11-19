@@ -394,10 +394,10 @@ export function createMemoryStore(options: StoreOptions): SessionStore {
         memories.set(memory.id, memory)
         return memory
       }),
-      update: op((id: string, patch: { content: string }) => {
+      update: op((id: string, patch: { content: string; source?: string }) => {
         const memory = memories.get(id)
         if (!memory) throw notFound('memory', id)
-        Object.assign(memory, { content: patch.content, updatedAt: now() })
+        Object.assign(memory, { content: patch.content, source: patch.source ?? memory.source, updatedAt: now() })
         return memory
       }),
       delete: op((id: string) => {

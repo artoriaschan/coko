@@ -3,7 +3,7 @@ import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
 import { IconPencil, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useLists, useActiveWorkspaceId } from '../../app/chat.tsx'
+import { useActiveProject, useActiveWorkspaceId, useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { configStore } from '../../stores/config-store.ts'
@@ -15,13 +15,17 @@ const memoryClient = createMemoryClient()
 const SEARCH_DEBOUNCE_MS = 200
 
 /**
- * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；按关键词搜索；用户级与当前 Workspace 两组条目，
- * 查看、添加、编辑与删除。
+ * 设置页的 Memory 分区：记忆开关（全局 memory.enabled；项目关闭时注明）；按关键词搜索；用户级与项目记忆两组条目，
+ * 查看、添加、编辑与删除。项目组跟随当前会话（草稿为所选项目）的项目归属，针对项目的主要 Workspace（ADR 0027）；
+ * 独立对话只有用户级一组，没有会话也没有所选项目时注明。
  */
 export function MemorySection() {
   const { t } = useI18n()
-  const workspaceId = useActiveWorkspaceId()
-  const workspace = useLists((s) => s.workspaces.find((w) => w.id === workspaceId))
+  // 记忆开关读写的配置仍按活动 Workspace（项目设置可关闭记忆）。
+  const configWorkspaceId = useActiveWorkspaceId()
+  const activeSessionId = useChat((s) => s.activeSessionId)
+  const project = useActiveProject()
+  const workspaceId = project?.primaryWorkspaceId
   const status = useStore(memoryStore, (s) => s.status)
   const loadedFor = useStore(memoryStore, (s) => s.workspaceId)
   const memories = useStore(memoryStore, (s) => s.memories)
@@ -29,8 +33,10 @@ export function MemorySection() {
 
   React.useEffect(() => {
     void memoryStore.getState().load(workspaceId)
-    void configStore.getState().load(workspaceId)
   }, [workspaceId])
+  React.useEffect(() => {
+    void configStore.getState().load(configWorkspaceId)
+  }, [configWorkspaceId])
 
   const current = loadedFor === (workspaceId ?? null) ? memories : []
   const of = (scope: MemoryScope) => current.filter((m) => m.scope === scope)
@@ -44,17 +50,17 @@ export function MemorySection() {
         </h2>
         <p className="text-ui-small text-muted-foreground">{t('memory.description')}</p>
       </div>
-      <MemoryToggle workspaceId={workspaceId} />
+      <MemoryToggle workspaceId={configWorkspaceId} />
       <MemorySearch />
       {status === 'error' ? (
         <p className="text-ui-body text-muted-foreground">{t('memory.loadFailed')}</p>
       ) : (
         <>
           <MemoryGroup scope="user" title={t('memory.user')} memories={of('user')} emptyText={emptyText} />
-          {workspaceId !== undefined ? (
-            <MemoryGroup scope="workspace" title={t('memory.workspace', { name: workspace?.name ?? '' })} memories={of('workspace')} emptyText={emptyText} />
+          {project ? (
+            <MemoryGroup scope="workspace" title={t('memory.project', { name: project.name })} memories={of('workspace')} emptyText={emptyText} />
           ) : (
-            <p className="text-ui-small text-muted-foreground">{t('memory.noWorkspace')}</p>
+            activeSessionId === null && <p className="text-ui-small text-muted-foreground">{t('memory.noProject')}</p>
           )}
         </>
       )}

@@ -8,7 +8,7 @@ import { API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, writeCokoHome } from './sidecar-harness.ts'
 
 describe('上下文装配 seam', () => {
-  it('没有额外贡献时含基础提示与环境；COKO_HOME 不进入 bash 环境', async () => {
+  it('没有额外贡献时含基础提示、环境与 Memory 段；COKO_HOME 不进入 bash 环境', async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     // COKO_HOME 中有文件但没有指令文件（指令文件进入系统提示见 sidecar-instructions.test.ts）：请求不变。
@@ -38,9 +38,13 @@ describe('上下文装配 seam', () => {
     expect(requests).toHaveLength(2)
     for (const messages of requests) {
       const leading = messages[0]!
-      // 开头的系统消息含基础提示与稳定的环境。
+      // 开头的系统消息含基础提示、稳定的环境与 Memory 段（记忆默认开启，没有条目也注入）。
       expect(leading.role).toBe('system')
-      expect(leading.sections).toEqual({ 'coko.base': DEFAULT_SYSTEM_PROMPT, environment: expect.stringContaining('<environment>') })
+      expect(leading.sections).toEqual({
+        'coko.base': DEFAULT_SYSTEM_PROMPT,
+        environment: expect.stringContaining('<environment>'),
+        memory: expect.stringMatching(/^<memory>\n/),
+      })
       expect(messages.filter((m) => m.role === 'system')).toHaveLength(1)
     }
 

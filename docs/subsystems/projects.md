@@ -48,7 +48,7 @@ Finder 通过受控 preload IPC 调用 [openDirectory](../../apps/desktop/src/ma
 
 DELETE /api/projects/:id 返回 `{ sessionIds }`，包含保留的根会话及后代身份。[SessionService.removeProject](../../apps/server/src/application/sessions.ts) 先阻止目标项目的新建、移入、移出、分叉及成员会话的新 Run/子会话准入，等待已开始的归属写入，再递归读取成员并停止执行。[SessionRuns.stopAndWait](../../apps/server/src/application/session-runs.ts) 等待 Run 准备完成、请求取消，并等待实际 Run 及领域结束处理；前台和后台子代理都在目标集合中。此路径在子代理结束时保留未改动的 isolation worktree，不触发普通一次性子代理的自动目录回收。
 
-全部执行停止后，ProjectRepository 在一个事务中清空成员根会话的 projectId 并删除项目，包括已归档的成员。Session 身份、全部条目和父子关系、置顶及归档时间、Workspace、固定工作目录与 worktree 绑定、源文件与工作文件、Workspace 记忆及批准均保留；此操作不调用直接删除 Session 的清理路径。后台 Job 不被停止，仍可继续输出及写入文件；Schedule 的记录、启用状态和后续触发保留。
+全部执行停止后，ProjectRepository 在一个事务中清空成员根会话的 projectId 并删除项目，包括已归档的成员。Session 身份、全部条目和父子关系、置顶及归档时间、Workspace、固定工作目录与 worktree 绑定、源文件与工作文件、主要 Workspace 上的项目记忆及批准均保留；保留下来的会话从下一个 Run 起只有用户级记忆，用同一文件夹重新创建项目后，新项目的会话重新看到这些项目记忆（见 [Memory](memory.md#条目与作用域)）。此操作不调用直接删除 Session 的清理路径。后台 Job 不被停止，仍可继续输出及写入文件；Schedule 的记录、启用状态和后续触发保留。
 
 取消不能在 10 秒内完成，或结束处理失败时返回 409 session-busy、details.reason 为 stop-failed，项目和会话归属保留，已停止的执行不自动重启；准入锁释放，可重试。持久化删除失败也不提前更新界面。成功后列表 store 只移除项目和更新普通及归档会话的归属，保留会话内容、当前会话及独立置顶；普通列表、归档列表、置顶、搜索和归属栏消费同一份状态。旧的列表响应及晚到的 DTO 不能重新引入被删除项目，生成标题不被归属补丁覆盖。新对话草稿若选择了该项目，只清除项目与依赖的 Git 选择，保留文字、模型及附件。
 
@@ -106,7 +106,7 @@ PUT /api/sessions/:id/title 接受 title，校验字符串类型、非空及最�
 
 ## 移到项目与移出项目
 
-PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回更新后的 Session；仅允许根会话，目标项目不存在时拒绝。接口只写入项目归属，不追加条目，不改变最后记录时间、Workspace、工作目录、worktree 绑定和置顶时间。子会话的归属仍沿根会话派生。新的归属供后续 Run 查询；执行目录继续固定。
+PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回更新后的 Session；仅允许根会话，目标项目不存在时拒绝。接口只写入项目归属，不追加条目，不改变最后记录时间、Workspace、工作目录、worktree 绑定和置顶时间。子会话的归属仍沿根会话派生。新的归属供后续 Run 查询；执行目录继续固定。记忆跟随归属：下一个 Run 起使用目标项目主要 Workspace 上的项目记忆，移出后只有用户级；进行中的 Run 不变，原项目的记忆留在原 Workspace 上（见 [Memory](memory.md#条目与作用域)）。
 
 会话菜单的“移到项目”保留右箭头。共享 DropdownMenuStackedSubContent 经 portal 叠在父菜单上方，默认紧贴触发项右侧、顶部对齐；父表面的 4px 右内边距形成窄幅重叠。窗口边缘才翻转或平移，内容在可用高度内滚动。Escape 先关闭子菜单并把焦点还给父触发项，再次 Escape 关闭父菜单。子菜单支持项目名称搜索与当前项勾选；同名项目附带主要文件夹的目录名，搜索仍只匹配项目名称。
 
@@ -142,7 +142,7 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 
 ## 验证与相关设计
 
-- [删除项目 Sidecar 用例](../../tests/integration/sidecar-delete-project.test.ts)：根 Run 与后台子代理停止后才删除、未改动 isolation worktree 与父子记录跨重启保留、模型取消延迟导致的超时失败与重试、归属准入竞态、真实 Job 在删除后继续写入、Schedule 继续触发、Workspace 记忆与批准保留。
+- [删除项目 Sidecar 用例](../../tests/integration/sidecar-delete-project.test.ts)：根 Run 与后台子代理停止后才删除、未改动 isolation worktree 与父子记录跨重启保留、模型取消延迟导致的超时失败与重试、归属准入竞态、真实 Job 在删除后继续写入、Schedule 继续触发、主要 Workspace 上的项目记忆与批准保留。
 - [删除项目浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx)：指定文案与480×208几何、取消/关闭/Escape、焦点返回、待提交锁定、稳定目标、明暗主题和390px窗口、错误重试、当前会话与草稿附件保留。
 - [删除项目 Electron 用例](../../apps/desktop/e2e/project-delete.e2e.test.ts)：真实应用中删除项目、当前记录保留并回到“对话”、原身份跨重启继续发送与源文件保留。决定见 [ADR 0022](../adr/0022-project-removal-preserves-sessions.md)。
 

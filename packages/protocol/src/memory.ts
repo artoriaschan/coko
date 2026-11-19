@@ -9,7 +9,7 @@ export const MEMORY_CONTENT_MAX = 2000
 export const MemoryScope = Type.Union([Type.Literal('user'), Type.Literal('workspace')])
 export type MemoryScope = Static<typeof MemoryScope>
 
-/** 写入方：模型经 memory_write，或用户在设置中添加 / 编辑（编辑不改变原写入方）。 */
+/** 写入方：模型经 memory_write 新建，或用户在设置中添加；用户编辑后为 user，模型替换不改变。来源为 user 的条目模型不能替换或删除。 */
 export const MemorySource = Type.Union([Type.Literal('model'), Type.Literal('user')])
 export type MemorySource = Static<typeof MemorySource>
 
@@ -42,7 +42,7 @@ const Content = Type.String({ minLength: 1, description: `At most ${MEMORY_CONTE
 export const CreateMemoryRequest = Type.Object({ scope: MemoryScope, workspaceId: Type.Optional(Type.String({ minLength: 1 })), content: Content }, strict)
 export type CreateMemoryRequest = Static<typeof CreateMemoryRequest>
 
-/** PUT /api/memories/:id：只改正文；?workspaceId 给出时条目须属于用户级或该 Workspace。 */
+/** PUT /api/memories/:id：改正文，返回的条目 source 为 user；?workspaceId 给出时条目须属于用户级或该 Workspace。 */
 export const UpdateMemoryRequest = Type.Object({ content: Content }, strict)
 export type UpdateMemoryRequest = Static<typeof UpdateMemoryRequest>
 

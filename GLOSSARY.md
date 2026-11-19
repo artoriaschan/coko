@@ -242,8 +242,8 @@ _Avoid_: plugin、connector
 _Avoid_: env var、token、Credential（Credential 专指 Provider 的密钥）
 
 **Memory Entry**：
-跨 Session 保留、属于用户或某个 Workspace 的一条记忆，由模型或用户增删。
-_Avoid_: note、fact
+跨 Session 保留的一条记忆，分用户级与项目级：用户级对所有 Session 生效；项目级跟随 Project 的主要文件夹，只对当前属于该 Project 的 Session 生效；不属于任何 Project 的 Session 只有用户级记忆。由模型或用户增删。
+_Avoid_: note、fact、Workspace 记忆（项目级的旧称）
 
 **State Update**：
 Coko 告知 Agent 某项 Session 状态当前的值，例如 Todo List、Goal 的进度、Agent Team 的成员状态与当天日期；同一项状态较新的更新取代较早的。与 Host Notification 的区别是它记录值而不是发生过的事。中文称“状态更新”。

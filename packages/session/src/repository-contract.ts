@@ -490,6 +490,10 @@ export function describeRepositoryContract(name: string, openStore: OpenStore): 
       expect(await memories.update(user.id, { content: 'prefers pnpm 12' })).toMatchObject({ content: 'prefers pnpm 12', createdAt: 1_000, updatedAt: 1_030 })
       expect((await memories.list()).map((m) => m.id)).toEqual([user.id, b.id, a.id])
       expect(await memories.get(a.id)).toEqual(a)
+      // 省略 source 时保持原写入方；给出时与正文一起改。
+      expect((await memories.get(user.id))?.source).toBe('agent')
+      expect(await memories.update(b.id, { content: 'monorepo (pnpm)', source: 'user' })).toMatchObject({ content: 'monorepo (pnpm)', source: 'user' })
+      expect(await memories.get(b.id)).toMatchObject({ content: 'monorepo (pnpm)', source: 'user' })
 
       await memories.delete(a.id)
       expect(await memories.get(a.id)).toBeUndefined()

@@ -9,8 +9,8 @@ export { pathContains } from './rules.ts'
 
 /**
  * 权限类（M3 起，扩展 ADR 0005 的模式表）：宿主注册工具时给出（RegisterToolOptions.permissionClass），工具对象自身不能声明。
- * read / edit / bash 是内置工具的类；context-read（skill、memory_list、MCP 资源）所有模式放行；memory-write（规则组名 Memory）在
- * accept-edits 与 full-access 放行；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
+ * read / edit / bash 是内置工具的类；context-read（skill、memory_list、MCP 资源）所有模式放行；memory-write（规则组名 Memory）所有模式
+ * 放行（ADR 0027，含 read-only 与 plan；拒绝、询问规则与 Hook 仍先于模式生效）；external（mcp__*）只在 full-access 放行。session-state（只改 Session 自身的状态：Todo、Goal、
  * 停止后台任务）所有模式放行；plan-exit（提交计划）任何模式都询问，允许规则不能免掉，拒绝规则照常生效。M5：agent（派发子代理，
  * 规则组名 Agent，内容为子代理类型）所有模式放行，带 isolation 时只有 full-access 放行；automation（创建或修改定时任务，规则组名
  * Schedule）只在 full-access 放行。M6：lsp（语言服务器查询，规则组名 Lsp）按 file_path 与 read 同样判定（Read 的路径规则同样适用）；
@@ -254,24 +254,20 @@ const readable = (real: string, context: PermissionContext) =>
 
 function modeAllows(facts: Facts): boolean {
   const { category, call, context } = facts
-  if (category === 'context-read' || category === 'session-state' || category === 'team') return true
+  if (category === 'context-read' || category === 'memory-write' || category === 'session-state' || category === 'team') return true
   if (category === 'plan-exit') return false
   if (category === 'agent') return call.isolation !== true || context.mode === 'full-access'
   if (category === 'automation') return context.mode === 'full-access'
   const target = call.target
   const readInside = readsPath(category) && target !== undefined && readable(target.real, context)
   switch (context.mode) {
-    // plan（Plan Mode）的模式放行与 read-only 相同：只调研，写入、命令、MCP 与 memory-write 照常询问。
+    // plan（Plan Mode）的模式放行与 read-only 相同：只调研，写入、命令与 MCP 照常询问。
     case 'read-only':
     case 'plan':
     case 'default':
       return readInside
     case 'accept-edits':
-      return (
-        readInside ||
-        category === 'memory-write' ||
-        (category === 'write' && target !== undefined && context.writableRoots.some((root) => pathContains(root, target.real)))
-      )
+      return readInside || (category === 'write' && target !== undefined && context.writableRoots.some((root) => pathContains(root, target.real)))
     case 'full-access':
       return true
   }

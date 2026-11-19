@@ -82,7 +82,7 @@ it('环境在基础提示后，含当前目录、附加文件夹与宿主环境�
   expect(env).not.toContain('Date:')
   expect(sections[1]!.environment).toBe(env)
   // Draft scopes have no Session yet, but report the same default-model environment in system usage.
-  expect(draftUsage.body.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + env.length))
+  expect(draftUsage.body.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + env.length + sections[0]!.memory!.length))
   expect(sections[2]!.environment).toContain(`Workspace: ${tree.path}`)
   expect(sections[2]!.environment).toContain('Worktree: true')
   expect(sections[3]!.environment).toContain('Git repository: false')
@@ -139,16 +139,18 @@ it('更换模型后下一次请求的环境只改变 Model；草稿按缺省模�
     (body) => contentText(body.messages.find((message) => message.role === 'system')!.content).match(/<environment>[\s\S]*?<\/environment>/)![0],
   )
   expect(environments).toHaveLength(2)
+  // 记忆开启时 Memory 段（没有条目也有固定文本）同属 system。
+  const memory = contentText(bodies[0]!.messages.find((message) => message.role === 'system')!.content).match(/<memory>[\s\S]*?<\/memory>/)![0]
   expect(environments[0]).toContain('Model: environment-models/first-model')
   expect(environments[1]).toBe(environments[0]!.replace('first-model', 'second-model-long'))
   const draft = (await api.get(contextPaths.workspace(workspace.id))).body
-  expect(draft.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[0]!.length))
+  expect(draft.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[0]!.length + memory.length))
   const usage = (await api.get(contextPaths.session(session.id))).body
   // 已送达的宿主状态块也属于 system；直接从实际模型请求观察它们。
   const stateBlocks = bodies[1]!.messages.flatMap((message) =>
     message.role === 'user' ? [...contentText(message.content).matchAll(/<state_update name="[^"]+">[\s\S]*?<\/state_update>/g)].map((match) => match[0]) : [],
   )
   expect(stateBlocks).toHaveLength(1)
-  expect(usage.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[1]!.length + stateBlocks[0]!.length))
+  expect(usage.breakdown.system).toBe(charsToTokens(DEFAULT_SYSTEM_PROMPT.length + environments[1]!.length + memory.length + stateBlocks[0]!.length))
   expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
 })

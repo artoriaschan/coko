@@ -36,6 +36,11 @@ export interface ContextScope {
   sessionDirectory?: string
   /** Current model; draft scopes use the default model. */
   model?: { providerId: string; modelId: string; contextWindow?: number }
+  /**
+   * 项目记忆 Workspace（ADR 0027）：根 Session（草稿为所选项目）当前所属项目的主要 Workspace，与 Workspace 根同时取值；
+   * 不属于项目时省略，此时只有用户级记忆。
+   */
+  memoryWorkspaceId?: string
   /** Additional Project folders, inherited from the root Session by child Sessions. */
   additionalFolders?: readonly string[]
   /** 草稿（还没有 Session）时省略。 */
@@ -222,6 +227,8 @@ export interface ContextContributionOptions {
   mcp?: import('./mcp.ts').McpManager
   /** Memory 的存储；缺省时 Memory 为空贡献。 */
   memories?: MemoryStore
+  /** 只读记忆（无界面运行）：只注册 memory_list，不注册 memory_write 与 memory_delete。 */
+  memoryReadOnly?: boolean
   /** 后台任务（application/jobs.ts）；省略时 jobs 贡献为空。 */
   jobs?: import('../jobs.ts').JobService
   /** Goal（application/goals.ts）；省略时 goal 贡献为空。 */
@@ -252,4 +259,8 @@ export interface SessionEntryAccess {
 }
 
 /** Memory 贡献需要的存储部分：记忆仓库与 Workspace 查询。 */
-export type MemoryStore = { memories: SessionStore['memories']; sessions: Pick<SessionStore['sessions'], 'getWorkspace'> }
+export type MemoryStore = {
+  memories: SessionStore['memories']
+  sessions: Pick<SessionStore['sessions'], 'getWorkspace'>
+  projects: Pick<SessionStore['projects'], 'list'>
+}

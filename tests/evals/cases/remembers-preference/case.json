@@ -1,0 +1,30 @@
+{
+  "prompt": "From now on, always use pnpm instead of npm in every project of mine. Nothing else to do right now.",
+  "permissionMode": "default",
+  "faux": [
+    {
+      "content": [
+        {
+          "type": "toolCall",
+          "name": "memory_write",
+          "id": "m1",
+          "arguments": {
+            "content": "The user prefers pnpm over npm in all projects.",
+            "scope": "user"
+          }
+        }
+      ]
+    },
+    {
+      "content": "Noted: I'll use pnpm instead of npm from now on."
+    }
+  ],
+  "expect": {
+    "memory": {
+      "content": "/pnpm/",
+      "scope": "user"
+    },
+    "unchanged": ["package.json"],
+    "maxToolCalls": 3
+  }
+}

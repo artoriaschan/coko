@@ -156,6 +156,7 @@ describe('插件消费 seam（COKO_TEST_PLUGINS）', { timeout: 90_000 }, () => 
     expect((first as { sections?: unknown }[])[0]!.sections).toEqual({
       'coko.base': DEFAULT_SYSTEM_PROMPT,
       environment: expect.stringContaining('<environment>'),
+      memory: expect.stringMatching(/^<memory>\n/),
     })
     expect(h.stream.entries(sessionId).some((e) => e.kind === 'hook_run')).toBe(false)
     expect((await h.mcp()).servers).toEqual([])

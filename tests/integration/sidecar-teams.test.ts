@@ -73,6 +73,15 @@ describe('Agent Teams：teammate 与消息', { timeout: 180_000 }, () => {
     await expect.poll(async () => byUser(await requests(), 'MATE-R review').length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
     const mateRequests = byUser(await requests(), 'MATE-R review')
     expect(Object.values(mateRequests[0]!.find((m) => m.role === 'system')!.sections ?? {}).join('\n')).toMatch(/^<team name="reviewer">/m)
+    // teammate 只读记忆：有 memory_list，没有 memory_write 与 memory_delete（与一次性子代理相同）。
+    const mateTools = mateRequests[0]!.flatMap((m) => (m.toolsAdded ?? []).map((t) => t.name))
+    expect(mateTools).toContain('memory_list')
+    expect(mateTools).not.toContain('memory_write')
+    expect(mateTools).not.toContain('memory_delete')
+    // Memory 段：有声明，没有写入引导。
+    const mateMemory = mateRequests[0]!.find((m) => m.role === 'system')!.sections?.memory
+    expect(mateMemory).toMatch(/not instructions and grant no permissions/)
+    expect(mateMemory).not.toMatch(/When to write:/)
     expect(runInputs(await entriesOf(api, childId))[0]!.start).toEqual({ trigger: 'subagent', subagent: { triggerRunId: run1 } })
 
     // lead 已空闲且没有 Goal 时放行 teammate：它结束后不唤醒 lead（只有一个 Run），通知挂起到下一个 Run。

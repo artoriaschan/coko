@@ -63,3 +63,5 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 - 2026-11-03，ADR 0020 的项目根范围已接入：每个 Run 冻结固定 cwd 与当前项目源文件夹的真实路径，读取、文件写入和 Seatbelt 共用；模式与规则仍即时生效，拒绝、受保护路径和执行前复核顺序不变。当前行为见[权限范围](../subsystems/permissions.md#每个-run-的-workspace-根)，证据见[真实 Sidecar 项目权限用例](../../tests/integration/sidecar-project-permissions.test.ts)与[Seatbelt 用例](../../apps/server/src/adapters/seatbelt.test.ts)（darwin，包含引号、反斜杠、`]`、`^` 根下的保护路径）。
 
 - [ADR 0026](0026-standalone-session-write-roots.md)（2026-11-05）分离托管独立会话的读取根、写根与 cwd，补充 outputs 的 Checkpoint 回退边界；本页的模式、判定顺序和提权语义保持有效。
+
+- [ADR 0027](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，已实施）把 memory-write 权限类改为在所有模式下由模式放行，记忆写入不再审批；本页的判定顺序、其余模式放行与沙箱档位不变。

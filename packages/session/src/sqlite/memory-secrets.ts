@@ -115,7 +115,13 @@ export function createMemoryRepository(conn: Connection, options: { fts: boolean
       later(() =>
         conn.write(() => {
           requireMemory(id)
-          conn.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', patch.content, conn.now(), id)
+          conn.run(
+            'UPDATE memories SET content = ?, source = COALESCE(?, source), updated_at = ? WHERE id = ?',
+            patch.content,
+            patch.source ?? null,
+            conn.now(),
+            id,
+          )
           return toMemory(requireMemory(id))
         }),
       ),
