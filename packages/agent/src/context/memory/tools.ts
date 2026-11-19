@@ -105,7 +105,8 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
     label: 'memory_list',
     description:
       `List saved memories (${project ? 'user-level and the current project' : 'user-level'}) with their ids, newest first. ` +
-      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}). ` +
+      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}); ` +
+      'if no entry matches exactly, similar entries are returned and labelled as such. ' +
       `Pass ids to read specific entries in full text (at most ${MEMORY_IDS_LIMIT}), e.g. entries shown only by their first line.`,
     parameters: project ? memoryListParameters : userListParameters,
     effect: 'read',
@@ -113,6 +114,7 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
       const keywords = query?.trim() ?? ''
       let entries: MemoryEntry[]
       let missing = ''
+      let header = ''
       if (ids !== undefined) {
         if (keywords !== '') throw new MemoryToolError('Pass either ids or query, not both')
         // 可见范围由端口决定：不可见（其他项目、没有项目时的 workspace）与不存在的 id 同样列为没有找到。
@@ -123,13 +125,19 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
         if (absent.length > 0) missing = `Memory entries not found: ${absent.join(', ')}.`
         if (entries.length === 0) return { content: [{ type: 'text', text: missing }], details: undefined }
       } else if (keywords !== '') {
-        entries = (await port.search(keywords, { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT })).slice(0, MEMORY_SEARCH_LIMIT)
-        if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
+        const options = { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT }
+        entries = (await port.search(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+        if (entries.length === 0) {
+          // 严格匹配为空时退回相近条目（宿主没有 FTS5 时为空），第一行注明不是完全匹配。
+          entries = (await port.similar(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+          if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
+          header = `No exact match for "${keywords}"; showing similar entries instead:\n\n`
+        }
       } else {
         entries = sortMemories(await port.list(scope ? { scope } : {}))
         if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
       }
-      const original = entries.map(formatMemoryEntry).join('\n') + (missing ? `\n\n${missing}` : '')
+      const original = header + entries.map(formatMemoryEntry).join('\n') + (missing ? `\n\n${missing}` : '')
       const truncation = truncateHead(original)
       const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
       return { content: [{ type: 'text', text }], details: undefined, ...(truncation.truncated ? { untruncatedText: original } : {}) }
