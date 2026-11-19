@@ -7,6 +7,7 @@ import {
   MemoryListResponse,
   memoryPaths,
   type CapabilityConfigValues,
+  type MemoryInjection,
   type MemoryScope,
 } from '@coko/protocol'
 import { Type, type Static, type TSchema } from 'typebox'
@@ -47,7 +48,8 @@ export function createMemoryClient(fetchImpl: Fetch = (input, init) => fetch(inp
   }
   const scoped = (path: string, workspaceId?: string) => (workspaceId === undefined ? path : `${path}?workspaceId=${encodeURIComponent(workspaceId)}`)
   return {
-    list: async (workspaceId?: string) => (await call(MemoryListResponse, 'GET', scoped(memoryPaths.memories, workspaceId))).memories,
+    /** 用户级与该 Workspace 的条目及注入汇总。 */
+    list: (workspaceId?: string) => call(MemoryListResponse, 'GET', scoped(memoryPaths.memories, workspaceId)),
     /** 按关键词检索用户级与该 Workspace 的条目（至多 20 条，按相关度）。 */
     search: async (query: string, workspaceId?: string) =>
       (await call(MemoryListResponse, 'GET', apiPaths.memorySearch(query, workspaceId === undefined ? {} : { workspaceId }))).memories,
@@ -77,6 +79,8 @@ export interface MemoryState {
   query: string
   /** 用户级与该 Workspace 的条目：列表为 updatedAt 倒序，检索为相关度次序（都是 Sidecar 的次序）。 */
   memories: MemoryEntry[]
+  /** 完整列表时 Sidecar 给出的注入汇总；检索时为 null。 */
+  injection: MemoryInjection | null
 }
 
 export interface MemoryActions {
@@ -103,6 +107,7 @@ export function createMemoryStore(client: MemoryClient = createMemoryClient()): 
       workspaceId: null,
       query: '',
       memories: [],
+      injection: null,
       async load(workspaceId) {
         const request = ++latest
         set((state) => ({
@@ -111,10 +116,10 @@ export function createMemoryStore(client: MemoryClient = createMemoryClient()): 
         }))
         try {
           const query = get().query.trim()
-          const memories = query === '' ? await client.list(workspaceId) : await client.search(query, workspaceId)
-          if (request === latest) set({ status: 'ready', memories })
+          const { memories, injection = null } = query === '' ? await client.list(workspaceId) : { memories: await client.search(query, workspaceId) }
+          if (request === latest) set({ status: 'ready', memories, injection })
         } catch {
-          if (request === latest) set({ status: 'error', memories: [] })
+          if (request === latest) set({ status: 'error', memories: [], injection: null })
         }
       },
       async search(query) {

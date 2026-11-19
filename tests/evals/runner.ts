@@ -10,6 +10,7 @@ import {
   memoryPaths,
   permissionPaths,
   tracePaths,
+  type MemoryEntry,
   type MemoryListResponse,
   type ProviderFields,
   type TraceResponse,
@@ -24,8 +25,9 @@ import {
   startSidecar,
   tempDir,
   type ApprovalRequestEntry,
+  type SidecarDirs,
 } from '../integration/sidecar-harness.ts'
-import type { EvalCase } from './case.ts'
+import { fillMemoryIds, type EvalCase, type EvalSeededMemory } from './case.ts'
 import { judge } from './judge.ts'
 
 /** 真实模式的配置文件（COKO_EVAL_PROVIDER_CONFIG）：一个 Provider（与设置中保存的字段相同，不含密钥）与要用的模型 id。 */
@@ -68,6 +70,26 @@ async function snapshot(dir: string): Promise<Record<string, string>> {
   return Object.fromEntries(await Promise.all(files.map(async (path) => [relative(dir, path), await readFile(path, 'utf8')] as const)))
 }
 
+/**
+ * 预置记忆：faux 脚本在 Sidecar 启动时读取而条目 id 由服务端生成，所以先在同一数据目录启动一个 Sidecar，经记忆接口按次序新建条目
+ * （由旧到新，不写库文件），停下后再启动运行用例的 Sidecar。返回各条的 id。
+ */
+async function seedMemories(dirs: SidecarDirs, memories: EvalSeededMemory[]): Promise<string[]> {
+  const setup = await startSidecar({ dirs })
+  try {
+    const api = client(setup, await exchange(setup))
+    const ids: string[] = []
+    for (const { content } of memories) {
+      const res = await api.post(memoryPaths.memories, { scope: 'user', content })
+      if (res.status !== 201) throw new Error(`seeding memory #${ids.length} failed: ${res.status} ${JSON.stringify(res.body)}`)
+      ids.push((res.body as MemoryEntry).id)
+    }
+    return ids
+  } finally {
+    await setup.stop()
+  }
+}
+
 const DENY_FEEDBACK = 'This evaluation runs without a human: the request was denied. Continue without it.'
 
 /** Explicit candidate selection is limited to the Sidecar test hook; it never changes the runtime default. */
@@ -82,9 +104,11 @@ export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode, o
   const initial = await snapshot(workspace)
   const dirs = await sidecarDirs()
   const env: Record<string, string> = options.basePrompt ? { COKO_TEST_BASE_PROMPT: options.basePrompt } : {}
+  const ids = spec.memories?.length ? await seedMemories(dirs, spec.memories) : []
   if (mode.kind === 'faux') {
     // 有价格：报告中的 cost 按 pi-ai 的算法给出（与真实 Provider 相同）。
-    env.COKO_FAUX_SCRIPT = await fauxScript(root, { responses: spec.faux, price: { input: 1, output: 2 } }, '.faux.json')
+    const responses = fillMemoryIds(spec.faux, ids)
+    env.COKO_FAUX_SCRIPT = await fauxScript(root, { responses, price: { input: 1, output: 2 } }, '.faux.json')
   } else {
     await seedProviders(dirs, [mode.config.provider])
     env[credentialEnvName(mode.config.provider.id)] = mode.credential

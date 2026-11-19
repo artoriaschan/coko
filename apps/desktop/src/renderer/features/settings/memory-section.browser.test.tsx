@@ -1,9 +1,10 @@
 // Memory 分区的搜索框：输入停止 200 ms 后才检索（连续输入只发一次请求，带最后的词），清空时立即恢复列表；有内容时 Escape 只清空、
 // 不关闭设置，空框时 Escape 返回应用；检索没有结果时显示"没有匹配的记忆"。分组跟随项目归属（AC-26、AC-27）：项目对话与选了项目的草稿显示
 // “用户级”与“项目：<项目名>”两组，项目组的列表、检索与添加针对项目的主要 Workspace；独立对话只有用户级一组；没有会话时沿用提示。
+// 每组标题下一行注入汇总（AC-29）：来自列表响应的 injection，没有条目的组、搜索状态下不显示，增删改后随列表更新。
 // fetch 在测试中替换（memoryStore 每次请求时取全局 fetch）。
 import '../../styles.css'
-import type { MemoryEntry, Session } from '@coko/protocol'
+import type { MemoryEntry, MemoryInjection, Session } from '@coko/protocol'
 import { afterEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
@@ -31,7 +32,7 @@ const all = [memory('a', 'Prefers tabs'), memory('b', 'Uses docker compose')]
 afterEach(async () => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
-  memoryStore.setState({ query: '', memories: [], status: 'idle', workspaceId: null })
+  memoryStore.setState({ query: '', memories: [], injection: null, status: 'idle', workspaceId: null })
 })
 
 it('搜索框：防抖后检索一次、没有结果的提示、清空恢复列表、Escape 先清空再返回应用', async () => {
@@ -112,19 +113,33 @@ async function openMemory(
     theme?: 'light' | 'dark'
     sessions?: Session[]
     prepare?: (chat: ReturnType<typeof createFixtureChat>['chat']) => void
+    entries?: MemoryEntry[]
   } = {},
 ) {
   const requests: { method: string; url: string; body?: unknown }[] = []
-  const entries = [memory('u', 'Prefers tabs'), memory('c', 'coko uses pnpm', 'w-coko'), memory('p', 'pi uses npm', 'w-pi')]
+  const entries = options.entries ?? [memory('u', 'Prefers tabs'), memory('c', 'coko uses pnpm', 'w-coko'), memory('p', 'pi uses npm', 'w-pi')]
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
       if (!input.startsWith('/api/memories')) return json(404, { error: { code: 'not-found', message: 'not found' } })
       const method = init?.method ?? 'GET'
       requests.push({ method, url: input, ...(init?.body ? { body: JSON.parse(init.body as string) } : {}) })
-      if (method === 'POST') return json(201, { ...memory('new', 'x'), ...(JSON.parse(init!.body as string) as object), workspaceId: 'w-coko' })
-      const workspaceId = new URL(input, 'http://x').searchParams.get('workspaceId')
-      return json(200, { memories: entries.filter((m) => m.workspaceId === null || m.workspaceId === workspaceId) })
+      if (method === 'POST') {
+        const created = { ...memory(`new${entries.length}`, 'x'), ...(JSON.parse(init!.body as string) as object) } as MemoryEntry
+        entries.push({ ...created, workspaceId: created.workspaceId ?? null })
+        return json(201, created)
+      }
+      const params = new URL(input, 'http://x').searchParams
+      const workspaceId = params.get('workspaceId')
+      const visible = entries.filter((m) => m.workspaceId === null || m.workspaceId === workspaceId)
+      if (params.has('query')) return json(200, { memories: visible })
+      // 汇总的数值由 Sidecar 计算（见 sidecar-memory-injection）；这里第一条以全文、其余以摘要计。
+      const counts = (scope: string) => {
+        const n = visible.filter((m) => m.scope === scope).length
+        return { full: Math.min(n, 1), summary: Math.max(n - 1, 0), omitted: 0 }
+      }
+      const injection: MemoryInjection = { user: counts('user'), ...(workspaceId === null ? {} : { workspace: counts('workspace') }) }
+      return json(200, { memories: visible, injection })
     }),
   )
   await page.viewport(1280, 800)
@@ -152,7 +167,8 @@ async function openMemory(
   const group = (scope: string) => region.element().querySelector(`[data-memory-list="${scope}"]`)
   const titles = () => [...region.element().querySelectorAll('[data-memory-list] h3')].map((el) => el.textContent)
   const items = (scope: string) => [...(group(scope)?.querySelectorAll('[data-memory-id]') ?? [])].map((el) => el.getAttribute('data-memory-id'))
-  return { requests, region, group, titles, items, screen }
+  const injection = (scope: string) => group(scope)?.querySelector('[data-memory-injection]')?.textContent ?? null
+  return { requests, region, group, titles, items, injection, screen }
 }
 
 it('项目对话：用户级与“项目：<项目名>”两组，项目组的列表、检索与添加针对项目的主要 Workspace', async () => {
@@ -201,6 +217,38 @@ it('新对话草稿按所选项目显示项目组；没有项目的草稿只有�
   await blank.screen.unmount()
 })
 
+it('注入汇总：两组各一行，随添加更新；搜索时不显示，清空后恢复', async () => {
+  const { region, group, injection, screen } = await openMemory()
+  await expect.poll(() => injection('user')).toBe('1 in full · 0 summary only · 0 not injected')
+  expect(injection('workspace')).toBe('1 in full · 0 summary only · 0 not injected')
+
+  await region.getByRole('textbox', { name: 'Memory content' }).nth(1).fill('coko runs vitest')
+  await page.elementLocator(group('workspace')!).getByRole('button', { name: 'Add' }).click()
+  await expect.poll(() => injection('workspace')).toBe('1 in full · 1 summary only · 0 not injected')
+
+  const search = region.getByRole('searchbox', { name: 'Search memories' })
+  await search.fill('uses')
+  await expect.poll(() => [injection('user'), injection('workspace')]).toEqual([null, null])
+  await search.fill('')
+  await expect.poll(() => injection('user')).toBe('1 in full · 0 summary only · 0 not injected')
+  expect(injection('workspace')).toBe('1 in full · 1 summary only · 0 not injected')
+  await screen.unmount()
+})
+
+it('注入汇总：独立对话只有用户级一行；没有条目的组不显示', async () => {
+  const standalone: Session = { ...fixtureSessions[0]!, id: 's-solo', workspaceId: 'w-solo', projectId: null, title: 'Solo', updatedAt: 500 }
+  const solo = await openMemory({ sessions: [standalone, ...fixtureSessions], prepare: (chat) => chat.getState().openSession('s-solo') })
+  await expect.poll(() => solo.injection('user')).toBe('1 in full · 0 summary only · 0 not injected')
+  expect(solo.region.element().querySelectorAll('[data-memory-injection]')).toHaveLength(1)
+  await solo.screen.unmount()
+
+  const empty = await openMemory({ entries: [memory('u', 'Prefers tabs')] })
+  await expect.poll(() => empty.injection('user')).toBe('1 in full · 0 summary only · 0 not injected')
+  await expect.poll(() => empty.group('workspace')?.querySelector('[data-memory-empty]')).not.toBeNull()
+  expect(empty.injection('workspace')).toBeNull()
+  await empty.screen.unmount()
+})
+
 /** 经 canvas 把任意 CSS 颜色转为 sRGB，再按 WCAG 公式算相对亮度。 */
 function luminance(color: string) {
   const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
@@ -214,14 +262,16 @@ function luminance(color: string) {
 }
 
 it.each([
-  { locale: 'zh' as const, theme: 'dark' as const, user: '用户级', project: '项目：coko' },
-  { locale: 'en' as const, theme: 'light' as const, user: 'User', project: 'Project: coko' },
-])('$locale/$theme 分组标题来自字典且可读', async ({ locale, theme, user, project }) => {
-  const { group, titles, screen } = await openMemory({ locale, theme })
+  { locale: 'zh' as const, theme: 'dark' as const, user: '用户级', project: '项目：coko', summary: '全文注入 1 条 · 仅摘要 0 条 · 未注入 0 条' },
+  { locale: 'en' as const, theme: 'light' as const, user: 'User', project: 'Project: coko', summary: '1 in full · 0 summary only · 0 not injected' },
+])('$locale/$theme 分组标题与注入汇总来自字典且可读', async ({ locale, theme, user, project, summary }) => {
+  const { group, titles, injection, screen } = await openMemory({ locale, theme })
   await expect.poll(titles).toEqual([user, project])
-  const heading = group('workspace')!.querySelector('h3')!
-  const background = getComputedStyle(document.body).backgroundColor
-  const [a, b] = [luminance(getComputedStyle(heading).color), luminance(background)].sort((x, y) => y - x)
-  expect((a! + 0.05) / (b! + 0.05)).toBeGreaterThanOrEqual(4.5)
+  await expect.poll(() => injection('workspace')).toBe(summary)
+  const background = luminance(getComputedStyle(document.body).backgroundColor)
+  for (const selector of ['h3', '[data-memory-injection]']) {
+    const [a, b] = [luminance(getComputedStyle(group('workspace')!.querySelector(selector)!).color), background].sort((x, y) => y - x)
+    expect((a! + 0.05) / (b! + 0.05)).toBeGreaterThanOrEqual(4.5)
+  }
   await screen.unmount()
 })
