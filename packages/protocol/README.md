@@ -73,7 +73,7 @@ Sidecar → 宿主：`starting`、`ready { port, token }`、`fatal { code, messa
 | `plugins` | `/api/plugins` | 插件（`pluginPaths`） |
 | `lsp` | `/api/lsp` | 语言服务器状态（`lspPaths`） |
 | `mcpPresets` | `/api/mcp/presets` | GET MCP 预设（如浏览器） |
-| `memories` | `/api/memories` | Memory 列表；`?query=` 时为检索（`apiPaths.memorySearch`） |
+| `memories` | `/api/memories` | Memory 列表（不带 `query` 与 `scope` 时另有注入汇总 `injection`）；`?query=` 时为检索（`apiPaths.memorySearch`） |
 
 带参数的路径按领域文件导出（函数返回已编码的路径）：
 
