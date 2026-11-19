@@ -5,7 +5,7 @@ import { Type } from 'typebox'
 import type { PermissionClass } from '../../policy/decide.ts'
 import { DEFAULT_MAX_BYTES, truncateHead } from '../../tools/truncate.ts'
 import type { CokoTool } from '../../tools/types.ts'
-import { formatMemoryEntry, MEMORY_MAX_CHARS, MEMORY_SEARCH_LIMIT, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
+import { formatMemoryEntry, MEMORY_MAX_CHARS, MEMORY_SEARCH_LIMIT, memorySummary, sortMemories, type MemoryEntry, type MemoryScope } from './section.ts'
 
 /** 可预期的失败（条目不存在、作用域不符、正文为空）：作为工具错误回给模型。 */
 export class MemoryToolError extends Error {
@@ -23,6 +23,8 @@ export interface MemoryPort {
    * 其中的引号、星号、括号与 NEAR 等按字面匹配。
    */
   search(query: string, options: { scope?: MemoryScope; limit: number }): Promise<MemoryEntry[]>
+  /** 与 text 相近的可见条目，按相近程度排序（由宿主判定，工具不重排），至多 limit 条；宿主不支持时为空数组。 */
+  similar(text: string, options: { scope?: MemoryScope; limit: number }): Promise<MemoryEntry[]>
   create(input: { scope: MemoryScope; content: string }): Promise<MemoryEntry>
   update(id: string, content: string): Promise<MemoryEntry>
   /** 返回被删除的条目。 */
@@ -72,6 +74,27 @@ export const memoryDeleteParameters = Type.Object({
 export interface MemoryTool {
   tool: CokoTool
   permissionClass: PermissionClass
+}
+
+/** 新建后列出的相近条目上限。 */
+const SIMILAR_ON_CREATE = 3
+
+/** 新建条目后附在结果后的相近条目（不含新建的这条）；没有时为空串。 */
+async function similarNote(port: MemoryPort, created: MemoryEntry): Promise<string> {
+  // 多取一条：新建的这条自身必然相近。
+  const similar = (await port.similar(created.content, { limit: SIMILAR_ON_CREATE + 1 })).filter((e) => e.id !== created.id).slice(0, SIMILAR_ON_CREATE)
+  if (similar.length === 0) return ''
+  const lines = similar.map(
+    (e) =>
+      `- id: ${e.id}, scope: ${e.scope}, source: ${e.source === 'user' ? 'user (maintained by the user; you cannot change it)' : 'agent'}: ${memorySummary(e.content)}`,
+  )
+  return [
+    '',
+    'Similar existing entries:',
+    ...lines,
+    `If the new entry duplicates one of these, merge its content into that entry (memory_write with its id) and delete the new entry ${created.id} ` +
+      'with memory_delete. Entries with source "user" cannot be changed; if one overlaps, tell the user in your reply and decide whether to keep the new entry.',
+  ].join('\n')
 }
 
 const notFound = (id: string) => new MemoryToolError(`Memory entry ${id} not found`)
@@ -135,7 +158,8 @@ function createWriteTool(port: MemoryPort, project: boolean): CokoTool<typeof me
       if (text === '') throw new MemoryToolError('Memory content is empty')
       if (id === undefined) {
         const memory = await port.create({ scope, content: text })
-        return { content: [{ type: 'text', text: `Remembered (id: ${memory.id}, scope: ${memory.scope}).` }], details: { action: 'created', memory } }
+        const result = `Remembered (id: ${memory.id}, scope: ${memory.scope}).${await similarNote(port, memory)}`
+        return { content: [{ type: 'text', text: result }], details: { action: 'created', memory } }
       }
       const existing = (await port.list()).find((e) => e.id === id)
       if (!existing) throw notFound(id)

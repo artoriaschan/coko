@@ -7,6 +7,7 @@ export {
   MEMORY_SECTION_BUDGET,
   MEMORY_SECTION_NAME,
   memorySection,
+  memorySummary,
   sortMemories,
 } from './section.ts'
 export type { MemoryEntry, MemoryScope, MemorySectionOptions, MemorySource } from './section.ts'

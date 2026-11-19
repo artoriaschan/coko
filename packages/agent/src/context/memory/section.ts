@@ -32,6 +32,21 @@ export function formatMemoryEntry(entry: MemoryEntry): string {
   return `<entry id="${entry.id}" scope="${entry.scope}" source="${entry.source === 'user' ? 'user' : 'agent'}">\n${escapeContent(entry.content)}\n</entry>`
 }
 
+/** 摘要的上限（UTF-16 码元）。 */
+export const MEMORY_SUMMARY_CHARS = 60
+
+/** 一条记忆的摘要：第一个非空行（去掉首尾空白）截到 60 个 UTF-16 码元，不截断代理对；被截断或另有后续内容时以省略号结尾。 */
+export function memorySummary(content: string): string {
+  const lines = content.split(/\r?\n/).map((line) => line.trim())
+  const first = lines.findIndex((line) => line !== '')
+  if (first < 0) return ''
+  const line = lines[first]!
+  const more = lines.slice(first + 1).some((rest) => rest !== '')
+  if (line.length <= MEMORY_SUMMARY_CHARS && !more) return line
+  const cut = line.slice(0, MEMORY_SUMMARY_CHARS)
+  return `${/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut}…`
+}
+
 export const sortMemories = (entries: readonly MemoryEntry[]): MemoryEntry[] => [...entries].sort((a, b) => b.updatedAt - a.updatedAt)
 
 /**
