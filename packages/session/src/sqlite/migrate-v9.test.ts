@@ -1,5 +1,5 @@
 // 迁移 v9：plugins 表、memories_fts（FTS5，触发器同步）、host_processes 重建（kind 增加 lsp）。v8 库打开后备份、原数据与登记行可读、
-// 新表为 STRICT；没有 FTS5（或宿主关闭）时检索走 LIKE。
+// 新表为 STRICT；没有 FTS5（或宿主关闭）时检索走 LIKE，相近查找没有结果。
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -122,5 +122,7 @@ describe('SQLite 迁移 v9', () => {
     // LIKE 的通配符按字面匹配。
     expect((await store.memories.search('50%_')).map((m) => m.id)).toEqual([b.id])
     expect(await store.memories.search('5%x')).toEqual([])
+    // 相近查找依赖 FTS：降级时没有结果。
+    expect(await store.memories.similar('Docker docker docker')).toEqual([])
   })
 })

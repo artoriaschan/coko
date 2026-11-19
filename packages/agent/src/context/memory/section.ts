@@ -9,8 +9,6 @@ export const MEMORY_MAX_CHARS = 2000
 export const MEMORY_SECTION_BUDGET = 12_000
 /** 摘要层的摘要行合计上限（字符，含每行的标签），独立于正文层。 */
 export const MEMORY_SUMMARY_BUDGET = 6000
-/** 摘要取正文第一个非空行的前多少字符（UTF-16 码元）。 */
-const SUMMARY_CHARS = 60
 /** memory_list 带 query 时至多返回的条数。 */
 export const MEMORY_SEARCH_LIMIT = 20
 /** system section 名（不像整数的稳定名）。 */
@@ -38,18 +36,24 @@ export function formatMemoryEntry(entry: MemoryEntry): string {
   return `<entry ${attributes(entry)}>\n${escapeContent(entry.content)}\n</entry>`
 }
 
-/**
- * 一条记忆的摘要行：正文第一个非空行（去掉首尾空白）截到 60 个 UTF-16 码元，不在代理对中间截断；
- * 截断或正文另有后续内容时以省略号结尾。
- */
+/** 摘要的上限（UTF-16 码元）。 */
+export const MEMORY_SUMMARY_CHARS = 60
+
+/** 一条记忆的摘要：第一个非空行（去掉首尾空白）截到 60 个 UTF-16 码元，不截断代理对；被截断或另有后续内容时以省略号结尾。 */
+export function memorySummary(content: string): string {
+  const lines = content.split(/\r?\n/).map((line) => line.trim())
+  const first = lines.findIndex((line) => line !== '')
+  if (first < 0) return ''
+  const line = lines[first]!
+  const more = lines.slice(first + 1).some((rest) => rest !== '')
+  if (line.length <= MEMORY_SUMMARY_CHARS && !more) return line
+  const cut = line.slice(0, MEMORY_SUMMARY_CHARS)
+  return `${/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut}…`
+}
+
+/** 一条记忆的摘要行（摘要层）：带 id、作用域与来源的 memorySummary，结束标签按正文相同的方式转义。 */
 export function formatMemorySummary(entry: MemoryEntry): string {
-  const lines = entry.content.split('\n')
-  const at = lines.findIndex((l) => l.trim() !== '')
-  const first = at < 0 ? '' : lines[at]!.trim()
-  let cut = Math.min(first.length, SUMMARY_CHARS)
-  if (cut < first.length && /[\uD800-\uDBFF]/.test(first[cut - 1]!)) cut -= 1
-  const more = cut < first.length || lines.slice(at + 1).some((l) => l.trim() !== '')
-  return `<summary ${attributes(entry)}>${escapeContent(first.slice(0, cut))}${more ? '…' : ''}</summary>`
+  return `<summary ${attributes(entry)}>${escapeContent(memorySummary(entry.content))}</summary>`
 }
 
 export const sortMemories = (entries: readonly MemoryEntry[]): MemoryEntry[] => [...entries].sort((a, b) => b.updatedAt - a.updatedAt)

@@ -11,6 +11,7 @@ import {
   MEMORY_SECTION_NAME,
   MEMORY_SUMMARY_BUDGET,
   memorySection,
+  memorySummary,
   MemoryToolError,
   tierMemories,
   type MemoryEntry,
@@ -359,6 +360,7 @@ describe('memorySection 的摘要层', () => {
 function fakePort(initial: MemoryEntry[] = []) {
   const entries = new Map(initial.map((e) => [e.id, { ...e }]))
   const searches: { query: string; options: unknown }[] = []
+  const similars: { text: string; options: unknown }[] = []
   let clock = 1000
   let next = 1
   const occurrences = (content: string, query: string) => content.toLowerCase().split(query.toLowerCase()).length - 1
@@ -371,6 +373,14 @@ function fakePort(initial: MemoryEntry[] = []) {
       return [...entries.values()]
         .filter((e) => (!options.scope || e.scope === options.scope) && occurrences(e.content, query) > 0)
         .sort((a, b) => occurrences(b.content, query) - occurrences(a.content, query))
+    },
+    // 相近：与新正文共享“pnpm”的条目（模拟存储层的判定），按 updatedAt 倒序，含刚新建的条目。
+    async similar(text, options) {
+      similars.push({ text, options })
+      return [...entries.values()]
+        .filter((e) => text.includes('pnpm') && e.content.includes('pnpm'))
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, options.limit)
     },
     async create(input) {
       const created: MemoryEntry = { id: `new-${next++}`, scope: input.scope, source: 'model', content: input.content, updatedAt: clock++ }
@@ -390,7 +400,7 @@ function fakePort(initial: MemoryEntry[] = []) {
       return { ...found }
     },
   }
-  return { port, entries, searches }
+  return { port, entries, searches, similars }
 }
 
 const tools = (port: MemoryPort) => Object.fromEntries(createMemoryTools(port, { project: true }).map((t) => [t.tool.name, t]))
@@ -418,6 +428,50 @@ describe('memory 工具', () => {
     expect(updated.details).toMatchObject({ action: 'updated', memory: { id: 'new-1', content: 'Uses pnpm 12' } })
     expect(text(updated)).toBe('Updated memory new-1.')
     expect([...entries.values()].map((e) => e.content)).toEqual(['Uses pnpm 12'])
+  })
+
+  it('memory_write 新建后列出相近的已有条目（至多 3 条，不含新建的这条），带 id、作用域、来源与摘要，并提示合并与删除', async () => {
+    const { port, similars } = fakePort([
+      entry('u1', 'user', '用户偏好 pnpm 而不是 npm', 4),
+      entry('w1', 'workspace', 'pnpm workspace protocol for internal packages\nsecond line', 3, 'user'),
+      entry('u2', 'user', `pnpm ${'x'.repeat(80)}`, 2),
+      entry('u3', 'user', 'pnpm is the oldest', 1),
+      entry('u4', 'user', 'Prefers tabs', 5),
+    ])
+    const { memory_write } = tools(port)
+    const created = await memory_write!.tool.execute('c1', { content: '用户偏好使用 pnpm，不要用 npm', scope: 'user' })
+    expect(created.details).toMatchObject({ action: 'created', memory: { id: 'new-1', content: '用户偏好使用 pnpm，不要用 npm' } })
+    expect(similars).toEqual([{ text: '用户偏好使用 pnpm，不要用 npm', options: { limit: 4 } }])
+    const lines = text(created).split('\n')
+    expect(lines[0]).toBe('Remembered (id: new-1, scope: user).')
+    expect(text(created)).not.toContain('- id: new-1')
+    expect(lines.filter((l) => l.startsWith('- '))).toEqual([
+      '- id: u1, scope: user, source: agent: 用户偏好 pnpm 而不是 npm',
+      '- id: w1, scope: workspace, source: user (maintained by the user; you cannot change it): pnpm workspace protocol for internal packages…',
+      `- id: u2, scope: user, source: agent: pnpm ${'x'.repeat(55)}…`,
+    ])
+    expect(text(created)).toMatch(/Similar existing entries/)
+    expect(text(created)).toMatch(/merge[\s\S]*memory_write with its id[\s\S]*delete the new entry new-1 with memory_delete/)
+    expect(text(created)).toMatch(/source "user"[\s\S]*tell the user/)
+  })
+
+  it('memory_write 没有相近条目时结果与原来相同；带 id 替换时不查找', async () => {
+    const { port, similars } = fakePort([entry('u1', 'user', 'Prefers tabs', 1)])
+    const { memory_write } = tools(port)
+    expect(text(await memory_write!.tool.execute('c1', { content: 'Answer in Chinese', scope: 'user' }))).toBe('Remembered (id: new-1, scope: user).')
+    // 端口只给出新建的这条（自身）时同样没有列表。
+    expect(text(await memory_write!.tool.execute('c2', { content: 'uses pnpm', scope: 'user' }))).toBe('Remembered (id: new-2, scope: user).')
+    expect(similars).toHaveLength(2)
+    expect(text(await memory_write!.tool.execute('c3', { content: 'uses pnpm 9', scope: 'user', id: 'new-2' }))).toBe('Updated memory new-2.')
+    expect(similars).toHaveLength(2)
+  })
+
+  it('memorySummary：第一个非空行截到 60 个 UTF-16 码元（不截断代理对），截断或另有内容时以省略号结尾', () => {
+    expect(memorySummary('\n  Prefers tabs  \n')).toBe('Prefers tabs')
+    expect(memorySummary('a'.repeat(60))).toBe('a'.repeat(60))
+    expect(memorySummary('a'.repeat(61))).toBe(`${'a'.repeat(60)}…`)
+    expect(memorySummary('first\n\nsecond')).toBe('first…')
+    expect(memorySummary(`${'a'.repeat(59)}😀b`)).toBe(`${'a'.repeat(59)}…`)
   })
 
   it('memory_write 的 id 不存在、作用域不符或正文为空时报错，不改动条目', async () => {

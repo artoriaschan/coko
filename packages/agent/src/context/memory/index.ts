@@ -9,6 +9,7 @@ export {
   MEMORY_SECTION_NAME,
   MEMORY_SUMMARY_BUDGET,
   memorySection,
+  memorySummary,
   sortMemories,
   tierMemories,
 } from './section.ts'

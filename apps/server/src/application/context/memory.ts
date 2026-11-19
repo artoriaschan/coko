@@ -28,6 +28,9 @@ function checkContent(content: string): string {
   return redactText(text)
 }
 
+type MemoryQueryOptions = { workspaceId?: string; scope?: MemoryScope; limit?: number }
+type MemoryFind = (query: string, filter: { scope?: MemoryScope; workspaceId?: string; limit: number }) => Promise<Memory[]>
+
 /** 改动条目时的可见范围：Workspace id 为用户级与该 Workspace，null 为只有用户级（没有项目的 Run），undefined 为不限（不校验归属）。 */
 type MemoryReach = string | null | undefined
 
@@ -57,18 +60,27 @@ export class MemoryService {
    * 按关键词检索可见的条目（与 list 相同的可见范围与 scope），至多 limit 条（缺省 MEMORY_SEARCH_LIMIT），按仓库的次序：
    * FTS5 可用时按相关度，否则按 updatedAt 倒序（ADR 0003 的降级）。查询只有空白时为空数组。
    */
-  async search(query: string, options: { workspaceId?: string; scope?: MemoryScope; limit?: number } = {}): Promise<MemoryEntry[]> {
+  async search(query: string, options: MemoryQueryOptions = {}): Promise<MemoryEntry[]> {
+    return this.#query((q, filter) => this.#store.memories.search(q, filter), query, options)
+  }
+
+  /** 与 text 相近的可见条目（与 search 相同的可见范围与 scope），按仓库给出的相近程度排序；仓库没有 FTS 时为空数组。 */
+  async similar(text: string, options: MemoryQueryOptions = {}): Promise<MemoryEntry[]> {
+    return this.#query((q, filter) => this.#store.memories.similar(q, filter), text, options)
+  }
+
+  async #query(find: MemoryFind, query: string, options: MemoryQueryOptions): Promise<MemoryEntry[]> {
     const { workspaceId, scope } = options
     await this.#checkFilter(workspaceId, scope)
     const limit = options.limit ?? MEMORY_SEARCH_LIMIT
     if (query.trim() === '' || limit < 1) return []
-    if (scope === 'user') return (await this.#store.memories.search(query, { scope: 'user', limit })).map(toEntry)
-    if (scope === 'workspace') return (await this.#store.memories.search(query, { scope: 'workspace', workspaceId: workspaceId!, limit })).map(toEntry)
-    if (workspaceId === undefined) return (await this.#store.memories.search(query, { scope: 'user', limit })).map(toEntry)
-    // 用户级与该 Workspace 一起排序：仓库的一次查询给出全库的次序（bm25 或 updatedAt），过滤掉其他 Workspace 的条目；
+    if (scope === 'user') return (await find(query, { scope: 'user', limit })).map(toEntry)
+    if (scope === 'workspace') return (await find(query, { scope: 'workspace', workspaceId: workspaceId!, limit })).map(toEntry)
+    if (workspaceId === undefined) return (await find(query, { scope: 'user', limit })).map(toEntry)
+    // 用户级与该 Workspace 一起排序：仓库的一次查询给出全库的次序（bm25、相近程度或 updatedAt），过滤掉其他 Workspace 的条目；
     // 过滤后不足 limit 而仓库可能还有更多时放大条数再查，使结果仍是全局次序的前 limit 条。
     for (let fetch = limit * 2; ; fetch *= 4) {
-      const found = await this.#store.memories.search(query, { limit: fetch })
+      const found = await find(query, { limit: fetch })
       const shown = found.filter((m) => visible(m, workspaceId))
       if (shown.length >= limit || found.length < fetch) return shown.slice(0, limit).map(toEntry)
     }
@@ -144,6 +156,12 @@ export function memoryPort(service: MemoryService, workspaceId: string | undefin
           await service.search(query, { ...(workspaceId ? { workspaceId } : {}), ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })
         ).map(toAgent),
       ),
+    similar: (text, options) =>
+      tool(async () =>
+        (
+          await service.similar(text, { ...(workspaceId ? { workspaceId } : {}), ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })
+        ).map(toAgent),
+      ),
     create: (input) =>
       tool(async () =>
         toAgent(await service.create({ scope: input.scope, ...(input.scope === 'workspace' ? { workspaceId } : {}), content: input.content, source: 'model' })),
@@ -159,6 +177,7 @@ const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools(
   {
     list: notConnected,
     search: notConnected,
+    similar: notConnected,
     create: notConnected,
     update: notConnected,
     delete: notConnected,
