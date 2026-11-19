@@ -50,8 +50,6 @@ export interface SessionServiceOptions {
   attachments?: import('./attachments.ts').AttachmentStore
   clock?: ClockPort
   store: SessionStore
-  /** Explicit host override for base-prompt evaluation; normal operation uses the runtime default. */
-  basePrompt?: { text: string; version: string }
   registry: ModelRegistry
   hub: SessionHub
   runs: RunLauncher
@@ -162,7 +160,6 @@ export class SessionService {
       ...(options.attachments ? { attachments: options.attachments } : {}),
       store,
       ...(options.toolResultsRoot ? { toolResultsRoot: options.toolResultsRoot } : {}),
-      ...(options.basePrompt ? { basePrompt: options.basePrompt } : {}),
       registry: options.registry,
       hub: options.hub,
       runs: options.runs,

@@ -10,6 +10,8 @@ import { createContextAssembly, emptyContextAssembly } from './index.ts'
 import { contextUsage, usageContribution } from './usage.ts'
 
 const MIN = 60_000
+// Fixed-size base prompt (37 tokens): the expected breakdowns below must not move when the real prompt text changes.
+const basePrompt = 'x'.repeat(146)
 const scope = (trim: boolean): ContextScope => {
   const config = defaultCapabilityConfig()
   config.context.trimOldToolResults = trim
@@ -115,6 +117,7 @@ describe('contextUsage five categories', () => {
 
   it('classifies text, images, thinking, tool calls and tool results without usage', async () => {
     const result = await contextUsage({
+      basePrompt,
       context: emptyContextAssembly(),
       scope: scope(false),
       baseTools: createToolRegistry(),
@@ -152,6 +155,7 @@ describe('contextUsage five categories', () => {
     [42, { system: 38, prompt: 1, assistant: 1, thinking: 1, tools: 1 }],
   ])('allocates usage %i proportionally with deterministic rounding', async (tokens, expected) => {
     const result = await contextUsage({
+      basePrompt,
       context: emptyContextAssembly(),
       scope: scope(false),
       baseTools: createToolRegistry(),
@@ -184,13 +188,14 @@ describe('contextUsage five categories', () => {
         systemSections: async () => [{ name, text: 'abcd' }],
       })),
     })
-    const result = await contextUsage({ context, scope: scope(false), baseTools: createToolRegistry(), model: undefined, entries: [] })
+    const result = await contextUsage({ basePrompt, context, scope: scope(false), baseTools: createToolRegistry(), model: undefined, entries: [] })
     expect(result.breakdown).toEqual({ system: 42, prompt: 0, assistant: 0, thinking: 0, tools: 0 })
     expect(result.tokens).toBe(42)
   })
 
   it('counts compaction summaries as prompts and discards usage from summarized history', async () => {
     const result = await contextUsage({
+      basePrompt,
       context: emptyContextAssembly(),
       scope: scope(false),
       baseTools: createToolRegistry(),
@@ -216,7 +221,7 @@ describe('contextUsage five categories', () => {
     }
     baseTools.register(tool)
     const context = createContextAssembly({ cokoHome: '/h', config: new ConfigService(), contributions: [{ name: 'mcp', tools: async () => [{ tool }] }] })
-    const result = await contextUsage({ context, scope: scope(false), baseTools, model: undefined, entries: [] })
+    const result = await contextUsage({ basePrompt, context, scope: scope(false), baseTools, model: undefined, entries: [] })
     // The declaration JSON has 83 characters, rounded up to 21 tokens.
     expect(result.breakdown.tools).toBe(21)
     expect(result.tokens).toBe(58)
@@ -232,6 +237,7 @@ describe('contextUsage five categories', () => {
       execute: async () => ({ content: [{ type: 'text' as const, text: 'done' }], details: {} }),
     })
     const result = await contextUsage({
+      basePrompt,
       context: emptyContextAssembly(),
       scope: scope(false),
       baseTools,

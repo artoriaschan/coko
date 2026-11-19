@@ -38,3 +38,5 @@ TDD：先跑 `rtk pnpm run test tests/integration/sidecar-base-prompt.test.ts`�
 限制：真实模型各三次比较、真实提示缓存、Electron UI、构建产物和 CI 未验证；没有凭据时门槛未完成，不能将候选标为已取代默认提示。
 
 合并集成分支 `22796edf`（含 continue 与压缩补发）后复核：`rtk pnpm run test tests/integration/sidecar-base-prompt.test.ts tests/integration/sidecar-state-update-continue.test.ts` 为 2 文件、5 例通过；typecheck、check:docs（360 文件、0 问题）、diff-check 仍退出 0。共享 README 无冲突，保留两方说明。
+
+2026-11-19：用户指示“系统提示词切换到V2，移除V2标识”。候选文本去掉首行版本标识后成为 `DEFAULT_SYSTEM_PROMPT`；`BASE_PROMPT_V2`、`DEFAULT_SYSTEM_PROMPT_VERSION`、`COKO_TEST_BASE_PROMPT`、`run started.basePromptVersion` 以及评测的候选运行和 `COKO_EVAL_PROMPT_GATE` 门槛已移除。真实模型比较没有运行，“真实门槛”一项的验收不再适用而非通过；当前状态与未验证范围见 [ADR 0024](../../../docs/adr/0024-session-state-as-state-updates.md#实施状态与证据)。

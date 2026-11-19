@@ -70,7 +70,7 @@ export interface ContextUsageInput {
   /** Session 的条目；草稿为空。 */
   entries: readonly StoredEntry[]
   now?: () => number
-  /** Runtime base prompt; omitted in normal operation. */
+  /** Base prompt override; tests pass '' to isolate the other categories. */
   basePrompt?: string
   /** 自动压缩因连续失败暂停（压缩的熔断，SessionService.compactionPaused）；缺省 false。 */
   autoCompactPaused?: boolean

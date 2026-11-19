@@ -2,15 +2,7 @@ import { ArtifactService } from '../application/artifacts.ts'
 import { AttachmentStore } from '../application/attachments.ts'
 import { BranchService } from '../application/branches.ts'
 import { Context, Effect, FiberMap, Layer } from 'effect'
-import {
-  BASE_PROMPT_V2,
-  createCheckpointTracker,
-  createModelRegistry,
-  SESSION_ENTRY_PAYLOADS,
-  type SnapshotPort,
-  type ToolHooks,
-  type ToolRegistry,
-} from '@coko/agent'
+import { createCheckpointTracker, createModelRegistry, SESSION_ENTRY_PAYLOADS, type SnapshotPort, type ToolHooks, type ToolRegistry } from '@coko/agent'
 import { getLogger, REDACTED, registerSecretValues } from '@coko/logging'
 import { configureFileLogging, type FileLogging } from '@coko/logging/file'
 import type { SessionModel } from '@coko/protocol'
@@ -590,7 +582,6 @@ const AppLive = Layer.effect(
     const sessions: SessionService = new SessionService({
       attachments: new AttachmentStore(join(config.dataDir, 'attachments')),
       store,
-      ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2 } : {}),
       clock,
       registry,
       hub,
@@ -764,7 +755,6 @@ const AppLive = Layer.effect(
         assembly: context,
         sessions,
         cwd: worktrees.cwd,
-        ...(config.testBasePrompt ? { basePrompt: BASE_PROMPT_V2.text } : {}),
       }),
       memories,
       mcp,
