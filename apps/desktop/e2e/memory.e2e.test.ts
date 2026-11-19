@@ -1,4 +1,4 @@
-// Memory：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式审批），工具卡显示"已记住"；
+// Memory：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式不出审批卡，ADR 0027），工具卡显示"已记住"；
 // 设置的 Memory 分区按用户级与当前工作区分组列出它，编辑后标签变为手动添加，删除、手动添加与编辑生效，记忆开关写入全局配置；重新打开后读到
 // Sidecar 中的条目。
 // 搜索框按关键词过滤列表、Escape 清空恢复，明暗主题与键盘操作。
@@ -39,16 +39,13 @@ describe('Memory', () => {
     await composer.click()
     await composer.fill('remember the package manager')
     await composer.press('Enter')
-    // default 模式：memory_write 先审批。
-    const approval = window.locator('[data-slot="approval-card"]')
-    await approval.waitFor({ timeout: 30_000 })
-    expect(await approval.textContent()).toContain('This project uses pnpm')
-    await approval.getByRole('button', { name: /^(Allow once|允许一次)$/ }).click()
+    // default 模式：memory_write 直接执行，不出审批卡。
     const card = window.locator('[data-slot="tool-card"][data-tool="memory_write"]')
     await expect.poll(() => card.getAttribute('data-status'), { timeout: 30_000 }).toBe('done')
     await expect.poll(() => card.textContent()).toMatch(/(Remembered|已记住)/)
     expect(await card.textContent()).toContain('This project uses pnpm')
     await window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+    expect(await window.locator('[data-slot="approval-card"]').count()).toBe(0)
     for (const control of await window.locator('[data-slot="run-process-control"][aria-expanded="false"]:not(:disabled)').all()) await control.click()
     for (const header of await window.locator('[data-slot="process-group-header"][aria-expanded="false"]').all()) await header.click()
     await card.locator('button').first().click()

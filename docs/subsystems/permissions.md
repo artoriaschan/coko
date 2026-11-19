@@ -51,7 +51,7 @@ lifecycle: active
 | 权限类 | 工具 | 模式放行 |
 | --- | --- | --- |
 | context-read | skill、memory_list、list_mcp_resources、list_mcp_resource_templates、read_mcp_resource | 所有模式都放行 |
-| memory-write | memory_write、memory_delete（规则组名 `Memory`） | accept-edits 与 full-access |
+| memory-write | memory_write、memory_delete（规则组名 `Memory`） | 所有模式都放行（含 read-only 与 plan，[ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)）；拒绝与询问规则、PreToolUse Hook 照常先于模式生效，全局、Workspace 与项目设置中的 `Memory` 规则都可收紧。因不再询问，也不再建议“总是允许”规则；已保存的 `Memory` 允许规则保持有效但不起作用，不做清理 |
 | external | `mcp__<server>__<tool>`；没有给出类的 `mcp__` 名字同样按 external | 只有 full-access |
 | session-state（M4） | 只改本 Session 状态的工具：todo_write、create_goal、update_goal、job_kill | 所有模式都放行（含 read-only 与 plan） |
 | plan-exit（M4） | exit_plan_mode | 无：任何模式都询问且不建议规则，允许规则不生效 |
@@ -232,9 +232,9 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝�
 
 - [项目根的 Sidecar 协议用例](../../tests/integration/sidecar-project-permissions.test.ts)：附加根读取、模式写入、Run 快照、归属移动、子代理、worktree 来源排除、拒绝过滤、符号链接及 cwd 资源发现；其中 Seatbelt 用例仅在 darwin 运行。
 
-- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
+- `packages/agent/src/policy/decide.test.ts`：判定顺序、四种模式 × 工具类型、拒绝与询问规则在 full-access 下生效、受保护路径不被允许规则免除、建议规则；权限类（context-read、memory-write、external、session-state 在四种模式下的放行，memory-write 另含 plan 放行、询问与拒绝规则仍生效，plan-exit 在四种模式下都询问且允许规则不生效，plan 模式与 read-only 的判定相同、plan-exit 在 plan 中询问、`permission_mode` v1 → v2，`mcp__srv` 规则的匹配范围，未注册的 `mcp__` 名字被接受）与额外读取根。`policy/permission-class.test.ts`：权限类与读取根经运行时的权限 gate 生效，工具对象自身声明的类不生效；`tools/registry.test.ts`：注册时给出的类。
 - `packages/agent/src/policy/rules.test.ts`：bash 精确 / 前缀、复合命令拆分、命令替换与 50 个子命令上限、env 前缀剥离（含 `LD_PRELOAD` 不剥）、拒绝规则命中拆分后的子命令；gitignore 路径、`~/`、绝对路径。
-- `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`；`sidecar-context.test.ts` 覆盖经 `PUT /api/permissions` 写入 Memory、`memory_list` 与 MCP 资源工具的拒绝规则后生效。
+- `packages/agent/src/policy/decide.test.ts` 另覆盖规则工具名的大小写与别名（deny `bash(rm *)`、`Write(secret.txt)` 在 full-access 下生效）。`packages/agent/src/policy/execution-checks.test.ts`：目录工具的读取拒绝过滤、执行前复核（同批先建指向受保护文件的链接再 write）、缺失密钥不提交 `tool_exec`、提权须先被沙箱拒绝、暂停只改写被取消的审批、重新判定后重新询问；`tools/builtin/read-filter.test.ts`：grep、find、ls 的过滤。`sidecar-permissions.test.ts` 另覆盖规则工具名归一与 400 `unknown-tool`；`sidecar-context.test.ts` 覆盖经 `PUT /api/permissions` 写入 Memory、`memory_list` 与 MCP 资源工具的拒绝规则后生效；`sidecar-memory.test.ts` 覆盖记忆写入在 default、read-only、plan 下不经审批，全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入。
 - `packages/agent/src/policy/approvals.test.ts`、`reevaluate.test.ts`：运行时上的请求、允许一次、拒绝两种语义、同批顺序、停止、重新判定为 superseded。
 - `tests/integration/sidecar-mcp.test.ts`：真实 Sidecar 上 MCP 工具（external）在 default 下询问、Session 规则 `mcp__remote` 放行该 Server 的全部工具、full-access 免审批。
 - `tests/integration/sidecar-config.test.ts`：项目 deny 规则（小写工具名）在 full-access 下拒绝调用且优先于全局允许规则、改文件后下一个 Run 生效、项目 allow 不放行、读取接口的 `project`；`apps/desktop/e2e/config.e2e.test.ts`：Permissions 分区的只读项目规则。

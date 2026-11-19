@@ -21,7 +21,7 @@ Plan Mode 让 Agent 先调研与设计、由用户审阅计划后再动手。它
 
 ## 模式与进入退出
 
-- **判定。** 模式放行与 read-only 相同：Workspace 与额外读取根内的 read 组、context-read、session-state 放行；写入、bash、MCP、memory-write 照常询问。命令沙箱为 read-only，可写根为空，已批准的命令也不能写 Workspace。进入 plan 之前在较宽档位启动的 PTY Job 不接受 `job_input`（见 [PTY 与 stdin](execution.md#pty-与-stdin)）；非 PTY 的后台 Job 已在运行，切换模式不改变它的沙箱。判定顺序与规则不变，见 [权限判定与审批](permissions.md#模式)。
+- **判定。** 模式放行与 read-only 相同：Workspace 与额外读取根内的 read 组、context-read、session-state 与 memory-write（记忆写入不经审批，见 [ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)）放行；写入、bash、MCP 照常询问。命令沙箱为 read-only，可写根为空，已批准的命令也不能写 Workspace。进入 plan 之前在较宽档位启动的 PTY Job 不接受 `job_input`（见 [PTY 与 stdin](execution.md#pty-与-stdin)）；非 PTY 的后台 Job 已在运行，切换模式不改变它的沙箱。判定顺序与规则不变，见 [权限判定与审批](permissions.md#模式)。
 - **进入。** `PUT /api/sessions/:id/permission-mode { mode: 'plan' }` 或 `/plan [消息]`：提交 `permission_mode { mode: 'plan', prior }`，prior 为当时的模式；已处于 plan 时不再提交，prior 不变。`/plan 消息` 在切换后把消息作为普通提交（202 `{ runId }`），没有消息时 204。Shift+Tab 循环不含 plan，从 plan 按 Shift+Tab 回到 read-only。
 - **退出。** `/plan off` 与 Plan chip 的 × 回到 prior（没有记录时 default），不在 plan 时不提交；从 plan 选择其他模式即退出，不经审阅。`/plan` 在 Run 进行中以 `run-in-progress` 拒绝（模式菜单与 chip 照常可用）。
 - **状态。** `SessionPermissionsResponse` 在 plan 模式时带 `prior`；默认模式（`permissions.defaultMode`）只能是四档之一。分叉复制 `permission_mode` 条目，plan 模式的 Session 分叉后仍为 plan；`plan` 条目不随分叉复制。

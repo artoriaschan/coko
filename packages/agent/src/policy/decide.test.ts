@@ -210,11 +210,14 @@ describe('权限类（M3）', () => {
     expect(decide(pdf, ctx({ mode: 'full-access', rules: [rule('ask', 'Skill', 'pdf')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
   })
 
-  it('memory-write：只在 accept-edits 与 full-access 放行；规则组名 Memory', () => {
-    expect(MODES.map((mode) => decide(call('memory_write', 'memory-write'), allIn(mode)).behavior)).toEqual(['ask', 'ask', 'allow', 'allow'])
-    expect(decide(call('memory_delete', 'memory-write'), ctx())).toMatchObject({ behavior: 'ask', suggestions: [{ behavior: 'allow', tool: 'Memory' }] })
-    expect(decide(call('memory_delete', 'memory-write'), ctx({ rules: [rule('allow', 'memory')] })).behavior).toBe('allow')
+  it('memory-write：所有模式（含 plan）放行；询问与拒绝规则仍先于模式生效；规则组名 Memory', () => {
+    expect(MODES.map((mode) => decide(call('memory_write', 'memory-write'), allIn(mode)).behavior)).toEqual(['allow', 'allow', 'allow', 'allow'])
+    expect(decide(call('memory_delete', 'memory-write'), ctx({ mode: 'plan', writableRoots: [] })).behavior).toBe('allow')
+    expect(decide(call('memory_write', 'memory-write'), ctx({ rules: [rule('ask', 'Memory')] }))).toMatchObject({ behavior: 'ask', reason: 'ask-rule' })
     expect(decide(call('memory_write', 'memory-write'), ctx({ mode: 'full-access', rules: [rule('deny', 'Memory')] })).behavior).toBe('deny')
+    expect(decide(call('memory_delete', 'memory-write'), ctx({ mode: 'read-only', writableRoots: [], rules: [rule('deny', 'memory')] })).behavior).toBe('deny')
+    // 已保存的允许规则保持有效，不报错。
+    expect(decide(call('memory_delete', 'memory-write'), ctx({ rules: [rule('allow', 'memory')] })).behavior).toBe('allow')
     expect(canonicalRuleTool('memory')).toBe('Memory')
   })
 

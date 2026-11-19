@@ -56,7 +56,7 @@ lifecycle: active
 
 **只读的 Run。** 子 Session（子代理与 Teammate）与无界面运行（[headless](headless.md)）只注册 `memory_list`，不注册 `memory_write` 与 `memory_delete`；子 Session 另由子代理的固定排除集去掉这两个工具。
 
-memory-write 在 accept-edits 与 full-access 放行，default 与 read-only 询问；规则组名 `Memory`（例如 `Memory` 的 allow 或 deny 规则），见 [权限判定与审批](permissions.md)。审批对象为 memory_write 的正文、memory_delete 的 id。超过 2000 字符或作用域不合法在参数校验时失败（不执行）；id 不存在或不可见、按 id 替换时作用域不同、条目来源为用户、正文为空作为工具错误返回。
+memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR 0027](../adr/0027-memory-follows-project-writes-without-approval.md)），记忆的写入、替换与删除不出审批卡；想收紧时配置规则组 `Memory` 的询问或拒绝规则（全局、Workspace 或项目设置文件），PreToolUse Hook 照常生效，见 [权限判定与审批](permissions.md)。询问规则命中时审批对象为 memory_write 的正文、memory_delete 的 id；已保存的 `Memory` 允许规则保持有效但不起作用。超过 2000 字符或作用域不合法在参数校验时失败（不执行）；id 不存在或不可见、按 id 替换时作用域不同、条目来源为用户、正文为空作为工具错误返回。
 
 ## 开关
 
@@ -72,7 +72,7 @@ memory-write 在 accept-edits 与 full-access 放行，default 与 read-only 询
 ## 界面
 
 - **设置的 Memory 分区**：记忆开关（全局值；被项目设置关闭时注明）；搜索框（输入停止 200 ms 后检索，结果仍按两组显示、组内为检索次序，没有结果时"没有匹配的记忆"；清空时立即恢复列表；有内容时 Escape 只清空，空框时 Escape 返回应用；检索词保留在 store 中）；"用户级"与"工作区：名称"两组，每条显示正文与写入方（Agent 记下 / 手动添加；编辑 Agent 记下的条目并保存后为手动添加），可编辑与删除，每组底部可添加；字数显示与 2000 字符上限。没有会话时只显示用户级并提示先打开会话。
-- **工具卡**：memory_write 成功后标题为"已记住"或"已更新记忆"，memory_delete 为"已删除记忆"，memory_list 为"查看记忆"；等待审批与失败时为动作名（"记下记忆"、"删除记忆"）。
+- **工具卡**：memory_write 成功后标题为"已记住"或"已更新记忆"，memory_delete 为"已删除记忆"，memory_list 为"查看记忆"；执行中、被询问规则拦下等待审批与失败时为动作名（"记下记忆"、"删除记忆"）。
 - **工具详情**：成功写入、更新或删除后，字段区展示结果实际记录的操作、ID、范围和 Memory Entry 正文，保留宿主处理后的保存值；原始调用参数与完整结果/details 在“输入 / 输出”中可检查。列表、字段缺失及失败记录使用完整通用详情，不从列表文字推测条目或数量；展开不会再次读写记忆。
 
 ## 验证
@@ -81,11 +81,11 @@ memory-write 在 accept-edits 与 full-access 放行，default 与 read-only 询
 - `apps/server/src/application/context/memory.test.ts`：`MemoryService.search` 的全局次序与放大重查、scope 与校验。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/secrets-gate-memory-search.test.ts`：带 Credential 的条目经 HTTP 检索与 memory_list 的 query 返回时，响应体、工具结果、之后的模型请求、日志与 COKO_HOME 中没有明文。
-- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同 Workspace 新 Session 的 section 含条目、另一 Workspace 只有用户级、删除后不再注入、default 写入审批与 accept-edits 免审批、memory_list 免审批、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验；重启后条目仍在。
+- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同 Workspace 新 Session 的 section 含条目、另一 Workspace 只有用户级、删除后不再注入、写入与删除在 default、read-only、plan 下都不经审批、memory_list 免审批、`Memory` 的全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验；重启后条目仍在。
 - `tests/integration/secrets-gate-memory.test.ts`：回显 Credential 的错误文本经 memory_write 与接口写入后，memory 工具结果、接口响应、memories 表、注入的 section 与日志中没有明文。
 - `tests/integration/headless.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-teams.test.ts`：无界面运行、子代理与 Teammate 的请求中有 `memory_list`，没有 `memory_write` 与 `memory_delete`；Memory 段有声明，没有写入引导。
 - `packages/session` 的仓库契约测试：`memories.update` 给出 `source` 时与正文一起改，省略时保持原写入方（内存与 SQLite 实现）。
-- `apps/desktop/e2e/memory.e2e.test.ts`：审批后工具卡显示"已记住"，Memory 分区列出模型写入的条目，编辑后标签变为手动添加，删除、手动添加、编辑与开关生效；搜索框键盘输入后只列出匹配的条目、没有结果的提示、Escape 清空恢复列表，明暗主题下文字可读。
+- `apps/desktop/e2e/memory.e2e.test.ts`：default 模式下不出审批卡，工具卡显示"已记住"、详情可见正文，Memory 分区列出模型写入的条目，编辑后标签变为手动添加，删除、手动添加、编辑与开关生效；搜索框键盘输入后只列出匹配的条目、没有结果的提示、Escape 清空恢复列表，明暗主题下文字可读。
 - `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。
 
 ## 延伸阅读
