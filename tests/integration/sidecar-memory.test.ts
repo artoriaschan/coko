@@ -3,7 +3,7 @@
 // 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
 // 全局或项目设置中的 Memory 询问规则仍出审批卡、拒绝规则仍拒绝，PreToolUse Hook 的 deny 仍阻止写入；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
-// 注入预算分两级（项目级在前）；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
+// 注入预算分两级（项目级在前），每一级内用户来源在前（含用户编辑过的 Agent 条目），列表仍按更新时间倒序；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
 // 重启 Sidecar 后条目仍在。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -318,6 +318,41 @@ describe('Memory', () => {
     // 项目级放得下 3 条（第 4 条会超过 6 000），用户级在其后放 3 条（第 4 条会超过 12 000）；各自新的在前。
     expect(shown).toEqual(['P3', 'P2', 'P1', 'U3', 'U2', 'U1'])
     expect(section).toContain('2 more entries not shown; use memory_list with a query to search them.')
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('每一级内用户来源在前（含用户编辑过的 Agent 条目），超出预算时省略较旧的 Agent 条目；列表仍按更新时间倒序', { timeout: 120_000 }, async () => {
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const one = join(root, 'one')
+    await mkdir(one)
+    // 每条 Agent 条目约 2 040 字符（含标签）：用户来源两条之外只放得下 5 条。
+    const big = (i: number) => `A${i} ${'x'.repeat(1990)}`
+    const { sidecar, api, stream, requests } = await boot(dirs, root, 'order', [
+      { content: [toolCall('e1', 'memory_write', { content: 'Edited later', scope: 'user' })] },
+      { content: 'noted' },
+      ...Array.from({ length: 7 }, (_, i) => ({ content: [toolCall(`w${i}`, 'memory_write', { content: big(i), scope: 'user' })] })),
+      { content: 'noted' },
+      { content: 'ok' },
+    ])
+    const w1 = (await api.post(API_ROUTES.workspaces, { path: one })).body.id as string
+    const list = async () => ((await api.get(`${memoryPaths.memories}?workspaceId=${w1}`)).body.memories as MemoryEntry[]).map((m) => m.content.split(' ')[0])
+    // 最早的一条：用户手写。
+    expect((await api.post(memoryPaths.memories, { scope: 'user', content: 'Always answer in Chinese' })).status).toBe(201)
+    const a = await newSession(api, stream, w1)
+    await send(api, stream, a, 'remember this')
+    // AC-08：用户编辑 Agent 记下的条目，之后模型再写入一批更新的 Agent 条目（AC-07：合计超过预算）。
+    const agentEntry = ((await api.get(`${memoryPaths.memories}?workspaceId=${w1}`)).body.memories as MemoryEntry[]).find((m) => m.content === 'Edited later')!
+    expect((await api.put(memoryPaths.memory(agentEntry.id), { content: 'Edited by the user' })).body).toMatchObject({ source: 'user' })
+    await send(api, stream, a, 'remember more')
+
+    await send(api, stream, await newSession(api, stream, w1), 'hi')
+    const section = replay((await requests()).at(-1)!).sections.memory!
+    const shown = [...section.matchAll(/<entry [^>]*>\n(\S+)/g)].map((m) => m[1])
+    expect(shown).toEqual(['Edited', 'Always', 'A6', 'A5', 'A4', 'A3', 'A2'])
+    expect(section).toContain('2 more entries not shown; use memory_list with a query to search them.')
+    // 列表次序不变：按更新时间倒序。
+    expect(await list()).toEqual(['A6', 'A5', 'A4', 'A3', 'A2', 'A1', 'A0', 'Edited', 'Always'])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
