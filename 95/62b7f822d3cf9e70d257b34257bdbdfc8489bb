@@ -1,0 +1,21 @@
+packages/agent/src/context/memory/memory.test.ts
+  s_e563b3fac8279d::t_50812eae97de51 447-470
+tests/integration/sidecar-memory-approx.test.ts
+  s_e563b3fac8279d::t_14e167b2eb253d 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "9562b7f822d3cf9e70d257b34257bdbdfc8489bb",
+  "prompts": {},
+  "sessions": {
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
