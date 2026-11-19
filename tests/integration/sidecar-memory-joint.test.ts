@@ -30,10 +30,11 @@ async function session(api: Api, stream: Stream, workspaceId: string) {
 async function send(api: Api, stream: Stream, sessionId: string) {
   const before = stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
   expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })).status).toBe(202)
-  await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length > before, 60_000)
+  // 全量测试的负载下，预置的一个 Run 可能超过 60 秒。
+  await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length > before, 150_000)
 }
 
-it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', { timeout: 180_000 }, async () => {
+it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', { timeout: 240_000 }, async () => {
   const root = await tempDir()
   const folder = join(root, 'p')
   await mkdir(folder)
@@ -45,8 +46,8 @@ it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说
   const write = (id: string, scope: string, content: string) => ({ type: 'toolCall', name: 'memory_write', id, arguments: { scope, content } })
   const writes = [
     [write('target', 'user', TARGET)],
-    small.map((c, i) => write(`small${i}`, 'user', c)), // 一条消息中的多个调用，省去逐轮往返；小条目之间的次序无关紧要。
-    ...[0, 1, 2, 3, 4, 5].map((i) => [write(`u${i}`, 'user', `U${i} ${'x'.repeat(1900)}`)]),
+    small.map((c, i) => write(`small${i}`, 'user', c)), // 一条消息中的多个调用，省去逐轮往返；同一批内的次序与断言无关。
+    [0, 1, 2, 3, 4, 5].map((i) => write(`u${i}`, 'user', `U${i} ${'x'.repeat(1900)}`)),
     ...[0, 1, 2, 3].map((i) => [write(`p${i}`, 'workspace', `P${i} ${'x'.repeat(1900)}\nsecond paragraph`)]),
   ]
   const seedScript = await fauxScript(root, { responses: [...writes.map((content) => ({ content })), { content: 'seeded' }] }, 'seed.json')
