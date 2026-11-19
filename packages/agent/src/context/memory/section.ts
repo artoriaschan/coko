@@ -1,5 +1,5 @@
-// <memory> system section：固定的声明与（有写入工具时的）写入引导，以及用户级与当前项目（workspace 作用域）的条目（带来源，updatedAt 倒序，
-// 条目合计不超过 12 000 字符，超出注明数量）。固定部分是英文静态文本，不计入条目预算。
+// <memory> system section：固定的声明与（有写入工具时的）写入引导，以及当前项目（workspace 作用域，项目级，在前）与用户级的条目（带来源，各自 updatedAt 倒序，
+// 条目合计不超过 12 000 字符，项目级先占至多一半，超出注明数量）。固定部分是英文静态文本，不计入条目预算。
 import type { SystemSection } from '../../engine/types.ts'
 
 /** 单条记忆正文的上限（字符）。 */
@@ -64,18 +64,29 @@ export interface MemorySectionOptions {
 }
 
 /**
- * 组成 <memory> section（记忆开启时每个 Run 都有，没有条目也注入）：声明、写入引导（writable）、条目。条目按 updatedAt 倒序逐条加入，
- * 加入下一条会使条目合计超过预算时停止（不跳过较新的去放较旧的），其余注明数量，并提示用 memory_list 的 query 检索。
+ * 组成 <memory> section（记忆开启时每个 Run 都有，没有条目也注入）：声明、写入引导（writable）、条目。
+ * 条目预算分两级（每条含标签与一个换行计）：先按 updatedAt 倒序放项目级（workspace），至多预算的一半；再放用户级，至多预算减去项目级已用；
+ * 用户级全部放入仍有余量时，接着放尚未放入的项目级。每一级遇到放不下的条目即停止（不跳过较新的去放较旧的）。
+ * 没有项目级条目时用户级可用满预算。段内项目级在前、用户级在后；未放入的注明总数，并提示用 memory_list 的 query 检索。
  */
 export function memorySection(entries: readonly MemoryEntry[], options: MemorySectionOptions, budget = MEMORY_SECTION_BUDGET): SystemSection {
-  const blocks: string[] = []
+  const sorted = sortMemories(entries)
+  const queue = (scope: MemoryScope) => sorted.filter((e) => e.scope === scope).map(formatMemoryEntry)
+  const project = queue('workspace')
+  const user = queue('user')
+  const shown = { project: [] as string[], user: [] as string[] }
   let used = 0
-  for (const entry of sortMemories(entries)) {
-    const block = formatMemoryEntry(entry)
-    if (used + block.length + 1 > budget) break
-    blocks.push(block)
-    used += block.length + 1
+  // 从 from 的队首起逐条放入 to，直到条目合计会超过 limit；返回是否全部放入。
+  const fill = (from: string[], to: string[], limit: number) => {
+    while (from.length > 0 && used + from[0]!.length + 1 <= limit) {
+      used += from[0]!.length + 1
+      to.push(from.shift()!)
+    }
+    return from.length === 0
   }
+  fill(project, shown.project, Math.floor(budget / 2))
+  if (fill(user, shown.user, budget)) fill(project, shown.project, budget)
+  const blocks = [...shown.project, ...shown.user]
   const omitted = entries.length - blocks.length
   const lines = ['<memory>', DECLARATION]
   if (options.project) lines.push(PROJECT_SCOPE)
