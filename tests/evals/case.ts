@@ -2,6 +2,9 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { MemoryScope } from '@coko/protocol'
+import { Type, type Static } from 'typebox'
+import { Value } from 'typebox/value'
 
 export type EvalPermissionMode = 'read-only' | 'default' | 'accept-edits' | 'full-access'
 
@@ -14,6 +17,26 @@ export interface EvalExpect {
   maxToolCalls?: number
   /** 最后一个 Run 的结束状态；缺省 completed。 */
   status?: string
+  /** Run 结束后经记忆接口（GET /api/memories）读到的条目中，至少一条正文匹配 content（完整正文或 "/正则/"），给出 scope 时只看该作用域。 */
+  memory?: EvalMemoryExpect
+}
+
+const MemoryExpect = Type.Object({ content: Type.String({ minLength: 1 }), scope: Type.Optional(MemoryScope) }, { additionalProperties: false })
+export type EvalMemoryExpect = Static<typeof MemoryExpect>
+
+/** "/正则/" 的正则体；完整正文为 undefined。files 与 memory 共用。 */
+export const regexBody = (want: string) => /^\/(.+)\/$/s.exec(want)?.[1]
+
+/** expect.memory 的格式错误；空数组为合法。 */
+export function memoryExpectErrors(memory: unknown): string[] {
+  if (!Value.Check(MemoryExpect, memory)) return ['expect.memory: expected { content: string, scope?: "user" | "workspace" }']
+  const body = regexBody(memory.content)
+  try {
+    if (body !== undefined) new RegExp(body)
+  } catch (error) {
+    return [`expect.memory.content: invalid regular expression: ${(error as Error).message}`]
+  }
+  return []
 }
 
 export interface EvalCase {
@@ -34,6 +57,9 @@ export async function loadCases(dir = casesDir): Promise<{ dir: string; spec: Ev
   return Promise.all(
     names.sort().map(async (name) => {
       const spec = JSON.parse(await readFile(join(dir, name, 'case.json'), 'utf8')) as Omit<EvalCase, 'name'>
+      // ponytail: 只校验 memory；其余字段沿用类型断言，需要时再补。
+      const errors = spec.expect.memory === undefined ? [] : memoryExpectErrors(spec.expect.memory)
+      if (errors.length) throw new Error(`cases/${name}/case.json: ${errors.join('; ')}`)
       return { dir: join(dir, name), spec: { name, ...spec } }
     }),
   )
