@@ -4,10 +4,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, memoryPaths, type MemoryEntry } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { API_ROUTES, memoryPaths, type MemoryEntry } from '@coko/protocol'
+import { client, connect, exchange, fauxScript, openSession, sendAndWaitRun, sidecarDirs, startSidecar, tempDir, toolCall } from './sidecar-harness.ts'
+import { memorySection, type LoggedMessage } from './sidecar-memory-harness.ts'
 
-type Logged = { role: string; sections?: Record<string, string | null>; toolCallId?: string; isError?: boolean; content?: { text?: string }[] }
 const SUMMARY_NOTE = /only their first line[\s\S]*memory_list with its id in ids/
 
 it('摘要层：请求中各层的排列、摘要行的格式与信任边界，按 id 读出摘要层条目的全文', { timeout: 120_000 }, async () => {
@@ -39,23 +39,19 @@ it('摘要层：请求中各层的排列、摘要行的格式与信任边界，�
 
   const script = await fauxScript(root, {
     requestLog,
-    responses: [{ content: [{ type: 'toolCall', name: 'memory_list', id: 'read', arguments: { ids: [p0.id] } }] }, { content: 'ok' }],
+    responses: [{ content: [toolCall('read', 'memory_list', { ids: [p0.id] })] }, { content: 'ok' }],
   })
   const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
-  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
-  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
-  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
-  expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'hi' })).status).toBe(202)
-  await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'run_end'))
+  await sendAndWaitRun(api, stream, await openSession(api, stream, workspaceId), 'hi')
 
   const [first, second] = (await readFile(requestLog, 'utf8'))
     .split('\n')
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as Logged[])
-  const section = first!.map((m) => m.sections?.memory).find(Boolean)!
+    .map((line) => JSON.parse(line) as LoggedMessage[])
+  const section = memorySection(first!)
   const lines = section.split('\n')
   // 写入引导要求第一行能单独看懂（AC-11）。
   expect(section).toMatch(/first line of each memory a sentence that makes sense on its own/)

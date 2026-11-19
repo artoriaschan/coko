@@ -79,10 +79,11 @@ export interface MemoryTool {
 /** 新建后列出的相近条目上限。 */
 const SIMILAR_ON_CREATE = 3
 
-/** 新建条目后附在结果后的相近条目（不含新建的这条）；没有时为空串。 */
+/** 新建条目后附在结果后的相近条目（不含新建的这条）；没有时为空串。查找失败时同样为空串：条目已保存，提示不挡住写入。 */
 async function similarNote(port: MemoryPort, created: MemoryEntry): Promise<string> {
   // 多取一条：新建的这条自身必然相近。
-  const similar = (await port.similar(created.content, { limit: SIMILAR_ON_CREATE + 1 })).filter((e) => e.id !== created.id).slice(0, SIMILAR_ON_CREATE)
+  const found = await port.similar(created.content, { limit: SIMILAR_ON_CREATE + 1 }).catch(() => [])
+  const similar = found.filter((e) => e.id !== created.id).slice(0, SIMILAR_ON_CREATE)
   if (similar.length === 0) return ''
   const lines = similar.map(
     (e) =>
@@ -99,6 +100,45 @@ async function similarNote(port: MemoryPort, created: MemoryEntry): Promise<stri
 
 const notFound = (id: string) => new MemoryToolError(`Memory entry ${id} not found`)
 
+type ListResult = { content: { type: 'text'; text: string }[]; details: undefined; untruncatedText?: string }
+
+const textResult = (text: string): ListResult => ({ content: [{ type: 'text', text }], details: undefined })
+
+/** 条目块的列表文字（前后可附说明），超出上限时截断。 */
+function listResult(entries: MemoryEntry[], { header = '', footer = '' } = {}): ListResult {
+  const original = header + entries.map(formatMemoryEntry).join('\n') + footer
+  const truncation = truncateHead(original)
+  if (!truncation.truncated) return textResult(truncation.content)
+  return { ...textResult(`${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]`), untruncatedText: original }
+}
+
+/** 按 id 读取全文：按给出的次序（去重），不可见（其他项目、没有项目时的 workspace）与不存在的 id 同样列为没有找到。 */
+async function listByIds(port: MemoryPort, ids: string[], scope: MemoryScope | undefined): Promise<ListResult> {
+  const visible = new Map((await port.list(scope ? { scope } : {})).map((e) => [e.id, e]))
+  const wanted = [...new Set(ids)]
+  const entries = wanted.flatMap((id) => visible.get(id) ?? [])
+  const absent = wanted.filter((id) => !visible.has(id))
+  const missing = absent.length > 0 ? `Memory entries not found: ${absent.join(', ')}.` : ''
+  if (entries.length === 0) return textResult(missing)
+  return listResult(entries, { footer: missing ? `\n\n${missing}` : '' })
+}
+
+/** 按关键词检索；严格匹配为空时退回相近条目（宿主没有 FTS5 时为空），第一行注明不是完全匹配。 */
+async function listByQuery(port: MemoryPort, keywords: string, scope: MemoryScope | undefined): Promise<ListResult> {
+  const options = { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT }
+  const matched = (await port.search(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+  if (matched.length > 0) return listResult(matched)
+  const similar = (await port.similar(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
+  if (similar.length === 0) return textResult(`No memories match "${keywords}".`)
+  return listResult(similar, { header: `No exact match for "${keywords}"; showing similar entries instead:\n\n` })
+}
+
+/** 全部可见条目，新的在前。 */
+async function listAll(port: MemoryPort, scope: MemoryScope | undefined): Promise<ListResult> {
+  const entries = sortMemories(await port.list(scope ? { scope } : {}))
+  return entries.length === 0 ? textResult('No memories saved.') : listResult(entries)
+}
+
 function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryListParameters | typeof userListParameters, undefined> {
   return {
     name: 'memory_list',
@@ -112,35 +152,9 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
     effect: 'read',
     async execute(_toolCallId, { scope, query, ids }) {
       const keywords = query?.trim() ?? ''
-      let entries: MemoryEntry[]
-      let missing = ''
-      let header = ''
-      if (ids !== undefined) {
-        if (keywords !== '') throw new MemoryToolError('Pass either ids or query, not both')
-        // 可见范围由端口决定：不可见（其他项目、没有项目时的 workspace）与不存在的 id 同样列为没有找到。
-        const visible = new Map((await port.list(scope ? { scope } : {})).map((e) => [e.id, e]))
-        const wanted = [...new Set(ids)]
-        entries = wanted.flatMap((id) => visible.get(id) ?? [])
-        const absent = wanted.filter((id) => !visible.has(id))
-        if (absent.length > 0) missing = `Memory entries not found: ${absent.join(', ')}.`
-        if (entries.length === 0) return { content: [{ type: 'text', text: missing }], details: undefined }
-      } else if (keywords !== '') {
-        const options = { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT }
-        entries = (await port.search(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
-        if (entries.length === 0) {
-          // 严格匹配为空时退回相近条目（宿主没有 FTS5 时为空），第一行注明不是完全匹配。
-          entries = (await port.similar(keywords, options)).slice(0, MEMORY_SEARCH_LIMIT)
-          if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
-          header = `No exact match for "${keywords}"; showing similar entries instead:\n\n`
-        }
-      } else {
-        entries = sortMemories(await port.list(scope ? { scope } : {}))
-        if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
-      }
-      const original = header + entries.map(formatMemoryEntry).join('\n') + (missing ? `\n\n${missing}` : '')
-      const truncation = truncateHead(original)
-      const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
-      return { content: [{ type: 'text', text }], details: undefined, ...(truncation.truncated ? { untruncatedText: original } : {}) }
+      if (ids === undefined) return keywords === '' ? listAll(port, scope) : listByQuery(port, keywords, scope)
+      if (keywords !== '') throw new MemoryToolError('Pass either ids or query, not both')
+      return listByIds(port, ids, scope)
     },
   }
 }

@@ -6,19 +6,27 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, permissionPaths, type MemoryEntry } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type SidecarDirs, type Stream } from './sidecar-harness.ts'
+import {
+  client,
+  connect,
+  exchange,
+  fauxScript,
+  openSession,
+  sendAndWaitRun as send,
+  sidecarDirs,
+  startSidecar,
+  tempDir,
+  toolCall,
+  type SidecarDirs,
+  type Stream,
+} from './sidecar-harness.ts'
+import { ftsModes } from './sidecar-memory-harness.ts'
 
 type Api = ReturnType<typeof client>
 
 /** 结果中列出的相近条目行。 */
 const listed = (text: string) => text.split('\n').filter((line) => line.startsWith('- id: '))
-const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
 const write = (id: string, args: Record<string, unknown>) => ({ content: [toolCall(id, 'memory_write', args)] })
-
-const modes = [
-  { name: 'FTS5', env: {} as Record<string, string>, fts: true },
-  { name: '强制降级（COKO_TEST_NO_FTS=1）', env: { COKO_TEST_NO_FTS: '1' } as Record<string, string>, fts: false },
-]
 
 async function boot(dirs: SidecarDirs, root: string, name: string, env: Record<string, string>, responses: unknown[]) {
   const script = await fauxScript(root, { responses }, `${name}.json`)
@@ -28,18 +36,9 @@ async function boot(dirs: SidecarDirs, root: string, name: string, env: Record<s
 }
 
 async function open(api: Api, stream: Stream, workspaceId: string) {
-  const id = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+  const id = await openSession(api, stream, workspaceId)
   expect((await api.put(permissionPaths.sessionPermissionMode(id), { mode: 'accept-edits' })).status).toBe(200)
-  stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
-  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
   return id
-}
-
-const runEnds = (stream: Stream, id: string) => stream.entries(id).filter((e) => e.kind === 'run_end').length
-async function send(api: Api, stream: Stream, id: string, text: string) {
-  const before = runEnds(stream, id)
-  expect((await api.post(apiPaths.sessionMessages(id), { text })).status).toBe(202)
-  await stream.waitFor(() => runEnds(stream, id) > before)
 }
 
 /** 按 toolCallId 取工具结果的文字与 details。 */
@@ -56,7 +55,7 @@ function results(stream: Stream, id: string) {
 }
 
 describe('新建记忆时返回相近条目', () => {
-  it.each(modes)('$name', { timeout: 180_000 }, async ({ env, fts }) => {
+  it.each(ftsModes)('$name', { timeout: 180_000 }, async ({ env, fts }) => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const [p, q] = [join(root, 'p'), join(root, 'q')]

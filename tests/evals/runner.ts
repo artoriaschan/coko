@@ -79,8 +79,8 @@ async function seedMemories(dirs: SidecarDirs, memories: EvalSeededMemory[]): Pr
   try {
     const api = client(setup, await exchange(setup))
     const ids: string[] = []
-    for (const { content, scope = 'user' } of memories) {
-      const res = await api.post(memoryPaths.memories, { scope, content })
+    for (const { content } of memories) {
+      const res = await api.post(memoryPaths.memories, { scope: 'user', content })
       if (res.status !== 201) throw new Error(`seeding memory #${ids.length} failed: ${res.status} ${JSON.stringify(res.body)}`)
       ids.push((res.body as MemoryEntry).id)
     }

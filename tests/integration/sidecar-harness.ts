@@ -12,6 +12,7 @@ import { onTestFinished } from 'vitest'
 import { WebSocket } from 'ws'
 import {
   API_ROUTES,
+  apiPaths,
   MODEL_CATALOG_DEFAULTS,
   ServerMessage,
   SessionEntry,
@@ -541,6 +542,28 @@ export class Stream {
 }
 
 export const isRunEnd = (sessionId: string) => (m: ServerMessage) => m.type === 'entry' && m.sessionId === sessionId && m.entry.kind === 'run_end'
+
+/** faux 脚本中的一个工具调用块。 */
+export const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
+
+/** 在 Workspace 中新建 Session 并订阅其条目流，返回 Session id。 */
+export async function openSession(api: ReturnType<typeof client>, stream: Stream, workspaceId: string): Promise<string> {
+  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
+  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
+  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
+  return sessionId
+}
+
+/**
+ * 发送一条用户消息并等这次 Run 结束。谓词只看单条消息：每收到一条消息就重算全部 entries 是立方级开销，
+ * 一个 Run 有上千条消息（例如流式写入大段参数）时等待本身就要几十秒。
+ */
+export async function sendAndWaitRun(api: ReturnType<typeof client>, stream: Stream, sessionId: string, text: string): Promise<void> {
+  const before = new Set(stream.messages.filter(isRunEnd(sessionId)))
+  const res = await api.post(apiPaths.sessionMessages(sessionId), { text })
+  if (res.status !== 202) throw new Error(`send failed: ${res.status} ${JSON.stringify(res.body)}`)
+  await stream.waitFor((m) => isRunEnd(sessionId)(m) && !before.has(m))
+}
 
 export interface ApprovalRequestEntry {
   requestId: string

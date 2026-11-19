@@ -4,37 +4,15 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { API_ROUTES, apiPaths, memoryPaths, type MemoryEntry, type MemoryListResponse } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
-
-type Logged = { role: string; sections?: Record<string, string | null>; toolCallId?: string; isError?: boolean; content?: { text?: string }[] }
-type Api = ReturnType<typeof client>
-
-const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ content: [{ type: 'toolCall', name, id, arguments: args }] })
-const tiersOf = (section: string, scope: 'user' | 'workspace') => ({
-  full: section.match(new RegExp(`<entry [^>]*scope="${scope}"`, 'g'))?.length ?? 0,
-  summary: section.match(new RegExp(`<summary [^>]*scope="${scope}"`, 'g'))?.length ?? 0,
-})
-const omittedOf = (section: string) => Number(/(\d+) more entr(?:y|ies) not shown/.exec(section)?.[1] ?? 0)
+import { API_ROUTES, memoryPaths, type MemoryEntry, type MemoryListResponse } from '@coko/protocol'
+import { client, connect, exchange, fauxScript, openSession, sendAndWaitRun, sidecarDirs, startSidecar, tempDir, toolCall } from './sidecar-harness.ts'
+import { memorySection, omittedOf, tiersOf, type LoggedMessage } from './sidecar-memory-harness.ts'
 
 const TARGET = 'Run docker compose up before integration tests'
 const PARAPHRASE = 'run docker-compose before tests'
 const PNPM = '用户偏好 pnpm 而不是 npm'
 
-async function session(api: Api, stream: Stream, workspaceId: string) {
-  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
-  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
-  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
-  return sessionId
-}
-async function send(api: Api, stream: Stream, sessionId: string) {
-  const before = stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
-  expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })).status).toBe(202)
-  // 全量测试的负载下，预置的一个 Run 可能超过 60 秒。
-  await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length > before, 150_000)
-}
-
-it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', { timeout: 240_000 }, async () => {
+it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', async () => {
   const root = await tempDir()
   const folder = join(root, 'p')
   await mkdir(folder)
@@ -43,7 +21,7 @@ it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说
   // 预置（由旧到新）：用户手写的两条；Agent 记下的检索目标、60 条小条目与 6 条约 2 000 字符的用户级大条目；项目级 4 条大条目。
   // Agent 条目只能由模型写入，所以预置用一个带写入脚本的 Sidecar；faux 脚本在启动时读取、id 由服务端生成，读取用的脚本在重启时再给。
   const small = Array.from({ length: 60 }, (_, i) => `Small fact ${i} about the release checklist`)
-  const write = (id: string, scope: string, content: string) => ({ type: 'toolCall', name: 'memory_write', id, arguments: { scope, content } })
+  const write = (id: string, scope: string, content: string) => toolCall(id, 'memory_write', { scope, content })
   const writes = [
     [write('target', 'user', TARGET)],
     small.map((c, i) => write(`small${i}`, 'user', c)), // 一条消息中的多个调用，省去逐轮往返；同一批内的次序与断言无关。
@@ -57,7 +35,7 @@ it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说
   const workspaceId = (await api0.post(API_ROUTES.workspaces, { path: folder })).body.id as string
   for (const content of ['Always answer in Chinese', PNPM]) expect((await api0.post(memoryPaths.memories, { scope: 'user', content })).status).toBe(201)
   const stream0 = await connect(setup, setupCookie)
-  await send(api0, stream0, await session(api0, stream0, workspaceId))
+  await sendAndWaitRun(api0, stream0, await openSession(api0, stream0, workspaceId), 'go')
   const seeded = (await api0.get(`${memoryPaths.memories}?workspaceId=${workspaceId}`)).body.memories as MemoryEntry[]
   expect(seeded).toHaveLength(writes.flat().length + 2)
   expect(await setup.stop()).toEqual({ code: 0, signal: null })
@@ -70,9 +48,9 @@ it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说
   const script = await fauxScript(root, {
     requestLog,
     responses: [
-      toolCall('read', 'memory_list', { ids: [p0.id] }),
-      toolCall('search', 'memory_list', { query: PARAPHRASE }),
-      toolCall('write', 'memory_write', { scope: 'user', content: '用户偏好使用 pnpm，不要用 npm' }),
+      { content: [toolCall('read', 'memory_list', { ids: [p0.id] })] },
+      { content: [toolCall('search', 'memory_list', { query: PARAPHRASE })] },
+      { content: [toolCall('write', 'memory_write', { scope: 'user', content: '用户偏好使用 pnpm，不要用 npm' })] },
       { content: 'done' },
     ],
   })
@@ -82,13 +60,13 @@ it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说
   const stream = await connect(sidecar, cookie)
   // 设置页在这一时刻看到的汇总（项目对话：两组）。
   const summary = ((await api.get(`${memoryPaths.memories}?workspaceId=${workspaceId}`)).body as MemoryListResponse).injection!
-  await send(api, stream, await session(api, stream, workspaceId))
+  await sendAndWaitRun(api, stream, await openSession(api, stream, workspaceId), 'go')
 
   const requests = (await readFile(requestLog, 'utf8'))
     .split('\n')
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as Logged[])
-  const section = requests[0]!.map((m) => m.sections?.memory).find(Boolean)!
+    .map((line) => JSON.parse(line) as LoggedMessage[])
+  const section = memorySection(requests[0]!)
 
   // 用户手写的两条（含最早的一条）在正文层；Agent 条目被降到摘要层与检索层；检索目标不在段内。
   const full = [...section.matchAll(/<entry [^>]*source="(\w+)">\n([^\n]+)/g)].map((m) => [m[1], m[2]!.slice(0, 24)])
