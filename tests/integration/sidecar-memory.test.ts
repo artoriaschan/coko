@@ -1,6 +1,6 @@
 // Memory：真实 Sidecar（faux 模型）经协议驱动。没有条目时 <memory> 仍有声明与写入引导（计入上下文用量的 system）；条目带来源标注；
 // memory_write 的条目进入同 Workspace 新 Session 的 <memory> system section，
-// 另一 Workspace 只看到用户级；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
+// 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
 // 全局或项目设置中的 Memory 询问规则仍出审批卡、拒绝规则仍拒绝，PreToolUse Hook 的 deny 仍阻止写入；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
 // 注入预算分两级（项目级在前）；/api/memories 的增删改查与 Workspace 过滤；重启 Sidecar 后条目仍在。

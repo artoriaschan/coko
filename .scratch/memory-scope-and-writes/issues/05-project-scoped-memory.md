@@ -28,3 +28,8 @@
 
 - 2026-11-19：用户确认 9 票的拆分及阻塞关系。本票发布到本地 Markdown tracker，尚未实施，验收项均未完成。
 - 判定只看项目归属，不看工作目录：从项目移出或项目被删除后留下的 Session 即使工作目录仍是原项目文件夹，也只有用户级记忆。
+- 2026-11-19 实施：`ContextScope.memoryWorkspaceId` 在 `SessionRuns.scope`（与 Workspace 根同源的 `sessionProject`，子 Session 沿父链取根）与草稿的 `ContextService.scopeFor` 中解析为所属项目的主要 Workspace；Memory 段、`memory_*` 工具端口与上下文用量都按它取值，没有项目时 `createMemoryTools(port, { project: false })` 的 `scope` 只有 `user`（`memory_write` 可省略、缺省 `user`），工具端口只看得到用户级条目（按 id 替换或删除 Workspace 条目为 not found）。工具描述把 `workspace` 解释为当前项目；存储与协议值未改。
+- 检查：新增 `tests/integration/sidecar-memory-projects.test.ts`（AC-01 至 AC-08、AC-11 与草稿的上下文用量；实现前先确认失败）；`sidecar-subagents-permissions.test.ts` 加 AC-09（根移到另一项目后子 Session 用该项目的记忆，实现前的代码会失败）；`sidecar-worktrees.test.ts` 加 AC-10；`apps/server/src/application/context/memory.test.ts` 加没有项目时工具端口的可见范围（去掉 `?? null` 时失败）。`sidecar-memory.test.ts` 的“另一 Workspace 只有用户级”改述为另一项目。运行 `npx vitest run --project integration` 的 sidecar-memory*、sidecar-worktrees、sidecar-subagents-permissions、sidecar-teams、headless、secrets-gate-memory、sidecar-context（9 个文件 45 例通过）；`packages/agent/src/context/memory`、`agents/definitions.test.ts`、`apps/server/src/application/context`、`permissions.test.ts` 单测通过；`pnpm typecheck`、`pnpm check:docs`、oxlint、oxfmt 通过。未运行桌面 E2E（`apps/desktop/e2e/memory.e2e.test.ts` 使用项目草稿，预计不受影响）与全量测试。
+- 文档影响：`docs/subsystems/memory.md` 的条目与作用域（归属的解析）、注入、工具与权限、检索可见范围与验证；`projects.md` 的删除项目与移到项目；`permissions.md` 的 Workspace 根一节（批准不变、记忆跟随归属）；`subagents.md` 的上下文一节。
+
+Closed: true

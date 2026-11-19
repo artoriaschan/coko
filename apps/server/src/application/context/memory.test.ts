@@ -1,8 +1,9 @@
+// memoryPort：没有项目记忆 Workspace 时只看得到、改得到用户级条目。
 // MemoryService.search：用户级与当前 Workspace 一起按仓库的全局次序取前 limit 条；其他 Workspace 的条目占满前几页时放大条数再查。
 import { createPayloadRegistry } from '@coko/session'
 import { createMemoryStore } from '@coko/session/memory'
 import { describe, expect, it } from 'vitest'
-import { MemoryService } from './memory.ts'
+import { MemoryService, memoryPort } from './memory.ts'
 
 async function setup() {
   let clock = 1_000
@@ -35,5 +36,23 @@ describe('MemoryService.search', () => {
     expect(await service.search('fact')).toHaveLength(12)
     await expect(service.search('fact', { scope: 'workspace' })).rejects.toMatchObject({ code: 'bad-request' })
     await expect(service.search('fact', { workspaceId: 'missing' })).rejects.toMatchObject({ code: 'not-found' })
+  })
+})
+
+describe('memoryPort', () => {
+  it('没有项目记忆 Workspace 时不能按 id 替换或删除 Workspace 条目；有时只针对该 Workspace', async () => {
+    const { store, mine, other, service } = await setup()
+    const own = await store.memories.create({ scope: 'workspace', workspaceId: mine, content: 'mine', source: 'model' })
+    const foreign = await store.memories.create({ scope: 'workspace', workspaceId: other, content: 'other', source: 'model' })
+    const user = await store.memories.create({ scope: 'user', content: 'user', source: 'model' })
+    const standalone = memoryPort(service, undefined)
+    expect((await standalone.list()).map((m) => m.id)).toEqual([user.id])
+    await expect(standalone.update(own.id, 'changed')).rejects.toThrow(/not found/)
+    await expect(standalone.delete(own.id)).rejects.toThrow(/not found/)
+    expect((await standalone.update(user.id, 'user 2')).content).toBe('user 2')
+    const project = memoryPort(service, mine)
+    await expect(project.delete(foreign.id)).rejects.toThrow(/not found/)
+    expect((await project.delete(own.id)).id).toBe(own.id)
+    expect(await store.memories.get(foreign.id)).toMatchObject({ content: 'other' })
   })
 })

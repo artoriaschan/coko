@@ -67,7 +67,7 @@ M5 的 agent_wait、schedule_list 按 context-read，agent_cancel、schedule_del
 
 [SessionRuns](../../apps/server/src/application/session-runs.ts) 在 Run 准入时读取根 Session 的当前项目归属，取固定工作目录与该项目全部源文件夹的真实路径，去重并冻结为本次 Run 的 Workspace 根集合。子 Session 沿持久化父链取根会话归属；独立对话没有附加根，从别处移入项目的对话还包含项目主要文件夹。项目文件夹编辑或会话移入、移出仅影响下一个 Run，正在运行的工具和已经启动的 Job 保留自己的范围。
 
-`RuntimePermissions.workspaceRoots()` 把快照交给读取判定；没有显式写根时，它也用于文件写入边界与命令准备阶段的 Seatbelt 可写根。托管独立会话的权限根是 `directory`，另由 `RuntimePermissions.writeRoots()` 给出 `work/`、`outputs/` 的真实路径，替代默认可写集合，不追加系统临时目录；指向根外或根自身的链接不成为写根。default 的读取免审批、写入仍询问，accept-edits 允许可写根内普通写入，read-only / plan 仍无可写根。模式和规则继续在每次调用时读取，目录集合不随待审批请求的重新判定改变。执行目录、相对规则锚点及按 Workspace 保存的批准和记忆保持原绑定。
+`RuntimePermissions.workspaceRoots()` 把快照交给读取判定；没有显式写根时，它也用于文件写入边界与命令准备阶段的 Seatbelt 可写根。托管独立会话的权限根是 `directory`，另由 `RuntimePermissions.writeRoots()` 给出 `work/`、`outputs/` 的真实路径，替代默认可写集合，不追加系统临时目录；指向根外或根自身的链接不成为写根。default 的读取免审批、写入仍询问，accept-edits 允许可写根内普通写入，read-only / plan 仍无可写根。模式和规则继续在每次调用时读取，目录集合不随待审批请求的重新判定改变。执行目录、相对规则锚点及按 Workspace 保存的批准保持原绑定；记忆改为跟随项目归属，按同一 Run 开始时解析的项目主要 Workspace 读写（见 [Memory](memory.md#条目与作用域)）。
 
 worktree 会话始终排除其来源主检出；项目移动、主要文件夹更换以及包含来源主检出的重叠附加根不会重新授予主检出。固定 cwd 仍属于根集合，其他与来源仓库相交的项目根不加入。此行为见 [Worktree](worktrees.md#会话绑定与工作目录)。指令文件、项目设置、Hook、MCP 与 Skills 仍只由 cwd 发现，附加文件夹只授予文件能力。
 

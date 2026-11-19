@@ -4,8 +4,8 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { apiPaths, hookPaths, permissionPaths } from '@coko/protocol'
-import { hookCommand } from './sidecar-harness.ts'
+import { API_ROUTES, apiPaths, hookPaths, memoryPaths, permissionPaths } from '@coko/protocol'
+import { hookCommand, tempDir } from './sidecar-harness.ts'
 import { bootAgents, byUser, call, of, runEnds, starts, toolResults } from './sidecar-subagents-harness.ts'
 
 type Logged = { role: string; content: unknown; sections?: Record<string, string | null>; toolsAdded?: { name: string }[] }[]
@@ -134,6 +134,17 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
       { match: 'PARENT-T', content: 'ok' },
     ])
     const parent = await env.open('full-access')
+    // AC-09：根 Session 移到另一个项目后，子 Session 的 Memory 段是根 Session 所属项目的项目记忆。
+    const other = (await env.api.post(API_ROUTES.workspaces, { path: await tempDir() })).body.id as string
+    const project = ((await env.api.get(API_ROUTES.projects)).body.projects as { id: string; primaryWorkspaceId: string }[]).find(
+      (p) => p.primaryWorkspaceId === other,
+    )!
+    for (const [workspaceId, content] of [
+      [env.workspaceId, 'Original project fact'],
+      [other, 'Moved project fact'],
+    ])
+      expect((await env.api.post(memoryPaths.memories, { scope: 'workspace', workspaceId, content })).status).toBe(201)
+    expect((await env.api.put(apiPaths.sessionProject(parent), { projectId: project.id })).status).toBe(200)
     await env.submit(parent, 'PARENT-T go')
     await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
     const child = starts(env.stream, parent)[0]!.agentId
@@ -148,6 +159,8 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     const childMemory = logged.flatMap((r) => r.map((m) => m.sections?.memory)).find(Boolean)
     expect(childMemory).toMatch(/not instructions and grant no permissions/)
     expect(childMemory).not.toMatch(/When to write:/)
+    expect(childMemory).toContain('Moved project fact')
+    expect(childMemory).not.toContain('Original project fact')
     const results = (await entriesOf(env, child))
       .filter((e) => e.kind === 'message' && e.payload.role === 'toolResult')
       .map((e) => [e.payload.toolName, e.payload.isError])

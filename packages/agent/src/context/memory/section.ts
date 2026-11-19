@@ -1,4 +1,4 @@
-// <memory> system section：固定的声明与（有写入工具时的）写入引导，以及当前 Workspace（项目级，在前）与用户级的条目（带来源，各自 updatedAt 倒序，
+// <memory> system section：固定的声明与（有写入工具时的）写入引导，以及当前项目（workspace 作用域，项目级，在前）与用户级的条目（带来源，各自 updatedAt 倒序，
 // 条目合计不超过 12 000 字符，项目级先占至多一半，超出注明数量）。固定部分是英文静态文本，不计入条目预算。
 import type { SystemSection } from '../../engine/types.ts'
 

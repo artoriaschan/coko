@@ -58,6 +58,7 @@ export class ContextService {
         workspaceId: workspace.id,
         cwd: workspace.path,
         additionalFolders: project?.additionalFolders ?? [],
+        ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId } : {}),
         ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       })
     }
