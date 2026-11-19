@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
 
-export type Logged = { role: string; content: unknown; sections?: Record<string, string> }[]
+export type Logged = { role: string; content: unknown; sections?: Record<string, string>; toolsAdded?: { name: string }[] }[]
 const fixtures = new URL('../fixtures/agents/', import.meta.url)
 
 export const call = (name: string, id: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })

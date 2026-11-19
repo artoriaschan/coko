@@ -222,6 +222,8 @@ export interface ContextContributionOptions {
   mcp?: import('./mcp.ts').McpManager
   /** Memory 的存储；缺省时 Memory 为空贡献。 */
   memories?: MemoryStore
+  /** 只读记忆（无界面运行）：只注册 memory_list，不注册 memory_write 与 memory_delete。 */
+  memoryReadOnly?: boolean
   /** 后台任务（application/jobs.ts）；省略时 jobs 贡献为空。 */
   jobs?: import('../jobs.ts').JobService
   /** Goal（application/goals.ts）；省略时 goal 贡献为空。 */

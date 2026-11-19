@@ -1,4 +1,4 @@
-// /api/memories（路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加的条目 source 为 user。
+// /api/memories（路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加与经接口改正文的条目 source 为 user。
 // GET 带非空 query 时为检索（至多 20 条，按相关度；FTS5 不可用时按 updatedAt 倒序），否则为列表；scope 只留一种。
 import { CreateMemoryRequest, MemoryListResponse, MemoryScope, UpdateMemoryRequest } from '@coko/protocol'
 import { Value } from 'typebox/value'
@@ -31,10 +31,10 @@ export function memoriesRoutes(app: Application) {
   })
   r.put('/memories/:id', async (c) => {
     const { content } = await body(c, UpdateMemoryRequest)
-    return c.json(await memories.update(c.req.param('id'), content, workspaceId(c.req.query('workspaceId'))))
+    return c.json(await memories.update(c.req.param('id'), content, workspaceId(c.req.query('workspaceId')), 'user'))
   })
   r.delete('/memories/:id', async (c) => {
-    await memories.delete(c.req.param('id'), workspaceId(c.req.query('workspaceId')))
+    await memories.delete(c.req.param('id'), workspaceId(c.req.query('workspaceId')), 'user')
     return c.body(null, 204)
   })
   return r

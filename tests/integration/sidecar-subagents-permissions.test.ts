@@ -140,9 +140,10 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     expect(starts(env.stream, parent)).toHaveLength(1)
     const logged = byUser(await env.requests(), 'CHILD-T probe') as Logged[]
     const advertised = logged.flatMap((r) => r.flatMap((m) => m.toolsAdded ?? []).map((t) => t.name))
-    for (const name of ['agent', 'agent_wait', 'create_goal', 'get_goal', 'schedule_create', 'schedule_list', 'job_output', 'memory_write'])
+    for (const name of ['agent', 'agent_wait', 'create_goal', 'get_goal', 'schedule_create', 'schedule_list', 'job_output', 'memory_write', 'memory_delete'])
       expect(advertised).not.toContain(name)
     expect(advertised).toContain('read')
+    expect(advertised).toContain('memory_list')
     const results = (await entriesOf(env, child))
       .filter((e) => e.kind === 'message' && e.payload.role === 'toolResult')
       .map((e) => [e.payload.toolName, e.payload.isError])

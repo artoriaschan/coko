@@ -298,7 +298,7 @@ const ProcessesLive = Layer.effect(
 const AssemblyLive = Layer.effect(
   Assembly,
   Effect.gen(function* () {
-    const { config: sidecar, control, env } = yield* Host
+    const { config: sidecar, control, env, headless } = yield* Host
     const store = yield* Store
     const processes = yield* Processes
     const config = new ConfigService({ store })
@@ -409,6 +409,8 @@ const AssemblyLive = Layer.effect(
       cokoHome: sidecar.cokoHome,
       mcp,
       memories: store,
+      // 无界面运行只读记忆（只注册 memory_list）。
+      ...(headless ? { memoryReadOnly: true } : {}),
       jobs,
       goals,
       schedules,

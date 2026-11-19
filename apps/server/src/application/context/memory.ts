@@ -1,5 +1,6 @@
-// Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，关闭时不注入、不注册工具），以及
-// /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）。
+// Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，关闭时不注入、不注册工具；子 Session 与无界面运行只注册
+// memory_list），以及 /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）；
+// 用户来源的条目模型不能替换或删除。
 import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
 import { redactText } from '@coko/logging'
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemorySource } from '@coko/protocol'
@@ -90,13 +91,21 @@ export class MemoryService {
     return memory
   }
 
-  async update(id: string, content: string, workspaceId?: string): Promise<MemoryEntry> {
-    await this.#visible(id, workspaceId)
-    return toEntry(await this.#store.memories.update(id, { content: checkContent(content) }))
+  /** 模型（by model）不能改动用户来源的条目（forbidden）。用户改正文时来源同时改为 user；模型替换不改变来源。 */
+  async #writable(id: string, workspaceId: string | undefined, by: MemorySource): Promise<Memory> {
+    const memory = await this.#visible(id, workspaceId)
+    if (by === 'model' && memory.source !== 'model')
+      throw new AppError('forbidden', `Memory entry ${id} is maintained by the user and cannot be replaced or deleted; tell the user if it looks outdated`)
+    return memory
   }
 
-  async delete(id: string, workspaceId?: string): Promise<MemoryEntry> {
-    const memory = await this.#visible(id, workspaceId)
+  async update(id: string, content: string, workspaceId: string | undefined, by: MemorySource): Promise<MemoryEntry> {
+    await this.#writable(id, workspaceId, by)
+    return toEntry(await this.#store.memories.update(id, { content: checkContent(content), ...(by === 'user' ? { source: 'user' } : {}) }))
+  }
+
+  async delete(id: string, workspaceId: string | undefined, by: MemorySource): Promise<MemoryEntry> {
+    const memory = await this.#writable(id, workspaceId, by)
     await this.#store.memories.delete(id)
     return toEntry(memory)
   }
@@ -113,7 +122,8 @@ export function memoryPort(service: MemoryService, workspaceId: string): MemoryP
     try {
       return await task()
     } catch (error) {
-      if (error instanceof AppError && (error.code === 'not-found' || error.code === 'bad-request')) throw new MemoryToolError(error.message)
+      if (error instanceof AppError && (error.code === 'not-found' || error.code === 'bad-request' || error.code === 'forbidden'))
+        throw new MemoryToolError(error.message)
       throw error
     }
   }
@@ -125,8 +135,8 @@ export function memoryPort(service: MemoryService, workspaceId: string): MemoryP
       tool(async () =>
         toAgent(await service.create({ scope: input.scope, ...(input.scope === 'workspace' ? { workspaceId } : {}), content: input.content, source: 'model' })),
       ),
-    update: (id, content) => tool(async () => toAgent(await service.update(id, content, workspaceId))),
-    delete: (id) => tool(async () => toAgent(await service.delete(id, workspaceId))),
+    update: (id, content) => tool(async () => toAgent(await service.update(id, content, workspaceId, 'model'))),
+    delete: (id) => tool(async () => toAgent(await service.delete(id, workspaceId, 'model'))),
   }
 }
 
@@ -154,7 +164,9 @@ export function memoryContribution(options: ContextContributionOptions): Context
     },
     async tools(scope) {
       if (!scope.config.memory.enabled) return []
-      return createMemoryTools(memoryPort(service, scope.workspaceId))
+      const tools = createMemoryTools(memoryPort(service, scope.workspaceId))
+      // 子 Session 与无界面运行只读：只有 memory_list（子 Session 另由子代理的固定排除集去掉写入工具）。
+      return options.memoryReadOnly || scope.parentSessionId ? tools.filter(({ tool }) => tool.name === 'memory_list') : tools
     },
     async report(scope) {
       if (!scope.config.memory.enabled) return { breakdown: { memory: 0 } }

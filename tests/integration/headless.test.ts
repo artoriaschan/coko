@@ -1,13 +1,13 @@
 // 无界面运行（ADR 0019，docs/subsystems/headless.md）：源码入口 + faux 模型。stream-json 每行可被 ServerMessage 与条目 schema 校验、最后一行
-// result；text 只打印最终文本；--session 继续；Workspace 不在库中时登记；参数错误 4；SIGTERM 中止并以 2 退出；日志只写文件。
+// result；text 只打印最终文本；--session 继续；Workspace 不在库中时登记；参数错误 4；SIGTERM 中止并以 2 退出；日志只写文件；记忆只读（只有 memory_list）。
 // 新的输出通道 stdout 的秘密总闸见 secrets-gate-headless.test.ts；不新增读取根（Workspace 与 Sidecar 相同）。
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Value } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
-import { ServerMessage, SessionEntry } from '@coko/protocol'
-import { writeFile } from 'node:fs/promises'
-import { customProvider, fauxScript, pollUntil, sidecarDirs, tempDir } from './sidecar-harness.ts'
+import { memoryPaths, ServerMessage, SessionEntry } from '@coko/protocol'
+import { readFile, writeFile } from 'node:fs/promises'
+import { client, customProvider, exchange, fauxScript, pollUntil, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 import { baseArgs, dbEntries, dbRows, headlessLog, lines, runHeadless, spawnHeadless } from './headless-harness.ts'
 
 const bash = (id: string, command: string) => ({ type: 'toolCall', name: 'bash', id, arguments: { command } })
@@ -124,6 +124,33 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(lines(run.stdout()).at(-1)).toMatchObject({ type: 'result', status: 'aborted' })
     const sessionId = lines(run.stdout()).at(-1)!.sessionId as string
     expect(dbEntries(h.dirs, sessionId).at(-1)).toMatchObject({ kind: 'run_end', payload: { status: 'aborted' } })
+  })
+
+  it('记忆开启：请求中有 Memory 段与 memory_list，没有 memory_write 与 memory_delete', async () => {
+    const h = await setup([])
+    // 先经 Sidecar 接口在同一数据目录中存一条用户级记忆。
+    const sidecar = await startSidecar({ dirs: h.dirs })
+    expect((await client(sidecar, await exchange(sidecar)).post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs' })).status).toBe(201)
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+    const requestLog = join(await tempDir(), 'requests.jsonl')
+    const script = await fauxScript(await tempDir(), { requestLog, responses: [{ content: 'ok' }] })
+    const out = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'hello', '--permission-mode', 'full-access'), {
+      COKO_FAUX_SCRIPT: script,
+    })
+    expect([out.code, out.stdout]).toEqual([0, 'ok\n'])
+    type Logged = { role: string; sections?: Record<string, string | null>; toolsAdded?: { name: string }[] }
+    const [request] = (await readFile(requestLog, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Logged[])
+    const system = request!.filter((m) => m.role === 'system')
+    const tools = system.flatMap((m) => (m.toolsAdded ?? []).map((t) => t.name))
+    expect(system.map((m) => m.sections?.memory).find(Boolean)).toContain('Prefers tabs')
+    expect(tools).toContain('memory_list')
+    expect(tools).not.toContain('memory_write')
+    expect(tools).not.toContain('memory_delete')
+    // 前置：其余写入类工具照常声明（证明读到了工具集）。
+    expect(tools).toContain('write')
   })
 
   it('日志写 <log-dir>/headless.jsonl，不写 stdout；--log-dir 缺省为 <data-dir>/logs', async () => {

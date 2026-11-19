@@ -40,7 +40,7 @@ ELECTRON_RUN_AS_NODE=1 <electron> <sidecar>/headless.mjs --data-dir <dir> (--wor
 
 ## 装配
 
-`headlessLayer` 与 `sidecarLayer` 共用 Logging → Tools → Store → Processes → Assembly → Runs → App 各层，没有 HTTP；控制通道为 standalone 且不写 stdout，因此 Secret 只读 `COKO_SECRET_<NAME>`、Credential 只读 `COKO_CREDENTIAL_<ID>`（[ADR 0007](../adr/0007-secrets-from-registered-entries.md)、[ADR 0010](../adr/0010-provider-one-shot-save.md)）。启动恢复、上下文贡献（Skills、命令、MCP、Hook、Memory、子代理等）与有序关闭都和 Sidecar 相同。提交走 `SessionService.submit`（trigger submit，命令照常展开），输出经 hub 订阅根 Session。
+`headlessLayer` 与 `sidecarLayer` 共用 Logging → Tools → Store → Processes → Assembly → Runs → App 各层，没有 HTTP；控制通道为 standalone 且不写 stdout，因此 Secret 只读 `COKO_SECRET_<NAME>`、Credential 只读 `COKO_CREDENTIAL_<ID>`（[ADR 0007](../adr/0007-secrets-from-registered-entries.md)、[ADR 0010](../adr/0010-provider-one-shot-save.md)）。启动恢复、上下文贡献（Skills、命令、MCP、Hook、Memory、子代理等）与有序关闭都和 Sidecar 相同，唯一的差别是记忆只读：记忆开启时注入 Memory 段并注册 `memory_list`，不注册 `memory_write` 与 `memory_delete`（见 [Memory](memory.md#工具与权限)）。提交走 `SessionService.submit`（trigger submit，命令照常展开），输出经 hub 订阅根 Session。
 
 ## 输出
 
@@ -96,7 +96,7 @@ Provider 可带布尔字段 `incrementalTools`，行为与桌面设置一致；�
 
 - `packages/agent/src/policy/gate-unattended.test.ts`：立即拒绝（by headless）、同批多个调用、PermissionRequest 的 allow 优先、受保护路径。
 - `apps/server/src/application/providers.test.ts`：`upsertFromConfig` 的整份写入、第二个无效时库中没有 Provider、写入中途失败的补偿、密钥字段、schema 与 defaultModel。
-- `tests/integration/headless.test.ts`：stream-json 的每行 schema 与 result、text、`--session`、Workspace 登记、参数错误 4、SIGTERM 2、日志位置、`--provider-config` 与 `no-credential`。
+- `tests/integration/headless.test.ts`：stream-json 的每行 schema 与 result、text、`--session`、Workspace 登记、参数错误 4、SIGTERM 2、日志位置、`--provider-config` 与 `no-credential`；记忆开启时请求中有 Memory 段与 `memory_list`、没有 `memory_write` 与 `memory_delete`。
 - `tests/integration/headless-approvals.test.ts`（对手用例）：拒绝文本与 by headless、`--on-approval fail` 退出 3、Hook 代答、伪造的批准文本、子代理。
 - `tests/integration/secrets-gate-headless.test.ts`：三种输出、stderr、日志、库与 faux requestLog 中没有 Credential、Secret 与宿主密钥。
 - `apps/desktop/e2e/package-smoke.e2e.test.ts`：打包应用中 `Resources/sidecar/headless.mjs` 的 stream-json 以 completed 结束、退出 0、使用随包 ripgrep。
