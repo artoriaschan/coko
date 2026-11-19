@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, type MemoryEntry, type MemoryListResponse } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, isRunEnd, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
 
 type Logged = { role: string; sections?: Record<string, string | null>; toolCallId?: string; isError?: boolean; content?: { text?: string }[] }
 type Api = ReturnType<typeof client>
@@ -27,14 +27,13 @@ async function session(api: Api, stream: Stream, workspaceId: string) {
   await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
   return sessionId
 }
+// 每个 Session 只发送一次：等第一条 run_end。判定只看当前消息，预置的 Run 有上千条 progress 消息，每次重扫全部消息会让测试进程卡住数十秒。
 async function send(api: Api, stream: Stream, sessionId: string) {
-  const before = stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
   expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'go' })).status).toBe(202)
-  // 全量测试的负载下，预置的一个 Run 可能超过 60 秒。
-  await stream.waitFor(() => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length > before, 150_000)
+  await stream.waitFor(isRunEnd(sessionId))
 }
 
-it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', { timeout: 240_000 }, async () => {
+it('跨票联合：用户手写的留在正文层、按 id 读摘要层、换说法检索到检索层、新建得到相近条目、汇总与请求一致', { timeout: 60_000 }, async () => {
   const root = await tempDir()
   const folder = join(root, 'p')
   await mkdir(folder)
