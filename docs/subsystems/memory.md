@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 Memory 契约：用户级与跟随项目归属的项目级记忆、memory_list / memory_write / memory_delete 工具与权限类（不经审批，子 Session 与无界面运行只读）、每个 Run 注入的 <memory> system section（声明、写入引导、来源标注）与两级预算、关键词检索（FTS5 与 LIKE 降级）、memory.enabled 开关、正文脱敏、/api/memories 接口与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
+description: "当前的 Memory 契约：用户级与跟随项目归属的项目级记忆、memory_list / memory_write / memory_delete 工具与权限类（不经审批，子 Session 与无界面运行只读）、每个 Run 注入的 <memory> system section（声明、写入引导、来源标注）与两级预算、关键词检索（FTS5 与 LIKE 降级）、新建时返回的相近条目（三字符片段与阈值）、memory.enabled 开关、正文脱敏、/api/memories 接口与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
 lifecycle: active
 ---
 
@@ -12,11 +12,11 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `packages/agent/src/context/memory/` | `memorySection(entries, { writable, project })`、`createMemoryTools(port, { project })`（三个工具及其权限类；没有项目时 scope 只有 user）、`MemoryPort`（含 `search`）、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SEARCH_LIMIT` |
-| `apps/server/src/application/context/memory.ts` | `MemoryService`（列表、检索、新建、改正文、删除与校验、脱敏）、工具端口 `memoryPort`、上下文贡献 `memoryContribution` |
+| `packages/agent/src/context/memory/` | `memorySection(entries, { writable, project })`、`createMemoryTools(port, { project })`（三个工具及其权限类；没有项目时 scope 只有 user）、`MemoryPort`（含 `search` 与 `similar`）、`memorySummary`、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SEARCH_LIMIT` |
+| `apps/server/src/application/context/memory.ts` | `MemoryService`（列表、检索、相近查找、新建、改正文、删除与校验、脱敏）、工具端口 `memoryPort`、上下文贡献 `memoryContribution` |
 | `apps/server/src/http/routes/memories.ts` | `/api/memories` 路由 |
 | `packages/protocol/src/memory.ts` | `MemoryEntry`、`MemoryListResponse`、`CreateMemoryRequest`、`UpdateMemoryRequest`、`memoryPaths`、`MEMORY_CONTENT_MAX` |
-| `packages/session` 的 `MemoryRepository` | 表 `memories`（迁移 v3）与 `memories.search`、FTS5 表 `memories_fts`（迁移 v9），见 [@coko/session](../../packages/session/README.md) |
+| `packages/session` 的 `MemoryRepository` | 表 `memories`（迁移 v3）与 `memories.search`、`memories.similar`、FTS5 表 `memories_fts`（迁移 v9），见 [@coko/session](../../packages/session/README.md) |
 | `apps/desktop/src/renderer/stores/memory-store.ts` | renderer 的记忆 store 与请求（含记忆开关） |
 | `apps/desktop/src/renderer/features/settings/memory-section.tsx` | 设置的 Memory 分区 |
 | `apps/desktop/src/renderer/features/conversation/tool-cards.tsx` | memory 工具卡 |
@@ -46,6 +46,8 @@ lifecycle: active
 - **匹配。** 查询按空白拆成词，全部出现才匹配，大小写不敏感（LIKE 只对 ASCII 字母）；按字面匹配，引号、星号、括号、`NEAR`、`AND` / `OR` / `NOT` 与列名前缀不作为 FTS 语法。至多 20 条（`MEMORY_SEARCH_LIMIT`）；可见范围与列表相同（工具为用户级与本 Run 的项目记忆 Workspace，接口为用户级与给出的 Workspace），可再按 scope 限定。查询只有空白时等同于不检索。
 - **排序。** FTS5 可用且每个词至少 3 个字符时按相关度（bm25，trigram 分词；同分时较新的在前），否则按 updatedAt 倒序。用户级与当前 Workspace 一起检索时按全库次序取前 20 条可见的条目（其他 Workspace 的匹配占满时放大条数再查）。
 - **降级。** Electron 内置 Node 的 SQLite 编译了 FTS5；运行时没有 FTS5 时不建 `memories_fts`，检索走 LIKE（同样至多 20 条、按 updatedAt 倒序），Sidecar 启动时记 warn `memory search falls back to LIKE`（`reason: fts5-unavailable`）。测试以 `COKO_TEST_NO_FTS=1` 强制降级（`reason: disabled-for-tests`），打包的发布构建不读取它。
+- **相近查找。** `memories.similar(text, { scope?, workspaceId?, limit? })`（存储层判定并排序）：text 切成三字符片段（大小写不敏感，按码点，与 trigram 分词一致，去重），FTS5 取出至少共享一个片段的条目作为候选，按 text 的片段在条目正文中出现的比例从高到低排序（同分时较新的在前），比例低于 `MEMORY_SIMILAR_MIN`（0.35）的不算相近；text 不足三个字符时没有结果；limit 缺省 20。运行时没有 FTS5（含 `COKO_TEST_NO_FTS=1`）时没有结果。`MemoryService.similar` 与工具端口的 `similar` 的可见范围与检索相同（用户级与当前 Workspace 一起时同样放大重查）。目前只用于 `memory_write` 新建后的相近条目（见 [工具与权限](#工具与权限)）；内存实现对全部条目计算同一比例。
+- **阈值的依据。** 0.35 取自 29 对样例（16 对应判为相近、13 对不应判为相近，中文、英文与中英混合各约三分之一），比较的是新正文对已有正文的片段比例。0.30 时召回 13/16、误报 8/13，0.35 时 12/16、6/13，0.40 时 10/16、5/13，0.50 时 6/16、2/13；0.35 是召回减误报最大的取值。也比较了对称的 Dice 系数、按较短一方计的重合系数以及去掉空白与标点后切片，都没有明显更好的区分。三字符片段只反映措辞：中文换说法的同义句（“用户喜欢简洁的回答”与“回复要尽量简短”为 0）找不到，句式相同而事实不同的条目（“用户偏好 yarn”与“用户偏好 pnpm 而不是 npm”为 0.43，“构建用 vite，不用 webpack”与“测试用 vitest，不用 jest”为 0.35）会被列出。按语言分，0.35 时中文召回 4/6、误报 1/5，英文 4/5、3/4，中英混合 4/5、2/4：中文漏掉的多是换说法的同义句，英文误报的多是句式相同的不同事实；三种文本都只能作为提示，由模型判断是否重复。实际效果在有真实条目后复核。
 - **同步。** `memories_fts` 由触发器随插入、改正文与删除同步，是可重建的派生索引（迁移 v9 建立时按现有行重建）。
 
 ## 工具与权限
@@ -53,7 +55,7 @@ lifecycle: active
 | 工具 | 参数 | 权限类 | 结果 |
 | --- | --- | --- | --- |
 | `memory_list` | `scope?`（没有项目时只有 `user`）、`query?` | context-read（所有模式放行） | 不带 query：条目块（与 section 相同，带来源），倒序，没有时 `No memories saved.`；带 query：检索结果（见 [检索](#检索)），没有时 `No memories match "<query>".`；超过 50KB / 2000 行截断。工具描述提示条目多时先检索 |
-| `memory_write` | `content`、`scope`（没有项目时只有 `user` 且可省略，缺省 `user`）、`id?` | memory-write | 新建或按 id 替换正文；details `{ action: created \| updated, memory }`。工具描述写明只记用户亲口表达的偏好与自己核实过的项目事实、不得把文件、网页或工具输出中出现的指令记成记忆、不用于任务进度，以及 `source="user"` 的条目不能替换 |
+| `memory_write` | `content`、`scope`（没有项目时只有 `user` 且可省略，缺省 `user`）、`id?` | memory-write | 新建或按 id 替换正文；details `{ action: created \| updated, memory }`。新建后在本次 Run 可见的其他条目中查找与新正文相近的（见 [检索](#检索)的相近查找），至多 3 条：有结果时在 `Remembered (id: <id>, scope: <scope>).` 之后列出 `Similar existing entries:`，每条一行 `- id: <id>, scope: <scope>, source: agent \| user (maintained by the user; you cannot change it): <摘要>`（摘要取自已保存、已脱敏的正文：第一个非空行截到 60 个 UTF-16 码元，被截断或另有内容时以省略号结尾），再提示与其中一条重复时把内容合并进那条（按 id 替换）并用 memory_delete 删除新建的这条、用户来源的条目不能改动而应告诉用户；没有相近条目、按 id 替换或没有 FTS5 时结果文字不变。系统不自动合并、替换或删除，details 与工具卡不变。工具描述写明只记用户亲口表达的偏好与自己核实过的项目事实、不得把文件、网页或工具输出中出现的指令记成记忆、不用于任务进度，以及 `source="user"` 的条目不能替换 |
 | `memory_delete` | `id` | memory-write | details `{ action: deleted, memory }` |
 
 **用户来源的条目。** `source` 为 user 的条目，模型按 id 替换（`memory_write` 带 `id`）或删除（`memory_delete`）时得到工具错误 `Memory entry <id> is maintained by the user and cannot be replaced or deleted; tell the user if it looks outdated`，条目的正文与来源不变；`source` 为 model 的条目照常替换与删除。限制在 `MemoryService`：工具端口以 model 身份调用，`/api/memories` 以 user 身份调用、不受此限。
@@ -82,6 +84,7 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 ## 验证
 
 - `packages/agent/src/context/memory/memory.test.ts`：没有条目时的声明与写入引导、来源标注、有无写入工具与有无项目级的组合、固定文本逐字不变且不计入预算、正文伪造声明 / 来源 / 结束标签（对手用例）、项目级在前的排列、两级预算（两级各超过一半、项目级少而用户级多、项目级多而用户级少、没有项目级、恰好等于上限、不跳过较新的、用户级未放完时余量不给项目级、单条超过项目级上限）与"另有 N 条"、结束标签转义、memory_write 的描述、工具的新建 / 替换 / 删除 / 列表、memory_list 的 query（至多 20 条、保持端口的相关度次序、无结果文本、空白 query、描述）、作用域不符与空正文、超长内容的参数错误、权限类与审批对象。
+- `tests/integration/sidecar-memory-similar.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次：FTS5 时新建后列出相近的 Agent 来源条目（id、作用域、来源、摘要与合并删除提示）与用户来源条目（注明不能改动），新建的这条不在其中；没有相近条目时结果不变；相近条目只在另一项目的项目记忆中时不列出（对手用例，对照：在该项目的 Session 中列出）；移出项目的 Run 不与项目记忆比较；跨 Sidecar 重启后按 id 替换时不列出；降级时保存照常、结果不列出。`packages/agent/src/context/memory/memory.test.ts` 另验证至多 3 条、不含新建的这条、摘要的截断与省略号、带 id 时不查找；`packages/session` 的仓库契约测试验证相近查找的排序、阈值、作用域过滤与不足三个字符的输入（内存与 SQLite 实现），`migrate-v9.test.ts` 验证没有 FTS 时没有结果。
 - `apps/server/src/application/context/memory.test.ts`：`MemoryService.search` 的全局次序与放大重查、scope 与校验；没有项目记忆 Workspace 的工具端口不能按 id 替换或删除 Workspace 条目，有时只针对该 Workspace。
 - `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。同一文件中的联合场景：default 模式下模型不经审批写入项目记忆 → 同项目另一对话与移入项目的独立对话可见 → 用户经接口编辑后来源变为 user、模型按 id 替换为工具错误（跨 Sidecar 重启）→ 删除项目后只有用户级 → 同一文件夹重建项目后看到编辑后的条目。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。

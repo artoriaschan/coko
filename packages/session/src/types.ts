@@ -280,6 +280,12 @@ export interface MemoryRepository {
    * updatedAt 倒序。limit 缺省 20；给出 scope / workspaceId 时与 list 的过滤相同。查询为空时返回空数组。
    */
   search(query: string, options?: MemorySearchOptions): Promise<Memory[]>
+  /**
+   * 与 text 相近的条目：text 切成三字符片段（大小写不敏感），按片段在条目正文中出现的比例从高到低（同分时 updatedAt 倒序），
+   * 低于 MEMORY_SIMILAR_MIN 的不算相近；text 不足三个字符时为空数组。SQLite 依赖 FTS5 的 trigram 索引，没有 FTS 时为空数组。
+   * limit 缺省 20；scope / workspaceId 与 search 相同。
+   */
+  similar(text: string, options?: MemorySearchOptions): Promise<Memory[]>
 }
 
 export interface MemorySearchOptions {

@@ -116,6 +116,33 @@ export const MEMORY_SEARCH_LIMIT = 20
 /** 检索词：按空白拆分，去掉空串；全部出现才算匹配。 */
 export const searchTerms = (query: string): string[] => query.split(/\s+/).filter((term) => term !== '')
 
+/**
+ * 相近的下限：text 的三字符片段至少这么大的比例出现在条目正文中。取值依据见 docs/subsystems/memory.md（中英文样例上
+ * 0.35 的召回与误报之差最大；片段重合只反映措辞，换说法的同义句与同句式的不同事实都分不开）。
+ */
+export const MEMORY_SIMILAR_MIN = 0.35
+
+/** 三字符片段（大小写不敏感，按码点，与 FTS5 trigram 分词一致），去重。 */
+export function trigrams(text: string): Set<string> {
+  const chars = [...text.toLowerCase()]
+  const grams = new Set<string>()
+  for (let i = 0; i + 3 <= chars.length; i++) grams.add(chars.slice(i, i + 3).join(''))
+  return grams
+}
+
+/** 按 text 的片段在正文中出现的比例排序（稳定：同分保持传入的次序），去掉低于阈值的，取前 limit 条。 */
+export function rankSimilar<T extends { content: string }>(grams: ReadonlySet<string>, candidates: readonly T[], limit: number): T[] {
+  return candidates
+    .map((item) => {
+      const own = trigrams(item.content)
+      return { item, score: [...grams].filter((g) => own.has(g)).length / grams.size }
+    })
+    .filter(({ score }) => score >= MEMORY_SIMILAR_MIN)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ item }) => item)
+}
+
 /** 子串匹配（大小写不敏感）：内存实现与 SQLite 的 LIKE 降级共用的语义。 */
 export const matchesTerms = (content: string, terms: readonly string[]) => {
   const text = content.toLowerCase()
