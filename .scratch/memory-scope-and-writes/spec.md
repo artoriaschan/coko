@@ -13,7 +13,7 @@ Status: ready-for-agent
 
 本规格按 `to-spec` 汇总 2026-11-19 本会话经 `grill-me` 多轮确认的需求。
 
-**实施状态（2026-11-19）。** 01—09 号票已在本地实施并完成联合验收，见[联合证据](evidence/acceptance.md)。AC-01 至 AC-29 均有测试或静默 CDP 操作证据；AC-29 的真实模式因本机没有评测用的 Provider 配置与凭据记为 `skipped: no-credentials`，写入引导对真实模型是否有效未验证；需要真实指针或原生窗口层的桌面交互未验证。本规格以原批准需求作为 delivered 交付基线；代码在本地集成分支 `feat/memory-scope-and-writes`，提交标识以 Git 记录为准，尚未合入 main、未推送、未发布。[ADR 0027](../../docs/adr/0027-memory-follows-project-writes-without-approval.md) 的 implementation 已更新为 implemented。
+**实施状态（2026-11-19）。** 01—09 号票已在本地实施并完成联合验收，见[联合证据](evidence/acceptance.md)。AC-01 至 AC-29 均有测试或静默 CDP 操作证据；AC-29 的真实模式因本机没有评测用的 Provider 配置与凭据记为 `skipped: no-credentials`，写入引导对真实模型是否有效未验证；需要真实指针或原生窗口层的桌面交互未验证。联合验收之后另有一轮代码审查修复，其内容与所跑的检查记在 09 号票的 Comments；这一轮没有运行全量测试与桌面 E2E。本规格以原批准需求作为 delivered 交付基线；代码经 PR #1 于 2026-11-19 合入 main 并已推送（合并提交 `e64a7472`），该 PR 没有运行 CI 检查；尚无包含该提交的发布标签，未发布。联合证据与 09 号票中“未合入 main、未推送”的说法记录的是合入前的状态。[ADR 0027](../../docs/adr/0027-memory-follows-project-writes-without-approval.md) 的 implementation 已更新为 implemented。
 
 用户明确提出的要求：独立对话的记忆放在用户级，不保存 Workspace 记忆；记忆操作都静默执行，不询问用户；在系统上下文和工具调用两处做限制；本次只做记忆优化。其余条目是访谈中由 Agent 给出推荐、用户逐轮回复采纳的结论。“用户编辑过的条目视为用户手写”与“子 Session 按根 Session 判定归属”两点没有单独成题，列在最终总结中随用户确认一并生效。
 
