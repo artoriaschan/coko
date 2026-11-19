@@ -64,4 +64,4 @@ M2 同时交付工具审批与 macOS Seatbelt 沙箱。两个参考项目的形�
 
 - [ADR 0026](0026-standalone-session-write-roots.md)（2026-11-05）分离托管独立会话的读取根、写根与 cwd，补充 outputs 的 Checkpoint 回退边界；本页的模式、判定顺序和提权语义保持有效。
 
-- [ADR 0027](0027-memory-follows-project-writes-without-approval.md)（2026-11-19，已接受、尚未实施）把 memory-write 权限类改为在所有模式下由模式放行，记忆写入不再审批；本页的判定顺序、其余模式放行与沙箱档位不变。
+- [ADR 0027](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，已实施）把 memory-write 权限类改为在所有模式下由模式放行，记忆写入不再审批；本页的判定顺序、其余模式放行与沙箱档位不变。

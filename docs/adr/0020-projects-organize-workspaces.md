@@ -72,7 +72,7 @@ category: architecture
 - 参考实现：程小帮 `apps/backend/src/repository/state-store.ts`（项目以路径为键、会话的项目可为空、删除项目级联删除会话）。本页已提炼所需结论。
 
 - 删除项目这一条的后继：[ADR 0022：删除项目保留会话](0022-project-removal-preserves-sessions.md)。该局部替代不改变本页其他映射与执行边界决定。
-- 记忆归属的后继：[ADR 0027：记忆跟随项目归属，写入不经审批](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，尚未实施）。它局部替代“移入、移出项目不改变按 Workspace 作用域保存的记忆”：Session 属于项目时使用该项目主要文件夹上的记忆，不属于项目时只有用户级记忆。本页关于批准规则、工作目录与 worktree 绑定按 Workspace 保存的决定不变；ADR 0027 实施前，当前行为仍按本页。
+- 记忆归属的后继：[ADR 0027：记忆跟随项目归属，写入不经审批](0027-memory-follows-project-writes-without-approval.md)（2026-11-19 接受，已实施）。它局部替代“移入、移出项目不改变按 Workspace 作用域保存的记忆”：Session 属于项目时使用该项目主要文件夹上的记忆，不属于项目时只有用户级记忆。本页关于批准规则、工作目录与 worktree 绑定按 Workspace 保存的决定不变；记忆的当前行为以 ADR 0027 为准。
 
 ## 2026-11-05 独立会话目录与删除规则修订
 
