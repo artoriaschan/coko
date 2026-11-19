@@ -1,0 +1,19 @@
+tests/integration/sidecar-memory-summary.test.ts
+  s_e563b3fac8279d::t_e62c1385981505 1-77,79-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "59d0c0d783fced7d86ba950ce55a5da9bac46ed3",
+  "prompts": {},
+  "sessions": {
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
