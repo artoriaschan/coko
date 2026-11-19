@@ -17,7 +17,7 @@ lifecycle: active
 
 | 命令或步骤 | 覆盖场景 | 实际范围与数量 | 结果 | 日志或产物 |
 | --- | --- | --- | --- | --- |
-| `pnpm exec vitest run --project integration tests/integration/sidecar-memory-joint.test.ts` | 跨票联合场景（见下） | 1 例 | 通过（约 26 秒）；把 `tierMemories` 的候选顺序临时换回 `sortMemories` 后失败于“最早的用户手写条目在正文层”，已恢复。第一次全量运行中该例在 66.7 秒失败（预置的 Run 超过当时 60 秒的等待），之后把用户级大条目也放进一条消息、等待放宽到 150 秒，在负载下的记忆集成命令 2 次与重跑中均通过 | 本地终端 |
+| `pnpm exec vitest run --project integration tests/integration/sidecar-memory-joint.test.ts` | 跨票联合场景（见下） | 1 例 | 通过（约 26 秒）；把 `tierMemories` 的候选顺序临时换回 `sortMemories` 后失败于“最早的用户手写条目在正文层”，已恢复。第一次全量运行中该例在 66.7 秒失败（预置的 Run 超过当时 60 秒的等待），之后把用户级大条目也放进一条消息、等待放宽到 150 秒，在负载下的记忆集成命令 2 次与重跑中均通过。复核更正：慢因是测试等待谓词的立方级开销，修正后约 2.4 秒、期限恢复默认，见 08 号票 Comments | 本地终端 |
 | `pnpm exec vitest run tests/integration/sidecar-memory tests/integration/secrets-gate-memory apps/server/src`（修复前） | ECONNRESET 复现 | 62 文件 299 例，12 次 | 5 次在“每一级内用户来源在前…”失败（`read ECONNRESET`）；另 1 次为无关的 `pty.test.ts` 信号断言 | 本地终端 |
 | 同上（修复后） | ECONNRESET 回归 | 62 文件 299 例，6 次 | 6 次全部通过 | 本地终端 |
 | `pnpm exec vitest run --project integration tests/integration/sidecar-memory tests/integration/secrets-gate-memory` | 记忆集成全集 | 10 文件 20 例，3 次（修复前） | 3 次全部通过（不加 server 单元的负载时不复现） | 本地终端 |
