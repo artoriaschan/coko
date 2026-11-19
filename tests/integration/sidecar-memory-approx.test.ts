@@ -5,15 +5,22 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, type MemoryEntry } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
+import {
+  client,
+  connect,
+  exchange,
+  fauxScript,
+  openSession,
+  sendAndWaitRun,
+  sidecarDirs,
+  startSidecar,
+  tempDir,
+  toolCall,
+  type Stream,
+} from './sidecar-harness.ts'
+import { ftsModes } from './sidecar-memory-harness.ts'
 
-const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
 const list = (id: string, args: Record<string, unknown>) => ({ content: [toolCall(id, 'memory_list', args)] })
-
-const modes = [
-  { name: 'FTS5', env: {} as Record<string, string>, fts: true },
-  { name: '强制降级（COKO_TEST_NO_FTS=1）', env: { COKO_TEST_NO_FTS: '1' } as Record<string, string>, fts: false },
-]
 
 // 与条目“Run docker compose up before integration tests”措辞相近，但“docker-compose”不出现在正文中，严格匹配为空。
 const PARAPHRASE = 'run docker-compose before tests'
@@ -21,7 +28,7 @@ const OTHER_PROJECT = 'releases ship via staging clusters'
 const SYNTAX = 'NEAR(docker "compose" ups*'
 
 describe('Memory 检索的近似匹配', () => {
-  it.each(modes)('$name', { timeout: 120_000 }, async ({ env, fts }) => {
+  it.each(ftsModes)('$name', { timeout: 120_000 }, async ({ env, fts }) => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const [p, q] = [join(root, 'p'), join(root, 'q')]
@@ -62,11 +69,8 @@ describe('Memory 检索的近似匹配', () => {
     expect(strict.body.memories).toEqual([])
 
     const run = async (stream: Stream, workspaceId: string) => {
-      const id = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
-      stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
-      await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
-      expect((await api.post(apiPaths.sessionMessages(id), { text: 'what do we know?' })).status).toBe(202)
-      await stream.waitFor(() => stream.entries(id).some((e) => e.kind === 'run_end'))
+      const id = await openSession(api, stream, workspaceId)
+      await sendAndWaitRun(api, stream, id, 'what do we know?')
       const all = stream
         .entries(id)
         .filter((e) => e.kind === 'message' && (e.payload as { role: string }).role === 'toolResult')

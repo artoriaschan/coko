@@ -111,7 +111,7 @@ Session 不存在时三者都是 404 `not-found`。三者的响应在返回前�
 | --- | --- |
 | `prompt` | 提交的文本 |
 | `permissionMode?` | 缺省 `full-access`；`read-only` 与 `default` 下的审批由运行器带反馈拒绝（Run 继续） |
-| `memories?` | `[{ content, scope? }]`：Run 开始前经记忆接口（`POST /api/memories`，来源为 user）按次序新建的条目，由旧到新；`scope` 目前只能是 `user`（评测的 Workspace 不属于项目）。不写库文件。加载用例时校验格式 |
+| `memories?` | `[{ content }]`：Run 开始前经记忆接口（`POST /api/memories`，来源为 user）按次序新建的用户级条目（评测的 Workspace 不属于项目），由旧到新。不写库文件。加载用例时校验格式 |
 | `faux` | faux 模式的回复脚本（与 `COKO_FAUX_SCRIPT` 的 `responses` 相同）；其中的 `{{memory:N}}` 在预置后替换为 `memories` 第 N 条（从 0 起）的实际 id，序号不是整数或超出 `memories` 时加载用例即报错 |
 | `expect.files?` | 路径 → 完整内容，或 `"/正则/"` |
 | `expect.unchanged?` | 内容应与初始文件相同的路径 |

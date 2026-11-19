@@ -466,6 +466,17 @@ describe('memory 工具', () => {
     expect(similars).toHaveLength(2)
   })
 
+  it('memory_write 新建后查找相近条目失败时仍返回已保存的结果，不列出相近条目', async () => {
+    const { port, entries } = fakePort([entry('u1', 'user', '用户偏好 pnpm 而不是 npm', 1)])
+    port.similar = async () => {
+      throw new Error('database is locked')
+    }
+    const created = await tools(port).memory_write!.tool.execute('c1', { content: '用户偏好使用 pnpm', scope: 'user' })
+    expect(text(created)).toBe('Remembered (id: new-1, scope: user).')
+    expect(created.details).toMatchObject({ action: 'created', memory: { id: 'new-1' } })
+    expect(entries.has('new-1')).toBe(true)
+  })
+
   it('memorySummary：第一个非空行截到 60 个 UTF-16 码元（不截断代理对），截断或另有内容时以省略号结尾', () => {
     expect(memorySummary('\n  Prefers tabs  \n')).toBe('Prefers tabs')
     expect(memorySummary('a'.repeat(60))).toBe('a'.repeat(60))

@@ -39,10 +39,8 @@ export function memoryExpectErrors(memory: unknown): string[] {
   return []
 }
 
-// ponytail: 只支持用户级。评测的 Workspace 不属于项目，workspace 作用域的新建会被接口拒绝；需要时先让运行器建项目。
-const SeededMemories = Type.Array(
-  Type.Object({ content: Type.String({ minLength: 1 }), scope: Type.Optional(Type.Literal('user')) }, { additionalProperties: false }),
-)
+/** 预置条目都是用户级：评测的 Workspace 不属于项目。 */
+const SeededMemories = Type.Array(Type.Object({ content: Type.String({ minLength: 1 }) }, { additionalProperties: false }))
 export type EvalSeededMemory = Static<typeof SeededMemories>[number]
 
 /** faux 脚本中引用预置条目 id 的占位符：{{memory:N}}，N 为 memories 中的序号（从 0 起）。 */
@@ -50,7 +48,7 @@ const MEMORY_REF = /\{\{memory:([^}]*)\}\}/g
 
 /** memories 与 faux 中占位符的格式错误；空数组为合法。 */
 function seedErrors(memories: unknown, faux: unknown): string[] {
-  if (memories !== undefined && !Value.Check(SeededMemories, memories)) return ['memories: expected [{ content: string, scope?: "user" }]']
+  if (memories !== undefined && !Value.Check(SeededMemories, memories)) return ['memories: expected [{ content: string }]']
   const count = (memories as unknown[] | undefined)?.length ?? 0
   return [...JSON.stringify(faux ?? null).matchAll(MEMORY_REF)]
     .filter(([, n]) => !/^\d+$/.test(n!) || Number(n) >= count)

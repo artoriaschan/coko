@@ -4,18 +4,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, type MemoryListResponse } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
-
-type Logged = { role: string; sections?: Record<string, string | null> }
-
-/** Memory 段中某个作用域在正文层与摘要层的条数，以及未放入的总数。 */
-function tiersOf(section: string, scope: 'user' | 'workspace') {
-  return {
-    full: section.match(new RegExp(`<entry [^>]*scope="${scope}"`, 'g'))?.length ?? 0,
-    summary: section.match(new RegExp(`<summary [^>]*scope="${scope}"`, 'g'))?.length ?? 0,
-  }
-}
-const omittedOf = (section: string) => Number(/(\d+) more entr(?:y|ies) not shown/.exec(section)?.[1] ?? 0)
+import { client, connect, exchange, fauxScript, openSession, sendAndWaitRun, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { memorySection, omittedOf, tiersOf, type LoggedMessage } from './sidecar-memory-harness.ts'
 
 it('注入汇总与同一时刻发起的 Run 的请求中各层的条数一致；带 query 或 scope 时没有汇总', { timeout: 120_000 }, async () => {
   const root = await tempDir()
@@ -41,16 +31,11 @@ it('注入汇总与同一时刻发起的 Run 的请求中各层的条数一致�
   }
   const list = async (query = '') => (await api.get(`${memoryPaths.memories}${query}`)).body as MemoryListResponse
 
-  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string
-  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
-  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
-  const runEnds = () => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
+  const sessionId = await openSession(api, stream, workspaceId)
   const send = async () => {
-    const before = runEnds()
-    expect((await api.post(apiPaths.sessionMessages(sessionId), { text: 'hi' })).status).toBe(202)
-    await stream.waitFor(() => runEnds() > before)
+    await sendAndWaitRun(api, stream, sessionId, 'hi')
     const lines = (await readFile(requestLog, 'utf8')).split('\n').filter(Boolean)
-    return (JSON.parse(lines.at(-1)!) as Logged[]).map((m) => m.sections?.memory).find(Boolean)!
+    return memorySection(JSON.parse(lines.at(-1)!) as LoggedMessage[])
   }
 
   // AC-27：项目的主要 Workspace，两组。

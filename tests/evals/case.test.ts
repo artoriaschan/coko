@@ -21,16 +21,15 @@ const readFirst = { content: [{ type: 'toolCall', name: 'memory_list', id: 'r', 
 
 describe('预置记忆', () => {
   it('合法的 memories 与引用：加载成功', async () => {
-    const dir = await casesWith({ memories: [{ content: 'a' }, { content: 'b', scope: 'user' }], faux: [readFirst] })
+    const dir = await casesWith({ memories: [{ content: 'a' }, { content: 'b' }], faux: [readFirst] })
     const [loaded] = await loadCases(dir)
-    expect(loaded!.spec.memories).toEqual([{ content: 'a' }, { content: 'b', scope: 'user' }])
+    expect(loaded!.spec.memories).toEqual([{ content: 'a' }, { content: 'b' }])
   })
 
   it.each([
-    ['不是数组', { memories: { content: 'a' }, faux: [] }, 'memories: expected [{ content: string, scope?: "user" }]'],
-    ['正文为空', { memories: [{ content: '' }], faux: [] }, 'memories: expected [{ content: string, scope?: "user" }]'],
-    ['多余字段', { memories: [{ content: 'a', id: 'x' }], faux: [] }, 'memories: expected [{ content: string, scope?: "user" }]'],
-    ['workspace 作用域', { memories: [{ content: 'a', scope: 'workspace' }], faux: [] }, 'memories: expected [{ content: string, scope?: "user" }]'],
+    ['不是数组', { memories: { content: 'a' }, faux: [] }, 'memories: expected [{ content: string }]'],
+    ['正文为空', { memories: [{ content: '' }], faux: [] }, 'memories: expected [{ content: string }]'],
+    ['多余字段', { memories: [{ content: 'a', id: 'x' }], faux: [] }, 'memories: expected [{ content: string }]'],
     ['引用越界', { memories: [{ content: 'a' }], faux: [readFirst, { content: '{{memory:1}}' }] }, 'faux: {{memory:1}} refers to no seeded memory'],
     ['没有预置却引用', { faux: [readFirst] }, 'faux: {{memory:0}} refers to no seeded memory'],
     ['引用不是序号', { memories: [{ content: 'a' }], faux: [{ content: '{{memory:first}}' }] }, 'faux: {{memory:first}} refers to no seeded memory'],

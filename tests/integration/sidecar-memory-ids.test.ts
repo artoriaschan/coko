@@ -5,10 +5,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { API_ROUTES, apiPaths, memoryPaths, type MemoryEntry } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, openSession, sendAndWaitRun, sidecarDirs, startSidecar, tempDir, toolCall } from './sidecar-harness.ts'
 import { bootAgents, call, runEnds as agentRunEnds, starts } from './sidecar-subagents-harness.ts'
-
-const toolCall = (id: string, name: string, args: Record<string, unknown>) => ({ type: 'toolCall', name, id, arguments: args })
 
 it('memory_list 的 ids：按次序返回可见条目的全文，不可见与不存在的列为没有找到', { timeout: 120_000 }, async () => {
   const root = await tempDir()
@@ -47,15 +45,8 @@ it('memory_list 的 ids：按次序返回可见条目的全文，不可见与不
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
-  const sessionId = (await api.post(API_ROUTES.sessions, { workspaceId: wp })).body.id as string
-  stream.send({ type: 'subscribe', sessionId, afterSeq: 0 })
-  await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === sessionId)
-  const runEnds = () => stream.entries(sessionId).filter((e) => e.kind === 'run_end').length
-  const send = async (text: string) => {
-    const before = runEnds()
-    expect((await api.post(apiPaths.sessionMessages(sessionId), { text })).status).toBe(202)
-    await stream.waitFor(() => runEnds() > before)
-  }
+  const sessionId = await openSession(api, stream, wp)
+  const send = (text: string) => sendAndWaitRun(api, stream, sessionId, text)
   const result = (id: string) => {
     const payload = stream
       .entries(sessionId)
