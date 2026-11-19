@@ -36,6 +36,11 @@ export interface ContextScope {
   sessionDirectory?: string
   /** Current model; draft scopes use the default model. */
   model?: { providerId: string; modelId: string; contextWindow?: number }
+  /**
+   * 项目记忆 Workspace（ADR 0027）：根 Session（草稿为所选项目）当前所属项目的主要 Workspace，与 Workspace 根同时取值；
+   * 不属于项目时省略，此时只有用户级记忆。
+   */
+  memoryWorkspaceId?: string
   /** Additional Project folders, inherited from the root Session by child Sessions. */
   additionalFolders?: readonly string[]
   /** 草稿（还没有 Session）时省略。 */

@@ -13,6 +13,7 @@ import {
   contextPaths,
   hookPaths,
   jobPaths,
+  memoryPaths,
   permissionPaths,
   worktreePaths,
   type ContextUsageResponse,
@@ -211,6 +212,7 @@ describe('绑定 worktree 的会话', () => {
       // worktree 中的指令文件与主 checkout 不同；主 checkout 另有一个只在其中的文件。
       await writeFile(join(worktree.path, 'AGENTS.md'), 'WORKTREE-RULE\n')
       await writeFile(join(fixture.root, 'MAIN-ONLY.txt'), 'main secret\n')
+      expect((await g.api.post(memoryPaths.memories, { scope: 'workspace', workspaceId, content: 'WORKTREE-PROJECT-MEMORY' })).status).toBe(201)
       const a = await g.session(workspaceId, worktree.id)
       expect(a.dto.worktree).toEqual({ id: worktree.id, name: 'bound', branch: 'coko/bound', status: 'active' })
       expect((await g.api.put(permissionPaths.sessionPermissionMode(a.id), { mode: 'accept-edits' })).status).toBe(200)
@@ -244,6 +246,8 @@ describe('绑定 worktree 的会话', () => {
       expect(await readFile(join(worktree.path, 'sb.txt'), 'utf8')).toBe('sb\n')
       for (const id of ['r1', 'r2']) expect(text(toolResult(g.stream, a.id, id))).not.toContain('main secret')
       const instructions = (await g.requests())[0]![0]!.sections!.instructions!
+      // AC-10：绑定 worktree 的项目 Session 使用该项目的项目记忆。
+      expect((await g.requests())[0]![0]!.sections!.memory).toContain('WORKTREE-PROJECT-MEMORY')
       expect(instructions).toContain('WORKTREE-RULE')
       expect(instructions).not.toContain('MAIN-RULE')
       expect(instructions).toContain(`path="${join(worktree.path, 'AGENTS.md')}"`)
