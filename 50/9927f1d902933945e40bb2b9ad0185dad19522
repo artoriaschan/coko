@@ -1,0 +1,19 @@
+.scratch/memory-scope-and-writes/spec.md
+  s_0f0f72467ad091::t_85f2031b7ad891 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "509927f1d902933945e40bb2b9ad0185dad19522",
+  "prompts": {},
+  "sessions": {
+    "s_0f0f72467ad091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d2f112e-ea71-4ed1-bbaf-cd27366852b3",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
