@@ -72,7 +72,7 @@ describe('memorySection', () => {
     const noProject = fixed({ writable: true, project: false })
     expect(noProject).toMatch(GUIDANCE)
     expect(noProject).toMatch(/personal preferences of the user with scope "user"\./)
-    expect(noProject).not.toMatch(/current project/)
+    expect(noProject).not.toMatch(/project/)
 
     // 子 Session 与无界面运行：只有声明与条目。
     for (const project of [true, false]) {
@@ -255,7 +255,7 @@ function fakePort(initial: MemoryEntry[] = []) {
   return { port, entries, searches }
 }
 
-const tools = (port: MemoryPort) => Object.fromEntries(createMemoryTools(port).map((t) => [t.tool.name, t]))
+const tools = (port: MemoryPort) => Object.fromEntries(createMemoryTools(port, { project: true }).map((t) => [t.tool.name, t]))
 const text = (result: { content: { type: string; text?: string }[] }) => result.content.map((b) => b.text ?? '').join('')
 const call = (tool: { parameters: unknown; name: string }, args: Record<string, unknown>) =>
   validateToolArguments(tool as never, { type: 'toolCall', id: 'c1', name: tool.name, arguments: args as never })
@@ -263,7 +263,7 @@ const call = (tool: { parameters: unknown; name: string }, args: Record<string, 
 describe('memory 工具', () => {
   it('权限类：memory_list 为 context-read，memory_write 与 memory_delete 为 memory-write', () => {
     const { port } = fakePort()
-    expect(createMemoryTools(port).map((t) => [t.tool.name, t.permissionClass, t.tool.effect])).toEqual([
+    expect(createMemoryTools(port, { project: true }).map((t) => [t.tool.name, t.permissionClass, t.tool.effect])).toEqual([
       ['memory_list', 'context-read', 'read'],
       ['memory_write', 'memory-write', 'side-effect'],
       ['memory_delete', 'memory-write', 'side-effect'],
