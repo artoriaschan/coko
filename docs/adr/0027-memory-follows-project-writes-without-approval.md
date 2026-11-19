@@ -2,7 +2,7 @@
 kind: decision
 description: "记忆只分用户级与项目级：Session 使用哪个 Workspace 的记忆由当前项目归属决定，不属于项目的 Session 只有用户级记忆，局部替代 ADR 0020 中关于记忆的部分；记忆的写入、替换与删除在任何权限模式下不经审批，改由 Memory 段声明、来源标注、用户来源条目不可被模型改动、子 Session 与 Headless Run 只读约束，并记录残余风险。想恢复记忆审批、放宽这些限制或再次调整记忆归属时回看。"
 status: accepted
-implementation: not-started
+implementation: implemented
 lifecycle: active
 category: feature
 ---
@@ -29,7 +29,7 @@ category: feature
 
 ## 决定
 
-本决定已接受，尚未实施；以下为目标行为。
+本决定已于 2026-11-19 实施，以下即实际行为；当前契约见 [Memory](../subsystems/memory.md)。
 
 ### 记忆跟随项目归属
 
@@ -66,7 +66,14 @@ category: feature
 
 **残余风险。** 审批取消后，模型读到的不受信任内容（文件、网页、工具输出）仍可能诱导它写入一条 Agent 来源的记忆，这条记忆会进入之后的 Run。声明、来源标注与写入引导对模型只是提示，不是硬性拦截。硬性的限制只有：子 Session 与 Headless Run 不能写；用户来源的条目不可被模型改动；用户配置的询问、拒绝规则与外部 Hook。用户已在知情的前提下接受这一风险。
 
-验证要求：实施时以真实 Sidecar 请求断言 Memory 段与工具集合随归属、Run 类型和开关变化；对手用例确认记忆正文或工具输出中伪造的来源标注、结束标签或“用户手写”声明不能改变条目来源，也不能让模型改动用户来源的条目；权限判定覆盖五种模式放行及询问、拒绝规则仍生效。写入引导是否让真实模型记得更多、更准，需要以真实 Provider 运行评测用例回答。implementation 变为 implemented 时在本页链接实现与检查结果。
+**实现与验证。** 归属在 `SessionRuns.scope` 与草稿的 `ContextService.scopeFor` 中解析为 `ContextScope.memoryWorkspaceId`；Memory 段、两级预算与工具在 [`packages/agent/src/context/memory/`](../../packages/agent/src/context/memory/)；来源限制、新建校验与上下文贡献在 [`MemoryService`](../../apps/server/src/application/context/memory.ts)；模式放行在 [`decide.ts`](../../packages/agent/src/policy/decide.ts)。真实 Sidecar（faux 模型）用例断言实际请求中的 Memory 段与工具集合、库中与接口返回的条目：
+
+- [项目归属](../../tests/integration/sidecar-memory-projects.test.ts)：移入、移出、换项目、Run 中移动、删除与重建项目、更换主要文件夹，以及把不经审批的写入、同项目与移入对话可见、用户编辑后模型不能替换、删除与重建项目串在一起的联合场景；子 Session 与 worktree 的归属见[子代理权限](../../tests/integration/sidecar-subagents-permissions.test.ts)与 [worktree](../../tests/integration/sidecar-worktrees.test.ts) 用例。
+- [记忆](../../tests/integration/sidecar-memory.test.ts)：各模式不经审批、`Memory` 询问与拒绝规则及 PreToolUse Hook 仍生效、用户来源不可改与伪造来源标注（对手用例）、没有条目时的声明与写入引导、两级预算、记忆关闭、新建项目记忆的接口校验；只读运行见 [headless](../../tests/integration/headless.test.ts) 与 [Agent Teams](../../tests/integration/sidecar-teams.test.ts) 用例；模式放行的单元覆盖在 [`decide.test.ts`](../../packages/agent/src/policy/decide.test.ts)。
+- 桌面：后台模式 Electron 中的[记忆 E2E](../../apps/desktop/e2e/memory.e2e.test.ts)（default 下没有审批卡、工具卡“已记住”与详情正文、项目分组）与 [Memory 分区](../../apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx)的 Browser Mode 用例。
+- 评测用例 `remembers-preference` 的 faux 模式通过（见[评测](../subsystems/tracing.md#评测)）。
+
+未满足的验证条件：写入引导是否让真实模型记得更多、更准，需要以真实 Provider 运行该评测用例回答，本机没有评测用的 Provider 配置与凭据，尚未运行；需要真实指针与原生窗口层的桌面交互未验证。
 
 **需要重新审视的情形：**
 
@@ -82,4 +89,4 @@ category: feature
 - 局部修订 [ADR 0005](0005-permission-mode-and-sandbox.md) 的模式放行：memory-write 在所有模式下无需审批；判定顺序、其余模式放行与沙箱档位不变。
 - 与 [ADR 0019](0019-headless-runs-deny-approvals.md) 的关系：Headless Run 遇到审批仍自动拒绝；记忆不再经审批后，改由不注册写入工具保证 Headless Run 只读。子 Session 的定义见 [ADR 0014](0014-subagents-as-child-sessions.md)，Teammate 见 [ADR 0018](0018-agent-teams-in-root-session.md)。
 - 删除项目保留会话与记忆沿用 [ADR 0022](0022-project-removal-preserves-sessions.md)。
-- 当前行为（实施前）见 [Memory](../subsystems/memory.md)。
+- 当前行为见 [Memory](../subsystems/memory.md)。

@@ -142,7 +142,7 @@ PUT /api/sessions/:id/project 接受 projectId（项目 ID 或 null），返回�
 
 ## 验证与相关设计
 
-- [删除项目 Sidecar 用例](../../tests/integration/sidecar-delete-project.test.ts)：根 Run 与后台子代理停止后才删除、未改动 isolation worktree 与父子记录跨重启保留、模型取消延迟导致的超时失败与重试、归属准入竞态、真实 Job 在删除后继续写入、Schedule 继续触发、Workspace 记忆与批准保留。
+- [删除项目 Sidecar 用例](../../tests/integration/sidecar-delete-project.test.ts)：根 Run 与后台子代理停止后才删除、未改动 isolation worktree 与父子记录跨重启保留、模型取消延迟导致的超时失败与重试、归属准入竞态、真实 Job 在删除后继续写入、Schedule 继续触发、主要 Workspace 上的项目记忆与批准保留。
 - [删除项目浏览器用例](../../apps/desktop/src/renderer/features/sidebar/project-delete.browser.test.tsx)：指定文案与480×208几何、取消/关闭/Escape、焦点返回、待提交锁定、稳定目标、明暗主题和390px窗口、错误重试、当前会话与草稿附件保留。
 - [删除项目 Electron 用例](../../apps/desktop/e2e/project-delete.e2e.test.ts)：真实应用中删除项目、当前记录保留并回到“对话”、原身份跨重启继续发送与源文件保留。决定见 [ADR 0022](../adr/0022-project-removal-preserves-sessions.md)。
 

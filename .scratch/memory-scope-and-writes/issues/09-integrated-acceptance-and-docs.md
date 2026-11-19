@@ -23,3 +23,12 @@
 ## Comments
 
 - 2026-11-19：用户确认 9 票的拆分及阻塞关系。本票发布到本地 Markdown tracker，尚未实施，验收项均未完成。
+- 2026-11-19：联合验收完成，证据见[联合证据](../evidence/acceptance.md)。
+  - 前置票核对：01—08 均有交付与检查记录，行为在同一份代码上由下列批次复核。
+  - 联合场景：`tests/integration/sidecar-memory-projects.test.ts` 新增一例（default 下不经审批写入项目记忆 → 同项目与移入的独立对话可见 → 用户编辑后模型替换为工具错误 → 删除项目只剩用户级 → 重建项目恢复）；首次即通过，临时去掉 `decide.ts` 中 memory-write 的模式放行后在审批处失败，已恢复。第一例中“记忆写入若仍需审批”的过时注释改为只允许 barrier 的文件写入审批。
+  - 实际执行的检查：集成 14 文件 59 例、单元 10 文件 238 例、Memory 分区 Browser Mode 2 文件 8 例、`memory.e2e.test.ts` 2 例（首次打包阶段 `fetch failed`，重跑通过）、`pnpm run eval`（31 通过、10 跳过）、`pnpm run typecheck`、`pnpm run check:docs`、改动文件的 oxfmt / oxlint，全部通过。静默 CDP（`COKO_E2E_BACKGROUND=1`，独立数据目录，agent-browser 连接 9339）：项目对话 default 模式无审批卡、“Remembered”工具卡与详情正文；项目对话 Memory 分区两组、独立对话只有用户级，亮暗主题；结束时关闭会话与应用。
+  - 基线对比：在 `9fe61757` 的独立 worktree 上运行 server + agent 全量、11 个集成文件与 6 个设置 Browser Mode 文件，失败集合（6 / 10 / 24 例）与集成分支逐条相同，都是既有失败，没有回归；`sidecar-delete-project` 两边都通过。基线 worktree 已移除。
+  - 文档：ADR 0027 implementation → implemented（链接实现与测试，写明真实模型与原生层未验证），ADR 索引同步；规格 status → delivered 并更新实施状态；Memory 正文的 description 与验证段、文档导航的 Memory 摘要、projects 测试清单的措辞；其余 subsystems 页核对一致未改。
+  - 未验证：AC-29 真实模式（无凭据，`skipped: no-credentials`）；真实指针与原生层；全量 `pnpm run test` 未运行。本地提交，未推送、未发布。
+
+Closed: true

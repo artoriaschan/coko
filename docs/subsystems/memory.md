@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 Memory 契约：memory_list / memory_write / memory_delete 工具与权限类、每个 Run 注入的 <memory> system section 与预算、关键词检索（FTS5 与 LIKE 降级）、memory.enabled 开关、正文脱敏、/api/memories 接口与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
+description: "当前的 Memory 契约：用户级与跟随项目归属的项目级记忆、memory_list / memory_write / memory_delete 工具与权限类（不经审批，子 Session 与无界面运行只读）、每个 Run 注入的 <memory> system section（声明、写入引导、来源标注）与两级预算、关键词检索（FTS5 与 LIKE 降级）、memory.enabled 开关、正文脱敏、/api/memories 接口与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
 lifecycle: active
 ---
 
@@ -83,7 +83,7 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 
 - `packages/agent/src/context/memory/memory.test.ts`：没有条目时的声明与写入引导、来源标注、有无写入工具与有无项目级的组合、固定文本逐字不变且不计入预算、正文伪造声明 / 来源 / 结束标签（对手用例）、项目级在前的排列、两级预算（两级各超过一半、项目级少而用户级多、项目级多而用户级少、没有项目级、恰好等于上限、不跳过较新的、用户级未放完时余量不给项目级、单条超过项目级上限）与"另有 N 条"、结束标签转义、memory_write 的描述、工具的新建 / 替换 / 删除 / 列表、memory_list 的 query（至多 20 条、保持端口的相关度次序、无结果文本、空白 query、描述）、作用域不符与空正文、超长内容的参数错误、权限类与审批对象。
 - `apps/server/src/application/context/memory.test.ts`：`MemoryService.search` 的全局次序与放大重查、scope 与校验；没有项目记忆 Workspace 的工具端口不能按 id 替换或删除 Workspace 条目，有时只针对该 Workspace。
-- `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
+- `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。同一文件中的联合场景：default 模式下模型不经审批写入项目记忆 → 同项目另一对话与移入项目的独立对话可见 → 用户经接口编辑后来源变为 user、模型按 id 替换为工具错误（跨 Sidecar 重启）→ 删除项目后只有用户级 → 同一文件夹重建项目后看到编辑后的条目。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/secrets-gate-memory-search.test.ts`：带 Credential 的条目经 HTTP 检索与 memory_list 的 query 返回时，响应体、工具结果、之后的模型请求、日志与 COKO_HOME 中没有明文。
 - `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同项目新 Session 的 section 含条目且项目级在前、两级预算下请求中的实际排列与未放入条数、另一项目只有用户级、删除后不再注入、写入与删除在 default、read-only、plan 下都不经审批、memory_list 免审批、`Memory` 的全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验，向不是项目主要 Workspace 的 Workspace 新建为 400 且没有新增、其上已有条目仍可读改删；重启后条目仍在。

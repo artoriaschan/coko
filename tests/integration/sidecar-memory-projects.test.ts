@@ -166,7 +166,7 @@ it('项目记忆跟随 Session 的项目归属，从下一个 Run 生效', { tim
   expect((await api.post(apiPaths.sessionMessages(s), { text: 'mid run' })).status).toBe(202)
   await stream.waitFor(() => approvals(stream, s).length >= 1)
   await move(s, P.id)
-  // 之后的记忆写入若仍需审批（审批取消之前）一并允许。
+  // 允许 barrier 的文件写入审批；记忆写入不再产生审批。
   for (let answered = 0; runEnds(stream, s) === before;) {
     await stream.waitFor(() => runEnds(stream, s) > before || approvals(stream, s).length > answered)
     for (const pending of approvals(stream, s).slice(answered)) {
@@ -210,3 +210,110 @@ it('项目记忆跟随 Session 的项目归属，从下一个 Run 生效', { tim
   expect(await entries(wq)).toContainEqual(['workspace', wq, 'Q uses npm'])
   expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
 })
+
+it(
+  '联合场景：default 下不经审批记下项目记忆 → 同项目与移入的独立对话可见 → 用户编辑后模型不能替换 → 删除项目只剩用户级 → 重建项目恢复',
+  { timeout: 120_000 },
+  async () => {
+    const root = await tempDir()
+    const p = join(root, 'p')
+    await mkdir(p)
+    const dirs = await sidecarDirs()
+    const requestLog = join(root, 'requests.jsonl')
+    await writeFile(requestLog, '')
+    // faux 脚本在启动时读取：模型替换用户编辑过的条目需要条目 id，因此第二段脚本在重启时写入。
+    const boot = async (name: string, responses: unknown[]) => {
+      const script = await fauxScript(root, { requestLog, responses }, `${name}.json`)
+      const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script, COKO_CHATS_ROOT: join(root, 'chats') } })
+      const cookie = await exchange(sidecar)
+      return { sidecar, api: client(sidecar, cookie), stream: await connect(sidecar, cookie) }
+    }
+    let { sidecar, api, stream } = await boot('first', [
+      remember('j1', 'P deploys on Fridays'),
+      { content: 'noted' },
+      { content: 'other P session' },
+      { content: 'standalone' },
+      { content: 'moved into P' },
+    ])
+    const memoryOf = async () =>
+      replay(
+        (await readFile(requestLog, 'utf8'))
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line) as LoggedMessage[])
+          .at(-1)!,
+      ).memory
+    const watch = async (id: string) => {
+      stream.send({ type: 'subscribe', sessionId: id, afterSeq: 0 })
+      await stream.waitFor((m) => m.type === 'subscribed' && m.sessionId === id)
+      return id
+    }
+    const open = async (workspaceId: string) => watch((await api.post(API_ROUTES.sessions, { workspaceId })).body.id as string)
+    const send = async (id: string, text: string) => {
+      const before = runEnds(stream, id)
+      expect((await api.post(apiPaths.sessionMessages(id), { text })).status).toBe(202)
+      await stream.waitFor(() => runEnds(stream, id) > before)
+    }
+    const entries = async (workspaceId: string) => (await api.get(`${memoryPaths.memories}?workspaceId=${workspaceId}`)).body.memories as MemoryEntry[]
+
+    const wp = (await api.post(API_ROUTES.workspaces, { path: p })).body.id as string
+    const P = ((await api.get(API_ROUTES.projects)).body.projects as { id: string; primaryWorkspaceId: string }[]).find((x) => x.primaryWorkspaceId === wp)!
+    expect((await api.post(memoryPaths.memories, { scope: 'user', content: 'User prefers tabs' })).status).toBe(201)
+
+    // 项目对话，default 模式，没有 Memory 规则：模型写入项目级记忆，没有审批请求。
+    const s = await open(wp)
+    expect((await api.put(permissionPaths.sessionPermissionMode(s), { mode: 'default' })).status).toBe(200)
+    await send(s, 'remember that P deploys on Fridays')
+    expect(approvals(stream, s)).toHaveLength(0)
+    expect(toolResults(stream, s).find((t) => t.toolCallId === 'j1')!.isError).toBe(false)
+    const fact = (await entries(wp)).find((m) => m.content === 'P deploys on Fridays')!
+    expect(fact).toMatchObject({ scope: 'workspace', workspaceId: wp, source: 'model' })
+
+    // 同项目的另一个对话：下一个 Run 可见。
+    await send(await open(wp), 'hello')
+    expect(await memoryOf()).toContain('P deploys on Fridays')
+
+    // 独立对话看不到；移入 P 后下一个 Run 可见。
+    const first = await api.post(API_ROUTES.firstSend, { draftId: 'joint-standalone', text: 'hi' })
+    expect(first.status).toBe(201)
+    const t = await watch(first.body.session.id as string)
+    await stream.waitFor(() => runEnds(stream, t) >= 1)
+    expect(await memoryOf()).toContain('User prefers tabs')
+    expect(await memoryOf()).not.toContain('P deploys on Fridays')
+    expect((await api.put(apiPaths.sessionProject(t), { projectId: P.id })).status).toBe(200)
+    await send(t, 'hello in P')
+    expect(await memoryOf()).toContain('P deploys on Fridays')
+
+    // 用户在设置中修改该条目（经接口）后来源为用户。
+    const edited = await api.put(memoryPaths.memory(fact.id), { content: 'P deploys on Fridays after 3pm' })
+    expect(edited.body).toMatchObject({ source: 'user' })
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+    ;({ sidecar, api, stream } = await boot('second', [
+      { content: [toolCall('j2', 'memory_write', { id: fact.id, scope: 'workspace', content: 'P deploys on Mondays' })] },
+      { content: 'kept' },
+      { content: 'after delete' },
+      { content: 'recreated' },
+    ]))
+
+    // 模型按 id 替换得到工具错误，条目不变。
+    await watch(s)
+    await send(s, 'P deploys on Mondays now')
+    const replaced = toolResults(stream, s).find((r) => r.toolCallId === 'j2')!
+    expect(replaced.isError).toBe(true)
+    expect(replaced.content[0]!.text).toMatch(/maintained by the user/)
+    expect((await entries(wp)).find((m) => m.id === fact.id)).toMatchObject({ content: 'P deploys on Fridays after 3pm', source: 'user' })
+
+    // 删除项目后原对话只剩用户级，记忆仍在库中。
+    expect((await api.delete(apiPaths.project(P.id))).status).toBe(200)
+    await send(s, 'after delete')
+    expect(await memoryOf()).toContain('User prefers tabs')
+    expect(await memoryOf()).not.toContain('P deploys')
+    expect((await entries(wp)).map((m) => m.content)).toContain('P deploys on Fridays after 3pm')
+
+    // 用同一文件夹重建项目：新项目中的对话看到用户编辑后的项目记忆。
+    expect((await api.post(API_ROUTES.projects, { name: 'P again', folders: [{ path: p, primary: true }] })).body.status).toBe('created')
+    await send(await open(wp), 'hello again')
+    expect(await memoryOf()).toContain('P deploys on Fridays after 3pm')
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
+  },
+)
