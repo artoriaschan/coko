@@ -3,7 +3,7 @@
 // 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
 // 全局或项目设置中的 Memory 询问规则仍出审批卡、拒绝规则仍拒绝，PreToolUse Hook 的 deny 仍阻止写入；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
-// 注入预算分两级（项目级在前），每一级内用户来源在前（含用户编辑过的 Agent 条目），列表仍按更新时间倒序；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
+// 正文层预算分两级（项目级在前），放不下的降为摘要行（摘要层见 sidecar-memory-summary），每一级内用户来源在前（含用户编辑过的 Agent 条目），列表仍按更新时间倒序；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
 // 重启 Sidecar 后条目仍在。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -299,7 +299,7 @@ describe('Memory', () => {
     expect(await second.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('注入预算分两级：项目级先占至多 6 000 字符且在前，用户级用满其余，段末注明未放入的总条数', { timeout: 60_000 }, async () => {
+  it('正文层预算分两级：项目级先占至多 6 000 字符且在前，用户级用满其余，放不下的降为摘要行', { timeout: 60_000 }, async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const one = join(root, 'one')
@@ -317,11 +317,12 @@ describe('Memory', () => {
     const shown = [...section.matchAll(/<entry [^>]*>\n(\S+) /g)].map((m) => m[1])
     // 项目级放得下 3 条（第 4 条会超过 6 000），用户级在其后放 3 条（第 4 条会超过 12 000）；各自新的在前。
     expect(shown).toEqual(['P3', 'P2', 'P1', 'U3', 'U2', 'U1'])
-    expect(section).toContain('2 more entries not shown; use memory_list with a query to search them.')
+    expect([...section.matchAll(/<summary [^>]*>(\S+) /g)].map((m) => m[1])).toEqual(['P0', 'U0'])
+    expect(section).not.toMatch(/not shown/)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('每一级内用户来源在前（含用户编辑过的 Agent 条目），超出预算时省略较旧的 Agent 条目；列表仍按更新时间倒序', { timeout: 120_000 }, async () => {
+  it('每一级内用户来源在前（含用户编辑过的 Agent 条目），超出预算时较旧的 Agent 条目降级；列表仍按更新时间倒序', { timeout: 120_000 }, async () => {
     const root = await tempDir()
     const dirs = await sidecarDirs()
     const one = join(root, 'one')
@@ -350,7 +351,7 @@ describe('Memory', () => {
     const section = replay((await requests()).at(-1)!).sections.memory!
     const shown = [...section.matchAll(/<entry [^>]*>\n(\S+)/g)].map((m) => m[1])
     expect(shown).toEqual(['Edited', 'Always', 'A6', 'A5', 'A4', 'A3', 'A2'])
-    expect(section).toContain('2 more entries not shown; use memory_list with a query to search them.')
+    expect([...section.matchAll(/<summary [^>]*>(\S+) /g)].map((m) => m[1])).toEqual(['A1', 'A0'])
     // 列表次序不变：按更新时间倒序。
     expect(await list()).toEqual(['A6', 'A5', 'A4', 'A3', 'A2', 'A1', 'A0', 'Edited', 'Always'])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
