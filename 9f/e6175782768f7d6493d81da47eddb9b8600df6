@@ -1,0 +1,38 @@
+.scratch/memory-scope-and-writes/issues/09-integrated-acceptance-and-docs.md
+  s_0f0f72467ad091::t_4f9b6bd96401de 1-25
+.scratch/memory-scope-and-writes/issues/04-memory-writes-without-approval.md
+  s_0f0f72467ad091::t_4e8200f9ead937 1-25
+.scratch/memory-scope-and-writes/issues/03-memory-section-statement-and-guidance.md
+  s_0f0f72467ad091::t_82f05bac65d338 1-27
+.scratch/memory-scope-and-writes/issues/01-adr-and-glossary.md
+  s_0f0f72467ad091::t_b2fa92067ab9cc 1-23
+.scratch/memory-scope-and-writes/issues/07-two-level-injection-budget.md
+  s_0f0f72467ad091::t_9d5b95784fa210 1-25
+.scratch/memory-scope-and-writes/issues/08-eval-case-remembers-preference.md
+  s_0f0f72467ad091::t_99498727ed34b0 1-22
+.scratch/memory-scope-and-writes/issues/06-api-check-and-settings-groups.md
+  s_0f0f72467ad091::t_8c84c5c7ff7f00 1-25
+.scratch/memory-scope-and-writes/issues/05-project-scoped-memory.md
+  s_0f0f72467ad091::t_e6f138dfa61ef5 1-30
+.scratch/memory-scope-and-writes/issues/02-tool-level-limits.md
+  s_0f0f72467ad091::t_cdeb5eaff87fbc 1-24
+.scratch/memory-scope-and-writes/spec.md
+  s_0f0f72467ad091::t_45ffa505c805c8 1-199
+  s_0f0f72467ad091::t_a31fa8fa0eb7c7 200-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "9fe6175782768f7d6493d81da47eddb9b8600df6",
+  "prompts": {},
+  "sessions": {
+    "s_0f0f72467ad091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d2f112e-ea71-4ed1-bbaf-cd27366852b3",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
