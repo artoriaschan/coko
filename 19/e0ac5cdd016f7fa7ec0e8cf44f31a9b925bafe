@@ -1,0 +1,38 @@
+.scratch/memory-tiered-injection/issues/07-eval-cases-with-seeded-memories.md
+  s_0f0f72467ad091::t_3cf1e85c25848d 1-25
+.scratch/memory-tiered-injection/issues/02-memory-list-by-ids.md
+  s_0f0f72467ad091::t_89c26f2582277c 1-25
+.scratch/memory-tiered-injection/spec.md
+  s_0f0f72467ad091::t_c7be34429509d6 1-15,17-24,26-217
+  s_0f0f72467ad091::t_ed6607e4eec105 218-232
+  s_0f0f72467ad091::t_27114c9b6ebb13 25
+  s_0f0f72467ad091::t_288323fccc1b6f 16
+.scratch/memory-tiered-injection/issues/05-approximate-search.md
+  s_0f0f72467ad091::t_d67a2b0b9a970d 1-26
+.scratch/memory-tiered-injection/issues/04-similar-entries-on-create.md
+  s_0f0f72467ad091::t_72845d0cd2171d 1-28
+.scratch/memory-tiered-injection/issues/01-user-entries-first.md
+  s_0f0f72467ad091::t_ab5933b51b99de 1-24
+.scratch/memory-tiered-injection/issues/08-integrated-acceptance-and-docs.md
+  s_0f0f72467ad091::t_1328be43276cfe 1-26
+.scratch/memory-tiered-injection/issues/06-injection-summary-in-settings.md
+  s_0f0f72467ad091::t_ea1248683256f0 1-24
+.scratch/memory-tiered-injection/issues/03-summary-tier.md
+  s_0f0f72467ad091::t_044d285254af2f 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "19e0ac5cdd016f7fa7ec0e8cf44f31a9b925bafe",
+  "prompts": {},
+  "sessions": {
+    "s_0f0f72467ad091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d2f112e-ea71-4ed1-bbaf-cd27366852b3",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
