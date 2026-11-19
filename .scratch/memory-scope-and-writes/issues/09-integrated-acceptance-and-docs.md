@@ -30,5 +30,12 @@
   - 基线对比：在 `9fe61757` 的独立 worktree 上运行 server + agent 全量、11 个集成文件与 6 个设置 Browser Mode 文件，失败集合（6 / 10 / 24 例）与集成分支逐条相同，都是既有失败，没有回归；`sidecar-delete-project` 两边都通过。基线 worktree 已移除。
   - 文档：ADR 0027 implementation → implemented（链接实现与测试，写明真实模型与原生层未验证），ADR 索引同步；规格 status → delivered 并更新实施状态；Memory 正文的 description 与验证段、文档导航的 Memory 摘要、projects 测试清单的措辞；其余 subsystems 页核对一致未改。
   - 未验证：AC-29 真实模式（无凭据，`skipped: no-credentials`）；真实指针与原生层；全量 `pnpm run test` 未运行。本地提交，未推送、未发布。
+- 2026-11-19：代码审查修复（`git diff 9fe61757...HEAD` 的审查发现）。
+  - ADR 0005、0020 中对 ADR 0027 的“尚未实施 / 实施前仍按本页”改为已实施，记忆的当前行为以 ADR 0027 为准。
+  - 没有项目时 Memory 段的写入引导去掉“learn a fact about the project…”一句，与 `memory_write` 的无项目描述一致（`memory.test.ts` 改为断言无项目时整段不含 project，先确认失败）；Memory 正文的写入引导描述同步。
+  - 草稿上下文按所选项目解析：桌面只为选了项目的草稿发 `workspaceId`（所选项目的主要 Workspace），主要文件夹在项目间唯一，反查即所选项目；独立草稿首次发送前没有 Workspace、不发请求，因此未改行为，在 `ContextService.scopeFor` 注明。
+  - 设置分区“没有会话且未选项目”的提示在 `9fe61757` 上已存在（`memory.noWorkspace`，同一条件），属沿用而非新增，保留；文案改为项目措辞不变。
+  - 重构：`useActiveProject` 供设置分区与 `useActiveWorkspaceId` 共用；`projectScope(project)` 供 `SessionRuns.scope` 与草稿 `scopeFor` 共用（附加文件夹与项目记忆 Workspace）；`createMemoryTools` 的 `project` 改为必填，去掉参数的 `as typeof` 断言；`MemoryRepository.update` 的 `source` 用 `Memory['source']`（`@coko/session` 没有 MemorySource，库内 source 一律为宿主约定的字符串）；`MemoryService` 的三态可见范围命名为 `MemoryReach` 并注释。
+  - 检查：`pnpm typecheck`、`pnpm run check:docs`、改动文件 oxlint / oxfmt 通过；agent memory、decide 与 `apps/server/src/application/context` 单测 8 个文件 152 例通过；集成 sidecar-memory、sidecar-memory-projects、sidecar-memory-search、sidecar-context*、headless、sidecar-subagents-permissions 8 个文件 34 例通过；`memory-section.browser.test.tsx` 6 例通过；`pnpm run eval`（faux）31 例通过、10 例跳过。未运行全量测试与桌面 E2E。
 
 Closed: true

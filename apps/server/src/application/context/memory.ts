@@ -28,6 +28,9 @@ function checkContent(content: string): string {
   return redactText(text)
 }
 
+/** 改动条目时的可见范围：Workspace id 为用户级与该 Workspace，null 为只有用户级（没有项目的 Run），undefined 为不限（不校验归属）。 */
+type MemoryReach = string | null | undefined
+
 /** 用户级与某个 Workspace（可省略）的记忆：HTTP 路由与工具端口共用。 */
 export class MemoryService {
   readonly #store: MemoryStore
@@ -89,8 +92,8 @@ export class MemoryService {
     return toEntry(await this.#store.memories.create({ scope: input.scope, workspaceId: input.workspaceId ?? null, content, source: input.source }))
   }
 
-  /** 条目须存在；给出 workspaceId 时还须属于用户级或该 Workspace，为 null 时须是用户级（否则 not-found）。 */
-  async #visible(id: string, workspaceId?: string | null): Promise<Memory> {
+  /** 条目须存在且在 workspaceId 的可见范围内（MemoryReach），否则 not-found。 */
+  async #visible(id: string, workspaceId: MemoryReach): Promise<Memory> {
     const memory = await this.#store.memories.get(id)
     if (!memory || (workspaceId !== undefined && memory.scope === 'workspace' && memory.workspaceId !== workspaceId))
       throw new AppError('not-found', `Memory entry ${id} not found`)
@@ -98,19 +101,19 @@ export class MemoryService {
   }
 
   /** 模型（by model）不能改动用户来源的条目（forbidden）。用户改正文时来源同时改为 user；模型替换不改变来源。 */
-  async #writable(id: string, workspaceId: string | null | undefined, by: MemorySource): Promise<Memory> {
+  async #writable(id: string, workspaceId: MemoryReach, by: MemorySource): Promise<Memory> {
     const memory = await this.#visible(id, workspaceId)
     if (by === 'model' && memory.source !== 'model')
       throw new AppError('forbidden', `Memory entry ${id} is maintained by the user and cannot be replaced or deleted; tell the user if it looks outdated`)
     return memory
   }
 
-  async update(id: string, content: string, workspaceId: string | null | undefined, by: MemorySource): Promise<MemoryEntry> {
+  async update(id: string, content: string, workspaceId: MemoryReach, by: MemorySource): Promise<MemoryEntry> {
     await this.#writable(id, workspaceId, by)
     return toEntry(await this.#store.memories.update(id, { content: checkContent(content), ...(by === 'user' ? { source: 'user' } : {}) }))
   }
 
-  async delete(id: string, workspaceId: string | null | undefined, by: MemorySource): Promise<MemoryEntry> {
+  async delete(id: string, workspaceId: MemoryReach, by: MemorySource): Promise<MemoryEntry> {
     const memory = await this.#writable(id, workspaceId, by)
     await this.#store.memories.delete(id)
     return toEntry(memory)
@@ -152,13 +155,16 @@ export function memoryPort(service: MemoryService, workspaceId: string | undefin
 
 const notConnected = () => Promise.reject(new Error('Memory port is not connected'))
 /** memory_* 的名字与权限类取自工具本身的定义（不执行，端口不接通）；Memory 关闭或没有存储时同样声明。 */
-const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools({
-  list: notConnected,
-  search: notConnected,
-  create: notConnected,
-  update: notConnected,
-  delete: notConnected,
-}).map(({ tool, permissionClass }) => ({ name: tool.name, permissionClass }))
+const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools(
+  {
+    list: notConnected,
+    search: notConnected,
+    create: notConnected,
+    update: notConnected,
+    delete: notConnected,
+  },
+  { project: true },
+).map(({ tool, permissionClass }) => ({ name: tool.name, permissionClass }))
 
 export function memoryContribution(options: ContextContributionOptions): ContextContribution {
   if (!options.memories) return { name: 'memory', ruleTools: MEMORY_RULE_TOOLS }

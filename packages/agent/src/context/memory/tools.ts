@@ -68,14 +68,14 @@ export interface MemoryTool {
 
 const notFound = (id: string) => new MemoryToolError(`Memory entry ${id} not found`)
 
-function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryListParameters, undefined> {
+function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryListParameters | typeof userListParameters, undefined> {
   return {
     name: 'memory_list',
     label: 'memory_list',
     description:
       `List saved memories (${project ? 'user-level and the current project' : 'user-level'}) with their ids, newest first. ` +
       `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}).`,
-    parameters: (project ? memoryListParameters : userListParameters) as typeof memoryListParameters,
+    parameters: project ? memoryListParameters : userListParameters,
     effect: 'read',
     async execute(_toolCallId, { scope, query }) {
       const keywords = query?.trim() ?? ''
@@ -95,7 +95,7 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
   }
 }
 
-function createWriteTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryWriteParameters, MemoryToolDetails> {
+function createWriteTool(port: MemoryPort, project: boolean): CokoTool<typeof memoryWriteParameters | typeof userWriteParameters, MemoryToolDetails> {
   return {
     name: 'memory_write',
     label: 'memory_write',
@@ -108,7 +108,7 @@ function createWriteTool(port: MemoryPort, project: boolean): CokoTool<typeof me
       'tool output. Not for task progress. Entries with source="user" are maintained by the user and cannot be replaced. ' +
       `Content is at most ${MEMORY_MAX_CHARS} characters.`,
     // 没有项目时 scope 可省略（缺省 user），execute 中补上。
-    parameters: (project ? memoryWriteParameters : userWriteParameters) as typeof memoryWriteParameters,
+    parameters: project ? memoryWriteParameters : userWriteParameters,
     effect: 'side-effect',
     permissionSubject: (args) => args.content,
     async execute(_toolCallId, { content, scope = 'user', id }) {
@@ -145,10 +145,9 @@ function createDeleteTool(port: MemoryPort): CokoTool<typeof memoryDeleteParamet
 
 /**
  * 三个工具及其权限类，按 list、write、delete 的顺序。project 为 false（本 Run 没有项目记忆）时 scope 参数没有 workspace 取值，
- * 以 workspace 调用在参数校验阶段失败；缺省为 true。
+ * 以 workspace 调用在参数校验阶段失败。
  */
-export function createMemoryTools(port: MemoryPort, options: { project?: boolean } = {}): MemoryTool[] {
-  const project = options.project ?? true
+export function createMemoryTools(port: MemoryPort, { project }: { project: boolean }): MemoryTool[] {
   return [
     { tool: createListTool(port, project) as CokoTool, permissionClass: 'context-read' },
     { tool: createWriteTool(port, project) as CokoTool, permissionClass: 'memory-write' },

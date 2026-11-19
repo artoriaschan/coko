@@ -3,7 +3,7 @@ import { Button, Checkbox, cn, Input, toast, Textarea } from '@coko/ui'
 import { IconPencil, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
-import { useActiveWorkspaceId, useChat, useCurrentSession, useLists, useNewChat } from '../../app/chat.tsx'
+import { useActiveProject, useActiveWorkspaceId, useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { IconButton } from '../../app/icon-button.tsx'
 import { configStore } from '../../stores/config-store.ts'
@@ -24,10 +24,7 @@ export function MemorySection() {
   // 记忆开关读写的配置仍按活动 Workspace（项目设置可关闭记忆）。
   const configWorkspaceId = useActiveWorkspaceId()
   const activeSessionId = useChat((s) => s.activeSessionId)
-  const session = useCurrentSession()
-  const draftProjectId = useNewChat((s) => s.projectId)
-  const projectId = activeSessionId === null ? draftProjectId : session?.projectId
-  const project = useLists((s) => s.projects.find((p) => p.id === projectId))
+  const project = useActiveProject()
   const workspaceId = project?.primaryWorkspaceId
   const status = useStore(memoryStore, (s) => s.status)
   const loadedFor = useStore(memoryStore, (s) => s.workspaceId)

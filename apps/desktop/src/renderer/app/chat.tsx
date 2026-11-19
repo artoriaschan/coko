@@ -42,11 +42,20 @@ export function useCurrentSession() {
   return useLists((state) => state.sessions.find((session) => session.id === active) ?? state.archivedSessions.find((session) => session.id === active))
 }
 
+/** 当前会话所属的项目；没有会话时为草稿所选的项目。 */
+export function useActiveProject() {
+  const session = useCurrentSession()
+  const activeSessionId = useChat((state) => state.activeSessionId)
+  const draftProjectId = useNewChat((state) => state.projectId)
+  const projectId = activeSessionId === null ? draftProjectId : session?.projectId
+  return useLists((state) => state.projects.find((project) => project.id === projectId))
+}
+
+/** 当前会话的 Workspace；没有会话时为草稿所选项目的主要 Workspace。 */
 export function useActiveWorkspaceId() {
   const session = useCurrentSession()
   const activeSessionId = useChat((state) => state.activeSessionId)
-  const projectId = useNewChat((state) => state.projectId)
-  const primaryWorkspaceId = useLists((state) => state.projects.find((project) => project.id === projectId)?.primaryWorkspaceId)
+  const primaryWorkspaceId = useActiveProject()?.primaryWorkspaceId
   return activeSessionId === null ? primaryWorkspaceId : session?.workspaceId
 }
 

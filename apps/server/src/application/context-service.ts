@@ -7,6 +7,7 @@ import type { ContextAssembly, ContextScope } from './context/index.ts'
 import { isSkillsContribution } from './context/skills.ts'
 import { contextUsage } from './context/usage.ts'
 import { AppError } from './errors.ts'
+import { projectScope } from './session-project.ts'
 import { workspaceCwd, type SessionCwd } from './session-runs.ts'
 import type { SessionService } from './sessions.ts'
 
@@ -53,12 +54,13 @@ export class ContextService {
     if (input.sessionId === undefined) {
       const workspace = await this.#workspace(input.workspaceId!)
       const [model, projects] = await Promise.all([this.#sessions.contextModel(undefined), this.#store.projects.list()])
+      // 草稿的项目即所选项目：桌面只为选了项目的草稿发出 workspaceId 请求（所选项目的主要 Workspace，useActiveWorkspaceId），
+      // 主要文件夹在项目间不重复（ADR 0020），反查得到的就是该项目。独立草稿在首次发送前没有 Workspace，不会走到这里。
       const project = projects.find((p) => p.primaryWorkspaceId === workspace.id)
       return this.assembly.scope({
         workspaceId: workspace.id,
         cwd: workspace.path,
-        additionalFolders: project?.additionalFolders ?? [],
-        ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId } : {}),
+        ...projectScope(project),
         ...(model ? { model: { providerId: model.provider, modelId: model.id } } : {}),
       })
     }

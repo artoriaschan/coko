@@ -272,7 +272,7 @@ export interface MemoryRepository {
   /** workspace 作用域的 Workspace 不存在时 not-found；作用域与 workspaceId 不一致时 invalid-input。 */
   create(input: MemoryInput): Promise<Memory>
   /** 改正文，给出 source 时同时改写入方（省略时保持原写入方）；不存在时 not-found。 */
-  update(id: string, patch: { content: string; source?: string }): Promise<Memory>
+  update(id: string, patch: { content: string; source?: Memory['source'] }): Promise<Memory>
   /** 不存在时 not-found。 */
   delete(id: string): Promise<void>
   /**

@@ -65,7 +65,7 @@ import type { SessionModels } from './session-models.ts'
 import type { SessionPermissions } from './session-permissions.ts'
 import { requireSession, toProgress, type SessionRuntimes } from './session-runtimes.ts'
 import { standaloneWriteRoots } from './session-directory.ts'
-import { sessionProject } from './session-project.ts'
+import { projectScope, sessionProject } from './session-project.ts'
 
 const log = getLogger(['application', 'sessions'])
 
@@ -434,8 +434,7 @@ export class SessionRuns {
     return this.#options.context.scope({
       workspaceId: session.workspaceId,
       cwd,
-      additionalFolders: project?.additionalFolders ?? [],
-      ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId } : {}),
+      ...projectScope(project),
       ...(model ? { model: { providerId: model.provider, modelId: model.id, contextWindow: model.contextWindow } } : {}),
       sessionId: session.id,
       ...(session.directory && !project ? { sessionDirectory: session.directory } : {}),
