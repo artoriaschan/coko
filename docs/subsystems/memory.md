@@ -1,6 +1,6 @@
 ---
 kind: reference
-description: "当前的 Memory 契约：用户级与跟随项目归属的项目级记忆、memory_list / memory_write / memory_delete 工具与权限类（不经审批，子 Session 与无界面运行只读）、每个 Run 注入的 <memory> system section（声明、写入引导、来源标注）与正文层、摘要层、检索层的分层及各自的两级预算、关键词检索（FTS5 与 LIKE 降级）与严格匹配为空时的近似匹配、新建时返回的相近条目（三字符片段与阈值）、memory.enabled 开关、正文脱敏、/api/memories 接口与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
+description: "当前的 Memory 契约：用户级与跟随项目归属的项目级记忆、memory_list / memory_write / memory_delete 工具与权限类（不经审批，子 Session 与无界面运行只读）、每个 Run 注入的 <memory> system section（声明、写入引导、来源标注）与正文层、摘要层、检索层的分层及各自的两级预算、关键词检索（FTS5 与 LIKE 降级）与严格匹配为空时的近似匹配、新建时返回的相近条目（三字符片段与阈值）、memory.enabled 开关、正文脱敏、/api/memories 接口（含注入汇总）与设置的 Memory 分区、工具卡。修改记忆的存储、注入、检索、工具、接口或界面前查阅。"
 lifecycle: active
 ---
 
@@ -73,14 +73,14 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 
 ## 协议
 
-- `GET /api/memories?workspaceId=…` → `{ memories }`：用户级条目，给出 workspaceId 时另加该 Workspace 的条目，倒序。Workspace 不存在 404。`scope=user|workspace` 只留一种（workspace 须给出 workspaceId，否则 400；其他值 400）。`query=…` 非空时为检索（`apiPaths.memorySearch`），结果与次序见 [检索](#检索)。请求日志只记路径，不记查询串。
+- `GET /api/memories?workspaceId=…` → `{ memories }`：用户级条目，给出 workspaceId 时另加该 Workspace 的条目，倒序。Workspace 不存在 404。`scope=user|workspace` 只留一种（workspace 须给出 workspaceId，否则 400；其他值 400）。`query=…` 非空时为检索（`apiPaths.memorySearch`），结果与次序见 [检索](#检索)。请求日志只记路径，不记查询串。不带 `query` 与 `scope` 的列表另有 `injection`（注入汇总）：`user` 一组，给出 workspaceId 时另有 `workspace` 一组，每组 `{ full, summary, omitted }` 为以全文注入、只注入摘要与未注入的条数，三者之和等于该组条数。口径是此刻以这个可见范围开始一个 Run 时 Memory 段的分层：服务端对与 Run 相同的可见条目调用同一个 `tierMemories`（`memoryInjection`）；不带 workspaceId 时只有用户级，按用户级可用满两层预算计算，与独立对话一致。
 - `POST /api/memories { scope, workspaceId?, content }` → 201 条目（source user）。workspace 作用域须给出 workspaceId、user 作用域不得给出，否则 400；workspaceId 不是任何现存 Project 的主要 Workspace 时 400，没有新增条目；正文为空或超长 400；Workspace 不存在 404。
 - `PUT /api/memories/:id { content }` → 条目，`source` 改为 user；`DELETE /api/memories/:id` → 204。条目不存在 404；给出 `?workspaceId` 时条目须是用户级或属于该 Workspace，否则 404。
 - 设置分区的记忆开关经 `PUT /api/config` 整体替换全局值（先读 revision）。
 
 ## 界面
 
-- **设置的 Memory 分区**：记忆开关（全局值；被项目设置关闭时注明）；搜索框（输入停止 200 ms 后检索，结果仍按两组显示、组内为检索次序，没有结果时"没有匹配的记忆"；清空时立即恢复列表；有内容时 Escape 只清空，空框时 Escape 返回应用；检索词保留在 store 中）；分组跟随项目归属：当前会话（草稿为所选项目）属于某个 Project 时显示"用户级"与"项目：项目名"两组，项目组的列表、检索、添加、编辑与删除都针对该 Project 的主要 Workspace（从别处移入项目的会话看到同一组）；独立对话只显示"用户级"一组，没有项目组及其添加入口；没有会话且草稿没有选项目时只显示用户级并提示打开项目对话。每条显示正文与写入方（Agent 记下 / 手动添加；编辑 Agent 记下的条目并保存后为手动添加），可编辑与删除，每组底部可添加；字数显示与 2000 字符上限。记忆开关读写的配置仍按活动 Workspace。
+- **设置的 Memory 分区**：记忆开关（全局值；被项目设置关闭时注明）；搜索框（输入停止 200 ms 后检索，结果仍按两组显示、组内为检索次序，没有结果时"没有匹配的记忆"；清空时立即恢复列表；有内容时 Escape 只清空，空框时 Escape 返回应用；检索词保留在 store 中）；分组跟随项目归属：当前会话（草稿为所选项目）属于某个 Project 时显示"用户级"与"项目：项目名"两组，项目组的列表、检索、添加、编辑与删除都针对该 Project 的主要 Workspace（从别处移入项目的会话看到同一组）；独立对话只显示"用户级"一组，没有项目组及其添加入口；没有会话且草稿没有选项目时只显示用户级并提示打开项目对话。每条显示正文与写入方（Agent 记下 / 手动添加；编辑 Agent 记下的条目并保存后为手动添加），可编辑与删除，每组底部可添加；字数显示与 2000 字符上限。每组标题下一行注入汇总（“全文注入 N 条 · 仅摘要 N 条 · 未注入 N 条”，取自列表响应的 `injection`，跟随分区的项目归属，增删改后随列表重新读取）；该组没有条目时与搜索状态下不显示，不给每条单独标记。记忆开关读写的配置仍按活动 Workspace。
 - **工具卡**：memory_write 成功后标题为"已记住"或"已更新记忆"，memory_delete 为"已删除记忆"，memory_list 为"查看记忆"；执行中、被询问规则拦下等待审批与失败时为动作名（"记下记忆"、"删除记忆"）。
 - **工具详情**：成功写入、更新或删除后，字段区展示结果实际记录的操作、ID、范围和 Memory Entry 正文，保留宿主处理后的保存值；原始调用参数与完整结果/details 在“输入 / 输出”中可检查。列表、字段缺失及失败记录使用完整通用详情，不从列表文字推测条目或数量；展开不会再次读写记忆。
 
@@ -92,6 +92,7 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 - `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。同一文件中的联合场景：default 模式下模型不经审批写入项目记忆 → 同项目另一对话与移入项目的独立对话可见 → 用户经接口编辑后来源变为 user、模型按 id 替换为工具错误（跨 Sidecar 重启）→ 删除项目后只有用户级 → 同一文件夹重建项目后看到编辑后的条目。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
 - `tests/integration/sidecar-memory-ids.test.ts`：项目 Session 以 ids 读取时按给出的次序返回用户级与本项目条目的全文，其他项目与不存在的 id 列为没有找到；ids 与 query 同时给出为工具错误、21 个为参数错误；移出项目后 Workspace 作用域的 id 没有找到；子 Session 的 Memory 段有摘要层、`memory_list` 有 ids 参数并按 id 读出摘要层条目的全文。`headless.test.ts` 另验证无界面运行的 Memory 段有摘要层并按 id 读出全文。
 - `tests/integration/sidecar-memory-summary.test.ts`：项目 Session 的请求中各层的实际排列（正文层项目级、用户级，说明，摘要层项目级、用户级，未放入条数等于总数减去两层）、摘要行的截断与省略号、摘要行合计不超过 6 000、写入引导的第一行句子；摘要行中伪造的结束标签被转义、开始标签与来源留在行内（对手用例），保存时脱敏的 `sk-` 凭据在摘要行中只有占位；模型以 ids 读出摘要层条目的全文。
+- `tests/integration/sidecar-memory-injection.test.ts`：两组都超出正文层与摘要层预算时，以项目主要 Workspace 请求列表得到两组汇总，每组三者之和等于该组条数，全文与仅摘要条数等于同一可见范围的项目 Session 请求中各作用域的条目块与摘要行数，两组未注入之和等于段末的条数；不带 workspaceId 时只有用户级一组，与移出项目后的独立对话请求一致且全文条数多于项目对话中的用户级；带 `query` 或 `scope` 时没有 `injection`。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/sidecar-memory-approx.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次：措辞相近、严格匹配为空的 query 在 FTS5 下返回注明没有完全匹配的相近条目、降级时为没有匹配；`/api/memories?query=` 的同一查询为空列表；严格匹配有结果时不变；没有相近条目时为没有匹配；scope 限定后没有；相近条目只在另一项目时不出现（对手用例，对照：在该项目的 Session 中出现）；含 FTS 语法字符的查询按字面处理。
 - `tests/integration/secrets-gate-memory-search.test.ts`：带 Credential 的条目经 HTTP 检索与 memory_list 的 query 返回时，响应体、工具结果、之后的模型请求、日志与 COKO_HOME 中没有明文。
@@ -100,7 +101,7 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 - `tests/integration/headless.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-teams.test.ts`：无界面运行、子代理与 Teammate 的请求中有 `memory_list`，没有 `memory_write` 与 `memory_delete`；Memory 段有声明，没有写入引导（`headless.test.ts` 与 `sidecar-memory-ids.test.ts` 另验证无界面运行与子 Session 的摘要层）。
 - `packages/session` 的仓库契约测试：`memories.update` 给出 `source` 时与正文一起改，省略时保持原写入方（内存与 SQLite 实现）。
 - `apps/desktop/e2e/memory.e2e.test.ts`：default 模式下不出审批卡，工具卡显示"已记住"、详情可见正文，Memory 分区列出模型写入的条目，编辑后标签变为手动添加，删除、手动添加、编辑与开关生效；搜索框键盘输入后只列出匹配的条目、没有结果的提示、Escape 清空恢复列表，明暗主题下文字可读。
-- `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；项目对话与选了项目的草稿显示用户级与“项目：名称”两组，项目组的列表、检索与添加带项目的主要 Workspace；独立对话只有用户级一组且没有项目组的添加入口；没有会话时的提示；zh 暗色与 en 亮色下分组标题的字典文案与对比度；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。
+- `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；项目对话与选了项目的草稿显示用户级与“项目：名称”两组，项目组的列表、检索与添加带项目的主要 Workspace；独立对话只有用户级一组且没有项目组的添加入口；没有会话时的提示；注入汇总：两组各一行、项目组添加后更新、搜索时不显示且清空后恢复、独立对话只有用户级一行、没有条目的组不显示；zh 暗色与 en 亮色下分组标题与注入汇总的字典文案与对比度；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。
 
 ## 延伸阅读
 

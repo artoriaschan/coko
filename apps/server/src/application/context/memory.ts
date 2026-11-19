@@ -2,9 +2,17 @@
 // 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与
 // 本 Run 的项目记忆 Workspace（ContextScope.memoryWorkspaceId，ADR 0027；不属于项目时只有用户级，工具没有 workspace 作用域）；正文保存前经 redactText 脱敏（ADR 0004）；
 // 用户来源的条目模型不能替换或删除；新建 Workspace 条目只能在项目的主要 Workspace 上。
-import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
+import {
+  createMemoryTools,
+  MEMORY_SEARCH_LIMIT,
+  memorySection,
+  MemoryToolError,
+  tierMemories,
+  type MemoryEntry as AgentMemory,
+  type MemoryPort,
+} from '@coko/agent'
 import { redactText } from '@coko/logging'
-import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemorySource } from '@coko/protocol'
+import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryInjection, type MemoryScope, type MemorySource } from '@coko/protocol'
 import type { Memory } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { ContextContribution, ContextContributionOptions, ContextScope, MemoryStore, RuleTool } from './types.ts'
@@ -136,6 +144,20 @@ export class MemoryService {
 const visible = (m: Memory, workspaceId: string | undefined) => m.scope === 'user' || (workspaceId !== undefined && m.workspaceId === workspaceId)
 
 const toAgent = (m: MemoryEntry): AgentMemory => ({ id: m.id, scope: m.scope, source: m.source, content: m.content, updatedAt: m.updatedAt })
+
+/**
+ * 注入汇总（/api/memories 的列表）：entries 为 list(workspaceId) 的结果，即同一可见范围的 Run 的 Memory 段的输入，按同一套分层计数；
+ * 给出 workspaceId 时另有 workspace 一组。
+ */
+export function memoryInjection(entries: readonly MemoryEntry[], workspaceId: string | undefined): MemoryInjection {
+  const tiers = tierMemories(entries.map(toAgent))
+  const count = (scope: MemoryScope) => ({
+    full: tiers.full.filter((e) => e.scope === scope).length,
+    summary: tiers.summary.filter((e) => e.scope === scope).length,
+    omitted: tiers.omitted.filter((e) => e.scope === scope).length,
+  })
+  return { user: count('user'), ...(workspaceId === undefined ? {} : { workspace: count('workspace') }) }
+}
 
 /** 工具端口：限定在项目记忆 Workspace（省略时只有用户级）；可预期的失败转为 MemoryToolError（作为工具错误回给模型）。 */
 export function memoryPort(service: MemoryService, workspaceId: string | undefined): MemoryPort {

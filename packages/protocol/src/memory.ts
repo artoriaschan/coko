@@ -28,12 +28,24 @@ export const MemoryEntry = Type.Object(
 )
 export type MemoryEntry = Static<typeof MemoryEntry>
 
+/** 一组条目在 Memory 段中的分层：以全文注入、只注入摘要、未注入（检索层）的条数。 */
+export const MemoryTierCounts = Type.Object(
+  { full: Type.Integer({ minimum: 0 }), summary: Type.Integer({ minimum: 0 }), omitted: Type.Integer({ minimum: 0 }) },
+  strict,
+)
+export type MemoryTierCounts = Static<typeof MemoryTierCounts>
+
+/** 注入汇总：此刻以这个可见范围开始一个 Run 时各组的分层（与 Memory 段同一套分层）；workspace 组只在给出 workspaceId 时有。 */
+export const MemoryInjection = Type.Object({ user: MemoryTierCounts, workspace: Type.Optional(MemoryTierCounts) }, strict)
+export type MemoryInjection = Static<typeof MemoryInjection>
+
 /**
  * GET /api/memories?workspaceId=…：用户级条目，给出 workspaceId 时另加该 Workspace 的条目；updatedAt 倒序。Workspace 不存在 404。
  * 另有 scope=user|workspace 只留一种（workspace 须给出 workspaceId，否则 400），query=… 非空时为检索（apiPaths.memorySearch）：
  * 空白分隔的词全部出现才匹配（大小写不敏感、按字面），至多 20 条，FTS5 可用时按相关度，否则按 updatedAt 倒序。
+ * 不带 query 与 scope 时另有 injection（注入汇总）。
  */
-export const MemoryListResponse = Type.Object({ memories: Type.Array(MemoryEntry) }, strict)
+export const MemoryListResponse = Type.Object({ memories: Type.Array(MemoryEntry), injection: Type.Optional(MemoryInjection) }, strict)
 export type MemoryListResponse = Static<typeof MemoryListResponse>
 
 const Content = Type.String({ minLength: 1, description: `At most ${MEMORY_CONTENT_MAX} characters after trimming` })
