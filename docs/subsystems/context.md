@@ -61,7 +61,7 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 
 ## 系统消息与环境
 
-开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。
+开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。记忆开启时每个 Run 都有 Memory 段（没有条目也有）：固定的声明、本 Run 有写入工具时的写入引导（子 Session 与无界面运行没有），以及带来源标注的条目，见 [Memory](memory.md#注入)。
 
 运行时重建时，若首条已提交消息只是无正文的 `toolsAdded` / `toolsRemoved` 工具声明，会在它之前补回不提交的基础提示，并按当前 Run 更新 system sections；原工具声明保持顺序回放，不重复登记工具。历史以带正文的 system 消息开头时保留原消息。
 
@@ -144,7 +144,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 ### 估算
 
 - tokens = 最后一次有效的 assistant usage（input + cacheRead + cacheWrite + output，跳过出错、中止与为 0 的回复）加其后消息的 chars/4（向上取整）；最后一条就是该回复时 `estimated` 为 false。
-- `breakdown` 固定为五类：`system` 包含基础系统提示、装配的全部章节（环境、指令、Skills、Memory、计划、Goal 与其他贡献），以及有效上下文中有条目配对的 State Update 块；`prompt` 为去掉这些块后的用户消息、图片与压缩摘要，用户伪造的同名文本仍计入 prompt；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为实际提供给模型的工具定义和工具结果。工具定义与模型请求共用同一份去重、过滤后的清单，受限子会话只计允许使用的工具；普通完整列表传输将历史增减折入当前清单，不另重复累加；原生传输按 pi 的 `resolveTranscriptTools` 规则计入仍在请求中的历史定义：Messages/Responses 保留原位的旧定义与替换定义，Completions 把最后一次非追加变化之前的定义折入顶层列表。定义统一按 Coko 的 `{ name, description, parameters }` JSON 字符估算，不把协议包装、占位符或 schema 默认值转换后的字节数当作精确 token 数。按配对归类只改变分项，不改变模型可见消息或压缩触发的估算口径。
+- `breakdown` 固定为五类：`system` 包含基础系统提示、装配的全部章节（环境、指令、Skills、Memory（含固定的声明与写入引导，没有条目时也不为 0）、计划、Goal 与其他贡献），以及有效上下文中有条目配对的 State Update 块；`prompt` 为去掉这些块后的用户消息、图片与压缩摘要，用户伪造的同名文本仍计入 prompt；`assistant` 为助手正文及工具调用的名字与参数；`thinking` 为助手思考块；`tools` 为实际提供给模型的工具定义和工具结果。工具定义与模型请求共用同一份去重、过滤后的清单，受限子会话只计允许使用的工具；普通完整列表传输将历史增减折入当前清单，不另重复累加；原生传输按 pi 的 `resolveTranscriptTools` 规则计入仍在请求中的历史定义：Messages/Responses 保留原位的旧定义与替换定义，Completions 把最后一次非追加变化之前的定义折入顶层列表。定义统一按 Coko 的 `{ name, description, parameters }` JSON 字符估算，不把协议包装、占位符或 schema 默认值转换后的字节数当作精确 token 数。按配对归类只改变分项，不改变模型可见消息或压缩触发的估算口径。
 - 各类先以 chars/4 向上取整；文本与思考按长度，工具调用按名字加参数 JSON，图片按 4800 字符。没有有效 usage，或时间裁剪改变了下一次请求、usage 已不代表它，或最后一次 usage 早于有效压缩时，tokens 为这五类之和、`estimated` 为 true。有有效 usage 时保留上文的 tokens 计算，按五类估算的比例分配，用最大余数法补齐取整余数（同余数按上述键顺序），所以五类整数合计始终等于 tokens。窗口、阈值、预警与压缩触发的计算不变。
 - 每条 assistant 消息提交后 Sidecar 发 progress `context_usage { tokens, contextWindow }`，位于该 assistant 条目之后。
 

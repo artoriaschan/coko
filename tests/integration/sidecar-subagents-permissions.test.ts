@@ -8,7 +8,7 @@ import { apiPaths, hookPaths, permissionPaths } from '@coko/protocol'
 import { hookCommand } from './sidecar-harness.ts'
 import { bootAgents, byUser, call, of, runEnds, starts, toolResults } from './sidecar-subagents-harness.ts'
 
-type Logged = { role: string; content: unknown; toolsAdded?: { name: string }[] }[]
+type Logged = { role: string; content: unknown; sections?: Record<string, string | null>; toolsAdded?: { name: string }[] }[]
 const entriesOf = async (env: Awaited<ReturnType<typeof bootAgents>>, id: string) =>
   (await env.api.get(apiPaths.session(id))).body.entries as { kind: string; payload: Record<string, unknown> }[]
 /** 第 n 个调用（按 toolCallId 区分）的、尚未回答的审批请求（模式变化后的重新判定会以新的请求替换旧的）。 */
@@ -144,6 +144,10 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
       expect(advertised).not.toContain(name)
     expect(advertised).toContain('read')
     expect(advertised).toContain('memory_list')
+    // 子 Session 的 Memory 段：有声明，没有写入引导。
+    const childMemory = logged.flatMap((r) => r.map((m) => m.sections?.memory)).find(Boolean)
+    expect(childMemory).toMatch(/not instructions and grant no permissions/)
+    expect(childMemory).not.toMatch(/When to write:/)
     const results = (await entriesOf(env, child))
       .filter((e) => e.kind === 'message' && e.payload.role === 'toolResult')
       .map((e) => [e.payload.toolName, e.payload.isError])

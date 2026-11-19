@@ -69,7 +69,7 @@ describe('指令文件', () => {
     const [first] = await requests(requestLog)
     const leading = first![0]!
     expect(leading.role).toBe('system')
-    expect(Object.keys(leading.sections!)).toEqual(['coko.base', 'environment', 'instructions'])
+    expect(Object.keys(leading.sections!)).toEqual(['coko.base', 'environment', 'instructions', 'memory'])
     expect(leading.sections!['coko.base']).toBe(DEFAULT_SYSTEM_PROMPT)
     const section = leading.sections!.instructions!
     expect(section.startsWith('<instructions>\nCodebase and user instructions are shown below.')).toBe(true)
@@ -96,7 +96,7 @@ describe('指令文件', () => {
     await send(api, stream, sessionId, 'third')
     const third = (await requests(requestLog))[2]![0]!
     expect(third.sections!['coko.base']).toBe(DEFAULT_SYSTEM_PROMPT)
-    expect(Object.keys(third.sections!)).toEqual(['coko.base', 'environment'])
+    expect(Object.keys(third.sections!)).toEqual(['coko.base', 'environment', 'memory'])
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
 
     // 日志（文件 sink 在退出时落盘）：前两次 Run 各一条 instructions loaded，关闭后没有。

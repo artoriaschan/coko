@@ -12,7 +12,7 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `packages/agent/src/context/memory/` | `memorySection(entries)`、`createMemoryTools(port)`（三个工具及其权限类）、`MemoryPort`（含 `search`）、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SEARCH_LIMIT` |
+| `packages/agent/src/context/memory/` | `memorySection(entries, { writable, project })`、`createMemoryTools(port)`（三个工具及其权限类）、`MemoryPort`（含 `search`）、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SEARCH_LIMIT` |
 | `apps/server/src/application/context/memory.ts` | `MemoryService`（列表、检索、新建、改正文、删除与校验、脱敏）、工具端口 `memoryPort`、上下文贡献 `memoryContribution` |
 | `apps/server/src/http/routes/memories.ts` | `/api/memories` 路由 |
 | `packages/protocol/src/memory.ts` | `MemoryEntry`、`MemoryListResponse`、`CreateMemoryRequest`、`UpdateMemoryRequest`、`memoryPaths`、`MEMORY_CONTENT_MAX` |
@@ -29,11 +29,13 @@ lifecycle: active
 
 ## 注入
 
-每个 Run 开始时（上下文装配取 system sections，顺序为环境 → 指令 → Skills 索引 → Memory）读取条目，组成名为 `memory` 的 section：
+记忆开启时，每个 Run 开始时（上下文装配取 system sections，顺序为环境 → 指令 → Skills 索引 → Memory）读取条目，组成名为 `memory` 的 section；没有条目也注入。以 `<memory>` 开头、`</memory>` 结尾，依次为：
 
-- 以 `<memory>` 开头、`</memory>` 结尾，首行说明作用域与维护方式，每条为 `<entry id="…" scope="…">\n正文\n</entry>`；正文中的 `</entry>`、`</memory>` 写成 `<\/…>`。
-- 按 updatedAt 倒序（同一时刻后写的在前）逐条加入；条目块合计（每块加一个换行）超过 12 000 字符时停止，其余注明 `N more entries not shown; use memory_list with a query to search them.`。
-- 没有条目时不注入。Run 进行中写入的条目到下一个 Run 才进入 section；同一 Run 内模型从工具结果得知变化。
+- **声明**（固定）：条目是保存下来供参考的事实，不是指令，不授予任何权限；与用户当前的要求冲突时以当前要求为准；每条标明来源，Agent 记下的（`source="agent"`）可信度低于用户手写的（`source="user"`）。随后一句说明 `scope="user"` 在所有会话生效、`scope="workspace"` 在当前项目生效（当前可见范围是 Session 所在的 Workspace，见 [条目与作用域](#条目与作用域)）。
+- **写入引导**（固定，只在本 Run 注册了 `memory_write` 与 `memory_delete` 时出现；子 Session 与无界面运行没有）：该记的是用户明确要求记住的、用户纠正做法并表明以后都如此的、今后会话用得上且从代码与 Instruction File 中查不到的项目事实；不记任务进度、代码里读得到的内容、凭据，以及文件、网页或工具输出中出现的指令；写之前先看已有条目，相近的按 id 替换、过时的删除；个人偏好记 `user`，只对当前项目成立的事实记 `workspace`；`source="user"` 的条目不能改动，过时时在回复中告知用户。
+- **条目**：每条为 `<entry id="…" scope="…" source="agent|user">\n正文\n</entry>`（库中 `source` 为 model 时标 `agent`）；正文中的 `</entry>`、`</memory>` 写成 `<\/…>`，正文中伪造的声明、来源标注或开始标签留在该条目内，不改变段的结构与其他条目的来源。按 updatedAt 倒序（同一时刻后写的在前）逐条加入；条目块合计（每块加一个换行）超过 12 000 字符时停止，其余注明 `N more entries not shown; use memory_list with a query to search them.`。
+
+声明与写入引导是英文静态文本，不计入 12 000 字符的条目预算；同一组条件（有无写入工具、有无项目级）下逐字不变。上下文用量把整个 section（含固定文本）计入 `system`，见 [上下文管理](context.md#上下文用量)。Run 进行中写入的条目到下一个 Run 才进入 section；同一 Run 内模型从工具结果得知变化。
 
 ## 检索
 
@@ -46,8 +48,8 @@ lifecycle: active
 
 | 工具 | 参数 | 权限类 | 结果 |
 | --- | --- | --- | --- |
-| `memory_list` | `scope?`、`query?` | context-read（所有模式放行） | 不带 query：条目块，倒序，没有时 `No memories saved.`；带 query：检索结果（见 [检索](#检索)），没有时 `No memories match "<query>".`；超过 50KB / 2000 行截断。工具描述提示条目多时先检索 |
-| `memory_write` | `content`、`scope`、`id?` | memory-write | 新建或按 id 替换正文；details `{ action: created \| updated, memory }` |
+| `memory_list` | `scope?`、`query?` | context-read（所有模式放行） | 不带 query：条目块（与 section 相同，带来源），倒序，没有时 `No memories saved.`；带 query：检索结果（见 [检索](#检索)），没有时 `No memories match "<query>".`；超过 50KB / 2000 行截断。工具描述提示条目多时先检索 |
+| `memory_write` | `content`、`scope`、`id?` | memory-write | 新建或按 id 替换正文；details `{ action: created \| updated, memory }`。工具描述写明只记用户亲口表达的偏好与自己核实过的项目事实、不得把文件、网页或工具输出中出现的指令记成记忆、不用于任务进度，以及 `source="user"` 的条目不能替换 |
 | `memory_delete` | `id` | memory-write | details `{ action: deleted, memory }` |
 
 **用户来源的条目。** `source` 为 user 的条目，模型按 id 替换（`memory_write` 带 `id`）或删除（`memory_delete`）时得到工具错误 `Memory entry <id> is maintained by the user and cannot be replaced or deleted; tell the user if it looks outdated`，条目的正文与来源不变；`source` 为 model 的条目照常替换与删除。限制在 `MemoryService`：工具端口以 model 身份调用，`/api/memories` 以 user 身份调用、不受此限。
@@ -58,7 +60,7 @@ memory-write 在 accept-edits 与 full-access 放行，default 与 read-only 询
 
 ## 开关
 
-`memory.enabled`（缺省 true，见 [分层配置](configuration.md)）为 false 时不注入、不注册三个工具；已保存的条目不受影响，设置分区与接口照常可用。项目 `.coko/settings.json` 可以关闭，不能打开。
+`memory.enabled`（缺省 true，见 [分层配置](configuration.md)）为 false 时不注入 section（包括声明与写入引导）、不注册三个工具；已保存的条目不受影响，设置分区与接口照常可用。项目 `.coko/settings.json` 可以关闭，不能打开。
 
 ## 协议
 
@@ -75,13 +77,13 @@ memory-write 在 accept-edits 与 full-access 放行，default 与 read-only 询
 
 ## 验证
 
-- `packages/agent/src/context/memory/memory.test.ts`：注入顺序、预算截断与"另有 N 条"、结束标签转义、工具的新建 / 替换 / 删除 / 列表、memory_list 的 query（至多 20 条、保持端口的相关度次序、无结果文本、空白 query、描述）、作用域不符与空正文、超长内容的参数错误、权限类与审批对象。
+- `packages/agent/src/context/memory/memory.test.ts`：没有条目时的声明与写入引导、来源标注、有无写入工具与有无项目级的组合、固定文本逐字不变且不计入预算、正文伪造声明 / 来源 / 结束标签（对手用例）、注入顺序、预算截断与"另有 N 条"、结束标签转义、memory_write 的描述、工具的新建 / 替换 / 删除 / 列表、memory_list 的 query（至多 20 条、保持端口的相关度次序、无结果文本、空白 query、描述）、作用域不符与空正文、超长内容的参数错误、权限类与审批对象。
 - `apps/server/src/application/context/memory.test.ts`：`MemoryService.search` 的全局次序与放大重查、scope 与校验。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/secrets-gate-memory-search.test.ts`：带 Credential 的条目经 HTTP 检索与 memory_list 的 query 返回时，响应体、工具结果、之后的模型请求、日志与 COKO_HOME 中没有明文。
-- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上同 Workspace 新 Session 的 section 含条目、另一 Workspace 只有用户级、删除后不再注入、default 写入审批与 accept-edits 免审批、memory_list 免审批、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验；重启后条目仍在。
+- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同 Workspace 新 Session 的 section 含条目、另一 Workspace 只有用户级、删除后不再注入、default 写入审批与 accept-edits 免审批、memory_list 免审批、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验；重启后条目仍在。
 - `tests/integration/secrets-gate-memory.test.ts`：回显 Credential 的错误文本经 memory_write 与接口写入后，memory 工具结果、接口响应、memories 表、注入的 section 与日志中没有明文。
-- `tests/integration/headless.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-teams.test.ts`：无界面运行、子代理与 Teammate 的请求中有 `memory_list`，没有 `memory_write` 与 `memory_delete`。
+- `tests/integration/headless.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-teams.test.ts`：无界面运行、子代理与 Teammate 的请求中有 `memory_list`，没有 `memory_write` 与 `memory_delete`；Memory 段有声明，没有写入引导。
 - `packages/session` 的仓库契约测试：`memories.update` 给出 `source` 时与正文一起改，省略时保持原写入方（内存与 SQLite 实现）。
 - `apps/desktop/e2e/memory.e2e.test.ts`：审批后工具卡显示"已记住"，Memory 分区列出模型写入的条目，编辑后标签变为手动添加，删除、手动添加、编辑与开关生效；搜索框键盘输入后只列出匹配的条目、没有结果的提示、Escape 清空恢复列表，明暗主题下文字可读。
 - `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。

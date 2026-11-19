@@ -1,5 +1,5 @@
-// Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，关闭时不注入、不注册工具；子 Session 与无界面运行只注册
-// memory_list），以及 /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）；
+// Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，开启时每个 Run 都注入、没有条目也注入，关闭时不注入、
+// 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）；
 // 用户来源的条目模型不能替换或删除。
 import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
 import { redactText } from '@coko/logging'
@@ -114,7 +114,7 @@ export class MemoryService {
 /** 一个 Workspace（可省略）能看到的条目：用户级与该 Workspace 的。 */
 const visible = (m: Memory, workspaceId: string | undefined) => m.scope === 'user' || (workspaceId !== undefined && m.workspaceId === workspaceId)
 
-const toAgent = (m: MemoryEntry): AgentMemory => ({ id: m.id, scope: m.scope, content: m.content, updatedAt: m.updatedAt })
+const toAgent = (m: MemoryEntry): AgentMemory => ({ id: m.id, scope: m.scope, source: m.source, content: m.content, updatedAt: m.updatedAt })
 
 /** 工具端口：限定在 Session 所在的 Workspace；可预期的失败转为 MemoryToolError（作为工具错误回给模型）。 */
 export function memoryPort(service: MemoryService, workspaceId: string): MemoryPort {
@@ -153,24 +153,24 @@ const MEMORY_RULE_TOOLS: readonly RuleTool[] = createMemoryTools({
 export function memoryContribution(options: ContextContributionOptions): ContextContribution {
   if (!options.memories) return { name: 'memory', ruleTools: MEMORY_RULE_TOOLS }
   const service = new MemoryService(options.memories)
-  const section = async (scope: ContextScope) => memorySection((await service.list(scope.workspaceId)).map(toAgent))
+  // 子 Session 与无界面运行只读：只有 memory_list（子 Session 另由子代理的固定排除集去掉写入工具），Memory 段没有写入引导。
+  const writable = (scope: ContextScope) => !options.memoryReadOnly && !scope.parentSessionId
+  // ponytail: project 恒为 true（可见范围是 Session 所在的 Workspace）；05 接上项目归属后按有无项目记忆 Workspace 给出。
+  const section = async (scope: ContextScope) =>
+    memorySection((await service.list(scope.workspaceId)).map(toAgent), { writable: writable(scope), project: true })
   return {
     name: 'memory',
     ruleTools: MEMORY_RULE_TOOLS,
     async systemSections(scope) {
-      if (!scope.config.memory.enabled) return []
-      const built = await section(scope)
-      return built ? [built] : []
+      return scope.config.memory.enabled ? [await section(scope)] : []
     },
     async tools(scope) {
       if (!scope.config.memory.enabled) return []
       const tools = createMemoryTools(memoryPort(service, scope.workspaceId))
-      // 子 Session 与无界面运行只读：只有 memory_list（子 Session 另由子代理的固定排除集去掉写入工具）。
-      return options.memoryReadOnly || scope.parentSessionId ? tools.filter(({ tool }) => tool.name === 'memory_list') : tools
+      return writable(scope) ? tools : tools.filter(({ tool }) => tool.name === 'memory_list')
     },
     async report(scope) {
-      if (!scope.config.memory.enabled) return { breakdown: { memory: 0 } }
-      return { breakdown: { memory: (await section(scope))?.text.length ?? 0 } }
+      return { breakdown: { memory: scope.config.memory.enabled ? (await section(scope)).text.length : 0 } }
     },
   }
 }

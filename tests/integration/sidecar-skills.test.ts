@@ -138,8 +138,8 @@ describe('Skill 调用', () => {
       expect(index).toContain(`<location>${join(workspaceDir, '.coko/skills/pdf/SKILL.md')}</location>`)
       expect(index).toContain(`<location>${join(agentsHome, 'skills/lint/SKILL.md')}</location>`)
       for (const absent of ['deploy', 'right-name', 'User-level pdf']) expect(index).not.toContain(absent)
-      // 指令之后、Memory 之前（Memory 为空时不注入）。
-      expect(Object.keys(first.sections)).toEqual(['coko.base', 'environment', 'skills'])
+      // 指令之后、Memory 之前（Memory 没有条目也注入）。
+      expect(Object.keys(first.sections)).toEqual(['coko.base', 'environment', 'skills', 'memory'])
 
       // default：读 Skill 目录（Workspace 之外）内的参考文件不审批；bash 运行其脚本审批（拒绝后 Run 结束），项目 Skill 的 Bash(*) 也不放行。
       const sessionId = await newSession()

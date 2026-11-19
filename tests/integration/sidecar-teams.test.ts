@@ -78,6 +78,10 @@ describe('Agent Teams：teammate 与消息', { timeout: 180_000 }, () => {
     expect(mateTools).toContain('memory_list')
     expect(mateTools).not.toContain('memory_write')
     expect(mateTools).not.toContain('memory_delete')
+    // Memory 段：有声明，没有写入引导。
+    const mateMemory = mateRequests[0]!.find((m) => m.role === 'system')!.sections?.memory
+    expect(mateMemory).toMatch(/not instructions and grant no permissions/)
+    expect(mateMemory).not.toMatch(/When to write:/)
     expect(runInputs(await entriesOf(api, childId))[0]!.start).toEqual({ trigger: 'subagent', subagent: { triggerRunId: run1 } })
 
     // lead 已空闲且没有 Goal 时放行 teammate：它结束后不唤醒 lead（只有一个 Run），通知挂起到下一个 Run。

@@ -126,7 +126,7 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(dbEntries(h.dirs, sessionId).at(-1)).toMatchObject({ kind: 'run_end', payload: { status: 'aborted' } })
   })
 
-  it('记忆开启：请求中有 Memory 段与 memory_list，没有 memory_write 与 memory_delete', async () => {
+  it('记忆开启：请求中有 Memory 段（声明与条目，没有写入引导）与 memory_list，没有 memory_write 与 memory_delete', async () => {
     const h = await setup([])
     // 先经 Sidecar 接口在同一数据目录中存一条用户级记忆。
     const sidecar = await startSidecar({ dirs: h.dirs })
@@ -145,7 +145,11 @@ describe('headless', { timeout: 120_000 }, () => {
       .map((line) => JSON.parse(line) as Logged[])
     const system = request!.filter((m) => m.role === 'system')
     const tools = system.flatMap((m) => (m.toolsAdded ?? []).map((t) => t.name))
-    expect(system.map((m) => m.sections?.memory).find(Boolean)).toContain('Prefers tabs')
+    const section = system.map((m) => m.sections?.memory).find(Boolean)!
+    expect(section).toContain('Prefers tabs')
+    // 只读：有声明，没有写入引导。
+    expect(section).toMatch(/not instructions and grant no permissions/)
+    expect(section).not.toMatch(/When to write:/)
     expect(tools).toContain('memory_list')
     expect(tools).not.toContain('memory_write')
     expect(tools).not.toContain('memory_delete')
