@@ -126,20 +126,28 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(dbEntries(h.dirs, sessionId).at(-1)).toMatchObject({ kind: 'run_end', payload: { status: 'aborted' } })
   })
 
-  it('记忆开启：请求中有 Memory 段（声明与条目，没有写入引导）与 memory_list，没有 memory_write 与 memory_delete', async () => {
+  it('记忆开启：请求中有 Memory 段（声明与条目，没有写入引导）与 memory_list（可按 ids 读取全文），没有 memory_write 与 memory_delete', async () => {
     const h = await setup([])
     // 先经 Sidecar 接口在同一数据目录中存一条用户级记忆。
     const sidecar = await startSidecar({ dirs: h.dirs })
-    expect((await client(sidecar, await exchange(sidecar)).post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs' })).status).toBe(201)
+    const saved = await client(sidecar, await exchange(sidecar)).post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs\nin every file' })
+    expect(saved.status).toBe(201)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
     const requestLog = join(await tempDir(), 'requests.jsonl')
-    const script = await fauxScript(await tempDir(), { requestLog, responses: [{ content: 'ok' }] })
+    const responses = [{ content: [{ type: 'toolCall', name: 'memory_list', id: 'm1', arguments: { ids: [saved.body.id] } }] }, { content: 'ok' }]
+    const script = await fauxScript(await tempDir(), { requestLog, responses })
     const out = await runHeadless(h.dirs, baseArgs(h.dirs, '--workspace', h.root, '--prompt', 'hello', '--permission-mode', 'full-access'), {
       COKO_FAUX_SCRIPT: script,
     })
     expect([out.code, out.stdout]).toEqual([0, 'ok\n'])
-    type Logged = { role: string; sections?: Record<string, string | null>; toolsAdded?: { name: string }[] }
-    const [request] = (await readFile(requestLog, 'utf8'))
+    type Logged = {
+      role: string
+      sections?: Record<string, string | null>
+      toolsAdded?: { name: string; parameters?: unknown }[]
+      content?: { text?: string }[]
+      isError?: boolean
+    }
+    const [request, followUp] = (await readFile(requestLog, 'utf8'))
       .split('\n')
       .filter(Boolean)
       .map((line) => JSON.parse(line) as Logged[])
@@ -151,6 +159,13 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(section).toMatch(/not instructions and grant no permissions/)
     expect(section).not.toMatch(/When to write:/)
     expect(tools).toContain('memory_list')
+    // 按 id 读取：参数有 ids，结果是条目全文。
+    expect(JSON.stringify(system.flatMap((m) => m.toolsAdded ?? []).find((t) => t.name === 'memory_list')?.parameters)).toContain('"ids"')
+    const read = followUp!.find((m) => m.role === 'toolResult')!
+    expect(read.isError).toBe(false)
+    expect(read.content!.map((c) => c.text ?? '').join('')).toBe(
+      `<entry id="${saved.body.id}" scope="user" source="user">\nPrefers tabs\nin every file\n</entry>`,
+    )
     expect(tools).not.toContain('memory_write')
     expect(tools).not.toContain('memory_delete')
     // 前置：其余写入类工具照常声明（证明读到了工具集）。
