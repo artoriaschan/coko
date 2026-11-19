@@ -1,0 +1,20 @@
+tests/integration/sidecar-memory-joint.test.ts
+  s_e563b3fac8279d::t_d5d57956d1a832 65
+  s_e563b3fac8279d::t_80601c19d53d16 1-46,51,53-60,62-64,66-104,107-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "060b6a97234d69b99fb4c4c5d198143d65c4df47",
+  "prompts": {},
+  "sessions": {
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
