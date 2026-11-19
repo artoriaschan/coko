@@ -1,0 +1,29 @@
+.scratch/memory-tiered-injection/issues/02-memory-list-by-ids.md
+  s_0f0f72467ad091::t_89c26f2582277c 14
+tests/integration/sidecar-memory-ids.test.ts
+  s_e563b3fac8279d::t_a429e84fd5d320 1-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "3b294e3f7b6bf8fb7c755dfba18e779931fc2d75",
+  "prompts": {},
+  "sessions": {
+    "s_0f0f72467ad091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d2f112e-ea71-4ed1-bbaf-cd27366852b3",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_e563b3fac8279d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de9cb49e-47a3-4b63-bc4e-618102909f94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
