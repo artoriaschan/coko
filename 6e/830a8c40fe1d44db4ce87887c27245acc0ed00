@@ -1,0 +1,45 @@
+apps/server/src/application/context/usage.test.ts
+  s_2fe05d2b987088::t_3773b521c48073 13-14,120,158,191,198,224,240
+apps/server/src/application/context/usage.ts
+  s_2fe05d2b987088::t_887dd6aea04546 73
+.scratch/system-context/spec.md
+  s_2fe05d2b987088::t_02494ee5c1576e 132
+docs/subsystems/context.md
+  s_2fe05d2b987088::t_02494ee5c1576e 260
+tests/evals/runner.ts
+  s_2fe05d2b987088::t_af97fb61044644 71,77
+packages/agent/README.md
+  s_2fe05d2b987088::t_02494ee5c1576e 23,25,27
+apps/server/src/runtime/layers.ts
+  s_2fe05d2b987088::t_9c8ba02eca83d0 5
+apps/server/src/config.ts
+  s_2fe05d2b987088::t_887dd6aea04546 77
+tests/evals/evals.test.ts
+  s_2fe05d2b987088::t_af97fb61044644 6,40
+packages/agent/src/engine/system-message.ts
+  s_2fe05d2b987088::t_887dd6aea04546 6,14
+docs/adr/0024-session-state-as-state-updates.md
+  s_2fe05d2b987088::t_02494ee5c1576e 53,56,60-63
+.scratch/system-context/issues/09-base-prompt-v2-and-host-block-eval.md
+  s_2fe05d2b987088::t_02494ee5c1576e 41-42
+docs/subsystems/tracing.md
+  s_2fe05d2b987088::t_02494ee5c1576e 125,127
+tests/integration/sidecar-base-prompt.test.ts
+  s_2fe05d2b987088::t_af97fb61044644 1,5,9,15,43-44,57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "6e830a8c40fe1d44db4ce87887c27245acc0ed00",
+  "prompts": {},
+  "sessions": {
+    "s_2fe05d2b987088": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "296f4065-62a4-4e5c-8c52-5925e14c9462",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
