@@ -3,6 +3,7 @@ import { validateToolArguments } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 import {
   createMemoryTools,
+  formatMemoryEntry,
   MEMORY_MAX_CHARS,
   MEMORY_SEARCH_LIMIT,
   MEMORY_SECTION_BUDGET,
@@ -36,7 +37,7 @@ describe('memorySection', () => {
     expect(section.text).not.toMatch(/more entr/)
   })
 
-  it('按 updatedAt 倒序列出用户级与 Workspace 级条目，每条带 id、作用域与来源；段首是声明', () => {
+  it('项目级在前、用户级在后，各自按 updatedAt 倒序，每条带 id、作用域与来源；段首是声明', () => {
     const section = memorySection(
       [entry('u-old', 'user', 'Prefers tabs', 10), entry('w-new', 'workspace', 'Uses pnpm', 30), entry('u-new', 'user', 'Answer in Chinese', 20, 'user')],
       WRITABLE,
@@ -141,6 +142,75 @@ describe('memorySection', () => {
     expect(section.text.match(/<\/entry>/g)).toHaveLength(1)
     expect(section.text.match(/<\/memory>/g)).toHaveLength(1)
     expect(section.text).toContain('see <\\/entry> and <\\/memory> here')
+  })
+})
+
+describe('memorySection 的两级预算', () => {
+  /** 一条按预算计（含标签与一个换行）恰好 cost 字符的条目。 */
+  const sized = (id: string, scope: 'user' | 'workspace', cost: number, updatedAt: number) =>
+    entry(id, scope, 'x'.repeat(cost - 1 - formatMemoryEntry(entry(id, scope, '', updatedAt)).length), updatedAt)
+  /** n 条各 cost 字符、id 为 prefix0…、按 id 序由新到旧（updatedAt 从 base 递减）。 */
+  const many = (prefix: string, scope: 'user' | 'workspace', n: number, cost: number, base: number) =>
+    Array.from({ length: n }, (_, i) => sized(`${prefix}${i}`, scope, cost, base - i))
+  const shownIds = (text: string) => [...text.matchAll(/<entry id="([^"]+)"/g)].map((m) => m[1])
+  const ids = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`)
+  const OMITTED = /(\d+) more (?:entry|entries) not shown; use memory_list with a query to search them\./
+  const omitted = (text: string) => Number(OMITTED.exec(text)?.[1] ?? 0)
+
+  it('AC-21：两级各超过 6 000 字符时项目级用到 6 000、用户级用满其余，项目级在前（即使用户级更新），注明未放入的总条数', () => {
+    const text = memorySection([...many('u', 'user', 8, 1000, 200), ...many('p', 'workspace', 8, 1000, 100)], WRITABLE).text
+    expect(shownIds(text)).toEqual([...ids('p', 6), ...ids('u', 6)])
+    expect(omitted(text)).toBe(4)
+  })
+
+  it('AC-22：项目级 2 000、用户级超过 12 000 时项目级全部放入，用户级用到 10 000', () => {
+    const text = memorySection([...many('p', 'workspace', 2, 1000, 100), ...many('u', 'user', 13, 1000, 200)], WRITABLE).text
+    expect(shownIds(text)).toEqual([...ids('p', 2), ...ids('u', 10)])
+    expect(omitted(text)).toBe(3)
+  })
+
+  it('AC-23：项目级超过 12 000、用户级只有 1 000 时用户级全部放入，项目级用到 11 000', () => {
+    const text = memorySection([...many('p', 'workspace', 13, 1000, 100), ...many('u', 'user', 1, 1000, 200)], WRITABLE).text
+    expect(shownIds(text)).toEqual([...ids('p', 11), 'u0'])
+    expect(omitted(text)).toBe(2)
+  })
+
+  it('AC-24：没有项目记忆时用户级用满 12 000', () => {
+    const text = memorySection(many('u', 'user', 13, 1000, 200), { writable: true, project: false }).text
+    expect(shownIds(text)).toEqual(ids('u', 12))
+    expect(omitted(text)).toBe(1)
+  })
+
+  it('恰好等于上限：项目级恰好 6 000、合计恰好 12 000 时全部放入，不注明未放入', () => {
+    const text = memorySection([...many('p', 'workspace', 6, 1000, 100), ...many('u', 'user', 6, 1000, 200)], WRITABLE).text
+    expect(shownIds(text)).toEqual([...ids('p', 6), ...ids('u', 6)])
+    expect(text).not.toMatch(OMITTED)
+  })
+
+  it('每一级遇到放不下的条目即停止，不跳过较新的去放较旧的', () => {
+    // p1 放不进项目级的 6 000；用户级用到 11 000 后余量 1 000 仍放不下 p1，较旧而较短的 p2 也不放。
+    const project = [sized('p0', 'workspace', 1000, 100), sized('p1', 'workspace', 5500, 99), sized('p2', 'workspace', 500, 98)]
+    const text = memorySection([...project, ...many('u', 'user', 10, 1000, 200)], WRITABLE).text
+    expect(shownIds(text)).toEqual(['p0', ...ids('u', 10)])
+    expect(omitted(text)).toBe(2)
+  })
+
+  it('用户级没有全部放入时，剩下的余量不给项目级（项目级仍不超过 6 000）', () => {
+    // 用户级放到 u4 后合计 11 000，u5（1 500）放不下；余量 1 000 够放 p6，但用户级未放完，项目级停在 6 000。
+    const users = [...many('u', 'user', 5, 1000, 200), sized('u5', 'user', 1500, 150)]
+    const text = memorySection([...many('p', 'workspace', 8, 1000, 100), ...users], WRITABLE).text
+    expect(shownIds(text)).toEqual([...ids('p', 6), ...ids('u', 5)])
+    expect(omitted(text)).toBe(3)
+  })
+
+  it('单条超过项目级上限：用户级全部放入后有余量时放入，用户级用满时不放', () => {
+    const big = sized('p0', 'workspace', 7000, 100)
+    const roomy = memorySection([big, ...many('u', 'user', 3, 1000, 200)], WRITABLE).text
+    expect(shownIds(roomy)).toEqual(['p0', ...ids('u', 3)])
+    expect(roomy).not.toMatch(OMITTED)
+    const full = memorySection([big, ...many('u', 'user', 13, 1000, 200)], WRITABLE).text
+    expect(shownIds(full)).toEqual(ids('u', 12))
+    expect(omitted(full)).toBe(2)
   })
 })
 

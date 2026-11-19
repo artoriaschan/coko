@@ -2,7 +2,7 @@
 // memory_write 的条目进入同 Workspace 新 Session 的 <memory> system section，
 // 另一 Workspace 只看到用户级；memory_delete 后不再注入；default 模式写入要审批、accept-edits 免审批、memory_list 免审批；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
-// /api/memories 的增删改查与 Workspace 过滤；重启 Sidecar 后条目仍在。
+// 注入预算分两级（项目级在前）；/api/memories 的增删改查与 Workspace 过滤；重启 Sidecar 后条目仍在。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -153,8 +153,8 @@ describe('Memory', () => {
     const inC = replay(requests.at(-1)!)
     expect(inB.sections.memory).toContain(`<entry id="${workspaceMemory.id}" scope="workspace" source="agent">\nThis project uses pnpm\n</entry>`)
     expect(inB.sections.memory).toContain('The user prefers answers in Chinese')
-    // 新的在前：用户级条目更晚写入。
-    expect(inB.sections.memory!.indexOf('Chinese')).toBeLessThan(inB.sections.memory!.indexOf('pnpm'))
+    // 项目级在前：即使用户级条目更晚写入。
+    expect(inB.sections.memory!.indexOf('pnpm')).toBeLessThan(inB.sections.memory!.indexOf('Chinese'))
     expect(inC.sections.memory).toContain('The user prefers answers in Chinese')
     expect(inC.sections.memory).not.toContain('pnpm')
     for (const name of ['memory_list', 'memory_write', 'memory_delete']) expect(inB.tools.has(name)).toBe(true)
@@ -280,6 +280,28 @@ describe('Memory', () => {
     ])
     expect((await list(second.api)).find((m) => m.id === vitest.id)).toMatchObject({ content: 'Tests run with vitest 4', source: 'user' })
     expect(await second.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('注入预算分两级：项目级先占至多 6 000 字符且在前，用户级用满其余，段末注明未放入的总条数', { timeout: 60_000 }, async () => {
+    const root = await tempDir()
+    const dirs = await sidecarDirs()
+    const one = join(root, 'one')
+    await mkdir(one)
+    const { sidecar, api, stream, requests } = await boot(dirs, root, 'budget', [{ content: 'ok' }])
+    const w1 = (await api.post(API_ROUTES.workspaces, { path: one })).body.id as string
+    // 每条约 2 000 字符（含标签）：项目级 4 条、用户级 4 条，用户级后写（更新）。
+    const add = async (label: string, body: Record<string, string>) =>
+      expect((await api.post(memoryPaths.memories, { ...body, content: `${label} ${'x'.repeat(1900)}` })).status).toBe(201)
+    for (const i of [0, 1, 2, 3]) await add(`P${i}`, { scope: 'workspace', workspaceId: w1 })
+    for (const i of [0, 1, 2, 3]) await add(`U${i}`, { scope: 'user' })
+
+    await send(api, stream, await newSession(api, stream, w1), 'hi')
+    const section = replay((await requests())[0]!).sections.memory!
+    const shown = [...section.matchAll(/<entry [^>]*>\n(\S+) /g)].map((m) => m[1])
+    // 项目级放得下 3 条（第 4 条会超过 6 000），用户级在其后放 3 条（第 4 条会超过 12 000）；各自新的在前。
+    expect(shown).toEqual(['P3', 'P2', 'P1', 'U3', 'U2', 'U1'])
+    expect(section).toContain('2 more entries not shown; use memory_list with a query to search them.')
+    expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
   it('/api/memories 的增删改查、Workspace 过滤与校验；重启后条目仍在', { timeout: 60_000 }, async () => {
