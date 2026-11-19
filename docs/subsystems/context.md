@@ -257,7 +257,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 
 - `packages/agent/src/entries/state-updates.test.ts` 与 `apps/server/src/application/context/state-updates.test.ts`：来源配对、部分提交与压缩切点、去重与一次清空、脱敏后比较、读取失败降级；`apps/desktop/src/renderer/features/conversation/timeline.test.ts` 验证配对块隐藏与伪造原文保留。
 - `tests/integration/sidecar-state-update-continue.test.ts`：工具结果或 user message 后继续、有/无状态变化、纯状态消息不提升 Goal 授权且不唤醒 waiting-input；`tests/integration/sidecar-date-state-updates.test.ts`：本地午夜、同日去重、Run 内等待、子代理与 teammate 日期。
-- 基础提示默认 v1 与候选 v2、真实门槛和缓存的未验证范围见 [ADR 0024](../adr/0024-session-state-as-state-updates.md#实施状态与证据)，faux 通过不代表真实模型或缓存验收完成。
+- 基础提示未经真实模型比较即替换的依据，以及缓存的未验证范围见 [ADR 0024](../adr/0024-session-state-as-state-updates.md#实施状态与证据)，faux 通过不代表真实模型或缓存验收完成。
 
 - `tests/integration/sidecar-tool-search-boundaries.test.ts`：压缩与未压缩源会话的用户、助手及再次分叉只继承边界内加载；文件回退保留加载，对话回退撤销后续加载，交接从未加载开始；核对下一次模型请求。
 - `packages/agent/src/agents/fork.test.ts`、`tests/integration/sidecar-state-update-fork.test.ts`：配对快照随两种分叉边界复制、排除目标消息的孤立更新、压缩后的来源保留、新 Session 首 Run 清空 Goal/Todo 且不重复日期；`tests/integration/sidecar-trace.test.ts` 与 `headless.test.ts` 验证 ndjson 回放及 stream-json 包含 `state_update`。

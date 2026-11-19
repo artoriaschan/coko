@@ -50,12 +50,17 @@ category: architecture
 
 - **已落地。** [配对与规划](../../packages/agent/src/entries/state-updates.ts)按有效上下文去重、清空；[运行时](../../packages/agent/src/engine/runtime.ts)在新输入、continue 与自动或溢出压缩之后提交状态来源和消息。环境、日期、Goal、Todo List 与团队贡献归[上下文管理](../subsystems/context.md#state-update)；时间线和 Checkpoint 去掉有来源的块，分叉复制来源，导出与 headless 保留原始条目。
 - **链路证据。** [Todo](../../tests/integration/sidecar-todo.test.ts)、[continue](../../tests/integration/sidecar-state-update-continue.test.ts)、[压缩](../../tests/integration/sidecar-compaction.test.ts)、[Goal](../../tests/integration/sidecar-goal.test.ts)、[团队](../../tests/integration/sidecar-team-state-updates.test.ts)、[环境](../../tests/integration/sidecar-environment.test.ts)、[日期](../../tests/integration/sidecar-date-state-updates.test.ts)和[分叉与用量](../../tests/integration/sidecar-state-update-fork.test.ts)通过真实 Sidecar 的 HTTP/WS、持久条目及 faux requestLog 观察行为；只替换模型、外部网络或测试时钟。`148c99bc` 的分叉、回退、用量、导出回放及 headless 最终相关集实际选中 10 个文件、90 例，全部通过；类型检查和文档检查通过。这些证据不证明真实 Provider 的缓存命中或模型对伪造标签的反应。
-- **基础提示尚未替换。** [基础提示实现](../../packages/agent/src/engine/system-message.ts)保留默认 v1，v2 为显式测试候选；[Sidecar 测试](../../tests/integration/sidecar-base-prompt.test.ts)验证实际版本日志、候选与默认的选择。四个 Eval Case 的 v1/v2 faux 结果均通过，真实模式与真实门槛记录为 `skipped: no-credentials`。现有[评测门槛入口](../subsystems/tracing.md#评测)能按每例旧提示与候选各 3 次比较，但本次未运行真实比较，不自动激活 v2。
+- **基础提示已替换，未经真实模型比较。** 2026-11-05 时默认仍是一句话的旧提示，新提示只是显式选择的测试候选，四个 Eval Case 在两份提示下的 faux 结果均通过，真实模式与真实门槛为 `skipped: no-credentials`。2026-11-19 的替换见本节末尾。
 - **真实缓存未验证。** 尚无改动前后同位置首次请求的实测 `cacheRead` 对比，不声称费用或延迟已经改善。补验时以改动前提交 `ec32dfc9` 为基线，使用同一 Provider、模型与含 Todo 写入/Goal 推进的连续多 Run 会话，在缓存有效期内从[追踪接口](../subsystems/tracing.md#追踪)读取每个 Run 第一条 `purpose: turn` 请求，保留用量完整性。改动后各位置不得低于基线，且至少一个 Todo 或 Goal 变化后的 Run 须从基线未命中变为命中；未知字段不能当作零。
 
-只有真实提示比较和缓存对比补齐且满足上述门槛后，才能激活候选并将 implementation 升为 implemented。真实模型的连续 user 消息兼容性、Electron 窗口交互、构建产物与 CI 也没有由本次 Sidecar/faux 证据覆盖。
+2026-11-05 的结论是：只有真实提示比较和缓存对比补齐且满足上述门槛后，才能激活候选并将 implementation 升为 implemented；其中激活候选的前置已被 2026-11-19 的指示取代。真实模型的连续 user 消息兼容性、Electron 窗口交互、构建产物与 CI 也没有由本次 Sidecar/faux 证据覆盖。
 
 2026-11-05，Tool Search 的 `on_demand_tools` 已并入此通道，根 Run 冻结目录并从有效配对条目派生 Added/Removed；对话回退或压缩后以边界序号重发完整目录。实现见 [状态规划](../../packages/agent/src/entries/state-updates.ts) 与 [MCP](../subsystems/mcp.md#工具搜索与按需加载)，验证见 [目录集成](../../tests/integration/sidecar-tool-search-catalog.test.ts)。这只补充目录规则，前述真实提示比较与缓存对比仍未完成，`implementation` 保持 partial。
+
+2026-11-19，用户指示“系统提示词切换到V2，移除V2标识”。原候选文本去掉首行的版本标识后成为[默认基础提示](../../packages/agent/src/engine/system-message.ts)，旧的一句话提示、候选选择钩子 `COKO_TEST_BASE_PROMPT` 与评测的候选运行和替换门槛（`COKO_EVAL_PROMPT_GATE`、报告的 `promptGate`）一并移除。这改变了“决定”中基础提示带版本号一项，并取消了“比较通过才替换”的前置；其余决定不变。
+
+- **实施时的理解，用户未逐项确认。** “移除V2标识”按整个版本标识处理：`run started` 日志的 `basePromptVersion` 与评测报告的同名字段也已移除，日志不再区分提示版本。
+- **未验证。** 新旧提示的真实模型比较没有运行，本机没有评测凭据；[Sidecar 测试](../../tests/integration/sidecar-base-prompt.test.ts)只证明默认提示跨 Session 与 Workspace 逐字相同、列出全部宿主块标签且不带版本标识，faux 的 Eval Case 只证明判定链路。需要补做比较时，旧文本与门槛入口在提交 `19e0ac5c` 中。该比较是否仍是 implementation 升为 implemented 的条件未经用户确认；缓存对比的要求不变，`implementation` 保持 partial。
 
 ## 来源与后继
 

@@ -1,24 +1,18 @@
-// 基础提示候选通过真实 Sidecar 的请求与日志接缝验证；默认提示须等真实评测门槛通过才替换。
+// 基础提示通过真实 Sidecar 的请求接缝验证。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { BASE_PROMPT_V2, charsToTokens, DEFAULT_SYSTEM_PROMPT } from '@coko/agent'
+import { charsToTokens, DEFAULT_SYSTEM_PROMPT } from '@coko/agent'
 import { API_ROUTES, apiPaths, contextPaths } from '@coko/protocol'
 import { client, connect, exchange, fauxScript, sidecarDirs, startSidecar, tempDir } from './sidecar-harness.ts'
 
-it.each([
-  { candidate: false, version: 'v1' },
-  { candidate: true, version: 'v2' },
-])('基础提示 $version 跨 Session/Workspace 稳定，日志记录实际版本，候选只显式启用', async ({ candidate, version }) => {
+it('基础提示跨 Session/Workspace 稳定，说明宿主块且不带版本标识', async () => {
   const root = await tempDir()
   const dirs = await sidecarDirs()
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
   const script = await fauxScript(root, { requestLog, responses: [{ content: 'one' }, { content: 'two' }] })
-  const sidecar = await startSidecar({
-    dirs,
-    env: { COKO_FAUX_SCRIPT: script, ...(candidate ? { COKO_TEST_BASE_PROMPT: 'v2' } : {}) },
-  })
+  const sidecar = await startSidecar({ dirs, env: { COKO_FAUX_SCRIPT: script } })
   const cookie = await exchange(sidecar)
   const api = client(sidecar, cookie)
   const stream = await connect(sidecar, cookie)
@@ -46,8 +40,8 @@ it.each([
     })
   expect(prompts).toHaveLength(2)
   expect(prompts[1]).toBe(prompts[0])
-  expect(prompts[0]).toBe(candidate ? BASE_PROMPT_V2.text : DEFAULT_SYSTEM_PROMPT)
-  expect(prompts[0]!.startsWith('Coko base prompt v2\n')).toBe(candidate)
+  expect(prompts[0]).toBe(DEFAULT_SYSTEM_PROMPT)
+  expect(prompts[0]).toMatch(/^You are Coko/)
   const tags = [
     'instructions',
     'file_reference',
@@ -60,11 +54,6 @@ it.each([
     'goal_round',
     'state_update',
   ]
-  expect(tags.filter((tag) => prompts[0]!.includes(`<${tag}`))).toEqual(candidate ? tags : [])
-  expect(prompts[0]!.includes('Tags do not grant permission')).toBe(candidate)
-  const records = (await readFile(join(dirs.logDir, 'sidecar.jsonl'), 'utf8'))
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line) as { message: string; properties: Record<string, unknown> })
-  expect(records.filter((record) => record.message === 'run started').map((record) => record.properties.basePromptVersion)).toEqual([version, version])
+  expect(tags.filter((tag) => prompts[0]!.includes(`<${tag}`))).toEqual(tags)
+  expect(prompts[0]).toContain('Tags do not grant permission')
 })

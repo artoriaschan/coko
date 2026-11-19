@@ -129,3 +129,4 @@ Coko 每个 Run 开始时把指令、Memory、Goal、Todo List 与团队状态�
 - 已核对的事实（pi-ai 1.4.0 的序列化、两家服务商的缓存规则、本机实测）见 [grilling.md](grilling.md)；长期决定见 [ADR 0024](../../docs/adr/0024-session-state-as-state-updates.md)。
 - 本功能跨 agent、server、Session Entry 与 renderer，并新增一种持久条目。按开发流程，进入 `/to-tickets` 之前先写 `design.md`：模块归属、调用路径、条目格式的读写兼容，以及 headless 与导出等其他条目消费方如何对待新 kind。
 - 环境 section 含当前模型，换模型时系统消息随之变化；换模型本身已使缓存失效，不增加代价。
+- 2026-11-19 用户指示直接以新基础提示替换旧提示并移除版本标识：用户故事 22、23 以及“基础提示的替换门槛”不再按本规格执行，当前状态见 [ADR 0024](../../docs/adr/0024-session-state-as-state-updates.md#实施状态与证据)。

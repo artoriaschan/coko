@@ -13,8 +13,6 @@ import type { SessionService } from './sessions.ts'
 
 export interface ContextServiceOptions {
   store: SessionStore
-  /** Same explicit prompt as SessionService, when evaluating a candidate. */
-  basePrompt?: string
   assembly: ContextAssembly
   sessions: Pick<SessionService, 'contextModel' | 'baseTools' | 'compactionPaused' | 'runs'>
   /** Session 的工作目录（worktree 会话为其 worktree；缺省 Workspace 目录）：用量与作用域按它读取指令、Skills 与项目设置。 */
@@ -23,14 +21,12 @@ export interface ContextServiceOptions {
 
 export class ContextService {
   readonly #store: SessionStore
-  readonly #basePrompt: string | undefined
   readonly #sessions: ContextServiceOptions['sessions']
   readonly #cwd: SessionCwd
   readonly assembly: ContextAssembly
 
   constructor(options: ContextServiceOptions) {
     this.#store = options.store
-    this.#basePrompt = options.basePrompt
     this.assembly = options.assembly
     this.#sessions = options.sessions
     this.#cwd = options.cwd ?? workspaceCwd
@@ -84,7 +80,6 @@ export class ContextService {
         ...(active ? { contributedTools: active.contributed } : {}),
         ...(snapshot ? { declarationMessages: snapshot.messages } : {}),
         incrementalTools: active?.incrementalTools ?? provider?.incrementalTools,
-        ...(this.#basePrompt ? { basePrompt: this.#basePrompt } : {}),
         scope,
         baseTools: this.#sessions.baseTools(cwd),
         model: active?.model ?? model,
@@ -96,7 +91,6 @@ export class ContextService {
     const [scope, model] = await Promise.all([this.scopeFor({ workspaceId: workspace.id }), this.#sessions.contextModel(undefined)])
     return contextUsage({
       context: this.assembly,
-      ...(this.#basePrompt ? { basePrompt: this.#basePrompt } : {}),
       scope,
       baseTools: this.#sessions.baseTools(workspace.path),
       model,
