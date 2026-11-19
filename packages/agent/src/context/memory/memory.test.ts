@@ -561,6 +561,30 @@ describe('memory 工具', () => {
     expect(searches).toHaveLength(1)
   })
 
+  it('memory_list 严格匹配为空时退回端口的相近条目（至多 20 条，保持端口次序，带 scope），第一行注明没有完全匹配；严格匹配有结果时不查找', async () => {
+    const { port, searches, similars } = fakePort([
+      entry('old', 'user', 'Always use pnpm here', 1),
+      entry('new', 'workspace', 'pnpm workspace layout', 2),
+      entry('other', 'user', 'Prefers tabs', 3),
+    ])
+    const { memory_list } = tools(port)
+    const approx = text(await memory_list!.tool.execute('c1', { query: 'which package manager, pnpm or npm?' }))
+    expect(approx).toBe(
+      'No exact match for "which package manager, pnpm or npm?"; showing similar entries instead:\n\n' +
+        '<entry id="new" scope="workspace" source="agent">\npnpm workspace layout\n</entry>\n' +
+        '<entry id="old" scope="user" source="agent">\nAlways use pnpm here\n</entry>',
+    )
+    expect(similars).toEqual([{ text: 'which package manager, pnpm or npm?', options: { limit: 20 } }])
+    await memory_list!.tool.execute('c2', { query: 'pnpm or npm?', scope: 'user' })
+    expect(similars.at(-1)).toEqual({ text: 'pnpm or npm?', options: { scope: 'user', limit: 20 } })
+    // 严格匹配有结果：不查找相近条目，没有说明。
+    const exact = text(await memory_list!.tool.execute('c3', { query: 'tabs' }))
+    expect(exact).toBe('<entry id="other" scope="user" source="agent">\nPrefers tabs\n</entry>')
+    expect(similars).toHaveLength(2)
+    expect(searches).toHaveLength(3)
+    expect(memory_list!.tool.description).toMatch(/no entry matches exactly.*similar/i)
+  })
+
   it('memory_list 带 ids 时按给出的次序返回完整条目块，没有找到的 id 列在条目块之后', async () => {
     const { port, searches } = fakePort([entry('u1', 'user', 'Prefers tabs', 1), entry('w1', 'workspace', 'Uses pnpm\nand vitest', 2, 'user')])
     const { memory_list } = tools(port)
