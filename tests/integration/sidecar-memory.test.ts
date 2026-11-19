@@ -3,7 +3,8 @@
 // 另一项目的 Session 只看到用户级（项目归属的其余场景见 sidecar-memory-projects）；memory_delete 后不再注入；写入与删除在 default、read-only、plan 下都不经审批（ADR 0027），memory_list 免审批；
 // 全局或项目设置中的 Memory 询问规则仍出审批卡、拒绝规则仍拒绝，PreToolUse Hook 的 deny 仍阻止写入；
 // memory.enabled: false 时不注入、工具不在请求中；用户来源的条目模型不能替换或删除，用户经接口编辑后来源变为用户（伪造标注不改变来源）；
-// 注入预算分两级（项目级在前）；/api/memories 的增删改查与 Workspace 过滤；重启 Sidecar 后条目仍在。
+// 注入预算分两级（项目级在前）；/api/memories 的增删改查与 Workspace 过滤，Workspace 作用域只能新建在项目的主要 Workspace 上（遗留条目照常可管理）；
+// 重启 Sidecar 后条目仍在。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -408,6 +409,17 @@ describe('Memory', () => {
     expect((await api.post(memoryPaths.memories, { scope: 'user', content: '   ' })).body.error.code).toBe('bad-request')
     expect((await api.post(memoryPaths.memories, { scope: 'user', content: 'x', source: 'model' })).status).toBe(400)
     expect((await api.post(memoryPaths.memories, { scope: 'workspace', workspaceId: 'missing', content: 'x' })).status).toBe(404)
+
+    // AC-25：w2 的项目删除后它不再是任何项目的主要 Workspace，新建其 Workspace 条目 400 且没有新增；已有条目照常可读、可改、可删。
+    const project2 = ((await api.get(API_ROUTES.projects)).body.projects as { id: string; primaryWorkspaceId: string }[]).find(
+      (p) => p.primaryWorkspaceId === w2,
+    )!
+    expect((await api.delete(apiPaths.project(project2.id))).status).toBe(200)
+    const rejected = await api.post(memoryPaths.memories, { scope: 'workspace', workspaceId: w2, content: 'Two uses yarn' })
+    expect(rejected.status).toBe(400)
+    expect(rejected.body.error.code).toBe('bad-request')
+    expect(await contents(`?workspaceId=${w2}`)).toEqual(['x'.repeat(2000), 'Two uses npm', 'Prefers tabs'])
+    expect((await api.put(memoryPaths.memory(inTwo.id), { content: 'Two uses npm 10' })).body).toMatchObject({ content: 'Two uses npm 10', workspaceId: w2 })
 
     // 改：改正文，来源为 user；限定 Workspace 时另一 Workspace 的条目 404。
     const edited = await api.put(memoryPaths.memory(inOne.id), { content: 'One uses pnpm 12' })

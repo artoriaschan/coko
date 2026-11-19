@@ -259,4 +259,8 @@ export interface SessionEntryAccess {
 }
 
 /** Memory 贡献需要的存储部分：记忆仓库与 Workspace 查询。 */
-export type MemoryStore = { memories: SessionStore['memories']; sessions: Pick<SessionStore['sessions'], 'getWorkspace'> }
+export type MemoryStore = {
+  memories: SessionStore['memories']
+  sessions: Pick<SessionStore['sessions'], 'getWorkspace'>
+  projects: Pick<SessionStore['projects'], 'list'>
+}

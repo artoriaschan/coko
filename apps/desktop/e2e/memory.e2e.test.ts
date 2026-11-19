@@ -1,5 +1,5 @@
 // Memory：真实 Electron + 真实 Sidecar（faux）。模型经 memory_write 记下条目（default 模式不出审批卡，ADR 0027），工具卡显示"已记住"；
-// 设置的 Memory 分区按用户级与当前工作区分组列出它，编辑后标签变为手动添加，删除、手动添加与编辑生效，记忆开关写入全局配置；重新打开后读到
+// 设置的 Memory 分区按用户级与当前项目（“项目：名称”）分组列出它，编辑后标签变为手动添加，删除、手动添加与编辑生效，记忆开关写入全局配置；重新打开后读到
 // Sidecar 中的条目。
 // 搜索框按关键词过滤列表、Escape 清空恢复，明暗主题与键盘操作。
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -58,6 +58,8 @@ describe('Memory', () => {
     const userList = dialog.locator('[data-memory-list="user"]')
     const modelEntry = workspaceList.locator('[data-memory-id][data-memory-source="model"]')
     await modelEntry.waitFor()
+    // 项目对话：项目组的标题为“项目：<项目名>”。
+    expect(await workspaceList.locator('h3').textContent()).toMatch(/^(Project: Example project|项目：Example project)$/)
     expect(await modelEntry.textContent()).toContain('This project uses pnpm')
     expect(await userList.locator('[data-memory-id]').count()).toBe(0)
     expect(await dialog.locator('[data-memory-enabled]').getAttribute('data-memory-enabled')).toBe('true')

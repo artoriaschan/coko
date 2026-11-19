@@ -1,4 +1,5 @@
 // /api/memories（路径相对 /api）：用户级与某个 Workspace 的记忆；手动添加与经接口改正文的条目 source 为 user。
+// 新建 Workspace 条目须在项目的主要 Workspace 上（MemoryService 校验，400）；已有条目的读、改、删不受此限。
 // GET 带非空 query 时为检索（至多 20 条，按相关度；FTS5 不可用时按 updatedAt 倒序），否则为列表；scope 只留一种。
 import { CreateMemoryRequest, MemoryListResponse, MemoryScope, UpdateMemoryRequest } from '@coko/protocol'
 import { Value } from 'typebox/value'

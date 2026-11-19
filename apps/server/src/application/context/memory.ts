@@ -1,7 +1,7 @@
 // Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，开启时每个 Run 都注入、没有条目也注入，关闭时不注入、
 // 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与
 // 本 Run 的项目记忆 Workspace（ContextScope.memoryWorkspaceId，ADR 0027；不属于项目时只有用户级，工具没有 workspace 作用域）；正文保存前经 redactText 脱敏（ADR 0004）；
-// 用户来源的条目模型不能替换或删除。
+// 用户来源的条目模型不能替换或删除；新建 Workspace 条目只能在项目的主要 Workspace 上。
 import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
 import { redactText } from '@coko/logging'
 import { MEMORY_CONTENT_MAX, type MemoryEntry, type MemoryScope, type MemorySource } from '@coko/protocol'
@@ -79,7 +79,12 @@ export class MemoryService {
   async create(input: { scope: MemoryScope; workspaceId?: string; content: string; source: MemorySource }): Promise<MemoryEntry> {
     if ((input.scope === 'workspace') !== (input.workspaceId !== undefined))
       throw new AppError('bad-request', 'Workspace memories need a workspaceId; user memories must not have one')
-    if (input.workspaceId !== undefined) await this.#requireWorkspace(input.workspaceId)
+    if (input.workspaceId !== undefined) {
+      await this.#requireWorkspace(input.workspaceId)
+      // 只在项目的主要 Workspace 上新建项目记忆（ADR 0027）；已有的遗留条目仍可读、改、删。
+      if (!(await this.#store.projects.list()).some((p) => p.primaryWorkspaceId === input.workspaceId))
+        throw new AppError('bad-request', `Workspace ${input.workspaceId} is not the primary folder of a project`)
+    }
     const content = checkContent(input.content)
     return toEntry(await this.#store.memories.create({ scope: input.scope, workspaceId: input.workspaceId ?? null, content, source: input.source }))
   }

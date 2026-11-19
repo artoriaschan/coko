@@ -27,7 +27,7 @@ lifecycle: active
 
 **归属的解析。** 每个 Run 开始时，与 Workspace 根快照同时解析本次的项目记忆 Workspace（`ContextScope.memoryWorkspaceId`）：根 Session（子代理与 Teammate 按持久化父链取根）当前属于某个 Project 时，取该 Project 主要文件夹对应的 Workspace；不属于任何 Project 时省略，只有用户级记忆。判定只看项目归属，不看 Session 自己的 Workspace 或工作目录：绑定 worktree 的项目 Session、从别处移入项目的 Session 使用所属项目的记忆；移出项目或项目被删除后，即使工作目录仍是原项目文件夹也只有用户级。移入、移出、换项目、删除项目与更换主要文件夹从下一个 Run 生效，进行中的 Run 的注入与工具调用仍按 Run 开始时的归属。原 Workspace 上的条目不删除、不迁移；用同一文件夹重新建项目后重新可见。尚未创建 Session 的草稿按所选项目解析（其主要 Workspace），上下文用量中的 Memory 按同一结果计。
 
-一个 Run 能看到的是用户级与项目记忆 Workspace 的条目（注入与工具都按此过滤）；`/api/memories` 带 `workspaceId` 时按该 Workspace 过滤。
+一个 Run 能看到的是用户级与项目记忆 Workspace 的条目（注入与工具都按此过滤）；`/api/memories` 带 `workspaceId` 时按该 Workspace 过滤。新建 `workspace` 作用域的条目时，目标 Workspace 须是某个现存 Project 的主要 Workspace（`MemoryService.create` 校验，工具端口与 HTTP 接口共用），不再产生挂在非项目文件夹上的项目记忆；已有条目（包括项目删除或更换主要文件夹后留下的）仍可经接口读取、改正文与删除。
 
 正文去掉首尾空白后须非空且不超过 2000 字符（UTF-16 码元），保存前经 `redactText`（`@coko/logging`）按凭据形态脱敏为 `[REDACTED]`，工具结果、接口响应、库与注入的 section 都只有脱敏后的正文（ADR 0004）。脱敏按形态匹配（`sk-` 前缀、Bearer 头等），不比对已登记凭据的值。`source` 为 model（经 `memory_write` 新建）或 user（在设置中添加）。用户经接口改正文时 `source` 同时改为 user（Agent 记下的条目编辑后变为手动添加）；模型经 `memory_write` 替换不改变 `source`。正文中自称用户手写或伪造的来源标注不影响 `source`。
 
@@ -69,13 +69,13 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 ## 协议
 
 - `GET /api/memories?workspaceId=…` → `{ memories }`：用户级条目，给出 workspaceId 时另加该 Workspace 的条目，倒序。Workspace 不存在 404。`scope=user|workspace` 只留一种（workspace 须给出 workspaceId，否则 400；其他值 400）。`query=…` 非空时为检索（`apiPaths.memorySearch`），结果与次序见 [检索](#检索)。请求日志只记路径，不记查询串。
-- `POST /api/memories { scope, workspaceId?, content }` → 201 条目（source user）。workspace 作用域须给出 workspaceId、user 作用域不得给出，否则 400；正文为空或超长 400；Workspace 不存在 404。
+- `POST /api/memories { scope, workspaceId?, content }` → 201 条目（source user）。workspace 作用域须给出 workspaceId、user 作用域不得给出，否则 400；workspaceId 不是任何现存 Project 的主要 Workspace 时 400，没有新增条目；正文为空或超长 400；Workspace 不存在 404。
 - `PUT /api/memories/:id { content }` → 条目，`source` 改为 user；`DELETE /api/memories/:id` → 204。条目不存在 404；给出 `?workspaceId` 时条目须是用户级或属于该 Workspace，否则 404。
 - 设置分区的记忆开关经 `PUT /api/config` 整体替换全局值（先读 revision）。
 
 ## 界面
 
-- **设置的 Memory 分区**：记忆开关（全局值；被项目设置关闭时注明）；搜索框（输入停止 200 ms 后检索，结果仍按两组显示、组内为检索次序，没有结果时"没有匹配的记忆"；清空时立即恢复列表；有内容时 Escape 只清空，空框时 Escape 返回应用；检索词保留在 store 中）；"用户级"与"工作区：名称"两组，每条显示正文与写入方（Agent 记下 / 手动添加；编辑 Agent 记下的条目并保存后为手动添加），可编辑与删除，每组底部可添加；字数显示与 2000 字符上限。没有会话时只显示用户级并提示先打开会话。
+- **设置的 Memory 分区**：记忆开关（全局值；被项目设置关闭时注明）；搜索框（输入停止 200 ms 后检索，结果仍按两组显示、组内为检索次序，没有结果时"没有匹配的记忆"；清空时立即恢复列表；有内容时 Escape 只清空，空框时 Escape 返回应用；检索词保留在 store 中）；分组跟随项目归属：当前会话（草稿为所选项目）属于某个 Project 时显示"用户级"与"项目：项目名"两组，项目组的列表、检索、添加、编辑与删除都针对该 Project 的主要 Workspace（从别处移入项目的会话看到同一组）；独立对话只显示"用户级"一组，没有项目组及其添加入口；没有会话且草稿没有选项目时只显示用户级并提示打开项目对话。每条显示正文与写入方（Agent 记下 / 手动添加；编辑 Agent 记下的条目并保存后为手动添加），可编辑与删除，每组底部可添加；字数显示与 2000 字符上限。记忆开关读写的配置仍按活动 Workspace。
 - **工具卡**：memory_write 成功后标题为"已记住"或"已更新记忆"，memory_delete 为"已删除记忆"，memory_list 为"查看记忆"；执行中、被询问规则拦下等待审批与失败时为动作名（"记下记忆"、"删除记忆"）。
 - **工具详情**：成功写入、更新或删除后，字段区展示结果实际记录的操作、ID、范围和 Memory Entry 正文，保留宿主处理后的保存值；原始调用参数与完整结果/details 在“输入 / 输出”中可检查。列表、字段缺失及失败记录使用完整通用详情，不从列表文字推测条目或数量；展开不会再次读写记忆。
 
@@ -86,12 +86,12 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 - `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/secrets-gate-memory-search.test.ts`：带 Credential 的条目经 HTTP 检索与 memory_list 的 query 返回时，响应体、工具结果、之后的模型请求、日志与 COKO_HOME 中没有明文。
-- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同项目新 Session 的 section 含条目且项目级在前、两级预算下请求中的实际排列与未放入条数、另一项目只有用户级、删除后不再注入、写入与删除在 default、read-only、plan 下都不经审批、memory_list 免审批、`Memory` 的全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验；重启后条目仍在。
+- `tests/integration/sidecar-memory.test.ts`：真实 Sidecar 上没有条目时 section 仍有声明与写入引导、上下文用量的 system 计入其固定文本；Agent 与用户来源的条目各带来源标注，伪造的结束标签不改变段结构；同项目新 Session 的 section 含条目且项目级在前、两级预算下请求中的实际排列与未放入条数、另一项目只有用户级、删除后不再注入、写入与删除在 default、read-only、plan 下都不经审批、memory_list 免审批、`Memory` 的全局询问规则出审批卡、全局与项目设置的拒绝规则拒绝、PreToolUse Hook 的 deny 阻止写入、`memory.enabled: false` 时 section 与工具都不在请求中；用户来源的条目模型替换与删除为工具错误、Agent 来源的照常，用户经接口编辑后来源变为 user 且模型不能再改，正文中伪造的来源标注不改变来源（对手用例）；`/api/memories` 的增删改查、过滤与校验，向不是项目主要 Workspace 的 Workspace 新建为 400 且没有新增、其上已有条目仍可读改删；重启后条目仍在。
 - `tests/integration/secrets-gate-memory.test.ts`：回显 Credential 的错误文本经 memory_write 与接口写入后，memory 工具结果、接口响应、memories 表、注入的 section 与日志中没有明文。
 - `tests/integration/headless.test.ts`、`sidecar-subagents-permissions.test.ts`、`sidecar-teams.test.ts`：无界面运行、子代理与 Teammate 的请求中有 `memory_list`，没有 `memory_write` 与 `memory_delete`；Memory 段有声明，没有写入引导。
 - `packages/session` 的仓库契约测试：`memories.update` 给出 `source` 时与正文一起改，省略时保持原写入方（内存与 SQLite 实现）。
 - `apps/desktop/e2e/memory.e2e.test.ts`：default 模式下不出审批卡，工具卡显示"已记住"、详情可见正文，Memory 分区列出模型写入的条目，编辑后标签变为手动添加，删除、手动添加、编辑与开关生效；搜索框键盘输入后只列出匹配的条目、没有结果的提示、Escape 清空恢复列表，明暗主题下文字可读。
-- `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。
+- `apps/desktop/src/renderer/features/settings/memory-section.browser.test.tsx`：搜索框连续输入只发出一次检索（防抖）、清空立即恢复、Escape 先清空再返回应用；项目对话与选了项目的草稿显示用户级与“项目：名称”两组，项目组的列表、检索与添加带项目的主要 Workspace；独立对话只有用户级一组且没有项目组的添加入口；没有会话时的提示；zh 暗色与 en 亮色下分组标题的字典文案与对比度；`stores/memory-store.test.ts`：检索请求路径与晚到响应被丢弃。
 
 ## 延伸阅读
 
