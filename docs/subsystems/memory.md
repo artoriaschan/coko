@@ -12,8 +12,8 @@ lifecycle: active
 
 | 位置 | 职责 |
 | --- | --- |
-| `packages/agent/src/context/memory/` | `memorySection(entries, { writable, project })`、`createMemoryTools(port, { project })`（三个工具及其权限类；没有项目时 scope 只有 user）、`MemoryPort`（含 `search` 与 `similar`）、`memorySummary`、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SEARCH_LIMIT` |
-| `apps/server/src/application/context/memory.ts` | `MemoryService`（列表、检索、相近查找、新建、改正文、删除与校验、脱敏）、工具端口 `memoryPort`、上下文贡献 `memoryContribution` |
+| `packages/agent/src/context/memory/` | `memorySection(entries, { writable, project })`、`tierMemories`（三层分配，Memory 段与注入汇总共用）、`createMemoryTools(port, { project })`（三个工具及其权限类；没有项目时 scope 只有 user）、`MemoryPort`（含 `search` 与 `similar`）、`memorySummary`、`MEMORY_MAX_CHARS`、`MEMORY_SECTION_BUDGET`、`MEMORY_SUMMARY_BUDGET`、`MEMORY_SEARCH_LIMIT` |
+| `apps/server/src/application/context/memory.ts` | `MemoryService`（列表、检索、相近查找、新建、改正文、删除与校验、脱敏）、工具端口 `memoryPort`、上下文贡献 `memoryContribution`、注入汇总 `memoryInjection` |
 | `apps/server/src/http/routes/memories.ts` | `/api/memories` 路由 |
 | `packages/protocol/src/memory.ts` | `MemoryEntry`、`MemoryListResponse`、`CreateMemoryRequest`、`UpdateMemoryRequest`、`memoryPaths`、`MEMORY_CONTENT_MAX` |
 | `packages/session` 的 `MemoryRepository` | 表 `memories`（迁移 v3）与 `memories.search`、`memories.similar`、FTS5 表 `memories_fts`（迁移 v9），见 [@coko/session](../../packages/session/README.md) |
@@ -92,6 +92,7 @@ memory-write 在所有 Permission Mode 下放行（含 read-only 与 plan，[ADR
 - `tests/integration/sidecar-memory-projects.test.ts`：项目 Session 的段含项目级与用户级；移出项目后只有用户级、工具 scope 没有 `workspace`、以 `workspace` 写入为参数错误、省略 scope 写入用户级；独立对话移入项目、移到另一项目后的注入与写入目标；Run 进行中移动不改变本次写入目标；删除项目后只有用户级而条目仍在、草稿的上下文用量不再计入；同一文件夹重建项目后可见；更换主要文件夹后改用新 Workspace 的记忆。同一文件中的联合场景：default 模式下模型不经审批写入项目记忆 → 同项目另一对话与移入项目的独立对话可见 → 用户经接口编辑后来源变为 user、模型按 id 替换为工具错误（跨 Sidecar 重启）→ 删除项目后只有用户级 → 同一文件夹重建项目后看到编辑后的条目。`sidecar-subagents-permissions.test.ts` 另验证子 Session 按根 Session 的归属（根移到另一项目后），`sidecar-worktrees.test.ts` 验证绑定 worktree 的项目 Session 有项目记忆。
 - `tests/integration/sidecar-memory-ids.test.ts`：项目 Session 以 ids 读取时按给出的次序返回用户级与本项目条目的全文，其他项目与不存在的 id 列为没有找到；ids 与 query 同时给出为工具错误、21 个为参数错误；移出项目后 Workspace 作用域的 id 没有找到；子 Session 的 Memory 段有摘要层、`memory_list` 有 ids 参数并按 id 读出摘要层条目的全文。`headless.test.ts` 另验证无界面运行的 Memory 段有摘要层并按 id 读出全文。
 - `tests/integration/sidecar-memory-summary.test.ts`：项目 Session 的请求中各层的实际排列（正文层项目级、用户级，说明，摘要层项目级、用户级，未放入条数等于总数减去两层）、摘要行的截断与省略号、摘要行合计不超过 6 000、写入引导的第一行句子；摘要行中伪造的结束标签被转义、开始标签与来源留在行内（对手用例），保存时脱敏的 `sk-` 凭据在摘要行中只有占位；模型以 ids 读出摘要层条目的全文。
+- `tests/integration/sidecar-memory-joint.test.ts`：跨层的联合场景：项目中预置足以填满三层的条目（最早的用户手写条目，其余多为 Agent 记下的）→ 请求中用户手写的仍在正文层、Agent 条目降为摘要或只计数 → 模型按 id 读出摘要层条目的全文 → 措辞不同的 query 经近似匹配找到检索层的条目 → 新建与用户手写条目相近的记忆时结果列出该条目并注明不能改动、已有条目都不变 → 同一时刻 `/api/memories` 两组的注入汇总与这一 Run 请求中各层的条数一致、合计等于可见条目数。
 - `tests/integration/sidecar-memory-injection.test.ts`：两组都超出正文层与摘要层预算时，以项目主要 Workspace 请求列表得到两组汇总，每组三者之和等于该组条数，全文与仅摘要条数等于同一可见范围的项目 Session 请求中各作用域的条目块与摘要行数，两组未注入之和等于段末的条数；不带 workspaceId 时只有用户级一组，与移出项目后的独立对话请求一致且全文条数多于项目对话中的用户级；带 `query` 或 `scope` 时没有 `injection`。
 - `tests/integration/sidecar-memory-search.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次（日志确认路径）：写入 30 条后检索、相关度与 updatedAt 次序、Workspace 隔离、至多 20 条、改正文与删除后同步、参数校验、FTS 语法字符按字面（对手用例）、memory_list 的 query 与工具描述。
 - `tests/integration/sidecar-memory-approx.test.ts`：同一组用例在 FTS5 与 `COKO_TEST_NO_FTS=1` 下各跑一次：措辞相近、严格匹配为空的 query 在 FTS5 下返回注明没有完全匹配的相近条目、降级时为没有匹配；`/api/memories?query=` 的同一查询为空列表；严格匹配有结果时不变；没有相近条目时为没有匹配；scope 限定后没有；相近条目只在另一项目时不出现（对手用例，对照：在该项目的 Session 中出现）；含 FTS 语法字符的查询按字面处理。

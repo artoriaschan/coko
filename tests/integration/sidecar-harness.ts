@@ -380,6 +380,9 @@ export function request(port: number, method: string, path: string, options: { h
       {
         host: '127.0.0.1',
         port,
+        // 每次请求一个新连接：Node 默认的全局 Agent 复用 keep-alive 连接，闲置超过服务端 keepAliveTimeout（5 秒）后
+        // 再复用会与服务端关闭同一连接竞争，偶发 read ECONNRESET（负载下等 run_end 较久的用例最易触发）。
+        agent: false,
         method,
         path,
         headers: {
