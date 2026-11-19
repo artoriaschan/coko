@@ -1,0 +1,25 @@
+tests/integration/sidecar-memory-projects.test.ts
+  s_7c48e48e72cb14::t_0a125a326e639f 1-212
+apps/server/src/application/session-runs.ts
+  s_7c48e48e72cb14::t_234f3afceeb646 438
+apps/server/src/application/context/types.ts
+  s_7c48e48e72cb14::t_3456c19ed67abd 39-43
+apps/server/src/application/context-service.ts
+  s_7c48e48e72cb14::t_271548d0161401 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "45c70c99642c30ce9d12cf296586f0bfa6f7ccd9",
+  "prompts": {},
+  "sessions": {
+    "s_7c48e48e72cb14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7877ed3-630f-4686-a74f-e2dfe44c96f9",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
