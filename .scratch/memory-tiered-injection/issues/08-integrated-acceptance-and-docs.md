@@ -31,9 +31,10 @@ Closed: true
   - 联合场景：新增 `tests/integration/sidecar-memory-joint.test.ts`（真实 Sidecar + faux），按本票第二项的顺序断言，汇总与请求各层条数一致、合计等于可见条目数；把 `tierMemories` 的候选顺序临时换回 `sortMemories` 时失败（已恢复）。
   - 并行负载下的 `read ECONNRESET`（06 号票报告）：根因是集成 harness 的 HTTP 请求复用 keep-alive 连接，闲置超过 Sidecar 默认 5 秒 `keepAliveTimeout` 后与服务端关闭竞争（探针：`POST /api/sessions`、`reusedSocket=true`、闲置 6 595 ms）。`sidecar-harness.ts` 的 `request` 改为 `agent: false`，没有加重试。同一负载命令修复前 12 次中 5 次失败，修复后 6 次全部通过；产品代码未改。
   - 评测：`pnpm run eval` 3 文件 46 通过、14 跳过；`reads-summarized-memory` 与 `finds-memory-by-search` 在 v1 与 v2 faux 下都实际经 `runCase` 执行（报告中 `status: completed`、`toolCalls: 2`、`pass: true`），不只是加载；真实模式 `skipped: no-credentials`，未验证。
-  - 全量：`pnpm test` 两次都在中途被外部 SIGTERM（退出码 143，来源未查明，已告知负责人）。改为分两组跑全部项目：合计 576 文件、4 165 例，88 失败、4 061 通过、16 跳过。88 例按完整名称与基线 `19e0ac5c`（main，本规格实施前）比对：87 例在基线上同样失败（含 01 号票报告的 `--project agent` 6 例），`reading-position.e2e` 1 例在目标上重跑 2 次通过；没有新引入的失败。所有记忆相关文件（含 `memory.e2e.test.ts` 与 `memory-section.browser.test.tsx`）通过。
+  - 全量（按用户决定不运行 Electron E2E）：`pnpm vitest run --project agent --project session --project server --project protocol --project i18n --project logging --project ui --project desktop --project desktop-renderer --project integration --project scripts` 运行一次：478 文件、3 879 例，44 文件 82 例失败、3 796 通过、1 跳过。按完整名称与基线 `19e0ac5c` 比较：58 例基线同样失败（含 01 号票报告的 agent 6 例），23 例为负载抖动（Sidecar 启动或用例超时、定位超时、几何与焦点；同条件重跑通过），1 例为联合场景用例自身的问题（已修复，见下）；没有新引入的失败。逐文件分类见证据。`pnpm run eval` 运行一次：46 通过、14 跳过。此前两次 `pnpm test` 由负责人终止，一次包含 desktop-e2e 的分组运行早于该决定，不作为结论。
+  - 联合场景用例的慢：单独约 26 秒、全量负载下 267 秒超时。原因是测试自身的等待条件每次重扫全部流消息（预置 Run 约 1 840 条），配合 `Stream.waitFor` 对每条新消息重跑条件，测试进程卡住约 20 秒。改用 harness 的 `isRunEnd` 后约 2.4 秒，并撤回此前放宽的等待（150 秒）与用例超时（240 秒），回到默认值与 60 秒；顺序回退的变异检查仍失败。
   - 其他检查：`pnpm run typecheck` 通过；`pnpm run check:docs` 0 个问题；改动的测试文件 `oxfmt --check`、`oxlint` 通过。
-  - 未勾选：桌面静默 CDP 检查未做（负责人列为可选；本机负载 15 到 28，桌面用例在基线上同样大量超时）。AC-29 只有 Browser Mode 证据，真实 Electron 窗口中的汇总显示、真实指针与原生层未验证。
+  - 未勾选：桌面静默 CDP 检查未做（负责人列为可选，用户决定不运行 Electron E2E）。AC-29 只有 Browser Mode 证据，真实 Electron 窗口中的汇总显示、真实指针与原生层未验证。
   - 相近判定：沿用 04 号票的 29 对样例，三字符片段对中文区分度不足（中文召回 4/6、误报 1/5），新建时的相近条目与近似匹配只能作粗筛；建议有真实条目后复核阈值，未解决。
   - 文档影响：`docs/subsystems/memory.md` 结构入口补 `tierMemories`、`MEMORY_SUMMARY_BUDGET`、`memoryInjection`，验证段补联合场景；`docs/README.md` 的 Memory 摘要补检索层、用户手写优先、按 id 读取与注入汇总；context、tracing、testing 核对一致未改；规格 status approved → delivered，实施状态与实施中补充的细节已写明。
   - 状态：本地提交，未合入集成分支与 main，未推送、未发布；CI 未运行。
