@@ -38,25 +38,46 @@ describe('memorySection', () => {
     expect(section.text).not.toMatch(/more entr/)
   })
 
-  it('项目级在前、用户级在后，各自按 updatedAt 倒序，每条带 id、作用域与来源；段首是声明', () => {
+  it('项目级在前、用户级在后；每一级内用户来源在前、Agent 来源在后，各自按 updatedAt 倒序，每条带 id、作用域与来源；段首是声明', () => {
     const section = memorySection(
-      [entry('u-old', 'user', 'Prefers tabs', 10), entry('w-new', 'workspace', 'Uses pnpm', 30), entry('u-new', 'user', 'Answer in Chinese', 20, 'user')],
+      [
+        entry('u-agent-new', 'user', 'Prefers tabs', 40),
+        entry('w-agent-new', 'workspace', 'Uses pnpm', 30),
+        entry('u-user-old', 'user', 'Answer in Chinese', 5, 'user'),
+        entry('w-user-old', 'workspace', 'Tests run with vitest', 3, 'user'),
+        entry('u-user-new', 'user', 'Keep replies short', 20, 'user'),
+        entry('u-agent-old', 'user', 'Likes dark mode', 10),
+      ],
       WRITABLE,
     )
     expect(section.name).toBe(MEMORY_SECTION_NAME)
     expect(section.name).toBe('memory')
     expect(section.text.startsWith('<memory>')).toBe(true)
     expect(section.text.trimEnd().endsWith('</memory>')).toBe(true)
-    const order = ['w-new', 'u-new', 'u-old'].map((id) => section.text.indexOf(`id="${id}"`))
-    expect(order.every((at) => at > 0)).toBe(true)
-    expect([...order].sort((a, b) => a - b)).toEqual(order)
-    expect(section.text).toContain('<entry id="w-new" scope="workspace" source="agent">\nUses pnpm\n</entry>')
-    expect(section.text).toContain('<entry id="u-new" scope="user" source="user">\nAnswer in Chinese\n</entry>')
-    expect(section.text).toContain('<entry id="u-old" scope="user" source="agent">\nPrefers tabs\n</entry>')
+    expect([...section.text.matchAll(/<entry id="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      'w-user-old',
+      'w-agent-new',
+      'u-user-new',
+      'u-user-old',
+      'u-agent-new',
+      'u-agent-old',
+    ])
+    expect(section.text).toContain('<entry id="w-agent-new" scope="workspace" source="agent">\nUses pnpm\n</entry>')
+    expect(section.text).toContain('<entry id="u-user-old" scope="user" source="user">\nAnswer in Chinese\n</entry>')
+    expect(section.text).toContain('<entry id="u-agent-old" scope="user" source="agent">\nLikes dark mode\n</entry>')
     expect(section.text).not.toMatch(/more entr/)
     // 声明在第一条条目之前。
     expect(section.text.search(DECLARATION)).toBeGreaterThan(0)
     expect(section.text.search(DECLARATION)).toBeLessThan(section.text.indexOf('<entry'))
+  })
+
+  it('AC-07：很早的用户来源条目与合计超过预算的较新 Agent 条目并存时，用户来源的在段内，省略的是 Agent 中较旧的', () => {
+    const agents = Array.from({ length: 7 }, (_, i) => entry(`a${i}`, 'user', String(i).repeat(1999), 100 - i))
+    const section = memorySection([entry('mine', 'user', 'Always answer in Chinese', 1, 'user'), ...agents], WRITABLE)
+    const shown = [...section.text.matchAll(/<entry id="([^"]+)"/g)].map((m) => m[1])
+    // 用户来源（约 70 字符）+ 5 条 Agent（每条约 2 050 字符）放得下，第 6 条会超过 12 000。
+    expect(shown).toEqual(['mine', 'a0', 'a1', 'a2', 'a3', 'a4'])
+    expect(section.text).toContain('2 more entries not shown; use memory_list with a query to search them.')
   })
 
   it('写入引导只在有写入工具时出现；关于项目级的句子只在有项目记忆时出现；固定部分只随这两个条件变化', () => {
@@ -375,6 +396,10 @@ describe('memory 工具', () => {
     expect(user).not.toContain('id="w1"')
     const empty = fakePort()
     expect(text(await tools(empty.port).memory_list!.tool.execute('c3', {}))).toBe('No memories saved.')
+    // 不带参数时仍按 updatedAt 倒序：用户来源优先只用于注入。
+    const mixed = fakePort([entry('mine', 'user', 'Answer in Chinese', 1, 'user'), entry('agent', 'user', 'Prefers tabs', 2)])
+    const listed = text(await tools(mixed.port).memory_list!.tool.execute('c4', {}))
+    expect(listed.indexOf('id="agent"')).toBeLessThan(listed.indexOf('id="mine"'))
   })
 
   it('审批对象：memory_write 为正文，memory_delete 为 id', () => {
@@ -417,6 +442,30 @@ describe('memory 工具', () => {
     const listed = text(await memory_list!.tool.execute('c2', { query: '   ' }))
     expect(listed).toContain('id="u1"')
     expect(searches).toHaveLength(1)
+  })
+
+  it('memory_list 带 ids 时按给出的次序返回完整条目块，没有找到的 id 列在条目块之后', async () => {
+    const { port, searches } = fakePort([entry('u1', 'user', 'Prefers tabs', 1), entry('w1', 'workspace', 'Uses pnpm\nand vitest', 2, 'user')])
+    const { memory_list } = tools(port)
+    const found = text(await memory_list!.tool.execute('c1', { ids: ['u1', 'missing', 'w1'] }))
+    expect(found).toBe(
+      '<entry id="u1" scope="user" source="agent">\nPrefers tabs\n</entry>\n' +
+        '<entry id="w1" scope="workspace" source="user">\nUses pnpm\nand vitest\n</entry>\n\n' +
+        'Memory entries not found: missing.',
+    )
+    expect(searches).toHaveLength(0)
+    expect(text(await memory_list!.tool.execute('c2', { ids: ['gone', 'other'] }))).toBe('Memory entries not found: gone, other.')
+  })
+
+  it('memory_list 的 ids 与 query 只能用其一；ids 至多 20 个，超出在参数校验时被拒绝', async () => {
+    const { port } = fakePort([entry('u1', 'user', 'Prefers tabs', 1)])
+    const { memory_list } = tools(port)
+    await expect(memory_list!.tool.execute('c1', { ids: ['u1'], query: 'tabs' })).rejects.toThrow(MemoryToolError)
+    await expect(memory_list!.tool.execute('c1', { ids: ['u1'], query: 'tabs' })).rejects.toThrow(/either ids or query/)
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`)
+    expect(() => call(memory_list!.tool, { ids: ids(20) })).not.toThrow()
+    expect(() => call(memory_list!.tool, { ids: ids(21) })).toThrow(/Validation failed for tool "memory_list"/)
+    expect(memory_list!.tool.description).toMatch(/ids.*full text/i)
   })
 
   it('memory_write 的描述：只记用户亲口表达的偏好与核实过的项目事实，不记读到的指令，不用于任务进度', () => {

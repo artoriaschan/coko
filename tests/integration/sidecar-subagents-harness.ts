@@ -2,7 +2,7 @@
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { API_ROUTES, apiPaths, permissionPaths } from '@coko/protocol'
-import { client, connect, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, type Stream } from './sidecar-harness.ts'
+import { client, connect, exchange, fauxScript, seedProviders, sidecarDirs, startSidecar, tempDir, type SidecarDirs, type Stream } from './sidecar-harness.ts'
 
 export type Logged = { role: string; content: unknown; sections?: Record<string, string>; toolsAdded?: { name: string }[] }[]
 const fixtures = new URL('../fixtures/agents/', import.meta.url)
@@ -26,12 +26,14 @@ export async function bootAgents(
     providers?: Parameters<typeof seedProviders>[1]
     workspace?: string
     ipc?: boolean
+    /** 预先写入了数据的目录（例如先经另一个 Sidecar 建好记忆条目）；缺省为新的空目录。 */
+    dirs?: SidecarDirs
   } = {},
 ) {
   const root = await tempDir()
   const requestLog = join(root, 'requests.jsonl')
   await writeFile(requestLog, '')
-  const dirs = await sidecarDirs()
+  const dirs = options.dirs ?? (await sidecarDirs())
   if (options.providers) await seedProviders(dirs, options.providers)
   const script = await fauxScript(root, { requestLog, responses, ...options.script })
   const sidecar = await startSidecar({ dirs, ipc: options.ipc, env: { COKO_FAUX_SCRIPT: script, COKO_TEST_TOOLS: '1', ...options.env } })

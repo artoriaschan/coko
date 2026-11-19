@@ -40,10 +40,18 @@ const scopeSchema = (description: string) => Type.Union([Type.Literal('user'), T
 const query = Type.Optional(
   Type.String({ description: `Keywords to search for; entries containing every word are returned, most relevant first, at most ${MEMORY_SEARCH_LIMIT}` }),
 )
+const MEMORY_IDS_LIMIT = 20
+const ids = Type.Optional(
+  Type.Array(Type.String({ minLength: 1 }), {
+    minItems: 1,
+    maxItems: MEMORY_IDS_LIMIT,
+    description: `Ids of entries to read in full (at most ${MEMORY_IDS_LIMIT}); cannot be combined with query`,
+  }),
+)
 const contentField = Type.String({ minLength: 1, maxLength: MEMORY_MAX_CHARS, description: `The fact to remember, at most ${MEMORY_MAX_CHARS} characters` })
 const replaceId = Type.Optional(Type.String({ minLength: 1, description: 'Id of an existing entry to replace; omit to create a new entry' }))
 
-export const memoryListParameters = Type.Object({ scope: Type.Optional(scopeSchema('Only list entries of this scope (default: both)')), query })
+export const memoryListParameters = Type.Object({ scope: Type.Optional(scopeSchema('Only list entries of this scope (default: both)')), query, ids })
 
 export const memoryWriteParameters = Type.Object({
   content: contentField,
@@ -52,7 +60,7 @@ export const memoryWriteParameters = Type.Object({
 })
 
 // 没有项目（只有用户级记忆）时的参数：scope 没有 workspace 取值，memory_write 的 scope 缺省为 user。
-const userListParameters = Type.Object({ scope: Type.Optional(Type.Literal('user', { description: 'Only list entries of this scope' })), query })
+const userListParameters = Type.Object({ scope: Type.Optional(Type.Literal('user', { description: 'Only list entries of this scope' })), query, ids })
 const userWriteParameters = Type.Object({
   content: contentField,
   scope: Type.Optional(Type.Literal('user', { description: 'user (default): applies in every session (preferences of the user)' })),
@@ -97,20 +105,31 @@ function createListTool(port: MemoryPort, project: boolean): CokoTool<typeof mem
     label: 'memory_list',
     description:
       `List saved memories (${project ? 'user-level and the current project' : 'user-level'}) with their ids, newest first. ` +
-      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}).`,
+      `When there are many entries, search first: pass a query to get the most relevant ones (at most ${MEMORY_SEARCH_LIMIT}). ` +
+      `Pass ids to read specific entries in full text (at most ${MEMORY_IDS_LIMIT}), e.g. entries shown only by their first line.`,
     parameters: project ? memoryListParameters : userListParameters,
     effect: 'read',
-    async execute(_toolCallId, { scope, query }) {
+    async execute(_toolCallId, { scope, query, ids }) {
       const keywords = query?.trim() ?? ''
       let entries: MemoryEntry[]
-      if (keywords !== '') {
+      let missing = ''
+      if (ids !== undefined) {
+        if (keywords !== '') throw new MemoryToolError('Pass either ids or query, not both')
+        // 可见范围由端口决定：不可见（其他项目、没有项目时的 workspace）与不存在的 id 同样列为没有找到。
+        const visible = new Map((await port.list(scope ? { scope } : {})).map((e) => [e.id, e]))
+        const wanted = [...new Set(ids)]
+        entries = wanted.flatMap((id) => visible.get(id) ?? [])
+        const absent = wanted.filter((id) => !visible.has(id))
+        if (absent.length > 0) missing = `Memory entries not found: ${absent.join(', ')}.`
+        if (entries.length === 0) return { content: [{ type: 'text', text: missing }], details: undefined }
+      } else if (keywords !== '') {
         entries = (await port.search(keywords, { ...(scope ? { scope } : {}), limit: MEMORY_SEARCH_LIMIT })).slice(0, MEMORY_SEARCH_LIMIT)
         if (entries.length === 0) return { content: [{ type: 'text', text: `No memories match "${keywords}".` }], details: undefined }
       } else {
         entries = sortMemories(await port.list(scope ? { scope } : {}))
         if (entries.length === 0) return { content: [{ type: 'text', text: 'No memories saved.' }], details: undefined }
       }
-      const original = entries.map(formatMemoryEntry).join('\n')
+      const original = entries.map(formatMemoryEntry).join('\n') + (missing ? `\n\n${missing}` : '')
       const truncation = truncateHead(original)
       const text = truncation.truncated ? `${truncation.content}\n\n[Output truncated at ${DEFAULT_MAX_BYTES / 1024}KB]` : truncation.content
       return { content: [{ type: 'text', text }], details: undefined, ...(truncation.truncated ? { untruncatedText: original } : {}) }
