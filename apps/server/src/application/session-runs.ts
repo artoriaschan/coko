@@ -435,6 +435,7 @@ export class SessionRuns {
       workspaceId: session.workspaceId,
       cwd,
       additionalFolders: project?.additionalFolders ?? [],
+      ...(project ? { memoryWorkspaceId: project.primaryWorkspaceId } : {}),
       ...(model ? { model: { providerId: model.provider, modelId: model.id, contextWindow: model.contextWindow } } : {}),
       sessionId: session.id,
       ...(session.directory && !project ? { sessionDirectory: session.directory } : {}),

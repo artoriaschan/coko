@@ -1,5 +1,6 @@
 // Memory：<memory> system section 与 memory_* 工具（受 memory.enabled 控制，开启时每个 Run 都注入、没有条目也注入，关闭时不注入、
-// 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与当前 Workspace；正文保存前经 redactText 脱敏（ADR 0004）；
+// 不注册工具；子 Session 与无界面运行只注册 memory_list，段内没有写入引导），以及 /api/memories 共用的 MemoryService。可见范围为用户级与
+// 本 Run 的项目记忆 Workspace（ContextScope.memoryWorkspaceId，ADR 0027；不属于项目时只有用户级，工具没有 workspace 作用域）；正文保存前经 redactText 脱敏（ADR 0004）；
 // 用户来源的条目模型不能替换或删除。
 import { createMemoryTools, MEMORY_SEARCH_LIMIT, memorySection, MemoryToolError, type MemoryEntry as AgentMemory, type MemoryPort } from '@coko/agent'
 import { redactText } from '@coko/logging'
@@ -83,8 +84,8 @@ export class MemoryService {
     return toEntry(await this.#store.memories.create({ scope: input.scope, workspaceId: input.workspaceId ?? null, content, source: input.source }))
   }
 
-  /** 条目须存在；给出 workspaceId 时还须属于用户级或该 Workspace（否则 not-found）。 */
-  async #visible(id: string, workspaceId?: string): Promise<Memory> {
+  /** 条目须存在；给出 workspaceId 时还须属于用户级或该 Workspace，为 null 时须是用户级（否则 not-found）。 */
+  async #visible(id: string, workspaceId?: string | null): Promise<Memory> {
     const memory = await this.#store.memories.get(id)
     if (!memory || (workspaceId !== undefined && memory.scope === 'workspace' && memory.workspaceId !== workspaceId))
       throw new AppError('not-found', `Memory entry ${id} not found`)
@@ -92,19 +93,19 @@ export class MemoryService {
   }
 
   /** 模型（by model）不能改动用户来源的条目（forbidden）。用户改正文时来源同时改为 user；模型替换不改变来源。 */
-  async #writable(id: string, workspaceId: string | undefined, by: MemorySource): Promise<Memory> {
+  async #writable(id: string, workspaceId: string | null | undefined, by: MemorySource): Promise<Memory> {
     const memory = await this.#visible(id, workspaceId)
     if (by === 'model' && memory.source !== 'model')
       throw new AppError('forbidden', `Memory entry ${id} is maintained by the user and cannot be replaced or deleted; tell the user if it looks outdated`)
     return memory
   }
 
-  async update(id: string, content: string, workspaceId: string | undefined, by: MemorySource): Promise<MemoryEntry> {
+  async update(id: string, content: string, workspaceId: string | null | undefined, by: MemorySource): Promise<MemoryEntry> {
     await this.#writable(id, workspaceId, by)
     return toEntry(await this.#store.memories.update(id, { content: checkContent(content), ...(by === 'user' ? { source: 'user' } : {}) }))
   }
 
-  async delete(id: string, workspaceId: string | undefined, by: MemorySource): Promise<MemoryEntry> {
+  async delete(id: string, workspaceId: string | null | undefined, by: MemorySource): Promise<MemoryEntry> {
     const memory = await this.#writable(id, workspaceId, by)
     await this.#store.memories.delete(id)
     return toEntry(memory)
@@ -116,8 +117,8 @@ const visible = (m: Memory, workspaceId: string | undefined) => m.scope === 'use
 
 const toAgent = (m: MemoryEntry): AgentMemory => ({ id: m.id, scope: m.scope, source: m.source, content: m.content, updatedAt: m.updatedAt })
 
-/** 工具端口：限定在 Session 所在的 Workspace；可预期的失败转为 MemoryToolError（作为工具错误回给模型）。 */
-export function memoryPort(service: MemoryService, workspaceId: string): MemoryPort {
+/** 工具端口：限定在项目记忆 Workspace（省略时只有用户级）；可预期的失败转为 MemoryToolError（作为工具错误回给模型）。 */
+export function memoryPort(service: MemoryService, workspaceId: string | undefined): MemoryPort {
   const tool = async <T>(task: () => Promise<T>): Promise<T> => {
     try {
       return await task()
@@ -130,13 +131,17 @@ export function memoryPort(service: MemoryService, workspaceId: string): MemoryP
   return {
     list: (filter) => tool(async () => (await service.list(workspaceId, filter?.scope)).map(toAgent)),
     search: (query, options) =>
-      tool(async () => (await service.search(query, { workspaceId, ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })).map(toAgent)),
+      tool(async () =>
+        (
+          await service.search(query, { ...(workspaceId ? { workspaceId } : {}), ...(options.scope ? { scope: options.scope } : {}), limit: options.limit })
+        ).map(toAgent),
+      ),
     create: (input) =>
       tool(async () =>
         toAgent(await service.create({ scope: input.scope, ...(input.scope === 'workspace' ? { workspaceId } : {}), content: input.content, source: 'model' })),
       ),
-    update: (id, content) => tool(async () => toAgent(await service.update(id, content, workspaceId, 'model'))),
-    delete: (id) => tool(async () => toAgent(await service.delete(id, workspaceId, 'model'))),
+    update: (id, content) => tool(async () => toAgent(await service.update(id, content, workspaceId ?? null, 'model'))),
+    delete: (id) => tool(async () => toAgent(await service.delete(id, workspaceId ?? null, 'model'))),
   }
 }
 
@@ -155,9 +160,11 @@ export function memoryContribution(options: ContextContributionOptions): Context
   const service = new MemoryService(options.memories)
   // 子 Session 与无界面运行只读：只有 memory_list（子 Session 另由子代理的固定排除集去掉写入工具），Memory 段没有写入引导。
   const writable = (scope: ContextScope) => !options.memoryReadOnly && !scope.parentSessionId
-  // ponytail: project 恒为 true（可见范围是 Session 所在的 Workspace）；05 接上项目归属后按有无项目记忆 Workspace 给出。
   const section = async (scope: ContextScope) =>
-    memorySection((await service.list(scope.workspaceId)).map(toAgent), { writable: writable(scope), project: true })
+    memorySection((await service.list(scope.memoryWorkspaceId)).map(toAgent), {
+      writable: writable(scope),
+      project: scope.memoryWorkspaceId !== undefined,
+    })
   return {
     name: 'memory',
     ruleTools: MEMORY_RULE_TOOLS,
@@ -166,7 +173,7 @@ export function memoryContribution(options: ContextContributionOptions): Context
     },
     async tools(scope) {
       if (!scope.config.memory.enabled) return []
-      const tools = createMemoryTools(memoryPort(service, scope.workspaceId))
+      const tools = createMemoryTools(memoryPort(service, scope.memoryWorkspaceId), { project: scope.memoryWorkspaceId !== undefined })
       return writable(scope) ? tools : tools.filter(({ tool }) => tool.name === 'memory_list')
     },
     async report(scope) {
