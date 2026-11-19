@@ -17,14 +17,13 @@ lifecycle: active
 
 | 命令或步骤 | 覆盖场景 | 实际范围与数量 | 结果 | 日志或产物 |
 | --- | --- | --- | --- | --- |
-| `pnpm exec vitest run --project integration tests/integration/sidecar-memory-joint.test.ts` | 跨票联合场景（见下） | 1 例 | 通过（约 26 秒）；把 `tierMemories` 的候选顺序临时换回 `sortMemories` 后失败于“最早的用户手写条目在正文层”，已恢复。第一次全量运行中该例在 66.7 秒失败（预置的 Run 超过当时 60 秒的等待），之后把用户级大条目也放进一条消息、等待放宽到 150 秒，在负载下的记忆集成命令 2 次与重跑中均通过 | 本地终端 |
+| `pnpm vitest run --project integration tests/integration/sidecar-memory-joint.test.ts` | 跨票联合场景（见下） | 1 例 | 通过（约 2.4 秒）；把 `tierMemories` 的候选顺序临时换回 `sortMemories` 后失败于“最早的用户手写条目在正文层”，已恢复。修复等待条件前该例单独约 26 秒、全量负载下 267 秒超时，原因见“联合场景用例的慢” | 本地终端 |
 | `pnpm exec vitest run tests/integration/sidecar-memory tests/integration/secrets-gate-memory apps/server/src`（修复前） | ECONNRESET 复现 | 62 文件 299 例，12 次 | 5 次在“每一级内用户来源在前…”失败（`read ECONNRESET`）；另 1 次为无关的 `pty.test.ts` 信号断言 | 本地终端 |
 | 同上（修复后） | ECONNRESET 回归 | 62 文件 299 例，6 次 | 6 次全部通过 | 本地终端 |
 | `pnpm exec vitest run --project integration tests/integration/sidecar-memory tests/integration/secrets-gate-memory` | 记忆集成全集 | 10 文件 20 例，3 次（修复前） | 3 次全部通过（不加 server 单元的负载时不复现） | 本地终端 |
 | `pnpm run eval` | AC-31、AC-32 | 3 文件，46 通过、14 跳过 | 两例在 v1 与 v2 faux 下 `status: completed`、`toolCalls: 2`、`pass: true`；真实模式 `skipped: no-credentials` | `tests/evals/reports/2026-11-19T11-08-40.565Z.json`（git 忽略） |
-| `pnpm test`（两次） | 全量 | 全部项目 | 两次都被外部 SIGTERM 终止（退出码 143），没有汇总，见“全量测试与基线失败” | 本地终端 |
-| `pnpm exec vitest run --project agent --project desktop --project evals --project i18n --project integration --project logging --project protocol --project server --project session --project ui --project scripts --project desktop-release` | 全量的非浏览器部分 | 392 文件、3 216 例 | 21 失败、3 180 通过、15 跳过；21 例都在基线上同样失败 | JSON reporter（未入库） |
-| `pnpm exec vitest run --project ui-browser --project desktop-renderer --project desktop-e2e` | 全量的浏览器与 E2E 部分 | 184 文件、949 例 | 67 失败、881 通过、1 跳过；62 例在基线重跑中同样失败，另 4 例补跑基线同样失败，`reading-position.e2e` 1 例在目标上重跑 2 次均通过 | JSON reporter（未入库） |
+| `pnpm vitest run --project agent --project session --project server --project protocol --project i18n --project logging --project ui --project desktop --project desktop-renderer --project integration --project scripts`（一次） | 除 Electron E2E 外的全部测试项目 | 478 文件、3 879 例 | 44 文件 82 例失败、3 796 通过、1 跳过：58 例基线同样失败，23 例为负载抖动（同条件重跑通过或基线有同类超时），1 例为联合场景用例自身的问题（已修复） | JSON reporter（未入库） |
+| `pnpm run eval`（一次） | AC-31、AC-32 与全部评测 | 3 文件 | 46 通过、14 跳过（真实模式与门槛） | 本地终端 |
 | `pnpm run typecheck`、`pnpm run check:docs`、改动文件的 `oxfmt` / `oxlint` | 类型、文档链接、格式 | 全仓 / 改动文件 | 通过 | 本地终端 |
 
 ### 跨票联合场景
@@ -70,22 +69,23 @@ lifecycle: active
 
 ### 全量测试与基线失败
 
-第一次全量 `pnpm test`（约 40 分钟）在结束时被 SIGTERM（退出码 143），vitest 没有输出汇总与错误详情，来源未查明；输出中有 58 个文件含失败。为区分基线，把这 58 个文件在目标（`mem-tiered/t08`）与基线 `19e0ac5c`（main 上本规格开始实施前，独立 worktree `coko-wt/base08`）上依次各跑一次，用 JSON reporter 比较失败用例的完整名称：
+按负责人转达的用户决定，不运行 Electron E2E（desktop-e2e、desktop-release）。此前两次 `pnpm test` 由负责人终止；此前一次分组运行包含了 desktop-e2e（在收到该决定之前），其结果不作为结论。最终按负责人给出的命令运行一次（见执行记录），再把失败的用例按完整名称与基线 `19e0ac5c`（main，本规格实施前，独立 worktree）比较；基线结果取自同一批文件在基线上的运行，未覆盖的 15 个文件另在基线与目标上依次各跑一次。
 
-| 运行 | 文件 | 用例 |
+| 类别 | 用例 | 文件（项目） |
 | --- | --- | --- |
-| 目标 | 58 个：48 失败、10 通过 | 95 失败、316 通过、15 跳过 |
-| 基线（不含新增的 `sidecar-memory-joint`） | 57 个：50 失败、7 通过 | 97 失败、309 通过、11 跳过 |
+| 基线同样失败（已有） | 58 | agent：`host-stop` ×2、`approvals`、`gate-hooks`、`session-entries`、`instructions/shared`（01 号票报告的 6 例）；protocol：`entries`；integration：`sdk-library`、`sidecar-approvals` ×2、`sidecar-attachments`、`sidecar-hooks-lifecycle`（UserPromptSubmit）、`sidecar-lsp` ×2、`sidecar-recovery`（期望 schema 11、实际 13）、`sidecar-storage`、`sidecar-teams-restart`；desktop：`chat-store-*` 4 例（多出 run-usage 项）、`dev-reload`、`sidecar-process` 1 例；desktop-renderer：`file-tool-details` 5、`terminal-details` 4、`integrated-detail` 1、`timeline-navigation` 1、`plugins-section` 1（`onMenuClose` 不是函数）、`sections` 1、`fetch-models` 9、`model-catalog` 5、`thinking-levels` 4、`delete-provider` 4（后四个文件为 20 秒超时，基线同样超时） |
+| 负载抖动 | 23 | integration：`sidecar-incremental-rejection` 3、`sidecar-incremental-tools` 2、`sidecar-request-usage` 3、`sidecar-settings-credentials` 1、`sidecar-hooks-lifecycle` 1（Sidecar 启动 20 秒超时或用例 60 秒超时）；desktop：`sidecar-process` 2（5 秒超时，基线同文件另一例同样超时）；desktop-renderer：`project-form` 2、`right-panel-shortcuts` 1、`collaboration` 1、`live-progress` 1、`model-price` 1、`project-delete` 1（定位超时），`session-move` 2（子菜单几何 7.78 < 8）、`session-row` 1（焦点），`memory-section` 1（见下）。这些在基线上未失败，在目标上同条件重跑时通过（`sidecar-process` 与 `right-panel-shortcuts` 重跑时各有另一例超时，同文件基线也有超时） |
+| 本票用例的问题，已修复 | 1 | integration：`sidecar-memory-joint`（见下） |
 
-- 两边都失败的 84 例：基线上同样失败，不是本规格引入的。包括 01 号票报告的 `--project agent` 6 例（`host-stop` ×2、`approvals`、`gate-hooks`、`session-entries`、`instructions/shared`），以及 desktop-e2e、Browser Mode（settings 的 models / fetch-models / model-catalog / thinking-levels / delete-provider 等）、desktop 主进程与 store、`protocol/entries`、`sdk-library`、`sidecar-approvals`、`sidecar-storage`、`sidecar-teams-restart` 等。
-- 只在目标上失败的 11 例：`sidecar-process.test.ts` 6 例 `Test timed out in 5000ms`，`sidecar-hooks-lifecycle`、`sidecar-lsp`、`sidecar-project-permissions`、`sidecar-recovery` 各 1 例 `Timed out waiting for ready`（Sidecar 启动超时），`app-frame.browser.test.tsx` 1 例拖拽时的宽度动画断言。都是超时或动画时序，同一文件中另有用例只在基线上失败（基线独有 13 例，同样是超时与时序），判断为负载造成的抖动；都不在记忆相关代码中。
-- 记忆相关：`sidecar-memory-joint` 与 `evals.test.ts` 在第一次全量中失败（前者见上；后者是候选提示 v2 下的 `reads-summarized-memory`，在 20.1 秒时失败，与 harness 的 20 秒默认等待吻合，没有错误详情），在目标的重跑中都通过。`reads-summarized-memory` 的预置多一次 Sidecar 启动与停止，负载下更容易碰到 20 秒的启动等待；未单独复现，未改。
+运行时本机负载在 15 到 28（8 核）。基线已有的 58 例与负载抖动都不在记忆代码中。与记忆有关的只有 `memory-section.browser.test.tsx` 的“搜索框：防抖后检索一次…”一例：负载下输入间隔超过 200 ms 防抖，多发出一次中间查询 `docker swa`；该用例早于本规格，本规格只改了它旁边的 store 复位字段，没有改防抖与检索逻辑；同条件重跑通过。其余记忆相关文件全部通过。
 
-第二次全量（带 JSON reporter）约 10 分钟后在 desktop-renderer 阶段再次被 SIGTERM，终止点与第一次不同，判断来自套件之外（已告知负责人，来源未查明）。于是把全部项目分两组运行（命令见执行记录），合计 576 个文件、4 165 例：88 失败、4 061 通过、16 跳过。88 例逐条按完整名称与基线比对：87 例在基线上同样失败（非浏览器组 21 例、浏览器与 E2E 组 62 例来自基线重跑，另 4 例为补跑基线确认），`reading-position.e2e` 1 例在目标上重跑 2 次均通过（负载抖动），没有只在目标上稳定失败的用例。两组中记忆相关的文件（全部 `sidecar-memory*`、`secrets-gate-memory*`、`headless`、`evals`、`memory-section.browser`、`memory-store`）都通过。
+### 联合场景用例的慢
+
+联合场景用例单独运行约 26 秒、全量负载下 267 秒超时，而同一次运行中其他记忆集成用例只要 2 到 9 秒。分段计时：时间都在预置 Run 的等待中（条目的 createdAt 前后只差约 250 ms），等待期间测试进程 20 秒没有响应（每秒一次的计时器一次也没触发），即卡在测试进程自身。预置的 Run 产生约 1 840 条流消息（1 673 条 progress），测试的等待条件每次都重新扫描全部消息求 run_end 数，而 `Stream.waitFor` 每收到一条消息又对全部消息执行一次条件，总开销约为消息数的三次方。改用 harness 的 `isRunEnd`（每个 Session 只发送一次）后单独运行约 2.4 秒；此前为这个用例放宽的等待（150 秒）与用例超时（240 秒）已撤回，改回默认等待与 60 秒。
 
 ### 桌面
 
-没有做静默 CDP 检查。`apps/desktop/e2e/memory.e2e.test.ts` 在浏览器与 E2E 组中以后台模式运行并通过，但它覆盖的是 Memory 分区原有的列表、编辑、搜索与开关，没有断言注入汇总（06 号票未改该用例）。不做窗口检查的原因：本机在验收期间负载持续在 15 到 28（8 核，主要来自本票之外的进程），全量运行中 desktop-e2e 与 Browser Mode 有大量超时失败，基线上同样如此，此时的窗口检查不能区分界面问题与负载。AC-29 的证据只有 Browser Mode 用例（真实 Chromium 渲染，覆盖两组、独立对话、没有条目的组、搜索时隐藏、zh 暗色与 en 亮色的文案与对比度）。未验证：真实 Electron 窗口中设置分区的汇总、真实指针与原生层。
+没有做静默 CDP 检查。`apps/desktop/e2e/memory.e2e.test.ts` 在收到“不运行 Electron E2E”的决定之前的一次分组运行中以后台模式通过（不作为结论），但它覆盖的是 Memory 分区原有的列表、编辑、搜索与开关，没有断言注入汇总（06 号票未改该用例）。不做窗口检查的原因：本机在验收期间负载持续在 15 到 28（8 核，主要来自本票之外的进程），全量运行中 desktop-e2e 与 Browser Mode 有大量超时失败，基线上同样如此，此时的窗口检查不能区分界面问题与负载。AC-29 的证据只有 Browser Mode 用例（真实 Chromium 渲染，覆盖两组、独立对话、没有条目的组、搜索时隐藏、zh 暗色与 en 亮色的文案与对比度）。未验证：真实 Electron 窗口中设置分区的汇总、真实指针与原生层。
 
 ### 相近判定对中文的区分度
 
@@ -105,7 +105,7 @@ lifecycle: active
 ## 结论与限制
 
 - 已满足：AC-01 至 AC-30 有自动化测试证据（主接缝为真实 Sidecar 加 faux 脚本）；AC-31、AC-32 的 faux 模式在 `pnpm run eval` 中实际执行并通过；跨票联合场景有真实 Sidecar 用例，并确认它能在候选顺序退回旧行为时失败。
-- 修复：集成测试 harness 的 keep-alive 竞争（`read ECONNRESET`），根因与修复前后的运行次数见上。
-- 未验证：AC-31、AC-32 的真实模式（本机没有 `COKO_EVAL_PROVIDER_CONFIG` 与凭据，`skipped: no-credentials`），即真实模型是否会按 id 读取摘要层条目、检索落空后是否换说法再查；AC-29 在真实 Electron 窗口中的显示（只有 Browser Mode 证据）、真实指针与原生层；相近判定对中文的区分度不足（见上，未解决）；`reads-summarized-memory` 在全量负载下一次 20 秒超时的具体位置；两次全量运行被 SIGTERM 的来源。
+- 修复：集成测试 harness 的 keep-alive 竞争（`read ECONNRESET`），根因与修复前后的运行次数见上；联合场景用例等待条件的重复扫描。
+- 未验证：AC-31、AC-32 的真实模式（本机没有 `COKO_EVAL_PROVIDER_CONFIG` 与凭据，`skipped: no-credentials`），即真实模型是否会按 id 读取摘要层条目、检索落空后是否换说法再查；AC-29 在真实 Electron 窗口中的显示（只有 Browser Mode 证据）、真实指针与原生层；相近判定对中文的区分度不足（见上，未解决）；`reads-summarized-memory` 在第一次全量负载下一次 20 秒超时的具体位置（之后的两次 `pnpm run eval` 均通过）；Electron E2E 按用户决定未运行。
 - 失效条件：Memory 段的组成、`tierMemories`、`memory_list` / `memory_write` 的结果文字、相近判定的阈值、`/api/memories` 的汇总或设置分区的改动，需要重跑记忆集成用例、联合场景与 `pnpm run eval`。
 - 状态：本地提交在分支 `mem-tiered/t08`，未合入集成分支 `feat/memory-tiered-injection`（由负责人合并），未合入 main、未推送、未发布；CI 未运行。
