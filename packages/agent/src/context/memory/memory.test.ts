@@ -390,6 +390,30 @@ describe('memory 工具', () => {
     expect(searches).toHaveLength(1)
   })
 
+  it('memory_list 带 ids 时按给出的次序返回完整条目块，没有找到的 id 列在条目块之后', async () => {
+    const { port, searches } = fakePort([entry('u1', 'user', 'Prefers tabs', 1), entry('w1', 'workspace', 'Uses pnpm\nand vitest', 2, 'user')])
+    const { memory_list } = tools(port)
+    const found = text(await memory_list!.tool.execute('c1', { ids: ['u1', 'missing', 'w1'] }))
+    expect(found).toBe(
+      '<entry id="u1" scope="user" source="agent">\nPrefers tabs\n</entry>\n' +
+        '<entry id="w1" scope="workspace" source="user">\nUses pnpm\nand vitest\n</entry>\n\n' +
+        'Memory entries not found: missing.',
+    )
+    expect(searches).toHaveLength(0)
+    expect(text(await memory_list!.tool.execute('c2', { ids: ['gone', 'other'] }))).toBe('Memory entries not found: gone, other.')
+  })
+
+  it('memory_list 的 ids 与 query 只能用其一；ids 至多 20 个，超出在参数校验时被拒绝', async () => {
+    const { port } = fakePort([entry('u1', 'user', 'Prefers tabs', 1)])
+    const { memory_list } = tools(port)
+    await expect(memory_list!.tool.execute('c1', { ids: ['u1'], query: 'tabs' })).rejects.toThrow(MemoryToolError)
+    await expect(memory_list!.tool.execute('c1', { ids: ['u1'], query: 'tabs' })).rejects.toThrow(/either ids or query/)
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`)
+    expect(() => call(memory_list!.tool, { ids: ids(20) })).not.toThrow()
+    expect(() => call(memory_list!.tool, { ids: ids(21) })).toThrow(/Validation failed for tool "memory_list"/)
+    expect(memory_list!.tool.description).toMatch(/ids.*full text/i)
+  })
+
   it('memory_write 的描述：只记用户亲口表达的偏好与核实过的项目事实，不记读到的指令，不用于任务进度', () => {
     const { port } = fakePort()
     const description = tools(port).memory_write!.tool.description
