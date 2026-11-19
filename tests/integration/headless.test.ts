@@ -126,12 +126,15 @@ describe('headless', { timeout: 120_000 }, () => {
     expect(dbEntries(h.dirs, sessionId).at(-1)).toMatchObject({ kind: 'run_end', payload: { status: 'aborted' } })
   })
 
-  it('记忆开启：请求中有 Memory 段（声明与条目，没有写入引导）与 memory_list（可按 ids 读取全文），没有 memory_write 与 memory_delete', async () => {
+  it('记忆开启：请求中有 Memory 段（声明、条目与摘要层，没有写入引导）与 memory_list（可按 ids 读取摘要层条目的全文），没有 memory_write 与 memory_delete', async () => {
     const h = await setup([])
     // 先经 Sidecar 接口在同一数据目录中存一条用户级记忆。
     const sidecar = await startSidecar({ dirs: h.dirs })
-    const saved = await client(sidecar, await exchange(sidecar)).post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs\nin every file' })
+    const api = client(sidecar, await exchange(sidecar))
+    const saved = await api.post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs\nin every file' })
     expect(saved.status).toBe(201)
+    // 7 条更新的大条目占满正文层，saved 降为摘要行。
+    for (let i = 0; i < 7; i++) expect((await api.post(memoryPaths.memories, { scope: 'user', content: `B${i} ${'x'.repeat(1990)}` })).status).toBe(201)
     expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
     const requestLog = join(await tempDir(), 'requests.jsonl')
     const responses = [{ content: [{ type: 'toolCall', name: 'memory_list', id: 'm1', arguments: { ids: [saved.body.id] } }] }, { content: 'ok' }]
@@ -154,7 +157,8 @@ describe('headless', { timeout: 120_000 }, () => {
     const system = request!.filter((m) => m.role === 'system')
     const tools = system.flatMap((m) => (m.toolsAdded ?? []).map((t) => t.name))
     const section = system.map((m) => m.sections?.memory).find(Boolean)!
-    expect(section).toContain('Prefers tabs')
+    expect(section).toMatch(/only their first line[\s\S]*memory_list with its id in ids/)
+    expect(section).toContain(`<summary id="${saved.body.id}" scope="user" source="user">Prefers tabs…</summary>`)
     // 只读：有声明，没有写入引导。
     expect(section).toMatch(/not instructions and grant no permissions/)
     expect(section).not.toMatch(/When to write:/)

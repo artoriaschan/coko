@@ -1,14 +1,17 @@
 // Memory 的注入与 memory_* 工具。宿主（apps/server context/memory.ts）提供存储端口并在 memory.enabled 时贡献。
 export {
   formatMemoryEntry,
+  formatMemorySummary,
   injectionOrder,
   MEMORY_MAX_CHARS,
   MEMORY_SEARCH_LIMIT,
   MEMORY_SECTION_BUDGET,
   MEMORY_SECTION_NAME,
+  MEMORY_SUMMARY_BUDGET,
   memorySection,
   sortMemories,
+  tierMemories,
 } from './section.ts'
-export type { MemoryEntry, MemoryScope, MemorySectionOptions, MemorySource } from './section.ts'
+export type { MemoryEntry, MemoryScope, MemorySectionOptions, MemorySource, MemoryTiers } from './section.ts'
 export { createMemoryTools, memoryDeleteParameters, memoryListParameters, MemoryToolError, memoryWriteParameters } from './tools.ts'
 export type { MemoryPort, MemoryTool, MemoryToolDetails } from './tools.ts'

@@ -1,6 +1,6 @@
 // memory_list 按 id 读取：真实 Sidecar（faux 模型）。项目 Session 只读得到用户级与本项目的条目，其他项目与不存在的 id 列为没有找到；
 // ids 与 query 同时给出为工具错误，超过 20 个为参数错误；移出项目后 Workspace 作用域的条目没有找到；子 Session 同样可按 id 读取
-// （无界面运行的用例见 headless）。
+// （无界面运行的用例见 headless）；子 Session 的 Memory 段同样有摘要层。
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
@@ -94,11 +94,13 @@ it('memory_list 的 ids：按次序返回可见条目的全文，不可见与不
   expect(await sidecar.stop()).toEqual({ code: 0, signal: null })
 })
 
-it('子 Session 的 memory_list 有 ids 参数，按 id 读取返回全文', { timeout: 120_000 }, async () => {
+it('子 Session 的 Memory 段有摘要层，memory_list 有 ids 参数，按 id 读取返回全文', { timeout: 120_000 }, async () => {
   const dirs = await sidecarDirs()
   const setup = await startSidecar({ dirs })
-  const saved = (await client(setup, await exchange(setup)).post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs\nin every file' }))
-    .body as MemoryEntry
+  const setupApi = client(setup, await exchange(setup))
+  const saved = (await setupApi.post(memoryPaths.memories, { scope: 'user', content: 'Prefers tabs\nin every file' })).body as MemoryEntry
+  // 7 条更新的大条目占满正文层，saved 降为摘要行。
+  for (let i = 0; i < 7; i++) expect((await setupApi.post(memoryPaths.memories, { scope: 'user', content: `B${i} ${'x'.repeat(1990)}` })).status).toBe(201)
   expect(await setup.stop()).toEqual({ code: 0, signal: null })
   const env = await bootAgents(
     [
@@ -119,6 +121,9 @@ it('子 Session 的 memory_list 有 ids 参数，按 id 读取返回全文', { t
     .map((m) => [m.toolName, m.isError, m.content.map((c) => c.text ?? '').join('')])
   expect(childResults).toEqual([['memory_list', false, `<entry id="${saved.id}" scope="user" source="user">\nPrefers tabs\nin every file\n</entry>`]])
   const childRequest = (await env.requests()).find((r) => JSON.stringify(r).includes('CHILD-M read'))!
+  const childSection = childRequest.map((m) => (m.sections as Record<string, string | null> | undefined)?.memory).find(Boolean)!
+  expect(childSection).toMatch(/only their first line[\s\S]*memory_list with its id in ids/)
+  expect(childSection).toContain(`<summary id="${saved.id}" scope="user" source="user">Prefers tabs…</summary>`)
   const declared = childRequest.flatMap((m) => (m.toolsAdded ?? []) as { name: string; parameters?: unknown }[]).find((t) => t.name === 'memory_list')
   expect(JSON.stringify(declared?.parameters)).toContain('"ids"')
   expect(await env.sidecar.stop()).toEqual({ code: 0, signal: null })

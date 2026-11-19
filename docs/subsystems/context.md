@@ -61,7 +61,7 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 
 ## 系统消息与环境
 
-开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。记忆开启时每个 Run 都有 Memory 段（没有条目也有）：固定的声明、本 Run 有写入工具时的写入引导（子 Session 与无界面运行没有），以及带来源标注的条目，见 [Memory](memory.md#注入)。
+开头的 system 消息按基础提示（`coko.base`）→ 环境（`environment`）→ 指令 → Skills → Memory → plan → goal → subagents → teams 排列；各领域按自己的条件贡献 section。记忆开启时每个 Run 都有 Memory 段（没有条目也有）：固定的声明、本 Run 有写入工具时的写入引导（子 Session 与无界面运行没有），以及带来源标注的条目（正文层放不下的降为一行摘要，摘要也放不下的只计数），见 [Memory](memory.md#注入)。
 
 运行时重建时，若首条已提交消息只是无正文的 `toolsAdded` / `toolsRemoved` 工具声明，会在它之前补回不提交的基础提示，并按当前 Run 更新 system sections；原工具声明保持顺序回放，不重复登记工具。历史以带正文的 system 消息开头时保留原消息。
 
