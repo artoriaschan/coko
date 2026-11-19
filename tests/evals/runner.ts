@@ -1,10 +1,19 @@
 // 评测运行器（docs/subsystems/tracing.md#评测）：复用集成测试的 sidecar-harness 启动真实 Sidecar，把用例的 workspace/ 复制到临时目录、
-// 提交 prompt、等 Run 结束（read-only / default 下的审批带反馈拒绝，Run 继续），再按文件结果判定；tokens、cost 与 durationMs 来自
+// 提交 prompt、等 Run 结束（read-only / default 下的审批带反馈拒绝，Run 继续），再按文件结果与经记忆接口读到的条目判定；tokens、cost 与 durationMs 来自
 // GET …/trace。faux 模式用用例的脚本；真实模式（COKO_EVAL_PROVIDER_CONFIG 与对应的 COKO_CREDENTIAL_<ID> 都存在）用真实模型。
 import { BASE_PROMPT_V2, DEFAULT_SYSTEM_PROMPT_VERSION } from '@coko/agent'
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
-import { API_ROUTES, apiPaths, permissionPaths, tracePaths, type ProviderFields, type TraceResponse } from '@coko/protocol'
+import {
+  API_ROUTES,
+  apiPaths,
+  memoryPaths,
+  permissionPaths,
+  tracePaths,
+  type MemoryListResponse,
+  type ProviderFields,
+  type TraceResponse,
+} from '@coko/protocol'
 import {
   client,
   connect,
@@ -115,7 +124,9 @@ export async function runCase(caseDir: string, spec: EvalCase, mode: EvalMode, o
     }
     const trace = (await api.get(tracePaths.trace(sessionId))).body as TraceResponse
     const status = trace.runs.at(-1)?.status
-    const reasons = await judge(spec.expect, { dir: workspace, initial, status, toolCalls: trace.totals.toolCalls })
+    // 记忆只经记忆接口读取（用户级与该 Workspace 的条目），不读库文件。
+    const { memories } = (await api.get(`${memoryPaths.memories}?workspaceId=${encodeURIComponent(workspaceId)}`)).body as MemoryListResponse
+    const reasons = await judge(spec.expect, { dir: workspace, initial, status, toolCalls: trace.totals.toolCalls, memories })
     return {
       name: spec.name,
       mode: mode.kind,
