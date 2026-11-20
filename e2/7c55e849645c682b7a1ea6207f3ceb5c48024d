@@ -1,0 +1,96 @@
+packages/agent/src/extensions/hooks/hooks.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 263,273-274
+packages/agent/src/planning/index.ts
+  s_e66561215efab5::t_cae57fc3e4b068 15
+packages/agent/src/policy/escalation.test.ts
+  s_e66561215efab5::t_83469bcfcc7fa3 273-285,287-288
+  s_e66561215efab5::t_bb9cf5c3784ae1 218,286
+  s_e66561215efab5::t_8c3ef537ede487 235-237,246-248
+  s_e66561215efab5::t_cae57fc3e4b068 38-40,42,55,201-217,219-234,238-245,249-272,289-301
+docs/subsystems/subagents.md
+  s_e66561215efab5::t_1527560ac5c0fe 59,78
+  s_e66561215efab5::t_c5e749352cdab3 58
+packages/agent/src/engine/types.ts
+  s_e66561215efab5::t_cae57fc3e4b068 267-270
+tests/integration/sidecar-subagents-permissions.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 120-168
+docs/subsystems/hooks.md
+  s_e66561215efab5::t_1527560ac5c0fe 204
+  s_e66561215efab5::t_c5e749352cdab3 103
+docs/subsystems/execution.md
+  s_e66561215efab5::t_1527560ac5c0fe 59,103
+packages/agent/src/policy/sandbox.ts
+  s_e66561215efab5::t_24843e4408365c 106
+  s_e66561215efab5::t_cae57fc3e4b068 18-20,98-105
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 1,68-88,93-125,136-141,147-148,150,152,188
+tests/integration/sidecar-hooks.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 479,489-492,496-500
+  s_e66561215efab5::t_8c3ef537ede487 480-488,493-495
+docs/subsystems/permissions.md
+  s_e66561215efab5::t_b2d8ebe69ca290 239
+  s_e66561215efab5::t_0ad988effd129a 19,62,76,82-84,94,96,101,117,126,140
+tests/integration/sidecar-pty.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 186,202-205
+apps/server/src/application/subagents-dispatch.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 73,97-140
+  s_e66561215efab5::t_873d0797f558a6 141
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_cae57fc3e4b068 189,197-199,203
+apps/server/src/application/subagents.ts
+  s_e66561215efab5::t_cae57fc3e4b068 68-69,335
+.scratch/plan-lifecycle/issues/03-planning-constraints.md
+  s_e66561215efab5::t_249e86723ca1aa 11-47
+packages/agent/src/ports/exec.ts
+  s_e66561215efab5::t_cae57fc3e4b068 47-48
+tests/integration/sidecar-project-permissions.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 75,77,89-96
+apps/server/src/application/context/plan.ts
+  s_e66561215efab5::t_cae57fc3e4b068 50-51
+packages/agent/src/policy/sandbox.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 3,18-28
+packages/agent/src/policy/index.ts
+  s_e66561215efab5::t_cae57fc3e4b068 38-39
+packages/agent/src/engine/permission-wiring.ts
+  s_e66561215efab5::t_cae57fc3e4b068 70,113,123-125,127-128,132
+packages/agent/src/policy/gate.ts
+  s_e66561215efab5::t_cae57fc3e4b068 33,51-59,85-86,145,159,175,192,194,250,374-376,384-385,388-389,395,398,401,413,456
+apps/server/src/runtime/layers.ts
+  s_e66561215efab5::t_cae57fc3e4b068 666
+packages/agent/src/tools/builtin/bash.ts
+  s_e66561215efab5::t_cae57fc3e4b068 9,227-229
+packages/agent/src/policy/decide.ts
+  s_e66561215efab5::t_cae57fc3e4b068 2,150,152-153,175-176,181,185,344
+packages/agent/src/policy/paths.ts
+  s_e66561215efab5::t_cae57fc3e4b068 40,43-49
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_b2d8ebe69ca290 9
+  s_e66561215efab5::t_065536501dc423 3,17,26,36,67-68
+packages/agent/src/planning/prompt.ts
+  s_e66561215efab5::t_cae57fc3e4b068 1,7,10-14,18-27
+packages/agent/src/policy/gate-hooks.test.ts
+  s_e66561215efab5::t_8c3ef537ede487 133-138
+  s_e66561215efab5::t_cae57fc3e4b068 24,45,132,139-149
+packages/agent/src/policy/decide.test.ts
+  s_e66561215efab5::t_cae57fc3e4b068 338-341,343-359,365-404
+  s_e66561215efab5::t_8c3ef537ede487 342,360-364
+tests/integration/sidecar-rewind.test.ts
+  s_e66561215efab5::t_8c3ef537ede487 99-103
+  s_e66561215efab5::t_cae57fc3e4b068 93,96-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "e27c55e849645c682b7a1ea6207f3ceb5c48024d",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
