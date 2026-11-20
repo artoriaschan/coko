@@ -195,12 +195,12 @@ describe.skipIf(!darwin)('PTY 与 stdin（真实 Sidecar，darwin）', { timeout
     await h.turn('start')
     expect(h.result('b1')!.isError).toBe(false)
 
-    // 票 04（ADR 0028）起经计划接口进入规划，模式不变。
+    // ADR 0028 起经计划接口进入规划，模式不变。
     expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'enter' })).status).toBe(200)
     await h.turn('touch')
     expect(h.count('approval_request')).toBe(0)
     expect(h.result('i1')).toEqual({
-      // 票 03（ADR 0028）：拒绝来自计划阶段（规划中只允许 read-only 沙箱），文本为设计稿 T6。
+      // ADR 0028：拒绝来自计划阶段（规划中只允许 read-only 沙箱），文本为设计稿 T6。
       text: expect.stringMatching(
         /^Not sent: background job \S+ was started under the danger-full-access sandbox, but plan mode only allows the read-only sandbox; input to it would run with that access\. Start a new terminal job instead\.$/,
       ),

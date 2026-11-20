@@ -85,7 +85,7 @@ describe('子代理：isolation worktree', { timeout: 120_000 }, () => {
     expect((await fixture.git('branch', '--list')).trim()).toBe('* main')
     expect(await fixture.git('worktree', 'list')).not.toContain('.coko-worktrees')
 
-    // 规划中：gate 直接以错误结果拒绝（不先询问一个注定失败的调用），不创建 worktree 与子 Session。票 04 起规划不改变模式：full-access 下规划同样拒绝。
+    // 规划中：gate 直接以错误结果拒绝（不先询问一个注定失败的调用），不创建 worktree 与子 Session。ADR 0028 起规划不改变模式：full-access 下规划同样拒绝。
     const planned = await env.open('full-access', true)
     await env.submit(planned, 'PARENT-PLAN go')
     await env.stream.waitFor(() => runEnds(env.stream, planned).length >= 1, 30_000)

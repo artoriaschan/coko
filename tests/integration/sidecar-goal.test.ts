@@ -422,7 +422,7 @@ describe('Goal', { timeout: 120_000 }, () => {
       { content: 'r1 done' },
     ])
     const sessionId = await newSession(api, stream, workspaceId)
-    // 票 04 起经计划接口进入规划（模式不变）。
+    // ADR 0028 起经计划接口进入规划（模式不变）。
     expect((await api.post(planPaths.sessionPlan(sessionId), { action: 'enter' })).status).toBe(200)
     await submit(api, sessionId, 'go')
     const review = await waitApproval(stream, sessionId, 1)

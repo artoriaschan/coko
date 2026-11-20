@@ -204,7 +204,7 @@ describe('forkEntries 的计划阶段', () => {
     expect(forkEntries([...entries, target], 's', target.seq).entries.map((e) => e.kind)).not.toContain('plan_phase')
   })
 
-  // 票 06 起阶段取边界处（原过渡口径：assistant-inclusive 看全部有效条目，使新 Session 的 plan 模式与“规划中”一致）。票 04 起规划不再改模式，
+  // ADR 0028 起阶段取边界处（原过渡口径：assistant-inclusive 看全部有效条目，使新 Session 的 plan 模式与“规划中”一致）；规划不再改模式，
   // 权限状态仍按 assistant-inclusive 继承源当前状态，计划阶段只跟边界。
   it('边界口径：user-before 看边界前、assistant-inclusive 看到边界为止；边界之后才进入或退出规划不影响新 Session', () => {
     seq = 0

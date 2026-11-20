@@ -500,7 +500,7 @@ describe('对手用例（权限）', () => {
     )
     expect(h.stream.entries(sessionId).filter((e) => e.kind === 'approval_request')).toEqual([])
     expect(await readFile(join(h.root, 'keep.txt'), 'utf8')).toBe('original\n')
-    // 票 04 起进入规划不改变模式：Hook 输入是 Session 的真实 Permission Mode，不是 plan。
+    // ADR 0028 起进入规划不改变模式：Hook 输入是 Session 的真实 Permission Mode，不是 plan。
     expect((await lines(record)).map((line) => (JSON.parse(line) as { permission_mode: string }).permission_mode)).toEqual(['accept-edits'])
     await h.sidecar.stop()
   })

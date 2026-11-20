@@ -403,7 +403,7 @@ describe('定时任务：授权（对手用例）', { timeout: 120_000 }, () => 
       { match: 'with deny', content: 'denied' },
     ])
     const { api, stream, open } = env
-    // 票 04（ADR 0028）起规划不改变模式：原先的 plan 模式用例改为 read-only 下进入规划，询问与否按 read-only。
+    // ADR 0028 起规划不改变模式：原先的 plan 模式用例改为 read-only 下进入规划，询问与否按 read-only。
     for (const [mode, text, planning] of [
       ['read-only', 'in read-only', false],
       ['read-only', 'in plan', true],

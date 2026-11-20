@@ -94,7 +94,7 @@ async function setup(overrides: Partial<ApiClient> = {}) {
 }
 
 describe('Permission Mode（store）', () => {
-  // 票 04（ADR 0028）起退出规划经计划接口（原先经切换模式回到 prior，断言 plan 模式在接受前保持）。
+  // ADR 0028 起退出规划经计划接口（原先经切换模式回到 prior，断言 plan 模式在接受前保持）。
   it('退出规划在服务端接受前与拒绝后都保持规划中，失败报告为 plan；不改变模式', async () => {
     let reject!: (error: Error) => void
     const { store, send, mode, phase, failures, calls } = await setup({

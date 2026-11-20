@@ -76,7 +76,7 @@ describe('回退与分叉', () => {
     expect((await api.post(checkpointPaths.sessionFork(sessionId), { targetSeq: final.seq, boundary: 'assistant-inclusive' })).status).toBe(201)
   })
 
-  // 票 06（ADR 0028）起计划阶段取分叉边界处（原先断言助手边界继承源当前的规划阶段）；“不能绕过后续收紧”由 Permission Mode 承担：
+  // ADR 0028 起计划阶段取分叉边界处（原先断言助手边界继承源当前的规划阶段）；“不能绕过后续收紧”由 Permission Mode 承担：
   // 助手边界仍继承源当前的权限状态。
   it('助手边界分支继承源当前的 Permission Mode，不能绕过后续收紧；计划阶段取边界处：边界在进入规划之前不带，在规划中的带', async () => {
     const { api, sessionId, stream, root } = await boot({

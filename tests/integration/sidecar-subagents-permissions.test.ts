@@ -127,7 +127,7 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
       { match: 'CHILD-P', content: 'reported' },
       { match: 'PARENT-P', content: 'ok' },
     ])
-    // 票 04 起规划不改变模式：根为 full-access 并在规划中，子级有效模式为 full-access（定义没有上限），命令不询问；规划约束照常。
+    // ADR 0028 起规划不改变模式：根为 full-access 并在规划中，子级有效模式为 full-access（定义没有上限），命令不询问；规划约束照常。
     const parent = await env.open('full-access', true)
     await env.submit(parent, 'PARENT-P go')
     await env.stream.waitFor(() => runEnds(env.stream, parent).length >= 1, 30_000)
