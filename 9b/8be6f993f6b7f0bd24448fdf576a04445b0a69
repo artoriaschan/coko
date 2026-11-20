@@ -1,0 +1,75 @@
+tests/integration/sidecar-harness.ts
+  s_d1e837811db462::t_220a8a278086aa 577
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_ab383d0d1c37de 70,73,75-76
+  s_d1e837811db462::t_e1c983aadbb032 705-749
+  s_d1e837811db462::t_f4ef2693291e10 761-765,772
+  s_d1e837811db462::t_755d617944c694 786-787
+  s_d1e837811db462::t_22370f271b0d5b 750-760,766-771,773-785
+  s_d1e837811db462::t_e971b1c1698a97 267
+  s_d1e837811db462::t_f4f586d8ced548 11,641-703
+  s_d1e837811db462::t_220a8a278086aa 25,32,200-266,268-287
+  s_d1e837811db462::t_7ddad53d4a671b 24,26-31,33-37
+  s_d1e837811db462::t_061f6043f0429b 71-72,74,77
+  s_d1e837811db462::t_74d6421527d6e2 59,64,167,190,288-290
+  s_d1e837811db462::t_31cfc1e45a8f49 65-69,106,549
+.scratch/auto-review/issues/06-goal-schedules-and-budget.md
+  s_d1e837811db462::t_495841161f8020 11-20,23-27
+packages/agent/src/session-entries/permissions.ts
+  s_d1e837811db462::t_e971b1c1698a97 59-72
+  s_d1e837811db462::t_50dd2324bd4e6a 58,73-97,165
+apps/server/src/application/session-reviews.ts
+  s_d1e837811db462::t_ab383d0d1c37de 159
+  s_d1e837811db462::t_1b0d388e5c855f 107-108
+  s_d1e837811db462::t_0996ce62649b36 110-114,134-141,160
+.scratch/auto-review/issues/04-escalation-reason-and-failures.md
+  s_d1e837811db462::t_13837e774b9c3a 11-24,27-44
+packages/protocol/src/permissions.ts
+  s_d1e837811db462::t_b3b4b4c6b0f987 39-57,71
+apps/desktop/src/renderer/features/conversation/approval-panel.tsx
+  s_d1e837811db462::t_208e4710fb0a3a 144-160,278
+packages/i18n/src/dictionaries/zh.ts
+  s_d1e837811db462::t_208e4710fb0a3a 736-745
+packages/agent/src/policy/gate-review.test.ts
+  s_d1e837811db462::t_e971b1c1698a97 171
+  s_d1e837811db462::t_2e37c913e4f9cd 11,166-170,172,180,186,255-258
+  s_d1e837811db462::t_03ca69797fb2a4 178,233-254,278,308
+packages/agent/src/session-entries/session-entries.test.ts
+  s_d1e837811db462::t_22f745bc508d9d 181-188,195-205
+  s_d1e837811db462::t_e971b1c1698a97 189-194
+apps/server/src/application/session-reviews.test.ts
+  s_d1e837811db462::t_f4ef2693291e10 49-53
+  s_d1e837811db462::t_dad017a0945d4e 78
+  s_d1e837811db462::t_718118e40b6529 9
+  s_d1e837811db462::t_5b44bcdceac2eb 4-5,7-8,11-48,54-77
+  s_d1e837811db462::t_c3b82baa9dc757 86
+  s_d1e837811db462::t_0a43e15e033bd0 85,87-88
+  s_d1e837811db462::t_37e09cfece5c84 1-3,6,10,79-84,89-101
+apps/desktop/src/renderer/features/conversation/approval-panel.browser.test.tsx
+  s_d1e837811db462::t_8e4e67c66c2516 3
+  s_d1e837811db462::t_2e9889b7f5a9c9 54-119
+packages/i18n/src/dictionaries/en.ts
+  s_d1e837811db462::t_208e4710fb0a3a 744-753
+packages/agent/src/policy/gate.ts
+  s_d1e837811db462::t_b0628a82dc8eed 275-276
+  s_d1e837811db462::t_e971b1c1698a97 284-291
+  s_d1e837811db462::t_923f86d164a746 487,522,533
+  s_d1e837811db462::t_5363ed52d774d3 77,135,509
+  s_d1e837811db462::t_1f89d94845bd7a 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "9b8be6f993f6b7f0bd24448fdf576a04445b0a69",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
