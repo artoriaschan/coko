@@ -4,8 +4,19 @@ import { copiedReplyFooters } from './fork-history.ts'
 import type { SessionEntry } from '@coko/protocol'
 import * as React from 'react'
 import { Button } from '@coko/ui'
-import { IconChevronRight, IconGitBranch, IconFile, IconFolder, IconLoader2, IconRotate, IconSquareOff, IconArrowBackUp } from '@tabler/icons-react'
+import {
+  IconChevronRight,
+  IconGitBranch,
+  IconFile,
+  IconFolder,
+  IconLoader2,
+  IconMessageCircle,
+  IconRotate,
+  IconSquareOff,
+  IconArrowBackUp,
+} from '@tabler/icons-react'
 import type { Theme } from '../../app/appearance-store.ts'
+import { useOptionalChatStoreApi } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { CompactionDivider } from './compaction-divider.tsx'
 import './business-timeline.css'
@@ -25,7 +36,7 @@ import { ReasoningRow } from './reasoning-row.tsx'
 import { sumUsageByRun } from './session-cost.tsx'
 import { useMessageIdentities } from './message-identities.ts'
 import { PlanCard, planCardSuppressed } from './plan-card.tsx'
-import type { TimelineItem } from './timeline.ts'
+import { withSessionTitles, type SessionReference, type TimelineItem } from './timeline.ts'
 import { ProcessTimeline } from './process-timeline.tsx'
 import type { DisplayRun } from './process-groups.ts'
 import { TimelineSessionContext } from './timeline-session.tsx'
@@ -108,6 +119,8 @@ export function TimelineView(props: TimelineViewProps) {
     switch (item.kind) {
       case 'user': {
         const actions = item.checkpoint && onRewind
+        // 显示时 @session:<id> 换成提交时的标题；item.text 保留原文，复制与回退仍用它。
+        const shown = (text: string) => withSessionTitles(text, item.references, t('sidebar.untitled'))
         return (
           // 动作在悬停（支持 hover 的设备）或焦点进入消息时出现；不支持 hover 时一直可见。Tab 到消息即可到达。
           <article
@@ -131,7 +144,7 @@ export function TimelineView(props: TimelineViewProps) {
                   <span className="font-medium">/{item.command.name}</span>
                   {item.command.args !== '' && (
                     <span data-user-content className="min-w-0 break-words whitespace-pre-wrap">
-                      {item.command.args}
+                      {shown(item.command.args)}
                     </span>
                   )}
                   <IconChevronRight
@@ -142,7 +155,7 @@ export function TimelineView(props: TimelineViewProps) {
                 <div className="mt-1 rounded-xl border-hairline border-border px-4 py-2.5">
                   <p className="mb-1 text-ui-small text-muted-foreground">{t('commands.showExpanded')}</p>
                   <p data-user-content data-slot="command-expanded" className="text-ui-body break-words whitespace-pre-wrap">
-                    {item.text}
+                    {shown(item.text)}
                   </p>
                 </div>
               </details>
@@ -153,7 +166,7 @@ export function TimelineView(props: TimelineViewProps) {
                 data-user-content
                 className="max-w-full rounded-xl bg-bubble px-4 py-2.5 text-ui-body-lg break-words whitespace-pre-wrap"
               >
-                {item.text}
+                {shown(item.text)}
               </p>
             )}
             {item.images
@@ -197,26 +210,30 @@ export function TimelineView(props: TimelineViewProps) {
               </ul>
             )}
             {item.references && (
-              // 随消息附上的文件：每个一个 chip（目录以 / 结尾），内容只发给模型。
+              // 随消息附上的文件与会话：每个一个 chip（目录以 / 结尾），内容只发给模型。
               <ul aria-label={t('references.attached')} data-slot="file-references" className="flex max-w-full flex-wrap justify-end gap-2">
-                {item.references.map((path) => (
-                  <li
-                    key={path}
-                    data-slot="file-reference-chip"
-                    data-path={path}
-                    aria-label={t('references.chipLabel', { path })}
-                    className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
-                  >
-                    {path.endsWith('/') ? (
-                      <IconFolder aria-hidden className="size-7 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <IconFile aria-hidden className="size-7 shrink-0 text-muted-foreground" />
-                    )}
-                    <span data-user-content className="min-w-0 break-all">
-                      {path}
-                    </span>
-                  </li>
-                ))}
+                {item.references.map((reference) =>
+                  typeof reference !== 'string' ? (
+                    <SessionReferenceChip key={`session:${reference.sessionId}`} reference={reference} />
+                  ) : (
+                    <li
+                      key={reference}
+                      data-slot="file-reference-chip"
+                      data-path={reference}
+                      aria-label={t('references.chipLabel', { path: reference })}
+                      className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-ui-body-lg"
+                    >
+                      {reference.endsWith('/') ? (
+                        <IconFolder aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <IconFile aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+                      )}
+                      <span data-user-content className="min-w-0 break-all">
+                        {reference}
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
             )}
             <div data-slot="user-message-footer" data-latest={item.key === latestUserKey} className="flex max-w-full items-center gap-2 transition-opacity">
@@ -433,5 +450,34 @@ export function TimelineView(props: TimelineViewProps) {
         />
       </TimelineRevealContext.Provider>
     </TimelineSessionContext.Provider>
+  )
+}
+
+/** 用户消息下方的会话 chip：显示提交时的标题，点击打开该会话；会话已不在会话列表中（已删除、已归档或没有对话 store）时不可点击。 */
+function SessionReferenceChip({ reference }: { reference: SessionReference }) {
+  const { t } = useI18n()
+  const chat = useOptionalChatStoreApi()
+  const listed = React.useSyncExternalStore(
+    chat?.lists.subscribe ?? (() => () => {}),
+    () => chat?.lists.getState().sessions.some((session) => session.id === reference.sessionId) ?? false,
+  )
+  const title = reference.title.trim() || t('sidebar.untitled')
+  return (
+    <li className="max-w-full">
+      <button
+        type="button"
+        disabled={!listed}
+        data-slot="session-reference-chip"
+        data-session-id={reference.sessionId}
+        aria-label={t('references.sessionChipLabel', { title })}
+        className="conversation-file-reference flex max-w-full min-w-0 items-center gap-2.5 rounded-lg border-hairline border-border px-3 py-2 text-start text-ui-body-lg focus-ring enabled:hover:bg-accent"
+        onClick={() => chat?.getState().openSession(reference.sessionId)}
+      >
+        <IconMessageCircle aria-hidden className="size-7 shrink-0 text-muted-foreground" />
+        <span data-user-content className="min-w-0 break-all">
+          {title}
+        </span>
+      </button>
+    </li>
   )
 }

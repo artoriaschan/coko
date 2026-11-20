@@ -112,7 +112,7 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 ## Session Reference
 
-用户消息中以 `@session:<id>` 指向同一 Project 内另一个 Session，提交时附上那次会话的文字记录（[术语](../../GLOSSARY.md)）。不发额外的模型请求，请求体不加字段。目前只有手写或粘贴的文本语法；Sidecar 的展开与范围判定已实现，`@` 菜单的会话候选、草稿与时间线的会话 chip 尚未实现。
+用户消息中以 `@session:<id>` 指向同一 Project 内另一个 Session，提交时附上那次会话的文字记录（[术语](../../GLOSSARY.md)）。不发额外的模型请求，请求体不加字段。目前只有手写或粘贴的文本语法；Sidecar 的展开与范围判定、时间线的会话 chip（见 [界面](#界面)）已实现，`@` 菜单的会话候选与草稿中的节点尚未实现。
 
 ### 语法
 
@@ -171,7 +171,8 @@ Sidecar 记 `file references attached`：引用数、各状态的数量与截断
 
 - **@ 文件菜单**：在词首（开头或空白之后）输入 `@` 时打开，查询为 `@` 之后、光标之前的非空白文本。每次查询变化向 Sidecar 请求候选，新结果到达前先显示上一次结果中按子序列匹配的项。Enter 或指针选择插入 File Reference 节点并跟一个空格；目录上按 Tab 把 token 替换为 `@目录/` 并继续列出其中的项。键盘、Esc、输入法与定位规则与 / 命令菜单相同（见 [命令](commands.md#界面)）。
 - **File Reference 节点**：token 模式的文本节点，以小号链接色 chip 显示，作为整体选中与删除，不能在其中输入。文本即序列化形式 `@path`（含空白、全角标点或会被当作结尾标点的字符时为 `@"path"`），因此提交的文本就是 Sidecar 解析的语法。
-- **引用 chip**：时间线中，用户消息的 `<file_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方的文件或目录 chip；文件内容只发给模型。
+- **引用 chip**：时间线中，用户消息的 `<file_reference>` 与 `<session_reference>` 块不进入气泡文本，按出现顺序显示为气泡下方同一列表中的文件、目录或会话 chip（会话用对话图标）；文件内容与会话记录只发给模型，未附上的会话说明块同样显示 chip。
+- **会话 chip 与 `@标题`**：会话 chip 显示块中的标题，即提交那一刻的标题，被引用的会话后来改名或删除都不变；标题为空时显示“未命名”。chip 是按钮，可用键盘聚焦与激活，点击打开该会话；会话不在界面的会话列表中（已删除；归档的会话也不在该列表中）时不可点击。气泡文本、命令消息的参数与展开全文中的 `@session:<id>` 在该消息带有对应的会话引用块时显示为 `@标题`（词首与结尾标点规则与 Sidecar 的解析相同），没有对应块时原样显示；复制消息得到的仍是原文。
 
 ## 草稿
 
@@ -320,6 +321,7 @@ teammate 的子 Session 在 `<subagent>` 之后另有静态 `<team name="…">`�
 - `tests/integration/sidecar-references.test.ts`：真实 Sidecar 上的 user message 块与 faux requestLog、project 作用域的 Read 拒绝规则、命令与引用的顺序、`GET /api/workspaces/:id/files`。
 - `packages/ui/src/composer/file-reference-node.browser.test.tsx`：节点的插入与整体删除、序列化、EditorState JSON 往返与拒绝、目录 Tab、onDraftChange。
 - `apps/desktop/src/renderer/stores/draft-store.test.ts`、`features/conversation/timeline.test.ts`：草稿的键、防抖与损坏处理；引用 chip 的派生。
+- `apps/desktop/src/renderer/features/conversation/messages.browser.test.tsx`：时间线的会话引用（气泡中的 `@标题`、会话 chip 的键盘与指针打开、不在列表中的会话不可点击、没有对应块时原样显示、与文件 chip 混排的顺序、中英文名称）。
 - `apps/desktop/e2e/references-drafts.e2e.test.ts`：Electron 中的 @ 菜单与 chip、草稿在切换会话与重启后保留、提交后清除、损坏的草稿。
 - `packages/agent/src/context/usage/usage.test.ts`：128k、400k、1M 窗口的阈值与预警、估算（有 / 无 usage、跳过出错与中止的回复）、时间裁剪（59 分钟不裁、61 分钟裁、保留最近 5 个、2KB 以下保留、输入不变、后续请求前缀稳定）。`apps/server/src/application/context/usage.test.ts`：注入时钟与 `context.trimOldToolResults` 开关。
 - `tests/integration/sidecar-tool-accounting.test.ts`：本地模型 HTTP 服务记录根会话与受限子会话的实际工具定义，用量接口与请求一致，普通列表的历史声明不重复计数；[设置集成](../../tests/integration/sidecar-tool-search-settings.test.ts) 另核对等待审批时切换开关不会改变本 Run 的工具分项。`packages/agent/src/engine/compaction.test.ts` 验证普通完整列表中已移除工具的旧定义不触发压缩、正 usage 后新增定义触发阈值且未变化定义不重复计数；[原生工具测试](../../tests/integration/sidecar-incremental-tools.test.ts) 通过真实 HTTP 同时验证普通/原生写法在正 usage 后加载大 schema 会触发压缩，以及移除后仍在原生历史中的 schema 继续计入用量与自动压缩，压缩折叠后不再重复计入。
