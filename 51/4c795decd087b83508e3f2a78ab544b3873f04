@@ -1,0 +1,32 @@
+.scratch/plan-lifecycle/spec.md
+  s_e66561215efab5::t_5fbd8abe580bfc 5
+.scratch/plan-lifecycle/issues/01-design-and-adr.md
+  s_e66561215efab5::t_5fbd8abe580bfc 11-26
+.scratch/plan-lifecycle/design.md
+  s_e66561215efab5::t_33cb90ea680df1 1-577
+docs/adr/0005-permission-mode-and-sandbox.md
+  s_e66561215efab5::t_c521ea0f505516 47
+  s_e66561215efab5::t_5f5441e4a3d855 3
+  s_e66561215efab5::t_8c3338ad5be78d 20
+  s_e66561215efab5::t_3a2a91249ca97c 68-69
+docs/adr/0028-plan-phase-not-permission-mode.md
+  s_e66561215efab5::t_97769c26e5a76d 1-66
+docs/adr/README.md
+  s_e66561215efab5::t_5f5441e4a3d855 17,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "514c795decd087b83508e3f2a78ab544b3873f04",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
