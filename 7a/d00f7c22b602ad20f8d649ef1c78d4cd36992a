@@ -1,0 +1,27 @@
+packages/agent/src/policy/review.ts
+  s_d1e837811db462::t_17cd166e65d747 3,58-59,61,68,110-112
+  s_d1e837811db462::t_41c62f658603c5 77
+packages/agent/src/policy/review.test.ts
+  s_d1e837811db462::t_2ce48ceb49e926 144-147
+  s_d1e837811db462::t_9653331c19e6b0 139-143,148-153
+tests/integration/sidecar-subagents-auto-review.test.ts
+  s_d1e837811db462::t_39eeb02aaab72f 1-13,19-206,209-245
+  s_d1e837811db462::t_2ce48ceb49e926 14-18
+  s_d1e837811db462::t_d0469e22bdf257 207-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "7ad00f7c22b602ad20f8d649ef1c78d4cd36992a",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
