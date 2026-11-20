@@ -1,0 +1,41 @@
+apps/desktop/src/renderer/features/conversation/command-menu.browser.test.tsx
+  s_085ed727045dd9::t_261d97b6d23d1a 1-12,14-19,21-53,55-111
+packages/protocol/src/commands.ts
+  s_085ed727045dd9::t_f96a5af71b7a67 16-17
+packages/agent/src/instructions/commands/loader.ts
+  s_085ed727045dd9::t_290000b77cd433 104
+apps/server/src/application/context/skills.ts
+  s_085ed727045dd9::t_3760a12eeaf5c6 70
+docs/subsystems/plugins.md
+  s_085ed727045dd9::t_e101fa866c49e5 105-106
+packages/agent/src/instructions/commands/types.ts
+  s_085ed727045dd9::t_fd58de700eab74 13-14
+apps/desktop/src/renderer/features/conversation/command-menu.tsx
+  s_085ed727045dd9::t_b8918bfd0af27c 13-18
+.scratch/session-reference/issues/01-plugin-group-in-command-menu.md
+  s_085ed727045dd9::t_18ed2a57d85e35 27-56
+apps/server/src/application/context/commands.ts
+  s_085ed727045dd9::t_3e1dd67fba979e 60
+tests/integration/sidecar-plugins.test.ts
+  s_085ed727045dd9::t_560c990dbf9dac 159-171
+docs/subsystems/commands.md
+  s_085ed727045dd9::t_f8f156620e03d0 86
+  s_085ed727045dd9::t_7d1faa06f8258e 99-100
+  s_085ed727045dd9::t_827d10cd719e51 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ff1490043114a5cece368c2063a8f0b4852df63c",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
