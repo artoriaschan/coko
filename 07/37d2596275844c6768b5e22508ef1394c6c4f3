@@ -1,0 +1,90 @@
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_2ffc19fa781770 5,11,19,22,415-465
+tests/integration/secrets-gate-plan.test.ts
+  s_e66561215efab5::t_aeb1882eda0825 97-98
+  s_e66561215efab5::t_2ffc19fa781770 2-3,57,79-88,110
+packages/agent/src/planning/exit-plan-mode.ts
+  s_e66561215efab5::t_2ffc19fa781770 28,30-37
+.scratch/plan-lifecycle/issues/09-executing-phase-and-reminder.md
+  s_e66561215efab5::t_f63e4e210095fe 11-41
+packages/protocol/src/context-entries.ts
+  s_e66561215efab5::t_2ffc19fa781770 9
+  s_e66561215efab5::t_aeb1882eda0825 12-19
+apps/desktop/src/renderer/features/conversation/timeline.test.ts
+  s_e66561215efab5::t_2ffc19fa781770 161-172
+docs/subsystems/context.md
+  s_e66561215efab5::t_23fcfa83c1dd34 13,15,17,221
+packages/agent/src/session-entries/context.ts
+  s_e66561215efab5::t_aeb1882eda0825 8-14
+  s_e66561215efab5::t_2ffc19fa781770 15-20,97
+apps/server/src/application/context/plan.ts
+  s_e66561215efab5::t_2ffc19fa781770 1-2,11,16,29-30,59-64
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_4faf5600a4f72e 197
+docs/README.md
+  s_e66561215efab5::t_caa3bb5fdd6632 47
+packages/agent/README.md
+  s_e66561215efab5::t_57778c29002b42 71,87
+packages/agent/src/entries/index.ts
+  s_e66561215efab5::t_2ffc19fa781770 37
+packages/agent/src/planning/planning.test.ts
+  s_e66561215efab5::t_2ffc19fa781770 83-84,86,88-92,101,211-218
+  s_e66561215efab5::t_aeb1882eda0825 93-100
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_2ffc19fa781770 242-243,254,321,325
+packages/agent/src/entries/state-updates.test.ts
+  s_e66561215efab5::t_2ffc19fa781770 65-80
+  s_e66561215efab5::t_90b96b0666861d 64
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_2ffc19fa781770 9,14,50,55
+apps/desktop/src/renderer/features/conversation/plan-card.tsx
+  s_e66561215efab5::t_2ffc19fa781770 6,27,35,53
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_bef38cf3b21dc1 3,9,19-21,28,30,32,39-40,51,63,65-66,70,74
+  s_e66561215efab5::t_fa6ef8378c0fe1 78-81
+apps/desktop/src/renderer/features/conversation/plan-review-panel.tsx
+  s_e66561215efab5::t_2ffc19fa781770 1,29-32,37-41,111
+  s_e66561215efab5::t_aeb1882eda0825 33-36
+packages/agent/src/session-entries/session-entries.test.ts
+  s_e66561215efab5::t_2ffc19fa781770 151-161
+docs/adr/0028-plan-phase-not-permission-mode.md
+  s_e66561215efab5::t_0d482c339c125f 70,72
+apps/desktop/src/renderer/features/right-panel/plan-tab.tsx
+  s_e66561215efab5::t_aeb1882eda0825 46
+  s_e66561215efab5::t_2ffc19fa781770 8,43,67-68
+packages/agent/src/planning/state.ts
+  s_e66561215efab5::t_2ffc19fa781770 5,46-47,50-51,57
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_aeb1882eda0825 780-783
+  s_e66561215efab5::t_b314b5976d6168 275-276
+  s_e66561215efab5::t_2ffc19fa781770 97,112-131,222-225,228,230,237,244-274,277-321,342,411,427,466,472-480,497,595,602,607,615,790,809,850-861,866-869
+packages/agent/src/entries/state-updates.ts
+  s_e66561215efab5::t_2ffc19fa781770 4,8,95
+apps/desktop/e2e/plan.e2e.test.ts
+  s_e66561215efab5::t_2ffc19fa781770 138-140,145,148,203,205-207
+packages/agent/src/entries/plan-text.ts
+  s_e66561215efab5::t_171d44575e1665 1-2,6-8,10
+  s_e66561215efab5::t_d8605973ffd8ac 3-5,9
+packages/protocol/src/permissions.ts
+  s_e66561215efab5::t_2ffc19fa781770 82
+packages/protocol/README.md
+  s_e66561215efab5::t_4faf5600a4f72e 204
+apps/desktop/src/renderer/features/conversation/plan-chip.tsx
+  s_e66561215efab5::t_2ffc19fa781770 8-9,16,18,20,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "0737d2596275844c6768b5e22508ef1394c6c4f3",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
