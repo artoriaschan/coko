@@ -1,0 +1,75 @@
+// SessionReviews（ADR 0029）：被取消或超时的审查请求，已报告的用量照样记入其 model_request（Goal 预算与用量汇总从它派生）。
+import { describe, expect, it } from 'vitest'
+import { createAssistantMessageEventStream, type AssistantMessage, type Model } from '@earendil-works/pi-ai'
+import type { ModelRegistry } from '@coko/agent'
+import type { SessionStore, Session as StoredSession } from '@coko/session'
+import { createTestClock } from '../adapters/clock.ts'
+import { SessionReviews } from './session-reviews.ts'
+
+const model = { id: 'm', provider: 'p', api: 'faux', contextWindow: 1000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } } as Model<any>
+const partial: AssistantMessage = {
+  role: 'assistant',
+  content: [],
+  api: 'faux',
+  provider: 'p',
+  model: 'm',
+  usage: { input: 300, output: 7, cacheRead: 0, cacheWrite: 0, totalTokens: 307, cost: { input: 0.3, output: 0.07, cacheRead: 0, cacheWrite: 0, total: 0.37 } },
+  stopReason: 'stop',
+  timestamp: 0,
+}
+
+function setup() {
+  const clock = createTestClock(1_000)
+  const commits: { kind: string; payload: Record<string, unknown> }[] = []
+  let started!: () => void
+  const streaming = new Promise<void>((resolve) => (started = resolve))
+  const registry = {
+    models: {
+      // 报告了用量的部分响应之后不再结束（Provider 没有响应中止）。
+      streamSimple: () => {
+        const stream = createAssistantMessageEventStream()
+        stream.push({ type: 'start', partial })
+        queueMicrotask(started)
+        return stream
+      },
+    },
+  } as unknown as ModelRegistry
+  const session = { id: 's1', model: { providerId: 'p', modelId: 'm' } } as unknown as StoredSession
+  const reviews = new SessionReviews({
+    store: { sessions: { listEntries: async () => [] } } as unknown as SessionStore,
+    models: { contextModel: async () => model },
+    registry,
+    clock,
+    runtimes: { commit: async (_id: string, entry: { kind: string; payload: Record<string, unknown> }) => void commits.push(entry) } as never,
+    rootSessionId: (id) => id,
+  })
+  const review = (signal?: AbortSignal) =>
+    reviews.review({
+      session,
+      request: { runId: 'r1', toolCallId: 't1', toolName: 'bash', input: { command: 'ls' }, priorCalls: [] },
+      ...(signal ? { signal } : {}),
+    })
+  return { clock, commits, streaming, review }
+}
+
+describe('SessionReviews 的用量', () => {
+  it('被取消的审查请求：已报告的用量记入 model_request', async () => {
+    const { commits, streaming, review } = setup()
+    const controller = new AbortController()
+    const outcome = review(controller.signal)
+    await streaming
+    controller.abort()
+    expect(await outcome).toEqual({ verdict: 'failed', code: 'request-failed' })
+    expect(commits).toHaveLength(1)
+    expect(commits[0]!.payload).toMatchObject({ runId: 'r1', purpose: 'review', stopReason: 'aborted', usage: { input: 300, output: 7 }, cost: 0.37 })
+  })
+
+  it('超时的审查请求：已报告的用量记入 model_request，errorCode 为 timeout', async () => {
+    const { clock, commits, streaming, review } = setup()
+    const outcome = review()
+    await streaming
+    clock.advance(15_000)
+    expect(await outcome).toEqual({ verdict: 'failed', code: 'timeout' })
+    expect(commits[0]!.payload).toMatchObject({ purpose: 'review', errorCode: 'timeout', usage: { input: 300, output: 7 }, cost: 0.37 })
+  })
+})

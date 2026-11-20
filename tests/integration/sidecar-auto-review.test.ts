@@ -7,10 +7,12 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import {
   API_ROUTES,
   apiPaths,
+  goalPaths,
   hookPaths,
   mcpPaths,
   permissionPaths,
   planPaths,
+  schedulePaths,
   tracePaths,
   type McpResponse,
   type SessionEntryRecord,
@@ -18,7 +20,7 @@ import {
 } from '@coko/protocol'
 import { createGitWorkspace } from '../fixtures/git/index.ts'
 import { stdioServerConfig } from '../fixtures/mcp/index.ts'
-import { client, connect, exchange, fauxScript, hookCommand, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
+import { advanceClock, client, connect, exchange, fauxScript, hookCommand, sidecarDirs, startSidecar, tempDir, waitApproval } from './sidecar-harness.ts'
 
 const darwin = process.platform === 'darwin'
 const MARKER = 'COKO_PERMISSION_REVIEW'
@@ -40,12 +42,12 @@ interface ReviewInput {
   actions: { earlier_calls: unknown[]; pending_call: { tool: string; arguments: Record<string, unknown>; tool_description?: string } }
 }
 
-async function boot(responses: unknown[], options: { root?: string; env?: Record<string, string> } = {}) {
+async function boot(responses: unknown[], options: { root?: string; env?: Record<string, string>; script?: Record<string, unknown> } = {}) {
   const root = options.root ?? (await realpath(await tempDir()))
   const logs = await realpath(await tempDir('coko-review-logs-'))
   const requestDetailsLog = join(logs, 'details.jsonl')
   await writeFile(requestDetailsLog, '')
-  const script = await fauxScript(logs, { requestDetailsLog, responses })
+  const script = await fauxScript(logs, { ...options.script, requestDetailsLog, responses })
   const sidecar = await startSidecar({ dirs: await sidecarDirs(), env: { COKO_FAUX_SCRIPT: script, ...options.env } })
   onTestFinished(() => sidecar.stop().then(() => undefined))
   const cookie = await exchange(sidecar)
@@ -366,6 +368,153 @@ describe('对手用例：审查应答恒为放行', () => {
     await h.runEnds(sessionId, 1)
     expect(existsSync(join(outside, 'f'))).toBe(false)
     expect((await h.reviews()).map((r) => r.actions.pending_call.arguments)).toEqual([{ command: `printf 1 >> ${outside}/f` }])
+    expect(
+      h
+        .entries(sessionId)
+        .filter((e) => e.kind === 'approval_decision')
+        .map((e) => (e.payload as { by?: string }).by ?? 'user'),
+    ).toEqual(['reviewer', 'user'])
+  })
+})
+
+describe('Goal、定时任务与预算', () => {
+  type Goal = { phase: string; reason?: { code: string; message: string } }
+  const usage = (input: number, output: number) => ({ usage: { input, output } })
+  const goalOf = async (h: Awaited<ReturnType<typeof boot>>, sessionId: string) =>
+    (await h.api.get(goalPaths.sessionGoal(sessionId))).body as { goal: Goal; usage: { rounds: number; toolCalls: number; tokens: number; cost: number } }
+  const reviewRequests = (h: Awaited<ReturnType<typeof boot>>, sessionId: string) =>
+    h.entries(sessionId).filter((e) => e.kind === 'model_request' && (e.payload as { purpose: string }).purpose === 'review')
+
+  it('审查请求（含失败的）的用量计入 Goal 的 Token 与费用、Run 与 Session 合计，不计轮次与工具调用；预算耗尽后不发审查请求、转交用户，允许后执行且 Run 因预算暂停', async () => {
+    // 每百万 token：输入 2、输出 10。审查请求以错误结束但报告了 400 输入 + 100 输出。
+    const h = await boot(
+      [
+        { match: MARKER, content: [], stopReason: 'error', errorMessage: 'overloaded', ...usage(400, 100) },
+        { content: [call('cg', 'create_goal', { objective: 'write files', criteria: ['done'], budget: { max_tokens: 1000 } })], ...usage(10, 1) },
+        { content: 'goal set', ...usage(10, 1) },
+        { content: [bash('b1', 'printf a > a.txt')], ...usage(10, 1) },
+        { content: [bash('b2', 'printf b > b.txt')], ...usage(400, 100) },
+        { content: 'must not be requested', ...usage(10, 1) },
+      ],
+      { script: { price: { input: 2, output: 10 } } },
+    )
+    const sessionId = await h.open()
+    await h.send(sessionId, 'write the files')
+    // b1：审查失败而转交；允许后执行。
+    const first = await waitApproval(h.stream, sessionId, 1)
+    expect(first).toMatchObject({ toolCallId: 'b1' })
+    expect((await h.answer(sessionId, first.requestId, { decision: 'allow' })).status).toBe(204)
+    // b2：Goal 已用 11 + 500（审查）+ 500 = 1011 ≥ 1000，请求前检查不通过：不发审查请求，直接转交用户，调用未执行。
+    const second = await waitApproval(h.stream, sessionId, 2)
+    expect(second).toMatchObject({ toolCallId: 'b2' })
+    expect(existsSync(join(h.root, 'b.txt'))).toBe(false)
+    expect((await h.api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ activity: 'awaiting-approval' })
+    expect(await h.reviews()).toHaveLength(1)
+    expect(reviewRequests(h, sessionId)).toHaveLength(1)
+    expect(reviewRequests(h, sessionId)[0]!.payload).toMatchObject({ stopReason: 'error', usage: { input: 400, output: 100 } })
+    expect((await goalOf(h, sessionId)).usage).toMatchObject({ rounds: 1, toolCalls: 1, tokens: 1011 })
+
+    expect((await h.answer(sessionId, second.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(sessionId, 2)
+    expect(await readFile(join(h.root, 'b.txt'), 'utf8')).toBe('b')
+    expect(
+      h
+        .entries(sessionId)
+        .filter((e) => e.kind === 'run_end')
+        .at(-1)!.payload,
+    ).toEqual({ status: 'paused', error: { code: 'budget_exhausted', message: 'Goal budget exhausted: tokens (1011 / 1000)' } })
+    await h.stream.waitFor(() => h.entries(sessionId).some((e) => e.kind === 'goal' && (e.payload as Goal).phase === 'budget-exhausted'))
+    const state = await goalOf(h, sessionId)
+    expect(state.goal).toMatchObject({ phase: 'budget-exhausted', reason: { code: 'tokens' } })
+    // 轮次与工具调用数不含审查请求；费用含审查请求：(11 × 2 + … ) / 1e6。
+    expect(state.usage).toMatchObject({ rounds: 1, toolCalls: 2, tokens: 1011 })
+    const cost = (input: number, output: number) => (input * 2 + output * 10) / 1e6
+    expect(state.usage.cost).toBeCloseTo(cost(10, 1) + cost(400, 100) + cost(400, 100), 12)
+    expect(await h.reviews()).toHaveLength(1)
+
+    const trace = (await h.api.get(tracePaths.trace(sessionId))).body as TraceResponse
+    const round = trace.runs[1]!
+    expect(round.requests.map((r) => r.purpose)).toEqual(['turn', 'review', 'turn'])
+    expect(round.tokens).toBe(1011)
+    expect(round.cost).toBeCloseTo(state.usage.cost, 12)
+    expect(trace.totals.cost).toBeCloseTo(2 * cost(10, 1) + state.usage.cost, 12)
+    expect(h.stream.invalidEntries).toEqual([])
+  })
+
+  it('Goal Round：Reviewer 放行的调用执行；被转交的调用使 Session 等待审批、Goal 仍为 running（与现有审批等待相同），允许后 Goal 继续直到完成', async () => {
+    const h = await boot([
+      allow(),
+      escalate(),
+      { content: [call('cg', 'create_goal', { objective: 'write files', criteria: ['done'] })] },
+      { content: 'goal set' },
+      { content: [bash('b1', 'printf a > a.txt')] },
+      { content: [bash('b2', 'printf b > b.txt')] },
+      { content: [call('u1', 'update_goal', { goal_id: 'goal-1', revision: 1, action: 'complete', evidence: [{ criterion_id: 'c1', text: 'written' }] })] },
+      { content: 'all done' },
+    ])
+    const sessionId = await h.open()
+    await h.send(sessionId, 'write the files')
+    const asked = await waitApproval(h.stream, sessionId, 2)
+    expect(asked).toMatchObject({ toolCallId: 'b2' })
+    expect(await readFile(join(h.root, 'a.txt'), 'utf8')).toBe('a')
+    expect(existsSync(join(h.root, 'b.txt'))).toBe(false)
+    expect(
+      h
+        .entries(sessionId)
+        .filter((e) => e.kind === 'run_start')
+        .at(-1)!.payload,
+    ).toEqual({ trigger: 'goal', goal: { goalId: 'goal-1', round: 1 } })
+    expect((await h.api.get(apiPaths.session(sessionId))).body.session).toMatchObject({ running: true, activity: 'awaiting-approval' })
+    expect((await goalOf(h, sessionId)).goal.phase).toBe('running')
+
+    expect((await h.answer(sessionId, asked.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.stream.waitFor(() => h.entries(sessionId).some((e) => e.kind === 'goal' && (e.payload as Goal).phase === 'complete'))
+    await h.runEnds(sessionId, 2)
+    expect(await readFile(join(h.root, 'b.txt'), 'utf8')).toBe('b')
+    expect(
+      h
+        .entries(sessionId)
+        .filter((e) => e.kind === 'goal')
+        .map((e) => (e.payload as Goal).phase),
+    ).toEqual(['running', 'complete'])
+    expect(
+      h
+        .entries(sessionId)
+        .filter((e) => e.kind === 'approval_decision')
+        .map((e) => (e.payload as { by?: string }).by ?? 'user'),
+    ).toEqual(['reviewer', 'user'])
+    expect((await h.reviews()).map((r) => r.actions.pending_call.arguments.command)).toEqual(['printf a > a.txt', 'printf b > b.txt'])
+  })
+
+  it('定时任务触发的 Run：未被规则覆盖的命令有审查请求、放行后执行；schedule_create 不送审，允许后仍为 schedule-not-allowed', async () => {
+    const h = await boot(
+      [
+        allow(),
+        { content: [bash('b1', 'printf s > s.txt'), call('sc', 'schedule_create', { title: 'more', prompt: 'again', every_seconds: 60 })] },
+        { content: 'done' },
+      ],
+      { env: { COKO_TEST_CLOCK: '1' } },
+    )
+    const sessionId = await h.open()
+    const created = await h.api.post(schedulePaths.sessionSchedules(sessionId), {
+      title: 'nightly',
+      prompt: 'write s.txt',
+      rule: { kind: 'after', seconds: 60 },
+    })
+    expect(created.status).toBe(201)
+    await advanceClock(h.api, 60_000)
+    const asked = await waitApproval(h.stream, sessionId, 2)
+    expect(asked).toMatchObject({ toolCallId: 'sc', toolName: 'schedule_create' })
+    await h.answer(sessionId, asked.requestId, { decision: 'allow' })
+    await h.runEnds(sessionId, 1)
+    expect(h.entries(sessionId).find((e) => e.kind === 'run_start')!.payload).toMatchObject({ trigger: 'schedule', schedule: { scheduleId: created.body.id } })
+    expect(await readFile(join(h.root, 's.txt'), 'utf8')).toBe('s')
+    expect(text(toolResults(h.entries(sessionId)).find((r) => r.toolCallId === 'sc'))).toMatch(/^schedule-not-allowed: /)
+    expect((await h.api.get(schedulePaths.list(sessionId))).body).toHaveLength(1)
+    const reviews = await h.reviews()
+    expect(reviews.map((r) => r.actions.pending_call)).toEqual([{ tool: 'bash', arguments: { command: 'printf s > s.txt' } }])
+    // 定时任务的 prompt 不授予用户权限。
+    expect(reviews[0]!.user_authorization.user_messages).toEqual([])
     expect(
       h
         .entries(sessionId)
