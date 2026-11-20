@@ -646,6 +646,7 @@ export const en: typeof zh = {
     error: 'Failed',
     pending: 'Not finished',
     awaiting: 'Waiting for approval',
+    reviewing: 'Auto review in progress',
     bash: 'Bash',
     read: 'Read',
     write: 'Write',

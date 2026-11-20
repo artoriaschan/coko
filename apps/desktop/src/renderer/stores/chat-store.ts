@@ -50,6 +50,8 @@ export interface LiveRun {
   /** 当前 assistant 消息按 contentIndex 累积的文本与思考增量。 */
   blocks: { kind: 'text' | 'thinking'; text: string }[]
   tools: Record<string, LiveTool>
+  /** 自动审查中的调用（review_start）；随后的审批请求、执行记录或结果由时间线派生时结束它，重连时清空。 */
+  reviewing: Record<string, true>
   retry?: { attempt: number; maxRetries: number }
 }
 
@@ -285,7 +287,7 @@ export interface ChatStoreOptions {
   forkTitle?: (sourceTitle: string) => string
 }
 
-const emptyLive = (runId: string | null, accepting: boolean): LiveRun => ({ runId, accepting, blocks: [], tools: {} })
+const emptyLive = (runId: string | null, accepting: boolean): LiveRun => ({ runId, accepting, blocks: [], tools: {}, reviewing: {} })
 
 /** 消息内容的文本（字符串或 text 块）。 */
 const contentText = (content: unknown): string =>
@@ -849,7 +851,10 @@ export function createChatStore({ api, stream, onFailure, subscribeTimeoutMs = 1
     for (const [sessionId, conversation] of Object.entries(conversations)) {
       if (reconnected && conversation.live) {
         store.setState({
-          conversations: { ...store.getState().conversations, [sessionId]: { ...conversation, live: { ...conversation.live, accepting: false, blocks: [] } } },
+          conversations: {
+            ...store.getState().conversations,
+            [sessionId]: { ...conversation, live: { ...conversation.live, accepting: false, blocks: [], reviewing: {} } },
+          },
         })
       }
       stream.send({ type: 'subscribe', sessionId, afterSeq: conversation.lastSeq })
@@ -884,6 +889,8 @@ export function reduceProgress(live: LiveRun | null, runId: string, event: Exclu
         ...current,
         tools: { ...current.tools, [event.toolCallId]: { toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, status: 'running' } },
       }
+    case 'review_start':
+      return { ...current, reviewing: { ...current.reviewing, [event.toolCallId]: true } }
     case 'tool_update': {
       const tool = current.tools[event.toolCallId] ?? { toolCallId: event.toolCallId, toolName: event.toolName, args: undefined, status: 'running' as const }
       return { ...current, tools: { ...current.tools, [event.toolCallId]: { ...tool, partialResult: event.partialResult } } }

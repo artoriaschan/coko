@@ -46,6 +46,8 @@ export function createPermissionWiring(options: {
   current: () => PermissionRun | undefined
   /** 提交失败时停止 agent 循环。 */
   abortAgent: () => void
+  /** Reviewer 开始审查一次调用（发出 review_start 进度）。 */
+  reviewStarted?: (toolCallId: string, toolName: string) => void
 }): PermissionWiring {
   const { permissions, registry, current } = options
   /** 已批准的单次提权，按 toolCallId；执行时取用并删除，Run 结束时清空。 */
@@ -85,6 +87,7 @@ export function createPermissionWiring(options: {
         ...(permissions.hooks ? { hooks: permissions.hooks } : {}),
         ...(permissions.unattended ? { unattended: permissions.unattended } : {}),
         ...(permissions.reviewer ? { reviewer: permissions.reviewer } : {}),
+        ...(options.reviewStarted ? { reviewStarted: options.reviewStarted } : {}),
         runId: () => current()?.runId,
       })
     : undefined

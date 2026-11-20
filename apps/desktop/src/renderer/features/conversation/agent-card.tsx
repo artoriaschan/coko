@@ -63,7 +63,7 @@ export function AgentCard({
   const background = record?.start.background ?? args.run_in_background === true
   // 派发之前（审批中、尚未开始）或派发失败（没有子 Session）：沿用工具调用本身的状态。
   const cardStatus: ToolCardStatus = status ? CARD_STATUS[status] : item.status
-  const statusLabel = status ? t(`agents.status.${status}`) : t(`tool.${item.status}`)
+  const statusLabel = status ? t(`agents.status.${status}`) : t(item.reviewing ? 'tool.reviewing' : `tool.${item.status}`)
   const failedToStart = !record && item.result?.isError === true
   const running = status === 'running'
   const progress =

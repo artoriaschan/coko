@@ -29,6 +29,7 @@ import {
   exchange,
   fauxScript,
   hookCommand,
+  killAndRestart,
   pollUntil,
   sidecarDirs,
   startSidecar,
@@ -62,13 +63,13 @@ async function boot(responses: unknown[], options: { root?: string; env?: Record
   const requestDetailsLog = join(logs, 'details.jsonl')
   await writeFile(requestDetailsLog, '')
   const script = await fauxScript(logs, { ...options.script, requestDetailsLog, responses })
-  const sidecar = await startSidecar({
-    dirs: await sidecarDirs(),
-    env: { COKO_FAUX_SCRIPT: script, ...options.env },
-    ...(options.ipc === undefined ? {} : { ipc: options.ipc }),
-  })
-  // 独立运行（ipc: false，Secret 来自 COKO_SECRET_<NAME>）没有 IPC shutdown，以 SIGTERM 有序退出。
+  const dirs = await sidecarDirs()
+  const env = { COKO_FAUX_SCRIPT: script, ...options.env }
+  const sidecar = await startSidecar({ dirs, env, ...(options.ipc === undefined ? {} : { ipc: options.ipc }) })
+  // 独立运行（ipc: false，Secret 来自 COKO_SECRET_<NAME>）没有 IPC shutdown，以 SIGTERM 有序退出；被测试强杀的实例不再关闭
+  // （spawnSidecar 自己登记了等待退出）。
   onTestFinished(async () => {
+    if (sidecar.child.exitCode !== null || sidecar.child.signalCode !== null) return
     if (options.ipc !== false) await sidecar.stop()
     else {
       sidecar.child.kill('SIGTERM')
@@ -103,7 +104,7 @@ async function boot(responses: unknown[], options: { root?: string; env?: Record
   const reviews = async () =>
     (await details()).filter(isReview).map((d) => JSON.parse(String(d.messages.filter((m) => m.role === 'user').at(-1)!.content)) as ReviewInput)
   const answer = (sessionId: string, requestId: string, body: Record<string, unknown>) => api.post(apiPaths.sessionApproval(sessionId, requestId), body)
-  return { root, sidecar, api, stream, workspaceId, open, entries, runEnds, send, details, reviews, answer, requestDetailsLog }
+  return { root, dirs, env, sidecar, api, stream, workspaceId, open, entries, runEnds, send, details, reviews, answer, requestDetailsLog }
 }
 
 describe('Reviewer 放行与转交', () => {
@@ -490,6 +491,83 @@ describe('对手用例：审查应答恒为放行', () => {
         .filter((e) => e.kind === 'approval_decision')
         .map((e) => (e.payload as { by?: string }).by ?? 'user'),
     ).toEqual(['reviewer', 'user'])
+  })
+})
+
+describe('审查中与切换时序', () => {
+  /** 测试时钟下审查应答在拨钟前不返回；请求明细日志在 faux 设好计时器之后写入，作为“审查进行中”的屏障。 */
+  const HELD = 1_000
+  async function holdReview(responses: unknown[]) {
+    const h = await boot(responses, { env: { COKO_TEST_CLOCK: '1' } })
+    const sessionId = await h.open()
+    await h.send(sessionId)
+    const started = await h.stream.waitFor((m) => m.type === 'progress' && m.sessionId === sessionId && m.event.type === 'review_start')
+    await expect.poll(async () => (await h.reviews()).length).toBe(1)
+    return { ...h, sessionId, started }
+  }
+  const approvalEntries = (entries: SessionEntryRecord[]) => entries.filter((e) => e.kind === 'approval_request' || e.kind === 'approval_decision')
+
+  it('审查开始时推送 review_start（不入库）；审查途中切到 default：放行结论不生效，出现普通审批请求', async () => {
+    const h = await holdReview([{ ...allow(), delayMs: HELD }, { content: [bash('b1', 'printf a > a.txt')] }, { content: 'ok' }])
+    expect(h.started).toMatchObject({ type: 'progress', event: { type: 'review_start', toolCallId: 'b1', toolName: 'bash' } })
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'default' })).status).toBe(200)
+    await advanceClock(h.api, HELD)
+    const asked = await waitApproval(h.stream, h.sessionId)
+    expect(asked).toMatchObject({ toolCallId: 'b1', suggestions: [{ behavior: 'allow', tool: 'Bash', content: 'printf a > a.txt' }] })
+    expect(asked).not.toHaveProperty('review')
+    expect(approvalEntries(h.entries(h.sessionId)).map(kindOf)).toEqual(['approval_request'])
+    await h.answer(h.sessionId, asked.requestId, { decision: 'deny', feedback: 'no' })
+    await h.runEnds(h.sessionId, 1)
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    expect(h.entries(h.sessionId).map((e) => e.kind)).not.toContain('review_start')
+    expect(await h.reviews()).toHaveLength(1)
+  })
+
+  it('审查途中切到 full-access：调用按模式放行执行，没有 Reviewer 的允许决定', async () => {
+    const h = await holdReview([{ ...escalate(), delayMs: HELD }, { content: [bash('b1', 'printf a > a.txt')] }, { content: 'ok' }])
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: 'full-access' })).status).toBe(200)
+    await advanceClock(h.api, HELD)
+    await h.runEnds(h.sessionId, 1)
+    expect(await readFile(join(h.root, 'a.txt'), 'utf8')).toBe('a')
+    expect(approvalEntries(h.entries(h.sessionId))).toEqual([])
+  })
+
+  it('审查途中新增匹配的拒绝规则：调用以规则拒绝', async () => {
+    const h = await holdReview([{ ...allow(), delayMs: HELD }, { content: [bash('b1', 'printf a > a.txt')] }, { content: 'ok' }])
+    const rule = { behavior: 'deny', tool: 'Bash', content: 'printf *' }
+    expect((await h.api.post(permissionPaths.sessionPermissionRules(h.sessionId), { rule })).status).toBe(200)
+    await advanceClock(h.api, HELD)
+    await h.runEnds(h.sessionId, 1)
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    expect(text(toolResults(h.entries(h.sessionId))[0])).toBe('Permission denied by rule Bash(printf *).')
+    expect(approvalEntries(h.entries(h.sessionId))).toEqual([])
+  })
+
+  it('停止 Run：进行中的审查被取消，调用未执行，没有审批条目', async () => {
+    const h = await holdReview([{ ...allow(), delayMs: HELD }, { content: [bash('b1', 'printf a > a.txt')] }])
+    expect((await h.api.post(apiPaths.sessionAbort(h.sessionId))).body).toEqual({ aborted: true })
+    await h.runEnds(h.sessionId, 1)
+    expect(h.entries(h.sessionId).at(-1)!.payload).toMatchObject({ status: 'aborted' })
+    expect(text(toolResults(h.entries(h.sessionId))[0])).toBe('Operation aborted')
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    expect(approvalEntries(h.entries(h.sessionId))).toEqual([])
+  })
+
+  it('Sidecar 在审查途中退出：重启后按未执行调用恢复（补错误结果、Run 中断），不自动重审', async () => {
+    const h = await holdReview([{ ...allow(), delayMs: HELD }, { content: [bash('b1', 'printf a > a.txt')] }])
+    const next = await killAndRestart(h.sidecar, { dirs: h.dirs, env: h.env })
+    onTestFinished(() => next.stop().then(() => undefined))
+    const stream = await connect(next, await exchange(next))
+    stream.send({ type: 'subscribe', sessionId: h.sessionId, afterSeq: 0 })
+    await stream.waitFor(() => stream.entries(h.sessionId).some((e) => e.kind === 'run_end'))
+    const entries = stream.entries(h.sessionId)
+    expect(entries.find((e) => e.kind === 'run_end')!.payload).toMatchObject({ status: 'interrupted' })
+    const result = toolResults(entries).find((r) => r.toolCallId === 'b1')
+    expect(result?.isError).toBe(true)
+    expect(text(result)).toContain('It had no effect.')
+    expect(approvalEntries(entries)).toEqual([])
+    expect(existsSync(join(h.root, 'a.txt'))).toBe(false)
+    expect(await h.reviews()).toHaveLength(1)
   })
 })
 

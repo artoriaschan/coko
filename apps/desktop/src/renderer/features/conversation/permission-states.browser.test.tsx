@@ -320,3 +320,43 @@ it('actual App: a rejected request does not claim execution while its result has
   expect(row.textContent).toContain('No recorded result')
   expect(row.querySelector('[data-slot="tool-card-body"]')).toBeNull()
 })
+
+it.each([
+  ['en', 'Auto review in progress', 'Waiting for approval'],
+  ['zh', '自动审查中', '等待审批'],
+] as const)(
+  'actual App (%s): the tool row shows auto review in progress until the approval request arrives, and run_end ends it',
+  async (locale, reviewing, awaiting) => {
+    const fixture = await open([], 'light', locale)
+    const progress = (event: Record<string, unknown>) => fixture.sendServer({ type: 'progress', sessionId: 's-1', runId: 'run-1', event } as never)
+    progress({ type: 'run_start' })
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(1, 'b1', 'bash', { command: 'npm test' }) })
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: call(2, 'b2', 'bash', { command: 'npm run lint' }) })
+    for (const id of ['b1', 'b2']) {
+      progress({ type: 'tool_start', toolCallId: id, toolName: 'bash', args: {} })
+      progress({ type: 'review_start', toolCallId: id, toolName: 'bash' })
+    }
+    const row = (command: string) => document.querySelector(`[data-tool="bash"]:has([title="${command}"])`)!
+    /** 标题行中可见的“自动审查中”（另有同文的 role=status 供辅助技术读出）。 */
+    const label = (command: string) => row(command)?.querySelector<HTMLElement>('[data-tool-reviewing]') ?? null
+    await expect.poll(() => document.querySelectorAll('[data-tool="bash"]').length).toBe(2)
+    for (const command of ['npm test', 'npm run lint']) {
+      await expect.element(page.elementLocator(label(command)!)).toBeVisible()
+      expect(label(command)!.textContent).toBe(reviewing)
+    }
+    expect(page.elementLocator(row('npm test')).getByRole('status').element().textContent).toBe(reviewing)
+
+    fixture.sendServer({
+      type: 'entry',
+      sessionId: 's-1',
+      entry: entry(3, 'approval_request', { requestId: 'q1', toolCallId: 'b1', toolName: 'bash', kind: 'tool', subject: 'npm test', suggestions: [] }),
+    })
+    await expect.poll(() => label('npm test')).toBeNull()
+    expect(page.elementLocator(row('npm test')).getByRole('status').element().textContent).toBe(awaiting)
+    expect(label('npm run lint')?.textContent).toBe(reviewing)
+
+    fixture.sendServer({ type: 'entry', sessionId: 's-1', entry: entry(4, 'run_end', { status: 'aborted' }) })
+    await expect.poll(() => label('npm run lint')).toBeNull()
+    expect(row('npm run lint').textContent).not.toContain(reviewing)
+  },
+)

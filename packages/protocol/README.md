@@ -120,6 +120,7 @@ Artifact：`GET artifactPaths.list(id)` 返回 `{ artifacts: [{path,name,kind,si
 | `run_start` | Run 开始（第一个进度） | 否 |
 | `assistant_delta` | 模型输出的增量（text / thinking / toolcall）；可选 `offset` 为同一 `contentIndex` 中此前已发出的 UTF-16 码元数，供客户端发现缺头或缺失的增量 | 否 |
 | `tool_start` | 工具调用开始执行 | 否 |
+| `review_start` | 自动审查（Reviewer）开始审查这次调用；没有结束事件，随后的审批请求、执行记录、结果或 run_end 体现结束；重连不恢复 | 否 |
 | `tool_update` | 工具的中间结果 | 否 |
 | `tool_end` | 工具调用结束（按完成顺序；最终内容以 toolResult 条目为准） | 否 |
 | `retry` | 模型请求失败后的重试 | 否 |

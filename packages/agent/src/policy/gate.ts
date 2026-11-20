@@ -135,6 +135,8 @@ export interface PermissionGateOptions {
    * 放行时以 by reviewer 的单次允许执行，转交或失败时询问，请求带转交理由或失败代码（review）。没有端口时 gate 的行为与没有 auto-review 的审查时相同。
    */
   reviewer?: ReviewerPort
+  /** 决定送审之后、调用端口之前通知（界面显示“自动审查中”）。 */
+  reviewStarted?: (toolCallId: string, toolName: string) => void
   /** 当前 Run 的 runId；没有 Run 时 undefined（不送审，按普通询问）。 */
   runId?: () => string | undefined
 }
@@ -496,6 +498,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       ) {
         const description = categoryOf(name) === 'external' ? tool?.description : undefined
         let outcome: ReviewOutcome
+        options.reviewStarted?.(context.toolCall.id, name)
         try {
           outcome = await options.reviewer.review(
             { runId, toolCallId: context.toolCall.id, toolName: name, input: context.args, ...(description === undefined ? {} : { description }), priorCalls },
@@ -506,7 +509,26 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         }
         // 停止或暂停：不提交审批条目，迟到的结论不被使用（wiring 把暂停改写为暂停前未批准）。
         if (signal?.aborted) return { block: true, reason: OPERATION_ABORTED_TEXT }
-        // ponytail: 结论生效前按当时的模式与规则复核（设计稿第 4 节）属于票 07。
+        // 结论生效前按当时的模式与规则复核（PreToolUse 不重跑）：审查途中模式或规则变了，结论作废，按新判定放行、拒绝或直接询问（不重审，
+        // 不再运行 PermissionRequest）。切走又切回且判定相同时结论仍有效（不维护版本号）。
+        const again = await evaluate(name, subject, isolation)
+        const recombined = combinePreToolUse(verdict, again)
+        const stillValid =
+          options.mode() === 'auto-review' &&
+          recombined.behavior === 'ask' &&
+          recombined.by === 'policy' &&
+          recombined.step === 'default' &&
+          recombined.decision.reason === combined.decision.reason &&
+          sameSuggestions(recombined.decision.suggestions, combined.decision.suggestions)
+        if (!stillValid) {
+          if (recombined.behavior === 'allow') {
+            remember(again.target)
+            return undefined
+          }
+          if (recombined.behavior === 'deny') return { block: true, reason: recombined.by === 'hook' ? recombined.reason : deniedText(recombined.decision) }
+          const reason = await askTool(context.toolCall.id, name, subject, recombined.decision, signal, remember, isolation)
+          return reason === undefined ? undefined : { block: true, reason }
+        }
         if (outcome.verdict === 'allow') {
           try {
             await options.broker.recordReviewerAllowed(
