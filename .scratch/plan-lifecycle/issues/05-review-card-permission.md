@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 审阅卡标出当前的 Permission Mode，作为批准后的执行权限
 - [x] 审阅卡内放入现有的模式菜单组件，不另做一套；选择“完全访问权限”仍先确认风险
 - [x] 审阅等待期间切换 Permission Mode 后批准：后续调用按新模式判定（Sidecar 集成测试，分别覆盖收紧与放宽）
@@ -33,3 +35,7 @@
 - 集成与单元：`pnpm exec vitest run packages/i18n apps/desktop/src/renderer/stores/chat-store-permissions.test.ts tests/integration/sidecar-plan.test.ts`：4 个文件 32 例通过（`sidecar-plan` 10 例，含新增 2 例，真实 Sidecar，darwin）。
 - 视觉：在 Browser Mode 中临时截图检查了亮色、暗色、390px 宽与菜单展开（截图代码已撤回）；窄宽度下“批准并执行”换到下一行（flex-wrap），未在真实 Electron 中检查。
 - 未运行：Electron E2E（`apps/desktop/e2e/plan.e2e.test.ts`，属票 08）；真实指针与原生层未验证；非 darwin 平台。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

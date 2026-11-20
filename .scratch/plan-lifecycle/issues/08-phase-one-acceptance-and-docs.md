@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] Electron 端到端用例（后台模式）：在“完全访问权限”下 `/plan` 进入，模式菜单仍勾选该模式；模型提交计划后右栏自动打开；在审阅卡上把权限改为另一档；批准并执行；从协议读回的模式为改后的那一档，计划卡显示已批准
 - [x] 同一用例或另一条：Plan chip 的 × 退出规划，从协议读回不在规划中、模式不变
 - [x] 规格的用户故事 1–44 逐条对应到通过的测试或证据；没有对应的列为缺口并说明
@@ -36,3 +38,8 @@
 - **验证。** `pnpm run typecheck` 通过；`pnpm run check:docs` 通过（437 个文件 0 个问题）；`sidecar-plan` 与 `source-references` 2 个文件 17 例通过；`secrets-gate-schedules` 1 例通过；Browser Mode `plan`、`approval-panel`、`business-timeline` 3 个文件 37 例通过；E2E `plan` 与 `conversation-workbench-closeout` 2 个文件 8 例，5 通过、3 失败（均为基线同样失败）。
 - **未勾选的一项。** “受影响的测试文件通过”未完全满足：`plan.e2e.test.ts` 的原有用例在附件步骤失败（基线同样失败，未修），其余受影响文件通过，用例数见“验证”。
 - **未验证。** 真实模型是否遵守新的 `<plan_mode>` 文本；非 darwin 平台的沙箱行为；需要真实指针或原生层的交互（E2E 只在后台模式中经 CDP 驱动）。审阅卡上选择模式后 Tooltip 随焦点打开、盖住正文一行，输入区的模式菜单同样如此，未改。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。
+唯一未勾项：`plan.e2e` 原有用例卡在附件步骤，main 上同样失败（见 evidence/phase-one-acceptance.md），不属于本功能；其余受影响测试均通过。

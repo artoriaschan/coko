@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] Session 计划接口的进入与退出动作：已在规划中进入、不在规划中退出都不提交条目；Run 进行中动作可用，写入拒绝与沙箱档位即时生效或解除，系统消息与工具集到下一个 Run 才变化
 - [x] `/plan [消息]` 与 `/plan off` 调用同一组动作；Run 进行中以 `run-in-progress` 拒绝；新对话里 `/plan 消息` 以规划开始并提交该消息
 - [x] 进入规划不提交 `permission_mode` 条目；四种 Permission Mode 下进入后模式读回不变
@@ -52,3 +54,7 @@
 - renderer Browser Mode：`pnpm exec vitest run --project desktop-renderer` 选中 `plan`、`dock`、`business-timeline`、`context-ring`、`composer`、`new-chat` 等 7 个文件 74 例，73 通过；`new-chat.browser.test.tsx` 的“light：归属菜单在上方 6px…”一次因 `toHaveFocus` 超时失败，单独重跑通过（改动前后各单独运行一次也都通过），判为不稳定，与本票无关。`plan.browser.test.tsx` 15 例通过。
 - 单元：`pnpm exec vitest run packages/agent packages/protocol packages/i18n apps/server/src apps/desktop/src/renderer/stores apps/desktop/src/renderer/app`：2120 例，2109 通过、11 失败。失败均与本票无关：已知基线 5 例（`engine/host-stop` 2、`policy/approvals` 1、`policy/gate-hooks` Hook deny 条目顺序 1、`instructions/shared` 1）；另有 4 例 renderer store（`chat-store-context-entries`、`chat-store-m4-entries`、`chat-store-rewind` 的分叉、`chat-store-run-control` 的 pause，均为 run-usage 项或 fork 参数）与 `protocol/entries.test.ts`“预先声明规格表中全部 M2–M6 kind”1 例，改动撤回后单独运行同样失败；`app/startup-screen.browser.test.tsx` 1 例在大批量运行中失败、单独运行通过。
 - 未运行：Electron E2E（`apps/desktop/e2e/plan.e2e.test.ts`，只改了断言）；非 darwin 平台。真实模型是否遵守 T1、T7 不在本票门槛内，未验证。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] `complete_plan` 在规划中或执行中开始的 Run 注册；Subagent 的子 Session 的工具集中没有它
 - [x] 成功：依次提交已完成的 `plan` 条目（同 planId 与 revision，带报告）、计划阶段“无”与工具结果；结果文本按设计稿
 - [x] 批准之后的同一个 Run 中调用成功
@@ -41,3 +43,6 @@
   - 未验证：真实模型是否遵守 T9–T11；非 darwin 平台；Electron E2E 未跑（完成路径的端到端属阶段二验收）；需要真实指针或原生层的交互。
   - 11 的“Run 进行中放弃后本 Run 再调用 `complete_plan` 得到错误结果”：本票的实现在锁内现取阶段，放弃后返回 T10“没有执行中的 Plan”，但没有专门的 Sidecar 用例覆盖这一组合。
 
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

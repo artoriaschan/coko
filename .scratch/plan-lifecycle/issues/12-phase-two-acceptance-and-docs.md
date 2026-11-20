@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] Electron 端到端用例（后台模式）：`/plan` 进入，提交并批准后 Plan chip 显示“执行中”；模型写 Todo List 并提交完成报告；计划卡与右栏 Plan 页显示“已完成”与报告，chip 消失
 - [x] Electron 端到端用例：执行中点 Plan chip 的 × 放弃，计划卡显示“已放弃”，从协议读回没有活动的 Plan，已写入的文件仍在
 - [x] 规格的用户故事 45–68 逐条对应到通过的测试或证据；没有对应的列为缺口并说明
@@ -28,3 +30,7 @@
 - **文档。** GLOSSARY 的 Plan；ADR 0028 改为 implemented（含导航状态列）；`plan-mode.md`（结构表重复行、报告在 Plan 页而非计划卡、验证清单）；`todo.md` 新增“与计划的关系”；`goal.md` 补“与计划不新增关联”；`tracing.md` 的 `plan_phase` 行；`apps/server/README.md` 的 faux `tokenSize`。上下文管理、桌面工作台与 agent、protocol 的 README 读回一致未改；导航摘要已由 09–11 同步。
 - **验证。** `pnpm run typecheck` 通过；`pnpm run check:docs` 通过；受影响的 Node 测试 11 个文件项 171 例通过；Browser Mode `plan`、`business-timeline` 38 例通过；E2E `plan` 与 `desktop-shell` 17 例中 13 通过、4 例为基线同样失败。证据见 [阶段二验收](../evidence/phase-two-acceptance.md)。
 - **未验证。** 真实模型是否先拆 Todo、是否在做完后调用 `complete_plan`、报告是否逐项对照计划；非 darwin 平台；需要真实指针或原生层的交互（后台模式下原生错误框的内容不再由 E2E 覆盖）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 新增计划阶段条目，payload 含“无”“规划中”“执行中”（带 planId）；agent 与 protocol 两侧 schema 编译期比对一致；renderer 收到新 kind 不报错
 - [x] `plan` 条目的 schema 增加已完成（带完成报告）与已放弃两个状态；现有条目照常读取，本票不写入这两个状态
 - [x] 现有每条进入路径（切换接口设为 `plan`、`/plan`、首次发送带 `plan`）提交“规划中”；已在规划中时不重复提交
@@ -39,3 +41,7 @@
 ### 过渡状态（02 → 07）
 
 升级前已停在 `plan` 模式的 Session 没有 `plan_phase` 条目：本票之后它的 Run 不再注入 `<plan_mode>`、不注册 `exit_plan_mode`（`exit_plan_mode` 调用返回 `Not in plan mode: …`），判定仍按 `plan` 模式（与 read-only 相同）。对它再执行 `/plan` 或切换接口设为 `plan` 时只补提交 `plan_phase { planning }`（模式已是 plan，不提交 `permission_mode`），之后恢复规划。由票 07 的读取迁移收尾。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 设计稿保存为本功能目录下的 `design.md`，按 [设计模板](../../../docs/templates/design.md) 写：约束与驱动场景、责任与依赖、主要成功与失败路径、持久化与演进、比较过的方案、测试接口与验收证据
 - [x] 写明计划阶段条目的名称与 payload（无、规划中、执行中及其 planId），`permission_mode` 新版本的 payload 与读取迁移规则，`plan` 条目新增的两个状态与完成报告字段
 - [x] 写明 Session 计划接口的路径、读取结果、进入与退出动作的请求、结果与错误码，以及 Run 进行中调用的效果
@@ -24,3 +26,7 @@
 ## Comments
 
 - 2026-11-20（implementer）：设计稿 [design.md](../design.md) 已按设计模板完成并标为 approved（依据：规格已确认、01 票授权设计阶段确定路径；超出规格字面的 7 项工程判断列在其“待决问题与确认”中，均不阻塞）。新 ADR 为 [ADR 0028](../../../docs/adr/0028-plan-phase-not-permission-mode.md)（accepted / not-started）；ADR 0005 在“决定”、相应条目、description 与“来源与后继”标注 plan 取值部分被替代，[ADR 索引](../../../docs/adr/README.md) 已同步；规格头部补了设计与 ADR 0028 的链接。术语表未改。`pnpm run check:docs` 通过，并从 docs/README → adr/README → 0028 / 0005 读回替代关系。未改代码、未运行测试。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

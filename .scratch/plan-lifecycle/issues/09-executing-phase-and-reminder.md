@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 批准时提交的计划阶段为“执行中”并带该 Plan 的 planId，取代阶段一的“无”；计划接口读回执行中与活动的 Plan
 - [x] 批准的工具结果按设计稿的阶段二文本：先用 `todo_write` 拆解，执行并验证，结束时调用 `complete_plan` 对照计划汇报
 - [x] 宿主不检查是否拆了 Todo：批准后不调用 `todo_write` 直接写入照常放行
@@ -39,3 +41,7 @@
   - Browser Mode：`plan`、`business-timeline`、`approval-panel`、`trajectory-view` 4 个文件 61 例通过（`trajectory-view` 的 system 行用例在一次批量中失败、单独与再次批量重跑通过，与本票无关）。
   - Electron E2E（后台模式）：`plan.e2e.test.ts` 2 例，执行中断言所在的完全访问权限用例通过；另一例在附件步骤失败，与基线相同（见 08 的评论）。
   - 未验证：真实模型是否遵守 T8 与 T12；非 darwin 平台；需要真实指针或原生层的交互。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

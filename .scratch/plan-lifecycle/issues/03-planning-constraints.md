@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 判定表测试改为“Permission Mode × 是否规划中 × 工具类型”：规划中文件写入工具为拒绝，位置紧随拒绝规则之后，先于询问规则、受保护路径、越出可写根、模式放行与允许规则；不在规划中的各格与改动前相同
 - [x] 外部 Hook 的 allow 不能放行规划中的写入；Hook 的 deny 仍然优先并保留它自己的结果文本
 - [x] 写入拒绝的文本按设计稿，说明 Session 在规划中、内容应写进计划；不产生审批请求
@@ -45,3 +47,7 @@
 - 单元：`pnpm exec vitest run packages/agent apps/server/src`：131 个文件 1842 例，1837 通过、5 失败；5 例在改动前的基线上同样失败（`engine/host-stop.test.ts` 2 例、`policy/approvals.test.ts` 1 例、`policy/gate-hooks.test.ts`“Hook deny 在 full-access 下拒绝”1 例——条目顺序中 `model_request` 的位置；`instructions/shared/shared.test.ts` 1 例），与本票无关。改动后又新增 1 例（等待中的写入进入规划后重新判定），`escalation.test.ts` 19 例通过。
 - 集成（真实 Sidecar，darwin）：`sidecar-plan`、`sidecar-hooks`、`sidecar-pty`、`sidecar-subagents-permissions`、`sidecar-subagents-isolation`、`sidecar-sandbox`、`secrets-gate-plan` 7 个文件 48 例通过；`sidecar-project-permissions`、`sidecar-rewind`、`sidecar-goal`、`sidecar-schedules`、`sidecar-memory`、`sidecar-todo`、`sidecar-tool-search-keywords`、`sidecar-commands`、`sidecar-handoff`、`sidecar-state-update-fork`、`sidecar-permissions` 11 个文件 81 例通过。
 - 未运行：Electron E2E（`apps/desktop/e2e/plan.e2e.test.ts` 未断言写入询问，本票未改界面）、renderer Browser Mode、非 darwin 平台（相关断言按现有约定以 `sandbox-unavailable` 分支书写，未在其他平台执行）。真实模型是否遵守 T1–T5 不在本票门槛内，未验证。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

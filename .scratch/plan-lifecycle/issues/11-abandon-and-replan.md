@@ -8,9 +8,11 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 执行中的退出动作（`/plan off`、Plan chip 的 ×、计划接口）：依次提交已放弃的 `plan` 条目与计划阶段“无”；Workspace 文件逐字节不变，不产生 Checkpoint 操作；取代 09 的过渡行为
 - [x] 放弃不弹确认；失败时界面保留状态并提示
-- [ ] Run 进行中放弃：之后本 Run 再调用 `complete_plan` 得到错误结果
+- [x] Run 进行中放弃：之后本 Run 再调用 `complete_plan` 得到错误结果
 - [x] 执行中的进入动作（`/plan`、计划接口）：先按放弃处理当前 Plan，再提交“规划中”；之后写入被拒；新提交的计划使用新的 planId、修订从 1 开始
 - [x] 规划中的退出不改动待审阅的 `plan` 条目，行为与阶段一相同
 - [x] 任一时刻至多一份活动的 Plan：规划中没有执行中的 Plan，执行中不能同时规划
@@ -31,3 +33,8 @@
 - **文档。** `docs/subsystems/plan-mode.md`（概述、进入退出、回退、分叉与交接、Plan chip、Plan tab 状态、验证清单）、`commands.md`（内置命令清单原写“目前为空”已过时，补上四个内置命令与 `/plan` 的语义）、`workbench.md`（计划状态组的 ×）、`handoff.md`（执行中不追加）；ADR 0028 实施状态与 `docs/README.md` 的 Plan Mode 摘要同步。
 - **与设计稿的偏离。** 无行为偏离。设计稿 §8.3 未写执行中而找不到对应计划（不应发生）的情况：此时只提交 `plan_phase { none }`，不写 abandoned。
 - **验证（2026-11-20，darwin）。** `pnpm run typecheck` 通过；`pnpm run check:docs` 通过（449 个文件 0 个问题）；`scripts/source-references.test.ts` 2 例通过。集成（真实 Sidecar）：`sidecar-plan`、`sidecar-rewind`、`sidecar-handoff`、`sidecar-compaction`、`sidecar-state-update-fork`、`secrets-gate-plan` 6 个文件 46 例通过。单元：`packages/agent/src/agents`、`packages/agent/src/planning`、`session-permissions.test.ts` 6 个文件 125 例通过；`packages/i18n` 14 例通过。Browser Mode：`plan`、`business-timeline`、`approval-panel` 3 个文件 39 例通过。未运行 Electron E2E（12 验收）。未验证：真实模型行为；非 darwin 平台；需要真实指针或原生层的交互。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。
+“Run 进行中放弃后本 Run 的 `complete_plan` 出错”由 12 补的 Sidecar 集成用例覆盖（见 evidence/phase-two-acceptance.md）。

@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] 计划阶段与 `plan` 条目的状态按有效条目回放；回退后服务端重新计算，不沿用回退前的结果
 - [x] 回退到进入规划之前的消息：计划接口读回“无”，下一个 Run 没有 `<plan_mode>` 与提交工具，写入按 Permission Mode 判定
 - [x] 回退到批准之前的消息：读回“规划中”，写入被拒，提交工具可用，被回退掉的已批准记录不再算作当前计划
@@ -42,3 +44,7 @@
 - renderer Browser Mode：`pnpm exec vitest run --project desktop-renderer apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx`：16 例通过。
 - 红灯确认：`fork.test.ts` 的边界口径用例与 `sidecar-plan.test.ts` 的两个回退用例在实现前失败（分别为过渡口径追加了 `plan_phase`、回退后读回仍为回退前的阶段）；`handoff.test.ts` 与浏览器用例为既有行为补测试，实现前即通过。
 - 未运行：Electron E2E；非 darwin 平台；全量单元与 renderer 测试（改动未触及 renderer 代码）。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。

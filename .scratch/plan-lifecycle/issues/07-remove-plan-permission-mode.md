@@ -8,6 +8,8 @@
 
 **Status:** ready-for-agent
 
+Closed: true
+
 - [x] Permission Mode 的类型只有四档；判定、沙箱映射、Subagent 的模式比较、模式图标与循环顺序中针对 `plan` 的分支全部删除；`pnpm run typecheck` 通过
 - [x] `permission_mode` 条目升一版：读取时 `plan` 取 `prior`，没有 `prior` 取 default；不改写数据库行（用例读回数据库中的原始版本号）
 - [x] 预置含旧 `plan` 记录的 Session：模式读回为 `prior`，不在规划中，没有 `<plan_mode>`，已提交的计划仍可在时间线与右栏查看
@@ -49,3 +51,7 @@
 
 - 合入 `feat/plan-lifecycle`（05 审阅卡执行权限、06 回退分叉交接）。冲突处理：`session-permissions.ts` 取 06 的 `planPhaseOf(entries)` 回放，保留本票只取 `mode` 的回放；`fork.test.ts` 取 06 的边界口径用例（其中已无 plan 模式）；`sidecar-plan.test.ts` 与 `plan.browser.test.tsx` 两边新增的用例都保留；`plan-mode.md` 与导航摘要取 06 / 05 的正文，再叠加本票的旧数据迁移、兼容与降级和验证描述。
 - 重跑：`pnpm run typecheck`、`pnpm run check:docs` 通过；单元（同上范围，去掉 `apps/desktop/src/renderer/app`）2157 例，2147 通过，10 例为上文已知基线；Browser Mode `plan.browser`、`context-ring.browser` 28 例通过；集成同上 19 个文件 150 例通过。
+
+### 关闭（2026-11-20）
+
+已合入集成分支 `feat/plan-lifecycle`（最终 HEAD ecfcbde8，含代码审查修复）。
