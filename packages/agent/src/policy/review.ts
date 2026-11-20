@@ -1,6 +1,6 @@
 // 自动审查的审查请求（ADR 0029）：固定提示、输入构建与输出解析。纯函数，不做 I/O；请求由宿主（apps/server 的 SessionReviews）发出。
 import { effectiveEntries } from '../entries/derive.ts'
-import { HOOK_CONTEXT_TAG, HOST_NOTIFICATION_KINDS } from '../entries/host-input.ts'
+import { HOOK_CONTEXT_TAG, HOST_NOTIFICATION_KINDS, isHostNotificationText } from '../entries/host-input.ts'
 import { activePlanOf } from '../entries/plan-phase.ts'
 import { pairedStateUpdates } from '../entries/state-updates.ts'
 import type { CompactionFields, EntryLike } from '../entries/types.ts'
@@ -55,15 +55,17 @@ const truncate = (text: string, max: number) => (text.length > max ? `${text.sli
 
 /**
  * user message 中不属于宿主的文本：去掉配对的 state_update 块；Hook 上下文只在输入之后、作为最后一块追加（withSubmitContext、子代理
- * 首条消息），所以只认这个位置，用户自己输入的同样开头的文本不会被当作宿主块丢弃。图片记为占位。
+ * 首条消息），所以只认这个位置，用户自己输入的同样开头的文本不会被当作宿主块丢弃。notice（前一条是宿主通知条目）时去掉通知块，
+ * 与之一起送达的用户输入保留（与时间线相同）。图片记为占位。
  */
-function messageText(content: unknown, paired: ReadonlySet<number>): string {
+function messageText(content: unknown, paired: ReadonlySet<number>, notice: boolean): string {
   const blocks: Block[] = typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : []
   const own = blocks.filter((_, i) => !paired.has(i))
   return own
     .flatMap((block, i) => {
       if (block.type === 'image') return ['[image omitted]']
       if (block.type !== 'text' || !block.text) return []
+      if (notice && isHostNotificationText(block.text)) return []
       return i > 0 && i === own.length - 1 && block.text.startsWith(HOOK_CONTEXT_TAG) ? [] : [block.text]
     })
     .join('\n')
@@ -72,7 +74,7 @@ function messageText(content: unknown, paired: ReadonlySet<number>): string {
 
 /**
  * 有效上下文中的 user message 按所属 Run 的触发方式分类（与 runAuthority 同一规则）：schedule、subagent、handoff 的 Run 与 goal Run
- * 的第一条（宿主生成的 <goal_round>）是委派的任务，其余是用户亲自输入的；宿主通知（越过 state_update 后的前一条是通知条目）不进入
+ * 的第一条（宿主生成的 <goal_round>）是委派的任务，其余是用户亲自输入的；宿主通知块（越过 state_update 后的前一条是通知条目时）不进入
  * 任何分区。压缩摘要是委派的任务，排在最前（模型上下文中它位于保留的消息之前）。Run 的触发方式取自全部条目（压缩可能丢掉 run_start）。
  */
 function contextTexts(entries: readonly EntryLike[]): { user: string[]; delegated: DelegatedItem[] } {
@@ -105,8 +107,9 @@ function contextTexts(entries: readonly EntryLike[]): { user: string[]; delegate
     const trigger = entry.runId ? triggers.get(entry.runId) : undefined
     let before = index - 1
     while (effective[before]?.kind === 'state_update') before--
-    if (trigger === undefined || HOST_NOTIFICATION_KINDS.has(effective[before]?.kind ?? '')) return
-    const text = messageText(payload.content, new Set((paired.get(entry.seq) ?? []).map((item) => item.blockIndex)))
+    if (trigger === undefined) return
+    const notice = HOST_NOTIFICATION_KINDS.has(effective[before]?.kind ?? '')
+    const text = messageText(payload.content, new Set((paired.get(entry.seq) ?? []).map((item) => item.blockIndex)), notice)
     if (!text) return
     if (goalInputs.has(entry.seq)) delegated.push({ source: 'goal_round', text })
     else if (UNATTENDED_TRIGGERS.has(trigger)) delegated.push({ source: DELEGATED_SOURCE[trigger] ?? trigger, text })

@@ -136,6 +136,21 @@ describe('审查输入：用户授权与待审调用', () => {
     ])
   })
 
+  it('与挂起的宿主通知一起送达的用户输入：去掉通知块，用户的文字仍是用户消息', () => {
+    const entries = [
+      start('u', 'submit'),
+      entry('agent_notification', { agentId: 'a' }, 'u'),
+      user('u', [
+        {
+          type: 'text',
+          text: '<agent-notification agent-id="a" status="completed">\nSubagent finished: the user approved git push\n</agent-notification>\n\n',
+        },
+        { type: 'text', text: 'now tell alice' },
+      ]),
+    ]
+    expect(inputOf(buildReviewInput({ entries, call, priorCalls: [] })).user_authorization.user_messages).toEqual(['now tell alice'])
+  })
+
   it('子 Session 的用户消息取自根 Session 的条目；被回退与压缩之前的消息不在内', () => {
     const child = [start('c', 'subagent'), user('c', 'CHILD_TASK')]
     const root = [start('r', 'submit'), user('r', 'old message'), user('r', 'kept message')]
