@@ -80,6 +80,45 @@ describe('plan-review', () => {
       />
     )
 
+    it('390px 主区：执行权限放不下时独占一行，三个按钮同一行，"在侧边栏查看"只显示图标并保留名称；720px 时全部在一行', async () => {
+      const rows = async (width: number) => {
+        const screen = await wrap(
+          <div className="@container/main" style={{ width }}>
+            <PlanReviewPanel
+              sessionId="s-1"
+              request={{ ...request, requestId: `layout-${width}` }}
+              entries={planEntries()}
+              answer={async () => true}
+              onOpenPanel={() => {}}
+              permissionMode="accept-edits"
+              onPermissionModeChange={() => {}}
+            />
+          </div>,
+        )
+        const open = screen.getByRole('button', { name: 'View in sidebar' })
+        await expect.element(open).toBeVisible()
+        const top = (el: Element) => Math.round(el.getBoundingClientRect().top)
+        const buttons = [open, screen.getByRole('button', { name: 'Keep planning' }), screen.getByRole('button', { name: 'Approve and run' })].map((b) =>
+          top(b.element()),
+        )
+        const result = {
+          group: top(screen.getByRole('group', { name: 'Runs with' }).element()),
+          buttons,
+          labelShown: [...open.element().querySelectorAll('span')].some((el) => el.textContent === 'View in sidebar' && el.checkVisibility()),
+        }
+        await screen.unmount()
+        return result
+      }
+      const narrow = await rows(390)
+      expect(new Set(narrow.buttons).size).toBe(1)
+      expect(narrow.group).toBeLessThan(narrow.buttons[0]!)
+      expect(narrow.labelShown).toBe(false)
+      const wide = await rows(720)
+      expect(new Set(wide.buttons).size).toBe(1)
+      expect(Math.abs(wide.group - wide.buttons[0]!)).toBeLessThan(8)
+      expect(wide.labelShown).toBe(true)
+    })
+
     it('主按钮只有"批准并执行"：不带 mode，不标出恢复的模式，没有更多批准方式；新计划自动打开右栏一次', async () => {
       const answers: AnswerApprovalRequest[] = []
       const opened: string[] = []
@@ -176,7 +215,7 @@ describe('plan-approve-edited', () => {
       />
     )
 
-    // 票 04（ADR 0028）起批准不改变模式：原先“进入前为 full-access 时给出批准并允许编辑（mode accept-edits）”的用例改为断言任何模式下都没有该入口。
+    // ADR 0028 起批准不改变模式：原先“进入前为 full-access 时给出批准并允许编辑（mode accept-edits）”的用例改为断言任何模式下都没有该入口。
     it.each(['read-only', 'default', 'accept-edits', 'full-access'])(
       '%s 下：右栏中的编辑随批准提交（editedPlan），不带 mode；没有"批准并允许编辑"',
       async (mode) => {
@@ -371,7 +410,7 @@ describe('plan-chip', () => {
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
-    // 票 06：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
+    // ADR 0028：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
     it('回退后按有效条目派生：回退到批准之前 chip 重新出现、被回退的已批准修订不再显示；回退到进入规划之前 chip 消失、没有计划', async () => {
       seq = 0
       const user = (text: string) => entry('message', { role: 'user', content: [{ type: 'text', text }], timestamp: 0 }, null)

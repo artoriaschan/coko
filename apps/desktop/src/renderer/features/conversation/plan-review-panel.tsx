@@ -8,7 +8,7 @@ import {
   type SessionEntry,
   type StandardPermissionMode,
 } from '@coko/protocol'
-import { Button, cn, Textarea } from '@coko/ui'
+import { Button, cn, Textarea, Tooltip, TooltipContent, TooltipTrigger } from '@coko/ui'
 import { IconLayoutSidebarRightExpand } from '@tabler/icons-react'
 import * as React from 'react'
 import { useStore } from 'zustand'
@@ -210,29 +210,45 @@ export function PlanReviewPanel({
             <ModePicker value={permissionMode} disabled={answered} onChange={onPermissionModeChange} />
           </div>
         )}
-        {onOpenPanel && (
-          <Button type="button" variant="ghost" size="sm" data-action="open-plan" onClick={onOpenPanel}>
-            <IconLayoutSidebarRightExpand aria-hidden />
-            {t('plan.review.openPanel')}
-          </Button>
-        )}
-        {feedbackOpen ? (
-          <>
-            <Button type="button" variant="ghost" size="sm" disabled={answered} onClick={() => setFeedbackOpen(false)}>
-              {t('plan.review.cancel')}
+        {/* 按钮成组换行：主区放不下时执行权限独占一行，"批准并执行"不与同组按钮分开。 */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {onOpenPanel && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" data-action="open-plan" aria-label={t('plan.review.openPanel')} onClick={onOpenPanel}>
+                  <IconLayoutSidebarRightExpand aria-hidden />
+                  {/* 窄主区中只显示图标（名称在 aria-label 与 Tooltip 中），三个按钮留在同一行。 */}
+                  <span className="@max-[560px]/main:hidden">{t('plan.review.openPanel')}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{t('plan.review.openPanel')}</TooltipContent>
+            </Tooltip>
+          )}
+          {feedbackOpen ? (
+            <>
+              <Button type="button" variant="ghost" size="sm" disabled={answered} onClick={() => setFeedbackOpen(false)}>
+                {t('plan.review.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-action="send-feedback"
+                disabled={answered || feedback.trim() === ''}
+                onClick={keepPlanning}
+              >
+                {t('plan.review.sendFeedback')}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="outline" size="sm" data-action="keep-planning" disabled={answered} onClick={() => setFeedbackOpen(true)}>
+              {t('plan.review.continue')}
             </Button>
-            <Button type="button" variant="outline" size="sm" data-action="send-feedback" disabled={answered || feedback.trim() === ''} onClick={keepPlanning}>
-              {t('plan.review.sendFeedback')}
-            </Button>
-          </>
-        ) : (
-          <Button type="button" variant="outline" size="sm" data-action="keep-planning" disabled={answered} onClick={() => setFeedbackOpen(true)}>
-            {t('plan.review.continue')}
+          )}
+          <Button type="button" size="sm" data-action="approve" disabled={answered || invalid} onClick={approve}>
+            {t('plan.review.approve')}
           </Button>
-        )}
-        <Button type="button" size="sm" data-action="approve" disabled={answered || invalid} onClick={approve}>
-          {t('plan.review.approve')}
-        </Button>
+        </div>
       </div>
       {invalid && (
         <p role="alert" className="px-4 pb-3 text-ui-small text-destructive">
