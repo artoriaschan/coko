@@ -1,0 +1,32 @@
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_d1bae073c5daaa 9,76,91
+  s_e66561215efab5::t_46de4bdb8db8f2 89
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_d1bae073c5daaa 299
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_1320d4e702c3ec 563-596
+.scratch/plan-lifecycle/design.md
+  s_e66561215efab5::t_d4021782490482 329
+apps/desktop/src/renderer/features/conversation/plan-card.tsx
+  s_e66561215efab5::t_b5cd4a57d48b84 6,17,61-66
+apps/desktop/src/renderer/features/conversation/plan-review-panel.tsx
+  s_e66561215efab5::t_b5cd4a57d48b84 93-106
+apps/desktop/src/renderer/features/right-panel/plan-tab.tsx
+  s_e66561215efab5::t_b5cd4a57d48b84 8,115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ecfcbde8a923ca3c27418874aa3073e131df60e5",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
