@@ -1,0 +1,21 @@
+packages/agent/src/policy/gate.ts
+  s_e66561215efab5::t_3ba7e2498c5c4f 108
+packages/agent/src/policy/escalation.test.ts
+  s_e66561215efab5::t_64bb3d3107a9ac 303-319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "eb4b9e3e2dc6726aaf8d8d623c3c52df7755ac29",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
