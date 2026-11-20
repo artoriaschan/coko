@@ -300,6 +300,24 @@ describe('规划中（计划阶段，ADR 0028）', () => {
     await h.runtime.run('go')
     expect(exec.requests.map((r) => r.sandbox?.mode)).toEqual(['workspace-write', 'read-only'])
   })
+
+  it('同一批中已放行的写入：执行前已进入规划时按规划拒绝，文件不存在', async () => {
+    let enter = () => {}
+    const exec = recordingExec(() => (enter(), { kind: 'exited', exitCode: 0 }))
+    const h = harness({ mode: 'full-access', exec: exec.port })
+    // 整批先判定再执行：write 判定时尚未规划，命令执行时进入规划，write 执行前复核。
+    enter = () => void (h.state.planning = true)
+    h.faux.setResponses([
+      fauxAssistantMessage([bash('b0', {}), fauxToolCall('write', { path: 'late.txt', content: 'x' }, { id: 'w1' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done'),
+    ])
+    expect((await h.runtime.run('go')).status).toBe('completed')
+    const write = toolResults(h.entries).find((r) => r.toolCallId === 'w1')!
+    expect(write.isError).toBe(true)
+    expect(text(write)).toBe(PLANNING_WRITE_REFUSED)
+    expect(h.entries.some((e) => e.kind === 'approval_request')).toBe(false)
+    await expect(realpath(ws.path('late.txt'))).rejects.toThrow(/ENOENT/)
+  })
 })
 
 describe('Secrets 注入', () => {

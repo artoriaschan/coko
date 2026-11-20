@@ -140,7 +140,7 @@ SBPL 中后出现的规则优先：workspace-write 在可写根之后，对绝�
 
 **提权请求。** `approval_request { kind: 'escalation', subject: 命令, targetMode, justification, suggestions: [] }`。拒绝规则仍然先生效；允许规则与模式放行不能免掉提权审批。只能允许一次（scope 非 once 时 400）或拒绝；不随模式或规则变更重新判定。允许后该调用以目标档位（执行时模式档位更宽则取后者）运行，只对这一次调用有效，Run 结束时未用掉的授权作废。无反馈拒绝：调用得到 `The user rejected escalating this command to "<mode>"; it stays denied, so stop and explain instead of working around it.`，与普通无反馈拒绝一样 Run 在本批结束后以 aborted 结束；带反馈的拒绝把反馈交给模型，Run 继续。
 
-**执行前复核。** pi 先逐个准备整批调用再执行，判定与执行之间同批前面的调用（例如 bash 新建符号链接）可能改变写入目标。write / edit 取得执行槽之后、提交 `tool_exec` 之前，按执行时的真实路径复核：与判定时相同则照常执行；不同则按当时的模式与规则重新判定，deny 时以规则拒绝、ask 时再提出一次审批（允许、拒绝与暂停的语义同上），被拒绝的调用不执行、不提交 `tool_exec`。复核期间暂停时该调用为"暂停前未批准"。
+**执行前复核。** pi 先逐个准备整批调用再执行，判定与执行之间同批前面的调用（例如 bash 新建符号链接）可能改变写入目标。write / edit 取得执行槽之后、提交 `tool_exec` 之前，按执行时的真实路径复核：与判定时相同且判定之后没有进入规划则照常执行；目标不同或已进入规划（ADR 0028）则按当时的模式与规则重新判定（规划中的写入因此拒绝），deny 时以规则拒绝、ask 时再提出一次审批（允许、拒绝与暂停的语义同上），被拒绝的调用不执行、不提交 `tool_exec`。复核期间暂停时该调用为"暂停前未批准"。
 
 **write / edit 的提权。** 它们在 Sidecar 进程内执行，没有 Seatbelt；越出可写根的写入按判定第 4 步询问（kind=tool，没有建议规则，只能允许一次），这次批准即这次提权。
 

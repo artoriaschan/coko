@@ -105,7 +105,7 @@ export interface PermissionGate {
   /** beforeToolCall：判定、提权与审批。 */
   beforeToolCall(context: BeforeToolCallContext, signal?: AbortSignal): Promise<ToolBlockResult | undefined>
   /**
-   * 执行前复核（取得执行槽之后、执行记录之前）：文件写入的真实目标与判定时不同时按当前模式与规则重新判定，deny 与用户拒绝时
+   * 执行前复核（取得执行槽之后、执行记录之前）：文件写入的真实目标与判定时不同、或判定之后进入了规划时按当前模式与规则重新判定，deny 与用户拒绝时
    * 以 Error 拒绝（调用不执行），ask 时再次审批。其余调用直接返回。
    */
   recheck(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void>
@@ -451,7 +451,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       if (before === undefined) return
       const subject = subjectOf(toolName, args)
       const { decision, target } = await evaluate(toolName, subject)
-      if (target?.real === before) return
+      // 判定之后进入规划（ADR 0028）时即使目标不变也重新判定：已放行的写入在执行前按规划拒绝。
+      if (target?.real === before && !planning()) return
       if (decision.behavior === 'deny') throw new ToolCallBlockedError(deniedText(decision))
       if (decision.behavior === 'allow') return
       const reason = await askTool(toolCallId, toolName, subject, decision, signal, () => undefined)
