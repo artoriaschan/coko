@@ -1,0 +1,54 @@
+docs/README.md
+  s_e66561215efab5::t_ad0e41a047522d 47
+packages/agent/src/agents/fork.test.ts
+  s_e66561215efab5::t_99ecf2ae792aa9 207-218
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_dc756a81ec7664 243-246,253-254,260-263
+  s_e66561215efab5::t_0a4323f1d4029e 255-259
+apps/desktop/src/renderer/features/conversation/plan-chip.tsx
+  s_e66561215efab5::t_9b666b5b005b65 9,24
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_9b666b5b005b65 11,54
+docs/subsystems/commands.md
+  s_e66561215efab5::t_da60166469db82 18,30,77
+tests/integration/sidecar-handoff.test.ts
+  s_e66561215efab5::t_99ecf2ae792aa9 10,162-176
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_3eceb8ec192cc4 415,437,439-441,453,463,466-467,470-504
+  s_e66561215efab5::t_106fa4ab90ad8b 438
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_c361e4584162af 90
+  s_e66561215efab5::t_52d49b5b73f5cd 3,9,15,32,63,73,75-76,91
+  s_e66561215efab5::t_da60166469db82 28,33
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_4309f937484809 3
+  s_e66561215efab5::t_ee57a2b5aed7cb 833-892,899-931
+  s_e66561215efab5::t_1044ce5f800972 2
+  s_e66561215efab5::t_0a4323f1d4029e 893-898
+  s_e66561215efab5::t_942da6c0eef539 253,314,529,577,581
+docs/adr/0028-plan-phase-not-permission-mode.md
+  s_e66561215efab5::t_ad0e41a047522d 70
+  s_e66561215efab5::t_4387781cd90b8e 72
+docs/subsystems/workbench.md
+  s_e66561215efab5::t_6c0f274e1cd92c 197
+docs/subsystems/handoff.md
+  s_e66561215efab5::t_4387781cd90b8e 48
+.scratch/plan-lifecycle/issues/11-abandon-and-replan.md
+  s_e66561215efab5::t_7b18d9b5510c5c 11-12,14-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "ac5204021e6ff9f51a21f550200b4abd919684d6",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
