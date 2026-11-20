@@ -34,11 +34,12 @@
 - 偏离设计稿：宿主块不再按文本开头识别。Hook 上下文只认“输入之后的最后一块”（`withSubmitContext` 与子代理首条消息的位置），
   通知只认前一条（越过 `state_update`）为通知条目的整条消息；用户输入里伪造的 `<hook-context>`、`<job-notification>` 标签照常作为
   用户消息（对手用例要求“不被丢弃或升格”）。
-- “内容过长”：本票让 `SessionReviews` 返回 `failed('too-long')`、不发请求；待审批请求上的 `review.code` 与文案由票 04 写入，
-  合入 04 后可在 too-long 集成用例里补断言 `asked.review`。
-- 运行的命令与结果：
-  - `pnpm exec vitest run packages/agent/src/policy/`：12 个文件，2 个失败（approvals、gate-hooks，已知基线失败；把 review.ts 换回
-    基线版本复跑仍是这 2 个），其余通过；`review.test.ts` 28 通过。
+- “内容过长”：本票让 `SessionReviews` 返回 `failed('too-long')`、不发请求；合入票 04 后待审批请求带
+  `review: { outcome: 'failed', code: 'too-long' }`，集成用例已断言。
+- 运行的命令与结果（合入集成分支最新提交、含票 04 与 06 之后）：
+  - `pnpm exec vitest run packages/agent/src/policy/`：12 个文件中 10 个通过，2 个用例失败（approvals、gate-hooks 各 1，已知基线失败；
+    把 review.ts 换回基线版本复跑仍是这 2 个）；`review.test.ts` 28 通过。
   - `pnpm exec vitest run tests/integration/sidecar-auto-review.test.ts tests/integration/secrets-gate-auto-review.test.ts`：
-    2 个文件全部通过（darwin 上 Seatbelt 用例运行）。
-  - `pnpm typecheck`、`pnpm lint`：通过。
+    2 个文件 20 个用例全部通过，0 跳过（darwin，Seatbelt 用例运行）。
+  - `pnpm typecheck`、`pnpm lint`：通过。`pnpm format:check` 只报 6 个与本票无关的既有文件（css、docs/ui 的 html）。
+- 未验证：真实模型下审查是否会被注入说服（设计稿已列为不做自动化评估）。
