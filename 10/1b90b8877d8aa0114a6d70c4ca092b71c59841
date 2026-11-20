@@ -1,0 +1,41 @@
+packages/agent/src/planning/state.ts
+  s_e66561215efab5::t_d77275b408bbcf 5,30
+packages/agent/src/policy/escalation.test.ts
+  s_e66561215efab5::t_ab22ce1c72e543 226
+docs/subsystems/permissions.md
+  s_e66561215efab5::t_ab22ce1c72e543 116
+packages/agent/src/tools/builtin/bash.ts
+  s_e66561215efab5::t_7fc20c2d894b5b 228
+apps/server/src/application/sessions.ts
+  s_e66561215efab5::t_d77275b408bbcf 485-489
+packages/agent/src/policy/index.ts
+  s_e66561215efab5::t_ec01b950881911 26
+packages/agent/src/ports/exec.ts
+  s_e66561215efab5::t_7fc20c2d894b5b 47-48
+.scratch/plan-lifecycle/design.md
+  s_e66561215efab5::t_552278635ccc94 169
+apps/server/src/application/subagents.ts
+  s_e66561215efab5::t_ec01b950881911 35,336-337
+apps/server/src/runtime/layers.ts
+  s_e66561215efab5::t_d77275b408bbcf 666
+packages/agent/src/policy/gate.ts
+  s_e66561215efab5::t_ab22ce1c72e543 57-62,382-383
+packages/agent/src/engine/permission-wiring.ts
+  s_e66561215efab5::t_7fc20c2d894b5b 132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "101b90b8877d8aa0114a6d70c4ca092b71c59841",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
