@@ -1,6 +1,7 @@
 // 子代理的有效权限（ADR 0014）与审批（对手用例）：子级审批在子 Session 等待并经其 approvals 回答；"本会话总是允许"写入根 Session；PermissionRequest
 // Hook 可代答；定义 full-access 不放宽根的 default；根中途切到 read-only 后子级下一次写入被询问、bash 在 read-only 沙箱中；子级没有 agent / create_goal /
-// schedule_create / job_output（requestLog 中的工具表）且 bash run_in_background 为参数错误；Agent(general) 拒绝规则在 full-access 下生效。
+// schedule_create / job_output（requestLog 中的工具表）且 bash run_in_background 为参数错误；Agent(general) 拒绝规则在 full-access 下生效；根在规划中时子级的
+// 工具表没有 exit_plan_mode 与 complete_plan。
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -151,6 +152,12 @@ describe('子代理：审批与有效权限', { timeout: 120_000 }, () => {
     expect(existsSync(join(env.wsPath, 'child-cmd.txt'))).toBe(false)
     const logged = byUser(await env.requests(), 'CHILD-P probe') as Logged[]
     expect(logged.length).toBeGreaterThan(0)
+    // 根 Session 在规划中注册 exit_plan_mode 与 complete_plan；子 Session 的工具表没有这两个（不能提交计划或完成报告）。
+    const advertised = (requests: Logged[]) => requests.flatMap((r) => r.flatMap((m) => m.toolsAdded ?? []).map((t) => t.name))
+    expect(advertised(byUser(await env.requests(), 'PARENT-P go') as Logged[])).toEqual(expect.arrayContaining(['exit_plan_mode', 'complete_plan']))
+    expect(advertised(logged)).not.toEqual(expect.arrayContaining(['exit_plan_mode']))
+    expect(advertised(logged)).not.toEqual(expect.arrayContaining(['complete_plan']))
+    expect(advertised(logged)).toContain('read')
     for (const request of logged)
       expect(request.find((m) => m.role === 'system')?.sections?.plan_mode).toBe(
         [

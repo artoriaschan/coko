@@ -1,7 +1,9 @@
 // Plan Mode：真实 Electron + 真实 Sidecar（faux）。/plan 进入、Plan chip 出现且关闭后退出规划（Permission Mode 始终不变，ADR 0028）；提交计划后审阅
 // 接管输入区、右栏自动打开一次；"继续规划"带反馈后模型提交新修订；在右栏编辑后"批准并执行"，模式不变且时间线有计划卡。
 // 完全访问权限下规划：模式菜单仍勾选该模式；chip × 退出与审阅卡上切换权限后批准，都从协议读回计划阶段与模式。
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+// 执行与结束：批准后 chip 为执行中，模型拆待办并提交完成报告后计划卡与 Plan tab 为已完成且显示报告、chip 消失；执行中点 chip × 放弃，
+// 计划卡与 Plan tab 为已放弃，协议读回没有活动的 Plan，已写入的文件仍在。
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
@@ -12,7 +14,8 @@ afterEach(async () => {
   for (const app of apps.splice(0)) await app.dispose()
 })
 
-const exit = (id: string, plan: string) => ({ content: [{ type: 'toolCall', name: 'exit_plan_mode', id, arguments: { plan } }] })
+const call = (name: string, id: string, args: Record<string, unknown>) => ({ content: [{ type: 'toolCall', name, id, arguments: args }] })
+const exit = (id: string, plan: string) => call('exit_plan_mode', id, { plan })
 
 async function setup(script: unknown) {
   const root = await mkdtemp(join(tmpdir(), 'coko-plan-'))
@@ -49,6 +52,26 @@ const modeButton = (app: LaunchedApp) => app.window.locator('[data-permission-mo
 const chip = (app: LaunchedApp) => app.window.locator('[data-slot="plan-chip"]')
 const review = (app: LaunchedApp) => app.window.locator('[data-slot="plan-review"]')
 const planTab = (app: LaunchedApp) => app.window.locator('[data-slot="plan-tab"]')
+const lastReply = (app: LaunchedApp) => app.window.locator('[data-slot="assistant-message-body"]').last().textContent()
+/** 协议读回：计划阶段与活动 Plan 的状态。 */
+const readPlan = (app: LaunchedApp, sessionId: string) =>
+  app.window.evaluate(async (id) => {
+    const plan = (await (await fetch(`/api/sessions/${id}/plan`)).json()) as { phase: string; plan: { status: string } | null }
+    return { phase: plan.phase, plan: plan.plan?.status ?? null }
+  }, sessionId)
+/** 进入规划、发出任务、等到审阅卡后批准并执行，等批准所在的 Run 结束（最后一条回复为 reply）。 */
+async function planAndApprove(app: LaunchedApp, reply: string) {
+  await choosePlan(app)
+  await composer(app).click()
+  await composer(app).fill('plan the work')
+  await composer(app).press('Enter')
+  await review(app).waitFor({ timeout: 30_000 })
+  await review(app)
+    .getByRole('button', { name: /(Approve and run|批准并执行)/ })
+    .click()
+  await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe(reply)
+  await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+}
 /**
  * /plan 进入。输入前等上一次的菜单完全关闭：Radix 在退出动画结束前保留 [role=menu]，body 的 pointer-events 仍为 none，
  * 这时的点击会被吞掉（与 goal.e2e 等命令菜单 detached 相同）。
@@ -207,4 +230,66 @@ describe('Plan Mode', () => {
       await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('executing')
     },
   )
+
+  it('批准后执行中 → 下一个 Run 拆待办并提交完成报告：chip 消失，计划卡与 Plan tab 为已完成且显示报告，读回没有活动的 Plan', { timeout: 120_000 }, async () => {
+    const report = '## 1. Read the code\nDone.\n\n## 2. Run the checks\nNot done: no checks are configured.'
+    const { app, sessionId } = await setup({
+      responses: [
+        exit('e1', '# Plan D\n\n- read the code\n- run the checks'),
+        { content: 'Starting on the plan.' },
+        call('todo_write', 't1', {
+          items: [
+            { content: 'Read the code', status: 'completed', result: 'read' },
+            { content: 'Run the checks', status: 'pending' },
+          ],
+        }),
+        call('complete_plan', 'c1', { report }),
+        { content: 'Plan complete.' },
+      ],
+    })
+    await planAndApprove(app, 'Starting on the plan.')
+    expect(await readPlan(app, sessionId)).toEqual({ phase: 'executing', plan: 'approved' })
+    expect(await chip(app).textContent()).toMatch(/Executing|执行中/)
+    await app.window.locator('[data-slot="plan-card"][data-status="executing"]').waitFor()
+
+    await composer(app).click()
+    await composer(app).fill('go on')
+    await composer(app).press('Enter')
+    await expect.poll(() => lastReply(app), { timeout: 30_000 }).toBe('Plan complete.')
+    await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
+    // 模型写入的 Todo List 显示在待办卡上（一项完成、一项未做）。
+    await expect.poll(() => app.window.locator('[data-slot="todo-card"] [data-todo-count]').textContent()).toMatch(/1\/2/)
+    expect(await readPlan(app, sessionId)).toEqual({ phase: 'none', plan: null })
+    await expect.poll(() => chip(app).count()).toBe(0)
+    await app.window.locator('[data-slot="plan-card"][data-status="completed"]').waitFor()
+    await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('completed')
+    expect(await planTab(app).locator('[data-slot="plan-report"]').textContent()).toContain('Not done: no checks are configured.')
+  })
+
+  it('执行中点 Plan chip 的 × 放弃：计划卡与 Plan tab 为已放弃，读回没有活动的 Plan，已写入的文件仍在', { timeout: 120_000 }, async () => {
+    const { app, workspace, sessionId } = await setup({
+      responses: [
+        exit('e1', '# Plan E\n\n- write the draft\n- polish it'),
+        call('write', 'w1', { path: 'draft.md', content: 'first draft' }),
+        { content: 'Draft written.' },
+      ],
+    })
+    // 自动接受编辑：执行中的写入不询问。
+    await modeButton(app).click()
+    await app.window.locator('[role="menuitemradio"][data-mode="accept-edits"]').click()
+    await expect.poll(() => modeButton(app).getAttribute('data-permission-mode')).toBe('accept-edits')
+    await planAndApprove(app, 'Draft written.')
+    expect(await readFile(join(workspace, 'draft.md'), 'utf8')).toBe('first draft')
+    expect(await readPlan(app, sessionId)).toEqual({ phase: 'executing', plan: 'approved' })
+
+    // chip 的 × 在执行中的可访问名称为“放弃计划”，点击即放弃、不弹确认。
+    expect(await chip(app).getAttribute('aria-label')).toMatch(/^(Abandon plan|放弃计划)$/)
+    await chip(app).click()
+    await expect.poll(() => chip(app).count()).toBe(0)
+    expect(await readPlan(app, sessionId)).toEqual({ phase: 'none', plan: null })
+    await app.window.locator('[data-slot="plan-card"][data-status="abandoned"]').waitFor()
+    await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('abandoned')
+    expect(await readFile(join(workspace, 'draft.md'), 'utf8')).toBe('first draft')
+    expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('accept-edits')
+  })
 })

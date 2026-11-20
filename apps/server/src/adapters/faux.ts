@@ -28,6 +28,8 @@ import type { SessionModel } from '@coko/protocol'
 export interface FauxScript {
   input?: ('text' | 'image')[]
   tokensPerSecond?: number
+  /** 流式输出每块的 token 数（pi-ai faux 的 tokenSize，缺省为几个 token）；超长参数的用例用大块，避免逐块流式过慢。 */
+  tokenSize?: { min: number; max: number }
   /** faux 模型的上下文窗口与最大输出（缺省 128 000 / 16 384）；上下文用量与压缩测试用小窗口。 */
   contextWindow?: number
   maxTokens?: number
@@ -233,6 +235,7 @@ export async function installFauxProvider(registry: ModelRegistry, path: string,
       },
     ],
     ...(script.tokensPerSecond ? { tokensPerSecond: script.tokensPerSecond } : {}),
+    ...(script.tokenSize ? { tokenSize: script.tokenSize } : {}),
   })
   const log = script.requestLog
   const scripted = script.responses

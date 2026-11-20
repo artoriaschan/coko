@@ -309,6 +309,17 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     // 有执行中的 Plan、没有 Goal：Run 结束后宿主不发起新的 Run。
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     expect(h.entries().filter((e) => e.kind === 'run_start')).toHaveLength(3)
+    // 从执行中的 Session 分叉（边界在最后一条用户消息）：新 Session 没有计划阶段与活动的 Plan，源仍在执行中。
+    const forkTarget = h
+      .entries()
+      .filter((e) => kindOf(e) === 'user')
+      .at(-1)!.seq
+    const forked = await h.api.post(checkpointPaths.sessionFork(h.sessionId), { targetSeq: forkTarget })
+    expect(forked.status).toBe(201)
+    const forkDetail = (await h.api.get(apiPaths.session(forked.body.sessionId as string))).body.entries as SessionEntryRecord[]
+    expect(forkDetail.filter((e) => e.kind === 'plan' || e.kind === 'plan_phase')).toEqual([])
+    expect((await h.api.get(planPaths.sessionPlan(forked.body.sessionId as string))).body).toEqual({ phase: 'none', plan: null })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({ phase: 'executing' })
 
     expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
     expect(h.plans().at(-1)).toMatchObject({ planId, status: 'abandoned' })
@@ -375,6 +386,46 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect((await h.tools()).at(-1)).not.toContain('exit_plan_mode')
     expect(h.sections(logged.at(-1)!).map((s) => s.name)).not.toEqual(expect.arrayContaining(['plan_mode']))
     expect(planBlock(logged.at(-1)!)).toBeUndefined()
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('complete_plan 在四种 Permission Mode 下都不询问（只有计划审阅）；超长报告为错误结果且不提交', async () => {
+    const MODES = ['read-only', 'default', 'accept-edits', 'full-access'] as const
+    const h = await boot(
+      MODES.flatMap((mode, i) => [
+        exit(`e${i}`, PLAN),
+        ...(i === 0 ? [call('complete_plan', 'long', { report: 'x'.repeat(64_001) })] : []),
+        call('complete_plan', `c${i}`, { report: REPORT }),
+        { content: `done under ${mode}` },
+      ]),
+      // 64 001 字符的参数按缺省的小块流式输出过慢（超过用例超时），用大块。
+      { tokenSize: { min: 4096, max: 4096 } },
+    )
+    for (const [i, mode] of MODES.entries()) {
+      expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode })).status).toBe(200)
+      expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+      const review = await waitApproval(h.stream, h.sessionId, i + 1)
+      expect(review.kind).toBe('plan')
+      expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+      await h.runEnds(i + 1)
+      expect([(await h.resultOf(`c${i}`)).isError, text(await h.resultOf(`c${i}`))]).toEqual([false, COMPLETED])
+      expect(h.plans().at(-1)).toEqual({ planId: review.planId, revision: 1, markdown: PLAN, status: 'completed', report: REPORT })
+      expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+      expect(((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body as { mode: string }).mode).toBe(mode)
+    }
+    expect([(await h.resultOf('long')).isError, text(await h.resultOf('long'))]).toEqual([
+      true,
+      'Invalid report: the report is longer than 64000 characters. Call complete_plan again with the complete report.',
+    ])
+    // 每轮只有计划审阅一条审批；超长报告没有提交条目（每轮的计划条目为 proposed、approved、completed）。
+    expect(
+      h
+        .entries()
+        .filter((e) => e.kind === 'approval_request')
+        .map((e) => (e.payload as { kind: string }).kind),
+    ).toEqual(['plan', 'plan', 'plan', 'plan'])
+    expect(h.plans().map((p) => p.status)).toEqual(MODES.flatMap(() => ['proposed', 'approved', 'completed']))
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -911,8 +962,13 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('Run 进行中经计划接口放弃：等待中的写入审批不受影响，之后写入照常；Run 结束后读回无且没有活动的 Plan', async () => {
-    const h = await boot([exit('e1', PLAN), call('write', 'w1', { path: 'notes.md', content: 'x' }), { content: 'done' }])
+  it('Run 进行中经计划接口放弃：等待中的写入审批不受影响，之后写入照常；本 Run 再调用 complete_plan 为“没有执行中的 Plan”且不提交；Run 结束后读回无且没有活动的 Plan', async () => {
+    const h = await boot([
+      exit('e1', PLAN),
+      call('write', 'w1', { path: 'notes.md', content: 'x' }),
+      call('complete_plan', 'c1', { report: REPORT }),
+      { content: 'done' },
+    ])
     expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
     expect((await h.answer((await waitApproval(h.stream, h.sessionId, 1)).requestId, { decision: 'allow' })).status).toBe(204)
     const write = await waitApproval(h.stream, h.sessionId, 2)
@@ -923,7 +979,15 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.entries().filter((e) => e.kind === 'approval_decision')).toHaveLength(1)
     expect((await h.answer(write.requestId, { decision: 'allow' })).status).toBe(204)
     expect((await h.resultOf('w1')).isError).toBe(false)
+    expect([(await h.resultOf('c1')).isError, text(await h.resultOf('c1'))]).toEqual([true, NO_PLAN])
     await h.runEnds(1)
+    expect(h.plans().map((p) => p.status)).toEqual(['proposed', 'approved', 'abandoned'])
+    expect(
+      h
+        .entries()
+        .filter((e) => e.kind === 'plan_phase')
+        .map((e) => e.payload),
+    ).toEqual([{ phase: 'planning' }, { phase: 'executing', planId: approved.planId }, { phase: 'none' }])
     expect(await readFile(join(h.root, 'notes.md'), 'utf8')).toBe('x')
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
