@@ -206,6 +206,9 @@ export const permissionPaths = {
   sessionPermissionRules: (id: string) => `/api/sessions/${encodeURIComponent(id)}/permission-rules`,
 } as const
 
+/** 五档的显示顺序（由窄到宽，与 agent 的 PERMISSION_MODE_ORDER 相同）。 */
+export const PERMISSION_MODES = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access'] as const satisfies readonly PermissionMode[]
+
 /** Shift+Tab 循环的四档；full-access 只能显式选择。 */
 export const CYCLED_PERMISSION_MODES = ['read-only', 'default', 'accept-edits', 'auto-review'] as const satisfies readonly PermissionMode[]
 

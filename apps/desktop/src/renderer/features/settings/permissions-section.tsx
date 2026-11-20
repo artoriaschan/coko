@@ -1,4 +1,4 @@
-import { formatPermissionRule, parsePermissionRule, type PermissionRule, type StandardPermissionMode } from '@coko/protocol'
+import { formatPermissionRule, parsePermissionRule, PERMISSION_MODES, type PermissionRule, type StandardPermissionMode } from '@coko/protocol'
 import {
   Button,
   cn,
@@ -20,7 +20,7 @@ import { IconButton } from '../../app/icon-button.tsx'
 import { useSettings, useSettingsActions } from '../../app/settings.tsx'
 import { sessionRules } from '../../stores/chat-store.ts'
 import type { PermissionsChange, SaveSettingResult } from '../../stores/settings-store.ts'
-import { MODE_ICONS, PERMISSION_MODES } from '../conversation/mode-picker.tsx'
+import { MODE_ICONS } from '../conversation/mode-picker.tsx'
 import { SettingsCard, SettingsRow } from './settings-page.tsx'
 
 const BEHAVIORS: PermissionRule['behavior'][] = ['allow', 'ask', 'deny']

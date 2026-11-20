@@ -1,4 +1,4 @@
-import { CYCLED_PERMISSION_MODES, type PermissionMode, type StandardPermissionMode } from '@coko/protocol'
+import { CYCLED_PERMISSION_MODES, PERMISSION_MODES, type PermissionMode, type StandardPermissionMode } from '@coko/protocol'
 import {
   Button,
   cn,
@@ -16,9 +16,8 @@ import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
 import { PermissionRiskDialog } from './permission-risk-dialog.tsx'
 
-/** 设置中的默认模式为全部五档；输入区快捷菜单不含 read-only（MENU_MODES）。 */
-export const PERMISSION_MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access']
-const MENU_MODES = ['default', 'accept-edits', 'auto-review', 'full-access'] as const
+/** 设置中的默认模式为全部五档（PERMISSION_MODES）；输入区快捷菜单不含 read-only。 */
+const MENU_MODES = PERMISSION_MODES.filter((mode) => mode !== 'read-only')
 
 export const MODE_ICONS: Record<PermissionMode, React.ComponentType<{ className?: string }>> = {
   'read-only': IconEye,

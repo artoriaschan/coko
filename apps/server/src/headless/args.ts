@@ -1,6 +1,6 @@
 // 无界面运行的命令行参数。参数错误为 UsageError（进程以 4 退出）；路径按当前目录解析为绝对路径。
 import { resolve } from 'node:path'
-import type { StandardPermissionMode } from '@coko/agent'
+import { PERMISSION_MODE_ORDER as MODES, type StandardPermissionMode } from '@coko/agent'
 import type { OnApproval } from './approvals.ts'
 
 export class UsageError extends Error {
@@ -28,8 +28,6 @@ export interface HeadlessArgs {
   /** 覆盖 ripgrep 的位置（缺省：打包产物中随包的 rg，源码运行时为内置 grep）。 */
   ripgrep?: string
 }
-
-const MODES: readonly StandardPermissionMode[] = ['read-only', 'default', 'accept-edits', 'auto-review', 'full-access']
 
 export const USAGE = `Usage: headless.mjs --data-dir <dir> (--workspace <dir> | --session <id>) (--prompt <text> | --prompt-file <file>)
   [--session <id>] [--provider-config <file>] [--model <providerId/modelId>] [--permission-mode ${MODES.join('|')}]

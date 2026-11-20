@@ -163,6 +163,11 @@ export class ToolCallBlockedError extends Error {
 const commandKey = (command: string) => command.replace(/\s+/g, ' ').trim()
 
 /** Hook 拦下的调用：模型看到原因，toolResult 带 details.hostBlock { by: hook }（工具卡的"被 Hook 阻止"标注）。 */
+type DefaultAsk = Extract<CombinedDecision, { behavior: 'ask'; by: 'policy' }>
+/** 第 7 步（default）的询问：PermissionRequest 与 Reviewer 只回答这一类；审查结论生效前复核时它也必须仍然成立。 */
+const isDefaultAsk = (combined: CombinedDecision): combined is DefaultAsk =>
+  combined.behavior === 'ask' && combined.by === 'policy' && combined.step === 'default'
+
 const hookBlock = (reason: string, verdict: HookVerdict): ToolBlockResult => ({
   block: true,
   reason,
@@ -403,6 +408,74 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
     }
   }
 
+  /**
+   * 送审（ADR 0029）：调用 Reviewer，结论生效前按当时的模式与规则复核；放行时记 by reviewer 的单次允许，转交或失败时带审查信息询问用户。
+   */
+  const reviewThenAsk = async (
+    reviewer: ReviewerPort,
+    request: ReviewRequest,
+    {
+      subject,
+      isolation,
+      verdict,
+      combined,
+      signal,
+      remember,
+    }: {
+      subject: string | undefined
+      isolation: boolean
+      verdict: HookVerdict
+      combined: DefaultAsk
+      signal: AbortSignal | undefined
+      remember: (latest: PermissionTarget | undefined) => void
+    },
+  ): Promise<BeforeToolCallResult | undefined> => {
+    const { toolCallId, toolName: name } = request
+    let outcome: ReviewOutcome
+    options.reviewStarted?.(toolCallId, name)
+    try {
+      outcome = await reviewer.review(request, signal)
+    } catch {
+      outcome = { verdict: 'failed', code: 'request-failed' }
+    }
+    // 停止或暂停：不提交审批条目，迟到的结论不被使用（wiring 把暂停改写为暂停前未批准）。
+    if (signal?.aborted) return { block: true, reason: OPERATION_ABORTED_TEXT }
+    // 结论生效前按当时的模式与规则复核（PreToolUse 不重跑）：审查途中模式或规则变了，结论作废，按新判定放行、拒绝或直接询问（不重审，
+    // 不再运行 PermissionRequest）。切走又切回且判定相同时结论仍有效（不维护版本号）。
+    const again = await evaluate(name, subject, isolation)
+    const recombined = combinePreToolUse(verdict, again)
+    const stillValid =
+      options.mode() === 'auto-review' &&
+      isDefaultAsk(recombined) &&
+      recombined.decision.reason === combined.decision.reason &&
+      sameSuggestions(recombined.decision.suggestions, combined.decision.suggestions)
+    if (!stillValid) {
+      if (recombined.behavior === 'allow') {
+        remember(again.target)
+        return undefined
+      }
+      if (recombined.behavior === 'deny') return { block: true, reason: recombined.by === 'hook' ? recombined.reason : deniedText(recombined.decision) }
+      const reason = await askTool(toolCallId, name, subject, recombined.decision, signal, remember, isolation)
+      return reason === undefined ? undefined : { block: true, reason }
+    }
+    if (outcome.verdict === 'allow') {
+      try {
+        await options.broker.recordReviewerAllowed(
+          { toolCallId: toolCallId, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: combined.decision.suggestions },
+          outcome.reason,
+        )
+      } catch (error) {
+        return { block: true, reason: failed(error) }
+      }
+      remember(undefined)
+      return undefined
+    }
+    const reviewed: ApprovalReview =
+      outcome.verdict === 'escalate' ? { outcome: 'escalated', reason: outcome.reason } : { outcome: 'failed', code: outcome.code }
+    const reason = await askTool(toolCallId, name, subject, combined.decision, signal, remember, isolation, undefined, reviewed)
+    return reason === undefined ? undefined : { block: true, reason }
+  }
+
   return {
     async beforeToolCall(context, signal) {
       if (options.rejected()) return { block: true, reason: SKIPPED_TEXT }
@@ -466,7 +539,7 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       const review = forced ? planReviewOf(tool) : undefined
       if (review) return reviewPlan(context, review, signal)
       // PermissionRequest：只在最终为第 7 步的询问时、出卡片之前运行；deny 拒绝，allow 以 approval_decision { by: hook } 结束，其余出卡片。
-      if (combined.by === 'policy' && combined.step === 'default' && options.hooks) {
+      if (isDefaultAsk(combined) && options.hooks) {
         const answer = await options.hooks.permissionRequest(hookCall, signal)
         if (answer.decision === 'deny') return hookBlock(blockedByHookText(answer.reason), answer)
         if (answer.decision === 'allow') {
@@ -486,62 +559,18 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         }
       }
       // Reviewer（ADR 0029）：PermissionRequest 没有决定之后、出卡片之前；只回答第 7 步的询问，不能拒绝。
-      let reviewed: ApprovalReview | undefined
       const runId = options.runId?.()
-      if (
-        options.reviewer &&
-        runId !== undefined &&
-        options.mode() === 'auto-review' &&
-        combined.by === 'policy' &&
-        combined.step === 'default' &&
-        categoryOf(name) !== 'automation'
-      ) {
+      if (options.reviewer && runId !== undefined && options.mode() === 'auto-review' && isDefaultAsk(combined) && categoryOf(name) !== 'automation') {
         const description = categoryOf(name) === 'external' ? tool?.description : undefined
-        let outcome: ReviewOutcome
-        options.reviewStarted?.(context.toolCall.id, name)
-        try {
-          outcome = await options.reviewer.review(
-            { runId, toolCallId: context.toolCall.id, toolName: name, input: context.args, ...(description === undefined ? {} : { description }), priorCalls },
-            signal,
-          )
-        } catch {
-          outcome = { verdict: 'failed', code: 'request-failed' }
+        const request = {
+          runId,
+          toolCallId: context.toolCall.id,
+          toolName: name,
+          input: context.args,
+          ...(description === undefined ? {} : { description }),
+          priorCalls,
         }
-        // 停止或暂停：不提交审批条目，迟到的结论不被使用（wiring 把暂停改写为暂停前未批准）。
-        if (signal?.aborted) return { block: true, reason: OPERATION_ABORTED_TEXT }
-        // 结论生效前按当时的模式与规则复核（PreToolUse 不重跑）：审查途中模式或规则变了，结论作废，按新判定放行、拒绝或直接询问（不重审，
-        // 不再运行 PermissionRequest）。切走又切回且判定相同时结论仍有效（不维护版本号）。
-        const again = await evaluate(name, subject, isolation)
-        const recombined = combinePreToolUse(verdict, again)
-        const stillValid =
-          options.mode() === 'auto-review' &&
-          recombined.behavior === 'ask' &&
-          recombined.by === 'policy' &&
-          recombined.step === 'default' &&
-          recombined.decision.reason === combined.decision.reason &&
-          sameSuggestions(recombined.decision.suggestions, combined.decision.suggestions)
-        if (!stillValid) {
-          if (recombined.behavior === 'allow') {
-            remember(again.target)
-            return undefined
-          }
-          if (recombined.behavior === 'deny') return { block: true, reason: recombined.by === 'hook' ? recombined.reason : deniedText(recombined.decision) }
-          const reason = await askTool(context.toolCall.id, name, subject, recombined.decision, signal, remember, isolation)
-          return reason === undefined ? undefined : { block: true, reason }
-        }
-        if (outcome.verdict === 'allow') {
-          try {
-            await options.broker.recordReviewerAllowed(
-              { toolCallId: context.toolCall.id, toolName: name, kind: 'tool', subject: subject ?? '', suggestions: combined.decision.suggestions },
-              outcome.reason,
-            )
-          } catch (error) {
-            return { block: true, reason: failed(error) }
-          }
-          remember(undefined)
-          return undefined
-        }
-        reviewed = outcome.verdict === 'escalate' ? { outcome: 'escalated', reason: outcome.reason } : { outcome: 'failed', code: outcome.code }
+        return reviewThenAsk(options.reviewer, request, { subject, isolation, verdict, combined, signal, remember })
       }
       const reason = await askTool(
         context.toolCall.id,
@@ -552,7 +581,6 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
         remember,
         isolation,
         combined.by === 'hook' ? (next) => hookAskAgain(verdict, next, combined.decision) : undefined,
-        reviewed,
       )
       return reason === undefined ? undefined : { block: true, reason }
     },
