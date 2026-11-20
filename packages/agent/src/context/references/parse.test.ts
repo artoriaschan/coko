@@ -1,6 +1,6 @@
 // File Reference 的 token 解析：@path 与 @"path with space"，词首触发，结尾标点不算路径，邮箱等不误判。
 import { describe, expect, it } from 'vitest'
-import { formatFileReferenceToken, parseFileReferences } from './index.ts'
+import { formatFileReferenceToken, parseFileReferences, parseSessionReferences } from './index.ts'
 
 const paths = (text: string) => parseFileReferences(text).map((t) => t.path)
 
@@ -36,6 +36,27 @@ describe('parseFileReferences', () => {
     expect(text.slice(a!.start, a!.end)).toBe('@src/a.ts')
     expect(text.slice(b!.start, b!.end)).toBe('@"b c.md"')
     expect(b!.quoted).toBe(true)
+  })
+
+  it.each([
+    ['接着 @session:abc-123 做', ['abc-123']],
+    ['@session:abc 开头', ['abc']],
+    ['结尾句号 @session:abc.', ['abc']],
+    ['中文标点 @session:abc，然后 @session:def。', ['abc', 'def']],
+    ['括号里 (@session:abc) 不算词首', []],
+    ['紧贴文字 看看@session:abc', []],
+    ['没有 id 的 @session: 与 @session:.', []],
+  ])('Session Reference：%s', (text, expected) => {
+    expect(parseSessionReferences(text).map((t) => t.id)).toEqual(expected)
+    // @session: 前缀保留给会话引用：这样的 token 不作为文件路径。
+    expect(paths(text)).toEqual([])
+  })
+
+  it('Session Reference 与 File Reference 混排：各自解析，位置不含结尾标点', () => {
+    const text = '看 @src/a.ts 和 @session:s1, 再看 @sessions/notes.md'
+    expect(paths(text)).toEqual(['src/a.ts', 'sessions/notes.md'])
+    const [token] = parseSessionReferences(text)
+    expect(text.slice(token!.start, token!.end)).toBe('@session:s1')
   })
 
   it('formatFileReferenceToken 与解析往返：含空白或会被当作结尾标点的路径加引号', () => {

@@ -1,12 +1,12 @@
 ---
 kind: reference
-description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
+description: "当前的上下文管理契约：系统消息的组成与环境信息、日期 State Update、@ File Reference 的语法、展开与上限、Read 拒绝规则、@session:<id> Session Reference 的语法、展开、单个上限与范围、文件候选接口、@ 文件菜单与引用 chip、输入区草稿的持久化，上下文用量（估算、阈值、接口与上下文环）、时间裁剪、压缩（自动、溢出、/compact、熔断、摘要结构、回退与分叉、界面），以及内置遍历与 ripgrep 共同的忽略来源。修改系统消息、环境信息、引用展开、文件候选、composer、用量、裁剪与压缩或 walk / grep / find 的忽略规则前查阅。"
 lifecycle: active
 ---
 
 # 上下文管理
 
-本文说明 Coko 当前如何把用户显式引用的文件放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖环境信息、[File Reference](../../GLOSSARY.md)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
+本文说明 Coko 当前如何把用户显式引用的文件与同一 Project 的其他会话放进模型上下文、输入区草稿如何保存、上下文用量如何估算与显示、较旧的工具输出何时被裁剪，以及文件遍历遵守哪些忽略来源。目前覆盖环境信息、[File Reference](../../GLOSSARY.md)、[Session Reference](#session-reference)、草稿持久化、上下文用量、时间裁剪、压缩与忽略规则。命令展开排在 File Reference 之前，见 [命令](commands.md)；规则的判定见 [权限判定与审批](permissions.md)。
 
 ## State Update
 
@@ -36,11 +36,12 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 | 位置 | 职责 |
 | --- | --- |
 | `apps/server/src/application/context/environment.ts`、`date.ts`、`types.ts` | 稳定环境 section、按 Sidecar 时钟计算日期的 State Update；作用域中的模型与 Project 附加文件夹 |
-| `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法 |
-| `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块 |
+| `packages/agent/src/context/references/parse.ts` | `parseFileReferences`、`formatFileReferenceToken`：`@path` / `@"path"` 的语法；`parseSessionReferences`：`@session:<id>` 的语法 |
+| `packages/agent/src/context/references/expand.ts` | `expandFileReferences`：读取、截断、上限与说明文本，生成 `<file_reference>` 块；同一循环经 `resolveSession` 生成 `<session_reference>` 块 |
+| `packages/agent/src/context/references/session.ts` | `sessionTranscript`（被引用会话的条目 → 文字记录与截断）、`sessionReferenceBlock`、`SESSION_REFERENCE_NOTES` |
 | `packages/agent/src/context/references/search.ts` | `searchWorkspaceFiles`：@ 菜单的候选（复用 `tools/builtin/walk.ts`） |
 | `packages/protocol/src/files.ts` | 块的开标签（`formatFileReferenceOpen`、识别函数 `fileReferencePath`）、`WorkspaceFilesResponse`、`filePaths` |
-| `apps/server/src/application/context/references.ts` | 引用贡献的 `expandInput`（读取 `ContextScope.permissionRules`） |
+| `apps/server/src/application/context/references.ts` | 引用贡献的 `expandInput`（读取 `ContextScope.permissionRules`）；Session Reference 的范围判定与条目读取（`ContextScope.projectId`） |
 | `apps/server/src/http/routes/files.ts` | `GET /api/workspaces/:id/files` |
 | `packages/ui/src/composer/file-reference-node.ts` | composer 的 File Reference 节点 |
 | `apps/desktop/src/renderer/features/conversation/file-menu.tsx` | @ 文件菜单 |
@@ -83,10 +84,11 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 - 未加引号的路径在空白或中文全角标点（，。；：！？、）】」』》）处结束，结尾的 `. , ; : ! ? ' " ) ] } >` 不属于路径。加引号的路径原样保留。
 - 路径相对 Workspace；也接受绝对路径与 `~/`。以 `/` 结尾或指向目录时按目录处理。
 - 不存在的路径不产生块，`@someone` 这类提及原样留在文本中。同一个文件（按真实路径）只附一次。
+- 未加引号、以 `session:` 开头的 token 保留给 [Session Reference](#session-reference)，不作为路径解析；加引号的 `@"session:x"` 仍是路径。
 
 ### 展开
 
-提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference，所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
+提交的文本与 Run 进行中的追加指令经上下文装配展开，顺序是命令、File Reference（[Session Reference](#session-reference) 在同一步骤），所以模板展开后的文本中的引用同样生效。每个引用在同一条 user message 中追加一个文本块，块以 `<file_reference path="…">` 开头、`</file_reference>` 结尾；展开结果中原文在引用块之前；没有引用时，输入展开只产生原文。Run 开始送达的 State Update 仍按上文规则前置，所以实际 user message 可以先有状态块，再有原文与引用块。引用块不是独立的条目 kind。块中已登记 Secret 与 Credential 的明文在生成时替换为标记（与 read 工具的结果相同，见 [按值脱敏](mcp.md#secret-的来源)），用户自己写的原文不变。
 
 | 情形 | 块的内容 |
 | --- | --- |
@@ -95,8 +97,8 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 | Read 拒绝规则覆盖 | `[Not attached: denied by permission rules.]` |
 | Workspace 外（含经符号链接指向外部） | `[Not attached: the path is outside the Workspace.]` |
 | 二进制（开头 8000 字节中有 NUL） | `[Not attached: binary file.]` |
-| 第 11 个及之后的引用 | `[Not attached: at most 10 file references per message.]` |
-| 合计内容已达 200KB | `[Not attached: file references in this message exceed 200KB in total.]`；接近上限的那个文件按剩余额度截断 |
+| 第 11 个及之后的引用（与 Session Reference 合计） | `[Not attached: at most 10 file references per message.]` |
+| 合计内容已达 200KB（与 Session Reference 合计） | `[Not attached: file references in this message exceed 200KB in total.]`；接近上限的那个文件按剩余额度截断 |
 
 开标签的 path：Workspace 内为相对路径（`/` 分隔，目录以 `/` 结尾），其外为输入的原文；按 XML 属性转义 `& " < >`。
 
@@ -107,6 +109,55 @@ MCP 工具默认按需加载；关闭时直接提供全部 MCP 定义。按需�
 ### 日志
 
 Sidecar 记 `file references attached`：引用数、各状态的数量与截断数，不记路径与内容。
+
+## Session Reference
+
+用户消息中以 `@session:<id>` 指向同一 Project 内另一个 Session，提交时附上那次会话的文字记录（[术语](../../GLOSSARY.md)）。不发额外的模型请求，请求体不加字段。目前只有手写或粘贴的文本语法；Sidecar 的展开与范围判定已实现，`@` 菜单的会话候选、草稿与时间线的会话 chip 尚未实现。
+
+### 语法
+
+- `@session:<id>`，`<id>` 为 Session 的 id。词首与结尾规则与 File Reference 相同：`@` 必须在开头或空白之后，id 在空白或中文全角标点处结束，结尾的 `. , ; : ! ? ' " ) ] } >` 不属于 id。没有 id 的 `@session:` 不是引用。
+- 同一个会话在一条消息里只附一次。
+- id 不存在或会话已删除时不产生块，文本原样保留，提交照常被接受。
+
+### 展开
+
+与 File Reference 在同一个展开步骤，位于命令展开之后；文件引用与会话引用按在文本中出现的顺序处理，每个引用在同一条 user message 中追加一个文本块，原文在引用块之前。块以 `<session_reference id="…" title="…">` 开头、`</session_reference>` 结尾；`title` 是展开那一刻被引用会话的标题，`id` 与 `title` 按 XML 属性转义 `& " < >`。块不是独立的条目 kind，不新增条目版本。块中已登记 Secret 与 Credential 的明文在生成时替换为标记，与 File Reference 的块相同；用户自己输入的原文不变。
+
+记录取被引用会话有效上下文（回退与压缩都已应用）中已提交的条目，各条以空行分隔：
+
+- 有有效的 Compaction 时，以 `[Summary of the earlier conversation]: ` 加摘要打头，摘要之前的消息不出现。
+- 用户消息以 `[User]: ` 标出，只取用户提交的文本。State Update、File Reference 与 Session Reference 的块、附件块与图片不进入记录；其余文本块（例如定时任务的提示词、Goal Round 的继续提示）按原样进入。
+- 由命令展开而来的用户消息取原始调用 `/name 参数`：紧邻其前、属于同一 Run 的 `command` 条目给出名字与参数，与回退恢复原始调用的判定相同。
+- 助手消息以 `[Assistant]: ` 标出，只取文字回复；思考、工具调用与工具结果不进入记录，没有文字的助手消息不出现。
+- 记录中的 `@session:<id>` 与 `@path` 是文本，不再展开。
+- 被引用会话正在运行时只取已提交的条目，不等待。
+- 没有任何可附内容时块中为 `[No messages in this session.]`。
+
+说话方标记与 [摘要请求](#摘要请求) 的对话序列化一致。
+
+### 上限
+
+单个会话引用的记录不超过 50KB（UTF-8 字节，与单个文件相同）。超出时保留摘要与最近的消息，从摘要之后最早的消息开始省略，并在省略处写 `[N earlier messages omitted to fit the session reference limit]`。摘要自身放不下时截断摘要，后跟 `[Summary truncated to fit the session reference limit]`；最近的一条消息自身放不下时截断它，后跟 `[Message truncated to fit the session reference limit]`。
+
+会话引用与 File Reference 在同一个循环中按出现顺序计入每条消息 10 个的数量与合计 200KB 的额度；超出数量时块中为 `[Not attached: at most 10 references per message.]`，合计额度用尽时为 `[Not attached: references in this message exceed 200KB in total.]`，接近合计上限的那个会话引用按剩余额度截断。只附说明的块计入数量，不计入字节额度。
+
+### 范围
+
+范围在展开时由 Sidecar 判定，不依赖界面的过滤。当前会话的 Project 取自 `ContextScope.projectId`（根 Session 所属的 Project）。
+
+| 情形 | 块的内容 |
+| --- | --- |
+| 与当前会话同一 Project 的根 Session（含 Worktree Session 与已归档的）；当前会话不属于任何 Project 时，其他同样不属于任何 Project 的根 Session | 文字记录 |
+| 属于另一个 Project，或一方是独立对话而另一方不是 | `[Not attached: the session does not belong to the current project.]` |
+| 当前会话自己、子代理的会话 | `[Not attached: this session cannot be referenced.]` |
+| id 不存在或会话已删除 | 不产生块 |
+
+只附说明的块同样带标题，块中没有对方的任何内容。
+
+### 日志
+
+`file references attached` 另带 `sessions`：会话引用的数量、各状态（`attached`、`out-of-project`、`not-referable`、`skipped`）的数量与截断数，不记会话 id、标题与内容。
 
 ## 文件候选接口
 

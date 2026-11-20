@@ -3,7 +3,15 @@
 import { symlink } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempWorkspace, type TempWorkspace } from '../../testing/workspace.ts'
-import { expandFileReferences, FILE_REFERENCE_DIRECTORY_LIMIT, FILE_REFERENCE_MAX_COUNT, FILE_REFERENCE_MESSAGE_BYTES, FILE_REFERENCE_NOTES } from './index.ts'
+import {
+  expandFileReferences,
+  FILE_REFERENCE_DIRECTORY_LIMIT,
+  FILE_REFERENCE_MAX_COUNT,
+  FILE_REFERENCE_MESSAGE_BYTES,
+  FILE_REFERENCE_NOTES,
+  SESSION_REFERENCE_NOTES,
+  type SessionReferenceResolution,
+} from './index.ts'
 
 let ws: TempWorkspace
 let outside: TempWorkspace
@@ -153,5 +161,73 @@ describe('expandFileReferences：不附内容的情形', () => {
     expect(references.map((r) => r.status)).toEqual(['file', 'file', 'file', 'file', 'file', 'skipped'])
     expect(references[4]!.truncated).toBe(true)
     expect(blocks[5]!.text).toBe(`<file_reference path="big5.txt">\n${FILE_REFERENCE_NOTES.budget}\n</file_reference>`)
+  })
+})
+
+describe('expandFileReferences：Session Reference', () => {
+  const entries = [
+    { seq: 1, kind: 'message', runId: 'r', payload: { role: 'user', content: [{ type: 'text', text: '用方案 A' }], timestamp: 1 } },
+    { seq: 2, kind: 'message', runId: 'r', payload: { role: 'assistant', content: [{ type: 'text', text: '好的。' }], stopReason: 'stop', timestamp: 1 } },
+  ]
+  const sessions: Record<string, SessionReferenceResolution> = {
+    s1: { status: 'attached', title: '方案 "讨论"', entries },
+    other: { status: 'out-of-project', title: '别的项目' },
+    self: { status: 'not-referable', title: '当前会话' },
+  }
+  const expandWith = (text: string) => expandFileReferences(text, { cwd: ws.dir, rules: [], resolveSession: async (id) => sessions[id] })
+
+  it('范围内的会话：一个 <session_reference> 块，带 id 与转义后的标题，内容为文字记录；与文件引用按出现顺序排列', async () => {
+    await ws.write('a.md', 'A')
+    const out = await expandWith('按 @session:s1 的结论改 @a.md')
+    expect(out.blocks.map((b) => b.text)).toEqual([
+      '<session_reference id="s1" title="方案 &quot;讨论&quot;">\n[User]: 用方案 A\n\n[Assistant]: 好的。\n</session_reference>',
+      '<file_reference path="a.md">\nA\n</file_reference>',
+    ])
+    expect(out.sessionReferences).toEqual([{ status: 'attached', truncated: false }])
+    expect(out.references).toEqual([{ path: 'a.md', status: 'file', truncated: false }])
+  })
+
+  it('范围之外的会话只附一行说明（带标题），没有对方的内容', async () => {
+    const out = await expandWith('@session:other 与 @session:self')
+    expect(out.blocks.map((b) => b.text)).toEqual([
+      '<session_reference id="other" title="别的项目">\n[Not attached: the session does not belong to the current project.]\n</session_reference>',
+      '<session_reference id="self" title="当前会话">\n[Not attached: this session cannot be referenced.]\n</session_reference>',
+    ])
+    expect(out.sessionReferences.map((r) => r.status)).toEqual(['out-of-project', 'not-referable'])
+  })
+
+  it('不存在的 id 不产生块；同一个会话只附一次；没有解析入口时 @session: 既不是会话也不是路径', async () => {
+    expect((await expandWith('@session:missing')).blocks).toEqual([])
+    expect((await expandWith('@session:s1 再说一遍 @session:s1')).blocks).toHaveLength(1)
+    await ws.write('session:s1', 'not a path')
+    expect(await texts('@session:s1')).toEqual([])
+  })
+
+  it('超过单个上限的记录被截断并计入 truncated', async () => {
+    const long = Array.from({ length: 10 }, (_, i) => ({
+      seq: i + 1,
+      kind: 'message',
+      runId: 'r',
+      payload: { role: 'user', content: `m${i + 1} ${'x'.repeat(10_000)}`, timestamp: 1 },
+    }))
+    const out = await expandFileReferences('@session:long', {
+      cwd: ws.dir,
+      rules: [],
+      resolveSession: async () => ({ status: 'attached', title: 'long', entries: long }),
+    })
+    expect(Buffer.byteLength(out.blocks[0]!.text)).toBeLessThanOrEqual(50 * 1024 + 100)
+    expect(out.blocks[0]!.text).toContain('[5 earlier messages omitted to fit the session reference limit]')
+    expect(out.sessionReferences).toEqual([{ status: 'attached', truncated: true }])
+  })
+
+  it('文件引用与会话引用共用每条消息 10 个的数量上限', async () => {
+    const tokens: string[] = []
+    for (let i = 0; i < FILE_REFERENCE_MAX_COUNT; i++) {
+      await ws.write(`f${i}.txt`, `F${i}`)
+      tokens.push(`@f${i}.txt`)
+    }
+    const out = await expandWith(`${tokens.join(' ')} @session:s1`)
+    expect(out.blocks[10]!.text).toBe(`<session_reference id="s1" title="方案 &quot;讨论&quot;">\n${SESSION_REFERENCE_NOTES.count}\n</session_reference>`)
+    expect(out.sessionReferences).toEqual([{ status: 'skipped', truncated: false }])
   })
 })

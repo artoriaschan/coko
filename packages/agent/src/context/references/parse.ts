@@ -16,6 +16,17 @@ const TOKEN = new RegExp(`(?<!\\S)@(?:"([^"\\n]+)"|([^\\s${CJK_PUNCTUATION}]+))`
 const TRAILING = /[.,;:!?'")\]}>]+$/u
 const NEEDS_QUOTES = new RegExp(`[\\s${CJK_PUNCTUATION}]`, 'u')
 
+/** `@session:<id>`：未加引号、以此为前缀的 token 是 Session Reference，不作为文件路径（加引号的 `@"session:x"` 仍是路径）。 */
+const SESSION_PREFIX = 'session:'
+
+export interface SessionReferenceToken {
+  /** 被引用 Session 的 id。 */
+  id: string
+  /** token 在原文中的起止（含 @，不含被去掉的结尾标点）。 */
+  start: number
+  end: number
+}
+
 export function parseFileReferences(text: string): FileReferenceToken[] {
   const tokens: FileReferenceToken[] = []
   for (const match of text.matchAll(TOKEN)) {
@@ -25,8 +36,19 @@ export function parseFileReferences(text: string): FileReferenceToken[] {
       continue
     }
     const path = match[2]!.replace(TRAILING, '')
-    if (path === '') continue
+    if (path === '' || match[2]!.startsWith(SESSION_PREFIX)) continue
     tokens.push({ path, start, end: start + 1 + path.length, quoted: false })
+  }
+  return tokens
+}
+
+/** 词首与结尾标点规则与 File Reference 相同；没有 id 的 `@session:` 不是引用。 */
+export function parseSessionReferences(text: string): SessionReferenceToken[] {
+  const tokens: SessionReferenceToken[] = []
+  for (const match of text.matchAll(TOKEN)) {
+    if (!match[2]?.startsWith(SESSION_PREFIX)) continue
+    const id = match[2].slice(SESSION_PREFIX.length).replace(TRAILING, '')
+    if (id !== '') tokens.push({ id, start: match.index, end: match.index + 1 + SESSION_PREFIX.length + id.length })
   }
   return tokens
 }

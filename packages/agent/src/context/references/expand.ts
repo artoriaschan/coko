@@ -2,6 +2,8 @@
 // Workspace 内的文件按 read 工具的截断（2000 行 / 50KB）读入，目录给出 ls 式列表（最多 200 项）；单条消息最多 10 个、合计 200KB。
 // Read 拒绝规则覆盖、Workspace 外（含经符号链接）、二进制或超出上限时只附一行说明。用户显式引用视为读取授权：询问规则不适用，拒绝规则仍生效。
 // 不存在的路径不产生块（@someone 这类提及原样留在文本中）。
+// Session Reference（@session:<id>）在同一个循环中按出现顺序展开为 <session_reference id="…" title="…"> 块，与文件引用共用数量与
+// 合计额度；范围判定与条目读取由宿主经 resolveSession 给出，记录的序列化见 session.ts。
 import { open, readdir, realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
@@ -10,7 +12,9 @@ import { pathContains } from '../../policy/rules.ts'
 import type { PermissionRule } from '../../session-entries/index.ts'
 import { resolveToCwd } from '../../tools/paths.ts'
 import { DEFAULT_MAX_BYTES, formatSize, truncateHead } from '../../tools/truncate.ts'
-import { parseFileReferences } from './parse.ts'
+import type { EntryLike } from '../../entries/index.ts'
+import { parseFileReferences, parseSessionReferences } from './parse.ts'
+import { SESSION_REFERENCE_MAX_BYTES, SESSION_REFERENCE_NOTES, sessionReferenceBlock, sessionTranscript } from './session.ts'
 
 export const FILE_REFERENCE_MAX_COUNT = 10
 export const FILE_REFERENCE_MESSAGE_BYTES = 200 * 1024
@@ -40,6 +44,20 @@ export interface ExpandedFileReference {
   truncated: boolean
 }
 
+/**
+ * 宿主对 `@session:<id>` 的判定：范围内给出标题与全部已提交条目，范围外只给标题（附一行说明）；
+ * 会话不存在时宿主返回 undefined（不产生块）。
+ */
+export type SessionReferenceResolution =
+  | { status: 'attached'; title: string; entries: readonly EntryLike[] }
+  | { status: 'out-of-project' | 'not-referable'; title: string }
+
+export interface ExpandedSessionReference {
+  status: 'attached' | 'out-of-project' | 'not-referable' | 'skipped'
+  /** 记录被截断（50KB 或合计上限）。 */
+  truncated: boolean
+}
+
 export interface ExpandFileReferencesOptions {
   /** Workspace 目录。 */
   cwd: string
@@ -47,11 +65,16 @@ export interface ExpandFileReferencesOptions {
   rules: readonly PermissionRule[]
   /** `~/` 与规则中 `~` 的主目录；缺省 os.homedir()。 */
   home?: string
+  /** Session Reference 的解析入口（范围判定与条目读取在宿主）；省略时 `@session:<id>` 不产生块。 */
+  resolveSession?: (id: string) => Promise<SessionReferenceResolution | undefined>
 }
 
 export interface ExpandedFileReferences {
+  /** 文件引用与会话引用的块，按在文本中出现的顺序。 */
   blocks: { type: 'text'; text: string }[]
   references: ExpandedFileReference[]
+  /** 会话引用（不含 id、标题与内容：供日志计数）。 */
+  sessionReferences: ExpandedSessionReference[]
 }
 
 const escapeAttribute = (value: string) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -121,9 +144,11 @@ async function directoryBody(dir: string, denied: (path: string) => boolean): Pr
 /** 解析 text 中的 @ 引用并生成文本块（按出现顺序）。 */
 export async function expandFileReferences(text: string, options: ExpandFileReferencesOptions): Promise<ExpandedFileReferences> {
   const home = options.home ?? homedir()
-  const tokens = parseFileReferences(text)
-  const out: ExpandedFileReferences = { blocks: [], references: [] }
+  const tokens = [...parseFileReferences(text), ...parseSessionReferences(text)].sort((a, b) => a.start - b.start)
+  const out: ExpandedFileReferences = { blocks: [], references: [], sessionReferences: [] }
   if (tokens.length === 0) return out
+  /** 文件引用与会话引用共用每条消息的数量上限。 */
+  const full = () => out.references.length + out.sessionReferences.length >= FILE_REFERENCE_MAX_COUNT
   const root = await realpath(options.cwd).catch(() => options.cwd)
   const denied = contextReadDenial(options.rules, root, home)
   const isDenied = (resolved: string, real: string) => denied(resolved) || denied(real)
@@ -135,6 +160,27 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
   }
 
   for (const token of tokens) {
+    if ('id' in token) {
+      const key = `session:${token.id}`
+      const session = seen.has(key) ? undefined : await options.resolveSession?.(token.id)
+      if (!session) continue
+      seen.add(key)
+      const pushSession = (status: ExpandedSessionReference['status'], body: string, truncated = false) => {
+        out.blocks.push({ type: 'text', text: sessionReferenceBlock(token.id, session.title, body) })
+        out.sessionReferences.push({ status, truncated })
+      }
+      // 说明块计入数量上限，不计入字节额度。
+      if (full()) pushSession('skipped', SESSION_REFERENCE_NOTES.count)
+      else if (session.status !== 'attached')
+        pushSession(session.status, session.status === 'out-of-project' ? SESSION_REFERENCE_NOTES.outOfProject : SESSION_REFERENCE_NOTES.notReferable)
+      else if (budget <= 0) pushSession('skipped', SESSION_REFERENCE_NOTES.budget)
+      else {
+        const transcript = sessionTranscript(session.entries, { maxBytes: Math.min(SESSION_REFERENCE_MAX_BYTES, budget) })
+        budget -= transcript.bytes
+        pushSession('attached', transcript.body, transcript.truncated)
+      }
+      continue
+    }
     const resolved = token.path.startsWith('~/') ? join(home, token.path.slice(2)) : resolveToCwd(token.path, options.cwd)
     let info
     let real
@@ -149,7 +195,7 @@ export async function expandFileReferences(text: string, options: ExpandFileRefe
     const inside = pathContains(root, real) && pathContains(root, resolveToCwd(token.path, root))
     const relativePath = toPosix(relative(root, real))
     const shown = !inside ? token.path : info.isDirectory() ? (relativePath === '' ? './' : `${relativePath}/`) : relativePath
-    if (out.references.length >= FILE_REFERENCE_MAX_COUNT) {
+    if (full()) {
       push(shown, 'skipped', FILE_REFERENCE_NOTES.count)
       continue
     }
