@@ -166,7 +166,7 @@ if (context.planning && category === 'write') return at('planning', { behavior: 
 #### 3.3 提权、固定档位与隔离
 
 - **提权。** gate 中 `sandboxRequest` 的检查：`checkEscalation(asked, sandboxModeFor(mode, planning))` 结果为 `escalate` 且规划中时，直接返回 [T4 提权拒绝](#t4-提权拒绝)，不询问、不检查“本 Run 是否被沙箱拒绝过”；结果为 `invalid` 时返回原有的参数错误文本；不在规划中时行为不变。
-- **bash 的提权提示。** `SandboxPolicy` 增加 `escalation?: false`；`prepare` 在规划中设为 false。bash 被沙箱拒绝时，拒绝标记不变，`escalation === false` 时不追加提权提示，改为追加 [T5](#t5-规划中的沙箱拒绝标记)。
+- **bash 的提权提示。** `SandboxPolicy` 增加 `planning?: true`（不能提权）；`prepare` 在规划中设置。bash 被沙箱拒绝时，拒绝标记不变，`planning` 时不追加提权提示，改为追加 [T5](#t5-规划中的沙箱拒绝标记)。
 - **固定档位。** `fixedSandbox` 的档位严格宽于 `sandboxModeFor(mode, planning)` 时：规划中返回 [T6](#t6-向较宽终端输入的拒绝)；否则 read-only 模式下拒绝（原文本）、其余模式按一次提权询问（不变）。
 - **Worktree 隔离。** gate 中“isolation 在 plan / read-only 下为错误结果”改为“规划中或 read-only 模式”；规划中的文本为 `isolation: worktree is not available in plan mode`（与现状 plan 模式下的文本逐字相同），read-only 下不变。`SubagentService` 派发处同样检查（`SubagentDeps` 增加 `planning(sessionId): Promise<boolean>`，取根 Session 的阶段；装配在 `apps/server/src/runtime/layers.ts`）。
 

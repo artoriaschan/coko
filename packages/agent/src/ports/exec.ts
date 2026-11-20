@@ -44,8 +44,8 @@ export interface SandboxPolicy {
    * (`.git`, `.coko`, shell and credential files). Omitted: none.
    */
   protectedNames?: readonly string[]
-  /** false：不能提权（规划中，ADR 0028）；被拒绝时不给提权提示。缺省可以提权。 */
-  escalation?: false
+  /** 命令在规划中运行（ADR 0028）：不能提权，被沙箱拒绝时给规划的提示而不是提权提示。缺省不在规划中、可以提权。 */
+  planning?: true
 }
 
 export type ExecOutcome =

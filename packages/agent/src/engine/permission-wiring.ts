@@ -129,7 +129,7 @@ export function createPermissionWiring(options: {
           permissions.workspaceRoots?.() ?? [root],
           permissions.writeRoots?.(),
         )
-        extra.sandbox = planning ? { ...policy, escalation: false } : policy
+        extra.sandbox = planning ? { ...policy, planning: true } : policy
         const denied = readDenial(permissions.rules(), root)
         if (denied) extra.readDenied = denied
       }

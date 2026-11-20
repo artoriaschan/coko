@@ -2,7 +2,7 @@
 // 只依赖条目的最小形状（EntryLike），server 与测试共用。
 import { randomUUID } from 'node:crypto'
 import { effectiveEntries } from '../entries/derive.ts'
-import { planPhaseOf } from '../entries/plan-phase.ts'
+import { planPhaseOf, type PlanPhaseState } from '../entries/plan-phase.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { PlanPayload } from '../session-entries/index.ts'
 
@@ -27,7 +27,7 @@ export function nextPlanRef(entries: readonly EntryLike[], newId: () => string =
     const entry = effective[i]!
     if (isPlan(entry))
       return ENDED.has(entry.payload.status) ? { planId: newId(), revision: 1 } : { planId: entry.payload.planId, revision: entry.payload.revision + 1 }
-    if (entry.kind === 'plan_phase' && (entry.payload as { phase: string }).phase === 'planning') break
+    if (entry.kind === 'plan_phase' && (entry.payload as PlanPhaseState).phase === 'planning') break
   }
   return { planId: newId(), revision: 1 }
 }

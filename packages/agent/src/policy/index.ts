@@ -23,7 +23,7 @@ export type {
 } from './decide.ts'
 export { ApprovalNotPendingError, createApprovalBroker } from './broker.ts'
 export type { ApprovalAnswer, ApprovalBroker, ApprovalResolution, ReevaluateVerdict } from './broker.ts'
-export { REJECTED_TEXT } from './gate.ts'
+export { REJECTED_TEXT, worktreeIsolationRefusedText } from './gate.ts'
 export type { PermissionHookPort } from './gate.ts'
 export { analyzeCommand, commandMatches, MAX_SUBCOMMANDS, pathMatches, stripEnvPrefix } from './rules.ts'
 export type { CommandAnalysis, Subcommand } from './rules.ts'

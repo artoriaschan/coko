@@ -113,7 +113,7 @@ worktree 会话始终排除其来源主检出；项目移动、主要文件夹�
 
 ## 命令沙箱与提权
 
-**档位与执行。** bash 每次执行时按当时的模式与是否规划中现算沙箱策略 `{ mode, writableRoots }`（规划中一律 read-only、可写根为空，策略另带 `escalation: false`，进入规划前已批准而未执行的提权也不再生效），经执行上下文（`ToolExecutionContext.sandbox`）交给执行端口。Sidecar 的 bash 由 `adapters/seatbelt.ts` 包裹为 `/usr/bin/sandbox-exec -p <profile> -- /bin/bash -c <command>`：
+**档位与执行。** bash 每次执行时按当时的模式与是否规划中现算沙箱策略 `{ mode, writableRoots }`（规划中一律 read-only、可写根为空，策略另带 `planning: true`（不能提权，被拒绝时给规划的提示），进入规划前已批准而未执行的提权也不再生效），经执行上下文（`ToolExecutionContext.sandbox`）交给执行端口。Sidecar 的 bash 由 `adapters/seatbelt.ts` 包裹为 `/usr/bin/sandbox-exec -p <profile> -- /bin/bash -c <command>`：
 
 ```text
 (version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null")) (allow file-write* (subpath "<root>") …)

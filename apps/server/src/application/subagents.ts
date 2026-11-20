@@ -32,6 +32,7 @@ import {
   TeamMessageError,
   type AgentOutcome,
   type AgentStartPayload,
+  worktreeIsolationRefusedText,
 } from '@coko/agent'
 import { hookContextText, unansweredConfirmations } from '@coko/agent/entries'
 import { getLogger, redactSecretValues } from '@coko/logging'
@@ -332,8 +333,8 @@ export class SubagentService implements PermissionScopeResolver, SessionSubagent
     if (goalId && goal!.budget.maxCost !== undefined && !priced)
       throw new Error(`The goal has a cost limit but model ${model.providerId}/${model.modelId} has no price; choose a priced model`)
     if (request.isolation === 'worktree') {
-      const mode = (await sessions.planning(parentId)) ? 'plan' : await sessions.mode(parentId)
-      if (mode === 'plan' || mode === 'read-only') throw new Error(`isolation: worktree is not available in ${mode} mode`)
+      const refused = worktreeIsolationRefusedText(await sessions.mode(parentId), await sessions.planning(parentId))
+      if (refused) throw new Error(refused)
       if (!this.#worktrees) throw new Error('Worktrees are not available')
     }
     // teammate 的名字与人数：读条目之后、第一个 await 之前与占位一起检查（同一批的同名调用不会同时越过）。

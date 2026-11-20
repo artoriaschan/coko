@@ -482,6 +482,11 @@ export class SessionService {
     return this.#permissions.sessionPlan(sessionId)
   }
 
+  /** 计划阶段（根 Session 的阶段），不派生活动的 Plan。 */
+  async planning(sessionId: string): Promise<boolean> {
+    return (await this.#permissions.phase(sessionId)) === 'planning'
+  }
+
   planAction(sessionId: string, action: PlanActionRequest['action']): Promise<SessionPlanResponse> {
     return this.#permissions.planAction(sessionId, action)
   }

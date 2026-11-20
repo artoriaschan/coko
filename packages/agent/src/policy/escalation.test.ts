@@ -223,7 +223,7 @@ describe('规划中（计划阶段，ADR 0028）', () => {
     const h = harness({ mode, planning: true, rules: [allowBash], exec: exec.port })
     h.faux.setResponses([fauxAssistantMessage(bash('b1', {}), { stopReason: 'toolUse' }), fauxAssistantMessage('done')])
     await h.runtime.run('go')
-    expect(exec.requests.map((r) => r.sandbox)).toEqual([{ mode: 'read-only', writableRoots: [], escalation: false }])
+    expect(exec.requests.map((r) => r.sandbox)).toEqual([{ mode: 'read-only', writableRoots: [], planning: true }])
   })
 
   it('被只读沙箱拒绝的命令：拒绝标记之后是 T5，不给提权提示', async () => {

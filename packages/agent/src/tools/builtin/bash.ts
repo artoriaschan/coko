@@ -225,7 +225,7 @@ export function createBashTool({ cwd, exec, tempDir }: BashToolOptions): CokoToo
           const status = [`Command exited with code ${outcome.exitCode}`]
           if (outcome.sandboxDenied && sandbox) {
             // 拒绝标记与提权提示在退出码之前（DSH 的顺序）；不能提权时（规划中）以规划的标记替代提示。
-            const hint = sandbox.mode === 'danger-full-access' ? [] : [sandbox.escalation === false ? planningEscalationMarker() : escalationHintMarker()]
+            const hint = sandbox.mode === 'danger-full-access' ? [] : [sandbox.planning ? planningEscalationMarker() : escalationHintMarker()]
             status.unshift(sandboxDenialMarker(sandbox.mode), ...hint)
             details = { ...details, sandbox: { mode: sandbox.mode, denied: true } }
           }

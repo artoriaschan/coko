@@ -54,6 +54,12 @@ export const PLANNING_WRITE_REFUSED_TEXT =
 /** 规划中向较宽档位启动的终端输入（ADR 0028）。 */
 export const planningFixedSandboxRefusedText = (what: string, fixed: SandboxMode) =>
   `Not sent: ${what} was started under the ${fixed} sandbox, but plan mode only allows the read-only sandbox; input to it would run with that access. Start a new terminal job instead.`
+/**
+ * 带 isolation worktree 的子代理派发在规划中（ADR 0028）与 read-only 模式下不可用：返回模型可见的错误文本，可用时 undefined。
+ * 权限 hook 与宿主的派发处共用这一判断。
+ */
+export const worktreeIsolationRefusedText = (mode: PermissionMode, planning: boolean): string | undefined =>
+  planning || mode === 'read-only' ? `isolation: worktree is not available in ${planning ? 'plan' : mode} mode` : undefined
 /** 判定为 deny 时模型看到的文本：规划中的写入或命中的拒绝规则。 */
 export const deniedText = (decision: Extract<PermissionDecision, { behavior: 'deny' }>) =>
   'rule' in decision ? deniedByRule(decision.rule) : PLANNING_WRITE_REFUSED_TEXT
@@ -373,8 +379,8 @@ export function createPermissionGate(options: PermissionGateOptions): Permission
       if (verdict.decision === 'deny') return hookBlock(blockedByHookText(verdict.reason), verdict)
       if (decision.behavior === 'deny') return { block: true, reason: deniedText(decision) }
       // isolation worktree 在规划中与 read-only 模式下不可用：直接为错误结果，不先询问一个批准之后也会失败的调用（Hook 与规则的拒绝之后）。
-      if (isolation && (planning() || options.mode() === 'read-only'))
-        return { block: true, reason: `isolation: worktree is not available in ${planning() ? 'plan' : 'read-only'} mode` }
+      const isolationRefused = isolation ? worktreeIsolationRefusedText(options.mode(), planning()) : undefined
+      if (isolationRefused) return { block: true, reason: isolationRefused }
       const remember = (latest: PermissionTarget | undefined) => {
         const real = (latest ?? target)?.real
         if (real !== undefined && categoryOf(name) === 'write') prepared.set(context.toolCall.id, real)
