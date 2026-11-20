@@ -101,10 +101,14 @@ export class SessionReviews {
       else controller.signal.addEventListener('abort', () => resolve(undefined), { once: true })
     })
     let final: AssistantMessage | undefined
+    // 中止时不等 Provider 结束：取消或超时的请求按最后一次部分响应记已报告的用量（计入 Run 用量与 Goal 预算）。
+    let partial: AssistantMessage | undefined
     try {
-      const pending = Promise.resolve().then(() =>
-        registry.models.streamSimple(model, context, { signal: controller.signal, toolChoice: 'none', maxTokens: REVIEW_MAX_TOKENS }).result(),
-      )
+      const pending = Promise.resolve().then(async () => {
+        const stream = registry.models.streamSimple(model, context, { signal: controller.signal, toolChoice: 'none', maxTokens: REVIEW_MAX_TOKENS })
+        for await (const event of stream) if ('partial' in event) partial = event.partial
+        return stream.result()
+      })
       final = await Promise.race([pending, aborted])
     } catch {
       // Provider 的错误可能回显输入或凭据：只保留可机读的结果。
@@ -124,7 +128,14 @@ export class SessionReviews {
         api: model.api,
         provider: model.provider,
         model: model.id,
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        usage: partial?.usage ?? {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
         stopReason: controller.signal.aborted ? 'aborted' : 'error',
         timestamp: clock.now(),
       },
