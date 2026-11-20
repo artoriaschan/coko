@@ -1,5 +1,6 @@
 // Plan Mode（ADR 0005、ADR 0028）：真实 Sidecar（faux 模型）经协议驱动 /plan 与计划接口进入和退出（不改变 Permission Mode）、规划中的约束（写入拒绝、命令只读
-// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划）、回答的校验、压缩后的
+// 沙箱且不能提权，其余调用按当前模式）、Run 中途进入与退出、exit_plan_mode 的提交与审阅（编辑后批准、带反馈继续规划，批准只结束规划，审阅等待中切换模式后
+// 按新模式执行）、回答的校验、压缩后的
 // <approved_plan> 与分叉。
 // 本票不新增文件读取（没有读取根或注入点涉及路径），不需要符号链接越界用例。
 import { access, readFile, realpath, writeFile } from 'node:fs/promises'
@@ -338,6 +339,45 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(phases()).toEqual(['planning', 'none', 'planning', 'none'])
     expect(h.modes().at(-1)).toEqual({ mode: 'default' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  /** 在 from 下进入规划，计划审阅等待中切到 to 后批准：计划的审批请求仍在等待、不被重新判定；返回时 Run 仍在继续（下一个调用是写入 w1）。 */
+  async function approveAfterSwitch(from: string, to: string) {
+    const h = await boot([exit('e1', PLAN), call('write', 'w1', { path: 'out.txt', content: 'x' }), { content: 'done' }])
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: from })).status).toBe(200)
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    expect(review).toMatchObject({ kind: 'plan' })
+    expect((await h.api.put(permissionPaths.sessionPermissionMode(h.sessionId), { mode: to })).body).toEqual({ mode: to, rules: [] })
+    // 切换在锁内提交并重新判定 kind tool 的请求；kind plan 的请求保持等待（没有决定条目），审阅仍可回答。
+    expect(h.entries().filter((e) => e.kind === 'approval_decision')).toEqual([])
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({ phase: 'planning' })
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7(PLAN))
+    return h
+  }
+  async function finished(h: Awaited<ReturnType<typeof boot>>, to: string) {
+    expect((await h.resultOf('w1')).isError).toBe(false)
+    await h.runEnds(1)
+    expect(await readFile(join(h.root, 'out.txt'), 'utf8')).toBe('x')
+    expect(h.modes().at(-1)).toEqual({ mode: to })
+    expect(h.entries().filter((e) => e.kind === 'run_start')).toHaveLength(1)
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  }
+
+  it('审阅等待中放宽（default → accept-edits）：计划审批仍在等待；批准后同一个 Run 的写入不再询问', async () => {
+    const h = await approveAfterSwitch('default', 'accept-edits')
+    await finished(h, 'accept-edits')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
+  })
+
+  it('审阅等待中收紧（accept-edits → default）：计划审批仍在等待；批准后同一个 Run 的写入询问', async () => {
+    const h = await approveAfterSwitch('accept-edits', 'default')
+    const write = await waitApproval(h.stream, h.sessionId, 2)
+    expect(write).toMatchObject({ kind: 'tool', toolName: 'write' })
+    expect((await h.answer(write.requestId, { decision: 'allow', scope: 'once' })).status).toBe(204)
+    await finished(h, 'default')
+    expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(2)
   })
 
   it('Run 中途进入与退出规划：等待中的写入审批被重新判定为拒绝，之后的写入立即拒绝；退出后写入恢复询问；<plan_mode> 到下一个 Run 才出现', async () => {
