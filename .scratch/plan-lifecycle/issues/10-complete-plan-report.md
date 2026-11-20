@@ -33,5 +33,11 @@
   3. 超长报告的错误结果只在 `planning.test.ts`（真实运行时）覆盖：faux 模型逐块流式输出 64 000 字符的工具参数使 Sidecar 用例超过 120 秒，Sidecar 用例只覆盖空报告。四种 Permission Mode 不询问、拒绝与询问规则生效同样在 `planning.test.ts` 覆盖，Sidecar 用例覆盖 default 下不询问。子 Session 没有该工具由 `definitions.test.ts` 覆盖（设计稿验证表所列）。
   4. `docs/README.md` 的 Plan Mode 摘要与 ADR 0028 的实施状态随本票同步（票面未列出）。
 - **测试。** `planning.test.ts`：四种模式不询问且报告原样交给宿主、拒绝规则与询问规则、空与超长报告的 T10、宿主拒绝时的 T10 文本。`definitions.test.ts`：`complete_plan` 被固定排除。`sidecar-plan.test.ts` 新增两例：规划中调用为“没有执行中的 Plan”且不提交、首个请求同时注册 `exit_plan_mode` 与 `complete_plan`、批准所在的同一个 Run 中空报告出错、成功时 completed → `plan_phase none` → 工具结果（T11）、只有计划审阅一条审批、模式不变、读回 none、下一个 Run 没有两个工具与计划 section、从未送达的 plan State Update 不发清空；跨 Run 完成后下一个 Run 送达一次清空、再下一个不送达、不注入 `<approved_plan>`，回退到完成所在 Run 的用户消息后读回执行中与 approved。`secrets-gate-plan.test.ts`：报告含登记明文时 completed 条目为 `[REDACTED]`，`complete_plan` 的结果帧与库中没有明文。`plan.browser.test.tsx`：完成后 chip 消失、计划卡与 Plan tab 为“已完成”、显示完成报告、回退后回到执行中且报告消失。
-- **验证（2026-11-20，darwin）。** 见提交说明与回报；未验证：真实模型是否遵守 T9–T11；非 darwin 平台；Electron E2E 未跑（属 12）。
+- **验证（2026-11-20，darwin，合入 11 之后重跑）。**
+  - `pnpm run typecheck` 通过；`pnpm run check:docs` 通过（449 个文件 0 个问题）；pre-commit 的 oxfmt 与 oxlint 通过。
+  - 单元：`vitest run --project agent --project server --project scripts` 1866 例，1861 通过、5 失败，均为已知基线（`engine/host-stop` 2、`policy/approvals` 1、`policy/gate-hooks` 1、`instructions/shared` 1）；`scripts/source-references.test.ts` 2 例通过。
+  - 集成（真实 Sidecar）：`sidecar-plan`、`secrets-gate-plan`、`sidecar-handoff`、`sidecar-rewind` 4 个文件 39 例通过。
+  - Browser Mode：`plan.browser.test.tsx` 22 例通过。
+  - 未验证：真实模型是否遵守 T9–T11；非 darwin 平台；Electron E2E 未跑（完成路径的端到端属阶段二验收）；需要真实指针或原生层的交互。
+  - 11 的“Run 进行中放弃后本 Run 再调用 `complete_plan` 得到错误结果”：本票的实现在锁内现取阶段，放弃后返回 T10“没有执行中的 Plan”，但没有专门的 Sidecar 用例覆盖这一组合。
 
