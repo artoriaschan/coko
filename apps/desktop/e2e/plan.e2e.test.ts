@@ -135,16 +135,17 @@ describe('Plan Mode', () => {
     await expect.poll(() => app.window.getByRole('article', { name: 'Coko' }).last().textContent(), { timeout: 30_000 }).toBe('Implementing the plan.')
     await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
     expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('default')
-    expect(await chip(app).count()).toBe(0)
-    const approved = app.window.locator('[data-slot="plan-card"][data-status="approved"]')
+    // 批准后计划为执行中：chip 显示执行中，计划卡与 Plan tab 同为执行中。
+    expect(await chip(app).textContent()).toMatch(/Executing|执行中/)
+    const approved = app.window.locator('[data-slot="plan-card"][data-status="executing"]')
     await approved.waitFor()
     expect(await approved.getAttribute('data-revision')).toBe('3')
     expect(await approved.textContent()).toContain('Plan B (edited)')
     expect(await app.window.locator('[data-slot="plan-card"][data-status="rejected"]').textContent()).toContain('add tests first')
-    await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('approved')
+    await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('executing')
   })
   it(
-    '完全访问权限下规划：模式菜单仍勾选该模式；chip × 退出后读回不在规划中、模式不变；审阅卡上改为 accept-edits 后批准：读回改后的模式、计划卡已批准',
+    '完全访问权限下规划：模式菜单仍勾选该模式；chip × 退出后读回不在规划中、模式不变；审阅卡上改为 accept-edits 后批准：读回执行中与改后的模式，chip 与计划卡为执行中',
     { timeout: 120_000 },
     async () => {
       const { app, sessionId } = await setup({ responses: [exit('e1', '# Plan C\n\n- inspect the code'), { content: 'Running with accept-edits.' }] })
@@ -199,11 +200,11 @@ describe('Plan Mode', () => {
         .poll(() => app.window.locator('[data-slot="assistant-message-body"]').last().textContent(), { timeout: 30_000 })
         .toBe('Running with accept-edits.')
       await app.window.locator('[data-action="send"]').waitFor({ timeout: 30_000 })
-      expect(await read()).toEqual({ phase: 'none', plan: null, mode: 'accept-edits' })
+      expect(await read()).toEqual({ phase: 'executing', plan: 'approved', mode: 'accept-edits' })
       expect(await modeButton(app).getAttribute('data-permission-mode')).toBe('accept-edits')
-      expect(await chip(app).count()).toBe(0)
-      await app.window.locator('[data-slot="plan-card"][data-status="approved"]').waitFor()
-      await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('approved')
+      expect(await chip(app).textContent()).toMatch(/Executing|执行中/)
+      await app.window.locator('[data-slot="plan-card"][data-status="executing"]').waitFor()
+      await expect.poll(() => planTab(app).getAttribute('data-status')).toBe('executing')
     },
   )
 })

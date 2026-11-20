@@ -79,7 +79,7 @@ export type ApprovalDecisionPayload = Static<typeof ApprovalDecisionPayload>
 /**
  * POST /api/sessions/:id/approvals/:requestId：回答待审批请求，204。请求不在等待中时 409 approval-not-pending。
  * feedback 只随拒绝：带反馈的拒绝作为工具错误交给模型，Run 继续；无反馈的拒绝在本批工具结束后以 aborted 结束 Run。
- * editedPlan 只用于 kind plan 的请求（否则 400）：用户编辑后的计划（规则同 exit_plan_mode 的 plan）。批准只结束规划，不改变 Permission
+ * editedPlan 只用于 kind plan 的请求（否则 400）：用户编辑后的计划（规则同 exit_plan_mode 的 plan）。批准结束规划、计划进入执行中，不改变 Permission
  * Mode（ADR 0028）；plan 请求的 scope 只能是 once。
  */
 export const AnswerApprovalRequest = Type.Union([

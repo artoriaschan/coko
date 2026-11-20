@@ -3,7 +3,7 @@ import { planTitle } from '@coko/protocol'
 import { IconClipboardList } from '@tabler/icons-react'
 import * as React from 'react'
 import { useI18n } from '../../app/i18n.tsx'
-import { PlanMarkdown, planHistory } from './plan-review-panel.tsx'
+import { displayedPlanStatus, PlanMarkdown, planHistory } from './plan-review-panel.tsx'
 import { useTimelineSession } from './timeline-session.tsx'
 import type { TimelineItem } from './timeline.ts'
 
@@ -24,6 +24,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
   const inline = historical || readOnly || openPlan === undefined
   const [expanded, setExpanded] = React.useState(false)
   const title = React.useMemo(() => planTitle(plan.markdown), [plan.markdown])
+  const status = displayedPlanStatus(plan, entries)
   if (superseded) return null
   return (
     <section
@@ -31,7 +32,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
       data-slot="plan-card"
       data-plan-id={plan.planId}
       data-revision={plan.revision}
-      data-status={plan.status}
+      data-status={status}
       aria-label={t('plan.card.label')}
       className="conversation-business-card conversation-business-row"
     >
@@ -49,7 +50,7 @@ export function PlanCard({ item, rootAttributes }: { item: Extract<TimelineItem,
         </button>
         <span className="shrink-0 text-ui-small text-muted-foreground">{t('plan.revision', { n: String(plan.revision) })}</span>
         <span data-slot="plan-status" className="shrink-0 rounded-sm bg-accent px-1.5 py-0.5 text-ui-small text-muted-foreground">
-          {t(`plan.status.${plan.status}`)}
+          {t(`plan.status.${status}`)}
         </span>
       </div>
       {plan.feedback !== undefined && (

@@ -158,6 +158,18 @@ describe('时间线：子代理通知与定时任务的宿主输入', () => {
     expect(items[0]).toMatchObject({ kind: 'schedule-fire', title: 'Daily "check"', prompt: '/goal resume' })
   })
 
+  it('执行中的 plan State Update 块按配对条目隐藏，只显示用户输入', () => {
+    seq = 0
+    const plan = '<state_update name="plan">\nAn approved plan is still in progress: "Fix" (revision 1).\n</state_update>'
+    const entries = [
+      entry('run_start', { trigger: 'submit' }, 'r'),
+      entry('state_update', { name: 'plan', value: { planId: 'p1', revision: 1, title: 'Fix' } }, 'r'),
+      textMessage([plan, 'continue']),
+      reply('ok'),
+    ]
+    expect(shape(buildTimeline(conversation(entries)))).toEqual(['user:continue*', 'text:ok'])
+  })
+
   it('<team-message> 文本块按 team_message 条目确定的位置去掉；只含该块的消息不成气泡，model_request 不渲染', () => {
     seq = 0
     const note = '<team-message from="alice" message-id="m1">\nplease review\n</team-message>'

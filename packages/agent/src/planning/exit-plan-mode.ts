@@ -25,9 +25,16 @@ export function planTitle(markdown: string): string {
 
 export const invalidPlanText = (problem: string) => `Invalid plan: ${problem}. Call exit_plan_mode again with the complete plan.`
 
-/** 批准后交给模型的文本（契约，设计稿 T7）。 */
+/** 批准后交给模型的文本（契约）：计划进入执行中，先用 todo_write 拆解，结束时以 complete_plan 对照计划汇报（宿主不检查是否拆解）。 */
 export const planApprovedText = (markdown: string) =>
-  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n${markdown}`
+  [
+    'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan:',
+    '1. First break the plan into steps with todo_write.',
+    '2. Do the work and verify it, for example by running the relevant tests or checks.',
+    '3. When the work is done, call complete_plan with a report that goes through the plan item by item: what you did, how you verified it, and anything you did not do or did differently, with the reason.',
+    '',
+    markdown,
+  ].join('\n')
 
 /** 不在规划中时调用 exit_plan_mode（例如同一 Run 中计划已批准）：不审阅。 */
 export const NOT_IN_PLAN_MODE_TEXT = 'Not in plan mode: the plan was already approved or plan mode was turned off. Continue with the task.'

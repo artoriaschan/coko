@@ -1,4 +1,4 @@
-import { effectiveEntries } from '@coko/agent/entries'
+import { effectiveEntries, planPhaseOf } from '@coko/agent/entries'
 import {
   planMarkdownProblem,
   planTitle,
@@ -26,6 +26,19 @@ export interface PlanRevision extends PlanPayload {
 }
 
 /** 有效条目（回退区间除外）中的计划：按 planId 分组，组内按条目顺序；组按首次出现的顺序。 */
+/**
+ * 计划卡与 Plan 页显示的状态：approved 的计划在计划阶段为执行中且 planId 相同时为 executing（ADR 0028），历史上已批准、没有执行阶段的仍为
+ * approved；其余按条目。
+ */
+export function displayedPlanStatus(
+  plan: { planId: string; status: PlanPayload['status'] },
+  entries: readonly SessionEntry[],
+): PlanPayload['status'] | 'executing' {
+  if (plan.status !== 'approved') return plan.status
+  const phase = planPhaseOf(entries)
+  return phase.phase === 'executing' && phase.planId === plan.planId ? 'executing' : 'approved'
+}
+
 export function planHistory(entries: readonly SessionEntry[]): Map<string, PlanRevision[]> {
   const plans = new Map<string, PlanRevision[]>()
   for (const entry of effectiveEntries(entries)) {
@@ -95,7 +108,7 @@ export interface PlanReviewPanelProps {
 }
 
 /**
- * 计划审阅接管输入区：主按钮"批准并执行"、"继续规划"（反馈）与"在右栏查看"。批准只结束规划，按 Session 当前的 Permission Mode 执行
+ * 计划审阅接管输入区：主按钮"批准并执行"、"继续规划"（反馈）与"在右栏查看"。批准结束规划、计划进入执行中，按 Session 当前的 Permission Mode 执行
  * （ADR 0028）。卡上标出执行权限并放入输入区同一个模式菜单：审阅等待期间切换照常提交 permission_mode，批准后按切换后的模式执行。
  * 右栏中的编辑随批准一起提交（editedPlan）。新计划出现时自动打开右栏一次。
  */

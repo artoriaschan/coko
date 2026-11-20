@@ -1,5 +1,6 @@
 // 秘密不外泄总闸的 Plan Mode 通道（ADR 0004）：模型服务在错误中回显 Credential，模型把它写进计划，用户审阅时又把它编辑进计划。Plan 引入的通道——
-// plan 条目（WebSocket 帧与库）、kind plan 的审批卡 payload（subject 为计划标题）、exit_plan_mode 的结果、压缩后 faux requestLog 中的 <approved_plan>——
+// plan 条目（WebSocket 帧与库）、kind plan 的审批卡 payload（subject 为计划标题）、exit_plan_mode 的结果、压缩后 faux requestLog 中的 <approved_plan>、
+// 执行中的 plan State Update（值中的计划标题，条目帧与发给模型的块）——
 // 以及日志与库中都不得出现明文。模型自己的工具调用参数（assistant 消息与 tool_start 进度）是模型输出原文，与其他工具相同，不属于本通道。
 import { randomBytes } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -53,7 +54,7 @@ describe('秘密不外泄总闸：Plan Mode', () => {
       await stream.waitFor(() => stream.entries(sessionId).some((e) => e.kind === 'approval_request'))
       const request = stream.entries(sessionId).find((e) => e.kind === 'approval_request')!.payload as { requestId: string }
       // 用户在审阅时把同一个明文编辑进计划。
-      const editedPlan = `# Rotate the key\n\nUse ${credential} only once, then revoke it.`
+      const editedPlan = `# Rotate ${credential} once\n\nUse ${credential} only once, then revoke it.`
       expect((await api.post(apiPaths.sessionApproval(sessionId, request.requestId), { decision: 'allow', editedPlan })).status).toBe(204)
     })
     for (const text of ['a'.repeat(40_000), 'b'.repeat(40_000), 'c'.repeat(40_000)]) await turn(text)
@@ -75,6 +76,16 @@ describe('秘密不外泄总闸：Plan Mode', () => {
     )
     expect(sections.at(-1)).toContain('<approved_plan>')
     expect(sections.at(-1)).toContain('Use [REDACTED] only once')
+    const updates = stream.entries(sessionId).filter((e) => e.kind === 'state_update' && (e.payload as { name: string }).name === 'plan')
+    expect(updates.length).toBeGreaterThanOrEqual(1)
+    expect(updates[0]!.payload).toMatchObject({ value: { title: 'Rotate [REDACTED] once' } })
+    const planBlocks = requests.flatMap((line) =>
+      (JSON.parse(line) as { role: string; content: unknown }[])
+        .filter((m) => m.role === 'user' && Array.isArray(m.content))
+        .flatMap((m) => (m.content as { text?: string }[]).map((b) => b.text ?? ''))
+        .filter((text) => text.startsWith('<state_update name="plan">')),
+    )
+    expect(planBlocks.some((text) => text.includes('"Rotate [REDACTED] once"'))).toBe(true)
     const planFrames = stream.frames.filter((frame) => {
       const m = JSON.parse(frame) as {
         type: string
@@ -83,7 +94,8 @@ describe('秘密不外泄总闸：Plan Mode', () => {
       }
       if (m.type === 'entry')
         return (
-          ['plan', 'approval_request'].includes(m.entry!.kind) || (m.entry!.payload.role === 'toolResult' && m.entry!.payload.toolName === 'exit_plan_mode')
+          ['plan', 'approval_request', 'state_update'].includes(m.entry!.kind) ||
+          (m.entry!.payload.role === 'toolResult' && m.entry!.payload.toolName === 'exit_plan_mode')
         )
       return m.type === 'progress' && m.event!.type === 'tool_end' && m.event!.toolName === 'exit_plan_mode'
     })
@@ -95,6 +107,7 @@ describe('秘密不外泄总闸：Plan Mode', () => {
       ...planFrames.map((frame, i): [string, string] => [`plan ws frame ${i}`, frame]),
       ...bodies.map((body, i): [string, string] => [`http body ${i}`, body]),
       ...sections.map((s, i): [string, string] => [`request ${i} system sections`, s]),
+      ...planBlocks.map((block, i): [string, string] => [`plan state update block ${i}`, block]),
       ...(await persisted(dirs)).map((f): [string, Buffer] => [`stopped ${f.name}`, f.bytes]),
     ]
     expect(leaksIn(channels, { credential })).toEqual([])

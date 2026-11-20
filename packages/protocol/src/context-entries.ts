@@ -6,10 +6,17 @@ import { Type, type Static } from 'typebox'
 const strict = { additionalProperties: false } as const
 const Count = Type.Integer({ minimum: 0 })
 
-/** state_update v1 records the structured state delivered in the next user message. */
+/** state_update v2 records the structured state delivered in the next user message (v2 adds name plan, the executing plan). */
 export const StateUpdatePayload = Type.Object(
   {
-    name: Type.Union([Type.Literal('date'), Type.Literal('goal'), Type.Literal('todo_list'), Type.Literal('team'), Type.Literal('on_demand_tools')]),
+    name: Type.Union([
+      Type.Literal('date'),
+      Type.Literal('goal'),
+      Type.Literal('todo_list'),
+      Type.Literal('team'),
+      Type.Literal('on_demand_tools'),
+      Type.Literal('plan'),
+    ]),
     value: Type.Unknown(),
   },
   strict,

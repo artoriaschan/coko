@@ -239,7 +239,8 @@ export class SessionPermissions implements PlanHost {
   }
 
   /**
-   * 计划接口的动作（ADR 0028）：enter 在不在规划中时提交 plan_phase planning，exit 在规划中时提交 plan_phase none，否则不提交；不改变
+   * 计划接口的动作（ADR 0028）：enter 在不在规划中时提交 plan_phase planning，exit 在规划中或执行中时提交 plan_phase none，否则不提交；
+   * 执行中的 exit 与 enter 暂不把计划记为放弃（只转换阶段，plan 条目不变）。不改变
    * Permission Mode，不改动待审阅的 plan 条目与等待中的审批。Run 进行中照常可用：写入拒绝与沙箱档位从下一次判定起生效或解除（等待中的
    * 写入审批随之重新判定），本 Run 的 section 与工具不变。子 Session 409 child-session。
    */
@@ -250,7 +251,7 @@ export class SessionPermissions implements PlanHost {
       const state = await this.state(session)
       const planning = state.phase.phase === 'planning'
       if (action === 'enter' && !planning) await this.#commitPhase(sessionId, state, { phase: 'planning' })
-      else if (action === 'exit' && planning) await this.#commitPhase(sessionId, state, { phase: 'none' })
+      else if (action === 'exit' && state.phase.phase !== 'none') await this.#commitPhase(sessionId, state, { phase: 'none' })
     })
     await this.reevaluate(this.#sameRoot(sessionId))
     return this.sessionPlan(sessionId)
@@ -317,11 +318,11 @@ export class SessionPermissions implements PlanHost {
         const edited = pending.answer?.editedPlan
         const final = edited !== undefined && edited !== pending.markdown ? edited : pending.markdown
         const revision = final === pending.markdown ? pending.ref.revision : pending.ref.revision + 1
-        // 批准只结束规划（审阅等待期间已退出时不再提交），不改变 Permission Mode（ADR 0028）。
+        // 批准使计划进入执行中（审阅等待期间已退出规划时同样进入：批准是用户的明确动作），不改变 Permission Mode（ADR 0028）。
         await this.locked(sessionId, async () => {
           await commitPlan({ planId: pending.ref.planId, revision, markdown: final, status: 'approved' })
           const state = await this.state(await requireSession(this.#store, sessionId))
-          if (state.phase.phase === 'planning') await this.#commitPhase(sessionId, state, { phase: 'none' })
+          await this.#commitPhase(sessionId, state, { phase: 'executing', planId: pending.ref.planId })
         })
         await this.reevaluate(this.#sameRoot(sessionId))
         log.info('plan approved', { sessionId, planId: pending.ref.planId, revision, edited: final !== pending.markdown })

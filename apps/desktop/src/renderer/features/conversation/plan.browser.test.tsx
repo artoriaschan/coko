@@ -2,13 +2,13 @@
 // 打开一次；卡上的执行权限即输入区同一个模式菜单，切换、风险确认与失败保留）、右栏 Plan tab（修订、状态、编辑）、Plan chip（计划阶段为规划中时显示，点击调用退出动作，失败时保留）与三项权限快捷菜单。多个含
 // Radix 菜单的界面在同一文件中依次渲染：每个用例等菜单关闭后才结束，共用 setup 断言没有遗留的 aria-hidden 与 pointer-events（testing/browser-setup.ts）。
 import '../../styles.css'
-import type { AnswerApprovalRequest, ApprovalRequestPayload, PlanActionRequest, SessionEntry } from '@coko/protocol'
+import type { AnswerApprovalRequest, ApprovalRequestPayload, PlanActionRequest, PlanPayload, SessionEntry } from '@coko/protocol'
 import { TooltipProvider } from '@coko/ui'
 import type * as React from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { ChatStoreProvider } from '../../app/chat.tsx'
+import { ChatStoreProvider, useChat } from '../../app/chat.tsx'
 import { ApiError } from '../../client/api.ts'
 import { I18nProvider } from '../../app/i18n.tsx'
 import { createFixtureChat } from '../../testing/fixture-chat.ts'
@@ -16,8 +16,10 @@ import { PlanTab } from '../right-panel/plan-tab.tsx'
 import { RIGHT_PANEL_TABS } from '../right-panel/tabs.ts'
 import { ApprovalPanel } from './approval-panel.tsx'
 import { ModePicker } from './mode-picker.tsx'
+import { PlanCard } from './plan-card.tsx'
 import { PlanChip } from './plan-chip.tsx'
 import { planDraftStore, PlanReviewPanel, setPlanDraft } from './plan-review-panel.tsx'
+import { TimelineSessionContext } from './timeline-session.tsx'
 
 afterEach(() => planDraftStore.setState({ drafts: {} }))
 
@@ -408,6 +410,59 @@ describe('plan-chip', () => {
       expect(chat.getState().conversations['s-1']?.pendingMode).toBeUndefined()
       sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
+    })
+
+    it('执行中：chip 显示“执行中”且几何与规划中相同，× 调用退出动作；计划卡与 Plan 页显示执行中，历史上已批准（没有执行阶段）的仍为已批准；退出后 chip 消失、计划回到已批准', async () => {
+      seq = 0
+      const approved = (planId: string, markdown: string) => entry('plan', { planId, revision: 1, markdown, status: 'approved' }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        approved('old', '# Old plan'),
+        entry('plan_phase', { phase: 'planning' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# Fix it', status: 'proposed' }, null),
+        approved('p1', '# Fix it'),
+        entry('plan_phase', { phase: 'executing', planId: 'p1' }, null),
+      ]
+      const { chat, api, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      const calls: string[] = []
+      api.planAction = async (id: string, action: PlanActionRequest['action']) => {
+        calls.push(`${id}:${action}`)
+        return { phase: 'none' as const, plan: null }
+      }
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      function Cards() {
+        const entries = useChat((s) => s.conversations['s-1']?.entries ?? [])
+        return (
+          <TimelineSessionContext.Provider value={{ sessionId: 's-1', entries, actionsDisabled: false, openPlan: () => {} }}>
+            {[rows[1]!, rows[4]!].map((row) => (
+              <PlanCard key={row.seq} item={{ kind: 'plan', key: String(row.seq), plan: row.payload as PlanPayload }} />
+            ))}
+          </TimelineSessionContext.Provider>
+        )
+      }
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+          <Cards />
+        </>,
+        chat,
+      )
+      const chip = screen.getByRole('button', { name: /Exit planning/ })
+      await expect.element(chip).toHaveTextContent('Executing')
+      expect(chip.element().getBoundingClientRect().height).toBe(28)
+      const card = (planId: string) => screen.container.querySelector(`[data-slot="plan-card"][data-plan-id="${planId}"]`)!
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')!
+      expect([card('p1').getAttribute('data-status'), card('p1').querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['executing', 'In progress'])
+      expect([card('old').getAttribute('data-status'), card('old').querySelector('[data-slot="plan-status"]')!.textContent]).toEqual(['approved', 'Approved'])
+      expect([tab().getAttribute('data-plan-id'), tab().getAttribute('data-status')]).toEqual(['p1', 'executing'])
+      await expect.element(screen.getByText('In progress', { exact: true }).first()).toBeVisible()
+
+      await userEvent.click(chip)
+      await expect.poll(() => calls).toEqual(['s-1:exit'])
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('plan_phase', { phase: 'none' }, null) })
+      await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
+      await expect.poll(() => [card('p1').getAttribute('data-status'), tab().getAttribute('data-status')]).toEqual(['approved', 'approved'])
     })
 
     // ADR 0028：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。

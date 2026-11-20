@@ -1,4 +1,5 @@
-// Plan Mode 的上下文贡献（ADR 0005、ADR 0028）：开始时计划阶段为规划中的 Run 注入 <plan_mode> 并注册 exit_plan_mode；已批准的计划被压缩摘要掉后注入 <approved_plan>；
+// Plan Mode 的上下文贡献（ADR 0005、ADR 0028）：开始时计划阶段为规划中的 Run 注入 <plan_mode> 并注册 exit_plan_mode；执行中的计划被压缩摘要掉后注入
+// <approved_plan>，根 Session 执行中时 State Update plan 的值为该计划的标识、修订与标题（否则 null，送达过时清空一次）；
 // 内置命令 /plan 的动作（/plan [消息] 进入规划，有消息时随后作为普通提交；/plan off 退出规划）：与 POST …/plan 是同一组动作，不改变 Permission Mode。
 // 计划阶段与计划审阅的状态在 SessionPermissions（session-permissions.ts），它创建时经 bindPlanHost 接到本贡献；没有接上时 /plan 以 bad-request 拒绝。
 import {
@@ -7,10 +8,12 @@ import {
   createExitPlanModeTool,
   EXIT_PLAN_MODE_TOOL,
   planModeSection,
+  planTitle,
   type PlanPhase,
   type PlanReview,
   type SystemSection,
 } from '@coko/agent'
+import type { SessionPlanResponse } from '@coko/protocol'
 import type { SessionEntry } from '@coko/session'
 import { AppError } from '../errors.ts'
 import type { ContextActionInput, ContextContribution, ContextContributionOptions } from './types.ts'
@@ -23,6 +26,8 @@ export interface PlanHost {
   planAction(sessionId: string, action: 'enter' | 'exit'): Promise<unknown>
   review(sessionId: string): PlanReview
   entries(sessionId: string): Promise<readonly SessionEntry[]>
+  /** 计划阶段与活动的 Plan（执行中为被执行的计划）。 */
+  sessionPlan(sessionId: string): Promise<SessionPlanResponse>
 }
 
 const hosts = new WeakMap<ContextContribution, PlanHost>()
@@ -50,6 +55,13 @@ export function planContribution(_options: ContextContributionOptions): ContextC
       const approved = approvedPlanToReinject(await host.entries(scope.sessionId))
       if (approved !== undefined) sections.push(approvedPlanSection(approved))
       return sections
+    },
+    // 执行中的提醒（ADR 0024 的既有送达、去重与重发规则）：只对根 Session 给值；批准所在的 Run 不额外送达，下一个带新输入的 Run 开始时送达。
+    async stateValues(scope) {
+      const host = hosts.get(contribution)
+      if (!host || scope.sessionId === undefined || scope.parentSessionId !== undefined) return {}
+      const { phase, plan } = await host.sessionPlan(scope.sessionId)
+      return { plan: phase === 'executing' && plan ? { planId: plan.planId, revision: plan.revision, title: planTitle(plan.markdown) } : null }
     },
     actions: {
       plan: Object.assign(

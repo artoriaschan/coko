@@ -2,6 +2,7 @@
 // 只依赖条目的最小形状（EntryLike），server 与测试共用。
 import { randomUUID } from 'node:crypto'
 import { effectiveEntries } from '../entries/derive.ts'
+import { planPhaseOf } from '../entries/plan-phase.ts'
 import type { EntryLike } from '../entries/types.ts'
 import type { PlanPayload } from '../session-entries/index.ts'
 
@@ -42,16 +43,18 @@ export function latestPlan(entries: readonly EntryLike[], planId?: string): Plan
 }
 
 /**
- * 压缩后需要再注入的已批准计划：最新一条 approved 的 plan 条目早于最后一个有效 compaction 的 firstKeptSeq（已被摘要掉）时返回其 markdown；
- * 没有压缩、计划仍在保留的消息中或没有已批准的计划时 undefined。
+ * 压缩后需要再注入的执行中计划（ADR 0028）：计划阶段为执行中，且该 planId 最新一条 approved 的 plan 条目早于最后一个有效 compaction 的
+ * firstKeptSeq（已被摘要掉）时返回其 markdown；不在执行中（含历史上已批准、没有执行阶段的计划）、没有压缩或计划仍在保留的消息中时 undefined。
  */
 export function approvedPlanToReinject(entries: readonly EntryLike[]): string | undefined {
+  const phase = planPhaseOf(entries)
+  if (phase.phase !== 'executing') return undefined
   const effective = effectiveEntries(entries)
   let approved: (EntryLike & { payload: PlanPayload }) | undefined
   let firstKeptSeq: number | undefined
   for (let i = effective.length - 1; i >= 0; i--) {
     const entry = effective[i]!
-    if (!approved && isPlan(entry) && entry.payload.status === 'approved') approved = entry
+    if (!approved && isPlan(entry) && entry.payload.status === 'approved' && entry.payload.planId === phase.planId) approved = entry
     if (firstKeptSeq === undefined && entry.kind === 'compaction') {
       const seq = (entry.payload as { firstKeptSeq?: unknown }).firstKeptSeq
       if (typeof seq === 'number') firstKeptSeq = seq

@@ -94,7 +94,7 @@ const exists = (path: string) =>
     () => true,
     () => false,
   )
-/** 模型可见文本（设计稿 T1 最终版、T3、T4、T5、T7）。 */
+/** 模型可见文本（ADR 0028 的契约：<plan_mode>、写入与提权拒绝、沙箱拒绝标记、批准结果、执行中的 State Update）。 */
 const PLAN_MODE_T1 = [
   '<plan_mode>',
   'Plan mode is active. Research and design only: the user reviews your plan before anything in the Workspace changes.',
@@ -109,8 +109,26 @@ const PLANNING_WRITE_REFUSED =
 const PLANNING_ESCALATION_REFUSED =
   'invalid escalation: plan mode is active, so commands run in a read-only sandbox and cannot be escalated. Do not retry; describe the step that needs write access in the plan instead.'
 const PLANNING_SANDBOX_MARKER = '[sandbox: escalation is not available in plan mode]'
-const APPROVED_T7 = (markdown: string) =>
-  `The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n${markdown}`
+const APPROVED = (markdown: string) =>
+  [
+    'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan:',
+    '1. First break the plan into steps with todo_write.',
+    '2. Do the work and verify it, for example by running the relevant tests or checks.',
+    '3. When the work is done, call complete_plan with a report that goes through the plan item by item: what you did, how you verified it, and anything you did not do or did differently, with the reason.',
+    '',
+    markdown,
+  ].join('\n')
+const PLAN_STATE = (title: string, revision: number) =>
+  `<state_update name="plan">\nAn approved plan is still in progress: "${title}" (revision ${revision}). Keep carrying it out; when the work is done and verified, call complete_plan with a report against the plan.\n</state_update>`
+const PLAN_STATE_CLEARED = '<state_update name="plan">\nThis item currently has no content. Previous updates with this name no longer apply.\n</state_update>'
+/** 一次请求中最后一条 user message 的各块文本。 */
+const userBlocks = (logged: Logged): string[] => {
+  const content = logged.filter((m) => m.role === 'user').at(-1)?.content
+  return Array.isArray(content) ? content.map((b) => (b as { text?: string }).text ?? '') : [String(content)]
+}
+const firstBlock = (logged: Logged) => userBlocks(logged)[0]
+/** 最后一条 user message 中的 plan State Update 块（没有时 undefined）。 */
+const planBlock = (logged: Logged) => userBlocks(logged).find((t) => t.startsWith('<state_update name="plan">'))
 
 const PLAN = '# Fix the parser\n\n1. Read src/parse.ts\n2. Add a test'
 const EDITED = '# Fix the parser\n\n1. Add a test first\n2. Then fix src/parse.ts'
@@ -201,25 +219,106 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     // 批准只结束规划，不恢复也不改变模式（原先断言回到 prior）。
     expect(h.modes()).toEqual([{ mode: 'default' }])
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
-    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({
+      phase: 'executing',
+      plan: { planId: proposed[0]!.planId, revision: 2, markdown: EDITED, status: 'approved' },
+    })
     const approved = await h.resultOf('e1')
     expect(approved.isError).toBe(false)
-    expect(text(approved)).toBe(APPROVED_T7(EDITED))
+    expect(text(approved)).toBe(APPROVED(EDITED))
     expect(h.entries().at(-1)!.payload).toMatchObject({ status: 'completed' })
-    // 顺序：proposed → 审批请求 → 决定 → 工具执行 → approved → 计划阶段“无” → 工具结果；没有 permission_mode。
+    // 顺序：proposed → 审批请求 → 决定 → 工具执行 → approved → 计划阶段“执行中” → 工具结果；没有 permission_mode。
     const order = h
       .entries()
       .filter(
         (e) => ['approval_request', 'approval_decision', 'tool_exec', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult',
       )
     expect(order.slice(-7).map(kindOf)).toEqual(['plan', 'approval_request', 'approval_decision', 'tool_exec', 'plan', 'plan_phase', 'toolResult'])
+    expect(h.entries().findLast((e) => e.kind === 'plan_phase')!.payload).toEqual({ phase: 'executing', planId: proposed[0]!.planId })
 
     // 发给模型的请求：规划中开始的 Run 带 <plan_mode>（最终版），模型看到了 exit_plan_mode 的结果并继续。
     const logged = await h.requests()
     expect(logged).toHaveLength(4)
     for (const request of logged) expect(h.sections(request).map((s) => s.name)).toContain('plan_mode')
     expect(h.sections(logged[0]!).find((s) => s.name === 'plan_mode')!.text).toBe(PLAN_MODE_T1)
-    expect(JSON.stringify(logged[3]!.at(-1))).toContain('carry out the plan.')
+    expect(JSON.stringify(logged[3]!.at(-1))).toContain('carry out the plan:')
+    expect(h.stream.invalidEntries).toEqual([])
+    expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
+  })
+
+  it('批准后执行中：不先调用 todo_write 的写入照常按模式询问并写入、命令回到 workspace-write 沙箱；下一个带新输入的 Run 首块为 plan State Update，值不变不重复；Run 结束后不自动发起 Run；退出后送达一次清空', async () => {
+    const h = await boot([
+      exit('e1', PLAN),
+      call('write', 'w1', { path: 'notes.md', content: 'x' }),
+      call('bash', 'b1', { command: 'echo hi > touched.txt' }),
+      { content: 'run one done' },
+      { content: 'run two' },
+      { content: 'run three' },
+      { content: 'run four' },
+      { content: 'run five' },
+    ])
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan fix it' })).status).toBe(202)
+    const review = await waitApproval(h.stream, h.sessionId, 1)
+    expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED(PLAN))
+    // 宿主不检查是否拆了 Todo：写入按 default 询问后执行，命令在 Permission Mode 对应的档位运行。
+    const write = await waitApproval(h.stream, h.sessionId, 2)
+    expect(write).toMatchObject({ kind: 'tool', toolName: 'write' })
+    expect((await h.answer(write.requestId, { decision: 'allow' })).status).toBe(204)
+    const bash = await waitApproval(h.stream, h.sessionId, 3)
+    expect(bash).toMatchObject({ kind: 'tool', toolName: 'bash' })
+    expect((await h.answer(bash.requestId, { decision: 'allow' })).status).toBe(204)
+    await h.runEnds(1)
+    expect((await h.resultOf('w1')).isError).toBe(false)
+    expect(await readFile(join(h.root, 'notes.md'), 'utf8')).toBe('x')
+    // darwin：workspace-write 的 Seatbelt 允许写 Workspace；其他平台没有 sandbox-exec，受限档位的命令 fail-closed（ADR 0005）。
+    expect((await h.resultOf('b1')).isError).toBe(!darwin)
+    expect(await readFile(join(h.root, 'touched.txt'), 'utf8').catch(() => null)).toBe(darwin ? 'hi\n' : null)
+    expect(h.entries().some((e) => e.kind === 'todo')).toBe(false)
+    const planId = h.plans()[0]!.planId
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({
+      phase: 'executing',
+      plan: { planId, revision: 1, markdown: PLAN, status: 'approved' },
+    })
+    // 批准所在的 Run 不额外送达。
+    const updates = () => h.entries().filter((e) => e.kind === 'state_update' && (e.payload as { name: string }).name === 'plan')
+    expect(updates()).toEqual([])
+
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'continue' })).status).toBe(202)
+    await h.runEnds(2)
+    let logged = await h.requests()
+    expect(firstBlock(logged.at(-1)!)).toBe(PLAN_STATE('Fix the parser', 1))
+    // 条目：state_update 在该 Run 的 user message 之前，值为计划的标识、修订与标题。
+    const [delivered] = updates()
+    expect(delivered!.payload).toEqual({ name: 'plan', value: { planId, revision: 1, title: 'Fix the parser' } })
+    const user = h.entries().findLast((e) => kindOf(e) === 'user')!
+    expect([delivered!.runId, delivered!.seq < user.seq]).toEqual([user.runId, true])
+    // 执行中没有 <plan_mode> 与 exit_plan_mode。
+    expect(h.sections(logged.at(-1)!).map((s) => s.name)).not.toContain('plan_mode')
+    expect((await h.tools()).at(-1)).not.toContain('exit_plan_mode')
+
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'and more' })).status).toBe(202)
+    await h.runEnds(3)
+    expect(updates()).toHaveLength(1)
+    logged = await h.requests()
+    expect(planBlock(logged.at(-1)!)).toBeUndefined()
+    // 有执行中的 Plan、没有 Goal：Run 结束后宿主不发起新的 Run。
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(h.entries().filter((e) => e.kind === 'run_start')).toHaveLength(3)
+
+    expect((await h.api.post(planPaths.sessionPlan(h.sessionId), { action: 'exit' })).body).toEqual({ phase: 'none', plan: null })
+    expect(h.plans().at(-1)).toMatchObject({ planId, status: 'approved' })
+    for (const [n, t] of [
+      [4, 'after exit'],
+      [5, 'once more'],
+    ] as const) {
+      expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: t })).status).toBe(202)
+      await h.runEnds(n)
+    }
+    logged = await h.requests()
+    expect(firstBlock(logged.at(-2)!)).toBe(PLAN_STATE_CLEARED)
+    expect(planBlock(logged.at(-1)!)).toBeUndefined()
+    expect(updates().map((e) => (e.payload as { value: unknown }).value)).toEqual([{ planId, revision: 1, title: 'Fix the parser' }, null])
     expect(h.stream.invalidEntries).toEqual([])
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -240,7 +339,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
     expect(h.modes().at(-1)).toEqual({ mode: 'full-access' })
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'full-access', rules: [] })
-    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7(PLAN))
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED(PLAN))
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
@@ -309,7 +408,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
       [true, 2, 'approved', undefined],
     ])
     expect(h.modes()).toEqual([{ mode: 'default' }, { mode: 'accept-edits' }])
-    expect(text(await h.resultOf('e2'))).toBe(APPROVED_T7('# Two'))
+    expect(text(await h.resultOf('e2'))).toBe(APPROVED('# Two'))
     expect(
       h
         .entries()
@@ -325,7 +424,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('/plan off 与计划接口退出不改模式；规划中切换模式不退出规划；审阅等待中退出规划后批准不再提交阶段条目；Run 进行中 /plan 为 409、计划接口照常可用', async () => {
+  it('/plan off 与计划接口退出不改模式；规划中切换模式不退出规划；审阅等待中退出规划后批准仍进入执行中；执行中退出只把阶段置为无；Run 进行中 /plan 为 409、计划接口照常可用', async () => {
     const h = await boot([exit('e1', '# Plan A'), exit('e2', '# Plan B'), { content: 'done' }])
     const phases = () =>
       h
@@ -364,13 +463,21 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.plans()).toEqual([proposed])
     expect((await h.answer(review.requestId, { decision: 'allow', mode: 'read-only' })).status).toBe(400)
     expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
-    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7('# Plan A'))
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED('# Plan A'))
     // 同一 Run 中已不在规划中：再次 exit_plan_mode 直接报错，不再审阅。
     expect(await h.resultOf('e2')).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^Not in plan mode/) }] })
     await h.runEnds(1)
     expect(h.entries().filter((e) => e.kind === 'approval_request')).toHaveLength(1)
     expect(h.plans().at(-1)).toMatchObject({ status: 'approved', markdown: '# Plan A' })
-    expect(phases()).toEqual(['planning', 'none', 'planning', 'none'])
+    // 批准是用户的明确动作：审阅等待期间已退出规划，批准后同样进入执行中。
+    expect(phases()).toEqual(['planning', 'none', 'planning', 'none', 'executing'])
+    expect((await read()).phase).toBe('executing')
+    // 执行中退出（放弃在后续交付）：只提交计划阶段“无”，不改动 plan 条目。
+    const before = h.plans()
+    expect((await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan off' })).status).toBe(204)
+    expect(await read()).toEqual({ phase: 'none', plan: null })
+    expect(h.plans()).toEqual(before)
+    expect(phases()).toEqual(['planning', 'none', 'planning', 'none', 'executing', 'none'])
     expect(h.modes().at(-1)).toEqual({ mode: 'default' })
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
@@ -387,7 +494,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(h.entries().filter((e) => e.kind === 'approval_decision')).toEqual([])
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({ phase: 'planning' })
     expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
-    expect(text(await h.resultOf('e1'))).toBe(APPROVED_T7(PLAN))
+    expect(text(await h.resultOf('e1'))).toBe(APPROVED(PLAN))
     return h
   }
   async function finished(h: Awaited<ReturnType<typeof boot>>, to: string) {
@@ -485,19 +592,19 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(phases()).toEqual(['planning', 'none'])
     expect(h.modes()).toEqual([{ mode: 'default' }, { mode: 'read-only' }, { mode: 'accept-edits' }, { mode: 'full-access' }, { mode: 'default' }])
 
-    // /plan 带消息：规划中提交的计划经 GET 读回；批准：approved → plan_phase none → 工具结果，没有 permission_mode。
+    // /plan 带消息：规划中提交的计划经 GET 读回；批准：approved → plan_phase executing → 工具结果，没有 permission_mode。
     expect((await slash('/plan draft it')).status).toBe(202)
     const review = await waitApproval(h.stream, h.sessionId, 1)
     const proposed = h.plans()[0]!
     expect(await read()).toEqual({ phase: 'planning', plan: { planId: review.planId, revision: 1, markdown: PLAN, status: 'proposed' } })
     expect((await h.answer(review.requestId, { decision: 'allow' })).status).toBe(204)
     await h.runEnds(1)
-    expect(await read()).toEqual({ phase: 'none', plan: null })
+    expect(await read()).toEqual({ phase: 'executing', plan: { ...proposed, status: 'approved' } })
     const tail = h
       .entries()
       .filter((e) => ['approval_decision', 'tool_exec', 'plan', 'plan_phase', 'permission_mode'].includes(e.kind) || kindOf(e) === 'toolResult')
     expect(tail.slice(-5).map(kindOf)).toEqual(['approval_decision', 'tool_exec', 'plan', 'plan_phase', 'toolResult'])
-    expect(phases().slice(-2)).toEqual(['planning', 'none'])
+    expect(phases().slice(-2)).toEqual(['planning', 'executing'])
     expect(h.plans().at(-1)).toMatchObject({ planId: proposed.planId, status: 'approved' })
     expect(h.modes()).toHaveLength(5)
     const logged = await h.requests()
@@ -505,7 +612,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
 
     // 审计序列包含每次阶段转换。
     const audit = (await h.api.get(apiPaths.sessionAudit(h.sessionId))).body as { kind: string; phase?: string }[]
-    expect(audit.filter((e) => e.kind === 'plan_phase').map((e) => e.phase)).toEqual(['planning', 'none', 'planning', 'none'])
+    expect(audit.filter((e) => e.kind === 'plan_phase').map((e) => e.phase)).toEqual(['planning', 'none', 'planning', 'executing'])
 
     // 首次发送：permissionMode plan 为 400（不创建 Session）；text 为 /plan 消息时以规划开始并提交该消息，模式为所选模式。
     const refused = await h.api.post(API_ROUTES.firstSend, { draftId: 'plan-first-send-mode', text: 'research first', permissionMode: 'plan' })
@@ -670,14 +777,17 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(second).toMatchObject({ planId: first.planId, revision: 2 })
     expect((await h.answer(second.requestId, { decision: 'allow' })).status).toBe(204)
     await h.runEnds(2)
-    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'none', plan: null })
+    expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toMatchObject({
+      phase: 'executing',
+      plan: { planId: first.planId, revision: 2, status: 'approved' },
+    })
 
     const submit = h
       .entries()
       .filter((e) => kindOf(e) === 'user')
       .at(-1)!
     expect((await h.api.post(checkpointPaths.sessionRewind(h.sessionId), { targetSeq: submit.seq, mode: 'conversation' })).status).toBe(200)
-    // 被回退的是 revision 2 的 proposed 与 approved、计划阶段“无”；之前带反馈拒绝的 revision 1 不是待审阅的计划。
+    // 被回退的是 revision 2 的 proposed 与 approved、计划阶段“执行中”；之前带反馈拒绝的 revision 1 不是待审阅的计划。
     expect((await h.api.get(planPaths.sessionPlan(h.sessionId))).body).toEqual({ phase: 'planning', plan: null })
     expect((await h.api.get(permissionPaths.sessionPermissionRules(h.sessionId))).body).toEqual({ mode: 'default', rules: [] })
 
@@ -696,7 +806,7 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(await h.sidecar.stop()).toEqual({ code: 0, signal: null })
   })
 
-  it('压缩把已批准计划摘要掉后注入 <approved_plan>；分叉规划中的 Session：仍在规划中、模式随 permission_mode 复制（default），没有 plan 条目', async () => {
+  it('执行中：压缩把计划摘要掉后注入 <approved_plan> 并重发 plan State Update；再进入规划后不再注入；分叉规划中的 Session：仍在规划中、模式随 permission_mode 复制（default），没有 plan 条目', async () => {
     // Run 1：提交并批准（两次请求）；Run 2–4 建立历史；/compact 的摘要；Run 6；Run 7 在 plan 中再次提交后停止。
     const h = await boot(
       [
@@ -737,10 +847,26 @@ describe('Plan Mode', { timeout: 120_000 }, () => {
     expect(injected?.text).toContain(PLAN)
     // 压缩之前的请求没有 <approved_plan>（计划仍在上下文中）。
     expect(h.sections(logged[1]!).map((s) => s.name)).not.toContain('approved_plan')
+    // plan State Update：Run 2 送达，Run 3、4 值不变不重复；压缩把 Run 2 的送达摘要掉后 Run 6 重发。
+    const planUpdates = () =>
+      h
+        .entries()
+        .filter((e) => e.kind === 'state_update' && (e.payload as { name: string }).name === 'plan')
+        .map((e) => h.entries().find((r) => r.kind === 'run_start' && r.runId === e.runId)!.seq)
+    const runStarts = h
+      .entries()
+      .filter((e) => e.kind === 'run_start')
+      .map((e) => e.seq)
+    expect(planUpdates()).toEqual([runStarts[1], runStarts[5]])
+    expect(planBlock(logged.at(-1)!)).toBe(PLAN_STATE('Fix the parser', 1))
 
     // 再进入 plan 并提交一份（不批准就停止），之后在 plan 中再发一条消息，以它为分叉目标：plan 条目在目标之前，但不随分叉复制。
     await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: '/plan draft' })
     await waitApproval(h.stream, h.sessionId, 2)
+    // 执行中再进入规划：不再是执行中，不注入 <approved_plan>；提醒送达一次清空。
+    const drafting = (await h.requests()).at(-1)!
+    expect(h.sections(drafting).map((s) => s.name)).not.toContain('approved_plan')
+    expect(planBlock(drafting)).toBe(PLAN_STATE_CLEARED)
     await h.api.post(apiPaths.sessionAbort(h.sessionId))
     await h.runEnds(7)
     await h.api.post(apiPaths.sessionMessages(h.sessionId), { text: 'more research' })

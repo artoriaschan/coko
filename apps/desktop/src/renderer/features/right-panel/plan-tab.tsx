@@ -5,7 +5,7 @@ import * as React from 'react'
 import { useChat } from '../../app/chat.tsx'
 import { useI18n } from '../../app/i18n.tsx'
 import { pendingApprovals } from '../../stores/chat-store.ts'
-import { PlanMarkdown, planHistory, setPlanDraft, usePlanDraft } from '../conversation/plan-review-panel.tsx'
+import { displayedPlanStatus, PlanMarkdown, planHistory, setPlanDraft, usePlanDraft } from '../conversation/plan-review-panel.tsx'
 import type { RightPanelTabProps } from './tabs.ts'
 
 const EMPTY: never[] = []
@@ -40,15 +40,10 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
     return <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-ui-body text-muted-foreground">{t('plan.empty')}</div>
   }
   const text = reviewing && draft !== undefined ? draft : current.markdown
+  const status = displayedPlanStatus(current, entries)
   const invalid = reviewing && draft !== undefined && planMarkdownProblem(draft) !== undefined
   return (
-    <div
-      data-slot="plan-tab"
-      data-plan-id={current.planId}
-      data-revision={current.revision}
-      data-status={current.status}
-      className="flex min-h-0 flex-1 flex-col"
-    >
+    <div data-slot="plan-tab" data-plan-id={current.planId} data-revision={current.revision} data-status={status} className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pb-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -69,8 +64,8 @@ export function PlanTab({ sessionId }: RightPanelTabProps) {
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span data-slot="plan-status" data-status={current.status} className="rounded-sm bg-accent px-1.5 py-0.5 text-ui-small text-muted-foreground">
-          {t(`plan.status.${current.status}`)}
+        <span data-slot="plan-status" data-status={status} className="rounded-sm bg-accent px-1.5 py-0.5 text-ui-small text-muted-foreground">
+          {t(`plan.status.${status}`)}
         </span>
         <span className="flex-1" />
         {reviewing && draft !== undefined && (

@@ -80,15 +80,25 @@ describe('planPhaseOf 与 activePlanOf', () => {
 })
 
 describe('approvedPlanToReinject', () => {
-  it('最新已批准计划早于最后一个 compaction 的 firstKeptSeq 时返回其正文', () => {
-    const entries = [plan('p1', 1, 'approved', '# Old'), plan('p2', 1, 'approved', '# New'), entry('message', {}), entry('message', {})]
+  it('执行中：该 planId 最新的已批准条目早于最后一个 compaction 的 firstKeptSeq 时返回其正文（不看其他计划）', () => {
+    const entries = [plan('p1', 1, 'approved', '# Executing'), phase('executing', 'p1'), plan('p2', 1, 'approved', '# Other'), entry('message', {})]
     entries.push(entry('compaction', { summary: 's', firstKeptSeq: 4 }))
-    expect(approvedPlanToReinject(entries)).toBe('# New')
+    expect(approvedPlanToReinject(entries)).toBe('# Executing')
   })
-  it('计划仍在保留的消息中、没有压缩或没有已批准计划时 undefined', () => {
-    expect(approvedPlanToReinject([entry('message', {}), plan('p1', 1, 'approved'), entry('compaction', { summary: 's', firstKeptSeq: 2 })])).toBeUndefined()
-    expect(approvedPlanToReinject([plan('p1', 1, 'approved')])).toBeUndefined()
-    expect(approvedPlanToReinject([plan('p1', 1, 'proposed'), entry('message', {}), entry('compaction', { summary: 's', firstKeptSeq: 2 })])).toBeUndefined()
+  it('不在执行中（历史上已批准、规划中、执行结束）、计划仍在保留的消息中、没有压缩时 undefined', () => {
+    const compacted = (...before: EntryLike[]) => [...before, entry('message', {}), entry('compaction', { summary: 's', firstKeptSeq: seq })]
+    expect(approvedPlanToReinject(compacted(plan('p1', 1, 'approved')))).toBeUndefined()
+    expect(approvedPlanToReinject(compacted(plan('p1', 1, 'approved'), phase('none')))).toBeUndefined()
+    expect(approvedPlanToReinject(compacted(plan('p1', 1, 'approved'), phase('executing', 'p1'), phase('planning')))).toBeUndefined()
+    expect(
+      approvedPlanToReinject([
+        entry('message', {}),
+        plan('p1', 1, 'approved'),
+        phase('executing', 'p1'),
+        entry('compaction', { summary: 's', firstKeptSeq: 2 }),
+      ]),
+    ).toBeUndefined()
+    expect(approvedPlanToReinject([plan('p1', 1, 'approved'), phase('executing', 'p1')])).toBeUndefined()
   })
   it('latestPlan 按 planId 取最新一条', () => {
     const entries = [plan('p1', 1, 'proposed'), plan('p2', 1, 'proposed'), plan('p1', 1, 'rejected')]
@@ -198,7 +208,14 @@ describe('审阅闭环（createAgentRuntime）', () => {
     expect(h.results()).toEqual([
       {
         isError: false,
-        text: 'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan.\n\n# Fix it\n- a\n(edited)',
+        text: [
+          'The user approved the plan. Plan mode has ended: ignore the earlier <plan_mode> instructions and carry out the plan:',
+          '1. First break the plan into steps with todo_write.',
+          '2. Do the work and verify it, for example by running the relevant tests or checks.',
+          '3. When the work is done, call complete_plan with a report that goes through the plan item by item: what you did, how you verified it, and anything you did not do or did differently, with the reason.',
+          '',
+          '# Fix it\n- a\n(edited)',
+        ].join('\n'),
       },
     ])
   })

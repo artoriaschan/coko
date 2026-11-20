@@ -1,10 +1,11 @@
 // State Update provenance and delivery planning; browser-safe and independent of domain storage.
 import { effectiveEntries } from './derive.ts'
 import { todoResultText } from './todo-text.ts'
+import { planStateText, type PlanStateValue } from './plan-text.ts'
 import { teamStateText, type TeamStateValue } from './team-text.ts'
 import type { EntryLike } from './types.ts'
 
-export const STATE_UPDATE_NAMES = ['date', 'goal', 'todo_list', 'team', 'on_demand_tools'] as const
+export const STATE_UPDATE_NAMES = ['date', 'goal', 'todo_list', 'team', 'on_demand_tools', 'plan'] as const
 export type StateUpdateName = (typeof STATE_UPDATE_NAMES)[number]
 export type StateValues = Partial<Record<StateUpdateName, unknown>>
 export interface StateSnapshotPayload {
@@ -91,6 +92,7 @@ export function planStateUpdates(
 }
 
 function renderStateValue(name: StateUpdateName, value: unknown): string {
+  if (name === 'plan' && value && typeof value === 'object' && 'title' in value) return planStateText(value as PlanStateValue)
   if (
     name === 'team' &&
     value &&
