@@ -109,6 +109,17 @@ describe('handoffTargetEntries 的计划阶段', () => {
     entries.push(entry('plan_phase', { phase: 'none' }, null), entry('permission_mode', { mode: 'default' }, null))
     expect(handoffTargetEntries(entries, 's', 9).map((e) => e.kind)).not.toContain('plan_phase')
   })
+
+  it('阶段按有效条目：进入规划被回退后不追加；回退掉退出规划后追加', () => {
+    seq = 0
+    const first = user('one')
+    const entered = [entry('plan_phase', { phase: 'planning' }, null), user('two')]
+    const rewound = [...entered, entry('rewind', { targetSeq: entered[0]!.seq }, null)]
+    expect(handoffTargetEntries([first, ...rewound], 's', 9).map((e) => e.kind)).toEqual(['handoff_origin'])
+    const exit = [entry('plan_phase', { phase: 'none' }, null), user('three')]
+    const undone = [first, ...entered, ...exit, entry('rewind', { targetSeq: exit[0]!.seq }, null)]
+    expect(handoffTargetEntries(undone, 's', 9).at(-1)).toEqual({ kind: 'plan_phase', payload: { phase: 'planning' } })
+  })
 })
 
 describe('hasUserMessage', () => {
@@ -119,7 +130,7 @@ describe('hasUserMessage', () => {
     seq = 0
     const one = user('one')
     expect(hasUserMessage([one])).toBe(true)
-    expect(hasUserMessage([one, entry('rewind', { targetSeq: one.seq, mode: 'conversation' }, null)])).toBe(false)
+    expect(hasUserMessage([one, entry('rewind', { targetSeq: one.seq }, null)])).toBe(false)
   })
 })
 

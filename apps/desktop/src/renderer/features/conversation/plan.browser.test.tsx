@@ -370,6 +370,45 @@ describe('plan-chip', () => {
       await expect.poll(() => screen.container.querySelector('[data-slot="plan-chip"]')).toBeNull()
     })
 
+    // 票 06：renderer 与服务端同用 planPhaseOf（有效条目），回退条目到达后 chip 与 Plan 页随之变化，与协议读回一致。
+    it('回退后按有效条目派生：回退到批准之前 chip 重新出现、被回退的已批准修订不再显示；回退到进入规划之前 chip 消失、没有计划', async () => {
+      seq = 0
+      const user = (text: string) => entry('message', { role: 'user', content: [{ type: 'text', text }], timestamp: 0 }, null)
+      const rows = [
+        entry('permission_mode', { mode: 'default' }, null),
+        user('first'),
+        entry('plan_phase', { phase: 'planning' }, null),
+        user('research'),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 1, markdown: '# First idea', status: 'rejected', feedback: 'too vague' }, null),
+        user('submit'),
+        entry('plan', { planId: 'p1', revision: 2, markdown: '# Second idea', status: 'proposed' }, null),
+        entry('plan', { planId: 'p1', revision: 2, markdown: '# Second idea', status: 'approved' }, null),
+        entry('plan_phase', { phase: 'none' }, null),
+      ]
+      const { chat, sendServer } = createFixtureChat({ entries: { 's-1': rows } })
+      await expect.poll(() => chat.getState().conversations['s-1']?.status).toBe('ready')
+      const screen = await wrap(
+        <>
+          <PlanChip sessionId="s-1" />
+          <PlanTab sessionId="s-1" />
+        </>,
+        chat,
+      )
+      const chip = () => screen.container.querySelector('[data-slot="plan-chip"]')
+      const tab = () => screen.container.querySelector('[data-slot="plan-tab"]')
+      await expect.poll(() => [tab()?.getAttribute('data-revision'), tab()?.getAttribute('data-status')]).toEqual(['2', 'approved'])
+      expect(chip()).toBeNull()
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[6]!.seq }, null) })
+      await expect.poll(() => chip()).not.toBeNull()
+      await expect.poll(() => [tab()?.getAttribute('data-revision'), tab()?.getAttribute('data-status')]).toEqual(['1', 'rejected'])
+
+      sendServer({ type: 'entry', sessionId: 's-1', entry: entry('rewind', { targetSeq: rows[1]!.seq }, null) })
+      await expect.poll(() => chip()).toBeNull()
+      await expect.element(screen.getByText('No plan yet', { exact: false })).toBeVisible()
+    })
+
     it('退出失败：chip 保留且可再次点击；旧数据中的 plan 模式（没有阶段条目）与草稿都不显示 chip', async () => {
       seq = 0
       const { chat, api } = createFixtureChat({

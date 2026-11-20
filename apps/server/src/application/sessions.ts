@@ -149,6 +149,7 @@ export class SessionService {
       store,
       runtimes: this.#runtimes,
       recovery: this.#recovery,
+      permissions: this.#permissions,
       ...(options.checkpoints ? { files: options.checkpoints } : {}),
       ...(options.cwd ? { cwd: options.cwd } : {}),
     })

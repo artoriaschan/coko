@@ -4,6 +4,7 @@ import {
   effectiveSubagentMode,
   narrowerMode,
   nextPlanRef,
+  planPhaseOf,
   type AgentRuntime,
   type PermissionMode,
   type PermissionRule,
@@ -40,7 +41,7 @@ export interface SessionPermissionState {
   /** plan 模式下：进入 plan 之前的模式（permission_mode 的 prior）。 */
   prior?: StandardPermissionMode
   rules: PermissionRule[]
-  /** 计划阶段（ADR 0028）：最后一条 plan_phase，没有时 none。与模式同一口径回放（原始条目，票 06 改为有效条目）。 */
+  /** 计划阶段（ADR 0028）：有效条目（回退区间不算）中最后一条 plan_phase，没有时 none；回退后经 rewound 重新计算。模式与规则仍按原始条目回放。 */
   phase: PlanPhasePayload
 }
 
@@ -160,8 +161,9 @@ export class SessionPermissions implements PlanHost {
     if (!state) {
       state = (async () => {
         await Promise.all([this.service.load(), this.service.loadWorkspace(session.workspaceId)])
-        const replayed: SessionPermissionState = { workspaceId: session.workspaceId, mode: 'default', rules: [], phase: { phase: 'none' } }
-        for (const entry of await this.#store.sessions.listEntries(session.id)) {
+        const entries = await this.#store.sessions.listEntries(session.id)
+        const replayed: SessionPermissionState = { workspaceId: session.workspaceId, mode: 'default', rules: [], phase: planPhaseOf(entries) }
+        for (const entry of entries) {
           if (entry.kind === 'permission_mode') {
             const { mode, prior } = entry.payload as { mode: PermissionMode; prior?: StandardPermissionMode }
             replayed.mode = mode
@@ -171,7 +173,7 @@ export class SessionPermissions implements PlanHost {
             const { op, rule: stored } = entry.payload as unknown as { op: 'add' | 'remove'; rule: PermissionRule }
             const [rule] = this.service.canonical([stored]) as [PermissionRule]
             replayed.rules = op === 'add' ? withRules(replayed.rules, [rule]) : replayed.rules.filter((r) => !sameRule(r, rule))
-          } else if (entry.kind === 'plan_phase') replayed.phase = entry.payload as PlanPhasePayload
+          }
         }
         return replayed
       })()
@@ -179,6 +181,20 @@ export class SessionPermissions implements PlanHost {
       this.#states.set(session.id, state)
     }
     return state
+  }
+
+  /**
+   * 回退提交 rewind 条目之后（checkpoints.ts）：计划阶段按有效条目重新计算，清掉该 Session 的待审阅记录。Permission Mode 与 Session 规则
+   * 不随回退重算（现状）。回退时没有 Run，不需要重新判定待审批请求。
+   */
+  async rewound(sessionId: string): Promise<void> {
+    for (const key of this.#plans.keys()) if (key.startsWith(`${sessionId}:`)) this.#plans.delete(key)
+    const cached = this.#states.get(sessionId)
+    if (!cached) return
+    await this.locked(sessionId, async () => {
+      const state = await cached.catch(() => undefined)
+      if (state) state.phase = planPhaseOf(await this.#store.sessions.listEntries(sessionId))
+    })
   }
 
   /** 同一 Session 的权限修改（与结果确认）串行执行。 */
