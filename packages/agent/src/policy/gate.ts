@@ -74,8 +74,6 @@ export interface PermissionHookPort {
   permissionRequest(call: HookToolCall, signal?: AbortSignal): Promise<HookVerdict>
 }
 
-export type { ReviewFailureCode }
-
 export interface ReviewRequest {
   /** 所属 Run（审查请求记为该 Run 的 model_request）。 */
   runId: string

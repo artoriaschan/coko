@@ -129,7 +129,7 @@ export function deriveTrace(entries: readonly TraceEntry[]): RunTrace[] {
       if (!asked || !tool) continue
       tool.approvalWaitMs = (tool.approvalWaitMs ?? 0) + Math.max(0, entry.createdAt - asked.at)
       tool.approval = payload.outcome as ToolApproval
-      tool.approvalBy = payload.by === 'hook' || payload.by === 'headless' || payload.by === 'reviewer' ? payload.by : 'user'
+      tool.approvalBy = (payload.by as ToolTrace['approvalBy']) ?? 'user'
       continue
     }
     const run = entry.runId ? runs.get(entry.runId) : undefined
