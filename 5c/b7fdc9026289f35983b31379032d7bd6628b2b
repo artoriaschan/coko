@@ -1,0 +1,29 @@
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_77e5a5d6dcb2df 422-427,985-990
+  s_e66561215efab5::t_8bab8cc02cc200 312-322
+  s_e66561215efab5::t_022e6d8025ff55 393-416,421,428-432
+  s_e66561215efab5::t_6ddb7c0cf73d4e 417-420
+  s_e66561215efab5::t_50e7a544d5e0fd 965-971,982,984
+apps/desktop/e2e/plan.e2e.test.ts
+  s_e66561215efab5::t_453745319d3708 243,260-261,285-287
+  s_e66561215efab5::t_6c24101cc0ab2a 4-6,17-18,55-74,233-242,244-259,262-270,276-284,288-294
+  s_e66561215efab5::t_77e5a5d6dcb2df 271-275
+apps/server/src/adapters/faux.ts
+  s_e66561215efab5::t_022e6d8025ff55 31-32,238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "5cb7fdc9026289f35983b31379032d7bd6628b2b",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
