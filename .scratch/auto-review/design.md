@@ -300,7 +300,7 @@ export function buildReviewInput(options: {
 | `REVIEW_PLAN_MAX_CHARS` | 8 000 | 已批准 Plan 的截断 |
 | `REVIEW_EARLIER_CALL_MAX_CHARS` | 2 000 | 单条先前调用：`JSON.stringify(arguments)` 超过时改为 `{ "tool", "arguments_excerpt": 前 2 000 字符, "truncated_chars": 剩余字符数 }` |
 
-截断保留开头，末尾加 `…[truncated N chars]`。截断后总长仍超过 `REVIEW_INPUT_MAX_CHARS` 时，按以下顺序从最早的一项开始整项丢弃，每丢一项重算，直到不超过：先 `earlier_calls`，再 `delegated_tasks.items`，再 `user_messages`（最后一条用户消息不丢）。`goal`、`approved_plan`、`pending_call` 不丢。按上述单项上限，最坏情况下保留项合计约 25 000 字符，必然可以放下。
+截断保留开头，末尾加 `…[truncated N chars]`（N 为截掉的原文字符数）。单项上限按该文本 JSON 转义后的长度计（引号、换行等转义后变长；不切开代理对），否则转义可能把保留项撑过总上限。截断后总长仍超过 `REVIEW_INPUT_MAX_CHARS` 时，按以下顺序从最早的一项开始整项丢弃，每丢一项重算，直到不超过：先 `earlier_calls`，再 `delegated_tasks.items`，再 `user_messages`（最后一条用户消息不丢）。`goal`、`approved_plan`、`pending_call` 不丢。按上述单项上限，最坏情况下保留项合计约 25 000 字符，必然可以放下。
 
 #### 固定审查提示（模型可见契约，`REVIEW_SYSTEM_PROMPT`）
 
