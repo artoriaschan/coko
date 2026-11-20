@@ -1,0 +1,103 @@
+packages/agent/src/policy/decide.ts
+  s_e66561215efab5::t_642cdb3743d2a5 13,150
+apps/desktop/src/renderer/features/conversation/composer.tsx
+  s_e66561215efab5::t_0874e167fc5572 38
+packages/agent/src/planning/planning.test.ts
+  s_e66561215efab5::t_4beb6628fa379a 27,44-45,60-61
+apps/desktop/src/renderer/features/conversation/mode-picker.tsx
+  s_e66561215efab5::t_285575b5216634 14,29,45,55
+packages/agent/src/agents/definitions.ts
+  s_e66561215efab5::t_110423a9560092 35,38,40-41
+docs/README.md
+  s_e66561215efab5::t_48cd8ad9ea56b4 47
+packages/i18n/src/dictionaries/domains/plan.ts
+  s_e66561215efab5::t_d0e2b5999a0d9c 1
+packages/protocol/src/permissions.ts
+  s_e66561215efab5::t_bdfad5697d5a39 9,19-20,31-32,168-169,181
+  s_e66561215efab5::t_0874e167fc5572 18
+apps/desktop/e2e/conversation-workbench-closeout.e2e.test.ts
+  s_e66561215efab5::t_273c15908361b0 267,293-294
+docs/subsystems/permissions.md
+  s_e66561215efab5::t_24ec6f7f651789 239
+  s_e66561215efab5::t_cdf36c125f8a74 3,53,55,61,63,69,81,212,219-220,238,241
+apps/desktop/src/renderer/stores/chat-store-permissions.test.ts
+  s_e66561215efab5::t_e06cde406e8a2a 9,177-194
+docs/subsystems/plan-mode.md
+  s_e66561215efab5::t_7fc878e036ea16 3,17,30,59,65-72,75-78
+packages/agent/src/policy/gate.ts
+  s_e66561215efab5::t_642cdb3743d2a5 46
+  s_e66561215efab5::t_668f598fd48f51 375-377,383,389
+.scratch/plan-lifecycle/issues/07-remove-plan-permission-mode.md
+  s_e66561215efab5::t_d754d7ad89a2ae 11-21
+  s_e66561215efab5::t_e11f39d0b2b9d1 22-46
+tests/integration/sidecar-memory.test.ts
+  s_e66561215efab5::t_db9fa9d8c386f5 3,19,58,64-67,186,197
+docs/subsystems/tracing.md
+  s_e66561215efab5::t_cdf36c125f8a74 53
+packages/agent/src/planning/exit-plan-mode.ts
+  s_e66561215efab5::t_0874e167fc5572 32
+apps/server/src/application/session-permissions.ts
+  s_e66561215efab5::t_5be7dc50dca399 45,159-161
+tests/integration/sidecar-plan.test.ts
+  s_e66561215efab5::t_64c248d58d2864 507-509,519-521
+  s_e66561215efab5::t_f58b39e879ae05 468-470,485-486
+  s_e66561215efab5::t_5f160e63347313 5,8,448-449,451-467,471-484,487-506,510-518,524-531,538-539
+  s_e66561215efab5::t_3a20145744130a 10,450,532-534
+  s_e66561215efab5::t_ce31761d8a9c44 522-523,535-537
+packages/agent/src/session-entries/permissions.ts
+  s_e66561215efab5::t_758e42aade2c57 8,18-19,35-45,113-117,122-123
+  s_e66561215efab5::t_eccd7d3a266aad 118-121
+  s_e66561215efab5::t_0874e167fc5572 17
+packages/agent/src/policy/decide.test.ts
+  s_e66561215efab5::t_64c248d58d2864 334,418,470
+  s_e66561215efab5::t_29d3977c986507 351-352,355,370-379
+  s_e66561215efab5::t_e62f99c3933bb0 213,215
+  s_e66561215efab5::t_291e5b89999274 115
+  s_e66561215efab5::t_22e34b35d17696 289,292,304,318,417,427-429,451,457,464,469,479,491,509,512,523-524
+packages/agent/src/tasks/jobs/tools.ts
+  s_e66561215efab5::t_0874e167fc5572 162
+apps/server/README.md
+  s_e66561215efab5::t_48cd8ad9ea56b4 70
+packages/protocol/src/trace.ts
+  s_e66561215efab5::t_60f1ffe4842d9a 138
+packages/agent/src/policy/sandbox.test.ts
+  s_e66561215efab5::t_e62f99c3933bb0 19,21
+apps/desktop/src/renderer/stores/new-chat-store.test.ts
+  s_e66561215efab5::t_bfdc419dca0bda 1-28
+apps/server/src/application/subagents.ts
+  s_e66561215efab5::t_0874e167fc5572 66
+docs/subsystems/teams.md
+  s_e66561215efab5::t_48cd8ad9ea56b4 78
+apps/desktop/src/renderer/features/conversation/plan.browser.test.tsx
+  s_e66561215efab5::t_3c98c2fef75781 373,378-379
+docs/subsystems/subagents.md
+  s_e66561215efab5::t_f0c6e53061128c 78
+  s_e66561215efab5::t_48cd8ad9ea56b4 56
+apps/server/src/application/permission-scope.test.ts
+  s_e66561215efab5::t_291e5b89999274 1
+apps/desktop/src/renderer/stores/new-chat-store.ts
+  s_e66561215efab5::t_fee948e7c4caaa 54-55
+packages/agent/src/observability/audit.ts
+  s_e66561215efab5::t_60f1ffe4842d9a 28,92
+apps/desktop/src/renderer/stores/chat-store.ts
+  s_e66561215efab5::t_e06cde406e8a2a 515
+apps/server/src/application/session-permissions.test.ts
+  s_e66561215efab5::t_d0cac5d98c9d7a 3,18-19,61,63,66-80,86-87
+  s_e66561215efab5::t_64c248d58d2864 81-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "d2e652ba6d350885df41539e0e9607f21b4b8370",
+  "prompts": {},
+  "sessions": {
+    "s_e66561215efab5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3fa0c-bcc0-43fa-9f00-448d0e32d8e5",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
