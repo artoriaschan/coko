@@ -1,0 +1,50 @@
+packages/ui/src/composer/session-reference-node.browser.test.tsx
+  s_085ed727045dd9::t_17658bcee14c0f 1-54,57-58,60-84,179
+  s_085ed727045dd9::t_7439044d4145f4 100-114
+  s_085ed727045dd9::t_a73ad34b0506d9 141-142
+  s_085ed727045dd9::t_2bd078bb9aae3b 118-124
+  s_085ed727045dd9::t_564ae1c70ab00c 55-56,59
+  s_085ed727045dd9::t_8b1f685672d6e1 85-99,115-117,125-140,143-178
+.scratch/session-reference/issues/04-session-group-and-draft-chip.md
+  s_171661b5c71d73::t_b3c522230990a9 61-64
+docs/subsystems/context.md
+  s_085ed727045dd9::t_642848d8f8529d 116
+apps/desktop/src/renderer/features/conversation/session-reference.browser.test.tsx
+  s_085ed727045dd9::t_511118ad336494 1-123
+apps/desktop/src/renderer/features/conversation/file-menu.tsx
+  s_085ed727045dd9::t_04fa97d7060e62 1,6,29-49,51-58,64-66,68-69,74,85-91,95-106,108,110-113
+apps/desktop/src/renderer/features/conversation/file-menu.browser.test.tsx
+  s_085ed727045dd9::t_45119765da476f 4,12,15-46,50-54,56,63,68,73-75,77,81,83-84,92,94-162,164-187
+  s_085ed727045dd9::t_3064025137a65c 1-3,5-11,13-14,47-49,55,57-62,64-67,69-72,76,78-80,82,85-91,93,163,188-189
+packages/ui/src/composer/session-reference-node.ts
+  s_085ed727045dd9::t_925c8ea2d667c5 1-66
+.scratch/session-reference/issues/05-timeline-session-chip.md
+  s_171661b5c71d73::t_0e1cc7edf6df93 67
+  s_085ed727045dd9::t_075c008cde209d 68-70
+packages/i18n/src/dictionaries/domains/references.ts
+  s_085ed727045dd9::t_babc81b2dbfa49 1,6,8,14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "53b1f8b37f73994fc3b7688b2de2241debecffaa",
+  "prompts": {},
+  "sessions": {
+    "s_085ed727045dd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d626f66c-4285-483b-b8a1-1e40637e2a6c",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    },
+    "s_171661b5c71d73": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08f3a4f9-ec6f-4fff-b690-90e909855fb8",
+        "model": "unknown"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
