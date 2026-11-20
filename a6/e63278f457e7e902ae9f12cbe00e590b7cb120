@@ -1,0 +1,59 @@
+apps/desktop/src/renderer/features/conversation/approval-panel.browser.test.tsx
+  s_d1e837811db462::t_2e9889b7f5a9c9 54-119
+  s_d1e837811db462::t_8e4e67c66c2516 3
+tests/integration/sidecar-auto-review.test.ts
+  s_d1e837811db462::t_ab383d0d1c37de 67-74
+  s_d1e837811db462::t_220a8a278086aa 21-34,56,62-66,103,164,187,197-263,265-284
+  s_d1e837811db462::t_e971b1c1698a97 264
+tests/integration/sidecar-harness.ts
+  s_d1e837811db462::t_220a8a278086aa 577
+packages/agent/src/policy/gate-review.test.ts
+  s_d1e837811db462::t_03ca69797fb2a4 11,166-167,178,180,186,233-258,278,308
+  s_d1e837811db462::t_e971b1c1698a97 168-172
+packages/protocol/src/permissions.ts
+  s_d1e837811db462::t_b3b4b4c6b0f987 39-57,71
+packages/agent/src/policy/gate.ts
+  s_d1e837811db462::t_923f86d164a746 487,522,533
+  s_d1e837811db462::t_1f89d94845bd7a 9,77
+  s_d1e837811db462::t_8f095f28bda120 135
+  s_d1e837811db462::t_e971b1c1698a97 284-291
+  s_d1e837811db462::t_f05bec9df4b853 509
+  s_d1e837811db462::t_b0628a82dc8eed 275-276
+packages/i18n/src/dictionaries/zh.ts
+  s_d1e837811db462::t_208e4710fb0a3a 736-745
+.scratch/auto-review/issues/04-escalation-reason-and-failures.md
+  s_d1e837811db462::t_13837e774b9c3a 11-24,27-44
+packages/i18n/src/dictionaries/en.ts
+  s_d1e837811db462::t_208e4710fb0a3a 744-753
+packages/agent/src/session-entries/permissions.ts
+  s_d1e837811db462::t_50dd2324bd4e6a 58,73-97,165
+  s_d1e837811db462::t_e971b1c1698a97 59-72
+packages/agent/src/session-entries/session-entries.test.ts
+  s_d1e837811db462::t_e971b1c1698a97 189-194
+  s_d1e837811db462::t_22f745bc508d9d 181-188,195-205
+apps/server/src/application/session-reviews.ts
+  s_d1e837811db462::t_ab383d0d1c37de 145-146
+apps/desktop/src/renderer/features/conversation/approval-panel.tsx
+  s_d1e837811db462::t_208e4710fb0a3a 144-160,278
+apps/server/src/application/session-reviews.test.ts
+  s_d1e837811db462::t_37e09cfece5c84 1-5,7-13,18-30
+  s_d1e837811db462::t_718118e40b6529 6
+  s_d1e837811db462::t_0a43e15e033bd0 14,16-17
+  s_d1e837811db462::t_c3b82baa9dc757 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.52-trip",
+  "base_commit_sha": "a6e63278f457e7e902ae9f12cbe00e590b7cb120",
+  "prompts": {},
+  "sessions": {
+    "s_d1e837811db462": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "401eb7a0-a89e-42b3-85d8-10c048be8ba3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "artoriaschan <dalecracker@gmail.com>"
+    }
+  }
+}
